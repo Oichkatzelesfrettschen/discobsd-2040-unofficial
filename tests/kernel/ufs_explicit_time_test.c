@@ -145,12 +145,60 @@ test_read_only_mount(void)
 	HK_CHECK((gate_inode.i_flag & IACC) == 0);
 }
 
+/*
+ * A time with bit 31 set is a time after January 2038 and is stored as given:
+ * the kernel reads the count unsigned, whatever the signedness of the
+ * caller's time_t.
+ */
+static void
+test_times_after_2038(void)
+{
+	struct vattr attributes;
+
+	reset_fixture(MNT_NOATIME);
+	attributes = explicit_times((time_t)2415919104UL, (time_t)4294967294UL);
+	HK_CHECK(ufs_setattr(&gate_inode, &attributes) == 0);
+	HK_CHECK(update_calls == 1);
+	HK_CHECK((gate_inode.i_flag & IACC) != 0);
+	HK_CHECK((gate_inode.i_flag & (IUPD | ICHG)) == (IUPD | ICHG));
+	HK_CHECK(updated_atime == (time_t)2415919104UL);
+	HK_CHECK(updated_mtime == (time_t)4294967294UL);
+}
+
+/*
+ * The count 4294967295 is VNOVAL: a request to leave that time alone, so
+ * it is the one count no file can be given. lib/libc/gen/time64.h refuses it
+ * before the call under the 64-bit view of time.
+ */
+static void
+test_all_ones_leaves_time_alone(void)
+{
+	struct vattr attributes;
+
+	reset_fixture(MNT_NOATIME);
+	attributes = explicit_times((time_t)4294967295UL, (time_t)2415919104UL);
+	HK_CHECK(ufs_setattr(&gate_inode, &attributes) == 0);
+	HK_CHECK(update_calls == 1);
+	HK_CHECK((gate_inode.i_flag & IACC) == 0);
+	HK_CHECK((gate_inode.i_flag & (IUPD | ICHG)) == (IUPD | ICHG));
+	HK_CHECK(updated_mtime == (time_t)2415919104UL);
+
+	reset_fixture(MNT_NOATIME);
+	attributes = explicit_times((time_t)4294967295UL,
+	    (time_t)4294967295UL);
+	HK_CHECK(ufs_setattr(&gate_inode, &attributes) == 0);
+	HK_CHECK(update_calls == 0);
+	HK_CHECK((gate_inode.i_flag & (IACC | IUPD | ICHG)) == 0);
+}
+
 int
 main(void)
 {
 	test_atime_only();
 	test_atime_and_mtime();
 	test_no_timestamp_request();
+	test_times_after_2038();
+	test_all_ones_leaves_time_alone();
 	test_read_only_mount();
 	return hk_verdict("ufs explicit timestamp contract");
 }

@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "integration_base": "c397f6e61ba146f0ca9d56178bdc39a75b3565ab",
+  "evidence": [
+    {
+      "path": ".build-logs/introsort-equal-band/inputs.sha256",
+      "sha256": "b170c8bfb642c71baf4aca17464f050230faed94f607e77b22c6cdecbd440dce"
+    },
+    {
+      "path": ".build-logs/introsort-equal-band/results.json",
+      "sha256": "ab44eb8604cb6ad5e30ca32b234fac7830f82838011b9505efadc9e1230d2746"
+    },
+    {
+      "path": ".build-logs/introsort-equal-band/qualification.log",
+      "sha256": "8afada65f5c9bfbcf31d6fe71feca170e44f6757be9b5c05e7b3014b9701ddbf"
+    },
+    {
+      "path": ".build-logs/introsort-equal-band/parent-acceptance.log",
+      "sha256": "a5820a9bb5de3afb8882cef740ec67befe05f4ca3d18679a2542d478384c59b7"
+    },
+    {
+      "path": ".build-logs/shared-libc-size-options/variant-links.json",
+      "sha256": "3c9593670e44f46ee688d833e2dd3ee5ea0228f17a6008f0f6dc03ddc0fe5baa"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/receipt.json",
+      "sha256": "ee3ea43810d1e7e84946f388e0f0af678779281f1871f9692981c8a38fb2a17f"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/static-parity.log",
+      "sha256": "bc3bca963b15fa7f014d86bad2bab957758591bd5d632cde8bd96a7595cf1e37"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/static_parity.py",
+      "sha256": "83836b51a98c538c647b1ab2c5dcd61821a911fd64e5f29dea63b37dc0b6cebf"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/layout.json",
+      "sha256": "cc206145b6cc3dcb7d422772be32fc3ee4bb3dbe550468308e2e0f565e49aedd"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/exercise.py",
+      "sha256": "d10e7bb18777d509ae5df82a7da5b59884c596e6b46217d319d1f9a62cdeae07"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/runtime.json",
+      "sha256": "65502d36efc71ccfc563543186370bc9ab0a5065a0e617f816fd41ab0a1e20a2"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/construction_control.py",
+      "sha256": "8aa00b934fa7b90914e8e676a78470fa9eecb0480c8a47abe4cd5e3c322b3bdb"
+    },
+    {
+      "path": ".build-logs/shared-syscall-tail/construction-control.log",
+      "sha256": "fe709735aa48f48158f3fd523095928cc353a49faf192328ea6e130d81f23e08"
+    }
+  ],
+  "compiler_options": [
+    {
+      "optimization": "Os",
+      "source_head": "e36425ce00fefeab8ee78fefbe8a872c51645c4e",
+      "members": 449,
+      "roots": 646,
+      "flash_bytes": 62220,
+      "excess_before_slots": 13068,
+      "state_bytes": 5344,
+      "initialized_state_bytes": 1536,
+      "got_bytes": 648,
+      "elf_sha256": "751cfac3e6428c2a5c3654ed61792fe4d604d144b3e2177d3c2888dbdb7a1a53",
+      "compile_receipt_sha256": "6f199f7960e5eb47806e77b2fa15bfa79bb8fe01caf46bb29f3a3f7dbc4dde62",
+      "linker_script_sha256": "3cfdf53ca8449c510568a4b0775773fdecab2ac51cadd2da368349c09db44371",
+      "startup_fixture_sha256": "3a47a2e32bbaf1ba161c9c5ba32a183d712f4bf81ae2ae76ac084e303939581e"
+    },
+    {
+      "optimization": "Oz",
+      "source_head": "e36425ce00fefeab8ee78fefbe8a872c51645c4e",
+      "members": 449,
+      "roots": 646,
+      "flash_bytes": 62220,
+      "excess_before_slots": 13068,
+      "state_bytes": 5344,
+      "initialized_state_bytes": 1536,
+      "got_bytes": 648,
+      "elf_sha256": "751cfac3e6428c2a5c3654ed61792fe4d604d144b3e2177d3c2888dbdb7a1a53",
+      "compile_receipt_sha256": "67b4e80841bce313f0766299dc4557ce6faa037226230f35e8f9794d9fad4dc9",
+      "linker_script_sha256": "3cfdf53ca8449c510568a4b0775773fdecab2ac51cadd2da368349c09db44371",
+      "startup_fixture_sha256": "3a47a2e32bbaf1ba161c9c5ba32a183d712f4bf81ae2ae76ac084e303939581e"
+    }
+  ],
+  "syscall_model": {
+    "elf_sha256": "a3372a354bfdb7a05abcbdbc07327a236900afea29d9205d21ceddf8706830df",
+    "class": "Unicorn instruction execution with modeled SVC outcomes",
+    "results": [
+      {
+        "mode": "normal",
+        "state": "passed",
+        "calls": 32
+      },
+      {
+        "mode": "even-helper",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid instruction (UC_ERR_INSN_INVALID)"
+      },
+      {
+        "mode": "wrong-helper",
+        "state": "rejected",
+        "reason": "return value differs"
+      },
+      {
+        "mode": "omit-relocations",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid memory write (UC_ERR_WRITE_UNMAPPED)"
+      },
+      {
+        "mode": "wrong-owner",
+        "state": "rejected",
+        "reason": "errno differs"
+      },
+      {
+        "mode": "ptrace-literal-alias",
+        "state": "rejected",
+        "reason": "modeled execution: Invalid memory read (UC_ERR_READ_UNMAPPED)"
+      }
+    ]
+  },
+  "sorting": {
+    "acceptance": "passed",
+    "compiler_profiles": [
+      "GCC",
+      "GCC native ILP32",
+      "Clang",
+      "Clang ASan/UBSan"
+    ],
+    "production_adoption": false
+  },
+  "hardware": "not run; separate authorization required"
+}

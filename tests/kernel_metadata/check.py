@@ -27,6 +27,11 @@ def records(path: Path, fields: int) -> list[list[str]]:
     return records_text(path.read_text(), str(path), fields)
 
 
+# Character majors past 11 in the RP2040 cdevsw: 12, the general-purpose
+# pins, and 13, the PicoCalc sample audio.
+UNION_CDEVSW_ROWS = 2
+
+
 def count_initializer_rows(source: str, declaration: str) -> int:
     try:
         body = source.split(declaration, 1)[1].split("\n};", 1)[0]
@@ -199,6 +204,22 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     ):
         raise CheckError("RP2040 cdevsw must add exactly major 11 under SD_ENABLED")
     cdevsw_body = cdevsw_body.replace(sd_char.group(0), "", 1)
+    # The majors past 11 sit in one block that needs both the console and
+    # the SD driver, so their numbers hold; its rows are numbered from 12
+    # in order.
+    union = re.search(
+        r"^#if defined\(PICOCALC_ENABLED\) && defined\(SD_ENABLED\)\n(.*?)^#endif\n",
+        cdevsw_body,
+        re.MULTILINE | re.DOTALL,
+    )
+    if union is None:
+        raise CheckError("RP2040 cdevsw must add majors past 11 under both options")
+    union_rows = re.findall(r"^\s*\{\s*/\* (\d+) - ", union.group(1), re.MULTILINE)
+    if union_rows != [str(major) for major in range(12, 12 + UNION_CDEVSW_ROWS)] or len(
+        re.findall(r"^\s*\{", union.group(1), re.MULTILINE)
+    ) != UNION_CDEVSW_ROWS:
+        raise CheckError("RP2040 cdevsw union rows must be majors 12 upward in order")
+    cdevsw_body = cdevsw_body.replace(union.group(0), "", 1)
     picocalc = re.search(
         r"^#ifdef PICOCALC_ENABLED\n(.*?)^#endif\n(?=\s*/\*\s*\n\s*\* End the list)",
         cdevsw_body,
@@ -208,7 +229,7 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("RP2040 cdevsw must add exactly major 10 under PICOCALC_ENABLED")
     if "/* 10 - " not in picocalc.group(1):
         raise CheckError("RP2040 cdevsw PICOCALC row must be major 10")
-    if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 14:
+    if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 14 + UNION_CDEVSW_ROWS:
         raise CheckError("RP2040 cdevsw must retain only majors 0..9 outside PICOCALC")
 
     # openi() refuses a write open of any disk character device at

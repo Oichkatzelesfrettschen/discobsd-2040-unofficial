@@ -10,8 +10,6 @@ on:
   push:
     branches:
       - main
-      - 'feat/**'
-      - 'ci/**'
     paths:
       - 'distrib/rp2040/host/**'
       - '.github/workflows/host.yml'

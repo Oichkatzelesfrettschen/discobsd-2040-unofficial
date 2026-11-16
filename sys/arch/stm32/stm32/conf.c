@@ -314,6 +314,19 @@ chrtoblk(dev_t dev __unused)
 	return NODEV;
 }
 
+/* sdunit() selects minor bit 3 for shared card setup and partition state. */
+int
+blkdev_same_unit(dev_t a, dev_t b)
+{
+	if (a == b)
+		return 1;
+#ifdef SD_ENABLED
+	if (major(a) == 0 && major(b) == 0)
+		return ((minor(a) ^ minor(b)) & 8) == 0;
+#endif
+	return 0;
+}
+
 /*
  * Routine to determine whether two block devices address the same storage.
  * A minimal stub routine can always compare the device numbers.

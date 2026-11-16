@@ -39,11 +39,11 @@ _Static_assert (sizeof (struct hsx_work) <= SWAPRAM_CODEC_WORK_BYTES,
 
 /* Read len packed bytes at off from the executable; short is an error. */
 static int
-hsx_fill (void *ctx, unsigned off, void *buf, unsigned len)
+hsx_fill (void *ctx, unsigned off, void *buffer, unsigned len)
 {
     int resid = 0, error;
 
-    error = rdwri (UIO_READ, (struct inode *) ctx, (caddr_t) buf, (int) len,
+    error = rdwri (UIO_READ, (struct inode *) ctx, (caddr_t) buffer, (int) len,
         (off_t) off, IO_UNIT, &resid);
     return (error != 0 || resid != 0) ? -1 : 0;
 }

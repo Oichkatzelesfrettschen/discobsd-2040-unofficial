@@ -93,7 +93,7 @@ static int def_top, def_bottom = 160;	/* VSCRDEF fixed areas. */
 static int vscsad;
 static int nwindow, nscroll, nscrdef, ncolmod, nreset;
 static long npixels;			/* Pixels stored since the last clear. */
-static int win_open, wx0, wy0, wx1, wy1, wcx, wcy, wnb;
+static int win_open, wx0, wx1, wy1, wcx, wcy, wnb;
 #define	WLOG_MAX	64
 static struct {
 	int x0, y0, x1, y1;
@@ -211,7 +211,7 @@ lcd_gfx_window(int x0, int y0, int x1, int y1)
 	wlog_n++;
 	win_open = 1;
 	wx0 = last_x0 = x0;
-	wy0 = last_y0 = y0;
+	last_y0 = y0;
 	wx1 = last_x1 = x1;
 	wy1 = last_y1 = y1;
 	wcx = x0;

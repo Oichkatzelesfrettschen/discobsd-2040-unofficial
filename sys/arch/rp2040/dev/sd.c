@@ -73,12 +73,16 @@
 #include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/buf.h>
+
+#include <machine/board.h>
 #include <sys/conf.h>
 #include <sys/config.h>
 #include <sys/disk.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
+
+#include <machine/dump.h>
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
@@ -158,7 +162,7 @@ static const struct sdspi_ops sd_ops = {
 	sd_xfer, sd_select, sd_speed, sd_micros
 };
 
-static struct sdspi sdcard = { &sd_ops, SD_NONE, 0 };
+static struct sdspi sdcard = { &sd_ops, SD_NONE, 0, 0 };
 static struct diskpart sdpt[MAXPARTITIONS + 1];	/* [0] is the whole card. */
 
 /*
@@ -463,9 +467,108 @@ sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 	return EINVAL;
 }
 
+/*
+ * The crash dump (machine/dump.h). boot() calls sddump() through dumpsys()
+ * in machdep.c after a panic or a reboot with RB_DUMP, with every interrupt
+ * masked, so it drives the card by polling on a card state of its own and
+ * leaves sdcard, the partition table and the open masks as the system left
+ * them. It initializes whatever card is in the socket, reads only the
+ * partition entries and signature of its sector 0, and takes the first
+ * entry of type DUMP_PART_TYPE that lies inside the card.
+ *
+ * A partition that a block open still holds is refused, because a mount
+ * writes to it through the buffer cache: while the card that open accepted
+ * is still in the socket, the dump partition must not overlap the extent of
+ * any block-open minor, the whole card included. A replaced card holds no
+ * mount, since every transfer to it fails until the last close, so its
+ * dump partition is free.
+ */
+struct sd_dumpdev {
+	struct sdspi	card;
+	u_int		offset;		/* The partition's first sector. */
+};
+
+static int
+sd_dump_sector(void *arg, u_int sector, const u_char *data, u_int len,
+    u_int *crc)
+{
+	struct sd_dumpdev *dd = arg;
+
+	return sdspi_write_span(&dd->card, dd->offset + sector, data, len,
+	    crc) == SDE_OK ? 0 : EIO;
+}
+
+/* A block open of the accepted card covers part of the given extent. */
+static int
+sd_dump_busy(u_int offset, u_int nsectors)
+{
+	u_int part, end;
+
+	if (card_changed)
+		return 0;
+	for (part = 0; part <= MAXPARTITIONS; part++) {
+		if ((sd_blkopen & (1U << part)) == 0)
+			continue;
+		end = sdpt[part].dp_offset + sdpt[part].dp_nsectors;
+		if (sdpt[part].dp_offset < offset + nsectors && offset < end)
+			return 1;
+	}
+	return 0;
+}
+
+int
+sddump(dev_t dev, const struct dump_span *span, u_int nspan,
+    u_int image, u_int when)
+{
+	struct sd_dumpdev dd = { { &sd_ops, SD_NONE, 0, 0 }, 0 };
+	u_char tab[MAXPARTITIONS * 16 + 2];
+	struct diskpart dp;
+	int i, error;
+
+	if (dev != makedev(SD_BMAJOR, 0))
+		return ENXIO;
+	sd_select(0);
+	if (sdspi_init(&dd.card) != SDE_OK) {
+		printf("dump: no SD card\n");
+		return ENXIO;
+	}
+	if (sdspi_read_span(&dd.card, 0, tab, 446, sizeof(tab)) != SDE_OK ||
+	    tab[sizeof(tab) - 2] != 0x55 || tab[sizeof(tab) - 1] != 0xaa) {
+		printf("dump: no partition table on sd0\n");
+		return ENXIO;
+	}
+	for (i = 0; i < MAXPARTITIONS; i++) {
+		bcopy(&tab[i * 16], &dp, sizeof(dp));
+		if (dp.dp_type == DUMP_PART_TYPE && dp.dp_nsectors != 0 &&
+		    dp.dp_offset <= dd.card.nsectors &&
+		    dp.dp_nsectors <= dd.card.nsectors - dp.dp_offset)
+			break;
+	}
+	if (i == MAXPARTITIONS) {
+		printf("dump: no partition of type %02x on sd0\n",
+		    DUMP_PART_TYPE);
+		return ENXIO;
+	}
+	if (sd_dump_busy(dp.dp_offset, dp.dp_nsectors)) {
+		printf("dump: sd0%c is in use\n", 'a' + i);
+		return EBUSY;
+	}
+	dd.offset = dp.dp_offset;
+	printf("dump: sd0%c, %u kbytes: ", 'a' + i, dp.dp_nsectors / 2);
+	error = dump_write(sd_dump_sector, &dd, dp.dp_nsectors, span, nspan,
+	    image, when);
+	if (error == 0)
+		printf("succeeded\n");
+	else
+		printf("failed, error %d\n", error);
+	return error;
+}
+
 static int
 sdprobe(struct conf_device *config __unused)
 {
+	if (board_id() != BOARD_ID_PICOCALC)
+		return 0;
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_SPI0);
 	pc_gpio_output(PICOCALC_SD_CS, 1);
 	pc_pin(PICOCALC_SD_SCK, PC_FUNC_SPI, 0);
@@ -476,6 +579,8 @@ sdprobe(struct conf_device *config __unused)
 	det_cand = det_level = sd_det_pin();
 	printf("sd0: SPI0 on GP%d-GP%d, card detect GP%d\n", PICOCALC_SD_RX,
 	    PICOCALC_SD_TX, PICOCALC_SD_DET);
+	/* The socket exists: a panic dumps to the card in it (sddump()). */
+	dumpdev = makedev(SD_BMAJOR, 0);
 	return 1;
 }
 

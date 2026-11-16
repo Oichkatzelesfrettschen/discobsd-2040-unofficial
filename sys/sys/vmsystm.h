@@ -42,6 +42,7 @@ struct proc;
 #define SWAP_IMAGE_COMMITTED   3
 #define SWAP_IMAGE_FLASH       0
 #define SWAP_IMAGE_RAM         1
+#define SWAP_IMAGE_EXCHANGE    2
 
 /* The owner holds backing from reservation through copy and commit or cancel. */
 struct swap_image_reservation {
@@ -50,6 +51,7 @@ struct swap_image_reservation {
     size_t span;
     size_t data_blocks;
     size_t stack_blocks;
+    size_t exchange_span;
     size_t text;
     size_t data;
     size_t stack;
@@ -58,6 +60,10 @@ struct swap_image_reservation {
 };
 
 size_t swap_image_span(struct proc *);
+int swap_exchange_switch(struct swap_image_reservation *, struct proc *,
+    struct proc *, int);
+void swap_exchange_inplace(struct swap_image_reservation *, struct proc *,
+    struct proc *);
 int swap_image_reserve(struct swap_image_reservation *, struct proc *,
     struct proc *, u_int, u_int);
 void swap_image_copy_out(struct swap_image_reservation *, struct proc *);

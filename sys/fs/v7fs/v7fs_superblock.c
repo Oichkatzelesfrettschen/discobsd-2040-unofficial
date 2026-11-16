@@ -122,12 +122,15 @@ v7fs_superblock_sanity(struct v7fs_self *fs)
 	const struct v7fs_superblock *sb = &fs->superblock;
 	void *buf = 0;
 
+	/*
+	 * update_time is an unsigned 32-bit count of seconds, so a count with
+	 * bit 31 set, a date after January 2038, is a valid superblock time.
+	 */
 	if ((sb->volume_size < 128) || /* smaller than 64KB. */
 	    (sb->datablock_start_sector > sb->volume_size) ||
 	    (sb->nfreeinode < 0) || (sb->nfreeinode > V7FS_MAX_FREEINODE) ||
 	    (sb->nfreeblock < 0) || (sb->nfreeblock > V7FS_MAX_FREEBLOCK) ||
 	    ((sb->nfreeblock == 0) && (sb->total_freeblock != 0)) ||
-	    (sb->update_time < 0) ||
 	    (sb->total_freeblock > sb->volume_size) ||
 	    ((sb->nfreeinode == 0) && (sb->nfreeblock == 0) &&
 		(sb->total_freeblock == 0) && (sb->total_freeinode == 0))) {

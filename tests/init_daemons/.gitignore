@@ -1,0 +1,4 @@
+init_daemons_test
+daemons_*-*.c
+daemons_*-*.test
+daemons_*-*.out

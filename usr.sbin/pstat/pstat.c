@@ -5,81 +5,74 @@
  * All rights reserved.  The Berkeley software License Agreement
  * specifies the terms and conditions for redistribution.
  */
+
+/*
+ * pstat reads the kernel's sysctl(3) records and holds no kernel address:
+ * KERN_INODE, KERN_FILE (KERN_FILE_BYFILE), KERN_TTY, KERN_PROC, VM_SWAPMAP,
+ * VM_NSWAP and KERN_CAPACITY (sys/sysctl.h, sys/capacity.h). The kernel
+ * returns the inode, file and terminal tables to the super-user alone, so
+ * those views fail with EPERM for any other caller; the process, swap and
+ * capacity records need no privilege.
+ *
+ * Every RP2040 kernel configuration builds with COMPACT_SWAPMAP, and the
+ * VM_SWAPMAP payload carries that four-byte struct mapent. The userland
+ * CFLAGS define COMPACT_SWAPMAP; the guard below keeps the layout correct
+ * when sys/map.h is reached without them.
+ */
+#ifndef	COMPACT_SWAPMAP
+#define	COMPACT_SWAPMAP
+#endif
 #include <sys/param.h>
-#define	KERNEL
-#include <sys/file.h>
-#include <sys/user.h>
-#undef	KERNEL
-#include <sys/proc.h>
-#include <sys/inode.h>
-#include <sys/mount.h>
-#include <sys/map.h>
-#include <sys/ioctl.h>
+#include <sys/sysctl.h>
+#include <sys/capacity.h>
 #include <sys/tty.h>
-#include <sys/conf.h>
-#include <sys/vm.h>
-#include <nlist.h>
-#include <stddef.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <string.h>
 
-void	usage();
-void	doinode();
-u_int	getuint(off_t);
+/*
+ * f_flag bits the kernel keeps for its file-table sweep; sys/fcntl.h
+ * exposes them to the kernel alone, and kf_flag carries them unchanged.
+ */
+#ifndef	FMARK
+#define	FMARK		0x1000
+#endif
+#ifndef	FDEFER
+#define	FDEFER		0x2000
+#endif
+
+_Static_assert(sizeof(struct mapent) == 4,
+    "pstat must decode the compact RP2040 swap descriptors");
+
+#define	KBYTES(blocks)	((unsigned long)(blocks) * DEV_BSIZE / 1024)
+
+void	usage(void);
+void	fail(const char *);
+void	*fetchrecords(const char *, int *, u_int, size_t *);
+void	fetchfixed(const char *, int *, u_int, void *, size_t);
+int	capacitylimit(int);
+void	getcapacity(struct kernel_capacity_stats *);
+void	doinode(void);
 void	putf(long, char);
-void	doproc();
-void	dotty();
-void	dottytype(char *, int);
-void	ttyprt(struct tty *, int);
-void	dousr();
-int	oatoi(char *);
-void	dofile();
-void	doswap();
-
-char	*fcore	= "/dev/kmem";
-char	*fmem	= "/dev/mem";
-int	fc, fm;
-
-struct nlist nl[] = {
-#define	SINODE	0
-	{ "_inode" },
-#define	SPROC	1
-	{ "_proc" },
-#define	SKL	2
-	{ "_cnttys" },
-#define	SFIL	3
-	{ "_file" },
-#define	SNSWAP	4
-	{ "_nswap" },
-#define	SWAPMAP	5
-	{ "_swapmap" },
-#define	SNPROC	6
-	{ "_nproc" },
-#define	SMOUNT	7
-	{ "_mount" },
-	{ "" }
-};
+void	doproc(void);
+void	dotty(void);
+void	ttyprt(const struct kinfo_tty *);
+void	dofile(void);
+void	doswap(void);
+void	dototals(void);
 
 int	inof;
 int	prcf;
 int	ttyf;
-int	usrf;
-long	ubase;
 int	filf;
 int	swpf;
 int	totflg;
-int	allflg;
-int	kflg;
 
 int
-main(argc, argv)
-int argc;
-char **argv;
+main(int argc, char **argv)
 {
 	register char *argp;
-	int allflags;
 
 	argc--, argv++;
 	while (argc > 0 && **argv == '-') {
@@ -93,17 +86,8 @@ char **argv;
 			totflg++;
 			break;
 
-		case 'a':
-			allflg++;
-			break;
-
 		case 'i':
 			inof++;
-			break;
-
-		case 'k':
-			kflg++;
-			fcore = fmem = "/core";
 			break;
 
 		case 'p':
@@ -112,14 +96,6 @@ char **argv;
 
 		case 't':
 			ttyf++;
-			break;
-
-		case 'u':
-			if (argc == 0)
-				break;
-			argc--;
-			usrf++;
-			sscanf( *argv++, "%lx", &ubase);
 			break;
 
 		case 'f':
@@ -133,151 +109,194 @@ char **argv;
 			exit(1);
 		}
 	}
-	if (argc>0) {
-		fcore = fmem = argv[0];
-		kflg++;
-	}
-	if ((fc = open(fcore, 0)) < 0) {
-		printf("Can't find %s\n", fcore);
+	if (argc > 0) {
+		usage();
 		exit(1);
 	}
-	if ((fm = open(fmem, 0)) < 0) {
-		printf("Can't find %s\n", fmem);
-		exit(1);
-	}
-	knlist(nl);
-
-	if (nl[0].n_value == 0) {
-		printf("no namelist, n_type: %d n_value: %x n_name: %s\n", nl[0].n_type, nl[0].n_value, nl[0].n_name);
-		exit(1);
-	}
-	if (! (filf | totflg | inof | prcf | ttyf | usrf | swpf))
+	if (! (filf | totflg | inof | prcf | ttyf | swpf))
 		filf++;
 
-	if (filf||totflg)
-		dofile();
-	if (inof||totflg)
-		doinode();
-	if (prcf||totflg)
-		doproc();
+	if (totflg)
+		dototals();
+	else {
+		if (filf)
+			dofile();
+		if (inof)
+			doinode();
+		if (prcf)
+			doproc();
+	}
 	if (ttyf)
 		dotty();
-	if (usrf)
-		dousr();
 	if (swpf||totflg)
 		doswap();
+	return (0);
 }
 
 void
-usage()
+usage(void)
 {
-	printf("usage: pstat -[aikptfsT] [-u [ubase]] [core]\n");
+	fprintf(stderr, "usage: pstat -[iptfsT]\n");
+}
+
+/* Report the failed sysctl(3) call for a view and exit. */
+void
+fail(const char *view)
+{
+	fprintf(stderr, "pstat: %s: %s\n", view, strerror(errno));
+	exit(1);
+}
+
+/*
+ * Read the whole record array a name selects: a size query sizes the
+ * buffer, and a table that grew between the query and the read (ENOMEM)
+ * is sized again. The caller frees the buffer; *lenp is the bytes read.
+ */
+void *
+fetchrecords(const char *view, int *mib, u_int miblen, size_t *lenp)
+{
+	void *buf;
+	size_t size;
+	int attempt, error;
+
+	for (attempt = 0; attempt < 4; attempt++) {
+		size = 0;
+		if (sysctl(mib, miblen, NULL, &size, NULL, 0) < 0)
+			fail(view);
+		buf = malloc(size ? size : 1);
+		if (buf == NULL) {
+			fprintf(stderr, "pstat: out of memory\n");
+			exit(1);
+		}
+		if (sysctl(mib, miblen, buf, &size, NULL, 0) >= 0) {
+			*lenp = size;
+			return (buf);
+		}
+		error = errno;
+		free(buf);
+		if (error != ENOMEM) {
+			errno = error;
+			fail(view);
+		}
+	}
+	errno = ENOMEM;
+	fail(view);
+	return (NULL);
+}
+
+/* Read a value of exactly want bytes into dst, or exit. */
+void
+fetchfixed(const char *view, int *mib, u_int miblen, void *dst, size_t want)
+{
+	size_t size = want;
+
+	if (sysctl(mib, miblen, dst, &size, NULL, 0) < 0)
+		fail(view);
+	if (size != want) {
+		fprintf(stderr, "pstat: %s: value is %u bytes, expected %u\n",
+		    view, (unsigned)size, (unsigned)want);
+		exit(1);
+	}
 }
 
 void
-doinode()
+getcapacity(struct kernel_capacity_stats *stats)
 {
-	register struct inode *ip;
-	struct inode *xinode;
-	register int nin;
-	u_int ainode;
-#ifdef SINGLE_UFS_ROOT
-	struct mount root_mount;
-	u_int mount_address;
+	int mib[2];
 
-	_Static_assert(sizeof(struct inode) == 84,
-	    "pstat must use the RP2040 kernel inode layout");
-#endif
+	mib[0] = CTL_KERN;
+	mib[1] = KERN_CAPACITY;
+	fetchfixed("capacity", mib, 2, stats, sizeof(*stats));
+	if (stats->version != KERNEL_CAPACITY_VERSION) {
+		fprintf(stderr, "pstat: capacity: version %u, expected %u\n",
+		    (unsigned)stats->version, (unsigned)KERNEL_CAPACITY_VERSION);
+		exit(1);
+	}
+}
 
-	nin = 0;
-	xinode = (struct inode *)calloc(NINODE, sizeof (struct inode));
-	if (xinode == NULL) {
-		fprintf(stderr, "can't allocate memory for inode table\n");
-		return;
+/*
+ * The table limit KERN_CAPACITY reports for a kind, or -1 when the kernel
+ * serves no capacity record; a view prints its denominator only when known.
+ */
+int
+capacitylimit(int kind)
+{
+	struct kernel_capacity_stats stats;
+	size_t size = sizeof(stats);
+	int mib[2];
+
+	mib[0] = CTL_KERN;
+	mib[1] = KERN_CAPACITY;
+	if (sysctl(mib, 2, &stats, &size, NULL, 0) < 0 ||
+	    size != sizeof(stats) || stats.version != KERNEL_CAPACITY_VERSION)
+		return (-1);
+	return (stats.metric[kind].limit);
+}
+
+/* Print "n/limit what", or "n what" when the limit is unknown. */
+static void
+putcount(int n, int limit, const char *what)
+{
+	if (limit < 0)
+		printf("%d %s\n", n, what);
+	else
+		printf("%d/%d %s\n", n, limit, what);
+}
+
+void
+doinode(void)
+{
+	static const int mib[2] = { CTL_KERN, KERN_INODE };
+	struct kinfo_inode *ip, *xinode;
+	size_t len;
+	int nin;
+
+	xinode = fetchrecords("inodes", (int *)mib, 2, &len);
+	if (len % sizeof(*xinode) != 0) {
+		fprintf(stderr, "pstat: inodes: %u bytes is not a whole "
+		    "number of %u-byte records\n", (unsigned)len,
+		    (unsigned)sizeof(*xinode));
+		exit(1);
 	}
-	ainode = nl[SINODE].n_value;
-#ifdef SINGLE_UFS_ROOT
-	mount_address = nl[SMOUNT].n_value;
-	if (mount_address == 0 ||
-	    lseek(fc, (off_t)mount_address, 0) < 0 ||
-	    read(fc, &root_mount, sizeof(root_mount)) != sizeof(root_mount)) {
-		fprintf(stderr, "can't read root mount record\n");
-		free(xinode);
-		return;
-	}
-#endif
-	lseek(fc, (off_t)ainode, 0);
-	read(fc, xinode, NINODE * sizeof(struct inode));
-	for (ip = xinode; ip < &xinode[NINODE]; ip++)
-		if (ip->i_count)
-			nin++;
-	if (totflg) {
-		printf("%3d/%3d inodes\n", nin, NINODE);
-		return;
-	}
-	printf("%d/%d active inodes\n", nin, NINODE);
-        printf("   LOC       FLAGS      CNT  DEVICE  RDC WRC  INO   MODE  NLK  UID  SIZE/DEV FS\n");
-	for (ip = xinode; ip < &xinode[NINODE]; ip++) {
-		if (ip->i_count == 0)
-			continue;
-		printf("%08x ", ainode + (ip - xinode)*sizeof (*ip));
-		putf((long)ip->i_flag&ILOCKED, 'L');
-		putf((long)ip->i_flag&IUPD, 'U');
-		putf((long)ip->i_flag&IACC, 'A');
-		putf((long)ip->i_flag&IMOUNT, 'M');
-		putf((long)ip->i_flag&IWANT, 'W');
-		putf((long)ip->i_flag&ITEXT, 'T');
-		putf((long)ip->i_flag&ICHG, 'C');
-		putf((long)ip->i_flag&ISHLOCK, 'S');
-		putf((long)ip->i_flag&IEXLOCK, 'E');
-		putf((long)ip->i_flag&ILWAIT, 'Z');
-		putf((long)ip->i_flag&IPIPE, 'P');
-		putf((long)ip->i_flag&IMOD, 'm');
-		putf((long)ip->i_flag&IRENAME, 'r');
-		putf((long)ip->i_flag&IXMOD, 'x');
-		printf("%4d", ip->i_count);
-#ifdef SINGLE_UFS_ROOT
-		printf("%4d,%3d", major(root_mount.m_dev),
-		    minor(root_mount.m_dev));
-#else
-		printf("%4d,%3d", major(ip->i_dev), minor(ip->i_dev));
-#endif
-		printf("%4d", ip->i_flag&IPIPE ? 0 : ip->i_shlockc);
-		printf("%4d", ip->i_flag&IPIPE ? 0 : ip->i_exlockc);
-		printf("%6u ", ip->i_number);
-		printf("%7.1o", ip->i_mode);
-		printf("%4d", ip->i_nlink);
-		printf("%5u", ip->i_uid);
-		if ((ip->i_mode&IFMT)==IFBLK || (ip->i_mode&IFMT)==IFCHR)
-			printf("%6d,%3d", major(ip->i_rdev), minor(ip->i_rdev));
+	nin = (int)(len / sizeof(*xinode));
+	putcount(nin, capacitylimit(CAPACITY_INODE), "active inodes");
+	printf("%-14s%4s%8s%4s%4s%7s%7s%4s%5s%10s\n", "FLAGS", "CNT",
+	    "DEVICE", "RDC", "WRC", "INO", "MODE", "NLK", "UID", "SIZE/DEV");
+	for (ip = xinode; ip < &xinode[nin]; ip++) {
+		putf((long)ip->ki_flag&ILOCKED, 'L');
+		putf((long)ip->ki_flag&IUPD, 'U');
+		putf((long)ip->ki_flag&IACC, 'A');
+		putf((long)ip->ki_flag&IMOUNT, 'M');
+		putf((long)ip->ki_flag&IWANT, 'W');
+		putf((long)ip->ki_flag&ITEXT, 'T');
+		putf((long)ip->ki_flag&ICHG, 'C');
+		putf((long)ip->ki_flag&ISHLOCK, 'S');
+		putf((long)ip->ki_flag&IEXLOCK, 'E');
+		putf((long)ip->ki_flag&ILWAIT, 'Z');
+		putf((long)ip->ki_flag&IPIPE, 'P');
+		putf((long)ip->ki_flag&IMOD, 'm');
+		putf((long)ip->ki_flag&IRENAME, 'r');
+		putf((long)ip->ki_flag&IXMOD, 'x');
+		printf("%4d", (int)ip->ki_count);
+		printf("%4d,%3d", major(ip->ki_dev), minor(ip->ki_dev));
+		printf("%4d", (int)ip->ki_shlockc);
+		printf("%4d", (int)ip->ki_exlockc);
+		printf("%6u ", (unsigned)ip->ki_number);
+		printf("%7.1o", (unsigned)ip->ki_mode);
+		printf("%4d", (int)ip->ki_nlink);
+		printf("%5u", (unsigned)ip->ki_uid);
+		if ((ip->ki_mode&IFMT)==IFBLK || (ip->ki_mode&IFMT)==IFCHR)
+			printf("%6d,%3d", major(ip->ki_isize),
+			    minor(ip->ki_isize));
 		else
-			printf("%10ld", ip->i_size);
-#ifdef SINGLE_UFS_ROOT
-		printf(" %08x", mount_address + offsetof(struct mount, m_filsys));
-#else
-		printf(" %08x", ip->i_fs);
-#endif
+			printf("%10ld", (long)ip->ki_isize);
 		printf("\n");
 	}
 	free(xinode);
 }
 
-u_int
-getuint(loc)
-	off_t loc;
-{
-	u_int word;
-
-	lseek(fc, loc, 0);
-	read(fc, &word, sizeof (word));
-
-	return (word);
-}
-
 void
-putf(v, n)
-	long	v;
-	char	n;
+putf(long v, char n)
 {
 	if (v)
 		printf("%c", n);
@@ -286,332 +305,166 @@ putf(v, n)
 }
 
 void
-doproc()
+doproc(void)
 {
-	struct proc *xproc;
-	u_int nproc, aproc;
-	register struct proc *pp;
-	register int loc, np;
+	static const int mib[5] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0,
+	    sizeof(struct kinfo_proc) };
+	struct kinfo_proc *xproc, *pp;
+	size_t len;
+	int np;
 
-	nproc = getuint((off_t)nl[SNPROC].n_value);
-	xproc = (struct proc *)calloc(nproc, sizeof (struct proc));
-	aproc = nl[SPROC].n_value;
-	if (nproc < 0 || nproc > 10000) {
-		fprintf(stderr, "number of procs is preposterous (%d)\n",
-			nproc);
-		return;
+	xproc = fetchrecords("processes", (int *)mib, 5, &len);
+	if (len % sizeof(*xproc) != 0) {
+		fprintf(stderr, "pstat: processes: %u bytes is not a whole "
+		    "number of %u-byte records\n", (unsigned)len,
+		    (unsigned)sizeof(*xproc));
+		exit(1);
 	}
-	if (xproc == NULL) {
-		fprintf(stderr, "can't allocate memory for proc table\n");
-		return;
-	}
-	lseek(fc, (off_t)aproc, 0);
-	read(fc, xproc, nproc * sizeof (struct proc));
-	np = 0;
-	for (pp=xproc; pp < &xproc[nproc]; pp++)
-		if (pp->p_stat)
-			np++;
-	if (totflg) {
-		printf("%3d/%3d processes\n", np, nproc);
-		return;
-	}
-	printf("%d/%d processes\n", np, nproc);
-        printf("   LOC    S       F PRI      SIG   UID SLP TIM  CPU  NI   PGRP    PID   PPID     ADDR    SADDR    DADDR     SIZE   WCHAN    LINK     SIGM\n");
-	for (pp=xproc; pp<&xproc[nproc]; pp++) {
-		if (pp->p_stat==0 && allflg==0)
-			continue;
-		printf("%08x", aproc + (pp - xproc)*sizeof (*pp));
-		printf(" %2d", pp->p_stat);
-		printf(" %7.1x", pp->p_flag);
-		printf(" %3d", pp->p_pri);
-		printf(" %8.1lx", pp->p_sig);
-		printf(" %5u", pp->p_uid);
-		printf(" %3d", pp->p_slptime);
-		printf(" %3d", pp->p_time);
-		printf(" %4d", pp->p_cpu&0377);
-		printf(" %3d", pp->p_nice);
-		printf(" %6d", pp->p_pgrp);
-		printf(" %6d", pp->p_pid);
-		printf(" %6d", pp->p_ppid);
-		printf(" %8x", pp->p_addr);
-		printf(" %8x", pp->p_saddr);
-		printf(" %8x", pp->p_daddr);
-		printf(" %6x", pp->p_dsize+pp->p_ssize);
-		printf(" %8x", pp->p_wchan);
-		printf(" %8x", pp->p_link);
-		printf(" %8.1lx", pp->p_sigmask);
+	np = (int)(len / sizeof(*xproc));
+	putcount(np, capacitylimit(CAPACITY_PROC), "processes");
+	printf("%2s %7s %3s %5s %4s %3s %6s %6s %6s %6s\n", "S", "F", "PRI",
+	    "UID", "CPU", "NI", "PGRP", "PID", "PPID", "SIZE");
+	for (pp = xproc; pp < &xproc[np]; pp++) {
+		printf("%2d", (int)pp->kp_stat);
+		printf(" %7.1x", (unsigned)pp->kp_flag);
+		printf(" %3d", (int)pp->kp_pri);
+		printf(" %5u", (unsigned)pp->kp_uid);
+		printf(" %4d", (int)pp->kp_cpu);
+		printf(" %3d", (int)pp->kp_nice);
+		printf(" %6d", (int)pp->kp_pgid);
+		printf(" %6d", (int)pp->kp_pid);
+		printf(" %6d", (int)pp->kp_ppid);
+		printf(" %6x", (unsigned)(pp->kp_dsize + pp->kp_ssize));
 		printf("\n");
 	}
 	free(xproc);
 }
 
-static int ttyspace = 64;
-static struct tty *tty;
-
 void
-dotty()
+dotty(void)
 {
-	if ((tty = (struct tty *)malloc(ttyspace * sizeof(*tty))) == 0) {
-		printf("pstat: out of memory\n");
-		return;
-	}
-	dottytype("cn", SKL);
+	static const int mib[2] = { CTL_KERN, KERN_TTY };
+	struct kinfo_tty kt;
+
+	fetchfixed("tty", (int *)mib, 2, &kt, sizeof(kt));
+	printf("cn line\n");
+	printf("%4s%4s%4s %12s %4s %4s %-14s%6s\n", "RAW", "CAN", "OUT",
+	    "MODE", "DEL", "COL", "STATE", "PGRP");
+	ttyprt(&kt);
 }
 
 void
-dottytype(name, type)
-char *name;
-int type;
+ttyprt(const struct kinfo_tty *tp)
 {
-	register struct tty *tp;
-
-	printf("%s line\n", name);
-	lseek(fc, (long)nl[type].n_value, 0);
-	read(fc, tty, sizeof(struct tty));
-	printf(" # RAW CAN OUT         MODE     ADDR  DEL  COL     STATE       PGRP\n");
-	ttyprt(tty, 0);
+	printf("%4d%4d", (int)tp->kt_rawcc, (int)tp->kt_cancc);
+	printf("%4d %12.1lo %4d %4d ", (int)tp->kt_outcc,
+		(unsigned long)tp->kt_flags,
+		(int)tp->kt_delct, (int)tp->kt_col);
+	putf((long)tp->kt_state&TS_TIMEOUT, 'T');
+	putf((long)tp->kt_state&TS_WOPEN, 'W');
+	putf((long)tp->kt_state&TS_ISOPEN, 'O');
+	putf((long)tp->kt_state&TS_FLUSH, 'F');
+	putf((long)tp->kt_state&TS_CARR_ON, 'C');
+	putf((long)tp->kt_state&TS_BUSY, 'B');
+	putf((long)tp->kt_state&TS_ASLEEP, 'A');
+	putf((long)tp->kt_state&TS_XCLUDE, 'X');
+	putf((long)tp->kt_state&TS_TTSTOP, 'S');
+	putf((long)tp->kt_state&TS_HUPCLS, 'H');
+	putf((long)tp->kt_state&TS_TBLOCK, 'b');
+	putf((long)tp->kt_state&TS_RCOLL, 'r');
+	putf((long)tp->kt_state&TS_WCOLL, 'w');
+	putf((long)tp->kt_state&TS_ASYNC, 'a');
+	printf("%6d\n", (int)tp->kt_pgrp);
 }
 
 void
-ttyprt(atp, line)
-struct tty *atp;
-int line;
+dofile(void)
 {
-	register struct tty *tp;
+	static const int mib[5] = { CTL_KERN, KERN_FILE, KERN_FILE_BYFILE, 0,
+	    sizeof(struct kinfo_file) };
+	struct kinfo_file *xfile, *fp;
+	size_t len;
+	int nf;
+	static const char *dtypes[] = { "???", "inode", "socket", "pipe" };
 
-	printf("%2d", line);
-	tp = atp;
-
-	printf("%4d%4d", tp->t_rawq.c_cc, tp->t_canq.c_cc);
-	printf("%4d %12.1lo %8x %4d %4d ", tp->t_outq.c_cc,
-		(unsigned long)tp->t_flags,
-		tp->t_addr, tp->t_delct, tp->t_col);
-	putf(tp->t_state&TS_TIMEOUT, 'T');
-	putf(tp->t_state&TS_WOPEN, 'W');
-	putf(tp->t_state&TS_ISOPEN, 'O');
-	putf(tp->t_state&TS_FLUSH, 'F');
-	putf(tp->t_state&TS_CARR_ON, 'C');
-	putf(tp->t_state&TS_BUSY, 'B');
-	putf(tp->t_state&TS_ASLEEP, 'A');
-	putf(tp->t_state&TS_XCLUDE, 'X');
-	putf(tp->t_state&TS_TTSTOP, 'S');
-	putf(tp->t_state&TS_HUPCLS, 'H');
-	putf(tp->t_state&TS_TBLOCK, 'b');
-	putf(tp->t_state&TS_RCOLL, 'r');
-	putf(tp->t_state&TS_WCOLL, 'w');
-	putf(tp->t_state&TS_ASYNC, 'a');
-	printf("%6d\n", tp->t_pgrp);
-}
-
-void
-dousr()
-{
-	struct user U;
-	long	*ip;
-	register int i, j;
-
-	lseek(fm, ubase, 0);
-	read(fm, &U, sizeof(U));
-	printf("procp\t%p\n", U.u_procp);
-	printf("frame\t%p\n", U.u_frame);
-	printf("comm\t%s\n", U.u_comm);
-	printf("arg\t%p %p %p %p %p %p\n", U.u_arg[0], U.u_arg[1],
-		U.u_arg[2], U.u_arg[3], U.u_arg[4], U.u_arg[5]);
-	printf("qsave\t");
-	for (i = 0; i < sizeof (label_t) / sizeof (int); i++)
-		printf("%p ", U.u_qsave.val[i]);
-	printf("\n");
-	printf("rval\t%p\n", U.u_rval);
-	printf("error\t%d\n", U.u_error);
-	printf("uids\t%d,%d,%d,%d,%d\n", U.u_uid, U.u_svuid, U.u_ruid,
-		U.u_svgid, U.u_rgid);
-	printf("groups");
-	for (i = 0; (i < NGROUPS) && (U.u_groups[i] != NOGROUP); i++) {
-		if (i%8 == 0) printf("\t");
-		printf("%u ", U.u_groups[i]);
-		if (i%8 == 7) printf("\n");
+	xfile = fetchrecords("files", (int *)mib, 5, &len);
+	if (len % sizeof(*xfile) != 0) {
+		fprintf(stderr, "pstat: files: %u bytes is not a whole "
+		    "number of %u-byte records\n", (unsigned)len,
+		    (unsigned)sizeof(*xfile));
+		exit(1);
 	}
-	if (i%8) printf("\n");
-	printf("tsize\t%.1x\n", U.u_tsize);
-	printf("dsize\t%.1x\n", U.u_dsize);
-	printf("ssize\t%.1x\n", U.u_ssize);
-	printf("ssave\t");
-	for (i = 0; i < sizeof (label_t) / sizeof (int); i++)
-		printf("%.1x ", U.u_ssave.val[i]);
-	printf("\n");
-	printf("rsave\t");
-	for	(i = 0; i < sizeof (label_t) / sizeof (int); i++)
-		printf("%.1x ", U.u_rsave.val[i]);
-	printf("\n");
-	printf("signal");
-	for (i = 0; i < NSIG; i++) {
-		if (i%8 == 0) printf("\t");
-		printf("%.1x ", U.u_signal[i]);
-		if (i%8 == 7) printf("\n");
-	}
-	if (i%8) printf("\n");
-	printf("sigmask");
-	for (i = 0; i < NSIG; i++) {
-		if (i%8 == 0) printf("\t");
-		printf("%.1lx ", U.u_sigmask[i]);
-		if (i%8 == 7) printf("\n");
-	}
-	if (i%8) printf("\n");
-	printf("sigonstack\t%.1lx\n", U.u_sigonstack);
-	printf("sigintr\t%.1lx\n", U.u_sigintr);
-	printf("oldmask\t%.1lx\n", U.u_oldmask);
-	printf("code\t%08x\n", U.u_code);
-	printf("psflags\t%d\n", U.u_psflags);
-	printf("ss_base\t%.1x ss_size %.1x ss_flags %.1x\n",
-		U.u_sigstk.ss_base, U.u_sigstk.ss_size, U.u_sigstk.ss_flags);
-	printf("ofile");
-	for	(i = 0; i < NOFILE; i++)
-		{
-		if	(i%8 == 0) printf("\t");
-		printf("%.1x ", U.u_ofile[i]);
-		if	(i%8 == 7) printf("\n");
-		}
-	if	(i%8) printf("\n");
-	printf("pofile");
-	for	(i = 0; i < NOFILE; i++)
-		{
-		if	(i%8 == 0) printf("\t");
-		printf("%.1x ", U.u_pofile[i]);
-		if	(i%8 == 7) printf("\n");
-		}
-	if	(i%8) printf("\n");
-	printf("lastfile\t%d\n", U.u_lastfile);
-	printf("cdir\t%.1x\n", U.u_cdir);
-	printf("rdir\t%.1x\n", U.u_rdir);
-	printf("ttyp\t%.1x\n", U.u_ttyp);
-	printf("ttyd\t%d,%d\n", major(U.u_ttyd), minor(U.u_ttyd));
-	printf("cmask\t%.1x\n", U.u_cmask);
-	printf("ru\t");
-	ip = (long *)&U.u_ru;
-	for	(i = 0; i < sizeof (U.u_ru) / sizeof (long); i++)
-		printf("%ld ", ip[i]);
-	printf("\n");
-	printf("cru\t");
-	ip = (long *)&U.u_cru;
-	for	(i = 0; i < sizeof (U.u_cru) / sizeof (long); i++)
-		printf("%ld ", ip[i]);
-	printf("\n");
-	printf("timer\t%ld %ld %ld %ld\n", U.u_timer[0].it_interval,
-		U.u_timer[0].it_value, U.u_timer[1].it_interval,
-		U.u_timer[1].it_value);
-	printf("start\t%08x\n", U.u_start);
-	printf("prof\t%.1x %u %u %u\n", U.u_prof.pr_base, U.u_prof.pr_size,
-		U.u_prof.pr_off, U.u_prof.pr_scale);
-	printf("rlimit cur\t");
-	for	(i = 0; i < RLIM_NLIMITS; i++)
-		{
-		if	(U.u_rlimit[i].rlim_cur == RLIM_INFINITY)
-			printf("infinite ");
+	nf = (int)(len / sizeof(*xfile));
+	putcount(nf, capacitylimit(CAPACITY_FILE), "open files");
+	printf("%-8s%-9s%5s%5s%10s  %s\n", "TYPE", "FLG", "CNT", "MSG", "INO",
+	    "OFFSET");
+	for (fp = xfile; fp < &xfile[nf]; fp++) {
+		if (fp->kf_type <= DTYPE_PIPE)
+			printf("%-8.8s", dtypes[fp->kf_type]);
 		else
-			printf("%ld ", U.u_rlimit[i].rlim_cur);
-		}
-	printf("\n");
-	printf("rlimit max\t");
-	for	(i = 0; i < RLIM_NLIMITS; i++)
-		{
-		if	(U.u_rlimit[i].rlim_max == RLIM_INFINITY)
-			printf("infinite ");
+			printf("%-8d", (int)fp->kf_type);
+		putf((long)fp->kf_flag&FREAD, 'R');
+		putf((long)fp->kf_flag&FWRITE, 'W');
+		putf((long)fp->kf_flag&FAPPEND, 'A');
+		putf((long)fp->kf_flag&FSHLOCK, 'S');
+		putf((long)fp->kf_flag&FEXLOCK, 'X');
+		putf((long)fp->kf_flag&FASYNC, 'I');
+		putf((long)fp->kf_flag&FNONBLOCK, 'n');
+		putf((long)fp->kf_flag&FMARK, 'm');
+		putf((long)fp->kf_flag&FDEFER, 'd');
+		printf("  %3d", (int)fp->kf_count);
+		printf("  %3d", (int)fp->kf_msgcount);
+		if (fp->kf_valid & KF_VALID_INODE)
+			printf("  %8u", (unsigned)fp->kf_inum);
 		else
-			printf("%ld ", U.u_rlimit[i].rlim_max);
-		}
-	printf("\n");
-	printf("ncache\t%ld %u %d,%d\n", U.u_ncache.nc_prevoffset,
-		U.u_ncache.nc_inumber, major(U.u_ncache.nc_dev),
-		minor(U.u_ncache.nc_dev));
-}
-
-int
-oatoi(s)
-char *s;
-{
-	register int v;
-
-	v = 0;
-	while (*s)
-		v = (v<<3) + *s++ - '0';
-	return(v);
-}
-
-void
-dofile()
-{
-	struct file *xfile;
-	register struct file *fp;
-	register int nf;
-	u_int loc, afile;
-	static char *dtypes[] = { "???", "inode", "socket", "pipe" };
-
-	nf = 0;
-	xfile = (struct file *)calloc(NFILE, sizeof (struct file));
-	if (xfile == NULL) {
-		fprintf(stderr, "can't allocate memory for file table\n");
-		return;
-	}
-	afile = nl[SFIL].n_value;
-	lseek(fc, (off_t)afile, 0);
-	read(fc, xfile, NFILE * sizeof (struct file));
-	for (fp=xfile; fp < &xfile[NFILE]; fp++)
-		if (fp->f_count)
-			nf++;
-	if (totflg) {
-		printf("%3d/%3d files\n", nf, NFILE);
-		return;
-	}
-	printf("%d/%d open files\n", nf, NFILE);
-	printf("   LOC   TYPE    FLG        CNT  MSG  DATA      OFFSET\n");
-	loc = afile;
-	for	(fp=xfile; fp < &xfile[NFILE]; fp++, loc += sizeof (*fp))
-		{
-		if (fp->f_count==0)
-			continue;
-		printf("%08x ", loc);
-		if (fp->f_type <= DTYPE_PIPE)
-			printf("%-8.8s", dtypes[fp->f_type]);
+			printf("  %8s", "-");
+		if (fp->kf_offset < 0)
+			printf("  0x%lx\n", (long)fp->kf_offset);
 		else
-			printf("8d", fp->f_type);
-		putf((long)fp->f_flag&FREAD, 'R');
-		putf((long)fp->f_flag&FWRITE, 'W');
-		putf((long)fp->f_flag&FAPPEND, 'A');
-		putf((long)fp->f_flag&FSHLOCK, 'S');
-		putf((long)fp->f_flag&FEXLOCK, 'X');
-		putf((long)fp->f_flag&FASYNC, 'I');
-		putf((long)fp->f_flag&FNONBLOCK, 'n');
-		putf((long)fp->f_flag&FMARK, 'm');
-		putf((long)fp->f_flag&FDEFER, 'd');
-		printf("  %3d", fp->f_count);
-		printf("  %3d", fp->f_msgcount);
-		printf("  %08x", fp->f_data);
-		if (fp->f_offset < 0)
-			printf("  0x%lx\n", fp->f_offset);
-		else
-			printf("  %ld\n", fp->f_offset);
+			printf("  %ld\n", (long)fp->kf_offset);
 	}
 	free(xfile);
 }
 
+/*
+ * VM_SWAPMAP lists the free runs of swap in ascending order and ends with
+ * an entry of size 0; VM_NSWAP is the swap size. Both count DEV_BSIZE
+ * blocks, so used swap is nswap less the sum of the free runs.
+ */
 void
-doswap()
+doswap(void)
 {
-	u_int	nswap, used;
-	int	i, num;
-	struct	map	smap;
-	struct	mapent	*swp;
+	static const int mapmib[2] = { CTL_VM, VM_SWAPMAP };
+	static const int nswapmib[2] = { CTL_VM, VM_NSWAP };
+	struct mapent *swp;
+	size_t len;
+	unsigned long freeblocks, usedblocks;
+	int nswap, i, num;
 
-	nswap = getuint((off_t)nl[SNSWAP].n_value);
-
-	lseek(fc, (off_t)nl[SWAPMAP].n_value, 0);
-	read(fc, &smap, sizeof (smap));
-	num = (smap.m_limit - smap.m_map);
-	swp = (struct mapent *)calloc(num, sizeof (*swp));
-	lseek(fc, (off_t)smap.m_map, 0);
-	read(fc, swp, num * sizeof (*swp));
-	for (used = 0, i = 0; swp[i].m_size; i++)
-		used += swp[i].m_size;
+	swp = fetchrecords("swapmap", (int *)mapmib, 2, &len);
+	num = (int)(len / sizeof(*swp));
+	fetchfixed("nswap", (int *)nswapmib, 2, &nswap, sizeof(nswap));
+	for (freeblocks = 0, i = 0; i < num && swp[i].m_size; i++)
+		freeblocks += swp[i].m_size;
+	usedblocks = (unsigned long)nswap > freeblocks ?
+	    (unsigned long)nswap - freeblocks : 0;
 	printf("%d/%d swapmap entries\n", i, num);
-	printf("%u kbytes swap used, %u kbytes free\n", nswap - used, used);
+	printf("%lu kbytes swap used, %lu kbytes free\n",
+	    KBYTES(usedblocks), KBYTES(freeblocks));
+	free(swp);
+}
+
+/* -T: current and limit of each fixed table, from KERN_CAPACITY. */
+void
+dototals(void)
+{
+	struct kernel_capacity_stats stats;
+
+	getcapacity(&stats);
+	printf("%3d/%3d files\n", (int)stats.metric[CAPACITY_FILE].current,
+	    (int)stats.metric[CAPACITY_FILE].limit);
+	printf("%3d/%3d inodes\n", (int)stats.metric[CAPACITY_INODE].current,
+	    (int)stats.metric[CAPACITY_INODE].limit);
+	printf("%3d/%3d processes\n", (int)stats.metric[CAPACITY_PROC].current,
+	    (int)stats.metric[CAPACITY_PROC].limit);
 }

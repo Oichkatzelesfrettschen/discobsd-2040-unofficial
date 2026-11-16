@@ -20,6 +20,14 @@ caddr_t function;
 .fi
 .ft R
 .SH DESCRIPTION
+.PP
+On RP2040 and STM32, the kernel function has the signature
+.BR "int function(int, int)" .
+A priority of zero selects the lowest interrupt priority; every nonzero
+priority selects the highest.  The kernel restores the saved priority after
+the function returns and returns the function's result to the caller.
+The remaining description records the historical PDP-11 interface.
+.PP
 .I Ucall
 causes the processor priority to be set to
 .I priority

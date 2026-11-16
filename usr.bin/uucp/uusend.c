@@ -45,7 +45,7 @@ FILE	*in, *out;
 FILE	*dout;
 
 extern FILE	*popen();
-extern char	*index(), *strcpy(), *strcat(), *ctime();
+extern char	*index(), *strcpy(), *strcat();
 
 #ifdef	RUUSEND
 int	rsend;
@@ -85,7 +85,7 @@ char	**argv;
 	extern char **environ;
 
 #ifdef DEBUG
-	long t;
+	time_t t;
 	umask(022);
 	dout = fopen(DEBUG, "a");
 	if (dout == NULL) {

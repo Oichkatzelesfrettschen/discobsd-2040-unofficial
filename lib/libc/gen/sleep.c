@@ -36,10 +36,16 @@ sleep(seconds)
 		s.tv_usec = 0;
 		select(0, NULL, NULL, NULL, &s);
 		gettimeofday(&s, NULL);
-		/* Clock reversal and oversleep must not wrap the unsigned result. */
-		if (s.tv_sec < f.tv_sec)
-			return 0;
-		elapsed_seconds = (u_long)s.tv_sec - (u_long)f.tv_sec;
+		/*
+		 * Each tv_sec is a reading of the kernel's 32-bit clock, which
+		 * counts unsigned modulo 2^32 (utime32_t), so the elapsed time
+		 * is the difference modulo 2^32 and the carry out of bit 31 in
+		 * January 2038 is an ordinary second. A clock set back reads as
+		 * an elapsed time near 2^32 and, like an oversleep, returns 0
+		 * rather than wrapping the unsigned result.
+		 */
+		elapsed_seconds = ((u_long)s.tv_sec - (u_long)f.tv_sec) &
+		    0xffffffffUL;
 		if (elapsed_seconds >= seconds)
 			return 0;
 		seconds -= (u_int)elapsed_seconds;

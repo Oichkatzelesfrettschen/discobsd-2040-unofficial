@@ -27,7 +27,7 @@ int main(int ac, char **av)
             msec;
     int     time_line,
             move_line;
-    long    num_start_time,
+    time_t  num_start_time,
             num_now_time;
     char    str_start_time[60],
             str_now_time[60];

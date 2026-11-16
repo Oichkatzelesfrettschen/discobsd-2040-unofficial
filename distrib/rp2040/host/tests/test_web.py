@@ -271,7 +271,7 @@ def test_websocket_rejects_foreign_origin(server):
 
 
 def test_cli_refuses_lan_bind_without_token(capsys, monkeypatch):
-    monkeypatch.setattr(web.ports, "find_board", lambda: "FAKE")
+    monkeypatch.setattr(web.ports, "find_board", lambda **_: "FAKE")
     monkeypatch.delenv(web.ports.TOKEN_ENV, raising=False)
     monkeypatch.delenv("CREDENTIALS_DIRECTORY", raising=False)
     assert web.main(["--bind", "0.0.0.0"]) == 1
@@ -283,11 +283,11 @@ def test_cli_reads_token_from_the_environment(capsys, monkeypatch):
     # DISCOBSD_WEB_TOKEN in the process environment instead, and this
     # accepts a loopback bind (no token required) to prove start actually
     # ran rather than exercising the refusal path above.
-    monkeypatch.setattr(web.ports, "find_board", lambda: "FAKE")
+    monkeypatch.setattr(web.ports, "find_board", lambda **_: "FAKE")
     monkeypatch.setenv(web.ports.TOKEN_ENV, "from-env")
 
     class FakeServer:
-        def __init__(self, address, device, token, open_serial=None):
+        def __init__(self, address, device, token, open_serial=None, usb_port=None):
             self.token = token
             self.is_loopback = True
 
@@ -302,11 +302,11 @@ def test_cli_reads_token_from_the_environment(capsys, monkeypatch):
 
 
 def test_cli_argv_token_is_deprecated_but_still_works(capsys, monkeypatch):
-    monkeypatch.setattr(web.ports, "find_board", lambda: "FAKE")
+    monkeypatch.setattr(web.ports, "find_board", lambda **_: "FAKE")
     monkeypatch.delenv(web.ports.TOKEN_ENV, raising=False)
 
     class FakeServer:
-        def __init__(self, address, device, token, open_serial=None):
+        def __init__(self, address, device, token, open_serial=None, usb_port=None):
             assert token == "argv-tok"
             self.is_loopback = False
 

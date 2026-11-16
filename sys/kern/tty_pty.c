@@ -520,7 +520,7 @@ int ptyioctl(dev_t dev, u_int cmd, caddr_t data, int flag)
     return (error);
 }
 
-void ptyattach()
+void ptyattach(void)
 {
     printf("pty: %d units\n", PTY_NUNITS);
 }

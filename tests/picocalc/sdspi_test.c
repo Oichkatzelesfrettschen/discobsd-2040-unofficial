@@ -27,7 +27,15 @@
  * Protection), a start-up with fewer than 74 clocks, or a transcript left
  * unconsumed fails the scenario, so an extra, missing or mistimed command
  * is caught as well
- * as a wrong result. The model clock advances 20 microseconds per byte at
+ * as a wrong result. Two commands stand outside the transcript, because
+ * every initialization and every accepted write sends them: CMD59
+ * (CRC_ON_OFF), which the model accepts once, before the first ACMD41, and
+ * which turns its checking on, and CMD13 (SEND_STATUS), which it accepts
+ * only after a write it accepted and answers with the R2 a scenario sets.
+ * The model computes CRC7 and CRC16 bit by bit from their generators,
+ * a different formulation from the driver's, holds every command frame and
+ * every written block to them, and appends the CRC16 to each block it
+ * sends, corrupted when a scenario asks. The model clock advances 20 microseconds per byte at
  * the initialization speed and 1 microsecond at the fast speed, so a
  * timeout is measured in the model's time and a missing timeout stops at a
  * byte budget instead of hanging.
@@ -90,6 +98,52 @@ static unsigned char frame[6];
 static int fn, wr_have;
 static const struct step *wr_step;
 static int cmds_seen;
+static unsigned char *churn;	/* A write source the model changes. */
+static int churn_len;
+
+/* Model state for the commands outside the transcript, and its knobs. */
+static int model_crc;		/* CMD59 turned checking on. */
+static int cmd59_seen, cmd13_seen, acmd_seen, status_pending;
+static int cmd59_r1 = 0x01;	/* Knob: the answer to CMD59. */
+static int write_status;	/* Knob: the second R2 byte after a write. */
+static int crc_flip;		/* Knob: XOR into each CRC16 sent. */
+static int block_token = 0xfe;	/* Knob: the token before a sector. */
+static unsigned char wr_crc[2];
+
+/* CRC7, generator x^7 + x^3 + 1, one bit at a time, with the end bit. */
+static unsigned char
+model_crc7(const unsigned char *p, int n)
+{
+	unsigned crc = 0;
+	int i, bit;
+
+	for (i = 0; i < n * 8; i++) {
+		bit = (p[i / 8] >> (7 - i % 8)) & 1;
+		crc <<= 1;
+		if (((crc >> 7) & 1) != (unsigned)bit)
+			crc ^= 0x09;
+		crc &= 0x7f;
+	}
+	return (unsigned char)(crc << 1 | 1);
+}
+
+/* CRC16, generator x^16 + x^12 + x^5 + 1, start value 0, bit by bit. */
+static unsigned
+model_crc16(const unsigned char *p, int n)
+{
+	unsigned crc = 0;
+	int i, bit;
+
+	for (i = 0; i < n * 8; i++) {
+		bit = (p[i / 8] >> (7 - i % 8)) & 1;
+		if (((crc >> 15) & 1) != (unsigned)bit)
+			crc = (crc << 1) ^ 0x1021;
+		else
+			crc <<= 1;
+		crc &= 0xffff;
+	}
+	return crc;
+}
 
 static void
 push(int b)
@@ -100,6 +154,7 @@ push(int b)
 static void
 respond(const struct step *s)
 {
+	unsigned crc;
 	int i;
 
 	for (i = 0; i < s->ncr; i++)
@@ -124,15 +179,17 @@ respond(const struct step *s)
 		push(0xfe);
 		for (i = 0; i < 16; i++)
 			push(csd_payload[i]);
-		push(0xaa);
-		push(0xaa);
+		crc = model_crc16(csd_payload, 16) ^ crc_flip;
+		push(crc >> 8);
+		push(crc & 0xff);
 		break;
 	case D_BLOCK:
-		push(0xfe);
+		push(block_token);
 		for (i = 0; i < SD_SECTOR; i++)
 			push(block_payload[i]);
-		push(0xaa);
-		push(0xaa);
+		crc = model_crc16(block_payload, SD_SECTOR) ^ crc_flip;
+		push(crc >> 8);
+		push(crc & 0xff);
 		break;
 	case D_ERRTOK:
 		push(0x01);		/* Data Error Token. */
@@ -161,12 +218,43 @@ command_complete(void)
 	}
 	if ((frame[5] & 1) == 0)
 		fail(scenario, "end bit of the command frame", frame[5] & 1, 1);
-	if ((cmd == 0 && frame[5] != 0x95) || (cmd == 8 && frame[5] != 0x87)) {
+	if ((cmd == 0 && frame[5] != 0x95) || (cmd == 8 && frame[5] != 0x87) ||
+	    frame[5] != model_crc7(frame, 5)) {
 		/* A card that checks the CRC flags the error (Bus Transfer Protection). */
+		fail(scenario, "CRC7 of a command frame", frame[5],
+		    model_crc7(frame, 5));
 		bad.r1 = 0x09;
 		respond(&bad);
 		return;
 	}
+	if (cmd == 59) {
+		/* CRC_ON_OFF, once, at the slow clock, before ACMD41. */
+		if (arg != 1)
+			fail(scenario, "CMD59 option", arg, 1);
+		if (acmd_seen)
+			fail(scenario, "CMD59 after ACMD41", acmd_seen, 0);
+		if (fast_mode)
+			fail(scenario, "CMD59 speed class", fast_mode, 0);
+		cmd59_seen++;
+		model_crc = cmd59_r1 == 0x01;
+		push(0xff);
+		push(cmd59_r1);
+		return;
+	}
+	if (cmd == 13) {
+		/* SEND_STATUS answers R2 for the write just programmed. */
+		if (!status_pending)
+			fail(scenario, "CMD13 with no accepted write before it",
+			    0, 1);
+		status_pending = 0;
+		cmd13_seen++;
+		push(0xff);
+		push(0x00);
+		push(write_status);
+		return;
+	}
+	if (cmd == 41)
+		acmd_seen = 1;
 	/* A run of sticky steps answers its commands in any order, any number of times. */
 	for (j = pos; s != NULL && s->sticky && s->cmd != cmd &&
 	    j + 1 < nsteps && script[j + 1].sticky; )
@@ -235,11 +323,35 @@ model_xfer(unsigned char in)
 	default:
 		if (wr_have < SD_SECTOR)
 			captured[wr_have] = in;
+		else
+			wr_crc[wr_have - SD_SECTOR] = in;
+		if (churn != NULL && wr_have < churn_len) {
+			/*
+			 * The source changes around the byte just sent, as
+			 * the dump writer's own stack does under it: a sum
+			 * taken before or after the transfer disagrees.
+			 */
+			churn[wr_have] ^= 0x5a;
+			if (wr_have + 1 < churn_len)
+				churn[wr_have + 1] ^= 0x33;
+		}
 		if (++wr_have == SD_SECTOR + 2) {
+			/* command_complete() consumed the step already. */
+			st = S_IDLE;
+			if ((unsigned)(wr_crc[0] << 8 | wr_crc[1]) !=
+			    model_crc16(captured, SD_SECTOR)) {
+				fail(scenario, "CRC16 of a written block",
+				    wr_crc[0] << 8 | wr_crc[1],
+				    (long)model_crc16(captured, SD_SECTOR));
+				if (model_crc) {
+					push(0x0b);	/* CRC error. */
+					break;
+				}
+			}
 			push(wr_step->resp);
 			busy_left = wr_step->busy;
-			st = S_IDLE;
-			pos++;
+			if ((wr_step->resp & 0x1f) == 0x05)
+				status_pending = 1;
 		}
 		break;
 	}
@@ -274,7 +386,7 @@ static const struct sdspi_ops ops = {
 	model_xfer, model_select, model_speed, model_micros
 };
 
-static struct sdspi card = { &ops, SD_NONE, 0 };
+static struct sdspi card = { &ops, SD_NONE, 0, 0 };
 
 static void
 load(const char *name, const struct step *s)
@@ -297,6 +409,12 @@ load(const char *name, const struct step *s)
 	busy_left = 0;
 	st = S_IDLE;
 	cmds_seen = 0;
+	model_crc = 0;
+	cmd59_seen = cmd13_seen = acmd_seen = status_pending = 0;
+	cmd59_r1 = 0x01;
+	write_status = 0;
+	crc_flip = 0;
+	block_token = 0xfe;
 	card.type = SD_NONE;
 	card.nsectors = 0;
 }
@@ -404,6 +522,10 @@ test_init_sdsc_v1(void)
 		fail(scenario, "write result", -1, SDE_OK);
 	if (memcmp(buf, captured, SD_SECTOR) != 0)
 		fail(scenario, "written data", 0, 1);
+	if (cmd59_seen != 1 || card.crc != 1)
+		fail(scenario, "CMD59 sent once and recorded", cmd59_seen, 1);
+	if (cmd13_seen != 1 || status_pending)
+		fail(scenario, "CMD13 after the write", cmd13_seen, 1);
 	finish();
 }
 
@@ -686,6 +808,173 @@ test_csd(void)
 		    SECTORS_V2_128G);
 }
 
+/*
+ * The crash dump's transfers: a read that keeps a window of the sector, a
+ * write of a short span padded with zeros, and the CRC folded over exactly
+ * the bytes that left even while the source changes under the transfer.
+ */
+static void
+test_spans(void)
+{
+	static const struct step t[] = {
+		CMD0_OK, CMD8_V2,
+		ACMD(1, 0x01, 0x40000000), ACMD(1, 0x00, 0x40000000),
+		CMD58(0xc0), CMD9_CSD,
+		{ 17, 5, 1, 1, 0x00, 0, { 0 }, D_BLOCK, 0, 0, 0, 0 },
+		{ 17, 4, 1, 1, 0x00, 0, { 0 }, D_BLOCK, 0, 0, 0, 0 },
+		{ 24, 6, 1, 1, 0x00, 0, { 0 }, D_WRITE, 0, 0xe5, 0, 0 },
+		{ 24, 7, 1, 1, 0x00, 0, { 0 }, D_WRITE, 0, 0xe5, 0, 0 },
+		END
+	};
+	unsigned char buf[SD_SECTOR], src[100];
+	unsigned crc, want, start;
+	int i;
+
+	load("spans", t);
+	csd_payload = csd_v2_128g;
+	for (i = 0; i < SD_SECTOR; i++)
+		block_payload[i] = (unsigned char)(i * 7 + 3);
+	if (sdspi_init(&card) != SDE_OK)
+		fail(scenario, "init result", -1, SDE_OK);
+	if (sdspi_read_span(&card, 0, buf, 500, 13) != SDE_IO)
+		fail(scenario, "window past the sector", 0, SDE_IO);
+	memset(buf, 0xee, sizeof buf);
+	if (sdspi_read_span(&card, 5, buf, 446, 66) != SDE_OK ||
+	    memcmp(buf, block_payload + 446, 66) != 0)
+		fail(scenario, "window bytes", 0, 1);
+	for (i = 66; i < SD_SECTOR; i++)
+		if (buf[i] != 0xee) {
+			fail(scenario, "byte stored past the window", i, -1);
+			break;
+		}
+	/* A window inside the sector, which ends before the sector does. */
+	memset(buf, 0xee, sizeof buf);
+	if (sdspi_read_span(&card, 4, buf, 10, 20) != SDE_OK ||
+	    memcmp(buf, block_payload + 10, 20) != 0)
+		fail(scenario, "inner window bytes", 0, 1);
+	for (i = 20; i < SD_SECTOR; i++)
+		if (buf[i] != 0xee) {
+			fail(scenario, "byte stored past the inner window", i,
+			    -1);
+			break;
+		}
+
+	for (i = 0; i < (int)sizeof src; i++)
+		src[i] = (unsigned char)(i + 1);
+	churn = src;
+	churn_len = sizeof src;
+	start = 0x12345678;
+	crc = start;
+	if (sdspi_write_span(&card, 6, src, sizeof src, &crc) != SDE_OK)
+		fail(scenario, "span write result", -1, SDE_OK);
+	churn = NULL;
+	want = crc32_update(start, captured, sizeof src);
+	if (crc != want)
+		fail(scenario, "sum of the bytes sent", (long)crc, (long)want);
+	for (i = sizeof src; i < SD_SECTOR; i++)
+		if (captured[i] != 0) {
+			fail(scenario, "padding byte", i, 0);
+			break;
+		}
+
+	memset(captured, 0xff, sizeof captured);
+	crc = start;
+	if (sdspi_write_span(&card, 7, src, 0, &crc) != SDE_OK)
+		fail(scenario, "empty span write result", -1, SDE_OK);
+	if (crc != start)
+		fail(scenario, "sum of an empty span", (long)crc, (long)start);
+	for (i = 0; i < SD_SECTOR; i++)
+		if (captured[i] != 0) {
+			fail(scenario, "zero sector byte", i, 0);
+			break;
+		}
+	finish();
+}
+
+/*
+ * Bus Transfer Protection: with checking on, a block whose CRC16 is wrong
+ * is an error and the status the card reports after a write decides the
+ * write; a card that refuses CMD59 runs unchecked.
+ */
+static void
+test_crc(void)
+{
+	static const struct step t[] = {
+		CMD0_OK, CMD8_V2,
+		ACMD(1, 0x00, 0x40000000),
+		CMD58(0xc0), CMD9_CSD,
+		{ 17, 5, 1, 1, 0x00, 0, { 0 }, D_BLOCK, 0, 0, 0, 0 },
+		{ 17, 5, 1, 1, 0x00, 0, { 0 }, D_BLOCK, 0, 0, 0, 0 },
+		{ 17, 5, 1, 1, 0x00, 0, { 0 }, D_BLOCK, 0, 0, 0, 0 },
+		{ 24, 6, 1, 1, 0x00, 0, { 0 }, D_WRITE, 0, 0xe5, 2, 0 },
+		{ 24, 6, 1, 1, 0x00, 0, { 0 }, D_WRITE, 0, 0xe5, 2, 0 },
+		END
+	};
+	static const struct step csd_bad[] = {
+		CMD0_OK, CMD8_V2,
+		ACMD(1, 0x00, 0x40000000),
+		CMD58(0xc0), CMD9_CSD,
+		END
+	};
+	static const struct step refused[] = {
+		CMD0_OK, CMD8_V2,
+		ACMD(1, 0x00, 0x40000000),
+		CMD58(0xc0), CMD9_CSD,
+		{ 17, 5, 1, 1, 0x00, 0, { 0 }, D_BLOCK, 0, 0, 0, 0 },
+		END
+	};
+	unsigned char buf[SD_SECTOR];
+	int i;
+
+	load("crc checked", t);
+	csd_payload = csd_v2_128g;
+	for (i = 0; i < SD_SECTOR; i++)
+		block_payload[i] = (unsigned char)(i * 13 + 1);
+	if (sdspi_init(&card) != SDE_OK || card.crc != 1)
+		fail(scenario, "init with checking on", card.crc, 1);
+	if (sdspi_read(&card, 5, buf) != SDE_OK)
+		fail(scenario, "read with a good CRC16", -1, SDE_OK);
+	crc_flip = 0x0100;
+	if (sdspi_read(&card, 5, buf) != SDE_IO)
+		fail(scenario, "read with a bad CRC16", 0, SDE_IO);
+	crc_flip = 0;
+	/*
+	 * A block behind the multiple-block write token is not a
+	 * single-block read's data, however good its sum: the token check
+	 * stands beside the CRC16.
+	 */
+	block_token = 0xfc;
+	if (sdspi_read(&card, 5, buf) != SDE_IO)
+		fail(scenario, "read behind a wrong token", 0, SDE_IO);
+	block_token = 0xfe;
+	if (sdspi_write(&card, 6, buf) != SDE_OK || cmd13_seen != 1)
+		fail(scenario, "write with a clean status", cmd13_seen, 1);
+	write_status = 0x04;		/* Card ECC failed. */
+	if (sdspi_write(&card, 6, buf) != SDE_IO || cmd13_seen != 2)
+		fail(scenario, "write with an error status", cmd13_seen, 2);
+	finish();
+
+	/* The CSD is a data block too: a bad sum fails the initialization. */
+	load("crc csd", csd_bad);
+	csd_payload = csd_v2_128g;
+	crc_flip = 0x0001;
+	if (sdspi_init(&card) != SDE_IO || card.type != SD_NONE)
+		fail(scenario, "init with a bad CSD CRC16", card.type, SD_NONE);
+	finish();
+
+	/* A card that answers CMD59 as illegal is driven unchecked. */
+	load("crc refused", refused);
+	csd_payload = csd_v2_128g;
+	cmd59_r1 = 0x05;
+	crc_flip = 0x8000;
+	if (sdspi_init(&card) != SDE_OK || card.crc != 0)
+		fail(scenario, "init with CMD59 refused", card.crc, 0);
+	if (sdspi_read(&card, 5, buf) != SDE_OK ||
+	    memcmp(buf, block_payload, SD_SECTOR) != 0)
+		fail(scenario, "unchecked read", -1, SDE_OK);
+	finish();
+}
+
 int
 main(void)
 {
@@ -695,6 +984,8 @@ main(void)
 	test_init_sdsc_v2();
 	test_failures();
 	test_transfer_errors();
+	test_spans();
+	test_crc();
 	if (failures != 0) {
 		fprintf(stderr, "sdspi_test: %d failures\n", failures);
 		return 1;

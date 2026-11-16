@@ -53,6 +53,9 @@ reset(unsigned slots)
 	fixture->m_map = ent;
 	fixture->m_limit = &ent[slots - 1];
 	fixture->m_name = fixture_name;
+	fixture->m_ring_first = 0;
+	fixture->m_ring_end = 0;
+	fixture->m_guard = 0;
 	hk_reset_output();
 }
 
@@ -596,6 +599,269 @@ fill_and_drain(void)
 	HK_CHECK(hk_printf_calls == 0);
 }
 
+/* A ring over blocks 4 to 63 with every block free. */
+static void
+ring_reset(unsigned slots, size_t guard)
+{
+	reset(slots);
+	mfree(fixture, 60, ALIGN);
+	fixture->m_ring_first = ALIGN;
+	fixture->m_ring_end = 64;
+	fixture->m_guard = guard;
+}
+
+/*
+ * On a ring the run that ends at the last block and the run that starts at
+ * the first block are one run, so an extent may pass the end. Its upper
+ * addresses name the blocks at the start, and mfree() takes them back in
+ * that form.
+ */
+static void
+ring_extent_passes_the_end(void)
+{
+	size_t a[3];
+	size_t cursor;
+
+	ring_reset(SLOTS, 0);
+	cursor = 52;
+	HK_CHECK(malloc3_contiguous_next(fixture, 16, 4, 4, ALIGN, &cursor, a) == 24);
+	HK_CHECK(a[0] == 52);
+	HK_CHECK(a[1] == 68);
+	HK_CHECK(a[2] == 72);
+	HK_CHECK(cursor == 16);
+	HK_CHECK(runs() == 1);
+	HK_CHECK(run_addr(0) == 16);
+	HK_CHECK(run_size(0) == 36);
+
+	/* The third segment lies wholly past the end: 72 names block 12. */
+	mfree(fixture, 4, a[2]);
+	HK_CHECK(runs() == 1);
+	HK_CHECK(run_addr(0) == 12);
+	HK_CHECK(run_size(0) == 40);
+
+	/* Releasing the rest in one call returns both pieces. */
+	mfree(fixture, 20, a[0]);
+	HK_CHECK(runs() == 1);
+	HK_CHECK(run_addr(0) == 4);
+	HK_CHECK(run_size(0) == 60);
+
+	/* One image in the middle leaves one run, not two. */
+	ring_reset(SLOTS, 0);
+	cursor = 28;
+	HK_CHECK(malloc3_contiguous_next(fixture, 8, 0, 0, ALIGN, &cursor, a) == 8);
+	HK_CHECK(a[0] == 28);
+	HK_CHECK(runs() == 2);
+	HK_CHECK(malloc3_contiguous_next(fixture, 52, 0, 0, ALIGN, &cursor, a) == 52);
+	HK_CHECK(a[0] == 36);
+	HK_CHECK(cursor == 28);
+	HK_CHECK(runs() == 0);
+
+	/* A request longer than the ring is refused and moves nothing. */
+	ring_reset(SLOTS, 0);
+	cursor = 20;
+	HK_CHECK(malloc3_contiguous_next(fixture, 64, 0, 0, ALIGN, &cursor, a) == 0);
+	HK_CHECK(cursor == 20);
+	HK_CHECK(run_size(0) == 60);
+}
+
+/*
+ * The guard keeps a free run of m_guard blocks while some placement does.
+ * With 60 blocks, a 40-block guard and an 8-block image at 28, an 8-block
+ * request at cursor 44 would leave runs of 8 and 36; the search passes to
+ * the first position that leaves 40.
+ */
+static void
+ring_guard_keeps_a_run(void)
+{
+	size_t a[3];
+	size_t cursor;
+
+	ring_reset(SLOTS, 40);
+	cursor = 28;
+	HK_CHECK(malloc3_contiguous_next(fixture, 8, 0, 0, ALIGN, &cursor, a) == 8);
+	HK_CHECK(a[0] == 28);
+	cursor = 44;
+	HK_CHECK(malloc3_contiguous_next(fixture, 8, 0, 0, ALIGN, &cursor, a) == 8);
+	HK_CHECK(a[0] == 16);
+	HK_CHECK(cursor == 24);
+	/* Blocks 36 to 63 and 4 to 15 remain as one 40-block run. */
+	cursor = 36;
+	HK_CHECK(malloc3_contiguous_next(fixture, 40, 0, 0, ALIGN, &cursor, a) == 40);
+	HK_CHECK(a[0] == 36);
+
+	/* Without the guard the same request lands at the cursor. */
+	ring_reset(SLOTS, 0);
+	cursor = 28;
+	(void)malloc3_contiguous_next(fixture, 8, 0, 0, ALIGN, &cursor, a);
+	cursor = 44;
+	HK_CHECK(malloc3_contiguous_next(fixture, 8, 0, 0, ALIGN, &cursor, a) == 8);
+	HK_CHECK(a[0] == 44);
+
+	/*
+	 * When nothing keeps the guard the longest remaining run decides, and
+	 * the first such position in cursor order wins: 20 and 36 both leave
+	 * 44 blocks, and 20 comes first from cursor 44.
+	 */
+	ring_reset(SLOTS, 60);
+	cursor = 28;
+	HK_CHECK(malloc3_contiguous_next(fixture, 8, 0, 0, ALIGN, &cursor, a) == 8);
+	HK_CHECK(a[0] == 28);
+	HK_CHECK(runs() == 2);
+	cursor = 44;
+	HK_CHECK(malloc3_contiguous_next(fixture, 8, 0, 0, ALIGN, &cursor, a) == 8);
+	HK_CHECK(a[0] == 20);
+}
+
+/*
+ * A position inside a run needs a descriptor. With none spare the search
+ * passes over it and still serves the request from a run boundary.
+ */
+static void
+ring_under_descriptor_pressure(void)
+{
+	size_t a[3];
+	size_t cursor;
+
+	ring_reset(2, 0);
+	cursor = 28;
+	HK_CHECK(malloc3_contiguous_next(fixture, 8, 0, 0, ALIGN, &cursor, a) == 8);
+	HK_CHECK(a[0] == 56);
+	HK_CHECK(runs() == 1);
+	HK_CHECK(run_addr(0) == 4);
+	HK_CHECK(run_size(0) == 52);
+	HK_CHECK(!hk_contains(hk_printf_text, "overflow"));
+}
+
+/*
+ * The placement model of docs/research/swap-exhaustion/placement/ring_sim.c
+ * on the RP2040 geometry: 95 sectors from block 4, guard 196. The allocator
+ * must return the model's base for every request of a random session.
+ */
+#define RING_SECTORS	95
+#define RING_FIRST	4
+#define RING_END	(RING_FIRST + RING_SECTORS * ALIGN)
+
+static unsigned char model_used[RING_SECTORS];
+static int model_next;
+
+static int
+model_largest(void)
+{
+	int best = 0, run = 0, i;
+
+	for (i = 0; i < 2 * RING_SECTORS; i++) {
+		if (model_used[i % RING_SECTORS]) {
+			run = 0;
+			continue;
+		}
+		if (++run > best)
+			best = run;
+	}
+	return best > RING_SECTORS ? RING_SECTORS : best;
+}
+
+static void
+model_mark(int base, int len, int value)
+{
+	int i;
+
+	for (i = 0; i < len; i++)
+		model_used[(base + i) % RING_SECTORS] = value;
+}
+
+static int
+model_place(int len, int guard)
+{
+	int target, k, i, base, after, best = -1, best_after = -1;
+
+	target = model_largest();
+	if (target > guard)
+		target = guard;
+	for (k = 0; k < RING_SECTORS; k++) {
+		base = (model_next + k) % RING_SECTORS;
+		for (i = 0; i < len; i++)
+			if (model_used[(base + i) % RING_SECTORS])
+				break;
+		if (i < len)
+			continue;
+		model_mark(base, len, 1);
+		after = model_largest();
+		if (after >= target) {
+			model_next = (base + len) % RING_SECTORS;
+			return base;
+		}
+		model_mark(base, len, 0);
+		if (after > best_after) {
+			best_after = after;
+			best = base;
+		}
+	}
+	if (best < 0)
+		return -1;
+	model_mark(best, len, 1);
+	model_next = (best + len) % RING_SECTORS;
+	return best;
+}
+
+static void
+ring_matches_the_placement_model(void)
+{
+	static const int lengths[6] = { 5, 3, 2, 17, 27, 46 };
+	static struct mapent big[40];
+	struct map ring[1];
+	size_t a[3], cursor, got;
+	int held_base[8], held_len[8];
+	unsigned long long state = 0x9e3779b97f4a7c15ULL;
+	int held = 0, step, len, want, pick, mismatches = 0, served = 0;
+
+	ring->m_map = big;
+	ring->m_limit = &big[38];
+	ring->m_name = fixture_name;
+	ring->m_ring_first = 0;
+	ring->m_ring_end = 0;
+	ring->m_guard = 0;
+	mfree(ring, RING_END - RING_FIRST, RING_FIRST);
+	ring->m_ring_first = RING_FIRST;
+	ring->m_ring_end = RING_END;
+	ring->m_guard = 196;
+	model_next = 37;
+	cursor = RING_FIRST + 37 * ALIGN;
+
+	for (step = 0; step < 20000; step++) {
+		state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+		pick = (int)((state >> 33) % 16);
+		if (held == 8 || (held > 0 && pick < 7)) {
+			pick %= held;
+			model_mark(held_base[pick], held_len[pick], 0);
+			mfree(ring, (size_t)held_len[pick] * ALIGN,
+			    RING_FIRST + (size_t)held_base[pick] * ALIGN);
+			held--;
+			held_base[pick] = held_base[held];
+			held_len[pick] = held_len[held];
+			continue;
+		}
+		len = lengths[pick % 6];
+		want = model_place(len, 196 / ALIGN);
+		got = malloc3_contiguous_next(ring, (size_t)len * ALIGN, 0, 0,
+		    ALIGN, &cursor, a);
+		if (want < 0) {
+			if (got != 0)
+				mismatches++;
+			continue;
+		}
+		if (got != (size_t)len * ALIGN ||
+		    a[0] != RING_FIRST + (size_t)want * ALIGN ||
+		    cursor != RING_FIRST + (size_t)model_next * ALIGN)
+			mismatches++;
+		held_base[held] = want;
+		held_len[held] = len;
+		held++;
+		served++;
+	}
+	HK_CHECK(mismatches == 0);
+	HK_CHECK(served > 5000);
+}
+
 int
 main(void)
 {
@@ -612,5 +878,9 @@ main(void)
 	cursor_under_descriptor_pressure();
 	cursor_panics();
 	fill_and_drain();
+	ring_extent_passes_the_end();
+	ring_guard_keeps_a_run();
+	ring_under_descriptor_pressure();
+	ring_matches_the_placement_model();
 	return hk_verdict("subr_rmap");
 }

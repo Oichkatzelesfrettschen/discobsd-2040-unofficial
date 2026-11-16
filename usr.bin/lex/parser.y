@@ -21,6 +21,18 @@ union _yystype_
 	int	i;
 	uchar	*cp;
 };
+
+/*
+ * Append c to yylex's token[TOKENSIZE] at index i, keeping the last byte for
+ * the terminator the callers store after their loop.
+ */
+#define TOKPUT(c) do { \
+	if(i >= TOKENSIZE-1) \
+		error("Token too long"); \
+	token[i++] = (c); \
+} while(0)
+
+static void	lexoption(uchar *);
 %}
 
 %%
@@ -50,16 +62,18 @@ lexinput:	defns delim prods end
 	;
 end:		delim | ;
 defns:	defns STR STR
-	{	strcpy((char*)dp,(char*)$2.cp);
+	{	/* def[] and subs[] keep a null entry after the last name */
+		if(dptr + 1 >= DEFSIZE)
+			error("Too many definitions");
+		if(strlen((char*)$2.cp) + strlen((char*)$3.cp) + 2 >=
+		    (size_t)(dchar + DEFCHAR - dp))
+			error("Definitions too long");
+		strcpy((char*)dp,(char*)$2.cp);
 		def[dptr] = dp;
 		dp += strlen((char*)$2.cp) + 1;
 		strcpy((char*)dp,(char*)$3.cp);
 		subs[dptr++] = dp;
-		if(dptr >= DEFSIZE)
-			error("Too many definitions");
 		dp += strlen((char*)$3.cp) + 1;
-		if(dp >= dchar+DEFCHAR)
-			error("Definitions too long");
 		subs[dptr]=def[dptr]=0;	/* for lookup - require ending null */
 	}
 	|
@@ -106,6 +120,9 @@ r:	CHAR
 	| '.'
 	{	symbol['\n'] = 0;
 		if(psave == FALSE){
+			/* NCH-2 characters and the terminator */
+			if(ccptr + (NCH-1) > ccl+CCLSIZE)
+				error("Too many large character classes");
 			p = ccptr;
 			psave = ccptr;
 			for(i=1;i<'\n';i++){
@@ -117,8 +134,6 @@ r:	CHAR
 				*ccptr++ = i;
 				}
 			*ccptr++ = 0;
-			if(ccptr > ccl+CCLSIZE)
-				error("Too many large character classes");
 			}
 		else
 			p = psave;
@@ -217,6 +232,37 @@ r:	CHAR
 	{	$$.i = mn0(RNULLS); }
 	;
 %%
+/*
+ * A "%option name ..." line is a flex directive. nounput and noinput ask
+ * flex to leave out functions that this lex supplies as macros in ncform,
+ * so they need no action here. Any other option changes the generated
+ * scanner in a way this lex cannot provide and is refused by name. The
+ * caller tests for the word before it reads "%o", the output-table size,
+ * which begins with the same two characters.
+ */
+static void
+lexoption(uchar *s)
+{
+	static char *accepted[] = { "nounput", "noinput", 0 };
+	uchar *word;
+	int n;
+
+	for(;;){
+		while(*s == ' ' || *s == '\t' || *s == ',') s++;
+		if(*s == 0)
+			return;
+		word = s;
+		while(*s && *s != ' ' && *s != '\t' && *s != ',') s++;
+		if(*s)
+			*s++ = 0;
+		for(n = 0; accepted[n]; n++)
+			if(strcmp((char*)word, accepted[n]) == 0)
+				break;
+		if(accepted[n] == 0)
+			error("Unsupported %%option %s", (char*)word);
+	}
+}
+
 int
 yylex(void)
 {
@@ -285,6 +331,11 @@ yylex(void)
 						if(report == 2)report = 1;
 						continue;
 					case 'o': case 'O':
+						if(strncmp((char*)p,"%option",7) == 0 &&
+						    (p[7] == 0 || p[7] == ' ' || p[7] == '\t')){
+							lexoption(p+7);
+							continue;
+						}
 						while (*p && !isdigit(*p))p++;
 						outsize = atol((char*)p);
 						if (report ==2) report=1;
@@ -306,6 +357,8 @@ yylex(void)
 						if (debug) printf( "Size classes (%%k) now %d\n",pchlen);
 # endif
 						pchar=pcptr=myalloc(pchlen, sizeof(*pchar));
+						if(pchar == 0)
+							error("Too little core for packed character classes");
 						continue;
 					case '{':
 						lgate();
@@ -324,16 +377,17 @@ yylex(void)
 							if(!*p) n = FALSE;
 							*p++ = 0;
 							if (*t == 0) continue;
+							if(sptr + 1 >= STARTSIZE)
+								error("Too many start conditions");
+							if(strlen((char*)t) + 1 >=
+							    (size_t)(stchar + STARTCHAR - sp))
+								error("Start conditions too long");
 							i = sptr*2;
 							fprintf(fout,"#define %s %d\n",(char*)t,i);
 							strcpy((char*)sp, (char*)t);
 							sname[sptr++] = sp;
 							sname[sptr] = 0;	/* required by lookup */
-							if(sptr >= STARTSIZE)
-								error("Too many start conditions");
 							sp += strlen((char*)sp) + 1;
-							if(sp >= stchar+STARTCHAR)
-								error("Start conditions too long");
 						}
 						continue;
 					default:
@@ -450,7 +504,7 @@ yylex(void)
 				ieval:
 					i = 0;
 					while(isdigit(c)){
-						token[i++] = c;
+						TOKPUT(c);
 						c = gch();
 					}
 					token[i] = 0;
@@ -461,7 +515,7 @@ yylex(void)
 				} else {		/* definition */
 					i = 0;
 					while(c && c!='}'){
-						token[i++] = c;
+						TOKPUT(c);
 						c = gch();
 					}
 					token[i] = 0;
@@ -480,7 +534,7 @@ yylex(void)
 					i = 0;
 					c = gch();
 					while(c != ',' && c && c != '>'){
-						token[i++] = c;
+						TOKPUT(c);
 						c = gch();
 					}
 					token[i] = 0;
@@ -491,8 +545,12 @@ yylex(void)
 						warning("Undefined start condition %s",token);
 						continue;
 					}
+					if(slptr >= slist+STARTSIZE)
+						error("Too many start conditions used");
 					*slptr++ = i+1;
 				} while(c && c != '>');
+				if(slptr >= slist+STARTSIZE)
+					error("Too many start conditions used");
 				*slptr++ = 0;
 				/* check if previous value re-usable */
 				for (xp=slist; xp<t; ){
@@ -505,8 +563,6 @@ yylex(void)
 					slptr=t;
 					t=xp;
 				}
-				if(slptr > slist+STARTSIZE)		/* note not packed ! */
-					error("Too many start conditions used");
 				yylval.cp = t;
 				x = SCON;
 				break;
@@ -514,12 +570,9 @@ yylex(void)
 				i = 0;
 				while((c=gch()) && c != '"' && c != '\n'){
 					if(c == '\\') c = usescape(gch());
+					if(i >= TOKENSIZE-1)
+						error("String too long");
 					token[i++] = c;
-					if(i > TOKENSIZE){
-						warning("String too long");
-						i = TOKENSIZE-1;
-						break;
-					}
 				}
 				if(c == '\n') {
 					yyline--;
@@ -578,11 +631,12 @@ yylex(void)
 				if(p < ccptr)	/* found it */
 					yylval.cp = p;
 				else {
+					if(strlen((char*)token) + 1 >=
+					    (size_t)(ccl + CCLSIZE - ccptr))
+						error("Too many large character classes");
 					yylval.cp = ccptr;
 					strcpy((char*)ccptr,(char*)token);
 					ccptr += strlen((char*)token) + 1;
-					if(ccptr >= ccl+CCLSIZE)
-						error("Too many large character classes");
 				}
 				cclinter(x==CCL);
 				break;
@@ -598,9 +652,9 @@ yylex(void)
 				if(isalpha(peek)){
 					i = 0;
 					yylval.cp = token;
-					token[i++] = c;
+					TOKPUT(c);
 					while(isalpha(peek))
-						token[i++] = gch();
+						TOKPUT(gch());
 					if(peek == '?' || peek == '*' || peek == '+')
 						munputc(token[--i]);
 					token[i] = 0;

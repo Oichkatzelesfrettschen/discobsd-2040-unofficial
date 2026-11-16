@@ -7,9 +7,21 @@
 
 static char GROUP[] = "/etc/group";
 static FILE *grf = NULL;
-static char line[256+1];
 static struct group group;
-static char *gr_mem[MAXGRP];
+
+/*
+ * The strings and member vector of the entry getgrent() returns. The
+ * record is allocated by the first getgrent() call, so a program that
+ * links the group routines without calling them, as most applets of a
+ * multicall box do, carries none of it in its bss, its process window
+ * or its swap image. It is never freed: getgrgid() and getgrnam() return
+ * an entry after endgrent(), and every entry stays valid until the next
+ * getgrent() call.
+ */
+static struct grbuf {
+	char	*mem[MAXGRP];
+	char	line[256+1];
+} *grbuf;
 
 void
 setgrent()
@@ -30,9 +42,7 @@ endgrent()
 }
 
 static char *
-grskip(p,c)
-        register char *p;
-        register int c;
+grskip(char *p, int c)
 {
 	while(*p && *p != c) ++p;
 	if (*p) *p++ = 0;
@@ -42,12 +52,16 @@ grskip(p,c)
 struct group *
 getgrent()
 {
-	register char *p, **q;
+	register char *p, **q, **gr_mem;
 
+	/* A failed allocation returns NULL with malloc()'s errno, ENOMEM. */
+	if (!grbuf && !(grbuf = malloc(sizeof(*grbuf))))
+		return(NULL);
 	if (!grf && !(grf = fopen(GROUP, "r")))
 		return(NULL);
-	if (!(p = fgets(line, sizeof(line)-1, grf)))
+	if (!(p = fgets(grbuf->line, sizeof(grbuf->line)-1, grf)))
 		return(NULL);
+	gr_mem = grbuf->mem;
 	group.gr_name = p;
 	group.gr_passwd = p = grskip(p,':');
 	group.gr_gid = atoi(p = grskip(p,':'));

@@ -84,6 +84,11 @@ swapout(struct proc *p, int freecore, u_int odata, u_int ostack,
 void wakeup(caddr_t chan) { (void)chan; HK_CHECK(0); }
 void sleep(caddr_t chan, int priority) { (void)chan; (void)priority; HK_CHECK(0); }
 int hk_fork_setjmp(label_t *env) { (void)env; return 0; }
+/*
+ * newproc() reports a full process table through log(). The linker drops
+ * that path from the native build; the sanitized 32-bit build keeps it.
+ */
+void log(int level, char *fmt, ...) { (void)level; (void)fmt; HK_CHECK(0); }
 
 void gate_settimeofday(void);
 
@@ -175,10 +180,10 @@ get_timer(struct proc *p, u_int which)
 }
 
 /* A remaining value in microseconds. */
-static long
+static long long
 usec_of(struct timeval tv)
 {
-    return tv.tv_sec * 1000000L + tv.tv_usec;
+    return tv.tv_sec * 1000000LL + tv.tv_usec;
 }
 
 static unsigned
@@ -592,7 +597,7 @@ limits(void)
     back = get_timer(&proc[0], ITIMER_REAL);
     HK_CHECK(back.it_interval.tv_sec == 100000000L &&
         back.it_interval.tv_usec == 0);
-    HK_CHECK(usec_of(back.it_value) == 100000000L * 1000000L);
+    HK_CHECK(usec_of(back.it_value) == 100000000LL * 1000000LL);
 
     itv.it_value.tv_sec = 0;
     itv.it_value.tv_usec = 999999;
@@ -654,6 +659,135 @@ virtual_prof(void)
         }
 }
 
+/*
+ * The wall clock counts seconds since 1970 modulo 2^32 and is read
+ * unsigned, so it carries out of bit 31 in January 2038 and stays ordered
+ * to 2106. The cases need the target's 32-bit long: a 64-bit long never
+ * reaches the carry. HK_WALL_ILP32 marks the build that has it and runs
+ * them; the kernel's LONG_MAX is the target's in either build and cannot
+ * tell the two apart.
+ */
+#ifdef HK_WALL_ILP32
+_Static_assert(sizeof(long) == 4, "the wall clock cases need a 32-bit long");
+#endif
+
+static void
+wall_clock_carry(void)
+{
+#ifdef HK_WALL_ILP32
+    struct { struct timeval *delta, *old; } *adjust = (void *)u.u_arg;
+    struct { struct timeval *tv; struct timezone *tzp; } *sargs =
+        (void *)u.u_arg;
+    struct timeval tv, delta, deadline;
+    static const struct {
+        unsigned long clock;
+        long step;
+        int error;
+    } steps[] = {
+        { 0x7ffffff0UL, 200, 0 },        /* across the carry */
+        { 0x90000000UL, -200, 0 },       /* back, past the carry */
+        { 0x800000c8UL, -400, 0 },       /* back across the carry */
+        { 0xffffff00UL, 200, 0 },        /* up to the last minutes of 2106 */
+        { 0xffffff80UL, 200, EINVAL },   /* past the unsigned count */
+        { 100UL, -200, EINVAL },         /* before 1970 */
+    };
+    unsigned i;
+
+    reset();
+    /* hardclock() carries the second count out of bit 31. */
+    time.tv_sec = 0x7fffffffL;
+    time.tv_usec = 0;
+    lbolt = hz - 1;
+    tick(1);
+    HK_CHECK((unsigned long)time.tv_sec == 0x80000000UL);
+
+    /* hzto() measures a deadline across the carry and past it. */
+    time.tv_sec = 0x7ffffffbL;
+    time.tv_usec = 0;
+    deadline.tv_sec = (long)0x80000005UL;
+    deadline.tv_usec = 0;
+    HK_CHECK(hzto(&deadline) == 10 * hz);
+    time.tv_sec = (long)0x90000000UL;
+    deadline.tv_sec = (long)0x9000000aUL;
+    HK_CHECK(hzto(&deadline) == 10 * hz);
+
+    /*
+     * A clock stepped across more than 2^31 seconds keeps its order with a
+     * pending deadline: far ahead waits the longest sleep, far behind is
+     * due at once.
+     */
+    time.tv_sec = (long)1800000000UL;
+    deadline.tv_sec = (long)4000000000UL;
+    HK_CHECK(wall_interval(deadline.tv_sec, time.tv_sec) == LONG_MAX);
+    HK_CHECK(wall_interval(time.tv_sec, deadline.tv_sec) == -LONG_MAX);
+    HK_CHECK(hzto(&deadline) == 0x7fffffff);
+    HK_CHECK(!wall_reached(&deadline, time.tv_sec, 0));
+    time.tv_sec = (long)4000000000UL;
+    deadline.tv_sec = (long)1800000001UL;
+    HK_CHECK(hzto(&deadline) == 0);
+    HK_CHECK(wall_reached(&deadline, time.tv_sec, 0));
+
+    /* A deadline past the carry is not reached by a clock before it. */
+    deadline.tv_sec = (long)0x80000001UL;
+    deadline.tv_usec = 5;
+    HK_CHECK(!wall_reached(&deadline, 0x7fffffffL, 999999));
+    HK_CHECK(!wall_reached(&deadline, (long)0x80000001UL, 4));
+    HK_CHECK(wall_reached(&deadline, (long)0x80000001UL, 5));
+    HK_CHECK(wall_reached(&deadline, (long)0x80000002UL, 0));
+
+    /* A five-second period keeps its phase across the carry. */
+    HK_CHECK(wall_every(0x7ffffffdL, 5));
+    HK_CHECK(wall_every((long)0x80000002UL, 5));
+    HK_CHECK(!wall_every((long)0x80000003UL, 5));
+
+    /* timevaladd() carries a microsecond overflow into bit 31. */
+    tv.tv_sec = 0x7fffffffL;
+    tv.tv_usec = 999999;
+    delta.tv_sec = 0;
+    delta.tv_usec = 1;
+    timevaladd(&tv, &delta);
+    HK_CHECK((unsigned long)tv.tv_sec == 0x80000000UL && tv.tv_usec == 0);
+
+    /* settimeofday(2) moves the boot time by the same distance. */
+    time.tv_sec = 0x7ffffff0L;
+    time.tv_usec = 0;
+    lbolt = 0;
+    boottime.tv_sec = 0x7fffff00L;
+    tv.tv_sec = (long)0x80000010UL;
+    tv.tv_usec = 0;
+    sargs->tv = &tv;
+    sargs->tzp = NULL;
+    u.u_error = 0;
+    gate_settimeofday();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK((unsigned long)time.tv_sec == 0x80000010UL);
+    HK_CHECK((unsigned long)boottime.tv_sec == 0x7fffff20UL);
+    time.tv_sec = (long)1800000000UL;
+    boottime.tv_sec = (long)1799999000UL;
+    tv.tv_sec = (long)4000000000UL;
+    u.u_error = 0;
+    gate_settimeofday();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK((unsigned long)boottime.tv_sec == 3999999000UL);
+
+    /* adjtime(2) steps the clock anywhere inside 1970..2106 and nowhere else. */
+    for (i = 0; i < sizeof steps / sizeof steps[0]; i++) {
+        time.tv_sec = (long)steps[i].clock;
+        time.tv_usec = 0;
+        lbolt = 0;
+        delta.tv_sec = steps[i].step;
+        delta.tv_usec = 0;
+        adjust->delta = &delta;
+        adjust->old = NULL;
+        u.u_error = 0;
+        adjtime();
+        HK_CHECK(u.u_error == steps[i].error);
+        HK_CHECK((unsigned long)time.tv_sec == (steps[i].error ?
+            steps[i].clock : steps[i].clock + (unsigned long)steps[i].step));
+    }
+#endif
+}
+
 int
 main(void)
 {
@@ -669,5 +803,6 @@ main(void)
     catch_up();
     limits();
     virtual_prof();
+    wall_clock_carry();
     return hk_verdict("itimer");
 }

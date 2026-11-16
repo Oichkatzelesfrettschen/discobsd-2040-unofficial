@@ -28,6 +28,7 @@
 #endif
 
 struct user u;
+int securelevel;
 
 static caddr_t
 logical_address(u_int value)
@@ -193,6 +194,37 @@ provider_error_preserves_transfer(void)
 	HK_CHECK(transfer.uio_resid == 4);
 }
 
+/*
+ * A write to /dev/mem or /dev/kmem is refused once securelevel is above 0,
+ * whenever the descriptor was opened, and before any byte moves; a read
+ * and a write at level 0 are admitted.
+ */
+static void
+securelevel_binds_each_write(void)
+{
+	for (int minor_device = 0; minor_device <= 1; minor_device++) {
+		securelevel = 0;
+		reset(KERNEL_DATA_LOWER, 4, UIO_WRITE);
+		HK_CHECK(mmrw(makedev(MEM_MAJOR, minor_device), &transfer, 0) == 0);
+		HK_CHECK(uiomove_calls == 1);
+		for (int level = 1; level <= 2; level++) {
+			securelevel = level;
+			reset(KERNEL_DATA_LOWER, 4, UIO_WRITE);
+			HK_CHECK(mmrw(makedev(MEM_MAJOR, minor_device), &transfer,
+			    0) == EPERM);
+			HK_CHECK(uiomove_calls == 0 && transfer.uio_resid == 4);
+			reset(KERNEL_DATA_LOWER, 4, UIO_READ);
+			HK_CHECK(mmrw(makedev(MEM_MAJOR, minor_device), &transfer,
+			    0) == 0);
+			HK_CHECK(uiomove_calls == 1);
+		}
+	}
+	securelevel = 1;
+	reset(7, 4, UIO_WRITE);
+	HK_CHECK(mmrw(makedev(MEM_MAJOR, 2), &transfer, 0) == 0);
+	securelevel = 0;
+}
+
 static void
 other_minors_preserve_behavior(void)
 {
@@ -252,6 +284,7 @@ main(void)
 	crossing_and_wrapped_spans_are_rejected();
 	provider_error_preserves_transfer();
 	other_minors_preserve_behavior();
+	securelevel_binds_each_write();
 	empty_iovecs_are_skipped();
 	return hk_verdict("memory-device span contracts");
 }

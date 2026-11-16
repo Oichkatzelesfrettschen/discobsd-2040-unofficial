@@ -180,11 +180,9 @@ icode1:
 	orrs	r0, r1
 	msr	CONTROL, r0
 	isb				/* Unprivileged from the next fetch. */
-	movs.n	r0, #(sbininit - icode)	/* Offset for /sbin/init path. */
-	movs.n	r1, #(argv - icode)	/* Offset for *argv[] array. */
-	ldr	r2, =UBASE		/* User space base address. */
-	add	r0, r2			/* execv() *name argument. */
-	add	r1, r2			/* execv() *argv[] argument. */
+	/* The kernel copies icode into the user window before entering it. */
+	adr	r0, sbininit
+	adr	r1, argv
 	svc	#11			/* Make SYS_execv syscall. */
 	svc	#1			/* Make SYS_exit syscall. */
 

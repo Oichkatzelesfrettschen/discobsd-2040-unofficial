@@ -12,7 +12,7 @@ ROM_FLOAT_FUNCTION(__aeabi_ui2d)
 	cmp	r0, #0
 	beq	Lui2d_zero
 	push	{r0, r1, r4, lr}
-	ldr	r3, =ROM_FLOAT_CELL_NAME(clz)
+	ROM_FLOAT_CELL_ADDRESS(clz, r3, r2)
 	ldr	r3, [r3]
 	blx	r3
 	pop	{r2, r3}
@@ -29,5 +29,6 @@ ROM_FLOAT_FUNCTION(__aeabi_ui2d)
 Lui2d_zero:
 	bx	lr
 	.pool
+	ROM_FLOAT_GOT_LITERAL(clz)
 ROM_FLOAT_FUNCTION_END(__aeabi_ui2d)
 ROM_FLOAT_ALIAS(__floatunsidf, __aeabi_ui2d)

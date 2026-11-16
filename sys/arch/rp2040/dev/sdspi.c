@@ -25,11 +25,13 @@
 #define	CMD0			0	/* GO_IDLE_STATE */
 #define	CMD8			8	/* SEND_IF_COND */
 #define	CMD9			9	/* SEND_CSD */
+#define	CMD13			13	/* SEND_STATUS */
 #define	CMD16			16	/* SET_BLOCKLEN */
 #define	CMD17			17	/* READ_SINGLE_BLOCK */
 #define	CMD24			24	/* WRITE_BLOCK */
 #define	CMD55			55	/* APP_CMD */
 #define	CMD58			58	/* READ_OCR */
+#define	CMD59			59	/* CRC_ON_OFF */
 #define	ACMD41			41	/* SD_SEND_OP_COND */
 
 #define	R1_IDLE			0x01
@@ -75,27 +77,64 @@ sd_ready(const struct sdspi_ops *o)
 }
 
 /*
+ * CRC7 of a command frame's first five bytes, generator x^7 + x^3 + 1
+ * ("CRC7" under Bus Transfer Protection), returned in the frame's last
+ * byte's layout: the sum in bits 7-1 and the end bit set. CMD0 with a zero
+ * argument gives 95h and CMD8 with 1AAh gives 87h, the two values a card
+ * checks before CMD59 has turned checking on.
+ */
+static unsigned char
+sd_crc7(const unsigned char *p, int n)
+{
+	unsigned crc = 0;
+	int i;
+
+	while (n-- > 0) {
+		crc ^= *p++;
+		for (i = 0; i < 8; i++)
+			crc = (crc & 0x80) ? (crc << 1) ^ 0x12 : crc << 1;
+		crc &= 0xff;
+	}
+	return (unsigned char)(crc | 1);
+}
+
+/*
+ * Fold one byte into the CRC16 of a data block, generator
+ * x^16 + x^12 + x^5 + 1 with a zero start value ("CRC16"). The three
+ * shifts are the generator's taps applied to a whole byte at once.
+ */
+static unsigned
+sd_crc16(unsigned crc, unsigned char b)
+{
+	unsigned x = ((crc >> 8) ^ b) & 0xff;
+
+	x ^= x >> 4;
+	return ((crc << 8) ^ (x << 12) ^ (x << 5) ^ x) & 0xffff;
+}
+
+/*
  * Send one command and return its R1 byte, R1_NONE when none arrives.
- * Chip select stays low for the caller's data phase. Only CMD0 and CMD8
- * carry a checked CRC in SPI mode, where checking is off after reset
- * (Bus Transfer Protection); every other command takes a dummy CRC with
- * the end bit set.
+ * Chip select stays low for the caller's data phase. Every frame carries
+ * its CRC7: a card checks it for CMD0 and CMD8 always and for every
+ * command once CMD59 has turned checking on.
  */
 static unsigned char
 sd_cmd(const struct sdspi_ops *o, unsigned cmd, unsigned arg)
 {
-	unsigned char r = R1_NONE;
+	unsigned char r = R1_NONE, frame[6];
 	int i;
 
 	o->select(1);
 	if (!sd_ready(o))
 		return R1_NONE;
-	(void)o->xfer(0x40 | cmd);
-	(void)o->xfer(arg >> 24);
-	(void)o->xfer(arg >> 16);
-	(void)o->xfer(arg >> 8);
-	(void)o->xfer(arg);
-	(void)o->xfer(cmd == CMD0 ? 0x95 : cmd == CMD8 ? 0x87 : 0x01);
+	frame[0] = 0x40 | cmd;
+	frame[1] = arg >> 24;
+	frame[2] = arg >> 16;
+	frame[3] = arg >> 8;
+	frame[4] = arg;
+	frame[5] = sd_crc7(frame, 5);
+	for (i = 0; i < 6; i++)
+		(void)o->xfer(frame[i]);
 	for (i = 0; i < NCR_MAX && (r & 0x80); i++)
 		r = o->xfer(0xff);
 	return (r & 0x80) ? R1_NONE : r;
@@ -124,22 +163,37 @@ sd_tail(const struct sdspi_ops *o, unsigned char *p, int n)
 		*p++ = o->xfer(0xff);
 }
 
-/* Receive a start token and n data bytes plus the CRC, which is ignored. */
+/*
+ * Receive a start token and n data bytes plus their CRC16, keeping bytes
+ * off to off + len - 1 of the n in buf. With checking on, a block whose
+ * sum disagrees with the two bytes the card sent after it is an error: the
+ * caller's buffer already holds the bytes, and the result says not to use
+ * them.
+ */
 static int
-sd_rx(const struct sdspi_ops *o, unsigned char *buf, unsigned n)
+sd_rx(const struct sdspi *sd, unsigned char *buf, unsigned n,
+    unsigned off, unsigned len)
 {
+	const struct sdspi_ops *o = sd->ops;
 	unsigned t0 = o->micros();
 	unsigned char b;
+	unsigned i, crc = 0, sent;
 
 	while ((b = o->xfer(0xff)) == 0xff)
 		if (o->micros() - t0 >= READ_US)
 			return SDE_TIMEOUT;
 	if (b != TOKEN_START)
 		return SDE_IO;		/* A Data Error Token. */
-	while (n-- > 0)
-		*buf++ = o->xfer(0xff);
-	(void)o->xfer(0xff);
-	(void)o->xfer(0xff);
+	for (i = 0; i < n; i++) {
+		b = o->xfer(0xff);
+		crc = sd_crc16(crc, b);
+		if (i - off < len)
+			*buf++ = b;
+	}
+	sent = (unsigned)o->xfer(0xff) << 8;
+	sent |= o->xfer(0xff);
+	if (sd->crc && sent != crc)
+		return SDE_IO;
 	return SDE_OK;
 }
 
@@ -176,6 +230,7 @@ sdspi_init(struct sdspi *sd)
 
 	sd->type = SD_NONE;
 	sd->nsectors = 0;
+	sd->crc = 0;
 	o->speed(0);
 	o->select(0);
 	for (i = 0; i < POWERUP_CLOCKS; i++)
@@ -203,6 +258,15 @@ sdspi_init(struct sdspi *sd)
 		return SDE_IO;
 	}
 	sd_done(o);
+
+	/*
+	 * CRC_ON_OFF with option bit 1, before ACMD41 as Bus Transfer
+	 * Protection asks. A card that refuses the command runs unchecked,
+	 * as SPI mode does after reset.
+	 */
+	r = sd_cmd(o, CMD59, 1);
+	sd_done(o);
+	sd->crc = r == R1_IDLE;
 
 	/* ACMD41 until the card leaves idle; HCS only for version 2.0. */
 	hcs = v2 ? 0x40000000 : 0;
@@ -232,7 +296,7 @@ sdspi_init(struct sdspi *sd)
 	o->speed(1);
 
 	r = sd_cmd(o, CMD9, 0);
-	i = r == 0 ? sd_rx(o, csd, 16) : SDE_IO;
+	i = r == 0 ? sd_rx(sd, csd, 16, 0, 16) : SDE_IO;
 	sd_done(o);
 	if (i == SDE_OK && (sd->nsectors = sdspi_csd_sectors(csd)) == 0)
 		i = SDE_IO;
@@ -251,13 +315,21 @@ sd_addr(const struct sdspi *sd, unsigned sector)
 int
 sdspi_read(struct sdspi *sd, unsigned sector, unsigned char *buf)
 {
+	return sdspi_read_span(sd, sector, buf, 0, SD_SECTOR);
+}
+
+int
+sdspi_read_span(struct sdspi *sd, unsigned sector, unsigned char *buf,
+    unsigned off, unsigned len)
+{
 	const struct sdspi_ops *o = sd->ops;
 	int err = SDE_IO;
 
-	if (sd->type == SD_NONE || sector >= sd->nsectors)
+	if (sd->type == SD_NONE || sector >= sd->nsectors ||
+	    off > SD_SECTOR || len > SD_SECTOR - off)
 		return SDE_IO;
 	if (sd_cmd(o, CMD17, sd_addr(sd, sector)) == 0)
-		err = sd_rx(o, buf, SD_SECTOR);
+		err = sd_rx(sd, buf, SD_SECTOR, off, len);
 	sd_done(o);
 	return err;
 }
@@ -265,12 +337,20 @@ sdspi_read(struct sdspi *sd, unsigned sector, unsigned char *buf)
 int
 sdspi_write(struct sdspi *sd, unsigned sector, const unsigned char *buf)
 {
+	return sdspi_write_span(sd, sector, buf, SD_SECTOR, (unsigned *)0);
+}
+
+int
+sdspi_write_span(struct sdspi *sd, unsigned sector, const unsigned char *buf,
+    unsigned len, unsigned *crc)
+{
 	const struct sdspi_ops *o = sd->ops;
 	int err = SDE_IO;
 	unsigned t0;
-	unsigned i;
+	unsigned i, crc16 = 0;
+	unsigned char b, r;
 
-	if (sd->type == SD_NONE || sector >= sd->nsectors)
+	if (sd->type == SD_NONE || sector >= sd->nsectors || len > SD_SECTOR)
 		return SDE_IO;
 	if (sd_cmd(o, CMD24, sd_addr(sd, sector)) != 0) {
 		sd_done(o);
@@ -278,10 +358,16 @@ sdspi_write(struct sdspi *sd, unsigned sector, const unsigned char *buf)
 	}
 	(void)o->xfer(0xff);
 	(void)o->xfer(TOKEN_START);
-	for (i = 0; i < SD_SECTOR; i++)
-		(void)o->xfer(buf[i]);
-	(void)o->xfer(0xff);
-	(void)o->xfer(0xff);
+	for (i = 0; i < SD_SECTOR; i++) {
+		/* One load per byte: the sum covers exactly the byte sent. */
+		b = i < len ? buf[i] : 0;
+		(void)o->xfer(b);
+		crc16 = sd_crc16(crc16, b);
+		if (crc != (unsigned *)0 && i < len)
+			*crc = crc32_update(*crc, &b, 1);
+	}
+	(void)o->xfer(crc16 >> 8);
+	(void)o->xfer(crc16);
 	if ((o->xfer(0xff) & DATA_RESP_MASK) == DATA_ACCEPTED) {
 		/* Data Write: the card holds DO low while it programs. */
 		err = SDE_OK;
@@ -293,5 +379,17 @@ sdspi_write(struct sdspi *sd, unsigned sector, const unsigned char *buf)
 			}
 	}
 	sd_done(o);
+	if (err == SDE_OK) {
+		/*
+		 * SEND_STATUS: the data response accepted the block before
+		 * the card programmed it, so a failed program shows only in
+		 * the R2 the card returns afterwards ("Data Write").
+		 */
+		r = sd_cmd(o, CMD13, 0);
+		b = o->xfer(0xff);
+		sd_done(o);
+		if (r != 0 || b != 0)
+			err = SDE_IO;
+	}
 	return err;
 }

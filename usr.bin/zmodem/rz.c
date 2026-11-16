@@ -102,6 +102,8 @@
 #include <setjmp.h>
 #include <ctype.h>
 #include <errno.h>
+#include <time.h>
+#include <utime.h>
 
 #define OK 0
 #define FALSE 0
@@ -202,7 +204,6 @@ char secbuf[1025];
 
 char linbuf[HOWMANY];
 int Lleft=0;		/* number of characters in linbuf */
-time_t timep[2];
 char Lzmanag;		/* Local file management request */
 char zconv;		/* ZMODEM file conversion request */
 char zmanag;		/* ZMODEM file management request */
@@ -1031,7 +1032,7 @@ canit()
 	 24,24,24,24,24,24,24,24,24,24,8,8,8,8,8,8,8,8,8,8,0
 	};
 
-	printf(canistr);
+	fputs(canistr, stdout);
 	Lleft=0;	/* Do read next time ... */
 	fflush(stdout);
 }
@@ -1433,7 +1434,7 @@ char *s;
  */
 closeit()
 {
-	time_t time();
+	struct utimbuf times;
 
 	if (Topipe) {
 		if (pclose(fout)) {
@@ -1446,9 +1447,13 @@ closeit()
 		return ERROR;
 	}
 	if (Modtime) {
-		timep[0] = time(NULL);
-		timep[1] = Modtime;
-		utime(Pathname, timep);
+		/*
+		 * The sender's header carries the file time as an octal
+		 * 32-bit count read into Modtime, so it widens unsigned.
+		 */
+		times.actime = time(NULL);
+		times.modtime = (time_t)(unsigned long)Modtime;
+		utime(Pathname, &times);
 	}
 	if ((Filemode&S_IFMT) == S_IFREG)
 		chmod(Pathname, (07777 & Filemode));

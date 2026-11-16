@@ -22,7 +22,7 @@ cat > "$work/good.syms" <<'EOF'
 2003e800 T __kernel_data_end
 20030000 T __kernel_data_start
 20033dd8 B _ebss
-20033a90 00000258 b sr_tab
+20033a90 00000180 b sr_tab
 10012dac 00000028 T swapram_codec_acquire
 10012dd4 00000024 T swapram_codec_release
 50100740 A swapram_codec_work
@@ -130,8 +130,8 @@ mutate "a moved codec workspace" \
     's/^50100740 A swapram_codec_work$/50100700 A swapram_codec_work/' \
     "expected absolute 50100740"
 mutate "an oversized compact table" \
-    's/^20033a90 00000258 b sr_tab$/20033a90 00000270 b sr_tab/' \
-    "expected 25 compact 24-byte records"
+    's/^20033a90 00000180 b sr_tab$/20033a90 00000198 b sr_tab/' \
+    "expected 16 compact 24-byte records"
 mutate "a retired epoch symbol" \
     '$a\
 10013300 00000010 T swapram_enter_large' \

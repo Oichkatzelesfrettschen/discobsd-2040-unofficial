@@ -44,7 +44,8 @@ struct subdirs {
 	struct	subdirs *sd_next;
 } *subdirs;
 
-char	aflg, dflg, gflg, lflg, sflg, tflg, uflg, iflg, fflg, cflg, rflg = 1;
+char	aflg, dflg, gflg, lflg, sflg, tflg, uflg, iflg, fflg, cflg;
+signed char rflg = 1;
 char	oflg, qflg, Aflg, Cflg, Fflg, Lflg, Rflg, usetabs, colorflag;
 
 time_t	now, sixmonthsago;
@@ -56,7 +57,7 @@ int	twidth;
 int	errs;		/* an argument that stat cannot reach sets the exit status */
 
 struct	afile *gstat();
-int	fcmp();
+int	fcmp(const void *, const void *);
 char	*cat(), *savestr();
 char	*fmtentry();
 char	*getname(), *getgroup();
@@ -77,7 +78,6 @@ main(argc, argv)
 	register struct afile *fp;
 	struct sgttyb sgbuf;
 	int ch, i;
-	time_t time();
 	void cfree();
 
 	Aflg = !getuid();
@@ -479,9 +479,9 @@ formatf(fp0, fplast)
 }
 
 int
-fcmp(f1, f2)
-	register struct afile *f1, *f2;
+fcmp(const void *left, const void *right)
 {
+	const struct afile *f1 = left, *f2 = right;
 
 	if (dflg == 0 && fflg == 0) {
 		if ((f1->fmode&ISARG) && f1->ftype == 'd') {

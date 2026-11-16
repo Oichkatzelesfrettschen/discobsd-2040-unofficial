@@ -199,6 +199,9 @@ def check(root, host_cc, output):
 
         for configuration in ("PICO", "PICO_UART"):
             build = root / "sys/arch/rp2040/compile" / configuration
+            query_environment = os.environ.copy()
+            query_environment.pop("MAKEFLAGS", None)
+            query_environment.pop("MFLAGS", None)
             evaluated = subprocess.check_output(
                 [
                     "bmake",
@@ -208,6 +211,7 @@ def check(root, host_cc, output):
                     "${CC} ${CFLAGS} ${INCLUDES} ${PARAM} -DKERNEL",
                 ],
                 text=True,
+                env=query_environment,
             )
             flags = shlex.split(evaluated)
             require(

@@ -13,201 +13,165 @@
  * The MTHREShold is where we stop finding a better median.
  */
 #include <stdlib.h>
-
-#define		THRESH		4		/* threshold for insertion */
-#define		MTHRESH		6		/* threshold for median */
-
-/*
- * The parameters of one sort. They travel with the call rather than
- * living at file scope, because a comparison routine may itself call
- * qsort() on records of another size, and file-scope state written by
- * the inner call is what the outer partition loop then reads for its own
- * record size and comparator. tests/libc_contracts/qsort_test.c sorts
- * through a comparator that sorts, at two record sizes.
- */
-struct qsort_state {
-	int		(*qcmp)(const void *, const void *);
-	size_t		qsz;			/* size of each record */
-	size_t		thresh;			/* THRESHold in chars */
-	size_t		mthresh;		/* MTHRESHold in chars */
+#ifdef _DISCOBSD_QSORT_R
+typedef int (*comparator)(const void *, const void *, void *);
+#define CMP(a, b) state->compare(a, b, state->context)
+#else
+typedef int (*comparator)(const void *, const void *);
+#define CMP(a, b) state->compare(a, b)
+#endif
+struct qsort_state
+{
+    size_t width;
+    comparator compare;
+#ifdef _DISCOBSD_QSORT_R
+    void *context;
+#endif
 };
-
-/*
- * qst:
- * Do a quicksort
- * First, find the median element, and put that one in the first place as the
- * discriminator.  (This "median" is just the median of the first, last and
- * middle elements).  (Using this median instead of the first element is a big
- * win).  Then, the usual partitioning/swapping, followed by moving the
- * discriminator into the right place.  Then, figure out the sizes of the two
- * partions, do the smaller one recursively and the larger one via a repeat of
- * this code.  Stopping when there are less than THRESH elements in a partition
- * and cleaning up with an insertion sort (in our caller) is a huge win.
- * All data swaps are done in-line, which is space-losing but time-saving.
- * (And there are only three places where this is done).
- */
-static void
-qst(const struct qsort_state *st, char *base, char *max)
+static void swap(unsigned char *a, unsigned char *b, size_t width)
 {
-	register char c, *i, *j, *jj;
-	register size_t ii;
-	const size_t qsz = st->qsz;
-	int (*const qcmp)(const void *, const void *) = st->qcmp;
-	char *mid, *tmp;
-	size_t lo, hi;
-
-	/*
-	 * At the top here, lo is the number of characters of elements in the
-	 * current partition.  (Which should be max - base).
-	 * Find the median of the first, last, and middle element and make
-	 * that the middle element.  Set j to largest of first and middle.
-	 * If max is larger than that guy, then it's that guy, else compare
-	 * max with loser of first and take larger.  Things are set up to
-	 * prefer the middle, then the first in case of ties.
-	 */
-	lo = max - base;		/* number of elements as chars */
-	do	{
-		mid = i = base + qsz * ((lo / qsz) >> 1);
-		if (lo >= st->mthresh) {
-			j = (qcmp((jj = base), i) > 0 ? jj : i);
-			if (qcmp(j, (tmp = max - qsz)) > 0) {
-				/* switch to first loser */
-				j = (j == jj ? i : jj);
-				if (qcmp(j, tmp) < 0)
-					j = tmp;
-			}
-			if (j != i) {
-				ii = qsz;
-				do	{
-					c = *i;
-					*i++ = *j;
-					*j++ = c;
-				} while (--ii);
-			}
-		}
-		/*
-		 * Semi-standard quicksort partitioning/swapping
-		 */
-		for (i = base, j = max - qsz; ; ) {
-			while (i < mid && qcmp(i, mid) <= 0)
-				i += qsz;
-			while (j > mid) {
-				if (qcmp(mid, j) <= 0) {
-					j -= qsz;
-					continue;
-				}
-				tmp = i + qsz;	/* value of i after swap */
-				if (i == mid) {
-					/* j <-> mid, new mid is j */
-					mid = jj = j;
-				} else {
-					/* i <-> j */
-					jj = j;
-					j -= qsz;
-				}
-				goto swap;
-			}
-			if (i == mid) {
-				break;
-			} else {
-				/* i <-> mid, new mid is i */
-				jj = mid;
-				tmp = mid = i;	/* value of i after swap */
-				j -= qsz;
-			}
-		swap:
-			ii = qsz;
-			do	{
-				c = *i;
-				*i++ = *jj;
-				*jj++ = c;
-			} while (--ii);
-			i = tmp;
-		}
-		/*
-		 * Look at sizes of the two partitions, do the smaller
-		 * one first by recursion, then do the larger one by
-		 * making sure lo is its size, base and max are update
-		 * correctly, and branching back.  But only repeat
-		 * (recursively or by branching) if the partition is
-		 * of at least size THRESH.
-		 */
-		i = (j = mid) + qsz;
-		if ((lo = j - base) <= (hi = max - i)) {
-			if (lo >= st->thresh)
-				qst(st, base, j);
-			base = i;
-			lo = hi;
-		} else {
-			if (hi >= st->thresh)
-				qst(st, i, max);
-			max = j;
-		}
-	} while (lo >= st->thresh);
+    while (width--)
+    {
+        unsigned char byte = *a;
+        *a++ = *b;
+        *b++ = byte;
+    }
 }
-
-/*
- * qsort:
- * First, set up the parameters for qst to share.  Then, quicksort
- * with qst(), and then a cleanup insertion sort ourselves.  Sound simple?
- * It's not...
- */
-void
-qsort(void *vbase, size_t n, size_t size,
-    int (*compar)(const void *, const void *))
+static void sift(unsigned char *base, size_t count, size_t root,
+                 const struct qsort_state *state)
 {
-	struct qsort_state st;
-	register char c, *i, *j, *lo, *hi;
-	char *base = vbase, *min, *max;
-	const size_t qsz = size;
-
-	if (n <= 1 || size == 0)
-		return;
-	st.qsz = qsz;
-	st.qcmp = compar;
-	st.thresh = qsz * THRESH;
-	st.mthresh = qsz * MTHRESH;
-	max = base + n * qsz;
-	if (n >= THRESH) {
-		qst(&st, base, max);
-		hi = base + st.thresh;
-	} else {
-		hi = max;
-	}
-	/*
-	 * First put smallest element, which must be in the first THRESH, in
-	 * the first position as a sentinel.  This is done just by searching
-	 * the first THRESH elements (or the first n if n < THRESH), finding
-	 * the min, and swapping it into the first position.
-	 */
-	for (j = lo = base; (lo += qsz) < hi; )
-		if (compar(j, lo) > 0)
-			j = lo;
-	if (j != base) {
-		/* swap j into place */
-		for (i = base, hi = base + qsz; i < hi; ) {
-			c = *j;
-			*j++ = *i;
-			*i++ = c;
-		}
-	}
-	/*
-	 * With our sentinel in place, we now run the following hyper-fast
-	 * insertion sort.  For each remaining element, min, from [1] to [n-1],
-	 * set hi to the index of the element AFTER which this one goes.
-	 * Then, do the standard insertion sort shift on a character at a time
-	 * basis for each element in the frob.
-	 */
-	for (min = base; (hi = min += qsz) < max; ) {
-		while (compar(hi -= qsz, min) > 0)
-			/* void */;
-		if ((hi += qsz) != min) {
-			for (lo = min + qsz; --lo >= min; ) {
-				c = *lo;
-				for (i = j = lo; (j -= qsz) >= hi; i = j)
-					*i = *j;
-				*i = c;
-			}
-		}
-	}
+    size_t width = state->width;
+    while (root < count / 2)
+    {
+        size_t child = 2 * root + 1;
+        if (child + 1 < count &&
+            CMP(base + child * width, base + (child + 1) * width) < 0)
+            child++;
+        if (CMP(base + root * width, base + child * width) >= 0)
+            return;
+        swap(base + root * width, base + child * width, width);
+        root = child;
+    }
+}
+static void heap(unsigned char *base, size_t count, const struct qsort_state *state)
+{
+    size_t width = state->width;
+    size_t root = count / 2;
+    while (root)
+        sift(base, count, --root, state);
+    while (count > 1)
+    {
+        swap(base, base + (--count) * width, width);
+        sift(base, count, 0, state);
+    }
+}
+struct qsort_split
+{
+    size_t left, right;
+};
+/* The qualified compiler keeps partition scratch outside recursive frames. */
+#if defined(__GNUC__) || defined(__clang__)
+#define QSORT_PARTITION_NOINLINE __attribute__((__noinline__))
+#else
+#define QSORT_PARTITION_NOINLINE
+#endif
+static QSORT_PARTITION_NOINLINE struct qsort_split
+partition(unsigned char *base, size_t count, const struct qsort_state *state)
+{
+    size_t width = state->width;
+    size_t middle = count / 2, last = count - 1;
+    if (CMP(base, base + middle * width) > 0)
+        swap(base, base + middle * width, width);
+    if (CMP(base + middle * width, base + last * width) > 0)
+        swap(base + middle * width, base + last * width, width);
+    if (CMP(base, base + middle * width) > 0)
+        swap(base, base + middle * width, width);
+    swap(base, base + middle * width, width);
+    size_t a = 1, b = 1, c = count, d = count;
+    /* The pivot stays at element zero. Equal records occupy [0,a) and
+       [d,count), lesser records [a,b), and greater records [c,d). */
+    for (;;)
+    {
+        int order;
+        while (b < c && (order = CMP(base + b * width, base)) <= 0)
+        {
+            if (!order)
+                swap(base + (a++) * width, base + b * width, width);
+            b++;
+        }
+        while (b < c && (order = CMP(base + (c - 1) * width, base)) >= 0)
+        {
+            if (!order)
+                swap(base + (--d) * width, base + (c - 1) * width, width);
+            c--;
+        }
+        if (b == c)
+            break;
+        swap(base + (b++) * width, base + (--c) * width, width);
+    }
+    size_t left = b - a, right = d - b, span = a < left ? a : left;
+    for (size_t i = 0; i < span; i++)
+        swap(base + i * width, base + (b - span + i) * width, width);
+    span = count - d < right ? count - d : right;
+    for (size_t i = 0; i < span; i++)
+        swap(base + (b + i) * width, base + (count - span + i) * width, width);
+    struct qsort_split result = {left, right};
+    return result;
+}
+static void sort(unsigned char *base, size_t count, const struct qsort_state *state,
+                 unsigned budget)
+{
+    size_t width = state->width;
+    while (count > 8)
+    {
+        if (!budget)
+        {
+            heap(base, count, state);
+            return;
+        }
+        budget--;
+        struct qsort_split parts = partition(base, count, state);
+        size_t left = parts.left, right = parts.right;
+        if (left < right)
+        {
+            if (left > 1)
+                sort(base, left, state, budget);
+            base += (count - right) * width;
+            count = right;
+        }
+        else
+        {
+            if (right > 1)
+                sort(base + (count - right) * width, right, state, budget);
+            count = left;
+        }
+    }
+    for (size_t i = 1; i < count; i++)
+    {
+        size_t j = i;
+        while (j && CMP(base + (j - 1) * width, base + j * width) > 0)
+        {
+            swap(base + (j - 1) * width, base + j * width, width);
+            j--;
+        }
+    }
+}
+#ifdef _DISCOBSD_QSORT_R
+void qsort_r(void *base, size_t count, size_t width, comparator compare, void *context)
+#else
+void qsort(void *base, size_t count, size_t width, comparator compare)
+#endif
+{
+    unsigned budget = 0;
+    if (count < 2 || !width)
+        return;
+    for (size_t n = count; n > 1; n /= 2)
+        budget += 2;
+    struct qsort_state state;
+    state.width = width;
+    state.compare = compare;
+#ifdef _DISCOBSD_QSORT_R
+    state.context = context;
+#endif
+    sort(base, count, &state, budget);
 }

@@ -1,0 +1,16 @@
+--- a/usr.sbin/makefs/msdos/msdosfs_denode.c
++++ b/usr.sbin/makefs/msdos/msdosfs_denode.c
+@@ -182,8 +182,11 @@
+ 			if (error == E2BIG) {
+ 				ldep->de_FileSize = de_cn2off(pmp, size);
+ 				error = 0;
+-			} else
+-				printf("deget(): pcbmap returned %d\n", error);
++			} else {
++				/* A broken chain is an error, not an empty directory. */
++				free(ldep);
++				return error != 0 ? error : EIO;
++			}
+ 		}
+ 	}
+ 	*depp = ldep;

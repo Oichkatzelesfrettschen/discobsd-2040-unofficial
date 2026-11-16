@@ -86,6 +86,19 @@ found:
 }
 
 /*
+ * va_atime and va_mtime hold a time as the inode stores it, an unsigned
+ * count of seconds since 1970 (utime32_t, valid to February 2106), and the
+ * all-ones count is VNOVAL, "leave this time alone". The count 4294967295 is
+ * therefore the one time utimes(2) and futimes(2) cannot store, so the
+ * largest file time is 4294967294; lib/libc/gen/time64.h refuses the
+ * sentinel before the call for a program built with a 64-bit time_t. The
+ * comparison is made in utime32_t, so a time after January 2038 (bit 31
+ * set) reads as a time to store whatever the signedness of the caller's
+ * time_t. tests/kernel/ufs_explicit_time_test.c holds both sides.
+ */
+#define VATTR_TIME_UNSET(value) ((value) == (utime32_t)VNOVAL)
+
+/*
  * Set the attributes on a file.  This was placed here because ufs_syscalls
  * is too large already (it will probably be split into two files eventually).
  */
@@ -136,16 +149,16 @@ ufs_setattr(register struct inode *ip, register struct vattr *vap)
         if (u.u_error)
             return(u.u_error);
     }
-    if (vap->va_atime != (time_t)VNOVAL ||
-        vap->va_mtime != (time_t)VNOVAL) {
+    if (!VATTR_TIME_UNSET(vap->va_atime) ||
+        !VATTR_TIME_UNSET(vap->va_mtime)) {
         if (u.u_uid != ip->i_uid && !suser() &&
             ((vap->va_vaflags & VA_UTIMES_NULL) == 0 ||
              access(ip, IWRITE)))
             return(u.u_error);
         /* MNT_NOATIME suppresses read-side updates, not explicit utimes(2). */
-        if (vap->va_atime != (time_t)VNOVAL)
+        if (!VATTR_TIME_UNSET(vap->va_atime))
             ip->i_flag |= IACC;
-        if (vap->va_mtime != (time_t)VNOVAL)
+        if (!VATTR_TIME_UNSET(vap->va_mtime))
             ip->i_flag |= (IUPD|ICHG);
         atimeval.tv_sec = vap->va_atime;
         mtimeval.tv_sec = vap->va_mtime;

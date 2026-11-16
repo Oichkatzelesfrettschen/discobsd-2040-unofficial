@@ -31,6 +31,7 @@
  * SUCH DAMAGE.
  */
 #include <signal.h>
+#include <errno.h>
 
 #undef sigemptyset
 #undef sigfillset
@@ -39,43 +40,47 @@
 #undef sigismember
 
 int
-sigemptyset(set)
-	sigset_t *set;
+sigemptyset(sigset_t *set)
 {
 	*set = 0;
 	return (0);
 }
 
 int
-sigfillset(set)
-	sigset_t *set;
+sigfillset(sigset_t *set)
 {
 	*set = ~(sigset_t)0;
 	return (0);
 }
 
 int
-sigaddset(set, signo)
-	sigset_t *set;
-	int signo;
+sigaddset(sigset_t *set, int signo)
 {
-	*set |= sigmask(signo);
+	if (signo <= 0 || signo >= NSIG) {
+		errno = EINVAL;
+		return (-1);
+	}
+	*set |= (sigset_t)1 << (signo - 1);
 	return (0);
 }
 
 int
-sigdelset(set, signo)
-	sigset_t *set;
-	int signo;
+sigdelset(sigset_t *set, int signo)
 {
-	*set &= ~sigmask(signo);
+	if (signo <= 0 || signo >= NSIG) {
+		errno = EINVAL;
+		return (-1);
+	}
+	*set &= ~((sigset_t)1 << (signo - 1));
 	return (0);
 }
 
 int
-sigismember(set, signo)
-	sigset_t *set;
-	int signo;
+sigismember(const sigset_t *set, int signo)
 {
-	return ((*set & ~sigmask(signo)) != 0);
+	if (signo <= 0 || signo >= NSIG) {
+		errno = EINVAL;
+		return (-1);
+	}
+	return ((*set & ((sigset_t)1 << (signo - 1))) != 0);
 }

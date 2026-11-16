@@ -1,0 +1,15 @@
+operator@pico:/tmp$ echo ready; echo __DO''NE__
+ready
+__DONE__
+operator@pico:/tmp$ su
+# uname -a; hostname; echo __DO''NE__
+DiscoBSD pico 2.7 PICO#1 rp2040
+pico
+__DONE__
+# cd /home/operator; rm -rf d3 d4 t2 t1; echo synced-ab >t3; sync; df / | tail -1; echo __DO''NE__
+root              979      751      228    76%    /
+__DONE__
+# mkdir d4; echo done-mkdir; echo __DO''NE__
+done-mkdir
+__DONE__
+#

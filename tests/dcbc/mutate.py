@@ -138,7 +138,7 @@ MUTATIONS = (
         "names_never_grows",
         BCY,
         "if (2 * (names_used + 1) > names_slots) {",
-        "if (0) {",
+        "if (0 && 2 * (names_used + 1) > names_slots) {",
     ),
     (
         "names_no_probe",

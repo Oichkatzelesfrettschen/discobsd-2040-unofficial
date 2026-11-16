@@ -42,9 +42,7 @@
  * Algorithm is first-fit.
  */
 size_t
-malloc (mp, size)
-    struct map *mp;
-    register size_t size;
+malloc (struct map *mp, register size_t size)
 {
     register struct mapent *bp, *ep;
     size_t addr;
@@ -81,10 +79,7 @@ malloc (mp, size)
  * map.  Sort addr into map and combine on one or both ends if possible.
  */
 void
-mfree (mp, size, addr)
-    struct map *mp;
-    size_t size;
-    register size_t addr;
+mfree (struct map *mp, size_t size, register size_t addr)
 {
     register struct mapent *bp, *ep;
     struct mapent *start;
@@ -94,6 +89,18 @@ mfree (mp, size, addr)
     /* the address must not be 0, or the protocol has broken down. */
     if (! addr)
         panic ("mfree: addr = 0");
+
+    /* A ring extent above m_ring_end continues at m_ring_first. */
+    if (mp->m_ring_end != 0) {
+        if (addr >= mp->m_ring_end)
+            addr -= mp->m_ring_end - mp->m_ring_first;
+        if (size > mp->m_ring_end - addr) {
+            size_t low = mp->m_ring_end - addr;
+
+            mfree (mp, size - low, mp->m_ring_first);
+            size = low;
+        }
+    }
 
     /*
      * locate the piece of the map which starts after the
@@ -174,10 +181,8 @@ mfree (mp, size, addr)
  * best.  Returns NULL on failure, address of u. on success.
  */
 size_t
-malloc3 (mp, d_size, s_size, u_size, a)
-    struct map *mp;
-    size_t d_size, s_size, u_size;
-    size_t a[3];
+malloc3 (struct map *mp, size_t d_size, size_t s_size, size_t u_size,
+    size_t a[3])
 {
     register struct mapent *bp, *remap;
     register int next;
@@ -241,21 +246,20 @@ resolve:
  * length data or stack segments.
  */
 size_t
-malloc3_contiguous (mp, d_size, s_size, u_size, align, a)
-    struct map *mp;
-    size_t d_size, s_size, u_size, align, a[3];
+malloc3_contiguous (struct map *mp, size_t d_size, size_t s_size, size_t u_size,
+    size_t align, size_t a[3])
 {
-    size_t total, span, base;
+    size_t allocation_size, span, base;
 
     if (align == 0 || (align & (align - 1)) != 0)
         panic ("malloc3_contiguous: bad alignment");
     if (d_size > (size_t)-1 - s_size ||
         d_size + s_size > (size_t)-1 - u_size)
         return 0;
-    total = d_size + s_size + u_size;
-    if (total == 0 || total > (size_t)-1 - (align - 1))
+    allocation_size = d_size + s_size + u_size;
+    if (allocation_size == 0 || allocation_size > (size_t)-1 - (align - 1))
         return 0;
-    span = (total + align - 1) & ~(align - 1);
+    span = (allocation_size + align - 1) & ~(align - 1);
     base = malloc (mp, span);
     if (base == 0)
         return 0;
@@ -266,6 +270,154 @@ malloc3_contiguous (mp, d_size, s_size, u_size, align, a)
     a[1] = base + d_size;
     a[2] = a[1] + s_size;
     return span;
+}
+
+/* Free units from addr upward, passing m_ring_end into m_ring_first. */
+static size_t
+ring_free_from (struct map *mp, size_t addr)
+{
+    struct mapent *bp, *first = mp->m_map;
+    size_t run;
+
+    for (bp = first; bp->m_size; bp++)
+        if (addr >= bp->m_addr && addr < (size_t) bp->m_addr + bp->m_size)
+            break;
+    if (bp->m_size == 0)
+        return 0;
+    run = (size_t) bp->m_addr + bp->m_size - addr;
+    if ((size_t) bp->m_addr + bp->m_size == mp->m_ring_end &&
+        first->m_addr == mp->m_ring_first)
+        run += first == bp ? addr - first->m_addr : first->m_size;
+    return run;
+}
+
+/* Longest free run of a ring map. */
+static size_t
+ring_largest (struct map *mp)
+{
+    struct mapent *bp, *first = mp->m_map, *last = NULL;
+    size_t best = 0;
+
+    for (bp = first; bp->m_size; bp++) {
+        if (bp->m_size > best)
+            best = bp->m_size;
+        last = bp;
+    }
+    if (last != NULL && last != first &&
+        first->m_addr == mp->m_ring_first &&
+        (size_t) last->m_addr + last->m_size == mp->m_ring_end &&
+        (size_t) first->m_size + last->m_size > best)
+        best = (size_t) first->m_size + last->m_size;
+    return best;
+}
+
+/*
+ * Remove [addr, addr + size) from the free run that holds it.  Returns 0
+ * with the map unchanged when the piece splits a run and no descriptor is
+ * spare.
+ */
+static int
+ring_take (struct map *mp, size_t addr, size_t size)
+{
+    struct mapent *bp, *endp, *move;
+    size_t base, end;
+
+    if (size == 0)
+        return 1;
+    for (endp = mp->m_map; endp->m_size; endp++)
+        continue;
+    for (bp = mp->m_map; bp->m_size; bp++)
+        if (addr >= bp->m_addr &&
+            addr + size <= (size_t) bp->m_addr + bp->m_size)
+            break;
+    if (bp->m_size == 0)
+        panic ("ring_take: not free");
+    base = bp->m_addr;
+    end = base + bp->m_size;
+    if (addr == base) {
+        bp->m_addr += size;
+        bp->m_size -= size;
+        if (bp->m_size == 0)
+            do {
+                *bp = bp[1];
+            } while ((bp++)->m_size != 0);
+    } else if (addr + size == end) {
+        bp->m_size -= size;
+    } else {
+        if (endp >= mp->m_limit)
+            return 0;
+        for (move = endp; move > bp; move--)
+            move[1] = move[0];
+        bp[1].m_addr = addr + size;
+        bp[1].m_size = end - bp[1].m_addr;
+        bp->m_size = addr - base;
+    }
+    return 1;
+}
+
+/*
+ * Next-fit on a ring map.  Aligned positions are tried from the cursor
+ * round the ring.  The first one that leaves a free run of
+ * min(m_guard, longest run) units is taken; when none does, the one that
+ * leaves the longest run is.  A position inside a run that would need a
+ * descriptor the map does not have is passed over; the run's own start is
+ * a later position, so a fitting request is still served.
+ *
+ * The rule has no preferred address: a rotated cursor gives the rotated
+ * placements, so a cursor that starts uniformly spreads erases evenly over
+ * the ring.  docs/research/swap-exhaustion/placement-wear.md has the model.
+ */
+static size_t
+ring_next (struct map *mp, size_t span, size_t align, size_t *nextp)
+{
+    size_t length = mp->m_ring_end - mp->m_ring_first;
+    size_t start, step, base, low, target, after;
+    size_t best = 0, best_after = 0;
+    int have_best = 0;
+
+    if (span > length)
+        return 0;
+    target = ring_largest (mp);
+    if (target > mp->m_guard)
+        target = mp->m_guard;
+    start = *nextp;
+    if (start < mp->m_ring_first || start >= mp->m_ring_end)
+        start = mp->m_ring_first;
+    start = mp->m_ring_first +
+        ((start - mp->m_ring_first + align - 1) & ~(align - 1)) % length;
+    for (step = 0; step < length; step += align) {
+        base = mp->m_ring_first +
+            (start - mp->m_ring_first + step) % length;
+        if (ring_free_from (mp, base) < span)
+            continue;
+        low = span < mp->m_ring_end - base ? span : mp->m_ring_end - base;
+        if (! ring_take (mp, base, low))
+            continue;
+        if (! ring_take (mp, mp->m_ring_first, span - low)) {
+            mfree (mp, low, base);
+            continue;
+        }
+        after = ring_largest (mp);
+        if (after >= target) {
+            *nextp = mp->m_ring_first +
+                (base - mp->m_ring_first + span) % length;
+            return base;
+        }
+        mfree (mp, span, base);
+        if (! have_best || after > best_after) {
+            have_best = 1;
+            best_after = after;
+            best = base;
+        }
+    }
+    if (! have_best)
+        return 0;
+    low = span < mp->m_ring_end - best ? span : mp->m_ring_end - best;
+    if (! ring_take (mp, best, low) ||
+        ! ring_take (mp, mp->m_ring_first, span - low))
+        panic ("ring_next: lost placement");
+    *nextp = mp->m_ring_first + (best - mp->m_ring_first + span) % length;
+    return best;
 }
 
 /*
@@ -283,7 +435,7 @@ malloc3_contiguous_next (struct map *mp, size_t d_size, size_t s_size,
     size_t u_size, size_t align, size_t *nextp, size_t a[3])
 {
     struct mapent *bp, *endp, *selected;
-    size_t base, candidate, end, selected_base, span, total;
+    size_t base, candidate, end, selected_base, span, allocation_size;
     int pass, spare;
 
     if (align == 0 || (align & (align - 1)) != 0)
@@ -293,10 +445,20 @@ malloc3_contiguous_next (struct map *mp, size_t d_size, size_t s_size,
     if (d_size > (size_t)-1 - s_size ||
         d_size + s_size > (size_t)-1 - u_size)
         return 0;
-    total = d_size + s_size + u_size;
-    if (total == 0 || total > (size_t)-1 - (align - 1))
+    allocation_size = d_size + s_size + u_size;
+    if (allocation_size == 0 || allocation_size > (size_t)-1 - (align - 1))
         return 0;
-    span = (total + align - 1) & ~(align - 1);
+    span = (allocation_size + align - 1) & ~(align - 1);
+
+    if (mp->m_ring_end != 0) {
+        base = ring_next (mp, span, align, nextp);
+        if (base == 0)
+            return 0;
+        a[0] = base;
+        a[1] = base + d_size;
+        a[2] = a[1] + s_size;
+        return span;
+    }
 
     for (endp = mp->m_map; endp->m_size; endp++)
         continue;

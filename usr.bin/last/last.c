@@ -38,17 +38,23 @@ int nameargs;
 
 struct  utmp buf[128];
 char    ttnames[MAXTTYS][LMAX+1];
-long    logouts[MAXTTYS];
+/*
+ * The logout time seen for each line, 0 for none yet, and negated after a
+ * shutdown or crash record. A record's time is the kernel's 32-bit count
+ * (<utmp.h>), which a time_t holds with room for the sign.
+ */
+time_t  logouts[MAXTTYS];
 
 void
 onintr(signo)
     int signo;
 {
     char *ct;
+    time_t when = buf[0].ut_time;
 
     if (signo == SIGQUIT)
         signal(SIGQUIT, onintr);
-    ct = ctime(&buf[0].ut_time);
+    ct = ctime(&when);
     printf("\ninterrupted %10.10s %5.5s \n", ct, ct + 11);
     fflush(stdout);
     if (signo == SIGINT)
@@ -76,7 +82,8 @@ main(ac, av)
     char wtmpfile[256];
     char progname[256];
     register struct utmp *bp;
-    long otime;
+    time_t otime;
+    time_t when;
     struct stat stb;
     int print;
     int sinput = 0;
@@ -85,7 +92,7 @@ main(ac, av)
     long outrec = 0;
     long maxrec = 0x7fffffffL;
 
-    time(&buf[0].ut_time);
+    buf[0].ut_time = (utime32_t)time((time_t *)0);
     strcpy(wtmpfile, _PATH_WTMP);
     strcpy(progname,av[0]);
     ac--, av++;
@@ -141,7 +148,8 @@ main(ac, av)
         for ( ; bp >= buf; bp--) {
             print = want(bp);
             if (print) {
-                ct = ctime(&bp->ut_time);
+                when = bp->ut_time;
+                ct = ctime(&when);
                 printf("%-*.*s  %-*.*s %-*.*s %10.10s %5.5s ",
                     NMAX, NMAX, bp->ut_name,
                     LMAX, LMAX, bp->ut_line,
@@ -169,20 +177,24 @@ main(ac, av)
                     printf("  still logged in\n");
                 else {
                     long delta;
+                    time_t span;
                     if (otime < 0) {
                         otime = -otime;
                         printf("- %s", crmsg);
-                    } else
+                    } else {
+                        when = otime;
                         printf("- %5.5s",
-                            ctime(&otime)+11);
-                    delta = otime - bp->ut_time;
+                            ctime(&when)+11);
+                    }
+                    delta = (long)(otime - (time_t)bp->ut_time);
+                    span = delta;
                     if (delta < SECDAY)
                         printf("  (%5.5s)\n",
-                        asctime(gmtime(&delta))+11);
+                        asctime(gmtime(&span))+11);
                     else
                         printf(" (%ld+%5.5s)\n",
                         delta / SECDAY,
-                        asctime(gmtime(&delta))+11);
+                        asctime(gmtime(&span))+11);
                 }
                 fflush(stdout);
                 if (++outrec >= maxrec)
@@ -190,7 +202,7 @@ main(ac, av)
             }
             if (lineq(bp->ut_line, "~")) {
                 for (i = 0; i < MAXTTYS; i++)
-                    logouts[i] = -bp->ut_time;
+                    logouts[i] = -(time_t)bp->ut_time;
                 if (nameq(bp->ut_name, "shutdown"))
                     crmsg = "down ";
                 else
@@ -198,7 +210,8 @@ main(ac, av)
             }
         }
     }
-    ct = ctime(&buf[0].ut_time);
+    when = buf[0].ut_time;
+    ct = ctime(&when);
     printf("\nwtmp begins %10.10s %5.5s \n", ct, ct + 11);
     exit(0);
 }

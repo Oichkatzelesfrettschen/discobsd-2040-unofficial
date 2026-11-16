@@ -94,7 +94,7 @@ gethostbyname(nam)
 	*lp = '\0';
 
 	if ((_host_db == (DBM *)NULL)
-	  && ((_host_db = dbm_open(_host_file, O_RDONLY)) == (DBM *)NULL)) {
+	  && ((_host_db = dbm_open(_host_file, O_RDONLY, 0)) == (DBM *)NULL)) {
 		sethostent(_host_stayopen);
 		while (hp = gethostent()) {
 			if (strcmp(hp->h_name, lowname) == 0)
@@ -130,7 +130,7 @@ gethostbyaddr(addr, length, type)
         datum key;
 
 	if ((_host_db == (DBM *)NULL)
-	  && ((_host_db = dbm_open(_host_file, O_RDONLY)) == (DBM *)NULL)) {
+	  && ((_host_db = dbm_open(_host_file, O_RDONLY, 0)) == (DBM *)NULL)) {
 		sethostent(_host_stayopen);
 		while (hp = gethostent()) {
 			if (hp->h_addrtype == type && hp->h_length == length

@@ -8,6 +8,10 @@ qemu=$1
 cpu=$2
 status=0
 
+# Two controls end on a fatal guest signal, and qemu-user then writes the
+# guest's core into the working directory when the limit allows one.
+ulimit -c 0
+
 expect()
 {
 	program=$1

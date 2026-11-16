@@ -243,10 +243,10 @@ void fmttime(char *fmt, struct tm *tm)
 						printf("%d",tm->tm_isdst);
 						break;
 					case 'O':
-						printf("%02d%02d",tm->tm_gmtoff/60,tm->tm_gmtoff%60);
+						printf("%02ld%02ld",tm->tm_gmtoff/60,tm->tm_gmtoff%60);
 						break;
 					case 'P':
-						printf("%02d:%02d",tm->tm_gmtoff/60,tm->tm_gmtoff%60);
+						printf("%02ld:%02ld",tm->tm_gmtoff/60,tm->tm_gmtoff%60);
 						break;
 					case 'T':
 						printf("%s",tm->tm_zone);
@@ -362,7 +362,8 @@ main(argc,argv)
 	if (!argc)
 		goto display;
 
-	wtmp[0].ut_time = tv.tv_sec;
+	/* A wtmp record holds the kernel's 32-bit count (<utmp.h>). */
+	wtmp[0].ut_time = (utime32_t)tv.tv_sec;
 	if (gtime(*argv)) {
 		fputs(usage,stderr);
 		retval = 1;
@@ -384,7 +385,7 @@ main(argc,argv)
 		if ((wf = open(_PATH_WTMP, O_WRONLY | O_APPEND)) < 0)
 			fputs("date: can't write wtmp file.\n",stderr);
 		else {
-			(void)time((time_t *)&wtmp[1].ut_time);
+			wtmp[1].ut_time = (utime32_t)time((time_t *)0);
 			/*NOSTRICT*/
 			(void)write(wf,(char *)wtmp,sizeof(wtmp));
 			(void)close(wf);

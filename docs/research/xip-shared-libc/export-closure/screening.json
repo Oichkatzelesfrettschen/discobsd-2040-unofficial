@@ -1,0 +1,50 @@
+{
+  "archive_members": 423,
+  "archive_sha256": "f633a14da064dd7891a5a1215ce596c22af60fdf20f402f3ab9de6f9d4b3c3a4",
+  "claim": "Static input-section screening; all existing globals are roots with public ABI eligibility unreviewed.",
+  "excluded_members": [
+    "fakcu.o"
+  ],
+  "external_imports": [
+    "__aeabi_llsl",
+    "__aeabi_llsr",
+    "__gnu_thumb1_case_sqi",
+    "__gnu_thumb1_case_uhi",
+    "__gnu_thumb1_case_uqi",
+    "__progname",
+    "_end",
+    "environ"
+  ],
+  "historical_program_selection": {
+    "claim": "Retained earlier selection; checked for omissions against the named clean archive, not a current-head program relink.",
+    "member_count": 263,
+    "missing_api_members": [
+      "at_quick_exit.o",
+      "iso_exit.o",
+      "qsort_r.o",
+      "quick_exit.o",
+      "stpcpy.o",
+      "stpncpy.o",
+      "strndup.o",
+      "strnlen.o"
+    ],
+    "sha256": "cbe1d8295b88fb8bf5370838f2a55ecddc5a31e6a7b5162905a9a0fbff92baed",
+    "source_revision": "7469f2cb81b46ecee8dfadd0f56da7214614cd7d"
+  },
+  "input_section_bytes": {
+    ".bss": 3749,
+    ".data": 795,
+    ".rodata": 1801,
+    ".rodata.str1.1": 1806,
+    ".text": 50140
+  },
+  "reservation_bytes": 49152,
+  "schema": 1,
+  "screening_roots": 614,
+  "selected_members": 422,
+  "source_revision": "5f917566fc9d5d36f4106ffa7cc4c653f24d505d",
+  "tools": {
+    "binutils": "GNU ar (GNU Binutils) 2.47.20260726",
+    "gcc": "16.2.0"
+  }
+}

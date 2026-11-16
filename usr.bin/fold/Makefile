@@ -1,7 +1,6 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS         += -O
 SRCS            = fold.c
 OBJS            = fold.o
 MAN             = fold.0

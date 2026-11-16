@@ -11,34 +11,41 @@ The retired `-DMIPS`, `cgmips.c`, and `lb.c` implementation lives under
 
 ## Compiler footprint
 
-`arm-none-eabi-size` of the cross-built compiler:
+The retained historical `arm-none-eabi-size` output below has no source pin:
 
     text     data      bss      dec      hex   filename
    48753     1372    26328    76453    12aa5   smlrc.elf
 
-A process gets 96 KB for text, data, bss and stack together, so the compiler
-occupies 74.7 KB and leaves 21.3 KB of stack. That is workable but not
-generous. The bss is almost entirely the parser's tables, and
+The original 96 KiB process-window interpretation assigns 74.7 KiB to that
+image and 21.3 KiB to the remainder. Those figures remain historical evidence.
+The maintained RP2040 `USER_DATA_SIZE` in
+`sys/arch/rp2040/include/machparam.h` is 192 KiB for text, data, BSS, heap and
+stack together. The clean resource receipt at `fecd15b2`,
+`docs/research/public-header-resources-fecd15b2.json`, records 47,460 text bytes,
+1,140 data bytes and 26,312 BSS bytes for `/usr/libexec/smlrc`: 74,912 bytes of
+loaded image. This static occupancy establishes no runtime stack or heap peak.
+The BSS is almost entirely the parser's tables, and
 `SYNTAX_STACK_MAX` in the Makefile is the knob: at the current 3200 entries,
 `SyntaxStack0` is 3200 bytes and `SyntaxStack1` is 12800, and `IdentTable`
-adds 5632. Halving `SYNTAX_STACK_MAX` returns 8 KB of stack at the cost of
-rejecting the largest translation units.
+adds 5632. Halving `SYNTAX_STACK_MAX` removes 8,000 bytes of BSS and halves
+the parser-entry capacity; runtime stack usage remains a separate measurement.
 
 The archived MIPS back end used `-mips16` to halve its text. The Cortex-M0+
 executes only Thumb, so there is no corresponding option and none is used.
 
 ## What is supported
 
-The full Smaller C language subset the MIPS back end supports:
+The maintained front end and Thumb backend provide these language mechanisms:
 
-- `int`, `char`, `short`, `long`, their `unsigned` forms, `_Bool`, and
+- `int`, `char`, `short`, `long`, their `unsigned` forms, and
   enumerations. `long` is `int` is 32 bits, and pointers are 32 bits.
 - Pointers, arrays, and pointer arithmetic.
 - `struct` and `union`, including nesting, assignment of whole structures,
   and passing and returning them by value.
-- All arithmetic, bitwise, shift, comparison, logical and compound-assignment
-  operators, prefix and postfix increment and decrement, and the conditional
-  operator.
+- Integer arithmetic, bitwise, shift, comparison, logical and compound-assignment
+  operators, integer/pointer prefix and postfix increment and decrement, and
+  the conditional operator. Floating compound assignment and increment/decrement
+  remain rejected by the frontend.
 - `if`, `while`, `do`, `for`, `switch` with fallthrough and `default`,
   `break`, `continue`, `goto` and labels, and `return`.
 - File-scope and function-scope `static`, initializers for scalars, arrays,
@@ -86,6 +93,12 @@ with libc about `char` comparisons.
 
 ## What is rejected, and what is not supported
 
+- **Boolean declarations and bit-fields.** The lexer recognizes `_Bool`, but
+  declaration parsing rejects it. Logical operators use an internal truth
+  conversion; that mechanism supplies no declared boolean type. An unsigned-int
+  bit-field declaration also rejects at `:`. The source-backed specification
+  and calibrated witnesses in `docs/research/native-boolean-type.md` track
+  normalization, storage, type promotion, bit-fields and ABI prerequisites.
 - **Old-style (K&R) function definitions.** Smaller C's parser accepts no
   old-style parameter declaration list, so `bin/echo/echo.c` and
   `bin/cat/cat.c` do not compile as they stand. This is a front-end

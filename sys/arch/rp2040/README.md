@@ -59,11 +59,11 @@ FUZIX code would also foreclose ever using NuttX.
 Neither rewriting nor crediting was necessary, because the part worth having
 is not FUZIX's. Both systems need the same published library, Dhara, which is
 ISC licensed, the same license as this tree's own headers. It is vendored
-verbatim under `dhara/`, pinned at upstream commit 1b166e41b74b, with its
-copyright intact and its sources byte-identical to upstream so it can be
-re-fetched without reapplying edits. Dhara names three standard headers that a
-`-nostdinc` kernel does not have, so `dhara/compat/` supplies only the types
-and two functions it uses, leaving the vendored files untouched.
+under `dhara/` from upstream commit 1b166e41b74b, with its copyright intact.
+The sources carry a few local changes, which `dhara/README.md` lists: warning
+repairs, a bound on metadata page reads, and a later collector trigger.
+Dhara names three standard headers that a `-nostdinc` kernel does not have,
+so `dhara/compat/` supplies only the types and two functions it uses.
 
 The layering, and the license at each level:
 
@@ -260,8 +260,11 @@ Because the bytes in flash are Dhara's journal rather than the filesystem,
 a disk image from `fsutil` cannot be programmed as it is. `tools/flashimg`
 runs the same vendored Dhara sources against a memory model of the region,
 writes the disk image through `dhara_map_write`, and emits the region for
-programming at 0x10020000. A separate Dhara instance resumes the emitted
-image and reads every sector back identical to the disk image.
+programming at 0x10020000. It leaves the free blocks of a UFS partition
+out of the map, except the blocks that chain the free list, so a free block
+reads back as 0xff and costs the cleaner nothing. A separate Dhara instance
+resumes the emitted image and reads every used and chain sector back
+identical to the disk image (`check-flash-sparse`).
 
 ## Userland
 

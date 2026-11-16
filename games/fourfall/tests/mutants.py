@@ -17,6 +17,10 @@ import subprocess
 import sys
 import tempfile
 
+TOOLS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "tools")
+sys.path.insert(0, TOOLS)
+import mutant_pool  # noqa: E402  tools/mutant_pool.py, beside this tree's other tools
+
 CC = os.environ.get("HOSTCC", "cc")
 SAN_FLAGS = ["-fsanitize=address,undefined", "-fno-sanitize-recover=undefined"]
 FLAGS = [
@@ -361,64 +365,72 @@ PLAY_RUNS = 3
 TIMING_MUTANTS = {"escape-deadline-5-ms", "flash-too-short"}
 
 
-def play_mutants(src):
-    text = open(os.path.join(src, "fourfall.c")).read()
-    gametty = os.path.join(src, "..", "gametty.h")
+def play_mutant(src, text, work, mutant):
+    """Build one play mutant in its own directory and run its cases.
+
+    Returns (verdict, failed): the line to print and whether the mutant
+    counts as a failure of the gate."""
+    name, old, new, cases = mutant
     play = os.path.join(src, "tests", "play.py")
+    if text.count(old) != 1:
+        return "ERROR: anchor occurs %d times" % text.count(old), True
+    own = os.path.join(work, name)
+    os.makedirs(os.path.join(own, "x"))
+    shutil.copy(os.path.join(src, "..", "gametty.h"), os.path.join(own, "gametty.h"))
+    exe = os.path.join(own, "x", "fourfall-host")
+    with open(os.path.join(own, "x", "fourfall.c"), "w") as f:
+        f.write(text.replace(old, new))
+    r = subprocess.run(
+        [
+            CC,
+            "-std=c17",
+            "-D_DEFAULT_SOURCE",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-DHOSTBUILD",
+            "-o",
+            exe,
+            os.path.join(own, "x", "fourfall.c"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        return "ERROR: compile\n%s" % r.stderr, True
+    # A timing mutant is visible only on a run where the host schedules
+    # the game inside the gap the case leaves; a run whose bytes arrive in
+    # one read cannot see it. A mutant survives only if every one of
+    # PLAY_RUNS runs passes; the unmutated program passes its single run in
+    # test-play.
+    for _ in range(PLAY_RUNS):
+        r = subprocess.run(
+            [sys.executable, play, exe] + cases, capture_output=True, text=True, timeout=300
+        )
+        if r.returncode != 0:
+            break
+    if r.returncode == 0 and name in TIMING_MUTANTS and sys.platform == "darwin":
+        return "UNOBSERVED: timing mutant on a macOS host", False
+    if r.returncode == 0:
+        return "SURVIVED", True
+    fail = next((ln for ln in r.stdout.splitlines() if "FAIL" in ln), "exit %d" % r.returncode)
+    return "rejected: %s" % fail.split("FAIL in ", 1)[-1][:90], False
+
+
+def play_mutants(src):
+    """Run every play mutant; tools/mutant_pool.py overlaps them, and the
+    TIMING_MUTANTS run alone after the rest."""
+    text = open(os.path.join(src, "fourfall.c")).read()
     failures = 0
     with tempfile.TemporaryDirectory() as work:
-        os.mkdir(os.path.join(work, "x"))
-        shutil.copy(gametty, os.path.join(work, "gametty.h"))
-        exe = os.path.join(work, "x", "fourfall-host")
-        for name, old, new, cases in PLAY_MUTANTS:
-            if text.count(old) != 1:
-                print("play mutant %-28s ERROR: anchor occurs %d times" % (name, text.count(old)))
-                failures += 1
-                continue
-            with open(os.path.join(work, "x", "fourfall.c"), "w") as f:
-                f.write(text.replace(old, new))
-            r = subprocess.run(
-                [
-                    CC,
-                    "-std=c17",
-                    "-D_DEFAULT_SOURCE",
-                    "-Wall",
-                    "-Wextra",
-                    "-Werror",
-                    "-DHOSTBUILD",
-                    "-o",
-                    exe,
-                    os.path.join(work, "x", "fourfall.c"),
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if r.returncode != 0:
-                print("play mutant %-28s ERROR: compile\n%s" % (name, r.stderr))
-                failures += 1
-                continue
-            # A timing mutant is visible only on a run where the host
-            # schedules the game inside the gap the case leaves; a run whose
-            # bytes arrive in one read cannot see it. A mutant survives only
-            # if every one of PLAY_RUNS runs passes; the unmutated program
-            # passes its single run in test-play.
-            for _ in range(PLAY_RUNS):
-                r = subprocess.run(
-                    [sys.executable, play, exe] + cases, capture_output=True, text=True, timeout=300
-                )
-                if r.returncode != 0:
-                    break
-            if r.returncode == 0 and name in TIMING_MUTANTS and sys.platform == "darwin":
-                print("play mutant %-28s UNOBSERVED: timing mutant on a macOS host" % name)
-                continue
-            if r.returncode == 0:
-                print("play mutant %-28s SURVIVED" % name)
-                failures += 1
-                continue
-            fail = next(
-                (ln for ln in r.stdout.splitlines() if "FAIL" in ln), "exit %d" % r.returncode
-            )
-            print("play mutant %-28s rejected: %s" % (name, fail.split("FAIL in ", 1)[-1][:90]))
+        results = mutant_pool.ordered(
+            PLAY_MUTANTS,
+            lambda mutant: play_mutant(src, text, work, mutant),
+            serial=TIMING_MUTANTS,
+        )
+        for (name, _old, _new, _cases), (verdict, failed) in results:
+            print("play mutant %-28s %s" % (name, verdict))
+            failures += failed
     print("play mutants: %d tried, %d failures" % (len(PLAY_MUTANTS), failures))
     return 1 if failures else 0
 

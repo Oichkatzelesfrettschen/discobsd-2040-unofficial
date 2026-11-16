@@ -47,8 +47,5 @@ umount -a
 mount -a
 rm -f /etc/nologin
 
-echo -n "Starting daemons:"
-update && echo -n " update"
-echo
 date
 exit 0

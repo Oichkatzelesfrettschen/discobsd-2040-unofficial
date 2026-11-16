@@ -43,6 +43,6 @@ spi_probe(struct conf_ctlr *config)
 	return (1);
 }
 
-struct driver spidriver = {
+struct controller_driver spidriver = {
 	"spi", spi_probe,
 };

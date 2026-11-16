@@ -205,8 +205,8 @@ cron_sleep() {
 
 	do {
 		seconds_to_wait = (int) (TargetTime - time((time_t*)0));
-		Debug(DSCH, ("[%d] TargetTime=%ld, sec-to-wait=%d\n",
-			getpid(), TargetTime, seconds_to_wait))
+		Debug(DSCH, ("[%d] TargetTime=%lu, sec-to-wait=%d\n",
+			getpid(), (unsigned long)TargetTime, seconds_to_wait))
 
 		/* if we intend to sleep, this means that it's finally
 		 * time to empty the job queue (execute it).

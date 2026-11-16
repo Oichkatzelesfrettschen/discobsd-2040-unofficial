@@ -58,6 +58,7 @@
 #   include <errno.h>
 #   include <fcntl.h>
 #endif
+#include <limits.h>
 #include <ar.h>
 #include "archive.h"
 #include "extern.h"
@@ -340,27 +341,91 @@ close_archive(int fd)
 		error(archive);
 }
 
-static long
-parse_archive_number(const char *field, size_t field_size, int base)
+/*
+ * date_in_range --
+ *	A count of seconds lies in the stored range.  The parameter is the
+ *	widest unsigned type, so the compare holds where unsigned long is the
+ *	stored width itself.
+ */
+static int
+date_in_range(unsigned long long seconds)
+{
+	return(seconds <= AR_DATE_MAX);
+}
+
+/*
+ * parse_archive_unsigned --
+ *	The unsigned number in a header field.  A minus sign, an empty
+ *	field, trailing text and a value beyond unsigned long are format
+ *	errors; the 12-digit date field reads through AR_DATE_MAX with it.
+ */
+static unsigned long
+parse_archive_unsigned(const char *field, size_t field_size, int base)
 {
 	char number[21];
 	char *end;
-	long value;
+	const char *digits;
+	unsigned long value;
 
 	if (field_size >= sizeof(number))
 		badfmt();
 	if (snprintf(number, sizeof(number), "%.*s", (int)field_size,
 	    field) != (int)field_size)
 		badfmt();
+	/*
+	 * strtoul skips every C-locale white-space byte before a sign and
+	 * wraps a negative value, so the sign test skips the same bytes.
+	 */
+	for (digits = number; *digits == ' ' || (*digits >= '\t' &&
+	    *digits <= '\r'); digits++)
+		;
+	if (*digits == '-')
+		badfmt();
 	errno = 0;
-	value = strtol(number, &end, base);
-	if (errno == ERANGE || end == number || value < 0)
+	value = strtoul(number, &end, base);
+	if (errno == ERANGE || end == number)
 		badfmt();
 	while (*end == ' ')
 		end++;
 	if (*end != '\0')
 		badfmt();
 	return(value);
+}
+
+/*
+ * parse_archive_number --
+ *	A header field that the target holds in a signed long.
+ */
+static long
+parse_archive_number(const char *field, size_t field_size, int base)
+{
+	unsigned long value;
+
+	value = parse_archive_unsigned(field, field_size, base);
+	if (value > (unsigned long)LONG_MAX)
+		badfmt();
+	return((long)value);
+}
+
+/*
+ * stored_date --
+ *	A time as the kernel and the file system hold it, seconds since
+ *	1970 as an unsigned count.  A four-byte time_t carries the count in
+ *	its bits, so a negative value is a time after January 2038 and reads
+ *	back through the unsigned type; a wider time_t holds the count
+ *	itself, and a time outside 0..AR_DATE_MAX has no stored form and
+ *	clamps to the nearest end.
+ */
+unsigned long
+stored_date(time_t seconds)
+{
+	if (sizeof(time_t) > 4) {
+		if (seconds < 0)
+			return(0);
+		if (!date_in_range((unsigned long long)seconds))
+			return(AR_DATE_MAX);
+	}
+	return((unsigned long)seconds);
 }
 
 /*
@@ -392,9 +457,9 @@ get_arobj(int fd)
 #define	DECIMAL	10
 #define	OCTAL	 8
 
-	value = parse_archive_number(hdr->ar_date, sizeof(hdr->ar_date), DECIMAL);
-	chdr.date = (time_t)value;
-	if ((long)chdr.date != value)
+	chdr.date = parse_archive_unsigned(hdr->ar_date, sizeof(hdr->ar_date),
+	    DECIMAL);
+	if (!date_in_range(chdr.date))
 		badfmt();
 	value = parse_archive_number(hdr->ar_uid, sizeof(hdr->ar_uid), DECIMAL);
 	chdr.uid = (int)value;
@@ -515,6 +580,72 @@ copy_ar(CF *cfp, off_t size, int lname)
 }
 
 /*
+ * member_date --
+ *	The date recorded for a member read from disk.  The host build of
+ *	ar bounds it by SOURCE_DATE_EPOCH, as tools/fsutil bounds the file
+ *	times of the image, so equal objects give equal archives.  An
+ *	absent or malformed value leaves the file's modification time, as
+ *	does one above AR_DATE_MAX, the end of the stored range that
+ *	get_arobj reads from a header.
+ */
+static unsigned long
+member_date(struct stat *sb)
+{
+	unsigned long date = stored_date(sb->st_mtime);
+#ifdef CROSS
+	const char *text = getenv("SOURCE_DATE_EPOCH");
+	char *end;
+	unsigned long long epoch;
+
+	if (text != NULL && *text >= '0' && *text <= '9') {
+		errno = 0;
+		epoch = strtoull(text, &end, 10);
+		if (errno == 0 && *end == '\0' && epoch <= AR_DATE_MAX &&
+		    date > epoch)
+			return ((unsigned long)epoch);
+	}
+#endif
+	return (date);
+}
+
+/*
+ * member_owner --
+ *	The user id, group id and mode recorded for a member read from
+ *	disk.  Under a well-formed SOURCE_DATE_EPOCH the host build of ar
+ *	records user 0, group 0 and mode 0644 (0755 for a file with an
+ *	execute bit) in place of the builder's ids and umask, as GNU ar
+ *	does in deterministic mode, so two hosts archive equal objects into
+ *	equal bytes.  The target linker and ranlib read neither field.
+ */
+static void
+member_owner(struct stat *sb, unsigned int *uid, unsigned int *gid,
+    unsigned int *mode)
+{
+	*uid = sb->st_uid;
+	*gid = sb->st_gid;
+	*mode = sb->st_mode;
+#ifdef CROSS
+	{
+		const char *text = getenv("SOURCE_DATE_EPOCH");
+		char *end;
+		unsigned long long epoch;
+
+		if (text != NULL && *text >= '0' && *text <= '9') {
+			errno = 0;
+			epoch = strtoull(text, &end, 10);
+			if (errno == 0 && *end == '\0' &&
+			    epoch <= AR_DATE_MAX) {
+				*uid = 0;
+				*gid = 0;
+				*mode = (sb->st_mode & S_IFMT) |
+				    ((sb->st_mode & 0111) ? 0755 : 0644);
+			}
+		}
+	}
+#endif
+}
+
+/*
  * put_arobj --
  *	Write an archive member to a file.
  */
@@ -525,6 +656,7 @@ put_arobj(CF *cfp, struct stat *sb)
 	register char *name;
 	struct ar_hdr *hdr;
 	off_t size;
+	unsigned int uid, gid, mode;
 
 	/*
 	 * If passed an sb structure, reading a file from disk.  Get stat(2)
@@ -536,6 +668,7 @@ put_arobj(CF *cfp, struct stat *sb)
 		name = rname(cfp->rname);
 		if (fstat(cfp->rfd, sb) < 0)
 			error(cfp->rname);
+		member_owner(sb, &uid, &gid, &mode);
 
 		/*
 		 * If not truncating names and the name is too long or contains
@@ -551,18 +684,18 @@ put_arobj(CF *cfp, struct stat *sb)
 				(void)fflush(stderr);
 			}
 			(void)snprintf(hb, sizeof(hb), HDR3,
-			    name, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
-			    sb->st_mode, (long)sb->st_size, ARFMAG);
+			    name, member_date(sb), uid, gid,
+			    mode, (long)sb->st_size, ARFMAG);
 			lname = 0;
 		} else if (lname > (int)sizeof(hdr->ar_name) || index(name, ' '))
 			(void)snprintf(hb, sizeof(hb), HDR1, AR_EFMT1,
-			    lname, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
-			    sb->st_mode, (long) sb->st_size + lname, ARFMAG);
+			    lname, member_date(sb), uid, gid,
+			    mode, (long) sb->st_size + lname, ARFMAG);
 		else {
 			lname = 0;
 			(void)snprintf(hb, sizeof(hb), HDR2,
-			    name, (long)sb->st_mtime, sb->st_uid, sb->st_gid,
-			    sb->st_mode, (long) sb->st_size, ARFMAG);
+			    name, member_date(sb), uid, gid,
+			    mode, (long) sb->st_size, ARFMAG);
 		}
 		size = sb->st_size;
 	} else {

@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "source_commit": "aaefae190a257d68760a9637b286cfecb14c42bd",
+  "census": {
+    "state": "completed",
+    "exit_code": 0,
+    "receipt": "libc-declaration-census.json",
+    "receipt_sha256": "22a16d1b680dda498c8320c850ac8fc4b06603775baee84c44d2ab477c2092d1",
+    "tracked_root_headers": 54,
+    "installed_root_headers": 53,
+    "feature_modes": 4,
+    "time_widths": [
+      32,
+      64
+    ],
+    "compiler_cases": 448,
+    "archive_count": 10,
+    "shared_abi_selection": "unreviewed"
+  },
+  "parallel_cross": {
+    "state": "completed",
+    "exit_code": 0,
+    "elapsed_seconds": 215.814,
+    "terminal_queue_dropped_bytes": 0,
+    "receipt_sha256": "188227d71aa018197432b88aad3107c6b7588f12f32929658eef8b27293bc01f",
+    "log_sha256": "145e99b600180d02f057bf4eda70aa43d5a198db0e45ceff15e321d6ff0415c7",
+    "source_state": "Tracked source frozen at aaefae19; only the generated census receipt remains untracked outside build inputs.",
+    "invocation": "bmake -j12 MACHINE=rp2040 check-cross",
+    "limits": [
+      "The existing namespace gate still omits CoreMark on this base; separate PR 560 repairs it.",
+      "Other filtered/unbuilt closure inputs retain the observations in the complete log."
+    ]
+  },
+  "focused_tests": {
+    "census_calibration": 25,
+    "archive_closure": 33,
+    "execution_inventory_calibration": 47,
+    "profile_mutants": 53
+  },
+  "evidence_sha256": {
+    "clean": "15bb567868d187d2d039f136092a2b64c34a5a6a722162d67d83699eb908db1d",
+    "final-gates": "dfeeb939f57a6bbed4f51559be7b528df721416f41163f876fe49f9fd746aee9",
+    "focused": "163a9c8d7342c9d832ce6d12360d9336b8a0fcffe5b431c6d9ed2972f513c961",
+    "final-lint": "e0eca26ffd624aa2dc8e3fb829a9dad4eb264d857758076fba2300fb4420e41d",
+    "text": "140bfd5ecc0de74e3c6f6b624767170803fc991fb6bb6b6fa63470bdfb89f8ae"
+  },
+  "tool_versions": {
+    "python": "3.14.9",
+    "clang": "clang version 23.1.4",
+    "ar": "GNU ar (GNU Binutils) 2.47.20260726"
+  },
+  "scope": "Declaration discovery and compiled provider observations; no shared ABI selection, runtime behavior or physical performance claim.",
+  "remaining": [
+    "Independent review decision",
+    "Hosted CI and reviewed integration",
+    "Subdirectory headers, macro contracts, native ABI, selected exports, complete mutable layouts and runtime admission"
+  ]
+}

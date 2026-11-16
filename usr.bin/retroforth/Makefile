@@ -5,7 +5,7 @@ PRINTF_FLOAT=	yes
 WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
-CFLAGS		+= -Wall -O0
+CFLAGS		+= -Wall
 
 SRCS		= retro.c
 OBJS		= retro.o

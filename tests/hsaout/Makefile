@@ -59,8 +59,9 @@ ${DIFF}.o:	${DIFF}.c ${INC}/hsx_decoder.h
 diff_dec.o:	${KRP}/hsx_decoder.c ${INC}/hsx_decoder.h
 		${HOSTCC} ${DIFFFLAGS} -c -o $@ ${KRP}/hsx_decoder.c
 
-diff_stream.o:	${KRP}/hsx_stream.c ${INC}/hsx_decoder.h
-		${HOSTCC} ${DIFFFLAGS} -c -o $@ ${KRP}/hsx_stream.c
+diff_stream.o:	${KRP}/hsx_stream.c ${INC}/hsx_decoder.h Makefile
+		${HOSTCC} ${DIFFFLAGS} -Dhsx_dec_run=hsx_checked_run \
+		    -c -o $@ ${KRP}/hsx_stream.c
 
 diff_crc.o:	${TOPSRC}/sys/kern/subr_crc32.c
 		${HOSTCC} ${DIFFFLAGS} -c -o $@ ${TOPSRC}/sys/kern/subr_crc32.c

@@ -1,0 +1,125 @@
+{
+  "unicorn": "2.1.4",
+  "rows": [
+    {
+      "name": "correct",
+      "got_offset": 256,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": true,
+      "minimum_sp": 537063416,
+      "failure": null
+    },
+    {
+      "name": "correct",
+      "got_offset": 1816,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": true,
+      "minimum_sp": 537063416,
+      "failure": null
+    },
+    {
+      "name": "correct",
+      "got_offset": 4104,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": true,
+      "minimum_sp": 537063416,
+      "failure": null
+    },
+    {
+      "name": "lost-r3",
+      "got_offset": 256,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": true,
+      "minimum_sp": 537063416,
+      "failure": "registers"
+    },
+    {
+      "name": "lost-r3",
+      "got_offset": 1816,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": true,
+      "minimum_sp": 537063416,
+      "failure": "registers"
+    },
+    {
+      "name": "lost-r3",
+      "got_offset": 4104,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": true,
+      "minimum_sp": 537063416,
+      "failure": "registers"
+    },
+    {
+      "name": "fixed-state",
+      "got_offset": 256,
+      "bytes": 24,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": true,
+      "minimum_sp": 537063416,
+      "failure": null
+    },
+    {
+      "name": "fixed-state",
+      "got_offset": 1816,
+      "bytes": 24,
+      "peak_stack_bytes": 8,
+      "target": false,
+      "returned": false,
+      "minimum_sp": 537063416,
+      "failure": "execution-fault"
+    },
+    {
+      "name": "fixed-state",
+      "got_offset": 4104,
+      "bytes": 24,
+      "peak_stack_bytes": 8,
+      "target": false,
+      "returned": false,
+      "minimum_sp": 537063416,
+      "failure": "execution-fault"
+    },
+    {
+      "name": "lost-return",
+      "got_offset": 256,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": false,
+      "minimum_sp": 537063416,
+      "failure": "return-address"
+    },
+    {
+      "name": "lost-return",
+      "got_offset": 1816,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": false,
+      "minimum_sp": 537063416,
+      "failure": "return-address"
+    },
+    {
+      "name": "lost-return",
+      "got_offset": 4104,
+      "bytes": 20,
+      "peak_stack_bytes": 8,
+      "target": true,
+      "returned": false,
+      "minimum_sp": 537063416,
+      "failure": "return-address"
+    }
+  ]
+}

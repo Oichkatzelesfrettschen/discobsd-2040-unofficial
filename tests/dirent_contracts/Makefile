@@ -18,7 +18,7 @@ TARGET_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 		-fno-common -mcpu=cortex-m0plus \
 		-mabi=aapcs -mlittle-endian -mthumb -mfloat-abi=soft \
 		-nostdinc -I${TOPSRC}/include -Os -ffreestanding \
-		-fno-builtin
+		-fno-builtin -D_TIME_BITS=32
 HOST_OBJS=	dirent_opendir.o dirent_readdir.o dirent_closedir.o \
 		dirent_seekdir.o dirent_telldir.o
 TARGET_OBJS=	dirent_opendir_target.o dirent_readdir_target.o \

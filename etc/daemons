@@ -1,0 +1,14 @@
+#
+# Daemons init(8) starts, supervises and restarts in multi-user mode.
+#
+# command [args ...]	uid:gid	chroot	policy
+#
+# init forks each command, so the command stays in the foreground. With a
+# chroot directory the command path resolves inside it. uid and gid are
+# numeric. policy is backoff (1 s doubling to 60 s between restarts) or
+# capped (5 s between restarts, disabled until SIGHUP after 6). kill -HUP 1
+# rereads this file.
+#
+# update needs no privilege: sync(2) has no root check. /var/update holds
+# only a hard link to /usr/sbin/update.
+/update -f	1:1	/var/update	backoff

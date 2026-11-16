@@ -1,0 +1,280 @@
+{
+  "baseline": "1e9864463c57f11c3a45db37d393652023843171",
+  "paths": [
+    "lib/libc/stdlib/Makefile",
+    "lib/libc/stdlib/_Exit.c",
+    "lib/libc/stdlib/atoll.c",
+    "lib/libc/stdlib/bsearch.c",
+    "lib/libc/stdlib/getopt.c",
+    "lib/libc/stdlib/getsubopt.c",
+    "lib/libc/stdlib/heapsort.c",
+    "lib/libc/stdlib/imaxabs.c",
+    "lib/libc/stdlib/imaxdiv.c",
+    "lib/libc/stdlib/mblen.c",
+    "lib/libc/stdlib/mbstowcs.c",
+    "lib/libc/stdlib/mbtowc.c",
+    "lib/libc/stdlib/reallocarray.c",
+    "lib/libc/stdlib/strtod.c",
+    "lib/libc/stdlib/strtoimax.c",
+    "lib/libc/stdlib/strtol.c",
+    "lib/libc/stdlib/strtoll.c",
+    "lib/libc/stdlib/strtou64.h",
+    "lib/libc/stdlib/strtou64_scan.h",
+    "lib/libc/stdlib/strtoul.c",
+    "lib/libc/stdlib/strtoull.c",
+    "lib/libc/stdlib/strtoumax.c",
+    "lib/libc/stdlib/wcstoimax.c",
+    "lib/libc/stdlib/wcstombs.c",
+    "lib/libc/stdlib/wcstoumax.c",
+    "lib/libc/stdlib/wctomb.c"
+  ],
+  "method": "Read immutable Git objects and compare valid-input arithmetic, bounds, conversion state, representation, lifetime and cleanup against public declarations. Trace in-corpus scanner wrappers and preserve excluded primitive/allocator/syscall dependencies.",
+  "failure_classes": [
+    "integer overflow and pointer-domain violation",
+    "conversion grammar/end-pointer errors",
+    "bounds and termination",
+    "ownership and state reuse"
+  ],
+  "source_evidence": [
+    "lib/libc/stdlib/Makefile",
+    "lib/libc/stdlib/_Exit.c",
+    "lib/libc/stdlib/atoll.c",
+    "lib/libc/stdlib/bsearch.c",
+    "lib/libc/stdlib/getopt.c",
+    "lib/libc/stdlib/getsubopt.c",
+    "lib/libc/stdlib/heapsort.c",
+    "lib/libc/stdlib/imaxabs.c",
+    "lib/libc/stdlib/imaxdiv.c",
+    "lib/libc/stdlib/mblen.c",
+    "lib/libc/stdlib/mbstowcs.c",
+    "lib/libc/stdlib/mbtowc.c",
+    "lib/libc/stdlib/reallocarray.c",
+    "lib/libc/stdlib/strtod.c",
+    "lib/libc/stdlib/strtoimax.c",
+    "lib/libc/stdlib/strtol.c",
+    "lib/libc/stdlib/strtoll.c",
+    "lib/libc/stdlib/strtou64.h",
+    "lib/libc/stdlib/strtou64_scan.h",
+    "lib/libc/stdlib/strtoul.c",
+    "lib/libc/stdlib/strtoull.c",
+    "lib/libc/stdlib/strtoumax.c",
+    "lib/libc/stdlib/wcstoimax.c",
+    "lib/libc/stdlib/wcstombs.c",
+    "lib/libc/stdlib/wcstoumax.c",
+    "lib/libc/stdlib/wctomb.c",
+    "include/stdlib.h",
+    "include/string.h",
+    "include/strings.h",
+    "include/ctype.h",
+    "sys/sys/types.h"
+  ],
+  "tests": [],
+  "findings": [
+    {
+      "id": "strtod-exponent-overflow",
+      "severity": "P1",
+      "state": "open",
+      "evidence": "strtod.c:166-167 accumulates signed int exp before clamp; 1e2147483648 overflows a 32-bit int.",
+      "next_action": "Execute renamed baseline with signed-overflow instrumentation and independent range/end-offset oracle; repair bounded exponent arithmetic."
+    },
+    {
+      "id": "strtod-subject-sequence",
+      "severity": "P2",
+      "state": "open",
+      "evidence": "strtod.c:93-114,158-168 accepts incomplete exponent suffixes and non-C exponent markers, misses newline whitespace and C17 hex/INF/NAN forms.",
+      "next_action": "Establish required C17 conversion profile and run grammar, value and exact end-offset cases before selecting complete repair."
+    },
+    {
+      "id": "strtod-leading-zero-loss",
+      "severity": "P2",
+      "state": "open",
+      "evidence": "strtod.c:129-151 retains first 18 digits including zeros; 0000000000000000001 converts to zero.",
+      "next_action": "Reproduce exact expected value 1 and repair significant-digit collection with calibrated controls."
+    },
+    {
+      "id": "strtod-intermediate-scale-overflow",
+      "severity": "P2",
+      "state": "open",
+      "evidence": "strtod.c:187-196 forms 10^310 before division; binary64 input 100000000000000000e-310 can become zero instead of approximately 1e-293.",
+      "next_action": "Confirm target double geometry, reproduce positive-normal result and evaluate resource-bounded scaling or complete donor implementation."
+    },
+    {
+      "id": "heapsort-before-object-pointer",
+      "severity": "P2",
+      "state": "open",
+      "evidence": "heapsort.c:166 forms (char *)vbase-size before the array even for a valid two-element input; ordinary sort success does not establish C pointer-domain validity.",
+      "next_action": "Trace one-based indexing and signed counters; choose zero-based bounds-preserving design and verify sorting/permutation/error contracts."
+    },
+    {
+      "id": "getopt-long-delimiter",
+      "severity": "P2",
+      "state": "open",
+      "evidence": "getopt.c:67-70 recognizes --x as the -- delimiter.",
+      "next_action": "Attach getopt interface authority and independent option/optind cases before final classification."
+    }
+  ],
+  "limitations": [
+    "Source inspection only; tests and builds were excluded.",
+    "Per-path residuals preserve excluded implementations, callers, compiler arithmetic and locale/type dependencies.",
+    "Caller-invalid strings, NULL pointers, prohibited overlaps, invalid comparators, unrepresentable absolute values/quotients and zero division are outside the stated valid-input review.",
+    "Shared narrow/wide scanner agreement supplies one shared implementation assumption rather than an independent oracle."
+  ],
+  "path_dispositions": [
+    {
+      "path": "lib/libc/stdlib/Makefile",
+      "blob": "3ee2a0a2d87b7e6b9712fc55a19be1819dfcb5d7",
+      "mode": "100644",
+      "disposition": "Source/object membership agrees; warning policy delegates through WARNLEVEL=legacy. Actual archive freshness and flags remain unverified."
+    },
+    {
+      "path": "lib/libc/stdlib/_Exit.c",
+      "blob": "51e10d267d49458495aed70d8468fb7206f5c9c7",
+      "mode": "100644",
+      "disposition": "Delegates status to _exit and prevents return; syscall termination and stream effects remain dependencies."
+    },
+    {
+      "path": "lib/libc/stdlib/atoll.c",
+      "blob": "52f57002d9f9e12d22d34f80696904c4a30add46",
+      "mode": "100644",
+      "disposition": "Delegates base-10 conversion to strtoll with NULL end pointer; unrepresentable results excluded by interface."
+    },
+    {
+      "path": "lib/libc/stdlib/bsearch.c",
+      "blob": "0c4bc5cdff7c816809d203b138a7d92219b1b95b",
+      "mode": "100755",
+      "disposition": "Halves size_t search interval and advances right base for valid sorted storage/comparator; comparator correctness and storage belong to caller."
+    },
+    {
+      "path": "lib/libc/stdlib/getopt.c",
+      "blob": "b20a466d0c7b08aef6f338b8b963d451f317cf8c",
+      "mode": "100644",
+      "disposition": "Clusters, option arguments, reset and globals reviewed; --x delimiter behavior is an open contract candidate; static continuation limits interleaving."
+    },
+    {
+      "path": "lib/libc/stdlib/getsubopt.c",
+      "blob": "af9030f6bd15a73a525585a5a8e1ccbdafa8fecd",
+      "mode": "100644",
+      "disposition": "Splits writable input and searches NULL-terminated tokens; whitespace/comma extensions and global unknown-token semantics require intended BSD/POSIX authority."
+    },
+    {
+      "path": "lib/libc/stdlib/heapsort.c",
+      "blob": "548a32e9cc677411480f45884e73cbaf1a8584cc",
+      "mode": "100755",
+      "disposition": "Trivial input, zero size and allocation failure reviewed; before-array pointer formation and signed counters require repair analysis."
+    },
+    {
+      "path": "lib/libc/stdlib/imaxabs.c",
+      "blob": "af05403a8f024fb843d06b4ef0ad476b1b5c5b59",
+      "mode": "100644",
+      "disposition": "Negates negative representable magnitudes; INTMAX_MIN absolute value excluded by interface."
+    },
+    {
+      "path": "lib/libc/stdlib/imaxdiv.c",
+      "blob": "40d290eb65a9724852d3f9027df6929054c59ded",
+      "mode": "100644",
+      "disposition": "Unsigned magnitudes and 64 restoring steps reviewed under declared types; zero denominator and unrepresentable quotient excluded; inttypes definition remains dependency."
+    },
+    {
+      "path": "lib/libc/stdlib/mblen.c",
+      "blob": "ba54cf192ea08e0b900a59346c05d5b263119e5c",
+      "mode": "100644",
+      "disposition": "State query, zero length, NUL and single byte reviewed for stateless byte encoding; locale integration remains separate."
+    },
+    {
+      "path": "lib/libc/stdlib/mbstowcs.c",
+      "blob": "0064ebb3901aef3c187d2f2d2eacfad23739e7f0",
+      "mode": "100644",
+      "disposition": "Count-only or at most n stores with fitting NUL reviewed; valid disjoint objects required; strlen and wchar definition remain dependencies."
+    },
+    {
+      "path": "lib/libc/stdlib/mbtowc.c",
+      "blob": "d64dba30229ab839fc11a177aa56145a281b37bc",
+      "mode": "100644",
+      "disposition": "Reset, zero length, optional output and unsigned-byte widening reviewed; declared one-byte encoding excludes UTF-8 interpretation."
+    },
+    {
+      "path": "lib/libc/stdlib/reallocarray.c",
+      "blob": "d83ae46db09c19a7c0fc048706440057e329cdae",
+      "mode": "100644",
+      "disposition": "Product checked before realloc; rejection preserves original ownership; allocator and SIZE_MAX definition remain dependencies."
+    },
+    {
+      "path": "lib/libc/stdlib/strtod.c",
+      "blob": "52b2070d7b577fb0775739a1f49c1b1447ab8122",
+      "mode": "100644",
+      "disposition": "Mantissa scan/retention, exponent grammar, signed accumulation and scaling reviewed; overflow, incomplete exponents, leading-zero loss and scale overflow remain open."
+    },
+    {
+      "path": "lib/libc/stdlib/strtoimax.c",
+      "blob": "82d4ff90d124cab1e28221ed45795507c4e35380",
+      "mode": "100644",
+      "disposition": "Delegates to strtoll; intmax_t equivalence requires inttypes definition."
+    },
+    {
+      "path": "lib/libc/stdlib/strtol.c",
+      "blob": "afec833ba72caddd648fd8ec291bb138da39f9f7",
+      "mode": "100644",
+      "disposition": "Base validation, whitespace/sign/prefix, unsigned cutoff, clamping, end pointer and signed minimum reviewed; actual limits and execution remain separate."
+    },
+    {
+      "path": "lib/libc/stdlib/strtoll.c",
+      "blob": "3fa7df74642f8e978ce44e028677e04ebacc65f0",
+      "mode": "100644",
+      "disposition": "Signed boundary handling over scanner magnitude reviewed; shared scanner and integer limits remain dependencies."
+    },
+    {
+      "path": "lib/libc/stdlib/strtou64.h",
+      "blob": "cd81bc42f5f575b731aefcd2b242899ad82295aa",
+      "mode": "100644",
+      "disposition": "Internal magnitude/sign/overflow result and scanner interface reviewed; wide-type prerequisite remains dependency."
+    },
+    {
+      "path": "lib/libc/stdlib/strtou64_scan.h",
+      "blob": "1b0110b28a5d2fb3c55f98f800796f687b5ccc8b",
+      "mode": "100644",
+      "disposition": "Initial end pointer, base validation, validated prefixes, four-limb accumulation and continued overflow scan reviewed for bases 2-36; narrow/wide share one oracle assumption."
+    },
+    {
+      "path": "lib/libc/stdlib/strtoul.c",
+      "blob": "30b361bde8687827b75876819cfbc55e62ffa1ae",
+      "mode": "100644",
+      "disposition": "Unsigned cutoff, post-conversion negation and end pointer reviewed; target limits and execution remain separate."
+    },
+    {
+      "path": "lib/libc/stdlib/strtoull.c",
+      "blob": "0468906abccb217a15923a4d3dc4442e5f55092e",
+      "mode": "100644",
+      "disposition": "Unsigned-byte scanner instantiation, clamp and negation reviewed; -1 maps to unsigned maximum as intended."
+    },
+    {
+      "path": "lib/libc/stdlib/strtoumax.c",
+      "blob": "49cb8e6dc1a4938618f8ac2293a7f43dc7f79444",
+      "mode": "100644",
+      "disposition": "Delegates to strtoull; intmax type equivalence remains dependency."
+    },
+    {
+      "path": "lib/libc/stdlib/wcstoimax.c",
+      "blob": "4eaffbcde43c66d9b9fd8f4f208fe22f610c1674",
+      "mode": "100644",
+      "disposition": "Signed wide boundary handling reviewed; shared scanner, types and locale integration remain dependencies."
+    },
+    {
+      "path": "lib/libc/stdlib/wcstombs.c",
+      "blob": "6951f535d39689ad228d659f60a8794824cb0676",
+      "mode": "100644",
+      "disposition": "Bounded stores, wide rejection and count-only path reviewed for one-byte encoding; negative wide values reject by unsigned conversion."
+    },
+    {
+      "path": "lib/libc/stdlib/wcstoumax.c",
+      "blob": "f5496934800bc7525dab035b107c4eada6ca4665",
+      "mode": "100644",
+      "disposition": "Wide scanner, overflow clamp and unsigned negate reviewed; locale and type definitions remain dependencies."
+    },
+    {
+      "path": "lib/libc/stdlib/wctomb.c",
+      "blob": "64f0329036284efcf9b212a414287d311d5dce1a",
+      "mode": "100644",
+      "disposition": "State query and one-byte representability reviewed for 0..UCHAR_MAX; encoding/errno authority remains dependency."
+    }
+  ]
+}

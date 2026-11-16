@@ -81,7 +81,14 @@ union wait  {
 #include <sys/resource.h>
 
 int wait (int *istat);
-int wait3 (int *istat, int options, struct rusage *rup);
+/*
+ * wait3 is wait4 for any child; in a unit built with the 64-bit view of
+ * time (sys/_time_t.h) it binds to __wait364, which wait3.c compiled with
+ * that view defines over the __wait464 wrapper.
+ */
+int wait3 (int *istat, int options, struct rusage *rup)
+           __TIME64_NAME(wait3);
 pid_t waitpid (pid_t pid, int *istat, int options);
-pid_t wait4 (pid_t pid, int *istat, int options, struct rusage *rup);
+pid_t wait4 (pid_t pid, int *istat, int options, struct rusage *rup)
+           __TIME64_NAME(wait4);
 #endif

@@ -138,16 +138,17 @@ explicit_times_are_staged_before_publication(void)
 }
 
 static void
-null_times_use_kernel_time(void)
+null_times_use_kernel_time(long seconds, utime32_t expected_seconds)
 {
     reset_fixture();
+    time.tv_sec = seconds;
     call_futimes(expected_descriptor, NULL);
     HK_CHECK(u.u_error == 0);
     HK_CHECK(copy_calls == 0);
     HK_CHECK(descriptor_calls == 1);
     HK_CHECK(setattr_calls == 1);
-    HK_CHECK(published_attributes.va_atime == time.tv_sec);
-    HK_CHECK(published_attributes.va_mtime == time.tv_sec);
+    HK_CHECK(published_attributes.va_atime == expected_seconds);
+    HK_CHECK(published_attributes.va_mtime == expected_seconds);
     HK_CHECK((published_attributes.va_vaflags & VA_UTIMES_NULL) != 0);
 }
 
@@ -201,7 +202,10 @@ int
 main(void)
 {
     explicit_times_are_staged_before_publication();
-    null_times_use_kernel_time();
+    null_times_use_kernel_time(4567L, 4567UL);
+    null_times_use_kernel_time(2147483647L, 2147483647UL);
+    null_times_use_kernel_time(-2147483647L - 1, 2147483648UL);
+    null_times_use_kernel_time(-1L, 4294967295UL);
     copy_failure_prevents_descriptor_lookup();
     descriptor_failure_prevents_publication();
     setattr_failure_unlocks_and_propagates();

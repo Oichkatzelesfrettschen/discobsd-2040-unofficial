@@ -80,11 +80,15 @@ gethostname.o: ${TARGET_DIR}/gethostname.c ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${TREE} ${RENAMES} \
 	    -Wno-deprecated-non-prototype -c -o $@ ${TARGET_DIR}/gethostname.c
 
+knlist.o: ${TARGET_DIR}/knlist.c ${MACHINE_STAMP}
+	${HOSTCC} ${CFLAGS} ${TREE} ${RENAMES} \
+	    -Wno-deprecated-non-prototype -c -o $@ ${TARGET_DIR}/knlist.c
+
 gate.o: libc_sysctl_test.c libc_shim.h ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${TREE} ${RENAMES} -c -o $@ libc_sysctl_test.c
 
-${PROG}: gate.o uname.o gethostname.o shim.o
-	${HOSTCC} ${CFLAGS} -o $@ gate.o uname.o gethostname.o shim.o
+${PROG}: gate.o uname.o gethostname.o knlist.o shim.o
+	${HOSTCC} ${CFLAGS} -o $@ gate.o uname.o gethostname.o knlist.o shim.o
 
 shim_san.o: libc_shim.c libc_shim.h
 	${HOSTCC} -std=c99 ${WARN} ${ILP32} ${SAN} -c -o $@ libc_shim.c
@@ -97,18 +101,22 @@ gethostname_san.o: ${TARGET_DIR}/gethostname.c ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${SAN} ${TREE} ${RENAMES} \
 	    -Wno-deprecated-non-prototype -c -o $@ ${TARGET_DIR}/gethostname.c
 
+knlist_san.o: ${TARGET_DIR}/knlist.c ${MACHINE_STAMP}
+	${HOSTCC} ${CFLAGS} ${SAN} ${TREE} ${RENAMES} \
+	    -Wno-deprecated-non-prototype -c -o $@ ${TARGET_DIR}/knlist.c
+
 gate_san.o: libc_sysctl_test.c libc_shim.h ${MACHINE_STAMP}
 	${HOSTCC} ${CFLAGS} ${SAN} ${TREE} ${RENAMES} -c -o $@ \
 	    libc_sysctl_test.c
 
-${PROG}_san: gate_san.o uname_san.o gethostname_san.o shim_san.o
+${PROG}_san: gate_san.o uname_san.o gethostname_san.o knlist_san.o shim_san.o
 	${HOSTCC} ${CFLAGS} ${SAN} -o $@ gate_san.o uname_san.o \
-	    gethostname_san.o shim_san.o
+	    gethostname_san.o knlist_san.o shim_san.o
 
 clean:
 	rm -f ${PROG} ${PROG}_san
-	rm -f gate.o uname.o gethostname.o shim.o
-	rm -f gate_san.o uname_san.o gethostname_san.o shim_san.o
+	rm -f gate.o uname.o gethostname.o knlist.o shim.o
+	rm -f gate_san.o uname_san.o gethostname_san.o knlist_san.o shim_san.o
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 

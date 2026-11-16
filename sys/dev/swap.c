@@ -59,11 +59,27 @@ extern int	physio(void (*strat)(struct buf *),
 
 extern void	swap(size_t blkno, size_t coreaddr, int count, int rdflg);
 
+/*
+ * Minor 64 is the live swap device. At securelevel 1 and above it takes no
+ * write from a process: openi() classifies its block major as a disk
+ * (isdisk() in the port's conf.c), which refuses a write open only at
+ * level 2, and a descriptor opened at level 0 survives the rise, so both
+ * swopen() and every transfer in swstrategy() ask. The kernel's own image
+ * traffic reaches swapdev's strategy routine directly and never comes here.
+ */
+static int
+swap_live_write_refused(int unit, int writing)
+{
+	return unit == 64 && writing && securelevel > 0;
+}
+
 int
 swopen(dev_t dev, int mode, int flag)
 {
 	int unit = minor(dev);
 
+	if (swap_live_write_refused(unit, mode & FWRITE))
+		return EPERM;
 	if (unit == 64)
 		return bdevsw[major(swapdev)].d_open(swapdev, mode, flag);
 
@@ -318,6 +334,12 @@ swstrategy(struct buf *bp)
 {
 	int unit = minor(bp->b_dev);
 
+	if (swap_live_write_refused(unit, !(bp->b_flags & B_READ))) {
+		bp->b_error = EPERM;
+		bp->b_flags |= B_ERROR;
+		biodone(bp);
+		return;
+	}
 	if (unit == 64) {
 		dev_t od = bp->b_dev;
 		bp->b_dev = swapdev;

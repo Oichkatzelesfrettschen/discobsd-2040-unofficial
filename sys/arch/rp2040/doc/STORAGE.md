@@ -118,9 +118,10 @@ read as a timestamp update on the RP2040 root.
 The eliminated write trigger has a bounded software path but no fixed erase
 count. One dirty inode causes its inode block to reach `flstrategy()`; a
 one-kilobyte request becomes one `dhara_map_write()` of a 1 KiB Dhara unit
-(`FLASH_UNIT_BYTES`) followed by `dhara_map_sync()`, and that unit programs
-four 256-byte program pages. Buffer coalescing can combine several inode changes,
-and Dhara garbage collection decides the physical program and erase count.
+(`FLASH_UNIT_BYTES`), four 256-byte program pages, and its share of the
+checkpoint that later covers it (see "Checkpoint cost" below). Buffer
+coalescing can combine several inode changes, and Dhara garbage collection
+decides the physical program and erase count.
 Claims about saved flash operations therefore require workload counters or a
 board trace; the mount policy alone proves only that reads stop creating the
 dirty-atime input.
@@ -153,8 +154,12 @@ process where possible: invoking a utility can itself cause swapping.
 The logical root and raw-swap request/byte counters count valid requests
 submitted to the driver, including requests that subsequently fail. Map
 writes count Dhara mapping attempts. Checkpoint attempts, successes and
-errors count dhara_map_sync calls, including a successful no-op on an already
-clean map. They are not counts of checkpoint pages written. NOR program
+errors count forced checkpoints, the `dhara_map_sync()` calls of
+`fl_checkpoint()` that `DIOCCHECKPOINT` and the last close of a root node
+that an open held for writing make,
+including a successful no-op on an already clean map. The checkpoint Dhara
+writes itself when a write fills a group is not counted. They are not counts
+of checkpoint pages written. NOR program
 pages and erase sectors count requested 256-byte page and 4096-byte sector
 equivalents, with requested bytes alongside them; the ROM may use a larger
 erase opcode. Root and swap are counted separately at the NOR boundary,
@@ -170,6 +175,24 @@ SwapRAM attempts and admissions identify compression-path use separately
 from raw-swap transfers. Admission is counted after reservation succeeds;
 it is not a measurement of compression time or bytes saved.
 
+The admission probe counters (the `swapram_*` names after
+`swapram_admissions`, snapshot version 2; version 1 ended at
+`swapram_admissions`, and `tools/summarize_rp2040_storage_delta.py` reads each
+version with its own metric set and rejects a pair of two versions) explain a refused attempt. Each `swapram_reserve()`
+call ends in an admission or in one `swapram_refused_*` reason: admission
+closed, packed-text decoder held, encoder error, fewer free pool bytes than
+the reservation (`nospace`), or enough free bytes without one run
+(`fragment`). The want, free and largest sums, the `swapram_short_*` bins and
+`swapram_refused_data_fits` describe the pool refusals; the scan, zero and
+chunk counters describe the data and stack bytes of every call, split by
+outcome. `swapram_ram_span_NN` and `swapram_flash_span_NN` count completed
+swap-outs by image length in 4 KiB sectors, the unit a flash swap-out erases.
+Attempts equal admissions plus `swapram_flash_swapouts`,
+`swapram_exchange_swapouts` and `swapram_sched_refusals`. A refused fork
+counts its reservation reasons but no attempt. The counters add 208 bytes
+of data and about 560 bytes of text to the PICO kernel, and the snapshot grows
+from 124 to 332 bytes.
+
 Use paired captures for a clean idle interval, partial-block overwrites,
 full-block rewrites, sequential and random reads, linker scratch traffic,
 and explicit synchronous writes. Keep buffer configuration, image contents
@@ -184,7 +207,8 @@ Paired GCC 13.2.1 Cortex-M0+ builds measured 488 additional text bytes and
 unchanged BSS. These are linked ELF differences for this implementation,
 not a promise for other toolchains or configurations.
 
-The retained C17/SUS stdio board workload takes unsaturated snapshots around
+Under the earlier policy of a checkpoint after every write request, the
+retained C17/SUS stdio board workload takes unsaturated snapshots around
 43 checked commands and an explicit `sync`. The interval reports 38 logical
 root writes, 38 map writes, 38 successful checkpoints with zero errors, 1,216
 root program pages and 76 root erase sectors. Swapping reports 240 reads, 240
@@ -219,7 +243,9 @@ by the next `sync()` rather than waiting for eviction, a later allocation,
 `fsync`, unmount or shutdown. A clean filesystem costs an inode-table and
 free-list scan and no device request. Inodes found locked, buffers found
 busy and a mount whose `fs_ilock` or `fs_flock` is held stay dirty for the
-next call; a failed write latches in `m_write_error`. update(8) supplies a
+next call; a failed write latches in `m_write_error`. Each `ufs_sync()` ends
+with the device checkpoint described under "Checkpoint cost", whether or not
+it wrote anything. update(8) supplies a
 30-second cadence for these calls, not a completion bound: a skipped object
 waits for a later call, and scheduling and flash latency add to the
 interval. The host gate establishes the selection and error handling;
@@ -234,19 +260,143 @@ and one metadata page), garbage-collection ratio 4 and a capacity of 989
 sectors. `check-dhara-amplification` derives these values from
 `dev/flash.h` and the vendored journal and fails when the table disagrees.
 
-`flstrategy()` calls `dhara_map_sync()` after every write request, which
-pads the open checkpoint group to its metadata page. In the host model one
-write request therefore programs eight Dhara pages, or 32 requested 256-byte
-program-page equivalents, at every map occupancy measured. Production
+Dhara makes a write durable only at a checkpoint, the metadata page that
+closes a group. `dhara_map_write()` writes it when a write fills the group;
+`dhara_map_sync()` pads the open group with copies of live pages up to it.
+A checkpoint after every write request, the earlier policy of
+`flstrategy()`, therefore made each request consume a whole group: in the
+host model eight Dhara pages, or 32 requested 256-byte program-page
+equivalents, at every map occupancy measured. The board shows the same
+cost: a diagnostic `STORAGE_STATS=yes` kernel measured 32 root program
+pages and two erase sectors per root write request (2 writes: 64 pages and
+4 sectors; 66 writes: 2,112 and 132; one `cc` compile, 175 writes: 5,600
+and 350).
+
+`flstrategy()` now returns after `dhara_map_write()` and forces no
+checkpoint. `ufs_sync()` ends with `DIOCCHECKPOINT`, which runs
+`fl_checkpoint()`, so sync(2), the 30-second update(8) call, fsync(2),
+`IO_SYNC` writes to files and directories, unmount and shutdown each force
+one, and so does the last close of a root-unit node that any open since its
+previous last close held for writing (a node held only for reading and the
+swap unit force none); a checkpoint with
+nothing pending programs nothing. An `IO_SYNC` write (a descriptor opened `O_FSYNC`) to a block
+device node has no filesystem to sync, so `rwip()` calls `bdev_checkpoint()` on
+the written device after the buffer write and returns its error; a write
+without `IO_SYNC` takes none. fsync(2) on a block device descriptor drains the
+represented device's buffers, then checkpoints that device with
+`bdev_checkpoint()` and returns its error, before `ufs_sync()` syncs and
+checkpoints the filesystem that holds the node, which may sit on another
+device. A
+reset or power loss discards the writes since the last checkpoint, forced
+or written by a group fill, and `dhara_map_resume()` returns the device to
+the state that checkpoint recorded. Because a filled group checkpoints
+itself, the completed requests a reset can lose are those in the open group:
+at most six 1 KiB requests, fewer when garbage-collection copies share the
+group, written since the last forced checkpoint or group fill. A forced
+checkpoint follows each sync(2), about one update(8) interval plus scheduling
+delay apart in ordinary operation. The dirty buffers and inodes not yet
+written remain lost to a reset as before. A sync after one to six pending
+writes still pads a whole group, so writes spaced wider than the sync
+interval cost what they did under the per-request policy.
+
+sync(2) has two stated limits. `sync()` returns at once while another
+`sync()` holds `updlock`, and it passes over a mount whose superblock lists
+(`fs_ilock`, `fs_flock`) are locked; neither call then reaches that mount's
+`ufs_sync()` or its checkpoint. The writes it would have covered stay
+uncheckpointed until the next pass reaches the mount, normally the next
+update(8) call 30 seconds later, and a reset in between can lose them up to
+the open-group bound above. Shutdown does not depend on that pass:
+`rp2040_shutdown_sync()` forces the root device's checkpoint through
+`bdev_checkpoint()` after its `sync()` and buffer drain, whatever `sync()`
+did. `reboot -n` (`RB_NOSYNC`) skips both, as it skips the buffer flush.
+
+A checkpoint failure reaches fsync(2), synchronous writes and unmount as
+`EIO`. Through `ufs_sync()` it also latches in the mount's `m_write_error`
+(the synchronous block-device write above returns it without a latch, as it
+holds no mount), under the rule that
+already governs a failed buffer write: the first error is kept, every later
+`ufs_sync()` of that mount returns it, and nothing clears it while the
+mount exists. The slot is reset only when a mount is made (`mountfs()` loads
+the device's recorded error) and by an unmount over media that
+`DIOCMEDIAGONE` reports removed; the flash driver reports no removal, so a
+flash mount with a latched error refuses unmount, and the root keeps the
+error until reboot. sync(2) returns no status, so its failure surfaces
+through that latch, a later fsync(2) and the shutdown report, which also
+prints a failed shutdown checkpoint.
+
+A process forces a checkpoint with `ioctl(fd, DIOCCHECKPOINT, &status)` on a
+flash block node it opened for writing; `flioctl()` refuses a descriptor
+opened read-only with `EBADF`, and opening the node requires the node's
+permissions. `check-flash-checkpoint` holds the driver to these properties
+over a NOR model, `kernel.ufs-disk.ilp32` holds the filesystem's sync paths
+to issuing the checkpoint, and `check-rp2040-shutdown` holds shutdown to
+forcing it. One board observation exists, on the measured Pico with the PICO
+kernel and image of this policy: seven warm resets forced through the USB
+reset interface (`picotool reboot -f`), no power interruption. A directory
+followed by sync(2) survived; a file written 45 seconds before the reset, with
+no sync(2) call, survived by the update(8) checkpoint; directories made
+seconds before a reset were lost or salvaged, `fsck -p` repaired the root and
+rebooted, and the following boot checked clean each time. One boot after
+such a repair gave no USB console output until the next forced reset, which
+checked clean; the cause is not established. Five later resets through
+the same repair path and fourteen further forced-reset trials, nine of
+which took it, did not repeat it (issue #569 holds the captures and the
+ranked hypotheses). The reset matrix
+over write, erase and checkpoint phases and every power interruption (W03 of
+`docs/research/rp2040-memory-wear-engineering-program.md`) has not been run.
+Production
 `dhara_nand_prog()` passes one 1 KiB extent to `flash_program()` while
 `dhara_nand_copy()` passes four 256-byte extents, so the equivalent count is
-neither a wrapper-call count nor a ROM-command count. N writes followed by one sync
+neither a wrapper-call count nor a ROM-command count. N writes followed by one checkpoint
 program `8 * ceil(N / 7)` pages while the journal stays below the
-`auto_gc()` threshold. The shipped image writes all 989 sectors, which puts
+`auto_gc()` threshold. An image that maps all 989 sectors puts
 the journal at that threshold: rewriting recently written sectors in
 batches then costs about 6.3 pages per write, because each write first
-copies live tail pages. With 75 percent or less of the capacity live, the
+copies live tail pages. At full occupancy, checkpointing on sync rather
+than per request therefore saves about a fifth of the programs (8 to about
+6.3 pages per write in that trace, 6.0 in `check-flash-checkpoint`'s), not
+the six sevenths a journal below the threshold gives. The shipped image
+leaves its free blocks unmapped (`check-flash-sparse`) and starts below
+full occupancy; a root that has since written every free block reaches it. With 75 percent or less of the capacity live, the
 same traces stay below the threshold and cost 1.2 pages per write. These are
 host-model counts for the exercised traces; electrical completion, command
 execution inside the ROM and physical-sector wear require separate board
 measurements.
+
+The threshold is a local change to the vendored Dhara (`auto_gc()` in
+`dhara/map.c`; `dhara/README.md` lists the local changes). Upstream starts
+collecting when the journal holds `dhara_map_capacity()` user pages (989),
+which leaves at most 989 minus the live count as garbage. The port starts
+at journal capacity less the 64-page safety margin less a quarter of the
+live sectors less one 8-page checkpoint group (1,316 - 64 - 758 / 4 - 8 =
+1,055 for the shipped image), so more
+garbage stays in the journal and a write copies fewer live pages. The
+capacity the map advertises stays 989. With this trigger the trace above
+costs 4.91 pages per write at 90 percent live, against 6.28 with
+upstream's, and 1.20 at 80 percent; at 100 percent it is unchanged.
+On the measured Pico, `cc -o d d.c; sync` repeated 24 times cost 153.0
+root erase sectors and 3.75 units per 1 KiB write per compile, against
+183.9 and 4.49 with the upstream trigger. `check-dhara-gc-trigger` holds the
+trigger to an adversarial workload that keeps the journal tail live
+without the journal filling or entering the safety margin.
+`research/dhara-gc-trigger.md` gives the bound and the measurements.
+
+`flashimg` therefore maps only what the system reads. It walks the free list
+of each UFS partition of the disk image (superblock entries, then each chain
+block that entry 0 names) and writes every 1 KiB sector except the free
+blocks that do not chain the list; those stay unmapped and read as 0xff
+bytes. Nothing reads such a block before it is allocated: `alloc()` in
+`sys/kern/ufs_alloc.c` reads only the chain block and takes a data block
+through `getblk()` without a read, `pass5()` in `sbin/fsck/pass5.c` reads
+only chain blocks, and `expanddir()` in `sbin/fsck/dir.c` reads a block it
+has just allocated and overwrites all of it. The walk must account for the
+superblock's `fs_tfree` blocks exactly, or `flashimg` refuses the image. The
+`full` PICO image built at this change has 988 filesystem blocks: 756 in
+use, 1 chain block and 231 free blocks left unwritten, so with the partition
+table 758 of the 989 capacity sectors are live (76.6 percent) where all 989
+were. Repeating the host model's trace at 758 live sectors gives 1.20 pages
+per batched write
+against 6.28 at 989, and 8.00 per write with a checkpoint after each, as
+before. The share grows as the system allocates blocks, since a written
+block stays live after it is freed until the kernel trims it.
+`check-flash-sparse` reads a flashimg region back through the map.

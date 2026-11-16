@@ -13,8 +13,14 @@ The clean RP2040 distribution archive measures 43,010 bytes, down from 54,086
 bytes at base commit `145e19b7470ce6c783299ca7d7e4e33b72f57317`. The packed
 root uses 682 data blocks and reports 297 free blocks, compared with 692 and
 287 at the base. [libc-process-runtime-interfaces.md](../../../../../docs/research/libc-process-runtime-interfaces.md)
-records the complete kernel, process, archive and root measurements. The
-historical construction report follows.
+records the complete kernel, process, archive and root measurements.
+The archive also carries the calendar conversions a date-printing program
+needs -- `asctime`, `ctime` (with `gmtime` and `localtime`), `timezone`,
+`tzset` and `index` -- and `flags`, `tolower` and `toupper`, which
+`libc-sink.c` reaches: 48,846 bytes against 45,314 without the eight, with
+233 of 988 root blocks free against 236
+([time-representation-past-2038.md](../../../../../docs/research/time-representation-past-2038.md)).
+The historical construction report follows.
 
 Worktree: `~/worktrees/discobsd/board-libc`, branch `board-libc`, off
 `rp2040-port` at `3fcbdb41`. Board not touched; every check below runs on
@@ -82,6 +88,22 @@ compat}`, `lib/libc/arm/{sys,gen,string}`), then for each:
 All `.o` files are archived with the tree's own `ar` (`rc`) and indexed
 with the tree's own `ranlib` -- a.out format end to end, since `usr.bin/ld`
 on the board reads a.out only.
+
+## Callable character entry selection
+
+`boardlibc-members` selects `fgetc`, `fputc`, `getchar` and `putchar` for
+the reduced native archive. `fgetc.o` also exports `getc`; `fputc.o` also
+exports `putc`. The source-family registry in `mkboardlibc.py` already names
+all four source files. The selected-member list determines archive inclusion.
+Public function-like macros retain their byte expressions; parenthesized calls
+and initialized function pointers bind the callable providers.
+
+`libc-sink.c` names all six callable entries, including macro-suppressed calls.
+`check-libc-aout-contracts` links initialized addresses of the six names with
+both full and reduced archives and rejects each removed provider member.
+The header, host/ILP32/sanitizer and Cortex-M0 QEMU gates retain separate
+execution classes in `TESTING.md`; native archive linkage establishes symbol
+closure rather than on-device runtime behavior.
 
 ## What was cut
 

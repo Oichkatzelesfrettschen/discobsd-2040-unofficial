@@ -10,6 +10,11 @@
  * is provided ``as is'' without express or implied warranty.
  */
 
+#ifndef _NETINET_IN_H_
+#define _NETINET_IN_H_
+
+#include <sys/types.h>
+
 /*
  * Constants and structures defined by the internet system,
  * Per RFC 790, September 1981.
@@ -163,3 +168,5 @@ struct sockaddr_in {
     { "forwsrcrt", CTLTYPE_INT }, \
 }
 #endif /* KERNEL */
+
+#endif /* _NETINET_IN_H_ */

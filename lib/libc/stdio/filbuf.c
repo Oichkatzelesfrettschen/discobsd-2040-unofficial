@@ -59,7 +59,13 @@ _filbuf(FILE *iop)
 		return (iop->_ub[0]);
 	}
 
-	if (iop->_flag & (_IOSTRG|_IOEOF))
+	if (iop->_flag & _IOEOF) {
+		/* getc() decrements before calling; keep repeated EOF bounded. */
+		iop->_cnt = 0;
+		return (EOF);
+	}
+
+	if (iop->_flag & _IOSTRG)
 		return (EOF);
 
 	for (;;) {

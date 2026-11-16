@@ -13,8 +13,11 @@ exit (int code)
 {
     struct atexit *p;
 
-    for (p = __atexit; p; p = p->next)
+    /* Removal precedes callbacks so their registrations join the live stack. */
+    while ((p = __atexit) != NULL) {
+        __atexit = p->next;
         (*p->func)();
+    }
     _cleanup();
     _exit (code);
 }

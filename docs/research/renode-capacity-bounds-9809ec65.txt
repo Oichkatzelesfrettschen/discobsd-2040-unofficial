@@ -1,0 +1,100 @@
+Renode clist and buffer bounds and kernel-record readers, PICO_UART kernel
+
+source revision: 9809ec659961f6f01d047f0f08b56327e888704d plus the gate itself (tools/renode/check-capacity.sh,
+  check-capacity.py, tests/rp2040/capacity_exhaustion/clistbound.c and its Makefile;
+  no kernel or shipped userland source differs)
+command: bmake MACHINE=rp2040 check-renode-capacity (sh tools/renode/check-capacity.sh)
+emulator: Renode 1.17.0+20260907gitf1dd1b4af
+  models matgla/Renode_RP2040 205a5e4b25440582008a4292074bb07f80a72328
+kernel: sys/arch/rp2040/compile/PICO_UART/unix.bin sha256 54d8c46077206d73f4b0c54667aa020d6315abfb72a7a2aaf198e19f84c31bb6
+root: distrib/rp2040/sdcard.img with /tmp/filetab, inotab, proctab, clistbound, vmstat, iostat and pstat added
+  clistbound sha256 55c8af211033b86808f70a8ff69ae502246c2f567e742c4f00c93af44879ad16
+  vmstat sha256 31bb6f6c7efb8474bc74a6851a53e5ecc253f10b620cffd810e993156226352d
+  iostat sha256 33dfca19d4548d068f3dce2c439afb97faa131e1fee5f272e38b8659d03e97f0
+  pstat sha256 ab4405a3afdc8035f7389d557f7994c73855d373bad3651edaf314ea1dc3cc88
+date: 2026-11-13
+redaction: the banner's builder and host name read builder@host; the line editor's redraws are folded
+evidence class: Renode with third-party peripheral models; not a board run
+
+---- driver output ----
+check-capacity: Renode 1.17.0+20260907gitf1dd1b4af
+check-renode: device probe after 0.5 virtual seconds
+check-renode: file system check and daemons after 1.5 virtual seconds
+check-renode: login prompt after 4.0 virtual seconds
+check-renode: shell prompt after 4.5 virtual seconds
+check-renode: root shell after 5.0 virtual seconds
+check-capacity: filetab: PASS dup to the per-process limit refuses with EMFILE (errno 24) at 30 descriptors of 30
+check-capacity: filetab: PASS EMFILE leaves the file table and its failure counter unchanged
+check-capacity: filetab: PASS at least two holder processes are needed to fill the table (2)
+check-capacity: filetab: PASS holders hold 12 slots (table shows 12, early exits 0, first status 0)
+check-capacity: filetab: PASS a full file table refuses open with ENFILE twice, not EMFILE (errno 23 then 23)
+check-capacity: filetab: PASS the parent opened the 3 spare slots (opened 3)
+check-capacity: filetab: PASS the parent holds 6 of 30 descriptors, so the per-process limit did not refuse
+check-capacity: filetab: PASS file counter reports a full table (current 18 of 18, peak 18, min-free 0)
+check-capacity: filetab: PASS file failure counter rose by the two refusals (rose by 2)
+check-capacity: filetab: PASS no other table counted a failure
+check-capacity: filetab: PASS every holder exits 0 and is reaped (clean 2, other 0, live 0)
+check-capacity: filetab: PASS occupancy returns to 3 file slots (now 3)
+check-capacity: filetab: PASS the peak and the failures stay latched across the release
+check-capacity: filetab: PASS an open after the release succeeds (errno 0)
+check-capacity: filetab: PASS recovery leaves occupancy at 3 and adds no failure
+check-capacity: filetab: FILETABTEST OK
+check-capacity: inotab: PASS 6 directories and 3 files created (errno 0)
+check-capacity: inotab: PASS creating the files leaves 11 inodes referenced (now 11)
+check-capacity: inotab: PASS holders reference 12 inodes (table shows 12 more, early exits 0, first status 0)
+check-capacity: inotab: PASS the parent opened the 1 spare slots (opened 1, errno 0)
+check-capacity: inotab: PASS a full inode table refuses open and stat of new identities with ENFILE (errno 23 then 23)
+check-capacity: inotab: PASS inode counter reports a full table (current 24 of 24, peak 24, min-free 0)
+check-capacity: inotab: PASS inode failure counter rose by the two refusals (rose by 2)
+check-capacity: inotab: PASS no other table counted a failure
+check-capacity: inotab: PASS the file table holds 10 of 18 slots, so it did not refuse
+check-capacity: inotab: PASS every holder exits 0 and is reaped (clean 6, other 0, live 0)
+check-capacity: inotab: PASS occupancy returns to 11 referenced inodes (now 11)
+check-capacity: inotab: PASS the peak and the failures stay latched across the release
+check-capacity: inotab: PASS the refused stat succeeds after the release (errno 0)
+check-capacity: inotab: PASS the refused open succeeds after the release (errno 0)
+check-capacity: inotab: PASS recovery leaves occupancy at 11 and adds no failure
+check-capacity: inotab: INOTABTEST OK
+check-capacity: proctab: fork refused after 10 children with errno 11 (No more processes)
+check-capacity: proctab: PASS a full process table refuses fork with EAGAIN, not ENOMEM
+check-capacity: proctab: PASS children created (10) equal the slots free at the start (10)
+check-capacity: proctab: PASS a repeated fork refuses with EAGAIN (errno 11)
+check-capacity: proctab: PASS process counter reports a full table (current, peak 16 of 16, min-free 0)
+check-capacity: proctab: PASS process failure counter rose by the 2 refusals (rose by 2)
+check-capacity: proctab: PASS no other table counted a failure
+check-capacity: proctab: PASS every child exits 0 and is reaped (clean 10, other 0, live 0)
+check-capacity: proctab: PASS occupancy returns to the starting 6 slots (now 6)
+check-capacity: proctab: PASS the peak and the failures stay latched across the release
+check-capacity: proctab: PASS a fork after the reap succeeds (errno 0)
+check-capacity: proctab: PASS the recovery child exits 0 and is reaped
+check-capacity: proctab: PASS recovery leaves occupancy at 6 and adds no failure
+check-capacity: proctab: PROCTABTEST OK
+check-capacity: clistbound: CLISTBOUND STOP
+check-capacity: clistbound: INFO clist limit 32 peak 18 min-free 14
+check-capacity: clistbound: CLISTBOUND OK
+check-capacity: proc limit 16 current 6 peak 16 min-free 0 failures 2
+check-capacity: inode limit 24 current 10 peak 24 min-free 0 failures 2
+check-capacity: file limit 18 current 3 peak 18 min-free 0 failures 2
+check-capacity: clist limit 32 current 0 peak 18 min-free 14 failures 0
+check-capacity: buffer limit 4 current 0 peak 4 min-free 0 failures 0
+check-renode: operator shell after 32.5 virtual seconds
+check-capacity: record readers checked
+check-capacity: pass
+
+---- console excerpt: clistbound ----
+CLISTBOUND STOP
+CB0000 abcdefghijkl
+CB0016 abcdefghijkl#xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CB0059 abcdefghijkl
+INFO clist held current 10 peak 18 failures 0  (printed after the echoed input on one console line)
+INFO clist limit 32 peak 18 min-free 14
+PASS writer status 0
+CLISTBOUND OK
+
+---- console excerpt: final kern.capacity ----
+proc limit 16 current 6 peak 16 min-free 0 failures 2 slot-bytes 100
+inode limit 24 current 10 peak 24 min-free 0 failures 2 slot-bytes 84
+file limit 18 current 3 peak 18 min-free 0 failures 2 slot-bytes 16
+clist limit 32 current 0 peak 18 min-free 14 failures 0 slot-bytes 32
+buffer limit 4 current 0 peak 4 min-free 0 failures 0 slot-bytes 1060
+uarea bytes 3072 user 1024 stack 2048 peak 1600 min-free 448 saturated 0

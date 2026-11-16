@@ -17,9 +17,21 @@ OBJS		= creat.o ftime.o gethostid.o memccpy.o memchr.o memcmp.o \
 		  setregid.o setreuid.o setrgid.o setruid.o sigcompat.o \
 		  strchr.o strrchr.o times.o tmpnam.o utime.o
 
+# utime.c and ftime.c compiled a second time with _TIME_BITS defined as 64,
+# where <utime.h> and <sys/timeb.h> bind the two names to __utime64 and
+# __ftime64 (lib/libc/gen/Makefile builds the calendar functions the same
+# way).
+WIDEOBJ		= utime64.o ftime64.o
+OBJS		+= ${WIDEOBJ}
+
 compat.a:	${OBJS}
 		@echo "building compat.a"
 		@${AR} cr compat.a ${OBJS}
+
+.for member in ${WIDEOBJ:S/64.o$//}
+${member}64.o: ${member}.c
+		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o $@ ${.CURDIR}/${member}.c
+.endfor
 
 tags:
 		cwd=`pwd`; \

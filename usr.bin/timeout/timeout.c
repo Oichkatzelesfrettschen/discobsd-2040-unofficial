@@ -45,8 +45,14 @@
 #define MAX_DURATION_SECONDS 99999999L
 #define USECONDS_PER_SECOND 1000000L
 
+/*
+ * A duration as two longs, which hold every value parse_duration() accepts
+ * (MAX_DURATION_SECONDS); arm_timer() copies them into a struct itimerval,
+ * whose 64-bit second count would double this structure in main's frame.
+ */
 struct timeout_duration {
-	struct timeval value;
+	long seconds;
+	long useconds;
 	int nonzero;
 };
 
@@ -209,9 +215,9 @@ parse_duration(const char *text, struct timeout_duration *duration)
 	if (nonzero && whole == 0 && fraction_seconds == 0 &&
 	    fraction_useconds == 0)
 		fraction_useconds = 1;
-	duration->value.tv_sec = (long)whole * multiplier + fraction_seconds;
-	duration->value.tv_usec = fraction_useconds;
-	if (duration->value.tv_sec > MAX_DURATION_SECONDS)
+	duration->seconds = (long)whole * multiplier + fraction_seconds;
+	duration->useconds = fraction_useconds;
+	if (duration->seconds > MAX_DURATION_SECONDS)
 		return -1;
 	duration->nonzero = nonzero;
 	return 0;
@@ -368,7 +374,8 @@ arm_timer(const struct timeout_duration *duration)
 
 	timer.it_interval.tv_sec = 0;
 	timer.it_interval.tv_usec = 0;
-	timer.it_value = duration->value;
+	timer.it_value.tv_sec = duration->seconds;
+	timer.it_value.tv_usec = duration->useconds;
 	return setitimer(ITIMER_REAL, &timer, NULL);
 }
 
@@ -377,8 +384,8 @@ disarm_timer(void)
 {
 	struct timeout_duration zero;
 
-	zero.value.tv_sec = 0;
-	zero.value.tv_usec = 0;
+	zero.seconds = 0;
+	zero.useconds = 0;
 	zero.nonzero = 0;
 	return arm_timer(&zero);
 }
@@ -557,8 +564,8 @@ main(int argc, char **argv)
 	have_kill_after = 0;
 	preserve_status = 0;
 	timeout_signal = SIGTERM;
-	kill_after.value.tv_sec = 0;
-	kill_after.value.tv_usec = 0;
+	kill_after.seconds = 0;
+	kill_after.useconds = 0;
 	kill_after.nonzero = 0;
 
 	while ((option = getopt(argc, argv, "fk:ps:")) != -1) {

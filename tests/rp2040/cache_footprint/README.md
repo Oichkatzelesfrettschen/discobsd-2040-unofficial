@@ -39,6 +39,11 @@ entries, and 16 pathname hash heads to four of each saved another 1,384 bytes.
 The 8,720-byte total above measures only the mechanisms implemented by the
 exec-spool, single-mount, and linear-layout work.
 
+The device-operation guard adds four bytes per mount after that measurement.
+The linked single-root mount record is 1,040 bytes; the two-record multi-root
+mount array is 2,448 bytes. The footprint verifier reports those allocations
+and the guard contribution separately from the historical savings table.
+
 `NBUF` is four. The exec argument spool owns one staging block instead of
 retaining six argument blocks. A packed decoder and `rdwri()` can each own one
 additional block while the fourth block preserves one sleep margin. The host

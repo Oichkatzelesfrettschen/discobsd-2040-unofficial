@@ -13,7 +13,7 @@ SRCS=		eval.c expr.c look.c main.c misc.c
 OBJS=		eval.o expr.o look.o main.o misc.o
 
 DEFS= 		-DEXTENDED -Dunix -I.
-CFLAGS+=	-O ${DEFS}
+CFLAGS+=	${DEFS}
 
 all:		${PROG}
 

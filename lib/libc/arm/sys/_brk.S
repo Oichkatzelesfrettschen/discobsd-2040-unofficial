@@ -20,9 +20,5 @@ ENTRY(_brk)
 	svc	#SYS_sbrk
 	bcs	1f			/* Error if carry set. */
 	bx	lr			/* Success return. */
-1:	ldr	r1, =errno
-	str	r0, [r1]
-	mov	r0, #0
-	mvn	r0, r0
-	bx	lr			/* Error return. */
+1:	SYS_ERROR			/* Error return. */
 END(_brk)

@@ -10,7 +10,7 @@
  */
 #include "curses.h"
 
-bool	_echoit		= TRUE,	/* set if stty indicates ECHO		*/
+int	_echoit		= TRUE,	/* set if stty indicates ECHO		*/
 	_rawmode	= FALSE,/* set if stty indicates RAW mode	*/
 	My_term		= FALSE,/* set if user specifies terminal type	*/
 	_endwin		= FALSE;/* set if endwin has been called	*/
@@ -32,7 +32,7 @@ FILE	*outf;			/* debug output file			*/
 
 SGTTY	_tty;			/* tty modes				*/
 
-bool	AM, BS, CA, DA, DB, EO, HC, HZ, IN, MI, MS, NC, NS, OS, UL, XB, XN,
+int	AM, BS, CA, DA, DB, EO, HC, HZ, IN, MI, MS, NC, NS, OS, UL, XB, XN,
 	XT, XS, XX;
 char	*AL, *BT, *CD, *CE, *CL, *CM, *CR, *CS, *DC, *DL, *DM,
 	*DO, *ED, *EI, *K0, *K1, *K2, *K3, *K4, *K5, *K6, *K7, *K8,
@@ -45,4 +45,4 @@ char	*AL, *BT, *CD, *CE, *CL, *CM, *CR, *CS, *DC, *DL, *DM,
  * From the tty modes...
  */
 
-bool	GT, NONL, normtty, _pfast;
+int	GT, NONL, normtty, _pfast;

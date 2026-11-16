@@ -28,7 +28,7 @@ HEADER_MUTANTS=		stddef_no_max_align stdalign_weak_alignas \
 			inttypes_scn64_long ctype_no_isblank \
 			stddef_wchar_int limits_no_mb_len_max \
 			stdlib_no_mbtowc inttypes_no_wcstoimax \
-			errno_no_eilseq
+			errno_no_eilseq limits_ulong_uint
 
 # Each mutant header tree is the public one with a single header replaced,
 # found first on the include path.  A contract that still translates against
@@ -65,6 +65,12 @@ limits_llong_min_short.mutant:
 	${MUTATE} ${TOPSRC}/include/machine/limits.h $@/machine/limits.h \
 	    "(-9223372036854775807LL-1LL)" "(-9223372036854775807LL)"
 limits_llong_min_short.contract= limits_contract
+
+limits_ulong_uint.mutant:
+	@rm -rf $@ && mkdir -p $@/machine
+	${MUTATE} ${TOPSRC}/include/machine/limits.h $@/machine/limits.h \
+	    "0xffffffffUL" "0xffffffff"
+limits_ulong_uint.contract= limits_contract
 
 # <stdint.h> is a link to sys/sys/stdint.h, so the mutants read that file.
 stdint_unsigned_max.mutant:
@@ -331,8 +337,8 @@ aligned_alloc_test_arm: aligned_alloc_test.c arm_arena.o \
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -o $@ aligned_alloc_test.c \
 	    arm_arena.o arm_aligned_alloc.o ${QEMU_SUPPORT} ${QEMU_ARM_LIBS}
 
-host_Exit.o: ${STDLIB_DIR}/_Exit.c
-	${HOSTCC} ${HOST_FLAGS} -D_Exit=db_Exit -c -o $@ ${STDLIB_DIR}/_Exit.c
+host_Exit.o: ${STDLIB_DIR}/iso_exit.c
+	${HOSTCC} ${HOST_FLAGS} -D_Exit=db_Exit -c -o $@ ${STDLIB_DIR}/iso_exit.c
 
 exit_probe: exit_probe.c host_Exit.o
 	${HOSTCC} ${HOST_FLAGS} -o $@ exit_probe.c host_Exit.o
@@ -391,8 +397,8 @@ ctype_double_eval.mutant/ctype.h: ${TOPSRC}/include/ctype.h
 	@mkdir -p ctype_double_eval.mutant
 	${MUTATE} ${TOPSRC}/include/ctype.h $@ \
 	    "((_ctype_+1)[(int)(c)]&(_U|_L|_N))" "(isalpha(c) || isdigit(c))"
-exit_runs_handlers.mutant.c: ${STDLIB_DIR}/_Exit.c
-	${MUTATE} ${STDLIB_DIR}/_Exit.c $@ "	_exit(status);" "	exit(status);"
+exit_runs_handlers.mutant.c: ${STDLIB_DIR}/iso_exit.c
+	${MUTATE} ${STDLIB_DIR}/iso_exit.c $@ "	_exit(status);" "	exit(status);"
 mbtowc_sign_extend.mutant.c: ${STDLIB_DIR}/mbtowc.c
 	${MUTATE} ${STDLIB_DIR}/mbtowc.c $@ \
 	    "(wchar_t)(unsigned char)*s" "(wchar_t)*s"
@@ -541,10 +547,12 @@ IMPORT_FLAGS=	${TARGET_FLAGS} -fno-common
 strtoull.imports=	errno
 strtoll.imports=	errno __discobsd_strtou64
 atoll.imports=		strtoll
-_Exit.imports=		_exit
+iso_exit.imports=	_exit
 aligned_alloc.imports=	errno free malloc realloc
 imaxdiv.imports=
 imaxabs.imports=
+abs.imports=
+labs.imports=
 strtoimax.imports=	strtoll
 strtoumax.imports=	strtoull
 mblen.imports=
@@ -554,7 +562,7 @@ mbstowcs.imports=	strlen
 wcstombs.imports=
 wcstoumax.imports=	errno
 wcstoimax.imports=	errno __discobsd_wcstou64
-IMPORT_STDLIB=	strtoull strtoll atoll _Exit imaxdiv imaxabs strtoimax \
+IMPORT_STDLIB=	abs labs strtoull strtoll atoll iso_exit imaxdiv imaxabs strtoimax \
 		strtoumax mblen mbtowc wctomb mbstowcs wcstombs wcstoumax \
 		wcstoimax
 isctype.imports=	_ctype_

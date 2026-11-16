@@ -37,6 +37,9 @@
 #define	_SYS_SELECT_H_
 
 #include <sys/types.h>
+#include <sys/_timeval.h>
+#include <sys/_timespec.h>
+#include <sys/_sigset_t.h>
 
 /*
  * Select uses bit masks of file descriptors in longs.
@@ -61,14 +64,33 @@ typedef struct fd_set {
 #ifdef	KERNEL
 #define	FD_ZERO(p)	bzero((char *)(p), sizeof(*(p)))
 #else
-#define	FD_ZERO(p)	memset((char *)(p), 0, sizeof(*(p)))
+#define	FD_ZERO(p) do {						\
+	fd_set *__fd_set = (p);					\
+	unsigned int __fd_word;					\
+								\
+	for (__fd_word = 0;					\
+	    __fd_word < sizeof(__fd_set->fds_bits) /		\
+	    sizeof(__fd_set->fds_bits[0]); ++__fd_word)		\
+		__fd_set->fds_bits[__fd_word] = 0;			\
+} while (0)
 #endif
 
 #ifndef	KERNEL
 
 /* According to POSIX.1-2001 */
-struct timeval;
-int	select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
+int	select(int, fd_set *, fd_set *, fd_set *, struct timeval *)
+	    __TIME64_NAME(select);
+#ifdef __TIME64_VIEW
+/*
+ * pselect has a 32-bit entry point and no declaration in the narrow view;
+ * the 64-bit view declares it so that a call binds to the wrapper.
+ * Private type owners keep the signal/select include cycle independent of
+ * partially read public headers. tests/time64_wrappers/signal_first.c
+ * compiles the signal-first order.
+ */
+int	pselect(int, fd_set *, fd_set *, fd_set *, const struct timespec *,
+	    const sigset_t *) __TIME64_NAME(pselect);
+#endif
 
 #endif	/* !KERNEL */
 

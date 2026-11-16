@@ -1,0 +1,129 @@
+.TH SAVECORE 8 "November 13, 2026"
+.SH NAME
+savecore \- save a crash dump from the SD card
+.SH SYNOPSIS
+.B /sbin/savecore
+[
+.B \-v
+] [
+.B \-f
+.I device
+]
+.I directory
+.br
+.B /sbin/savecore
+.B \-c
+[
+.B \-v
+] [
+.B \-f
+.I device
+]
+.SH DESCRIPTION
+When a PicoCalc kernel panics, or
+.B "reboot \-d"
+asks for a dump, the kernel writes the panic message, its data and bss
+with the SwapRAM pool, and both u areas to the first partition of the SD
+card whose MBR type is
+.BR 0xb9 ,
+provided that no mounted file system overlaps it.
+The dump format is
+.IR sys/arch/rp2040/include/dump.h .
+Only the PICOCALC and PICOCALC_PSRAM kernels running on a PicoCalc write a
+dump; every other configuration has no dump device.
+.PP
+.B savecore
+finds that partition through
+.I /dev/rsd0
+(the device nodes
+.I /dev/rsd0c
+and
+.I /dev/rsd0d
+are made with
+.IR mknod (8)
+when the dump partition is the third or fourth entry),
+reads its header and, if a dump is present, checks the header, the
+segment table and every segment checksum while it copies the dump to
+.IR directory /dump. N
+and writes
+.IR directory /info. N ,
+a text file naming the panic message, the CRC32 of the kernel image that
+wrote the dump, the running kernel's image CRC32, the time and the
+segment table.
+The image CRC32 names the
+.I unix.elf
+build whose symbols decode the dump; it is the value
+.B "sysctl machdep.image_crc"
+reported on the crashed kernel.
+.PP
+.I N
+is read from
+.IR directory /bounds
+(0 when it does not exist), which is then advanced.
+Both files are written under temporary names, synchronized, and renamed
+into place, and the bounds file and the directory are synchronized before
+.B savecore
+clears the dump on the card, so a dump leaves the card only once a
+complete copy is on stable storage.
+A dump that fails a check, a copy that fails, or a directory without room
+leaves the dump on the card and exits with status 1.
+At securelevel 2 the kernel refuses every write open of the card, so
+.B savecore
+runs before the level rises.
+.PP
+.B savecore
+copies a dump only when the file system holding
+.I directory
+keeps at least a reserve free after the dump and its info file are
+written: 1024 kilobytes, or the number of kilobytes in
+.IR directory /minfree .
+.PP
+The options are:
+.TP
+.B \-c
+Clear the dump on the card without saving it.
+.TP
+.BI \-f " device"
+Read the dump from
+.I device
+instead of the SD card's dump partition.
+.TP
+.B \-v
+Report when no dump is present.
+.SH EXAMPLES
+A card image prepared on the build host with the tree's fsutil
+.IP
+fsutil \-\-repartition=fs=64m:dump=1m card.img
+.PP
+holds a file system on
+.I sd0a
+and a dump partition on
+.IR sd0b .
+After a panic and the reboot that follows it:
+.IP
+.nf
+mount /dev/sd0a /mnt
+mkdir \-p /mnt/crash
+savecore /mnt/crash
+.fi
+.SH FILES
+.TP 20
+.IR directory /dump. N
+the dump, sector for sector as the kernel wrote it
+.TP
+.IR directory /info. N
+the dump's identity and segment table
+.TP
+.IR directory /bounds
+the number of the next dump
+.TP
+.IR directory /minfree
+the reserve in kilobytes
+.SH SEE ALSO
+reboot(8), sysctl(8)
+.SH HISTORY
+A
+.B savecore
+command appeared in 4.1BSD. This version follows the post-copy free space
+rule and the clear-after-copy order of 4.4BSD's and copies no kernel file:
+the RP2040 kernel executes from flash and is not a file on the root.

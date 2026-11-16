@@ -88,6 +88,8 @@ __aeabi_uidivmod:
 2:	movs	r1, r0			/* zero divisor: remainder is the dividend */
 	movs	r0, #0
 	bx	lr
+	.size	__aeabi_uidiv, . - __aeabi_uidiv
+	.size	__aeabi_uidivmod, . - __aeabi_uidivmod
 #ifdef DIVIDER_MODEL
 	.pool
 #endif
@@ -138,6 +140,8 @@ __aeabi_idivmod:
 	subs	r1, r0, r1
 	movs	r0, #0
 	bx	lr
+	.size	__aeabi_idiv, . - __aeabi_idiv
+	.size	__aeabi_idivmod, . - __aeabi_idivmod
 #ifdef DIVIDER_MODEL
 	.pool
 #endif

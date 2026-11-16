@@ -391,8 +391,7 @@ register char *argv[];
 					if (Debug > 0)
 						logent("Remote Enabled", "DEBUG");
 				} else {
-					DEBUG(1, "Remote debug request ignored\n",
-					   CNULL);
+					DEBUG(1, "Remote debug request ignored\n");
 				}
 				break;
 			case 'Q':
@@ -541,10 +540,11 @@ loop:
 #endif
 		if (MaxGrade != '\177') {
 			DEBUG(2, "Max Grade this transfer is %c\n", MaxGrade);
-			sprintf(msg, "%s -Q%d -p%c -vgrade=%c %s",
+			snprintf(msg, sizeof msg, "%s -Q%d -p%c -vgrade=%c %s",
 				Myname, seq, MaxGrade, MaxGrade, rflags);
 		} else
-			sprintf(msg, "%s -Q%d %s", Myname, seq, rflags);
+			snprintf(msg, sizeof msg, "%s -Q%d %s",
+				Myname, seq, rflags);
 		omsg('S', msg, Ofn);
 		for (;;) {
 			ret = imsg(msg, Ifn);

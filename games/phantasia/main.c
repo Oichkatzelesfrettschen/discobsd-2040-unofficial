@@ -46,7 +46,7 @@ double	strength, speed;
 bool	beyond, marsh, throne, valhala, changed, fghting, su, wmhl;
 int	fileloc, users;
 jmp_buf	fightenv, mainenv;
-long	secs;
+time_t	secs;
 /*
  * worm hole map -- This table is carefully set up so that one can always
  * return the way he/she came by inverting the initial path.
@@ -528,7 +528,7 @@ bool	ok_to_play()		/* return FALSE if playing is not allowed at this time */
         register struct	tm	*tp;
         register int	numusers = 0;
         FILE	*fp;
-        long	now;
+        time_t	now;
         struct	utmp	ubuf;
 
 	if (su)

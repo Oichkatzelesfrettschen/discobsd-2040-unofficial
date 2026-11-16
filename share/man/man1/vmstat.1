@@ -25,7 +25,9 @@ vmstat \- report virtual memory statistics
 [ interval [ count ] ]
 .SH DESCRIPTION
 .I Vmstat
-delves into the system and normally reports certain statistics kept about
+reads the kernel's statistics records through
+.IR sysctl (3),
+needs no privilege, and normally reports certain statistics kept about
 process, virtual memory, disk, trap and cpu activity.
 If given a
 .B \-f
@@ -134,11 +136,10 @@ in favor of the Massbus drives).  To force
 .I vmstat
 to display specific drives, their names may be supplied on
 the command line.
-.SH FILES
-/dev/kmem, /vmunix
 .SH SEE ALSO
 .IR systat (1),
-.IR iostat (1)
+.IR iostat (1),
+.IR sysctl (3)
 .PP
 The sections starting with ``Interpreting system activity'' in
 .IR "Installing and Operating 4.2bsd" .

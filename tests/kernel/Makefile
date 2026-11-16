@@ -67,12 +67,9 @@ KERNEL_SANITIZER_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh native \
 ELF_SURROUNDING_CFLAGS=	${SYSCALL_GATE_CFLAGS} \
 			-Wno-deprecated-non-prototype
 
-# sys/kern/subr_prf.c walks its own arguments as an array of four-byte slots,
-# so it is faithful only where a pointer, a long and an int are four bytes
-# and arguments sit on the stack. That is the target, and it is what -m32
-# gives on an x86-64 host: an ordinary 32-bit userspace binary, no virtual
-# machine and no second operating system. A host without 32-bit support
-# builds the rest of the tier and says so.
+# The formatter gate uses target-width integers and pointers. An x86-64 host
+# running a 32-bit userspace binary provides those widths; a host without
+# 32-bit support builds the rest of the tier and reports the skip.
 ILP32=		-m32
 ILP32_CC= ${HOST_CC}
 include ${TOPSRC}/tools/test-execution.mk
@@ -238,24 +235,57 @@ UFS_TOPOLOGY_MUTANTS=	omit-rename-acquisition \
 # each source. free() takes an inode and a block number in ufs_alloc.c and
 # would interpose on libc's, so every object compiles with the same rename.
 UFS_DISK_SOURCES=	ufs_mount ufs_fio ufs_bio ufs_inode ufs_subr ufs_bmap \
-			ufs_syscalls2 ufs_alloc sys_inode vfs_vnops
+			ufs_syscalls2 ufs_alloc sys_inode vfs_vnops kern_subr kern_descrip
 UFS_DISK_DEFS=		-DNMOUNT=2 -DNFL=2 -DSD_ENABLED -DLINEAR_INODE_CACHE \
 			-DCOMPACT_INODE_FIELDS -DLINEAR_BUFFER_CACHE \
-			-Dfree=ufs_free -Dsetjmp=ufs_disk_setjmp
+			-Dfree=ufs_free -Os \
+			-include ${.CURDIR}/ufs_disk_checkpoint.h
 UFS_DISK_CFLAGS=	-ffunction-sections -fdata-sections ${UFS_DISK_DEFS}
 UFS_DISK_FLAGS_vfs_vnops=	-Wno-clobbered
+UFS_DISK_FLAGS_sys_inode= -Dbdev_write_error=ufs_disk_error_query
+UFS_DISK_FLAGS_kern_descrip= -Dgetf=ufs_disk_getf -Dgetinode=ufs_disk_getinode \
+	-Dgetdtablesize=ufs_disk_getdtablesize -Ddup=ufs_disk_dup -Ddup2=ufs_disk_dup2 \
+	-Dclose=ufs_disk_close -Dfcntl=ufs_disk_fcntl -Dfstat=ufs_disk_fstat \
+	-Dflock=ufs_disk_flock
 UFS_DISK_OBJECTS=	${UFS_DISK_SOURCES:@s@ufs_disk_${s}.o@}
 UFS_DISK_CONF_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/conf.c
 UFS_DISK_FLASH_SRC=	${TOPSRC}/sys/arch/rp2040/dev/flash.c
 UFS_DISK_FLASH_HDR=	${TOPSRC}/sys/arch/rp2040/dev/flash.h
+UFS_DISK_STM32_SRC=	${TOPSRC}/sys/arch/stm32/stm32/conf.c
 UFS_DISK_MOUNT_MUTANTS=	close-always mount-close-always gone-ignored \
 			gone-assumed gone-keeps-error gone-no-close \
 			gone-no-invalidate gone-inverted
+UFS_DISK_MOUNT_MUTANTS+= device-mount-lock-omitted device-mount-inheritance-omitted
+UFS_DISK_MOUNT_MUTANTS+= device-mount-guard-transfer-omitted \
+	device-node-reference-leaked device-unmount-close-error-hidden
 UFS_DISK_FIO_MUTANTS=	exact-compare
+UFS_DISK_SUBR_MUTANTS=	cooked-device-flush-omitted cooked-device-error-hidden
+UFS_DISK_EXTRA_MUTANTS= cooked-device-latch-ignored ufs_bio \
+	device-error-replica-omitted ufs_bio device-first-error-overwritten ufs_bio \
+	device-busy-drain-omitted ufs_bio device-lock-ignored ufs_bio \
+	device-inherit-omitted sys_inode device-open-count-on-failure sys_inode \
+	device-close-error-hidden sys_inode device-error-lifetime-reset-omitted sys_inode \
+	device-driver-checkpoint-lost ufs_bio \
+	device-unlock-wakeup-omitted ufs_bio device-inode-released-early vfs_vnops \
+	device-mount-guard-invisible ufs_bio
+UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
+	device-block-admission-before-lock sys_inode \
+	device-raw-admission-before-lock sys_inode \
+	device-block-policy-raise-ignored sys_inode \
+	device-raw-policy-raise-ignored sys_inode \
+	device-reuse-state-kept ufs_inode
+UFS_DISK_EXTRA_MUTANTS+= device-checkpoint-omitted ufs_syscalls2 \
+	device-checkpoint-error-hidden ufs_syscalls2 \
+	device-checkpoint-unsupported-fatal ufs_syscalls2 \
+	device-checkpoint-skipped-on-error ufs_syscalls2 \
+	device-fsync-represented-checkpoint-omitted ufs_syscalls2 \
+	device-sync-write-checkpoint-omitted sys_inode \
+	device-sync-write-checkpoint-error-hidden sys_inode \
+	device-async-write-checkpoints sys_inode
 UFS_DISK_CONF_MUTANTS=	ignore-unit ignore-major touching start-only \
-			whole-device-disjoint failed-query-disjoint
+			whole-device-disjoint failed-query-disjoint device-unit-guard-exact-only
 UFS_DISK_FLASH_MUTANTS=	reinit-unguarded reinit-counts-whole-device \
-			reinit-first-partition-only
+			reinit-first-partition-only checkpoint-ioctl-omitted
 .if ${_HOST_OSNAME} == "Darwin"
 FUTIMES_LDFLAGS=	-Wl,-dead_strip
 .else
@@ -293,11 +323,16 @@ RMAP_SRC=	${TOPSRC}/sys/kern/subr_rmap.c
 SWAP_IOCTL_SRC=	${TOPSRC}/sys/dev/swap.c
 SWAP_IOCTL_FUNCTION=	swap_ioctl_function.c
 SWAP_IOCTL_DEFS=	${COMPACT_DEFS}
+# swstrategy() hands a buffer address to swap() as the kernel's 32-bit
+# size_t, so the 64-bit host build excuses that cast, as swap_ring_io_test
+# does.
 SWAP_IOCTL_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 -pedantic-errors \
-			-Wstrict-prototypes -Wold-style-definition
+			-Wstrict-prototypes -Wold-style-definition \
+			-Wno-pointer-to-int-cast
 SWAP_IOCTL_MUTANTS=	release-fallthrough media-size-fallthrough \
 	shortage-output-suppression unrounded-free stale-released-size \
-	ignore-descriptor-mode omit-root-check
+	ignore-descriptor-mode omit-root-check open-writes-live-swap \
+	transfer-writes-live-swap
 SWAP_IOCTL_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/cdefs.h \
 	${TOPSRC}/sys/sys/conf.h ${TOPSRC}/sys/sys/disk.h \
@@ -323,7 +358,24 @@ CLIST_SRC=	${TOPSRC}/sys/kern/tty_subr.c
 CAPACITY_SRC=	${TOPSRC}/sys/kern/subr_capacity.c
 CAPACITY_DEFS=	-DCAPACITY_STATS -DSWAPRAM ${IALLOC_PICO_DEFS}
 CAPACITY_MUTANTS=	process-state inode-references clist-object-size \
-		buffer-any-flag peak-follows-down saturation-inverted
+		buffer-any-flag peak-follows-down saturation-inverted invalid-kind
+
+# Buffer-cache pressure: the production ufs_bio.c and subr_capacity.c in the
+# rp2040 configuration (four buffers, linear cache, capacity statistics). The
+# storage counters come from a counting stand-in in the gate, because their
+# production definition sits in the flash driver.
+BUFFER_BUSY_SRC=	${TOPSRC}/sys/kern/ufs_bio.c
+BUFFER_BUSY_DEFS=	-DCAPACITY_STATS -DSTORAGE_STATS -DNBUF=4 \
+			-DSWAPRAM ${IALLOC_PICO_DEFS}
+# Function sections retain the buffer paths; ufs_disk_test owns device admission.
+BUFFER_BUSY_CFLAGS=	-ffunction-sections -fdata-sections
+.if ${_HOST_OSNAME} == "Darwin"
+BUFFER_BUSY_LDFLAGS=	-Wl,-dead_strip
+.else
+BUFFER_BUSY_LDFLAGS=	-Wl,--gc-sections
+.endif
+BUFFER_BUSY_MUTANTS=	no-capacity-note eviction-capacity-note \
+			no-freelist-wakeup eviction-drops-write
 
 # The protection syscalls and the process lookups they decide with.
 CRED_SRC=	${TOPSRC}/sys/kern/kern_prot.c ${TOPSRC}/sys/kern/kern_prot2.c \
@@ -394,6 +446,8 @@ FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/stdint.h ${TOPSRC}/sys/sys/syscall_dispatch.h \
 	${TOPSRC}/sys/sys/syslimits.h ${TOPSRC}/sys/sys/systm.h \
 	${TOPSRC}/sys/sys/time.h ${TOPSRC}/sys/sys/tty.h \
+	${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+	${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
 	${TOPSRC}/sys/sys/ttychars.h ${TOPSRC}/sys/sys/ttydev.h \
 	${TOPSRC}/sys/sys/types.h ${TOPSRC}/sys/sys/uio.h \
 	${PORT_INCLUDE}/elf_machdep.h ${PORT_INCLUDE}/intr.h \
@@ -439,7 +493,8 @@ CONSOLE_C17_CFLAGS=	${CONSOLE_C17_BASE_CFLAGS} ${CONSOLE_C17_PARAM}
 MEM_SPAN_SRC=		${TOPSRC}/sys/dev/mem.c
 MEM_SPAN_MACHDEP_SRC=	${TOPSRC}/sys/arch/rp2040/rp2040/machdep.c
 MEM_SPAN_FUNCTIONS=	mem_kernel_span_functions.c
-MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected
+MEM_SPAN_DRIVER_MUTANTS=	endpoint-admission user-rejected kernel-rejected \
+			write-unbound
 MEM_SPAN_FUNCTION_MUTANTS=	kernel-first-byte
 MEM_SPAN_MUTANTS=	${MEM_SPAN_DRIVER_MUTANTS} ${MEM_SPAN_FUNCTION_MUTANTS}
 MEM_SPAN_CFLAGS=	-ffunction-sections -fdata-sections
@@ -492,7 +547,8 @@ SHUTDOWN_CHECKS=	check-shutdown-mutants check-shutdown-order
 .endif
 
 SHUTDOWN_MUTANTS=	unconditional_success missing_recount ignored_errors \
-		cleared_latch bypassed_guards
+		cleared_latch bypassed_guards checkpoint_omitted \
+		checkpoint_before_sync checkpoint_error_dropped
 
 # The read, write, readv and writev entry points. rwuio() calls the port's
 # setjmp on u_qsave and sleep() longjmps back to it, so rwuio_setjmp.h maps
@@ -942,6 +998,63 @@ rmap_test_diagnostic: rmap_test.c ${RMAP_SRC} hostkern_kern.c hostkern.o \
 	${HOST_CC} ${GATE_CFLAGS} ${DIAGNOSTIC_DEFS} -o $@ \
 	    rmap_test.c hostkern_kern.c rmap_kernel_diagnostic.o hostkern.o
 
+# swap_ring_io_test includes sys/kern/vm_swp.c for swap_with_buf_result() and
+# lets the linker drop the raw I/O routines beside it. The kernel's size_t is
+# 32 bits wide, so the block-address casts are excused on a 64-bit host, as
+# tests/rp2040/exec_spool excuses them.
+SWAP_RING_IO_LDFLAGS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; else echo -Wl,--gc-sections ; fi
+SWAP_RING_IO_CFLAGS=	${GATE_CFLAGS} ${COMPACT_DEFS} -ffunction-sections \
+			-fdata-sections -Wno-pointer-to-int-cast \
+			-Wno-int-to-pointer-cast -Wno-deprecated-non-prototype
+
+swap_ring_io_test: swap_ring_io_test.c ${TOPSRC}/sys/kern/vm_swp.c \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SWAP_RING_IO_CFLAGS} ${SWAP_RING_IO_LDFLAGS} -o $@ \
+	    swap_ring_io_test.c hostkern_kern.c hostkern.o
+
+# The mutant drops the fold of a block above the ring end.
+check-swap-ring-io: swap_ring_io_test
+	./swap_ring_io_test
+	@sed 's/blkno -= swapmap->m_ring_end - swapmap->m_ring_first;/blkno -= 0;/' \
+	    ${TOPSRC}/sys/kern/vm_swp.c > swap_ring_io_vm_swp.mutant.c; \
+	if cmp -s ${TOPSRC}/sys/kern/vm_swp.c swap_ring_io_vm_swp.mutant.c; then \
+		echo "swap ring io mutant: no source change" >&2; exit 1; fi; \
+	sed 's|"../../sys/kern/vm_swp.c"|"swap_ring_io_vm_swp.mutant.c"|' \
+	    swap_ring_io_test.c > swap_ring_io_test.mutant.c; \
+	${HOST_CC} ${SWAP_RING_IO_CFLAGS} ${SWAP_RING_IO_LDFLAGS} \
+	    -o swap_ring_io.mutant.test \
+	    swap_ring_io_test.mutant.c hostkern_kern.c hostkern.o || exit 1; \
+	if ./swap_ring_io.mutant.test > swap_ring_io.mutant.out 2>&1; then \
+		echo "swap ring io mutant: SURVIVED" >&2; exit 1; fi; \
+	echo "swap ring io mutant: rejected"
+
+# Each mutant removes one ring rule from a copy of subr_rmap.c; the compact
+# gate has to fail on it. no_join stops a run from passing the ring end,
+# no_guard takes the first fitting position, no_fold stops mfree() from
+# folding an address above the ring end.
+RMAP_RING_MUTANTS=	no_join no_guard no_fold
+RMAP_RING_SED_no_join=	s/run += first == bp ? addr - first->m_addr : first->m_size;/run += 0;/
+RMAP_RING_SED_no_guard=	s/if (after >= target) {/if (1) {/
+RMAP_RING_SED_no_fold=	s/addr -= mp->m_ring_end - mp->m_ring_first;/addr -= 0;/
+
+check-rmap-ring-mutants: rmap_test_compact
+.for mutation in ${RMAP_RING_MUTANTS}
+	@sed '${RMAP_RING_SED_${mutation}}' ${RMAP_SRC} \
+	    > rmap_ring_${mutation}.mutant.c; \
+	if cmp -s ${RMAP_SRC} rmap_ring_${mutation}.mutant.c; then \
+		echo "rmap ring mutant ${mutation}: no source change" >&2; \
+		exit 1; fi; \
+	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} -c \
+	    -o rmap_ring_${mutation}.mutant.o rmap_ring_${mutation}.mutant.c && \
+	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} \
+	    -o rmap_ring_${mutation}.mutant.test rmap_test.c hostkern_kern.c \
+	    rmap_ring_${mutation}.mutant.o hostkern.o || exit 1; \
+	if ./rmap_ring_${mutation}.mutant.test \
+	    > rmap_ring_${mutation}.mutant.out 2>&1; then \
+		echo "rmap ring mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
+	echo "rmap ring mutant ${mutation}: rejected"
+.endfor
+
 ${SWAP_IOCTL_FUNCTION}: swap_ioctl_extract.py ${SWAP_IOCTL_SRC}
 	${PYTHON} swap_ioctl_extract.py --source ${SWAP_IOCTL_SRC} --output $@
 
@@ -1036,6 +1149,8 @@ check-swap-ioctl-mutants: \
 		stale-released-size) expected='swap_ioctl_test_size(0) == 0' ;; \
 		ignore-descriptor-mode) expected='call_ioctl(0, TFALLOC, &request, FREAD) == EBADF' ;; \
 		omit-root-check) expected='call_ioctl(2, TFALLOC, &request, FREAD | FWRITE) == EPERM' ;; \
+		open-writes-live-swap) expected='swopen(live, FWRITE, 0) == (level ? EPERM : 0)' ;; \
+		transfer-writes-live-swap) expected='live_transfers == (level ? 0U : 1U)' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \
@@ -1582,6 +1697,49 @@ prf_test: prf_test.c ${PRF_SRC} hostkern_kern.c hostkern32.o hostkern.h \
 	${HOST_CC} ${PRF_GATE_CFLAGS} -o $@ \
 	    prf_test.c prf_kernel.o prf_shim.o hostkern32.o
 
+prf_log_test: prf_test.c ${PRF_SRC} hostkern_kern.c hostkern32.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${PRF_KERN_CFLAGS} -DLOG_ENABLED -c -o prf_log_kernel.o ${PRF_SRC}
+	${HOST_CC} ${PRF_KERN_CFLAGS} -DLOG_ENABLED -c -o prf_log_shim.o hostkern_kern.c
+	${HOST_CC} ${PRF_GATE_CFLAGS} -DLOG_ENABLED -o $@ \
+	    prf_test.c prf_log_kernel.o prf_log_shim.o hostkern32.o
+
+readlink_functions.c: readlink_extract.py ufs_topology_extract.py ${OPENAT_SYSCALL_SRC}
+	${PYTHON} readlink_extract.py ${OPENAT_SYSCALL_SRC} $@
+
+readlink_test: readlink_test.c readlink_functions.c hostkern32.o ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
+	    -Dreadlink=kernel_readlink -Dnamei=readlink_namei -Diput=readlink_iput \
+	    -c -o readlink_kernel.o readlink_functions.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} ${OPENAT_LDFLAGS} \
+	    -o $@ readlink_test.c readlink_kernel.o hostkern32.o
+
+check-readlink-mutant: readlink_test readlink_extract.py
+	${PYTHON} readlink_extract.py ${OPENAT_SYSCALL_SRC} readlink.mutant.c --mutant
+	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
+	    -Dreadlink=kernel_readlink -Dnamei=readlink_namei -Diput=readlink_iput \
+	    -c -o readlink.mutant.o readlink.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} ${OPENAT_LDFLAGS} \
+	    -o readlink.mutant.test readlink_test.c readlink.mutant.o hostkern32.o
+	@if ./readlink.mutant.test >readlink.mutant.out 2>&1; then \
+		echo 'FAIL readlink mutant accepted' >&2; exit 1; \
+	else status=$$?; fi; \
+	if [ "$$status" -ne 1 ] || ! grep -F 'u.u_rval == 123' readlink.mutant.out >/dev/null; then \
+		cat readlink.mutant.out >&2; exit 1; \
+	fi; echo 'PASS readlink invalid-type mutant rejected'
+
+check-prf-log-mutant: prf_log_test prf_mutate.py
+	${PYTHON} prf_mutate.py ${PRF_SRC} prf_log.mutant.c
+	${HOST_CC} ${PRF_KERN_CFLAGS} -DLOG_ENABLED -c -o prf_log.mutant.o prf_log.mutant.c
+	${HOST_CC} ${PRF_GATE_CFLAGS} -DLOG_ENABLED -o prf_log.mutant.test \
+	    prf_test.c prf_log.mutant.o prf_log_shim.o hostkern32.o
+	@if ./prf_log.mutant.test >prf_log.mutant.out 2>&1; then \
+		echo 'FAIL formatter mutant accepted' >&2; exit 1; \
+	else status=$$?; fi; \
+	if [ "$$status" -ne 1 ] || ! grep -F 'hk_streq(console, "7 event")' prf_log.mutant.out >/dev/null; then \
+		cat prf_log.mutant.out >&2; exit 1; \
+	fi; echo 'PASS formatter log-to-console mutant rejected'
+
 sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_sig.o \
@@ -1600,19 +1758,90 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
 sysctl_shim.o: hostkern_kern.c hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o $@ hostkern_kern.c
 
+#
+# A process's user area is read through swap_with_buf_result(), so the gate
+# links the real sys/kern/vm_swp.c and the linker drops the raw I/O routines
+# beside it. The compact gate also builds the SwapRAM branch, as the PICO and
+# PicoCalc kernels do; the wide gate reads every nonresident user area from
+# the ring swap device, as PICO_UART does.
+SYSCTL_COMPACT_DEFS=	${COMPACT_DEFS} -DSWAPRAM -DSINGLE_UFS_ROOT -DNMOUNT=1
+SYSCTL_VMSWP_SRC=	${TOPSRC}/sys/kern/vm_swp.c
+SYSCTL_VMSWP_CFLAGS=	${KERN_CFLAGS} ${ILP32} -ffunction-sections \
+			-fdata-sections
+
+sysctl_vmswp_compact.o: ${SYSCTL_VMSWP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCTL_VMSWP_CFLAGS} ${SYSCTL_COMPACT_DEFS} -c -o $@ \
+	    ${SYSCTL_VMSWP_SRC}
+
+sysctl_vmswp_wide.o: ${SYSCTL_VMSWP_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SYSCTL_VMSWP_CFLAGS} ${WIDE_DEFS} -c -o $@ \
+	    ${SYSCTL_VMSWP_SRC}
+
 sysctl_test_compact: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${COMPACT_DEFS} ${ILP32} \
+    sysctl_vmswp_compact.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_compact.o ${SYSCTL_SRC}
-	${HOST_CC} ${GATE_CFLAGS} ${COMPACT_DEFS} ${ILP32} -o $@ sysctl_test.c \
-	    sysctl_kernel_compact.o sysctl_shim.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
+	    sysctl_kernel_compact.o sysctl_vmswp_compact.o sysctl_shim.o \
+	    hostkern32.o
 
 sysctl_test_wide: sysctl_test.c ${SYSCTL_SRC} sysctl_shim.o hostkern32.o \
-    hostkern.h ${MACHINE_STAMP}
+    sysctl_vmswp_wide.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${WIDE_DEFS} ${ILP32} \
 	    -c -o sysctl_kernel_wide.o ${SYSCTL_SRC}
-	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} -o $@ sysctl_test.c \
-	    sysctl_kernel_wide.o sysctl_shim.o hostkern32.o
+	${HOST_CC} ${GATE_CFLAGS} ${WIDE_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ sysctl_test.c \
+	    sysctl_kernel_wide.o sysctl_vmswp_wide.o sysctl_shim.o hostkern32.o
+
+# Each mutant removes one rule of the process path from a copy of
+# kern_sysctl.c, and the compact gate has to fail on it. no_identity accepts
+# a user-area block whatever image its u_procp names; no_recheck accepts a
+# block after the process exited or its slot changed during the read;
+# open_args gives every caller the argument prefix; drop_marked leaves out
+# a process whose user area could not be read, as the raw-memory ps did;
+# open_files gives every caller another user's descriptors; no_cwd drops
+# the working-directory record; bare_pipe leaves a pipe without its inode;
+# sum_from_rate fills VM_STATS's since-boot events from the last second's;
+# unended_disk copies a disk name to the end of its field with no NUL;
+# open_tables gives every caller the inode table, the file table and the
+# console terminal; pipe_locks reads a pipe's lock counts from its select
+# union; special_size reports a special file's size for its device.
+SYSCTL_PROC_MUTANTS=	no_identity no_recheck open_args drop_marked \
+			open_files no_cwd bare_pipe sum_from_rate unended_disk \
+			open_tables pipe_locks special_size
+SYSCTL_PROC_SED_no_identity=	s/if (up->u_procp != p)/if (0)/
+SYSCTL_PROC_SED_no_recheck=	s/if (proc_changed(p, pid))/if (proc_changed(p, pid) < 0)/
+SYSCTL_PROC_SED_open_args=	s/caller == kp->kp_ruid)/caller == kp->kp_ruid || kp->kp_size != 0)/
+SYSCTL_PROC_SED_drop_marked=	s/kinfo_fill(p, &kp);/kinfo_fill(p, \&kp); if (kp.kp_error) continue;/
+SYSCTL_PROC_SED_open_files=	s/caller != 0 && caller != p->p_uid/caller == (uid_t)-1 \&\& caller != p->p_uid/
+SYSCTL_PROC_SED_no_cwd=	s/fd = KF_FD_CWD; fd < NOFILE/fd = 0; fd < NOFILE/
+SYSCTL_PROC_SED_bare_pipe=	s/fp->f_type == DTYPE_PIPE)/0)/
+SYSCTL_PROC_SED_sum_from_rate=	s/KINFO_VMEVENTS(vs.vs_sum, sum);/KINFO_VMEVENTS(vs.vs_sum, rate);/
+SYSCTL_PROC_SED_unended_disk=	s/i < KI_DISKNAMESZ - 1 \&\& dk_name/i < KI_DISKNAMESZ \&\& dk_name/
+SYSCTL_PROC_SED_open_tables=	s/if (u.u_procp->p_uid != 0)/if (u.u_procp->p_uid == (uid_t)-1)/
+SYSCTL_PROC_SED_pipe_locks=	s/if (!(ip->i_flag \& IPIPE)) {/if (1) {/
+SYSCTL_PROC_SED_special_size=	s/ki.ki_isize = ip->i_rdev;/ki.ki_isize = ip->i_size;/
+
+check-sysctl-proc-mutants: sysctl_test_compact
+.for mutation in ${SYSCTL_PROC_MUTANTS}
+	@sed '${SYSCTL_PROC_SED_${mutation}}' ${SYSCTL_SRC} \
+	    > sysctl_proc_${mutation}.mutant.c; \
+	if cmp -s ${SYSCTL_SRC} sysctl_proc_${mutation}.mutant.c; then \
+		echo "sysctl proc mutant ${mutation}: no source change" >&2; \
+		exit 1; fi; \
+	${HOST_CC} ${KERN_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} -c \
+	    -o sysctl_proc_${mutation}.mutant.o \
+	    sysctl_proc_${mutation}.mutant.c && \
+	${HOST_CC} ${GATE_CFLAGS} ${SYSCTL_COMPACT_DEFS} ${ILP32} \
+	    ${SWAP_RING_IO_LDFLAGS} -o sysctl_proc_${mutation}.mutant.test \
+	    sysctl_test.c sysctl_proc_${mutation}.mutant.o \
+	    sysctl_vmswp_compact.o sysctl_shim.o hostkern32.o || exit 1; \
+	if ./sysctl_proc_${mutation}.mutant.test \
+	    > sysctl_proc_${mutation}.mutant.out 2>&1; then \
+		echo "sysctl proc mutant ${mutation}: SURVIVED" >&2; exit 1; fi; \
+	echo "sysctl proc mutant ${mutation}: rejected"
+.endfor
 
 # The inode allocator in the three shapes the tree configures it in: the
 # portable one, sys/arch/rp2040/compile/PICO's, and a DIAGNOSTIC kernel.
@@ -2168,19 +2397,46 @@ ufs_disk_conf_functions.c: ufs_disk_extract.py ${UFS_DISK_CONF_SRC}
 	${PYTHON} ufs_disk_extract.py conf --source ${UFS_DISK_CONF_SRC} \
 	    --output $@
 
+ufs_disk_stm32_unit_functions.c: ufs_disk_extract.py ${UFS_DISK_STM32_SRC}
+	${PYTHON} ufs_disk_extract.py unit --source ${UFS_DISK_STM32_SRC} \
+	    --output $@
+
 ufs_disk_flash_functions.c: ufs_disk_extract.py ${UFS_DISK_FLASH_SRC} \
     ${UFS_DISK_FLASH_HDR}
 	${PYTHON} ufs_disk_extract.py flash --source ${UFS_DISK_FLASH_SRC} \
 	    --header ${UFS_DISK_FLASH_HDR} --output $@
 
 .for source in ${UFS_DISK_SOURCES}
-ufs_disk_${source}.o: ${TOPSRC}/sys/kern/${source}.c ${MACHINE_STAMP}
+ufs_disk_${source}.o: ${TOPSRC}/sys/kern/${source}.c ${MACHINE_STAMP} \
+    ${TOPSRC}/sys/sys/inode.h ${TOPSRC}/sys/sys/buf.h \
+    ${TOPSRC}/sys/sys/mount.h ufs_disk_checkpoint.h Makefile
 	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} \
 	    ${UFS_DISK_FLAGS_${source}} ${ILP32} -c -o $@ \
 	    ${TOPSRC}/sys/kern/${source}.c
 .endfor
 
-UFS_DISK_LINK=	hostkern_kern.c hostkern32.o
+ufs_disk_schedule.o: ufs_disk_schedule.c ufs_disk_schedule.h
+	${HOST_CC} -std=c17 -Wall -Wextra -Werror ${ILP32} -c -o $@ \
+	    ufs_disk_schedule.c
+
+UFS_DISK_LINK=	hostkern_kern.c hostkern32.o ufs_disk_schedule.o
+
+ufs_disk_scheduler-budget-failure-hidden.mutant.c: ufs_disk_mutate.py \
+    ufs_disk_schedule.c
+	${PYTHON} ufs_disk_mutate.py --source ufs_disk_schedule.c \
+	    --output $@ --mutation scheduler-budget-failure-hidden
+
+ufs_disk_scheduler-budget-failure-hidden.mutant.test: \
+    ufs_disk_scheduler-budget-failure-hidden.mutant.c ufs_disk_test.c \
+    ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c ufs_disk_flash_functions.c \
+    ${UFS_DISK_LINK} ufs_disk_schedule.h ufs_disk_checkpoint.h
+	${HOST_CC} -std=c17 -Wall -Wextra -Werror ${ILP32} -c -o \
+	    ufs_disk_scheduler-budget-failure-hidden.mutant.o \
+	    ufs_disk_scheduler-budget-failure-hidden.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ${UFS_DISK_OBJECTS} ufs_disk_scheduler-budget-failure-hidden.mutant.o \
+	    ${UFS_DISK_LINK:Nufs_disk_schedule.o}
 
 ufs_disk_test: ufs_disk_test.c ${UFS_DISK_OBJECTS} \
     ufs_disk_conf_functions.c ufs_disk_flash_functions.c \
@@ -2208,6 +2464,42 @@ ufs_disk_mount_${mutation}.mutant.test: ufs_disk_mount_${mutation}.mutant.c \
 	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
 	    ufs_disk_mount_${mutation}.mutant.o \
 	    ${UFS_DISK_OBJECTS:Nufs_disk_ufs_mount.o} ${UFS_DISK_LINK}
+.endfor
+
+.for mutation in ${UFS_DISK_SUBR_MUTANTS}
+ufs_disk_subr_${mutation}.mutant.c: ufs_disk_mutate.py \
+    ${TOPSRC}/sys/kern/ufs_subr.c
+	${PYTHON} ufs_disk_mutate.py --source ${TOPSRC}/sys/kern/ufs_subr.c \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_subr_${mutation}.mutant.test: ufs_disk_subr_${mutation}.mutant.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} ${ILP32} -c -o \
+	    ufs_disk_subr_${mutation}.mutant.o ufs_disk_subr_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ufs_disk_subr_${mutation}.mutant.o \
+	    ${UFS_DISK_OBJECTS:Nufs_disk_ufs_subr.o} ${UFS_DISK_LINK}
+.endfor
+
+.for mutation source in ${UFS_DISK_EXTRA_MUTANTS}
+ufs_disk_${source}_${mutation}.mutant.c: ufs_disk_mutate.py \
+    ${TOPSRC}/sys/kern/${source}.c
+	${PYTHON} ufs_disk_mutate.py --source ${TOPSRC}/sys/kern/${source}.c \
+	    --output $@ --mutation ${mutation}
+
+ufs_disk_${source}_${mutation}.mutant.test: ufs_disk_${source}_${mutation}.mutant.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_DISK_CFLAGS} \
+	    ${UFS_DISK_FLAGS_${source}} ${ILP32} -c -o \
+	    ufs_disk_${source}_${mutation}.mutant.o ufs_disk_${source}_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c \
+	    ufs_disk_${source}_${mutation}.mutant.o \
+	    ${UFS_DISK_OBJECTS:Nufs_disk_${source}.o} ${UFS_DISK_LINK}
+UFS_DISK_EXTRA_TESTS+= ufs_disk_${source}_${mutation}.mutant.test
 .endfor
 
 .for mutation in ${UFS_DISK_FIO_MUTANTS}
@@ -2269,11 +2561,34 @@ ufs_disk_flash_${mutation}.mutant.test: \
 	    ${UFS_DISK_LINK}
 .endfor
 
+ufs_disk_stm32_unit.mutant.c: ufs_disk_mutate.py ${UFS_DISK_STM32_SRC}
+	${PYTHON} ufs_disk_mutate.py --source ${UFS_DISK_STM32_SRC} \
+	    --output $@ --mutation device-stm32-unit-guard-exact-only
+
+ufs_disk_stm32_unit.mutant.functions.c: ufs_disk_extract.py \
+    ufs_disk_stm32_unit.mutant.c
+	${PYTHON} ufs_disk_extract.py unit --source ufs_disk_stm32_unit.mutant.c \
+	    --output $@
+
+ufs_disk_stm32_unit.mutant.test: ufs_disk_stm32_unit.mutant.functions.c \
+    ufs_disk_test.c ${UFS_DISK_OBJECTS} ufs_disk_conf_functions.c \
+    ufs_disk_flash_functions.c ${UFS_DISK_LINK} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_DISK_DEFS} ${ILP32} \
+	    -DUFS_DISK_STM32_INCLUDE='"ufs_disk_stm32_unit.mutant.functions.c"' \
+	    ${OPENAT_LDFLAGS} -o $@ ufs_disk_test.c ${UFS_DISK_OBJECTS} \
+	    ${UFS_DISK_LINK}
+
 UFS_DISK_MUTANT_TESTS=	\
+    ufs_disk_scheduler-budget-failure-hidden.mutant.test \
+    ufs_disk_stm32_unit.mutant.test \
     ${UFS_DISK_MOUNT_MUTANTS:@m@ufs_disk_mount_${m}.mutant.test@} \
     ${UFS_DISK_FIO_MUTANTS:@m@ufs_disk_fio_${m}.mutant.test@} \
+    ${UFS_DISK_SUBR_MUTANTS:@m@ufs_disk_subr_${m}.mutant.test@} \
+    ${UFS_DISK_EXTRA_TESTS} \
     ${UFS_DISK_CONF_MUTANTS:@m@ufs_disk_conf_${m}.mutant.test@} \
     ${UFS_DISK_FLASH_MUTANTS:@m@ufs_disk_flash_${m}.mutant.test@}
+
+ufs_disk_test ${UFS_DISK_MUTANT_TESTS}: ufs_disk_stm32_unit_functions.c
 
 # A mutant must fail through the gate's own verdict, not by a crash, a hang
 # or a build error: the gate exits 1 after naming the failed checks.
@@ -2429,6 +2744,145 @@ check-capacity-mutants: capacity_test capacity_mutate.py
 		echo "PASS capacity mutation $$mutation rejected"; \
 	done
 
+buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
+    ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
+	    -c -o buffer_busy_kernel.o ${BUFFER_BUSY_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
+	    -c -o buffer_busy_capacity.o ${CAPACITY_SRC}
+	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
+	    -c -o buffer_busy_uarea.o capacity_uarea.c
+	${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_LDFLAGS} ${ILP32} -o $@ \
+	    buffer_busy_test.c buffer_busy_kernel.o buffer_busy_capacity.o \
+	    buffer_busy_uarea.o hostkern_kern.c hostkern32.o
+
+# The USB console's transmit state across bus events. usb_console_extract.py
+# routes the production driver's register macros to the gate's controller
+# model; tty.c and tty_subr.c compile unchanged at the target's width, since
+# the clist pool's static assertion holds for a 32-bit block pointer only.
+# Modeled processes sleep on their own ucontext stacks (usb_console_sched.c).
+# Each mutant restores one lost wakeup -- a path that clears tx_busy and leaves
+# TS_BUSY set, or the low-water test ahead of the drain in usbstart() -- or one
+# lost halt-wait key (usbgetc polling an open tty), and must fail the fixed
+# sequence that names it.
+USB_CONSOLE_SRC=	${TOPSRC}/sys/arch/rp2040/dev/usb.c
+USB_CONSOLE_DRIVER=	usb_console_driver.c
+# The target's char is unsigned; tty.c compares chars with 0377 and clang
+# rejects that comparison as tautological for a signed host char.
+USB_CONSOLE_KERN=	${KERN_CFLAGS} ${ILP32} -funsigned-char
+USB_CONSOLE_CFLAGS=	${USB_CONSOLE_KERN} -nostdinc -DUARTUSB_ENABLED \
+			-I${TOPSRC}/sys/arch/rp2040/dhara/compat
+USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
+			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
+USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
+			owake-before-drain halt-wait-open halt-wait-sticks \
+			pollc-late
+
+${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
+	${PYTHON} usb_console_extract.py --source ${USB_CONSOLE_SRC} --output $@
+
+usb_console_tty.o: ${TTY_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${USB_CONSOLE_KERN} -c -o $@ ${TTY_SRC}
+
+usb_console_clist.o: ${CLIST_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${USB_CONSOLE_KERN} -c -o $@ ${CLIST_SRC}
+
+usb_console_hk_kern.o: hostkern_kern.c hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${USB_CONSOLE_KERN} -c -o $@ hostkern_kern.c
+
+usb_console_sched.o: usb_console_sched.c usb_console_sched.h
+	${HOST_CC} ${HARNESS_CFLAGS} ${ILP32} -c -o $@ usb_console_sched.c
+
+usb_console_test: usb_console_test.c usb_console_sched.h hostkern.h \
+    ${USB_CONSOLE_DRIVER} ${USB_CONSOLE_OBJS}
+	${HOST_CC} ${USB_CONSOLE_CFLAGS} -c -o usb_console_test.o \
+	    usb_console_test.c
+	${HOST_CC} ${ILP32} -o $@ usb_console_test.o ${USB_CONSOLE_OBJS}
+
+.for mutation in ${USB_CONSOLE_MUTANTS}
+usb_console_${mutation}.mutant.c: usb_console_mutate.py ${USB_CONSOLE_DRIVER}
+	${PYTHON} usb_console_mutate.py --source ${USB_CONSOLE_DRIVER} \
+	    --output $@ --mutation ${mutation}
+
+usb_console_${mutation}.mutant.test: usb_console_test.c \
+    usb_console_${mutation}.mutant.c ${USB_CONSOLE_OBJS}
+	${HOST_CC} ${USB_CONSOLE_CFLAGS} \
+	    -DUSB_CONSOLE_DRIVER='"usb_console_${mutation}.mutant.c"' \
+	    -c -o usb_console_${mutation}.mutant.o usb_console_test.c
+	${HOST_CC} ${ILP32} -o $@ usb_console_${mutation}.mutant.o \
+	    ${USB_CONSOLE_OBJS}
+.endfor
+
+check-usb-console:
+.if ${ILP32_OK} == "yes"
+check-usb-console: usb_console_test \
+    ${USB_CONSOLE_MUTANTS:@mutation@usb_console_${mutation}.mutant.test@}
+	./usb_console_test
+	@set -eu; for mutation in ${USB_CONSOLE_MUTANTS}; do \
+		if ./usb_console_$$mutation.mutant.test \
+		    >usb_console_$$mutation.mutant.out 2>&1; then status=0; \
+		else status=$$?; fi; \
+		case $$mutation in \
+		recover-kick) expected='FAIL echo, then its bulk IN returns with no completion' ;; \
+		configure-kick) expected='FAIL echo, then SET_CONFIGURATION' ;; \
+		setif-kick) expected='FAIL echo, then SET_INTERFACE' ;; \
+		skip-controller-reset) expected='FAIL controller reset' ;; \
+		owake-before-drain) expected='FAIL writer above the high-water mark across a bus reset' ;; \
+		halt-wait-open) expected='FAIL halt wait with the tty open' ;; \
+		pollc-late) expected='FAIL halt wait with a key typed during the halt message' ;; \
+		halt-wait-sticks) expected='FAIL key after the halt wait reaches the tty' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" usb_console_$$mutation.mutant.out >/dev/null; then \
+			cat usb_console_$$mutation.mutant.out >&2; \
+			echo "FAIL usb console $$mutation mutation rejection (exit $$status, expected 1 with '$$expected')" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS usb console $$mutation mutation rejected"; \
+	done
+.else
+	@echo "SKIP check-usb-console: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
+
+# Each mutant replaces ufs_bio.c for one build of the gate and must fail the
+# check that states the property the defect breaks.
+check-buffer-busy-mutants:
+.if ${ILP32_OK} == "yes"
+check-buffer-busy-mutants: buffer_busy_test buffer_busy_mutate.py
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for check-buffer-busy-mutants" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} buffer_busy_mutate.py ${BUFFER_BUSY_SRC} ${.CURDIR}
+	@set -eu; for mutation in ${BUFFER_BUSY_MUTANTS}; do \
+		${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
+		    -c -o buffer_busy_$$mutation.mutant.o \
+		    buffer_busy_$$mutation.mutant.c; \
+		${HOST_CC} ${GATE_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_LDFLAGS} ${ILP32} \
+		    -o buffer_busy_$$mutation.mutant.test buffer_busy_test.c \
+		    buffer_busy_$$mutation.mutant.o buffer_busy_capacity.o \
+		    buffer_busy_uarea.o hostkern_kern.c hostkern32.o; \
+		if ./buffer_busy_$$mutation.mutant.test \
+		    >buffer_busy_$$mutation.mutant.out 2>&1; then status=0; \
+		else status=$$?; fi; \
+		case $$mutation in \
+		no-capacity-note) expected='FAIL all-busy/capacity-failure-raised-by-one-before-sleep' ;; \
+		eviction-capacity-note) expected='FAIL all-delayed/no-capacity-failure' ;; \
+		no-freelist-wakeup) expected='FAIL all-busy/release-wakes-free-list-waiter' ;; \
+		eviction-drops-write) expected='FAIL all-delayed/every-eviction-reaches-the-device' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" buffer_busy_$$mutation.mutant.out >/dev/null; then \
+			cat buffer_busy_$$mutation.mutant.out >&2; \
+			echo "FAIL buffer busy $$mutation mutation rejection (exit $$status, expected 1 with '$$expected')" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS buffer busy $$mutation mutation rejected"; \
+	done
+.else
+	@echo "SKIP check-buffer-busy-mutants: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
+
 # Restore the inherited defect in a generated source copy. The same executable
 # must reject a MNT_NOATIME mount that drops an explicit atime request.
 ufs_fio_noatime_bad.c: ${UFS_EXPLICIT_TIME_SRC}
@@ -2448,6 +2902,28 @@ ufs_explicit_time_bad: ufs_explicit_time_test.c ufs_fio_noatime_bad.c \
 	${HOST_CC} ${GATE_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
 	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
 	    ufs_explicit_time_bad_kernel.o ufs_explicit_time_cred.o hostkern32.o
+
+# A signed reading of the "leave this time alone" test treats every count with
+# bit 31 set, a time after January 2038, as unset. The same executable must
+# reject it, since utimes(2) of 2415919104 has to store that time.
+ufs_fio_signed_unset_bad.c: ${UFS_EXPLICIT_TIME_SRC}
+	@awk 'BEGIN { changed = 0 } \
+	    !changed && $$0 == "#define VATTR_TIME_UNSET(value) ((value) == (utime32_t)VNOVAL)" { \
+	        print "#define VATTR_TIME_UNSET(value) ((long)(value) < 0)"; changed = 1; next \
+	    } \
+	    { print } \
+	    END { if (!changed) exit 1 }' ${UFS_EXPLICIT_TIME_SRC} > $@
+
+ufs_explicit_time_signed_bad: ufs_explicit_time_test.c \
+    ufs_fio_signed_unset_bad.c ufs_explicit_time_cred.o hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_CFLAGS} -c \
+	    -o ufs_explicit_time_signed_bad_kernel.o ufs_fio_signed_unset_bad.c
+	${HOST_CC} ${GATE_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
+	    ${UFS_EXPLICIT_TIME_LDFLAGS} -o $@ ufs_explicit_time_test.c \
+	    ufs_explicit_time_signed_bad_kernel.o ufs_explicit_time_cred.o \
+	    hostkern32.o
 
 # rwuio's bound is a 32-bit fact: off_t, size_t and u_int are all four
 # bytes on the target, so the sum that wrapped is reproduced only here.
@@ -2717,10 +3193,42 @@ exec_finish_signal_mutant: exec_elf_admission_test.c \
 	    -DEXEC_FINISH_FUNCTION='"exec_finish_signal_mutant.c"' \
 	    -o $@ exec_elf_admission_test.c
 
+# The pipe file operation receives exactly two arguments. Exercise the
+# production adapter against observers for read/write direction and I/O flags.
+PIPE_RW_MUTANTS= nonblock sync mount append
+pipe_rw_function.c: ${TOPSRC}/sys/kern/sys_pipe.c pipe_rw_extract.py exec_elf_admission_extract.py
+	${PYTHON} pipe_rw_extract.py --source ${TOPSRC}/sys/kern/sys_pipe.c --output $@
+
+pipe_rw_contract32: pipe_rw_contract.c pipe_rw_function.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_BASE} ${GATE_WARN} ${ILP32} -o $@ pipe_rw_contract.c
+
+pipe_rw_contract_single32: pipe_rw_contract.c pipe_rw_function.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_BASE} ${GATE_WARN} ${ILP32} -DSINGLE_UFS_ROOT -DNMOUNT=1 \
+	    -o $@ pipe_rw_contract.c
+
+.for mutation in ${PIPE_RW_MUTANTS}
+pipe_rw_${mutation}.mutant.c: ${TOPSRC}/sys/kern/sys_pipe.c pipe_rw_extract.py exec_elf_admission_extract.py
+	${PYTHON} pipe_rw_extract.py --source ${TOPSRC}/sys/kern/sys_pipe.c --output $@ --mutant ${mutation}
+
+pipe_rw_${mutation}.mutant32.test: pipe_rw_contract.c pipe_rw_${mutation}.mutant.c ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_BASE} ${GATE_WARN} ${ILP32} \
+	    -DPIPE_RW_FUNCTION='"pipe_rw_${mutation}.mutant.c"' -o $@ pipe_rw_contract.c
+.endfor
+
+check-pipe-rw-mutants: ${PIPE_RW_MUTANTS:@mutation@pipe_rw_${mutation}.mutant32.test@}
+	@set -eu; for mutation in ${PIPE_RW_MUTANTS}; do \
+		if ./pipe_rw_$$mutation.mutant32.test; then status=0; else status=$$?; fi; \
+		case $$mutation in nonblock) expected=3 ;; sync|mount) expected=18 ;; append) expected=17 ;; esac; \
+		if [ "$$status" -ne "$$expected" ]; then \
+			echo "FAIL pipe I/O $$mutation mutation: exit $$status, expected $$expected" >&2; exit 1; \
+		fi; \
+		echo "PASS pipe I/O $$mutation mutation rejected"; \
+	done
+
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} prf_test rwuio_test32 file_owner_test32 fionread_test32 sigauth_test \
+	@${MAKE} prf_test prf_log_test check-prf-log-mutant readlink_test check-readlink-mutant rwuio_test32 pipe_rw_contract32 pipe_rw_contract_single32 check-pipe-rw-mutants file_owner_test32 fionread_test32 sigauth_test \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
 	    ptrace_test32 \
 	    mem_span_endpoint-admission.mutant32.test \
@@ -2732,10 +3240,11 @@ check-ilp32:
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant \
-	    sysctl_test_compact sysctl_test_wide \
+	    sysctl_test_compact sysctl_test_wide check-sysctl-proc-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
-	    ufs_explicit_time_test ufs_explicit_time_bad futimes_test32 \
+	    ufs_explicit_time_test ufs_explicit_time_bad \
+	    ufs_explicit_time_signed_bad futimes_test32 \
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
 	    check-unlinkat-beneath-ilp32 check-unlinkat-beneath-mutants \
 	    check-publishat-beneath-ilp32 check-publishat-beneath-mutants \
@@ -2744,9 +3253,13 @@ check-ilp32:
 	    check-ufs-namespace-ilp32 check-ufs-namespace-mutants \
 	    check-ufs-topology-ilp32 check-ufs-topology-mutants \
 	    check-ufs-disk-ilp32 check-ufs-disk-mutants \
-	    capacity_test \
-	    check-capacity-mutants
+	    capacity_test buffer_busy_test \
+	    check-capacity-mutants check-buffer-busy-mutants
 	${TEST_EXECUTION} run kernel.printf.ilp32 -- ./prf_test
+	${TEST_EXECUTION} run kernel.pipe-rw.ilp32 -- ./pipe_rw_contract32
+	${TEST_EXECUTION} run kernel.pipe-rw-single.ilp32 -- ./pipe_rw_contract_single32
+	${TEST_EXECUTION} run kernel.printf-log.ilp32 -- ./prf_log_test
+	${TEST_EXECUTION} run kernel.readlink.ilp32 -- ./readlink_test
 	${TEST_EXECUTION} run kernel.signal-auth.ilp32 -- ./sigauth_test
 	${PYTHON} ${.CURDIR}/sigauth_mutate.py ${TOPSRC} ${HOST_CC:Q} \
 	    ${.CURDIR}/sigauth_test.c ${.CURDIR}/sigauth_prot2.o \
@@ -2832,12 +3345,18 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.block-pico.ilp32 -- ./balloc_test_pico
 	${TEST_EXECUTION} run kernel.explicit-time.ilp32 -- ./ufs_explicit_time_test
 	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
+	${TEST_EXECUTION} run kernel.explicit-time-signed-negative.ilp32 -- ./ufs_explicit_time_signed_bad
 	${TEST_EXECUTION} run kernel.futimes.ilp32 -- ./futimes_test32
 	${TEST_EXECUTION} run kernel.capacity.ilp32 -- ./capacity_test
+	${TEST_EXECUTION} run kernel.buffer-busy.ilp32 -- ./buffer_busy_test
 .else
 	${TEST_EXECUTION} skip kernel.printf.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.printf-log.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.readlink.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.signal-auth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.rwuio.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.pipe-rw.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.pipe-rw-single.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.file-owner.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.fionread.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.swap-ioctl.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -2870,9 +3389,35 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.ufs-topology.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ufs-disk.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.capacity.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.buffer-busy.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
+
+# The V7 format descriptor: the inode layer built with V7FS, the NetBSD
+# core in usr.sbin/v7fs and v7_check.py must agree on one volume, and
+# each mutant of the kernel sources must break the agreement.
+#
+# The inode layer keeps disk addresses and sizes in 32-bit fields, so the
+# gate builds it at -m32 under the undefined-behavior sanitizer, the pair
+# TTY_LOCAL_MODE_ILP32_UBSAN_OK probes.
+V7_FORMAT_WORK=	v7-format-work
+check-v7-format:
+.if ${ILP32_OK} == "yes" && ${TTY_LOCAL_MODE_ILP32_UBSAN_OK} == "yes"
+check-v7-format: ${MACHINE_STAMP} v7_format_check.sh v7_format_test.c \
+    v7_format_host.c v7_format_mutate.py v7_check.py hostkern.c
+	${MAKE} -C ${TOPSRC}/usr.sbin/v7fs host
+	rm -rf ${V7_FORMAT_WORK}
+	PYTHON=${PYTHON:Q} HOST_CC=${HOST_CC:Q} \
+	    ${TEST_EXECUTION} run kernel.v7-format.ilp32 -- \
+	    sh ./v7_format_check.sh ${TOPSRC:Q} ${V7_FORMAT_WORK}
+.else
+	${TEST_EXECUTION} skip kernel.v7-format.ilp32 \
+	    "V7 format descriptor: ILP32 sanitizer runtime unavailable"
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
+    check-rmap-ring-mutants check-swap-ring-io \
+    check-v7-format \
+	check-swap-exchange-headroom check-swap-exchange-inplace \
     check-credential-sanitizer \
     check-rwuio-mutants check-rwuio-sanitizer \
     check-file-owner-mutants check-file-owner-sanitizer \
@@ -2881,18 +3426,30 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
     check-swap-ioctl-sanitizer check-tty-local-mode-mutants \
     check-tty-local-mode-sanitizer check-mem-span-mutants \
     check-mem-span-sanitizer check-ptrace-mutants check-ptrace-sanitizer \
-    check-sigreturn-sanitizer
+    check-sigreturn-sanitizer check-usb-console
 	@for prog in ${PROGS}; do \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
 	done
 
 clean:
+	rm -rf ${V7_FORMAT_WORK}
+	rm -f pipe_rw_function.c pipe_rw_contract32 pipe_rw_contract_single32 \
+	    pipe_rw_*.mutant.c pipe_rw_*.mutant32.test
 	rm -f ${FORK_SWAP_FUNCTIONS} fork_swap_test fork_swap_test_compact \
 	    fork_swap_test_wide fork_swap_test_diagnostic fork_swap_test_full \
-	    fork_swap_test_unaligned fork_swap_rmap*.o fork_swap_*.mutant.c \
+	    fork_swap_test_unaligned fork_swap_nopool.o fork_swap_rmap*.o \
+	    fork_swap_*.mutant.c \
 	    fork_swap_*.mutant.test fork_swap_*.mutant.out
-	rm -f ${PROGS} hostkern.o
+	rm -f swap_exchange_inplace_test swap_exchange_inplace_vm_swap.o \
+	    swap_exchange_inplace_*.mutant.c \
+	    swap_exchange_inplace_*.mutant.o \
+	    swap_exchange_inplace_*.mutant.test \
+	    swap_exchange_inplace_*.mutant.out
+	rm -f ${PROGS} hostkern.o rmap_ring_*.mutant.* swap_ring_io_test \
+	    swap_ring_io*.mutant.*
+	rm -f ${USB_CONSOLE_DRIVER} usb_console_test usb_console_*.o \
+	    usb_console_*.mutant.*
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
 	rm -f ${SWAP_IOCTL_FUNCTION} swap_ioctl_function.o swap_ioctl_rmap.o
 	rm -f swap_ioctl_test32 swap_ioctl_function32.o swap_ioctl_rmap32.o
@@ -2916,7 +3473,8 @@ clean:
 	rm -f cred_test_sanitized cred_prot_sanitized.o cred_prot2_sanitized.o \
 	    cred_proc_sanitized.o hostkern_sanitized.o
 	rm -f resource_kernel.o resource_proc.o
-	rm -f prf_kernel.o prf_shim.o hostkern32.o prf_test
+	rm -f prf_kernel.o prf_shim.o prf_log_kernel.o prf_log_shim.o hostkern32.o prf_test prf_log_test prf_log.mutant.c prf_log.mutant.o prf_log.mutant.test prf_log.mutant.out
+	rm -f readlink_kernel.o readlink_test readlink_functions.c readlink.mutant.c readlink.mutant.o readlink.mutant.test readlink.mutant.out
 	rm -f sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o sigauth_test
 	rm -f rwuio_kernel.o rwuio_kernel32.o rwuio_shim32.o rwuio_test32
 	rm -f rwuio_jump.o rwuio_jump32.o
@@ -2970,6 +3528,7 @@ clean:
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
 	    exec_elf_text_ownership_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
+	rm -f sysctl_vmswp_compact.o sysctl_vmswp_wide.o sysctl_proc_*.mutant.*
 	rm -f sysctl_test_compact sysctl_test_wide
 	rm -f ialloc_kernel.o ialloc_kernel_pico.o ialloc_kernel_diagnostic.o
 	rm -f ialloc_shim.o ialloc_shim_pico.o
@@ -2978,8 +3537,10 @@ clean:
 	rm -f balloc_shim.o balloc_shim_pico.o
 	rm -f balloc_test balloc_test_pico
 	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o \
-	    ufs_explicit_time_cred.o
-	rm -f ufs_explicit_time_test ufs_explicit_time_bad ufs_fio_noatime_bad.c
+	    ufs_explicit_time_signed_bad_kernel.o ufs_explicit_time_cred.o
+	rm -f ufs_explicit_time_test ufs_explicit_time_bad \
+	    ufs_explicit_time_signed_bad ufs_fio_noatime_bad.c \
+	    ufs_fio_signed_unset_bad.c
 	rm -f futimes_kernel32.o futimes_test32
 	rm -f futimes_*.mutant.c futimes_*.mutant.o futimes_*.mutant.test \
 	    futimes_*.mutant.out
@@ -3011,11 +3572,15 @@ clean:
 	rm -f ufs_topology_*.mutant.c ufs_topology_*.mutant.o \
 	    ufs_topology_*.mutant.test ufs_topology_*.mutant.out
 	rm -f ufs_disk_*.o ufs_disk_test ufs_disk_conf_functions.c \
-	    ufs_disk_flash_functions.c ufs_disk_*.mutant.c \
+	    ufs_disk_flash_functions.c ufs_disk_stm32_unit_functions.c ufs_disk_*.mutant.c \
 	    ufs_disk_*.mutant.functions.c ufs_disk_*.mutant.o \
 	    ufs_disk_*.mutant.test ufs_disk_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
+	rm -f buffer_busy_kernel.o buffer_busy_capacity.o buffer_busy_uarea.o \
+	    buffer_busy_test
+	rm -f buffer_busy_*.mutant.c buffer_busy_*.mutant.o \
+	    buffer_busy_*.mutant.test buffer_busy_*.mutant.out
 	rm -f machine/*.h ${MACHINE_STAMP}
 	@if [ -d machine ]; then rmdir machine; fi
 	rm -f ${CONSOLE_C17_MACHINE}/machine/*.h ${CONSOLE_C17_STAMP}
@@ -3025,7 +3590,9 @@ clean:
 	@if [ -d ${CONSOLE_C17_MACHINE} ]; then rmdir ${CONSOLE_C17_MACHINE}; fi
 
 .PHONY: all check check-ilp32 check-shutdown check-shutdown-mutants \
+	check-rmap-ring-mutants check-swap-ring-io check-sysctl-proc-mutants \
 	check-shutdown-order check-capacity-mutants check-credential-sanitizer \
+	check-buffer-busy-mutants \
 	check-rwuio-mutants check-rwuio-sanitizer \
 	check-file-owner-mutants check-file-owner-native-mutants \
 	check-file-owner-ubsan-mutant check-file-owner-ubsan-oracle \
@@ -3057,7 +3624,9 @@ FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
     child-result-zero parent-result-one fork1-child-rval-parent \
     refusal-result-child write-empty-data-segment write-empty-stack-segment \
     accept-unreserved-state sched-drop-sload-restore sched-drop-requeue \
-    sched-swapin-after-refusal sched-unreserved-swapout
+    sched-swapin-after-refusal sched-unreserved-swapout \
+    sched-sleep-after-refusal sched-reselect-refused sched-keep-refused-marks \
+    early-exchange-count swap-pool-reasons misbin-shortfall-boundary
 # The unaligned fixture drops SwapRAM and SWAP_IMAGE_ALIGN so the three-extent
 # malloc3() arms of vm_swap.c execute; its mutants live in those arms.
 FORK_SWAP_UNALIGNED_MUTANTS= omit-release-segment-free omit-cancel-segment-free
@@ -3066,6 +3635,7 @@ FORK_SWAP_CFLAGS= ${GATE_CFLAGS} -Wno-int-to-pointer-cast -Wno-pointer-to-int-ca
     -DSWAPRAM -DSWAPRAM_KB=16 -DSTORAGE_STATS -DUCB_METER
 FORK_SWAP_UNALIGNED_CFLAGS= ${FORK_SWAP_CFLAGS:N-DSWAPRAM} \
     -DFORK_SWAP_UNALIGNED -DCOMPACT_SWAPMAP
+FORK_SWAP_NOPOOL_CFLAGS= ${FORK_SWAP_CFLAGS:N-DSWAPRAM} -DCOMPACT_SWAPMAP
 FORK_SWAP_DEPS= fork_swap_test.c ${FORK_SWAP_FUNCTIONS} hostkern.o \
     hostkern_kern.c hostkern.h ${MACHINE_STAMP} \
     ${TOPSRC}/sys/sys/vmsystm.h ${TOPSRC}/sys/sys/proc.h \
@@ -3105,6 +3675,103 @@ fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
 	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
 	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
 .endfor
+
+.for mutation in ${SWAP_EXCHANGE_MUTANTS}
+fork_swap_${mutation}.mutant.c: fork_swap_mutate.py ${FORK_SWAP_FUNCTIONS}
+	${PYTHON} fork_swap_mutate.py --source ${FORK_SWAP_FUNCTIONS} \
+	    --output $@ --mutation ${mutation}
+
+fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
+    ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP \
+	    -DFORK_SWAP_FUNCTIONS='"fork_swap_${mutation}.mutant.c"' \
+	    -o $@ fork_swap_test.c \
+	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
+	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
+.endfor
+
+fork_swap_nopool.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
+	${HOST_CC} ${FORK_SWAP_NOPOOL_CFLAGS} -c -o $@ \
+	    ${TOPSRC}/sys/kern/vm_swap.c
+
+swap_exchange_inplace_vm_swap.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -fno-stack-protector \
+	    -c -o $@ ${TOPSRC}/sys/kern/vm_swap.c
+
+SWAP_EXCHANGE_INPLACE_MUTANTS= skip-sector-erase \
+	write-u-after-reading-incoming allocate-tail-after-first-write \
+	ignore-program-fault copy-buffer-before-program \
+	refuse-owned-tail load-data-over-clean-text tail-ignores-ring-end
+
+.for mutation in ${SWAP_EXCHANGE_INPLACE_MUTANTS}
+swap_exchange_inplace_${mutation}.mutant.c: swap_exchange_inplace_mutate.py \
+    ${TOPSRC}/sys/kern/vm_swap.c
+	${PYTHON} swap_exchange_inplace_mutate.py \
+	    --source ${TOPSRC}/sys/kern/vm_swap.c --output $@ \
+	    --mutation ${mutation}
+
+swap_exchange_inplace_${mutation}.mutant.o: \
+    swap_exchange_inplace_${mutation}.mutant.c ${MACHINE_STAMP}
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -fno-stack-protector \
+	    -c -o $@ swap_exchange_inplace_${mutation}.mutant.c
+
+swap_exchange_inplace_${mutation}.mutant.test: \
+    swap_exchange_inplace_test.c \
+    swap_exchange_inplace_${mutation}.mutant.o fork_swap_rmap_compact.o \
+    hostkern.o hostkern_kern.c
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -fno-stack-protector \
+	    -no-pie -o $@ swap_exchange_inplace_test.c \
+	    swap_exchange_inplace_${mutation}.mutant.o fork_swap_rmap_compact.o \
+	    hostkern_kern.c hostkern.o
+.endfor
+
+swap_exchange_inplace_test: swap_exchange_inplace_test.c \
+    swap_exchange_inplace_vm_swap.o fork_swap_rmap_compact.o hostkern.o \
+    hostkern_kern.c
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -fno-stack-protector \
+	    -no-pie -o $@ swap_exchange_inplace_test.c \
+	    swap_exchange_inplace_vm_swap.o fork_swap_rmap_compact.o \
+	    hostkern_kern.c hostkern.o
+
+# The kernel's size_t is 32 bits wide in these objects, and this gate copies
+# through the addresses the production exchange computes, so its window must
+# sit below 4 GiB. A non-PIE link places it there on ELF hosts. Mach-O
+# reserves the low 4 GiB and has no such link, so Darwin runs no part of the
+# gate and says so.
+.if ${_HOST_OSNAME} == "Darwin"
+check-swap-exchange-inplace:
+	@echo "SKIP swap exchange in place: the modeled window needs addresses below 4 GiB, which a Darwin host cannot link"
+.else
+check-swap-exchange-inplace: swap_exchange_inplace_test \
+    ${SWAP_EXCHANGE_INPLACE_MUTANTS:@mutation@swap_exchange_inplace_${mutation}.mutant.test@}
+	@./swap_exchange_inplace_test
+	@set -eu; for mutation in ${SWAP_EXCHANGE_INPLACE_MUTANTS}; do \
+		output=swap_exchange_inplace_$$mutation.mutant.out; \
+		if ./swap_exchange_inplace_$$mutation.mutant.test \
+		    >$$output 2>&1; then status=0; else status=$$?; fi; \
+		case $$mutation in \
+		skip-sector-erase) expected='swap exchange: media fault' ;; \
+		write-u-after-reading-incoming) expected='expected_in_u' ;; \
+		allocate-tail-after-first-write) expected='tail_reserved_before_media' ;; \
+		ignore-program-fault) expected='run_exchange' ;; \
+		copy-buffer-before-program) expected='expected_out_data' ;; \
+		refuse-owned-tail) expected='panic_reservation.addr[0] == run' ;; \
+		load-data-over-clean-text) expected='expected_in_data' ;; \
+		tail-ignores-ring-end) expected='swap exchange: reservation' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL in-place exchange $$mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS in-place exchange $$mutation rejected: $$expected"; \
+	done
+.endif
+
+check-swap-exchange-headroom: fork_swap_test_compact fork_swap_nopool.o
+	@./fork_swap_test_compact
+	@${PYTHON} swap_exchange_consumer_contract.py --root ${TOPSRC} --self-test
 
 fork_swap_rmap_unaligned.o: ${TOPSRC}/sys/kern/subr_rmap.c ${MACHINE_STAMP}
 	${HOST_CC} ${FORK_SWAP_UNALIGNED_CFLAGS} \
@@ -3149,7 +3816,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		allocate-again-on-copy) expected='copy_consumed_reservation' ;; \
 		child-sidl-during-copy) expected='u.u_procp->p_stat == SRUN' ;; \
 		omit-release-wakeup) expected='wakeups == 2' ;; \
-		notify-before-release) expected='wake_flash_free[1] == 156' ;; \
+		notify-before-release) expected='wakeups == 2' ;; \
 		ignore-copy-owner|ignore-copy-state) expected='copy_transition_call returned instead of panicking' ;; \
 		ignore-commit-owner|ignore-commit-state) expected='commit_transition_call returned instead of panicking' ;; \
 		ignore-cancel-state) expected='cancel_transition_call returned instead of panicking' ;; \
@@ -3164,8 +3831,14 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		accept-unreserved-state) expected='empty_reservation_call' ;; \
 		sched-drop-sload-restore) expected='in_core_keeps_sload' ;; \
 		sched-drop-requeue) expected='runnable_requeued' ;; \
-		sched-swapin-after-refusal) expected='no_swapin' ;; \
+		sched-swapin-after-refusal) expected='slept_on_runin' ;; \
 		sched-unreserved-swapout) expected='swapout: no reservation' ;; \
+		sched-sleep-after-refusal) expected='no_sleep_before_exchange' ;; \
+		sched-reselect-refused) expected='reached_next_candidate' ;; \
+		sched-keep-refused-marks) expected='refusal_accounted' ;; \
+		early-exchange-count) expected='STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS' ;; \
+		swap-pool-reasons) expected='storage_counts[reasons[index]] == expected' ;; \
+		misbin-shortfall-boundary) expected='storage_counts[STORAGE_SWAPRAM_SHORT_1K + index]' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \
@@ -3190,4 +3863,6 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		echo "PASS fork swap unaligned $$mutation rejected: $$expected"; \
 	done
 
-.PHONY: check-fork-swap-refusal
+.PHONY: check-fork-swap-refusal check-swap-exchange-headroom \
+	check-swap-exchange-inplace \
+    check-pipe-rw-mutants

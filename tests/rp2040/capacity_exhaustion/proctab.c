@@ -48,21 +48,20 @@ static struct mapent runs[MAP_ENTRIES];
 static unsigned
 image_span(void)
 {
-    int name[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, 0 };
+    int name[5] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, 0,
+        sizeof(struct kinfo_proc) };
     size_t length = sizeof(self);
     unsigned long text, blocks;
 
     name[3] = getpid();
-    if (sysctl(name, 4, &self, &length, NULL, 0) < 0 || length != sizeof(self))
+    if (sysctl(name, 5, &self, &length, NULL, 0) < 0 ||
+        length != sizeof(self) || (self.kp_valid & KP_VALID_LIVE) == 0)
         return 0;
-    text = (self.kp_proc.p_tip != NULL &&
-        self.kp_proc.p_tsize <= self.kp_proc.p_dsize) ? self.kp_proc.p_tsize : 0;
-    blocks = btod(self.kp_proc.p_dsize - text) + btod(self.kp_proc.p_ssize) +
-        btod(USIZE);
+    text = self.kp_tsize <= self.kp_dsize ? self.kp_tsize : 0;
+    blocks = btod(self.kp_dsize - text) + btod(self.kp_ssize) + btod(USIZE);
     cap_say("image dsize %lu tsize %lu ssize %lu: %lu swap blocks before "
-        "alignment", (unsigned long)self.kp_proc.p_dsize,
-        (unsigned long)self.kp_proc.p_tsize,
-        (unsigned long)self.kp_proc.p_ssize, blocks);
+        "alignment", (unsigned long)self.kp_dsize,
+        (unsigned long)self.kp_tsize, (unsigned long)self.kp_ssize, blocks);
     return (unsigned)((blocks + SWAP_IMAGE_ALIGN - 1) &
         ~(unsigned long)(SWAP_IMAGE_ALIGN - 1));
 }

@@ -55,6 +55,11 @@ name a file there, with a page for a PDF.
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) under the PICOCALC definitions | build | observed by `check-console-c17-cross` (`TESTING.md`); `sys/sys/exec.h` no longer declares an empty struct and `sys/sys/inode.h` includes `uio.h` instead of forward-declaring `enum uio_rw`, and `struct exec_params` keeps its 284-byte layout; the objects still build under the kernel's GNU17 profile |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
+| `picofetch` and `picotop` (`usr.bin/picofetch`, `usr.bin/picotop`) draw their logo, bars and graph from 79 glyphs uploaded to the bank with `LCDIOC_SETGLYPH` under LITOUT, in the console's sixteen colors, and fall back to ASCII on a terminal without a bank | host | observed by `check-picofetch-host` over fixture readings, as 64-bit and as ILP32 host programs; 39 mutants fail it (`TESTING.md`) |
+| Both run on the PICOCALC kernel, read its sysctl nodes without a failed read and draw through the bank on the modeled panel | Renode | observed by `check-renode-picocalc` on `flash-PICOCALC.bin`: the report's lines, the logo's 840 squares against the panel pixels, picotop's frame and process row; the battery, XIP and bus values are model constants |
+| `picofetch` and `picotop` on the panel: glyph shapes, colors, the battery and backlight readings, the swap exchanges a picotop refresh costs beside a running job | board | not run |
+| Core 1 state and counters in both programs | build | PICOCALC and PICOCALC_PSRAM carry no `CORE1` option (`CORE1.md`), so both print `core1 not in this kernel` there; the PICO kernel's values are shown from the fixture only |
+| Die temperature and VSYS in both programs | Renode | both read `machdep.adc_temp_mc` and `machdep.adc_vsys_mv` (`CPU_ADC_TEMP`, `CPU_ADC_VSYS`); `check-renode-picocalc` holds the form of the `Sensors` line, and the values there (25.7 C, 0.00 V) come from Renode's ADC model, so the board's readings are unmeasured |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
 | The board runs from USB-C with no cells | board | observed by the owner: it stays off with no cells and runs with them (below) |
@@ -72,8 +77,13 @@ name a file there, with a page for a PDF.
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
+| The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into PICOCALC and PICOCALC_PSRAM only | build | observed by `check-dump-writer-link` on the symbol tables of all four kernels, with a swapped-role control that exits 1 |
+| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
+| `savecore` saves a dump the kernel's stream wrote, names a different running kernel, advances the bounds file, and leaves the dump on the card for a damaged segment, header checksum, version, segment count or length, one byte too little space with and without a reserve, and a copy that cannot be written; an unfinished dump reads as none | host | observed by `check-picocalc-host` (`dump_test`, 9 mutants of `savecore.c` rejected) |
+| On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
+| A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
-| `psram.c`, `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, 40 random transfers, four injected faults, the four placements of the two register stages and thirteen mutants | host | observed by `check-psram-pio` (1,197 checks); the model's pad delays and the clock of the two register stages are assumptions |
+| `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PICOCALC_PSRAM build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
 | PICO, PICO_UART and PICOCALC carry no PSRAM driver | build | observed: no `psram` symbol in the `unix.elf` of any of the three; PICO and PICO_UART sizes equal those recorded when the driver landed |
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
 | The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
@@ -93,7 +103,7 @@ table and the sources that agree):
 | UART1, expansion header | GP8 TX, GP9 RX | none |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
 | SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | `sd.c`, `sdspi.c`, `sd0` and `rsd0` |
-| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone |
+| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone; `picopcm.c`, `/dev/audio` |
 
 The vendor's `sd_boot/config.h` puts left audio on GP28; the schematic
 wires PWM_L to GP26, and GP28 reaches only the expansion header.
@@ -119,15 +129,21 @@ runs with cells, which contradicts the reading above. The keyboard
 firmware does not gate the Pico: its `setup()` raises PA13, the Pico
 enable, unconditionally (`picocalc_keyboard.ino`), so the inference is
 that no rail comes up at all, including DCDC1 (MCU_3V3) for the STM32.
-Two explanations fit, each with the measurement that separates them:
+The schematic wires R701 and R702, 5.1 kOhm each, from the receptacle's
+CC1 and CC2 to ground, so a USB-C-to-C supply sees a sink and switches
+VBUS on; a missing CC pull-down explains the observation only on a board
+that leaves R701 and R702 unfitted, which a look at the two sites
+settles. The explanation the schematic leaves standing:
 
-- The USB-C receptacle lacks a 5.1 kOhm pull-down on each CC pin, so a
-  USB-C-to-C supply never switches VBUS on. A USB-A-to-C cable, which
-  carries VBUS unconditionally, powering a cell-less board confirms it.
-- The AXP2101 needs a power-key press or a battery to start, through
-  power-on defaults the board does not change. A cell-less board that
-  stays off on an A-to-C cable and starts after a press of the power key
-  confirms it.
+- Hypothesis: the AXP2101 needs a power-key press or a battery to start.
+  Its datasheet (V1.4, 6.5.4.2) lists VBUS rising as a power-on source
+  only "configured by customization", and the power key SW102 sits on its
+  PWRON pin; this board's customization is unrecorded. A cell-less board
+  that stays off on USB-C and starts after a press of the power key
+  confirms it; one that starts on USB-C alone refutes it.
+
+`docs/research/hardware-reference-coverage.md` holds the schematic's
+designator-to-part map behind this reading.
 
 The Pico's own micro-USB port feeds the Pico module's VSYS through the
 module's Schottky diode; whether the mainboard's PICO_VSYS net, the STM32
@@ -618,12 +634,17 @@ the source and this section cite its sections by title.
 
 Initialization (Mode Selection and Initialization; Card Initialization
 and Identification Process): 80 clocks with chip select high, CMD0
-(CRC 0x95) until R1 reads idle, CMD8 with 0x1AA (CRC 0x87), ACMD41 until the
+(CRC 0x95) until R1 reads idle, CMD8 with 0x1AA (CRC 0x87), CMD59 with
+option 1, ACMD41 until the
 card leaves idle within one second, CMD58 for the OCR, CMD16 to 512 bytes for
-a byte-addressed card, and CMD9 for the capacity. CMD0 and CMD8 are the
-only commands that carry a checked CRC in SPI mode (Bus Transfer
-Protection); every other
-command sends a dummy CRC and CRC checking stays off. CMD8 answered as an
+a byte-addressed card, and CMD9 for the capacity. Every command frame
+carries its computed CRC7 and every data block its CRC16 (Bus Transfer
+Protection). A card checks the CRC of CMD0 and CMD8 always; CMD59, sent
+before ACMD41 as that section asks, turns checking on for the rest, after
+which the card refuses a corrupted command or written block and the driver
+fails a read whose CRC16 disagrees with the bytes received (`EIO`). A card
+that answers CMD59 as illegal runs unchecked, as SPI mode does after reset.
+CMD8 answered as an
 illegal command marks a version 1.x card and the OCR's CCS bit marks
 block addressing for a version 2.0 or later card; an echo that does not
 return the voltage range and check pattern, an illegal CMD55 or ACMD41 (a
@@ -636,8 +657,10 @@ after one second. The clock runs at 398 kHz until initialization finishes
 
 A transfer is one 512-byte sector per command, CMD17 for a read and CMD24
 for a write. A read waits 100 ms for the 0xFE start token and fails on a
-data error token; a write checks the data response token and then waits for
-the card to stop signaling busy. Both busy waits, the wait for ready before
+data error token; a write checks the data response token, waits for
+the card to stop signaling busy and then reads the card's status with CMD13,
+because the data response accepts a block before the card programs it and
+only the R2 status reports a program that failed. Both busy waits, the wait for ready before
 each command and the initialization loop have a time limit in the model's
 and the kernel's microsecond clock, so a stuck card fails the transfer
 (`EIO`) instead of hanging the caller. The driver runs a transfer in the
@@ -679,9 +702,9 @@ failed `mount` close the partition only when no block descriptor names it, the l
 rule of `closei()`, because the open state is a bit and one close drops it: a descriptor
 opened before the mount keeps reading after the unmount and closes the partition itself.
 `chrtoblk()` maps `rsd0` to `sd0`, and `blkoverlap()` in `conf.c` compares the
-sector extents that `DIOCGETPART` reports for two nodes of one unit. Once an
-operator raises `kern.securelevel` to 1 (the default is 0 and `init` never raises
-it), `ufs_mountedon()` therefore refuses with `EBUSY` a write open of `rsd0` or
+sector extents that `DIOCGETPART` reports for two nodes of one unit. At
+`kern.securelevel` 1, which `multiple()` in `sbin/init/init.c` sets when it
+enters multiuser mode from level 0, `ufs_mountedon()` therefore refuses with `EBUSY` a write open of `rsd0` or
 `sd0`, the whole card, while any partition is mounted, a write open of an MBR
 entry whose extent overlaps a mounted one, and every open of a mounted block node;
 a partition that only touches the mounted one opens. Every other pair of block
@@ -768,6 +791,44 @@ route; they use only the disk ioctls the driver answers
 (`DIOCGETMEDIASIZE`, `DIOCGETPART`, `DIOCREINIT`; `umount` adds
 `DIOCMEDIAGONE`) but have not run against it, so a closure that ships them waits on a board run.
 
+### Crash dumps
+
+A PICOCALC kernel on a PicoCalc takes a crash dump on the SD card. The
+probe sets `dumpdev` to the card (`sdprobe()`), and `boot()` calls the dump
+routine for a panic, which asks for `RB_HALT | RB_DUMP`, and for
+`reboot -d`, before it halts or resets. `sddump()` initializes whatever
+card is in the socket on a card state of its own, reads the partition
+entries of sector 0, and writes to the first entry of type 0xb9 that lies
+inside the card, unless a block open of the accepted card (a mount, or the
+whole card) overlaps it. It polls the card with every interrupt masked
+and allocates nothing. The format is `sys/arch/rp2040/include/dump.h`: a
+header and segment table in sector 0, then the panic message, kernel RAM
+from `.data` to the end of the SwapRAM pool, and the two u areas, each
+with a CRC-32 computed over the bytes as they leave for the card, which
+keeps the current u area, where the writer's own stack runs, consistent.
+Sector 0 is zeroed first and written last, so an unfinished dump reads as
+none. A PICOCALC dump is 109 sectors (55,808 bytes), 48,136 of them kernel
+RAM; a PICOCALC_PSRAM dump is 110.
+
+    fsutil --repartition=fs=64m:dump=1m card.img
+    fsutil --new --partition=1 card.img
+
+makes a card with a file system on `sd0a` and a dump partition on `sd0b`.
+After the reboot that follows a panic, `savecore` (in the `sdcard`
+closure) copies the dump off the card:
+
+    mount /dev/sd0a /mnt
+    mkdir /mnt/crash
+    savecore /mnt/crash
+
+`savecore(8)` checks every checksum while it copies, writes `dump.N` and
+`info.N`, whose image CRC32 names the `unix.elf` build whose symbols decode
+the dump, and zeroes sector 0 only after both files, the bounds file and
+the directory are on stable storage. It refuses to copy unless 1024 KB (or
+the kilobytes in the directory's `minfree` file) stay free afterward. At
+securelevel 2 every write open of the card is refused, so `savecore` runs
+before the level rises.
+
 ## Building and flashing
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"
@@ -801,6 +862,64 @@ two Config files to differ in the board line and the `device psram` line
 alone.
 Flashing follows `distrib/rp2040/host/DEVELOPMENT.md` and needs the
 board in BOOTSEL mode; a board run is an explicit opt-in.
+
+## Coexisting with the PicoCalc UF2 loader
+
+The PicoCalc ships with a UF2 loader (pelrun/uf2loader) that keeps its own
+stage in the top 16 KB of the Pico's flash, 0x101fc000-0x101fffff, and
+flashes applications from the SD card. After it programs an application it
+stamps two words into the application's vector table: the magic 0xe98cc638
+at flash 0x110 and, at 0x114, the first flash address the application may
+not write (0x101fc000; the loader's README calls the word a size, its code
+stores an address). Those are vector entries 4 and 5, which ARMv6-M
+reserves and every DiscoBSD image leaves zero. Its stage enters the
+application with VTOR at 0x10000100, past the loader's own second stage in
+flash bytes 0-255, which replaces DiscoBSD's.
+
+The kernel reads the stamp once, in `startup()` before `config()` attaches
+any device (`flash_limit_init()` in `dev/flash.c`; the decode is
+`dev/loader_stamp.h`):
+
+| Flash 0x110 and 0x114 | Writable flash | fl1 (raw swap) | Console |
+| --- | --- | --- | --- |
+| no magic (any image flashed through BOOTSEL) | 0x20000-0x1fffff | 384 KB | unchanged |
+| magic, limit 4 KB-aligned in [0x101a0000, 0x101fc000] | 0x20000 up to the limit | to the limit: 368 KB at 0x101fc000, none at 0x101a0000 | `fl1: 368 kbytes raw QSPI flash for swap` |
+| magic, any other limit (one that cuts the root below 0x101a0000, reaches into the loader's 16 KB above 0x101fc000, or is misaligned) | none | absent | `fl: loader stamp limit ... is outside the writable flash; flash writes refused` |
+
+`flash_erase()` and `flash_program()`, the only routines that call the boot
+ROM's erase and program, refuse any operation not wholly inside the
+writable range before the ROM call, so the Dhara root, raw swap,
+`/dev/tempN` and any later writer cannot reach the loader's stage. A
+refused Dhara write reads to Dhara as a bad block: its journal retries on
+other blocks up to `DHARA_MAX_RETRIES` (8) times, then the request fails
+with EIO; a refused swap write fails with EIO at once. The swap region's
+start, and so the root filesystem's extent, is the same in every row, and
+an accepted limit never cuts the root. A configuration whose swap is fl1
+stops at the `swap size` panic when no swap is left (a limit of
+0x101a0000, or the last row, after its console line); the loader's stage
+stays intact and its menu stays reachable from the keyboard at power-on. PICOCALC_PSRAM with
+a working PSRAM swaps there instead and does not need fl1.
+
+Two more things the loader route changes are handled at boot.
+`SystemClock_Config()` moves clk_sys to clk_ref and stops the aux-only
+clocks before it resets and reprograms either PLL, because the loader's
+stage may leave clk_sys running from PLL_SYS (datasheet 2.15.3.2 and
+2.18.3). The loader's second stage runs the flash clock at clk_sys / 4
+where DiscoBSD's runs it at clk_sys / 2, and `flash_enter_xip()` re-runs
+that second stage after every erase and program, so with the magic present
+the kernel restores BAUDR 2 and RX_SAMPLE_DLY 1 from RAM at boot and after
+each re-entry.
+
+Evidence: `check-loader-stamp` proves the decode, the bound and the swap
+writer against the bound on the host, and the wiring of the two
+primitives in the source. The bare route's boot is the Renode boot of
+`check-renode`. No kernel has been booted from the loader on a board or in
+Renode: the stamped path rests on the host gate and source reading, and
+the clock sequence entered from the loader's stage and the restored XIP
+divider on source and datasheet reading. Two further collisions stay open:
+the loader's path text at 0x118-0x12b overlays the image identity words,
+and an application flashed later from the menu erases the flash root
+above 128 KB.
 
 ## Next work, with designs and blockers
 
@@ -848,19 +967,25 @@ ESP-PSRAM64H (8 MB) on GP2-GP5, GP20 and GP21 is not a hardware SPI pin
 set, so PIO0 state machine 0 clocks it; `docs/research/picocalc-psram.md`
 holds the datasheet pages, the program, the timing derivation and the
 evidence. `psramprobe()` runs from `config()`, before `init_main()` opens
-`swapdev`: it resets the part, reads its ID, requires manufacturer 0x0D and
-a passing known-good die, enters quad mode and writes and reads back a
-pattern. A part that passes becomes block device major 3 and replaces `fl1`
-as `swapdev`, so swap is 8 MB behind the SWAPRAM tier and the 384 KB flash
-swap region goes unused; a part that does not pass prints one `psram0:` line
-and leaves `swapdev` on `fl1`. SCK runs at 31.25 MHz (`PSRAM_CLKDIV` in
-`psram_pio.h`), a frame holds CS low for under 5 us against the 8 us tCEM,
-and interrupts are masked for that long per frame.
+`swapdev`: it resets the part, reads its ID (manufacturer, known-good die
+and the 48-bit EID, printed as `psram0: read id 0d/5d eid` and twelve hex
+digits), requires manufacturer 0x0D and a passing known-good die, enters
+quad mode and writes and reads back a pattern. A part that passes becomes
+block device major 3 and replaces `fl1` as `swapdev`, so swap is 8 MB
+behind the SWAPRAM tier and the 384 KB flash swap region goes unused; a
+part that does not pass prints a second `psram0:` line and leaves
+`swapdev` on `fl1`. The EID tells the ESP-PSRAM64H, LY68L6400 and APS6404L
+apart only against reads of reference parts: the APS6404L sheet alone
+defines a field, EID[47:45] = 010 for 64 Mbit. SCK runs at 31.25 MHz
+(`PSRAM_CLKDIV` in `psram_pio.h`), a frame holds CS low for under 5 us
+against the 8 us tCEM, and interrupts are masked for that long per frame.
 
 Open for the board run: the read sampling margin depends on pad delays no
 datasheet gives and on whether the output and input register stages run on
 clk_sys or on the state machine cycle (a scope capture of SCK against a read
-data line decides both, and whether the clock can rise), whether the part ignores a serial command cut
+data line decides both, and whether the clock can rise;
+`docs/research/picocalc-psram-capture.md` orders the instruments), whether
+the part ignores a serial command cut
 short, and how a module in the shared header J703 loads the lines. The owner
 chose replacing `fl1` over a second tier behind PSRAM, and chose the driver
 as a PicoCalc build option; the research note's swap integration table
@@ -885,9 +1010,23 @@ callout stops it 100 ms later; a BEL that arrives while the tone
 sounds is absorbed, and a panic suppresses it because callouts no longer
 run. The 25 percent duty and the 100 ms length are unmeasured choices:
 the board run sets the loudness and checks that the amplifier is silent
-between tones. A `/dev/audio` with a PCM ring is the larger piece that
-remains; it needs a DMA or interrupt-fed sample path on the same slice and
-a decision on sample rate and format.
+between tones.
+
+`/dev/audio` ships (`picopcm.c`, character major 13): write only, one
+opener, unsigned 8-bit mono at 8,000 samples per second on both channels.
+Slice 5 carries a 500 kHz carrier (`clk_sys` / 250) whose duty is the
+sample, in 250 steps; slice 6, which routes no pin, wraps 8,000 times a
+second and its wrap interrupt moves one byte from a 256-byte ring to slice
+5's compare register. An empty ring plays the rest level, half duty. The
+interrupt keeps the NVIC's reset priority, SysTick's, so the two never
+nest. A flash erase masks it for the erase's length, which pauses the
+sound and loses no sample. A writer that finds the ring full sleeps 4 ms
+at a time and fails with `EIO` after 500 ms without progress; the close
+plays what is queued, stops the sample clock and holds both pins low as
+the bell's stop does. A BEL while the device is open is absorbed, and the
+open fails with `ENXIO` on a bare Pico. The format, the rate and the
+carrier are choices no board has heard: the board run checks the level,
+the carrier's absence at the speaker, and the pause a root write causes.
 
 ### Calculator application and tile graphics
 

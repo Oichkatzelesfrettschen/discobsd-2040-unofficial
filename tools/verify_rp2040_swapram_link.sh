@@ -153,8 +153,8 @@ if [ "$enabled" -eq 1 ]; then
 	if [ "$kb" -le 63 ]; then
 		table_size=$(printf '%s\n' "$syms" |
 		    awk '$4 == "sr_tab" { print $2 }')
-		[ "$table_size" = 00000258 ] || {
-			echo "$elf: sr_tab is 0x${table_size:-0} bytes, expected 25 compact 24-byte records" >&2
+		[ "$table_size" = 00000180 ] || {
+			echo "$elf: sr_tab is 0x${table_size:-0} bytes, expected 16 compact 24-byte records" >&2
 			fail=1
 		}
 	fi

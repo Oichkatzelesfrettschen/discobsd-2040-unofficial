@@ -44,6 +44,14 @@ mmrw(dev_t dev, struct uio *uio, int flag __unused)
 		switch (minor(dev)) {
 		case 0:	/* minor device 0 is physical memory (/dev/mem) */
 		case 1:	/* minor device 1 is kernel memory (/dev/kmem) */
+			/*
+			 * openi() refuses a new write open at securelevel 1
+			 * (kern/sys_inode.c), but a descriptor opened for
+			 * writing at level 0 survives the rise; the level
+			 * therefore also binds each write.
+			 */
+			if (uio->uio_rw == UIO_WRITE && securelevel > 0)
+				return EPERM;
 			addr = (caddr_t)uio->uio_offset;
 			if (badkaddr_span(addr, iov->iov_len) &&
 			    baduaddr_span(addr, iov->iov_len)) {

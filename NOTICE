@@ -399,6 +399,35 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------
+18. Rich Felker and contributors (tableless byte-sequence search in libc)
+    License: MIT
+
+lib/libc/string/memmem.c adapts the Two-Way mechanism from FreeBSD's
+musl-derived provider. The inherited OpenBSD wrapper notice remains in the
+source. The search mechanism carries this notice:
+
+Copyright (c) 2005-2014 Rich Felker, et al.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+------------------------------------------------------------------------
 Appendix. Build and test dependencies, which no image contains
 
 The sections above cover everything a redistributed image carries. The
@@ -438,7 +467,35 @@ distrib/rp2040/mi.rp2040 lists /usr/sbin/v7fs, so no byte reaches an
 image or a board; a manifest line that ships the program adds a numbered
 section above.
 
+sys/fs/msdosfs holds NetBSD's MS-DOS file-system core, usr.sbin/makefs
+the makefs userland forks of its denode, mount and vnode layers, and
+sbin/newfs_msdos the newfs_msdos formatter, imported and pinned by the
+same manifest; three carry local corrections recorded as patches under
+tools/netbsd-patches. Each file keeps its NetBSD header. The msdosfs
+core files and the three forks are BSD 4-Clause, copyright Wolfgang
+Solfrank and TooLs GmbH, over original code by Paul Popelka under his
+1992 notice; bpb.h and bootsect.h carry Paul Popelka's notice alone. Their
+third clause asks advertising materials to state: This product includes
+software developed by TooLs GmbH. msdosfs_unicode.c holds case-folding
+tables derived from the Unicode Character Database under the Unicode,
+Inc. permission notice it reproduces. msdos.h and mkfs_msdos.h are BSD
+2-Clause, copyright The NetBSD Foundation, Inc., and mkfs_msdos.c is
+BSD 2-Clause, copyright Robert Nordier. usr.sbin/msdosfs links them into
+the msdosfs program and tests/msdosfs_core into its host test. Neither
+distrib/base/mi nor distrib/rp2040/mi.rp2040 lists /usr/sbin/msdosfs, so
+no byte reaches an image or a board; a manifest line that ships the
+program adds a numbered section above.
+
 Renode, the arm-none-eabi toolchain, qemu, bmake, shellcheck, ruff and
 the Python packages distrib/rp2040/host depends on are installed by a
 package manager under their own terms and are named in
 sys/arch/rp2040/doc/TESTING.md beside the tier that needs each.
+
+------------------------------------------------------------------------
+Third-party artwork outside the firmware
+
+third_party/mate-icon-theme holds the MATE icon theme artwork that the
+MATEzinho desktop reads from a separate artwork volume. No kernel, root
+image or UF2 file contains it. Its terms, attribution and per-file
+hashes are in that directory's README.md and LICENSES/, which travel with
+any copy of the artwork.

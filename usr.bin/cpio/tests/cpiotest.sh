@@ -55,6 +55,8 @@ if [ -z "${HOSTCPIO:-}" ] && command -v brew >/dev/null 2>&1 &&
 fi
 HOSTCPIO=${HOSTCPIO:-cpio}
 command -v "$HOSTCPIO" >/dev/null 2>&1 || fail "no host cpio named $HOSTCPIO"
+"$HOSTCPIO" --version 2>/dev/null | grep -q 'GNU cpio' ||
+    fail "host cpio $HOSTCPIO is not GNU cpio; install it (Homebrew: brew install cpio) or set HOSTCPIO"
 
 cd "$work"
 mkdir -p tree/sub

@@ -99,6 +99,12 @@ def dependency_paths(path, directory, require_exists=True):
 
 def classify(arguments):
     tool_name = Path(arguments[0]).name
+    if tool_name == "kernsum":
+        if len(arguments) == 2:
+            return "transform", [], arguments[1]
+        if len(arguments) == 3 and arguments[1] == "-c":
+            return "query", [], None
+        raise CaptureError("kernsum requires one image, optionally preceded by -c")
     if tool_name == "ar" or tool_name.endswith("-ar"):
         if len(arguments) < 3:
             return "query", [], None

@@ -81,33 +81,35 @@ ARM_STRING_S = set("memmove strcmp".split())
 
 GEN_C = set(
     """
-abort alarm atof atoi atol basename bcmp bcopy bzero calloc closedir confstr crypt ctermid
+abort alarm asctime atof atoi atol basename bcmp bcopy bzero calloc closedir confstr crypt ctermid
 ctime ctype_ daemon devname difftime dirname ecvt err execvp fakcu ffs frexp fstab
 gcvt getenv getgrent getgrgid getgrnam getgrouplist gethostname getloadavg
 getlogin getmntinfo getpagesize getpass getpwent getttyent getttynam
 getusershell getwd index initgroups isatty isinff isnanf knlist ldexp malloc
-mktemp modff modf ndbm nlist opendir perror popen psignal qsort random
+mktemp modff modf ndbm nlist opendir perror popen psignal qsort qsort_r random
 raise readdir regex rindex scandir seekdir setenv sethostname setmode setpgid siginterrupt
-siglist signal sigsetops sleep strcasecmp strcat strcmp strcpy strdup
+siglist signal sigsetops sleep stpcpy stpncpy strcasecmp strcat strcmp strcpy strdup strndup strnlen
 strftime strlen strncat strncmp strncpy swab sysconf sysctl syslog system telldir
-time timezone ttyname ttyslot ualarm uname usleep vis wait3 wait waitpid
+time timezone tolower toupper ttyname ttyslot tzset ualarm uname usleep vis wait3 wait waitpid
 """.split()
 )
 
 STDIO_C = set(
     """
 clrerr doprnt_float doprnt_llong doprnt doscan exit fdopen feof ferror fgetc fgets filbuf
-fileno findiop flsbuf fopen fprintf fputc fputs fread freopen fseek ftell
+fileno findiop flags flsbuf fopen fprintf fputc fputs fread freopen fseek ftell
 fwrite getchar gets getw printf putchar puts putw remove rew scanf setbuffer
 setbuf setvbuf snprintf sprintf strout ungetc vfprintf vprintf vsprintf
 """.split()
 )
 
-STDLIB_C = set("getopt getsubopt strtod strtol strtoul".split())
+STDLIB_C = set(
+    "abs labs iso_exit at_quick_exit quick_exit getopt getsubopt strtod strtol strtoul".split()
+)
 
 STRING_C = set(
     """
-explicit_bzero strcspn strerror strlcat strlcpy strpbrk strsep strspn strstr
+explicit_bzero memmem strcspn strerror strlcat strlcpy strpbrk strsep strspn strstr
 strtok strtok_r timingsafe_bcmp
 """.split()
 )
@@ -188,6 +190,10 @@ def main():
         "-Wformat=2",
         "-ffreestanding",
         "-fno-jump-tables",
+        # The archive serves programs Smaller C compiles on the board, which
+        # bind the existing names with the 32-bit layouts; lib/libc/Makefile
+        # selects the same view for every member it builds.
+        "-D_TIME_BITS=32",
     ]
     as_tool = os.path.join(args.toolbindir, "as")
     ar_tool = os.path.join(args.toolbindir, "ar")

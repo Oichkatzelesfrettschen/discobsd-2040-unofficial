@@ -19,6 +19,7 @@
 #include <rp2040/dev/uart.h>
 
 #include <machine/intr.h>
+#include <machine/board.h>
 
 #define CONCAT(x,y) x ## y
 #define BBAUD(x) CONCAT(B,x)
@@ -460,9 +461,12 @@ uartprobe(struct conf_device *config)
      * subtraction over left every unit one below its own index, so unit 0
      * failed the range test below and the line never attached.
      */
+    int console_major, console_minor;
     int unit = config->dev_unit;
-    int is_console = (CONS_MAJOR == UART_MAJOR &&
-                      CONS_MINOR == unit);
+    int is_console;
+
+    board_console(&console_major, &console_minor);
+    is_console = console_major == UART_MAJOR && console_minor == unit;
 
     if (unit < 0 || unit >= NUART)
         return 0;

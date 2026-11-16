@@ -270,6 +270,11 @@ mknod(void)
     }
     if (u.u_error)
         return;
+    if (FS_WIDE16(INODE_FILESYSTEM(ndp->ni_pdir), uap->dev)) {
+        iput(ndp->ni_pdir);
+        u.u_error = EOVERFLOW;
+        return;
+    }
     ip = maknode (uap->fmode, ndp);
     if (ip == NULL)
         return;
@@ -317,6 +322,11 @@ link(void)
     }
     if (ip->i_flags & (IMMUTABLE|APPEND)) {
         u.u_error = EPERM;
+        iput(ip);
+        return;
+    }
+    if (FS_LINKS_FULL(ip)) {
+        u.u_error = EMLINK;
         iput(ip);
         return;
     }
@@ -405,7 +415,7 @@ linkat_beneath(void)
         u.u_error = EPERM;
         goto release_source;
     }
-    if (source->i_nlink == USHRT_MAX) {
+    if (source->i_nlink == FS_LINK_MAX(INODE_FILESYSTEM(source))) {
         u.u_error = EMLINK;
         goto release_source;
     }
@@ -738,6 +748,10 @@ publishat_beneath(void)
         u.u_error = EPERM;
         goto release_staged_lookup;
     }
+    if (FS_LINKS_FULL(staged_inode)) {
+        u.u_error = EMLINK;
+        goto release_staged_lookup;
+    }
 
     staged_inode->i_nlink++;
     staged_inode->i_flag |= ICHG;
@@ -982,9 +996,9 @@ readlink(void)
     }
     u.u_error = rdwri (UIO_READ, ip, uap->buf, uap->count, (off_t) 0,
                 IO_UNIT, &resid);
+    u.u_rval = uap->count - resid;
 out:
     iput(ip);
-    u.u_rval = uap->count - resid;
 }
 
 static int
@@ -1178,6 +1192,9 @@ chown1(register struct inode *ip, register int uid, register int gid)
     if ((u.u_uid != ip->i_uid || (uid_t)uid != ip->i_uid ||
         !groupmember((gid_t)gid)) && !suser())
         return (u.u_error);
+    if (FS_WIDE16(INODE_FILESYSTEM(ip), uid) ||
+        FS_WIDE16(INODE_FILESYSTEM(ip), gid))
+        return (u.u_error = EOVERFLOW);
     ouid = ip->i_uid;
     ogid = ip->i_gid;
     ip->i_uid = uid;
@@ -1312,6 +1329,16 @@ rename(void)
         u.u_error = EPERM;
         goto done;
     }
+    /* The move holds one more link on ip until the old name goes. */
+    if (FS_LINKS_FULL(ip)) {
+        iput(dp);
+        if (dp == ip)
+            irele(ip);
+        else
+            iput(ip);
+        u.u_error = EMLINK;
+        goto done;
+    }
 
     if ((ip->i_mode&IFMT) == IFDIR) {
         register struct direct *d;
@@ -1416,6 +1443,12 @@ rename(void)
          * parent we don't fool with the link count.
          */
         if (doingdirectory && newparent) {
+#ifdef V7FS
+            if (FS_LINKS_FULL(dp)) {
+                error = EMLINK;
+                goto bad;
+            }
+#endif
             dp->i_nlink++;
             dp->i_flag |= ICHG;
             iupdat(dp, &time, &time, 1);
@@ -1657,6 +1690,12 @@ mkdir_common(int rootfd, caddr_t name, int dmode, int namei_policy)
         goto out;
     }
     dp = ndp->ni_pdir;
+    /* The new directory's ".." is one more link on dp. */
+    if (FS_LINKS_FULL(dp)) {
+        iput(dp);
+        u.u_error = EMLINK;
+        goto out;
+    }
     dmode &= 0777;
     dmode |= IFDIR;
     /*

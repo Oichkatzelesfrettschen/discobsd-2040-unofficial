@@ -2,9 +2,6 @@
 # Public Domain.  1996/11/16 - Steven Schultz
 #
 TOPSRC!=cd ../..; pwd
-# -Wall -Wextra raises 6 distinct sites in this directory, so the fatal set
-# stays at the groups CFLAGS names until they are repaired.
-WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= -Wall
@@ -33,7 +30,7 @@ depend:         ${SRCS}
 
 install:        all
 		cp ${MAN} ${DESTDIR}/usr/share/man/cat8
-		${INSTALL} -m 2755 fstat ${DESTDIR}/usr/bin/fstat
+		${INSTALL} -m 755 fstat ${DESTDIR}/usr/bin/fstat
 
 lint:           ${SRCS}
 		lint -hax ${SRCS}

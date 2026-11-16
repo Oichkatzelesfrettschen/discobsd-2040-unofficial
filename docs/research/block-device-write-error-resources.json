@@ -1,0 +1,458 @@
+{
+  "recorded_utc": "2026-11-12T21:19:53.376316+00:00",
+  "baseline": "1e9864463c57f11c3a45db37d393652023843171",
+  "workingtree_parent": "8c8af169dd975681b3516d46423ea923cab40836",
+  "compiler": "arm-none-eabi-gcc (Arch Repository) 16.2.0",
+  "flags": [
+    "-g",
+    "-gdwarf-4",
+    "-fdebug-prefix-map=<checkout>=.",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wshadow",
+    "-Wundef",
+    "-Wformat=2",
+    "-std=gnu17",
+    "-ffreestanding",
+    "-fno-builtin",
+    "-fno-common",
+    "-fno-strict-aliasing",
+    "-fshort-enums",
+    "-mcpu=cortex-m0plus",
+    "-mabi=aapcs",
+    "-mlittle-endian",
+    "-mthumb",
+    "-mfloat-abi=soft",
+    "-Os",
+    "-nostdinc",
+    "-I.",
+    "-I../../../..",
+    "-I../../../../arch",
+    "-I../../../../arch/arm/include",
+    "-I../../../../arch/rp2040/dhara/compat",
+    "-I../../../../arch/rp2040/heatshrink",
+    "-I../../../../arch/rp2040/heatshrink/compat",
+    "-DPICO",
+    "-DRP2040",
+    "-DUARTUSB_ENABLED",
+    "-DUART_ENABLED",
+    "-DEXEC_HSAOUT",
+    "-DSWAPRAM_KB=16",
+    "-DSWAPRAM",
+    "-DUART_BAUD=115200",
+    "-DCONS_MINOR=0",
+    "-DCONS_MAJOR=UARTUSB_MAJOR",
+    "-DROOT_MOUNT_FLAGS=MNT_NOATIME",
+    "-DCORE_DEFAULT=0",
+    "-DLINEAR_NAME_CACHE",
+    "-DLINEAR_BUFFER_CACHE",
+    "-DCOMPACT_SWAPMAP",
+    "-DCOMPACT_INODE_FIELDS",
+    "-DLINEAR_INODE_CACHE",
+    "-DSINGLE_UFS_ROOT",
+    "-DNMOUNT=1",
+    "-DNFL=2",
+    "-DCORE1",
+    "-DCAPACITY_STATS",
+    "-DSYSTRACE",
+    "-DHALTREBOOT",
+    "-DBUS_KHZ=125000",
+    "-DCPU_KHZ=125000",
+    "-DKERNEL",
+    "-MT",
+    "$(.TARGET)",
+    "-MP",
+    "-MD",
+    "-MF",
+    ".deps/$(.PREFIX).dep"
+  ],
+  "layout_field_order": [
+    "inode_size",
+    "dinode_size",
+    "transient_union_size",
+    "common1_offset",
+    "common2_offset",
+    "address_offset",
+    "free_or_readahead_offset",
+    "mount_size"
+  ],
+  "layouts": [
+    {
+      "compact_linear": false,
+      "single_root": false,
+      "baseline": [
+        108,
+        64,
+        4,
+        76,
+        96,
+        40,
+        68,
+        1220
+      ],
+      "candidate": [
+        108,
+        64,
+        4,
+        76,
+        96,
+        40,
+        68,
+        1224
+      ]
+    },
+    {
+      "compact_linear": false,
+      "single_root": true,
+      "baseline": [
+        100,
+        64,
+        4,
+        68,
+        88,
+        32,
+        60,
+        1036
+      ],
+      "candidate": [
+        100,
+        64,
+        4,
+        68,
+        88,
+        32,
+        60,
+        1040
+      ]
+    },
+    {
+      "compact_linear": true,
+      "single_root": false,
+      "baseline": [
+        92,
+        64,
+        4,
+        64,
+        80,
+        28,
+        56,
+        1220
+      ],
+      "candidate": [
+        92,
+        64,
+        4,
+        64,
+        80,
+        28,
+        56,
+        1224
+      ]
+    },
+    {
+      "compact_linear": true,
+      "single_root": true,
+      "baseline": [
+        84,
+        64,
+        4,
+        56,
+        72,
+        20,
+        48,
+        1036
+      ],
+      "candidate": [
+        84,
+        64,
+        4,
+        56,
+        72,
+        20,
+        48,
+        1040
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "path": "sys/kern/ufs_bio.c",
+      "baseline_sha256": "344a85e018228372857332923d4c50ec49245cdd9ff48ac11629bbd20c9a4438",
+      "candidate_sha256": "038374616ab959716a6c38ed26ff8ebf5732cb05f61b4b806323a40f31bba95e",
+      "baseline": {
+        "text": 1620,
+        "data": 0,
+        "bss": 0,
+        "frames": [
+          "./machine/intr.h:118:1:arm_intr_disable\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:155:1:brelse\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:202:1:incore\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:488:1:geterror\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:359:1:biowait\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:98:1:bwrite\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:134:1:bdwrite\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:228:1:getnewbuf\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:275:1:getblk\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:23:1:bread\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:44:1:breada\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:334:1:geteblk\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:408:1:blkflush\t40\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:455:1:bflush\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:376:1:biodone\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-baseline/ufs_bio.c:510:1:binval\t8\tstatic"
+        ]
+      },
+      "candidate": {
+        "text": 2560,
+        "data": 0,
+        "bss": 0,
+        "frames": [
+          "./machine/intr.h:118:1:arm_intr_disable\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:24:1:device_driver_call\t72\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:62:1:inode_block_device\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:44:1:cdev_driver_open\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:50:1:bdev_driver_open\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:56:1:dev_driver_close\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:76:1:bdevlock\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:110:1:bdevunlock\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:118:1:bdev_mount_take_lock\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:129:1:bdev_mount_unlock\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:141:1:bdev_other_open\t12\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:155:1:bdev_write_error\t12\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:173:1:bdev_clear_write_error\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:318:1:brelse\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:365:1:incore\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:684:1:geterror\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:522:1:biowait\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:261:1:bwrite\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:297:1:bdwrite\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:391:1:getnewbuf\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:438:1:getblk\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:186:1:bread\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:207:1:breada\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:497:1:geteblk\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:579:1:blkflush\t40\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:626:1:bflush\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:656:1:bdevsync\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:539:1:biodone\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_bio-candidate/ufs_bio.c:706:1:binval\t8\tstatic"
+        ]
+      }
+    },
+    {
+      "path": "sys/kern/ufs_inode.c",
+      "baseline_sha256": "7677b1038a0ca6fcd217341a551b52b3afd725a4dc4f10e0b312ef47f9f86798",
+      "candidate_sha256": "a1c2abdfe0a286cfee6d81778163d9a8c77b9dc2c191098f898532afeabd77cd",
+      "baseline": {
+        "text": 1981,
+        "data": 0,
+        "bss": 16,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:48:1:ihinit\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:84:1:ifind\t12\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:290:1:igrab\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:384:1:iupdat\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:469:1:indirtrunc\t48\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:576:1:itrunc\t144\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:337:1:irele\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:321:1:iput\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:116:1:iget\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:733:1:iflush\t20\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:771:1:ilock\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-baseline/ufs_inode.c:780:1:iunlock\t8\tstatic"
+        ]
+      },
+      "candidate": {
+        "text": 2001,
+        "data": 0,
+        "bss": 16,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:48:1:ihinit\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:84:1:ifind\t12\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:294:1:igrab\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:390:1:iupdat\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:475:1:indirtrunc\t48\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:582:1:itrunc\t144\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:342:1:irele\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:326:1:iput\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:116:1:iget\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:739:1:iflush\t20\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:777:1:ilock\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_inode-candidate/ufs_inode.c:786:1:iunlock\t8\tstatic"
+        ]
+      }
+    },
+    {
+      "path": "sys/kern/ufs_mount.c",
+      "baseline_sha256": "d647dc0cf447f32ef351a65934df21748e4130e62bed836085e8c4a3c0613f23",
+      "candidate_sha256": "16cf6c52b939a657500db853bbfc4fbfc30af17163a049efd80483d5fbe269f8",
+      "baseline": {
+        "text": 1120,
+        "data": 0,
+        "bss": 0,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-baseline/ufs_mount.c:27:1:getmdev.constprop\t120\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-baseline/ufs_mount.c:56:1:mount_updname\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-baseline/ufs_mount.c:193:1:mountfs\t48\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-baseline/ufs_mount.c:88:1:smount\t336\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-baseline/ufs_mount.c:361:1:umount\t40\tstatic"
+        ]
+      },
+      "candidate": {
+        "text": 1244,
+        "data": 0,
+        "bss": 0,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-candidate/ufs_mount.c:27:1:getmdev.constprop\t120\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-candidate/ufs_mount.c:60:1:mount_updname\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-candidate/ufs_mount.c:206:1:mountfs\t48\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-candidate/ufs_mount.c:92:1:smount\t336\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_mount-candidate/ufs_mount.c:392:1:umount\t40\tstatic"
+        ]
+      }
+    },
+    {
+      "path": "sys/kern/ufs_subr.c",
+      "baseline_sha256": "4ccac5b216b3476e3861ffe72293b9e7a274b02d4c5886832c469b41a53814bf",
+      "candidate_sha256": "b886d4c719b6227409d2dee9f5834e5b7993d3bc014e0856342b4e036d71ba08",
+      "baseline": {
+        "text": 542,
+        "data": 0,
+        "bss": 4,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/ufs_subr-baseline/ufs_subr.c:32:1:sync\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_subr-baseline/ufs_subr.c:71:1:syncip\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_subr-baseline/ufs_subr.c:120:1:badblock\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_subr-baseline/ufs_subr.c:141:1:getfs\t16\tstatic"
+        ]
+      },
+      "candidate": {
+        "text": 426,
+        "data": 0,
+        "bss": 4,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/ufs_subr-candidate/ufs_subr.c:32:1:sync\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_subr-candidate/ufs_subr.c:70:1:syncip\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_subr-candidate/ufs_subr.c:109:1:badblock\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/ufs_subr-candidate/ufs_subr.c:130:1:getfs\t16\tstatic"
+        ]
+      }
+    },
+    {
+      "path": "sys/kern/sys_inode.c",
+      "baseline_sha256": "48cd470d8e9382e375893c74f86ae842296f59b81ca534b005bb4e68463c5383",
+      "candidate_sha256": "a77e997dd02f4ecdafcb4f3eb786db2b27b1cc03145e7cec846dd98248125234",
+      "baseline": {
+        "text": 2660,
+        "data": 0,
+        "bss": 4,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:110:1:ino_select\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:61:1:ino_ioctl\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:154:1:rwip\t64\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:27:1:ino_rw\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:131:1:rdwri\t56\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:351:1:ino_stat\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:397:1:closei\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:544:1:ino_unlock\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:470:1:ino_lock\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:576:1:openi\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-baseline/sys_inode.c:669:1:vhangup\t24\tstatic"
+        ]
+      },
+      "candidate": {
+        "text": 2928,
+        "data": 0,
+        "bss": 4,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:110:1:ino_select\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:61:1:ino_ioctl\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:154:1:rwip\t64\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:27:1:ino_rw\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:131:1:rdwri\t56\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:351:1:ino_stat\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:397:1:closei\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:554:1:ino_unlock\t24\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:480:1:ino_lock\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:586:1:openi\t40\tstatic",
+          "./.build-logs/audit-baseline/device-resources/sys_inode-candidate/sys_inode.c:706:1:vhangup\t24\tstatic"
+        ]
+      }
+    },
+    {
+      "path": "sys/kern/vfs_vnops.c",
+      "baseline_sha256": "0e80ec6221c40cdc1479f19522fddec320b6fc1fc527fef6051ebd0c5d8ee4b4",
+      "candidate_sha256": "b4f5c35799c71cf78fec27421ed4a94f3cec80a6ae38ebed83c5322582fa0815",
+      "baseline": {
+        "text": 612,
+        "data": 0,
+        "bss": 0,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/vfs_vnops-baseline/vfs_vnops.c:73:1:vn_open_at\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/vfs_vnops-baseline/vfs_vnops.c:207:1:vn_open\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/vfs_vnops-baseline/vfs_vnops.c:223:1:vn_close\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/vfs_vnops-baseline/vfs_vnops.c:244:1:vn_closefile\t16\tstatic"
+        ]
+      },
+      "candidate": {
+        "text": 612,
+        "data": 0,
+        "bss": 0,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/vfs_vnops-candidate/vfs_vnops.c:73:1:vn_open_at\t32\tstatic",
+          "./.build-logs/audit-baseline/device-resources/vfs_vnops-candidate/vfs_vnops.c:207:1:vn_open\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/vfs_vnops-candidate/vfs_vnops.c:223:1:vn_close\t16\tstatic",
+          "./.build-logs/audit-baseline/device-resources/vfs_vnops-candidate/vfs_vnops.c:244:1:vn_closefile\t16\tstatic"
+        ]
+      }
+    },
+    {
+      "path": "sys/arch/rp2040/rp2040/conf.c",
+      "baseline_sha256": "2ecafcfdd1b44adf214c9b2bcf60e59052ef080526887263d37d922ae0023e57",
+      "candidate_sha256": "e0f20f0bf0f229c6d04ca8543dce892be7bac7d3591ef6bcc3ae4250ea13f534",
+      "baseline": {
+        "text": 836,
+        "data": 0,
+        "bss": 0,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:58:1:nullopen\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:70:1:noopen\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:82:1:norw\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:88:1:noioctl\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:95:1:nullstop\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:104:1:nosize\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:64:1:nullclose\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:76:1:noclose\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:287:1:iskmemdev\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:301:1:isdisk\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:329:1:chrtoblk\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-baseline/conf.c:352:1:blkoverlap\t48\tstatic"
+        ]
+      },
+      "candidate": {
+        "text": 872,
+        "data": 0,
+        "bss": 0,
+        "frames": [
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:58:1:nullopen\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:70:1:noopen\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:82:1:norw\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:88:1:noioctl\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:95:1:nullstop\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:104:1:nosize\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:64:1:nullclose\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:76:1:noclose\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:287:1:iskmemdev\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:301:1:isdisk\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:329:1:chrtoblk\t0\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:340:1:blkdev_same_unit\t8\tstatic",
+          "./.build-logs/audit-baseline/device-resources/conf-candidate/conf.c:371:1:blkoverlap\t48\tstatic"
+        ]
+      }
+    }
+  ],
+  "limitations": [
+    "Matched object compilation and static frame estimates; runtime peaks and physical persistence are unmeasured."
+  ]
+}

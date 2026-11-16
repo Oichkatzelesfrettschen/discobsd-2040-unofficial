@@ -2,8 +2,12 @@
  * Assembler for Thumb-1, the ARMv6-M instruction set of the Cortex-M0+.
  * The syntax is GNU as unified Thumb syntax, as arm-none-eabi-gcc -S emits it.
  *
- * Two passes over file-based scratch segments keep the resident set independent
- * of input size.
+ * Two passes over bounded scratch segments keep the resident set independent
+ * of input size: a segment, fixup or relocation stream lives in memory until
+ * the streams together hold SCRATCH_BUDGET bytes, and a stream that would
+ * pass the budget moves to an unlinked file under /tmp. A small program
+ * therefore creates no temporary file, and the output is the only file the
+ * assembler writes.
  *
  * Instructions are halfwords, so count[] advances by two and the emitted unit
  * is a halfword. A BL occupies two halfwords and straddles a word boundary
@@ -12,9 +16,9 @@
  * patches.
  *
  * Branch and literal-load targets are usually labels defined later in the same
- * section. Those become fixup records in the relocation scratch file, and
+ * section. Those become fixup records in the relocation scratch stream, and
  * resolvefix() walks them once every symbol is known: a target in the same
- * segment is patched into the segment scratch file and its record disappears,
+ * segment is patched into the segment scratch stream and its record disappears,
  * and only a cross-segment or external target survives as a relocation.
  */
 #ifdef CROSS
@@ -389,14 +393,13 @@ const char ctype [256] = {
     8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,0,
 };
 
-FILE *sfile [SABS], *rfile [SABS];
+struct scratch *sfile [SABS], *rfile [SABS];
 unsigned count [SABS];
 unsigned nfixup [SABS];                 /* fixup records per segment */
 unsigned nreloc [SABS];                 /* relocation records per segment */
 unsigned relbytes [SABS];               /* relocation bytes per segment */
 int segm;
 char *infile, *outfile = "a.out";
-char tfilename[] = "/tmp/tasXXXXXX";
 int line;                               /* Source line number */
 int xflags, Xflag, uflag;
 int stlength;                           /* Symbol table size in bytes */
@@ -504,54 +507,210 @@ fputword(unsigned int w, FILE *f)
 }
 
 /*
+ * A scratch stream is a byte stream with a cursor that can seek, overwrite
+ * and truncate, the part of stdio a temporary file supplied. It starts in
+ * memory. scratch_held counts the bytes every memory stream has allocated;
+ * a stream that would take the total past SCRATCH_BUDGET, or that finds no
+ * memory, moves its bytes to an unlinked temporary file and continues
+ * there through stdio. Both forms behave as a file does: a write past the
+ * end zero-fills the gap and a read past the end returns EOF.
+ */
+#ifndef SCRATCH_BUDGET
+#define SCRATCH_BUDGET  32768           /* bytes held by all memory streams */
+#endif
+#define SCRATCH_STEP    512             /* growth unit of a memory stream */
+
+struct scratch {
+    unsigned char *buf;                 /* bytes of a memory stream */
+    unsigned len;                       /* bytes in use */
+    unsigned cap;                       /* bytes allocated */
+    unsigned pos;                       /* cursor */
+    FILE *fp;                           /* the spill file, once there is one */
+};
+
+unsigned scratch_held;
+
+struct scratch *
+scratch_open(void)
+{
+    struct scratch *s = calloc (1, sizeof (struct scratch));
+
+    if (! s)
+        uerror ("out of memory");
+    return s;
+}
+
+/*
+ * Move a memory stream to an unlinked temporary file, keeping its bytes
+ * and its cursor.
+ */
+void
+scratch_spill(struct scratch *s)
+{
+    char name [] = "/tmp/tasXXXXXX";
+    int fd = mkstemp (name);
+
+    if (fd == -1)
+        uerror ("cannot create temporary file %s", name);
+    s->fp = fdopen (fd, "w+");
+    if (! s->fp)
+        uerror ("cannot open %s", name);
+    unlink (name);
+    if (s->len && fwrite (s->buf, 1, s->len, s->fp) != s->len)
+        uerror ("cannot write temporary file");
+    fseek (s->fp, (long) s->pos, 0);
+    free (s->buf);
+    scratch_held -= s->cap;
+    s->buf = 0;
+    s->len = s->cap = 0;
+}
+
+/*
+ * Make room for a byte at the cursor of a memory stream. A zero return
+ * means the stream moved to its spill file.
+ */
+int
+scratch_room(struct scratch *s)
+{
+    unsigned want = (s->pos / SCRATCH_STEP + 1) * SCRATCH_STEP;
+    unsigned char *nb;
+
+    if (s->pos < s->cap)
+        return 1;
+    if (want <= s->pos || scratch_held - s->cap + want > SCRATCH_BUDGET ||
+        ! (nb = realloc (s->buf, want))) {
+        scratch_spill (s);
+        return 0;
+    }
+    scratch_held += want - s->cap;
+    s->buf = nb;
+    s->cap = want;
+    return 1;
+}
+
+void
+sputc(int c, struct scratch *s)
+{
+    if (! s->fp && scratch_room (s)) {
+        if (s->pos > s->len)
+            memset (s->buf + s->len, 0, s->pos - s->len);
+        s->buf [s->pos++] = c;
+        if (s->pos > s->len)
+            s->len = s->pos;
+        return;
+    }
+    putc (c, s->fp);
+}
+
+int
+sgetc(struct scratch *s)
+{
+    if (s->fp)
+        return getc (s->fp);
+    if (s->pos >= s->len)
+        return EOF;
+    return s->buf [s->pos++];
+}
+
+void
+sseek(struct scratch *s, long at)
+{
+    if (s->fp)
+        fseek (s->fp, at, 0);
+    else
+        s->pos = at;
+}
+
+long
+stell(struct scratch *s)
+{
+    return s->fp ? ftell (s->fp) : (long) s->pos;
+}
+
+/*
+ * Discard the contents and rewind.
+ */
+void
+struncate(struct scratch *s)
+{
+    if (s->fp) {
+        rewind (s->fp);
+        if (ftruncate (fileno (s->fp), (off_t) 0) != 0)
+            uerror ("cannot rewind a scratch file");
+    } else {
+        s->len = 0;
+        s->pos = 0;
+    }
+}
+
+void
+sclose(struct scratch *s)
+{
+    if (s->fp)
+        fclose (s->fp);
+    free (s->buf);
+    scratch_held -= s->cap;
+    free (s);
+}
+
+void
+sputword(unsigned int w, struct scratch *s)
+{
+    sputc (w, s);
+    sputc (w >> 8, s);
+    sputc (w >> 16, s);
+    sputc (w >> 24, s);
+}
+
+/*
  * Emit a Thumb sparse relocation record, and return its length.
  */
 unsigned int
-fputrel(struct reloc *r, FILE *f)
+fputrel(struct reloc *r, struct scratch *s)
 {
     unsigned nbytes = 5;
 
-    putc (r->flags, f);
-    fputword (r->addr, f);
+    sputc (r->flags, s);
+    sputword (r->addr, s);
     if ((r->flags & RSMASK) == REXT) {
-        putc (r->index, f);
-        putc (r->index >> 8, f);
-        putc (r->index >> 16, f);
+        sputc (r->index, s);
+        sputc (r->index >> 8, s);
+        sputc (r->index >> 16, s);
         nbytes += 3;
     }
     return nbytes;
 }
 
 /*
- * Write and read a fixup record in the relocation scratch file.
+ * Write and read a fixup record in the relocation scratch stream.
  */
 void
-fputfix(struct fixup *fx, FILE *f)
+fputfix(struct fixup *fx, struct scratch *s)
 {
-    putc (fx->flags, f);
-    fputword (fx->addr, f);
-    fputword (fx->index, f);
-    fputword ((unsigned) fx->addend, f);
+    sputc (fx->flags, s);
+    sputword (fx->addr, s);
+    sputword (fx->index, s);
+    sputword ((unsigned) fx->addend, s);
 }
 
 void
-fgetfix(FILE *f, struct fixup *fx)
+fgetfix(struct scratch *s, struct fixup *fx)
 {
     unsigned v;
 
-    fx->flags = getc (f);
-    fx->addr = getc (f);
-    fx->addr |= getc (f) << 8;
-    fx->addr |= getc (f) << 16;
-    fx->addr |= (unsigned) getc (f) << 24;
-    fx->index = getc (f);
-    fx->index |= getc (f) << 8;
-    fx->index |= getc (f) << 16;
-    fx->index |= (unsigned) getc (f) << 24;
-    v = getc (f);
-    v |= getc (f) << 8;
-    v |= getc (f) << 16;
-    v |= (unsigned) getc (f) << 24;
+    fx->flags = sgetc (s);
+    fx->addr = sgetc (s);
+    fx->addr |= sgetc (s) << 8;
+    fx->addr |= sgetc (s) << 16;
+    fx->addr |= (unsigned) sgetc (s) << 24;
+    fx->index = sgetc (s);
+    fx->index |= sgetc (s) << 8;
+    fx->index |= sgetc (s) << 16;
+    fx->index |= (unsigned) sgetc (s) << 24;
+    v = sgetc (s);
+    v |= sgetc (s) << 8;
+    v |= sgetc (s) << 16;
+    v |= (unsigned) sgetc (s) << 24;
     fx->addend = (int) v;
 }
 
@@ -593,27 +752,16 @@ fputsym(struct nlist *s, FILE *file)
 }
 
 /*
- * Create temporary files for STEXT, SDATA and SSTRNG segments.
+ * Create the scratch streams for STEXT, SDATA and SSTRNG segments.
  */
 void
 startup(void)
 {
     int i;
-    int fd = mkstemp (tfilename);
 
-    if (fd == -1)
-        uerror ("cannot create temporary file %s", tfilename);
-    else
-        close (fd);
     for (i=STEXT; i<SBSS; i++) {
-        sfile [i] = fopen (tfilename, "w+");
-        if (! sfile [i])
-            uerror ("cannot open %s", tfilename);
-        unlink (tfilename);
-        rfile [i] = fopen (tfilename, "w+");
-        if (! rfile [i])
-            uerror ("cannot open %s", tfilename);
-        unlink (tfilename);
+        sfile [i] = scratch_open ();
+        rfile [i] = scratch_open ();
     }
     line = 1;
 }
@@ -1350,8 +1498,8 @@ emithalf(unsigned int h)
 {
     if (segm >= SBSS)
         uerror ("instruction or data in bss");
-    putc (h, sfile[segm]);
-    putc (h >> 8, sfile[segm]);
+    sputc (h, sfile[segm]);
+    sputc (h >> 8, sfile[segm]);
     count[segm] += HALFSZ;
 }
 
@@ -1380,29 +1528,29 @@ emitfix(unsigned int format, int segment, unsigned int index,
 }
 
 /*
- * Patch a halfword already written to the segment scratch file.
+ * Patch a halfword already written to the segment scratch stream.
  */
 void
 patchhalf(int s, unsigned int addr, unsigned int h)
 {
-    long save = ftell (sfile[s]);
+    long save = stell (sfile[s]);
 
-    fseek (sfile[s], (long) addr, 0);
-    putc (h, sfile[s]);
-    putc (h >> 8, sfile[s]);
-    fseek (sfile[s], save, 0);
+    sseek (sfile[s], (long) addr);
+    sputc (h, sfile[s]);
+    sputc (h >> 8, sfile[s]);
+    sseek (sfile[s], save);
 }
 
 unsigned int
 peekhalf(int s, unsigned int addr)
 {
-    long save = ftell (sfile[s]);
+    long save = stell (sfile[s]);
     unsigned h;
 
-    fseek (sfile[s], (long) addr, 0);
-    h = getc (sfile[s]) & 0xff;
-    h |= (getc (sfile[s]) & 0xff) << 8;
-    fseek (sfile[s], save, 0);
+    sseek (sfile[s], (long) addr);
+    h = sgetc (sfile[s]) & 0xff;
+    h |= (sgetc (sfile[s]) & 0xff) << 8;
+    sseek (sfile[s], save);
     return h;
 }
 
@@ -1432,7 +1580,7 @@ alignfill(int align_bits, int usenop)
     } else if (segm < SBSS) {
         for (c=0; c<nbytes; c++) {
             count[segm]++;
-            putc (0, sfile[segm]);
+            sputc (0, sfile[segm]);
         }
     } else
         count[segm] += nbytes;
@@ -1456,7 +1604,7 @@ add_space(unsigned int nbytes, unsigned int fill_data)
         for (c=0; c<nbytes; c++) {
             count[segm]++;
             if (fill_data)
-                putc (0, sfile[segm]);
+                sputc (0, sfile[segm]);
         }
     } else
         count[segm] += nbytes;
@@ -2228,14 +2376,14 @@ makeascii(int zeroterm)
             }
             /* FALLTHROUGH */
         default:
-            putc (c, sfile[segm]);
+            sputc (c, sfile[segm]);
             nbytes++;
             continue;
         }
         break;
     }
     if (zeroterm) {
-        putc (0, sfile[segm]);
+        sputc (0, sfile[segm]);
         nbytes++;
     }
     add_space (nbytes, 0);
@@ -2435,7 +2583,7 @@ done:       segm = STEXT;
                 getexpr (&cval);
                 if (cval != SABS)
                     uerror (".byte takes an absolute value");
-                putc (intval, sfile[segm]);
+                sputc (intval, sfile[segm]);
                 nbytes++;
                 clex = getlex (&cval);
                 if (clex != ',') {
@@ -2451,8 +2599,8 @@ done:       segm = STEXT;
                 getexpr (&cval);
                 if (cval != SABS)
                     uerror (".hword takes an absolute value");
-                putc (intval, sfile[segm]);
-                putc (intval >> 8, sfile[segm]);
+                sputc (intval, sfile[segm]);
+                sputc (intval >> 8, sfile[segm]);
                 nbytes += 2;
                 clex = getlex (&cval);
                 if (clex != ',') {
@@ -2720,12 +2868,8 @@ rescan(void)
     for (i=0; i<SABS; i++)
         passcount[i] = count[i];
     for (i=STEXT; i<SBSS; i++) {
-        rewind (sfile[i]);
-        if (ftruncate (fileno (sfile[i]), (off_t) 0) != 0)
-            uerror ("cannot rewind a scratch file");
-        rewind (rfile[i]);
-        if (ftruncate (fileno (rfile[i]), (off_t) 0) != 0)
-            uerror ("cannot rewind a scratch file");
+        struncate (sfile[i]);
+        struncate (rfile[i]);
         count[i] = 0;
         nfixup[i] = 0;
     }
@@ -2800,14 +2944,11 @@ resolvefix(void)
     struct nlist *sym;
     unsigned i, s, value, hw;
     int tsegm, disp;
-    FILE *rfd;
+    struct scratch *rfd;
 
     for (s=STEXT; s<SBSS; s++) {
-        rfd = fopen (tfilename, "w+");
-        if (! rfd)
-            uerror ("cannot open %s", tfilename);
-        unlink (tfilename);
-        rewind (rfile[s]);
+        rfd = scratch_open ();
+        sseek (rfile[s], 0);
         segm = s;
         for (i=0; i<nfixup[s]; i++) {
             fgetfix (rfile[s], &fx);
@@ -2932,7 +3073,7 @@ resolvefix(void)
             fputrel (&rel, rfd);
             nreloc[s]++;
         }
-        fclose (rfile[s]);
+        sclose (rfile[s]);
         rfile[s] = rfd;
     }
     segm = STEXT;
@@ -2942,19 +3083,19 @@ resolvefix(void)
  * Read a Thumb sparse relocation record.
  */
 void
-fgetrel(FILE *f, struct reloc *r)
+fgetrel(struct scratch *s, struct reloc *r)
 {
-    r->flags = getc (f);
-    r->addr = getc (f);
-    r->addr |= getc (f) << 8;
-    r->addr |= getc (f) << 16;
-    r->addr |= (unsigned) getc (f) << 24;
+    r->flags = sgetc (s);
+    r->addr = sgetc (s);
+    r->addr |= sgetc (s) << 8;
+    r->addr |= sgetc (s) << 16;
+    r->addr |= (unsigned) sgetc (s) << 24;
     r->offset = 0;
     r->index = 0;
     if ((r->flags & RSMASK) == REXT) {
-        r->index = getc (f);
-        r->index |= getc (f) << 8;
-        r->index |= getc (f) << 16;
+        r->index = sgetc (s);
+        r->index |= sgetc (s) << 8;
+        r->index |= sgetc (s) << 16;
     }
 }
 
@@ -3045,7 +3186,7 @@ pass2(void)
     unsigned h, w, delta;
     struct reloc rel;
     struct nlist *sym;
-    FILE *rfd;
+    struct scratch *rfd;
     int c;
 
     tbase = 0;
@@ -3075,11 +3216,8 @@ pass2(void)
     }
 
     for (s=STEXT; s<SBSS; s++) {
-        rfd = fopen (tfilename, "w+");
-        if (! rfd)
-            uerror ("cannot open %s", tfilename);
-        unlink (tfilename);
-        rewind (rfile[s]);
+        rfd = scratch_open ();
+        sseek (rfile[s], 0);
         relbytes[s] = 0;
         for (h=0; h<nreloc[s]; h++) {
             fgetrel (rfile[s], &rel);
@@ -3136,16 +3274,16 @@ pass2(void)
                 rel.addr += count[SDATA];
             relbytes[s] += fputrel (&rel, rfd);
         }
-        fclose (rfile[s]);
+        sclose (rfile[s]);
         rfile[s] = rfd;
     }
 
     /* Emit the segments. */
     fseek (stdout, sizeof(struct exec), 0);
     for (s=STEXT; s<SBSS; s++) {
-        rewind (sfile[s]);
+        sseek (sfile[s], 0);
         for (h=0; h<count[s]; h++) {
-            c = getc (sfile[s]);
+            c = sgetc (sfile[s]);
             putchar (c == EOF ? 0 : c);
         }
     }
@@ -3162,9 +3300,9 @@ makereloc(int s)
 
     if (relbytes[s] == 0)
         return 0;
-    rewind (rfile[s]);
+    sseek (rfile[s], 0);
     for (i=0; i<relbytes[s]; i++) {
-        c = getc (rfile[s]);
+        c = sgetc (rfile[s]);
         putchar (c == EOF ? 0 : c);
     }
     return relbytes[s];
@@ -3225,6 +3363,19 @@ main(int argc, char *argv[])
         case '-':
             if (argv[i][1] == 0)
                 break;
+            if (argv[i][1] == '-') {
+                /*
+                 * Long options are accepted and ignored. GNU as reads the
+                 * operand of --debug-prefix-map from the next argument, and
+                 * gcc -fdebug-prefix-map forwards it that way. This
+                 * assembler writes no debug sections, so the mapping has
+                 * nothing to rewrite; the operand is consumed instead of
+                 * being opened as a source file.
+                 */
+                if (strcmp (argv[i], "--debug-prefix-map") == 0 && i+1 < argc)
+                    i++;
+                break;
+            }
             for (cp=argv[i]+1; *cp; cp++) {
                 switch (*cp) {
                 case 'X':       /* strip L* and .* locals */
@@ -3259,7 +3410,6 @@ main(int argc, char *argv[])
                     }
                     break;
                 case 'O':       /* optimization level */
-                case '-':       /* long option */
                 case 'n':       /* -no-xyz */
                 case 'm':       /* -mcpu=, -mthumb, -march= */
                 case 'E':       /* -EL */

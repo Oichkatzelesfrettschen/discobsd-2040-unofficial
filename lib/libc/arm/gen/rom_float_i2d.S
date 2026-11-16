@@ -14,7 +14,7 @@ ROM_FLOAT_FUNCTION(__aeabi_i2d)
 	beq	Li2d_zero
 	lsls	r1, r1, #31
 	push	{r0, r1, r4, lr}
-	ldr	r3, =ROM_FLOAT_CELL_NAME(clz)
+	ROM_FLOAT_CELL_ADDRESS(clz, r3, r2)
 	ldr	r3, [r3]
 	blx	r3
 	pop	{r2, r3}
@@ -31,5 +31,6 @@ ROM_FLOAT_FUNCTION(__aeabi_i2d)
 Li2d_zero:
 	bx	lr
 	.pool
+	ROM_FLOAT_GOT_LITERAL(clz)
 ROM_FLOAT_FUNCTION_END(__aeabi_i2d)
 ROM_FLOAT_ALIAS(__floatsidf, __aeabi_i2d)

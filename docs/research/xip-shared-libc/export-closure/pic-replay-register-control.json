@@ -1,0 +1,24 @@
+{
+  "source_sha256": "024f811ff0539b0a3c44324c4a2f3f9742a53f29b5a833bf511661d053957069",
+  "normal_object_sha256": "109c1b7805af268cb6df9aa36efec4a65d152d3c3997eb3c85250ad83ed3538c",
+  "normal_text_bytes": 28,
+  "fixed_register_compile_exit": 1,
+  "diagnostic": "cc1: error: unable to use 'r9' for PIC register\n",
+  "flags": [
+    "-std=c17",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Os",
+    "-fno-common",
+    "-ffunction-sections",
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-fPIC",
+    "-msingle-pic-base",
+    "-mpic-register=r9",
+    "-mno-pic-data-is-text-relative",
+    "-ffixed-r9"
+  ],
+  "claim": "The tested GCC configuration rejects fixed r9 plus the selected PIC base; no alternative-image or runtime claim follows."
+}

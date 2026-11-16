@@ -522,12 +522,12 @@ score()
     register FILE *logfd;
     register FILE *outfd;
     register int i;
-    long nowtime;
+    time_t nowtime;
     char *scoreboard;
 
     for (i=0; link(LOGFILE, LOCKFILE) == -1 && i<10; i++)
 	sleep(1);
-    nowtime = time((long *)0);
+    nowtime = time((time_t *)0);
     strcpy(cdate,ctime(&nowtime));
     if ((logfd = fopen(LOGFILE,"a")) != NULL) {
 	fprintf(logfd,

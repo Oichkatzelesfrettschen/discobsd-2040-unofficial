@@ -8,23 +8,38 @@
 
 #include <sys/time.h>
 
+/*
+ * One field list lays out struct stat and, under the 64-bit view of time
+ * (sys/_time_t.h), struct __stat32: the layout the kernel writes, which
+ * the wrappers of that view widen (lib/libc/gen/time64.h).
+ */
+#define __STAT_FIELDS(time_type) \
+    dev_t   st_dev; \
+    ino_t   st_ino; \
+    u_int   st_mode; \
+    int     st_nlink; \
+    uid_t   st_uid; \
+    gid_t   st_gid; \
+    dev_t   st_rdev; \
+    off_t   st_size; \
+    time_type st_atime; \
+    time_type st_mtime; \
+    time_type st_ctime; \
+    long    st_blksize; \
+    long    st_blocks; \
+    u_int   st_flags;
+
 struct  stat
 {
-    dev_t   st_dev;
-    ino_t   st_ino;
-    u_int   st_mode;
-    int     st_nlink;
-    uid_t   st_uid;
-    gid_t   st_gid;
-    dev_t   st_rdev;
-    off_t   st_size;
-    time_t  st_atime;
-    time_t  st_mtime;
-    time_t  st_ctime;
-    long    st_blksize;
-    long    st_blocks;
-    u_int   st_flags;
+    __STAT_FIELDS(time_t)
 };
+
+#ifdef __TIME64_VIEW
+struct  __stat32
+{
+    __STAT_FIELDS(utime32_t)
+};
+#endif
 
 #define S_IFMT  0170000         /* type of file */
 #define     S_IFDIR 0040000     /* directory */
@@ -101,7 +116,9 @@ int     chmod (const char *path, mode_t mode);
 int     fchmod (int fd, mode_t mode);
 int     mknod (const char *path, mode_t mode, dev_t dev);
 int     mkdir (const char *path, mode_t mode);
-int     stat (const char *path, struct stat *sb);
+int     stat (const char *path, struct stat *sb) __TIME64_NAME(stat);
+int     fstat (int fd, struct stat *sb) __TIME64_NAME(fstat);
+int     lstat (const char *path, struct stat *sb) __TIME64_NAME(lstat);
 mode_t  umask (mode_t cmask);
 
 #endif

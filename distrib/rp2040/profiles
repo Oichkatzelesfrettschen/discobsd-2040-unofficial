@@ -101,14 +101,25 @@ closure dc needs path /usr/bin/dc
 #
 closure calc needs path /usr/bin/calc
 
+# usr.bin/picofetch prints one screen of system and hardware readings beside
+# a logo, and usr.bin/picotop is the full-screen monitor of the same
+# readings. Both draw through the glyph bank of the PicoCalc console and fall
+# back to ASCII on any other terminal, so they run on every kernel; the
+# picocalc profile names them and any other image takes them through
+# IMAGE_WITH.
+#
+closure picofetch needs path /usr/bin/picofetch
+closure picotop needs path /usr/bin/picotop
+
 #
 # The PicoCalc's SD card is block major 5 and raw major 11 of the PICOCALC
 # kernels (sys/arch/rp2040/rp2040/conf.c). The sdcard closure carries the
-# /mnt mount point and the nodes for the whole card and its first two
-# partitions; it needs no other closure, and the PICO board's kernel has no
-# driver behind those majors, so only the picocalc profile names it.
+# /mnt mount point, the nodes for the whole card and its first two
+# partitions, and savecore(8), which copies a crash dump off the card's
+# dump partition; it needs no other closure, and the PICO board's kernel
+# has no driver behind those majors, so only the picocalc profile names it.
 #
-closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a /dev/rsd0b
+closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a /dev/rsd0b /sbin/savecore
 
 #
 # The PicoCalc's pixel device is minor 1 of character major 10, the console's
@@ -146,7 +157,9 @@ cost bc 40 2
 cost dc 21 1
 cost calc-bignum 60 3
 cost calc 33 1
-cost sdcard 1 7
+cost picofetch 14 1
+cost picotop 15 1
+cost sdcard 11 8
 cost lcdgfx 0 1
 cost gamesdir 1 1
 cost games 24 2
@@ -174,12 +187,18 @@ cost lightup 23 2
 #            PICO board builds by default
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
 #            arbitrary-precision calculator, the scientific calculator, the
-#            SD card's device nodes, the pixel device node and the platformer
-#            that draws on it; the PICOCALC board's default
+#            SD card's device nodes, the pixel device node, the platformer
+#            that draws on it, and picofetch and picotop; the PICOCALC
+#            board's default
 #
 profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games puzzles
 profile full coremark toolchain toolchainlib games puzzles
-profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge
+profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop
+
+# Opt-in desktop; the MATE artwork is supplied on external storage.
+closure matezinho needs closure lcdgfx sdcard
+closure matezinho needs path /usr/bin/matezinho /dev/lcdgfx /dev/rsd0
+profile matezinho games puzzles calc sdcard lcdgfx matezinho

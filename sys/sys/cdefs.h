@@ -39,10 +39,14 @@
  * __dead is a function specifier: `static __dead void usage(void)`. The C11
  * keyword is the standard spelling; the GNU attribute serves an older
  * dialect; any other compiler drops the annotation and loses only the
- * diagnostics it enables.
+ * diagnostics it enables.  Smaller C parses neither form, and its input can
+ * come through another compiler's preprocessor, which claims C11, so
+ * __SMALLER_C__ is tested first.
  */
 #ifndef __dead
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#if defined(__SMALLER_C__)
+#define __dead
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #define __dead		_Noreturn
 #elif defined(__GNUC__) || defined(__clang__)
 #define __dead		__attribute__((__noreturn__))

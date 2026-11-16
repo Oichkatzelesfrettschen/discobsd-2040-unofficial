@@ -81,15 +81,15 @@ extern  int     times ();
                 /* Measurements should last at least about 2 seconds */
 #endif
 #ifdef TIME
-extern long     time();
+#include <time.h>
                 /* see library function "time"  */
 #define Too_Small_Time 2
                 /* Measurements should last at least 2 seconds */
 #endif
 
-long            Begin_Time,
-                End_Time,
-                User_Time;
+time_t          Begin_Time,
+                End_Time;
+long            User_Time;
 float           Microseconds,
                 Dhrystones_Per_Second;
 
@@ -185,7 +185,7 @@ char	*argv[];
   Begin_Time = (long) time_info.tms_utime;
 #endif
 #ifdef TIME
-  Begin_Time = time ( (long *) 0);
+  Begin_Time = time((time_t *)0);
 #endif
 #endif /* SELF_TIMED */
 
@@ -244,7 +244,7 @@ char	*argv[];
   End_Time = (long) time_info.tms_utime;
 #endif
 #ifdef TIME
-  End_Time = time ( (long *) 0);
+  End_Time = time((time_t *)0);
 #endif
 #endif /* SELF_TIMED */
 
@@ -303,7 +303,7 @@ char	*argv[];
   printf ("        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n");
   printf ("\n");
 
-  User_Time = End_Time - Begin_Time;
+  User_Time = (long) (End_Time - Begin_Time);
 
   if (User_Time < Too_Small_Time)
   {

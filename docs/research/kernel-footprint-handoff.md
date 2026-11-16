@@ -151,42 +151,28 @@ configurations at `-O2` to find any further diagnostics. This unblocks
 every speed-for-size comparison; `-Oz` produces the same text as `-Os` on
 this target (scratch: 95,516 both), so `-Os` remains the size baseline.
 
-### Never-returning libc entry points (payoff unmeasured)
+### Never-returning libc entry points (measured: -1,566 packed bytes, one root block)
 
-`include/stdlib.h` (`abort` line 60, `exit` line 67), `include/unistd.h`
-(`_exit` line 79), `include/setjmp.h` (`_longjmp` line 14, `longjmp` line 20)
-and `include/err.h` (`err`, `errx`, `verr`, `verrx`, lines 19 to 24) declare
-functions that never return as plain `void`. Userland source holds 1,101
-`exit`, 53 `_exit`, 25 `abort`, 50 `err` and 24 `errx` call sites. Those are
-source counts; the code-generation payoff is unmeasured and smaller than the
-counts suggest.
+`abort`, `exit` and `_Exit` in `include/stdlib.h`, `_exit` in
+`include/unistd.h`, `longjmp`, `_longjmp` and `siglongjmp` in
+`include/setjmp.h`, and `err`, `errx`, `verr` and `verrx` in `include/err.h`
+are declared `__dead`. A world build against `main` at 4e36f422 shrank 65 of
+288 programs by 2,224 raw bytes and 1,566 packed bytes (`hsaout -s`), one
+packed root block in total; 62 programs grew by up to 10 packed bytes each,
+which `footprint-techniques.md` item 2 predicts, and `usr/sbin/update` grew
+by 4 raw bytes. The largest raw savings were `forth` 228, `ed` 188, `basic`
+180, `bc` 168 and `utilbox` 152 bytes.
 
-- Userland compiles hosted (`share/mk/sys.mk` passes neither
-  `-ffreestanding` nor `-fno-builtin`), and GCC already treats `exit`,
-  `_exit` and `abort` as non-returning library builtins there. The
-  candidates that remain are the `err` family and `longjmp`/`_longjmp` in
-  userland, and every one of these calls inside libc, which
-  `lib/libc/Makefile` compiles with `-ffreestanding`.
-- A single-file probe cannot decide the payoff. Six variants (plain and
-  `_Noreturn` declarations, each hosted, `-ffreestanding` and
-  `-fno-builtin`) produced identical function sizes, because the probe's call
-  sites were tail-call shaped and the known-good `_Noreturn` control moved
-  nothing. The kernel measurement for `panic` and `boot` (-399 bytes on
-  PICO, built `-ffreestanding -fno-builtin`) came from a whole build. The
-  decisive measurement is a world build compared in packed blocks.
-
-- Mark each declaration `__dead` (`sys/sys/cdefs.h` maps it to `_Noreturn`
-  under C11, the GNU attribute otherwise, and nothing for other compilers).
-- Each libc definition must end in a call the compiler sees as
-  non-returning, or `-Werror` reports `'noreturn' function does return`.
-  `_exit` is the assembly stub `lib/libc/arm/sys/_exit.S` (`svc #SYS_exit`),
-  so only its declaration changes.
-- The native Smaller C compiler reads these headers. Confirm that `__dead`
-  expands to nothing there, or that Smaller C accepts `_Noreturn`
-  (`c17-semantic-migration-plan.md`, "Native Smaller C rule").
-- Measure by packed root blocks (`tools/bin/rp2040/hsaout -s`) across the
-  world build, not by raw text: `footprint-techniques.md` item 2 records
-  that packed size is not monotone in code size.
+- `sys/sys/cdefs.h` expands `__dead` to nothing when `__SMALLER_C__` is
+  defined, before its C11 test: the Smaller C suite preprocesses through
+  `arm-none-eabi-gcc -E`, which claims C11, and `smlrc` rejects
+  `_Noreturn`.
+- Each header falls back to `_Noreturn` when the `<sys/cdefs.h>` it reaches
+  lacks `__dead`, as a host `<sys/cdefs.h>` does in the hosted header
+  contracts.
+- A test stand-in for one of these functions must itself not return;
+  `tests/umount_contracts` declares its `longjmp`-ending exit replacement
+  `__dead` for that reason.
 
 ### Kernel LTO (unmeasured; four blockers)
 

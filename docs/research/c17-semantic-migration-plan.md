@@ -10,7 +10,11 @@ implementation is maintained code, while its accepted input language remains
 a separate compatibility contract. Full on-device C17 development stays in
 the later DPUCP family.
 
-The integration baseline is `42bb56fb10c0b2620b2e862fda52fc03241d512c`.
+The retained modernization baseline is `42bb56fb10c0b2620b2e862fda52fc03241d512c`.
+The C17/POSIX expansion starts from refreshed owned `origin/main` revision
+`1e9864463c57f11c3a45db37d393652023843171`. Historical artifact measurements
+retain their original revisions; a refreshed source baseline supplies no new
+resource margin by itself.
 The DPUCP profile, donor ledger, allocation and line-reading libc members,
 process/runtime interfaces, shell command and getopts, utility printf,
 recovery utilities, timeout and multicall accounting are delivered foundations.
@@ -22,8 +26,10 @@ The source denominator at that baseline contains 2,590 C/header paths:
 4 accepted, 64 migration-open, 543 excluded and 1,979 unreviewed. Those states
 measure review accounting rather than independent defects. The shell already
 passes its strict-C17 compilation gate; pointer-through-int transport and
-runtime resource acceptance remain separate obligations. The finite DPUCP
-ledger contains 1,518 Issue 8 rows, with one closed and 1,517 open.
+runtime resource acceptance remain separate obligations. The retained DPUCP
+snapshot at `efc6fb87` contains 1,518 Issue 8 rows, with one closed and 1,517
+open. Current counts derive from `dpucp-2024-profile.json`; delivery and facet
+review advance independently.
 
 ### Architecture and resource invariants
 
@@ -66,9 +72,45 @@ include orders, exact function-pointer types, target sizeof/alignment/offsets,
 assembly consumers and Smaller C inputs. Deliberately invalid fixtures have
 expected-rejection contracts rather than a portable-C17 acceptance claim.
 
+The first public-header visibility unit converts `string.h` through the installed
+private `_featuretest.h` policy. The port specification
+[`string-header-visibility.md`](../../sys/arch/rp2040/doc/research/string-header-visibility.md)
+owns selector precedence and the calibrated declaration/inclusion gate. Peer
+headers retain separate conversion work; the string unit leaves full public-header
+closure and missing runtime functions open.
+
 ### Ordered modernization queue
 
-The queue below owns program order. The historical ordered work queue later
+The public time-type unit separates private scalar and aggregate owners so
+that time.h and sys/select.h supply their required complete types without
+importing syscall declarations through the ISO header. Its
+[`public-time-type-ownership.md`](public-time-type-ownership.md) record binds
+the observed failures, target ABI table, donor mechanisms, compiler/native
+matrix, and remaining narrow-layout and clock-interface obligations. This
+header unit advances type completeness while preserving the independent
+descriptor-set repair and shared ABI review queue.
+Its `43e6d7ee` implementation passes the clean aggregate, all 216 required
+inventory variants, hosted CI, both Renode kernels, and calibrated type/alias
+controls. All 162 shipped resource deltas are zero; all 278 built-program
+size/block comparisons remain unchanged. The resource record keeps archive
+date metadata separate from unchanged native member payloads. Source review
+remains open, and the header families retain partial standards claims.
+
+The installed-subdirectory header audit identifies a dependency in `FD_ZERO`
+and an uninitialized getty autobaud descriptor set. The bounded repair and its
+donor invariants, red/green predictions, compiler/native-input witnesses,
+and matched-resource obligations live in
+[`descriptor-set-initialization.md`](descriptor-set-initialization.md).
+This leaf advances header and caller ownership; complete select/pselect
+semantics and shared ABI selection retain their separate dispositions.
+Its `15113728` candidate passes the clean aggregate, all 216 required inventory
+variants, hosted CI, both Renode kernels, and focused compiler/runtime controls.
+The paired 162-surface comparison preserves kernel/native/root/block sizes
+while gamebox gains three packed bytes. Optional coil and fourfall gain two
+and four packed bytes. The exact resource approval and bounded source review
+remain open; the mechanism and resource records preserve those decisions.
+
+The queue below owns program order for the C17/POSIX expansion. The historical ordered work queue later
 in this document records delivered units and their residuals; it does not
 restart those implementations. Each row expands into one caller-complete
 mechanism per PR. A blocked row records its deciding experiment before the
@@ -76,18 +118,234 @@ next independent row starts.
 
 | Order | Mechanism | Dependency | Deciding output |
 | --- | --- | --- | --- |
-| 1 | Baseline and document reconciliation | Identified source revision and retained records | Delivered work, bounded residuals and one current queue |
-| 2 | Configuration-keyed shipped dependency closure | Evaluated commands, compiler dependencies, generated inputs, installed manifest and final links | Calibrated closure checker for PICO and PICO_UART, with archive/member and native-header ownership |
-| 3 | Reproducible resource comparison | Clean matched-toolchain parent/candidate distributions | Artifact-bound kernel/SRAM/a.out/root/member receipts; runtime and wear states remain explicit |
-| 4 | Header ownership boundaries | Shipped closure and resource baseline | Caller-complete headers with inclusion, ABI, assembly and native-input gates |
-| 5 | Calibrated compiler and analysis coverage | Header contracts and exact production commands | GNU17 target and strict-C17 portable coverage, expected-rejection fixtures and scoped analysis |
-| 6 | Shipped trust boundaries | Caller-complete interfaces and calibrated negative controls | Executable admission, copying, path, credential and parser invariants with target resource acceptance |
-| 7 | Libc and public interfaces | Existing libc evidence reconciled; all consumers identified | One interface family per change, clean consumer rebuild and native-header acceptance |
-| 8 | Typed shell execution input | Existing C17 shell behavior and parser ownership contracts | Typed string/argv and descriptor entry points; eval/source/trap/nesting/failure tests and resource receipts |
-| 9 | Filesystem and archive identity | Additive directory-relative kernel/libc contracts | Separate compress, tar and cpio race/failure gates with bounded linked costs |
-| 10 | RP2040 hardware and persistence ownership | Register/ROM/IRQ/buffer contracts and portable controls | PICO/PICO_UART builds; separately authorized silicon and recovery evidence |
-| 11 | Remaining shipped utilities and multicall units | Shipped T1 obligations addressed before broad T3 cleanup | Shipped language/interface closure and lifetime-safe composition measurements |
-| 12 | Remaining maintained source | Shipped-system milestone | Optional ARM, host tools, adapters and Smaller C implementation acceptance; justified exclusions and global closure |
+| 1 | Baseline, donor provenance and accounting | Identified source revision, existing dependency closure and retained records | Calibrated physical limits; explicit unreviewed rows; all 20 donor dispositions; matched clean source/resource receipts |
+| 2 | Public-header contracts | Shipped closure and native-header ownership | Explicit ISO C17, Issue 7/8 and BSD visibility; standalone/repeated/reordered inclusion; exact types; default compatibility and Smaller C acceptance |
+| 3 | Small strings and exit lifecycle | Header contracts and caller closure | Verified missing strnlen, strndup, stpcpy, stpncpy, quick_exit and at_quick_exit contracts with bounded access, allocation failures and reverse handler order |
+| 4 | Context-aware sorting | Typed public callbacks | Issue 8 context-last qsort_r with nested-call isolation and independent permutation/order witnesses |
+| 5 | Search and sorting bounds | Existing algorithm baselines | Tableless Two-Way and duplicate-aware/introspective sort experiments; replacements require correctness, stack and resource acceptance |
+| 6 | Shared XIP libc ABI and tooling | Current static baseline, complete object ownership and explicit exec format | Generated function/object ABI; executable-tail state; cross/native imports; kernel admission; raw/packed parity; matched image workflow |
+| 7 | C/POSIX locale foundation | Header type ownership and shared mutable-state ABI | Truthful locale selection, localeconv, byte collation/transformation, mbstate_t and restartable conversion; all-byte and error witnesses |
+| 8 | Memory streams | Private FILE backend and stdio lifetime contract | fmemopen/open_memstream with cursor, extent, capacity and publication invariants; seek/error/cleanup and peak allocation evidence |
+| 9 | Numeric conversion, formatting and math | Existing limb scanner and target precision | Grammar/error witnesses, precision-correct conversions, formatting and numerical exceptional-value contracts |
+| 10 | Calendar and clocks | Locale names, calendar arithmetic and separate kernel timer contracts | strptime/calendar tests; independent clock, timespec_get, monotonic clock and interrupted-sleep experiments |
+| 11 | Shared regular expressions | Public regex ownership and bounded resources | BRE/ERE, captures, cleanup and resource errors; individual utility migrations; conditional complexity claims |
+| 12 | Directory-relative operations and process launch | namei, descriptors, signals and exec ownership | Path-race and transactional cleanup tests; ordered spawn actions, exec failure transport and parent/child ownership |
+| 13 | Utility and shell closure | Delivered libc mechanisms and typed shell input | Selected utility behavior, archive identity, eval/source/trap/nesting/failure contracts and multicall lifetime/resource receipts |
+| 14 | Remaining maintained system | Finite standards/source denominators and shipped closure | Per-family feasibility and deciding experiments for filesystems, terminals, signals, networking, realtime, threads, native C, optional languages, host tools and hardware/persistence ownership |
+
+The [declaration census](libc-declaration-census.md) supplies the shared-ABI
+selection frontier across all tracked root headers, the installed root subset,
+four feature modes and both time widths. Public C names and linker identities
+remain separate. Standalone/macro differences, uninstalled termios declarations,
+legacy regex signatures and libc/Tcl environment overlaps retain deciding
+actions. The census preserves every API row as unreviewed; final export
+selection and runtime ownership remain implementation requirements.
+
+Each row expands through requirement facets, caller closure, donor comparison,
+calibrated behavior tests, complete implementation, clean rebuild, matched
+resource comparison, documentation and reviewed integration. Configuration-keyed
+dependency capture, compiler/analysis coverage and trust-boundary checks apply
+throughout the queue. A declaration or stub cannot close a runtime requirement.
+
+The [callable character-I/O contract](callable-character-io-contracts.md)
+closes a public-function prerequisite exposed by shared-libc API selection.
+`getc` and `putc` gain typed callable providers in the existing `fgetc.o` and
+`fputc.o` members. Four public declarations expose callable/address-taking forms
+while preserving macro expressions and FILE layout. Calibrated headers, byte
+operations, EOF/error handling and standard-stream identity supply focused
+witnesses; clean caller/native closure, matched resources and review retain
+their separate completion states. Six Issue 8 rows advance to host-witnessed
+partial status. POSIX error/timestamp/concurrency facets and physical execution
+remain open.
+
+The [EOF fixed-point qualification](stdio-eof-fixed-point-qualification.md)
+closes the repeated-read counter defect in `_filbuf`: every established-EOF
+return restores the count to zero before the next `getc` decrement. A sixth
+compiled character-I/O mutation removes only that normalization. Matched
+production receipts preserve the owner-approved eight-byte archive and
+per-program vector after complete non-hardware qualification. The six stdio
+standards rows retain their partial status and the remaining facets above.
+
+The [callable slot identity experiment](xip-shared-libc/slot-identity.md)
+gives public slots exact ELF function extents while preserving implementation
+aliases and canonical pointers. Its four compiler/link variants exercise
+independent process state, weak aliases, SRAM application imports and callbacks.
+The calibrated experiment precedes authoritative ABI generation and leaves
+complete API ownership, flash fit and production shared-exec admission open.
+
+The [divider extent contract](xip-shared-libc/divider-function-extents.md)
+closes the four zero-sized global function definitions in the measured static
+libc archive. Six metadata controls complement the existing instruction-window
+and arithmetic witnesses. Matched native assembly and selected-archive builds
+show zero size growth. The change supplies ELF ownership metadata; arithmetic
+semantics, shared ABI generation and physical-divider qualification retain
+their separate requirements.
+
+The [tableless search experiment](search-bound-experiment/README.md) retains
+the next search-bound comparison and its replay driver. The finite host and
+ARMv6-M matrices preserve earliest-match behavior while exposing the separate
+text, frame and work-count costs. The experiment stays outside shipped libc;
+general work bounds, workload timing and complete resource/caller admission
+remain prerequisites to a replacement.
+
+The [byte search contract](libc-byte-search-contracts.md) decomposes the
+explicit-length production candidate and its native archive closure.
+`memchr` receives independent unsigned-byte/int-conversion witnesses.
+`memmem` retains remembered-prefix Two-Way search with a remaining extent.
+The owner approves the exact guarded-prefix resource vector against main
+e64e2150: 748 native archive bytes, 376 loaded textbox bytes and two root
+blocks, leaving 227 free blocks. Matched current main receipts on
+1111a0d8/74bd2df9 preserve all approved resource deltas. Clean 74bd2df9
+passes the complete parallel aggregate, all 216 required inventory variants
+and both Renode boot gates. The branch also includes main 493292ec;
+both exercised logs pass its stricter warning ceilings separately.
+The lazy-NUL `strstr` investigation retains its separate deciding experiment
+and its existing worst-case work; runtime resource peaks remain unmeasured.
+The [primary factorization correspondence](libc-byte-search-factorization.md)
+resolves the one-byte donor shift difference and includes guarded-prefix work
+in the comparison budget. The original tableless variant passes its aggregate;
+common-case instruction evidence selects a separately qualified fast-path
+revision on current main. The pinned production review finds no actionable
+defect. A detached make-query repair passes calibrated controls, clean focused
+checks and the complete parallel cross tier on 768be134. Its host-only source
+change leaves the production providers unchanged; optional external review
+remains separate from its local verification. Reviewed integration completes
+this explicit-length search delivery. Historical resource limits stay bound
+to their measured source. Shared XIP implementation retains its independent
+48 KiB admission gate and the remaining ABI/lifecycle experiments. Its namespace
+closure [includes the CoreMark source owner under benchmarks](libc-export-namespace-coverage.md)
+and calibrates benchmark resolution, a colliding object and a missing required
+source. Historical receipts preserve their omitted-owner scope; final shared
+ABI selection and exact object ownership remain separate obligations.
+
+The [bidirectional sorting experiment](sort-bound-experiment/README.md)
+combines equal bands, ordered pivot samples, smaller-side recursion and a
+partition budget with allocation-free heap fallback. Its expanded host,
+ILP32, sanitizer and ARMv6-M QEMU matrices exercise 708,596 cases per entry
+variant. The measured sorted and duplicate-key families improve comparator
+work; ARM text and partition-frame growth remain explicit costs. Intrinsic
+stack bounds, matched resources and calibrated comparison-work witnesses
+govern production admission. The
+[production sorting contracts](libc-bounded-sort-contracts.md) preserve the
+48-byte recursive frame by returning partition scratch before recursion,
+repair exact callback types and ls reverse ordering, and calibrate adversarial
+work bounds. The [production resource request](libc-bounded-sort-resource-exception.md)
+records matched latest-main measurements, including maintained unshipped
+callers. Main includes the approved implementation at `efc6fb87`
+([PR #549](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/549)).
+The [qualification record](libc-bounded-sort-qualification.md) binds the complete
+aggregate, ILP32 inventory, image-qualified emulators and publication-head CI.
+General workload timing, callback-dependent runtime peaks and physical-board
+execution retain separate claims.
+
+The [bounded-string contract](libc-bounded-string-contracts.md) records the four
+small string implementations, their DragonFlyBSD provenance and calibrated
+host/ILP32/Thumb-1 witnesses. Main includes these interfaces at `11a3f970`
+([PR #463](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/463))
+with the approved [archive exception](libc-bounded-string-resource-exception.md).
+Their partial ledger states retain remaining facet review and target-runtime
+qualification; merge status supplies no additional semantic or physical evidence.
+The lifecycle interfaces retain their separate dependency and resource decisions.
+
+The [database-open admission record](libc-dbm-open-admission.md) repairs the
+existing ndbm constructor without expanding the shipped interface set. The
+public header owns complete prototypes and `mode_t`; the constructor admits a
+basename only when the suffix and terminator fit its 1,024-byte buffer, and it
+publishes a database only after both descriptors and the directory extent are
+valid. Host, available ILP32 and ARMv6-M QEMU witnesses reject eight independent
+header, bound, cleanup and arithmetic mutations. Matched clean distributions
+report zero deltas across all 158 constrained shipped surfaces; the unshipped
+full cross libc archive grows by 92 bytes. Record parsing, page mutation,
+iteration, locking, runtime resource qualification and physical-board execution
+remain separate open leaves.
+
+The [signal-set contract](signal-set-contracts.md) covers five callable scalar
+operations, exact public declarations, requested-bit membership, and checked
+signal-number shifts. Host and Cortex-M0 controls exercise the provider;
+Smaller C-generated calls exercise native header input. Fixed-mask callers
+retain their target code size. The [resource request](signal-set-resource-exception.md)
+records the approved shipped-program costs and the approved reduced-native
+archive amendment: 408 additional archive bytes and one root block close
+the native provider dependency. Main includes the qualified scalar providers at
+`050eac89`
+([PR #542](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/542));
+kernel signal delivery and physical execution remain separate requirements.
+
+Every requirement leaf records edition/option authority, declarations/types,
+input and state transitions, outputs/errors, ownership/cleanup, signal and
+concurrency interactions, archive/caller/kernel dependencies, complexity and
+resource bounds, executable witness, negative control and remaining uncertainty.
+The allowed outcomes distinguish witnessed implementation, partial work,
+audited absence, unreviewed work, legitimately unselected options and blocking
+experiments. Parent closure requires all required children to close. C17,
+SUSv4, SUSv5, native input, emulator and hardware claims remain separate.
+
+`bsd-donor-inventory.json` records all 20 checkout identities, branch/status
+observations, authoritative development refs and synchronization outcomes.
+`dpucp-2024-donor-ledger.json` retains historical pins and adds immutable
+revision-specific source identities. The donor gate checks inventory and
+mechanism structure; the optional workspace check authenticates pinned source
+bytes. Shared ancestry supplies one evidence lineage, even when multiple forks
+retain the same source. Git-object inspection leaves checkout experiments open;
+an isolated research worktree precedes experiments that require a changed tree.
+
+`posix-archive-donor-frontier.md` extends the donor investigation to 13 local
+archive roots: historical BSD, AT&T, OSF, Xinu, Schily, extracted Mach,
+Schillix, SunOS, Solaris, archived Mach, MINIX, research Unix/standards and
+seL4. Its JSON companion records 262,043 regular-file paths and 23 selected
+source/package investigations with content identities, permission observations,
+invariants, conflicts and deciding experiments. seL4 ownership admission and
+ABI generation receive explicit priority; its proof claims retain their exact
+platform/configuration boundary. DragonFlyBSD remains the preferred current
+implementation reference, while standards and target witnesses govern claims.
+Packed, binary-only and restricted-source pieces retain separate investigation
+leaves. An archive label does not establish source eligibility or semantic truth.
+
+`coherent-donor-review.md` adds the separately cloned `gspu/Coherent` donor at
+`a00b86ea22c66625cf1838a71c06129f5eda2b49`. Its file-specific review enriches
+archive dependency accounting, FILE backend dispatch, regex compilation,
+numeric scanning, syscall metadata, exec/fork ownership and image planning.
+The shallow Git tip supplies source identity; RCS histories, historical binary
+behavior and target adaptation remain separate open investigations.
+`coherent-boundary-lifecycle-witnesses.md` records a host-source scanner
+capacity counterexample and the derived live-registry repair for DiscoBSD
+`exit()`. Lifecycle qualification covers registrations made by a running
+handler before new quick-exit storage policy receives resource admission.
+The [callback allocation record](callback-allocation-accounting.md) separates
+live node extents from cold heap commitment and calibrates both against the
+production allocator. The [sorting record](qsort-partition-cost.md) measures
+the duplicate-key partition chain and an adapted DragonFly control; callback
+context, recursion depth, comparison work and linked resources retain separate
+acceptance obligations.
+The float-scanning work item separately tracks token completeness, terminator
+capacity, and normative consumption; donor return values provide no oracle.
+
+`xip-shared-libc/README.md` owns the coordinated shared-library implementation
+contract. Its historical savings remain screening evidence until matched
+current builds establish margins. Physical-board execution requires separate
+authorization; each representative shared-libc workload must stay within a
+10% regression limit with measurement uncertainty reported.
+The [export-closure record](xip-shared-libc/export-closure/README.md) adds a
+calibrated prerequisite: explicit public roots determine archive membership,
+and input-section screening stays separate from final PIC size. COMDAT-aware
+provider closure checks complete group and relocation identity and distinguishes
+gross input storage from coalesced storage. Public ABI selection, shared-archive
+build wiring, complete state layout and runtime admission remain open.
+The [captured PIC replay envelope](xip-shared-libc/export-closure/pic-replay-envelope.md)
+adds a calibrated compiler instrument with actual archive-member, source,
+dependency, tool and generated-input ownership. A clean main-based 449-member
+replay and 647-global experimental link occupy 62,604 flash bytes and 5,648
+state bytes. The fixed reservation remains exceeded by 13,452 bytes before
+function slots; omitting memmem produces a smaller image that fails the same
+required-root contract. Reviewed API selection and interface-preserving
+implementation reductions remain the deciding work.
+The [declaration frontier](shared-libc-declaration-frontier.md) records bounded
+header/provider comparison and callable-math gaps for the export-selection
+queue. Whole-header coverage and semantic acceptance remain open.
+The [native-call veneer record](native-call-veneers.md) establishes a calibrated
+instruction mechanism and the requirement to preserve canonical function
+pointers while redirecting branches. Automatic final-link insertion, stable
+slots, and shared-format emission remain the next native-linker dependencies.
 
 `c17-shipped-build-baseline.md` records the implemented capture/closure/resource
 foundation, first captured at `e7040aa1` and re-recorded at `3626ccf3`. Its
@@ -1069,3 +1327,68 @@ separate `--closure` mode.
 Cortex-M0+ kernel compilation in one explicitly invoked profile gate.
 `check-c17-smaller-c` remains separate because native language acceptance does
 not establish ISO C17 or the production cross-build result.
+
+## Independent quick-exit callback qualification
+
+The [quick-exit contract](quick-exit-contracts.md) decomposes the independent
+registry, live-head removal and `_Exit` backend. Twelve modeled cases, process
+termination and six compiled controls pass on host/ILP32 and ARMv6-M QEMU.
+Target signatures, native input and full/reduced a.out archive closure pass.
+The [integrated lifecycle resource review](libc-lifecycle-integrated-resource-exception.md)
+records the matched clean distribution, focused contracts, fourteen archive
+omission controls and ARMv6-M QEMU qualification. Quick exit adds 624 native
+archive bytes; its composition with bounded strings consumes one additional
+root data block. The complete resource vector also carries normal exit's
+sixteen positive packed-byte entries. The owner approves the exact combined
+resource limits. The complete ILP32 inventory, combined aggregate and hosted CI
+pass. Main includes the independent registries at `7566357e`
+([PR #464](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/464)).
+Remaining ledger facets and physical execution retain their own obligations;
+earlier approvals retain their exact candidate identities.
+
+## Context-aware sort qualification
+
+The [context-sort contracts](context-sort-contracts.md) bind the Issue 8 callback
+signature, per-call ownership, existing smaller-side recursion and native archive
+closure. The initial source at `88abf715` preserves the ordinary-sort cross
+object byte-for-byte and passes calibrated context/record witnesses; its
+approved resources and qualification support
+[PR #465](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/465).
+The later bounded implementation at `efc6fb87` replaces both providers under
+its separate comparison, stack and resource acceptance record. The ordinary
+`qsort` interface predates this work; bounded work and stronger witnesses are
+additional behavior and evidence, respectively.
+
+## Callable integer magnitude providers
+
+The [absolute-value contracts](libc-absolute-value-contracts.md) close the
+`abs`/`labs` declaration-to-provider gap in the ELF and native archives.
+Volatile address-taking, strict C17, ILP32, sanitizer, Thumb-1 and Smaller C
+witnesses cover the defined representability domain. Native archive omission
+controls reject each missing member. Main includes the approved, qualified
+providers at `efe16f8b`
+([PR #470](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/470)).
+Their Issue 8 facets close for the selected static profile under the documented
+representability rule. Shared-libc export ownership, whole-library conformance
+and physical-board execution retain separate claims and the fixed flash reservation.
+
+The [root-header inclusion contract](public-header-inclusion-contract.md)
+repairs six repeated-inclusion failures and separates curses integer storage
+from C17 boolean spelling. Main includes its qualified zero-growth repair at
+`efb4a05a`
+([PR #546](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/546)).
+Smaller C accepts
+12 legacy inputs but rejects three stdbool inputs at its existing `_Bool`
+parser boundary. That native type mechanism remains an explicit compiler leaf.
+
+The [record-header inclusion contracts](record-header-inclusion.md) track
+group, device and login-record prerequisites, target layout, native compiler
+input and caller closure. Inclusion repair preserves the existing signed group
+identifier and time-selected login-record ABI; POSIX type and namespace
+conformance remain separate requirements.
+
+The [network-header inclusion contracts](network-header-inclusion.md) cover
+standalone, repeated and reordered internet-header inputs while preserving
+existing ARM layouts and byte-order declarations. The calibrated compiler and
+Smaller C lanes precede clean consumer and resource qualification; added POSIX
+types and revised signatures remain separate work.

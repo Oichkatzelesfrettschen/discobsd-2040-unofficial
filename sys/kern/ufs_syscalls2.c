@@ -7,6 +7,8 @@
 #include <sys/user.h>
 #include <sys/inode.h>
 #include <sys/buf.h>
+#include <sys/conf.h>
+#include <sys/disk.h>
 #include <sys/fs.h>
 #include <sys/namei.h>
 #include <sys/mount.h>
@@ -24,12 +26,12 @@ statfs1(struct mount *mp, struct statfs *sbp)
     sfsp = &sfs;
     bzero((caddr_t)sfsp, sizeof(*sfsp));
     sfsp->f_type = MOUNT_UFS;
-    sfsp->f_bsize = MAXBSIZE;
+    sfsp->f_bsize = FS_BSIZE(fs);
     sfsp->f_iosize = MAXBSIZE;
     sfsp->f_blocks = fs->fs_fsize - fs->fs_isize;
     sfsp->f_bfree = fs->fs_tfree;
     sfsp->f_bavail = fs->fs_tfree;
-    sfsp->f_files = (fs->fs_isize - 1) * INOPB;
+    sfsp->f_files = (fs->fs_isize - 1 - FS_SUPERB(fs)) * FS_INOPB(fs);
     sfsp->f_ffree = fs->fs_tinode;
 
 #ifdef SINGLE_UFS_ROOT
@@ -40,6 +42,10 @@ statfs1(struct mount *mp, struct statfs *sbp)
     bcopy (mp->m_mntfrom, sfsp->f_mntfromname, MNAMELEN);
 #endif
     sfsp->f_flags = mp->m_flags & MNT_VISFLAGMASK;
+#ifdef V7FS
+    /* The format is the one property of the mount statfs alone reports. */
+    sfsp->f_flags |= mp->m_flags & MNT_V7;
+#endif
     return copyout ((caddr_t) sfsp, (caddr_t) sbp, sizeof (struct statfs));
 }
 
@@ -154,16 +160,40 @@ syncinodes(struct fs *fs)
 }
 
 /*
+ * Ask the driver of dev to make the writes it has completed survive a reset
+ * (DIOCCHECKPOINT in sys/disk.h). A driver that answers the ioctl itself with
+ * an error has no checkpoint to take, as noioctl() and the drivers without
+ * the command do; the checkpoint's own failure arrives in the argument.
+ * ufs_sync() and the rp2040 shutdown path call it.
+ */
+int
+bdev_checkpoint(dev_t dev)
+{
+    int error = 0;
+
+    if ((*bdevsw[major(dev)].d_ioctl)(dev, DIOCCHECKPOINT,
+        (caddr_t)&error, 0) != 0)
+        return (0);
+    return (error);
+}
+
+/*
  * 'ufs_sync' is the routine which syncs a single filesystem.  This was
  * created to replace 'update' which 'unmount' called.  It seemed silly to
  * sync _every_ filesystem when unmounting just one filesystem.
+ *
+ * The device checkpoint comes last and runs whether or not this call wrote
+ * anything or failed, so it covers every write that reached the driver before
+ * it: bwrite() waits for each write here, and the flash driver completes a
+ * request before its strategy routine returns. A checkpoint failure latches
+ * in m_write_error like a failed buffer write.
  */
 int
 ufs_sync(register struct mount *mp)
 {
     register struct fs *fs;
     struct  buf *bp;
-    int error, flush_error;
+    int error, flush_error, checkpoint_error;
 
     fs = &mp->m_filsys;
     if (fs->fs_fmod && (mp->m_flags & MNT_RDONLY)) {
@@ -175,23 +205,38 @@ ufs_sync(register struct mount *mp)
     if (error == 0)
         error = flush_error;
     if (error)
-        return (error);
+        goto checkpoint;
     /*
      * And lastly the superblock, if the filesystem was modified.
      * Write back modified superblocks. Consistency check that the superblock
      * of each file system is still in the buffer cache.
      */
     if (fs->fs_fmod) {
+#ifdef V7FS
+        if (FS_ISV7(fs)) {
+            fs->fs_fmod = 0;
+            fs->fs_time = time.tv_sec;
+            error = v7_sbwrite(mp, 1);
+        } else
+#endif
+        {
         bp = getblk(mp->m_dev, SUPERB);
         fs->fs_fmod = 0;
         fs->fs_time = time.tv_sec;
         bcopy(fs, bp->b_addr, sizeof (struct fs));
         error = bwrite(bp);
+        }
         if (error)
             fs->fs_fmod = 1;
     }
     if (error == 0)
         error = mp->m_write_error;
+checkpoint:
+    checkpoint_error = bdev_checkpoint(mp->m_dev);
+    if (checkpoint_error != 0 && mp->m_write_error == 0)
+        mp->m_write_error = checkpoint_error;
+    if (error == 0)
+        error = checkpoint_error;
     return(error);
 }
 
@@ -247,7 +292,10 @@ lseek(void)
 }
 
 /*
- * Synch an open file.
+ * Synch an open file. A block device node belongs to the filesystem that
+ * holds it, whose ufs_sync() checkpoints that filesystem's device; the
+ * device the node represents may be another one, so its own checkpoint
+ * follows syncip() draining its buffers.
  */
 void
 fsync(void)
@@ -266,6 +314,8 @@ fsync(void)
     ilock(ip);
     error = syncip(ip);
     iunlock(ip);
+    if (error == 0 && (ip->i_mode & IFMT) == IFBLK)
+        error = bdev_checkpoint(ip->i_rdev);
     if (error == 0)
         error = ufs_sync(mp);
     if (error)

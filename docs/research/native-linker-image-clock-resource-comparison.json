@@ -1,0 +1,758 @@
+{
+  "archive_changes": {
+    "/bin/box": {
+      "added": [],
+      "removed": []
+    },
+    "/bin/ed": {
+      "added": [],
+      "removed": []
+    },
+    "/bin/ps": {
+      "added": [],
+      "removed": []
+    },
+    "/bin/sh": {
+      "added": [],
+      "removed": []
+    },
+    "/bin/sysbox": {
+      "added": [],
+      "removed": []
+    },
+    "/bin/tar": {
+      "added": [],
+      "removed": []
+    },
+    "/sbin/adminbox": {
+      "added": [],
+      "removed": []
+    },
+    "/sbin/fsck": {
+      "added": [],
+      "removed": []
+    },
+    "/sbin/init": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/as": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/awk": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/compress": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/coremark": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/cpio": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/du": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/find": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/fstat": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/grepbox": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/ld": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/login": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/menu": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/passwd": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/sed": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/stevie": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/su": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/tail": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/tee": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/textbox": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/bin/utilbox": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/games/gamebox": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/games/puzzlebox": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/libexec/getty": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/libexec/smlrc": {
+      "added": [],
+      "removed": []
+    },
+    "/usr/sbin/update": {
+      "added": [],
+      "removed": []
+    },
+    "native:/usr/lib/crt0.o": {
+      "added": [],
+      "removed": []
+    },
+    "native:/usr/lib/libc.a": {
+      "added": [],
+      "removed": []
+    }
+  },
+  "archive_selection_changes": {
+    "PICO": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "PICO_UART": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "native.usr.lib.crt0.o": {},
+    "native.usr.lib.libc.a": {
+      "tree:distrib/obj/boardlibc.rp2040/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.bin.box": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.bin.ed": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.bin.ps": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.bin.sh": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.bin.sysbox": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.bin.tar": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.sbin.adminbox": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.sbin.fsck": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.sbin.init": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.as": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.awk": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libm.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.compress": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.coremark": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.cpio": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.du": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.find": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.fstat": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.grepbox": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.ld": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.login": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libutil.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.menu": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.passwd": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.sed": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.stevie": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.su": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.tail": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.tee": {
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.textbox": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.bin.utilbox": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.games.gamebox": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.games.puzzlebox": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.libexec.getty": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.libexec.smlrc": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    },
+    "root.usr.sbin.update": {
+      "external:libgcc.a@919bf5fbb495e52566673f08023cf3b56ad3c190bb0877cd8e63c3b78a5abe0d": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      },
+      "tree:lib/libc.a": {
+        "added": [],
+        "changed": [],
+        "removed": []
+      }
+    }
+  },
+  "deltas": {
+    "kernel:PICO:flash_bytes": 0,
+    "kernel:PICO:kernel_allocated_bytes": 0,
+    "kernel:PICO:kernel_extent_bytes": 0,
+    "kernel:PICO:scratch_allocated_bytes": 0,
+    "kernel:PICO:scratch_extent_bytes": 0,
+    "kernel:PICO:u0area_allocated_bytes": 0,
+    "kernel:PICO:u0area_extent_bytes": 0,
+    "kernel:PICO:uarea_allocated_bytes": 0,
+    "kernel:PICO:uarea_extent_bytes": 0,
+    "kernel:PICO:usb_dpram_allocated_bytes": 0,
+    "kernel:PICO:usb_dpram_extent_bytes": 0,
+    "kernel:PICO_UART:flash_bytes": 0,
+    "kernel:PICO_UART:kernel_allocated_bytes": 0,
+    "kernel:PICO_UART:kernel_extent_bytes": 0,
+    "kernel:PICO_UART:scratch_allocated_bytes": 0,
+    "kernel:PICO_UART:scratch_extent_bytes": 0,
+    "kernel:PICO_UART:u0area_allocated_bytes": 0,
+    "kernel:PICO_UART:u0area_extent_bytes": 0,
+    "kernel:PICO_UART:uarea_allocated_bytes": 0,
+    "kernel:PICO_UART:uarea_extent_bytes": 0,
+    "kernel:PICO_UART:usb_dpram_allocated_bytes": 0,
+    "kernel:PICO_UART:usb_dpram_extent_bytes": 0,
+    "native:/usr/lib/crt0.o:bytes": 0,
+    "native:/usr/lib/libc.a:bytes": 0,
+    "program:/bin/box:loaded_bytes": 0,
+    "program:/bin/box:packed_blocks": 0,
+    "program:/bin/box:packed_bytes": 0,
+    "program:/bin/box:raw_bytes": 0,
+    "program:/bin/ed:loaded_bytes": 0,
+    "program:/bin/ed:packed_blocks": 0,
+    "program:/bin/ed:packed_bytes": 0,
+    "program:/bin/ed:raw_bytes": 0,
+    "program:/bin/ps:loaded_bytes": 0,
+    "program:/bin/ps:packed_blocks": 0,
+    "program:/bin/ps:packed_bytes": 0,
+    "program:/bin/ps:raw_bytes": 0,
+    "program:/bin/sh:loaded_bytes": 0,
+    "program:/bin/sh:packed_blocks": 0,
+    "program:/bin/sh:packed_bytes": 0,
+    "program:/bin/sh:raw_bytes": 0,
+    "program:/bin/sysbox:loaded_bytes": 0,
+    "program:/bin/sysbox:packed_blocks": 0,
+    "program:/bin/sysbox:packed_bytes": 0,
+    "program:/bin/sysbox:raw_bytes": 0,
+    "program:/bin/tar:loaded_bytes": 0,
+    "program:/bin/tar:packed_blocks": 0,
+    "program:/bin/tar:packed_bytes": 0,
+    "program:/bin/tar:raw_bytes": 0,
+    "program:/sbin/adminbox:loaded_bytes": 0,
+    "program:/sbin/adminbox:packed_blocks": 0,
+    "program:/sbin/adminbox:packed_bytes": 0,
+    "program:/sbin/adminbox:raw_bytes": 0,
+    "program:/sbin/fsck:loaded_bytes": 0,
+    "program:/sbin/fsck:packed_blocks": 0,
+    "program:/sbin/fsck:packed_bytes": 0,
+    "program:/sbin/fsck:raw_bytes": 0,
+    "program:/sbin/init:loaded_bytes": 0,
+    "program:/sbin/init:packed_blocks": 0,
+    "program:/sbin/init:packed_bytes": 0,
+    "program:/sbin/init:raw_bytes": 0,
+    "program:/usr/bin/as:loaded_bytes": 0,
+    "program:/usr/bin/as:packed_blocks": 0,
+    "program:/usr/bin/as:packed_bytes": 0,
+    "program:/usr/bin/as:raw_bytes": 0,
+    "program:/usr/bin/awk:loaded_bytes": 0,
+    "program:/usr/bin/awk:packed_blocks": 0,
+    "program:/usr/bin/awk:packed_bytes": 0,
+    "program:/usr/bin/awk:raw_bytes": 0,
+    "program:/usr/bin/compress:loaded_bytes": 0,
+    "program:/usr/bin/compress:packed_blocks": 0,
+    "program:/usr/bin/compress:packed_bytes": 0,
+    "program:/usr/bin/compress:raw_bytes": 0,
+    "program:/usr/bin/coremark:loaded_bytes": 0,
+    "program:/usr/bin/coremark:packed_blocks": 0,
+    "program:/usr/bin/coremark:packed_bytes": 0,
+    "program:/usr/bin/coremark:raw_bytes": 0,
+    "program:/usr/bin/cpio:loaded_bytes": 0,
+    "program:/usr/bin/cpio:packed_blocks": 0,
+    "program:/usr/bin/cpio:packed_bytes": 0,
+    "program:/usr/bin/cpio:raw_bytes": 0,
+    "program:/usr/bin/du:loaded_bytes": 0,
+    "program:/usr/bin/du:packed_blocks": 0,
+    "program:/usr/bin/du:packed_bytes": 0,
+    "program:/usr/bin/du:raw_bytes": 0,
+    "program:/usr/bin/find:loaded_bytes": 0,
+    "program:/usr/bin/find:packed_blocks": 0,
+    "program:/usr/bin/find:packed_bytes": 0,
+    "program:/usr/bin/find:raw_bytes": 0,
+    "program:/usr/bin/fstat:loaded_bytes": 0,
+    "program:/usr/bin/fstat:packed_blocks": 0,
+    "program:/usr/bin/fstat:packed_bytes": 0,
+    "program:/usr/bin/fstat:raw_bytes": 0,
+    "program:/usr/bin/grepbox:loaded_bytes": 0,
+    "program:/usr/bin/grepbox:packed_blocks": 0,
+    "program:/usr/bin/grepbox:packed_bytes": 0,
+    "program:/usr/bin/grepbox:raw_bytes": 0,
+    "program:/usr/bin/ld:loaded_bytes": 1324,
+    "program:/usr/bin/ld:packed_blocks": 1,
+    "program:/usr/bin/ld:packed_bytes": 918,
+    "program:/usr/bin/ld:raw_bytes": 1324,
+    "program:/usr/bin/login:loaded_bytes": 0,
+    "program:/usr/bin/login:packed_blocks": 0,
+    "program:/usr/bin/login:packed_bytes": 0,
+    "program:/usr/bin/login:raw_bytes": 0,
+    "program:/usr/bin/menu:loaded_bytes": 0,
+    "program:/usr/bin/menu:packed_blocks": 0,
+    "program:/usr/bin/menu:packed_bytes": 0,
+    "program:/usr/bin/menu:raw_bytes": 0,
+    "program:/usr/bin/passwd:loaded_bytes": 0,
+    "program:/usr/bin/passwd:packed_blocks": 0,
+    "program:/usr/bin/passwd:packed_bytes": 0,
+    "program:/usr/bin/passwd:raw_bytes": 0,
+    "program:/usr/bin/sed:loaded_bytes": 0,
+    "program:/usr/bin/sed:packed_blocks": 0,
+    "program:/usr/bin/sed:packed_bytes": 0,
+    "program:/usr/bin/sed:raw_bytes": 0,
+    "program:/usr/bin/stevie:loaded_bytes": 0,
+    "program:/usr/bin/stevie:packed_blocks": 0,
+    "program:/usr/bin/stevie:packed_bytes": 0,
+    "program:/usr/bin/stevie:raw_bytes": 0,
+    "program:/usr/bin/su:loaded_bytes": 0,
+    "program:/usr/bin/su:packed_blocks": 0,
+    "program:/usr/bin/su:packed_bytes": 0,
+    "program:/usr/bin/su:raw_bytes": 0,
+    "program:/usr/bin/tail:loaded_bytes": 0,
+    "program:/usr/bin/tail:packed_blocks": 0,
+    "program:/usr/bin/tail:packed_bytes": 0,
+    "program:/usr/bin/tail:raw_bytes": 0,
+    "program:/usr/bin/tee:loaded_bytes": 0,
+    "program:/usr/bin/tee:packed_blocks": 0,
+    "program:/usr/bin/tee:packed_bytes": 0,
+    "program:/usr/bin/tee:raw_bytes": 0,
+    "program:/usr/bin/textbox:loaded_bytes": 0,
+    "program:/usr/bin/textbox:packed_blocks": 0,
+    "program:/usr/bin/textbox:packed_bytes": 0,
+    "program:/usr/bin/textbox:raw_bytes": 0,
+    "program:/usr/bin/utilbox:loaded_bytes": 0,
+    "program:/usr/bin/utilbox:packed_blocks": 0,
+    "program:/usr/bin/utilbox:packed_bytes": 0,
+    "program:/usr/bin/utilbox:raw_bytes": 0,
+    "program:/usr/games/gamebox:loaded_bytes": 0,
+    "program:/usr/games/gamebox:packed_blocks": 0,
+    "program:/usr/games/gamebox:packed_bytes": 0,
+    "program:/usr/games/gamebox:raw_bytes": 0,
+    "program:/usr/games/puzzlebox:loaded_bytes": 0,
+    "program:/usr/games/puzzlebox:packed_blocks": 0,
+    "program:/usr/games/puzzlebox:packed_bytes": 0,
+    "program:/usr/games/puzzlebox:raw_bytes": 0,
+    "program:/usr/libexec/getty:loaded_bytes": 0,
+    "program:/usr/libexec/getty:packed_blocks": 0,
+    "program:/usr/libexec/getty:packed_bytes": 0,
+    "program:/usr/libexec/getty:raw_bytes": 0,
+    "program:/usr/libexec/smlrc:loaded_bytes": 0,
+    "program:/usr/libexec/smlrc:packed_blocks": 0,
+    "program:/usr/libexec/smlrc:packed_bytes": 0,
+    "program:/usr/libexec/smlrc:raw_bytes": 0,
+    "program:/usr/sbin/update:loaded_bytes": 0,
+    "program:/usr/sbin/update:packed_blocks": 0,
+    "program:/usr/sbin/update:packed_bytes": 0,
+    "program:/usr/sbin/update:raw_bytes": 0,
+    "root:data_blocks": 1,
+    "root:used_inodes": 0
+  },
+  "positive_deltas": [
+    "program:/usr/bin/ld:loaded_bytes",
+    "program:/usr/bin/ld:packed_blocks",
+    "program:/usr/bin/ld:packed_bytes",
+    "program:/usr/bin/ld:raw_bytes",
+    "root:data_blocks"
+  ],
+  "runtime_acceptance": "open",
+  "schema_version": 2
+}

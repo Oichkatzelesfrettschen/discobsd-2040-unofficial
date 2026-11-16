@@ -1,0 +1,306 @@
+{
+  "baseline": {
+    "hsaout_sha256": "e25557bf3f3c2f389c8d6b3957236b0f250c7f68b931fcd75be6e1a36cf28c35",
+    "programs": {
+      "bin/ls/ls": {
+        "bss": 5692,
+        "data": 616,
+        "loaded_bytes": 20744,
+        "packed_blocks": 14,
+        "packed_bytes": 13197,
+        "raw_blocks": 16,
+        "raw_bytes": 15084,
+        "sha256": "0df90827989d32c9477760717951b906f75747a68a5f024064176b88f4c2c049",
+        "text": 14436
+      },
+      "games/atc/atc": {
+        "bss": 6712,
+        "data": 1960,
+        "loaded_bytes": 48092,
+        "packed_blocks": 34,
+        "packed_bytes": 33421,
+        "raw_blocks": 42,
+        "raw_bytes": 41412,
+        "sha256": "f8865e9f58950e086a339918dabaefcc667edb713f48f3e9d284a807d0e7a0b1",
+        "text": 39420
+      },
+      "games/boggle/boggle": {
+        "bss": 16436,
+        "data": 596,
+        "loaded_bytes": 32188,
+        "packed_blocks": 14,
+        "packed_bytes": 13242,
+        "raw_blocks": 17,
+        "raw_bytes": 15784,
+        "sha256": "36107951339a988c1d6e3ed1c07fa9ceb519e4732adc2288fdb17a7daca8f103",
+        "text": 15156
+      },
+      "games/robots/robots": {
+        "bss": 6500,
+        "data": 724,
+        "loaded_bytes": 28544,
+        "packed_blocks": 20,
+        "packed_bytes": 19273,
+        "raw_blocks": 23,
+        "raw_bytes": 22076,
+        "sha256": "2fb3fd0a9543359696a14f71bea1df280890b4bb0965d48d866b4b4be19453bd",
+        "text": 21320
+      },
+      "games/wump/wump": {
+        "bss": 392,
+        "data": 456,
+        "loaded_bytes": 10056,
+        "packed_blocks": 9,
+        "packed_bytes": 7614,
+        "raw_blocks": 11,
+        "raw_bytes": 9696,
+        "sha256": "a6114d3a2237bc3e70b4cab102221def38ab489729fba0c44e3dca745845f5dd",
+        "text": 9208
+      },
+      "usr.bin/diff/diff": {
+        "bss": 2732,
+        "data": 424,
+        "loaded_bytes": 23764,
+        "packed_blocks": 19,
+        "packed_bytes": 18208,
+        "raw_blocks": 22,
+        "raw_bytes": 21064,
+        "sha256": "aec7ae2b7c6a22ff26c3e521189ae0d51f448f15f1e62c68b885a0ba61200e5f",
+        "text": 20608
+      },
+      "usr.bin/nm/nm": {
+        "bss": 260,
+        "data": 204,
+        "loaded_bytes": 11660,
+        "packed_blocks": 11,
+        "packed_bytes": 9863,
+        "raw_blocks": 13,
+        "raw_bytes": 11432,
+        "sha256": "e4e3ab415ee7ca450a0a4d276fc63d395119b95c7cf06acbd4fa2bc8fe554b69",
+        "text": 11196
+      },
+      "usr.bin/tclsh/tclsh": {
+        "bss": 536,
+        "data": 680,
+        "loaded_bytes": 65536,
+        "packed_blocks": 54,
+        "packed_bytes": 54069,
+        "raw_blocks": 65,
+        "raw_bytes": 65032,
+        "sha256": "7c09f1451007ca9289258cc1b3357e82bfb0a7c12cea0f7ce840298b85efe619",
+        "text": 64320
+      },
+      "usr.bin/uucp/uuq": {
+        "bss": 3324,
+        "data": 476,
+        "loaded_bytes": 20284,
+        "packed_blocks": 16,
+        "packed_bytes": 14829,
+        "raw_blocks": 18,
+        "raw_bytes": 16992,
+        "sha256": "abf94ed3d2a5ca1344560ae3559ed1ca546fddc8f235fe01c087b65b60024c5f",
+        "text": 16484
+      }
+    },
+    "source_commit": "a849d47ace2d8a6a9c264bf9ee43d6dc8db9786e"
+  },
+  "candidate": {
+    "hsaout_sha256": "e25557bf3f3c2f389c8d6b3957236b0f250c7f68b931fcd75be6e1a36cf28c35",
+    "programs": {
+      "bin/ls/ls": {
+        "bss": 5692,
+        "data": 616,
+        "loaded_bytes": 21064,
+        "packed_blocks": 15,
+        "packed_bytes": 13467,
+        "raw_blocks": 17,
+        "raw_bytes": 15404,
+        "sha256": "25bad94908e263493331437334314a68ad3102f16338cb687ef3b927d7018c38",
+        "text": 14756
+      },
+      "games/atc/atc": {
+        "bss": 6712,
+        "data": 1960,
+        "loaded_bytes": 48412,
+        "packed_blocks": 34,
+        "packed_bytes": 33669,
+        "raw_blocks": 42,
+        "raw_bytes": 41732,
+        "sha256": "9b5b49b8d4a0aa9c95700fd8c8cedab41f4f8f9ae1dbf69b55b39e3298558393",
+        "text": 39740
+      },
+      "games/boggle/boggle": {
+        "bss": 16436,
+        "data": 596,
+        "loaded_bytes": 32508,
+        "packed_blocks": 15,
+        "packed_bytes": 13502,
+        "raw_blocks": 17,
+        "raw_bytes": 16104,
+        "sha256": "07c6b98116f84c0d1772aae4b06042d16dbae7e9155cb743afa928045fae4d31",
+        "text": 15476
+      },
+      "games/robots/robots": {
+        "bss": 6500,
+        "data": 724,
+        "loaded_bytes": 28864,
+        "packed_blocks": 21,
+        "packed_bytes": 19534,
+        "raw_blocks": 23,
+        "raw_bytes": 22396,
+        "sha256": "c6445def99f161ee795d29ecfa859f6dfd6003ae84dece62608ace95335b8673",
+        "text": 21640
+      },
+      "games/wump/wump": {
+        "bss": 392,
+        "data": 456,
+        "loaded_bytes": 10376,
+        "packed_blocks": 9,
+        "packed_bytes": 7884,
+        "raw_blocks": 11,
+        "raw_bytes": 10016,
+        "sha256": "c6906a6348f46db7e0eb0f76c67a7c153075f8cd2bdc7fab08268bd6721de981",
+        "text": 9528
+      },
+      "usr.bin/diff/diff": {
+        "bss": 2732,
+        "data": 424,
+        "loaded_bytes": 24084,
+        "packed_blocks": 20,
+        "packed_bytes": 18480,
+        "raw_blocks": 22,
+        "raw_bytes": 21384,
+        "sha256": "906f0899a938c0622d5292cebd380616ee408edb281961c1bf5c92a7b881c434",
+        "text": 20928
+      },
+      "usr.bin/nm/nm": {
+        "bss": 260,
+        "data": 204,
+        "loaded_bytes": 11980,
+        "packed_blocks": 11,
+        "packed_bytes": 10122,
+        "raw_blocks": 13,
+        "raw_bytes": 11752,
+        "sha256": "722c5514802b7f7f6d7f6432a79d7abd109db40238565f6df09e6cf44d576140",
+        "text": 11516
+      },
+      "usr.bin/tclsh/tclsh": {
+        "bss": 536,
+        "data": 680,
+        "loaded_bytes": 65856,
+        "packed_blocks": 55,
+        "packed_bytes": 54375,
+        "raw_blocks": 65,
+        "raw_bytes": 65352,
+        "sha256": "f96e0b780a408f6ac97708e1b240231167ee8fb6925e11f13024eb6ccdc03673",
+        "text": 64640
+      },
+      "usr.bin/uucp/uuq": {
+        "bss": 3324,
+        "data": 476,
+        "loaded_bytes": 20604,
+        "packed_blocks": 16,
+        "packed_bytes": 15083,
+        "raw_blocks": 18,
+        "raw_bytes": 17312,
+        "sha256": "932905bf3572133115f8582d490b4522eeae4086f74fb5d3d4fe9891f2b99a3d",
+        "text": 16804
+      }
+    },
+    "source_commit": "5b823bb3e304e5db151ed40373d078beafd9deee"
+  },
+  "deltas": {
+    "bin/ls/ls": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 1,
+      "packed_bytes": 270,
+      "raw_blocks": 1,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "games/atc/atc": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 0,
+      "packed_bytes": 248,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "games/boggle/boggle": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 1,
+      "packed_bytes": 260,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "games/robots/robots": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 1,
+      "packed_bytes": 261,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "games/wump/wump": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 0,
+      "packed_bytes": 270,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "usr.bin/diff/diff": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 1,
+      "packed_bytes": 272,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "usr.bin/nm/nm": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 0,
+      "packed_bytes": 259,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "usr.bin/tclsh/tclsh": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 1,
+      "packed_bytes": 306,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    },
+    "usr.bin/uucp/uuq": {
+      "bss": 0,
+      "data": 0,
+      "loaded_bytes": 320,
+      "packed_blocks": 0,
+      "packed_bytes": 254,
+      "raw_blocks": 0,
+      "raw_bytes": 320,
+      "text": 320
+    }
+  },
+  "evidence_class": "static-unshipped-program-resources",
+  "runtime": "unmeasured"
+}

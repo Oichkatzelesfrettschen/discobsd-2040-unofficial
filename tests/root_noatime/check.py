@@ -15,7 +15,7 @@ CONFIG_OPTION = 'options         "ROOT_MOUNT_FLAGS=MNT_NOATIME"'
 MAKEFILE_OPTION = "PARAM += -DROOT_MOUNT_FLAGS=MNT_NOATIME"
 READ_GUARD = "if (! (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME))"
 EXPLICIT_ATIME = (
-    "if (vap->va_atime != (time_t)VNOVAL)\n"
+    "if (!VATTR_TIME_UNSET(vap->va_atime))\n"
     "            ip->i_flag |= IACC;"
 )
 
@@ -115,7 +115,7 @@ def main() -> int:
     fio_path = "sys/kern/ufs_fio.c"
     ufs_fio = (root / fio_path).read_text()
     legacy_explicit_atime = (
-        "if (vap->va_atime != (time_t)VNOVAL &&\n"
+        "if (!VATTR_TIME_UNSET(vap->va_atime) &&\n"
         "            ! (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME))\n"
         "            ip->i_flag |= IACC;"
     )

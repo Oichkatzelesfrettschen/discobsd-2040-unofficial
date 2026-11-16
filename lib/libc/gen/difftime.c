@@ -31,11 +31,28 @@
  * SUCH DAMAGE.
  */
 
+#include <limits.h>
 #include <time.h>
 
 double
 difftime(time_t end, time_t beginning)
 {
-	/* Each endpoint converts before subtraction so time_t cannot overflow. */
+#ifdef __TIME64_VIEW
+	/*
+	 * A double holds 53 bits, so two 64-bit counts that round to one
+	 * double would lose their difference. The difference is formed in 64
+	 * bits and rounded once whenever it fits a long long, which the
+	 * comparison decides without forming it; a difference beyond that
+	 * converts each endpoint first, as below.
+	 */
+	if (beginning < 0 ? end <= LLONG_MAX + beginning :
+	    end >= LLONG_MIN + beginning)
+		return (double)(end - beginning);
+#endif
+	/*
+	 * Each endpoint converts before subtraction, so a 32-bit unsigned
+	 * time_t gives a negative difference where its own subtraction would
+	 * wrap, and neither width can overflow.
+	 */
 	return (double)end - (double)beginning;
 }

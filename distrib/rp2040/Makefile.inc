@@ -23,7 +23,6 @@ BOARDS=		PICO PICOCALC PICOCALC_PSRAM
 BOARD_PROFILE.PICO=	full
 BOARD_PROFILE.PICOCALC=	picocalc
 BOARD_PROFILE.PICOCALC_PSRAM=	picocalc
-BOARD_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/${BOARD}/unix.uf2
 
 # Output paths. The PICO board keeps the bare names distrib/rp2040/sdcard.img,
 # flash.bin and flash.uf2 that the documentation, CI and discobsd-flash
@@ -37,6 +36,12 @@ BOARD_OUT_SUFFIX=
 BOARD_OUT_SUFFIX=	-${BOARD}
 .endif
 FSIMG=		${TOPSRC}/distrib/${MACHINE}/sdcard${BOARD_OUT_SUFFIX}.img
+MKBOARDUF2=	${TOPSRC}/distrib/rp2040/mkboarduf2.py
+UNION_KERNEL_UF2=	${TOPSRC}/sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
+BOARD_KERNEL_UF2=	${TOPSRC}/distrib/${MACHINE}/unix${BOARD_OUT_SUFFIX}.uf2
+
+${BOARD_KERNEL_UF2}:	${UNION_KERNEL_UF2} ${MKBOARDUF2}
+		${PYTHON} ${MKBOARDUF2} --board=${BOARD} ${UNION_KERNEL_UF2} $@
 
 # The root filesystem profile. distrib/rp2040/mi.rp2040 brackets each
 # optional feature between "#closure NAME" and "#endclosure NAME",
@@ -132,7 +137,9 @@ INSTALL=	${TOOLBINDIR}/binstall -U
 
 # The flash region image and its UF2, from the disk image above. flashimg
 # writes the whole 1536K region so stale journal blocks from an earlier
-# image cannot survive beside the new one.
+# image cannot survive beside the new one; inside it, Dhara maps every
+# sector of the disk image except the free UFS blocks that do not chain the
+# free list (sys/arch/rp2040/doc/STORAGE.md, "Checkpoint cost").
 FLASHIMG=	${TOOLBINDIR}/flashimg
 FLASHBIN=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.bin
 FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.uf2
@@ -140,7 +147,7 @@ FLASHUF2=	${TOPSRC}/distrib/${MACHINE}/flash${BOARD_OUT_SUFFIX}.uf2
 # sys/arch/rp2040/dev/flash.h, which flashimg also prints.
 FLASH_FS_ADDR=	0x10020000
 
-flash:		check-account-image .WAIT ${FLASHUF2}
+flash:		check-account-image .WAIT ${BOARD_KERNEL_UF2} ${FLASHUF2}
 
 ${FLASHBIN}:	${FSIMG}
 		${FLASHIMG} ${FSIMG} $@
@@ -149,7 +156,7 @@ ${FLASHUF2}:	${FLASHBIN}
 		picotool uf2 convert --quiet ${FLASHBIN} -t bin $@ -o ${FLASH_FS_ADDR}
 
 cleanflash:
-		rm -f ${FLASHBIN} ${FLASHUF2}
+		rm -f ${BOARD_KERNEL_UF2} ${FLASHBIN} ${FLASHUF2}
 
 .PHONY:		flash cleanflash
 
@@ -179,21 +186,52 @@ BOARDLIBC_GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
 		fi
 
 ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
+				${TOPSRC}/lib/libc/compat/memchr.c \
+				${TOPSRC}/lib/libc/string/memmem.c \
+				${TOPSRC}/lib/libc/stdlib/abs.c \
+				${TOPSRC}/lib/libc/stdlib/labs.c \
+				${TOPSRC}/lib/libc/stdlib/iso_exit.c \
+				${TOPSRC}/lib/libc/stdlib/at_quick_exit.c \
+				${TOPSRC}/lib/libc/stdlib/quick_exit.c \
+				${TOPSRC}/lib/libc/stdlib/quick_exit.h \
 				${TOPSRC}/distrib/rp2040/boardlibc-members \
+				${TOPSRC}/include/string.h \
+				${TOPSRC}/include/stdio.h \
+				${TOPSRC}/include/time.h \
+				${TOPSRC}/include/tzfile.h \
+				${TOPSRC}/include/_featuretest.h \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_members \
 				${TOPSRC}/lib/libc/arm/gen/rom_float.inc \
 				${TOPSRC}/lib/libc/arm/gen/rom_float_*.S \
 				${TOPSRC}/lib/libc/stdio/doprnt.c \
 				${TOPSRC}/lib/libc/stdio/printf.c \
+				${TOPSRC}/lib/libc/stdio/fgetc.c \
+				${TOPSRC}/lib/libc/stdio/fputc.c \
+				${TOPSRC}/lib/libc/stdio/getchar.c \
+				${TOPSRC}/lib/libc/stdio/putchar.c \
 				${TOPSRC}/lib/libc/stdio/sprintf.c \
 				${TOPSRC}/lib/libc/stdio/fprintf.c \
 				${TOPSRC}/lib/libc/stdio/vfprintf.c \
 				${TOPSRC}/lib/libc/stdio/output.h \
+				${TOPSRC}/lib/libc/stdio/flags.c \
 				${TOPSRC}/lib/libc/stdio/fputs.c \
 				${TOPSRC}/lib/libc/gen/confstr.c \
 				${TOPSRC}/lib/libc/gen/ctermid.c \
+				${TOPSRC}/lib/libc/gen/asctime.c \
+				${TOPSRC}/lib/libc/gen/ctime.c \
 				${TOPSRC}/lib/libc/gen/difftime.c \
+				${TOPSRC}/lib/libc/gen/index.c \
+				${TOPSRC}/lib/libc/gen/offtime.h \
+				${TOPSRC}/lib/libc/gen/timezone.c \
+				${TOPSRC}/lib/libc/gen/tolower.c \
+				${TOPSRC}/lib/libc/gen/toupper.c \
+				${TOPSRC}/lib/libc/gen/tzset.c \
+				${TOPSRC}/lib/libc/gen/tzstate.h \
 				${TOPSRC}/lib/libc/gen/raise.c \
+				${TOPSRC}/lib/libc/gen/stpcpy.c \
+				${TOPSRC}/lib/libc/gen/stpncpy.c \
+				${TOPSRC}/lib/libc/gen/strndup.c \
+				${TOPSRC}/lib/libc/gen/strnlen.c \
 				${TOPSRC}/lib/libc/gen/sysconf.c \
 				${TOPSRC}/lib/libc/gen/vis.c \
 				${TOPSRC}/lib/libc/string/explicit_bzero.c \
@@ -223,11 +261,15 @@ ${DESTDIR}/usr/bin/cc:	${TOPSRC}/distrib/rp2040/cc
 
 # lib/libc_aout installs its whole archive at the same path during the
 # build, so the trimmed one is copied over it right before the image is
-# made.
+# made. The copy is newer than the symbol table mkboardlibc.py dated, and
+# the board's ld reads an archive more than two seconds newer than its
+# table as unsorted, so ranlib -t dates the table again after the copy, as
+# lib/libc_aout's install targets do.
 boardlibc-install:	${BOARDLIBC_WORK}/libc.a ${DESTDIR}/usr/lib/crt0.o \
 			${DESTDIR}/usr/bin/cc
 		${INSTALL} -d ${DESTDIR}/usr/lib
 		${INSTALL} ${BOARDLIBC_WORK}/libc.a ${DESTDIR}/usr/lib/libc.a
+		${TOOLBINDIR}/ranlib -t ${DESTDIR}/usr/lib/libc.a
 
 ${FSIMG}:	boardlibc-install
 

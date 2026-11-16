@@ -321,6 +321,8 @@ test_open_retry(void)
 int
 main(void)
 {
+	char report[80];
+
 	test_fixed_fields();
 	test_max_pid();
 	test_percent_m();
@@ -328,10 +330,10 @@ main(void)
 	test_open_retry();
 	db_closelog();
 
-	if (failures != 0) {
-		(void)write(STDERR_FILENO, "syslog contract tests failed\n", 29);
-		return 1;
-	}
-	(void)write(STDOUT_FILENO, "syslog contract tests passed\n", 29);
-	return 0;
+	(void)snprintf(report, sizeof report,
+	    "syslog contract tests %s: %d checks, %d failures\n",
+	    failures != 0 ? "failed" : "passed", checks, failures);
+	(void)write(failures != 0 ? STDERR_FILENO : STDOUT_FILENO, report,
+	    strlen(report));
+	return failures != 0;
 }

@@ -70,6 +70,7 @@ static struct kt key_words[] = {
     { "makeoptions",    MAKEOPTIONS },
     { "maxusers",       MAXUSERS },
     { "minor",          MINOR },
+    { "none",           NONE },
     { "on",             ON },
     { "options",        OPTIONS },
     { "pin",            PINS },

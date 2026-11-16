@@ -40,7 +40,7 @@ unsigned ufetch (unsigned addr);
 unsigned ustore (unsigned addr, unsigned value);
 
 /*
- * Call a kernel function.
+ * Call a kernel function with signature int function(int, int).
  */
 unsigned ucall (int priority, void *address, int arg1, int arg2);
 

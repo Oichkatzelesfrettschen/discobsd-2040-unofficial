@@ -56,12 +56,15 @@ include ${TOPSRC}/tools/qemu-arm.mk
 check-host: ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
 	check-unistd-prototypes check-alarm-contract \
 	check-waitpid-contract \
-	check-mktime check-difftime \
+	check-mktime check-calendar64 check-difftime check-sleep \
 	check-runtime-limits check-malloc check-random check-printf \
 	check-printf-float check-scanf check-scanf-llong check-rwmode \
 	check-ansi check-syslog \
 	check-vis check-printf-g check-huge-val \
-	check-qsort check-strtox check-string-security check-array-memory-line
+	check-qsort check-strtox check-string-security check-array-memory-line \
+	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit \
+	check-qsort-context check-dbm-open check-absolute-value check-byte-search \
+	check-character-io
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
 ARRAY_MEMORY_CFLAGS= -std=c17 -Wall -Wextra -Werror
@@ -74,6 +77,183 @@ ARRAY_MEMORY_SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native \
 	${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}
 ARRAY_MEMORY_SAN32_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 \
 	${HOSTCC} ${ILP32} ${ARRAY_MEMORY_SAN_FLAGS}
+
+BOUNDED_STRING_INPUTS= bounded_string.py bounded_string_test.c \
+	bounded_string_overflow_test.c ${TARGET_DIR}/strnlen.c \
+	${TARGET_DIR}/strndup.c ${TARGET_DIR}/stpcpy.c ${TARGET_DIR}/stpncpy.c
+
+check-bounded-string: bounded_string_test
+	${TEST_EXECUTION} run libc.bounded-string.native -- ./bounded_string_test matrix
+.if ${ILP32_OK} == "yes"
+	@${MAKE} bounded_string_test32
+	${TEST_EXECUTION} run libc.bounded-string.ilp32 -- ./bounded_string_test32 matrix
+.else
+	${TEST_EXECUTION} skip libc.bounded-string.ilp32 "check-libc-bounded-string: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} bounded_string_test_san
+	${TEST_EXECUTION} run libc.bounded-string.sanitized -- ./bounded_string_test_san matrix
+.else
+	${TEST_EXECUTION} skip libc.bounded-string.sanitized "check-libc-bounded-string: sanitizer runtime unavailable"
+.endif
+
+bounded_string_test: ${BOUNDED_STRING_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${HOSTCC:Q} $@
+
+bounded_string_test32: ${BOUNDED_STRING_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+bounded_string_test_san: ${BOUNDED_STRING_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-bounded-string
+
+ABSOLUTE_VALUE_INPUTS= absolute_value.py absolute_value_test.c \
+	${STDLIB_DIR}/abs.c ${STDLIB_DIR}/labs.c
+
+check-absolute-value: absolute_value_test
+	${TEST_EXECUTION} run libc.absolute-value.native -- ./absolute_value_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} absolute_value_test32
+	${TEST_EXECUTION} run libc.absolute-value.ilp32 -- ./absolute_value_test32
+.else
+	${TEST_EXECUTION} skip libc.absolute-value.ilp32 "check-libc-absolute-value: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} absolute_value_test_san
+	${TEST_EXECUTION} run libc.absolute-value.sanitized -- ./absolute_value_test_san
+.else
+	${TEST_EXECUTION} skip libc.absolute-value.sanitized "check-libc-absolute-value: sanitizer runtime unavailable"
+.endif
+
+absolute_value_test: ${ABSOLUTE_VALUE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${HOSTCC:Q} $@
+
+absolute_value_test32: ${ABSOLUTE_VALUE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+absolute_value_test_san: ${ABSOLUTE_VALUE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-absolute-value
+
+BYTE_SEARCH_INPUTS= byte_search.py byte_search_test.c \
+	${STRING_DIR}/memmem.c ${TOPSRC}/lib/libc/compat/memchr.c
+
+check-byte-search: byte_search_test
+	${TEST_EXECUTION} run libc.byte-search.native -- ./byte_search_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} byte_search_test32
+	${TEST_EXECUTION} run libc.byte-search.ilp32 -- ./byte_search_test32
+.else
+	${TEST_EXECUTION} skip libc.byte-search.ilp32 "check-libc-byte-search: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} byte_search_test_san
+	${TEST_EXECUTION} run libc.byte-search.sanitized -- ./byte_search_test_san
+.else
+	${TEST_EXECUTION} skip libc.byte-search.sanitized "check-libc-byte-search: sanitizer runtime unavailable"
+.endif
+
+byte_search_test: ${BYTE_SEARCH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${HOSTCC:Q} $@ --calibrate
+
+byte_search_test32: ${BYTE_SEARCH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@ --calibrate
+
+byte_search_test_san: ${BYTE_SEARCH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@ --calibrate
+
+.PHONY: check-byte-search
+
+check-byte-search-instructions:
+	${PYTHON} ${.CURDIR}/byte_search_instructions.py ${TOPSRC} ${ARM_COMPILER:Q}
+
+.PHONY: check-byte-search-instructions
+
+CHARACTER_IO_INPUTS= character_io.py character_io_test.c \
+	${STDIO_DIR}/fgetc.c ${STDIO_DIR}/fputc.c ${STDIO_DIR}/getchar.c \
+	${STDIO_DIR}/putchar.c ${STDIO_DIR}/filbuf.c ${STDIO_DIR}/flsbuf.c \
+	${TOPSRC}/include/stdio.h
+
+check-character-io: character_io_test
+	${TEST_EXECUTION} run libc.character-io.native -- ./character_io_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} character_io_test32
+	${TEST_EXECUTION} run libc.character-io.ilp32 -- ./character_io_test32
+.else
+	${TEST_EXECUTION} skip libc.character-io.ilp32 "check-libc-character-io: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} character_io_test_san
+	${TEST_EXECUTION} run libc.character-io.sanitized -- ./character_io_test_san
+.else
+	${TEST_EXECUTION} skip libc.character-io.sanitized "check-libc-character-io: sanitizer runtime unavailable"
+.endif
+
+character_io_test: ${CHARACTER_IO_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/character_io.py --compiler ${HOSTCC:Q} --program ${.CURDIR}/$@
+
+character_io_test32: ${CHARACTER_IO_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/character_io.py --compiler ${HOSTCC:Q}\ -m32 --program ${.CURDIR}/$@
+
+character_io_test_san: ${CHARACTER_IO_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/character_io.py --compiler "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" --program ${.CURDIR}/$@
+
+.PHONY: check-character-io
+
+QSORT_CONTEXT_INPUTS= qsort_context.py qsort_context_test.c qsort_bounds_test.c \
+	qsort_callers.py \
+	${TARGET_DIR}/qsort.c ${TARGET_DIR}/qsort_r.c
+
+check-qsort-context: qsort_context_test
+	${TEST_EXECUTION} run libc.qsort-context.native -- ./qsort_context_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} qsort_context_test32
+	${TEST_EXECUTION} run libc.qsort-context.ilp32 -- ./qsort_context_test32
+.else
+	${TEST_EXECUTION} skip libc.qsort-context.ilp32 "check-libc-qsort-context: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} qsort_context_test_san
+	${TEST_EXECUTION} run libc.qsort-context.sanitized -- ./qsort_context_test_san
+.else
+	${TEST_EXECUTION} skip libc.qsort-context.sanitized "check-libc-qsort-context: sanitizer runtime unavailable"
+.endif
+
+qsort_context_test: ${QSORT_CONTEXT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${HOSTCC:Q} $@
+
+qsort_context_test32: ${QSORT_CONTEXT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+qsort_context_test_san: ${QSORT_CONTEXT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-qsort-context
+
+check-qsort-context-cross:
+	${PYTHON} ${.CURDIR}/qsort_context_target.py ${TOPSRC} ${ARM_COMPILER} --host ${HOSTCC:Q}
+
+DBM_OPEN_INPUTS= dbm_open.py dbm_open_test.c ${TOPSRC}/include/ndbm.h \
+	${TARGET_DIR}/ndbm.c
+
+check-dbm-open: dbm_open_test
+	${TEST_EXECUTION} run libc.dbm-open.native -- ./dbm_open_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} dbm_open_test32
+	${TEST_EXECUTION} run libc.dbm-open.ilp32 -- ./dbm_open_test32
+.else
+	${TEST_EXECUTION} skip libc.dbm-open.ilp32 "check-libc-dbm-open: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+dbm_open_test: ${DBM_OPEN_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${HOSTCC:Q} $@
+
+dbm_open_test32: ${DBM_OPEN_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+.PHONY: check-dbm-open
 
 check-array-memory-line: reallocarray_contract_test memmem_contract_test \
 	line_reading_contract_test
@@ -395,16 +575,23 @@ ASCTIME_RENAMES=	-Dasctime=db_asctime -Derrno=asctime_test_errno
 ASCTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wformat=2 -nostdinc \
 	-isystem ${TOPSRC}/include ${ASCTIME_RENAMES}
 
+# The libc members tested here are compiled as libc builds them
+# (lib/libc/Makefile), with _TIME_BITS defined as 32. The host compiler
+# already defaults to that view (sys/sys/_time_t.h); the cross compiler
+# defaults to 64 bits, where each public time name binds to its __NAME64
+# symbol, which no -D rename reaches and the test link does not define.
+NARROW_TIME=	-D_TIME_BITS=32
 CTIME_RENAMES=	-Dctime=db_ctime -Dlocaltime=db_localtime \
 	-Dgmtime=db_gmtime -Dtzset=db_tzset -Dtzname=db_tzname \
 	-Dtztab=db_tztab
 CTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-ffunction-sections -fdata-sections -nostdinc \
-	-isystem ${TOPSRC}/include ${CTIME_RENAMES}
+	-isystem ${TOPSRC}/include ${CTIME_RENAMES} ${NARROW_TIME}
 CTIME_TARGET_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wformat=2 \
 	-Wformat-overflow=2 -Wold-style-definition -fno-common \
 	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
-	-mfloat-abi=soft -ffreestanding -nostdinc -I${TOPSRC}/include -Os
+	-mfloat-abi=soft -ffreestanding -nostdinc -I${TOPSRC}/include -Os \
+	${NARROW_TIME}
 CTIME_TARGET_DIAGNOSTIC_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 	-Dsnprintf=__builtin_snprintf
 CTIME_TARGET_BAD_CFLAGS=	${CTIME_TARGET_CFLAGS} \
@@ -414,7 +601,7 @@ CTIME_TARGET_BAD_CFLAGS=	${CTIME_TARGET_CFLAGS} \
 # bounds a walk over a fixed-size array here.
 ZONE_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-ffunction-sections -fdata-sections -nostdinc \
-	-isystem ${TOPSRC}/include ${CTIME_RENAMES}
+	-isystem ${TOPSRC}/include ${CTIME_RENAMES} ${NARROW_TIME}
 ZONE_TZ_WARN=	-Wno-old-style-definition -Wno-deprecated-non-prototype
 
 # mktime inverts ctime.c's localtime, so the two compile and link together
@@ -425,7 +612,7 @@ MKTIME_RENAMES=	-Dmktime=db_mktime -Dtimegm=db_timegm ${CTIME_RENAMES} \
 		-DTZ_ZONEINFO
 MKTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-ffunction-sections -fdata-sections -nostdinc \
-	-isystem ${TOPSRC}/include ${MKTIME_RENAMES}
+	-isystem ${TOPSRC}/include ${MKTIME_RENAMES} ${NARROW_TIME}
 
 RUNTIME_LIMITS_RENAMES=	-Dsysconf=db_sysconf -Dconfstr=db_confstr \
 	-Derrno=runtime_limits_errno
@@ -437,7 +624,7 @@ RUNTIME_LIMITS_TARGET_CFLAGS=	${RUNTIME_LIMITS_CFLAGS} -fno-common \
 	-mfloat-abi=soft -ffreestanding -Os
 DIFFTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wstrict-prototypes \
 	-Wmissing-prototypes -Wold-style-definition -nostdinc \
-	-isystem ${TOPSRC}/include -Ddifftime=db_difftime
+	-isystem ${TOPSRC}/include -Ddifftime=db_difftime ${NARROW_TIME}
 DIFFTIME_TARGET_CFLAGS=	${DIFFTIME_CFLAGS} -fno-common \
 	-mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian -mthumb \
 	-mfloat-abi=soft -ffreestanding -Os
@@ -449,6 +636,12 @@ GC_SECTIONS!=	if [ "$$(uname -s)" = Darwin ] ; then echo -Wl,-dead_strip ; \
 ZONE_SAN=	-fsanitize=address,undefined -fno-omit-frame-pointer \
 		-fno-sanitize-recover=all
 ZONE_SAN_OK!= sh ${TOPSRC}/tools/compiler-probe.sh native ${HOSTCC} ${ZONE_SAN}
+# mktime's sums stay inside an int and a time_t by comparing first. A sum
+# that leaves either wraps to a value the plain run can still accept or
+# refuse for another reason, so the sanitized runs are what stop on one; the
+# ILP32 run is the one where long and time_t are four bytes, as on the target.
+MKTIME_SAN32_OK!= sh ${TOPSRC}/tools/compiler-probe.sh ilp32 ${HOSTCC} \
+	${ILP32} ${ZONE_SAN}
 
 check-zone: zone_contract_test zone_contract_test_fixed
 	${TEST_EXECUTION} run libc.zone.native -- ./zone_contract_test
@@ -468,12 +661,116 @@ check-zone: zone_contract_test zone_contract_test_fixed
 
 check-mktime: mktime_contract_test
 	${TEST_EXECUTION} run libc.mktime.native -- ./mktime_contract_test
+	${PYTHON} ${.CURDIR}/mktime_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q}\ ${MKTIME_CFLAGS:Q}\ -I.\ ${GC_SECTIONS} \
+	    ${.CURDIR}/mktime_contract_test.c mktime_ctime.o mktime_tzset.o \
+	    mktime_timezone.o
 .if ${ILP32_OK} == "yes"
 	@${MAKE} mktime_contract_test32
 	${TEST_EXECUTION} run libc.mktime.ilp32 -- ./mktime_contract_test32
 .else
 	${TEST_EXECUTION} skip libc.mktime.ilp32 "check-libc-mktime: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
+.if ${ZONE_SAN_OK} == "yes"
+	@${MAKE} mktime_contract_test_san
+	${TEST_EXECUTION} run libc.mktime.sanitized -- ./mktime_contract_test_san
+.else
+	${TEST_EXECUTION} skip libc.mktime.sanitized "check-libc-mktime: no sanitizer runtime"
+.endif
+.if ${MKTIME_SAN32_OK} == "yes"
+	@${MAKE} mktime_contract_test32_san
+	${TEST_EXECUTION} run libc.mktime.sanitized-ilp32 -- ./mktime_contract_test32_san
+.else
+	${TEST_EXECUTION} skip libc.mktime.sanitized-ilp32 "check-libc-mktime: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
+.endif
+
+# The calendar functions of the 64-bit view of time: ctime.c, mktime.c and
+# difftime.c compiled with _TIME_BITS=64 beside the 32-bit tzset.c,
+# timezone.c and asctime.c, run by tests/time64_calendar/calendar64_test.c
+# against the fields its vectors.py derives with CPython's datetime. The
+# 64-bit members bind to __NAME64 symbols, which no -D rename reaches; the
+# renames keep the shared 32-bit members and errno apart from the host's,
+# and tzset.c reads TZ and the kernel offset through that directory's
+# zone_hooks.c. The ILP32 runs are the ones whose long is four bytes, as on
+# the target; tests/time64_calendar runs the same test as Thumb-1.
+CAL64_DIR=	${TOPSRC}/tests/time64_calendar
+CAL64_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
+	-nostdinc -isystem ${TOPSRC}/include -Dtzset=db_tzset \
+	-Dtzname=db_tzname -Dtztab=db_tztab -Dasctime=db_asctime \
+	-Derrno=calendar64_errno
+CAL64_ZONE=	-Dgetenv=calendar_getenv -Dgettimeofday=calendar_zone_gettimeofday
+CAL64_HEADERS=	${TARGET_DIR}/offtime.h ${TARGET_DIR}/tzstate.h \
+	${TOPSRC}/include/time.h ${TOPSRC}/sys/sys/_time_t.h \
+	${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+	${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h
+CAL64_PROG.native=	calendar64_test
+CAL64_PROG.ilp32=	calendar64_test32
+CAL64_PROG.san=		calendar64_test_san
+CAL64_PROG.ilp32san=	calendar64_test32_san
+CAL64_FLAGS.native=
+CAL64_FLAGS.ilp32=	${ILP32}
+CAL64_FLAGS.san=	${ZONE_SAN}
+CAL64_FLAGS.ilp32san=	${ILP32} ${ZONE_SAN}
+
+check-calendar64: calendar64_test
+	${TEST_EXECUTION} run libc.calendar64.native -- ./calendar64_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} calendar64_test32
+	${TEST_EXECUTION} run libc.calendar64.ilp32 -- ./calendar64_test32
+.else
+	${TEST_EXECUTION} skip libc.calendar64.ilp32 "check-libc-calendar64: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ZONE_SAN_OK} == "yes"
+	@${MAKE} calendar64_test_san
+	${TEST_EXECUTION} run libc.calendar64.sanitized -- ./calendar64_test_san
+.else
+	${TEST_EXECUTION} skip libc.calendar64.sanitized "check-libc-calendar64: no sanitizer runtime"
+.endif
+.if ${MKTIME_SAN32_OK} == "yes"
+	@${MAKE} calendar64_test32_san
+	${TEST_EXECUTION} run libc.calendar64.sanitized-ilp32 -- ./calendar64_test32_san
+.else
+	${TEST_EXECUTION} skip libc.calendar64.sanitized-ilp32 "check-libc-calendar64: ${HOSTCC} cannot execute ILP32 address/undefined sanitizers"
+.endif
+
+calendar64_vectors.h: ${CAL64_DIR}/vectors.py
+	: "$${PYTHON:?set PYTHON to the intended interpreter}"
+	"$${PYTHON}" ${CAL64_DIR}/vectors.py $@
+
+.for variant in native ilp32 san ilp32san
+CAL64_OBJS.${variant}=	cal64_${variant}_ctime64.o cal64_${variant}_mktime64.o \
+	cal64_${variant}_difftime64.o cal64_${variant}_tzset.o \
+	cal64_${variant}_timezone.o cal64_${variant}_asctime.o \
+	cal64_${variant}_zone_hooks.o
+
+.for member in ctime mktime difftime
+cal64_${variant}_${member}64.o: ${TARGET_DIR}/${member}.c ${CAL64_HEADERS}
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} -D_TIME_BITS=64 \
+	    -c -o $@ ${TARGET_DIR}/${member}.c
+.endfor
+
+cal64_${variant}_tzset.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} ${CAL64_ZONE} \
+	    ${NARROW_TIME} -c -o $@ ${TARGET_DIR}/tzset.c
+
+cal64_${variant}_timezone.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} ${MKTIME_TZ_WARN} \
+	    ${NARROW_TIME} -c -o $@ ${TARGET_DIR}/timezone.c
+
+cal64_${variant}_asctime.o: ${TARGET_DIR}/asctime.c
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} \
+	    ${NARROW_TIME} -c -o $@ ${TARGET_DIR}/asctime.c
+
+cal64_${variant}_zone_hooks.o: ${CAL64_DIR}/zone_hooks.c \
+    ${CAL64_DIR}/zone_hooks.h
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} -DDEFINE_ERRNO \
+	    ${NARROW_TIME} -c -o $@ ${CAL64_DIR}/zone_hooks.c
+
+${CAL64_PROG.${variant}}: ${CAL64_DIR}/calendar64_test.c calendar64_vectors.h \
+    ${CAL64_DIR}/zone_hooks.h ${CAL64_OBJS.${variant}}
+	${HOSTCC} ${CAL64_FLAGS.${variant}} ${CAL64_CFLAGS} -I. -o $@ \
+	    ${CAL64_DIR}/calendar64_test.c ${CAL64_OBJS.${variant}}
+.endfor
 
 check-ctime: check-asctime ctime_contract_test
 	${TEST_EXECUTION} run libc.ctime.native -- ./ctime_contract_test
@@ -485,7 +782,7 @@ check-ctime: check-asctime ctime_contract_test
 .endif
 
 check-ctime-cross: asctime_target.o asctime_target_diagnostic.o ctime_target.o \
-	stdio_format_extensions.o
+	tzset_target.o stdio_format_extensions.o
 	@rm -f asctime_format_bad_target.o asctime_format_bad_target.log
 	@if ${ARM_COMPILER} ${CTIME_TARGET_BAD_CFLAGS} -c \
 	    -o asctime_format_bad_target.o asctime_format_bad.c \
@@ -568,11 +865,42 @@ check-difftime: difftime_contract_test
 	${TEST_EXECUTION} skip libc.difftime.negative "check-libc-difftime: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
+# sleep() at the 32-bit view against two replayed clock readings
+# (sleep_contract_test.c). The negative control compares the readings
+# signed, which only a four-byte long exposes, so it runs as ILP32.
+SLEEP_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
+	-Wno-deprecated-non-prototype -nostdinc \
+	-isystem ${TOPSRC}/include -Dsleep=db_sleep \
+	-Dgettimeofday=test_gettimeofday -Dselect=test_select ${NARROW_TIME}
+
+check-sleep: sleep_contract_test
+	${TEST_EXECUTION} run libc.sleep.native -- ./sleep_contract_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} sleep_contract_test32 sleep_bad_test32
+	${TEST_EXECUTION} run libc.sleep.ilp32 -- ./sleep_contract_test32
+	${TEST_EXECUTION} run libc.sleep.negative -- ./sleep_bad_test32
+.else
+	${TEST_EXECUTION} skip libc.sleep.ilp32 "check-libc-sleep: ${HOSTCC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip libc.sleep.negative "check-libc-sleep: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+sleep_contract_test: sleep_contract_test.c ${TARGET_DIR}/sleep.c
+	${HOSTCC} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    ${TARGET_DIR}/sleep.c
+
+sleep_contract_test32: sleep_contract_test.c ${TARGET_DIR}/sleep.c
+	${HOSTCC} ${ILP32} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    ${TARGET_DIR}/sleep.c
+
+sleep_bad_test32: sleep_contract_test.c sleep_signed_bad.c
+	${HOSTCC} ${ILP32} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    sleep_signed_bad.c
+
 check-difftime-cross: difftime_target.o
 	@test "$$(${GCCPREFIX}-nm -u difftime_target.o | wc -l)" -eq 2
-	@${GCCPREFIX}-nm -u difftime_target.o | grep -q ' U __aeabi_i2d$$'
+	@${GCCPREFIX}-nm -u difftime_target.o | grep -q ' U __aeabi_ui2d$$'
 	@${GCCPREFIX}-nm -u difftime_target.o | grep -q ' U __aeabi_dsub$$'
-	@echo "difftime Cortex-M0+ object converts endpoints before ROM double subtraction"
+	@echo "difftime Cortex-M0+ object converts unsigned endpoints before ROM double subtraction"
 
 difftime_contract_test: difftime_contract_test.c difftime_difftime.o
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -o $@ \
@@ -612,29 +940,45 @@ asctime_asctime.o: ${TARGET_DIR}/asctime.c
 asctime_bad.o: asctime_bad.c
 	${HOSTCC} ${ASCTIME_CFLAGS} -c -o $@ asctime_bad.c
 
-ctime_contract_test: ctime_contract_test.c ctime_ctime.o
-	${HOSTCC} ${CTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
-	    ctime_contract_test.c ctime_ctime.o
+# The fields of the 32-bit view's counts by CPython's datetime, which the
+# ctime and mktime gates check gmtime() and timegm() against.
+calendar32_vectors.h: ${.CURDIR}/calendar32_vectors.py
+	: "$${PYTHON:?set PYTHON to the intended interpreter}"
+	"$${PYTHON}" ${.CURDIR}/calendar32_vectors.py $@
 
-ctime_contract_test32: ctime_contract_test.c ctime_ctime32.o
-	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
-	    ctime_contract_test.c ctime_ctime32.o
+ctime_contract_test: ctime_contract_test.c calendar32_vectors.h ctime_ctime.o \
+    ctime_tzset.o
+	${HOSTCC} ${CTIME_CFLAGS} -I. ${GC_SECTIONS} -o $@ \
+	    ctime_contract_test.c ctime_ctime.o ctime_tzset.o
 
-zone_contract_test: zone_contract_test.c zone_ctime.o zone_timezone.o
+ctime_contract_test32: ctime_contract_test.c calendar32_vectors.h \
+    ctime_ctime32.o ctime_tzset32.o
+	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} -I. ${GC_SECTIONS} -o $@ \
+	    ctime_contract_test.c ctime_ctime32.o ctime_tzset32.o
+
+zone_contract_test: zone_contract_test.c zone_ctime.o zone_tzset.o \
+    zone_timezone.o
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${GC_SECTIONS} -o $@ \
-	    zone_contract_test.c zone_ctime.o zone_timezone.o
+	    zone_contract_test.c zone_ctime.o zone_tzset.o zone_timezone.o
 
-zone_contract_test32: zone_contract_test.c zone_ctime32.o zone_timezone32.o
+zone_contract_test32: zone_contract_test.c zone_ctime32.o zone_tzset32.o \
+    zone_timezone32.o
 	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_ZI} ${GC_SECTIONS} -o $@ \
-	    zone_contract_test.c zone_ctime32.o zone_timezone32.o
+	    zone_contract_test.c zone_ctime32.o zone_tzset32.o \
+	    zone_timezone32.o
 
 zone_contract_test_san: zone_contract_test.c zone_ctime_san.o \
-    zone_timezone_san.o
+    zone_tzset_san.o zone_timezone_san.o
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -o $@ \
-	    zone_contract_test.c zone_ctime_san.o zone_timezone_san.o
+	    zone_contract_test.c zone_ctime_san.o zone_tzset_san.o \
+	    zone_timezone_san.o
 
-zone_ctime_san.o: ${TARGET_DIR}/ctime.c
+zone_ctime_san.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/ctime.c
+
+zone_tzset_san.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/tzset.c
 
 zone_timezone_san.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_SAN} ${ZONE_TZ_WARN} -c -o $@ \
@@ -645,24 +989,37 @@ zone_timezone_san.o: ${TARGET_DIR}/timezone.c
 ZONE_ZI=	-DTZ_ZONEINFO
 
 zone_contract_test_fixed: zone_contract_test.c zone_ctime_fixed.o \
-    zone_timezone_fixed.o
+    zone_tzset_fixed.o zone_timezone_fixed.o
 	${HOSTCC} ${ZONE_CFLAGS} ${GC_SECTIONS} -o $@ \
-	    zone_contract_test.c zone_ctime_fixed.o zone_timezone_fixed.o
+	    zone_contract_test.c zone_ctime_fixed.o zone_tzset_fixed.o \
+	    zone_timezone_fixed.o
 
-zone_ctime_fixed.o: ${TARGET_DIR}/ctime.c
+zone_ctime_fixed.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${ZONE_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+
+zone_tzset_fixed.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${ZONE_CFLAGS} -c -o $@ ${TARGET_DIR}/tzset.c
 
 zone_timezone_fixed.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-zone_ctime.o: ${TARGET_DIR}/ctime.c
+zone_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/ctime.c
 
-zone_ctime32.o: ${TARGET_DIR}/ctime.c
+zone_tzset.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/tzset.c
+
+zone_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/ctime.c
 
-# ctime.c's tzsetkernel() names tztab(), which timezone.c defines and which
+zone_tzset32.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_ZI} -c -o $@ ${TARGET_DIR}/tzset.c
+
+# tzset.c's tzsetkernel() names tztab(), which timezone.c defines and which
 # the gate reaches whenever a file is refused and the fallback runs.
 zone_timezone.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ZONE_CFLAGS} ${ZONE_TZ_WARN} -c -o $@ \
@@ -672,20 +1029,20 @@ zone_timezone32.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ILP32} ${ZONE_CFLAGS} ${ZONE_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-# ctime.c's tzsetkernel() names tztab(), which timezone.c defines, and the
+# tzset.c's tzsetkernel() names tztab(), which timezone.c defines, and the
 # gate reaches it because no zone file is named and that is the path a bare
 # environment takes.
-mktime_contract_test: mktime_contract_test.c mktime_mktime.o mktime_ctime.o \
-    mktime_timezone.o
-	${HOSTCC} ${MKTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
+mktime_contract_test: mktime_contract_test.c calendar32_vectors.h \
+    mktime_mktime.o mktime_ctime.o mktime_tzset.o mktime_timezone.o
+	${HOSTCC} ${MKTIME_CFLAGS} -I. ${GC_SECTIONS} -o $@ \
 	    mktime_contract_test.c mktime_mktime.o mktime_ctime.o \
-	    mktime_timezone.o
+	    mktime_tzset.o mktime_timezone.o
 
-mktime_contract_test32: mktime_contract_test.c mktime_mktime32.o \
-    mktime_ctime32.o mktime_timezone32.o
-	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${GC_SECTIONS} -o $@ \
+mktime_contract_test32: mktime_contract_test.c calendar32_vectors.h \
+    mktime_mktime32.o mktime_ctime32.o mktime_tzset32.o mktime_timezone32.o
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -I. ${GC_SECTIONS} -o $@ \
 	    mktime_contract_test.c mktime_mktime32.o mktime_ctime32.o \
-	    mktime_timezone32.o
+	    mktime_tzset32.o mktime_timezone32.o
 
 # timezone.c still defines its functions the old way, which this tier's set
 # rejects and the arm-none-eabi gcc libc ships from does not.
@@ -699,23 +1056,84 @@ mktime_timezone32.o: ${TARGET_DIR}/timezone.c
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${MKTIME_TZ_WARN} -c -o $@ \
 	    ${TARGET_DIR}/timezone.c
 
-mktime_mktime.o: ${TARGET_DIR}/mktime.c
+mktime_contract_test_san: mktime_contract_test.c calendar32_vectors.h \
+    mktime_mktime_san.o mktime_ctime_san.o mktime_tzset_san.o \
+    mktime_timezone_san.o
+	${HOSTCC} ${MKTIME_CFLAGS} -I. ${ZONE_SAN} -o $@ \
+	    mktime_contract_test.c mktime_mktime_san.o mktime_ctime_san.o \
+	    mktime_tzset_san.o mktime_timezone_san.o
+
+mktime_contract_test32_san: mktime_contract_test.c calendar32_vectors.h \
+    mktime_mktime32_san.o mktime_ctime32_san.o mktime_tzset32_san.o \
+    mktime_timezone32_san.o
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -I. ${ZONE_SAN} -o $@ \
+	    mktime_contract_test.c mktime_mktime32_san.o \
+	    mktime_ctime32_san.o mktime_tzset32_san.o mktime_timezone32_san.o
+
+mktime_mktime_san.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
+	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/mktime.c
+
+mktime_mktime32_san.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ \
+	    ${TARGET_DIR}/mktime.c
+
+mktime_ctime_san.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/ctime.c
+
+mktime_tzset_san.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ ${TARGET_DIR}/tzset.c
+
+mktime_ctime32_san.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ \
+	    ${TARGET_DIR}/ctime.c
+
+mktime_tzset32_san.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} -c -o $@ \
+	    ${TARGET_DIR}/tzset.c
+
+mktime_timezone_san.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${MKTIME_CFLAGS} ${ZONE_SAN} ${MKTIME_TZ_WARN} -c -o $@ \
+	    ${TARGET_DIR}/timezone.c
+
+mktime_timezone32_san.o: ${TARGET_DIR}/timezone.c
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} ${ZONE_SAN} ${MKTIME_TZ_WARN} \
+	    -c -o $@ ${TARGET_DIR}/timezone.c
+
+mktime_mktime.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/mktime.c
 
-mktime_mktime32.o: ${TARGET_DIR}/mktime.c
+mktime_mktime32.o: ${TARGET_DIR}/mktime.c ${TARGET_DIR}/offtime.h
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/mktime.c
 
-mktime_ctime.o: ${TARGET_DIR}/ctime.c
+mktime_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-mktime_ctime32.o: ${TARGET_DIR}/ctime.c
+mktime_tzset.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/tzset.c
+
+mktime_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-ctime_ctime.o: ${TARGET_DIR}/ctime.c
+mktime_tzset32.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${ILP32} ${MKTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/tzset.c
+
+ctime_ctime.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
 
-ctime_ctime32.o: ${TARGET_DIR}/ctime.c
+ctime_tzset.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/tzset.c
+
+ctime_ctime32.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+
+ctime_tzset32.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${HOSTCC} ${ILP32} ${CTIME_CFLAGS} -c -o $@ ${TARGET_DIR}/tzset.c
 
 asctime_target.o: ${TARGET_DIR}/asctime.c
 	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/asctime.c
@@ -724,8 +1142,12 @@ asctime_target_diagnostic.o: ${TARGET_DIR}/asctime.c
 	${ARM_COMPILER} ${CTIME_TARGET_DIAGNOSTIC_CFLAGS} -c -o $@ \
 	    ${TARGET_DIR}/asctime.c
 
-ctime_target.o: ${TARGET_DIR}/ctime.c
+ctime_target.o: ${TARGET_DIR}/ctime.c ${TARGET_DIR}/offtime.h \
+    ${TARGET_DIR}/tzstate.h
 	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/ctime.c
+
+tzset_target.o: ${TARGET_DIR}/tzset.c ${TARGET_DIR}/tzstate.h
+	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/tzset.c
 
 stdio_format_extensions.o: stdio_format_extensions.c
 	${ARM_COMPILER} ${CTIME_TARGET_CFLAGS} -c -o $@ \
@@ -774,6 +1196,34 @@ string_timingsafe_bcmp_bad_target.o: timingsafe_bcmp_bad.c
 
 check-vis: vis_contract_test
 	${TEST_EXECUTION} run libc.vis.native -- ./vis_contract_test
+
+# getgrent.c compiled from the tree under db_ names, with its malloc, free
+# and fopen routed to the test. The mutation script repeats the contract
+# against static-record, per-call, unchecked and released-record mutants
+# and bounds the Cortex-M0+ object's bss, so each mutant fails an oracle.
+GETGRENT_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror
+GETGRENT_RENAMES=	-Dgetgrent=db_getgrent -Dsetgrent=db_setgrent \
+		-Dendgrent=db_endgrent -Dmalloc=grent_test_malloc \
+		-Dfree=grent_test_free -Dfopen=grent_test_fopen
+
+check-getgrent: getgrent_contract_test
+	${TEST_EXECUTION} run libc.getgrent.native -- ./getgrent_contract_test
+	${PYTHON} ${.CURDIR}/getgrent_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q} - ${.CURDIR}/getgrent_contract_test.c
+
+# The same oracle with the Cortex-M0+ bss bound, for tiers that carry the
+# cross compiler.
+check-getgrent-cross:
+	${PYTHON} ${.CURDIR}/getgrent_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q} ${ARM_COMPILER:Q} ${.CURDIR}/getgrent_contract_test.c
+
+getgrent_contract_test: getgrent_contract_test.c grent_getgrent.o
+	${HOSTCC} ${GETGRENT_CFLAGS} -o $@ getgrent_contract_test.c \
+	    grent_getgrent.o
+
+grent_getgrent.o: ${TARGET_DIR}/getgrent.c
+	${HOSTCC} ${GETGRENT_CFLAGS} ${GETGRENT_RENAMES} -c -o $@ \
+	    ${TARGET_DIR}/getgrent.c
 
 vis_contract_test: vis_contract_test.c vis_vis.o
 	${HOSTCC} -std=c17 -Wall -Wextra -Werror -fsigned-char -o $@ \
@@ -1029,6 +1479,47 @@ rwmode_filbuf32.o: ${PRINTF_DIR}/filbuf.c
 rwmode_flsbuf32.o: ${PRINTF_DIR}/flsbuf.c
 	${HOSTCC} ${ILP32} ${RWMODE_CFLAGS} -c -o $@ ${PRINTF_DIR}/flsbuf.c
 
+check-exit-lifecycle: exit_lifecycle_test
+	${TEST_EXECUTION} run libc.exit.native -- ./exit_lifecycle_test nested
+.if ${ILP32_OK} == "yes"
+	@${MAKE} exit_lifecycle_test32
+	${TEST_EXECUTION} run libc.exit.ilp32 -- ./exit_lifecycle_test32 nested
+.else
+	${TEST_EXECUTION} skip libc.exit.ilp32 "check-libc-exit-lifecycle: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+EXIT_LIFECYCLE_INPUTS= exit_lifecycle.py exit_lifecycle_test.c \
+	${STDIO_DIR}/exit.c ${STDIO_DIR}/atexit.c ${STDIO_DIR}/atexit.h
+
+exit_lifecycle_test: ${EXIT_LIFECYCLE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/exit_lifecycle.py ${TOPSRC} ${HOSTCC:Q} $@
+
+exit_lifecycle_test32: ${EXIT_LIFECYCLE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/exit_lifecycle.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+check-quick-exit: quick_exit_test
+	${TEST_EXECUTION} run libc.quick-exit.native -- ./quick_exit_test nested
+.if ${ILP32_OK} == "yes"
+	@${MAKE} quick_exit_test32
+	${TEST_EXECUTION} run libc.quick-exit.ilp32 -- ./quick_exit_test32 nested
+.else
+	${TEST_EXECUTION} skip libc.quick-exit.ilp32 "check-libc-quick-exit: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+
+check-quick-exit-cross:
+	${PYTHON} ${.CURDIR}/quick_exit_target.py ${TOPSRC} ${ARM_COMPILER} --host ${HOSTCC:Q}
+
+QUICK_EXIT_INPUTS= quick_exit.py quick_exit_test.c quick_exit_termination_test.c \
+	${STDIO_DIR}/exit.c ${STDIO_DIR}/atexit.c ${STDIO_DIR}/atexit.h \
+	${STDLIB_DIR}/at_quick_exit.c ${STDLIB_DIR}/quick_exit.c \
+	${STDLIB_DIR}/quick_exit.h ${STDLIB_DIR}/iso_exit.c
+
+quick_exit_test: ${QUICK_EXIT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${HOSTCC:Q} $@
+
+quick_exit_test32: ${QUICK_EXIT_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
 check-strtox: strtox_test
 	${TEST_EXECUTION} run libc.strtox.native -- ./strtox_test
 .if ${ILP32_OK} == "yes"
@@ -1184,23 +1675,51 @@ ctermid.o: ${TARGET_DIR}/ctermid.c
 	${HOSTCC} ${CFLAGS} -DL_ctermid=9 -Dctermid=discobsd_ctermid \
 		-c -o $@ ${TARGET_DIR}/ctermid.c
 
-header_contract.o: header_contract.c
-	${HOSTCC} ${CFLAGS} -ffreestanding -c -o $@ header_contract.c
+header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
+    ${TOPSRC}/include/stdlib.h ${TOPSRC}/include/string.h \
+    ${TOPSRC}/include/strings.h ${TOPSRC}/include/time.h \
+    ${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+    ${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
+    ${TOPSRC}/include/vis.h ${TOPSRC}/include/_featuretest.h
+	${HOSTCC} -std=c17 -Wall -Wextra -Werror -ffreestanding -nostdinc \
+	    -isystem ${TOPSRC}/include -c -o $@ header_contract.c
 
 clean:
+	rm -f absolute_value_test absolute_value_test32 absolute_value_test_san
+	rm -f byte_search_test byte_search_test32 byte_search_test_san
+	rm -f character_io_test character_io_test32 character_io_test_san
+	rm -f qsort_context_test qsort_context_test32 qsort_context_test_san
+	rm -f bounded_string_test bounded_string_test32 bounded_string_test_san
+	rm -f dbm_open_test dbm_open_test32
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
+	rm -f exit_lifecycle_test exit_lifecycle_test32 quick_exit_test quick_exit_test32
 	rm -f alarm_contract_test alarm_contract.o
+	rm -f getgrent_contract_test grent_getgrent.o
 	rm -f asctime_contract_test asctime_contract_bad_test \
 		asctime_asctime.o asctime_bad.o
-	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_ctime32.o
+	rm -f calendar64_test calendar64_test32 calendar64_test_san \
+		calendar64_test32_san calendar64_vectors.h cal64_*.o
+	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_tzset.o \
+		ctime_ctime32.o ctime_tzset32.o calendar32_vectors.h
+	rm -f sleep_contract_test sleep_contract_test32 sleep_bad_test32
 	rm -f zone_contract_test zone_contract_test32 \
-		zone_ctime.o zone_ctime32.o zone_timezone.o zone_timezone32.o
-	rm -f zone_contract_test_san zone_ctime_san.o zone_timezone_san.o
-	rm -f zone_contract_test_fixed zone_ctime_fixed.o zone_timezone_fixed.o
+		zone_ctime.o zone_tzset.o zone_ctime32.o zone_tzset32.o \
+		zone_timezone.o zone_timezone32.o
+	rm -f zone_contract_test_san zone_ctime_san.o zone_tzset_san.o \
+		zone_timezone_san.o
+	rm -f zone_contract_test_fixed zone_ctime_fixed.o zone_tzset_fixed.o \
+		zone_timezone_fixed.o
 	rm -f mktime_contract_test mktime_contract_test32 \
-		mktime_mktime.o mktime_mktime32.o mktime_ctime.o mktime_ctime32.o \
+		mktime_mktime.o mktime_mktime32.o mktime_ctime.o mktime_tzset.o \
+		mktime_ctime32.o mktime_tzset32.o \
 		mktime_timezone.o mktime_timezone32.o
+	rm -f mktime_contract_test_san mktime_contract_test32_san \
+		mktime_mktime_san.o mktime_mktime32_san.o mktime_ctime_san.o \
+		mktime_tzset_san.o \
+		mktime_ctime32_san.o mktime_tzset32_san.o mktime_timezone_san.o \
+		mktime_timezone32_san.o
 	rm -f asctime_target.o asctime_target_diagnostic.o ctime_target.o \
+		tzset_target.o \
 		asctime_format_bad_target.o asctime_format_bad_target.log \
 		stdio_format_extensions.o
 	rm -f runtime_limits_test runtime_limits_test32 runtime_limits_bad_test \
@@ -1259,7 +1778,9 @@ clean:
 # reach _impure_ptr, whose stdio would collide with the tree's. The c17
 # header gate holds that pair to glibc and to newlib, so this run shows
 # the scanner agreeing with a verified conversion on Thumb-1.
-QEMU_OBJCFLAGS=	-Os ${QEMU_ARM_CPUFLAGS} -fno-common
+# Each object is a libc member, compiled with the 32-bit view of time as
+# lib/libc/Makefile compiles it (NARROW_TIME above).
+QEMU_OBJCFLAGS=	-Os ${QEMU_ARM_CPUFLAGS} -fno-common ${NARROW_TIME}
 QEMU_TESTS=	strtox_test_arm random_contract_test_arm printf_contract_test_arm \
 		scanf_llong_test_arm
 QEMU_STRTOX_OBJS= strtox_strtol_arm.o strtox_strtoul_arm.o
@@ -1281,6 +1802,13 @@ check-qemu:
 	@${MAKE} printf_g_contract_test_arm huge_val_contract_test_arm
 	${QEMU_ARM_RUN} ./printf_g_contract_test_arm
 	${QEMU_ARM_RUN} ./huge_val_contract_test_arm
+	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm --calibrate
+	${PYTHON} ${.CURDIR}/character_io.py --compiler ${QEMU_ARM_CC:Q} --target
+	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/dbm_open.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 .endif
 
 qemu_support_direct.o: ${QEMU_SUPPORT}
@@ -1350,7 +1878,7 @@ scanf_llong_test_arm: scanf_llong_test.c ${QEMU_SCANF_OBJS} \
 
 all: check
 
-.PHONY: all check check-host check-aout check-asctime check-ctime \
+.PHONY: all check check-host check-aout check-asctime check-calendar64 check-ctime \
 	check-ctime-cross check-difftime check-difftime-cross \
 	check-alarm-contract check-alarm-contract-cross \
 	check-waitpid-contract check-waitpid-contract-cross \
@@ -1360,7 +1888,9 @@ all: check
 	check-printf-float check-printf-g check-huge-val check-rwmode check-scanf \
 	check-scanf-llong check-string-security \
 	check-array-memory-line-cross check-string-security-cross check-strtox \
-	check-syslog check-vis check-qemu clean
+	check-syslog check-vis check-getgrent check-getgrent-cross check-exit-lifecycle \
+	check-quick-exit check-quick-exit-cross check-qsort-context-cross check-dbm-open \
+	check-qemu clean
 
 # The C17 stdio surface outside the read and write path: the mode strings
 # fopen accepts and the descriptor flags they produce, fflush over every
@@ -1520,7 +2050,7 @@ include ${TOPSRC}/tools/host-test.mk
 PRINTF_ORACLE_ARM_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Os \
 		-mcpu=cortex-m0plus -mthumb -mfloat-abi=soft -ffreestanding \
 		-nostdinc -isystem ${TOPSRC}/include ${PRINTF_ORACLE_RENAMES} \
-		-Disnan=tree_isnan -Disinf=tree_isinf
+		-Disnan=tree_isnan -Disinf=tree_isinf ${NARROW_TIME}
 
 .for _m in ${PRINTF_ORACLE_MEMBERS}
 pg_arm_${_m}.o: ${PRINTF_DIR}/${_m}.c
@@ -1605,7 +2135,7 @@ hv_${_m}.o: ${TOPSRC}/lib/libc/stdlib/${_m}.c ${TOPSRC}/include/math.h
 
 HV_ARM_CFLAGS=	-std=gnu89 -w -Os -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
 		-ffreestanding -fno-builtin -nostdinc -Istrtox_include \
-		-isystem ${TOPSRC}/include ${HV_RENAMES}
+		-isystem ${TOPSRC}/include ${HV_RENAMES} ${NARROW_TIME}
 
 .for _m in ${HV_LIBM}
 hv_arm_${_m}.o: ${TOPSRC}/lib/libm/${_m}.c ${TOPSRC}/include/math.h

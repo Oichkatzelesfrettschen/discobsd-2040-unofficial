@@ -283,8 +283,8 @@ parse(char *string, int flags)
 			    "%s is not supported in DiscoBSD\n", string);
 			return (1);
 		case KERN_INODE:
-		case KERN_FILE:
 		case KERN_TEXT:
+		case KERN_TTY:
 			if (flags == 0)
 				return (0);
 			fprintf(stderr,
@@ -295,6 +295,12 @@ parse(char *string, int flags)
 				return (0);
 			fprintf(stderr,
 			    "Use ps to view %s information\n", string);
+			return (1);
+		case KERN_FILE:
+			if (flags == 0)
+				return (0);
+			fprintf(stderr,
+			    "Use fstat to view %s information\n", string);
 			return (1);
 		case KERN_CLOCKRATE:
 			special |= CLOCK;
@@ -444,13 +450,17 @@ parse(char *string, int flags)
 		return (0);
 	}
 	if (special & BOOTTIME) {
-		struct timeval *btp = (struct timeval *)buf;
+		/*
+		 * The kernel copies out its own struct timeval, whose
+		 * second count is 32 bits read unsigned (sys/sys/time.h).
+		 */
+		struct __timeval32 *btp = (struct __timeval32 *)buf;
+		time_t boot = (time_t)(utime32_t)btp->tv_sec;
 
 		if (!nflag)
-			fprintf(stdout, "%s%s%s", string, equ,
-			    ctime(&btp->tv_sec));
+			fprintf(stdout, "%s%s%s", string, equ, ctime(&boot));
 		else
-			fprintf(stdout, "%ld\n", btp->tv_sec);
+			fprintf(stdout, "%lu\n", (unsigned long)btp->tv_sec);
 		return (0);
 	}
 	if (special & CONSDEV) {
@@ -492,6 +502,58 @@ parse(char *string, int flags)
             "buffer_waits",
             "swapram_attempts",
             "swapram_admissions",
+            "swapram_refused_closed",
+            "swapram_refused_codec",
+            "swapram_refused_encode",
+            "swapram_refused_nospace",
+            "swapram_refused_fragment",
+            "swapram_refused_want_bytes",
+            "swapram_refused_free_bytes",
+            "swapram_refused_largest_bytes",
+            "swapram_refused_data_fits",
+            "swapram_short_1k",
+            "swapram_short_2k",
+            "swapram_short_3k",
+            "swapram_short_4k",
+            "swapram_short_5k",
+            "swapram_short_6k",
+            "swapram_short_7k",
+            "swapram_short_more",
+            "swapram_admitted_data_bytes",
+            "swapram_admitted_u_bytes",
+            "swapram_flash_swapouts",
+            "swapram_exchange_swapouts",
+            "swapram_sched_refusals",
+            "swapram_admit_scan_bytes",
+            "swapram_admit_zero_bytes",
+            "swapram_refuse_scan_bytes",
+            "swapram_refuse_zero_bytes",
+            "swapram_refuse_data_chunks",
+            "swapram_refuse_zero_chunks",
+            "swapram_ram_span_01",
+            "swapram_ram_span_02",
+            "swapram_ram_span_03",
+            "swapram_ram_span_04",
+            "swapram_ram_span_05",
+            "swapram_ram_span_06",
+            "swapram_ram_span_07",
+            "swapram_ram_span_08",
+            "swapram_ram_span_09",
+            "swapram_ram_span_10",
+            "swapram_ram_span_11",
+            "swapram_ram_span_12",
+            "swapram_flash_span_01",
+            "swapram_flash_span_02",
+            "swapram_flash_span_03",
+            "swapram_flash_span_04",
+            "swapram_flash_span_05",
+            "swapram_flash_span_06",
+            "swapram_flash_span_07",
+            "swapram_flash_span_08",
+            "swapram_flash_span_09",
+            "swapram_flash_span_10",
+            "swapram_flash_span_11",
+            "swapram_flash_span_12",
         };
         const struct storage_stats *stats = (const struct storage_stats *)buf;
         unsigned i;

@@ -40,11 +40,23 @@
 #define	PSRAM_E_RANGE		(-3)	/* the range leaves the device */
 #define	PSRAM_E_ID		(-4)	/* identification bytes are wrong */
 #define	PSRAM_E_QUAD		(-5)	/* quad-mode pattern test failed */
+#define	PSRAM_E_SIZE		(-6)	/* addresses wrap below PSRAM_BYTES */
 
-#define	PSRAM_MFID		0x0d	/* manufacturer, datasheet 6.4 */
+#define	PSRAM_MFID		0x0d	/* manufacturer, datasheet Figure 6-7 */
 #define	PSRAM_KGD_PASS		0x5d	/* known good die, Table 6-1 */
 
-extern unsigned char psram_mfid, psram_kgd;
+/*
+ * Read ID answers a 48-bit EID after the manufacturer and known-good-die
+ * bytes, most significant bit first (ESP-PSRAM64H Figure 6-7, LY68L6400
+ * Figure 12, APS6404L-3SQR Figure 13). Only the APS6404L sheet assigns a
+ * field, EID[47:45] the density (010 for 64 Mbit); the ESP and Lyontek
+ * sheets leave all 48 bits undefined, so the bytes identify a part only
+ * against reads of reference parts. psram_eid[0] holds EID[47:40].
+ */
+#define	PSRAM_EID_BYTES		6
+
+extern unsigned char psram_mfid, psram_kgd, psram_eid[PSRAM_EID_BYTES];
+extern int psram_id_read;
 
 void psram_hw_init(void);
 int psram_device_init(void);

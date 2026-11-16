@@ -6,6 +6,9 @@
 update \- periodically update the super block
 .SH SYNOPSIS
 .B update
+[
+.B \-f
+]
 .SH DESCRIPTION
 .I Update
 is a program that executes
@@ -14,6 +17,18 @@ the
 primitive every 30 seconds.
 This insures that the file system
 is fairly up to date in case of a crash.
+Without
+.BR \-f ,
+.I update
+detaches with
+.IR daemon (3);
+with
+.B \-f
+it stays in the foreground, so a supervisor that forked it, such as
+.IR init (8)
+reading
+.IR /etc/daemons ,
+sees it exit.
 This command should not be executed directly,
 but should be executed out of the
 initialization shell command file.

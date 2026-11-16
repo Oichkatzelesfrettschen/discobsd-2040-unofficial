@@ -82,7 +82,7 @@ REMO1=	edata.0 etext.0 j1.0 jn.0 ns_addr.0 ns_ntoa.0 y0.0 y1.0 yn.0 acos.0 \
 	isdigit.0 islower.0 isprint.0 ispunct.0 isspace.0 isupper.0 \
 	isxdigit.0 label.0 ldexp.0 line.0 linemod.0 localtime.0 logb.0 modf.0 \
 	move.0 network.0 ntoa.0 openpl.0 pclose.0 point.0 putchar.0 putw.0
-REMO2=	re_comp.0 re_exec.0 scalb.0 setkey.0 space.0 srand.0 tanh.0 \
+REMO2=	qsort_r.0 re_comp.0 re_exec.0 scalb.0 setkey.0 space.0 srand.0 tanh.0 \
 	timezone.0 toascii.0 tolower.0 toupper.0 ltol3.0 _longjmp.0 \
 	_setjmp.0 acosh.0 alloca.0 atanh.0 cabs.0 calloc.0 ceil.0 \
 	closelog.0 fabs.0 fdopen.0 free.0 freopen.0 fscanf.0 \
@@ -136,6 +136,7 @@ clean: FRC
 install: _make_01 _make_02
 	cp ${OBJS1} ${DESTDIR}${MDIR}
 	cp ${OBJS2} ${DESTDIR}${MDIR}
+	ln -f ${DESTDIR}${MDIR}/qsort.0 ${DESTDIR}${MDIR}/qsort_r.0
 	for i in ${REMO4}; do \
 		ln -f ${DESTDIR}/${MDIR}/err.0 ${DESTDIR}${MDIR}/$$i; \
 	done

@@ -29,7 +29,7 @@
 #include "umount_shim.h"
 
 int	umount_main(int argc, char *argv[]);
-void	umount_exit(int status);
+__dead void	umount_exit(int status);
 
 /* umount.c's own flags, reset between runs so one case cannot reach another. */
 extern int	fake, fflag, vflag, allflag, *typelist;

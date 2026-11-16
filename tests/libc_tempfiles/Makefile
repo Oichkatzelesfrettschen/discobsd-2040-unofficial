@@ -37,8 +37,10 @@ native_mktemp.o: ../../lib/libc/gen/mktemp.c native_shim.h
 	${HOSTCC} ${CFLAGS} ${NATIVE_CFLAGS} -c -o $@ \
 		../../lib/libc/gen/mktemp.c
 
-header_contract.o: header_contract.c
-	${HOSTCC} ${CFLAGS} -ffreestanding -c -o $@ header_contract.c
+header_contract.o: header_contract.c ../../include/stdio.h \
+		../../include/stdlib.h ../../include/_featuretest.h ../../include/sys/cdefs.h
+	${HOSTCC} ${CFLAGS} -ffreestanding -isystem ../../include \
+		-c -o $@ header_contract.c
 
 clean:
 	rm -f ${PROGS} tmpnam.o native_tmpnam.o native_mktemp.o \

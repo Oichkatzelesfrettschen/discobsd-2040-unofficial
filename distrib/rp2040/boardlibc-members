@@ -9,7 +9,18 @@
 # malloc, the common syscalls, signal, exec, wait, stat, time, errno,
 # perror, qsort, the strtol family, and getenv -- what libc-sink.c calls.
 #
+# asctime, ctime (with gmtime and localtime), timezone, tzset and index
+# print a date for a program compiled on the board; they are the 32-bit
+# view's members, the only view Smaller C binds
+# (docs/research/time-representation-past-2038.md).
+#
+# check-board-libc-output links libc-sink.c against the archive this list
+# builds, so a member the sink reaches and the list omits fails that gate.
+#
+abs
 aeabi_div
+asctime
+at_quick_exit
 atoi
 atol
 bcopy
@@ -19,6 +30,7 @@ calloc
 close
 confstr
 ctermid
+ctime
 ctype_
 difftime
 doprnt
@@ -28,12 +40,15 @@ execl
 execve
 explicit_bzero
 _exit
+iso_exit
+labs
 exit
 fakcu
 fgetc
 fgets
 filbuf
 findiop
+flags
 flsbuf
 fopen
 fork
@@ -43,10 +58,12 @@ fputs
 fseek
 fstat
 ftell
+getchar
 getdtablesize
 getenv
 getpid
 gettimeofday
+index
 ioctl
 isatty
 isinff
@@ -55,15 +72,20 @@ kill
 lseek
 lstat
 malloc
+memchr
 memcmp
 memcpy
+memmem
 memmove
 memset
 open
 perror
 printf
+putchar
 puts
 qsort
+qsort_r
+quick_exit
 raise
 read
 remove
@@ -77,11 +99,14 @@ setjmp
 sigaction
 sigprocmask
 sigsetjmp
+sigsetops
 signal
 sleep
 snprintf
 sprintf
 stat
+stpcpy
+stpncpy
 strcasecmp
 strcat
 strchr
@@ -93,6 +118,8 @@ strlen
 strncat
 strncmp
 strncpy
+strndup
+strnlen
 strrchr
 strstr
 strtok
@@ -102,7 +129,11 @@ __sysctl
 sysctl
 sysconf
 time
+timezone
 timingsafe_bcmp
+tolower
+toupper
+tzset
 ungetc
 unlink
 vfprintf

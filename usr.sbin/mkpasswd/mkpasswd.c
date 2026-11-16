@@ -183,7 +183,7 @@ main(argc, argv)
 		/* create original format password file entry */
 		if (!makeold)
 			continue;
-		fprintf(oldfp, "%s:%d:%d:%d:%s:%s:%s\n", _pw_passwd.pw_name,
+		fprintf(oldfp, "%s:%ld:%d:%d:%s:%s:%s\n", _pw_passwd.pw_name,
                     offset, _pw_passwd.pw_uid, _pw_passwd.pw_gid,
                     _pw_passwd.pw_gecos, _pw_passwd.pw_dir,
                     _pw_passwd.pw_shell);

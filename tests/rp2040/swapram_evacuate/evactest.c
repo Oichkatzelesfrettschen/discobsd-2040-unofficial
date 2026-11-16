@@ -4,12 +4,17 @@
  * own and sleep, so the swapper moves them into the compressed pool;
  * the parent then asks the swapper through machdep.swapram_evacuate to
  * move every image to flash, waits for the answer, and the children
- * wake, verify their patterns and report. Expects "EVACTEST OK".
+ * wake, verify their patterns and report. Each child also writes a
+ * pattern of its own into the u area, as the dispositions of eight
+ * signals in u_signal[], and reads it back through sigaction(2), so the
+ * u area's bytes are checked as well as its use by the resumed child.
+ * Expects "EVACTEST OK".
  */
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <machine/cpu.h>
 #include <machine/swapram.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,13 +40,39 @@ machdep(int id, int *val, int set)
     return 0;
 }
 
+/* Signals whose disposition no part of this program depends on. */
+static const int usig[] = {
+    SIGHUP, SIGQUIT, SIGPIPE, SIGTERM, SIGURG, SIGWINCH, SIGUSR1, SIGUSR2
+};
+#define NUSIG   ((unsigned)(sizeof usig / sizeof usig[0]))
+
+static void
+caught(int sig)
+{
+    (void)sig;
+}
+
+/* Child k's disposition of usig[i]: a handler or SIG_IGN by a bit of k. */
+static sig_t
+disposition(int k, unsigned i)
+{
+    return ((k * 5 + 3) >> i) & 1 ? caught : SIG_IGN;
+}
+
 static int
 child(int k)
 {
     static unsigned char data[DATA];
     unsigned char stack[3000];
-    unsigned i, bad = 0;
+    struct sigaction sa;
+    unsigned i, bad = 0, ubad = 0;
 
+    for (i = 0; i < NUSIG; i++) {
+        memset(&sa, 0, sizeof sa);
+        sa.sa_handler = disposition(k, i);
+        if (sigaction(usig[i], &sa, NULL) != 0)
+            ubad++;
+    }
     for (i = 0; i < DATA; i++)
         data[i] = (k * 37 + i / 8) & 0xff;
     for (i = 0; i < sizeof stack; i++)
@@ -51,8 +82,13 @@ child(int k)
         bad += data[i] != ((k * 37 + i / 8) & 0xff);
     for (i = 0; i < sizeof stack; i++)
         bad += stack[i] != ((k * 91 + i / 4) & 0xff);
-    printf("child %d: %u bad bytes\n", k, bad);
-    return bad != 0;
+    for (i = 0; i < NUSIG; i++) {
+        if (sigaction(usig[i], NULL, &sa) != 0 ||
+            sa.sa_handler != disposition(k, i))
+            ubad++;
+    }
+    printf("child %d: %u bad bytes, %u bad dispositions\n", k, bad, ubad);
+    return bad != 0 || ubad != 0;
 }
 
 int

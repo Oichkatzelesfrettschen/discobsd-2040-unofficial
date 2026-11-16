@@ -31,8 +31,13 @@ static struct kernel_capacity_stats capacity_state;
 
 _Static_assert(USIZE == UAREA_BYTES,
     "assembly and C must use the same u-area size");
-_Static_assert(sizeof(struct user) <= UAREA_STACK_OFFSET,
-    "struct user overlaps the measured kernel-stack region");
+/*
+ * struct user ends exactly where the measured kernel stack begins: a larger
+ * struct overlaps the stack region, and a smaller one leaves bytes that
+ * u_psargs (PSARGSZ in sys/user.h) should hold.
+ */
+_Static_assert(sizeof(struct user) == UAREA_STACK_OFFSET,
+    "struct user must end at the measured kernel-stack region");
 
 static uint16_t
 capacity_live(enum capacity_kind kind)
@@ -76,9 +81,12 @@ capacity_live(enum capacity_kind kind)
 static void
 capacity_refresh(enum capacity_kind kind)
 {
-    struct capacity_metric *metric = &capacity_state.metric[kind];
+    struct capacity_metric *metric;
     uint16_t free_slots;
 
+    if ((unsigned)kind >= CAPACITY_KIND_COUNT)
+        return;
+    metric = &capacity_state.metric[kind];
     metric->current = capacity_live(kind);
     if (metric->current > metric->peak)
         metric->peak = metric->current;
@@ -153,6 +161,8 @@ void
 capacity_note(enum capacity_kind kind, int failed)
 {
     if (capacity_state.version != KERNEL_CAPACITY_VERSION)
+        return;
+    if ((unsigned)kind >= CAPACITY_KIND_COUNT)
         return;
     if (failed)
         capacity_state.metric[kind].failures++;

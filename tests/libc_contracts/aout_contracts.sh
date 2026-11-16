@@ -13,12 +13,13 @@ script_directory=$(CDPATH= cd "$(dirname "$0")" && pwd)
 tool_directory=$source_root/tools/bin/$target_machine
 assembler=$tool_directory/as
 archiver=$tool_directory/ar
+indexer=$tool_directory/ranlib
 linker=$tool_directory/ld
 symbol_reader=$tool_directory/nm
 temporary_directory=$(mktemp -d)
 trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
 
-for required_tool in "$assembler" "$archiver" "$linker" "$symbol_reader"
+for required_tool in "$assembler" "$archiver" "$indexer" "$linker" "$symbol_reader"
 do
 	if [ ! -x "$required_tool" ]; then
 		echo "a.out libc contracts require a completed MACHINE=$target_machine build: $required_tool is absent" >&2
@@ -26,8 +27,11 @@ do
 	fi
 done
 
-"$arm_compiler" -std=gnu17 -mcpu=cortex-m0plus -mabi=aapcs \
-    -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc \
+# The probe stands for a program linked on the board against these
+# archives, whose members carry the 32-bit names Smaller C binds, so it is
+# compiled with that view of time (sys/_time_t.h).
+"$arm_compiler" -std=gnu17 -Wall -Wextra -Werror -mcpu=cortex-m0plus -mabi=aapcs \
+    -D_TIME_BITS=32 -mlittle-endian -mthumb -mfloat-abi=soft -nostdinc \
     -I"$source_root/include" -Os -ffreestanding -fno-builtin \
     -fno-jump-tables -S "$script_directory/aout_link_contract.c" \
     -o "$temporary_directory/aout_link_contract.s"
@@ -35,6 +39,11 @@ done
     -o "$temporary_directory/aout_link_contract.o"
 
 archive_index=0
+rejected_members=0
+case "$target_machine" in
+rp2040) divider_member=aeabi_div ;;
+*) divider_member=aeabi_div_idiv ;;
+esac
 for archive_path in \
     "$source_root/lib/libc_aout/libc.a" \
     "$source_root/distrib/obj/boardlibc.$target_machine/libc.a"
@@ -44,10 +53,29 @@ do
 		exit 2
 	fi
 	for required_source in \
+	    "$source_root/lib/libc/stdio/fgetc.c" \
+	    "$source_root/lib/libc/stdio/fputc.c" \
+	    "$source_root/lib/libc/stdio/getchar.c" \
+	    "$source_root/lib/libc/stdio/putchar.c" \
+	    "$source_root/lib/libc/compat/memchr.c" \
+	    "$source_root/lib/libc/string/memmem.c" \
+	    "$source_root/lib/libc/stdlib/abs.c" \
+	    "$source_root/lib/libc/stdlib/labs.c" \
+	    "$source_root/lib/libc/stdlib/iso_exit.c" \
+	    "$source_root/lib/libc/stdlib/at_quick_exit.c" \
+	    "$source_root/lib/libc/stdlib/quick_exit.c" \
+	    "$source_root/lib/libc/stdlib/quick_exit.h" \
 	    "$source_root/lib/libc/gen/confstr.c" \
 	    "$source_root/lib/libc/gen/ctermid.c" \
 	    "$source_root/lib/libc/gen/difftime.c" \
 	    "$source_root/lib/libc/gen/raise.c" \
+	    "$source_root/lib/libc/gen/qsort.c" \
+	    "$source_root/lib/libc/gen/qsort_r.c" \
+	    "$source_root/lib/libc/arm/gen/$divider_member.S" \
+	    "$source_root/lib/libc/gen/strnlen.c" \
+	    "$source_root/lib/libc/gen/strndup.c" \
+	    "$source_root/lib/libc/gen/stpcpy.c" \
+	    "$source_root/lib/libc/gen/stpncpy.c" \
 	    "$source_root/lib/libc/gen/sysconf.c" \
 	    "$source_root/lib/libc/gen/vis.c" \
 	    "$source_root/lib/libc/string/explicit_bzero.c" \
@@ -59,7 +87,10 @@ do
 		fi
 	done
 	for required_member in confstr.o ctermid.o difftime.o explicit_bzero.o \
-	    raise.o sysconf.o \
+	    fgetc.o fputc.o getchar.o putchar.o \
+	    abs.o labs.o memchr.o memmem.o iso_exit.o at_quick_exit.o quick_exit.o \
+	    "$divider_member.o" qsort.o qsort_r.o raise.o sysconf.o \
+	    strnlen.o strndup.o stpcpy.o stpncpy.o \
 	    timingsafe_bcmp.o vis.o
 	do
 		member_count=$(
@@ -90,7 +121,31 @@ do
 		printf '%s\n' "$undefined_symbols" >&2
 		exit 1
 	fi
+	for missing_member in abs labs memchr memmem strnlen strndup stpcpy stpncpy iso_exit at_quick_exit quick_exit qsort qsort_r fgetc fputc getchar putchar "$divider_member"
+	do
+		damaged_archive=$temporary_directory/damaged.a
+		cp "$archive_path" "$damaged_archive"
+		"$archiver" d "$damaged_archive" "$missing_member.o"
+		"$indexer" "$damaged_archive"
+		if "$linker" -T536870912 -o "$temporary_directory/damaged-image" \
+		    "$temporary_directory/aout_link_contract.o" "$damaged_archive" \
+		    > "$temporary_directory/damaged.log" 2>&1; then
+			echo "$archive_path: missing $missing_member still links" >&2
+			exit 1
+		fi
+		case "$missing_member" in
+		iso_exit) required_symbol=_Exit ;;
+		aeabi_div*) required_symbol=__aeabi_uidiv ;;
+		*) required_symbol=$missing_member ;;
+		esac
+		if ! grep -F "$required_symbol" "$temporary_directory/damaged.log" >/dev/null; then
+			echo "$archive_path: missing-member control fails for another reason" >&2
+			cat "$temporary_directory/damaged.log" >&2
+			exit 1
+		fi
+		rejected_members=$((rejected_members + 1))
+	done
 	archive_index=$((archive_index + 1))
 done
 
-echo "a.out libc contract tests passed"
+echo "a.out libc contracts pass; $rejected_members missing-member controls reject"

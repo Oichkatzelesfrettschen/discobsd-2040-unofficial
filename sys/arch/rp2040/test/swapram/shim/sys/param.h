@@ -14,7 +14,7 @@
 #ifndef SWAPRAM_KB
 #define SWAPRAM_KB 16
 #endif
-#define NPROC 25
+#define NPROC 16
 #define DEV_BSHIFT 10
 #define DEV_BSIZE (1 << DEV_BSHIFT)
 #define btod(x) (((x) + DEV_BSIZE - 1) >> DEV_BSHIFT)

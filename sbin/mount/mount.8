@@ -150,6 +150,13 @@ update
 The same as
 \fB\-u\fP;
 indicate that the status of an already mounted file system should be changed.
+.TP 10
+v7
+The volume is in little-endian Seventh Edition format: 512-byte blocks and
+14-byte file names.
+The format has no magic number, so the kernel reads it only on request.
+A kernel built without the V7FS option answers
+.B "Incorrect super block."
 .PP
 Any additional options specific to a filesystem type that is not
 one of the internally known types (see the

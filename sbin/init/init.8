@@ -114,6 +114,41 @@ This hook is used by
 and
 .IR halt (8).
 .PP
+In multi-user mode
+.I init
+also starts and supervises the daemons listed in
+.IR /etc/daemons ,
+one per line:
+.IP
+\fIcommand\fP [\fIargs\fP ...] \fIuid\fP\fB:\fP\fIgid\fP \fIchroot\fP \fIpolicy\fP
+.PP
+The command must stay in the foreground.
+In the child,
+.I init
+closes every descriptor, binds the standard input, output and error to
+.IR /dev/null ,
+calls
+.IR chroot (2)
+unless the field is ``\-'', sets the group list, gid and uid to the
+numeric values given, and executes the command, whose path resolves inside
+the chroot directory.
+When a daemon exits,
+.I init
+reports the exit status or signal on
+.I /dev/console
+and restarts it.
+The policy
+.B backoff
+waits 1 second and doubles the wait on each consecutive failure up to 60
+seconds;
+.B capped
+waits 5 seconds and disables the entry after 6 restarts.
+A run of 60 seconds or more clears the failure count.
+A hangup rereads
+.IR /etc/daemons :
+unchanged entries keep running, disabled entries start again, and removed or
+changed entries receive a terminate signal.
+.PP
 .I Init's
 role is so critical that if it dies, the system will reboot itself
 automatically.
@@ -132,12 +167,17 @@ This is often caused by a ringing or noisy terminal line.
 is hung and could not be killed when the system was shutting down.
 This is usually caused by a process
 which is stuck in a device driver due to a persistent device error condition.
+\fBinit: \fP\fIcommand\fP\fB: exited \fP\fIn\fP\fB; restart in \fP\fIs\fP\fB s\fP.
+A supervised daemon exited, was killed by a signal, or could not be forked;
+the line names what happened and when it starts again, or
+\fBdisabled until SIGHUP\fP.
 .SH FILES
 /dev/console,
 /dev/tty*,
 /var/run/utmp,
 /usr/adm/wtmp,
 /etc/ttys,
+/etc/daemons,
 /etc/rc
 .SH "SEE ALSO"
 login(1), kill(1), sh(1), ttys(5), crash(8), getty(8), rc(8), reboot(8),

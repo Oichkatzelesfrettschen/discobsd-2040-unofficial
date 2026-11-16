@@ -17,7 +17,6 @@ char *s1, *s2;
 {
 	register FILE *errlog;
 	register struct tm *tp;
-	extern struct tm *localtime();
 	time_t clock;
 	int pid;
 

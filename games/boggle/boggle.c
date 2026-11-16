@@ -44,7 +44,7 @@ int master = 1;
 int column;
 int *timept;
 int timeint[] = {60,60,50,7,1,1,1,0};
-long timein;
+time_t timein;
 struct sgttyb origttyb, tempttyb;
 int ctlecho = 0;
 int lctlech = LCTLECH;
@@ -151,9 +151,9 @@ register char *p, *q;
     return(*p-*q);
 }
 
-int compare (a, b)
-char **a, **b;
+int compare(const void *left, const void *right)
 {
+    char *const *a = left, *const *b = right;
     return(wordcomp(*a, *b));
 }
 
@@ -521,7 +521,7 @@ char **argv;
     if (setjmp(env) != 0)
         goodbye(0);
     signal (SIGINT, interrupt);
-    timein = time(0L);
+    timein = time((time_t *)0);
     if (argv[0][0] != 'a' && (logfile = open("/usr/games/lib/boglog", 1)) >= 0) {
         p = &logbuff[5];
         q = getlogin();
@@ -602,7 +602,7 @@ char **argv;
                 alarm(*timept++);
                 evalboard(getuword, aputuword);
                 clearscreen();
-                qsort(&word[0], wcount, sizeof (int), compare);
+                qsort(&word[0], wcount, sizeof word[0], compare);
                 for (i=0; i<wcount; i++)
                     if (i==0 || wordcomp(word[i], word[i-1])!=0) {
                         p = word[i];

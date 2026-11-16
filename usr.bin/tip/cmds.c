@@ -56,9 +56,7 @@ timeout(int sig)
     timedout = 1;
 }
 
-static void prtime(s, a)
-    char *s;
-    time_t a;
+static void prtime(char *s, long a)
 {
     register int i;
     int nums[3];

@@ -28,26 +28,40 @@
 #define RUSAGE_SELF     0
 #define RUSAGE_CHILDREN (-1)
 
-struct  rusage {
-    struct timeval  ru_utime;       /* user time used */
-    struct timeval  ru_stime;       /* system time used */
-    long            ru_maxrss;
-#define ru_first    ru_ixrss
-    long            ru_ixrss;       /* integral shared memory size */
-    long            ru_idrss;       /* integral unshared data " */
-    long            ru_isrss;       /* integral unshared stack " */
-    long            ru_minflt;      /* page reclaims */
-    long            ru_majflt;      /* page faults */
-    long            ru_nswap;       /* swaps */
-    long            ru_inblock;     /* block input operations */
-    long            ru_oublock;     /* block output operations */
-    long            ru_msgsnd;      /* messages sent */
-    long            ru_msgrcv;      /* messages received */
-    long            ru_nsignals;    /* signals received */
-    long            ru_nvcsw;       /* voluntary context switches */
+/*
+ * One field list lays out struct rusage and, under the 64-bit view of time
+ * (sys/_time_t.h), struct __rusage32, the layout the kernel writes.
+ */
+#define __RUSAGE_FIELDS(timeval_type) \
+    timeval_type ru_utime;       /* user time used */ \
+    timeval_type ru_stime;       /* system time used */ \
+    long            ru_maxrss; \
+    long            ru_ixrss;       /* integral shared memory size */ \
+    long            ru_idrss;       /* integral unshared data " */ \
+    long            ru_isrss;       /* integral unshared stack " */ \
+    long            ru_minflt;      /* page reclaims */ \
+    long            ru_majflt;      /* page faults */ \
+    long            ru_nswap;       /* swaps */ \
+    long            ru_inblock;     /* block input operations */ \
+    long            ru_oublock;     /* block output operations */ \
+    long            ru_msgsnd;      /* messages sent */ \
+    long            ru_msgrcv;      /* messages received */ \
+    long            ru_nsignals;    /* signals received */ \
+    long            ru_nvcsw;       /* voluntary context switches */ \
     long            ru_nivcsw;      /* involuntary " */
+
+#define ru_first    ru_ixrss
 #define ru_last     ru_nivcsw
+
+struct  rusage {
+    __RUSAGE_FIELDS(struct timeval)
 };
+
+#ifdef __TIME64_VIEW
+struct  __rusage32 {
+    __RUSAGE_FIELDS(struct __timeval32)
+};
+#endif
 
 struct  k_rusage {                  /* KERNEL RUSAGE STRUCTURE */
 #define k_ru_first  ru_utime
@@ -104,7 +118,7 @@ void ruadd (struct k_rusage *ru, struct k_rusage *ru2);
 
 int getpriority (int which, int who);
 int getrlimit (int resource, struct rlimit *rlp);
-int getrusage (int who, struct rusage *usage);
+int getrusage (int who, struct rusage *usage) __TIME64_NAME(getrusage);
 int setpriority (int which, int who, int prio);
 int setrlimit (int resource, struct rlimit *rlp);
 

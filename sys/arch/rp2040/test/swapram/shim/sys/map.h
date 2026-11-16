@@ -11,6 +11,9 @@ struct map {
     struct mapent   *m_map;     /* start of the map */
     struct mapent   *m_limit;   /* address of last slot in map */
     char            *m_name;    /* name of resource */
+    size_t          m_ring_first;   /* ring bounds; zero means an interval */
+    size_t          m_ring_end;
+    size_t          m_guard;
 };
 struct mapent {
     size_t  m_size;             /* size of this segment of the map */

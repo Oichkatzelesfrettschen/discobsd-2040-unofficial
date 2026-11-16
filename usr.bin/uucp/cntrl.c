@@ -187,7 +187,7 @@ top:
 		}
 
 		if (wrktype == XUUCP) {
-			sprintf(rqstr, "X %s", msg);
+			snprintf(rqstr, sizeof rqstr, "X %s", msg);
 			logent(rqstr, "REQUEST");
 			goto sendmsg;
 		}
@@ -287,7 +287,7 @@ process:
 	switch (msg[0]) {
 
 	case RQSTCMPT:
-		DEBUG(4, "RQSTCMPT:\n", CNULL);
+		DEBUG(4, "RQSTCMPT:\n");
 		if (msg[1] == 'N') {
 			i = atoi(&msg[2]);
 			if (i<0 || i>EM_MAX)
@@ -320,7 +320,7 @@ process:
 		goto top;
 
 	case HUP:
-		DEBUG(4, "HUP:\n", CNULL);
+		DEBUG(4, "HUP:\n");
 		HaveSentHup = 1;
 		if (msg[1] == 'Y') {
 			if (role == MASTER)
@@ -675,7 +675,7 @@ register int n;
 			logent(str, "PATIENCE");
 			continue;
 		}
-		DEBUG(4, "got FAIL\n", CNULL);
+		DEBUG(4, "got FAIL\n");
 		if (c != '\0')
 			sprintf(str, "expected '%c' got FAIL (%d)", c, errno);
 		else

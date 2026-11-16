@@ -77,7 +77,7 @@ grep -q 'missing-nohup-command' "$temporary_directory/missing.out" ||
 	# A pseudo-terminal through tools/ptyrun.py, the same on every host;
 	# script(1) differs between util-linux and BSD and the latter wants a
 	# terminal of its own on stdin.
-	${PYTHON:-python3} "$top/tools/ptyrun.py" -- \
+	"${PYTHON:?set PYTHON to the intended interpreter}" "$top/tools/ptyrun.py" --wait-exit -- \
 		./driver nohup ./probe streams < /dev/null > terminal.out
 )
 tr -d '\r' <"$temporary_directory/terminal.out" \

@@ -149,7 +149,7 @@ extern	jmp_buf fightenv, mainenv;
 extern	double	strength, speed;
 extern	bool	beyond, marsh, throne, valhala, changed, fghting, su, wmhl;
 extern	struct worm_hole	w_h[];
-extern	long	secs;
+extern	time_t	secs;
 extern	int	fileloc, users;
 
 void interrupt(int sig);

@@ -251,7 +251,7 @@ sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap)
     heatshrink_encoder *encoder;
     unsigned int in = 0, out = 0, moved = 0;
     u_char scratch[64];
-    u_char *buf;
+    u_char *output_buffer;
     size_t room, n;
     HSE_poll_res pres;
     HSE_finish_res fres;
@@ -277,16 +277,16 @@ sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap)
         moved = out;
         do {
             if (dst != NULL && out < cap) {
-                buf = dst + out;
+                output_buffer = dst + out;
                 room = cap - out;
             } else {
-                buf = scratch;
+                output_buffer = scratch;
                 room = dst != NULL ? 1 : sizeof scratch;
             }
-            pres = heatshrink_encoder_poll (encoder, buf, room, &n);
+            pres = heatshrink_encoder_poll (encoder, output_buffer, room, &n);
             if (pres < 0)
                 goto done;
-            if (buf == scratch && dst != NULL && n > 0)
+            if (output_buffer == scratch && dst != NULL && n > 0)
                 goto done;      /* more than cap bytes: overflow */
             out += n;
         } while (pres == HSER_POLL_MORE);
@@ -346,6 +346,104 @@ sr_expand (unsigned int off, unsigned int clen, caddr_t dst,
     return (int) out;
 }
 
+#ifdef STORAGE_STATS
+/*
+ * Admission probe (sys/storage_stats.h). Every counter here is written by
+ * storage_note() alone and no admission decision reads one back, so a kernel
+ * built with STORAGE_STATS admits exactly the images one without it admits.
+ * The scan reads the data and stack bytes the counting encode reads next.
+ */
+#define SR_PROBE_CHUNK  4096
+
+static void
+sr_probe_scan (caddr_t src, size_t len, int chunked, u_int *zeros,
+    u_int *chunks, u_int *zero_chunks)
+{
+    const u_char *p = (const u_char *) src;
+    size_t n, i, z;
+
+    while (len != 0) {
+        n = len < SR_PROBE_CHUNK ? len : SR_PROBE_CHUNK;
+        z = 0;
+        for (i = 0; i < n; i++)
+            z += p[i] == 0;
+        *zeros += z;
+        if (chunked && n == SR_PROBE_CHUNK) {
+            ++*chunks;
+            if (z == SR_PROBE_CHUNK)
+                ++*zero_chunks;
+        }
+        p += n;
+        len -= n;
+    }
+}
+
+/*
+ * One reservation call ended. A refusal names its reason; an admission
+ * passes the compressed data and stack bytes it reserved.
+ */
+static void
+sr_probe_call (caddr_t dsrc, size_t dlen, caddr_t ssrc, size_t slen,
+    int admitted, enum storage_metric reason, u_int compressed)
+{
+    u_int zeros = 0, chunks = 0, zero_chunks = 0;
+
+    sr_probe_scan (dsrc, dlen, ! admitted, &zeros, &chunks, &zero_chunks);
+    sr_probe_scan (ssrc, slen, 0, &zeros, &chunks, &zero_chunks);
+    if (admitted) {
+        storage_note (STORAGE_SWAPRAM_ADMIT_SCAN_BYTES, dlen + slen);
+        storage_note (STORAGE_SWAPRAM_ADMIT_ZERO_BYTES, zeros);
+        storage_note (STORAGE_SWAPRAM_ADMITTED_DATA_BYTES, compressed);
+        return;
+    }
+    storage_note (reason, 1);
+    storage_note (STORAGE_SWAPRAM_REFUSE_SCAN_BYTES, dlen + slen);
+    storage_note (STORAGE_SWAPRAM_REFUSE_ZERO_BYTES, zeros);
+    storage_note (STORAGE_SWAPRAM_REFUSE_DATA_CHUNKS, chunks);
+    storage_note (STORAGE_SWAPRAM_REFUSE_ZERO_CHUNKS, zero_chunks);
+}
+
+/*
+ * The pool had no run for want bytes: record how short the largest run
+ * fell and whether the compressed data and stack alone (dsn) would fit.
+ */
+static void
+sr_probe_pool_refused (struct swapram_pool *pool, caddr_t dsrc, size_t dlen,
+    caddr_t ssrc, size_t slen, u_int want, u_int dsn)
+{
+    u_int avail = swapram_pool_avail (pool);
+    u_int largest = swapram_pool_largest (pool);
+    u_int need = (want + SWAPRAM_GRAIN - 1) & ~(u_int) (SWAPRAM_GRAIN - 1);
+    u_int shortfall = need > largest ? need - largest : 0;
+    u_int bin = shortfall != 0 ? (shortfall - 1) >> 10 : 0;
+
+    if (bin > 7)
+        bin = 7;
+    storage_note ((enum storage_metric) (STORAGE_SWAPRAM_SHORT_1K + bin), 1);
+    storage_note (STORAGE_SWAPRAM_REFUSED_WANT_BYTES, want);
+    storage_note (STORAGE_SWAPRAM_REFUSED_FREE_BYTES, avail);
+    storage_note (STORAGE_SWAPRAM_REFUSED_LARGEST_BYTES, largest);
+    if (dsn <= largest)
+        storage_note (STORAGE_SWAPRAM_REFUSED_DATA_FITS, 1);
+    sr_probe_call (dsrc, dlen, ssrc, slen, 0,
+        need > avail ? STORAGE_SWAPRAM_REFUSED_NOSPACE :
+        STORAGE_SWAPRAM_REFUSED_FRAGMENT, 0);
+}
+#define SR_PROBE_REFUSED(reason) \
+    sr_probe_call (dsrc, dlen, ssrc, slen, 0, (reason), 0)
+#define SR_PROBE_POOL_REFUSED() \
+    sr_probe_pool_refused (&sr_map, dsrc, dlen, ssrc, slen, want, dn + sn)
+#define SR_PROBE_ADMITTED() \
+    sr_probe_call (dsrc, dlen, ssrc, slen, 1, STORAGE_SWAPRAM_ADMISSIONS, \
+        dn + sn)
+#define SR_PROBE_U_BYTES(n) storage_note (STORAGE_SWAPRAM_ADMITTED_U_BYTES, (n))
+#else
+#define SR_PROBE_REFUSED(reason) ((void) 0)
+#define SR_PROBE_POOL_REFUSED() ((void) 0)
+#define SR_PROBE_ADMITTED() ((void) 0)
+#define SR_PROBE_U_BYTES(n) ((void) 0)
+#endif
+
 /*
  * Claim pool space for a whole image before any of it is compressed.
  * Returns 1 when the tier takes the image, 0 when swapout must use flash.
@@ -371,15 +469,23 @@ swapram_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
      * A swapout scheduled during that interval must use flash instead of
      * entering the owner-checked codec workspace.
      */
-    if (! sr_admit || sr_codec_owner == SWAPRAM_CODEC_PACKED_TEXT)
+    if (! sr_admit || sr_codec_owner == SWAPRAM_CODEC_PACKED_TEXT) {
+        SR_PROBE_REFUSED (sr_admit ? STORAGE_SWAPRAM_REFUSED_CODEC :
+            STORAGE_SWAPRAM_REFUSED_CLOSED);
         return 0;
+    }
 
-    if (dlen && (dn = sr_encode (dsrc, dlen, NULL, 0)) < 0)
+    if (dlen && (dn = sr_encode (dsrc, dlen, NULL, 0)) < 0) {
+        SR_PROBE_REFUSED (STORAGE_SWAPRAM_REFUSED_ENCODE);
         return 0;
-    if (slen && (sn = sr_encode (ssrc, slen, NULL, 0)) < 0)
+    }
+    if (slen && (sn = sr_encode (ssrc, slen, NULL, 0)) < 0) {
+        SR_PROBE_REFUSED (STORAGE_SWAPRAM_REFUSED_ENCODE);
         return 0;
+    }
     want = dn + sn + SR_WORST (ulen);
     if (swapram_pool_alloc (&sr_map, want, &off) < 0) {
+        SR_PROBE_POOL_REFUSED ();
         if (swapramdebug)
             printf ("swapram: pid %d flash %u bytes (%u compressed), pool %u free\n",
                 p->p_pid, (u_int) (dlen + slen + ulen), want,
@@ -394,6 +500,7 @@ swapram_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
     e->e_clen[SR_DATA] = dn;
     e->e_clen[SR_STACK] = sn;
     e->e_clen[SR_U] = SR_WORST (ulen);
+    SR_PROBE_ADMITTED ();
     return 1;
 }
 
@@ -456,6 +563,7 @@ swapram_commit (struct proc *p)
         panic ("swapram: trim");
     e->e_res = used;
     e->e_live = 1;
+    SR_PROBE_U_BYTES (e->e_clen[SR_U]);
     if (swapramdebug)
         printf ("swapram: pid %d ram %u -> %u bytes, pool %u free\n",
             p->p_pid,
@@ -566,12 +674,14 @@ swapram_images (void)
  * Move every image in the pool to flash swap, all or none. The flash
  * blocks for every image are reserved first, at the expanded sizes
  * swapin will read, and one reservation that fails releases them all
- * and leaves the pool as it was. Only then is each image expanded a
- * block at a time into its extents, and a process switches to them
- * (p_daddr, p_saddr, p_addr, the same words swapout sets on the flash
- * path) after its last block is written, so a process is on one tier
- * or the other at every moment and a panic part way strands nothing.
- * The pool entry is freed last. Admission stays as the caller set it;
+ * and leaves the pool as it was. The reservation pass sets p_daddr,
+ * p_saddr and p_addr, the same words swapout sets on the flash path,
+ * and the rollback clears them. Only then is each image expanded a
+ * block at a time into its extents. swapram_present() keeps an image
+ * on the pool tier until its last block is written and its pool entry
+ * is freed, so a process is on one tier or the other at every moment
+ * and a panic part way strands nothing. Admission stays as the caller
+ * set it;
  * an evacuation with images still admissible is a moment's emptiness.
  * Runs in the swapper, the one context that swaps in, so no image leaves
  * the pool under it; swap_with_buf() sleeps, and a swapout from another

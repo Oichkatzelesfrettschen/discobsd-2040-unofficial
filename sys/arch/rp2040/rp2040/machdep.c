@@ -26,6 +26,7 @@
 #include <sys/tty.h>
 
 #include <machine/fault.h>
+#include <machine/board.h>
 
 #include <machine/intr.h>
 #include <machine/mpu.h>
@@ -48,6 +49,11 @@
 #endif
 #ifdef PSRAM_ENABLED
 #include <rp2040/dev/psram_xfer.h>
+#endif
+#ifdef SD_ENABLED
+#include <sys/kernel.h>
+#include <machine/dump.h>
+#include <rp2040/dev/sd.h>
 #endif
 
 #define	MREG32(a)		(*(volatile u_int *)(a))
@@ -133,7 +139,7 @@ struct bufhd		bufhash[BUFHSZ];
 _Alignas(sizeof(struct cblock)) struct cblock cfree[NCLIST];
 struct proc		proc[NPROC];
 /* P_realtick and P_realitick occupy the alignment holes of p_alive. */
-_Static_assert(sizeof(struct proc) == 104,
+_Static_assert(sizeof(struct proc) == 100,
     "the ITIMER_REAL tick fields must not grow struct proc");
 struct file		file[NFILE];
 
@@ -163,11 +169,44 @@ _Static_assert(PSRAM_BYTES / DEV_BSIZE <= (u_short)-1,
 struct map	swapmap[1] = {
 	{ swapent,
 	  &swapent[SMAPSIZ - 1],
-	  "swapmap" },
+	  "swapmap", 0, 0, 0 },
 };
 
 int	waittime = -1;
 
+#ifdef SD_ENABLED
+/*
+ * The crash dump of machine/dump.h: the panic message, kernel RAM from the
+ * start of .data to the end of the SwapRAM pool, and both u areas, written
+ * by sddump() to the dump partition of the SD card. sdprobe() sets dumpdev
+ * on a PicoCalc; on any other board it stays NODEV and boot() never calls
+ * this. __kernel_ram_used_end is kern.ldscript's end of bss or pool.
+ */
+extern char _sdata[], __kernel_ram_used_end[];
+
+static int
+dumpsys(dev_t dev)
+{
+	const char *msg = panicstr != NULL ? panicstr : "reboot";
+	struct dump_span span[4];
+
+	span[0].kind = DUMP_SEG_MESSAGE;
+	span[0].addr = msg;
+	span[0].bytes = strlen(msg);
+	span[1].kind = DUMP_SEG_KERNEL_DATA;
+	span[1].addr = _sdata;
+	span[1].bytes = __kernel_ram_used_end - _sdata;
+	span[2].kind = DUMP_SEG_UAREA;
+	span[2].addr = &u0;
+	span[2].bytes = USIZE;
+	span[3].kind = DUMP_SEG_UAREA;
+	span[3].addr = &u;
+	span[3].bytes = USIZE;
+	return sddump(dev, span, 4, image_crc, time.tv_sec);
+}
+
+int (*dump)(dev_t) = dumpsys;
+#else
 static int
 nodump(dev_t dev __unused)
 {
@@ -178,6 +217,7 @@ nodump(dev_t dev __unused)
 }
 
 int (*dump)(dev_t) = nodump;
+#endif
 
 dev_t	pipedev;
 daddr_t	dumplo = (daddr_t)1024;
@@ -189,6 +229,7 @@ daddr_t	dumplo = (daddr_t)1024;
 #define	RESETS_BASE		0x4000c000UL
 #define	RESETS_RESET		0x0
 #define	RESETS_DONE		0x8
+#define	RESETS_SET		0x2000		/* Atomic set alias. */
 #define	RESETS_CLR		0x3000		/* Atomic clear alias. */
 #define	RESETS_BUSCTRL		(1UL << 1)
 #define	RESETS_PLL_SYS		(1UL << 12)
@@ -286,14 +327,23 @@ swap_cursor_publish(size_t next)
 #define	PLL_PWR_VCOPD		(1UL << 5)
 
 #define	CLOCKS_BASE		0x40008000UL
+#define	CLK_GPOUT_CTRL(n)	(0x0c * (n))	/* clk_gpout0-3. */
 #define	CLK_REF_CTRL		0x30
+#define	CLK_REF_CTRL_SRC	(3UL << 0)	/* Glitchless mux source. */
+#define	CLK_REF_CTRL_SRC_XOSC	(2UL << 0)
 #define	CLK_REF_SELECTED	0x38
 #define	CLK_SYS_CTRL		0x3c
+#define	CLK_SYS_CTRL_SRC_AUX	(1UL << 0)	/* Glitchless mux: aux, not ref. */
+#define	CLK_SYS_DIV		0x40
+#define	CLK_DIV_INT_1		(1UL << 8)	/* Integer divisor 1, no fraction. */
 #define	CLK_SYS_SELECTED	0x44
 #define	CLK_PERI_CTRL		0x48
 #define	CLK_PERI_ENABLE		(1UL << 11)
 #define	CLK_USB_CTRL		0x54
 #define	CLK_USB_ENABLE		(1UL << 11)	/* Aux source 0 is PLL_USB. */
+#define	CLK_ADC_CTRL		0x60
+#define	CLK_RTC_CTRL		0x6c
+#define	CLK_ENABLE		(1UL << 11)	/* ENABLE of every aux-only clock. */
 
 #define	IO_QSPI_BASE		0x40018000UL
 #define	IO_QSPI_SS_CTRL		0x0c		/* GPIO_QSPI_SS control. */
@@ -326,6 +376,12 @@ swap_cursor_publish(size_t next)
 
 #define	TIMER_BASE		0x40054000UL
 #define	TIMER_TIMERAWL		0x28		/* Free-running microseconds. */
+
+static void
+rp_reset(u_int mask)
+{
+	MREG32(RESETS_BASE + RESETS_SET + RESETS_RESET) = mask;
+}
 
 static void
 rp_unreset(u_int mask)
@@ -367,10 +423,25 @@ SystemInit(void)
  * written against its register map rather than ported. The Pico carries a
  * 12 MHz crystal; multiplying by 125 gives a 1500 MHz VCO, and dividing by
  * six and then two gives the 125 MHz the SDK also selects.
+ *
+ * The sequence assumes nothing about the clocks it inherits. From cold reset
+ * clk_sys runs from clk_ref and both PLLs are held in reset, but a kernel
+ * started by another image (the PicoCalc UF2 loader's stage, a pico-sdk
+ * program) or by a warm AIRCR reset, which leaves the clocks block running,
+ * may find clk_sys on PLL_SYS and the aux-only clocks enabled. A PLL's
+ * output may not be used while its dividers change (datasheet 2.15.2), so
+ * every consumer leaves a PLL before the PLL is reset and reprogrammed by
+ * the 2.18.3 sequence: clk_sys through its glitchless mux, polled through
+ * SELECTED, and clk_peri, clk_usb, clk_adc, clk_rtc and clk_gpout0-3,
+ * which have only an aux mux, by clearing ENABLE and waiting out two
+ * source cycles (2.15.3.2). The kernel uses neither the ADC, the RTC nor a
+ * GPOUT pin, so those stay stopped, as cold reset leaves them.
  */
 static void
 SystemClock_Config(void)
 {
+	volatile int i;
+
 	/* Start the crystal oscillator and wait for it to settle. */
 	MREG32(XOSC_BASE + XOSC_STARTUP) = 47;	/* About 1 ms. */
 	MREG32(XOSC_BASE + XOSC_CTRL) =
@@ -378,8 +449,14 @@ SystemClock_Config(void)
 	while ((MREG32(XOSC_BASE + XOSC_STATUS) & XOSC_STATUS_STABLE) == 0)
 		continue;
 
-	/* Run the reference clock from the crystal. */
-	MREG32(CLOCKS_BASE + CLK_REF_CTRL) = 2;		/* xosc_clksrc */
+	/*
+	 * Run the reference clock from the crystal. Only the glitchless mux
+	 * source changes, so an aux source an earlier image selected does
+	 * not change under the generator while the mux leaves it.
+	 */
+	MREG32(CLOCKS_BASE + CLK_REF_CTRL) =
+	    (MREG32(CLOCKS_BASE + CLK_REF_CTRL) & ~CLK_REF_CTRL_SRC) |
+	    CLK_REF_CTRL_SRC_XOSC;
 	while (MREG32(CLOCKS_BASE + CLK_REF_SELECTED) != (1UL << 2))
 		continue;
 
@@ -392,38 +469,75 @@ SystemClock_Config(void)
 	 */
 	rp_unreset(RESETS_TIMER | RESETS_SYSINFO | RESETS_BUSCTRL);
 
-	/* Program the system PLL: 12 * 125 / (6 * 2) == 125 MHz. */
+	/*
+	 * Run clk_sys from clk_ref, undivided, and stop the aux-only clocks,
+	 * clk_gpout0-3 among them. The SRC bit alone changes first, so the aux
+	 * source in use does not change under the generator. The wait spans
+	 * at least 256 cycles of the 12 MHz clk_sys here (four or more per
+	 * pass), about 21 us, which is two cycles of any source of 100 kHz or
+	 * more: every internal source (the ring oscillator runs at about
+	 * 1.8 MHz at its lowest) and any GPIN clock that fast. A slower GPIN
+	 * source would need a longer wait; no DiscoBSD board drives one.
+	 */
+	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) &= ~CLK_SYS_CTRL_SRC_AUX;
+	while (MREG32(CLOCKS_BASE + CLK_SYS_SELECTED) != (1UL << 0))
+		continue;
+	MREG32(CLOCKS_BASE + CLK_SYS_DIV) = CLK_DIV_INT_1;
+	MREG32(CLOCKS_BASE + CLK_PERI_CTRL) &= ~CLK_ENABLE;
+	MREG32(CLOCKS_BASE + CLK_USB_CTRL) &= ~CLK_ENABLE;
+	MREG32(CLOCKS_BASE + CLK_ADC_CTRL) &= ~CLK_ENABLE;
+	MREG32(CLOCKS_BASE + CLK_RTC_CTRL) &= ~CLK_ENABLE;
+	for (i = 0; i < 4; i++)
+		MREG32(CLOCKS_BASE + CLK_GPOUT_CTRL(i)) &= ~CLK_ENABLE;
+	for (i = 0; i < 64; i++)
+		continue;
+
+	/*
+	 * Program the system PLL from reset: 12 * 125 / (6 * 2) == 125 MHz.
+	 * The reset returns the PLL to its powered-down state whatever an
+	 * earlier image left in it. Datasheet 2.18.3 order, for both PLLs:
+	 * feedback divider, VCO power, lock, post dividers, their power.
+	 */
+	rp_reset(RESETS_PLL_SYS);
 	rp_unreset(RESETS_PLL_SYS);
 	MREG32(PLL_SYS_BASE + PLL_FBDIV_INT) = 125;
-	MREG32(PLL_SYS_BASE + PLL_PRIM) = (6UL << 16) | (2UL << 12);
 	MREG32(PLL_SYS_BASE + PLL_PWR) &= ~(PLL_PWR_PD | PLL_PWR_VCOPD);
 	while ((MREG32(PLL_SYS_BASE + PLL_CS) & PLL_CS_LOCK) == 0)
 		continue;
+	MREG32(PLL_SYS_BASE + PLL_PRIM) = (6UL << 16) | (2UL << 12);
 	MREG32(PLL_SYS_BASE + PLL_PWR) &= ~PLL_PWR_POSTDIVPD;
 
 	/*
-	 * Switch clk_sys onto the PLL. Source 1 selects the auxiliary mux,
-	 * whose source 0 is the system PLL.
+	 * Switch clk_sys onto the PLL. The aux source is set while the
+	 * glitchless mux still selects clk_ref; source 1 then selects the
+	 * auxiliary mux, whose source 0 is the system PLL.
 	 */
 	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) = 0;
-	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) = 1;
+	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) = CLK_SYS_CTRL_SRC_AUX;
 	while (MREG32(CLOCKS_BASE + CLK_SYS_SELECTED) != (1UL << 1))
 		continue;
 
-	/* The peripheral clock, which the UART divides for its baud rate. */
+	/*
+	 * The peripheral clock, which the UART divides for its baud rate. The
+	 * aux source (0, clk_sys) is set while the generator is stopped, and
+	 * the generator is enabled after it.
+	 */
+	MREG32(CLOCKS_BASE + CLK_PERI_CTRL) = 0;
 	MREG32(CLOCKS_BASE + CLK_PERI_CTRL) = CLK_PERI_ENABLE;
 
 	/*
 	 * The USB PLL: 12 * 100 / (5 * 5) == 48 MHz, the rate the USB
 	 * controller requires of clk_usb (datasheet 4.1.2.1).
 	 */
+	rp_reset(RESETS_PLL_USB);
 	rp_unreset(RESETS_PLL_USB);
 	MREG32(PLL_USB_BASE + PLL_FBDIV_INT) = 100;
-	MREG32(PLL_USB_BASE + PLL_PRIM) = (5UL << 16) | (5UL << 12);
 	MREG32(PLL_USB_BASE + PLL_PWR) &= ~(PLL_PWR_PD | PLL_PWR_VCOPD);
 	while ((MREG32(PLL_USB_BASE + PLL_CS) & PLL_CS_LOCK) == 0)
 		continue;
+	MREG32(PLL_USB_BASE + PLL_PRIM) = (5UL << 16) | (5UL << 12);
 	MREG32(PLL_USB_BASE + PLL_PWR) &= ~PLL_PWR_POSTDIVPD;
+	MREG32(CLOCKS_BASE + CLK_USB_CTRL) = 0;
 	MREG32(CLOCKS_BASE + CLK_USB_CTRL) = CLK_USB_ENABLE;
 
 	/* The LED is a plain output driven from the single-cycle IO block. */
@@ -497,7 +611,9 @@ u_int	watchdog_last_arg2;
 #endif
 
 /*
- * Report what a reset left behind and leave the counter disabled.
+ * Read what a reset left behind; watchdog_init() reports it and leaves the
+ * counter disabled. startup() calls the capture before anything declares a
+ * section, because a declared section overwrites the scratch pair.
  *
  * REASON distinguishes a watchdog fire from a forced one (datasheet 4.7.6),
  * and SCRATCH1 and SCRATCH2 hold the section the previous kernel was inside
@@ -512,6 +628,20 @@ u_int	watchdog_last_arg2;
  * a reload would have to exceed before the counter could be armed for real.
  */
 void
+watchdog_capture(void)
+{
+	watchdog_last_reason = MREG32(WATCHDOG_BASE + WATCHDOG_REASON) &
+	    (WATCHDOG_REASON_TIMER | WATCHDOG_REASON_FORCE);
+	watchdog_last_site = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1);
+	watchdog_last_arg = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2);
+	if (watchdog_last_site == WD_SITE_STALL)
+		watchdog_last_arg2 = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH3);
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1) = WD_SITE_NONE;
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2) = 0;
+}
+
+/* Report the captured record and disable the counter. */
+void
 watchdog_init(void)
 {
 	u_int ctrl;
@@ -521,19 +651,11 @@ watchdog_init(void)
 
 	ctrl = MREG32(WATCHDOG_BASE + WATCHDOG_CTRL);
 	MREG32(WATCHDOG_BASE + WATCHDOG_CTRL) = ctrl & ~WATCHDOG_CTRL_ENABLE;
-	watchdog_last_reason = MREG32(WATCHDOG_BASE + WATCHDOG_REASON) &
-	    (WATCHDOG_REASON_TIMER | WATCHDOG_REASON_FORCE);
-	watchdog_last_site = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1);
-	watchdog_last_arg = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2);
 	printf("watchdog: reason %x, last masked site %u arg %x\n",
 	    watchdog_last_reason, watchdog_last_site, watchdog_last_arg);
-	if (watchdog_last_site == WD_SITE_STALL) {
-		watchdog_last_arg2 = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH3);
+	if (watchdog_last_site == WD_SITE_STALL)
 		printf("watchdog: core 0 stalled at pc %x lr %x\n",
 		    watchdog_last_arg, watchdog_last_arg2);
-	}
-	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1) = WD_SITE_NONE;
-	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2) = 0;
 
 #ifdef WATCHDOG_MEASURE
 	MREG32(PSM_BASE + PSM_WDSEL) = PSM_WDSEL_ALL_BUT_OSC;
@@ -587,6 +709,12 @@ void
 startup(void)
 {
 	SystemClock_Config();
+
+	/*
+	 * Before the first declared section: usbinit() reads the flash
+	 * chip's identity, which names its own section in the scratch pair.
+	 */
+	watchdog_capture();
 
 #ifdef UARTUSB_ENABLED
 	/* The console first, so everything after it can be read. */
@@ -661,12 +789,21 @@ startup(void)
 #endif
 
 	/*
+	 * Fix the writable flash end from the PicoCalc loader's stamp, and
+	 * restore the XIP clock divider its second stage lowered, before any
+	 * device can write flash.
+	 */
+	flash_limit_init();
+
+	/*
 	 * When User button is pressed - boot to single user mode.
 	 */
 	boothowto = 0;
 	if (BUTTON_USER_PRESSED()) {
 		boothowto |= RB_SINGLE;
 	}
+
+	board_report();
 }
 
 
@@ -674,7 +811,7 @@ startup(void)
  * Check whether the controller has been successfully initialized.
  */
 static int
-is_controller_alive(struct driver *driver, int unit)
+is_controller_alive(struct controller_driver *driver, int unit)
 {
 	struct conf_ctlr *ctlr;
 
@@ -782,16 +919,20 @@ boot(dev_t dev __unused, int howto)
 		rom_reset(0, 0);
 		/* NOTREACHED */
 	}
+	/*
+	 * panic() asks for RB_HALT | RB_DUMP, so the dump comes before the
+	 * halt test and a halted panic leaves its dump too.
+	 */
+	if ((howto & RB_DUMP) && dumpdev != NODEV) {
+		/*
+		 * Take a dump of memory by calling (*dump)(),
+		 * which must correspond to dumpdev.
+		 * It should dump from dumplo blocks to the end
+		 * of memory or to the end of the logical device.
+		 */
+		(*dump)(dumpdev);
+	}
 	if (!(howto & RB_HALT)) {
-		if ((howto & RB_DUMP) && dumpdev != NODEV) {
-			/*
-			 * Take a dump of memory by calling (*dump)(),
-			 * which must correspond to dumpdev.
-			 * It should dump from dumplo blocks to the end
-			 * of memory or to the end of the logical device.
-			 */
-			(*dump)(dumpdev);
-		}
 		/* Restart from dev, howto. */
 
 		/*
@@ -808,6 +949,14 @@ boot(dev_t dev __unused, int howto)
 			continue;
 		/* NOTREACHED */
 	}
+#if defined(HALTREBOOT) && defined(UARTUSB_ENABLED)
+	/*
+	 * The halt messages below reach usbputc, which services the controller
+	 * and would hand a key typed meanwhile to the open tty's queue; the
+	 * key wait must find it in the ring.
+	 */
+	usbpollc(1);
+#endif
 	printf("halted\n");
 
 #ifdef HALTREBOOT
@@ -1117,6 +1266,19 @@ memcpy(void *dst, const void *src, size_t nbytes)
 	bcopy(src, dst, nbytes);
 
 	return dst;
+}
+
+/* ARM EABI structure copies use the generic or four-byte-aligned entry. */
+void
+__aeabi_memcpy(void *dst, const void *src, size_t nbytes)
+{
+	bcopy(src, dst, nbytes);
+}
+
+void
+__aeabi_memcpy4(void *dst, const void *src, size_t nbytes)
+{
+	bcopy(src, dst, nbytes);
 }
 
 /*

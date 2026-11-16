@@ -1,9 +1,9 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "profile": {
     "id": "DPUCP-2024",
     "name": "DiscoBSD/Pico Unix Compatibility Profile 2024",
-    "version": "2024.2",
+    "version": "2024.3",
     "target": "DiscoBSD on RP2040"
   },
   "claims": {
@@ -32,7 +32,7 @@
   },
   "hardware_limits": {
     "kernel_region_bytes": 131072,
-    "process_window_bytes": 147456,
+    "process_window_bytes": 196608,
     "dhara_root_region_bytes": 1572864,
     "dhara_root_logical_bytes": 1012736,
     "raw_swap_bytes": 393216,
@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "687a536dfd6d4e73c7387226dbdebc487c7e092674d1726ca1c5210c09763525"
+    "ordered_row_sha256": "e304cc867916f9b50b181e1060fa51c980f0418fd24a4af8863ce3297088860b"
   },
   "state_counts": {
     "applicability": {
@@ -51,23 +51,24 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "present": 1,
-      "partial": 52,
-      "absent": 1465,
+      "unreviewed": 1433,
+      "present": 3,
+      "partial": 82,
+      "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1465,
-      "static": 39,
-      "host": 14,
-      "cross": 0,
-      "qemu-user": 0,
+      "none": 1433,
+      "static": 37,
+      "host": 34,
+      "cross": 5,
+      "qemu-user": 9,
       "renode": 0,
       "board": 0
     },
     "residual": {
-      "closed": 1,
-      "open": 1517,
+      "closed": 3,
+      "open": 1515,
       "blocked": 0
     }
   },
@@ -137,6 +138,78 @@
       "evidence": "host",
       "known_good": "tests/id_aliases/check.sh",
       "known_bad": "tests/id_aliases/logname_effective_user_bad.sh"
+    },
+    "bounded-string-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-bounded-string",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/bounded_string_test.c",
+      "known_bad": "tests/libc_contracts/bounded_string.py"
+    },
+    "exit-lifecycle-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-exit-lifecycle",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/exit_lifecycle_test.c",
+      "known_bad": "tests/libc_contracts/exit_lifecycle.py"
+    },
+    "libc-quick-exit-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-quick-exit",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/quick_exit_test.c",
+      "known_bad": "tests/libc_contracts/quick_exit.py"
+    },
+    "context-sort-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-qsort-context",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/qsort_context_test.c",
+      "known_bad": "tests/libc_contracts/qsort_context.py"
+    },
+    "libc-dbm-open-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-dbm-open",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/dbm_open_test.c",
+      "known_bad": "tests/libc_contracts/dbm_open.py"
+    },
+    "libc-absolute-value-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-absolute-value",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/absolute_value_test.c",
+      "known_bad": "tests/libc_contracts/absolute_value.py"
+    },
+    "signal-set-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-signal-sets",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/signal_set_contract_test.c",
+      "known_bad": "tests/libc_contracts/signal_set_calibrate.py"
+    },
+    "signal-set-qemu-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-signal-sets-qemu",
+      "evidence": "qemu-user",
+      "known_good": "tests/libc_contracts/signal_set_header.c",
+      "known_bad": "tools/check_signal_sets.py"
+    },
+    "bounded-sort-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-qsort check-libc-qsort-context",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/qsort_bounds_test.c",
+      "known_bad": "tests/libc_contracts/qsort_context.py"
+    },
+    "character-io-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-character-io",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/character_io_test.c",
+      "known_bad": "tests/libc_contracts/character_io.py"
+    },
+    "descriptor-set-qemu-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-fd-set-qemu",
+      "evidence": "qemu-user",
+      "known_good": "tests/libc_contracts/fd_set_test.c",
+      "known_bad": "tools/c17/fd_set_contracts.py"
+    },
+    "public-time-type-cross-contract": {
+      "command": ": \"${PYTHON:?select the interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-public-time-types",
+      "evidence": "cross",
+      "known_good": "tools/c17/public_time_types.py",
+      "known_bad": "tools/c17/public_time_types.py"
     }
   },
   "growth_policy": {
@@ -181,7 +254,7 @@
         "report unsupported language and relocation constructs without corrupting output"
       ],
       "hardware_feasibility_questions": [
-        "Does the compiler, assembler, and linker peak below the 147456-byte process window for the selected corpus?",
+        "Does the compiler, assembler, and linker peak below the 196608-byte process window for the selected corpus?",
         "Do intermediate files fit the packed root without exhausting logical blocks or increasing flash wear beyond the measured policy?",
         "Can Thumb-1 helper calls replace unsupported divide and wide-arithmetic instructions without importing an unbounded runtime?"
       ],
@@ -397,7 +470,7 @@
         "confidence": "screening",
         "surfaces": {
           "kernel": "Scheduler, sleep-queue, signal, and exit paths require structural changes rather than archive-only additions.",
-          "process": "Every live thread needs a bounded stack inside the single 147456-byte process window.",
+          "process": "Every live thread needs a bounded stack inside the single 196608-byte process window.",
           "packed_root": "pthread and reentrant-libc code affects many consumers unless archive isolation remains exact.",
           "runtime_memory": "Per-thread stacks, scheduler state, synchronization queues, and thread-local libc state dominate the unknown peak."
         },

@@ -430,7 +430,7 @@ main(argc, argv)
 						    valsp->u.num);
 #else
 						(void)sprintf(p,
-						    "%d", valsp->u.num);
+						    "%ld", valsp->u.num);
 #endif
 						valsp->u.string = p;
 					} else if (valsp->type == BOOLEAN) {

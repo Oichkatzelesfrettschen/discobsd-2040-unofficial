@@ -8,7 +8,8 @@
 # parent directories or declared dependencies do not resolve. The Makefile
 # variable PROFILE selects one; when it is unset, BOARD picks the default
 # (distrib/rp2040/Makefile.inc): full for the PICO board, picocalc for the
-# PicoCalc, which names every closure. The Make variables IMAGE_WITH and
+# PicoCalc, which names every closure, and picocalc-lean for the PicoCalc
+# when UNION_KERNEL is a lean kernel. The Make variables IMAGE_WITH and
 # IMAGE_WITHOUT add and remove closures or groups for one build on top of
 # the selected profile.
 # sys/arch/rp2040/doc/PROFILES.md is the authority for the scheme and
@@ -129,12 +130,14 @@ closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a
 closure lcdgfx needs path /dev/lcdgfx
 
 #
-# The PicoCalc's PSRAM is block major 3 of the PICOCALC_PSRAM kernel, whose
-# minor 1 is a 6144 KB RAM disk. /etc/rc.rp2040 runs mkfs over it and
-# mounts it at /tmp, so the closure carries the node and /sbin/mkfs. The
-# PICOCALC kernel has no driver behind major 3, the open fails with ENXIO
-# and /etc/rc.rp2040 leaves /tmp on the root, so both PicoCalc boards share
-# the picocalc profile, which names the closure.
+# The PicoCalc's PSRAM is block major 3 of the PICOCALC kernels (PICOCALC,
+# PICOCALC_LEAN and PICOCALC_LEAN_DIAG all carry the psram device and
+# NMOUNT=3), whose minor 1 is a 6144 KB RAM disk. /etc/rc.rp2040 runs mkfs
+# over it and mounts it at /tmp, so the closure carries the node and
+# /sbin/mkfs. A PICO kernel has no driver behind major 3, and a PICOCALC
+# kernel whose part failed its probe refuses the open, so the open fails with
+# ENXIO and /etc/rc.rp2040 leaves /tmp on the root. Both PicoCalc profiles
+# (picocalc and picocalc-lean) name the closure.
 #
 closure psramtmp needs path /dev/psram1 /sbin/mkfs
 
@@ -156,7 +159,7 @@ closure ridge needs closure lcdgfx
 # sys/arch/rp2040/doc/PROFILES.md holds the method, the marginal cost of
 # each multicall member inside the full set, and the profile totals.
 #
-cost coremark 16 1
+cost coremark 15 1
 cost as 25 1
 cost ld 18 1
 cost smlrc 42 1
@@ -200,7 +203,12 @@ cost lightup 23 2
 #            arbitrary-precision calculator, the scientific calculator, the
 #            SD card's device nodes, the pixel device node, the platformer
 #            that draws on it, picofetch and picotop, and the PSRAM's /tmp
-#            node with mkfs; the default of both PICOCALC boards
+#            node with mkfs; the PICOCALC board's default
+# picocalc-lean
+#            picocalc without the closures that need a driver the
+#            PICOCALC_LEAN kernels omit (DEV_LCDGFX): the pixel device node
+#            and the platformer. The PICOCALC board's default root when
+#            UNION_KERNEL names PICOCALC_LEAN or PICOCALC_LEAN_DIAG
 #
 profile base
 profile benchmark coremark
@@ -208,6 +216,7 @@ profile developer toolchain toolchainlib
 profile games games puzzles
 profile full coremark toolchain toolchainlib games puzzles
 profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop psramtmp
+profile picocalc-lean coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard picofetch picotop psramtmp
 
 # Opt-in desktop; the MATE artwork is supplied on external storage.
 closure matezinho needs closure lcdgfx sdcard

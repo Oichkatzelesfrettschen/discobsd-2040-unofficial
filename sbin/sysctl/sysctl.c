@@ -411,7 +411,7 @@ parse(char *string, int flags)
 			break;
 
 		case CTLTYPE_LONG:
-			sscanf(newval, "%ld", &longval);
+			longval = strtol(newval, NULL, 10);
 			newval = (void *)&longval;
 			newsize = sizeof longval;
 			break;

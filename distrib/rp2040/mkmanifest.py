@@ -964,6 +964,11 @@ def selftest(lines, appended, decl, selected_extra):
         "closure ridge needs closure lcdgfx, which this profile does not select",
         without_names=["lcdgfx"]))
     cases.append(new_case(
+        "reject", "the platformer added to the lean PicoCalc profile",
+        decl.profiles["picocalc-lean"],
+        "closure ridge needs closure lcdgfx, which this profile does not select",
+        with_names=["ridge"]))
+    cases.append(new_case(
         "accept", "toolchain and toolchainlib removed together", full,
         without_names=["toolchain", "toolchainlib"]))
     cases.append(new_case(
@@ -986,6 +991,11 @@ def selftest(lines, appended, decl, selected_extra):
     cases.append(new_case(
         "accept", "picocalc without the platformer and the pixel device node",
         decl.profiles["picocalc"], without_names=["ridge", "lcdgfx"],
+        members={"gamebox": ["fifteen", "keen", "bubble", "fourfall", "coil"],
+                 "puzzlebox": ["flood", "samegame", "unruly", "lightup"]}))
+    cases.append(new_case(
+        "accept", "the lean PicoCalc profile links no platformer into gamebox",
+        decl.profiles["picocalc-lean"],
         members={"gamebox": ["fifteen", "keen", "bubble", "fourfall", "coil"],
                  "puzzlebox": ["flood", "samegame", "unruly", "lightup"]}))
     cases.append(new_case(

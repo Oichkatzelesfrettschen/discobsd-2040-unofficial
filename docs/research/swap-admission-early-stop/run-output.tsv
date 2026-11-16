@@ -1,0 +1,165 @@
+# compiler arm-none-eabi-gcc (15:14.2.rel1-1) 14.2.1 20241119
+# input sh sha256 e111c36d3805aadd00af00f62735ce287782f05760f1f9ae32e6c939f7653d35
+# input awk sha256 0684343c74398f70e40b6a052b94e2e3801caf1c8c039b31c7a2e45f1b7a574a
+# E0 free-run pre-check over 17 runs: 217 cycles
+input	raw	compressed	reference_refuses	rule	result	refuses	cycles	ms
+sh data+bss	9608	1529	0	full count	1529	0	13744928	109.96
+sh data+bss	9608	1529	0	E1 budget 1024	-2	1	9379190	75.03
+sh data+bss	9608	1529	0	E1 budget 4096	1529	0	13745306	109.96
+sh data+bss	9608	1529	0	R ratio from 256	1529	0	13745756	109.97
+sh data+bss	9608	1529	0	R ratio from 512	1529	0	13745752	109.97
+sh data+bss	9608	1529	0	R ratio from 1024	1529	0	13745744	109.97
+sh data+bss	9608	1529	0	P prefix 64	0	0	221643	1.77
+sh data+bss	9608	1529	0	P prefix 128	0	0	431216	3.45
+sh data+bss	9608	1529	0	P prefix 256	0	0	822135	6.58
+sh data+bss	9608	1529	0	P prefix 512	0	0	2190333	17.52
+sh data+bss	9608	1529	0	P prefix 1024	0	0	3899779	31.20
+sh data+bss	9608	1529	0	H entropy 256 >= 6.4b	36	0	8588	0.07
+sh data+bss	9608	1529	0	H entropy 256 >= 7.0b	36	0	8588	0.07
+sh data+bss	9608	1529	0	H entropy 1024 >= 6.4b	51	0	18818	0.15
+sh data+bss	9608	1529	0	H entropy 1024 >= 7.0b	51	0	18818	0.15
+sh data+bss	9608	1529	0	S same-filled	0	0	30	0.00
+awk data+bss	13068	216	0	full count	216	0	2879027	23.03
+awk data+bss	13068	216	0	E1 budget 1024	216	0	2879396	23.04
+awk data+bss	13068	216	0	E1 budget 4096	216	0	2879396	23.04
+awk data+bss	13068	216	0	R ratio from 256	216	0	2879900	23.04
+awk data+bss	13068	216	0	R ratio from 512	216	0	2879896	23.04
+awk data+bss	13068	216	0	R ratio from 1024	216	0	2879892	23.04
+awk data+bss	13068	216	0	P prefix 64	0	0	297959	2.38
+awk data+bss	13068	216	0	P prefix 128	0	0	300203	2.40
+awk data+bss	13068	216	0	P prefix 256	0	0	304688	2.44
+awk data+bss	13068	216	0	P prefix 512	0	0	322839	2.58
+awk data+bss	13068	216	0	P prefix 1024	0	0	386012	3.09
+awk data+bss	13068	216	0	H entropy 256 >= 6.4b	23	0	8387	0.07
+awk data+bss	13068	216	0	H entropy 256 >= 7.0b	23	0	8387	0.07
+awk data+bss	13068	216	0	H entropy 1024 >= 6.4b	21	0	17682	0.14
+awk data+bss	13068	216	0	H entropy 1024 >= 7.0b	21	0	17682	0.14
+awk data+bss	13068	216	0	S same-filled	0	0	30	0.00
+stack 4 KB synthetic	4096	108	0	full count	108	0	987677	7.90
+stack 4 KB synthetic	4096	108	0	E1 budget 1024	108	0	987799	7.90
+stack 4 KB synthetic	4096	108	0	E1 budget 4096	108	0	987799	7.90
+stack 4 KB synthetic	4096	108	0	R ratio from 256	108	0	987961	7.90
+stack 4 KB synthetic	4096	108	0	R ratio from 512	108	0	987961	7.90
+stack 4 KB synthetic	4096	108	0	R ratio from 1024	108	0	987957	7.90
+stack 4 KB synthetic	4096	108	0	P prefix 64	0	0	4770	0.04
+stack 4 KB synthetic	4096	108	0	P prefix 128	0	0	7014	0.06
+stack 4 KB synthetic	4096	108	0	P prefix 256	0	0	11499	0.09
+stack 4 KB synthetic	4096	108	0	P prefix 512	0	0	26786	0.21
+stack 4 KB synthetic	4096	108	0	P prefix 1024	0	0	52138	0.42
+stack 4 KB synthetic	4096	108	0	H entropy 256 >= 6.4b	0	0	8163	0.07
+stack 4 KB synthetic	4096	108	0	H entropy 256 >= 7.0b	0	0	8163	0.07
+stack 4 KB synthetic	4096	108	0	H entropy 1024 >= 6.4b	0	0	17411	0.14
+stack 4 KB synthetic	4096	108	0	H entropy 1024 >= 7.0b	0	0	17411	0.14
+stack 4 KB synthetic	4096	108	0	S same-filled	0	0	11665	0.09
+u area 3 KB synthetic	3072	358	0	full count	358	0	3470083	27.76
+u area 3 KB synthetic	3072	358	0	E1 budget 1024	358	0	3470201	27.76
+u area 3 KB synthetic	3072	358	0	E1 budget 4096	358	0	3470201	27.76
+u area 3 KB synthetic	3072	358	0	R ratio from 256	358	0	3470345	27.76
+u area 3 KB synthetic	3072	358	0	R ratio from 512	358	0	3470341	27.76
+u area 3 KB synthetic	3072	358	0	R ratio from 1024	358	0	3470337	27.76
+u area 3 KB synthetic	3072	358	0	P prefix 64	1	1	627427	5.02
+u area 3 KB synthetic	3072	358	0	P prefix 128	0	0	1121041	8.97
+u area 3 KB synthetic	3072	358	0	P prefix 256	0	0	2108262	16.87
+u area 3 KB synthetic	3072	358	0	P prefix 512	0	0	3339327	26.71
+u area 3 KB synthetic	3072	358	0	P prefix 1024	0	0	3368371	26.95
+u area 3 KB synthetic	3072	358	0	H entropy 256 >= 6.4b	114	1	11593	0.09
+u area 3 KB synthetic	3072	358	0	H entropy 256 >= 7.0b	114	1	11593	0.09
+u area 3 KB synthetic	3072	358	0	H entropy 1024 >= 6.4b	61	0	22873	0.18
+u area 3 KB synthetic	3072	358	0	H entropy 1024 >= 7.0b	61	0	22873	0.18
+u area 3 KB synthetic	3072	358	0	S same-filled	0	0	30	0.00
+zeros 4 KB	4096	36	0	full count	36	0	204718	1.64
+zeros 4 KB	4096	36	0	E1 budget 1024	36	0	204837	1.64
+zeros 4 KB	4096	36	0	E1 budget 4096	36	0	204837	1.64
+zeros 4 KB	4096	36	0	R ratio from 256	36	0	204999	1.64
+zeros 4 KB	4096	36	0	R ratio from 512	36	0	204999	1.64
+zeros 4 KB	4096	36	0	R ratio from 1024	36	0	204995	1.64
+zeros 4 KB	4096	36	0	P prefix 64	0	0	4770	0.04
+zeros 4 KB	4096	36	0	P prefix 128	0	0	7014	0.06
+zeros 4 KB	4096	36	0	P prefix 256	0	0	11499	0.09
+zeros 4 KB	4096	36	0	P prefix 512	0	0	26786	0.21
+zeros 4 KB	4096	36	0	P prefix 1024	0	0	52138	0.42
+zeros 4 KB	4096	36	0	H entropy 256 >= 6.4b	0	0	8163	0.07
+zeros 4 KB	4096	36	0	H entropy 256 >= 7.0b	0	0	8163	0.07
+zeros 4 KB	4096	36	0	H entropy 1024 >= 6.4b	0	0	17411	0.14
+zeros 4 KB	4096	36	0	H entropy 1024 >= 7.0b	0	0	17411	0.14
+zeros 4 KB	4096	36	0	S same-filled	1	0	13318	0.11
+random 4 KB	4096	4608	1	full count	4608	1	50278234	402.23
+random 4 KB	4096	4608	1	E1 budget 1024	-2	1	12620053	100.96
+random 4 KB	4096	4608	1	E1 budget 4096	-2	1	50278600	402.23
+random 4 KB	4096	4608	1	R ratio from 256	-3	1	3153239	25.23
+random 4 KB	4096	4608	1	R ratio from 512	-3	1	6307606	50.46
+random 4 KB	4096	4608	1	R ratio from 1024	-3	1	12620119	100.96
+random 4 KB	4096	4608	1	P prefix 64	1	1	782373	6.26
+random 4 KB	4096	4608	1	P prefix 128	1	1	1563651	12.51
+random 4 KB	4096	4608	1	P prefix 256	1	1	3120635	24.97
+random 4 KB	4096	4608	1	P prefix 512	1	1	6269018	50.15
+random 4 KB	4096	4608	1	P prefix 1024	1	1	12545803	100.37
+random 4 KB	4096	4608	1	H entropy 256 >= 6.4b	116	1	9974	0.08
+random 4 KB	4096	4608	1	H entropy 256 >= 7.0b	116	1	9974	0.08
+random 4 KB	4096	4608	1	H entropy 1024 >= 6.4b	125	1	25662	0.21
+random 4 KB	4096	4608	1	H entropy 1024 >= 7.0b	125	1	25662	0.21
+random 4 KB	4096	4608	1	S same-filled	0	0	30	0.00
+random 1 KB then zeros 3 KB	4096	1181	0	full count	1181	0	12725748	101.81
+random 1 KB then zeros 3 KB	4096	1181	0	E1 budget 1024	-2	1	12588231	100.71
+random 1 KB then zeros 3 KB	4096	1181	0	E1 budget 4096	1181	0	12725941	101.81
+random 1 KB then zeros 3 KB	4096	1181	0	R ratio from 256	-3	1	3153239	25.23
+random 1 KB then zeros 3 KB	4096	1181	0	R ratio from 512	-3	1	6307606	50.46
+random 1 KB then zeros 3 KB	4096	1181	0	R ratio from 1024	1181	0	12726127	101.81
+random 1 KB then zeros 3 KB	4096	1181	0	P prefix 64	1	1	782373	6.26
+random 1 KB then zeros 3 KB	4096	1181	0	P prefix 128	1	1	1563651	12.51
+random 1 KB then zeros 3 KB	4096	1181	0	P prefix 256	1	1	3120635	24.97
+random 1 KB then zeros 3 KB	4096	1181	0	P prefix 512	1	1	6269018	50.15
+random 1 KB then zeros 3 KB	4096	1181	0	P prefix 1024	1	1	12545803	100.37
+random 1 KB then zeros 3 KB	4096	1181	0	H entropy 256 >= 6.4b	116	1	9974	0.08
+random 1 KB then zeros 3 KB	4096	1181	0	H entropy 256 >= 7.0b	116	1	9974	0.08
+random 1 KB then zeros 3 KB	4096	1181	0	H entropy 1024 >= 6.4b	125	1	25662	0.21
+random 1 KB then zeros 3 KB	4096	1181	0	H entropy 1024 >= 7.0b	125	1	25662	0.21
+random 1 KB then zeros 3 KB	4096	1181	0	S same-filled	0	0	30	0.00
+zeros 3 KB then random 1 KB	4096	1179	0	full count	1179	0	12698383	101.59
+zeros 3 KB then random 1 KB	4096	1179	0	E1 budget 1024	-2	1	12698527	101.59
+zeros 3 KB then random 1 KB	4096	1179	0	E1 budget 4096	1179	0	12698563	101.59
+zeros 3 KB then random 1 KB	4096	1179	0	R ratio from 256	1179	0	12698743	101.59
+zeros 3 KB then random 1 KB	4096	1179	0	R ratio from 512	1179	0	12698743	101.59
+zeros 3 KB then random 1 KB	4096	1179	0	R ratio from 1024	1179	0	12698739	101.59
+zeros 3 KB then random 1 KB	4096	1179	0	P prefix 64	0	0	4770	0.04
+zeros 3 KB then random 1 KB	4096	1179	0	P prefix 128	0	0	7014	0.06
+zeros 3 KB then random 1 KB	4096	1179	0	P prefix 256	0	0	11499	0.09
+zeros 3 KB then random 1 KB	4096	1179	0	P prefix 512	0	0	26786	0.21
+zeros 3 KB then random 1 KB	4096	1179	0	P prefix 1024	0	0	52138	0.42
+zeros 3 KB then random 1 KB	4096	1179	0	H entropy 256 >= 6.4b	0	0	8163	0.07
+zeros 3 KB then random 1 KB	4096	1179	0	H entropy 256 >= 7.0b	0	0	8163	0.07
+zeros 3 KB then random 1 KB	4096	1179	0	H entropy 1024 >= 6.4b	0	0	17411	0.14
+zeros 3 KB then random 1 KB	4096	1179	0	H entropy 1024 >= 7.0b	0	0	17411	0.14
+zeros 3 KB then random 1 KB	4096	1179	0	S same-filled	0	0	10001	0.08
+16 symbols 4 KB	4096	4193	1	full count	4193	1	42975813	343.81
+16 symbols 4 KB	4096	4193	1	E1 budget 1024	-2	1	10742789	85.94
+16 symbols 4 KB	4096	4193	1	E1 budget 4096	-2	1	42976173	343.81
+16 symbols 4 KB	4096	4193	1	R ratio from 256	-3	1	2892833	23.14
+16 symbols 4 KB	4096	4193	1	R ratio from 512	-3	1	5535460	44.28
+16 symbols 4 KB	4096	4193	1	R ratio from 1024	-3	1	10742855	85.94
+16 symbols 4 KB	4096	4193	1	P prefix 64	1	1	761774	6.09
+16 symbols 4 KB	4096	4193	1	P prefix 128	1	1	1481398	11.85
+16 symbols 4 KB	4096	4193	1	P prefix 256	1	1	2871051	22.97
+16 symbols 4 KB	4096	4193	1	P prefix 512	1	1	5493447	43.95
+16 symbols 4 KB	4096	4193	1	P prefix 1024	1	1	10664969	85.32
+16 symbols 4 KB	4096	4193	1	H entropy 256 >= 6.4b	63	0	8938	0.07
+16 symbols 4 KB	4096	4193	1	H entropy 256 >= 7.0b	63	0	8938	0.07
+16 symbols 4 KB	4096	4193	1	H entropy 1024 >= 6.4b	64	0	18430	0.15
+16 symbols 4 KB	4096	4193	1	H entropy 1024 >= 7.0b	64	0	18430	0.15
+16 symbols 4 KB	4096	4193	1	S same-filled	0	0	30	0.00
+64-byte random pattern x64	4096	108	0	full count	108	0	1009210	8.07
+64-byte random pattern x64	4096	108	0	E1 budget 1024	108	0	1009345	8.07
+64-byte random pattern x64	4096	108	0	E1 budget 4096	108	0	1009345	8.07
+64-byte random pattern x64	4096	108	0	R ratio from 256	108	0	1009525	8.08
+64-byte random pattern x64	4096	108	0	R ratio from 512	108	0	1009521	8.08
+64-byte random pattern x64	4096	108	0	R ratio from 1024	108	0	1009517	8.08
+64-byte random pattern x64	4096	108	0	P prefix 64	1	1	782451	6.26
+64-byte random pattern x64	4096	108	0	P prefix 128	0	0	787211	6.30
+64-byte random pattern x64	4096	108	0	P prefix 256	0	0	791696	6.33
+64-byte random pattern x64	4096	108	0	P prefix 512	0	0	810439	6.48
+64-byte random pattern x64	4096	108	0	P prefix 1024	0	0	838954	6.71
+64-byte random pattern x64	4096	108	0	H entropy 256 >= 6.4b	90	0	10268	0.08
+64-byte random pattern x64	4096	108	0	H entropy 256 >= 7.0b	90	0	10268	0.08
+64-byte random pattern x64	4096	108	0	H entropy 1024 >= 6.4b	90	0	20348	0.16
+64-byte random pattern x64	4096	108	0	H entropy 1024 >= 7.0b	90	0	20348	0.16
+64-byte random pattern x64	4096	108	0	S same-filled	0	0	30	0.00

@@ -1,20 +1,14 @@
-PARAM = -DPICOCALC_PSRAM
+PARAM = -DPICO_DIAG
 PARAM += -DRP2040
-PARAM += -DPICOCALC_ENABLED
-PARAM += -DPSRAM_ENABLED
-PARAM += -DSD_ENABLED
-PARAM += -DUART_ENABLED
 PARAM += -DUARTUSB_ENABLED
-PARAM += -DDEV_PCM
-PARAM += -DDEV_LCDGFX
-PARAM += -DDEV_GPIO
+PARAM += -DUART_ENABLED
 PARAM += -DDEV_ADC
 PARAM += -DEXEC_HSAOUT
 PARAM += -DSWAPRAM_KB=16
 PARAM += -DSWAPRAM
 PARAM += -DUART_BAUD=115200
 PARAM += -DCONS_MINOR=0
-PARAM += -DCONS_MAJOR=LCDCONS_MAJOR
+PARAM += -DCONS_MAJOR=UARTUSB_MAJOR
 PARAM += -DROOT_MOUNT_FLAGS=MNT_NOATIME
 PARAM += -DCORE_DEFAULT=0
 PARAM += -DLINEAR_NAME_CACHE
@@ -22,8 +16,10 @@ PARAM += -DLINEAR_BUFFER_CACHE
 PARAM += -DCOMPACT_SWAPMAP
 PARAM += -DCOMPACT_INODE_FIELDS
 PARAM += -DLINEAR_INODE_CACHE
-PARAM += -DNMOUNT=3
+PARAM += -DSINGLE_UFS_ROOT
+PARAM += -DNMOUNT=1
 PARAM += -DNFL=2
+PARAM += -DCORE1
 PARAM += -DCAPACITY_STATS
 PARAM += -DSYSTRACE
 PARAM += -DHALTREBOOT
@@ -163,14 +159,11 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_alloc.o ufs_bio.o ufs_bmap.o ufs_dsort.o ufs_fio.o \
 	ufs_inode.o ufs_mount.o ufs_namei.o ufs_subr.o ufs_syscalls.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
-	mem.o swap.o clock.o board.o conf.o fault.o machdep.o \
+	mem.o swap.o clock.o board.o conf.o core1.o fault.o machdep.o \
 	shutdown_sync.o mpu.o sig_machdep.o syscall.o sysctl.o systick.o \
-	adc.o gpio.o uart.o usb.o lcdcons.o lcdgfx.o lcdrender.o \
-	lcdterm.o lcdfont.o st7365p.o picokbd.o picokbd_map.o \
-	picokbd_evq.o picokbd_req.o picoaudio.o picopcm.o sd.o sdspi.o \
-	dump.o subr_crc32.o psram.o psram_xfer.o flash.o flash_swap.o \
-	error.o journal.o map.o swapram.o swapram_pool.o \
-	heatshrink_encoder.o hsx_decoder.o exec_hsaout.o hsx_stream.o
+	adc.o uart.o usb.o flash.o flash_swap.o error.o journal.o map.o \
+	swapram.o swapram_pool.o heatshrink_encoder.o hsx_decoder.o \
+	subr_crc32.o exec_hsaout.o hsx_stream.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -191,28 +184,19 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/vm_swap.c $S/kern/vm_swp.c $S/dev/cons.c $S/dev/mem.c \
 	$S/dev/swap.c $S/arch/rp2040/rp2040/clock.c \
 	$S/arch/rp2040/rp2040/board.c $S/arch/rp2040/rp2040/conf.c \
-	$S/arch/rp2040/rp2040/fault.c $S/arch/rp2040/rp2040/machdep.c \
+	$S/arch/rp2040/rp2040/core1.c $S/arch/rp2040/rp2040/fault.c \
+	$S/arch/rp2040/rp2040/machdep.c \
 	$S/arch/rp2040/rp2040/shutdown_sync.c \
 	$S/arch/rp2040/rp2040/mpu.c $S/arch/rp2040/rp2040/sig_machdep.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
 	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/adc.c \
-	$S/arch/rp2040/dev/gpio.c $S/arch/rp2040/dev/uart.c \
-	$S/arch/rp2040/dev/usb.c $S/arch/rp2040/dev/lcdcons.c \
-	$S/arch/rp2040/dev/lcdgfx.c $S/arch/rp2040/dev/lcdterm.c \
-	$S/arch/rp2040/dev/lcdfont.c $S/arch/rp2040/dev/st7365p.c \
-	$S/arch/rp2040/dev/picokbd.c $S/arch/rp2040/dev/picokbd_map.c \
-	$S/arch/rp2040/dev/picokbd_evq.c \
-	$S/arch/rp2040/dev/picokbd_req.c $S/arch/rp2040/dev/picoaudio.c \
-	$S/arch/rp2040/dev/picopcm.c $S/arch/rp2040/dev/sd.c \
-	$S/arch/rp2040/dev/sdspi.c $S/arch/rp2040/rp2040/dump.c \
-	$S/kern/subr_crc32.c $S/arch/rp2040/dev/psram.c \
-	$S/arch/rp2040/dev/psram_xfer.c $S/arch/rp2040/dev/flash.c \
-	$S/arch/rp2040/dev/flash_swap.c $S/arch/rp2040/dhara/error.c \
-	$S/arch/rp2040/dhara/journal.c $S/arch/rp2040/dhara/map.c \
-	$S/arch/rp2040/rp2040/swapram.c \
+	$S/arch/rp2040/dev/uart.c $S/arch/rp2040/dev/usb.c \
+	$S/arch/rp2040/dev/flash.c $S/arch/rp2040/dev/flash_swap.c \
+	$S/arch/rp2040/dhara/error.c $S/arch/rp2040/dhara/journal.c \
+	$S/arch/rp2040/dhara/map.c $S/arch/rp2040/rp2040/swapram.c \
 	$S/arch/rp2040/rp2040/swapram_pool.c \
 	$S/arch/rp2040/heatshrink/heatshrink_encoder.c \
-	$S/arch/rp2040/rp2040/hsx_decoder.c \
+	$S/arch/rp2040/rp2040/hsx_decoder.c $S/kern/subr_crc32.c \
 	$S/arch/rp2040/rp2040/exec_hsaout.c \
 	$S/arch/rp2040/rp2040/hsx_stream.c swapunix.c
 
@@ -511,6 +495,9 @@ board.o: $S/arch/rp2040/rp2040/board.c
 conf.o: $S/arch/rp2040/rp2040/conf.c
 	${COMPILE_C}
 
+core1.o: $S/arch/rp2040/rp2040/core1.c
+	${COMPILE_C}
+
 fault.o: $S/arch/rp2040/rp2040/fault.c
 	${COMPILE_C}
 
@@ -538,68 +525,11 @@ systick.o: $S/arch/rp2040/rp2040/systick.c
 adc.o: $S/arch/rp2040/dev/adc.c
 	${COMPILE_C}
 
-gpio.o: $S/arch/rp2040/dev/gpio.c
-	${COMPILE_C}
-
 uart.o: $S/arch/rp2040/dev/uart.c
 	${COMPILE_C}
 
 usb.o: $S/arch/rp2040/dev/usb.c
 	${COMPILE_C}
-
-lcdcons.o: $S/arch/rp2040/dev/lcdcons.c
-	${COMPILE_C}
-
-lcdgfx.o: $S/arch/rp2040/dev/lcdgfx.c
-	${COMPILE_C}
-
-lcdrender.o: $S/arch/rp2040/dev/lcdrender.S
-	${COMPILE_S}
-
-lcdterm.o: $S/arch/rp2040/dev/lcdterm.c
-	${COMPILE_C}
-
-lcdfont.o: $S/arch/rp2040/dev/lcdfont.c
-	${COMPILE_C}
-
-st7365p.o: $S/arch/rp2040/dev/st7365p.c
-	${COMPILE_C}
-
-picokbd.o: $S/arch/rp2040/dev/picokbd.c
-	${COMPILE_C}
-
-picokbd_map.o: $S/arch/rp2040/dev/picokbd_map.c
-	${COMPILE_C}
-
-picokbd_evq.o: $S/arch/rp2040/dev/picokbd_evq.c
-	${COMPILE_C}
-
-picokbd_req.o: $S/arch/rp2040/dev/picokbd_req.c
-	${COMPILE_C}
-
-picoaudio.o: $S/arch/rp2040/dev/picoaudio.c
-	${COMPILE_C}
-
-picopcm.o: $S/arch/rp2040/dev/picopcm.c
-	${COMPILE_C}
-
-sd.o: $S/arch/rp2040/dev/sd.c
-	${COMPILE_C}
-
-sdspi.o: $S/arch/rp2040/dev/sdspi.c
-	${COMPILE_C}
-
-dump.o: $S/arch/rp2040/rp2040/dump.c
-	${COMPILE_C}
-
-subr_crc32.o: $S/kern/subr_crc32.c
-	${COMPILE_C}
-
-psram.o: $S/arch/rp2040/dev/psram.c
-	${COMPILE_C}
-
-psram_xfer.o: $S/arch/rp2040/dev/psram_xfer.c
-	${COMPILE_CYCLE_C}
 
 flash.o: $S/arch/rp2040/dev/flash.c
 	${COMPILE_C}
@@ -626,6 +556,9 @@ heatshrink_encoder.o: $S/arch/rp2040/heatshrink/heatshrink_encoder.c
 	${COMPILE_C}
 
 hsx_decoder.o: $S/arch/rp2040/rp2040/hsx_decoder.c
+	${COMPILE_C}
+
+subr_crc32.o: $S/kern/subr_crc32.c
 	${COMPILE_C}
 
 exec_hsaout.o: $S/arch/rp2040/rp2040/exec_hsaout.c

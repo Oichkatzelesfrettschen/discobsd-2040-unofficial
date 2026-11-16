@@ -20,7 +20,13 @@
 #include <sys/reboot.h>
 #include <sys/signal.h>
 
-#define	OPTS	"lqnhdarsfR"
+/*
+ * -B enters the boot ROM's USB loader, as the name "bootloader" does. That
+ * path ends in an unchanged flash image and a console that drops off the
+ * bus, so it takes root and the explicit confirmation -y; the other modes
+ * keep their historical behavior.
+ */
+#define	OPTS	"lqnhdarsfRBy"
 
 void	markdown();
 
@@ -32,6 +38,7 @@ main(argc, argv)
 	int howto;		/* reboot options argument */
 	int needlog = 1;	/* tell syslog what's happening */
 	int quickly = 0;	/* go down quickly & ungracefully */
+	int confirmed = 0;	/* -y: the caller armed the boot ROM loader */
 	char *myname;		/* name we were invoked as */
 	char args[20], *ap;	/* collected arguments for syslog */
 	int i;
@@ -69,6 +76,8 @@ main(argc, argv)
 			case 'f':  howto |= RB_NOFSCK;	break;
 			case 'R':  howto |= RB_DFLTROOT; break;
 			case 'p':  howto |= RB_HALT|RB_POWEROFF; break;
+			case 'B':  howto |= RB_HALT|RB_BOOTLOADER; break;
+			case 'y':  confirmed = 1;	break;
 			case '?':
 				fprintf(stderr,
 					"usage: %s [-%s]\n", myname, OPTS);
@@ -81,6 +90,23 @@ main(argc, argv)
 		}
 	}
 
+	/*
+	 * Refuse before syslog, sync or any signal: a refused request leaves
+	 * the system exactly as it was.
+	 */
+	if (howto & RB_BOOTLOADER) {
+		if (geteuid() != 0) {
+			fprintf(stderr,
+			    "%s: only root may enter the boot loader\n", myname);
+			exit(EX_NOPERM);
+		}
+		if (!confirmed) {
+			fprintf(stderr,
+			    "%s: entering the boot loader detaches the console; "
+			    "rerun with -y to confirm\n", myname);
+			exit(EX_USAGE);
+		}
+	}
 	if ((howto & (RB_NOSYNC|RB_NOFSCK)) == (RB_NOSYNC|RB_NOFSCK)
 	    && !(howto & RB_HALT)) {
 		fprintf(stderr,

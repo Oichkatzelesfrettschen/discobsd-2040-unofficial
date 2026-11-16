@@ -46,10 +46,13 @@ check-divider:
 		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 		"${PYTHON}" "${DIVIDER_OWNERSHIP_VERIFIER}" \
 		    --elf PICO/unix.elf --dependency-directory PICO/.deps \
+		    --elf PICO_DIAG/unix.elf --dependency-directory PICO_DIAG/.deps \
 		    --elf PICO_UART/unix.elf --dependency-directory PICO_UART/.deps \
 		    --elf PICOCALC/unix.elf --dependency-directory PICOCALC/.deps \
-		    --elf PICOCALC_PSRAM/unix.elf \
-		    --dependency-directory PICOCALC_PSRAM/.deps
+		    --elf PICOCALC_LEAN/unix.elf \
+		    --dependency-directory PICOCALC_LEAN/.deps \
+		    --elf PICOCALC_LEAN_DIAG/unix.elf \
+		    --dependency-directory PICOCALC_LEAN_DIAG/.deps
 
 # Each kernel's PARAM decides whether vm_swap.o calls the SwapRAM tier and
 # how large its pool is; the verifier reads the linked kernel and the
@@ -88,13 +91,15 @@ check-cache-footprint:
 			echo "cache footprint verifier accepted PICOCALC as single-root" >&2; exit 1; \
 		fi; \
 		if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
-		    --elf PICOCALC_PSRAM/unix.elf --layout multi --mounts 2 >/dev/null 2>&1; then \
-			echo "cache footprint verifier accepted PICOCALC_PSRAM as two-mount" >&2; exit 1; \
+		    --elf PICO/unix.elf --layout multi --mounts 3 >/dev/null 2>&1; then \
+			echo "cache footprint verifier accepted PICO as three-mount" >&2; exit 1; \
 		fi; \
-		if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
-		    --elf PICOCALC/unix.elf --layout multi --mounts 3 >/dev/null 2>&1; then \
-			echo "cache footprint verifier accepted PICOCALC as three-mount" >&2; exit 1; \
-		fi; \
+		for k in PICOCALC PICOCALC_LEAN PICOCALC_LEAN_DIAG; do \
+			if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
+			    --elf $$k/unix.elf --layout multi --mounts 2 >/dev/null 2>&1; then \
+				echo "cache footprint verifier accepted $$k as two-mount" >&2; exit 1; \
+			fi; \
+		done; \
 		for count in 1 3; do \
 			status=0; \
 			NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \

@@ -66,10 +66,12 @@ check_absent()
 # the mount count, linear cache layouts, and compact inode fields against the
 # linked target structures. The single layout is the PICO kernels' NMOUNT=1
 # with SINGLE_UFS_ROOT, which drops each inode's device and filesystem fields
-# and each mount's name strings. The multi layout is PICOCALC's NMOUNT=2
-# without it: two 0x4c8-byte mounts and 24 inodes of 0x5c bytes; PICOCALC_PSRAM
-# adds a third mount for its /tmp RAM disk (--mounts 3). Each mount includes
-# the four-byte m_device_lock retained through device-node release.
+# and each mount's name strings. The multi layout is NMOUNT=2 or 3 without
+# it: 24 inodes of 0x5c bytes and 0x4c8-byte mounts. The PICOCALC kernels
+# carry three (--mounts 3), the third holding the PSRAM /tmp RAM disk; two
+# (--mounts 2) is the layout of a multi-mount kernel without that slot. Each
+# mount includes the four-byte m_device_lock retained through device-node
+# release.
 check_symbol buf 90
 check_symbol bfreelist 6c
 check_symbol bufdata 1000

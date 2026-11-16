@@ -44,7 +44,8 @@ def main():
             mutations = (("none", None, None, 0),
                          ("authorization", "if (!suser())", "if (0 && !suser())", 1),
                          ("restore", "splx(s);", "splx(s ^ 1);", 2),
-                         ("arguments", "uap->arg1, uap->arg2", "uap->arg2, uap->arg1", 2))
+                         ("arguments", "uap->arg1, uap->arg2", "uap->arg2, uap->arg1", 2),
+                         ("level", "securelevel > 0", "securelevel > 99", 4))
             for compiler in compilers:
                 for level in ("O0", "O", "O1", "O2", "O3", "Og", "Os", "Oz"):
                     for name, old, new, expected in mutations:

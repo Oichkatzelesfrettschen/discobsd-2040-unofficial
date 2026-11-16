@@ -57,7 +57,8 @@ the RP2040 machine:
 PYTHON=/usr/bin/python bmake MACHINE=rp2040 MACHINE_ARCH=arm check-divider
 ```
 
-The integrated target builds PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM,
+The integrated target builds PICO, PICO_DIAG, PICO_UART, PICOCALC,
+PICOCALC_LEAN and PICOCALC_LEAN_DIAG,
 scans their linked ELFs, and scans the source/header closure recorded in their
 `.deps` directories. The
 gate checks offline ownership. Interrupt injection and result preservation

@@ -32,7 +32,7 @@ prototypes in the range: the donor has 17,193 K&R definitions at patch 499 and
 16,090 at patch 500 (after the removals of `500.rm`), and only three fork definitions (one line each, in
 `lib/libc/stdio`) have a fully prototyped donor twin, so the C17 distance closes
 by a converter and not by donor text. The converter in this change
-(`tools/c17/kr_to_ansi.py`) rewrites 3,763 of 4,182 K&R definitions it reads under
+(`tools/c17/kr_to_ansi.py`) rewrites 3,739 of 4,158 K&R definitions it reads under
 the production source set, refuses 419 with a stated reason, and leaves
 byte-identical object text in all 110 libc files that compile in the harness.
 
@@ -381,7 +381,7 @@ D109); imports and mechanical waves land after it. Sizes name the compiler
 
 | Id | Slice | Donor | C17 form and gate with known-bad input | Cost (text / RAM) |
 | --- | --- | --- | --- | --- |
-| B1 | Converter and calibration (this change) plus its Makefile target and `TESTING.md` row | -- | `tools/c17/kr_to_ansi.py` with `kr_to_ansi_test.py`; known-good fixture, known-bad fixture, three mutants killed (below) | 0 / 0 (host tool) |
+| B1 | Converter and calibration (this change) plus its Makefile target and `TESTING.md` row | -- | `tools/c17/kr_to_ansi.py` with `kr_to_ansi_test.py`; known-good fixture, known-bad fixture, seven mutants killed (below) | 0 / 0 (host tool) |
 | B2 | `alarm` bound: document it or clamp it, per the owner's answer to the `sleep()` note (C6) | 500.92 idea | host stub harness as in section 2; known-bad is today's `alarm.c` (returns 4,294,967,295) | 0 B documented; a few bytes clamped (I) / 0 |
 | B3 | `devname` stable buffer, `sysctl.c:471` caller (LIBC-3) | 500.50; OpenBSD `devname_nodb` | ASan case reading the name after another allocation; known-bad is today's source | small (I) / 0 |
 | B4 | `chown owner:group` | 500.17 | parser contract test; known-bad: today's parser rejects "root:wheel" as an unknown user | +12 B measured (survey) / 0 |
@@ -420,26 +420,35 @@ type the default argument promotions leave unchanged, and refuses the rest:
 
 | Check | Input | Result |
 | --- | --- | --- |
-| known-good | five definitions (two identifiers, a `register` pointer, an array parameter, an empty list, an implicit-int parameter) | output equals the expected text; a second run changes nothing; host `cc` accepts it under `-Werror=old-style-definition -Werror=strict-prototypes`; the `.text` bytes equal those of the K&R input |
-| known-bad | a `u_char` parameter (typedef of unknown width), `char` and `float` parameters, a function-pointer parameter, a comment in the declaration list | output byte-identical to the input; each refusal reported with its reason |
+| known-good | nine definitions (two identifiers, a `register` pointer, an array parameter, an empty list, an implicit-int parameter, a sized array parameter `digest[16]`, and two headers on conditional arms that share one body with the definition after them) | output equals the expected text; a second run changes nothing; host `cc` accepts it under `-Werror=old-style-definition -Werror=strict-prototypes`; the `.text` bytes equal those of the K&R input |
+| known-bad | a `u_char` parameter (typedef of unknown width), `char` and `float` parameters, a function-pointer parameter, a comment in the declaration list or in the identifier list, a macro that looks like a definition, definitions after conditional arms of unequal brace depth; a header macro and a directive inside the identifier list are checked on the output text alone | output byte-identical to the input; each refusal reported with its reason |
 | mutant: no promotion refusal | -- | killed (the float rewrite changes the object text, which the test also asserts) |
 | mutant: reversed parameter order | -- | killed (output text differs) |
 | mutant: declaration list kept | -- | killed (the output no longer compiles) |
+| mutants: declarator tokens re-joined, header span not checked, no macro refusal, flat brace depth | -- | each killed (the sized array becomes `digest[1 6]`; comments, directives and macro invocations are rewritten; the second conditional arm and every later definition are skipped) |
 
 On the production source set (`lib/libc`, `bin`, `sbin`, `usr.bin`, `usr.sbin`,
-`libexec`, `games`, `sys/kern`, `sys/dev`, `sys/fs`; 1,415 files) the converter
-reads 4,182 definitions: 3,763 convert (801 files change, 652 of them completely) and
-419 are refused: 211 for a promoted type or a typedef of unknown width (`u_char`,
-`u_short` and similar), 189 for a comment, literal or directive between the
-identifier list and the brace, 11 for a function or function-pointer parameter, 5
-for no declarator, 3 for a declared name outside the list. Executed validation on
+`libexec`, `games`, `sys/kern`, `sys/dev`, `sys/fs`; the 1,360 tracked `.c` files at
+`47aa0216`) the converter reads 4,158 definitions: 3,739 convert (768 files change, 619 of
+them completely) and 419 are refused: 206 for a promoted type or a typedef of unknown
+width (`u_char`, `u_short` and similar), 183 for a comment, literal or directive between
+the function name and the brace, 11 for a function or function-pointer parameter, 11 for
+a macro invocation or a capitalized name, 5 for no declarator, 3 for a declared name
+outside the list; three more files stop at conditional arms of unequal brace depth and
+are reported once each. An earlier
+run over 1,415 files, a set this re-measurement does not reproduce, read 4,182 definitions
+and converted 3,763. On the 1,360 files the converter before the review fixes read 4,126
+and converted 3,717; per-arm brace depth reaches 32 more definitions and converts 22 of
+them, and the macro and header-span refusals add 11 refusals and remove 1. The 133 libc
+files that convert are the same files with the same output text as before. Executed validation on
 the target compiler: of the 133 libc files that convert, 110 compile before and
 after under the userland flags of the survey (`arm-none-eabi-gcc` 16.2.0, `-Os
 -mcpu=cortex-m0plus -mthumb -nostdinc`, with `-fpermissive` for implicit int) and
 the `.text` bytes are identical in all 110; 23 do not compile before conversion in this harness (headers outside its include
 path) and are not run. The converter is not a preprocessor: a definition in each
-conditional arm converts alone, and a macro-generated definition stays as
-written; the `-Werror=old-style-definition` gate of each wave is the check that
+conditional arm converts alone (arms that share one body convert too, and arms of
+unequal brace depth stop the file at that point with a finding), and a macro-generated
+definition stays as written; the `-Werror=old-style-definition` gate of each wave is the check that
 nothing remains. Not wired into a Makefile target in this change: B1 owns the
 target, the `TESTING.md` row and the nightly tier.
 
@@ -471,7 +480,7 @@ rename). The following remain, one each.
    feature (`fsck` stays unconditional, no kernel change). This feeds D105.
 4. **Order of the mechanical K&R waves against the rename.** Options: (a) after
    the rename (recommended: the rename edits 622 files and the converter changes
-   801 of the 1,415 files it read; sequencing them avoids rebase conflicts in
+   768 of the 1,360 files it read; sequencing them avoids rebase conflicts in
    the same files); (b) the libc
    wave W1 before the rename (starts the C17 distance reduction sooner, at the
    cost of a conflict surface with the rename's identity edits).

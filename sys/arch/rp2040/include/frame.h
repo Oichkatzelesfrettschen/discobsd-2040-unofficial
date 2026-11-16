@@ -50,10 +50,13 @@ struct	trapframe {
 /*
  * The SIO hardware divider state of a process (RP2040 datasheet 2.3.1.5),
  * saved by divider_save() at an entry from the process and written back by
- * divider_restore() on the way out. ds_csr is DIV_CSR as the entry found
- * it; its DIRTY bit (DS_CSR_DIRTY) marks a sequence between a divider write
- * and its quotient read, the only state worth carrying, and the other words
- * are written, and meaningful, only then.
+ * divider_restore() on the way out, all five words at every entry and
+ * exit. ds_csr is DIV_CSR as the entry found it; its DIRTY bit
+ * (DS_CSR_DIRTY) marks a sequence between a divider write and its quotient
+ * read, and the restore leaves DIRTY as it found it. A child of fork
+ * returns through a copy of the parent's frame, so it starts with the
+ * divider as the parent left it at the fork call, like every other
+ * register.
  */
 struct	divider_state {
 	u_int	ds_dividend;	/* DIV_UDIVIDEND */
@@ -86,9 +89,9 @@ struct	userframe {
 /*
  * exec_clear() (sys/kern/exec_subr.c) zeroes the trapframe for the new
  * image; this clears the rest of the userframe with it. r12 starts at zero,
- * and the divider state becomes zero operands and results marked DIRTY, so
- * the exit from the exec call writes zeros over whatever the old image left
- * in the divider instead of restoring or keeping it.
+ * and the divider state becomes zero operands and results with DIRTY
+ * clear, so the exit from the exec call writes zeros over whatever the old
+ * image left in the divider.
  */
 #define	MD_EXEC_CLEAR_FRAME(tf) do {					\
 	struct userframe *md_uf = USERFRAME(tf);			\
@@ -98,7 +101,7 @@ struct	userframe {
 	md_uf->uf_div.ds_divisor = 0;					\
 	md_uf->uf_div.ds_remainder = 0;					\
 	md_uf->uf_div.ds_quotient = 0;					\
-	md_uf->uf_div.ds_csr = DS_CSR_DIRTY;				\
+	md_uf->uf_div.ds_csr = 0;					\
 } while (0)
 
 #ifdef KERNEL

@@ -127,19 +127,13 @@ sendsig(sig_t p, int sig, long mask)
 	sfp->sf_sc.sc_r9  = regs->tf_r9;
 	sfp->sf_sc.sc_r10 = regs->tf_r10;
 	sfp->sf_sc.sc_r11 = regs->tf_r11;
-	sfp->sf_r12 = uf->uf_r12;
 	/*
-	 * divider_save fills the data words only when DIRTY was set; the
-	 * others hold kernel stack the process must not see, so a clean
-	 * divider goes out as zeros. The handler starts from a clean divider:
-	 * the interrupted sequence's state waits in the frame for sigreturn,
-	 * and the exit from this entry owes no restore.
+	 * Every entry saved the whole divider (divider_save), so the frame
+	 * carries the interrupted state for sigreturn whatever the handler
+	 * divides in between.
 	 */
-	if (uf->uf_div.ds_csr & DS_CSR_DIRTY)
-		sfp->sf_div = uf->uf_div;
-	else
-		bzero(&sfp->sf_div, sizeof(sfp->sf_div));
-	uf->uf_div.ds_csr = 0;
+	sfp->sf_r12 = uf->uf_r12;
+	sfp->sf_div = uf->uf_div;
 
 	/* Call signal handler. */
 	regs->tf_r0 = sig;			/* $a1 - signal number */

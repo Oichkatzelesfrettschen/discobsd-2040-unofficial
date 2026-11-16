@@ -531,7 +531,7 @@ only because SysTick never reached `userret`, which also left a process
 that makes no system call without its signals and without preemption. The
 clock tick now runs `userret` through PendSV, so a ROM divide can be
 interrupted by a switch or a handler; every kernel entry from a process
-saves the divider when DIV_CSR.DIRTY is set and restores it on the way
+saves the divider registers and DIV_CSR and restores them on the way
 out, a signal frame carries it across a handler, and the divider gates
 admit exactly that save and restore.
 

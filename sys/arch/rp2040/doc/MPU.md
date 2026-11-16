@@ -85,8 +85,10 @@ the clock tick's asynchronous system trap (`ast` in syscall.c, pended by
 at any user instruction. Every entry from a process -- that trap, a system
 call and a fault -- therefore saves the divider into its
 `struct userframe` (machine/frame.h) before anything else can run and
-writes it back as the last step before the exception return, when DIV_CSR
-showed DIRTY at entry: `divider_save` and `divider_restore` in
+writes it back as the last step before the exception return, all four
+registers and DIRTY as the entry found it, so a process switched in finds
+its own values and never the previous process's: `divider_save` and
+`divider_restore` in
 syscall.c, the only kernel code that touches the divider and the only code
 `check-divider` admits, by name. The kernel stack the frame lives on
 belongs to the process and survives `swtch`, so another process's

@@ -27,8 +27,8 @@
  * The divider is per-core state, and the clock tick can switch processes
  * or deliver a signal between any two user instructions (the asynchronous
  * system trap of sys/arch/rp2040/rp2040/syscall.c). Every kernel entry
- * from a process saves the divider when DIV_CSR.DIRTY is set and restores
- * it on the way out, and a signal handler's frame keeps the interrupted
+ * from a process saves the divider registers and DIV_CSR and restores them
+ * on the way out, so no process reads another's values, and a signal handler's frame keeps the interrupted
  * state for sigreturn, so the sequence from the dividend write to the
  * quotient read finds its own results whatever ran in between. Apart from
  * that save and restore the kernel reaches the divider nowhere

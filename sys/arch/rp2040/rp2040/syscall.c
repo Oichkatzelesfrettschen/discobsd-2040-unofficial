@@ -187,14 +187,16 @@ __asm volatile (
  * two functions alone). A process interrupted between its divisor write and
  * its quotient read leaves DIV_CSR.DIRTY set, and its results must outlive
  * whatever runs before it resumes: another process after a switch, or its
- * own signal handler. divider_save() copies the registers into the
- * userframe when DIRTY is set; READY is awaited first, though the exception
- * entry alone outlasts the eight-cycle calculation. divider_restore()
- * writes them back the way the Pico SDK's hw_divider_restore_state()
- * does: the operand writes start a calculation, and the result writes that
- * follow replace its results and leave DIRTY set again. Reading
- * DIV_QUOTIENT clears DIRTY, so the saved csr word, not the register,
- * records that a restore is owed.
+ * own signal handler. A clean divider is state too: reading DIV_QUOTIENT
+ * clears DIRTY but leaves the operands and results readable, so a process
+ * switched in must not find the last process's values there, nor lose its
+ * own. divider_save() therefore copies all four registers and DIV_CSR into
+ * the userframe at every entry; READY is awaited first, though the
+ * exception entry alone outlasts the eight-cycle calculation.
+ * divider_restore() writes them back at every exit the way the Pico SDK's
+ * hw_divider_restore_state() does: the operand writes start a calculation,
+ * and the result writes that follow replace its results and set DIRTY; a
+ * quotient read then clears DIRTY again when the saved csr word was clean.
  */
 #define	CSR_READY		0x1U
 
@@ -213,11 +215,9 @@ divider_save(struct divider_state *ds)
 	volatile u_int *div;
 
 	__asm volatile ("" : "=l" (div) : "0" (0xd0000060UL));
-	ds->ds_csr = div[6];
-	if ((ds->ds_csr & DS_CSR_DIRTY) == 0)
-		return;
 	while ((div[6] & CSR_READY) == 0)
 		continue;
+	ds->ds_csr = div[6];
 	ds->ds_dividend = div[0];
 	ds->ds_divisor = div[1];
 	ds->ds_remainder = div[5];
@@ -230,12 +230,12 @@ divider_restore(const struct divider_state *ds)
 	volatile u_int *div;
 
 	__asm volatile ("" : "=l" (div) : "0" (0xd0000060UL));
-	if ((ds->ds_csr & DS_CSR_DIRTY) == 0)
-		return;
 	div[0] = ds->ds_dividend;
 	div[1] = ds->ds_divisor;
 	div[5] = ds->ds_remainder;
 	div[4] = ds->ds_quotient;
+	if ((ds->ds_csr & DS_CSR_DIRTY) == 0)
+		(void)div[4];		/* clears DIRTY */
 }
 
 /*

@@ -133,8 +133,8 @@ system trap through PendSV, so a process can be switched out or enter a
 handler between any two instructions, including inside a divider sequence
 or a ROM float divide. The divider therefore travels with the process
 again, at lower cost than the `label_t` checkpoint: every entry from a
-process saves it into its kernel-stack `struct userframe` only when
-DIV_CSR.DIRTY is set and restores it last, a signal frame keeps it across
+process saves all four registers and DIV_CSR into its kernel-stack
+`struct userframe` and restores them last, DIRTY as it found it, a signal frame keeps it across
 a handler, and `check-divider` admits exactly `divider_save` and
 `divider_restore`. The audit-findings scheduling boundary ("SysTick_Handler
 calls hardclock and returns") describes the tree it captured.

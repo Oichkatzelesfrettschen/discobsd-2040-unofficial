@@ -227,8 +227,10 @@ blockers; a missing tool never becomes a passing check.
   carries an explicit `model`. Synthesis, edits, commits and the final claim
   stay with the parent.
 - A new file written for this port carries `Copyright (c) <year> GizmoBSD`
-  and the BSD 3-Clause license text of LICENSE with GizmoBSD as the
-  holder. NOTICE section 1 names GizmoBSD files as a category beside the
+  and the BSD 3-Clause conditions as NOTICE section 1 words them, with
+  GizmoBSD as the holder (LICENSE is upstream's text and keeps its
+  placeholder). A file dated a year that NOTICE and etc/COPYRIGHT do not
+  yet name extends their GizmoBSD year range in the same commit. NOTICE section 1 names GizmoBSD files as a category beside the
   earlier `Copyright (c) 2026 DiscoBSD` ISC files, so the header is the
   grant a redistributor relies on rather than an invented attribution,
   and the global no-copyright-line rule yields to it here. A file that

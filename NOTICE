@@ -52,9 +52,9 @@ permission to use, copy, modify, and/or distribute this software for
 any purpose with or without fee is hereby granted, provided that the
 above copyright notice and this permission notice appear in all copies.
 
-Files written for this port that carry a GizmoBSD copyright line, of
-any year, are under the BSD 3-Clause terms above, with GizmoBSD as the
-copyright holder.
+Files written for this port that carry a GizmoBSD copyright line are
+under the BSD 3-Clause terms above, with GizmoBSD as the copyright
+holder; the GizmoBSD line above spans every year such a file names.
 
 ------------------------------------------------------------------------
 2. The Regents of the University of California (2.11BSD: the kernel,

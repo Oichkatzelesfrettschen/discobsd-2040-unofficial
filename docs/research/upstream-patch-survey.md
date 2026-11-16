@@ -23,7 +23,7 @@ Across 172 rows (2 upstream commits, 68 numbered patches 432 to 499, and the
 | --- | ---: | ---: | ---: | ---: |
 | upstream DiscoBSD | 0 | 0 | 0 | 2 |
 | 2.11BSD 432 to 499 | 12 | 10 | 7 | 39 |
-| 2.11BSD 500 items | 18 | 4 | 12 | 68 |
+| 2.11BSD 500 items | 18 | 4 | 13 | 67 |
 
 The applicable set is small and cheap. Five kernel items cost between -1603 and
 +80 bytes of kernel text and at most 4 bytes of kernel RAM; the shipped userland
@@ -132,20 +132,39 @@ sendmail, uucp, networking, programs absent here, or manuals. The rest:
 `void (*)(int)` `sig_t`, one `signal.h` (`include/signal.h` links to
 `sys/signal.h`), battlestar's stringizing `PATH(x)`, phantasia's two-argument
 `signal`, no `timevalfix` macro, no gcos code in make, and, by the probe below,
-`%.0f` of zero and `snprintf` truncation. `sleep(3)` needs no loop because
-`itimerfix` accepts 100,000,000 seconds (`sys/kern/kern_time.c:348`) and `hzto`
-computes ticks in a `long` (I).
+`%.0f` of zero and `snprintf` truncation, and the `hostid` crash (500.99):
+`usr.bin/hostid/hostid.c:36` compiles the `gethostbyname` branch only under
+`HAVE_NET`, which no Makefile or header defines, so the program parses its
+operand numerically and the crash path is absent. `hostid` is in
+`usr.bin/Makefile:33` and not in `mi.rp2040`.
 
 **Superseded (4).** `xinstall` `__STDC__` blocks, `pstat` and `XPAGI`, `ps`
 (the fork's `bin/ps/ps.c:294` already uses `getopt`), and `xargs` (the fork
 reports through `fatal()`, `usr.bin/xargs/xargs.c:52`).
 
-**Applicable (12).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
+**Applicable (13).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
 descend repair (500.11), `iso646.h` and `locale.h` (500.13), `chown
 owner:group` (500.17), the find-database last entry (500.30), `w` with no
 utmp (500.51), short panic tags (500.76), `rm` and `mv` through `getopt`
-(500.80), `cfree` removal (500.83), `man` section names (500.86) and the
-`who am i` separator (500.97).
+(500.80), `cfree` removal (500.83), `man` section names (500.86), the
+`sleep(3)` range (500.92, below) and the `who am i` separator (500.97).
+
+**Live defect, 500.92 `sleep(3)`.** Part (b) of the item, an unsigned parameter
+used as signed, is absent: `seconds` is a `u_int` with no signed comparison.
+Part (a) is live: `lib/libc/gen/sleep.c:35-37` passes the
+whole `u_int` to one `select(2)`. The kernel refuses a timeout above
+100,000,000 seconds: `select1()` calls `itimerfix()` and returns `EINVAL`
+(`sys/kern/sys_generic.c:454`, `sys/kern/kern_time.c:348-350`). `sleep` ignores
+the status, reads a clock that has not moved and returns the full request
+unslept, at once, for every request from 100,000,001 through `UINT_MAX`. The
+host probe below executes that range against `sleep.c` (M, with a stub that
+applies the kernel bound). A second ceiling is read from source and not run:
+`hzto()` clamps a wait to `0x7fffffff` ticks, 2,147,483 seconds at `HZ` 1000
+(`sys/kern/kern_clock.c:447-453`, `sys/arch/rp2040/include/machparam.h:44`),
+and an expired `tsleep` ends `select1()` with no wall-clock recheck, so a
+request between 2,147,484 and 100,000,000 seconds sleeps short as well (I).
+Upstream's loop over a bounded chunk, or an explicit documented bound, closes
+both. No shipped program passes such a value, so the reach is the libc contract.
 
 Item 32 adds `DOSCCS` guards around `sccsid` strings to recover PDP-11 data
 space. Under GCC an unreferenced `static` array is discarded:
@@ -176,6 +195,19 @@ correctly. `printf_contract_test.c:122-125` and `:151` already check truncation;
 no printf contract file holds a `%.0f` vector, so a zero-precision zero case is a
 cheap addition to `check-libc-printf-float`.
 
+**Sleep range.** `tests/libc_contracts/sleep_contract_test.c`'s harness
+(`-Dselect=test_select -Dgettimeofday=test_gettimeofday`) was rebuilt with a
+`select` stub that returns -1 above 100,000,000 seconds, as `itimerfix()` does,
+and otherwise advances the replayed clock by the timeout. It runs on the host
+against the tree's `lib/libc/gen/sleep.c`. The contract test itself never
+requests more than 10 seconds.
+
+| Call | select calls | select timeout (s) | Unslept returned |
+| --- | ---: | ---: | ---: |
+| `sleep(100000000)` | 1 | 100,000,000 | 0 |
+| `sleep(100000001)` | 1 | 100,000,001 | 100,000,001 |
+| `sleep(4294967295)` | 1 | 4,294,967,295 | 4,294,967,295 |
+
 **Object sizes.** Single objects compiled with `arm-none-eabi-gcc` 16.2.0. The
 kernel objects use the flags `bmake -n` prints for `sys/arch/rp2040/compile/PICO`;
 the userland objects use `-std=gnu17 -fno-common -ffunction-sections
@@ -187,6 +219,7 @@ deltas exclude link-time alignment and `--gc-sections` effects.
 | 451 securelevel at or below 0 | `kern_sysctl.o` | 3528 | 3532 | +4 |
 | 439 `RLIMIT_DATA` in `brk` | `kern_mman.o` | 88 | 108 | +20 |
 | 500.17 `owner:group` | `chown.o` | 969 | 981 | +12 |
+| 500.92 chunked `select` loop (sketch, not run) | `sleep.o` | 74 | 96 | +22 |
 | 500.9 `mkdir -m` through `setmode` | `mkdir.o` | 328 | 428 | +100 |
 | `setmode` member | `setmode.o` | 0 | 1228 | +1228 when first linked |
 
@@ -221,8 +254,9 @@ applets, packed blocks in the root.
 | 6 | 458 superblock time ordering at mount (ledger open) | kernel | ~+8 (I: the donor adds one `fs_time` assignment each to `ufs_mount.c` and `ufs_subr.c`) | 0 | 0 | low | none |
 | 7 | 500.9 `mkdir -m` | `/bin/box` | 0 | 0 | +100 B, or +1328 B with symbolic modes | low | none |
 | 8 | 500.13 `iso646.h`, `locale.h`, C-locale `setlocale` and `localeconv` | headers, libc | 0 | 0 | header-only for iso646; ~150 B per linking program (I) | low | `check-c17-headers` |
-| 9 | 451 securelevel at or below 0 may be lowered | kernel | +4 measured | 0 | 0 | policy | `check-libc-sysctl` |
+| 9 | 451 securelevel at or below 0 may be lowered | kernel | +4 measured | 0 | 0 | policy | none; `sysctl_test` (`check-kernel-ilp32`) links `kern_sysctl.c` and declares `securelevel` (`sysctl_test.c:118`) but holds no `KERN_SECURELVL` case, and `check-libc-sysctl` links only `uname.c`, `gethostname.c` and `knlist.c` against a userland shim, so the new gate is a `KERN_SECURELVL` case in `sysctl_test.c` |
 | 10 | 439 `RLIMIT_DATA` in `brk` (`sys/kern/kern_mman.c:24`). `setrlimit` is a system call (`sys/kern/init_sysent.c:466`), but the shipped callers set only `RLIMIT_CPU`, `RLIMIT_FSIZE` and `RLIMIT_CORE` (`usr.bin/passwd/passwd.c:90-91`, `usr.bin/timeout/timeout.c:448`); csh's `limit` builtin is unshipped, so nothing on the image sets a data limit today | kernel | +20 measured | 0 | 0 | low; `RLIM_INFINITY` is the initial limit (`sys/kern/init_main.c:88`) | none; `check-kernel-headroom` for size |
+| 11 | 500.92 `sleep(3)` above 100,000,000 s returns the whole request unslept at once, and above 2,147,483 s sleeps short (I); a chunked `select` loop, or a documented bound | libc, every program linking `sleep.o` | 0 | 0 | +22 B in `sleep.o` for the unrun sketch, GCC 16.2.0 `-Os` | low; the loop must keep the interrupted-sleep remainder and the 2038 clock arithmetic of `sleep.c:44-51` | `check-sleep`, with requests above the bound (no such case today) |
 
 The rest are unshipped or cosmetic: 500.51 `w` dereferences a failed `fopen` of
 utmp (`usr.bin/w/w.c:129,164`); 447 `apropos` under-allocation; 441 libvmf walk;
@@ -263,8 +297,8 @@ formatter vectors from the probe are gate work with no target cost.
 | 1, `owner:group` | `DragonFlyBSD/usr.sbin/chown/chown.c:135-140` tries `:` and then `.`, the order the measured variant uses | `94448f622a06`, `e983a8d87aef2da25bef0e0742040f367fd9ff6e1fea3e660e0b807305ce1cca` |
 | 1 | `4.4BSD-Lite2/usr.sbin/chown/chown.c:140-145` tries `.` and then `:` | `b10da34408c8`, `989e4f6cf300d2a0eff4ababe3bb97cbf5b08e032aba9bc539ca3cbc9c41524d` |
 | 2, `rm` options | `4.4BSD-Lite2/bin/rm/rm.c:80` parses with `getopt(argc, argv, "dfiPRrW")` | `b10da34408c8`, `7243d78ec0f64bcbcee7d2e486a0722df183a7077f9f9e6705d16807ea695043` |
-| 8, `mkdir -m` | `DragonFlyBSD/bin/mkdir/mkdir.c:64,86-93` (`setmode`, `getmode`); `4.4BSD-Lite2/bin/mkdir/mkdir.c:73,95` | `954b9709db5f61ecb477a3a3b04ecf12c36ed505d883689432caac3f5e942b3b`; `43a9898c69b5532f8c384658d6b3370fa52d345d17bbf5a66537c3f8f8ffb0c8` |
-| 9, C99 headers | `DragonFlyBSD/include/iso646.h`, `DragonFlyBSD/include/locale.h` | `18411814a9522581864b529134a450a178530af6f58615b503ba02badd277490`; `0608b8ba72c57cea2d1ee613bb207a1efdef16eae1b3f7521b458d860b596d46` |
+| 7, `mkdir -m` | `DragonFlyBSD/bin/mkdir/mkdir.c:64,86-93` (`setmode`, `getmode`); `4.4BSD-Lite2/bin/mkdir/mkdir.c:73,95` | `954b9709db5f61ecb477a3a3b04ecf12c36ed505d883689432caac3f5e942b3b`; `43a9898c69b5532f8c384658d6b3370fa52d345d17bbf5a66537c3f8f8ffb0c8` |
+| 8, C99 headers | `DragonFlyBSD/include/iso646.h`, `DragonFlyBSD/include/locale.h` | `18411814a9522581864b529134a450a178530af6f58615b503ba02badd277490`; `0608b8ba72c57cea2d1ee613bb207a1efdef16eae1b3f7521b458d860b596d46` |
 
 ## Defects in the surveying instruments
 
@@ -298,7 +332,10 @@ formatter vectors from the probe are gate work with no target cost.
 No item was imported, built into a kernel, run under Renode or run on a board.
 Kernel sizes are single-object compilations; the `unix.elf` panic figure comes
 from a local artifact of unrecorded revision. The `find`, `w`, `apropos` and
-libvmf defects were found by reading and not executed. The 1795-file patch-500
+libvmf defects were found by reading and not executed, and so was the kernel
+half of 500.92 (the `itimerfix()` refusal and the `hzto()` clamp): the host
+probe stubs `select`, and the +22 B sketch of a chunked loop was compiled but
+never run. The 1795-file patch-500
 diff was classified at item level; individual hunks outside the 842 mapped paths
 were not read. Patch 499's remaining hunks keep the text-distance disposition of
 `211bsd-patch-scope.md`.

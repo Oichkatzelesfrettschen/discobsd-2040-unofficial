@@ -1078,16 +1078,21 @@ check-difftime: difftime_contract_test
 	${TEST_EXECUTION} skip libc.difftime.negative "check-libc-difftime: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
-# sleep() at the 32-bit view against two replayed clock readings
-# (sleep_contract_test.c). The negative control compares the readings
-# signed, which only a four-byte long exposes, so it runs as ILP32.
+# sleep() at the 32-bit view against two replayed clock readings and against
+# a model of the kernel's timeout limits (sleep_contract_test.c). The
+# negative control that compares the readings signed only a four-byte long
+# exposes, so it runs as ILP32; the one that sleeps the whole request in a
+# single select() fails at any width.
 SLEEP_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
 	-Wno-deprecated-non-prototype -nostdinc \
 	-isystem ${TOPSRC}/include -Dsleep=db_sleep \
-	-Dgettimeofday=test_gettimeofday -Dselect=test_select ${NARROW_TIME}
+	-Dgettimeofday=test_gettimeofday -Dselect=test_select \
+	-Dpselect=test_pselect -Dsigprocmask=test_sigprocmask ${NARROW_TIME}
 
-check-sleep: sleep_contract_test
+check-sleep: sleep_contract_test sleep_unchunked_bad_test sleep_unmasked_bad_test
 	${TEST_EXECUTION} run libc.sleep.native -- ./sleep_contract_test
+	${TEST_EXECUTION} run libc.sleep.unchunked-negative -- ./sleep_unchunked_bad_test
+	${TEST_EXECUTION} run libc.sleep.unmasked-negative -- ./sleep_unmasked_bad_test
 .if ${ILP32_OK} == "yes"
 	@${MAKE} sleep_contract_test32 sleep_bad_test32
 	${TEST_EXECUTION} run libc.sleep.ilp32 -- ./sleep_contract_test32
@@ -1104,6 +1109,18 @@ sleep_contract_test: sleep_contract_test.c ${TARGET_DIR}/sleep.c
 sleep_contract_test32: sleep_contract_test.c ${TARGET_DIR}/sleep.c
 	${HOSTCC} ${ILP32} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
 	    ${TARGET_DIR}/sleep.c
+
+# The negative control for the kernel cases: one select() of the whole
+# request, as before the chunked loop. It fails at any width.
+sleep_unchunked_bad_test: sleep_contract_test.c sleep_unchunked_bad.c
+	${HOSTCC} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    sleep_unchunked_bad.c
+
+# The negative control for the signal cases: the chunked loop in select()
+# with the caller's mask untouched. It fails at any width.
+sleep_unmasked_bad_test: sleep_contract_test.c sleep_unmasked_bad.c
+	${HOSTCC} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
+	    sleep_unmasked_bad.c
 
 sleep_bad_test32: sleep_contract_test.c sleep_signed_bad.c
 	${HOSTCC} ${ILP32} ${SLEEP_CFLAGS} -o $@ sleep_contract_test.c \
@@ -1920,7 +1937,8 @@ clean:
 		calendar64_test32_san calendar64_vectors.h cal64_*.o
 	rm -f ctime_contract_test ctime_contract_test32 ctime_ctime.o ctime_tzset.o \
 		ctime_ctime32.o ctime_tzset32.o calendar32_vectors.h
-	rm -f sleep_contract_test sleep_contract_test32 sleep_bad_test32
+	rm -f sleep_contract_test sleep_contract_test32 sleep_bad_test32 \
+	    sleep_unchunked_bad_test sleep_unmasked_bad_test
 	rm -f zone_contract_test zone_contract_test32 \
 		zone_ctime.o zone_tzset.o zone_ctime32.o zone_tzset32.o \
 		zone_timezone.o zone_timezone32.o

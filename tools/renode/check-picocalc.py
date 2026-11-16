@@ -8,7 +8,8 @@ stage expects. Virtual time is the budget, so a slow host lengthens the run
 without failing it; WALL_SECONDS bounds a hung emulator.
 
 Stages, each asserted on the decoded panel text:
-  banner    the kernel banner, lcd0 and kbd0 probe lines
+  banner    the kernel banner, lcd0 and kbd0 probe lines, and the psram0
+            probe falling back to swap on fl1 (the machine models no PSRAM)
   login     the getty prompt, after the root check, daemons and init
   shell     keys typed through the I2C keyboard model log in and run uname
 
@@ -55,6 +56,39 @@ BANNER_LINES = [
     "lcd0: ST7365P 320x320 on SPI1, 53x32 cells, console",
     "kbd0: keyboard controller at I2C1 0x1f, firmware 1.6",
 ]
+
+
+# psram.c prints one outcome line per probe. The machine models no part on
+# the PSRAM pins, so the probe must refuse it and leave swap on fl1: the path
+# a PicoCalc whose PSRAM does not answer takes. The panel wraps a line at 53
+# cells and drops trailing blanks, so the match runs on the screen text with
+# every space removed.
+PSRAM_FALLBACK = re.compile(
+    r"psram0:(?:id[0-9a-f]+/[0-9a-f]+isnotanESP-PSRAM64H,"
+    r"|addresseswrapbelow\d+kbytes,|notusable\(error-?\d+\),)swapstaysonfl1")
+PSRAM_ATTACH = "psram0:ESP-PSRAM64H"
+# fl1 is block major 0, minor 8; an attached PSRAM would report (3,0).
+SWAP_ON_FL1 = "swap dev  = (0,8)"
+
+
+def psram_squeezed(lines: list[str]) -> str:
+    return "".join(line.replace(" ", "") for line in lines)
+
+
+def psram_probe_seen(lines: list[str]) -> bool:
+    squeezed = psram_squeezed(lines)
+    return PSRAM_ATTACH in squeezed or PSRAM_FALLBACK.search(squeezed) is not None
+
+
+def psram_failures(lines: list[str]) -> list[str]:
+    """The psram0 outcome must be the fallback to fl1 and never an attach."""
+    squeezed = psram_squeezed(lines)
+    failures = []
+    if PSRAM_ATTACH in squeezed:
+        failures.append("psram0: the probe attached a PSRAM part the machine does not model")
+    if PSRAM_FALLBACK.search(squeezed) is None:
+        failures.append("psram0: no probe line leaving swap on fl1")
+    return failures
 
 
 class StageFailed(Exception):
@@ -550,9 +584,10 @@ def check_monitors(run: Run) -> None:
     """Run picofetch and picotop when the image carries them.
 
     picofetch must print its readings from this kernel's sysctl nodes beside
-    the logo drawn from the glyph bank; picotop must draw two frames and
-    exit. An image without the programs (any profile but picocalc) skips
-    the stage and says so.
+    the logo drawn from the glyph bank, and fill the capacity rows (Tables,
+    Kstack) from kern.capacity, which PICOCALC serves; picotop must
+    draw two frames and exit. An image without the programs (any profile but
+    picocalc) skips the stage and says so.
     """
     # The keyboard model's FIFO holds 31 events, so a command longer than
     # fifteen keys goes in through picocalc_dump.Console, which types in
@@ -571,8 +606,10 @@ def check_monitors(run: Run) -> None:
     run.snapshot("picofetch")
     for text in ("OS       DiscoBSD 2.7", "Kernel   PICOCALC", "CPU      125.000 MHz, ",
                  "SRAM     264K, process window 192K", "MPU      on, ",
-                 "Display  318x320 px, 53x32 cells", "Tables   proc "):
+                 "Display  318x320 px, 53x32 cells", "Tables   proc ", "Kstack   "):
         run.expect(run.has(text), f"picofetch: no {text!r} on the panel")
+    run.expect(any(line.startswith("Kstack   ") and " peak " in line for line in run.lines),
+               "picofetch: no Kstack peak from kern.capacity on the panel")
     for label in ("Memory  ", "Swap    ", "Root    ", "Battery ", "Flash    image "):
         run.expect(run.has(label), f"picofetch: no {label!r} line on the panel")
     # Renode's ADC is a model, so the line's form is checked and its values
@@ -698,9 +735,26 @@ def self_test() -> int:
     if not any("colors" in m for m in logo_failures(width, pixels, 0)):
         print("self-test: a one-color logo was not rejected", file=sys.stderr)
         return 1
+    # The fallback line wrapped at the panel's 53 cells, as the console
+    # draws it, must pass; an attach, a missing line and a fallback printed
+    # by another driver must not.
+    fallback = "psram0: id 0/0 is not an ESP-PSRAM64H, swap stays on fl1"
+    wrapped = [fallback[:picocalc_fb.COLS], fallback[picocalc_fb.COLS:]]
+    for name, lines in (("wrapped id refusal", ["kbd0: x"] + wrapped),
+                        ("stall refusal", ["psram0: not usable (error 4), swap stays on fl1"])):
+        if psram_failures(lines) or not psram_probe_seen(lines):
+            print(f"self-test: the {name} psram0 line failed", file=sys.stderr)
+            return 1
+    for name, lines in (
+            ("attach", ["psram0: ESP-PSRAM64H 8192 kbytes on PIO0, swap"]),
+            ("missing", ["kbd0: keyboard controller at I2C1 0x1f, firmware 1.6"]),
+            ("other driver", ["sd0: not usable (error 4), swap stays on fl1"])):
+        if not psram_failures(lines):
+            print(f"self-test: the {name} psram0 case was not rejected", file=sys.stderr)
+            return 1
     print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
           "good and unbounded FIFO, three good readbacks and five mutants, "
-          "good, shifted and one-color logo)")
+          "good, shifted and one-color logo, psram0 fallback and three mutants)")
     return 0
 
 
@@ -752,7 +806,12 @@ def main(argv: list[str]) -> int:
         init_trace = expected_init_trace()
         renode.command(f"sysbus.spi1.lcd TraceBytes {len(init_trace)}")
         run.wait_for(BANNER_LINES, "banner", BOOT_BUDGET_SECONDS)
+        run.wait_until(lambda: psram_probe_seen(run.lines), "psram probe",
+                       "a psram0 outcome line", BOOT_BUDGET_SECONDS)
         run.snapshot("banner")
+        for message in psram_failures(run.lines):
+            run.fail(message)
+        run.wait_for([SWAP_ON_FL1], "swap device after the psram probe", BOOT_BUDGET_SECONDS)
         check_panel_registers(run)
         # The monitor echoes prompts and command lines around its output.
         traced = [line for line in renode.command("sysbus.spi1.lcd Trace").splitlines()

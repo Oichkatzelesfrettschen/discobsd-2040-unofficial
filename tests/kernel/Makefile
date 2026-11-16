@@ -274,6 +274,9 @@ UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
 	device-block-policy-raise-ignored sys_inode \
 	device-raw-policy-raise-ignored sys_inode \
 	device-reuse-state-kept ufs_inode
+UFS_DISK_EXTRA_MUTANTS+= device-swapdev-write-admitted sys_inode \
+	device-swapdev-level-one-ignored sys_inode \
+	device-swapdev-held-descriptor-writes sys_inode
 UFS_DISK_EXTRA_MUTANTS+= device-checkpoint-omitted ufs_syscalls2 \
 	device-checkpoint-error-hidden ufs_syscalls2 \
 	device-checkpoint-unsupported-fatal ufs_syscalls2 \
@@ -408,7 +411,7 @@ FIONREAD_IOCTL_FUNCTION=	fionread_ioctl_function.c
 FIONREAD_INODE_FUNCTION=	fionread_inode_function.c
 FIONREAD_CFLAGS=	-ffunction-sections -fdata-sections
 # sys_generic.c classifies LCDIOC_SETGLYPH only where PICOCALC_ENABLED is
-# defined, as in the PICOCALC and PICOCALC_PSRAM kernels; the PICO kernels
+# defined, as in the PICOCALC kernels; the PICO kernels
 # forward the command to the provider like any unknown one.
 FIONREAD_DEFS=	-DPICOCALC_ENABLED
 FIONREAD_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 ${FIONREAD_DEFS} \

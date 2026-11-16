@@ -48,7 +48,7 @@ outlives the close. The PIC32 driver's text interface (`echo ..1. >
 | Claim | Class | State |
 | --- | --- | --- |
 | Pin masks, port mapping and request validation | host | `check-gpio-requests`, six mutants rejected |
-| The PICOCALC and PICOCALC_PSRAM kernels compile and link the driver; PICO and PICO_UART keep majors 0-9 | build | observed; `check-kernel-metadata` pins the rows |
+| PICOCALC compiles and links the driver; PICOCALC_LEAN and PICOCALC_LEAN_DIAG keep the slot as `NOCDEV`; PICO and PICO_UART keep majors 0-9 | build | observed; `check-kernel-metadata` pins the rows |
 | A configured output drives its pin; an input reads its level; a held pin stays untouched | board | not run; `tests/rp2040/gpioprobe` decides it |
 
 `tests/rp2040/gpioprobe` drives GP2 of a bare Pico high and low through

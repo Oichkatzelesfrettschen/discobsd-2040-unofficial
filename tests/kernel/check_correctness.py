@@ -45,8 +45,8 @@ def build(work, suite, changes):
         "credentials": ["kern_prot.c", "kern_prot2.c", "kern_proc.c"],
         "bmap": ["ufs_bmap.c"],
         "synch": ["kern_synch.c", "vm_sched.c"],
-        "itimer": ["kern_clock.c", "kern_time.c", "kern_fork.c"],
-        "itimer-ilp32": ["kern_clock.c", "kern_time.c", "kern_fork.c"],
+        "itimer": ["kern_clock.c", "kern_time.c", "kern_fork.c", "sys_generic.c"],
+        "itimer-ilp32": ["kern_clock.c", "kern_time.c", "kern_fork.c", "sys_generic.c"],
         "resource": ["kern_proc.c", "kern_resource.c"],
     }[suite]
     if suite == "itimer-ilp32":
@@ -114,6 +114,10 @@ def build(work, suite, changes):
                 "-Dfork=gate_fork",
                 "-Dvfork=gate_vfork",
             ]
+        elif name == "sys_generic.c":
+            # select1() is the unit under test; rwuio() is linked but never
+            # called, so its setjmp() resolves to the same stub as newproc()'s.
+            extra += ["-include", str(TESTS / "itimer_setjmp.h")]
         elif name in ("kern_prot.c", "kern_prot2.c"):
             extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
         obj = work / (name + ".o")
@@ -301,6 +305,75 @@ def main():
             True,
         ),
         (
+            "itimerfix-keeps-the-old-bound",
+            "itimer",
+            {
+                "kern_time.c": (
+                    "(unsigned long)tv->tv_sec > 0x7fffffffUL",
+                    "(unsigned long)tv->tv_sec > 100000000UL",
+                )
+            },
+            True,
+        ),
+        (
+            "setitimer-refuses-instead-of-clamping",
+            "itimer",
+            {
+                "kern_time.c": (
+                    "            tv->tv_sec = tick_limit;\n            tv->tv_usec = 0;\n",
+                    "            goto bad;\n",
+                )
+            },
+            True,
+        ),
+        (
+            "select-ends-at-the-first-timeout",
+            "itimer",
+            {
+                "sys_generic.c": (
+                    "    if (error == EWOULDBLOCK && uap->ts)\n        goto retry;\n",
+                    "",
+                )
+            },
+            True,
+        ),
+        (
+            "pselect-leaves-the-saved-mask-flag",
+            "itimer",
+            {
+                "sys_generic.c": (
+                    "    if (uap->maskp && error != EINTR && error != ERESTART) {\n"
+                    "        u.u_procp->p_sigmask = u.u_oldmask;\n"
+                    "        u.u_psflags &= ~SAS_OLDMASK;\n"
+                    "    }",
+                    "    if (uap->maskp)\n        u.u_procp->p_sigmask = u.u_oldmask;",
+                )
+            },
+            True,
+        ),
+        (
+            "pselect-restores-the-mask-before-the-signal",
+            "itimer",
+            {
+                "sys_generic.c": (
+                    "    if (uap->maskp && error != EINTR && error != ERESTART) {",
+                    "    if (uap->maskp) {",
+                )
+            },
+            True,
+        ),
+        (
+            "select-deadline-wraps-past-the-last-count",
+            "itimer-ilp32",
+            {
+                "sys_generic.c": (
+                    "        if ((unsigned long)atv.tv_sec < (unsigned long)time.tv_sec) {",
+                    "        if (0) {",
+                )
+            },
+            True,
+        ),
+        (
             "timeout-callback-omits-expiry",
             "synch",
             {"kern_synch.c": ("        p->p_flag |= P_TIMEOUT;", "        p->p_flag |= 0;")},
@@ -346,12 +419,8 @@ def main():
             "io",
             {
                 "kern_time.c": (
-                    "        if (itimerfix(tv) || tv->tv_sec > tick_limit ||\n"
-                    "            (tv->tv_usec && tv->tv_sec == tick_limit))\n"
-                    "            goto bad;",
-                    "        if (itimerfix(tv) || tv->tv_sec > tick_limit ||\n"
-                    "            (tv->tv_usec && tv->tv_sec == tick_limit))\n"
-                    "            if (0) goto bad;",
+                    "        if (itimerfix(tv))\n            goto bad;",
+                    "        if (0)\n            goto bad;",
                 )
             },
             True,

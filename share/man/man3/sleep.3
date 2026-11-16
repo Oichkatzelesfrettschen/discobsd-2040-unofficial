@@ -61,6 +61,11 @@ function suspends execution of the calling process for
 of clock time, or until interrupted by a signal.
 .PP
 System activity may lengthen the suspension.
+.B Sleep
+blocks every signal except while it waits, so a signal that arrives at any
+moment of the call ends the suspension and returns the time not slept, and
+it restores the caller's signal mask before it returns.
+A request of any size up to the largest unsigned value is slept in full.
 .SH RETURN VALUES
 The
 .B sleep

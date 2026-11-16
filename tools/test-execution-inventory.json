@@ -162,7 +162,7 @@
     {
       "from": "check-rp2040-ioconf",
       "to": "tests/rp2040_ioconf/check.py",
-      "kind": "recipe for PICO and PICOCALC_PSRAM kernels"
+      "kind": "recipe for PICO and PICOCALC kernels"
     },
     {
       "from": "check-rp2040-ioconf",
@@ -182,7 +182,7 @@
     {
       "from": "check-rp2040-devsw",
       "to": "tests/rp2040_devsw/check.py",
-      "kind": "recipe for PICO and PICOCALC_PSRAM kernels"
+      "kind": "recipe for PICO and PICOCALC kernels"
     },
     {
       "from": "check-rp2040-devsw",
@@ -2398,6 +2398,46 @@
         "sleep_bad_test32"
       ],
       "recipe": "${TEST_EXECUTION} run libc.sleep.negative -- ./sleep_bad_test32",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-sleep"
+      ]
+    },
+    {
+      "id": "libc.sleep.unchunked-negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-sleep",
+      "root_target": "check-libc-host-contracts",
+      "program": "sleep_unchunked_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "sleep_unchunked_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.sleep.unchunked-negative -- ./sleep_unchunked_bad_test",
+      "expected_exit": 1,
+      "aliases": [
+        "check-libc-sleep"
+      ]
+    },
+    {
+      "id": "libc.sleep.unmasked-negative",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-sleep",
+      "root_target": "check-libc-host-contracts",
+      "program": "sleep_unmasked_bad_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "sleep_unmasked_bad_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.sleep.unmasked-negative -- ./sleep_unmasked_bad_test",
       "expected_exit": 1,
       "aliases": [
         "check-libc-sleep"

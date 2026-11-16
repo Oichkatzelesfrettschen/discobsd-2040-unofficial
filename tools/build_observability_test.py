@@ -92,7 +92,7 @@ check-rp2040-syscalls: check-python
 .endfor
 
 check-rp2040-devsw: check-python
-.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in PICO PICOCALC
 \t@DEVSW_FIXTURE@
 .endfor
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
@@ -106,7 +106,7 @@ check-rp2040-fileops: check-python
 .endfor
 
 check-rp2040-ioconf: check-python
-.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in PICO PICOCALC
 \t@IOCONF_FIXTURE@
 .endfor
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
@@ -114,7 +114,7 @@ check-rp2040-ioconf: check-python
 .endfor
 
 check-rp2040-tty-roots: check-python
-\t${PYTHON} tests/rp2040_tty_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC_PSRAM
+\t${PYTHON} tests/rp2040_tty_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
 \t@TTY_ROOT_CHECK@
 .endfor
@@ -196,7 +196,7 @@ MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
 MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
     "@CALLOUT_FIXTURE@",
     "${PYTHON} tests/rp2040_callout_roots/check.py --build-dir "
-    "sys/arch/rp2040/compile/PICOCALC_PSRAM",
+    "sys/arch/rp2040/compile/PICOCALC",
 ).replace(
     "@CALLOUT_CHECK@",
     "${PYTHON} tools/check_rp2040_callout_roots.py --build-dir "
@@ -508,7 +508,7 @@ class BuildObservabilityTest(unittest.TestCase):
             (" check-rp2040-devsw ", " "),
             ("${PYTHON} tests/rp2040_devsw/check.py", "true"),
             ("${PYTHON} tools/check_rp2040_devsw.py", "true"),
-            (".for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM",
+            (".for KERNEL_CONFIGURATION in PICO PICOCALC",
              ".for KERNEL_CONFIGURATION in PICO"),
         ):
             with self.subTest(original=original):

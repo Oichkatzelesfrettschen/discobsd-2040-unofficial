@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 CC = os.environ.get("HOSTCC", "cc")
-FLAGS = ["-std=gnu17", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror"]
+FLAGS = ["-std=c17", "-pedantic-errors", "-D_DEFAULT_SOURCE", "-Wall", "-Wextra", "-Werror"]
 HEAD = "static const char *\nproc_comm("
 END = "\n}\n"
 SWAPPER = ("\tif (kp->kp_pid == 0 && kp->kp_comm[0] == '\\0')\n"

@@ -161,6 +161,32 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_DIAG: Config must equal"):
             sync.check(self.root)
 
+    def test_removal_variant_equals_its_base_without_the_removed_lines(self):
+        # PICO is PICO_DIAG without the diagnostic options, so the pair read
+        # the other way round is a variant that removes directives.
+        removal = (("PICO", "PICO_DIAG", (), sync.DIAGNOSTIC_OPTIONS),)
+        with patch.object(sync, "VARIANTS", removal):
+            sync.check_variant_delta(self.root)
+
+    def test_removal_variant_keeping_a_removed_line_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICO/Config", 'options         "CORE1"',
+                    self.CAPACITY_LINE + 'options         "CORE1"')
+        removal = (("PICO", "PICO_DIAG", (), sync.DIAGNOSTIC_OPTIONS),)
+        with patch.object(sync, "VARIANTS", removal):
+            with self.assertRaisesRegex(
+                    sync.SyncError,
+                    r"PICO: Config must equal PICO_DIAG Config \(minus options SYSTRACE"):
+                sync.check_variant_delta(self.root)
+
+    def test_removal_the_base_lacks_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICO_DIAG/Config", self.SYSTRACE_LINE, "")
+        removal = (("PICO", "PICO_DIAG", (), sync.DIAGNOSTIC_OPTIONS),)
+        with patch.object(sync, "VARIANTS", removal):
+            with self.assertRaisesRegex(
+                    sync.SyncError,
+                    "PICO: PICO_DIAG Config lacks the directive options SYSTRACE"):
+                sync.check_variant_delta(self.root)
+
     def test_production_identity_is_preserved(self):
         self.mutate(sync.COMPILE / "PICO/Config", 'board           "PICO"',
                     'board           "SYNTHETIC"')

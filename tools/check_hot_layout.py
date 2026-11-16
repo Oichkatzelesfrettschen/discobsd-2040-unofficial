@@ -89,7 +89,7 @@ STT_OBJECT, STT_FUNC, STT_SECTION, STT_FILE = 1, 2, 3, 4
 # input section of one file or archive member, which names no symbol.
 SYMBOL_ENTRY = re.compile(r"^\*\(\.(?:text|rodata)\.([A-Za-z_][A-Za-z0-9_.]*)\)$")
 FILE_ENTRY = re.compile(r"^\*[A-Za-z0-9_.:-]+\(\.text\)$")
-CLONE = re.compile(r"^(.*)\.(?:constprop|isra|part|cold)\.\d+$")
+CLONE = re.compile(r"^(.*)\.(?:(?:constprop|isra|part)\.\d+|cold(?:\.\d+)?)$")
 
 
 class InputError(Exception):
@@ -155,6 +155,18 @@ def read_symbols(data: bytes) -> dict[str, list[tuple[int, int, int]]]:
     return symbols
 
 
+def listed_ancestor(name: str, listed: set[str]) -> str | None:
+    """Strip clone suffixes one at a time (rwip.isra.0.constprop.0, then
+    rwip.isra.0, then rwip) and return the first listed ancestor, if any."""
+    while True:
+        clone = CLONE.match(name)
+        if clone is None:
+            return None
+        name = clone.group(1)
+        if name in listed:
+            return name
+
+
 def check(symbols: dict[str, list[tuple[int, int, int]]], names: list[str],
           way: int, line: int) -> tuple[list[str], list[str]]:
     """Return (failures, notes) for one kernel's symbols against the hot list."""
@@ -198,12 +210,12 @@ def check(symbols: dict[str, list[tuple[int, int, int]]], names: list[str],
             for addr in range(value - value % line, value + size, line):
                 occupancy.setdefault((addr // line) % (way // line), set()).add(addr)
     for name, entries in symbols.items():
-        clone = CLONE.match(name)
-        if clone and clone.group(1) in listed and name not in listed:
+        parent = listed_ancestor(name, listed)
+        if parent is not None and name not in listed:
             for value, _size, kind in entries:
                 if kind not in (STT_SECTION, STT_FILE) and \
                         not (XIP_START <= value < XIP_END and start <= (value & ~1) < end):
-                    failures.append(f"{name}, a clone of listed {clone.group(1)}, lies outside "
+                    failures.append(f"{name}, a clone of listed {parent}, lies outside "
                                     "the hot span; list its section")
     if len(absent) == len(names):
         failures.append("no listed symbol is linked: the list does not describe this kernel")
@@ -330,6 +342,10 @@ def self_test() -> int:
         ("a listed function without a size", replace("rwip", 0x10000465, 0), 1),
         ("a second __hot_start", base + [("__hot_start", 0x10000208, 0, 0)], 1),
         ("bounds outside cached XIP", replace("__hot_start", 0x20000000), 1),
+        ("a nested clone of a listed function outside the span",
+         base + [("rwip.isra.0.constprop.0", 0x10005001, 0x40, STT_FUNC)], 1),
+        ("a cold part of a listed function outside the span",
+         base + [("rwip.cold", 0x10005001, 0x40, STT_FUNC)], 1),
         ("a clone of a listed function in RAM",
          base + [("rwip.constprop.0", 0x20030101, 0x40, STT_FUNC)], 1),
         ("no listed symbol linked",

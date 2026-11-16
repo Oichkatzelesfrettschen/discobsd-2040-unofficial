@@ -94,3 +94,50 @@ The report is false if all five pass on origin/main.
 - Kernel text grows by 250 to 400 bytes per configuration and kernel RAM by
   4 bytes (the SVC flag); each entry from user mode uses 24 more bytes of
   kernel stack.
+
+## Results
+
+Measured on a Linux x86-64 build host with arm-none-eabi-gcc 14.2.1
+20241119 and Renode 1.17.0 with the fetched RP2040 models; kernel at
+origin/main 4b3eaf6c for the calibration, branch head for the rest. Each
+case ran in its own emulated machine.
+
+| case | origin/main | branch | branch, divider restore removed | branch, PendSV exit storing PSP in r12 |
+|---|---|---|---|---|
+| alarm | timeout after 125 virtual s, no status | status 142 after 6.0 s | not run | not run |
+| share | timeout after 125 s: the parent never woke | both children counted (25138890, 35586354), parent woke, 8.5 s | not run | not run |
+| intr | interrupt character echoed, no prompt after 127 s | prompt back, `$?` 130, 8.0 s | not run | not run |
+| regs | iteration cap in both processes, 1 handler each | 200 handlers each at sp 0 and 4 modulo 8, registers intact, 7.0 s | not run | register 12 changed at both alignments |
+| divide | 2000000 iterations, 1 handler, no switch | 150 handlers each, 0 wrong of 116588 and 116672, 6.0 s | 29 and 26 wrong quotients | not run |
+
+The prediction held for alarm, share, intr and the iteration caps. It
+deviated in one count: regs and divide ran one handler on origin/main, not
+zero, because the system call after each loop (`setitimer`) is a userret
+that delivers the SIGALRM pending since the loop's first tick. The two
+mutant columns show that the regs and divide cases detect the loss of
+each carried register class, not only the absence of the trap.
+
+Kernel sizes (text, then data and bss; arm-none-eabi-gcc 14.2.1):
+
+| kernel | origin/main text | branch text | delta | data, bss, free kernel RAM |
+|---|---|---|---|---|
+| PICO | 100819 | 101139 | +320 | unchanged: 272, 42936, 23112 |
+| PICO_UART | 90201 | 90537 | +336 | unchanged: 216, 18208, 39648 |
+| PICOCALC | 121163 | 121483 | +320 | unchanged: 392, 55912, 10616 |
+| PICOCALC_PSRAM | 123691 | 124003 | +312 | unchanged: 448, 56072, 10040 |
+
+The one-byte SVC flag fits alignment padding, so static kernel RAM does
+not move; predicted 4 bytes. Each entry from a process holds 24 more bytes
+of kernel stack (struct userframe), and `sigreturn` 56 more while it runs.
+
+Not covered. Renode boots the real boot ROM and models DIV_CSR.DIRTY, but
+the `divide` case runs the libc integer helpers only, so a ROM float
+divide interrupted by the trap is not run in either class; a float loop
+in the `divide` case would close that in the emulator. The `divide`
+mutant shows that collisions happen and are caught, without separating
+switch collisions from handler collisions. Renode's divider answers in zero
+cycles, so the eight-cycle window of the silicon divider and the READY
+wait in `divider_save` need a board run of `preempt divide`; the USB
+console's interrupt-character path is board-only too. The `__thumb2__`
+branch of PendSV_Handler is edited for the new frame but no maintained
+configuration compiles it.

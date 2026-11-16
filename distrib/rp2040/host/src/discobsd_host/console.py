@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import os
+import re
 import secrets
 import shutil
 import signal
@@ -65,7 +66,22 @@ def read_env(path: Path) -> dict[str, str]:
     return values
 
 
+# web.env is a systemd EnvironmentFile: a newline adds an assignment, and a
+# space, quote, backslash or dollar sign changes how a line parses or
+# expands. Every value the console writes (a hex token, an IP literal or host
+# name, a USB port path) is drawn from this set.
+ENV_VALUE_RE = re.compile(r"[A-Za-z0-9._~:-]+")
+
+
 def write_env(path: Path, values: dict[str, str]) -> None:
+    """Write web.env; raise ValueError, before touching the file, when a
+    value falls outside ENV_VALUE_RE."""
+    for key, value in values.items():
+        if not ENV_VALUE_RE.fullmatch(value):
+            raise ValueError(
+                "%s=%r: web.env values are limited to letters, digits and . _ ~ : -"
+                % (key, value)
+            )
     path.parent.mkdir(parents=True, exist_ok=True)
     body = "".join(f"{k}={v}\n" for k, v in values.items())
     tmp = path.with_suffix(".tmp")
@@ -269,7 +285,11 @@ def cmd_up(args) -> int:
     }
     if usb_port:
         env_values["DISCOBSD_USB_PORT"] = usb_port
-    write_env(env_path, env_values)
+    try:
+        write_env(env_path, env_values)
+    except ValueError as exc:
+        sys.stderr.write("discobsd-console: %s\n" % exc)
+        return 1
     links = urls(ip, token, args.port, args.link_port)
     if systemd_units_installed() and not args.detached:
         subprocess.call(["systemctl", "--user", "daemon-reload"])

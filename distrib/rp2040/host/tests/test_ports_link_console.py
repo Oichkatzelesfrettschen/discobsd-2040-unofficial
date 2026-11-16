@@ -440,3 +440,52 @@ def test_servers_bind_an_ipv6_literal():
         assert httpd.is_loopback
     finally:
         httpd.server_close()
+
+
+@pytest.mark.parametrize(
+    "variable, value",
+    [
+        ("host_ip", "10.0.0.5\nDISCOBSD_WEB_BIND=0.0.0.0"),
+        ("host_ip", "10.0.0.5 extra"),
+        ("host_ip", 'a"b'),
+        ("DISCOBSD_HOST_IP", "10.0.0.5\rx"),
+        ("DISCOBSD_WEB_TOKEN", "abc\nDISCOBSD_WEB_BIND=0.0.0.0"),
+    ],
+)
+def test_up_refuses_an_environment_file_value_outside_the_allow_list(
+    monkeypatch, tmp_path, capsys, variable, value
+):
+    import types
+
+    # web.env is a systemd EnvironmentFile: a newline adds an assignment, and
+    # a space, quote or backslash changes how the line parses. Every value is
+    # checked against the allow-list before the file is written.
+    conf = tmp_path / "discobsd"
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
+    for name in ("DISCOBSD_WEB_TOKEN", "DISCOBSD_HOST_IP", "DISCOBSD_USB_PORT"):
+        monkeypatch.delenv(name, raising=False)
+    host_ip = None
+    if variable == "host_ip":
+        host_ip = value
+    else:
+        monkeypatch.setenv(variable, value)
+    args = types.SimpleNamespace(
+        host_ip=host_ip, port=7681, link_port=42069, bind="127.0.0.1", detached=False
+    )
+    assert console.cmd_up(args) == 1
+    assert "web.env" in capsys.readouterr().err
+    assert not (conf / "web.env").exists()
+
+
+def test_write_env_accepts_every_value_the_console_writes(tmp_path):
+    path = tmp_path / "web.env"
+    values = {
+        "DISCOBSD_WEB_TOKEN": "0123456789abcdef01234567",
+        "DISCOBSD_HOST_IP": "fd00::5",
+        "DISCOBSD_WEB_BIND": "0.0.0.0",
+        "DISCOBSD_USB_PORT": "1-3.2",
+    }
+    console.write_env(path, values)
+    assert console.read_env(path) == values
+    console.write_env(path, {"DISCOBSD_HOST_IP": "pico-host.local"})
+    assert console.read_env(path) == {"DISCOBSD_HOST_IP": "pico-host.local"}

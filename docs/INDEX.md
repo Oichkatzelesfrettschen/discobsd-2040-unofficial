@@ -96,6 +96,7 @@ Grouped by what they investigate.
 | `bootsel-button.md` | BOOTSEL and USB re-entry on bare metal, with no debug probe |
 | `firmware-updates.md` | what firmware an original Pico (silicon B2) carries and what an owner can update |
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
+| `swapram-uart-echo-stall.md` | why the Renode capacity gate saw a console echo stall on SwapRAM kernels: `clistbound`'s typed residue overflowing `TTYHOG` under the line-paced PL011 model, the discriminating runs, the state at the stall, the board prediction and the fix with its calibration |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
 | `picocalc-calculator-and-gui.md` | the calculator and tile-graphics plan for the PicoCalc: sources and licenses mined from this tree, the other BSDs and the vendor firmware, size estimates and a staged import order |
 | `hardware-reference-coverage.md` | which Pico, Pico W, RP2040 and PicoCalc parts, licensed blocks and bus specifications have a reference document on the build host, the state of the Pico SDK and the tools, the PicoCalc schematic's designator-to-part map, and the USB-C CC pull-downs the schematic shows |
@@ -154,6 +155,7 @@ Grouped by what they investigate.
 | `unimplemented-storage-work.md` | storage mechanisms built, measured and left out of `main` (trim at free, the inode-before-free order, the deferred free-list sweep and their tests), each with its deciding measurement, the condition that reopens it and the archive branch that holds the code |
 | `rp2040-flash-trim-ordering.md` | when a freed block may be discarded: the inode-before-free rule across the BSD lineages, where Linux and embedded file systems issue discards, why Dhara reduces the rule to call order, the FIFO cleaning-cost knee at a live share of 0.8, and the outcome (safe, not merged for wear) |
 | `trim-survey/` | the survey reports and bare Pico console captures behind the discard-ordering note, the trim cost model and the flash wear table, with the scripts that recompute the per-compile figures |
+| `dhara-audit.md` | the root's Dhara journal against alternative designs for this NOR part: the checkpoint page layout and its tear windows measured byte by byte, PR 636's tree walk beside an upstream fallback, a minimum-gap heal, an additive CRC-32, a commit marker and the LittleFS, SPIFFS, JFFS2, CHFS, UBI, YAFFS2 and HAMMER2 mechanisms with their text and RAM cost, how many roots the old kernel could have damaged and which migration keeps their data, and why a failed resume should refuse to mount |
 | `libc-size-audit.md` | where the C library's bytes go, across the shipped programs |
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 192 KB process window |

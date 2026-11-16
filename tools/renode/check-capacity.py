@@ -121,6 +121,16 @@ def run_program(console, boot, name: str, verdict: str) -> None:
 # CB_INPUT_BYTES into the stopped terminal, past TTYHOG (255, sys/kern/tty.c),
 # in chunks one emulation slice apart so the UART model delivers each. The
 # writer's CB_LINES numbered lines must then arrive once each and in order.
+#
+# clistbound discards the input the terminal still holds before it exits
+# (TIOCFLUSH). Input that outlives it reaches the shell's line editor,
+# which reads one byte per redraw of its whole line, so TTYHOG bytes take
+# seconds of 115200-baud output to consume; a command typed meanwhile
+# overflows TTYHOG, ttyinput() answers the excess with bells and drops it,
+# carriage return included, and the next wait times out on a shell that is
+# idle with a partial line. The gate refuses residue as soon as the shell
+# echoes it, whatever the timing of the next command, so the failure names
+# its cause instead of depending on where the exit lands in a slice.
 CB_LINES = 60
 CB_INPUT_BYTES = 600
 CB_CHUNK = 60
@@ -128,6 +138,9 @@ CB_DRAIN_SECONDS = 3.0
 # Echoed input can land on the same console line as a writer line, so a
 # line is matched wherever it sits.
 CB_LINE = re.compile(r"CB(\d{4}) abcdefghijkl")
+# The line editor's redraw of the root prompt with residue after it: the
+# prompt's "# " and then the typed '#' that begins the input.
+CB_RESIDUE = re.compile(r"# #")
 
 
 def run_clistbound(console, boot) -> None:
@@ -137,16 +150,26 @@ def run_clistbound(console, boot) -> None:
     console.wait_for("\nCLISTBOUND STOP", "clistbound start", boot.COMMAND_BUDGET_SECONDS)
     for _ in range(int(CB_DRAIN_SECONDS / boot.SLICE_SECONDS)):
         console.advance()
-    # The input begins with '#', so the shell reads what the terminal kept
-    # of it as a comment once the program exits.
+    # The input begins with '#', which marks any of it the shell echoes
+    # after the exit (CB_RESIDUE) and would make such a line a comment.
     console.renode.command("sysbus.uart0 WriteChar 0x23")
     for _ in range(CB_INPUT_BYTES // CB_CHUNK):
         for _ in range(CB_CHUNK):
             console.renode.command("sysbus.uart0 WriteChar 0x78")
         console.advance()
     console.wait_for("\nrc=", "clistbound exit status", PROGRAM_BUDGET_SECONDS)
-    console.type_line("")
     console.wait_for("#", "prompt after clistbound", boot.COMMAND_BUDGET_SECONDS)
+    # One slice for the line editor to echo whatever input outlived the
+    # program; a residue echoes dozens of redraws in that time.
+    console.advance()
+    redraws = len(CB_RESIDUE.findall(output_since(console, console.cursor)))
+    if redraws:
+        console.fail(
+            f"clistbound: the shell is reading typed input clistbound left in the "
+            f"terminal ({redraws} line-editor redraws in one slice); a command typed "
+            f"now can overflow TTYHOG and lose its carriage return"
+        )
+        raise boot.StageFailed("clistbound residue")
     text = output_since(console, start)
     lines = text.split("\n")
     for line in lines:

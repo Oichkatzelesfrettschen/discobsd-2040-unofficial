@@ -59,7 +59,10 @@ bstring properties, an access violation, fault or misaligned access for the
 memory property, and both a wrong result and an access or contract breach
 for hsx_expand. A kill by an instruction budget, a callee-saved register or
 another class does not count toward those. The seed is fixed (--seed), the
-example database is off, and a failure prints the seed.
+example database is off, and a failure prints the seed. Each property runs on a
+fresh emulator, so its sequence of calls (and the register values that vary
+with the call count) is the same in a full run and under --only; the PASS line
+prints the call count and a digest of the calls for comparing the two.
 Exit status: 0 pass, 1 a property or calibration failed, 2 setup.
 """
 
@@ -827,8 +830,11 @@ def main() -> int:
     )
 
     failed = 0
-    good = KernelEmulator(image)
     for name, function, builder, classes in selected:
+        # A property starts from an emulator no other property has run on, so
+        # the call count that varies the caller-saved registers, and with it
+        # the whole run, is the same under --only NAME as in a full run.
+        good = KernelEmulator(image)
         started = time.monotonic()
         verdict = run_property(builder, good, args.examples, args.seed, shrink=True)
         if verdict is not None:
@@ -837,8 +843,8 @@ def main() -> int:
             failed += 1
             continue
         print(
-            f"PASS unicorn-kernel {name}: {args.examples} examples, "
-            f"{time.monotonic() - started:.1f} s"
+            f"PASS unicorn-kernel {name}: {args.examples} examples, {good.calls} calls, "
+            f"trace {good.trace.hexdigest()[:16]}, {time.monotonic() - started:.1f} s"
         )
         if args.no_mutants:
             continue

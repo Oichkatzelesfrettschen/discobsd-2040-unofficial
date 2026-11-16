@@ -1598,6 +1598,19 @@ check-unicorn-kernel: check-python
 				echo "check_kernel_functions.py exit $$status, expected 2, for $$only" >&2; exit 1; \
 			fi; \
 		done
+		@# Calibration: a property's call sequence, which drives the varied
+		@# caller-saved registers, must not depend on the properties run
+		@# before it. bcmp after bzero and bcmp alone must print one digest.
+		@set -e; kernel=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf; \
+		digest() { \
+			${PYTHON} tools/unicorn/check_kernel_functions.py \
+			    --kernel "$$kernel" --no-mutants "$$@" | \
+			    sed -n 's/^PASS unicorn-kernel bcmp: .* trace \([0-9a-f]*\),.*/\1/p'; \
+		}; \
+		full=$$(digest --only bzero --only bcmp); alone=$$(digest --only bcmp); \
+		if [ -z "$$full" ] || [ "$$full" != "$$alone" ]; then \
+			echo "bcmp call trace after bzero '$$full', alone '$$alone'" >&2; exit 1; \
+		fi
 		${PYTHON} tools/unicorn/check_kernel_functions.py \
 		    --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf
 

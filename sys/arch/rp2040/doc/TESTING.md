@@ -2774,7 +2774,13 @@ The model also checks itself: a token list Hypothesis draws, serialized
 and decoded, equals the bytes the tokens stand for. Hypothesis runs with a
 fixed seed (`--seed`, 20261115 by default), no example database and no
 deadline; a failure prints the seed and the `--only` command that repeats
-it. Every `--only` name must match a property name in the table; an
+it. Each property runs on a fresh emulator, so its call count, which varies
+the caller-saved registers, and its whole call sequence are the same in a
+full run and under `--only`; the PASS line prints the call count and a
+digest of every call and callback (name, arguments, result).
+`check-unicorn-kernel` runs `bcmp` after `bzero` and alone and requires one
+digest (a shared emulator made the two differ: 600 calls against 300). Every
+`--only` name must match a property name in the table; an
 unknown name exits 2 before the kernel is read, so a filter never selects
 zero properties and passes. `check-unicorn-kernel` first runs two filters
 (one unknown name, one valid name beside an unknown one) and requires exit

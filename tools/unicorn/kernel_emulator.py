@@ -64,6 +64,7 @@ five of which do that, and requires the model to expose each.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import struct
 from collections.abc import Iterable
@@ -351,6 +352,9 @@ class KernelEmulator:
         self.violation: str | None = None
         self.calls = 0
         self.callbacks_run = 0
+        # A digest of every call and callback (name, arguments, result): two
+        # runs of one property that make the same calls print the same value.
+        self.trace = hashlib.sha256()
         self.violation_kind = "memory"
         self.checked_blocks: set[int] = set()
         self.memory_hook = self.uc.hook_add(UC_HOOK_MEM_READ | UC_HOOK_MEM_WRITE, self._access)
@@ -462,6 +466,7 @@ class KernelEmulator:
         arguments = [uc.reg_read(r) for r in ARGUMENT_REGISTERS]
         result = function(*arguments) & 0xFFFFFFFF
         self.callbacks_run += 1
+        self.trace.update(f"callback {self.callbacks_run} {arguments} {result:#x};".encode())
         # The modeled callee returns in r0 and, as the AAPCS lets any callee,
         # leaves r1-r3, r12 and the flags undefined.
         self.clobber_caller_saved((self.callbacks_run * 0x85EBCA6B) & 0xFFFFFFFF)
@@ -548,7 +553,9 @@ class KernelEmulator:
                 "abi",
                 f"{name} returned with sp {self.uc.reg_read(UC_ARM_REG_SP):#x}, expected {sp:#x}",
             )
-        return self.uc.reg_read(UC_ARM_REG_R0)
+        result = self.uc.reg_read(UC_ARM_REG_R0)
+        self.trace.update(f"call {self.calls} {name} {arguments} {result:#x};".encode())
+        return result
 
 
 # Known-good and known-bad encodings for the subset filter: (bytes, text).

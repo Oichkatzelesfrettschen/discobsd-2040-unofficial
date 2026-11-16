@@ -55,14 +55,18 @@ def load_patcher(path: Path):
 
 
 def check_round_trip(patcher, kernel: Path) -> None:
-    """Require one changed block and only descriptor bytes within that block."""
+    """Require one changed block and only descriptor bytes within that block.
+
+    The PicoCalc kernels compile the PicoCalc descriptor, so the bare-Pico
+    rewrite is the patch that must change bytes.
+    """
     original = kernel.read_bytes()
-    patched = patcher.patch_image(original, "PICOCALC")
+    patched = patcher.patch_image(original, "PICO")
     if len(original) != len(patched):
         raise AssertionError("patch changed UF2 length")
     changed = [index for index, pair in enumerate(zip(original, patched)) if pair[0] != pair[1]]
     if not changed:
-        raise AssertionError("PicoCalc patch changed no bytes")
+        raise AssertionError("bare-Pico patch changed no bytes")
     changed_blocks = {offset // patcher.UF2_BLOCK_SIZE for offset in changed}
     if len(changed_blocks) != 1:
         raise AssertionError(f"patch changed {len(changed_blocks)} UF2 blocks")
@@ -73,7 +77,7 @@ def check_round_trip(patcher, kernel: Path) -> None:
     if any(offset not in descriptor_range for offset in changed):
         raise AssertionError("patch changed a byte outside the descriptor")
     if patched[payload_offset : payload_offset + patcher.BOARD_DESC.size] != patcher.descriptor(
-        "PICOCALC"
+        "PICO"
     ):
         raise AssertionError("patched descriptor bytes are incorrect")
     print(f"board descriptor UF2: one block changed at index {next(iter(changed_blocks))}")

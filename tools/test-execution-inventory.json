@@ -162,7 +162,7 @@
     {
       "from": "check-rp2040-ioconf",
       "to": "tests/rp2040_ioconf/check.py",
-      "kind": "recipe for PICO and PICOCALC_PSRAM kernels"
+      "kind": "recipe for PICO and PICOCALC kernels"
     },
     {
       "from": "check-rp2040-ioconf",
@@ -182,7 +182,7 @@
     {
       "from": "check-rp2040-devsw",
       "to": "tests/rp2040_devsw/check.py",
-      "kind": "recipe for PICO and PICOCALC_PSRAM kernels"
+      "kind": "recipe for PICO and PICOCALC kernels"
     },
     {
       "from": "check-rp2040-devsw",

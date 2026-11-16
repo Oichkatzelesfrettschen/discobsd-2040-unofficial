@@ -1,6 +1,6 @@
 HOSTCC?=	cc
 TOPSRC!=	cd ../..; pwd
-KERNEL_UF2?=	${TOPSRC}/sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2
+KERNEL_UF2?=	${TOPSRC}/sys/arch/rp2040/compile/PICOCALC/unix.uf2
 
 .if empty(PYTHON)
 .error PYTHON must name the intended interpreter

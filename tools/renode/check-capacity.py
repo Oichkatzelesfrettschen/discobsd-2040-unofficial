@@ -49,7 +49,11 @@ third-party peripheral models carry the boot; a Pico's result is the board
 receipt, a separate evidence class (sys/arch/rp2040/doc/CAPACITY.md).
 check-boot.sh owns the warning-class ceilings, measured for its shorter run.
 
-Usage: check-capacity.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR
+CONFIG names the kernel configuration the banner and the device probe lines
+must match and defaults to PICO_DIAG. A configuration without CAPACITY_STATS
+(PICO) fails at the first kern.capacity read, which calibrates the gate.
+
+Usage: check-capacity.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR [CONFIG]
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
 
@@ -63,8 +67,9 @@ sys.path.insert(0, HERE)
 
 from renode_monitor import Renode, RenodeError  # noqa: E402
 
-# The kernel configuration check-capacity.sh boots; it selects the probe lines.
-CONFIG = "PICO_UART"
+# The kernel configuration check-capacity.sh boots by default; the
+# configuration selects the banner and the probe lines.
+DEFAULT_CONFIG = "PICO_DIAG"
 PROGRAM_BUDGET_SECONDS = 900.0
 TABLES = {"proc", "inode", "file", "clist", "buffer"}
 ROW = re.compile(
@@ -235,11 +240,11 @@ def capacity_rows(console, boot) -> dict:
     return rows
 
 
-def run_stages(console, boot) -> None:
+def run_stages(console, boot, config: str) -> None:
     console.wait_lines(
-        [f"DiscoBSD 2.7 ({CONFIG})"]
+        [f"DiscoBSD 2.7 ({config})"]
         + boot.CPU_LINES
-        + boot.BOARD_LINES[CONFIG]
+        + boot.BOARD_LINES[config]
         + boot.STORAGE_LINES,
         "device probe",
         boot.PROBE_BUDGET_SECONDS,
@@ -295,11 +300,15 @@ def run_stages(console, boot) -> None:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 4:
+    if len(argv) not in (4, 5):
         print(__doc__, file=sys.stderr)
         return 2
     boot = load_boot()
-    renode_path, unix_bin, flash_bin, outdir = argv
+    renode_path, unix_bin, flash_bin, outdir = argv[:4]
+    config = argv[4] if len(argv) == 5 else DEFAULT_CONFIG
+    if config not in boot.BOARD_LINES:
+        print(f"check-capacity: no probe lines for {config}", file=sys.stderr)
+        return 2
     os.makedirs(outdir, exist_ok=True)
     transcript = os.path.join(outdir, "uart0.txt")
     if os.path.exists(transcript):
@@ -311,7 +320,7 @@ def main(argv: list[str]) -> int:
         renode.command(f"$flash_bin=@{flash_bin}")
         renode.command(f"include @{os.path.join(HERE, 'machine.resc')}")
         renode.command(f"sysbus.uart0 CreateFileBackend @{transcript} true")
-        run_stages(console, boot)
+        run_stages(console, boot, config)
     except boot.StageFailed:
         print(f"check-capacity: transcript in {transcript}", file=sys.stderr)
     except RenodeError as error:

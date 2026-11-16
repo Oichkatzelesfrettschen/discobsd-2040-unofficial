@@ -121,8 +121,9 @@ What large swap changes, plainly:
 - multiprogramming depth: from about 9 shells on `fl1` (with the guard) to
   the process table's 15 images on the 8 MB part;
 - swap wear: none on the PSRAM;
-- switch latency: from about half a second for an sh-to-sh switch on
-  `fl1` or the pool to about 3 ms on the PSRAM (M);
+- switch latency: from about a quarter second for an sh-to-sh switch on
+  `fl1` or the pool (256 or 257 ms to write the outgoing image, about 2 ms
+  to read or decode the incoming one) to about 3 ms on the PSRAM (M);
 - a program's address space: unchanged.
 
 ## Designs that would raise the program bound

@@ -147,11 +147,22 @@ replacement.
 |---|---|---|
 | stock | 0.56 / 0.56 / 0.53 | 0.41-0.51 |
 | swap path -O2 | 10.09 / 10.17 / 7.91 | 14.2-14.3 |
-| all -Os, 4-byte pad after vm_swap.o | 0.57 / 0.57 / 0.54 | |
-| all -Os, 1,000-byte pad | 3.91 / 3.96 / 2.95 | |
-| all -Os, 1,004-byte pad | 7.09 / 7.18 / 5.92 | pending |
-| all -Os, 1,008-byte pad | 4.03 / 4.10 / 3.82 | |
-| pads after the last text object (rodata shift only) | 0.56 | |
+| all -Os, 4-byte pad after vm_swap.o (relinked) | 0.57 / 0.57 / 0.54 | |
+| all -Os, 1,000-byte pad (relinked) | 3.91 / 3.96 / 2.95 | |
+| all -Os, 1,004-byte pad (relinked) | 7.09 / 7.18 / 5.92 | pending |
+| all -Os, 1,008-byte pad (model) | 4.03 / 4.10 / 3.82 | |
+| 2,776-byte pad after the last text object, rodata shift only (model) | 0.56 | |
+
+The relinked rows replay the link maps of kernels built with the padding (the
+pre-hot `kern.ldscript` of b40e1790, every file at -Os). The model rows come
+from `xipsim.py pad`, which accepts only pads that are multiples of 8: a pad
+4 modulo 8 lets 8-aligned sections, the linker's veneer stubs and the
+read-only block after `ALIGN(8)`, absorb 4 bytes, which a map-only model
+cannot see (the 1,004-byte kernel places its read-only block 1,000 bytes
+later, not 1,004). Calibration: the model of the 1,000-byte pad places every
+input section where the relinked 1,000-byte kernel does, except the two
+version strings of vers.o, whose text names the configuration. Every figure
+in the table equals its earlier model value.
 
 The pipe path executes 37 input sections, 6,043 bytes; the syscall
 benchmark adds 8 sections. In the swap-path -O2 layout the conflicts sit in

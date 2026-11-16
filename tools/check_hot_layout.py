@@ -48,7 +48,8 @@ tool requires:
 A name the configuration does not link is reported, not failed. Exit status: 0
 every kernel passes, 1 a kernel fails a requirement, 2 an input cannot be read.
 --self-test runs the checks on synthetic ELF images, one passing and one per
-requirement that must fail.
+requirement that must fail; an image whose ELF type is not an executable or
+whose machine is not ARM exits 2 even when its symbols would pass.
 """
 
 from __future__ import annotations
@@ -77,6 +78,8 @@ EHDR = struct.Struct("<16sHHIIIIIHHHHHH")
 SHDR = struct.Struct("<10I")
 SYM = struct.Struct("<IIIBBH")
 SHT_SYMTAB = 2
+ET_EXEC = 2
+EM_ARM = 40
 STT_OBJECT, STT_FUNC = 1, 2
 
 HOT_ENTRY = re.compile(r"\*\(\.(?:text|rodata)\.([A-Za-z_][A-Za-z0-9_]*)\)")
@@ -104,6 +107,9 @@ def read_symbols(data: bytes) -> dict[str, list[tuple[int, int, int]]]:
     if len(data) < EHDR.size or data[:4] != ELF_MAGIC or data[4] != 1 or data[5] != 1:
         raise InputError("not a 32-bit little-endian ELF image")
     fields = EHDR.unpack_from(data)
+    if fields[1] != ET_EXEC or fields[2] != EM_ARM:
+        raise InputError(f"not a linked ARM executable (e_type {fields[1]}, e_machine "
+                         f"{fields[2]})")
     shoff, shentsize, shnum = fields[6], fields[11], fields[12]
     if shoff == 0 or shentsize < SHDR.size or shoff + shnum * shentsize > len(data):
         raise InputError("section header table out of range")
@@ -202,7 +208,8 @@ def run(paths: list[str], script: Path, way: int, line: int) -> int:
     return status
 
 
-def synthetic_elf(symbols: list[tuple[str, int, int, int]]) -> bytes:
+def synthetic_elf(symbols: list[tuple[str, int, int, int]], e_type: int = ET_EXEC,
+                  machine: int = EM_ARM) -> bytes:
     """Build an ELF32 image holding only a symbol table of (name, value, size, type)."""
     strtab = b"\0"
     entries = [SYM.pack(0, 0, 0, 0, 0, 0)]
@@ -223,7 +230,7 @@ def synthetic_elf(symbols: list[tuple[str, int, int, int]]) -> bytes:
         SHDR.pack(17, 3, 0, 0, shstroff, len(shstrtab), 0, 0, 1, 0),
     ]
     ident = ELF_MAGIC + bytes([1, 1, 1]) + bytes(9)
-    header = EHDR.pack(ident, 2, 40, 1, 0, 0, shoff, 0x5000200, EHDR.size, 0, 0,
+    header = EHDR.pack(ident, e_type, machine, 1, 0, 0, shoff, 0x5000200, EHDR.size, 0, 0,
                        SHDR.size, len(sections), 3)
     image = header + symtab + strtab + shstrtab
     image += bytes(shoff - len(image))
@@ -285,6 +292,14 @@ def self_test() -> int:
         print(f"self-test: a linker script without the hot block: exit {got}, expected 2: "
               + ("ok" if got == 2 else "WRONG"))
         status = status or (got != 2)
+        for what, kwargs in (("an x86-64 machine field", {"machine": 62}),
+                             ("a relocatable object", {"e_type": 1})):
+            other = Path(scratch) / "other.elf"
+            other.write_bytes(synthetic_elf(base, **kwargs))
+            got = run([str(other)], script, WAY_BYTES, LINE_BYTES)
+            print(f"self-test: {what} with passing symbols: exit {got}, expected 2: "
+                  + ("ok" if got == 2 else "WRONG"))
+            status = status or (got != 2)
         junk = Path(scratch) / "junk.elf"
         junk.write_bytes(b"not an image")
         got = run([str(junk)], script, WAY_BYTES, LINE_BYTES)

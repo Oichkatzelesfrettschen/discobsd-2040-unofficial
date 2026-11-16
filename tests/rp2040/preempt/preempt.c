@@ -427,7 +427,8 @@ case_altstack(void)
 	return fails;
 }
 
-#define	DIVCLEAN_ITERATIONS	3000000UL
+/* About 3 s of loop each in Renode: several schedcpu switches apiece. */
+#define	DIVCLEAN_ITERATIONS	15000000UL
 
 static volatile unsigned *const divreg = (volatile unsigned *)0xd0000060U;
 

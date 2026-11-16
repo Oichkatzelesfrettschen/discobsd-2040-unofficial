@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import os
+import re
 import secrets
 import shutil
 import signal
@@ -197,6 +198,36 @@ def _http_answers(url: str, timeout: float = 3.0) -> bool:
         return False
 
 
+_HOSTNAME_RE = re.compile(r"[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?")
+
+
+def resolve_bind(bind: str) -> tuple[bool, str]:
+    """Return (loopback, address to advertise) for a --bind value.
+
+    An IP literal is classified directly. A host name must be a plain DNS
+    label sequence, because the value is written into web.env, and counts as
+    loopback only when every address it resolves to is loopback. Raises
+    ValueError for an unresolvable or malformed value.
+    """
+    try:
+        literal = ipaddress.ip_address(bind)
+    except ValueError:
+        pass
+    else:
+        return literal.is_loopback, str(literal)
+    if not _HOSTNAME_RE.fullmatch(bind):
+        raise ValueError("not an IP address or host name: " + repr(bind))
+    try:
+        found = socket.getaddrinfo(bind, None, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise ValueError("cannot resolve " + repr(bind) + ": " + str(exc)) from exc
+    addrs = [ipaddress.ip_address(item[4][0].split("%")[0]) for item in found]
+    if not addrs:
+        raise ValueError("cannot resolve " + repr(bind))
+    advertised = next((a for a in addrs if a.version == 4), addrs[0])
+    return all(a.is_loopback for a in addrs), str(advertised)
+
+
 def cmd_up(args) -> int:
     # The board selector reaches a systemd user unit only through web.env, an
     # EnvironmentFile; a value that is not a USB port path could add lines to
@@ -207,7 +238,15 @@ def cmd_up(args) -> int:
             "discobsd-console: DISCOBSD_USB_PORT must be a USB port path such as 1-3\n"
         )
         return 1
-    bind = ipaddress.ip_address(args.bind)
+    try:
+        bind_loopback, bind_ip = resolve_bind(args.bind)
+    except ValueError as exc:
+        sys.stderr.write("discobsd-console: --bind: " + str(exc) + "\n")
+        return 1
+    try:
+        web_bind = str(ipaddress.ip_address(args.bind))
+    except ValueError:
+        web_bind = args.bind
     conf = config_dir()
     env_path = conf / "web.env"
     values = read_env(env_path)
@@ -225,16 +264,16 @@ def cmd_up(args) -> int:
             stored_loopback = ipaddress.ip_address(stored).is_loopback
         except ValueError:
             stored_loopback = False
-        if bind.is_loopback or not stored_loopback:
+        if bind_loopback or not stored_loopback:
             ip = stored
-    if bind.is_loopback:
-        ip = str(bind)
+    if bind_loopback:
+        ip = bind_ip
     elif not ip:
         ip = lan_ip()
     env_values = {
         "DISCOBSD_WEB_TOKEN": token,
         "DISCOBSD_HOST_IP": ip,
-        "DISCOBSD_WEB_BIND": str(bind),
+        "DISCOBSD_WEB_BIND": web_bind,
     }
     if usb_port:
         env_values["DISCOBSD_USB_PORT"] = usb_port

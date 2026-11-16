@@ -325,3 +325,53 @@ def test_up_lan_after_loopback_advertises_the_lan_address(monkeypatch, tmp_path)
         _up_bind(monkeypatch, tmp_path, "0.0.0.0", host_ip="10.0.0.5")["DISCOBSD_HOST_IP"]
         == "10.0.0.5"
     )
+
+
+def test_up_accepts_a_loopback_host_name_bind(monkeypatch, tmp_path):
+    # A host name such as localhost was accepted before the bind was parsed as
+    # an IP literal; it resolves to loopback, so the web token stays optional
+    # and the advertised address is the loopback address.
+    monkeypatch.setattr(
+        console.socket,
+        "getaddrinfo",
+        lambda host, port, **kw: [
+            (2, 1, 6, "", ("127.0.0.1", 0)),
+            (10, 1, 6, "", ("::1", 0, 0, 0)),
+        ],
+    )
+    values = _up_bind(monkeypatch, tmp_path, "localhost")
+    assert values["DISCOBSD_WEB_BIND"] == "localhost"
+    assert values["DISCOBSD_HOST_IP"] == "127.0.0.1"
+
+
+def test_up_treats_a_host_name_resolving_off_loopback_as_lan(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        console.socket,
+        "getaddrinfo",
+        lambda host, port, **kw: [(2, 1, 6, "", ("192.0.2.7", 0))],
+    )
+    values = _up_bind(monkeypatch, tmp_path, "board.example")
+    assert values["DISCOBSD_WEB_BIND"] == "board.example"
+    assert values["DISCOBSD_HOST_IP"] == "10.0.0.9"
+
+
+@pytest.mark.parametrize("bind", ["no-such-host.invalid", "bad\nDISCOBSD_WEB_TOKEN=x", "a b", ""])
+def test_up_refuses_an_unusable_bind_with_a_message_before_writing(
+    monkeypatch, tmp_path, capsys, bind
+):
+    import types
+
+    conf = tmp_path / "discobsd"
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
+    monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+
+    def refuse(host, port, **kw):
+        raise console.socket.gaierror(-2, "Name or service not known")
+
+    monkeypatch.setattr(console.socket, "getaddrinfo", refuse)
+    args = types.SimpleNamespace(
+        host_ip=None, port=7681, link_port=42069, bind=bind, detached=False
+    )
+    assert console.cmd_up(args) == 1
+    assert not (conf / "web.env").exists()
+    assert "--bind" in capsys.readouterr().err

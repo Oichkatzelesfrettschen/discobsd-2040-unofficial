@@ -68,9 +68,10 @@ def read_env(path: Path) -> dict[str, str]:
 
 # web.env is a systemd EnvironmentFile: a newline adds an assignment, and a
 # space, quote, backslash or dollar sign changes how a line parses or
-# expands. Every value the console writes (a hex token, an IP literal or host
-# name, a USB port path) is drawn from this set.
-ENV_VALUE_RE = re.compile(r"[A-Za-z0-9._~:-]+")
+# expands. Every value the console writes (a hex or base64 token, an IP
+# literal or host name, a USB port path) is drawn from this set; "+", "/" and
+# "=" carry no meaning inside an EnvironmentFile value.
+ENV_VALUE_RE = re.compile(r"[A-Za-z0-9._~:+/=-]+")
 
 
 def write_env(path: Path, values: dict[str, str]) -> None:
@@ -79,7 +80,7 @@ def write_env(path: Path, values: dict[str, str]) -> None:
     for key, value in values.items():
         if not ENV_VALUE_RE.fullmatch(value):
             raise ValueError(
-                "%s=%r: web.env values are limited to letters, digits and . _ ~ : -"
+                "%s=%r: web.env values are limited to letters, digits and . _ ~ : + / = -"
                 % (key, value)
             )
     path.parent.mkdir(parents=True, exist_ok=True)

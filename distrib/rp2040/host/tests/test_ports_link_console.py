@@ -489,6 +489,9 @@ def test_write_env_accepts_every_value_the_console_writes(tmp_path):
     assert console.read_env(path) == values
     console.write_env(path, {"DISCOBSD_HOST_IP": "pico-host.local"})
     assert console.read_env(path) == {"DISCOBSD_HOST_IP": "pico-host.local"}
+    # A base64 token set by the user keeps working.
+    console.write_env(path, {"DISCOBSD_WEB_TOKEN": "q+8/Zw=="})
+    assert console.read_env(path) == {"DISCOBSD_WEB_TOKEN": "q+8/Zw=="}
 
 
 def test_up_concrete_bind_advertises_itself(monkeypatch, tmp_path):

@@ -30,7 +30,12 @@ If the argument is 0, any alarm request is canceled.
 Because of scheduling delays,
 resumption of execution of when the signal is
 caught may be delayed an arbitrary amount.
-The longest specifiable delay time is 2147483647 seconds.
+The longest specifiable delay time is 2147483647 seconds;
+a larger argument is set to that value, so
+.I alarm
+does not fail for the size of its argument.
+The kernel holds a timer for at most 1073741823 seconds and sets a longer
+one to that limit.
 .PP
 The return value is the amount of time previously remaining in the alarm clock.
 .SH "SEE ALSO"

@@ -183,9 +183,19 @@ calculator to `full` (`sys/arch/rp2040/doc/PROFILES.md`):
 
 `BOARD=PICO` writes `distrib/rp2040/flash.uf2`; any other board writes
 `distrib/rp2040/flash-${BOARD}.uf2` (and `sdcard-${BOARD}.img`), so the
-images of different boards coexist. `BOARD=PICOCALC_PSRAM` pairs the same
-root profile with the PicoCalc kernel that carries the PSRAM swap driver and
-writes `flash-PICOCALC_PSRAM.uf2`.
+images of different boards coexist. `UNION_KERNEL` selects the PicoCalc
+kernel that receives a board's descriptor: `PICOCALC` (the default: PSRAM
+swap, every device option, `kern.systrace` and `kern.capacity`) writes
+`unix[-BOARD].uf2`, `PICOCALC_LEAN` (without the device and diagnostic
+options) writes `unix[-BOARD]-LEAN.uf2` and `PICOCALC_LEAN_DIAG`
+(`PICOCALC_LEAN` plus the diagnostic options) writes
+`unix[-BOARD]-LEAN-DIAG.uf2`, so the three UF2s sit side by side. With
+`BOARD=PICOCALC` a lean `UNION_KERNEL` also selects the `picocalc-lean`
+root, which leaves out `/dev/lcdgfx` and the `ridge` platformer that
+need the `DEV_LCDGFX` driver the lean kernels omit, and writes
+`sdcard-PICOCALC-LEAN.img`, `flash-PICOCALC-LEAN.bin` and
+`flash-PICOCALC-LEAN.uf2` beside the full PicoCalc root; an explicit
+`PROFILE` overrides the pairing.
     discobsd-flash --bootsel      # for a copy by hand; then --eject
 
 `IMAGE_WITH` and `IMAGE_WITHOUT` add and remove closures for one build, for

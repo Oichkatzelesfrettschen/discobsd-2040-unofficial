@@ -13,6 +13,7 @@ EXPECTED_LABELS = {
     "linux-clean-residue",
     "linux-cross",
     "linux-core1-emulation",
+    "linux-cycle-model",
     "linux-flash",
     "linux-flash-picocalc",
     "linux-host",
@@ -27,6 +28,8 @@ EXPECTED_LABELS = {
     "linux-renode-picocalc",
     "linux-renode-picocalc-dump",
     "linux-renode-union",
+    "linux-renode-union-diag",
+    "linux-renode-union-lean",
     "linux-stm32-build",
     "linux-storage-prefix",
     "linux-uf2",
@@ -70,6 +73,7 @@ EXPECTED_COMMANDS = {
     "linux-matezinho-sd": "bmake MACHINE=rp2040 check-matezinho-sd",
     "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
     "linux-core1-emulation": "bmake MACHINE=rp2040 check-core1-emulation",
+    "linux-cycle-model": "bmake MACHINE=rp2040 check-picocalc-cycle-model",
     "linux-renode": "bmake MACHINE=rp2040 check-renode",
     "linux-renode-capacity": "bmake MACHINE=rp2040 check-renode-capacity",
     "linux-renode-preempt": "bmake MACHINE=rp2040 check-renode-preempt",
@@ -77,6 +81,8 @@ EXPECTED_COMMANDS = {
     "linux-renode-picocalc": "bmake MACHINE=rp2040 check-renode-picocalc",
     "linux-renode-picocalc-dump": "bmake MACHINE=rp2040 check-renode-picocalc-dump",
     "linux-renode-union": "bmake MACHINE=rp2040 check-renode-union",
+    "linux-renode-union-diag": "bmake MACHINE=rp2040 check-renode-union-diag",
+    "linux-renode-union-lean": "bmake MACHINE=rp2040 check-renode-union-lean",
     "linux-stm32-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=stm32 build',
     "linux-storage-prefix": (
         "bmake MACHINE=rp2040 STORAGE_PREFIX_PARENT_BLOCKS=1 check-storage-recovery-prefix"
@@ -375,7 +381,7 @@ def validate_makefile(source):
         raise ValueError("check-rp2040-devsw is absent from check-cross-kernel")
     devsw_recipe = (
         "check-rp2040-devsw: check-python\n"
-        ".for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM\n"
+        ".for KERNEL_CONFIGURATION in PICO PICOCALC\n"
         "\t${PYTHON} tests/rp2040_devsw/check.py --kernel "
         "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object "
         "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o\n"
@@ -405,7 +411,7 @@ def validate_makefile(source):
         raise ValueError("check-rp2040-ioconf is absent from check-cross-kernel")
     ioconf_recipe = (
         "check-rp2040-ioconf: check-python\n"
-        ".for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM\n"
+        ".for KERNEL_CONFIGURATION in PICO PICOCALC\n"
         "\t${PYTHON} tests/rp2040_ioconf/check.py --kernel "
         "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object "
         "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o\n"
@@ -423,7 +429,7 @@ def validate_makefile(source):
     tty_recipe = (
         "check-rp2040-tty-roots: check-python\n"
         "\t${PYTHON} tests/rp2040_tty_roots/check.py --build-dir "
-        "sys/arch/rp2040/compile/PICOCALC_PSRAM\n"
+        "sys/arch/rp2040/compile/PICOCALC\n"
         ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
         "\t${PYTHON} tools/check_rp2040_tty_roots.py --build-dir "
         "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}\n"
@@ -436,7 +442,7 @@ def validate_makefile(source):
     callout_recipe = (
         "check-rp2040-callout-roots: check-python\n"
         "\t${PYTHON} tests/rp2040_callout_roots/check.py --build-dir "
-        "sys/arch/rp2040/compile/PICOCALC_PSRAM\n"
+        "sys/arch/rp2040/compile/PICOCALC\n"
         ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
         "\t${PYTHON} tools/check_rp2040_callout_roots.py --build-dir "
         "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}\n"

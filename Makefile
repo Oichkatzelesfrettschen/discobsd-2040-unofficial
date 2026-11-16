@@ -258,8 +258,10 @@ check-dump-writer-link: check-python
 .if ${MACHINE} == "rp2040"
 		@set -e; c=sys/arch/rp2040/compile; \
 		${PYTHON} tools/check_dump_writer_link.py \
-		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_PSRAM/unix.elf \
-		    --without $$c/PICO/unix.elf --without $$c/PICO_UART/unix.elf; \
+		    --with $$c/PICOCALC/unix.elf --with $$c/PICOCALC_LEAN/unix.elf \
+		    --with $$c/PICOCALC_LEAN_DIAG/unix.elf \
+		    --without $$c/PICO/unix.elf --without $$c/PICO_DIAG/unix.elf \
+		    --without $$c/PICO_UART/unix.elf; \
 		rc=0; \
 		${PYTHON} tools/check_dump_writer_link.py \
 		    --with $$c/PICO/unix.elf --without $$c/PICOCALC/unix.elf \
@@ -484,7 +486,7 @@ check-rp2040-syscalls: check-python
 .PHONY: check-rp2040-syscalls
 
 check-rp2040-devsw: check-python
-.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in PICO PICOCALC
 		${PYTHON} tests/rp2040_devsw/check.py --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/conf.o
 .endfor
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
@@ -502,7 +504,7 @@ check-rp2040-fileops: check-python
 .PHONY: check-rp2040-fileops
 
 check-rp2040-ioconf: check-python
-.for KERNEL_CONFIGURATION in PICO PICOCALC_PSRAM
+.for KERNEL_CONFIGURATION in PICO PICOCALC
 		${PYTHON} tests/rp2040_ioconf/check.py --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf --object sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/ioconf.o
 .endfor
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
@@ -512,7 +514,7 @@ check-rp2040-ioconf: check-python
 .PHONY: check-rp2040-ioconf
 
 check-rp2040-tty-roots: check-python
-		${PYTHON} tests/rp2040_tty_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC_PSRAM
+		${PYTHON} tests/rp2040_tty_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
 		${PYTHON} tools/check_rp2040_tty_roots.py --build-dir sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}
 .endfor
@@ -520,7 +522,7 @@ check-rp2040-tty-roots: check-python
 .PHONY: check-rp2040-tty-roots
 
 check-rp2040-callout-roots: check-python
-		${PYTHON} tests/rp2040_callout_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC_PSRAM
+		${PYTHON} tests/rp2040_callout_roots/check.py --build-dir sys/arch/rp2040/compile/PICOCALC
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
 		${PYTHON} tools/check_rp2040_callout_roots.py --build-dir sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}
 .endfor
@@ -593,9 +595,9 @@ check-swapram-link-verifier:
 		sh tools/verify_rp2040_swapram_link_test.sh
 
 # Literal formats passed to the kernel's printf(), uprintf(), tprintf() and
-# log() in the sources of the PICO, PICO_UART, PICOCALC and PICOCALC_PSRAM
-# kernels use only conversions where prf() and GCC's format(printf) checking
-# agree; the fixture calibrates the checker.
+# log() in the sources of the PICO, PICO_DIAG, PICO_UART, PICOCALC,
+# PICOCALC_LEAN and PICOCALC_LEAN_DIAG kernels use only conversions where prf()
+# and GCC's format(printf) checking agree; the fixture calibrates the checker.
 check-kernel-printf-formats:	check-python
 		@if [ x"${MACHINE}" != x"rp2040" ]; then \
 			echo "check-kernel-printf-formats requires MACHINE=rp2040" >&2; \
@@ -604,9 +606,11 @@ check-kernel-printf-formats:	check-python
 		${PYTHON} tools/c17/kernel_format_check_test.py
 		${PYTHON} tools/c17/kernel_format_check.py --make "${MAKE}" \
 		    --build sys/arch/rp2040/compile/PICO \
+		    --build sys/arch/rp2040/compile/PICO_DIAG \
 		    --build sys/arch/rp2040/compile/PICO_UART \
 		    --build sys/arch/rp2040/compile/PICOCALC \
-		    --build sys/arch/rp2040/compile/PICOCALC_PSRAM
+		    --build sys/arch/rp2040/compile/PICOCALC_LEAN \
+		    --build sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG
 
 check-aout:
 		${MAKE} -C tests/aout_header check
@@ -1120,6 +1124,11 @@ check-rmdir-contracts:
 check-rmdir-contracts-cross:
 		${MAKE} -C tests/rmdir_contracts check-cross
 
+# reboot(8)'s arming rules for the boot ROM loader and boardinfo(1)'s output,
+# each with calibration mutants.
+check-reboot-contracts:
+		${MAKE} -C tests/reboot_contracts check mutants
+
 check-tee-contracts:
 		${MAKE} -C tests/tee_contracts check
 
@@ -1567,6 +1576,24 @@ check-core1-emulation: check-python
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
 
+# The swap-codec cycle model of docs/research/picocalc-device-first. Its
+# committed run-output.tsv is a fixed oracle for one compiler version: oracle.sh
+# compares the synthetic rows and the compiler options with a fresh model run
+# and exits 3, reported here as SKIP with its reason, when the compiler differs.
+# selftest.sh then calibrates the comparison and the harness on known-bad input
+# (a perturbed oracle, aliased output, a drifted bzero, an incomplete compile
+# command, a mismatched binutils prefix, a failed round trip). Both run the
+# Unicorn model against the built tree's sh and awk, so the target stands
+# outside check-cross.
+check-picocalc-cycle-model: check-python
+		@rc=0; PYTHON=${PYTHON:Q} sh docs/research/picocalc-device-first/oracle.sh || rc=$$?; \
+		if [ $$rc -eq 3 ]; then echo "check-picocalc-cycle-model: oracle comparison skipped"; \
+		elif [ $$rc -ne 0 ]; then exit $$rc; fi
+		PYTHON=${PYTHON:Q} BMAKE=${MAKE:Q} \
+		    sh docs/research/picocalc-device-first/selftest.sh
+
+.PHONY: check-picocalc-cycle-model
+
 # The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
 # It needs a NetBSD checkout, which CI lacks, so it stays outside check:
 # NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,
@@ -1702,7 +1729,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts check-init-daemons \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
-		check-rmdir-contracts check-tee-contracts check-time-contracts \
+		check-rmdir-contracts check-reboot-contracts check-tee-contracts check-time-contracts \
 		check-libtcl-contracts check-lex-tables \
 		check-du-contracts check-resize-contracts \
 		check-aout check-native-linker check-as-ld-scratch check-native-nm check-kernel check-fs-stress check-fsck-inode-range \
@@ -1731,7 +1758,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
-		check-loader-stamp check-picocalc-kbd-bootloader check-host-split
+		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
+		check-signal-traps
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
@@ -1977,6 +2005,19 @@ check-host-split:	check-python
 		    --all "${HOST_GATES} ${HOST_PROGRAM_GATES}" \
 		    --a "${HOST_TIER_A_GATES}" --b "${HOST_TIER_B_GATES}"
 
+# Shell gates that clean a work directory take an EXIT trap and one exiting
+# trap per signal: a trap action for HUP, INT or TERM returns to the script,
+# so one action bound to EXIT and a signal lets the gate run on against the
+# removed directory. The scan covers the gates this tree's profile and
+# capacity work changed; tools/check-signal-traps.sh --selftest calibrates it
+# on a conforming and a combined fixture and under SIGTERM.
+SIGNAL_TRAP_SCRIPTS=	distrib/rp2040/check-image-selection.sh \
+		tests/fat32tail/check.sh tools/renode/check-capacity.sh \
+		tools/architecture-isolation/check-architecture-isolation.sh
+check-signal-traps:
+		sh tools/check-signal-traps.sh --selftest
+		sh tools/check-signal-traps.sh ${SIGNAL_TRAP_SCRIPTS}
+
 # The kernel formatter and neighboring contracts use target-width integer and
 # pointer assumptions. The gate runs them in a 32-bit userspace binary. A host
 # that cannot build 32-bit says so and skips.
@@ -2175,13 +2216,27 @@ check-qemu:	check-python .WAIT symlinks
 check-renode:
 		sh tools/renode/check-boot.sh ${FLASHBIN}
 
-# The union kernel (PICOCALC_PSRAM) under the same machine, booted from a
+# The full PicoCalc kernel (PICOCALC) under the same machine, booted from a
 # copy whose board descriptor distrib/rp2040/mkboarduf2.py rewrote to a bare
 # Pico with the UART0 console: the console the descriptor names carries the
 # boot, the USB attach returns on a machine with no controller model, and no
-# PicoCalc device probes. Outside "check" for the reason check-renode is.
+# PicoCalc device probes. The kernel carries CAPACITY_STATS, so the gate
+# asserts its kern.capacity record. Outside "check" for the reason
+# check-renode is.
 check-renode-union:
-		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_PSRAM
+		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC
+
+# The lean PicoCalc kernel (PICOCALC_LEAN) under the same machine and
+# descriptor: it omits CAPACITY_STATS, so the gate asserts that it refuses
+# kern.capacity. Outside "check" for the reason check-renode is.
+check-renode-union-lean:
+		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_LEAN
+
+# PICOCALC_LEAN plus SYSTRACE and CAPACITY_STATS (PICOCALC_LEAN_DIAG) under
+# the same machine and descriptor: it serves the kern.capacity record.
+# Outside "check" for the reason check-renode is.
+check-renode-union-diag:
+		sh tools/renode/check-boot.sh ${FLASHBIN} PICOCALC_LEAN_DIAG
 
 # The PICOCALC kernel under Renode with the ST7365P panel and the keyboard
 # controller modeled: the boot banner, the panel's registers, a login and a
@@ -2201,15 +2256,21 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
-# The process, in-core inode and system file tables filled on the emulated PICO_UART
-# kernel: tools/renode/check-capacity.sh adds the three programs of
+# The process, in-core inode and system file tables filled on the emulated
+# PICO_DIAG kernel, the lean PICO plus CAPACITY_STATS and SYSTRACE, booted
+# from a copy whose board descriptor names the UART0 console:
+# tools/renode/check-capacity.sh adds the three programs of
 # tests/rp2040/capacity_exhaustion to a copy of ${FSIMG}, boots it and
 # requires each refusal on its own counter and a recovery after release.
+# The second run boots the lean PICO kernel, which omits CAPACITY_STATS, and
+# requires the gate to exit 1 at the missing kern.capacity record, so a gate
+# that accepts a kernel without the record turns the target red.
 # Outside "check" for the reason check-renode is; the Renode class of the
 # exhaustion cases in tests/rp2040/capacity-corpus.json.
 check-renode-capacity:
 		${MAKE} -C tests/rp2040/capacity_exhaustion MACHINE=${MACHINE}
 		sh tools/renode/check-capacity.sh ${FSIMG}
+		sh tools/renode/check-capacity.sh ${FSIMG} PICO refuse
 
 # The boot-time image comparison on the emulated PICO_UART kernel:
 # tools/renode/check-identity.sh boots the stamped kernel and three altered
@@ -2412,10 +2473,12 @@ installfs:
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host check-host-a check-host-b check-host-split \
+		check-signal-traps \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
 		check-renode-preempt \
+		check-renode-union-lean check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \
 		${FSIMG} fs installfs clean cleantools cleankernel cleantests cleanfs cleanall \

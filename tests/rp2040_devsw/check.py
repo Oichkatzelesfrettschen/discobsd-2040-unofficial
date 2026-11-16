@@ -119,7 +119,10 @@ def main():
                                 capture_output=True, text=True, check=False)
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
-    print(f"PASS RP2040 devsw: {changed} changed fields, count and writable-section mutants rejected")
+    print(
+        f"PASS RP2040 devsw: {changed} changed fields, count and "
+        "writable-section mutants rejected"
+    )
 
 
 if __name__ == "__main__":

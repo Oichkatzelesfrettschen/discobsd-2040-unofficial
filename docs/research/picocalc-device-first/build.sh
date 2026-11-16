@@ -104,12 +104,20 @@ mkdir -p "$OUT/inc"
 ln -sfn "$ROOT/sys/arch/rp2040/include" "$OUT/inc/machine"
 
 # prod_flags NAME prints the compiler options of the PICO kernel's NAME.o rule
-# as "bmake -n" expands COMPILE_C in sys/arch/rp2040/compile/PICO, without the
+# as "bmake -n" expands COMPILE_C in sys/arch/rp2040/compile/PICO (forced, so a
+# current object still prints its recipe), without the
 # compiler path, the dependency-file options, the debug path map (a local
 # path that changes no instruction) and the -c operand.
 PICO=$ROOT/sys/arch/rp2040/compile/PICO
 prod_flags() {
-    (cd "$PICO" && "${BMAKE:-bmake}" MACHINE=rp2040 -n "$1.o") |
+    # A kernel build that left a current NAME.o makes "bmake -n NAME.o" print
+    # only that the target is up to date, so a small makefile gives the object
+    # an always-run phony prerequisite, which puts the object out of date and
+    # keeps the recipe's source operand.
+    printf '%s.o: force-%s\n.PHONY: force-%s\nforce-%s:\n' "$1" "$1" "$1" "$1" \
+        >"$OUT/force-$1.mk"
+    (cd "$PICO" && "${BMAKE:-bmake}" MACHINE=rp2040 -n -f Makefile \
+        -f "$OUT/force-$1.mk" "$1.o") |
         awk -v s="/$1.c" 'index($0, " -c ") && substr($0, length($0) - length(s) + 1) == s' |
         tail -n 1 |
         sed -e 's/^[^ ]*gcc //' -e 's/ -MT [^ ]*//' -e 's/ -MF [^ ]*//' \

@@ -28,7 +28,8 @@
 # counts: an OUTDIR that aliases the golden file, a harness bzero that drifted
 # from machdep.c, a missing or incomplete production compile command, and a
 # decoder one byte short, which run.py must report as a FAIL row through its
-# exit status. The known-good run must pass. Each known-bad case runs against a
+# exit status, and a golden file off by one cycle, which must fail the
+# comparison. The known-good run must pass. Each known-bad case runs against a
 # copy of this directory, so a defective gate cannot damage the tracked golden
 # file.
 #
@@ -43,7 +44,6 @@ export DISCOBSD_ROOT="$ROOT"
 T=$(mktemp -d)
 trap 'rm -r -- "$T"' EXIT INT TERM
 cp -R "$HERE" "$T/h"
-golden=$(cksum <"$HERE/run-output.tsv")
 fail=0
 
 # expect_status WANT LABEL CMD...: run CMD and compare its exit status.
@@ -64,24 +64,62 @@ expect_status() {
     fi
 }
 
-# expect_diag TEXT LABEL CMD...: CMD must exit 2 and print TEXT, so a case
-# cannot pass through an unrelated failure such as an unrunnable helper.
-expect_diag() {
-    text=$1
-    label=$2
-    shift 2
+# expect_exit WANT TEXT LABEL CMD...: CMD must exit WANT and print TEXT, so a
+# case cannot pass through an unrelated failure such as an unrunnable helper.
+expect_exit() {
+    want=$1
+    text=$2
+    label=$3
+    shift 3
     set +e
     "$@" >"$T/log" 2>&1
     got=$?
     set -e
-    if [ "$got" -ne 2 ] || ! grep -qF -- "$text" "$T/log"; then
-        echo "selftest: $label: exit $got, want 2 with \"$text\"" >&2
+    if [ "$got" -ne "$want" ] || ! grep -qF -- "$text" "$T/log"; then
+        echo "selftest: $label: exit $got, want $want with \"$text\"" >&2
         cat "$T/log" >&2
         fail=1
     else
-        echo "selftest: $label: exit 2 with \"$text\" as required"
+        echo "selftest: $label: exit $want with \"$text\" as required"
     fi
 }
+
+# expect_diag TEXT LABEL CMD...: the exit-2 refusals of build.sh.
+expect_diag() {
+    text=$1
+    label=$2
+    shift 2
+    expect_exit 2 "$text" "$label" "$@"
+}
+
+# The tracked golden file belongs to one build of sh and awk, which a hosted
+# tree does not reproduce, so every case below runs against a golden file this
+# tree generates: the baseline run uses the default toolchain, needs every
+# row to round-trip, and its output replaces the golden file in the copy.
+set +e
+sh "$T/h/build.sh" "$T/base" >"$T/log" 2>&1
+set -e
+if [ ! -s "$T/base/run-output.tsv" ] ||
+    [ "$(grep -c 'ok$' "$T/base/run-output.tsv")" -ne 6 ] ||
+    grep -q 'FAIL' "$T/base/run-output.tsv"; then
+    echo "selftest: the baseline run did not produce six ok rows" >&2
+    cat "$T/log" >&2
+    exit 1
+fi
+cp "$T/base/run-output.tsv" "$T/h/run-output.tsv"
+golden=$(cksum <"$T/h/run-output.tsv")
+echo "selftest: baseline run produced the golden file for the cases below"
+
+# Known-bad: the golden file disagrees with the model output by one cycle.
+awk 'BEGIN { FS = OFS = "\t" } $1 == "sh data+bss" { $4 = $4 + 1 } { print }' \
+    "$T/base/run-output.tsv" >"$T/h/run-output.tsv"
+if cmp -s "$T/base/run-output.tsv" "$T/h/run-output.tsv"; then
+    echo "selftest: the golden perturbation changed nothing" >&2
+    fail=1
+fi
+expect_exit 1 "model output differs from run-output.tsv" "perturbed golden file" \
+    sh "$T/h/build.sh" "$T/perturbed"
+cp "$T/base/run-output.tsv" "$T/h/run-output.tsv"
 
 # Known-bad: OUTDIR is the source directory, and a symlink to it.
 ln -s "$T/h" "$T/alias"
@@ -168,17 +206,23 @@ for tool in gcc nm objcopy; do
         "$tool" "$T/tc.log" "$tool" >"$T/tc/zz-$tool"
     chmod 755 "$T/tc/zz-$tool"
 done
-expect_status 0 "known-good run with a prefixed toolchain" \
-    env CC_ARM="$T/tc/zz-gcc" sh "$T/h/build.sh" "$T/good"
+# BMAKE also stands in for a tree whose kernel build left current objects: it
+# reports "up to date" unless the makefile list forces the recipe (-f).
+cat >"$T/bmake-fresh" <<'EOF'
+#!/bin/sh
+case " $* " in *" -f "*) exec bmake "$@" ;; esac
+for last; do :; done
+echo "$last is up to date."
+EOF
+chmod 755 "$T/bmake-fresh"
+expect_status 0 "known-good run with a prefixed toolchain and current objects" \
+    env CC_ARM="$T/tc/zz-gcc" BMAKE="$T/bmake-fresh" sh "$T/h/build.sh" "$T/good"
 for tool in nm objcopy; do
     if ! grep -qx "$tool" "$T/tc.log"; then
         echo "selftest: run.py did not call the prefixed $tool" >&2
         fail=1
     fi
 done
-
-# Known-good: the default toolchain matches the golden file.
-expect_status 0 "known-good run" sh "$T/h/build.sh" "$T/good-default"
 
 if [ "$fail" -ne 0 ]; then
     echo "selftest: FAILED" >&2

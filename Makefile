@@ -1567,6 +1567,18 @@ check-core1-emulation: check-python
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
 
+# The cycle-model harness of docs/research/picocalc-device-first calibrates its
+# own verdict: aliased output directories, a drifted bzero, an incomplete
+# production compile command, a mismatched binutils prefix, a failed round trip
+# and a perturbed golden file must each fail, and a prefixed toolchain over
+# current objects must reproduce the baseline. It runs the Unicorn model four
+# times against the built tree's sh and awk, so it stands outside check-cross.
+check-picocalc-cycle-model: check-python
+		PYTHON=${PYTHON:Q} BMAKE=${MAKE:Q} \
+		    sh docs/research/picocalc-device-first/selftest.sh
+
+.PHONY: check-picocalc-cycle-model
+
 # The rump-kernel size measurement behind docs/research/tiny-rump-components.md.
 # It needs a NetBSD checkout, which CI lacks, so it stays outside check:
 # NETBSD_SRC defaults to BSD_Workspace/netbsd-src beside the primary checkout,

@@ -21,6 +21,10 @@
  * a violation. "--search DEPTH" enumerates every sequence of the event
  * alphabet up to DEPTH and prints the shortest sequence reaching each class
  * of stuck state; "--random SEED COUNT LENGTH" samples longer sequences.
+ *
+ * check_ring_counts() also holds usb_tx_put()'s accounting, the source of
+ * machdep.usb_tx_peak and machdep.usb_tx_dropped, to exact counts at a full
+ * ring, past it, at the drop counter's limit and across the index wrap.
  */
 #include "hostkern.h"
 #include "usb_console_sched.h"
@@ -234,6 +238,8 @@ static u_long model_alias_offset;
 static int model_sof_pending;
 static u_int model_now;
 static u_int model_scratch;
+static int model_poll_budget;		/* USB_INTS reads left; 0 is unarmed. */
+void usb_host_poll_abort(void);
 
 /* Apply a write the driver made through a SET or CLR alias. */
 static void
@@ -318,8 +324,12 @@ usb_host_reg32(u_long address)
 		}
 		if (offset >= 0x100)
 			panic("usb console gate: register outside the model");
-		if (offset == USB_INTS)
+		if (offset == USB_INTS) {
+			if (model_poll_budget != 0 && --model_poll_budget == 0) {
+				usb_host_poll_abort();
+			}
 			model_regs[USB_INTS / 4] = model_ints();
+		}
 		if (offset == USB_SOF_RD)
 			model_sof_pending = 0;
 		return &model_regs[offset / 4];
@@ -499,9 +509,13 @@ host_in_lost(void)
 	    bc & ~(USB_BUF_CTRL_AVAIL | USB_BUF_CTRL_FULL));
 }
 
-/* One keystroke on the bulk OUT endpoint; returns 0 when the device NAKs. */
+/*
+ * One keystroke lands in the armed bulk OUT buffer and its BUFF_STATUS bit
+ * rises with no interrupt delivered: the state a masked processor sees.
+ * Returns 0 when the device NAKs.
+ */
 static int
-host_out(u_char c)
+host_out_masked(u_char c)
 {
 	u_int bc = model_buf_ctrl(EP_DATA, 0);
 
@@ -512,6 +526,15 @@ host_out(u_char c)
 	    (bc & ~(USB_BUF_CTRL_AVAIL | USB_BUF_CTRL_LEN_MASK)) |
 	    USB_BUF_CTRL_FULL | 1);
 	model_regs[USB_BUFF_STATUS / 4] |= USB_BUFF_STATUS_BIT(EP_DATA, 0);
+	return 1;
+}
+
+/* One keystroke on the bulk OUT endpoint; returns 0 when the device NAKs. */
+static int
+host_out(u_char c)
+{
+	if (!host_out_masked(c))
+		return 0;
 	model_interrupt();
 	return 1;
 }
@@ -758,6 +781,8 @@ scenario_start(void)
 	usb_service_depth = 0;
 	usb_sof_us = 0;
 	usb_tx_recovered = 0;
+	usb_tx_peak = 0;
+	usb_tx_dropped = 0;
 	bzero(usbttys, sizeof(usbttys));
 	clist_reset();
 	ucs_reset();
@@ -936,6 +961,197 @@ static const struct fixed fixed_sequences[] = {
 	    { EV_TYPE, EV_INLOST, EV_WRITER, EV_REBOOT }, 4 },
 };
 
+/*
+ * The halt wait of boot() under HALTREBOOT: PRIMASK is set, so no interrupt
+ * is delivered and usbgetc() services the controller by polling it. A key
+ * the host sent before or during the wait must come back from the polled
+ * read whether or not a process holds the tty open, and the tty must take
+ * input again once the read returns.
+ */
+static int polled_got;
+
+void
+usb_host_poll_abort(void)
+{
+	hk_escape();
+}
+
+static void
+polled_read_body(void)
+{
+	polled_got = (u_char)usbgetc(makedev(UARTUSB_MAJOR, 0));
+}
+
+/* Returns 1 when the polled read returned a byte, 0 when it ran dry. */
+static int
+polled_read(u_char key, int *got)
+{
+	int escaped;
+
+	hk_ipl = 1;			/* boot() runs under splhigh. */
+	if (!host_out_masked(key)) {
+		hk_ipl = 0;
+		return 0;
+	}
+	model_poll_budget = 64;
+	escaped = hk_catch(polled_read_body);
+	model_poll_budget = 0;
+	usb_service_depth = 0;
+	hk_ipl = 0;
+	if (escaped)
+		return 0;
+	*got = polled_got;
+	return 1;
+}
+
+static void
+check_polled_read(const char *name, int tty_open)
+{
+	struct tty *tp = &usbttys[0];
+	int got = -1, ok;
+
+	scenario_start();
+	if (!tty_open) {
+		(void)usbclose(makedev(UARTUSB_MAJOR, 0), 0, 0);
+		drain_in();
+	}
+	ok = polled_read('k', &got);
+	hk_checks++;
+	if (!ok)
+		hk_note("FAIL %s: the key never reached the polled read", name);
+	else if (got != 'k')
+		hk_note("FAIL %s: the polled read returned 0x%x", name, got);
+	if (!ok || got != 'k') {
+		hk_failures++;
+		return;
+	}
+	hk_note("PASS %s", name);
+	if (!tty_open)
+		return;
+
+	/* The tty takes keystrokes again once the polled read has returned. */
+	hk_checks++;
+	if (!host_out('y') || tp->t_rawq.c_cc == 0) {
+		hk_note("FAIL key after the halt wait reaches the tty");
+		hk_failures++;
+	} else
+		hk_note("PASS key after the halt wait reaches the tty");
+}
+
+/*
+ * boot() enters polled input before its halt messages. A key that arrives
+ * while they print is serviced by usbputc, ahead of usbgetc, and must still
+ * come back from the read with the tty open.
+ */
+static void
+check_polled_read_early(const char *name)
+{
+	struct tty *tp = &usbttys[0];
+	dev_t dev = makedev(UARTUSB_MAJOR, 0);
+	int got = -1, ok = 0;
+
+	scenario_start();
+	hk_ipl = 1;
+	usbpollc(1);
+	if (host_out_masked('k')) {
+		usbputc(dev, 'h');
+		model_poll_budget = 64;
+		if (!hk_catch(polled_read_body)) {
+			got = polled_got;
+			ok = 1;
+		}
+		model_poll_budget = 0;
+	}
+	usb_service_depth = 0;
+	usbpollc(0);
+	hk_ipl = 0;
+	hk_checks++;
+	if (!ok || got != 'k' || tp->t_rawq.c_cc != 0) {
+		hk_note("FAIL %s: read %s, 0x%x, %d bytes in the tty queue",
+		    name, ok ? "returned" : "ran dry", got, tp->t_rawq.c_cc);
+		hk_failures++;
+	} else
+		hk_note("PASS %s", name);
+}
+
+/*
+ * The ring's accounting. With the controller unconfigured nothing leaves
+ * the ring, so occupancy follows the bytes put exactly. The peak must reach
+ * the ring size and stay there, each byte past it must count one drop and
+ * discard the oldest, and the drop count must stop at USB_TX_DROPPED_MAX
+ * (INT_MAX, the largest value sysctl's CTLTYPE_INT reports without turning
+ * negative) instead of passing it. A second pass starts the indexes near the
+ * unsigned wrap, where the occupancy is a difference of two wrapped values.
+ */
+static void
+check_ring_counts(void)
+{
+	dev_t dev = makedev(UARTUSB_MAJOR, 0);
+	u_int i;
+
+	scenario_start();
+	usbd.configured = 0;
+	usb_tx_peak = 0;
+	usb_tx_dropped = 0;
+	for (i = 0; i < USB_TXRING; i++)
+		usbputc(dev, 'a');
+	hk_checks++;
+	if (usb_tx_peak != USB_TXRING || usb_tx_dropped != 0) {
+		hk_note("FAIL ring filled to its size: peak %u, dropped %u",
+		    usb_tx_peak, usb_tx_dropped);
+		hk_failures++;
+	} else
+		hk_note("PASS ring filled to its size");
+
+	usbputc(dev, 'b');
+	usbputc(dev, 'c');
+	hk_checks++;
+	if (usb_tx_dropped != 2 || usb_tx_peak != USB_TXRING ||
+	    usbd.tx_head - usbd.tx_tail != USB_TXRING) {
+		hk_note("FAIL ring overrun by two bytes: peak %u, dropped %u, "
+		    "held %u", usb_tx_peak, usb_tx_dropped,
+		    usbd.tx_head - usbd.tx_tail);
+		hk_failures++;
+	} else
+		hk_note("PASS ring overrun by two bytes");
+
+	usb_tx_dropped = USB_TX_DROPPED_MAX - 1;
+	usbputc(dev, 'd');
+	usbputc(dev, 'e');
+	usbputc(dev, 'f');
+	hk_checks++;
+	if (usb_tx_dropped != USB_TX_DROPPED_MAX) {
+		hk_note("FAIL drop count at the signed limit: %u",
+		    usb_tx_dropped);
+		hk_failures++;
+	} else
+		hk_note("PASS drop count saturates at the signed limit");
+
+	usbd.tx_head = (u_int)-1 - 1;
+	usbd.tx_tail = usbd.tx_head;
+	usb_tx_peak = 0;
+	usb_tx_dropped = 0;
+	usbputc(dev, 'g');
+	usbputc(dev, 'h');
+	usbputc(dev, 'i');
+	hk_checks++;
+	if (usb_tx_peak != 3 || usb_tx_dropped != 0 || usbd.tx_head != 1) {
+		hk_note("FAIL ring indexes across the unsigned wrap: peak %u, "
+		    "dropped %u, head %u", usb_tx_peak, usb_tx_dropped,
+		    usbd.tx_head);
+		hk_failures++;
+	} else
+		hk_note("PASS ring indexes across the unsigned wrap");
+}
+
+static void
+run_polled_read(void)
+{
+	check_polled_read_early("halt wait with a key typed during the halt message");
+	check_polled_read("halt wait with the tty closed", 0);
+	check_polled_read("halt wait with the tty open", 1);
+}
+
 static int
 run_fixed(void)
 {
@@ -955,6 +1171,8 @@ run_fixed(void)
 		} else
 			hk_note("PASS %s", f->name);
 	}
+	run_polled_read();
+	check_ring_counts();
 
 	/* A warm reboot leaves the controller out of reset. */
 	model_resets_held = 0;

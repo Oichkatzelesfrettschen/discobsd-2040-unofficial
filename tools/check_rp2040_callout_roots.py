@@ -23,8 +23,13 @@ PICO_CALC = (("picokbd", "kbd_poll", "kbd_poll"),
              ("picoaudio", "lcd_bell", "bell_stop"))
 
 
+UART = (("uart", "uartstart", "uartdrain"),
+        ("uart", "uartdrain", "uartdrain"))
+
+
 def configured_roots(names):
-    return CORE + (PICO_CALC if "picocalcdriver" in names else ())
+    return (CORE + (UART if "uartdriver" in names else ()) +
+            (PICO_CALC if "picocalcdriver" in names else ()))
 
 
 def check_data(data, ioconf, objects):

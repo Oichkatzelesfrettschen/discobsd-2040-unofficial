@@ -1,0 +1,383 @@
+{
+  "evidence_class": "matched object assembly and archive construction",
+  "limits": [
+    "No physical-board execution",
+    "No distribution-capacity measurement",
+    "No shared-image fit or runtime workload measurement"
+  ],
+  "object_comparison": {
+    "baseline_commit": "7d6e357b0a474417c5d537498be0099e88d1a147",
+    "baseline_source_sha256": "fdc8abb903914de333334b16b8776bdd6d28de97fab99e288761001f7e3da4e6",
+    "candidate_source_sha256": "d8686c94c660f4e3149accc5e4b62ae24830d0eec7d2de736abece2763169974",
+    "commands": [
+      {
+        "argv": [
+          "git",
+          "show",
+          "7d6e357b0a474417c5d537498be0099e88d1a147:lib/libc/arm/gen/aeabi_div.S"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-Wa,--fatal-warnings",
+          "-c",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/production-elf-baseline.o",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-Wa,--fatal-warnings",
+          "-c",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/production-elf-candidate.o",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-Btools/bin/rp2040/",
+          "-Wa,-x",
+          "-c",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/production-native-baseline.o",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-Btools/bin/rp2040/",
+          "-Wa,-x",
+          "-c",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/production-native-candidate.o",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-E",
+          "-P",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "tools/bin/rp2040/as",
+          "-X",
+          ".build-logs/divider-extents/identity-all-native-routes/production-selected-native-baseline.s",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/production-selected-native-baseline.o"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-E",
+          "-P",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "tools/bin/rp2040/as",
+          "-X",
+          ".build-logs/divider-extents/identity-all-native-routes/production-selected-native-candidate.s",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/production-selected-native-candidate.o"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-DDIVIDER_MODEL=1",
+          "-Wa,--fatal-warnings",
+          "-c",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/model-elf-baseline.o",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-DDIVIDER_MODEL=1",
+          "-Wa,--fatal-warnings",
+          "-c",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/model-elf-candidate.o",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-DDIVIDER_MODEL=1",
+          "-Btools/bin/rp2040/",
+          "-Wa,-x",
+          "-c",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/model-native-baseline.o",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-DDIVIDER_MODEL=1",
+          "-Btools/bin/rp2040/",
+          "-Wa,-x",
+          "-c",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/model-native-candidate.o",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-DDIVIDER_MODEL=1",
+          "-E",
+          "-P",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "tools/bin/rp2040/as",
+          "-X",
+          ".build-logs/divider-extents/identity-all-native-routes/model-selected-native-baseline.s",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/model-selected-native-baseline.o"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "arm-none-eabi-gcc",
+          "-mcpu=cortex-m0plus",
+          "-mthumb",
+          "-mfloat-abi=soft",
+          "-x",
+          "assembler-with-cpp",
+          "-DDIVIDER_MODEL=1",
+          "-E",
+          "-P",
+          "-"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "tools/bin/rp2040/as",
+          "-X",
+          ".build-logs/divider-extents/identity-all-native-routes/model-selected-native-candidate.s",
+          "-o",
+          ".build-logs/divider-extents/identity-all-native-routes/model-selected-native-candidate.o"
+        ],
+        "exit": 0
+      }
+    ],
+    "controls": [
+      {
+        "mode": "production",
+        "rejected": true,
+        "section": ".text"
+      },
+      {
+        "mode": "model",
+        "rejected": true,
+        "section": ".rel.text"
+      },
+      {
+        "mode": "production",
+        "rejected": true,
+        "route": "native"
+      }
+    ],
+    "records": [
+      {
+        "baseline_sha256": "acdf93d19af574b1b559fec73f9d06ea61b4b0efa30e1f22502a4eb4f8625b43",
+        "candidate_sha256": "9a29a4c83986e2035e4a2505cf4893ecded3c2c98426b895d4d8e809ab876df6",
+        "functions": {
+          "__aeabi_idiv": {
+            "size": 60,
+            "value": 33
+          },
+          "__aeabi_idivmod": {
+            "size": 60,
+            "value": 33
+          },
+          "__aeabi_uidiv": {
+            "size": 32,
+            "value": 1
+          },
+          "__aeabi_uidivmod": {
+            "size": 32,
+            "value": 1
+          }
+        },
+        "mode": "production",
+        "object_bytes": 776,
+        "route": "elf"
+      },
+      {
+        "baseline_sha256": "389c2c38aa08e92a39f8b61d3b3069d1817334ba4a432c798315b0d441ac5355",
+        "candidate_sha256": "389c2c38aa08e92a39f8b61d3b3069d1817334ba4a432c798315b0d441ac5355",
+        "mode": "production",
+        "object_bytes": 208,
+        "route": "native"
+      },
+      {
+        "baseline_sha256": "389c2c38aa08e92a39f8b61d3b3069d1817334ba4a432c798315b0d441ac5355",
+        "candidate_sha256": "389c2c38aa08e92a39f8b61d3b3069d1817334ba4a432c798315b0d441ac5355",
+        "mode": "production",
+        "object_bytes": 208,
+        "route": "selected-native"
+      },
+      {
+        "baseline_sha256": "65debbe07b5c6470837521ce736d2ac4c6aaaea4e0db4c3eaa1c476b03f793a6",
+        "candidate_sha256": "442789b7f8c65df6954361a30a0678cad7b7a0a5b23ae853c812582ea5831984",
+        "functions": {
+          "__aeabi_idiv": {
+            "size": 66,
+            "value": 45
+          },
+          "__aeabi_idivmod": {
+            "size": 66,
+            "value": 45
+          },
+          "__aeabi_uidiv": {
+            "size": 38,
+            "value": 1
+          },
+          "__aeabi_uidivmod": {
+            "size": 38,
+            "value": 1
+          }
+        },
+        "mode": "model",
+        "object_bytes": 1028,
+        "route": "elf"
+      },
+      {
+        "baseline_sha256": "7cdc5b637f0587ce0c91902a516cae022a1933eefb3c78f5b4b44f834205198a",
+        "candidate_sha256": "7cdc5b637f0587ce0c91902a516cae022a1933eefb3c78f5b4b44f834205198a",
+        "mode": "model",
+        "object_bytes": 308,
+        "route": "native"
+      },
+      {
+        "baseline_sha256": "7cdc5b637f0587ce0c91902a516cae022a1933eefb3c78f5b4b44f834205198a",
+        "candidate_sha256": "7cdc5b637f0587ce0c91902a516cae022a1933eefb3c78f5b4b44f834205198a",
+        "mode": "model",
+        "object_bytes": 308,
+        "route": "selected-native"
+      }
+    ],
+    "status": "passed"
+  },
+  "production_archives": {
+    "elf_bytes_after": 517900,
+    "elf_bytes_before": 517900,
+    "full_native_bytes_after": 126998,
+    "full_native_bytes_before": 126998,
+    "full_native_whole_archive_identity": "unclaimed; member timestamps differ"
+  },
+  "schema": 1,
+  "scope": "Four divider st_size annotations; source hashes identify the measured uncommitted input.",
+  "selected_native_archives": {
+    "archive_entries": 175,
+    "baseline_commit": "7d6e357b0a474417c5d537498be0099e88d1a147",
+    "baseline_sha256": "495b4834efe4d1ae9dce324b97516d3cd7355abaa368d4cbd17762e6afbc2079",
+    "baseline_source_sha256": "fdc8abb903914de333334b16b8776bdd6d28de97fab99e288761001f7e3da4e6",
+    "bytes": 51178,
+    "candidate_sha256": "4613486f184630aedade40f21456e0a50eee6a4769a6738be509e5f543ddff49",
+    "candidate_source_sha256": "d8686c94c660f4e3149accc5e4b62ae24830d0eec7d2de736abece2763169974",
+    "member_payloads_identical": true,
+    "status": "passed",
+    "timestamp_normalized_sha256": "be3eb19cf6d584db31102689f333bb951fbc425738edc87030585b6115ffe067"
+  },
+  "tools": {
+    "binutils": "GNU assembler (GNU Binutils) 2.47.20260726",
+    "capstone": "5.0.7",
+    "gcc": "arm-none-eabi-gcc (Arch Repository) 16.2.0",
+    "pyelftools": "0.33",
+    "python": "Python 3.14.9"
+  }
+}

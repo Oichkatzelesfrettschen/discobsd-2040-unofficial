@@ -230,14 +230,106 @@ third, so absolute counts compare only inside one table.
 
 The captures are `docs/research/trim-survey/board/swap/admission/`.
 
+## Which process each swap erase belongs to
+
+Three further runs of the 24 compiles name the process and count every
+swap sector. Kernel: the union kernel `main` ships for the bare Pico (the
+`PICOCALC_PSRAM` build with the PICO board descriptor) at `fcd49239`,
+`STORAGE_STATS=yes`, with `swap-who-wear-probe.patch`: one erase counter
+per swap sector in `flash_erase()`, and a table in `vm_swap.c` of
+completed swap-outs by `u_comm` and path (to the pool, to flash by
+copy-out, to flash by in-place exchange) with the exact sum of image
+spans. The name is copied before any transfer, because the exchange puts
+the incoming process's u area where the outgoing one was. Both tables
+print on each read of `machdep.storage_stats`, so they cover all 96
+sectors and no reset races the print. Each run starts from a freshly
+flashed root of the same tree. The figures are differences between the
+read before the first compile and the read after the last, so they hold
+the compiles alone: the 36 swap erases of boot and login precede the first
+read and are excluded.
+
+| Over 24 compiles | Run 1 | Run 2 | Run 3 |
+| --- | ---: | ---: | ---: |
+| Swap sectors erased | 1,397 | 1,397 | 1,397 |
+| SwapRAM attempts, admitted | 305, 64 | 306, 65 | 304, 63 |
+| Refused: no single free run, too few free bytes | 208, 33 | 208, 33 | 212, 29 |
+| `sh` to the pool | 0 | 0 | 0 |
+| `sh` to flash: copy-outs, exchanges, sectors each | 101, 91, 6 | 100, 92, 6 | 100, 92, 6 |
+| `sh` erases | 1,152 | 1,152 | 1,152 |
+| `-sh` to the pool | 52 | 52 | 52 |
+| `-sh` to flash: copy-outs, sectors each, erases | 49, 5, 245 | 49, 5, 245 | 49, 5, 245 |
+| Other flash swap-outs | none | none | none |
+| Swap sectors erased, of 96 | 95 | 95 | 95 |
+| Hottest sector, mean of the 95, ratio | 17, 14.7, 1.16 | 17, 14.7, 1.16 | 18, 14.7, 1.22 |
+
+In every run the probe's totals equal the kernel's own counters: the
+per-sector erases and the sector sums by command both equal
+`swap_erase_sectors`, and the copy-outs, exchanges and pool swap-outs
+equal `swapram_flash_swapouts`, `swapram_exchange_swapouts` and
+`swapram_admissions`. `summarize.py` checks each of the two prints whole against the
+counters read with it and refuses a capture where any of the five
+disagrees, a wear table is short, or a command of the first print is
+missing from the second.
+
+`sh` is the name of the shell that runs the `cc` driver script
+(`distrib/rp2040/cc`); `-sh` is the login shell. A name covers more than
+one process: `newproc()` creates a child by swapping out a copy of the
+parent that still carries the parent's u area and name
+(`sys/kern/kern_fork.c`, the `swapout (child, ...)` call), and the child
+keeps that name until it execs. The 192 `sh` swap-outs of a run are
+therefore the driver's shell and its not yet exec'd children together,
+and the table does not separate them. The count fits the driver's four
+forks a compile (compiler, assembler, linker, `rm`) at two swap-outs a
+fork: the child's copy, written by copy-out, and the shell itself leaving
+by exchange when the child is brought in; 100 or 101 copy-outs and 91 or
+92 exchanges against 96 forks. That reading is an inference from the
+counts and the source, not a per-pid record.
+
+Every one of those images is 6 sectors, SwapRAM refuses each, and none
+reaches the pool: 1,152 erases a run, 82 percent of the total. The login
+shell and its children are admitted about half the time and cost 245
+erases, 18 percent. `init`, `update` and the short-lived programs go to
+the pool only. The inference above from image size, that the dominant
+class is the driver's shell, holds, and images named for the two shells
+account for every swap erase of the compiles. The pool is held by
+processes that sleep for the whole run while the images that move eight
+times a compile are refused each time.
+
+Every sector but the first is erased, and the hottest takes 17 or 18
+erases in 24 compiles, 16 to 22 percent above its run's mean. At the
+rated minimum the hottest sector of the third run reaches 100,000 cycles
+after about 133,000 compiles and the mean sector after about 163,000,
+for a board that only compiles; each boot and login adds 36 erases spread
+by the same cursor. This replaces the bound of 104,000 above for the tree
+with the shell fix, with all sectors observed.
+
+Consequences the counts support directly: what a fork of the driver's
+shell costs decides four fifths of the swap erases, so a change that
+admits its 6-sector image, a compile driver that is not a shell of this
+size, or a way of starting a pass that does not copy the shell first each
+act on that share; a change that only admits the login shell more often
+acts on one sixth; placement cannot gain more than the 16 to 22 percent
+between the hottest sector and the mean. Which change admits the image is
+not measured here: its compressed size against the pool's free run is the
+deciding number.
+
+A first set of three runs used a probe that read the name after the
+transfer and clamped spans above twelve sectors; it is not retained. Its
+erase totals and per-sector spread agreed with these.
+
+The captures, the patch and the reader `summarize.py` are
+`docs/research/trim-survey/board/swap/spread/`.
+
 ## Open
 
-- Swap traffic: 69 to 75 sector erases per compile, more than the root
-  spends, on a quarter of the sectors. The first swap sector takes none;
-  the erases of the other 89 observed sectors lie within 27 percent of
-  their run's mean, so the admission policy of
-  SwapRAM and the size of what is swapped decide most of it; placement can
-  add at most a quarter there.
-- Erases of swap sectors 90 to 95 singly, and of the root's sectors, which
-  are even by the journal's construction and unobserved.
+- Swap traffic: 58 sector erases per compile on the tree with the shell
+  fix (69 to 75 before it), on a quarter of the flash. The first swap
+  sector takes none and the other 95 lie within 22 percent of their run's
+  mean, so what is swapped and what the pool admits decide it; placement
+  can add at most a fifth.
+- Erases of the root's sectors singly, which are even by the journal's
+  construction and unobserved. Swap sectors 90 to 95 are observed in the
+  per-process runs.
+- The compressed size of the `cc` driver's shell image, which decides
+  whether any pool change can admit it.
 - Workloads other than the two-line compile.

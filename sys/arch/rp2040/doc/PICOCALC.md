@@ -19,13 +19,49 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
 runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
-keyboard. Root and swap stay on the Pico's QSPI flash, the same layout as
-the PICO board (`STORAGE.md`). The PICOCALC_PSRAM configuration
-(`sys/arch/rp2040/compile/PICOCALC_PSRAM/Config`) is the same kernel with the
-board's PSRAM driver linked in; swap moves to the PSRAM when it identifies
-itself at boot (below). This document is the authority for the pin
+keyboard. Root stays on the Pico's QSPI flash, the same layout as the PICO
+board (`STORAGE.md`); swap moves to the board's PSRAM when the part
+identifies itself at boot and stays on the flash otherwise (PSRAM as swap,
+below). PICOCALC is the full PicoCalc kernel: the PSRAM driver, every
+per-driver device option below, the keyboard controller's
+`machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
+diagnostic options `SYSTRACE` and `CAPACITY_STATS` (`kern.systrace`,
+`kern.systracepid`, `kern.capacity`). PICOCALC_LEAN
+(`sys/arch/rp2040/compile/PICOCALC_LEAN/Config`) omits the four device
+options and the two diagnostic options and answers `EOPNOTSUPP` for those
+nodes; PICOCALC_LEAN_DIAG (`sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/Config`)
+is PICOCALC_LEAN with the diagnostic options. The panel register test
+(`LCD_PANELTEST`) and later diagnostic options join PICOCALC and
+PICOCALC_LEAN_DIAG. All three compile the PicoCalc board descriptor, and
+`UNION_KERNEL` pairs any of them with a board's descriptor
+(`unix[-BOARD].uf2`, `unix[-BOARD]-LEAN.uf2` or `unix[-BOARD]-LEAN-DIAG.uf2`).
+Size tables below that predate this matrix name the configurations of their
+revision: PICOCALC then carried no PSRAM driver, and the rows marked
+"PicoCalc with PSRAM" measure the configuration since folded into PICOCALC.
+This document is the authority for the pin
 map in `sys/arch/rp2040/dev/picocalc.h`, the console drivers' timing
 choices, and the evidence each driver has.
+
+Each on-board or on-chip driver past the console is a kernel option, so a
+configuration carries exactly the hardware it drives: `DEV_ADC` (the
+temperature and VSYS sysctls, `dev/adc.c`), `DEV_GPIO` (`/dev/porta` and
+`/dev/portb`, cdevsw 12), `DEV_LCDGFX` (`/dev/lcdgfx`, minor 1 of the
+console major) and `DEV_PCM` (`/dev/audio`, cdevsw 13). PICOCALC lists all
+four; PICOCALC_LEAN and PICOCALC_LEAN_DIAG list none. A configuration without one keeps the majors after it at their
+numbers (the slot holds `NOCDEV`), its `/dev` node answers `ENXIO`, and the
+ADC sysctls answer `EOPNOTSUPP`; `conf.c` refuses at compile time a
+`DEV_GPIO` or `DEV_PCM` without the console and SD majors and a `DEV_LCDGFX`
+without the console. Measured on the PicoCalc kernel with PSRAM and without
+the diagnostic options (GCC 16.2.0, text/bss in bytes, against 124,555/56,064
+with all four):
+
+| Configuration | text | bss |
+| --- | --- | --- |
+| without `DEV_ADC` | 124,239 | 56,056 |
+| without `DEV_GPIO` | 124,145 | 56,056 |
+| without `DEV_LCDGFX` | 122,309 | 51,824 |
+| without `DEV_PCM` | 124,023 | 55,800 |
+| without all four | 121,047 | 51,560 |
 
 The vendor documents live in the sibling repository
 `discobsd-2040-notes` under `docs/picocalc/`, copied from
@@ -36,58 +72,59 @@ name a file there, with a page for a PDF.
 
 | Claim | Class | State |
 | --- | --- | --- |
-| PICOCALC compiles and links with `-Wall -Wextra -Werror` and carries no PSRAM driver | build | observed, GCC 13.2.1 (Ubuntu `gcc-arm-none-eabi` 15:13.2.rel1-2, the Linux CI compiler) at `-Os`: text 111,551, data 368, bss 48,824 with the pixel device (Pixel device, below); the flash image `check-kernel-headroom` measures is 111,664 of 130,816 bytes (`RP2040.ld` FLASH), 19,152 bytes of headroom; before the pixel device the same compiler measured text 109,406, bss 48,752 and 21,296 bytes of headroom, and GCC 16.2.0 (local) text 108,942; no `psram` symbol in `unix.elf`; at `-O`, which preceded `-Os`, GCC 13.2.1 measured text 126,100 and 4,604 bytes of headroom; an earlier `-O` build measured the console alone at 118,268 text, 304 data and 45,888 bss, and the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text to it |
-| PICOCALC_PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of PICOCALC | build | observed, GCC 13.2.1 at `-Os`: text 113,709, data 424, bss 48,976 with the pixel device; flash image 113,880 of 130,816 bytes, 16,936 bytes of headroom; before the pixel device text 111,564, bss 48,896 and 19,084 bytes of headroom, and GCC 16.2.0 (local) text 111,004; before the pixel device it exceeded PICOCALC by 2,158 text, 56 data and 144 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,120, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest; `psram_xfer.c` compiles at `-O` through `COMPILE_CYCLE_C` because its receive loop is cycle counted |
+| The PicoCalc kernel without PSRAM (PICOCALC before the kernel matrix) compiled and linked with `-Wall -Wextra -Werror` and carried no PSRAM driver | build | observed, GCC 13.2.1 (Ubuntu `gcc-arm-none-eabi` 15:13.2.rel1-2, the Linux CI compiler) at `-Os`: text 111,551, data 368, bss 48,824 with the pixel device (Pixel device, below); the flash image `check-kernel-headroom` measures is 111,664 of 130,816 bytes (`RP2040.ld` FLASH), 19,152 bytes of headroom; before the pixel device the same compiler measured text 109,406, bss 48,752 and 21,296 bytes of headroom, and GCC 16.2.0 (local) text 108,942; no `psram` symbol in `unix.elf`; at `-O`, which preceded `-Os`, GCC 13.2.1 measured text 126,100 and 4,604 bytes of headroom; an earlier `-O` build measured the console alone at 118,268 text, 304 data and 45,888 bss, and the sysctls (+916), the bell (+260) and the SD card with its multi-mount kernel (+3,888) add 5,064 text to it |
+| The PicoCalc kernel with PSRAM compiles and links with `-Wall -Wextra -Werror` and carries the SD driver of the kernel without it | build | observed, GCC 13.2.1 at `-Os`: text 113,709, data 424, bss 48,976 with the pixel device; flash image 113,880 of 130,816 bytes, 16,936 bytes of headroom; before the pixel device text 111,564, bss 48,896 and 19,084 bytes of headroom, and GCC 16.2.0 (local) text 111,004; before the pixel device it exceeded PICOCALC by 2,158 text, 56 data and 144 bss bytes, where `psram.o` and `psram_xfer.o` hold 2,120, 8 and 146 and the swap selection, the block-device entry and the longer configuration name in `version` and `osversion` hold the rest; `psram_xfer.c` compiles at `-O` through `COMPILE_CYCLE_C` because its receive loop is cycle counted |
 | `lcdterm.c`, `lcdfont.c`, `picokbd_map.c`, `st7365p.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) | build | observed, arm-none-eabi-gcc and host gcc/clang |
 | The console draws cell codes 0x80-0xff from a 128-glyph RAM bank, `ESC ( 0` maps 0x5f-0x7e onto bank codes 0x80-0x9f holding line-drawing shapes whose strokes meet the cell borders, and `LCDIOC_SETGLYPH` replaces a glyph and redraws the cells that show it | host | observed by `check-picocalc-host` against the model panel, which records the nine bank rows of every bank cell: shapes, joins, upload, redraw, rejection, raw-byte rule, resets; eight mutants fail it; the production `ioctl()` classifier copies the ten-byte payload under the same `PICOCALC_ENABLED` define as the PICOCALC kernels (`check-kernel`, one mutant) |
-| The tenth cell row of a bank glyph repeats its ninth, and `lcd_draw_cell()` clocks the bank rows to the panel | build | compiles and links into PICOCALC and PICOCALC_PSRAM; `st7365p.c` has no host model, so the repeated row and the pixels are read from the source, not run |
+| The tenth cell row of a bank glyph repeats its ninth, and `lcd_draw_cell()` clocks the bank rows to the panel | build | compiles and links into the PicoCalc kernels; `st7365p.c` has no host model, so the repeated row and the pixels are read from the source, not run |
 | The bank on the panel: box drawing in `mc` or curses, a tile program, redraw after an upload | board | not run |
 | `/dev/lcdgfx` (character major 10, minor 1) takes the panel from the text console on open, refuses a second open with `EBUSY`, draws fills, pixels, lines, frames, circles, streamed windows in three formats, palette, scroll, scroll definition and color-format commands, rejects every out-of-range field without drawing, and on the last close restores COLMOD 0x66, VSCRDEF 0/320/160, the margin columns, the scroll start of the ring and every cell of the store | host | observed by `check-picocalc-host` (`lcdgfx_test`) against a model of the controller's write path and the real terminal: window, byte, scroll and format protocol checked on every call, fills and frames compared with their rectangles, lines with the ideal line, circles with their radius and symmetry, windows pixel by pixel in all three formats and in 2-, 130- and 520-byte writes, 51 range cases, the close restore compared with a text-only redraw of the same bytes; 37 mutants fail it (9 more fail `lcdterm_test` at the terminal) |
 | The ioctl classifier copies each `LCDG_*` payload (at most 12 bytes) into aligned kernel storage under `PICOCALC_ENABLED` and stages `LCDG_INFO` and `LCDIOC_GETKEY` (14 bytes) as zeroed output, `LCDIOC_KEYEVS` as an integer input | host | observed by `check-kernel` (`fionread_test`, 688 checks, was 605): ownership, upper span edge, crossing span, provider error and reserved-bit cases for all thirteen `LCDG_*` commands, `LCDIOC_GETKEY` and `LCDIOC_KEYEVS`; seven mutants (one per command family, the tile commands and the two key commands included) fail it |
 | `LCDG_TILESET` stores tiles into a 128-tile atlas that is zero at every open, bounded by `first + count <= 128`; `LCDG_TILEWIN` draws a block of tile numbers as one panel window per tile row, with the eight pixel lines of every tile in the row interleaved, through the palette and COLMOD in force; a field out of range or a tile number of 128 or more draws nothing further | host | observed by `check-picocalc-host` (`lcdgfx_test`) against the model panel, which logs each window with its pixel count and stores each pixel at its raster position: 128 tiles uploaded in nine write sizes, blocks from one tile to the 40 by 40 grid (exactly one window of `tw * 8` by 8 per tile row, every pixel compared with a reference render), palette and COLMOD 0x55 draws, 20 rejected commands, upload bounds and abandonment, a copy fault resumed, and the zero atlas at open; 24 mutants fail it |
 | `games/gametile.h` sends one `LCDG_TILEWIN` per maximal run of changed tiles in a tile row, none for a clean tile, and leaves a failed run owed | host | observed by `check-picocalc-host` (`gametile_test`) against a model of the tile commands: 300 random rounds and scripted cases compared with runs counted by an independent loop; ranges near the limits of int are refused without an overflowing sum (`gtile_fill`, `gtile_load`, run under UBSan); 29 mutants fail it |
 | A raw key event session records nothing outside itself: `LCDIOC_KEYEVS` starts it only for a descriptor open for reading in the tty's foreground group, the queue is empty and its bytes cleared at its start and end, it needs a RAW or CBREAK tty, belongs to the process that started it and ends on that process's exit or exec, on any change of the tty's mode word (so a getpass() read cannot be recorded), on a mode-setting ioctl by another process, on the owner's last close, on request and when the foreground group changes, and `LCDIOC_GETKEY` drains oldest first, six per call, from the owning, readable, foreground caller only, drops the oldest event when full and reports the drops; the xterm bytes the poller types are those of `picokbd_translate()` alone | host | observed by `check-picocalc-host` (`kbdevq_test`): write-only, background and non-owner starts, drains and stops refused with the queue and drop count intact, a second owner refused, the owner's exit ending the session while another process holds the file, pid and slot reuse refused, nothing held and no key byte in memory outside a session, a getpass-like ECHO clear ending the session, restored flags not reviving it, RAW to CBREAK and ECHO and CRMOD toggles ending it, cooked starts refused, session end by close, exit, request and foreground change, every state against every key, a 20,000-event run, overflow at 33, 40, 50 and 1,000 events, the count saturating at 255; 44 mutants of `picokbd_evq.c` fail it, and `wiring.sh` fails sixteen cuts in the kernel glue it reads (the poller's `picokbd_event()` and `lcdcons_keycheck()` calls, the `lcd_modeset()` hook of the five mode-setting ioctls, `lcdcons_fileclose()` and `lcdcons_procexit()`, the `FREAD`, process-group and pid arguments of both requests, the hooks in `vn_closefile()`, `exit()` and `exec_clear()`); `kbd_poll()`, `lcd_ioctl_file()` and the close hook themselves run on no host |
-| The tile atlas and `LCDIOC_GETKEY` compile into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +1,432, bss +4,264 (112,975 / 368 / 53,088); PICOCALC_PSRAM text +1,432, bss +4,264 (115,133 / 424 / 53,240); flash headroom 17,728 and 15,512 bytes; the kernel's data and bss end 62,408 bytes below the end of the RAM region (Tile atlas) |
+| The tile atlas and `LCDIOC_GETKEY` compile into the PicoCalc kernels only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +1,432, bss +4,264 (112,975 / 368 / 53,088); with PSRAM text +1,432, bss +4,264 (115,133 / 424 / 53,240); flash headroom 17,728 and 15,512 bytes; the kernel's data and bss end 62,408 bytes below the end of the RAM region (Tile atlas) |
 | The tile atlas on the panel: the tiles appear, a 40-tile row costs 4.92 ms plus a window, a one-row vertical scroll step costs 4.9 ms, the raw key events arrive at the keyboard's rate | board | not run: `tests/rp2040/tiledemo` is built by `check-board-build` (text 7,379 bytes) and a board run is opt-in |
-| `lcdgfx.c` compiles into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +2,145, bss +72; PICOCALC_PSRAM text +2,145, bss +80; PICO 95,403 / 248 / 39,848 and PICO_UART 85,618 / 192 / 14,832, 9 text bytes above the measurement before the pixel device, which was taken in a different build path, the offset `version[]` carries (not traced further); at `-O` under GCC 16.2 the PICO and PICO_UART images differed only inside `version[]` (`objcopy -O binary`) |
+| `lcdgfx.c` compiles into the PicoCalc kernels only; PICO and PICO_UART keep their data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +2,145, bss +72; with PSRAM text +2,145, bss +80; PICO 95,403 / 248 / 39,848 and PICO_UART 85,618 / 192 / 14,832, 9 text bytes above the measurement before the pixel device, which was taken in a different build path, the offset `version[]` carries (not traced further); at `-O` under GCC 16.2 the PICO and PICO_UART images differed only inside `version[]` (`objcopy -O binary`) |
 | `st7365p.c` clocks the pixel primitives and `lcd_gfx_reset()` to the panel | build | compiles and links; `st7365p.c` has no host model, so the SPI bytes, the VSCRDEF value and the COLMOD 0x55 pixel format are read from the source and from the model's protocol, not run |
 | `/dev/lcdgfx` on the panel: the shapes appear, the timings match the research note's table, a killed program leaves the text visible | board | not run: `tests/rp2040/lcdgfxtest` is built by `check-board-build` and a board run is opt-in |
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) under the PICOCALC definitions | build | observed by `check-console-c17-cross` (`TESTING.md`); `sys/sys/exec.h` no longer declares an empty struct and `sys/sys/inode.h` includes `uio.h` instead of forward-declaring `enum uio_rw`, and `struct exec_params` keeps its 284-byte layout; the objects still build under the kernel's GNU17 profile |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
-| `picofetch` and `picotop` (`usr.bin/picofetch`, `usr.bin/picotop`) draw their logo, bars and graph from 79 glyphs uploaded to the bank with `LCDIOC_SETGLYPH` under LITOUT, in the console's sixteen colors, and fall back to ASCII on a terminal without a bank | host | observed by `check-picofetch-host` over fixture readings, as 64-bit and as ILP32 host programs; 39 mutants fail it (`TESTING.md`) |
+| `picofetch` and `picotop` (`usr.bin/picofetch`, `usr.bin/picotop`) draw their logo, bars and graph from 79 glyphs uploaded to the bank with `LCDIOC_SETGLYPH` under LITOUT, in the console's sixteen colors, and fall back to ASCII on a terminal without a bank | host | observed by `check-picofetch-host` over fixture readings, as 64-bit and as ILP32 host programs; 40 mutants fail it (`TESTING.md`) |
 | Both run on the PICOCALC kernel, read its sysctl nodes without a failed read and draw through the bank on the modeled panel | Renode | observed by `check-renode-picocalc` on `flash-PICOCALC.bin`: the report's lines, the logo's 840 squares against the panel pixels, picotop's frame and process row; the battery, XIP and bus values are model constants |
 | `picofetch` and `picotop` on the panel: glyph shapes, colors, the battery and backlight readings, the swap exchanges a picotop refresh costs beside a running job | board | not run |
-| Core 1 state and counters in both programs | build | PICOCALC and PICOCALC_PSRAM carry no `CORE1` option (`CORE1.md`), so both print `core1 not in this kernel` there; the PICO kernel's values are shown from the fixture only |
+| Core 1 state and counters in both programs | build | the PicoCalc kernels carry no `CORE1` option (`CORE1.md`), so both print `core1 not in this kernel` there; the PICO kernel's values are shown from the fixture only |
 | Die temperature and VSYS in both programs | Renode | both read `machdep.adc_temp_mc` and `machdep.adc_vsys_mv` (`CPU_ADC_TEMP`, `CPU_ADC_VSYS`); `check-renode-picocalc` holds the form of the `Sensors` line, and the values there (25.7 C, 0.00 V) come from Renode's ADC model, so the board's readings are unmeasured |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
 | The board runs from USB-C with no cells | board | observed by the owner: it stays off with no cells and runs with them (below) |
-| `machdep.picocalc.*` compiles into PICOCALC and PICOCALC_PSRAM only; PICO and PICO_UART keep their text, data and bss sizes and differ from the earlier build only inside `version[]` and `osversion[]` | build | observed: PICOCALC text +916 bytes, bss +16 over 118,268 and 45,888; PICO 107,432 text, 248 data, 39,848 bss and PICO_UART 95,970, 192, 14,832 equal the sizes recorded when the PSRAM driver landed |
+| `machdep.picocalc.*` compiles into the PicoCalc kernels only; PICO and PICO_UART keep their text, data and bss sizes and differ from the earlier build only inside `version[]` and `osversion[]` | build | observed: PICOCALC text +916 bytes, bss +16 over 118,268 and 45,888; PICO 107,432 text, 248 data, 39,848 bss and PICO_UART 95,970, 192, 14,832 equal the sizes recorded when the PSRAM driver landed |
 | The register mailbox (`picokbd_req.c`) encodes reads and writes as the vendor firmware's `receiveEvent` decodes them, keeps a request off the key exchange, retries a faulted exchange three times, and drops a reply that outlives its deadline | host | observed by `check-picocalc-host` against a model of the firmware's register handler; eight mutants fail it |
 | BEL (0x07) reaches the bell primitive once per byte, from the ground state and inside a control sequence, and draws, moves and scrolls nothing; other controls stay silent | host | observed by `check-picocalc-host` against the model panel; two mutants fail it |
-| `picoaudio.c` compiles into PICOCALC and PICOCALC_PSRAM only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
+| `picoaudio.c` compiles into the PicoCalc kernels only and keeps the PWM divider and wrap value inside their register fields | build | observed: PICOCALC text +260 bytes, bss +8 over the sysctl build; two `_Static_assert`s bound DIV.INT and TOP; PICO and PICO_UART unchanged |
 | The tone is audible on the speaker, 1 kHz for 100 ms at 25 percent duty, and the outputs stay low afterward | board | not run |
-| `sd.c` and `sdspi.c` compile into PICOCALC and PICOCALC_PSRAM only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,888 bytes (2,887 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,688 over the audio build |
+| `sd.c` and `sdspi.c` compile into the PicoCalc kernels only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,888 bytes (2,887 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,688 over the audio build |
 | `umount` and a failed `mount` of `sd0a` close the partition only at the last close, and a block descriptor opened before the mount keeps reading after it | host | observed by `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) against the production `ufs_mount.c`, `sys_inode.c` and `ufs_inode.c` and a model of the driver's open mask; the parent revision fails 13 checks of the same gate, and two mutants fail it |
 | `umount` of a read-write `sd0a` whose card was pulled succeeds without write-back when `sdioctl` answers `DIOCMEDIAGONE` from the replaced flag, closes the partition, leaves no valid or delayed buffer of the device, and lets a replacement card mount; a write error with the card present, a driver that fails the command and an open file keep `umount` failing | host | observed: `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) against the production `ufs_mount.c`, `ufs_bio.c` and `ufs_syscalls2.c` and a model of the driver, with 19 of 303 checks failing on the preceding `ufs_mount.c` and eight mutants rejected; `check-picocalc-host` runs the production `sdioctl` through the card swap (the flag reads 0 before the debounce interval ends, 1 after, 0 after the next open) and three mutants of `sd.c` fail it |
 | The pulled-card sequence on the board: mount read-write, write, pull, `umount`, reinsert, mount | board | not run: `tests/rp2040/sd_detach/board_sd_detach.py` is written, closed unless `DISCOBSD_BOARD_SD_DETACH` is exactly `run`, and has no recorded result |
-| At securelevel 1 a write open of `rsd0`, of `sd0`, of an MBR entry that overlaps the mounted `sd0a`, and of the flash node `fl0` while the root `fl0a` is mounted is refused with `EBUSY`, while a partition that only touches the mounted one and the swap unit `fl1` open | host | observed: `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) runs the production `openi()`, `ufs_mountedon()` and the `blkoverlap()` extracted from `conf.c` over the production `flioctl` and a model of `sdioctl`; the preceding `ufs_fio.c` fails 11 checks and seven mutants (exact comparison, unit ignored, major ignored, touching extents counted, start offsets compared, the whole-device node disjoint, an undescribable node disjoint) fail the gate; `check-picocalc-host` holds the production `sdioctl` to the `DIOCGETPART` extents the model returns |
+| At securelevel 1 a write open of `rsd0`, of `sd0`, of an MBR entry that overlaps the mounted `sd0a`, and of the flash node `fl0` while the root `fl0a` is mounted is refused with `EBUSY`, while a partition that only touches the mounted one opens; a write open of the swap unit `fl1` (swapdev, major 0 minor 8) is refused with `EPERM` at level 1 and above and succeeds at level 0, a write through a descriptor opened at level 0 is refused at each transfer once the level is raised, and a read open succeeds at every level, as the `sw` alias of `sys/dev/swap.c` already refused a write | host | observed: `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) runs the production `openi()`, `ufs_mountedon()` and the `blkoverlap()` extracted from `conf.c` over the production `flioctl` and a model of `sdioctl`; the preceding `ufs_fio.c` fails 11 checks and seven mutants (exact comparison, unit ignored, major ignored, touching extents counted, start offsets compared, the whole-device node disjoint, an undescribable node disjoint) fail the gate; `check-picocalc-host` holds the production `sdioctl` to the `DIOCGETPART` extents the model returns |
 | The SD protocol layer frames commands, initializes SDSC version 1, SDSC version 2 and SDHC cards, decodes both CSD versions, addresses by byte or block, and fails with a bounded wait on an absent, stuck, unsupported or erroring card | host | observed by `check-picocalc-host` against a card model replaying recorded command transcripts; twenty mutants fail it |
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
-| The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into PICOCALC and PICOCALC_PSRAM only | build | observed by `check-dump-writer-link` on the symbol tables of all four kernels, with a swapped-role control that exits 1 |
+| The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into the PicoCalc kernels only | build | observed by `check-dump-writer-link` on the symbol tables of every kernel, with a swapped-role control that exits 1 |
 | `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
 | `savecore` saves a dump the kernel's stream wrote, names a different running kernel, advances the bounds file, and leaves the dump on the card for a damaged segment, header checksum, version, segment count or length, one byte too little space with and without a reserve, and a copy that cannot be written; an unfinished dump reads as none | host | observed by `check-picocalc-host` (`dump_test`, 9 mutants of `savecore.c` rejected) |
 | On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
-| `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PICOCALC_PSRAM build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
-| PICO, PICO_UART and PICOCALC carry no PSRAM driver | build | observed: no `psram` symbol in the `unix.elf` of any of the three; PICO and PICO_UART sizes equal those recorded when the driver landed |
+| `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PicoCalc kernels' build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
+| PICO, PICO_DIAG and PICO_UART carry no PSRAM driver | build | observed: no `psram` symbol in the `unix.elf` of PICO, PICO_UART and the PicoCalc kernel without PSRAM when the driver landed, and PICO and PICO_UART sizes equal those recorded before it; PICO_DIAG configures no `psram` device, so `files.rp2040` compiles no PSRAM source into it |
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
 | The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
 | The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | board | not run |
+| With no part on the PSRAM pins, `psramprobe()` prints one refusal line, leaves swap on `fl1` and the PICOCALC kernel boots to a login on the panel | Renode | observed by `check-renode-picocalc` (Renode 1.17.0+20260907gitf1dd1b4af, RP2040 models at 205a5e4b, PICOCALC built by arm-none-eabi-gcc 14.2.1): `psram0: not usable (error -1), swap stays on fl1` (`PSRAM_E_TIMEOUT`: the PIO model moves no frame, so the first bounded wait expires), `swap dev  = (0,8)` and `swap size = 380 kbytes`, then the login, shell, picofetch and picotop stages; the model's FDEBUG write is a classified warning (`tools/renode/picocalc-warning-classes.txt`). The identity, size and pattern refusals run on the host in `check-psram-pio`; a board without a working part is not run |
 
 ## Pin map
 
@@ -311,7 +348,7 @@ the timestamp inside `version[]`.
 | Kernel | Before (text / data / bss) | After (text / data / bss) | Delta |
 | --- | --- | --- | --- |
 | PICOCALC | 123,636 / 368 / 47,600 | 124,284 / 368 / 48,752 | +648 text, +1,152 bss |
-| PICOCALC_PSRAM | 125,744 / 424 / 47,752 | 126,400 / 424 / 48,904 | +656 text, +1,152 bss |
+| PicoCalc with PSRAM | 125,744 / 424 / 47,752 | 126,400 / 424 / 48,904 | +656 text, +1,152 bss |
 | PICO | 107,696 / 248 / 39,848 | 107,696 / 248 / 39,848 | none |
 | PICO_UART | 96,226 / 192 / 14,832 | 96,226 / 192 / 14,832 | none |
 
@@ -394,12 +431,12 @@ device; headroom is what `check-kernel-headroom` measures against the
 | Kernel | Before (text / data / bss) | After (text / data / bss) | Headroom after |
 | --- | --- | --- | --- |
 | PICOCALC | 109,406 / 368 / 48,752 | 111,551 / 368 / 48,824 | 19,152 |
-| PICOCALC_PSRAM | 111,564 / 424 / 48,896 | 113,709 / 424 / 48,976 | 16,936 |
+| PicoCalc with PSRAM | 111,564 / 424 / 48,896 | 113,709 / 424 / 48,976 | 16,936 |
 | PICO | 95,394 / 248 / 39,848 | 95,403 / 248 / 39,848 | 35,420 |
 | PICO_UART | 85,609 / 192 / 14,832 | 85,618 / 192 / 14,832 | 45,260 |
 
 At `-O` under GCC 16.2 the device cost 2,408 bytes of text on PICOCALC and
-2,400 on PICOCALC_PSRAM; at `-O` under GCC 13.2 PICOCALC_PSRAM did not fit
+2,400 on the kernel with PSRAM; at `-O` under GCC 13.2 the kernel with PSRAM did not fit
 the region. Per object, measured at `-O` under GCC 16.2, the text delta is
 `lcdgfx.o` 1,740 bytes (the ioctl dispatcher with the shape code
 1,132, the write path 304, open, close and three helpers 304), `sys_generic.o` +164 (eleven
@@ -457,7 +494,7 @@ the atlas and the raw key events (Keyboard, below); headroom is what
 | Kernel | Before (text / data / bss) | After (text / data / bss) | Headroom before | Headroom after |
 | --- | --- | --- | --- | --- |
 | PICOCALC | 111,543 / 368 / 48,824 | 112,975 / 368 / 53,088 | 19,160 | 17,728 |
-| PICOCALC_PSRAM | 113,701 / 424 / 48,976 | 115,133 / 424 / 53,240 | 16,944 | 15,512 |
+| PicoCalc with PSRAM | 113,701 / 424 / 48,976 | 115,133 / 424 / 53,240 | 16,944 | 15,512 |
 | PICO | 95,395 / 248 / 39,848 | 95,395 / 248 / 39,848 | 35,428 | 35,428 |
 | PICO_UART | 85,610 / 192 / 14,832 | 85,610 / 192 / 14,832 | 45,268 | 45,268 |
 
@@ -472,7 +509,7 @@ bss (4,096 of atlas, a 40-byte row buffer, 28 bytes of stream state),
 `sys_generic.o` +36, `picokbd.o` +4 and `vfs_vnops.o`, `kern_exit.o` and
 `exec_subr.o` +4 text each. At the measured revision, the kernel's data and
 bss ended 62,408 bytes below the end of the then-current 106 KB RAM region on
-PICOCALC_PSRAM (0x2002f438 against 0x2003e800), so the bss addition preserved
+the PicoCalc kernel with PSRAM (0x2002f438 against 0x2003e800), so the bss addition preserved
 that revision's layout. PICO and PICO_UART compile no PicoCalc file and keep
 their text, data and bss.
 
@@ -744,7 +781,7 @@ the debounce of that card's own insertion does not expire against it. The
 driver does not interpret the polarity; the first insertion on a board
 settles which level means present.
 
-`NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in PICOCALC and PICOCALC_PSRAM
+`NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in the PicoCalc kernels
 (the two Configs differ in the board line and `device psram` alone), because
 `sys/mount.h` requires `NMOUNT=1` with that option. Without it the kernel keeps
 `i_dev` and `i_fs` in each of the 24 inodes and the mount names, and the
@@ -808,7 +845,7 @@ with a CRC-32 computed over the bytes as they leave for the card, which
 keeps the current u area, where the writer's own stack runs, consistent.
 Sector 0 is zeroed first and written last, so an unfinished dump reads as
 none. A PICOCALC dump is 109 sectors (55,808 bytes), 48,136 of them kernel
-RAM; a PICOCALC_PSRAM dump is 110.
+RAM; a dump of the kernel with PSRAM was 110 at the same revision.
 
     fsutil --repartition=fs=64m:dump=1m card.img
     fsutil --new --partition=1 card.img
@@ -833,25 +870,33 @@ before the level rises.
 
     : "${PYTHON:?set PYTHON to the intended interpreter}"
     export PYTHON
-    bmake MACHINE=rp2040 kernel        # PICO, PICO_UART, PICOCALC, PICOCALC_PSRAM
+    bmake MACHINE=rp2040 kernel        # PICO, PICO_DIAG, PICO_UART, PICOCALC, PICOCALC_LEAN, PICOCALC_LEAN_DIAG
 
-`sys/arch/rp2040/compile/PICOCALC/unix.uf2` holds the kernel; the root
-image is any board's `flash*.uf2`, since every kernel boots every root.
-`BOARD=PICOCALC` builds the `picocalc` profile root as
-`distrib/rp2040/flash-PICOCALC.uf2`, and `BOARD=PICOCALC_PSRAM` builds
-`distrib/rp2040/flash-PICOCALC_PSRAM.uf2`; `distrib/rp2040/flash.uf2` is the
-PICO board's.
-`sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2` holds the same kernel with
-the PSRAM driver. A board is selected by name: `BOARD=PICOCALC` pairs the
-driverless kernel with the `picocalc` root profile, and `BOARD=PICOCALC_PSRAM`
-pairs the PSRAM kernel with the same profile.
+`sys/arch/rp2040/compile/PICOCALC/unix.uf2` holds the full kernel, with the
+PicoCalc descriptor it compiles; `PICOCALC_LEAN/unix.uf2` and
+`PICOCALC_LEAN_DIAG/unix.uf2` hold the lean kernels. The root image is any
+board's `flash*.uf2`, since every kernel boots every root. `BOARD=PICOCALC`
+builds the `picocalc` profile root as `distrib/rp2040/flash-PICOCALC.uf2`
+and pairs it with `distrib/rp2040/unix-PICOCALC.uf2`, the `UNION_KERNEL`
+kernel (PICOCALC unless named) with the PicoCalc descriptor;
+`distrib/rp2040/flash.uf2` is the PICO board's.
 
-    bmake MACHINE=rp2040 BOARD=PICOCALC distribution        # no PSRAM driver
-    bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution  # PSRAM swap
+    bmake MACHINE=rp2040 BOARD=PICOCALC distribution                          # full kernel
+    bmake MACHINE=rp2040 BOARD=PICOCALC UNION_KERNEL=PICOCALC_LEAN flash      # unix-PICOCALC-LEAN.uf2, flash-PICOCALC-LEAN.uf2
+
+A lean `UNION_KERNEL` on `BOARD=PICOCALC` builds the `picocalc-lean` root
+(`sdcard-PICOCALC-LEAN.img`, `flash-PICOCALC-LEAN.{bin,uf2}`): the
+`picocalc` profile without `/dev/lcdgfx` and `/usr/games/ridge`, the two
+paths whose driver (`DEV_LCDGFX`) the lean kernels omit
+(`sys/arch/rp2040/doc/PROFILES.md`). `picofetch` and `picotop` stay: both
+read the ADC through `sysctl` and report the reading as absent
+(`sysctl` answers EOPNOTSUPP) when `DEV_ADC` is missing. The nodes `/dev/porta`, `/dev/portb` and
+`/dev/audio` belong to the base manifest and stay on every profile; without
+`DEV_GPIO` and `DEV_PCM` an open of one fails.
 
 Each board writes its own `sdcard-${BOARD}.img`, `flash-${BOARD}.bin` and
 `flash-${BOARD}.uf2` under `distrib/rp2040` (the bare `sdcard.img`,
-`flash.bin` and `flash.uf2` belong to `BOARD=PICO`), so the three boards'
+`flash.bin` and `flash.uf2` belong to `BOARD=PICO`), so the two boards'
 images coexist in one tree.
 
 Each kernel boots either root. The PSRAM kernel is a separate configuration
@@ -897,8 +942,10 @@ start, and so the root filesystem's extent, is the same in every row, and
 an accepted limit never cuts the root. A configuration whose swap is fl1
 stops at the `swap size` panic when no swap is left (a limit of
 0x101a0000, or the last row, after its console line); the loader's stage
-stays intact and its menu stays reachable from the keyboard at power-on. PICOCALC_PSRAM with
+stays intact and its menu stays reachable from the keyboard at power-on. A PicoCalc kernel with
 a working PSRAM swaps there instead and does not need fl1.
+
+The loader offers no entry from a running system that this tree has read: `bootloader -y` enters the boot ROM's USB loader, which replaces the SD route for that session, and no command asks the loader's own menu to run. The menu stays a power-on, keyboard action.
 
 Two more things the loader route changes are handled at boot.
 `SystemClock_Config()` moves clk_sys to clk_ref and stops the aux-only
@@ -962,7 +1009,7 @@ command overhead, and an on-board `mkfs`/`fdisk` closure.
 
 ### PSRAM as swap
 
-The PICOCALC_PSRAM kernel carries the driver; PICOCALC does not. The
+PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG carry the driver. The
 ESP-PSRAM64H (8 MB) on GP2-GP5, GP20 and GP21 is not a hardware SPI pin
 set, so PIO0 state machine 0 clocks it; `docs/research/picocalc-psram.md`
 holds the datasheet pages, the program, the timing derivation and the

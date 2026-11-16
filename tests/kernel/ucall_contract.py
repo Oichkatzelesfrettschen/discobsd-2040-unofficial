@@ -8,7 +8,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = ("sys/arch/rp2040/rp2040/sysctl.c", "sys/arch/stm32/stm32/sysctl.c")
 PREFIX = """\
-struct user { void *u_arg; int u_rval; } u;
+struct user { void *u_arg; int u_rval; int u_error; } u;
+#define EPERM 1
+static int securelevel;
 static int permitted, current_priority, selected, restored, called;
 static int suser(void) { return permitted; }
 static int spl0(void) { selected = 0; return current_priority; }
@@ -33,6 +35,17 @@ int main(void)
     current_priority = 29;
     ucall();
     if (called != 2 || u.u_rval != -26 || selected != 1 || restored != 29) return 3;
+    /* A raised level refuses the call before the routine or the priority runs. */
+    securelevel = 1;
+    u.u_error = 0;
+    u.u_rval = 42;
+    selected = -1;
+    ucall();
+    if (called != 2 || u.u_rval != 42 || u.u_error != EPERM || selected != -1) return 4;
+    securelevel = 0;
+    u.u_error = 0;
+    ucall();
+    if (called != 3 || u.u_error != 0) return 5;
     return 0;
 }
 """
@@ -57,12 +70,17 @@ def main():
                 if executable is None:
                     failures.append(f"{compiler}: unavailable")
                     continue
-                for mutant in ("none", "arity", "permission", "restore"):
+                for mutant in ("none", "arity", "permission", "restore", "level"):
                     selected = body
                     if mutant == "arity":
                         selected = body.replace(needle, "\tuap->routine = wrong;\n" + needle)
                     elif mutant == "permission":
                         selected = body.replace(needle, "\tif (0 && !suser())")
+                    elif mutant == "level":
+                        if body.count("securelevel > 0") != 1:
+                            failures.append(f"{relative}: level boundary changed")
+                            continue
+                        selected = body.replace("securelevel > 0", "securelevel > 99")
                     elif mutant == "restore":
                         if body.count("splx(s);") != 1:
                             failures.append(f"{relative}: priority restore boundary changed")

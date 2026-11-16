@@ -118,7 +118,11 @@ and follow the steps for your platform.
 
 5. Optional: serve the console to phones and laptops on your LAN.
 
-       discobsd-console up
+       discobsd-console up --bind 0.0.0.0
+
+   The default without `--bind` is loopback only. Anyone reaching the LAN
+   short link learns the console token, so prefer the loopback default
+   through SSH forwarding or a trusted tunnel.
 
    It prints a short URL such as `http://192.168.1.20:42069/`; open it in
    any browser on the same network. `discobsd-console down` stops it,
@@ -159,7 +163,7 @@ join the `discobsd` group instead and log in again:
    Windows Firewall when it asks; `discobsd-console.exe down` stops the
    servers.
 
-       .\discobsd-console.exe up
+       .\discobsd-console.exe up --bind 0.0.0.0
 
 #### macOS
 
@@ -439,7 +443,7 @@ its short form. The parts and their licenses:
 
 | part | holder | license |
 | --- | --- | --- |
-| the system, the rp2040 port, the host tools | DiscoBSD, RetroBSD | BSD 3-Clause (`LICENSE`); port files marked 2026 DiscoBSD are ISC |
+| the system, the rp2040 port, the host tools | DiscoBSD, RetroBSD, GizmoBSD | BSD 3-Clause (`LICENSE`); port files marked GizmoBSD are BSD 3-Clause; port files marked 2026 DiscoBSD are ISC |
 | kernel, libc, most of /bin and /usr/bin | The Regents of the University of California | Berkeley licenses of 1980-1993; the advertising clause was withdrawn by the University in 1999 |
 | the AT&T-descended programs (sh, ed, sed, awk, find, cpio, dd, look, deroff) and the optional V6 pack | Caldera International, Inc. | Caldera ancient-UNIX license, 2002: BSD-style with an acknowledgement in advertising |
 | second-stage boot code | Raspberry Pi (Trading) Ltd. | BSD 3-Clause |

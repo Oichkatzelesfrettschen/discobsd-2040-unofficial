@@ -274,6 +274,9 @@ UFS_DISK_EXTRA_MUTANTS+= device-inheritance-unmasked sys_inode \
 	device-block-policy-raise-ignored sys_inode \
 	device-raw-policy-raise-ignored sys_inode \
 	device-reuse-state-kept ufs_inode
+UFS_DISK_EXTRA_MUTANTS+= device-swapdev-write-admitted sys_inode \
+	device-swapdev-level-one-ignored sys_inode \
+	device-swapdev-held-descriptor-writes sys_inode
 UFS_DISK_EXTRA_MUTANTS+= device-checkpoint-omitted ufs_syscalls2 \
 	device-checkpoint-error-hidden ufs_syscalls2 \
 	device-checkpoint-unsupported-fatal ufs_syscalls2 \
@@ -408,7 +411,7 @@ FIONREAD_IOCTL_FUNCTION=	fionread_ioctl_function.c
 FIONREAD_INODE_FUNCTION=	fionread_inode_function.c
 FIONREAD_CFLAGS=	-ffunction-sections -fdata-sections
 # sys_generic.c classifies LCDIOC_SETGLYPH only where PICOCALC_ENABLED is
-# defined, as in the PICOCALC and PICOCALC_PSRAM kernels; the PICO kernels
+# defined, as in the PICOCALC kernels; the PICO kernels
 # forward the command to the provider like any unknown one.
 FIONREAD_DEFS=	-DPICOCALC_ENABLED
 FIONREAD_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 ${FIONREAD_DEFS} \
@@ -446,6 +449,8 @@ FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/stdint.h ${TOPSRC}/sys/sys/syscall_dispatch.h \
 	${TOPSRC}/sys/sys/syslimits.h ${TOPSRC}/sys/sys/systm.h \
 	${TOPSRC}/sys/sys/time.h ${TOPSRC}/sys/sys/tty.h \
+	${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+	${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
 	${TOPSRC}/sys/sys/ttychars.h ${TOPSRC}/sys/sys/ttydev.h \
 	${TOPSRC}/sys/sys/types.h ${TOPSRC}/sys/sys/uio.h \
 	${PORT_INCLUDE}/elf_machdep.h ${PORT_INCLUDE}/intr.h \
@@ -2760,8 +2765,11 @@ buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
 # the clist pool's static assertion holds for a 32-bit block pointer only.
 # Modeled processes sleep on their own ucontext stacks (usb_console_sched.c).
 # Each mutant restores one lost wakeup -- a path that clears tx_busy and leaves
-# TS_BUSY set, or the low-water test ahead of the drain in usbstart() -- and
-# must fail the fixed sequence that names it.
+# TS_BUSY set, or the low-water test ahead of the drain in usbstart() -- or one
+# lost halt-wait key (usbgetc polling an open tty), and must fail the fixed
+# sequence that names it. Four more break the transmit ring's accounting (peak,
+# drop count, drop saturation, occupancy across the unsigned index wrap) and
+# must fail the ring check that names each.
 USB_CONSOLE_SRC=	${TOPSRC}/sys/arch/rp2040/dev/usb.c
 USB_CONSOLE_DRIVER=	usb_console_driver.c
 # The target's char is unsigned; tty.c compares chars with 0377 and clang
@@ -2772,7 +2780,8 @@ USB_CONSOLE_CFLAGS=	${USB_CONSOLE_KERN} -nostdinc -DUARTUSB_ENABLED \
 USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
 			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
 USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
-			owake-before-drain
+			owake-before-drain halt-wait-open halt-wait-sticks \
+			pollc-late tx-peak-missing tx-drop-missing tx-drop-wraps tx-peak-wraps
 
 ${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
 	${PYTHON} usb_console_extract.py --source ${USB_CONSOLE_SRC} --output $@
@@ -2824,6 +2833,13 @@ check-usb-console: usb_console_test \
 		setif-kick) expected='FAIL echo, then SET_INTERFACE' ;; \
 		skip-controller-reset) expected='FAIL controller reset' ;; \
 		owake-before-drain) expected='FAIL writer above the high-water mark across a bus reset' ;; \
+		halt-wait-open) expected='FAIL halt wait with the tty open' ;; \
+		pollc-late) expected='FAIL halt wait with a key typed during the halt message' ;; \
+		halt-wait-sticks) expected='FAIL key after the halt wait reaches the tty' ;; \
+		tx-peak-missing) expected='FAIL ring filled to its size' ;; \
+		tx-drop-missing) expected='FAIL ring overrun by two bytes' ;; \
+		tx-drop-wraps) expected='FAIL drop count at the signed limit' ;; \
+		tx-peak-wraps) expected='FAIL ring indexes across the unsigned wrap' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" usb_console_$$mutation.mutant.out >/dev/null; then \

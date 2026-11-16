@@ -12,5 +12,7 @@ pkgbase = discobsd-host
 	makedepends = python-setuptools
 	depends = python
 	depends = python-pyserial
+	optdepends = python-pyelftools: discobsd-sramdump decode
+	optdepends = picotool: discobsd-sramdump capture and discobsd-flash
 
 pkgname = discobsd-host

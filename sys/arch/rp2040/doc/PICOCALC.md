@@ -1023,7 +1023,12 @@ with `async,noaccesstime,nosuid` and sets the new root's mode to 1777; a step
 that fails leaves `/tmp` as the root's own directory. The PICOCALC kernel has
 no driver behind major 3, and a PICOCALC_PSRAM kernel whose part failed its
 probe leaves the driver down, so the open fails with `ENXIO` and the chain
-stops at `mkfs`. One inode per 4,096 bytes is the density `mkfs(8)` documents
+stops at a `dd` read of block 0, which runs ahead of `mkfs` because `mkfs`
+creates its device with `creat()`: the truncate runs before the driver can
+refuse the open, finds the node's size already zero and rewrites its inode on
+the root flash (`itrunc()`, `updret` in `ufs_inode.c`, `vn_open_at()` in
+`vfs_vnops.c`; read from the source, not measured), a flash write every boot
+that the read avoids. One inode per 4,096 bytes is the density `mkfs(8)` documents
 (the source's own default is 16,384): 1,536 inodes in a 97-block inode list,
 which leaves 6,045 free blocks and 1,533 free inodes (`fsutil --check` of the
 layout `mkfs` wrote, below), where the source default gives 384 inodes in

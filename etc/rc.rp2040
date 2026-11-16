@@ -51,9 +51,13 @@ mount -a
 # in minor 1 that every reset empties, so each boot makes a fresh file system
 # (one inode per 4096 bytes, 1536 inodes) and mounts it over /tmp. A kernel
 # without the driver, or a part that failed its probe, fails the open with
-# ENXIO; /tmp then stays a directory of the root.
+# ENXIO and /tmp stays a directory of the root. The read of block 0 decides
+# that before mkfs runs: mkfs creates its device with creat(), which
+# truncates, and the kernel rewrites the node's inode on the root flash for
+# the truncation before the driver can refuse the open.
 #
-if test -b /dev/psram1 && mkfs -i 4096 /dev/psram1 6144 >/dev/null 2>&1 &&
+if test -b /dev/psram1 && dd if=/dev/psram1 of=/dev/null count=1 2>/dev/null &&
+    mkfs -i 4096 /dev/psram1 6144 >/dev/null 2>&1 &&
     mount -o async,noaccesstime,nosuid /dev/psram1 /tmp; then
     chmod 1777 /tmp
 fi

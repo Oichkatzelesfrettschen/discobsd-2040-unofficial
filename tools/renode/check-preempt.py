@@ -61,6 +61,10 @@ execdiv
     the program execs itself from a sequence that left the SIO divider
     DIRTY with known operands, and the new image must not find them:
     "PREEMPT execdiv OK".
+divclean
+    two processes leave their own divider values with DIRTY clear and read
+    them back under switches forced every 2 ms; neither may see the other's
+    values or lose its own: "PREEMPT divclean OK".
 
 The claim is the emulated kernel's AST path. The third-party peripheral
 models carry the boot, and Renode's divider computes in zero cycles; a
@@ -94,6 +98,7 @@ CASES = {
     "divide": ("/tmp/preempt divide", ["PREEMPT divide OK"], 0),
     "altstack": ("/tmp/preempt altstack", ["PREEMPT altstack OK"], 0),
     "execdiv": ("/tmp/preempt execdiv", ["PREEMPT execdiv OK"], 0),
+    "divclean": ("/tmp/preempt divclean", ["PREEMPT divclean OK"], 0),
 }
 
 

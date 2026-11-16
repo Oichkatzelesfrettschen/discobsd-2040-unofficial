@@ -50,6 +50,10 @@
  *           parent wakes every 2 ms to force switches between them; every
  *           quotient and remainder is compared with a shift-and-subtract
  *           division.
+ *   divclean  two processes each leave their own operands and results in
+ *           the SIO divider with DIRTY clear (the quotient read) and loop
+ *           reading them back while a third process forces switches every
+ *           2 ms; neither may ever read the other's values or lose its own.
  *   execdiv execs this program from a sequence that left the SIO divider
  *           DIRTY with known operands (preempt_regs.S); the new image,
  *           "execdiv-child", must find neither operand in the divider,
@@ -423,6 +427,80 @@ case_altstack(void)
 	return fails;
 }
 
+#define	DIVCLEAN_ITERATIONS	3000000UL
+
+static volatile unsigned *const divreg = (volatile unsigned *)0xd0000060U;
+
+/* One division with DIRTY left clear: the quotient read ends the sequence. */
+static void
+divclean_set(unsigned a, unsigned b)
+{
+	divreg[0] = a;
+	divreg[1] = b;
+	__asm volatile ("nop\n nop\n nop\n nop\n nop\n nop\n nop\n nop");
+	(void)divreg[5];
+	(void)divreg[4];
+}
+
+static int
+divclean_run(const char *role, unsigned a, unsigned b, unsigned oa,
+    unsigned ob)
+{
+	unsigned q, r, eq, er;
+	unsigned long i, bad = 0, foreign = 0;
+
+	eq = soft_udiv(a, b, &er);
+	divclean_set(a, b);
+	for (i = 0; i < DIVCLEAN_ITERATIONS; i++) {
+		unsigned d0 = divreg[0], d1 = divreg[1];
+
+		r = divreg[5];
+		q = divreg[4];
+		if (d0 != a || d1 != b || q != eq || r != er) {
+			bad++;
+			if (d0 == oa || d1 == ob)
+				foreign++;
+		}
+	}
+	printf("PREEMPT divclean %s changed %lu foreign %lu of %lu reads\n",
+	    role, bad, foreign, DIVCLEAN_ITERATIONS);
+	return bad != 0;
+}
+
+static int
+case_divclean(void)
+{
+	pid_t child[2];
+	struct timeval tv;
+	int i, fails = 0;
+
+	fflush(stdout);
+	child[0] = fork();
+	if (child[0] < 0) {
+		perror("fork");
+		return 2;
+	}
+	if (child[0] == 0) {
+		for (i = 0; i < 1500; i++) {
+			tv.tv_sec = 0;
+			tv.tv_usec = 2000;
+			(void)select(0, NULL, NULL, NULL, &tv);
+		}
+		_exit(0);
+	}
+	child[1] = fork();
+	if (child[1] < 0) {
+		perror("fork");
+		return 2;
+	}
+	if (child[1] == 0)
+		_exit(divclean_run("B", 0x00c0ffeeU, 0x77U, 0x0badf00dU, 0x1234U));
+	fails += divclean_run("A", 0x0badf00dU, 0x1234U, 0x00c0ffeeU, 0x77U);
+	fails += reap(child[1], "divclean B");
+	fails += reap(child[0], "divclean waker");
+	return fails;
+}
+
 static int
 case_execdiv_child(void)
 {
@@ -444,7 +522,7 @@ main(int argc, char **argv)
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
 	if (argc != 2) {
-		fprintf(stderr, "usage: preempt alarm|share|spin|regs|divide|altstack|execdiv\n");
+		fprintf(stderr, "usage: preempt alarm|share|spin|regs|divide|altstack|execdiv|divclean\n");
 		return 2;
 	}
 	if (strcmp(argv[1], "alarm") == 0) {
@@ -461,6 +539,8 @@ main(int argc, char **argv)
 		fails = case_divide();
 	else if (strcmp(argv[1], "altstack") == 0)
 		fails = case_altstack();
+	else if (strcmp(argv[1], "divclean") == 0)
+		fails = case_divclean();
 	else if (strcmp(argv[1], "execdiv") == 0) {
 		static char *child_argv[] = { "/tmp/preempt", "execdiv-child", NULL };
 

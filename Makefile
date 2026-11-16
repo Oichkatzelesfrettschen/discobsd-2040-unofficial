@@ -81,10 +81,14 @@ SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 
+# The proofs run from tools/proofs, where elan reads lean-toolchain, and lake
+# env puts the pinned toolchain's lean on PATH for the checker; a run from the
+# repository root would pick the default toolchain instead.
+LAKE?=		lake
 LEAN?=		lean
 .PHONY: check-release-policy check-hybrid-release
 check-release-policy: check-python
-		${PYTHON} tools/proofs/check_policy.py --lean "${LEAN}"
+		cd tools/proofs && ${LAKE} env ${PYTHON} check_policy.py --lean "${LEAN}"
 
 check-hybrid-release: check-python
 		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py

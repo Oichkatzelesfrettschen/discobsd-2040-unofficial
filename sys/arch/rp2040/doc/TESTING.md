@@ -3817,7 +3817,8 @@ ML-DSA-65. It executes real signing and verification against synthetic UF2
 bundles, malformed/corrupted controls, wrong epochs and rollback sequences,
 private staging, and failed/successful mocked flash delegation. No serial or
 picotool operation occurs in this tier. `check-release-policy` runs Lean 4.19.0
-through the selected `LEAN` and checks Python manifest geometry, specification
+from `tools/proofs` through `lake env` (`LAKE` and `LEAN` select the
+commands; elan reads `lean-toolchain` there) and checks Python manifest geometry, specification
 theorems and a rejected AND-to-OR mutant. These optional tiers add no target
 dependencies. The `pq-release-proofs` and `pq-release-hybrid` jobs of
 `.github/workflows/firmware.yml` run their CI equivalents in the nightly and on

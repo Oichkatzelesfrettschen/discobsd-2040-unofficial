@@ -1,0 +1,6 @@
+reboot_contract_test
+reboot_source.o
+mutant_*
+/bi-*.out
+/bi-mutant.sh
+/boardinfo-stubs/

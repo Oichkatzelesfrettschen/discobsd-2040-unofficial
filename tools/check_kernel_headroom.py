@@ -38,7 +38,7 @@ DEFAULT_LINKER_SCRIPT = (
 )
 DEFAULT_REGION = "FLASH"
 
-# The measured compiler spread of the PICOCALC_PSRAM kernel at -Os is 592 bytes
+# The measured compiler spread of the PicoCalc PSRAM kernel at -Os is 592 bytes
 # between GCC 13.2 and GCC 16.2 (docs/research/picocalc-session-handoff.md);
 # one KiB covers that spread and leaves room for a macOS toolchain that lands
 # between them.

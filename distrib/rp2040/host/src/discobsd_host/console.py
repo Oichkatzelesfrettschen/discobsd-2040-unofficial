@@ -9,8 +9,9 @@ from this shell with pid files under the per-user configuration directory:
 $XDG_CONFIG_HOME/discobsd on Linux and BSD, ~/Library/Application Support/
 discobsd on macOS, %APPDATA%\\discobsd on Windows.
 
-The configuration file web.env holds DISCOBSD_WEB_TOKEN and
-DISCOBSD_HOST_IP. It is created with owner-only permissions on the first
+The configuration file web.env holds DISCOBSD_WEB_TOKEN, DISCOBSD_HOST_IP
+and DISCOBSD_WEB_BIND. The servers listen on loopback unless --bind names
+another address. It is created with owner-only permissions on the first
 run and read by every later run and by the systemd units.
 """
 
@@ -65,7 +66,25 @@ def read_env(path: Path) -> dict[str, str]:
     return values
 
 
+# web.env is a systemd EnvironmentFile: a newline adds an assignment, and a
+# space, quote, backslash or dollar sign changes how a line parses or
+# expands. The token also travels unencoded in a URL query, where "+" reads
+# as a space. Every value is drawn from the URL-unreserved characters plus
+# ":" (a hex token, an IPv4 literal or host name, a USB port path), which
+# are inert in both places.
+ENV_VALUE_RE = re.compile(r"[A-Za-z0-9._~:-]+")
+
+
 def write_env(path: Path, values: dict[str, str]) -> None:
+    """Write web.env; raise ValueError, before touching the file, when a
+    value falls outside ENV_VALUE_RE."""
+    for key, value in values.items():
+        if not ENV_VALUE_RE.fullmatch(value):
+            # The message names the key only: a refused value may be the
+            # console token, which must not reach a terminal or a log.
+            raise ValueError(
+                "%s: web.env values are limited to letters, digits and . _ ~ : -" % key
+            )
     path.parent.mkdir(parents=True, exist_ok=True)
     body = "".join(f"{k}={v}\n" for k, v in values.items())
     tmp = path.with_suffix(".tmp")
@@ -87,11 +106,11 @@ def lan_ip() -> str:
         return "127.0.0.1"
 
 
-def urls(ip: str, token: str, web_port: int, link_port: int) -> dict[str, str]:
+def urls(ip: str, token: str, web_port: int, link_port: int, mdns: bool = True) -> dict[str, str]:
     full = "http://%s:%d/?token=%s" % (ip, web_port, token)
     out = {"short": "http://%s:%d/" % (ip, link_port), "full": full}
     name = socket.gethostname().split(".")[0].lower()
-    if name:
+    if mdns and name:
         out["mdns"] = "http://%s.local:%d/" % (name, link_port)
     return out
 
@@ -198,37 +217,46 @@ def _http_answers(url: str, timeout: float = 3.0) -> bool:
         return False
 
 
-_HOSTNAME_RE = re.compile(r"[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?")
+def is_loopback_host(host: str) -> bool:
+    """True for a loopback IP literal or a localhost name (RFC 6761 6.3)."""
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        name = host.lower().rstrip(".")
+        return name in ("localhost", "localhost.localdomain") or name.endswith(".localhost")
 
 
-def resolve_bind(bind: str) -> tuple[bool, str]:
-    """Return (loopback, address to advertise) for a --bind value.
+def parse_bind(text: str):
+    """Return the address object for a --bind value, which must be an IP literal.
 
-    An IP literal is classified directly. A host name must be a plain DNS
-    label sequence, because the value is written into web.env, and counts as
-    loopback only when every address it resolves to is loopback. Raises
-    ValueError for an unresolvable or malformed value.
+    A host name would be resolved here for the loopback classification and
+    again by every server that binds it, and the two answers can differ. The
+    parsed address, as text, is the only value web.env and the child
+    processes receive. An IPv6 literal is refused: the systemd units build
+    http://HOST:PORT/ from web.env without the brackets an IPv6 host needs.
     """
     try:
-        literal = ipaddress.ip_address(bind)
+        address = ipaddress.ip_address(text)
     except ValueError:
-        pass
-    else:
-        return literal.is_loopback, str(literal)
-    if not _HOSTNAME_RE.fullmatch(bind):
-        raise ValueError("not an IP address or host name: " + repr(bind))
-    try:
-        found = socket.getaddrinfo(bind, None, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise ValueError("cannot resolve " + repr(bind) + ": " + str(exc)) from exc
-    addrs = [ipaddress.ip_address(item[4][0].split("%")[0]) for item in found]
-    if not addrs:
-        raise ValueError("cannot resolve " + repr(bind))
-    advertised = next((a for a in addrs if a.version == 4), addrs[0])
-    return all(a.is_loopback for a in addrs), str(advertised)
+        raise ValueError(
+            "%r is not an IP address; give an IP literal such as 127.0.0.1 "
+            "for loopback or 0.0.0.0 for every interface" % text
+        ) from None
+    if address.version == 6:
+        raise ValueError(
+            "%r is IPv6; the console's systemd units take an IPv4 literal such as "
+            "127.0.0.1 for loopback or 0.0.0.0 for every interface" % text
+        )
+    return address
 
 
 def cmd_up(args) -> int:
+    try:
+        bind = parse_bind(args.bind)
+    except ValueError as exc:
+        sys.stderr.write("discobsd-console: --bind: %s\n" % exc)
+        return 1
+    bind_text = str(bind)
     # The board selector reaches a systemd user unit only through web.env, an
     # EnvironmentFile; a value that is not a USB port path could add lines to
     # it, so it is checked before anything is written.
@@ -238,15 +266,6 @@ def cmd_up(args) -> int:
             "discobsd-console: DISCOBSD_USB_PORT must be a USB port path such as 1-3\n"
         )
         return 1
-    try:
-        bind_loopback, bind_ip = resolve_bind(args.bind)
-    except ValueError as exc:
-        sys.stderr.write("discobsd-console: --bind: " + str(exc) + "\n")
-        return 1
-    try:
-        web_bind = str(ipaddress.ip_address(args.bind))
-    except ValueError:
-        web_bind = args.bind
     conf = config_dir()
     env_path = conf / "web.env"
     values = read_env(env_path)
@@ -254,29 +273,42 @@ def cmd_up(args) -> int:
     if not token:
         token = secrets.token_hex(12)
     # An explicit --host-ip or DISCOBSD_HOST_IP always wins. Otherwise a
-    # loopback bind advertises its own address, and any other bind reuses the
+    # concrete bind (loopback or one interface) advertises its own address,
+    # since the servers listen nowhere else. A wildcard bind reuses the
     # address web.env kept from an earlier run unless that address is
     # loopback, which would send LAN clients to their own host; then the LAN
     # address is recomputed.
     ip = args.host_ip or os.environ.get("DISCOBSD_HOST_IP")
-    if not ip and bind_loopback:
-        ip = bind_ip
+    if not ip and not bind.is_unspecified:
+        ip = str(bind)
     if not ip:
+        # A stored loopback address (a literal, or a localhost name from an
+        # earlier --host-ip) would send LAN clients to their own host, so it
+        # is recomputed; any other stored address or host name is kept.
         stored = values.get("DISCOBSD_HOST_IP")
-        try:
-            stored_loopback = bool(stored) and ipaddress.ip_address(stored).is_loopback
-        except ValueError:
-            stored_loopback = False
-        ip = stored if stored and not stored_loopback else lan_ip()
+        ip = stored if stored and not is_loopback_host(stored) else lan_ip()
+    if ":" in ip:
+        sys.stderr.write(
+            "discobsd-console: the advertised address %r is IPv6; the systemd "
+            "units build http://HOST:PORT/ without brackets, so give an IPv4 "
+            "address\n" % ip
+        )
+        return 1
     env_values = {
         "DISCOBSD_WEB_TOKEN": token,
         "DISCOBSD_HOST_IP": ip,
-        "DISCOBSD_WEB_BIND": web_bind,
+        "DISCOBSD_WEB_BIND": bind_text,
     }
     if usb_port:
         env_values["DISCOBSD_USB_PORT"] = usb_port
-    write_env(env_path, env_values)
-    links = urls(ip, token, args.port, args.link_port)
+    try:
+        write_env(env_path, env_values)
+    except ValueError as exc:
+        sys.stderr.write("discobsd-console: %s\n" % exc)
+        return 1
+    # The mDNS name resolves to the host's LAN address, which only a
+    # wildcard bind serves.
+    links = urls(ip, token, args.port, args.link_port, mdns=bind.is_unspecified)
     if systemd_units_installed() and not args.detached:
         subprocess.call(["systemctl", "--user", "daemon-reload"])
         rc = subprocess.call(["systemctl", "--user", "restart", *UNITS])
@@ -289,7 +321,7 @@ def cmd_up(args) -> int:
             _stop_pidfile(conf / (name + ".pid"))
         web = _tool("discobsd-web") + [
             "--bind",
-            args.bind,
+            bind_text,
             "--port",
             str(args.port),
         ]
@@ -299,7 +331,7 @@ def cmd_up(args) -> int:
             "--port",
             str(args.link_port),
             "--bind",
-            args.bind,
+            bind_text,
         ]
         # The token goes to each child's environment, not its argv: passing
         # --token/--to here would put it back in ps for these two processes,

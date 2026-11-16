@@ -65,7 +65,7 @@ backing bytes. Dispose releases the backing file.
 
 A 32 GB card is not a promise of a single 32 GB DiscoBSD filesystem. Existing
 signed 32-bit file offsets and the compact UFS format remain constraints. The
-PICOCALC and PICOCALC_PSRAM kernels set NMOUNT=2, the flash root plus one SD
+PicoCalc kernels set NMOUNT=2, the flash root plus one SD
 partition, so a second SD filesystem cannot mount at the same time. Raw device
 I/O above 2 GiB requires separate kernel work. The model's last-sector tests
 exercise the SD protocol directly and do not bypass that distinction. For the

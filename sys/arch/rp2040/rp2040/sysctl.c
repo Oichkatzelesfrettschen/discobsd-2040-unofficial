@@ -164,6 +164,14 @@ ucall(void)
 
 	if (!suser())
 		return;
+	/*
+	 * The routine runs at kernel privilege, which no write guard of the
+	 * level covers; a raised level refuses the call.
+	 */
+	if (securelevel > 0) {
+		u.u_error = EPERM;
+		return;
+	}
 	switch (uap->priority) {
 	case 0:
 		s = spl0();
@@ -275,6 +283,24 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return ENOTDIR;
 		i = (int)watchdog_last_arg2;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+
+	case CPU_FLASH_UNIQUE_HI:
+	case CPU_FLASH_UNIQUE_LO:
+		{
+			const u_char *jedec, *unique;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (flash_identity(&jedec, &unique) != 0)
+				return EIO;
+			if (name[0] == CPU_FLASH_UNIQUE_LO)
+				unique += 4;
+			i = (int)((u_int)unique[0] << 24 |
+			    (u_int)unique[1] << 16 | (u_int)unique[2] << 8 |
+			    unique[3]);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+			    sizeof i);
+		}
 
 	case CPU_IMAGE_LENGTH:
 	case CPU_IMAGE_CRC:

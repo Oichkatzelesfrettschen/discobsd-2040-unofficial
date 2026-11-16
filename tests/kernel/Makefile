@@ -2764,7 +2764,9 @@ buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
 # Each mutant restores one lost wakeup -- a path that clears tx_busy and leaves
 # TS_BUSY set, or the low-water test ahead of the drain in usbstart() -- or one
 # lost halt-wait key (usbgetc polling an open tty), and must fail the fixed
-# sequence that names it.
+# sequence that names it. Four more break the transmit ring's accounting (peak,
+# drop count, drop saturation, occupancy across the unsigned index wrap) and
+# must fail the ring check that names each.
 USB_CONSOLE_SRC=	${TOPSRC}/sys/arch/rp2040/dev/usb.c
 USB_CONSOLE_DRIVER=	usb_console_driver.c
 # The target's char is unsigned; tty.c compares chars with 0377 and clang
@@ -2776,7 +2778,7 @@ USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
 			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
 USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
 			owake-before-drain halt-wait-open halt-wait-sticks \
-			pollc-late tx-peak-missing tx-drop-missing tx-drop-wraps
+			pollc-late tx-peak-missing tx-drop-missing tx-drop-wraps tx-peak-wraps
 
 ${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
 	${PYTHON} usb_console_extract.py --source ${USB_CONSOLE_SRC} --output $@
@@ -2834,6 +2836,7 @@ check-usb-console: usb_console_test \
 		tx-peak-missing) expected='FAIL ring filled to its size' ;; \
 		tx-drop-missing) expected='FAIL ring overrun by two bytes' ;; \
 		tx-drop-wraps) expected='FAIL drop count at the unsigned limit' ;; \
+		tx-peak-wraps) expected='FAIL ring indexes across the unsigned wrap' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" usb_console_$$mutation.mutant.out >/dev/null; then \

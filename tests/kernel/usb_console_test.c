@@ -21,6 +21,10 @@
  * a violation. "--search DEPTH" enumerates every sequence of the event
  * alphabet up to DEPTH and prints the shortest sequence reaching each class
  * of stuck state; "--random SEED COUNT LENGTH" samples longer sequences.
+ *
+ * check_ring_counts() also holds usb_tx_put()'s accounting, the source of
+ * machdep.usb_tx_peak and machdep.usb_tx_dropped, to exact counts at a full
+ * ring, past it, at the drop counter's limit and across the index wrap.
  */
 #include "hostkern.h"
 #include "usb_console_sched.h"

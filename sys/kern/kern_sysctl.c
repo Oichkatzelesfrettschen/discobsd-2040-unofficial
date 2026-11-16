@@ -91,7 +91,7 @@ struct sysctl_args {
 };
 
 void
-__sysctl()
+__sysctl(void)
 {
 	struct sysctl_args *uap = (struct sysctl_args *)u.u_arg;
 	int error;

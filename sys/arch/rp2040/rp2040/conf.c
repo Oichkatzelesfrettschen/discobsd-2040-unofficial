@@ -42,6 +42,16 @@
 #include <rp2040/dev/picopcm.h>
 #endif
 
+#if defined(DEV_GPIO) && !(defined(PICOCALC_ENABLED) && defined(SD_ENABLED))
+#error "DEV_GPIO numbers cdevsw 12 after the console and SD majors"
+#endif
+#if defined(DEV_PCM) && !(defined(PICOCALC_ENABLED) && defined(SD_ENABLED))
+#error "DEV_PCM needs the PicoCalc board and cdevsw 13 after the SD major"
+#endif
+#if defined(DEV_LCDGFX) && !defined(PICOCALC_ENABLED)
+#error "DEV_LCDGFX is a minor of the PicoCalc console"
+#endif
+
 #ifdef SD_ENABLED
 #ifndef PICOCALC_ENABLED
 #error "SD_ENABLED numbers cdevsw 11 after the PicoCalc console"
@@ -277,15 +287,27 @@ const struct cdevsw cdevsw[] = {
 	 * The majors past 11 exist where 10 and 11 do, which fixes their
 	 * numbers: the union kernel every board runs.
 	 */
+	/*
+	 * A configuration without the device keeps the slot empty, so the
+	 * majors after it keep their numbers.
+	 */
 	{	/* 12 - general-purpose pins, porta and portb */
+#ifdef DEV_GPIO
 		gpioopen,	nullclose,	gpiorw,		gpiorw,
 		gpioioctl,	nullstop,	0,		seltrue,
 		nostrategy,	0,		0,
+#else
+		NOCDEV
+#endif
 	},
 	{	/* 13 - PicoCalc sample audio */
+#ifdef DEV_PCM
 		pcmopen,	pcmclose,	pcmread,	pcmwrite,
 		noioctl,	nullstop,	0,		seltrue,
 		nostrategy,	0,		0,
+#else
+		NOCDEV
+#endif
 	},
 #endif
 	/*

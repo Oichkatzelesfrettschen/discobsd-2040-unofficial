@@ -525,7 +525,7 @@ done:
  * Select system call.
  */
 void
-select()
+select(void)
 {
     struct uap {
         int     nd;
@@ -549,7 +549,7 @@ select()
  *       at the maximum!  See user.h
  */
 void
-pselect()
+pselect(void)
 {
     register struct pselect_args *uap = (struct pselect_args *)u.u_arg;
 
@@ -657,7 +657,7 @@ nostrategy (struct buf *bp __unused)
  * socket(2) and socketpair(2) if networking not available.
  */
 void
-nonet()
+nonet(void)
 {
     u.u_error = EPROTONOSUPPORT;
 }

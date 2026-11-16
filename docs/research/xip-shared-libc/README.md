@@ -29,6 +29,12 @@ function extents, canonical pointers, weak aliases and callbacks through a
 separately linked SRAM application. Production slot generation and complete
 provider ownership remain separate implementation work.
 
+The [divider function extents](divider-function-extents.md) give all four
+integer-divider aliases exact code ranges, excluding model literal pools.
+Six metadata controls calibrate production ownership checks. Matched ELF and
+native archive measurements isolate the size annotations from executable bytes;
+full export selection remains separate implementation work.
+
 The [export-closure checker](export-closure/README.md) resolves explicit API
 roots through compiled archive providers. Its calibration rejects a selection
 that drops a required interface merely because installed programs never call it.

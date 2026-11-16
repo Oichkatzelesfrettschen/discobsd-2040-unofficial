@@ -28,11 +28,28 @@
 
 struct uio;
 
+#ifdef DEV_LCDGFX
 int	lcdgfx_open(void);
 int	lcdgfx_close(void);
 int	lcdgfx_write(struct uio *uio);
 int	lcdgfx_ioctl(unsigned cmd, char *addr);
 int	lcdgfx_isopen(void);
+#else
+#include <sys/errno.h>
+
+/*
+ * A kernel configured without "device lcdgfx": minor LCDGFX_MINOR of the
+ * console major answers ENXIO and the console never sees a drawer.
+ */
+static inline int lcdgfx_open(void) { return ENXIO; }
+static inline int lcdgfx_close(void) { return 0; }
+static inline int lcdgfx_write(struct uio *uio __unused) { return ENXIO; }
+static inline int lcdgfx_ioctl(unsigned cmd __unused, char *addr __unused)
+{
+	return ENXIO;
+}
+static inline int lcdgfx_isopen(void) { return 0; }
+#endif
 
 /*
  * Supplied by lcdcons.c, or by the host test: hand the panel to a pixel

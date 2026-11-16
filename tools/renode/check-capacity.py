@@ -221,7 +221,7 @@ def run_stages(console, boot) -> None:
         "device probe",
         boot.PROBE_BUDGET_SECONDS,
     )
-    console.wait_lines(boot.LOGIN_LINES, "file system check and daemons", boot.LOGIN_BUDGET_SECONDS)
+    console.wait_lines(boot.LOGIN_LINES, "file system check", boot.LOGIN_BUDGET_SECONDS)
     console.wait_lines(["login:"], "login prompt", boot.LOGIN_BUDGET_SECONDS)
     console.type_line("operator")
     console.wait_lines(["$"], "shell prompt", boot.COMMAND_BUDGET_SECONDS)

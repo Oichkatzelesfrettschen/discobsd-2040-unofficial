@@ -114,6 +114,10 @@ SAN=		-fsanitize=address,undefined -fno-sanitize-recover=all
 KCSTD=		-std=gnu17 -Wall -Wextra -Werror \
 		-DBUS_KHZ=125000 -DCPU_KHZ=125000 \
 		-I${TOPSRC}/tests/picocalc/shim -I${TOPSRC}/sys/arch
+# lcdgfx.c is compiled only in a kernel whose Config sets DEV_LCDGFX (the
+# PARAM of the generated Makefile); without it lcdgfx.h declares the ENXIO
+# stubs, which collide with the driver's own definitions.
+GFXCSTD=	${KCSTD} -DDEV_LCDGFX
 SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
@@ -142,7 +146,7 @@ lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 lcdgfx_test: lcdgfx_test.c ${DEV}/lcdgfx.c ${DEV}/lcdgfx.h ${DEV}/lcdterm.c \
 	    ${DEV}/lcdterm.h ${DEV}/lcdfont.c ${DEV}/lcdfont.h \
 	    ${TOPSRC}/sys/sys/lcdgfx.h
-	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ lcdgfx_test.c ${DEV}/lcdgfx.c \
+	${HOST_CC} ${GFXCSTD} ${SAN} -g -o $@ lcdgfx_test.c ${DEV}/lcdgfx.c \
 	    ${DEV}/lcdterm.c ${DEV}/lcdfont.c
 
 kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
@@ -760,7 +764,7 @@ gametile-mutant-touch-unchecked:
 	${GAMETILE_MUT} gametile.h \
 	    '/^gtile_touch_tiles/,/^}/s/^\tif (!gtile_range_ok(first, count))$$/\tif (0)/' ${GAMETILE_SRC}
 
-GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${GFXCSTD}" "${DEV}" \
 		lcdgfx_test.c
 
 GFX_SRC=	lcdgfx.c lcdgfx.h lcdterm.c lcdterm.h lcdfont.c lcdfont.h

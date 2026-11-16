@@ -37,6 +37,9 @@
 #define	_SYS_SELECT_H_
 
 #include <sys/types.h>
+#include <sys/_timeval.h>
+#include <sys/_timespec.h>
+#include <sys/_sigset_t.h>
 
 /*
  * Select uses bit masks of file descriptors in longs.
@@ -75,23 +78,16 @@ typedef struct fd_set {
 #ifndef	KERNEL
 
 /* According to POSIX.1-2001 */
-struct timeval;
 int	select(int, fd_set *, fd_set *, fd_set *, struct timeval *)
 	    __TIME64_NAME(select);
 #ifdef __TIME64_VIEW
 /*
- * pselect has a 32-bit entry point and no declaration under the default
- * view; the 64-bit view declares it so that a call binds to the wrapper.
- * The signal set type is defined here rather than through sys/signal.h:
- * that file includes sys/types.h, which includes this one, before its own
- * definitions, so an include from here would arrive back in a half-read
- * sys/signal.h (tests/time64_wrappers/signal_first.c compiles that order).
+ * pselect has a 32-bit entry point and no declaration in the narrow view;
+ * the 64-bit view declares it so that a call binds to the wrapper.
+ * Private type owners keep the signal/select include cycle independent of
+ * partially read public headers. tests/time64_wrappers/signal_first.c
+ * compiles the signal-first order.
  */
-#ifndef _SIGSET_T_DEFINED_
-#define _SIGSET_T_DEFINED_
-typedef unsigned long sigset_t;	/* sys/signal.h holds the same definition */
-#endif
-struct timespec;
 int	pselect(int, fd_set *, fd_set *, fd_set *, const struct timespec *,
 	    const sigset_t *) __TIME64_NAME(pselect);
 #endif

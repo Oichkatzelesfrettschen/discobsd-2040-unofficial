@@ -91,6 +91,15 @@ retain separate dispositions in
 
 ## Feature and limit reporting
 
+The time.h, sys/select.h, sys/time.h, sys/types.h, and signal.h header rows
+retain partial/open dispositions with the public-time-type compiler witness.
+Canonical private owners preserve the existing narrow/wide/native layouts
+and select/time linker aliases while supplying required complete structures
+and scalar types. The
+[`public-time-type-ownership.md`](public-time-type-ownership.md) record keeps
+narrow timeval signedness, full visibility, clock APIs, and syscall behavior
+separate from that compiler evidence.
+
 `include/unistd.h` exposes `_SC_ARG_MAX`, `_SC_CLK_TCK`,
 `_SC_NGROUPS_MAX`, `_SC_OPEN_MAX`, `_SC_JOB_CONTROL`,
 `_SC_NPROCESSORS_CONF`, `_SC_NPROCESSORS_ONLN`, `_SC_NSIG`, `_SC_PAGESIZE`,

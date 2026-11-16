@@ -27,6 +27,27 @@ itself at boot (below). This document is the authority for the pin
 map in `sys/arch/rp2040/dev/picocalc.h`, the console drivers' timing
 choices, and the evidence each driver has.
 
+Each on-board or on-chip driver past the console is a kernel option, so a
+configuration carries exactly the hardware it drives: `DEV_ADC` (the
+temperature and VSYS sysctls, `dev/adc.c`), `DEV_GPIO` (`/dev/porta` and
+`/dev/portb`, cdevsw 12), `DEV_LCDGFX` (`/dev/lcdgfx`, minor 1 of the
+console major) and `DEV_PCM` (`/dev/audio`, cdevsw 13). Every shipped
+configuration lists all that its board has, so the shipped kernels are
+unchanged. A configuration without one keeps the majors after it at their
+numbers (the slot holds `NOCDEV`), its `/dev` node answers `ENXIO`, and the
+ADC sysctls answer `EOPNOTSUPP`; `conf.c` refuses at compile time a
+`DEV_GPIO` or `DEV_PCM` without the console and SD majors and a `DEV_LCDGFX`
+without the console. Measured on PICOCALC_PSRAM (GCC 16.2.0, text/bss in
+bytes, against 124,555/56,064 with all four):
+
+| Configuration | text | bss |
+| --- | --- | --- |
+| without `DEV_ADC` | 124,239 | 56,056 |
+| without `DEV_GPIO` | 124,145 | 56,056 |
+| without `DEV_LCDGFX` | 122,309 | 51,824 |
+| without `DEV_PCM` | 124,023 | 55,800 |
+| without all four | 121,047 | 51,560 |
+
 The vendor documents live in the sibling repository
 `discobsd-2040-notes` under `docs/picocalc/`, copied from
 github.com/clockworkpi/PicoCalc at commit `fdcfe2c8`. Citations below

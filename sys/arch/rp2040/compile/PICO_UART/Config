@@ -54,3 +54,6 @@ options         "CONS_MINOR=0"
 # The Pico carries a single LED, wired to GP25. There is no choice of pin to
 # record here, so machdep.c names it directly and led_control lights the same
 # one for every activity class.
+
+# On-chip and board peripherals, one line per driver.
+options         DEV_ADC                     # RP2040 ADC: temperature and VSYS sysctls

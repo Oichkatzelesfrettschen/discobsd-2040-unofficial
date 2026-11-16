@@ -27,6 +27,27 @@ itself at boot (below). This document is the authority for the pin
 map in `sys/arch/rp2040/dev/picocalc.h`, the console drivers' timing
 choices, and the evidence each driver has.
 
+Each on-board or on-chip driver past the console is a kernel option, so a
+configuration carries exactly the hardware it drives: `DEV_ADC` (the
+temperature and VSYS sysctls, `dev/adc.c`), `DEV_GPIO` (`/dev/porta` and
+`/dev/portb`, cdevsw 12), `DEV_LCDGFX` (`/dev/lcdgfx`, minor 1 of the
+console major) and `DEV_PCM` (`/dev/audio`, cdevsw 13). Every shipped
+configuration lists all that its board has, so the shipped kernels are
+unchanged. A configuration without one keeps the majors after it at their
+numbers (the slot holds `NOCDEV`), its `/dev` node answers `ENXIO`, and the
+ADC sysctls answer `EOPNOTSUPP`; `conf.c` refuses at compile time a
+`DEV_GPIO` or `DEV_PCM` without the console and SD majors and a `DEV_LCDGFX`
+without the console. Measured on PICOCALC_PSRAM (GCC 16.2.0, text/bss in
+bytes, against 124,555/56,064 with all four):
+
+| Configuration | text | bss |
+| --- | --- | --- |
+| without `DEV_ADC` | 124,239 | 56,056 |
+| without `DEV_GPIO` | 124,145 | 56,056 |
+| without `DEV_LCDGFX` | 122,309 | 51,824 |
+| without `DEV_PCM` | 124,023 | 55,800 |
+| without all four | 121,047 | 51,560 |
+
 The vendor documents live in the sibling repository
 `discobsd-2040-notes` under `docs/picocalc/`, copied from
 github.com/clockworkpi/PicoCalc at commit `fdcfe2c8`. Citations below
@@ -55,7 +76,7 @@ name a file there, with a page for a PDF.
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) under the PICOCALC definitions | build | observed by `check-console-c17-cross` (`TESTING.md`); `sys/sys/exec.h` no longer declares an empty struct and `sys/sys/inode.h` includes `uio.h` instead of forward-declaring `enum uio_rw`, and `struct exec_params` keeps its 284-byte layout; the objects still build under the kernel's GNU17 profile |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
-| `picofetch` and `picotop` (`usr.bin/picofetch`, `usr.bin/picotop`) draw their logo, bars and graph from 79 glyphs uploaded to the bank with `LCDIOC_SETGLYPH` under LITOUT, in the console's sixteen colors, and fall back to ASCII on a terminal without a bank | host | observed by `check-picofetch-host` over fixture readings, as 64-bit and as ILP32 host programs; 39 mutants fail it (`TESTING.md`) |
+| `picofetch` and `picotop` (`usr.bin/picofetch`, `usr.bin/picotop`) draw their logo, bars and graph from 79 glyphs uploaded to the bank with `LCDIOC_SETGLYPH` under LITOUT, in the console's sixteen colors, and fall back to ASCII on a terminal without a bank | host | observed by `check-picofetch-host` over fixture readings, as 64-bit and as ILP32 host programs; 40 mutants fail it (`TESTING.md`) |
 | Both run on the PICOCALC kernel, read its sysctl nodes without a failed read and draw through the bank on the modeled panel | Renode | observed by `check-renode-picocalc` on `flash-PICOCALC.bin`: the report's lines, the logo's 840 squares against the panel pixels, picotop's frame and process row; the battery, XIP and bus values are model constants |
 | `picofetch` and `picotop` on the panel: glyph shapes, colors, the battery and backlight readings, the swap exchanges a picotop refresh costs beside a running job | board | not run |
 | Core 1 state and counters in both programs | build | PICOCALC and PICOCALC_PSRAM carry no `CORE1` option (`CORE1.md`), so both print `core1 not in this kernel` there; the PICO kernel's values are shown from the fixture only |

@@ -32,7 +32,9 @@
 #include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
+#ifdef DEV_ADC
 #include <rp2040/dev/adc.h>
+#endif
 #include <rp2040/dev/flash.h>
 #ifdef CORE1
 #include <rp2040/rp2040/core1.h>
@@ -282,6 +284,7 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		i = (int)(name[0] == CPU_IMAGE_LENGTH ? image_length :
 		    name[0] == CPU_IMAGE_CRC ? image_crc : image_crc_stored);
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+#ifdef DEV_ADC
 	case CPU_ADC_TEMP:
 	case CPU_ADC_VSYS:
 		{
@@ -298,6 +301,7 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
 			    sizeof i);
 		}
+#endif
 #ifdef CORE1
 	case CPU_CORE1:
 	case CPU_CORE1_RESTARTS:
@@ -418,6 +422,15 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		if (namelen != 1)
 			return ENOTDIR;
 		count = usb_tx_recovered;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
+		    sizeof count);
+
+	case CPU_USB_TX_PEAK:
+	case CPU_USB_TX_DROPPED:
+		if (namelen != 1)
+			return ENOTDIR;
+		count = name[0] == CPU_USB_TX_PEAK ? usb_tx_peak :
+		    usb_tx_dropped;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
 		    sizeof count);
 #endif	/* UARTUSB_ENABLED */

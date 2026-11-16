@@ -23,10 +23,11 @@ Across 172 rows (2 upstream commits, 68 numbered patches 432 to 499, and the
 | --- | ---: | ---: | ---: | ---: |
 | upstream DiscoBSD | 0 | 0 | 0 | 2 |
 | 2.11BSD 432 to 499 | 12 | 9 | 8 | 39 |
-| 2.11BSD 500 items | 17 | 3 | 16 | 66 |
+| 2.11BSD 500 items | 17 | 3 | 15 | 67 |
 
-The applicable set is small and cheap. Five kernel items cost between -1603 and
-+80 bytes of kernel text and at most 4 bytes of kernel RAM; the shipped userland
+The applicable set is small and cheap. Four kernel items (439, 451, 456 and 458)
+cost between +4 and +80 bytes of kernel text, with 439's stack half unmeasured,
+and at most 4 bytes of kernel RAM; the shipped userland
 items live in `/bin/box` or a packed program and cost between -20 and 1328 bytes
 of program text (the lower bound is 500.83 `ls` without `cfree`, ~-20 B (I)), none of it kernel text or kernel RAM. The two highest-value
 items are POSIX conformance fixes in shipped box applets: `chown owner:group`
@@ -96,7 +97,10 @@ mode, sysctl, tar, umount and inode-rescan work. The survey adds these:
 - **Patch 439** carries a kernel hunk the earlier path mapping missed: `brk` and
   stack growth honor `RLIMIT_DATA` and `RLIMIT_STACK`. The fork's
   `sys/kern/kern_mman.c:24-37` checks only `MAXMEM` and the stack bottom, although
-  `u_rlimit` exists (`sys/sys/user.h:94`).
+  `u_rlimit` exists (`sys/sys/user.h:94`). The stack half does not land in
+  `kern_mman.c`: the donor patches `grow()`, which this fork lacks, and RP2040 stack
+  growth runs in `sys/arch/rp2040/rp2040/syscall.c:196-200` and `sig_machdep.c:87-90`,
+  where `p_ssize` rises with no limit check, so an import covers three sites.
 - **Patch 441** bounds the libvmf locked-segment walk at the list head and rejects
   a negative segment number; `lib/libvmf/vmf.c:101,118` carry the pre-patch loop.
   Only `usr.bin/med` links libvmf, and med is unshipped.
@@ -129,7 +133,7 @@ mode, sysctl, tar, umount and inode-rescan work. The survey adds these:
 
 ## Patch 500
 
-Of the 102 items, 66 concern PDP-11 hardware and tapes, f77, efl, ingres,
+Of the 102 items, 67 concern PDP-11 hardware and tapes, f77, efl, ingres,
 sendmail, uucp, networking, programs absent here, or manuals. The rest:
 
 **Present (17).** `touch -r/-t` (`usr.bin/touch/touch.c:268`, `4328e80e`),
@@ -149,12 +153,12 @@ operand numerically and the crash path is absent. `hostid` is in
 500.57 (`ps` through `getopt`, `bin/ps/ps.c:294`) is present, but part (a) is
 live, so that item is applicable.
 
-**Applicable (16).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
+**Applicable (15).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
 descend repair (500.11), `iso646.h` and `locale.h` (500.13), `chown
 owner:group` (500.17), the find-database last entry (500.30), `w` with no
-utmp (500.51), short panic tags (500.76), `rm` and `mv` through `getopt`
+utmp (500.51), `rm` and `mv` through `getopt`
 (500.80), `cfree` removal (500.83), `man` section names (500.86), the
-`sleep(3)` range (500.92, below), the `ps` static tty table (500.57, ranked 13), the `mkstr` `\a` and `\v`
+`sleep(3)` range (500.92, below), the `ps` static tty table (500.57, ranked 12), the `mkstr` `\a` and `\v`
 escapes (500.68: `games/battlestar/mkstr.c:142-166` has no such cases, and
 battlestar is built through it), the unused phantasia test files (500.74: `phant_run.c`
 and `test.c` remain, cosmetic, on a game outside `games/Makefile`'s `SUBDIR`; its
@@ -243,7 +247,7 @@ deltas exclude link-time alignment and `--gc-sections` effects.
 | Change | Object | Before text | After text | Delta |
 | --- | --- | ---: | ---: | ---: |
 | 451 securelevel at or below 0 | `kern_sysctl.o` | 3528 | 3532 | +4 |
-| 439 `RLIMIT_DATA` in `brk` | `kern_mman.o` | 88 | 108 | +20 |
+| 439 `RLIMIT_DATA` in `brk` (the data half only) | `kern_mman.o` | 88 | 108 | +20 |
 | 500.17 `owner:group` | `chown.o` | 969 | 981 | +12 |
 | 500.92 chunked `select` loop (sketch, not run) | `sleep.o` | 74 | 96 | +22 |
 | 500.9 `mkdir -m` through `setmode` | `mkdir.o` | 328 | 428 | +100 |
@@ -274,17 +278,16 @@ applets, packed blocks in the root.
 | ---: | --- | --- | ---: | ---: | --- | --- | --- |
 | 1 | 500.17 `chown owner:group`, keeping `owner.group` (`sbin/chown/chown.c:164`) | `/bin/box` | 0 | 0 | +12 B measured | low; a user name containing `:` becomes unreachable, as in 4.4BSD | none; a host contract on the parser is the new gate |
 | 2 | 500.80 `rm` and `mv` through `getopt`. Today a lone `-` ends options (`bin/rm/rm.c:41`, `bin/mv/mv.c:64`) and `--` reaches the `default` case, prints usage and exits 1 (`rm.c:59-61`, `mv.c:76`), so the POSIX `rm -- -x` fails. The tree's `getopt` keeps a lone `-` as an operand (probe below) | `/bin/box` | 0 | 0 | ~+40 B per applet, `getopt` already in box (I) | low | `check-rmdir-contracts` is the pattern; no rm or mv gate exists, and the new one needs a lone-`-` case so a future `getopt` change cannot regress it |
-| 3 | 500.76 short unique panic tags | kernel | down to -1603 (bound) | 0 | 0 | readability of panics | `check-kernel-headroom` |
-| 4 | 500.11 `find`: return 1 when `chdir` fails and restore `/` rather than an empty `Pathname` (`usr.bin/find/find.c:730,748`). Latent on the shipped image: the default directory mode is 0775 (`distrib/rp2040/mi.rp2040:21`), so it fires only on a directory a non-root user cannot search (I) | packed `/usr/bin/find` | 0 | 0 | ~+10 B (I) | low | `check-find-contracts`, with a new unreadable-directory case |
-| 5 | 456 clean-state flag across mount, unmount and fsck (ledger open) | kernel, fsck | ~+80 (I: donor kernel hunks add 34 lines to `ufs_subr.c`, 14 to `ufs_mount.c`, 4 to `mount.h`) | 0 to +4 (I) | fsck ~+100 B (I: 35 lines in `fsck/main.c`) | medium; touches the on-disk superblock | `check-v7-format`, `check-fsck-inode-range` |
-| 6 | 458 superblock time ordering at mount (ledger open) | kernel | ~+8 (I: the donor adds one `fs_time` assignment each to `ufs_mount.c` and `ufs_subr.c`) | 0 | 0 | low | none |
-| 7 | 500.9 `mkdir -m` | `/bin/box` | 0 | 0 | +100 B, or +1328 B with symbolic modes | low | none |
-| 8 | 500.13 `iso646.h`, `locale.h`, C-locale `setlocale` and `localeconv` | headers, libc | 0 | 0 | header-only for iso646; ~150 B per linking program (I) | low | `check-c17-headers` |
-| 9 | 451 securelevel at or below 0 may be lowered | kernel | +4 measured | 0 | 0 | policy | none; `sysctl_test` (`check-kernel-ilp32`) links `kern_sysctl.c` and declares `securelevel` (`sysctl_test.c:118`) but holds no `KERN_SECURELVL` case, and `check-libc-sysctl` links only `uname.c`, `gethostname.c` and `knlist.c` against a userland shim, so the new gate is a `KERN_SECURELVL` case in `sysctl_test.c` |
-| 10 | 439 `RLIMIT_DATA` in `brk` (`sys/kern/kern_mman.c:24`). `setrlimit` is a system call (`sys/kern/init_sysent.c:466`), but the shipped callers set only `RLIMIT_CPU`, `RLIMIT_FSIZE` and `RLIMIT_CORE` (`usr.bin/passwd/passwd.c:90-91`, `usr.bin/timeout/timeout.c:448`); csh's `limit` builtin is unshipped, so nothing on the image sets a data limit today | kernel | +20 measured | 0 | 0 | low; `RLIM_INFINITY` is the initial limit (`sys/kern/init_main.c:88`) | none; `check-kernel-headroom` for size |
-| 11 | 500.92 `sleep(3)` above 100,000,000 s returns the whole request unslept at once, and above 2,147,483 s sleeps short (I); a chunked `select` loop, or a documented bound | libc, every program linking `sleep.o` | 0 | 0 | +22 B in `sleep.o` for the unrun sketch, GCC 16.2.0 `-Os` | low; the loop must keep the interrupted-sleep remainder and the 2038 clock arithmetic of `sleep.c:44-51` | `check-sleep`, with requests above the bound (no such case today) |
-| 12 | 454 `date` and libc without the kernel timezone (`bin/date2/date.c:304-380`, `lib/libc/gen/tzset.c:195`); drops `date -d` and `-t` | `/bin/date`, libc | 0 | 0 | shrinks `date` and `tzset.o` (I, unmeasured) | medium; two user options disappear and the fork stores the zone in the kernel today | none; a `date` contract on `-t` and `-d` is the new gate |
-| 13 | 500.57 `ps` keeps a static 24-entry tty table (`bin/ps/ps.c:509-513`) where the patch looks names up with `devname(3)`; part (c), `getopt`, is present | packed `/bin/ps` | 0 | 0 | removes the table from `ps` data (I, unmeasured; see the adaptation below) | low; `devname(3)` per row costs a lookup, and its cost in this libc is unmeasured | none |
+| 3 | 500.11 `find`: return 1 when `chdir` fails and restore `/` rather than an empty `Pathname` (`usr.bin/find/find.c:730,748`). Latent on the shipped image: the default directory mode is 0775 (`distrib/rp2040/mi.rp2040:21`), so it fires only on a directory a non-root user cannot search (I) | packed `/usr/bin/find` | 0 | 0 | ~+10 B (I) | low | `check-find-contracts`, with a new unreadable-directory case |
+| 4 | 456 clean-state flag across mount, unmount and fsck (ledger open) | kernel, fsck | ~+80 (I: donor kernel hunks add 34 lines to `ufs_subr.c`, 14 to `ufs_mount.c`, 4 to `mount.h`) | 0 to +4 (I) | fsck ~+100 B (I: 35 lines in `fsck/main.c`) | medium; touches the on-disk superblock | `check-v7-format`, `check-fsck-inode-range` |
+| 5 | 458 superblock time ordering at mount (ledger open) | kernel | ~+8 (I: the donor adds one `fs_time` assignment each to `ufs_mount.c` and `ufs_subr.c`) | 0 | 0 | low | none |
+| 6 | 500.9 `mkdir -m` | `/bin/box` | 0 | 0 | +100 B, or +1328 B with symbolic modes | low | none |
+| 7 | 500.13 `iso646.h`, `locale.h`, C-locale `setlocale` and `localeconv` | headers, libc | 0 | 0 | header-only for iso646; ~150 B per linking program (I) | low | `check-c17-headers` |
+| 8 | 451 securelevel at or below 0 may be lowered | kernel | +4 measured | 0 | 0 | policy | none; `sysctl_test` (`check-kernel-ilp32`) links `kern_sysctl.c` and declares `securelevel` (`sysctl_test.c:118`) but holds no `KERN_SECURELVL` case, and `check-libc-sysctl` links only `uname.c`, `gethostname.c` and `knlist.c` against a userland shim, so the new gate is a `KERN_SECURELVL` case in `sysctl_test.c` |
+| 9 | 439 `RLIMIT_DATA` in `brk` (`sys/kern/kern_mman.c:24`) and `RLIMIT_STACK` in the two RP2040 stack-growth paths, `sys/arch/rp2040/rp2040/syscall.c:196-200` and `sig_machdep.c:87-90`, which raise `p_ssize` with no limit check (the donor patches `grow()`, which this fork lacks). `setrlimit` is a system call (`sys/kern/init_sysent.c:466`), but the shipped callers set only `RLIMIT_CPU`, `RLIMIT_FSIZE` and `RLIMIT_CORE` (`usr.bin/passwd/passwd.c:90-91`, `usr.bin/timeout/timeout.c:448`); csh's `limit` builtin is unshipped, so nothing on the image sets a data limit today | kernel | +20 measured for the `brk` half; the two stack checks are unmeasured (I) | 0 | 0 | low; `RLIM_INFINITY` is the initial limit (`sys/kern/init_main.c:88`) | none; a limit case for each of `brk`, a system-call stack growth and a signal-frame stack growth is the new gate, and `check-kernel-headroom` covers size |
+| 10 | 500.92 `sleep(3)` above 100,000,000 s returns the whole request unslept at once, and above 2,147,483 s sleeps short (I); a chunked `select` loop, or a documented bound | libc, every program linking `sleep.o` | 0 | 0 | +22 B in `sleep.o` for the unrun sketch, GCC 16.2.0 `-Os` | low; the loop must keep the interrupted-sleep remainder and the 2038 clock arithmetic of `sleep.c:44-51` | `check-sleep`, with requests above the bound (no such case today) |
+| 11 | 454 `date` and libc without the kernel timezone (`bin/date2/date.c:304-380`, `lib/libc/gen/tzset.c:195`); drops `date -d` and `-t` | `/bin/date`, libc | 0 | 0 | shrinks `date` and `tzset.o` (I, unmeasured) | medium; two user options disappear and the fork stores the zone in the kernel today | none; a `date` contract on `-t` and `-d` is the new gate |
+| 12 | 500.57 `ps` keeps a static 24-entry tty table (`bin/ps/ps.c:509-513`) where the patch looks names up with `devname(3)`; part (c), `getopt`, is present. Prerequisite: `lib/libc/gen/devname.c:65-67` returns `entry->d_name` after `closedir(dir)` has freed the `DIR` that holds the entry, so the pointer dangles; a stable-buffer `devname()` comes first | packed `/bin/ps` | 0 | 0 | removes the table from `ps` data (I, unmeasured; see the adaptation below); the `devname()` repair adds libc text, unmeasured | medium until `devname()` is repaired: a corrupted or crashing terminal name; low after | none; a `devname()` runtime case that reads the name after another allocation is the new gate |
 
 The rest are unshipped or cosmetic: 500.51 `w` dereferences a failed `fopen` of
 utmp (`usr.bin/w/w.c:129,164`); 447 `apropos` under-allocation; 441 libvmf walk;
@@ -300,7 +303,10 @@ formatter vectors from the probe are gate work with no target cost.
   already uses the old form. A program close to the window or packed-block budget
   can trade one read per diagnostic for its message bytes.
 - **Short unique panic tags (500.76b).** Patch 500 shortens `uipc_usrreq.c`
-  panics to unique numbered strings. Its other half, one shared `char mgetStr[]`
+  panics to unique numbered strings. The donor item is not applicable (the fork
+  has no `uipc_*.c` or mbuf source under `sys/kern`; the item targets the network
+  image), so this is an adaptation of the idea to RP2040 panic strings, with no
+  rank: up to 1603 bytes of flash, measured as an upper bound below. Its other half, one shared `char mgetStr[]`
   per repeated literal, is moot under GCC, which merges identical literals.
 - **Count every buffer the size checker must see (500.40).** `_sofub_size` becomes
   initialized data so `checksys` includes the bounce buffer. The fork already
@@ -313,7 +319,12 @@ formatter vectors from the probe are gate work with no target cost.
 - **Device name through a lookup rather than a resident table (500.57).**
   `ps` replaces its static tty table with `devname(3)` and saves over 1 KB of
   PDP-11 data. The fork's `ps` keeps a 24-entry table (`bin/ps/ps.c:512`); a lazy
-  `devname` call per row removes that table from `ps`'s data (I).
+  `devname` call per row removes that table from `ps`'s data (I), but only after
+  `devname()` is repaired: `lib/libc/gen/devname.c:65-67` calls `closedir(dir)` and
+  then returns `entry->d_name`, a pointer into `dd_buf`, which `closedir()` frees
+  with the `DIR` (`lib/libc/gen/closedir.c:16-25`, `include/dirent.h:64-67`). The
+  one shipped caller, `sbin/sysctl/sysctl.c:471`, already reads freed storage.
+  Source reading, not executed.
 - **Kernel-derived device identity with a fallback (500.49).** `swapdevname(3)`
   asks `sysctl` first and falls back to `/dev/swap`. Swap here is a fixed flash
   region, so the pattern matters only for tools that still hard-code device paths.
@@ -325,8 +336,8 @@ formatter vectors from the probe are gate work with no target cost.
 | 1, `owner:group` | `DragonFlyBSD/usr.sbin/chown/chown.c:135-140` tries `:` and then `.`, the order the measured variant uses | `94448f622a06`, `e983a8d87aef2da25bef0e0742040f367fd9ff6e1fea3e660e0b807305ce1cca` |
 | 1 | `4.4BSD-Lite2/usr.sbin/chown/chown.c:140-145` tries `.` and then `:` | `b10da34408c8`, `989e4f6cf300d2a0eff4ababe3bb97cbf5b08e032aba9bc539ca3cbc9c41524d` |
 | 2, `rm` options | `4.4BSD-Lite2/bin/rm/rm.c:80` parses with `getopt(argc, argv, "dfiPRrW")` | `b10da34408c8`, `7243d78ec0f64bcbcee7d2e486a0722df183a7077f9f9e6705d16807ea695043` |
-| 7, `mkdir -m` | `DragonFlyBSD/bin/mkdir/mkdir.c:64,86-93` (`setmode`, `getmode`); `4.4BSD-Lite2/bin/mkdir/mkdir.c:73,95` | `954b9709db5f61ecb477a3a3b04ecf12c36ed505d883689432caac3f5e942b3b`; `43a9898c69b5532f8c384658d6b3370fa52d345d17bbf5a66537c3f8f8ffb0c8` |
-| 8, C99 headers | `DragonFlyBSD/include/iso646.h`, `DragonFlyBSD/include/locale.h` | `18411814a9522581864b529134a450a178530af6f58615b503ba02badd277490`; `0608b8ba72c57cea2d1ee613bb207a1efdef16eae1b3f7521b458d860b596d46` |
+| 6, `mkdir -m` | `DragonFlyBSD/bin/mkdir/mkdir.c:64,86-93` (`setmode`, `getmode`); `4.4BSD-Lite2/bin/mkdir/mkdir.c:73,95` | `954b9709db5f61ecb477a3a3b04ecf12c36ed505d883689432caac3f5e942b3b`; `43a9898c69b5532f8c384658d6b3370fa52d345d17bbf5a66537c3f8f8ffb0c8` |
+| 7, C99 headers | `DragonFlyBSD/include/iso646.h`, `DragonFlyBSD/include/locale.h` | `18411814a9522581864b529134a450a178530af6f58615b503ba02badd277490`; `0608b8ba72c57cea2d1ee613bb207a1efdef16eae1b3f7521b458d860b596d46` |
 
 ## Defects in the surveying instruments
 
@@ -353,7 +364,7 @@ formatter vectors from the probe are gate work with no target cost.
    `/bin/box`).
 5. Patch 456: whether the root superblock gains a clean-state field, which is a
    format change on the Dhara root.
-6. Import order after the GizmoBSD rename; ranks 1, 2, 4 and 8 stand alone and
+6. Import order after the GizmoBSD rename; ranks 1, 2, 3 and 7 stand alone and
    need no format or policy choice.
 
 ## Not established

@@ -1,22 +1,28 @@
 #!/usr/bin/env python3
-"""Boot the PICOCALC kernel as the PicoCalc UF2 loader leaves it, root on SD.
+"""Boot the stamped PICOCALC kernel with its root on the SD card.
 
 The loader programs the kernel's UF2, stamps vector entries 4 to 10 (magic
 0xe98cc638, flash end 0x101fc000, the first 20 bytes of the UF2 path) and
 lends the flash above the kernel to other applications. sdrootattach() in
 sys/arch/rp2040/dev/sd.c then takes the root from the card's first MBR
-partition of type b7. This driver models that end state under Renode: the
-kernel image carries the stamp, the flash root region holds a foreign byte
-pattern in place of a Dhara journal, and the SD card model holds a card laid
-out as the owner's PicoCalc card is: a FAT32 entry, then the b7 entry in
-slot 3, then a Linux entry in slot 2 at the card's end.
+partition of type b7. This driver tests that SD-root path on a stamped kernel
+under Renode: the kernel image carries the stamp, the flash root region holds
+a foreign byte pattern in place of a Dhara journal, and the SD card model
+holds a card laid out as the owner's PicoCalc card is: a FAT32 entry, then
+the b7 entry in slot 3, then a Linux entry in slot 2 at the card's end.
+
+The image keeps the kernel's own second stage in flash bytes 0-255, where the
+loader installs its own. The loader's second stage, the XIP exit and
+re-entry through it, and flash_ssi_restore() after it are therefore outside
+this gate: it is a stamped-kernel test, not a loader-state test.
 
 Cases, each a fresh emulator:
   sdroot    a 40 MiB card: the stamped kernel prints the two root lines,
             the card line and root dev (5,3), reaches login on the panel,
             a keyboard login runs mount, which names /dev/sd0c on /, the
             flash root region still holds the foreign pattern, and UART0
-            carries the tty0 login prompt
+            carries the tty0 login prompt; root_verdict() judges the root
+            device, the mount source and the flash samples
   nob7      the same card with its b7 entry retyped 83 stops with the
             panic line naming the missing partition
 
@@ -30,7 +36,13 @@ is tests/picocalc/sdspi_test.c's sdhc scenario.
 The unstamped kernel's flash root is check-picocalc.sh's case and is not
 repeated here.
 
+Before Renode starts, self_test() runs root_verdict() on the good
+observations and on altered root device, mount source and flash samples,
+and the gate stops with status 1 unless the good ones pass and every altered
+one fails.
+
 Usage: check-picocalc-sdroot.py RENODE KERNEL SDROOT_IMG OUTPUT_DIR
+       check-picocalc-sdroot.py --self-test
 KERNEL is a flat unix.bin or a kernel UF2 such as the board image
 distrib/rp2040/unix-PICOCALC_PSRAM.uf2 that goes on the card.
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
@@ -38,6 +50,7 @@ Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 
 import importlib.util
 import os
+import re
 import struct
 import sys
 
@@ -79,6 +92,89 @@ SD_BUDGET_SECONDS = 60.0
 BANNER = "DiscoBSD 2.7 (PICOCALC"
 ROOT_LINES = ["root: started by the PicoCalc loader, root on sd0", "root: sd0c"]
 NO_B7_LINE = "panic: root: no partition of type b7 on sd0"
+
+
+ROOT_DEV = (5, 3)
+ROOT_SOURCE = "/dev/sd0c"
+ROOT_DEV_RE = re.compile(r"root dev\s*=\s*\((\d+),(\d+)\)")
+ROOT_MOUNT_RE = re.compile(r"^(/dev/\S+) on /(?:\s|$)")
+
+
+def parse_root_dev(lines):
+    """The (major, minor) the kernel prints as `root dev = (M,m)`, or None."""
+    for line in lines:
+        found = ROOT_DEV_RE.search(line)
+        if found:
+            return int(found.group(1)), int(found.group(2))
+    return None
+
+
+def parse_mount_root(lines):
+    """The device that `mount` shows on /, or None."""
+    for line in lines:
+        found = ROOT_MOUNT_RE.match(line.strip())
+        if found:
+            return found.group(1)
+    return None
+
+
+def root_verdict(root_dev, mount_source, flash_words):
+    """Failures in the root observations; an empty list is a pass.
+
+    root_dev is the (major, minor) the kernel printed, mount_source the
+    device `mount` names on /, and flash_words maps each sampled address of
+    the flash root region to the word read there after the boot.
+    """
+    failures = []
+    if root_dev != ROOT_DEV:
+        failures.append(f"root dev {root_dev}, want {ROOT_DEV}")
+    if mount_source != ROOT_SOURCE:
+        failures.append(f"/ mounted from {mount_source}, want {ROOT_SOURCE}")
+    if sorted(flash_words) != sorted(FOREIGN_SAMPLES):
+        failures.append("flash root samples are not the sampled addresses")
+    bad = [hex(a) for a, w in sorted(flash_words.items()) if w != FOREIGN * 0x01010101]
+    if bad:
+        failures.append(f"flash root region rewritten at {bad}")
+    return failures
+
+
+def self_test():
+    """Calibrate root_verdict() and the parsers; returns failure messages."""
+    good_words = {a: FOREIGN * 0x01010101 for a in FOREIGN_SAMPLES}
+    failures = []
+
+    def expect(label, got, want):
+        if got != want:
+            failures.append(f"{label}: {got!r}, want {want!r}")
+
+    expect("good observations", root_verdict(ROOT_DEV, ROOT_SOURCE, good_words), [])
+    altered = {
+        "minor of sd0b": ((5, 2), ROOT_SOURCE, good_words),
+        "minor of sd0d": ((5, 4), ROOT_SOURCE, good_words),
+        "major of fl0": ((4, 3), ROOT_SOURCE, good_words),
+        "root dev unread": (None, ROOT_SOURCE, good_words),
+        "mount source sd0b": (ROOT_DEV, "/dev/sd0b", good_words),
+        "mount source fl0": (ROOT_DEV, "/dev/fl0a", good_words),
+        "mount unread": (ROOT_DEV, None, good_words),
+    }
+    for label, (dev, source, words) in altered.items():
+        if not root_verdict(dev, source, words):
+            failures.append(f"{label}: accepted")
+    for address in FOREIGN_SAMPLES:
+        words = dict(good_words)
+        words[address] ^= 0x00000100
+        if not root_verdict(ROOT_DEV, ROOT_SOURCE, words):
+            failures.append(f"flash word at {address:#x} changed: accepted")
+        words = dict(good_words)
+        del words[address]
+        if not root_verdict(ROOT_DEV, ROOT_SOURCE, words):
+            failures.append(f"flash word at {address:#x} missing: accepted")
+    expect("parse root dev", parse_root_dev(["x", "root dev  = (5,3)"]), (5, 3))
+    expect("parse root dev none", parse_root_dev(["root dev  = (5,x)"]), None)
+    expect("parse mount root", parse_mount_root(["$ mount", "/dev/sd0c on / (rw)"]), "/dev/sd0c")
+    expect("parse mount other mount point", parse_mount_root(["/dev/sd0c on /home"]), None)
+    expect("parse mount echoed command", parse_mount_root(["$ /dev/sd0c on /"]), None)
+    return failures
 
 
 def flat_kernel(path):
@@ -161,23 +257,35 @@ def case_root(renode_path, kernel, flash, root_img, outdir, layout):
         run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
         run.wait_for(ROOT_LINES + [LAYOUTS[layout][2]], "root lines", SD_BUDGET_SECONDS)
         run.snapshot("root")
-        run.wait_for(["root dev  = (5,3)"], "root device sd0c", SD_BUDGET_SECONDS)
+        run.wait_until(
+            lambda: parse_root_dev(run.lines) is not None,
+            "root device line",
+            "a root dev line",
+            SD_BUDGET_SECONDS,
+        )
+        root_dev = parse_root_dev(run.lines)
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")
         run.wait_for_prompt("shell prompt", cp.KEY_BUDGET_SECONDS)
         run.type_line("mount")
-        run.wait_for(["/dev/sd0c on /"], "mount names the SD root", cp.KEY_BUDGET_SECONDS)
+        run.wait_until(
+            lambda: parse_mount_root(run.lines) is not None,
+            "mount root line",
+            "a mount line for /",
+            cp.KEY_BUDGET_SECONDS,
+        )
+        mount_source = parse_mount_root(run.lines)
         run.snapshot("mount")
-        bad = [
-            hex(a)
-            for a in FOREIGN_SAMPLES
-            if monitor_int(renode, f"sysbus ReadDoubleWord {a:#x}") != FOREIGN * 0x01010101
-        ]
-        run.expect(not bad, f"flash root region rewritten at {bad}")
+        flash_words = {
+            a: monitor_int(renode, f"sysbus ReadDoubleWord {a:#x}") for a in FOREIGN_SAMPLES
+        }
+        bad = root_verdict(root_dev, mount_source, flash_words)
+        for message in bad:
+            run.fail(message)
         if not bad:
             print(
-                f"check-picocalc-sdroot: flash root region intact at "
-                f"{len(FOREIGN_SAMPLES)} sampled words"
+                f"check-picocalc-sdroot: root dev {root_dev}, / from {mount_source}, "
+                f"flash root region intact at {len(FOREIGN_SAMPLES)} sampled words"
             )
         # The SD root's /etc/ttys runs a getty on tty0, UART0, which the
         # PicoCalc's USB-C port carries.
@@ -212,6 +320,15 @@ def case_nob7(renode_path, kernel, flash, root_img, outdir):
 
 
 def main(argv):
+    if argv == ["--self-test"] or len(argv) == 4:
+        failed = self_test()
+        for message in failed:
+            print(f"check-picocalc-sdroot: self-test FAIL {message}", file=sys.stderr)
+        if failed:
+            return 1
+        print("check-picocalc-sdroot: self-test pass")
+        if argv == ["--self-test"]:
+            return 0
     if len(argv) != 4:
         print(__doc__, file=sys.stderr)
         return 2

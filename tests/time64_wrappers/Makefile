@@ -23,6 +23,8 @@ MEMBERS!=	cd ${TOPSRC}/lib/libc/gen && ls time64_*.c
 OBJS=		${MEMBERS:S,^,${PREFIX}_,:.c=.o} ${PREFIX}_test.o ${PREFIX}_narrow.o
 # The headers that carry the two views; an object is rebuilt when one moves.
 VIEW_HEADERS=	${TOPSRC}/sys/sys/_time_t.h ${TOPSRC}/sys/sys/time.h \
+		${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+		${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
 		${TOPSRC}/sys/sys/stat.h ${TOPSRC}/sys/sys/resource.h \
 		${TOPSRC}/sys/sys/select.h ${TOPSRC}/sys/sys/wait.h
 TREE_CFLAGS=	-std=gnu17 -Wall -Wextra -Werror -Os ${QEMU_ARM_CPUFLAGS} \

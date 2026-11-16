@@ -1,5 +1,28 @@
 # Tests and gates
 
+`check-public-time-types` belongs to `check-cross`. It checks 816 valid
+standalone/repeated/order compiler cases across four feature selectors, both
+cross time views, and GNU17, GNU strict C17, and Clang strict C17. Twenty-four
+compiled objects retain the expected select/time linker names, six kernel
+cases preserve narrow records under either requested time selector, and 33
+negative compiler cases reject missing type owners, public-header namespace
+expansion, changed field widths/signedness, a removed structure guard, and
+invalid syntax. All 24 orders of time.h, sys/time.h, sys/select.h, and signal.h
+receive witnesses; sys/types.h also receives standalone/repeated witnesses.
+272 cross-preprocessed Smaller C inputs compile and assemble with the actual
+32-bit native time policy under both requested selectors. Invalid syntax and
+an incorrect width must reject. Four compiler-diagnostic controls, four native
+syntax controls, and six native-width diagnostic controls reject unrelated
+failures, signal exits, false success, and missing or extra diagnostics.
+The driver requires explicit `PYTHON`, ARM GCC/binutils, Clang, and a host C
+compiler. It writes source, tool, case, and object identities to
+`.build-logs/public-time-types.json`. Replay through the named Make target or
+its driver's `--root`, `--host-cc`, and `--output` options. Firmware CI owns
+the gate through check-cross. Compiler/object acceptance remains separate from
+the time64 wrapper execution gate, native runtime, kernel time semantics,
+Renode, and physical hardware. Narrow timeval seconds retain signed long;
+that legacy layout supplies no new POSIX time_t member claim.
+
 `check-fd-set-cross` belongs to `check-cross`. It checks `FD_ZERO` use through
 standalone, repeated, and reordered `<sys/select.h>` inclusion with types,
 time, signal, and string headers. GNU17, GNU strict C17, and Clang strict C17

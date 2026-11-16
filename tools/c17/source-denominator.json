@@ -19589,7 +19589,9 @@
       "profile": "unreviewed",
       "native_input": "unreviewed",
       "language_state": "unreviewed",
-      "evidence": [],
+      "evidence": [
+        "docs/research/public-time-type-ownership.md"
+      ],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
       "classification": {
         "source_kind": "header",
@@ -66396,6 +66398,72 @@
       }
     },
     {
+      "path": "sys/sys/_sigset_t.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "public-time-type-owners",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/public-time-type-ownership.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "kernel-syscall",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "sys/sys/_suseconds_t.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "public-time-type-owners",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/public-time-type-ownership.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "kernel-syscall",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "sys/sys/_time_t.h",
       "class": "unreviewed",
       "scope": "unreviewed",
@@ -66422,6 +66490,72 @@
           "inline_assembly": [
             "inline-assembly"
           ],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "sys/sys/_timespec.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "public-time-type-owners",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/public-time-type-ownership.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "kernel-syscall",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "sys/sys/_timeval.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "public-time-type-owners",
+      "profile": "modernized-cross-userland",
+      "native_input": "yes",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/public-time-type-ownership.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "kernel-syscall",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
@@ -67792,7 +67926,8 @@
       "native_input": "unreviewed",
       "language_state": "unreviewed",
       "evidence": [
-        "docs/research/descriptor-set-initialization.md"
+        "docs/research/descriptor-set-initialization.md",
+        "docs/research/public-time-type-ownership.md"
       ],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
       "classification": {
@@ -67827,7 +67962,9 @@
       "profile": "unreviewed",
       "native_input": "unreviewed",
       "language_state": "unreviewed",
-      "evidence": [],
+      "evidence": [
+        "docs/research/public-time-type-ownership.md"
+      ],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
       "classification": {
         "source_kind": "header",
@@ -68287,7 +68424,8 @@
       "evidence": [
         "docs/research/tar-descriptor-timestamp-identity.md",
         "usr.bin/smlrc/tests/t18_stdio.c",
-        "sys/arch/rp2040/doc/TESTING.md"
+        "sys/arch/rp2040/doc/TESTING.md",
+        "docs/research/public-time-type-ownership.md"
       ],
       "blocker": "The futimes declaration, repeated inclusion, function-pointer type and native archive member are accepted; remaining public time interfaces, layouts and consumers require caller-complete review.",
       "classification": {
@@ -68485,7 +68623,9 @@
       "profile": "unreviewed",
       "native_input": "unreviewed",
       "language_state": "unreviewed",
-      "evidence": [],
+      "evidence": [
+        "docs/research/public-time-type-ownership.md"
+      ],
       "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
       "classification": {
         "source_kind": "header",

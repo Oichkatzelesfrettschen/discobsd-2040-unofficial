@@ -2776,7 +2776,7 @@ USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
 			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
 USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
 			owake-before-drain halt-wait-open halt-wait-sticks \
-			pollc-late
+			pollc-late tx-peak-missing tx-drop-missing tx-drop-wraps
 
 ${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
 	${PYTHON} usb_console_extract.py --source ${USB_CONSOLE_SRC} --output $@
@@ -2831,6 +2831,9 @@ check-usb-console: usb_console_test \
 		halt-wait-open) expected='FAIL halt wait with the tty open' ;; \
 		pollc-late) expected='FAIL halt wait with a key typed during the halt message' ;; \
 		halt-wait-sticks) expected='FAIL key after the halt wait reaches the tty' ;; \
+		tx-peak-missing) expected='FAIL ring filled to its size' ;; \
+		tx-drop-missing) expected='FAIL ring overrun by two bytes' ;; \
+		tx-drop-wraps) expected='FAIL drop count at the unsigned limit' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" usb_console_$$mutation.mutant.out >/dev/null; then \

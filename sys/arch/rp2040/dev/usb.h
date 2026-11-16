@@ -291,9 +291,16 @@ extern u_int usb_e15_bulkin_arms;
  * caller that interrupted the driver, which only a fault can be; the second
  * counts bulk IN buffers released after a completion that never arrived.
  * Both read zero on a healthy boot.
+ *
+ * machdep.usb_tx_peak is the greatest byte count the transmit ring has held
+ * since boot and machdep.usb_tx_dropped the bytes usb_tx_put discarded from
+ * a full ring, saturating at the largest unsigned int. A console that never
+ * overruns the ring reads zero dropped.
  */
 extern u_int usb_service_reentered;
 extern u_int usb_tx_recovered;
+extern u_int usb_tx_peak;
+extern u_int usb_tx_dropped;
 
 void	usbabandon(void);
 #endif	/* KERNEL */

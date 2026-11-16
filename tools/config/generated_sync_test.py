@@ -102,6 +102,7 @@ class GeneratedSyncTest(unittest.TestCase):
     CAPACITY_LINE = "options         CAPACITY_STATS              # fixed-table and u-area peaks\n"
     PCM_LINE = "options         DEV_PCM                     # /dev/audio sample output, cdevsw 13\n"
     PSRAM_LINE = "device          psram\n"
+    PANEL_LINE = "options         LCD_PANELTEST               # panel register sets and readback\n"
 
     def test_variant_config_drift_is_rejected(self):
         self.mutate(sync.COMPILE / "PICOCALC/Config", 'options         "NFL=2"',
@@ -124,6 +125,26 @@ class GeneratedSyncTest(unittest.TestCase):
         self.mutate(sync.COMPILE / "PICOCALC_LEAN/Config", self.PSRAM_LINE,
                     self.PSRAM_LINE + self.SYSTRACE_LINE)
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
+            sync.check(self.root)
+
+    def test_lean_variant_carrying_the_panel_test_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_LEAN/Config", self.PSRAM_LINE,
+                    self.PSRAM_LINE + self.PANEL_LINE)
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
+            sync.check(self.root)
+
+    def test_diagnostic_variant_carrying_the_panel_test_is_rejected(self):
+        # LEAN_DIAG has no /dev/lcdgfx for the panel test to run through.
+        self.mutate(sync.COMPILE / "PICOCALC_LEAN_DIAG/Config", self.PSRAM_LINE,
+                    self.PSRAM_LINE + self.PANEL_LINE)
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN_DIAG: Config must equal"):
+            sync.check(self.root)
+
+    def test_full_kernel_without_the_panel_test_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC/Config", self.PANEL_LINE, "")
+        with self.assertRaisesRegex(
+                sync.SyncError,
+                "PICOCALC_LEAN: PICOCALC Config lacks the directive options LCD_PANELTEST"):
             sync.check(self.root)
 
     def test_full_kernel_without_a_device_option_is_rejected(self):
@@ -160,7 +181,7 @@ class GeneratedSyncTest(unittest.TestCase):
 
     def test_diagnostic_variant_with_an_unlisted_option_is_rejected(self):
         self.mutate(sync.COMPILE / "PICOCALC_LEAN_DIAG/Config", self.PSRAM_LINE,
-                    self.PSRAM_LINE + "options         LCD_PANELTEST\n")
+                    self.PSRAM_LINE + "options         UNLISTED_DIAGNOSTIC\n")
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN_DIAG: Config must equal"):
             sync.check(self.root)
 
@@ -210,7 +231,7 @@ class GeneratedSyncTest(unittest.TestCase):
         ("PICO_DIAG", "PICO", sync.DIAGNOSTIC_OPTIONS, ()),
         ("PICOCALC_LEAN", "PICOCALC", ('options "NMOUNT=2"',),
          sync.OPTIONAL_DEVICE_OPTIONS + sync.DIAGNOSTIC_OPTIONS
-         + ('options "NMOUNT=3"',)),
+         + sync.PANEL_OPTIONS + ('options "NMOUNT=3"',)),
         ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN",
          sync.DIAGNOSTIC_OPTIONS + ('options "NMOUNT=3"',),
          ('options "NMOUNT=2"',)),

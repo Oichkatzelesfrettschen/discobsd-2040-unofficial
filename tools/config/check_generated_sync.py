@@ -17,6 +17,9 @@ BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_LEAN",
 # The diagnostic options a _DIAG kernel adds to its lean base; a further
 # diagnostic option joins this tuple.
 DIAGNOSTIC_OPTIONS = ("options SYSTRACE", "options CAPACITY_STATS")
+# The panel register test runs through /dev/lcdgfx, so only a kernel with
+# DEV_LCDGFX carries it: PICOCALC does and PICOCALC_LEAN omits both.
+PANEL_OPTIONS = ("options LCD_PANELTEST",)
 # The per-driver device options the full PICOCALC kernel carries and
 # PICOCALC_LEAN omits.
 OPTIONAL_DEVICE_OPTIONS = ("options DEV_ADC", "options DEV_GPIO",
@@ -26,7 +29,7 @@ OPTIONAL_DEVICE_OPTIONS = ("options DEV_ADC", "options DEV_GPIO",
 VARIANTS = (
     ("PICO_DIAG", "PICO", DIAGNOSTIC_OPTIONS, ()),
     ("PICOCALC_LEAN", "PICOCALC", (),
-     OPTIONAL_DEVICE_OPTIONS + DIAGNOSTIC_OPTIONS),
+     OPTIONAL_DEVICE_OPTIONS + DIAGNOSTIC_OPTIONS + PANEL_OPTIONS),
     ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN", DIAGNOSTIC_OPTIONS, ()),
 )
 COMPILE = Path("sys/arch/rp2040/compile")

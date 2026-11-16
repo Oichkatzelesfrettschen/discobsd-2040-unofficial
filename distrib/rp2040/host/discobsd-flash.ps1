@@ -18,7 +18,9 @@ be shorter than the enumeration.
     discobsd-flash -Eject          eject the drive, reboot into the kernel
 
 A hung kernel does not answer the reset request: hold BOOTSEL through a
-replug, then run this the same way. Run from PowerShell 5.1 or 7; if
+replug, then run this the same way. Two boards of one host enumerate alike
+(2e8a:000a) and picotool is called without a device selector here: attach one
+board only. The Linux discobsd-flash names a board by USB port. Run from PowerShell 5.1 or 7; if
 scripts are blocked: powershell -ExecutionPolicy Bypass -File discobsd-flash.ps1
 #>
 [CmdletBinding()]

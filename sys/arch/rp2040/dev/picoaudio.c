@@ -45,6 +45,7 @@
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/lcdterm.h>
+#include "picopcm.h"
 
 #define	PWM_SLICE5		(0x40050000UL + 5 * 0x14)
 #define	PWM_CSR			0x00
@@ -74,14 +75,28 @@ _Static_assert(BELL_COUNT >= 2 && BELL_COUNT <= 65536,
 static int bell_ready;		/* The slice and the pin banks are out of reset. */
 static int bell_on;		/* The tone sounds or its start is under way. */
 
-static void
-bell_stop(caddr_t arg __unused)
+/*
+ * Nonzero while /dev/audio (picopcm.c) owns slice 5: a BEL is absorbed and
+ * a tone's pending stop leaves the slice to the samples.
+ */
+int picoaudio_pcm;
+
+/* Hold both pins low and stop slice 5, in any phase of its period. */
+void
+picoaudio_mute(void)
 {
 	PC_REG32(PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =
 	    PC_FUNC_PWM | GPIO_OUTOVER_LOW;
 	PC_REG32(PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =
 	    PC_FUNC_PWM | GPIO_OUTOVER_LOW;
 	PWM_REG(PWM_CSR) = 0;
+}
+
+static void
+bell_stop(caddr_t arg __unused)
+{
+	if (!picoaudio_pcm)
+		picoaudio_mute();
 	bell_on = 0;
 }
 
@@ -93,6 +108,8 @@ lcd_bell(void)
 
 	if (panicstr != NULL)
 		return;		/* Callouts no longer run. */
+	if (picoaudio_pcm)
+		return;
 	s = splhigh();
 	if (bell_on) {
 		splx(s);

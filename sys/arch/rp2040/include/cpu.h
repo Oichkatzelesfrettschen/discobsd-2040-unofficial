@@ -123,7 +123,14 @@
 #define	CPU_IMAGE_LENGTH	40	/* int: flash image bytes */
 #define	CPU_IMAGE_CRC		41	/* int: CRC32 computed at boot */
 #define	CPU_IMAGE_CRC_STORED	42	/* int: CRC32 stamped at the link */
-#define	CPU_MAXID		43	/* number of valid machdep ids */
+/*
+ * The ADC readings of arch/rp2040/dev/adc.c, each one conversion per read:
+ * the die temperature in thousandths of a degree C from the typical sensor
+ * curve, and the Pico's VSYS in millivolts from GPIO29.
+ */
+#define	CPU_ADC_TEMP		43	/* int: die temperature, m degrees C */
+#define	CPU_ADC_VSYS		44	/* int: VSYS, millivolts */
+#define	CPU_MAXID		45	/* number of valid machdep ids */
 
 #ifndef	KERNEL
 #define	CTL_MACHDEP_NAMES { \
@@ -170,5 +177,7 @@
 	{ "image_length", CTLTYPE_INT }, \
 	{ "image_crc", CTLTYPE_INT }, \
 	{ "image_crc_stored", CTLTYPE_INT }, \
+	{ "adc_temp_mc", CTLTYPE_INT }, \
+	{ "adc_vsys_mv", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

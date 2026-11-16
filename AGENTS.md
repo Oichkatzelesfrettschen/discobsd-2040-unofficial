@@ -23,7 +23,14 @@ not address translation. Protection claims require written/read-back register
 values, privilege transition, region coverage and a deliberate fault test;
 `sys/arch/rp2040/doc/MPU.md` owns the map and evidence. Boot ROM V3 is verified
 on the measured board. USB CDC-ACM is the primary console; UART0 on GP0/GP1
-is the fallback. Resolve board ports through `/dev/serial/by-id/*DiscoBSD*`.
+is the fallback. With one board attached, resolve its port through
+`/dev/serial/by-id/*DiscoBSD*`. A kernel that reads the flash unique ID
+reports USB serial `<16 hex digits>-rp2040`; one that cannot, or an older
+kernel, reports `rp2040`, and two such boards enumerate alike (2e8a:000a).
+With two boards attached, name the USB port (`--usb-port 1-3` or
+`DISCOBSD_USB_PORT` for `discobsd-flash`, `discobsd-connect`, `discobsd-term`
+and `discobsd-web`) whatever their serials; all four refuse to act on an
+unnamed board then.
 
 ## Build, image, flash
 

@@ -23,8 +23,21 @@ def test_board_is_selected_by_usb_identity():
         # Windows: the PnP manager upper-cases the instance ID the serial
         # number is read from, and usbser.sys exposes no product string.
         info("COM3", ports.USB_VID, ports.USB_PID, "RP2040", None),
+        # A kernel that read its flash chip reports the unique ID before
+        # the suffix, upper-cased on Windows.
+        info("/dev/ttyACM5", ports.USB_VID, ports.USB_PID, "e66488c15f098435-rp2040", None),
+        info("COM9", ports.USB_VID, ports.USB_PID, "E66488C15F098435-RP2040", None),
+        # A Pico SDK program shares the vendor and product and reports the
+        # bare ID.
+        info("COM11", ports.USB_VID, ports.USB_PID, "E66488C15F098435", None),
     ]
-    assert ports.list_boards(lambda: listing) == ["/dev/ttyACM3", "COM3", "COM7"]
+    assert ports.list_boards(lambda: listing) == [
+        "/dev/ttyACM3",
+        "/dev/ttyACM5",
+        "COM3",
+        "COM7",
+        "COM9",
+    ]
     assert ports.find_board(lambda: listing, environ={}) == "/dev/ttyACM3"
 
 
@@ -81,7 +94,7 @@ def test_term_cli_list_and_probe(capsys, monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(ports, "find_board", lambda: "FAKE")
+    monkeypatch.setattr(ports, "find_board", lambda **_: "FAKE")
     assert term.probe(open_line=lambda dev: Line(), seconds=0.2) == 0
     assert "reachable" in capsys.readouterr().err
 
@@ -213,3 +226,43 @@ def test_escape_arms_across_reads():
     e = term.Escape()
     assert e.feed(b"\x1d") == (b"", None)
     assert e.feed(b"q") == (b"", "quit")
+
+
+def _up(monkeypatch, tmp_path, usb_port):
+    import types
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("DISCOBSD_WEB_TOKEN", raising=False)
+    monkeypatch.delenv("DISCOBSD_HOST_IP", raising=False)
+    if usb_port is None:
+        monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+    else:
+        monkeypatch.setenv("DISCOBSD_USB_PORT", usb_port)
+    monkeypatch.setattr(console, "systemd_units_installed", lambda home=None: True)
+    monkeypatch.setattr(console.subprocess, "call", lambda argv: 0)
+    monkeypatch.setattr(console.time, "sleep", lambda s: None)
+    monkeypatch.setattr(console, "_http_answers", lambda url, timeout=3.0: True)
+    args = types.SimpleNamespace(
+        host_ip="10.0.0.5", port=7681, link_port=42069, bind="0.0.0.0", detached=False
+    )
+    return console.cmd_up(args), tmp_path / "discobsd" / "web.env"
+
+
+def test_up_writes_the_usb_port_into_the_unit_environment_file(monkeypatch, tmp_path):
+    rc, env_path = _up(monkeypatch, tmp_path, "1-3")
+    assert rc == 0
+    assert console.read_env(env_path)["DISCOBSD_USB_PORT"] == "1-3"
+    # The selector is dropped from the file when the caller no longer sets it.
+    rc, env_path = _up(monkeypatch, tmp_path, None)
+    assert rc == 0
+    assert "DISCOBSD_USB_PORT" not in console.read_env(env_path)
+    rc, env_path = _up(monkeypatch, tmp_path, "")
+    assert "DISCOBSD_USB_PORT" not in console.read_env(env_path)
+
+
+@pytest.mark.parametrize("value", ["1-3\nExecStart=x", "usb1", "1-", "../x"])
+def test_up_refuses_a_malformed_usb_port_before_writing(monkeypatch, tmp_path, value, capsys):
+    rc, env_path = _up(monkeypatch, tmp_path, value)
+    assert rc == 1
+    assert not env_path.exists()
+    assert "DISCOBSD_USB_PORT" in capsys.readouterr().err

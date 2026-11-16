@@ -294,11 +294,17 @@ jobs:
 
       # check-signal-sets-cross owns target signatures and Smaller C input;
       # check-signal-sets-qemu owns real-header Cortex-M0 set execution.
+      # check-fd-set-cross checks standalone macros and Smaller C input;
+      # check-fd-set-host/qemu check initialized sets and getty I/O ownership.
       # check-cross owns the string namespace/signature and expanded Smaller C
       # header gate on both host platforms; runtime behavior stays separate.
       # It also owns root-header inclusion and curses integer ABI calibration.
       # It also calibrates explicit shared-libc API/provider closure with ARM
       # object archives through check-libc-shared-closure on both platforms.
+      # check-libc-declaration-census inventories root-header exposure and
+      # linker-name providers across feature modes and both time widths.
+      # check-libc-pic-replay calibrates captured compiler replay and source,
+      # tool, archive, standard-input and output ownership before PIC sizing.
       - name: Run the cross tier
         if: env.FULL_GATES == 'true'
         timeout-minutes: 20
@@ -343,6 +349,8 @@ jobs:
         # native-call veneers and shared ROM dispatch under Unicorn with
         # ARMv6-M encoding and malformed-descriptor controls. Byte-search
         # instruction work has separate scalar, state and budget controls.
+        # Callable slots also check canonical pointers, exact ELF extents,
+        # LTO, weak aliases and callbacks from a separately linked SRAM image.
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \

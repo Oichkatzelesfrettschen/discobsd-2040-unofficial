@@ -310,6 +310,72 @@ sr_expand(unsigned int off, unsigned int clen, caddr_t dst, unsigned int rlen,
     return rlen;
 }
 
+#ifdef SWAP_IMAGE_ALIGN
+/* Reservation calls the admission probe has counted as refused. */
+static uint32_t
+refusal_reasons(void)
+{
+    return storage_counts[STORAGE_SWAPRAM_REFUSED_CLOSED] +
+        storage_counts[STORAGE_SWAPRAM_REFUSED_CODEC] +
+        storage_counts[STORAGE_SWAPRAM_REFUSED_ENCODE] +
+        storage_counts[STORAGE_SWAPRAM_REFUSED_NOSPACE] +
+        storage_counts[STORAGE_SWAPRAM_REFUSED_FRAGMENT];
+}
+
+/* The same sum over a saved copy of the counters. */
+static uint32_t
+reasons_before(const uint32_t *saved)
+{
+    return saved[STORAGE_SWAPRAM_REFUSED_CLOSED] +
+        saved[STORAGE_SWAPRAM_REFUSED_CODEC] +
+        saved[STORAGE_SWAPRAM_REFUSED_ENCODE] +
+        saved[STORAGE_SWAPRAM_REFUSED_NOSPACE] +
+        saved[STORAGE_SWAPRAM_REFUSED_FRAGMENT];
+}
+
+/* Completed swap-outs the span histogram has counted for flash. */
+static uint32_t
+flash_span_total(const uint32_t *counts)
+{
+    uint32_t total = 0;
+    unsigned int bin;
+
+    for (bin = 0; bin < 12; bin++)
+        total += counts[STORAGE_SWAPRAM_FLASH_SPAN_01 + bin];
+    return total;
+}
+
+/*
+ * Exact expectations cover the swap-out counters that predate the probe;
+ * the probe's own counters take the observed values and are checked by
+ * relation where a case needs them.
+ */
+static void
+probe_ignore(uint32_t *expected)
+{
+    unsigned int metric;
+
+    for (metric = STORAGE_SWAPRAM_ADMISSIONS + 1;
+        metric < STORAGE_METRIC_COUNT; metric++)
+        expected[metric] = storage_counts[metric];
+}
+#endif
+
+/*
+ * The admission probe scans process bytes through the logical addresses
+ * above; an empty range names no byte.
+ */
+static const unsigned char *
+fixture_logical_bytes(caddr_t source, size_t length)
+{
+    unsigned long offset = (unsigned long)(u_long)source - 0x20000000UL;
+
+    if (length == 0)
+        return NULL;
+    HK_CHECK(offset + length <= sizeof(parent_bytes));
+    return parent_bytes + offset;
+}
+
 /* Logical process addresses avoid host mappings of the RP2040 RAM window. */
 static int
 sr_encode(caddr_t source, size_t length, unsigned char *target,
@@ -474,6 +540,7 @@ recorded_refusals(void)
     struct forkstat saved_forkstat;
     struct vmrate saved_count;
     uint32_t saved_storage[STORAGE_METRIC_COUNT];
+    uint32_t saved_reasons;
     unsigned int map_index, blocks, cursor, use_vfork;
 
     for (map_index = 0; map_index < 3; map_index++)
@@ -498,6 +565,7 @@ recorded_refusals(void)
         bcopy(&forkstat, &saved_forkstat, sizeof(forkstat));
         bcopy(&cnt, &saved_count, sizeof(cnt));
         bcopy(storage_counts, saved_storage, sizeof(storage_counts));
+        saved_reasons = refusal_reasons();
         HK_CHECK(swap_image_reserve(&reservation, freeproc, &proc[0],
             X_OLDSIZE, X_OLDSIZE) == ENOMEM);
         HK_CHECK(reservation.state == SWAP_IMAGE_EMPTY);
@@ -525,7 +593,14 @@ recorded_refusals(void)
         HK_CHECK(same_bytes(&sr_map, &saved_pool, sizeof(sr_map)));
         HK_CHECK(same_bytes(&forkstat, &saved_forkstat, sizeof(forkstat)));
         HK_CHECK(same_bytes(&cnt, &saved_count, sizeof(cnt)));
-        HK_CHECK(same_bytes(storage_counts, saved_storage, sizeof(storage_counts)));
+        /*
+         * A refused fork leaves the swap-out accounting alone. The admission
+         * probe counts each refused reservation call by reason, and the
+         * explicit reserve above and the fork's own are two such calls.
+         */
+        HK_CHECK(same_bytes(storage_counts, saved_storage,
+            (STORAGE_SWAPRAM_ADMISSIONS + 1) * sizeof(storage_counts[0])));
+        HK_CHECK(refusal_reasons() - saved_reasons == 2);
         HK_CHECK(writes == 0);
         HK_CHECK(mpid == 100);
     }
@@ -613,6 +688,8 @@ successful_forks(void)
         HK_CHECK(cnt.v_swpout == 1);
         HK_CHECK(storage_counts[STORAGE_SWAPRAM_ATTEMPTS] == 1);
         HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMISSIONS] == 0);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_FLASH_SWAPOUTS] == 1);
+        HK_CHECK(flash_span_total(storage_counts) == 1);
         HK_CHECK(forkstat.cntfork == (use_vfork ? 0U : 1U));
         HK_CHECK(forkstat.cntvfork == (use_vfork ? 1U : 0U));
         HK_CHECK(descriptor.f_count == 2);
@@ -1478,6 +1555,10 @@ sched_refusal_case(int in_core_state, unsigned int shape, unsigned int cursor)
         bcopy(sched_before.storage, expected_storage, sizeof(storage_counts));
 #ifdef SWAPRAM
         expected_storage[STORAGE_SWAPRAM_ATTEMPTS] += 2;
+        probe_ignore(expected_storage);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_SCHED_REFUSALS] -
+            sched_before.storage[STORAGE_SWAPRAM_SCHED_REFUSALS] == 2);
+        HK_CHECK(refusal_reasons() - reasons_before(sched_before.storage) == 2);
 #endif
         {
             int refusal_accounted = same_bytes(storage_counts,
@@ -1577,9 +1658,18 @@ sched_next_candidate_case(int in_core_state)
             same_bytes(&sr_map, &sched_before.pool, sizeof(sr_map)) &&
             same_bytes(sr_pool, sched_before.pool_bytes, sizeof(sr_pool));
 
-        /* One refusal and the start of one exchange. */
+        /* One refusal and the start of one exchange, counted as an attempt. */
         bcopy(sched_before.storage, expected_storage, sizeof(storage_counts));
         expected_storage[STORAGE_SWAPRAM_ATTEMPTS] += 2;
+        probe_ignore(expected_storage);
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_SCHED_REFUSALS] -
+            sched_before.storage[STORAGE_SWAPRAM_SCHED_REFUSALS] == 1);
+        /* The fixture stops at the first media call: no completion yet. */
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS] -
+            sched_before.storage[STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS] == 0);
+        HK_CHECK(flash_span_total(storage_counts) ==
+            flash_span_total(sched_before.storage));
+        HK_CHECK(refusal_reasons() - reasons_before(sched_before.storage) == 2);
         {
             int attempts_accounted = same_bytes(storage_counts,
                 expected_storage, sizeof(storage_counts));
@@ -1753,6 +1843,103 @@ unreserved_swapout(void)
 
 static void boot_refusal_call(void) { fork_swap_boot(); panic("boot child"); }
 
+#if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
+/*
+ * Pool refusals: a pool whose free runs are set by hand, one reservation of
+ * a known size, and the exact reason, sums and shortfall bin the probe must
+ * record. The data segment encodes to d bytes (the fixture's encoder gives
+ * one per 32), the stack is empty, and the u area reserves SR_WORST(USIZE),
+ * so the demand is d + SR_WORST(USIZE) rounded up to the pool grain. A bin
+ * counts the shortfall (demand minus the largest run) in KiB steps: bin 0
+ * holds 1..1024 bytes, bin 7 everything above 7168.
+ */
+struct probe_pool_case {
+    unsigned int runs[3];       /* free run sizes, zero ends the list */
+    unsigned int d;
+    int fragment;               /* enough free bytes, no single run */
+    unsigned int bin;
+    int data_fits;
+};
+
+static void
+probe_pool_case(const struct probe_pool_case *c)
+{
+    unsigned int index, runs = 0, total = 0, largest = 0, want, need, bin;
+    unsigned int shortfall, expected;
+    enum storage_metric reasons[5] = { STORAGE_SWAPRAM_REFUSED_CLOSED,
+        STORAGE_SWAPRAM_REFUSED_CODEC, STORAGE_SWAPRAM_REFUSED_ENCODE,
+        STORAGE_SWAPRAM_REFUSED_NOSPACE, STORAGE_SWAPRAM_REFUSED_FRAGMENT };
+
+    reset_fixture();
+    sr_admit = 1;
+    for (index = 0; index < 3 && c->runs[index] != 0; index++) {
+        sr_seg[index].s_off = index * 4096;
+        sr_seg[index].s_size = c->runs[index];
+        total += c->runs[index];
+        if (c->runs[index] > largest)
+            largest = c->runs[index];
+        runs++;
+    }
+    sr_map.p_used = runs;
+    want = c->d + SR_WORST(USIZE);
+    need = (want + SWAPRAM_GRAIN - 1) & ~(unsigned int)(SWAPRAM_GRAIN - 1);
+    HK_CHECK(need > largest && (need > total) == !c->fragment);
+    shortfall = need - largest;
+    bin = (shortfall + 1023) / 1024 - 1;
+    HK_CHECK((bin > 7 ? 7 : bin) == c->bin);
+
+    HK_CHECK(swapram_reserve(&proc[1], (caddr_t)0x20000000, c->d * 32, NULL,
+        0, USIZE) == 0);
+    for (index = 0; index < 5; index++) {
+        expected = reasons[index] == (c->fragment ?
+            STORAGE_SWAPRAM_REFUSED_FRAGMENT :
+            STORAGE_SWAPRAM_REFUSED_NOSPACE);
+        HK_CHECK(storage_counts[reasons[index]] == expected);
+    }
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_REFUSED_WANT_BYTES] == want);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_REFUSED_FREE_BYTES] == total);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_REFUSED_LARGEST_BYTES] == largest);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_REFUSED_DATA_FITS] ==
+        (unsigned int)c->data_fits);
+    for (index = 0; index < 8; index++)
+        HK_CHECK(storage_counts[STORAGE_SWAPRAM_SHORT_1K + index] ==
+            (index == c->bin));
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_REFUSE_SCAN_BYTES] == c->d * 32);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMIT_SCAN_BYTES] == 0);
+    HK_CHECK(storage_counts[STORAGE_SWAPRAM_ADMITTED_DATA_BYTES] == 0);
+    HK_CHECK(sr_map.p_used == runs && swapram_pool_avail(&sr_map) == total);
+}
+
+static void
+probe_pool_refusals(void)
+{
+    static const struct probe_pool_case cases[] = {
+        /* Too few free bytes, either side of the 1 KiB bin edge. */
+        { { 4000 }, 1564, 0, 0, 1 },
+        { { 4000 }, 1565, 0, 1, 1 },
+        /* The demand is one grain over the free total, then equal to it. */
+        { { 2500, 2496 }, 1540, 0, 2, 1 },
+        { { 2500, 2500 }, 1540, 1, 2, 1 },
+        /* Enough free bytes in two runs, either side of 1 and 2 KiB. */
+        { { 4000, 4000 }, 1564, 1, 0, 1 },
+        { { 4000, 4000 }, 1568, 1, 1, 1 },
+        { { 3000, 3000 }, 1588, 1, 1, 1 },
+        { { 3000, 3000 }, 1592, 1, 2, 1 },
+        /* The compressed data alone fits the largest run, then does not. */
+        { { 4000, 4000 }, 4000, 1, 3, 1 },
+        { { 4000, 4000 }, 4001, 1, 3, 0 },
+        { { 4000, 4000 }, 4100, 1, 3, 0 },
+        /* The top of the 7 KiB bin and the open bin above it. */
+        { { 1000 }, 4708, 0, 6, 0 },
+        { { 1000 }, 4712, 0, 7, 0 },
+    };
+    unsigned int index;
+
+    for (index = 0; index < sizeof(cases) / sizeof(cases[0]); index++)
+        probe_pool_case(&cases[index]);
+}
+#endif
+
 int
 main(void)
 {
@@ -1785,6 +1972,7 @@ main(void)
 #ifdef SWAPRAM
     swapram_lifecycle();
     swapin_ram_release();
+    probe_pool_refusals();
 #endif
 #else
     nonaligned_success_and_cancel();

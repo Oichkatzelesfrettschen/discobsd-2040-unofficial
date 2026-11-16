@@ -42,7 +42,7 @@ static int check_memchr(void)
             const unsigned char *want = (unsigned char)c < n ?
                 data + (unsigned char)c : NULL;
             if (tree_memchr(data, c, n) != want) {
-                fprintf(stderr, "byte conversion: c=%d n=%zu\n", c, n);
+                fprintf(stderr, "byte conversion: c=%d n=%lu\n", c, (unsigned long)n);
                 return 5;
             }
             checks++;
@@ -76,7 +76,7 @@ static int check_memchr(void)
     }
     if (munmap(map, 2*page)) return 4;
 #endif
-    printf("memchr: %zu conversion and extent cases pass\n", checks);
+    printf("memchr: %lu conversion and extent cases pass\n", (unsigned long)checks);
     return 0;
 }
 void *candidate_memmem(const void *, size_t, const void *, size_t);
@@ -95,12 +95,13 @@ static void check(const unsigned char *h, size_t n, const unsigned char *p, size
     search_comparisons = 0;
     const unsigned char *got = candidate_memmem(h, n, p, m);
     if (got != want) {
-        fprintf(stderr, "oracle: n=%zu m=%zu got=%td want=%td\n", n, m,
-            got ? got - h : -1, want ? want - h : -1);
+        fprintf(stderr, "oracle: n=%lu m=%lu got=%ld want=%ld\n", (unsigned long)n,
+            (unsigned long)m, got ? (long)(got - h) : -1L, want ? (long)(want - h) : -1L);
         exit(1);
     }
     if (search_comparisons > 2 * n + 7 * m) {
-        fprintf(stderr, "comparison bound: n=%zu m=%zu count=%zu\n", n, m, search_comparisons);
+        fprintf(stderr, "comparison bound: n=%lu m=%lu count=%lu\n", (unsigned long)n,
+            (unsigned long)m, (unsigned long)search_comparisons);
         exit(2);
     }
     if (m && m <= n && !search_comparisons) {
@@ -171,6 +172,7 @@ int main(int argc, char **argv)
     }
     for (size_t i = 0; i < 2; ++i) if (munmap(maps[i],2*page)) return 4;
 #endif
-    printf("byte search: %zu earliest-match and comparison-bound cases pass; maximum count %zu\n", cases, maximum_count);
+    printf("byte search: %lu earliest-match and comparison-bound cases pass; maximum count %lu\n",
+        (unsigned long)cases, (unsigned long)maximum_count);
     return 0;
 }

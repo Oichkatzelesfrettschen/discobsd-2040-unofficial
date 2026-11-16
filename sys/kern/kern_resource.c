@@ -230,17 +230,17 @@ getrusage(void)
 void
 ruadd(struct k_rusage *ru, struct k_rusage *ru2)
 {
-    register long *ip, *ip2;
-    register int i;
-
-    /*
-     * since the kernel timeval structures are single longs,
-     * fold them into the loop.
-     */
-    ip = &ru->k_ru_first;
-    ip2 = &ru2->k_ru_first;
-    for (i = &ru->k_ru_last - &ru->k_ru_first; i >= 0; i--)
-        *ip++ += *ip2++;
+    /* Each counter is a distinct C object, not an array element. */
+    ru->ru_utime += ru2->ru_utime;
+    ru->ru_stime += ru2->ru_stime;
+    ru->ru_nswap += ru2->ru_nswap;
+    ru->ru_inblock += ru2->ru_inblock;
+    ru->ru_oublock += ru2->ru_oublock;
+    ru->ru_msgsnd += ru2->ru_msgsnd;
+    ru->ru_msgrcv += ru2->ru_msgrcv;
+    ru->ru_nsignals += ru2->ru_nsignals;
+    ru->ru_nvcsw += ru2->ru_nvcsw;
+    ru->ru_nivcsw += ru2->ru_nivcsw;
 }
 
 /*

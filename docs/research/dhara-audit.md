@@ -26,7 +26,7 @@ Revisions and paths:
 ## Finding
 
 1. **The tear comes from the format, not from the fix.** One checkpoint page is four 256-byte chip programs, and recovery trusts its first four bytes. Under the prefix model, the old kernel keeps sector 0 readable only when the cut falls after the alt pointer that leads to sector 0. That band is the last 12 bytes of the root slot (cuts 932 to 943) for a root sector id of 13, and the last 4 bytes (940 to 943) for id 3 (M). For an id below 1,024 it is at most 36 bytes, about 14 microseconds of clocking (I, from the layout). Every other torn cut leaves sector 0 blank or unreadable (M), and `fl_setup()` then finds no partition table or returns ENXIO (`flash.c:898-909`). Such a root does not boot, and the user reflashes.
-2. **D26 is real, and its population is near zero (I).** A root that the old kernel kept using after such a tear carries a sector count above its node count in every later checkpoint, and the gap never closes (M). PR 636 treats it in one of three ways (M), depending on what followed the tear:
+2. **D26 is real; how many roots in service carry it is unknown (I).** A root that the old kernel kept using after such a tear carries a sector count above its node count in every later checkpoint, and the gap never closes (M). PR 636 treats it in one of three ways (M), depending on what followed the tear:
    - With eight or more blocks written since, it rejects every checkpoint in its window and resumes blank.
    - With fewer, it steps back to the checkpoint before the tear. The lost sectors return, but every write the old kernel acknowledged since is dropped without a message.
    - When the old kernel could not checkpoint again (a torn pointer on the sync path), it recovers the pre-tear state in full.
@@ -669,6 +669,15 @@ int main(int argc, char **argv)
 ```
 
 ### D28 refusal, against PR 636 and `main`
+
+This sketch is incomplete. `find_checkblock()` also reaches its final exit when
+blocks 0-7 hold programmed but invalid checkpoint pages (for example eight torn
+checkpoint headers) while later blocks keep recoverable checkpoints, so
+returning `DHARA_E_NOT_FOUND` there classifies that damaged region as fresh
+and reopens the destructive empty mount. A complete refusal separates an
+erased region (every page of blocks 0-7 reads as erased) from one with
+programmed but unacceptable pages, and gains a known-bad oracle row for that
+case before it lands.
 
 ```diff
 --- a/sys/arch/rp2040/dhara/journal.c

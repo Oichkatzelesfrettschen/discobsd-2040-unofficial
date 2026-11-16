@@ -106,6 +106,17 @@ dec(const uint8_t *src, unsigned clen, uint8_t *dst, unsigned rlen)
  * build.sh compares both function bodies and the UNALIGNED macro with
  * machdep.c and fails on any difference.
  */
+/*
+ * The two routines below keep the notice of the file they come from. It
+ * follows verbatim, and build.sh fails when bench.c does not carry it.
+ */
+/*
+ * Copyright (c) 1986 Regents of the University of California.
+ * All rights reserved.  The Berkeley software License Agreement
+ * specifies the terms and conditions for redistribution.
+ *
+ *	@(#)machdep.c	2.4 (2.11BSD) 1999/9/13
+ */
 #define UNALIGNED(p, sz)	((u_int)(p) & ((sz) - 1))
 
 void

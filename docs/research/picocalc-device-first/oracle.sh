@@ -28,6 +28,7 @@
 #
 # usage: PYTHON=python3 oracle.sh [--probe | --compare NEW [ORACLE]]
 #
+# A row whose round trip did not reproduce its input fails whatever the oracle holds.
 # The committed file is the fixed oracle of the cycle-model measurements in
 # docs/research/picocalc-device-first-memory.md. Cycle counts belong to one
 # compiler, so an oracle recorded by another compiler version gives exit 3 with
@@ -106,6 +107,12 @@ if [ "$mode" = run ]; then
 fi
 
 drift=0
+# A failed round trip fails the gate whether or not its cycle counts compare.
+bad=$(grep -v '^#' "$new" | grep -v '^segment' | awk -F'\t' '$NF != "ok" { print $1 }' || true)
+if [ -n "$bad" ]; then
+    echo "oracle.sh: round trip failed for: $bad" >&2
+    drift=1
+fi
 check_line() { # label old new
     if [ "$2" != "$3" ]; then
         echo "oracle.sh: $1 differs from the oracle" >&2

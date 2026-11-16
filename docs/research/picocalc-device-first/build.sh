@@ -75,6 +75,8 @@ AWK_AOUT=${AWK_AOUT:-$ROOT/usr.bin/awk/awk}
 HS=$ROOT/sys/arch/rp2040/heatshrink
 
 mkdir -p "$OUT"
+# Later steps change into the PICO directory, so OUTDIR must be absolute.
+OUT=$(cd "$OUT" && pwd)
 if [ "$(cd "$OUT" && pwd -P)" = "$(cd "$HERE" && pwd -P)" ] ||
     { [ -e "$OUT/run-output.tsv" ] && [ "$OUT/run-output.tsv" -ef "$HERE/run-output.tsv" ]; }; then
     echo "build.sh: OUTDIR $OUT aliases the golden run-output.tsv" >&2
@@ -94,6 +96,15 @@ for fn in bzero bcopy; do
         exit 2
     fi
 done
+# The copied routines keep the Regents notice and version banner of machdep.c.
+inherited=$(sed -n 1,7p "$ROOT/sys/arch/rp2040/rp2040/machdep.c")
+case "$(cat "$HERE/bench.c")" in
+*"$inherited"*) ;;
+*)
+    echo "build.sh: bench.c lacks the inherited notice of machdep.c lines 1-7" >&2
+    exit 2
+    ;;
+esac
 if [ "$(grep '^#define UNALIGNED' "$ROOT/sys/arch/rp2040/rp2040/machdep.c")" != \
     "$(grep '^#define UNALIGNED' "$HERE/bench.c")" ]; then
     echo "build.sh: bench.c UNALIGNED differs from machdep.c" >&2

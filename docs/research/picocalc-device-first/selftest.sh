@@ -134,6 +134,28 @@ perturb 'sh data+bss' 4 "$T/base/run-output.tsv" |
 expect_exit 0 "NOTE: the sh and awk rows were not compared" \
     "oracle: sh row off with other inputs" run_oracle
 
+# A failed round trip fails the oracle even when the input hashes differ and the
+# sh row is therefore not compared.
+run_oracle_with() {
+    sh "$T/h/oracle.sh" --compare "$1" "$T/oracle.tsv"
+}
+cp "$T/base/run-output.tsv" "$T/oracle.tsv"
+awk 'BEGIN { FS = OFS = "\t" } $1 == "sh data+bss" { $NF = "FAIL" } { print }' \
+    "$T/base/run-output.tsv" |
+    sed 's/^# input sh sha256 .*/# input sh sha256 0/' >"$T/failnew.tsv"
+expect_exit 1 "round trip failed for: sh data+bss" \
+    "oracle: failed round trip with other inputs" run_oracle_with "$T/failnew.tsv"
+
+# Known-bad: bench.c without the inherited notice of machdep.c.
+grep -v 'Regents of the University of California' "$HERE/bench.c" >"$T/h/bench.c"
+if cmp -s "$HERE/bench.c" "$T/h/bench.c"; then
+    echo "selftest: the notice removal changed nothing" >&2
+    fail=1
+fi
+expect_diag "lacks the inherited notice" "bench.c without the machdep.c notice" \
+    sh "$T/h/build.sh" "$T/notice"
+cp "$HERE/bench.c" "$T/h/bench.c"
+
 # Known-bad: the golden file disagrees with the model output by one cycle.
 awk 'BEGIN { FS = OFS = "\t" } $1 == "sh data+bss" { $4 = $4 + 1 } { print }' \
     "$T/base/run-output.tsv" >"$T/h/run-output.tsv"
@@ -173,13 +195,23 @@ cp "$HERE/bench.c" "$T/h/bench.c"
 
 # Known-bad: the production compile command is unavailable, or lacks the
 # kernel's code-generation options.
+# BMAKE also stands in for a tree whose kernel build left current objects: it
+# reports "up to date" unless the makefile list forces the recipe (-f).
+cat >"$T/bmake-fresh" <<'EOF'
+#!/bin/sh
+case " $* " in *" -f "*) exec bmake "$@" ;; esac
+for last; do :; done
+echo "$last is up to date."
+EOF
+chmod 755 "$T/bmake-fresh"
 printf '#!/bin/sh\nexit 0\n' >"$T/bmake-empty"
-printf '#!/bin/sh\nexec bmake "$@" | sed "s/ -fshort-enums//"\n' >"$T/bmake-nofl"
+printf '#!/bin/sh\nexec "%s" "$@" | sed "s/ -fshort-enums//"\n' "$T/bmake-fresh" >"$T/bmake-nofl"
 chmod 755 "$T/bmake-empty" "$T/bmake-nofl"
 # The stripping helper must run and still print a compile command, or the
 # case below would test an unrunnable helper instead of the missing flag.
 if ! (cd "$ROOT/sys/arch/rp2040/compile/PICO" &&
-    "$T/bmake-nofl" MACHINE=rp2040 -n heatshrink_encoder.o) >"$T/helper.out" 2>&1 ||
+    "$T/bmake-nofl" MACHINE=rp2040 -n -f Makefile \
+    -f "$T/base/force-heatshrink_encoder.mk" heatshrink_encoder.o) >"$T/helper.out" 2>&1 ||
     ! grep -- ' -c ' "$T/helper.out" | grep -q -- '-fno-strict-aliasing' ||
     grep -- ' -c ' "$T/helper.out" | grep -q -- '-fshort-enums'; then
     echo "selftest: the stripping helper does not run as intended" >&2
@@ -192,8 +224,10 @@ expect_diag "lack the kernel's code-generation flags" \
     env BMAKE="$T/bmake-nofl" sh "$T/h/build.sh" "$T/nofl"
 
 # Known-bad: a decoder one byte short; run.py must exit nonzero.
+# The case also passes a relative OUTDIR, which build.sh must resolve before it
+# changes into the PICO directory.
 set +e
-BENCH_CFLAGS=-DBENCH_MUTANT_SHORT_DECODE sh "$T/h/build.sh" "$T/mut" \
+(cd "$T" && BENCH_CFLAGS=-DBENCH_MUTANT_SHORT_DECODE sh h/build.sh mut) \
     >"$T/log" 2>&1
 set -e
 if ! grep -q 'run.py failed' "$T/log" || ! grep -q 'FAIL' "$T/mut/run-output.tsv"; then
@@ -230,15 +264,6 @@ for tool in gcc nm objcopy; do
         "$tool" "$T/tc.log" "$tool" >"$T/tc/zz-$tool"
     chmod 755 "$T/tc/zz-$tool"
 done
-# BMAKE also stands in for a tree whose kernel build left current objects: it
-# reports "up to date" unless the makefile list forces the recipe (-f).
-cat >"$T/bmake-fresh" <<'EOF'
-#!/bin/sh
-case " $* " in *" -f "*) exec bmake "$@" ;; esac
-for last; do :; done
-echo "$last is up to date."
-EOF
-chmod 755 "$T/bmake-fresh"
 expect_status 0 "known-good run with a prefixed toolchain and current objects" \
     env CC_ARM="$T/tc/zz-gcc" BMAKE="$T/bmake-fresh" sh "$T/h/build.sh" "$T/good"
 for tool in nm objcopy; do

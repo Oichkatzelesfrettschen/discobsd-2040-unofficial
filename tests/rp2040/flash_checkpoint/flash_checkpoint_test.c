@@ -31,6 +31,10 @@
  * driver's RAM state and opens the device again, which runs fl_setup() and
  * dhara_map_resume().
  *
+ * tests/rp2040/flash_reset_cells includes this file with MODEL_ERASE_HOOK and
+ * MODEL_PROGRAM_HOOK defined, which run before each call takes effect and may
+ * stop it part way; without them the model is as described.
+ *
  * Every scenario prints "FAIL <scenario>: <what>" for an unmet expectation;
  * the program exits 1 when any failed. The model's own program-page and
  * erase-sector counts are the wear measure: they count requested 256-byte
@@ -229,6 +233,9 @@ flash_erase(u_int offset, u_int len)
 	}
 	if (spl_level == 0)
 		model_fault("erase without splbio");
+#ifdef MODEL_ERASE_HOOK
+	MODEL_ERASE_HOOK(offset, len);
+#endif
 	memset(nor + offset, 0xff, len);
 	erase_sectors += len / FLASH_SECTOR_BYTES;
 	return 0;
@@ -253,6 +260,9 @@ flash_program(u_int offset, const u_char *data, u_int len)
 			break;
 		}
 	}
+#ifdef MODEL_PROGRAM_HOOK
+	MODEL_PROGRAM_HOOK(offset, data, len);
+#endif
 	for (i = 0; i < len; i++)
 		nor[offset + i] &= data[i];
 	program_pages += len / FLASH_PROG_BYTES;

@@ -27,8 +27,8 @@ CM_BASE_CFLAGS:=${CFLAGS}
 # The EEMBC sources test CORE_DEBUG, PROFILE_RUN, VALIDATION_RUN and
 # COMPILER_REQUIRES_SORT_RETURN with `#if` and leave them undefined; the
 # tree's -Wundef is suppressed here so the benchmark stays as published.
-CFLAGS+=	-O2 -Wno-undef -DITERATIONS=${ITERATIONS} \
-		-DFLAGS_STR='"${CM_BASE_CFLAGS} -O2"'
+CFLAGS+=	-O2 -funroll-loops -Wno-undef -DITERATIONS=${ITERATIONS} \
+		-DFLAGS_STR='"${CM_BASE_CFLAGS} -O2 -funroll-loops"'
 
 OBJS=		core_list_join.o core_main.o core_matrix.o core_state.o \
 		core_util.o core_portme.o

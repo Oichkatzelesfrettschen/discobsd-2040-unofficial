@@ -8,9 +8,15 @@ stage expects. Virtual time is the budget, so a slow host lengthens the run
 without failing it; WALL_SECONDS bounds a hung emulator.
 
 Stages, each asserted on the decoded panel text:
-  banner    the kernel banner, lcd0 and kbd0 probe lines
+  banner    the kernel banner, lcd0 and kbd0 probe lines, and the psram0
+            probe falling back to swap on fl1 (the machine models no PSRAM)
   login     the getty prompt, after the root check, daemons and init
   shell     keys typed through the I2C keyboard model log in and run uname
+
+Before the kernel runs, the panel model answers the ST7365P read commands
+(RDDID, RDDST, RDDPM, RDDMADCTL, RDDCOLMOD, RDDIM, RDDSM, RDDSDR, RDID1 to
+RDID3) with the values ST7365P_SPEC_V1.0 gives after a reset and after the
+driver's init sequence, and holds them across a software reset.
 
 The panel model's counters and registers are asserted from its Status line:
 the init commands the driver sends (MADCTL, COLMOD, VSCRDEF, DISPON), no
@@ -21,6 +27,8 @@ image and runs the crash-dump stages of picocalc_dump.py after the shell
 stage: reboot -d, savecore, and a panic entered from the idle loop.
 
 Usage: check-picocalc.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR [CARD FSUTIL]
+       check-picocalc.py --readback RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR
+                                        only the panel read commands, no boot
        check-picocalc.py --self-test    calibrate the Status-line assertions
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
@@ -48,6 +56,39 @@ BANNER_LINES = [
     "lcd0: ST7365P 320x320 on SPI1, 53x32 cells, console",
     "kbd0: keyboard controller at I2C1 0x1f, firmware 1.6",
 ]
+
+
+# psram.c prints one outcome line per probe. The machine models no part on
+# the PSRAM pins, so the probe must refuse it and leave swap on fl1: the path
+# a PicoCalc whose PSRAM does not answer takes. The panel wraps a line at 53
+# cells and drops trailing blanks, so the match runs on the screen text with
+# every space removed.
+PSRAM_FALLBACK = re.compile(
+    r"psram0:(?:id[0-9a-f]+/[0-9a-f]+isnotanESP-PSRAM64H,"
+    r"|addresseswrapbelow\d+kbytes,|notusable\(error-?\d+\),)swapstaysonfl1")
+PSRAM_ATTACH = "psram0:ESP-PSRAM64H"
+# fl1 is block major 0, minor 8; an attached PSRAM would report (3,0).
+SWAP_ON_FL1 = "swap dev  = (0,8)"
+
+
+def psram_squeezed(lines: list[str]) -> str:
+    return "".join(line.replace(" ", "") for line in lines)
+
+
+def psram_probe_seen(lines: list[str]) -> bool:
+    squeezed = psram_squeezed(lines)
+    return PSRAM_ATTACH in squeezed or PSRAM_FALLBACK.search(squeezed) is not None
+
+
+def psram_failures(lines: list[str]) -> list[str]:
+    """The psram0 outcome must be the fallback to fl1 and never an attach."""
+    squeezed = psram_squeezed(lines)
+    failures = []
+    if PSRAM_ATTACH in squeezed:
+        failures.append("psram0: the probe attached a PSRAM part the machine does not model")
+    if PSRAM_FALLBACK.search(squeezed) is None:
+        failures.append("psram0: no probe line leaving swap on fl1")
+    return failures
 
 
 class StageFailed(Exception):
@@ -207,12 +248,156 @@ def panel_status_failures(status: str) -> list[str]:
     return failures
 
 
+def decode_read(cmd: int, raw: list[int]) -> int:
+    """The register value in the bytes a host clocked in after a read command.
+
+    The panel shifts the data on the clocks that follow the command byte,
+    most significant bit first, after the dummy cycle RDDID and RDDST carry.
+    """
+    _, dummy, bits = READ_COMMANDS[cmd]
+    stream = "".join(f"{byte:08b}" for byte in raw)
+    return int(stream[dummy:dummy + bits], 2)
+
+
+def read_failures(state: str, values: dict[int, int],
+                  want: dict[int, int]) -> list[str]:
+    """The registers of values that differ from want, under READ_MASKS.
+
+    READ_STATE_MASKS adds the bits a register leaves unspecified in one state.
+    """
+    if state not in (STATE_RESET, STATE_INIT, STATE_SWRESET):
+        raise ValueError(f"unknown readback state {state!r}")
+    failures = []
+    for cmd, (name, _, _) in READ_COMMANDS.items():
+        mask = READ_MASKS.get(cmd, 0xFFFFFFFF)
+        mask &= READ_STATE_MASKS.get(state, {}).get(cmd, 0xFFFFFFFF)
+        got = values.get(cmd, -1)
+        if got < 0 or got & mask != want[cmd] & mask:
+            failures.append(f"panel read {state}: {name} (0x{cmd:02x}) returned "
+                            f"{got:#x}, expected {want[cmd]:#x}")
+    return failures
+
+
+LCD = "sysbus.spi1.lcd"
+
+
+def panel_send(renode: Renode, tokens: list[str]) -> None:
+    """Clock cNN (command) and dNN (data) bytes into the panel with chip select low.
+
+    The panel's chip select and D/C arrive as GPIO inputs 0 and 1; the model's
+    Transmit() is what the PL022 calls with each frame (patch 0008).
+    """
+    renode.command(f"{LCD} OnGPIO 0 false")
+    level = None
+    for token in tokens:
+        data = token[0] == "d"
+        if data != level:
+            renode.command(f"{LCD} OnGPIO 1 {'true' if data else 'false'}")
+            level = data
+        renode.command(f"{LCD} Transmit {int(token[1:], 16):#x}")
+    renode.command(f"{LCD} OnGPIO 1 true")
+    renode.command(f"{LCD} OnGPIO 0 true")
+
+
+def panel_read(renode: Renode, cmd: int) -> int:
+    """One read command: the command byte, then dummy frames for the reply."""
+    _, dummy, bits = READ_COMMANDS[cmd]
+    frames = (dummy + bits + 7) // 8
+    renode.command(f"{LCD} OnGPIO 0 false")
+    renode.command(f"{LCD} OnGPIO 1 false")
+    monitor_int(renode, f"{LCD} Transmit {cmd:#x}")
+    renode.command(f"{LCD} OnGPIO 1 true")
+    raw = [monitor_int(renode, f"{LCD} Transmit 0x00") for _ in range(frames)]
+    renode.command(f"{LCD} OnGPIO 0 true")
+    if any(byte < 0 or byte > 255 for byte in raw):
+        return -1
+    return decode_read(cmd, raw)
+
+
+def check_panel_readback(run: Run) -> None:
+    """Read every ST7365P read command at power-on, after the driver's bytes
+    and after SWRESET, with the emulated CPU not yet started.
+
+    The bytes are st7365p.c's init_seq (parsed from the source) and the calls
+    that follow it, so the values read are what the board's driver leaves in
+    the controller. The read commands must also stay out of the model's
+    unmodeled-command count. The model returns to its power-on state before
+    the boot stage starts.
+    """
+    renode = run.renode
+    renode.command(f"{LCD} Reset")
+    unknown0 = panel_counter(renode, r"(\d+) unknown commands")
+    stages = (
+        (STATE_RESET, [], READ_AFTER_RESET),
+        (STATE_INIT, expected_init_trace() + INIT_TAIL, READ_AFTER_INIT),
+        (STATE_SWRESET, ["c01"], READ_AFTER_SWRESET),
+    )
+    for state, tokens, want in stages:
+        if tokens:
+            panel_send(renode, tokens)
+        values = {cmd: panel_read(renode, cmd) for cmd in READ_COMMANDS}
+        print("check-picocalc: panel read " + state + ": "
+              + " ".join(f"{READ_COMMANDS[cmd][0]} {value:#x}"
+                         for cmd, value in values.items()))
+        for message in read_failures(state, values, want):
+            run.fail(message)
+    unknown = panel_counter(renode, r"(\d+) unknown commands") - unknown0
+    run.expect(unknown == 0, f"panel read: {unknown} read or init commands counted as unmodeled")
+    renode.command(f"{LCD} Reset")
+
+
 def check_panel_registers(run: Run) -> None:
     status = panel_status(run.renode)
     print(f"check-picocalc: panel {status}")
     for message in panel_status_failures(status):
         run.expect(False, message)
 
+
+# The ST7365P read commands (ST7365P_SPEC_V1.0 sections 9.2.3, 9.2.5 to 9.2.11
+# and 9.2.47 to 9.2.49): name, dummy clock cycles before the first data bit,
+# data bits. Page 95 draws the dummy cycle for RDDID (24-bit read) and RDDST
+# (32-bit read) and none for the 8-bit reads.
+READ_COMMANDS = {
+    0x04: ("RDDID", 1, 24), 0x09: ("RDDST", 1, 32), 0x0A: ("RDDPM", 0, 8),
+    0x0B: ("RDDMADCTL", 0, 8), 0x0C: ("RDDCOLMOD", 0, 8), 0x0D: ("RDDIM", 0, 8),
+    0x0E: ("RDDSM", 0, 8), 0x0F: ("RDDSDR", 0, 8), 0xDA: ("RDID1", 0, 8),
+    0xDB: ("RDID2", 0, 8), 0xDC: ("RDID3", 0, 8),
+}
+
+# What each register reads, from the datasheet's Default tables (pages 147,
+# 151, 153, 155, 157, 159, 160, 162, 215 to 217) and from the field layouts
+# for the driver's configuration: MADCTL 48h (MX, BGR), COLMOD 66h, INVON,
+# SLPOUT and DISPON. RDDST after the driver: BSTON 1, MX 1, RGB 1 (A4h);
+# IFPF 110, SLPOUT 1, NORON 1 (63h); INVON 1, DISON 1 (24h); gamma curve 0.
+# Masks hold the bits the model leaves at zero because the datasheet does not
+# say when they set: ST15 of RDDST and VSSON of RDDIM (vertical scroll mode).
+READ_MASKS = {0x09: 0xFFFF7FFF, 0x0D: 0x7F}
+# RDDSDR reads 00h after a power-on, hardware or software reset (page 162).
+# Page 162 describes the register as the result of the self-diagnostic that
+# SLPOUT runs (page 165) and gives D7 (register loading detection) and D6
+# (functionality detection) no polarity for a passed diagnostic, so after the
+# driver's init sequence the check masks them; D5 to D1 stay 0 and D0 is the
+# checksum comparison.
+STATE_RESET = "after reset"
+STATE_INIT = "after the driver's init"
+STATE_SWRESET = "after SWRESET"
+READ_STATE_MASKS = {STATE_INIT: {0x0F: 0x3F}}
+READ_AFTER_RESET = {
+    0x04: 0xFFFFFF, 0x09: 0x00610000, 0x0A: 0x08, 0x0B: 0x00, 0x0C: 0x06,
+    0x0D: 0x00, 0x0E: 0x00, 0x0F: 0x00, 0xDA: 0xFF, 0xDB: 0xFF, 0xDC: 0xFF,
+}
+READ_AFTER_INIT = {
+    0x04: 0xFFFFFF, 0x09: 0xA4632400, 0x0A: 0x9C, 0x0B: 0x48, 0x0C: 0x66,
+    0x0D: 0x20, 0x0E: 0x00, 0x0F: 0x00, 0xDA: 0xFF, 0xDB: 0xFF, 0xDC: 0xFF,
+}
+# SWRESET leaves MADCTL and COLMOD alone and returns sleep, display and
+# inversion to their defaults (pages 151, 153, 155, 157, 159).
+READ_AFTER_SWRESET = {**READ_AFTER_RESET, 0x09: 0x24610000, 0x0B: 0x48, 0x0C: 0x66}
+
+# The bytes st7365p_init() sends after init_seq: SLPOUT, VSCRDEF (0, 320,
+# 160 lines), VSCSAD 0, then st7365p_display_on() sends DISPON.
+INIT_TAIL = ["c11", "c33", "d00", "d00", "d01", "d40", "d00", "da0",
+             "c37", "d00", "d00", "c29"]
 
 SPI1_SSPDR = 0x40040008
 SPI1_SSPSR = 0x4004000C
@@ -399,9 +584,10 @@ def check_monitors(run: Run) -> None:
     """Run picofetch and picotop when the image carries them.
 
     picofetch must print its readings from this kernel's sysctl nodes beside
-    the logo drawn from the glyph bank; picotop must draw two frames and
-    exit. An image without the programs (any profile but picocalc) skips
-    the stage and says so.
+    the logo drawn from the glyph bank, and fill the capacity rows (Tables,
+    Kstack) from kern.capacity, which PICOCALC serves; picotop must
+    draw two frames and exit. An image without the programs (any profile but
+    picocalc) skips the stage and says so.
     """
     # The keyboard model's FIFO holds 31 events, so a command longer than
     # fifteen keys goes in through picocalc_dump.Console, which types in
@@ -420,8 +606,10 @@ def check_monitors(run: Run) -> None:
     run.snapshot("picofetch")
     for text in ("OS       DiscoBSD 2.7", "Kernel   PICOCALC", "CPU      125.000 MHz, ",
                  "SRAM     264K, process window 192K", "MPU      on, ",
-                 "Display  318x320 px, 53x32 cells", "Tables   proc "):
+                 "Display  318x320 px, 53x32 cells", "Tables   proc ", "Kstack   "):
         run.expect(run.has(text), f"picofetch: no {text!r} on the panel")
+    run.expect(any(line.startswith("Kstack   ") and " peak " in line for line in run.lines),
+               "picofetch: no Kstack peak from kern.capacity on the panel")
     for label in ("Memory  ", "Swap    ", "Root    ", "Battery ", "Flash    image "):
         run.expect(run.has(label), f"picofetch: no {label!r} line on the panel")
     # Renode's ADC is a model, so the line's form is checked and its values
@@ -459,6 +647,14 @@ GOOD_STATUS = (
     "0 outside the window, 0 unknown commands, 0 without chip select")
 
 
+def read_stream(cmd: int, value: int, dummy: bool = True) -> list[int]:
+    """The frames a panel that follows the datasheet returns for a read command."""
+    _, cycles, bits = READ_COMMANDS[cmd]
+    stream = "0" * (cycles if dummy else 0) + format(value, f"0{bits}b")
+    stream += "0" * (-len(stream) % 8)
+    return [int(stream[i:i + 8], 2) for i in range(0, len(stream), 8)]
+
+
 def self_test() -> int:
     """Calibrate panel_status_failures on a good line and on mutants of it."""
     failures = panel_status_failures(GOOD_STATUS)
@@ -486,6 +682,47 @@ def self_test() -> int:
     if len(spi_fifo_failures(levels, accepted, dropped, sent)) < 3:
         print("self-test: the unbounded FIFO observation was not rejected", file=sys.stderr)
         return 1
+    for state, want in ((STATE_RESET, READ_AFTER_RESET), (STATE_INIT, READ_AFTER_INIT),
+                        (STATE_SWRESET, READ_AFTER_SWRESET)):
+        good = {cmd: decode_read(cmd, read_stream(cmd, value))
+                for cmd, value in want.items()}
+        if read_failures(state, good, want):
+            print(f"self-test: the recorded good {state} readback failed", file=sys.stderr)
+            return 1
+    good = {cmd: decode_read(cmd, read_stream(cmd, value))
+            for cmd, value in READ_AFTER_INIT.items()}
+    read_mutants = {
+        "a model that answers zeros": {cmd: 0 for cmd in good},
+        "a read without the dummy cycle": {
+            cmd: decode_read(cmd, read_stream(cmd, value, dummy=False))
+            for cmd, value in READ_AFTER_INIT.items()},
+        "a sleeping panel": {**good, 0x0A: 0x08},
+        "an unprogrammed MADCTL": {**good, 0x0B: 0x00},
+        "a diagnostic result with a reserved bit set": {**good, 0x0F: 0x20},
+    }
+    for name, values in read_mutants.items():
+        if not read_failures(STATE_INIT, values, READ_AFTER_INIT):
+            print(f"self-test: {name} was not rejected by the readback check",
+                  file=sys.stderr)
+            return 1
+    diagnosed = {**good, 0x0F: 0xC0}
+    if read_failures(STATE_INIT, diagnosed, READ_AFTER_INIT):
+        print("self-test: a diagnostic result with D7 and D6 set was rejected after SLPOUT",
+              file=sys.stderr)
+        return 1
+    undone = {cmd: decode_read(cmd, read_stream(cmd, value))
+              for cmd, value in READ_AFTER_RESET.items()}
+    if not read_failures(STATE_RESET, {**undone, 0x0F: 0xC0}, READ_AFTER_RESET):
+        print("self-test: a diagnostic result with D7 and D6 set was accepted after a reset",
+              file=sys.stderr)
+        return 1
+    try:
+        read_failures("init", good, READ_AFTER_INIT)
+    except ValueError:
+        pass
+    else:
+        print("self-test: a readback state no stage uses was not refused", file=sys.stderr)
+        return 1
     width, pixels = logo_frame()
     if logo_failures(width, pixels, 0):
         print("self-test: the drawn mirror ball failed its own comparison", file=sys.stderr)
@@ -502,15 +739,57 @@ def self_test() -> int:
     if bound:
         print(f"self-test: the dump message bound misjudged {bound}", file=sys.stderr)
         return 1
+    # The fallback line wrapped at the panel's 53 cells, as the console
+    # draws it, must pass; an attach, a missing line and a fallback printed
+    # by another driver must not.
+    fallback = "psram0: id 0/0 is not an ESP-PSRAM64H, swap stays on fl1"
+    wrapped = [fallback[:picocalc_fb.COLS], fallback[picocalc_fb.COLS:]]
+    for name, lines in (("wrapped id refusal", ["kbd0: x"] + wrapped),
+                        ("stall refusal", ["psram0: not usable (error 4), swap stays on fl1"])):
+        if psram_failures(lines) or not psram_probe_seen(lines):
+            print(f"self-test: the {name} psram0 line failed", file=sys.stderr)
+            return 1
+    for name, lines in (
+            ("attach", ["psram0: ESP-PSRAM64H 8192 kbytes on PIO0, swap"]),
+            ("missing", ["kbd0: keyboard controller at I2C1 0x1f, firmware 1.6"]),
+            ("other driver", ["sd0: not usable (error 4), swap stays on fl1"])):
+        if not psram_failures(lines):
+            print(f"self-test: the {name} psram0 case was not rejected", file=sys.stderr)
+            return 1
     print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
-          "good and unbounded FIFO, good, shifted and one-color logo, "
+          "good and unbounded FIFO, three good readbacks and five mutants, "
+          "good, shifted and one-color logo, psram0 fallback and three mutants, "
           "12-, 255- and 256-byte dump messages)")
+    return 0
+
+
+def main_readback(argv: list[str]) -> int:
+    """Only the panel read commands: the machine is built and never started."""
+    renode_path, unix_bin, flash_bin, outdir = argv
+    os.makedirs(outdir, exist_ok=True)
+    renode = Renode(renode_path, os.path.join(outdir, "renode.log"), 600.0)
+    run = Run(renode, outdir)
+    try:
+        renode.command(f"$unix_bin=@{unix_bin}")
+        renode.command(f"$flash_bin=@{flash_bin}")
+        renode.command(f"include @{os.path.join(HERE, 'picocalc-machine.resc')}")
+        check_panel_readback(run)
+    except RenodeError as error:
+        print(f"check-picocalc: {error}", file=sys.stderr)
+        renode.close()
+        return 2
+    renode.close()
+    if run.failures:
+        return 1
+    print("check-picocalc: readback pass")
     return 0
 
 
 def main(argv: list[str]) -> int:
     if argv == ["--self-test"]:
         return self_test()
+    if argv[:1] == ["--readback"] and len(argv) == 5:
+        return main_readback(argv[1:])
     if len(argv) not in (4, 6):
         print(__doc__, file=sys.stderr)
         return 2
@@ -527,11 +806,17 @@ def main(argv: list[str]) -> int:
         renode.command(f"include @{os.path.join(HERE, 'picocalc-machine.resc')}")
         if card is not None:
             picocalc_dump.attach_card(renode, os.path.abspath(card))
+        check_panel_readback(run)
         renode.command(f"sysbus.uart0 CreateFileBackend @{os.path.join(outdir, 'uart0.txt')} true")
         init_trace = expected_init_trace()
         renode.command(f"sysbus.spi1.lcd TraceBytes {len(init_trace)}")
         run.wait_for(BANNER_LINES, "banner", BOOT_BUDGET_SECONDS)
+        run.wait_until(lambda: psram_probe_seen(run.lines), "psram probe",
+                       "a psram0 outcome line", BOOT_BUDGET_SECONDS)
         run.snapshot("banner")
+        for message in psram_failures(run.lines):
+            run.fail(message)
+        run.wait_for([SWAP_ON_FL1], "swap device after the psram probe", BOOT_BUDGET_SECONDS)
         check_panel_registers(run)
         # The monitor echoes prompts and command lines around its output.
         traced = [line for line in renode.command("sysbus.spi1.lcd Trace").splitlines()

@@ -8,6 +8,8 @@
 #define _SYS_TIME_H_
 
 #include <sys/types.h>
+#include <sys/_timeval.h>
+#include <sys/_timespec.h>
 
 /*
  * The layouts the kernel reads and writes, in every view of time: the
@@ -23,30 +25,6 @@ struct __timeval32 {
 struct __timespec32 {
     utime32_t tv_sec;
     long    tv_nsec;
-};
-
-/*
- * Structure returned by gettimeofday(2) system call,
- * and used in other calls.
- */
-#ifdef __TIME64_VIEW
-struct timeval {
-    time_t  tv_sec;         /* seconds */
-    long    tv_usec;        /* and microseconds */
-};
-#else
-struct timeval {
-    long    tv_sec;         /* seconds */
-    long    tv_usec;        /* and microseconds */
-};
-#endif
-
-/*
- * POSIX.4 time value with nanoseconds instead of microseconds.
-*/
-struct timespec {
-    time_t tv_sec;          /* seconds */
-    long   tv_nsec;         /* and nanoseconds */
 };
 
 struct timezone {

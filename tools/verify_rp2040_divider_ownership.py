@@ -993,6 +993,11 @@ def check_user_helper(object_path: Path) -> tuple[str, list[str]]:
             if symbol["st_info"]["type"] == "STT_FUNC"
             and symbol["st_shndx"] == text_index
         }
+        metadata = {
+            str(symbol.name): (int(symbol["st_value"]), int(symbol["st_size"]))
+            for symbol in symbols.iter_symbols()
+            if symbol["st_info"]["type"] == "STT_FUNC" and symbol["st_shndx"] == text_index
+        }
         data_marks = [
             symbol
             for symbol in symbols.iter_symbols()
@@ -1012,6 +1017,25 @@ def check_user_helper(object_path: Path) -> tuple[str, list[str]]:
         raise ValueError(f"{object_path}: Capstone did not decode the whole text")
     starts = sorted({entries[name] for name in HELPER_SYMBOLS if name in entries})
     bounds = starts + [len(code)]
+    owner_ends = dict(zip(bounds, bounds[1:], strict=False))
+    for name in HELPER_SYMBOLS:
+        if name not in entries:
+            continue
+        value, size = metadata[name]
+        if not value & 1:
+            findings.append(f"{object_path}: helper Thumb entry differs: {name}")
+        expected_size = owner_ends[entries[name]] - entries[name]
+        if size <= 0 or size != expected_size:
+            findings.append(f"{object_path}: helper extent {name} is {size}, want {expected_size}")
+    for first_alias, second_alias in (
+        ("__aeabi_uidiv", "__aeabi_uidivmod"),
+        ("__aeabi_idiv", "__aeabi_idivmod"),
+    ):
+        if (first_alias in metadata and second_alias in metadata
+                and metadata[first_alias] != metadata[second_alias]):
+            findings.append(
+                f"{object_path}: helper alias owner differs: {first_alias}/{second_alias}"
+            )
     accesses_total = 0
     minimum_wait = None
     for start, end in zip(bounds, bounds[1:], strict=False):

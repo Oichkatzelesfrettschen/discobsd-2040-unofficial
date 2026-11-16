@@ -13,7 +13,8 @@
 # those lists, the engine's base image reference and EXTRA_APT_PACKAGES, so an
 # edit to the workflow selects a new image and the two cannot drift apart.
 # EXTRA_APT_PACKAGES lists what the hosted image carries outside that step:
-# python3-setuptools gives python3-unicorn its distutils import.
+# python3-setuptools gives python3-unicorn its distutils import, and
+# groff-base gives games/cribbage the nroff its build runs.
 #
 # Tree: the container works on a private copy and the host tree is never
 # written. The copy is a git repository whose object store borrows the host's
@@ -35,7 +36,7 @@
 set -eu
 
 me=hosted-runner-container
-EXTRA_APT_PACKAGES="python3-setuptools ca-certificates"
+EXTRA_APT_PACKAGES="python3-setuptools ca-certificates groff-base"
 BASE_IMAGE=ubuntu:24.04
 STEP_NAME="Install the host toolchain"
 

@@ -23,7 +23,7 @@ Across 172 rows (2 upstream commits, 68 numbered patches 432 to 499, and the
 | --- | ---: | ---: | ---: | ---: |
 | upstream DiscoBSD | 0 | 0 | 0 | 2 |
 | 2.11BSD 432 to 499 | 12 | 9 | 8 | 39 |
-| 2.11BSD 500 items | 17 | 4 | 14 | 67 |
+| 2.11BSD 500 items | 17 | 3 | 15 | 67 |
 
 The applicable set is small and cheap. Five kernel items cost between -1603 and
 +80 bytes of kernel text and at most 4 bytes of kernel RAM; the shipped userland
@@ -144,16 +144,17 @@ sendmail, uucp, networking, programs absent here, or manuals. The rest:
 operand numerically and the crash path is absent. `hostid` is in
 `usr.bin/Makefile:33` and not in `mi.rp2040`.
 
-**Superseded (4).** `xinstall` `__STDC__` blocks, `pstat` and `XPAGI`, `ps`
-(the fork's `bin/ps/ps.c:294` already uses `getopt`), and `xargs` (the fork
-reports through `fatal()`, `usr.bin/xargs/xargs.c:52`).
+**Superseded (3).** `xinstall` `__STDC__` blocks, `pstat` and `XPAGI`, and `xargs`
+(the fork reports through `fatal()`, `usr.bin/xargs/xargs.c:52`). Part (c) of
+500.57 (`ps` through `getopt`, `bin/ps/ps.c:294`) is present, but part (a) is
+live, so that item is applicable.
 
-**Applicable (14).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
+**Applicable (15).** `ls -T` (500.1), `mkdir -m` (500.9), the `find`
 descend repair (500.11), `iso646.h` and `locale.h` (500.13), `chown
 owner:group` (500.17), the find-database last entry (500.30), `w` with no
 utmp (500.51), short panic tags (500.76), `rm` and `mv` through `getopt`
 (500.80), `cfree` removal (500.83), `man` section names (500.86), the
-`sleep(3)` range (500.92, below), the unused phantasia test files (500.74: `phant_run.c`
+`sleep(3)` range (500.92, below), the `ps` static tty table (500.57, ranked 13), the unused phantasia test files (500.74: `phant_run.c`
 and `test.c` remain, cosmetic, on a game outside `games/Makefile`'s `SUBDIR`; its
 setuid-root install and three-argument `signal` calls are absent) and the
 `who am i` separator (500.97).
@@ -281,11 +282,12 @@ applets, packed blocks in the root.
 | 10 | 439 `RLIMIT_DATA` in `brk` (`sys/kern/kern_mman.c:24`). `setrlimit` is a system call (`sys/kern/init_sysent.c:466`), but the shipped callers set only `RLIMIT_CPU`, `RLIMIT_FSIZE` and `RLIMIT_CORE` (`usr.bin/passwd/passwd.c:90-91`, `usr.bin/timeout/timeout.c:448`); csh's `limit` builtin is unshipped, so nothing on the image sets a data limit today | kernel | +20 measured | 0 | 0 | low; `RLIM_INFINITY` is the initial limit (`sys/kern/init_main.c:88`) | none; `check-kernel-headroom` for size |
 | 11 | 500.92 `sleep(3)` above 100,000,000 s returns the whole request unslept at once, and above 2,147,483 s sleeps short (I); a chunked `select` loop, or a documented bound | libc, every program linking `sleep.o` | 0 | 0 | +22 B in `sleep.o` for the unrun sketch, GCC 16.2.0 `-Os` | low; the loop must keep the interrupted-sleep remainder and the 2038 clock arithmetic of `sleep.c:44-51` | `check-sleep`, with requests above the bound (no such case today) |
 | 12 | 454 `date` and libc without the kernel timezone (`bin/date2/date.c:304-380`, `lib/libc/gen/tzset.c:195`); drops `date -d` and `-t` | `/bin/date`, libc | 0 | 0 | shrinks `date` and `tzset.o` (I, unmeasured) | medium; two user options disappear and the fork stores the zone in the kernel today | none; a `date` contract on `-t` and `-d` is the new gate |
+| 13 | 500.57 `ps` keeps a static 24-entry tty table (`bin/ps/ps.c:509-513`) where the patch looks names up with `devname(3)`; part (c), `getopt`, is present | packed `/bin/ps` | 0 | 0 | removes the table from `ps` data (I, unmeasured; see the adaptation below) | low; `devname(3)` per row costs a lookup, and its cost in this libc is unmeasured | none |
 
 The rest are unshipped or cosmetic: 500.51 `w` dereferences a failed `fopen` of
 utmp (`usr.bin/w/w.c:129,164`); 447 `apropos` under-allocation; 441 libvmf walk;
 500.1 `ls -T`; 500.83 `cfree` in `ls`; 500.86 `man` section names; 500.97 `who`
-separator; 466 `size` message; 500.30 find-database last entry (I). The two
+separator; 500.74 phantasia `phant_run.c` and `test.c`, which patch 500 deletes from an unbuilt game; 466 `size` message; 500.30 find-database last entry (I). The two
 formatter vectors from the probe are gate work with no target cost.
 
 ## Mechanisms worth adapting

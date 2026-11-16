@@ -2750,10 +2750,13 @@ machine, console and virtual-time slicing of the UART0 tier. PICO_DIAG is the
 lean PICO kernel plus `CAPACITY_STATS` and `SYSTRACE`; it boots from a copy
 whose descriptor `distrib/rp2040/mkboarduf2.py --flat --board=PICO_UART`
 rewrote to the UART0 console, as the union tier does, so its probe stage
-expects `uartusb` and then `uart0` as the console. Run on the lean PICO
-kernel (`sh tools/renode/check-capacity.sh ${FSIMG} PICO`), which omits
-`CAPACITY_STATS`, the gate must exit 1 at its first `kern.capacity` read;
-that run calibrates the gate. The shipped
+expects `uartusb` and then `uart0` as the console. The target then boots the lean PICO
+kernel (`sh tools/renode/check-capacity.sh ${FSIMG} PICO refuse`), which
+omits `CAPACITY_STATS`: the gate must exit 1 at its first `kern.capacity`
+read with the transcript line `FAIL kern.capacity rows before the runs: []`,
+and `refuse` turns any other exit status or failure line into a failure of
+the target, so the missing-record case is calibrated on every run (one extra
+boot of about 11 virtual seconds). The shipped
 images are read and never written, and the programs stay outside the root
 manifest. tools/renode/check-capacity.py reaches a root shell, reads
 `kern.capacity`, runs the three programs and reads `kern.capacity` again.

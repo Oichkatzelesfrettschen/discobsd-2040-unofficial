@@ -10,7 +10,7 @@
 # tools outside the root manifest, and the composed image lives under
 # tools/renode/vendor/results/capacity, which git ignores.
 #
-# Usage: sh tools/renode/check-capacity.sh [DISK_IMAGE [CONFIG]]
+# Usage: sh tools/renode/check-capacity.sh [DISK_IMAGE [CONFIG [refuse]]]
 #
 # DISK_IMAGE is the partitioned root disk image whose first partition is the
 # root file system. It defaults to distrib/rp2040/sdcard.img; the root
@@ -24,6 +24,12 @@
 # same patch; it omits CAPACITY_STATS, so the gate must fail on it at the
 # first kern.capacity read, which calibrates the gate. PICO_UART boots as
 # built.
+#
+# The word refuse inverts the verdict: the run must exit 1 and its transcript
+# must carry the missing-record line ("FAIL kern.capacity rows before the
+# runs: []"), and any other outcome exits 1 here. check-renode-capacity runs
+# that way on PICO after the PICO_DIAG run, so a gate that accepts a kernel
+# without CAPACITY_STATS turns the target red.
 
 set -eu
 
@@ -39,6 +45,14 @@ TOP=$(cd "$SCRIPT_DIR/../.." && pwd)
 VENDOR="$SCRIPT_DIR/vendor/Renode_RP2040"
 DISK=${1:-$TOP/distrib/rp2040/sdcard.img}
 CONFIG=${2:-PICO_DIAG}
+EXPECT=${3:-pass}
+case "$EXPECT" in
+pass | refuse) ;;
+*)
+	echo "check-capacity: the third argument must be refuse, not $EXPECT" >&2
+	exit 2
+	;;
+esac
 BUILT_KERNEL="$TOP/sys/arch/rp2040/compile/$CONFIG/unix.bin"
 MODELS="$VENDOR/emulation/bin/Release/net8.0/Peripherals.dll"
 FIXTURES="$TOP/tests/rp2040/capacity_exhaustion"
@@ -126,5 +140,23 @@ cp "$DISK" "$OUTPUT/disk.img"
 # -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
 # limit, and Python block-buffers a piped stdout until exit, so every
 # stage line must reach the log as it is printed.
+if [ "$EXPECT" = pass ]; then
+	"$PYTHON" -I -u "$SCRIPT_DIR/check-capacity.py" renode "$KERNEL" "$OUTPUT/flash.bin" "$OUTPUT" \
+		"$CONFIG"
+	exit 0
+fi
+# refuse: the run's own exit status is the first condition, its transcript
+# line the second; a boot that failed for another reason matches neither.
+status=0
 "$PYTHON" -I -u "$SCRIPT_DIR/check-capacity.py" renode "$KERNEL" "$OUTPUT/flash.bin" "$OUTPUT" \
-	"$CONFIG"
+	"$CONFIG" >"$OUTPUT/refusal.txt" 2>&1 || status=$?
+cat "$OUTPUT/refusal.txt"
+if [ "$status" -ne 1 ]; then
+	echo "check-capacity: $CONFIG exited $status; a kernel without kern.capacity must exit 1" >&2
+	exit 1
+fi
+if ! grep -F 'FAIL kern.capacity rows before the runs: []' "$OUTPUT/refusal.txt" >/dev/null; then
+	echo "check-capacity: $CONFIG failed, but not at the missing kern.capacity record" >&2
+	exit 1
+fi
+echo "check-capacity: $CONFIG refused as required: kern.capacity is absent"

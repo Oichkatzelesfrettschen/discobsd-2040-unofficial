@@ -2225,11 +2225,15 @@ check-renode-picocalc-dump:
 # tools/renode/check-capacity.sh adds the three programs of
 # tests/rp2040/capacity_exhaustion to a copy of ${FSIMG}, boots it and
 # requires each refusal on its own counter and a recovery after release.
+# The second run boots the lean PICO kernel, which omits CAPACITY_STATS, and
+# requires the gate to exit 1 at the missing kern.capacity record, so a gate
+# that accepts a kernel without the record turns the target red.
 # Outside "check" for the reason check-renode is; the Renode class of the
 # exhaustion cases in tests/rp2040/capacity-corpus.json.
 check-renode-capacity:
 		${MAKE} -C tests/rp2040/capacity_exhaustion MACHINE=${MACHINE}
 		sh tools/renode/check-capacity.sh ${FSIMG}
+		sh tools/renode/check-capacity.sh ${FSIMG} PICO refuse
 
 # The boot-time image comparison on the emulated PICO_UART kernel:
 # tools/renode/check-identity.sh boots the stamped kernel and three altered

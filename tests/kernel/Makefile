@@ -1026,6 +1026,43 @@ check-swap-ring-io: swap_ring_io_test
 		echo "swap ring io mutant: SURVIVED" >&2; exit 1; fi; \
 	echo "swap ring io mutant: rejected"
 
+# The same gate for a kernel whose swap device can leave (SDSWAP_ENABLED):
+# the ring cases again, then a failed transfer on a fixed and on a removable
+# device. Each mutant removes one rule of swap_lost from a copy of vm_swp.c:
+# fixed-survives sets it for any device, never-set keeps the panic for a
+# removable one, retried sends a transfer to a lost device, and
+# panic-when-lost panics in swap_with_buf() after the device left.
+SWAP_LOST_IO_MUTANTS=	fixed-survives never-set retried panic-when-lost
+SWAP_LOST_IO_SED_fixed-survives=	s/if (swap_removable \&\& ! swap_lost) {/if (! swap_lost) {/
+SWAP_LOST_IO_SED_never-set=	s/if (swap_removable \&\& ! swap_lost) {/if (0) {/
+SWAP_LOST_IO_SED_retried=	s/^    if (swap_lost)$$/    if (0)/
+SWAP_LOST_IO_SED_panic-when-lost=	s/^        ! swap_lost)$$/        1)/
+
+swap_lost_io_test: swap_ring_io_test.c ${TOPSRC}/sys/kern/vm_swp.c \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${SWAP_RING_IO_CFLAGS} -DSDSWAP_ENABLED \
+	    ${SWAP_RING_IO_LDFLAGS} -o $@ \
+	    swap_ring_io_test.c hostkern_kern.c hostkern.o
+
+check-swap-lost-io: swap_lost_io_test
+	./swap_lost_io_test
+.for mutant in ${SWAP_LOST_IO_MUTANTS}
+	@sed '${SWAP_LOST_IO_SED_${mutant}}' \
+	    ${TOPSRC}/sys/kern/vm_swp.c > swap_lost_io_${mutant}.mutant.c; \
+	if cmp -s ${TOPSRC}/sys/kern/vm_swp.c swap_lost_io_${mutant}.mutant.c; then \
+		echo "swap lost io ${mutant}: no source change" >&2; exit 1; fi; \
+	sed 's|"../../sys/kern/vm_swp.c"|"swap_lost_io_${mutant}.mutant.c"|' \
+	    swap_ring_io_test.c > swap_lost_io_test_${mutant}.mutant.c; \
+	${HOST_CC} ${SWAP_RING_IO_CFLAGS} -DSDSWAP_ENABLED \
+	    ${SWAP_RING_IO_LDFLAGS} -o swap_lost_io_${mutant}.mutant.test \
+	    swap_lost_io_test_${mutant}.mutant.c hostkern_kern.c hostkern.o \
+	    || exit 1; \
+	if ./swap_lost_io_${mutant}.mutant.test \
+	    > swap_lost_io_${mutant}.mutant.out 2>&1; then \
+		echo "swap lost io ${mutant}: SURVIVED" >&2; exit 1; fi; \
+	echo "swap lost io ${mutant}: rejected"
+.endfor
+
 # Each mutant removes one ring rule from a copy of subr_rmap.c; the compact
 # gate has to fail on it. no_join stops a run from passing the ring end,
 # no_guard takes the first fitting position, no_fold stops mfree() from
@@ -3412,7 +3449,8 @@ check-v7-format: ${MACHINE_STAMP} v7_format_check.sh v7_format_test.c \
 	    "V7 format descriptor: ILP32 sanitizer runtime unavailable"
 .endif
 
-check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal \
+check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal check-swap-lost \
+	check-swap-lost-io \
     check-rmap-ring-mutants check-swap-ring-io \
     check-v7-format \
 	check-swap-exchange-headroom check-swap-exchange-inplace \
@@ -3435,6 +3473,7 @@ clean:
 	rm -f pipe_rw_function.c pipe_rw_contract32 pipe_rw_contract_single32 \
 	    pipe_rw_*.mutant.c pipe_rw_*.mutant32.test
 	rm -f ${FORK_SWAP_FUNCTIONS} fork_swap_test fork_swap_test_compact \
+	    fork_swap_test_lost \
 	    fork_swap_test_wide fork_swap_test_diagnostic fork_swap_test_full \
 	    fork_swap_test_unaligned fork_swap_nopool.o fork_swap_rmap*.o \
 	    fork_swap_*.mutant.c \
@@ -3445,7 +3484,7 @@ clean:
 	    swap_exchange_inplace_*.mutant.test \
 	    swap_exchange_inplace_*.mutant.out
 	rm -f ${PROGS} hostkern.o rmap_ring_*.mutant.* swap_ring_io_test \
-	    swap_ring_io*.mutant.*
+	    swap_ring_io*.mutant.* swap_lost_io_test swap_lost_io_*.mutant.*
 	rm -f ${USB_CONSOLE_DRIVER} usb_console_test usb_console_*.o \
 	    usb_console_*.mutant.*
 	rm -f rmap_kernel_compact.o rmap_kernel_wide.o rmap_kernel_diagnostic.o
@@ -3688,6 +3727,49 @@ fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
 	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
 .endfor
 
+# The same definitions for a kernel whose swap device can leave
+# (SDSWAP_ENABLED, swap_lost in sys/systm.h): every scenario above with the
+# option compiled in, then the device model failing each transfer of a fork,
+# a swap-out and a swap-in, and the retirement rules of swap_lost_sweep().
+FORK_SWAP_LOST_MUTANTS= lost-fork-no-unwind lost-fork-keep-files lost-fork-keep-directory lost-fork-keep-text lost-fork-keep-pidhash \
+    lost-swapin-loads lost-copy-commits lost-copy-keeps-lock lost-sched-swapin-over-resident lost-sched-no-sweep \
+    lost-sched-drop-resident lost-sweep-kills-pool lost-sweep-kills-system lost-reserve-after-loss lost-exchange-on-removable \
+    lost-init-retired lost-vfork-parent-spared lost-vfork-takes-zombie-sizes lost-vfork-child-kept-waiting lost-sleeper-queued lost-children-kept \
+    lost-parent-untold lost-status-clean lost-zombie-hashed
+fork_swap_test_lost: ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -DSDSWAP_ENABLED \
+	    -o $@ fork_swap_test.c \
+	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
+	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
+
+.for mutation in ${FORK_SWAP_LOST_MUTANTS}
+fork_swap_${mutation}.mutant.c: fork_swap_mutate.py ${FORK_SWAP_FUNCTIONS}
+	${PYTHON} fork_swap_mutate.py --source ${FORK_SWAP_FUNCTIONS} \
+	    --output $@ --mutation ${mutation}
+
+fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
+    ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
+	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -DSDSWAP_ENABLED \
+	    -DFORK_SWAP_FUNCTIONS='"fork_swap_${mutation}.mutant.c"' \
+	    -o $@ fork_swap_test.c \
+	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
+	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
+.endfor
+
+check-swap-lost: fork_swap_test_lost \
+    ${FORK_SWAP_LOST_MUTANTS:@mutation@fork_swap_${mutation}.mutant.test@}
+	./fork_swap_test_lost
+	@set -eu; for mutation in ${FORK_SWAP_LOST_MUTANTS}; do \
+		output=fork_swap_$$mutation.mutant.out; \
+		if ./fork_swap_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		if [ "$$status" -ne 1 ] || ! grep -F "FAIL" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL swap lost $$mutation rejection" >&2; exit 1; \
+		fi; \
+		echo "PASS swap lost $$mutation rejected: $$(grep -F FAIL $$output | head -1)"; \
+	done
+
 fork_swap_nopool.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
 	${HOST_CC} ${FORK_SWAP_NOPOOL_CFLAGS} -c -o $@ \
 	    ${TOPSRC}/sys/kern/vm_swap.c
@@ -3861,6 +3943,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		echo "PASS fork swap unaligned $$mutation rejected: $$expected"; \
 	done
 
-.PHONY: check-fork-swap-refusal check-swap-exchange-headroom \
+.PHONY: check-fork-swap-refusal check-swap-lost check-swap-lost-io \
+	check-swap-exchange-headroom \
 	check-swap-exchange-inplace \
     check-pipe-rw-mutants

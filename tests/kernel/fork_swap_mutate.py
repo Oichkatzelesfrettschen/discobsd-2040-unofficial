@@ -171,6 +171,92 @@ MUTATIONS = {
         "                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
         "                    NULL);",
     ),
+    # A swap device that leaves (swap_lost): the fork unwind, the resident
+    # that stays, the processes retired and the ones spared.
+    "lost-fork-no-unwind": (
+        "    u.u_procp = parent;\n    if (reservation.state != SWAP_IMAGE_COMMITTED) {",
+        "    u.u_procp = parent;\n    if (0) {",
+    ),
+    "lost-fork-keep-files": (
+        "            if (fp != NULL)\n                fp->f_count--;",
+        "            (void)fp;",
+    ),
+    "lost-fork-keep-directory": ("        u.u_cdir->i_count--;", "        (void)0;"),
+    "lost-fork-keep-text": (
+        "        if (child->p_tip)\n            child->p_tip->i_count--;",
+        "        (void)0;",
+    ),
+    "lost-fork-keep-pidhash": (
+        "        *hash = child->p_hash;\n        }",
+        "        (void)hash;\n        }",
+    ),
+    "lost-swapin-loads": (
+        "    if (swap_lost)\n        return;\n    swap_image_release (p);",
+        "    swap_image_release (p);",
+    ),
+    "lost-copy-commits": (
+        "        p->p_flag &= ~SLOCK;\n"
+        "        swap_image_cancel (reservation);\n"
+        "        return;",
+        "        (void)0;",
+    ),
+    "lost-copy-keeps-lock": (
+        "        p->p_flag &= ~SLOCK;\n        swap_image_cancel (reservation);",
+        "        swap_image_cancel (reservation);",
+    ),
+    "lost-sched-swapin-over-resident": (
+        "                if (reservation.state != SWAP_IMAGE_COMMITTED) {\n"
+        "                    swapped_out = 0;\n"
+        "                    continue;\n"
+        "                }",
+        "",
+    ),
+    "lost-sched-no-sweep": ("            swap_lost_sweep ();\n", ""),
+    "lost-sched-drop-resident": (
+        "        if (exchange_refusal || swap_lost == SWAP_LOST_NEW) {",
+        "        if (exchange_refusal) {",
+    ),
+    "lost-sweep-kills-pool": (
+        "        if (swapram_present (p))\n"
+        "            continue;\n"
+        "#endif\n"
+        "        swap_lost_retire (p);",
+        "#endif\n        swap_lost_retire (p);",
+    ),
+    "lost-sweep-kills-system": (
+        "        if (p->p_flag & (SLOAD | SSYS))",
+        "        if (p->p_flag & SLOAD)",
+    ),
+    "lost-reserve-after-loss": ("    if (swap_lost)\n        return ENOMEM;\n", ""),
+    "lost-exchange-on-removable": (
+        "    if (swap_removable || ! swap_exchange_tail_reserve (incoming->p_daddr,",
+        "    if (! swap_exchange_tail_reserve (incoming->p_daddr,",
+    ),
+    "lost-init-retired": (
+        '    if (p->p_pid == 1)\n        panic ("init lost with the swap device");',
+        "",
+    ),
+    "lost-vfork-parent-spared": (
+        "        psignal (p->p_pptr, SIGKILL);\n        wakeup ((caddr_t) p);",
+        "        wakeup ((caddr_t) p);",
+    ),
+    "lost-vfork-takes-zombie-sizes": (
+        "        if (swap_lost && child->p_stat == SZOMB) {",
+        "        if (0) {",
+    ),
+    "lost-vfork-child-kept-waiting": (
+        "        p->p_flag &= ~SVFORK;\n        psignal (p->p_pptr, SIGKILL);",
+        "        psignal (p->p_pptr, SIGKILL);",
+    ),
+    "lost-sleeper-queued": ("    unsleep (p);", "    (void)0;"),
+    "lost-children-kept": ("            q->p_ppid = 1;", "            (void)0;"),
+    "lost-parent-untold": (
+        "    psignal (p->p_pptr, SIGCHLD);\n"
+        "    wakeup ((caddr_t) p->p_pptr);\n}\n\n/*\n * Retire every",
+        "    wakeup ((caddr_t) p->p_pptr);\n}\n\n/*\n * Retire every",
+    ),
+    "lost-status-clean": ("    p->p_xstat = SIGKILL;", "    p->p_xstat = 0;"),
+    "lost-zombie-hashed": ("    *pp = p->p_hash;\n    p->p_xstat", "    p->p_xstat"),
 }
 
 

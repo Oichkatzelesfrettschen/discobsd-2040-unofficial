@@ -258,6 +258,7 @@ fork_swap_test_wide
 fork_swap_test_diagnostic
 fork_swap_test_full
 fork_swap_test_unaligned
+fork_swap_test_lost
 fork_swap_*.mutant.c
 fork_swap_*.mutant.test
 fork_swap_*.mutant.out
@@ -271,6 +272,8 @@ v7-format-work/
 rmap_ring_*.mutant.*
 swap_ring_io_test
 swap_ring_io*.mutant.*
+swap_lost_io_test
+swap_lost_io_*.mutant.*
 usb_console_driver.c
 usb_console_test
 usb_console_*.o

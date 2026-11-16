@@ -815,7 +815,7 @@ swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
  * that reports death by SIGKILL, its children pass to init and its parent is
  * told, as exit() does, while the file and directory references it held stay
  * counted until the next boot. A vfork child takes its parent along, whose
- * data and stack were the lost image.
+ * data and stack were the lost image (newproc(), kern_fork.c).
  */
 static void
 swap_lost_retire (struct proc *p)
@@ -829,12 +829,11 @@ swap_lost_retire (struct proc *p)
     unsleep (p);
     if (p->p_flag & SVFORK) {
         /*
-         * newproc() sleeps in the parent until SVFORK clears and then
-         * takes the sizes back; they are zero, and SIGKILL ends the parent
-         * before it returns to an image it no longer has.
+         * newproc() sleeps in the parent until SVFORK clears. It finds a
+         * zombie, takes nothing back, and SIGKILL ends the parent before it
+         * returns to an image it no longer has.
          */
-        p->p_dsize = p->p_ssize = 0;
-        p->p_flag = (p->p_flag & ~SVFORK) | SLOAD;
+        p->p_flag &= ~SVFORK;
         psignal (p->p_pptr, SIGKILL);
         wakeup ((caddr_t) p);
     }

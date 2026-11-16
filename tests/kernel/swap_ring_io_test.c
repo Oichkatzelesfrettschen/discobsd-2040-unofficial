@@ -31,12 +31,33 @@ struct map swapmap[1] = { { entries, &entries[6], "swapmap", 0, 0, 0 } };
 dev_t swapdev;
 struct vmrate cnt;
 
+#ifdef SDSWAP_ENABLED
+/* The device fails every request from this one on; -1 for a sound device. */
+static int fail_from = -1;
+static unsigned wakes;
+char runin, runout;
+
+void
+wakeup(caddr_t channel)
+{
+	HK_CHECK(channel == (caddr_t)&runin || channel == (caddr_t)&runout);
+	wakes++;
+}
+#endif
+
 static void
 record_strategy(struct buf *bp)
 {
 	/* A transfer that never ends would hang the gate; it fails instead. */
 	if (request_count == 8)
 		panic("swap ring io: transfer does not end");
+#ifdef SDSWAP_ENABLED
+	if (fail_from >= 0 && request_count >= (unsigned)fail_from) {
+		request_count++;
+		bp->b_flags |= B_ERROR | B_DONE;
+		return;
+	}
+#endif
 	requests[request_count].block = bp->b_blkno;
 	requests[request_count].address = (size_t)bp->b_addr;
 	requests[request_count].count = bp->b_bcount;
@@ -122,11 +143,60 @@ ring_block_above_the_end_is_folded(void)
 	HK_CHECK(requests[0].block == RING_FIRST);
 }
 
+#ifdef SDSWAP_ENABLED
+static void
+void_transfer(void)
+{
+	static struct buf header;
+
+	request_count = 0;
+	swap_with_buf(&header, 300, 0x1000, DEV_BSIZE, B_READ);
+}
+
+/*
+ * A failed transfer (swap_lost, sys/systm.h). A fixed device keeps the
+ * panic. A removable one sets swap_lost once, wakes the swapper on both of
+ * its channels, lets swap_with_buf() return, and is asked for nothing again
+ * in either lost state.
+ */
+static void
+failed_transfer_on_a_removable_device(void)
+{
+	swapmap->m_ring_first = 0;
+	swapmap->m_ring_end = 0;
+
+	fail_from = 0;
+	HK_CHECK(transfer(300, 0x1000, DEV_BSIZE) == -1);
+	HK_CHECK(swap_lost == 0 && wakes == 0);
+	HK_EXPECT_PANIC("hard err: swap", void_transfer);
+
+	swap_removable = 1;
+	HK_CHECK(transfer(300, 0x1000, DEV_BSIZE) == -1);
+	HK_CHECK(request_count == 1);
+	HK_CHECK(swap_lost == SWAP_LOST_NEW && wakes == 2);
+
+	fail_from = -1;
+	void_transfer();
+	HK_CHECK(request_count == 0 && wakes == 2);
+	HK_CHECK(transfer(300, 0x1000, DEV_BSIZE) == -1);
+	HK_CHECK(request_count == 0 && swap_lost == SWAP_LOST_NEW);
+
+	swap_lost = SWAP_LOST_SWEPT;
+	void_transfer();
+	HK_CHECK(transfer(300, 0x1000, DEV_BSIZE) == -1);
+	HK_CHECK(request_count == 0 && wakes == 2);
+	HK_CHECK(swap_lost == SWAP_LOST_SWEPT);
+}
+#endif
+
 int
 main(void)
 {
 	interval_map_is_one_transfer();
 	ring_transfer_ends_at_the_last_block();
 	ring_block_above_the_end_is_folded();
+#ifdef SDSWAP_ENABLED
+	failed_transfer_on_a_removable_device();
+#endif
 	return hk_verdict("swap ring io");
 }

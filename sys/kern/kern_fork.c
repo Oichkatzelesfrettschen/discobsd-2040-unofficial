@@ -38,8 +38,10 @@ newproc (volatile int isvfork)  /* read after the setjmp below returns 0 */
     if (child == NULL)
         panic ("no procs");
     if (swap_image_reserve (&reservation, child, parent,
-        X_OLDSIZE, X_OLDSIZE) != 0)
+        X_OLDSIZE, X_OLDSIZE) != 0) {
+refused:
         return -1;
+    }
 
     /*
      * First, just locate a slot for a process
@@ -222,7 +224,7 @@ again:
         child->p_sigmask = child->p_sigcatch = child->p_sigignore = 0;
         child->p_nxt = freeproc;
         freeproc = child;
-        return -1;
+        goto refused;
     }
     child->p_flag |= SSWAP;
 
@@ -238,6 +240,17 @@ again:
         parent->p_flag |= SVFPRNT;
         while (child->p_flag & SVFORK)
             sleep ((caddr_t)child, PSWP+1);
+        if (swap_lost && child->p_stat == SZOMB) {
+            /*
+             * The child went with the swap device and the lent image
+             * with it (swap_lost_retire(), vm_swap.c). A zombie's size
+             * fields hold its exit status, so nothing is taken back; the
+             * sizes stay zero and the pending SIGKILL ends this process
+             * before it returns to user mode.
+             */
+            parent->p_flag &= ~SVFPRNT;
+            return(0);
+        }
         if ((child->p_flag & SLOAD) == 0)
             panic ("newproc vfork");
         u.u_dsize = parent->p_dsize = child->p_dsize;

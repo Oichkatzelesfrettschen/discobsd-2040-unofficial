@@ -4,3 +4,11 @@
 // binding: this kernel drives GP25 through SIO directly and needs nothing
 // from Renode's Miscellaneous.LED model to boot to a console.
 using "vendor/Renode_RP2040/cores/rp2040.repl"
+
+// The kernel programs the PL011 divisors for a 125 MHz peripheral clock
+// (BUS_KHZ in each compile/*/Makefile), and the 0009 transmit FIFO drains
+// one character per ten bit times at those divisors over this frequency;
+// the core's 24 MHz default would run the line at 22,119.82 baud. An update
+// entry, since the core file already declares uart0.
+uart0:
+    frequency: 125000000

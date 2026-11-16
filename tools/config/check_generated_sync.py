@@ -13,8 +13,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BOARDS = ("PICO", "PICO_UART", "PICOCALC", "PICOCALC_PSRAM")
-# (variant, base, directives the variant adds to the base Config).
-VARIANTS = (("PICOCALC_PSRAM", "PICOCALC", ("device psram",)),)
+# (variant, base, directives the variant adds to the base Config, directives
+# the variant replaces as (base directive, variant directive) pairs). The
+# PSRAM kernel mounts its /tmp RAM disk beside the flash root and the SD
+# partition, so it carries one more mount slot than PICOCALC.
+VARIANTS = (("PICOCALC_PSRAM", "PICOCALC", ("device psram",),
+             (('options "NMOUNT=2"', 'options "NMOUNT=3"'),)),)
 COMPILE = Path("sys/arch/rp2040/compile")
 CONF = Path("sys/arch/rp2040/conf")
 BUILD_INPUTS = tuple(Path("tools/config") / name for name in (
@@ -114,19 +118,24 @@ def check_variant_delta(root):
     """Hold a variant Config to its base Config plus the variant's own lines.
 
     config(8) has no include directive, so each variant repeats its base. The
-    comparison is by directive: the board line carries the variant's name and
-    the listed directives are the only additions.
+    comparison is by directive: the board line carries the variant's name, the
+    listed replacements are the only changed directives and the listed
+    additions are the only added ones.
     """
-    for variant, base, additions in VARIANTS:
+    for variant, base, additions, replacements in VARIANTS:
+        replaced = dict(replacements)
         expected = [
-            f'board "{variant}"' if line == f'board "{base}"' else line
+            f'board "{variant}"' if line == f'board "{base}"'
+            else replaced.get(line, line)
             for line in option_lines(root / COMPILE / base / "Config")
         ] + list(additions)
         actual = option_lines(root / COMPILE / variant / "Config")
         if sorted(expected) != sorted(actual):
             raise SyncError(
                 f"{variant}: Config must equal {base} Config plus "
-                f"{', '.join(additions)} and its own board line\n"
+                f"{', '.join(additions)}, with "
+                f"{', '.join(new for _, new in replacements)} "
+                "in place of the base directive, and its own board line\n"
                 + "".join(difflib.unified_diff(
                     [line + "\n" for line in sorted(expected)],
                     [line + "\n" for line in sorted(actual)],

@@ -115,6 +115,16 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
             sync.check(self.root)
 
+    def test_variant_with_the_base_mount_count_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_PSRAM/Config", '"NMOUNT=3"', '"NMOUNT=2"')
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_PSRAM: Config must equal"):
+            sync.check(self.root)
+
+    def test_base_config_carrying_the_variant_mount_count_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC/Config", '"NMOUNT=2"', '"NMOUNT=3"')
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC: generated Makefile differs"):
+            sync.check(self.root)
+
     def test_production_identity_is_preserved(self):
         self.mutate(sync.COMPILE / "PICO/Config", 'board           "PICO"',
                     'board           "SYNTHETIC"')

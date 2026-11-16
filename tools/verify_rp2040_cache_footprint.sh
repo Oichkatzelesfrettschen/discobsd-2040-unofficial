@@ -6,15 +6,22 @@ set -eu
 
 elf=
 layout=single
+mounts=
 while [ $# -gt 0 ]; do
 	case $1 in
 	--elf) elf=$2; shift 2 ;;
 	--layout) layout=$2; shift 2 ;;
-	*) echo "usage: $0 --elf ELF [--layout single|multi]" >&2; exit 2 ;;
+	--mounts) mounts=$2; shift 2 ;;
+	*) echo "usage: $0 --elf ELF [--layout single|multi [--mounts 2|3]]" >&2; exit 2 ;;
 	esac
 done
 case $layout in
-single | multi) ;;
+single) mounts=1 ;;
+multi)
+	case ${mounts:-2} in
+	2 | 3) mounts=${mounts:-2} ;;
+	*) echo "$0: --mounts is 2 or 3 with --layout multi" >&2; exit 2 ;;
+	esac ;;
 *) echo "$0: --layout is single or multi" >&2; exit 2 ;;
 esac
 
@@ -55,8 +62,9 @@ check_absent()
 # linked target structures. The single layout is the PICO kernels' NMOUNT=1
 # with SINGLE_UFS_ROOT, which drops each inode's device and filesystem fields
 # and each mount's name strings. The multi layout is PICOCALC's NMOUNT=2
-# without it: two 0x4c8-byte mounts and 24 inodes of 0x5c bytes. Each mount
-# includes the four-byte m_device_lock retained through device-node release.
+# without it: two 0x4c8-byte mounts and 24 inodes of 0x5c bytes; PICOCALC_PSRAM
+# adds a third mount for its /tmp RAM disk (--mounts 3). Each mount includes
+# the four-byte m_device_lock retained through device-node release.
 check_symbol buf 90
 check_symbol bfreelist 6c
 check_symbol bufdata 1000
@@ -66,7 +74,7 @@ if [ "$layout" = single ]; then
 	check_symbol mount 410
 	check_symbol inode 7e0
 else
-	check_symbol mount 990
+	check_symbol mount "$(printf '%x' $((0x4c8 * mounts)))"
 	check_symbol inode 8a0
 fi
 
@@ -80,7 +88,7 @@ if [ "$fail" -eq 0 ]; then
 	if [ "$layout" = single ]; then
 		echo "$elf: cache_bytes=400 buffer_pool_bytes=4240 inode_bytes=2016 mount_bytes=1040 mount_guard_bytes=4 nbuf=4 nmount=1"
 	else
-		echo "$elf: cache_bytes=400 buffer_pool_bytes=4240 inode_bytes=2208 mount_bytes=2448 mount_guard_bytes=8 nbuf=4 nmount=2"
+		echo "$elf: cache_bytes=400 buffer_pool_bytes=4240 inode_bytes=2208 mount_bytes=$((1224 * mounts)) mount_guard_bytes=$((4 * mounts)) nbuf=4 nmount=$mounts"
 	fi
 fi
 exit "$fail"

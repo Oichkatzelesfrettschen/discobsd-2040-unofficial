@@ -249,6 +249,7 @@ def test_delegate_timeout_ends_the_whole_process_group(tmp_path):
     assert not _alive(child)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="the discobsd-flash stand-in is a #!/bin/sh script")
 def test_delegate_failure_status_raises(tmp_path):
     script = tmp_path / "flash"
     script.write_text("#!/bin/sh\nexit 3\n")
@@ -261,8 +262,11 @@ def test_delegate_failure_status_raises(tmp_path):
 
 
 @pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs /proc to read process state")
-@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGHUP])
-def test_signal_to_the_parent_ends_the_delegate_group(tmp_path, sig):
+@pytest.mark.parametrize("name", ["SIGTERM", "SIGHUP"])
+def test_signal_to_the_parent_ends_the_delegate_group(tmp_path, name):
+    # Resolved here: Windows has no SIGHUP, and a collection-time lookup
+    # would fail the whole module instead of skipping this test.
+    sig = getattr(signal, name)
     pidfile = tmp_path / "child.pid"
     script = tmp_path / "flash"
     script.write_text(f'#!/bin/sh\nsleep 300 &\necho $! > "{pidfile}"\nwait\n')

@@ -262,7 +262,10 @@ def run_delegate(command, timeout):
     # this process alone would end the parent and orphan the group; the
     # handlers turn them into an exception that takes the cleanup path below.
     previous = {}
-    for sig in (signal.SIGTERM, signal.SIGHUP):
+    for name in ("SIGTERM", "SIGHUP"):
+        sig = getattr(signal, name, None)
+        if sig is None:  # no SIGHUP on Windows, which has no discobsd-flash
+            continue
         try:
             previous[sig] = signal.signal(sig, terminated)
         except ValueError:  # not the main thread: no handler can be installed

@@ -80,10 +80,10 @@ def elf_symbols(path, names):
 
 
 def make_card(path, fsutil):
-    """The card image: UFS on partition 1, the dump partition on 2."""
+    """The card image: UFS on partition 1, dump on 2, swap on 3."""
     with open(path, "wb") as stream:
         stream.truncate(CARD_BYTES)
-    for args in (["--repartition=fs=4m:dump=1m", path],
+    for args in (["--repartition=fs=4m:dump=1m:swap=2m", path],
                  ["--new", "--partition=1", path]):
         subprocess.run([fsutil, *args], check=True, stdout=subprocess.DEVNULL)
 
@@ -254,8 +254,38 @@ def run_dump_stages(run, card, elf):
         run.snapshot("panic")
 
 
+def swap_partition(data):
+    """Byte offset and length of the card's first type 0xb8 entry."""
+    for index in range(4):
+        entry = data[446 + 16 * index:446 + 16 * (index + 1)]
+        start, count = struct.unpack_from("<II", entry, 8)
+        if entry[4] == 0xB8 and count:
+            return start * 512, count * 512
+    raise ValueError("no partition of type 0xb8 on the card")
+
+
+def check_swap_boot(run):
+    """The boot lines of a kernel that took its swap from the card."""
+    texts = ["swap: sd0c", "swap dev  = (5,3)"]
+    run.wait_until(lambda: all(run.saw(text) for text in texts),
+                   "swap on the card", repr(texts), COMMAND_BUDGET)
+
+
+def check_swap_after_close(run, card):
+    """Swap-outs reached the card: its swap partition is no longer blank."""
+    with open(card, "rb") as stream:
+        data = stream.read()
+    start, length = swap_partition(data)
+    used = sum(1 for offset in range(start, start + length, 4096)
+               if any(data[offset:offset + 4096]))
+    run.expect(used > 0, "swap: no image was written to the card's swap partition")
+    print(f"check-picocalc: {used} of {length // 4096} 4 KiB units of the card's "
+          "swap partition hold swapped images")
+
+
 def check_after_close(run, card, fsutil):
-    """The card as Renode left it: the panic's dump, and savecore's dump.0."""
+    """The card as Renode left it: swap, the panic's dump, savecore's dump.0."""
+    check_swap_after_close(run, card)
     check_card(run, card, PANIC_MESSAGE)
     saved = extract_file(card, fsutil, "crash/dump.0")
     if saved is None:

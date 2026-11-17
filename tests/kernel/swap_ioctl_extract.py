@@ -15,8 +15,17 @@ WRITE_FLAGS_SIGNATURE = (
     "static int\nswtemp_write_flags(struct swtemp *temp, u_int block, u_int blocks)"
 )
 REFUSED_SIGNATURE = "static int\nswap_live_write_refused(int unit, int writing)"
-SWOPEN_SIGNATURE = "int\nswopen(dev_t dev, int mode, int flag)"
+SWOPEN_SIGNATURE = "int\nswopen(dev_t dev, int mode, int flag __unused)"
+SWCLOSE_SIGNATURE = "int\nswclose(dev_t dev, int mode __unused, int flag __unused)"
 SWSTRATEGY_SIGNATURE = "void\nswstrategy(struct buf *bp)"
+SWCREAD_SIGNATURE = "int\nswcread(dev_t dev, struct uio *uio, int flag __unused)"
+SWCWRITE_SIGNATURE = "int\nswcwrite(dev_t dev, struct uio *uio, int flag __unused)"
+TRANSFER_DECLARATIONS = """#include <sys/uio.h>
+
+extern struct buf *getnewbuf(void);
+extern void swap(size_t blkno, size_t coreaddr, int count, int rdflg);
+
+"""
 INCLUDES = """#include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/buf.h>
@@ -90,6 +99,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    # The /dev/tempN read and write paths alone, for the lost-device gate.
+    parser.add_argument("--transfers", action="store_true")
     arguments = parser.parse_args()
 
     source_bytes = arguments.source.read_bytes()
@@ -99,6 +110,30 @@ def main() -> None:
     state_start = source.index(STATE_START)
     state_end = source.index(STATE_END, state_start) + len(STATE_END)
     state = source[state_start:state_end]
+    source_hash = hashlib.sha256(source_bytes).hexdigest()
+    if arguments.transfers:
+        transfers = "\n\n".join(
+            extract_function(source, signature, label)
+            for signature, label in (
+                (WRITE_FLAGS_SIGNATURE, "swtemp_write_flags"),
+                (SWCREAD_SIGNATURE, "swcread"),
+                (SWCWRITE_SIGNATURE, "swcwrite"),
+            )
+        )
+        arguments.output.write_text(
+            "/* Extracted from "
+            + arguments.source.as_posix()
+            + " SHA-256 "
+            + source_hash
+            + ". */\n"
+            + INCLUDES
+            + TRANSFER_DECLARATIONS
+            + state
+            + "\n\n"
+            + transfers
+            + "\n"
+        )
+        return
     swsize = extract_function(source, SWSIZE_SIGNATURE, "swsize")
     swcioctl = extract_function(source, SWCIOCTL_SIGNATURE, "swcioctl")
     device = "\n\n".join(
@@ -107,11 +142,10 @@ def main() -> None:
             (WRITE_FLAGS_SIGNATURE, "swtemp_write_flags"),
             (REFUSED_SIGNATURE, "swap_live_write_refused"),
             (SWOPEN_SIGNATURE, "swopen"),
+            (SWCLOSE_SIGNATURE, "swclose"),
             (SWSTRATEGY_SIGNATURE, "swstrategy"),
         )
     )
-    source_hash = hashlib.sha256(source_bytes).hexdigest()
-
     arguments.output.write_text(
         "/* Extracted from "
         + arguments.source.as_posix()

@@ -1551,6 +1551,12 @@ check-flash-reset-cells: check-python
 check-flash-reset-hook: check-python
 		${MAKE} -C tests/rp2040/flash_reset_hook check PYTHON=${PYTHON:Q}
 
+# The swap-sector erase counters of STORAGE_STATS kernels
+# (sys/arch/rp2040/dev/flash_wear.h) against an integer model;
+# tests/rp2040/flash_wear/check.sh states each expectation and its mutants.
+check-flash-wear: check-python
+		${MAKE} -C tests/rp2040/flash_wear check PYTHON=${PYTHON:Q}
+
 # The production collector trigger of sys/arch/rp2040/dhara/map.c against an
 # adversarial tail-live workload, resets with resume, and a rewrite-cost
 # ceiling; tests/rp2040/dhara_trigger/check.sh states each and its mutants.
@@ -1873,7 +1879,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger \
 		check-swap-tier-model \
-		check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook \
+		check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
 		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
 		check-flash-sparse \
@@ -2386,6 +2392,18 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
+# The board's kernel UF2, the file the PicoCalc UF2 loader programs, stamped
+# (vector entries 4 to 10, foreign bytes over the flash root; the kernel's own
+# second stage stays in flash bytes 0-255) with Renode's SD card model
+# holding ${SDROOTIMG} in MBR slot 3, type b7: root lines, login and mount on the panel, a login on
+# tty0, the flash root untouched, and a panic when the card has no b7 entry
+# (tools/renode/check-picocalc-sdroot.py). BOARD is PICOCALC, and
+# UNION_KERNEL selects PICOCALC, PICOCALC_LEAN or PICOCALC_LEAN_DIAG.
+check-renode-picocalc-sdroot:	sdroot ${BOARD_KERNEL_UF2}
+		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py \
+		    "$$(command -v renode)" ${BOARD_KERNEL_UF2} \
+		    ${SDROOTIMG} tools/renode/vendor/results/picocalc-sdroot
+
 # The process, in-core inode and system file tables filled on the emulated
 # PICO_DIAG kernel, the lean PICO plus CAPACITY_STATS and SYSTRACE, booted
 # from a copy whose board descriptor names the UART0 console:
@@ -2516,17 +2534,19 @@ cleantests:
 			${MAKE} -C "$${mf%/Makefile}" clean || status=1; \
 		done; exit $$status
 
-# Every board's root image, flash image and descriptor-stamped kernel, which
-# distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
-# flash${BOARD_OUT_SUFFIX}.{bin,uf2} and unix${BOARD_OUT_SUFFIX}.uf2, so a
-# clean after one board's build also removes another's.
+# Every board's root image, flash image, descriptor-stamped kernel and SD
+# root, which distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
+# flash${BOARD_OUT_SUFFIX}.{bin,uf2}, unix${BOARD_OUT_SUFFIX}.uf2 and
+# sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img, so a clean after one
+# board's build also removes another's.
 cleanfs:
 		rm -f distrib/$(MACHINE)/_manifest distrib/$(MACHINE)/_manifest.*
 		rm -f $(FSIMG) distrib/$(MACHINE)/sdcard.img \
 		    distrib/$(MACHINE)/sdcard-*.img distrib/$(MACHINE)/flash.bin \
 		    distrib/$(MACHINE)/flash.uf2 distrib/$(MACHINE)/flash-*.bin \
 		    distrib/$(MACHINE)/flash-*.uf2 distrib/$(MACHINE)/unix.uf2 \
-		    distrib/$(MACHINE)/unix-*.uf2
+		    distrib/$(MACHINE)/unix-*.uf2 distrib/$(MACHINE)/sdroot.img \
+		    distrib/$(MACHINE)/sdroot-*.img
 
 # A tuple switch is safe only after every source-directory artifact class has
 # cleaned successfully. The serialized recipe avoids overlapping cleanup of
@@ -2559,7 +2579,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
@@ -2606,7 +2626,8 @@ installfs:
 		check-signal-traps \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
-		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
+		check-renode-picocalc check-renode-picocalc-dump \
+		check-renode-picocalc-sdroot check-renode-union \
 		check-renode-preempt \
 		check-renode-union-lean check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \

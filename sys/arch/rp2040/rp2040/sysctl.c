@@ -272,6 +272,13 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		flash_reset_hook_arm(name[0] == CPU_FLASH_RESET_ERASE,
 		    (u_int)i);
 		return 0;
+
+	case CPU_FLASH_SWAP_WEAR:
+		if (namelen != 1)
+			return ENOTDIR;
+		/* Each counter is one halfword store under splhigh(). */
+		return sysctl_rdstruct(oldp, oldlenp, newp, flash_swap_wear,
+		    sizeof flash_swap_wear);
 #endif
 	case CPU_MPU:
 		return mpu_sysctl(name + 1, namelen - 1, oldp, oldlenp, newp,

@@ -50,6 +50,13 @@ def build(path, output):
     )
 
 
+def wear_text(prefix):
+    """The fixture's 34 counters: 65535 at 0, 300 at 17, the index elsewhere."""
+    wear = [65535 if i == 0 else 300 if i == 17 else i for i in range(34)]
+    rows = [" ".join(map(str, wear[i : i + 16])) for i in range(0, 34, 16)]
+    return prefix + "sectors 34\n" + "\n".join(rows) + "\n"
+
+
 def verify(binary):
     cases = [
         (["kern.capacity"], "", True),
@@ -64,6 +71,7 @@ def verify(binary):
         (["machdep.flash_jedec"], "", True),
         (["machdep.flash_jedec"], "unread", False),
         (["machdep.pcm"], "", True),
+        (["machdep.flash_swap_wear"], "", True),
         (["machdep.mpu.unknown"], "", False),
         (["vm.loadavg"], "load-failure", False),
         (["-a"], "unavailable", True),
@@ -75,10 +83,13 @@ def verify(binary):
             cases.append(([node], scenario, False))
     for scenario in ("unavailable", "length"):
         cases.append((["machdep.pcm"], scenario, False))
+        cases.append((["machdep.flash_swap_wear"], scenario, False))
     outputs = (
         (["machdep.flash_jedec"], "", "machdep.flash_jedec=15679509\n"),
         (["machdep.pcm"], "", "machdep.pcm=rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
         (["-n", "machdep.pcm"], "", "rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
+        (["machdep.flash_swap_wear"], "", wear_text("machdep.flash_swap_wear=")),
+        (["-n", "machdep.flash_swap_wear"], "", wear_text("")),
     )
     for operands, scenario, expected in outputs:
         result = subprocess.run(
@@ -140,6 +151,9 @@ for name, anchor, replacement in (
     ("operand", "parse(*argv++, 1)", "parse(*argv, 1)"),
     ("pcm-size-unchecked", "if (size != sizeof(*pcm)) {", "if (0) {"),
     ("pcm-queued-for-open", "pcm->queued, pcm->open);", "pcm->open, pcm->queued);"),
+    ("wear-size-unchecked", "if (size == 0 || size % sizeof(erases) != 0) {", "if (0) {"),
+    ("wear-row-width", 'sector % 16 ? " " : "\\n"', 'sector % 15 ? " " : "\\n"'),
+    ("wear-halfword-truncated", "(unsigned)erases);", "(unsigned)(erases & 0xff));"),
 ):
     assert text.count(anchor) == 1, (name, "mutation anchor")
     mutant = out / (name + ".c")

@@ -79,13 +79,16 @@
 #include <sys/config.h>
 #include <sys/disk.h>
 #include <sys/errno.h>
+#include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 
 #include <machine/dump.h>
 
+#include <rp2040/dev/flash.h>
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
+#include <rp2040/dev/psram.h>
 #include <rp2040/dev/sdspi.h>
 #include <rp2040/dev/sd.h>
 
@@ -118,6 +121,18 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
     SD_PRESCALE_FAST % 2 == 0, "CPSDVSR is even, 2 to 254");
 
 #define	SD_DET_DEBOUNCE_US	50000
+
+/*
+ * The swap partition's bounds in DEV_BSIZE blocks. The swap map's compact
+ * descriptors (COMPACT_SWAPMAP, sys/map.h) hold 16-bit sizes and addresses,
+ * and every image is a whole number of SWAP_IMAGE_ALIGN blocks, so the map
+ * never names more than the largest aligned 16-bit count. A partition that
+ * cannot hold two images of SWAP_IMAGE_GUARD blocks behind the reserved
+ * first run is no better than fl1, whose 380 blocks hold one, and is passed
+ * over.
+ */
+#define	SD_SWAP_MAX_BLOCKS	((daddr_t)(0xffff & ~(SWAP_IMAGE_ALIGN - 1)))
+#define	SD_SWAP_MIN_BLOCKS	(2 * SWAP_IMAGE_GUARD + SWAP_IMAGE_ALIGN)
 
 #define	sdunit(dev)		(minor(dev) >> 3)
 #define	sdpart(dev)		(minor(dev) & 7)
@@ -171,8 +186,26 @@ static struct diskpart sdpt[MAXPARTITIONS + 1];	/* [0] is the whole card. */
  * must not drop a partition a mounted filesystem still holds.
  */
 static u_int sd_open[2];
-#define	sd_openpart	(sd_open[0] | sd_open[1])
-#define	sd_blkopen	sd_open[1]
+/*
+ * The swap partition sdswapattach() chose, held for the life of the boot.
+ * It counts as a block open that no close ends. A block descriptor of the
+ * partition (/dev/sd0d) shares the partition's bit of sd_open, and the
+ * kernel closes a device once, at its last close, so that close would end
+ * a hold kept in the bit. /dev/swap opens and closes nothing here
+ * (swopen(), sys/dev/swap.c).
+ */
+static u_int sd_swaphold;
+#ifdef SDSWAP_ENABLED
+/*
+ * The held partition until main() opens it as swapdev. That open is the
+ * hold's own and sets no bit of sd_open, so when swap returns to fl1
+ * (sdswap_fallback()) the bits left are those of descriptors, each cleared
+ * by its device's last close, which the hold's release must keep.
+ */
+static u_char sd_swapmain;
+#endif
+#define	sd_blkopen	(sd_open[1] | sd_swaphold)
+#define	sd_openpart	(sd_open[0] | sd_blkopen)
 #define	sd_kind(mode)	((mode) == S_IFBLK)
 
 /*
@@ -234,6 +267,23 @@ sd_replaced(void)
 }
 
 /*
+ * The four 16-byte MBR entries at byte 446 of sector 0 are copied into
+ * struct diskpart as they lie, so the layout of the structure and the byte
+ * order of the target must match the on-disk entry: type at byte 4, start
+ * at byte 8 and length at byte 12, both little-endian 32-bit sector
+ * counts. A 16-byte structure of one status byte, three bytes, one type
+ * byte, three bytes and two 32-bit counts has no padding, so its size fixes
+ * those offsets. A byte-by-byte decode costs 64 bytes more flash on the
+ * PSRAM PicoCalc kernel (measured), so the assertions below hold the
+ * assumption at build time instead.
+ */
+#if !defined(__BYTE_ORDER__) || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#error "sd_partitions() copies little-endian MBR entries"
+#endif
+_Static_assert(sizeof(u_int) == 4 && sizeof(struct diskpart) == 16,
+    "struct diskpart is the 16-byte MBR partition entry");
+
+/*
  * Read the partition table from sector 0, keeping entries inside the card.
  * The table is built in a local copy and replaces sdpt only when the read
  * succeeds, so a failed DIOCREINIT leaves the mappings of open partitions
@@ -243,7 +293,7 @@ static int
 sd_partitions(void)
 {
 	struct buf *bp = geteblk();
-	u_short *w = (u_short *)bp->b_addr;
+	const u_char *b = (const u_char *)bp->b_addr;
 	struct diskpart pt[MAXPARTITIONS + 1];
 	int i, error = EIO;
 
@@ -251,8 +301,8 @@ sd_partitions(void)
 	pt[0].dp_nsectors = sdcard.nsectors;
 	if (sdspi_read(&sdcard, 0, (u_char *)bp->b_addr) == SDE_OK) {
 		error = 0;
-		if (w[255] == MBR_MAGIC)
-			bcopy(&w[223], &pt[1], 64);
+		if ((b[510] | (u_int)b[511] << 8) == MBR_MAGIC)
+			bcopy(b + 446, &pt[1], 64);
 		for (i = 1; i <= MAXPARTITIONS; i++) {
 			if (pt[i].dp_offset > sdcard.nsectors ||
 			    pt[i].dp_nsectors >
@@ -284,6 +334,35 @@ sd_setup(void)
 	return sd_partitions();
 }
 
+/*
+ * The partition sdrootattach() selected and the card it sat on. sdrootattach()
+ * closes the card, so the root open brings it up again; the card-detect
+ * state restarts there and cannot say whether the medium changed in
+ * between. sdopen() therefore requires the slot's type and extent and the
+ * card's type and capacity to read as they did at selection. A pulled and
+ * replaced card with the same layout and capacity is not distinguishable
+ * by these fields. The first successful open of the slot consumes the
+ * record (sdroot.slot returns to 0, the whole card, which is never a root).
+ */
+static struct {
+	int	slot;		/* MBR slot chosen; 0 when none is pending. */
+	u_int	type;		/* The slot's dp_type, dp_offset, dp_nsectors. */
+	u_int	offset;
+	u_int	nsectors;
+	u_int	cardtype;	/* sdcard.type and sdcard.nsectors. */
+	u_int	cardsectors;
+} sdroot;
+
+static int
+sd_root_bound(int part)
+{
+	return sdpt[part].dp_type == sdroot.type &&
+	    sdpt[part].dp_offset == sdroot.offset &&
+	    sdpt[part].dp_nsectors == sdroot.nsectors &&
+	    sdcard.type == sdroot.cardtype &&
+	    sdcard.nsectors == sdroot.cardsectors;
+}
+
 int
 sdopen(dev_t dev, int flag __unused, int mode)
 {
@@ -300,6 +379,21 @@ sdopen(dev_t dev, int flag __unused, int mode)
 		return EIO;
 	if (sdpt[part].dp_nsectors == 0)
 		return ENXIO;
+	if (sdroot.slot != 0 && part == sdroot.slot) {
+		if (!sd_root_bound(part)) {
+			if (sd_openpart == 0)
+				sdcard.type = SD_NONE;
+			return EIO;
+		}
+		sdroot.slot = 0;
+	}
+#ifdef SDSWAP_ENABLED
+	/* main()'s open of the held partition is the hold's own. */
+	if (sd_swapmain == 1U << part && sd_kind(mode)) {
+		sd_swapmain = 0;
+		return 0;
+	}
+#endif
 	sd_open[sd_kind(mode)] |= 1U << part;
 	return 0;
 }
@@ -315,13 +409,52 @@ sdclose(dev_t dev, int flag __unused, int mode)
 	return 0;
 }
 
+/*
+ * The last sector of a swap transfer. swap_with_buf_result() (vm_swp.c)
+ * moves an image segment's exact byte count, which the flash and PSRAM swap
+ * devices accept, while the card moves whole sectors. An image extent is a
+ * whole number of DEV_BSIZE blocks, so the sector that holds the last bytes
+ * belongs to the extent: a write pads it with zeros and a read copies out
+ * the bytes asked for, leaving the memory past them alone. The polled
+ * strategy routine runs one request at a time, so one buffer serves.
+ */
+static u_char sd_tail[SD_SECTOR];
+
+static int
+sd_tail_io(struct buf *bp, u_int sector, u_char *addr, u_int len)
+{
+	if (sd_replaced())
+		return EIO;
+	if (bp->b_flags & B_READ) {
+		if (sdspi_read(&sdcard, sector, sd_tail) != SDE_OK)
+			return EIO;
+		bcopy(sd_tail, addr, len);
+		return 0;
+	}
+	bcopy(addr, sd_tail, len);
+	bzero(sd_tail + len, SD_SECTOR - len);
+	return sdspi_write(&sdcard, sector, sd_tail) != SDE_OK ? EIO : 0;
+}
+
 /* Size in DEV_BSIZE blocks, which is what the block layer asks for. */
 daddr_t
 sdsize(dev_t dev)
 {
+	daddr_t blocks;
+
 	if (sdunit(dev) != 0 || sdpart(dev) > MAXPARTITIONS || sd_openpart == 0)
 		return 0;
-	return sdpt[sdpart(dev)].dp_nsectors >> 1;
+	blocks = sdpt[sdpart(dev)].dp_nsectors >> 1;
+	/*
+	 * init_main() frees this many blocks into the swap map, so the swap
+	 * partition reports what the map can name and whole images only.
+	 */
+	if (dev == swapdev) {
+		if (blocks > SD_SWAP_MAX_BLOCKS)
+			blocks = SD_SWAP_MAX_BLOCKS;
+		blocks &= ~(daddr_t)(SWAP_IMAGE_ALIGN - 1);
+	}
+	return blocks;
 }
 
 void
@@ -329,7 +462,7 @@ sdstrategy(struct buf *bp)
 {
 	int part = sdpart(bp->b_dev);
 	struct diskpart *p;
-	u_int first, avail, blocks, sector, i, n;
+	u_int first, avail, blocks, sector, i, n, tail;
 	u_char *addr = (u_char *)bp->b_addr;
 	int changed;
 
@@ -345,7 +478,9 @@ sdstrategy(struct buf *bp)
 		goto refused;
 	}
 	changed = sd_replaced();
-	if (changed || (bp->b_bcount & (SD_SECTOR - 1)) != 0) {
+	/* A count that ends inside a sector is the swapper's alone. */
+	tail = bp->b_bcount & (SD_SECTOR - 1);
+	if (changed || (tail != 0 && bp->b_dev != swapdev)) {
 		bp->b_error = changed ? EIO : EINVAL;
 		goto refused;
 	}
@@ -364,9 +499,10 @@ sdstrategy(struct buf *bp)
 	first = (u_int)bp->b_blkno * (DEV_BSIZE / SD_SECTOR);
 	avail = p->dp_nsectors - first;
 	n = bp->b_bcount / SD_SECTOR;
-	if (n > avail) {
-		bp->b_resid = (n - avail) * SD_SECTOR;
+	if (n >= avail) {
+		bp->b_resid = (n - avail) * SD_SECTOR + tail;
 		n = avail;
+		tail = 0;
 	}
 	sector = p->dp_offset + first;
 	/*
@@ -380,11 +516,13 @@ sdstrategy(struct buf *bp)
 		    sdspi_write(&sdcard, sector + i, addr)) != SDE_OK)
 			break;
 	}
-	if (i == n) {
+	if (i == n && tail != 0 && sd_tail_io(bp, sector + n, addr, tail) == 0)
+		tail = 0;
+	if (i == n && tail == 0) {
 		biodone(bp);
 		return;
 	}
-	bp->b_resid += (n - i) * SD_SECTOR;
+	bp->b_resid += (n - i) * SD_SECTOR + tail;
 	bp->b_error = EIO;
 	goto failed;
 refused:
@@ -587,3 +725,159 @@ sdprobe(const struct conf_device *config __unused)
 const struct driver sddriver = {
 	"sd", sdprobe,
 };
+
+/*
+ * Root under the PicoCalc UF2 loader. The loader programs only the kernel's
+ * UF2 and lends the flash above it to every other application, so the fl0
+ * root region holds foreign bytes and a Dhara resume over them would treat
+ * them as a journal. A kernel the loader started therefore takes its root
+ * from the first MBR entry of type PTYPE_BSDFFS (b7) on the card, and stops
+ * when there is none rather than open fl0. main() copied rootdev into
+ * pipedev before services attach, so pipedev moves with it. The card state
+ * returns to closed afterwards; the root mount opens it again through
+ * sdopen(), which refuses a slot or card that no longer matches the record
+ * kept in sdroot. A kernel started any other way keeps the configured root.
+ */
+void
+sdrootattach(void)
+{
+	int i, error = ENXIO;
+
+	if (!flash_loader_started())
+		return;
+	printf("root: started by the PicoCalc loader, root on sd0\n");
+	bzero(&sdroot, sizeof(sdroot));
+	if (board_id() == BOARD_ID_PICOCALC && (error = sd_setup()) == 0) {
+		for (i = 1; i <= MAXPARTITIONS; i++) {
+			if (sdpt[i].dp_nsectors != 0 &&
+			    sdpt[i].dp_type == PTYPE_BSDFFS)
+				break;
+		}
+		if (i <= MAXPARTITIONS) {
+			sdroot.type = sdpt[i].dp_type;
+			sdroot.offset = sdpt[i].dp_offset;
+			sdroot.nsectors = sdpt[i].dp_nsectors;
+			sdroot.cardtype = sdcard.type;
+			sdroot.cardsectors = sdcard.nsectors;
+			sdroot.slot = i;
+			rootdev = pipedev = makedev(SD_BMAJOR, i);
+			printf("root: sd0%c\n", 'a' + i - 1);
+		} else
+			error = ENOENT;
+	}
+	sdcard.type = SD_NONE;
+	if (error == ENOENT)
+		panic("root: no partition of type b7 on sd0");
+	if (error != 0) {
+		printf("root: sd0 error %d\n", error);
+		panic("root: sd0 unusable");
+	}
+}
+
+#ifdef SDSWAP_ENABLED
+/* The configured swap device sdswapattach() replaced with the card. */
+static dev_t sd_swapfixed;
+#endif
+
+/*
+ * Partition slot i shares a sector with another nonempty entry of the
+ * table. sd_partitions() kept only entries inside the card, so no end
+ * below wraps.
+ */
+static int
+sd_shares_sectors(int i)
+{
+	const struct diskpart *p = &sdpt[i], *q;
+
+	for (q = &sdpt[1]; q <= &sdpt[MAXPARTITIONS]; q++) {
+		if (q != p && q->dp_nsectors != 0 &&
+		    q->dp_offset < p->dp_offset + p->dp_nsectors &&
+		    p->dp_offset < q->dp_offset + q->dp_nsectors)
+			return 1;
+	}
+	return 0;
+}
+
+/*
+ * Swap on the card. A PicoCalc whose PSRAM did not take the swap device
+ * (psramprobe() in psram.c) swaps to the first MBR entry of type PTYPE_SWAP
+ * (b8) that holds SD_SWAP_MIN_BLOCKS and shares no sector with another
+ * entry of the table, so swap writes reach neither the b7 root that
+ * sdrootattach() chose nor a partition mounted later. Raw QSPI flash,
+ * which has no wear leveling under fl1, then takes no swap traffic while
+ * such a card is in the socket. With no card, no such entry or a card that does not answer, the
+ * configured fl1 stays. main() runs this after sdrootattach() and before it
+ * opens swapdev. The chosen partition is held in sd_swaphold from here, so
+ * that open finds the card up and the table read and no close releases it;
+ * every other path leaves the card closed. sdsize() bounds what the swap map
+ * is given.
+ */
+void
+sdswapattach(void)
+{
+	int i, error;
+
+	sd_swaphold = 0;
+#ifdef SDSWAP_ENABLED
+	sd_swapmain = 0;
+#endif
+	if (board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR)
+		return;
+	if ((error = sd_setup()) != 0) {
+		sdcard.type = SD_NONE;
+		if (error != ENODEV)
+			printf("swap: sd0 error %d, swap stays on fl1\n", error);
+		return;
+	}
+	for (i = 1; i <= MAXPARTITIONS; i++) {
+		if (sdpt[i].dp_type == PTYPE_SWAP &&
+		    (sdpt[i].dp_nsectors >> 1) >= SD_SWAP_MIN_BLOCKS &&
+		    !sd_shares_sectors(i))
+			break;
+	}
+	if (i > MAXPARTITIONS) {
+		sdcard.type = SD_NONE;
+		return;
+	}
+	sd_swaphold = 1U << i;
+#ifdef SDSWAP_ENABLED
+	/* The card can leave: a failed swap transfer is survivable (systm.h). */
+	swap_removable = 1;
+	sd_swapfixed = swapdev;
+	sd_swapmain = sd_swaphold;
+#endif
+	swapdev = makedev(SD_BMAJOR, i);
+	printf("swap: sd0%c\n", 'a' + i - 1);
+}
+
+#ifdef SDSWAP_ENABLED
+/*
+ * Give swap back to the device the configuration named, after the card that
+ * held it left (swap_lost_fallback(), sys/kern/vm_swap.c): open it as main()
+ * opens swapdev, release the card's partition and make it swapdev again. The
+ * result is its size in blocks, or 0 when it does not open, which leaves the
+ * card as swapdev and swap on the SwapRAM pool alone.
+ */
+size_t
+sdswap_fallback(void)
+{
+	dev_t dev = sd_swapfixed;
+	int blocks;
+
+	if ((*bdevsw[major(dev)].d_open)(dev, FREAD | FWRITE, S_IFBLK) != 0)
+		return 0;
+	blocks = (*bdevsw[major(dev)].d_psize)(dev);
+	if (blocks <= 0)
+		return 0;
+	/*
+	 * Release the hold. main()'s open of the partition set no bit of
+	 * sd_open (sd_swapmain), so with no descriptor open the next open
+	 * brings a replacement card up; a descriptor's bit stays and keeps a
+	 * replacement refused until that descriptor closes.
+	 */
+	sd_swaphold = 0;
+	swapdev = dev;
+	printf("swap: sd0 gone, swap on (%d,%d)\n", major(dev), minor(dev));
+	return blocks;
+}
+#endif

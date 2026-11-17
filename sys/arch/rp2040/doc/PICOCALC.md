@@ -21,10 +21,12 @@ runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root stays on the Pico's QSPI flash, the same layout as the PICO
 board (`STORAGE.md`); swap moves to the first 2 MB of the board's PSRAM when the
-part identifies itself at boot and stays on the flash otherwise, and the other
-6 MB is a block device for a `/tmp` RAM disk (PSRAM as swap, below). PICOCALC is the full PicoCalc kernel: the PSRAM driver, every
-per-driver device option below, the keyboard controller's
-`machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
+part identifies itself at boot, and the other 6 MB is a block device for a
+`/tmp` RAM disk (PSRAM as swap, below); otherwise swap moves to the SD card's
+swap partition when the card carries one ("Swap on the card" below), and it
+stays on the flash when neither takes it. PICOCALC is the full PicoCalc
+kernel: the PSRAM driver, every per-driver device option below, the
+keyboard controller's `machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
 diagnostic options `SYSTRACE` and `CAPACITY_STATS` (`kern.systrace`,
 `kern.systracepid`, `kern.capacity`). PICOCALC_LEAN
 (`sys/arch/rp2040/compile/PICOCALC_LEAN/Config`) omits the four device
@@ -115,9 +117,12 @@ name a file there, with a page for a PDF.
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
 | The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into the PicoCalc kernels only | build | observed by `check-dump-writer-link` on the symbol tables of every kernel, with a swapped-role control that exits 1 |
-| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
+| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (96 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
 | `savecore` saves a dump the kernel's stream wrote, names a different running kernel, advances the bounds file, and leaves the dump on the card for a damaged segment, header checksum, version, segment count or length, one byte too little space with and without a reserve, and a copy that cannot be written; an unfinished dump reads as none | host | observed by `check-picocalc-host` (`dump_test`, 9 mutants of `savecore.c` rejected) |
-| On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
+| On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 49,888, two u areas of 3,072, `dump.0` 57,344 bytes; a kernel that dumps only on the reset path fails the panic stage |
+| `sdswapattach()` leaves swap on `fl1` on a bare Pico, with the PSRAM holding swap, with no card, an unreadable table, no type 0xb8 entry, one under 396 blocks or one that shares a sector with another entry of the table, and otherwise selects the first 0xb8 entry of at least 396 blocks that overlaps no other entry and holds it for the boot, so the open `main()` makes reads no table and a close of `/dev/swap` leaves it open; `sdsize()` reports a swap partition capped at 65,532 blocks and cut to a multiple of four; `sdstrategy()` on the swap device moves a count that ends inside a sector (the last sector zero-padded on a write, cut on a read, counted in `b_resid` when it fails or lies past the partition) and refuses such a count on every other partition | host | observed by `check-picocalc-host`: `sdstrat_test`, with 23 of its 96 mutants on these rules |
+| On Renode's SD card model a PICOCALC kernel prints `swap: sd0c` and `swap dev  = (5,3)` for a card with a 2 MiB type 0xb8 entry, runs the console, `picofetch`, `picotop` and crash-dump stages on it, and leaves swapped images on that partition; without a card it prints `swap dev  = (0,8)` | Renode | observed by `check-renode-picocalc-dump`: 87 of the partition's 512 4 KiB units nonzero after the run; a kernel whose `sdstrategy()` refuses a partial sector panics `hard err: swap` at the first swap-out and fails the gate; the no-card line by `check-renode-picocalc` |
+| Swap on a real card: selection at boot, swap traffic under a compile, a card pulled while it holds images, and the return of swap to `fl1` | board | not run; the retirement of the processes a pulled card held and the return to the fixed device rest on `check-swap-lost` and `check-swap-lost-io` (host) and on source; `sdswap_fallback()` runs on the host in `sdstrat_test` (built with `SDSWAP_ENABLED`), which requires it to release the card's hold on the swap partition, whose open by `main()` sets no descriptor bit, so that a replacement card opens, and a block descriptor still open on the old card, on the swap partition itself or another one, to keep the replacement refused until it closes; card detect has no Renode model |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
 | `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PicoCalc kernels' build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
@@ -611,7 +616,8 @@ and leaves the queue as it was when it fails. The queue is emptied and its bytes
 session starts and when it ends, and `picokbd_event()` records only between
 the two. A session ends when its owning process exits or execs
 (`lcdcons_procexit()`, called from `exit()` before the files close and from
-`exec_clear()` after the exec commits, so a new image never inherits it), when
+`exec_clear()` after the exec commits, so a new image never inherits it) or
+is retired with a lost swap card (`swap_lost_retire()`), when
 its open file is closed for the last time (`lcdcons_fileclose()`, called from
 `vn_closefile()` under `PICOCALC_ENABLED`, because a character driver's close
 entry runs only when the whole device is closed and the console stays open),
@@ -838,6 +844,62 @@ route; they use only the disk ioctls the driver answers
 (`DIOCGETMEDIASIZE`, `DIOCGETPART`, `DIOCREINIT`; `umount` adds
 `DIOCMEDIAGONE`) but have not run against it, so a closure that ships them waits on a board run.
 
+### Swap on the card
+
+A PicoCalc kernel (PICOCALC, PICOCALC_LEAN or PICOCALC_LEAN_DIAG) on a
+PicoCalc whose PSRAM did not take the swap device looks for swap on the SD card before `main()` opens
+`swapdev`. `sdswapattach()` (`dev/sd.c`, the `sdswap` service) brings the
+card up, reads the partition entries of sector 0 and takes the first entry
+of type 0xb8 (`PTYPE_SWAP`) that holds at least 396 KB, two process images
+of `SWAP_IMAGE_GUARD` blocks behind the map's reserved first run, and shares
+no sector with another entry of the table, so swap writes cannot reach the
+b7 root or a partition mounted later. It prints
+`swap: sd0c` for the third entry and holds that partition for the boot,
+apart from the open bits, so a close of `/dev/swap` does not release it. With no
+card, no such entry or a card that does not answer, swap stays on `fl1`.
+The order is therefore the SwapRAM pool, then the PSRAM when it identifies
+itself, then the card, then raw flash, and the choice is made once per boot.
+
+    fsutil --repartition=fs=64m:dump=1m:swap=32m card.img
+    fsutil --new --partition=1 card.img
+
+makes a card with a file system on `sd0a`, a dump partition on `sd0b` and
+swap on `sd0c`. The swap map's compact descriptors hold 16-bit block
+numbers, so `sdsize()` reports at most 65,532 blocks of a swap partition
+(64 MB) and a whole number of four-block units; a larger partition is used
+up to that size. The swapper transfers an image segment's exact byte count,
+and `sdstrategy()` completes the last sector of such a transfer through a
+512-byte buffer, for the swap device only.
+
+The card stays the swap device while it answers. `sdswapattach()` marks
+it removable (`swap_removable`), so a failed transfer on it sets
+`swap_lost` (`sys/kern/vm_swp.c`) instead of panicking `hard err: swap`,
+and no later transfer reaches the card. `sched()` then retires every
+process whose image the card held (`swap_lost_sweep()`,
+`sys/kern/vm_swap.c`): each leaves its wait queue and the timed-sleep
+callout `tsleep()` armed for it, ends the raw key session it owns
+(`lcdcons_procexit()`), releases its text and becomes a zombie with
+`SIGKILL` status through `proc_zombie()` (`sys/kern/kern_exit.c`), the
+conversion `exit()` itself uses: its children pass to init (a traced child
+loses the trace and receives `SIGKILL`, a stopped one `SIGHUP` and
+`SIGCONT`) and its parent receives `SIGCHLD`; images in the SwapRAM pool, system processes and the resident process survive, and a lost
+init panics `init lost with the swap device`. A swap-out or fork copy that
+the loss interrupts cancels its reservation and leaves the process resident,
+and `fork()` unwinds the child and fails. The retired images' blocks go back
+to the card's swap map, and once nothing else holds blocks of the card (an
+exec argument spool or a temporary swap unit frees its own), `sched()`
+returns swap to the device the configuration named: `swap_lost_fallback()`
+(`sys/kern/vm_swap.c`) calls `sdswap_fallback()` (`dev/sd.c`), which
+reopens `fl1`, prints `swap: sd0 gone, swap on (0,8)` and makes it
+`swapdev` again, and the swap map, the cursor and `nswap` then describe
+`fl1`. Until then the SwapRAM pool is the only tier, so a resident image
+the pool cannot take stays in core. `fl1` holds no image from before the
+loss, so it needs no check; it is the swap device a kernel without a usable
+card boots with, under the UF2 loader too. A retired process's open files
+and current directory stay referenced until reboot, because its u area was
+on the card. Flash under a card that holds swap takes no swap erases, which
+is the reason for the order: `fl1` has no wear leveling.
+
 ### Crash dumps
 
 A PICOCALC kernel on a PicoCalc takes a crash dump on the SD card. The
@@ -854,8 +916,8 @@ from `.data` to the end of the SwapRAM pool, and the two u areas, each
 with a CRC-32 computed over the bytes as they leave for the card, which
 keeps the current u area, where the writer's own stack runs, consistent.
 Sector 0 is zeroed first and written last, so an unfinished dump reads as
-none. A PICOCALC dump is 109 sectors (55,808 bytes), 48,136 of them kernel
-RAM; a dump of the kernel with PSRAM was 110 at the same revision.
+none. A PICOCALC dump is 112 sectors (57,344 bytes), 49,888 of them kernel
+RAM.
 
     fsutil --repartition=fs=64m:dump=1m card.img
     fsutil --new --partition=1 card.img
@@ -967,16 +1029,66 @@ that second stage after every erase and program, so with the magic present
 the kernel restores BAUDR 2 and RX_SAMPLE_DLY 1 from RAM at boot and after
 each re-entry.
 
+### Root on the SD card under the loader
+
+The loader programs only the kernel's UF2 and lends the flash above it to
+every other application on its menu, so under the loader the fl0 region
+holds another application's bytes, and a Dhara resume over them would read
+them as a journal. A kernel the loader started therefore takes its root
+from the SD card. `sdrootattach()` in `dev/sd.c`, which the PICOCALC,
+PICOCALC_LEAN and PICOCALC_LEAN_DIAG configurations run as the service
+`sdroot` after `binit()`
+and before the root mount, reads the card's MBR and sets `rootdev` (and
+`pipedev`, which `main()` copied from it before services attach) to the
+first entry of type b7:
+
+| Started by | Card | Console | Root |
+| --- | --- | --- | --- |
+| BOOTSEL or `picotool` (no stamp magic) | any | nothing from `sdroot` | fl0a, as configured |
+| the loader | a type-b7 entry in slot N | `root: started by the PicoCalc loader, root on sd0`, the card and partition lines, `root: sd0` and the slot letter | sd0 and that letter |
+| the loader | no type-b7 entry | the same first lines, then `panic: root: no partition of type b7 on sd0` | none; fl0 is never opened |
+| the loader | no card, or a card that fails identification | `root: sd0 error N`, then `panic: root: sd0 unusable` | none |
+
+The root filesystem for the card is `bmake MACHINE=rp2040
+BOARD=PICOCALC sdroot`, which writes
+`distrib/rp2040/sdroot-PICOCALC.img` (`tools/picocalc/mksdroot.sh`;
+with `UNION_KERNEL=PICOCALC_LEAN` or `PICOCALC_LEAN_DIAG` it holds the
+`picocalc-lean` root and is named `sdroot-PICOCALC-LEAN.img`):
+the files of the flash root as a bare 32 MiB filesystem (`SDROOT_KBYTES`)
+with no partition table, the block and raw nodes of all four card
+partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
+`fsck -p` and `mount -a` in `/etc/rc` read it, and a getty on tty0, the
+USB-C port's serial line at 115200 baud, beside the panel's console login. It is written at the first
+sector of the card's b7 partition, and `distrib/rp2040/unix-PICOCALC.uf2`
+goes into the loader's `/pico1-apps/` under a name with a lower-case
+`.uf2` extension, which the menu requires.
+
+The loader's two versions program the kernel differently: 2.4.1 erases the
+image's whole range at its first block and requires each later block to
+follow the one before, and 2.5 erases each sector as a block first reaches
+it. The kernel's UF2 is one contiguous run from 0x10000000, which both
+accept.
+
 Evidence: `check-loader-stamp` proves the decode, the bound and the swap
 writer against the bound on the host, and the wiring of the two
-primitives in the source. The bare route's boot is the Renode boot of
-`check-renode`. No kernel has been booted from the loader on a board or in
-Renode: the stamped path rests on the host gate and source reading, and
-the clock sequence entered from the loader's stage and the restored XIP
-divider on source and datasheet reading. Two further collisions stay open:
-the loader's path text at 0x118-0x12b overlays the image identity words,
-and an application flashed later from the menu erases the flash root
-above 128 KB.
+primitives in the source. `check-renode-identity` boots a stamped kernel
+in Renode. `check-renode-picocalc-sdroot` boots the board's kernel UF2
+with the stamp, a foreign byte pattern over the flash root and Renode's SD
+card model (a stamped-kernel SD-root test: flash bytes 0-255 remain the
+kernel's own second stage, so the loader's second stage and the XIP
+re-entry through it are `not run`) holding the SD root in slot 3 between a FAT32 and a Linux
+entry: the root lines, `root dev  = (5,3)`, a keyboard login and `mount`
+naming `/dev/sd0c` reach the panel, UART0 carries the tty0 login, sampled
+words of the flash root region still read the foreign pattern, and the
+card with its b7 entry retyped 83 stops at the panic line. Renode's card
+model is standard-capacity at every size, so the block addressing of a
+high-capacity card such as the PicoCalc's 32 GB one rests on
+`sdspi_test`'s `sdhc` scenario, and `sdstrat_test` runs `sdrootattach()`
+on the host for each row of the table above and requires the root open to
+refuse a slot or card that changed since the selection. No kernel has been booted
+from the loader on a board: the clock sequence entered from the loader's
+stage, the restored XIP divider and the card as the loader leaves it rest
+on source, datasheet and emulation.
 
 ## Next work, with designs and blockers
 

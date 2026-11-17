@@ -170,6 +170,21 @@ void siginit (struct proc *p);
  */
 void unsleep (struct proc *p);
 
+/*
+ * The callout tsleep() arms for a timed sleep. tsleep() cancels or consumes
+ * it before it returns; a process retired while asleep (swap_lost_retire())
+ * cancels it with untimeout(endtsleep, p).
+ */
+void endtsleep (caddr_t argument);
+
+#ifdef SDSWAP_ENABLED
+/*
+ * Make a process a zombie that reports the status to its parent: the part
+ * of exit() that needs no u area (kern_exit.c).
+ */
+void proc_zombie (struct proc *p, int rv);
+#endif
+
 void selwakeup (struct proc *p, long coll);
 
 /*

@@ -67,6 +67,15 @@ brelse(struct buf *bp)
         panic("brelse: wrong buffer");
 }
 
+#ifdef SDSWAP_ENABLED
+/*
+ * A removable swap device that leaves at write number lost_at: as in
+ * kern/vm_swp.c, that write and every later one move nothing and return.
+ */
+char swap_lost;
+static int lost_at = -1;
+#endif
+
 /* kern/vm_swp.c stand-in: count bytes from coreaddr to block blkno. */
 void
 swap_with_buf(struct buf *bp, size_t blkno, size_t coreaddr, int count,
@@ -77,6 +86,14 @@ swap_with_buf(struct buf *bp, size_t blkno, size_t coreaddr, int count,
         (rdflg & B_SWAPIMAGE) == 0 ||
         blkno + btod(count) > NSWAP)
         panic("swap: bad write");
+#ifdef SDSWAP_ENABLED
+    if (swap_lost)
+        return;
+    if (writes == lost_at) {
+        swap_lost = 1;
+        return;
+    }
+#endif
     memcpy(flash + blkno * DEV_BSIZE, (void *)coreaddr, count);
     writes++;
 }
@@ -454,6 +471,62 @@ service(void)
     printf("service: idle ignored, pending evacuated, admission refusal stayed early and service reopened\n");
 }
 
+#ifdef SDSWAP_ENABLED
+/*
+ * The swap device leaves at every write of a four-image evacuation. Every
+ * image must stay whole in the pool (swapram_in() expands it byte for
+ * byte), every flash reservation must go back with the process addresses
+ * cleared, no write may follow the loss, and the call reports failure.
+ */
+static void
+lost_device(void)
+{
+    struct image im[4];
+    unsigned char *d, *s, *ub;
+    int i, k, total = 0;
+    size_t before;
+
+    for (i = 0; i < NPROC; i++)
+        if (swapram_present(&proc[i]))
+            swapram_cancel(&proc[i]);
+    for (i = 0; i < 4; i++) {
+        mkimage(&im[i], 1200 + i * 700, 200 + i * 90, 300 + i);
+        total += btod(im[i].dlen) + btod(im[i].slen) + btod(USIZE);
+    }
+    for (k = 0; k < total; k++) {
+        reset_map(NSWAP - 1);
+        for (i = 0; i < 4; i++)
+            CHECK(admit(i, &im[i]));
+        before = mapfree();
+        swap_lost = 0;
+        lost_at = k;
+        CHECK(swapram_evacuate() == -1);
+        CHECK(writes == k);
+        CHECK(swapram_images() == 4);
+        CHECK(mapfree() == before);
+        for (i = 0; i < 4; i++) {
+            CHECK(proc[i].p_daddr == 0 && proc[i].p_saddr == 0 &&
+                proc[i].p_addr == 0);
+            d = malloc(im[i].dlen);
+            s = malloc(im[i].slen);
+            ub = malloc(USIZE);
+            swapram_in(&proc[i], (caddr_t)d, (caddr_t)s, (caddr_t)ub);
+            CHECK(memcmp(d, im[i].d, im[i].dlen) == 0 &&
+                memcmp(s, im[i].s, im[i].slen) == 0 &&
+                memcmp(ub, im[i].ub, USIZE) == 0);
+            free(d);
+            free(s);
+            free(ub);
+        }
+        CHECK(swapram_images() == 0);
+    }
+    swap_lost = 0;
+    lost_at = -1;
+    printf("lost device: %d loss points, every image kept in the pool and every reservation returned\n",
+        total);
+}
+#endif
+
 int
 main(void)
 {
@@ -468,6 +541,9 @@ main(void)
     shortage();
     admission();
     service();
+#ifdef SDSWAP_ENABLED
+    lost_device();
+#endif
     if (failures) {
         printf("%d failures\n", failures);
         return 1;

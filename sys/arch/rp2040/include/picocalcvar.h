@@ -49,19 +49,35 @@ int	picocalc_sysctl(int *, u_int, void *, size_t *, void *, size_t);
 #define	CPU_PICOCALC_PANEL_SCAN		8	/* struct: scanline sample */
 #define	CPU_PICOCALC_MAXID		9
 
-#define	PANEL_READ_N		20	/* Entries of a readback. */
+#define	PANEL_READ_N		28	/* Entries of a readback. */
 #define	PANEL_READ_BYTES	5	/* Bytes kept per entry. */
 
 /*
  * One read command: cmd went out with D/CX low, then n bytes were clocked
  * in with D/CX high and the clock at 3.125 MHz (TSCYCR 150 ns, page 77).
  * A nonzero fb means SPI Read Control (FBh, page 246) was set to fb first
- * and cleared after. The bytes are raw: the 24- and 32-bit reads (04h, 09h)
- * carry one dummy clock first (page 94), so their value starts at bit 6 of
- * byte 0.
+ * and cleared after. The bytes are raw: the 24- and 32-bit reads (04h, 09h,
+ * D3h) carry one dummy clock first (page 94), so their value starts at
+ * bit 6 of byte 0.
+ *
+ * how names the Command Table 2 read variant. PANEL_RD_MARK unlocks
+ * command 2 (CSCON C3h, 96h) and writes the mark values below just before
+ * the read, so every marked read starts from the same known register
+ * contents whatever an earlier read clocked into them. PANEL_RD_FB_FIRST
+ * sends FBh before that unlock instead of after it; PANEL_RD_LOCK locks
+ * command 2 (3Ch, 69h) between the mark and FBh; PANEL_RD_ONE_CS sends FBh
+ * in the read's own chip select.
  */
+#define	PANEL_RD_MARK		0x01
+#define	PANEL_RD_FB_FIRST	0x02
+#define	PANEL_RD_LOCK		0x04
+#define	PANEL_RD_ONE_CS		0x08
+#define	PANEL_MARK_C5		0x2a	/* VCMPCTL: VCOM inside 00h-3Fh */
+#define	PANEL_MARK_B1_0		0x50	/* FRMCTR1: FRS 5, DIVA 0 */
+#define	PANEL_MARK_B1_1		0x1c	/* FRMCTR1: RTNA 28 (40 Hz) */
+
 struct picocalc_panel_ent {
-	unsigned char	cmd, fb, n;
+	unsigned char	cmd, fb, n, how;
 	unsigned char	data[PANEL_READ_BYTES];
 };
 struct picocalc_panel_read {

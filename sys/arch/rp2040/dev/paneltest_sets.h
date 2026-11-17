@@ -72,7 +72,8 @@
 	X("frame 60hz unlocked",	UNLOCK,	DRIVER,	FRAME_60HZ) \
 	X("frame 75hz unlocked",	UNLOCK,	DRIVER,	FRAME_75HZ) \
 	X("frame 90hz unlocked",	UNLOCK,	DRIVER,	FRAME_90HZ) \
-	X("frame 120hz unlocked",	UNLOCK,	DRIVER,	FRAME_120HZ)
+	X("frame 120hz unlocked",	UNLOCK,	DRIVER,	FRAME_120HZ) \
+	X("ct2 mark unlocked",		UNLOCK,	DRIVER,	CT2_MARK)
 
 #define	PANELTEST_COUNT_ONE(name, pre, base, post)	+ 1
 #define	PANELTEST_NSETS	(0 PANELTEST_SETS(PANELTEST_COUNT_ONE))

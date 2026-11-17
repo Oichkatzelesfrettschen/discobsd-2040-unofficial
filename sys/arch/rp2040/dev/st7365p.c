@@ -541,6 +541,12 @@ FRAME_SET(FRAME_90HZ, 14, 0, 30, 90);
 FRAME_SET(FRAME_120HZ, 15, 0, 4, 120);
 static const u_char MADCTL_40[] = { CMD_MADCTL, 1, 0x40 };
 static const u_char MADCTL_08[] = { CMD_MADCTL, 1, 0x08 };
+/* Distinctive in-range values that the marked readback variants expect. */
+static const u_char CT2_MARK[] = {
+	0xc5, 1, PANEL_MARK_C5,
+	0xb1, 2, PANEL_MARK_B1_0, PANEL_MARK_B1_1,
+};
+static const u_char LOCK[] = { CMD_CSCON, 1, 0x3c, CMD_CSCON, 1, 0x69 };
 
 #define	SEQ_LEN(t)	((u_short)sizeof(t))
 
@@ -598,37 +604,59 @@ spi_clock(u_int scr)
 	SPI_REG(SSPCR1) = SSPCR1_SSE;
 }
 
+static void
+send_seq(const u_char *p, u_int len)
+{
+	lcd_select();
+	run_seq(p, len);
+	lcd_deselect();
+}
+
+static void
+send_spirc(u_int fb)
+{
+	lcd_select();
+	lcd_command(CMD_SPIRC);
+	spi_put(fb);
+	lcd_deselect();
+}
+
 /*
  * One read command (page 94): the command byte with D/CX low, then n bytes
  * clocked with D/CX high while the panel shifts SDO, sampled on the rising
  * edge as the PL022 does in mode 0. lcd_command() drains the byte received
  * during the command. The clock drops to 3.125 MHz, inside TSCYCR (150 ns,
- * page 77), and returns to the write clock after.
+ * page 77), and returns to the write clock after. how selects the Command
+ * Table 2 variant (PANEL_RD_*, machine/picocalcvar.h).
  */
 static void
-lcd_read(u_int cmd, u_int fb, u_char *out, u_int n)
+lcd_read(const u_char *r, u_char *out)
 {
-	u_int i;
+	u_int cmd = r[0], fb = r[1], n = r[2], how = r[3], i;
 
-	if (fb != 0) {
-		lcd_select();
-		lcd_command(CMD_SPIRC);
-		spi_put(fb);
-		lcd_deselect();
+	if (fb != 0 && (how & PANEL_RD_FB_FIRST))
+		send_spirc(fb);
+	if (how & PANEL_RD_MARK) {
+		send_seq(UNLOCK, sizeof(UNLOCK));
+		send_seq(CT2_MARK, sizeof(CT2_MARK));
 	}
+	if (how & PANEL_RD_LOCK)
+		send_seq(LOCK, sizeof(LOCK));
+	if (fb != 0 && (how & (PANEL_RD_FB_FIRST | PANEL_RD_ONE_CS)) == 0)
+		send_spirc(fb);
 	spi_clock(LCD_READ_SCR);
 	lcd_select();
+	if (how & PANEL_RD_ONE_CS) {
+		lcd_command(CMD_SPIRC);
+		spi_put(fb);
+	}
 	lcd_command(cmd);
 	for (i = 0; i < n; i++)
 		out[i] = (u_char)spi_xfer(0);
 	lcd_deselect();
 	spi_clock(LCD_SCR);
-	if (fb != 0) {
-		lcd_select();
-		lcd_command(CMD_SPIRC);
-		spi_put(0);
-		lcd_deselect();
-	}
+	if (fb != 0)
+		send_spirc(0);
 }
 
 /*
@@ -639,15 +667,32 @@ lcd_read(u_int cmd, u_int fb, u_char *out, u_int n)
  * then Command Table 2 registers through SPI Read Control. If SPIRC does
  * not take effect, those reads clock zero parameter bytes into B4h, B1h,
  * C5h, B7h or E0h, so paneltest programs its set again after a readback.
+ * D3h is itself a Command Table 2 entry (section 9.3.18) and answers
+ * without FBh, which makes it the known-good read of that table.
+ *
+ * The last eight are the Command Table 2 read control: each rewrites the
+ * mark values (C5h 2Ah, B1h 50h 1Ch) and then reads with one condition
+ * changed from the marked C5h read through FBh 10h: no FBh, parameter
+ * number 1, FBh before the unlock, command 2 locked again before FBh, FBh
+ * in the read's chip select; then B1h through parameter numbers 0 and 1.
+ * Five bytes each show where in the reply a mark value lands.
  */
-static const u_char panel_reads[][3] = {
-	{ 0x04, 0, 4 }, { 0x09, 0, 5 }, { 0x0a, 0, 2 }, { 0x0b, 0, 2 },
-	{ 0x0c, 0, 2 }, { 0x0d, 0, 2 }, { 0x0e, 0, 2 }, { 0x0f, 0, 2 },
-	{ 0xda, 0, 2 }, { 0xdb, 0, 2 }, { 0xdc, 0, 2 }, { 0xd3, 0, 4 },
-	{ 0xb4, 0x10, 2 }, { 0xb4, 0x11, 2 }, { 0xb1, 0x10, 2 },
-	{ 0xc5, 0x10, 2 }, { 0xb7, 0x10, 2 }, { 0xe0, 0x10, 2 },
-	{ 0xe0, 0x11, 2 }, { 0xe0, 0x1d, 2 },
+#define	M	PANEL_RD_MARK
+static const u_char panel_reads[][4] = {
+	{ 0x04, 0, 4, 0 }, { 0x09, 0, 5, 0 }, { 0x0a, 0, 2, 0 },
+	{ 0x0b, 0, 2, 0 }, { 0x0c, 0, 2, 0 }, { 0x0d, 0, 2, 0 },
+	{ 0x0e, 0, 2, 0 }, { 0x0f, 0, 2, 0 }, { 0xda, 0, 2, 0 },
+	{ 0xdb, 0, 2, 0 }, { 0xdc, 0, 2, 0 }, { 0xd3, 0, 4, 0 },
+	{ 0xb4, 0x10, 2, 0 }, { 0xb4, 0x11, 2, 0 }, { 0xb1, 0x10, 2, 0 },
+	{ 0xc5, 0x10, 2, 0 }, { 0xb7, 0x10, 2, 0 }, { 0xe0, 0x10, 2, 0 },
+	{ 0xe0, 0x11, 2, 0 }, { 0xe0, 0x1d, 2, 0 },
+	{ 0xc5, 0x10, 5, M }, { 0xc5, 0, 5, M }, { 0xc5, 0x11, 5, M },
+	{ 0xc5, 0x10, 5, M | PANEL_RD_FB_FIRST },
+	{ 0xc5, 0x10, 5, M | PANEL_RD_LOCK },
+	{ 0xc5, 0x10, 5, M | PANEL_RD_ONE_CS },
+	{ 0xb1, 0x10, 5, M }, { 0xb1, 0x11, 5, M },
 };
+#undef	M
 _Static_assert(sizeof(panel_reads) / sizeof(panel_reads[0]) <= PANEL_READ_N,
     "the readback fits struct picocalc_panel_read");
 
@@ -663,8 +708,8 @@ st7365p_readback(struct picocalc_panel_read *rb)
 		rb->ent[i].cmd = panel_reads[i][0];
 		rb->ent[i].fb = panel_reads[i][1];
 		rb->ent[i].n = panel_reads[i][2];
-		lcd_read(panel_reads[i][0], panel_reads[i][1], rb->ent[i].data,
-		    panel_reads[i][2]);
+		rb->ent[i].how = panel_reads[i][3];
+		lcd_read(panel_reads[i], rb->ent[i].data);
 	}
 }
 

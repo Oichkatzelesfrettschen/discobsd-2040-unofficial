@@ -30,4 +30,15 @@ extern dev_t rootdev, pipedev;
 void panic(const char *msg) __attribute__((noreturn));
 void timeout(void (*fn)(char *), char *arg, int ticks);
 
+#ifdef SDSWAP_ENABLED
+/* A swap device that can leave (sys/sys/systm.h); sdstrat_test defines it. */
+extern char swap_removable;
+size_t sdswap_fallback(void);
+/* The open flags of sys/sys/fcntl.h, which the host's header lacks. */
+#ifndef FREAD
+#define	FREAD		0x0001
+#define	FWRITE		0x0002
+#endif
+#endif
+
 #endif

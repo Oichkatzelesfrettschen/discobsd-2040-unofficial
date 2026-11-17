@@ -847,7 +847,14 @@ sdswap_fallback(void)
 	blocks = (*bdevsw[major(dev)].d_psize)(dev);
 	if (blocks <= 0)
 		return 0;
+	/*
+	 * Release the partition as its last close would: main() opened it as
+	 * a block device and no close of swapdev reaches it from here, so the
+	 * open bit left set would keep sd_openpart nonzero and refuse the next
+	 * card with EIO instead of reading it.
+	 */
 	sd_swaphold = 0;
+	sdclose(swapdev, FREAD | FWRITE, S_IFBLK);
 	swapdev = dev;
 	printf("swap: sd0 gone, swap on (%d,%d)\n", major(dev), minor(dev));
 	return blocks;

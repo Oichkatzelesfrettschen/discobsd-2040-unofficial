@@ -1672,6 +1672,85 @@ swapdev_cases(void)
 	swapdev = FL1;
 }
 
+#ifdef SDSWAP_ENABLED
+#include <sys/conf.h>
+#include <sys/systm.h>
+
+/*
+ * The fixed swap device (fl1, major 0) that sdswap_fallback() returns swap
+ * to once the card that held it left.
+ */
+char swap_removable;
+static daddr_t fl_blocks = 384;
+
+static int
+fl_open(dev_t dev __attribute__((unused)), int flag __attribute__((unused)),
+    int mode __attribute__((unused)))
+{
+	return 0;
+}
+
+static daddr_t
+fl_psize(dev_t dev __attribute__((unused)))
+{
+	return fl_blocks;
+}
+
+const struct bdevsw bdevsw[SD_BMAJOR + 1] = { [0] = { fl_open, fl_psize } };
+
+/*
+ * Swap returns to fl1 after the card that held it left (sdswap_fallback()).
+ * main() opened the swap partition as a block device and nothing closes it,
+ * so the fallback must release it: a replacement card then opens and its
+ * table is read, rather than EIO from the replaced flag of a card the
+ * driver still counts as open. A partition of the old card that is still
+ * open (a mount) keeps the replacement refused until it closes.
+ */
+static void
+fallback_cases(void)
+{
+	init_sectors = 1U << 22;
+	fill_card();
+	set_part(4, PTYPE_SWAP, 4096, 2 * 8192);
+	swap_removable = 0;
+
+	swap_attach("fallback", FL1);
+	check("fallback: swap on sd0d", (long)swapdev,
+	    (long)makedev(SD_BMAJOR, 4));
+	check("fallback: removable", swap_removable, 1);
+	check("fallback: open by main", sdopen(swapdev, FREAD | FWRITE, S_IFBLK),
+	    0);
+	card_swap();
+	check("fallback: size of fl1", (long)sdswap_fallback(), 384);
+	check("fallback: swapdev is fl1", (long)swapdev, (long)FL1);
+	check("fallback: card released",
+	    (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
+	nread[0] = 0;
+	check("fallback: replacement opens",
+	    sdopen(makedev(SD_BMAJOR, 1), 0, S_IFBLK), 0);
+	check("fallback: replacement table read", nread[0] != 0, 1);
+	sdclose(makedev(SD_BMAJOR, 1), 0, S_IFBLK);
+
+	swap_attach("fallback mounted", FL1);
+	check("fallback mounted: open by main",
+	    sdopen(swapdev, FREAD | FWRITE, S_IFBLK), 0);
+	check("fallback mounted: sd0a mounted",
+	    sdopen(makedev(SD_BMAJOR, 1), 0, S_IFBLK), 0);
+	card_swap();
+	check("fallback mounted: size of fl1", (long)sdswap_fallback(), 384);
+	check("fallback mounted: replacement refused",
+	    sdopen(makedev(SD_BMAJOR, 2), 0, S_IFBLK), EIO);
+	sdclose(makedev(SD_BMAJOR, 1), 0, S_IFBLK);
+	check("fallback mounted: replacement opens after the unmount",
+	    sdopen(makedev(SD_BMAJOR, 2), 0, S_IFBLK), 0);
+	sdclose(makedev(SD_BMAJOR, 2), 0, S_IFBLK);
+
+	swap_release();
+	init_sectors = CARD_SECTORS;
+	swapdev = FL1;
+}
+#endif
+
 int
 main(void)
 {
@@ -1690,6 +1769,9 @@ main(void)
 	mbr_byte_cases();
 	root_cases();
 	swapdev_cases();
+#ifdef SDSWAP_ENABLED
+	fallback_cases();
+#endif
 
 	fill_card();
 

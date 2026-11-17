@@ -179,7 +179,7 @@ sdstrat_test: sdstrat_test.c regmodel.h ${DEV}/sd.c ${DEV}/sd.h \
 	    ${DEV}/sdspi.h ${DEV}/picocalc_reg.h shim/machine/board.h \
 	    shim/machine/dump.h ${TOPSRC}/sys/arch/rp2040/include/board.h \
 	    ${TOPSRC}/sys/arch/rp2040/include/dump.h ${DUMPW} ${CRC32}
-	${HOST_CC} ${KCSTD} ${SAN} -g -idirafter ${TOPSRC}/sys -o $@ \
+	${HOST_CC} ${KCSTD} ${SAN} -g -DSDSWAP_ENABLED -idirafter ${TOPSRC}/sys -o $@ \
 	    sdstrat_test.c ${DEV}/sd.c ${DUMPW} ${CRC32}
 
 dump_test: dump_test.c ${DUMPW} ${CRC32} ${SAVECORE}/savecore.c \
@@ -1282,7 +1282,7 @@ sdspi-mutant-span-sum-late:
 
 
 SDSTRAT_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
-		"${KCSTD} -idirafter ${TOPSRC}/sys" "${DEV}" sdstrat_test.c
+		"${KCSTD} -DSDSWAP_ENABLED -idirafter ${TOPSRC}/sys" "${DEV}" sdstrat_test.c
 
 # The driver, the dump stream it writes through and the CRC; a mutant of
 # dump.c names it relative to DEV.
@@ -1381,7 +1381,8 @@ sdstrat-mutants: \
 	sdstrat-mutant-swap-refusal-left-open \
 	sdstrat-mutant-swap-overlap-ignored \
 	sdstrat-mutant-swap-overlap-adjacent \
-	sdstrat-mutant-swap-overlap-self
+	sdstrat-mutant-swap-overlap-self \
+	sdstrat-mutant-swap-fallback-left-open
 
 # sdrootattach(): the root a kernel the PicoCalc loader started takes.
 sdstrat-mutant-root-stamp-ignored:
@@ -1512,6 +1513,11 @@ sdstrat-mutant-swap-overlap-adjacent:
 sdstrat-mutant-swap-overlap-self:
 	${SDSTRAT_MUT} sd.c \
 	    's/if (q != p \&\& q->dp_nsectors/if (q->dp_nsectors/' ${SDSTRAT_SRC}
+
+# The return of swap to fl1 releases the card's swap partition.
+sdstrat-mutant-swap-fallback-left-open:
+	${SDSTRAT_MUT} sd.c \
+	    's/^	sdclose(swapdev, FREAD | FWRITE, S_IFBLK);$$/	(void)0;/' ${SDSTRAT_SRC}
 
 # The last sector of a swap transfer, sd_tail_io() and its callers.
 sdstrat-mutant-swap-tail-refused:
@@ -2013,7 +2019,8 @@ clean:
 	sdstrat-mutant-probe-never \
 	sdstrat-mutant-swap-overlap-ignored \
 	sdstrat-mutant-swap-overlap-adjacent \
-	sdstrat-mutant-swap-overlap-self
+	sdstrat-mutant-swap-overlap-self \
+	sdstrat-mutant-swap-fallback-left-open
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

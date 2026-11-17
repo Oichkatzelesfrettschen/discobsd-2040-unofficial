@@ -2892,8 +2892,13 @@ one that is not a multiple of four. It then issues the swapper's
 byte-counted transfers: a 1,300-byte read and write, a 100-byte write, a
 failed last sector and a count past the partition's last sector on the
 swap device, and the same count refused on another partition; the chosen
-partition must stay open across an open and close of it. Twenty
-mutants cover these rules.
+partition must stay open across an open and close of it. Built with
+`SDSWAP_ENABLED`, it then returns swap to `fl1` through `sdswap_fallback()`
+after the card that held it was replaced while `main()`'s open of the swap
+partition stood: swap must be on `fl1`, the card released and the
+replacement must open and have its table read; with another partition of
+the old card still open, the replacement must get `EIO` until that
+partition closes. Twenty-one mutants cover these rules.
 
 `check-renode-picocalc-dump` runs the script of `check-renode-picocalc`
 (next paragraph) with `--dump`. It boots

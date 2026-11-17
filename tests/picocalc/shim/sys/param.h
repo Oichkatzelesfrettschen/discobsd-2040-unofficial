@@ -13,11 +13,12 @@
 
 typedef int		daddr_t;
 
+/* major() and minor() are ints, as sys/sys/types.h makes them. */
 #undef major
-#define	major(dev)	(((dev) >> 8) & 0xff)
+#define	major(dev)	((int)(((dev) >> 8) & 0xff))
 #undef minor
 #undef makedev
-#define	minor(dev)	((dev) & 0xff)
+#define	minor(dev)	((int)((dev) & 0xff))
 #define	makedev(x, y)	((dev_t)(((x) << 8) | (y)))
 #define	DEV_BSIZE	1024
 #define	DEV_BSHIFT	10

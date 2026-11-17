@@ -311,14 +311,29 @@ psram_block_offset(long blkno, unsigned int bsize, unsigned int len,
 	return 0;
 }
 
+/*
+ * The swap region's size: PSRAM_SWAP_BYTES until psram_swap_all() gives swap
+ * the whole part, which leaves the /tmp region empty.
+ */
+static unsigned char psram_swap_whole;
+
+#define	psram_swap_bytes() \
+	(psram_swap_whole ? PSRAM_BYTES : PSRAM_SWAP_BYTES)
+
+void
+psram_swap_all(void)
+{
+	psram_swap_whole = 1;
+}
+
 /* Bytes in the region minor names; 0 for a minor with no region. */
 unsigned long
 psram_region_bytes(int minor)
 {
 	if (minor == 0)
-		return PSRAM_SWAP_BYTES;
+		return psram_swap_bytes();
 	if (minor == 1)
-		return PSRAM_BYTES - PSRAM_SWAP_BYTES;
+		return PSRAM_BYTES - psram_swap_bytes();
 	return 0;
 }
 
@@ -334,7 +349,7 @@ psram_region_offset(int minor, long blkno, unsigned int bsize,
     unsigned int len, unsigned int *off)
 {
 	unsigned long size = psram_region_bytes(minor);
-	unsigned long base = minor == 1 ? PSRAM_SWAP_BYTES : 0;
+	unsigned long base = minor == 1 ? psram_swap_bytes() : 0;
 	unsigned long addr;
 
 	if (size == 0 || blkno < 0 || (unsigned long)blkno > size / bsize)

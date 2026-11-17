@@ -244,7 +244,7 @@ sdstrat_test: sdstrat_test.c regmodel.h ${DEV}/sd.c ${DEV}/sd.h \
 	    ${DEV}/sdspi.h ${DEV}/picocalc_reg.h shim/machine/board.h \
 	    shim/machine/dump.h ${TOPSRC}/sys/arch/rp2040/include/board.h \
 	    ${TOPSRC}/sys/arch/rp2040/include/dump.h ${DUMPW} ${CRC32}
-	${HOST_CC} ${KCSTD} ${SAN} -g -DSDSWAP_ENABLED -idirafter ${TOPSRC}/sys -o $@ \
+	${HOST_CC} ${KCSTD} ${SAN} -g -DSDSWAP_ENABLED -DPSRAM_ENABLED -idirafter ${TOPSRC}/sys -o $@ \
 	    sdstrat_test.c ${DEV}/sd.c ${DUMPW} ${CRC32}
 
 dump_test: dump_test.c ${DUMPW} ${CRC32} ${SAVECORE}/savecore.c \
@@ -1351,7 +1351,7 @@ sdspi-mutant-span-sum-late:
 
 
 SDSTRAT_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
-		"${KCSTD} -DSDSWAP_ENABLED -idirafter ${TOPSRC}/sys" "${DEV}" sdstrat_test.c
+		"${KCSTD} -DSDSWAP_ENABLED -DPSRAM_ENABLED -idirafter ${TOPSRC}/sys" "${DEV}" sdstrat_test.c
 
 # The driver, the dump stream it writes through and the CRC; a mutant of
 # dump.c names it relative to DEV.
@@ -1441,6 +1441,17 @@ sdstrat-mutants: \
 	sdstrat-mutant-swap-clamp-everywhere \
 	sdstrat-mutant-swap-tail-refused \
 	sdstrat-mutant-swap-tail-everywhere \
+	sdstrat-mutant-tmp-type-ignored \
+	sdstrat-mutant-tmp-short-accepted \
+	sdstrat-mutant-tmp-minimum-refused \
+	sdstrat-mutant-tmp-overlap-ignored \
+	sdstrat-mutant-tmp-last-entry \
+	sdstrat-mutant-tmp-none-is-whole-card \
+	sdstrat-mutant-tmp-alias-minor-moved \
+	sdstrat-mutant-tmp-slot-node-opens \
+	sdstrat-mutant-tmp-psram-not-widened \
+	sdstrat-mutant-tmp-widened-without-entry \
+	sdstrat-mutant-tmp-widened-off-psram \
 	sdstrat-mutant-swap-tail-unpadded \
 	sdstrat-mutant-swap-tail-read-whole \
 	sdstrat-mutant-swap-tail-resid-dropped \
@@ -1530,11 +1541,11 @@ sdstrat-mutant-mbr-signature-unchecked:
 # sdswapattach() and the swap partition's size: the device that holds swap.
 sdstrat-mutant-swap-board-ungated:
 	${SDSTRAT_MUT} sd.c \
-	    's/board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR/major(swapdev) == PSRAM_MAJOR/' ${SDSTRAT_SRC}
+	    '/^sdswapattach(void)/,/^}/ s/if (board_id() != BOARD_ID_PICOCALC)/if (0)/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-swap-psram-overridden:
 	${SDSTRAT_MUT} sd.c \
-	    's/board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR/board_id() != BOARD_ID_PICOCALC/' ${SDSTRAT_SRC}
+	    's/if (major(swapdev) == PSRAM_MAJOR) {/if (0) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-swap-type-ignored:
 	${SDSTRAT_MUT} sd.c \
@@ -1604,6 +1615,50 @@ sdstrat-mutant-swap-fallback-closes-descriptor:
 sdstrat-mutant-swap-tail-refused:
 	${SDSTRAT_MUT} sd.c \
 	    's/(tail != 0 \&\& bp->b_dev != swapdev)/(tail != 0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-type-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdpt\[i\].dp_type == PTYPE_TMP \&\&/1 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-short-accepted:
+	${SDSTRAT_MUT} sd.c \
+	    's/>= SD_TMP_MIN_BLOCKS/>= SD_TMP_MIN_BLOCKS - 1/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-minimum-refused:
+	${SDSTRAT_MUT} sd.c \
+	    's/>= SD_TMP_MIN_BLOCKS/> SD_TMP_MIN_BLOCKS/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-overlap-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    '/^sd_tmp_slot(void)/,/^}/ s/!sd_shares_sectors(i)/1/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-last-entry:
+	${SDSTRAT_MUT} sd.c \
+	    '/^sd_tmp_slot(void)/,/^}/ s/for (i = 1; i <= MAXPARTITIONS; i++)/for (i = MAXPARTITIONS; i >= 1; i--)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-none-is-whole-card:
+	${SDSTRAT_MUT} sd.c \
+	    's/return MAXPARTITIONS + 1;/return 0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-alias-minor-moved:
+	${SDSTRAT_MUT} sd.c \
+	    's/\(SD_TMP_MINOR[[:space:]]*\)5/\16/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-slot-node-opens:
+	${SDSTRAT_MUT} sd.c \
+	    's/(minor(dev) \& 7) != SD_TMP_MINOR \&\& part == sd_part(SD_TMP_MINOR)/0/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-psram-not-widened:
+	${SDSTRAT_MUT} sd.c \
+	    's/psram_swap_all();/;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-widened-without-entry:
+	${SDSTRAT_MUT} sd.c \
+	    '/^sd_tmpattach(void)/,/^}/ s/if (i > MAXPARTITIONS)/if (0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-tmp-widened-off-psram:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (major(swapdev) == PSRAM_MAJOR) {/sd_tmpattach(); if (major(swapdev) == PSRAM_MAJOR) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-swap-tail-everywhere:
 	${SDSTRAT_MUT} sd.c \

@@ -14,7 +14,8 @@
 # pad drive strength ORed into the reset field, a clock whose low
 # phase is twice its high phase, an EID decoded one byte early, and a Read
 # ID overrun that is not retried, a /tmp offset without its region's base,
-# and a swap length bounded by the device instead of its region. A gate
+# and a swap length bounded by the device instead of its region, and
+# whole-part swap that keeps a /tmp region or changes nothing. A gate
 # that passed them would be
 # checking nothing.
 #
@@ -50,7 +51,8 @@ mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
 	mutant-tcem mutant-block mutant-comment mutant-turnaround \
 	mutant-blkrange mutant-blklen mutant-drive mutant-duty mutant-eid \
 	mutant-eid-retry mutant-extent mutant-extent-half \
-	mutant-region-base mutant-region-bound
+	mutant-region-base mutant-region-bound mutant-swap-all-keeps-tmp \
+	mutant-swap-all-ignored
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -108,6 +110,14 @@ mutant-region-base:
 mutant-region-bound:
 	${MUT} psram_xfer.c 's/if (len > size - addr)$$/if (len > PSRAM_BYTES - addr)/'
 
+# Whole-part swap that leaves a /tmp region behind it.
+mutant-swap-all-keeps-tmp:
+	${MUT} psram_xfer.c 's/return PSRAM_BYTES - psram_swap_bytes();/return PSRAM_BYTES - PSRAM_SWAP_BYTES;/'
+
+# A psram_swap_all() that changes nothing.
+mutant-swap-all-ignored:
+	${MUT} psram_xfer.c 's/psram_swap_whole = 1;/psram_swap_whole = 0;/'
+
 # A request that may run past the end of the device.
 mutant-blklen:
 	${MUT} psram_xfer.c 's/if (len > PSRAM_BYTES - addr)$$/if (0)/'
@@ -146,4 +156,5 @@ clean:
 	mutant-address mutant-tcem mutant-block mutant-comment \
 	mutant-turnaround mutant-blkrange mutant-blklen mutant-drive \
 	mutant-duty mutant-eid mutant-eid-retry mutant-extent \
-	mutant-extent-half clean
+	mutant-extent-half mutant-swap-all-keeps-tmp \
+	mutant-swap-all-ignored clean

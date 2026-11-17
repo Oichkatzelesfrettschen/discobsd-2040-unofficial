@@ -47,16 +47,32 @@ umount -a
 mount -a
 
 #
-# The PicoCalc's PSRAM, when the kernel found one, holds a 6144 KB RAM disk
-# in minor 1 that every reset empties, so each boot makes a fresh file system
-# (one inode per 4096 bytes, 1536 inodes) and mounts it over /tmp. A kernel
-# without the driver, or a part that failed its probe, fails the open with
-# ENXIO and /tmp stays a directory of the root. The read of block 0 decides
-# that before mkfs runs: mkfs creates its device with creat(), which
-# truncates, and the kernel rewrites the node's inode on the root flash for
-# the truncation before the driver can refuse the open.
+# /tmp on a PicoCalc. A kernel that found a partition of type ba on the SD
+# card (sdswapattach() in sys/arch/rp2040/dev/sd.c) names it /dev/sd0t,
+# whichever MBR slot holds it, and gives the PSRAM's whole 8 MB to swap, so
+# the PSRAM has no /tmp region then. /tmp is disposable, so each boot makes
+# a fresh file system on the partition (one inode per 8192 bytes; mkfs
+# reads the size from the device) and mounts it over /tmp. Without the
+# partition the open fails with ENXIO and the PSRAM case below runs; if
+# the partition is present but mkfs or the mount fails, /tmp stays a
+# directory of the root and the PSRAM, already all swap, is not used.
 #
-if test -b /dev/psram1 && dd if=/dev/psram1 of=/dev/null count=1 2>/dev/null &&
+# The PSRAM, when the kernel found one and no card partition took /tmp,
+# holds a 6144 KB RAM disk in minor 1 that every reset empties, so each boot
+# makes a fresh file system (one inode per 4096 bytes, 1536 inodes) and
+# mounts it over /tmp. A kernel without the driver, or a part that failed
+# its probe, fails the open with ENXIO and /tmp stays a directory of the
+# root. The read of block 0 decides that before mkfs runs: mkfs creates its
+# device with creat(), which truncates, and the kernel rewrites the node's
+# inode on the root for the truncation before the driver can refuse the
+# open.
+#
+if test -b /dev/sd0t && dd if=/dev/sd0t of=/dev/null count=1 2>/dev/null; then
+    if mkfs -i 8192 /dev/sd0t >/dev/null 2>&1 &&
+        mount -o async,noaccesstime,nosuid /dev/sd0t /tmp; then
+        chmod 1777 /tmp
+    fi
+elif test -b /dev/psram1 && dd if=/dev/psram1 of=/dev/null count=1 2>/dev/null &&
     mkfs -i 4096 /dev/psram1 6144 >/dev/null 2>&1 &&
     mount -o async,noaccesstime,nosuid /dev/psram1 /tmp; then
     chmod 1777 /tmp

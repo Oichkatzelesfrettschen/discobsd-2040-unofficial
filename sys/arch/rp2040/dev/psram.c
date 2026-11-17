@@ -21,7 +21,10 @@
  * that answers with the manufacturer and known-good-die bytes, passes
  * the quad-mode pattern test and addresses all 8 MB replaces fl1 as
  * swapdev; any other outcome prints one line and leaves swapdev on the
- * fl1 that the configuration names. Transfers complete inside
+ * fl1 that the configuration names. The part holds a 2 MB swap region and a
+ * 6 MB /tmp region unless sdswapattach() (sd.c) finds a PTYPE_TMP partition
+ * on the card, which takes /tmp and leaves the whole part to swap
+ * (psram_swap_all(), psram_xfer.c). Transfers complete inside
  * psramstrategy(), as the flash driver's do, because swap_with_buf()
  * sleeps only until B_DONE.
  */
@@ -54,6 +57,10 @@ _Static_assert(PSRAM_SWAP_BYTES / DEV_BSIZE >=
 _Static_assert(PSRAM_SWAP_BYTES / DEV_BSIZE <= 0xffff,
     "PSRAM swap fits a 16-bit swap map entry");
 _Static_assert(PSRAM_SWAP_BYTES < PSRAM_BYTES, "the /tmp region is not empty");
+/* psram_swap_all() makes the whole part the swap device. */
+_Static_assert((PSRAM_BYTES / DEV_BSIZE) % SWAP_IMAGE_ALIGN == 0 &&
+    PSRAM_BYTES / DEV_BSIZE <= 0xffff,
+    "whole-part PSRAM swap is aligned and fits a 16-bit swap map entry");
 
 int
 psramopen(dev_t dev, int flag __unused, int mode __unused)

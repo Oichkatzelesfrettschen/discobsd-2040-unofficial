@@ -264,10 +264,11 @@ MATH_LEGACY_SYMBOLS = (
     "sinh cosh sqrt tan tanh frexp ldexp modf"
 ).split()
 FAMILIES["math"] = (
-    tuple("lib/libm/%s.c" % name for name in MATH_MEMBERS),
+    # rempio2f.c is the range reduction sinf, cosf and tanf share, not an interface.
+    tuple("lib/libm/%s.c" % name for name in MATH_MEMBERS) + ("lib/libm/rempio2f.c",),
     tuple(MATH_MEMBERS + MATH_LEGACY_SYMBOLS),
     "c17_math_test.c",
-    "c17 math: 4972090 checks passed\n",
+    "c17 math: 5256483 checks passed\n",
     ("-lm",),
     (
         (
@@ -360,8 +361,8 @@ FAMILIES["math"] = (
         ),
         (
             "lib/libm/fma.c",
-            '\t\treturn x * y;\t\t/* one rounding, and the sign of zero */',
-            '\t\treturn x * y + z;',
+            '\t\tdouble product = x * y;\t/* one rounding, and the sign of zero */',
+            '\t\tdouble product = x * y + z;',
             5,
             "fma",
             "fma loses the sign of an underflowed product",
@@ -397,6 +398,166 @@ FAMILIES["math"] = (
             6,
             "cbrt",
             "cbrt stops before convergence",
+        ),
+        (
+            "lib/libm/asin.c",
+            "return(pio2 - asin(arg));",
+            "return(pio2 - asin(arg < 0 ? -arg : arg));",
+            7,
+            "acos",
+            "acos drops the sign of a negative argument",
+        ),
+        (
+            "lib/libm/sqrt.c",
+            "errno = EDOM;\n\t\t\treturn(NAN);",
+            "errno = EDOM;\n\t\t\treturn(0.);",
+            7,
+            "sqrt",
+            "sqrt returns zero for a negative argument",
+        ),
+        (
+            "lib/libm/log.c",
+            "errno = EDOM;\n\t\t\treturn(NAN);",
+            "errno = EDOM;\n\t\t\treturn(-HUGE_VAL);",
+            7,
+            "log",
+            "log returns an infinity for a negative argument",
+        ),
+        (
+            "lib/libm/fmod.c",
+            "    if (x == x && y == y)\n        errno = EDOM;\n",
+            "",
+            7,
+            "fmod",
+            "fmod reports no domain error",
+        ),
+        (
+            "lib/libm/powf.c",
+            "result = fp_narrow(pow((double)magnitude, (double)y));",
+            "result = 0.0f;",
+            7,
+            "powf",
+            "powf is a stub",
+        ),
+        (
+            "lib/libm/hypotf.c",
+            "return fp_narrow(hypot((double)x, (double)y));",
+            "return (void)x, (void)y, 0.0f;",
+            7,
+            "hypotf",
+            "hypotf is a stub",
+        ),
+        (
+            "lib/libm/tanf.c",
+            "return (float)tan((double)x);",
+            "return (void)x, 0.0f;",
+            7,
+            "tanf",
+            "tanf is a stub",
+        ),
+        (
+            "lib/libm/atan2f.c",
+            "return (float)atan2((double)y, (double)x);",
+            "return (void)x, (void)y, 0.0f;",
+            7,
+            "atan2f",
+            "atan2f is a stub",
+        ),
+        (
+            "lib/libm/acosf.c",
+            "return (float)acos((double)x);",
+            "return (void)x, 0.0f;",
+            7,
+            "acosf",
+            "acosf is a stub",
+        ),
+        (
+            "lib/libm/asinf.c",
+            "return (float)asin((double)x);",
+            "return (void)x, 0.0f;",
+            7,
+            "asinf",
+            "asinf is a stub",
+        ),
+        (
+            "lib/libm/expf.c",
+            "return fp_narrow(exp((double)x));",
+            "return (float)exp((double)x);",
+            7,
+            "expf",
+            "expf reports no overflow",
+        ),
+        (
+            "lib/libm/fdimf.c",
+            "return fp_narrow(fdim((double)x, (double)y));",
+            "return (float)fdim((double)x, (double)y);",
+            7,
+            "fdimf",
+            "fdimf reports no overflow",
+        ),
+        (
+            "lib/libm/nextafter.c",
+            "\t\tif (FP_EXPONENT(bits) == 0x7ff)\n\t\t\terrno = ERANGE;\n",
+            "",
+            7,
+            "nextafter",
+            "nextafter reports no overflow",
+        ),
+        (
+            "lib/libm/fmaf.c",
+            "\t\tif (sum != sum && x == x && y == y && z == z)\n\t\t\terrno = EDOM;\n",
+            "",
+            7,
+            "fmaf",
+            "fmaf reports no domain error",
+        ),
+        (
+            "lib/libm/lgamma.c",
+            "if (fabs(x) < 0x1p-60)",
+            "if (0)",
+            7,
+            "lgamma",
+            "lgamma overflows for the smallest subnormal",
+        ),
+        (
+            "lib/libm/rempio2f.c",
+            "\t\tn++;\n\t\tnegative = 1;",
+            "\t\tnegative = 1;",
+            7,
+            "cosf",
+            "the large-argument reduction keeps the wrong quarter turn",
+        ),
+        (
+            "lib/libm/sinf.c",
+            "return (float)((fp_bitsf(x) >> 31) != 0 ? -v : v);",
+            "return (float)v;",
+            7,
+            "sinf",
+            "sinf of a large negative argument loses its sign",
+        ),
+        (
+            "lib/libm/powf.c",
+            "result = (x == 0.0f) == (y < 0.0f) ? HUGE_VALF : 0.0f;",
+            "result = y < 0.0f ? HUGE_VALF : 0.0f;",
+            7,
+            "powf",
+            "powf takes infinity to a positive power as zero",
+        ),
+        (
+            "lib/libm/atan2f.c",
+            "magnitude = x - x != 0.0f ? (x < 0.0f ? pi_3_4 : pi_4) : pi_2;",
+            "magnitude = x - x != 0.0f ? (x < 0.0f ? pi_4 : pi_3_4) : pi_2;",
+            7,
+            "atan2f",
+            "atan2f swaps the angles against an infinite x beside an infinite y",
+        ),
+        (
+            "lib/libm/hypotf.c",
+            "return HUGE_VALF;",
+            "return x + y;",
+            7,
+            "hypotf",
+            "hypotf of an infinity and a NaN is a NaN",
         ),
     ),
 )
@@ -604,9 +765,11 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
             command([objcopy, "--redefine-syms", str(redefine), str(obj)])
         objects.append(str(obj))
     for index, name in enumerate(SUPPORT.get(family, ())):
-        # Inherited members the family calls: built as the tree builds them.
+        # Inherited members the family calls: built as the tree builds them,
+        # or as a mutant of one.
+        source = replacement[1] if replacement and replacement[0] == name else root / name
         obj = work / ("support%d.o" % index)
-        command(compiler + LEGACY + renames + machine + ["-c", str(root / name), "-o", str(obj)])
+        command(compiler + LEGACY + renames + machine + ["-c", str(source), "-o", str(obj)])
         if redefine:
             command([objcopy, "--redefine-syms", str(redefine), str(obj)])
         objects.append(str(obj))
@@ -630,6 +793,38 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
     archive = [str(oracle)] if oracle else []
     command(compiler + machine + objects + archive + link + ["-o", str(program)])
     return program
+
+
+def referenced(fixture, arm):
+    """The symbols a fixture object leaves undefined: what it can call."""
+    nm = "arm-none-eabi-nm" if arm else "nm"
+    result = subprocess.run(
+        [nm, "-u", str(fixture)], capture_output=True, text=True, timeout=60, check=False
+    )
+    require(result.returncode == 0, "nm fails on the fixture: " + result.stderr)
+    return {line.split()[-1] for line in result.stdout.splitlines() if line.strip()}
+
+
+def uncalled(members, symbols):
+    """The members whose tree_ name the fixture never references."""
+    return [name for name in members if "tree_" + name not in symbols]
+
+
+def require_coverage(fixture, arm):
+    """Fail when a provider of the math family has no reference in the fixture.
+
+    A member the fixture cannot call passes the gate whatever it computes.
+    The detector is calibrated first: a symbol set missing one member must be
+    reported, and the set the fixture really has must be complete.
+    """
+    symbols = referenced(fixture, arm)
+    probe = MATH_MEMBERS[0]
+    require(
+        uncalled(MATH_MEMBERS, symbols - {"tree_" + probe}) == [probe],
+        "coverage detector misses a removed reference",
+    )
+    missing = uncalled(MATH_MEMBERS, symbols)
+    require(not missing, "c17 math fixture never references: " + " ".join(missing))
 
 
 def execute(program, arm):
@@ -726,6 +921,8 @@ def main():
             "c17 %s contract fails: " % args.family + result.stdout + result.stderr,
         )
         print(result.stdout, end="")
+        if args.family == "math":
+            require_coverage(work / "fixture.o", args.arm)
         accepted = work / "accepted"
         shutil.copy2(program, accepted)
         for name, anchor, change, status, member, description in FAMILIES[args.family][5]:

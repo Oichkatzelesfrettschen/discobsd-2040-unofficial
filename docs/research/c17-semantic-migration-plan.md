@@ -490,6 +490,42 @@ A unit leaves the language ledger when its production command passes the full
 warning profile and, where it is portable, both compilers accept it strictly.
 The kernel is never required to pass `-pedantic-errors` as a whole.
 
+### Kernel context declarations
+
+Kernel `setjmp` saves r4--r11, SP, and LR in ten 32-bit words on both
+maintained ARM ports. It returns zero on the initial save and one when
+`longjmp` resumes that checkpoint. The kernel declaration carries the
+compiler's returns-twice attribute. `longjmp` optionally exchanges the
+u areas, restores the incoming registers, and branches to the saved LR.
+Its C17 nonreturning contract describes the activation that calls
+`longjmp`. `resume` remains an assembly entry at the same address.
+
+`rg` over the two ports and `sys/kern` identifies the checkpoint consumers:
+syscall dispatch, interrupted I/O and pathname work, fork, and the
+scheduler. The scheduler uses three checkpoints for its swapper and
+process paths. `swtch` returns when the suspended process runs again.
+Process exit and scheduler-loop annotations have their own caller
+contracts. The kernel declarations sit inside the `KERNEL` type header
+guard. The rwuio test uses the same returns-twice declaration and passes
+the host library's jump buffer through its test adapter.
+
+`tests/rp2040/uarea_exchange` exercises both production assembly
+implementations under qemu-user. It checks the initial saved state, the
+resumed register and stack state, and the u-area owner updates. An
+incorrect resume result fails the named status check. Clang strict-C17
+probes confirm the 40-byte ARM layout and both declaration attributes
+against controls that suppress the attributes.
+
+Matched builds against `793d3432` use GCC 15.2.1 and GNU ld 2.45.1.
+Only the `swtch` executable section changes among the compiled RP2040
+kernel objects, excluding the build version object. The section
+changes by zero or minus four bytes across the six configurations.
+The linked flash spans, data and BSS sizes, and kernel RAM endpoints
+match the parent. The `swtch` static frame is 16 bytes in all six
+configurations. All ten STM32 configurations compile the context
+assembly and the affected caller units. The Renode UART gate exercises
+the live scheduler.
+
 ## Claim-specific evidence
 
 The claim selects the evidence. A specification states the required interface;

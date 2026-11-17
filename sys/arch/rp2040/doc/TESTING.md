@@ -2344,7 +2344,16 @@ the DiscoBSD a.out loader prototype and the whole-kernel emulator options.
 
 tests/rp2040/uarea_exchange assembles the u-area exchange loop cut from
 locore.S between its markers and runs it under qemu-arm, checking every
-exchanged byte. tests/rp2040/divider_helpers assembles `lib/libc/arm/gen/aeabi_div.S`
+exchanged byte. The same gate also links each port's complete locore
+with a context fixture. Cortex-M0 and Cortex-M4 runs check the zero
+return, registers r4--r11, saved SP and LR, and the return of one after
+both an in-place resume and a u-area exchange. The exchange checks both
+process owners, both `p_addr` updates, and the last word of each area.
+A changed resume result must exit with the return-value assertion
+status. The tests exercise ARM instructions in qemu-user. Interrupt
+masking and live scheduler interaction belong to the kernel boot evidence.
+
+tests/rp2040/divider_helpers assembles `lib/libc/arm/gen/aeabi_div.S`
 with `DIVIDER_MODEL` and runs the four AEABI division helpers under
 `qemu-arm -cpu cortex-m0` over every pair of 210 edge operands (zero, one,
 all-ones, `INT_MIN`, `INT_MAX`, every power of two with its neighbors and

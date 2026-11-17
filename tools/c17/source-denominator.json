@@ -78418,10 +78418,8 @@
         "source_kind": "header",
         "build_surface": "test-only",
         "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "gnu-extension-review",
-        "extension_signals": [
-          "gnu-attribute"
-        ],
+        "extension_policy": "portable-only",
+        "extension_signals": [],
         "risk_family": "portable-leaf",
         "risk_tier": "unreviewed",
         "risk_tier_basis": "caller-closure-required",

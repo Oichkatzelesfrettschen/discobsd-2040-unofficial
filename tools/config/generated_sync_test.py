@@ -273,13 +273,18 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "generated Makefile differs"):
             sync.check(self.root)
 
-    def test_kern_time_uses_size_optimized_compile_rule(self):
+    def test_prototype_warnings_are_fatal_on_admitted_kernel_units(self):
         template = (self.root / sync.CONF / "Makefile.rp2040").read_text()
         self.assertIn("COMPILE_SIZE_C=", template)
+        self.assertRegex(template, r"(?m)^C17_PROTO_FLAGS=[ \t]+"
+                         r"-Werror=strict-prototypes -Werror=old-style-definition$")
         for board in sync.BOARDS:
             generated = (self.root / sync.COMPILE / board / "Makefile").read_text()
-            rule = "kern_time.o: $S/kern/kern_time.c\n\t${COMPILE_SIZE_C}\n"
-            self.assertIn(rule, generated)
+            for unit in ("kern_proc", "kern_resource", "kern_time", "tty_subr", "vm_sched"):
+                compile_rule = "${COMPILE_SIZE_C}" if unit == "kern_time" else "${COMPILE_C}"
+                rule = (f"{unit}.o: $S/kern/{unit}.c\n\t{compile_rule}"
+                        " ${C17_PROTO_FLAGS}\n")
+                self.assertIn(rule, generated)
 
     def test_kernel_optimization_and_aliasing_policy(self):
         template = (self.root / sync.CONF / "Makefile.rp2040").read_text()

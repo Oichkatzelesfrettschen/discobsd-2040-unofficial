@@ -33,5 +33,6 @@ install: all
 	${INSTALL} ${PROG} ${DESTDIR}/usr/bin/install
 	cp ${MAN} ${DESTDIR}/usr/share/man/cat1/
 
+xinstall.o stat_flags.o: ${TOPSRC}/bin/ls/stat_flags.h
 stat_flags.o: ${TOPSRC}/bin/ls/stat_flags.c
 	${CC} ${CFLAGS} -c ${TOPSRC}/bin/ls/stat_flags.c -o $@

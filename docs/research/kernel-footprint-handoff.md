@@ -1,4 +1,4 @@
-# Kernel and libc footprint work queue
+# Kernel and userspace footprint work queue
 
 This note hands a measured work queue to an implementer who starts without
 the session that produced it. Each item names the source location, the
@@ -37,6 +37,134 @@ other bss objects are `bufdata` 4,096, `proc` 2,600, `inode` 2,016, `mount`
 The experiments on rows marked "scratch" ran on a `git archive` export of
 eb5b3081, whose PICO baseline was 95,516. Deltas carry across; absolute
 values do not.
+
+## Scoped alignment sorting and ls formatting
+
+The comparison base is `793d3432`. Both RP2040 distributions used ARM GCC
+15.2.1 and GNU ld 2.45.1. Values below are candidate minus base in bytes.
+Flash payload sums file-backed flash `PT_LOAD` bytes. Flash span includes
+holes between segments. The end of resident kernel RAM moved by the same
+amount as ordinary BSS in each configuration.
+
+| Configuration | Flash payload | Flash span | Ordinary BSS |
+| --- | ---: | ---: | ---: |
+| PICO | -15 | 0 | -168 |
+| PICO_DIAG | -14 | 0 | -64 |
+| PICO_UART | -8 | -256 | -64 |
+| PICOCALC | -17 | 0 | -40 |
+| PICOCALC_LEAN | -18 | 0 | -48 |
+| PICOCALC_LEAN_DIAG | -17 | 0 | -32 |
+
+`sys/arch/rp2040/conf/kern.ldscript` sorts the remaining `.rodata*` and
+`.bss*` inputs from largest alignment to smallest. Every input retains its
+required alignment. The 8-byte output boundaries, named hot block and
+linked executable symbol addresses are preserved. The SwapRAM pool retains
+its capacity and follows the smaller BSS. PICO_UART crosses a 256-byte board
+descriptor boundary. The other five builds finish in their original flash
+span.
+
+Sorting BSS alone gave the same RAM savings and left every flash span
+unchanged. Also sorting text saved 64 to 105 total flash payload bytes
+across the six links, with the same RAM and flash-span deltas as the
+adopted sort. The global `--sort-section=alignment` matched that wider
+sort. Adding initialized data to the sort yielded no further reduction.
+Keep instruction layout and the 8-byte boundaries until a separate
+experiment establishes a payoff and checks the affected consumers.
+
+The `ls` permission renderer translates three groups of permission and
+special bits directly to nine characters. The two account caches retain
+64 direct-mapped slots each and store nine display bytes plus a terminator.
+A hit skips the relevant name lookup. An absent account leaves the
+previous slot intact and uses the existing numeric fallback. The change
+removes the dependency on the unrelated `utmp` login-name layout. The
+renderer and cache functions gained C17 prototypes in this stage.
+
+| Executable | Raw file | Packed file | Text | Data | BSS | Static RAM |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Standalone `ls` | -212 | -73 | +16 | -228 | -560 | -772 |
+| Shipped `/bin/box` | -204 | -46 | +24 | -228 | -552 | -756 |
+
+Static RAM sums the a.out text, data and BSS fields. It excludes stack
+and heap use. The RP2040 manifest resolves `/bin/ls` to packed
+`/bin/box`, which occupies 28 filesystem blocks in both images. The full
+root retains 218 free UFS blocks and the same 772 live Dhara sectors at
+image creation. Build both revisions with
+`logged-distribution`, measure the binaries with `hsaout -s` and check
+each root with `fsutil --check --partition=1`.
+`check-ls-format` exercises the changed functions under strict C17 with
+12,288 permission cases and account-cache boundary cases. It rejects
+mutations to the sticky-bit rule and the cache width.
+
+The UFS layout probe moved the embedded superblock to the start of
+`struct mount`. The C17 initial-member rule then supplies the containing
+pointer at the recovery sites in `ufs_mount.c` and `ufs_syscalls2.c`.
+The probe kept RAM usage constant and grew the six linked text sections
+by 24 to 144 bytes. PICO and PICO_DIAG each grew by 256 bytes of flash
+span. Moving `m_dev` beyond Thumb-1's 124-byte immediate word-load reach
+added an addressing cost. Retain the current layout. Measure the owner
+lookup separately from the member order when revisiting that boundary.
+
+## C17 ls migration and packed allocation
+
+Both `ls` translation units compile in strict C17 with fatal prototype
+diagnostics. The prototype migration uses the installed `stat`, `lstat`
+and `free` declarations. A single file-flag header checks the parser
+at each caller. `xinstall` supplies an `unsigned` destination for the
+parser's `unsigned` write.
+
+The formatter appends inode, block and long-format columns directly to
+the listing buffer. It removes three static intermediate buffers that
+held 280 bytes. The measurements use ARM GCC 15.2.1 and GNU ld 2.45.1.
+The migrated objects match byte for byte under strict C17 and GNU17
+after stripping debug information.
+
+| Build stage | Standalone raw bytes | Standalone packed bytes | Shipped box raw bytes | Shipped box packed bytes | Packed box blocks | Box static RAM |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `0279974e` | 15,192 | 13,405 | 31,476 | 26,678 | 28 | 36,640 |
+| C17 prototypes | 15,184 | 13,392 | 31,468 | 26,681 | 28 | 36,632 |
+| Direct formatting | 15,072 | 13,300 | 31,348 | 26,588 | 27 | 36,232 |
+
+The 27-block boundary is 26,624 bytes of payload. The allocation
+includes one indirect block. The installed full root moves from 761
+to 760 used UFS blocks, with 219 free. `flashimg` records 771 live
+Dhara sectors at image creation, down from 772. Replay with
+`logged-distribution`,
+`tools/bin/rp2040/hsaout -s bin/ls/ls distrib/obj/destdir.rp2040/bin/box`,
+and `tools/bin/rp2040/fsutil --check --partition=1 distrib/rp2040/sdcard.img`.
+
+## Compact syscall dispatch prototype
+
+Build the six ordinary kernels first and wait for the build to finish.
+With Capstone, pyelftools and Unicorn installed in the selected interpreter, run
+`${PYTHON} tools/rp2040_compact_dispatch_probe.py /tmp/compact-dispatch`
+with a fresh output directory. The probe relinks private images using
+the configured kernel objects and flags. It recompiles the syscall
+entry with a halfword decoder and substitutes the compact table at the
+current hot-block location. The normal build uses the pointer table.
+
+The linker checks each selected target's alignment and range. It
+supplies an odd base address so the decoder restores the Thumb bit
+with the same addition that recovers the code address. The probe
+matches each of the 163 handlers and argument counts against the
+syscall master in both links. A Cortex-M0 instruction run starts
+after the successful `setjmp` return and stops at the indirect call
+target. A wrong-target mutation fails this check in each build.
+
+| Kernel | Pointer-table flash span | Halfword-table flash span |
+| --- | ---: | ---: |
+| PICO | 98,624 | 98,368 |
+| PICO_DIAG | 101,184 | 100,928 |
+| PICO_UART | 90,424 | 90,168 |
+| PICOCALC | 126,608 | 126,352 |
+| PICOCALC_LEAN | 120,464 | 120,208 |
+| PICOCALC_LEAN_DIAG | 123,024 | 122,768 |
+
+The table occupies 326 bytes instead of 652. Each flash span decreases
+by 256 bytes. Initialized data and BSS widths match in all six links.
+The measured dispatch path grows from seven to ten instructions with
+one extra flash literal load. Timing depends on XIP cache state and
+bus behavior. Measure target cycles before enabling compact dispatch
+in a shipping build.
 
 ## Queue, ordered by payoff over risk
 
@@ -262,7 +390,7 @@ An `-flto` link of PICO fails four ways:
 Measure the payoff after the `struct user` and dead-function work, because
 the three overlap.
 
-### Designs not yet prototyped
+### Further design candidates
 
 Prototype each in a scratch tree and land only a measured win.
 
@@ -278,14 +406,12 @@ Prototype each in a scratch tree and land only a measured win.
   `__clzsi2` (60) duplicate functions the boot ROM exports. The kernel calls
   `rom_func_lookup` once (`machdep.c` line 742). The overlapping-copy
   semantics of `bcopy` must be preserved.
-- **Halfword dispatch tables.** `syscall_handlers` (652 bytes) stores
-  4-byte pointers into text under 128 KB. `cdevsw` (484 bytes) mixes
-  function pointers with the RAM data pointer `d_ttys` (`struct cdevsw` in
-  `sys/sys/conf.h`, populated with tables such as `cnttys`), which cannot take
-  a code-offset encoding. A prototype compresses only the function-pointer
-  members and keeps data pointers full width. C cannot express halfword code
-  offsets as constant initializers, so a generator would emit them in
-  assembly.
+- **Halfword device dispatch.** The
+  [syscall prototype](#compact-syscall-dispatch-prototype) covers
+  `syscall_handlers`. The separate `cdevsw` table mixes function pointers
+  with the RAM data pointer `d_ttys` in `sys/sys/conf.h`. A device-dispatch
+  trial can encode the function pointers as code offsets and retain
+  `d_ttys` at pointer width.
 - **Packed message pools.** `errno_message_pool` (1,902 bytes) and
   `syscall_name_pool` (1,193 bytes) are mostly lowercase text. Five-bit
   packing with a small decoder would cost CPU only on error paths.
@@ -324,7 +450,8 @@ Prototype each in a scratch tree and land only a measured win.
 - A force-push is refused by the session permission policy. Corrections to
   a pushed branch land as further commits.
 
-## Not measured
+## Open measurements
 
-No item in this queue has been booted on a board or in Renode. Packed-block
-effects on the root filesystem are unmeasured for every userland item.
+The scoped alignment sort and `ls` changes have no physical-board
+timing, peak-memory or flash endurance measurements. Establish those
+measurements before using static footprint as evidence for those effects.

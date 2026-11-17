@@ -1,3 +1,8 @@
 harness
 loop.S
+context-rp2040
+context-stm32
+context-bad
+context-bad.S
+context-bad.S.tmp
 cores/

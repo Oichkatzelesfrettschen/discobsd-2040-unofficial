@@ -17,15 +17,18 @@
 #include <stdlib.h>
 #include <sgtty.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
+
+#include "stat_flags.h"
 
 #define	kbytes(size)	(((size) + 1023) / 1024)
 
 struct afile {
 	char	ftype;		/* file type, e.g. 'd', 'c', 'f' */
 	ino_t	fnum;		/* inode number of file */
-	short	fmode;		/* mode&~S_IFMT, perhaps ISARG */
+	unsigned short fmode;	/* permission bits and ISARG */
 	u_short	fflags;		/* st_flags (uappnd, uchg, schg, ...) */
 	short	fnl;		/* number of links */
 	uid_t	fuid;		/* owner id */
@@ -56,29 +59,25 @@ struct	winsize win;
 int	twidth;
 int	errs;		/* an argument that stat cannot reach sets the exit status */
 
-struct	afile *gstat();
+struct	afile *gstat(struct afile *, const char *, int, long *);
 int	fcmp(const void *, const void *);
-char	*cat(), *savestr();
-char	*fmtentry();
-char	*getname(), *getgroup();
+char	*cat(const char *, const char *);
+char	*savestr(const char *);
+char	*fmtentry(struct afile *, int);
+static const char *getname(uid_t);
+static const char *getgroup(gid_t);
 
-char	*flags_to_string (unsigned flags, char *def);
-unsigned string_to_flags (char **stringp, unsigned *setp, unsigned *clrp);
-
+long	getdir(const char *, struct afile **, struct afile **, int *);
 void	formatf(struct afile *, struct afile *);
 void	formatd(char *, int);
 
 int
-main(argc, argv)
-	int argc;
-	char *argv[];
+main(int argc, char *argv[])
 {
-	extern int optind;
 	struct afile *fp0, *fplast;
 	register struct afile *fp;
 	struct sgttyb sgbuf;
 	int ch, i;
-	void cfree();
 
 	Aflg = !getuid();
 	(void) time(&now); sixmonthsago = now - 6L*30L*24L*60L*60L; now += 60;
@@ -168,7 +167,7 @@ main(argc, argv)
 	}
 	fp0 = fp;
 	for (i = 0; i < argc; i++) {
-		if (gstat(fp, *argv, 1, (int *)0)) {
+		if (gstat(fp, *argv, 1, NULL)) {
 			fp->fname = *argv;
 			fp->fmode |= ISARG;
 			fp++;
@@ -202,8 +201,8 @@ main(argc, argv)
 				t = subdirs; subdirs = t->sd_next;
 				putchar('\n');
 				formatd(t->sd_name, 1);
-				cfree(t->sd_name);
-				cfree((char *)t);
+				free(t->sd_name);
+				free(t);
 			}
 			if (++fp == fplast)
 				break;
@@ -214,16 +213,13 @@ main(argc, argv)
 }
 
 void
-formatd(name, dotitle)
-	char *name;
-	int dotitle;
+formatd(char *name, int dotitle)
 {
 	register struct afile *fp;
 	register struct subdirs *dp;
 	struct afile *dfp0, *dfplast;
 	int isadir;
-	long nkb, getdir();
-	void cfree();
+	long nkb;
 
 	nkb = getdir(name, &dfp0, &dfplast, &isadir);
 	if (dfp0 == 0)
@@ -247,18 +243,15 @@ formatd(name, dotitle)
 		}
 	for (fp = dfp0; fp < dfplast; fp++) {
 		if ((fp->fmode&ISARG) == 0 && fp->fname)
-			cfree(fp->fname);
+			free(fp->fname);
 		if (fp->flinkto)
-			cfree(fp->flinkto);
+			free(fp->flinkto);
 	}
-	cfree((char *)dfp0);
+	free(dfp0);
 }
 
 long
-getdir(dir, pfp0, pfplast, isadir)
-	char *dir;
-	struct afile **pfp0, **pfplast;
-	int *isadir;
+getdir(const char *dir, struct afile **pfp0, struct afile **pfplast, int *isadir)
 {
 	register struct afile *fp;
 	DIR *dirp;
@@ -281,12 +274,12 @@ getdir(dir, pfp0, pfplast, isadir)
 	fp = *pfp0 = (struct afile *)calloc(nent, sizeof (struct afile));
 	*pfplast = *pfp0 + nent;
 	nb = 0;
-	while (dp = readdir(dirp)) {
+	while ((dp = readdir(dirp)) != NULL) {
 		if (dp->d_ino == 0)
 			continue;
 		if (aflg == 0 && dp->d_name[0]=='.' &&
 		    (Aflg == 0 || dp->d_name[1]==0 ||
-		     dp->d_name[1]=='.' && dp->d_name[2]==0))
+		     (dp->d_name[1]=='.' && dp->d_name[2]==0)))
 			continue;
 		if (gstat(fp, cat(dir, dp->d_name), Fflg+Rflg+colorflag, &nb) == 0)
 			continue;
@@ -310,16 +303,10 @@ getdir(dir, pfp0, pfplast, isadir)
 	return (kbytes (nb * DEV_BSIZE));
 }
 
-int	stat(), lstat();
-
 struct afile *
-gstat(fp, file, statarg, pnb)
-	register struct afile *fp;
-	char *file;
-	int statarg;
-	long *pnb;
+gstat(struct afile *fp, const char *file, int statarg, long *pnb)
 {
-	int (*statf)() = Lflg ? stat : lstat;
+	int (*statf)(const char *, struct stat *) = Lflg ? stat : lstat;
 	char buf[BUFSIZ]; int cc;
 	static struct afile azerofile;
 
@@ -393,8 +380,7 @@ gstat(fp, file, statarg, pnb)
  * string, so column alignment counts only the visible characters.
  */
 char *
-ls_color(fp)
-	register struct afile *fp;
+ls_color(struct afile *fp)
 {
 	if (!colorflag)
 		return (0);
@@ -411,8 +397,7 @@ ls_color(fp)
 }
 
 void
-formatf(fp0, fplast)
-	struct afile *fp0, *fplast;
+formatf(struct afile *fp0, struct afile *fplast)
 {
 	register struct afile *fp;
 	register int i, j, w;
@@ -503,8 +488,7 @@ fcmp(const void *left, const void *right)
 }
 
 char *
-cat(dir, file)
-	char *dir, *file;
+cat(const char *dir, const char *file)
 {
 	static char dfile[BUFSIZ];
 	register int dlen;
@@ -513,7 +497,7 @@ cat(dir, file)
 		fputs("ls: filename too long\n", stderr);
 		exit(1);
 	}
-	if (!dir[0] || dir[0] == '.' && !dir[1])
+	if (!dir[0] || (dir[0] == '.' && !dir[1]))
 		return(strcpy(dfile, file));
 	(void) strcpy(dfile, dir);
 	if (dir[dlen - 1] != '/' && *file != '/')
@@ -523,8 +507,7 @@ cat(dir, file)
 }
 
 char *
-savestr(str)
-	char *str;
+savestr(const char *str)
 {
 	register char *cp = strdup(str);
 
@@ -535,21 +518,40 @@ savestr(str)
 	return(cp);
 }
 
-char	*fmtinum(), *fmtsize(), *fmtlstuff(), *fmtmode();
+static char *fmtlstuff(char *, struct afile *, int);
+
+static char *
+fmtmode(char *out, unsigned mode)
+{
+	unsigned read = S_IRUSR;
+	unsigned special = S_ISUID;
+
+	for (; read != 0; read >>= 3, special >>= 1) {
+		int executable = (mode & (read >> 2)) != 0;
+		*out++ = mode & read ? 'r' : '-';
+		*out++ = mode & (read >> 1) ? 'w' : '-';
+		if (mode & special)
+			*out++ = special == S_ISVTX ? (executable ? 't' : 'T') :
+			    (executable ? 's' : 'S');
+		else
+			*out++ = executable ? 'x' : '-';
+	}
+	return out;
+}
 
 char *
-fmtentry(fp, maxflags)
-	register struct afile *fp;
-	int maxflags;
+fmtentry(struct afile *fp, int maxflags)
 {
 	static char fmtres[BUFSIZ];
 	register char *cp, *dp;
 
-	(void) sprintf(fmtres, "%s%s%s",
-	    iflg ? fmtinum(fp) : "",
-	    sflg ? fmtsize(fp) : "",
-	    lflg ? fmtlstuff(fp, maxflags) : "");
-	dp = &fmtres[strlen(fmtres)];
+	dp = fmtres;
+	if (iflg)
+		dp += sprintf(dp, "%6u ", fp->fnum);
+	if (sflg)
+		dp += sprintf(dp, "%4ld ", kbytes(fp->fblks * DEV_BSIZE));
+	if (lflg)
+		dp = fmtlstuff(dp, fp, maxflags);
 	for (cp = fp->fname; *cp; cp++)
 		if (qflg && (*cp < ' ' || *cp >= 0177))
 			*dp++ = '?';
@@ -577,38 +579,14 @@ fmtentry(fp, maxflags)
 	return (fmtres);
 }
 
-char *
-fmtinum(p)
-	register struct afile *p;
+static char *
+fmtlstuff(char *lp, struct afile *p, int maxflags)
 {
-	static char inumbuf[8];
-
-	(void) sprintf(inumbuf, "%6u ", p->fnum);
-	return (inumbuf);
-}
-
-char *
-fmtsize(p)
-	register struct afile *p;
-{
-	static char sizebuf[16];
-
-	(void) sprintf (sizebuf, "%4ld ", kbytes (p->fblks * DEV_BSIZE));
-	return (sizebuf);
-}
-
-char *
-fmtlstuff(p, maxflags)
-	register struct afile *p;
-	int maxflags;
-{
-	static char lstuffbuf[256];
 	char gname[32], uname[32], fsize[32], ftime[32], fflags[64];
-	register char *lp = lstuffbuf;
 
 	/* type mode uname gname fsize ftime */
 /* get uname */
-	{ char *cp = getname(p->fuid);
+	{ const char *cp = getname(p->fuid);
 	  if (cp)
 		(void) sprintf(uname, "%-9.9s", cp);
 	  else
@@ -616,7 +594,7 @@ fmtlstuff(p, maxflags)
 	}
 /* get gname */
 	if (gflg) {
-	  char *cp = getgroup(p->fgid);
+	  const char *cp = getgroup(p->fgid);
 	  if (cp)
 		(void) sprintf(gname, "%-9.9s", cp);
 	  else
@@ -644,61 +622,27 @@ fmtlstuff(p, maxflags)
 /* splat */
 	*lp++ = p->ftype;
 	lp = fmtmode(lp, p->fmode);
-	(void) sprintf(lp, "%3d %s%s%s%s%s",
+	return lp + sprintf(lp, "%3d %s%s%s%s%s",
 	    p->fnl, uname, gflg ? gname : "", oflg ? fflags : "", fsize, ftime);
-	return (lstuffbuf);
-}
-
-int	m1[] = { 1, S_IREAD>>0, 'r', '-' };
-int	m2[] = { 1, S_IWRITE>>0, 'w', '-' };
-int	m3[] = { 3, S_ISUID|(S_IEXEC>>0), 's', S_ISUID, 'S', S_IEXEC>>0, 'x', '-' };
-int	m4[] = { 1, S_IREAD>>3, 'r', '-' };
-int	m5[] = { 1, S_IWRITE>>3, 'w', '-' };
-int	m6[] = { 3, S_ISGID|(S_IEXEC>>3), 's', S_ISGID, 'S', S_IEXEC>>3, 'x', '-' };
-int	m7[] = { 1, S_IREAD>>6, 'r', '-' };
-int	m8[] = { 1, S_IWRITE>>6, 'w', '-' };
-int	m9[] = { 3, S_ISVTX|(S_IEXEC>>6), 't', S_ISVTX, 'T', S_IEXEC>>6, 'x', '-' };
-
-int	*m[] = { m1, m2, m3, m4, m5, m6, m7, m8, m9};
-
-char *
-fmtmode(lp, flags)
-	char *lp;
-	register int flags;
-{
-	int **mp;
-
-	for (mp = &m[0]; mp < &m[sizeof(m)/sizeof(m[0])]; ) {
-		register int *pairp = *mp++;
-		register int n = *pairp++;
-
-		while (--n >= 0 && (flags&*pairp) != *pairp)
-			pairp += 2;
-		*lp++ = pairp[n>=0];
-	}
-	return (lp);
 }
 
 /* rest should be done with nameserver or database */
 
 #include <pwd.h>
 #include <grp.h>
-#include <utmp.h>
 
-struct	utmp utmp;
-#define	NMAX	(sizeof (utmp.ut_name))
-#define SCPYN(a, b)	strncpy(a, b, NMAX)
+/* fmtlstuff displays at most nine bytes of each account name. */
+#define ACCOUNT_NAME_BYTES 9
 
 #define NCACHE	64		/* power of 2 */
-#define CAMASK	NCACHE - 1
+#define CAMASK	(NCACHE - 1)
 
-char *
-getname(uid)
-	uid_t uid;
+static const char *
+getname(uid_t uid)
 {
 	static struct ncache {
 		uid_t	uid;
-		char	name[NMAX+1];
+		char	name[ACCOUNT_NAME_BYTES + 1];
 	} c_uid[NCACHE];
 	register struct passwd *pw;
 	register struct ncache *cp;
@@ -710,17 +654,16 @@ getname(uid)
 	if (!(pw = getpwuid(uid)))
 		return((char *)0);
 	cp->uid = uid;
-	SCPYN(cp->name, pw->pw_name);
+	strncpy(cp->name, pw->pw_name, ACCOUNT_NAME_BYTES);
 	return(cp->name);
 }
 
-char *
-getgroup(gid)
-	gid_t gid;
+static const char *
+getgroup(gid_t gid)
 {
 	static struct ncache {
 		gid_t	gid;
-		char	name[NMAX+1];
+		char	name[ACCOUNT_NAME_BYTES + 1];
 	} c_gid[NCACHE];
 	register struct group *gr;
 	register struct ncache *cp;
@@ -731,6 +674,6 @@ getgroup(gid)
 	if (!(gr = getgrgid(gid)))
 		return((char *)0);
 	cp->gid = gid;
-	SCPYN(cp->name, gr->gr_name);
+	strncpy(cp->name, gr->gr_name, ACCOUNT_NAME_BYTES);
 	return(cp->name);
 }

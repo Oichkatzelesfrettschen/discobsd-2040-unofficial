@@ -14,6 +14,3 @@ sys/kern/subr_log.c definition logread scan
 sys/kern/subr_log.c definition logselect scan
 sys/kern/subr_log.c definition logwakeup scan
 sys/kern/subr_log.c definition logwrt scan
-sys/kern/vm_sched.c definition sched both
-sys/kern/vm_sched.c definition vmmeter both
-sys/kern/vm_sched.c definition vmtotal both

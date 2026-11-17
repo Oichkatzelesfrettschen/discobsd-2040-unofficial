@@ -939,6 +939,7 @@ tier 325 s, the qemu tier 99 s and the build 98 s.
 
 | gate | proves |
 | --- | --- |
+| `check-ls-format` | Host program tier (Linux `check-host`, macOS `check-host-a`). Compile the production permission renderer and account-name caches under strict C17. Compare the nine permission bytes and the returned pointer against 12,288 cases. Exercise account names longer than the display width, cache hits, absent IDs and colliding IDs. Require a sticky-bit decoder mutation and an eight-byte truncation mutation to fail their respective checks. |
 | `check-board-descriptor` | The production `board.c` compiles unchanged with strict C17 host warnings and accepts a valid PicoCalc descriptor while a short length, unknown board with a valid checksum, bare Pico paired with the panel console, CRC mismatch, erased-flash bytes, bad magic and unknown version each select the bare-Pico USB fallback. The production `mkboarduf2.py` self-test accepts one descriptor block, rejects zero and two, and preserves every byte outside the 16-byte descriptor; a block counts only when its magic, version, length and CRC all match, so the magic in a literal pool of kernel text, unaligned or at a block start, is passed over. A round trip over the built `PICOCALC/unix.uf2`, which compiles the PicoCalc descriptor like every kernel with the picocalc device, rewrites it to the bare-Pico descriptor, requires exactly one UF2 block to change and checks the complete patched descriptor; the same round trip over `PICO/unix.uf2`, which already carries the bare-Pico descriptor, changes no bytes and exits 1. Three warning-clean source mutants that skip the CRC, accept an unknown board and patch a second matching block must fail their named oracle. The gate establishes host behavior and built-image byte identity; the orchestrator's physical-board run remains separate evidence. |
 | `check-uf2-validator` | `tools/check_rp2040_uf2.py --self-test` accepts a valid two-block RP2040 UF2 image and rejects one mutation each of the start magic, end magic, family flag, family ID, payload size, block number, block total and address. `check-uf2-images` applies the same parser to each `sys/arch/rp2040/compile/<config>/unix.uf2` that `MACHINE_KERNEL_CONFIGS` names (PICO, PICO_DIAG, PICO_UART, PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG), each of which must be contiguous inside `[0x10000000, 0x10020000)`, and `distrib/rp2040/flash.uf2`, which must cover `[0x10020000, 0x101a0000)` exactly; it prints each image's blocks, interval and SHA-256. Both establish container structure, not the bytes the boot ROM programs or executes. |
 | `check-kernel-headroom-validator`, `check-kernel-headroom` | `tools/check_kernel_headroom.py --self-test` parses the `FLASH` entry of the MEMORY block (`128K - 256` is 130,816 bytes), computes the image end as the highest `PT_LOAD` load address plus file size inside the region, and accepts and rejects synthetic ELF images at headroom equal to the margin and one byte below it, at exact fill, at overflow, with a RAM segment and a below-origin `.boot2` segment that must not count, with segments in any order, and for a missing region, a duplicate region, an unsupported expression, a bad magic, an ELF64 file, a big-endian file, a non-ARM file, an absent or truncated program header table and an image with no flash segment. `check-kernel-headroom` then measures the `unix.elf` of every kernel `MACHINE_KERNEL_CONFIGS` names, fails any kernel whose headroom is below the margin (1,024 bytes by default, `KERNEL_HEADROOM_MARGIN` overrides it) and runs a control: a margin of 1,000,000 bytes against the PICO kernel must exit 1. The margin is 1.7 times the 592-byte difference that GCC 13.2 and GCC 16.2 produce for the `-Os` PicoCalc kernel with PSRAM and `/dev/lcdgfx`. `ld` bounds `.text` and `.data` by `FLASH` but not the `.ramfunc` initializers, whose `AT()` expression in `kern.ldscript` names no region, so a kernel can link with that load image past the region end; the measured span includes it. The gate establishes the room left under the toolchain of the job that runs it, in the Linux and macOS jobs of `firmware.yml` directly after the kernel build. Calibration on linked kernels: the GCC 13.2 `-O` PicoCalc kernel with PSRAM built with `/dev/lcdgfx` (headroom -168 bytes, accepted by `ld`) exits 1, and the same sources at `-Os` (16,948 bytes) exit 0. It measures bytes and executes nothing. |
@@ -2345,7 +2346,16 @@ the DiscoBSD a.out loader prototype and the whole-kernel emulator options.
 
 tests/rp2040/uarea_exchange assembles the u-area exchange loop cut from
 locore.S between its markers and runs it under qemu-arm, checking every
-exchanged byte. tests/rp2040/divider_helpers assembles `lib/libc/arm/gen/aeabi_div.S`
+exchanged byte. The same gate also links each port's complete locore
+with a context fixture. Cortex-M0 and Cortex-M4 runs check the zero
+return, registers r4--r11, saved SP and LR, and the return of one after
+both an in-place resume and a u-area exchange. The exchange checks both
+process owners, both `p_addr` updates, and the last word of each area.
+A changed resume result must exit with the return-value assertion
+status. The tests exercise ARM instructions in qemu-user. Interrupt
+masking and live scheduler interaction belong to the kernel boot evidence.
+
+tests/rp2040/divider_helpers assembles `lib/libc/arm/gen/aeabi_div.S`
 with `DIVIDER_MODEL` and runs the four AEABI division helpers under
 `qemu-arm -cpu cortex-m0` over every pair of 210 edge operands (zero, one,
 all-ones, `INT_MIN`, `INT_MAX`, every power of two with its neighbors and
@@ -3500,8 +3510,12 @@ The bounded exception accepts those static costs for the calibrated owner
 boundary. Runtime stack and heap high-water marks remain open.
 
 The suite checks explicit IO_SYNC on async mounts,
-data/flush/inode-update failures, counter saturation, 70000 events in one
-`vmmeter()` interval reaching `sum` and `rate` whole, and `tsleep()` accepting
+data/flush/inode-update failures, counter saturation, and `vmmeter()` folding
+and clearing all ten distinct counter values above 65,535 on ordinary and
+fifth-second ticks. The fifth-second cases also check the swap rate
+replacement and all three load averages. The synchronization fixture
+executes 80 assertions at native width and at ILP32 when its signed-overflow
+sanitizer runtime is available. It checks `tsleep()` accepting
 an `INT_MAX` timeout while refusing `INT_MAX + 1` and `UINT_MAX` before the
 process is queued. It runs `sync()` over a mount whose superblock is clean
 (`fs_fmod == 0`): with dirty data, dirty inode metadata, both and neither it
@@ -3559,7 +3573,8 @@ publishing groups before validation, retaining the old group tail, restoring
 `sync()`'s clean-superblock skip, visiting a mount with
 one superblock list locked, an `ITIMES()` that
 drops a failed update's dirty state in a private copy of `sys/inode.h`, and narrowing
-`struct vmrate` in a private copy of `sys/vmmeter.h`, must return assertion failure; compilation failures and crashes do not count as
+`struct vmrate` in a private copy of `sys/vmmeter.h`, and skipping one VM
+counter update must return assertion failure. Compilation failures and crashes do not count as
 calibration. The host has wider pointers and off_t than ARM ILP32; the gate
 excuses the inherited rwip sign comparison and the pointer/integer casts in
 unrelated mount helpers discarded by the linker. Only the known-bad clock
@@ -3569,7 +3584,7 @@ diagnostic enabled. It establishes
 control flow, not flash persistence or a hardware timing bound. Firmware CI
 runs it through check-host on Linux and macOS.
 
-The generated PICO and PICO_UART Makefiles route `kern_time.c` through
+The generated RP2040 Makefiles route `kern_time.c` through
 `${COMPILE_SIZE_C}`, which retains the exact Cortex-M0+ GNU17 warning and ABI
 flags while selecting `-Os`. `check-config-generated-sync` requires that rule
 in both generated kernels and rejects drift from the configuration inputs.

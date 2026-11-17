@@ -13,7 +13,9 @@
 # is bounded, a length that is not bounded against the device end, and a
 # pad drive strength ORed into the reset field, a clock whose low
 # phase is twice its high phase, an EID decoded one byte early, and a Read
-# ID overrun that is not retried. A gate that passed them would be
+# ID overrun that is not retried, a /tmp offset without its region's base,
+# and a swap length bounded by the device instead of its region. A gate
+# that passed them would be
 # checking nothing.
 #
 TOPSRC!=	cd ../..; pwd
@@ -47,7 +49,8 @@ MUT=		@sh ./mutant.sh "${HOST_CC}" "${PYTHON}" "${DEV}"
 mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
 	mutant-tcem mutant-block mutant-comment mutant-turnaround \
 	mutant-blkrange mutant-blklen mutant-drive mutant-duty mutant-eid \
-	mutant-eid-retry mutant-extent mutant-extent-half
+	mutant-eid-retry mutant-extent mutant-extent-half \
+	mutant-region-base mutant-region-bound
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -96,6 +99,14 @@ mutant-turnaround:
 mutant-blkrange:
 	${MUT} psram_xfer.c \
 	    's/if (blkno < 0 || (unsigned long)blkno > PSRAM_BYTES \/ bsize)/if (0)/'
+
+# A /tmp request that lands at the start of the part, over swap.
+mutant-region-base:
+	${MUT} psram_xfer.c 's/\*off = (unsigned int)(base + addr);/*off = (unsigned int)addr;/'
+
+# A swap request bounded by the device rather than by its region.
+mutant-region-bound:
+	${MUT} psram_xfer.c 's/if (len > size - addr)$$/if (len > PSRAM_BYTES - addr)/'
 
 # A request that may run past the end of the device.
 mutant-blklen:

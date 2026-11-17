@@ -38,28 +38,32 @@ values do not.
 
 ## Queue, ordered by payoff over risk
 
-### Hot `struct user` fields within Thumb-1 load reach (scratch: -2,008 bytes)
+### Hot `struct user` fields within Thumb-1 load reach (measured: -2,040 to -2,056 bytes)
 
-`sys/sys/user.h` places `u_comm[MAXCOMLEN + 1]` (64 bytes) and three 40-byte
-`label_t` saves (`u_qsave`, `u_rsave`, `u_ssave`) at offsets 8 to 191. A
-Thumb-1 `ldr rX, [rY, #imm]` reaches 124 bytes, so `u_arg` (offset 192),
-`u_rval` (216) and `u_error` (220) each need a 4-byte literal. The PICO
-disassembly holds 164 literals for `&u`, 60 for `&u.u_arg`, 46 for
-`&u.u_error` and 20 for `&u.u_rval`.
+A Thumb-1 `ldr rX, [rY, #imm]` reaches 124 bytes. `sys/sys/user.h` places
+`u_comm[MAXCOMLEN + 1]` (64 bytes) and the three 40-byte `label_t` saves
+(`u_qsave`, `u_rsave`, `u_ssave`) beside `u_psargs`, immediately before
+`u_stack`, so `u_arg` starts at offset 8 and the last credential word,
+`u_groups[NGROUPS - 1]`, sits at 120. `sizeof(struct user)` stays 1,024
+and `u_stack` stays last, because the kernel stack grows down from
+`u + USIZE` toward it.
 
-- The scratch experiment moved the four cold fields after `u_stack[1]`.
-  That placement measures the payoff but is wrong for landing, because
-  `u_stack` must remain last: the kernel stack grows down from
-  `u + USIZE` toward it. Place the cold fields immediately before
-  `u_stack` instead.
-- Inventory every reader of the layout before editing: ptrace
-  (`sys/kern/sys_process.c`), core dumps, sysctl export, any locore or
-  assembly offset constant, swap images of the u-area, `subr_capacity.c`
-  (`UAREA_STACK_OFFSET`), and host tests under `tests/kernel`.
-- Add `_Static_assert(offsetof(struct user, F) <= 124, ...)` for each hot
-  field (`u_procp`, `u_frame`, `u_arg`, `u_rval`, `u_error`, `u_uid` and
-  the credentials), so a later field insertion that breaks reach fails the
-  build. Calibrate the assertion by moving one field past 124 once.
+- Static assertions in `user.h` hold `u_procp` at offset 0 (locore.S
+  reads it as `[r2, #0]`) and, on Thumb-1 targets only, `u_frame`,
+  `u_arg[5]`, `u_rval`, `u_error` and every credential word at or below
+  124. Header mutants that push `u_groups[NGROUPS - 1]` or `u_error` out
+  of reach, or put `u_frame` first, fail the Cortex-M0+ compile; the
+  Cortex-M4 compile rejects only the last.
+- Layout readers inventoried: locore.S reads only `u_procp`; swap, fork,
+  exec, core dumps and `proc_uarea()` move the u area as whole `USIZE`
+  or `DEV_BSIZE` (1,024) blocks; ptrace and the host tests under
+  `tests/kernel` address fields by name or computed offset.
+- Text with arm-none-eabi-gcc 14.2.1, before and after (data, bss and free
+  RAM unchanged): PICO 102,451 to 100,403; PICO_UART 91,913 to 89,857;
+  PICOCALC 122,795 to 120,747; PICOCALC_PSRAM 125,315 to 123,275. Pool
+  words that address the u area fell from 380 to 252 in PICO. The 36 words
+  still beyond reach spread over 15 fields, the most being `u_qsave` (7,
+  addresses passed to `setjmp()`) and `u_ofile` (6).
 - `struct mount` (1,036 bytes, containing a 1,024-byte `struct fs`) is the
   next candidate for the same analysis.
 

@@ -908,6 +908,14 @@ def selftest(lines, appended, decl, selected_extra):
         "closure sdcard needs /mnt, which this profile does not install",
         removed="dir /mnt"))
     cases.append(new_case(
+        "reject", "psramtmp without its block node", ["psramtmp"],
+        "closure psramtmp needs /dev/psram1, which this profile does not install",
+        removed="bdev /dev/psram1"))
+    cases.append(new_case(
+        "reject", "psramtmp without mkfs", ["psramtmp"],
+        "closure psramtmp needs /sbin/mkfs, which this profile does not install",
+        removed="pack /sbin/mkfs"))
+    cases.append(new_case(
         "reject", "gamebox without its directory", ["games"],
         "needs directory /usr/games", removed="dir /usr/games"))
     cases.append(new_case(
@@ -956,6 +964,11 @@ def selftest(lines, appended, decl, selected_extra):
         "closure ridge needs closure lcdgfx, which this profile does not select",
         without_names=["lcdgfx"]))
     cases.append(new_case(
+        "reject", "the platformer added to the lean PicoCalc profile",
+        decl.profiles["picocalc-lean"],
+        "closure ridge needs closure lcdgfx, which this profile does not select",
+        with_names=["ridge"]))
+    cases.append(new_case(
         "accept", "toolchain and toolchainlib removed together", full,
         without_names=["toolchain", "toolchainlib"]))
     cases.append(new_case(
@@ -981,6 +994,11 @@ def selftest(lines, appended, decl, selected_extra):
         members={"gamebox": ["fifteen", "keen", "bubble", "fourfall", "coil"],
                  "puzzlebox": ["flood", "samegame", "unruly", "lightup"]}))
     cases.append(new_case(
+        "accept", "the lean PicoCalc profile links no platformer into gamebox",
+        decl.profiles["picocalc-lean"],
+        members={"gamebox": ["fifteen", "keen", "bubble", "fourfall", "coil"],
+                 "puzzlebox": ["flood", "samegame", "unruly", "lightup"]}))
+    cases.append(new_case(
         "accept", "dc without bc", full, with_names=["dc"]))
     cases.append(new_case(
         "accept", "assembler and linker without the compiler", [],
@@ -991,6 +1009,12 @@ def selftest(lines, appended, decl, selected_extra):
     cases.append(new_case(
         "accept", "picocalc with the SD card nodes removed",
         decl.profiles["picocalc"], without_names=["sdcard"]))
+    cases.append(new_case(
+        "accept", "picocalc with the PSRAM /tmp node and mkfs removed",
+        decl.profiles["picocalc"], without_names=["psramtmp"]))
+    cases.append(new_case(
+        "accept", "the PSRAM /tmp node and mkfs on the base system", [],
+        with_names=["psramtmp"]))
     failures = 0
     for case in cases:
         label = case["label"]

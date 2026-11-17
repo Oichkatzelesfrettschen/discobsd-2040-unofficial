@@ -611,7 +611,9 @@ u_int	watchdog_last_arg2;
 #endif
 
 /*
- * Report what a reset left behind and leave the counter disabled.
+ * Read what a reset left behind; watchdog_init() reports it and leaves the
+ * counter disabled. startup() calls the capture before anything declares a
+ * section, because a declared section overwrites the scratch pair.
  *
  * REASON distinguishes a watchdog fire from a forced one (datasheet 4.7.6),
  * and SCRATCH1 and SCRATCH2 hold the section the previous kernel was inside
@@ -626,6 +628,20 @@ u_int	watchdog_last_arg2;
  * a reload would have to exceed before the counter could be armed for real.
  */
 void
+watchdog_capture(void)
+{
+	watchdog_last_reason = MREG32(WATCHDOG_BASE + WATCHDOG_REASON) &
+	    (WATCHDOG_REASON_TIMER | WATCHDOG_REASON_FORCE);
+	watchdog_last_site = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1);
+	watchdog_last_arg = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2);
+	if (watchdog_last_site == WD_SITE_STALL)
+		watchdog_last_arg2 = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH3);
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1) = WD_SITE_NONE;
+	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2) = 0;
+}
+
+/* Report the captured record and disable the counter. */
+void
 watchdog_init(void)
 {
 	u_int ctrl;
@@ -635,19 +651,11 @@ watchdog_init(void)
 
 	ctrl = MREG32(WATCHDOG_BASE + WATCHDOG_CTRL);
 	MREG32(WATCHDOG_BASE + WATCHDOG_CTRL) = ctrl & ~WATCHDOG_CTRL_ENABLE;
-	watchdog_last_reason = MREG32(WATCHDOG_BASE + WATCHDOG_REASON) &
-	    (WATCHDOG_REASON_TIMER | WATCHDOG_REASON_FORCE);
-	watchdog_last_site = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1);
-	watchdog_last_arg = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2);
 	printf("watchdog: reason %x, last masked site %u arg %x\n",
 	    watchdog_last_reason, watchdog_last_site, watchdog_last_arg);
-	if (watchdog_last_site == WD_SITE_STALL) {
-		watchdog_last_arg2 = MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH3);
+	if (watchdog_last_site == WD_SITE_STALL)
 		printf("watchdog: core 0 stalled at pc %x lr %x\n",
 		    watchdog_last_arg, watchdog_last_arg2);
-	}
-	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH1) = WD_SITE_NONE;
-	MREG32(WATCHDOG_BASE + WATCHDOG_SCRATCH2) = 0;
 
 #ifdef WATCHDOG_MEASURE
 	MREG32(PSM_BASE + PSM_WDSEL) = PSM_WDSEL_ALL_BUT_OSC;
@@ -701,6 +709,12 @@ void
 startup(void)
 {
 	SystemClock_Config();
+
+	/*
+	 * Before the first declared section: usbinit() reads the flash
+	 * chip's identity, which names its own section in the scratch pair.
+	 */
+	watchdog_capture();
 
 #ifdef UARTUSB_ENABLED
 	/* The console first, so everything after it can be read. */
@@ -823,7 +837,7 @@ void
 config(void)
 {
 	struct conf_ctlr *ctlr;
-	struct conf_device *dev;
+	const struct conf_device *dev;
 
 	cpuidentify();
 	watchdog_init();
@@ -838,9 +852,7 @@ config(void)
 	/* Probe and initialize devices. */
 	for (dev = conf_device_init; dev->dev_driver; dev++) {
 		if (is_controller_alive(dev->dev_cdriver, dev->dev_ctlr)) {
-			if ((*dev->dev_driver->d_init)(dev)) {
-				dev->dev_alive = 1;
-			}
+			(void)(*dev->dev_driver->d_init)(dev);
 		}
 	}
 }
@@ -935,6 +947,14 @@ boot(dev_t dev __unused, int howto)
 			continue;
 		/* NOTREACHED */
 	}
+#if defined(HALTREBOOT) && defined(UARTUSB_ENABLED)
+	/*
+	 * The halt messages below reach usbputc, which services the controller
+	 * and would hand a key typed meanwhile to the open tty's queue; the
+	 * key wait must find it in the ring.
+	 */
+	usbpollc(1);
+#endif
 	printf("halted\n");
 
 #ifdef HALTREBOOT

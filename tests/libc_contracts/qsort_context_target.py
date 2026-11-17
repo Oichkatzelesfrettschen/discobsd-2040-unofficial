@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from qsort_callers import check_callers
+
 FLAGS = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror",
          "-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft", "-ffreestanding",
          "-fno-builtin", "-fno-common", "-Os", "-nostdinc"]
@@ -57,6 +59,40 @@ def fixture(selectors, visible, order):
     return text
 
 
+def stack_frames(path):
+    frames = {}
+    for line in path.read_text().splitlines():
+        fields = line.split("\t")
+        require(len(fields) == 3 and fields[2] == "static",
+                "context-sort frame lacks a static bound")
+        name = fields[0].rsplit(":", 1)[-1].split(".", 1)[0]
+        require(fields[1].isdigit(), "context-sort frame size is invalid")
+        frames[name] = max(frames.get(name, 0), int(fields[1]))
+    return frames
+
+
+def check_frames(work, root, compiler, flags):
+    limits = {"swap": 12, "sift": 40, "partition": 56, "sort": 48}
+    for name, entry_limit in (("qsort", 24), ("qsort_r", 32)):
+        frames = stack_frames(work / (name + ".su"))
+        admitted = {**limits, name: entry_limit}
+        require(set(frames) == set(admitted), "context-sort frame set changes: " + name)
+        require(all(frames[key] <= admitted[key] for key in admitted),
+                "context-sort frame exceeds its measured limit: " + name)
+    source = (root / "lib/libc/gen/qsort.c").read_text()
+    require(source.count("static void sort(") == 1, "frame control anchor differs")
+    body = source.index("{", source.index("static void sort(")) + 1
+    damaged = work / "stack-damaged.c"
+    damaged.write_text("extern void qsort_stack_fault(void *);\n" + source[:body] +
+        "\n    unsigned char qsort_stack_pad[64] = {0};\n"
+        "    qsort_stack_fault(qsort_stack_pad);\n" + source[body:])
+    command([compiler, *flags, "-fstack-usage", "-c", str(damaged),
+             "-o", str(work / "stack-damaged.o")])
+    require(stack_frames(work / "stack-damaged.su").get("sort", 0) > limits["sort"],
+            "inflated recursive frame escapes its bound control")
+    print("context-sort target: measured frame bounds pass; inflated recursion rejects")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
@@ -90,6 +126,7 @@ def main():
         print(command([prefix + "size", str(work / "qsort.o"), str(work / "qsort_r.o")]), end="")
         for name in ("qsort", "qsort_r"):
             print((work / (name + ".su")).read_text(), end="")
+        check_frames(work, root, compiler, flags)
 
         smaller = work / "smlrc"
         command([*shlex.split(args.host), "-O1", "-Wall", "-Wextra", "-Werror", "-DTHUMB",
@@ -107,6 +144,7 @@ def main():
             print("context-sort native declarations: " + label + " passes")
         (work / "invalid.i").write_text("int broken( {\n")
         command([str(smaller), "invalid.i", "invalid.s"], cwd=work, reject="Error")
+        check_callers(root, compiler, work)
     print("context-sort target: signatures, visibility and native input controls pass")
 
 

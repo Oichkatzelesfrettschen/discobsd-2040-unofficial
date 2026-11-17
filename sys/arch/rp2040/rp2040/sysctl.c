@@ -32,6 +32,9 @@
 #include <machine/board.h>
 #include <machine/mpuvar.h>
 #include <machine/watchdog.h>
+#ifdef DEV_ADC
+#include <rp2040/dev/adc.h>
+#endif
 #include <rp2040/dev/flash.h>
 #ifdef CORE1
 #include <rp2040/rp2040/core1.h>
@@ -44,6 +47,9 @@
 #endif
 #ifdef PICOCALC_ENABLED
 #include <machine/picocalcvar.h>
+#ifdef DEV_PCM
+#include <rp2040/dev/picopcm.h>
+#endif
 #endif
 
 /*
@@ -161,6 +167,14 @@ ucall(void)
 
 	if (!suser())
 		return;
+	/*
+	 * The routine runs at kernel privilege, which no write guard of the
+	 * level covers; a raised level refuses the call.
+	 */
+	if (securelevel > 0) {
+		u.u_error = EPERM;
+		return;
+	}
 	switch (uap->priority) {
 	case 0:
 		s = spl0();
@@ -241,6 +255,24 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 #else
 		return EOPNOTSUPP;
 #endif
+#ifdef STORAGE_STATS
+	/* Without STORAGE_STATS the names fall to the default, EOPNOTSUPP. */
+	case CPU_FLASH_RESET_PROGRAM:
+	case CPU_FLASH_RESET_ERASE:
+		if (namelen != 1)
+			return ENOTDIR;
+		/* A write needs root: __sysctl() refuses any other writer. */
+		i = (int)flash_reset_hook_count(name[0] ==
+		    CPU_FLASH_RESET_ERASE);
+		error = sysctl_int(oldp, oldlenp, newp, newlen, &i);
+		if (error != 0 || newp == NULL)
+			return error;
+		if (i < 0)
+			return EINVAL;
+		flash_reset_hook_arm(name[0] == CPU_FLASH_RESET_ERASE,
+		    (u_int)i);
+		return 0;
+#endif
 	case CPU_MPU:
 		return mpu_sysctl(name + 1, namelen - 1, oldp, oldlenp, newp,
 		    newlen);
@@ -248,6 +280,26 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 	case CPU_PICOCALC:
 		return picocalc_sysctl(name + 1, namelen - 1, oldp, oldlenp,
 		    newp, newlen);
+
+#ifdef DEV_PCM
+	case CPU_PCM:
+		{
+			struct cpu_pcm_info pcm_info;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (board_id() != BOARD_ID_PICOCALC)
+				return EOPNOTSUPP;
+			pcm_info.rate = PCM_RATE;
+			pcm_info.channels = PCM_CHANNELS;
+			pcm_info.bits = PCM_BITS;
+			pcm_info.ring = PCM_RING - 1;
+			pcm_info.queued = pcm_queued();
+			pcm_info.open = picoaudio_pcm != 0;
+			return sysctl_rdstruct(oldp, oldlenp, newp, &pcm_info,
+			    sizeof pcm_info);
+		}
+#endif /* DEV_PCM */
 #endif
 	case CPU_WATCHDOG_REASON:
 		if (namelen != 1)
@@ -273,6 +325,31 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		i = (int)watchdog_last_arg2;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
 
+	case CPU_FLASH_UNIQUE_HI:
+	case CPU_FLASH_UNIQUE_LO:
+	case CPU_FLASH_JEDEC:
+		{
+			const u_char *jedec, *unique;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (flash_identity(&jedec, &unique) != 0)
+				return EIO;
+			if (name[0] == CPU_FLASH_JEDEC) {
+				i = (int)((u_int)jedec[0] << 16 |
+				    (u_int)jedec[1] << 8 | jedec[2]);
+				return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+				    sizeof i);
+			}
+			if (name[0] == CPU_FLASH_UNIQUE_LO)
+				unique += 4;
+			i = (int)((u_int)unique[0] << 24 |
+			    (u_int)unique[1] << 16 | (u_int)unique[2] << 8 |
+			    unique[3]);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+			    sizeof i);
+		}
+
 	case CPU_IMAGE_LENGTH:
 	case CPU_IMAGE_CRC:
 	case CPU_IMAGE_CRC_STORED:
@@ -281,6 +358,24 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		i = (int)(name[0] == CPU_IMAGE_LENGTH ? image_length :
 		    name[0] == CPU_IMAGE_CRC ? image_crc : image_crc_stored);
 		return sysctl_rdstruct(oldp, oldlenp, newp, &i, sizeof i);
+#ifdef DEV_ADC
+	case CPU_ADC_TEMP:
+	case CPU_ADC_VSYS:
+		{
+			u_int raw;
+
+			if (namelen != 1)
+				return ENOTDIR;
+			if (adc_read(name[0] == CPU_ADC_TEMP ? ADC_INPUT_TEMP :
+			    ADC_INPUT_VSYS, &raw) != 0)
+				return EIO;
+			i = name[0] == CPU_ADC_TEMP ?
+			    adc_temp_millicelsius(raw) :
+			    (int)adc_vsys_millivolts(raw);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+			    sizeof i);
+		}
+#endif
 #ifdef CORE1
 	case CPU_CORE1:
 	case CPU_CORE1_RESTARTS:
@@ -401,6 +496,15 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		if (namelen != 1)
 			return ENOTDIR;
 		count = usb_tx_recovered;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
+		    sizeof count);
+
+	case CPU_USB_TX_PEAK:
+	case CPU_USB_TX_DROPPED:
+		if (namelen != 1)
+			return ENOTDIR;
+		count = name[0] == CPU_USB_TX_PEAK ? usb_tx_peak :
+		    usb_tx_dropped;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &count,
 		    sizeof count);
 #endif	/* UARTUSB_ENABLED */

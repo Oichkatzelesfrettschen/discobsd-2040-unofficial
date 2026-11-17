@@ -22,6 +22,19 @@ the User Portability Utilities option, and `vi` also requires
 mark limits the conformance claim; constrained RAM or storage does not remove
 the requirement inside a selected option.
 
+## Callable character-I/O contracts
+
+ISO C17 7.1.4 and 7.21.7 require callable forms of `getc`, `putc`, `getchar`
+and `putchar` alongside their optional macros. Issue 7 and Issue 8 XSH
+`functions/getc.html`, `putc.html`, `getchar.html`, `putchar.html`, `fgetc.html`
+and `fputc.html` retain the byte/EOF and standard-stream requirements.
+The [bounded contract](callable-character-io-contracts.md) records exact
+types, macro suppression, address-taking, all-byte conversion, EOF/error and
+backend witnesses. `check-character-io-headers`, `check-libc-character-io`
+and native archive omission controls own the separate evidence classes.
+The six DPUCP rows stay partial/open: full POSIX errno, timestamp, signal and
+concurrency facets retain independent deciding witnesses.
+
 ## Selected utility contracts
 
 | Utility | Issue 7 clause and mark | Issue 8 clause and delta | DiscoBSD owner and evidence | Disposition |
@@ -64,7 +77,28 @@ the master and generated output.
 state never counts toward a POSIX row, and their absence never counts as a
 POSIX gap.
 
+## Descriptor sets
+
+The descriptor-set candidate binds `FD_ZERO`, `FD_SET`, `FD_CLR`, and
+`FD_ISSET` to calibrated ARM qemu-user witnesses while keeping all four rows
+partial and open. The user clearing macro owns its initialization without an
+application-provided `<string.h>` declaration. The target's admitted descriptor
+domain follows `OPEN_MAX`; standalone/reordered headers and Smaller C inputs
+have separate compiler witnesses. Namespace and configurable-capacity review,
+complete `select`/`pselect` semantics, resources, and physical-board execution
+retain separate dispositions in
+[`descriptor-set-initialization.md`](descriptor-set-initialization.md).
+
 ## Feature and limit reporting
+
+The time.h, sys/select.h, sys/time.h, sys/types.h, and signal.h header rows
+retain partial/open dispositions with the public-time-type compiler witness.
+Canonical private owners preserve the existing narrow/wide/native layouts
+and select/time linker aliases while supplying required complete structures
+and scalar types. The
+[`public-time-type-ownership.md`](public-time-type-ownership.md) record keeps
+narrow timeval signedness, full visibility, clock APIs, and syscall behavior
+separate from that compiler evidence.
 
 `include/unistd.h` exposes `_SC_ARG_MAX`, `_SC_CLK_TCK`,
 `_SC_NGROUPS_MAX`, `_SC_OPEN_MAX`, `_SC_JOB_CONTROL`,

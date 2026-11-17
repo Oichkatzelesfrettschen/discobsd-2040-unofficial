@@ -1,0 +1,71 @@
+.TH PICOFETCH 1 "November 15, 2026"
+.SH NAME
+picofetch \- show system and hardware readings beside a logo
+.SH SYNOPSIS
+.B picofetch
+[
+.B \-lnp
+]
+.SH DESCRIPTION
+.I Picofetch
+prints one screen of readings about the running system: the operating
+system and kernel build, the board, uptime, the processor and bus clocks,
+the second core, memory, swap, each mounted file system, the drives, the
+flash image and its checksum, the flash chip's identity, the
+execute-in-place cache, the memory
+protection unit, the display, the battery and backlights of a PicoCalc,
+its audio device, the temperature and supply voltage, the load averages, the fixed kernel
+tables, the kernel stack, the storage counters, the USB console and the
+cause of the last reset.
+.PP
+Every value is read from the kernel through
+.IR sysctl (3)
+and
+.IR getfsstat (2),
+from the terminal or from the environment.
+A reading the running kernel does not serve prints
+.B "not in this kernel"
+and one whose read fails prints
+.BR "read failed" .
+.I Picofetch
+changes nothing in the kernel and needs no privilege.
+.PP
+On the PicoCalc console the logo and the level bars are drawn from the
+console's glyph bank in its sixteen colors: a bar resolves a sixth of a
+character cell.
+The glyphs stay in the bank after
+.I picofetch
+exits, so the report stays on the screen; the console's reset sequence
+restores the bank.
+On any other terminal the same layout is drawn in ASCII with ANSI colors.
+.PP
+The options are:
+.TP
+.B \-l
+Print no logo.
+A terminal narrower than 46 columns gets none either.
+.TP
+.B \-n
+Write no color.
+The environment variable
+.B NO_COLOR
+has the same effect.
+.TP
+.B \-p
+Plain output: ASCII and no escape sequence.
+This is the default when the output is not a terminal.
+.PP
+The chip line shows the JEDEC bytes and the 64-bit unique ID of the QSPI
+flash (\fBmachdep.flash_jedec\fP, \fBmachdep.flash_unique_hi\fP and \fBmachdep.flash_unique_lo\fP), or
+.B "identity unread"
+when the chip returned no plausible answer at boot.
+The audio line shows the sample rate, channels and bits of
+.I /dev/audio
+with whether a process has it open and how many samples are queued
+(\fBmachdep.pcm\fP); kernels without the device print
+.BR "not in this kernel" .
+The processor line adds the peripheral clock only when it differs from the
+core clock, and the battery line carries the panel and key backlight levels,
+so that the report stays within 30 rows of the 32-row console.
+.SH "SEE ALSO"
+picotop(1), ps(1), sysctl(8), sysctl(3)

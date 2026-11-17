@@ -68,6 +68,27 @@ int status_sysctl(int *name, u_int length, void *old, size_t *size,
         if (scenario && strcmp(scenario, "record-size") == 0) stats.size--;
         memcpy(old, &stats, sizeof(stats));
         *size = sizeof(stats);
+    } else if (name[0] == CTL_MACHDEP && name[1] == CPU_FLASH_JEDEC) {
+        if (scenario && strcmp(scenario, "unread") == 0) {
+            status_errno = EIO;
+            return -1;
+        }
+        *(int *)old = 0xef4015;
+        *size = sizeof(int);
+    } else if (name[0] == CTL_MACHDEP && name[1] == CPU_PCM) {
+        struct cpu_pcm_info pcm;
+        pcm.rate = 8000;
+        pcm.channels = 1;
+        pcm.bits = 8;
+        pcm.ring = 255;
+        pcm.queued = 7;
+        pcm.open = 1;
+        memcpy(old, &pcm, sizeof(pcm));
+        *size = sizeof(pcm);
+    } else if (name[0] == CTL_KERN && name[1] == KERN_HOSTID) {
+        if (value) status_fprintf(stderr, "hostid-set %ld\n", *(long *)value);
+        *(long *)old = 0;
+        *size = sizeof(long);
     } else if ((name[0] == CTL_HW && name[1] == HW_NCPU) ||
         (name[0] == CTL_KERN && (name[1] == KERN_MAXPROC || name[1] == KERN_MAXFILES)) ||
         (name[0] == CTL_MACHDEP && name[1] == CPU_MPU)) {

@@ -19,7 +19,8 @@ DRIVERS = {
     "sddriver": (b"sd", "sdprobe"),
     "psramdriver": (b"psram", "psramprobe"),
 }
-DEVICE_SIZE = 44
+DEVICE_SIZE = 24
+SHF_WRITE = 1
 
 
 def zero_object(elf, symbols, name, size):
@@ -43,6 +44,18 @@ def zero_object(elf, symbols, name, size):
         raise ValueError(f"{name} is outside the startup bss range")
 
 
+def read_only(elf, entry, name):
+    section = elf.get_section(entry.st_shndx)
+    if section.header.sh_type != "SHT_PROGBITS" or section.header.sh_flags & SHF_WRITE:
+        raise ValueError(f"{name} is writable")
+    matches = [segment for segment in elf.iter_segments() if segment.header.p_type == "PT_LOAD" and
+               not segment.header.p_flags & 2 and
+               segment.header.p_vaddr <= entry.st_value and
+               entry.st_value + entry.st_size <= segment.header.p_vaddr + segment.header.p_filesz]
+    if len(matches) != 1:
+        raise ValueError(f"{name} is not in a unique read-only load segment")
+
+
 def check_data(data, object_data):
     elf = ELFFile(io.BytesIO(data))
     obj = ELFFile(io.BytesIO(object_data))
@@ -54,12 +67,17 @@ def check_data(data, object_data):
     object_symbols = obj.get_section_by_name(".symtab")
     if linked_symbols is None or object_symbols is None:
         raise ValueError("symbol table is absent")
-    for name, size in (("conf_ctlr_init", 24), ("conf_service_init", 4)):
-        original = get_entry(object_symbols, name)
-        if (original.st_size != size or
-                obj.get_section(original.st_shndx).header.sh_type != "SHT_NOBITS"):
-            raise ValueError(f"{name} object is not an empty table")
-        zero_object(elf, linked_symbols, name, size)
+    original = get_entry(object_symbols, "conf_ctlr_init")
+    if (original.st_size != 24 or
+            obj.get_section(original.st_shndx).header.sh_type != "SHT_NOBITS"):
+        raise ValueError("conf_ctlr_init object is not an empty table")
+    zero_object(elf, linked_symbols, "conf_ctlr_init", 24)
+    service = get_entry(linked_symbols, "conf_service_init")
+    if service.st_size != 4:
+        raise ValueError("conf_service_init is not an empty table")
+    read_only(elf, service, "conf_service_init")
+    if struct.unpack_from("<I", data, offset_for(elf, data, service.st_value, 4))[0]:
+        raise ValueError("conf_service_init is not an empty table")
     original = get_entry(object_symbols, "conf_device_init")
     linked = get_entry(linked_symbols, "conf_device_init")
     if (original.st_size != linked.st_size or original.st_size < DEVICE_SIZE * 2 or
@@ -68,6 +86,7 @@ def check_data(data, object_data):
     source = obj.get_section(original.st_shndx).data()
     if original.st_value + original.st_size > len(source):
         raise ValueError("conf_device_init object is truncated")
+    read_only(elf, linked, "conf_device_init")
     table_offset = offset_for(elf, data, linked.st_value, linked.st_size)
     entries = original.st_size // DEVICE_SIZE - 1
     relocations = {}
@@ -105,6 +124,7 @@ def check_data(data, object_data):
             raise ValueError(f"conf_device_init field {index} differs")
     for name in set(names):
         driver = symbol(linked_symbols, name, "STT_OBJECT", 8)
+        read_only(elf, get_entry(linked_symbols, name), name)
         driver_offset = offset_for(elf, data, driver, 8)
         string, probe = struct.unpack_from("<II", data, driver_offset)
         expected_name, expected_probe = DRIVERS[name]

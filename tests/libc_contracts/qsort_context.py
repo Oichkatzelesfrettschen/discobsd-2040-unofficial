@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from qsort_callers import check_callers
+
 FLAGS = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror",
          "-fno-builtin", "-O2"]
 ARM = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft", "-Os"]
@@ -68,6 +70,55 @@ def execute(program, arm):
                           timeout=120, check=False, env=dict(os.environ, LC_ALL="C"))
 
 
+def bounds(root, compiler, work, arm, original):
+    flags = FLAGS + (ARM if arm else [])
+    entry = "    sort(base, count, &state, budget);"
+    heap = "            heap(base, count, state);"
+    fixture = (root / "tests/libc_contracts/qsort_bounds_test.c").read_text()
+    for anchor in (entry, heap, "        budget--;"):
+        require(original.count(anchor) == 1, "bound mutation anchor differs")
+    require(fixture.count("calls++;") == 1, "counter mutation anchor differs")
+    variants = [
+        ("good", original, fixture, 0, None),
+        ("budget", original.replace("        budget--;", "        (void)budget;"),
+         fixture, 4, "comparison bound:"),
+        ("fallback", original.replace(entry, "    budget=0;\n" + entry).replace(
+            heap, "            (void)heap;\n"
+            "            for (size_t i=1;i<count;i++) "
+            "(void)CMP(base+(i-1)*width,base+i*width);"),
+         fixture, 1, "qsort bounds: output order"),
+        ("counter", original, fixture.replace("calls++;", "(void)0;"),
+         3, "comparison counter:"),
+    ]
+    for label, provider, consumer, expected, diagnostic in variants:
+        source, test = work / "bounds-provider.c", work / "bounds-fixture.c"
+        source.write_text(provider)
+        test.write_text(consumer)
+        library, caller = work / "bounds-provider.o", work / "bounds-fixture.o"
+        command(compiler + flags + ["-include", str(work / "namespace.h"),
+                "-c", str(source), "-o", str(library)])
+        command(compiler + flags + ["-c", str(test), "-o", str(caller)])
+        objects = [str(library), str(caller)]
+        link = []
+        if arm:
+            objects.append(str(work / "support.o"))
+            link = ["-nostartfiles", "-Wl,-Ttext=0x20000", "-lc", "-lgcc"]
+        program = work / "bounds"
+        command(compiler + (ARM if arm else []) + objects + link +
+                ["-o", str(program)])
+        result = execute(program, arm)
+        require(result.returncode == expected, "qsort bound control exit differs: " +
+                label + ": " + result.stdout + result.stderr)
+        if diagnostic is None:
+            require(not result.stderr and
+                    "qsort counts: 64 pattern cases pass" in result.stdout,
+                    "qsort bound matrix lacks complete execution")
+        else:
+            require(diagnostic in result.stderr,
+                    "qsort bound control misses named rejection: " + label)
+        print("qsort bounds control: " + label + " passes")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("root", type=Path)
@@ -81,11 +132,12 @@ def main():
     if args.arm:
         require(shutil.which("qemu-arm") is not None, "qemu-arm is required")
     mutations = [
-        ("lost context", "st.context = context;", "st.context = NULL; (void)context;"),
-        ("reversed order", "function(left, right, context)", "function(right, left, context)"),
-        ("skipped sorting", "if (n <= 1 || size == 0)", "if (n <= 1 || size != 0)"),
-        ("shared call state", "struct qsort_state st;", "static struct qsort_state st;"),
-        ("lost record byte", "*i++ = *jj;", "*i++ = 0;"),
+        ("lost context", "state.context = context;", "state.context = NULL; (void)context;"),
+        ("reversed order", "state->compare(a, b, state->context)",
+         "state->compare(b, a, state->context)"),
+        ("skipped sorting", "if (count < 2 || !width)", "if (count < 2 || width)"),
+        ("shared call state", "struct qsort_state state;", "static struct qsort_state state;"),
+        ("lost record byte", "*a++ = *b;", "*a++ = 0;"),
     ]
     source = root / "lib/libc/gen/qsort.c"
     original = source.read_text()
@@ -93,11 +145,13 @@ def main():
         work = Path(temporary)
         program = build(root, compiler, work, args.arm, source.with_name("qsort_r.c"))
         result = execute(program, args.arm)
-        require(result.returncode == 0 and not result.stderr,
+        require(result.returncode == 0 and not result.stderr and
+                "qsort context: 708596 order, permutation and context cases pass" in result.stdout,
                 "qsort context fails: " + result.stdout + result.stderr)
         print(result.stdout, end="")
         accepted = work / "accepted"
         shutil.copy2(program, accepted)
+        bounds(root, compiler, work, args.arm, original)
         for label, before, after in mutations:
             require(original.count(before) == 1, label + " mutation anchor differs")
             mutant = work / "mutant.c"
@@ -114,9 +168,11 @@ def main():
             require(diagnostic or lifetime,
                     label + " lacks behavioral rejection: " + result.stdout + result.stderr)
             print("qsort context mutant rejected: " + label)
+        if args.arm:
+            check_callers(root, compiler, work, execute=True)
         if args.output:
             shutil.copy2(accepted, args.output)
-    print("qsort context: five behavioral controls reject")
+    print("qsort context: five context and three bound controls reject")
 
 
 if __name__ == "__main__":

@@ -612,7 +612,7 @@ uartgetc(dev_t dev)
  * Return true if found and initialized ok.
  */
 static int
-uartprobe(struct conf_device *config)
+uartprobe(const struct conf_device *config)
 {
     int unit = config->dev_unit - 1;
     int is_console = (CONS_MAJOR == UART_MAJOR &&
@@ -638,6 +638,6 @@ uartprobe(struct conf_device *config)
     return 1;
 }
 
-struct driver uartdriver = {
+const struct driver uartdriver = {
     "uart", uartprobe,
 };

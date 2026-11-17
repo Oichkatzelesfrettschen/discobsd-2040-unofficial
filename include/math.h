@@ -4,6 +4,9 @@
  * specifies the terms and conditions for redistribution.
  */
 
+#ifndef _MATH_H_
+#define _MATH_H_
+
 double  fabs(double), floor(double), ceil(double);
 double  sqrt(double), hypot(double, double);
 double  sin(double), cos(double), tan(double);
@@ -34,11 +37,15 @@ double  y0(double), y1(double), yn(int, double);
 #define INFINITY    ((float)HUGE_VAL)
 #endif
 
+/*
+ * The double functions behind the isnan() and isinf() macros below; the
+ * parentheses keep the names from expanding as those macros.
+ */
 int isnanf(float x);
-int isnan(double x);
+int (isnan)(double x);
 
 int isinff(float x);
-int isinf(double x);
+int (isinf)(double x);
 
 float modff(float x, float *iptr);
 double modf(double x, double *iptr);
@@ -50,6 +57,210 @@ float ldexpf(float x, int exp);
 double ldexp(double x, int exp);
 
 double fmod(double x, double y);
+
+#ifndef __SMALLER_C__
+/*
+ * C17 7.12.  Expressions evaluate in the type of their operands
+ * (FLT_EVAL_METHOD is 0), so float_t and double_t are float and double.
+ * Errors are reported through errno; the system has no floating-point
+ * exception flags.  The members below are hidden from Smaller C, whose
+ * language has neither float functions of this shape nor _Generic.
+ */
+typedef float	float_t;
+typedef double	double_t;
+
+#if defined(__GNUC__)
+#define NAN		(__builtin_nanf(""))
+#else
+#define NAN		(0.0f / 0.0f)
+#endif
+
+#define FP_NAN		0
+#define FP_INFINITE	1
+#define FP_ZERO		2
+#define FP_SUBNORMAL	3
+#define FP_NORMAL	4
+
+#define FP_ILOGB0	(-2147483647)
+#define FP_ILOGBNAN	2147483647
+
+#define MATH_ERRNO	1
+#define MATH_ERREXCEPT	2
+#define math_errhandling	MATH_ERRNO
+
+/*
+ * C17 7.12.3 and 7.12.14: classification and quiet comparison of an
+ * argument of any real floating type.  The compiler expands them from the
+ * operand's own format.  isnan() and isinf() keep calling the functions of
+ * those names for a double, so existing callers compile to the same code.
+ */
+#define fpclassify(x)	__builtin_fpclassify(FP_NAN, FP_INFINITE, FP_NORMAL, \
+			    FP_SUBNORMAL, FP_ZERO, (x))
+#define isfinite(x)	__builtin_isfinite(x)
+#define isnormal(x)	__builtin_isnormal(x)
+#define signbit(x)	__builtin_signbit(x)
+/* A build that renames isnan or isinf with -D keeps its rename. */
+#ifndef isnan
+#define isnan(x)	_Generic((x), float: isnanf, default: isnan)(x)
+#endif
+#ifndef isinf
+#define isinf(x)	_Generic((x), float: isinff, default: isinf)(x)
+#endif
+#define isgreater(x, y)		__builtin_isgreater((x), (y))
+#define isgreaterequal(x, y)	__builtin_isgreaterequal((x), (y))
+#define isless(x, y)		__builtin_isless((x), (y))
+#define islessequal(x, y)	__builtin_islessequal((x), (y))
+#define islessgreater(x, y)	__builtin_islessgreater((x), (y))
+#define isunordered(x, y)	__builtin_isunordered((x), (y))
+
+double  acosh(double);
+double  asinh(double);
+double  atanh(double);
+double  exp2(double);
+double  expm1(double);
+double  log1p(double);
+double  log2(double);
+double  logb(double);
+double  cbrt(double);
+double  erf(double);
+double  erfc(double);
+double  lgamma(double);
+double  tgamma(double);
+double  nearbyint(double);
+double  rint(double);
+double  round(double);
+double  trunc(double);
+double  remainder(double, double), copysign(double, double);
+double  nextafter(double, double);
+double  fdim(double, double), fmax(double, double), fmin(double, double);
+double  fma(double, double, double);
+double  remquo(double, double, int *);
+double  scalbn(double, int), scalbln(double, long);
+double  nan(const char *);
+int     ilogb(double);
+long    lrint(double), lround(double);
+long long llrint(double), llround(double);
+
+float   acosf(float);
+float   asinf(float);
+float   atanf(float);
+float   cosf(float);
+float   sinf(float);
+float   tanf(float);
+float   acoshf(float);
+float   asinhf(float);
+float   atanhf(float);
+float   coshf(float);
+float   sinhf(float);
+float   tanhf(float);
+float   expf(float);
+float   exp2f(float);
+float   expm1f(float);
+float   logf(float);
+float   log10f(float);
+float   log1pf(float);
+float   log2f(float);
+float   logbf(float);
+float   cbrtf(float);
+float   fabsf(float);
+float   sqrtf(float);
+float   erff(float);
+float   erfcf(float);
+float   lgammaf(float);
+float   tgammaf(float);
+float   ceilf(float);
+float   floorf(float);
+float   nearbyintf(float);
+float   rintf(float);
+float   roundf(float);
+float   truncf(float);
+float   atan2f(float, float);
+float   powf(float, float);
+float   hypotf(float, float);
+float   fmodf(float, float);
+float   remainderf(float, float);
+float   copysignf(float, float);
+float   nextafterf(float, float);
+float   fdimf(float, float);
+float   fmaxf(float, float);
+float   fminf(float, float);
+float   fmaf(float, float, float);
+float   remquof(float, float, int *);
+float   scalbnf(float, int), scalblnf(float, long);
+float   nanf(const char *);
+float   nexttowardf(float, long double);
+int     ilogbf(float);
+long    lrintf(float), lroundf(float);
+long long llrintf(float), llroundf(float);
+
+/*
+ * long double has double's format on this ABI, so each long double
+ * function is the double function under a second name and costs no code.
+ * A translation unit whose long double is wider sees none of them.
+ */
+#if defined(__LDBL_MANT_DIG__) && __LDBL_MANT_DIG__ == __DBL_MANT_DIG__
+#define __LDBL_IS(name)	__asm__(#name)
+long double acosl(long double) __LDBL_IS(acos);
+long double asinl(long double) __LDBL_IS(asin);
+long double atanl(long double) __LDBL_IS(atan);
+long double cosl(long double) __LDBL_IS(cos);
+long double sinl(long double) __LDBL_IS(sin);
+long double tanl(long double) __LDBL_IS(tan);
+long double acoshl(long double) __LDBL_IS(acosh);
+long double asinhl(long double) __LDBL_IS(asinh);
+long double atanhl(long double) __LDBL_IS(atanh);
+long double coshl(long double) __LDBL_IS(cosh);
+long double sinhl(long double) __LDBL_IS(sinh);
+long double tanhl(long double) __LDBL_IS(tanh);
+long double expl(long double) __LDBL_IS(exp);
+long double exp2l(long double) __LDBL_IS(exp2);
+long double expm1l(long double) __LDBL_IS(expm1);
+long double logl(long double) __LDBL_IS(log);
+long double log10l(long double) __LDBL_IS(log10);
+long double log1pl(long double) __LDBL_IS(log1p);
+long double log2l(long double) __LDBL_IS(log2);
+long double logbl(long double) __LDBL_IS(logb);
+long double cbrtl(long double) __LDBL_IS(cbrt);
+long double fabsl(long double) __LDBL_IS(fabs);
+long double sqrtl(long double) __LDBL_IS(sqrt);
+long double erfl(long double) __LDBL_IS(erf);
+long double erfcl(long double) __LDBL_IS(erfc);
+long double lgammal(long double) __LDBL_IS(lgamma);
+long double tgammal(long double) __LDBL_IS(tgamma);
+long double ceill(long double) __LDBL_IS(ceil);
+long double floorl(long double) __LDBL_IS(floor);
+long double nearbyintl(long double) __LDBL_IS(nearbyint);
+long double rintl(long double) __LDBL_IS(rint);
+long double roundl(long double) __LDBL_IS(round);
+long double truncl(long double) __LDBL_IS(trunc);
+long double atan2l(long double, long double) __LDBL_IS(atan2);
+long double powl(long double, long double) __LDBL_IS(pow);
+long double hypotl(long double, long double) __LDBL_IS(hypot);
+long double fmodl(long double, long double) __LDBL_IS(fmod);
+long double remainderl(long double, long double) __LDBL_IS(remainder);
+long double copysignl(long double, long double) __LDBL_IS(copysign);
+long double nextafterl(long double, long double) __LDBL_IS(nextafter);
+long double fdiml(long double, long double) __LDBL_IS(fdim);
+long double fmaxl(long double, long double) __LDBL_IS(fmax);
+long double fminl(long double, long double) __LDBL_IS(fmin);
+long double fmal(long double, long double, long double) __LDBL_IS(fma);
+long double remquol(long double, long double, int *) __LDBL_IS(remquo);
+long double scalbnl(long double, int) __LDBL_IS(scalbn);
+long double scalblnl(long double, long) __LDBL_IS(scalbln);
+long double frexpl(long double, int *) __LDBL_IS(frexp);
+long double ldexpl(long double, int) __LDBL_IS(ldexp);
+long double modfl(long double, long double *) __LDBL_IS(modf);
+long double nanl(const char *) __LDBL_IS(nan);
+long double nexttowardl(long double, long double) __LDBL_IS(nextafter);
+double  nexttoward(double, long double) __LDBL_IS(nextafter);
+int     ilogbl(long double) __LDBL_IS(ilogb);
+long    lrintl(long double) __LDBL_IS(lrint);
+long    lroundl(long double) __LDBL_IS(lround);
+long long llrintl(long double) __LDBL_IS(llrint);
+long long llroundl(long double) __LDBL_IS(llround);
+#undef __LDBL_IS
+#endif
+#endif /* !__SMALLER_C__ */
 
 #if !defined(_ANSI_SOURCE) && !defined(_POSIX_SOURCE)
 
@@ -68,3 +279,5 @@ double fmod(double x, double y);
 #define M_SQRT1_2       0.70710678118654752440  /* 1/sqrt(2) */
 
 #endif /* !_ANSI_SOURCE && !_POSIX_SOURCE */
+
+#endif /* !_MATH_H_ */

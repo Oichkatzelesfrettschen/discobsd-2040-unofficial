@@ -409,6 +409,68 @@ def test_duty_rule():
         )
 
 
+def test_region_offset(lib):
+    """psramstrategy() maps a request on minor 0 (swap) or minor 1 (the /tmp
+    RAM disk) through psram_region_offset(): each minor's blocks start at its
+    region's base and stop at its end, so no transfer crosses between swap
+    and /tmp, and a minor with no region is refused."""
+    import ctypes
+
+    off_fn = lib.psram_region_offset
+    off_fn.restype = ctypes.c_int
+    off_fn.argtypes = [
+        ctypes.c_int,
+        ctypes.c_long,
+        ctypes.c_uint,
+        ctypes.c_uint,
+        ctypes.POINTER(ctypes.c_uint),
+    ]
+    size_fn = lib.psram_region_bytes
+    size_fn.restype = ctypes.c_ulong
+    size_fn.argtypes = [ctypes.c_int]
+    bsize = 1024
+    swap = 2 * 1024 * 1024
+    total = 8 * 1024 * 1024
+
+    def call(minor, blk, ln):
+        off = ctypes.c_uint(0xDEADBEEF)
+        return off_fn(minor, blk, bsize, ln, ctypes.byref(off)), off.value
+
+    check(size_fn(0) == swap, "minor 0 is 2 MB of swap (%d)" % size_fn(0))
+    check(size_fn(1) == total - swap, "minor 1 is the other 6 MB (%d)" % size_fn(1))
+    for minor in (2, -1, 255):
+        check(size_fn(minor) == 0, "minor %d has no region" % minor)
+        e, off = call(minor, 0, bsize)
+        check(e == -3 and off == 0xDEADBEEF, "minor %d is refused" % minor)
+    cases = (
+        (0, 0, bsize, 0),
+        (0, swap // bsize - 1, bsize, swap - bsize),
+        (1, 0, bsize, swap),
+        (1, (total - swap) // bsize - 1, bsize, total - bsize),
+        (0, swap // bsize, 0, swap),
+    )
+    for minor, blk, ln, want in cases:
+        e, off = call(minor, blk, ln)
+        check(
+            e == 0 and off == want,
+            "minor %d block %d maps to %#x (%d, %#x)" % (minor, blk, want, e, off),
+        )
+    refused = (
+        (0, swap // bsize, bsize),
+        (0, swap // bsize - 1, 2 * bsize),
+        (1, (total - swap) // bsize, bsize),
+        (1, (total - swap) // bsize - 1, 2 * bsize),
+        (0, -1, bsize),
+        (1, 1 << 31, bsize),
+    )
+    for minor, blk, ln in refused:
+        e, off = call(minor, blk, ln)
+        check(
+            e == -3 and off == 0xDEADBEEF,
+            "minor %d block %d length %d is refused (%d, %#x)" % (minor, blk, ln, e, off),
+        )
+
+
 def test_block_offset(lib):
     """psramstrategy() turns b_blkno into a byte offset through
     psram_block_offset(); a block number outside the device must be refused
@@ -746,6 +808,7 @@ def main():
     test_chunks(lib)
     test_duty_rule()
     test_block_offset(lib)
+    test_region_offset(lib)
     r = test_driver(a.lib, c)
     results["driver"] = {
         "frames": len(r.dev.frames),

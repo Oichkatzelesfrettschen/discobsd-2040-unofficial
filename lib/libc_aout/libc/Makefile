@@ -135,7 +135,7 @@ OBJS            += abs.o labs.o iso_exit.o at_quick_exit.o quick_exit.o \
                    getopt.o getsubopt.o strtol.o strtoul.o strtod.o
 
 # libc/string
-OBJS            += explicit_bzero.o strcspn.o strerror.o strlcat.o strlcpy.o \
+OBJS            += explicit_bzero.o memmem.o strcspn.o strerror.o strlcat.o strlcpy.o \
 		   strpbrk.o strsep.o strspn.o strstr.o strtok.o strtok_r.o \
 		   timingsafe_bcmp.o
 

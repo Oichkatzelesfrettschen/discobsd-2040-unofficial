@@ -42,15 +42,23 @@ split, so a profile or command that named `games`, `puzzles`, `toolchain` or
 | `calc-bignum` | `bc`, `dc` |
 
 The remaining closures stand alone: `coremark`, `calc`, `toolchainlib`,
-`sdcard`, `lcdgfx` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
+`sdcard`, `lcdgfx`, `psramtmp` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
 and the device nodes of the PicoCalc's SD card (block major 5, raw major 11 in
 `conf.c`); the `picocalc` profile names it, `full` does not, and the PICO
 kernels have no driver behind those majors. Its `needs path` line holds the
 mount point and all six nodes, so a manifest block that loses one stops the
-build. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
+build. The `psramtmp` closure carries the PSRAM's block node `/dev/psram1` (major 3,
+minor 1, mode 600) and `/sbin/mkfs`, which `/etc/rc.rp2040` runs over the
+node before it mounts the node at `/tmp`; its `needs path` line names both, so
+a manifest block that loses one stops the build. The `picocalc` and
+`picocalc-lean` profiles name it, and every PICOCALC kernel carries the psram
+driver and the third mount slot: a PicoCalc whose PSRAM part does not answer
+the probe leaves the driver down, the open fails with `ENXIO` and `/tmp` stays
+on the root, so that board pays the nine blocks and two inodes for nothing.
+`IMAGE_WITHOUT=psramtmp` leaves them out. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
 console's character major 10, mode 666) that the PICOCALC kernels serve; the
-`picocalc` profile names it and no other does. The `ridge` closure carries the
-hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile
+`picocalc` profile names it, and so does the opt-in `matezinho` profile. The
+`ridge` closure carries the hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile
 atlas and the raw key session of the PICOCALC kernels. It sits outside the
 `games` group, which `full` keeps, and declares `closure ridge needs closure
 lcdgfx`, so a selection that keeps `ridge` without the device node, and the
@@ -103,7 +111,7 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 
 | Closure or group | Blocks | Inodes | Installs |
 | --- | --- | --- | --- |
-| `coremark` | 16 | 1 | `/usr/bin/coremark` |
+| `coremark` | 15 | 1 | `/usr/bin/coremark` |
 | `as` | 25 | 1 | `/usr/bin/as` |
 | `ld` | 18 | 1 | `/usr/bin/ld` |
 | `smlrc` | 42 | 1 | `/usr/libexec/smlrc` |
@@ -113,14 +121,17 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `dc` | 21 | 1 | OpenBSD `dc` (18,644 bytes packed); PicoCalc only |
 | `calc-bignum` (`bc` + `dc`) | 60 | 3 | the three files above |
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
+| `picofetch` | 14 | 1 | `/usr/bin/picofetch` (15,644 bytes before packing); PicoCalc profile |
+| `picotop` | 15 | 1 | `/usr/bin/picotop` (15,944 bytes before packing); PicoCalc profile |
 | `sdcard` | 11 | 8 | `/mnt`, the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`, and `/sbin/savecore` (9,141 bytes packed); PicoCalc only |
 | `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
+| `psramtmp` | 9 | 2 | the block node `/dev/psram1` (major 3, minor 1, mode 600) and `/sbin/mkfs` (9,788 bytes before packing); PicoCalc only |
 | `gamesdir` | 1 | 1 | `/usr/games` |
 | `games` group | 24 | 2 | `/usr/games`, `gamebox`, and hard links `fifteen`, `keen`, `bubble`, `fourfall`, `coil` |
 | `puzzles` group with `gamesdir` | 37 | 2 | `puzzlebox` and hard links `flood`, `samegame`, `unruly`, `lightup` |
 | `games` and `puzzles` | 60 | 3 | both groups |
 | `ridge` with `gamesdir`, `gamebox` and `lcdgfx` | 11 | 3 | the hard link `/usr/games/ridge` and what it needs (`gamebox` links `ridge` only when the selection keeps it); PicoCalc only |
-| all maintained closures (`picocalc`) | 307 | 23 | |
+| all maintained closures (`picocalc`) | 360 | 28 | measured on the tree that added `psramtmp`: `base` 437 free blocks and 37 free inodes, `picocalc` 77 and 9; the 307 and 23 of the earlier tree are not attributed here |
 | legacy `pdp11` | 14 | 1 | `/usr/bin/pdp11` |
 | legacy `v6disk` | 157 | 2 | `/usr/v6`, `/usr/v6/root.rk` |
 
@@ -198,11 +209,12 @@ the pack's unused blocks occupy no flash.
 | Profile | Closures | Free blocks | Free inodes |
 | --- | --- | --- | --- |
 | `base` | none | 446 | 43 |
-| `benchmark` | `coremark` | 432 | 42 |
+| `benchmark` | `coremark` | 431 | 42 |
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's, including `puzzles` | 241 | 32 |
-| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx` and `ridge`, so also `puzzles` | 140 | 20 |
+| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop` and `psramtmp`, so also `puzzles` | 77 (86 with `IMAGE_WITHOUT=psramtmp`), measured on the merged tree that added `psramtmp` to the PICOCALC kernels' roots | 8 (10 without `psramtmp`) |
+| `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch`, `picotop` and `psramtmp` | 86 (95 without `psramtmp`), same tree | 9 (11 without `psramtmp`) |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -216,6 +228,37 @@ inodes before `time` joined `utilbox` (446 afterwards), 447 and 42 with
 holds 148 free blocks and 20 free inodes when built with
 `IMAGE_WITHOUT=ridge`; the row reads 140 and 20 as shipped: `ridge` takes
 eight blocks and no inode, because its entry point is a hard link.
+
+The `psramtmp` cost is the difference between `base` (437 free blocks and 37
+free inodes) and `base` with the closure (428 and 35), built with `bmake
+MACHINE=rp2040 PROFILE=base IMAGE_WITH=psramtmp fs` and read with the same
+`fsutil --verbose --partition=1` command; on the merged tree `picocalc`
+measured 86 and 10 with `IMAGE_WITHOUT=psramtmp` and 77 and 8 as shipped, and
+`picocalc-lean` 95 and 11 without and 86 and 9 with (the in-core free list and
+free inode lines of `fsutil --verbose`). The inode cost is the block node and
+`mkfs`; the nine blocks are the packed `mkfs` (9,788 bytes before packing; its
+packed size is not measured separately) and the directory entries. The
+`base` row and the other rows of the table above were not measured again on
+that tree and sit above the figures `base` now reads.
+
+The `picocalc-lean` row was first measured, without `psramtmp`, on the tree
+that added the profile, with the `picocalc` image beside it: 96 free blocks
+and 12 free inodes against 87 and 11 for `picocalc` (`fsutil --verbose
+--partition=1` on `sdcard-PICOCALC-LEAN.img` and `sdcard-PICOCALC.img`). The 9
+blocks and 1 inode are the `ridge` link and its entry in the `gamebox` build (8
+blocks, no inode, `ridge` row above) and the `/dev/lcdgfx` node (no block, 1
+inode); the split between the 8 and the ninth block is inferred, not traced.
+The merged tree's two rows differ by the same 9 blocks and, with one inode
+fewer in `picocalc` than before, by 1 inode.
+
+`picofetch` and `picotop` joined the `picocalc` profile on a later tree, on
+which `base` measured 440 free blocks and 40 free inodes: 426 and 39 with
+`picofetch`, 425 and 39 with `picotop`, 411 and 38 with both. The `picocalc`
+image measured 119 free blocks and 16 free inodes with
+`IMAGE_WITHOUT="picofetch picotop"` and 90 and 14 as shipped, and `full`
+227 and 29. The profile table above predates that tree. Both programs run on
+every kernel, so `IMAGE_WITH="picofetch picotop"` adds them to another
+profile.
 
 `/usr/bin/time` is a hard link to `/usr/bin/utilbox`, a member of the base
 system. `utilbox` grows from 44,716 to 45,052 packed bytes (54,989 to 55,389
@@ -252,15 +295,13 @@ alone, because `v6disk` reaches no profile without `pdp11`.
 
 `BOARD` picks the default profile. `distrib/rp2040/Makefile.inc` sets
 `BOARD?=PICO` and `PROFILE?=` the board's profile, `full` for the PICO board
-and `picocalc` for the PicoCalc and for `BOARD=PICOCALC_PSRAM` (the PicoCalc
-kernel with the PSRAM swap driver, `PICOCALC.md`), and refuses any other
+and `picocalc` for the PicoCalc (`PICOCALC.md`), and refuses any other
 `BOARD`. Every kernel
 boots every profile's root, so the board choice decides what the image
 carries, not whether it boots:
 
     bmake MACHINE=rp2040 distribution              # full
     bmake MACHINE=rp2040 BOARD=PICOCALC distribution # picocalc
-    bmake MACHINE=rp2040 BOARD=PICOCALC_PSRAM distribution # picocalc, PSRAM kernel
     bmake MACHINE=rp2040 PROFILE=base distribution # base
     bmake MACHINE=rp2040 PROFILE=base flash        # its UF2
     bmake MACHINE=rp2040 BUILD_PDP11_V6=yes \
@@ -396,6 +437,7 @@ back the member lists the games Makefiles receive.
 | `full` without the five gamebox members | reject | closure gamebox is selected with none of its members |
 | `full` with `ridge` | reject | closure ridge needs closure lcdgfx, which this profile does not select |
 | `picocalc` without `lcdgfx` | reject | closure ridge needs closure lcdgfx, which this profile does not select |
+| `picocalc-lean` with `ridge` | reject | closure ridge needs closure lcdgfx, which this profile does not select |
 | `picocalc` without `keen`, with a part that needs `/usr/games/keen` | reject | closure calc needs /usr/games/keen, which this profile does not install |
 | `full` without `toolchain` and `toolchainlib` | accept | composes |
 | `full` without `keen` | accept | composes; gamebox keeps `fifteen bubble fourfall coil`, puzzlebox keeps all four |
@@ -405,6 +447,7 @@ back the member lists the games Makefiles receive.
 | `picocalc` without `sdcard` | accept | composes |
 | `picocalc` | accept | composes; gamebox keeps `fifteen keen bubble fourfall coil ridge` |
 | `picocalc` without `ridge` and `lcdgfx` | accept | composes; gamebox keeps `fifteen keen bubble fourfall coil` |
+| `picocalc-lean` | accept | composes; gamebox keeps `fifteen keen bubble fourfall coil` |
 
 The declaration checks have their own cases, each fed as extra profile text:
 a group declared twice, a group that contains itself, a group named like a

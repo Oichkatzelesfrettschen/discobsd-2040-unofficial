@@ -40,6 +40,10 @@ REBOOT_BUDGET = 150.0
 # Short enough that "panic: " and the message fit the panel line the panic
 # starts after the shell prompt.
 PANIC_MESSAGE = "renode panic"
+# inject_panic() writes the message, with its NUL, this far past
+# __kernel_ram_used_end; kern.ldscript keeps the span up to
+# __kernel_dump_reserve_end free, and message_fits() holds the message to it.
+PANIC_OFFSET = 256
 # A halted kernel spins in cngetc(), which Renode runs about 30 times slower
 # than an idle one, so the panic stage's budget is short.
 PANIC_BUDGET = 10.0
@@ -163,6 +167,19 @@ def extract_file(card, fsutil, name):
             return stream.read()
 
 
+def message_fits(used_end, reserve_end, message):
+    """True when message, written at used_end + PANIC_OFFSET, ends by reserve_end."""
+    return used_end + PANIC_OFFSET + len(message) <= reserve_end
+
+
+def message_bound_self_test():
+    """Calibrate message_fits() on the linker's 512-byte reserve; a list of failures."""
+    used, reserve = 0x20030000, 0x20030000 + 512
+    cases = ((b"renode panic\0", True), (b"x" * 255 + b"\0", True), (b"x" * 256 + b"\0", False))
+    return [f"{len(m)} bytes: fits={not want}"
+            for m, want in cases if message_fits(used, reserve, m) != want]
+
+
 def inject_panic(run, elf):
     """Stop the CPU in idle() and enter panic(PANIC_MESSAGE) from there.
 
@@ -171,7 +188,8 @@ def inject_panic(run, elf):
     __kernel_ram_used_end, outside the span the dump copies.
     """
     renode = run.renode
-    symbols = elf_symbols(elf, ["panic", "idle", "__kernel_ram_used_end"])
+    symbols = elf_symbols(elf, ["panic", "idle", "__kernel_ram_used_end",
+                                "__kernel_dump_reserve_end"])
     idle, idle_size = symbols["idle"]
     idle &= ~1
     for _ in range(2000):
@@ -182,8 +200,17 @@ def inject_panic(run, elf):
     else:
         run.fail("panic: the CPU never stopped in idle()")
         return False
-    text = symbols["__kernel_ram_used_end"][0] + 256
-    for index, byte in enumerate(PANIC_MESSAGE.encode() + b"\0"):
+    message = PANIC_MESSAGE.encode() + b"\0"
+    used_end = symbols["__kernel_ram_used_end"][0]
+    reserve_end = symbols["__kernel_dump_reserve_end"][0]
+    if not message_fits(used_end, reserve_end, message):
+        run.fail(
+            f"panic: {len(message)} message bytes at +{PANIC_OFFSET} "
+            f"pass __kernel_dump_reserve_end ({reserve_end - used_end} bytes)"
+        )
+        return False
+    text = used_end + PANIC_OFFSET
+    for index, byte in enumerate(message):
         renode.command(f"sysbus WriteByte {text + index:#x} {byte:#x}")
     renode.command(f"sysbus.cpu0 SetRegister 0 {text:#x}")
     renode.command(f"sysbus.cpu0 PC {symbols['panic'][0] & ~1:#x}")

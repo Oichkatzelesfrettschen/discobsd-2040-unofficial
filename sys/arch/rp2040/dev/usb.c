@@ -34,7 +34,9 @@
  * the host only drains the IN endpoint while a terminal has the port open,
  * and the kernel prints long before anyone has. The ring keeps the last
  * USB_TXRING bytes, so a terminal opened after boot sees the boot messages
- * rather than nothing; 8K holds a whole boot with room to spare.
+ * rather than nothing. The default 8K holds a whole boot with room to
+ * spare; the PicoCalc configurations set 4K and give the other half of
+ * the scratch banks to the lcdgfx tile atlas (kern.ldscript, .scratch).
  */
 
 #include <sys/param.h>
@@ -64,6 +66,7 @@
 #define	DPRAM8(off)	(*(volatile u_char *)(USB_DPRAM_BASE + (off)))
 
 #define	RESETS_BASE	0x4000c000UL
+#define	RESETS_SET	0x2000UL
 #define	RESETS_CLR	0x3000UL
 #define	RESETS_DONE	0x8
 #define	RESETS_USBCTRL	(1UL << 24)
@@ -275,17 +278,26 @@ static const u_char usb_config_desc[CONFIG_DESC_LEN] = {
 	RESET_INTERFACE_PROTOCOL, 5,
 };
 
+#define	USB_STRING_SERIAL	3	/* usb_device_desc's serial index. */
+
 static const char *const usb_strings[] = {
 	0,				/* 0: language list, built below. */
 	"DiscoBSD",
 	"DiscoBSD RP2040 console",
-	"rp2040",
+	0,				/* 3: usb_serial, built by usbinit(). */
 	"Console",
 	"Reset",
 };
 #define	NSTRINGS	(sizeof(usb_strings) / sizeof(usb_strings[0]))
 _Static_assert(NSTRINGS == USB_STRING_DESCRIPTOR_COUNT,
 	"USB string descriptor count must match the validated index range");
+
+/*
+ * The serial number string: the flash chip's unique ID, so that two boards
+ * on one host enumerate under different names (flash_serial_string() in
+ * flash.h gives the form), or "rp2040" when the ID cannot be read.
+ */
+static char usb_serial[FLASH_SERIAL_CHARS];
 
 /*
  * Device state.
@@ -298,7 +310,11 @@ enum ep0_stage {
 	EP0_OUT_STATUS,			/* Zero-length OUT closing an IN reply. */
 };
 
+#ifndef USB_TXRING
 #define	USB_TXRING	8192
+#endif
+_Static_assert(USB_TXRING >= 1024 && (USB_TXRING & (USB_TXRING - 1)) == 0,
+    "USB_TXRING is a power of two of at least 1 KB");
 #define	USB_RXRING	64
 
 static struct {
@@ -326,6 +342,7 @@ static struct {
 
 	u_int		rx_head, rx_tail;
 	u_char		rx_ring[USB_RXRING];
+	u_int		rx_polled;	/* usbgetc is polling: ring every byte. */
 
 	u_char		reply[64];	/* Small control replies. */
 } usbd;
@@ -333,7 +350,7 @@ static struct {
 /*
  * The transmit ring lives in the SRAM4 and SRAM5 scratch banks, which
  * conf/RP2040.ld names SCRATCH and kern.ldscript fills from .scratch
- * input sections, so its 8 KB leave the striped banks the kernel and
+ * input sections, so its USB_TXRING bytes leave the striped banks the kernel and
  * user space share. Only the CPU touches it: usb_tx_kick copies bytes
  * from it into DPSRAM, so the controller never addresses it. It is not
  * cleared at reset. tx_head and tx_tail in usbd are, and every byte of
@@ -350,6 +367,8 @@ u_int usb_e15_deferred;			/* Bulk IN arms the E15 guard held. */
 u_int usb_e15_bulkin_arms;		/* Bulk IN arms attempted, held or not. */
 u_int usb_service_reentered;		/* Services refused to a nested caller. */
 u_int usb_tx_recovered;			/* Bulk IN buffers freed from a lost arm. */
+u_int usb_tx_peak;			/* Greatest ring occupancy, bytes. */
+u_int usb_tx_dropped;			/* Bytes discarded from a full ring. */
 
 /*
  * Depth of usb_service. PRIMASK, which spltty and splhigh both set, raises
@@ -367,6 +386,7 @@ static int usb_service_depth;
 static u_int usb_sof_us;		/* TIMERAWL at the last SOF interrupt. */
 
 static void usb_tx_kick(void);
+static void usb_tx_idle(void);
 
 /*
  * Buffer control words are shared with the controller, which runs from a
@@ -504,7 +524,7 @@ usb_string_desc(u_int index, u_int wlength)
 		usb_ep0_send(usbd.reply, 4, wlength);
 		return;
 	}
-	s = usb_strings[index];
+	s = index == USB_STRING_SERIAL ? usb_serial : usb_strings[index];
 	for (n = 0; s[n] != '\0' && 2 + 2 * n < sizeof(usbd.reply) - 1; n++)
 		continue;
 	usbd.reply[0] = 2 + 2 * n;
@@ -527,7 +547,6 @@ usb_configure(int on)
 {
 	usbd.configured = on;
 	usbd.dtr = 0;
-	usbd.tx_busy = 0;
 	usbd.tx_pending = 0;
 	usbd.data_in_pid = 0;
 	usbd.data_out_pid = 0;
@@ -542,9 +561,10 @@ usb_configure(int on)
 		 * the packet most likely to land in the critical window.
 		 */
 		USBSET(USB_INTE) = USB_INTS_DEV_SOF;
-		usb_tx_kick();
 	} else
 		USBCLR(USB_INTE) = USB_INTS_DEV_SOF;
+	/* Any packet in flight is abandoned with no completion to come. */
+	usb_tx_idle();
 }
 
 static int
@@ -733,7 +753,7 @@ usb_setup(void)
 			}
 			usb_ep0_ack();
 			if (windex == ITF_CDC_DATA)
-				usb_tx_kick();
+				usb_tx_idle();
 			return;
 		case REQ_SET_FEATURE:
 			/*
@@ -849,14 +869,47 @@ usb_tx_kick(void)
 		usb_buf_arm_word(USB_DPRAM_BUF_CTRL(EP_DATA, 1), ctrl);
 }
 
+/*
+ * The bulk IN endpoint holds no packet: send the next one or, with the ring
+ * empty, release the tty. TS_BUSY tells the tty layer a packet is
+ * outstanding, usbstart() returns while it is set, and only this routine
+ * clears it, so every path that ends a packet -- its completion, a recovered
+ * arm, SET_CONFIGURATION, a bus reset, SET_INTERFACE -- comes here. A path
+ * that cleared tx_busy alone with the ring empty would leave TS_BUSY with no
+ * completion to clear it: tty output and echo would queue in t_outq, and a
+ * writer past the high-water mark or a last close in ttywait() would sleep,
+ * until a kernel printf refilled the ring.
+ */
+static void
+usb_tx_idle(void)
+{
+	struct tty *tp = &usbttys[0];
+
+	usbd.tx_busy = 0;
+	led_control(LED_TTY, 0);
+	usb_tx_kick();
+	if (! usbd.tx_busy && (tp->t_state & TS_BUSY)) {
+		tp->t_state &= ~TS_BUSY;
+		ttstart(tp);
+	}
+}
+
 /* Queue one byte for the host, dropping the oldest when nobody drains. */
 static void
 usb_tx_put(u_char c)
 {
-	if (usbd.tx_head - usbd.tx_tail >= USB_TXRING)
+	u_int queued;
+
+	if (usbd.tx_head - usbd.tx_tail >= USB_TXRING) {
 		usbd.tx_tail++;
+		if (usb_tx_dropped < USB_TX_DROPPED_MAX)
+			usb_tx_dropped++;
+	}
 	usb_tx_ring[usbd.tx_head % USB_TXRING] = c;
 	usbd.tx_head++;
+	queued = usbd.tx_head - usbd.tx_tail;
+	if (queued > usb_tx_peak)
+		usb_tx_peak = queued;
 }
 
 /* A bulk OUT buffer has data from the host. */
@@ -869,7 +922,7 @@ usb_rx_done(void)
 	n = DPRAM32(USB_DPRAM_BUF_CTRL(EP_DATA, 0)) & USB_BUF_CTRL_LEN_MASK;
 	for (i = 0; i < n; i++) {
 		c = DPRAM8(BUF_DATA_OUT + i);
-		if (tp->t_state & TS_ISOPEN) {
+		if ((tp->t_state & TS_ISOPEN) && usbd.rx_polled == 0) {
 			ttyinput(c, tp);
 		} else if (usbd.rx_head - usbd.rx_tail < USB_RXRING) {
 			usbd.rx_ring[usbd.rx_head % USB_RXRING] = c;
@@ -941,9 +994,8 @@ usb_tx_recover_if_idle(void)
 	bc = DPRAM32(USB_DPRAM_BUF_CTRL(EP_DATA, 1));
 	if ((bc & (USB_BUF_CTRL_AVAIL | USB_BUF_CTRL_FULL)) == 0 &&
 	    (USBREG(USB_BUFF_STATUS) & USB_BUFF_STATUS_BIT(EP_DATA, 1)) == 0) {
-		usbd.tx_busy = 0;
 		usb_tx_recovered++;
-		usb_tx_kick();
+		usb_tx_idle();
 	}
 }
 
@@ -962,7 +1014,6 @@ usb_tx_recover_if_idle(void)
 static void
 usb_service(void)
 {
-	struct tty *tp = &usbttys[0];
 	u_int ints, done, i;
 
 	/*
@@ -1048,13 +1099,7 @@ usb_service(void)
 		}
 		if (done & USB_BUFF_STATUS_BIT(EP_DATA, 1)) {
 			/* Bulk IN went out: send more, or wake the tty. */
-			usbd.tx_busy = 0;
-			led_control(LED_TTY, 0);
-			usb_tx_kick();
-			if (! usbd.tx_busy && (tp->t_state & TS_BUSY)) {
-				tp->t_state &= ~TS_BUSY;
-				ttstart(tp);
-			}
+			usb_tx_idle();
 		}
 		if (done & USB_BUFF_STATUS_BIT(EP_DATA, 0))
 			usb_rx_done();
@@ -1122,21 +1167,42 @@ USBCTRL_IRQ_Handler(void)
 }
 
 /*
+ * Hold the controller in reset, then release it, as the Pico SDK's
+ * rp2040_usb_init() does. A warm reboot through AIRCR.SYSRESETREQ resets
+ * the core alone (datasheet 2.4.2.9), and the boot ROM's flash boot path
+ * resets only IO_QSPI, PADS_QSPI and TIMER, so without the assert the
+ * controller keeps the previous device address, endpoint state and D+
+ * pull-up. The assert clears them; the host sees a disconnect until
+ * usbinit() pulls D+ up again and enumerates the device from address 0.
+ */
+static void
+usb_controller_reset(void)
+{
+	REG32(RESETS_BASE + RESETS_SET) = RESETS_USBCTRL;
+	REG32(RESETS_BASE + RESETS_CLR) = RESETS_USBCTRL;
+	while ((REG32(RESETS_BASE + RESETS_DONE) & RESETS_USBCTRL) == 0)
+		continue;
+}
+
+/*
  * Bring the controller up as a full-speed device. machdep.c has already
  * started clk_usb. The sequence is the datasheet's 4.1.3.2.1.
  */
 void
 usbinit(void)
 {
+	const u_char *jedec, *unique;
 	u_int i;
 
-	REG32(RESETS_BASE + RESETS_CLR) = RESETS_USBCTRL;
-	while ((REG32(RESETS_BASE + RESETS_DONE) & RESETS_USBCTRL) == 0)
-		continue;
+	usb_controller_reset();
 
 	for (i = 0; i < USB_DPRAM_SIZE; i += 4)
 		DPRAM32(i) = 0;
 	bzero(&usbd, sizeof(usbd));
+
+	/* Before the pull-up: the host asks for the serial at enumeration. */
+	flash_serial_string(usb_serial,
+	    flash_identity(&jedec, &unique) == 0 ? unique : (const u_char *)0);
 
 	/* Default line coding: 115200 8N1, reported back if asked. */
 	usbd.line_coding[0] = 115200 & 0xff;
@@ -1256,7 +1322,6 @@ usbstart(struct tty *tp)
 		splx(s);
 		return;
 	}
-	ttyowake(tp);
 	while (tp->t_outq.c_cc != 0 &&
 	    usbd.tx_head - usbd.tx_tail < USB_TXRING)
 		usb_tx_put(getc(&tp->t_outq));
@@ -1265,6 +1330,14 @@ usbstart(struct tty *tp)
 		tp->t_state |= TS_BUSY;
 		led_control(LED_TTY, 1);
 	}
+	/*
+	 * The queue has just moved into the ring, so the low-water test sees
+	 * what is left. Tested before the move, a full queue woke nobody, and
+	 * when the moved bytes left without setting TS_BUSY -- the controller
+	 * unconfigured after a bus reset -- no later call came to wake the
+	 * writer or the closer sleeping on t_outq.
+	 */
+	ttyowake(tp);
 	splx(s);
 }
 
@@ -1329,7 +1402,32 @@ usbpoll(void)
 }
 
 /*
- * Console input: poll the controller until a byte arrives.
+ * Enter (on) or leave (off) polled console input before the read itself:
+ * boot() raises it ahead of the halt messages, whose usbputc calls service
+ * the controller, so a key that arrives while they print reaches rx_ring
+ * and not the open tty's queue. A counter, so it nests with usbgetc.
+ */
+void
+usbpollc(int on)
+{
+	int s;
+
+	s = spltty();
+	if (on)
+		usbd.rx_polled++;
+	else if (usbd.rx_polled != 0)
+		usbd.rx_polled--;
+	splx(s);
+}
+
+/*
+ * Console input: poll the controller until a byte arrives. PRIMASK is set
+ * for the whole read (boot() has called splhigh before its halt wait), so
+ * usbintr never runs and usb_service here is what moves a received packet
+ * out of the controller. usb_rx_done hands a byte to the tty while a process
+ * holds it open; rx_polled redirects every byte to rx_ring for the length of
+ * the read, because nothing drains the tty's input queue in that context and
+ * the read would never see it.
  */
 char
 usbgetc(dev_t dev __unused)
@@ -1337,8 +1435,10 @@ usbgetc(dev_t dev __unused)
 	int s, c;
 
 	s = spltty();
+	usbd.rx_polled++;
 	while (usbd.rx_tail == usbd.rx_head)
 		usb_service();
+	usbd.rx_polled--;
 	c = usbd.rx_ring[usbd.rx_tail % USB_RXRING];
 	usbd.rx_tail++;
 	splx(s);
@@ -1346,7 +1446,7 @@ usbgetc(dev_t dev __unused)
 }
 
 static int
-usbprobe(struct conf_device *config __unused)
+usbprobe(const struct conf_device *config __unused)
 {
 	int console_major, console_minor;
 
@@ -1359,6 +1459,6 @@ usbprobe(struct conf_device *config __unused)
 	return 1;
 }
 
-struct driver uartusbdriver = {
+const struct driver uartusbdriver = {
 	"uartusb", usbprobe,
 };

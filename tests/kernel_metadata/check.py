@@ -11,6 +11,26 @@ class CheckError(RuntimeError):
     """Report a contract mismatch."""
 
 
+def preprocessor_block(text, opener):
+    """Return (whole, inner) for the block that starts at the line opener and
+    ends at the #endif that closes it, counting nested #if lines, or None."""
+    lines = text.splitlines(keepends=True)
+    for start, line in enumerate(lines):
+        if line.rstrip("\n") != opener:
+            continue
+        depth = 0
+        for end in range(start, len(lines)):
+            word = lines[end].split(None, 1)[0] if lines[end].strip() else ""
+            if word in ("#if", "#ifdef", "#ifndef"):
+                depth += 1
+            elif word == "#endif":
+                depth -= 1
+                if depth == 0:
+                    return "".join(lines[start : end + 1]), "".join(lines[start + 1 : end])
+        return None
+    return None
+
+
 def records_text(text: str, label: str, fields: int) -> list[list[str]]:
     result = []
     for raw_line in text.splitlines():
@@ -25,6 +45,11 @@ def records_text(text: str, label: str, fields: int) -> list[list[str]]:
 
 def records(path: Path, fields: int) -> list[list[str]]:
     return records_text(path.read_text(), str(path), fields)
+
+
+# Character majors past 11 in the RP2040 cdevsw: 12, the general-purpose
+# pins, and 13, the PicoCalc sample audio.
+UNION_CDEVSW_ROWS = 2
 
 
 def count_initializer_rows(source: str, declaration: str) -> int:
@@ -199,6 +224,20 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     ):
         raise CheckError("RP2040 cdevsw must add exactly major 11 under SD_ENABLED")
     cdevsw_body = cdevsw_body.replace(sd_char.group(0), "", 1)
+    # The majors past 11 sit in one block that needs both the console and
+    # the SD driver, so their numbers hold; its rows are numbered from 12
+    # in order.
+    union = preprocessor_block(
+        cdevsw_body, "#if defined(PICOCALC_ENABLED) && defined(SD_ENABLED)"
+    )
+    if union is None:
+        raise CheckError("RP2040 cdevsw must add majors past 11 under both options")
+    union_rows = re.findall(r"^\s*\{\s*/\* (\d+) - ", union[1], re.MULTILINE)
+    if union_rows != [str(major) for major in range(12, 12 + UNION_CDEVSW_ROWS)] or len(
+        re.findall(r"^\s*\{", union[1], re.MULTILINE)
+    ) != UNION_CDEVSW_ROWS:
+        raise CheckError("RP2040 cdevsw union rows must be majors 12 upward in order")
+    cdevsw_body = cdevsw_body.replace(union[0], "", 1)
     picocalc = re.search(
         r"^#ifdef PICOCALC_ENABLED\n(.*?)^#endif\n(?=\s*/\*\s*\n\s*\* End the list)",
         cdevsw_body,
@@ -208,7 +247,7 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("RP2040 cdevsw must add exactly major 10 under PICOCALC_ENABLED")
     if "/* 10 - " not in picocalc.group(1):
         raise CheckError("RP2040 cdevsw PICOCALC row must be major 10")
-    if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 14:
+    if count_initializer_rows(conf, "const struct cdevsw cdevsw[] = {") != 14 + UNION_CDEVSW_ROWS:
         raise CheckError("RP2040 cdevsw must retain only majors 0..9 outside PICOCALC")
 
     # openi() refuses a write open of any disk character device at

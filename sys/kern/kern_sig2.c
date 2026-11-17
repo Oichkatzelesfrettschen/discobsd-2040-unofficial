@@ -106,7 +106,7 @@ setsigvec(int signum, register struct sigaction *sa)
 }
 
 void
-sigaction()
+sigaction(void)
 {
     register struct a {
         int signum;
@@ -200,7 +200,7 @@ siginit(register struct proc *p)
  * u_rval, or u_error with the carry flag set.
  */
 void
-sigprocmask()
+sigprocmask(void)
 {
     register struct a {
         int how;
@@ -245,7 +245,7 @@ out:
  * used a nonstandard (mask instead of pointer) calling convention.
  */
 void
-sigpending()
+sigpending(void)
 {
     register struct a {
         struct sigset_t *set;
@@ -266,7 +266,7 @@ sigpending()
  * copyin by assuming a mask of 0.
  */
 void
-sigsuspend()
+sigsuspend(void)
 {
     register struct a {
         struct sigset_t *set;
@@ -292,7 +292,7 @@ sigsuspend()
 }
 
 void
-sigaltstack()
+sigaltstack(void)
 {
     register struct a {
         struct sigaltstack * nss;
@@ -333,7 +333,7 @@ out:
 }
 
 void
-sigwait()
+sigwait(void)
 {
     register struct a {
         sigset_t *set;

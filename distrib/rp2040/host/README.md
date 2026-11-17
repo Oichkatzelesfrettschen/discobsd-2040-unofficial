@@ -5,18 +5,19 @@ Host tools for the DiscoBSD RP2040 console on Linux, Windows, and macOS.
 The Raspberry Pi Pico running DiscoBSD is a USB CDC-ACM serial device with
 no network stack. Every current operating system carries the CDC-ACM
 driver, so nothing kernel-side is installed: these tools find the board by
-its USB identity (vendor 2e8a, product 000a, serial `rp2040`), open the
+its USB identity (vendor 2e8a, product 000a, serial ending in `rp2040`), open the
 console at 115200 8N1, and either attach a terminal to it or serve it to a
 browser on the local network.
 
 | command | what it does |
 | --- | --- |
-| `discobsd-term` | attach the current terminal; reattaches across board reboots; Ctrl-] is the escape (`q` quits); `--probe` checks the board answers; `--list` prints attached boards |
-| `discobsd-web` | serve the console as a browser terminal on port 7681; a non-loopback bind requires a token, from `DISCOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
+| `discobsd-term` | attach the current terminal; reattaches across board reboots; Ctrl-] is the escape (`q` quits); `--probe` checks the board answers; `--list` prints attached boards; `--usb-port PORT` names one of several (Linux) |
+| `discobsd-web` | serve the console as a browser terminal on port 7681; `--usb-port PORT` names one of several boards (Linux); a non-loopback bind requires a token, from `DISCOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
 | `discobsd-link` | redirect a short URL (port 42069) to the tokenized console URL, built from `--host` and the same token, or the deprecated `--to` |
 | `discobsd-console` | `up`, `down`, `status`: run web and link detached, or through the systemd user units when installed |
-| `discobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board |
-| `discobsd-flash` | reflash with picotool: `FILE.uf2 ...`, `--bootsel`, `--eject`; unmounts the RPI-RP2 volume before every reboot out of BOOTSEL and waits for the boot ROM itself |
+| `discobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board; `--usb-port PORT` names one of several boards by its USB port (Linux) |
+| `discobsd-sramdump` | `capture --usb-port PORT --force-reset` forces a board into the boot ROM and saves its SRAM and kernel flash with picotool (Linux; ends the running session); `decode ELF SRAM.BIN [--flash FLASH.BIN]` prints the kernel's process table, wait channels, console tty and USB driver state from the saved image (needs `pip install "discobsd-host[sramdump]"` or pyelftools) |
+| `discobsd-flash` | reflash with picotool: `[--usb-port PORT] FILE.uf2 ...`, `--bootsel`, `--eject`; unmounts the RPI-RP2 volume before every reboot out of BOOTSEL and waits for the boot ROM itself |
 
 Log in as `operator` with no password, then `su` to root. The console
 serves one session at a time; leave it cleanly as described under "Keys
@@ -82,6 +83,14 @@ the command always is, and the script does that. For a copy by hand,
 `discobsd-flash --bootsel` leaves the volume mounted and
 `discobsd-flash --eject` unmounts it and reboots.
 
+Two boards on one host (a bare Pico and a PicoCalc) both enumerate as
+2e8a:000a with the serial string `rp2040`, so an unaddressed picotool may
+act on either. On Linux, `discobsd-flash` and `discobsd-connect` stop when
+more than one 2e8a device is attached and no board is named, and print the
+candidates with their USB ports. Name the board with `--usb-port 1-3` or
+`DISCOBSD_USB_PORT=1-3`. macOS has no sysfs: there the tools address the one
+attached board as before and do not detect a second one.
+
 The release zip holds PyInstaller executables built on Apple silicon and
 signed ad hoc, not notarized. Run them from a terminal: an Intel Mac and
 a Finder double-click (which Gatekeeper refuses for an unnotarized
@@ -90,12 +99,35 @@ keeps its state under `~/Library/Application Support/discobsd`.
 `discobsd-connect` finds `cu` on every Mac and `tio` or `picocom` from
 Homebrew.
 
-## Web console on the LAN
+## Web console
 
-    discobsd-console up
+The default binds loopback only. Reach it remotely through SSH forwarding
+or a trusted tunnel; [release and transport security](RELEASE-SECURITY.md)
+covers hybrid release verification and post-quantum transport
+recommendations. LAN access is an explicit opt-in that exposes the
+token-revealing short link:
 
-prints a short URL such as `http://10.0.0.5:42069/` that redirects to the
-tokenized console at `http://10.0.0.5:7681/?token=...`. The token and the
+    discobsd-console up --bind 0.0.0.0
+
+`DISCOBSD_WEB_TOKEN`, `--host-ip` and every other web.env value are limited to
+letters, digits and `. _ ~ : -`: web.env is a systemd EnvironmentFile and the
+token travels unencoded in a URL query, where those characters are inert. A
+token with other characters (for example base64 `+ / =`) is refused; generate
+one with `discobsd-console up`, which writes a hex token.
+
+`--bind` takes an IPv4 address literal and nothing else. A host name is
+refused, because the check and each server would resolve it separately, and
+an IPv6 literal is refused, because the systemd units build the short link's
+target without the brackets an IPv6 host needs; use `127.0.0.1` for loopback
+or `0.0.0.0` for every interface.
+
+A web.env written before the loopback default keeps its LAN address and has
+no bind setting, so the packaged units now listen on loopback while the short
+link still redirects to that address. Run `discobsd-console up` (loopback) or
+`discobsd-console up --bind 0.0.0.0` once after upgrading to rewrite both.
+
+That command prints a short URL such as `http://10.0.0.5:42069/` that
+redirects to the tokenized console at `http://10.0.0.5:7681/?token=...`. The token and the
 advertised address live in `web.env` under the per-user configuration
 directory (`~/.config/discobsd` on Linux, `~/Library/Application Support/
 discobsd` on macOS, `%APPDATA%\discobsd` on Windows), created with
@@ -122,7 +154,10 @@ Internet, because the short link hands out the token. On a ufw host:
     sudo ufw allow from 10.0.0.0/24 to any port 7681 proto tcp
     sudo ufw allow from 10.0.0.0/24 to any port 42069 proto tcp
 
-Set `DISCOBSD_PORT` to a device path to bypass discovery.
+Set `DISCOBSD_PORT` to a device path to bypass discovery. With two boards
+attached, `discobsd-term` and `discobsd-web` refuse to choose; name the board
+with `--usb-port 1-3` or `DISCOBSD_USB_PORT=1-3` (Linux; see
+`DEVELOPMENT.md`, "Two boards on one host").
 
 The console serves one viewer at a time. Leaving the page releases it at
 once; a viewer that vanishes without closing (a tab the browser kept in

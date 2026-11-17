@@ -50,12 +50,14 @@
 #include <sys/systm.h>
 #include <sys/buf.h>
 #include <sys/errno.h>
+#include <sys/fcntl.h>
 #include <sys/storage_stats.h>
 #include <sys/conf.h>
 #include <sys/dk.h>
 #include <sys/disk.h>
 
 #include <machine/intr.h>
+#include <machine/scb.h>
 #include <machine/watchdog.h>
 
 #include <rp2040/dev/flash.h>
@@ -65,6 +67,9 @@
 #include <rp2040/rp2040/clock_catchup.h>
 
 #ifdef STORAGE_STATS
+#include <rp2040/dev/flash_reset_hook.h>
+#include <rp2040/rp2040/core1.h>
+
 static struct storage_stats flstats = {
     .version = STORAGE_STATS_VERSION,
     .size = sizeof(struct storage_stats)
@@ -171,13 +176,13 @@ static int flmap_ready;
 
 /*
  * One physical program page shared by the raw-swap tail and Dhara's page
- * copy. Both paths run inside flstrategy under splbio from entry to exit and
- * neither sleeps, since flash_erase and flash_program spin. flscratch_owner
- * names the path holding the page: each flstrategy path refuses to enter
- * while it is held, and dhara_nand_copy, which Dhara also reaches from
- * dhara_map_sync at close and from dhara_map_resume at setup, refuses to run
- * while the swap path holds it. The owner check turns a broken lifetime
- * argument into a panic rather than silent corruption.
+ * copy. Both paths run under splbio from entry to exit, inside flstrategy or
+ * fl_checkpoint, and neither sleeps, since flash_erase and flash_program
+ * spin. flscratch_owner names the path holding the page: each of those paths
+ * refuses to enter while it is held, and dhara_nand_copy, which Dhara also
+ * reaches from dhara_map_resume at setup, refuses to run while the swap path
+ * holds it. The owner check turns a broken lifetime argument into a panic
+ * rather than silent corruption.
  */
 /*
  * The linker places this physical program page outside ordinary SRAM:
@@ -386,6 +391,194 @@ flash_enter_xip(void)
 		flash_ssi_restore();
 }
 
+#ifdef STORAGE_STATS
+#define	AIRCR_VECTKEY		0x05fa0000UL
+#define	AIRCR_SYSRESETREQ	(1UL << 2)
+
+static struct flash_reset_hook flhook;
+
+/*
+ * Reset the chip after the command the hook counted, from inside the window
+ * of flash_erase() or flash_program(): the ROM call has returned, so the
+ * chip is idle (the ROM waits out each command's busy bit), and XIP is down.
+ * The routine finishes the ROM sequence the request would have ended with,
+ * flush_cache and the second stage, which leaves the cache and the QSPI pads
+ * as a kernel running normally leaves them when usb_reset_to_flash() and
+ * boot() write AIRCR, and puts the flash-resident core1_park() and
+ * watchdog_site() back in reach. Datasheet 2.4.2.9: SYSRESETREQ resets the
+ * processor core and nothing else, so core 1 is parked first and the QSPI
+ * interface keeps the state left here. The warm boot that follows issues
+ * its own XIP exit sequence (datasheet 2.8.1.2), written for a flash left
+ * in continuous-read mode, which is the state every other reset of a
+ * running kernel hands it. watchdog_site() leaves the reset's kind and the
+ * offset of the last command in the scratch pair for the next boot
+ * (machdep.watchdog_site and machdep.watchdog_arg). The AIRCR write and the
+ * wait for the reset are RAM-resident whichever way XIP was left. Interrupts
+ * stay masked throughout.
+ */
+static __ramfunc void
+flash_hook_reset(u_int erase, u_int offset)
+{
+	flrom.flush();
+	flash_enter_xip();
+	watchdog_site(erase ? WD_SITE_RESET_AT_ERASE :
+	    WD_SITE_RESET_AT_PROGRAM, offset);
+#ifdef CORE1
+	core1_park();
+#endif
+	arm_dsb();
+	SCB_REG32(SCB_AIRCR) = AIRCR_VECTKEY | AIRCR_SYSRESETREQ;
+	arm_dsb();
+	for (;;)
+		continue;
+}
+
+/*
+ * The two accessors behind machdep.flash_reset_program and
+ * machdep.flash_reset_erase (rp2040/sysctl.c): the commands of one kind
+ * issued since arming, and arming that kind to reset after its Nth command
+ * from now, or disarming it with 0.
+ */
+u_int
+flash_reset_hook_count(u_int erase)
+{
+	struct flash_hook_kind *kind = erase ? &flhook.erase : &flhook.program;
+	u_int count;
+	int s;
+
+	s = splhigh();
+	count = kind->count;
+	splx(s);
+	return count;
+}
+
+void
+flash_reset_hook_arm(u_int erase, u_int n)
+{
+	struct flash_hook_kind *kind = erase ? &flhook.erase : &flhook.program;
+	int s;
+
+	s = splhigh();
+	flash_hook_arm(kind, n);
+	splx(s);
+}
+#endif
+
+/*
+ * Chip identity. JEDEC ID (9Fh) returns the manufacturer and two device
+ * bytes, the second of which is the capacity as a power of two; Read Unique
+ * ID (4Bh) returns 64 factory-set bits after four dummy bytes
+ * (W25Q16JV revision G, instruction set table 1 and section 8.2.24).
+ *
+ * The boot ROM has no entry for an arbitrary command, so the exchange runs
+ * on the SSI directly, as the Pico SDK's flash_do_cmd() does: the ROM's
+ * exit_xip leaves the SSI in eight-bit serial mode, chip select is held low
+ * through the IO_QSPI output override because the SSI releases it whenever
+ * its transmit FIFO empties, and the ROM's flush routine returns the
+ * override to normal before the second stage restores execute-in-place.
+ * At most 14 bytes are in flight, under the 16-entry receive FIFO. The loop
+ * is bounded: an SSI that stops answering leaves the identity unread
+ * instead of stopping the kernel under splhigh(). The exchange is a
+ * declared section like an erase or a program (watchdog_site()), so core 1
+ * reads the stopped clock as declared and its NMI, whose vector is in
+ * flash, stays withdrawn; startup() captures the previous boot's record
+ * before the first exchange overwrites the scratch pair.
+ */
+#define	IO_QSPI_SS_CTRL_REG	(*(volatile u_int *)0x4001800cUL)
+#define	QSPI_SS_OUTOVER_MASK	(3U << 8)
+#define	QSPI_SS_OUTOVER_LOW	(2U << 8)
+#define	SSI_DR0			0x60
+#define	SSI_SR_TFNF		2U
+#define	SSI_SR_RFNE		8U
+#define	FLASH_CMD_INFLIGHT	14
+#define	FLASH_CMD_SPINS		200000U
+
+#define	FLASH_CMD_JEDEC_ID	0x9f
+#define	FLASH_CMD_UNIQUE_ID	0x4b
+#define	FLASH_UNIQUE_DUMMY	4
+
+static u_char flash_jedec[FLASH_JEDEC_BYTES];
+static u_char flash_unique[FLASH_UNIQUE_BYTES];
+static signed char flash_id_state;	/* 0 unread, 1 read, -1 unreadable. */
+
+/*
+ * Clock count bytes of frame out and replace each with the byte the chip
+ * returned during it. Returns 0 once every byte has come back.
+ */
+static __ramfunc int
+flash_cmd(u_char *frame, u_int count)
+{
+	const u_char *out = frame;
+	u_char *in = frame;
+	u_int tx = count, rx = count, spins = FLASH_CMD_SPINS, sr;
+	int s;
+
+	s = splhigh();
+	watchdog_site(WD_SITE_FLASH_COMMAND, frame[0]);
+	flrom.connect();
+	flrom.exit_xip();
+	IO_QSPI_SS_CTRL_REG = (IO_QSPI_SS_CTRL_REG & ~QSPI_SS_OUTOVER_MASK) |
+	    QSPI_SS_OUTOVER_LOW;
+	while (rx != 0 && --spins != 0) {
+		sr = XIP_SSI_REG(SSI_SR);
+		if ((sr & SSI_SR_TFNF) != 0 && tx != 0 &&
+		    rx - tx < FLASH_CMD_INFLIGHT) {
+			XIP_SSI_REG(SSI_DR0) = *out++;
+			tx--;
+		}
+		if ((sr & SSI_SR_RFNE) != 0) {
+			*in++ = (u_char)XIP_SSI_REG(SSI_DR0);
+			rx--;
+		}
+	}
+	flrom.flush();
+	flash_enter_xip();
+	watchdog_site(WD_SITE_NONE, 0);
+	splx(s);
+	return rx == 0 ? 0 : -1;
+}
+
+/*
+ * Read the identity once and keep it. A reply of all zeros or all ones is a
+ * bus with no chip driving it, and counts as unread. Returns 0 when jedec
+ * and unique hold the chip's answers. Interrupts are masked for the
+ * exchange and core 1 executes from RAM alone (rp2040/core1.c), so nothing
+ * fetches from flash while execute-in-place is down.
+ */
+int
+flash_identity(const u_char **jedec, const u_char **unique)
+{
+	u_char frame[1 + FLASH_UNIQUE_DUMMY + FLASH_UNIQUE_BYTES];
+	u_int i;
+
+	if (flash_id_state == 0) {
+		flash_rom_init();
+		flash_id_state = -1;
+		bzero(frame, sizeof(frame));
+		frame[0] = FLASH_CMD_JEDEC_ID;
+		if (flash_cmd(frame, 1 + FLASH_JEDEC_BYTES) == 0 &&
+		    flash_id_plausible(frame + 1, FLASH_JEDEC_BYTES)) {
+			for (i = 0; i < FLASH_JEDEC_BYTES; i++)
+				flash_jedec[i] = frame[1 + i];
+			bzero(frame, sizeof(frame));
+			frame[0] = FLASH_CMD_UNIQUE_ID;
+			if (flash_cmd(frame, sizeof(frame)) == 0 &&
+			    flash_id_plausible(frame + 1 + FLASH_UNIQUE_DUMMY,
+			    FLASH_UNIQUE_BYTES)) {
+				for (i = 0; i < FLASH_UNIQUE_BYTES; i++)
+					flash_unique[i] =
+					    frame[1 + FLASH_UNIQUE_DUMMY + i];
+				flash_id_state = 1;
+			}
+		}
+	}
+	if (flash_id_state != 1)
+		return -1;
+	*jedec = flash_jedec;
+	*unique = flash_unique;
+	return 0;
+}
+
 /*
  * Read the PicoCalc loader's stamp from vector entries 4 and 5 and fix the
  * writable flash end for the life of the kernel; loader_stamp.h states the
@@ -449,7 +642,12 @@ flash_erase(u_int offset, u_int len)
 	watchdog_site(WD_SITE_FLASH_ERASE, offset);
 	flrom.connect();
 	flrom.exit_xip();
+#ifdef STORAGE_STATS
+	(void)flash_hook_erase(&flhook, flrom.erase, flash_hook_reset, offset,
+	    len);
+#else
 	flrom.erase(offset, len, FLASH_BLOCK_BYTES, FLASH_BLOCK_ERASE_CMD);
+#endif
 	flrom.flush();
 	flash_enter_xip();
 	clock_catchup();
@@ -478,7 +676,12 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	watchdog_site(WD_SITE_FLASH_PROGRAM, offset);
 	flrom.connect();
 	flrom.exit_xip();
+#ifdef STORAGE_STATS
+	(void)flash_hook_program(&flhook, flrom.program, flash_hook_reset,
+	    offset, data, len);
+#else
 	flrom.program(offset, data, len);
+#endif
 	flrom.flush();
 	flash_enter_xip();
 	clock_catchup();
@@ -645,32 +848,45 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
 struct fldisk {
 	struct diskpart	part[NPARTITIONS + 1];	/* [0] is the whole device. */
 	u_int		openpart;		/* Bit per open partition. */
+	u_int		wrpart;			/* Opened for writing since its last close. */
 };
 
 static struct fldisk fldrives[NFL];
 
 /*
- * Dhara makes a write durable only at a checkpoint, which dhara_map_sync
- * forces, and a reset before one discards everything written since the
- * last. The root device is never closed, so every write request ends with
- * a sync. That costs a checkpoint page per request rather than per group,
- * which the root's write rate, fsck and /tmp, can afford; it runs in the
- * requester's context, where flash writes already run.
+ * Dhara makes a write durable only at a checkpoint: the metadata page that
+ * closes a checkpoint group of seven user pages, here one 8 KiB erase block.
+ * dhara_map_write() programs it whenever a write fills a group, and
+ * dhara_map_sync() pads the open group with copies of live pages until it
+ * can, so forcing a checkpoint after one isolated 1 KiB write costs a whole
+ * group: eight Dhara pages, 32 program pages and a block erase.
+ * flstrategy() therefore forces none. ufs_sync() asks for one through
+ * DIOCCHECKPOINT, which sync(2), update(8), fsync(2), synchronous writes,
+ * unmount and shutdown all reach, and the driver's last close takes one.
+ * A reset discards the writes since the last checkpoint, and
+ * dhara_map_resume() returns the map to the state that checkpoint recorded.
+ * The padding copies pages through flscratch and its programs stop the clock,
+ * so the bracket is flstrategy()'s. It runs in the requester's context.
  */
 static int
-fl_sync(void)
+fl_checkpoint(void)
 {
 	dhara_error_t err = DHARA_E_NONE;
+	int s, error = 0;
 
 	if (!flmap_ready)
 		return 0;
 	storage_note(STORAGE_CHECKPOINT_ATTEMPTS, 1);
-	if (dhara_map_sync(&flmap, &err) < 0) {
-		storage_note(STORAGE_CHECKPOINT_ERRORS, 1);
-		return EIO;
-	}
-	storage_note(STORAGE_CHECKPOINT_SUCCESSES, 1);
-	return 0;
+	s = splbio();
+	flscratch_take(FLS_MAP);
+	if (dhara_map_sync(&flmap, &err) < 0)
+		error = EIO;
+	flscratch_owner = FLS_FREE;
+	clock_catchup();
+	splx(s);
+	storage_note(error != 0 ? STORAGE_CHECKPOINT_ERRORS :
+	    STORAGE_CHECKPOINT_SUCCESSES, 1);
+	return error;
 }
 
 /*
@@ -683,6 +899,31 @@ fl_sync(void)
 _Static_assert(FL_MBR_TAIL_OFFSET + FL_MBR_TAIL_BYTES <= FLASH_UNIT_BYTES &&
     FL_MBR_TAIL_BYTES == NPARTITIONS * 16 + 2,
     "the MBR tail lies inside one Dhara page");
+
+/*
+ * Print the chip's identity and say so when its capacity byte disagrees
+ * with the layout flash.h fixes.
+ */
+static void
+fl_report_identity(int unit)
+{
+	const u_char *jedec, *unique;
+	u_int i;
+
+	if (flash_identity(&jedec, &unique) != 0) {
+		printf("fl%d: chip identity unread\n", unit);
+		return;
+	}
+	printf("fl%d: JEDEC id %02x%02x%02x, unique id ", unit,
+	    jedec[0], jedec[1], jedec[2]);
+	for (i = 0; i < FLASH_UNIQUE_BYTES; i++)
+		printf("%02x", unique[i]);
+	printf("\n");
+	if (!flash_capacity_matches(jedec[2]))
+		printf("fl%d: capacity code %02x is not the %u kbytes this "
+		    "kernel lays out\n", unit, jedec[2],
+		    (u_int)(FLASH_TOTAL_BYTES / 1024));
+}
 
 /*
  * Bring the map up and read the partition table. Returns 0 on success.
@@ -731,6 +972,7 @@ fl_setup(int unit)
 	du->part[RAWPART].dp_nsectors = (u_int)flblocks * 2;
 	printf("fl%d: %u kbytes on QSPI flash, %u kbytes raw\n", unit,
 	    (u_int)flblocks, (u_int)(FLASH_FS_BYTES / 1024));
+	fl_report_identity(unit);
 
 	/*
 	 * The table lives in the first 512 bytes of logical sector 0. Only
@@ -767,7 +1009,7 @@ fl_setup(int unit)
 }
 
 int
-flopen(dev_t dev, int flags __unused, int mode __unused)
+flopen(dev_t dev, int flags, int mode __unused)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
@@ -784,19 +1026,33 @@ flopen(dev_t dev, int flags __unused, int mode __unused)
 			return error;
 	}
 	du->openpart |= 1 << part;
+	if (flags & FWRITE)
+		du->wrpart |= 1 << part;
 	return 0;
 }
 
+/*
+ * The last close of a root-unit node checkpoints the map when any open since
+ * the node's previous last close asked for writing. The last descriptor's own
+ * flags do not decide it: a writer may close first and leave a reader to make
+ * the last close. A node only ever held for reading forces no padding
+ * programs, and the swap unit keeps no map.
+ */
 int
-flclose(dev_t dev, int mode __unused, int flag __unused)
+flclose(dev_t dev, int flag __unused, int mode __unused)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
+	u_int written;
 
 	if (unit >= NFL || part > NPARTITIONS)
 		return ENXIO;
+	written = fldrives[unit].wrpart & (1U << part);
 	fldrives[unit].openpart &= ~(1 << part);
-	return fl_sync();
+	fldrives[unit].wrpart &= ~(1U << part);
+	if (unit == FL_UNIT_SWAP || written == 0)
+		return 0;
+	return fl_checkpoint();
 }
 
 /* Size in DEV_BSIZE blocks, which is what the block layer asks for. */
@@ -962,8 +1218,6 @@ flstrategy(struct buf *bp)
 				fail = 1;
 		}
 	}
-	if (! (bp->b_flags & B_READ) && ! fail && fl_sync() != 0)
-		fail = 1;
 	flscratch_owner = FLS_FREE;
 	clock_catchup();
 	splx(s);
@@ -987,7 +1241,7 @@ bad:
 }
 
 int
-flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
+flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
 	int unit = flunit(dev);
 	int part = flpart(dev);
@@ -1019,6 +1273,19 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
 		if ((fldrives[unit].openpart & ~(1U << RAWPART)) != 0)
 			return EBUSY;
 		fldrives[unit].part[RAWPART].dp_nsectors = 0;
+		return 0;
+
+	case DIOCCHECKPOINT:
+		/*
+		 * The swap unit writes the chip directly and keeps no map.
+		 * ioctl(2) passes the descriptor's open flags, so a process must
+		 * hold the node open for writing; ufs_sync() passes none.
+		 */
+		if (unit == FL_UNIT_SWAP)
+			return EINVAL;
+		if (flag != 0 && (flag & FWRITE) == 0)
+			return EBADF;
+		*(int *)addr = fl_checkpoint();
 		return 0;
 	}
 	return EINVAL;

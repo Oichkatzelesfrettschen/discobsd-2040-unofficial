@@ -311,6 +311,41 @@ psram_block_offset(long blkno, unsigned int bsize, unsigned int len,
 	return 0;
 }
 
+/* Bytes in the region minor names; 0 for a minor with no region. */
+unsigned long
+psram_region_bytes(int minor)
+{
+	if (minor == 0)
+		return PSRAM_SWAP_BYTES;
+	if (minor == 1)
+		return PSRAM_BYTES - PSRAM_SWAP_BYTES;
+	return 0;
+}
+
+/*
+ * Device byte offset of a request for len bytes at block blkno of bsize
+ * bytes inside the region of minor. The block number and the length are
+ * bounded by the region, as psram_block_offset() bounds them by the
+ * device, before the region's base is added, so a swap transfer cannot
+ * reach the /tmp region and a /tmp transfer cannot reach swap.
+ */
+int
+psram_region_offset(int minor, long blkno, unsigned int bsize,
+    unsigned int len, unsigned int *off)
+{
+	unsigned long size = psram_region_bytes(minor);
+	unsigned long base = minor == 1 ? PSRAM_SWAP_BYTES : 0;
+	unsigned long addr;
+
+	if (size == 0 || blkno < 0 || (unsigned long)blkno > size / bsize)
+		return PSRAM_E_RANGE;
+	addr = (unsigned long)blkno * bsize;
+	if (len > size - addr)
+		return PSRAM_E_RANGE;
+	*off = (unsigned int)(base + addr);
+	return 0;
+}
+
 int
 psram_read(unsigned int addr, unsigned char *dst, unsigned int len)
 {

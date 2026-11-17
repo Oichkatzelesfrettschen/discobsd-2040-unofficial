@@ -24,6 +24,13 @@
 #define _RP2040_DEV_PSRAM_XFER_H_
 
 #define	PSRAM_BYTES		(8UL * 1024 * 1024)
+/*
+ * The part holds two regions, one per block-device minor: minor 0, the
+ * swap device, takes the first PSRAM_SWAP_BYTES, and minor 1, the /tmp
+ * RAM disk, the rest. Neither survives a reset.
+ */
+#define	PSRAM_SWAP_BYTES	(2UL * 1024 * 1024)
+#define	PSRAM_REGIONS		2
 
 /*
  * Bytes per chip-select frame. A frame of this size at the PIO clock in
@@ -63,6 +70,9 @@ int psram_device_init(void);
 unsigned int psram_chunk_len(unsigned int addr, unsigned int len);
 int psram_block_offset(long blkno, unsigned int bsize, unsigned int len,
     unsigned int *off);
+unsigned long psram_region_bytes(int minor);
+int psram_region_offset(int minor, long blkno, unsigned int bsize,
+    unsigned int len, unsigned int *off);
 int psram_read(unsigned int addr, unsigned char *dst, unsigned int len);
 int psram_write(unsigned int addr, const unsigned char *src,
     unsigned int len);

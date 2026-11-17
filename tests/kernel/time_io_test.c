@@ -17,6 +17,10 @@
 #include <sys/storage_stats.h>
 
 struct user u;
+/* What rwip() of sys_inode.c asks of the port before a block device write. */
+int securelevel;
+dev_t swapdev;
+int blkoverlap(dev_t a, dev_t b) { return a == b; }
 struct timeval time;
 int hz = 100, usechz = 10000, lbolt, adjdelta;
 long monosec, realsec = LONG_MAX;
@@ -127,6 +131,16 @@ int bdevsync(dev_t dev)
     device_sync_device = dev;
     return device_sync_error;
 }
+/* A driver without DIOCCHECKPOINT: ufs_sync()'s request has nothing to do. */
+static int
+no_checkpoint_ioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
+{
+    (void)dev; (void)cmd; (void)addr; (void)flag;
+    return EINVAL;
+}
+const struct bdevsw bdevsw[] = {
+    { 0, 0, 0, 0, no_checkpoint_ioctl, 0 },
+};
 /*
  * Like the production iupdat(), a failure leaves the dirty flags set, and a
  * delayed update leaves the inode block for bflush() to write.
@@ -292,9 +306,23 @@ static void clock_cases(void)
     HK_CHECK(process.p_realtimer.it_value == 2 && process.p_realtick == 1);
     HK_CHECK(process.p_realtimer.it_interval == 3 && process.p_realitick == 1);
 
+    /*
+     * The largest tv_sec of the kernel layout is accepted and clamped to
+     * what a tick count in a long holds; 2^31 and above is a negative
+     * userland value and is refused with the timer left as it was.
+     */
     timer = (struct itimerval){0};
-    timer.it_value.tv_sec = LONG_MAX / hz + 1;
+    timer.it_value.tv_sec = 0x7fffffffL;
     timer_args->which = ITIMER_VIRTUAL;
+    u.u_timer[ITIMER_VIRTUAL - 1].it_value = 17;
+    u.u_error = 0;
+    setitimer();
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(u.u_timer[ITIMER_VIRTUAL - 1].it_value ==
+        (0x7fffffffL < LONG_MAX / hz ? 0x7fffffffL : LONG_MAX / hz) * hz);
+
+    timer = (struct itimerval){0};
+    timer.it_value.tv_sec = 0x7fffffffL + 1;
     u.u_timer[ITIMER_VIRTUAL - 1].it_value = 17;
     u.u_error = 0;
     setitimer();
@@ -302,15 +330,7 @@ static void clock_cases(void)
     HK_CHECK(u.u_timer[ITIMER_VIRTUAL - 1].it_value == 17);
 
     timer = (struct itimerval){0};
-    timer.it_value.tv_sec = LONG_MAX / hz;
-    timer.it_value.tv_usec = 1;
-    u.u_error = 0;
-    setitimer();
-    HK_CHECK(u.u_error == EINVAL);
-    HK_CHECK(u.u_timer[ITIMER_VIRTUAL - 1].it_value == 17);
-
-    timer = (struct itimerval){0};
-    timer.it_interval.tv_sec = LONG_MAX / hz + 1;
+    timer.it_interval.tv_sec = 0x7fffffffL + 1;
     u.u_timer[ITIMER_VIRTUAL - 1].it_interval = 19;
     u.u_error = 0;
     setitimer();

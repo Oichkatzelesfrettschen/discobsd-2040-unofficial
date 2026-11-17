@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "artifact": "native /usr/lib/libc.a",
+  "base_sha256": "a21cf09a358460911d7ca4936925b0267a0d10e7559ad30b8b57f8c86474ab14",
+  "candidate_sha256": "bf094520fd4d949ec3dc004edfec8d0eae80ac40397498e501ffc72637386c30",
+  "normalized_sha256": "8869decb81ba792a51c91c06fcb9911105695e4b839dacf0e7cbfcb364023c1c",
+  "archive_records": 173,
+  "identical_member_payloads": 173,
+  "changed_bytes": 692,
+  "changes_only_date_fields": true,
+  "controls": [
+    {
+      "label": "payload",
+      "state": "rejected"
+    },
+    {
+      "label": "non-date-header",
+      "state": "rejected"
+    },
+    {
+      "label": "magic",
+      "state": "rejected"
+    }
+  ],
+  "scope": "Byte identity separates archive date metadata from member payloads; it makes no new runtime or conformance claim."
+}

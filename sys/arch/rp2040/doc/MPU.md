@@ -79,20 +79,30 @@ and `__aeabi_uidivmod` (lib/libc/arm/gen/aeabi_div.S), which write
 DIV_UDIVIDEND and DIV_UDIVISOR, wait eight cycles and read DIV_REMAINDER and
 then DIV_QUOTIENT.
 
-The kernel saves no divider state because no kernel path runs between a
-divisor write and the quotient read of an unprivileged sequence. A process
-switch happens in `swtch`, whose callers are `userret` (reached from the
-system-call path in PendSV_Handler and from the fault path), the exit and
-stop paths, and `tsleep` in kernel context; a signal is delivered in
-`userret`'s `postsig` loop. SysTick and device interrupts return to the
-interrupted instruction after `hardclock` and the drivers, none of which
-touch the divider. The helpers' sequence holds no `svc`, so the divider
-registers an interrupted process left are the registers it finds on return.
-A future kernel divider consumer, an asynchronous preemption point in an
-exception return, or a debugger breakpoint planted inside the sequence
-(ptrace stops a process at `userret`) breaks that argument; the first is
-rejected by `check-divider`, and the sequence's shape is held by its
-`--user-helper` check (doc/TESTING.md).
+A process can be stopped between a divisor write and its quotient read:
+the clock tick's asynchronous system trap (`ast` in syscall.c, pended by
+`systick`) runs `userret`, which delivers signals and switches processes
+at any user instruction. Every entry from a process -- that trap, a system
+call and a fault -- therefore saves the divider into its
+`struct userframe` (machine/frame.h) before anything else can run and
+writes it back as the last step before the exception return, all four
+registers and DIRTY as the entry found it, so a process switched in finds
+its own values and never the previous process's: `divider_save` and
+`divider_restore` in
+syscall.c, the only kernel code that touches the divider and the only code
+`check-divider` admits, by name. The kernel stack the frame lives on
+belongs to the process and survives `swtch`, so another process's
+division in between cannot reach the saved words. A handler entered in the
+middle of a sequence starts with a clean divider while the interrupted
+state waits in the kernel-private tail of the signal frame (sig_machdep.c)
+for `sigreturn`, which also carries r12, the other register an
+asynchronous entry finds live. The kernel's interrupts, callouts and
+system calls still contain no divider consumer. A debugger breakpoint
+planted inside the sequence enters through the fault path and gets the
+same save. The sequence's shape is held by `check-divider`'s
+`--user-helper` check (doc/TESTING.md), and `check-renode-preempt`'s
+`divide` case compares every result of two dividing processes and their
+handlers under forced switches with a software division.
 
 192 KB is not a power of two, so the window takes two regions; static
 assertions in mpu.c pin their sum to USER_DATA_SIZE and both bases to their
@@ -426,3 +436,16 @@ establishes physical-hardware protection for the 192 KB map.
 The Renode transcript in the Evidence section reads `programmed=3` from an
 earlier three-region map; the board transcript and `mpu.c` program four. The
 transcript stays as captured until the next `check-renode` run replaces it.
+
+## The privilege that the map does not close: `ucall`
+
+The map separates a process from the kernel by memory access. `ucall(2)`
+(`sys/arch/rp2040/rp2040/sysctl.c`) is a system call that lets the superuser
+run a function at a caller-given address at kernel privilege, where the map is
+the background map and every region is open. It is not a fault the map can
+raise, so the kernel gates it by the security level: `ucall()` returns
+`EPERM` when `securelevel` is above 0, which `init` sets on entering
+multiuser mode. At level 0, before that, and on a kernel built with
+`PERMANENTLY_INSECURE`, a superuser process holds kernel privilege through
+it. `check-ucall-qemu` covers the refusal; no fault test applies, because the
+refusal is a test in the call and not an MPU region.

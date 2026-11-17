@@ -1,0 +1,35 @@
+{
+  "source_commit": "59f07e602d8345ca4293106e2ddf1183d4d95b9a",
+  "evidence_class": "built-artifacts-for-emulator",
+  "artifacts": {
+    "distrib/rp2040/sdcard.img": {
+      "sha256": "0d932c7e7f8430cc23806b37d30e952d7ee9b48c30ebf809a2f8901c493ab363",
+      "bytes": 1012736
+    },
+    "distrib/rp2040/flash.bin": {
+      "sha256": "3cfe503ef4ed7ad7b9a567232e899203ace86fcb50e13956771f9231dec65f4a",
+      "bytes": 1572864
+    },
+    "distrib/rp2040/flash.uf2": {
+      "sha256": "79806a8649fd86d666e130cd9a0ef4f642f65fbe62bfd47b39a9adca19d7a4c5",
+      "bytes": 3145728
+    },
+    "sys/arch/rp2040/compile/PICO/unix.bin": {
+      "sha256": "00b1a55628d6f1d5d1f28b996a1a4bc3ac992bf28b70b2519e63ee7a8db846a5",
+      "bytes": 100896
+    },
+    "sys/arch/rp2040/compile/PICO_UART/unix.bin": {
+      "sha256": "5392750cacbadac1a992abae7662aa5f59becb8630deaf9a2524f2457fe5ad20",
+      "bytes": 90344
+    },
+    "sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.bin": {
+      "sha256": "7ec9a55f8de0ad1e144bd96e7a2155e2964499059a376f706a38351fb3d214f8",
+      "bytes": 122360
+    },
+    "tools/renode/vendor/results/boot-union/unix-uart.bin": {
+      "sha256": "2f54f6dfb351c4010493050b474ab1e0f939c2a0449b1f277c4b9c4f0f67d0ea",
+      "bytes": 122360
+    }
+  },
+  "physical_board": "unrun; no authorization"
+}

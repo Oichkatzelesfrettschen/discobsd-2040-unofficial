@@ -50,6 +50,12 @@ therefore reaches exit 3 before testing order; that attempt establishes no
 order-error rejection. The calibrated controls retain comparator calls so each
 failure exercises its intended oracle.
 
+The [bidirectional candidate](sort-bound-experiment/README.md) orders its
+three pivot samples before partitioning. The retained comparisons distinguish
+median value selection from record placement and preserve complete object,
+context and bounded-fallback witnesses. Its additional text and local-frame
+costs remain open production-admission requirements.
+
 ## Partition geometry explains the cost
 
 A separate instrumented source copy logs partition cardinalities immediately

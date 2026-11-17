@@ -1,0 +1,37 @@
+{
+  "base": {
+    "source_commit": "cfe41205235bfc677e6fdf1a53a395aae2f6cb71",
+    "image_sha256": "2b2b58d2419025bc68d41aad5f7ce16c028aec862716dc9bfb83ac0405360cf2",
+    "text": 10004,
+    "data": 208,
+    "bss": 136,
+    "loaded_bytes": 10348,
+    "raw_bytes": 10244,
+    "packed_bytes": 8806,
+    "raw_blocks": 12,
+    "packed_blocks": 10
+  },
+  "candidate": {
+    "source_commit": "64b42d7816798725c4653470a5f2ab781c25a411",
+    "image_sha256": "fe95a7b5b2f36c23045ff36039dbc304a8b2926192a9b6c5ab356d2541698e4a",
+    "text": 10216,
+    "data": 208,
+    "bss": 136,
+    "loaded_bytes": 10560,
+    "raw_bytes": 10456,
+    "packed_bytes": 9017,
+    "raw_blocks": 12,
+    "packed_blocks": 10
+  },
+  "deltas": {
+    "text": 212,
+    "data": 0,
+    "bss": 0,
+    "loaded_bytes": 212,
+    "raw_bytes": 212,
+    "packed_bytes": 211,
+    "raw_blocks": 0,
+    "packed_blocks": 0
+  },
+  "scope": "Standalone cut is maintained but absent from the shipped manifest; raw and packed are alternative installations."
+}

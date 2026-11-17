@@ -47,13 +47,18 @@ names optional components and therefore supplies a different denominator.
 
 `check-record-header-contracts` evaluates the production compiler flags and
 checks GNU17, strict GNU C17 and strict Clang C17 for Cortex-M0+. Its denominator
-is three headers, four include orders, two time views and four selectors:
-288 valid cases. Each compiler rejects eight header mutations and one
-argument-bearing call, producing 27 negative controls. The mutations remove
-type prerequisites and guards, change group signedness or login-record width,
-and restore the non-prototype device declaration.
+is seven headers, four include orders, two time views and four selectors:
+672 valid cases. The four accounting-file headers (utmp.h, mtab.h, ttyent.h,
+tzfile.h) carry size, alignment, field offset and field type witnesses
+(utmp 44 bytes with an unsigned 32-bit time, mtab 68, ttyent 24, tzhead 44).
+Each compiler rejects fourteen header mutations and one argument-bearing
+call, producing 45 negative controls. The mutations remove type
+prerequisites and guards, change group signedness, login-record width or
+accounting-record field widths, and restore the non-prototype device
+declaration. Guard removal for mtab.h, ttyent.h and tzfile.h stays with
+`check-public-header-inclusion`.
 
-The Smaller C lane compiles 24 cross-preprocessed inputs and assembles their
+The Smaller C lane compiles 56 cross-preprocessed inputs and assembles their
 Thumb-1 output. Its malformed-source control requires exit status 1 and the exact syntax
 diagnostic. Four diagnostic fixtures reject a signal, an unrelated error,
 false success and an unexpected diagnostic stream. These cases
@@ -70,8 +75,8 @@ bmake MACHINE=rp2040 logged-build
 bmake MACHINE=rp2040 check-record-header-contracts
 ```
 
-The focused local gate passes 288 valid cases and 27 rejection controls; all
-24 Smaller C inputs compile and assemble. The matched resource comparison,
+The focused local gate passes 672 valid cases and 45 rejection controls; all
+56 Smaller C inputs compile and assemble. The matched resource comparison,
 Renode UART0 execution, aggregate qualification and separate ILP32 inventory
 also pass. No physical-board execution forms part of this repair.
 

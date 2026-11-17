@@ -48,6 +48,7 @@ struct diskpart {                   /* the partition table */
 #define PTYPE_UNUSED    0           /* unused */
 #define PTYPE_BSDFFS    0xb7        /* 4.2BSD fast file system */
 #define PTYPE_SWAP      0xb8        /* swap */
+#define PTYPE_TMP       0xba        /* /tmp scratch file system (sd.c) */
 
 /*
  * Disk-specific ioctls.

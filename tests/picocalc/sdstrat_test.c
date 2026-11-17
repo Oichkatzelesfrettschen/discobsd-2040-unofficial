@@ -171,6 +171,15 @@ sdspi_write_span(struct sdspi *sd __attribute__((unused)), unsigned sector,
 dev_t dumpdev = NODEV;
 dev_t swapdev;
 
+/* psram_swap_all() of psram_xfer.c: the call that gives swap the whole part. */
+static int psram_all_calls;
+
+void
+psram_swap_all(void)
+{
+	psram_all_calls++;
+}
+
 struct buf *
 geteblk(void)
 {
@@ -1518,11 +1527,17 @@ swapdev_cases(void)
 	check("bare Pico: card not read", (long)nread[0], 0);
 	test_board = BOARD_ID_PICOCALC;
 
-	/* The PSRAM took swap at probe: it keeps it and the card is not read. */
+	/*
+	 * The PSRAM took swap at probe: it keeps it over the b8 entry. The card
+	 * is read for a b-a entry (tmp_cases()); with none it stays closed and
+	 * the PSRAM keeps its split.
+	 */
+	psram_all_calls = 0;
 	swap_attach("psram", makedev(PSRAM_MAJOR, 0));
 	check("psram: swapdev kept", (long)swapdev,
 	    (long)makedev(PSRAM_MAJOR, 0));
-	check("psram: card not read", (long)nread[0], 0);
+	check("psram: card read for the tmp entry", nread[0] != 0, 1);
+	check("psram: no tmp entry, split kept", psram_all_calls, 0);
 
 	/* No card in the socket. */
 	init_fail = 1;
@@ -1672,6 +1687,198 @@ swapdev_cases(void)
 	swapdev = FL1;
 }
 
+/*
+ * The /tmp partition: the first usable PTYPE_TMP entry, reached as minor 5
+ * whichever slot holds it, takes /tmp off the PSRAM and so gives swap the
+ * whole part (psram_swap_all()) when the PSRAM holds swap, and is chosen
+ * without a PSRAM too, so /etc/rc.rp2040 mounts it on any PicoCalc. It
+ * needs the swap partition's size rule and its sector-sharing rule.
+ */
+#define	TMP_MIN		6144	/* kbytes: the PSRAM region it replaces */
+#define	TMPDEV		makedev(SD_BMAJOR, 5)
+
+static void
+tmp_attach(const char *name, dev_t from, int calls)
+{
+	char what[96];
+
+	psram_all_calls = 0;
+	swap_attach(name, from);
+	snprintf(what, sizeof(what), "%s: psram_swap_all calls", name);
+	check(what, psram_all_calls, calls);
+}
+
+/* Open /dev/sd0t block, check what it names, close it. */
+static void
+tmp_names(const char *name, int slot, long blocks, int held)
+{
+	char what[96];
+	struct diskpart dp;
+	dev_t real = makedev(SD_BMAJOR, slot);
+
+	snprintf(what, sizeof(what), "%s: open", name);
+	check(what, sdopen(TMPDEV, 0, S_IFBLK), slot != 0 ? 0 : ENXIO);
+	if (slot == 0) {
+		close_all();
+		return;
+	}
+	snprintf(what, sizeof(what), "%s: size", name);
+	check(what, (long)sdsize(TMPDEV), blocks);
+	snprintf(what, sizeof(what), "%s: size is the slot's", name);
+	check(what, (long)sdsize(real), blocks);
+	snprintf(what, sizeof(what), "%s: getpart", name);
+	check(what, sdioctl(TMPDEV, DIOCGETPART, (caddr_t)&dp, 0), 0);
+	snprintf(what, sizeof(what), "%s: type", name);
+	check(what, dp.dp_type, PTYPE_TMP);
+	snprintf(what, sizeof(what), "%s: extent is the slot's", name);
+	{
+		struct diskpart sp;
+
+		check(what, sdioctl(real, DIOCGETPART, (caddr_t)&sp, 0), 0);
+		check(what, dp.dp_offset == sp.dp_offset &&
+		    dp.dp_nsectors == sp.dp_nsectors, 1);
+	}
+	/*
+	 * The partition has one node: the slot's own minor refuses to open, so
+	 * no second close can end the open /tmp holds, block or raw.
+	 */
+	snprintf(what, sizeof(what), "%s: slot block open refused", name);
+	check(what, sdopen(real, 0, S_IFBLK), ENXIO);
+	snprintf(what, sizeof(what), "%s: slot raw open refused", name);
+	check(what, sdopen(real, 0, S_IFCHR), ENXIO);
+	snprintf(what, sizeof(what), "%s: still open after the refusals", name);
+	check(what, (long)sdsize(TMPDEV), blocks);
+	snprintf(what, sizeof(what), "%s: raw node opens", name);
+	check(what, sdopen(TMPDEV, 0, S_IFCHR), 0);
+	sdclose(TMPDEV, 0, S_IFCHR);
+	snprintf(what, sizeof(what), "%s: raw close keeps the block open", name);
+	check(what, (long)sdsize(TMPDEV), blocks);
+	sdclose(TMPDEV, 0, S_IFBLK);
+	snprintf(what, sizeof(what), "%s: closed", name);
+	check(what, (long)sdsize(TMPDEV), held ? blocks : 0);
+}
+
+static void
+tmp_cases(void)
+{
+	const dev_t psram = makedev(PSRAM_MAJOR, 0);
+	unsigned n = 2 * TMP_MIN, r = 65536;
+	int err;
+
+	init_sectors = 1U << 22;
+	fill_card();
+
+	/* Slot 4 holds the entry: the PSRAM gives up its /tmp region. */
+	set_part(3, PTYPE_BSDFFS, r, n);
+	set_part(4, PTYPE_TMP, r + n, n);
+	tmp_attach("tmp slot 4, psram", psram, 1);
+	check("tmp slot 4, psram: swapdev kept", (long)swapdev, (long)psram);
+	check("tmp slot 4, psram: card closed afterwards",
+	    (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
+	err = sdopen(0, 0, S_IFBLK);
+	check("tmp slot 4: the card opens for the node", err, 0);
+	sdclose(0, 0, S_IFBLK);
+	tmp_names("tmp slot 4", 4, TMP_MIN, 0);
+
+	/* The entry decides alone: swap on fl1 leaves the PSRAM split alone. */
+	tmp_attach("tmp slot 4, fl1", FL1, 0);
+	check("tmp slot 4, fl1: swapdev kept", (long)swapdev, (long)FL1);
+	tmp_names("tmp slot 4, fl1", 4, TMP_MIN, 0);
+
+	/* The card's own swap partition and the tmp partition together. */
+	set_part(1, PTYPE_SWAP, 4096, 2 * 8192);
+	tmp_attach("tmp and b8, fl1", FL1, 0);
+	check("tmp and b8, fl1: swap on the card", (long)swapdev,
+	    (long)makedev(SD_BMAJOR, 1));
+	tmp_names("tmp and b8, fl1", 4, TMP_MIN, 1);
+	swap_release();
+	set_part(1, PTYPE_BSDFFS, 8, 33);
+
+	/* A bare Pico has no socket: nothing is read or selected. */
+	test_board = BOARD_ID_PICO;
+	tmp_attach("tmp, bare Pico", psram, 0);
+	check("tmp, bare Pico: card not read", (long)nread[0], 0);
+	test_board = BOARD_ID_PICOCALC;
+
+	/* No entry, or an unreadable table: the PSRAM keeps its split. */
+	set_part(4, PTYPE_UNUSED, 0, 0);
+	tmp_attach("no tmp entry", psram, 0);
+	check("no tmp entry: node refused", sdopen(TMPDEV, 0, S_IFBLK), ENXIO);
+	close_all();
+	set_part(4, PTYPE_TMP, r + n, n);
+	fail_sector = 0;
+	tmp_attach("unreadable table, psram", psram, 0);
+	fail_sector = -1;
+	init_fail = 1;
+	tmp_attach("no card, psram", psram, 0);
+	init_fail = 0;
+
+	/* One kilobyte short of the PSRAM region it replaces: passed over. */
+	set_part(4, PTYPE_TMP, r + n, n - 2);
+	tmp_attach("short tmp", psram, 0);
+	check("short tmp: node refused", sdopen(TMPDEV, 0, S_IFBLK), ENXIO);
+	close_all();
+	set_part(4, PTYPE_TMP, r + n, n);
+	tmp_attach("minimum tmp", psram, 1);
+
+	/* Other types in the entry's place are not tmp. */
+	set_part(4, PTYPE_SWAP, r + n, n);
+	tmp_attach("b8 only, psram", psram, 0);
+	set_part(4, DUMP_PART_TYPE, r + n, n);
+	tmp_attach("b9 only, psram", psram, 0);
+	set_part(4, PTYPE_BSDFFS, r + n, n);
+	tmp_attach("b7 only, psram", psram, 0);
+	set_part(4, 0x83, r + n, n);
+	tmp_attach("83 only, psram", psram, 0);
+
+	/*
+	 * An entry that shares a sector with another one is passed over, since
+	 * mkfs on it would destroy the neighbor: over the root's end, over its
+	 * start, inside it; touching it is no overlap.
+	 */
+	set_part(4, PTYPE_TMP, r + n - 1, n);
+	tmp_attach("over the root's end", psram, 0);
+	set_part(4, PTYPE_TMP, r - n + 1, n);
+	tmp_attach("over the root's start", psram, 0);
+	set_part(4, PTYPE_TMP, r + 2, n);
+	tmp_attach("inside the root", psram, 0);
+	set_part(4, PTYPE_TMP, r - n, n);
+	tmp_attach("before the root", psram, 1);
+	tmp_names("before the root", 4, TMP_MIN, 0);
+
+	/* Two usable entries: the first one, whichever slot. */
+	set_part(1, PTYPE_TMP, r + 2 * n, n + 2 * 1024);
+	tmp_attach("two tmp", psram, 1);
+	tmp_names("two tmp", 1, TMP_MIN + 1024, 0);
+	/* An unusable first entry does not hide a usable one after it. */
+	set_part(1, PTYPE_TMP, r + 2 * n, n - 2);
+	tmp_attach("short then usable tmp", psram, 1);
+	tmp_names("short then usable tmp", 4, TMP_MIN, 0);
+	/* Two entries over one extent: neither is taken. */
+	set_part(1, PTYPE_TMP, r - n, n);
+	tmp_attach("two tmp on one extent", psram, 0);
+	check("two tmp on one extent: node refused",
+	    sdopen(TMPDEV, 0, S_IFBLK), ENXIO);
+	close_all();
+
+	/* An entry past the card's end is no entry. */
+	set_part(1, PTYPE_BSDFFS, 8, 33);
+	set_part(4, PTYPE_TMP, init_sectors - 16, n);
+	tmp_attach("past the card", psram, 0);
+
+	/* Minors 6 and 7 of the unit and the second unit's minor 5 name nothing. */
+	set_part(4, PTYPE_TMP, r + n, n);
+	check("minor 6", sdopen(makedev(SD_BMAJOR, 6), 0, S_IFBLK), ENXIO);
+	check("minor 7", sdopen(makedev(SD_BMAJOR, 7), 0, S_IFBLK), ENXIO);
+	check("unit 1 minor 5", sdopen(makedev(SD_BMAJOR, 13), 0, S_IFBLK),
+	    ENXIO);
+	close_all();
+
+	swap_release();
+	init_sectors = CARD_SECTORS;
+	swapdev = FL1;
+}
+
 #ifdef SDSWAP_ENABLED
 #include <sys/conf.h>
 #include <sys/systm.h>
@@ -1782,6 +1989,7 @@ main(void)
 	mbr_byte_cases();
 	root_cases();
 	swapdev_cases();
+	tmp_cases();
 #ifdef SDSWAP_ENABLED
 	fallback_cases();
 #endif

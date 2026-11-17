@@ -471,6 +471,50 @@ def test_region_offset(lib):
         )
 
 
+def test_region_swap_all(lib):
+    """psram_swap_all() (called by sdswapattach() once the SD card holds the
+    /tmp partition) widens the swap region over the whole part: minor 0 spans
+    8 MB and maps every block to its own offset, minor 1 has no region and is
+    refused, so no /tmp transfer reaches the part. The call is sticky, as a
+    reset alone ends it, so this test runs after the split's checks."""
+    import ctypes
+
+    off_fn = lib.psram_region_offset
+    off_fn.restype = ctypes.c_int
+    off_fn.argtypes = [
+        ctypes.c_int,
+        ctypes.c_long,
+        ctypes.c_uint,
+        ctypes.c_uint,
+        ctypes.POINTER(ctypes.c_uint),
+    ]
+    size_fn = lib.psram_region_bytes
+    size_fn.restype = ctypes.c_ulong
+    size_fn.argtypes = [ctypes.c_int]
+    lib.psram_swap_all.restype = None
+    lib.psram_swap_all.argtypes = []
+    bsize = 1024
+    total = 8 * 1024 * 1024
+
+    def call(minor, blk, ln):
+        off = ctypes.c_uint(0xDEADBEEF)
+        return off_fn(minor, blk, bsize, ln, ctypes.byref(off)), off.value
+
+    check(size_fn(0) == 2 * 1024 * 1024, "swap is 2 MB before the call")
+    lib.psram_swap_all()
+    check(size_fn(0) == total, "minor 0 is the whole 8 MB (%d)" % size_fn(0))
+    check(size_fn(1) == 0, "minor 1 has no region (%d)" % size_fn(1))
+    for blk, want in ((0, 0), (2 * 1024, 2 * 1024 * 1024), (total // bsize - 1, total - bsize)):
+        e, off = call(0, blk, bsize)
+        check(e == 0 and off == want, "whole swap block %d maps to %#x (%d, %#x)" % (blk, want, e, off))
+    for blk in (0, 1, 6 * 1024 - 1):
+        e, off = call(1, blk, bsize)
+        check(e == -3 and off == 0xDEADBEEF, "minor 1 block %d is refused (%d, %#x)" % (blk, e, off))
+    for blk, ln in ((total // bsize, bsize), (total // bsize - 1, 2 * bsize), (-1, bsize)):
+        e, off = call(0, blk, ln)
+        check(e == -3 and off == 0xDEADBEEF, "whole swap block %d length %d is refused (%d)" % (blk, ln, e))
+
+
 def test_block_offset(lib):
     """psramstrategy() turns b_blkno into a byte offset through
     psram_block_offset(); a block number outside the device must be refused
@@ -809,6 +853,7 @@ def main():
     test_duty_rule()
     test_block_offset(lib)
     test_region_offset(lib)
+    test_region_swap_all(lib)
     r = test_driver(a.lib, c)
     results["driver"] = {
         "frames": len(r.dev.frames),

@@ -73,6 +73,33 @@ extern dev_t    rootdev;            /* device of the root */
 extern dev_t    dumpdev;            /* device to take dumps on */
 extern long     dumplo;             /* offset into dumpdev */
 extern dev_t    swapdev;            /* swapping device */
+
+/*
+ * A swap device that can leave the machine. The driver that selects one
+ * (sdswapattach(), sys/arch/rp2040/dev/sd.c) sets swap_removable. A failed
+ * transfer on it sets swap_lost to SWAP_LOST_NEW instead of the panic a fixed
+ * device earns, and no later transfer is attempted. swap() and
+ * swap_with_buf() then return without having moved the bytes, so each caller
+ * reads swap_lost after its transfers. sched() retires the processes whose
+ * images the device held (swap_lost_sweep()) and moves the state to
+ * SWAP_LOST_SWEPT; the device takes no reservation in either state.
+ */
+#define SWAP_LOST_NEW   1
+#define SWAP_LOST_SWEPT 2
+#ifdef SDSWAP_ENABLED
+extern char swap_removable, swap_lost;
+void swap_lost_sweep (void);
+/*
+ * After the sweep, swap_lost_fallback() returns swap to the configured fixed
+ * device through sdswap_fallback() (sys/arch/rp2040/dev/sd.c) once nothing
+ * holds blocks of the lost one, and swap_lost reads 0 again.
+ */
+void swap_lost_fallback (void);
+size_t sdswap_fallback (void);
+#else
+#define swap_removable  0
+#define swap_lost       0
+#endif
 extern dev_t    pipedev;            /* pipe device */
 
 extern  const char icode[];         /* user init code */

@@ -2386,6 +2386,18 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
+# The board's kernel UF2, the file the PicoCalc UF2 loader programs, stamped
+# (vector entries 4 to 10, foreign bytes over the flash root; the kernel's own
+# second stage stays in flash bytes 0-255) with Renode's SD card model
+# holding ${SDROOTIMG} in MBR slot 3, type b7: root lines, login and mount on the panel, a login on
+# tty0, the flash root untouched, and a panic when the card has no b7 entry
+# (tools/renode/check-picocalc-sdroot.py). BOARD is PICOCALC, and
+# UNION_KERNEL selects PICOCALC, PICOCALC_LEAN or PICOCALC_LEAN_DIAG.
+check-renode-picocalc-sdroot:	sdroot ${BOARD_KERNEL_UF2}
+		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py \
+		    "$$(command -v renode)" ${BOARD_KERNEL_UF2} \
+		    ${SDROOTIMG} tools/renode/vendor/results/picocalc-sdroot
+
 # The process, in-core inode and system file tables filled on the emulated
 # PICO_DIAG kernel, the lean PICO plus CAPACITY_STATS and SYSTRACE, booted
 # from a copy whose board descriptor names the UART0 console:
@@ -2516,17 +2528,19 @@ cleantests:
 			${MAKE} -C "$${mf%/Makefile}" clean || status=1; \
 		done; exit $$status
 
-# Every board's root image, flash image and descriptor-stamped kernel, which
-# distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
-# flash${BOARD_OUT_SUFFIX}.{bin,uf2} and unix${BOARD_OUT_SUFFIX}.uf2, so a
-# clean after one board's build also removes another's.
+# Every board's root image, flash image, descriptor-stamped kernel and SD
+# root, which distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
+# flash${BOARD_OUT_SUFFIX}.{bin,uf2}, unix${BOARD_OUT_SUFFIX}.uf2 and
+# sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img, so a clean after one
+# board's build also removes another's.
 cleanfs:
 		rm -f distrib/$(MACHINE)/_manifest distrib/$(MACHINE)/_manifest.*
 		rm -f $(FSIMG) distrib/$(MACHINE)/sdcard.img \
 		    distrib/$(MACHINE)/sdcard-*.img distrib/$(MACHINE)/flash.bin \
 		    distrib/$(MACHINE)/flash.uf2 distrib/$(MACHINE)/flash-*.bin \
 		    distrib/$(MACHINE)/flash-*.uf2 distrib/$(MACHINE)/unix.uf2 \
-		    distrib/$(MACHINE)/unix-*.uf2
+		    distrib/$(MACHINE)/unix-*.uf2 distrib/$(MACHINE)/sdroot.img \
+		    distrib/$(MACHINE)/sdroot-*.img
 
 # A tuple switch is safe only after every source-directory artifact class has
 # cleaned successfully. The serialized recipe avoids overlapping cleanup of
@@ -2606,7 +2620,8 @@ installfs:
 		check-signal-traps \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
-		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
+		check-renode-picocalc check-renode-picocalc-dump \
+		check-renode-picocalc-sdroot check-renode-union \
 		check-renode-preempt \
 		check-renode-union-lean check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \

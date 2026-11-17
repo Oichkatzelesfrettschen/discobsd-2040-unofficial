@@ -608,6 +608,17 @@ flash_limit_init(void)
 }
 
 /*
+ * Nonzero when the PicoCalc loader started this kernel: flash_limit_init()
+ * found the stamp's magic. The loader programs only the kernel's own UF2,
+ * so the flash root region then holds whatever other applications left.
+ */
+int
+flash_loader_started(void)
+{
+	return flash_loader_boot2;
+}
+
+/*
  * Erase len bytes at offset, both multiples of the chip sector. Runs from
  * RAM with interrupts masked, because XIP is down for the duration and an
  * interrupt vectoring into flash would fetch from a disabled interface.

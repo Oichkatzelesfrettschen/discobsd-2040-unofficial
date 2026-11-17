@@ -184,9 +184,51 @@ again:
     child->p_addr = parent->p_addr;
     child->p_stat = SRUN;
     swapout (child, X_DONTFREE, X_OLDSIZE, X_OLDSIZE, &reservation);
-    child->p_flag |= SSWAP;
     parent->p_stat = SRUN;
     u.u_procp = parent;
+#ifdef SDSWAP_ENABLED
+    if (reservation.state != SWAP_IMAGE_COMMITTED) {
+        /*
+         * The swap device left during the copy, so no child image exists.
+         * Only a removable swap device (SDSWAP_ENABLED) can leave; on a
+         * fixed one the copy commits or panics, so the unwind is absent.
+         * The references taken above go back through the parent's u area,
+         * the slot returns to freeproc and fork fails as a refused
+         * reservation does.
+         */
+        for (n = 0; n <= u.u_lastfile; n++) {
+            fp = u.u_ofile[n];
+            if (fp != NULL)
+                fp->f_count--;
+        }
+        u.u_cdir->i_count--;
+        if (u.u_rdir)
+            u.u_rdir->i_count--;
+        if (child->p_tip)
+            child->p_tip->i_count--;
+        child->p_tip = NULL;
+        {
+        struct proc **hash = &pidhash [PIDHASH (child->p_pid)];
+
+        while (*hash != child)
+            hash = &(*hash)->p_hash;
+        *hash = child->p_hash;
+        }
+        if ((*child->p_prev = child->p_nxt) != NULL)
+            child->p_nxt->p_prev = child->p_prev;
+        child->p_stat = 0;
+        child->p_pid = 0;
+        child->p_ppid = 0;
+        child->p_pptr = 0;
+        child->p_pgrp = 0;
+        child->p_flag = 0;
+        child->p_sigmask = child->p_sigcatch = child->p_sigignore = 0;
+        child->p_nxt = freeproc;
+        freeproc = child;
+        return -1;
+    }
+#endif
+    child->p_flag |= SSWAP;
 
     if (isvfork) {
         /*
@@ -200,6 +242,24 @@ again:
         parent->p_flag |= SVFPRNT;
         while (child->p_flag & SVFORK)
             sleep ((caddr_t)child, PSWP+1);
+#ifdef SDSWAP_ENABLED
+        /*
+         * The lent image went with the swap device: the child was retired
+         * while swapped out (swap_lost_retire(), vm_swap.c), whose size
+         * fields now hold its exit status, or the child is exiting as the
+         * vfork parent of such a child and has no stack to give back. A
+         * signal would not end this process for certain (a tracer can
+         * suppress it and process 1 discards default actions), so it
+         * releases the child as the normal return does and exits; process 1
+         * panics "init died". On a fixed swap device neither case arises.
+         */
+        if (child->p_stat == SZOMB || child->p_ssize == 0) {
+            child->p_flag |= SVFDONE;
+            wakeup ((caddr_t) parent);
+            parent->p_flag &= ~SVFPRNT;
+            exit (SIGKILL);
+        }
+#endif
         if ((child->p_flag & SLOAD) == 0)
             panic ("newproc vfork");
         u.u_dsize = parent->p_dsize = child->p_dsize;

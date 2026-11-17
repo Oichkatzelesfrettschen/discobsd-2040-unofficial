@@ -21,6 +21,10 @@ DRIVERS = {
 }
 DEVICE_SIZE = 24
 SHF_WRITE = 1
+# Functions a Config "service" line may name; main() calls each entry of
+# conf_service_init in table order after the devices attach.
+SERVICES = ("sdrootattach", "sdswapattach")
+SERVICE_SIZE = 4
 
 
 def zero_object(elf, symbols, name, size):
@@ -56,6 +60,70 @@ def read_only(elf, entry, name):
         raise ValueError(f"{name} is not in a unique read-only load segment")
 
 
+def object_relocations(obj, original, limit, stride, table):
+    """Map each ABS32 relocation inside a table's entries to its symbol name."""
+    relocations = {}
+    for section in obj.iter_sections():
+        if (not isinstance(section, RelocationSection) or
+                section.header.sh_info != original.st_shndx):
+            continue
+        if section.is_RELA():
+            raise ValueError("RELA configuration relocations are unsupported")
+        symbols = obj.get_section(section.header.sh_link)
+        for relocation in section.iter_relocations():
+            offset = relocation.entry.r_offset - original.st_value
+            if not 0 <= offset < original.st_size:
+                continue
+            if (offset % stride or offset >= limit or
+                    offset in relocations or relocation.entry.r_info_type != 2):
+                raise ValueError(f"unsupported {table} relocation")
+            relocations[offset] = symbols.get_symbol(relocation.entry.r_info_sym).name
+    return relocations
+
+
+def check_services(elf, data, obj, linked_symbols, object_symbols):
+    """Check conf_service_init: a read-only table of allowed Thumb function
+    pointers in generated order and a zero terminator, the terminator alone
+    for a kernel whose Config names no service. Returns the names."""
+    original = get_entry(object_symbols, "conf_service_init")
+    linked = get_entry(linked_symbols, "conf_service_init")
+    if (original.st_size != linked.st_size or original.st_size < SERVICE_SIZE or
+            original.st_size % SERVICE_SIZE):
+        raise ValueError("conf_service_init size differs")
+    section = obj.get_section(original.st_shndx)
+    if section.header.sh_type != "SHT_PROGBITS" or section.header.sh_flags & SHF_WRITE:
+        raise ValueError("conf_service_init object is not read-only data")
+    source = section.data()
+    if original.st_value + original.st_size > len(source):
+        raise ValueError("conf_service_init object is truncated")
+    read_only(elf, linked, "conf_service_init")
+    entries = original.st_size // SERVICE_SIZE - 1
+    relocations = object_relocations(obj, original, entries * SERVICE_SIZE,
+                                     SERVICE_SIZE, "service")
+    table_offset = offset_for(elf, data, linked.st_value, linked.st_size)
+    names = []
+    for index in range(entries + 1):
+        relative = index * SERVICE_SIZE
+        raw = struct.unpack_from("<I", source, original.st_value + relative)[0]
+        value = struct.unpack_from("<I", data, table_offset + relative)[0]
+        if index < entries:
+            target = relocations.get(relative)
+            if target not in SERVICES or raw != 0:
+                raise ValueError(f"unknown service function at entry {index}")
+            expected = symbol(linked_symbols, target, "STT_FUNC")
+            if not expected & 1:
+                raise ValueError(f"{target} is not a Thumb function")
+            offset_for(elf, data, expected & ~1, 2, executable=True)
+            names.append(target)
+        else:
+            if raw != 0:
+                raise ValueError("nonzero service terminator")
+            expected = 0
+        if value != expected:
+            raise ValueError(f"conf_service_init entry {index} differs")
+    return names
+
+
 def check_data(data, object_data):
     elf = ELFFile(io.BytesIO(data))
     obj = ELFFile(io.BytesIO(object_data))
@@ -72,12 +140,7 @@ def check_data(data, object_data):
             obj.get_section(original.st_shndx).header.sh_type != "SHT_NOBITS"):
         raise ValueError("conf_ctlr_init object is not an empty table")
     zero_object(elf, linked_symbols, "conf_ctlr_init", 24)
-    service = get_entry(linked_symbols, "conf_service_init")
-    if service.st_size != 4:
-        raise ValueError("conf_service_init is not an empty table")
-    read_only(elf, service, "conf_service_init")
-    if struct.unpack_from("<I", data, offset_for(elf, data, service.st_value, 4))[0]:
-        raise ValueError("conf_service_init is not an empty table")
+    check_services(elf, data, obj, linked_symbols, object_symbols)
     original = get_entry(object_symbols, "conf_device_init")
     linked = get_entry(linked_symbols, "conf_device_init")
     if (original.st_size != linked.st_size or original.st_size < DEVICE_SIZE * 2 or
@@ -89,22 +152,8 @@ def check_data(data, object_data):
     read_only(elf, linked, "conf_device_init")
     table_offset = offset_for(elf, data, linked.st_value, linked.st_size)
     entries = original.st_size // DEVICE_SIZE - 1
-    relocations = {}
-    for section in obj.iter_sections():
-        if (not isinstance(section, RelocationSection) or
-                section.header.sh_info != original.st_shndx):
-            continue
-        if section.is_RELA():
-            raise ValueError("RELA configuration relocations are unsupported")
-        symbols = obj.get_section(section.header.sh_link)
-        for relocation in section.iter_relocations():
-            offset = relocation.entry.r_offset - original.st_value
-            if not 0 <= offset < original.st_size:
-                continue
-            if (offset % DEVICE_SIZE or offset // DEVICE_SIZE >= entries or
-                    offset in relocations or relocation.entry.r_info_type != 2):
-                raise ValueError("unsupported device configuration relocation")
-            relocations[offset] = symbols.get_symbol(relocation.entry.r_info_sym).name
+    relocations = object_relocations(obj, original, entries * DEVICE_SIZE,
+                                     DEVICE_SIZE, "device configuration")
     names = []
     for index in range(original.st_size // 4):
         relative = index * 4

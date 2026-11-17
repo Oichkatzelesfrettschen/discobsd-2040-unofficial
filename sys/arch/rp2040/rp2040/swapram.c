@@ -689,16 +689,65 @@ swapram_images (void)
  * buffer supplies both the busy I/O header and the expansion payload for
  * the complete evacuation.
  */
+static void
+sr_unreserve (int upto)
+{
+    struct sr_ent *e;
+    struct proc *reserved;
+    int j;
+#ifndef SWAP_IMAGE_ALIGN
+    int seg;
+#endif
+
+    for (j = 0; j < upto; j++) {
+        e = &sr_tab[j];
+        if (! e->e_live)
+            continue;
+        reserved = &proc[j];
+#ifdef SWAP_IMAGE_ALIGN
+        mfree (swapmap, sr_flash_span (e), reserved->p_daddr);
+#else
+        for (seg = 0; seg < SR_NSEG; seg++)
+            if (e->e_rlen[seg])
+                mfree (swapmap, btod (e->e_rlen[seg]),
+                    seg == SR_DATA ? reserved->p_daddr :
+                    seg == SR_STACK ? reserved->p_saddr :
+                    reserved->p_addr);
+#endif
+        reserved->p_daddr = 0;
+        reserved->p_saddr = 0;
+        reserved->p_addr = 0;
+    }
+}
+
+/* Image e of p is on flash: release its pool space. */
+static void
+sr_evacuated (struct sr_ent *e, struct proc *p)
+{
+    if (swapram_pool_free (&sr_map, e->e_off, e->e_res) < 0)
+        panic ("swapram: evacuate free");
+    if (swapramdebug)
+        printf ("swapram: pid %d evacuated %u -> %u bytes at %u\n",
+            p->p_pid, e->e_res,
+            (u_int) (e->e_rlen[SR_DATA] + e->e_rlen[SR_STACK] +
+                e->e_rlen[SR_U]), (u_int) p->p_daddr);
+    e->e_live = 0;
+    e->e_res = 0;
+}
+
 int
 swapram_evacuate (void)
 {
     struct sr_ent *e;
-    struct proc *p, *reserved;
+    struct proc *p;
     struct buf *bp;
     unsigned int off;
     size_t blocks[SR_NSEG], next;
-    int i, images = 0, j, seg, n;
+    int i, images = 0, seg, n;
 
+    /* A swap device that left takes no image; the pool keeps them. */
+    if (swap_lost)
+        return -1;
     next = swapnext;
     for (i = 0; i < NPROC; i++) {
         e = &sr_tab[i];
@@ -719,25 +768,7 @@ swapram_evacuate (void)
             btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
             blocks) == 0) {
 #endif
-            for (j = 0; j < i; j++) {
-                e = &sr_tab[j];
-                if (! e->e_live)
-                    continue;
-                reserved = &proc[j];
-#ifdef SWAP_IMAGE_ALIGN
-                mfree (swapmap, sr_flash_span (e), reserved->p_daddr);
-#else
-                for (seg = 0; seg < SR_NSEG; seg++)
-                    if (e->e_rlen[seg])
-                        mfree (swapmap, btod (e->e_rlen[seg]),
-                            seg == SR_DATA ? reserved->p_daddr :
-                            seg == SR_STACK ? reserved->p_saddr :
-                            reserved->p_addr);
-#endif
-                reserved->p_daddr = 0;
-                reserved->p_saddr = 0;
-                reserved->p_addr = 0;
-            }
+            sr_unreserve (i);
             if (swapramdebug)
                 printf ("swapram: evacuate: no flash for pid %d\n",
                     p->p_pid);
@@ -756,6 +787,10 @@ swapram_evacuate (void)
         e = &sr_tab[i];
         if (! e->e_live)
             continue;
+#ifdef SDSWAP_ENABLED
+        if (swap_lost)
+            break;
+#endif
         p = &proc[i];
         off = e->e_off;
         for (seg = 0; seg < SR_NSEG; seg++) {
@@ -768,17 +803,27 @@ swapram_evacuate (void)
                 panic ("swapram: evacuate expand");
             off += e->e_clen[seg];
         }
-        if (swapram_pool_free (&sr_map, e->e_off, e->e_res) < 0)
-            panic ("swapram: evacuate free");
-        if (swapramdebug)
-            printf ("swapram: pid %d evacuated %u -> %u bytes at %u\n",
-                p->p_pid, e->e_res,
-                (u_int) (e->e_rlen[SR_DATA] + e->e_rlen[SR_STACK] +
-                    e->e_rlen[SR_U]), (u_int) p->p_daddr);
-        e->e_live = 0;
-        e->e_res = 0;
+#ifndef SDSWAP_ENABLED
+        sr_evacuated (e, p);
+#endif
     }
     brelse (bp);
+#ifdef SDSWAP_ENABLED
+    /*
+     * A removable swap device can leave during the copy, after which
+     * swap_with_buf() writes nothing and sr_expand() still counts the
+     * bytes. The pool space is therefore released only once every image
+     * is written; a device that left releases every reservation instead,
+     * and each image stays whole in the pool.
+     */
+    if (swap_lost) {
+        sr_unreserve (NPROC);
+        return -1;
+    }
+    for (i = 0; i < NPROC; i++)
+        if (sr_tab[i].e_live)
+            sr_evacuated (&sr_tab[i], &proc[i]);
+#endif
     return 0;
 }
 

@@ -113,6 +113,9 @@ swap_image_reserve_flash (struct swap_image_reservation *reservation)
 #ifdef SWAP_IMAGE_ALIGN
     size_t next = swapnext;
 
+    if (swap_lost)
+        return ENOMEM;
+
     if (malloc3_contiguous_next (swapmap, reservation->data_blocks,
         reservation->stack_blocks, btod (USIZE),
         SWAP_IMAGE_ALIGN, &next, reservation->addr) == 0)
@@ -234,9 +237,15 @@ swap_exchange_switch (struct swap_image_reservation *reservation,
         return 0;
     }
 #endif
+    /*
+     * The in-place exchange has no unwind: a transfer that fails part way
+     * leaves each image half in the window and half on the device. A device
+     * that can leave therefore never takes it, and the outgoing image gets a
+     * fresh extent, whose failed write leaves the resident image whole.
+     */
     reservation->exchange_span = swap_image_span (incoming);
     spl = splhigh ();
-    if (! swap_exchange_tail_reserve (incoming->p_daddr,
+    if (swap_removable || ! swap_exchange_tail_reserve (incoming->p_daddr,
         reservation->exchange_span, reservation->span)) {
         splx (spl);
         reservation->exchange_span = 0;
@@ -385,6 +394,12 @@ swapin (register struct proc *p)
         swap (p->p_saddr, saddr, p->p_ssize, B_READ);
     }
     swap (p->p_addr, uaddr, USIZE, B_READ);
+    /*
+     * The device left: the window holds no image and the process stays
+     * out of core for swap_lost_sweep().
+     */
+    if (swap_lost)
+        return;
     swap_image_release (p);
     }
 
@@ -718,6 +733,20 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
     } else
 #endif
     swap (a[2], p->p_addr, USIZE, SWAP_IMAGE_WRITE);
+    /*
+     * The device left during the copy. The image is still whole in core,
+     * so the reservation is given back and the caller keeps the process
+     * resident; state SWAP_IMAGE_EMPTY tells it so.
+     */
+    if (swap_lost
+#ifdef SWAPRAM
+        && ! ram
+#endif
+        ) {
+        p->p_flag &= ~SLOCK;
+        swap_image_cancel (reservation);
+        return;
+    }
 #ifdef SWAPRAM
     /* Completion is counted once the last segment has reached its backing. */
     if (ram) {
@@ -761,7 +790,11 @@ swap_image_commit (struct swap_image_reservation *reservation, struct proc *p)
     }
 }
 
-/* Every caller reserves the image first; swapout itself cannot fail. */
+/*
+ * Every caller reserves the image first, so capacity cannot fail. A swap
+ * device that left during the copy leaves the reservation canceled and the
+ * process resident; callers that can meet one read reservation->state.
+ */
 void
 swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
     u_int ostack __unused, struct swap_image_reservation *reservation)
@@ -769,5 +802,152 @@ swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
     if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)
         panic ("swapout: no reservation");
     swap_image_copy_out (reservation, p);
+#ifdef SDSWAP_ENABLED
+    if (reservation->state != SWAP_IMAGE_COPIED)
+        return;
+#endif
     swap_image_commit (reservation, p);
 }
+
+#ifdef SDSWAP_ENABLED
+#ifdef PICOCALC_ENABLED
+/* sys/arch/rp2040/dev/lcdcons.c */
+extern void lcdcons_procexit (const struct proc *p);
+#endif
+
+/*
+ * Retire a process whose image went with the swap device. Its u area, and
+ * with it the open files, the current directory and the kernel stack, is on
+ * that device, so exit() cannot run for it. The retirement does the part of
+ * exit() that needs no u area: it ends the process's sleep and raw key
+ * session, and proc_zombie() (kern_exit.c), which exit() also calls, makes
+ * it a zombie that reports death by SIGKILL, gives its children to init and
+ * tells its parent. The file and directory references it held stay counted
+ * until the next boot. A vfork child takes its parent along, whose data and
+ * stack were the lost image (newproc(), kern_fork.c).
+ */
+static void
+swap_lost_retire (struct proc *p)
+{
+    struct proc *q;
+
+    if (p->p_pid == 1)
+        panic ("init lost with the swap device");
+    printf ("swap: pid %d lost with the swap device\n", p->p_pid);
+    /*
+     * The image's blocks go back to the map without a transfer, so the map
+     * of the lost device empties and swap_lost_fallback() can replace it.
+     */
+    mfree (swapmap, swap_image_span (p), p->p_daddr);
+    /*
+     * A running process has no endtsleep callout: tsleep() cancels or
+     * consumes it before it returns, so exit() has none to cancel. This
+     * process stopped inside tsleep(), and a callout left armed would fire
+     * on the slot after wait4() frees it and wake whatever process
+     * sleeps there then.
+     */
+    unsleep (p);
+    untimeout (endtsleep, (caddr_t) p);
+#ifdef PICOCALC_ENABLED
+    /* As in exit(): a raw key session ends with its owner. */
+    lcdcons_procexit (p);
+#endif
+    if (p->p_flag & SVFORK) {
+        /*
+         * newproc() sleeps in the parent until SVFORK clears. It finds a
+         * zombie, takes nothing back and calls exit() before it returns to
+         * an image it no longer has.
+         */
+        p->p_flag &= ~SVFORK;
+        wakeup ((caddr_t) p);
+    }
+    if (p->p_flag & SVFPRNT) {
+        /*
+         * A vfork parent: its child runs on the lent image, which no
+         * parent will take back. The child keeps it, as SVFORK clears and
+         * it never enters endvfork() (kern_exit.c), and a child already
+         * waiting there for SVFDONE, asleep on this process, is released.
+         */
+        for (q = allproc; q != NULL; q = q->p_nxt)
+            if (q->p_pptr == p)
+                q->p_flag = (q->p_flag & ~SVFORK) | SVFDONE;
+        wakeup ((caddr_t) p);
+    }
+    p->p_flag &= ~P_TRACED;
+    p->p_sigignore = ~0;
+    p->p_sig = 0;
+    exec_text_release (p, NULL);
+    proc_zombie (p, SIGKILL);
+    bzero (&p->p_ru, sizeof (p->p_ru));
+}
+
+/*
+ * Retire every process the lost device held: the ones out of core that the
+ * SwapRAM pool does not hold. sched() calls it with no process selected, so
+ * a process without SLOAD is a swapped one.
+ */
+void
+swap_lost_sweep (void)
+{
+    struct proc *p, *next;
+
+    for (p = allproc; p != NULL; p = next) {
+        next = p->p_nxt;
+        if (p->p_flag & (SLOAD | SSYS))
+            continue;
+#ifdef SWAPRAM
+        if (swapram_present (p))
+            continue;
+#endif
+        swap_lost_retire (p);
+    }
+    swap_lost = SWAP_LOST_SWEPT;
+    wakeup ((caddr_t) &runin);
+}
+
+/* Whether the swap map holds nothing: one free run over all of nswap. */
+static int
+swap_map_empty (void)
+{
+    return swapmap->m_map[0].m_addr == SWAP_IMAGE_ALIGN &&
+        swapmap->m_map[0].m_size == nswap - SWAP_IMAGE_ALIGN &&
+        swapmap->m_map[1].m_size == 0;
+}
+
+/*
+ * Return swap to the fixed device the configuration named (fl1) once the
+ * lost device's map is empty: swap_lost_retire() freed every retired image,
+ * and an exec spool or temporary swap unit still holding blocks of the lost
+ * device keeps its map in place until that holder frees them. Without this
+ * step a resident image that the SwapRAM pool cannot take has nowhere to go,
+ * and a runnable process in the pool never comes back in.
+ * sdswap_fallback() (sd.c) reopens the fixed device and returns its size in
+ * blocks, or 0 when it cannot take swap; the map, the cursor and nswap then
+ * describe that device and it takes reservations and transfers again. The
+ * fixed device holds no image from before the loss, so its contents need no
+ * check. sched() calls this on each pass while swap_lost is SWAP_LOST_SWEPT.
+ */
+void
+swap_lost_fallback (void)
+{
+    size_t blocks;
+    int s;
+
+    if (! swap_map_empty ())
+        return;
+    blocks = sdswap_fallback ();
+    if (blocks <= SWAP_IMAGE_ALIGN)
+        return;
+    s = splhigh ();
+    if (swap_map_empty ()) {
+        swapmap->m_map[0].m_size = blocks - SWAP_IMAGE_ALIGN;
+        swapmap->m_ring_end = blocks;
+        nswap = blocks;
+        swapnext = SWAP_IMAGE_ALIGN;
+        swap_cursor_publish (swapnext);
+        swap_removable = 0;
+        swap_lost = 0;
+    }
+    splx (s);
+}
+#endif /* SDSWAP_ENABLED */

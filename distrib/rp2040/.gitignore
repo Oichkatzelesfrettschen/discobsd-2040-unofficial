@@ -8,3 +8,5 @@ unix.uf2
 unix-*.uf2
 _manifest
 _manifest.*
+sdroot-*.img
+sdroot.img

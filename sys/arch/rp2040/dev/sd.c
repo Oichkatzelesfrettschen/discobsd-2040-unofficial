@@ -188,17 +188,19 @@ static struct diskpart sdpt[MAXPARTITIONS + 1];	/* [0] is the whole card. */
 static u_int sd_open[2];
 /*
  * The swap partition sdswapattach() chose, held for the life of the boot.
- * It counts as a block open that no close ends: swclose() (sys/dev/swap.c)
- * forwards the close of /dev/swap to sdclose(), and the open bits are not
- * counted, so a bit of sd_open alone would go with the first such close.
+ * It counts as a block open that no close ends. A block descriptor of the
+ * partition (/dev/sd0d) shares the partition's bit of sd_open, and the
+ * kernel closes a device once, at its last close, so that close would end
+ * a hold kept in the bit. /dev/swap opens and closes nothing here
+ * (swopen(), sys/dev/swap.c).
  */
 static u_int sd_swaphold;
 #ifdef SDSWAP_ENABLED
 /*
  * The held partition until main() opens it as swapdev. That open is the
  * hold's own and sets no bit of sd_open, so when swap returns to fl1
- * (sdswap_fallback()) the bits left are those of descriptors, which the
- * hold's release must keep: block opens are not counted.
+ * (sdswap_fallback()) the bits left are those of descriptors, each cleared
+ * by its device's last close, which the hold's release must keep.
  */
 static u_char sd_swapmain;
 #endif

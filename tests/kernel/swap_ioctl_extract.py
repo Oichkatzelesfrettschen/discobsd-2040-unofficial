@@ -15,7 +15,8 @@ WRITE_FLAGS_SIGNATURE = (
     "static int\nswtemp_write_flags(struct swtemp *temp, u_int block, u_int blocks)"
 )
 REFUSED_SIGNATURE = "static int\nswap_live_write_refused(int unit, int writing)"
-SWOPEN_SIGNATURE = "int\nswopen(dev_t dev, int mode, int flag)"
+SWOPEN_SIGNATURE = "int\nswopen(dev_t dev, int mode, int flag __unused)"
+SWCLOSE_SIGNATURE = "int\nswclose(dev_t dev, int mode __unused, int flag __unused)"
 SWSTRATEGY_SIGNATURE = "void\nswstrategy(struct buf *bp)"
 SWCREAD_SIGNATURE = "int\nswcread(dev_t dev, struct uio *uio, int flag __unused)"
 SWCWRITE_SIGNATURE = "int\nswcwrite(dev_t dev, struct uio *uio, int flag __unused)"
@@ -141,6 +142,7 @@ def main() -> None:
             (WRITE_FLAGS_SIGNATURE, "swtemp_write_flags"),
             (REFUSED_SIGNATURE, "swap_live_write_refused"),
             (SWOPEN_SIGNATURE, "swopen"),
+            (SWCLOSE_SIGNATURE, "swclose"),
             (SWSTRATEGY_SIGNATURE, "swstrategy"),
         )
     )

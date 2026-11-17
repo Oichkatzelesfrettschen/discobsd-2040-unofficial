@@ -76,31 +76,33 @@ swap_live_write_refused(int unit, int writing)
 	return unit == 64 && writing && securelevel > 0;
 }
 
+/*
+ * Minor 64, /dev/swap, opens and closes nothing below it. main() opened
+ * swapdev for the boot and swap_lost_fallback() opens the device swap moves
+ * to, so the device is open whenever swap uses it. A forwarded close would
+ * end that open while the kernel still swaps on the device (the partition's
+ * bit in sd_open, fl1's in openpart), or reach a device the open never
+ * touched once swap has moved, leaving the first device counted open.
+ */
 int
-swopen(dev_t dev, int mode, int flag)
+swopen(dev_t dev, int mode, int flag __unused)
 {
 	int unit = minor(dev);
 
 	if (swap_live_write_refused(unit, mode & FWRITE))
 		return EPERM;
-	if (unit == 64)
-		return bdevsw[major(swapdev)].d_open(swapdev, mode, flag);
-
-	if (unit >= NTMP)
+	if (unit >= NTMP && unit != 64)
 		return ENODEV;
 
 	return 0;
 }
 
 int
-swclose(dev_t dev, int mode, int flag)
+swclose(dev_t dev, int mode __unused, int flag __unused)
 {
 	int unit = minor(dev);
 
-	if (unit == 64)
-		return bdevsw[major(swapdev)].d_close(swapdev, mode, flag);
-
-	if (unit >= NTMP)
+	if (unit >= NTMP && unit != 64)
 		return ENODEV;
 
 	return 0;

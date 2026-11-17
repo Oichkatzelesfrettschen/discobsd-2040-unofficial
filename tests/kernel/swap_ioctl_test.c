@@ -43,11 +43,13 @@ dev_t swapdev;
 int securelevel;
 
 /*
- * The live swap device behind minor 64, whose open and strategy routines
- * count the requests swopen() and swstrategy() pass through. swap() meets
- * the declaration in swap_ioctl_extract.py; no contract here observes it.
+ * The live swap device behind minor 64, whose open, close and strategy
+ * routines count the requests that reach it: swstrategy() passes transfers
+ * through, and swopen() and swclose() pass nothing, since the kernel holds
+ * swapdev open for the boot. swap() meets the declaration in
+ * swap_ioctl_extract.py; no contract here observes it.
  */
-static unsigned live_opens, live_transfers, completions;
+static unsigned live_opens, live_closes, live_transfers, completions;
 
 static int
 live_open(dev_t dev, int mode, int flag)
@@ -59,6 +61,16 @@ live_open(dev_t dev, int mode, int flag)
     return 0;
 }
 
+static int
+live_close(dev_t dev, int mode, int flag)
+{
+    (void)dev;
+    (void)mode;
+    (void)flag;
+    live_closes++;
+    return 0;
+}
+
 static void
 live_strategy(struct buf *bp)
 {
@@ -67,7 +79,7 @@ live_strategy(struct buf *bp)
 }
 
 const struct bdevsw bdevsw[5] = {
-    { .d_open = live_open, .d_strategy = live_strategy },
+    { .d_open = live_open, .d_close = live_close, .d_strategy = live_strategy },
 };
 
 void
@@ -359,7 +371,9 @@ media_size_needs_no_privilege(void)
 /*
  * At securelevel 1 and above minor 64 takes no write open and no write
  * transfer, whenever its descriptor was opened; reads, level 0 and the
- * temporary units are unaffected.
+ * temporary units are unaffected. Its open and close reach no device: the
+ * kernel's own open of swapdev lasts the boot, and a forwarded close would
+ * end it, or reach another device once swap has moved.
  */
 static void
 live_swap_writes_follow_securelevel(void)
@@ -369,10 +383,12 @@ live_swap_writes_follow_securelevel(void)
 
     for (int level = 0; level <= 2; level++) {
         securelevel = level;
-        live_opens = live_transfers = completions = 0;
+        live_opens = live_closes = live_transfers = completions = 0;
         HK_CHECK(swopen(live, FWRITE, 0) == (level ? EPERM : 0));
         HK_CHECK(swopen(live, FREAD, 0) == 0);
-        HK_CHECK(live_opens == (level ? 1U : 2U));
+        HK_CHECK(swclose(live, FREAD, 0) == 0);
+        HK_CHECK(live_opens == 0);
+        HK_CHECK(live_closes == 0);
 
         bzero(&bp, sizeof(bp));
         bp.b_dev = live;

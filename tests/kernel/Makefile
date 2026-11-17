@@ -336,7 +336,7 @@ SWAP_IOCTL_C17_CFLAGS=	${GATE_CFLAGS} -std=c17 -pedantic-errors \
 SWAP_IOCTL_MUTANTS=	release-fallthrough media-size-fallthrough \
 	shortage-output-suppression unrounded-free stale-released-size \
 	ignore-descriptor-mode omit-root-check open-writes-live-swap \
-	transfer-writes-live-swap
+	transfer-writes-live-swap open-forwards-live-swap close-forwards-live-swap
 SWAP_IOCTL_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/cdefs.h \
 	${TOPSRC}/sys/sys/conf.h ${TOPSRC}/sys/sys/disk.h \
@@ -1240,6 +1240,8 @@ check-swap-ioctl-mutants: \
 		omit-root-check) expected='call_ioctl(2, TFALLOC, &request, FREAD | FWRITE) == EPERM' ;; \
 		open-writes-live-swap) expected='swopen(live, FWRITE, 0) == (level ? EPERM : 0)' ;; \
 		transfer-writes-live-swap) expected='live_transfers == (level ? 0U : 1U)' ;; \
+		open-forwards-live-swap) expected='live_opens == 0' ;; \
+		close-forwards-live-swap) expected='live_closes == 0' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

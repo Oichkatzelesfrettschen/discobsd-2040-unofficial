@@ -206,20 +206,28 @@ arm-none-eabi-gcc 16.2.0 at 6f000e92, before and after (data, bss and
 - Applied to every source the three flags save 748 to 964 bytes, and they
   then change instructions in the `.ramfunc` flash routines and in
   `sd_cmd`, `spi_wait_idle`, `i2c_restart`, `kbd_step` and `usb_service`,
-  whose loops poll hardware. The `sys/arch` exclusion gives up 128 to 360
-  bytes to leave those unmeasured timings alone: the 169 `sys/arch`
-  compile commands of a six-kernel build carry none of the flags, the
-  `.ramfunc` disassembly matches the unflagged build's instruction for
-  instruction, and no `sys/arch` function changes size.
-- Stack frames from `-fstack-usage` in the affected sources: `closei` and
-  `getfsstat` grow by 8 bytes, `newproc` and `swtch` shrink by 16, and
+  whose loops poll hardware. The `sys/arch` exclusion gives up 136 to 360
+  bytes to leave those unmeasured timings alone. Object identity shows it
+  holds: between a `CSIZEFLAGS=` build and the default build of PICO,
+  PICO_UART and PICOCALC, 44 of 270 objects differ in their text, read-only
+  data, data or `.ramfunc` bytes, and the generated Makefile rules place all
+  44 sources under `$S/kern`. The 90 objects built from `$S/arch` are
+  identical.
+- Stack frames from `-fstack-usage` in the affected sources: `closei` grows
+  by 8 bytes in PICO and PICOCALC and `getfsstat` by 8 in PICO, `newproc` and `swtch` shrink by 16, and
   about 60 others shrink. The deepest call chain was not recomputed.
-- Not measured: execution time, and GCC 13 and 14. A loop in the affected
-  sources recomputes its invariants on each pass.
-- A build picks up an edit to `Makefile.rp2040` one invocation late: the
-  kernel directory's make has parsed its generated Makefile before config
-  rewrites it. Size comparisons across a template edit therefore need
-  `reconfig`, or a second build, before the measured one.
+- Hosted arm-none-eabi-gcc 13.2.1: the flash image `check-kernel-headroom`
+  reports, which moves in 256-byte steps, falls 512 bytes in five kernels
+  and 256 in PICO_UART between main's push run and the pull-request run.
+  GCC 14 is not measured.
+- Not measured: execution time. A loop in the affected sources recomputes
+  its invariants on each pass, and `sys_pipe.c` is among them, so the
+  UnixBench pipe figure that moved under the swap-path `-O2` trial is the
+  first board number to take.
+- Observed during the sweep, mechanism not examined: the first
+  `bmake kernel` after an edit to `Makefile.rp2040` compiled with the
+  previous template's flags and the second with the new ones. A size
+  comparison across a template edit used the second build.
 
 ### Kernel LTO (unmeasured; four blockers)
 

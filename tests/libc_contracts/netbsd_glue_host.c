@@ -38,10 +38,11 @@
  * the SVID error path, which the default _LIB_VERSION of _POSIX_ never
  * takes, so the array is storage for the reference and never read.
  *
- * The _fe names: on the soft-float target there are no status flags and
+ * The _fe names (NETBSD_ORACLE_SOFT_FENV): on the soft-float target there are no status flags and
  * the only rounding direction is to nearest, which NetBSD's <arm/fenv.h>
  * spells 0.  Requests for anything else fail, as the tree's <fenv.h> does.
- * The x86 oracles take NetBSD's own fenv.c instead.  The i387 one asks
+ * The x86 oracles take NetBSD's own fenv.c instead.  The i387 one
+ * (NETBSD_ORACLE_I387) asks
  * sysctlbyname("machdep.sse") whether SSE registers need its rounding
  * mode too; on the hosts these oracles run on they do.
  *
@@ -64,7 +65,7 @@ __errno(void)
 
 unsigned char __sF[3][256];
 
-#ifdef __arm__
+#ifdef NETBSD_ORACLE_SOFT_FENV
 int _feclearexcept(int);
 int _fegetenv(void *);
 int _fegetround(void);
@@ -93,7 +94,7 @@ int __libc_mutex_unlock(void *);
 int __libc_mutex_lock(void *mutex) { (void)mutex; return 0; }
 int __libc_mutex_unlock(void *mutex) { (void)mutex; return 0; }
 
-#ifdef __i386__
+#ifdef NETBSD_ORACLE_I387
 int sysctlbyname(const char *, void *, size_t *, const void *, size_t);
 
 int

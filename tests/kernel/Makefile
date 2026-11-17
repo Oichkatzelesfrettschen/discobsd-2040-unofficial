@@ -3692,7 +3692,8 @@ FORK_SWAP_DEPS= fork_swap_test.c ${FORK_SWAP_FUNCTIONS} hostkern.o \
 ${FORK_SWAP_FUNCTIONS}: fork_swap_extract.py swap_ioctl_extract.py \
     ${TOPSRC}/sys/kern/kern_fork.c ${TOPSRC}/sys/kern/vm_swap.c \
     ${TOPSRC}/sys/kern/exec_aout.c ${TOPSRC}/sys/kern/init_main.c \
-    ${TOPSRC}/sys/kern/vm_sched.c ${TOPSRC}/sys/arch/rp2040/rp2040/swapram.c
+    ${TOPSRC}/sys/kern/vm_sched.c ${TOPSRC}/sys/arch/rp2040/rp2040/swapram.c \
+    ${TOPSRC}/sys/kern/kern_exit.c
 	${PYTHON} fork_swap_extract.py --root ${TOPSRC} --output $@
 
 .for shape in compact wide diagnostic full
@@ -3747,9 +3748,11 @@ FORK_SWAP_LOST_MUTANTS= lost-fork-no-unwind lost-fork-keep-files lost-fork-keep-
     lost-sched-drop-resident lost-sweep-kills-pool lost-sweep-kills-system lost-reserve-after-loss lost-exchange-on-removable \
     lost-init-retired lost-vfork-parent-spared lost-vfork-takes-zombie-sizes lost-vfork-child-kept-waiting lost-sleeper-queued lost-children-kept \
     lost-parent-untold lost-status-clean lost-zombie-hashed lost-no-fallback \
-    lost-retire-keeps-blocks lost-fallback-ignores-holder
+    lost-retire-keeps-blocks lost-fallback-ignores-holder \
+    lost-traced-child-kept lost-stopped-child-kept
+FORK_SWAP_LOST_DEFS= -DCOMPACT_SWAPMAP -DSDSWAP_ENABLED
 fork_swap_test_lost: ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
-	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -DSDSWAP_ENABLED \
+	${HOST_CC} ${FORK_SWAP_CFLAGS} ${FORK_SWAP_LOST_DEFS} \
 	    -o $@ fork_swap_test.c \
 	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \
 	    hostkern_kern.c hostkern.o fork_swap_rmap_compact.o
@@ -3761,7 +3764,7 @@ fork_swap_${mutation}.mutant.c: fork_swap_mutate.py ${FORK_SWAP_FUNCTIONS}
 
 fork_swap_${mutation}.mutant.test: fork_swap_${mutation}.mutant.c \
     ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
-	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -DSDSWAP_ENABLED \
+	${HOST_CC} ${FORK_SWAP_CFLAGS} ${FORK_SWAP_LOST_DEFS} \
 	    -DFORK_SWAP_FUNCTIONS='"fork_swap_${mutation}.mutant.c"' \
 	    -o $@ fork_swap_test.c \
 	    ${TOPSRC}/sys/arch/rp2040/rp2040/swapram_pool.c \

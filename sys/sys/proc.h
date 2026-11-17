@@ -170,6 +170,14 @@ void siginit (struct proc *p);
  */
 void unsleep (struct proc *p);
 
+#ifdef SDSWAP_ENABLED
+/*
+ * Make a process a zombie that reports the status to its parent: the part
+ * of exit() that needs no u area (kern_exit.c).
+ */
+void proc_zombie (struct proc *p, int rv);
+#endif
+
 void selwakeup (struct proc *p, long coll);
 
 /*

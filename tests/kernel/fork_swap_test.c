@@ -2054,9 +2054,13 @@ lost_sweep_cases(void)
         proc[2].p_stat == SSLEEP);
     HK_CHECK(zombproc == NULL && swapram_present(&proc[1]));
 
-    /* A sleeper leaves its wait queue, and its children pass to init. */
+    /*
+     * A sleeper leaves its wait queue, and its children pass to init as
+     * exit() passes them: a traced one (stopped as well) loses P_TRACED and gets
+     * SIGKILL, a stopped one SIGHUP and SIGCONT, a running one nothing.
+     */
     lost_sched_fixture();
-    freeproc = &proc[3];
+    freeproc = &proc[5];
     proc[1].p_stat = SSLEEP;
     proc[1].p_wchan = (caddr_t)&lost_result;
     proc[1].p_nxt = &proc[2];
@@ -2065,12 +2069,31 @@ lost_sweep_cases(void)
     proc[2].p_stat = SRUN;
     proc[2].p_flag = SLOAD;
     proc[2].p_pptr = &proc[1];
+    proc[2].p_nxt = &proc[3];
+    proc[3].p_prev = &proc[2].p_nxt;
+    proc[3].p_pid = 12;
+    proc[3].p_stat = SSTOP;
+    proc[3].p_flag = SLOAD | P_TRACED;
+    proc[3].p_pptr = &proc[1];
+    proc[3].p_nxt = &proc[4];
+    proc[4].p_prev = &proc[3].p_nxt;
+    proc[4].p_pid = 13;
+    proc[4].p_stat = SSTOP;
+    proc[4].p_flag = SLOAD;
+    proc[4].p_pptr = &proc[1];
     swap_lost = SWAP_LOST_NEW;
     lost_sweep_call();
     HK_CHECK(lost_zombie(&proc[1]) && unsleeps == 1 &&
         proc[1].p_wchan == NULL);
-    HK_CHECK(proc[2].p_ppid == 1);
+    HK_CHECK(proc[2].p_ppid == 1 && proc[3].p_ppid == 1 &&
+        proc[4].p_ppid == 1);
     HK_CHECK(proc[2].p_stat == SRUN && proc[0].p_nxt == &proc[2]);
+    HK_CHECK(signal_to[2] == 0 && (proc[2].p_flag & P_TRACED) == 0);
+    HK_CHECK((proc[3].p_flag & P_TRACED) == 0);
+    HK_CHECK(signal_to[3] == 1 << SIGKILL);
+    HK_CHECK((proc[4].p_flag & P_TRACED) == 0);
+    HK_CHECK(signal_to[4] == (1 << SIGHUP | 1 << SIGCONT));
+    HK_CHECK(proc[3].p_stat == SSTOP && proc[4].p_stat == SSTOP);
 
     /* A vfork child returns the loan empty and takes its parent along. */
     lost_sched_fixture();

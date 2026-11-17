@@ -813,18 +813,17 @@ swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
 /*
  * Retire a process whose image went with the swap device. Its u area, and
  * with it the open files, the current directory and the kernel stack, is on
- * that device, so exit() cannot run for it: the process becomes a zombie
- * that reports death by SIGKILL, its children pass to init and its parent is
- * told, as exit() does, while the file and directory references it held stay
- * counted until the next boot. A vfork child takes its parent along, whose
- * data and stack were the lost image (newproc(), kern_fork.c).
+ * that device, so exit() cannot run for it. The retirement does the part of
+ * exit() that needs no u area: it ends the process's sleep, and
+ * proc_zombie() (kern_exit.c), which exit() also calls, makes it a zombie
+ * that reports death by SIGKILL, gives its children to init and tells its
+ * parent. The file and directory references it held stay counted
+ * until the next boot. A vfork child takes its parent along, whose data and
+ * stack were the lost image (newproc(), kern_fork.c).
  */
 static void
 swap_lost_retire (struct proc *p)
 {
-    struct proc *q, **pp;
-    int doingzomb = 0;
-
     if (p->p_pid == 1)
         panic ("init lost with the swap device");
     printf ("swap: pid %d lost with the swap device\n", p->p_pid);
@@ -847,35 +846,8 @@ swap_lost_retire (struct proc *p)
     p->p_flag &= ~P_TRACED;
     p->p_sigignore = ~0;
     p->p_sig = 0;
-    exec_text_release (p, NULL);
-    if ((*p->p_prev = p->p_nxt) != NULL)
-        p->p_nxt->p_prev = p->p_prev;
-    p->p_nxt = zombproc;
-    if (p->p_nxt != NULL)
-        p->p_nxt->p_prev = &p->p_nxt;
-    p->p_prev = &zombproc;
-    zombproc = p;
-    p->p_stat = SZOMB;
-    for (pp = &pidhash[PIDHASH (p->p_pid)]; *pp != p; pp = &(*pp)->p_hash)
-        continue;
-    *pp = p->p_hash;
-    p->p_xstat = SIGKILL;
+    proc_zombie (p, SIGKILL);
     bzero (&p->p_ru, sizeof (p->p_ru));
-    q = allproc;
-again:
-    for (; q; q = q->p_nxt)
-        if (q->p_pptr == p) {
-            q->p_pptr = &proc[1];
-            q->p_ppid = 1;
-            wakeup ((caddr_t) &proc[1]);
-        }
-    if (! doingzomb) {
-        doingzomb = 1;
-        q = zombproc;
-        goto again;
-    }
-    psignal (p->p_pptr, SIGCHLD);
-    wakeup ((caddr_t) p->p_pptr);
 }
 
 /*

@@ -864,8 +864,11 @@ it removable (`swap_removable`), so a failed transfer on it sets
 `swap_lost` (`sys/kern/vm_swp.c`) instead of panicking `hard err: swap`,
 and no later transfer reaches the card. `sched()` then retires every
 process whose image the card held (`swap_lost_sweep()`,
-`sys/kern/vm_swap.c`): each becomes a zombie with `SIGKILL` status, its
-children pass to init and its parent receives `SIGCHLD`; images in the
+`sys/kern/vm_swap.c`): each leaves its wait queue and becomes a zombie with `SIGKILL` status through
+`proc_zombie()` (`sys/kern/kern_exit.c`), the conversion `exit()` itself
+uses: its children pass to init (a traced child loses the trace and
+receives `SIGKILL`, a stopped one `SIGHUP` and `SIGCONT`) and its parent
+receives `SIGCHLD`; images in the
 SwapRAM pool, system processes and the resident process survive, and a lost
 init panics `init lost with the swap device`. A swap-out or fork copy that
 the loss interrupts cancels its reservation and leaves the process resident,

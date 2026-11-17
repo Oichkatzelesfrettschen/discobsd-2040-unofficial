@@ -46,6 +46,67 @@ endvfork(void)
 }
 
 /*
+ * Make p a zombie that reports rv: release its text, move it from allproc
+ * to zombproc and out of the pid hash, give its children to init and tell
+ * its parent. It needs no u area, so exit() and the retirement of a
+ * process whose image went with the swap device (swap_lost_retire(),
+ * vm_swap.c) share it. p_xstat shares storage with p_alive, so every
+ * p_alive field it reads is read before p_xstat is written. A kernel
+ * without SDSWAP_ENABLED has exit() as its one caller and keeps it static,
+ * so the compiler folds it into exit() and the kernel pays no call.
+ */
+#ifndef SDSWAP_ENABLED
+static
+#endif
+void
+proc_zombie(struct proc *p, int rv)
+{
+    register struct proc *q;
+    struct proc **pp;
+    int doingzomb = 0;
+
+    exec_text_release(p, NULL);
+    if ((*p->p_prev = p->p_nxt) != NULL)        /* off allproc queue */
+        p->p_nxt->p_prev = p->p_prev;
+    p->p_nxt = zombproc;                            /* onto zombproc */
+    if (p->p_nxt != NULL)
+        p->p_nxt->p_prev = &p->p_nxt;
+    p->p_prev = &zombproc;
+    zombproc = p;
+    p->p_stat = SZOMB;
+    for (pp = &pidhash[PIDHASH(p->p_pid)]; *pp; pp = &(*pp)->p_hash)
+        if (*pp == p) {
+            *pp = p->p_hash;
+            goto done;
+        }
+    panic("exit");
+done:
+    p->p_xstat = rv;
+    q = allproc;
+again:
+    for(; q; q = q->p_nxt)
+        if (q->p_pptr == p) {
+            q->p_pptr = &proc[1];
+            q->p_ppid = 1;
+            wakeup((caddr_t)&proc[1]);
+            if (q->p_flag& P_TRACED) {
+                q->p_flag &= ~P_TRACED;
+                psignal(q, SIGKILL);
+            } else if (q->p_stat == SSTOP) {
+                psignal(q, SIGHUP);
+                psignal(q, SIGCONT);
+            }
+        }
+    if (!doingzomb) {
+        doingzomb = 1;
+        q = zombproc;
+        goto again;
+    }
+    psignal(p->p_pptr, SIGCHLD);
+    wakeup((caddr_t) p->p_pptr);
+}
+
+/*
  * Exit: deallocate address space and other resources,
  * change proc state to zombie, and unlink proc from allproc
  * list.  Save exit status and rusage for wait4().
@@ -56,7 +117,6 @@ exit (int rv)
 {
     register int i;
     register struct proc *p;
-    struct  proc **pp;
 
     p = u.u_procp;
 #ifdef PICOCALC_ENABLED
@@ -89,62 +149,16 @@ exit (int rv)
     if (p->p_flag & SVFORK)
         endvfork();
 
-    exec_text_release(p, NULL);
-
     if (p->p_pid == 1)
         panic("init died");
-    if ((*p->p_prev = p->p_nxt) != NULL)        /* off allproc queue */
-        p->p_nxt->p_prev = p->p_prev;
-    p->p_nxt = zombproc;                            /* onto zombproc */
-    if (p->p_nxt != NULL)
-        p->p_nxt->p_prev = &p->p_nxt;
-    p->p_prev = &zombproc;
-    zombproc = p;
-    p->p_stat = SZOMB;
-    wakeup((caddr_t)&runin);
-
-    noproc = 1;
-    for (pp = &pidhash[PIDHASH(p->p_pid)]; *pp; pp = &(*pp)->p_hash)
-        if (*pp == p) {
-            *pp = p->p_hash;
-            goto done;
-        }
-    panic("exit");
-done:
+    proc_zombie(p, rv);
     /*
      * Overwrite p_alive substructure of proc - better not be anything
      * important left!
      */
-    p->p_xstat = rv;
     p->p_ru = u.u_ru;
     ruadd(&p->p_ru, &u.u_cru);
-    {
-        register struct proc *q;
-        int doingzomb = 0;
-
-        q = allproc;
-again:
-        for(; q; q = q->p_nxt)
-            if (q->p_pptr == p) {
-                q->p_pptr = &proc[1];
-                q->p_ppid = 1;
-                wakeup((caddr_t)&proc[1]);
-                if (q->p_flag& P_TRACED) {
-                    q->p_flag &= ~P_TRACED;
-                    psignal(q, SIGKILL);
-                } else if (q->p_stat == SSTOP) {
-                    psignal(q, SIGHUP);
-                    psignal(q, SIGCONT);
-                }
-            }
-        if (!doingzomb) {
-            doingzomb = 1;
-            q = zombproc;
-            goto again;
-        }
-    }
-    psignal(p->p_pptr, SIGCHLD);
-    wakeup((caddr_t) p->p_pptr);
+    noproc = 1;
     wakeup((caddr_t) &runin);
     swtch();
     /* NOTREACHED */

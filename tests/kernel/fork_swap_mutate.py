@@ -256,14 +256,29 @@ MUTATIONS = {
         "        psignal (p->p_pptr, SIGKILL);",
     ),
     "lost-sleeper-queued": ("    unsleep (p);", "    (void)0;"),
+    # The zombie conversion and reparenting are exit()'s, in proc_zombie()
+    # (kern_exit.c), which swap_lost_retire() calls.
     "lost-children-kept": ("            q->p_ppid = 1;", "            (void)0;"),
     "lost-parent-untold": (
-        "    psignal (p->p_pptr, SIGCHLD);\n"
-        "    wakeup ((caddr_t) p->p_pptr);\n}\n\n/*\n * Retire every",
-        "    wakeup ((caddr_t) p->p_pptr);\n}\n\n/*\n * Retire every",
+        "    psignal(p->p_pptr, SIGCHLD);\n    wakeup((caddr_t) p->p_pptr);",
+        "    wakeup((caddr_t) p->p_pptr);",
     ),
-    "lost-status-clean": ("    p->p_xstat = SIGKILL;", "    p->p_xstat = 0;"),
-    "lost-zombie-hashed": ("    *pp = p->p_hash;\n    p->p_xstat", "    p->p_xstat"),
+    "lost-status-clean": ("    proc_zombie (p, SIGKILL);", "    proc_zombie (p, 0);"),
+    "lost-zombie-hashed": (
+        "            *pp = p->p_hash;\n            goto done;",
+        "            goto done;",
+    ),
+    "lost-traced-child-kept": (
+        "            if (q->p_flag& P_TRACED) {\n"
+        "                q->p_flag &= ~P_TRACED;\n"
+        "                psignal(q, SIGKILL);\n"
+        "            } else if",
+        "            if (0) {\n            } else if",
+    ),
+    "lost-stopped-child-kept": (
+        "                psignal(q, SIGHUP);\n                psignal(q, SIGCONT);",
+        "                (void)0;",
+    ),
     # After the sweep swap returns to the fixed device once the lost one's
     # map is empty: sched() must ask, a retired image must give its blocks
     # back, and a block still held must keep the lost device's map in place.

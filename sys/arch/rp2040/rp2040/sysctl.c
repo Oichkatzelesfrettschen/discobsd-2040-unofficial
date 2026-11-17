@@ -236,6 +236,37 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			struct storage_stats stats;
 
 			storage_snapshot(&stats);
+			{
+				extern u_short swap_wear_probe[96];
+				extern struct swap_who_probe {
+					char name[8];
+					u_short count[3];
+					u_int sectors[3];
+					u_short span_min[3];
+					u_short span_max[3];
+				} swap_who_probe[16];
+				static const char *const path[3] = { "ram", "copy", "exch" };
+				int wi, k;
+
+				printf("\nswapwear");
+				for (wi = 0; wi < 96; wi++)
+					printf("%s%u", wi % 16 ? " " : "\nswapwear ",
+					    swap_wear_probe[wi]);
+				printf("\nswapwear end\n");
+				for (wi = 0; wi < 16; wi++) {
+					if (swap_who_probe[wi].name[0] == 0)
+						continue;
+					printf("swapwho %s", swap_who_probe[wi].name);
+					for (k = 0; k < 3; k++)
+						printf(" %s %u %u %u %u", path[k],
+						    swap_who_probe[wi].count[k],
+						    swap_who_probe[wi].sectors[k],
+						    swap_who_probe[wi].span_min[k],
+						    swap_who_probe[wi].span_max[k]);
+					printf("\n");
+				}
+				printf("swapwho end\n");
+			}
 			return sysctl_rdstruct(oldp, oldlenp, newp, &stats,
 			    sizeof stats);
 		}

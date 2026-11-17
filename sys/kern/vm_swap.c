@@ -48,6 +48,68 @@ swap_image_span_geometry (size_t data_size, size_t stack_size,
 #endif
 }
 
+/*
+ * Measurement probe: completed swap-outs by command name and path. The
+ * name is copied before any transfer, because the in-place exchange puts
+ * the incoming process's u area where the outgoing one was. sectors[] holds
+ * exact sums of image spans in 4 KiB sectors, per path.
+ */
+#define SWAP_WHO_RAM    0
+#define SWAP_WHO_COPY   1
+#define SWAP_WHO_EXCH   2
+struct swap_who_probe {
+    char    name[8];
+    u_short count[3];
+    u_int   sectors[3];
+    u_short span_min[3];
+    u_short span_max[3];
+} swap_who_probe[16];
+
+static char swap_who_exchange_name[8], swap_who_copy_name[8];
+
+static void
+swap_who_name (struct proc *p, char *name)
+{
+    const char *comm = ((struct user *) p->p_addr)->u_comm;
+    int k;
+
+    for (k = 0; k < 7 && comm[k]; k++)
+        name[k] = comm[k];
+    if (k == 0)
+        name[k++] = '?';
+    name[k] = 0;
+}
+
+static void
+swap_who_note (const char *name, size_t span, int path)
+{
+    struct swap_who_probe *w;
+    u_int sectors = span / 4;
+    int i, k;
+
+    for (i = 0; i < 15; i++) {
+        w = &swap_who_probe[i];
+        if (w->name[0] == 0) {
+            for (k = 0; k < 8; k++)
+                w->name[k] = name[k];
+            break;
+        }
+        for (k = 0; k < 8 && w->name[k] == name[k] && name[k]; k++)
+            ;
+        if (k == 8 || w->name[k] == name[k])
+            break;
+    }
+    w = &swap_who_probe[i];
+    if (i == 15)
+        w->name[0] = '*';
+    w->count[path]++;
+    w->sectors[path] += sectors;
+    if (w->span_min[path] == 0 || sectors < w->span_min[path])
+        w->span_min[path] = sectors;
+    if (sectors > w->span_max[path])
+        w->span_max[path] = sectors;
+}
+
 #if defined(STORAGE_STATS) && defined(SWAPRAM) && defined(SWAP_IMAGE_ALIGN)
 /*
  * Admission probe histogram (sys/storage_stats.h): a completed swap-out
@@ -566,6 +628,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
         reservation->state != SWAP_IMAGE_RESERVED ||
         reservation->tier != SWAP_IMAGE_EXCHANGE)
         panic ("swap exchange: reservation");
+    swap_who_name (outgoing, swap_who_exchange_name);
     incoming_sectors = reservation->exchange_span / SWAP_IMAGE_ALIGN;
     outgoing_sectors = reservation->span / SWAP_IMAGE_ALIGN;
     sector_count = incoming_sectors > outgoing_sectors ? incoming_sectors :
@@ -616,6 +679,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
 #ifdef SWAPRAM
     /* Completion is counted once every sector has been transferred. */
     storage_note (STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS, 1);
+    swap_who_note (swap_who_exchange_name, reservation->span, SWAP_WHO_EXCH);
     SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
 #endif
 
@@ -666,6 +730,7 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
     if (reservation->owner != p ||
         reservation->state != SWAP_IMAGE_RESERVED)
         panic ("swap image: copy owner");
+    swap_who_name (p, swap_who_copy_name);
 #ifdef SWAPRAM
     storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
     if (ram)
@@ -726,6 +791,12 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
         storage_note (STORAGE_SWAPRAM_FLASH_SWAPOUTS, 1);
         SWAP_NOTE_SPAN (STORAGE_SWAPRAM_FLASH_SPAN_01, reservation->span);
     }
+#endif
+#ifdef SWAPRAM
+    swap_who_note (swap_who_copy_name, reservation->span,
+        ram ? SWAP_WHO_RAM : SWAP_WHO_COPY);
+#else
+    swap_who_note (swap_who_copy_name, reservation->span, SWAP_WHO_COPY);
 #endif
     reservation->state = SWAP_IMAGE_COPIED;
 }

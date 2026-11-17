@@ -65,6 +65,8 @@
 #include <rp2040/dhara/map.h>
 #include <rp2040/rp2040/clock_catchup.h>
 
+u_short swap_wear_probe[FLASH_SWAP_BYTES / FLASH_SECTOR_BYTES];
+
 #ifdef STORAGE_STATS
 static struct storage_stats flstats = {
     .version = STORAGE_STATS_VERSION,
@@ -557,6 +559,13 @@ flash_erase(u_int offset, u_int len)
 	if (!flash_write_admitted(offset, len, flash_write_end))
 		return -1;
 	s = splhigh();
+	if (offset >= FLASH_SWAP_OFFSET) {
+		u_int probe_i;
+
+		for (probe_i = 0; probe_i < len / FLASH_SECTOR_BYTES; probe_i++)
+			swap_wear_probe[(offset - FLASH_SWAP_OFFSET) /
+			    FLASH_SECTOR_BYTES + probe_i]++;
+	}
 	storage_note(offset >= FLASH_SWAP_OFFSET ?
 	    STORAGE_SWAP_ERASE_SECTORS : STORAGE_ROOT_ERASE_SECTORS,
 	    len / FLASH_SECTOR_BYTES);

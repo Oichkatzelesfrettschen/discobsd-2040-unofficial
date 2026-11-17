@@ -31,8 +31,9 @@
 # Usage: sh tools/picocalc/mksdroot.sh FSUTIL DESTDIR MANIFEST KBYTES PART OUT
 #
 # FSUTIL is the host fsutil, DESTDIR the installed tree and MANIFEST the
-# composed manifest of the board's image rule (distrib/rp2040/_manifest),
-# so the files are the ones the flash root carries. KBYTES is the
+# board's composed manifest extended by distrib/rp2040/mksdmanifest.py with
+# every other file of DESTDIR, so the card carries the whole install tree
+# where the flash root carries the profile's selection. KBYTES is the
 # partition's size in kbytes and PART its letter (a to d), which is the
 # MBR slot the kernel finds and so the device /etc/fstab names. OUT
 # receives the bare filesystem, with no partition table, ready to be
@@ -43,8 +44,9 @@
 # the loader holds other applications' bytes; /etc/ttys runs a getty on
 # tty0, the USB-C serial port; and the image carries the block and raw
 # nodes of all four MBR partitions, which the flash root leaves to mknod
-# for want of inodes. The inode count is fsutil's default, one per 16
-# kbytes.
+# for want of inodes. The image has one inode per 8 kbytes (4,096 for
+# 32 MiB): the whole tree takes about 1,700, and fsutil's default of one
+# per 16 kbytes would leave about 350 for the owner's files.
 
 set -eu
 
@@ -117,7 +119,8 @@ for n in 1 2 3 4; do
 done
 
 rm -f "$NEW"
-"$FSUTIL" --new --size="$KBYTES" --manifest="$WORK/manifest" "$NEW" \
+"$FSUTIL" --new --size="$KBYTES" --inodes=$((KBYTES / 8)) \
+    --manifest="$WORK/manifest" "$NEW" \
     "$WORK/tree" >/dev/null
 "$FSUTIL" --check "$NEW"
 size=$(wc -c < "$NEW")

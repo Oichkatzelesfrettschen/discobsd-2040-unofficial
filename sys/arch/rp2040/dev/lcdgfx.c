@@ -266,9 +266,52 @@ int
 lcdgfx_close(void)
 {
 	window_end();
+#ifdef LCD_PANELTEST
+	if (st7365p_set_current() != 0)
+		(void)st7365p_set(0);
+#endif
 	gfx_open = 0;
 	return lcdcons_gfx(0);
 }
+
+#ifdef LCD_PANELTEST
+int
+lcdgfx_panel_set(int n)
+{
+	int error;
+
+	if (!gfx_open)
+		return EBUSY;
+	window_end();
+	error = st7365p_set(n);
+	if (error == 0) {
+		gfx_fmt = LCDG_COLMOD_RGB666;
+		scr_top = 0;
+		scr_bottom = LCDGFX_BOTTOM;
+	}
+	return error;
+}
+
+int
+lcdgfx_panel_read(struct picocalc_panel_read *rb)
+{
+	if (!gfx_open)
+		return EBUSY;
+	window_end();
+	st7365p_readback(rb);
+	return 0;
+}
+
+int
+lcdgfx_panel_scan(struct picocalc_panel_scan *sc)
+{
+	if (!gfx_open)
+		return EBUSY;
+	window_end();
+	st7365p_scan(sc);
+	return 0;
+}
+#endif
 
 int
 lcdgfx_isopen(void)

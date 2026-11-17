@@ -28,12 +28,15 @@ stays on the flash when neither takes it. PICOCALC is the full PicoCalc
 kernel: the PSRAM driver, every per-driver device option below, the
 keyboard controller's `machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
 diagnostic options `SYSTRACE` and `CAPACITY_STATS` (`kern.systrace`,
-`kern.systracepid`, `kern.capacity`). PICOCALC_LEAN
+`kern.systracepid`, `kern.capacity`) and the panel register test
+(`LCD_PANELTEST`, `PANELTEST.md`). PICOCALC_LEAN
 (`sys/arch/rp2040/compile/PICOCALC_LEAN/Config`) omits the four device
-options and the two diagnostic options and answers `EOPNOTSUPP` for those
-nodes; PICOCALC_LEAN_DIAG (`sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/Config`)
-is PICOCALC_LEAN with the diagnostic options. The panel register test
-(`LCD_PANELTEST`) and later diagnostic options join PICOCALC and
+options, the two diagnostic options and the panel register test and answers
+`EOPNOTSUPP` for those nodes; PICOCALC_LEAN_DIAG
+(`sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/Config`) is PICOCALC_LEAN with the
+two diagnostic options. The panel register test runs through `/dev/lcdgfx`,
+which PICOCALC_LEAN_DIAG does not carry (`DEV_LCDGFX`), so it stays in
+PICOCALC; later diagnostic options that need no device join PICOCALC and
 PICOCALC_LEAN_DIAG. All three compile the PicoCalc board descriptor, and
 `UNION_KERNEL` pairs any of them with a board's descriptor
 (`unix[-BOARD].uf2`, `unix[-BOARD]-LEAN.uf2` or `unix[-BOARD]-LEAN-DIAG.uf2`).
@@ -1054,8 +1057,18 @@ BOARD=PICOCALC sdroot`, which writes
 `distrib/rp2040/sdroot-PICOCALC.img` (`tools/picocalc/mksdroot.sh`;
 with `UNION_KERNEL=PICOCALC_LEAN` or `PICOCALC_LEAN_DIAG` it holds the
 `picocalc-lean` root and is named `sdroot-PICOCALC-LEAN.img`):
-the files of the flash root as a bare 32 MiB filesystem (`SDROOT_KBYTES`)
-with no partition table, the block and raw nodes of all four card
+every file of the install tree as a bare 32 MiB filesystem
+(`SDROOT_KBYTES`) with no partition table and one inode per 8 kbytes,
+where the flash root carries its profile's selection.
+`distrib/rp2040/mksdmanifest.py` extends the flash root's composed manifest,
+which keeps its owners, modes, setuid bits, links and nodes, with every
+other directory, file and symbolic link of the tree, owned by root. The
+image then holds about 1,720 files in 15.6 MB, among them MATEzinho's icon
+pack in `/usr/share/matezinho` (with its CC BY-SA 3.0 notices and the
+source art as `artwork.tar`) and the `desktop` command that starts it,
+`paneltest` (`doc/PANELTEST.md`), and the board test programs of
+`tests/rp2040` (`fptest`, `sigtest`, `lcdgfxtest`, `windowtest` and the
+rest) in `/usr/tests/rp2040`. It also holds the block and raw nodes of all four card
 partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
 `fsck -p` and `mount -a` in `/etc/rc` read it, and a getty on tty0, the
 USB-C port's serial line at 115200 baud, beside the panel's console login. It is written at the first

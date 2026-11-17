@@ -83,6 +83,14 @@
 # under the PWM slice's double-buffered compare and the GPIO output
 # override; six mutants of picoaudio.c must fail it.
 #
+# panel_decode_test runs the panel test's readback and scanline decode
+# (usr.bin/paneltest/panel_decode.h) on the bytes the PicoCalc board
+# returned and on scanline samples of known rate; eight mutants of the
+# header (a shift without the carried bit, a rate over wraps rather than
+# frames, a line count without the line 0, a span bound of one gap, MX on
+# the wrong bit, the pixel format on the wrong bits, a rate from one wrap,
+# the gamma curve on the wrong bits) must fail it.
+#
 # uart_test includes the RP2040 UART driver (uart.c) unchanged with
 # UART_HOST_MODEL, which replaces the PL011 register helpers of uart.h with
 # a model of the 32-byte transmit FIFO and shift register whose interrupt
@@ -128,7 +136,7 @@ all: check
 
 check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	uart_test font-sync
+	uart_test panel_decode_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
@@ -140,9 +148,10 @@ check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	./picoaudio_test
 	./picopcm_test
 	./uart_test
+	./panel_decode_test
 	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
-	    picoaudio-mutants picopcm-mutants uart-mutants
+	    picoaudio-mutants picopcm-mutants uart-mutants panel-decode-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -170,6 +179,62 @@ gametile_test: gametile_test.c ${TOPSRC}/games/gametile.h \
 	    ${TOPSRC}/sys/sys/lcdgfx.h
 	${HOST_CC} ${CSTD} -D_DEFAULT_SOURCE ${SAN} -g -I${TOPSRC}/tests/picocalc/shim \
 	    -I${TOPSRC}/games -o $@ gametile_test.c
+
+# The decode header is strict C17 like paneltest's other code; the mutants
+# compile the test against a mutated copy, so CSTD carries no -I for it.
+PANELTEST=	${TOPSRC}/usr.bin/paneltest
+
+panel_decode_test: panel_decode_test.c ${PANELTEST}/panel_decode.h
+	${HOST_CC} ${CSTD} ${SAN} -g -I${PANELTEST} -o $@ panel_decode_test.c
+
+PD_MUT=		@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD} ${SAN}" "${PANELTEST}" \
+		panel_decode_test.c panel_decode.h
+
+panel-decode-mutants: panel-decode-mutant-shift-carry \
+	panel-decode-mutant-frames \
+	panel-decode-mutant-lines \
+	panel-decode-mutant-slop \
+	panel-decode-mutant-mx \
+	panel-decode-mutant-ifpf \
+	panel-decode-mutant-one-wrap \
+	panel-decode-mutant-gcs
+
+panel-decode-mutant-shift-carry:
+	${PD_MUT} 's/(i + 1 < n ? raw\[i + 1\] >> 7 : 0)/0/' panel_decode.h
+
+panel-decode-mutant-frames:
+	${PD_MUT} 's/(wraps - 1) \* 100000000ULL/wraps * 100000000ULL/' \
+	    panel_decode.h
+
+panel-decode-mutant-lines:
+	${PD_MUT} 's/r->lines = ((raw_max >> 7) & 0xffff) + 1;/r->lines = (raw_max >> 7) \& 0xffff;/' \
+	    panel_decode.h
+
+panel-decode-mutant-slop:
+	${PD_MUT} 's/slop = 2ULL \* max_gap_us + 2;/slop = max_gap_us;/' \
+	    panel_decode.h
+
+panel-decode-mutant-mx:
+	${PD_MUT} 's/{ 0, 0x20, "MX" }/{ 0, 0x10, "MX" }/' panel_decode.h
+
+panel-decode-mutant-ifpf:
+	${PD_MUT} 's/pd_bpp((unsigned)v\[1\] >> 4)/pd_bpp((unsigned)v[1] >> 3)/' \
+	    panel_decode.h
+
+panel-decode-mutant-one-wrap:
+	${PD_MUT} 's/if (wraps < 2 || /if (wraps < 1 || /' panel_decode.h
+
+panel-decode-mutant-gcs:
+	${PD_MUT} 's/(unsigned)v\[3\] >> 6/(unsigned)v[3] >> 5/' panel_decode.h
+
+.PHONY: panel-decode-mutants panel-decode-mutant-shift-carry \
+	panel-decode-mutant-frames \
+	panel-decode-mutant-lines \
+	panel-decode-mutant-slop \
+	panel-decode-mutant-mx \
+	panel-decode-mutant-ifpf \
+	panel-decode-mutant-one-wrap \
+	panel-decode-mutant-gcs
 
 sdspi_test: sdspi_test.c ${DEV}/sdspi.c ${DEV}/sdspi.h ${CRC32}
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -idirafter ${TOPSRC}/sys \
@@ -1959,7 +2024,7 @@ uart-mutant-rx-pull-down:
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	    uart_test
+	    uart_test panel_decode_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \

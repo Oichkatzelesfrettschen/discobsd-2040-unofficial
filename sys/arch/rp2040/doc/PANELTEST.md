@@ -1,0 +1,233 @@
+# PicoCalc panel register test
+
+The PicoCalc's ST7365P panel controller takes its gamma, power, VCOM,
+frame-rate and inversion settings from Command Table 2 (ST7365P_SPEC_V1.0,
+section 9.3). `st7365p.c` writes those registers from the vendor ILI9488P
+sequence but never sends CSCON F0h C3h/96h, which page 245 documents as the
+enable of command 2, and page 246 gives CSCON's power-on and reset defaults
+as N/A. Whether the shipped writes take effect is therefore open, and so is
+whether other settings render small text more crisply. The panel test
+answers both on the board: the PICOCALC kernel (`options LCD_PANELTEST`) programs
+one of a fixed list of register sets on request and reads the controller's
+read commands back over SPI1 RX (GP12, the panel's SDO), and `paneltest`
+draws the calibration patterns.
+
+## Mechanism
+
+- `sys/arch/rp2040/dev/paneltest_sets.h` lists the register sets as
+  `X(name, pre, base, post)`. A set is a hardware reset, the byte tables
+  PRE, BASE and POST, SLPOUT, the 320-line scroll definition and DISPON,
+  then COLMOD 66h so `/dev/lcdgfx` keeps its pixel format. Every byte comes
+  from a table in `st7365p.c`; user space chooses only the set number. No
+  set sends an NVM command (D0h, D1h) or a value outside the datasheet's
+  documented field range.
+- `machdep.picocalc.panel_variant` (superuser) reprograms set N when the
+  written value is `0x5054 << 16 | N`; any other value returns EINVAL.
+  `machdep.picocalc.panel_read` (superuser, read only) returns a `struct
+  picocalc_panel_read` (`machine/picocalcvar.h`). Both return EBUSY unless
+  `/dev/lcdgfx` is open, so the console draws nothing while the panel is
+  reprogrammed or read, and the last close programs set 0 again.
+- The readback sends each read command with D/CX low and clocks the reply
+  at 3.125 MHz, inside TSCYCR (150 ns, page 77). The first twelve entries
+  are Command Table 1 and ID reads (04h, 09h, 0Ah-0Fh, DAh-DCh, D3h), the
+  calibration: a dead SDO line reads all zero or all one there. Entries
+  13-20 read Command Table 2 registers through SPI Read Control (FBh,
+  page 246, SPI_REN in bit 4, the parameter number in bits 3-0). If SPIRC
+  has no effect those reads clock zero bytes into the register as
+  parameters, so `paneltest` programs its set again after every readback.
+- `machdep.picocalc.panel_scan` (superuser, read only, same EBUSY rule)
+  samples GSCAN (45h, page 201), the line the controller is scanning, and
+  returns a `struct picocalc_panel_scan`; the frame-rate measurement
+  below states its decode, resolution and error bound.
+- Entries 21-28 of the readback are the Command Table 2 read control:
+  each unlocks command 2, writes the mark values C5h 2Ah and B1h 50h 1Ch
+  (`PANEL_MARK_*`, `machine/picocalcvar.h`) and then reads, changing one
+  condition from the marked C5h read through FBh 10h: no FBh, parameter
+  number 1, FBh before the unlock, command 2 locked again (CSCON 3Ch,
+  69h) before FBh, FBh inside the read's chip select, then B1h through
+  parameter numbers 0 and 1. The `how` byte of each entry names its
+  variant. Rewriting the marks before every read keeps the variants
+  independent of what an earlier read clocked into the registers. Set 27
+  programs the same marks, so they also stand in the panel between
+  readbacks.
+- PICO, PICO_DIAG and the PICOCALC_LEAN pair omit the option and compile
+  none of this; their panel sequence is
+  unchanged (`panel_program()` runs the same `init_seq` bytes).
+
+## Running it
+
+Boot the PICOCALC kernel, which carries `LCD_PANELTEST`, with `paneltest` in the
+root (the PicoCalc SD root installs it), log in, `su`, run `paneltest`.
+Keys: right and left arrows (or `n`/`p`) step the set, down and up
+arrows (or `1`-`7`) step the pattern, `r` reads back, `f` measures the
+frame rate, `q` quits. The top left corner of every pattern (RAM line
+160 under pattern 7, the first line on the glass there) shows the set
+number, its name, the pattern and the rate last measured under the set.
+`/var/log/paneltest.log` keeps every set change, readback and
+measurement. A set stays in force until the last close of `/dev/lcdgfx`
+programs set 0 again.
+
+Pattern 1 shows, below the text sample, 04h, 09h and D3h raw and shifted
+left one bit, the 09h fields by name, 0Ah, 0Bh and 0Ch decoded from
+their first byte, the last measurement, and every raw entry in two
+columns as `cmd fbNN hH: bytes`. `usr.bin/paneltest/panel_decode.h` holds
+the decode; `panel_decode_test` in `check-picocalc-host` checks it.
+
+| Pattern | Draws | Experiment |
+| --- | --- | --- |
+| 1 | console text sample and the latest readback | text crispness, readback |
+| 2 | black/white halves, 1-pixel checker, columns, rows | E0, E3 |
+| 3 | 32 gray bars, full black, full white | E0, E2 |
+| 4 | 1-pixel red, green, blue, white columns; red beside white | E6 |
+| 5 | 50% gray with a 1-dot checker square | E1, E5 |
+| 6 | white square on 50% gray | E3 crosstalk |
+| 7 | ten color bands, 480-line scroll area started at line 160 | E7 |
+
+## Frame-rate sets and measurement
+
+FRMCTR1 (B1h, page 219) gives the normal-mode frame rate as
+10^7 / ((168 + RTNA + 32 (15 - FRS)) (480 + VFP + VBP)). BPC (B5h,
+page 222) has no documented reset value, so every frame-rate set writes
+B5h 02h 02h 00h 04h before SLPOUT, which fixes the second factor at 484.
+The formula omits DIVA; the 24 Hz set relies on DIVA = 01b (Fosc / 2)
+halving a 48 Hz timing, an inference. `st7365p.c` asserts at compile
+time that each set's bytes give its nominal rate within 0.25 Hz.
+
+| Set | B1h bytes | FRS | DIVA | RTNA | Line units | Formula |
+| --- | --- | --- | --- | --- | --- | --- |
+| 21 | 71h 06h | 7 | Fosc/2 | 6 | 430 | 48.05 Hz, halved 24.02 Hz |
+| 22 | 50h 1Ch | 5 | Fosc | 28 | 516 | 40.04 Hz |
+| 23 | A0h 10h | 10 | Fosc | 16 | 344 | 60.06 Hz |
+| 24 | C0h 0Bh | 12 | Fosc | 11 | 275 | 75.13 Hz |
+| 25 | E0h 1Eh | 14 | Fosc | 30 | 230 | 89.83 Hz |
+| 26 | F0h 04h | 15 | Fosc | 4 | 172 | 120.13 Hz |
+
+Sets 21-26 unlock command 2 first. Set 23 writes the datasheet defaults,
+so it is the reference the other rates compare against. The shipped
+sequence writes B1h A0h alone (RTNA left as reset) and no B5h; sets 14
+and 15 write B1h 00h alone, 31.1 Hz at RTNA 10h and 484 lines.
+
+The kernel reads GSCAN back to back at 3.125 MHz, about 10 us a read,
+and times each read with the 1 us system timer, until nine wraps or
+400 ms. A wrap is a fall of more than 64 decoded lines. The reply's line
+number is decoded as bits 22-7 of its three bytes, the one-bit dummy
+clock the board's 24- and 32-bit reads carry; that decode is unmeasured
+for 45h, so paneltest also prints the line count without the shift.
+
+- Rate: the wraps - 1 frames between the first and last wrap over the
+  time between them. Each wrap's time is that of the read after it, late
+  by at most one read interval plus the read in progress, so the span is
+  off by at most 2 g + 2 us, where g is the largest interval between two
+  reads in the sample (interrupts stay enabled and lengthen g) and 2 us
+  covers the timer's 1 us steps. paneltest prints the bound
+  rate x (2 g + 2) / (span - 2 g - 2): with g near 11 us and eight
+  frames at 60 Hz it is about 0.02 Hz, and it grows only when an
+  interrupt stretches a gap. The 12 MHz crystal's tolerance adds parts
+  per million.
+- Resolution: hundredths of a hertz in the printout; eight frames at
+  24 Hz need 333 ms, inside the 400 ms bound, while fewer than two wraps
+  print no rate.
+- Line count: the largest line seen plus one. A read interval longer
+  than a line period (17 us at 120 Hz and 484 lines) can miss the last
+  lines; paneltest prints that slack, the read interval x rate x lines,
+  rounded up.
+
+## Predictions, recorded before the board run
+
+The experiment numbers refer to the controller report
+(`st7365p-crispness-report.md` of the local reference set); its section 7
+gives each measurement. Each line states what the outcome means.
+
+1. Readback calibration: 04h returns a nonzero ID after the one-bit dummy
+   shift, 0Ah reads 9Ch with the display on and sleep out (BSTON, SLPOUT,
+   NORON, DISON per page 151), 0Bh reads 48h and 0Ch reads 66h, in the
+   first byte if the SPI read has no dummy cycle (page 94) and in the
+   second if it follows the command table's dummy parameter. All-zero or
+   all-one bytes mean SDO is not reaching GP12, and every later readback
+   is void.
+2. E1 gating: if sets 14 (31 Hz locked) and 16 (VCOM 3Fh locked) flicker
+   or shift gray like sets 15 and 13 (unlocked), command 2 is live at
+   power-on and the shipped writes act. If only the unlocked sets change
+   the image, the shipped writes are discarded today, and set 2 (unlock)
+   differs visibly from set 0.
+3. SPIRC readback: B4h through FBh 10h reads 02h under set 0 if the
+   shipped write acts, the datasheet default 01h if it is gated. E0h
+   parameter 0 reads 00h under set 0 and F0h under set 3.
+4. E2 gamma: set 3 (datasheet default) gives a black frame at or below
+   set 2's; set 4 reproduces set 2's black level if V63P alone lifts it.
+5. E3 inversion: no firm prediction; sets 6, 7 and 2 (column, 1-dot,
+   2-dot) differ in shimmer on pattern 2.
+6. E5 VCOM: least flicker on pattern 5 near set 11 (1Ch, the datasheet
+   default) rather than set 2 (00h, the shipped value).
+7. E6 subpixel: under set 0 (MADCTL 48h) a red column lights the leftmost
+   stripe of its pixel; set 19 (MADCTL 40h) swaps red and blue; set 20
+   (MADCTL 08h) mirrors the columns without changing the stripe order.
+8. E7 lines: pattern 7 shows bands 5-9 in the top half and undrawn RAM
+   below; no more than 320 lines are visible at any scroll start.
+
+A board run records the set, the pattern, a photograph at fixed exposure
+for each judged item, and `/var/log/paneltest.log`.
+
+## Predictions for the frame-rate sets and read control, recorded before their board run
+
+9. GSCAN answers: under set 0 the line count reads 484 or close to it
+   with the shift (about 242 without), and the rate reads 60.06 Hz if the
+   reset RTNA is 10h and the reset porches are 2 lines. All-zero or
+   all-one samples (no wraps, or every read bad) mean GSCAN returns
+   nothing usable, and the frame-rate rows below are void.
+10. Command 2 gating by rate: if the unlocked sets 22-26 measure their
+    formula rates within the printed bound, unlocked Command Table 2
+    writes take effect; if every set measures set 0's rate, they do not,
+    or B1h needs more than the unlock.
+11. DIVA: set 21 measures 24.02 Hz if DIVA divides the frame clock as the
+    formula's omission implies, 48.05 Hz if DIVA is inert in this mode.
+12. Locked and unlocked 31 Hz, the deciding pair: sets 14 (locked) and
+    15 (unlocked) write the same FRMCTR1 value, B1h 00h, and differ only
+    in the CSCON unlock, so their measured rates decide the gating that
+    the gray levels of result 4 suggest. Set 15 at 31.1 Hz with set 14
+    at set 0's rate means the lock holds and the shipped writes are
+    discarded; both at 31.1 Hz means command 2 is live at power-on. Both
+    sets stay in the list for this comparison.
+13. Command Table 2 read control: a variant that returns 2Ah for C5h (in
+    the first byte, or as 2Ah shifted right one bit, 15h, followed by a
+    set top bit in the next) is a working read method, and the B1h
+    variants then read 50h and 1Ch. All eight returning zero is a
+    recorded negative for these conditions: FBh SPI_REN with parameter
+    numbers 0 and 1, before and after the unlock, locked, and in or out
+    of the read's chip select, at 3.125 MHz in four-wire SPI.
+
+## Results, 2026-11-17
+
+Board run on the PICOCALC kernel of branch head b47cda40 (sets 0-20, no
+frame-rate measurement or read control; those arrived later).
+
+1. Calibration (prediction 1): 0Ah 9Ch, 0Bh 48h and 0Ch 66h in the first
+   byte, as predicted for a read without a dummy cycle, so SDO reaches
+   GP12. The multi-byte reads carry one dummy clock: D3h reads
+   `00 3b cb 00`, which shifted left one bit is `00 77 96`, the ST7796
+   family ID; 09h reads `d2 31 d2 00 00`, shifted `a4 63 a4 00`: booster
+   on, MX, BGR (MADCTL 48h), 18-bit pixels, sleep out, normal mode,
+   scroll on, inversion on, display on. 04h reads `ff ff ff ff` and DAh,
+   DBh, DCh read `ff ff`; the prediction was a nonzero ID, and all-one
+   bytes are not distinguishable from an idle line.
+2. MADCTL (prediction 7, readback part): set 19 reads 0Bh 40h and 09h
+   shifted `a0` (BGR clear); set 20 reads 0Bh 08h and 09h shifted `84`
+   (MX clear). Sets 1 to 18 read as set 0 in every Command Table 1
+   register.
+3. Command Table 2 through FBh (prediction 3): B4h, B1h, C5h, B7h and
+   E0h read 00 under every set, locked or unlocked. No positive control
+   existed, so the observation is that this read method returned zero,
+   not that the registers are unreadable. Entries 21-28 add the control.
+4. E1 gating (prediction 2), by eye: set 15 (31 Hz, unlocked) flickers;
+   set 16 (VCOM 3Fh, locked) shows striping. Sets 13 and 14 were not
+   reported by eye. Hand-held 60 fps camera clips of pattern 5, cropped
+   to the screen, measured no flicker in any set (0.07% to 0.39%
+   frame-to-frame variation, a weak instrument with white clipped), and
+   in two recording runs the unlocked sets 13 and 15 render the 50% gray
+   lighter relative to white (gray/white 0.86 and 0.80, then 0.92 and
+   0.93) than the locked sets 14 and 16 and set 0 (0.71 and 0.70, then
+   0.83, 0.88 and 0.86). Inference, not proof: Command Table 2 writes
+   are discarded while locked and act after the CSCON unlock. Clipped
+   white compresses the ratios and exposure differed between runs.
+5. E7 lines (prediction 8): a photograph of pattern 7 shows bands 5-9
+   in the top half and undrawn RAM noise below, as predicted.

@@ -11,6 +11,7 @@
 #include <sys/param.h>
 #include <sys/conf.h>
 #include <sys/user.h>
+#include <sys/proc.h>
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
@@ -184,6 +185,25 @@ uartinit(int unit)
 }
 struct tty uartttys[NUART];
 
+/*
+ * Transmit state beside TS_BUSY, per unit. TS_BUSY covers every byte the
+ * line has not yet sent, so ttywait() (sys/kern/tty.c) returns only after
+ * the last stop bit. While t_outq holds bytes the FIFO level crossing calls
+ * uartintr(), which refills the FIFO. Once t_outq is empty, no interrupt
+ * reports the FIFO and shift register emptying: the PL011 raises its
+ * transmit interrupt only when the level falls through TXIFLSEL, whose
+ * lowest setting is 4 entries (RP2040 datasheet 4.2.6.3, 4.2.8 UARTIFLS),
+ * and UARTRIS carries no transmit-complete source. UART_TX_DRAIN marks that
+ * phase: uartdrain() runs from a callout each tick, reads UARTFR and clears
+ * TS_BUSY with the wakeup ttywait() sleeps on. uartstart() keeps filling
+ * the FIFO during it, so output appended then goes out at once.
+ * UART_TX_TIMER keeps one uartdrain() callout pending per unit, since
+ * timeout() accepts duplicates and panics when its table runs out.
+ */
+#define	UART_TX_DRAIN	0x01
+#define	UART_TX_TIMER	0x02
+static u_char uart_txflags[NUART];
+
 void cnstart(struct tty *tp);
 
 /*
@@ -346,18 +366,53 @@ uartintr(dev_t dev)
      */
     uart_irq_clear(uip->base, UART_INT_RX | UART_INT_RT);
 
-    /* Transmit */
+    /*
+     * Transmit: the FIFO has room, so refill it from t_outq. During the
+     * drain phase uartdrain() owns TS_BUSY, and the interrupt stays masked.
+     */
     if (uart_tx_ready(uip->base)) {
-        led_control(LED_TTY, 0);
-
-        /* Disable transmit interrupt. */
         uart_irq_disable(uip->base, UART_INT_TX);
 
-        if (tp->t_state & TS_BUSY) {
+        if ((tp->t_state & TS_BUSY) &&
+            !(uart_txflags[unit] & UART_TX_DRAIN)) {
+            led_control(LED_TTY, 0);
             tp->t_state &= ~TS_BUSY;
             ttstart(tp);
         }
     }
+}
+
+/*
+ * The drain callout, run from softclock() once per tick while the line
+ * sends the bytes left in the FIFO after t_outq emptied. It clears TS_BUSY
+ * when UARTFR reports the FIFO and shift register empty and wakes
+ * ttywait(). Output held back meanwhile by TS_TTSTOP or TS_TIMEOUT restarts
+ * through the ttstart() that clears either state.
+ */
+static void
+uartdrain(caddr_t arg)
+{
+    register struct tty *tp = (struct tty *)arg;
+    register const struct uart_inst *uip;
+    register int unit, s;
+
+    uip = (const struct uart_inst *)tp->t_addr;
+    unit = uip - uart;
+
+    s = spltty();
+    uart_txflags[unit] &= ~UART_TX_TIMER;
+    if (!(uart_txflags[unit] & UART_TX_DRAIN) || !(tp->t_state & TS_BUSY)) {
+        uart_txflags[unit] &= ~UART_TX_DRAIN;
+    } else if (uart_tx_drained(uip->base)) {
+        uart_txflags[unit] &= ~UART_TX_DRAIN;
+        tp->t_state &= ~TS_BUSY;
+        led_control(LED_TTY, 0);
+        ttyowake(tp);
+    } else {
+        uart_txflags[unit] |= UART_TX_TIMER;
+        timeout(uartdrain, arg, 1);
+    }
+    splx(s);
 }
 
 /*
@@ -372,20 +427,29 @@ uartintr(dev_t dev)
  * queue until the queue is empty or the FIFO is full. Only bytes left in
  * the queue need the interrupt: the FIFO then holds 32 bytes, its drain
  * crosses the trigger, and uartintr() calls back here to refill it.
- * Bytes already in the FIFO drain without software, and uartclose() leaves
- * the UART enabled, so an empty queue needs neither TS_BUSY nor the
- * interrupt.
+ * Once the queue is empty, TS_BUSY stays set until UARTFR reports the
+ * FIFO and shift register empty, and uartdrain() clears it then (see
+ * uart_txflags). spltty() is PRIMASK on this port (machine/intr.h), so
+ * this routine, uartputc() and uartdrain() never interleave with one
+ * another. uartintr() runs at the UART's priority without PRIMASK, and
+ * SysTick, which runs softclock() and so uartdrain(), preempts it. The two
+ * leave each other's state alone: uartintr() clears TS_BUSY only when
+ * UART_TX_DRAIN is clear, and uartdrain() with UART_TX_DRAIN clear changes
+ * only the callout flags. A callout that reaches this routine through
+ * ttstart() while uartintr() is preempted is not argued here; no code in
+ * this tree sets TS_TIMEOUT, the state that arms such a callout.
  */
 void
 uartstart(struct tty *tp)
 {
     register const struct uart_inst *uip;
-    register int c, s;
+    register int c, s, unit;
 
     if (! tp->t_addr)
         return;
 
     uip = (struct uart_inst *)tp->t_addr;
+    unit = uip - uart;
 
     /*
      * Must hold interrupts in following code to prevent
@@ -394,8 +458,11 @@ uartstart(struct tty *tp)
     s = spltty();
     /*
      * If it is currently active, or delaying, no need to do anything.
+     * The drain phase is not active output: bytes queued during it go
+     * into the FIFO behind the ones still leaving.
      */
-    if (tp->t_state & (TS_TIMEOUT | TS_BUSY | TS_TTSTOP)) {
+    if ((tp->t_state & (TS_TIMEOUT | TS_TTSTOP)) ||
+        ((tp->t_state & TS_BUSY) && !(uart_txflags[unit] & UART_TX_DRAIN))) {
         splx(s);
         return;
     }
@@ -408,12 +475,23 @@ uartstart(struct tty *tp)
     /* Wake writers waiting for the queue to drain below its low mark. */
     ttyowake(tp);
 
+    uart_txflags[unit] &= ~UART_TX_DRAIN;
     if (tp->t_outq.c_cc != 0) {
         tp->t_state |= TS_BUSY;
         uart_irq_enable(uip->base, UART_INT_TX);
         led_control(LED_TTY, 1);
-    } else
+    } else if (!uart_tx_drained(uip->base)) {
+        tp->t_state |= TS_BUSY;
+        uart_txflags[unit] |= UART_TX_DRAIN;
+        if (!(uart_txflags[unit] & UART_TX_TIMER)) {
+            uart_txflags[unit] |= UART_TX_TIMER;
+            timeout(uartdrain, (caddr_t)tp, 1);
+        }
+        led_control(LED_TTY, 1);
+    } else {
+        tp->t_state &= ~TS_BUSY;
         led_control(LED_TTY, 0);
+    }
     splx(s);
 }
 
@@ -436,7 +514,12 @@ again:
         if (--timo == 0)
             break;
 
-    if (tp->t_state & TS_BUSY) {
+    /*
+     * Refill the FIFO from t_outq first, so the console byte follows the
+     * queued output. The drain phase needs no wait: the FIFO keeps order,
+     * and uartdrain() cannot run while spltty() holds PRIMASK.
+     */
+    if ((tp->t_state & TS_BUSY) && !(uart_txflags[unit] & UART_TX_DRAIN)) {
         uartintr(dev);
         goto again;
     }

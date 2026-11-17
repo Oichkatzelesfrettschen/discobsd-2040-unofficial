@@ -55,7 +55,8 @@
 #
 # sdspi_test runs the SD card protocol layer against a card model that
 # replays recorded command transcripts, including the crash dump's window
-# reads and summed span writes; twenty-three mutants of sdspi.c must fail
+# reads and summed span writes, and holds every command frame and data block to
+# CRC7 and CRC16 computed bit by bit; thirty mutants of sdspi.c must fail
 # it.
 #
 # sdstrat_test compiles the SD disk driver (sd.c) unchanged against the
@@ -80,11 +81,14 @@
 #
 # uart_test includes the RP2040 UART driver (uart.c) unchanged with
 # UART_HOST_MODEL, which replaces the PL011 register helpers of uart.h with
-# a model of the 32-byte transmit FIFO whose interrupt asserts only when the
-# level falls through the half-full trigger (RP2040 datasheet 4.2.6.3), and
-# requires output of 1 to 1000 bytes to reach the wire in order with no
-# received byte to run the interrupt handler; two mutants of uart.c (one
-# byte per start, TS_BUSY with an empty queue) must fail it.
+# a model of the 32-byte transmit FIFO and shift register whose interrupt
+# asserts only when the level falls through the half-full trigger (RP2040
+# datasheet 4.2.6.3), plus a one-entry callout list run each kernel tick.
+# It requires output of 1 to 1000 bytes to reach the wire in order with no
+# received byte to run the interrupt handler, and a ttywait() loop after 1,
+# 7, 32 and 100 bytes to return only once the FIFO and shift register are
+# empty, through the drain callout's wakeup. Eight mutants of uart.c must
+# fail it (see uart-mutants).
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -110,12 +114,17 @@ SAN=		-fsanitize=address,undefined -fno-sanitize-recover=all
 KCSTD=		-std=gnu17 -Wall -Wextra -Werror \
 		-DBUS_KHZ=125000 -DCPU_KHZ=125000 \
 		-I${TOPSRC}/tests/picocalc/shim -I${TOPSRC}/sys/arch
+# lcdgfx.c is compiled only in a kernel whose Config sets DEV_LCDGFX (the
+# PARAM of the generated Makefile); without it lcdgfx.h declares the ENXIO
+# stubs, which collide with the driver's own definitions.
+GFXCSTD=	${KCSTD} -DDEV_LCDGFX
 SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
 
 check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	sdspi_test sdstrat_test dump_test picoaudio_test uart_test font-sync
+	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
+	uart_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
@@ -125,10 +134,11 @@ check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	./sdstrat_test
 	./dump_test
 	./picoaudio_test
+	./picopcm_test
 	./uart_test
 	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
-	    picoaudio-mutants uart-mutants
+	    picoaudio-mutants picopcm-mutants uart-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -136,7 +146,7 @@ lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 lcdgfx_test: lcdgfx_test.c ${DEV}/lcdgfx.c ${DEV}/lcdgfx.h ${DEV}/lcdterm.c \
 	    ${DEV}/lcdterm.h ${DEV}/lcdfont.c ${DEV}/lcdfont.h \
 	    ${TOPSRC}/sys/sys/lcdgfx.h
-	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ lcdgfx_test.c ${DEV}/lcdgfx.c \
+	${HOST_CC} ${GFXCSTD} ${SAN} -g -o $@ lcdgfx_test.c ${DEV}/lcdgfx.c \
 	    ${DEV}/lcdterm.c ${DEV}/lcdfont.c
 
 kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
@@ -231,6 +241,11 @@ dump-mutant-temp-kept:
 picoaudio_test: picoaudio_test.c regmodel.h ${DEV}/picoaudio.c \
 	    ${DEV}/picocalc_reg.h
 	${HOST_CC} ${KCSTD} ${SAN} -g -o $@ picoaudio_test.c ${DEV}/picoaudio.c
+
+picopcm_test: picopcm_test.c regmodel.h ${DEV}/picopcm.c ${DEV}/picopcm.h \
+	    ${DEV}/picoaudio.c ${DEV}/picocalc_reg.h
+	${HOST_CC} ${KCSTD} ${SAN} -g -I${DEV} -o $@ picopcm_test.c \
+	    ${DEV}/picopcm.c ${DEV}/picoaudio.c
 
 font-sync:
 	@if [ -z "${PYTHON}" ]; then \
@@ -749,7 +764,7 @@ gametile-mutant-touch-unchecked:
 	${GAMETILE_MUT} gametile.h \
 	    '/^gtile_touch_tiles/,/^}/s/^\tif (!gtile_range_ok(first, count))$$/\tif (0)/' ${GAMETILE_SRC}
 
-GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${GFXCSTD}" "${DEV}" \
 		lcdgfx_test.c
 
 GFX_SRC=	lcdgfx.c lcdgfx.h lcdterm.c lcdterm.h lcdfont.c lcdfont.h
@@ -1110,8 +1125,15 @@ SDSPI_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
 SDSPI_SRC=	sdspi.c sdspi.h ${CRC32}
 
 sdspi-mutants: \
-	sdspi-mutant-crc-cmd8 \
-	sdspi-mutant-crc-cmd0 \
+	sdspi-mutant-crc7-generator \
+	sdspi-mutant-crc7-end-bit \
+	sdspi-mutant-crc16-tap \
+	sdspi-mutant-crc16-unchecked \
+	sdspi-mutant-crc16-unsent \
+	sdspi-mutant-crc-refusal-ignored \
+	sdspi-mutant-crc-never-enabled \
+	sdspi-mutant-write-status-ignored \
+	sdspi-mutant-write-status-unsent \
 	sdspi-mutant-hcs \
 	sdspi-mutant-byte-address \
 	sdspi-mutant-echo-pattern \
@@ -1134,13 +1156,41 @@ sdspi-mutants: \
 	sdspi-mutant-span-padding \
 	sdspi-mutant-span-sum-late
 
-sdspi-mutant-crc-cmd8:
+sdspi-mutant-crc7-generator:
 	${SDSPI_MUT} sdspi.c \
-	    's/cmd == CMD8 ? 0x87/cmd == CMD8 ? 0x86/' ${SDSPI_SRC}
+	    's/(crc << 1) ^ 0x12 : crc << 1/(crc << 1) ^ 0x10 : crc << 1/' ${SDSPI_SRC}
 
-sdspi-mutant-crc-cmd0:
+sdspi-mutant-crc7-end-bit:
 	${SDSPI_MUT} sdspi.c \
-	    's/cmd == CMD0 ? 0x95/cmd == CMD0 ? 0x94/' ${SDSPI_SRC}
+	    's/return (unsigned char)(crc | 1);/return (unsigned char)crc;/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-tap:
+	${SDSPI_MUT} sdspi.c \
+	    's/(x << 12) ^ (x << 5) ^ x/(x << 12) ^ (x << 4) ^ x/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-unchecked:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (sd->crc \&\& sent != crc)/if (sd->crc \&\& sent == 0x10000)/' ${SDSPI_SRC}
+
+sdspi-mutant-crc16-unsent:
+	${SDSPI_MUT} sdspi.c \
+	    's/(void)o->xfer(crc16 >> 8);/(void)o->xfer(0xff);/' ${SDSPI_SRC}
+
+sdspi-mutant-crc-refusal-ignored:
+	${SDSPI_MUT} sdspi.c \
+	    's/sd->crc = r == R1_IDLE;/sd->crc = 1;/' ${SDSPI_SRC}
+
+sdspi-mutant-crc-never-enabled:
+	${SDSPI_MUT} sdspi.c \
+	    's/r = sd_cmd(o, CMD59, 1);/r = R1_NONE;/' ${SDSPI_SRC}
+
+sdspi-mutant-write-status-ignored:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (r != 0 || b != 0)/if (r != 0)/' ${SDSPI_SRC}
+
+sdspi-mutant-write-status-unsent:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (err == SDE_OK) {/if (0) {/' ${SDSPI_SRC}
 
 sdspi-mutant-hcs:
 	${SDSPI_MUT} sdspi.c \
@@ -1522,6 +1572,72 @@ sdstrat-mutant-dump-table-dropped:
 PICOAUDIO_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
 		picoaudio_test.c
 
+PICOPCM_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+		picopcm_test.c
+PICOPCM_SRC=	picopcm.c picopcm.h picoaudio.c
+
+picopcm-mutants: \
+	picopcm-mutant-unacknowledged \
+	picopcm-mutant-level-scale \
+	picopcm-mutant-ring-overfill \
+	picopcm-mutant-underrun-level \
+	picopcm-mutant-any-board \
+	picopcm-mutant-shared-open \
+	picopcm-mutant-unbounded-write \
+	picopcm-mutant-no-drain \
+	picopcm-mutant-close-unmuted \
+	picopcm-mutant-clock-left-on \
+	picopcm-mutant-bell-not-absorbed \
+	picopcm-mutant-bell-stop-mutes
+
+picopcm-mutant-unacknowledged:
+	${PICOPCM_MUT} picopcm.c \
+	    '/^PWM_IRQ_WRAP_Handler/,/^}/s/PC_REG32(PWM_INTR) = 1UL << PCM_CLOCK_SLICE;/(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-level-scale:
+	${PICOPCM_MUT} picopcm.h \
+	    's/return sample \* PCM_LEVELS >> 8;/return sample * PCM_LEVELS >> 7;/' ${PICOPCM_SRC}
+
+picopcm-mutant-ring-overfill:
+	${PICOPCM_MUT} picopcm.h \
+	    's/return PCM_RING - 1 - pcm_fill(r);/return PCM_RING - pcm_fill(r);/' ${PICOPCM_SRC}
+
+picopcm-mutant-underrun-level:
+	${PICOPCM_MUT} picopcm.h \
+	    's/^		return PCM_SILENCE;/		return 0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-any-board:
+	${PICOPCM_MUT} picopcm.c \
+	    's/if (minor(dev) != 0 || board_id() != BOARD_ID_PICOCALC)/if (minor(dev) != 0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-shared-open:
+	${PICOPCM_MUT} picopcm.c \
+	    's/^	if (picoaudio_pcm)$$/	if (0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-unbounded-write:
+	${PICOPCM_MUT} picopcm.c \
+	    's/if (++naps > PCM_STALL_NAPS)/if (++naps < 0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-no-drain:
+	${PICOPCM_MUT} picopcm.c \
+	    's/pcm_fill(&pcm) != 0 \&\& naps < PCM_STALL_NAPS/naps < 0/' ${PICOPCM_SRC}
+
+picopcm-mutant-close-unmuted:
+	${PICOPCM_MUT} picopcm.c \
+	    's/^	picoaudio_mute();$$/	(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-clock-left-on:
+	${PICOPCM_MUT} picopcm.c \
+	    's/PC_REG32(PWM_INTE) = 0;/(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-bell-not-absorbed:
+	${PICOPCM_MUT} picoaudio.c \
+	    's/^	if (picoaudio_pcm)$$/	if (0)/' ${PICOPCM_SRC}
+
+picopcm-mutant-bell-stop-mutes:
+	${PICOPCM_MUT} picoaudio.c \
+	    's/if (!picoaudio_pcm)/if (1)/' ${PICOPCM_SRC}
+
 picoaudio-mutants: \
 	picoaudio-mutant-left-override \
 	picoaudio-mutant-right-override \
@@ -1532,27 +1648,27 @@ picoaudio-mutants: \
 
 picoaudio-mutant-left-override:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c
+	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_L)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c picopcm.h
 
 picoaudio-mutant-right-override:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c
+	    '/PC_IO_BANK0_CTRL(PICOCALC_AUDIO_R)) =$$/{n;s/ | GPIO_OUTOVER_LOW//;}' picoaudio.c picopcm.h
 
 picoaudio-mutant-override-high:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/(2UL << 8)/(3UL << 8)/' picoaudio.c
+	    's/(2UL << 8)/(3UL << 8)/' picoaudio.c picopcm.h
 
 picoaudio-mutant-slice-left-on:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/PWM_REG(PWM_CSR) = 0;/(void)0;/' picoaudio.c
+	    's/PWM_REG(PWM_CSR) = 0;/(void)0;/' picoaudio.c picopcm.h
 
 picoaudio-mutant-override-kept:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/^\tpc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);$$/\t(void)0;/' picoaudio.c
+	    's/^\tpc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);$$/\t(void)0;/' picoaudio.c picopcm.h
 
 picoaudio-mutant-busy-kept:
 	${PICOAUDIO_MUT} picoaudio.c \
-	    's/bell_on = 0;$$/(void)0;/' picoaudio.c
+	    's/bell_on = 0;$$/(void)0;/' picoaudio.c picopcm.h
 
 # uart_test.c includes uart.c, found through -I${DEV} here and through the
 # mutant's private copy in uart-mutants, so UARTCSTD names no driver path.
@@ -1563,28 +1679,69 @@ UARTCSTD=	-std=gnu17 -Wall -Wextra -Werror -DKERNEL -DUART_HOST_MODEL \
 uart_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h
 	${HOST_CC} ${UARTCSTD} ${SAN} -g -I${DEV} -o $@ uart_test.c
 
-UART_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
+UART_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
 		uart_test.c
 
 uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
+	uart-mutant-busy-early uart-mutant-drain-unchecked \
+	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
+	uart-mutant-putc-waits uart-mutant-timer-dup \
 	uart-mutant-rx-pull-down
 
 uart-mutant-one-byte:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL login prompt: 1 of 7 bytes reach the wire' ${UART_MUT} uart.c \
 	    's/while (tp->t_outq.c_cc != 0 \&\& uart_tx_ready/if (tp->t_outq.c_cc != 0 \&\& uart_tx_ready/' \
 	    uart.h
 
 uart-mutant-busy-empty:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL one byte: the queue and TS_BUSY end clear' ${UART_MUT} uart.c \
 	    's/^    if (tp->t_outq.c_cc != 0) {$$/    if (1) {/' uart.h
 
+# uartstart() clears TS_BUSY on an empty queue while the FIFO or shift
+# register still holds bytes, so ttywait() returns before the last one leaves.
+uart-mutant-busy-early:
+	@MUTANT_EXPECT='FAIL drain: TS_BUSY is set while bytes remain to send' ${UART_MUT} uart.c \
+	    's/^    } else if (!uart_tx_drained(uip->base)) {$$/    } else if (0) {/' \
+	    uart.h
+
+# The drain callout clears TS_BUSY without reading UARTFR.
+uart-mutant-drain-unchecked:
+	@MUTANT_EXPECT='FAIL drain 32 bytes: TS_BUSY never clears with a byte unsent' ${UART_MUT} uart.c \
+	    's/^    } else if (uart_tx_drained(uip->base)) {$$/    } else if (1) {/' \
+	    uart.h
+
+# The drain callout clears TS_BUSY without waking ttywait().
+uart-mutant-drain-no-wake:
+	@MUTANT_EXPECT='FAIL drain 1 byte: the drain wait is woken' ${UART_MUT} uart.c \
+	    's/^        ttyowake(tp);$$/        (void)0;/' uart.h
+
+# uartstart() holds output queued during the drain until the callout.
+uart-mutant-drain-blocks:
+	@MUTANT_EXPECT='FAIL output appended during the drain leaves before the next tick' ${UART_MUT} uart.c \
+	    's/^        ((tp->t_state \& TS_BUSY) \&\& !(uart_txflags\[unit\] \& UART_TX_DRAIN))) {$$/        (tp->t_state \& TS_BUSY)) {/' \
+	    uart.h
+
+# uartputc() waits out the drain with PRIMASK set, where no callout runs.
+uart-mutant-putc-waits:
+	@MUTANT_EXPECT='FAIL the driver polls the line' ${UART_MUT} uart.c \
+	    's/^    if ((tp->t_state \& TS_BUSY) \&\& !(uart_txflags\[unit\] \& UART_TX_DRAIN)) {$$/    if (tp->t_state \& TS_BUSY) {/' \
+	    uart.h
+
+# A second drain callout is queued while one is pending.
+uart-mutant-timer-dup:
+	@MUTANT_EXPECT='FAIL a second callout while one is pending' ${UART_MUT} uart.c \
+	    's/^        if (!(uart_txflags\[unit\] \& UART_TX_TIMER)) {$$/        if (1) {/' \
+	    uart.h
+
+# uart_pin_setup() leaves the receive pad on its reset pull-down.
 uart-mutant-rx-pull-down:
-	${UART_MUT} uart.c \
+	@MUTANT_EXPECT='FAIL receive pad takes the pull-up for the pull-down' ${UART_MUT} uart.c \
 	    's/^\tpad = (pad \& ~PADS_PDE) | PADS_PUE;$$/\t(void)0;/' uart.h
 
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
-	    sdspi_test sdstrat_test dump_test picoaudio_test uart_test
+	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
+	    uart_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
@@ -1744,4 +1901,7 @@ clean:
 	sdstrat-mutant-dump-length-short \
 	sdstrat-mutant-dump-table-dropped
 
-.PHONY: uart-mutants uart-mutant-one-byte uart-mutant-busy-empty
+.PHONY: uart-mutants uart-mutant-one-byte uart-mutant-busy-empty \
+	uart-mutant-busy-early uart-mutant-drain-unchecked \
+	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
+	uart-mutant-putc-waits uart-mutant-timer-dup

@@ -68,6 +68,10 @@ int status_sysctl(int *name, u_int length, void *old, size_t *size,
         if (scenario && strcmp(scenario, "record-size") == 0) stats.size--;
         memcpy(old, &stats, sizeof(stats));
         *size = sizeof(stats);
+    } else if (name[0] == CTL_KERN && name[1] == KERN_HOSTID) {
+        if (value) status_fprintf(stderr, "hostid-set %ld\n", *(long *)value);
+        *(long *)old = 0;
+        *size = sizeof(long);
     } else if ((name[0] == CTL_HW && name[1] == HW_NCPU) ||
         (name[0] == CTL_KERN && (name[1] == KERN_MAXPROC || name[1] == KERN_MAXFILES)) ||
         (name[0] == CTL_MACHDEP && name[1] == CPU_MPU)) {

@@ -11,13 +11,14 @@
 # alike, and keeps the checked-in tree free of a generated tarball.
 
 pkgname=discobsd-host
-pkgver=1.0.9
-pkgrel=2
+pkgver=1.1.0
+pkgrel=1
 pkgdesc="Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 arch=('any')
 url="https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial"
 license=('BSD-3-Clause')
 depends=('python' 'python-pyserial')
+optdepends=('python-pyelftools: discobsd-sramdump decode' 'picotool: discobsd-sramdump capture and discobsd-flash')
 makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
 checkdepends=('python-pytest')
 source=()
@@ -59,4 +60,5 @@ package() {
 	install -Dm644 discobsd-host.sysusers \
 	    "$pkgdir/usr/lib/sysusers.d/discobsd-host.conf"
 	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+	install -Dm644 RELEASE-SECURITY.md "$pkgdir/usr/share/doc/$pkgname/RELEASE-SECURITY.md"
 }

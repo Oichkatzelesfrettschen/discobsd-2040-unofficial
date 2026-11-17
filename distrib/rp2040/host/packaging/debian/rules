@@ -11,6 +11,11 @@ export PYBUILD_TEST_ARGS={dir}/tests
 %:
 	dh $@ --with python3 --buildsystem=pybuild
 
+# dh_compress gzips documents over 4 KiB, which would leave the README's
+# link to RELEASE-SECURITY.md without a target; Markdown stays uncompressed.
+override_dh_compress:
+	dh_compress -X.md
+
 # Two tests start an HTTP server on 127.0.0.1 and fetch from it. The build
 # environment points http_proxy at a dead port to catch a network fetch
 # during a build, and urllib honors it for a loopback URL too, so the

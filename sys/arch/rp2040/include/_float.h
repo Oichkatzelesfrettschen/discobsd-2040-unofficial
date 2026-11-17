@@ -45,4 +45,23 @@
 #define LDBL_MIN_10_EXP DBL_MIN_10_EXP
 #define LDBL_MIN_EXP    DBL_MIN_EXP
 
+/*
+ * C17 5.2.4.2.2.  Operations evaluate in the type of their operands
+ * (FLT_EVAL_METHOD 0).  The *_DECIMAL_DIG values are the digits that
+ * round-trip each binary format, ceil(1 + p*log10(2)); DECIMAL_DIG is the
+ * widest of them.  Subnormal numbers exist in every format, and the
+ * *_TRUE_MIN values are the smallest of them, b**(emin-p).
+ */
+#define FLT_EVAL_METHOD 0
+#define DECIMAL_DIG     17
+#define FLT_DECIMAL_DIG 9
+#define DBL_DECIMAL_DIG 17
+#define LDBL_DECIMAL_DIG DBL_DECIMAL_DIG
+#define FLT_HAS_SUBNORM 1
+#define DBL_HAS_SUBNORM 1
+#define LDBL_HAS_SUBNORM DBL_HAS_SUBNORM
+#define FLT_TRUE_MIN    1.40129846E-45F
+#define DBL_TRUE_MIN    4.9406564584124654E-324
+#define LDBL_TRUE_MIN   DBL_TRUE_MIN
+
 #endif /* _MACHINE__FLOAT_H_ */

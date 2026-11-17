@@ -18,8 +18,15 @@
 # writes RORIC there after each drain to clear a receive overrun, and the
 # write reaches nothing. The model raises no overrun interrupt and the
 # driver reads none, so the lost write has no consequence. One write per
-# drained transfer gives about 24,600 occurrences to the login.
-50000   ^spi1: Unhandled write to offset 0xN, value 0xN\.
+# drained transfer gives about 24,600 occurrences to the login and about
+# 73,400 once picofetch and picotop have drawn their screens.
+150000  ^spi1: Unhandled write to offset 0xN, value 0xN\.
+
+# The XIP cache control and its access and hit counters (datasheet 2.6.3.1)
+# are not modeled, so machdep.xip_cache, xip_acc and xip_hit read the SVD
+# reset values. picofetch reads each once and picotop once per frame, nine
+# reads in the gate's run.
+20      ^sysbus: ReadDoubleWord from an unimplemented register XIP_CTRL:(CTRL|CTR_ACC|CTR_HIT) \(0xN\), returning a value from SVD: 0xN
 
 # IC_FS_SPKLEN (DW_apb_i2c, datasheet 4.3.14.1) is not implemented. picokbd.c
 # programs it with a spike-filter length for the real bus; the I2C model has
@@ -33,3 +40,12 @@
 # unreachable. A boot that needed USB would fail instead of warning.
 40      ^sysbus: WriteDoubleWord of value 0xN to an unimplemented register USBCTRL_REGS:
 4       ^sysbus: WriteDoubleWord to non existing peripheral at 0x5011204C,
+
+# psram_xfer.c clears its state machine's receive-stall flag by writing 1 to
+# FDEBUG (PIO offset 0x008, datasheet 3.7) before a frame; the PIO model
+# leaves FDEBUG unimplemented. The machine models no part on the PSRAM pins,
+# so the first frame's bounded wait expires and psramprobe() prints
+# "psram0: not usable (error -1), swap stays on fl1", which check-picocalc.py
+# asserts. A timeout is not retried, so a boot writes FDEBUG once; the
+# crash-dump tier boots twice (its reboot -d stage).
+4       ^piocpu[01]: unhandled write at: 0xN, value: 0xN

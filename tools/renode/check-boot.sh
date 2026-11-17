@@ -21,10 +21,13 @@
 # kernel boots every board's root, so any board's image is valid here.
 #
 # CONFIG names the kernel configuration and defaults to PICO_UART, whose
-# compiled descriptor selects the UART0 console. PICOCALC_PSRAM is the union
-# kernel: its unix.bin carries the bare-Pico USB console descriptor, which
-# Renode cannot serve, so the gate boots a copy whose descriptor
-# distrib/rp2040/mkboarduf2.py rewrote to a bare Pico with the UART0 console.
+# compiled descriptor selects the UART0 console. PICOCALC, PICOCALC_LEAN and
+# PICOCALC_LEAN_DIAG are the PicoCalc kernels: each unix.bin carries the
+# PicoCalc panel descriptor, and the gate boots a copy whose descriptor
+# distrib/rp2040/mkboarduf2.py rewrote to a bare Pico with the UART0
+# console. PICOCALC and PICOCALC_LEAN_DIAG carry SYSTRACE and CAPACITY_STATS
+# and PICOCALC_LEAN omits them; the gate reads the kern.capacity record of
+# the first two, where PICOCALC_LEAN must refuse the node.
 
 set -eu
 
@@ -49,13 +52,23 @@ PICO_UART)
 	KERNEL=$BUILT_KERNEL
 	BOARD_CLASSES=
 	;;
-PICOCALC_PSRAM)
+PICOCALC)
 	OUTPUT="$SCRIPT_DIR/vendor/results/boot-union"
 	KERNEL="$OUTPUT/unix-uart.bin"
 	BOARD_CLASSES="$SCRIPT_DIR/union-warning-classes.txt"
 	;;
+PICOCALC_LEAN)
+	OUTPUT="$SCRIPT_DIR/vendor/results/boot-union-lean"
+	KERNEL="$OUTPUT/unix-uart.bin"
+	BOARD_CLASSES="$SCRIPT_DIR/union-warning-classes.txt"
+	;;
+PICOCALC_LEAN_DIAG)
+	OUTPUT="$SCRIPT_DIR/vendor/results/boot-union-lean-diag"
+	KERNEL="$OUTPUT/unix-uart.bin"
+	BOARD_CLASSES="$SCRIPT_DIR/union-warning-classes.txt"
+	;;
 *)
-	echo "check-renode: CONFIG must be PICO_UART or PICOCALC_PSRAM, not $CONFIG" >&2
+	echo "check-renode: CONFIG must be PICO_UART, PICOCALC, PICOCALC_LEAN or PICOCALC_LEAN_DIAG, not $CONFIG" >&2
 	exit 2
 	;;
 esac
@@ -86,6 +99,14 @@ fi
 	missing "no RP2040 models; run sh tools/renode/fetch-renode-rp2040.sh"
 [ -r "$MODELS" ] ||
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
+# The console stages need the PL011 transmit FIFO of the 0009 patch: without
+# it the transmit interrupt always fires and a driver that stalls on the
+# datasheet's level-crossing rule (4.2.6.3) still reaches a login.
+# TryQueueTransmitCharacter is the method of the revision that refuses a
+# write to a full FIFO before the backend sees it; a build of an earlier
+# 0009 lacks it.
+grep -aq TryQueueTransmitCharacter "$MODELS" ||
+	missing "the built models predate patch 0009 (pl011 transmit FIFO and trigger); rerun sh tools/renode/fetch-renode-rp2040.sh"
 
 # sys/arch/rp2040/compile/Makefile builds every MACHINE_KERNEL_CONFIGS entry,
 # so a tree without the selected image has a directory config(8) has not

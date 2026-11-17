@@ -66,6 +66,26 @@ MUTATIONS = {
         '    if (0)\n        panic ("swap image: cancel state");',
     ),
     "omit-text-release": ("    iput(ip);", "    (void)ip;"),
+    # The probe labels a pool refusal by total free bytes against the
+    # grain-rounded demand and bins the shortfall in KiB steps.
+    "swap-pool-reasons": (
+        "        need > avail ? STORAGE_SWAPRAM_REFUSED_NOSPACE :\n"
+        "        STORAGE_SWAPRAM_REFUSED_FRAGMENT, 0);",
+        "        need > avail ? STORAGE_SWAPRAM_REFUSED_FRAGMENT :\n"
+        "        STORAGE_SWAPRAM_REFUSED_NOSPACE, 0);",
+    ),
+    "misbin-shortfall-boundary": (
+        "(shortfall - 1) >> 10 : 0;",
+        "shortfall >> 10 : 0;",
+    ),
+    # The exchange completion count belongs after the sector loop: counted
+    # at entry, a swap-out that stops at its first media call looks finished.
+    "early-exchange-count": (
+        "    storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);\n#endif\n    bp = geteblk ();",
+        "    storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);\n"
+        "    storage_note (STORAGE_SWAPRAM_EXCHANGE_SWAPOUTS, 1);\n#endif\n"
+        "    bp = geteblk ();",
+    ),
     # swapin() restoring a RAM-tier image frees pool capacity and must wake
     # the swapper after the pool holds it.
     "omit-swapin-ram-wakeup": (

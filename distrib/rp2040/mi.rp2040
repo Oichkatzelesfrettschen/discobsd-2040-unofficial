@@ -170,6 +170,31 @@ cdev /dev/tty0
 major 6
 minor 0
 
+#
+# The pins a board leaves free, character major 12
+# (sys/arch/rp2040/dev/gpio.c, machine/gpio.h): GP0-GP15 and GP16-GP29.
+# The driver admits the superuser alone.
+#
+cdev /dev/porta
+major 12
+minor 0
+mode 600
+
+cdev /dev/portb
+major 12
+minor 1
+mode 600
+
+#
+# The PicoCalc's sample audio, character major 13
+# (sys/arch/rp2040/dev/picopcm.c): unsigned 8-bit mono at 8,000 samples per
+# second, write only, one opener. The open fails on a bare Pico.
+#
+cdev /dev/audio
+major 13
+minor 0
+mode 622
+
 #closure lcdgfx
 #
 # The PicoCalc's pixel device, minor 1 of the console's character major 10
@@ -256,6 +281,12 @@ pack /usr/bin/dc
 #closure calc
 pack /usr/bin/calc
 #endclosure calc
+#closure picofetch
+pack /usr/bin/picofetch
+#endclosure picofetch
+#closure picotop
+pack /usr/bin/picotop
+#endclosure picotop
 pack /usr/bin/sed
 pack /usr/bin/grepbox
 pack /usr/bin/find
@@ -282,6 +313,7 @@ pack /usr/bin/ld
 file /usr/bin/cc
 #endclosure cc
 file /usr/bin/mputest
+file /usr/bin/boardinfo
 
 #
 # Archivers. /bin/tar writes POSIX ustar by default and reads the v7

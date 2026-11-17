@@ -349,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             return
         try:
-            device = srv.device or ports.find_board()
+            device = srv.device or ports.find_board(usb_port=srv.usb_port)
             if not device:
                 raise OSError("no board found")
             ser = srv.open_serial(device)
@@ -441,9 +441,17 @@ class ConsoleServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, device, token, open_serial=ports.open_serial):
+    def __init__(
+        self, address, device, token, open_serial=ports.open_serial, usb_port=None
+    ):
         super().__init__(address, Handler)
+        # A device path names the board itself and is opened as given. With
+        # none, every session resolves the board again from `usb_port` (the
+        # --usb-port operand) or DISCOBSD_USB_PORT, because /dev/ttyACMn is
+        # renumbered when the boards re-enumerate and a path cached at
+        # startup can then name the other board.
         self.device = device
+        self.usb_port = usb_port
         self.token = token
         self.is_loopback = is_loopback(address[0])
         self.console_lock = threading.Lock()
@@ -471,6 +479,7 @@ def parser() -> argparse.ArgumentParser:
         description="Serve the DiscoBSD RP2040 console as a browser terminal.",
     )
     p.add_argument("device", nargs="?", help="serial device (default: find the board)")
+    ports.add_usb_port_argument(p)
     p.add_argument("--port", type=int, default=7681, help="TCP port (default 7681)")
     p.add_argument("--bind", default="127.0.0.1", help="bind address (default 127.0.0.1)")
     p.add_argument(
@@ -490,7 +499,14 @@ def main(argv=None) -> int:
     except ImportError:
         sys.stderr.write(f"discobsd-web: {ports.pyserial_hint()}\n")
         return 1
-    device = args.device or ports.find_board()
+    if args.device and args.usb_port is not None:
+        sys.stderr.write("discobsd-web: give a device path or --usb-port, not both\n")
+        return 1
+    try:
+        device = args.device or ports.find_board(usb_port=args.usb_port)
+    except ports.BoardSelectionError as exc:
+        sys.stderr.write(f"discobsd-web: {exc}\n")
+        return exc.exit_code
     if not device:
         sys.stderr.write("discobsd-web: no board found (plug it in, or set DISCOBSD_PORT)\n")
         return 1
@@ -510,7 +526,9 @@ def main(argv=None) -> int:
             "Set DISCOBSD_WEB_TOKEN or a systemd credential named web-token\n"
         )
         return 1
-    httpd = ConsoleServer((args.bind, args.port), device, token)
+    httpd = ConsoleServer(
+        (args.bind, args.port), args.device, token, usb_port=args.usb_port
+    )
     q = ("?token=" + token) if token else ""
     sys.stderr.write(f"DiscoBSD web console for {device}\n")
     if httpd.is_loopback:
@@ -519,9 +537,12 @@ def main(argv=None) -> int:
             "--token SECRET for the LAN) -- Ctrl-C to stop\n" % (args.port, q)
         )
     else:
+        # A concrete bind is the only address the server answers on; the
+        # wildcard bind is advertised through the host's LAN address.
+        host = args.bind if args.bind != "0.0.0.0" else lan_ip()
         sys.stderr.write(
             "  open http://%s:%d/%s from the LAN (token required) -- Ctrl-C to stop\n"
-            % (lan_ip(), args.port, q)
+            % (host, args.port, q)
         )
     try:
         httpd.serve_forever()

@@ -66,6 +66,10 @@ _Static_assert(offsetof(struct trapframe, tf_ip) == 16,
     "tf_sp alias ABI offset");
 _Static_assert(offsetof(struct trapframe, tf_psr) == 28,
     "tf_psr ABI offset");
+_Static_assert(sizeof(struct userframe) == 88,
+    "RP2040 userframe is the trapframe, r12 and five divider words");
+_Static_assert(offsetof(struct userframe, uf_r12) == 64,
+    "uf_r12 follows the trapframe");
 
 struct proc {
 	unsigned int p_pid;
@@ -83,15 +87,28 @@ struct user {
 	struct trapframe *u_frame;
 };
 
+/*
+ * The kernel-private signal frame of sig_machdep.c: the context, then the
+ * interrupted r12 and divider state that sigreturn reads back in the same
+ * copy, RETURN_BYTES in all.
+ */
 struct context_storage {
 	u_int hardware_frame[8];
 	struct sigcontext context;
+	u_int r12;
+	struct divider_state div;
 	u_int tail[2];
 };
 
+#define RETURN_BYTES (offsetof(struct context_storage, tail) - \
+	offsetof(struct context_storage, context))
+#define TAIL_R12 UINT32_C(0x0c0c0c0c)
+#define TAIL_SEED UINT32_C(0x40404040)
+
 static struct user u;
 static struct proc process;
-static struct trapframe frame;
+static struct userframe uframe;
+#define frame (uframe.uf_tf)
 static const long sigcantmask = 0x00000300L;
 static uintptr_t logical_user_lower;
 static uintptr_t logical_user_upper;
@@ -179,9 +196,20 @@ fill_context(struct sigcontext *context)
 }
 
 static void
+fill_tail(u_int *r12, struct divider_state *div)
+{
+	*r12 = TAIL_R12;
+	div->ds_dividend = TAIL_SEED + 1U;
+	div->ds_divisor = TAIL_SEED + 2U;
+	div->ds_remainder = TAIL_SEED + 3U;
+	div->ds_quotient = TAIL_SEED + 4U;
+	div->ds_csr = DS_CSR_DIRTY | 1U;
+}
+
+static void
 reset_fixture(u_int frame_base)
 {
-	memset(&frame, 0xa5, sizeof(frame));
+	memset(&uframe, 0xa5, sizeof(uframe));
 	frame.tf_sp = frame_base;
 	u.u_error = 77;
 	u.u_sigstk.ss_flags = 0x40;
@@ -220,6 +248,14 @@ check_restored_context(const struct sigcontext *context)
 	    frame.tf_r8 == context->sc_r8 && frame.tf_r9 == context->sc_r9 &&
 	    frame.tf_r10 == context->sc_r10 &&
 	    frame.tf_r11 == context->sc_r11);
+	CHECK("sigreturn restores r12 from the frame tail",
+	    uframe.uf_r12 == TAIL_R12);
+	CHECK("sigreturn restores the divider state from the frame tail",
+	    uframe.uf_div.ds_dividend == TAIL_SEED + 1U &&
+	    uframe.uf_div.ds_divisor == TAIL_SEED + 2U &&
+	    uframe.uf_div.ds_remainder == TAIL_SEED + 3U &&
+	    uframe.uf_div.ds_quotient == TAIL_SEED + 4U &&
+	    uframe.uf_div.ds_csr == (DS_CSR_DIRTY | 1U));
 }
 
 static void
@@ -229,6 +265,9 @@ check_rejected_state(const char *case_name, int expected_error,
 	CHECK(case_name, u.u_error == expected_error);
 	CHECK("rejection preserves trapframe",
 	    memcmp(&frame, before, sizeof(frame)) == 0);
+	CHECK("rejection preserves r12 and the divider state",
+	    uframe.uf_r12 == UINT32_C(0xa5a5a5a5) &&
+	    uframe.uf_div.ds_csr == UINT32_C(0xa5a5a5a5));
 	CHECK("rejection preserves alternate-stack state",
 	    u.u_sigstk.ss_flags == stack_flags);
 	CHECK("rejection preserves signal mask", process.p_sigmask == signal_mask);
@@ -243,15 +282,16 @@ check_exact_complete_context(void)
 	memset(&storage, 0, sizeof(storage));
 	fill_context(&expected);
 	storage.context = expected;
+	fill_tail(&storage.r12, &storage.div);
 	reset_fixture((u_int)(uintptr_t)&storage);
 	logical_user_lower = (uintptr_t)&storage.context;
-	logical_user_upper = logical_user_lower + sizeof(storage.context);
+	logical_user_upper = logical_user_lower + RETURN_BYTES;
 	overwrite_user_after_copy = 1;
 	sigreturn();
 	CHECK("exact context uses one complete copy", copyin_calls == 1);
-	CHECK("exact context copies seventy-two bytes",
+	CHECK("exact context copies the context and its tail, ninety-six bytes",
 	    copyin_source == (uintptr_t)&storage.context &&
-	    copyin_length == sizeof(storage.context));
+	    copyin_length == RETURN_BYTES && RETURN_BYTES == 96U);
 	CHECK("copy destination is sigcontext-aligned",
 	    copyin_destination % _Alignof(struct sigcontext) == 0);
 	CHECK("snapshot path avoids probe-only admission", baduaddr_calls == 0);
@@ -263,15 +303,21 @@ check_exact_complete_context(void)
 static void
 check_misaligned_context(void)
 {
-	unsigned char storage[32 + sizeof(struct sigcontext) + 2];
+	unsigned char storage[32 + RETURN_BYTES + 2];
 	struct sigcontext expected;
 	uintptr_t context_address = (uintptr_t)&storage[33];
+	u_int r12;
+	struct divider_state div;
 
 	fill_context(&expected);
+	fill_tail(&r12, &div);
 	memcpy((void *)context_address, &expected, sizeof(expected));
+	memcpy((void *)(context_address + sizeof(expected)), &r12, sizeof(r12));
+	memcpy((void *)(context_address + sizeof(expected) + sizeof(r12)), &div,
+	    sizeof(div));
 	reset_fixture((u_int)(context_address - 32U));
 	logical_user_lower = context_address;
-	logical_user_upper = context_address + sizeof(expected) + 1U;
+	logical_user_upper = context_address + RETURN_BYTES + 1U;
 	overwrite_user_after_copy = 1;
 	sigreturn();
 	CHECK("misaligned source uses one complete copy", copyin_calls == 1);
@@ -296,7 +342,7 @@ check_invalid_or_truncated_context(int first_byte_invalid)
 	reset_fixture((u_int)(uintptr_t)&storage);
 	logical_user_lower = (uintptr_t)&storage.context;
 	logical_user_upper = first_byte_invalid ? logical_user_lower :
-	    logical_user_lower + sizeof(storage.context) - 1U;
+	    logical_user_lower + RETURN_BYTES - 1U;
 	before = frame;
 	stack_flags = u.u_sigstk.ss_flags;
 	signal_mask = process.p_sigmask;
@@ -321,7 +367,7 @@ check_forced_copy_failure(void)
 	fill_context(&storage.context);
 	reset_fixture((u_int)(uintptr_t)&storage);
 	logical_user_lower = (uintptr_t)&storage.context;
-	logical_user_upper = logical_user_lower + sizeof(storage.context) + 1U;
+	logical_user_upper = logical_user_lower + RETURN_BYTES + 1U;
 	force_copyin_failure = 1;
 	before = frame;
 	stack_flags = u.u_sigstk.ss_flags;
@@ -364,9 +410,10 @@ check_semantic_outcome(const char *case_name, struct sigcontext *context,
 
 	memset(&storage, 0, sizeof(storage));
 	storage.context = *context;
+	fill_tail(&storage.r12, &storage.div);
 	reset_fixture((u_int)(uintptr_t)&storage);
 	logical_user_lower = (uintptr_t)&storage.context;
-	logical_user_upper = logical_user_lower + sizeof(storage.context);
+	logical_user_upper = logical_user_lower + RETURN_BYTES;
 	logical_process_upper = process_upper;
 	before = frame;
 	stack_flags = u.u_sigstk.ss_flags;

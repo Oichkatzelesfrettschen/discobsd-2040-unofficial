@@ -76,6 +76,7 @@
 #ifdef UART_HOST_MODEL
 int	uart_tx_ready(u_int base);
 int	uart_tx_idle(u_int base);
+int	uart_tx_drained(u_int base);
 int	uart_rx_ready(u_int base);
 void	uart_tx_put(u_int base, int c);
 int	uart_rx_get(u_int base);
@@ -96,6 +97,20 @@ static __inline int
 uart_tx_idle(u_int base)
 {
 	return (UART_REG(base, UART_FR) & UART_FR_BUSY) == 0;
+}
+
+/*
+ * The line has sent every byte written to it: the transmit FIFO is empty
+ * (TXFE) and the shift register has sent its stop bits (BUSY clear). BUSY
+ * is set while the FIFO holds data, so it alone decides on silicon (RP2040
+ * datasheet 4.2.8, UARTFR); TXFE is required as well so that a model whose
+ * BUSY tracks only the shift register cannot end the drain early.
+ */
+static __inline int
+uart_tx_drained(u_int base)
+{
+	return (UART_REG(base, UART_FR) & (UART_FR_TXFE | UART_FR_BUSY)) ==
+	    UART_FR_TXFE;
 }
 
 static __inline int

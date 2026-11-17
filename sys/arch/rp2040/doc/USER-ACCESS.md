@@ -9,10 +9,20 @@ find it by identity.
 
 ## Finding the board
 
-The kernel reports the USB serial "rp2040", so udev exposes a name that
-does not change when the device re-enumerates on reboot:
+The kernel reports a USB serial made of its flash chip's 64-bit unique ID
+in hex and the suffix `-rp2040` (`flash_serial_string()` in
+`sys/arch/rp2040/dev/flash.h`), so udev exposes a name that is the board's
+own and does not change when the device re-enumerates on reboot:
 
-    /dev/serial/by-id/usb-DiscoBSD_DiscoBSD_RP2040_console_rp2040-if00
+    /dev/serial/by-id/usb-DiscoBSD_DiscoBSD_RP2040_console_<16 hex digits>-rp2040-if00
+
+Two boards on one host get two names; the pattern
+`/dev/serial/by-id/*DiscoBSD*rp2040-if00` matches each of them. A kernel
+that cannot read the chip's ID reports the serial "rp2040" and the name
+ends in `console_rp2040-if00`, as kernels before the unique serial did.
+The udev rule and `discobsd-term` match the serial's `rp2040` ending, so a
+host package older than the unique serial finds such a board by its
+product string alone and its udev rule does not make `/dev/discobsd`.
 
 Use that path, not /dev/ttyACMn: the number increments on every
 re-enumeration and a stale node from a prior connection returns EIO.
@@ -112,8 +122,29 @@ Debian and Arch) serves any command as a web terminal:
 
 ## Getting to the bootloader
 
-To reflash, put the board in BOOTSEL: from a running kernel,
-`picotool reboot -u -f` uses the console's reset interface, or hold the
-BOOTSEL button while plugging the cable in. The bootrom presents a
-different USB serial, so the by-id console path above addresses only the
-running system and never the bootloader.
+To reflash, put the board in BOOTSEL: from the board's own shell, as root,
+`bootloader -y` (or `reboot -B -y`) syncs the disks and enters the boot ROM's
+USB loader (`boot()` in `rp2040/machdep.c`, `RB_BOOTLOADER`); the board
+reappears as the RPI-RP2 drive. Without `-y` the program refuses with exit
+64, and a non-root caller gets exit 77, in both cases before it logs, syncs
+or signals anything. From a host, `picotool reboot -u -f` uses the console's
+reset interface (`dev/usb.c`), or hold the BOOTSEL button while plugging the
+cable in. The same shell offers `reboot` and `halt` (no confirmation: both
+leave the flash as it is), `shutdown`, and, on a PicoCalc kernel,
+`sysctl -w machdep.picocalc.poweroff=1`.
+
+`boardinfo` prints the kernel, release, host name, CPU clock, image length
+and CRCs, the previous reset's watchdog reason, whether the PicoCalc
+registers answer, and the mounts. The flash chip's unique ID is
+`machdep.flash_unique_hi` and `machdep.flash_unique_lo` (the first and last
+four bytes, read only, signed ints as `sysctl` prints them, EIO when the
+chip's identity did not read), which it joins with `printf %08x%08x` into
+16 hex digits, the value the USB serial string carries before its
+`-rp2040` suffix; `boardinfo` prints it as `unavailable` on a kernel without
+the node. There is no
+command to start the PicoCalc loader's menu: that loader's stage is entered
+at power-on from the keyboard (PICOCALC.md, Coexisting with the PicoCalc UF2
+loader), and no source read here shows a reboot request it honors.
+
+The bootrom presents a different USB serial, so the by-id console path
+above addresses only the running system and never the bootloader.

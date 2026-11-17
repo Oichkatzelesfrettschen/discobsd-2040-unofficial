@@ -119,7 +119,7 @@ check-grammar:
 
 check-process-groups:
 	mkdir -p build
-	${PYTHON} -I procgroup.py --selftest build
+	HOSTCC="${HOSTCC}" ${PYTHON} -I procgroup.py --selftest build
 
 check-native: build/native/dc/dc build/native/bc/bc
 	${RUN_CASES} --dc build/native/dc/dc --bc build/native/bc/bc

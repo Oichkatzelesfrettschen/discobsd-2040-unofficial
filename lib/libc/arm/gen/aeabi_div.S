@@ -24,16 +24,18 @@
  * DIV_QUOTIENT clears DIV_CSR.DIRTY, the flag a divider save and restore
  * consults to decide whether a result is still pending.
  *
- * The sequence from the dividend write to the quotient read is one atomic
- * unit because nothing saves the divider, a per-core state. No kernel path
- * switches processes, delivers a signal or runs divider code between two
- * user instructions: process switches and signals happen only on the
- * return from a system call or fault (userret), a SysTick or device
- * interrupt returns to the interrupted instruction, and the kernel reaches
- * the divider nowhere (tools/verify_rp2040_divider_ownership.py rejects an
- * access in every linked kernel and holds this file's object to a
- * straight-line window with no system call, call or breakpoint). The user
- * MPU map grants the divider registers (sys/arch/rp2040/doc/MPU.md).
+ * The divider is per-core state, and the clock tick can switch processes
+ * or deliver a signal between any two user instructions (the asynchronous
+ * system trap of sys/arch/rp2040/rp2040/syscall.c). Every kernel entry
+ * from a process saves the divider registers and DIV_CSR and restores them
+ * on the way out, so no process reads another's values, and a signal handler's frame keeps the interrupted
+ * state for sigreturn, so the sequence from the dividend write to the
+ * quotient read finds its own results whatever ran in between. Apart from
+ * that save and restore the kernel reaches the divider nowhere
+ * (tools/verify_rp2040_divider_ownership.py rejects any other access in
+ * every linked kernel and holds this file's object to a straight-line
+ * window with no system call, call or breakpoint). The user MPU map grants
+ * the divider registers (sys/arch/rp2040/doc/MPU.md).
  *
  * DIVIDER_MODEL replaces the base address and the eight-cycle wait with a
  * RAM register block and a call into the test harness that computes the
@@ -88,6 +90,8 @@ __aeabi_uidivmod:
 2:	movs	r1, r0			/* zero divisor: remainder is the dividend */
 	movs	r0, #0
 	bx	lr
+	.size	__aeabi_uidiv, . - __aeabi_uidiv
+	.size	__aeabi_uidivmod, . - __aeabi_uidivmod
 #ifdef DIVIDER_MODEL
 	.pool
 #endif
@@ -138,6 +142,8 @@ __aeabi_idivmod:
 	subs	r1, r0, r1
 	movs	r0, #0
 	bx	lr
+	.size	__aeabi_idiv, . - __aeabi_idiv
+	.size	__aeabi_idivmod, . - __aeabi_idivmod
 #ifdef DIVIDER_MODEL
 	.pool
 #endif

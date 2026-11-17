@@ -8,3 +8,4 @@ kbdevq_test
 gametile_test
 dump_test
 uart_test
+picopcm_test

@@ -89,6 +89,10 @@ def main():
         "\t}",
     )
 
+    clamp_anchor = "secs > ALARM_MAX ? ALARM_MAX : secs"
+    require(source.count(clamp_anchor) == 1, "alarm clamp mutation anchor differs")
+    clamp_mutant = source.replace(clamp_anchor, "secs")
+
     with tempfile.TemporaryDirectory(prefix="alarm-contract-") as name:
         directory = pathlib.Path(name)
         result = build_and_run(
@@ -117,7 +121,20 @@ def main():
             "preserves errno from setitimer" in result.stderr,
             "alarm errno mutant failed for an unexpected reason",
         )
-    print("PASS alarm contract: rounding and errno mutants rejected")
+        result = build_and_run(
+            root,
+            compiler,
+            test_source,
+            directory,
+            clamp_mutant,
+            "clamp",
+        )
+        require(result.returncode == 1, "alarm clamp mutant was accepted")
+        require(
+            "clamps a request above the kernel's 32-bit tv_sec" in result.stderr,
+            "alarm clamp mutant failed for an unexpected reason",
+        )
+    print("PASS alarm contract: rounding, errno and clamp mutants rejected")
 
 
 if __name__ == "__main__":

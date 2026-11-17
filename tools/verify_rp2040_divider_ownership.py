@@ -1,5 +1,6 @@
-"""Reject linked RP2040 kernel accesses to the per-core SIO divider and hold
-the userland division helpers to one atomic hardware-divider sequence."""
+"""Reject linked RP2040 kernel accesses to the per-core SIO divider outside the
+functions --admit-function names, and hold the userland division helpers to
+one atomic hardware-divider sequence."""
 
 from __future__ import annotations
 
@@ -993,6 +994,11 @@ def check_user_helper(object_path: Path) -> tuple[str, list[str]]:
             if symbol["st_info"]["type"] == "STT_FUNC"
             and symbol["st_shndx"] == text_index
         }
+        metadata = {
+            str(symbol.name): (int(symbol["st_value"]), int(symbol["st_size"]))
+            for symbol in symbols.iter_symbols()
+            if symbol["st_info"]["type"] == "STT_FUNC" and symbol["st_shndx"] == text_index
+        }
         data_marks = [
             symbol
             for symbol in symbols.iter_symbols()
@@ -1012,6 +1018,25 @@ def check_user_helper(object_path: Path) -> tuple[str, list[str]]:
         raise ValueError(f"{object_path}: Capstone did not decode the whole text")
     starts = sorted({entries[name] for name in HELPER_SYMBOLS if name in entries})
     bounds = starts + [len(code)]
+    owner_ends = dict(zip(bounds, bounds[1:], strict=False))
+    for name in HELPER_SYMBOLS:
+        if name not in entries:
+            continue
+        value, size = metadata[name]
+        if not value & 1:
+            findings.append(f"{object_path}: helper Thumb entry differs: {name}")
+        expected_size = owner_ends[entries[name]] - entries[name]
+        if size <= 0 or size != expected_size:
+            findings.append(f"{object_path}: helper extent {name} is {size}, want {expected_size}")
+    for first_alias, second_alias in (
+        ("__aeabi_uidiv", "__aeabi_uidivmod"),
+        ("__aeabi_idiv", "__aeabi_idivmod"),
+    ):
+        if (first_alias in metadata and second_alias in metadata
+                and metadata[first_alias] != metadata[second_alias]):
+            findings.append(
+                f"{object_path}: helper alias owner differs: {first_alias}/{second_alias}"
+            )
     accesses_total = 0
     minimum_wait = None
     for start, end in zip(bounds, bounds[1:], strict=False):
@@ -1170,14 +1195,64 @@ def strip_comments(source_text: str, assembly: bool) -> str:
     return "\n".join(stripped_lines)
 
 
-def scan_sources(source_paths: Iterable[Path]) -> list[str]:
+def admitted_lines(source_lines: Sequence[str], admitted: frozenset[str]) -> set[int]:
+    """Return the 1-based lines of the admitted functions' definitions.
+
+    A candidate starts on a line that begins with an admitted name and an
+    opening parenthesis, the KNF form with the return type on the line
+    above. It is a definition only when a `{` follows before any `;`; a
+    prototype, split over two lines or not, ends at its `;` and admits
+    nothing. The definition runs through the brace that closes its body,
+    matched by depth, so a nested block's brace on its own line ends nothing.
+    """
+    lines: set[int] = set()
+    line_count = len(source_lines)
+    index = 0
+    while index < line_count:
+        if not any(source_lines[index].startswith(f"{name}(") for name in admitted):
+            index += 1
+            continue
+        start = index
+        depth = 0
+        opened = False
+        end = None
+        scan = index
+        while scan < line_count and end is None:
+            for character in source_lines[scan]:
+                if not opened and character == ";":
+                    end = -1
+                    break
+                if character == "{":
+                    opened = True
+                    depth += 1
+                elif character == "}" and opened:
+                    depth -= 1
+                    if depth == 0:
+                        end = scan
+                        break
+            scan += 1
+        if end is not None and end >= 0:
+            lines.update(range(start + 1, end + 2))
+            index = end + 1
+        else:
+            index = start + 1
+    return lines
+
+
+def scan_sources(
+    source_paths: Iterable[Path], admitted: frozenset[str] = frozenset()
+) -> list[str]:
     findings = []
     for source_path in sorted(set(source_paths)):
         source_text = strip_comments(
             source_path.read_text(encoding="utf-8", errors="replace"),
             source_path.suffix in ASSEMBLY_SUFFIXES,
         )
-        for line_number, source_line in enumerate(source_text.splitlines(), 1):
+        source_lines = source_text.splitlines()
+        exempt = admitted_lines(source_lines, admitted) if admitted else set()
+        for line_number, source_line in enumerate(source_lines, 1):
+            if line_number in exempt:
+                continue
             matched_patterns = []
             if DIVIDER_SYMBOL_PATTERN.search(source_line):
                 matched_patterns.append("divider symbol")
@@ -1210,6 +1285,17 @@ def parse_arguments() -> argparse.Namespace:
         help="relocatable object holding the userland division helpers",
     )
     parser.add_argument(
+        "--admit-function",
+        action="append",
+        default=[],
+        help=(
+            "function allowed to access the divider: the kernel's save and "
+            "restore of a process's divider state; each named function must "
+            "access the divider in every --elf image, and the source scan "
+            "skips its definition"
+        ),
+    )
+    parser.add_argument(
         "--dependency-directory",
         action="append",
         type=Path,
@@ -1230,7 +1316,7 @@ def main() -> int:
     source_paths = set()
     for dependency_directory in arguments.dependency_directory:
         source_paths.update(dependency_sources(dependency_directory.resolve()))
-    source_findings = scan_sources(source_paths)
+    source_findings = scan_sources(source_paths, frozenset(arguments.admit_function))
     image_results = []
     for image_path in arguments.elf:
         analyzer = ImageAnalyzer(image_path.resolve())
@@ -1238,6 +1324,34 @@ def main() -> int:
             image_results.append(analyzer.analyze())
         finally:
             analyzer.close()
+
+    admitted = frozenset(arguments.admit_function)
+    admission_findings: list[str] = []
+    for index, image_result in enumerate(image_results):
+        found = {finding.function for finding in image_result.findings}
+        for name in sorted(admitted - found):
+            admission_findings.append(
+                f"{image_result.image}: admitted function {name} makes no "
+                "divider access"
+            )
+        for finding in image_result.findings:
+            if finding.function in admitted:
+                print(
+                    f"{finding.image}:0x{finding.address:08x}: admitted: "
+                    f"{finding.function}: {finding.instruction}"
+                )
+        image_results[index] = ImageResult(
+            image_result.image,
+            image_result.image_bytes,
+            image_result.code_bytes,
+            image_result.literal_bytes,
+            image_result.instructions,
+            image_result.memory_operations,
+            image_result.sio_access_addresses,
+            tuple(
+                finding for finding in image_result.findings if finding.function not in admitted
+            ),
+        )
 
     for image_result in image_results:
         print(
@@ -1274,9 +1388,12 @@ def main() -> int:
         helper_findings.extend(findings)
     for helper_finding in helper_findings:
         print(helper_finding, file=sys.stderr)
+    for admission_finding in admission_findings:
+        print(admission_finding, file=sys.stderr)
     if (
         source_findings
         or helper_findings
+        or admission_findings
         or any(result.findings for result in image_results)
     ):
         return 1

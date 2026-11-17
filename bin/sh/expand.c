@@ -32,18 +32,18 @@ addg(char *as1, char *as2, char *as3)
 	{
 		if (/* @@@ (c &= STRIP)*/ (c=smask(c)) == 0)
 		{
-			*s2++ = '/';
+			stakput(s2, '/');
 			break;
 		}
-		*s2++ = c;
+		stakput(s2, c);
 	}
 	s1 = as2;
-	while ((*s2 = *s1++))
+	while ((stakroom(s2), *s2 = *s1++))
 		s2++;
 	if ((s1 = as3))
 	{
-		*s2++ = '/';
-		while ((*s2++ = *++s1))
+		stakput(s2, '/');
+		while ((stakput(s2, *++s1)))
 			;
 	}
 	makearg((struct argnod *)endstak(s2));

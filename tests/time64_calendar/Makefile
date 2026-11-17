@@ -35,6 +35,8 @@ NARROW=		-D_TIME_BITS=32
 ZONE_RENAMES=	-Dgetenv=calendar_getenv -Dgettimeofday=calendar_zone_gettimeofday
 # The headers that carry the two views; an object is rebuilt when one moves.
 VIEW_HEADERS=	${TOPSRC}/sys/sys/_time_t.h ${TOPSRC}/include/time.h \
+		${TOPSRC}/sys/sys/_timespec.h ${TOPSRC}/sys/sys/_timeval.h \
+		${TOPSRC}/sys/sys/_sigset_t.h ${TOPSRC}/sys/sys/_suseconds_t.h \
 		${TOPSRC}/include/utime.h ${TOPSRC}/sys/sys/timeb.h \
 		${TOPSRC}/sys/sys/time.h ${TOPSRC}/sys/sys/wait.h \
 		${TOPSRC}/sys/sys/resource.h

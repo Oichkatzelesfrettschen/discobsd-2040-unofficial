@@ -29,11 +29,12 @@ TIME64OBJ	= time64_widen_stat.o time64_widen_rusage.o time64_stat.o time64_lstat
 # name to __NAME64 and offtime.h the shared conversion to
 # __discobsd_offtime64. NAME64.o is the member built from NAME.c; the zone
 # both widths read is tzset.o's.
-WIDEOBJ		= ctime64.o mktime64.o time64.o difftime64.o wait364.o
+WIDEOBJ		= ctime64.o mktime64.o time64.o difftime64.o wait364.o \
+		  timespec_get64.o
 
 STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c atol.c \
 		  basename.c bcmp.c bcopy.c ctermid.c \
-		  bzero.c calloc.c closedir.c confstr.c crypt.c ctime.c ctype_.c \
+		  bzero.c calloc.c clock.c closedir.c confstr.c crypt.c ctime.c ctype_.c \
 		  daemon.c devname.c difftime.c dirname.c \
 		  ecvt.c err.c execvp.c fakcu.c ffs.c \
 		  fnmatch.c frexp.c fstab.c gcvt.c getenv.c getgrent.c getgrgid.c \
@@ -42,22 +43,22 @@ STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c 
 		  getcwd.c getpwent.c getttyent.c getttynam.c getusershell.c \
 		  getwd.c index.c initgroups.c isascii.c isatty.c isblank.c \
 		  isctype.c isinff.c isnanf.c \
-		  knlist.c ldexp.c malloc.c mktemp.c mktime.c modf.c modff.c ndbm.c \
+		  knlist.c ldexp.c localeconv.c malloc.c mktemp.c mktime.c modf.c modff.c ndbm.c \
 		  nlist.c opendir.c perror.c popen.c psignal.c qsort.c qsort_r.c raise.c \
 		  random.c readdir.c regex.c rindex.c scandir.c seekdir.c \
-		  setenv.c sethostname.c setmode.c setpgid.c siginterrupt.c \
+		  setenv.c sethostname.c setlocale.c setmode.c setpgid.c siginterrupt.c \
 		  siglist.c signal.c sigsetops.c sleep.c strcasecmp.c \
 		  stpcpy.c stpncpy.c strcat.c strcmp.c strcpy.c strdup.c \
 		  strndup.c strnlen.c strftime.c strlen.c \
 		  strncat.c strncmp.c strncpy.c swab.c sysconf.c sysctl.c syslog.c \
-		  system.c telldir.c time.c timezone.c tolower.c toupper.c tzset.c \
+		  system.c telldir.c time.c timespec_get.c timezone.c tolower.c toupper.c tzset.c \
 		  ttyname.c ttyslot.c \
 		  ualarm.c uname.c unvis.c usleep.c vis.c \
 		  wait.c wait3.c waitpid.c
 
 STDOBJ		= abort.o alarm.o aligned_alloc.o assert_fail.o asctime.o atof.o atoi.o atol.o \
 		  basename.o bcmp.o bcopy.o ctermid.o \
-		  bzero.o calloc.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
+		  bzero.o calloc.o clock.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
 		  daemon.o devname.o difftime.o dirname.o \
 		  ecvt.o err.o execvp.o fakcu.o ffs.o \
 		  fnmatch.o frexp.o fstab.o gcvt.o getenv.o getgrent.o getgrgid.o \
@@ -66,15 +67,15 @@ STDOBJ		= abort.o alarm.o aligned_alloc.o assert_fail.o asctime.o atof.o atoi.o 
 		  getcwd.o getpwent.o getttyent.o getttynam.o getusershell.o \
 		  getwd.o index.o initgroups.o isascii.o isatty.o isblank.o \
 		  isctype.o isinff.o isnanf.o \
-		  knlist.o ldexp.o malloc.o mktemp.o mktime.o modf.o modff.o ndbm.o \
+		  knlist.o ldexp.o localeconv.o malloc.o mktemp.o mktime.o modf.o modff.o ndbm.o \
 		  nlist.o opendir.o perror.o popen.o psignal.o qsort.o qsort_r.o raise.o \
 		  random.o readdir.o regex.o rindex.o scandir.o seekdir.o \
-		  setenv.o sethostname.o setmode.o setpgid.o siginterrupt.o \
+		  setenv.o sethostname.o setlocale.o setmode.o setpgid.o siginterrupt.o \
 		  siglist.o signal.o sigsetops.o sleep.o strcasecmp.o \
 		  stpcpy.o stpncpy.o strcat.o strcmp.o strcpy.o strdup.o \
 		  strndup.o strnlen.o strftime.o strlen.o \
 		  strncat.o strncmp.o strncpy.o swab.o sysconf.o sysctl.o syslog.o \
-		  system.o telldir.o time.o timezone.o tolower.o toupper.o tzset.o \
+		  system.o telldir.o time.o timespec_get.o timezone.o tolower.o toupper.o tzset.o \
 		  ttyname.o ttyslot.o \
 		  ualarm.o uname.o unvis.o usleep.o vis.o \
 		  wait.o wait3.o waitpid.o
@@ -95,6 +96,10 @@ ${member}64.o: ${member}.c
 # reads the clock past 2038 for callers of either width.
 syslog.o: syslog.c
 		${CC} ${CFLAGS} -U_TIME_BITS -D_TIME_BITS=64 -c -o $@ ${.CURDIR}/syslog.c
+
+# err.c is prototyped against <err.h>; the extra diagnostics keep it that way.
+err.o: err.c
+		${CC} ${CFLAGS} -Wstrict-prototypes -Wold-style-definition -c -o $@ ${.CURDIR}/err.c
 
 tags:
 		cwd=`pwd`; \

@@ -23,6 +23,18 @@ Its five application layouts and eleven calibrated rejection controls establish
 that prerequisite. Full-libc sizing, versioned admission and runtime lifecycle
 qualification remain separate implementation work.
 
+The [callable identity fixture](slot-identity.md) separates public slot symbols
+from private provider aliases. Its C17, assembly and LTO images check exact
+function extents, canonical pointers, weak aliases and callbacks through a
+separately linked SRAM application. Production slot generation and complete
+provider ownership remain separate implementation work.
+
+The [divider function extents](divider-function-extents.md) give all four
+integer-divider aliases exact code ranges, excluding model literal pools.
+Six metadata controls calibrate production ownership checks. Matched ELF and
+native archive measurements isolate the size annotations from executable bytes;
+full export selection remains separate implementation work.
+
 The [export-closure checker](export-closure/README.md) resolves explicit API
 roots through compiled archive providers. Its calibration rejects a selection
 that drops a required interface merely because installed programs never call it.
@@ -40,6 +52,13 @@ size flags and shared syscall error factoring. The factored link saves 976
 bytes and passes a calibrated syscall instruction model, while remaining
 12,092 bytes over the reservation before slots. Production adoption remains
 subject to the object-ABI and lifecycle gates.
+
+The [captured PIC replay](export-closure/pic-replay-envelope.md) replaces
+per-experiment compiler reconstruction with an owned-source, archive-member
+and generated-input instrument. Its main-based 647-global link measures
+62,604 flash bytes and 5,648 state bytes. The 13,452-byte excess before slots
+keeps the 48 KiB admission question open. A missing-root control distinguishes
+smaller storage from preservation of the required interface set.
 
 The [native-call veneer experiment](../native-call-veneers.md) checks a
 12-byte Thumb encoding with eight bytes of temporary stack storage, canonical

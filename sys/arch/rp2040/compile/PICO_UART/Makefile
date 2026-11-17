@@ -1,6 +1,7 @@
 PARAM = -DPICO_UART
 PARAM += -DRP2040
 PARAM += -DUART_ENABLED
+PARAM += -DDEV_ADC
 PARAM += -DCONS_MINOR=0
 PARAM += -DCONS_MAJOR=UART_MAJOR
 PARAM += -DUART_BAUD=115200
@@ -156,8 +157,8 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
 	mem.o swap.o clock.o board.o conf.o core1.o fault.o machdep.o \
 	shutdown_sync.o mpu.o sig_machdep.o syscall.o sysctl.o systick.o \
-	uart.o flash.o flash_swap.o error.o journal.o map.o subr_crc32.o \
-	exec_hsaout.o hsx_stream.o hsx_decoder.o
+	adc.o uart.o flash.o flash_swap.o error.o journal.o map.o \
+	subr_crc32.o exec_hsaout.o hsx_stream.o hsx_decoder.o
 
 CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/exec_script.c $S/kern/exec_subr.c $S/kern/errlist.c \
@@ -183,11 +184,11 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/arch/rp2040/rp2040/shutdown_sync.c \
 	$S/arch/rp2040/rp2040/mpu.c $S/arch/rp2040/rp2040/sig_machdep.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
-	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/uart.c \
-	$S/arch/rp2040/dev/flash.c $S/arch/rp2040/dev/flash_swap.c \
-	$S/arch/rp2040/dhara/error.c $S/arch/rp2040/dhara/journal.c \
-	$S/arch/rp2040/dhara/map.c $S/kern/subr_crc32.c \
-	$S/arch/rp2040/rp2040/exec_hsaout.c \
+	$S/arch/rp2040/rp2040/systick.c $S/arch/rp2040/dev/adc.c \
+	$S/arch/rp2040/dev/uart.c $S/arch/rp2040/dev/flash.c \
+	$S/arch/rp2040/dev/flash_swap.c $S/arch/rp2040/dhara/error.c \
+	$S/arch/rp2040/dhara/journal.c $S/arch/rp2040/dhara/map.c \
+	$S/kern/subr_crc32.c $S/arch/rp2040/rp2040/exec_hsaout.c \
 	$S/arch/rp2040/rp2040/hsx_stream.c \
 	$S/arch/rp2040/rp2040/hsx_decoder.c swapunix.c
 
@@ -511,6 +512,9 @@ sysctl.o: $S/arch/rp2040/rp2040/sysctl.c
 	${COMPILE_C}
 
 systick.o: $S/arch/rp2040/rp2040/systick.c
+	${COMPILE_C}
+
+adc.o: $S/arch/rp2040/dev/adc.c
 	${COMPILE_C}
 
 uart.o: $S/arch/rp2040/dev/uart.c

@@ -1903,7 +1903,8 @@ UART_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
 uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
 	uart-mutant-busy-early uart-mutant-drain-unchecked \
 	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
-	uart-mutant-putc-waits uart-mutant-timer-dup
+	uart-mutant-putc-waits uart-mutant-timer-dup \
+	uart-mutant-rx-pull-down
 
 uart-mutant-one-byte:
 	@MUTANT_EXPECT='FAIL login prompt: 1 of 7 bytes reach the wire' ${UART_MUT} uart.c \
@@ -1949,6 +1950,11 @@ uart-mutant-timer-dup:
 	@MUTANT_EXPECT='FAIL a second callout while one is pending' ${UART_MUT} uart.c \
 	    's/^        if (!(uart_txflags\[unit\] \& UART_TX_TIMER)) {$$/        if (1) {/' \
 	    uart.h
+
+# uart_pin_setup() leaves the receive pad on its reset pull-down.
+uart-mutant-rx-pull-down:
+	@MUTANT_EXPECT='FAIL receive pad takes the pull-up for the pull-down' ${UART_MUT} uart.c \
+	    's/^\tpad = (pad \& ~PADS_PDE) | PADS_PUE;$$/\t(void)0;/' uart.h
 
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \

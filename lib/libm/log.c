@@ -32,10 +32,14 @@ double arg;
 	/*
 	 * C17 7.12.6.7: a negative argument is a domain error; zero is a
 	 * pole, which 7.12.1p4 reports as a range error, and Annex F.10.3.7
-	 * returns -infinity for it.
+	 * returns -infinity for it; F.10.3.7 returns a NaN for a negative one.
 	 */
 	if(arg <= 0.) {
-		errno = arg == 0. ? ERANGE : EDOM;
+		if(arg < 0.) {
+			errno = EDOM;
+			return(NAN);
+		}
+		errno = ERANGE;
 		return(-HUGE_VAL);
 	}
 	if(arg > DBL_MAX)

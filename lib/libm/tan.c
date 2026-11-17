@@ -26,6 +26,12 @@ tan(arg)
 	double sign, temp, e, x, xsq;
 	int flag, i;
 
+	if(arg - arg != 0.) {
+		/* An infinity has no tangent (C17 F.10.1.7); a NaN passes through. */
+		if(arg == arg)
+			errno = EDOM;
+		return(arg - arg);
+	}
 	flag = 0;
 	sign = 1.;
 	if(arg < 0.){

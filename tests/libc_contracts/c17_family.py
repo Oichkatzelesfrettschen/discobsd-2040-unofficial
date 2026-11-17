@@ -122,10 +122,14 @@ FAMILIES = {
         ),
     ),
     "strtof": (
-        ("lib/libc/stdlib/strtof.c", "lib/libc/stdlib/strtofp.c"),
-        ("strtof",),
+        (
+            "lib/libc/stdlib/strtof.c",
+            "lib/libc/stdlib/strtold.c",
+            "lib/libc/stdlib/strtofp.c",
+        ),
+        ("strtof", "strtold"),
         "c17_strtof_test.c",
-        "c17 strtof: 200045 checks passed\n",
+        "c17 strtof: 220069 checks passed\n",
         ("-lm",),
         (
             (
@@ -135,6 +139,22 @@ FAMILIES = {
                 1,
                 "strtof",
                 "strtof reports no range error",
+            ),
+            (
+                "lib/libc/stdlib/strtold.c",
+                "\tif (range)\n\t\terrno = ERANGE;\n",
+                "",
+                1,
+                "strtold",
+                "strtold reports no range error",
+            ),
+            (
+                "lib/libc/stdlib/strtold.c",
+                "STRTOFP_BINARY64",
+                "STRTOFP_BINARY32",
+                1,
+                "strtold",
+                "strtold converts through the binary32 core",
             ),
             (
                 "lib/libc/stdlib/strtofp.c",

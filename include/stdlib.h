@@ -171,13 +171,15 @@ double  strtod (const char *, char **);
 #ifndef __SMALLER_C__
 float   strtof (const char *_DISCOBSD_RESTRICT, char **_DISCOBSD_RESTRICT);
 /*
- * long double has double's format on this ABI, so strtold is strtod under
- * a second name and costs no code.  A host test build, where the formats
+ * long double has double's format on this ABI, so strtold converts to
+ * binary64 through the same correctly rounding core as strtof and wcstod
+ * (lib/libc/stdlib/strtold.c); the inherited strtod accepts neither
+ * infinities, NaNs nor hexadecimal.  A host test build, where the formats
  * differ, sees no declaration.
  */
 #if defined(__LDBL_MANT_DIG__) && __LDBL_MANT_DIG__ == __DBL_MANT_DIG__
 long double strtold (const char *_DISCOBSD_RESTRICT,
-	    char **_DISCOBSD_RESTRICT) __asm__("strtod");
+	    char **_DISCOBSD_RESTRICT);
 #endif
 #endif
 char    *ecvt (double, int, int *, int *);

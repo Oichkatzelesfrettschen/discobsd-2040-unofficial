@@ -104,9 +104,15 @@ is `MATH_ERRNO`; the new members set `errno` for domain and pole errors and
 overflow.
 
 **Free aliases.** `long double` has double's format on this ABI, so every
-`long double` function, `strtold`, `wcstold` and `nexttoward` are the double
+`long double` function, `wcstold` and `nexttoward` are the double
 functions under a second name (an `__asm__` label), costing no code. A
-translation unit whose `long double` is wider sees none of them.
+translation unit whose `long double` is wider sees none of them. `strtold`
+is the exception: the inherited `strtod` accepts neither infinities, NaNs nor
+hexadecimal and does not round correctly, so `strtold` has its own member,
+`lib/libc/stdlib/strtold.c`, over the `strtofp.c` core `strtof` and `wcstod`
+use. It is in the cross ELF archive only, so a program linked against the
+native `lib/libc_aout` archive finds no `strtold` and fails to link instead of
+reaching a conversion that is wrong for those inputs.
 
 **Type-generic selection.** `<tgmath.h>` selects on the sum of the arguments
 after giving each integer argument type double (7.25p3). Its contract caught

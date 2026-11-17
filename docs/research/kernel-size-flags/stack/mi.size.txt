@@ -1,0 +1,2 @@
+   text	   data	    bss	    dec	    hex	filename
+  98175	    128	  42928	 141231	  227af	unix.elf

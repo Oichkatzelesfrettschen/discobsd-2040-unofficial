@@ -1,0 +1,23 @@
+syscall 2372
+    PendSV_Handler[88] -> syscall[32] -> execv[8] -> execve[400] -> exec_check[40] -> exec_script_check[120] -> exec_check[40] -> exec_hsaout_check[120] -> exec_clear[24] -> closef[8] -> vn_closefile[16] -> closei[40] -> dev_driver_close[8] -> device_driver_call[72] -> cnclose[16] -> uartclose[8] -> ttywflush[8] -> ttywait[16] -> sleep[8] -> tsleep[40] -> issignal[16] -> procxmt[24] -> exit[32] -> closef[8] -> vn_closefile[16] -> irele[16] -> itrunc[144] -> indirtrunc[144] -> free[24] -> getblk[32] -> getnewbuf[8] -> bwrite[16] -> flstrategy[48] -> dhara_map_write[168] -> prepare_write[48] -> auto_gc[32] -> dhara_map_gc[24] -> try_recover[32] -> raw_gc[176] -> trace_path[176] -> dhara_journal_read_meta[48] -> dhara_nand_read[8] -> bcopy[20]
+boot 1700
+    main[48] -> sched[104] -> swap_exchange_inplace[168] -> exec_text_restore[88] -> exec_hsaout_text[88] -> hsx_load[40] -> hsx_expand[56] -> hsx_fill[40] -> rdwri[56] -> rwip[64] -> bmap[56] -> balloc[40] -> bread[16] -> getblk[32] -> getnewbuf[8] -> bwrite[16] -> flstrategy[48] -> dhara_map_write[168] -> prepare_write[48] -> auto_gc[32] -> dhara_map_gc[24] -> try_recover[32] -> raw_gc[176] -> trace_path[176] -> dhara_journal_read_meta[48] -> dhara_nand_read[8] -> bcopy[20]
+panic 1268
+    panic[8] -> boot[16] -> rp2040_shutdown_sync[16] -> sync[24] -> ufs_sync[32] -> iput[8] -> irele[16] -> itrunc[144] -> indirtrunc[144] -> free[24] -> getblk[32] -> getnewbuf[8] -> bwrite[16] -> flstrategy[48] -> dhara_map_write[168] -> prepare_write[48] -> auto_gc[32] -> dhara_map_gc[24] -> try_recover[32] -> raw_gc[176] -> trace_path[176] -> dhara_journal_read_meta[48] -> dhara_nand_read[8] -> bcopy[20]
+clock 256
+    systick[16] -> hardclock[40] -> softclock[32] -> psignal[64] -> setrun[16] -> wakeup[64] -> updatepri[24]
+usb 408
+    USBCTRL_IRQ_Handler[8] -> usbintr[8] -> usb_service[32] -> ttyinput[32] -> ttypend[32] -> ttyinput[32] -> catq[136] -> q_to_b.part.0[40] -> wakeup[64] -> updatepri[24]
+uart0 392
+    UART0_IRQ_Handler[8] -> uartintr[24] -> ttyinput[32] -> ttypend[32] -> ttyinput[32] -> catq[136] -> q_to_b.part.0[40] -> wakeup[64] -> updatepri[24]
+uart1 392
+    UART1_IRQ_Handler[8] -> uartintr[24] -> ttyinput[32] -> ttypend[32] -> ttyinput[32] -> catq[136] -> q_to_b.part.0[40] -> wakeup[64] -> updatepri[24]
+fault 1964
+    HardFault_Handler[8] -> arm_fault[136] -> userret[16] -> postsig[224] -> namei[8] -> namei_at[368] -> iget[32] -> iput[8] -> irele[16] -> itrunc[144] -> indirtrunc[144] -> free[24] -> getblk[32] -> getnewbuf[8] -> bwrite[16] -> flstrategy[48] -> dhara_map_write[168] -> prepare_write[48] -> auto_gc[32] -> dhara_map_gc[24] -> try_recover[32] -> raw_gc[176] -> trace_path[176] -> dhara_journal_read_meta[48] -> dhara_nand_read[8] -> bcopy[20]
+nmi 0
+    NMI_Handler[0]
+svc 0
+    SVC_Handler[0]
+reboot 1260
+    boot[16] -> rp2040_shutdown_sync[16] -> sync[24] -> ufs_sync[32] -> iput[8] -> irele[16] -> itrunc[144] -> indirtrunc[144] -> free[24] -> getblk[32] -> getnewbuf[8] -> bwrite[16] -> flstrategy[48] -> dhara_map_write[168] -> prepare_write[48] -> auto_gc[32] -> dhara_map_gc[24] -> try_recover[32] -> raw_gc[176] -> trace_path[176] -> dhara_journal_read_meta[48] -> dhara_nand_read[8] -> bcopy[20]
+stack uarea: syscall 2372 + clock clock 292 + nmi nmi 36 + tty usb 444 = 3144 of 2048, -1096 free

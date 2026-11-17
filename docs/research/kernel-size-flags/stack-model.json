@@ -1,0 +1,1583 @@
+{
+ "stacks": [
+  {
+   "name": "uarea",
+   "bytes": 2048
+  }
+ ],
+ "roots": [
+  {
+   "name": "syscall",
+   "entry": "PendSV_Handler",
+   "stack": "uarea",
+   "role": "base"
+  },
+  {
+   "name": "boot",
+   "entry": "main",
+   "stack": "uarea",
+   "role": "base"
+  },
+  {
+   "name": "panic",
+   "entry": "panic",
+   "stack": "uarea",
+   "role": "separate"
+  },
+  {
+   "name": "clock",
+   "entry": "systick",
+   "stack": "uarea",
+   "role": "interrupt",
+   "level": "clock"
+  },
+  {
+   "name": "usb",
+   "entry": "USBCTRL_IRQ_Handler",
+   "stack": "uarea",
+   "role": "interrupt",
+   "level": "tty"
+  },
+  {
+   "name": "uart0",
+   "entry": "UART0_IRQ_Handler",
+   "stack": "uarea",
+   "role": "interrupt",
+   "level": "tty"
+  },
+  {
+   "name": "uart1",
+   "entry": "UART1_IRQ_Handler",
+   "stack": "uarea",
+   "role": "interrupt",
+   "level": "tty"
+  },
+  {
+   "name": "fault",
+   "entry": "HardFault_Handler",
+   "stack": "uarea",
+   "role": "base"
+  },
+  {
+   "name": "nmi",
+   "entry": "NMI_Handler",
+   "stack": "uarea",
+   "role": "interrupt",
+   "level": "nmi"
+  },
+  {
+   "name": "svc",
+   "entry": "SVC_Handler",
+   "stack": "uarea",
+   "role": "base"
+  },
+  {
+   "name": "reboot",
+   "entry": "boot",
+   "stack": "uarea",
+   "role": "separate"
+  }
+ ],
+ "assembly": [
+  "PendSV_Handler",
+  "SysTick_Handler",
+  "HardFault_Handler",
+  "NMI_Handler"
+ ],
+ "sites": [
+  {
+   "function": "cnopen",
+   "text": "].d_open",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_open",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "cnclose",
+   "text": "].d_close",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_close",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "cnread",
+   "text": "].d_read",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_read",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "cnwrite",
+   "text": "].d_write",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_write",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "cnselect",
+   "text": "].d_select",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_select",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "cnioctl",
+   "text": "].d_ioctl",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_ioctl",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "cnputc",
+   "text": "].r_write",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "r_write",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "cngetc",
+   "text": "].r_read",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "r_read",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "reply_one",
+   "text": "rc->fn",
+   "targets": [
+    "core1_pong"
+   ]
+  },
+  {
+   "function": "cring_service.isra.0",
+   "text": "fn(ctx",
+   "targets": [
+    "reply_one"
+   ]
+  },
+  {
+   "function": "flash_enter_xip",
+   "text": "boot2_copy",
+   "excluded": "RAM copy of the second-stage boot code; assembled, no stack use"
+  },
+  {
+   "function": "flash_cmd",
+   "text": "flrom.connect",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_cmd",
+   "text": "flrom.exit_xip",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_cmd",
+   "text": "flrom.flush",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_erase",
+   "text": "flrom.connect",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_erase",
+   "text": "flrom.exit_xip",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_erase",
+   "text": "flrom.erase",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_erase",
+   "text": "flrom.flush",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_program",
+   "text": "flrom.connect",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_program",
+   "text": "flrom.exit_xip",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_program",
+   "text": "flrom.program",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_program",
+   "text": "flrom.flush",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "rom_func_lookup",
+   "text": "lookup(",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "flash_swap_append",
+   "text": "ops->erase(",
+   "table": "flswap_ops",
+   "struct": "flash_swap_ops",
+   "member": "erase"
+  },
+  {
+   "function": "flash_swap_append",
+   "text": "ops->program(",
+   "table": "flswap_ops",
+   "struct": "flash_swap_ops",
+   "member": "program"
+  },
+  {
+   "function": "flash_swap_rewrite",
+   "text": "ops->erase(",
+   "table": "flswap_ops",
+   "struct": "flash_swap_ops",
+   "member": "erase"
+  },
+  {
+   "function": "flash_swap_rewrite",
+   "text": "ops->read(",
+   "table": "flswap_ops",
+   "struct": "flash_swap_ops",
+   "member": "read"
+  },
+  {
+   "function": "flash_swap_rewrite",
+   "text": "ops->program(",
+   "table": "flswap_ops",
+   "struct": "flash_swap_ops",
+   "member": "program"
+  },
+  {
+   "function": "hsx_expand",
+   "text": "fill (",
+   "targets": [
+    "hsx_fill"
+   ]
+  },
+  {
+   "function": "main",
+   "text": "svc_attach",
+   "table": "conf_service_init",
+   "struct": "conf_service",
+   "member": "svc_attach"
+  },
+  {
+   "function": "main",
+   "text": "].d_open",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_open",
+   "except": [
+    "swopen",
+    "swsize",
+    "swstrategy"
+   ],
+   "why": "swapdev names the backing device, not the swap pseudo-device"
+  },
+  {
+   "function": "main",
+   "text": "].d_psize",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_psize",
+   "except": [
+    "swopen",
+    "swsize",
+    "swstrategy"
+   ],
+   "why": "swapdev names the backing device, not the swap pseudo-device"
+  },
+  {
+   "function": "softclock",
+   "text": "(*func)",
+   "targets": [
+    "wakeup",
+    "schedcpu",
+    "endtsleep",
+    "core1_poll",
+    "kbd_poll",
+    "kbdreq_timeout",
+    "uartdrain",
+    "render_resume",
+    "pcm_wake",
+    "bell_stop"
+   ]
+  },
+  {
+   "function": "fioctl",
+   "text": "->fo_ioctl)",
+   "table": "Fops",
+   "pointers": true,
+   "struct": "fileops",
+   "member": "fo_ioctl"
+  },
+  {
+   "function": "closef",
+   "text": "->fo_close)",
+   "table": "Fops",
+   "pointers": true,
+   "struct": "fileops",
+   "member": "fo_close"
+  },
+  {
+   "function": "exec_check",
+   "text": "es_check",
+   "table": "execsw",
+   "struct": "execsw",
+   "member": "es_check"
+  },
+  {
+   "function": "__sysctl",
+   "text": "(*fn)",
+   "targets": [
+    "kern_sysctl",
+    "hw_sysctl",
+    "vm_sysctl",
+    "net_sysctl",
+    "fs_sysctl",
+    "cpu_sysctl",
+    "debug_sysctl"
+   ]
+  },
+  {
+   "function": "config",
+   "text": "d_init",
+   "targets": [
+    "usbprobe",
+    "uartprobe",
+    "sdprobe",
+    "lcdprobe",
+    "psramprobe"
+   ]
+  },
+  {
+   "function": "boot",
+   "text": "rom_reset(",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "boot",
+   "text": "(*dump)",
+   "targets": [
+    "dumpsys",
+    "nodump"
+   ]
+  },
+  {
+   "function": "swsize",
+   "text": "].d_psize",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_psize",
+   "except": [
+    "swopen",
+    "swsize",
+    "swstrategy"
+   ],
+   "why": "swapdev names the backing device, not the swap pseudo-device"
+  },
+  {
+   "function": "swstrategy",
+   "text": "].d_strategy",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_strategy",
+   "except": [
+    "swopen",
+    "swsize",
+    "swstrategy"
+   ],
+   "why": "swapdev names the backing device, not the swap pseudo-device"
+  },
+  {
+   "function": "rwuio",
+   "text": "->fo_rw)",
+   "table": "Fops",
+   "pointers": true,
+   "struct": "fileops",
+   "member": "fo_rw"
+  },
+  {
+   "function": "ioctl",
+   "text": "->fo_ioctl)",
+   "table": "Fops",
+   "pointers": true,
+   "struct": "fileops",
+   "member": "fo_ioctl"
+  },
+  {
+   "function": "selscan",
+   "text": "->fo_select)",
+   "table": "Fops",
+   "pointers": true,
+   "struct": "fileops",
+   "member": "fo_select"
+  },
+  {
+   "function": "ino_select",
+   "text": "].d_select",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_select"
+  },
+  {
+   "function": "ino_ioctl",
+   "text": "cdevsw[major(dev)].d_ioctl",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_ioctl"
+  },
+  {
+   "function": "ino_ioctl",
+   "text": "bdevsw[major(dev)].d_ioctl",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_ioctl"
+  },
+  {
+   "function": "rwip",
+   "text": "].d_read",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_read"
+  },
+  {
+   "function": "rwip",
+   "text": "].d_write",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_write"
+  },
+  {
+   "function": "openi",
+   "text": "].d_open",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_open"
+  },
+  {
+   "function": "syscall",
+   "text": "syscall_handlers[",
+   "table": "syscall_handlers"
+  },
+  {
+   "function": "ucall",
+   "text": "uap->routine",
+   "excluded": "caller-supplied kernel address; refused above securelevel 0"
+  },
+  {
+   "function": "ttywait",
+   "text": "t_oproc",
+   "targets": [
+    "usbstart",
+    "uartstart",
+    "lcdstart",
+    "ptsstart"
+   ]
+  },
+  {
+   "function": "ttstart",
+   "text": "t_oproc",
+   "targets": [
+    "usbstart",
+    "uartstart",
+    "lcdstart",
+    "ptsstart"
+   ]
+  },
+  {
+   "function": "ttyunblock",
+   "text": "].d_ioctl",
+   "why": "TIOCMBIS and TIOCMBIC pass through the driver's ioctl into ttioctl, whose default arm returns without a call",
+   "frames": [
+    [
+     "uartioctl",
+     "usbioctl",
+     "lcdioctl"
+    ],
+    "ttioctl"
+   ]
+  },
+  {
+   "function": "ttyblock",
+   "text": "].d_ioctl",
+   "why": "TIOCMBIS and TIOCMBIC pass through the driver's ioctl into ttioctl, whose default arm returns without a call",
+   "frames": [
+    [
+     "uartioctl",
+     "usbioctl",
+     "lcdioctl"
+    ],
+    "ttioctl"
+   ]
+  },
+  {
+   "function": "ttyflush",
+   "text": "].d_stop",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_stop",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "ttyinput",
+   "text": "].d_stop",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_stop",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "ttioctl",
+   "text": "].d_stop",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_stop",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "syopen",
+   "text": "].d_open",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_open",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "syread",
+   "text": "].d_read",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_read",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "sywrite",
+   "text": "].d_write",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_write",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "syioctl",
+   "text": "].d_ioctl",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_ioctl",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "syselect",
+   "text": "].d_select",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_select",
+   "only": [
+    "usb",
+    "uart",
+    "lcd",
+    "pt",
+    "null",
+    "no"
+   ],
+   "why": "the device is a terminal: the console's or a tty's own t_dev"
+  },
+  {
+   "function": "device_driver_call",
+   "text": "cdevsw[major(dev)].d_open",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_open"
+  },
+  {
+   "function": "device_driver_call",
+   "text": "bdevsw[major(dev)].d_open",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_open"
+  },
+  {
+   "function": "device_driver_call",
+   "text": "cdevsw[major(dev)].d_close",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_close"
+  },
+  {
+   "function": "device_driver_call",
+   "text": "bdevsw[major(dev)].d_close",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_close"
+  },
+  {
+   "function": "bwrite",
+   "text": "].d_strategy",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_strategy",
+   "except": [
+    "swstrategy"
+   ],
+   "why": "left out: buffer-cache I/O on the swap pseudo-device's block node, which nests the cache under itself up to NBUF deep"
+  },
+  {
+   "function": "bread",
+   "text": "].d_strategy",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_strategy",
+   "except": [
+    "swstrategy"
+   ],
+   "why": "left out: buffer-cache I/O on the swap pseudo-device's block node, which nests the cache under itself up to NBUF deep"
+  },
+  {
+   "function": "breada",
+   "text": "].d_strategy",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_strategy",
+   "except": [
+    "swstrategy"
+   ],
+   "why": "left out: buffer-cache I/O on the swap pseudo-device's block node, which nests the cache under itself up to NBUF deep"
+  },
+  {
+   "function": "umount",
+   "text": "].d_ioctl",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_ioctl"
+  },
+  {
+   "function": "bdev_checkpoint",
+   "text": "].d_ioctl",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_ioctl"
+  },
+  {
+   "function": "usb_service",
+   "text": "rom_reset",
+   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+  },
+  {
+   "function": "swap_with_buf_result",
+   "text": "].d_strategy",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_strategy",
+   "except": [
+    "swopen",
+    "swsize",
+    "swstrategy"
+   ],
+   "why": "swapdev names the backing device, not the swap pseudo-device"
+  }
+ ],
+ "cuts": [],
+ "recursion": [
+  {
+   "function": "wakeup",
+   "depth": 2,
+   "reason": "the nested call wakes the swapper on &runout after clearing runout, and the swapper's wakeup finds runout zero"
+  },
+  {
+   "function": "psignal",
+   "depth": 2,
+   "reason": "the nested call posts SIGCHLD to the parent, which is not a stop signal and so does not reach the SIGCHLD post again"
+  },
+  {
+   "function": "mfree",
+   "depth": 2,
+   "reason": "the nested call frees the part of a run past the ring end, which lies inside the ring and does not split again"
+  },
+  {
+   "function": "indirtrunc",
+   "depth": 3,
+   "reason": "one call per indirection level, entered at TRIPLE at most"
+  },
+  {
+   "function": "errno_message_expand",
+   "depth": 5,
+   "reason": "the deepest left expansion of errno_message_rules, computed from the table at f48e19c9"
+  }
+ ],
+ "excluded": [
+  {
+   "callee": "panic",
+   "reason": "a panic's chain is the root named panic; its sum with the chain that raised it is not bounded"
+  }
+ ],
+ "reentry": [
+  {
+   "function": "ttypend",
+   "reason": "ttypend clears PENDIN before it replays the queue and only ttioctl sets it, so the ttyinput calls it makes do not enter it again"
+  },
+  {
+   "function": "exit",
+   "reason": "exit clears P_TRACED and ignores every signal before its first call, so a sleep under it finds no signal and cannot reach exit again"
+  },
+  {
+   "function": "exec_script_check",
+   "reason": "EXEC_INTERPRETED is set on the first entry and the second returns ENOEXEC before any call"
+  }
+ ],
+ "guards": [
+  {
+   "caller": "exec_text_restore",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "endvfork",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "newproc",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "__sysctl",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "ino_rw",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "pipe_select",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "ptrace",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "ttycheckoutq",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "free",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "balloc",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "ialloc",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "bdevlock",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "biowait",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "getnewbuf",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "getblk",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "blkflush",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "bdevsync",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "igrab",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "iget",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "ilock",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "namei_at",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "sched",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "swap_with_buf_result",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\("
+  },
+  {
+   "caller": "checkpath",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "dirempty",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "direnter",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite"
+   ],
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+  },
+  {
+   "caller": "dirremove",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite"
+   ],
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+  },
+  {
+   "caller": "dirrewrite",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite"
+   ],
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+  },
+  {
+   "caller": "exec_aout_check",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "exec_check",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "exec_elf_check",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "exec_text_restore",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "hsx_fill",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "hsx_headers",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "mkdir_common",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite"
+   ],
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+  },
+  {
+   "caller": "postsig",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite"
+   ],
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+  },
+  {
+   "caller": "readlink",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite",
+    "itrunc",
+    "ufs_sync",
+    "syncip"
+   ],
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "require": "UIO_READ"
+  },
+  {
+   "caller": "rename",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite"
+   ],
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+  },
+  {
+   "caller": "symlink",
+   "callee": "rdwri",
+   "without": [
+    "cnread",
+    "cnwrite",
+    "syread",
+    "sywrite",
+    "uartread",
+    "uartwrite",
+    "usbread",
+    "usbwrite",
+    "lcdread",
+    "lcdwrite",
+    "mmrw",
+    "swcread",
+    "swcwrite",
+    "norw",
+    "ptsread",
+    "ptswrite",
+    "ptcread",
+    "ptcwrite",
+    "kbdread",
+    "pcmwrite"
+   ],
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+  },
+  {
+   "caller": "pipe_close",
+   "callee": "iput",
+   "without": [
+    "indirtrunc"
+   ],
+   "reason": "a pipe holds at most MAXPIPSIZ, NDADDR direct blocks, and has no indirect block"
+  }
+ ],
+ "exempt": [
+  {
+   "function": "Default_Handler",
+   "reason": "the vector table's unused entries; an endless loop that pushes nothing"
+  },
+  {
+   "function": "Reset_Handler",
+   "reason": "reset entry in assembly; it reaches main, the root named boot, with nothing pushed"
+  },
+  {
+   "function": "SysTick_Handler",
+   "reason": "selects the frame pointer and branches to systick, the root named clock, with nothing pushed"
+  },
+  {
+   "function": "core1_main",
+   "reason": "core 1's entry; it runs on core1_stack, not the u area"
+  },
+  {
+   "function": "core1_op",
+   "reason": "called by core 1's request loop on core1_stack"
+  },
+  {
+   "function": "core1_fault",
+   "reason": "core 1's fault vector, on core1_stack"
+  },
+  {
+   "function": "swstrategy",
+   "reason": "left out: buffer-cache I/O on the swap pseudo-device's block node, which nests the cache under itself up to NBUF deep"
+  },
+  {
+   "function": "swsize",
+   "reason": "left out with swstrategy: swapdev names the backing device, so no site sizes the swap pseudo-device through bdevsw"
+  }
+ ]
+}

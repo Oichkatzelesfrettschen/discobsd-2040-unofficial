@@ -234,6 +234,47 @@ sched(void)
     }
 }
 
+#ifdef UCB_METER
+typedef u_int vm_event_count_t;
+
+enum { VM_EVENT_COUNT = 10 };
+
+/* Each byte offset locates the scalar member of its enclosing object. */
+#define VM_EVENT_MEMBER(member, slot) \
+    _Static_assert(__builtin_offsetof(struct vmrate, member) == \
+        (slot) * sizeof(vm_event_count_t) && \
+        _Generic(rate.member, vm_event_count_t: 1, default: 0), \
+        "vmrate member layout: " #member); \
+    _Static_assert(__builtin_offsetof(struct vmsum, member) == \
+        (slot) * sizeof(long) && _Generic(sum.member, long: 1, default: 0), \
+        "vmsum member layout: " #member)
+
+VM_EVENT_MEMBER(v_swtch, 0);
+VM_EVENT_MEMBER(v_trap, 1);
+VM_EVENT_MEMBER(v_syscall, 2);
+VM_EVENT_MEMBER(v_intr, 3);
+VM_EVENT_MEMBER(v_soft, 4);
+VM_EVENT_MEMBER(v_fpsim, 5);
+VM_EVENT_MEMBER(v_kbin, 6);
+VM_EVENT_MEMBER(v_kbout, 7);
+VM_EVENT_MEMBER(v_swpin, 8);
+VM_EVENT_MEMBER(v_swpout, 9);
+#undef VM_EVENT_MEMBER
+
+_Static_assert(sizeof(struct vmrate) == VM_EVENT_COUNT * sizeof(vm_event_count_t) &&
+    _Alignof(struct vmrate) >= _Alignof(vm_event_count_t), "vmrate extent and alignment");
+_Static_assert(sizeof(struct vmsum) == VM_EVENT_COUNT * sizeof(long) &&
+    _Alignof(struct vmsum) >= _Alignof(long), "vmsum extent and alignment");
+
+static inline void
+meter_event(vm_event_count_t *events, vm_event_count_t *average, long *total_events)
+{
+    ave(*average, *events, 5);
+    *total_events += *events;
+    *events = 0;
+}
+#endif
+
 /*
  * Count up various things once a second
  */
@@ -241,19 +282,16 @@ void
 vmmeter(void)
 {
 #ifdef UCB_METER
-    register u_int *cp, *rp;
-    register long *sp;
-
     ave(avefree, freemem, 5);
     ave(avefree30, freemem, 30);
-    cp = &cnt.v_first;
-    rp = &rate.v_first;
-    sp = &sum.v_first;
-    while (cp <= &cnt.v_last) {
-        ave(*rp, *cp, 5);
-        *sp += *cp;
-        *cp = 0;
-        rp++, cp++, sp++;
+    for (unsigned int slot = 0; slot < VM_EVENT_COUNT; ++slot) {
+        vm_event_count_t *events =
+            (void *)((unsigned char *)&cnt + slot * sizeof(vm_event_count_t));
+        vm_event_count_t *average =
+            (void *)((unsigned char *)&rate + slot * sizeof(vm_event_count_t));
+        long *total_events = (void *)((unsigned char *)&sum + slot * sizeof(long));
+
+        meter_event(events, average, total_events);
     }
 #endif
 

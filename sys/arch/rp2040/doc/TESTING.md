@@ -3499,8 +3499,12 @@ The bounded exception accepts those static costs for the calibrated owner
 boundary. Runtime stack and heap high-water marks remain open.
 
 The suite checks explicit IO_SYNC on async mounts,
-data/flush/inode-update failures, counter saturation, 70000 events in one
-`vmmeter()` interval reaching `sum` and `rate` whole, and `tsleep()` accepting
+data/flush/inode-update failures, counter saturation, and `vmmeter()` folding
+and clearing all ten distinct counter values above 65,535 on ordinary and
+fifth-second ticks. The fifth-second cases also check the swap rate
+replacement and all three load averages. The synchronization fixture
+executes 80 assertions at native width and at ILP32 when its signed-overflow
+sanitizer runtime is available. It checks `tsleep()` accepting
 an `INT_MAX` timeout while refusing `INT_MAX + 1` and `UINT_MAX` before the
 process is queued. It runs `sync()` over a mount whose superblock is clean
 (`fs_fmod == 0`): with dirty data, dirty inode metadata, both and neither it
@@ -3558,7 +3562,8 @@ publishing groups before validation, retaining the old group tail, restoring
 `sync()`'s clean-superblock skip, visiting a mount with
 one superblock list locked, an `ITIMES()` that
 drops a failed update's dirty state in a private copy of `sys/inode.h`, and narrowing
-`struct vmrate` in a private copy of `sys/vmmeter.h`, must return assertion failure; compilation failures and crashes do not count as
+`struct vmrate` in a private copy of `sys/vmmeter.h`, and skipping one VM
+counter update must return assertion failure. Compilation failures and crashes do not count as
 calibration. The host has wider pointers and off_t than ARM ILP32; the gate
 excuses the inherited rwip sign comparison and the pointer/integer casts in
 unrelated mount helpers discarded by the linker. Only the known-bad clock
@@ -3568,7 +3573,7 @@ diagnostic enabled. It establishes
 control flow, not flash persistence or a hardware timing bound. Firmware CI
 runs it through check-host on Linux and macOS.
 
-The generated PICO and PICO_UART Makefiles route `kern_time.c` through
+The generated RP2040 Makefiles route `kern_time.c` through
 `${COMPILE_SIZE_C}`, which retains the exact Cortex-M0+ GNU17 warning and ABI
 flags while selecting `-Os`. `check-config-generated-sync` requires that rule
 in both generated kernels and rejects drift from the configuration inputs.

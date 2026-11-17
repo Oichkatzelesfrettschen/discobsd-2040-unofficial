@@ -1126,6 +1126,15 @@ edge_same(const char *name, double got, double want)
 	if (name[0] == 'f' && name[1] == 'm' && (name[2] == 'a' || name[2] == 'i') &&
 	    (name[3] == 'x' || name[3] == 'n') && got == 0.0 && want == 0.0)
 		return 1;
+#ifdef C17_MATH_UNTRUSTED_APPROX
+	/*
+	 * 7.12.11.3 returns y when x equals y, so the step from one zero to
+	 * the zero of the other sign has y's sign; older newlib returns x.
+	 */
+	if (name[0] == 'n' && name[1] == 'e' && name[2] == 'x' && name[3] == 't' &&
+	    got == 0.0 && want == 0.0)
+		return 1;
+#endif
 	return same(got, want);
 }
 
@@ -1186,6 +1195,18 @@ edges(void)
 {
 	unsigned long i, j, k;
 
+	{
+		/*
+		 * lgamma of the smallest subnormal is 1074 ln 2, stated here
+		 * without the oracle so that a run whose oracle is withdrawn
+		 * for the gamma members still requires a finite result.
+		 */
+		double tiny = 0x1p-1074, got = tree_p_lgamma(tiny);
+		double want = 744.44007192138122;
+
+		if (!edge_close(got, want, 1e-9, 1e-12))
+			EDGE_FAIL("lgamma", tiny, 0.0, got, want, 7);
+	}
 	for (k = 0; k < sizeof(edge1d) / sizeof(edge1d[0]); k++) {
 		const struct edge1d *e = &edge1d[k];
 

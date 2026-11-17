@@ -38,6 +38,7 @@ lint:           ${SRCS}
 tags:           ${SRCS}
 		ctags ${SRCS}
 
+chflags.o stat_flags.o: ${TOPSRC}/bin/ls/stat_flags.h
 stat_flags.o:   ${TOPSRC}/bin/ls/stat_flags.c
 		${CC} ${CFLAGS} -c ${TOPSRC}/bin/ls/stat_flags.c -o $@
 

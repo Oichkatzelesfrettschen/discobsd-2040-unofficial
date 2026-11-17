@@ -2,15 +2,15 @@
 # Public Domain.  12/3/1994 - Steven Schultz
 #
 TOPSRC!=cd ../..; pwd
-# -Wall -Wextra raises 5 distinct sites in this directory, so the fatal set
-# stays at the groups CFLAGS names until they are repaired.
-WARNLEVEL=	legacy
 include ${TOPSRC}/share/mk/sys.mk
 
 SRCS		= ls.c stat_flags.c
 OBJS		= ls.o stat_flags.o
 
 all:		ls
+
+CFLAGS+=	-std=c17 -pedantic-errors -Wstrict-prototypes -Wold-style-definition
+ls.o stat_flags.o: stat_flags.h
 
 ls:		${OBJS}
 		${CC} ${CFLAGS} ${LDFLAGS} -o ls.elf ${OBJS} ${LIBS}

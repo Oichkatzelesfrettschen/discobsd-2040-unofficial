@@ -27,12 +27,11 @@ hardware nor the ABI.
 | 256 / 1,024 / 4,096 bytes | flash program page, Dhara logical page, chip erase sector | storage geometry only; never a C object alignment |
 
 `STACKALIGN` is 8 in `sys/kern/exec_subr.c`. `sys/arch/rp2040/conf/kern.ldscript`
-ends `.text`, `.data`, `.ramfunc`, `.bss` and the SwapRAM pool on 8-byte
-boundaries, aligns the `.data` load address and `_sidata` to 4 bytes (ARMv6-M
-faults on an unaligned word load before any handler can exist) and the
-scratch area to 4. `lcd_render_stack` in `sys/arch/rp2040/dev/lcdcons.c` is
-`aligned(8)` because it is a C stack. These are retained contracts, not
-padding to remove opportunistically.
+aligns the text and ordinary read-only region starts, the `.data`,
+`.ramfunc` and `.bss` ends, and the SwapRAM pool start to 8 bytes. It aligns
+the `.data` load address and `_sidata` to 4 bytes for the startup word
+loads and aligns the scratch area to 4 bytes. `lcd_render_stack` in
+`sys/arch/rp2040/dev/lcdcons.c` is `aligned(8)` because it is a C stack.
 
 ## Where narrower alignment can pay
 
@@ -73,3 +72,10 @@ shrinks loaded text plus data by 69--96 bytes and BSS by 40--176 bytes in each
 of six configurations, and it lowers no object or section alignment (see
 `../kernel-footprint-pr435-closeout.md` for the table and method). The flag
 is not enabled in any production link.
+
+The production script sorts only the ordinary `.bss*` and the remaining
+`.rodata*` inputs with `SORT_BY_ALIGNMENT`. All input alignments and the
+8-byte boundaries stay in force. Measured BSS savings are 32 to 168 bytes,
+and PICO_UART uses 256 fewer flash-span bytes. The comparison with wider
+sorting and the per-configuration measurements are in
+[`kernel-footprint-handoff.md`](../kernel-footprint-handoff.md#scoped-alignment-sorting-and-ls-formatting).

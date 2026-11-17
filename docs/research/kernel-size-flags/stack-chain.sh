@@ -22,14 +22,16 @@
 # INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.#
+# POSSIBILITY OF SUCH DAMAGE.
+#
 # Kernel stack chains of the PICO kernel under each CSIZEFLAGS variant.
 #
 # Usage: stack-chain.sh OUTDIR
 #
 # Run from a worktree whose host tools are built (bmake MACHINE=rp2040
 # tools) and whose PICO compile directory may be rebuilt: the script cleans
-# that directory before each variant and once more when it ends. For each
+# that directory before each variant and once more when it ends, and it
+# refuses a directory that already holds call-graph (*.ci) files. For each
 # variant it compiles PICO with -fstack-usage -fcallgraph-info=su, runs
 # stack_chain.py with stack-model.json and writes OUTDIR/<variant>.txt (the
 # roots, their paths and the stack total) and OUTDIR/<variant>.size.txt. It
@@ -61,8 +63,23 @@ three='-fno-move-loop-invariants -fno-tree-loop-im -fno-tree-dominator-opts'
 five='-fno-tree-ter -fno-tree-dce --param=uninlined-function-insns=0'
 five="$five -fno-inline-small-functions -fno-ipa-modref"
 
+# The compile directory's clean rule does not know the call-graph files, so
+# the script removes the ones its own builds wrote, through the trash. Files
+# of that kind present before the first build belong to someone else.
+command -v trash-put >/dev/null 2>&1 || {
+	echo "stack-chain.sh: not run: trash-put is absent (package trash-cli)" >&2
+	exit 2
+}
+if ls "$build"/*.ci >/dev/null 2>&1; then
+	echo "stack-chain.sh: $build holds call-graph files from another build" >&2
+	exit 2
+fi
+
 sweep() {
-	(cd "$build" && bmake MACHINE=rp2040 clean >/dev/null && rm -f -- *.ci)
+	(cd "$build" && bmake MACHINE=rp2040 clean >/dev/null &&
+	    for graph in *.ci; do
+		[ -e "$graph" ] && trash-put -- "$graph"
+	    done; :)
 }
 trap sweep EXIT
 
@@ -115,4 +132,6 @@ for key in sorted(set().union(*frames.values())):
     lines.append(key + "\t" + "\t".join(str(frames[name].get(key, "-")) for name in names))
 (out / "frames.tsv").write_text("\n".join(lines) + "\n", encoding="utf-8")
 EOF
-rm -f -- "$out"/*.build.log
+for log in "$out"/*.build.log; do
+	trash-put -- "$log"
+done

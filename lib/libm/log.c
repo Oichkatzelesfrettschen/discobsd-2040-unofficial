@@ -35,11 +35,9 @@ double arg;
 	 * returns -infinity for it; F.10.3.7 returns a NaN for a negative one.
 	 */
 	if(arg <= 0.) {
-		if(arg < 0.) {
-			errno = EDOM;
+		errno = arg == 0. ? ERANGE : EDOM;
+		if(arg < 0.)
 			return(NAN);
-		}
-		errno = ERANGE;
 		return(-HUGE_VAL);
 	}
 	if(arg > DBL_MAX)

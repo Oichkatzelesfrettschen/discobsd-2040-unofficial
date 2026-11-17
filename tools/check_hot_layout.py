@@ -1,0 +1,468 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026 GizmoBSD
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+"""Fail when a linked RP2040 kernel lets its hot path share XIP cache sets.
+
+Usage: check_hot_layout.py --self-test
+       check_hot_layout.py [--linker-script LD] [--way-bytes N] [--line-bytes N]
+                           ELF...
+
+The RP2040 XIP cache holds 16 KB in two ways of 8-byte lines (datasheet
+2.6.3.1-2.6.3.2), so flash addresses equal modulo one way (8 KB) compete for
+one set, and three lines a loop touches in one set evict each other on every
+pass. conf/kern.ldscript opens .text with the hot path, the input sections
+named between `__hot_start = .;` and `__hot_end = .;`. For each kernel this
+tool requires:
+
+- both bounds, with __hot_start aligned to a cache line;
+- a span no longer than one way, so that each of its lines takes its own set;
+- every listed symbol the kernel links inside the span, and no compiler clone
+  of a listed function (name.constprop.N, name.isra.N, name.part.N) outside
+  it, because a clone lives in a section the list does not name;
+- at most one line of the listed symbols in any set.
+
+A name one configuration does not link is reported, not failed; a name that
+none of the kernels given links fails, and with a single kernel that check is
+reported as not made. Exit status: 0
+every kernel passes, 1 a kernel fails a requirement, 2 an input cannot be read.
+--self-test runs the checks on synthetic ELF images, one passing and one per
+requirement that must fail; an image whose ELF type is not an executable or
+whose machine is not ARM exits 2 even when its symbols would pass.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import io
+import re
+import struct
+import sys
+import tempfile
+from pathlib import Path
+
+DEFAULT_LINKER_SCRIPT = (
+    Path(__file__).resolve().parent.parent / "sys/arch/rp2040/conf/kern.ldscript"
+)
+# One way of the XIP cache, and its line (datasheet 2.6.3.2: 16 KB, 8-byte
+# lines, two ways per set).
+WAY_BYTES = 8192
+LINE_BYTES = 8
+
+# The XIP window, cached alias (datasheet 2.6.3.1).
+XIP_START = 0x10000000
+XIP_END = 0x11000000
+
+ELF_MAGIC = b"\x7fELF"
+EHDR = struct.Struct("<16sHHIIIIIHHHHHH")
+SHDR = struct.Struct("<10I")
+SYM = struct.Struct("<IIIBBH")
+SHT_SYMTAB = 2
+ET_EXEC = 2
+EM_ARM = 40
+STT_OBJECT, STT_FUNC, STT_SECTION, STT_FILE = 1, 2, 3, 4
+
+# One placement statement of the hot block: a symbol's own section, whose name
+# may carry a compiler clone suffix (`.text.rwip.constprop.0`), or a whole
+# input section of one file or archive member, which names no symbol.
+SYMBOL_ENTRY = re.compile(r"^\*\(\.(?:text|rodata)\.([A-Za-z_][A-Za-z0-9_.]*)\)$")
+FILE_ENTRY = re.compile(r"^\*[A-Za-z0-9_.:-]+\(\.text\)$")
+CLONE = re.compile(r"^(.*)\.(?:(?:constprop|isra|part)\.\d+|cold(?:\.\d+)?)$")
+
+
+class InputError(Exception):
+    """An input is unreadable or does not describe the expected object."""
+
+
+def hot_names(script: str) -> list[str]:
+    """Return the symbol names the hot block of a linker script lists.
+
+    Every statement between the bounds must be a symbol section or a whole
+    file section; any other statement is refused, so an entry the checker
+    cannot read never drops out of the check unnoticed."""
+    start = script.find("__hot_start = .;")
+    end = script.find("__hot_end = .;")
+    if start < 0 or end < 0 or end < start:
+        raise InputError("linker script has no __hot_start ... __hot_end block")
+    if script.count("__hot_start = .;") != 1 or script.count("__hot_end = .;") != 1:
+        raise InputError("linker script defines the hot bounds more than once")
+    body = re.sub(r"/\*.*?\*/", "", script[start + len("__hot_start = .;"):end], flags=re.S)
+    names = []
+    for statement in body.split():
+        found = SYMBOL_ENTRY.match(statement)
+        if found:
+            names.append(found.group(1))
+        elif not FILE_ENTRY.match(statement):
+            raise InputError(f"hot block statement the checker cannot read: {statement}")
+    if not names:
+        raise InputError("the hot block of the linker script lists no symbol section")
+    return names
+
+
+def read_symbols(data: bytes) -> dict[str, list[tuple[int, int, int]]]:
+    """Map each symbol name of an ELF32 little-endian ARM image to (value, size, type)."""
+    if len(data) < EHDR.size or data[:4] != ELF_MAGIC or data[4] != 1 or data[5] != 1:
+        raise InputError("not a 32-bit little-endian ELF image")
+    fields = EHDR.unpack_from(data)
+    if fields[1] != ET_EXEC or fields[2] != EM_ARM:
+        raise InputError(f"not a linked ARM executable (e_type {fields[1]}, e_machine "
+                         f"{fields[2]})")
+    shoff, shentsize, shnum = fields[6], fields[11], fields[12]
+    if shoff == 0 or shentsize < SHDR.size or shoff + shnum * shentsize > len(data):
+        raise InputError("section header table out of range")
+    sections = [SHDR.unpack_from(data, shoff + i * shentsize) for i in range(shnum)]
+    symbols: dict[str, list[tuple[int, int, int]]] = {}
+    found = False
+    for sh in sections:
+        if sh[1] != SHT_SYMTAB:
+            continue
+        found = True
+        offset, size, link, entsize = sh[4], sh[5], sh[6], sh[9]
+        if link >= len(sections) or entsize < SYM.size or offset + size > len(data):
+            raise InputError("symbol table out of range")
+        stroff, strsize = sections[link][4], sections[link][5]
+        strings = data[stroff:stroff + strsize]
+        for i in range(size // entsize):
+            name_off, value, sym_size, info, _, _ = SYM.unpack_from(data, offset + i * entsize)
+            if name_off >= len(strings):
+                raise InputError("symbol name out of range")
+            name = strings[name_off:strings.index(b"\0", name_off)].decode("ascii", "replace")
+            symbols.setdefault(name, []).append((value, sym_size, info & 15))
+    if not found:
+        raise InputError("no symbol table")
+    return symbols
+
+
+def listed_ancestor(name: str, listed: set[str]) -> str | None:
+    """Strip clone suffixes one at a time (rwip.isra.0.constprop.0, then
+    rwip.isra.0, then rwip) and return the first listed ancestor, if any."""
+    while True:
+        clone = CLONE.match(name)
+        if clone is None:
+            return None
+        name = clone.group(1)
+        if name in listed:
+            return name
+
+
+def check(symbols: dict[str, list[tuple[int, int, int]]], names: list[str],
+          way: int, line: int) -> tuple[list[str], list[str]]:
+    """Return (failures, notes) for one kernel's symbols against the hot list."""
+    failures: list[str] = []
+    notes: list[str] = []
+    bounds = [symbols.get(n) for n in ("__hot_start", "__hot_end")]
+    if not bounds[0] or not bounds[1]:
+        return ["no __hot_start or __hot_end: the kernel was linked without the hot block"], notes
+    if len(bounds[0]) != 1 or len(bounds[1]) != 1:
+        return ["__hot_start or __hot_end is defined more than once"], notes
+    start, end = bounds[0][0][0], bounds[1][0][0]
+    if not (XIP_START <= start <= end <= XIP_END):
+        return [f"hot span {start:#x}-{end:#x} is not an ordered range in cached XIP flash"], notes
+    span = end - start
+    if start % line:
+        failures.append(f"__hot_start {start:#x} is not aligned to a {line}-byte cache line")
+    if span < 0 or span > way:
+        failures.append(f"hot span {span} bytes exceeds one {way}-byte cache way")
+    occupancy: dict[int, set[int]] = {}
+    absent = []
+    listed = set(names)
+    for name in names:
+        # Every definition counts, whatever its type: a section or file symbol
+        # never carries a listed name, and an untyped label is still the code.
+        hits = [(v & ~1, s) for v, s, t in symbols.get(name, [])
+                if t not in (STT_SECTION, STT_FILE)]
+        if not hits:
+            absent.append(name)
+            continue
+        for value, size in hits:
+            if not XIP_START <= value < XIP_END:
+                failures.append(f"{name} is linked at {value:#x}, outside cached XIP flash")
+                continue
+            if size == 0:
+                failures.append(f"{name} at {value:#x} has no size, so its extent cannot be "
+                                "checked")
+                continue
+            if not (start <= value and value + size <= end):
+                failures.append(f"{name} at {value:#x}+{size} lies outside the hot span "
+                                f"{start:#x}-{end:#x}")
+            for addr in range(value - value % line, value + size, line):
+                occupancy.setdefault((addr // line) % (way // line), set()).add(addr)
+    for name, entries in symbols.items():
+        parent = listed_ancestor(name, listed)
+        if parent is not None and name not in listed:
+            for value, _size, kind in entries:
+                if kind not in (STT_SECTION, STT_FILE) and \
+                        not (XIP_START <= value < XIP_END and start <= (value & ~1) < end):
+                    failures.append(f"{name}, a clone of listed {parent}, lies outside "
+                                    "the hot span; list its section")
+    if len(absent) == len(names):
+        failures.append("no listed symbol is linked: the list does not describe this kernel")
+    crowded = sorted(s for s, lines in occupancy.items() if len(lines) > 1)
+    if crowded:
+        first = ", ".join(hex(a) for a in sorted(occupancy[crowded[0]]))
+        failures.append(f"{len(crowded)} cache sets hold more than one hot line, first set "
+                        f"{crowded[0]}: {first}")
+    lines = sum(len(v) for v in occupancy.values())
+    notes.append(f"hot span {start:#x}-{end:#x} ({span} bytes), {lines} lines of "
+                 f"{len(names) - len(absent)} listed symbols")
+    if absent:
+        notes.append("not linked: " + " ".join(absent))
+    return failures, notes
+
+
+def run(paths: list[str], script: Path, way: int, line: int) -> int:
+    try:
+        names = hot_names(script.read_text())
+    except (OSError, InputError) as error:
+        print(f"check_hot_layout: {script}: {error}", file=sys.stderr)
+        return 2
+    status = 0
+    linked_anywhere: set[str] = set()
+    for path in paths:
+        try:
+            symbols = read_symbols(Path(path).read_bytes())
+        except (OSError, InputError, struct.error, ValueError) as error:
+            print(f"check_hot_layout: {path}: {error}", file=sys.stderr)
+            return 2
+        linked_anywhere.update(n for n in names if any(
+            t not in (STT_SECTION, STT_FILE) for _v, _s, t in symbols.get(n, [])))
+        failures, notes = check(symbols, names, way, line)
+        for failure in failures:
+            print(f"FAIL hot-layout {path}: {failure}")
+        if not failures:
+            print(f"PASS hot-layout {path}: " + "; ".join(notes))
+        status = max(status, 1 if failures else 0)
+    # A name one configuration omits is optional, but a name no kernel links
+    # is a renamed or removed function whose selector now places nothing.
+    nowhere = [n for n in names if n not in linked_anywhere]
+    if len(paths) < 2:
+        print(f"NOTE hot-layout: one kernel given; {len(nowhere)} listed names it does not "
+              "link are not checked against the other kernels (pass every kernel to check "
+              "that each listed name is linked somewhere)")
+    elif nowhere:
+        print(f"FAIL hot-layout: listed names linked by none of the {len(paths)} kernels: "
+              + " ".join(nowhere))
+        status = max(status, 1)
+    return status
+
+
+def synthetic_elf(symbols: list[tuple[str, int, int, int]], e_type: int = ET_EXEC,
+                  machine: int = EM_ARM) -> bytes:
+    """Build an ELF32 image holding only a symbol table of (name, value, size, type)."""
+    strtab = b"\0"
+    entries = [SYM.pack(0, 0, 0, 0, 0, 0)]
+    for name, value, size, kind in symbols:
+        entries.append(SYM.pack(len(strtab), value, size, kind, 0, 1))
+        strtab += name.encode() + b"\0"
+    symtab = b"".join(entries)
+    shstrtab = b"\0.symtab\0.strtab\0.shstrtab\0"
+    body_offset = EHDR.size
+    symoff = body_offset
+    stroff = symoff + len(symtab)
+    shstroff = stroff + len(strtab)
+    shoff = (shstroff + len(shstrtab) + 3) & ~3
+    sections = [
+        SHDR.pack(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        SHDR.pack(1, SHT_SYMTAB, 0, 0, symoff, len(symtab), 2, 0, 4, SYM.size),
+        SHDR.pack(9, 3, 0, 0, stroff, len(strtab), 0, 0, 1, 0),
+        SHDR.pack(17, 3, 0, 0, shstroff, len(shstrtab), 0, 0, 1, 0),
+    ]
+    ident = ELF_MAGIC + bytes([1, 1, 1]) + bytes(9)
+    header = EHDR.pack(ident, e_type, machine, 1, 0, 0, shoff, 0x5000200, EHDR.size, 0, 0,
+                       SHDR.size, len(sections), 3)
+    image = header + symtab + strtab + shstrtab
+    image += bytes(shoff - len(image))
+    return image + b"".join(sections)
+
+
+SELF_TEST_SCRIPT = """
+.text : {
+    __hot_start = .;
+    /* a comment inside the block */
+    *(.text.syscall)
+    *(.text.rwip)
+    *locore.o(.text)
+    *libgcc.a:_thumb1_case_uqi.o(.text)
+    *(.rodata.nsysent)
+    __hot_end = .;
+    *(.text*)
+}
+"""
+
+
+def script_with(extra: str) -> str:
+    """The self-test script with one more statement at the end of the hot block."""
+    return SELF_TEST_SCRIPT.replace("    __hot_end = .;", f"    {extra}\n    __hot_end = .;")
+
+
+def self_test() -> int:
+    base = [("__hot_start", 0x10000200, 0, 0), ("__hot_end", 0x10001200, 0, 0),
+            ("syscall", 0x10000201, 0x264, STT_FUNC), ("rwip", 0x10000465, 0x424, STT_FUNC),
+            ("nsysent", 0x10000890, 4, STT_OBJECT), ("cold", 0x10004000, 0x400, STT_FUNC)]
+
+    def replace(name: str, value: int, size: int | None = None) -> list:
+        return [(n, value if n == name else v, (size if size is not None else s) if n == name
+                 else s, k) for n, v, s, k in base]
+
+    cases = [
+        ("a span holding every listed symbol", base, 0),
+        ("a listed function outside the span", replace("rwip", 0x10003465), 1),
+        ("a listed table outside the span", replace("nsysent", 0x10002890), 1),
+        ("a span longer than one way", replace("__hot_end", 0x10002208), 1),
+        ("a misaligned span start", replace("__hot_start", 0x10000204), 1),
+        ("no span bounds", [s for s in base if s[0] != "__hot_end"], 1),
+        ("a clone of a listed function outside the span",
+         base + [("rwip.constprop.0", 0x10005001, 0x40, STT_FUNC)], 1),
+        ("a listed line one way above another listed line",
+         replace("__hot_end", 0x10002200) + [("rwip", 0x100023f8, 0x10, STT_FUNC)], 1),
+        ("a listed function linked in RAM", replace("rwip", 0x20030001), 1),
+        ("a listed function in the uncached XIP alias", replace("rwip", 0x13000465), 1),
+        ("a listed function without a size", replace("rwip", 0x10000465, 0), 1),
+        ("a second __hot_start", base + [("__hot_start", 0x10000208, 0, 0)], 1),
+        ("bounds outside cached XIP", replace("__hot_start", 0x20000000), 1),
+        ("a nested clone of a listed function outside the span",
+         base + [("rwip.isra.0.constprop.0", 0x10005001, 0x40, STT_FUNC)], 1),
+        ("a cold part of a listed function outside the span",
+         base + [("rwip.cold", 0x10005001, 0x40, STT_FUNC)], 1),
+        ("a clone of a listed function in RAM",
+         base + [("rwip.constprop.0", 0x20030101, 0x40, STT_FUNC)], 1),
+        ("no listed symbol linked",
+         [s for s in base if s[0] not in ("syscall", "rwip", "nsysent")], 1),
+    ]
+    script_cases = [
+        ("a listed name absent from the link, reported not failed",
+         script_with("*(.text.absent_fn)"), base, 0),
+        ("a listed clone section inside the span",
+         script_with("*(.text.rwip.constprop.0)"),
+         base + [("rwip.constprop.0", 0x10000a01, 0x40, STT_FUNC)], 0),
+        ("a listed clone section outside the span",
+         script_with("*(.text.rwip.constprop.0)"),
+         base + [("rwip.constprop.0", 0x10005001, 0x40, STT_FUNC)], 1),
+        ("a hot block statement the checker cannot read",
+         script_with("KEEP(*(.text.extra))"), base, 2),
+        ("hot bounds defined twice",
+         SELF_TEST_SCRIPT + "__hot_start = .;\n__hot_end = .;\n", base, 2),
+    ]
+    names = hot_names(SELF_TEST_SCRIPT)
+    status = 0
+    if names != ["syscall", "rwip", "nsysent"]:
+        print(f"self-test: hot block parsed as {names}", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as scratch:
+        script = Path(scratch) / "kern.ldscript"
+        script.write_text(SELF_TEST_SCRIPT)
+        for what, symbols, want in cases:
+            elf = Path(scratch) / "unix.elf"
+            elf.write_bytes(synthetic_elf(symbols))
+            got = run([str(elf)], script, WAY_BYTES, LINE_BYTES)
+            verdict = "ok" if got == want else "WRONG"
+            print(f"self-test: {what}: exit {got}, expected {want}: {verdict}")
+            if got != want:
+                status = 1
+        for what, text, symbols, want in script_cases:
+            variant = Path(scratch) / "variant.ldscript"
+            variant.write_text(text)
+            elf = Path(scratch) / "unix.elf"
+            elf.write_bytes(synthetic_elf(symbols))
+            got = run([str(elf)], variant, WAY_BYTES, LINE_BYTES)
+            print(f"self-test: {what}: exit {got}, expected {want}: "
+                  + ("ok" if got == want else "WRONG"))
+            status = status or (got != want)
+        bad_script = Path(scratch) / "empty.ldscript"
+        bad_script.write_text(".text : { *(.text*) }\n")
+        got = run([str(elf)], bad_script, WAY_BYTES, LINE_BYTES)
+        print(f"self-test: a linker script without the hot block: exit {got}, expected 2: "
+              + ("ok" if got == 2 else "WRONG"))
+        status = status or (got != 2)
+        sets = (
+            ("a listed name absent from both of two kernels",
+             script_with("*(.text.absent_fn)"), [base, base], 1),
+            ("a listed name linked by one of two kernels",
+             script_with("*(.text.absent_fn)"),
+             [base, base + [("absent_fn", 0x10000c01, 0x10, STT_FUNC)]], 0),
+        )
+        for what, text, kernels, want in sets:
+            variant = Path(scratch) / "variant.ldscript"
+            variant.write_text(text)
+            paths = []
+            for n, symbols in enumerate(kernels):
+                path = Path(scratch) / f"k{n}.elf"
+                path.write_bytes(synthetic_elf(symbols))
+                paths.append(str(path))
+            got = run(paths, variant, WAY_BYTES, LINE_BYTES)
+            print(f"self-test: {what}: exit {got}, expected {want}: "
+                  + ("ok" if got == want else "WRONG"))
+            status = status or (got != want)
+        for what, kwargs in (("an x86-64 machine field", {"machine": 62}),
+                             ("a relocatable object", {"e_type": 1})):
+            other = Path(scratch) / "other.elf"
+            other.write_bytes(synthetic_elf(base, **kwargs))
+            got = run([str(other)], script, WAY_BYTES, LINE_BYTES)
+            print(f"self-test: {what} with passing symbols: exit {got}, expected 2: "
+                  + ("ok" if got == 2 else "WRONG"))
+            status = status or (got != 2)
+        for what, options in (("a zero cache way", ["--way-bytes", "0"]),
+                              ("a zero cache line", ["--line-bytes", "0"])):
+            elf = Path(scratch) / "unix.elf"
+            elf.write_bytes(synthetic_elf(base))
+            try:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    got = main(options + ["--linker-script", str(script), str(elf)])
+            except SystemExit as stop:
+                got = stop.code
+            print(f"self-test: {what}: exit {got}, expected 2: "
+                  + ("ok" if got == 2 else "WRONG"))
+            status = status or (got != 2)
+        junk = Path(scratch) / "junk.elf"
+        junk.write_bytes(b"not an image")
+        got = run([str(junk)], script, WAY_BYTES, LINE_BYTES)
+        print(f"self-test: an input that is not ELF: exit {got}, expected 2: "
+              + ("ok" if got == 2 else "WRONG"))
+        status = status or (got != 2)
+    print("check_hot_layout self-test: " + ("pass" if status == 0 else "FAIL"))
+    return int(status)
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--linker-script", type=Path, default=DEFAULT_LINKER_SCRIPT)
+    parser.add_argument("--way-bytes", type=int, default=WAY_BYTES)
+    parser.add_argument("--line-bytes", type=int, default=LINE_BYTES)
+    parser.add_argument("elf", nargs="*")
+    args = parser.parse_args(argv)
+    if args.self_test:
+        return self_test()
+    if not args.elf:
+        parser.error("name at least one kernel ELF")
+    if args.line_bytes <= 0 or args.way_bytes <= 0 or args.way_bytes % args.line_bytes:
+        parser.error("--way-bytes must be a positive multiple of a positive --line-bytes")
+    return run(args.elf, args.linker_script, args.way_bytes, args.line_bytes)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

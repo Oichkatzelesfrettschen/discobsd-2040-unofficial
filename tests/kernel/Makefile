@@ -1211,6 +1211,15 @@ check-shutdown-order: shutdown_sync_order_test.py ${MACHDEP_SRC}
 check-shutdown: shutdown_sync_test check-shutdown-mutants check-shutdown-order
 	./shutdown_sync_test
 
+# The shared C function extractor finds a definition with or without a space
+# before its parameter list and names the function it failed to find.
+check-extract-function: extract_function_test.py exec_elf_admission_extract.py
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for check-extract-function" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} extract_function_test.py
+
 clist_test: clist_test.c ${CLIST_SRC} hostkern_kern.c hostkern.o hostkern.h \
     ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} -c -o clist_kernel.o ${CLIST_SRC}
@@ -3239,7 +3248,7 @@ check-pipe-rw-mutants: ${PIPE_RW_MUTANTS:@mutation@pipe_rw_${mutation}.mutant32.
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
-	@${MAKE} prf_test prf_log_test check-prf-log-mutant readlink_test check-readlink-mutant rwuio_test32 pipe_rw_contract32 pipe_rw_contract_single32 check-pipe-rw-mutants file_owner_test32 fionread_test32 sigauth_test \
+	@${MAKE} prf_test prf_log_test check-prf-log-mutant readlink_test check-readlink-mutant rwuio_test32 check-extract-function pipe_rw_contract32 pipe_rw_contract_single32 check-pipe-rw-mutants file_owner_test32 fionread_test32 sigauth_test \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
 	    ptrace_test32 \
 	    mem_span_endpoint-admission.mutant32.test \
@@ -3876,4 +3885,4 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 
 .PHONY: check-fork-swap-refusal check-swap-exchange-headroom \
 	check-swap-exchange-inplace \
-    check-pipe-rw-mutants
+    check-pipe-rw-mutants check-extract-function

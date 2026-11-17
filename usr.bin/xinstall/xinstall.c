@@ -56,6 +56,7 @@ static char sccsid[] = "@(#)xinstall.c	8.1.1 (2.11BSD) 1996/2/21";
 #include <unistd.h>
 
 #include "pathnames.h"
+#include "../../bin/ls/stat_flags.h"
 
 struct passwd *pp;
 struct group *gp;
@@ -68,8 +69,7 @@ char *group, *owner, pathbuf[MAXPATHLEN];
 
 void	copy();
 void	xerr(const char *, ...);
-void	install();
-u_short	string_to_flags();
+void	install(char *, char *, unsigned, unsigned);
 void	strip();
 void	usage();
 
@@ -80,7 +80,7 @@ main(argc, argv)
 {
 	struct stat from_sb, to_sb;
 	mode_t *set;
-	u_short fset;
+	unsigned fset = 0;
 	u_int iflags;
 	int ch, no_target;
 	char *flags, *to_name;
@@ -165,10 +165,7 @@ main(argc, argv)
  *	build a path name and install the file
  */
 void
-install(from_name, to_name, fset, flags)
-	register char *from_name, *to_name;
-	u_short fset;
-	u_int flags;
+install(char *from_name, char *to_name, unsigned fset, unsigned flags)
 {
 	struct stat from_sb, to_sb;
 	int devnull, from_fd, to_fd, serrno;

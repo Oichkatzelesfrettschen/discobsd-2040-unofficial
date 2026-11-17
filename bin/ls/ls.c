@@ -17,8 +17,11 @@
 #include <stdlib.h>
 #include <sgtty.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
+
+#include "stat_flags.h"
 
 #define	kbytes(size)	(((size) + 1023) / 1024)
 
@@ -56,30 +59,25 @@ struct	winsize win;
 int	twidth;
 int	errs;		/* an argument that stat cannot reach sets the exit status */
 
-struct	afile *gstat();
+struct	afile *gstat(struct afile *, const char *, int, long *);
 int	fcmp(const void *, const void *);
-char	*cat(), *savestr();
-char	*fmtentry();
+char	*cat(const char *, const char *);
+char	*savestr(const char *);
+char	*fmtentry(struct afile *, int);
 static const char *getname(uid_t);
 static const char *getgroup(gid_t);
 
-char	*flags_to_string (unsigned flags, char *def);
-unsigned string_to_flags (char **stringp, unsigned *setp, unsigned *clrp);
-
+long	getdir(const char *, struct afile **, struct afile **, int *);
 void	formatf(struct afile *, struct afile *);
 void	formatd(char *, int);
 
 int
-main(argc, argv)
-	int argc;
-	char *argv[];
+main(int argc, char *argv[])
 {
-	extern int optind;
 	struct afile *fp0, *fplast;
 	register struct afile *fp;
 	struct sgttyb sgbuf;
 	int ch, i;
-	void cfree();
 
 	Aflg = !getuid();
 	(void) time(&now); sixmonthsago = now - 6L*30L*24L*60L*60L; now += 60;
@@ -169,7 +167,7 @@ main(argc, argv)
 	}
 	fp0 = fp;
 	for (i = 0; i < argc; i++) {
-		if (gstat(fp, *argv, 1, (int *)0)) {
+		if (gstat(fp, *argv, 1, NULL)) {
 			fp->fname = *argv;
 			fp->fmode |= ISARG;
 			fp++;
@@ -203,8 +201,8 @@ main(argc, argv)
 				t = subdirs; subdirs = t->sd_next;
 				putchar('\n');
 				formatd(t->sd_name, 1);
-				cfree(t->sd_name);
-				cfree((char *)t);
+				free(t->sd_name);
+				free(t);
 			}
 			if (++fp == fplast)
 				break;
@@ -215,16 +213,13 @@ main(argc, argv)
 }
 
 void
-formatd(name, dotitle)
-	char *name;
-	int dotitle;
+formatd(char *name, int dotitle)
 {
 	register struct afile *fp;
 	register struct subdirs *dp;
 	struct afile *dfp0, *dfplast;
 	int isadir;
-	long nkb, getdir();
-	void cfree();
+	long nkb;
 
 	nkb = getdir(name, &dfp0, &dfplast, &isadir);
 	if (dfp0 == 0)
@@ -248,18 +243,15 @@ formatd(name, dotitle)
 		}
 	for (fp = dfp0; fp < dfplast; fp++) {
 		if ((fp->fmode&ISARG) == 0 && fp->fname)
-			cfree(fp->fname);
+			free(fp->fname);
 		if (fp->flinkto)
-			cfree(fp->flinkto);
+			free(fp->flinkto);
 	}
-	cfree((char *)dfp0);
+	free(dfp0);
 }
 
 long
-getdir(dir, pfp0, pfplast, isadir)
-	char *dir;
-	struct afile **pfp0, **pfplast;
-	int *isadir;
+getdir(const char *dir, struct afile **pfp0, struct afile **pfplast, int *isadir)
 {
 	register struct afile *fp;
 	DIR *dirp;
@@ -282,12 +274,12 @@ getdir(dir, pfp0, pfplast, isadir)
 	fp = *pfp0 = (struct afile *)calloc(nent, sizeof (struct afile));
 	*pfplast = *pfp0 + nent;
 	nb = 0;
-	while (dp = readdir(dirp)) {
+	while ((dp = readdir(dirp)) != NULL) {
 		if (dp->d_ino == 0)
 			continue;
 		if (aflg == 0 && dp->d_name[0]=='.' &&
 		    (Aflg == 0 || dp->d_name[1]==0 ||
-		     dp->d_name[1]=='.' && dp->d_name[2]==0))
+		     (dp->d_name[1]=='.' && dp->d_name[2]==0)))
 			continue;
 		if (gstat(fp, cat(dir, dp->d_name), Fflg+Rflg+colorflag, &nb) == 0)
 			continue;
@@ -311,16 +303,10 @@ getdir(dir, pfp0, pfplast, isadir)
 	return (kbytes (nb * DEV_BSIZE));
 }
 
-int	stat(), lstat();
-
 struct afile *
-gstat(fp, file, statarg, pnb)
-	register struct afile *fp;
-	char *file;
-	int statarg;
-	long *pnb;
+gstat(struct afile *fp, const char *file, int statarg, long *pnb)
 {
-	int (*statf)() = Lflg ? stat : lstat;
+	int (*statf)(const char *, struct stat *) = Lflg ? stat : lstat;
 	char buf[BUFSIZ]; int cc;
 	static struct afile azerofile;
 
@@ -394,8 +380,7 @@ gstat(fp, file, statarg, pnb)
  * string, so column alignment counts only the visible characters.
  */
 char *
-ls_color(fp)
-	register struct afile *fp;
+ls_color(struct afile *fp)
 {
 	if (!colorflag)
 		return (0);
@@ -412,8 +397,7 @@ ls_color(fp)
 }
 
 void
-formatf(fp0, fplast)
-	struct afile *fp0, *fplast;
+formatf(struct afile *fp0, struct afile *fplast)
 {
 	register struct afile *fp;
 	register int i, j, w;
@@ -504,8 +488,7 @@ fcmp(const void *left, const void *right)
 }
 
 char *
-cat(dir, file)
-	char *dir, *file;
+cat(const char *dir, const char *file)
 {
 	static char dfile[BUFSIZ];
 	register int dlen;
@@ -514,7 +497,7 @@ cat(dir, file)
 		fputs("ls: filename too long\n", stderr);
 		exit(1);
 	}
-	if (!dir[0] || dir[0] == '.' && !dir[1])
+	if (!dir[0] || (dir[0] == '.' && !dir[1]))
 		return(strcpy(dfile, file));
 	(void) strcpy(dfile, dir);
 	if (dir[dlen - 1] != '/' && *file != '/')
@@ -524,8 +507,7 @@ cat(dir, file)
 }
 
 char *
-savestr(str)
-	char *str;
+savestr(const char *str)
 {
 	register char *cp = strdup(str);
 
@@ -536,7 +518,9 @@ savestr(str)
 	return(cp);
 }
 
-char	*fmtinum(), *fmtsize(), *fmtlstuff();
+char	*fmtinum(struct afile *);
+char	*fmtsize(struct afile *);
+char	*fmtlstuff(struct afile *, int);
 
 static char *
 fmtmode(char *out, unsigned mode)
@@ -558,9 +542,7 @@ fmtmode(char *out, unsigned mode)
 }
 
 char *
-fmtentry(fp, maxflags)
-	register struct afile *fp;
-	int maxflags;
+fmtentry(struct afile *fp, int maxflags)
 {
 	static char fmtres[BUFSIZ];
 	register char *cp, *dp;
@@ -598,8 +580,7 @@ fmtentry(fp, maxflags)
 }
 
 char *
-fmtinum(p)
-	register struct afile *p;
+fmtinum(struct afile *p)
 {
 	static char inumbuf[8];
 
@@ -608,8 +589,7 @@ fmtinum(p)
 }
 
 char *
-fmtsize(p)
-	register struct afile *p;
+fmtsize(struct afile *p)
 {
 	static char sizebuf[16];
 
@@ -618,9 +598,7 @@ fmtsize(p)
 }
 
 char *
-fmtlstuff(p, maxflags)
-	register struct afile *p;
-	int maxflags;
+fmtlstuff(struct afile *p, int maxflags)
 {
 	static char lstuffbuf[256];
 	char gname[32], uname[32], fsize[32], ftime[32], fflags[64];

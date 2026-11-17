@@ -18,12 +18,11 @@
 #include <sys/stat.h>
 #include <sys/dir.h>
 
+#include "../../bin/ls/stat_flags.h"
+
 static	int	oct, status, fflag, rflag;
 static	unsigned set, clear;
 static	struct	stat st;
-
-/* from ../ls/ */
-extern unsigned string_to_flags (char **stringp, unsigned *setp, unsigned *clrp);
 
 void
 die(char *fmt, ...)

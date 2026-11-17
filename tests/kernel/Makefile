@@ -1049,6 +1049,54 @@ swap_lost_io_test: swap_ring_io_test.c ${TOPSRC}/sys/kern/vm_swp.c \
 	    ${SWAP_RING_IO_LDFLAGS} -o $@ \
 	    swap_ring_io_test.c hostkern_kern.c hostkern.o
 
+# The /dev/tempN transfers on a swap device that can leave: the device fails
+# at every transfer of a read or write and the bytes consumed must be those
+# that moved (swap_temp_lost_test.c). Each mutant drops part of the rollback
+# of a write whose block did not reach the device.
+SWAP_TEMP_FUNCTION=	swap_temp_function.c
+SWAP_TEMP_LOST_MUTANTS=	write-loss-consumes write-loss-offset-kept
+SWAP_TEMP_SED_write-loss-consumes=	/uio->uio_iov->iov_base -= rsize;/,/uio->uio_offset -= rsize;/d
+SWAP_TEMP_SED_write-loss-offset-kept=	/uio->uio_offset -= rsize;/d
+${SWAP_TEMP_FUNCTION}: swap_ioctl_extract.py ${SWAP_IOCTL_SRC}
+	${PYTHON} swap_ioctl_extract.py --source ${SWAP_IOCTL_SRC} --output $@ \
+	    --transfers
+
+swap_temp_uio.o: ${UIO_SRC} hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} -c -o $@ ${UIO_SRC}
+
+swap_temp_lost_test: swap_temp_lost_test.c ${SWAP_TEMP_FUNCTION} swap_temp_uio.o \
+    hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} -Wno-pointer-to-int-cast -DSDSWAP_ENABLED -o $@ swap_temp_lost_test.c \
+	    hostkern_kern.c swap_temp_uio.o hostkern.o
+
+.for mutation in ${SWAP_TEMP_LOST_MUTANTS}
+swap_temp_${mutation}.mutant.test: swap_temp_lost_test.c ${SWAP_TEMP_FUNCTION} \
+    swap_temp_uio.o hostkern_kern.c hostkern.o hostkern.h ${MACHINE_STAMP}
+	sed '${SWAP_TEMP_SED_${mutation}}' ${SWAP_TEMP_FUNCTION} \
+	    > swap_temp_${mutation}.mutant.c
+	@if cmp -s ${SWAP_TEMP_FUNCTION} swap_temp_${mutation}.mutant.c; then \
+		echo "FAIL swap temp mutant ${mutation} changed nothing" >&2; \
+		exit 1; \
+	fi
+	${HOST_CC} ${GATE_CFLAGS} -Wno-pointer-to-int-cast -DSDSWAP_ENABLED \
+	    -DSWAP_TEMP_FUNCTION='"swap_temp_${mutation}.mutant.c"' -o $@ \
+	    swap_temp_lost_test.c hostkern_kern.c swap_temp_uio.o hostkern.o
+.endfor
+
+check-swap-temp-lost: swap_temp_lost_test \
+    ${SWAP_TEMP_LOST_MUTANTS:@mutation@swap_temp_${mutation}.mutant.test@}
+	./swap_temp_lost_test
+	@set -eu; for mutation in ${SWAP_TEMP_LOST_MUTANTS}; do \
+		output=swap_temp_$$mutation.mutant.out; \
+		if ./swap_temp_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		if [ "$$status" -ne 1 ] || ! grep -F "FAIL" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL swap temp $$mutation rejection" >&2; exit 1; \
+		fi; \
+		echo "PASS swap temp $$mutation rejected: $$(grep -F FAIL $$output | head -1)"; \
+	done
+
 check-swap-lost-io: swap_lost_io_test
 	./swap_lost_io_test
 .for mutant in ${SWAP_LOST_IO_MUTANTS}
@@ -3487,7 +3535,7 @@ check-v7-format: ${MACHINE_STAMP} v7_format_check.sh v7_format_test.c \
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal check-swap-lost \
-	check-swap-lost-io \
+	check-swap-lost-io check-swap-temp-lost \
     check-rmap-ring-mutants check-swap-ring-io \
     check-v7-format \
 	check-swap-exchange-headroom check-swap-exchange-inplace \
@@ -3537,6 +3585,8 @@ clean:
 	    ptrace_syscall_postrestore_clobber.S \
 	    ptrace_syscall_postrestore_clobber.o \
 	    ptrace_syscall_postrestore_clobber.out
+	rm -f ${SWAP_TEMP_FUNCTION} swap_temp_uio.o swap_temp_lost_test \
+	    swap_temp_*.mutant.c swap_temp_*.mutant.test swap_temp_*.mutant.out
 	rm -f swap_ioctl_*.mutant.c swap_ioctl_*.mutant.o \
 	    swap_ioctl_*.mutant.test swap_ioctl_*.mutant.out
 	rm -f uio_kernel.o clist_kernel.o
@@ -3989,6 +4039,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 	done
 
 .PHONY: check-fork-swap-refusal check-swap-lost check-swap-lost-io \
+	check-swap-temp-lost \
 	check-swap-exchange-headroom \
 	check-swap-exchange-inplace \
     check-pipe-rw-mutants

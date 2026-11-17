@@ -275,6 +275,11 @@ rmap_ring_*.mutant.*
 swap_ring_io_test
 swap_ring_io*.mutant.*
 swap_lost_io_test
+swap_temp_function.c
+swap_temp_lost_test
+swap_temp_*.mutant.c
+swap_temp_*.mutant.test
+swap_temp_*.mutant.out
 swap_lost_io_*.mutant.*
 usb_console_driver.c
 usb_console_test

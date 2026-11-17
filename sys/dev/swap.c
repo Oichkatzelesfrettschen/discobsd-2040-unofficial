@@ -237,8 +237,20 @@ swcwrite(dev_t dev, struct uio *uio, int flag __unused)
 		swap(td[unit].t_start + block, (size_t)bp->b_addr,
 		    DEV_BSIZE, boff == 0 && rsize == DEV_BSIZE ?
 		    swtemp_write_flags(&td[unit], block, 1) : B_WRITE);
-		if (swap_lost)
+		if (swap_lost) {
+			/*
+			 * The swap device left before this block was written
+			 * (during the read of a partial block, during the write,
+			 * or earlier), so swap() moved nothing. The block's
+			 * bytes go back to the caller, and the file offset
+			 * counts only what reached the device.
+			 */
+			uio->uio_iov->iov_base -= rsize;
+			uio->uio_iov->iov_len += rsize;
+			uio->uio_resid += rsize;
+			uio->uio_offset -= rsize;
 			break;
+		}
 		boff = 0;
 		block++;
 		rlen -= rsize;

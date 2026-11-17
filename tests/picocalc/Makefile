@@ -1470,11 +1470,11 @@ sdstrat-mutant-swap-type-ignored:
 
 sdstrat-mutant-swap-short-accepted:
 	${SDSTRAT_MUT} sd.c \
-	    's/>= SD_SWAP_MIN_BLOCKS)/>= 1)/' ${SDSTRAT_SRC}
+	    's/>= SD_SWAP_MIN_BLOCKS \&\&/>= 1 \&\&/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-swap-minimum-refused:
 	${SDSTRAT_MUT} sd.c \
-	    's/>= SD_SWAP_MIN_BLOCKS)/> SD_SWAP_MIN_BLOCKS)/' ${SDSTRAT_SRC}
+	    's/>= SD_SWAP_MIN_BLOCKS \&\&/> SD_SWAP_MIN_BLOCKS \&\&/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-swap-size-unclamped:
 	${SDSTRAT_MUT} sd.c \

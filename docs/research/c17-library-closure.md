@@ -208,15 +208,11 @@ file enters the manifest with its upstream header intact.
   `__STDC_NO_THREADS__` or `__STDC_NO_ATOMICS__` for this target, and the tree
   has no mechanism under `-nostdinc` to define them, so the absence is not yet
   announced the way the standard requires.
-- **A correctly rounded `strtod`.** The inherited `strtod` accepts no
-  infinity, NaN or hexadecimal form, which C17 7.22.1.3 requires, and over
-  2,000,000 random decimal strings of at most 17 digits it differs from the
-  correctly rounded result for 344,874 (17%), where 7.22.1.3p9 recommends
-  correct rounding up to `DECIMAL_DIG` digits. `strtofp.c` converts both
-  formats correctly; moving `strtod` onto it replaces 692 bytes of text with
-  2,966 and adds up to 1.45 KB of stack in its two shipped consumers, `trek`
-  and `primes`, and in the native archives, which awaits the owner's resource
-  decision.
+- **`strtod` before the core.** The inherited `strtod` accepted no infinity,
+  NaN or hexadecimal form and was not correctly rounded for 344,874 of
+  2,000,000 random strings of at most 17 digits (17%). With the owner's
+  approval it now rounds through `strtofp_core.h`; its member grows from 692
+  to 2,698 bytes of text in `trek`, `primes` and the native archives.
 - **Locales beyond "C".** No other locale exists, and `setlocale` says so.
 
 ## Replay

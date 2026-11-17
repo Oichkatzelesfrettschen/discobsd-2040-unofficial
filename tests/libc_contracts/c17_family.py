@@ -137,7 +137,7 @@ FAMILIES = {
                 "strtof reports no range error",
             ),
             (
-                "lib/libc/stdlib/strtofp.c",
+                "lib/libc/stdlib/strtofp_core.h",
                 "\t\t\tif (c > 0 || (c == 0 && (bits & 1) != 0)) {",
                 "\t\t\tif (c > 0) {",
                 1,
@@ -145,7 +145,7 @@ FAMILIES = {
                 "strtof rounds a decimal tie down",
             ),
             (
-                "lib/libc/stdlib/strtofp.c",
+                "lib/libc/stdlib/strtofp_core.h",
                 "\tif (sticky) {\n\t\tbig_muladd(&digits, 10, 1);",
                 "\tif (sticky && 0) {\n\t\tbig_muladd(&digits, 10, 1);",
                 1,
@@ -153,7 +153,7 @@ FAMILIES = {
                 "strtof drops digits beyond those it keeps",
             ),
             (
-                "lib/libc/stdlib/strtofp.c",
+                "lib/libc/stdlib/strtofp_core.h",
                 "(rest == half && (sticky || (bits & 1) != 0))",
                 "rest == half",
                 1,
@@ -161,7 +161,7 @@ FAMILIES = {
                 "strtof rounds a hexadecimal tie up",
             ),
             (
-                "lib/libc/stdlib/strtofp.c",
+                "lib/libc/stdlib/strtofp_core.h",
                 "\t\tif ((n = word(in, i, \"inity\")) != 0)\n\t\t\ti += n;\n",
                 "",
                 1,
@@ -554,8 +554,22 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
         # newlib's strtof rounds through double; see differential() there.
         flags = flags + ["-DC17_STRTOF_UNTRUSTED_ORACLE"]
     objects = []
+    copies = {}
+    if replacement and replacement[0].endswith(".h"):
+        # A quoted include finds the header beside the including file
+        # first, so a mutated header goes into a copy of its directory and
+        # the family's sources there compile from that copy.
+        home = (root / replacement[0]).parent
+        copy = work / "mutant-directory"
+        shutil.rmtree(copy, ignore_errors=True)
+        shutil.copytree(home, copy, ignore=shutil.ignore_patterns("*.o", "*.a"))
+        shutil.copy2(replacement[1], copy / Path(replacement[0]).name)
+        for name in sources:
+            if (root / name).parent == home:
+                copies[name] = copy / Path(name).name
     for index, name in enumerate(sources):
         source = replacement[1] if replacement and replacement[0] == name else root / name
+        source = copies.get(name, source)
         if source.suffix == ".o":
             # A foreign member, already compiled and renamed.
             objects.append(str(source))

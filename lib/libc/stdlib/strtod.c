@@ -29,179 +29,36 @@
  * next character after the last one that was part of the
  * floating-point number.
  */
+
+/*
+ * The inherited note above describes the procedure this file once held.
+ * strtod() now takes C17 7.22.1.3's whole subject sequence (decimal,
+ * hexadecimal, inf and infinity, nan with an optional character sequence)
+ * and rounds it once, to nearest with ties to even, through the converter
+ * in strtofp_core.h.  A result that overflows, or that is a zero or
+ * subnormal and inexact, sets ERANGE.
+ */
 #include <errno.h>
-#include <float.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <ctype.h>
 
-double strtod (const char *string, char **endPtr)
+#include "strtofp_core.h"
+
+double
+strtod(const char *string, char **end)
 {
-	int sign = 0, expSign = 0, i;
-	double fraction, dblExp;
-	register const char *p;
-	register char c;
+	union {
+		double		value;
+		uint64_t	bits;
+	} result;
+	struct input in = { string, 0 };
+	size_t length;
+	int range;
 
-	/* Exponent read from "EX" field. */
-	int exp = 0;
-
-	/* Exponent that derives from the fractional part.  Under normal
-	 * circumstances, it is the negative of the number of digits in F.
-	 * However, if I is very long, the last digits of I get dropped
-	 * (otherwise a long I with a large negative exponent could cause an
-	 * unnecessary overflow on I alone).  In this case, fracExp is
-	 * incremented one for each dropped digit. */
-	int fracExp = 0;
-
-	/* Number of digits in mantissa. */
-	int mantSize;
-
-	/* Number of mantissa digits BEFORE decimal point. */
-	int decPt;
-
-	/* Temporarily holds location of exponent in string. */
-	const char *pExp;
-
-	/* Largest base 10 exponent the powers table represents. At this
-	 * magnitude every nonzero decimal significand underflows or overflows,
-	 * so additional exponent digits cannot change the verdict. */
-	static int maxExponent = 511;
-
-	/* Table giving binary powers of 10.
-	 * Entry is 10^2^i.  Used to convert decimal
-	 * exponents into floating-point numbers. */
-	static double powersOf10[] = {
-		1e1, 1e2, 1e4, 1e8, 1e16, 1e32, 1e64, 1e128, 1e256,
-	};
-#if 0
-	static double powersOf2[] = {
-		2, 4, 16, 256, 65536, 4.294967296e9, 1.8446744073709551616e19,
-                /*3.4028236692093846346e38, 1.1579208923731619542e77, 1.3407807929942597099e154,*/
-	};
-	static double powersOf8[] = {
-		8, 64, 4096, 2.81474976710656e14, 7.9228162514264337593e28,
-                /*6.2771017353866807638e57, 3.9402006196394479212e115, 1.5525180923007089351e231,*/
-	};
-	static double powersOf16[] = {
-		16, 256, 65536, 1.8446744073709551616e19,
-                /*3.4028236692093846346e38, 1.1579208923731619542e77, 1.3407807929942597099e154,*/
-	};
-#endif
-	/*
-	 * Strip off leading blanks and check for a sign.
-	 */
-	p = string;
-	while (*p==' ' || *p=='\t')
-		++p;
-	if (*p == '-') {
-		sign = 1;
-		++p;
-	} else if (*p == '+')
-		++p;
-
-	/*
-	 * Count the number of digits in the mantissa (including the decimal
-	 * point), and also locate the decimal point.
-	 */
-	decPt = -1;
-	for (mantSize=0; ; ++mantSize) {
-		c = *p;
-		if (! isdigit (c)) {
-			if (c != '.' || decPt >= 0)
-				break;
-			decPt = mantSize;
-		}
-		++p;
-	}
-
-	/*
-	 * Now suck up the digits in the mantissa.  Use two integers to
-	 * collect 9 digits each (this is faster than using floating-point).
-	 * If the mantissa has more than 18 digits, ignore the extras, since
-	 * they can't affect the value anyway.
-	 */
-	pExp = p;
-	p -= mantSize;
-	if (decPt < 0)
-		decPt = mantSize;
-	else
-		--mantSize;             /* One of the digits was the point. */
-
-	if (mantSize > 2 * 9)
-		mantSize = 2 * 9;
-	fracExp = decPt - mantSize;
-	if (mantSize == 0) {
-		fraction = 0.0;
-		p = string;
-		goto done;
-	} else {
-		int frac1, frac2;
-
-		for (frac1=0; mantSize>9; --mantSize) {
-			c = *p++;
-			if (c == '.')
-				c = *p++;
-			frac1 = frac1 * 10 + (c - '0');
-		}
-		for (frac2=0; mantSize>0; --mantSize) {
-			c = *p++;
-			if (c == '.')
-				c = *p++;
-			frac2 = frac2 * 10 + (c - '0');
-		}
-		fraction = (double) 1000000000 * frac1 + frac2;
-	}
-
-	/*
-	 * Skim off the exponent.
-	 */
-	p = pExp;
-	if (*p=='E' || *p=='e' || *p=='S' || *p=='s' || *p=='F' || *p=='f' ||
-	     *p=='D' || *p=='d' || *p=='L' || *p=='l') {
-		++p;
-		if (*p == '-') {
-			expSign = 1;
-			++p;
-		} else if (*p == '+')
-			++p;
-		while (isdigit (*p))
-			exp = exp * 10 + (*p++ - '0');
-	}
-	if (expSign)
-		exp = fracExp - exp;
-	else
-		exp = fracExp + exp;
-
-	/*
-	 * Generate a floating-point number that represents the exponent.
-	 * Do this by processing the exponent one bit at a time to combine
-	 * many powers of 2 of 10. Then combine the exponent with the
-	 * fraction.
-	 */
-	if (exp < 0) {
-		expSign = 1;
-		exp = -exp;
-	} else
-		expSign = 0;
-	if (exp > maxExponent)
-		exp = maxExponent;
-	dblExp = 1.0;
-	for (i=0; exp; exp>>=1, ++i)
-		if (exp & 01)
-			dblExp *= powersOf10[i];
-	/* A zero significand stays zero; 0 * inf would be a NaN. */
-	if (fraction != 0.0) {
-		if (expSign)
-			fraction /= dblExp;
-		else
-			fraction *= dblExp;
-		/* C17 7.22.1.3p10: overflow returns HUGE_VAL, an infinity, with ERANGE. */
-		if (fraction > DBL_MAX)
-			errno = ERANGE;
-	}
-
-done:
-	if (endPtr)
-		*endPtr = (char*) p;
-
-	return sign ? -fraction : fraction;
+	result.bits = convert(&in, &length, STRTOFP_BINARY64, &range);
+	if (range)
+		errno = ERANGE;
+	if (end != NULL)
+		*end = (char *)string + length;
+	return result.value;
 }

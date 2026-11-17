@@ -7,8 +7,11 @@
  */
 #include <math.h>
 
-/* <math.h> also defines the C17 type-generic macro isinf(). */
-#undef isinf
+/*
+ * <math.h> also defines isinf() as a type-generic macro; the parenthesized
+ * name below is not expanded by it, and keeps any rename a test build gives
+ * the name.
+ */
 
 /*
  * isinff(x) returns 1 is x is inf, -1 if x is -inf, else 0;
@@ -29,9 +32,9 @@ int isinff (float x)
 
 #if defined(__SIZEOF_DOUBLE__) && defined(__SIZEOF_FLOAT__) && \
     __SIZEOF_DOUBLE__ == __SIZEOF_FLOAT__
-int isinf (double x) __attribute__((alias ("isinff")));
+int (isinf) (double x) __attribute__((alias ("isinff")));
 #else
-int isinf (double x)
+int (isinf) (double x)
 {
 	union {
 		double f64;

@@ -8,14 +8,17 @@
  */
 #include <math.h>
 
-/* <math.h> also defines the C17 type-generic macro of this name. */
-#undef isnan
+/*
+ * <math.h> also defines isnan() as a type-generic macro; the parenthesized
+ * name below is not expanded by it, and keeps any rename a test build gives
+ * the name.
+ */
 
 /*
  * isnan(x) returns 1 is x is nan, else 0;
  * no branching!
  */
-int isnan (double x)
+int (isnan) (double x)
 {
 	long hx, lx;
 

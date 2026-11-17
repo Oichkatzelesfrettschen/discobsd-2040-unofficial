@@ -25,7 +25,7 @@ all:		stdlib.a
 
 at_quick_exit.o quick_exit.o: quick_exit.h
 
-strtof.o strtofp.o: strtofp.h
+strtod.o strtof.o strtofp.o: strtofp.h strtofp_core.h
 
 stdlib.a:	${OBJS}
 		@echo "building stdlib.a"

@@ -69,8 +69,11 @@ def build_and_run(
             path = work / f"{label}-{Path(relative).name}"
             path.write_text(text, encoding="utf-8")
         output = work / f"{label}-{Path(relative).stem}.o"
+        # A mutated copy lives in the work directory; its private headers
+        # stay beside the tree file it replaces.
+        private = f"-I{(root / relative).parent}"
         subprocess.run(
-            compiler + tree_flags + [f"-I{include}", "-c", "-o", str(output), str(path)],
+            compiler + tree_flags + [f"-I{include}", private, "-c", "-o", str(output), str(path)],
             check=True,
             cwd=test_directory,
         )
@@ -177,8 +180,8 @@ def main() -> int:
         "strtod-overflow-without-erange": {
             "lib/libc/stdlib/strtod.c": replace_once(
                 strtod_c,
-                "\t\t\terrno = ERANGE;\n",
-                "\t\t\t;\n",
+                "\tif (range)\n\t\terrno = ERANGE;\n",
+                "\tif (range)\n\t\t;\n",
                 "strtod-overflow-without-erange",
             )
         },

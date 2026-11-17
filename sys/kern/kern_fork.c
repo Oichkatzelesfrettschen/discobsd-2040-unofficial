@@ -38,10 +38,8 @@ newproc (volatile int isvfork)  /* read after the setjmp below returns 0 */
     if (child == NULL)
         panic ("no procs");
     if (swap_image_reserve (&reservation, child, parent,
-        X_OLDSIZE, X_OLDSIZE) != 0) {
-refused:
+        X_OLDSIZE, X_OLDSIZE) != 0)
         return -1;
-    }
 
     /*
      * First, just locate a slot for a process
@@ -188,9 +186,12 @@ again:
     swapout (child, X_DONTFREE, X_OLDSIZE, X_OLDSIZE, &reservation);
     parent->p_stat = SRUN;
     u.u_procp = parent;
+#ifdef SDSWAP_ENABLED
     if (reservation.state != SWAP_IMAGE_COMMITTED) {
         /*
          * The swap device left during the copy, so no child image exists.
+         * Only a removable swap device (SDSWAP_ENABLED) can leave; on a
+         * fixed one the copy commits or panics, so the unwind is absent.
          * The references taken above go back through the parent's u area,
          * the slot returns to freeproc and fork fails as a refused
          * reservation does.
@@ -224,8 +225,9 @@ again:
         child->p_sigmask = child->p_sigcatch = child->p_sigignore = 0;
         child->p_nxt = freeproc;
         freeproc = child;
-        goto refused;
+        return -1;
     }
+#endif
     child->p_flag |= SSWAP;
 
     if (isvfork) {

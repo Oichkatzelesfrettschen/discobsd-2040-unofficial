@@ -4,7 +4,10 @@ import argparse
 from pathlib import Path
 
 MUTATIONS = {
-    "ignore-reservation-refusal": ("        return -1;", "        return 0;"),
+    "ignore-reservation-refusal": (
+        "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return -1;",
+        "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return 0;",
+    ),
     "publish-allproc-early": (
         "    if (swap_image_reserve (&reservation, child, parent,",
         "    allproc = child;\n    if (swap_image_reserve (&reservation, child, parent,",
@@ -113,7 +116,10 @@ MUTATIONS = {
         "        /* Child */\n        u.u_rval = 0;",
         "        /* Child */\n        u.u_rval = p2->p_pid;",
     ),
-    "refusal-result-child": ("        return -1;", "        return 1;"),
+    "refusal-result-child": (
+        "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return -1;",
+        "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return 1;",
+    ),
     # Process 1 reserves a u-area-only image: empty segments write nothing.
     "write-empty-data-segment": (
         "    if (odata) {\n#ifdef SWAPRAM",
@@ -174,8 +180,9 @@ MUTATIONS = {
     # A swap device that leaves (swap_lost): the fork unwind, the resident
     # that stays, the processes retired and the ones spared.
     "lost-fork-no-unwind": (
-        "    u.u_procp = parent;\n    if (reservation.state != SWAP_IMAGE_COMMITTED) {",
-        "    u.u_procp = parent;\n    if (0) {",
+        "    u.u_procp = parent;\n#ifdef SDSWAP_ENABLED\n"
+        "    if (reservation.state != SWAP_IMAGE_COMMITTED) {",
+        "    u.u_procp = parent;\n#ifdef SDSWAP_ENABLED\n    if (0) {",
     ),
     "lost-fork-keep-files": (
         "            if (fp != NULL)\n                fp->f_count--;",

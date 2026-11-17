@@ -129,6 +129,7 @@ sched()
             if (in_core) {
                 swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,
                     &reservation);
+#ifdef SDSWAP_ENABLED
                 /*
                  * A device that left during the copy leaves in_core
                  * resident, so nothing may come in over it; the next pass
@@ -138,6 +139,7 @@ sched()
                     swapped_out = 0;
                     continue;
                 }
+#endif
             }
             if (swapped_out)
                 swapin (swapped_out);

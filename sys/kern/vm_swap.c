@@ -802,8 +802,10 @@ swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
     if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)
         panic ("swapout: no reservation");
     swap_image_copy_out (reservation, p);
+#ifdef SDSWAP_ENABLED
     if (reservation->state != SWAP_IMAGE_COPIED)
         return;
+#endif
     swap_image_commit (reservation, p);
 }
 

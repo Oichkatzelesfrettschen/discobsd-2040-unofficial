@@ -264,6 +264,22 @@ MUTATIONS = {
     ),
     "lost-status-clean": ("    p->p_xstat = SIGKILL;", "    p->p_xstat = 0;"),
     "lost-zombie-hashed": ("    *pp = p->p_hash;\n    p->p_xstat", "    p->p_xstat"),
+    # After the sweep swap returns to the fixed device once the lost one's
+    # map is empty: sched() must ask, a retired image must give its blocks
+    # back, and a block still held must keep the lost device's map in place.
+    "lost-no-fallback": (
+        "        if (swap_lost == SWAP_LOST_SWEPT)\n            swap_lost_fallback ();\n",
+        "",
+    ),
+    "lost-retire-keeps-blocks": (
+        "    mfree (swapmap, swap_image_span (p), p->p_daddr);\n"
+        "    unsleep (p);",
+        "    unsleep (p);",
+    ),
+    "lost-fallback-ignores-holder": (
+        "    if (! swap_map_empty ())\n        return;\n    blocks",
+        "    blocks",
+    ),
 }
 
 

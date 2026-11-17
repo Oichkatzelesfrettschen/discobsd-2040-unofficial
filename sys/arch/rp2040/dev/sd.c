@@ -79,6 +79,7 @@
 #include <sys/config.h>
 #include <sys/disk.h>
 #include <sys/errno.h>
+#include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 
@@ -755,6 +756,11 @@ sdrootattach(void)
 	}
 }
 
+#ifdef SDSWAP_ENABLED
+/* The configured swap device sdswapattach() replaced with the card. */
+static dev_t sd_swapfixed;
+#endif
+
 /*
  * Swap on the card. A PicoCalc whose PSRAM did not take the swap device
  * (psramprobe() in psram.c) swaps to the first MBR entry of type PTYPE_SWAP
@@ -794,7 +800,34 @@ sdswapattach(void)
 #ifdef SDSWAP_ENABLED
 	/* The card can leave: a failed swap transfer is survivable (systm.h). */
 	swap_removable = 1;
+	sd_swapfixed = swapdev;
 #endif
 	swapdev = makedev(SD_BMAJOR, i);
 	printf("swap: sd0%c\n", 'a' + i - 1);
 }
+
+#ifdef SDSWAP_ENABLED
+/*
+ * Give swap back to the device the configuration named, after the card that
+ * held it left (swap_lost_fallback(), sys/kern/vm_swap.c): open it as main()
+ * opens swapdev, release the card's partition and make it swapdev again. The
+ * result is its size in blocks, or 0 when it does not open, which leaves the
+ * card as swapdev and swap on the SwapRAM pool alone.
+ */
+size_t
+sdswap_fallback(void)
+{
+	dev_t dev = sd_swapfixed;
+	int blocks;
+
+	if ((*bdevsw[major(dev)].d_open)(dev, FREAD | FWRITE, S_IFBLK) != 0)
+		return 0;
+	blocks = (*bdevsw[major(dev)].d_psize)(dev);
+	if (blocks <= 0)
+		return 0;
+	sd_swaphold = 0;
+	swapdev = dev;
+	printf("swap: sd0 gone, swap on (%d,%d)\n", major(dev), minor(dev));
+	return blocks;
+}
+#endif

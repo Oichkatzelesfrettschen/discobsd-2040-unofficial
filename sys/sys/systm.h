@@ -89,6 +89,13 @@ extern dev_t    swapdev;            /* swapping device */
 #ifdef SDSWAP_ENABLED
 extern char swap_removable, swap_lost;
 void swap_lost_sweep (void);
+/*
+ * After the sweep, swap_lost_fallback() returns swap to the configured fixed
+ * device through sdswap_fallback() (sys/arch/rp2040/dev/sd.c) once nothing
+ * holds blocks of the lost one, and swap_lost reads 0 again.
+ */
+void swap_lost_fallback (void);
+size_t sdswap_fallback (void);
 #else
 #define swap_removable  0
 #define swap_lost       0

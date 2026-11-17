@@ -107,6 +107,21 @@ static int swap_fail_at = -1;
 static unsigned swap_transfers, unsleeps;
 static int lost_vfork_child;
 static int signal_to[NPROC];
+/*
+ * The fixed device the configuration named (fl1 on the board): the swap
+ * device sdswap_fallback() reopens once the lost device's map is empty.
+ * fallback_blocks is its size, 0 for a device that cannot take swap.
+ */
+u_int nswap;
+static unsigned fallback_calls;
+static size_t fallback_blocks;
+
+size_t
+sdswap_fallback(void)
+{
+    fallback_calls++;
+    return fallback_blocks;
+}
 
 void
 unsleep(struct proc *p)
@@ -1990,6 +2005,8 @@ lost_sched_cases(void)
         HK_CHECK(lost_zombie(&proc[1]));
         HK_CHECK(allproc == &proc[0] && proc[0].p_nxt == NULL);
         HK_CHECK(zombproc == &proc[1]);
+        /* The retired image's blocks are back: the lost map is empty. */
+        HK_CHECK(free_total() == 380);
         HK_CHECK(signal_to[0] == 1 << SIGCHLD);
         HK_CHECK(sched_sleep_channel == (caddr_t)&runout);
     }
@@ -2005,6 +2022,7 @@ lost_sched_cases(void)
         HK_CHECK(lost_zombie(&proc[0]) && lost_zombie(&proc[1]));
         HK_CHECK((proc[1].p_flag & SLOAD) == 0);
         HK_CHECK(allproc == NULL);
+        HK_CHECK(free_total() == 380);
     }
 }
 
@@ -2117,6 +2135,60 @@ lost_no_exchange_case(void)
 }
 #endif
 
+#if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
+/*
+ * The device left and its images were retired. proc[1] waits in the SwapRAM
+ * pool, the pool refuses the resident proc[0], and the lost device takes no
+ * reservation. With the lost device's map empty (held == 0) swap returns to
+ * the fixed device, whose map then takes proc[0], and proc[1] comes in from
+ * the pool; with an extent still held (a temporary swap unit, held == 1), or
+ * a fixed device that cannot take swap (held == 2), the pair is refused and
+ * proc[0] stays resident.
+ */
+static void
+lost_fallback_case(int held)
+{
+    sched_fixture(SRUN);
+    sched_make_pool_image();
+    sr_admit = 0;
+    swap_removable = 1;
+    swap_lost = SWAP_LOST_SWEPT;
+    nswap = 512;
+    swapmap->m_ring_first = 4;
+    swapmap->m_ring_end = 512;
+    swapmap->m_guard = 196;
+    entries[0].m_addr = 4;
+    entries[0].m_size = 508;
+    if (held == 1) {
+        entries[0].m_size = 100;
+        entries[1].m_addr = 112;
+        entries[1].m_size = 400;
+    }
+    fallback_calls = 0;
+    fallback_blocks = held == 2 ? 0 : 384;
+    swapnext = 4;
+    HK_EXPECT_PANIC("sched slept", sched_call);
+    hk_ipl = 0;
+    if (held == 0) {
+        HK_CHECK(fallback_calls == 1);
+        HK_CHECK(swap_lost == 0 && swap_removable == 0);
+        HK_CHECK(nswap == 384 && swapmap->m_ring_end == 384);
+        HK_CHECK((proc[0].p_flag & SLOAD) == 0 && cnt.v_swpout == 1);
+        HK_CHECK(proc[0].p_daddr >= 4 && proc[0].p_daddr < 384);
+        HK_CHECK((proc[1].p_flag & SLOAD) != 0);
+        HK_CHECK(swapram_present(&proc[1]) == 0);
+    } else {
+        /* A device that cannot take swap is asked again on each pass. */
+        HK_CHECK(held == 2 ? fallback_calls >= 1 : fallback_calls == 0);
+        HK_CHECK(swap_lost == SWAP_LOST_SWEPT && swap_removable == 1);
+        HK_CHECK(nswap == 512 && swapmap->m_ring_end == 512);
+        HK_CHECK((proc[0].p_flag & SLOAD) != 0 && cnt.v_swpout == 0);
+        HK_CHECK((proc[1].p_flag & SLOAD) == 0 && swapram_present(&proc[1]));
+    }
+    nswap = 0;
+}
+#endif
+
 static void
 lost_vfork_call(void)
 {
@@ -2153,6 +2225,11 @@ swap_lost_cases(void)
     lost_sweep_cases();
 #ifdef FORK_SWAP_EXCHANGE_PROBE
     lost_no_exchange_case();
+#endif
+#if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
+    lost_fallback_case(0);
+    lost_fallback_case(1);
+    lost_fallback_case(2);
 #endif
 }
 #endif /* SDSWAP_ENABLED */

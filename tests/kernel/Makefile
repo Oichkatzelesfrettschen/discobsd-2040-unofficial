@@ -3746,7 +3746,8 @@ FORK_SWAP_LOST_MUTANTS= lost-fork-no-unwind lost-fork-keep-files lost-fork-keep-
     lost-swapin-loads lost-copy-commits lost-copy-keeps-lock lost-sched-swapin-over-resident lost-sched-no-sweep \
     lost-sched-drop-resident lost-sweep-kills-pool lost-sweep-kills-system lost-reserve-after-loss lost-exchange-on-removable \
     lost-init-retired lost-vfork-parent-spared lost-vfork-takes-zombie-sizes lost-vfork-child-kept-waiting lost-sleeper-queued lost-children-kept \
-    lost-parent-untold lost-status-clean lost-zombie-hashed
+    lost-parent-untold lost-status-clean lost-zombie-hashed lost-no-fallback \
+    lost-retire-keeps-blocks lost-fallback-ignores-holder
 fork_swap_test_lost: ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
 	${HOST_CC} ${FORK_SWAP_CFLAGS} -DCOMPACT_SWAPMAP -DSDSWAP_ENABLED \
 	    -o $@ fork_swap_test.c \

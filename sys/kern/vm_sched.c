@@ -56,6 +56,10 @@ sched()
         /* Perform swap-out/swap-in action. */
         spl0();
         exchange_refusal = 0;
+#ifdef SDSWAP_ENABLED
+        if (swap_lost == SWAP_LOST_SWEPT)
+            swap_lost_fallback ();
+#endif
 #ifdef SWAPRAM
         swapram_service ();
 #endif

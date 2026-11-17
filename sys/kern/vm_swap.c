@@ -828,6 +828,11 @@ swap_lost_retire (struct proc *p)
     if (p->p_pid == 1)
         panic ("init lost with the swap device");
     printf ("swap: pid %d lost with the swap device\n", p->p_pid);
+    /*
+     * The image's blocks go back to the map without a transfer, so the map
+     * of the lost device empties and swap_lost_fallback() can replace it.
+     */
+    mfree (swapmap, swap_image_span (p), p->p_daddr);
     unsleep (p);
     if (p->p_flag & SVFORK) {
         /*
@@ -895,5 +900,51 @@ swap_lost_sweep (void)
     }
     swap_lost = SWAP_LOST_SWEPT;
     wakeup ((caddr_t) &runin);
+}
+
+/* Whether the swap map holds nothing: one free run over all of nswap. */
+static int
+swap_map_empty (void)
+{
+    return swapmap->m_map[0].m_addr == SWAP_IMAGE_ALIGN &&
+        swapmap->m_map[0].m_size == nswap - SWAP_IMAGE_ALIGN &&
+        swapmap->m_map[1].m_size == 0;
+}
+
+/*
+ * Return swap to the fixed device the configuration named (fl1) once the
+ * lost device's map is empty: swap_lost_retire() freed every retired image,
+ * and an exec spool or temporary swap unit still holding blocks of the lost
+ * device keeps its map in place until that holder frees them. Without this
+ * step a resident image that the SwapRAM pool cannot take has nowhere to go,
+ * and a runnable process in the pool never comes back in.
+ * sdswap_fallback() (sd.c) reopens the fixed device and returns its size in
+ * blocks, or 0 when it cannot take swap; the map, the cursor and nswap then
+ * describe that device and it takes reservations and transfers again. The
+ * fixed device holds no image from before the loss, so its contents need no
+ * check. sched() calls this on each pass while swap_lost is SWAP_LOST_SWEPT.
+ */
+void
+swap_lost_fallback (void)
+{
+    size_t blocks;
+    int s;
+
+    if (! swap_map_empty ())
+        return;
+    blocks = sdswap_fallback ();
+    if (blocks <= SWAP_IMAGE_ALIGN)
+        return;
+    s = splhigh ();
+    if (swap_map_empty ()) {
+        swapmap->m_map[0].m_size = blocks - SWAP_IMAGE_ALIGN;
+        swapmap->m_ring_end = blocks;
+        nswap = blocks;
+        swapnext = SWAP_IMAGE_ALIGN;
+        swap_cursor_publish (swapnext);
+        swap_removable = 0;
+        swap_lost = 0;
+    }
+    splx (s);
 }
 #endif /* SDSWAP_ENABLED */

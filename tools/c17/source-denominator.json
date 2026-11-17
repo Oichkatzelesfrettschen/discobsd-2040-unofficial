@@ -1798,8 +1798,7 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
-            "shift-expression",
-            "width-sensitive-sizeof"
+            "shift-expression"
           ],
           "object_lifetime": [
             "dynamic-storage"

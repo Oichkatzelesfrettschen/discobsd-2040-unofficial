@@ -60,7 +60,8 @@ struct	afile *gstat();
 int	fcmp(const void *, const void *);
 char	*cat(), *savestr();
 char	*fmtentry();
-char	*getname(), *getgroup();
+static const char *getname(uid_t);
+static const char *getgroup(gid_t);
 
 char	*flags_to_string (unsigned flags, char *def);
 unsigned string_to_flags (char **stringp, unsigned *setp, unsigned *clrp);
@@ -535,7 +536,26 @@ savestr(str)
 	return(cp);
 }
 
-char	*fmtinum(), *fmtsize(), *fmtlstuff(), *fmtmode();
+char	*fmtinum(), *fmtsize(), *fmtlstuff();
+
+static char *
+fmtmode(char *out, unsigned mode)
+{
+	unsigned read = S_IRUSR;
+	unsigned special = S_ISUID;
+
+	for (; read != 0; read >>= 3, special >>= 1) {
+		int executable = (mode & (read >> 2)) != 0;
+		*out++ = mode & read ? 'r' : '-';
+		*out++ = mode & (read >> 1) ? 'w' : '-';
+		if (mode & special)
+			*out++ = special == S_ISVTX ? (executable ? 't' : 'T') :
+			    (executable ? 's' : 'S');
+		else
+			*out++ = executable ? 'x' : '-';
+	}
+	return out;
+}
 
 char *
 fmtentry(fp, maxflags)
@@ -608,7 +628,7 @@ fmtlstuff(p, maxflags)
 
 	/* type mode uname gname fsize ftime */
 /* get uname */
-	{ char *cp = getname(p->fuid);
+	{ const char *cp = getname(p->fuid);
 	  if (cp)
 		(void) sprintf(uname, "%-9.9s", cp);
 	  else
@@ -616,7 +636,7 @@ fmtlstuff(p, maxflags)
 	}
 /* get gname */
 	if (gflg) {
-	  char *cp = getgroup(p->fgid);
+	  const char *cp = getgroup(p->fgid);
 	  if (cp)
 		(void) sprintf(gname, "%-9.9s", cp);
 	  else
@@ -649,56 +669,23 @@ fmtlstuff(p, maxflags)
 	return (lstuffbuf);
 }
 
-int	m1[] = { 1, S_IREAD>>0, 'r', '-' };
-int	m2[] = { 1, S_IWRITE>>0, 'w', '-' };
-int	m3[] = { 3, S_ISUID|(S_IEXEC>>0), 's', S_ISUID, 'S', S_IEXEC>>0, 'x', '-' };
-int	m4[] = { 1, S_IREAD>>3, 'r', '-' };
-int	m5[] = { 1, S_IWRITE>>3, 'w', '-' };
-int	m6[] = { 3, S_ISGID|(S_IEXEC>>3), 's', S_ISGID, 'S', S_IEXEC>>3, 'x', '-' };
-int	m7[] = { 1, S_IREAD>>6, 'r', '-' };
-int	m8[] = { 1, S_IWRITE>>6, 'w', '-' };
-int	m9[] = { 3, S_ISVTX|(S_IEXEC>>6), 't', S_ISVTX, 'T', S_IEXEC>>6, 'x', '-' };
-
-int	*m[] = { m1, m2, m3, m4, m5, m6, m7, m8, m9};
-
-char *
-fmtmode(lp, flags)
-	char *lp;
-	register int flags;
-{
-	int **mp;
-
-	for (mp = &m[0]; mp < &m[sizeof(m)/sizeof(m[0])]; ) {
-		register int *pairp = *mp++;
-		register int n = *pairp++;
-
-		while (--n >= 0 && (flags&*pairp) != *pairp)
-			pairp += 2;
-		*lp++ = pairp[n>=0];
-	}
-	return (lp);
-}
-
 /* rest should be done with nameserver or database */
 
 #include <pwd.h>
 #include <grp.h>
-#include <utmp.h>
 
-struct	utmp utmp;
-#define	NMAX	(sizeof (utmp.ut_name))
-#define SCPYN(a, b)	strncpy(a, b, NMAX)
+/* fmtlstuff displays at most nine bytes of each account name. */
+#define ACCOUNT_NAME_BYTES 9
 
 #define NCACHE	64		/* power of 2 */
-#define CAMASK	NCACHE - 1
+#define CAMASK	(NCACHE - 1)
 
-char *
-getname(uid)
-	uid_t uid;
+static const char *
+getname(uid_t uid)
 {
 	static struct ncache {
 		uid_t	uid;
-		char	name[NMAX+1];
+		char	name[ACCOUNT_NAME_BYTES + 1];
 	} c_uid[NCACHE];
 	register struct passwd *pw;
 	register struct ncache *cp;
@@ -710,17 +697,16 @@ getname(uid)
 	if (!(pw = getpwuid(uid)))
 		return((char *)0);
 	cp->uid = uid;
-	SCPYN(cp->name, pw->pw_name);
+	strncpy(cp->name, pw->pw_name, ACCOUNT_NAME_BYTES);
 	return(cp->name);
 }
 
-char *
-getgroup(gid)
-	gid_t gid;
+static const char *
+getgroup(gid_t gid)
 {
 	static struct ncache {
 		gid_t	gid;
-		char	name[NMAX+1];
+		char	name[ACCOUNT_NAME_BYTES + 1];
 	} c_gid[NCACHE];
 	register struct group *gr;
 	register struct ncache *cp;
@@ -731,6 +717,6 @@ getgroup(gid)
 	if (!(gr = getgrgid(gid)))
 		return((char *)0);
 	cp->gid = gid;
-	SCPYN(cp->name, gr->gr_name);
+	strncpy(cp->name, gr->gr_name, ACCOUNT_NAME_BYTES);
 	return(cp->name);
 }

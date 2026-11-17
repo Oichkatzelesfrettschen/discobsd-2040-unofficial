@@ -178,6 +178,63 @@ by 4 raw bytes. The largest raw savings were `forth` 228, `ed` 188, `basic`
   `tests/umount_contracts` declares its `longjmp`-ending exit replacement
   `__dead` for that reason.
 
+### Three size-growing passes off in machine-independent code (measured: -604 to -620 bytes)
+
+`CSIZEFLAGS` in `sys/arch/rp2040/conf/Makefile.rp2040` holds
+`-fno-move-loop-invariants -fno-tree-loop-im -fno-tree-dominator-opts`, and
+`CSIZEFLAGS_MI` passes them to each C source outside `sys/arch`. Text with
+arm-none-eabi-gcc 16.2.0 at 6f000e92, before and after (data, bss and
+`__kernel_ram_used_end` unchanged in all six):
+
+| Kernel | Before | After | Change |
+|---|---|---|---|
+| PICO | 98,335 | 97,715 | -620 |
+| PICO_DIAG | 100,877 | 100,257 | -620 |
+| PICO_UART | 90,289 | 89,677 | -612 |
+| PICOCALC | 123,399 | 122,795 | -604 |
+| PICOCALC_LEAN | 117,405 | 116,801 | -604 |
+| PICOCALC_LEAN_DIAG | 119,939 | 119,335 | -604 |
+
+- The selection came from a sweep of 31 single `-fno-` flags over `-Os`
+  and 12 combinations, read as PICO, PICO_UART, PICOCALC and PICOCALC_LEAN
+  text. `-Oz` produced the same text as `-Os`. The largest single losses
+  were `-fno-crossjumping` (+1,776 to +2,528), `-fno-toplevel-reorder`
+  (+1,116 to +1,720) and `-fno-gcse` (+752 to +816). Adding
+  `-fno-inline-small-functions -fno-partial-inlining -fno-if-conversion
+  -fno-ipa-sra` saved a further 56 to 120 bytes and was left out as too
+  small to carry four more flags.
+- Applied to every source the three flags save 748 to 964 bytes, and they
+  then change instructions in the `.ramfunc` flash routines and in
+  `sd_cmd`, `spi_wait_idle`, `i2c_restart`, `kbd_step` and `usb_service`,
+  whose loops poll hardware. The `sys/arch` exclusion gives up 136 to 360
+  bytes to leave those unmeasured timings alone. Object identity shows it
+  holds: between a `CSIZEFLAGS=` build and the default build of PICO,
+  PICO_UART and PICOCALC, 44 of 270 objects differ in their text, read-only
+  data, data or `.ramfunc` bytes, and the generated Makefile rules place all
+  44 sources under `$S/kern`. The 90 objects built from `$S/arch` are
+  identical.
+- Stack frames from `-fstack-usage` in the affected sources: `closei` grows
+  by 8 bytes in PICO and PICOCALC and `getfsstat` by 8 in PICO, `newproc` and `swtch` shrink by 16, and
+  about 60 others shrink. The deepest call chain was not recomputed.
+- Hosted arm-none-eabi-gcc 13.2.1: the flash image `check-kernel-headroom`
+  reports, which moves in 256-byte steps, falls 512 bytes in five kernels
+  and 256 in PICO_UART between main's push run and the pull-request run.
+  GCC 14 is not measured.
+- Board timing, bare Pico, PICO configuration, two runs
+  (`kernel-size-flags/README.md` holds the tables and transcripts): against
+  plain `-Os` the adopted flags move system calls +0.8% and pipe +1.0% to
+  +1.5% and leave context switch, spawn and execl within their spread. The
+  three flags on every source cost context switch 23%, spawn 22% and pipe
+  8%, so the `sys/arch` exclusion preserves time as well as driver bytes.
+- A second sweep of 123 further flags outside `sys/arch` found 18 that
+  shrink the kernel; the best five together save 344 to 368 bytes more,
+  cost 8% of pipe throughput on the board and grow 12 to 14 stack frames,
+  and were not adopted.
+- Observed during the sweep, mechanism not examined: the first
+  `bmake kernel` after an edit to `Makefile.rp2040` compiled with the
+  previous template's flags and the second with the new ones. A size
+  comparison across a template edit used the second build.
+
 ### Kernel LTO (unmeasured; four blockers)
 
 An `-flto` link of PICO fails four ways:

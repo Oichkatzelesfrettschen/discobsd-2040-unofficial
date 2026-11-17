@@ -728,12 +728,17 @@ def rename_tool(arm):
     )
 
 
+def symbol_prefix(arm):
+    """What the object format puts before a C name: Mach-O an underscore."""
+    return "_" if not arm and platform.system() == "Darwin" else ""
+
+
 def rename_map(symbols, arm):
     """One "old new" line per member, in the object format's spelling.
 
     Mach-O prefixes every C symbol with an underscore; ELF does not.
     """
-    prefix = "_" if not arm and platform.system() == "Darwin" else ""
+    prefix = symbol_prefix(arm)
     return "".join("%s%s %stree_%s\n" % (prefix, name, prefix, name) for name in symbols)
 
 
@@ -755,6 +760,9 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
     machine = ARM if arm else []
     if arm:
         # Headers the hosting newlib lacks; searched after its own.
+        machine = machine + ["-idirafter", str(root / "tests/libc_contracts/newlib_shim")]
+    elif platform.system() == "Darwin":
+        # Apple's SDK has no <uchar.h>; the same shim declares its members.
         machine = machine + ["-idirafter", str(root / "tests/libc_contracts/newlib_shim")]
     if "-m32" in compiler:
         # x87 arithmetic keeps excess precision, which the target never has.
@@ -848,7 +856,9 @@ def referenced(fixture, arm):
         [nm, "-u", str(fixture)], capture_output=True, text=True, timeout=60, check=False
     )
     require(result.returncode == 0, "nm fails on the fixture: " + result.stderr)
-    return {line.split()[-1] for line in result.stdout.splitlines() if line.strip()}
+    prefix = symbol_prefix(arm)
+    names = {line.split()[-1] for line in result.stdout.splitlines() if line.strip()}
+    return {name[len(prefix) :] if name.startswith(prefix) else name for name in names}
 
 
 def uncalled(members, symbols):

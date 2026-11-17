@@ -717,6 +717,8 @@ check-imports:
 clean:
 	rm -rf *.mutant *.log *.o *.mutant.c *.mutant.test ctype_tree \
 	    ${HOST_TESTS} ${HOST_TESTS:S/$/_arm/} exit_probe
+	rm -f c17_library_imports.txt c17_library_defined.txt \
+	    c17_library_libc_only.txt
 
 .PHONY: check-cross check-header-contracts check-header-mutants \
 	check-imports check-null-contract check-library-providers \

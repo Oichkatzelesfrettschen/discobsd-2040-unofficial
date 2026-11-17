@@ -122,7 +122,8 @@ and follow the steps for your platform.
 
    The default without `--bind` is loopback only. Anyone reaching the LAN
    short link learns the console token, so prefer the loopback default
-   through SSH forwarding or a trusted tunnel.
+   through SSH forwarding or a trusted tunnel; see
+   `distrib/rp2040/host/RELEASE-SECURITY.md`.
 
    It prints a short URL such as `http://192.168.1.20:42069/`; open it in
    any browser on the same network. `discobsd-console down` stops it,

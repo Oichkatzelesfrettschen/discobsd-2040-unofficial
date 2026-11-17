@@ -3969,6 +3969,22 @@ extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata
 reacquisition, and physical-board behavior retain separate evidence states.
 
+## Hybrid release and policy specification tiers
+
+`check-hybrid-release` requires an OpenSSL implementation with Ed25519 and
+ML-DSA-65. It executes real signing and verification against synthetic UF2
+bundles, malformed/corrupted controls, wrong epochs and rollback sequences,
+private staging, and failed/successful mocked flash delegation. No serial or
+picotool operation occurs in this tier. `check-release-policy` runs Lean 4.19.0
+from `tools/proofs` through `lake env` (`LAKE` and `LEAN` select the
+commands; elan reads `lean-toolchain` there) and checks Python manifest geometry, specification
+theorems and a rejected AND-to-OR mutant. These optional tiers add no target
+dependencies. The `pq-release-proofs` and `pq-release-hybrid` jobs of
+`.github/workflows/firmware.yml` run their CI equivalents in the nightly and on
+manual dispatch; the hybrid job takes OpenSSL 3.5.7 from conda-forge because
+the ubuntu-24.04 runner image ships OpenSSL 3.0.x without ML-DSA.
+Proofs concern the stated policy, not Python/OpenSSL refinement or hardware.
+
 ## MATEzinho desktop gates
 
 `check-matezinho-host` (in check-host) executes the original state machine and

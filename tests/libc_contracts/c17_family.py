@@ -47,6 +47,10 @@ import netbsd_oracle
 # would abort a faulty provider before the fixture names the failure.
 BASE = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror", "-fno-builtin", "-O2"]
 BASE += ["-U_FORTIFY_SOURCE", "-D_FORTIFY_SOURCE=0"]
+# The result digests are of IEEE operations evaluated one at a time, as the
+# soft-float target evaluates them. A host with a fused multiply-add (arm64)
+# otherwise contracts a * b + c and rounds once.
+BASE += ["-ffp-contract=off"]
 # newlib's <ctype.h> macros index a table, which the inherited strtod.c
 # reaches with a plain char.
 ARM = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft", "-Os", "-Wno-char-subscripts"]
@@ -226,6 +230,7 @@ FAMILIES = {
 # Inherited members are support, not subjects: a sanitizer run does not
 # instrument them (fmod.c shifts into the sign bit of an int).
 LEGACY = ["-std=gnu17", "-w", "-fno-builtin", "-O2", "-U_FORTIFY_SOURCE", "-fno-sanitize=all"]
+LEGACY += ["-ffp-contract=off"]
 SUPPORT = {}
 OBJECT_RENAME = {"math", "time"}
 EXTRA = {}

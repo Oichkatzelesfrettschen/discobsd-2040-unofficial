@@ -65,7 +65,11 @@ main(void)
 		printf("STREAMTEST FAILED\n");
 		return 1;
 	}
-	(void)unlink(name);
+	if (unlink(name) < 0) {
+		fail("unlink", -1);
+		printf("STREAMTEST FAILED (%s left behind)\n", name);
+		return 1;
+	}
 
 	for (i = 0; i < N; i++) {
 		d = i == 0 ? fd : dup(fd);

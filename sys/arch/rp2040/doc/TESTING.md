@@ -1510,7 +1510,12 @@ releases the argument spool, allocator buffers and executable inode before
 calling `exit(SIGKILL)` directly. Traced-process and PID 1 fixtures must enter
 that terminal path without queuing a suppressible signal. Generated mutants
 remove the segment file-span check, omit the terminal state or replace direct
-exit with `psignal`; each must fail the same executable with status 1. The
+exit with `psignal`; each must fail the same executable with status 1. A
+swap device that holds the argument spool and leaves after commitment, at
+each of the four record reads of two arguments, must stop
+`exec_setupstack()` at the read that found the loss, publish no entry point
+and mark the same terminal state (`exec_spool_gone()`, `SDSWAP_ENABLED`);
+the mutant that leaves it unmarked fails with status 1. The
 fixture establishes flat-image geometry, cleanup and terminal ordering at
 ILP32. It does not execute filesystem reads, full process teardown, MPU
 enforcement, runtime resource peaks or physical hardware.

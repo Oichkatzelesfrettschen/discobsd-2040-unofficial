@@ -365,11 +365,13 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
 
 gone:
     /*
-     * The arguments went with the swap device after exec replaced the image,
-     * so no caller can take an error: SIGKILL ends the process before the
-     * new image runs.
+     * The arguments went with the swap device after exec replaced the image.
+     * A signal would not end the process for certain (a tracer can suppress
+     * it and process 1 discards default actions), so the exec is marked
+     * failed after commit and exec_finish() (kern_exec.c) calls exit(), which
+     * for process 1 panics "init died".
      */
-    psignal (u.u_procp, SIGKILL);
+    epp->flags |= EXEC_COMMITTED_FAILURE;
 }
 
 /*

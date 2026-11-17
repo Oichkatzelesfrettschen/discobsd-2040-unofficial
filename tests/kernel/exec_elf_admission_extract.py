@@ -47,6 +47,8 @@ STACK_POINTER_GEOMETRY = (
 STACK_POINTER_GEOMETRY_MUTANT = (
     "    u.u_frame->tf_sp = (int)(argp-0x40);"
 )
+SPOOL_LOST_MARK = "    epp->flags |= EXEC_COMMITTED_FAILURE;\n}"
+SPOOL_LOST_MARK_MUTANT = "    (void)epp;\n}"
 TEXT_OWNERSHIP = """    exec_text_release(u.u_procp, NULL);
     u.u_procp->p_tsize = 0;"""
 
@@ -81,6 +83,7 @@ def main() -> None:
     mutations.add_argument("--establish", action="store_true")
     mutations.add_argument("--setupstack", action="store_true")
     mutations.add_argument("--setupstack-geometry-mutant", action="store_true")
+    mutations.add_argument("--setupstack-lost-unmarked-mutant", action="store_true")
     mutations.add_argument("--swaptext", action="store_true")
     mutations.add_argument("--text-ownership-mutant", action="store_true")
     mutations.add_argument("--text-release", action="store_true")
@@ -92,7 +95,11 @@ def main() -> None:
         signature = FINISH_SIGNATURE
     elif arguments.establish:
         signature = ESTABLISH_SIGNATURE
-    elif arguments.setupstack or arguments.setupstack_geometry_mutant:
+    elif (
+        arguments.setupstack
+        or arguments.setupstack_geometry_mutant
+        or arguments.setupstack_lost_unmarked_mutant
+    ):
         signature = SETUPSTACK_SIGNATURE
     elif arguments.swaptext:
         signature = SWAPTEXT_SIGNATURE
@@ -126,6 +133,10 @@ def main() -> None:
         function = function.replace(
             STACK_POINTER_GEOMETRY, STACK_POINTER_GEOMETRY_MUTANT, 1
         )
+    elif arguments.setupstack_lost_unmarked_mutant:
+        if function.count(SPOOL_LOST_MARK) != 1:
+            raise SystemExit("spool-loss mark mutation does not match source")
+        function = function.replace(SPOOL_LOST_MARK, SPOOL_LOST_MARK_MUTANT, 1)
     elif arguments.text_ownership_mutant:
         if function.count(TEXT_OWNERSHIP) != 1:
             raise SystemExit("ELF text-ownership mutation does not match source")

@@ -3169,6 +3169,24 @@ exec_setupstack_geometry_mutant.c: exec_elf_admission_extract.py ${EXEC_SUBR_SRC
 	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_SUBR_SRC} \
 	    --output $@ --setupstack-geometry-mutant
 
+.for mutation in lost-unmarked
+exec_setupstack_${mutation}_mutant.c: exec_elf_admission_extract.py ${EXEC_SUBR_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for spool-loss mutation" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_elf_admission_extract.py --source ${EXEC_SUBR_SRC} \
+	    --output $@ --setupstack-${mutation}-mutant
+
+exec_spool_${mutation}_mutant: exec_elf_surrounding_contract_test.c \
+    exec_elf_admission_function.c exec_estab_function.c \
+    exec_setupstack_${mutation}_mutant.c swaptext_function.c \
+    exec_text_release_function.c ${MACHINE_STAMP}
+	${HOST_CC} ${ELF_SURROUNDING_CFLAGS} ${ILP32} -I. -I${TOPSRC}/sys/arch \
+	    -DEXEC_SETUPSTACK_FUNCTION='"exec_setupstack_${mutation}_mutant.c"' \
+	    -o $@ exec_elf_surrounding_contract_test.c
+.endfor
+
 exec_elf_text_ownership_mutant.c: exec_elf_admission_extract.py ${EXEC_ELF_SRC}
 	@if [ -z "${PYTHON}" ]; then \
 		echo "PYTHON must name the interpreter for ELF ownership mutation" >&2; \
@@ -3285,7 +3303,7 @@ check-ilp32:
 	    exec_elf_admission_test32 exec_elf_segment_span_mutant \
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
-	    exec_elf_text_ownership_mutant \
+	    exec_elf_text_ownership_mutant exec_spool_lost-unmarked_mutant \
 	    sysctl_test_compact sysctl_test_wide check-sysctl-proc-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
@@ -3376,6 +3394,14 @@ check-ilp32:
 		exit 1; \
 	fi; \
 	echo "PASS ELF text ownership mutation rejected"
+	@for mutation in lost-unmarked; do \
+		if ./exec_spool_$${mutation}_mutant; then status=0; else status=$$?; fi; \
+		if [ "$$status" -ne 1 ]; then \
+			echo "FAIL exec spool-loss $$mutation mutation returned $$status, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS exec spool-loss $$mutation mutation rejected"; \
+	done
 	@if ./usercopy_span_endpoint_mutant; then status=0; else status=$$?; fi; \
 	if [ "$$status" -ne 1 ]; then \
 		echo "FAIL user-copy endpoint mutation returned $$status, expected 1" >&2; \
@@ -3570,11 +3596,11 @@ clean:
 	    exec_finish_signal_mutant.c exec_estab_function.c \
 	    exec_setupstack_function.c exec_setupstack_geometry_mutant.c \
 	    exec_elf_text_ownership_mutant.c swaptext_function.c \
-	    exec_text_release_function.c
+	    exec_text_release_function.c exec_setupstack_lost-unmarked_mutant.c
 	rm -f exec_elf_admission_test32 exec_elf_segment_span_mutant \
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
 	    exec_elf_surrounding_contract_test32 exec_stack_geometry_mutant \
-	    exec_elf_text_ownership_mutant
+	    exec_elf_text_ownership_mutant exec_spool_lost-unmarked_mutant
 	rm -f sysctl_kernel_compact.o sysctl_kernel_wide.o sysctl_shim.o
 	rm -f sysctl_vmswp_compact.o sysctl_vmswp_wide.o sysctl_proc_*.mutant.*
 	rm -f sysctl_test_compact sysctl_test_wide

@@ -237,6 +237,16 @@ exec_clear(struct exec_params *parameters)
 	(void)parameters;
 }
 
+/*
+ * A removable swap device that holds the spool leaves after spool_lost_at
+ * reads: from then on a read moves no bytes, as swap_with_buf() moves none
+ * once swap_lost is set, and exec_spool_gone() reports the loss.
+ */
+static int spool_lost_at = -1;
+static int spool_lost;
+static unsigned int spool_reads;
+#define exec_spool_gone(parameters) ((void)(parameters), spool_lost)
+
 static void
 exec_spool_read(struct exec_params *parameters, void *destination,
     unsigned int length)
@@ -244,6 +254,14 @@ exec_spool_read(struct exec_params *parameters, void *destination,
 	const char *argument = spool_args != NULL ?
 	    spool_args[spool_part / 2U] : "";
 
+	spool_reads++;
+	if (spool_lost_at >= 0 && spool_part >= (unsigned int)spool_lost_at)
+		spool_lost = 1;
+	if (spool_lost) {
+		memset(destination, 0xff, length);
+		parameters->spool.pos += length;
+		return;
+	}
 	if ((spool_part & 1U) == 0) {
 		u_short record_length = (u_short)(strlen(argument) + 1);
 
@@ -358,6 +376,9 @@ reset_fixture(struct exec_params *parameters)
 	u.u_procp = &process;
 	u.u_frame = &trapframe;
 	spool_part = 0;
+	spool_lost_at = -1;
+	spool_lost = 0;
+	spool_reads = 0;
 	released_inode = NULL;
 	inode_lock_calls = 0;
 	inode_release_calls = 0;
@@ -472,11 +493,54 @@ check_argument_snapshot(void)
 	spool_argc = 0;
 }
 
+/*
+ * The swap device that holds the argument spool leaves after exec_clear()
+ * committed the new image, at each read of the two records of each of two
+ * arguments. exec_setupstack() must stop at the loss and mark the exec as
+ * failed after commit, so exec_finish() calls exit() rather than letting the
+ * process run with a partial stack behind a signal it could escape; it must
+ * not read past the loss into a length check that panics.
+ */
+static void
+check_spool_loss_fails_committed_exec(void)
+{
+	static const char *const arguments[] = { "ls", "-l" };
+	struct exec_params parameters;
+	unsigned int before;
+	int at;
+
+	for (at = 0; at < 4; at++) {
+		reset_fixture(&parameters);
+		spool_args = arguments;
+		spool_argc = 2;
+		spool_lost_at = at;
+		before = failures;
+		CHECK("lost-spool ELF returns after commit",
+		    exec_elf_check(&parameters) == 0);
+		CHECK("lost spool marks the committed exec failed",
+		    (parameters.flags & EXEC_COMMITTED_FAILURE) != 0);
+		CHECK("lost spool publishes no entry point", trapframe.tf_pc == 0);
+		CHECK("lost spool stops at the read that found the loss",
+		    spool_reads == (unsigned int)at + 1U);
+		if (failures != before)
+			fprintf(stderr, "FAIL at loss after read %d\n", at);
+	}
+	reset_fixture(&parameters);
+	spool_args = arguments;
+	spool_argc = 2;
+	CHECK("whole spool ELF succeeds", exec_elf_check(&parameters) == 0);
+	CHECK("whole spool leaves the exec unmarked",
+	    (parameters.flags & EXEC_COMMITTED_FAILURE) == 0);
+	spool_args = NULL;
+	spool_argc = 0;
+}
+
 int
 main(void)
 {
 	check_stack_publication_stays_in_admitted_extent();
 	check_elf_replacement_clears_file_backed_text();
 	check_argument_snapshot();
+	check_spool_loss_fails_committed_exec();
 	return failures != 0;
 }

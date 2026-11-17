@@ -107,6 +107,8 @@ static int swap_fail_at = -1;
 static unsigned swap_transfers, unsleeps;
 static int lost_vfork_child;
 static int signal_to[NPROC];
+/* The endtsleep callout tsleep() armed for each slot; untimeout() clears it. */
+static int tsleep_armed[NPROC];
 /*
  * The fixed device the configuration named (fl1 on the board): the swap
  * device sdswap_fallback() reopens once the lost device's map is empty.
@@ -128,6 +130,20 @@ unsleep(struct proc *p)
 {
     unsleeps++;
     p->p_wchan = 0;
+}
+
+void
+endtsleep(caddr_t argument)
+{
+    (void)argument;
+    panic("endtsleep fired");
+}
+
+void
+untimeout(void (*fun)(caddr_t), caddr_t arg)
+{
+    if (fun == endtsleep)
+        tsleep_armed[(struct proc *)arg - proc] = 0;
 }
 #endif
 
@@ -570,6 +586,7 @@ reset_fixture(void)
     swap_transfers = unsleeps = 0;
     lost_vfork_child = 0;
     bzero(signal_to, sizeof(signal_to));
+    bzero(tsleep_armed, sizeof(tsleep_armed));
 #endif
 }
 
@@ -2055,14 +2072,16 @@ lost_sweep_cases(void)
     HK_CHECK(zombproc == NULL && swapram_present(&proc[1]));
 
     /*
-     * A sleeper leaves its wait queue, and its children pass to init as
-     * exit() passes them: a traced one (stopped as well) loses P_TRACED and gets
+     * A timed sleeper leaves its wait queue and its tsleep() callout, which
+     * would otherwise fire on the slot after wait4() frees it; its
+     * children pass to init as exit() passes them: a traced one (stopped as well) loses P_TRACED and gets
      * SIGKILL, a stopped one SIGHUP and SIGCONT, a running one nothing.
      */
     lost_sched_fixture();
     freeproc = &proc[5];
     proc[1].p_stat = SSLEEP;
     proc[1].p_wchan = (caddr_t)&lost_result;
+    tsleep_armed[1] = 1;
     proc[1].p_nxt = &proc[2];
     proc[2].p_prev = &proc[1].p_nxt;
     proc[2].p_pid = 11;
@@ -2081,10 +2100,12 @@ lost_sweep_cases(void)
     proc[4].p_stat = SSTOP;
     proc[4].p_flag = SLOAD;
     proc[4].p_pptr = &proc[1];
+    tsleep_armed[2] = 1;
     swap_lost = SWAP_LOST_NEW;
     lost_sweep_call();
     HK_CHECK(lost_zombie(&proc[1]) && unsleeps == 1 &&
         proc[1].p_wchan == NULL);
+    HK_CHECK(tsleep_armed[1] == 0 && tsleep_armed[2] == 1);
     HK_CHECK(proc[2].p_ppid == 1 && proc[3].p_ppid == 1 &&
         proc[4].p_ppid == 1);
     HK_CHECK(proc[2].p_stat == SRUN && proc[0].p_nxt == &proc[2]);

@@ -832,7 +832,15 @@ swap_lost_retire (struct proc *p)
      * of the lost device empties and swap_lost_fallback() can replace it.
      */
     mfree (swapmap, swap_image_span (p), p->p_daddr);
+    /*
+     * A running process has no endtsleep callout: tsleep() cancels or
+     * consumes it before it returns, so exit() has none to cancel. This
+     * process stopped inside tsleep(), and a callout left armed would fire
+     * on the slot after wait4() frees it and wake whatever process
+     * sleeps there then.
+     */
     unsleep (p);
+    untimeout (endtsleep, (caddr_t) p);
     if (p->p_flag & SVFORK) {
         /*
          * newproc() sleeps in the parent until SVFORK clears. It finds a

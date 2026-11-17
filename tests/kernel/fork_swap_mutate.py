@@ -268,6 +268,7 @@ MUTATIONS = {
         "            *pp = p->p_hash;\n            goto done;",
         "            goto done;",
     ),
+    "lost-timeout-kept": ("    untimeout (endtsleep, (caddr_t) p);", "    (void)0;"),
     "lost-traced-child-kept": (
         "            if (q->p_flag& P_TRACED) {\n"
         "                q->p_flag &= ~P_TRACED;\n"
@@ -287,9 +288,8 @@ MUTATIONS = {
         "",
     ),
     "lost-retire-keeps-blocks": (
-        "    mfree (swapmap, swap_image_span (p), p->p_daddr);\n"
-        "    unsleep (p);",
-        "    unsleep (p);",
+        "    mfree (swapmap, swap_image_span (p), p->p_daddr);\n    /*",
+        "    /*",
     ),
     "lost-fallback-ignores-holder": (
         "    if (! swap_map_empty ())\n        return;\n    blocks",

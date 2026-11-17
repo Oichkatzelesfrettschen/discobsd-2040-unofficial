@@ -218,6 +218,34 @@ zero evictions and zero waits. The capture establishes software traffic for
 that image and workload. It neither assigns traffic to one stdio call nor
 converts requested NOR operations into electrical wear.
 
+### Erases per swap sector
+
+The raw swap region (384 KiB, 96 sectors of 4 KiB) has no wear leveling: an
+image lands at the sector its reservation names, so a workload that swaps one
+command in and out erases the same few sectors repeatedly while
+`swap_erase_sectors` in `machdep.storage_stats` reports only the total. A
+`STORAGE_STATS=yes` kernel keeps one 16-bit erase counter per swap sector
+(`flash_swap_wear` in `dev/flash.c`, updated by `flash_wear_note()` in
+`dev/flash_wear.h` from `flash_erase()`) and returns the array through the
+read-only `machdep.flash_swap_wear` (id 53). Counters start at zero at boot,
+count every erase of their sector since then, and saturate at 65535 instead of
+wrapping, so 65535 reads as "at least 65535". A 64 KiB block erase counts each
+of its sixteen sectors once, since the chip erases the whole block. Erases
+below `FLASH_SWAP_OFFSET` (the Dhara root) are not counted. `sysctl
+machdep.flash_swap_wear` prints `sectors N` and then the counters, sixteen
+per row, sector 0 first; the call returns EOPNOTSUPP on kernels built without
+`STORAGE_STATS`, which contain neither the array nor the update (their text,
+data and bss sizes equal a tree without it, and the images differ only in the
+build stamp). Each counter is one
+halfword store under `splhigh()`, so a read sees every counter whole but the
+array as it stood while the copy ran. The array costs 192 bytes of bss, no initialized
+data, and 96 to 120 bytes of text on a diagnostic kernel (six configurations,
+GCC 16.2). Take two reads around a
+workload and subtract per sector, unless a counter reads 65535. The counters
+are requested-erase counts, as `storage_stats` is, and establish no
+electrical wear; `check-flash-wear` holds the counting rules over a model,
+and the board has not been asked.
+
 ### Reset at the Nth flash command
 
 `flash_program()` and `flash_erase()` hand the boot ROM a whole request with

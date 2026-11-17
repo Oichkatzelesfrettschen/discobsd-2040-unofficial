@@ -590,6 +590,33 @@ parse(char *string, int flags)
 		return (0);
 	}
 #endif /* CPU_PCM */
+#ifdef CPU_FLASH_SWAP_WEAR
+	if (mib[0] == CTL_MACHDEP && mib[1] == CPU_FLASH_SWAP_WEAR) {
+		/*
+		 * One unsigned halfword per swap sector; the kernel's reply
+		 * length gives the sector count. buf has no halfword
+		 * alignment guarantee, so each counter is copied out.
+		 */
+		unsigned short erases;
+		unsigned count = size / sizeof(erases), sector;
+
+		if (size == 0 || size % sizeof(erases) != 0) {
+			fprintf(stderr, "%s: unsupported ABI\n", string);
+			return (1);
+		}
+		if (!nflag)
+			fprintf(stdout, "%s%s", string, equ);
+		fprintf(stdout, "sectors %u", count);
+		for (sector = 0; sector < count; sector++) {
+			memcpy(&erases, buf + sector * sizeof(erases),
+			    sizeof(erases));
+			fprintf(stdout, "%s%u", sector % 16 ? " " : "\n",
+			    (unsigned)erases);
+		}
+		fprintf(stdout, "\n");
+		return (0);
+	}
+#endif /* CPU_FLASH_SWAP_WEAR */
 	if (special & CAPACITY) {
 		static const char *const metric_names[CAPACITY_KIND_COUNT] = {
 			"proc", "inode", "file", "clist", "buffer"

@@ -104,6 +104,7 @@
  */
 #define	FLASH_SWAP_BYTES	(384UL * 1024)
 #define	FLASH_SWAP_OFFSET	(FLASH_TOTAL_BYTES - FLASH_SWAP_BYTES)
+#define	FLASH_SWAP_SECTORS	(FLASH_SWAP_BYTES / FLASH_SECTOR_BYTES)
 #define	FLASH_SWAP_SCRATCH_OFFSET FLASH_SWAP_OFFSET
 #define	FLASH_PARTITION_COUNT	4
 
@@ -210,6 +211,8 @@ void	flash_limit_init(void);
 #ifdef STORAGE_STATS
 u_int	flash_reset_hook_count(u_int erase);
 void	flash_reset_hook_arm(u_int erase, u_int n);
+/* Erases per swap sector since boot, saturating (dev/flash_wear.h). */
+extern u_short flash_swap_wear[FLASH_SWAP_SECTORS];
 #endif
 
 int	flopen(dev_t dev, int flags, int mode);

@@ -75,6 +75,13 @@ int status_sysctl(int *name, u_int length, void *old, size_t *size,
         }
         *(int *)old = 0xef4015;
         *size = sizeof(int);
+    } else if (name[0] == CTL_MACHDEP && name[1] == CPU_FLASH_SWAP_WEAR) {
+        unsigned short wear[34];
+        unsigned index;
+        for (index = 0; index < sizeof(wear) / sizeof(wear[0]); index++)
+            wear[index] = index == 0 ? 65535 : index == 17 ? 300 : index;
+        memcpy(old, wear, sizeof(wear));
+        *size = sizeof(wear);
     } else if (name[0] == CTL_MACHDEP && name[1] == CPU_PCM) {
         struct cpu_pcm_info pcm;
         pcm.rate = 8000;

@@ -68,7 +68,10 @@
 
 #ifdef STORAGE_STATS
 #include <rp2040/dev/flash_reset_hook.h>
+#include <rp2040/dev/flash_wear.h>
 #include <rp2040/rp2040/core1.h>
+
+u_short flash_swap_wear[FLASH_SWAP_SECTORS];
 
 static struct storage_stats flstats = {
     .version = STORAGE_STATS_VERSION,
@@ -634,6 +637,10 @@ flash_erase(u_int offset, u_int len)
 	if (!flash_write_admitted(offset, len, flash_write_end))
 		return -1;
 	s = splhigh();
+#ifdef STORAGE_STATS
+	flash_wear_note(flash_swap_wear, FLASH_SWAP_SECTORS, FLASH_SWAP_OFFSET,
+	    offset, len);
+#endif
 	storage_note(offset >= FLASH_SWAP_OFFSET ?
 	    STORAGE_SWAP_ERASE_SECTORS : STORAGE_ROOT_ERASE_SECTORS,
 	    len / FLASH_SECTOR_BYTES);

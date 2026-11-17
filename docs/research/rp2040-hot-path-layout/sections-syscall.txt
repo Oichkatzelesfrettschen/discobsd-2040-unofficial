@@ -1,0 +1,24 @@
+  1275386    612 .text.syscall syscall.o
+   230906    128 .text.userret kern_sig.o
+   186511     32 .text.led_control machdep.o
+   133215     48 .text.setpri kern_synch.o
+   106572    180 .text locore.o
+    85248    100 .text.close kern_descrip.o
+    79993     76 .text.PendSV_Handler syscall.o
+    76411     64 .text.ufalloc kern_descrip.o
+    53310     84 .text.dup kern_descrip.o
+    53288     32 .text.SVC_Handler syscall.o
+    39094     48 .text.dupit kern_descrip.o
+    19536     24 .text.umask ufs_syscalls2.o
+    17760     64 .text.closef kern_descrip.o
+    12432     16 .text.getpid kern_prot.o
+     8882      4 .rodata.nsysent init_sysent.o
+     8882    163 .rodata.syscall_nargs init_sysent.o
+     8881    652 .rodata.syscall_handlers init_sysent.o
+     8880     12 .text.getuid kern_prot.o
+     1949    448 .text.hardclock kern_clock.o
+      319     64 .text.gatherstats kern_clock.o
+      140     18 .text.systick systick.o
+      140     20 .text.clock_tick_stamp clock.o
+       80     28 .text.SysTick_Handler systick.o
+sections 23 bytes 2917

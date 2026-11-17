@@ -312,6 +312,20 @@ def configuration(root, compiler, arm, work):
     ]
     if arm:
         flags += ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"]
+        # NetBSD's machine/ansi.h defines _BSD_SIZE_T_ before gdtoa.h reaches
+        # <stddef.h>, and the compiler's <stddef.h> (GCC 16, no __NetBSD__)
+        # skips its size_t typedef when that macro is set, so gdtoa.h's
+        # prototypes meet an undeclared size_t. Reading <stddef.h> first
+        # declares the type; NetBSD's <sys/types.h> repeats the same typedef,
+        # which C11 allows.
+        flags += ["-include", str(Path(gcc_include) / "stddef.h")]
+        # NetBSD's machine/ansi.h defines _BSD_SIZE_T_ before gdtoa.h reaches
+        # <stddef.h>, and the compiler's <stddef.h> (GCC 16, no __NetBSD__)
+        # skips its size_t typedef when that macro is set, so gdtoa.h's
+        # prototypes meet an undeclared size_t. Reading <stddef.h> first
+        # declares the type; NetBSD's <sys/types.h> repeats the same typedef,
+        # which C11 allows.
+        flags += ["-include", str(Path(gcc_include) / "stddef.h")]
     if machine == "i386":
         # NetBSD's i386 libm takes rint and friends from i387 assembly, so
         # its C members assume no excess precision; SSE2 arithmetic, which

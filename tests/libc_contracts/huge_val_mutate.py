@@ -169,6 +169,14 @@ def main() -> int:
                 "log-zero-positive",
             )
         },
+        "log-domain-infinity": {
+            "lib/libm/log.c": replace_once(
+                log_c,
+                "return(NAN);",
+                "return(-HUGE_VAL);",
+                "log-domain-infinity",
+            )
+        },
         "atof-zero-mantissa-nan": {
             "lib/libc/gen/atof.c": replace_once(
                 atof_c,

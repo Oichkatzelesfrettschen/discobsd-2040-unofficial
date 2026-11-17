@@ -28,6 +28,8 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
  * expm1f(): the float form of expm1().  The argument widens exactly and
  * the double result is narrowed once.
@@ -35,5 +37,5 @@
 float
 expm1f(float x)
 {
-	return (float)expm1((double)x);
+	return fp_narrow(expm1((double)x));
 }

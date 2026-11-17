@@ -54,5 +54,11 @@ log1p(double x)
 	u = 1.0 + x;
 	if (u == 1.0)
 		return x;
+	/*
+	 * Above 2**1000 the product log(u) * x overflows although the result
+	 * is finite, and u - 1 equals x to every bit, so the correction is 1.
+	 */
+	if (x > 0x1p1000)
+		return log(u);
 	return log(u) * x / (u - 1.0);
 }

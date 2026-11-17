@@ -42,9 +42,11 @@ nextafterf(float x, float y)
 		return y;
 	if (x == 0.0f)
 		return fp_float((fp_bitsf(y) & 0x80000000U) | 1);
-	if ((x < y) == (x > 0.0f))
+	if ((x < y) == (x > 0.0f)) {
 		bits++;
-	else
+		if ((bits >> 23 & 0xff) == 0xff)
+			errno = ERANGE;
+	} else
 		bits--;
 	return fp_float(bits);
 }

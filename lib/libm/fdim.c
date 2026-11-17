@@ -26,15 +26,26 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <errno.h>
 #include <math.h>
 
-/* C17 7.12.12.1: x - y when x > y, +0 otherwise; a NaN propagates. */
+/*
+ * C17 7.12.12.1: x - y when x > y, +0 otherwise; a NaN propagates.  A
+ * difference of finite values that overflows is a range error (7.12.1p4).
+ */
 double
 fdim(double x, double y)
 {
+	double difference;
+
 	if (x != x)
 		return x;
 	if (y != y)
 		return y;
-	return x > y ? x - y : 0.0;
+	if (x <= y)
+		return 0.0;
+	difference = x - y;
+	if (difference - difference != 0.0 && x - x == 0.0 && y - y == 0.0)
+		errno = ERANGE;
+	return difference;
 }

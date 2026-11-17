@@ -150,14 +150,25 @@ fma(double x, double y, double z)
 	struct wide a, b, r;
 	int ex, ey, ez, ea, eb, e, shift, biased, negative_product;
 
-	if (FP_EXPONENT(xbits) == 0x7ff || FP_EXPONENT(ybits) == 0x7ff)
-		return x * y + z;
+	if (FP_EXPONENT(xbits) == 0x7ff || FP_EXPONENT(ybits) == 0x7ff) {
+		double sum = x * y + z;
+
+		/* infinity * 0 and infinity - infinity are domain errors. */
+		if (sum != sum && x == x && y == y && z == z)
+			errno = EDOM;
+		return sum;
+	}
 	if (FP_EXPONENT(zbits) == 0x7ff)
 		return z != z ? x * y + z : z;
 	if (x == 0.0 || y == 0.0)
 		return x * y + z;	/* the product is an exact zero */
-	if (z == 0.0)
-		return x * y;		/* one rounding, and the sign of zero */
+	if (z == 0.0) {
+		double product = x * y;	/* one rounding, and the sign of zero */
+
+		if (product - product != 0.0)
+			errno = ERANGE;
+		return product;
+	}
 
 	/* a = |x*y| and b = |z|, each with its top bit at 125 or 126. */
 	a = shift_left(multiply64(split_value(xbits, &ex),

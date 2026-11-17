@@ -28,6 +28,8 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
  * fdimf(): the float form of fdim().  The arguments widen exactly and
  * the double result is narrowed once.
@@ -35,5 +37,5 @@
 float
 fdimf(float x, float y)
 {
-	return (float)fdim((double)x, (double)y);
+	return fp_narrow(fdim((double)x, (double)y));
 }

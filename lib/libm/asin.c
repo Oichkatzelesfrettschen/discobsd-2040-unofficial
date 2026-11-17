@@ -16,6 +16,8 @@ asin(arg)
 {
 	double sign, temp;
 
+	if(arg != arg)
+		return(arg);
 	sign = 1.;
 	if(arg <0){
 		arg = -arg;
@@ -23,8 +25,9 @@ asin(arg)
 	}
 
 	if(arg > 1.){
+		/* C17 7.12.4.2: |arg| > 1 is a domain error, F.10.1.2 a NaN. */
 		errno = EDOM;
-		return(0.);
+		return(NAN);
 	}
 
 	temp = sqrt(1. - arg*arg);
@@ -40,13 +43,11 @@ double
 acos(arg)
         double arg;
 {
-	if(arg < 0)
-		arg = -arg;
-
-	if(arg > 1.){
+	if(arg > 1. || arg < -1.){
 		errno = EDOM;
-		return(0.);
+		return(NAN);
 	}
 
+	/* asin() is odd, so pi/2 - asin(arg) holds on both sides of zero. */
 	return(pio2 - asin(arg));
 }

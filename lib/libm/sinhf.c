@@ -28,6 +28,8 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
  * sinhf(): the float form of sinh().  The argument widens exactly and
  * the double result is narrowed once.
@@ -35,5 +37,5 @@
 float
 sinhf(float x)
 {
-	return (float)sinh((double)x);
+	return fp_narrow(sinh((double)x));
 }

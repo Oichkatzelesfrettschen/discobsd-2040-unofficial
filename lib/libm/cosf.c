@@ -25,15 +25,30 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <errno.h>
 #include <math.h>
 
-/*
- * cosf(): the float form of cos().  The argument widens exactly and
- * the double result is narrowed once.
- */
+#include "fpbits.h"
+
+int __discobsd_rem_pio2f(float, double *);
+
+/* cosf(): C17 7.12.4.5 for float; see sinf.c.  Cosine is even. */
 float
 cosf(float x)
 {
-	return (float)cos((double)x);
+	double y, v;
+	int n;
+
+	if (x - x != 0.0f) {
+		if (x == x)
+			errno = EDOM;
+		return x - x;
+	}
+	if ((fp_bitsf(x) & 0x7fffffffU) < 0x47800000U)
+		return (float)cos((double)x);
+	n = __discobsd_rem_pio2f(x, &y);
+	v = (n & 1) != 0 ? sin(y) : cos(y);
+	if (((n + 1) & 2) != 0)
+		v = -v;
+	return (float)v;
 }

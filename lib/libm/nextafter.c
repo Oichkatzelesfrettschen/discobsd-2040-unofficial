@@ -49,9 +49,12 @@ nextafter(double x, double y)
 		return y;
 	if (x == 0.0)
 		return fp_double((fp_bits(y) & FP_SIGN_BIT) | 1);
-	if ((x < y) == (x > 0.0))
+	if ((x < y) == (x > 0.0)) {
 		bits++;
-	else
+		/* The step from the largest finite value overflows (C17 7.12.1). */
+		if (FP_EXPONENT(bits) == 0x7ff)
+			errno = ERANGE;
+	} else
 		bits--;
 	return fp_double(bits);
 }

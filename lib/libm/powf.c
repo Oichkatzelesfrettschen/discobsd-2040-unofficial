@@ -25,15 +25,62 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <errno.h>
 #include <math.h>
 
+#include "fpbits.h"
+
+/* Whether y, a finite float, is an integer: all of 2**23 and up are. */
+static int
+integral(float y)
+{
+	return (fp_bitsf(y) & 0x7fffffffU) >= 0x4b000000U || (float)(long)y == y;
+}
+
+/* Whether y is an odd integer: from 2**24 up every float is even. */
+static int
+odd(float y)
+{
+	return (fp_bitsf(y) & 0x7fffffffU) < 0x4b800000U && integral(y) &&
+	    ((long)y & 1) != 0;
+}
+
 /*
- * powf(): the float form of pow().  The arguments widen exactly and
- * the double result is narrowed once.
+ * powf(): C17 7.12.7.4 for float, with the special cases of F.10.4.4 stated
+ * here so that they do not depend on the double pow() they narrow.  A
+ * negative base reaches pow() as its magnitude, and the sign follows an odd
+ * integer power.  A negative base with a power that is not an integer is a
+ * domain error; a zero base with a negative power is a pole.
  */
 float
 powf(float x, float y)
 {
-	return (float)pow((double)x, (double)y);
+	float magnitude, result;
+
+	if (y == 0.0f || x == 1.0f)
+		return 1.0f;
+	if (x != x || y != y)
+		return x + y;
+	magnitude = fp_float(fp_bitsf(x) & 0x7fffffffU);
+	if (y - y != 0.0f) {
+		/* An infinite power: |x| against 1 decides, and |x| = 1 gives 1. */
+		if (magnitude == 1.0f)
+			return 1.0f;
+		return (magnitude < 1.0f) == (y < 0.0f) ? HUGE_VALF : 0.0f;
+	}
+	if (x - x != 0.0f || x == 0.0f) {
+		/* Zero to a negative power and infinity to a positive one are infinite. */
+		result = (x == 0.0f) == (y < 0.0f) ? HUGE_VALF : 0.0f;
+		if (x == 0.0f && y < 0.0f)
+			errno = ERANGE;
+		if (odd(y) && (fp_bitsf(x) >> 31) != 0)
+			result = -result;
+		return result;
+	}
+	if (x < 0.0f && !integral(y)) {
+		errno = EDOM;
+		return NAN;
+	}
+	result = fp_narrow(pow((double)magnitude, (double)y));
+	return x < 0.0f && odd(y) ? -result : result;
 }

@@ -116,5 +116,7 @@ tgamma(double x)
 		for (factor = x; factor < 1.0 + z - 0.5; factor += 1.0)
 			result /= factor;
 	}
+	if (result - result != 0.0)
+		errno = ERANGE;		/* 1/x overflows for tiny x (7.12.1p4) */
 	return result;
 }

@@ -28,6 +28,8 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
  * scalbnf(): scaling in double is exact while the result stays in the
  * double's normal range, which every in-range float result does, so the
@@ -36,5 +38,5 @@
 float
 scalbnf(float x, int n)
 {
-	return (float)scalbn((double)x, n);
+	return fp_narrow(scalbn((double)x, n));
 }

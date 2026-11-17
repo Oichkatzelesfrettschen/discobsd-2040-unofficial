@@ -45,9 +45,11 @@ nexttowardf(float x, long double y)
 		return (float)y;
 	if (x == 0.0f)
 		return fp_float((y < 0.0L ? 0x80000000U : 0) | 1);
-	if (((long double)x < y) == (x > 0.0f))
+	if (((long double)x < y) == (x > 0.0f)) {
 		bits++;
-	else
+		if ((bits >> 23 & 0xff) == 0xff)
+			errno = ERANGE;
+	} else
 		bits--;
 	return fp_float(bits);
 }

@@ -28,6 +28,8 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
  * lgammaf(): the float form of lgamma().  The argument widens exactly and
  * the double result is narrowed once.
@@ -35,5 +37,5 @@
 float
 lgammaf(float x)
 {
-	return (float)lgamma((double)x);
+	return fp_narrow(lgamma((double)x));
 }

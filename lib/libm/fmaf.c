@@ -49,8 +49,12 @@ fmaf(float x, float y, float z)
 	double addend, error;
 	uint64_t bits;
 
-	if (sum - sum != 0.0 || sum == 0.0)
+	if (sum - sum != 0.0 || sum == 0.0) {
+		/* infinity * 0 and infinity - infinity are domain errors. */
+		if (sum != sum && x == x && y == y && z == z)
+			errno = EDOM;
 		return (float)sum;
+	}
 	addend = sum - product;
 	error = (product - (sum - addend)) + ((double)z - addend);
 	if (error != 0.0) {
@@ -63,5 +67,5 @@ fmaf(float x, float y, float z)
 			sum = fp_double(bits);
 		}
 	}
-	return (float)sum;
+	return fp_narrow(sum);
 }

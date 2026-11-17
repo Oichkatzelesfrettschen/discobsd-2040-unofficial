@@ -25,15 +25,36 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <errno.h>
 #include <math.h>
 
+#include "fpbits.h"
+
+int __discobsd_rem_pio2f(float, double *);
+
 /*
- * sinf(): the float form of sin().  The argument widens exactly and
- * the double result is narrowed once.
+ * sinf(): C17 7.12.4.6 for float.  An infinity has no sine, a domain error
+ * (F.10.1.6); a NaN passes through.  Up to 2**16 the argument widens
+ * exactly into sin(), whose range reduction is accurate there, and the
+ * result is narrowed once.  Beyond it the argument is reduced by
+ * __discobsd_rem_pio2f() from the bits of 2/pi.
  */
 float
 sinf(float x)
 {
-	return (float)sin((double)x);
+	double y, v;
+	int n;
+
+	if (x - x != 0.0f) {
+		if (x == x)
+			errno = EDOM;
+		return x - x;
+	}
+	if ((fp_bitsf(x) & 0x7fffffffU) < 0x47800000U)
+		return (float)sin((double)x);
+	n = __discobsd_rem_pio2f(x, &y);
+	v = (n & 1) != 0 ? cos(y) : sin(y);
+	if ((n & 2) != 0)
+		v = -v;
+	return (float)((fp_bitsf(x) >> 31) != 0 ? -v : v);
 }

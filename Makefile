@@ -2294,6 +2294,15 @@ check-renode-capacity:
 # "differs" branch of image_identify() runs and the loader's stamp span is
 # shown to be skipped. Outside "check" for the reason
 # check-renode is.
+# The asynchronous system trap on the emulated PICO_UART kernel:
+# tools/renode/check-preempt.sh adds tests/rp2040/preempt to a copy of
+# ${FSIMG} and boots it once per case; each case runs a loop with no system
+# call that only a signal or a switch from the clock tick can end. Outside
+# "check" for the reason check-renode is.
+check-renode-preempt:
+		${MAKE} -C tests/rp2040/preempt MACHINE=${MACHINE}
+		sh tools/renode/check-preempt.sh ${FSIMG}
+
 check-renode-identity:
 		sh tools/renode/check-identity.sh ${FLASHBIN}
 
@@ -2484,6 +2493,7 @@ installfs:
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
+		check-renode-preempt \
 		check-renode-union-lean check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \

@@ -7,18 +7,23 @@ from pathlib import Path
 SIGNATURE = "void\nsigreturn(void)"
 HELPER_START = "#define SIGRETURN_EXCEPTION_FRAME_SIZE"
 HELPER_END = "/*\n * System call to cleanup state after a signal"
-SNAPSHOT_DECLARATIONS = """\tstruct sigcontext context;
-\tstruct sigcontext *scp = &context;
+FRAME_START = "struct sigframe {"
+FRAME_END = "\n};\n"
+SNAPSHOT_DECLARATIONS = """\tstruct sigframe saved;
+\tstruct sigcontext *scp = &saved.sf_sc;
 \tu_int user_context;"""
-DIRECT_DECLARATIONS = """\tstruct sigcontext *scp;
-\tu_int user_context;"""
+DIRECT_DECLARATIONS = """\tstruct sigframe saved;
+\tstruct sigcontext *scp;
+\tu_int user_context;
+
+\tmemset(&saved, 0, sizeof(saved));"""
 SNAPSHOT_ADMISSION = """\tif (regs->tf_sp > ~0U - 32U) {
 \t\tu.u_error = EFAULT;
 \t\treturn;
 \t}
 \tuser_context = regs->tf_sp + 32U;
 \tif (copyin((caddr_t)user_context, (caddr_t)scp,
-\t    sizeof(*scp)) != 0) {"""
+\t    sizeof(saved) - sizeof(saved.sf_hwframe)) != 0) {"""
 DIRECT_ADMISSION = """\tuser_context = regs->tf_sp + 32U;
 \tscp = (struct sigcontext *)user_context;
 \tif (baduaddr((caddr_t)scp) ||
@@ -57,6 +62,11 @@ MUTATIONS = {
         """\tif (0 && !sigreturn_psr_valid(context->sc_psr))
 \t\treturn 0;""",
     ),
+    "tail-omitted": (
+        """\tuf->uf_r12 = saved.sf_r12;
+\tuf->uf_div = saved.sf_div;""",
+        """\t(void)uf;""",
+    ),
     "early-publication": (
         """\tif (!sigreturn_context_valid(scp)) {
 \t\tu.u_error = EINVAL;""",
@@ -85,6 +95,15 @@ def extract_function(source, signature):
     raise ValueError("unterminated sigreturn function")
 
 
+def extract_frame(source):
+    """Return the struct sigframe definition sigreturn reads its tail through."""
+    if source.count(FRAME_START) != 1:
+        raise ValueError("struct sigframe definition is not unique")
+    start = source.index(FRAME_START)
+    end = source.index(FRAME_END, start) + len(FRAME_END)
+    return source[start:end].rstrip()
+
+
 def extract_helpers(source):
     """Return the private constants and validators called by sigreturn."""
     if source.count(HELPER_START) != 1 or source.count(HELPER_END) != 1:
@@ -103,7 +122,13 @@ def main():
 
     source_bytes = arguments.source.read_bytes()
     source = source_bytes.decode()
-    unit = extract_helpers(source) + "\n\n" + extract_function(source, SIGNATURE)
+    unit = (
+        extract_frame(source)
+        + "\n\n"
+        + extract_helpers(source)
+        + "\n\n"
+        + extract_function(source, SIGNATURE)
+    )
     if arguments.mutation == "direct-user":
         if unit.count(SNAPSHOT_DECLARATIONS) != 1:
             raise SystemExit("direct-user declaration mutation does not match source")

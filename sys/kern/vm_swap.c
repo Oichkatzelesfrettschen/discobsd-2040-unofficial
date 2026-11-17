@@ -829,6 +829,8 @@ extern void lcdcons_procexit (const struct proc *p);
 static void
 swap_lost_retire (struct proc *p)
 {
+    struct proc *q;
+
     if (p->p_pid == 1)
         panic ("init lost with the swap device");
     printf ("swap: pid %d lost with the swap device\n", p->p_pid);
@@ -857,6 +859,18 @@ swap_lost_retire (struct proc *p)
          * an image it no longer has.
          */
         p->p_flag &= ~SVFORK;
+        wakeup ((caddr_t) p);
+    }
+    if (p->p_flag & SVFPRNT) {
+        /*
+         * A vfork parent: its child runs on the lent image, which no
+         * parent will take back. The child keeps it, as SVFORK clears and
+         * it never enters endvfork() (kern_exit.c), and a child already
+         * waiting there for SVFDONE, asleep on this process, is released.
+         */
+        for (q = allproc; q != NULL; q = q->p_nxt)
+            if (q->p_pptr == p)
+                q->p_flag = (q->p_flag & ~SVFORK) | SVFDONE;
         wakeup ((caddr_t) p);
     }
     p->p_flag &= ~P_TRACED;

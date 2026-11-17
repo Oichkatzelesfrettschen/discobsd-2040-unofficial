@@ -267,6 +267,16 @@ MUTATIONS = {
         "            parent->p_flag &= ~SVFPRNT;\n            exit (SIGKILL);",
         "            parent->p_flag &= ~SVFPRNT;\n            exit (SIGKILL);",
     ),
+    # A retired vfork parent releases the child that holds its image.
+    "lost-vfork-parent-child-held": (
+        "                q->p_flag = (q->p_flag & ~SVFORK) | SVFDONE;",
+        "                (void)q;",
+    ),
+    "lost-vfork-parent-child-unwoken": (
+        "                q->p_flag = (q->p_flag & ~SVFORK) | SVFDONE;\n"
+        "        wakeup ((caddr_t) p);",
+        "                q->p_flag = (q->p_flag & ~SVFORK) | SVFDONE;",
+    ),
     "lost-vfork-child-kept-waiting": (
         "        p->p_flag &= ~SVFORK;\n        wakeup ((caddr_t) p);",
         "        wakeup ((caddr_t) p);",

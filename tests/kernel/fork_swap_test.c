@@ -2100,6 +2100,8 @@ lost_sweep_call(void)
 static void
 lost_sweep_cases(void)
 {
+    int n;
+
     /* A pool image, a system process and the resident stay. */
     lost_sched_fixture();
     sched_make_pool_image();
@@ -2179,6 +2181,45 @@ lost_sweep_cases(void)
     HK_CHECK(lost_zombie(&proc[1]));
     HK_CHECK((proc[1].p_flag & SVFORK) == 0);
     HK_CHECK(signal_to[0] == 1 << SIGCHLD);
+
+    /*
+     * A vfork parent out of core leaves with the device while its child
+     * runs on the lent image (how 0) or waits in endvfork() for SVFDONE
+     * (how 1): the child keeps the image, SVFORK clears so it never waits
+     * for a parent that is gone, SVFDONE releases a waiting one, and the
+     * wakeup reaches it on the parent's address. The fixture's proc[1]
+     * is also the slot the kernel's init has, so the reparenting to init
+     * wakes the same address once; the release must add a second wakeup.
+     */
+    for (n = 0; n < 2; n++) {
+        unsigned w;
+        int woke = 0;
+
+
+        lost_sched_fixture();
+        freeproc = &proc[3];
+        proc[1].p_stat = SSLEEP;
+        proc[1].p_flag = SVFPRNT;
+        proc[1].p_nxt = &proc[2];
+        proc[2].p_prev = &proc[1].p_nxt;
+        proc[2].p_pid = 11;
+        proc[2].p_stat = n == 0 ? SRUN : SSLEEP;
+        proc[2].p_flag = SLOAD | (n == 0 ? SVFORK : SLOCK);
+        proc[2].p_pptr = &proc[1];
+        proc[2].p_dsize = 4096;
+        proc[2].p_ssize = 2048;
+        swap_lost = SWAP_LOST_NEW;
+        lost_sweep_call();
+        HK_CHECK(lost_zombie(&proc[1]));
+        HK_CHECK((proc[2].p_flag & SVFORK) == 0);
+        HK_CHECK((proc[2].p_flag & SVFDONE) != 0);
+        HK_CHECK(proc[2].p_dsize == 4096 && proc[2].p_ssize == 2048);
+        HK_CHECK(proc[2].p_ppid == 1 && signal_to[2] == 0);
+        for (w = 0; w < wakeups && w < 8; w++)
+            if (wake_channels[w] == (caddr_t)&proc[1])
+                woke++;
+        HK_CHECK(woke == 2);
+    }
 
     /* init cannot be retired. */
     lost_sched_fixture();

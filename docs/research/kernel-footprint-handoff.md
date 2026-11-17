@@ -178,6 +178,49 @@ by 4 raw bytes. The largest raw savings were `forth` 228, `ed` 188, `basic`
   `tests/umount_contracts` declares its `longjmp`-ending exit replacement
   `__dead` for that reason.
 
+### Three size-growing passes off in machine-independent code (measured: -604 to -620 bytes)
+
+`CSIZEFLAGS` in `sys/arch/rp2040/conf/Makefile.rp2040` holds
+`-fno-move-loop-invariants -fno-tree-loop-im -fno-tree-dominator-opts`, and
+`CSIZEFLAGS_MI` passes them to each C source outside `sys/arch`. Text with
+arm-none-eabi-gcc 16.2.0 at 6f000e92, before and after (data, bss and
+`__kernel_ram_used_end` unchanged in all six):
+
+| Kernel | Before | After | Change |
+|---|---|---|---|
+| PICO | 98,335 | 97,715 | -620 |
+| PICO_DIAG | 100,877 | 100,257 | -620 |
+| PICO_UART | 90,289 | 89,677 | -612 |
+| PICOCALC | 123,399 | 122,795 | -604 |
+| PICOCALC_LEAN | 117,405 | 116,801 | -604 |
+| PICOCALC_LEAN_DIAG | 119,939 | 119,335 | -604 |
+
+- The selection came from a sweep of 31 single `-fno-` flags over `-Os`
+  and 12 combinations, read as PICO, PICO_UART, PICOCALC and PICOCALC_LEAN
+  text. `-Oz` produced the same text as `-Os`. The largest single losses
+  were `-fno-crossjumping` (+1,776 to +2,528), `-fno-toplevel-reorder`
+  (+1,116 to +1,720) and `-fno-gcse` (+752 to +816). Adding
+  `-fno-inline-small-functions -fno-partial-inlining -fno-if-conversion
+  -fno-ipa-sra` saved a further 56 to 120 bytes and was left out as too
+  small to carry four more flags.
+- Applied to every source the three flags save 748 to 964 bytes, and they
+  then change instructions in the `.ramfunc` flash routines and in
+  `sd_cmd`, `spi_wait_idle`, `i2c_restart`, `kbd_step` and `usb_service`,
+  whose loops poll hardware. The `sys/arch` exclusion gives up 128 to 360
+  bytes to leave those unmeasured timings alone: the 169 `sys/arch`
+  compile commands of a six-kernel build carry none of the flags, the
+  `.ramfunc` disassembly matches the unflagged build's instruction for
+  instruction, and no `sys/arch` function changes size.
+- Stack frames from `-fstack-usage` in the affected sources: `closei` and
+  `getfsstat` grow by 8 bytes, `newproc` and `swtch` shrink by 16, and
+  about 60 others shrink. The deepest call chain was not recomputed.
+- Not measured: execution time, and GCC 13 and 14. A loop in the affected
+  sources recomputes its invariants on each pass.
+- A build picks up an edit to `Makefile.rp2040` one invocation late: the
+  kernel directory's make has parsed its generated Makefile before config
+  rewrites it. Size comparisons across a template edit therefore need
+  `reconfig`, or a second build, before the measured one.
+
 ### Kernel LTO (unmeasured; four blockers)
 
 An `-flto` link of PICO fails four ways:

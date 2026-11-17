@@ -28,7 +28,7 @@
 struct afile {
 	char	ftype;		/* file type, e.g. 'd', 'c', 'f' */
 	ino_t	fnum;		/* inode number of file */
-	short	fmode;		/* mode&~S_IFMT, perhaps ISARG */
+	unsigned short fmode;	/* permission bits and ISARG */
 	u_short	fflags;		/* st_flags (uappnd, uchg, schg, ...) */
 	short	fnl;		/* number of links */
 	uid_t	fuid;		/* owner id */

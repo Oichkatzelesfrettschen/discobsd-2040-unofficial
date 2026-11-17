@@ -774,6 +774,11 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
         flags = flags + ["-DC17_MATH_NETBSD_ORACLE"]
     if arm and family == "math":
         flags = flags + (UNTRUSTED_NETBSD_ARM if oracle else UNTRUSTED_NEWLIB)
+    if not arm and family == "math" and not oracle and platform.system() == "Darwin":
+        # Apple's libm misses lgamma near its poles by a hundred units, so it
+        # is no oracle for the sampled inputs of the approximate members; the
+        # pinned digests then require every bit of the run that met glibc.
+        flags = flags + ["-DC17_MATH_UNTRUSTED_SAMPLES"]
     if arm and family == "strtof" and not oracle:
         # newlib's strtof rounds through double; see differential() there.
         flags = flags + ["-DC17_STRTOF_UNTRUSTED_ORACLE"]

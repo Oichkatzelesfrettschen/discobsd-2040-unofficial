@@ -610,7 +610,11 @@ remainders(void)
  * qemu-user variant, rounds fma() and fmaf() twice and misses tgamma() by
  * tens of units; NetBSD's fmaf() needs a round-toward-zero mode that the
  * soft-float target lacks.  C17_MATH_UNTRUSTED_FMA, _FMAF and _APPROX
- * withdraw the oracle for those groups.  Every result of those members
+ * withdraw the oracle for those groups.  C17_MATH_UNTRUSTED_SAMPLES
+ * withdraws it for the sampled inputs of the approximate members alone and
+ * keeps it for their special values: Apple's libm misses lgamma() near its
+ * poles by a hundred units yet states the special values as glibc does.
+ * Every result of those members
  * also enters an FNV-1a digest per member, and c17_math_digests.h pins the
  * digests of a run whose results met a correctly rounded oracle (glibc).
  * A run without a trustworthy oracle must reproduce every bit of that run,
@@ -661,7 +665,7 @@ mix(uint64_t value)
 #else
 #define TRUSTED_FMAF	1
 #endif
-#ifdef C17_MATH_UNTRUSTED_APPROX
+#if defined(C17_MATH_UNTRUSTED_APPROX) || defined(C17_MATH_UNTRUSTED_SAMPLES)
 #define TRUSTED		0
 #else
 #define TRUSTED		1

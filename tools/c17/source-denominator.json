@@ -1775,14 +1775,17 @@
     },
     {
       "path": "bin/ls/ls.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "bin/ls",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/kernel-footprint-handoff.md",
+        "bin/ls/tests/check_format.py"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -1798,8 +1801,7 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
-            "shift-expression",
-            "width-sensitive-sizeof"
+            "shift-expression"
           ],
           "object_lifetime": [
             "dynamic-storage"
@@ -1807,24 +1809,23 @@
           "pointer": [
             "pointer-integer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
     },
     {
       "path": "bin/ls/stat_flags.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "bin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "bin/ls",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/kernel-footprint-handoff.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -1841,9 +1842,40 @@
           "integer": [],
           "object_lifetime": [],
           "pointer": [],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "bin/ls/stat_flags.h",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "bin/ls",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/kernel-footprint-handoff.md"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "header",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -72025,7 +72057,9 @@
         "build_surface": "rp2040-kernel",
         "required_mode": "gnu17-freestanding",
         "extension_policy": "localized-gnu",
-        "extension_signals": [],
+        "extension_signals": [
+          "target-builtin"
+        ],
         "risk_family": "kernel-syscall",
         "risk_tier": "T1",
         "risk_tier_basis": "boundary-family-conservative",
@@ -72041,9 +72075,7 @@
           "pointer": [
             "integer-pointer-cast"
           ],
-          "prototype": [
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -78455,10 +78487,8 @@
         "source_kind": "header",
         "build_surface": "test-only",
         "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "gnu-extension-review",
-        "extension_signals": [
-          "gnu-attribute"
-        ],
+        "extension_policy": "portable-only",
+        "extension_signals": [],
         "risk_family": "portable-leaf",
         "risk_tier": "unreviewed",
         "risk_tier_basis": "caller-closure-required",
@@ -78821,9 +78851,13 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast"
+          ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }
@@ -87036,9 +87070,13 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast"
+          ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

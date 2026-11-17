@@ -8,6 +8,12 @@
  * point at the function and data tables and the halfword at 0x18 at the
  * lookup helper. Section 2.8.3.2: the soft-float and soft-double tables
  * are data-table entries 'S','F' and 'S','D'.
+ *
+ * Verdict lines, after the table the program has always printed:
+ * ROMPROBE OK (exit 0) when the magic is 'M' 'u' 0x01 and both the SF and
+ * SD tables resolve, the two conditions whose failure sends the resolver
+ * to exit 70; ROMPROBE FAILED with the reason (exit 1) otherwise. The
+ * program only reads the ROM, so it has no skip case.
  */
 #include <stdio.h>
 
@@ -45,7 +51,7 @@ w(unsigned a)
 	return *(volatile unsigned *)rom_address(a);
 }
 
-static void
+static int
 table(const char *name, unsigned code, int version)
 {
 	lookup_fn lookup = (lookup_fn)h(0x18);
@@ -55,7 +61,7 @@ table(const char *name, unsigned code, int version)
 	printf("%s: table=%#x", name, t);
 	if (t == 0) {
 		printf(" (absent)\n");
-		return;
+		return 0;
 	}
 	if (version >= 2)
 		size = b(t - 2) * 4;
@@ -65,18 +71,31 @@ table(const char *name, unsigned code, int version)
 	    size);
 	for (i = 0; i < 6; i++)
 		printf("  [%u] %#x\n", i * 4, w(t + i * 4));
+	return 1;
 }
 
 int
 main(void)
 {
 	int version = b(0x13);
+	int magic = b(0x10) == 'M' && b(0x11) == 'u' && b(0x12) == 1;
+	int sf, sd;
 
 	printf("header %#x %#x %#x version %d\n", b(0x10), b(0x11), b(0x12),
 	    version);
 	printf("func table %#x data table %#x lookup %#x\n", h(0x14), h(0x16),
 	    h(0x18));
-	table("SF", 0x4653, version);
-	table("SD", 0x4453, version);
-	return 0;
+	sf = table("SF", 0x4653, version);
+	sd = table("SD", 0x4453, version);
+	if (!magic)
+		printf("ROMPROBE FAILED: header is not 'M' 'u' 0x01\n");
+	else if (!sf || !sd)
+		printf("ROMPROBE FAILED: %s table absent\n",
+		    !sf && !sd ? "SF and SD" : !sf ? "SF" : "SD");
+	else {
+		printf("ROMPROBE OK (version %d, SF and SD tables present)\n",
+		    version);
+		return 0;
+	}
+	return 1;
 }

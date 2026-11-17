@@ -58,6 +58,14 @@
 #define __dead2		__dead
 #endif
 
+#ifndef __returns_twice
+#if !defined(__SMALLER_C__) && (defined(__GNUC__) || defined(__clang__))
+#define __returns_twice	__attribute__((__returns_twice__))
+#else
+#define __returns_twice
+#endif
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #ifndef __unused
 #define __unused	__attribute__((__unused__))

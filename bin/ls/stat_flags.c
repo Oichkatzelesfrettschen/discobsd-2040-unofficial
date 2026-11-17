@@ -39,6 +39,8 @@
 #include <sys/stat.h>
 #include <string.h>
 
+#include "stat_flags.h"
+
 #define	SAPPEND(s) {							\
 	if (prefix != NULL)						\
 		(void)strcat(string, prefix);				\
@@ -52,9 +54,7 @@
  *	are set, return the default string.
  */
 char *
-flags_to_string (flags, def)
-	register unsigned flags;
-	char *def;
+flags_to_string(unsigned flags, char *def)
 {
 	static char string[64];
 	register char *prefix;
@@ -94,9 +94,7 @@ flags_to_string (flags, def)
  *	to the offending token.
  */
 unsigned
-string_to_flags (stringp, setp, clrp)
-	char **stringp;
-	register unsigned *setp, *clrp;
+string_to_flags(char **stringp, unsigned *setp, unsigned *clrp)
 {
 	int clear;
 	char *string;

@@ -21,6 +21,7 @@ def run(args):
 
 
 def build(work, suite, changes):
+    base_suite = suite.removesuffix("-ilp32")
     includes = [
         "-I" + str(work),
         "-I" + str(ROOT / "sys"),
@@ -46,11 +47,12 @@ def build(work, suite, changes):
         "bmap": ["ufs_bmap.c"],
         "synch": ["kern_synch.c", "vm_sched.c"],
         "itimer": ["kern_clock.c", "kern_time.c", "kern_fork.c", "sys_generic.c"],
-        "itimer-ilp32": ["kern_clock.c", "kern_time.c", "kern_fork.c", "sys_generic.c"],
         "resource": ["kern_proc.c", "kern_resource.c"],
-    }[suite]
+    }[base_suite]
+    if suite.endswith("-ilp32"):
+        common += ILP32_FLAGS
     if suite == "itimer-ilp32":
-        common += ILP32_FLAGS + ["-DHK_WALL_ILP32"]
+        common += ["-DHK_WALL_ILP32"]
     # A header mutation copies every sys/sys header into the private include
     # directory, which -I lists ahead of the tree's sys directory, and mutates
     # the copy. Copying them all matters because sys/vm.h names vmmeter.h in
@@ -118,7 +120,8 @@ def build(work, suite, changes):
             # select1() is the unit under test; rwuio() is linked but never
             # called, so its setjmp() resolves to the same stub as newproc()'s.
             extra += ["-include", str(TESTS / "itimer_setjmp.h")]
-        elif name in ("kern_prot.c", "kern_prot2.c"):
+        if name in ("kern_prot.c", "kern_prot2.c", "kern_proc.c", "kern_resource.c",
+                    "kern_time.c", "vm_sched.c"):
             extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
         obj = work / (name + ".o")
         run(CC + common + includes + extra + ["-c", str(source), "-o", str(obj)])
@@ -126,7 +129,7 @@ def build(work, suite, changes):
     harness = work / "harness.o"
     run(
         CC
-        + (ILP32_FLAGS if suite == "itimer-ilp32" else [])
+        + (ILP32_FLAGS if suite.endswith("-ilp32") else [])
         + [
             "-std=gnu17",
             "-Wall",
@@ -147,9 +150,8 @@ def build(work, suite, changes):
             "bmap": "bmap_write_test.c",
             "synch": "synch_meter_test.c",
             "itimer": "itimer_test.c",
-            "itimer-ilp32": "itimer_test.c",
             "resource": "resource_test.c",
-        }[suite]
+        }[base_suite]
     )
     run(
         CC
@@ -186,6 +188,7 @@ def main():
         ("baseline-credentials", "credentials", {}, False),
         ("baseline-bmap", "bmap", {}, False),
         ("baseline-synch", "synch", {}, False),
+        ("baseline-synch-ilp32", "synch-ilp32", {}, False),
         ("baseline-itimer", "itimer", {}, False),
         ("baseline-itimer-ilp32", "itimer-ilp32", {}, False),
         ("baseline-resource", "resource", {}, False),
@@ -835,7 +838,18 @@ def main():
             "synch",
             {
                 "vmmeter.h": vmrate_narrowing(),
-                "vm_sched.c": ("register u_int *cp, *rp;", "register u_short *cp, *rp;"),
+                "vm_sched.c": ("typedef u_int vm_event_count_t;",
+                               "typedef u_short vm_event_count_t;"),
+            },
+            True,
+        ),
+        (
+            "skip-vm-meter-field",
+            "synch",
+            {
+                "vm_sched.c": ("        meter_event(events, average, total_events);",
+                               "        if (slot != 7)\n"
+                               "            meter_event(events, average, total_events);"),
             },
             True,
         ),
@@ -844,7 +858,7 @@ def main():
         base = Path(tmp)
         ilp32 = ilp32_supported(base)
         for label, suite, changes, negative in cases:
-            if suite == "itimer-ilp32" and not ilp32:
+            if suite.endswith("-ilp32") and not ilp32:
                 print(label + ": skipped, the host compiler has no 32-bit sanitizer runtime")
                 continue
             work = base / label
@@ -858,6 +872,11 @@ def main():
             expected = 1 if negative else 0
             if result.returncode != expected:
                 raise RuntimeError(label + ": unexpected result\n" + result.stdout + result.stderr)
+            assertion = {"narrow-vm-counters": "sum.v_swtch ==",
+                         "skip-vm-meter-field": "sum.v_kbout =="}.get(label)
+            if assertion and assertion not in result.stdout + result.stderr:
+                raise RuntimeError(label + ": missing expected assertion\n"
+                                   + result.stdout + result.stderr)
             print(
                 label
                 + ": "

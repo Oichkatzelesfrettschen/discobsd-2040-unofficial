@@ -73,14 +73,14 @@ typedef int     bool_t;             /* boolean */
 
 #ifdef KERNEL
 /*
- * Save the process' current register context.
+ * Save the current register context. Return zero on save and one on resume.
  */
-int setjmp (label_t *env);
+int setjmp (label_t *env) __returns_twice;
 
 /*
- * Map in a user structure and jump to a saved context.
+ * Map in the target u area and resume its saved context.
  */
-void longjmp (size_t unew, label_t *env);
+__dead void longjmp (size_t unew, label_t *env);
 
 #endif /* KERNEL */
 

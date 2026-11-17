@@ -17,6 +17,18 @@
  *   INFO clist ...           the clist row while output was stopped
  *   CLISTBOUND OK            no clist refusal across the run
  *   CLISTBOUND REFUSED n     n clist refusals across the run
+ *   CLISTBOUND SKIPPED       standard input or output is not a terminal
+ *                            (exit 2); nothing was stopped or measured
+ *
+ * The terminal is the one on standard input and output, so the program runs
+ * from an interactive login with neither redirected: a pipe such as
+ * "clistbound | tail" returns ENOTTY from TIOCSTOP, which the program
+ * reports as a skip. Every tty driver on this port reaches the common
+ * ttioctl() in sys/kern/tty.c, which implements TIOCSTOP, TIOCSTART and
+ * TIOCFLUSH: the UART (sys/arch/rp2040/dev/uart.c), the USB CDC console
+ * (usb.c) and the panel console (lcdcons.c), and no kernel option gates
+ * them. The run needs a login whose output reaches a host reader that can
+ * type into it, as tools/renode/check-capacity.py does.
  *
  * The driver checks that every numbered line arrived once and in order.
  *
@@ -68,6 +80,13 @@ main(void)
     int discard = FREAD;
     int flushed;
 
+    if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) {
+        cap_say("SKIP precondition not met: standard input and output must "
+            "both be a terminal (a login on a tty, with no pipe or "
+            "redirection); TIOCSTOP on another file returns ENOTTY");
+        cap_say("CLISTBOUND SKIPPED");
+        return 2;
+    }
     if (cap_snapshot(&before) < 0) {
         cap_say("FAIL kern.capacity: %s", strerror(errno));
         return 1;

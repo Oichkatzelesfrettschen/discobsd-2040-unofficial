@@ -3,6 +3,12 @@
  * A touched frame that unwinds before a trap demonstrates the blind spot.
  * The output workload keeps a common caller frame above the stdio wrappers
  * so the initial allocation floor does not hide every batching difference.
+ *
+ * Verdict lines (stdout, after the unchanged "sampled-stack" measurement
+ * line): STDIOCAP OK (exit 0); STDIOCAP FAILED with the reason (exit 1 to
+ * 5, the existing codes); STDIOCAP SKIPPED (exit 64) when no valid
+ * operation was named, since the program measures one operation per exec
+ * and runs nothing without one.
  */
 #include <sys/param.h>
 #include <sys/sysctl.h>
@@ -19,6 +25,13 @@
 static struct kinfo_proc process_info;
 static char output[OUTPUT_BYTES + 1];
 static volatile unsigned char witness;
+
+static int
+verdict_failed(int code, const char *reason)
+{
+    printf("STDIOCAP FAILED: %s\n", reason);
+    return code;
+}
 
 static int
 sample_extent(unsigned *extent)
@@ -118,13 +131,13 @@ main(int argc, char **argv)
         output[length] = '\0';
         stream = fopen("/dev/null", "w");
         if (stream == NULL)
-            return 1;
+            return verdict_failed(1, "fopen /dev/null");
         setbuf(stream, NULL);
     }
     if (sample_extent(&before) < 0) {
         if (stream != NULL)
             (void)fclose(stream);
-        return 2;
+        return verdict_failed(2, "kern.proc sample before the run");
     }
     if (calibration)
         calibrate(strcmp(argv[1], "trap") == 0);
@@ -135,16 +148,18 @@ main(int argc, char **argv)
     if (stream != NULL && fclose(stream) < 0)
         result = -1;
     if (result < 0)
-        return 3;
+        return verdict_failed(3, "operation, close or second sample");
     printf("sampled-stack %s length=%u before=%u after=%u delta=%u\n",
         argv[1], length, before, after, after >= before ? after - before : 0);
     if (after < before)
-        return 4;
+        return verdict_failed(4, "sampled extent shrank");
     if (calibration && strcmp(argv[1], "trap") == 0 &&
         (after < CALIBRATION_BYTES || after <= before))
-        return 5;
+        return verdict_failed(5, "trap control did not raise the extent");
+    printf("STDIOCAP OK\n");
     return 0;
 usage:
     fprintf(stderr, "usage: stdiocap trap|leaf|fprintf|vfprintf|fputs [0..2049]\n");
+    printf("STDIOCAP SKIPPED: no valid operation named; nothing measured\n");
     return 64;
 }

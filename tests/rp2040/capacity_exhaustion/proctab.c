@@ -18,9 +18,11 @@
  * output goes through write(2), and no buffer is allocated before the
  * forks.
  *
- * Verdict lines: PROCTABTEST OK (exit 0), PROCTABTEST FAILED (exit 1) and
- * PROCTABTEST INCONCLUSIVE (exit 3) when swap ran out before the table did,
- * which establishes nothing about NPROC.
+ * Verdict lines: PROCTABTEST OK (exit 0), PROCTABTEST FAILED (exit 1),
+ * PROCTABTEST SKIPPED (exit 2) when the caller is not root, a precondition
+ * that leaves the claim untested, and PROCTABTEST INCONCLUSIVE (exit 3)
+ * when swap ran out before the table did, which establishes nothing about
+ * NPROC.
  */
 #include <sys/param.h>
 #include <sys/sysctl.h>
@@ -114,10 +116,11 @@ main(void)
     pid_t pid;
 
     if (geteuid() != 0) {
-        cap_say("FAIL run as root: MAXUPRC and the reserved last slot refuse "
-            "a non-root fork before the table is empty");
-        cap_say("PROCTABTEST FAILED");
-        return 1;
+        cap_say("SKIP precondition not met: run as root; MAXUPRC and the "
+            "reserved last slot refuse a non-root fork before the table is "
+            "empty, so no EAGAIN could be attributed to the table");
+        cap_say("PROCTABTEST SKIPPED");
+        return 2;
     }
     if (cap_sysctl_int(CTL_KERN, KERN_MAXPROC, &limit) < 0 ||
         cap_snapshot(&before) < 0) {

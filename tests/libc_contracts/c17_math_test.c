@@ -1127,13 +1127,24 @@ edge_same(const char *name, double got, double want)
 
 /* The low three bits of the quotient 7.12.10.3 requires; newlib's differ. */
 static int
-edge_quotient_differs(int got, int want)
+edge_quotient_differs(int got, int want, int equal_magnitudes)
 {
 #ifdef C17_MATH_UNTRUSTED_APPROX
 	(void)got;
 	(void)want;
+	(void)equal_magnitudes;
 	return 0;
 #else
+	/*
+	 * NetBSD's remquo and remquof give +1 for x and -x, where the
+	 * quotient is -1 (7.12.10.3); the oracle is wrong there.
+	 */
+#ifdef C17_MATH_NETBSD_ORACLE
+	if (equal_magnitudes)
+		return 0;
+#else
+	(void)equal_magnitudes;
+#endif
 	return (got & 7) != (want & 7);
 #endif
 }
@@ -1321,12 +1332,16 @@ edges_other(void)
 {
 	static const long counts[] = {
 		0, 1, -1, 7, -7, 1023, 1024, -1074, -1075, 2000, -2200,
-		2147483647L,
-#ifndef C17_MATH_UNTRUSTED_APPROX
-		/* newlib's scalbln() returns an infinity for this count. */
-		-2147483647L - 1
+#if defined(C17_MATH_UNTRUSTED_APPROX) || defined(C17_MATH_NETBSD_ORACLE)
+		/*
+		 * newlib's scalbln() returns an infinity for a count near
+		 * LONG_MIN, and NetBSD's scalbn() wraps an int sum for one
+		 * near INT_MAX, returning zero for a large value; the
+		 * oracles are wrong there.
+		 */
+		1000000L, -1000000L
 #else
-		-1000000L
+		2147483647L, -2147483647L - 1
 #endif
 	};
 	unsigned long i, j, k;
@@ -1422,7 +1437,7 @@ edges_other(void)
 			OTHER_ERRNO("remquof", x, y, got, x - x == 0.0f && y - y == 0.0f, x != x || y != y);
 			if (!samef(got, want) ||
 			    (x - x == 0.0f && y - y == 0.0f && y != 0.0f &&
-			    edge_quotient_differs(quotient, want_quotient)))
+			    edge_quotient_differs(quotient, want_quotient, x == y || x == -y)))
 				OTHER_FAIL("remquof", x, y, got, want);
 		}
 	}
@@ -1442,7 +1457,7 @@ edges_other(void)
 			OTHER_ERRNO("remquo", x, y, got, x - x == 0.0 && y - y == 0.0, x != x || y != y);
 			if (!same(got, want) ||
 			    (x - x == 0.0 && y - y == 0.0 && y != 0.0 &&
-			    edge_quotient_differs(quotient, want_quotient)))
+			    edge_quotient_differs(quotient, want_quotient, x == y || x == -y)))
 				OTHER_FAIL("remquo", x, y, got, want);
 #ifndef C17_MATH_UNTRUSTED_FMA
 			for (k = 0; k < NEDGE; k++) {

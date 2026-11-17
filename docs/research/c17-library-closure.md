@@ -218,6 +218,13 @@ and the cases below were checked against exact arithmetic where stated:
 | `s_logb.c`, `s_logbf.c` | every subnormal returns -1022 or -126, the IEEE 754-1985 function, where C17 7.12.6.11p2 normalizes it | all 2**53 - 2 subnormal doubles and 2**24 - 2 floats; `logb(0x1p-1074)` gives -1022 |
 | `s_fma.c` | a result just below a power of two can round up to the power | 408,909 of 2,000,000 such draws and none of 2,000,000 general ones; `fma(-2.5, 0.1, 0x1p52)` gives 0x1p52, 2**-56 from the midpoint on the other side |
 
+Two further NetBSD defects reach the edge table and are not withheld, because
+the fixture skips the inputs instead: `remquo` and `remquof` return a quotient
+of +1 for `x` and `-x` where C17 7.12.10.3 gives -1 (`remquof(0x1p-149f,
+-0x1p-149f)` leaves 1 in `*quo`), and `scalbn` on i386 wraps an int sum for a
+count near INT_MAX and returns 0 for a large argument it should send to
+infinity. The NetBSD-oracle builds compare neither case.
+
 The oracle withholds those members, with a witness each that fails the build
 once NetBSD's defect stops reproducing, and the gate substitutes each one for
 the tree's own member and requires the fixture to reject it by name. That

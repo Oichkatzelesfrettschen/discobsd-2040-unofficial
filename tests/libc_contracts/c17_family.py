@@ -397,8 +397,8 @@ FAMILIES["math"] = (
         ),
         (
             "lib/libm/log.c",
-            "errno = EDOM;\n\t\t\treturn(NAN);",
-            "errno = EDOM;\n\t\t\treturn(-HUGE_VAL);",
+            "\t\t\treturn(NAN);",
+            "\t\t\treturn(-HUGE_VAL);",
             7,
             "log",
             "log returns an infinity for a negative argument",
@@ -725,6 +725,8 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
         redefine.write_text("".join("%s tree_%s\n" % (name, name) for name in symbols))
     objcopy = "arm-none-eabi-objcopy" if arm else "objcopy"
     flags = BASE + EXTRA.get(family, []) + renames + machine
+    if family == "math" and oracle:
+        flags = flags + ["-DC17_MATH_NETBSD_ORACLE"]
     if arm and family == "math":
         flags = flags + (UNTRUSTED_NETBSD_ARM if oracle else UNTRUSTED_NEWLIB)
     if arm and family == "strtof" and not oracle:

@@ -70,9 +70,12 @@ int	lcdcons_gfx(int on);
 struct picocalc_panel_read;
 int	lcdgfx_panel_set(int n);
 int	lcdgfx_panel_read(struct picocalc_panel_read *rb);
+struct picocalc_panel_scan;
+int	lcdgfx_panel_scan(struct picocalc_panel_scan *sc);
 int	st7365p_set(int n);
 int	st7365p_set_current(void);
 void	st7365p_readback(struct picocalc_panel_read *rb);
+void	st7365p_scan(struct picocalc_panel_scan *sc);
 #endif
 
 #endif /* !_LCDGFX_H */

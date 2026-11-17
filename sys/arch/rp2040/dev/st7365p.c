@@ -627,4 +627,60 @@ st7365p_readback(struct picocalc_panel_read *rb)
 		    panel_reads[i][2]);
 	}
 }
+
+/*
+ * Sample GSCAN (45h, page 201), the line the controller is scanning, back
+ * to back until SCAN_WRAPS wraps or SCAN_US. The reply is a dummy period
+ * and the 16-bit line N; the board's 24- and 32-bit reads carry a one-bit
+ * dummy clock (doc/PANELTEST.md), so N is taken as bits 22-7 of the three
+ * reply bytes. That decode is unmeasured for 45h, and raw_max keeps a raw
+ * reply for the other. Each read takes the 8-bit command and 24 clocks at
+ * 3.125 MHz, about 10 us; interrupts stay enabled, and max_gap_us records
+ * how far any of them delayed a sample. The clock drops once, around the
+ * whole loop.
+ */
+#define	CMD_GSCAN		0x45
+#define	SCAN_US			400000	/* Eight frames at 24 Hz with a lead. */
+#define	SCAN_WRAPS		9
+#define	SCAN_DROP		64	/* Fall, in lines, that counts as a wrap. */
+#define	SCAN_LINE_LIMIT		2048	/* Decoded lines at or above are bad. */
+
+void
+st7365p_scan(struct picocalc_panel_scan *sc)
+{
+	u_int t0, now, prev_t, raw, line, prev = 0;
+
+	bzero(sc, sizeof(*sc));
+	spi_clock(LCD_READ_SCR);
+	t0 = prev_t = pc_micros();
+	do {
+		lcd_select();
+		lcd_command(CMD_GSCAN);
+		raw = spi_xfer(0) << 16;
+		raw |= spi_xfer(0) << 8;
+		raw |= spi_xfer(0);
+		lcd_deselect();
+		now = pc_micros();
+		sc->samples++;
+		if (now - prev_t > sc->max_gap_us)
+			sc->max_gap_us = now - prev_t;
+		prev_t = now;
+		line = (raw >> 7) & 0xffff;
+		if (line >= SCAN_LINE_LIMIT) {
+			sc->bad++;
+			continue;
+		}
+		if (raw > sc->raw_max)
+			sc->raw_max = raw;
+		if (line + SCAN_DROP < prev) {
+			if (sc->wraps == 0)
+				sc->first_us = now - t0;
+			sc->last_us = now - t0;
+			sc->wraps++;
+		}
+		prev = line;
+	} while (sc->wraps < SCAN_WRAPS && now - t0 < SCAN_US);
+	sc->elapsed_us = now - t0;
+	spi_clock(LCD_SCR);
+}
 #endif /* LCD_PANELTEST */

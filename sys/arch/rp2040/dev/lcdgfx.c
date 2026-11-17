@@ -301,6 +301,16 @@ lcdgfx_panel_read(struct picocalc_panel_read *rb)
 	st7365p_readback(rb);
 	return 0;
 }
+
+int
+lcdgfx_panel_scan(struct picocalc_panel_scan *sc)
+{
+	if (!gfx_open)
+		return EBUSY;
+	window_end();
+	st7365p_scan(sc);
+	return 0;
+}
 #endif
 
 int

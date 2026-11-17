@@ -675,6 +675,18 @@ picocalc_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 			return error;
 		return sysctl_rdstruct(oldp, oldlenp, newp, &rb, sizeof rb);
 	}
+	case CPU_PICOCALC_PANEL_SCAN: {
+		struct picocalc_panel_scan sc;
+
+		if (!suser())
+			return EPERM;
+		if (newp != NULL)
+			return EPERM;
+		error = lcdgfx_panel_scan(&sc);
+		if (error)
+			return error;
+		return sysctl_rdstruct(oldp, oldlenp, newp, &sc, sizeof sc);
+	}
 #endif
 	default:
 		return EOPNOTSUPP;

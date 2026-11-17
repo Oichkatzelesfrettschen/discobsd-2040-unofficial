@@ -417,13 +417,21 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir):
             "a lost+found line",
             cp.KEY_BUDGET_SECONDS,
         )
-        run.type_line("echo tmpok > /tmp/probe")
-        run.wait_for_prompt("prompt after the write", cp.KEY_BUDGET_SECONDS)
-        run.type_line("cat /tmp/probe")
+        # The keyboard model queues 16 keys, so each command stays short.
+        run.type_line("cd /tmp")
         run.wait_until(
-            lambda: any(line.strip() == "tmpok" for line in run.lines),
+            lambda: any(line.rstrip().endswith("/tmp$") for line in run.lines),
+            "prompt in /tmp",
+            "a prompt ending /tmp$",
+            cp.KEY_BUDGET_SECONDS,
+        )
+        run.type_line("echo ok > p")
+        run.wait_for_prompt("prompt after the write", cp.KEY_BUDGET_SECONDS)
+        run.type_line("cat p")
+        run.wait_until(
+            lambda: any(line.strip() == "ok" for line in run.lines),
             "the file read back",
-            "a tmpok line",
+            "an ok line",
             cp.KEY_BUDGET_SECONDS,
         )
         run.snapshot("tmp")

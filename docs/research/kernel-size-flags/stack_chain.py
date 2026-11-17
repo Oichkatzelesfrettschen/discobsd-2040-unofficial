@@ -31,17 +31,19 @@ stack_chain.py [--json OUT] [--from FUNCTION]... [--from-table TABLE]...
     sources the call-site labels name relative to it. MODEL is a JSON file
     (stack-model.json) that declares what the call graph cannot say: the
     roots and their stacks, the targets of each indirect call site, the
-    bounded recursions, the functions that stop on a second entry, the
-    calls whose arguments keep the callee from named functions, the edges
-    cut as unreachable and the callees left out by name. The program
-    prints, for each root, the bytes of the deepest chain and its path,
-    then each stack's total against its budget.
+    bounded recursions and nestings, the functions that stop on a second
+    entry, the calls whose arguments keep the callee from named functions,
+    the edges cut as unreachable, the callees left out by name and the
+    overlays that count them. The program prints, for each root, the bytes
+    of the deepest chain and its path, the same under each overlay that
+    changes it, then each stack's total against its budget.
 
 stack_chain.py --self-test
     Run the analysis over synthetic graphs: known-good graphs must give
     their hand-computed depths, and a cycle, an unresolved indirect site, a
     dynamic frame, an unknown callee, an address-taken function no entry
-    names and each kind of unused model entry must be refused.
+    names, each kind of unused model entry, a budget or count the image
+    contradicts and an unknown configuration or overlay must be refused.
 
 A function's frame is the figure GCC reports in its call-graph node. A
 function without a node (assembly, libgcc, a naked handler named under
@@ -63,6 +65,32 @@ classes to the class the site's device number can name. "frames" lists
 functions the call passes through without reaching their other callees,
 and the site then costs the sum of their frames; a list in place of a name
 costs the largest frame among its linked members.
+
+A site's "bytes" is the depth of a callee outside the compiled image,
+taken from another measurement (bootrom_frames.py for the boot ROM).
+
+A "nesting" entry bounds a cycle that passes through several functions:
+its function may be on a chain "depth" times. With "cut" the bound itself
+ends the cycle and must be reached; without it the graph must end sooner,
+and a further entry is refused. "then_without" bars named functions under
+every entry after the first, and "elements" with "struct" holds the depth
+to the element count of an array in the image.
+
+An overlay is a second bound with calls counted that the plain bound
+leaves out: an "excluded" callee marked with the overlay's name, bounded
+by its "on_top" nesting rule, a site's "left_out" targets and a marked
+"nesting" entry. Each overlay is reported beside the plain figures. Its
+stack total counts every chain with the overlay; an overlay marked "once"
+enters its callee afresh in one chain only and takes the other handlers
+as running after that entry.
+
+A model that lists "configs" serves several kernels: an entry with its own
+"configs" list applies to those alone, and the configuration is the build
+directory's name. A stack's budget is held to the image: "top", "base"
+and "struct" give the span between two symbols less a structure, and
+"object" the size of an array. A root may run on several stacks, add the
+bytes its assembly entry pushes ("pushed"), or have no compiled entry at
+all (a null "entry": the handler leaves this stack before it calls).
 
 A guard bars named functions under one caller's calls to one callee, where
 the arguments rule them out. Its "require" pattern must match the source
@@ -182,9 +210,11 @@ class Image:
         self.stream = Path(path).open("rb")
         self.elf = ELFFile(self.stream)
         self.symbols, self.functions, self.by_address = {}, set(), {}
-        self.code = set()
+        self.code, self.addresses = set(), {}
         for symbol in self.elf.get_section_by_name(".symtab").iter_symbols():
             kind = symbol["st_info"]["type"]
+            if symbol.name:
+                self.addresses[symbol.name] = symbol["st_value"]
             if kind == "STT_FUNC":
                 self.functions.add(symbol.name)
                 self.code.add(symbol.name)
@@ -313,10 +343,12 @@ def analyze(frames, edges, sites, model, live, listing, table_targets, source_li
     reentry = {entry["function"]: 0 for entry in model.get("reentry", ())}
     guards = {(entry["caller"], entry["callee"]): [frozenset(entry["without"]), 0]
               for entry in model.get("guards", ())}
+    nesting = {entry["function"]: entry for entry in model.get("nesting", ())}
+    again, stopped, fixed = dict.fromkeys(nesting, 0), dict.fromkeys(nesting, 0), {}
     rules = model.get("sites", ())
     used = [0] * len(rules)
     calls, flat = {}, {}
-    covered = {root["entry"] for root in model["roots"]}
+    covered = {root["entry"] for root in model["roots"]} - {None}
     covered.update(entry["function"] for entry in model.get("exempt", ()))
     for title, targets in edges.items():
         if bare(title) in live:
@@ -333,6 +365,13 @@ def analyze(frames, edges, sites, model, live, listing, table_targets, source_li
         rule = rules[matches[0]]
         used[matches[0]] += 1
         if "excluded" in rule:
+            continue
+        if "bytes" in rule:
+            # The callee lies outside the compiled image; the rule carries
+            # the depth another measurement gave it.
+            name = f"{bare(source)} {rule['text']}"
+            fixed[name] = rule["bytes"]
+            calls.setdefault(source, set()).add(name)
             continue
         if "frames" in rule:
             # The call reaches these functions and returns through them
@@ -396,6 +435,8 @@ def analyze(frames, edges, sites, model, live, listing, table_targets, source_li
     def shape(title):
         """A function's own frame and the callees its body names."""
         name = bare(title)
+        if title in fixed:
+            return fixed[title], set()
         if title in flat:
             # One frame per group: the largest among the functions linked.
             return sum(max((shape(node(item, title))[0] for item in group
@@ -416,24 +457,41 @@ def analyze(frames, edges, sites, model, live, listing, table_targets, source_li
         if title in active and name in reentry:
             reentry[name] += 1
             return (frame, [(name + " (re-entered)", frame)])
+        later = None
+        if name in nesting:
+            entered = active.count(title) + nesting[name].get("entered", 0)
+            if entered >= nesting[name]["depth"]:
+                # The bound's reason says this entry cannot happen.
+                stopped[name] += 1
+                return (0, [])
+            if entered:
+                again[name] += 1
+                later = frozenset(nesting[name].get("then_without", ()))
         # A chain under an active reentry function stops where it meets that
-        # function again, so its depth holds only for that set of functions.
-        barred = frozenset().union(*banned)
-        key = (title, barred, frozenset(bare(item) for item in active
-                                        if bare(item) in reentry))
+        # function again, and one under a nesting function where that
+        # function's count runs out, so its depth holds only for that state.
+        barred = frozenset().union(*banned, later or ())
+        key = (title, barred,
+               frozenset(bare(item) for item in active if bare(item) in reentry),
+               tuple(sorted((item, active.count(item)) for item in set(active)
+                            if bare(item) in nesting)))
         if key in memo:
             return memo[key]
-        if title in active:
-            # A function may recur once a reentry function has been entered
-            # after it: that function's second entry makes no call, so the
-            # chain still ends.
+        if title in active and name not in nesting:
+            # A function may recur once a reentry or nesting function has
+            # been entered after it: the first makes no call on its second
+            # entry and the second is entered a bounded number of times, so
+            # the chain still ends.
             last = len(active) - 1 - active[::-1].index(title)
-            if not any(bare(item) in reentry for item in active[last + 1:]):
+            if not any(bare(item) in reentry or bare(item) in nesting
+                       for item in active[last + 1:]):
                 cycle = active[last:] + [title]
                 raise ModelError("cycle: " + " -> ".join(bare(item) for item in cycle))
         if name in recursion:
             frame *= recursion[name]["depth"]
         active.append(title)
+        if later:
+            banned.append(later)
         best = (0, [])
         for callee in sorted(callees):
             callee_name = bare(callee)
@@ -456,15 +514,25 @@ def analyze(frames, edges, sites, model, live, listing, table_targets, source_li
             if result[0] > best[0]:
                 best = result
         active.pop()
+        if later:
+            banned.pop()
         memo[key] = (frame + best[0], [(name, frame), *best[1]])
         return memo[key]
 
     results = []
     for root in model["roots"]:
-        found = titles.get(root["entry"], [root["entry"]])
-        total, path = depth(found[0])
+        if root["entry"] is None:
+            # A handler in assembly that leaves this stack before it calls
+            # anything: the root costs what the entry itself pushes here.
+            total, path = 0, []
+        else:
+            found = titles.get(root["entry"], [root["entry"]])
+            total, path = depth(found[0])
+        if root.get("pushed"):
+            total, path = total + root["pushed"], [("entry", root["pushed"]), *path]
+        stacks = root["stack"] if isinstance(root["stack"], list) else [root["stack"]]
         results.append({"name": root["name"], "entry": root["entry"],
-                        "stack": root["stack"], "role": root["role"],
+                        "stacks": stacks, "role": root["role"],
                         "level": root.get("level"), "bytes": total, "path": path,
                         "requested": root.get("requested", False)})
     unused = [f"{caller} -> {callee}" for (caller, callee), count in cuts.items()
@@ -481,14 +549,46 @@ def analyze(frames, edges, sites, model, live, listing, table_targets, source_li
     for name in recursion:
         if not any(bare(key[0]) == name for key in memo):
             raise ModelError(f"recursion entry {name} is not reached")
+    for name, entry in nesting.items():
+        if not again[name]:
+            raise ModelError(f"nesting function {name} is never entered twice")
+        if entry["cut"] and not stopped[name]:
+            raise ModelError(f"nesting function {name} never reaches its bound")
+        if not entry["cut"] and stopped[name]:
+            raise ModelError(f"nesting function {name} is entered more than "
+                             f"{entry['depth']} times")
     return results
+
+
+def overlay_total(mine, base, levels, name):
+    """One stack's total with an overlay counted."""
+
+    def worst(field, role, level=None):
+        return max((r["overlays"][name].get(field, r["overlays"][name]["bytes"])
+                    for r in mine if r["role"] == role and r["level"] == level),
+                   default=0)
+
+    def above(skip, field):
+        return sum(EXCEPTION_FRAME + worst(field, "interrupt", level)
+                   for level in levels if level != skip)
+
+    if not any("later" in r["overlays"][name] for r in mine):
+        # Every chain can meet the overlay: all are counted with it.
+        return worst("bytes", "base") + above(None, "bytes")
+    # The overlay's callee is entered afresh once. Either the base chain
+    # enters it and every handler above runs after that, or one handler
+    # enters it over an untouched base chain while the other handlers may
+    # run after it.
+    return max([worst("bytes", "base") + above(None, "later")] +
+               [base["bytes"] + EXCEPTION_FRAME + worst("bytes", "interrupt", level) +
+                above(level, "later") for level in levels])
 
 
 def totals(results, model):
     """Each stack's base chain plus one exception frame and handler per level."""
     summary = []
     for stack in model["stacks"]:
-        mine = [r for r in results if r["stack"] == stack["name"]]
+        mine = [r for r in results if stack["name"] in r["stacks"]]
         base = max((r for r in mine if r["role"] == "base"), key=lambda r: r["bytes"])
         levels = {}
         for result in mine:
@@ -497,7 +597,12 @@ def totals(results, model):
                 if best is None or result["bytes"] > best["bytes"]:
                     levels[result["level"]] = result
         nested = sum(EXCEPTION_FRAME + r["bytes"] for r in levels.values())
-        summary.append({"stack": stack["name"], "budget": stack["bytes"],
+        # An overlay's total takes every chain with the overlay counted,
+        # since a base chain and a handler above it can each meet it.
+        over = {name: overlay_total(mine, base, levels, name) for name in sorted(
+            set().union(*(r.get("overlays", {}) for r in mine)))}
+        summary.append({"overlays": over, "stack": stack["name"],
+                        "budget": stack["bytes"],
                         "base": base["name"], "base_bytes": base["bytes"],
                         "levels": {level: {"root": r["name"],
                                            "bytes": EXCEPTION_FRAME + r["bytes"]}
@@ -507,14 +612,115 @@ def totals(results, model):
     return summary
 
 
-def run(model_path, build_dir, objdump, extra=(), tables=()):
-    model = json.loads(Path(model_path).read_text(encoding="utf-8"))
+MODEL_LISTS = ("stacks", "roots", "sites", "cuts", "recursion", "nesting", "reentry",
+               "guards", "exempt", "excluded")
+
+
+def select(model, config):
+    """The model's entries for one kernel configuration."""
+    known = model.get("configs")
+    if known is None:
+        return model
+    if config not in known:
+        raise ModelError(f"the model does not name configuration {config}")
+    chosen = dict(model)
+    for key in MODEL_LISTS:
+        kept = []
+        for entry in model.get(key, ()):
+            names = entry.get("configs")
+            if names is not None:
+                stray = sorted(set(names) - set(known))
+                if stray or not names:
+                    raise ModelError(f"{key} entry names configurations the model "
+                                     f"does not: {', '.join(stray) or 'none'}")
+                if config not in names:
+                    continue
+            kept.append(entry)
+        chosen[key] = kept
+    return chosen
+
+
+def check_layout(model, image):
+    """Hold the model's budgets and counts to the linked image's own."""
+    for stack in model["stacks"]:
+        if "object" in stack:
+            if stack["object"] not in image.symbols:
+                raise ModelError(f"stack {stack['name']}: the image has no object "
+                                 f"{stack['object']}")
+            if image.symbols[stack["object"]][1] != stack["bytes"]:
+                raise ModelError(
+                    f"stack {stack['name']} is {image.symbols[stack['object']][1]} "
+                    f"bytes in the image, {stack['bytes']} in the model")
+        if "top" not in stack:
+            continue
+        for name in (stack["top"], stack["base"]):
+            if name not in image.addresses:
+                raise ModelError(f"stack {stack['name']}: the image has no {name}")
+        span = image.addresses[stack["top"]] - image.addresses[stack["base"]]
+        span -= image.struct(stack["struct"])[0] if "struct" in stack else 0
+        if span != stack["bytes"]:
+            raise ModelError(f"stack {stack['name']} is {span} bytes in the image, "
+                             f"{stack['bytes']} in the model")
+    for entry in model.get("nesting", ()):
+        if "elements" not in entry:
+            continue
+        if entry["elements"] not in image.symbols:
+            raise ModelError(f"the image has no object {entry['elements']}")
+        count, rest = divmod(image.symbols[entry["elements"]][1],
+                             image.struct(entry["struct"])[0])
+        if rest or count != entry["depth"]:
+            raise ModelError(f"nesting function {entry['function']} is bounded at "
+                             f"{entry['depth']}; {entry['elements']} holds {count}")
+
+
+def overlay_model(model, name=None, later=False):
+    """The model with one overlay's left-out calls counted, or with none.
+
+    An overlay names calls the plain bound leaves out and what bounds them:
+    an "excluded" callee that carries the overlay's name and an "on_top"
+    nesting rule, a site rule's "left_out" targets under that name, and a
+    "nesting" entry marked with it. "later" gives the chains of a root that
+    runs after another chain has already entered the overlay's callee once.
+    """
+    known = {entry["name"] for entry in model.get("overlays", ())}
+    if name is not None and name not in known:
+        raise ModelError(f"the model has no overlay {name}")
+    chosen = dict(model)
+    chosen["excluded"], chosen["sites"] = [], []
+    chosen["nesting"] = [entry for entry in model.get("nesting", ())
+                         if entry.get("overlay", name) == name]
+    used = {entry["overlay"] for entry in model.get("nesting", ())
+            if "overlay" in entry}
+    for entry in model.get("excluded", ()):
+        used.add(entry.get("overlay"))
+        if "overlay" in entry and entry["overlay"] == name:
+            chosen["nesting"].append({"function": entry["callee"], **entry["on_top"],
+                                      "entered": int(later)})
+        else:
+            chosen["excluded"].append(entry)
+    for rule in model.get("sites", ()):
+        barred = list(rule.get("except", ()))
+        for overlay, targets in rule.get("left_out", {}).items():
+            used.add(overlay)
+            if overlay != name:
+                barred += targets
+        chosen["sites"].append({**rule, "except": barred} if barred else rule)
+    stray = sorted(used - known - {None}) + sorted(known - used)
+    if stray:
+        raise ModelError("overlays named and overlays used differ: " + ", ".join(stray))
+    return chosen
+
+
+def run(model_path, build_dir, objdump, extra=(), tables=(), config=None):
     build = Path(build_dir)
+    model = select(json.loads(Path(model_path).read_text(encoding="utf-8")),
+                   config or build.resolve().name)
     texts = [path.read_text(encoding="utf-8") for path in sorted(build.glob("*.ci"))]
     if not texts:
         raise ModelError(f"{build} holds no call-graph files")
     frames, edges, sites, places = load_graph(texts)
     image = Image(build / "unix.elf", objdump)
+    check_layout(model, image)
     extra = list(extra)
     for table in tables:
         extra += sorted(image.table_targets({"table": table}))
@@ -530,11 +736,22 @@ def run(model_path, build_dir, objdump, extra=(), tables=()):
             cache[path] = (build / path).read_text(encoding="utf-8").splitlines()
         return cache[path][line - 1] if line <= len(cache[path]) else ""
 
-    results = analyze(frames, edges, sites, model, image.functions, image.listing,
-                      image.table_targets, source_line,
-                      {name: image.same_address(name)
-                       for name in address_taken(build, image.code, objdump)},
-                      places)
+    taken = {name: image.same_address(name)
+             for name in address_taken(build, image.code, objdump)}
+    def chains(name=None, later=False):
+        return analyze(frames, edges, sites, overlay_model(model, name, later),
+                       image.functions, image.listing, image.table_targets,
+                       source_line, taken, places)
+
+    results = chains()
+    for overlay in model.get("overlays", ()):
+        for result, other in zip(results, chains(overlay["name"])):
+            result.setdefault("overlays", {})[overlay["name"]] = {
+                "label": overlay["label"], "bytes": other["bytes"],
+                "path": other["path"]}
+        if overlay.get("once"):
+            for result, other in zip(results, chains(overlay["name"], True)):
+                result["overlays"][overlay["name"]]["later"] = other["bytes"]
     live_frames = {bare(title): size for title, size in frames.items()
                    if bare(title) in image.functions}
     return {"roots": results, "stacks": totals(results, model), "frames": live_frames}
@@ -543,13 +760,22 @@ def run(model_path, build_dir, objdump, extra=(), tables=()):
 def report(result):
     for root in result["roots"]:
         print(f"{root['name']} {root['bytes']}")
-        print("    " + " -> ".join(f"{name}[{size}]" for name, size in root["path"]))
+        print("    " + (" -> ".join(f"{name}[{size}]" for name, size in root["path"])
+                        or "(no compiled entry on this stack)"))
+        for over in root.get("overlays", {}).values():
+            if over["bytes"] != root["bytes"]:
+                print(f"{root['name']}, {over['label']} {over['bytes']}")
+                print("    " + " -> ".join(f"{name}[{size}]"
+                                           for name, size in over["path"]))
     for stack in result["stacks"]:
         parts = [f"{stack['base']} {stack['base_bytes']}"]
         parts += [f"{level} {entry['root']} {entry['bytes']}"
                   for level, entry in stack["levels"].items()]
         print(f"stack {stack['stack']}: {' + '.join(parts)} = {stack['total']} "
               f"of {stack['budget']}, {stack['free']} free")
+        for name, total in stack["overlays"].items():
+            print(f"stack {stack['stack']}, overlay {name}: {total} "
+                  f"of {stack['budget']}")
 
 
 def self_test():
@@ -643,6 +869,140 @@ def self_test():
         {"function": "spare", "reason": "none"}]}, listing, {"spare", "cb", "irq"})[0]
     if covered["total"] != 216:
         raise ModelError(f"self-test: exemption gave {covered}")
+    nest_nodes = [("a", 8, "static"), ("rec", 10, "static"), ("b", 20, "static")]
+    nest_edges = [("a", "rec"), ("rec", "b"), ("b", "rec")]
+
+    def nest(**fields):
+        return {**loop_model, "nesting": [{"function": "rec", "reason": "none",
+                                           **fields}]}
+
+    cut_nest = attempt(nest_nodes, nest_edges, nest(depth=3, cut=True))[0]
+    # a 8 + three rounds of rec 10 and b 20 = 98; the fourth rec is barred.
+    if cut_nest["base_bytes"] != 98:
+        raise ModelError(f"self-test: nesting gave {cut_nest}")
+    once = attempt(nest_nodes, nest_edges,
+                   nest(depth=2, cut=False, then_without=["b"]))[0]
+    # a 8 + rec 10 + b 20 + rec 10, whose second entry may not call b = 48.
+    if once["base_bytes"] != 48:
+        raise ModelError(f"self-test: nesting with a barred callee gave {once}")
+    cases["nesting entered past its bound"] = (nest_nodes, nest_edges,
+                                               nest(depth=2, cut=False), listing)
+    cases["nesting never entered twice"] = (nodes, edge_list, {**model, "nesting": [
+        {"function": "leaf", "depth": 2, "cut": True, "reason": "none"}]}, listing)
+    cases["nesting bound never reached"] = (
+        nest_nodes, nest_edges, nest(depth=2, cut=True, then_without=["b"]), listing)
+    left = {**loop_model, "overlays": [{"name": "fail", "label": "with a failure"}],
+            "excluded": [{"callee": "rec", "reason": "none", "overlay": "fail",
+                          "on_top": {"depth": 2, "cut": False, "then_without": ["b"],
+                                     "reason": "none"}}]}
+    stages = [attempt(nest_nodes, nest_edges, overlay_model(left, *choice))[0]["base_bytes"]
+              for choice in ((), ("fail",), ("fail", True))]
+    # Left out: a 8. Counted afresh: a 8 + rec 10 + b 20 + rec 10 = 48.
+    # Counted as already entered once, rec may not call b: a 8 + rec 10 = 18.
+    if stages != [8, 48, 18]:
+        raise ModelError(f"self-test: a later entry gave {stages}")
+    priced = attempt(nodes, edge_list, {**model, "sites": [
+        {"function": "mid", "text": "fn(", "bytes": 50}]})[0]
+    # root 16 + mid 24 + 50 for the callee outside the image = 90.
+    if priced["base_bytes"] != 90:
+        raise ModelError(f"self-test: bytes rule gave {priced}")
+    top_model = {**model, "overlays": [{"name": "fail", "label": "with a failure"}],
+                 "excluded": [{"callee": "leaf", "reason": "none", "overlay": "fail",
+                               "on_top": {"depth": 2, "cut": False,
+                                          "then_without": ["helper"],
+                                          "reason": "none"}}]}
+    plain = attempt(nodes, [*edge_list, ("cb", "leaf"), ("helper", "leaf")],
+                    overlay_model(top_model),
+                    {"helper": {"frame": 12, "calls": {"leaf"}, "flaw": None}})[0]
+    lifted = attempt(nodes, [*edge_list, ("cb", "leaf"), ("helper", "leaf")],
+                     overlay_model(top_model, "fail"),
+                     {"helper": {"frame": 12, "calls": {"leaf"}, "flaw": None}})[0]
+    # Left out, leaf ends no chain: root 16 + mid 24 + cb 100 = 140. Counted,
+    # cb reaches leaf 8, helper 12 and leaf 8 again, whose second entry may
+    # not call helper: 140 + 28 = 168.
+    if (plain["base_bytes"], lifted["base_bytes"]) != (140, 168):
+        raise ModelError(f"self-test: on_top gave {plain} and {lifted}")
+    scoped = {"configs": ["A", "B"], **model, "sites": model["sites"] + [
+        {"function": "leaf", "text": "fn(", "targets": ["cb"], "configs": ["B"]}]}
+    if attempt(nodes, edge_list, select(scoped, "A"))[0]["total"] != 216:
+        raise ModelError("self-test: an entry of another configuration was kept")
+    cases["unused site rule of this configuration"] = (
+        nodes, edge_list, select(scoped, "B"), listing)
+
+    two = attempt(nodes, edge_list, {**model, "stacks": [
+        {"name": "s", "bytes": 512}, {"name": "t", "bytes": 256}], "roots": [
+        model["roots"][0],
+        {**model["roots"][1], "stack": ["s", "t"]},
+        {"name": "side", "entry": "leaf", "pushed": 8, "stack": "t", "role": "base"},
+        {"name": "door", "entry": None, "stack": "s", "role": "interrupt",
+         "level": "side"}]})
+    # s: 140 + tick 76 + the door's exception frame 36 = 252. t: 8 pushed at
+    # entry + leaf 8 + helper 12 = 28, + tick 76 = 104.
+    if [entry["total"] for entry in two] != [252, 104]:
+        raise ModelError(f"self-test: two stacks gave {two}")
+
+    def chain(name, role, level, size, first, later=None):
+        over = {"label": "x", "bytes": first}
+        if later is not None:
+            over["later"] = later
+        return {"name": name, "stacks": ["s"], "role": role, "level": level,
+                "bytes": size, "overlays": {"p": over}}
+
+    stack_model = {"stacks": [{"name": "s", "bytes": 512}]}
+    summed = totals([chain("b", "base", None, 100, 300), chain("i", "interrupt", "a", 20, 220),
+                     chain("j", "interrupt", "b", 10, 50)], stack_model)[0]
+    once_only = totals([chain("b", "base", None, 100, 300, 150),
+                        chain("i", "interrupt", "a", 20, 220, 60),
+                        chain("j", "interrupt", "b", 10, 50, 30)], stack_model)[0]
+    # Every chain with the overlay: 300 + (36 + 220) + (36 + 50) = 642. One
+    # fresh entry: the base's, 300 + (36 + 60) + (36 + 30) = 462, is deeper
+    # than a's, 100 + (36 + 220) + (36 + 30) = 422.
+    if (summed["overlays"]["p"], once_only["overlays"]["p"]) != (642, 462):
+        raise ModelError(f"self-test: overlay totals gave {summed} and {once_only}")
+
+    class Layout:
+        addresses = {"top": 3072, "base": 0}
+        symbols = {"pool": (0, 144)}
+
+        @staticmethod
+        def struct(name):
+            return {"user": (1024, {}), "buf": (36, {})}[name]
+
+    sized = {"stacks": [{"name": "s", "bytes": 2048, "top": "top", "base": "base",
+                         "struct": "user"}],
+             "nesting": [{"function": "rec", "depth": 4, "elements": "pool",
+                          "struct": "buf"}]}
+    check_layout(sized, Layout)
+    kept_out = {**model, "overlays": [{"name": "wide", "label": "with cb"}],
+                "sites": [{**model["sites"][0], "left_out": {"wide": ["cb"]}}]}
+    # Without cb the site has no target left: root 16 + mid 24 + leaf 8 +
+    # helper 12 = 60; the overlay puts cb back, 140.
+    narrow = attempt(nodes, edge_list, {**overlay_model(kept_out), "sites": [
+        {**overlay_model(kept_out)["sites"][0], "table": "t"}]})[0]
+    wide = attempt(nodes, edge_list, overlay_model(kept_out, "wide"))[0]
+    if (narrow["base_bytes"], wide["base_bytes"]) != (60, 140):
+        raise ModelError(f"self-test: left_out gave {narrow} and {wide}")
+    refusals = {
+        "overlay the model does not name": lambda: overlay_model(top_model, "other"),
+        "overlay no entry uses": lambda: overlay_model(
+            {**model, "overlays": [{"name": "idle", "label": "none"}]}),
+        "unknown configuration": lambda: select(scoped, "C"),
+        "entry naming an unknown configuration": lambda: select(
+            {**scoped, "exempt": [{"function": "spare", "configs": ["C"]}]}, "A"),
+        "stack budget the image contradicts": lambda: check_layout(
+            {"stacks": [{**sized["stacks"][0], "bytes": 4096}]}, Layout),
+        "stack object the image contradicts": lambda: check_layout(
+            {"stacks": [{"name": "r", "bytes": 100, "object": "pool"}]}, Layout),
+        "nesting bound the image contradicts": lambda: check_layout(
+            {"stacks": [], "nesting": [{**sized["nesting"][0], "depth": 8}]}, Layout),
+    }
+    for label, call in refusals.items():
+        try:
+            call()
+        except ModelError as error:
+            print(f"PASS refused {label}: {error}")
+        else:
+            raise ModelError(f"self-test: {label} was accepted")
     for label, arguments in cases.items():
         try:
             attempt(*arguments)
@@ -682,6 +1042,8 @@ def main():
     parser.add_argument("--from-table", dest="tables", action="append", default=[],
                         metavar="TABLE",
                         help="also report each function a pointer table names")
+    parser.add_argument("--config", metavar="NAME",
+                        help="the kernel configuration (default: BUILD_DIR's name)")
     parser.add_argument("model", nargs="?")
     parser.add_argument("build_dir", nargs="?")
     args = parser.parse_args()
@@ -691,7 +1053,8 @@ def main():
             return 0
         if not args.model or not args.build_dir:
             parser.error("MODEL and BUILD_DIR are required")
-        result = run(args.model, args.build_dir, args.objdump, args.extra, args.tables)
+        result = run(args.model, args.build_dir, args.objdump, args.extra, args.tables,
+                     args.config)
         report(result)
         if args.json:
             args.json.write_text(json.dumps(result, indent=1, sort_keys=True) + "\n",

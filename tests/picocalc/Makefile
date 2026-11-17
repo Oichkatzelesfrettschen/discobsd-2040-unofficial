@@ -1378,7 +1378,10 @@ sdstrat-mutants: \
 	sdstrat-mutant-swap-tail-past-partition \
 	sdstrat-mutant-swap-left-closed \
 	sdstrat-mutant-swap-hold-closable \
-	sdstrat-mutant-swap-refusal-left-open
+	sdstrat-mutant-swap-refusal-left-open \
+	sdstrat-mutant-swap-overlap-ignored \
+	sdstrat-mutant-swap-overlap-adjacent \
+	sdstrat-mutant-swap-overlap-self
 
 # sdrootattach(): the root a kernel the PicoCalc loader started takes.
 sdstrat-mutant-root-stamp-ignored:
@@ -1496,6 +1499,19 @@ sdstrat-mutant-swap-hold-closable:
 sdstrat-mutant-swap-refusal-left-open:
 	${SDSTRAT_MUT} sd.c \
 	    's/if (i > MAXPARTITIONS) {/sd_swaphold = 1U; if (i > MAXPARTITIONS) {/' ${SDSTRAT_SRC}
+
+# A b8 entry that shares a sector with another entry is no swap partition.
+sdstrat-mutant-swap-overlap-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/!sd_shares_sectors(i))/(!sd_shares_sectors(i) || 1))/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-overlap-adjacent:
+	${SDSTRAT_MUT} sd.c \
+	    's/q->dp_offset < p->dp_offset + p->dp_nsectors/q->dp_offset <= p->dp_offset + p->dp_nsectors/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-overlap-self:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (q != p \&\& q->dp_nsectors/if (q->dp_nsectors/' ${SDSTRAT_SRC}
 
 # The last sector of a swap transfer, sd_tail_io() and its callers.
 sdstrat-mutant-swap-tail-refused:
@@ -1994,7 +2010,10 @@ clean:
 	sdstrat-mutant-media-gone-inverted \
 	sdstrat-mutant-getpart-whole \
 	sdstrat-mutant-probe-ungated \
-	sdstrat-mutant-probe-never
+	sdstrat-mutant-probe-never \
+	sdstrat-mutant-swap-overlap-ignored \
+	sdstrat-mutant-swap-overlap-adjacent \
+	sdstrat-mutant-swap-overlap-self
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

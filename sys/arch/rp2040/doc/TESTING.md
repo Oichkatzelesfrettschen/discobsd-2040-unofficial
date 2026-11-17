@@ -2877,13 +2877,17 @@ replacement card with the same layout and capacity is not distinguishable
 by those fields and is outside the check. It runs `sdswapattach()` over the same cards: a
 bare Pico, swap already on the PSRAM, no card, an unreadable table, entries
 of type b7 and b9 only, a b8 entry one block under and exactly at 396
-blocks, a short entry before a usable one, two usable entries, and the
+blocks, a short entry before a usable one, two usable entries, a b8 entry
+over either end of the b7 root, inside it and around it (each refused), one
+ending where the root starts and one starting where it ends (each taken),
+an overlapping b8 entry before a clean one (the clean one taken), two b8
+entries on one extent (neither taken), and the
 size `sdsize()` reports for a swap partition past 65,532 blocks and for
 one that is not a multiple of four. It then issues the swapper's
 byte-counted transfers: a 1,300-byte read and write, a 100-byte write, a
 failed last sector and a count past the partition's last sector on the
 swap device, and the same count refused on another partition; the chosen
-partition must stay open across an open and close of it. Seventeen
+partition must stay open across an open and close of it. Twenty
 mutants cover these rules.
 
 `check-renode-picocalc-dump` runs the script of `check-renode-picocalc`

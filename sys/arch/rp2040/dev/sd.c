@@ -762,11 +762,32 @@ static dev_t sd_swapfixed;
 #endif
 
 /*
+ * Partition slot i shares a sector with another nonempty entry of the
+ * table. sd_partitions() kept only entries inside the card, so no end
+ * below wraps.
+ */
+static int
+sd_shares_sectors(int i)
+{
+	const struct diskpart *p = &sdpt[i], *q;
+
+	for (q = &sdpt[1]; q <= &sdpt[MAXPARTITIONS]; q++) {
+		if (q != p && q->dp_nsectors != 0 &&
+		    q->dp_offset < p->dp_offset + p->dp_nsectors &&
+		    p->dp_offset < q->dp_offset + q->dp_nsectors)
+			return 1;
+	}
+	return 0;
+}
+
+/*
  * Swap on the card. A PicoCalc whose PSRAM did not take the swap device
  * (psramprobe() in psram.c) swaps to the first MBR entry of type PTYPE_SWAP
- * (b8) that holds SD_SWAP_MIN_BLOCKS, so raw QSPI flash, which has no wear
- * leveling under fl1, takes no swap traffic while such a card is in the
- * socket. With no card, no such entry or a card that does not answer, the
+ * (b8) that holds SD_SWAP_MIN_BLOCKS and shares no sector with another
+ * entry of the table, so swap writes reach neither the b7 root that
+ * sdrootattach() chose nor a partition mounted later. Raw QSPI flash,
+ * which has no wear leveling under fl1, then takes no swap traffic while
+ * such a card is in the socket. With no card, no such entry or a card that does not answer, the
  * configured fl1 stays. main() runs this after sdrootattach() and before it
  * opens swapdev. The chosen partition is held in sd_swaphold from here, so
  * that open finds the card up and the table read and no close releases it;
@@ -789,7 +810,8 @@ sdswapattach(void)
 	}
 	for (i = 1; i <= MAXPARTITIONS; i++) {
 		if (sdpt[i].dp_type == PTYPE_SWAP &&
-		    (sdpt[i].dp_nsectors >> 1) >= SD_SWAP_MIN_BLOCKS)
+		    (sdpt[i].dp_nsectors >> 1) >= SD_SWAP_MIN_BLOCKS &&
+		    !sd_shares_sectors(i))
 			break;
 	}
 	if (i > MAXPARTITIONS) {

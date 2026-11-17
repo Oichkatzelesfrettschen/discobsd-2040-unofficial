@@ -1609,6 +1609,59 @@ swapdev_cases(void)
 	check("unaligned: swap size", (long)sdsize(swapdev), 8188);
 	sdclose(swapdev, 0, S_IFBLK);
 
+	/*
+	 * A b8 entry that shares a sector with another entry is passed over,
+	 * since swap writes would land in the b7 root or another partition;
+	 * one that ends where another starts shares none.
+	 */
+	{
+		unsigned r = 65536, n = 2 * 8192;
+
+		set_part(3, PTYPE_BSDFFS, r, n);
+		set_part(4, PTYPE_SWAP, r + n - 1, n);
+		swap_attach("over the root's end", FL1);
+		check("over the root's end: swapdev kept", (long)swapdev,
+		    (long)FL1);
+		set_part(4, PTYPE_SWAP, r - n + 1, n);
+		swap_attach("over the root's start", FL1);
+		check("over the root's start: swapdev kept", (long)swapdev,
+		    (long)FL1);
+		set_part(4, PTYPE_SWAP, r + 2, 2 * SWAP_MIN);
+		swap_attach("inside the root", FL1);
+		check("inside the root: swapdev kept", (long)swapdev,
+		    (long)FL1);
+		set_part(4, PTYPE_SWAP, r - 2, n + 4);
+		swap_attach("around the root", FL1);
+		check("around the root: swapdev kept", (long)swapdev,
+		    (long)FL1);
+		set_part(4, PTYPE_SWAP, r + n, n);
+		swap_attach("after the root", FL1);
+		check("after the root: swapdev", (long)swapdev,
+		    (long)makedev(SD_BMAJOR, 4));
+		set_part(4, PTYPE_SWAP, r - n, n);
+		swap_attach("before the root", FL1);
+		check("before the root: swapdev", (long)swapdev,
+		    (long)makedev(SD_BMAJOR, 4));
+
+		/* A b8 entry over a later b7 one, a clean b8 entry after. */
+		set_part(1, PTYPE_SWAP, r + n, n);
+		set_part(2, PTYPE_BSDFFS, r + n + 1, 2);
+		set_part(4, PTYPE_SWAP, r + 2 * n, n);
+		swap_attach("overlapping then clean", FL1);
+		check("overlapping then clean: swapdev", (long)swapdev,
+		    (long)makedev(SD_BMAJOR, 4));
+
+		/* Two b8 entries over one extent: neither is taken. */
+		set_part(1, PTYPE_BSDFFS, 8, 33);
+		set_part(2, PTYPE_BSDFFS, 41, 20);
+		set_part(3, PTYPE_SWAP, r + n, n);
+		set_part(4, PTYPE_SWAP, r + n, n);
+		swap_attach("two b8 on one extent", FL1);
+		check("two b8 on one extent: swapdev kept", (long)swapdev,
+		    (long)FL1);
+		set_part(3, PTYPE_BSDFFS, r, n);
+	}
+
 	/* An entry that runs past the card is no entry. */
 	set_part(4, PTYPE_SWAP, init_sectors - 16, 2 * 8192);
 	swap_attach("past the card", FL1);

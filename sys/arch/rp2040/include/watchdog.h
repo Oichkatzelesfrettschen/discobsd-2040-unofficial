@@ -86,6 +86,13 @@
  */
 #define	WD_SITE_STALL		3	/* arg: PC, arg2: LR */
 #define	WD_SITE_FLASH_COMMAND	4	/* arg: the command byte */
+/*
+ * Left by the flash reset hook (dev/flash_reset_hook.h, STORAGE_STATS kernels
+ * only) when it resets the chip after an armed erase or program command:
+ * arg is that command's flash offset.
+ */
+#define	WD_SITE_RESET_AT_PROGRAM 5	/* arg: flash offset */
+#define	WD_SITE_RESET_AT_ERASE	6	/* arg: flash offset */
 
 #ifdef KERNEL
 extern u_int watchdog_last_reason;	/* REASON at boot */

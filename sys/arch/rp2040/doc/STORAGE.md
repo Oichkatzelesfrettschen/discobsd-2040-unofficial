@@ -218,6 +218,114 @@ zero evictions and zero waits. The capture establishes software traffic for
 that image and workload. It neither assigns traffic to one stdio call nor
 converts requested NOR operations into electrical wear.
 
+### Erases per swap sector
+
+The raw swap region (384 KiB, 96 sectors of 4 KiB) has no wear leveling: an
+image lands at the sector its reservation names, so a workload that swaps one
+command in and out erases the same few sectors repeatedly while
+`swap_erase_sectors` in `machdep.storage_stats` reports only the total. A
+`STORAGE_STATS=yes` kernel keeps one 16-bit erase counter per swap sector
+(`flash_swap_wear` in `dev/flash.c`, updated by `flash_wear_note()` in
+`dev/flash_wear.h` from `flash_erase()`) and returns the array through the
+read-only `machdep.flash_swap_wear` (id 53). Counters start at zero at boot,
+count every erase of their sector since then, and saturate at 65535 instead of
+wrapping, so 65535 reads as "at least 65535". A 64 KiB block erase counts each
+of its sixteen sectors once, since the chip erases the whole block. Erases
+below `FLASH_SWAP_OFFSET` (the Dhara root) are not counted. `sysctl
+machdep.flash_swap_wear` prints `sectors N` and then the counters, sixteen
+per row, sector 0 first; the call returns EOPNOTSUPP on kernels built without
+`STORAGE_STATS`, which contain neither the array nor the update (their text,
+data and bss sizes equal a tree without it, and the images differ only in the
+build stamp). Each counter is one
+halfword store under `splhigh()`, so a read sees every counter whole but the
+array as it stood while the copy ran. The array costs 192 bytes of bss, no initialized
+data, and 96 to 120 bytes of text on a diagnostic kernel (six configurations,
+GCC 16.2). Take two reads around a
+workload and subtract per sector, unless a counter reads 65535. The counters
+are requested-erase counts, as `storage_stats` is, and establish no
+electrical wear; `check-flash-wear` holds the counting rules over a model,
+and the board has not been asked.
+
+### Reset at the Nth flash command
+
+`flash_program()` and `flash_erase()` hand the boot ROM a whole request with
+interrupts masked, so a reset requested over USB lands before a request or
+after it. A Dhara checkpoint page is one 1 KiB request of four 256-byte chip
+program commands, and the host oracle of issue #619 found that a reset between
+two of them leaves a page that recovery accepts as the newest root. A
+`STORAGE_STATS=yes` kernel carries a hook that makes that cut reachable: while
+armed it issues the request to the ROM one chip command at a time, counts the
+commands of the armed kind, and resets the chip once the Nth has completed.
+The hook is a diagnostic that destroys the root on purpose: the cut leaves a
+torn flash page or sector, which is the state under test, and the board needs
+its image flashed again to restore a known root. Kernels without
+`STORAGE_STATS` do not contain it (their text is byte-identical to a tree
+without the hook), and the two sysctl names answer `EOPNOTSUPP` there.
+
+| Node | Read | Write (root only) |
+| --- | --- | --- |
+| `machdep.flash_reset_program` | program commands counted since arming | N > 0 resets after the Nth program command from now; 0 disarms |
+| `machdep.flash_reset_erase` | erase commands counted since arming | the same for erase commands |
+
+The two kinds arm independently, and a command of one kind neither counts
+toward the other nor fires it. Arming restarts the count, and the count is
+RAM state that a reset discards. A chip command is what the ROM's own loop
+issues: a 256-byte program page, a 4096-byte sector erase, or a 65536-byte
+block erase where the range holds an aligned whole block (the swap region's
+large erases; the root's 8 KiB Dhara blocks are two sector commands). Armed
+requests pass the ROM the same block size and block command an unarmed request
+passes. The count includes raw swap programs and erases, which lie at
+`FLASH_SWAP_OFFSET` and above, so a trial runs with no swapping process.
+
+At the Nth command the hook calls the ROM's flush routine, re-enters
+execute-in-place through the saved second stage, records the reset in the
+watchdog scratch pair, parks core 1 where the kernel has one, and writes
+`AIRCR.SYSRESETREQ` from RAM. Re-entering XIP first leaves the QSPI interface
+as `usb_reset_to_flash()` and `boot()` leave it, and puts the flash-resident
+`core1_park()` and `watchdog_site()` back in reach. `SYSRESETREQ` resets the
+processor core and nothing else (RP2040 datasheet 2.4.2.9), so the QSPI
+interface keeps the state the hook leaves, and the warm boot's XIP exit
+sequence (2.8.1.2) is written for a flash in continuous-read mode, the state
+every other reset of a running kernel hands it. The next
+boot reads the cause as `machdep.watchdog_site` 5 (reset after a program
+command) or 6 (after an erase command), and `machdep.watchdog_arg` holds the
+flash offset of that last command, so a trial confirms where the cut landed.
+The chip's own state is not interrupted: the ROM waits out each command's busy
+bit, so the cut is between two complete commands. A power loss inside a
+command is a different fault and is not reached.
+
+Board procedure, one trial per freshly flashed image so that every trial
+starts from the same root. Calibration run:
+
+1. Boot the `STORAGE_STATS=yes` kernel, log in as root, `sync; sync`.
+2. `sysctl -w machdep.flash_reset_program=1000000` arms a count the run does
+   not reach.
+3. `dd if=/dev/zero of=/probe bs=1k count=3`, then `sync`.
+4. `sysctl machdep.flash_reset_program` reads T, the program commands the
+   workload and the sync issued; read it twice, and a nonzero difference is
+   the program commands of the utility's own fork (a swap-out that reaches
+   flash counts), which makes T a starting guess only. `ufs_sync()` ends with
+   the forced checkpoint, whose page is one 1 KiB program request, so
+   commands T-3 to T are its four 256-byte chunks (T-3 the first, T the last,
+   which completes the page) and T-4 is the last command before it. The
+   offset check below, not the arithmetic, decides what a cut hit.
+
+Sweep: for each k from T-4 to T, flash the same image again, boot, `sync;
+sync`, arm `sysctl -w machdep.flash_reset_program=k`, run the same `dd`, and
+`sync`. The board resets inside the `sync`. After the next boot read
+`machdep.watchdog_site` (5) and `machdep.watchdog_arg` (offset a). A Dhara
+group is one 8 KiB block (seven data pages and the checkpoint page, the
+`8 * ceil(N / 7)` program pages of the checkpoint cost above), and the root
+starts at a multiple of 8 KiB, so a cut hit the checkpoint page when a is
+below `FLASH_SWAP_OFFSET` (0x1a0000 on a plain Pico) and a mod 8192 is at
+least 7168; the chunk is (a mod 1024) / 256, counted from 0. Move k until a
+names the chunk the trial wants.
+Then check the root: fsck(8), `ls -l /probe`, and a read of its three blocks. k = T-4 and k = T are the controls: the checkpoint is absent
+or complete. The T-3 to T-1 cuts are the cases the host oracle says recovery
+accepts. If T differs between calibration runs from the same image, a swap
+program or another write ran inside the window and the offset check will
+show it.
+
 ## Synchronous write contract
 
 Explicit IO_SYNC now survives regular-file writes and MNT_ASYNC. The
@@ -398,5 +506,8 @@ were. Repeating the host model's trace at 758 live sectors gives 1.20 pages
 per batched write
 against 6.28 at 989, and 8.00 per write with a checkpoint after each, as
 before. The share grows as the system allocates blocks, since a written
-block stays live after it is freed until the kernel trims it.
+block keeps its Dhara sector mapped after it is freed: the kernel issues no
+trim, because trim at free cost more root erases on the board
+than leaving freed blocks mapped
+(`docs/research/unimplemented-storage-work.md`).
 `check-flash-sparse` reads a flashimg region back through the map.

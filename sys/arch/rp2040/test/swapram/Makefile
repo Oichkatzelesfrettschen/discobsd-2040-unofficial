@@ -86,8 +86,53 @@ subr_rmap.o: $(TOP)/sys/kern/subr_rmap.c
 swapram_evac_test: $(EVACOBJS)
 	$(CC) $(KCFLAGS) -o $@ $(EVACOBJS)
 
-evac: swapram_evac_test
+# The same test for a kernel whose swap device can leave (SDSWAP_ENABLED):
+# the device leaves at every write of an evacuation, and every pool image
+# must survive it. Each mutant edits a copy of swapram.c and must fail it.
+EVACLOSTOBJS= swapram_evac_test_lost.o swapram_kern_lost.o subr_rmap.o \
+	swapram_pool_k.o heatshrink_encoder.o hsx_decoder.o
+swapram_evac_test_lost.o: swapram_evac_test.c machine $(INC)/swapram.h
+	$(CC) $(KCFLAGS) -DSDSWAP_ENABLED -c -o $@ swapram_evac_test.c
+
+swapram_kern_lost.o: ../../rp2040/swapram.c machine $(INC)/swapram.h \
+	shim/sys/storage_stats.h shim/sys/stdint.h $(TOP)/sys/sys/storage_stats.h
+	$(CC) $(KCFLAGS) -DSDSWAP_ENABLED -Wno-format -c -o $@ ../../rp2040/swapram.c
+
+swapram_evac_test_lost: $(EVACLOSTOBJS)
+	$(CC) $(KCFLAGS) -o $@ $(EVACLOSTOBJS)
+
+LOST_MUTANTS= frees-early reservations-kept
+LOST_SED_frees-early= s/^\#ifndef SDSWAP_ENABLED$$/\#if 1/
+LOST_SED_reservations-kept= s/^        sr_unreserve (NPROC);$$/        (void)0;/
+
+evac-lost-mutants: swapram_evac_test_lost.o subr_rmap.o swapram_pool_k.o \
+	heatshrink_encoder.o hsx_decoder.o
+	@set -e; for m in $(LOST_MUTANTS); do \
+		case $$m in \
+		frees-early) expr='$(LOST_SED_frees-early)' ;; \
+		reservations-kept) expr='$(LOST_SED_reservations-kept)' ;; \
+		esac; \
+		sed "$$expr" ../../rp2040/swapram.c > swapram_lost_mutant.c; \
+		if cmp -s ../../rp2040/swapram.c swapram_lost_mutant.c; then \
+			echo "FAIL evac lost mutant $$m changed nothing" >&2; exit 1; \
+		fi; \
+		$(CC) $(KCFLAGS) -DSDSWAP_ENABLED -Wno-format -I../../rp2040 \
+		    -c -o swapram_lost_mutant.o swapram_lost_mutant.c; \
+		$(CC) $(KCFLAGS) -o swapram_lost_mutant swapram_evac_test_lost.o \
+		    swapram_lost_mutant.o subr_rmap.o swapram_pool_k.o \
+		    heatshrink_encoder.o hsx_decoder.o; \
+		if ./swapram_lost_mutant > swapram_lost_mutant.out 2>&1; then \
+			echo "FAIL evac lost mutant $$m passed" >&2; exit 1; \
+		fi; \
+		grep -q "^FAIL" swapram_lost_mutant.out || \
+		    { echo "FAIL evac lost mutant $$m failed without a check" >&2; exit 1; }; \
+		echo "PASS evac lost mutant $$m rejected: $$(grep -m1 '^FAIL' swapram_lost_mutant.out)"; \
+	done
+
+evac: swapram_evac_test swapram_evac_test_lost
 	./swapram_evac_test
+	./swapram_evac_test_lost
+	$(MAKE) evac-lost-mutants
 
 valgrind: swapram_test
 	valgrind -q --error-exitcode=9 --leak-check=full \
@@ -106,5 +151,8 @@ sweep:
 
 clean:
 	rm -f swapram_test swapram_evac_test $(OBJS) $(EVACOBJS) machine
+	rm -f swapram_evac_test_lost swapram_evac_test_lost.o swapram_kern_lost.o \
+	    swapram_lost_mutant swapram_lost_mutant.c swapram_lost_mutant.o \
+	    swapram_lost_mutant.out
 
-.PHONY: all run valgrind sweep clean
+.PHONY: all run evac evac-lost-mutants valgrind sweep clean

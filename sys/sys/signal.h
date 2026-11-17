@@ -81,7 +81,13 @@ struct  sigaltstack {
     int     ss_size;            /* signal stack length */
     int     ss_flags;           /* SA_DISABLE and/or SA_ONSTACK */
 };
-#define MINSIGSTKSZ     128                 /* minimum allowable stack */
+/*
+ * MINSIGSTKSZ admits the largest signal frame a port builds plus its
+ * alignment rounding and some handler headroom: the RP2040 frame is 128
+ * bytes and sendsig() rounds the stack top down by up to 7
+ * (sys/arch/rp2040/rp2040/sig_machdep.c asserts the fit).
+ */
+#define MINSIGSTKSZ     160                 /* minimum allowable stack */
 #define SIGSTKSZ        (MINSIGSTKSZ + 384) /* recommended stack size */
 
 /*

@@ -90,6 +90,13 @@ _Static_assert(CPU_KHZ * 1000 / PCM_LEVELS == 500000,
 
 static struct pcm_ring pcm;
 
+/* Samples waiting for the sample interrupt; machdep.pcm reports it. */
+unsigned int
+pcm_queued(void)
+{
+	return pcm_fill(&pcm);
+}
+
 /* The wrap interrupt of the sample clock: play one sample. */
 void
 PWM_IRQ_WRAP_Handler(void)

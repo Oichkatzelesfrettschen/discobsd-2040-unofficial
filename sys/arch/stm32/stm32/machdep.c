@@ -553,7 +553,7 @@ void
 config(void)
 {
 	struct conf_ctlr *ctlr;
-	struct conf_device *dev;
+	const struct conf_device *dev;
 
 	cpuidentify();
 
@@ -567,9 +567,7 @@ config(void)
 	/* Probe and initialize devices. */
 	for (dev = conf_device_init; dev->dev_driver; dev++) {
 		if (is_controller_alive(dev->dev_cdriver, dev->dev_ctlr)) {
-			if ((*dev->dev_driver->d_init)(dev)) {
-				dev->dev_alive = 1;
-			}
+			(void)(*dev->dev_driver->d_init)(dev);
 		}
 	}
 }

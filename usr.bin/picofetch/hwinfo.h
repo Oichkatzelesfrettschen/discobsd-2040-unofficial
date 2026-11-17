@@ -63,6 +63,24 @@ struct hwi_table {
 	int	cur, limit, peak;
 };
 
+/*
+ * machdep.flash_jedec and flash_unique_hi/lo: valid is 0 when the kernel
+ * served the nodes and the chip had returned no plausible identity at boot.
+ */
+struct hwi_flash_id {
+	int		state;		/* enum rd_state */
+	int		valid;
+	unsigned char	id[11];		/* JEDEC bytes, then the unique ID */
+};
+
+/* machdep.pcm: the /dev/audio device of a PicoCalc kernel. */
+struct hwi_pcm {
+	int	state;			/* enum rd_state */
+	long	rate, channels, bits;
+	long	ring, queued;
+	int	open;
+};
+
 struct hwinfo {
 	/* HWI_STATIC */
 	char	ostype[HWI_STR], osrelease[HWI_STR], osversion[HWI_STR];
@@ -74,6 +92,7 @@ struct hwinfo {
 	struct rd_int image_length, image_crc, image_crc_stored;
 	struct rd_int watchdog_reason;
 	struct rd_int cons_major, cons_minor;
+	struct hwi_flash_id flash_id;
 
 	/* HWI_LIVE */
 	long	now;				/* seconds since the epoch */
@@ -89,6 +108,7 @@ struct hwinfo {
 	struct rd_int core1, core1_restarts, core1_stalls, core1_faults;
 	struct rd_int temp_mc, vsys_mv;
 	struct rd_int usb_bulkin_arms, usb_tx_recovered;
+	struct hwi_pcm pcm;
 	struct rd_int st_root_rd, st_root_wr, st_swap_rd, st_swap_wr;
 	struct rd_int st_erases;		/* root plus swap sectors */
 	struct rd_int kstack_peak, kstack_bytes;

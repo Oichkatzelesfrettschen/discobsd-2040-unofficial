@@ -1,0 +1,624 @@
+# C17/POSIX expansion program state
+
+The observation time is 2026-11-15 21:40 UTC. Owned remote main is
+`0f077fcac6f09553754b72fd5feea108de96b6bf`. The canonical checkout is clean
+on that revision. The owner requests a final handoff and explicitly requests
+a pause after its completion. The implementation goal remains incomplete.
+
+The [semantic migration plan](c17-semantic-migration-plan.md) owns program order,
+the [compatibility profile](dpucp-2024.md) owns standards accounting, and the
+[shared-libc study](xip-shared-libc/README.md) owns architectural requirements.
+This record summarizes their state; their requirement and evidence ledgers
+retain their individual denominators and source identities.
+
+## Delivery and accounting
+
+The verified PR cohort consists of `codex/*` heads numbered 454 through 598,
+targeting this repository's main branch. It contains 38 PRs: 32 merged and six
+open drafts. Every listed merge commit is reachable from the observed main.
+The count excludes concurrent board, storage, calendar and host-tool PRs with
+other branch prefixes. It counts integration units, not 32 new standards
+capabilities. Full PR metadata and file lists remain in the local evidence
+directory `.build-logs/program-state`.
+
+| PR | Delivered mechanism | Merge commit |
+| --- | --- | --- |
+| [#454](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/454) | tools: bind compatibility accounting to reviewed evidence | `e172b2de` |
+| [#457](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/457) | research: bind expanded donor corpus to source identities | `75093cab` |
+| [#458](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/458) | tools: capture in-place kernel checksum transformations | `6aa74484` |
+| [#459](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/459) | libc: select string declarations by feature-test contract | `172a1bdf` |
+| [#460](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/460) | libc: consume callback registrations during exit | `6894810f` |
+| [#461](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/461) | tests: preserve product and child lifetimes | `c402a4a6` |
+| [#463](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/463) | libc: add bounded string and copy-end interfaces | `11a3f970` |
+| [#464](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/464) | libc: preserve exit callbacks and add independent quick termination | `7566357e` |
+| [#465](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/465) | libc: add context-last sorting with typed per-call state | `88abf715` |
+| [#466](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/466) | research: retain calibrated tableless search tradeoffs | `29635748` |
+| [#468](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/468) | libc: verify executable-tail shared object identity | `a6c3989c` |
+| [#469](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/469) | libc: validate explicit shared API provider closure | `01c8dbfd` |
+| [#470](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/470) | libc: supply callable integer magnitude providers | `efe16f8b` |
+| [#477](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/477) | libc: bound database constructor admission and cleanup | `4cb05166` |
+| [#512](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/512) | tests: derive shared GOT relocation from symbol ownership | `f8f536b9` |
+| [#516](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/516) | ld: preserve absolute imports and validate shared libc state addressing | `8016576b` |
+| [#518](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/518) | libc: make group and record headers self-contained | `c397f6e6` |
+| [#519](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/519) | docs: bind libc partition and shared error cost evidence | `1ecb9eb2` |
+| [#520](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/520) | libc: coalesce shared syscall error returns | `e13f8075` |
+| [#521](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/521) | tools: resolve equivalent COMDAT archive providers | `1734dcc7` |
+| [#522](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/522) | libc: record explicit compiler roots for shared archive linking | `12b1410c` |
+| [#524](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/524) | libc: make internet headers self-contained and repeatable | `57a591a6` |
+| [#539](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/539) | nm: bound archive and symbol reads | `d01ef4a0` |
+| [#542](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/542) | libc: validate callable signal-set operations | `050eac89` |
+| [#546](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/546) | headers: preserve inclusion guards and curses integer ABI | `efb4a05a` |
+| [#547](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/547) | libc: retain bidirectional bounded-sort experiment | `270422ca` |
+| [#549](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/549) | libc: bound sorting work and preserve typed caller ordering | `efc6fb87` |
+| [#553](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/553) | docs: reconcile delivered libc contracts and facet accounting | `cfe41205` |
+| [#554](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/554) | libc: bound byte search with guarded prefix paths | `a706c0b8` |
+| [#566](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/566) | libc: provide callable character I/O with native provider closure | `5f52b0b3` |
+| [#577](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/577) | libc: bound repeated EOF counter | `027ea017` |
+| [#591](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/591) | tests/libc: verify canonical shared callable identity | `7d6e357b` |
+
+The Issue 7/8 union contains 1,617 entities. Its Issue 8 subset contains
+1,518 entities, including 152 Issue 8-only entities. Current Issue 8 accounting
+contains three present/closed rows (`abs`, `getpgrp`, `labs`), 73 partial rows
+and 1,442 unreviewed rows. Thus 1,515 Issue 8 rows remain open. The 76 reviewed
+rows do not provide a project-completion percentage: entity costs differ,
+requirements decompose further, and some reviewed functionality predates this
+program. The 99 Issue 7-only entities remain in the union denominator.
+
+The profile distinguishes unreviewed work from audited absence. Its conservative
+`base` initialization is an accounting default, not a finding that all 1,518
+pages belong to the normative Base option. Option ownership and legitimate
+nonselection still require requirement-level analysis. The profile presently
+records no board-class witnesses. Host, cross, instruction-model, Renode and
+physical observations remain distinct.
+
+The C/header denominator contains 3,056 tracked rows: 158 accepted, 63
+migration-open, 543 excluded and 2,292 unreviewed. Scope accounting contains
+217 maintained, four generated, 536 archive, seven quarantine and 2,292
+unreviewed rows. Native-input accounting contains 42 yes, 722 no and 2,292
+unreviewed rows. A successful target build does not close those unreviewed
+semantic, ownership or native-input decisions.
+
+## Work package 1: baseline, donors and accounting
+
+Delivered work reconciles the live process window to 196,608 bytes and binds
+profile limits to linker-region and production flash-capacity arithmetic.
+Historical 147,456-byte receipts retain their original identities. The shipped
+baseline and schema-2 archive-selection comparison separate compiler capture,
+source closure, artifact identity and resource surfaces. Kernel checksum
+transformation capture and logged-execution lifetime repairs improve the
+measurement path rather than adding a POSIX interface.
+
+The BSD inventory records all 20 repositories, checkout heads/branches,
+tracked/untracked status, remote authority, development refs and fetch outcomes.
+Eighteen development revisions have successful fetch records. The immediate
+authorities of 4.4BSD-Lite2 and LiteBSD remain unresolved. Dirty and divergent
+donor checkouts remain preserved; fetching a research revision does not mean
+that its working checkout receives a fast-forward. The inventory dates from
+November 12 and needs a new live refresh before another latest-upstream claim.
+
+The development branches include DragonFly master, FreeBSD main, NetBSD trunk,
+OpenBSD master, HardenedBSD hardened/current/master, OPNsense src stable/26.7,
+pfSense src devel-main and RTEMS libbsd 7-freebsd-14. Each project's own
+authority governs it. DragonFly's main inventory pin is `805ca132aede`; later
+targeted comparisons preserve their own revisions and byte-identity evidence.
+
+The archive extension inventories all 13 requested roots, 262,043 regular-file
+paths and 23 selected mechanism/package leaves. These counts establish a
+bounded inventory, not inspection of every file. The retained roots and file
+counts are:
+
+| Root relative to ARCHIVE_CORPUS | Regular files |
+| --- | ---: |
+| `extracted/archives/bsd` | 53,456 |
+| `extracted/archives/att` | 56,275 |
+| `extracted/archives/osf` | 10,408 |
+| `extracted/archives/xinu` | 2,542 |
+| `extracted/collections/schily/schily-2024-03-21` | 5,540 |
+| `extracted/collections/mach` | 1,809 |
+| `sources/sun/os/opensolaris/schillix/collection` | 53,436 |
+| `sources/sun/os/sunos` | 27,473 |
+| `sources/sun/os/solaris` | 41,936 |
+| `archives/mach` | 7,362 |
+| `archives/minix` | 2 |
+| `archives/research` | 1,782 |
+| `archives/sel4/SeL4-src` | 22 |
+
+Selected leaves cover Net/2 strtol cutoffs; Reno prefix-rescan search; V7 global
+sort context; System V negative accumulation; OSF exec-size and usercopy
+admission; Xinu free-list conservation and callback varargs; Schily package
+identity; Mach bounded interfaces and formatting; Schillix cwd-based openat,
+line-reader publication, unsigned magnitude, descriptor adoption and SFIO
+memory-stream dependencies; SunOS/Solaris scanners; MINIX package scope;
+the Issue 8 strnlen source; and seL4 ABI sizes, object admission and proof
+configuration. Each leaf retains its identity, license observation, invariant,
+conflict and deciding experiment in `posix-archive-donor-frontier.json`.
+
+Coherent is separately cloned and pinned at
+`a00b86ea22c66625cf1838a71c06129f5eda2b49`: 29,492 tracked paths, including
+4,423 C and 2,375 header paths. Its review decomposes archive extraction,
+stdio auxiliary backends, lazy initialization, regex compilation, numeric
+scanning, syscall metadata and exec/fork ownership. A host-source scanner
+experiment reproduces a terminator-capacity failure and incomplete-token
+acceptance; it executes neither an original Coherent binary nor its original
+libc. The signed-minimum analysis rejects replacing DiscoBSD's stronger
+existing scanner. The exit analysis yields a delivered target repair.
+
+Remaining work includes family-by-family source deltas, additional immutable
+member records, binary reconstruction where source is unavailable, per-file
+redistribution review, full Schily member analysis, Schillix archive/tree
+correspondence, and refreshed donor revisions. The small MINIX package does
+not supply a complete kernel/libc corpus. seL4's proof configuration supplies
+no proof of DiscoBSD or RP2040 behavior. Restrictions, unavailable sources and
+unsettled authorities remain visible. Shared ancestry counts once.
+
+## Work package 2: public-header contracts
+
+Merged string visibility defines explicit ISO, POSIX Issue 7/8, XSI and BSD
+selection with default BSD compatibility. Selector precedence and additive
+selectors have calibrated positive and negative inputs. The conversion covers
+the selected string declarations, not every public header.
+
+Merged inclusion repairs cover group, device and login-record headers;
+standalone/repeated network headers; root inclusion guards; and curses integer
+ABI preservation across stdbool include orders. Record-header evidence
+includes 288 valid compiler cases, 27 rejection controls and 24 Smaller C
+inputs. Network evidence includes 144 valid cases, 18 rejections and 48
+Smaller C inputs. Exact target sizes, offsets, types and preserved caller
+resources accompany these units. Smaller C's missing C99 `_Bool` parser support
+remains explicit; accepted legacy inputs do not imply native C17 support.
+
+Open PR 564 owns canonical time/signal scalar and structure definitions.
+It repairs standalone completeness while preserving wide, narrow, kernel and
+native layouts and compiler linkage aliases. Open PR 563 owns dependency-free
+FD_ZERO stores and the getty caller initialization repair. Neither is a
+mainline delivery at this snapshot; both have merge conflicts.
+
+The fresh installation audit examines 157 distinct installed header paths
+under six selectors, for 942 standalone compiler cases. All six modes accept
+130 headers and reject 27. Six valid controls and twelve named compiler
+rejections calibrate compiler observation. The independent installer comparison
+finds two readline headers outside `include/Makefile`, whose own set contains
+155 paths. The complete observed default exposure contains 688 C names: 567
+functions and 121 objects. These are discovery counts, not selected libc APIs.
+The fresh sweep uses the default time view; pending PR 562 supplies both time
+views for its root-only denominator.
+
+The audit records 90 names with multiple type spellings across contexts.
+Many arise from the installed kernel dispatch header, for example its
+`void read(void)` beside libc's `ssize_t read(...)`. Selection needs explicit
+interface ownership and compiler linkage identity. Twenty-seven failed
+standalone headers retain unresolved include/context contracts. C17 syntax
+acceptance does not supply complete signatures, attributes, object layout,
+namespace conformance, native acceptance or behavior.
+
+Open PR 562 already provides a substantially stronger reusable root census:
+54 tracked roots, 53 installed root names, four selectors, two time views,
+448 compiler cases, linkage-name-aware provider matching, transitive hashes
+and standalone/combined exposure union. Reuse and extend that instrument for
+nested installed headers. The fresh 157-header discovery must not become a
+competing canonical census. Its temporary replay script and raw ASTs remain
+local evidence, outside production and CI.
+
+## Work package 3: small strings and lifecycle
+
+Merged `strnlen`, `strndup`, `stpcpy` and `stpncpy` provide separate archive
+members and exact bound, termination, padding, allocation and returned-pointer
+contracts. Zero bounds avoid source reads; strndup still owns a terminated
+allocation. Overflow and allocation failure have separate controls. The
+91,035-case matrix, seven semantic mutations, protected pages, sanitizers,
+ILP32 and Thumb-1 witnesses cover the stated behavior. The exact native archive
+increase is 692 bytes at its measured baseline.
+
+Normal exit now removes the live callback head before invoking it. Successful
+registrations during a handler join the remaining order rather than disappear
+behind a saved traversal cursor. `at_quick_exit` and `quick_exit` use an
+independent reverse-order registry and terminate through `_Exit` without normal
+stdio cleanup. Failed registration preserves the live list. Static first-node
+storage and dynamic additional nodes have separate allocator accounting.
+Termination-only linking avoids pulling the registration allocator into a caller
+that never registers a handler. Native archive closure includes `_Exit`.
+
+The scoped mechanisms ship, while applicable standards rows remain partial.
+Threaded/signal-time registration, recursive termination, callback longjmp,
+unbounded callback allocations, shared-state lifecycle, physical timing and
+remaining full-interface facets retain separate obligations.
+
+## Work package 4: context-aware sorting
+
+Merged `qsort_r` uses the Issue 8 context-last callback signature. Per-call
+typed state preserves nested invocation and avoids global comparator context
+or incompatible function-pointer casts. Ordinary qsort consumers retain their
+separate static-link choice. Focused ordinary/context witnesses cover ordering,
+permutation, record bytes and nested callbacks; the initial context matrix
+executes 78,740 cases. Both native archive producers include the required
+sort and divider providers and reject individually omitted members.
+
+The interface ships. Full standards closure remains distinct from its tested
+callback/algorithm contract, and callback-dependent runtime resources remain
+unbounded by the library's own frame measurements.
+
+## Work package 5: bounded search and sorting
+
+Merged qsort/qsort_r combine bidirectional equal bands, ordered pivot samples,
+smaller-side recursion and a consumed partition budget. An allocation-free
+byte-swap heap fallback supplies the worst-case work mechanism. Calling the
+existing allocating heapsort directly would add an unreportable allocation
+failure to qsort. The 48-byte recursive frame survives by returning 56-byte
+partition scratch before recursive calls. Entry, heap-sift and swap frames have
+separate limits. The finite matrix executes 708,596 cases per entry variant;
+adversarial controls detect removed budgeting and fallback.
+
+Caller closure expands beyond initially found direct calls to twelve maintained
+executables: box, ps, menu, standalone ls, nm, diff, uuq, tclsh, atc, boggle,
+robots and wump. Exact callback repairs include game consumers, boggle's element
+width and ls reverse-order signedness. Host-only, commented and unselected
+consumers retain explicit exclusions. Complete aggregate, required inventory,
+UART/union Renode, resources and review records accompany production delivery.
+
+Merged memchr converts both input bytes and the search argument through
+unsigned char; `memchr("", 0x100, 1)` is a deciding counterexample to the old
+comparison. Merged memmem uses remembered-prefix Two-Way factorization,
+explicit remaining length, critical split and period validation. It preserves
+embedded NULs, empty needles and earliest matches with constant auxiliary
+storage. Guarded prefix acceleration receives its own ptrdiff-domain admission.
+The comparison budget includes preprocessing; its conservative finite oracle
+is `2*n + 7*m`, conditional on the recorded factorization argument. Finite
+tests and the correspondence argument remain distinct evidence classes.
+
+The final guarded-prefix frame measures 48 bytes. The resource vector and
+clean aggregate, 216 required inventory variants, both Renode gates and pinned
+review are retained. A later mainline GCC-13 instruction-shape repair has its
+own source identity. The lazy-NUL strstr replacement remains open; its current
+worst-case rescan behavior receives no linearity claim. General board workload
+timing, callback/process peaks and swap traffic remain unmeasured.
+
+## Work package 6: shared XIP libc
+
+Production shared libc remains unimplemented. Static executables remain the
+shipped mode. The following prerequisites have merged:
+
+- Five executable-tail state layouts pass compiler/linker, real ELF-to-a.out
+  conversion and QEMU object-identity checks. State follows ordinary and
+  multicall-overlay BSS and contributes to writable PT_LOAD, a_bss and end
+  symbols. Public errno, environ and _iob references share identity with PIC
+  references; initialized pointers, callbacks and r9 GOT origin receive tests.
+- Symbol-owned relocation distinguishes state offset zero from null weak or
+  absolute imports. Eleven rejection controls cover layout, interposition,
+  missing/conflicting GOT ownership and unresolved strong imports.
+- Shared syscall error returns coalesce into a hidden COMDAT helper using
+  process-local errno. Static assembly remains separate. Generated and
+  specialized wrappers preserve LR, SP and r9; specialized ptrace/pipe/brk/
+  sigaction paths have witnesses. Equivalent COMDAT provider resolution checks
+  group contents and relocation ownership.
+- ROM-float shared addressing and descriptor alignment receive experimental
+  object/instruction witnesses. These establish process-state access and
+  provider contracts, not physical ROM performance.
+- Explicit API/provider closure rejects omissions even when installed programs
+  never call an interface. Compiler-support roots and startup-owned objects
+  remain explicit rather than guessed from global symbol reachability.
+- Native ld preserves absolute import identity and validates admitted shared
+  state addressing. Native-call fixtures construct a 12-byte Thumb veneer with
+  eight temporary stack bytes, preserved registers/flags/arguments and canonical
+  flash pointers. Automatic final-link insertion remains absent.
+- Callable-slot identity separates public slots from private implementation
+  aliases. Four C/assembly/LTO variants execute 888 modeled calls and reject
+  seventeen controls. Alias groups share one owner, Thumb entry and exact extent;
+  public address expressions retain canonical slots while eligible local calls
+  can retain direct implementation references.
+
+Open PR 598 adds exact extents to the four integer-divider aliases. Production
+extents are 32/60 bytes; model extents are 38/66 bytes and exclude literal pools.
+Six metadata controls join nine existing instruction-window controls. Arithmetic
+execution performs 480,800 comparisons and 356,220 modeled steps, rejecting
+eleven arithmetic controls; Cortex-M4 adds two controls. The rebuilt archive
+contains 702 positive contained function extents: 611 global, two weak and 89
+local. Matched native objects are identical, and fresh selected archives both
+occupy 51,178 bytes after timestamp normalization. The stale 51,190-byte cache
+supplies no resource baseline. This is metadata ownership work, not an arithmetic
+defect. The draft passes exact-head firmware/Renode CI; bounded source review
+still awaits its separate model/task decision.
+
+The fixed reservation is 49,152 bytes immediately after the 131,072-byte kernel.
+The integrated historical calendar envelope occupies 62,396 flash bytes. The
+merged factored-error envelope occupies 61,244 flash bytes and 5,344 writable
+bytes, still 12,092 flash bytes over budget before slots. Open PR 565's newer
+449-member, 647-root replay occupies 62,604 flash bytes and 5,648 writable bytes,
+including 1,836 initialized bytes: 13,452 flash bytes over budget before slots.
+These are different source/flag/root envelopes; their differences do not isolate
+one mechanism's cost. Dropping memmem saves 456 bytes in a rejection control
+while violating the original API-root contract. Adding `-ffixed-r9` to the
+selected PIC configuration receives a compiler rejection and supplies no saving.
+
+Remaining architecture obligations are all explicit:
+
+1. Review the selected C/POSIX/BSD API and every function/object owner; resolve
+   compiler, startup, private, secondary-library and unavailable declarations.
+2. Generate stable function slots, aliases, object offsets/sizes/alignments and
+   layout identity from one authoritative versioned description.
+3. Complete every mutable initialization/BSS/GOT owner, current/minimum break
+   ownership, initialized pointer and startup sequence; reserve state after all
+   application/overlay extents and initialize r9 before shared calls.
+4. Produce a complete PIC image within 48 KiB including slot and initialization
+   costs, with separately measured process residency and peak scratch/stack.
+5. Define and implement the same versioned requirement record for cross ELF,
+   raw a.out, packed a.out and native output. Keep static acceptance.
+6. Add pre-replacement kernel validation for identity/version, slots, mutable
+   layout, aligned BSS containment, complete image/stack fit, truncation,
+   overflow and malformed input; repeat essential startup checks.
+7. Extend read-direction usercopy and MPU coverage only to the exact libc flash
+   interval; retain writable-process-only destinations.
+8. Integrate explicit native shared mode, canonical imports and branch-only
+   veneer insertion, including partial links, aliases, addends, narrow branch
+   ranges, alignment and unsupported-import failures.
+9. Qualify signals, nested callbacks, setjmp/longjmp, fork, exec failure, swap
+   restoration, heap limits, zero-data applications, differing BSS sizes and
+   multicall overlays under the actual production loader and scheduler.
+10. Build matched kernel/libc/root images and recompute geometry: proposed raw
+    Dhara becomes 1,488 KiB; swap stays 384 KiB and the process window stays
+    192 KiB. The shipped geometry remains static until this track qualifies.
+11. Document complete-image replacement and interrupted-flash recovery. Live
+    replacement remains prohibited; UF2 atomicity remains unclaimed.
+12. Obtain separate physical authorization and measure startup, stdio and
+    process-switching workloads. Each must stay within 10% regression with
+    uncertainty reported. No shared physical workload has that qualification.
+
+## Work packages 7 and 8: locale and memory streams
+
+The ten fresh cross archives supply legacy mblen, mbtowc, wctomb, mbstowcs and
+wcstombs. They supply no setlocale, localeconv, strcoll, strxfrm, mbrlen,
+mbrtowc, wcrtomb or mbsinit provider. Full byte-locale selection, lconv data,
+mbstate_t, reset/incomplete/invalid transitions, all-byte behavior, errno and
+restartable conversion remain implementation work. The existing bytewise
+comparators and folding contracts do not establish that locale foundation.
+UTF-8 follows the agreed byte-locale work.
+
+The same measured archive corpus supplies no fmemopen, open_memstream or
+funopen provider. Backend design, fixed and growing storage ownership, capacity,
+logical extent, cursor and published pointer/length remain open. Tests still
+need embedded NULs, mode behavior, append after seek, backward overwrite,
+holes, zero/full capacities, terminators, failed growth, flush/close publication,
+cleanup and moving-resize peak old-plus-new allocation. The public FILE remains
+24 bytes on ARM; a backend change needs its own exact ABI and resource decision.
+Coherent auxiliary dispatch and Schillix/SFIO dependencies remain research
+inputs rather than imported implementations.
+
+## Work package 9: numeric conversion, formatting and math
+
+Merged abs/labs supply actual callable providers and independent archive
+selection. Their defined domain excludes an unrepresentable minimum magnitude;
+the implementation adds no saturation extension. Address-taking and disabled
+builtins expose the original provider gap. Each variant exercises 131,088
+defined-domain checks and two sign mutations.
+
+Existing main already supplies strtol/strtoul, four-limb strtoll/strtoull,
+strtoimax/strtoumax, strtod, snprintf, scanner/va_list paths, frexp and ldexp.
+Those existing strengths predate portions of this program and retain their
+own outstanding facets. For base b <= 36, a 16-bit limb multiply/add remains
+below `b*2^16`, avoiding a required 64-bit multiply/divide in the scanner.
+
+Fresh provider inspection finds no strtof, strtold, fabs, fabsf, frexpf or
+ldexpf in the ten declared cross archives. The legacy omitted fabs source
+preserves negative zero through `arg < 0 ? -arg : arg`, so merely selecting
+it fails the required signed-zero behavior. Remaining work includes actual
+target precision; decimal/hex grammar and consumption; rounding boundaries;
+infinities, NaNs and payload behavior; signed zero, subnormals and exponent
+boundaries; domain/range/errno; formatting facets; and honest native/double/
+long-double support. Scanner token extent, acceptance state and conversion
+status require separate witnesses. No complete numerical-conformance claim
+follows from short donor source or the current successful build.
+
+## Work package 10: calendar and clocks
+
+Main includes substantial calendar and stored-time work from concurrent PRs:
+wide-time views/wrappers, calendar functions, mktime transition and negative
+epoch repairs, unsigned stored-time interpretation, image tools and typed
+program consumers. These supply the baseline used by the later native-linker
+and XIP measurements. They are not all merges of this PR cohort. Public
+time/signal type ownership still waits in PR 564.
+
+Fresh archive inspection supplies mktime, timegm, gettimeofday, times, sleep
+and usleep. It supplies no strptime, clock, timespec_get, clock_gettime,
+clock_getres, clock_settime or nanosleep provider. Locale calendar names,
+strptime grammar/field reconciliation, TIME_UTC and full C17 clock semantics,
+monotonic time, resolution, interruption and remaining-time behavior, and
+kernel timer prerequisites remain distinct work. Native Smaller C's narrow
+time policy and historical narrow timeval exception remain visible.
+
+## Work package 11: shared regular expressions
+
+Main supplies legacy re_comp/re_exec and Tcl-private regexp_compile/
+regexp_execute mechanisms. The ten measured archives supply no POSIX regcomp,
+regexec, regfree or regerror provider. Installed regexp.h advertises a V8-style
+regexp interface with old non-prototype declarations, not the POSIX regex_t
+contract. Its names must not accidentally select an incompatible POSIX provider.
+
+Remaining work includes a truthful regex.h, BRE/ERE compilation and execution,
+captures and leftmost-longest selection, flags, escaping, locale obligations,
+cleanup, invalid programs, allocation/resource failures and individual utility
+migrations. Backreferences and POSIX capture selection retain their additional
+complexity costs. No whole-interface linearity claim is available.
+
+## Work package 12: directory-relative operations and process launch
+
+Main already provides openat and project-specific openat_beneath,
+mkdirat_beneath, linkat_beneath, unlinkat_beneath and publishat_beneath.
+These source/provider observations do not identify those APIs with every
+standard *at contract. The measured archives supply no standard faccessat,
+fchmodat, fstatat, mkdirat, renameat, unlinkat, readlinkat, symlinkat or linkat
+provider. The existing namei, descriptors, admitted user spans and exec
+mechanisms provide starting dependencies.
+
+Posix_spawn and posix_spawnp have no provider in that corpus. Ordered file
+actions, descriptor collisions, signal masks/defaults, attributes, exec-failure
+transport, parent/child lifetime, resource exhaustion and transactional cleanup
+remain implementation work. Cwd save/chdir/restore donor emulation fails the
+stable-directory concurrency requirement and supplies no replacement for
+descriptor-relative kernel lookup. Fork/exec/wait providers do not close spawn.
+
+## Work packages 13 and 14: utilities and remaining system
+
+Delivered sorting fixes demonstrate caller closure across utility, library and
+game consumers. Callable character I/O closes macro/address-taking and native
+archive prerequisites. The normal and quick exit changes preserve multicall
+lifetime requirements. Existing main also contains command/getopts shell
+builtins and selected printf/recovery utilities from the earlier profile work.
+Older notes that describe those shell builtins as missing are historical;
+the current builtin table and implementation carry authority.
+
+Whole shell-language closure, utility error/operand/environment semantics,
+every selected libc caller, multicall repeated invocation and complete resource
+admission remain open. Open PR 560 repairs the namespace checker's omitted
+CoreMark source family; it reports 40 checked programs versus its earlier 39.
+Its changes are not merged. The 34 shipped resource records supply a different
+denominator and must not be substituted for source-namespace coverage.
+
+The profile preserves filesystem, terminal, signal, networking, realtime,
+threading, native-development and optional-language families. Existing host
+and emulator tests, scalar signal-set providers and compiled network layouts
+do not close kernel delivery, protocol, persistence or concurrency behavior.
+Every maintained C/header family and every remaining standards row still needs
+the stated finite disposition, source/caller/kernel closure, resources and
+deciding witness. The full 3,056-row language inventory remains mostly
+unreviewed. Optional facilities need legitimate option ownership; architecture
+difficulty alone supplies no completed disposition.
+
+## Additional delivered correctness mechanisms
+
+The ndbm constructor admits its basename plus suffix/terminator within 1,024
+bytes, validates both descriptors and directory extent before publication,
+and unwinds failures exactly once. Its header becomes self-contained and
+typed. Eight controls reject header, capacity, cleanup and arithmetic defects;
+matched shipped surfaces show zero growth. Database parsing, mutation,
+iteration and locking remain open.
+
+Five scalar signal-set providers check signal numbers before shifting and
+preserve exact declarations/native imports. Fixed-mask callers retain their
+code-size result; other callers and the reduced native archive receive their
+approved measured growth. Kernel signal delivery remains separate.
+
+Native nm admits archive/header/member/symbol extents with checked cursor
+arithmetic, bounded extended names, exact EOF/error handling and byte-wise
+unsigned decoding. The native linker preserves absolute import/partial-link
+lifetime and validates representable sections/state addressing. These are
+real native-tool repairs; they do not implement native shared-link mode or
+make nm part of the shipped root.
+
+Callable getc/putc/getchar/putchar and complete declarations retain the existing
+macros and 24-byte FILE. Typed wrappers reuse fgetc/fputc; native archive members
+include the two standard-stream wrappers. Each execution performs 3,963 byte
+operations and rejects six mutations after the EOF extension. The EOF fixed
+point restores `_cnt` to zero before an established-EOF return, preventing
+repeated macro decrements from accumulating toward signed overflow. The
+qualified repair passes a full aggregate, 219 required variants, clean images,
+native archive controls and UART/union Renode. Remaining stdio error, timestamp,
+concurrency and physical facets keep those standards rows partial.
+
+## Resource and validation boundaries
+
+| Measured unit | Exact admitted/observed scope | Record |
+| --- | --- | --- |
+| Exit callback repair | 15 executables: +27 positive packed bytes; blocks/loaded/kernel sizes unchanged. Later combined receipt governs composition. | [exit-lifecycle-resource-exception.md](exit-lifecycle-resource-exception.md) |
+| Bounded strings | +692 native archive bytes, 43,094 to 43,786; other measured surfaces unchanged at that source pair. | [libc-bounded-string-resource-exception.md](libc-bounded-string-resource-exception.md) |
+| Integrated strings/lifecycle | Relative to strings: +624 native archive bytes, one root data block, +28 positive packed bytes across 16 executables; 234 free root blocks. | [libc-lifecycle-integrated-resource-exception.md](libc-lifecycle-integrated-resource-exception.md) |
+| qsort_r | +668 native archive bytes and one root data block; 233 free blocks. | [context-sort-resource-exception.md](context-sort-resource-exception.md) |
+| abs/labs | +240 native archive bytes; 157 other surfaces and 33 shipped program records unchanged. | [libc-absolute-value-resource-exception.md](libc-absolute-value-resource-exception.md) |
+| Native linker | +1,324 loaded/raw bytes, +918 packed bytes, one root block also counted as the linker allocation block; 239 free blocks. | [native-linker-resource-review.md](native-linker-resource-review.md) |
+| Optional nm | +1,140 loaded bytes, +1,132 raw, +815 packed; either optional installation gains one block. nm remains unshipped. | [native-nm-resource-exception.md](native-nm-resource-exception.md) |
+| Signal sets, amended | Total +440 native archive bytes and two root blocks; approved per-program vector preserved, 231 free blocks. The +408 archive/+1 block amendment is included. | [signal-set-resource-exception.md](signal-set-resource-exception.md) |
+| Bounded sorting | +656 native archive bytes; box/ps/menu each +320 loaded/raw and +258/+258/+265 packed; one shared box/root block, 229 free. Optional caller limits remain individually recorded. | [libc-bounded-sort-resource-exception.md](libc-bounded-sort-resource-exception.md) |
+| Guarded-prefix byte search | +748 native archive bytes; textbox +376 loaded/raw, +362 packed and one block; two root blocks total, 227 free. Optional cut +376 loaded/raw, +375 packed, same blocks. | [libc-byte-search-resource-exception.md](libc-byte-search-resource-exception.md) |
+| Callable character I/O | +500 native archive bytes and getchar.o/putchar.o; shipped executable records unchanged. Three native probes each +16 loaded bytes; blocks unchanged. | [callable-character-io-resource-exception.md](callable-character-io-resource-exception.md) |
+| Repeated EOF repair | +8 native archive bytes; 25 programs each +8 loaded/raw; +256 total packed bytes across 24 programs; all packed blocks/root/kernel measures unchanged. | [stdio-eof-fixed-point-resource-exception.md](stdio-eof-fixed-point-resource-exception.md) |
+| Divider extents, pending PR | Zero matched object/archive size growth; native object payloads identical; fresh matched selected archives 51,178 bytes each. | [PR 598 extent record](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/blob/85089634a933f8111eb5c3afdceb1465b0e9cef7/docs/research/xip-shared-libc/divider-function-extents.md) |
+
+Each row applies only to the named source pair and receipt. The rows do not
+form an additive current-head budget: combined lifecycle admission supersedes
+isolated block-fit reasoning, optional nm is unshipped, and archive/member,
+program-block and root-block views can overlap. Storage reductions never pay
+for increased RAM. Current capacity requires a new matched clean distribution.
+The historical EOF-qualified image has 227 free root blocks; the fresh build
+at observed main supplies no replacement resource receipt.
+
+Retained complete validation includes bounded-sort aggregate/ILP32/images and
+both Renode boots; byte-search aggregate/216 required variants/images and both
+Renode boots; and EOF aggregate/219 required variants/images and both Renode
+boots. Other delivered units retain their own source-bound receipts. Green
+checks at those revisions are not a full-suite result for observed main.
+
+Fresh handoff evidence consists of the observed-main build, the 157-header
+discovery, compatibility/donor/C17 ledger gates and exact-head PR 598 firmware
+CI including Renode. PR 598's broader aggregate and ILP32 suites remain unrun
+for its metadata-only delta. Main's full current aggregate is not rerun for
+this handoff. Physical-board execution and the shared-libc 10% workloads remain
+unrun in this program. No job launched for this handoff remains active.
+
+## Open integration queue
+
+| PR | Exact remote head | Mergeability | Remaining action |
+| --- | --- | --- | --- |
+| [#560](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/560) | `c3ff7844d9de` | clean | CoreMark/benchmarks namespace source coverage; refresh and validate the actual selected closure. |
+| [#562](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/562) | `1b4a01266fcd` | clean | Reusable root declaration/linkage census; extend it instead of creating a second census. |
+| [#563](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/563) | `34b326501fab` | dirty | FD_ZERO and getty initialization; resolve conflicts and confirm the exact packed-growth exception (+3 gamebox, +2 coil, +4 fourfall). |
+| [#564](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/564) | `801194c98736` | dirty | Canonical public time/signal types; resolve conflicts and retain zero-growth/layout/linkage witnesses. |
+| [#565](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/565) | `11b14a1c7ec0` | clean | Captured 449-member PIC replay; preserve the 13,452-byte excess and finish API/size decisions. |
+| [#598](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/598) | `85089634a933` | clean | Four divider extents; CI passes at 85089634; bounded source-review decision remains pending. |
+
+GitHub `clean`/`dirty` here describes mergeability at the observation time, not
+working-tree cleanliness or semantic acceptance. All six PRs remain drafts.
+Some research notes retain an early pending-state sentence even after a later
+qualification or merge; use their source identities, later qualification
+records and the canonical roadmap to reconcile that history. Do not erase
+historical measurements while updating current delivery accounting.
+
+## Restart order and ownership
+
+1. Read this record, the canonical roadmap, current project instructions and
+   the compatibility/XIP contracts. Refresh remote main and all six PR states;
+   their exact heads above supply the handoff snapshot rather than a future
+   latest-state claim.
+2. Preserve the divider worktree and its ignored matched archives, control
+   objects, raw logs and successful CI receipt. Its old directory label is
+   historical; deleting it recreates the missing-current-directory problem.
+   Obtain or explicitly replace the pending bounded-review decision before
+   launching that reviewer. If approved, honor gpt-6.1-sol, medium effort,
+   standard tier, read-only payload and disabled edit/test/network/delegation/
+   hardware capabilities. Earlier task approvals retain their scopes.
+3. Reconcile and land the existing namespace/census/PIC prerequisites and the
+   two conflicted header units through reviewed branches. Reuse their code,
+   controls and evidence. Preserve donor/profile/type invariants across conflicts;
+   never apply a blanket side selection. Validate exact new source and resources.
+4. Extend the root census with nested installed-header ownership and the
+   independent readline installer. Preserve C versus linker names, time views,
+   standalone/combined exposure and parse failures. Resolve kernel/user domains
+   before deriving the public ABI. The temporary discovery script supplies
+   evidence and limitations, not a replacement production gate.
+5. Complete API selection and the generated shared ABI, then decide full PIC
+   size against 48 KiB with slots and initialized image included. Retain every
+   required interface; a smaller invalid root set supplies no optimization.
+6. Integrate actual cross/native shared linking, loader admission, process state,
+   flash geometry and lifecycle. Qualify the actual production paths before
+   advancing dependent mutable locale and stream facilities.
+7. Continue packages 7--14 with their independent kernel and caller dependencies.
+   Keep every remaining entity/source family in the finite ledgers; classify
+   audited absence separately from unknown and legitimate optional nonselection.
+8. Use clean matched distribution/resource captures for production changes,
+   execute calibrated focused gates and the required aggregate/ILP32/image/
+   emulator chain for the chosen scope, and request fresh exact cost exceptions
+   where existing approvals do not cover the new vector.
+9. Obtain separate physical authorization for artifact-bound workloads and
+   retain the 10% per-workload shared-libc performance criterion. Preserve
+   recovery and complete-image replacement constraints.
+
+The declarations checkout is a clean main-based investigation branch before
+the handoff documents enter it. Its `.build-logs/declaration-frontier` and
+`shared-declaration-discovery-*` directories retain the fresh observations;
+the copied temporary replay has its source digest in the state receipt.
+The divider branch remains `codex/libc-divider-function-extents` at `85089634`.
+The canonical checkout remains clean on main. Other worktrees and unique
+evidence stay preserved. No new PR or merge forms part of this final handoff.
+
+The [state receipt](c17-posix-program-state.json) contains the PR cohort,
+open-head/file snapshots, current ledger counts and complete 157-header
+discovery disposition. Retained local evidence directories hold raw outputs;
+their hashes bind the summarized findings. Full POSIX/UNIX conformance,
+complete C17 migration and production shared libc remain unachieved.

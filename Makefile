@@ -81,6 +81,29 @@ SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 
+# Optional host research tier; NumPy is not a firmware-build dependency.
+.PHONY: check-graph-layout
+check-graph-layout: check-python
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/graph_layout_test.py
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/graph_layout_trace_test.py
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/performance_lab_test.py
+
+.PHONY: check-layout-extensions
+check-layout-extensions: check-python
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/layout_solver_extensions_test.py
+
+# The proofs run from tools/proofs, where elan reads lean-toolchain, and lake
+# env puts the pinned toolchain's lean on PATH for the checker; a run from the
+# repository root would pick the default toolchain instead.
+LAKE?=		lake
+LEAN?=		lean
+.PHONY: check-release-policy check-hybrid-release
+check-release-policy: check-python
+		cd tools/proofs && ${LAKE} env ${PYTHON} check_policy.py --lean "${LEAN}"
+
+check-hybrid-release: check-python
+		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
+
 check-python:
 		@if [ -z "${PYTHON}" ]; then \
 			echo "PYTHON must name the interpreter for this target" >&2; \
@@ -249,6 +272,36 @@ check-kernel-headroom: check-python
 .endif
 
 .PHONY: check-kernel-headroom-validator check-kernel-headroom
+
+# The hot path that conf/kern.ldscript lists between __hot_start and __hot_end
+# must fit one 8 KB way of the XIP cache, hold every listed symbol the kernel
+# links and leave no cache set with two of its lines. check-hot-layout-validator
+# calibrates the checker on synthetic images; check-hot-layout applies it to
+# each built kernel and then requires a 4,096-byte way to fail the PICO kernel
+# with exit 1, so a checker that accepts every kernel is reported.
+check-hot-layout-validator: check-python
+		${PYTHON} tools/check_hot_layout.py --self-test
+
+check-hot-layout: check-python
+.if ${MACHINE} == "rp2040"
+		@set -e; elfs=; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			elfs="$$elfs sys/arch/rp2040/compile/$$configuration/unix.elf"; \
+		done; \
+		${PYTHON} tools/check_hot_layout.py $$elfs; \
+		rc=0; \
+		${PYTHON} tools/check_hot_layout.py --way-bytes 4096 \
+		    sys/arch/rp2040/compile/PICO/unix.elf >/dev/null 2>&1 || rc=$$?; \
+		if [ "$$rc" -ne 1 ]; then \
+			echo "check-hot-layout: control way of 4096 bytes gave exit $$rc, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS hot-layout control: a span longer than a 4096-byte way is rejected"
+.else
+		@echo "check-hot-layout requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
+
+.PHONY: check-hot-layout-validator check-hot-layout
 
 # The SD crash-dump writer (sys/arch/rp2040/include/dump.h) is linked into the
 # PICOCALC kernels and into no other: tools/check_dump_writer_link.py reads
@@ -887,6 +940,35 @@ check-libc-absolute-value:
 
 .PHONY: check-libc-absolute-value
 
+check-libc-integer-division:
+		${MAKE} -C tests/libc_contracts check-integer-division
+
+.PHONY: check-libc-integer-division
+
+check-libc-c17-locale:
+		${MAKE} -C tests/libc_contracts check-c17-locale
+
+check-libc-c17-strtof:
+		${MAKE} -C tests/libc_contracts check-c17-strtof
+
+check-libc-c17-time:
+		${MAKE} -C tests/libc_contracts check-c17-time
+
+check-libc-c17-math:
+		${MAKE} -C tests/libc_contracts check-c17-math
+
+check-libc-c17-wide:
+		${MAKE} -C tests/libc_contracts check-c17-wide
+
+# Outside every aggregate: NETBSD_SRC names a src-netbsd checkout.
+check-libc-c17-netbsd:
+		${MAKE} -C tests/libc_contracts check-c17-netbsd \
+		    ${NETBSD_SRC:DNETBSD_SRC=${NETBSD_SRC:Q}}
+
+.PHONY: check-libc-c17-netbsd
+
+.PHONY: check-libc-c17-locale check-libc-c17-strtof check-libc-c17-time check-libc-c17-math check-libc-c17-wide
+
 check-libc-qsort-context:
 		${MAKE} -C tests/libc_contracts check-qsort-context
 
@@ -1462,6 +1544,19 @@ check-flash-checkpoint: check-python
 check-flash-reset-cells: check-python
 		${MAKE} -C tests/rp2040/flash_reset_cells check PYTHON=${PYTHON:Q}
 
+# The diagnostic reset at the Nth flash chip command
+# (sys/arch/rp2040/dev/flash_reset_hook.h) over a model of the boot ROM's
+# erase and program loops; tests/rp2040/flash_reset_hook/check.sh states each
+# expectation and its mutants.
+check-flash-reset-hook: check-python
+		${MAKE} -C tests/rp2040/flash_reset_hook check PYTHON=${PYTHON:Q}
+
+# The swap-sector erase counters of STORAGE_STATS kernels
+# (sys/arch/rp2040/dev/flash_wear.h) against an integer model;
+# tests/rp2040/flash_wear/check.sh states each expectation and its mutants.
+check-flash-wear: check-python
+		${MAKE} -C tests/rp2040/flash_wear check PYTHON=${PYTHON:Q}
+
 # The production collector trigger of sys/arch/rp2040/dhara/map.c against an
 # adversarial tail-live workload, resets with resume, and a rewrite-cost
 # ceiling; tests/rp2040/dhara_trigger/check.sh states each and its mutants.
@@ -1578,6 +1673,43 @@ check-core1-emulation: check-python
 		    sh tests/core1/check-emulation.sh ${CORE1_EMULATION_BOARD}
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
+
+# check-unicorn-kernel calls single functions of a built kernel's unix.elf
+# (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares
+# them with Python references under Hypothesis, then requires each property
+# to reject mutated copies of its function's machine code
+# (tools/unicorn/check_kernel_functions.py). CI installs no Hypothesis, so
+# the target stays on demand, outside "check" and every aggregate.
+check-unicorn-kernel: check-python
+		@# Calibration: a filter naming an unknown property must exit 2
+		@# and must not run the remaining ones.
+		@set -e; kernel=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf; \
+		for only in "--only nosuch" "--only bzero --only nosuch"; do \
+			status=0; \
+			${PYTHON} tools/unicorn/check_kernel_functions.py \
+			    --kernel "$$kernel" --no-mutants $$only \
+			    >/dev/null 2>&1 || status=$$?; \
+			if [ "$$status" -ne 2 ]; then \
+				echo "check_kernel_functions.py exit $$status, expected 2, for $$only" >&2; exit 1; \
+			fi; \
+		done
+		@# Calibration: a property's call sequence, which drives the varied
+		@# caller-saved registers, must not depend on the properties run
+		@# before it. bcmp after bzero and bcmp alone must print one digest.
+		@set -e; kernel=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf; \
+		digest() { \
+			${PYTHON} tools/unicorn/check_kernel_functions.py \
+			    --kernel "$$kernel" --no-mutants "$$@" | \
+			    sed -n 's/^PASS unicorn-kernel bcmp: .* trace \([0-9a-f]*\),.*/\1/p'; \
+		}; \
+		full=$$(digest --only bzero --only bcmp); alone=$$(digest --only bcmp); \
+		if [ -z "$$full" ] || [ "$$full" != "$$alone" ]; then \
+			echo "bcmp call trace after bzero '$$full', alone '$$alone'" >&2; exit 1; \
+		fi
+		${PYTHON} tools/unicorn/check_kernel_functions.py \
+		    --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf
+
+.PHONY: check-unicorn-kernel
 
 # The swap-codec cycle model of docs/research/picocalc-device-first. Its
 # committed run-output.tsv is a fixed oracle for one compiler version: oracle.sh
@@ -1718,7 +1850,7 @@ check-elf2aout:	tools
 # include.
 HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
-		check-kernel-headroom-validator \
+		check-kernel-headroom-validator check-hot-layout-validator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
@@ -1747,7 +1879,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger \
 		check-swap-tier-model \
-		check-flash-checkpoint check-flash-reset-cells \
+		check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
 		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
 		check-flash-sparse \
@@ -2111,7 +2243,7 @@ check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapr
 		check-rp2040-fileops .WAIT check-rp2040-ioconf .WAIT check-rp2040-tty-roots .WAIT \
 		check-rp2040-callout-roots .WAIT check-rp2040-nlist .WAIT \
 		check-board-descriptor .WAIT check-core1-image .WAIT \
-		check-kernel-headroom
+		check-kernel-headroom .WAIT check-hot-layout
 
 # Divider fixtures calibrate instruction windows and ELF alias extents.
 check-cross-assembler:
@@ -2294,6 +2426,15 @@ check-renode-capacity:
 # "differs" branch of image_identify() runs and the loader's stamp span is
 # shown to be skipped. Outside "check" for the reason
 # check-renode is.
+# The asynchronous system trap on the emulated PICO_UART kernel:
+# tools/renode/check-preempt.sh adds tests/rp2040/preempt to a copy of
+# ${FSIMG} and boots it once per case; each case runs a loop with no system
+# call that only a signal or a switch from the clock tick can end. Outside
+# "check" for the reason check-renode is.
+check-renode-preempt:
+		${MAKE} -C tests/rp2040/preempt MACHINE=${MACHINE}
+		sh tools/renode/check-preempt.sh ${FSIMG}
+
 check-renode-identity:
 		sh tools/renode/check-identity.sh ${FLASHBIN}
 
@@ -2393,17 +2534,19 @@ cleantests:
 			${MAKE} -C "$${mf%/Makefile}" clean || status=1; \
 		done; exit $$status
 
-# Every board's root image, flash image and descriptor-stamped kernel, which
-# distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
-# flash${BOARD_OUT_SUFFIX}.{bin,uf2} and unix${BOARD_OUT_SUFFIX}.uf2, so a
-# clean after one board's build also removes another's.
+# Every board's root image, flash image, descriptor-stamped kernel and SD
+# root, which distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
+# flash${BOARD_OUT_SUFFIX}.{bin,uf2}, unix${BOARD_OUT_SUFFIX}.uf2 and
+# sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img, so a clean after one
+# board's build also removes another's.
 cleanfs:
 		rm -f distrib/$(MACHINE)/_manifest distrib/$(MACHINE)/_manifest.*
 		rm -f $(FSIMG) distrib/$(MACHINE)/sdcard.img \
 		    distrib/$(MACHINE)/sdcard-*.img distrib/$(MACHINE)/flash.bin \
 		    distrib/$(MACHINE)/flash.uf2 distrib/$(MACHINE)/flash-*.bin \
 		    distrib/$(MACHINE)/flash-*.uf2 distrib/$(MACHINE)/unix.uf2 \
-		    distrib/$(MACHINE)/unix-*.uf2
+		    distrib/$(MACHINE)/unix-*.uf2 distrib/$(MACHINE)/sdroot.img \
+		    distrib/$(MACHINE)/sdroot-*.img
 
 # A tuple switch is safe only after every source-directory artifact class has
 # cleaned successfully. The serialized recipe avoids overlapping cleanup of
@@ -2436,7 +2579,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
@@ -2485,6 +2628,7 @@ installfs:
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump \
 		check-renode-picocalc-sdroot check-renode-union \
+		check-renode-preempt \
 		check-renode-union-lean check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \

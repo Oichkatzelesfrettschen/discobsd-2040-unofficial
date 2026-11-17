@@ -86,6 +86,12 @@ artifact points at.
 
 ## Research corpus: `docs/research`
 
+The [graph-layout experiment](research/graph-layout-experiment.md) provides a
+host-only graph heat-diffusion, QUBO/Ising and ideal-QAOA locality study with
+synthetic calibration fixtures. It establishes model behavior, not board speed.
+The [implementation audit](research/implementation-scope.md) maps every
+discussed performance/security track to executable work and remaining evidence.
+
 Carried with their history from the notes repository, and added to since.
 Grouped by what they investigate.
 
@@ -96,6 +102,7 @@ Grouped by what they investigate.
 | `bootsel-button.md` | BOOTSEL and USB re-entry on bare metal, with no debug probe |
 | `firmware-updates.md` | what firmware an original Pico (silicon B2) carries and what an owner can update |
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
+| `rp2040-systick-ast.md` | why a process that makes no system call kept its signals and the processor (SysTick never reached `userret`), the clock-tick trap through PendSV that fixes it, the r12 and SIO divider state the trap must carry, and the Renode calibration with its mutants and size deltas |
 | `swapram-uart-echo-stall.md` | why the Renode capacity gate saw a console echo stall on SwapRAM kernels: `clistbound`'s typed residue overflowing `TTYHOG` under the line-paced PL011 model, the discriminating runs, the state at the stall, the board prediction and the fix with its calibration |
 | `memory-devices.md` | every RAM, ROM and storage device the RP2040 reaches on a bare Pico and on the PicoCalc, checked against the schematic and data sheets (the PSRAM's quad wiring, ALDO2 supply and chip-select pull-up), the keyboard controller's full register set, the clocks user programs can read, a driver audit, the compression early-stop options and a slice-by-slice driver plan |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
@@ -147,6 +154,7 @@ Grouped by what they investigate.
 | `program-window-large-swap.md` | what an 8 MB PSRAM swap changes (process count, switch latency, wear) and what it does not (the 192 KB window), the swap capacity per device against `NPROC`, and four designs that would raise the program bound with their costs |
 | `swap-admission-early-stop.md` | how eight systems decide whether to compress before paying for it, seven admission rules measured on the kernel's heatshrink encoder under the cycle model with text, refusal cost and false-refusal counts, and the recommended set |
 | `swap-admission-early-stop/` | the rule functions, cycle-model runner, build script, self-test and committed outputs behind `swap-admission-early-stop.md` |
+| `rp2040-optimization/` | the 32-bit C17/Thumb-1 optimization program notes: the retained alignment policy, the linked RAM map of six kernels with DPSRAM ownership and the process-window bound, flash telemetry and interruption-recovery evidence order, and the BSD design comparisons |
 | `ram-compression.md` | the compression options against RAM and flash pressure, with measured costs |
 | `storage-techniques.md` | techniques from other small systems, and the SWAPRAM enable path |
 | `log-structured-store-scope.md` | scope of an F2FS-inspired log-structured store for the NOR root and an SPI SD card: F2FS mechanisms with on-media and RAM costs, the measured kernel text and SRAM budget of the four kernels, log-on-log over Dhara, what SPI mode lacks (no Discard or FULE, Class 0), which earlier flash results carry to SD, the mount-switch cost, and a ranked list of at most five steps with falsifiers |
@@ -159,10 +167,13 @@ Grouped by what they investigate.
 | `rp2040-single-kernel.md` | the four RP2040 kernel configurations tested against one kernel binary with a flash board descriptor: PSRAM already probes at runtime, PICO_UART exists for the USB-less Renode model, the PicoCalc pins need a presence decision first, and the user-window layout is the granularity that stays in the build |
 | `board-descriptor-brief.md` | the work brief the board descriptor was built from: the decided design (one kernel, a checksummed `.board` section patched into `unix.uf2` per board), the ordered work items and their acceptance; `board-descriptor.md` holds the result |
 | `flash-reset-recovery-cells.md` | the processor-reset half of W03 as a table of recovered-state predictions per operation and acknowledgment history, the chip facts a reset rests on, the host oracle that cuts every chip command, the checkpoint-tear defect it found, and what a board run needs |
+| `dhara-torn-checkpoint.md` | why `find_root()` accepts a Dhara checkpoint page only when the sector tree it roots is whole: the torn-page mechanism of a reset inside the four chip programs, the second path through an erased epoch in block 0 after a wrap, the soundness argument over the existing format, the format-change and programming-order alternatives, and the kernel cost |
 | `flash-storage-expectation-plan.md` | the storage expectation audit verified against source: per-request Dhara checkpoint padding as the cost driver, the `fs_fmod` gap in `sync()`, and a phased plan with gates and predictions |
 | `trim-cost-model.md` | trim at free and deferred free-list sweeps against no trim, by workload, in the host model, with the board result that refutes trim at free for compiles; the trim work is retained on `archive/rp2040-trim-freed-blocks` and `archive/rp2040-free-list-sweep` (`unimplemented-storage-work.md`) |
 | `unimplemented-storage-work.md` | storage mechanisms built, measured and left out of `main` (trim at free, the inode-before-free order, the deferred free-list sweep and their tests), each with its deciding measurement, the condition that reopens it and the archive branch that holds the code |
+| `flash-wear-integration.md` | the trim, free-list sweep, wear-evaluation and swap-wear-probe branches decomposed by mechanism against `main`: each mechanism's source commit, measured benefit, recorded kernel text and RAM cost, successor on `main` and disposition, the tests left on the archive branch and the open decisions |
 | `rp2040-flash-trim-ordering.md` | when a freed block may be discarded: the inode-before-free rule across the BSD lineages, where Linux and embedded file systems issue discards, why Dhara reduces the rule to call order, the FIFO cleaning-cost knee at a live share of 0.8, and the outcome (safe, not merged for wear) |
+| `kernel-size-flags/` | the two kernel flag sweeps and the bare Pico timing transcripts behind the `CSIZEFLAGS` entry of `kernel-footprint-handoff.md` |
 | `trim-survey/` | the survey reports and bare Pico console captures behind the discard-ordering note, the trim cost model and the flash wear table, with the scripts that recompute the per-compile figures |
 | `dhara-audit.md` | the root's Dhara journal against alternative designs for this NOR part: the checkpoint page layout and its tear windows measured byte by byte, PR 636's tree walk beside an upstream fallback, a minimum-gap heal, an additive CRC-32, a commit marker and the LittleFS, SPIFFS, JFFS2, CHFS, UBI, YAFFS2 and HAMMER2 mechanisms with their text and RAM cost, how many roots the old kernel could have damaged and which migration keeps their data, and why a failed resume should refuse to mount |
 | `filesystem-storage-overhaul.md` | what a filesystem clean flag (2.11BSD patches 456, 458 and 461) would save at boot on the Dhara root and on SD filesystems, measured under Renode and by a calibrated host count of fsck's I/O, the falsifiers for that benefit, the storage stack layer by layer, the SD and flash drivers against RetroBSD, LiteBSD, 2.11BSD, NetBSD, OpenBSD and FreeBSD, a C17 census and a slice plan split at the rename; `filesystem-storage-overhaul/` holds the Renode driver, the host model with its counting shim and the measured rows |
@@ -170,9 +181,12 @@ Grouped by what they investigate.
 | `ufs-fixed-table-sram-reduction.md` | the SRAM the fixed UFS tables cost and how it shrinks |
 | `constrained-c.md` | C techniques that hold inside a 192 KB process window |
 | `footprint-techniques.md` | flash and SRAM techniques ranked by measured payoff and mapped to this tree: XIP libc, multicall membership, alignment-hole packing, bounded scans, per-artifact flag experiments, and why kernel overlays and wholesale shared stacks do not pay |
+| `kernel-footprint-pr435-closeout.md` | the disposition of every commit and mechanism of PR #435 (21 commits, archived at `archive/codex-c17-thumb-alignment`): what `main` has, what replaced it, what was ported (Dhara interruption oracle, clist byte test, four notes) and what stays open with its measured cost (compact dispatch, UART packing, assembler preprocessing, strict-prototype flags, alignment sort) |
 | `kernel-footprint-handoff.md` | the measured kernel and libc footprint work queue: never-returning libc entry points, `struct user` load reach, unreferenced kernel functions, the `adjtime` 64-bit divide, a lean PICO beside PICO_DIAG, the `-O2` capacity-index block, kernel LTO blockers and unprototyped designs, each with location, bytes and acceptance |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
+| `c17-library-closure.md` | the hosted C17 clause 7 surface: decomposition of the libc compliance request, measured absent names per header, mechanism invariants, ordered units, and the delivered div/ldiv/lldiv/llabs and `<iso646.h>` contract |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
+| `c17-posix-program-state.md` | observed main, 32 merged and six open program PRs, all fourteen work-package dispositions, resource/evidence boundaries and restart ownership |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |
 | `kernel-checksum-capture.md` | in-place kernel checksum stamping, retained pre/post ELF identities and calibrated source attribution |
 | `libc-passwd-header-inclusion.md` | repeated password-header inclusion, preserved public types/layout, captured callers, native compatibility and paired static resources |

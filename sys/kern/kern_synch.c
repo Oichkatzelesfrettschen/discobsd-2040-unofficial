@@ -88,7 +88,7 @@ updatepri(register struct proc *p)
  * (p_wchan non zero) then set timeout flag and undo the sleep.  If proc
  * is stopped just unsleep so it will remain stopped.
  */
-static void
+void
 endtsleep (caddr_t argument)
 {
     register struct proc *p = (struct proc *)argument;

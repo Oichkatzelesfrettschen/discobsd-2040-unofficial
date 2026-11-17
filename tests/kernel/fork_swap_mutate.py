@@ -4,7 +4,10 @@ import argparse
 from pathlib import Path
 
 MUTATIONS = {
-    "ignore-reservation-refusal": ("        return -1;", "        return 0;"),
+    "ignore-reservation-refusal": (
+        "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return -1;",
+        "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return 0;",
+    ),
     "publish-allproc-early": (
         "    if (swap_image_reserve (&reservation, child, parent,",
         "    allproc = child;\n    if (swap_image_reserve (&reservation, child, parent,",
@@ -113,7 +116,10 @@ MUTATIONS = {
         "        /* Child */\n        u.u_rval = 0;",
         "        /* Child */\n        u.u_rval = p2->p_pid;",
     ),
-    "refusal-result-child": ("        return -1;", "        return 1;"),
+    "refusal-result-child": (
+        "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return -1;",
+        "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return 1;",
+    ),
     # Process 1 reserves a u-area-only image: empty segments write nothing.
     "write-empty-data-segment": (
         "    if (odata) {\n#ifdef SWAPRAM",
@@ -170,6 +176,151 @@ MUTATIONS = {
         "                    &reservation);",
         "                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"
         "                    NULL);",
+    ),
+    # A swap device that leaves (swap_lost): the fork unwind, the resident
+    # that stays, the processes retired and the ones spared.
+    "lost-fork-no-unwind": (
+        "    u.u_procp = parent;\n#ifdef SDSWAP_ENABLED\n"
+        "    if (reservation.state != SWAP_IMAGE_COMMITTED) {",
+        "    u.u_procp = parent;\n#ifdef SDSWAP_ENABLED\n    if (0) {",
+    ),
+    "lost-fork-keep-files": (
+        "            if (fp != NULL)\n                fp->f_count--;",
+        "            (void)fp;",
+    ),
+    "lost-fork-keep-directory": ("        u.u_cdir->i_count--;", "        (void)0;"),
+    "lost-fork-keep-text": (
+        "        if (child->p_tip)\n            child->p_tip->i_count--;",
+        "        (void)0;",
+    ),
+    "lost-fork-keep-pidhash": (
+        "        *hash = child->p_hash;\n        }",
+        "        (void)hash;\n        }",
+    ),
+    "lost-swapin-loads": (
+        "    if (swap_lost)\n        return;\n    swap_image_release (p);",
+        "    swap_image_release (p);",
+    ),
+    "lost-copy-commits": (
+        "        p->p_flag &= ~SLOCK;\n"
+        "        swap_image_cancel (reservation);\n"
+        "        return;",
+        "        (void)0;",
+    ),
+    "lost-copy-keeps-lock": (
+        "        p->p_flag &= ~SLOCK;\n        swap_image_cancel (reservation);",
+        "        swap_image_cancel (reservation);",
+    ),
+    "lost-sched-swapin-over-resident": (
+        "                if (reservation.state != SWAP_IMAGE_COMMITTED) {\n"
+        "                    swapped_out = 0;\n"
+        "                    continue;\n"
+        "                }",
+        "",
+    ),
+    "lost-sched-no-sweep": ("            swap_lost_sweep ();\n", ""),
+    "lost-sched-drop-resident": (
+        "        if (exchange_refusal || swap_lost == SWAP_LOST_NEW) {",
+        "        if (exchange_refusal) {",
+    ),
+    "lost-sweep-kills-pool": (
+        "        if (swapram_present (p))\n"
+        "            continue;\n"
+        "#endif\n"
+        "        swap_lost_retire (p);",
+        "#endif\n        swap_lost_retire (p);",
+    ),
+    "lost-sweep-kills-system": (
+        "        if (p->p_flag & (SLOAD | SSYS))",
+        "        if (p->p_flag & SLOAD)",
+    ),
+    "lost-reserve-after-loss": ("    if (swap_lost)\n        return ENOMEM;\n", ""),
+    "lost-exchange-on-removable": (
+        "    if (swap_removable || ! swap_exchange_tail_reserve (incoming->p_daddr,",
+        "    if (! swap_exchange_tail_reserve (incoming->p_daddr,",
+    ),
+    "lost-init-retired": (
+        '    if (p->p_pid == 1)\n        panic ("init lost with the swap device");',
+        "",
+    ),
+    # A vfork parent whose lent image went exits in newproc(), never
+    # behind a signal: returning instead, missing the nested case, or
+    # leaving the exiting child waiting for SVFDONE must fail.
+    "lost-vfork-parent-spared": (
+        "            parent->p_flag &= ~SVFPRNT;\n            exit (SIGKILL);",
+        "            parent->p_flag &= ~SVFPRNT;\n            return(0);",
+    ),
+    "lost-vfork-takes-zombie-sizes": (
+        "        if (child->p_stat == SZOMB || child->p_ssize == 0) {",
+        "        if (0) {",
+    ),
+    "lost-vfork-nested-spared": (
+        "        if (child->p_stat == SZOMB || child->p_ssize == 0) {",
+        "        if (child->p_stat == SZOMB) {",
+    ),
+    "lost-vfork-zombie-after-fallback": (
+        "        if (child->p_stat == SZOMB || child->p_ssize == 0) {",
+        "        if (swap_lost && child->p_stat == SZOMB) {",
+    ),
+    "lost-vfork-child-unreleased": (
+        "            child->p_flag |= SVFDONE;\n            wakeup ((caddr_t) parent);\n"
+        "            parent->p_flag &= ~SVFPRNT;\n            exit (SIGKILL);",
+        "            parent->p_flag &= ~SVFPRNT;\n            exit (SIGKILL);",
+    ),
+    # A retired vfork parent releases the child that holds its image.
+    "lost-vfork-parent-child-held": (
+        "                q->p_flag = (q->p_flag & ~SVFORK) | SVFDONE;",
+        "                (void)q;",
+    ),
+    "lost-vfork-parent-child-unwoken": (
+        "                q->p_flag = (q->p_flag & ~SVFORK) | SVFDONE;\n"
+        "        wakeup ((caddr_t) p);",
+        "                q->p_flag = (q->p_flag & ~SVFORK) | SVFDONE;",
+    ),
+    "lost-vfork-child-kept-waiting": (
+        "        p->p_flag &= ~SVFORK;\n        wakeup ((caddr_t) p);",
+        "        wakeup ((caddr_t) p);",
+    ),
+    "lost-sleeper-queued": ("    unsleep (p);", "    (void)0;"),
+    # The zombie conversion and reparenting are exit()'s, in proc_zombie()
+    # (kern_exit.c), which swap_lost_retire() calls.
+    "lost-children-kept": ("            q->p_ppid = 1;", "            (void)0;"),
+    "lost-parent-untold": (
+        "    psignal(p->p_pptr, SIGCHLD);\n    wakeup((caddr_t) p->p_pptr);",
+        "    wakeup((caddr_t) p->p_pptr);",
+    ),
+    "lost-status-clean": ("    proc_zombie (p, SIGKILL);", "    proc_zombie (p, 0);"),
+    "lost-zombie-hashed": (
+        "            *pp = p->p_hash;\n            goto done;",
+        "            goto done;",
+    ),
+    "lost-timeout-kept": ("    untimeout (endtsleep, (caddr_t) p);", "    (void)0;"),
+    "lost-keyevs-kept": ("    lcdcons_procexit (p);", "    (void)p;"),
+    "lost-traced-child-kept": (
+        "            if (q->p_flag& P_TRACED) {\n"
+        "                q->p_flag &= ~P_TRACED;\n"
+        "                psignal(q, SIGKILL);\n"
+        "            } else if",
+        "            if (0) {\n            } else if",
+    ),
+    "lost-stopped-child-kept": (
+        "                psignal(q, SIGHUP);\n                psignal(q, SIGCONT);",
+        "                (void)0;",
+    ),
+    # After the sweep swap returns to the fixed device once the lost one's
+    # map is empty: sched() must ask, a retired image must give its blocks
+    # back, and a block still held must keep the lost device's map in place.
+    "lost-no-fallback": (
+        "        if (swap_lost == SWAP_LOST_SWEPT)\n            swap_lost_fallback ();\n",
+        "",
+    ),
+    "lost-retire-keeps-blocks": (
+        "    mfree (swapmap, swap_image_span (p), p->p_daddr);\n    /*",
+        "    /*",
+    ),
+    "lost-fallback-ignores-holder": (
+        "    if (! swap_map_empty ())\n        return;\n    blocks",
+        "    blocks",
     ),
 }
 

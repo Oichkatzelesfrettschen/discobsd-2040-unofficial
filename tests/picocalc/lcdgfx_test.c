@@ -127,7 +127,7 @@ violation(const char *what)
 void
 lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 {
-	const unsigned char *glyph;
+	unsigned char glyph[LT_GLYPH_ROWS];
 
 	if (prow < 0 || prow >= LT_ROWS || col < 0 || col >= LT_COLS) {
 		fprintf(stderr, "draw outside panel: %d,%d\n", prow, col);
@@ -136,8 +136,7 @@ lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 	ndraw++;
 	panel_ch[prow][col] = (unsigned char)ch;
 	panel_at[prow][col] = (unsigned char)attr;
-	glyph = lcdterm_glyph(ch);
-	if (glyph != NULL)
+	if (lcdterm_glyph(ch, glyph))
 		memcpy(panel_bits[prow][col], glyph, LT_GLYPH_ROWS);
 	else
 		memset(panel_bits[prow][col], 0, LT_GLYPH_ROWS);

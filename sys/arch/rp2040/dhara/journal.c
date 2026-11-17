@@ -95,6 +95,24 @@ static inline size_t hdr_user_offset(uint8_t which)
 static int metadata_page_valid(const struct dhara_journal *, dhara_page_t,
 			       size_t *);
 
+/* DiscoBSD local change: a page carrying the magic is a checkpoint only
+ * when its tail names a page of the chip. A reset inside the first program
+ * of a checkpoint page that stops within the first eight bytes leaves the
+ * epoch or the tail's high byte erased. Every written tail is a page index
+ * below the page count, and an index whose high byte is 0xff exceeds any
+ * page count below 2^24 (1536 pages here), so such a page reads as carrying
+ * no checkpoint. Without this, a page torn after its magic in block 0 of a
+ * wrapped journal gives dhara_journal_resume() the erased epoch 0xff as
+ * the journal's epoch, and no checkpoint of the lap matches it.
+ */
+static inline int hdr_is_checkpoint(const struct dhara_journal *j,
+				    const uint8_t *buf)
+{
+	return hdr_has_magic(buf) &&
+	       hdr_get_tail(buf) <
+		((dhara_page_t)j->nand->num_blocks << j->nand->log2_ppb);
+}
+
 /************************************************************************
  * Page geometry helpers
  */
@@ -238,7 +256,7 @@ static int find_checkblock(struct dhara_journal *j,
 		      dhara_nand_read(j->nand, p,
 				      0, 1 << j->nand->log2_page_size,
 				      j->page_buf, err)) &&
-		    hdr_has_magic(j->page_buf)) {
+		    hdr_is_checkpoint(j, j->page_buf)) {
 			*where = blk;
 			return 0;
 		}
@@ -342,11 +360,142 @@ static dhara_page_t find_last_group(struct dhara_journal *j,
 	return blk << j->nand->log2_ppb;
 }
 
+/* DiscoBSD local change: a checkpoint page is accepted only when the
+ * sector map it records is whole.
+ *
+ * A driver that programs one page through several chip commands (the
+ * RP2040 NOR driver, sys/arch/rp2040/dev/flash.c, issues four 256-byte page
+ * programs per 1 KiB page) leaves, after a processor reset inside the
+ * program, a page whose leading bytes hold the magic and epoch and whose
+ * trailing bytes are still erased. The bytes of such a page differ from the
+ * page the journal meant to write only in fields that read as all-ones or
+ * whose high byte reads 0xff. No page-local rule separates it from a
+ * complete page whose trailing fields are legitimately erased, so the test
+ * below reads the tree the page roots.
+ *
+ * map.c keeps two facts in the page: the cookie holds the number of live
+ * sectors (ck_set_count() before every enqueue or copy), and the last user
+ * page of the group is the root of a radix tree whose metadata is a 32-bit
+ * sector id followed by CP_RADIX_DEPTH alt pointers. Every live sector is
+ * one node, reached from the root through alt pointers of strictly
+ * increasing depth. cp_tree_whole() walks that tree and accepts the page
+ * when no id reads as erased (0xffffffff, the one value map.h reserves),
+ * every alt pointer is erased or names a user page, and the nodes number
+ * exactly the cookie, which is at most the page count. A reset inside the
+ * root's slot, the last one in the page, leaves the id or the alt pointers
+ * partly erased. With two or more live sectors the root has an alt pointer
+ * that leads to the rest of the tree, so any such tear erases that pointer,
+ * a subtree and its sectors go missing, and the node count falls short of
+ * the cookie: every id from 0 to 0xfffffffe passes the test, those with a
+ * high byte of 0xff included. A reset inside an earlier slot leaves the
+ * root slot erased, which fails as an erased root id. A root whose id is
+ * erased is the empty map and holds only with a zero count.
+ *
+ * One live sector is the case the page cannot decide. Its root has no alt
+ * pointer, so a reset inside the id leaves the low bytes written and the
+ * high bytes erased, and the page is byte for byte the complete page of
+ * another id with those high bytes at 0xff. The test refuses a single-sector
+ * root whose id reads 0xff in the high byte, the form such a tear produces,
+ * and so also refuses a genuine map of one sector at an id of 0xff000000 or
+ * above; the previous checkpoint then answers. flstrategy() forms ids from
+ * 32-bit block offsets, and only a partition entry reaching about 4 TiB
+ * yields one, so the kernel does not reach the refused ids. Accepting them
+ * needs a commit marker in the page, a format change.
+ *
+ * The walk holds one frame per depth, CP_RADIX_DEPTH + 1 at most, and reads
+ * the chip directly: during resume j->head is not yet known, so
+ * dhara_journal_read_meta() could serve the buffered group from page_buf,
+ * and page_buf still holds the header and cookie the caller restores.
+ */
+#define CP_RADIX_DEPTH		32	/* map.c DHARA_RADIX_DEPTH */
+#define CP_ID_ERASED		((uint32_t)0xffffffff)
+
+/* Read the 32-bit field at byte off of user page p's metadata. */
+static int meta_field(const struct dhara_journal *j, dhara_page_t p,
+		      size_t off, uint32_t *v)
+{
+	uint8_t b[4];
+	size_t offset;
+
+	if (!metadata_page_valid(j, p, &offset) ||
+	    dhara_nand_read(j->nand, p | (((dhara_page_t)1 << j->log2_ppc) - 1),
+			    offset + off, sizeof(b), b, NULL) < 0)
+		return -1;
+
+	*v = dhara_r32(b);
+	return 0;
+}
+
+static int cp_tree_whole(const struct dhara_journal *j, dhara_page_t root)
+{
+	const uint32_t pages =
+		(uint32_t)j->nand->num_blocks << j->nand->log2_ppb;
+	const uint32_t count = dhara_r32(j->page_buf + DHARA_HEADER_SIZE);
+	dhara_page_t page[CP_RADIX_DEPTH + 1];
+	uint8_t level[CP_RADIX_DEPTH + 1];
+	dhara_page_t next = root;
+	uint8_t next_level = 0;
+	uint32_t seen = 0;
+	uint32_t root_id;
+	uint32_t v;
+	int top = -1;
+
+	if (meta_field(j, root, 0, &v) < 0)
+		return 0;
+	if (v == CP_ID_ERASED)
+		return count == 0;
+	if (count > pages)
+		return 0;
+	root_id = v;
+
+	for (;;) {
+		if (next != DHARA_PAGE_NONE) {
+			if (meta_field(j, next, 0, &v) < 0 || v == CP_ID_ERASED ||
+			    ++seen > count)
+				return 0;
+			top++;
+			page[top] = next;
+			level[top] = next_level;
+			next = DHARA_PAGE_NONE;
+		}
+
+		if (top < 0)
+			break;
+
+		if (level[top] >= CP_RADIX_DEPTH) {
+			top--;
+			continue;
+		}
+
+		next_level = level[top]++;
+		if (meta_field(j, page[top], 4 + ((size_t)next_level << 2),
+			       &v) < 0)
+			return 0;
+
+		next = v;
+		next_level++;
+	}
+
+	return seen == count && (count != 1 || (root_id >> 24) != 0xff);
+}
+
+/* DiscoBSD local change: the search steps back past a checkpoint that
+ * cp_tree_whole() rejects, into the block before when this block holds no
+ * earlier one, at most DHARA_MAX_RETRIES blocks back. Only the page in
+ * program when the reset came can be torn, and the journal programs pages
+ * in order, so the newest whole checkpoint before it is the state the
+ * journal last recorded. A rejected page stays on the chip until the head
+ * erases its block; find_head() places the head after it, so a later
+ * search meets it again and rejects it again. Stepping from block 0 into
+ * the last block steps the expected epoch back one lap.
+ */
 static int find_root(struct dhara_journal *j, dhara_page_t start,
 		     dhara_error_t *err)
 {
-	const dhara_block_t blk = start >> j->nand->log2_ppb;
+	dhara_block_t blk = start >> j->nand->log2_ppb;
 	int i = (start & ((1 << j->nand->log2_ppb) - 1)) >> j->log2_ppc;
+	uint8_t epoch = j->epoch;
+	int blocks = 0;
 
 	while (i >= 0) {
 		const dhara_page_t p = (blk << j->nand->log2_ppb) +
@@ -355,13 +504,22 @@ static int find_root(struct dhara_journal *j, dhara_page_t start,
 		if (!dhara_nand_read(j->nand, p,
 				     0, 1 << j->nand->log2_page_size,
 				     j->page_buf, err) &&
-		    (hdr_has_magic(j->page_buf)) &&
-		    (hdr_get_epoch(j->page_buf) == j->epoch)) {
+		    hdr_is_checkpoint(j, j->page_buf) &&
+		    (hdr_get_epoch(j->page_buf) == epoch) &&
+		    cp_tree_whole(j, p - 1)) {
 			j->root = p - 1;
 			return 0;
 		}
 
 		i--;
+		if (i < 0 && ++blocks <= DHARA_MAX_RETRIES) {
+			if (!blk) {
+				blk = j->nand->num_blocks;
+				epoch--;
+			}
+			blk--;
+			i = (1 << (j->nand->log2_ppb - j->log2_ppc)) - 1;
+		}
 	}
 
 	dhara_set_error(err, DHARA_E_TOO_BAD);

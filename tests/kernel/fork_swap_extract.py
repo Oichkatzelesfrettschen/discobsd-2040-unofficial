@@ -16,6 +16,7 @@ def main() -> None:
     ram = (args.root / "sys/arch/rp2040/rp2040/swapram.c").read_text()
     text = (args.root / "sys/kern/exec_aout.c").read_text()
     sched_source = (args.root / "sys/kern/vm_sched.c").read_text()
+    exit_source = (args.root / "sys/kern/kern_exit.c").read_text()
     # The allocator is compiled separately against the same kernel headers.
     # Codec and I/O boundaries are supplied by the fixture; fork and image
     # ownership definitions remain verbatim, including their preprocessor arms.
@@ -59,6 +60,10 @@ def main() -> None:
     ]
     boot = "static void fork_swap_boot(void) { int fork_result; " + boot + "}\n"
     release = extract_function(text, "void\nexec_text_release(", "text release")
+    # exit()'s zombie conversion, which swap_lost_retire() shares. Its one
+    # caller in this file is the SDSWAP_ENABLED retirement path.
+    zombie = extract_function(exit_source, "void\nproc_zombie(", "zombie conversion")
+    zombie = "#ifdef SDSWAP_ENABLED\n" + zombie + "\n#endif\n"
     # The fixture keeps its own sched() for the boot path, which only needs to
     # stop the boot parent, so the production scheduler loop is renamed.
     sched = extract_function(sched_source, "void\nsched()", "scheduler loop")
@@ -75,6 +80,8 @@ def main() -> None:
         + fork
         + "\n"
         + release
+        + "\n"
+        + zombie
         + "\n"
         + boot
     )

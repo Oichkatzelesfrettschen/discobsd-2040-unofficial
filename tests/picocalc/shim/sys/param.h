@@ -13,14 +13,20 @@
 
 typedef int		daddr_t;
 
+/* major() and minor() are ints, as sys/sys/types.h makes them. */
+#undef major
+#define	major(dev)	((int)(((dev) >> 8) & 0xff))
 #undef minor
 #undef makedev
-#define	minor(dev)	((dev) & 0xff)
+#define	minor(dev)	((int)((dev) & 0xff))
 #define	makedev(x, y)	((dev_t)(((x) << 8) | (y)))
 #define	DEV_BSIZE	1024
 #define	DEV_BSHIFT	10
 #define	btod(x)		(((x) + DEV_BSIZE - 1) >> DEV_BSHIFT)
 #define	HZ		1000
+/* The image alignment and the largest image, machine/machparam.h. */
+#define	SWAP_IMAGE_ALIGN	4
+#define	SWAP_IMAGE_GUARD	196
 #define	NODEV		((dev_t)-1)
 /* Register access goes to the model in tests/picocalc/regmodel.h. */
 extern volatile unsigned *shim_reg(unsigned long addr);

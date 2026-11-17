@@ -190,31 +190,37 @@ cleanflash:
 
 # The PicoCalc's root on its SD card, for a kernel the PicoCalc UF2 loader
 # starts (sdrootattach() in sys/arch/rp2040/dev/sd.c): every file of
-# ${DESTDIR}, with ${FSIMG}'s manifest for owners, modes and links
+# ${DESTDIR}, with the selection's manifest for owners, modes and links
 # (mksdmanifest.py) and the board test programs of tests/rp2040 in
 # /usr/tests/rp2040, as a bare filesystem of SDROOT_KBYTES with no
 # partition table and an /etc/fstab naming /dev/sd0${SDROOT_PART}, the MBR
 # slot of the card's first type-b7 partition. Write it at that
 # partition's first sector.
+# The image and its manifests carry the board's and the profile's suffixes,
+# and the base manifest is composed here from the selection's ${MI_MANIFEST},
+# so a picocalc-lean root and a picocalc root sit side by side and neither
+# reads the _manifest another board's image rule wrote last.
 SDROOT_KBYTES?=	32768
 SDROOT_PART?=	c
-SDROOTIMG=	${TOPSRC}/distrib/${MACHINE}/sdroot${BOARD_OUT_SUFFIX}.img
+SDROOTIMG=	${TOPSRC}/distrib/${MACHINE}/sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img
+SDROOT_MANIFEST=	distrib/${MACHINE}/_manifest.sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}
 
 sdroot:		${SDROOTIMG}
 
-${SDROOTIMG}:	${FSIMG} ${TOPSRC}/tools/picocalc/mksdroot.sh \
-		    ${TOPSRC}/distrib/${MACHINE}/mksdmanifest.py
+${SDROOTIMG}:	${FSIMG} ${MI_MANIFEST} distrib/${MACHINE}/md.${MACHINE} \
+		${TOPSRC}/tools/picocalc/mksdroot.sh \
+		${TOPSRC}/distrib/${MACHINE}/mksdmanifest.py
 		${MAKE} -C ${TOPSRC}/tests/rp2040 MACHINE=${MACHINE} \
 		    DESTDIR=${DESTDIR} install
+		cat ${MI_MANIFEST} distrib/${MACHINE}/md.${MACHINE} > ${SDROOT_MANIFEST}.base
 		${PYTHON} ${TOPSRC}/distrib/${MACHINE}/mksdmanifest.py \
-		    distrib/${MACHINE}/_manifest ${DESTDIR} \
-		    distrib/${MACHINE}/_manifest.sdroot
+		    ${SDROOT_MANIFEST}.base ${DESTDIR} ${SDROOT_MANIFEST}
 		sh ${TOPSRC}/tools/picocalc/mksdroot.sh ${TOOLBINDIR}/fsutil \
-		    ${DESTDIR} distrib/${MACHINE}/_manifest.sdroot \
-		    ${SDROOT_KBYTES} ${SDROOT_PART} $@
+		    ${DESTDIR} ${SDROOT_MANIFEST} ${SDROOT_KBYTES} \
+		    ${SDROOT_PART} $@
 
 cleansdroot:
-		rm -f ${SDROOTIMG}
+		rm -f ${SDROOTIMG} ${SDROOT_MANIFEST} ${SDROOT_MANIFEST}.base
 
 .PHONY:		sdroot cleansdroot
 

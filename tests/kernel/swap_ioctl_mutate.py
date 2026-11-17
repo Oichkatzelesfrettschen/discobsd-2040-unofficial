@@ -56,6 +56,8 @@ def main() -> None:
             "omit-root-check",
             "open-writes-live-swap",
             "transfer-writes-live-swap",
+            "open-forwards-live-swap",
+            "close-forwards-live-swap",
         ),
         required=True,
     )
@@ -98,7 +100,26 @@ def main() -> None:
         source = replace_once(
             source,
             "if (swap_live_write_refused(unit, mode & FWRITE))",
-            "if (swap_live_write_refused(unit, 0))",
+            "if (swap_live_write_refused(unit, mode & 0))",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "open-forwards-live-swap":
+        source = replace_once(
+            source,
+            "\t\treturn EPERM;\n\tif (unit >= NTMP && unit != 64)",
+            "\t\treturn EPERM;\n\tif (unit == 64)\n"
+            "\t\treturn bdevsw[major(swapdev)].d_open(swapdev, mode, flag);\n"
+            "\tif (unit >= NTMP && unit != 64)",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "close-forwards-live-swap":
+        source = replace_once(
+            source,
+            "swclose(dev_t dev, int mode __unused, int flag __unused)\n{\n"
+            "\tint unit = minor(dev);\n",
+            "swclose(dev_t dev, int mode __unused, int flag __unused)\n{\n"
+            "\tint unit = minor(dev);\n\n\tif (unit == 64)\n"
+            "\t\treturn bdevsw[major(swapdev)].d_close(swapdev, mode, flag);\n",
             arguments.mutation,
         )
     elif arguments.mutation == "transfer-writes-live-swap":

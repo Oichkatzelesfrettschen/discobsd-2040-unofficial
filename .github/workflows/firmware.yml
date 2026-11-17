@@ -54,11 +54,12 @@ jobs:
   rp2040:
     name: rp2040 kernel, flash image and gates
     runs-on: ubuntu-24.04
-    # The last nightly measured 58.8 minutes. The lean and diagnostic union
-    # tiers (4.8 minutes each, from the union tier's measured time) and the
-    # PICO refusal boot of the capacity tier (about 0.5) bring the predicted
-    # run to about 69 minutes.
-    timeout-minutes: 80
+    # A full run on main measured about 65 minutes; the asynchronous system
+    # trap tier adds 10.1. Hosted runners vary by about 25 percent between
+    # runs (the same steps took 899 and 1,098 seconds in the host tier), so
+    # the limit covers a slow runner's 94 minutes with margin, plus the
+    # qemu tier's C17 math family, which adds up to 25 more.
+    timeout-minutes: 135
     steps:
       - uses: actions/checkout@v4
         with:
@@ -288,11 +289,16 @@ jobs:
       # Strings, byte searches, context sorting and absolute values add sanitizers; the libc
       # QEMU tier replays strings, quick exit, context sorting and absolute values
       # as Thumb-1. Native archive omission controls cover callable abs/labs.
+      # Callable div/ldiv/lldiv/llabs run native, ILP32, sanitized and as Thumb-1.
+      # The C17 locale, strtof, time, math and wide families run the same way; time
+      # has no Thumb-1 variant and math holds Thumb-1 to glibc-checked digests.
       # This job installs cffi, hypothesis and pytest, so the swap tier
       # model gate fails rather than skips when one is missing.
+      # Measured 899 to 1,098 seconds on runs that finished; one runner had
+      # not finished at 1,140 with every gate so far passing.
       - name: Run the host tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 20
+        timeout-minutes: 28
         env:
           SWAP_TIER_MODEL_REQUIRED: "1"
         run: |
@@ -300,7 +306,7 @@ jobs:
             --label linux-host \
             --log .build-logs/linux-host.log \
             --status .build-logs/linux-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1140 \
+            --idle-timeout-seconds 300 --timeout-seconds 1620 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       # check-signal-sets-cross owns target signatures and Smaller C input;
@@ -381,13 +387,16 @@ jobs:
         # instruction work has separate scalar, state and budget controls.
         # Callable slots also check canonical pointers, exact ELF extents,
         # LTO, weak aliases and callbacks from a separately linked SRAM image.
-        timeout-minutes: 5
+        # The C17 math family runs 5.2 million checks and 36 mutants under
+        # qemu-user and prints nothing while a program runs, so the tier
+        # takes more than nine minutes locally with silences of minutes.
+        timeout-minutes: 32
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label linux-qemu \
             --log .build-logs/linux-qemu.log \
             --status .build-logs/linux-qemu.status.json \
-            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            --idle-timeout-seconds 900 --timeout-seconds 1800 \
             -- bmake MACHINE=rp2040 check-qemu
 
       - name: Run the board-build tier
@@ -469,6 +478,16 @@ jobs:
             --status .build-logs/linux-renode-capacity.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-capacity
+      - name: Run the Renode asynchronous system trap tier
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-preempt \
+            --log .build-logs/linux-renode-preempt.log \
+            --status .build-logs/linux-renode-preempt.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-preempt
       - name: Run the Renode image identity tier
         if: env.FULL_GATES == 'true'
         timeout-minutes: 15
@@ -666,7 +685,7 @@ jobs:
     name: Required ILP32 execution (shell, kernel, libc and utilities)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Install bmake and the 32-bit compiler support
@@ -685,17 +704,19 @@ jobs:
             --status .build-logs/posix-inventory.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-test-execution
-      # The inventory runs about ten minutes on a hosted runner. The gate
+      # With the C17 library families the inventory runs about twenty-one
+      # minutes on a hosted runner: one run finished inside 1320 s and the
+      # next was stopped there with libbn and libcalc still to run. The gate
       # deadline leaves half of that again, and the step limit stays above
       # the gate deadline so the gate writes its own terminal status.
       - name: Execute every required variant
-        timeout-minutes: 17
+        timeout-minutes: 34
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label posix-ilp32 \
             --log .build-logs/posix-ilp32.log \
             --status .build-logs/posix-ilp32.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 900 \
+            --idle-timeout-seconds 300 --timeout-seconds 1920 \
             -- bmake MACHINE=rp2040 check-ilp32-execution \
               TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
       # dc and bc need the 32-bit C library headers the gates job lacks,
@@ -735,7 +756,7 @@ jobs:
     name: rp2040 kernel, flash image on macOS
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
         with:
@@ -860,14 +881,17 @@ jobs:
       # Whole, the tier took 633 to 1354 s (median 1286 s) on the four runs
       # that finished and passed 1500 s on a fifth; each step's hard limit is
       # 1.5 times half that median.
+      # The first part also carries the C17 library families, whose math and
+      # wide fixtures run native and sanitized; with them it ran past 960 s
+      # with no failed gate, so its limit is 1500 s.
       - name: Run the host tier, first part
-        timeout-minutes: 18
+        timeout-minutes: 27
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host-a \
             --log .build-logs/macos-host-a.log \
             --status .build-logs/macos-host-a.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 960 \
+            --idle-timeout-seconds 300 --timeout-seconds 1500 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
       - name: Run the host tier, second part
         timeout-minutes: 18
@@ -977,6 +1001,136 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
+  # The graph-layout research tier is host-only and imports NumPy, SciPy,
+  # Unicorn, pyelftools and a pip-installed Zig, none of which the rp2040
+  # job installs, so the same commands stay an on-demand Makefile target
+  # (check-graph-layout, check-layout-extensions) and these two jobs install
+  # the pinned requirements for the nightly. Neither job builds a kernel or
+  # touches a board.
+  graph-layout-model:
+    name: Graph layout model and linker controls
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select the interpreter
+        run: echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+      - name: Install research dependencies
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" -m pip install -r tools/graph-layout-example/requirements.txt ruff==0.17.4
+      - name: Check research sources
+        timeout-minutes: 2
+        run: |
+          ruff check tools/graph_layout*.py tools/performance_lab*.py
+          ruff format --check tools/graph_layout*.py tools/performance_lab*.py
+      - name: Exercise mathematical and linker controls
+        timeout-minutes: 5
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYTHONWARNINGS: error
+        run: |
+          "$PYTHON" tools/graph_layout_test.py
+          "$PYTHON" tools/graph_layout_trace_test.py
+          "$PYTHON" tools/performance_lab_test.py
+
+  graph-layout-arm:
+    name: Graph layout compiled ARM traces under Unicorn
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Select the interpreter
+        run: echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+      - name: Install extended research dependencies
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" -m pip install -r tools/graph-layout-example/requirements-extended.txt ruff==0.17.4
+      - name: Lint the layout extensions
+        timeout-minutes: 2
+        run: ruff check tools/layout_*.py tools/arm_trace_experiment.py
+      - name: Exercise the MILP, noisy-circuit and tensor controls
+        timeout-minutes: 5
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          "$PYTHON" tools/layout_solver_extensions_test.py
+      - name: Compile the HSX decoder and trace it under Unicorn
+        timeout-minutes: 5
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          "$PYTHON" tools/arm_trace_experiment.py --output "${RUNNER_TEMP}/arm-trace"
+      - name: Retain the emulated ARM traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulated-arm-traces
+          path: ${{ runner.temp }}/arm-trace/
+          if-no-files-found: warn
+
+  # The hybrid-signature release verifier and the Lean policy proofs are
+  # host-only: no kernel, board or serial port is involved. The ML-DSA-65
+  # signing path needs OpenSSL 3.5 or newer. The ubuntu-24.04 runner image
+  # ships OpenSSL 3.0.x, which has no ML-DSA, so the hybrid-signatures job
+  # installs openssl 3.5.7 from conda-forge and the tests refuse to skip
+  # (DISCOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
+  pq-release-proofs:
+    name: Release policy proofs (Lean 4.19.0)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: tools/proofs
+          build: 'true'
+          test: 'false'
+          lint: 'false'
+      - name: Calibrate proof and geometry checks
+        timeout-minutes: 5
+        working-directory: tools/proofs
+        run: lake env python3 check_policy.py
+
+  pq-release-hybrid:
+    name: Hybrid release signatures (Ed25519 and ML-DSA-65)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Ubuntu 24.04's OpenSSL 3.0 has no ML-DSA; Ubuntu 26.04 ships OpenSSL
+    # 3.5, whose default provider offers ML-DSA-44/65/87, so the job runs
+    # in that distribution's container instead of a third-party channel.
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash -e {0}
+        working-directory: distrib/rp2040/host
+    steps:
+      - name: Install OpenSSL with ML-DSA-65 and the test tools
+        timeout-minutes: 5
+        working-directory: /
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git openssl python3 python3-pytest python3-serial
+          openssl list -signature-algorithms | grep -F ML-DSA-65
+      - uses: actions/checkout@v4
+      - name: Run the host package tests with the ML-DSA tests required
+        timeout-minutes: 8
+        run: python3 -m pytest -q
+        env:
+          DISCOBSD_REQUIRE_PQ_TESTS: '1'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+
   # A scheduled run reports to nobody, so its result goes to one issue:
   # tools/report-nightly-failure.sh opens it, or adds a comment to the open
   # one, with the failed jobs and steps and the merges since the last
@@ -984,7 +1138,7 @@ jobs:
   nightly-report:
     name: Report the nightly result
     if: always() && github.event_name == 'schedule'
-    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id]
+    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id, graph-layout-model, graph-layout-arm, pq-release-proofs, pq-release-hybrid]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

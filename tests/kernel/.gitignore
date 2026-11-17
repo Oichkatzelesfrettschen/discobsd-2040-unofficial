@@ -227,11 +227,13 @@ exec_estab_function.c
 exec_setupstack_function.c
 exec_setupstack_geometry_mutant.c
 exec_elf_text_ownership_mutant.c
+exec_setupstack_lost-unmarked_mutant.c
 swaptext_function.c
 exec_text_release_function.c
 exec_elf_surrounding_contract_test32
 exec_stack_geometry_mutant
 exec_elf_text_ownership_mutant
+exec_spool_lost-unmarked_mutant
 capacity_test
 capacity_*.mutant.c
 capacity_*.mutant.test
@@ -258,6 +260,7 @@ fork_swap_test_wide
 fork_swap_test_diagnostic
 fork_swap_test_full
 fork_swap_test_unaligned
+fork_swap_test_lost
 fork_swap_*.mutant.c
 fork_swap_*.mutant.test
 fork_swap_*.mutant.out
@@ -271,6 +274,13 @@ v7-format-work/
 rmap_ring_*.mutant.*
 swap_ring_io_test
 swap_ring_io*.mutant.*
+swap_lost_io_test
+swap_temp_function.c
+swap_temp_lost_test
+swap_temp_*.mutant.c
+swap_temp_*.mutant.test
+swap_temp_*.mutant.out
+swap_lost_io_*.mutant.*
 usb_console_driver.c
 usb_console_test
 usb_console_*.o

@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import re
 from pathlib import Path
 
 SIGNATURE = "int\nexec_elf_check(struct exec_params *epp)"
@@ -47,14 +48,22 @@ STACK_POINTER_GEOMETRY = (
 STACK_POINTER_GEOMETRY_MUTANT = (
     "    u.u_frame->tf_sp = (int)(argp-0x40);"
 )
+SPOOL_LOST_MARK = "    epp->flags |= EXEC_COMMITTED_FAILURE;\n}"
+SPOOL_LOST_MARK_MUTANT = "    (void)epp;\n}"
 TEXT_OWNERSHIP = """    exec_text_release(u.u_procp, NULL);
     u.u_procp->p_tsize = 0;"""
 
 
-def extract_function(source: str, signature: str) -> str:
-    """Return one uniquely named C function, including its closing brace."""
-    if source.count(signature) != 1:
-        raise ValueError("ELF loader signature is not unique")
+def extract_function(source: str, signature: str, label: str = "ELF loader") -> str:
+    """Return one uniquely named C function, including its closing brace.
+
+    label names the function in the errors, so a caller extracting another
+    function reports that function rather than the ELF loader."""
+    count = source.count(signature)
+    if count == 0:
+        raise ValueError(f"{label} signature not found")
+    if count != 1:
+        raise ValueError(f"{label} signature is not unique ({count} matches)")
     start = source.index(signature)
     opening = source.index("{", start)
     depth = 0
@@ -66,7 +75,20 @@ def extract_function(source: str, signature: str) -> str:
             depth -= 1
             if depth == 0:
                 return source[start : offset + 1]
-    raise ValueError("unterminated ELF loader function")
+    raise ValueError(f"unterminated {label} function")
+
+
+def definition_signature(source: str, return_type: str, name: str) -> str:
+    """Return the text that opens the one definition of name, which starts a
+    line after a line holding only return_type, with any spacing before the
+    parameter list ("pipe_rw(" and "pipe_rw (" alike)."""
+    pattern = re.compile(
+        rf"^{re.escape(return_type)}[ \t]*\n{re.escape(name)}[ \t]*\(", re.M)
+    found = pattern.findall(source)
+    if len(found) != 1:
+        raise ValueError(f"{name} definition {'not found' if not found else 'is not unique'}"
+                         f" ({len(found)} matches)")
+    return found[0]
 
 
 def main() -> None:
@@ -81,6 +103,7 @@ def main() -> None:
     mutations.add_argument("--establish", action="store_true")
     mutations.add_argument("--setupstack", action="store_true")
     mutations.add_argument("--setupstack-geometry-mutant", action="store_true")
+    mutations.add_argument("--setupstack-lost-unmarked-mutant", action="store_true")
     mutations.add_argument("--swaptext", action="store_true")
     mutations.add_argument("--text-ownership-mutant", action="store_true")
     mutations.add_argument("--text-release", action="store_true")
@@ -92,7 +115,11 @@ def main() -> None:
         signature = FINISH_SIGNATURE
     elif arguments.establish:
         signature = ESTABLISH_SIGNATURE
-    elif arguments.setupstack or arguments.setupstack_geometry_mutant:
+    elif (
+        arguments.setupstack
+        or arguments.setupstack_geometry_mutant
+        or arguments.setupstack_lost_unmarked_mutant
+    ):
         signature = SETUPSTACK_SIGNATURE
     elif arguments.swaptext:
         signature = SWAPTEXT_SIGNATURE
@@ -126,6 +153,10 @@ def main() -> None:
         function = function.replace(
             STACK_POINTER_GEOMETRY, STACK_POINTER_GEOMETRY_MUTANT, 1
         )
+    elif arguments.setupstack_lost_unmarked_mutant:
+        if function.count(SPOOL_LOST_MARK) != 1:
+            raise SystemExit("spool-loss mark mutation does not match source")
+        function = function.replace(SPOOL_LOST_MARK, SPOOL_LOST_MARK_MUTANT, 1)
     elif arguments.text_ownership_mutant:
         if function.count(TEXT_OWNERSHIP) != 1:
             raise SystemExit("ELF text-ownership mutation does not match source")

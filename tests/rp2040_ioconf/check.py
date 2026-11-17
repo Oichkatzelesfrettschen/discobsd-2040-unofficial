@@ -37,7 +37,7 @@ def reject(data, obj, diagnostic):
 
 
 def check_driver_source(source, name):
-    match = re.search(r"\bstruct\s+driver\s+" + name +
+    match = re.search(r"\bconst\s+struct\s+driver\s+" + name +
                       r'\s*=\s*\{\s*"([a-z]+)"\s*,\s*([a-z]+)\s*,?\s*\}', source)
     expected_name, expected_probe = checker.DRIVERS[name]
     if match is None or match.groups() != (expected_name.decode("ascii"), expected_probe):
@@ -45,10 +45,17 @@ def check_driver_source(source, name):
     return match
 
 
-def check_service_mutants(data, obj, elf, object_elf, generated):
-    """Require the generated service order and reject altered service words,
-    a cleared Thumb bit, a nonzero terminator, a disallowed relocation target
-    and a nonzero object addend. Returns the number of service entries."""
+def config_services(config):
+    """The attach functions a kernel Config's service lines name, in order."""
+    return [name + "attach" for name in
+            re.findall(r"^service\s+([a-z0-9_]+)\s*$", config, re.MULTILINE)]
+
+
+def check_service_mutants(data, obj, elf, object_elf, generated, config):
+    """Require the services the Config names, in its order, in the generated
+    source and the linked table, and reject altered service words, a cleared
+    Thumb bit, a nonzero terminator, a disallowed relocation target and a
+    nonzero object addend. Returns the number of service entries."""
     table = re.search(r"conf_service_init\[\] = \{\n(.*?)^\};", generated,
                       re.MULTILINE | re.DOTALL)
     if table is None:
@@ -56,14 +63,16 @@ def check_service_mutants(data, obj, elf, object_elf, generated):
     source_names = re.findall(r"^\s*\{\s*([a-z_]+)\s*\},", table.group(1), re.MULTILINE)
     object_symbols = object_elf.get_section_by_name(".symtab")
     original = object_symbols.get_symbol_by_name("conf_service_init")[0].entry
-    if object_elf.get_section(original.st_shndx).header.sh_type == "SHT_NOBITS":
-        if source_names:
-            raise AssertionError("generated services differ from the empty object table")
-        return 0
     names = checker.check_services(elf, data, object_elf, elf.get_section_by_name(".symtab"),
                                    object_symbols)
-    if source_names != names:
-        raise AssertionError("generated source service order differs from the object")
+    expected = config_services(config)
+    if source_names != names or names != expected:
+        raise AssertionError("Config, generated source and object services differ")
+    if expected:
+        for mutant_config in (config.replace("service ", "# service ", 1),
+                              "\n".join(reversed(config.splitlines()))):
+            if config_services(mutant_config) == names:
+                raise AssertionError("Config service mutation survived")
     start, size = symbol_offset(elf, "conf_service_init")
     for index in range(size // 4):
         mutant = bytearray(data)
@@ -80,6 +89,8 @@ def check_service_mutants(data, obj, elf, object_elf, generated):
     mutant = bytearray(obj)
     struct.pack_into("<I", mutant, terminator, 4)
     reject(data, mutant, "nonzero service terminator")
+    if not names:
+        return 0
     mutant = bytearray(obj)
     struct.pack_into("<I", mutant, section.header.sh_offset + original.st_value, 4)
     reject(data, mutant, "unknown service function at entry 0")
@@ -168,21 +179,31 @@ def main():
             break
     else:
         raise AssertionError("first driver relocation is absent")
-    section_index = elf.get_section_by_name(".symtab").get_symbol_by_name(
-        "conf_ctlr_init")[0].entry.st_shndx
-    mutant = bytearray(data)
-    section_type_offset = elf.header.e_shoff + section_index * elf.header.e_shentsize + 4
-    struct.pack_into("<I", mutant, section_type_offset, 1)
-    reject(mutant, obj, "conf_ctlr_init is not zero-initialized")
     symbols = elf.get_section_by_name(".symtab")
+
+    def section_header(name):
+        index = symbols.get_symbol_by_name(name)[0].entry.st_shndx
+        return elf.header.e_shoff + index * elf.header.e_shentsize
+
+    mutant = bytearray(data)
+    struct.pack_into("<I", mutant, section_header("conf_ctlr_init") + 4, 1)
+    reject(mutant, obj, "conf_ctlr_init is not zero-initialized")
+    # The tables and descriptors can share one output section; a mutant per
+    # distinct section must be refused by whichever of them is checked first.
+    for flags in sorted({section_header(name) + 8 for name in
+                         ("conf_device_init", "conf_service_init", *names)}):
+        mutant = bytearray(data)
+        struct.pack_into("<I", mutant, flags, struct.unpack_from("<I", data, flags)[0] | 1)
+        reject(mutant, obj, " is writable")
     bss_index = next(index for index, item in enumerate(symbols.iter_symbols())
                      if item.name == "_sbss")
-    controller = symbols.get_symbol_by_name("conf_ctlr_init")[0].entry.st_value
+    ctlr = symbols.get_symbol_by_name("conf_ctlr_init")[0].entry.st_value
     mutant = bytearray(data)
     symbol_value = symbols.header.sh_offset + bss_index * symbols.header.sh_entsize + 4
-    struct.pack_into("<I", mutant, symbol_value, controller + 4)
+    struct.pack_into("<I", mutant, symbol_value, ctlr + 4)
     reject(mutant, obj, "outside the startup bss range")
-    services = check_service_mutants(data, obj, elf, object_elf, generated)
+    config = (args.object.parent / "Config").read_text(encoding="utf-8")
+    services = check_service_mutants(data, obj, elf, object_elf, generated, config)
     with tempfile.TemporaryDirectory(prefix="rp2040-ioconf-") as directory:
         truncated = Path(directory) / "truncated.elf"
         truncated.write_bytes(data[:80])

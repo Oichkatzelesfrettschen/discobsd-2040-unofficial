@@ -11,9 +11,10 @@ picofetch \- show system and hardware readings beside a logo
 prints one screen of readings about the running system: the operating
 system and kernel build, the board, uptime, the processor and bus clocks,
 the second core, memory, swap, each mounted file system, the drives, the
-flash image and its checksum, the execute-in-place cache, the memory
+flash image and its checksum, the flash chip's identity, the
+execute-in-place cache, the memory
 protection unit, the display, the battery and backlights of a PicoCalc,
-the temperature and supply voltage, the load averages, the fixed kernel
+its audio device, the temperature and supply voltage, the load averages, the fixed kernel
 tables, the kernel stack, the storage counters, the USB console and the
 cause of the last reset.
 .PP
@@ -53,5 +54,18 @@ has the same effect.
 .B \-p
 Plain output: ASCII and no escape sequence.
 This is the default when the output is not a terminal.
+.PP
+The chip line shows the JEDEC bytes and the 64-bit unique ID of the QSPI
+flash (\fBmachdep.flash_jedec\fP, \fBmachdep.flash_unique_hi\fP and \fBmachdep.flash_unique_lo\fP), or
+.B "identity unread"
+when the chip returned no plausible answer at boot.
+The audio line shows the sample rate, channels and bits of
+.I /dev/audio
+with whether a process has it open and how many samples are queued
+(\fBmachdep.pcm\fP); kernels without the device print
+.BR "not in this kernel" .
+The processor line adds the peripheral clock only when it differs from the
+core clock, and the battery line carries the panel and key backlight levels,
+so that the report stays within 30 rows of the 32-row console.
 .SH "SEE ALSO"
 picotop(1), ps(1), sysctl(8), sysctl(3)

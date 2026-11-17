@@ -20,11 +20,13 @@ The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
 runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root stays on the Pico's QSPI flash, the same layout as the PICO
-board (`STORAGE.md`); swap moves to the board's PSRAM when the part
-identifies itself at boot and stays on the flash otherwise (PSRAM as swap,
-below). PICOCALC is the full PicoCalc kernel: the PSRAM driver, every
-per-driver device option below, the keyboard controller's
-`machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
+board (`STORAGE.md`); swap moves to the first 2 MB of the board's PSRAM when the
+part identifies itself at boot, and the other 6 MB is a block device for a
+`/tmp` RAM disk (PSRAM as swap, below); otherwise swap moves to the SD card's
+swap partition when the card carries one ("Swap on the card" below), and it
+stays on the flash when neither takes it. PICOCALC is the full PicoCalc
+kernel: the PSRAM driver, every per-driver device option below, the
+keyboard controller's `machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
 diagnostic options `SYSTRACE` and `CAPACITY_STATS` (`kern.systrace`,
 `kern.systracepid`, `kern.capacity`) and the panel register test
 (`LCD_PANELTEST`, `PANELTEST.md`). PICOCALC_LEAN
@@ -94,10 +96,11 @@ name a file there, with a page for a PDF.
 | `picokbd.c`, `lcdcons.c` compile as strict ISO C17 (`-std=c17 -pedantic-errors`) under the PICOCALC definitions | build | observed by `check-console-c17-cross` (`TESTING.md`); `sys/sys/exec.h` no longer declares an empty struct and `sys/sys/inode.h` includes `uio.h` instead of forward-declaring `enum uio_rw`, and `struct exec_params` keeps its 284-byte layout; the objects still build under the kernel's GNU17 profile |
 | The terminal draws what its cell store holds, scrolls, wraps and parses the xterm-basic sequences | host | observed by `check-picocalc-host` against a model panel |
 | The PICOCALC console path reaches a login on a modeled panel, and keys typed through a modeled keyboard controller log in and run a command | Renode | observed by `check-renode-picocalc` (`TESTING.md`, Renode PicoCalc tier); the models record MADCTL, INVON and the keyboard timing without applying them |
-| `picofetch` and `picotop` (`usr.bin/picofetch`, `usr.bin/picotop`) draw their logo, bars and graph from 79 glyphs uploaded to the bank with `LCDIOC_SETGLYPH` under LITOUT, in the console's sixteen colors, and fall back to ASCII on a terminal without a bank | host | observed by `check-picofetch-host` over fixture readings, as 64-bit and as ILP32 host programs; 40 mutants fail it (`TESTING.md`) |
+| `picofetch` and `picotop` (`usr.bin/picofetch`, `usr.bin/picotop`) draw their logo, bars and graph from 79 glyphs uploaded to the bank with `LCDIOC_SETGLYPH` under LITOUT, in the console's sixteen colors, and fall back to ASCII on a terminal without a bank | host | observed by `check-picofetch-host` over fixture readings, as 64-bit and as ILP32 host programs; 47 mutants fail it (`TESTING.md`) |
 | Both run on the PICOCALC kernel, read its sysctl nodes without a failed read and draw through the bank on the modeled panel | Renode | observed by `check-renode-picocalc` on `flash-PICOCALC.bin`: the report's lines, the logo's 840 squares against the panel pixels, picotop's frame and process row; the battery, XIP and bus values are model constants |
 | `picofetch` and `picotop` on the panel: glyph shapes, colors, the battery and backlight readings, the swap exchanges a picotop refresh costs beside a running job | board | not run |
 | Core 1 state and counters in both programs | build | the PicoCalc kernels carry no `CORE1` option (`CORE1.md`), so both print `core1 not in this kernel` there; the PICO kernel's values are shown from the fixture only |
+| `machdep.pcm` (`CPU_PCM`, `struct cpu_pcm_info`): the `/dev/audio` rate, stream channels and bits, queue size, queued samples and open flag; `machdep.flash_jedec` (`CPU_FLASH_JEDEC`) with the unique-ID halves gives `picofetch` its `Chip` line, and `picofetch` shows the PCM node as `Audio` | host | `check-sysctl-status` runs the exact `sysctl(8)` output over injected records and `check-picofetch-host` the two lines; `logged-build` compiles the kernel side (the PCM node needs the `DEV_PCM` option; the other kernels answer EOPNOTSUPP); no gate reads the nodes from a running kernel, and a board read is not run |
 | Die temperature and VSYS in both programs | Renode | both read `machdep.adc_temp_mc` and `machdep.adc_vsys_mv` (`CPU_ADC_TEMP`, `CPU_ADC_VSYS`); `check-renode-picocalc` holds the form of the `Sensors` line, and the values there (25.7 C, 0.00 V) come from Renode's ADC model, so the board's readings are unmeasured |
 | The panel initializes, shows text and scrolls | board | not run: no PicoCalc has booted this kernel |
 | The keyboard controller answers at 0x1F and its events type | board | not run |
@@ -117,9 +120,12 @@ name a file there, with a page for a PDF.
 | A UFS partition on the card mounts beside the flash root, `fdisk` and `mkfs` reach the card through `rsd0`, and the card-detect change fails open transfers | board | not run |
 | The SD socket's card-detect polarity, the fast clock at 12.5 MHz on this board's traces, and the busy times of real cards | board | not run |
 | The crash-dump writer (`sddump()`, `rp2040/dump.c`, `dumpsys()`) links into the PicoCalc kernels only | build | observed by `check-dump-writer-link` on the symbol tables of every kernel, with a swapped-role control that exits 1 |
-| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (56 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
+| `sddump()` writes a complete dump to the first type 0xb9 entry inside the card, writes nothing outside it, refuses a missing card, table, signature or entry, a partition past the card, an undersized partition and one that a block open of the accepted card overlaps, accepts one beside a mount or on a replaced card, and leaves sector 0 zero after a failed sector; the span transfers keep their window and sum the bytes sent while the source changes | host | observed by `check-picocalc-host`: `sdstrat_test` (96 mutants of `sd.c` and `dump.c` rejected) and `sdspi_test` (30 mutants of `sdspi.c` rejected) |
 | `savecore` saves a dump the kernel's stream wrote, names a different running kernel, advances the bounds file, and leaves the dump on the card for a damaged segment, header checksum, version, segment count or length, one byte too little space with and without a reserve, and a copy that cannot be written; an unfinished dump reads as none | host | observed by `check-picocalc-host` (`dump_test`, 9 mutants of `savecore.c` rejected) |
-| On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 48,136, two u areas of 3,072, `dump.0` 55,808 bytes; a kernel that dumps only on the reset path fails the panic stage |
+| On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 49,888, two u areas of 3,072, `dump.0` 57,344 bytes; a kernel that dumps only on the reset path fails the panic stage |
+| `sdswapattach()` leaves swap on `fl1` on a bare Pico, with the PSRAM holding swap, with no card, an unreadable table, no type 0xb8 entry, one under 396 blocks or one that shares a sector with another entry of the table, and otherwise selects the first 0xb8 entry of at least 396 blocks that overlaps no other entry and holds it for the boot, so the open `main()` makes reads no table and a close of `/dev/swap` leaves it open; `sdsize()` reports a swap partition capped at 65,532 blocks and cut to a multiple of four; `sdstrategy()` on the swap device moves a count that ends inside a sector (the last sector zero-padded on a write, cut on a read, counted in `b_resid` when it fails or lies past the partition) and refuses such a count on every other partition | host | observed by `check-picocalc-host`: `sdstrat_test`, with 23 of its 96 mutants on these rules |
+| On Renode's SD card model a PICOCALC kernel prints `swap: sd0c` and `swap dev  = (5,3)` for a card with a 2 MiB type 0xb8 entry, runs the console, `picofetch`, `picotop` and crash-dump stages on it, and leaves swapped images on that partition; without a card it prints `swap dev  = (0,8)` | Renode | observed by `check-renode-picocalc-dump`: 87 of the partition's 512 4 KiB units nonzero after the run; a kernel whose `sdstrategy()` refuses a partial sector panics `hard err: swap` at the first swap-out and fails the gate; the no-card line by `check-renode-picocalc` |
+| Swap on a real card: selection at boot, swap traffic under a compile, a card pulled while it holds images, and the return of swap to `fl1` | board | not run; the retirement of the processes a pulled card held and the return to the fixed device rest on `check-swap-lost` and `check-swap-lost-io` (host) and on source; `sdswap_fallback()` runs on the host in `sdstrat_test` (built with `SDSWAP_ENABLED`), which requires it to release the card's hold on the swap partition, whose open by `main()` sets no descriptor bit, so that a replacement card opens, and a block descriptor still open on the old card, on the swap partition itself or another one, to keep the replacement refused until it closes; card detect has no Renode model |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
 | `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PicoCalc kernels' build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
@@ -127,6 +133,10 @@ name a file there, with a page for a PDF.
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
 | The part answers Read ID 0x0D with a passing die, enters quad mode and returns what was written at 31.25 MHz | board | not run |
 | The kernel swaps to PSRAM and falls back to `fl1` when the part is absent | board | not run |
+| `mkfs -i 4096` over a 6144 KB file lays out 1,536 inodes in a 97-block list and a file system that `fsutil --check` accepts, with 6,045 free blocks and 1,533 free inodes | host | observed once, outside any gate: the a.out `sbin/mkfs/mkfs` run under `qemu-arm` user mode through `tests/qemu_aout/aoutrun`, which serves the file calls from Linux; this exercises the layout code at the sizes `/etc/rc.rp2040` passes and not the kernel's block-device path |
+| `mkfs`, the `/dev/psram1` node and the mount at `/tmp` run on the PSRAM's minor 1 | board | not run |
+| The NMOUNT=3 PICOCALC kernels boot a root that carries `/dev/psram1`, `/sbin/mkfs` and the `dd`-guarded `/etc/rc.rp2040` to a login, and the guard falls through with `/tmp` on the root | Renode | observed at the branch head before it was merged with the PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG split of `main`, by `check-renode-union` (PICOCALC_PSRAM; the descriptor suppressed the `psram0:` probe, so the driver stayed down and swap stayed on `fl1`) and `check-renode-picocalc` (PICOCALC, which then had no major 3 driver); not run on the merged tree, whose `check-renode-picocalc` reaches the same guard through a probe that fails (`psram_up` stays 0 and `psramopen()` returns `ENXIO`, read from `sys/arch/rp2040/dev/psram.c`); neither model has a PSRAM, so neither runs `mkfs` on the node or the mount, and neither shows the root flash writes |
+| Every PICOCALC kernel with `NMOUNT=3` grows bss by one mount record | build | observed on the merged tree, arm-none-eabi-gcc 16.2.0 at `-Os`, against `origin/main` at d81b1788: PICOCALC text 123,095 to 123,163, bss 56,072 to 57,296; PICOCALC_LEAN text 117,101 to 117,169, bss 51,472 to 52,696; PICOCALC_LEAN_DIAG text 119,635 to 119,703, bss 51,568 to 52,792 (data 448 in all three, +1,224 bss from the `mount` symbol growing from 0x990 to 0xe58 bytes, +68 text from the `psram.c` and `psram_xfer.c` region code); free kernel RAM below `0x2003e800` goes from 10,040 to 8,816 (PICOCALC), 14,640 to 13,416 (PICOCALC_LEAN) and 14,544 to 13,320 (PICOCALC_LEAN_DIAG); PICO, PICO_DIAG and PICO_UART are unchanged |
 | With no part on the PSRAM pins, `psramprobe()` prints one refusal line, leaves swap on `fl1` and the PICOCALC kernel boots to a login on the panel | Renode | observed by `check-renode-picocalc` (Renode 1.17.0+20260907gitf1dd1b4af, RP2040 models at 205a5e4b, PICOCALC built by arm-none-eabi-gcc 14.2.1): `psram0: not usable (error -1), swap stays on fl1` (`PSRAM_E_TIMEOUT`: the PIO model moves no frame, so the first bounded wait expires), `swap dev  = (0,8)` and `swap size = 380 kbytes`, then the login, shell, picofetch and picotop stages; the model's FDEBUG write is a classified warning (`tools/renode/picocalc-warning-classes.txt`). The identity, size and pattern refusals run on the host in `check-psram-pio`; a board without a working part is not run |
 
 ## Pin map
@@ -307,8 +317,10 @@ output near 8,000 characters per second before CPU overhead.
 The cell store is also a tile map. A cell code of 0x20-0x7e draws the ASCII
 glyph of `lcdfont.c`; a code of 0x80-0xff draws one of 128 glyphs from a RAM
 bank in `lcdterm.c`, nine rows of six pixels each, the leftmost column in
-bit 7, bits 1-0 zero. `lcd_draw_cell()` in `st7365p.c` asks `lcdterm_glyph()`
-for the rows and repeats the ninth as the tenth cell row (the underline
+bit 7, bits 1-0 zero. The bank stores each glyph's nine six-pixel rows
+packed into seven bytes, 896 bytes for the 128 glyphs. `lcd_draw_cell()` in
+`st7365p.c` asks `lcdterm_glyph()` to unpack the rows into a buffer on its
+stack and repeats the ninth as the tenth cell row (the underline
 still wins), so a tile fills its 6x10 cell and a vertical stroke on glyph
 rows 0 and 8 joins the cell above and below. Text and tiles share the
 attributes (16 foreground colors, 8 background), the scroll ring, the cursor
@@ -607,7 +619,8 @@ and leaves the queue as it was when it fails. The queue is emptied and its bytes
 session starts and when it ends, and `picokbd_event()` records only between
 the two. A session ends when its owning process exits or execs
 (`lcdcons_procexit()`, called from `exit()` before the files close and from
-`exec_clear()` after the exec commits, so a new image never inherits it), when
+`exec_clear()` after the exec commits, so a new image never inherits it) or
+is retired with a lost swap card (`swap_lost_retire()`), when
 its open file is closed for the last time (`lcdcons_fileclose()`, called from
 `vn_closefile()` under `PICOCALC_ENABLED`, because a character driver's close
 entry runs only when the whole device is closed and the console stays open),
@@ -784,8 +797,10 @@ the debounce of that card's own insertion does not expire against it. The
 driver does not interpret the polarity; the first insertion on a board
 settles which level means present.
 
-`NMOUNT` is 2 and `SINGLE_UFS_ROOT` is unset in the PicoCalc kernels
-(the two Configs differ in the board line and `device psram` alone), because
+`NMOUNT` is 3 in the PicoCalc kernels, whose third slot holds the `/tmp` RAM
+disk beside the flash root and one SD partition, and `SINGLE_UFS_ROOT` is unset
+(the three Configs differ in the board line and the options PICOCALC_LEAN and
+PICOCALC_LEAN_DIAG drop or add, not in the mount count), because
 `sys/mount.h` requires `NMOUNT=1` with that option. Without it the kernel keeps
 `i_dev` and `i_fs` in each of the 24 inodes and the mount names, and the
 generic mount code replaces the single-root shortcuts; that, with the
@@ -808,9 +823,10 @@ behind those majors.
 
 ### Putting a filesystem on a card
 
-The tree ships `sbin/mkfs` and `sbin/fdisk` as source but neither is in any
-root image, and adding them would spend flash blocks and inodes on tools
-no board run has exercised against the driver. The documented route is a
+The tree ships `sbin/mkfs` and `sbin/fdisk` as source. `mkfs` is in the
+`picocalc` root image through the `psramtmp` closure (below); `fdisk` is in no
+root image, and adding it would spend flash blocks and inodes on a tool no
+board run has exercised against the driver. The documented route is a
 host-side image with `tools/bin/rp2040/fsutil` (built with the tools),
 written to the card from the host. The partition layout is fsutil's: the
 table in sector 0, the first partition at sector 2.
@@ -831,6 +847,62 @@ route; they use only the disk ioctls the driver answers
 (`DIOCGETMEDIASIZE`, `DIOCGETPART`, `DIOCREINIT`; `umount` adds
 `DIOCMEDIAGONE`) but have not run against it, so a closure that ships them waits on a board run.
 
+### Swap on the card
+
+A PicoCalc kernel (PICOCALC, PICOCALC_LEAN or PICOCALC_LEAN_DIAG) on a
+PicoCalc whose PSRAM did not take the swap device looks for swap on the SD card before `main()` opens
+`swapdev`. `sdswapattach()` (`dev/sd.c`, the `sdswap` service) brings the
+card up, reads the partition entries of sector 0 and takes the first entry
+of type 0xb8 (`PTYPE_SWAP`) that holds at least 396 KB, two process images
+of `SWAP_IMAGE_GUARD` blocks behind the map's reserved first run, and shares
+no sector with another entry of the table, so swap writes cannot reach the
+b7 root or a partition mounted later. It prints
+`swap: sd0c` for the third entry and holds that partition for the boot,
+apart from the open bits, so a close of `/dev/swap` does not release it. With no
+card, no such entry or a card that does not answer, swap stays on `fl1`.
+The order is therefore the SwapRAM pool, then the PSRAM when it identifies
+itself, then the card, then raw flash, and the choice is made once per boot.
+
+    fsutil --repartition=fs=64m:dump=1m:swap=32m card.img
+    fsutil --new --partition=1 card.img
+
+makes a card with a file system on `sd0a`, a dump partition on `sd0b` and
+swap on `sd0c`. The swap map's compact descriptors hold 16-bit block
+numbers, so `sdsize()` reports at most 65,532 blocks of a swap partition
+(64 MB) and a whole number of four-block units; a larger partition is used
+up to that size. The swapper transfers an image segment's exact byte count,
+and `sdstrategy()` completes the last sector of such a transfer through a
+512-byte buffer, for the swap device only.
+
+The card stays the swap device while it answers. `sdswapattach()` marks
+it removable (`swap_removable`), so a failed transfer on it sets
+`swap_lost` (`sys/kern/vm_swp.c`) instead of panicking `hard err: swap`,
+and no later transfer reaches the card. `sched()` then retires every
+process whose image the card held (`swap_lost_sweep()`,
+`sys/kern/vm_swap.c`): each leaves its wait queue and the timed-sleep
+callout `tsleep()` armed for it, ends the raw key session it owns
+(`lcdcons_procexit()`), releases its text and becomes a zombie with
+`SIGKILL` status through `proc_zombie()` (`sys/kern/kern_exit.c`), the
+conversion `exit()` itself uses: its children pass to init (a traced child
+loses the trace and receives `SIGKILL`, a stopped one `SIGHUP` and
+`SIGCONT`) and its parent receives `SIGCHLD`; images in the SwapRAM pool, system processes and the resident process survive, and a lost
+init panics `init lost with the swap device`. A swap-out or fork copy that
+the loss interrupts cancels its reservation and leaves the process resident,
+and `fork()` unwinds the child and fails. The retired images' blocks go back
+to the card's swap map, and once nothing else holds blocks of the card (an
+exec argument spool or a temporary swap unit frees its own), `sched()`
+returns swap to the device the configuration named: `swap_lost_fallback()`
+(`sys/kern/vm_swap.c`) calls `sdswap_fallback()` (`dev/sd.c`), which
+reopens `fl1`, prints `swap: sd0 gone, swap on (0,8)` and makes it
+`swapdev` again, and the swap map, the cursor and `nswap` then describe
+`fl1`. Until then the SwapRAM pool is the only tier, so a resident image
+the pool cannot take stays in core. `fl1` holds no image from before the
+loss, so it needs no check; it is the swap device a kernel without a usable
+card boots with, under the UF2 loader too. A retired process's open files
+and current directory stay referenced until reboot, because its u area was
+on the card. Flash under a card that holds swap takes no swap erases, which
+is the reason for the order: `fl1` has no wear leveling.
+
 ### Crash dumps
 
 A PICOCALC kernel on a PicoCalc takes a crash dump on the SD card. The
@@ -847,8 +919,8 @@ from `.data` to the end of the SwapRAM pool, and the two u areas, each
 with a CRC-32 computed over the bytes as they leave for the card, which
 keeps the current u area, where the writer's own stack runs, consistent.
 Sector 0 is zeroed first and written last, so an unfinished dump reads as
-none. A PICOCALC dump is 109 sectors (55,808 bytes), 48,136 of them kernel
-RAM; a dump of the kernel with PSRAM was 110 at the same revision.
+none. A PICOCALC dump is 112 sectors (57,344 bytes), 49,888 of them kernel
+RAM.
 
     fsutil --repartition=fs=64m:dump=1m card.img
     fsutil --new --partition=1 card.img
@@ -1068,7 +1140,8 @@ let `umount` succeed without write-back and mount again after reinsertion
 `DISCOBSD_BOARD_SD_DETACH` is exactly `run`); and the largest raw read rate at 12.5 MHz,
 which decides whether the clock can rise toward 25 MHz. Not built: a
 multi-block transfer (CMD18 and CMD25), which would cut the per-sector
-command overhead, and an on-board `mkfs`/`fdisk` closure.
+command overhead, and an on-board `fdisk` closure (`mkfs` ships for the PSRAM's
+`/tmp`, not for the card).
 
 ### PSRAM as swap
 
@@ -1081,14 +1154,46 @@ evidence. `psramprobe()` runs from `config()`, before `init_main()` opens
 and the 48-bit EID, printed as `psram0: read id 0d/5d eid` and twelve hex
 digits), requires manufacturer 0x0D and a passing known-good die, enters
 quad mode and writes and reads back a pattern. A part that passes becomes
-block device major 3 and replaces `fl1` as `swapdev`, so swap is 8 MB
-behind the SWAPRAM tier and the 384 KB flash swap region goes unused; a
+block device major 3 and replaces `fl1` as `swapdev`. The part holds two
+regions (`PSRAM_SWAP_BYTES` in `psram_xfer.h`): minor 0, the swap device,
+is the first 2 MB (2,048 blocks, behind the SWAPRAM tier, with the 384 KB
+flash swap region unused), and minor 1 is the remaining 6 MB, a RAM disk
+for `/tmp` whose contents every reset loses. `psram_region_offset()` bounds
+each request by its own minor's region before adding the region's base, so
+no swap transfer reaches `/tmp` and no `/tmp` transfer reaches swap, and
+`psramsize()` reports 2,048 and 6,144 blocks; the swap counters of
+`machdep.storage_stats` count minor 0 alone. A
 part that does not pass prints a second `psram0:` line and leaves
 `swapdev` on `fl1`. The EID tells the ESP-PSRAM64H, LY68L6400 and APS6404L
 apart only against reads of reference parts: the APS6404L sheet alone
 defines a field, EID[47:45] = 010 for 64 Mbit. SCK runs at 31.25 MHz
 (`PSRAM_CLKDIV` in `psram_pio.h`), a frame holds CS low for under 5 us
 against the 8 us tCEM, and interrupts are masked for that long per frame.
+
+Minor 1 becomes `/tmp` through userland. The `psramtmp` closure of the
+`picocalc` and `picocalc-lean` profiles (every PicoCalc kernel boots either root) ship `/dev/psram1`
+(block major 3, minor 1, mode 600) and `/sbin/mkfs`, and `/etc/rc.rp2040`, after
+`mount -a`, runs `mkfs -i 4096 /dev/psram1 6144`, mounts the device at `/tmp`
+with `async,noaccesstime,nosuid` and sets the new root's mode to 1777; a step
+that fails leaves `/tmp` as the root's own directory. A PICO kernel has no
+driver behind major 3, and a PICOCALC kernel whose part failed its probe
+leaves the driver down, so the open fails with `ENXIO` and the chain
+stops at a `dd` read of block 0, which runs ahead of `mkfs` because `mkfs`
+creates its device with `creat()`: the truncate runs before the driver can
+refuse the open, finds the node's size already zero and rewrites its inode on
+the root flash (`itrunc()`, `updret` in `ufs_inode.c`, `vn_open_at()` in
+`vfs_vnops.c`; read from the source, not measured), a flash write every boot
+that the read avoids. One inode per 4,096 bytes is the density `mkfs(8)` documents
+(the source's own default is 16,384): 1,536 inodes in a 97-block inode list,
+which leaves 6,045 free blocks and 1,533 free inodes (`fsutil --check` of the
+layout `mkfs` wrote, below), where the source default gives 384 inodes in
+25 blocks. Each boot makes a fresh file system, because a reset empties the
+disk, and `/etc/fstab` does not list it, so `fsck -p` never checks it. The
+closure costs the root 9 blocks and 2 inodes (`PROFILES.md`), and the third
+mount slot costs each PICOCALC kernel 1,224 bytes of bss (one 0x4c8-byte
+mount record). The alternative, a kernel that lays the empty file system down when
+the part attaches, would drop `mkfs` and its blocks from the root and spend
+kernel text and RAM instead, and no board has run either route.
 
 Open for the board run: the read sampling margin depends on pad delays no
 datasheet gives and on whether the output and input register stages run on

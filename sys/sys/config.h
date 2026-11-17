@@ -51,7 +51,7 @@ struct controller_driver {
 
 struct driver {
     const char  *d_name;        /* driver name for vmstat and iostat */
-    int         (*d_init)(struct conf_device *);
+    int         (*d_init)(const struct conf_device *);
 };
 
 /*
@@ -69,22 +69,18 @@ struct conf_ctlr {
 };
 
 /*
- * This structure describes devices connected to an interface
- * and is partially initialized in "ioconf.c" by the 'config' program.
+ * This structure describes devices connected to an interface. The
+ * 'config' program writes the whole table into "ioconf.c" as const data,
+ * so it stays in flash: autoconfiguration only reads it, and a driver's
+ * probe receives a const pointer to its entry.
  */
 struct conf_device {
-    struct driver   *dev_driver;    /* device driver routines */
+    const struct driver *dev_driver; /* device driver routines */
     struct controller_driver *dev_cdriver; /* interface driver routines */
     int             dev_unit;       /* device unit number */
     int             dev_ctlr;       /* device interface number */
     int             dev_drive;      /* device address number */
     int             dev_flags;      /* flags */
-
-    /* assignment of signals to physical pins */
-#define KCONF_MAXPINS 16
-    char            dev_pins[KCONF_MAXPINS];
-
-    int             dev_alive;      /* true if init routine succeeded */
 };
 
 /*
@@ -100,6 +96,6 @@ struct conf_service {
 
 #ifdef KERNEL
 extern struct conf_ctlr conf_ctlr_init[];
-extern struct conf_device conf_device_init[];
-extern struct conf_service conf_service_init[];
+extern const struct conf_device conf_device_init[];
+extern const struct conf_service conf_service_init[];
 #endif

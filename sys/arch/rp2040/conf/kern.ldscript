@@ -49,6 +49,71 @@ SECTIONS {
 	.text : {
 		KEEP(*(.isr_vector))
 		. = ALIGN(8);
+		/*
+		 * The hot path: every input section the system call, pipe and
+		 * clock-tick paths execute on each iteration of UnixBench pipe and
+		 * syscall, taken from instruction traces of the union kernel,
+		 * followed by the read-only tables those paths load. The XIP cache
+		 * is 16 KB of two ways with 8-byte lines (RP2040 datasheet
+		 * 2.6.3.1-2.6.3.2), so a contiguous span of at most 8 KB maps each of
+		 * its lines to a different set and no two hot lines can evict each
+		 * other. Placed first, the span keeps its addresses whatever the size
+		 * of the rest of the kernel; laid out by input order, a size change
+		 * in any earlier object would move part of this path onto sets that
+		 * other hot lines already fill twice. Each statement places its
+		 * sections in the order written, and a name a configuration does not
+		 * link places nothing. tools/check_hot_layout.py reads this list
+		 * between __hot_start and __hot_end and fails a kernel whose span
+		 * exceeds one cache way or whose listed symbols lie outside it.
+		 */
+		__hot_start = .;
+		*(.text.SVC_Handler)
+		*(.text.PendSV_Handler)
+		*(.text.syscall)
+		*(.text.userret)
+		*(.text.setpri)
+		*(.text.led_control)
+		*locore.o(.text)
+		*libgcc.a:_thumb1_case_uqi.o(.text)
+		*(.text.read)
+		*(.text.write)
+		*(.text.rwuio)
+		*(.text.pipe_rw)
+		*(.text.readp)
+		*(.text.writep)
+		*(.text.rwip)
+		*(.text.bmap)
+		*(.text.bread)
+		*(.text.getblk)
+		*(.text.bdwrite)
+		*(.text.brelse)
+		*(.text.arm_intr_disable)
+		*(.text.uiomove)
+		*(.text.bcopy)
+		*(.text.baduaddr_span)
+		*(.text.baduaddr_rspan)
+		*(.text.capacity_refresh)
+		*(.text.capacity_note)
+		*(.text.dup)
+		*(.text.dupit)
+		*(.text.ufalloc)
+		*(.text.close)
+		*(.text.closef)
+		*(.text.getpid)
+		*(.text.getuid)
+		*(.text.umask)
+		*(.text.SysTick_Handler)
+		*(.text.systick)
+		*(.text.clock_tick_stamp)
+		*(.text.hardclock)
+		*(.text.gatherstats)
+		*(.rodata.nsysent)
+		*(.rodata.syscall_nargs)
+		*(.rodata.syscall_handlers)
+		*(.rodata.Fops)
+		*(.rodata.pipeops)
+		__hot_end = .;
+		. = ALIGN(8);
 		*(.text*)
 		. = ALIGN(8);
 		*(.rodata*)
@@ -151,6 +216,9 @@ SECTIONS {
 	.scratch (NOLOAD) : {
 		. = ALIGN(4);
 		__scratch_start__ = .;
+		__usb_tx_ring_start = .;
+		*(.scratch.usb_tx_ring)
+		__usb_tx_ring_end = .;
 		*(.scratch*)
 		. = ALIGN(4);
 		__scratch_end__ = .;
@@ -166,7 +234,8 @@ SECTIONS {
 	 * bss.  The 256-byte boot2 copy is code that flash_enter_xip calls, and
 	 * the ARMv6-M peripheral region holding DPSRAM is execute-never: the
 	 * UART-only kernel keeps the copy in SRAM4 after the Dhara page, while
-	 * the USB kernel, whose transmit ring fills both scratch banks, defines
+	 * the USB kernel, whose transmit ring (with the PicoCalc tile atlas)
+	 * fills both scratch banks, defines
 	 * it in flash.c as ordinary bss.
 	 */
 	flpage = DEFINED(usb_tx_ring) ? 0x50100240 : ORIGIN(SCRATCH);
@@ -206,15 +275,21 @@ SECTIONS {
 	         ORIGIN(RAM) + LENGTH(RAM)) : 1,
 	    "the swap pool must follow bss, be eight-byte aligned, and stay inside kernel RAM")
 	/*
-	 * The in-place swap exchange of docs/research/swap-exhaustion/plan.md
-	 * stages one 4,096-byte flash sector through kernel RAM, so every
-	 * configuration keeps that many bytes free after its last data, bss
-	 * and pool byte.
+	 * The in-place swap exchange stages its 4,096-byte flash sector in
+	 * swap_exchange_sector[], a static array in .bss (sys/kern/vm_swap.c),
+	 * so the sector lies below __kernel_ram_used_end. No linked object
+	 * occupies the gap [__kernel_ram_used_end, __kernel_data_end): reset
+	 * zeroes it with the rest of kernel RAM, /dev/mem and /dev/kmem reach
+	 * it, and the Renode dump stage writes its panic message at
+	 * __kernel_ram_used_end + 256 and refuses a message that would pass
+	 * __kernel_dump_reserve_end (tools/renode/picocalc_dump.py). The u
+	 * areas and scratch SRAM lie beyond the gap, in their own regions.
 	 */
 	__kernel_ram_used_end = DEFINED(swapram_pool_mem) ?
 	    swapram_pool_mem + SIZEOF(.swapram_pool) : _ebss;
-	ASSERT(__kernel_ram_used_end + 4096 <= ORIGIN(RAM) + LENGTH(RAM),
-	    "kernel RAM must keep 4,096 bytes free for the swap exchange sector")
+	__kernel_dump_reserve_end = __kernel_ram_used_end + 512;
+	ASSERT(__kernel_dump_reserve_end <= ORIGIN(RAM) + LENGTH(RAM),
+	    "kernel RAM must keep 512 bytes free past __kernel_ram_used_end for the Renode dump stage")
 	ASSERT(ORIGIN(RAM) + LENGTH(RAM) == ORIGIN(U0AREA),
 	    "RAM and U0AREA do not meet")
 	ASSERT(ORIGIN(U0AREA) + LENGTH(U0AREA) == ORIGIN(UAREA),
@@ -223,17 +298,18 @@ SECTIONS {
 	    "UAREA and SCRATCH do not meet")
 	ASSERT(DEFINED(usb_tx_ring) ?
 	    (usb_tx_ring >= ORIGIN(SCRATCH) &&
-	     usb_tx_ring + 8192 <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)) : 1,
+	     __usb_tx_ring_end <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)) : 1,
 	    "usb_tx_ring is not inside the SRAM4/SRAM5 scratch banks")
 	/*
 	 * DEFINED() stays true for a symbol whose input section --gc-sections
 	 * discarded, so the layout choices above would keep the USB and
 	 * SwapRAM arrangements while the storage they describe had left the
 	 * image. A defined owner therefore has to contribute its bytes:
-	 * usb_tx_ring is 8,192 bytes of .scratch (USB_TXRING in dev/usb.c)
+	 * usb_tx_ring is USB_TXRING bytes of .scratch (dev/usb.c), at least 1 KB
 	 * and swapram_pool_mem is the whole of .swapram_pool.
 	 */
-	ASSERT(DEFINED(usb_tx_ring) ? SIZEOF(.scratch) >= 8192 : 1,
+	ASSERT(DEFINED(usb_tx_ring) ?
+	    __usb_tx_ring_end - __usb_tx_ring_start >= 1024 : 1,
 	    "usb_tx_ring is defined but its section was discarded")
 	ASSERT(DEFINED(swapram_pool_mem) ? SIZEOF(.swapram_pool) > 0 : 1,
 	    "swapram_pool_mem is defined but its section was discarded")

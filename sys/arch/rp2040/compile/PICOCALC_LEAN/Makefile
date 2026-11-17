@@ -4,11 +4,14 @@ PARAM += -DPICOCALC_ENABLED
 PARAM += -DPSRAM_ENABLED
 PARAM += -DSD_ENABLED
 PARAM += -DSDROOT_ENABLED
+PARAM += -DSDSWAP_ENABLED
 PARAM += -DUART_ENABLED
 PARAM += -DUARTUSB_ENABLED
 PARAM += -DEXEC_HSAOUT
 PARAM += -DSWAPRAM_KB=16
 PARAM += -DSWAPRAM
+PARAM += -DUSB_TXRING=4096
+PARAM += -DNUART=1
 PARAM += -DUART_BAUD=115200
 PARAM += -DCONS_MINOR=0
 PARAM += -DCONS_MAJOR=LCDCONS_MAJOR
@@ -19,7 +22,7 @@ PARAM += -DLINEAR_BUFFER_CACHE
 PARAM += -DCOMPACT_SWAPMAP
 PARAM += -DCOMPACT_INODE_FIELDS
 PARAM += -DLINEAR_INODE_CACHE
-PARAM += -DNMOUNT=2
+PARAM += -DNMOUNT=3
 PARAM += -DNFL=2
 PARAM += -DHALTREBOOT
 PARAM += -DBUS_KHZ=125000
@@ -93,6 +96,36 @@ CMACHFLAGS+=	-pipe
 # The FLASH region of RP2040.ld bounds the kernel image, so the kernel is
 # compiled for size.
 COPTS?=		-Os
+# Three passes that -Os leaves on grow Thumb-1 text in this kernel:
+# loop-invariant motion (RTL -fmove-loop-invariants, GIMPLE -ftree-loop-im)
+# and the dominator pass (-ftree-dominator-opts). CSIZEFLAGS names their
+# negations and CSIZEFLAGS_MI expands to them for a C source outside
+# sys/arch only. Machine-dependent sources keep the plain COPTS command
+# line, so drivers, the .ramfunc flash routines and every polling or delay
+# loop compile to the same instructions with or without CSIZEFLAGS. Clang
+# rejects all three as unknown arguments, under any name it is invoked by,
+# so one preprocessor run decides: a compiler that refuses the flags leaves
+# CSIZEFLAGS empty. The probe runs the effective CC with the C17 capture
+# wrapper of compiler.mk, which ends at its " -- " argument, taken off, so
+# a capture records nothing for it. The flags ride with the size level: COMPILE_C takes them through
+# CSIZEFLAGS_COPTS only when COPTS selects -Os, and COMPILE_SIZE_C, whose
+# -Os is fixed, takes them whatever COPTS says.
+CSIZEFLAGS_WANT= -fno-move-loop-invariants -fno-tree-loop-im \
+		-fno-tree-dominator-opts
+CSIZEFLAGS_CC=	${CC:[*]:C/^.* -- //}
+CSIZEFLAGS_OK!=	if ${CSIZEFLAGS_CC} ${CSIZEFLAGS_WANT} -E -x c /dev/null \
+		    >/dev/null 2>&1; then echo yes; else echo no; fi
+.if ${CSIZEFLAGS_OK} == "yes"
+CSIZEFLAGS=	${CSIZEFLAGS_WANT}
+.else
+CSIZEFLAGS=
+.endif
+CSIZEFLAGS_MI=	${.ALLSRC:M*.c:N*/../arch/*:C/.+/${CSIZEFLAGS}/}
+.if !empty(COPTS:M-Os)
+CSIZEFLAGS_COPTS= ${CSIZEFLAGS_MI}
+.else
+CSIZEFLAGS_COPTS=
+.endif
 # Debug data names each source relative to the checkout, so the image's
 # debug sections are the same wherever the tree sits. The mapping changes
 # no instruction; tools/check_debug_paths.py checks both properties.
@@ -118,9 +151,9 @@ PARAM+= -DSTORAGE_STATS
 # compile rules: rules are named COMPILE_${SUFFIX}
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
-COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
+COMPILE_C=	${CC} ${CFLAGS} ${CSIZEFLAGS_COPTS} ${DEFS} -c $<
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
-		${CMACHFLAGS} -Os ${DEFS} -c $<
+		${CMACHFLAGS} -Os ${CSIZEFLAGS_MI} ${DEFS} -c $<
 # Code whose instruction count is a design input compiles at -O whatever
 # COPTS says: psram_xfer.c drains a four-word PIO receive FIFO from a polling
 # loop that must outrun the state machine's fill rate.
@@ -139,7 +172,7 @@ COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 .MAIN: unix
 
 PARAMSTAMP=	.params
-PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${AS:Q} ${AFLAGS:Q} \
+PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${CSIZEFLAGS:Q} ${CSIZEFLAGS_COPTS:Q} ${AS:Q} ${AFLAGS:Q} \
 		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q}
 _paramchanged!=	printf '%s\n' ${PARAMSTAMP_VALUES} | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
 .if ${_paramchanged} == "yes"

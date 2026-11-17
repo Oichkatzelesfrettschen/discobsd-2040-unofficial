@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
 
@@ -54,6 +55,18 @@ typedef union {
 
 static const double one = 1.0, Zero[] = {0.0, -0.0,};
 
+/*
+ * C17 F.10.7.1: a zero divisor or an infinite dividend is a domain error
+ * whose value is a NaN; a NaN operand propagates without an error.
+ */
+static double
+fmod_invalid(double x, double y)
+{
+    if (x == x && y == y)
+        errno = EDOM;
+    return (x*y) / (x*y);
+}
+
 double fmod(double x, double y)
 {
     int32_t n=0, hx=0, hy=0, hz=0, ix=0, iy=0, sx=0, i=0;
@@ -71,7 +84,7 @@ double fmod(double x, double y)
         /* purge off exception values */
         if (hy == 0 || hx >= 0x7f800000 ||              /* y=0, or x not finite */
             hy > 0x7f800000)                            /* or y is NaN */
-            return (x*y) / (x*y);
+            return fmod_invalid(x, y);
         if (hx < hy)
             return x;                                   /* |x| < |y| return x */
         if (hx == hy)
@@ -152,7 +165,7 @@ double fmod(double x, double y)
         /* purge off exception values */
         if ((hy | ly) == 0 || hx >= 0x7ff00000 ||       /* y=0,or x not finite */
             (hy | ((ly | -ly) >> 31)) > 0x7ff00000)     /* or y is NaN */
-            return (x*y) / (x*y);
+            return fmod_invalid(x, y);
         if (hx <= hy) {
             if (hx < hy || lx < ly)
                 return x;                               /* |x| < |y| return x */

@@ -204,12 +204,14 @@ lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 	const u_char *fg = lcd_palette[LT_ATTR_FG(attr)];
 	const u_char *bg = lcd_palette[LT_ATTR_BG(attr)];
 	const u_char *glyph;
+	u_char bank[LT_GLYPH_ROWS];
 	u_int x = (u_int)col * LT_CELL_W, y = (u_int)prow * LT_CELL_H;
 	u_int bits;
 	int row, px;
 
-	glyph = lcdterm_glyph(ch);
-	if (glyph == NULL) {
+	if (lcdterm_glyph(ch, bank))
+		glyph = bank;
+	else {
 		if (ch < LCDFONT_FIRST || ch >= LCDFONT_FIRST + LCDFONT_NCHARS)
 			ch = '?';
 		glyph = lcdfont[ch - LCDFONT_FIRST];

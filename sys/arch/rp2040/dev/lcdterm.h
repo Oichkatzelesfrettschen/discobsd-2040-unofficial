@@ -116,13 +116,13 @@ void	lcdterm_cursor_show(void);
 int	lcdterm_app_cursor(void);
 
 /*
- * lcdterm_glyph() returns the LT_GLYPH_ROWS bytes of bank code, or NULL for
- * a code outside the bank. lcdterm_setglyph() replaces one bank glyph and
+ * lcdterm_glyph() copies the LT_GLYPH_ROWS rows of bank code into rows and
+ * returns 1, or returns 0 and leaves rows alone for a code outside the bank. lcdterm_setglyph() replaces one bank glyph and
  * redraws the cells that show it; it returns -1 and changes nothing when
  * code is outside the bank or a row sets a bit outside LT_GLYPH_MASK. The
  * caller holds the drawing flag of lcdcons.c.
  */
-const unsigned char *lcdterm_glyph(int code);
+int	lcdterm_glyph(int code, unsigned char rows[LT_GLYPH_ROWS]);
 int	lcdterm_setglyph(int code, const unsigned char *rows);
 
 /* Read access for the host test. */

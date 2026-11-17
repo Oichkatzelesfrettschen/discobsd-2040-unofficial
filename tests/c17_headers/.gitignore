@@ -15,3 +15,6 @@ ctype_test_arm
 ctype_tree
 wide_test
 wide_test_arm
+c17_library_imports.txt
+c17_library_defined.txt
+c17_library_libc_only.txt

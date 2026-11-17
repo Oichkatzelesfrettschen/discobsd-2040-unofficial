@@ -65,10 +65,12 @@
 # requests physio() and the buffer cache make, calls the probe under each
 # board identity, and writes crash dumps through sddump() and the kernel's
 # dump stream (rp2040/dump.c) onto the card's dump partition, mounted,
-# beside a mount, undersized, failing and replaced, and runs sdrootattach()
+# beside a mount, undersized, failing and replaced, runs sdrootattach()
 # with and without the PicoCalc loader's stamp, then opens the selected root
 # slot after each change of its type, extent or card that a swap between the
-# two would make; seventy-three mutants of sd.c and dump.c must fail it.
+# two would make, and runs sdswapattach() over the cards and boards that
+# decide the swap device and reads the size sdsize() gives it; ninety
+# mutants of sd.c and dump.c must fail it.
 #
 # dump_test writes a dump with the kernel's dump stream into a partition
 # image and runs savecore(8) on it from the host: a saved dump, a damaged
@@ -177,7 +179,7 @@ sdstrat_test: sdstrat_test.c regmodel.h ${DEV}/sd.c ${DEV}/sd.h \
 	    ${DEV}/sdspi.h ${DEV}/picocalc_reg.h shim/machine/board.h \
 	    shim/machine/dump.h ${TOPSRC}/sys/arch/rp2040/include/board.h \
 	    ${TOPSRC}/sys/arch/rp2040/include/dump.h ${DUMPW} ${CRC32}
-	${HOST_CC} ${KCSTD} ${SAN} -g -idirafter ${TOPSRC}/sys -o $@ \
+	${HOST_CC} ${KCSTD} ${SAN} -g -DSDSWAP_ENABLED -idirafter ${TOPSRC}/sys -o $@ \
 	    sdstrat_test.c ${DEV}/sd.c ${DUMPW} ${CRC32}
 
 dump_test: dump_test.c ${DUMPW} ${CRC32} ${SAVECORE}/savecore.c \
@@ -260,7 +262,7 @@ font-sync:
 # Each mutant is the shipped source with one line changed by sed; the
 # sed must change the file, and the test built from it must fail.
 mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
-	mutant-bright mutant-bell mutant-bell-any mutant-bank-store \
+	mutant-bright mutant-bell mutant-bell-any mutant-bank-store mutant-bank-pack \
 	mutant-bank-redraw mutant-bank-ascii mutant-bank-c1 \
 	mutant-bank-acs-shift mutant-bank-ris mutant-bank-rows \
 	mutant-bank-code mutant-gfx-gate-cell mutant-gfx-gate-fill \
@@ -298,7 +300,11 @@ mutant-bell-any:
 
 mutant-bank-store:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    's/^\t\tg\[i\] = rows\[i\];/\t\t(void)g;/'
+	    's/^\tglyph_pack(glyph_bank\[code - LT_GLYPH_FIRST\], rows);/\t(void)rows;/'
+
+mutant-bank-pack:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
+	    's/^\t\tacc >>= LT_GLYPH_BITS;/\t\tacc >>= LT_GLYPH_BITS - 1;/'
 
 mutant-bank-redraw:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -1280,7 +1286,7 @@ sdspi-mutant-span-sum-late:
 
 
 SDSTRAT_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
-		"${KCSTD} -idirafter ${TOPSRC}/sys" "${DEV}" sdstrat_test.c
+		"${KCSTD} -DSDSWAP_ENABLED -idirafter ${TOPSRC}/sys" "${DEV}" sdstrat_test.c
 
 # The driver, the dump stream it writes through and the CRC; a mutant of
 # dump.c names it relative to DEV.
@@ -1359,7 +1365,30 @@ sdstrat-mutants: \
 	sdstrat-mutant-root-bind-whole-card \
 	sdstrat-mutant-mbr-offset-shifted \
 	sdstrat-mutant-mbr-copy-short \
-	sdstrat-mutant-mbr-signature-unchecked
+	sdstrat-mutant-mbr-signature-unchecked \
+	sdstrat-mutant-swap-board-ungated \
+	sdstrat-mutant-swap-psram-overridden \
+	sdstrat-mutant-swap-type-ignored \
+	sdstrat-mutant-swap-short-accepted \
+	sdstrat-mutant-swap-minimum-refused \
+	sdstrat-mutant-swap-size-unclamped \
+	sdstrat-mutant-swap-size-unaligned \
+	sdstrat-mutant-swap-clamp-everywhere \
+	sdstrat-mutant-swap-tail-refused \
+	sdstrat-mutant-swap-tail-everywhere \
+	sdstrat-mutant-swap-tail-unpadded \
+	sdstrat-mutant-swap-tail-read-whole \
+	sdstrat-mutant-swap-tail-resid-dropped \
+	sdstrat-mutant-swap-tail-past-partition \
+	sdstrat-mutant-swap-left-closed \
+	sdstrat-mutant-swap-hold-closable \
+	sdstrat-mutant-swap-refusal-left-open \
+	sdstrat-mutant-swap-overlap-ignored \
+	sdstrat-mutant-swap-overlap-adjacent \
+	sdstrat-mutant-swap-overlap-self \
+	sdstrat-mutant-swap-fallback-hold-kept \
+	sdstrat-mutant-swap-main-open-counted \
+	sdstrat-mutant-swap-fallback-closes-descriptor
 
 # sdrootattach(): the root a kernel the PicoCalc loader started takes.
 sdstrat-mutant-root-stamp-ignored:
@@ -1433,9 +1462,107 @@ sdstrat-mutant-mbr-signature-unchecked:
 	${SDSTRAT_MUT} sd.c \
 	    's/if ((b\[510\] | (u_int)b\[511\] << 8) == MBR_MAGIC)/if (1)/' ${SDSTRAT_SRC}
 
+# sdswapattach() and the swap partition's size: the device that holds swap.
+sdstrat-mutant-swap-board-ungated:
+	${SDSTRAT_MUT} sd.c \
+	    's/board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR/major(swapdev) == PSRAM_MAJOR/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-psram-overridden:
+	${SDSTRAT_MUT} sd.c \
+	    's/board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR/board_id() != BOARD_ID_PICOCALC/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-type-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/sdpt\[i\].dp_type == PTYPE_SWAP \&\&/1 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-short-accepted:
+	${SDSTRAT_MUT} sd.c \
+	    's/>= SD_SWAP_MIN_BLOCKS \&\&/>= 1 \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-minimum-refused:
+	${SDSTRAT_MUT} sd.c \
+	    's/>= SD_SWAP_MIN_BLOCKS \&\&/> SD_SWAP_MIN_BLOCKS \&\&/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-size-unclamped:
+	${SDSTRAT_MUT} sd.c \
+	    's/blocks = SD_SWAP_MAX_BLOCKS;/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-size-unaligned:
+	${SDSTRAT_MUT} sd.c \
+	    's/blocks \&= ~(daddr_t)(SWAP_IMAGE_ALIGN - 1);/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-clamp-everywhere:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (dev == swapdev) {/if (1) {/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-left-closed:
+	${SDSTRAT_MUT} sd.c \
+	    's/sd_swaphold = 1U << i;/sdcard.type = SD_NONE;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-hold-closable:
+	${SDSTRAT_MUT} sd.c \
+	    's/sd_swaphold = 1U << i;/sd_open[1] |= 1U << i;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-refusal-left-open:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (i > MAXPARTITIONS) {/sd_swaphold = 1U; if (i > MAXPARTITIONS) {/' ${SDSTRAT_SRC}
+
+# A b8 entry that shares a sector with another entry is no swap partition.
+sdstrat-mutant-swap-overlap-ignored:
+	${SDSTRAT_MUT} sd.c \
+	    's/!sd_shares_sectors(i))/(!sd_shares_sectors(i) || 1))/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-overlap-adjacent:
+	${SDSTRAT_MUT} sd.c \
+	    's/q->dp_offset < p->dp_offset + p->dp_nsectors/q->dp_offset <= p->dp_offset + p->dp_nsectors/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-overlap-self:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (q != p \&\& q->dp_nsectors/if (q->dp_nsectors/' ${SDSTRAT_SRC}
+
+# The return of swap to fl1 releases the hold, and only the hold: main()'s
+# open of the swap partition sets no descriptor bit, and the bits of
+# descriptors still open survive the release.
+sdstrat-mutant-swap-fallback-hold-kept:
+	${SDSTRAT_MUT} sd.c \
+	    '/^sdswap_fallback/,/^}/s/^	sd_swaphold = 0;$$/	(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-main-open-counted:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (sd_swapmain == 1U << part \&\& sd_kind(mode)) {/if (0) {/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-fallback-closes-descriptor:
+	${SDSTRAT_MUT} sd.c \
+	    '/^sdswap_fallback/,/^}/s/^	sd_swaphold = 0;$$/	sd_swaphold = 0; sd_open[1] \&= ~(1U << sdpart(swapdev));/' ${SDSTRAT_SRC}
+
+# The last sector of a swap transfer, sd_tail_io() and its callers.
+sdstrat-mutant-swap-tail-refused:
+	${SDSTRAT_MUT} sd.c \
+	    's/(tail != 0 \&\& bp->b_dev != swapdev)/(tail != 0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-everywhere:
+	${SDSTRAT_MUT} sd.c \
+	    's/(tail != 0 \&\& bp->b_dev != swapdev)/(0)/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-unpadded:
+	${SDSTRAT_MUT} sd.c \
+	    's/bzero(sd_tail + len, SD_SECTOR - len);/(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-read-whole:
+	${SDSTRAT_MUT} sd.c \
+	    's/bcopy(sd_tail, addr, len);/bcopy(sd_tail, addr, SD_SECTOR);/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-resid-dropped:
+	${SDSTRAT_MUT} sd.c \
+	    's/bp->b_resid += (n - i) \* SD_SECTOR + tail;/bp->b_resid += (n - i) * SD_SECTOR;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-tail-past-partition:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (n >= avail) {/if (n > avail) {/' ${SDSTRAT_SRC}
+
 sdstrat-mutant-whole-block-only:
 	${SDSTRAT_MUT} sd.c \
-	    's/(bp->b_bcount \& (SD_SECTOR - 1))/(bp->b_bcount \& (DEV_BSIZE - 1))/' ${SDSTRAT_SRC}
+	    's/tail = bp->b_bcount \& (SD_SECTOR - 1);/tail = bp->b_bcount \& (DEV_BSIZE - 1);/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-stale-resid:
 	${SDSTRAT_MUT} sd.c \
@@ -1443,11 +1570,11 @@ sdstrat-mutant-stale-resid:
 
 sdstrat-mutant-truncation-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid = (n - avail) \* SD_SECTOR;/(void)0;/' ${SDSTRAT_SRC}
+	    's/bp->b_resid = (n - avail) \* SD_SECTOR + tail;/(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-truncation-clamp:
 	${SDSTRAT_MUT} sd.c \
-	    's/if (n > avail) {/if (0) {/' ${SDSTRAT_SRC}
+	    's/if (n >= avail) {/if (0) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-eof-resid:
 	${SDSTRAT_MUT} sd.c \
@@ -1516,15 +1643,15 @@ sdstrat-mutant-reject-resid:
 
 sdstrat-mutant-failure-resid:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/(void)0;/' ${SDSTRAT_SRC}
+	    's/bp->b_resid += (n - i) \* SD_SECTOR + tail;/(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-failure-resid-off-by-one:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid += (n - i - 1) * SD_SECTOR;/' ${SDSTRAT_SRC}
+	    's/bp->b_resid += (n - i) \* SD_SECTOR + tail;/bp->b_resid += (n - i - 1) * SD_SECTOR;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-failure-resid-truncation:
 	${SDSTRAT_MUT} sd.c \
-	    's/bp->b_resid += (n - i) \* SD_SECTOR;/bp->b_resid = (n - i) * SD_SECTOR;/' ${SDSTRAT_SRC}
+	    's/bp->b_resid += (n - i) \* SD_SECTOR + tail;/bp->b_resid = (n - i) * SD_SECTOR;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-sector-replaced:
 	${SDSTRAT_MUT} sd.c \
@@ -1776,7 +1903,8 @@ UART_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
 uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
 	uart-mutant-busy-early uart-mutant-drain-unchecked \
 	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
-	uart-mutant-putc-waits uart-mutant-timer-dup
+	uart-mutant-putc-waits uart-mutant-timer-dup \
+	uart-mutant-rx-pull-down
 
 uart-mutant-one-byte:
 	@MUTANT_EXPECT='FAIL login prompt: 1 of 7 bytes reach the wire' ${UART_MUT} uart.c \
@@ -1823,6 +1951,11 @@ uart-mutant-timer-dup:
 	    's/^        if (!(uart_txflags\[unit\] \& UART_TX_TIMER)) {$$/        if (1) {/' \
 	    uart.h
 
+# uart_pin_setup() leaves the receive pad on its reset pull-down.
+uart-mutant-rx-pull-down:
+	@MUTANT_EXPECT='FAIL receive pad takes the pull-up for the pull-down' ${UART_MUT} uart.c \
+	    's/^\tpad = (pad \& ~PADS_PDE) | PADS_PUE;$$/\t(void)0;/' uart.h
+
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
@@ -1830,7 +1963,7 @@ clean:
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
-	mutant-bell-any mutant-bank-store mutant-bank-redraw \
+	mutant-bell-any mutant-bank-store mutant-bank-pack mutant-bank-redraw \
 	mutant-bank-ascii mutant-bank-c1 mutant-bank-acs-shift \
 	mutant-bank-ris mutant-bank-rows mutant-bank-code clean \
 	mutant-gfx-gate-cell mutant-gfx-gate-fill mutant-gfx-gate-top \
@@ -1905,7 +2038,13 @@ clean:
 	sdstrat-mutant-media-gone-inverted \
 	sdstrat-mutant-getpart-whole \
 	sdstrat-mutant-probe-ungated \
-	sdstrat-mutant-probe-never
+	sdstrat-mutant-probe-never \
+	sdstrat-mutant-swap-overlap-ignored \
+	sdstrat-mutant-swap-overlap-adjacent \
+	sdstrat-mutant-swap-overlap-self \
+	sdstrat-mutant-swap-fallback-hold-kept \
+	sdstrat-mutant-swap-main-open-counted \
+	sdstrat-mutant-swap-fallback-closes-descriptor
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

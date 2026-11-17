@@ -1,0 +1,47 @@
+# COPTS value => exit status, text bytes of PICO PICO_UART PICOCALC PICOCALC_LEAN
+-Os => rc=0 98335 90289 123399 117405
+-Oz => rc=0 98335 90289 123399 117405
+-Os -fno-inline-small-functions => rc=0 98279 90249 123327 117333
+-Os -fno-ipa-cp => rc=0 98423 90377 123479 117485
+-Os -fno-ipa-sra => rc=0 98327 90281 123391 117397
+-Os -fno-tree-loop-distribute-patterns => rc=0 98335 90289 123399 117405
+-Os -fno-caller-saves => rc=0 98335 90289 123399 117405
+-Os -fno-move-loop-invariants => rc=0 97951 89937 122967 116989
+-Os -fno-tree-ch => rc=0 98387 90341 123475 117481
+-Os -fno-ivopts => rc=0 98767 90633 124095 117997
+-Os -fno-reorder-blocks => rc=0 98831 90825 123983 117965
+-Os -fno-tree-pre => rc=0 98391 90353 123455 117469
+-Os -fno-gcse => rc=0 99127 91041 124215 118213
+-Os -fno-schedule-insns2 => rc=0 98335 90289 123407 117413
+-Os -fno-partial-inlining => rc=0 98295 90265 123343 117349
+-Os -fno-inline-functions-called-once => rc=0 98559 90473 123511 117485
+-Os -fno-tree-sra => rc=0 98343 90297 123407 117413
+-Os -fno-toplevel-reorder => rc=0 99611 91405 125119 118997
+-Os -fno-jump-tables => rc=0 98527 90417 123743 117733
+-Os -fno-tree-dominator-opts => rc=0 97991 89929 123039 117069
+-Os -fno-crossjumping => rc=0 100335 92065 125927 119837
+-Os -fno-if-conversion => rc=0 98287 90241 123375 117389
+-Os -fno-peephole2 => rc=0 98343 90289 123415 117421
+-Os -fno-tree-fre => rc=0 98391 90321 123479 117485
+-Os -fno-code-hoisting => rc=0 98455 90409 123535 117541
+-Os -fno-tree-sink => rc=0 98407 90329 123519 117493
+-Os -fno-shrink-wrap => rc=0 98335 90289 123399 117405
+-Os -fno-combine-stack-adjustments => rc=0 98335 90289 123399 117405
+-Os -fno-optimize-sibling-calls => rc=0 98335 90289 123399 117405
+-Os -fno-isolate-erroneous-paths-dereference => rc=0 98335 90289 123399 117405
+-Os -fno-tree-vrp => rc=0 98531 90397 123579 117593
+-Os -fno-tree-switch-conversion => rc=0 98335 90289 123399 117405
+-Os -fno-ssa-phiopt => rc=0 98359 90313 123439 117437
+-Os -mno-unaligned-access => rc=0 98335 90289 123399 117405
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts => rc=0 97631 89585 122623 116661
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-inline-small-functions -fno-partial-inlining => rc=0 97583 89553 122551 116589
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-inline-small-functions -fno-partial-inlining -fno-if-conversion -fno-ipa-sra => rc=0 97551 89529 122503 116549
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-tree-loop-im => rc=0 97579 89541 122435 116473
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-tree-loop-optimize => rc=0 97723 89653 122659 116681
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-tree-loop-ivcanon -fno-tree-forwprop => rc=0 97571 89549 122419 116457
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-thread-jumps -fno-tree-ccp => rc=0 97959 89833 122967 116997
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-split-wide-types -fno-tree-ter => rc=0 97527 89473 122599 116637
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-cprop-registers -fno-forward-propagate => rc=0 97895 89841 122887 116933
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-tree-coalesce-vars -fno-ira-share-spill-slots => rc=0 97831 89753 122847 116901
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-guess-branch-probability => rc=0 97831 89793 122983 116989
+-Os -fno-move-loop-invariants -fno-tree-dominator-opts -fno-tree-bit-ccp -fno-tree-dse -fno-dse => rc=0 97735 89697 122735 116773

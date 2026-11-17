@@ -31,7 +31,8 @@
 #define UMASK	0755
 #define MAXFN	750
 
-time_t	utime;
+/* File scope: an external utime would replace the C library's utime(3). */
+static time_t	utime;
 
 #ifdef CROSS
 #define off_t unsigned long long

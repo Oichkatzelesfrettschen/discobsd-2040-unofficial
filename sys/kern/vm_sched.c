@@ -56,6 +56,10 @@ sched()
         /* Perform swap-out/swap-in action. */
         spl0();
         exchange_refusal = 0;
+#ifdef SDSWAP_ENABLED
+        if (swap_lost == SWAP_LOST_SWEPT)
+            swap_lost_fallback ();
+#endif
 #ifdef SWAPRAM
         swapram_service ();
 #endif
@@ -76,7 +80,7 @@ sched()
          * either can change what fits; runin then wakes sched for a retry
          * (every sleep, every exit, and once a second from schedcpu).
          */
-        if (swapped_out) {
+        if (swapped_out && swap_lost != SWAP_LOST_NEW) {
             int pool_backed = 0;
 
 #ifdef SWAPRAM
@@ -86,7 +90,13 @@ sched()
                 pool_backed) != 0)
                 exchange_refusal = 1;
         }
-        if (exchange_refusal) {
+        /*
+         * A swap device that left since the last pass takes the refusal
+         * path too: the process selected for swap-out is still whole in
+         * core and returns to the run queue. Then every image the device
+         * held is retired and selection starts over among what is left.
+         */
+        if (exchange_refusal || swap_lost == SWAP_LOST_NEW) {
             s = splhigh ();
             if (in_core) {
                 in_core->p_flag |= SLOAD;
@@ -94,6 +104,15 @@ sched()
                     setrq (in_core);
             }
             splx (s);
+#ifdef SDSWAP_ENABLED
+            if (swap_lost == SWAP_LOST_NEW) {
+                in_core = 0;
+                swapped_out = 0;
+                refusals = 0;
+                swap_lost_sweep ();
+                continue;
+            }
+#endif
 #ifdef SWAPRAM
             storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
             storage_note (STORAGE_SWAPRAM_SCHED_REFUSALS, 1);
@@ -111,9 +130,21 @@ sched()
         if (in_core && reservation.tier == SWAP_IMAGE_EXCHANGE)
             swap_exchange_inplace (&reservation, in_core, swapped_out);
         else {
-            if (in_core)
+            if (in_core) {
                 swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,
                     &reservation);
+#ifdef SDSWAP_ENABLED
+                /*
+                 * A device that left during the copy leaves in_core
+                 * resident, so nothing may come in over it; the next pass
+                 * returns it to the run queue.
+                 */
+                if (reservation.state != SWAP_IMAGE_COMMITTED) {
+                    swapped_out = 0;
+                    continue;
+                }
+#endif
+            }
             if (swapped_out)
                 swapin (swapped_out);
         }

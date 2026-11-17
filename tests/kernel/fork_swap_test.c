@@ -94,11 +94,86 @@ swap_cursor_publish(size_t cursor)
 }
 #endif
 
+#ifdef SDSWAP_ENABLED
+/*
+ * The device model of a removable swap device. Transfer number
+ * swap_fail_at, counted from zero over reads and writes, finds the device
+ * gone: it moves nothing and sets swap_lost as swap_with_buf_result() does,
+ * and every later transfer returns at once. swap_ring_io_test holds the
+ * production vm_swp.c to that contract.
+ */
+char swap_removable, swap_lost;
+static int swap_fail_at = -1;
+static unsigned swap_transfers, unsleeps;
+static int lost_vfork_child;
+static int signal_to[NPROC];
+/*
+ * The endtsleep callout tsleep() armed for each slot, set by a case and
+ * cleared by untimeout(); the raw key sessions lcdcons_procexit() ended.
+ */
+static int tsleep_armed[NPROC];
+static int keyevs_ended[NPROC], keyevs_pid[NPROC];
+/*
+ * The fixed device the configuration named (fl1 on the board): the swap
+ * device sdswap_fallback() reopens once the lost device's map is empty.
+ * fallback_blocks is its size, 0 for a device that cannot take swap.
+ */
+u_int nswap;
+static unsigned fallback_calls;
+static size_t fallback_blocks;
+
+size_t
+sdswap_fallback(void)
+{
+    fallback_calls++;
+    return fallback_blocks;
+}
+
+void
+unsleep(struct proc *p)
+{
+    unsleeps++;
+    p->p_wchan = 0;
+}
+
+void
+endtsleep(caddr_t argument)
+{
+    (void)argument;
+    panic("endtsleep fired");
+}
+
+void
+untimeout(void (*fun)(caddr_t), caddr_t arg)
+{
+    if (fun == endtsleep)
+        tsleep_armed[(struct proc *)arg - proc] = 0;
+}
+
+#ifdef PICOCALC_ENABLED
+void
+lcdcons_procexit(const struct proc *p)
+{
+    keyevs_ended[p - proc]++;
+    keyevs_pid[p - proc] = p->p_pid;
+}
+#endif
+#endif
+
 void
 swap(size_t block, size_t address, int count, int flags)
 {
     const unsigned char *source;
     unsigned index;
+
+#ifdef SDSWAP_ENABLED
+    if (swap_lost)
+        return;
+    if (swap_fail_at >= 0 && swap_transfers++ == (unsigned)swap_fail_at) {
+        swap_lost = SWAP_LOST_NEW;
+        return;
+    }
+#endif
 
     if (flags & B_READ) {
         /*
@@ -206,6 +281,33 @@ sleep(caddr_t channel, int priority)
     }
     HK_CHECK(priority == PSWP + 1);
     HK_CHECK(child == &proc[1]);
+#ifdef SDSWAP_ENABLED
+    /* The vfork child was retired with the swap device while it ran. */
+    if (lost_vfork_child == 1 || lost_vfork_child == 3) {
+        child->p_flag &= ~SVFORK;
+        child->p_stat = SZOMB;
+        child->p_xstat = SIGKILL;
+        /* With 3 the swapper has already returned swap to fl1. */
+        swap_lost = lost_vfork_child == 1 ? SWAP_LOST_SWEPT : 0;
+        sleeps++;
+        return;
+    }
+    /*
+     * The vfork child lent the image on to a vfork child of its own, which
+     * went with the device, and is exiting: endvfork() wakes this parent
+     * with no data or stack to give back, and the device has already been
+     * replaced (swap_lost 0 again).
+     */
+    if (lost_vfork_child == 2) {
+        child->p_flag &= ~SVFORK;
+        child->p_flag |= SLOAD;
+        child->p_dsize = 0;
+        child->p_ssize = 0;
+        swap_lost = 0;
+        sleeps++;
+        return;
+    }
+#endif
     child->p_flag &= ~SVFORK;
     child->p_flag |= SLOAD;
     child->p_daddr = proc[0].p_daddr;
@@ -249,6 +351,10 @@ exec_text_restore(struct proc *p, caddr_t dst, size_t len)
 void
 psignal(struct proc *p, int signal)
 {
+#ifdef SDSWAP_ENABLED
+    if (p != NULL)
+        signal_to[p - proc] |= 1 << signal;
+#endif
     (void)p;
     (void)signal;
 #ifdef SWAPRAM
@@ -400,10 +506,26 @@ sr_encode(caddr_t source, size_t length, unsigned char *target,
 #define spl0() sched_spl0()
 #define fork kernel_fork
 #define vfork kernel_vfork
+/*
+ * The kernel's exit(), which newproc() calls for a vfork parent whose lent
+ * image went with the swap device; libc owns the name in a host binary. It
+ * records the status and leaves through hk_escape(), since exit() does not
+ * return.
+ */
+static int exit_status = -1;
+_Noreturn void kernel_exit(int rv);
+_Noreturn void
+kernel_exit(int rv)
+{
+    exit_status = rv;
+    hk_escape();
+}
+#define exit kernel_exit
 #ifndef FORK_SWAP_FUNCTIONS
 #define FORK_SWAP_FUNCTIONS "fork_swap_functions.c"
 #endif
 #include FORK_SWAP_FUNCTIONS
+#undef exit
 #undef fork
 #undef vfork
 #undef log
@@ -503,6 +625,17 @@ reset_fixture(void)
 #endif
     runin = runout = 0;
     child_resume = copy_consumed_reservation = 0;
+#ifdef SDSWAP_ENABLED
+    swap_removable = swap_lost = 0;
+    swap_fail_at = -1;
+    swap_transfers = unsleeps = 0;
+    lost_vfork_child = 0;
+    exit_status = -1;
+    bzero(signal_to, sizeof(signal_to));
+    bzero(tsleep_armed, sizeof(tsleep_armed));
+    bzero(keyevs_ended, sizeof(keyevs_ended));
+    bzero(keyevs_pid, sizeof(keyevs_pid));
+#endif
 }
 
 #ifdef SWAP_IMAGE_ALIGN
@@ -1814,6 +1947,442 @@ sched_successes(void)
  */
 static struct swap_image_reservation unreserved;
 
+#ifdef SDSWAP_ENABLED
+/*
+ * A swap device that leaves (swap_lost, sys/systm.h). Each scenario runs
+ * with the device model failing transfer n for every n the operation makes.
+ */
+static int lost_result;
+
+static void
+lost_fork_call(void)
+{
+    lost_result = newproc(0);
+}
+
+/* The slot newproc() took is back on freeproc and names no process. */
+static int
+lost_child_slot_free(void)
+{
+    return freeproc == &proc[1] && proc[1].p_nxt == &proc[2] &&
+        proc[1].p_stat == 0 && proc[1].p_pid == 0 && proc[1].p_flag == 0 &&
+        proc[1].p_tip == NULL && proc[1].p_pptr == NULL;
+}
+
+static void
+lost_fork_cases(void)
+{
+    struct proc parent_before;
+    int n;
+
+    for (n = 0; n < 3; n++) {
+        reset_fixture();
+        entries[0].m_addr = 4;
+        entries[0].m_size = 164;
+        proc[0].p_tsize = 0;
+        swap_removable = 1;
+        swap_fail_at = n;
+        bcopy(&proc[0], &parent_before, sizeof(parent_before));
+        lost_fork_call();
+        HK_CHECK(lost_result == -1);
+        HK_CHECK(swap_lost == SWAP_LOST_NEW);
+        HK_CHECK(allproc == &proc[0] && proc[0].p_nxt == NULL);
+        HK_CHECK(lost_child_slot_free());
+        HK_CHECK(pidhash[PIDHASH(mpid)] != &proc[1]);
+        HK_CHECK(descriptor.f_count == 1);
+        HK_CHECK(directory.i_count == 2);
+        HK_CHECK(text_inode.i_count == 1);
+        HK_CHECK(u.u_procp == &proc[0]);
+        HK_CHECK(same_bytes(&proc[0], &parent_before, sizeof(parent_before)));
+        HK_CHECK(free_total() == 164);
+        HK_CHECK(cnt.v_swpout == 0);
+
+        /* The lost device takes no later reservation and no transfer. */
+        swap_transfers = 0;
+        publications = 0;
+        lost_fork_call();
+        HK_CHECK(lost_result == -1);
+        HK_CHECK(swap_transfers == 0 && publications == 0);
+        HK_CHECK(lost_child_slot_free());
+        HK_CHECK(free_total() == 164);
+    }
+}
+
+/* proc[1] swapped to the device, linked as the kernel links a process. */
+static void
+lost_sched_fixture(void)
+{
+    size_t addresses[3], next = 4;
+
+    sched_fixture(SRUN);
+    /* reset_fixture() left the free list's link in proc[1]. */
+    proc[1].p_nxt = NULL;
+    proc[1].p_prev = &proc[0].p_nxt;
+    proc[1].p_pptr = &proc[0];
+    proc[1].p_hash = pidhash[PIDHASH(10)];
+    pidhash[PIDHASH(10)] = &proc[1];
+    entries[0].m_addr = 4;
+    entries[0].m_size = 380;
+    HK_CHECK(malloc3_contiguous_next(swapmap,
+        btod(proc[1].p_dsize - swaptext(&proc[1])),
+        btod(proc[1].p_ssize), btod(USIZE), SWAP_IMAGE_ALIGN,
+        &next, addresses) == swap_image_span(&proc[1]));
+    proc[1].p_daddr = addresses[0];
+    proc[1].p_saddr = addresses[1];
+    proc[1].p_addr = addresses[2];
+    swapnext = next;
+    sr_admit = 0;
+    swap_reads_allowed = 1;
+    swap_removable = 1;
+}
+
+static int
+lost_zombie(const struct proc *p)
+{
+    return p->p_stat == SZOMB && p->p_xstat == SIGKILL &&
+        pidhash[PIDHASH(p->p_pid)] != p;
+}
+
+static void
+lost_sched_cases(void)
+{
+    int n;
+
+    /* The device holds: a fresh extent takes proc[0], never an exchange. */
+    lost_sched_fixture();
+    HK_EXPECT_PANIC("sched slept", sched_call);
+    hk_ipl = 0;
+    HK_CHECK(swap_lost == 0);
+    HK_CHECK((proc[0].p_flag & SLOAD) == 0 && proc[0].p_daddr != 4);
+    HK_CHECK((proc[1].p_flag & SLOAD) != 0 && cnt.v_swpin == 1);
+
+    /* The device leaves during the swap-out: proc[0] stays, proc[1] goes. */
+    for (n = 0; n < 3; n++) {
+        lost_sched_fixture();
+        swap_fail_at = n;
+        HK_EXPECT_PANIC("sched slept", sched_call);
+        hk_ipl = 0;
+        HK_CHECK(swap_lost == SWAP_LOST_SWEPT);
+        HK_CHECK((proc[0].p_flag & (SLOAD | SLOCK)) == SLOAD);
+        HK_CHECK(proc[0].p_stat == SRUN && proc[0].p_daddr == 0x20000000);
+        HK_CHECK(requeued == (caddr_t)&proc[0]);
+        HK_CHECK(cnt.v_swpout == 0 && cnt.v_swpin == 0 && swap_reads == 0);
+        HK_CHECK(lost_zombie(&proc[1]));
+        HK_CHECK(allproc == &proc[0] && proc[0].p_nxt == NULL);
+        HK_CHECK(zombproc == &proc[1]);
+        /* The retired image's blocks are back: the lost map is empty. */
+        HK_CHECK(free_total() == 380);
+        HK_CHECK(signal_to[0] == 1 << SIGCHLD);
+        HK_CHECK(sched_sleep_channel == (caddr_t)&runout);
+    }
+
+    /* The device leaves during the swap-in: both images were on it. */
+    for (n = 3; n < 6; n++) {
+        lost_sched_fixture();
+        swap_fail_at = n;
+        HK_EXPECT_PANIC("sched slept", sched_call);
+        hk_ipl = 0;
+        HK_CHECK(swap_lost == SWAP_LOST_SWEPT);
+        HK_CHECK(cnt.v_swpout == 1 && cnt.v_swpin == 0);
+        HK_CHECK(lost_zombie(&proc[0]) && lost_zombie(&proc[1]));
+        HK_CHECK((proc[1].p_flag & SLOAD) == 0);
+        HK_CHECK(allproc == NULL);
+        HK_CHECK(free_total() == 380);
+    }
+}
+
+static void
+lost_sweep_call(void)
+{
+    swap_lost_sweep();
+}
+
+static void
+lost_sweep_cases(void)
+{
+    int n;
+
+    /* A pool image, a system process and the resident stay. */
+    lost_sched_fixture();
+    sched_make_pool_image();
+    freeproc = &proc[3];
+    proc[1].p_nxt = &proc[2];
+    proc[2].p_prev = &proc[1].p_nxt;
+    proc[2].p_pid = 11;
+    proc[2].p_stat = SSLEEP;
+    proc[2].p_flag = SSYS;
+    proc[2].p_pptr = &proc[0];
+    proc[2].p_hash = pidhash[PIDHASH(11)];
+    pidhash[PIDHASH(11)] = &proc[2];
+    swap_lost = SWAP_LOST_NEW;
+    lost_sweep_call();
+    HK_CHECK(swap_lost == SWAP_LOST_SWEPT);
+    HK_CHECK(proc[0].p_stat == SRUN && proc[1].p_stat == SRUN &&
+        proc[2].p_stat == SSLEEP);
+    HK_CHECK(zombproc == NULL && swapram_present(&proc[1]));
+
+    /*
+     * A timed sleeper leaves its wait queue and its tsleep() callout, which
+     * would otherwise fire on the slot after wait4() frees it; the raw key
+     * session it owns ends; its children pass to init as exit() passes
+     * them: a traced one (stopped as well) loses P_TRACED and gets
+     * SIGKILL, a stopped one SIGHUP and SIGCONT, a running one nothing.
+     */
+    lost_sched_fixture();
+    freeproc = &proc[5];
+    proc[1].p_stat = SSLEEP;
+    proc[1].p_wchan = (caddr_t)&lost_result;
+    tsleep_armed[1] = 1;
+    proc[1].p_nxt = &proc[2];
+    proc[2].p_prev = &proc[1].p_nxt;
+    proc[2].p_pid = 11;
+    proc[2].p_stat = SRUN;
+    proc[2].p_flag = SLOAD;
+    proc[2].p_pptr = &proc[1];
+    proc[2].p_nxt = &proc[3];
+    proc[3].p_prev = &proc[2].p_nxt;
+    proc[3].p_pid = 12;
+    proc[3].p_stat = SSTOP;
+    proc[3].p_flag = SLOAD | P_TRACED;
+    proc[3].p_pptr = &proc[1];
+    proc[3].p_nxt = &proc[4];
+    proc[4].p_prev = &proc[3].p_nxt;
+    proc[4].p_pid = 13;
+    proc[4].p_stat = SSTOP;
+    proc[4].p_flag = SLOAD;
+    proc[4].p_pptr = &proc[1];
+    tsleep_armed[2] = 1;
+    swap_lost = SWAP_LOST_NEW;
+    lost_sweep_call();
+    HK_CHECK(lost_zombie(&proc[1]) && unsleeps == 1 &&
+        proc[1].p_wchan == NULL);
+    HK_CHECK(tsleep_armed[1] == 0 && tsleep_armed[2] == 1);
+    HK_CHECK(keyevs_ended[1] == 1 && keyevs_pid[1] == 10);
+    HK_CHECK(keyevs_ended[0] == 0 && keyevs_ended[2] == 0);
+    HK_CHECK(proc[2].p_ppid == 1 && proc[3].p_ppid == 1 &&
+        proc[4].p_ppid == 1);
+    HK_CHECK(proc[2].p_stat == SRUN && proc[0].p_nxt == &proc[2]);
+    HK_CHECK(signal_to[2] == 0 && (proc[2].p_flag & P_TRACED) == 0);
+    HK_CHECK((proc[3].p_flag & P_TRACED) == 0);
+    HK_CHECK(signal_to[3] == 1 << SIGKILL);
+    HK_CHECK((proc[4].p_flag & P_TRACED) == 0);
+    HK_CHECK(signal_to[4] == (1 << SIGHUP | 1 << SIGCONT));
+    HK_CHECK(proc[3].p_stat == SSTOP && proc[4].p_stat == SSTOP);
+
+    /*
+     * A vfork child returns the loan empty and wakes its parent, which exits
+     * in newproc() (lost_vfork_parent_case()); the retirement sends it no
+     * signal.
+     */
+    lost_sched_fixture();
+    proc[1].p_flag = SVFORK;
+    swap_lost = SWAP_LOST_NEW;
+    lost_sweep_call();
+    HK_CHECK(lost_zombie(&proc[1]));
+    HK_CHECK((proc[1].p_flag & SVFORK) == 0);
+    HK_CHECK(signal_to[0] == 1 << SIGCHLD);
+
+    /*
+     * A vfork parent out of core leaves with the device while its child
+     * runs on the lent image (how 0) or waits in endvfork() for SVFDONE
+     * (how 1): the child keeps the image, SVFORK clears so it never waits
+     * for a parent that is gone, SVFDONE releases a waiting one, and the
+     * wakeup reaches it on the parent's address. The fixture's proc[1]
+     * is also the slot the kernel's init has, so the reparenting to init
+     * wakes the same address once; the release must add a second wakeup.
+     */
+    for (n = 0; n < 2; n++) {
+        unsigned w;
+        int woke = 0;
+
+
+        lost_sched_fixture();
+        freeproc = &proc[3];
+        proc[1].p_stat = SSLEEP;
+        proc[1].p_flag = SVFPRNT;
+        proc[1].p_nxt = &proc[2];
+        proc[2].p_prev = &proc[1].p_nxt;
+        proc[2].p_pid = 11;
+        proc[2].p_stat = n == 0 ? SRUN : SSLEEP;
+        proc[2].p_flag = SLOAD | (n == 0 ? SVFORK : SLOCK);
+        proc[2].p_pptr = &proc[1];
+        proc[2].p_dsize = 4096;
+        proc[2].p_ssize = 2048;
+        swap_lost = SWAP_LOST_NEW;
+        lost_sweep_call();
+        HK_CHECK(lost_zombie(&proc[1]));
+        HK_CHECK((proc[2].p_flag & SVFORK) == 0);
+        HK_CHECK((proc[2].p_flag & SVFDONE) != 0);
+        HK_CHECK(proc[2].p_dsize == 4096 && proc[2].p_ssize == 2048);
+        HK_CHECK(proc[2].p_ppid == 1 && signal_to[2] == 0);
+        for (w = 0; w < wakeups && w < 8; w++)
+            if (wake_channels[w] == (caddr_t)&proc[1])
+                woke++;
+        HK_CHECK(woke == 2);
+    }
+
+    /* init cannot be retired. */
+    lost_sched_fixture();
+    proc[1].p_pid = 1;
+    pidhash[PIDHASH(1)] = &proc[1];
+    swap_lost = SWAP_LOST_NEW;
+    HK_EXPECT_PANIC("init lost with the swap device", lost_sweep_call);
+}
+
+#ifdef FORK_SWAP_EXCHANGE_PROBE
+/*
+ * The layout in which a fixed device starts the in-place exchange
+ * (sched_next_candidate_case()): a removable one refuses the pair instead,
+ * since eight free blocks hold no fresh extent, and proc[0] stays resident.
+ */
+static void
+lost_no_exchange_case(void)
+{
+    size_t addresses[3], next = 4, span;
+
+    sched_fixture(SRUN);
+    freeproc = &proc[3];
+    proc[1].p_nxt = &proc[2];
+    proc[2].p_nxt = NULL;
+    proc[2].p_pid = 11;
+    proc[2].p_stat = SRUN;
+    proc[2].p_time = 3;
+    proc[2].p_dsize = proc[0].p_dsize;
+    proc[2].p_tsize = proc[0].p_tsize;
+    proc[2].p_ssize = proc[0].p_ssize;
+    proc[2].p_tip = proc[0].p_tip;
+    span = swap_image_span(&proc[0]);
+    entries[0].m_addr = 4;
+    entries[0].m_size = 380;
+    HK_CHECK(malloc3_contiguous_next(swapmap,
+        btod(proc[2].p_dsize - swaptext(&proc[2])), btod(proc[2].p_ssize),
+        btod(USIZE), SWAP_IMAGE_ALIGN, &next, addresses) == span);
+    proc[2].p_daddr = addresses[0];
+    proc[2].p_saddr = addresses[1];
+    proc[2].p_addr = addresses[2];
+    bzero(entries, sizeof(entries));
+    entries[0].m_addr = addresses[0] + span;
+    entries[0].m_size = 8;
+    swapnext = entries[0].m_addr;
+    sched_make_pool_image();
+    sr_admit = 0;
+    swap_removable = 1;
+    HK_EXPECT_PANIC("sched slept", sched_call);
+    hk_ipl = 0;
+    HK_CHECK(exchange_begins == 0 && writes == 0 && swap_reads == 0);
+    HK_CHECK((proc[0].p_flag & SLOAD) != 0);
+    HK_CHECK((proc[2].p_flag & SLOAD) == 0 && cnt.v_swpin == 0);
+}
+#endif
+
+#if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
+/*
+ * The device left and its images were retired. proc[1] waits in the SwapRAM
+ * pool, the pool refuses the resident proc[0], and the lost device takes no
+ * reservation. With the lost device's map empty (held == 0) swap returns to
+ * the fixed device, whose map then takes proc[0], and proc[1] comes in from
+ * the pool; with an extent still held (a temporary swap unit, held == 1), or
+ * a fixed device that cannot take swap (held == 2), the pair is refused and
+ * proc[0] stays resident.
+ */
+static void
+lost_fallback_case(int held)
+{
+    sched_fixture(SRUN);
+    sched_make_pool_image();
+    sr_admit = 0;
+    swap_removable = 1;
+    swap_lost = SWAP_LOST_SWEPT;
+    nswap = 512;
+    swapmap->m_ring_first = 4;
+    swapmap->m_ring_end = 512;
+    swapmap->m_guard = 196;
+    entries[0].m_addr = 4;
+    entries[0].m_size = 508;
+    if (held == 1) {
+        entries[0].m_size = 100;
+        entries[1].m_addr = 112;
+        entries[1].m_size = 400;
+    }
+    fallback_calls = 0;
+    fallback_blocks = held == 2 ? 0 : 384;
+    swapnext = 4;
+    HK_EXPECT_PANIC("sched slept", sched_call);
+    hk_ipl = 0;
+    if (held == 0) {
+        HK_CHECK(fallback_calls == 1);
+        HK_CHECK(swap_lost == 0 && swap_removable == 0);
+        HK_CHECK(nswap == 384 && swapmap->m_ring_end == 384);
+        HK_CHECK((proc[0].p_flag & SLOAD) == 0 && cnt.v_swpout == 1);
+        HK_CHECK(proc[0].p_daddr >= 4 && proc[0].p_daddr < 384);
+        HK_CHECK((proc[1].p_flag & SLOAD) != 0);
+        HK_CHECK(swapram_present(&proc[1]) == 0);
+    } else {
+        /* A device that cannot take swap is asked again on each pass. */
+        HK_CHECK(held == 2 ? fallback_calls >= 1 : fallback_calls == 0);
+        HK_CHECK(swap_lost == SWAP_LOST_SWEPT && swap_removable == 1);
+        HK_CHECK(nswap == 512 && swapmap->m_ring_end == 512);
+        HK_CHECK((proc[0].p_flag & SLOAD) != 0 && cnt.v_swpout == 0);
+        HK_CHECK((proc[1].p_flag & SLOAD) == 0 && swapram_present(&proc[1]));
+    }
+    nswap = 0;
+}
+#endif
+
+static void
+lost_vfork_call(void)
+{
+    lost_result = newproc(1);
+}
+
+/*
+ * The parent of a vfork child whose lent image went with the device, the
+ * child retired as a zombie (how 1, and how 3 once swap is back on fl1) or
+ * exiting after lending the image on to a vfork child of its own that went
+ * (how 2, swap back on fl1): the parent calls exit(SIGKILL) itself rather than return behind
+ * a signal a tracer or process 1 could escape, takes no size from the
+ * child, releases it with SVFDONE and keeps no image.
+ */
+static void
+lost_vfork_parent_case(int how)
+{
+    reset_fixture();
+    entries[0].m_addr = 4;
+    entries[0].m_size = 164;
+    proc[0].p_tsize = 0;
+    swap_removable = 1;
+    lost_vfork_child = how;
+    lost_result = -2;
+    HK_CHECK(hk_catch(lost_vfork_call) == 1);
+    HK_CHECK(exit_status == SIGKILL && lost_result == -2 && sleeps == 1);
+    if (how != 2)
+        HK_CHECK(proc[1].p_stat == SZOMB && proc[1].p_xstat == SIGKILL);
+    HK_CHECK((proc[1].p_flag & SVFDONE) != 0);
+    HK_CHECK(proc[0].p_dsize == 0 && proc[0].p_ssize == 0);
+    HK_CHECK((proc[0].p_flag & SVFPRNT) == 0);
+    HK_CHECK(signal_to[0] == 0);
+}
+
+static void
+swap_lost_cases(void)
+{
+    lost_fork_cases();
+    lost_vfork_parent_case(1);
+    lost_vfork_parent_case(2);
+    lost_vfork_parent_case(3);
+    lost_sched_cases();
+    lost_sweep_cases();
+#ifdef FORK_SWAP_EXCHANGE_PROBE
+    lost_no_exchange_case();
+#endif
+#if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
+    lost_fallback_case(0);
+    lost_fallback_case(1);
+    lost_fallback_case(2);
+#endif
+}
+#endif /* SDSWAP_ENABLED */
+
 static void
 null_reservation_call(void)
 {
@@ -1990,5 +2559,8 @@ main(void)
     unreserved_swapout();
     sched_refusals();
     sched_successes();
+#ifdef SDSWAP_ENABLED
+    swap_lost_cases();
+#endif
     return hk_verdict("fork swap refusal and reservation");
 }

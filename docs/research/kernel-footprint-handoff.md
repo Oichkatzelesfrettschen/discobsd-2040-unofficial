@@ -77,8 +77,7 @@ special bits directly to nine characters. The two account caches retain
 A hit skips the relevant name lookup. An absent account leaves the
 previous slot intact and uses the existing numeric fallback. The change
 removes the dependency on the unrelated `utmp` login-name layout. The
-renderer and cache functions have C17 prototypes. The rest of `ls.c`
-remains in the legacy build profile.
+renderer and cache functions gained C17 prototypes in this stage.
 
 | Executable | Raw file | Packed file | Text | Data | BSS | Static RAM |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -104,6 +103,68 @@ by 24 to 144 bytes. PICO and PICO_DIAG each grew by 256 bytes of flash
 span. Moving `m_dev` beyond Thumb-1's 124-byte immediate word-load reach
 added an addressing cost. Retain the current layout. Measure the owner
 lookup separately from the member order when revisiting that boundary.
+
+## C17 ls migration and packed allocation
+
+Both `ls` translation units compile in strict C17 with fatal prototype
+diagnostics. The prototype migration uses the installed `stat`, `lstat`
+and `free` declarations. A single file-flag header checks the parser
+at each caller. `xinstall` supplies an `unsigned` destination for the
+parser's `unsigned` write.
+
+The formatter appends inode, block and long-format columns directly to
+the listing buffer. It removes three static intermediate buffers that
+held 280 bytes. The measurements use ARM GCC 15.2.1 and GNU ld 2.45.1.
+The migrated objects match byte for byte under strict C17 and GNU17
+after stripping debug information.
+
+| Build stage | Standalone raw bytes | Standalone packed bytes | Shipped box raw bytes | Shipped box packed bytes | Packed box blocks | Box static RAM |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `0279974e` | 15,192 | 13,405 | 31,476 | 26,678 | 28 | 36,640 |
+| C17 prototypes | 15,184 | 13,392 | 31,468 | 26,681 | 28 | 36,632 |
+| Direct formatting | 15,072 | 13,300 | 31,348 | 26,588 | 27 | 36,232 |
+
+The 27-block boundary is 26,624 bytes of payload. The allocation
+includes one indirect block. The installed full root moves from 761
+to 760 used UFS blocks, with 219 free. `flashimg` records 771 live
+Dhara sectors at image creation, down from 772. Replay with
+`logged-distribution`,
+`tools/bin/rp2040/hsaout -s bin/ls/ls distrib/obj/destdir.rp2040/bin/box`,
+and `tools/bin/rp2040/fsutil --check --partition=1 distrib/rp2040/sdcard.img`.
+
+## Compact syscall dispatch prototype
+
+Build the six ordinary kernels first and wait for the build to finish.
+With Capstone, pyelftools and Unicorn installed in the selected interpreter, run
+`${PYTHON} tools/rp2040_compact_dispatch_probe.py /tmp/compact-dispatch`
+with a fresh output directory. The probe relinks private images using
+the configured kernel objects and flags. It recompiles the syscall
+entry with a halfword decoder and substitutes the compact table at the
+current hot-block location. The normal build uses the pointer table.
+
+The linker checks each selected target's alignment and range. It
+supplies an odd base address so the decoder restores the Thumb bit
+with the same addition that recovers the code address. The probe
+matches each of the 163 handlers and argument counts against the
+syscall master in both links. A Cortex-M0 instruction run starts
+after the successful `setjmp` return and stops at the indirect call
+target. A wrong-target mutation fails this check in each build.
+
+| Kernel | Pointer-table flash span | Halfword-table flash span |
+| --- | ---: | ---: |
+| PICO | 98,624 | 98,368 |
+| PICO_DIAG | 101,184 | 100,928 |
+| PICO_UART | 90,424 | 90,168 |
+| PICOCALC | 126,608 | 126,352 |
+| PICOCALC_LEAN | 120,464 | 120,208 |
+| PICOCALC_LEAN_DIAG | 123,024 | 122,768 |
+
+The table occupies 326 bytes instead of 652. Each flash span decreases
+by 256 bytes. Initialized data and BSS widths match in all six links.
+The measured dispatch path grows from seven to ten instructions with
+one extra flash literal load. Timing depends on XIP cache state and
+bus behavior. Measure target cycles before enabling compact dispatch
+in a shipping build.
 
 ## Queue, ordered by payoff over risk
 

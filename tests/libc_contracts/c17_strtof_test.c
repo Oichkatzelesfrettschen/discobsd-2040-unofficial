@@ -111,7 +111,8 @@ differential(unsigned *count)
 				if (k == 0)
 					*p++ = '.';
 			}
-			sprintf(p, "e%d", (int)(next() % 90) - 45);
+			snprintf(p, sizeof(text) - (size_t)(p - text), "e%d",
+			    (int)(next() % 90) - 45);
 		} else {
 			uint32_t bits = (uint32_t)(next() % 0x7f7fffffU);
 			float low, high;
@@ -121,7 +122,8 @@ differential(unsigned *count)
 			bits++;
 			memcpy(&high, &bits, sizeof(high));
 			middle = ((double)low + (double)high) / 2.0;
-			sprintf(text, "%.*e", 8 + (int)(next() % 17), middle);
+			snprintf(text, sizeof(text), "%.*e",
+			    8 + (int)(next() % 17), middle);
 		}
 		tree_value = convert(text, &tree_end);
 		if (TRUSTED) {

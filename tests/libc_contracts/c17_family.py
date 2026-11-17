@@ -32,6 +32,9 @@ compiler failure or an unrelated crash is not counted as a rejection.
 """
 
 import argparse
+import glob
+import os
+import platform
 import shlex
 import shutil
 import subprocess
@@ -692,6 +695,43 @@ EXTRA["strtof"] = ["-DSTRTOF_DIGEST=0xd62dc4a95811dd63ULL"]
 HOST_ONLY = {"time"}
 
 
+def rename_tool(arm):
+    """Return the objcopy that renames symbols in this build's objects.
+
+    ARM objects take the cross binutils. Host objects take OBJCOPY when the
+    caller sets it, else objcopy or llvm-objcopy on PATH, else a Homebrew
+    LLVM, which is where a macOS host has one: Apple's toolchain ships no
+    objcopy, and llvm-objcopy is the one that rewrites Mach-O symbol tables.
+    """
+    if arm:
+        return "arm-none-eabi-objcopy"
+    named = os.environ.get("OBJCOPY")
+    if named:
+        return named
+    for name in ("objcopy", "llvm-objcopy"):
+        found = shutil.which(name)
+        if found:
+            return found
+    for pattern in ("/opt/homebrew/opt/llvm*/bin", "/usr/local/opt/llvm*/bin"):
+        for directory in sorted(glob.glob(pattern), reverse=True):
+            found = shutil.which("llvm-objcopy", path=directory)
+            if found:
+                return found
+    raise SystemExit(
+        "c17 family needs objcopy or llvm-objcopy to rename symbols: install "
+        "binutils, or llvm (brew install llvm), or set OBJCOPY"
+    )
+
+
+def rename_map(symbols, arm):
+    """One "old new" line per member, in the object format's spelling.
+
+    Mach-O prefixes every C symbol with an underscore; ELF does not.
+    """
+    prefix = "_" if not arm and platform.system() == "Darwin" else ""
+    return "".join("%s%s %stree_%s\n" % (prefix, name, prefix, name) for name in symbols)
+
+
 def require(condition, message):
     if not condition:
         raise SystemExit(message)
@@ -722,8 +762,8 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
         # renames definitions and references alike in each object.
         renames = []
         redefine = work / "redefine"
-        redefine.write_text("".join("%s tree_%s\n" % (name, name) for name in symbols))
-    objcopy = "arm-none-eabi-objcopy" if arm else "objcopy"
+        redefine.write_text(rename_map(symbols, arm))
+    objcopy = rename_tool(arm) if redefine else None
     flags = BASE + EXTRA.get(family, []) + renames + machine
     if family == "math" and oracle:
         flags = flags + ["-DC17_MATH_NETBSD_ORACLE"]
@@ -861,8 +901,8 @@ def foreign(root, compiler, work, args, oracle):
         except netbsd_oracle.OracleError as error:
             raise SystemExit(str(error)) from error
         redefine = work / "foreign-redefine"
-        redefine.write_text("".join("%s tree_%s\n" % (name, name) for name in symbols))
-        objcopy = "arm-none-eabi-objcopy" if args.arm else "objcopy"
+        redefine.write_text(rename_map(symbols, args.arm))
+        objcopy = rename_tool(args.arm)
         command([objcopy, "--redefine-syms", str(redefine), str(obj)])
         program = build(root, compiler, work, args.arm, args.family, (member, obj), oracle=oracle)
         result = execute(program, args.arm)

@@ -3749,8 +3749,10 @@ FORK_SWAP_LOST_MUTANTS= lost-fork-no-unwind lost-fork-keep-files lost-fork-keep-
     lost-init-retired lost-vfork-parent-spared lost-vfork-takes-zombie-sizes lost-vfork-child-kept-waiting lost-sleeper-queued lost-children-kept \
     lost-parent-untold lost-status-clean lost-zombie-hashed lost-no-fallback \
     lost-retire-keeps-blocks lost-fallback-ignores-holder lost-timeout-kept \
-    lost-traced-child-kept lost-stopped-child-kept
-FORK_SWAP_LOST_DEFS= -DCOMPACT_SWAPMAP -DSDSWAP_ENABLED
+    lost-keyevs-kept lost-traced-child-kept lost-stopped-child-kept
+# The kernels that define SDSWAP_ENABLED are the PicoCalc ones, so the lost
+# fixture also compiles the PICOCALC_ENABLED arms (lcdcons_procexit()).
+FORK_SWAP_LOST_DEFS= -DCOMPACT_SWAPMAP -DSDSWAP_ENABLED -DPICOCALC_ENABLED
 fork_swap_test_lost: ${FORK_SWAP_DEPS} fork_swap_rmap_compact.o
 	${HOST_CC} ${FORK_SWAP_CFLAGS} ${FORK_SWAP_LOST_DEFS} \
 	    -o $@ fork_swap_test.c \

@@ -608,7 +608,8 @@ and leaves the queue as it was when it fails. The queue is emptied and its bytes
 session starts and when it ends, and `picokbd_event()` records only between
 the two. A session ends when its owning process exits or execs
 (`lcdcons_procexit()`, called from `exit()` before the files close and from
-`exec_clear()` after the exec commits, so a new image never inherits it), when
+`exec_clear()` after the exec commits, so a new image never inherits it) or
+is retired with a lost swap card (`swap_lost_retire()`), when
 its open file is closed for the last time (`lcdcons_fileclose()`, called from
 `vn_closefile()` under `PICOCALC_ENABLED`, because a character driver's close
 entry runs only when the whole device is closed and the console stays open),
@@ -865,7 +866,8 @@ it removable (`swap_removable`), so a failed transfer on it sets
 and no later transfer reaches the card. `sched()` then retires every
 process whose image the card held (`swap_lost_sweep()`,
 `sys/kern/vm_swap.c`): each leaves its wait queue and the timed-sleep
-callout `tsleep()` armed for it and becomes a zombie with `SIGKILL` status through
+callout `tsleep()` armed for it, ends the raw key session it owns
+(`lcdcons_procexit()`), and becomes a zombie with `SIGKILL` status through
 `proc_zombie()` (`sys/kern/kern_exit.c`), the conversion `exit()` itself
 uses: its children pass to init (a traced child loses the trace and
 receives `SIGKILL`, a stopped one `SIGHUP` and `SIGCONT`) and its parent

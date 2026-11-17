@@ -107,8 +107,12 @@ static int swap_fail_at = -1;
 static unsigned swap_transfers, unsleeps;
 static int lost_vfork_child;
 static int signal_to[NPROC];
-/* The endtsleep callout tsleep() armed for each slot; untimeout() clears it. */
+/*
+ * The endtsleep callout tsleep() armed for each slot, set by a case and
+ * cleared by untimeout(); the raw key sessions lcdcons_procexit() ended.
+ */
 static int tsleep_armed[NPROC];
+static int keyevs_ended[NPROC], keyevs_pid[NPROC];
 /*
  * The fixed device the configuration named (fl1 on the board): the swap
  * device sdswap_fallback() reopens once the lost device's map is empty.
@@ -145,6 +149,15 @@ untimeout(void (*fun)(caddr_t), caddr_t arg)
     if (fun == endtsleep)
         tsleep_armed[(struct proc *)arg - proc] = 0;
 }
+
+#ifdef PICOCALC_ENABLED
+void
+lcdcons_procexit(const struct proc *p)
+{
+    keyevs_ended[p - proc]++;
+    keyevs_pid[p - proc] = p->p_pid;
+}
+#endif
 #endif
 
 void
@@ -587,6 +600,8 @@ reset_fixture(void)
     lost_vfork_child = 0;
     bzero(signal_to, sizeof(signal_to));
     bzero(tsleep_armed, sizeof(tsleep_armed));
+    bzero(keyevs_ended, sizeof(keyevs_ended));
+    bzero(keyevs_pid, sizeof(keyevs_pid));
 #endif
 }
 
@@ -2073,8 +2088,9 @@ lost_sweep_cases(void)
 
     /*
      * A timed sleeper leaves its wait queue and its tsleep() callout, which
-     * would otherwise fire on the slot after wait4() frees it; its
-     * children pass to init as exit() passes them: a traced one (stopped as well) loses P_TRACED and gets
+     * would otherwise fire on the slot after wait4() frees it; the raw key
+     * session it owns ends; its children pass to init as exit() passes
+     * them: a traced one (stopped as well) loses P_TRACED and gets
      * SIGKILL, a stopped one SIGHUP and SIGCONT, a running one nothing.
      */
     lost_sched_fixture();
@@ -2106,6 +2122,8 @@ lost_sweep_cases(void)
     HK_CHECK(lost_zombie(&proc[1]) && unsleeps == 1 &&
         proc[1].p_wchan == NULL);
     HK_CHECK(tsleep_armed[1] == 0 && tsleep_armed[2] == 1);
+    HK_CHECK(keyevs_ended[1] == 1 && keyevs_pid[1] == 10);
+    HK_CHECK(keyevs_ended[0] == 0 && keyevs_ended[2] == 0);
     HK_CHECK(proc[2].p_ppid == 1 && proc[3].p_ppid == 1 &&
         proc[4].p_ppid == 1);
     HK_CHECK(proc[2].p_stat == SRUN && proc[0].p_nxt == &proc[2]);

@@ -269,6 +269,7 @@ MUTATIONS = {
         "            goto done;",
     ),
     "lost-timeout-kept": ("    untimeout (endtsleep, (caddr_t) p);", "    (void)0;"),
+    "lost-keyevs-kept": ("    lcdcons_procexit (p);", "    (void)p;"),
     "lost-traced-child-kept": (
         "            if (q->p_flag& P_TRACED) {\n"
         "                q->p_flag &= ~P_TRACED;\n"

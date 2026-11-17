@@ -810,14 +810,19 @@ swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
 }
 
 #ifdef SDSWAP_ENABLED
+#ifdef PICOCALC_ENABLED
+/* sys/arch/rp2040/dev/lcdcons.c */
+extern void lcdcons_procexit (const struct proc *p);
+#endif
+
 /*
  * Retire a process whose image went with the swap device. Its u area, and
  * with it the open files, the current directory and the kernel stack, is on
  * that device, so exit() cannot run for it. The retirement does the part of
- * exit() that needs no u area: it ends the process's sleep, and
- * proc_zombie() (kern_exit.c), which exit() also calls, makes it a zombie
- * that reports death by SIGKILL, gives its children to init and tells its
- * parent. The file and directory references it held stay counted
+ * exit() that needs no u area: it ends the process's sleep and raw key
+ * session, and proc_zombie() (kern_exit.c), which exit() also calls, makes
+ * it a zombie that reports death by SIGKILL, gives its children to init and
+ * tells its parent. The file and directory references it held stay counted
  * until the next boot. A vfork child takes its parent along, whose data and
  * stack were the lost image (newproc(), kern_fork.c).
  */
@@ -841,6 +846,10 @@ swap_lost_retire (struct proc *p)
      */
     unsleep (p);
     untimeout (endtsleep, (caddr_t) p);
+#ifdef PICOCALC_ENABLED
+    /* As in exit(): a raw key session ends with its owner. */
+    lcdcons_procexit (p);
+#endif
     if (p->p_flag & SVFORK) {
         /*
          * newproc() sleeps in the parent until SVFORK clears. It finds a

@@ -8,4 +8,4 @@ discobsd-sramdump saves a stuck board's SRAM with picotool and decodes the
 kernel state in it.
 """
 
-__version__ = "1.0.9"
+__version__ = "1.1.0"

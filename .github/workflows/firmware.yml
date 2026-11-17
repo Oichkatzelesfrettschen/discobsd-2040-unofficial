@@ -979,6 +979,60 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
+  # The hybrid-signature release verifier and the Lean policy proofs are
+  # host-only: no kernel, board or serial port is involved. The ML-DSA-65
+  # signing path needs OpenSSL 3.5 or newer. The ubuntu-24.04 runner image
+  # ships OpenSSL 3.0.x, which has no ML-DSA, so the hybrid-signatures job
+  # installs openssl 3.5.7 from conda-forge and the tests refuse to skip
+  # (DISCOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
+  pq-release-proofs:
+    name: Release policy proofs (Lean 4.19.0)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: tools/proofs
+          build: 'true'
+          test: 'false'
+          lint: 'false'
+      - name: Calibrate proof and geometry checks
+        timeout-minutes: 5
+        working-directory: tools/proofs
+        run: lake env python3 check_policy.py
+
+  pq-release-hybrid:
+    name: Hybrid release signatures (Ed25519 and ML-DSA-65)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Ubuntu 24.04's OpenSSL 3.0 has no ML-DSA; Ubuntu 26.04 ships OpenSSL
+    # 3.5, whose default provider offers ML-DSA-44/65/87, so the job runs
+    # in that distribution's container instead of a third-party channel.
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash -e {0}
+        working-directory: distrib/rp2040/host
+    steps:
+      - name: Install OpenSSL with ML-DSA-65 and the test tools
+        timeout-minutes: 5
+        working-directory: /
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git openssl python3 python3-pytest python3-serial
+          openssl list -signature-algorithms | grep -F ML-DSA-65
+      - uses: actions/checkout@v4
+      - name: Run the host package tests with the ML-DSA tests required
+        timeout-minutes: 8
+        run: python3 -m pytest -q
+        env:
+          DISCOBSD_REQUIRE_PQ_TESTS: '1'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+
   # A scheduled run reports to nobody, so its result goes to one issue:
   # tools/report-nightly-failure.sh opens it, or adds a comment to the open
   # one, with the failed jobs and steps and the merges since the last
@@ -986,7 +1040,7 @@ jobs:
   nightly-report:
     name: Report the nightly result
     if: always() && github.event_name == 'schedule'
-    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id]
+    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id, pq-release-proofs, pq-release-hybrid]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

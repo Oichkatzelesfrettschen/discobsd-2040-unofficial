@@ -202,7 +202,7 @@ def scenario_flash_single(script: Path, tmp: Path) -> None:
         "info => 1-3",
         "reboot -u -f => 1-3",
         "info => 1-3",
-        f"load {uf2} => 1-3",
+        f"load -v {uf2} => 1-3",
         "reboot => 1-3",
     ]
 
@@ -260,7 +260,7 @@ def scenario_flash_selected(script: Path, tmp: Path) -> None:
     # The address advances at every call; each call carries the current one.
     assert log(tmp) == [
         "reboot -u -f --bus 1 --address 7 => 1-3",
-        f"load {uf2} --bus 1 --address 8 => 1-3",
+        f"load -v {uf2} --bus 1 --address 8 => 1-3",
         "reboot --bus 1 --address 9 => 1-3",
     ]
     assert (sysfs / "1-4" / "devnum").read_text() == "3\n"

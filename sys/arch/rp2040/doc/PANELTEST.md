@@ -181,9 +181,13 @@ for each judged item, and `/var/log/paneltest.log`.
     or B1h needs more than the unlock.
 11. DIVA: set 21 measures 24.02 Hz if DIVA divides the frame clock as the
     formula's omission implies, 48.05 Hz if DIVA is inert in this mode.
-12. Locked and unlocked 31 Hz: set 14 (B1h 00h, locked) measuring the
-    same rate as set 15 (unlocked) means command 2 is live at power-on;
-    set 14 measuring set 0's rate means the lock holds.
+12. Locked and unlocked 31 Hz, the deciding pair: sets 14 (locked) and
+    15 (unlocked) write the same FRMCTR1 value, B1h 00h, and differ only
+    in the CSCON unlock, so their measured rates decide the gating that
+    the gray levels of result 4 suggest. Set 15 at 31.1 Hz with set 14
+    at set 0's rate means the lock holds and the shipped writes are
+    discarded; both at 31.1 Hz means command 2 is live at power-on. Both
+    sets stay in the list for this comparison.
 13. Command Table 2 read control: a variant that returns 2Ah for C5h (in
     the first byte, or as 2Ah shifted right one bit, 15h, followed by a
     set top bit in the next) is a working read method, and the B1h
@@ -216,6 +220,14 @@ frame-rate measurement or read control; those arrived later).
    not that the registers are unreadable. Entries 21-28 add the control.
 4. E1 gating (prediction 2), by eye: set 15 (31 Hz, unlocked) flickers;
    set 16 (VCOM 3Fh, locked) shows striping. Sets 13 and 14 were not
-   reported, so the comparison the prediction needs is incomplete.
+   reported by eye. Hand-held 60 fps camera clips of pattern 5, cropped
+   to the screen, measured no flicker in any set (0.07% to 0.39%
+   frame-to-frame variation, a weak instrument with white clipped), and
+   in two recording runs the unlocked sets 13 and 15 render the 50% gray
+   lighter relative to white (gray/white 0.86 and 0.80, then 0.92 and
+   0.93) than the locked sets 14 and 16 and set 0 (0.71 and 0.70, then
+   0.83, 0.88 and 0.86). Inference, not proof: Command Table 2 writes
+   are discarded while locked and act after the CSCON unlock. Clipped
+   white compresses the ratios and exposure differed between runs.
 5. E7 lines (prediction 8): a photograph of pattern 7 shows bands 5-9
    in the top half and undrawn RAM noise below, as predicted.

@@ -1,4 +1,4 @@
-# Kernel and libc footprint work queue
+# Kernel and userspace footprint work queue
 
 This note hands a measured work queue to an implementer who starts without
 the session that produced it. Each item names the source location, the
@@ -37,6 +37,73 @@ other bss objects are `bufdata` 4,096, `proc` 2,600, `inode` 2,016, `mount`
 The experiments on rows marked "scratch" ran on a `git archive` export of
 eb5b3081, whose PICO baseline was 95,516. Deltas carry across; absolute
 values do not.
+
+## Scoped alignment sorting and ls formatting
+
+The comparison base is `793d3432`. Both RP2040 distributions used ARM GCC
+15.2.1 and GNU ld 2.45.1. Values below are candidate minus base in bytes.
+Flash payload sums file-backed flash `PT_LOAD` bytes. Flash span includes
+holes between segments. The end of resident kernel RAM moved by the same
+amount as ordinary BSS in each configuration.
+
+| Configuration | Flash payload | Flash span | Ordinary BSS |
+| --- | ---: | ---: | ---: |
+| PICO | -15 | 0 | -168 |
+| PICO_DIAG | -14 | 0 | -64 |
+| PICO_UART | -8 | -256 | -64 |
+| PICOCALC | -17 | 0 | -40 |
+| PICOCALC_LEAN | -18 | 0 | -48 |
+| PICOCALC_LEAN_DIAG | -17 | 0 | -32 |
+
+`sys/arch/rp2040/conf/kern.ldscript` sorts the remaining `.rodata*` and
+`.bss*` inputs from largest alignment to smallest. Every input retains its
+required alignment. The 8-byte output boundaries, named hot block and
+linked executable symbol addresses are preserved. The SwapRAM pool retains
+its capacity and follows the smaller BSS. PICO_UART crosses a 256-byte board
+descriptor boundary. The other five builds finish in their original flash
+span.
+
+Sorting BSS alone gave the same RAM savings and left every flash span
+unchanged. Also sorting text saved 64 to 105 total flash payload bytes
+across the six links, with the same RAM and flash-span deltas as the
+adopted sort. The global `--sort-section=alignment` matched that wider
+sort. Adding initialized data to the sort yielded no further reduction.
+Keep instruction layout and the 8-byte boundaries until a separate
+experiment establishes a payoff and checks the affected consumers.
+
+The `ls` permission renderer translates three groups of permission and
+special bits directly to nine characters. The two account caches retain
+64 direct-mapped slots each and store nine display bytes plus a terminator.
+A hit skips the relevant name lookup. An absent account leaves the
+previous slot intact and uses the existing numeric fallback. The change
+removes the dependency on the unrelated `utmp` login-name layout. The
+renderer and cache functions have C17 prototypes. The rest of `ls.c`
+remains in the legacy build profile.
+
+| Executable | Raw file | Packed file | Text | Data | BSS | Static RAM |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Standalone `ls` | -212 | -73 | +16 | -228 | -560 | -772 |
+| Shipped `/bin/box` | -204 | -46 | +24 | -228 | -552 | -756 |
+
+Static RAM sums the a.out text, data and BSS fields. It excludes stack
+and heap use. The RP2040 manifest resolves `/bin/ls` to packed
+`/bin/box`, which occupies 28 filesystem blocks in both images. The full
+root retains 218 free UFS blocks and the same 772 live Dhara sectors at
+image creation. Build both revisions with
+`logged-distribution`, measure the binaries with `hsaout -s` and check
+each root with `fsutil --check --partition=1`.
+`check-ls-format` exercises the changed functions under strict C17 with
+12,288 permission cases and account-cache boundary cases. It rejects
+mutations to the sticky-bit rule and the cache width.
+
+The UFS layout probe moved the embedded superblock to the start of
+`struct mount`. The C17 initial-member rule then supplies the containing
+pointer at the recovery sites in `ufs_mount.c` and `ufs_syscalls2.c`.
+The probe kept RAM usage constant and grew the six linked text sections
+by 24 to 144 bytes. PICO and PICO_DIAG each grew by 256 bytes of flash
+span. Moving `m_dev` beyond Thumb-1's 124-byte immediate word-load reach
+added an addressing cost. Retain the current layout. Measure the owner
+lookup separately from the member order when revisiting that boundary.
 
 ## Queue, ordered by payoff over risk
 
@@ -322,7 +389,8 @@ Prototype each in a scratch tree and land only a measured win.
 - A force-push is refused by the session permission policy. Corrections to
   a pushed branch land as further commits.
 
-## Not measured
+## Open measurements
 
-No item in this queue has been booted on a board or in Renode. Packed-block
-effects on the root filesystem are unmeasured for every userland item.
+The scoped alignment sort and `ls` changes have no physical-board
+timing, peak-memory or flash endurance measurements. Establish those
+measurements before using static footprint as evidence for those effects.

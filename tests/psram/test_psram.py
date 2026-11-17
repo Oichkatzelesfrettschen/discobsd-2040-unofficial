@@ -506,13 +506,16 @@ def test_region_swap_all(lib):
     check(size_fn(1) == 0, "minor 1 has no region (%d)" % size_fn(1))
     for blk, want in ((0, 0), (2 * 1024, 2 * 1024 * 1024), (total // bsize - 1, total - bsize)):
         e, off = call(0, blk, bsize)
-        check(e == 0 and off == want, "whole swap block %d maps to %#x (%d, %#x)" % (blk, want, e, off))
+        check(e == 0 and off == want,
+              "whole swap block %d maps to %#x (%d, %#x)" % (blk, want, e, off))
     for blk in (0, 1, 6 * 1024 - 1):
         e, off = call(1, blk, bsize)
-        check(e == -3 and off == 0xDEADBEEF, "minor 1 block %d is refused (%d, %#x)" % (blk, e, off))
+        check(e == -3 and off == 0xDEADBEEF,
+              "minor 1 block %d is refused (%d, %#x)" % (blk, e, off))
     for blk, ln in ((total // bsize, bsize), (total // bsize - 1, 2 * bsize), (-1, bsize)):
         e, off = call(0, blk, ln)
-        check(e == -3 and off == 0xDEADBEEF, "whole swap block %d length %d is refused (%d)" % (blk, ln, e))
+        check(e == -3 and off == 0xDEADBEEF,
+              "whole swap block %d length %d is refused (%d)" % (blk, ln, e))
 
 
 def test_block_offset(lib):

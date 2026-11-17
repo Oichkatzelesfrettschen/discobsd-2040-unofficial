@@ -30,8 +30,10 @@ def mutate(source: str, mutation: str) -> str:
     if mutation == "allocate-tail-after-first-write":
         return replace_once(
             source,
-            "    if (! swap_exchange_tail_reserve (incoming->p_daddr,",
-            "    if (0 && ! swap_exchange_tail_reserve (incoming->p_daddr,",
+            "    if (swap_removable || ! swap_exchange_tail_reserve (incoming->p_daddr,\n"
+            "        reservation->exchange_span, reservation->span)) {",
+            "    if (swap_removable || (0 && ! swap_exchange_tail_reserve (incoming->p_daddr,\n"
+            "        reservation->exchange_span, reservation->span))) {",
             mutation,
         )
     if mutation == "ignore-program-fault":

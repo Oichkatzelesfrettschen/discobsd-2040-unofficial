@@ -5,7 +5,9 @@ the session that produced it. Each item names the source location, the
 measured or estimated payoff, the hazard that must be cleared first and the
 acceptance command. The ranked technique survey it draws on is
 `footprint-techniques.md`; the compiler and linker flag analysis is
-`constrained-c.md` section 2.
+`constrained-c.md` section 2. Alignment, the linked RAM map, flash recovery
+evidence and the BSD comparisons are in `rp2040-optimization/README.md`; the
+disposition of PR #435's mechanisms is `kernel-footprint-pr435-closeout.md`.
 
 ## Baseline
 
@@ -142,17 +144,16 @@ text, 96 bytes of bss). `HALTREBOOT` costs 52 bytes and stays.
   `-DCAPACITY_STATS` parameter by hand must also remove `subr_capacity.o`
   from `OBJS`, or the build fails on the stub macros in `sys/sys/capacity.h`.
 
-### `-O2` build blocked by an unadmitted capacity index
+### Resolved: `-O2` compile of the capacity source
 
-`COPTS=-O2` fails with `-Werror=array-bounds` at
-`sys/kern/subr_capacity.c` line 79: `capacity_state.metric[kind]` with
-`kind` 5 of a 5-element array. `capacity_note()` indexes the array without
-checking `kind < CAPACITY_KIND_COUNT`, and `capacity_live()`'s switch carries
-a `CAPACITY_KIND_COUNT` arm that keeps the value live in the compiler's
-range analysis. All 17 callers pass valid kinds, so no current path reaches
-it. Add the admission in `capacity_note()`, then build all four RP2040
-configurations at `-O2` to find any further diagnostics. This unblocks
-every speed-for-size comparison; `-Oz` produces the same text as `-Os` on
+`capacity_note()` in `sys/kern/subr_capacity.c` rejects `kind >=
+CAPACITY_KIND_COUNT` before it forms an array element pointer, and the
+`invalid-kind` mutant of `tests/kernel/capacity_mutate.py` removes that check
+and must fail. With the check in place `subr_capacity.c` compiles at `-O2` under
+the PICOCALC flags with `-Werror` (measured at `d81b1788`: 520 text bytes
+against 480 at `-Os`). Whole-kernel `-O2` linking is not measured here; the
+branch of PR #435 recorded PICOCALC exceeding FLASH at `-O2`
+(`kernel-footprint-pr435-closeout.md`). `-Oz` produces the same text as `-Os` on
 this target (scratch: 95,516 both), so `-Os` remains the size baseline.
 
 ### Never-returning libc entry points (measured: -1,566 packed bytes, one root block)

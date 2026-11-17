@@ -57,8 +57,9 @@ jobs:
     # A full run on main measured about 65 minutes; the asynchronous system
     # trap tier adds 10.1. Hosted runners vary by about 25 percent between
     # runs (the same steps took 899 and 1,098 seconds in the host tier), so
-    # the limit covers a slow runner's 94 minutes with margin.
-    timeout-minutes: 110
+    # the limit covers a slow runner's 94 minutes with margin, plus the
+    # qemu tier's C17 math family, which adds up to 25 more.
+    timeout-minutes: 135
     steps:
       - uses: actions/checkout@v4
         with:
@@ -386,13 +387,16 @@ jobs:
         # instruction work has separate scalar, state and budget controls.
         # Callable slots also check canonical pointers, exact ELF extents,
         # LTO, weak aliases and callbacks from a separately linked SRAM image.
-        timeout-minutes: 5
+        # The C17 math family runs 5.2 million checks and 36 mutants under
+        # qemu-user and prints nothing while a program runs, so the tier
+        # takes more than nine minutes locally with silences of minutes.
+        timeout-minutes: 32
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label linux-qemu \
             --log .build-logs/linux-qemu.log \
             --status .build-logs/linux-qemu.status.json \
-            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            --idle-timeout-seconds 900 --timeout-seconds 1800 \
             -- bmake MACHINE=rp2040 check-qemu
 
       - name: Run the board-build tier

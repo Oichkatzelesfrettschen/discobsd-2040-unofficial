@@ -96,14 +96,25 @@ COPTS?=		-Os
 # negations and CSIZEFLAGS_MI expands to them for a C source outside
 # sys/arch only. Machine-dependent sources keep the plain COPTS command
 # line, so drivers, the .ramfunc flash routines and every polling or delay
-# loop compile to the same instructions with or without CSIZEFLAGS. A
-# Clang CC rejects all three as unknown arguments and leaves CSIZEFLAGS
-# empty. The flags ride with the size level: COMPILE_C takes them through
+# loop compile to the same instructions with or without CSIZEFLAGS. Clang
+# rejects all three as unknown arguments, under any name it is invoked by,
+# so one preprocessor run decides: a compiler that refuses the flags leaves
+# CSIZEFLAGS empty. The probe runs the compiler itself, a CC named on the
+# command line or else the cross GCC of compiler.mk, never the C17 capture
+# wrapper that the default CC carries. The flags ride with the size level: COMPILE_C takes them through
 # CSIZEFLAGS_COPTS only when COPTS selects -Os, and COMPILE_SIZE_C, whose
 # -Os is fixed, takes them whatever COPTS says.
-.if empty(CC:M*clang*)
-CSIZEFLAGS=	-fno-move-loop-invariants -fno-tree-loop-im \
+CSIZEFLAGS_WANT= -fno-move-loop-invariants -fno-tree-loop-im \
 		-fno-tree-dominator-opts
+.if !empty(.MAKEOVERRIDES:MCC)
+CSIZEFLAGS_CC=	${CC}
+.else
+CSIZEFLAGS_CC=	${ARM_GCC_PREFIX}${_CC}
+.endif
+CSIZEFLAGS_OK!=	if ${CSIZEFLAGS_CC} ${CSIZEFLAGS_WANT} -E -x c /dev/null \
+		    >/dev/null 2>&1; then echo yes; else echo no; fi
+.if ${CSIZEFLAGS_OK} == "yes"
+CSIZEFLAGS=	${CSIZEFLAGS_WANT}
 .else
 CSIZEFLAGS=
 .endif

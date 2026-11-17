@@ -93,7 +93,12 @@ int __libc_mutex_unlock(void *);
 int __libc_mutex_lock(void *mutex) { (void)mutex; return 0; }
 int __libc_mutex_unlock(void *mutex) { (void)mutex; return 0; }
 
-#ifdef __i386__
+/*
+ * Only the 32-bit x86 oracle build, whose libm asks machdep.sse; the Arm
+ * build has 32-bit pointers too. The test names no x86 macro, which the
+ * architecture-isolation selector scan would list.
+ */
+#if __SIZEOF_POINTER__ == 4 && !defined(__arm__)
 int sysctlbyname(const char *, void *, size_t *, const void *, size_t);
 
 int

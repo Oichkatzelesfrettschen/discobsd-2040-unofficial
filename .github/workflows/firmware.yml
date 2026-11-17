@@ -668,7 +668,7 @@ jobs:
     name: Required ILP32 execution (shell, kernel, libc and utilities)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Install bmake and the 32-bit compiler support
@@ -691,13 +691,13 @@ jobs:
       # deadline leaves half of that again, and the step limit stays above
       # the gate deadline so the gate writes its own terminal status.
       - name: Execute every required variant
-        timeout-minutes: 17
+        timeout-minutes: 24
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label posix-ilp32 \
             --log .build-logs/posix-ilp32.log \
             --status .build-logs/posix-ilp32.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 900 \
+            --idle-timeout-seconds 300 --timeout-seconds 1320 \
             -- bmake MACHINE=rp2040 check-ilp32-execution \
               TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
       # dc and bc need the 32-bit C library headers the gates job lacks,

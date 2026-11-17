@@ -28,6 +28,8 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
  * tgammaf(): the float form of tgamma().  The argument widens exactly and
  * the double result is narrowed once.
@@ -35,5 +37,5 @@
 float
 tgammaf(float x)
 {
-	return (float)tgamma((double)x);
+	return fp_narrow(tgamma((double)x));
 }

@@ -81,6 +81,17 @@ SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 
+# Optional host research tier; NumPy is not a firmware-build dependency.
+.PHONY: check-graph-layout
+check-graph-layout: check-python
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/graph_layout_test.py
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/graph_layout_trace_test.py
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/performance_lab_test.py
+
+.PHONY: check-layout-extensions
+check-layout-extensions: check-python
+		PYTHONDONTWRITEBYTECODE=1 ${PYTHON} tools/layout_solver_extensions_test.py
+
 # The proofs run from tools/proofs, where elan reads lean-toolchain, and lake
 # env puts the pinned toolchain's lean on PATH for the checker; a run from the
 # repository root would pick the default toolchain instead.
@@ -1533,6 +1544,13 @@ check-flash-checkpoint: check-python
 check-flash-reset-cells: check-python
 		${MAKE} -C tests/rp2040/flash_reset_cells check PYTHON=${PYTHON:Q}
 
+# The diagnostic reset at the Nth flash chip command
+# (sys/arch/rp2040/dev/flash_reset_hook.h) over a model of the boot ROM's
+# erase and program loops; tests/rp2040/flash_reset_hook/check.sh states each
+# expectation and its mutants.
+check-flash-reset-hook: check-python
+		${MAKE} -C tests/rp2040/flash_reset_hook check PYTHON=${PYTHON:Q}
+
 # The production collector trigger of sys/arch/rp2040/dhara/map.c against an
 # adversarial tail-live workload, resets with resume, and a rewrite-cost
 # ceiling; tests/rp2040/dhara_trigger/check.sh states each and its mutants.
@@ -1649,6 +1667,43 @@ check-core1-emulation: check-python
 		    sh tests/core1/check-emulation.sh ${CORE1_EMULATION_BOARD}
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
+
+# check-unicorn-kernel calls single functions of a built kernel's unix.elf
+# (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares
+# them with Python references under Hypothesis, then requires each property
+# to reject mutated copies of its function's machine code
+# (tools/unicorn/check_kernel_functions.py). CI installs no Hypothesis, so
+# the target stays on demand, outside "check" and every aggregate.
+check-unicorn-kernel: check-python
+		@# Calibration: a filter naming an unknown property must exit 2
+		@# and must not run the remaining ones.
+		@set -e; kernel=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf; \
+		for only in "--only nosuch" "--only bzero --only nosuch"; do \
+			status=0; \
+			${PYTHON} tools/unicorn/check_kernel_functions.py \
+			    --kernel "$$kernel" --no-mutants $$only \
+			    >/dev/null 2>&1 || status=$$?; \
+			if [ "$$status" -ne 2 ]; then \
+				echo "check_kernel_functions.py exit $$status, expected 2, for $$only" >&2; exit 1; \
+			fi; \
+		done
+		@# Calibration: a property's call sequence, which drives the varied
+		@# caller-saved registers, must not depend on the properties run
+		@# before it. bcmp after bzero and bcmp alone must print one digest.
+		@set -e; kernel=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf; \
+		digest() { \
+			${PYTHON} tools/unicorn/check_kernel_functions.py \
+			    --kernel "$$kernel" --no-mutants "$$@" | \
+			    sed -n 's/^PASS unicorn-kernel bcmp: .* trace \([0-9a-f]*\),.*/\1/p'; \
+		}; \
+		full=$$(digest --only bzero --only bcmp); alone=$$(digest --only bcmp); \
+		if [ -z "$$full" ] || [ "$$full" != "$$alone" ]; then \
+			echo "bcmp call trace after bzero '$$full', alone '$$alone'" >&2; exit 1; \
+		fi
+		${PYTHON} tools/unicorn/check_kernel_functions.py \
+		    --kernel sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:UPICO:Q}/unix.elf
+
+.PHONY: check-unicorn-kernel
 
 # The swap-codec cycle model of docs/research/picocalc-device-first. Its
 # committed run-output.tsv is a fixed oracle for one compiler version: oracle.sh
@@ -1818,7 +1873,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fgrep-capacity check-crc32 check-config-makefile check-swapram-evac \
 		check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger \
 		check-swap-tier-model \
-		check-flash-checkpoint check-flash-reset-cells \
+		check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook \
 		check-netbsd-imports check-v7fs-core check-storage-recovery \
 		check-storage-recovery-models check-msdosfs-core check-fat32-tail check-fsutil-clock \
 		check-flash-sparse \
@@ -2504,7 +2559,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

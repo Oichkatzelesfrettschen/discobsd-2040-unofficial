@@ -11,7 +11,7 @@ PREFIX = """\
 static int events[3], count;
 static void first(void) { events[count++] = 11; }
 static void second(void) { events[count++] = 22; }
-struct conf_service conf_service_init[] = { { first }, { second }, { NULL }, { NULL } };
+const struct conf_service conf_service_init[] = { { first }, { second }, { NULL }, { NULL } };
 static void attach_services(void)
 {
 """
@@ -27,7 +27,7 @@ int main(void)
 
 def main():
     source = (ROOT / "sys/kern/init_main.c").read_text(encoding="utf-8")
-    start = source.index("\tstruct conf_service *svc;")
+    start = source.index("\tconst struct conf_service *svc;")
     end = source.index("\n\n", start)
     body = source[start:end]
     if body.count("svc++") != 1:

@@ -33,6 +33,8 @@
 #define	PCM_RING	256		/* Bytes; the indices rely on it. */
 #define	PCM_LEVELS	250		/* Duty steps of the 500 kHz carrier. */
 #define	PCM_SILENCE	0x80		/* The sample at rest: half duty. */
+#define	PCM_CHANNELS	1		/* Channels in the stream written. */
+#define	PCM_BITS	8		/* Bits per sample. */
 
 struct pcm_ring {
 	volatile unsigned char	head;	/* Next slot the writer fills. */
@@ -88,6 +90,7 @@ int	pcmopen(dev_t dev, int flag, int mode);
 int	pcmclose(dev_t dev, int flag, int mode);
 int	pcmread(dev_t dev, struct uio *uio, int flag);
 int	pcmwrite(dev_t dev, struct uio *uio, int flag);
+unsigned int	pcm_queued(void);
 
 /* picoaudio.c: nonzero while /dev/audio owns the slice; BEL is absorbed. */
 extern int picoaudio_pcm;

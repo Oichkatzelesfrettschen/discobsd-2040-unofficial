@@ -40,10 +40,25 @@
 
 static int psram_up;
 
+/*
+ * Swap keeps minor 0 (psramprobe() names makedev(PSRAM_MAJOR, 0)), a whole
+ * number of image alignments that holds at least one guarded image, and a
+ * block count a COMPACT_SWAPMAP entry can carry.
+ */
+_Static_assert(PSRAM_SWAP_BYTES % DEV_BSIZE == 0 &&
+    (PSRAM_SWAP_BYTES / DEV_BSIZE) % SWAP_IMAGE_ALIGN == 0,
+    "PSRAM swap is a whole number of SWAP_IMAGE_ALIGN blocks");
+_Static_assert(PSRAM_SWAP_BYTES / DEV_BSIZE >=
+    2 * SWAP_IMAGE_GUARD + SWAP_IMAGE_ALIGN,
+    "PSRAM swap holds a guarded image");
+_Static_assert(PSRAM_SWAP_BYTES / DEV_BSIZE <= 0xffff,
+    "PSRAM swap fits a 16-bit swap map entry");
+_Static_assert(PSRAM_SWAP_BYTES < PSRAM_BYTES, "the /tmp region is not empty");
+
 int
 psramopen(dev_t dev, int flag __unused, int mode __unused)
 {
-	return (minor(dev) == 0 && psram_up) ? 0 : ENXIO;
+	return (psram_up && psram_region_bytes(minor(dev)) != 0) ? 0 : ENXIO;
 }
 
 int
@@ -56,7 +71,7 @@ psramclose(dev_t dev __unused, int flag __unused, int mode __unused)
 daddr_t
 psramsize(dev_t dev)
 {
-	return (minor(dev) == 0 && psram_up) ? PSRAM_BYTES / DEV_BSIZE : 0;
+	return psram_up ? psram_region_bytes(minor(dev)) / DEV_BSIZE : 0;
 }
 
 void
@@ -66,19 +81,22 @@ psramstrategy(struct buf *bp)
 	int err;
 
 	bp->b_resid = 0;
-	if (minor(bp->b_dev) != 0 || !psram_up) {
+	if (!psram_up || psram_region_bytes(minor(bp->b_dev)) == 0) {
 		bp->b_error = ENXIO;
 		goto bad;
 	}
-	err = psram_block_offset(bp->b_blkno, DEV_BSIZE, len, &off);
+	err = psram_region_offset(minor(bp->b_dev), bp->b_blkno, DEV_BSIZE,
+	    len, &off);
 	if (err != 0) {
 		bp->b_error = EINVAL;
 		goto bad;
 	}
-	storage_note((bp->b_flags & B_READ) ? STORAGE_SWAP_READS :
-	    STORAGE_SWAP_WRITES, 1);
-	storage_note((bp->b_flags & B_READ) ? STORAGE_SWAP_READ_BYTES :
-	    STORAGE_SWAP_WRITE_BYTES, len);
+	if (minor(bp->b_dev) == 0) {	/* the swap counters count swap alone */
+		storage_note((bp->b_flags & B_READ) ? STORAGE_SWAP_READS :
+		    STORAGE_SWAP_WRITES, 1);
+		storage_note((bp->b_flags & B_READ) ?
+		    STORAGE_SWAP_READ_BYTES : STORAGE_SWAP_WRITE_BYTES, len);
+	}
 	if ((bp->b_flags & B_READ) != 0)
 		err = psram_read(off, (unsigned char *)bp->b_addr, len);
 	else
@@ -97,7 +115,7 @@ bad:
 }
 
 static int
-psramprobe(struct conf_device *config __unused)
+psramprobe(const struct conf_device *config __unused)
 {
 	int err;
 
@@ -122,11 +140,13 @@ psramprobe(struct conf_device *config __unused)
 		return 0;
 	psram_up = 1;
 	swapdev = makedev(PSRAM_MAJOR, 0);
-	printf("psram0: ESP-PSRAM64H %u kbytes on PIO0, swap\n",
-	    (unsigned int)(PSRAM_BYTES / 1024));
+	printf("psram0: ESP-PSRAM64H %u kbytes on PIO0, swap %u kbytes, "
+	    "tmp %u kbytes\n", (unsigned int)(PSRAM_BYTES / 1024),
+	    (unsigned int)(PSRAM_SWAP_BYTES / 1024),
+	    (unsigned int)((PSRAM_BYTES - PSRAM_SWAP_BYTES) / 1024));
 	return 1;
 }
 
-struct driver psramdriver = {
+const struct driver psramdriver = {
 	"psram", psramprobe,
 };

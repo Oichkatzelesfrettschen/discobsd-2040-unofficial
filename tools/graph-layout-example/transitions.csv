@@ -1,0 +1,11 @@
+source,target,count
+fixture_entry,fixture_parse,100
+fixture_parse,fixture_lookup,120
+fixture_lookup,fixture_read,100
+fixture_read,fixture_entry,90
+fixture_encode,fixture_write,100
+fixture_write,fixture_console,110
+fixture_console,fixture_interrupt,100
+fixture_interrupt,fixture_encode,80
+fixture_read,fixture_encode,2
+fixture_interrupt,fixture_entry,3

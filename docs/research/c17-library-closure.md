@@ -14,8 +14,23 @@ optional `<threads.h>` and `<stdatomic.h>`).
 The measurement base is `b3f293a6fb0e0cce4ff3a02c24e3861a176a0660`. Every new
 member is in the cross ELF archives only: `lib/libc_aout` and
 `distrib/rp2040/boardlibc-members` list members explicitly and are unchanged,
-so no shipped program, native archive or root image contains the new code, and
-no board executed it.
+so no shipped program, native archive or root image contains a new member, and
+no board executed the new code.
+
+Shipped code changes in one respect. The edge cases of the inherited double
+providers that the float members narrow (see "Inherited double providers")
+were wrong where a one-line fix exists: `acos` of a negative argument,
+`asin`, `acos`, `sqrt` and `log` of an argument outside their domain,
+`fmod` and `tan` without a domain error. Those five providers (`asin.c`,
+`sqrt.c`, `log.c`, `fmod.c`, `tan.c`) are fixed in the members the
+native `libm.a` ships. Rebuilt from clean, against the tree before the
+change, the installed `libm.a` grows 264 bytes (36,668 to 36,932) and the
+shipped programs that link those members grow `calc` 128, `forth` 108,
+`awk` 24, `trek` 24, `primes` 16, `snake` 12, `warp` 12, `whetstone-double` 12
+and `caesar` 8 bytes; no other program changes (`msdosfs` shrinks by 4 bytes
+for a reason not traced). `adminbox` packs to the same 23,156 bytes, margin
+1,420 of the 25-block budget, so `check-packed-margin` and its limit are
+unchanged.
 
 ## Provided
 
@@ -99,14 +114,41 @@ the reflection formula far below zero.
 **Floating-point environment.** Arithmetic is software, rounds to nearest and
 records no flags. `<fenv.h>` therefore defines no exception macro,
 `FE_ALL_EXCEPT` is 0, `FE_TONEAREST` is the only direction, and the functions
-succeed exactly for the requests that state can represent. `math_errhandling`
-is `MATH_ERRNO`; the new members set `errno` for domain and pole errors and
-overflow.
+succeed exactly for the requests that state can represent.
+`math_errhandling` is `MATH_ERRNO`, the only value C17 7.12p5 allows an
+implementation with no exception flags. The error channel it promises is
+`EDOM` for a NaN from arguments that are not NaN and `ERANGE` for an
+infinity from finite arguments, a pole or an overflow (`nextafter` and
+`nexttoward` overflow in their first argument alone), and `check-libc-c17-math`
+tests that rule for every double and float member over a table that includes
+each infinity, NaN, signed zero, the smallest subnormal and values that
+overflow. A float result too large for float, which narrowing reports only as
+an infinity, sets `ERANGE` through `fp_narrow()` in `lib/libm/fpbits.h`.
+The rule holds for every member the gate lists except the inherited double
+`pow`, `atan2`, `hypot`, `sin` and `cos`, which are outside the claim and
+recorded below.
+
+**Float trigonometry.** `sinf`, `cosf` and `tanf` widen the argument into the
+double functions up to 2**16, where their reduction is accurate. Above it
+the inherited reduction loses the quadrant (`sin(1e10)` is off in the sixth
+digit and `sin(1e300)` is 0), so `lib/libm/rempio2f.c` forms the quadrant
+and the remainder from the product of the float's 24-bit significand with 96
+bits of 2/pi (Payne and Hanek), valid for every finite float; the fixture
+compares 20,000 draws from 2**16 to 2**127 with the hosting double functions.
+An infinite argument is a domain error and a NaN passes through.
+
+**Clock.** `clock` adds user and system time in an unsigned long with the
+product by `CLOCKS_PER_SEC` and both sums checked, so a total that does not fit
+(about 71.6 minutes on the 32-bit target) is `(clock_t)-1`, not a wrapped
+count. The gate supplies readings through an interposed `getrusage` at
+`ULONG_MAX`, one below it, and past each overflow.
 
 **Free aliases.** `long double` has double's format on this ABI, so every
 `long double` function, `strtold`, `wcstold` and `nexttoward` are the double
 functions under a second name (an `__asm__` label), costing no code. A
-translation unit whose `long double` is wider sees none of them.
+translation unit whose `long double` is wider sees none of them. `strtold`
+is `strtod`, which converts through the same correctly rounding core as
+`strtof` and `wcstod`.
 
 **Type-generic selection.** `<tgmath.h>` selects on the sum of the arguments
 after giving each integer argument type double (7.25p3). Its contract caught
@@ -176,6 +218,13 @@ and the cases below were checked against exact arithmetic where stated:
 | `s_logb.c`, `s_logbf.c` | every subnormal returns -1022 or -126, the IEEE 754-1985 function, where C17 7.12.6.11p2 normalizes it | all 2**53 - 2 subnormal doubles and 2**24 - 2 floats; `logb(0x1p-1074)` gives -1022 |
 | `s_fma.c` | a result just below a power of two can round up to the power | 408,909 of 2,000,000 such draws and none of 2,000,000 general ones; `fma(-2.5, 0.1, 0x1p52)` gives 0x1p52, 2**-56 from the midpoint on the other side |
 
+Two further NetBSD defects reach the edge table and are not withheld, because
+the fixture skips the inputs instead: `remquo` and `remquof` return a quotient
+of +1 for `x` and `-x` where C17 7.12.10.3 gives -1 (`remquof(0x1p-149f,
+-0x1p-149f)` leaves 1 in `*quo`), and `scalbn` on i386 wraps an int sum for a
+count near INT_MAX and returns 0 for a large argument it should send to
+infinity. The NetBSD-oracle builds compare neither case.
+
 The oracle withholds those members, with a witness each that fails the build
 once NetBSD's defect stops reproducing, and the gate substitutes each one for
 the tree's own member and requires the fixture to reject it by name. That
@@ -196,6 +245,36 @@ and `NOTICE` list none of them. The NetBSD sources named above are read from
 the `tgamma` series, which takes its coefficients from Abramowitz and Stegun
 6.1.34 (named in `lib/libm/tgamma.c`). A member later derived from an upstream
 file enters the manifest with its upstream header intact.
+
+## Inherited double providers
+
+The float members `powf`, `atan2f`, `hypotf`, `sinf` and `cosf` state their
+special cases themselves because the double providers they once narrowed are
+wrong at the edges, and fixing those in shipped code costs more than the
+200-byte bound each program may grow: `pow` +320 bytes, `atan2` +308,
+`sin` and `cos` +136, `hypot` +132 in `libm.a` before any caller; with all nine
+providers fixed `calc` grew 1,024 bytes, `trek` 784 and `warp` 640. Left as they are, with a witness each (the tree's
+result, then C17 Annex F and glibc's):
+
+| Call | Tree | Correct |
+| --- | --- | --- |
+| `pow(INFINITY, 0)` | NaN | 1 |
+| `pow(-INFINITY, INFINITY)` | 0 | +infinity |
+| `pow(0, NAN)` | 0 | NaN |
+| `atan2(INFINITY, INFINITY)` | pi/2 | pi/4 |
+| `atan2(0.0, -0.0)` | pi/2 | pi |
+| `hypot(NAN, INFINITY)` | NaN | +infinity |
+| `hypot(DBL_MAX, DBL_MAX)` | infinity, `errno` 0 | infinity, `ERANGE` |
+| `sin(INFINITY)`, `cos(INFINITY)` | 0 | NaN, `EDOM` |
+| `sin(1e10)` | -0.487505690 | -0.487506025 |
+| `sin(1e300)` | 0 | -0.8178819121 |
+
+Each row, and the roughly 390 edge mismatches the probe counted before the
+fixes above, comes from calling the tree's double provider and the hosting
+library over a table of infinities, NaNs, signed zeros, subnormals and
+boundary values. The double `exp(-745)`, `sinh(710)`, `cosh(710)`,
+`erfc(10)` and `pow` of a subnormal also differ from glibc at the edge of
+the range, by an underflow or an overflow threshold, not by a missing case.
 
 ## Not provided
 

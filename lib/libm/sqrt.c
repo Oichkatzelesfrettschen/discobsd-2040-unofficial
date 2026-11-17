@@ -18,9 +18,12 @@ sqrt(arg)
 	int i;
 
 	if(arg <= 0.) {
-		if(arg < 0.)
+		/* C17 F.10.4.5: sqrt(-0) is -0; a negative argument is a domain error. */
+		if(arg < 0.) {
 			errno = EDOM;
-		return(0.);
+			return(NAN);
+		}
+		return(arg);
 	}
 	if(arg > DBL_MAX)
 		return(arg);

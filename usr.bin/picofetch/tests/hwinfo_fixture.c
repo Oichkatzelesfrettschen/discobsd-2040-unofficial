@@ -9,6 +9,9 @@
  *   sensors   picocalc plus the ADC readings
  *   failed    picocalc with the battery read failing
  *   full      every reading present, levels near their limits
+ *   unread    picocalc whose flash chip returned no identity at boot
+ *   oldkernel picocalc on a kernel without machdep.flash_jedec
+ *   busdiff   picocalc whose peripheral clock is half the core clock
  *   longrun   picocalc after a long uptime: the tick counters start two
  *             thousand million ticks up, where a 32-bit product with 1000
  *             overflows
@@ -70,7 +73,7 @@ void
 hw_collect(struct hwinfo *hw, int groups)
 {
 	const char *sc = getenv("PICO_FIXTURE");
-	int pico, sensors, failed, full;
+	int pico, sensors, failed, full, unread, oldkernel, busdiff;
 	long base;
 
 	if (sc == NULL)
@@ -79,6 +82,9 @@ hw_collect(struct hwinfo *hw, int groups)
 	sensors = strcmp(sc, "sensors") == 0;
 	failed = strcmp(sc, "failed") == 0;
 	full = strcmp(sc, "full") == 0;
+	unread = strcmp(sc, "unread") == 0;
+	oldkernel = strcmp(sc, "oldkernel") == 0;
+	busdiff = strcmp(sc, "busdiff") == 0;
 	base = strcmp(sc, "longrun") == 0 ? 10000000L : 0;
 
 	if (groups & HWI_STATIC) {
@@ -94,7 +100,7 @@ hw_collect(struct hwinfo *hw, int groups)
 		ok(&hw->physmem, 264L * 1024);
 		ok(&hw->pagesize, 1024);
 		ok(&hw->cpu_khz, 125000);
-		ok(&hw->bus_khz, 125000);
+		ok(&hw->bus_khz, busdiff ? 62500 : 125000);
 		ok(&hw->hz, 100);
 		ok(&hw->boottime, 1000000);
 		ok(&hw->nswap, 384);
@@ -108,6 +114,18 @@ hw_collect(struct hwinfo *hw, int groups)
 		ok(&hw->watchdog_reason, full ? 1 : 0);
 		ok(&hw->cons_major, pico ? 6 : 10);
 		ok(&hw->cons_minor, 0);
+		memset(&hw->flash_id, 0, sizeof hw->flash_id);
+		hw->flash_id.state = oldkernel ? RD_ABSENT : failed ? RD_FAILED :
+		    RD_OK;
+		if (hw->flash_id.state == RD_OK && !unread) {
+			static const unsigned char id[11] = {
+				0xef, 0x40, 0x15,
+				0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef
+			};
+
+			hw->flash_id.valid = 1;
+			memcpy(hw->flash_id.id, id, sizeof id);
+		}
 	}
 	if (groups & HWI_LIVE) {
 		step++;
@@ -147,6 +165,20 @@ hw_collect(struct hwinfo *hw, int groups)
 			ok(&hw->charging, !full);
 			ok(&hw->lcd_backlight, 128);
 			ok(&hw->kbd_backlight, 16);
+		}
+		memset(&hw->pcm, 0, sizeof hw->pcm);
+		if (pico)
+			hw->pcm.state = RD_ABSENT;
+		else if (failed)
+			hw->pcm.state = RD_FAILED;
+		else {
+			hw->pcm.state = RD_OK;
+			hw->pcm.rate = 8000;
+			hw->pcm.channels = 1;
+			hw->pcm.bits = 8;
+			hw->pcm.ring = 255;
+			hw->pcm.open = full;
+			hw->pcm.queued = full ? 200 : 0;
 		}
 		if (pico || full) {
 			ok(&hw->core1, 1);

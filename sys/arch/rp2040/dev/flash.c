@@ -57,6 +57,7 @@
 #include <sys/disk.h>
 
 #include <machine/intr.h>
+#include <machine/scb.h>
 #include <machine/watchdog.h>
 
 #include <rp2040/dev/flash.h>
@@ -66,6 +67,9 @@
 #include <rp2040/rp2040/clock_catchup.h>
 
 #ifdef STORAGE_STATS
+#include <rp2040/dev/flash_reset_hook.h>
+#include <rp2040/rp2040/core1.h>
+
 static struct storage_stats flstats = {
     .version = STORAGE_STATS_VERSION,
     .size = sizeof(struct storage_stats)
@@ -387,6 +391,79 @@ flash_enter_xip(void)
 		flash_ssi_restore();
 }
 
+#ifdef STORAGE_STATS
+#define	AIRCR_VECTKEY		0x05fa0000UL
+#define	AIRCR_SYSRESETREQ	(1UL << 2)
+
+static struct flash_reset_hook flhook;
+
+/*
+ * Reset the chip after the command the hook counted, from inside the window
+ * of flash_erase() or flash_program(): the ROM call has returned, so the
+ * chip is idle (the ROM waits out each command's busy bit), and XIP is down.
+ * The routine finishes the ROM sequence the request would have ended with,
+ * flush_cache and the second stage, which leaves the cache and the QSPI pads
+ * as a kernel running normally leaves them when usb_reset_to_flash() and
+ * boot() write AIRCR, and puts the flash-resident core1_park() and
+ * watchdog_site() back in reach. Datasheet 2.4.2.9: SYSRESETREQ resets the
+ * processor core and nothing else, so core 1 is parked first and the QSPI
+ * interface keeps the state left here. The warm boot that follows issues
+ * its own XIP exit sequence (datasheet 2.8.1.2), written for a flash left
+ * in continuous-read mode, which is the state every other reset of a
+ * running kernel hands it. watchdog_site() leaves the reset's kind and the
+ * offset of the last command in the scratch pair for the next boot
+ * (machdep.watchdog_site and machdep.watchdog_arg). The AIRCR write and the
+ * wait for the reset are RAM-resident whichever way XIP was left. Interrupts
+ * stay masked throughout.
+ */
+static __ramfunc void
+flash_hook_reset(u_int erase, u_int offset)
+{
+	flrom.flush();
+	flash_enter_xip();
+	watchdog_site(erase ? WD_SITE_RESET_AT_ERASE :
+	    WD_SITE_RESET_AT_PROGRAM, offset);
+#ifdef CORE1
+	core1_park();
+#endif
+	arm_dsb();
+	SCB_REG32(SCB_AIRCR) = AIRCR_VECTKEY | AIRCR_SYSRESETREQ;
+	arm_dsb();
+	for (;;)
+		continue;
+}
+
+/*
+ * The two accessors behind machdep.flash_reset_program and
+ * machdep.flash_reset_erase (rp2040/sysctl.c): the commands of one kind
+ * issued since arming, and arming that kind to reset after its Nth command
+ * from now, or disarming it with 0.
+ */
+u_int
+flash_reset_hook_count(u_int erase)
+{
+	struct flash_hook_kind *kind = erase ? &flhook.erase : &flhook.program;
+	u_int count;
+	int s;
+
+	s = splhigh();
+	count = kind->count;
+	splx(s);
+	return count;
+}
+
+void
+flash_reset_hook_arm(u_int erase, u_int n)
+{
+	struct flash_hook_kind *kind = erase ? &flhook.erase : &flhook.program;
+	int s;
+
+	s = splhigh();
+	flash_hook_arm(kind, n);
+	splx(s);
+}
+#endif
+
 /*
  * Chip identity. JEDEC ID (9Fh) returns the manufacturer and two device
  * bytes, the second of which is the capacity as a power of two; Read Unique
@@ -565,7 +642,12 @@ flash_erase(u_int offset, u_int len)
 	watchdog_site(WD_SITE_FLASH_ERASE, offset);
 	flrom.connect();
 	flrom.exit_xip();
+#ifdef STORAGE_STATS
+	(void)flash_hook_erase(&flhook, flrom.erase, flash_hook_reset, offset,
+	    len);
+#else
 	flrom.erase(offset, len, FLASH_BLOCK_BYTES, FLASH_BLOCK_ERASE_CMD);
+#endif
 	flrom.flush();
 	flash_enter_xip();
 	clock_catchup();
@@ -594,7 +676,12 @@ flash_program(u_int offset, const u_char *data, u_int len)
 	watchdog_site(WD_SITE_FLASH_PROGRAM, offset);
 	flrom.connect();
 	flrom.exit_xip();
+#ifdef STORAGE_STATS
+	(void)flash_hook_program(&flhook, flrom.program, flash_hook_reset,
+	    offset, data, len);
+#else
 	flrom.program(offset, data, len);
+#endif
 	flrom.flush();
 	flash_enter_xip();
 	clock_catchup();

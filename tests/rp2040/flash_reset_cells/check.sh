@@ -112,6 +112,8 @@ F-H4 run
 S-H4 run
 T-H4 run
 Kf-min run
+Kw-H2 run
+K1-H2 run
 U-resume skip
 U-fsck-ufs skip
 E-boot skip
@@ -232,8 +234,8 @@ if "$work/oracle" "$cells" "$manifest" NO-SUCH-CELL \
 fi
 
 # Known-good calibration: with a checkpoint page programmed as one command,
-# every row, including the recorded defects, holds. The defect rows fail only
-# through the cuts inside a checkpoint page program.
+# every row holds, a row the table records as a defect included, since such a
+# row may fail only through the cuts inside a checkpoint page program.
 FLASH_RESET_CELLS_ATOMIC_CKPT=1 "$work/oracle" "$cells" "$manifest" \
     >"$work/atomic.log" 2>&1 || {
 	cat "$work/atomic.log" >&2
@@ -290,6 +292,38 @@ build "$work/flash-no-sync.c" "$dhara/journal.c" "$swap" "$work/m-ub" \
 if (rejects "$work/m-ub" E-H2) >/dev/null 2>&1; then
 	fail "a sanitizer abort after FAIL lines passes for a rejection"
 fi
+
+# A torn checkpoint page accepted on its magic and epoch alone: every cut
+# that leaves the root's metadata partly erased recovers a map missing
+# sectors, in a group closed by a forced checkpoint (Kf), by a write (Kg),
+# by collection copies (Gk), by the fsck repair (F) and across the journal
+# wrap (Kw).
+mutate "$dhara/journal.c" "$work/journal-torn-tree.c" \
+	'		    cp_tree_whole(j, p - 1)) {' \
+	'		    (cp_tree_whole(j, p - 1) || 1)) {'
+build "$flash" "$work/journal-torn-tree.c" "$swap" "$work/m-torn-tree"
+rejects "$work/m-torn-tree" Kf-min Kf-H2 Kg-H2 Gk-H2 F-H2 Kw-H2
+
+# A torn first program that stops after the magic leaves the epoch erased;
+# taken for a checkpoint in block 0 after the wrap, it gives the journal the
+# epoch 0xff and no checkpoint of the lap matches it.
+mutate "$dhara/journal.c" "$work/journal-torn-epoch.c" \
+	'	return hdr_has_magic(buf) &&
+	       hdr_get_tail(buf) <
+		((dhara_page_t)j->nand->num_blocks << j->nand->log2_ppb);' \
+	'	return hdr_has_magic(buf) &&
+	       j->nand != NULL;'
+build "$flash" "$work/journal-torn-epoch.c" "$swap" "$work/m-torn-epoch"
+rejects "$work/m-torn-epoch" Kw-H2
+
+# With one live sector the torn root id still counts one node; only the
+# test of a one-sector root's high byte rejects an id whose high bytes are
+# erased.
+mutate "$dhara/journal.c" "$work/journal-torn-id.c" \
+	'	return seen == count && (count != 1 || (root_id >> 24) != 0xff);' \
+	'	return (void)root_id, seen == count;'
+build "$flash" "$work/journal-torn-id.c" "$swap" "$work/m-torn-id"
+rejects "$work/m-torn-id" K1-H2
 
 # A page copy that stops one chip page short moves a torn page; only the
 # rows whose copies reach a checkpoint (Gk) read the moved page back.
@@ -408,28 +442,62 @@ if (build "$flash" "$dhara/journal.c" "$swap" "$work/m-cast" \
 	fail "a const-discarding strtoul end pointer builds"
 fi
 
-# A defect row passes only while its failures equal the recorded tear. A
-# change inside the checkpoint program, here a recovery that skips a page
-# whose header is half written, moves some cuts from the blank root to a
-# refused resume: the failure set stays inside the window, so a verdict of
-# "no failure outside the window, one cut between commands" would accept it.
-mutate "$dhara/journal.c" "$work/journal-refuse.c" \
-	'		    (hdr_has_magic(j->page_buf)) &&
-		    (hdr_get_epoch(j->page_buf) == j->epoch)) {
-			j->root = p - 1;' \
-	'		    (hdr_has_magic(j->page_buf)) &&
-		    (hdr_get_epoch(j->page_buf) == j->epoch) &&
+# The status "defect" records a failure the shipped driver is known to have,
+# and a defect row passes only while its failing cuts equal the recorded
+# checkpoint-tear signature. The shipped journal records none, so the machinery
+# is calibrated on the journal before the checkpoint-tear fix: the shipped
+# source with the checkpoint-page header test and the sector-tree test
+# dropped. Kf-min marked defect must reproduce the signature there (known-good),
+# must fail on the shipped journal, which no longer tears (known-bad), and must
+# fail on the unfixed journal when a recovery that skips a half-written header
+# moves some cuts from the blank root to a refused resume, a change the tear
+# window alone would accept.
+defects=$work/defect-cells.tsv
+sed "/^Kf-min$tab/s/${tab}host${tab}/${tab}defect${tab}/" "$cells" >"$defects"
+cmp -s "$defects" "$cells" && fail "the defect mutation changed nothing"
+mutate "$dhara/journal.c" "$work/journal-unfixed-hdr.c" \
+	'	return hdr_has_magic(buf) &&
+	       hdr_get_tail(buf) <
+		((dhara_page_t)j->nand->num_blocks << j->nand->log2_ppb);' \
+	'	return hdr_has_magic(buf) &&
+	       j->nand != NULL;'
+mutate "$work/journal-unfixed-hdr.c" "$work/journal-unfixed.c" \
+	'		    cp_tree_whole(j, p - 1)) {' \
+	'		    (cp_tree_whole(j, p - 1) || 1)) {'
+build "$flash" "$work/journal-unfixed.c" "$swap" "$work/m-unfixed"
+status=0
+"$work/m-unfixed" "$defects" "$manifest" Kf-min >"$work/defect.log" 2>&1 ||
+    status=$?
+if [ "$status" -ne 0 ] || ! grep -q '^DEFECT Kf-min:' "$work/defect.log"; then
+	cat "$work/defect.log" >&2
+	fail "the unfixed journal does not reproduce the recorded tear (status $status)"
+fi
+status=0
+"$work/oracle" "$defects" "$manifest" Kf-min >"$work/defect.log" 2>&1 ||
+    status=$?
+if [ "$status" -ne 1 ] || ! grep -q '^FAIL Kf-min:' "$work/defect.log"; then
+	cat "$work/defect.log" >&2
+	fail "a defect row passes on a journal that no longer tears (status $status)"
+fi
+mutate "$work/journal-unfixed.c" "$work/journal-unfixed-refuse.c" \
+	'		    (cp_tree_whole(j, p - 1) || 1)) {' \
+	'		    (cp_tree_whole(j, p - 1) || 1) &&
 		    (hdr_get_bb_last(j->page_buf) != (dhara_page_t)~0u ||
-		    hdr_get_bb_current(j->page_buf) != (dhara_page_t)~0u)) {
-			j->root = p - 1;'
-build "$flash" "$work/journal-refuse.c" "$swap" "$work/m-refuse"
-rejects_cell "$work/m-refuse" Kf-min
-grep -q 'recorded checkpoint-tear signature' "$work/mutant.log" ||
-	fail "the half-header mutant failed Kf-min for another reason"
+		    hdr_get_bb_current(j->page_buf) != (dhara_page_t)~0u)) {'
+build "$flash" "$work/journal-unfixed-refuse.c" "$swap" "$work/m-unfixed-refuse"
+status=0
+"$work/m-unfixed-refuse" "$defects" "$manifest" Kf-min >"$work/defect.log" \
+    2>&1 || status=$?
+if [ "$status" -ne 1 ] ||
+    ! grep -q 'recorded checkpoint-tear signature' "$work/defect.log"; then
+	cat "$work/defect.log" >&2
+	fail "a changed tear signature on the unfixed journal passes (status $status)"
+fi
 
-echo "flash_reset_cells: PASS (the shipped driver meets every host row and" \
-	"reproduces the recorded checkpoint-tear defect cut by cut; atomic" \
-	"checkpoint programs meet every row; no-sync, unprogrammed-checkpoint," \
-	"half-erase, short-copy, no-spare-copy and stray-swap-erase mutations," \
-	"a changed tear signature, a bad table or manifest and a bad repeat" \
-	"count rejected; a sanitizer abort is not a rejection)"
+echo "flash_reset_cells: PASS (the shipped driver meets every host row," \
+	"the checkpoint-tear rows included; atomic checkpoint programs meet" \
+	"every row; no-sync, unprogrammed-checkpoint, half-erase, short-copy," \
+	"no-spare-copy, stray-swap-erase, torn-tree, torn-epoch and torn-id" \
+	"mutations, a bad table or manifest and a bad repeat count rejected;" \
+	"the defect-row machinery reproduces the unfixed journal's tear and" \
+	"rejects a changed signature; a sanitizer abort is not a rejection)"

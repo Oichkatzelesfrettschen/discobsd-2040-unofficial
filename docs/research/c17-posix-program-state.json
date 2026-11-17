@@ -1,0 +1,3813 @@
+{
+  "C17_language_states": {
+    "accepted": 158,
+    "excluded": 543,
+    "migration-open": 63,
+    "unreviewed": 2292
+  },
+  "C17_rows": 3056,
+  "cohort_definition": "codex/* PR heads numbered 454 through 598 targeting owned main",
+  "declaration_discovery": {
+    "archive_sha256": {
+      "lib/libbn.a": "5d6980e08864bd436f70cc40f4d1db1d209a3d96af2ff00433f7ec8d0de0eff1",
+      "lib/libc.a": "451fd3dd49adbe978d7390d7fe44739ff588db1696d41a34a0370f309220c6fb",
+      "lib/libcalc.a": "019da3c146998f34b8c0d4f717b4deedd321e757e404d702535b588e8757239d",
+      "lib/libcurses.a": "d06819daccc5cb000d92bc357dd617945c55351826648e8ff09188a50818ffa9",
+      "lib/libm.a": "69713c4f4f1e5bbeb312f18ac80244478889b3417de6af225388efdc5f694736",
+      "lib/libreadline.a": "f979e76c265dffc07e77767dcb4c5bf5afd3df5a197c46cb7ee81fd99adc2c7b",
+      "lib/libtcl.a": "da3dd875884358d1b0c2d5a7993e3396dc13c7a59f6f48bf71652ff14aa70c86",
+      "lib/libtermcap.a": "cb5666e7d6c71d8c76b8adcca32a252a91da59b33002cc52fc95ed805c74a263",
+      "lib/libutil.a": "1cefe1ccc3bf8ddf8468a22d21f42073546547fdf68dc6e526d53149a1831ff9",
+      "lib/libvmf.a": "241f34254f83bd4115df2fdb5dccb679331402a5b5f30aa622f2113b60c9c3be"
+    },
+    "headers": [
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "_featuretest.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "a.out.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "alloca.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "ar.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "arpa/inet.h",
+        "installer_family": "arpa",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "assert.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "ctype.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "curses.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "err.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "errno.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "fcntl.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "float.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "fnmatch.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "fstab.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "grp.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "inttypes.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "kmem.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "lastlog.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "libgen.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "limits.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "math.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "mtab.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "ndbm.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "netinet/in.h",
+        "installer_family": "netinet",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "nlist.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "paths.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "pwd.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "ranlib.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "readline/history.h",
+        "installer_family": "readline",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "readline/readline.h",
+        "installer_family": "readline",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "regexp.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/_float.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/board.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/cpu.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/debug.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/dump.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/elf_machdep.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/endian.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/machine/scb.h:103:37: error: unknown type name 'u_int'",
+        "header": "rp2040/fault.h",
+        "installer_family": "rp2040",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/rp2040/frame.h:27:2: error: unknown type name 'u_int'",
+        "header": "rp2040/frame.h",
+        "installer_family": "rp2040",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/gpio.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/hsx_decoder.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/intr.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/io.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/limits.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/machparam.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/machine/scb.h:103:37: error: unknown type name 'u_int'",
+        "header": "rp2040/mpu.h",
+        "installer_family": "rp2040",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/mpuvar.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/picocalcvar.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/rp2040/scb.h:103:37: error: unknown type name 'u_int'",
+        "header": "rp2040/scb.h",
+        "installer_family": "rp2040",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/setjmp.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/rp2040/signal.h:30:2: error: unknown type name 'u_int'",
+        "header": "rp2040/signal.h",
+        "installer_family": "rp2040",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/swapram.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/types.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/uarea_stats.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/rp2040/user_context.h:30:23: error: unknown type name 'u_int'",
+        "header": "rp2040/user_context.h",
+        "installer_family": "rp2040",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/usercopy.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "rp2040/watchdog.h",
+        "installer_family": "rp2040",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "setjmp.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sgtty.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "signal.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "stdalign.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "stdarg.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "stdbool.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "stddef.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "stdint.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "stdio.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "stdlib.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "stdnoreturn.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "string.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "strings.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "struct.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/_time_t.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/buf.h:46:5: error: unknown type name 'u_int'",
+        "header": "sys/buf.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/callout.h:24:5: error: unknown type name 'caddr_t'",
+        "header": "sys/callout.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/capacity.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/cdefs.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/clist.h:10:21: error: use of undeclared identifier 'CBSIZE'",
+        "header": "sys/clist.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/conf.h:23:31: error: expected identifier",
+        "header": "sys/conf.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/config.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/dir.h:23:5: error: unknown type name 'ino_t'",
+        "header": "sys/dir.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/disk.h:36:5: error: unknown type name 'u_char'; did you mean 'char'?",
+        "header": "sys/disk.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/dk.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/dkbad.h:46:5: error: unknown type name 'u_short'; did you mean 'short'?",
+        "header": "sys/dkbad.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/endian.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/errno.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/exec.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/exec_aout.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/exec_elf.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/exec_hsaout.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/fcntl.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/file.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/fs.h:42:5: error: unknown type name 'u_int'",
+        "header": "sys/fs.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/fsgeom.h:29:5: error: unknown type name 'u_char'; did you mean 'char'?",
+        "header": "sys/fsgeom.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/glob.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/inode.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/ioctl.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/kernel.h:13:22: error: use of undeclared identifier 'MAXHOSTNAMELEN'",
+        "header": "sys/kernel.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/lcdcons.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/lcdgfx.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/map.h:35:5: error: unknown type name 'size_t'",
+        "header": "sys/map.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/fs.h:42:5: error: unknown type name 'u_int'",
+        "header": "sys/mount.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/msgbuf.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/mtio.h:16:5: error: unknown type name 'daddr_t'",
+        "header": "sys/mtio.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/namei.h:29:20: error: field has incomplete type 'struct direct'",
+        "header": "sys/namei.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/param.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/picga.h:41:2: error: unknown type name 'u_short'; did you mean 'short'?",
+        "header": "sys/picga.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/proc.h:31:5: error: unknown type name 'uid_t'",
+        "header": "sys/proc.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/proc_asm.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/ptrace.h:42:26: error: unknown type name 'pid_t'",
+        "header": "sys/ptrace.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/pty.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/queue.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/reboot.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/resource.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/select.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/signal.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/signalvar.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/skel.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/spi.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/stat.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/stdbool.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/stdint.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/storage_stats.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/swap.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/syscall_dispatch.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/sysctl.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/syslimits.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/syslog.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/conf.h:23:31: error: expected identifier",
+        "header": "sys/systm.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/time.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/timeb.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/times.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/tty.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/ttychars.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/ttydev.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/types.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/uio.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/dir.h:23:5: error: unknown type name 'ino_t'",
+        "header": "sys/user.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/utsname.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/vmmeter.h:17:5: error: unknown type name 'u_int'",
+        "header": "sys/vm.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/vmmac.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [],
+        "first_error": "./distrib/obj/destdir.rp2040/usr/include/sys/vmmeter.h:17:5: error: unknown type name 'u_int'",
+        "header": "sys/vmmeter.h",
+        "installer_family": "sys",
+        "next_action": "Establish supported include context or repair required standalone prerequisites before declaration classification.",
+        "rejected_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ]
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/vmparam.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/vmsystm.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sys/wait.h",
+        "installer_family": "sys",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "syscall.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "sysexits.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "syslog.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "term.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "time.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "ttyent.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "tzfile.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "unistd.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "utime.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "utmp.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "vis.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      },
+      {
+        "abi_selection": "unreviewed",
+        "accepted_modes": [
+          "default",
+          "iso",
+          "issue7",
+          "issue8",
+          "xsi7",
+          "xsi8"
+        ],
+        "first_error": "",
+        "header": "vmf.h",
+        "installer_family": "root",
+        "next_action": "Review interface ownership and required declaration/layout/behavior facets.",
+        "rejected_modes": []
+      }
+    ],
+    "limits": [
+      "Standalone Clang C17 acceptance only; complete ABI semantics remain unreviewed.",
+      "Inventory includes kernel-facing and secondary-library headers.",
+      "Reuse pending PR 562 for production census work.",
+      "Temporary replay is retained evidence, outside production and CI."
+    ],
+    "modes": {
+      "default": {
+        "C_names": 688,
+        "accepted_headers": 130,
+        "functions": 567,
+        "header_cases": 157,
+        "objects": 121,
+        "rejected_headers": 27
+      },
+      "iso": {
+        "C_names": 675,
+        "accepted_headers": 130,
+        "functions": 554,
+        "header_cases": 157,
+        "objects": 121,
+        "rejected_headers": 27
+      },
+      "issue7": {
+        "C_names": 681,
+        "accepted_headers": 130,
+        "functions": 560,
+        "header_cases": 157,
+        "objects": 121,
+        "rejected_headers": 27
+      },
+      "issue8": {
+        "C_names": 685,
+        "accepted_headers": 130,
+        "functions": 564,
+        "header_cases": 157,
+        "objects": 121,
+        "rejected_headers": 27
+      },
+      "xsi7": {
+        "C_names": 682,
+        "accepted_headers": 130,
+        "functions": 561,
+        "header_cases": 157,
+        "objects": 121,
+        "rejected_headers": 27
+      },
+      "xsi8": {
+        "C_names": 686,
+        "accepted_headers": 130,
+        "functions": 565,
+        "header_cases": 157,
+        "objects": 121,
+        "rejected_headers": 27
+      }
+    },
+    "raw_receipt": ".build-logs/shared-declaration-discovery-7649914b71b046e4a7ef016ec89808f0/receipt.json",
+    "raw_receipt_sha256": "9cdedb77d8b024688126cc22eda07a274f15321e1ad18c84006e7e74c0012b06",
+    "source_commit": "0f077fcac6f09553754b72fd5feea108de96b6bf",
+    "source_sha256": {
+      "include/_featuretest.h": "36fb21b4db90b1f38991651e8b7a24dc9b1809099ac681b6af06d17b7b5774a1",
+      "include/a.out.h": "29c29ee30a6facf76c03027b4e442e2213cf7d7376dc18165c925b45ffc8c9b5",
+      "include/alloca.h": "886cdfba92278b83999a307cbca9a74ef0c56ff6fad58b888797defd47a83622",
+      "include/ar.h": "e238e4b0de2e3a9a58e41c828690f7352da64e8c153c1f2f8c618eeff3bbccf8",
+      "include/arpa/inet.h": "22ea478d26458726f159ac9ecd6d28596daf94fe4cce993be0add1eb053515bb",
+      "include/assert.h": "00b079622bd80b46f4b20a64d309507998cfb0abd08efc68087d1362f2db5fbb",
+      "include/ctype.h": "6a2477bcba0927577db443ac200083dc6fd744f21668754563397f41a0df4320",
+      "include/curses.h": "4fec30a89e594ef00f1f13247bceaa13df7325622f6da0e8a101f3dc93719a3f",
+      "include/err.h": "87bc002d8b03e395806756c33eda3db2ca04e1c05d6ff2b4c2fdb810b40e18c4",
+      "include/fcntl.h": "16905e4e86639aa8d1021be0d7ecb074522eba62e9ba40786b22d58ae307ccbd",
+      "include/float.h": "d497b5c15d648192329ba35ea99b0c5f3ccc81c70bb9d6cea1894f124b4ef81c",
+      "include/fnmatch.h": "e279cab5925af8f25ffe3b8f79eae4ae66b7e8ebbc775782682aece75704b383",
+      "include/fstab.h": "0d9532657874dbaa202a4a316fd694da110a2cc5dfe7b9b404fe730cd72ec436",
+      "include/grp.h": "36df33ceaa4136cf7f5657d033ec7c5eecd34999234f163f6de27d3159df5808",
+      "include/inttypes.h": "0c3fb2a7f7858fec3c98de427eecfdd7e0d42545c2b357c3d571b320e769e109",
+      "include/kmem.h": "3035e0192ecb7ceb6d5432cb75e5b830d8b538aa11de398ebae7764a26111518",
+      "include/lastlog.h": "721347dbc575cb229eab4917146f16d363002f3655be272e6638d8edc5c02010",
+      "include/libgen.h": "dc452a855b1fda5b80b28b1b029baa16b7f4f0988bb969ee80ba4bbea0bc3028",
+      "include/limits.h": "5ba38ee0540a63e1beeab0fbb59e5dfb5188bfc481233945fe22ca4aa10b1a1c",
+      "include/math.h": "2f2d3dd79e023d06a0a8ebe60a6116173410617e850a49a51308ff1528e87abf",
+      "include/mtab.h": "9fd1b2792f77f395cf39237da998d940d8418365027eafc8c01f24fa0afc9937",
+      "include/ndbm.h": "680d04a0e47098e338a2012e396251218aa2d9682b286f6a6e9840f0d09c40eb",
+      "include/netinet/in.h": "28919e2cdce55e25fb54ee9377201e39ac23160e6c5c7f80a933f629e46c2c80",
+      "include/nlist.h": "8337f0bf6c2d2081f34e0f214bb6b32ff1b91a5f3b96c3b19be125e6bfaddc94",
+      "include/paths.h": "23198c9d4da777e7e63d865a4f22d438fc435f66718f2c6716379a258e156ab4",
+      "include/pwd.h": "a6d90a2c00a71da354ab3978ff6ba17b3b33e704fd0de6fa38cf7ec78b4c82c7",
+      "include/ranlib.h": "78559ee1ed9dd703705d6d72384dd042cc2e802f0b01d5823c7dcaca02d902e6",
+      "include/regexp.h": "97304fed7c4848b8694765623d1b754ac29c5b30f101867124ce90e4efafc444",
+      "include/setjmp.h": "78095b170c3bcf69384ea1768c2cabfd77352bfe8a621cf71139ec9b868e0e16",
+      "include/sgtty.h": "35207187dfdedd4b67041ec22dc6c712c8fa18b92da6ba30bae1227954eb8d77",
+      "include/stdalign.h": "4d1d9b08492609a315aca00a7d9d0fec0445e1ba8997779f6ec727430af51a5e",
+      "include/stdarg.h": "5d5276bcdf8b587ae1b9d0f06fab2c6a47ad0a4e7a8ca6a016a5449fc8edfb49",
+      "include/stddef.h": "460c8fafa3b61f0912b8ce94ef650524a3975a7350d024fcef527ebb9c9ea650",
+      "include/stdio.h": "4a5f445d4162262f6e2400ee3b0d068f0cdea7890876aff77c1bace31af5e934",
+      "include/stdlib.h": "690b97d134808add3809372ea7a1462e4a6fd8f848d92c0cc60a0891eaa6684e",
+      "include/stdnoreturn.h": "c0caf38c42e61404e2203109c208e29c13474647b28cb82eae18b59ebbe8efd6",
+      "include/string.h": "dc8cda08de0a65b4804719d55a6e40536d82a20d5cb27449a462a36557f9ae4b",
+      "include/strings.h": "ffa18bc0925d04b11a428396f922c7256e7b31aeb02ed26b5925cba1c1739e42",
+      "include/struct.h": "1f09aa62e8e824faa45eaf628e812757c501922d372dc5cba2e35e34185e7a75",
+      "include/syscall.h": "fe739a97e770fb07e109acd8be297b8073afbbec9abe34156f5a4ef84cf3872d",
+      "include/sysexits.h": "81f3e3614acb74f5837f873b7293928ed29ac0c3d4cafd6de3cf7bee2093508c",
+      "include/term.h": "f7e95d3005f269999f9fa7557cf860e0df50baabafc49dcd1138a3ceb2687786",
+      "include/time.h": "b35e6f0cc809c0a740fd776372a155428b6adb643af1591594815d54800a0eba",
+      "include/ttyent.h": "f70cc5179c1654a10e61d0e548a9082a5fac0e1bf1de15a1bd915d6352efa1c1",
+      "include/tzfile.h": "a48c266e3ce2a08483dc9eb5dc44dd6e34f8045ecb3f474bf3d6e9fc4b7b9082",
+      "include/unistd.h": "b396032362fc756f1acbb76ff4d143783a9a07fe472134ced73f03e33a3fd8d3",
+      "include/utime.h": "66501f489818cbc5e0ca53ba9fd165cb078a3e621360ee3c67fcf23ae2901080",
+      "include/utmp.h": "6d919ae424f7d2d1bf691df5b1c1c956dcb9205ba9edb1cd87f0b1293fd5a1ac",
+      "include/vis.h": "f30d065fecfa1bee72314e2bc6ea4810b48bc3a36574731cfb657c31c47ae60f",
+      "include/vmf.h": "6fccf0e92a38f19e504ba01e5c7de8467c2e429a4802d3736d78706794e3b9ae",
+      "lib/libreadline/readline/history.h": "1bd67655cdc4d6c3df87e57583ea50616df0f16cf843670c444eda5fc3e308a1",
+      "lib/libreadline/readline/readline.h": "d69250dbd4ed23d06c70d7aa40031570528f94ada379e13c21d277b215b3fe9b",
+      "sys/arch/rp2040/include/_float.h": "acb4d84237aa1d70d2ed910118fe6341c8ca3679ce78ea8a977da039eeee9469",
+      "sys/arch/rp2040/include/board.h": "e33a33ec7266d55804ebcb7f51ab5d80a3c37d2d80ea55cf4d7a4e2b0af97a7b",
+      "sys/arch/rp2040/include/cpu.h": "b12e59a46243086e16b6faf041b225f20d7551b42d203bc3d55512347934433c",
+      "sys/arch/rp2040/include/debug.h": "0319d0a4edea0660c5ea420908189294e8f03b9061955b725d9c1567ee3a160a",
+      "sys/arch/rp2040/include/dump.h": "cb9ee725f536444ad6761adea870ac7800c2e6b2fe698985bf4923ba562a2e97",
+      "sys/arch/rp2040/include/elf_machdep.h": "69256bacc5201501598c0722e6f48cc33ac05aec8b09c1c8c21bc3948aa83c29",
+      "sys/arch/rp2040/include/endian.h": "e037e26c7d8184c6f348976d7e6b5d80d3f83d5b9cde50d92a2ed0682e2529d0",
+      "sys/arch/rp2040/include/fault.h": "d561b6bafebb1ac62a270b0aa9d69e32b7c98d43cfa54b69c1ee8da45f5814c8",
+      "sys/arch/rp2040/include/frame.h": "45401a4841c6607990e110ec8330d05635656b17d2746182ddf1bfb4913237be",
+      "sys/arch/rp2040/include/gpio.h": "326767bce8c83b50053c238ec56ff160d6a02059f4053cc733bd7b45b5c13996",
+      "sys/arch/rp2040/include/hsx_decoder.h": "65ce54db3194ad18b4feeea6880715909c176d8f845ee8a6ea6ac6b05f94edf3",
+      "sys/arch/rp2040/include/intr.h": "b3fd2e2f281f52de9d86cd5756f2de95b4344cf33db49659881eaacb43e7e21c",
+      "sys/arch/rp2040/include/io.h": "b74dc916abef1b5edf4530909beb24f115ae1e4deb1e4a9777fcd26752ff4d62",
+      "sys/arch/rp2040/include/limits.h": "5d5e5a2184eea0ed81399964cbe5fd2dba3cc0393c3322605840488e2276ef45",
+      "sys/arch/rp2040/include/machparam.h": "ea1dd5dff87c14bc194472a3c43532b8b362b08dfeee390a351a1807b889ddad",
+      "sys/arch/rp2040/include/mpu.h": "8c94734989b50356d5ed48270397a659ec3e4af7f831ad047a426d8bb77ff57d",
+      "sys/arch/rp2040/include/mpuvar.h": "0eefe26463cd05e2be3578013524690e780365f1c7d282bd5c6e31056629acc3",
+      "sys/arch/rp2040/include/picocalcvar.h": "e43b9673bf1a3a412b4a3772e7ba38092acae648d21ab49e38d9472e4154e398",
+      "sys/arch/rp2040/include/scb.h": "03129263729fe9fa670b2d547d8d7cbd62252ad5b43c6653f369a7422663f446",
+      "sys/arch/rp2040/include/setjmp.h": "45c67b0d3443bb1d71075cac3538be598a868ae56125db40acbdaee5393eb9dd",
+      "sys/arch/rp2040/include/signal.h": "839673eec2b82923e01ff28dfe6df13d5ae988c8f1e71f63aee7db66208d2ecb",
+      "sys/arch/rp2040/include/swapram.h": "b27a05348302ebff2a3903f71b23f489407a6c4541e68c11d8eea51b8ca7ec21",
+      "sys/arch/rp2040/include/types.h": "a14e8204cb8fc5fd462beffbdd604e0110b54d67b05aa4bc7624c5bf1238ec75",
+      "sys/arch/rp2040/include/uarea_stats.h": "6fa1934b629322659664ee84a9d9b46e99890f73fd704cabc774153140266d6b",
+      "sys/arch/rp2040/include/user_context.h": "b726c394abf1c46353411ad37c600a0ad9d0d99a36ed192450951d0d137fad1c",
+      "sys/arch/rp2040/include/usercopy.h": "1a6b1cf51c583ca7c6f047acc153bd103d41ff0dcfe640118f57f426eb15ea5d",
+      "sys/arch/rp2040/include/watchdog.h": "3a6917977fe3eefb07dd6f66e3f0974dbf8ffbd31623fad279aed9d1ed4c5d94",
+      "sys/sys/_time_t.h": "6d2436823d64e4b7e8c798be84fa09bfe1fe114283bf86d75b1c216937fdb6c5",
+      "sys/sys/buf.h": "e4d9c0f6ebed2d112a13cfa4befd41eace4604edd6cbd11db879dda08c5acf41",
+      "sys/sys/callout.h": "e4f0650908cbca9c5ce26d473a4b03fb5fa9bd480b5fe1e62cc281ecb86df629",
+      "sys/sys/capacity.h": "262145b51b8e8b17d79d770edb02aebba5a3e00730c8b8516f9ebd2b514ef7d6",
+      "sys/sys/cdefs.h": "801f0886efc4e129d8ccfb9d65c7c1fe1e5b431cc1dcff2e4d277d01a53f6c9a",
+      "sys/sys/clist.h": "8f3bdbe12fc8ddcf574f209f6f660057a4d67406ea85f9216c7a1832bf2eb26a",
+      "sys/sys/conf.h": "645b415fb8dea69e0925b3dc07c2863e47f5e94833fd7245b85f95e77ef51644",
+      "sys/sys/config.h": "735d9efbfb00843fa000577eea7ffe1bfec9e247025c83c5a72028c611194365",
+      "sys/sys/dir.h": "27c378a16d167ea25bfc2cda86aec684800e6736ab84e66e194f75bf8c877f88",
+      "sys/sys/disk.h": "454ceb5126addafae19c5ee4e1cb5c896e92d6b75ed449d287f416947f5faebb",
+      "sys/sys/dk.h": "5457a2d1e966cfb8473b54bd35e823342dd1df1c9bb62cf9bf85aac3e0f05fe6",
+      "sys/sys/dkbad.h": "10b12e2536406b8a62442cd053dff9c772d209e176e0182402d3b269e8af1603",
+      "sys/sys/endian.h": "481e70e6acb3a0de65b2ab5acc7b119aa897ac6551a83f26544e223711c1abb8",
+      "sys/sys/errno.h": "58f3e1dbc53de1e056ec23acc305669322ef1a12b6dc5bb3d502bc6bb7b0fe15",
+      "sys/sys/exec.h": "1a38133134637f09d045d2b5f12227ed8ace709d21619248b839ef7b0542428a",
+      "sys/sys/exec_aout.h": "da9474bf1e681660db2b4c5d609c9b04be11280fbe7ddd11f26288dc10b80add",
+      "sys/sys/exec_elf.h": "2fbe48afb7eaef7e7526653cdb9bb2982dc9923e1dd7fe36de5d74fd9f8f7d76",
+      "sys/sys/exec_hsaout.h": "d2cd9f3518d7217d45476d0b9d89343002015da17ea7e31384c663866bed427a",
+      "sys/sys/fcntl.h": "e151ba0637fbe8afa08445bcd6e60d177ff9f4d8ac70b9e3ebc27c28073cce2c",
+      "sys/sys/file.h": "5c499af352ef275ce17d689e0afa91b7f93cf12f4b98f804d3fb03139762e12c",
+      "sys/sys/fs.h": "f83cec2a787728771e7b44af1067d8c06b99179f5b9758f38109207b54005a27",
+      "sys/sys/fsgeom.h": "9960295d42dc5049c11976a6d37f044b52a44b7f798430b3a074dd0b33c7b2e9",
+      "sys/sys/glob.h": "51253d6d402b429967049b511799b59db00db6a26ad156db39d12998429fcc1b",
+      "sys/sys/inode.h": "f0cad81b7c6b32ed8b2e7f06d5b1fee74c45e475265f8c40d197331425ef7220",
+      "sys/sys/ioctl.h": "822f604cbd771b867ff5f140dd35e0a5a64c7af8578f55e0b6cc8213ff8d3c0a",
+      "sys/sys/kernel.h": "2ac5bf2c30a8675aecf51c047773c8c7071ba33153ca0dc6390964f08dfe50df",
+      "sys/sys/lcdcons.h": "406bf1f79df62d4f38965e2a7f3e6f98937655b6f2c53197b07507f3deed155d",
+      "sys/sys/lcdgfx.h": "1d28375f42a60f100250414c3c152ab5cbf7fc0d25508c89a5bfaab53fc824d5",
+      "sys/sys/map.h": "d4de09dff62fbd99374d16c1ef3b687b2372c968de875b2854464e6f28c5b1a1",
+      "sys/sys/mount.h": "65a36b93813bcd7a9a2304d8bb8d0bac54c698ecd1eb2f334dc7bbef70fa456f",
+      "sys/sys/msgbuf.h": "c0c087786ffd79a53f083444e5b3ea7deb271ca80e0ba2593d859d34f90dfc5b",
+      "sys/sys/mtio.h": "98280b28a6cb6a170be5e034edcdd20c5954aeae233515bdf9184abb1c400d18",
+      "sys/sys/namei.h": "a784811980ddaff15b26b28a80852945b5ce5ff6ca76575e001c4c1141e18f5b",
+      "sys/sys/param.h": "72d9b727b6546edbeb46a70d9700575ae2bf4ebd50042404a36d7b70415df658",
+      "sys/sys/picga.h": "5147305aaf6f096a83a364b1f7711f1d08837af51c2e61384c3c4dc0f3ba5fc0",
+      "sys/sys/proc.h": "1825327326d6da4dda2805e12c2a5455b6ac6099857e805e60a194b6f5cf059d",
+      "sys/sys/proc_asm.h": "daf517d806ff59887794634b61cfbe99ffc26a94c41b006d41921bfccc9b5fe8",
+      "sys/sys/ptrace.h": "1a271a036e0095a534acf4442cdef616c493e32d49afd5af05370ba69efb7fea",
+      "sys/sys/pty.h": "53781d106d6f940df0669aab5b07b6e174b8e1de5b715f7ad116ba35f6e1ae32",
+      "sys/sys/queue.h": "35bae5283b95b4f252191e2dd24cea8789f25543d51d23c7db78a0ada7c4024d",
+      "sys/sys/reboot.h": "c765627a3cbe3e2cec65b78747e2419312a73715f104169b8f55c40f8be1cddd",
+      "sys/sys/resource.h": "7cac841ec58cece5018d4ddebfe75f0082a7c611e22b4ba41ec99c78ca755bca",
+      "sys/sys/select.h": "760a318c2b97183efe069535a05c26b4d3df3a31021a9438881b3213597f917c",
+      "sys/sys/signal.h": "143b6fec08e49d65cf365a8cb72a7541fdf57ef494f943b0cd3705d7d5954380",
+      "sys/sys/signalvar.h": "85297b3da6b8e53f2b22009799c92f12d99689a0f43a1a91399aab5030ec6914",
+      "sys/sys/skel.h": "735c2b35e0a7674782908ff4c4e1fab813cafa36260ab6dc10db0ad316cd5af2",
+      "sys/sys/spi.h": "66a9d3d7904e9d895f159484a655cd051dc0b8ad04b455fbd6eb15e88578ac74",
+      "sys/sys/stat.h": "559041c5d792d55bde9c2db0dc7313de3b2ea5440c884f89c88cad25bb6a150f",
+      "sys/sys/stdbool.h": "8dcdffc746c55f57ae0dbdd5796444b2a65139f4f07568fa7a9767856190ae55",
+      "sys/sys/stdint.h": "80f5195ed52fa5cea750fbc02970ad4d7af0a1d42a5587a2fd2fc27a6b3bd5a4",
+      "sys/sys/storage_stats.h": "5841fe67e23a4c110957f25b3ebf38f57a6637a69c6e69299d6d54b73c44694b",
+      "sys/sys/swap.h": "ffc4ae09629ec3be6a09e5ca50268188bbcaeeb8075fc43fd99c7d0720f663bd",
+      "sys/sys/syscall_dispatch.h": "1330f1d1d12655a8cd03927a64d6c7ed6321661eea08ccd494b5a0ba64e52677",
+      "sys/sys/sysctl.h": "899365ee13c2b567ae334063fa7acd7c42b9f848177b176d726656164798a622",
+      "sys/sys/syslimits.h": "288ce2fa3ea3479b31ddb3a0554f391b982db4c1884c7dbc577fc58bdadbc42a",
+      "sys/sys/syslog.h": "4be96a19c108b20ff99cf3d46546063c36c92bf416b0ce9e9a01cd0d802f4593",
+      "sys/sys/systm.h": "8e678f3b732dfc9f92df7b3bc2b6c4d1d8641a79064b811d8de9530b15aa1bf1",
+      "sys/sys/time.h": "f582cee8c1b587ccbb653af9639aeb007f68849479b73cb864bee4522b0c3e42",
+      "sys/sys/timeb.h": "7ad3953b7c3f94af04aa647473d930632c4264302470c9db9a0c93492fd5d945",
+      "sys/sys/times.h": "1d374ee1ab3390c725c1f862edaae99687a5005213fa487880ee2b22aa96dd3b",
+      "sys/sys/tty.h": "c0dcc9ba7d067d5cde92fc2df09e97981a697f8e0851ab7f8f8922bbd60660c9",
+      "sys/sys/ttychars.h": "835301aebe2d8895e01c9dccbb276a7aa5381e5d3a60e9664c52728fa2b7a523",
+      "sys/sys/ttydev.h": "b8e5c141eacd4970db25dc7392f66d704679adce7ef2fd1856117c92db364d60",
+      "sys/sys/types.h": "6b70f8929c207529d6e027f6f9fd156a3fe403571f637ad850d316f41b88e906",
+      "sys/sys/uio.h": "23ad9a5ede2998a37571c18f6b81a2dae7fd8522523b7c0c3c15b2581d6dfd96",
+      "sys/sys/user.h": "37485a0bf40e01b4384495e918cbe9635b7b24b6a736fe12d34b7661260a840f",
+      "sys/sys/utsname.h": "faec297c047c01eb067a1d5f6ff4ee8639e58469f0f57e926566afdd825a4a5f",
+      "sys/sys/vm.h": "72c99328c5a0a9263d83681d528edae78cc184fe3b34e1f74de670766b2ed6f7",
+      "sys/sys/vmmac.h": "0db943d6f3465037c4d2ea8d149833c3d80602333a12826f936ea8004c03e810",
+      "sys/sys/vmmeter.h": "12f663a074ee213a552bc6caceaaee931ce5afa620a96ebd91b4a67d5631f918",
+      "sys/sys/vmparam.h": "ce7102bc053ec3ce8fb3b3b79206a1d5de04201a70c6ffd0a893e9a18ec7346d",
+      "sys/sys/vmsystm.h": "aacd9cf8445d9d08fada4b44ab2ecd47006820c9a4a423a870bdbb5fa8a53219",
+      "sys/sys/wait.h": "28f59ecc47ea70c5a42941fbcacb7bf76c11b48bef3440579d235c87df4c09a0"
+    },
+    "temporary_replay": ".build-logs/declaration-frontier/audit_installed_declarations.py",
+    "temporary_replay_sha256": "536f45754c15baf91fef193947357012b9c53b7cb78b0e4100af90686cf39b3d"
+  },
+  "handoff_jobs": {
+    "program-state-ledgers": {
+      "elapsed_seconds": 16.196,
+      "exit_code": 0,
+      "invocation_id": "program-state-ledgers-20261115T214026Z-225016-b54a032f",
+      "label": "program-state-ledgers",
+      "log_path": ".build-logs/program-state-ledgers-20261115T214026Z-225016-b54a032f/gate.log",
+      "log_sha256": "c06c29588972ed235bcb20b87c92cffe39230d142b6812c8b9763ba4fe03fcd5",
+      "started_at": "2026-11-15T21:40:26Z",
+      "state": "completed",
+      "status_path": ".build-logs/program-state-ledgers-20261115T214026Z-225016-b54a032f/status.json",
+      "status_sha256": "7e3f2a49f21c6d91c5a265f3cea791a8bb1132d0e93fbf6386a030d551e511bf",
+      "updated_at": "2026-11-15T21:40:42Z"
+    },
+    "rp2040-build-local": {
+      "elapsed_seconds": 32.096,
+      "exit_code": 0,
+      "invocation_id": "rp2040-build-local-20261115T212540Z-158632-dfba0632",
+      "label": "rp2040-build-local",
+      "log_path": ".build-logs/rp2040-build-local-20261115T212540Z-158632-dfba0632/gate.log",
+      "log_sha256": "50ad45024e9b73725fe29f58237190cdd9118c3dd8086e6b214e3e460ace0eea",
+      "started_at": "2026-11-15T21:25:40Z",
+      "state": "completed",
+      "status_path": ".build-logs/rp2040-build-local-20261115T212540Z-158632-dfba0632/status.json",
+      "status_sha256": "2ed2b6ceb1d8b86ecd9b7e405a3817d2aa4b45e3e0f9370cdf2355d14aaa1b13",
+      "updated_at": "2026-11-15T21:26:12Z"
+    }
+  },
+  "hardware_limits": {
+    "dhara_root_logical_bytes": 1012736,
+    "dhara_root_region_bytes": 1572864,
+    "kernel_region_bytes": 131072,
+    "process_window_bytes": 196608,
+    "raw_swap_bytes": 393216,
+    "sram_bytes": 270336
+  },
+  "issue8_state_counts": {
+    "applicability": {
+      "base": 1518,
+      "environment-constrained": 0,
+      "selected-option": 0,
+      "unselected-standard-option": 0
+    },
+    "evidence": {
+      "board": 0,
+      "cross": 0,
+      "host": 34,
+      "none": 1442,
+      "qemu-user": 5,
+      "renode": 0,
+      "static": 37
+    },
+    "implementation": {
+      "absent": 0,
+      "divergent": 0,
+      "partial": 73,
+      "present": 3,
+      "unreviewed": 1442
+    },
+    "residual": {
+      "blocked": 0,
+      "closed": 3,
+      "open": 1515
+    }
+  },
+  "main_commit": "0f077fcac6f09553754b72fd5feea108de96b6bf",
+  "merged_count": 32,
+  "merged_prs": [
+    {
+      "head_branch": "codex/posix-profile-accounting",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/454",
+      "merge_commit_sha": "e172b2de7d4ca9b12bea28e3e4f36719ae2fd2d0",
+      "merged_at": "2026-11-12T21:36:58Z",
+      "number": 454,
+      "state": "closed",
+      "title": "tools: bind compatibility accounting to reviewed evidence"
+    },
+    {
+      "head_branch": "codex/bsd-donor-provenance",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/457",
+      "merge_commit_sha": "75093cab0c5c6af13bc0f95037ea46a5a0f5cd16",
+      "merged_at": "2026-11-12T22:20:25Z",
+      "number": 457,
+      "state": "closed",
+      "title": "research: bind expanded donor corpus to source identities"
+    },
+    {
+      "head_branch": "codex/kernel-checksum-capture",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/458",
+      "merge_commit_sha": "6aa74484c0d1b30d790625d0d0bd75c3d7a3ac2c",
+      "merged_at": "2026-11-12T22:21:58Z",
+      "number": 458,
+      "state": "closed",
+      "title": "tools: capture in-place kernel checksum transformations"
+    },
+    {
+      "head_branch": "codex/libc-string-header-contracts",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/459",
+      "merge_commit_sha": "172a1bdf9a551cbe2f10a910b885bd8257a3c69a",
+      "merged_at": "2026-11-12T22:21:56Z",
+      "number": 459,
+      "state": "closed",
+      "title": "libc: select string declarations by feature-test contract"
+    },
+    {
+      "head_branch": "codex/libc-mechanism-evidence",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/460",
+      "merge_commit_sha": "6894810f9be79a5834657802702971661b7cc9c6",
+      "merged_at": "2026-11-13T02:35:37Z",
+      "number": 460,
+      "state": "closed",
+      "title": "libc: consume callback registrations during exit"
+    },
+    {
+      "head_branch": "codex/check-tier-ordering",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/461",
+      "merge_commit_sha": "c402a4a6736c0f523b7706bd02fddeaecc14ce99",
+      "merged_at": "2026-11-12T23:32:41Z",
+      "number": 461,
+      "state": "closed",
+      "title": "tests: preserve product and child lifetimes"
+    },
+    {
+      "head_branch": "codex/libc-bounded-strings",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/463",
+      "merge_commit_sha": "11a3f97045aa5631533d0209217eda288c1f9391",
+      "merged_at": "2026-11-13T00:23:17Z",
+      "number": 463,
+      "state": "closed",
+      "title": "libc: add bounded string and copy-end interfaces"
+    },
+    {
+      "head_branch": "codex/libc-lifecycle-ilp32",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/464",
+      "merge_commit_sha": "7566357e4bbaafd2613e0cca87f3dc10677729c8",
+      "merged_at": "2026-11-13T02:35:35Z",
+      "number": 464,
+      "state": "closed",
+      "title": "libc: preserve exit callbacks and add independent quick termination"
+    },
+    {
+      "head_branch": "codex/libc-context-sort",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/465",
+      "merge_commit_sha": "88abf7151e25b4fc1c01682587561f7c9197f7bc",
+      "merged_at": "2026-11-13T02:51:27Z",
+      "number": 465,
+      "state": "closed",
+      "title": "libc: add context-last sorting with typed per-call state"
+    },
+    {
+      "head_branch": "codex/libc-search-bound-evidence",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/466",
+      "merge_commit_sha": "296357484fc8f8692eaf8ec526dbd4470b647c0f",
+      "merged_at": "2026-11-13T01:31:05Z",
+      "number": 466,
+      "state": "closed",
+      "title": "research: retain calibrated tableless search tradeoffs"
+    },
+    {
+      "head_branch": "codex/libc-xip-object-abi",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/468",
+      "merge_commit_sha": "a6c3989cbacb2dbe84e20de0df2cd24032335fa2",
+      "merged_at": "2026-11-13T03:57:23Z",
+      "number": 468,
+      "state": "closed",
+      "title": "libc: verify executable-tail shared object identity"
+    },
+    {
+      "head_branch": "codex/libc-xip-export-closure",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/469",
+      "merge_commit_sha": "01c8dbfde957fcfddfbd6b892d39af65265ab8f1",
+      "merged_at": "2026-11-13T03:59:21Z",
+      "number": 469,
+      "state": "closed",
+      "title": "libc: validate explicit shared API provider closure"
+    },
+    {
+      "head_branch": "codex/libc-absolute-providers",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/470",
+      "merge_commit_sha": "efe16f8b781c72a3a52ac7a75287c9c90214f5f2",
+      "merged_at": "2026-11-13T05:51:50Z",
+      "number": 470,
+      "state": "closed",
+      "title": "libc: supply callable integer magnitude providers"
+    },
+    {
+      "head_branch": "codex/libc-dbm-open-admission",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/477",
+      "merge_commit_sha": "4cb0516646c4e34e588407ecfc5259a2f92abfc6",
+      "merged_at": "2026-11-13T08:28:48Z",
+      "number": 477,
+      "state": "closed",
+      "title": "libc: bound database constructor admission and cleanup"
+    },
+    {
+      "head_branch": "codex/libc-got-relocation-ownership",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/512",
+      "merge_commit_sha": "f8f536b9f001861e6665431eaa7c9e33ce01f536",
+      "merged_at": "2026-11-14T00:24:01Z",
+      "number": 512,
+      "state": "closed",
+      "title": "tests: derive shared GOT relocation from symbol ownership"
+    },
+    {
+      "head_branch": "codex/native-absolute-imports",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/516",
+      "merge_commit_sha": "8016576b4362a5a6aef6fe074375ede8548d4e59",
+      "merged_at": "2026-11-14T04:26:45Z",
+      "number": 516,
+      "state": "closed",
+      "title": "ld: preserve absolute imports and validate shared libc state addressing"
+    },
+    {
+      "head_branch": "codex/public-header-inclusion",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/518",
+      "merge_commit_sha": "c397f6e61ba146f0ca9d56178bdc39a75b3565ab",
+      "merged_at": "2026-11-14T05:10:47Z",
+      "number": 518,
+      "state": "closed",
+      "title": "libc: make group and record headers self-contained"
+    },
+    {
+      "head_branch": "codex/libc-mechanism-costs",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/519",
+      "merge_commit_sha": "1ecb9eb23773d6450e8b5b25e646de768cb9afa7",
+      "merged_at": "2026-11-14T05:27:24Z",
+      "number": 519,
+      "state": "closed",
+      "title": "docs: bind libc partition and shared error cost evidence"
+    },
+    {
+      "head_branch": "codex/libc-shared-error-tail",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/520",
+      "merge_commit_sha": "e13f80758bcd1f7b883a6583fabd3ba8d24a0da4",
+      "merged_at": "2026-11-14T05:49:13Z",
+      "number": 520,
+      "state": "closed",
+      "title": "libc: coalesce shared syscall error returns"
+    },
+    {
+      "head_branch": "codex/libc-comdat-closure",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/521",
+      "merge_commit_sha": "1734dcc73adcc9000c85eab4bf07c7e3634a9d9d",
+      "merged_at": "2026-11-14T06:06:39Z",
+      "number": 521,
+      "state": "closed",
+      "title": "tools: resolve equivalent COMDAT archive providers"
+    },
+    {
+      "head_branch": "codex/libc-archive-compiler-roots",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/522",
+      "merge_commit_sha": "12b1410c862a735582d13738e50626d77e048935",
+      "merged_at": "2026-11-14T06:28:18Z",
+      "number": 522,
+      "state": "closed",
+      "title": "libc: record explicit compiler roots for shared archive linking"
+    },
+    {
+      "head_branch": "codex/libc-network-header-contracts",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/524",
+      "merge_commit_sha": "57a591a66f18b039a0bdad75f4376e4a0af149f9",
+      "merged_at": "2026-11-14T16:41:22Z",
+      "number": 524,
+      "state": "closed",
+      "title": "libc: make internet headers self-contained and repeatable"
+    },
+    {
+      "head_branch": "codex/native-nm-reader",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/539",
+      "merge_commit_sha": "d01ef4a02eeaf3030df6d6f0586f5bb21c18c270",
+      "merged_at": "2026-11-14T21:20:20Z",
+      "number": 539,
+      "state": "closed",
+      "title": "nm: bound archive and symbol reads"
+    },
+    {
+      "head_branch": "codex/libc-signal-set-contracts",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/542",
+      "merge_commit_sha": "050eac89c76f291c44633bf6af6cce505d435c65",
+      "merged_at": "2026-11-15T00:36:15Z",
+      "number": 542,
+      "state": "closed",
+      "title": "libc: validate callable signal-set operations"
+    },
+    {
+      "head_branch": "codex/header-guards-curses-abi",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/546",
+      "merge_commit_sha": "efb4a05a42f1e0c146625271b80ed0e9f1705212",
+      "merged_at": "2026-11-15T01:08:13Z",
+      "number": 546,
+      "state": "closed",
+      "title": "headers: preserve inclusion guards and curses integer ABI"
+    },
+    {
+      "head_branch": "codex/bidirectional-sort-bounds",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/547",
+      "merge_commit_sha": "270422ca7f0086cba019ab3d8bd48c165c90ed7a",
+      "merged_at": "2026-11-15T01:34:47Z",
+      "number": 547,
+      "state": "closed",
+      "title": "libc: retain bidirectional bounded-sort experiment"
+    },
+    {
+      "head_branch": "codex/libc-bounded-sort",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/549",
+      "merge_commit_sha": "efc6fb87b086bad4d50a3ce0f84b9b9b82f0b9c5",
+      "merged_at": "2026-11-15T05:01:43Z",
+      "number": 549,
+      "state": "closed",
+      "title": "libc: bound sorting work and preserve typed caller ordering"
+    },
+    {
+      "head_branch": "codex/libc-delivery-accounting",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/553",
+      "merge_commit_sha": "cfe41205235bfc677e6fdf1a53a395aae2f6cb71",
+      "merged_at": "2026-11-15T05:33:18Z",
+      "number": 553,
+      "state": "closed",
+      "title": "docs: reconcile delivered libc contracts and facet accounting"
+    },
+    {
+      "head_branch": "codex/libc-bounded-search",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/554",
+      "merge_commit_sha": "a706c0b851daaa25b019639e8217dda5ac17095d",
+      "merged_at": "2026-11-15T09:48:35Z",
+      "number": 554,
+      "state": "closed",
+      "title": "libc: bound byte search with guarded prefix paths"
+    },
+    {
+      "head_branch": "codex/libc-callable-character-io",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/566",
+      "merge_commit_sha": "5f52b0b3310cc5ed757ccc0433da2037ae39542d",
+      "merged_at": "2026-11-15T16:44:09Z",
+      "number": 566,
+      "state": "closed",
+      "title": "libc: provide callable character I/O with native provider closure"
+    },
+    {
+      "head_branch": "codex/libc-eof-fixed-point",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/577",
+      "merge_commit_sha": "027ea017f1efdfcf7cb12dc2e1bf6d80cc53a5fb",
+      "merged_at": "2026-11-15T19:26:46Z",
+      "number": 577,
+      "state": "closed",
+      "title": "libc: bound repeated EOF counter"
+    },
+    {
+      "head_branch": "codex/libc-xip-callable-identity",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/591",
+      "merge_commit_sha": "7d6e357b0a474417c5d537498be0099e88d1a147",
+      "merged_at": "2026-11-15T20:30:34Z",
+      "number": 591,
+      "state": "closed",
+      "title": "tests/libc: verify canonical shared callable identity"
+    }
+  ],
+  "observed_utc": "2026-11-15T21:40:22Z",
+  "open_count": 6,
+  "open_pr_files": {
+    "560": [
+      {
+        "additions": 1,
+        "deletions": 0,
+        "filename": "docs/INDEX.md",
+        "status": "modified"
+      },
+      {
+        "additions": 4,
+        "deletions": 2,
+        "filename": "docs/research/c17-semantic-migration-plan.md",
+        "status": "modified"
+      },
+      {
+        "additions": 47,
+        "deletions": 0,
+        "filename": "docs/research/libc-export-namespace-coverage.md",
+        "status": "added"
+      },
+      {
+        "additions": 1,
+        "deletions": 1,
+        "filename": "sys/arch/rp2040/doc/TESTING.md",
+        "status": "modified"
+      },
+      {
+        "additions": 33,
+        "deletions": 2,
+        "filename": "tools/verify_libc_export_namespace.sh",
+        "status": "modified"
+      }
+    ],
+    "562": [
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": ".github/workflows/firmware.yml",
+        "status": "modified"
+      },
+      {
+        "additions": 9,
+        "deletions": 1,
+        "filename": "Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 1,
+        "deletions": 0,
+        "filename": "docs/INDEX.md",
+        "status": "modified"
+      },
+      {
+        "additions": 8,
+        "deletions": 0,
+        "filename": "docs/research/c17-semantic-migration-plan.md",
+        "status": "modified"
+      },
+      {
+        "additions": 58,
+        "deletions": 0,
+        "filename": "docs/research/libc-declaration-census-qualification.json",
+        "status": "added"
+      },
+      {
+        "additions": 191578,
+        "deletions": 0,
+        "filename": "docs/research/libc-declaration-census.json",
+        "status": "added"
+      },
+      {
+        "additions": 143,
+        "deletions": 0,
+        "filename": "docs/research/libc-declaration-census.md",
+        "status": "added"
+      },
+      {
+        "additions": 7,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/export-closure/README.md",
+        "status": "modified"
+      },
+      {
+        "additions": 30,
+        "deletions": 0,
+        "filename": "sys/arch/rp2040/doc/TESTING.md",
+        "status": "modified"
+      },
+      {
+        "additions": 396,
+        "deletions": 0,
+        "filename": "tools/libc_declaration_census.py",
+        "status": "added"
+      },
+      {
+        "additions": 275,
+        "deletions": 0,
+        "filename": "tools/libc_declaration_census_test.py",
+        "status": "added"
+      }
+    ],
+    "563": [
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": ".github/workflows/firmware.yml",
+        "status": "modified"
+      },
+      {
+        "additions": 20,
+        "deletions": 2,
+        "filename": "Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": "docs/INDEX.md",
+        "status": "modified"
+      },
+      {
+        "additions": 58,
+        "deletions": 7,
+        "filename": "docs/research/bsd-donor-inventory.json",
+        "status": "modified"
+      },
+      {
+        "additions": 14,
+        "deletions": 0,
+        "filename": "docs/research/c17-semantic-migration-plan.md",
+        "status": "modified"
+      },
+      {
+        "additions": 6406,
+        "deletions": 0,
+        "filename": "docs/research/descriptor-set-built-resources.json",
+        "status": "added"
+      },
+      {
+        "additions": 115,
+        "deletions": 0,
+        "filename": "docs/research/descriptor-set-initialization.md",
+        "status": "added"
+      },
+      {
+        "additions": 2673,
+        "deletions": 0,
+        "filename": "docs/research/descriptor-set-qualification.json",
+        "status": "added"
+      },
+      {
+        "additions": 6052,
+        "deletions": 0,
+        "filename": "docs/research/descriptor-set-resource-candidate.json",
+        "status": "added"
+      },
+      {
+        "additions": 754,
+        "deletions": 0,
+        "filename": "docs/research/descriptor-set-resource-comparison.json",
+        "status": "added"
+      },
+      {
+        "additions": 119,
+        "deletions": 0,
+        "filename": "docs/research/descriptor-set-resource-exception.md",
+        "status": "added"
+      },
+      {
+        "additions": 6052,
+        "deletions": 0,
+        "filename": "docs/research/descriptor-set-resource-parent.json",
+        "status": "added"
+      },
+      {
+        "additions": 79,
+        "deletions": 0,
+        "filename": "docs/research/dpucp-2024-donor-ledger.json",
+        "status": "modified"
+      },
+      {
+        "additions": 11,
+        "deletions": 5,
+        "filename": "docs/research/dpucp-2024-profile.json",
+        "status": "modified"
+      },
+      {
+        "additions": 4,
+        "deletions": 4,
+        "filename": "docs/research/dpucp-2024-requirements.tsv",
+        "status": "modified"
+      },
+      {
+        "additions": 12,
+        "deletions": 0,
+        "filename": "docs/research/sus-edition-contracts.md",
+        "status": "modified"
+      },
+      {
+        "additions": 4,
+        "deletions": 3,
+        "filename": "libexec/getty/subr.c",
+        "status": "modified"
+      },
+      {
+        "additions": 21,
+        "deletions": 1,
+        "filename": "sys/arch/rp2040/doc/TESTING.md",
+        "status": "modified"
+      },
+      {
+        "additions": 9,
+        "deletions": 1,
+        "filename": "sys/sys/select.h",
+        "status": "modified"
+      },
+      {
+        "additions": 148,
+        "deletions": 0,
+        "filename": "tests/libc_contracts/fd_set_test.c",
+        "status": "added"
+      },
+      {
+        "additions": 229,
+        "deletions": 0,
+        "filename": "tools/c17/fd_set_contracts.py",
+        "status": "added"
+      },
+      {
+        "additions": 48,
+        "deletions": 2,
+        "filename": "tools/c17/source-denominator.json",
+        "status": "modified"
+      },
+      {
+        "additions": 3,
+        "deletions": 1,
+        "filename": "tools/check_dpucp_donor_ledger.py",
+        "status": "modified"
+      },
+      {
+        "additions": 3,
+        "deletions": 0,
+        "filename": "tools/check_dpucp_donor_ledger_test.py",
+        "status": "modified"
+      }
+    ],
+    "564": [
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": ".github/workflows/firmware.yml",
+        "status": "modified"
+      },
+      {
+        "additions": 9,
+        "deletions": 1,
+        "filename": "Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": "docs/INDEX.md",
+        "status": "modified"
+      },
+      {
+        "additions": 37,
+        "deletions": 3,
+        "filename": "docs/research/bsd-donor-inventory.json",
+        "status": "modified"
+      },
+      {
+        "additions": 15,
+        "deletions": 0,
+        "filename": "docs/research/c17-semantic-migration-plan.md",
+        "status": "modified"
+      },
+      {
+        "additions": 85,
+        "deletions": 0,
+        "filename": "docs/research/dpucp-2024-donor-ledger.json",
+        "status": "modified"
+      },
+      {
+        "additions": 11,
+        "deletions": 5,
+        "filename": "docs/research/dpucp-2024-profile.json",
+        "status": "modified"
+      },
+      {
+        "additions": 5,
+        "deletions": 5,
+        "filename": "docs/research/dpucp-2024-requirements.tsv",
+        "status": "modified"
+      },
+      {
+        "additions": 6405,
+        "deletions": 0,
+        "filename": "docs/research/public-time-type-built-resources.json",
+        "status": "added"
+      },
+      {
+        "additions": 26,
+        "deletions": 0,
+        "filename": "docs/research/public-time-type-native-archive.json",
+        "status": "added"
+      },
+      {
+        "additions": 125,
+        "deletions": 0,
+        "filename": "docs/research/public-time-type-ownership.md",
+        "status": "added"
+      },
+      {
+        "additions": 2326,
+        "deletions": 0,
+        "filename": "docs/research/public-time-type-qualification.json",
+        "status": "added"
+      },
+      {
+        "additions": 6052,
+        "deletions": 0,
+        "filename": "docs/research/public-time-type-resources-candidate.json",
+        "status": "added"
+      },
+      {
+        "additions": 752,
+        "deletions": 0,
+        "filename": "docs/research/public-time-type-resources-comparison.json",
+        "status": "added"
+      },
+      {
+        "additions": 6052,
+        "deletions": 0,
+        "filename": "docs/research/public-time-type-resources-parent.json",
+        "status": "added"
+      },
+      {
+        "additions": 104,
+        "deletions": 0,
+        "filename": "docs/research/public-time-type-resources.md",
+        "status": "added"
+      },
+      {
+        "additions": 9,
+        "deletions": 0,
+        "filename": "docs/research/sus-edition-contracts.md",
+        "status": "modified"
+      },
+      {
+        "additions": 1,
+        "deletions": 0,
+        "filename": "include/time.h",
+        "status": "modified"
+      },
+      {
+        "additions": 24,
+        "deletions": 1,
+        "filename": "sys/arch/rp2040/doc/TESTING.md",
+        "status": "modified"
+      },
+      {
+        "additions": 9,
+        "deletions": 0,
+        "filename": "sys/sys/_sigset_t.h",
+        "status": "added"
+      },
+      {
+        "additions": 4,
+        "deletions": 0,
+        "filename": "sys/sys/_suseconds_t.h",
+        "status": "added"
+      },
+      {
+        "additions": 19,
+        "deletions": 0,
+        "filename": "sys/sys/_timespec.h",
+        "status": "added"
+      },
+      {
+        "additions": 28,
+        "deletions": 0,
+        "filename": "sys/sys/_timeval.h",
+        "status": "added"
+      },
+      {
+        "additions": 8,
+        "deletions": 12,
+        "filename": "sys/sys/select.h",
+        "status": "modified"
+      },
+      {
+        "additions": 1,
+        "deletions": 9,
+        "filename": "sys/sys/signal.h",
+        "status": "modified"
+      },
+      {
+        "additions": 2,
+        "deletions": 24,
+        "filename": "sys/sys/time.h",
+        "status": "modified"
+      },
+      {
+        "additions": 1,
+        "deletions": 0,
+        "filename": "sys/sys/types.h",
+        "status": "modified"
+      },
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": "tests/kernel/Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 5,
+        "deletions": 1,
+        "filename": "tests/libc_contracts/Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": "tests/time64_calendar/Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": "tests/time64_wrappers/Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 300,
+        "deletions": 0,
+        "filename": "tools/c17/public_time_types.py",
+        "status": "added"
+      },
+      {
+        "additions": 146,
+        "deletions": 5,
+        "filename": "tools/c17/source-denominator.json",
+        "status": "modified"
+      },
+      {
+        "additions": 3,
+        "deletions": 1,
+        "filename": "tools/check_dpucp_donor_ledger.py",
+        "status": "modified"
+      },
+      {
+        "additions": 3,
+        "deletions": 0,
+        "filename": "tools/check_dpucp_donor_ledger_test.py",
+        "status": "modified"
+      }
+    ],
+    "565": [
+      {
+        "additions": 2,
+        "deletions": 0,
+        "filename": ".github/workflows/firmware.yml",
+        "status": "modified"
+      },
+      {
+        "additions": 9,
+        "deletions": 1,
+        "filename": "Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 8,
+        "deletions": 0,
+        "filename": "docs/research/c17-semantic-migration-plan.md",
+        "status": "modified"
+      },
+      {
+        "additions": 7,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/README.md",
+        "status": "modified"
+      },
+      {
+        "additions": 8,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/export-closure/README.md",
+        "status": "modified"
+      },
+      {
+        "additions": 118,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/export-closure/link-pic-envelope.py",
+        "status": "added"
+      },
+      {
+        "additions": 727,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/export-closure/pic-replay-envelope-link.json",
+        "status": "added"
+      },
+      {
+        "additions": 4068,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/export-closure/pic-replay-envelope-members.json",
+        "status": "added"
+      },
+      {
+        "additions": 46,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/export-closure/pic-replay-envelope-qualification.json",
+        "status": "added"
+      },
+      {
+        "additions": 132,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/export-closure/pic-replay-envelope.md",
+        "status": "added"
+      },
+      {
+        "additions": 24,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/export-closure/pic-replay-register-control.json",
+        "status": "added"
+      },
+      {
+        "additions": 27,
+        "deletions": 0,
+        "filename": "sys/arch/rp2040/doc/TESTING.md",
+        "status": "modified"
+      },
+      {
+        "additions": 217,
+        "deletions": 0,
+        "filename": "tools/libc_pic_replay.py",
+        "status": "added"
+      },
+      {
+        "additions": 245,
+        "deletions": 0,
+        "filename": "tools/libc_pic_replay_test.py",
+        "status": "added"
+      }
+    ],
+    "598": [
+      {
+        "additions": 1,
+        "deletions": 0,
+        "filename": ".github/workflows/firmware.yml",
+        "status": "modified"
+      },
+      {
+        "additions": 1,
+        "deletions": 0,
+        "filename": "Makefile",
+        "status": "modified"
+      },
+      {
+        "additions": 8,
+        "deletions": 0,
+        "filename": "docs/research/c17-semantic-migration-plan.md",
+        "status": "modified"
+      },
+      {
+        "additions": 6,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/README.md",
+        "status": "modified"
+      },
+      {
+        "additions": 383,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/divider-function-extents-measurements.json",
+        "status": "added"
+      },
+      {
+        "additions": 113,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/divider-function-extents-qualification.json",
+        "status": "added"
+      },
+      {
+        "additions": 140,
+        "deletions": 0,
+        "filename": "docs/research/xip-shared-libc/divider-function-extents.md",
+        "status": "added"
+      },
+      {
+        "additions": 4,
+        "deletions": 0,
+        "filename": "lib/libc/arm/gen/aeabi_div.S",
+        "status": "modified"
+      },
+      {
+        "additions": 1,
+        "deletions": 1,
+        "filename": "sys/arch/rp2040/doc/TESTING.md",
+        "status": "modified"
+      },
+      {
+        "additions": 16,
+        "deletions": 3,
+        "filename": "tests/rp2040/divider_ownership/README.md",
+        "status": "modified"
+      },
+      {
+        "additions": 139,
+        "deletions": 0,
+        "filename": "tests/rp2040/divider_ownership/helper_extent_mutants.py",
+        "status": "added"
+      },
+      {
+        "additions": 2,
+        "deletions": 1,
+        "filename": "tests/rp2040/divider_ownership/user_helper_mutants.sh",
+        "status": "modified"
+      },
+      {
+        "additions": 24,
+        "deletions": 0,
+        "filename": "tools/verify_rp2040_divider_ownership.py",
+        "status": "modified"
+      }
+    ]
+  },
+  "open_prs": [
+    {
+      "base": "a706c0b851daaa25b019639e8217dda5ac17095d",
+      "draft": true,
+      "head": "c3ff7844d9ded22e444ea4d7cdc31b9fea3ed483",
+      "head_ref": "codex/libc-namespace-closure",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/560",
+      "mergeable": true,
+      "mergeable_state": "clean",
+      "number": 560,
+      "state": "open",
+      "title": "tests: cover benchmark programs in the libc namespace"
+    },
+    {
+      "base": "a706c0b851daaa25b019639e8217dda5ac17095d",
+      "draft": true,
+      "head": "1b4a01266fcd92a5b695247b5fcfebac8799c62a",
+      "head_ref": "codex/libc-declaration-census",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/562",
+      "mergeable": true,
+      "mergeable_state": "clean",
+      "number": 562,
+      "state": "open",
+      "title": "tools: inventory libc declarations by exposure and linker identity"
+    },
+    {
+      "base": "a706c0b851daaa25b019639e8217dda5ac17095d",
+      "draft": true,
+      "head": "34b326501fab6762133b85b6694804504f4e5e13",
+      "head_ref": "codex/fd-set-initialization",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/563",
+      "mergeable": false,
+      "mergeable_state": "dirty",
+      "number": 563,
+      "state": "open",
+      "title": "libc: initialize descriptor sets through standalone headers"
+    },
+    {
+      "base": "a706c0b851daaa25b019639e8217dda5ac17095d",
+      "draft": true,
+      "head": "801194c98736e08424654069d0e6e33b5a0bad68",
+      "head_ref": "codex/public-time-types",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/564",
+      "mergeable": false,
+      "mergeable_state": "dirty",
+      "number": 564,
+      "state": "open",
+      "title": "headers: centralize public time and signal type ownership"
+    },
+    {
+      "base": "a706c0b851daaa25b019639e8217dda5ac17095d",
+      "draft": true,
+      "head": "11b14a1c7ec0a72e460fdc21edb1a02acee23f17",
+      "head_ref": "codex/libc-pic-export-envelope",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/565",
+      "mergeable": true,
+      "mergeable_state": "clean",
+      "number": 565,
+      "state": "open",
+      "title": "tools: replay shared libc PIC builds from captured compiler witnesses"
+    },
+    {
+      "base": "96653cca4794956dc7875439cd7cdcdf0b04e7af",
+      "draft": true,
+      "head": "85089634a933f8111eb5c3afdceb1465b0e9cef7",
+      "head_ref": "codex/libc-divider-function-extents",
+      "html_url": "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/598",
+      "mergeable": true,
+      "mergeable_state": "clean",
+      "number": 598,
+      "state": "open",
+      "title": "libc/arm: define divider ELF function extents"
+    }
+  ],
+  "schema": 1
+}

@@ -8,7 +8,7 @@ struct conf_device {
 
 struct driver {
 	const char	*name;
-	int		(*probe)(struct conf_device *);
+	int		(*probe)(const struct conf_device *);
 };
 
 #endif

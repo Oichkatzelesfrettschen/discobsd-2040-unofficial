@@ -54,8 +54,10 @@ struct uart_inst {
 static const struct uart_inst uart[NUART] = {
     /* UART0 on GP0 and GP1, the pair the Pico exposes on pins 1 and 2. */
     { UART0_BASE, 0, 1, UART0_IRQ },
+#if NUART > 1
     /* UART1 on GP4 and GP5. */
     { UART1_BASE, 4, 5, UART1_IRQ },
+#endif
 };
 
 /*
@@ -216,11 +218,13 @@ UART0_IRQ_Handler(void)
     uartintr(makedev(UART_MAJOR, 0));
 }
 
+#if NUART > 1
 void
 UART1_IRQ_Handler(void)
 {
     uartintr(makedev(UART_MAJOR, 1));
 }
+#endif
 
 int
 uartopen(dev_t dev, int flag __unused, int mode __unused)
@@ -560,7 +564,7 @@ uartgetc(dev_t dev)
  * Return true if found and initialized ok.
  */
 static int
-uartprobe(struct conf_device *config)
+uartprobe(const struct conf_device *config)
 {
     /*
      * The RP2040's blocks are UART0 and UART1 and uart[] is indexed the
@@ -599,6 +603,6 @@ uartprobe(struct conf_device *config)
     return 1;
 }
 
-struct driver uartdriver = {
+const struct driver uartdriver = {
     "uart", uartprobe,
 };

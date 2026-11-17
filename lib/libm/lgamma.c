@@ -61,10 +61,20 @@ lgamma(double x)
 	if (x < -30.0)
 		return log(pi / fabs(sin(pi * fmod(x, 2.0)))) -
 		    lgamma(1.0 - x);
+	/*
+	 * Below 2**-60 gamma(x) is 1/x - 0.5772... to the last bit of the
+	 * logarithm, and 1/x itself overflows for the smallest subnormals
+	 * while log(1/x) does not.
+	 */
+	if (fabs(x) < 0x1p-60)
+		return -log(fabs(x));
 	if (x < 30.0)
 		return log(fabs(tgamma(x)));
 	w = 1.0 / (x * x);
-	return (x - 0.5) * log(x) - x + 0.91893853320467274178 +
+	w = (x - 0.5) * log(x) - x + 0.91893853320467274178 +
 	    (((-1.0 / 1680.0 * w + 1.0 / 1260.0) * w - 1.0 / 360.0) * w +
 	    1.0 / 12.0) / x;
+	if (w - w != 0.0)
+		errno = ERANGE;		/* overflow (7.12.1p4) */
+	return w;
 }

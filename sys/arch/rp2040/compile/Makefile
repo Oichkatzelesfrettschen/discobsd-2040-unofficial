@@ -74,8 +74,11 @@ check-cache-footprint:
 		@set -e; for i in ${SUBDIR}; do \
 			nm_command=$$(${MAKE} -C $$i -V ARM_GCC_PREFIX)-nm; \
 			param=$$(${MAKE} -C $$i -V PARAM); \
-			layout=multi; \
-			case " $$param " in *" -DSINGLE_UFS_ROOT "*) layout=single;; esac; \
+			layout="multi --mounts 2"; \
+			case " $$param " in \
+			*" -DSINGLE_UFS_ROOT "*) layout=single;; \
+			*" -DNMOUNT=3 "*) layout="multi --mounts 3";; \
+			esac; \
 			NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
 			    --elf $$i/unix.elf --layout $$layout; \
 		done
@@ -88,7 +91,26 @@ check-cache-footprint:
 		if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
 		    --elf PICOCALC/unix.elf --layout single >/dev/null 2>&1; then \
 			echo "cache footprint verifier accepted PICOCALC as single-root" >&2; exit 1; \
-		fi
+		fi; \
+		if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
+		    --elf PICO/unix.elf --layout multi --mounts 3 >/dev/null 2>&1; then \
+			echo "cache footprint verifier accepted PICO as three-mount" >&2; exit 1; \
+		fi; \
+		for k in PICOCALC PICOCALC_LEAN PICOCALC_LEAN_DIAG; do \
+			if NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
+			    --elf $$k/unix.elf --layout multi --mounts 2 >/dev/null 2>&1; then \
+				echo "cache footprint verifier accepted $$k as two-mount" >&2; exit 1; \
+			fi; \
+		done; \
+		for count in 1 3; do \
+			status=0; \
+			NM="$$nm_command" sh "${CACHE_FOOTPRINT_VERIFIER}" \
+			    --elf PICO/unix.elf --layout single --mounts $$count \
+			    >/dev/null 2>&1 || status=$$?; \
+			if [ "$$status" -ne 2 ]; then \
+				echo "cache footprint verifier exit $$status, expected usage error 2, for --mounts $$count with the single layout" >&2; exit 1; \
+			fi; \
+		done
 		${MAKE} -C "${CACHE_FOOTPRINT_TEST}" check \
 		    KERNEL_BUILD="${.CURDIR}/PICO"
 		${MAKE} -C "${EXEC_SPOOL_TEST}" check \

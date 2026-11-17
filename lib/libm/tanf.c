@@ -25,15 +25,28 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <errno.h>
 #include <math.h>
 
-/*
- * tanf(): the float form of tan().  The argument widens exactly and
- * the double result is narrowed once.
- */
+#include "fpbits.h"
+
+int __discobsd_rem_pio2f(float, double *);
+
+/* tanf(): C17 7.12.4.7 for float; see sinf.c.  Tangent is odd. */
 float
 tanf(float x)
 {
-	return (float)tan((double)x);
+	double y, v;
+	int n;
+
+	if (x - x != 0.0f) {
+		if (x == x)
+			errno = EDOM;
+		return x - x;
+	}
+	if ((fp_bitsf(x) & 0x7fffffffU) < 0x47800000U)
+		return (float)tan((double)x);
+	n = __discobsd_rem_pio2f(x, &y);
+	v = (n & 1) != 0 ? -1.0 / tan(y) : tan(y);
+	return (float)((fp_bitsf(x) >> 31) != 0 ? -v : v);
 }

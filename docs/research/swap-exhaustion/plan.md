@@ -60,8 +60,8 @@ swap partition stays at 384 KiB.
    the largest live image, and the gate `check-swap-exchange-headroom`.
 7. In-place sector exchange in `sched()`: when the outgoing resident and the
    incoming swapped image have equal layouts (a fork pair), exchange them
-   sector by sector through the 4,096-byte bounce that
-   `sys/arch/rp2040/conf/kern.ldscript` reserves at link time, then swap the
+   sector by sector through the 4,096-byte bounce
+   `swap_exchange_sector[]`, a static array in `sys/kern/vm_swap.c`, then swap the
    two processes' addresses. The peak becomes one image plus the bounce, which
    lets a parent and child that each exceed 190 blocks alternate. Gates: a
    host fixture over the production exchange with an emulated NOR device that

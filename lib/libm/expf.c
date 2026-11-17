@@ -28,6 +28,8 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
  * expf(): the float form of exp().  The argument widens exactly and
  * the double result is narrowed once.
@@ -35,5 +37,5 @@
 float
 expf(float x)
 {
-	return (float)exp((double)x);
+	return fp_narrow(exp((double)x));
 }

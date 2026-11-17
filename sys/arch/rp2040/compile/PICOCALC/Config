@@ -60,7 +60,7 @@ config          unix    root on fl0a
                         dumps on none          # Never the live swap; sdprobe() arms the SD card (sys/arch/rp2040/include/dump.h).
 
 options         "NFL=2"                     # fl0 root, fl1 swap.
-options         "NMOUNT=2"                  # The flash root and one SD partition.
+options         "NMOUNT=3"                  # The flash root, one SD partition and the PSRAM /tmp.
 options         LINEAR_INODE_CACHE           # Scan 24 entries; omit hash links.
 options         COMPACT_INODE_FIELDS         # Four bounded fields use 16 bits.
 options         COMPACT_SWAPMAP              # 16-bit entries cover 384 blocks.
@@ -79,9 +79,11 @@ options         "CONS_MAJOR=LCDCONS_MAJOR"  # panel and keyboard
 options         "CONS_MINOR=0"
 
 # The board's ESP-PSRAM64H on GP2-GP5, GP20 and GP21, driven by PIO0. When it
-# identifies itself at boot it replaces fl1 as the 8 MB swap device behind the
-# SWAPRAM tier; any other probe outcome prints one line and leaves swap on
-# fl1, so the kernel also runs a PicoCalc whose PSRAM does not answer.
+# identifies itself at boot its first 2 MB replace fl1 as the swap device
+# behind the SWAPRAM tier and its other 6 MB are the block device
+# /etc/rc.rp2040 mounts at /tmp; any other probe outcome prints one line and
+# leaves swap on fl1, so the kernel also runs a PicoCalc whose PSRAM does not
+# answer.
 device          psram
 
 # The SD card socket: SPI0 on GP16-GP19, card detect on GP22. A multi-mount
@@ -93,10 +95,12 @@ device          sd
 # while DIP switch SW701 is in its default position; it is /dev/tty0.
 device          uart0
 options         "UART_BAUD=115200"          # default speed
+options         "NUART=1"                   # UART1's pins belong to the board
 
 # The Pico's own micro-USB port as a CDC-ACM device, /dev/ttyUSB0; it also
 # carries the reset interface picotool reboot -u uses.
 device          uartusb
+options         "USB_TXRING=4096"           # half the scratch banks; the tile atlas takes the rest
 
 # Compressed RAM tier in front of the swap device and packed executables,
 # as on the PICO board.

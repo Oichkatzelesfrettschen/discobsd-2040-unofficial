@@ -34,7 +34,9 @@
  * the host only drains the IN endpoint while a terminal has the port open,
  * and the kernel prints long before anyone has. The ring keeps the last
  * USB_TXRING bytes, so a terminal opened after boot sees the boot messages
- * rather than nothing; 8K holds a whole boot with room to spare.
+ * rather than nothing. The default 8K holds a whole boot with room to
+ * spare; the PicoCalc configurations set 4K and give the other half of
+ * the scratch banks to the lcdgfx tile atlas (kern.ldscript, .scratch).
  */
 
 #include <sys/param.h>
@@ -308,7 +310,11 @@ enum ep0_stage {
 	EP0_OUT_STATUS,			/* Zero-length OUT closing an IN reply. */
 };
 
+#ifndef USB_TXRING
 #define	USB_TXRING	8192
+#endif
+_Static_assert(USB_TXRING >= 1024 && (USB_TXRING & (USB_TXRING - 1)) == 0,
+    "USB_TXRING is a power of two of at least 1 KB");
 #define	USB_RXRING	64
 
 static struct {
@@ -344,7 +350,7 @@ static struct {
 /*
  * The transmit ring lives in the SRAM4 and SRAM5 scratch banks, which
  * conf/RP2040.ld names SCRATCH and kern.ldscript fills from .scratch
- * input sections, so its 8 KB leave the striped banks the kernel and
+ * input sections, so its USB_TXRING bytes leave the striped banks the kernel and
  * user space share. Only the CPU touches it: usb_tx_kick copies bytes
  * from it into DPSRAM, so the controller never addresses it. It is not
  * cleared at reset. tx_head and tx_tail in usbd are, and every byte of
@@ -1440,7 +1446,7 @@ usbgetc(dev_t dev __unused)
 }
 
 static int
-usbprobe(struct conf_device *config __unused)
+usbprobe(const struct conf_device *config __unused)
 {
 	int console_major, console_minor;
 
@@ -1453,6 +1459,6 @@ usbprobe(struct conf_device *config __unused)
 	return 1;
 }
 
-struct driver uartusbdriver = {
+const struct driver uartusbdriver = {
 	"uartusb", usbprobe,
 };

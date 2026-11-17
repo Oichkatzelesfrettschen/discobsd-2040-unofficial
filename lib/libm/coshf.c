@@ -28,6 +28,8 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
  * coshf(): the float form of cosh().  The argument widens exactly and
  * the double result is narrowed once.
@@ -35,5 +37,5 @@
 float
 coshf(float x)
 {
-	return (float)cosh((double)x);
+	return fp_narrow(cosh((double)x));
 }

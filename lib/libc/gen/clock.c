@@ -25,29 +25,51 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <limits.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <time.h>
 
 /*
+ * Add seconds and microseconds to *total as clock ticks.  The result is 0
+ * when the sum would leave unsigned long, in either the product with
+ * CLOCKS_PER_SEC or the addition.
+ */
+static int
+add_ticks(unsigned long *total, unsigned long seconds,
+    unsigned long microseconds)
+{
+	unsigned long ticks;
+
+	if (seconds > (ULONG_MAX - microseconds) / CLOCKS_PER_SEC)
+		return 0;
+	ticks = seconds * CLOCKS_PER_SEC + microseconds;
+	if (ticks > ULONG_MAX - *total)
+		return 0;
+	*total += ticks;
+	return 1;
+}
+
+/*
  * C17 7.27.2.1: processor time used by the program, in units of
- * 1/CLOCKS_PER_SEC, or (clock_t)-1 when it is unavailable.  The value is
- * user plus system time from getrusage().  CLOCKS_PER_SEC is the 1000000
- * POSIX requires under XSI, so clock_t wraps after about 71 minutes of
- * processor time; the arithmetic is unsigned so that the wrap is defined.
+ * 1/CLOCKS_PER_SEC, or (clock_t)-1 when it is unavailable or cannot be
+ * represented.  The value is user plus system time from getrusage().
+ * CLOCKS_PER_SEC is the 1000000 POSIX requires under XSI, so clock_t holds
+ * about 71.6 minutes of processor time on a 32-bit unsigned long; beyond
+ * that the function reports the failure value rather than a wrapped count.
+ * A total of exactly ULONG_MAX ticks is that failure value.
  */
 clock_t
 clock(void)
 {
 	struct rusage usage;
-	unsigned long ticks;
+	unsigned long ticks = 0;
 
-	if (getrusage(RUSAGE_SELF, &usage) < 0)
+	if (getrusage(RUSAGE_SELF, &usage) < 0 ||
+	    !add_ticks(&ticks, (unsigned long)usage.ru_utime.tv_sec,
+	    (unsigned long)usage.ru_utime.tv_usec) ||
+	    !add_ticks(&ticks, (unsigned long)usage.ru_stime.tv_sec,
+	    (unsigned long)usage.ru_stime.tv_usec))
 		return (clock_t)-1;
-	ticks = (unsigned long)usage.ru_utime.tv_sec * CLOCKS_PER_SEC +
-	    (unsigned long)usage.ru_utime.tv_usec +
-	    (unsigned long)usage.ru_stime.tv_sec * CLOCKS_PER_SEC +
-	    (unsigned long)usage.ru_stime.tv_usec;
 	return (clock_t)ticks;
 }

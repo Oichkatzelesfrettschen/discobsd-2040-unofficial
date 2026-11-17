@@ -1,0 +1,4 @@
+{"sram_budget": 10, "tasks": [
+  {"name": "decode", "bytes": 6, "saved_cycles": 10},
+  {"name": "hash", "bytes": 4, "saved_cycles": 8}
+], "pair_cycles": [[0, 20], [20, 0]]}

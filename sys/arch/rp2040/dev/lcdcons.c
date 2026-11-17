@@ -714,7 +714,7 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 }
 
 static int
-lcdprobe(struct conf_device *config __unused)
+lcdprobe(const struct conf_device *config __unused)
 {
 	int console_major, console_minor;
 	int keyboard_version;
@@ -737,6 +737,6 @@ lcdprobe(struct conf_device *config __unused)
 	return 1;
 }
 
-struct driver picocalcdriver = {
+const struct driver picocalcdriver = {
 	"picocalc", lcdprobe,
 };

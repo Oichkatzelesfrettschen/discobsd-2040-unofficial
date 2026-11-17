@@ -61,6 +61,9 @@ def verify(binary):
         (["net"], "", False),
         (["kern.proc"], "", False),
         (["machdep.mpu"], "", True),
+        (["machdep.flash_jedec"], "", True),
+        (["machdep.flash_jedec"], "unread", False),
+        (["machdep.pcm"], "", True),
         (["machdep.mpu.unknown"], "", False),
         (["vm.loadavg"], "load-failure", False),
         (["-a"], "unavailable", True),
@@ -70,6 +73,22 @@ def verify(binary):
     for node in ("kern.capacity", "machdep.storage_stats"):
         for scenario in ("unavailable", "version", "record-size", "length"):
             cases.append(([node], scenario, False))
+    for scenario in ("unavailable", "length"):
+        cases.append((["machdep.pcm"], scenario, False))
+    outputs = (
+        (["machdep.flash_jedec"], "", "machdep.flash_jedec=15679509\n"),
+        (["machdep.pcm"], "", "machdep.pcm=rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
+        (["-n", "machdep.pcm"], "", "rate 8000 channels 1 bits 8 ring 255 queued 7 open 1\n"),
+    )
+    for operands, scenario, expected in outputs:
+        result = subprocess.run(
+            [str(binary), *operands],
+            text=True,
+            capture_output=True,
+            env=dict(os.environ, SCENARIO=scenario),
+        )
+        if result.returncode != 0 or result.stdout != expected:
+            raise AssertionError((operands, scenario, result.returncode, result.stdout))
     for operands, scenario, success in cases:
         result = subprocess.run(
             [str(binary), *operands],
@@ -119,6 +138,8 @@ for name, anchor, replacement in (
     ("long-atol", "longval = strtol(newval, NULL, 10);", "longval = atol(newval);"),
     ("status", "return (exit_status);", "(void)exit_status; return (0);"),
     ("operand", "parse(*argv++, 1)", "parse(*argv, 1)"),
+    ("pcm-size-unchecked", "if (size != sizeof(*pcm)) {", "if (0) {"),
+    ("pcm-queued-for-open", "pcm->queued, pcm->open);", "pcm->open, pcm->queued);"),
 ):
     assert text.count(anchor) == 1, (name, "mutation anchor")
     mutant = out / (name + ".c")
@@ -130,4 +151,4 @@ for name, anchor, replacement in (
     except AssertionError:
         continue
     raise AssertionError((name, "mutant escapes"))
-print(f"sysctl: {count} behavior cases pass; long, status and operand mutants fail")
+print(f"sysctl: {count} behavior cases pass; long, status, operand and node-output mutants fail")

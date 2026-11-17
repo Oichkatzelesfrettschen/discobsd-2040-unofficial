@@ -86,6 +86,12 @@ artifact points at.
 
 ## Research corpus: `docs/research`
 
+The [graph-layout experiment](research/graph-layout-experiment.md) provides a
+host-only graph heat-diffusion, QUBO/Ising and ideal-QAOA locality study with
+synthetic calibration fixtures. It establishes model behavior, not board speed.
+The [implementation audit](research/implementation-scope.md) maps every
+discussed performance/security track to executable work and remaining evidence.
+
 Carried with their history from the notes repository, and added to since.
 Grouped by what they investigate.
 
@@ -160,9 +166,11 @@ Grouped by what they investigate.
 | `rp2040-single-kernel.md` | the four RP2040 kernel configurations tested against one kernel binary with a flash board descriptor: PSRAM already probes at runtime, PICO_UART exists for the USB-less Renode model, the PicoCalc pins need a presence decision first, and the user-window layout is the granularity that stays in the build |
 | `board-descriptor-brief.md` | the work brief the board descriptor was built from: the decided design (one kernel, a checksummed `.board` section patched into `unix.uf2` per board), the ordered work items and their acceptance; `board-descriptor.md` holds the result |
 | `flash-reset-recovery-cells.md` | the processor-reset half of W03 as a table of recovered-state predictions per operation and acknowledgment history, the chip facts a reset rests on, the host oracle that cuts every chip command, the checkpoint-tear defect it found, and what a board run needs |
+| `dhara-torn-checkpoint.md` | why `find_root()` accepts a Dhara checkpoint page only when the sector tree it roots is whole: the torn-page mechanism of a reset inside the four chip programs, the second path through an erased epoch in block 0 after a wrap, the soundness argument over the existing format, the format-change and programming-order alternatives, and the kernel cost |
 | `flash-storage-expectation-plan.md` | the storage expectation audit verified against source: per-request Dhara checkpoint padding as the cost driver, the `fs_fmod` gap in `sync()`, and a phased plan with gates and predictions |
 | `trim-cost-model.md` | trim at free and deferred free-list sweeps against no trim, by workload, in the host model, with the board result that refutes trim at free for compiles; the trim work is retained on `archive/rp2040-trim-freed-blocks` and `archive/rp2040-free-list-sweep` (`unimplemented-storage-work.md`) |
 | `unimplemented-storage-work.md` | storage mechanisms built, measured and left out of `main` (trim at free, the inode-before-free order, the deferred free-list sweep and their tests), each with its deciding measurement, the condition that reopens it and the archive branch that holds the code |
+| `flash-wear-integration.md` | the trim, free-list sweep, wear-evaluation and swap-wear-probe branches decomposed by mechanism against `main`: each mechanism's source commit, measured benefit, recorded kernel text and RAM cost, successor on `main` and disposition, the tests left on the archive branch and the open decisions |
 | `rp2040-flash-trim-ordering.md` | when a freed block may be discarded: the inode-before-free rule across the BSD lineages, where Linux and embedded file systems issue discards, why Dhara reduces the rule to call order, the FIFO cleaning-cost knee at a live share of 0.8, and the outcome (safe, not merged for wear) |
 | `kernel-size-flags/` | the two kernel flag sweeps and the bare Pico timing transcripts behind the `CSIZEFLAGS` entry of `kernel-footprint-handoff.md` |
 | `trim-survey/` | the survey reports and bare Pico console captures behind the discard-ordering note, the trim cost model and the flash wear table, with the scripts that recompute the per-compile figures |
@@ -176,6 +184,7 @@ Grouped by what they investigate.
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-library-closure.md` | the hosted C17 clause 7 surface: decomposition of the libc compliance request, measured absent names per header, mechanism invariants, ordered units, and the delivered div/ldiv/lldiv/llabs and `<iso646.h>` contract |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
+| `c17-posix-program-state.md` | observed main, 32 merged and six open program PRs, all fourteen work-package dispositions, resource/evidence boundaries and restart ownership |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |
 | `kernel-checksum-capture.md` | in-place kernel checksum stamping, retained pre/post ELF identities and calibrated source attribution |
 | `libc-passwd-header-inclusion.md` | repeated password-header inclusion, preserved public types/layout, captured callers, native compatibility and paired static resources |

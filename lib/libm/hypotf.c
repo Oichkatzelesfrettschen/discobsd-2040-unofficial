@@ -25,15 +25,23 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
 #include <math.h>
 
+#include "fpbits.h"
+
 /*
- * hypotf(): the float form of hypot().  The arguments widen exactly and
- * the double result is narrowed once.
+ * hypotf(): C17 7.12.7.3 for float.  An infinite argument gives +infinity
+ * even beside a NaN (F.10.4.3); otherwise a NaN propagates.  The finite
+ * case widens exactly into hypot() and narrows once, so a result beyond
+ * float is the range error fp_narrow() reports.
  */
 float
 hypotf(float x, float y)
 {
-	return (float)hypot((double)x, (double)y);
+	if ((fp_bitsf(x) & 0x7fffffffU) == 0x7f800000U ||
+	    (fp_bitsf(y) & 0x7fffffffU) == 0x7f800000U)
+		return HUGE_VALF;
+	if (x != x || y != y)
+		return x + y;
+	return fp_narrow(hypot((double)x, (double)y));
 }

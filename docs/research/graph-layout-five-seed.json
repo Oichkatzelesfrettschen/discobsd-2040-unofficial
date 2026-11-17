@@ -1,0 +1,171 @@
+{
+  "evidence": "synthetic host model only",
+  "inputs": {
+    "symbols_sha256": "907bba38efb53cef3f89238a45345430017873c45498356b7409e6f438b22b16",
+    "trace_sha256": "889018c254bea577b6e890e26d75caa6384b470d1eb2e830c43b96e3a19c40c7",
+    "observed_transitions": 805
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "cut_scores": {
+    "random": [
+      392,
+      612,
+      600,
+      800,
+      402
+    ],
+    "diffusion": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "annealing": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "exact": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "tempering": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "quartic_oscillator": [
+      5,
+      370,
+      5,
+      402,
+      5
+    ],
+    "imaginary_time_bond_1": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "imaginary_time_bond_2": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "imaginary_time_bond_4": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "imaginary_time_bond_8": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ],
+    "ideal_qaoa_p1": [
+      5,
+      5,
+      5,
+      5,
+      5
+    ]
+  },
+  "extensions": {
+    "tempering": {
+      "sweeps": 500,
+      "replicas": 8,
+      "exchanges": 3045
+    },
+    "quartic_oscillator": {
+      "steps": 1000,
+      "dt": 0.02,
+      "damping": 0.3
+    },
+    "imaginary_time_bond_1": {
+      "bond": 1,
+      "steps": 60,
+      "shots": 4096,
+      "feasible_shots": 1148,
+      "summed_discarded_norm2": 0.016720254487677146,
+      "mean_penalized_energy": 2014.5000000000002,
+      "dense_state_bytes": 2048,
+      "scope": "dense MPS reference; no scalability or speedup claim"
+    },
+    "imaginary_time_bond_2": {
+      "bond": 2,
+      "steps": 60,
+      "shots": 4096,
+      "feasible_shots": 1488,
+      "summed_discarded_norm2": 0.000400260684833165,
+      "mean_penalized_energy": 1344.029780253301,
+      "dense_state_bytes": 2048,
+      "scope": "dense MPS reference; no scalability or speedup claim"
+    },
+    "imaginary_time_bond_4": {
+      "bond": 4,
+      "steps": 60,
+      "shots": 4096,
+      "feasible_shots": 1532,
+      "summed_discarded_norm2": 3.2177233867439232e-06,
+      "mean_penalized_energy": 1293.8424359620883,
+      "dense_state_bytes": 2048,
+      "scope": "dense MPS reference; no scalability or speedup claim"
+    },
+    "imaginary_time_bond_8": {
+      "bond": 8,
+      "steps": 60,
+      "shots": 4096,
+      "feasible_shots": 1538,
+      "summed_discarded_norm2": 2.025464497404198e-11,
+      "mean_penalized_energy": 1293.0174003022134,
+      "dense_state_bytes": 2048,
+      "scope": "dense MPS reference; no scalability or speedup claim"
+    },
+    "walks": {
+      "time": 1.0,
+      "initial_vertex": 0,
+      "heat": [
+        0.49769813937643015,
+        0.2055218483320541,
+        0.09109128428565516,
+        0.1950885277943854,
+        0.0020396029826275502,
+        0.0005141453380236305,
+        0.00142756127970034,
+        0.006618890611122932
+      ],
+      "quantum_probability": [
+        0.6828227039538155,
+        0.15165122148874344,
+        0.04055719745979404,
+        0.12480335697398073,
+        1.5368621101139676e-05,
+        1.2109443978128106e-06,
+        7.592633141492611e-06,
+        0.00014134792502427688
+      ]
+    },
+    "tool_sha256": "ae98dcc6feb696531752a3063dcd691f6454aa5eb529e44a7641c1b5a4dca7d3"
+  }
+}

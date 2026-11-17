@@ -36,6 +36,7 @@
  * bias 1023) and 52 fraction bits; binary32 is sign, 8 exponent bits with
  * bias 127 and 23 fraction bits.
  */
+#include <errno.h>
 #include <stdint.h>
 
 #define FP_SIGN_BIT	0x8000000000000000ULL
@@ -77,6 +78,23 @@ fp_float(uint32_t bits)
 
 	view.bits = bits;
 	return view.value;
+}
+
+/*
+ * The float form of a double result.  A finite double too large for float
+ * narrows to an infinity without any other sign, which C17 7.12.1 makes a
+ * range error: ERANGE.  An infinity or NaN the double member returned
+ * carries the error that member already reported.
+ */
+static inline float
+fp_narrow(double value)
+{
+	float result = (float)value;
+
+	if ((fp_bitsf(result) & 0x7fffffffU) == 0x7f800000U &&
+	    FP_EXPONENT(fp_bits(value)) != 0x7ff)
+		errno = ERANGE;
+	return result;
 }
 
 #endif /* !_LIBM_FPBITS_H_ */

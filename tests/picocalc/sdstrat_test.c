@@ -246,7 +246,7 @@ board_id(void)
 	return test_board;
 }
 
-extern struct driver sddriver;
+extern const struct driver sddriver;
 
 static void
 check(const char *what, long got, long want)

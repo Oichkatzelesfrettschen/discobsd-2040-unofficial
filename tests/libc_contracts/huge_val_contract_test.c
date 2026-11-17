@@ -87,6 +87,24 @@ check_near(const char *what, double value, double want, double tolerance)
 	    (error < 0.0 ? -error : error) <= tolerance, message);
 }
 
+static void
+check_nan_call(const char *what, double value, int errno_expected)
+{
+	char message[128];
+
+	snprintf(message, sizeof message, "%s is a NaN (got %.17g)", what, value);
+	check(value != value, message);
+	snprintf(message, sizeof message, "%s sets errno %d (got %d)", what,
+	    errno_expected, tree_errno);
+	check(tree_errno == errno_expected, message);
+}
+
+#define CALL_NAN(expression, errno_expected) \
+	do { \
+		tree_errno = 0; \
+		check_nan_call(#expression, (expression), (errno_expected)); \
+	} while (0)
+
 #define CALL(expression, sign, errno_expected) \
 	do { \
 		tree_errno = 0; \
@@ -222,12 +240,12 @@ main(void)
 	/*
 	 * C17 7.12.1p4: a pole is a range error, ERANGE under this libc, and
 	 * Annex F returns an infinity of the sign of the limit; a negative
-	 * argument is a domain error, EDOM.
+	 * argument is a domain error, EDOM, whose value F.10.3 makes a NaN.
 	 */
 	CALL(tree_log(0.0), -1, erange);
-	CALL(tree_log(-1.0), -1, edom);
+	CALL_NAN(tree_log(-1.0), edom);
 	CALL(tree_log10(0.0), -1, erange);
-	CALL(tree_log10(-1.0), -1, edom);
+	CALL_NAN(tree_log10(-1.0), edom);
 	CALL(tree_y0(0.0), -1, erange);
 	CALL(tree_y1(0.0), -1, erange);
 	CALL(tree_yn(2, 0.0), -1, erange);

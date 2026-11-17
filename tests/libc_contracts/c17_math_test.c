@@ -42,6 +42,7 @@
  * values, their combinations, and encodings drawn from a fixed xorshift
  * sequence, so every run sees the same values.
  */
+#include <errno.h>
 #include <float.h>
 #include <limits.h>
 #include <math.h>
@@ -609,7 +610,11 @@ remainders(void)
  * qemu-user variant, rounds fma() and fmaf() twice and misses tgamma() by
  * tens of units; NetBSD's fmaf() needs a round-toward-zero mode that the
  * soft-float target lacks.  C17_MATH_UNTRUSTED_FMA, _FMAF and _APPROX
- * withdraw the oracle for those groups.  Every result of those members
+ * withdraw the oracle for those groups.  C17_MATH_UNTRUSTED_SAMPLES
+ * withdraws it for the sampled inputs of the approximate members alone and
+ * keeps it for their special values: Apple's libm misses lgamma() near its
+ * poles by a hundred units yet states the special values as glibc does.
+ * Every result of those members
  * also enters an FNV-1a digest per member, and c17_math_digests.h pins the
  * digests of a run whose results met a correctly rounded oracle (glibc).
  * A run without a trustworthy oracle must reproduce every bit of that run,
@@ -660,7 +665,7 @@ mix(uint64_t value)
 #else
 #define TRUSTED_FMAF	1
 #endif
-#ifdef C17_MATH_UNTRUSTED_APPROX
+#if defined(C17_MATH_UNTRUSTED_APPROX) || defined(C17_MATH_UNTRUSTED_SAMPLES)
 #define TRUSTED		0
 #else
 #define TRUSTED		1
@@ -994,6 +999,560 @@ approximate(void)
 	return 0;
 }
 
+
+/*
+ * Every provider at the edges.  A table of values holds each infinity, NaN,
+ * signed zero, the smallest subnormal, a domain boundary and magnitudes
+ * that overflow; each double and float member runs over it and is compared
+ * with the oracle.  Members whose result is exact (rounding, sign, scaling,
+ * neighbors, remainders) must match bit for bit; the others must agree in
+ * class (NaN, infinity, signed zero, finite) and to a relative bound.
+ *
+ * Independently of the oracle, every member must report the C17 7.12.1
+ * errors through errno, which math_errhandling promises: a NaN from
+ * arguments that are not NaN is EDOM, and an infinity from finite
+ * arguments (a pole or an overflow) is ERANGE.  nextafter and nexttoward
+ * overflow in x alone; their second argument names a direction.
+ */
+static const double edge_table[] = {
+	NAN, HUGE_VAL, -HUGE_VAL, 0.0, -0.0, 4.9406564584124654e-324,
+	-4.9406564584124654e-324, 1e-5, -1e-5, 0.5, -0.5, 0.7, -0.7, 1.0, -1.0,
+	1.5, -1.5, 2.0, -2.0, 2.5, -2.5, 3.0, -3.0, 5.0, -5.0, 100.0, -100.0,
+	1000.0, -1000.0, 1e300, -1e300, DBL_MAX, -DBL_MAX
+};
+#define NEDGE	(sizeof(edge_table) / sizeof(edge_table[0]))
+
+static const float edge_tablef[] = {
+	NAN, HUGE_VALF, -HUGE_VALF, 0.0f, -0.0f, 1.40129846e-45f,
+	-1.40129846e-45f, 1e-5f, -1e-5f, 0.5f, -0.5f, 0.7f, -0.7f, 1.0f, -1.0f,
+	1.5f, -1.5f, 2.0f, -2.0f, 2.5f, -2.5f, 3.0f, -3.0f, 5.0f, -5.0f,
+	100.0f, -100.0f, 1000.0f, -1000.0f, 88.0f, 89.0f, -104.0f, -110.0f,
+	1e30f, -1e30f, FLT_MAX, -FLT_MAX, FLT_MIN, -FLT_MIN, 16777216.0f,
+	0.99999994f, 1.00000012f, -0.99999994f
+};
+#define NEDGEF	(sizeof(edge_tablef) / sizeof(edge_tablef[0]))
+
+#define EXD1(F)	F(fabs, 1, 0) F(trunc, 1, 0) F(round, 1, 0) F(rint, 1, 0)	\
+	F(nearbyint, 1, 0) F(logb, 1, 0) F(floor, 1, 0) F(ceil, 1, 0)		\
+	F(acos, 0, 0) F(asin, 0, 0) F(atan, 0, 0) F(tan, 0, 1e5)		\
+	 F(cosh, 0, 0) F(sinh, 0, 0)		\
+	F(tanh, 0, 0) F(exp, 0, 0) F(log, 0, 0) F(log10, 0, 0)			\
+	F(sqrt, 0, 0) F(erf, 0, 0) F(erfc, 0, 0) F(acosh, 0, 0)			\
+	F(asinh, 0, 0) F(atanh, 0, 0) F(cbrt, 0, 0) F(exp2, 0, 0)		\
+	F(expm1, 0, 0) F(log1p, 0, 0) F(log2, 0, 0) F(lgamma, 0, 0)		\
+	F(tgamma, 0, 0)
+#define EXD2(F)	F(fmax, 1) F(fmin, 1) F(fdim, 1) F(copysign, 1)			\
+	F(nextafter, 1) F(remainder, 1) F(fmod, 1)
+#define EXF1(F)	F(truncf, 1, 0) F(roundf, 1, 0) F(rintf, 1, 0)			\
+	F(nearbyintf, 1, 0) F(logbf, 1, 0) F(fabsf, 1, 0) F(ceilf, 1, 0)	\
+	F(floorf, 1, 0) F(acosf, 0, 0) F(asinf, 0, 0) F(atanf, 0, 0)		\
+	F(cosf, 0, 0) F(sinf, 0, 0) F(tanf, 0, 0) F(coshf, 0, 0)		\
+	F(sinhf, 0, 0) F(tanhf, 0, 0) F(expf, 0, 0) F(logf, 0, 0)		\
+	F(log10f, 0, 0) F(sqrtf, 0, 0) F(erff, 0, 0) F(erfcf, 0, 0)		\
+	F(acoshf, 0, 0) F(asinhf, 0, 0) F(atanhf, 0, 0) F(cbrtf, 0, 0)		\
+	F(exp2f, 0, 0) F(expm1f, 0, 0) F(log1pf, 0, 0) F(log2f, 0, 0)		\
+	F(lgammaf, 0, 0) F(tgammaf, 0, 0)
+#define EXF2(F)	F(fmaxf, 1) F(fminf, 1) F(fdimf, 1) F(copysignf, 1)		\
+	F(nextafterf, 1) F(remainderf, 1) F(fmodf, 1) F(powf, 0)		\
+	F(atan2f, 0) F(hypotf, 0)
+
+#define DECL1D(n, e, big) double tree_##n(double);
+#define DECL2D(n, e) double tree_##n(double, double);
+#define DECL1F(n, e, big) float tree_##n(float);
+#define DECL2F(n, e) float tree_##n(float, float);
+EXD1(DECL1D)
+EXD2(DECL2D)
+EXF1(DECL1F)
+EXF2(DECL2F)
+
+struct edge1d { const char *name; double (*tree)(double);
+    double (*host)(double); int exact; double big; };
+struct edge2d { const char *name; double (*tree)(double, double);
+    double (*host)(double, double); int exact; };
+struct edge1f { const char *name; float (*tree)(float);
+    float (*host)(float); int exact; double big; };
+struct edge2f { const char *name; float (*tree)(float, float);
+    float (*host)(float, float); int exact; };
+#define ROW1D(n, e, big) { #n, tree_##n, n, e, big },
+#define ROW2D(n, e) { #n, tree_##n, n, e },
+#define ROW1F(n, e, big) { #n, tree_##n, n, e, big },
+#define ROW2F(n, e) { #n, tree_##n, n, e },
+static const struct edge1d edge1d[] = { EXD1(ROW1D) };
+static const struct edge2d edge2d[] = { EXD2(ROW2D) };
+static const struct edge1f edge1f[] = { EXF1(ROW1F) };
+static const struct edge2f edge2f[] = { EXF2(ROW2F) };
+
+static int
+edge_close(double got, double want, double rel, double absolute)
+{
+	double difference;
+
+	if (want != want)
+		return got != got;
+	if (got != got)
+		return 0;
+	if (want - want != 0.0 || got - got != 0.0)
+		return got == want;
+	if (want == 0.0 && got == 0.0)
+		return bits_of(got) == bits_of(want);
+	difference = got > want ? got - want : want - got;
+	return difference <= rel * (want < 0.0 ? -want : want) + absolute;
+}
+
+/*
+ * newlib, the oracle of the qemu-user variant, returns an infinity for
+ * tgamma(-infinity) where C17 F.10.5.4 gives a NaN, and its gamma functions
+ * differ elsewhere; the glibc and NetBSD variants hold their values.
+ */
+static int
+edge_untrusted(const char *name)
+{
+#ifdef C17_MATH_UNTRUSTED_APPROX
+	return (name[0] == 't' && name[1] == 'g') ||
+	    (name[0] == 'l' && name[1] == 'g');
+#else
+	(void)name;
+	return 0;
+#endif
+}
+
+/*
+ * Exact members must match bit for bit, except that C17 F.10.9.2 lets
+ * fmax and fmin return either zero for zeros of opposite signs.
+ */
+static int
+edge_same(const char *name, double got, double want)
+{
+	if (name[0] == 'f' && name[1] == 'm' && (name[2] == 'a' || name[2] == 'i') &&
+	    (name[3] == 'x' || name[3] == 'n') && got == 0.0 && want == 0.0)
+		return 1;
+#ifdef C17_MATH_UNTRUSTED_APPROX
+	/*
+	 * 7.12.11.3 returns y when x equals y, so the step from one zero to
+	 * the zero of the other sign has y's sign; older newlib returns x.
+	 */
+	if (name[0] == 'n' && name[1] == 'e' && name[2] == 'x' && name[3] == 't' &&
+	    got == 0.0 && want == 0.0)
+		return 1;
+#endif
+	return same(got, want);
+}
+
+/* The low three bits of the quotient 7.12.10.3 requires; newlib's differ. */
+static int
+edge_quotient_differs(int got, int want, int equal_magnitudes)
+{
+#ifdef C17_MATH_UNTRUSTED_APPROX
+	(void)got;
+	(void)want;
+	(void)equal_magnitudes;
+	return 0;
+#else
+	/*
+	 * NetBSD's remquo and remquof give +1 for x and -x, where the
+	 * quotient is -1 (7.12.10.3); the oracle is wrong there.
+	 */
+#ifdef C17_MATH_NETBSD_ORACLE
+	if (equal_magnitudes)
+		return 0;
+#else
+	(void)equal_magnitudes;
+#endif
+	return (got & 7) != (want & 7);
+#endif
+}
+
+static int
+edge_finite(double value)
+{
+	return value - value == 0.0;
+}
+
+/* The errno a result calls for, or 0 when C17 7.12.1 asks for none. */
+static int
+edge_errno(double result, int finite_args, int nan_args)
+{
+	if (result != result)
+		return nan_args ? 0 : EDOM;
+	if (!edge_finite(result) && finite_args)
+		return ERANGE;
+	return 0;
+}
+
+#define EDGE_FAIL(name, a, b, got, want, status) do {			\
+	printf("FAIL %s: (%016llx, %016llx) gives %016llx, want %016llx\n", \
+	    name, HEX(a), HEX(b), HEX(got), HEX(want));			\
+	return status;							\
+} while (0)
+#define EDGE_ERRNO_FAIL(name, a, b, got, observed, expect) do {		\
+	printf("FAIL %s: (%016llx, %016llx) gives %016llx with errno %d, " \
+	    "want %d\n", name, HEX(a), HEX(b), HEX(got), observed, expect);	\
+	return 7;							\
+} while (0)
+
+static int
+edges(void)
+{
+	unsigned long i, j, k;
+
+	{
+		/*
+		 * lgamma of the smallest subnormal is 1074 ln 2, stated here
+		 * without the oracle so that a run whose oracle is withdrawn
+		 * for the gamma members still requires a finite result.
+		 */
+		double tiny = 0x1p-1074, got = tree_p_lgamma(tiny);
+		double want = 744.44007192138122;
+
+		if (!edge_close(got, want, 1e-9, 1e-12))
+			EDGE_FAIL("lgamma", tiny, 0.0, got, want, 7);
+	}
+	for (k = 0; k < sizeof(edge1d) / sizeof(edge1d[0]); k++) {
+		const struct edge1d *e = &edge1d[k];
+
+		for (i = 0; i < NEDGE; i++) {
+			double x = edge_table[i], got, want;
+			int observed, expect;
+
+			if (e->big != 0.0 && fabs(x) > e->big && x - x == 0.0)
+				continue;
+			errno = 0;
+			got = e->tree(x);
+			observed = errno;
+			want = e->host(x);
+			checks += 2;
+			expect = edge_errno(got, x - x == 0.0, x != x);
+			if (expect != 0 && observed != expect)
+				EDGE_ERRNO_FAIL(e->name, x, 0.0, got, observed, expect);
+			if (!edge_untrusted(e->name) && (e->exact ? !edge_same(e->name, got, want) :
+			    !edge_close(got, want, 1e-9, 1e-12)))
+				EDGE_FAIL(e->name, x, 0.0, got, want, 7);
+		}
+	}
+	for (k = 0; k < sizeof(edge2d) / sizeof(edge2d[0]); k++) {
+		const struct edge2d *e = &edge2d[k];
+		int toward = e->name[0] == 'n';
+
+		for (i = 0; i < NEDGE; i++)
+			for (j = 0; j < NEDGE; j++) {
+				double x = edge_table[i], y = edge_table[j];
+				double got, want;
+				int observed, expect, finite;
+
+				errno = 0;
+				got = e->tree(x, y);
+				observed = errno;
+				want = e->host(x, y);
+				checks += 2;
+				finite = toward ? x - x == 0.0 :
+				    (x - x == 0.0 && y - y == 0.0);
+				expect = edge_errno(got, finite,
+				    x != x || y != y);
+				if (expect != 0 && observed != expect)
+					EDGE_ERRNO_FAIL(e->name, x, y, got,
+					    observed, expect);
+				if (!edge_untrusted(e->name) && (e->exact ? !edge_same(e->name, got, want) :
+				    !edge_close(got, want, 1e-9, 1e-12)))
+					EDGE_FAIL(e->name, x, y, got, want, 7);
+			}
+	}
+	for (k = 0; k < sizeof(edge1f) / sizeof(edge1f[0]); k++) {
+		const struct edge1f *e = &edge1f[k];
+
+		for (i = 0; i < NEDGEF; i++) {
+			float x = edge_tablef[i], got, want;
+			int observed, expect;
+
+			if (e->big != 0.0 && fabs((double)x) > e->big &&
+			    x - x == 0.0f)
+				continue;
+			errno = 0;
+			got = e->tree(x);
+			observed = errno;
+			want = e->host(x);
+			checks += 2;
+			expect = edge_errno(got, x - x == 0.0f, x != x);
+			if (expect != 0 && observed != expect)
+				EDGE_ERRNO_FAIL(e->name, x, 0.0, got, observed, expect);
+			if (!edge_untrusted(e->name) && (e->exact ? !edge_same(e->name, got, want) :
+			    !edge_close(got, want, 1e-5, 1e-9)))
+				EDGE_FAIL(e->name, x, 0.0, got, want, 7);
+		}
+	}
+	for (k = 0; k < sizeof(edge2f) / sizeof(edge2f[0]); k++) {
+		const struct edge2f *e = &edge2f[k];
+		int toward = e->name[0] == 'n';
+
+		for (i = 0; i < NEDGEF; i++)
+			for (j = 0; j < NEDGEF; j++) {
+				float x = edge_tablef[i], y = edge_tablef[j];
+				float got, want;
+				int observed, expect, finite;
+
+				errno = 0;
+				got = e->tree(x, y);
+				observed = errno;
+				want = e->host(x, y);
+				checks += 2;
+				finite = toward ? x - x == 0.0f :
+				    (x - x == 0.0f && y - y == 0.0f);
+				expect = edge_errno(got, finite,
+				    x != x || y != y);
+				if (expect != 0 && observed != expect)
+					EDGE_ERRNO_FAIL(e->name, x, y, got,
+					    observed, expect);
+				if (!edge_untrusted(e->name) && (e->exact ? !edge_same(e->name, got, want) :
+				    !edge_close(got, want, 1e-5, 1e-9)))
+					EDGE_FAIL(e->name, x, y, got, want, 7);
+			}
+	}
+	/*
+	 * sinf, cosf and tanf of magnitudes from 2**16 to 2**127, where the
+	 * range reduction works from the bits of 2/pi; the double functions
+	 * of the hosting library are exact for the widened argument.
+	 */
+	for (i = 0; i < 20000; i++) {
+		float x = nearf(16, 127);
+		float sine = tree_sinf(x), cosine = tree_cosf(x);
+		float tangent = tree_tanf(x);
+
+		checks += 3;
+		if (!edge_close(sine, (float)sin((double)x), 1e-5, 1e-9))
+			EDGE_FAIL("sinf", x, 0.0, sine, (float)sin((double)x), 7);
+		if (!edge_close(cosine, (float)cos((double)x), 1e-5, 1e-9))
+			EDGE_FAIL("cosf", x, 0.0, cosine, (float)cos((double)x), 7);
+		if (!edge_close(tangent, (float)tan((double)x), 1e-5, 1e-9))
+			EDGE_FAIL("tanf", x, 0.0, tangent, (float)tan((double)x), 7);
+	}
+	return 0;
+}
+
+float tree_scalblnf(float, long);
+float tree_ldexpf(float, int);
+float tree_frexpf(float, int *);
+float tree_nexttowardf(float, long double);
+long long tree_llrintf(float);
+long tree_lroundf(float);
+long long tree_llround(double);
+
+#define OTHER_FAIL(name, x, y, got, want) do {				\
+	printf("FAIL %s: (%016llx, %016llx) gives %016llx, want %016llx\n", \
+	    name, HEX(x), HEX(y), HEX(got), HEX(want));			\
+	return 7;							\
+} while (0)
+#define OTHER_ERRNO(name, x, y, got, finite, nan_args) do {		\
+	int expect_ = edge_errno((double)(got), (finite), (nan_args));	\
+									\
+	if (expect_ != 0 && observed != expect_) {			\
+		printf("FAIL %s: (%016llx, %016llx) gives %016llx with "	\
+		    "errno %d, want %d\n", name, HEX(x), HEX(y),	\
+		    HEX(got), observed, expect_);			\
+		return 7;						\
+	}								\
+} while (0)
+
+/* The members whose signatures the tables above do not cover. */
+static int
+edges_other(void)
+{
+	static const long counts[] = {
+		0, 1, -1, 7, -7, 1023, 1024, -1074, -1075, 2000, -2200,
+#if defined(C17_MATH_UNTRUSTED_APPROX) || defined(C17_MATH_NETBSD_ORACLE)
+		/*
+		 * newlib's scalbln() returns an infinity for a count near
+		 * LONG_MIN, and NetBSD's scalbn() wraps an int sum for one
+		 * near INT_MAX, returning zero for a large value; the
+		 * oracles are wrong there.
+		 */
+		1000000L, -1000000L
+#else
+		2147483647L, -2147483647L - 1
+#endif
+	};
+	unsigned long i, j, k;
+
+	for (i = 0; i < NEDGE; i++) {
+		double x = edge_table[i];
+
+		/* FP_ILOGB0 and FP_ILOGBNAN are the tree's own; finite values only. */
+		checks += 2;
+		if (x - x == 0.0 && x != 0.0 &&
+		    (tree_ilogb(x) != ilogb(x) ||
+		    tree_ilogbf((float)x) != ilogbf((float)x)) &&
+		    fabs(x) < FLT_MAX && fabs(x) > FLT_MIN)
+			OTHER_FAIL("ilogb", x, 0.0, (double)tree_ilogb(x),
+			    (double)ilogb(x));
+		for (j = 0; j < sizeof(counts) / sizeof(counts[0]); j++) {
+			long n = counts[j];
+			double got, want;
+			float gotf, wantf;
+			float xf = (float)x;
+			int observed;
+
+			errno = 0;
+			got = tree_scalbn(x, (int)n);
+			observed = errno;
+			want = scalbn(x, (int)n);
+			checks += 2;
+			OTHER_ERRNO("scalbn", x, (double)n, got, x - x == 0.0, x != x);
+			if (!same(got, want))
+				OTHER_FAIL("scalbn", x, (double)n, got, want);
+			errno = 0;
+			got = tree_scalbln(x, n);
+			observed = errno;
+			want = scalbln(x, n);
+			checks += 2;
+			OTHER_ERRNO("scalbln", x, (double)n, got, x - x == 0.0, x != x);
+			if (!same(got, want))
+				OTHER_FAIL("scalbln", x, (double)n, got, want);
+			errno = 0;
+			gotf = tree_scalbnf(xf, (int)n);
+			observed = errno;
+			wantf = scalbnf(xf, (int)n);
+			checks += 2;
+			OTHER_ERRNO("scalbnf", xf, (double)n, gotf, xf - xf == 0.0f, xf != xf);
+			if (!samef(gotf, wantf))
+				OTHER_FAIL("scalbnf", xf, (double)n, gotf, wantf);
+			errno = 0;
+			gotf = tree_scalblnf(xf, n);
+			observed = errno;
+			wantf = scalblnf(xf, n);
+			checks += 2;
+			OTHER_ERRNO("scalblnf", xf, (double)n, gotf, xf - xf == 0.0f, xf != xf);
+			if (!samef(gotf, wantf))
+				OTHER_FAIL("scalblnf", xf, (double)n, gotf, wantf);
+			errno = 0;
+			gotf = tree_ldexpf(xf, (int)n);
+			observed = errno;
+			wantf = ldexpf(xf, (int)n);
+			checks += 2;
+			OTHER_ERRNO("ldexpf", xf, (double)n, gotf, xf - xf == 0.0f, xf != xf);
+			if (!samef(gotf, wantf))
+				OTHER_FAIL("ldexpf", xf, (double)n, gotf, wantf);
+		}
+	}
+	for (i = 0; i < NEDGEF; i++) {
+		float x = edge_tablef[i], mantissa, expected;
+		int exponent = -12345, want_exponent = -12345;
+
+		mantissa = tree_frexpf(x, &exponent);
+		expected = frexpf(x, &want_exponent);
+		checks++;
+		if (!samef(mantissa, expected) ||
+		    (x - x == 0.0f && exponent != want_exponent))
+			OTHER_FAIL("frexpf", x, (double)exponent, mantissa, expected);
+		for (j = 0; j < NEDGEF; j++) {
+			float y = edge_tablef[j], got, want;
+			int observed;
+			int quotient = 0, want_quotient = 0;
+
+			errno = 0;
+			got = tree_nexttowardf(x, (long double)y);
+			observed = errno;
+			want = nexttowardf(x, (long double)y);
+			checks += 2;
+			OTHER_ERRNO("nexttowardf", x, y, got, x - x == 0.0f, x != x || y != y);
+			if (!samef(got, want))
+				OTHER_FAIL("nexttowardf", x, y, got, want);
+			errno = 0;
+			got = tree_remquof(x, y, &quotient);
+			observed = errno;
+			want = remquof(x, y, &want_quotient);
+			checks += 2;
+			OTHER_ERRNO("remquof", x, y, got, x - x == 0.0f && y - y == 0.0f, x != x || y != y);
+			if (!samef(got, want) ||
+			    (x - x == 0.0f && y - y == 0.0f && y != 0.0f &&
+			    edge_quotient_differs(quotient, want_quotient, x == y || x == -y)))
+				OTHER_FAIL("remquof", x, y, got, want);
+		}
+	}
+	for (i = 0; i < NEDGE; i++) {
+		double x = edge_table[i];
+
+		for (j = 0; j < NEDGE; j++) {
+			double y = edge_table[j], got, want;
+			int observed;
+			int quotient = 0, want_quotient = 0;
+
+			errno = 0;
+			got = tree_remquo(x, y, &quotient);
+			observed = errno;
+			want = remquo(x, y, &want_quotient);
+			checks += 2;
+			OTHER_ERRNO("remquo", x, y, got, x - x == 0.0 && y - y == 0.0, x != x || y != y);
+			if (!same(got, want) ||
+			    (x - x == 0.0 && y - y == 0.0 && y != 0.0 &&
+			    edge_quotient_differs(quotient, want_quotient, x == y || x == -y)))
+				OTHER_FAIL("remquo", x, y, got, want);
+#ifndef C17_MATH_UNTRUSTED_FMA
+			for (k = 0; k < NEDGE; k++) {
+				double z = edge_table[k];
+				int fobserved;
+
+				errno = 0;
+				got = tree_fma(x, y, z);
+				fobserved = errno;
+				want = fma(x, y, z);
+				checks += 2;
+				if (!same(got, want))
+					OTHER_FAIL("fma", x, y, got, want);
+				{
+					int e = edge_errno(got, x - x == 0.0 && y - y == 0.0 && z - z == 0.0, x != x || y != y || z != z);
+
+					if (e != 0 && fobserved != e) {
+						printf("FAIL fma: (%016llx, %016llx, %016llx) errno %d, want %d\n",
+						    HEX(x), HEX(y), HEX(z), fobserved, e);
+						return 7;
+					}
+				}
+			}
+#else
+			checks += 2 * NEDGE;	/* the same count for every variant */
+#endif
+		}
+	}
+	for (i = 0; i < NEDGEF; i++)
+		for (j = 0; j < NEDGEF; j++)
+			for (k = 0; k < NEDGEF; k += 2) {
+				float x = edge_tablef[i], y = edge_tablef[j];
+				float z = edge_tablef[k], got, want;
+				int observed;
+
+				errno = 0;
+				got = tree_fmaf(x, y, z);
+				observed = errno;
+				want = fmaf(x, y, z);
+				checks += 2;
+#ifndef C17_MATH_UNTRUSTED_FMAF
+				if (!samef(got, want))
+					OTHER_FAIL("fmaf", x, y, got, want);
+#else
+				(void)want;
+#endif
+				OTHER_ERRNO("fmaf", x, y, got, x - x == 0.0f && y - y == 0.0f && z - z == 0.0f, x != x || y != y || z != z);
+			}
+	for (i = 0; i < NEDGEF; i++) {
+		float x = edge_tablef[i];
+
+		checks += 2;
+		if (x - x == 0.0f && x > -2147483648.0f && x < 2147483648.0f) {
+			if (tree_llrintf(x) != (long long)host_llrint(x) ||
+			    tree_lroundf(x) != (long)host_llround(x))
+				OTHER_FAIL("lrintf", x, 0.0, (double)tree_llrintf(x),
+				    (double)host_llrint(x));
+		}
+	}
+	{
+		float nf = tree_nanf("");
+		double nd = tree_nan("");
+
+		checks += 2;
+		if (nf == nf || nd == nd)
+			OTHER_FAIL("nan", nd, nf, nd, nf);
+	}
+	return 0;
+}
+
 int
 main(void)
 {
@@ -1001,7 +1560,8 @@ main(void)
 
 	if ((status = rounding()) != 0 || (status = ordering()) != 0 ||
 	    (status = scaling()) != 0 || (status = remainders()) != 0 ||
-	    (status = fused()) != 0 || (status = approximate()) != 0)
+	    (status = fused()) != 0 || (status = approximate()) != 0 ||
+	    (status = edges()) != 0 || (status = edges_other()) != 0)
 		return status;
 	printf("c17 math: %lu checks passed\n", checks);
 	return 0;

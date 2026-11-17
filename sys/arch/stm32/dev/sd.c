@@ -322,8 +322,7 @@ sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
  * Return true if found and initialized ok.
  */
 static int
-sd_probe(config)
-    struct conf_device *config;
+sd_probe(const struct conf_device *config)
 {
     int unit = config->dev_unit;
     const char *ctlr_name = config->dev_cdriver->d_name;
@@ -347,6 +346,6 @@ sd_probe(config)
     return 1;
 }
 
-struct driver sddriver = {
+const struct driver sddriver = {
     "sd", sd_probe,
 };

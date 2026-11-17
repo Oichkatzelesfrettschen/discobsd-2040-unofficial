@@ -28,9 +28,11 @@
 
 #include <math.h>
 
+#include "fpbits.h"
+
 /* scalblnf(): see scalbnf.c. */
 float
 scalblnf(float x, long n)
 {
-	return (float)scalbln((double)x, n);
+	return fp_narrow(scalbln((double)x, n));
 }

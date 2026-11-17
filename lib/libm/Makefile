@@ -20,7 +20,7 @@ C17OBJS         = acosf.o acosh.o acoshf.o asinf.o asinh.o asinhf.o atan2f.o \
                   logf.o lrint.o lrintf.o lround.o lroundf.o nan.o nanf.o \
                   nearbyint.o nearbyintf.o nextafter.o nextafterf.o \
                   nexttowardf.o powf.o remainder.o remainderf.o remquo.o \
-                  remquof.o rint.o rintf.o round.o roundf.o scalbln.o \
+                  remquof.o rempio2f.o rint.o rintf.o round.o roundf.o scalbln.o \
                   scalblnf.o scalbn.o scalbnf.o sinf.o sinhf.o sqrtf.o \
                   tanf.o tanhf.o tgamma.o tgammaf.o trunc.o truncf.o
 

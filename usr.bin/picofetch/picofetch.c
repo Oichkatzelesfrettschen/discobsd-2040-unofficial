@@ -13,7 +13,8 @@
  * does not serve prints "not in this kernel"; a failed read prints "read
  * failed". The program writes nothing to the kernel.
  *
- * The eight readings beside the logo are the short ones; the rows below it
+ * The eight readings beside the logo are the short ones (at most 28
+ * columns, so the core clocks carry the bus clock only when it differs); the rows below it
  * use the whole width. On the PicoCalc the report is at most 30 rows, so
  * the command line above it and the prompt below it stay on the screen.
  *
@@ -165,17 +166,19 @@ build(void)
 		snprintf(l->text, sizeof l->text, "%s", why(&hw.boottime));
 
 	l = add("CPU");
-	if (hw.cpu_khz.state == RD_OK)
+	if (hw.cpu_khz.state == RD_OK) {
 		snprintf(l->text, sizeof l->text, "%ld.%03ld MHz, %ld Hz tick",
 		    hw.cpu_khz.v / 1000, hw.cpu_khz.v % 1000, hw.hz.v);
-	else
+		/* The peripheral clock follows the core's; a split shows. */
+		if (hw.bus_khz.state == RD_OK && hw.bus_khz.v != hw.cpu_khz.v) {
+			size_t n = strlen(l->text);
+
+			snprintf(l->text + n, sizeof l->text - n,
+			    ", bus %ld.%03ld MHz", hw.bus_khz.v / 1000,
+			    hw.bus_khz.v % 1000);
+		}
+	} else
 		snprintf(l->text, sizeof l->text, "%s", why(&hw.cpu_khz));
-	l = add("Bus");
-	if (hw.bus_khz.state == RD_OK)
-		snprintf(l->text, sizeof l->text, "%ld.%03ld MHz peripheral",
-		    hw.bus_khz.v / 1000, hw.bus_khz.v % 1000);
-	else
-		snprintf(l->text, sizeof l->text, "%s", why(&hw.bus_khz));
 
 	l = add("SRAM");
 	pc_size(a, sizeof a, hw.physmem.v / 1024);
@@ -189,6 +192,15 @@ build(void)
 	else
 		snprintf(l->text, sizeof l->text, "%dx%d cells, %s", term.cols,
 		    term.rows, term.tier == PC_PLAIN ? "plain" : "ANSI");
+
+	l = add("Load");
+	if (hw.load[0].state == RD_OK)
+		snprintf(l->text, sizeof l->text,
+		    "%ld.%02ld %ld.%02ld %ld.%02ld run %ld", hw.load[0].v / 100,
+		    hw.load[0].v % 100, hw.load[1].v / 100, hw.load[1].v % 100,
+		    hw.load[2].v / 100, hw.load[2].v % 100, hw.runq.v);
+	else
+		snprintf(l->text, sizeof l->text, "%s", why(&hw.load[0]));
 
 	l = add("Cores");
 	if (hw.core1.state == RD_OK) {
@@ -266,6 +278,24 @@ build(void)
 	else
 		snprintf(l->text, sizeof l->text, "%s", why(&hw.image_length));
 
+	l = add("Chip");
+	if (hw.flash_id.state != RD_OK)
+		snprintf(l->text, sizeof l->text, "%s", hw.flash_id.state ==
+		    RD_ABSENT ? "not in this kernel" : "read failed");
+	else if (!hw.flash_id.valid)
+		snprintf(l->text, sizeof l->text, "identity unread");
+	else {
+		size_t n;
+
+		snprintf(l->text, sizeof l->text, "JEDEC %02x%02x%02x, id ",
+		    hw.flash_id.id[0], hw.flash_id.id[1], hw.flash_id.id[2]);
+		for (i = 3; i < 11; i++) {
+			n = strlen(l->text);
+			snprintf(l->text + n, sizeof l->text - n, "%02x",
+			    hw.flash_id.id[i]);
+		}
+	}
+
 	l = add("XIP");
 	if (hw.xip_cache.state == RD_OK) {
 		unsigned long acc = (unsigned long)hw.xip_acc.v;
@@ -287,18 +317,29 @@ build(void)
 
 	l = add("Battery");
 	if (hw.battery.state == RD_OK) {
+		size_t n;
+
 		snprintf(l->text, sizeof l->text, "%ld%%%s", hw.battery.v,
 		    hw.charging.state == RD_OK && hw.charging.v ?
 		    " charging" : "");
+		n = strlen(l->text);
+		if (hw.lcd_backlight.state == RD_OK)
+			snprintf(l->text + n, sizeof l->text - n,
+			    ", panel %ld keys %ld", hw.lcd_backlight.v,
+			    hw.kbd_backlight.v);
 		bar(l, hw.battery.v, 100, 1);
 	} else
 		snprintf(l->text, sizeof l->text, "%s", why(&hw.battery));
-	l = add("Light");
-	if (hw.lcd_backlight.state == RD_OK)
-		snprintf(l->text, sizeof l->text, "panel %ld, keys %ld of 240",
-		    hw.lcd_backlight.v, hw.kbd_backlight.v);
+
+	l = add("Audio");
+	if (hw.pcm.state == RD_OK)
+		snprintf(l->text, sizeof l->text,
+		    "%ld Hz, %ld ch, %ld bit, %s, queue %ld/%ld", hw.pcm.rate,
+		    hw.pcm.channels, hw.pcm.bits, hw.pcm.open ? "in use" :
+		    "idle", hw.pcm.queued, hw.pcm.ring);
 	else
-		snprintf(l->text, sizeof l->text, "%s", why(&hw.lcd_backlight));
+		snprintf(l->text, sizeof l->text, "%s", hw.pcm.state ==
+		    RD_ABSENT ? "not in this kernel" : "read failed");
 
 	l = add("Sensors");
 	if (hw.temp_mc.state == RD_OK)
@@ -307,15 +348,6 @@ build(void)
 		    hw.vsys_mv.v / 1000, hw.vsys_mv.v % 1000 / 10);
 	else
 		snprintf(l->text, sizeof l->text, "%s", why(&hw.temp_mc));
-
-	l = add("Load");
-	if (hw.load[0].state == RD_OK)
-		snprintf(l->text, sizeof l->text,
-		    "%ld.%02ld %ld.%02ld %ld.%02ld run %ld", hw.load[0].v / 100,
-		    hw.load[0].v % 100, hw.load[1].v / 100, hw.load[1].v % 100,
-		    hw.load[2].v / 100, hw.load[2].v % 100, hw.runq.v);
-	else
-		snprintf(l->text, sizeof l->text, "%s", why(&hw.load[0]));
 
 	l = add("Tables");
 	if (hw.t_proc.state == RD_OK) {

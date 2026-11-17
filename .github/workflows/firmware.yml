@@ -681,7 +681,7 @@ jobs:
     name: Required ILP32 execution (shell, kernel, libc and utilities)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Install bmake and the 32-bit compiler support
@@ -700,17 +700,19 @@ jobs:
             --status .build-logs/posix-inventory.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-test-execution
-      # The inventory runs about ten minutes on a hosted runner. The gate
+      # With the C17 library families the inventory runs about twenty-one
+      # minutes on a hosted runner: one run finished inside 1320 s and the
+      # next was stopped there with libbn and libcalc still to run. The gate
       # deadline leaves half of that again, and the step limit stays above
       # the gate deadline so the gate writes its own terminal status.
       - name: Execute every required variant
-        timeout-minutes: 24
+        timeout-minutes: 34
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label posix-ilp32 \
             --log .build-logs/posix-ilp32.log \
             --status .build-logs/posix-ilp32.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1320 \
+            --idle-timeout-seconds 300 --timeout-seconds 1920 \
             -- bmake MACHINE=rp2040 check-ilp32-execution \
               TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
       # dc and bc need the 32-bit C library headers the gates job lacks,

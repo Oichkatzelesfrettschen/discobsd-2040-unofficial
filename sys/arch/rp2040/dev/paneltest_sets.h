@@ -39,7 +39,8 @@
  * st7365p.c; NONE is empty. Values come from ST7365P_SPEC_V1.0: CSCON F0h
  * C3h/96h (page 245), PGC/NGC defaults (pages 240-241), PWR3 C2h default
  * A5h (page 233), VCMPCTL C5h (page 235), DIC B4h (page 223), FRMCTR1 B1h
- * (page 220), MADCTL 36h (page 188). No set writes an NVM command (D0h,
+ * (page 220), BPC B5h (page 222), MADCTL 36h (page 188). Sets are appended,
+ * so a set keeps its number across revisions. No set writes an NVM command (D0h,
  * D1h) or a value outside the datasheet's documented range.
  *
  * X(name, pre, base, post); the index in this list is the set number.
@@ -65,7 +66,13 @@
 	X("probe gamma zero locked",	NONE,	DRIVER,	GAMMA_ZERO) \
 	X("probe gamma zero unlocked",	UNLOCK,	DRIVER,	GAMMA_ZERO) \
 	X("madctl 40 rgb bit clear",	NONE,	DRIVER,	MADCTL_40) \
-	X("madctl 08 mx clear",		NONE,	DRIVER,	MADCTL_08)
+	X("madctl 08 mx clear",		NONE,	DRIVER,	MADCTL_08) \
+	X("frame 24hz diva2 unlocked",	UNLOCK,	DRIVER,	FRAME_24HZ) \
+	X("frame 40hz unlocked",	UNLOCK,	DRIVER,	FRAME_40HZ) \
+	X("frame 60hz unlocked",	UNLOCK,	DRIVER,	FRAME_60HZ) \
+	X("frame 75hz unlocked",	UNLOCK,	DRIVER,	FRAME_75HZ) \
+	X("frame 90hz unlocked",	UNLOCK,	DRIVER,	FRAME_90HZ) \
+	X("frame 120hz unlocked",	UNLOCK,	DRIVER,	FRAME_120HZ)
 
 #define	PANELTEST_COUNT_ONE(name, pre, base, post)	+ 1
 #define	PANELTEST_NSETS	(0 PANELTEST_SETS(PANELTEST_COUNT_ONE))

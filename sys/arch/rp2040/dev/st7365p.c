@@ -499,6 +499,46 @@ static const u_char VCOM_1C[] = { 0xc5, 1, 0x1c };
 static const u_char VCOM_30[] = { 0xc5, 1, 0x30 };
 static const u_char VCOM_3F[] = { 0xc5, 1, 0x3f };
 static const u_char FRAME_31HZ[] = { 0xb1, 1, 0x00 };
+
+/*
+ * Frame-rate sets. FRMCTR1 (B1h, page 219) takes FRS[3:0] and DIVA[1:0] in
+ * its first parameter and RTNA[4:0] in its second, and gives the normal
+ * mode frame rate as 10^7 / ((168 + RTNA + 32 (15 - FRS)) (480 + VFP + VBP)).
+ * BPC (B5h, page 222) has no documented reset value, so each set writes
+ * VFP = VBP = 2 (and HBP = 4), the values its table lists, which makes the
+ * second factor 484; B5h precedes SLPOUT as page 223 requires. The printed
+ * formula omits DIVA; the 24 Hz set takes DIVA = 01b (Fosc / 2) to halve a
+ * 48 Hz line timing, an inference that the GSCAN measurement checks.
+ *
+ *   set    FRS  DIVA  RTNA  line units           formula
+ *   24 Hz  7    01b   6     168 + 6 + 256 = 430  48.05 Hz, halved: 24.02 Hz
+ *   40 Hz  5    00b   28    168 + 28 + 320 = 516 40.04 Hz
+ *   60 Hz  10   00b   16    168 + 16 + 160 = 344 60.06 Hz (A0h 10h, the defaults)
+ *   75 Hz  12   00b   11    168 + 11 + 96 = 275  75.13 Hz
+ *   90 Hz  14   00b   30    168 + 30 + 32 = 230  89.83 Hz
+ *   120 Hz 15   00b   4     168 + 4 + 0 = 172    120.13 Hz
+ *
+ * FRAME_SET builds each table from its fields and asserts at compile time
+ * that the formula, shifted right by DIVA, lands within 0.25 Hz of the
+ * nominal rate.
+ */
+#define	FRAME_LINES	(480 + 2 + 2)
+#define	FRAME_MHZ(frs, diva, rtna) \
+	((10000000000ULL / ((168ULL + (rtna) + 32 * (15 - (frs))) * \
+	FRAME_LINES)) >> (diva))
+#define	FRAME_SET(name, frs, diva, rtna, hz) \
+	static const u_char name[] = { 0xb5, 4, 0x02, 0x02, 0x00, 0x04, \
+	    0xb1, 2, (frs) << 4 | (diva), (rtna) }; \
+	_Static_assert((frs) <= 15 && (diva) <= 3 && (rtna) <= 31 && \
+	    FRAME_MHZ(frs, diva, rtna) + 250 >= (hz) * 1000ULL && \
+	    FRAME_MHZ(frs, diva, rtna) <= (hz) * 1000ULL + 250, \
+	    #name " gives its nominal rate")
+FRAME_SET(FRAME_24HZ, 7, 1, 6, 24);
+FRAME_SET(FRAME_40HZ, 5, 0, 28, 40);
+FRAME_SET(FRAME_60HZ, 10, 0, 16, 60);
+FRAME_SET(FRAME_75HZ, 12, 0, 11, 75);
+FRAME_SET(FRAME_90HZ, 14, 0, 30, 90);
+FRAME_SET(FRAME_120HZ, 15, 0, 4, 120);
 static const u_char MADCTL_40[] = { CMD_MADCTL, 1, 0x40 };
 static const u_char MADCTL_08[] = { CMD_MADCTL, 1, 0x08 };
 

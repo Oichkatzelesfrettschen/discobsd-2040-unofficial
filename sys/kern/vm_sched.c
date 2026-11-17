@@ -42,7 +42,7 @@ char    runout;                 /* scheduling flag */
  * second.
  */
 void
-sched()
+sched(void)
 {
     register struct proc *rp;
     struct proc *swapped_out = 0, *in_core = 0;
@@ -238,7 +238,7 @@ sched()
  * Count up various things once a second
  */
 void
-vmmeter()
+vmmeter(void)
 {
 #ifdef UCB_METER
     register u_int *cp, *rp;
@@ -293,7 +293,7 @@ loadav (register short *avg, register int n)
 }
 
 void
-vmtotal()
+vmtotal(void)
 {
     register struct proc *p;
     register int nrun = 0;

@@ -118,7 +118,8 @@ def build(work, suite, changes):
             # select1() is the unit under test; rwuio() is linked but never
             # called, so its setjmp() resolves to the same stub as newproc()'s.
             extra += ["-include", str(TESTS / "itimer_setjmp.h")]
-        elif name in ("kern_prot.c", "kern_prot2.c"):
+        if name in ("kern_prot.c", "kern_prot2.c", "kern_proc.c", "kern_resource.c",
+                    "kern_time.c", "vm_sched.c"):
             extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
         obj = work / (name + ".o")
         run(CC + common + includes + extra + ["-c", str(source), "-o", str(obj)])

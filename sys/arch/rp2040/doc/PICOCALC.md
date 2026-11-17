@@ -120,7 +120,7 @@ name a file there, with a page for a PDF.
 | On Renode's SD card model, `reboot -d` writes a dump, the next boot's `savecore /mnt/crash` saves `dump.0` and a second run finds none, and a panic entered from the idle loop prints `dump: sd0b, 1024 kbytes: succeeded` and `halted`; the panic's dump on the card and `dump.0` pass an independent reader of the format | Renode | observed by `check-renode-picocalc-dump`: message 12 bytes, kernel data 49,888, two u areas of 3,072, `dump.0` 57,344 bytes; a kernel that dumps only on the reset path fails the panic stage |
 | `sdswapattach()` leaves swap on `fl1` on a bare Pico, with the PSRAM holding swap, with no card, an unreadable table, no type 0xb8 entry or one under 396 blocks, and otherwise selects the first 0xb8 entry of at least 396 blocks and holds it for the boot, so the open `main()` makes reads no table and a close of `/dev/swap` leaves it open; `sdsize()` reports a swap partition capped at 65,532 blocks and cut to a multiple of four; `sdstrategy()` on the swap device moves a count that ends inside a sector (the last sector zero-padded on a write, cut on a read, counted in `b_resid` when it fails or lies past the partition) and refuses such a count on every other partition | host | observed by `check-picocalc-host`: `sdstrat_test`, with 17 of its 90 mutants on these rules |
 | On Renode's SD card model a PICOCALC kernel prints `swap: sd0c` and `swap dev  = (5,3)` for a card with a 2 MiB type 0xb8 entry, runs the console, `picofetch`, `picotop` and crash-dump stages on it, and leaves swapped images on that partition; without a card it prints `swap dev  = (0,8)` | Renode | observed by `check-renode-picocalc-dump`: 81 of the partition's 512 4 KiB units nonzero after the run; a kernel whose `sdstrategy()` refuses a partial sector panics `hard err: swap` at the first swap-out and fails the gate; the no-card line by `check-renode-picocalc` |
-| Swap on a real card: selection at boot, swap traffic under a compile, a card pulled while it holds images | board | not run; a pulled card panics `hard err: swap` at the next swap transfer until the swapper handles a failed device |
+| Swap on a real card: selection at boot, swap traffic under a compile, a card pulled while it holds images | board | not run; the retirement of the processes a pulled card held rests on `check-swap-lost` and `check-swap-lost-io` (host) and on source; card detect has no Renode model |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
 | `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PicoCalc kernels' build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
@@ -857,10 +857,20 @@ up to that size. The swapper transfers an image segment's exact byte count,
 and `sdstrategy()` completes the last sector of such a transfer through a
 512-byte buffer, for the swap device only.
 
-The card stays the swap device until the next boot. A card pulled while it
-holds swap fails every later transfer, and the swapper panics `hard err:
-swap` on the first one; the crash dump of that panic has no card to go to.
-Flash under a card that holds swap takes no swap erases, which is the
+The card stays the swap device until the next boot. `sdswapattach()` marks
+it removable (`swap_removable`), so a failed transfer on it sets
+`swap_lost` (`sys/kern/vm_swp.c`) instead of panicking `hard err: swap`,
+and no later transfer reaches the card. `sched()` then retires every
+process whose image the card held (`swap_lost_sweep()`,
+`sys/kern/vm_swap.c`): each becomes a zombie with `SIGKILL` status, its
+children pass to init and its parent receives `SIGCHLD`; images in the
+SwapRAM pool, system processes and the resident process survive, and a lost
+init panics `init lost with the swap device`. A swap-out or fork copy that
+the loss interrupts cancels its reservation and leaves the process resident,
+and `fork()` unwinds the child and fails. Until the next boot the system
+swaps only to the SwapRAM pool; `fl1` does not take swap back. A retired
+process's open files and current directory stay referenced until reboot,
+because its u area was on the card. Flash under a card that holds swap takes no swap erases, which is the
 reason for the order: `fl1` has no wear leveling.
 
 ### Crash dumps

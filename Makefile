@@ -2393,17 +2393,19 @@ cleantests:
 			${MAKE} -C "$${mf%/Makefile}" clean || status=1; \
 		done; exit $$status
 
-# Every board's root image, flash image and descriptor-stamped kernel, which
-# distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
-# flash${BOARD_OUT_SUFFIX}.{bin,uf2} and unix${BOARD_OUT_SUFFIX}.uf2, so a
-# clean after one board's build also removes another's.
+# Every board's root image, flash image, descriptor-stamped kernel and SD
+# root, which distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
+# flash${BOARD_OUT_SUFFIX}.{bin,uf2}, unix${BOARD_OUT_SUFFIX}.uf2 and
+# sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img, so a clean after one
+# board's build also removes another's.
 cleanfs:
 		rm -f distrib/$(MACHINE)/_manifest distrib/$(MACHINE)/_manifest.*
 		rm -f $(FSIMG) distrib/$(MACHINE)/sdcard.img \
 		    distrib/$(MACHINE)/sdcard-*.img distrib/$(MACHINE)/flash.bin \
 		    distrib/$(MACHINE)/flash.uf2 distrib/$(MACHINE)/flash-*.bin \
 		    distrib/$(MACHINE)/flash-*.uf2 distrib/$(MACHINE)/unix.uf2 \
-		    distrib/$(MACHINE)/unix-*.uf2
+		    distrib/$(MACHINE)/unix-*.uf2 distrib/$(MACHINE)/sdroot.img \
+		    distrib/$(MACHINE)/sdroot-*.img
 
 # A tuple switch is safe only after every source-directory artifact class has
 # cleaned successfully. The serialized recipe avoids overlapping cleanup of

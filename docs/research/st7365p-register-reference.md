@@ -32,8 +32,10 @@ the PDF page image, and where a figure was not read, the entry says so.
 | `sys/arch/rp2040/dev/st7365p.c` at 793d34329 | this tree | `b96c3254e1a3dc8ca300afaddf39fb48d4a55d7a38bf366a52e155a1cdf42eb3` |
 | `sys/arch/rp2040/dev/lcdgfx.c` at 793d34329 | this tree | `c18820bafb69c8da7dfb74ab93cd341e842ca66cc0259b029aba8d3c88c4efd1` |
 | `sys/arch/rp2040/dev/lcdterm.c` at 793d34329 | this tree | `d31540c70f247f5b718a8016185ae6b745422bf48d3a827396a681c1efc9aee2` |
+| `sys/arch/rp2040/doc/PICOCALC.md` at 793d34329 | this tree | `7324c5cc8fb44e29def0dc0777918e50a76a323ffaa0d3152848b55353d4744b` |
 | `sys/arch/rp2040/doc/PANELTEST.md` | branch `rp2040-picocalc-panel-register-test` at b47cda40 | `c7c00ada0cba26e2036276fc737d475d498142905a0e0c09b0004e543c44ee1f` |
 | `sys/arch/rp2040/dev/paneltest_sets.h` | same branch and commit | `c9f57362816429c6818824bf6e228a049436d2d92da4ededdd9bb8cb5d11c5f8` |
+| `usr.bin/paneltest/paneltest.c` | same branch and commit | `4a7e3de719d2844223cde72633f68020d36c2980ae94d762137956c4a8fdf74e` |
 | `sys/arch/rp2040/dev/st7365p.c` with the panel test | same branch and commit | `e1945a0e4cc2cce761b4452414a4cea6954a3978cf86b55482aee793f12eeacf` |
 | Vendor PicoMite `picomite/SPI-LCD.c` (ST7796SP and ILI9488P sequences) | local reference set, ClockworkPi `pico_multi_booter` staging tree | `17e1cbe48ae64d606722bb982960254f9b802c43fb09ff1342bcfaf198c95eb2` |
 | Vendor `sd_boot/lcdspi/lcdspi.c` | same staging tree | `d5c9b8735e41c081636fef39a82c09773074c6588d9836119a7bdb916bb0e3ab` |
@@ -68,10 +70,15 @@ the ALDO3 rail and DB0-DB15 (pins 13-28) to ground, and routes SPI1_RX to SDO
 (29), SPI1_TX to SDA (30), SPI1_SCK to WR/SCL (32), LCD_DC to DCX (33),
 SPI1_CS to CS (34) and LCD_RST to RESET (11). IM[2:0] = 111 selects 4-line
 SPI (p. 42, ll. 2054-2064), and the unused DB pins are tied as page 93 requires
-(p. 93, ll. 4644-4647). The text extraction lists these labels on lines 16-48 of
-the schematic text, but it cannot show which stubs end unconnected; the
-connector was read from a 600 dpi render of the PDF around J401. RD (pin 31)
-and TE (pin 35) end in short stubs with no net label and no junction; pins
+(p. 93, ll. 4644-4647). The words at the connector pins are net labels on short
+stubs; a net joins every place its label occurs, and the ALDO3 and ground
+nets are also drawn as wires. The text extraction lists the labels on lines
+16-48 of the schematic text but cannot show wires; the connector was read
+from a 600 dpi render of the PDF around J401, and label occurrences were
+counted with `pdftotext -bbox` over the whole sheet. The labels RD (pin 31)
+and TE (pin 35) occur once each and their stubs end without a wire or
+junction, so each net has a single node; LEDA, LEDK and LCD_BL each occur
+twice (J401 or the keyboard controller, and the backlight LED driver). Pins
 2-6 and 12 carry no-connect marks. The datasheet asks that an unused RDX be
 fixed at VDDI or DGND (p. 42, ll. 2077-2079); whether the panel module ties it on
 its own flex is not documented (INF).
@@ -103,10 +110,16 @@ a whole dummy parameter for every read; that row describes the parallel bus
 (for example p. 153, l. 7900: "There is one dummy parameter when using Parallel
 interface"). The board run confirms both shapes: 0Ah, 0Bh and 0Ch return their
 value in the first byte, and the multi-byte 09h and D3h replies are the
-register shifted right by one bit. D3h, 45h (GSCAN), 2Eh and 3Eh have no
-4-line read figure; D3h behaved on the board as one dummy clock followed by
-24 data bits. RAMRD over 4-line SPI is not illustrated anywhere in the
-extraction (the read figures for memory are the 8080 formats of pages 76-79).
+register shifted right by one bit. The command pages' flow charts
+split serial from parallel mode for fifteen reads: the serial chart shows a
+"Dummy Clock" for 04h and 09h (p. 148, ll. 7541-7549; p. 152, ll. 7808-7816) and sends
+the data parameter directly for 0Ah-0Fh, 52h, 54h, 56h, 5Fh and DAh-DCh (for
+example p. 154, ll. 7936-7946, p. 204, ll. 11284-11294). The charts of 2Eh and 3Eh show
+a generic "Dummy" before the image data (p. 180, l. 9574, p. 199, l. 10932), the GSCAN
+chart a generic "Dummy read" (p. 202, l. 11117), and the charts of AAh, AFh, D2h
+and D3h are empty in the extraction; none of these seven has a serial-mode
+figure, so its dummy-clock count on this wiring is not documented. D3h
+behaved on the board as one dummy clock followed by 24 data bits.
 
 **Reset (DOC; DRV).** A RESX low pulse of at least 10 us resets the chip;
 shorter than 5 us is rejected (p. 59, ll. 2908-2929). After RESX rises, commands
@@ -333,9 +346,9 @@ bytes (`st7365p.c:190-196`) or, under lcdgfx COLMOD 55h, two.
 ### 2Eh RAMRD -- Memory Read (p. 178, l. 9496)
 
 Read: one dummy parameter, then pixels from the window start; any other
-command cancels (pp. 178-179, ll. 9504-9527). Default RAM random. The 4-line SPI read
-figures do not cover RAMRD, so its dummy-clock count on this wiring is not
-documented.
+command cancels (pp. 178-179, ll. 9504-9527). Default RAM random. The flow chart shows "Dummy" then the image data, ended by any command
+(p. 180, ll. 9574-9589); no 4-line SPI figure covers RAMRD, so its dummy-clock
+count on this wiring is not documented.
 Status: NOT IMPLEMENTED. It would let the 160 RAM rows that are off the
 glass at a given scroll start serve as readable scratch, and would allow a
 read-modify-write cursor; blockers are the undocumented SPI dummy timing, the
@@ -346,6 +359,9 @@ read clock (at most 6.67 MHz, p. 54, l. 2633), and the lack of any caller.
 Four parameters: PSL[15:0] start row, PEL[15:0] end row, frame-memory row
 addresses; with PEL < PSL the area wraps; PSL = PEL is one row
 (p. 181, ll. 9610-9669). Defaults PSL = 0000h, PEL = 01DFh (p. 182, ll. 9693-9699).
+Ordering (flow chart, p. 182, ll. 9703-9733): optionally DISPOFF to prevent
+tearing, PTLAR, PTLON, RAMWR with the image, DISPON; NORON leaves partial
+mode.
 Status: NOT IMPLEMENTED (section 4, partial mode).
 
 ### 33h VSCRDEF -- Vertical Scrolling Definition (p. 183, l. 9743)
@@ -355,7 +371,10 @@ BFA[15:0] bottom fixed area, all in frame-memory lines (p. 183, ll. 9751-9779);
 with MV = 1 the text puts TFA at the bottom (pp. 183-184, ll. 9802-9821).
 Invariant: TFA + VSA + BFA = 480, the device's line count, otherwise
 scrolling is undefined (p. 184, ll. 9843-9845; p. 257, ll. 14825-14829). MADCTL MV must
-be 0 in scroll mode (p. 184, l. 9847). Defaults TFA 0, VSA 01E0h (480), BFA 0
+be 0 in scroll mode (p. 184, l. 9847). Ordering (flow chart, p. 185, ll. 9880-9930):
+from normal mode, VSCRDEF, then CASET and RASET (only required for
+non-rolling scrolling), MADCTL if the write direction must change, RAMWR
+with the scroll image, then VSCSAD. Defaults TFA 0, VSA 01E0h (480), BFA 0
 (p. 184, ll. 9865-9871).
 Status: SENT with 0 / 320 / 160 after SLPOUT (`st7365p.c:382-386`) and by
 `lcd_gfx_scrdef()` with TFA = top, BFA = bottom and VSA = 480 - top -
@@ -446,8 +465,7 @@ another command.
 
 Read, one dummy parameter, then pixels continuing after the last read
 (pp. 198-199, ll. 10843-10883). Always 18-bit regardless of COLMOD
-(p. 199, ll. 10895-10897). The availability table lists three states in the
-extraction.
+(p. 199, ll. 10895-10897).
 Status: NOT IMPLEMENTED (as RAMRD).
 
 ### 44h STE -- Set Tear Scanline (p. 199, l. 10954)
@@ -464,7 +482,9 @@ Status: NOT IMPLEMENTED; blocked by the unwired TE pin (section 4).
 Read: one dummy, then N[15:8], N[7:0], the line currently being scanned
 (p. 201, ll. 11062-11066). The line count is VSYNC + VBP + VACT + VFP and line 0 is
 the first VSYNC line (p. 201, ll. 11068-11072); undefined in Sleep In
-(p. 201, l. 11074). Default 0000h. The command table list calls it RDTESCAN
+(p. 201, l. 11074). The flow chart shows "Dummy read", "Line N (MSB)",
+"Line N (LSB)" with no serial-mode variant (p. 202, ll. 11117-11126). Default
+0000h. The command table list calls it RDTESCAN
 (p. 139, l. 6925).
 Status: NOT IMPLEMENTED; the only software source of panel timing on this
 board (section 4, vertical sync).
@@ -478,7 +498,7 @@ not use (section 4, brightness).
 
 ### 52h RDDISBV -- Read Display Brightness Value (p. 203, l. 11225)
 
-Read, one dummy, DBV[7:0]; reset in Sleep In; 0 when BCTRL = 0
+Read, 8 bits; the serial flow chart has no dummy (p. 204, ll. 11284-11294). DBV[7:0]; reset in Sleep In; 0 when BCTRL = 0
 (pp. 203-204, ll. 11233-11254). Default 0000h.
 Status: NOT IMPLEMENTED.
 
@@ -494,7 +514,7 @@ board (section 4).
 
 ### 54h RDCTRLD -- Read CTRL Value Display (p. 206, l. 11423)
 
-Read, one dummy, the 53h bits (p. 206, ll. 11430-11456). Default 0000h.
+Read, 8 bits, no dummy in the serial flow chart (p. 207, l. 11493); the 53h bits (p. 206, ll. 11430-11456). Default 0000h.
 Status: NOT IMPLEMENTED.
 
 ### 55h WRCABC -- Write Content Adaptive Brightness Control (p. 207, l. 11522)
@@ -509,7 +529,7 @@ transfer function for it, so its effect on this glass is unknown.
 
 ### 56h RDCABC -- Read Content Adaptive Brightness Control (p. 209, l. 11640)
 
-Read, one dummy, C1-C0 (p. 209, ll. 11648-11666). Default 0000h.
+Read, 8 bits, no dummy in the serial flow chart (p. 210, l. 11703); C1-C0 (p. 209, ll. 11648-11666). Default 0000h.
 Status: NOT IMPLEMENTED.
 
 ### 5Eh WRCABCMB -- Write CABC Minimum Brightness (p. 210, l. 11732)
@@ -521,12 +541,12 @@ Status: NOT IMPLEMENTED (no CABC path).
 
 ### 5Fh RDCABCMB -- Read CABC Minimum Brightness (p. 212, l. 11818)
 
-Read, one dummy, CMB[7:0] (p. 212, ll. 11826-11828). Default 0000h.
+Read, 8 bits, no dummy in the serial flow chart (p. 213, l. 11872); CMB[7:0] (p. 212, ll. 11826-11828). Default 0000h.
 Status: NOT IMPLEMENTED.
 
 ### AAh RDFCS -- Read First Checksum (p. 213, l. 11901)
 
-Read, one dummy, FCS[7:0], a checksum of user registers and frame memory
+Read; the table prints a dummy parameter and no serial flow chart survives the extraction; FCS[7:0], a checksum of user registers and frame memory
 after writes (p. 213, ll. 11908-11914). Wait 150 ms after the last register write
 (p. 213, ll. 11918-11920). The instruction row is labeled "RDID1" (p. 213, l. 11906).
 Default 00h.
@@ -535,7 +555,7 @@ register sequence landed, independent of the SPIRC path that read zero.
 
 ### AFh RDCFCS -- Read Continue Checksum (p. 214, l. 11957)
 
-Read, one dummy, CCS[7:0], a running checksum after the first
+Read, laid out as AAh; CCS[7:0], a running checksum after the first
 (p. 214, ll. 11964-11972). Wait 300 ms after the last write for the first read
 (p. 214, ll. 11976-11978). The instruction row is labeled "RDID1" (p. 214, l. 11962).
 Default 00h.
@@ -685,7 +705,8 @@ Status: SENT as 17h 15h (`st7365p.c:114`): AVDD 6.20 V, AVCL -4.6 V, low nibble
 ### C1h PWR2 -- Power Control 2 (p. 231, l. 13163)
 
 One parameter: VRH[6:0] (p. 231, l. 13170). VAP(GVDD) = 3.55 V + 0.05 V x VRH +
-(VCOM + VCOM offset) for VRH 00h-27h, 28h-3Fh reserved; VAN(GVCL) is the
+(VCOM + VCOM offset) for VRH 00h-27h (this file's closed form for the printed
+table), 28h-3Fh reserved; VAN(GVCL) is the
 negative mirror (pp. 231-232, ll. 13177-13272). Note: VCOM default 1Ch (1.0 V), offset
 00h (p. 232, ll. 13276-13280). HEX 13h (4.5 V + VCOM terms).
 Status: SENT as 41h (`st7365p.c:115`), which lies above the printed table (40h-7Fh
@@ -702,7 +723,7 @@ Status: NOT IMPLEMENTED in the driver; the panel test writes AAh and AFh
 ### C5h VCMPCTL -- VCOM Control (p. 234, l. 13383)
 
 One parameter: VCMP[5:0] (p. 234, l. 13390). VCOM = 0.300 V + 0.025 V x VCMP,
-0.300-1.875 V (p. 234, ll. 13394-13411); VCOM + VMF offset < 1.875 V
+0.300-1.875 V (a closed form for the printed table, p. 234, ll. 13394-13411); VCOM + VMF offset < 1.875 V
 (p. 234, l. 13413). HEX 1Ch (1.000 V).
 Status: SENT as three bytes 00h 12h 80h (`st7365p.c:116`); the register has one
 parameter, so the first byte gives VCMP 0 (0.300 V); what the controller does
@@ -753,6 +774,8 @@ Fourteen parameters (p. 240, ll. 13809-13835): V63P[3:0]/V0P[3:0]; V1P[5:0];
 V2P[5:0]; V4P[4:0]; V6P[4:0]; J0P[1:0]/V13P[3:0]; V20P[6:0];
 V36P[2:0]/V27P[2:0]; V43P[6:0]; J1P[1:0]/V50P[3:0]; V57P[4:0]; V59P[4:0];
 V61P[5:0]; V62P[5:0]. HEX F0 03 05 09 0C 0F 3E 77 4F 0F 17 17 21 23. The
+description area holds only "Adjust the gamma characteristics of the TFT
+panel" (PDF page 240 image checked; no figure). The
 voltages follow section 4, gamma.
 Status: SENT as 15 bytes 00 03 09 08 16 0A 3F 78 4C 09 0A 08 16 1A 0F
 (`st7365p.c:110-111`), one more than the register holds. READ through SPIRC
@@ -781,8 +804,8 @@ Status: NOT IMPLEMENTED.
 
 Eight parameters: 40h, 8Ah, 00h, 00h, then 0010 S_END[3:0], G_START[5:0],
 G_EQ/G_END[5:0], 33h (p. 244, ll. 14080-14094). Source equalizing time = 9 us +
-1.5 us x S_END (00h 9 us to 0Fh 31.5 us); gate start and end = (n + 1)
-Tclk, Tclk = 4/osc at 60 Hz (pp. 244-245, ll. 14096-14151); G_EQ gate EQ on or off
+1.5 us x S_END (00h 9 us to 0Fh 31.5 us; closed form for the printed
+table); gate start and end = (n + 1) Tclk, Tclk = 4/osc at 60 Hz (pp. 244-245, ll. 14096-14151); G_EQ gate EQ on or off
 (p. 245, l. 14145). HEX 40 8A 00 00 25 0A 38 33.
 Status: NOT IMPLEMENTED.
 
@@ -821,16 +844,16 @@ sequence returns zero.
 
 ### 4.1 Is a tearing-effect signal wired on the PicoCalc mainboard?
 
-No (DOC, schematic image). The controller's TE output (p. 43, ll. 2132-2134) is
-J401 pin 35. In a 600 dpi render of the schematic PDF around J401, pin 35
-ends in a short stub with no net label and no junction, while every routed
-pin carries a label (SPI1_RX, SPI1_TX, SPI1_SCK, LCD_DC, SPI1_CS, LCD_RST,
-ALDO3, GND). The text extraction alone cannot decide this: it prints "TE 35
-34" with no label beside it (schematic text line 44), and the IM pins, which
-are routed to ALDO3, also print without a label there (lines 16-18). No net
-named TE occurs anywhere else in the schematic text (search for the word TE
-over all 245 lines returns line 44 only), and the Pico headers J301/J302 list
-no TE net. So TEON (35h) and STE (44h) have no reader on this board; using
+No (DOC, schematic image and label count). The controller's TE output
+(p. 43, ll. 2132-2134) is J401 pin 35, which carries the net label TE on a short
+stub. In a 600 dpi render of the schematic PDF around J401 that stub ends
+without a wire or junction, unlike the IM pins (wired to ALDO3) and the DB
+pins (wired to ground). `pdftotext -bbox` over the whole sheet finds the
+word TE once, at J401, so the TE net has a single node; LEDA, LEDK and
+LCD_BL, by contrast, each occur twice and reach the backlight LED driver. The
+text extraction alone cannot decide this: it prints "TE 35 34" (schematic
+text line 44) without showing wires, and the routed IM pins print the same
+way (lines 16-18). The Pico headers J301/J302 carry no TE net. So TEON (35h) and STE (44h) have no reader on this board; using
 them needs a wire from the flex connector's pin 35 to a free GPIO, a hardware
 change.
 
@@ -842,8 +865,9 @@ VFP lines from the first VSYNC line (p. 201, ll. 11068-11072). At the shipped
 1 / (60.06 x 484) = 34.40 us and a frame 16.65 ms (INF from the B1h formula).
 
 Cost on the wire (INF): a GSCAN read is 8 command clocks, one dummy clock if
-it behaves like the documented multi-byte reads (p. 95, l. 4787), and 16 data
-clocks, 25 clocks in all: 8.0 us at the panel test's 3.125 MHz, 3.75 us at
+it behaves like the documented multi-byte serial reads (p. 95, l. 4787; the
+GSCAN flow chart shows a dummy read without a serial-mode variant,
+p. 202, l. 11117), and 16 data clocks, 25 clocks in all: 8.0 us at the panel test's 3.125 MHz, 3.75 us at
 the 6.67 MHz the 150 ns TSCYCR allows (p. 54, l. 2633). Each read also costs two
 PL022 clock changes and a chip-select cycle, and it must sit between pixel
 transfers because the panel and the reads share SPI1 and one chip select. A
@@ -901,8 +925,8 @@ The driver runs the 60.06 Hz row through B1h A0h (`st7365p.c:120`). The only
 board observation is set 15 (FRS 0, RTNA 10h, a formula rate of 31.1 Hz),
 which the owner saw flicker. The idle-mode and partial-mode line periods
 (B2h RTNB, B3h RTNC) have no printed formula. Lower rates trade flicker
-(seen at 31 Hz) for fewer panel reads per write and slightly lower controller
-current; higher rates shorten the GSCAN window arithmetic of 4.2 but do not
+(seen at 31 Hz) for a longer frame, which widens the tear-free band of 4.2;
+higher rates shorten the GSCAN window arithmetic of 4.2 but do not
 change the SPI-bound write time.
 
 ### 4.4 Can more than 320 rows or columns ever show?
@@ -935,7 +959,9 @@ line period before Sleep Out (pp. 224-225, ll. 12727-12757, p. 221, l. 12470). O
 PicoCalc the lines that partial mode would blank are off the glass already
 (4.4); the gain would be lower drive work on lines 320-479, of unmeasured
 size. The datasheet does not say how partial mode interacts with vertical
-scrolling, which the console uses on every scroll. NOT IMPLEMENTED; nothing
+scrolling, which the console uses on every scroll; the partial-mode and
+scroll flow charts (p. 182, ll. 9703-9733; p. 185, ll. 9880-9930) each start from
+normal mode and are silent on combining them. NOT IMPLEMENTED; nothing
 blocks a trial except that interaction.
 
 ### 4.6 Idle mode
@@ -967,9 +993,11 @@ driver sends 2-dot, the B4h HEX value is 1-dot. The panel test's sets 6 and 7
 
 The controller's brightness path ends at two pads, CABC_PWM (PWM to an LED
 driver) and CABC_ON (LED enable) (p. 44, ll. 2185-2190). J401 carries neither: its
-backlight pins are LEDA (39) and LEDK (40), and the backlight driver is
-switched by LCD_BL from the keyboard controller (schematic text line 19, PA7
-LCD_BL; lines 79-83, the LED driver beside LEDA and LEDK). So WRDISBV (51h),
+backlight pins are LEDA (39) and LEDK (40), whose labels occur a second
+time at the backlight LED driver, and that driver is switched by LCD_BL,
+whose label occurs at the keyboard controller's PA7 and at the driver
+(schematic text line 19 and lines 79-83; label positions from
+`pdftotext -bbox`). So WRDISBV (51h),
 WRCTRLD (53h), the CABC modes of WRCABC (55h) and WRCABCMB (5Eh) cannot
 change the light on this board (DOC schematic, INF that the module does not
 loop CABC_PWM to an LED driver of its own, since LEDA and LEDK are fed from
@@ -979,7 +1007,8 @@ whose transfer function the extraction does not give.
 ### 4.10 Analog gamma, VCOM and GVDD
 
 GVDD (VAP) = 3.55 V + 0.05 V x VRH + (VCOM + VCOM offset), VRH 00h-27h
-(C1h, p. 231, ll. 13177-13217); VAN is its negative. VCOM = 0.300 V + 0.025 V x
+(C1h, p. 231, ll. 13177-13217; the closed forms in this paragraph fit the printed
+tables); VAN is its negative. VCOM = 0.300 V + 0.025 V x
 VCMP (C5h, p. 234, ll. 13394-13411), plus the C6h offset in steps, with VCOM +
 offset < 1.875 V (p. 234, l. 13413). VBP = VCOM + VCOM offset (p. 263, l. 15162).
 The positive levels are a resistor ladder between VAP and VBP; R is one
@@ -996,6 +1025,10 @@ ladder unit (pp. 265-266, ll. 15224-15294):
   VP58, VP60 from a four-column table (p. 264, ll. 15191-15212).
 - The negative side mirrors it about VBN: VN0 = VBN - (VBN - VAN)(129 -
   V0N)/129 and so on (pp. 266-267, ll. 15298-15369).
+
+The voltage-generation and source-voltage diagrams of pages 281-283
+(pp. 281-283, ll. 16006-16102) did not survive the extraction and were not read from
+the PDF.
 
 For one-bit text only levels 0 and 63 matter, so V0P/V0N, V63P/V63N and the
 VAP-VBP span (C1h, C5h) set the two text levels.
@@ -1055,11 +1088,12 @@ observation that contradicts or narrows it.
 4. "No board run exists for the DiscoBSD kernel" (crispness report, section
    10) and "no PicoCalc has booted this kernel" (cited there). Superseded by
    the 2026-11-17 run.
-5. "04h returns a nonzero ID" (`PANELTEST.md` prediction 1 on the branch).
-   The datasheet documents FFh for all three ID bytes after power-on and both
-   resets (p. 147, ll. 7524-7532; p. 215, l. 12053, p. 216, l. 12132, p. 217, l. 12211), and the
-   board read FFh: the result is the documented one, not a failed
-   calibration.
+5. "All-zero or all-one bytes mean SDO is not reaching GP12, and every
+   later readback is void" (`PANELTEST.md` prediction 1 on the branch). The
+   datasheet documents FFh for all three ID bytes after power-on and both
+   resets (p. 147, ll. 7524-7532; p. 215, l. 12053, p. 216, l. 12132, p. 217, l. 12211), so the
+   all-one replies of 04h and DAh-DCh are the documented values, and 0Ah-0Fh
+   read non-trivial values over the same line (BOARD).
 6. "The controller answers the ST7796 family ID" (run record addendum).
    Narrowed: the ST7365P datasheet prints RDID4 = 00h 77h 96h for the ST7365P
    itself (p. 239, ll. 13751-13753), so the reply does not distinguish an ST7365P

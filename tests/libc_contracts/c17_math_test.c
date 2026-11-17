@@ -610,7 +610,11 @@ remainders(void)
  * qemu-user variant, rounds fma() and fmaf() twice and misses tgamma() by
  * tens of units; NetBSD's fmaf() needs a round-toward-zero mode that the
  * soft-float target lacks.  C17_MATH_UNTRUSTED_FMA, _FMAF and _APPROX
- * withdraw the oracle for those groups.  Every result of those members
+ * withdraw the oracle for those groups.  C17_MATH_UNTRUSTED_SAMPLES
+ * withdraws it for the sampled inputs of the approximate members alone and
+ * keeps it for their special values: Apple's libm misses lgamma() near its
+ * poles by a hundred units yet states the special values as glibc does.
+ * Every result of those members
  * also enters an FNV-1a digest per member, and c17_math_digests.h pins the
  * digests of a run whose results met a correctly rounded oracle (glibc).
  * A run without a trustworthy oracle must reproduce every bit of that run,
@@ -661,7 +665,7 @@ mix(uint64_t value)
 #else
 #define TRUSTED_FMAF	1
 #endif
-#ifdef C17_MATH_UNTRUSTED_APPROX
+#if defined(C17_MATH_UNTRUSTED_APPROX) || defined(C17_MATH_UNTRUSTED_SAMPLES)
 #define TRUSTED		0
 #else
 #define TRUSTED		1
@@ -1122,6 +1126,15 @@ edge_same(const char *name, double got, double want)
 	if (name[0] == 'f' && name[1] == 'm' && (name[2] == 'a' || name[2] == 'i') &&
 	    (name[3] == 'x' || name[3] == 'n') && got == 0.0 && want == 0.0)
 		return 1;
+#ifdef C17_MATH_UNTRUSTED_APPROX
+	/*
+	 * 7.12.11.3 returns y when x equals y, so the step from one zero to
+	 * the zero of the other sign has y's sign; older newlib returns x.
+	 */
+	if (name[0] == 'n' && name[1] == 'e' && name[2] == 'x' && name[3] == 't' &&
+	    got == 0.0 && want == 0.0)
+		return 1;
+#endif
 	return same(got, want);
 }
 
@@ -1182,6 +1195,18 @@ edges(void)
 {
 	unsigned long i, j, k;
 
+	{
+		/*
+		 * lgamma of the smallest subnormal is 1074 ln 2, stated here
+		 * without the oracle so that a run whose oracle is withdrawn
+		 * for the gamma members still requires a finite result.
+		 */
+		double tiny = 0x1p-1074, got = tree_p_lgamma(tiny);
+		double want = 744.44007192138122;
+
+		if (!edge_close(got, want, 1e-9, 1e-12))
+			EDGE_FAIL("lgamma", tiny, 0.0, got, want, 7);
+	}
 	for (k = 0; k < sizeof(edge1d) / sizeof(edge1d[0]); k++) {
 		const struct edge1d *e = &edge1d[k];
 

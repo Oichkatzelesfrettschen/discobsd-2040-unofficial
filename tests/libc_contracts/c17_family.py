@@ -728,12 +728,17 @@ def rename_tool(arm):
     )
 
 
+def symbol_prefix(arm):
+    """What the object format puts before a C name: Mach-O an underscore."""
+    return "_" if not arm and platform.system() == "Darwin" else ""
+
+
 def rename_map(symbols, arm):
     """One "old new" line per member, in the object format's spelling.
 
     Mach-O prefixes every C symbol with an underscore; ELF does not.
     """
-    prefix = "_" if not arm and platform.system() == "Darwin" else ""
+    prefix = symbol_prefix(arm)
     return "".join("%s%s %stree_%s\n" % (prefix, name, prefix, name) for name in symbols)
 
 
@@ -756,6 +761,13 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
     if arm:
         # Headers the hosting newlib lacks; searched after its own.
         machine = machine + ["-idirafter", str(root / "tests/libc_contracts/newlib_shim")]
+    elif platform.system() == "Darwin":
+        # Apple's SDK has no <uchar.h>; the same shim declares its members.
+        machine = machine + ["-idirafter", str(root / "tests/libc_contracts/newlib_shim")]
+        # Its <ctype.h> and <wctype.h> otherwise define the classification
+        # functions inline, which collides with a member compiled under its
+        # own name.
+        machine = machine + ["-D_DONT_USE_CTYPE_INLINE_"]
     if "-m32" in compiler:
         # x87 arithmetic keeps excess precision, which the target never has.
         machine = machine + ["-msse2", "-mfpmath=sse"]
@@ -774,6 +786,11 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
         flags = flags + ["-DC17_MATH_NETBSD_ORACLE"]
     if arm and family == "math":
         flags = flags + (UNTRUSTED_NETBSD_ARM if oracle else UNTRUSTED_NEWLIB)
+    if not arm and family == "math" and not oracle and platform.system() == "Darwin":
+        # Apple's libm misses lgamma near its poles by a hundred units, so it
+        # is no oracle for the sampled inputs of the approximate members; the
+        # pinned digests then require every bit of the run that met glibc.
+        flags = flags + ["-DC17_MATH_UNTRUSTED_SAMPLES"]
     if arm and family == "strtof" and not oracle:
         # newlib's strtof rounds through double; see differential() there.
         flags = flags + ["-DC17_STRTOF_UNTRUSTED_ORACLE"]
@@ -843,7 +860,9 @@ def referenced(fixture, arm):
         [nm, "-u", str(fixture)], capture_output=True, text=True, timeout=60, check=False
     )
     require(result.returncode == 0, "nm fails on the fixture: " + result.stderr)
-    return {line.split()[-1] for line in result.stdout.splitlines() if line.strip()}
+    prefix = symbol_prefix(arm)
+    names = {line.split()[-1] for line in result.stdout.splitlines() if line.strip()}
+    return {name[len(prefix) :] if name.startswith(prefix) else name for name in names}
 
 
 def uncalled(members, symbols):

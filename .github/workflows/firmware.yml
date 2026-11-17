@@ -57,8 +57,9 @@ jobs:
     # A full run on main measured about 65 minutes; the asynchronous system
     # trap tier adds 10.1. Hosted runners vary by about 25 percent between
     # runs (the same steps took 899 and 1,098 seconds in the host tier), so
-    # the limit covers a slow runner's 94 minutes with margin.
-    timeout-minutes: 110
+    # the limit covers a slow runner's 94 minutes with margin, plus the
+    # qemu tier's C17 math family, which adds up to 25 more.
+    timeout-minutes: 135
     steps:
       - uses: actions/checkout@v4
         with:
@@ -386,13 +387,16 @@ jobs:
         # instruction work has separate scalar, state and budget controls.
         # Callable slots also check canonical pointers, exact ELF extents,
         # LTO, weak aliases and callbacks from a separately linked SRAM image.
-        timeout-minutes: 5
+        # The C17 math family runs 5.2 million checks and 36 mutants under
+        # qemu-user and prints nothing while a program runs, so the tier
+        # takes more than nine minutes locally with silences of minutes.
+        timeout-minutes: 32
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label linux-qemu \
             --log .build-logs/linux-qemu.log \
             --status .build-logs/linux-qemu.status.json \
-            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            --idle-timeout-seconds 900 --timeout-seconds 1800 \
             -- bmake MACHINE=rp2040 check-qemu
 
       - name: Run the board-build tier
@@ -681,7 +685,7 @@ jobs:
     name: Required ILP32 execution (shell, kernel, libc and utilities)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Install bmake and the 32-bit compiler support
@@ -700,17 +704,19 @@ jobs:
             --status .build-logs/posix-inventory.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-test-execution
-      # The inventory runs about ten minutes on a hosted runner. The gate
+      # With the C17 library families the inventory runs about twenty-one
+      # minutes on a hosted runner: one run finished inside 1320 s and the
+      # next was stopped there with libbn and libcalc still to run. The gate
       # deadline leaves half of that again, and the step limit stays above
       # the gate deadline so the gate writes its own terminal status.
       - name: Execute every required variant
-        timeout-minutes: 24
+        timeout-minutes: 34
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label posix-ilp32 \
             --log .build-logs/posix-ilp32.log \
             --status .build-logs/posix-ilp32.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1320 \
+            --idle-timeout-seconds 300 --timeout-seconds 1920 \
             -- bmake MACHINE=rp2040 check-ilp32-execution \
               TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
       # dc and bc need the 32-bit C library headers the gates job lacks,
@@ -750,7 +756,7 @@ jobs:
     name: rp2040 kernel, flash image on macOS
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
         with:
@@ -875,14 +881,17 @@ jobs:
       # Whole, the tier took 633 to 1354 s (median 1286 s) on the four runs
       # that finished and passed 1500 s on a fifth; each step's hard limit is
       # 1.5 times half that median.
+      # The first part also carries the C17 library families, whose math and
+      # wide fixtures run native and sanitized; with them it ran past 960 s
+      # with no failed gate, so its limit is 1500 s.
       - name: Run the host tier, first part
-        timeout-minutes: 18
+        timeout-minutes: 27
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host-a \
             --log .build-logs/macos-host-a.log \
             --status .build-logs/macos-host-a.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 960 \
+            --idle-timeout-seconds 300 --timeout-seconds 1500 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
       - name: Run the host tier, second part
         timeout-minutes: 18

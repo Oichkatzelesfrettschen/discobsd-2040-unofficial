@@ -1,0 +1,37 @@
+### 2026-11-17T03:23:13Z 1.5s uname -v
+PICO#1
+@@rc=0@@
+### 2026-11-17T03:23:25Z 11.5s /usr/bin/ub-syscall 10
+386596 loops
+@@rc=0@@
+### 2026-11-17T03:23:36Z 11.5s /usr/bin/ub-pipe 10
+240228 loops
+@@rc=0@@
+### 2026-11-17T03:23:48Z 12.0s /usr/bin/ub-context1 10
+35 loops
+@@rc=0@@
+### 2026-11-17T03:24:01Z 13.0s /usr/bin/ub-spawn 10
+33 loops
+@@rc=0@@
+### 2026-11-17T03:24:12Z 11.1s [ -f /tmp/execl ] || ln /usr/bin/ub-execl /tmp/execl; BINDIR=/tmp /usr/bin/ub-execl 10
+499 loops
+@@rc=0@@
+### 2026-11-17T03:24:30Z 18.0s /usr/bin/cm-O2u
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 16179000
+Total time (secs): 16
+Iterations/Sec   : 250
+Iterations       : 4000
+Compiler version : GCC14.2.1 20241119
+Compiler flags   : -Os -fno-common -O2 -funroll-loops
+Memory location  : STACK
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0x65c5
+Correct operation validated. See README.md for run and reporting rules.
+Iterations/Sec   : 247.23 (microsecond-accurate)
+CoreMark 1.0     : 247.23 / GCC14.2.1 20241119 / STACK (integer report)
+@@rc=0@@

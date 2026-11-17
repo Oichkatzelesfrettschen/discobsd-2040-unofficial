@@ -192,9 +192,9 @@ FAMILIES = {
     ),
     "time": (
         ("lib/libc/gen/clock.c", "lib/libc/gen/timespec_get.c"),
-        ("clock", "timespec_get"),
+        ("clock", "timespec_get", "getrusage"),
         "c17_time_test.c",
-        "c17 time: 7 checks passed\n",
+        "c17 time: 16 checks passed\n",
         (),
         (
             (
@@ -204,6 +204,22 @@ FAMILIES = {
                 1,
                 "clock",
                 "clock never advances",
+            ),
+            (
+                "lib/libc/gen/clock.c",
+                "\tif (seconds > (ULONG_MAX - microseconds) / CLOCKS_PER_SEC)\n\t\treturn 0;\n",
+                "",
+                1,
+                "clock",
+                "clock wraps a product that overflows",
+            ),
+            (
+                "lib/libc/gen/clock.c",
+                "\tif (ticks > ULONG_MAX - *total)\n\t\treturn 0;\n",
+                "",
+                1,
+                "clock",
+                "clock wraps a sum that overflows",
             ),
             (
                 "lib/libc/gen/timespec_get.c",
@@ -228,7 +244,7 @@ FAMILIES = {
 # instrument them (fmod.c shifts into the sign bit of an int).
 LEGACY = ["-std=gnu17", "-w", "-fno-builtin", "-O2", "-U_FORTIFY_SOURCE", "-fno-sanitize=all"]
 SUPPORT = {}
-OBJECT_RENAME = {"math"}
+OBJECT_RENAME = {"math", "time"}
 EXTRA = {}
 MATH_MEMBERS = (
     "acosf acosh acoshf asinf asinh asinhf atan2f atanf "

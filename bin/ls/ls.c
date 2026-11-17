@@ -518,9 +518,7 @@ savestr(const char *str)
 	return(cp);
 }
 
-char	*fmtinum(struct afile *);
-char	*fmtsize(struct afile *);
-char	*fmtlstuff(struct afile *, int);
+static char *fmtlstuff(char *, struct afile *, int);
 
 static char *
 fmtmode(char *out, unsigned mode)
@@ -547,11 +545,13 @@ fmtentry(struct afile *fp, int maxflags)
 	static char fmtres[BUFSIZ];
 	register char *cp, *dp;
 
-	(void) sprintf(fmtres, "%s%s%s",
-	    iflg ? fmtinum(fp) : "",
-	    sflg ? fmtsize(fp) : "",
-	    lflg ? fmtlstuff(fp, maxflags) : "");
-	dp = &fmtres[strlen(fmtres)];
+	dp = fmtres;
+	if (iflg)
+		dp += sprintf(dp, "%6u ", fp->fnum);
+	if (sflg)
+		dp += sprintf(dp, "%4ld ", kbytes(fp->fblks * DEV_BSIZE));
+	if (lflg)
+		dp = fmtlstuff(dp, fp, maxflags);
 	for (cp = fp->fname; *cp; cp++)
 		if (qflg && (*cp < ' ' || *cp >= 0177))
 			*dp++ = '?';
@@ -579,30 +579,10 @@ fmtentry(struct afile *fp, int maxflags)
 	return (fmtres);
 }
 
-char *
-fmtinum(struct afile *p)
+static char *
+fmtlstuff(char *lp, struct afile *p, int maxflags)
 {
-	static char inumbuf[8];
-
-	(void) sprintf(inumbuf, "%6u ", p->fnum);
-	return (inumbuf);
-}
-
-char *
-fmtsize(struct afile *p)
-{
-	static char sizebuf[16];
-
-	(void) sprintf (sizebuf, "%4ld ", kbytes (p->fblks * DEV_BSIZE));
-	return (sizebuf);
-}
-
-char *
-fmtlstuff(struct afile *p, int maxflags)
-{
-	static char lstuffbuf[256];
 	char gname[32], uname[32], fsize[32], ftime[32], fflags[64];
-	register char *lp = lstuffbuf;
 
 	/* type mode uname gname fsize ftime */
 /* get uname */
@@ -642,9 +622,8 @@ fmtlstuff(struct afile *p, int maxflags)
 /* splat */
 	*lp++ = p->ftype;
 	lp = fmtmode(lp, p->fmode);
-	(void) sprintf(lp, "%3d %s%s%s%s%s",
+	return lp + sprintf(lp, "%3d %s%s%s%s%s",
 	    p->fnl, uname, gflg ? gname : "", oflg ? fflags : "", fsize, ftime);
-	return (lstuffbuf);
 }
 
 /* rest should be done with nameserver or database */

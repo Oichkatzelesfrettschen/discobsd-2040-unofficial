@@ -1,0 +1,312 @@
+2.11 BSD UNIX (pico) (console)
+
+
+
+login: operator
+DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
+
+You are operator, in /home/operator, which starts empty; the system is
+under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"
+colors directories blue, and "vi FILE" edits
+UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.
+
+$ echo ready; echo __DO''NE__
+ready
+
+$ hostname; sysctl kern.version; df /; echo __DO''NE__
+pico
+kern.version=DiscoBSD 2.7 (PICOCALC_PSRAM) #1 3584: Sun Nov 15 22:44:43 UTC 2026
+
+Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
+/dev/fl0a         979      758      221    77%    /
+
+$ cd /tmp; echo __DO''NE__
+
+$ echo 'char *ctime(long *); long time(long *); int printf(char *, ...);' >d.c; echo __DO''NE__
+
+$ echo 'int main(void) { long t = time(0); printf("%s", ctime(&t)); return 0; }' >>d.c; echo __DO''NE__
+
+$ sync; echo __DO''NE__
+
+$ sysctl machdep.storage_stats; echo __DO''NE__
+
+
+swapwear
+
+swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+swapwear 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2
+
+swapwear 2 2 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+
+swapwear 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+
+swapwear end
+
+swapwho ? ram 1 1 1 1 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho init ram 5 13 2 3 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho /bin/sh ram 12 60 5 5 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho mount ram 0 0 0 0 copy 1 3 3 3 exch 1 3 3 3
+
+swapwho /update ram 1 2 2 2 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho -sh ram 6 30 5 5 copy 6 30 5 5 exch 0 0 0 0
+
+swapwho end
+
+machdep.storage_stats=version 2 saturated 0 dirty 0 peak 3
+root_reads 1958
+root_read_bytes 2004992
+root_writes 26
+root_write_bytes 26624
+swap_reads 21
+swap_read_bytes 108288
+swap_writes 26
+swap_write_bytes 123312
+map_writes 26
+checkpoint_attempts 3
+checkpoint_successes 3
+checkpoint_errors 0
+root_program_pages 192
+root_program_bytes 49152
+root_erase_sectors 12
+root_erase_bytes 49152
+swap_program_pages 490
+swap_program_bytes 125440
+swap_erase_sectors 36
+swap_erase_bytes 147456
+dirty_transitions 19
+dirty_rewrites 6
+eviction_writes 14
+buffer_waits 0
+swapram_attempts 33
+swapram_admissions 25
+swapram_refused_closed 0
+swapram_refused_codec 0
+swapram_refused_encode 0
+swapram_refused_nospace 0
+swapram_refused_fragment 8
+swapram_refused_want_bytes 52117
+swapram_refused_free_bytes 69092
+swapram_refused_largest_bytes 37480
+swapram_refused_data_fits 8
+swapram_short_1k 2
+swapram_short_2k 1
+swapram_short_3k 5
+swapram_short_4k 0
+swapram_short_5k 0
+swapram_short_6k 0
+swapram_short_7k 0
+swapram_short_more 0
+swapram_admitted_data_bytes 65795
+swapram_admitted_u_bytes 24906
+swapram_flash_swapouts 7
+swapram_exchange_swapouts 1
+swapram_sched_refusals 0
+swapram_admit_scan_bytes 274364
+swapram_admit_zero_bytes 213136
+swapram_refuse_scan_bytes 98736
+swapram_refuse_zero_bytes 75907
+swapram_refuse_data_chunks 14
+swapram_refuse_zero_chunks 0
+swapram_ram_span_01 1
+swapram_ram_span_02 3
+swapram_ram_span_03 3
+swapram_ram_span_04 0
+swapram_ram_span_05 18
+swapram_ram_span_06 0
+swapram_ram_span_07 0
+swapram_ram_span_08 0
+swapram_ram_span_09 0
+swapram_ram_span_10 0
+swapram_ram_span_11 0
+swapram_ram_span_12 0
+swapram_flash_span_01 0
+swapram_flash_span_02 0
+swapram_flash_span_03 2
+swapram_flash_span_04 0
+swapram_flash_span_05 6
+swapram_flash_span_06 0
+swapram_flash_span_07 0
+swapram_flash_span_08 0
+swapram_flash_span_09 0
+swapram_flash_span_10 0
+swapram_flash_span_11 0
+swapram_flash_span_12 0
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ cc -o d d.c; sync; echo __DO''NE__
+
+$ sysctl machdep.storage_stats; echo __DO''NE__
+
+
+swapwear
+
+swapwear 0 15 15 14 14 15 16 16 14 14 14 14 14 15 15 14
+
+swapwear 13 13 15 15 15 15 14 14 14 14 14 14 14 15 14 14
+
+swapwear 15 15 15 13 13 14 15 15 16 16 14 13 13 15 15 15
+
+swapwear 15 14 14 14 16 17 17 17 15 15 15 16 16 16 16 18
+
+swapwear 17 17 18 18 18 16 16 16 16 16 17 17 15 14 14 16
+
+swapwear 16 16 16 15 15 15 15 16 16 16 14 14 14 15 15 15
+
+swapwear end
+
+swapwho ? ram 1 1 1 1 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho init ram 5 13 2 3 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho /bin/sh ram 12 60 5 5 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho mount ram 0 0 0 0 copy 1 3 3 3 exch 1 3 3 3
+
+swapwho /update ram 12 24 2 2 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho -sh ram 58 290 5 5 copy 55 275 5 5 exch 0 0 0 0
+
+swapwho sh ram 0 0 0 0 copy 100 600 6 6 exch 92 552 6 6
+
+swapwho /usr/li ram 1 9 9 9 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho rm ram 1 4 4 4 copy 0 0 0 0 exch 0 0 0 0
+
+swapwho end
+
+machdep.storage_stats=version 2 saturated 0 dirty 0 peak 4
+root_reads 27040
+root_read_bytes 27688960
+root_writes 1094
+root_write_bytes 1120256
+swap_reads 1028
+swap_read_bytes 5334788
+swap_writes 1149
+swap_write_bytes 5052548
+map_writes 1094
+checkpoint_attempts 38
+checkpoint_successes 38
+checkpoint_errors 0
+root_program_pages 15712
+root_program_bytes 4022272
+root_erase_sectors 982
+root_erase_bytes 4022272
+swap_program_pages 19901
+swap_program_bytes 5094656
+swap_erase_sectors 1433
+swap_erase_bytes 5869568
+dirty_transitions 745
+dirty_rewrites 390
+eviction_writes 564
+buffer_waits 0
+swapram_attempts 339
+swapram_admissions 90
+swapram_refused_closed 0
+swapram_refused_codec 0
+swapram_refused_encode 0
+swapram_refused_nospace 33
+swapram_refused_fragment 216
+swapram_refused_want_bytes 2286705
+swapram_refused_free_bytes 2766512
+swapram_refused_largest_bytes 1872392
+swapram_refused_data_fits 190
+swapram_short_1k 174
+swapram_short_2k 9
+swapram_short_3k 7
+swapram_short_4k 47
+swapram_short_5k 0
+swapram_short_6k 12
+swapram_short_7k 0
+swapram_short_more 0
+swapram_admitted_data_bytes 277411
+swapram_admitted_u_bytes 90382
+swapram_flash_swapouts 156
+swapram_exchange_swapouts 93
+swapram_sched_refusals 0
+swapram_admit_scan_bytes 1057008
+swapram_admit_zero_bytes 790440
+swapram_refuse_scan_bytes 4287620
+swapram_refuse_zero_bytes 2962982
+swapram_refuse_data_chunks 784
+swapram_refuse_zero_chunks 0
+swapram_ram_span_01 1
+swapram_ram_span_02 14
+swapram_ram_span_03 3
+swapram_ram_span_04 1
+swapram_ram_span_05 70
+swapram_ram_span_06 0
+swapram_ram_span_07 0
+swapram_ram_span_08 0
+swapram_ram_span_09 1
+swapram_ram_span_10 0
+swapram_ram_span_11 0
+swapram_ram_span_12 0
+swapram_flash_span_01 0
+swapram_flash_span_02 0
+swapram_flash_span_03 2
+swapram_flash_span_04 0
+swapram_flash_span_05 55
+swapram_flash_span_06 192
+swapram_flash_span_07 0
+swapram_flash_span_08 0
+swapram_flash_span_09 0
+swapram_flash_span_10 0
+swapram_flash_span_11 0
+swapram_flash_span_12 0
+
+$ ./d; echo __DO''NE__
+Sun Nov 15 14:50:47 2026

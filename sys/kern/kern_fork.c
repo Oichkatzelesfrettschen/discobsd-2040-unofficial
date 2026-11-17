@@ -318,7 +318,7 @@ fork1 (int isvfork)
  * fork system call
  */
 void
-fork()
+fork(void)
 {
     fork1 (0);
 }
@@ -327,7 +327,7 @@ fork()
  * vfork system call, fast version of fork
  */
 void
-vfork()
+vfork(void)
 {
     fork1 (1);
 }

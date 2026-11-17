@@ -61,6 +61,7 @@ char bufdata[NBUF * MAXBSIZE];
 struct timeval time;
 int securelevel;
 dev_t rootdev;
+dev_t swapdev;
 static void (*sleep_completion)(caddr_t);
 static void (*driver_open_pause)(void), (*driver_close_pause)(void);
 static caddr_t scheduler_wait_channels[2];
@@ -1002,6 +1003,7 @@ boot_machine(void)
 	init_buffers();
 
 	rootdev = FL_ROOT;
+	swapdev = FL_SWAP;
 	fs = mountfs(FL_ROOT, MNT_NOATIME, 0);
 	HK_CHECK(fs != NULL);
 	/* The swap unit is set up once swapping starts; it holds no partition. */
@@ -2565,8 +2567,43 @@ test_overlap_flash(void)
 	HK_CHECK(try_open(FL_ROOT, IFBLK | 0600, FREAD) == EBUSY);
 	HK_CHECK(try_open(FL_WHOLE, IFBLK | 0600, FREAD) == EBUSY);
 	HK_CHECK(try_open(FL_WHOLE, IFBLK | 0600, FWRITE) == EBUSY);
-	/* fl1, the raw swap region, is another unit. */
+	/*
+	 * fl1, the raw swap region, is another unit than the mounted root, but
+	 * its blocks are swapdev's: a process may read them at any level and
+	 * write them at level 0 only, as the sw alias of swap.c.
+	 */
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FREAD) == 0);
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == EPERM);
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FREAD | FWRITE) == EPERM);
+	securelevel = 0;
 	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == 0);
+	/*
+	 * A descriptor opened for writing at level 0 is asked again at each
+	 * transfer: refused while the level is raised, accepted again at 0, and
+	 * a descriptor of another unit is not affected.
+	 */
+	{
+		struct node held, root;
+
+		HK_CHECK(open_node(&held, IFBLK | 0600, FL_SWAP, FREAD | FWRITE) == 0);
+		HK_CHECK(write_cooked_block_flags(&held, 0) == 0);
+		securelevel = 1;
+		HK_CHECK(write_cooked_block_flags(&held, 0) == EPERM);
+		securelevel = 2;
+		HK_CHECK(write_cooked_block_flags(&held, 0) == EPERM);
+		securelevel = 0;
+		HK_CHECK(write_cooked_block_flags(&held, 0) == 0);
+		close_node(&held);
+		HK_CHECK(open_node(&root, IFBLK | 0600, FL_ROOT, FREAD | FWRITE) == 0);
+		securelevel = 1;
+		HK_CHECK(write_cooked_block_flags(&root, 0) == 0);
+		close_node(&root);
+	}
+	securelevel = 2;
+	HK_CHECK(try_open(FL_SWAP, IFBLK | 0600, FWRITE) == EPERM);
+	securelevel = 1;
+	/* The boot checks of the root, a different unit, keep their answers. */
+	HK_CHECK(try_open(FL_ROOT, IFBLK | 0600, FREAD) == EBUSY);
 	/* Another partition of the table that does not overlap the root. */
 	fldrives[0].part[2].dp_offset = 102;
 	fldrives[0].part[2].dp_nsectors = 20;

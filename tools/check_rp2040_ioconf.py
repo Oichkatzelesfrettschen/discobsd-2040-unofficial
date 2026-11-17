@@ -20,6 +20,10 @@ DRIVERS = {
     "psramdriver": (b"psram", "psramprobe"),
 }
 DEVICE_SIZE = 44
+# Functions a Config "service" line may name; main() calls each entry of
+# conf_service_init in table order after the devices attach.
+SERVICES = ("sdrootattach", "sdswapattach")
+SERVICE_SIZE = 4
 
 
 def zero_object(elf, symbols, name, size):
@@ -43,33 +47,8 @@ def zero_object(elf, symbols, name, size):
         raise ValueError(f"{name} is outside the startup bss range")
 
 
-def check_data(data, object_data):
-    elf = ELFFile(io.BytesIO(data))
-    obj = ELFFile(io.BytesIO(object_data))
-    for image, kind in ((elf, "ET_EXEC"), (obj, "ET_REL")):
-        if (image.elfclass != 32 or not image.little_endian or
-                image.header.e_machine != "EM_ARM" or image.header.e_type != kind):
-            raise ValueError("expected linked ARM32 ELF and ARM32 relocatable object")
-    linked_symbols = elf.get_section_by_name(".symtab")
-    object_symbols = obj.get_section_by_name(".symtab")
-    if linked_symbols is None or object_symbols is None:
-        raise ValueError("symbol table is absent")
-    for name, size in (("conf_ctlr_init", 24), ("conf_service_init", 4)):
-        original = get_entry(object_symbols, name)
-        if (original.st_size != size or
-                obj.get_section(original.st_shndx).header.sh_type != "SHT_NOBITS"):
-            raise ValueError(f"{name} object is not an empty table")
-        zero_object(elf, linked_symbols, name, size)
-    original = get_entry(object_symbols, "conf_device_init")
-    linked = get_entry(linked_symbols, "conf_device_init")
-    if (original.st_size != linked.st_size or original.st_size < DEVICE_SIZE * 2 or
-            original.st_size % DEVICE_SIZE):
-        raise ValueError("conf_device_init size differs")
-    source = obj.get_section(original.st_shndx).data()
-    if original.st_value + original.st_size > len(source):
-        raise ValueError("conf_device_init object is truncated")
-    table_offset = offset_for(elf, data, linked.st_value, linked.st_size)
-    entries = original.st_size // DEVICE_SIZE - 1
+def object_relocations(obj, original, limit, stride, table):
+    """Map each ABS32 relocation inside a table's entries to its symbol name."""
     relocations = {}
     for section in obj.iter_sections():
         if (not isinstance(section, RelocationSection) or
@@ -82,10 +61,85 @@ def check_data(data, object_data):
             offset = relocation.entry.r_offset - original.st_value
             if not 0 <= offset < original.st_size:
                 continue
-            if (offset % DEVICE_SIZE or offset // DEVICE_SIZE >= entries or
+            if (offset % stride or offset >= limit or
                     offset in relocations or relocation.entry.r_info_type != 2):
-                raise ValueError("unsupported device configuration relocation")
+                raise ValueError(f"unsupported {table} relocation")
             relocations[offset] = symbols.get_symbol(relocation.entry.r_info_sym).name
+    return relocations
+
+
+def check_services(elf, data, obj, linked_symbols, object_symbols):
+    """Check conf_service_init: an empty zero-filled table, or allowed
+    Thumb function pointers in generated order and a zero terminator."""
+    original = get_entry(object_symbols, "conf_service_init")
+    if obj.get_section(original.st_shndx).header.sh_type == "SHT_NOBITS":
+        if original.st_size != SERVICE_SIZE:
+            raise ValueError("conf_service_init object is not an empty table")
+        zero_object(elf, linked_symbols, "conf_service_init", SERVICE_SIZE)
+        return []
+    linked = get_entry(linked_symbols, "conf_service_init")
+    if (original.st_size != linked.st_size or original.st_size < SERVICE_SIZE * 2 or
+            original.st_size % SERVICE_SIZE):
+        raise ValueError("conf_service_init size differs")
+    source = obj.get_section(original.st_shndx).data()
+    if original.st_value + original.st_size > len(source):
+        raise ValueError("conf_service_init object is truncated")
+    entries = original.st_size // SERVICE_SIZE - 1
+    relocations = object_relocations(obj, original, entries * SERVICE_SIZE,
+                                     SERVICE_SIZE, "service")
+    table_offset = offset_for(elf, data, linked.st_value, linked.st_size)
+    names = []
+    for index in range(entries + 1):
+        relative = index * SERVICE_SIZE
+        raw = struct.unpack_from("<I", source, original.st_value + relative)[0]
+        value = struct.unpack_from("<I", data, table_offset + relative)[0]
+        if index < entries:
+            target = relocations.get(relative)
+            if target not in SERVICES or raw != 0:
+                raise ValueError(f"unknown service function at entry {index}")
+            expected = symbol(linked_symbols, target, "STT_FUNC")
+            if not expected & 1:
+                raise ValueError(f"{target} is not a Thumb function")
+            offset_for(elf, data, expected & ~1, 2, executable=True)
+            names.append(target)
+        else:
+            if raw != 0:
+                raise ValueError("nonzero service terminator")
+            expected = 0
+        if value != expected:
+            raise ValueError(f"conf_service_init entry {index} differs")
+    return names
+
+
+def check_data(data, object_data):
+    elf = ELFFile(io.BytesIO(data))
+    obj = ELFFile(io.BytesIO(object_data))
+    for image, kind in ((elf, "ET_EXEC"), (obj, "ET_REL")):
+        if (image.elfclass != 32 or not image.little_endian or
+                image.header.e_machine != "EM_ARM" or image.header.e_type != kind):
+            raise ValueError("expected linked ARM32 ELF and ARM32 relocatable object")
+    linked_symbols = elf.get_section_by_name(".symtab")
+    object_symbols = obj.get_section_by_name(".symtab")
+    if linked_symbols is None or object_symbols is None:
+        raise ValueError("symbol table is absent")
+    original = get_entry(object_symbols, "conf_ctlr_init")
+    if (original.st_size != 24 or
+            obj.get_section(original.st_shndx).header.sh_type != "SHT_NOBITS"):
+        raise ValueError("conf_ctlr_init object is not an empty table")
+    zero_object(elf, linked_symbols, "conf_ctlr_init", 24)
+    check_services(elf, data, obj, linked_symbols, object_symbols)
+    original = get_entry(object_symbols, "conf_device_init")
+    linked = get_entry(linked_symbols, "conf_device_init")
+    if (original.st_size != linked.st_size or original.st_size < DEVICE_SIZE * 2 or
+            original.st_size % DEVICE_SIZE):
+        raise ValueError("conf_device_init size differs")
+    source = obj.get_section(original.st_shndx).data()
+    if original.st_value + original.st_size > len(source):
+        raise ValueError("conf_device_init object is truncated")
+    table_offset = offset_for(elf, data, linked.st_value, linked.st_size)
+    entries = original.st_size // DEVICE_SIZE - 1
+    relocations = object_relocations(obj, original, entries * DEVICE_SIZE,
+                                     DEVICE_SIZE, "device configuration")
     names = []
     for index in range(original.st_size // 4):
         relative = index * 4

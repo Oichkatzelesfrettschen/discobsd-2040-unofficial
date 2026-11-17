@@ -261,9 +261,9 @@ sd_replaced(void)
  * at byte 8 and length at byte 12, both little-endian 32-bit sector
  * counts. A 16-byte structure of one status byte, three bytes, one type
  * byte, three bytes and two 32-bit counts has no padding, so its size fixes
- * those offsets. A byte-by-byte decode costs 64 bytes more flash on
- * PICOCALC_PSRAM (measured), so the assertions below hold the assumption
- * at build time instead.
+ * those offsets. A byte-by-byte decode costs 64 bytes more flash on the
+ * PSRAM PicoCalc kernel (measured), so the assertions below hold the
+ * assumption at build time instead.
  */
 #if !defined(__BYTE_ORDER__) || __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
 #error "sd_partitions() copies little-endian MBR entries"

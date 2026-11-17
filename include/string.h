@@ -47,6 +47,9 @@ size_t		 strcspn(const char *, const char *);
 size_t		 strspn(const char *, const char *);
 
 char		*strerror(int);
+int		 strcoll(const char *, const char *);
+size_t		 strxfrm(char *_DISCOBSD_RESTRICT,
+	    const char *_DISCOBSD_RESTRICT, size_t);
 
 #if _DISCOBSD_BSD_VISIBLE || _DISCOBSD_POSIX_VISIBLE >= 200809L || \
     _DISCOBSD_XSI_VISIBLE >= 500

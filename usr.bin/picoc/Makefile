@@ -8,8 +8,8 @@ include ${TOPSRC}/share/mk/sys.mk
 
 VPATH           = cstdlib platform
 
+# <time.h> defines CLOCKS_PER_SEC, the unit of libc's clock().
 CFLAGS          += -DUNIX_HOST -DVER='"1.0"' \
-                   -DCLOCKS_PER_SEC=80000000 \
                    -DNO_FP -DPICOC_STACK_SIZE="(8*1024)" -Os
 
 LIBS            = -lm -lc

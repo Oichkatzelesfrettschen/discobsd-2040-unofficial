@@ -20,17 +20,17 @@ TOPSRC!=cd ..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 STD=	_featuretest.h a.out.h alloca.h ar.h assert.h \
-	ctype.h curses.h err.h \
+	ctype.h curses.h err.h fenv.h \
 	fcntl.h float.h fnmatch.h fstab.h \
-	grp.h inttypes.h kmem.h lastlog.h libgen.h limits.h \
+	grp.h inttypes.h iso646.h kmem.h lastlog.h libgen.h limits.h locale.h \
 	math.h mtab.h ndbm.h nlist.h \
 	paths.h pwd.h \
 	ranlib.h regexp.h \
 	setjmp.h sgtty.h \
 	stdalign.h stdarg.h stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h \
 	string.h strings.h struct.h syscall.h sysexits.h \
-	term.h time.h ttyent.h tzfile.h \
-	unistd.h utime.h utmp.h vis.h vmf.h
+	term.h tgmath.h time.h ttyent.h tzfile.h uchar.h \
+	unistd.h utime.h utmp.h vis.h vmf.h wchar.h wctype.h
 
 LINKS=	errno.h signal.h stdbool.h stdint.h syslog.h
 

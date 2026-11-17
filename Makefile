@@ -899,6 +899,35 @@ check-libc-absolute-value:
 
 .PHONY: check-libc-absolute-value
 
+check-libc-integer-division:
+		${MAKE} -C tests/libc_contracts check-integer-division
+
+.PHONY: check-libc-integer-division
+
+check-libc-c17-locale:
+		${MAKE} -C tests/libc_contracts check-c17-locale
+
+check-libc-c17-strtof:
+		${MAKE} -C tests/libc_contracts check-c17-strtof
+
+check-libc-c17-time:
+		${MAKE} -C tests/libc_contracts check-c17-time
+
+check-libc-c17-math:
+		${MAKE} -C tests/libc_contracts check-c17-math
+
+check-libc-c17-wide:
+		${MAKE} -C tests/libc_contracts check-c17-wide
+
+# Outside every aggregate: NETBSD_SRC names a src-netbsd checkout.
+check-libc-c17-netbsd:
+		${MAKE} -C tests/libc_contracts check-c17-netbsd \
+		    ${NETBSD_SRC:DNETBSD_SRC=${NETBSD_SRC:Q}}
+
+.PHONY: check-libc-c17-netbsd
+
+.PHONY: check-libc-c17-locale check-libc-c17-strtof check-libc-c17-time check-libc-c17-math check-libc-c17-wide
+
 check-libc-qsort-context:
 		${MAKE} -C tests/libc_contracts check-qsort-context
 

@@ -713,6 +713,36 @@
       "kind": "recipe"
     },
     {
+      "from": "check-libc-integer-division",
+      "to": "tests/libc_contracts:check-integer-division",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-libc-c17-locale",
+      "to": "tests/libc_contracts:check-c17-locale",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-libc-c17-strtof",
+      "to": "tests/libc_contracts:check-c17-strtof",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-libc-c17-time",
+      "to": "tests/libc_contracts:check-c17-time",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-libc-c17-math",
+      "to": "tests/libc_contracts:check-c17-math",
+      "kind": "recipe"
+    },
+    {
+      "from": "check-libc-c17-wide",
+      "to": "tests/libc_contracts:check-c17-wide",
+      "kind": "recipe"
+    },
+    {
       "from": "check-libc-byte-search",
       "to": "tests/libc_contracts:check-byte-search",
       "kind": "recipe"
@@ -4936,6 +4966,348 @@
       "recipe": "${TEST_EXECUTION} run libc.absolute-value.sanitized -- ./absolute_value_test_san",
       "aliases": [
         "check-libc-absolute-value"
+      ]
+    },
+    {
+      "id": "libc.integer-division.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-integer-division",
+      "root_target": "check-libc-host-contracts",
+      "program": "integer_division_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "integer_division_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.integer-division.native -- ./integer_division_test",
+      "aliases": [
+        "check-libc-integer-division"
+      ]
+    },
+    {
+      "id": "libc.integer-division.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-integer-division",
+      "root_target": "check-libc-host-contracts",
+      "program": "integer_division_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "integer_division_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.integer-division.ilp32 -- ./integer_division_test32",
+      "aliases": [
+        "check-libc-integer-division"
+      ]
+    },
+    {
+      "id": "libc.integer-division.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-integer-division",
+      "root_target": "check-libc-host-contracts",
+      "program": "integer_division_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "integer_division_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.integer-division.sanitized -- ./integer_division_test_san",
+      "aliases": [
+        "check-libc-integer-division"
+      ]
+    },
+    {
+      "id": "libc.c17-locale.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-locale",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_locale_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "c17_locale_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-locale.native -- ./c17_locale_test",
+      "aliases": [
+        "check-libc-c17-locale"
+      ]
+    },
+    {
+      "id": "libc.c17-locale.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-locale",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_locale_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "c17_locale_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-locale.ilp32 -- ./c17_locale_test32",
+      "aliases": [
+        "check-libc-c17-locale"
+      ]
+    },
+    {
+      "id": "libc.c17-locale.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-locale",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_locale_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "c17_locale_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-locale.sanitized -- ./c17_locale_test_san",
+      "aliases": [
+        "check-libc-c17-locale"
+      ]
+    },
+    {
+      "id": "libc.c17-strtof.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-strtof",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_strtof_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "c17_strtof_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-strtof.native -- ./c17_strtof_test",
+      "aliases": [
+        "check-libc-c17-strtof"
+      ]
+    },
+    {
+      "id": "libc.c17-strtof.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-strtof",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_strtof_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "c17_strtof_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-strtof.ilp32 -- ./c17_strtof_test32",
+      "aliases": [
+        "check-libc-c17-strtof"
+      ]
+    },
+    {
+      "id": "libc.c17-strtof.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-strtof",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_strtof_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "c17_strtof_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-strtof.sanitized -- ./c17_strtof_test_san",
+      "aliases": [
+        "check-libc-c17-strtof"
+      ]
+    },
+    {
+      "id": "libc.c17-time.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-time",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_time_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "c17_time_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-time.native -- ./c17_time_test",
+      "aliases": [
+        "check-libc-c17-time"
+      ]
+    },
+    {
+      "id": "libc.c17-time.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-time",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_time_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "c17_time_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-time.ilp32 -- ./c17_time_test32",
+      "aliases": [
+        "check-libc-c17-time"
+      ]
+    },
+    {
+      "id": "libc.c17-time.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-time",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_time_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "c17_time_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-time.sanitized -- ./c17_time_test_san",
+      "aliases": [
+        "check-libc-c17-time"
+      ]
+    },
+    {
+      "id": "libc.c17-math.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-math",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_math_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "c17_math_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-math.native -- ./c17_math_test",
+      "aliases": [
+        "check-libc-c17-math"
+      ]
+    },
+    {
+      "id": "libc.c17-math.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-math",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_math_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "c17_math_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-math.ilp32 -- ./c17_math_test32",
+      "aliases": [
+        "check-libc-c17-math"
+      ]
+    },
+    {
+      "id": "libc.c17-math.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-math",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_math_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "c17_math_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-math.sanitized -- ./c17_math_test_san",
+      "aliases": [
+        "check-libc-c17-math"
+      ]
+    },
+    {
+      "id": "libc.c17-wide.native",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-wide",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_wide_test",
+      "condition": "unconditional",
+      "prerequisites": [
+        "c17_wide_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-wide.native -- ./c17_wide_test",
+      "aliases": [
+        "check-libc-c17-wide"
+      ]
+    },
+    {
+      "id": "libc.c17-wide.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "ILP32 compiler and runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-wide",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_wide_test32",
+      "condition": "ILP32_OK == yes",
+      "prerequisites": [
+        "c17_wide_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-wide.ilp32 -- ./c17_wide_test32",
+      "aliases": [
+        "check-libc-c17-wide"
+      ]
+    },
+    {
+      "id": "libc.c17-wide.sanitized",
+      "owner": "firmware/posix-sh",
+      "width": "native",
+      "capability": "native compiler and sanitizer runtime",
+      "directory": "tests/libc_contracts",
+      "makefile": "tests/libc_contracts/Makefile",
+      "target": "check-c17-wide",
+      "root_target": "check-libc-host-contracts",
+      "program": "c17_wide_test_san",
+      "condition": "ARRAY_MEMORY_SAN_OK == yes",
+      "prerequisites": [
+        "c17_wide_test_san"
+      ],
+      "recipe": "${TEST_EXECUTION} run libc.c17-wide.sanitized -- ./c17_wide_test_san",
+      "aliases": [
+        "check-libc-c17-wide"
       ]
     },
     {

@@ -47,4 +47,19 @@
 #define _DISCOBSD_BSD_VISIBLE 1
 #endif
 
+/*
+ * The restrict qualifier of the C99 and later prototypes in the public
+ * headers.  The keyword is reserved from C99 on; GNU C accepts __restrict
+ * in its older modes, where restrict is an ordinary identifier, and any
+ * other pre-C99 compiler gets the prototype without the qualifier, which
+ * does not change the function's type (C17 6.7.6.3p15).
+ */
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#define _DISCOBSD_RESTRICT restrict
+#elif defined(__GNUC__)
+#define _DISCOBSD_RESTRICT __restrict
+#else
+#define _DISCOBSD_RESTRICT
+#endif
+
 #endif /* _DISCOBSD_FEATURETEST_H_ */

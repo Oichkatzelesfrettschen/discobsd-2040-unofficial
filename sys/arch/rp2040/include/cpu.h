@@ -175,7 +175,16 @@
  */
 #define	CPU_FLASH_RESET_PROGRAM	51	/* int: reset after Nth program cmd */
 #define	CPU_FLASH_RESET_ERASE	52	/* int: reset after Nth erase cmd */
-#define	CPU_MAXID		53	/* number of valid machdep ids */
+/*
+ * Erase counts of the raw swap sectors, STORAGE_STATS kernels only
+ * (EOPNOTSUPP otherwise): an array of unsigned 16-bit counters, one per 4 KiB
+ * sector from the start of the swap region, incremented by each erase of the
+ * sector since boot and saturating at 65535. The length is the swap region's
+ * sector count, so a reader takes it from the size the call returns.
+ * Read-only.
+ */
+#define	CPU_FLASH_SWAP_WEAR	53	/* struct: u_short erases per swap sector */
+#define	CPU_MAXID		54	/* number of valid machdep ids */
 
 struct cpu_pcm_info {
 	unsigned int	rate;
@@ -241,5 +250,6 @@ struct cpu_pcm_info {
 	{ "flash_unique_lo", CTLTYPE_INT }, \
 	{ "flash_reset_program", CTLTYPE_INT }, \
 	{ "flash_reset_erase", CTLTYPE_INT }, \
+	{ "flash_swap_wear", CTLTYPE_STRUCT }, \
 }
 #endif	/* !KERNEL */

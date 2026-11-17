@@ -81,6 +81,18 @@ SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 
+# The proofs run from tools/proofs, where elan reads lean-toolchain, and lake
+# env puts the pinned toolchain's lean on PATH for the checker; a run from the
+# repository root would pick the default toolchain instead.
+LAKE?=		lake
+LEAN?=		lean
+.PHONY: check-release-policy check-hybrid-release
+check-release-policy: check-python
+		cd tools/proofs && ${LAKE} env ${PYTHON} check_policy.py --lean "${LEAN}"
+
+check-hybrid-release: check-python
+		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
+
 check-python:
 		@if [ -z "${PYTHON}" ]; then \
 			echo "PYTHON must name the interpreter for this target" >&2; \
@@ -2393,17 +2405,19 @@ cleantests:
 			${MAKE} -C "$${mf%/Makefile}" clean || status=1; \
 		done; exit $$status
 
-# Every board's root image, flash image and descriptor-stamped kernel, which
-# distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
-# flash${BOARD_OUT_SUFFIX}.{bin,uf2} and unix${BOARD_OUT_SUFFIX}.uf2, so a
-# clean after one board's build also removes another's.
+# Every board's root image, flash image, descriptor-stamped kernel and SD
+# root, which distrib/rp2040/Makefile.inc names sdcard${BOARD_OUT_SUFFIX}.img,
+# flash${BOARD_OUT_SUFFIX}.{bin,uf2}, unix${BOARD_OUT_SUFFIX}.uf2 and
+# sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img, so a clean after one
+# board's build also removes another's.
 cleanfs:
 		rm -f distrib/$(MACHINE)/_manifest distrib/$(MACHINE)/_manifest.*
 		rm -f $(FSIMG) distrib/$(MACHINE)/sdcard.img \
 		    distrib/$(MACHINE)/sdcard-*.img distrib/$(MACHINE)/flash.bin \
 		    distrib/$(MACHINE)/flash.uf2 distrib/$(MACHINE)/flash-*.bin \
 		    distrib/$(MACHINE)/flash-*.uf2 distrib/$(MACHINE)/unix.uf2 \
-		    distrib/$(MACHINE)/unix-*.uf2
+		    distrib/$(MACHINE)/unix-*.uf2 distrib/$(MACHINE)/sdroot.img \
+		    distrib/$(MACHINE)/sdroot-*.img
 
 # A tuple switch is safe only after every source-directory artifact class has
 # cleaned successfully. The serialized recipe avoids overlapping cleanup of

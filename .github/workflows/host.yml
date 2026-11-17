@@ -103,6 +103,19 @@ jobs:
           discobsd-web --version
           discobsd-link --version
           discobsd-console --version
+          discobsd-release --help >/dev/null
+      - name: Check that the wheel and sdist carry the release-security guide
+        timeout-minutes: 2
+        run: |
+          python - dist/*.whl dist/*.tar.gz <<'EOF'
+          import sys, tarfile, zipfile
+          whl, sdist = sys.argv[1:3]
+          guide = "RELEASE-SECURITY.md"
+          if not any(n.endswith("/" + guide) for n in zipfile.ZipFile(whl).namelist()):
+              sys.exit("wheel lacks " + guide)
+          if not any(n.endswith("/" + guide) for n in tarfile.open(sdist).getnames()):
+              sys.exit("sdist lacks " + guide)
+          EOF
       - uses: actions/upload-artifact@v4
         with:
           name: discobsd-host-wheel
@@ -149,12 +162,16 @@ jobs:
           sudo apt-get install -y "$(readlink -f "$deb")"
           discobsd-term --version
           discobsd-console --version
+          discobsd-release --help >/dev/null
           test -f /usr/lib/udev/rules.d/71-discobsd-rp2040.rules
           getent group discobsd
           test -f /usr/lib/systemd/user/discobsd-web.service
           test -f /usr/lib/systemd/user/discobsd-link.service
           test -x /usr/bin/discobsd-connect
           test -x /usr/bin/discobsd-flash
+          # The runner may exclude /usr/share/doc at install time
+          # (path-exclude), so the guide is checked in the package itself.
+          dpkg-deb -c "$deb" | grep -E ' \./usr/share/doc/discobsd-host/RELEASE-SECURITY\.md$'
       - name: Stage the artifact
         timeout-minutes: 5
         run: |
@@ -204,12 +221,17 @@ jobs:
           pacman -U --noconfirm packaging/arch/discobsd-host-*.pkg.tar.zst
           discobsd-term --version
           discobsd-console --version
+          discobsd-release --help >/dev/null
           test -f /usr/lib/udev/rules.d/71-discobsd-rp2040.rules
           getent group discobsd
           test -f /usr/lib/systemd/user/discobsd-web.service
           test -f /usr/lib/systemd/user/discobsd-link.service
           test -x /usr/bin/discobsd-connect
           test -x /usr/bin/discobsd-flash
+          # The archlinux image sets NoExtract for usr/share/doc/*, so the
+          # guide is checked in the package file list, not the filesystem.
+          pacman -Qlp packaging/arch/discobsd-host-*.pkg.tar.zst \
+            | grep -Fx 'discobsd-host /usr/share/doc/discobsd-host/RELEASE-SECURITY.md'
       - uses: actions/upload-artifact@v4
         with:
           name: discobsd-host-arch

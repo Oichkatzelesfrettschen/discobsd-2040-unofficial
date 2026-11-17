@@ -1,3 +1,14 @@
+discobsd-host (1.1.0) noble; urgency=medium
+
+  * discobsd-release: verify hybrid-signed (Ed25519 and ML-DSA-65) release
+    bundles and flash them through discobsd-flash with a rollback counter.
+  * discobsd-flash loads each image with picotool load -v, so a failed write
+    stops before the reboot.
+  * RELEASE-SECURITY.md installs beside the README under
+    /usr/share/doc/discobsd-host, the target of the README's link.
+
+ -- DiscoBSD RP2040 port <noreply@github.com>  Mon, 16 Nov 2026 12:00:00 +0000
+
 discobsd-host (1.0.9) noble; urgency=medium
 
   * systemd user units: bind to dev-discobsd.device and install under it,

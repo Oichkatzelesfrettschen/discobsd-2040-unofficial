@@ -74,7 +74,7 @@ agree because alignment absorbs the removed diagnostic state). PICOCALC is the
 limiting row. The 8 KiB USB transmit ring (`usb_tx_ring`, SRAM4 and SRAM5) is
 outside the ordinary kernel RAM interval. These figures replace the four-row
 table of the PR #435 notes, whose configurations and sizes predate PICO_DIAG
-(`fdd25393`), PICOCALC_LEAN and the u-area argument prefix.
+(`fdd25393`) and PICOCALC_LEAN.
 
 ## USB DPSRAM ownership
 
@@ -128,8 +128,8 @@ A 196 KiB window gains 4 KiB of process capacity and removes 4 KiB of the
 worst-configuration margin (5,944 to 1,848). It also adds an MPU region and
 changes the linker, loader, user-copy, qemu, Renode, board and documentation
 oracles that name the 192 KiB boundary. No retained workload record shows a
-need for the extra 4 KiB (`../program-window-large-swap.md` treats the
-196-block image bound). A window above 192 KiB therefore needs 4,096 bytes of
+need for the extra 4 KiB (`../program-window-large-swap.md` records the
+196-block largest swap image). A window above 192 KiB therefore needs 4,096 bytes of
 verified static reduction in PICOCALC before the margin returns to its
 current value.
 

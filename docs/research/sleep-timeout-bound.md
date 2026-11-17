@@ -195,3 +195,21 @@ Codex found that `select1()` put the caller's mask back before `postsig()` ran o
 Change. `select1()` now restores the mask and clears `SAS_OLDMASK` only when the wait did not end in `EINTR` or `ERESTART`; on those it leaves the temporary mask in force and the flag set for `postsig()`. `itimer_test.c` models both exits: (a) after a timeout the caller's mask is in place, the flag is clear and a later signal's frame takes the newer mask; (b) after a signal, in the first wait and in the second wait of a retried deadline, the temporary mask is installed, the flag is set, `u_oldmask` holds the mask from before the call and that is the mask the handler returns to. On the parent (commit 5a656d85, with the round C change) two checks fail at both widths; they pass after; a mutant that restores before the signal is rejected.
 
 Contract of `sleep()` over this. The signal is dispatched under the mask the wait was given (the caller's mask), so a handler never runs with all signals blocked. When it returns, the mask is the all-blocked one only until the `sigprocmask()` that ends `sleep()`, and no code of the caller runs between. A handler that leaves by `_longjmp()` or `siglongjmp(env, 0)` does not return, so the caller's mask, the handler's `sa_mask` and the signal stay blocked, as after `sigsuspend()`; `longjmp()` restores the mask its `setjmp()` saved. The comment in `sleep.c` states the same. The earlier sentence that such an exit keeps the all-blocked mask was wrong: the handler runs under the wait's mask, not the blocked-all one.
+
+### Board libc closure and packed adminbox
+
+The full cross workflow for the `sleep()` change found an undefined
+`pselect` in the on-device libc archive. The host tests and Renode boot
+exercise other links, while native programs built on the device link the
+member list in `distrib/rp2040/boardlibc-members`. PR #665 adds the
+`pselect` stub. The archive grows from 51,426 to 51,586 bytes and occupies
+51 root blocks in both GNU Arm GCC 14.2.1 builds. The file-system profile
+gate passes with the added member.
+
+A separate GNU Arm GCC 14.2.1 comparison of the `sleep()` change moves
+`adminbox` from 30,644 to 30,728 file bytes and from 25 to 26 packed root
+blocks. The 25-block regression watermark stops that build. The
+`timeout` frame gate measures 136 bytes with GCC 14.2.1 on all 70
+first-parent revisions sampled back to PR #584 and 128 bytes with GCC
+16.2.0. Across those revisions, the frame measurement follows the
+compiler. The archive tip `7eff04612` records both observations.

@@ -6,10 +6,19 @@ and each exact state sums to probability 1 with integer arithmetic. Exact
 cases: H on qubit 0 then CX gives probabilities 1/2, 0, 0, 1/2; H T H on
 |0> gives (2 + sqrt(2)) / 4; T**8 and H H return |00> with scale 0.
 
-Mutants that must fail: a Hadamard without its 1/sqrt(2) scale trips the
-exact norm check in every circuit that contains one; T replaced by S
-(a rotation by w**2 where w is required) changes the H T H probability
+Mutants that must fail: a state that never reduces its scale and T replaced
+by S each change the Matsumoto-Amano count (the unreduced state has no finite
+closure, so the search stops one key past the expected count); a Hadamard
+without its 1/sqrt(2) scale trips the exact norm check in every circuit that
+contains one; T replaced by S (a rotation by w**2 where w is required)
+changes the H T H probability
 and the reference comparison on most random circuits.
+
+Known answer from the literature (Matsumoto and Amano, arXiv 0806.3834):
+circuits over H, S and T with at most n T gates realize exactly
+192 * (3 * 2**n - 2) distinct one-qubit unitaries, global phase included.
+The exact states of qubit 0 reproduce that count for n = 0 to 5, which also
+holds the shared-scale reduction to one canonical form per unitary.
 
 Width: 1000-gate random circuits keep every amplitude coefficient within
 31 bits.
@@ -83,6 +92,13 @@ def floats(state):
     return [(x[0] + x[1] * W + x[2] * W**2 + x[3] * W**3) / scale for x in state.v]
 
 
+class NoReduceState(ex.ExactState):
+    """Mutant: the shared scale is never reduced."""
+
+    def _reduce(self):
+        pass
+
+
 class NoScaleHadamard(ex.ExactState):
     """Mutant: the butterfly without the 1/sqrt(2) scale."""
 
@@ -109,6 +125,59 @@ def run_ref(circuit):
     for gate in circuit:
         st = ref_apply(st, gate)
     return st
+
+
+STATE = ex.ExactState
+
+
+def _count(n):
+    """Matsumoto-Amano count of one-qubit unitaries with at most n T gates."""
+    return 192 * (3 * 2**n - 2)
+
+
+def _fresh_pair():
+    a = STATE()
+    b = STATE()
+    b.x(0)
+    return (a, b)
+
+
+def _key(pair):
+    return tuple((tuple(s.v[:2]), s.k) for s in pair)
+
+
+def _step(pair, name):
+    out = []
+    for s in pair:
+        c = STATE()
+        c.v = list(s.v)
+        c.k = s.k
+        getattr(c, name)(0)
+        out.append(c)
+    return tuple(out)
+
+
+class ClosureOverflow(Exception):
+    """The closure passed the size the caller allows."""
+
+
+def _close_under_h_s(seen, stack, limit):
+    """Close seen under H and S; raise once it holds more than limit keys.
+
+    A correct state reduces to one canonical form per unitary, so the closure
+    is finite. A state that never reduces its scale yields a new key on every
+    H, so the limit is what ends the search for that mutant.
+    """
+    while stack:
+        if len(seen) > limit:
+            raise ClosureOverflow(len(seen))
+        u = stack.pop()
+        k = _key(u)
+        if k in seen:
+            continue
+        seen[k] = u
+        stack.append(_step(u, "h"))
+        stack.append(_step(u, "s"))
 
 
 class ExactCliffordT(unittest.TestCase):
@@ -171,6 +240,39 @@ class ExactCliffordT(unittest.TestCase):
             )
             rejected += err > 1e-9
         self.assertGreater(rejected, 100)
+
+    def test_matsumoto_amano_unitary_counts(self):
+        level = {}
+        _close_under_h_s(level, [_fresh_pair()], _count(0))
+        for n in range(6):
+            self.assertEqual(len(level), _count(n), n)
+            if n == 5:
+                break
+            nxt = dict(level)
+            _close_under_h_s(nxt, [_step(u, "t") for u in level.values()], _count(n + 1))
+            level = nxt
+
+    def test_matsumoto_amano_mutants_break_the_count(self):
+        global STATE
+        saved = STATE
+        try:
+            for mutant, n in ((NoReduceState, 0), (TAsSState, 1)):
+                STATE = mutant
+                level = {}
+                try:
+                    _close_under_h_s(level, [_fresh_pair()], _count(0))
+                    for m in range(n):
+                        nxt = dict(level)
+                        _close_under_h_s(
+                            nxt, [_step(u, "t") for u in level.values()], _count(m + 1)
+                        )
+                        level = nxt
+                    size = len(level)
+                except ClosureOverflow as over:
+                    size = over.args[0]
+                self.assertNotEqual(size, _count(n), mutant.__name__)
+        finally:
+            STATE = saved
 
     def test_width_after_1000_gates(self):
         rng = random.Random(0x57494454)

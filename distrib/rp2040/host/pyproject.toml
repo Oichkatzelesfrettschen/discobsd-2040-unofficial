@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "discobsd-host"
-version = "1.0.9"
+version = "1.1.0"
 description = "Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 readme = "README.md"
 # The table form, not the PEP 639 string: setuptools 68.1, the version
@@ -38,10 +38,16 @@ discobsd-term = "discobsd_host.term:main"
 discobsd-web = "discobsd_host.web:main"
 discobsd-link = "discobsd_host.link:main"
 discobsd-console = "discobsd_host.console:main"
+discobsd-release = "discobsd_host.release:main"
 discobsd-sramdump = "discobsd_host.sramdump:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# The README links the release-security guide beside itself; the wheel
+# installs it under share/doc so the link has a target in every format.
+[tool.setuptools.data-files]
+"share/doc/discobsd-host" = ["RELEASE-SECURITY.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

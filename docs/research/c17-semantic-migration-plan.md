@@ -1328,6 +1328,87 @@ Cortex-M0+ kernel compilation in one explicitly invoked profile gate.
 `check-c17-smaller-c` remains separate because native language acceptance does
 not establish ISO C17 or the production cross-build result.
 
+## Scheduler prototypes and VM accounting
+
+Parent `793d3432` carries three active K&R definitions in `vm_sched.c`.
+The definitions of `sched`, `vmmeter`, and `vmtotal` use the `void (void)`
+type declared by `proc.h` and `vmmeter.h`. Source search and
+`arm-none-eabi-objdump -r` identify the call from `main` to `sched`, from
+`schedcpu` to `vmmeter`, and from `vmmeter` to `vmtotal`. The conditional
+call from `vm_sysctl` to `vmtotal` sits under `notsure`; production
+`vm_sysctl` reads the five-second snapshot. The RP2040 startup and context
+assembly objects carry no relocation to the three entries. Both ARM port
+generators enforce fatal prototype and old-style-definition diagnostics
+on these definitions and on the admitted process, resource, clist, and
+time units. The inventory contains thirteen inactive definitions across
+three files after the scheduler conversion.
+
+Both ARM ports select `UCB_METER` by default in `machparam.h`. The
+previous meter advanced typed pointers across separate scalar fields of
+three structs. C17 6.5.6 limits that arithmetic to the corresponding
+array object. The replacement starts each unsigned-character view at
+its enclosing struct and computes offsets within the object
+representation (6.3.2.3). Checked index, extent, alignment, and exact
+member type establish the actual scalar object at each address
+(6.5 and 6.7.2.1). The corresponding typed access folds the event into
+its smoothed rate and cumulative total and then clears it. The scan order,
+counter arithmetic, and fifth-second swap rate replacement follow the
+existing accounting contract. Cumulative overflow and fixed-point
+load-average arithmetic retain separate obligations.
+
+Matched parent and candidate `logged-build` runs use GCC 15.2.1 and GNU
+ld 2.45.1 with the production flags. All thirty guarded RP2040 object
+pairs have identical executable section contents and normalized code
+relocations after prototype enforcement alone. The accounting change
+reduces the `vmmeter` input text from 196 to 184 bytes in each RP2040
+kernel. The PICO_UART `.board` section aligns at the preceding 256-byte
+boundary after the change. This gives a 256-byte span reduction for that
+configuration with the following loaded flash spans and RAM sizes:
+
+| RP2040 configuration | Parent flash span | Candidate flash span | Data | BSS |
+| --- | ---: | ---: | ---: | ---: |
+| PICO | 98,880 | 98,880 | 128 | 18,352 |
+| PICO_DIAG | 101,440 | 101,440 | 128 | 18,352 |
+| PICO_UART | 90,936 | 90,680 | 120 | 18,200 |
+| PICOCALC | 126,864 | 126,864 | 144 | 28,808 |
+| PICOCALC_LEAN | 120,720 | 120,720 | 144 | 28,304 |
+| PICOCALC_LEAN_DIAG | 123,280 | 123,280 | 144 | 28,400 |
+
+Spans start at the boot2 flash address. `-fstack-usage` reports 40 to
+32 bytes for `vmmeter`, 32 bytes for `vmtotal`, and 104 bytes for
+`sched` on PICO variants or 112 bytes on PicoCalc variants. All ten
+STM32 configurations compile the guarded units and direct scheduler
+callers. The STM32 `vm_sched.o` comparison records 1,216 executable
+bytes before and after the accounting change. `.bss` in the RP2040
+table denotes the named output section, apart from the separately
+placed pools and scratch sections.
+
+`check-storage-correctness` exercises every meter field with distinct
+counts above 65,535 and checks the normal and fifth-second transitions.
+The narrowed-counter and skipped-field controls fail their field
+assertions. Production-command probes reject an identifier-list
+definition, an incorrect slot offset, and a same-width wrong member
+type. The existing scheduler fixtures exercise exchange, refusal and
+requeue, retry, and swap-device loss. The deciding hardware evidence
+for stack use is the PICO_DIAG stack watermark after fork/wait,
+sleep/wakeup, and swap pressure on the recorded kernel and root images.
+
+The next interface row reconstructs the context save and resume
+contract across C and both ARM assembly ports before adding
+nonreturning or returns-twice annotations. The inactive timer, logging,
+and global-memory paths each need their own enabled build and behavior
+fixture. Resolve the environment providers through the libc declaration
+census and Tcl trace behavior before changing archive selection.
+
+Use `kernel-footprint-handoff.md` for private link experiments against
+the current section collector. Use `memory-ownership-plan.md` for
+simultaneous lifetimes, pool and overlay bounds, and measured high-water.
+The RP2040 optimization notes own memory-bank placement and flash
+recovery evidence. Measure MMIO ordering, DMA ownership, and XIP
+timing under the affected workload before admitting placement or
+Boot ROM substitutions. Product program and erase policy depends on
+interrupted-write recovery and acknowledgement evidence.
+
 ## Independent quick-exit callback qualification
 
 The [quick-exit contract](quick-exit-contracts.md) decomposes the independent

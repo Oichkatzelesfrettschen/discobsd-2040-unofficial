@@ -52,6 +52,7 @@ LDADD=		${LIBGCC}
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${DEFS} -c $<
+C17_PROTO_FLAGS=	-Werror=strict-prototypes -Werror=old-style-definition
 COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
 %OBJS

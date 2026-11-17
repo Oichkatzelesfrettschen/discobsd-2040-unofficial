@@ -66,8 +66,8 @@ def main() -> None:
     zombie = "#ifdef SDSWAP_ENABLED\n" + zombie + "\n#endif\n"
     # The fixture keeps its own sched() for the boot path, which only needs to
     # stop the boot parent, so the production scheduler loop is renamed.
-    sched = extract_function(sched_source, "void\nsched()", "scheduler loop")
-    sched = sched.replace("void\nsched()", "void\nkernel_sched()", 1)
+    sched = extract_function(sched_source, "void\nsched(void)", "scheduler loop")
+    sched = sched.replace("void\nsched(void)", "void\nkernel_sched(void)", 1)
     args.output.write_text(
         ram_state
         + "\n"

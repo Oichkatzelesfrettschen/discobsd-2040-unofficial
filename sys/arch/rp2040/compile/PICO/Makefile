@@ -148,6 +148,7 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${CSIZEFLAGS_COPTS} ${DEFS} -c $<
+C17_PROTO_FLAGS=	-Werror=strict-prototypes -Werror=old-style-definition
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -Os ${CSIZEFLAGS_MI} ${DEFS} -c $<
 # Code whose instruction count is a design input compiles at -O whatever
@@ -398,7 +399,7 @@ kern_mman.o: $S/kern/kern_mman.c
 	${COMPILE_C}
 
 kern_proc.o: $S/kern/kern_proc.c
-	${COMPILE_C}
+	${COMPILE_C} ${C17_PROTO_FLAGS}
 
 kern_prot.o: $S/kern/kern_prot.c
 	${COMPILE_C}
@@ -407,7 +408,7 @@ kern_prot2.o: $S/kern/kern_prot2.c
 	${COMPILE_C}
 
 kern_resource.o: $S/kern/kern_resource.c
-	${COMPILE_C}
+	${COMPILE_C} ${C17_PROTO_FLAGS}
 
 kern_sig.o: $S/kern/kern_sig.c
 	${COMPILE_C}
@@ -425,7 +426,7 @@ kern_sysctl.o: $S/kern/kern_sysctl.c
 	${COMPILE_C}
 
 kern_time.o: $S/kern/kern_time.c
-	${COMPILE_SIZE_C}
+	${COMPILE_SIZE_C} ${C17_PROTO_FLAGS}
 
 subr_prf.o: $S/kern/subr_prf.c
 	${COMPILE_C}
@@ -452,7 +453,7 @@ tty.o: $S/kern/tty.c
 	${COMPILE_C}
 
 tty_subr.o: $S/kern/tty_subr.c
-	${COMPILE_C}
+	${COMPILE_C} ${C17_PROTO_FLAGS}
 
 tty_tty.o: $S/kern/tty_tty.c
 	${COMPILE_C}
@@ -494,7 +495,7 @@ vfs_vnops.o: $S/kern/vfs_vnops.c
 	${COMPILE_C}
 
 vm_sched.o: $S/kern/vm_sched.c
-	${COMPILE_C}
+	${COMPILE_C} ${C17_PROTO_FLAGS}
 
 vm_swap.o: $S/kern/vm_swap.c
 	${COMPILE_C}

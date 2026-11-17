@@ -110,26 +110,54 @@ sleep_bound(void)
 	}
 }
 
-static void
-meter_width(void)
-{
-	long before = sum.v_syscall;
-	unsigned i;
+#define METER_CASES(APPLY) \
+	APPLY(v_swtch, 0, 0) \
+	APPLY(v_trap, 1, 0) \
+	APPLY(v_syscall, 2, 0) \
+	APPLY(v_intr, 3, 0) \
+	APPLY(v_soft, 4, 0) \
+	APPLY(v_fpsim, 5, 0) \
+	APPLY(v_kbin, 6, 0) \
+	APPLY(v_kbout, 7, 0) \
+	APPLY(v_swpin, 8, 1) \
+	APPLY(v_swpout, 9, 1)
 
-	time.tv_sec = 1;
-	bzero(&cnt, sizeof cnt);
-	for (i = 0; i < 70000; i++)
-		cnt.v_syscall++;
+static void
+meter_tick(long second, unsigned events, int fifth)
+{
+	reset();
+	time.tv_sec = second;
+	bzero(avenrun, sizeof avenrun);
+	allproc = &proc[0];
+
+#define SEED(field, slot, swap) \
+	cnt.field = events + 257U * (slot); \
+	rate.field = 100U + 17U * (slot); \
+	sum.field = 1000L + 23L * (slot);
+	METER_CASES(SEED)
+#undef SEED
+
 	vmmeter();
-	HK_CHECK(sum.v_syscall - before == 70000);
-	HK_CHECK(cnt.v_syscall == 0);
-	HK_CHECK(rate.v_syscall == 70000 / 5);
+
+#define CHECK(field, slot, swap) \
+	HK_CHECK(sum.field == 1000L + 23L * (slot) + (long)(events + 257U * (slot))); \
+	HK_CHECK(cnt.field == 0); \
+	HK_CHECK(rate.field == ((fifth && (swap)) ? 0U : \
+	    (400U + 68U * (slot) + events + 257U * (slot)) / 5U));
+	METER_CASES(CHECK)
+#undef CHECK
+
+	HK_CHECK(avenrun[0] == (fifth ? 21 : 0));
+	HK_CHECK(avenrun[1] == (fifth ? 5 : 0));
+	HK_CHECK(avenrun[2] == (fifth ? 2 : 0));
+	allproc = 0;
 }
 
 int
 main(void)
 {
 	sleep_bound();
-	meter_width();
+	meter_tick(1, 70000, 0);
+	meter_tick(5, 71000, 1);
 	return hk_verdict("tsleep/vmmeter");
 }

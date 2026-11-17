@@ -216,7 +216,13 @@ arm-none-eabi-gcc 16.2.0 at 6f000e92, before and after (data, bss and
   identical.
 - Stack frames from `-fstack-usage` in the affected sources: `closei` grows
   by 8 bytes in PICO and PICOCALC and `getfsstat` by 8 in PICO, `newproc` and `swtch` shrink by 16, and
-  about 60 others shrink. The deepest call chain was not recomputed.
+  about 60 others shrink. The deepest call chain, walked over the PICO
+  call graph at f48e19c9 (`kernel-size-flags/README.md`, "Kernel stack
+  chains"), falls 24 bytes with the adopted flags, from 2,400 to 2,376;
+  60 of 108 system call handlers get a shallower chain and one,
+  `getfsstat`, a deeper one by 8. The same walk puts the deepest system
+  call chain above the 2,048-byte kernel stack in every variant, a static
+  bound under a declared model that no board run has confirmed or refuted.
 - Hosted arm-none-eabi-gcc 13.2.1: the flash image `check-kernel-headroom`
   reports, which moves in 256-byte steps, falls 512 bytes in five kernels
   and 256 in PICO_UART between main's push run and the pull-request run.

@@ -283,11 +283,27 @@ sleep(caddr_t channel, int priority)
     HK_CHECK(child == &proc[1]);
 #ifdef SDSWAP_ENABLED
     /* The vfork child was retired with the swap device while it ran. */
-    if (lost_vfork_child) {
+    if (lost_vfork_child == 1 || lost_vfork_child == 3) {
         child->p_flag &= ~SVFORK;
         child->p_stat = SZOMB;
         child->p_xstat = SIGKILL;
-        swap_lost = SWAP_LOST_SWEPT;
+        /* With 3 the swapper has already returned swap to fl1. */
+        swap_lost = lost_vfork_child == 1 ? SWAP_LOST_SWEPT : 0;
+        sleeps++;
+        return;
+    }
+    /*
+     * The vfork child lent the image on to a vfork child of its own, which
+     * went with the device, and is exiting: endvfork() wakes this parent
+     * with no data or stack to give back, and the device has already been
+     * replaced (swap_lost 0 again).
+     */
+    if (lost_vfork_child == 2) {
+        child->p_flag &= ~SVFORK;
+        child->p_flag |= SLOAD;
+        child->p_dsize = 0;
+        child->p_ssize = 0;
+        swap_lost = 0;
         sleeps++;
         return;
     }
@@ -490,10 +506,26 @@ sr_encode(caddr_t source, size_t length, unsigned char *target,
 #define spl0() sched_spl0()
 #define fork kernel_fork
 #define vfork kernel_vfork
+/*
+ * The kernel's exit(), which newproc() calls for a vfork parent whose lent
+ * image went with the swap device; libc owns the name in a host binary. It
+ * records the status and leaves through hk_escape(), since exit() does not
+ * return.
+ */
+static int exit_status = -1;
+_Noreturn void kernel_exit(int rv);
+_Noreturn void
+kernel_exit(int rv)
+{
+    exit_status = rv;
+    hk_escape();
+}
+#define exit kernel_exit
 #ifndef FORK_SWAP_FUNCTIONS
 #define FORK_SWAP_FUNCTIONS "fork_swap_functions.c"
 #endif
 #include FORK_SWAP_FUNCTIONS
+#undef exit
 #undef fork
 #undef vfork
 #undef log
@@ -598,6 +630,7 @@ reset_fixture(void)
     swap_fail_at = -1;
     swap_transfers = unsleeps = 0;
     lost_vfork_child = 0;
+    exit_status = -1;
     bzero(signal_to, sizeof(signal_to));
     bzero(tsleep_armed, sizeof(tsleep_armed));
     bzero(keyevs_ended, sizeof(keyevs_ended));
@@ -2134,14 +2167,18 @@ lost_sweep_cases(void)
     HK_CHECK(signal_to[4] == (1 << SIGHUP | 1 << SIGCONT));
     HK_CHECK(proc[3].p_stat == SSTOP && proc[4].p_stat == SSTOP);
 
-    /* A vfork child returns the loan empty and takes its parent along. */
+    /*
+     * A vfork child returns the loan empty and wakes its parent, which exits
+     * in newproc() (lost_vfork_parent_case()); the retirement sends it no
+     * signal.
+     */
     lost_sched_fixture();
     proc[1].p_flag = SVFORK;
     swap_lost = SWAP_LOST_NEW;
     lost_sweep_call();
     HK_CHECK(lost_zombie(&proc[1]));
     HK_CHECK((proc[1].p_flag & SVFORK) == 0);
-    HK_CHECK(signal_to[0] == (1 << SIGCHLD | 1 << SIGKILL));
+    HK_CHECK(signal_to[0] == 1 << SIGCHLD);
 
     /* init cannot be retired. */
     lost_sched_fixture();
@@ -2258,31 +2295,40 @@ lost_vfork_call(void)
 }
 
 /*
- * The parent of a vfork child that went with the device: the zombie's
- * status survives the parent's wakeup and the parent keeps no image.
+ * The parent of a vfork child whose lent image went with the device, the
+ * child retired as a zombie (how 1, and how 3 once swap is back on fl1) or
+ * exiting after lending the image on to a vfork child of its own that went
+ * (how 2, swap back on fl1): the parent calls exit(SIGKILL) itself rather than return behind
+ * a signal a tracer or process 1 could escape, takes no size from the
+ * child, releases it with SVFDONE and keeps no image.
  */
 static void
-lost_vfork_parent_case(void)
+lost_vfork_parent_case(int how)
 {
     reset_fixture();
     entries[0].m_addr = 4;
     entries[0].m_size = 164;
     proc[0].p_tsize = 0;
     swap_removable = 1;
-    lost_vfork_child = 1;
-    lost_vfork_call();
-    HK_CHECK(lost_result == 0 && sleeps == 1);
-    HK_CHECK(proc[1].p_stat == SZOMB && proc[1].p_xstat == SIGKILL);
-    HK_CHECK((proc[1].p_flag & SVFDONE) == 0);
+    lost_vfork_child = how;
+    lost_result = -2;
+    HK_CHECK(hk_catch(lost_vfork_call) == 1);
+    HK_CHECK(exit_status == SIGKILL && lost_result == -2 && sleeps == 1);
+    if (how != 2)
+        HK_CHECK(proc[1].p_stat == SZOMB && proc[1].p_xstat == SIGKILL);
+    HK_CHECK((proc[1].p_flag & SVFDONE) != 0);
     HK_CHECK(proc[0].p_dsize == 0 && proc[0].p_ssize == 0);
     HK_CHECK((proc[0].p_flag & SVFPRNT) == 0);
+    HK_CHECK(signal_to[0] == 0);
 }
 
 static void
 swap_lost_cases(void)
 {
     lost_fork_cases();
-    lost_vfork_parent_case();
+    lost_vfork_parent_case(1);
+    lost_vfork_parent_case(2);
+    lost_vfork_parent_case(3);
     lost_sched_cases();
     lost_sweep_cases();
 #ifdef FORK_SWAP_EXCHANGE_PROBE

@@ -242,17 +242,24 @@ again:
         parent->p_flag |= SVFPRNT;
         while (child->p_flag & SVFORK)
             sleep ((caddr_t)child, PSWP+1);
-        if (swap_lost && child->p_stat == SZOMB) {
-            /*
-             * The child went with the swap device and the lent image
-             * with it (swap_lost_retire(), vm_swap.c). A zombie's size
-             * fields hold its exit status, so nothing is taken back; the
-             * sizes stay zero and the pending SIGKILL ends this process
-             * before it returns to user mode.
-             */
+#ifdef SDSWAP_ENABLED
+        /*
+         * The lent image went with the swap device: the child was retired
+         * while swapped out (swap_lost_retire(), vm_swap.c), whose size
+         * fields now hold its exit status, or the child is exiting as the
+         * vfork parent of such a child and has no stack to give back. A
+         * signal would not end this process for certain (a tracer can
+         * suppress it and process 1 discards default actions), so it
+         * releases the child as the normal return does and exits; process 1
+         * panics "init died". On a fixed swap device neither case arises.
+         */
+        if (child->p_stat == SZOMB || child->p_ssize == 0) {
+            child->p_flag |= SVFDONE;
+            wakeup ((caddr_t) parent);
             parent->p_flag &= ~SVFPRNT;
-            return(0);
+            exit (SIGKILL);
         }
+#endif
         if ((child->p_flag & SLOAD) == 0)
             panic ("newproc vfork");
         u.u_dsize = parent->p_dsize = child->p_dsize;

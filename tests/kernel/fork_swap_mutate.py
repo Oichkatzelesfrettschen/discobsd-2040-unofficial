@@ -243,17 +243,33 @@ MUTATIONS = {
         '    if (p->p_pid == 1)\n        panic ("init lost with the swap device");',
         "",
     ),
+    # A vfork parent whose lent image went exits in newproc(), never
+    # behind a signal: returning instead, missing the nested case, or
+    # leaving the exiting child waiting for SVFDONE must fail.
     "lost-vfork-parent-spared": (
-        "        psignal (p->p_pptr, SIGKILL);\n        wakeup ((caddr_t) p);",
-        "        wakeup ((caddr_t) p);",
+        "            parent->p_flag &= ~SVFPRNT;\n            exit (SIGKILL);",
+        "            parent->p_flag &= ~SVFPRNT;\n            return(0);",
     ),
     "lost-vfork-takes-zombie-sizes": (
-        "        if (swap_lost && child->p_stat == SZOMB) {",
+        "        if (child->p_stat == SZOMB || child->p_ssize == 0) {",
         "        if (0) {",
     ),
+    "lost-vfork-nested-spared": (
+        "        if (child->p_stat == SZOMB || child->p_ssize == 0) {",
+        "        if (child->p_stat == SZOMB) {",
+    ),
+    "lost-vfork-zombie-after-fallback": (
+        "        if (child->p_stat == SZOMB || child->p_ssize == 0) {",
+        "        if (swap_lost && child->p_stat == SZOMB) {",
+    ),
+    "lost-vfork-child-unreleased": (
+        "            child->p_flag |= SVFDONE;\n            wakeup ((caddr_t) parent);\n"
+        "            parent->p_flag &= ~SVFPRNT;\n            exit (SIGKILL);",
+        "            parent->p_flag &= ~SVFPRNT;\n            exit (SIGKILL);",
+    ),
     "lost-vfork-child-kept-waiting": (
-        "        p->p_flag &= ~SVFORK;\n        psignal (p->p_pptr, SIGKILL);",
-        "        psignal (p->p_pptr, SIGKILL);",
+        "        p->p_flag &= ~SVFORK;\n        wakeup ((caddr_t) p);",
+        "        wakeup ((caddr_t) p);",
     ),
     "lost-sleeper-queued": ("    unsleep (p);", "    (void)0;"),
     # The zombie conversion and reparenting are exit()'s, in proc_zombie()

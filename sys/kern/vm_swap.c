@@ -853,11 +853,10 @@ swap_lost_retire (struct proc *p)
     if (p->p_flag & SVFORK) {
         /*
          * newproc() sleeps in the parent until SVFORK clears. It finds a
-         * zombie, takes nothing back, and SIGKILL ends the parent before it
-         * returns to an image it no longer has.
+         * zombie, takes nothing back and calls exit() before it returns to
+         * an image it no longer has.
          */
         p->p_flag &= ~SVFORK;
-        psignal (p->p_pptr, SIGKILL);
         wakeup ((caddr_t) p);
     }
     p->p_flag &= ~P_TRACED;

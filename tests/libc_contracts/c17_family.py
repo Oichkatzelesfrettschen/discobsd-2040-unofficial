@@ -764,6 +764,10 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
     elif platform.system() == "Darwin":
         # Apple's SDK has no <uchar.h>; the same shim declares its members.
         machine = machine + ["-idirafter", str(root / "tests/libc_contracts/newlib_shim")]
+        # Its <ctype.h> and <wctype.h> otherwise define the classification
+        # functions inline, which collides with a member compiled under its
+        # own name.
+        machine = machine + ["-D_DONT_USE_CTYPE_INLINE_"]
     if "-m32" in compiler:
         # x87 arithmetic keeps excess precision, which the target never has.
         machine = machine + ["-msse2", "-mfpmath=sse"]

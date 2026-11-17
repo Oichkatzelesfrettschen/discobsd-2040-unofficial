@@ -388,7 +388,7 @@ An `-flto` link of PICO fails four ways:
 Measure the payoff after the `struct user` and dead-function work, because
 the three overlap.
 
-### Designs not yet prototyped
+### Further design candidates
 
 Prototype each in a scratch tree and land only a measured win.
 
@@ -404,14 +404,12 @@ Prototype each in a scratch tree and land only a measured win.
   `__clzsi2` (60) duplicate functions the boot ROM exports. The kernel calls
   `rom_func_lookup` once (`machdep.c` line 742). The overlapping-copy
   semantics of `bcopy` must be preserved.
-- **Halfword dispatch tables.** `syscall_handlers` (652 bytes) stores
-  4-byte pointers into text under 128 KB. `cdevsw` (484 bytes) mixes
-  function pointers with the RAM data pointer `d_ttys` (`struct cdevsw` in
-  `sys/sys/conf.h`, populated with tables such as `cnttys`), which cannot take
-  a code-offset encoding. A prototype compresses only the function-pointer
-  members and keeps data pointers full width. C cannot express halfword code
-  offsets as constant initializers, so a generator would emit them in
-  assembly.
+- **Halfword device dispatch.** The
+  [syscall prototype](#compact-syscall-dispatch-prototype) covers
+  `syscall_handlers`. The separate `cdevsw` table mixes function pointers
+  with the RAM data pointer `d_ttys` in `sys/sys/conf.h`. A device-dispatch
+  trial can encode the function pointers as code offsets and retain
+  `d_ttys` at pointer width.
 - **Packed message pools.** `errno_message_pool` (1,902 bytes) and
   `syscall_name_pool` (1,193 bytes) are mostly lowercase text. Five-bit
   packing with a small decoder would cost CPU only on error paths.

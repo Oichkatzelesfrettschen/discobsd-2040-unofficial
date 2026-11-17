@@ -1134,4 +1134,3 @@ datasheet; listed separately)
 | p. 143, l. 7240, p. 143, l. 7250 | NGC list rows "V4P[4:0]", "V43P[5:0]" | the E1h page prints V4N[4:0], V43N[6:0] (p. 241, l. 13890, p. 241, l. 13900) |
 | p. 265, l. 15277, p. 267, l. 15357 | "(V5P0-VP57)", "(V5N0-VN57)" | the neighboring rows use VP50, VN50 |
 | p. 250, l. 14406 | "horizontal addressing mode (V=0)" | MV = 0 |
-

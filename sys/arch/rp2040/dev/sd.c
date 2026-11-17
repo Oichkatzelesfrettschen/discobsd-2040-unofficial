@@ -193,6 +193,15 @@ static u_int sd_open[2];
  * counted, so a bit of sd_open alone would go with the first such close.
  */
 static u_int sd_swaphold;
+#ifdef SDSWAP_ENABLED
+/*
+ * The held partition until main() opens it as swapdev. That open is the
+ * hold's own and sets no bit of sd_open, so when swap returns to fl1
+ * (sdswap_fallback()) the bits left are those of descriptors, which the
+ * hold's release must keep: block opens are not counted.
+ */
+static u_char sd_swapmain;
+#endif
 #define	sd_blkopen	(sd_open[1] | sd_swaphold)
 #define	sd_openpart	(sd_open[0] | sd_blkopen)
 #define	sd_kind(mode)	((mode) == S_IFBLK)
@@ -376,6 +385,13 @@ sdopen(dev_t dev, int flag __unused, int mode)
 		}
 		sdroot.slot = 0;
 	}
+#ifdef SDSWAP_ENABLED
+	/* main()'s open of the held partition is the hold's own. */
+	if (sd_swapmain == 1U << part && sd_kind(mode)) {
+		sd_swapmain = 0;
+		return 0;
+	}
+#endif
 	sd_open[sd_kind(mode)] |= 1U << part;
 	return 0;
 }
@@ -800,6 +816,9 @@ sdswapattach(void)
 	int i, error;
 
 	sd_swaphold = 0;
+#ifdef SDSWAP_ENABLED
+	sd_swapmain = 0;
+#endif
 	if (board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR)
 		return;
 	if ((error = sd_setup()) != 0) {
@@ -823,6 +842,7 @@ sdswapattach(void)
 	/* The card can leave: a failed swap transfer is survivable (systm.h). */
 	swap_removable = 1;
 	sd_swapfixed = swapdev;
+	sd_swapmain = sd_swaphold;
 #endif
 	swapdev = makedev(SD_BMAJOR, i);
 	printf("swap: sd0%c\n", 'a' + i - 1);
@@ -848,13 +868,12 @@ sdswap_fallback(void)
 	if (blocks <= 0)
 		return 0;
 	/*
-	 * Release the partition as its last close would: main() opened it as
-	 * a block device and no close of swapdev reaches it from here, so the
-	 * open bit left set would keep sd_openpart nonzero and refuse the next
-	 * card with EIO instead of reading it.
+	 * Release the hold. main()'s open of the partition set no bit of
+	 * sd_open (sd_swapmain), so with no descriptor open the next open
+	 * brings a replacement card up; a descriptor's bit stays and keeps a
+	 * replacement refused until that descriptor closes.
 	 */
 	sd_swaphold = 0;
-	sdclose(swapdev, FREAD | FWRITE, S_IFBLK);
 	swapdev = dev;
 	printf("swap: sd0 gone, swap on (%d,%d)\n", major(dev), minor(dev));
 	return blocks;

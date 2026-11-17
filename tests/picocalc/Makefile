@@ -1382,7 +1382,9 @@ sdstrat-mutants: \
 	sdstrat-mutant-swap-overlap-ignored \
 	sdstrat-mutant-swap-overlap-adjacent \
 	sdstrat-mutant-swap-overlap-self \
-	sdstrat-mutant-swap-fallback-left-open
+	sdstrat-mutant-swap-fallback-hold-kept \
+	sdstrat-mutant-swap-main-open-counted \
+	sdstrat-mutant-swap-fallback-closes-descriptor
 
 # sdrootattach(): the root a kernel the PicoCalc loader started takes.
 sdstrat-mutant-root-stamp-ignored:
@@ -1514,10 +1516,20 @@ sdstrat-mutant-swap-overlap-self:
 	${SDSTRAT_MUT} sd.c \
 	    's/if (q != p \&\& q->dp_nsectors/if (q->dp_nsectors/' ${SDSTRAT_SRC}
 
-# The return of swap to fl1 releases the card's swap partition.
-sdstrat-mutant-swap-fallback-left-open:
+# The return of swap to fl1 releases the hold, and only the hold: main()'s
+# open of the swap partition sets no descriptor bit, and the bits of
+# descriptors still open survive the release.
+sdstrat-mutant-swap-fallback-hold-kept:
 	${SDSTRAT_MUT} sd.c \
-	    's/^	sdclose(swapdev, FREAD | FWRITE, S_IFBLK);$$/	(void)0;/' ${SDSTRAT_SRC}
+	    '/^sdswap_fallback/,/^}/s/^	sd_swaphold = 0;$$/	(void)0;/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-main-open-counted:
+	${SDSTRAT_MUT} sd.c \
+	    's/if (sd_swapmain == 1U << part \&\& sd_kind(mode)) {/if (0) {/' ${SDSTRAT_SRC}
+
+sdstrat-mutant-swap-fallback-closes-descriptor:
+	${SDSTRAT_MUT} sd.c \
+	    '/^sdswap_fallback/,/^}/s/^	sd_swaphold = 0;$$/	sd_swaphold = 0; sd_open[1] \&= ~(1U << sdpart(swapdev));/' ${SDSTRAT_SRC}
 
 # The last sector of a swap transfer, sd_tail_io() and its callers.
 sdstrat-mutant-swap-tail-refused:
@@ -2020,7 +2032,9 @@ clean:
 	sdstrat-mutant-swap-overlap-ignored \
 	sdstrat-mutant-swap-overlap-adjacent \
 	sdstrat-mutant-swap-overlap-self \
-	sdstrat-mutant-swap-fallback-left-open
+	sdstrat-mutant-swap-fallback-hold-kept \
+	sdstrat-mutant-swap-main-open-counted \
+	sdstrat-mutant-swap-fallback-closes-descriptor
 
 .PHONY: picoaudio-mutants \
 	picoaudio-mutant-left-override \

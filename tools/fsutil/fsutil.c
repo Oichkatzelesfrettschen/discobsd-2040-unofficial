@@ -738,6 +738,8 @@ void create_partition_table (const char *filename, char *format)
             type = 0xb8;
         else if (strcmp (p, "dump") == 0)
             type = 0xb9;        /* DUMP_PART_TYPE, sys/arch/rp2040/include/dump.h */
+        else if (strcmp (p, "tmp") == 0)
+            type = 0xba;        /* PTYPE_TMP, sys/sys/disk.h */
         else {
             type = strtoul (p, &endptr, 16);
             if (*endptr != '\0') {

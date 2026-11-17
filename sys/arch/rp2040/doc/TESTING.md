@@ -537,6 +537,7 @@ upload and hidden-file inclusion.
 | qemu | `check-qemu` | qemu-arm (qemu-user) | yes | no: Homebrew's qemu builds no user-mode emulator; the Smaller C suite links only and says so |
 | renode | `check-renode` | Renode, the fetched RP2040 models, a built tree | yes: the `firmware/rp2040` job installs the pinned Renode release, then fetches and builds the models | no |
 | renode table exhaustion | `check-renode-capacity` | Renode, the fetched RP2040 models, a built PICO_DIAG kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
+| renode asynchronous system trap | `check-renode-preempt` | Renode, the fetched RP2040 models, a built PICO_UART kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | renode image identity | `check-renode-identity` | Renode, the fetched RP2040 models, a built PICO_UART kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
 | PicoCalc cycle model | `check-picocalc-cycle-model` | Unicorn and Capstone under `${PYTHON}`, the arm-none-eabi toolchain, `bmake` and a built tree (`bin/sh/sh`, `usr.bin/awk/awk`). `oracle.sh` compares the committed `run-output.tsv` (the fixed oracle of the note's cycle counts, pinned to one compiler version) with a fresh model run: compiler options and the four synthetic rows must match, and the sh and awk rows only when the input a.outs match; another compiler version is reported as a skip with its reason. `selftest.sh` calibrates the comparison and the harness on known-bad input | yes: the `firmware/rp2040` job, after the core 1 emulation step; skips on a compiler other than the oracle's | no |
@@ -2089,7 +2090,7 @@ both kernels' `-Wall -Wextra -Werror` behavior as described above.
 | --- | --- |
 | `check-sh-heap-boundary` | the linked target shell's disassembly `bin/sh/sh.dis` contains none of `malloc`, `calloc`, `realloc`, `free`, `getwd`, `getcwd`, `opendir`, `readdir` or `closedir`, so libc never establishes a second heap over the break that `alloc()` and the stack arena own; a self-test rejects a fixture holding `malloc` and `getwd` and accepts one holding only shell allocator symbols. It establishes the link closure, not runtime heap behavior |
 | `check-control-char-contracts` | Cribbage and tip compile their exact control-character consumers for Cortex-M0+; source assertions bind redraw, bell, exit, both suspend modes, literal-next and raise to distinct bytes, rejecting the inherited macros that collapsed the Cribbage actions to control-X and every tip action to control-C |
-| `check-divider` | neither linked kernel reaches the SIO divider registers, from the ELF and from the dependency files, whose comments are stripped before the scan so a file may say which registers the boot ROM writes without being read as writing them |
+| `check-divider` | no linked kernel reaches the SIO divider registers outside `divider_save` and `divider_restore` (syscall.c), the process-state save and restore that `--admit-function` names, and each admitted function makes a divider access in every kernel or the gate fails (the `divider_admitted` fixture of tests/rp2040/divider_ownership holds both directions); the ELF and the dependency files are scanned, the source scan skipping the admitted definitions and nothing else (`source_admitted.c`), whose comments are stripped before the scan so a file may say which registers the boot ROM writes without being read as writing them |
 | `check-core1-image` | `tools/verify_rp2040_core1_image.py` on linked fixtures and then on every built kernel. From core 1's three entry functions the verifier follows each direct call and requires every function reached, every branch target and every call target to lie in SRAM, no literal-pool word to be an address in the execute-in-place window, no `svc`, `bkpt` or `udf`, and the ring consumer's handler call to be the only indirect one. The clean fixture passes; fixtures with a call into flash, a flash literal, a second indirect call and a trap each fail with exit 1 naming that defect, and an image with no entry symbol is reported, and refused under `--require-image`. At least one built kernel must carry a core 1 image. A source check then requires every `exit_xip()` call under `sys/arch/rp2040` to lie between a `watchdog_site()` declaration and its clearing call, and a copy of `flash.c` with one declaration removed has to fail it. It establishes placement in the linked image; it executes nothing |
 | `check-rp2040-shutdown-cross` | the source control binds `rp2040_shutdown_sync()` to the no-sync, reentry and initialized-buffer guards before final reset handling. In each production Cortex-M0+ object, the control-flow verifier finds a reachable helper call before the unique final interrupt mask, requires every route from that call's return edge to reach the mask before an exit or cycle, and rejects helper reachability after the mask. The helper object requires every route to mask interrupts before `sync()` and every post-delay route to reach the final recount. Forward, backward, guard-exit, return, direct-program-counter-write, loop, invalid-target, post-mask-call, missing-call, duplicate-call, mask-after-sync, mask-bypass, missing-recount, recount-bypass and unparsed gaps after each ordered event calibrate the verdict. The verifier models each call as returning to its next contiguous decoded instruction. The gate proves source and compiled ordering on those returning paths, not device completion or physical persistence. |
 | `check-swapram` | vm_swap.o, exec_hsaout.o and kern_sysctl.o agree with each kernel's Config on the SwapRAM tier and pool size |
@@ -2820,6 +2821,34 @@ kernel whose `iget()` drops the inode failure note fails it on the inode
 counter. The
 composed image, the UART0 transcript and the Renode log stay under
 tools/renode/vendor/results/capacity.
+
+## Renode asynchronous system trap tier
+
+`check-renode-preempt` builds tests/rp2040/preempt and runs
+tools/renode/check-preempt.sh, which adds `preempt` under /tmp to a copy of
+the root disk image, checks and wraps it as `check-renode-capacity` does,
+and boots the PICO_UART kernel once per case through tools/renode/check-preempt.py.
+Every case runs a loop that makes no system call, so only the return to the
+process through `userret` from the clock tick, the asynchronous system trap
+of sys/arch/rp2040/rp2040/systick.c and syscall.c, can deliver its signal or
+switch it out; a kernel without that path runs one loop forever, which is
+why each case has its own machine. The cases and their pass conditions:
+`alarm` ends on SIGALRM with status 142; `share` wakes a parent from
+`sleep(3)` while two children loop and finds a nonzero count in each;
+`intr` ends a loop with the interrupt character typed into UART0 (status
+130); `regs` keeps sentinels in r1-r12 and lr intact across 200 handlers
+that overwrite r8-r12, at sp 0 and 4 modulo 8 in two processes; `divide`
+compares every SIO divider result of two dividing processes and their
+handlers with a software division while a third process forces switches
+every 2 ms; `altstack` runs a handler on an alternate stack of exactly
+`MINSIGSTKSZ` bytes based 7 bytes past an eight-byte boundary and requires
+the signal frame to stay inside it; `execdiv` execs from a sequence that
+left the divider DIRTY with known operands and requires the new image not
+to find them; `divclean` has two processes leave their own divider values
+with DIRTY clear and read them back under switches forced every 2 ms. origin/main at 4b3eaf6c fails all five (docs/research/rp2040-systick-ast.md
+holds the calibration). The claim is the emulated kernel's trap path;
+Renode's divider answers in zero cycles, so the eight-cycle window of the
+silicon divider is a board receipt, a separate evidence class.
 
 ## Renode PicoCalc tier
 
@@ -3915,6 +3944,22 @@ Runtime stack and heap high-water, descriptor/inode pressure under a complete
 extraction workload, directory-write recovery, persistent-media traffic,
 symbolic-link publication, conditional removal, directory metadata
 reacquisition, and physical-board behavior retain separate evidence states.
+
+## Hybrid release and policy specification tiers
+
+`check-hybrid-release` requires an OpenSSL implementation with Ed25519 and
+ML-DSA-65. It executes real signing and verification against synthetic UF2
+bundles, malformed/corrupted controls, wrong epochs and rollback sequences,
+private staging, and failed/successful mocked flash delegation. No serial or
+picotool operation occurs in this tier. `check-release-policy` runs Lean 4.19.0
+from `tools/proofs` through `lake env` (`LAKE` and `LEAN` select the
+commands; elan reads `lean-toolchain` there) and checks Python manifest geometry, specification
+theorems and a rejected AND-to-OR mutant. These optional tiers add no target
+dependencies. The `pq-release-proofs` and `pq-release-hybrid` jobs of
+`.github/workflows/firmware.yml` run their CI equivalents in the nightly and on
+manual dispatch; the hybrid job takes OpenSSL 3.5.7 from conda-forge because
+the ubuntu-24.04 runner image ships OpenSSL 3.0.x without ML-DSA.
+Proofs concern the stated policy, not Python/OpenSSL refinement or hardware.
 
 ## MATEzinho desktop gates
 

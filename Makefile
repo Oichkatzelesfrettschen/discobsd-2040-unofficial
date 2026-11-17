@@ -81,6 +81,18 @@ SUBDIR=		share lib bin usr.bin sbin libexec usr.sbin games benchmarks
 
 all:		build
 
+# The proofs run from tools/proofs, where elan reads lean-toolchain, and lake
+# env puts the pinned toolchain's lean on PATH for the checker; a run from the
+# repository root would pick the default toolchain instead.
+LAKE?=		lake
+LEAN?=		lean
+.PHONY: check-release-policy check-hybrid-release
+check-release-policy: check-python
+		cd tools/proofs && ${LAKE} env ${PYTHON} check_policy.py --lean "${LEAN}"
+
+check-hybrid-release: check-python
+		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
+
 check-python:
 		@if [ -z "${PYTHON}" ]; then \
 			echo "PYTHON must name the interpreter for this target" >&2; \
@@ -2312,6 +2324,15 @@ check-renode-capacity:
 # "differs" branch of image_identify() runs and the loader's stamp span is
 # shown to be skipped. Outside "check" for the reason
 # check-renode is.
+# The asynchronous system trap on the emulated PICO_UART kernel:
+# tools/renode/check-preempt.sh adds tests/rp2040/preempt to a copy of
+# ${FSIMG} and boots it once per case; each case runs a loop with no system
+# call that only a signal or a switch from the clock tick can end. Outside
+# "check" for the reason check-renode is.
+check-renode-preempt:
+		${MAKE} -C tests/rp2040/preempt MACHINE=${MACHINE}
+		sh tools/renode/check-preempt.sh ${FSIMG}
+
 check-renode-identity:
 		sh tools/renode/check-identity.sh ${FLASHBIN}
 
@@ -2502,6 +2523,7 @@ installfs:
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump check-renode-union \
+		check-renode-preempt \
 		check-renode-union-lean check-renode-union-diag \
 		check-host-package check-board-build check symlinks etc-distribution \
 		multicall-staging \

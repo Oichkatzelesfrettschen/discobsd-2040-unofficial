@@ -9,10 +9,12 @@ FIXTURE_FLAGS+=	-Wa,--fatal-warnings -Wl,--fatal-warnings -Wl,-z,noexecstack
 FIXTURE_FLAGS+=	-Wl,--entry=entry -Wl,--section-start=.text=0x10000000
 FIXTURE_FLAGS+=	-Wl,--build-id=none
 FIXTURE_ELFS=	divider_safe.elf divider_negative.elf \
-		divider_control_flow_negative.elf divider_residual_negative.elf
+		divider_control_flow_negative.elf divider_residual_negative.elf \
+		divider_admitted.elf
 USER_HELPER_SOURCE=	${TOPSRC}/lib/libc/arm/gen/aeabi_div.S
 DEPENDENCY_FILE=	.deps/source_negative.dep
 COMMENT_DEPENDENCY_FILE=	.deps-comment/source_comment_safe.dep
+ADMITTED_DEPENDENCY_FILE=	.deps-admitted/source_admitted.dep
 
 all: check
 
@@ -24,7 +26,7 @@ check-python:
 	@"${PYTHON}" -c 'import capstone, elftools'
 
 check: check-python ${FIXTURE_ELFS} ${DEPENDENCY_FILE} \
-	    ${COMMENT_DEPENDENCY_FILE}
+	    ${COMMENT_DEPENDENCY_FILE} ${ADMITTED_DEPENDENCY_FILE}
 	"${PYTHON}" "${VERIFIER}" --elf divider_safe.elf \
 	    > safe.stdout 2> safe.stderr
 	test ! -s safe.stderr
@@ -79,6 +81,51 @@ check: check-python ${FIXTURE_ELFS} ${DEPENDENCY_FILE} \
 	test ! -s source_comment_safe.stderr
 	grep -F 'source_files=1 source_divider_findings=0' \
 	    source_comment_safe.stdout
+	@if "${PYTHON}" "${VERIFIER}" --elf divider_admitted.elf \
+	    > admitted_unnamed.stdout 2> admitted_unnamed.stderr; then \
+		echo "unadmitted divider_save unexpectedly passed" >&2; \
+		exit 1; \
+	else \
+		status=$$?; test $$status -eq 1; \
+	fi
+	grep -F 'divider_findings=2' admitted_unnamed.stdout
+	"${PYTHON}" "${VERIFIER}" --elf divider_admitted.elf \
+	    --admit-function divider_save \
+	    > admitted.stdout 2> admitted.stderr
+	test ! -s admitted.stderr
+	grep -F 'divider_findings=0' admitted.stdout
+	grep -F 'admitted: divider_save: ldr r2, [r1, #0x78]' admitted.stdout
+	@if "${PYTHON}" "${VERIFIER}" --elf divider_negative.elf \
+	    --admit-function divider_save \
+	    > admitted_stale.stdout 2> admitted_stale.stderr; then \
+		echo "stale admission unexpectedly passed" >&2; \
+		exit 1; \
+	else \
+		status=$$?; test $$status -eq 1; \
+	fi
+	grep -F 'divider_findings=4' admitted_stale.stdout
+	grep -F 'admitted function divider_save makes no divider access' \
+	    admitted_stale.stderr
+	@if "${PYTHON}" "${VERIFIER}" --elf divider_admitted.elf \
+	    --admit-function divider_save --dependency-directory .deps-admitted \
+	    > source_admitted.stdout 2> source_admitted.stderr; then \
+		echo "file-scope divider reference unexpectedly passed" >&2; \
+		exit 1; \
+	else \
+		status=$$?; test $$status -eq 1; \
+	fi
+	grep -F 'source_files=1 source_divider_findings=2' source_admitted.stdout
+	grep -F 'source_admitted.c:36: divider symbol' source_admitted.stderr
+	grep -F 'source_admitted.c:41: divider symbol' source_admitted.stderr
+	@if "${PYTHON}" "${VERIFIER}" --elf divider_admitted.elf \
+	    --dependency-directory .deps-admitted \
+	    > source_unadmitted.stdout 2> source_unadmitted.stderr; then \
+		echo "unadmitted source reference unexpectedly passed" >&2; \
+		exit 1; \
+	else \
+		status=$$?; test $$status -eq 1; \
+	fi
+	grep -F 'source_files=1 source_divider_findings=4' source_unadmitted.stdout
 	@if "${PYTHON}" "${VERIFIER}" --elf divider_safe.elf \
 	    --dependency-directory missing-dependencies \
 	    > missing_dependencies.stdout 2> missing_dependencies.stderr; then \
@@ -108,8 +155,14 @@ ${COMMENT_DEPENDENCY_FILE}: source_comment_safe.c
 	    -mfloat-abi=soft -ffreestanding -nostdinc -M \
 	    -MT source_comment_safe.o -MF $@ source_comment_safe.c
 
+${ADMITTED_DEPENDENCY_FILE}: source_admitted.c
+	mkdir -p .deps-admitted
+	${FIXTURE_CC} -std=gnu17 -mcpu=cortex-m0plus -mthumb \
+	    -mfloat-abi=soft -ffreestanding -nostdinc -M \
+	    -MT source_admitted.o -MF $@ source_admitted.c
+
 clean:
-	rm -rf .deps .deps-comment *.elf *.stderr *.stdout user_helper_*.o \
+	rm -rf .deps .deps-comment .deps-admitted *.elf *.stderr *.stdout user_helper_*.o \
 	    user_helper_*.S
 
 .PHONY: all check check-python clean

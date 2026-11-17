@@ -31,9 +31,12 @@
  * PANELTEST.md). It holds /dev/lcdgfx, so the kernel accepts
  * machdep.picocalc.panel_variant and panel_read, draws the calibration
  * patterns of the experiments, and logs every register set and readback to
- * /var/log/paneltest.log. Keys: n and p step the register set, 1 to 7 pick
- * a pattern, r reads the panel registers back, q quits; the kernel programs
- * the shipped set again when the device closes.
+ * /var/log/paneltest.log. Keys: the right and left arrows (or n and p)
+ * step the register set, the up and down arrows (or 1 to 7) pick a
+ * pattern, r reads the panel registers back, f measures the frame rate
+ * through the scanline sample, q quits; the kernel programs the shipped
+ * set again when the device closes. Every pattern shows the set number,
+ * its name and the pattern number in the top left corner.
  */
 
 #include <sys/types.h>
@@ -51,6 +54,7 @@
 
 #include "../../sys/arch/rp2040/dev/lcdfont.h"
 #include "../../sys/arch/rp2040/dev/paneltest_sets.h"
+#include "panel_decode.h"
 
 #define	NAME_ROW(name, pre, base, post)	name,
 static const char *const set_names[] = { PANELTEST_SETS(NAME_ROW) };
@@ -62,10 +66,20 @@ static const char *const set_names[] = { PANELTEST_SETS(NAME_ROW) };
 #define	GREEN	0x07e0
 #define	BLUE	0x001f
 #define	LOG	"/var/log/paneltest.log"
+#define	NPAT	7
+
+/* Arrow keys, after their ESC [ or ESC O prefix. */
+#define	K_UP	0x100
+#define	K_DOWN	0x101
+#define	K_RIGHT	0x102
+#define	K_LEFT	0x103
 
 static int gfx, cur_set, cur_pat = 1;
 static struct picocalc_panel_read rb;
 static int have_rb;
+static struct picocalc_panel_scan sc;
+static struct pd_scan scan;
+static int scan_set = -1;		/* Set the scan was taken under. */
 
 static void
 fill(int x0, int y0, int x1, int y1, unsigned color)
@@ -139,9 +153,145 @@ format_ent(char *buf, size_t len, const struct picocalc_panel_ent *e)
 {
 	int i, off;
 
-	off = snprintf(buf, len, "%02x fb%02x:", e->cmd, e->fb);
+	off = snprintf(buf, len, "%02x fb%02x h%x:", e->cmd, e->fb, e->how);
 	for (i = 0; i < e->n && i < PANEL_READ_BYTES && off < (int)len; i++)
 		off += snprintf(buf + off, len - (size_t)off, " %02x", e->data[i]);
+}
+
+/* The first plain read (no FBh, no variant) of cmd, or NULL. */
+static const struct picocalc_panel_ent *
+find_ent(int cmd)
+{
+	int i;
+
+	for (i = 0; have_rb && i < rb.nent && i < PANEL_READ_N; i++)
+		if (rb.ent[i].cmd == cmd && rb.ent[i].fb == 0 &&
+		    rb.ent[i].how == 0)
+			return &rb.ent[i];
+	return NULL;
+}
+
+static void
+hex(char *buf, size_t len, const unsigned char *p, int n)
+{
+	size_t off = strlen(buf);
+	int i;
+
+	for (i = 0; i < n && off < len; i++)
+		off += (size_t)snprintf(buf + off, len - off, " %02x", p[i]);
+}
+
+/* A multi-byte read raw and shifted left one bit (the dummy clock). */
+static void
+raw_shift(char *buf, size_t len, const struct picocalc_panel_ent *e)
+{
+	unsigned char v[PANEL_READ_BYTES];
+	int n = e->n < PANEL_READ_BYTES ? e->n : PANEL_READ_BYTES;
+
+	pd_shift(e->data, n, v);
+	snprintf(buf, len, "%02x raw", e->cmd);
+	hex(buf, len, e->data, n);
+	strncat(buf, " <<1", len - strlen(buf) - 1);
+	hex(buf, len, v, n);
+}
+
+/*
+ * The decoded readback, one line at a time to the log (y < 0) or to the
+ * screen from line y; returns the next free line.
+ */
+static int
+decoded(int y)
+{
+	const struct picocalc_panel_ent *e;
+	char line[160], a[60], b[60];
+	int i, k = 0;
+
+	for (i = 0; i < 7; i++) {
+		line[0] = '\0';
+		switch (i) {
+		case 0: case 1: case 5:
+			e = find_ent(i == 0 ? 0x04 : i == 1 ? 0x09 : 0xd3);
+			if (e != NULL)
+				raw_shift(line, sizeof(line), e);
+			break;
+		case 2:
+			if ((e = find_ent(0x09)) != NULL && e->n >= 5)
+				pd_rddst(line, sizeof(line), e->data);
+			break;
+		case 3:
+			if ((e = find_ent(0x0a)) != NULL) {
+				pd_rddpm(a, sizeof(a), e->data[0]);
+				snprintf(line, sizeof(line), "0a %02x %s",
+				    e->data[0], a);
+			}
+			break;
+		case 4:
+			if ((e = find_ent(0x0b)) != NULL &&
+			    find_ent(0x0c) != NULL) {
+				pd_madctl(a, sizeof(a), e->data[0]);
+				pd_colmod(b, sizeof(b), find_ent(0x0c)->data[0]);
+				snprintf(line, sizeof(line), "0b %02x %s  0c %02x %s",
+				    e->data[0], a, find_ent(0x0c)->data[0], b);
+			}
+			break;
+		case 6:
+			if (scan_set != cur_set)
+				break;
+			if (scan.ok)
+				snprintf(line, sizeof(line),
+				    "f %lu.%02lu+-%lu.%02lu Hz %u lines (%u unshifted)",
+				    scan.chz / 100, scan.chz % 100,
+				    scan.err_chz / 100, scan.err_chz % 100,
+				    scan.lines, scan.lines_raw);
+			else
+				snprintf(line, sizeof(line),
+				    "f no rate: %u reads %u wraps %u bad",
+				    sc.samples, sc.wraps, sc.bad);
+			break;
+		}
+		if (line[0] == '\0')
+			continue;
+		if (y < 0)
+			log_line(line);
+		else
+			text(0, y + 10 * k, line, 15, 0);
+		k++;
+	}
+	return y + 10 * k;
+}
+
+/*
+ * Sample the scanline, then log and print the frame rate, the line count
+ * and the measurement's terms.
+ */
+static void
+measure(void)
+{
+	int mib[3] = { CTL_MACHDEP, CPU_PICOCALC, CPU_PICOCALC_PANEL_SCAN };
+	size_t len = sizeof(sc);
+	char line[200];
+
+	if (sysctl(mib, 3, &sc, &len, NULL, 0) < 0) {
+		snprintf(line, sizeof(line), "scan set %d failed", cur_set);
+		scan_set = -1;
+	} else {
+		pd_scan(&scan, sc.samples, sc.wraps, sc.first_us, sc.last_us,
+		    sc.elapsed_us, sc.max_gap_us, sc.raw_max);
+		scan_set = cur_set;
+		snprintf(line, sizeof(line), "scan set %d %s: %s%lu.%02lu Hz "
+		    "+-%lu.%02lu, lines %u (unshifted %u, may miss %u); "
+		    "reads %u every %u us, wraps %u at %u..%u us, bad %u, "
+		    "gap %u us, elapsed %u us, raw_max %06x", cur_set,
+		    set_names[cur_set], scan.ok ? "" : "no rate ",
+		    scan.chz / 100, scan.chz % 100, scan.err_chz / 100,
+		    scan.err_chz % 100, scan.lines, scan.lines_raw,
+		    scan.lines_slack, sc.samples, scan.sample_us, sc.wraps,
+		    sc.first_us, sc.last_us, sc.bad, sc.max_gap_us,
+		    sc.elapsed_us, sc.raw_max);
+	}
+	log_line(line);
+	printf("%s\r\n", line);
+	fflush(stdout);
 }
 
 /*
@@ -165,18 +315,25 @@ readback(void)
 		format_ent(line, sizeof(line), &rb.ent[i]);
 		log_line(line);
 	}
+	(void)decoded(-1);
 	(void)set_variant(cur_set);
 }
 
+/* The corner label: set number, name, pattern and any measured rate. */
 static void
-header(void)
+header(int y)
 {
 	char line[64];
 
-	snprintf(line, sizeof(line), "%d/%d %.30s p%d", cur_set,
-	    PANELTEST_NSETS - 1, set_names[cur_set], cur_pat);
-	fill(0, 0, 319, 9, BLACK);
-	text(0, 0, line, 15, 0);
+	if (scan_set == cur_set && scan.ok)
+		snprintf(line, sizeof(line), "%d/%d %.30s p%d %lu.%02luHz",
+		    cur_set, PANELTEST_NSETS - 1, set_names[cur_set], cur_pat,
+		    scan.chz / 100, scan.chz % 100);
+	else
+		snprintf(line, sizeof(line), "%d/%d %.30s p%d", cur_set,
+		    PANELTEST_NSETS - 1, set_names[cur_set], cur_pat);
+	fill(0, y, 319, y + 9, BLACK);
+	text(0, y, line, 15, 0);
 }
 
 /* 1: a console text page with the latest readback. */
@@ -188,7 +345,7 @@ pat_text(void)
 		"The quick brown fox jumps over the lazy dog 0123456789",
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz",
 		"{}[]()<>|~^`'\"\\ Il1| O0o @#$%&* ;:,.!?-_=+/",
-		"keys: n/p set  1-7 pattern  r readback  q quit",
+		"keys: <> n p set, ^v 1-7 pattern, r read, f rate, q",
 	};
 	char line[80];
 	int i, y = 14;
@@ -196,10 +353,12 @@ pat_text(void)
 	fill(0, 10, 319, 319, BLACK);
 	for (i = 0; i < 5; i++, y += 10)
 		text(0, y, sample[i], i == 4 ? 8 : 7, 0);
-	y += 4;
-	for (i = 0; have_rb && i < rb.nent && i < PANEL_READ_N; i++, y += 10) {
+	y = decoded(y + 4) + 4;
+	/* The raw entries in two 26-column columns. */
+	for (i = 0; have_rb && i < rb.nent && i < PANEL_READ_N; i++) {
 		format_ent(line, sizeof(line), &rb.ent[i]);
-		text(0, y, line, 15, 0);
+		line[26] = '\0';
+		text(i % 2 ? 160 : 0, y + 10 * (i / 2), line, 7, 0);
 	}
 }
 
@@ -315,9 +474,13 @@ draw(void)
 	case 4: pat_subpixel(); break;
 	case 5: pat_flicker(); break;
 	case 6: pat_crosstalk(); break;
-	case 7: pat_lines(); return;
+	case 7:
+		/* The glass starts at RAM line 160 here. */
+		pat_lines();
+		header(160);
+		return;
 	}
-	header();
+	header(0);
 }
 
 static void
@@ -333,6 +496,7 @@ change_set(int n)
 		return;
 	}
 	cur_set = n;
+	scan_set = -1;
 	snprintf(line, sizeof(line), "set %d %s", n, set_names[n]);
 	log_line(line);
 }
@@ -342,6 +506,7 @@ main(void)
 {
 	struct sgttyb saved, raw;
 	char c, line[80];
+	int k;
 	time_t now = time(NULL);
 
 	gfx = open("/dev/lcdgfx", O_WRONLY);
@@ -363,19 +528,38 @@ main(void)
 	readback();
 	draw();
 	while (read(0, &c, 1) == 1) {
-		if (c == 'q' || c == 'Q' || c == 3)
+		k = (unsigned char)c;
+		if (c == '\033') {
+			/* ESC [ A-D or ESC O A-D; anything else is dropped. */
+			if (read(0, &c, 1) != 1)
+				break;
+			if (c != '[' && c != 'O')
+				continue;
+			if (read(0, &c, 1) != 1)
+				break;
+			if (c < 'A' || c > 'D')
+				continue;
+			k = K_UP + (c - 'A');
+		}
+		if (k == 'q' || k == 'Q' || k == 3)
 			break;
-		if (c == 'n')
+		if (k == 'n' || k == K_RIGHT)
 			change_set((cur_set + 1) % PANELTEST_NSETS);
-		else if (c == 'p')
+		else if (k == 'p' || k == K_LEFT)
 			change_set((cur_set + PANELTEST_NSETS - 1) %
 			    PANELTEST_NSETS);
-		else if (c >= '1' && c <= '7')
-			cur_pat = c - '0';
-		else if (c == 'r') {
+		else if (k == K_UP)
+			cur_pat = cur_pat == 1 ? NPAT : cur_pat - 1;
+		else if (k == K_DOWN)
+			cur_pat = cur_pat % NPAT + 1;
+		else if (k >= '1' && k <= '0' + NPAT)
+			cur_pat = k - '0';
+		else if (k == 'r') {
 			readback();
 			cur_pat = 1;
-		} else
+		} else if (k == 'f')
+			measure();
+		else
 			continue;
 		draw();
 	}

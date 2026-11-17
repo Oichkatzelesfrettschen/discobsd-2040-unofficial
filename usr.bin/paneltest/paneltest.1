@@ -1,4 +1,4 @@
-.Dd November 15, 2026
+.Dd November 17, 2026
 .Dt PANELTEST 1
 .Os
 .Sh NAME
@@ -12,6 +12,8 @@ opens
 .Pa /dev/lcdgfx ,
 reads the ST7365P panel controller's registers back through
 .Va machdep.picocalc.panel_read ,
+measures the frame rate through
+.Va machdep.picocalc.panel_scan ,
 and draws calibration patterns while
 .Va machdep.picocalc.panel_variant
 selects one of the register sets compiled into a kernel built with
@@ -20,23 +22,30 @@ Other kernels refuse both variables and
 .Nm
 then shows the patterns under the shipped settings only.
 It needs the superuser.
+The top left corner of every pattern shows the set number, its name,
+the pattern number and the rate measured under the set.
 .Pp
 Keys:
-.Bl -tag -width "1-7" -compact
-.It Cm n , p
+.Bl -tag -width "right, left" -compact
+.It Cm right , left , n , p
 next or previous register set
+.It Cm down , up
+next or previous pattern
 .It Cm 1 Ns - Ns Cm 7
 pattern: text and readback, black and white edges, gray bars,
 subpixel columns, 50% gray flicker, crosstalk square, scroll lines
 .It Cm r
-read the registers back and show them
+read the registers back and show them raw and decoded
+.It Cm f
+sample the controller's scanline, then log, print and show the
+frame rate with its error bound and the line count
 .It Cm q
 quit; closing the device programs the shipped set again
 .El
 .Sh FILES
 .Bl -tag -width "/var/log/paneltest.log" -compact
 .It Pa /var/log/paneltest.log
-every set change and readback, appended
+every set change, readback and frame-rate measurement, appended
 .El
 .Sh SEE ALSO
 .Xr sysctl 8

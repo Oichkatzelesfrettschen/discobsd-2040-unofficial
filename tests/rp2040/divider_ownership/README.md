@@ -27,6 +27,17 @@ registers the boot ROM's `fdiv_n` writes while it programs an MPU region over
 them. `source_negative.c` keeps its two findings in code, so the calibration
 that the source lane still rejects a real reference is unchanged.
 
+`--admit-function NAME` names a function allowed to reach the divider: the
+kernel's `divider_save` and `divider_restore`, which carry a process's
+divider state across an entry from it. `divider_admitted.S` holds one
+admitted function with two divider accesses beside an `entry` with none;
+the verifier must find both accesses without the option and none with it,
+and naming `divider_save` for `divider_negative.elf`, which has no such
+function, must fail as a stale admission while its four findings stand.
+`source_admitted.c` does the same for the source scan: the reference
+inside the admitted definition is skipped and the file-scope `#define` is
+still found.
+
 `--user-helper OBJECT` checks the libc division helpers the kernel gate leaves
 to user code. The Makefile assembles `lib/libc/arm/gen/aeabi_div.S` for
 Cortex-M0+ and requires `user_helper_entries=2 sio_accesses=8
@@ -34,9 +45,10 @@ min_wait_cycles=8 user_helper_findings=0`, then `user_helper_mutants.sh`
 rebuilds the source with a branch removed from the wait, the result loads
 swapped, a CSR poll in a wait slot, an `svc`, a `bl`, a `push` and a `bkpt`
 inside the window, a wrong base constant and a helper symbol removed; each must
-exit 1 with its own finding. The window rule rests on the kernel switching
-processes and delivering signals only on the return from a system call or
-fault, which the kernel gate's no-consumer result and `MPU.md` argue.
+exit 1 with its own finding. The window rule keeps a system call, call or
+breakpoint out of the sequence; a switch or signal in the middle of it, which
+the clock-tick trap allows, is covered by the kernel's divider save and
+restore that `MPU.md` describes.
 
 Each production helper alias also carries a Thumb entry and a positive ELF
 function extent. The verifier derives each extent from the next distinct

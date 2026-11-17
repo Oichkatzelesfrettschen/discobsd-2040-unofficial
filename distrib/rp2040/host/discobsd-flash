@@ -300,7 +300,7 @@ case "$1" in
 	eject
 	for f in "$@"; do
 		echo "discobsd-flash: loading $f" >&2
-		pt load "$f"
+		pt load -v "$f"
 	done
 	echo "discobsd-flash: rebooting into the kernel" >&2
 	pt reboot >/dev/null 2>&1 || true

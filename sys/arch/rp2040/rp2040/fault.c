@@ -115,17 +115,22 @@ __asm volatile (
  * The signal machinery (psignal, userret, sendsig in sig_machdep.c) works
  * on the struct trapframe that u.u_frame names, the layout PendSV_Handler
  * builds for a system call: the eight words of the hardware frame, with
- * tf_sp in the ip slot holding the PSP address of that frame, then r4-r11.
+ * tf_sp in the ip slot holding the PSP address of that frame, then r4-r11,
+ * inside the struct userframe that also carries r12 and the SIO divider.
  * A fault enters through a different frame, so arm_fault builds the same
- * trapframe from the stacked faultframe and fault_regs before it signals,
+ * userframe from the stacked faultframe and fault_regs before it signals,
  * and points u.u_frame at it; otherwise sendsig would rewrite the trapframe
  * of the process's last system call, the exception return would replay
  * the faulting instruction, and a caught fault would re-enter here forever
  * at HardFault priority, which no interrupt preempts.
  */
 static void
-fault_trapframe(struct trapframe *tf, const struct faultframe *frame)
+fault_trapframe(struct userframe *uf, const struct faultframe *frame)
 {
+	struct trapframe *tf = &uf->uf_tf;
+
+	uf->uf_r12 = frame->ff_ip;
+	divider_save(&uf->uf_div);
 	tf->tf_r0 = frame->ff_r0;
 	tf->tf_r1 = frame->ff_r1;
 	tf->tf_r2 = frame->ff_r2;
@@ -146,20 +151,24 @@ fault_trapframe(struct trapframe *tf, const struct faultframe *frame)
 
 /*
  * Write the trapframe back as the hardware frame the exception return will
- * pop, at tf_sp, and move PSP there. With no handler entered tf_sp is the
- * original frame and r12 keeps its stacked value; sendsig moves tf_sp to
- * the handler's frame, where r12 is scratch. r4-r11 go to fault_regs, which
+ * pop, at tf_sp, and move PSP there, with uf_r12 in the r12 slot: with no
+ * handler entered tf_sp is the original frame and r12 keeps its stacked
+ * value; sendsig moves tf_sp to the handler's frame, where r12 is scratch
+ * and the interrupted value waits in the signal frame. The divider state
+ * goes back last, after the process switches userret may have made.
+ * r4-r11 go to fault_regs, which
  * HardFault_Handler loads before the exception return. The copy happens
  * here, after userret and so after any process switch, because a process
  * that slept in the fault path (stopped under ptrace, say) may have seen
  * another process's fault overwrite fault_regs meanwhile.
  */
 static void
-fault_frame_out(const struct trapframe *tf, struct faultframe *frame)
+fault_frame_out(const struct userframe *uf)
 {
+	const struct trapframe *tf = &uf->uf_tf;
 	struct faultframe *out = (struct faultframe *)tf->tf_sp;
 
-	out->ff_ip = out == frame ? frame->ff_ip : 0;
+	out->ff_ip = uf->uf_r12;
 	out->ff_r0 = tf->tf_r0;
 	out->ff_r1 = tf->tf_r1;
 	out->ff_r2 = tf->tf_r2;
@@ -175,6 +184,7 @@ fault_frame_out(const struct trapframe *tf, struct faultframe *frame)
 	fault_regs[5] = tf->tf_r9;
 	fault_regs[6] = tf->tf_r10;
 	fault_regs[7] = tf->tf_r11;
+	divider_restore(&uf->uf_div);
 	__asm volatile ("msr psp, %0" : : "r" (out) : "memory");
 }
 
@@ -190,7 +200,7 @@ static int infault;
 void
 arm_fault(struct faultframe *frame, u_int fault_lr)
 {
-	struct trapframe tf;
+	struct userframe uf;
 	int psig = SIGSEGV;
 	time_t syst;
 	u_int icsr;
@@ -298,11 +308,11 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	if (u.u_signal[psig] == SIG_IGN)
 		u.u_signal[psig] = SIG_DFL;
 
-	fault_trapframe(&tf, frame);
-	u.u_frame = &tf;
+	fault_trapframe(&uf, frame);
+	u.u_frame = &uf.uf_tf;
 	psignal(u.u_procp, psig);
-	userret(tf.tf_pc, syst);
-	fault_frame_out(&tf, frame);
+	userret(uf.uf_tf.tf_pc, syst);
+	fault_frame_out(&uf);
 
 	led_control(LED_KERNEL, 0);
 }

@@ -51,7 +51,7 @@ TZ_ZONEINFO?=
 .if !empty(TZ_ZONEINFO)
 DEFS		+= -DTZ_ZONEINFO
 .endif
-ALL		= gen stdio stdlib string inet compat ${MACHINE_ARCH}
+ALL		= gen stdio stdlib string wchar inet compat ${MACHINE_ARCH}
 
 all:            ../libc.a
 

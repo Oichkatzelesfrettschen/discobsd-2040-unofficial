@@ -1392,3 +1392,10 @@ standalone, repeated and reordered internet-header inputs while preserving
 existing ARM layouts and byte-order declarations. The calibrated compiler and
 Smaller C lanes precede clean consumer and resource qualification; added POSIX
 types and revised signatures remain separate work.
+
+## Hosted library closure
+
+[`c17-library-closure.md`](c17-library-closure.md) owns the C17 clause 7
+interfaces the tree does not yet declare or provide, their ordered units and
+the delivered integer-division and `<iso646.h>` unit. Language migration of
+existing members stays in the queue above.

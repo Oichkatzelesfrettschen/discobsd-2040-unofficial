@@ -164,8 +164,9 @@ collation, multibyte conversion and classification functions read its
 citrus locale database and rune tables, which a host or newlib program
 cannot load, so those families have no NetBSD oracle.
 
-At revision `894c17be5467`, NetBSD's members disagree with C17 in five
-places. The tree's members are right in each, glibc agrees with the tree,
+At revision `894c17be5467`, and again at `1e8e727e461b` (the witnesses of
+the withheld members reproduce there), NetBSD's members disagree with C17 in
+five places. The tree's members are right in each, glibc agrees with the tree,
 and the cases below were checked against exact arithmetic where stated:
 
 | NetBSD member | Defect | Extent |
@@ -184,6 +185,17 @@ encodings almost never have a zero low word, so it now draws short dyadic
 values as well. And the `logb` substitution found a defect in the tree:
 `lib/libm/fabs.c`, inherited and newly built into `libm.a` by this work,
 returned `-0.0` for `-0.0`; it now clears the sign bit and is a tested member.
+
+## Provenance
+
+No NetBSD, FreeBSD or fdlibm file is imported: every added `lib/libm`,
+`lib/libc/wchar`, `lib/libc/gen` and `lib/libc/string` member is written for this
+port and carries the GizmoBSD header, which is why `tools/netbsd-imports.manifest`
+and `NOTICE` list none of them. The NetBSD sources named above are read from
+`NETBSD_SRC` at gate time and stay outside the tree. The one published table is
+the `tgamma` series, which takes its coefficients from Abramowitz and Stegun
+6.1.34 (named in `lib/libm/tgamma.c`). A member later derived from an upstream
+file enters the manifest with its upstream header intact.
 
 ## Not provided
 

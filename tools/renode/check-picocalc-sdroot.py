@@ -47,6 +47,10 @@ Cases, each a fresh emulator:
             flash root region still holds the foreign pattern, and UART0
             carries the tty0 login prompt; root_verdict() judges the root
             device, the mount source and the flash samples
+  tmp       a 48 MiB card with an 8 MiB type-ba entry in slot 4: rc makes
+            a file system on /dev/sd0t and `mount` shows it on /tmp, where
+            mkfs's lost+found and a written file are visible; the sdroot
+            case above shows no /tmp mount for a card without the entry
   nob7      the same card with its b7 entry retyped 83 stops with the
             panic line naming the missing partition
 
@@ -105,7 +109,12 @@ SECTOR = 512
 # sectors, follows it, as on the owner's card.
 LAYOUTS = {
     "small": (81920, 8192, "sd0: SD 2.0, 40960 kbytes"),
+    # The same card with an 8 MiB type-ba /tmp entry in slot 4 after the
+    # Linux entry (PTYPE_TMP, sys/sys/disk.h).
+    "tmp": (98304, 8192, "sd0: SD 2.0, 49152 kbytes"),
 }
+TMP_TYPE = 0xBA
+TMP_SECTORS = 16384
 UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
 
 # Virtual seconds for the card stage: SPI at 398 kHz through
@@ -140,6 +149,31 @@ def parse_mount_root(lines):
         if found:
             return found.group(1)
     return None
+
+
+TMP_SOURCE = "/dev/sd0t"
+TMP_MOUNT_RE = re.compile(r"^(/dev/\S+) on /tmp(?:\s|$)")
+
+
+def parse_mount_tmp(lines):
+    """The device that `mount` shows on /tmp, or None."""
+    for line in lines:
+        found = TMP_MOUNT_RE.match(line.strip())
+        if found:
+            return found.group(1)
+    return None
+
+
+def tmp_verdict(mount_source, want):
+    """Failures in the /tmp observation; an empty list is a pass.
+
+    want is TMP_SOURCE for a card with a type-ba entry and None for a card
+    without one, where /tmp stays a directory of the root (no PSRAM answers
+    under Renode, so the PSRAM region does not take it either).
+    """
+    if mount_source != want:
+        return [f"/tmp mounted from {mount_source}, want {want}"]
+    return []
 
 
 def root_verdict(root_dev, mount_source, flash_words):
@@ -198,6 +232,19 @@ def self_test():
     expect("parse mount root", parse_mount_root(["$ mount", "/dev/sd0c on / (rw)"]), "/dev/sd0c")
     expect("parse mount other mount point", parse_mount_root(["/dev/sd0c on /home"]), None)
     expect("parse mount echoed command", parse_mount_root(["$ /dev/sd0c on /"]), None)
+    expect("parse tmp mount", parse_mount_tmp(["/dev/sd0t on /tmp (rw)"]), "/dev/sd0t")
+    expect("parse tmp mount other point", parse_mount_tmp(["/dev/sd0t on /tmpx"]), None)
+    expect("parse tmp mount echoed command", parse_mount_tmp(["$ /dev/sd0t on /tmp"]), None)
+    expect("tmp on the card", tmp_verdict("/dev/sd0t", TMP_SOURCE), [])
+    expect("no tmp entry, none mounted", tmp_verdict(None, None), [])
+    for label, got, want in (
+        ("tmp on sd0b", "/dev/sd0b", TMP_SOURCE),
+        ("tmp on the PSRAM", "/dev/psram1", TMP_SOURCE),
+        ("tmp unread", None, TMP_SOURCE),
+        ("tmp mounted without an entry", "/dev/sd0t", None),
+    ):
+        if not tmp_verdict(got, want):
+            failures.append(f"{label}: accepted")
     return failures
 
 
@@ -236,7 +283,7 @@ def mbr_entry(kind, start, count):
     return struct.pack("<B3sB3sII", 0, b"\0\0\0", kind, b"\0\0\0", start, count)
 
 
-def make_card(path, root_img, p3_type, layout):
+def make_card(path, root_img, p3_type, layout, tmp_entry=False):
     root = open(root_img, "rb").read()
     if len(root) % SECTOR:
         raise ValueError("root image is not whole sectors")
@@ -246,7 +293,12 @@ def make_card(path, root_img, p3_type, layout):
     p1 = (0x0C, 2048, p3_start - 2048)
     if p2[1] + p2[2] > sectors:
         raise ValueError("layout does not hold the root image")
-    table = b"".join(mbr_entry(*p) for p in (p1, p2, p3)) + bytes(16)
+    p4 = (TMP_TYPE, p2[1] + p2[2], TMP_SECTORS) if tmp_entry else None
+    if p4 is not None and p4[1] + p4[2] > sectors:
+        raise ValueError("layout does not hold the tmp entry")
+    table = b"".join(mbr_entry(*p) for p in (p1, p2, p3)) + (
+        mbr_entry(*p4) if p4 is not None else bytes(16)
+    )
     with open(path, "wb") as stream:
         stream.truncate(sectors * SECTOR)
         stream.seek(446)
@@ -300,6 +352,8 @@ def case_root(renode_path, kernel, flash, root_img, outdir, layout):
         )
         mount_source = parse_mount_root(run.lines)
         run.snapshot("mount")
+        for message in tmp_verdict(parse_mount_tmp(run.lines), None):
+            run.fail(message)
         flash_words = {
             a: monitor_int(renode, f"sysbus ReadDoubleWord {a:#x}") for a in FOREIGN_SAMPLES
         }
@@ -318,6 +372,70 @@ def case_root(renode_path, kernel, flash, root_img, outdir, layout):
         run.expect(b"login:" in uart, "tty0: no login prompt on UART0")
         if b"login:" in uart:
             print("check-picocalc-sdroot: login prompt on tty0 (UART0)")
+    except cp.StageFailed:
+        pass
+    finally:
+        renode.close()
+    return run.failures
+
+
+def case_tmp(renode_path, kernel, flash, root_img, outdir):
+    """The card holds a type-ba entry in slot 4: /etc/rc.rp2040 makes a file
+    system on /dev/sd0t and mounts it at /tmp, which then holds files.
+    sdswapattach() finds no PSRAM to widen here (the Renode model has none),
+    so the swap size on the PSRAM stays unobserved."""
+    os.makedirs(outdir, exist_ok=True)
+    card = os.path.join(outdir, "card.img")
+    capacity = make_card(card, root_img, 0xB7, "tmp", tmp_entry=True)
+    renode, run = boot(renode_path, kernel, flash, card, capacity, outdir)
+    try:
+        run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
+        run.wait_for(ROOT_LINES + [LAYOUTS["tmp"][2]], "root lines", SD_BUDGET_SECONDS)
+        run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
+        run.type_line("operator")
+        run.wait_for_prompt("shell prompt", cp.KEY_BUDGET_SECONDS)
+        run.type_line("mount")
+        run.wait_until(
+            lambda: parse_mount_root(run.lines) is not None,
+            "mount root line",
+            "a mount line for /",
+            cp.KEY_BUDGET_SECONDS,
+        )
+        run.snapshot("mount")
+        tmp_source = parse_mount_tmp(run.lines)
+        bad = tmp_verdict(tmp_source, TMP_SOURCE)
+        for message in bad:
+            run.fail(message)
+        if not bad:
+            print(f"check-picocalc-sdroot: /tmp from {tmp_source}")
+        # The new file system is usable: mkfs's lost+found is there and a
+        # file written through the mount reads back.
+        run.type_line("ls /tmp")
+        run.wait_until(
+            lambda: any(line.strip() == "lost+found" for line in run.lines),
+            "lost+found in /tmp",
+            "a lost+found line",
+            cp.KEY_BUDGET_SECONDS,
+        )
+        # The keyboard model queues 16 keys, so each command stays short.
+        run.type_line("cd /tmp")
+        run.wait_until(
+            lambda: any(line.rstrip().endswith("/tmp$") for line in run.lines),
+            "prompt in /tmp",
+            "a prompt ending /tmp$",
+            cp.KEY_BUDGET_SECONDS,
+        )
+        run.type_line("echo ok > p")
+        run.wait_for_prompt("prompt after the write", cp.KEY_BUDGET_SECONDS)
+        run.type_line("cat p")
+        run.wait_until(
+            lambda: any(line.strip() == "ok" for line in run.lines),
+            "the file read back",
+            "an ok line",
+            cp.KEY_BUDGET_SECONDS,
+        )
+        run.snapshot("tmp")
+        print("check-picocalc-sdroot: /tmp holds mkfs's lost+found and a written file")
     except cp.StageFailed:
         pass
     finally:
@@ -369,6 +487,7 @@ def main(argv):
     try:
         cases = (
             ("sdroot", lambda d: case_root(renode_path, kernel, flash, root_img, d, "small")),
+            ("tmp", lambda d: case_tmp(renode_path, kernel, flash, root_img, d)),
             ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d)),
         )
         for name, case in cases:

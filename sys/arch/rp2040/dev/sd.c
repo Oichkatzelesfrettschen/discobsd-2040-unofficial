@@ -134,8 +134,24 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
 #define	SD_SWAP_MAX_BLOCKS	((daddr_t)(0xffff & ~(SWAP_IMAGE_ALIGN - 1)))
 #define	SD_SWAP_MIN_BLOCKS	(2 * SWAP_IMAGE_GUARD + SWAP_IMAGE_ALIGN)
 
+/*
+ * The scratch partition for /tmp. Minor 5 of each unit (/dev/sd0t) names the
+ * first usable entry of type PTYPE_TMP (ba), whichever MBR slot holds it, so
+ * /etc/rc.rp2040 mounts it without reading the table; with no usable entry
+ * every operation on the minor fails with ENXIO, and the usable entry's own
+ * slot minor refuses to open, so the partition has one node. An entry is
+ * usable when it
+ * holds at least SD_TMP_MIN_BLOCKS and shares no sector with another entry
+ * of the table, so mkfs on it cannot reach the root, the swap partition or
+ * the dump partition. The minimum is the size of the PSRAM region the card
+ * replaces (PSRAM_BYTES less PSRAM_SWAP_BYTES, 6,144 kbytes): a smaller card
+ * partition would trade the faster /tmp for less room.
+ */
+#define	SD_TMP_MINOR		5
+#define	SD_TMP_MIN_BLOCKS	6144
+
 #define	sdunit(dev)		(minor(dev) >> 3)
-#define	sdpart(dev)		(minor(dev) & 7)
+#define	sdpart(dev)		sd_part(minor(dev) & 7)
 
 static u_char
 sd_xfer(u_char out)
@@ -179,6 +195,50 @@ static const struct sdspi_ops sd_ops = {
 
 static struct sdspi sdcard = { &sd_ops, SD_NONE, 0, 0 };
 static struct diskpart sdpt[MAXPARTITIONS + 1];	/* [0] is the whole card. */
+
+/*
+ * Partition slot i shares a sector with another nonempty entry of the
+ * table. sd_partitions() kept only entries inside the card, so no end
+ * below wraps.
+ */
+static int
+sd_shares_sectors(int i)
+{
+	const struct diskpart *p = &sdpt[i], *q;
+
+	for (q = &sdpt[1]; q <= &sdpt[MAXPARTITIONS]; q++) {
+		if (q != p && q->dp_nsectors != 0 &&
+		    q->dp_offset < p->dp_offset + p->dp_nsectors &&
+		    p->dp_offset < q->dp_offset + q->dp_nsectors)
+			return 1;
+	}
+	return 0;
+}
+
+/* The slot of the usable PTYPE_TMP entry, or MAXPARTITIONS + 1 for none. */
+static int
+sd_tmp_slot(void)
+{
+	int i;
+
+	for (i = 1; i <= MAXPARTITIONS; i++) {
+		if (sdpt[i].dp_type == PTYPE_TMP &&
+		    (sdpt[i].dp_nsectors >> 1) >= SD_TMP_MIN_BLOCKS &&
+		    !sd_shares_sectors(i))
+			return i;
+	}
+	return MAXPARTITIONS + 1;
+}
+
+/*
+ * The table slot a minor names; every caller bounds the result. Kept out of
+ * line so the entry scan is one copy rather than one per caller.
+ */
+static int __attribute__((noinline))
+sd_part(int minor)
+{
+	return minor == SD_TMP_MINOR ? sd_tmp_slot() : minor;
+}
 
 /*
  * Open partitions as a bit mask, kept apart for block and raw opens: the
@@ -366,9 +426,9 @@ sd_root_bound(int part)
 int
 sdopen(dev_t dev, int flag __unused, int mode)
 {
-	int part = sdpart(dev), error;
+	int part, error;
 
-	if (sdunit(dev) != 0 || part > MAXPARTITIONS)
+	if (sdunit(dev) != 0 || (minor(dev) & 7) > SD_TMP_MINOR)
 		return ENXIO;
 	if (sd_openpart == 0) {
 		if ((error = sd_setup()) != 0) {
@@ -377,8 +437,19 @@ sdopen(dev_t dev, int flag __unused, int mode)
 		}
 	} else if (sd_replaced())
 		return EIO;
-	if (sdpt[part].dp_nsectors == 0)
+	part = sdpart(dev);
+	if (part > MAXPARTITIONS || sdpt[part].dp_nsectors == 0)
 		return ENXIO;
+	/*
+	 * The usable tmp entry has one identity, minor 5. A second node for the
+	 * same sectors would share its open bit, and the close of one node
+	 * would end the other's open under a mounted /tmp.
+	 */
+	if ((minor(dev) & 7) != SD_TMP_MINOR && part == sd_part(SD_TMP_MINOR)) {
+		if (sd_openpart == 0)
+			sdcard.type = SD_NONE;
+		return ENXIO;
+	}
 	if (sdroot.slot != 0 && part == sdroot.slot) {
 		if (!sd_root_bound(part)) {
 			if (sd_openpart == 0)
@@ -780,22 +851,23 @@ static dev_t sd_swapfixed;
 #endif
 
 /*
- * Partition slot i shares a sector with another nonempty entry of the
- * table. sd_partitions() kept only entries inside the card, so no end
- * below wraps.
+ * A usable PTYPE_TMP entry takes /tmp off the PSRAM, whose swap region then
+ * spans the whole part (psram_swap_all(), psram_xfer.c) before init_main()
+ * sizes the swap map from it. The choice is made once per boot from the
+ * table read here; the entry's file system is made by /etc/rc.rp2040.
  */
-static int
-sd_shares_sectors(int i)
+static void
+sd_tmpattach(void)
 {
-	const struct diskpart *p = &sdpt[i], *q;
+#ifdef PSRAM_ENABLED
+	int i = sd_tmp_slot();
 
-	for (q = &sdpt[1]; q <= &sdpt[MAXPARTITIONS]; q++) {
-		if (q != p && q->dp_nsectors != 0 &&
-		    q->dp_offset < p->dp_offset + p->dp_nsectors &&
-		    p->dp_offset < q->dp_offset + q->dp_nsectors)
-			return 1;
-	}
-	return 0;
+	if (i > MAXPARTITIONS)
+		return;
+	psram_swap_all();
+	printf("tmp: sd0%c, swap takes all %u kbytes of the psram\n",
+	    'a' + i - 1, (unsigned int)(PSRAM_BYTES / 1024));
+#endif
 }
 
 /*
@@ -811,6 +883,11 @@ sd_shares_sectors(int i)
  * that open finds the card up and the table read and no close releases it;
  * every other path leaves the card closed. sdsize() bounds what the swap map
  * is given.
+ *
+ * With the PSRAM holding swap, the card is read for a usable PTYPE_TMP entry
+ * (sd_tmp_slot()): when one exists, sd_tmpattach() gives the PSRAM's whole
+ * 8 MB to swap and the entry becomes /dev/sd0t, and with none the PSRAM
+ * keeps its 2 MB swap and 6 MB /tmp regions.
  */
 void
 sdswapattach(void)
@@ -821,12 +898,17 @@ sdswapattach(void)
 #ifdef SDSWAP_ENABLED
 	sd_swapmain = 0;
 #endif
-	if (board_id() != BOARD_ID_PICOCALC || major(swapdev) == PSRAM_MAJOR)
+	if (board_id() != BOARD_ID_PICOCALC)
 		return;
 	if ((error = sd_setup()) != 0) {
 		sdcard.type = SD_NONE;
-		if (error != ENODEV)
+		if (error != ENODEV && major(swapdev) != PSRAM_MAJOR)
 			printf("swap: sd0 error %d, swap stays on fl1\n", error);
+		return;
+	}
+	if (major(swapdev) == PSRAM_MAJOR) {
+		sd_tmpattach();
+		sdcard.type = SD_NONE;
 		return;
 	}
 	for (i = 1; i <= MAXPARTITIONS; i++) {

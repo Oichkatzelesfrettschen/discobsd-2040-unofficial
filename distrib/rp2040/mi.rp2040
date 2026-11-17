@@ -106,9 +106,18 @@ minor 2
 # makes a file system on and mounts at /tmp (sys/arch/rp2040/dev/psram.c).
 # Mode 0600: the node reads every user's /tmp files whatever their modes.
 #
+# /dev/sd0t is block minor 5 of the SD card: the first usable partition of
+# type ba, whichever MBR slot holds it, which /etc/rc.rp2040 mounts at /tmp
+# in the PSRAM's place when the card has one (sys/arch/rp2040/dev/sd.c).
+# Mode 0600 for the same reason.
+#
 bdev /dev/psram1
 major 3
 minor 1
+mode 0600
+bdev /dev/sd0t
+major 5
+minor 5
 mode 0600
 #endclosure psramtmp
 

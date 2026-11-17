@@ -44,9 +44,10 @@
 # the loader holds other applications' bytes; /etc/ttys runs a getty on
 # tty0, the USB-C serial port; and the image carries the block and raw
 # nodes of all four MBR partitions, which the flash root leaves to mknod
-# for want of inodes. The image has one inode per 8 kbytes (4,096 for
-# 32 MiB): the whole tree takes about 1,700, and fsutil's default of one
-# per 16 kbytes would leave about 350 for the owner's files.
+# for want of inodes, and the block node /dev/sd0t of the type-ba /tmp
+# partition when the card has one. The image has one inode per 8 kbytes
+# (4,096 for 32 MiB): the whole tree takes about 1,700, and fsutil's
+# default of one per 16 kbytes would leave about 350 for the owner's files.
 
 set -eu
 
@@ -117,6 +118,12 @@ for n in 1 2 3 4; do
 			    "$kind" "$name" "$major" "$n" >> "$WORK/manifest"
 	done
 done
+
+# The /tmp partition's node, minor 5 of the card (sd.c, SD_TMP_MINOR), which
+# /etc/rc.rp2040 mounts at /tmp; the picocalc profiles' psramtmp closure
+# carries it already, and a manifest without it gets it here.
+grep -qx "bdev /dev/sd0t" "$WORK/manifest" ||
+	printf 'bdev /dev/sd0t\nmajor 5\nminor 5\nmode 0600\n' >> "$WORK/manifest"
 
 rm -f "$NEW"
 "$FSUTIL" --new --size="$KBYTES" --inodes=$((KBYTES / 8)) \

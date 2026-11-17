@@ -25,35 +25,26 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include <errno.h>
-#include <stdint.h>
-#include <stdlib.h>
-
-#include "strtofp.h"
 
 /*
- * C17 7.22.1.3: strtod()'s subject sequence, infinities, NaNs and
- * hexadecimal included, rounded once to binary64 by strtofp.c.  long double
- * has double's format on this ABI, so the value is returned as it is; the
- * inherited strtod() it once aliased recognizes none of those forms and does
- * not round correctly.  A result that overflows, or that is a zero or
- * subnormal and inexact, sets ERANGE.
+ * Source fixture for --admit-function. Only the body of the admitted
+ * definition is skipped: the file-scope #define, and the line after a
+ * prototype split over two lines in KNF form, are still found, and the
+ * nested block's brace in column 0 ends nothing, so the access after it
+ * stays admitted.
  */
-long double
-strtold(const char *restrict string, char **restrict end)
-{
-	union {
-		double		value;
-		uint64_t	bits;
-	} result;
-	char *stop;
-	int range;
+#define DIV_CSR_OFFSET 0x78
 
-	result.bits = __discobsd_strtofp(string, &stop, STRTOFP_BINARY64,
-	    &range);
-	if (range)
-		errno = ERANGE;
-	if (end != NULL)
-		*end = stop;
-	return result.value;
+void
+divider_save(void);
+
+static unsigned prototype_span = DIV_CSR_OFFSET;
+
+void
+divider_save(void)
+{
+	if (prototype_span) {
+		(void)*(volatile unsigned *)0xd0000060UL;
+}
+	(void)*(volatile unsigned *)0xd0000064UL;
 }

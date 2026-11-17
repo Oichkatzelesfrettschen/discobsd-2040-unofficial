@@ -808,6 +808,9 @@ void exec_clear(struct exec_params *epp)
     u.u_frame->tf_r9  = 0;              /* v6 */
     u.u_frame->tf_r10 = 0;              /* v7 */
     u.u_frame->tf_r11 = 0;              /* v8 */
+#ifdef MD_EXEC_CLEAR_FRAME
+    MD_EXEC_CLEAR_FRAME(u.u_frame);     /* state beyond the trapframe */
+#endif
 
     execsigs (u.u_procp);
 

@@ -44,14 +44,6 @@
 
 static float (*volatile convert)(const char *restrict, char **restrict) =
     strtof;
-/*
- * The tree's strtold, which the driver renames with strtof.  A host whose
- * long double is wider declares none, and a double-width one declares the
- * same prototype, so the declaration stands here for both.
- */
-long double strtold(const char *restrict, char **restrict);
-static long double (*volatile convert_long)(const char *restrict, char **restrict) =
-    strtold;
 static unsigned checks;
 
 struct exact {
@@ -237,110 +229,6 @@ stated(unsigned *count)
 	return 0;
 }
 
-struct stated_double {
-	const char *text;
-	uint64_t bits;		/* the binary64 encoding */
-	int consumed;
-	int range;		/* errno expected: 0 or ERANGE */
-};
-
-/*
- * strtold() on the ABI where long double is binary64: C17's non-decimal
- * forms, which the inherited strtod() rejects, ties and range errors, then
- * random decimal strings against the hosting strtod(), correctly rounded
- * for double in both glibc and newlib.  Only the double value of the
- * result is compared, which is all a long double of binary64 holds.
- */
-static int
-long_double(unsigned *count)
-{
-	static const struct stated_double table[] = {
-		{ "inf", 0x7ff0000000000000ULL, 3, 0 },
-		{ "-INFINITY", 0xfff0000000000000ULL, 9, 0 },
-		{ "nan", 0x7ff8000000000000ULL, 3, 0 },
-		{ "-nan(0x1)", 0xfff8000000000000ULL, 9, 0 },
-		{ "0x1.8p1", 0x4008000000000000ULL, 7, 0 },
-		{ "0X.8", 0x3fe0000000000000ULL, 4, 0 },
-		{ "0x1p-1074", 0x0000000000000001ULL, 9, 0 },
-		{ "0x1p-1075", 0x0000000000000000ULL, 9, ERANGE },
-		{ "0x1.8p-1075", 0x0000000000000001ULL, 11, ERANGE },
-		{ "0x1.fffffffffffffp1023", 0x7fefffffffffffffULL, 22, 0 },
-		{ "0x1.fffffffffffff8p1023", 0x7ff0000000000000ULL, 23, ERANGE },
-		{ "0x1.00000000000008p0", 0x3ff0000000000000ULL, 20, 0 },
-		{ "0x1.00000000000018p0", 0x3ff0000000000002ULL, 20, 0 },
-		{ "1e309", 0x7ff0000000000000ULL, 5, ERANGE },
-		{ "-1e309", 0xfff0000000000000ULL, 6, ERANGE },
-		{ "1e-400", 0x0000000000000000ULL, 6, ERANGE },
-		{ "2.2250738585072014e-308", 0x0010000000000000ULL, 23, 0 },
-		{ "1.7976931348623157e308", 0x7fefffffffffffffULL, 22, 0 },
-		{ "1.7976931348623159e308", 0x7ff0000000000000ULL, 22, ERANGE },
-		{ "9007199254740993", 0x4340000000000000ULL, 16, 0 },
-		{ "9007199254740993.000000000000000000001",
-		    0x4340000000000001ULL, 38, 0 },
-		{ "  7e", 0x401c000000000000ULL, 3, 0 },
-		{ "x", 0x0000000000000000ULL, 0, 0 }
-	};
-	unsigned long i;
-	unsigned k;
-	char text[64];
-
-	for (k = 0; k < sizeof(table) / sizeof(table[0]); k++) {
-		const struct stated_double *t = &table[k];
-		char *end;
-		double value;
-		uint64_t bits;
-
-		errno = 0;
-		value = (double)convert_long(t->text, &end);
-		memcpy(&bits, &value, sizeof(bits));
-		(*count)++;
-		if ((t->bits & 0x7ff8000000000000ULL) == 0x7ff8000000000000ULL &&
-		    (bits & 0xfff8000000000000ULL) == t->bits)
-			bits = t->bits;
-		if (bits != t->bits || end != t->text + t->consumed ||
-		    errno != t->range) {
-			printf("FAIL strtold: \"%s\" gives %016llx after %d bytes, "
-			    "errno %d, want %016llx after %d, errno %d\n",
-			    t->text, (unsigned long long)bits,
-			    (int)(end - t->text), errno,
-			    (unsigned long long)t->bits, t->consumed, t->range);
-			return 1;
-		}
-	}
-	errno = 0;
-	(*count)++;
-	if (convert_long("1e309", NULL) != (long double)HUGE_VAL ||
-	    errno != ERANGE) {
-		printf("FAIL strtold: null end pointer\n");
-		return 1;
-	}
-	for (i = 0; i < 20000; i++) {
-		char *tree_end, *oracle_end;
-		double tree_value, oracle_value;
-		int digits = 1 + (int)(next() % 20), j;
-		char *p = text;
-
-		if (next() & 1)
-			*p++ = '-';
-		for (j = 0; j < digits; j++) {
-			*p++ = (char)('0' + next() % 10);
-			if (j == 0)
-				*p++ = '.';
-		}
-		sprintf(p, "e%d", (int)(next() % 640) - 320);
-		tree_value = (double)convert_long(text, &tree_end);
-		oracle_value = strtod(text, &oracle_end);
-		(*count)++;
-		if (memcmp(&tree_value, &oracle_value, sizeof(double)) != 0 ||
-		    tree_end != oracle_end) {
-			printf("FAIL strtold: \"%s\" gives %.17g, oracle %.17g\n",
-			    text, tree_value, oracle_value);
-			return 1;
-		}
-	}
-	return 0;
-}
-
 int
 main(void)
 {
@@ -404,8 +292,7 @@ main(void)
 			return 1;
 		}
 	}
-	if (stated(&checks) != 0 || differential(&checks) != 0 ||
-	    long_double(&checks) != 0)
+	if (stated(&checks) != 0 || differential(&checks) != 0)
 		return 1;
 	printf("c17 strtof: %u checks passed\n", checks);
 	return 0;

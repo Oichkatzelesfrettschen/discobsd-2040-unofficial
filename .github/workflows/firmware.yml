@@ -474,6 +474,16 @@ jobs:
             --status .build-logs/linux-renode-capacity.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-capacity
+      - name: Run the Renode asynchronous system trap tier
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 15
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-preempt \
+            --log .build-logs/linux-renode-preempt.log \
+            --status .build-logs/linux-renode-preempt.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            -- bmake MACHINE=rp2040 check-renode-preempt
       - name: Run the Renode image identity tier
         if: env.FULL_GATES == 'true'
         timeout-minutes: 15
@@ -671,7 +681,7 @@ jobs:
     name: Required ILP32 execution (shell, kernel, libc and utilities)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - name: Install bmake and the 32-bit compiler support
@@ -690,22 +700,17 @@ jobs:
             --status .build-logs/posix-inventory.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-test-execution
-      # The inventory ran about ten minutes on a hosted runner before the C17
-      # library families joined it. With them the 900 second deadline expired
-      # with 235 of 240 variants done (the families alone ran from 412 to 614
-      # seconds, their negative variants after that), so the deadline is 1500
-      # seconds, about a quarter above the 1,200 the stopped run's pace implies for
-      # the full set. The step
-      # limit stays above the gate deadline so the gate writes its own
-      # terminal status.
+      # The inventory runs about ten minutes on a hosted runner. The gate
+      # deadline leaves half of that again, and the step limit stays above
+      # the gate deadline so the gate writes its own terminal status.
       - name: Execute every required variant
-        timeout-minutes: 27
+        timeout-minutes: 17
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label posix-ilp32 \
             --log .build-logs/posix-ilp32.log \
             --status .build-logs/posix-ilp32.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1500 \
+            --idle-timeout-seconds 300 --timeout-seconds 900 \
             -- bmake MACHINE=rp2040 check-ilp32-execution \
               TEST_EXECUTION_REPORT="$RUNNER_TEMP/ilp32-execution.json"
       # dc and bc need the 32-bit C library headers the gates job lacks,
@@ -987,6 +992,60 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
 
+  # The hybrid-signature release verifier and the Lean policy proofs are
+  # host-only: no kernel, board or serial port is involved. The ML-DSA-65
+  # signing path needs OpenSSL 3.5 or newer. The ubuntu-24.04 runner image
+  # ships OpenSSL 3.0.x, which has no ML-DSA, so the hybrid-signatures job
+  # installs openssl 3.5.7 from conda-forge and the tests refuse to skip
+  # (DISCOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
+  pq-release-proofs:
+    name: Release policy proofs (Lean 4.19.0)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: tools/proofs
+          build: 'true'
+          test: 'false'
+          lint: 'false'
+      - name: Calibrate proof and geometry checks
+        timeout-minutes: 5
+        working-directory: tools/proofs
+        run: lake env python3 check_policy.py
+
+  pq-release-hybrid:
+    name: Hybrid release signatures (Ed25519 and ML-DSA-65)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Ubuntu 24.04's OpenSSL 3.0 has no ML-DSA; Ubuntu 26.04 ships OpenSSL
+    # 3.5, whose default provider offers ML-DSA-44/65/87, so the job runs
+    # in that distribution's container instead of a third-party channel.
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash -e {0}
+        working-directory: distrib/rp2040/host
+    steps:
+      - name: Install OpenSSL with ML-DSA-65 and the test tools
+        timeout-minutes: 5
+        working-directory: /
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git openssl python3 python3-pytest python3-serial
+          openssl list -signature-algorithms | grep -F ML-DSA-65
+      - uses: actions/checkout@v4
+      - name: Run the host package tests with the ML-DSA tests required
+        timeout-minutes: 8
+        run: python3 -m pytest -q
+        env:
+          DISCOBSD_REQUIRE_PQ_TESTS: '1'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+
   # A scheduled run reports to nobody, so its result goes to one issue:
   # tools/report-nightly-failure.sh opens it, or adds a comment to the open
   # one, with the failed jobs and steps and the merges since the last
@@ -994,7 +1053,7 @@ jobs:
   nightly-report:
     name: Report the nightly result
     if: always() && github.event_name == 'schedule'
-    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id]
+    needs: [rp2040, stm32, posix-sh, rp2040-macos, flash-id, pq-release-proofs, pq-release-hybrid]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

@@ -526,6 +526,15 @@ user process can execute. The source and linked-image divider gates cover 155
 dependency-closed kernel files and reject any SIO divider register access or
 reachable divider runtime symbol in kernel, IRQ, NMI, and callout code.
 
+Correction (docs/research/rp2040-systick-ast.md): the argument above held
+only because SysTick never reached `userret`, which also left a process
+that makes no system call without its signals and without preemption. The
+clock tick now runs `userret` through PendSV, so a ROM divide can be
+interrupted by a switch or a handler; every kernel entry from a process
+saves the divider registers and DIV_CSR and restores them on the way
+out, a signal frame carries it across a handler, and the divider gates
+admit exactly that save and restore.
+
 **Attended-hardware falsifier.** A B2 board running Boot ROM V3 must resolve the
 single- and double-precision table entries to valid Thumb targets and preserve
 results while a forced SysTick, USB, or UART interrupt lands between divider

@@ -144,15 +144,11 @@ count. The gate supplies readings through an interposed `getrusage` at
 `ULONG_MAX`, one below it, and past each overflow.
 
 **Free aliases.** `long double` has double's format on this ABI, so every
-`long double` function, `wcstold` and `nexttoward` are the double
+`long double` function, `strtold`, `wcstold` and `nexttoward` are the double
 functions under a second name (an `__asm__` label), costing no code. A
 translation unit whose `long double` is wider sees none of them. `strtold`
-is the exception: the inherited `strtod` accepts neither infinities, NaNs nor
-hexadecimal and does not round correctly, so `strtold` has its own member,
-`lib/libc/stdlib/strtold.c`, over the `strtofp.c` core `strtof` and `wcstod`
-use. It is in the cross ELF archive only, so a program linked against the
-native `lib/libc_aout` archive finds no `strtold` and fails to link instead of
-reaching a conversion that is wrong for those inputs.
+is `strtod`, which converts through the same correctly rounding core as
+`strtof` and `wcstod`.
 
 **Type-generic selection.** `<tgmath.h>` selects on the sum of the arguments
 after giving each integer argument type double (7.25p3). Its contract caught
@@ -284,15 +280,11 @@ the range, by an underflow or an overflow threshold, not by a missing case.
   `__STDC_NO_THREADS__` or `__STDC_NO_ATOMICS__` for this target, and the tree
   has no mechanism under `-nostdinc` to define them, so the absence is not yet
   announced the way the standard requires.
-- **A correctly rounded `strtod`.** The inherited `strtod` accepts no
-  infinity, NaN or hexadecimal form, which C17 7.22.1.3 requires, and over
-  2,000,000 random decimal strings of at most 17 digits it differs from the
-  correctly rounded result for 344,874 (17%), where 7.22.1.3p9 recommends
-  correct rounding up to `DECIMAL_DIG` digits. `strtofp.c` converts both
-  formats correctly; moving `strtod` onto it replaces 692 bytes of text with
-  2,966 and adds up to 1.45 KB of stack in its two shipped consumers, `trek`
-  and `primes`, and in the native archives, which awaits the owner's resource
-  decision.
+- **`strtod` before the core.** The inherited `strtod` accepted no infinity,
+  NaN or hexadecimal form and was not correctly rounded for 344,874 of
+  2,000,000 random strings of at most 17 digits (17%). With the owner's
+  approval it now rounds through `strtofp_core.h`; its member grows from 692
+  to 2,698 bytes of text in `trek`, `primes` and the native archives.
 - **Locales beyond "C".** No other locale exists, and `setlocale` says so.
 
 ## Replay

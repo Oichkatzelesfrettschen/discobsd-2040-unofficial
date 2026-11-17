@@ -99,8 +99,13 @@ typedef double	double_t;
 #define isfinite(x)	__builtin_isfinite(x)
 #define isnormal(x)	__builtin_isnormal(x)
 #define signbit(x)	__builtin_signbit(x)
+/* A build that renames isnan or isinf with -D keeps its rename. */
+#ifndef isnan
 #define isnan(x)	_Generic((x), float: isnanf, default: isnan)(x)
+#endif
+#ifndef isinf
 #define isinf(x)	_Generic((x), float: isinff, default: isinf)(x)
+#endif
 #define isgreater(x, y)		__builtin_isgreater((x), (y))
 #define isgreaterequal(x, y)	__builtin_isgreaterequal((x), (y))
 #define isless(x, y)		__builtin_isless((x), (y))

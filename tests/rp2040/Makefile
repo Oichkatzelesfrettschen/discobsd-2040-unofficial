@@ -12,7 +12,7 @@ include ${TOPSRC}/share/mk/sys.mk
 BOARD_PROGS=	divtest exec_hsaout fptest gpioprobe lcdgfxtest romprobe sigtest \
 		streamtest \
 		stdio_capacity swapmaptest swapram_evacuate tartest tiledemo \
-		user_window fork_refusal capacity_exhaustion
+		user_window fork_refusal capacity_exhaustion preempt
 BOARD_TARGETS=	${BOARD_PROGS:S/^/build-/}
 
 all:		${BOARD_TARGETS}

@@ -7,8 +7,11 @@
  */
 #include <math.h>
 
-/* <math.h> also defines the C17 type-generic macro isnan(). */
-#undef isnan
+/*
+ * <math.h> also defines isnan() as a type-generic macro; the parenthesized
+ * name below is not expanded by it, and keeps any rename a test build gives
+ * the name.
+ */
 
 /*
  * isnan(x) returns 1 is x is nan, else 0;
@@ -29,9 +32,9 @@ int isnanf (float x)
 
 #if defined(__SIZEOF_DOUBLE__) && defined(__SIZEOF_FLOAT__) && \
     __SIZEOF_DOUBLE__ == __SIZEOF_FLOAT__
-int isnan (double x) __attribute__((alias ("isnanf")));
+int (isnan) (double x) __attribute__((alias ("isnanf")));
 #else
-int isnan (double x)
+int (isnan) (double x)
 {
 	union {
 		double f64;

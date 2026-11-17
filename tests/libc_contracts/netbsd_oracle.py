@@ -398,6 +398,7 @@ def build(root, compiler, arm, work, groups):
         compiler
         + (["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"] if arm else [])
         + ["-std=gnu17", "-O1", "-Wall", "-Werror", "-fno-sanitize=all"]
+        + {"arm": ["-DNETBSD_ORACLE_SOFT_FENV"], "i386": ["-DNETBSD_ORACLE_I387"]}.get(machine, [])
         + ["-c", str(GLUE / "netbsd_glue_host.c"), "-o", str(glue)]
     )
     if host.returncode != 0:

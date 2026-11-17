@@ -96,6 +96,7 @@ Grouped by what they investigate.
 | `bootsel-button.md` | BOOTSEL and USB re-entry on bare metal, with no debug probe |
 | `firmware-updates.md` | what firmware an original Pico (silicon B2) carries and what an owner can update |
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
+| `rp2040-systick-ast.md` | why a process that makes no system call kept its signals and the processor (SysTick never reached `userret`), the clock-tick trap through PendSV that fixes it, the r12 and SIO divider state the trap must carry, and the Renode calibration with its mutants and size deltas |
 | `swapram-uart-echo-stall.md` | why the Renode capacity gate saw a console echo stall on SwapRAM kernels: `clistbound`'s typed residue overflowing `TTYHOG` under the line-paced PL011 model, the discriminating runs, the state at the stall, the board prediction and the fix with its calibration |
 | `memory-devices.md` | every RAM, ROM and storage device the RP2040 reaches on a bare Pico and on the PicoCalc, checked against the schematic and data sheets (the PSRAM's quad wiring, ALDO2 supply and chip-select pull-up), the keyboard controller's full register set, the clocks user programs can read, a driver audit, the compression early-stop options and a slice-by-slice driver plan |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |

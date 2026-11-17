@@ -11,8 +11,8 @@ interfaces, invariants, measured accuracy and the NetBSD comparison.
   `timespec_get`, the C11 `<float.h>` macros, all C99/C17 `<math.h>`
   functions in three precisions, `<fenv.h>`, `<tgmath.h>`, `<wchar.h>`,
   `<wctype.h>`, `<uchar.h>`.
-- `lib/libc/stdlib/strtofp.c`: correctly rounded decimal, hexadecimal,
-  inf and nan conversion behind `strtof`, `wcstof` and `wcstod`.
+- `lib/libc/stdlib/strtofp_core.h`: correctly rounded decimal, hexadecimal,
+  inf and nan conversion behind `strtod`, `strtof`, `wcstof` and `wcstod`.
 - Gates: `check-libc-integer-division`, `check-libc-c17-locale`, `-strtof`,
   `-time`, `-math` and `-wide`, the `c17_library_contract.c` provider check
   in `check-c17-headers-cross`, and `check-libc-c17-netbsd` (needs
@@ -20,11 +20,11 @@ interfaces, invariants, measured accuracy and the NetBSD comparison.
 
 ## Open
 
-1. **strtod.** The shipped `strtod` accepts no inf, nan or hexadecimal input
-   and is not correctly rounded for about 17% of 17-digit strings. Moving it
-   onto `strtofp.c` grows `trek`, `primes` and the native archives by about
-   2.3 KB of text and 1.45 KB of stack; it needs the owner's resource
-   decision.
+1. **strtod.** Approved by the owner and done: `strtod` now rounds through
+   `strtofp_core.h` and accepts inf, nan and hexadecimal input. The core is
+   a header of static functions so the member still builds and links alone;
+   `strtod.o` grows from 692 to 2,698 bytes of text, with a deepest frame of
+   about 1.45 KB, in `trek`, `primes` and the native archives.
 2. **Native archives.** The new members are in the cross ELF archives only;
    `lib/libc_aout` and `distrib/rp2040/boardlibc-members` are unchanged, so
    programs compiled on the board cannot call them.

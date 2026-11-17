@@ -116,7 +116,8 @@ SECTIONS {
 		. = ALIGN(8);
 		*(.text*)
 		. = ALIGN(8);
-		*(.rodata*)
+		/* Pack the remaining objects in descending alignment order. */
+		*(SORT_BY_ALIGNMENT(.rodata*))
 	} > FLASH :flash
 
 	.ARM.extab : {
@@ -184,7 +185,7 @@ SECTIONS {
 		. = ALIGN(8);
 		__bss_start__ = .;
 		_sbss = .;
-		*(.bss*)
+		*(SORT_BY_ALIGNMENT(.bss*))
 		*(COMMON)
 		. = ALIGN(8);
 		__bss_end__ = .;

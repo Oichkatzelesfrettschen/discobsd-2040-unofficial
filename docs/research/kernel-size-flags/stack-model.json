@@ -1,8 +1,29 @@
 {
+ "configs": [
+  "PICO",
+  "PICO_UART",
+  "PICO_DIAG",
+  "PICOCALC",
+  "PICOCALC_LEAN",
+  "PICOCALC_LEAN_DIAG"
+ ],
  "stacks": [
   {
    "name": "uarea",
-   "bytes": 2048
+   "bytes": 2048,
+   "top": "_estack",
+   "base": "u",
+   "struct": "user"
+  },
+  {
+   "name": "render",
+   "bytes": 2048,
+   "object": "lcd_render_stack",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
   }
  ],
  "roots": [
@@ -27,28 +48,40 @@
   {
    "name": "clock",
    "entry": "systick",
-   "stack": "uarea",
+   "stack": [
+    "uarea",
+    "render"
+   ],
    "role": "interrupt",
    "level": "clock"
   },
   {
    "name": "usb",
    "entry": "USBCTRL_IRQ_Handler",
-   "stack": "uarea",
+   "stack": [
+    "uarea",
+    "render"
+   ],
    "role": "interrupt",
    "level": "tty"
   },
   {
    "name": "uart0",
    "entry": "UART0_IRQ_Handler",
-   "stack": "uarea",
+   "stack": [
+    "uarea",
+    "render"
+   ],
    "role": "interrupt",
    "level": "tty"
   },
   {
    "name": "uart1",
    "entry": "UART1_IRQ_Handler",
-   "stack": "uarea",
+   "stack": [
+    "uarea",
+    "render"
+   ],
    "role": "interrupt",
    "level": "tty"
   },
@@ -61,7 +94,10 @@
   {
    "name": "nmi",
    "entry": "NMI_Handler",
-   "stack": "uarea",
+   "stack": [
+    "uarea",
+    "render"
+   ],
    "role": "interrupt",
    "level": "nmi"
   },
@@ -76,6 +112,43 @@
    "entry": "boot",
    "stack": "uarea",
    "role": "separate"
+  },
+  {
+   "name": "render",
+   "entry": "lcdrender",
+   "pushed": 8,
+   "stack": "render",
+   "role": "base",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "name": "render-entry",
+   "entry": null,
+   "stack": "uarea",
+   "role": "interrupt",
+   "level": "render",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "name": "audio",
+   "entry": "PWM_IRQ_WRAP_Handler",
+   "stack": [
+    "uarea",
+    "render"
+   ],
+   "role": "interrupt",
+   "level": "audio",
+   "configs": [
+    "PICOCALC"
+   ]
   }
  ],
  "assembly": [
@@ -218,6 +291,11 @@
    "text": "rc->fn",
    "targets": [
     "core1_pong"
+   ],
+   "configs": [
+    "PICO",
+    "PICO_UART",
+    "PICO_DIAG"
    ]
   },
   {
@@ -225,72 +303,103 @@
    "text": "fn(ctx",
    "targets": [
     "reply_one"
+   ],
+   "configs": [
+    "PICO",
+    "PICO_UART",
+    "PICO_DIAG"
    ]
   },
   {
    "function": "flash_enter_xip",
    "text": "boot2_copy",
-   "excluded": "RAM copy of the second-stage boot code; assembled, no stack use"
+   "rom": "boot2",
+   "bytes": 24,
+   "why": "the second-stage boot code copied to RAM, entered with a return address; measured by bootrom_frames.py --boot2"
   },
   {
    "function": "flash_cmd",
    "text": "flrom.connect",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "IF",
+   "bytes": 8,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_cmd",
    "text": "flrom.exit_xip",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "EX",
+   "bytes": 64,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_cmd",
    "text": "flrom.flush",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "FC",
+   "bytes": 8,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_erase",
    "text": "flrom.connect",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "IF",
+   "bytes": 8,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_erase",
    "text": "flrom.exit_xip",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "EX",
+   "bytes": 64,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_erase",
    "text": "flrom.erase",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "RE",
+   "bytes": 88,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_erase",
    "text": "flrom.flush",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "FC",
+   "bytes": 8,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_program",
    "text": "flrom.connect",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "IF",
+   "bytes": 8,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_program",
    "text": "flrom.exit_xip",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "EX",
+   "bytes": 64,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_program",
    "text": "flrom.program",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "RP",
+   "bytes": 88,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_program",
    "text": "flrom.flush",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "FC",
+   "bytes": 8,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "rom_func_lookup",
    "text": "lookup(",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "lookup",
+   "bytes": 0,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "flash_swap_append",
@@ -433,7 +542,9 @@
   {
    "function": "boot",
    "text": "rom_reset(",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "UB",
+   "bytes": 16,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
    "function": "boot",
@@ -753,10 +864,12 @@
    "table": "bdevsw",
    "struct": "bdevsw",
    "member": "d_strategy",
-   "except": [
-    "swstrategy"
-   ],
-   "why": "left out: buffer-cache I/O on the swap pseudo-device's block node, which nests the cache under itself up to NBUF deep"
+   "left_out": {
+    "swap": [
+     "swstrategy"
+    ]
+   },
+   "why": "buffer-cache I/O on the swap pseudo-device's block node nests the cache under itself; the overlay named swap counts it"
   },
   {
    "function": "bread",
@@ -764,10 +877,12 @@
    "table": "bdevsw",
    "struct": "bdevsw",
    "member": "d_strategy",
-   "except": [
-    "swstrategy"
-   ],
-   "why": "left out: buffer-cache I/O on the swap pseudo-device's block node, which nests the cache under itself up to NBUF deep"
+   "left_out": {
+    "swap": [
+     "swstrategy"
+    ]
+   },
+   "why": "buffer-cache I/O on the swap pseudo-device's block node nests the cache under itself; the overlay named swap counts it"
   },
   {
    "function": "breada",
@@ -775,10 +890,12 @@
    "table": "bdevsw",
    "struct": "bdevsw",
    "member": "d_strategy",
-   "except": [
-    "swstrategy"
-   ],
-   "why": "left out: buffer-cache I/O on the swap pseudo-device's block node, which nests the cache under itself up to NBUF deep"
+   "left_out": {
+    "swap": [
+     "swstrategy"
+    ]
+   },
+   "why": "buffer-cache I/O on the swap pseudo-device's block node nests the cache under itself; the overlay named swap counts it"
   },
   {
    "function": "umount",
@@ -797,7 +914,16 @@
   {
    "function": "usb_service",
    "text": "rom_reset",
-   "excluded": "boot ROM routine; its stack use is outside the compiled image"
+   "rom": "UB",
+   "bytes": 16,
+   "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image",
+   "configs": [
+    "PICO",
+    "PICO_DIAG",
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
   },
   {
    "function": "swap_with_buf_result",
@@ -811,6 +937,235 @@
     "swstrategy"
    ],
    "why": "swapdev names the backing device, not the swap pseudo-device"
+  },
+  {
+   "function": "blkoverlap",
+   "text": "].d_ioctl",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_ioctl",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "dump_write",
+   "text": "put(arg",
+   "targets": [
+    "sd_dump_sector"
+   ],
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sdswap_fallback",
+   "text": "].d_open",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_open",
+   "except": [
+    "swopen",
+    "swsize",
+    "swstrategy"
+   ],
+   "why": "sd_swapfixed names the configured backing device, not the swap pseudo-device",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sdswap_fallback",
+   "text": "].d_psize",
+   "table": "bdevsw",
+   "struct": "bdevsw",
+   "member": "d_psize",
+   "except": [
+    "swopen",
+    "swsize",
+    "swstrategy"
+   ],
+   "why": "sd_swapfixed names the configured backing device, not the swap pseudo-device",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "physio",
+   "text": "(*strat)",
+   "table": "cdevsw",
+   "struct": "cdevsw",
+   "member": "d_strategy",
+   "why": "rawrw passes the character device's own d_strategy",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sd_done",
+   "text": "o->select(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "select",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sd_done",
+   "text": "o->xfer(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "xfer",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sd_rx",
+   "text": "o->micros(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "micros",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sd_rx",
+   "text": "o->xfer(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "xfer",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sd_cmd",
+   "text": "o->select(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "select",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sd_cmd",
+   "text": "o->micros(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "micros",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sd_cmd",
+   "text": "o->xfer(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "xfer",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sdspi_init",
+   "text": "o->speed(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "speed",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sdspi_init",
+   "text": "o->select(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "select",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sdspi_init",
+   "text": "o->xfer(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "xfer",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sdspi_init",
+   "text": "o->micros(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "micros",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sdspi_write_span",
+   "text": "o->xfer(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "xfer",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "function": "sdspi_write_span",
+   "text": "o->micros(",
+   "table": "sd_ops",
+   "struct": "sdspi_ops",
+   "member": "micros",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
   }
  ],
  "cuts": [],
@@ -841,10 +1196,30 @@
    "reason": "the deepest left expansion of errno_message_rules, computed from the table at f48e19c9"
   }
  ],
+ "nesting": [
+  {
+   "function": "swstrategy",
+   "depth": 4,
+   "cut": true,
+   "elements": "buf",
+   "struct": "buf",
+   "reason": "each entry is a write or read the buffer cache hands the swap pseudo-device while the entries above it each hold one of the NBUF buffers busy; a further entry needs a buffer getnewbuf no longer has",
+   "overlay": "swap"
+  }
+ ],
  "excluded": [
   {
    "callee": "panic",
-   "reason": "a panic's chain is the root named panic; its sum with the chain that raised it is not bounded"
+   "reason": "left out of each root's own chain; the overlay named panic counts it where it is called",
+   "on_top": {
+    "depth": 2,
+    "cut": true,
+    "then_without": [
+     "rp2040_shutdown_sync"
+    ],
+    "reason": "panicstr is set on the first entry, so the second asks boot for RB_NOSYNC and the sync is not entered again; a third entry needs wakeup to find its queue broken once more while the second panic prints, and is left out"
+   },
+   "overlay": "panic"
   }
  ],
  "reentry": [
@@ -1093,11 +1468,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1124,11 +1504,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1154,9 +1539,14 @@
     "ptcread",
     "ptcwrite",
     "kbdread",
-    "pcmwrite"
+    "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
+    "blkoverlap"
    ],
-   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device or block-device arm"
   },
   {
    "caller": "dirremove",
@@ -1181,9 +1571,14 @@
     "ptcread",
     "ptcwrite",
     "kbdread",
-    "pcmwrite"
+    "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
+    "blkoverlap"
    ],
-   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device or block-device arm"
   },
   {
    "caller": "dirrewrite",
@@ -1208,9 +1603,14 @@
     "ptcread",
     "ptcwrite",
     "kbdread",
-    "pcmwrite"
+    "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
+    "blkoverlap"
    ],
-   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device or block-device arm"
   },
   {
    "caller": "exec_aout_check",
@@ -1236,11 +1636,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1267,11 +1672,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1298,11 +1708,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1329,11 +1744,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1360,11 +1780,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1391,11 +1816,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1421,9 +1851,14 @@
     "ptcread",
     "ptcwrite",
     "kbdread",
-    "pcmwrite"
+    "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
+    "blkoverlap"
    ],
-   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device or block-device arm"
   },
   {
    "caller": "postsig",
@@ -1448,9 +1883,14 @@
     "ptcread",
     "ptcwrite",
     "kbdread",
-    "pcmwrite"
+    "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
+    "blkoverlap"
    ],
-   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device or block-device arm"
   },
   {
    "caller": "readlink",
@@ -1476,11 +1916,16 @@
     "ptcwrite",
     "kbdread",
     "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
     "itrunc",
     "ufs_sync",
-    "syncip"
+    "syncip",
+    "blkoverlap"
    ],
-   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device arm, and its truncation and synchronous-write arms belong to writes",
+   "reason": "a read of a regular file, a directory or a symbolic link: rwip takes no character-device or block-device arm, and its truncation and synchronous-write arms belong to writes",
    "require": "UIO_READ"
   },
   {
@@ -1506,9 +1951,14 @@
     "ptcread",
     "ptcwrite",
     "kbdread",
-    "pcmwrite"
+    "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
+    "blkoverlap"
    ],
-   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device or block-device arm"
   },
   {
    "caller": "symlink",
@@ -1533,9 +1983,14 @@
     "ptcread",
     "ptcwrite",
     "kbdread",
-    "pcmwrite"
+    "pcmwrite",
+    "pcmread",
+    "sdread",
+    "sdwrite",
+    "gpiorw",
+    "blkoverlap"
    ],
-   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device arm"
+   "reason": "the inode is a regular file, a directory or a symbolic link, so rwip takes no character-device or block-device arm"
   },
   {
    "caller": "pipe_close",
@@ -1544,6 +1999,46 @@
     "indirtrunc"
    ],
    "reason": "a pipe holds at most MAXPIPSIZ, NDADDR direct blocks, and has no indirect block"
+  },
+  {
+   "caller": "physio",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\(",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "caller": "picokbd_reg",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\(",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  },
+  {
+   "caller": "pcm_nap",
+   "callee": "sleep",
+   "without": [
+    "issignal"
+   ],
+   "reason": "every sleep here is at PZERO or below, so tsleep neither catches nor tests a signal",
+   "require": "\\b(PSWP|PINOD|PRIBIO)\\b|\\bPZERO *(-|\\))|\\bILOCK *\\(",
+   "configs": [
+    "PICOCALC"
+   ]
   }
  ],
  "exempt": [
@@ -1572,12 +2067,32 @@
    "reason": "core 1's fault vector, on core1_stack"
   },
   {
-   "function": "swstrategy",
-   "reason": "left out: buffer-cache I/O on the swap pseudo-device's block node, which nests the cache under itself up to NBUF deep"
-  },
-  {
    "function": "swsize",
    "reason": "left out with swstrategy: swapdev names the backing device, so no site sizes the swap pseudo-device through bdevsw"
+  },
+  {
+   "function": "swstrategy",
+   "reason": "reached only for buffer-cache I/O on the swap pseudo-device's block node, which the overlay named swap counts"
+  },
+  {
+   "function": "SPARE_IRQ_0_Handler",
+   "reason": "the renderer's vector in assembly: it leaves the interrupted stack with only the exception frame on it (the root named render-entry) and calls lcdrender on lcd_render_stack with eight bytes pushed (the root named render)",
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ]
+  }
+ ],
+ "overlays": [
+  {
+   "name": "swap",
+   "label": "with buffers of the swap pseudo-device"
+  },
+  {
+   "name": "panic",
+   "label": "with a panic",
+   "once": true
   }
  ]
 }

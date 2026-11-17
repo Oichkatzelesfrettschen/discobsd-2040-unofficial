@@ -96,16 +96,23 @@ COPTS?=		-Os
 # negations and CSIZEFLAGS_MI expands to them for a C source outside
 # sys/arch only. Machine-dependent sources keep the plain COPTS command
 # line, so drivers, the .ramfunc flash routines and every polling or delay
-# loop compile to the same instructions with or without CSIZEFLAGS. The
-# flags ride with the size level: a COPTS without -Os, or a Clang CC, which
-# rejects all three as unknown arguments, leaves CSIZEFLAGS empty.
-.if !empty(COPTS:M-Os) && empty(CC:M*clang*)
+# loop compile to the same instructions with or without CSIZEFLAGS. A
+# Clang CC rejects all three as unknown arguments and leaves CSIZEFLAGS
+# empty. The flags ride with the size level: COMPILE_C takes them through
+# CSIZEFLAGS_COPTS only when COPTS selects -Os, and COMPILE_SIZE_C, whose
+# -Os is fixed, takes them whatever COPTS says.
+.if empty(CC:M*clang*)
 CSIZEFLAGS=	-fno-move-loop-invariants -fno-tree-loop-im \
 		-fno-tree-dominator-opts
 .else
 CSIZEFLAGS=
 .endif
 CSIZEFLAGS_MI=	${.ALLSRC:M*.c:N*/../arch/*:C/.+/${CSIZEFLAGS}/}
+.if !empty(COPTS:M-Os)
+CSIZEFLAGS_COPTS= ${CSIZEFLAGS_MI}
+.else
+CSIZEFLAGS_COPTS=
+.endif
 # Debug data names each source relative to the checkout, so the image's
 # debug sections are the same wherever the tree sits. The mapping changes
 # no instruction; tools/check_debug_paths.py checks both properties.
@@ -131,7 +138,7 @@ PARAM+= -DSTORAGE_STATS
 # compile rules: rules are named COMPILE_${SUFFIX}
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
-COMPILE_C=	${CC} ${CFLAGS} ${CSIZEFLAGS_MI} ${DEFS} -c $<
+COMPILE_C=	${CC} ${CFLAGS} ${CSIZEFLAGS_COPTS} ${DEFS} -c $<
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -Os ${CSIZEFLAGS_MI} ${DEFS} -c $<
 # Code whose instruction count is a design input compiles at -O whatever
@@ -152,7 +159,7 @@ COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 .MAIN: unix
 
 PARAMSTAMP=	.params
-PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${CSIZEFLAGS:Q} ${AS:Q} ${AFLAGS:Q} \
+PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${CSIZEFLAGS:Q} ${CSIZEFLAGS_COPTS:Q} ${AS:Q} ${AFLAGS:Q} \
 		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q}
 _paramchanged!=	printf '%s\n' ${PARAMSTAMP_VALUES} | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
 .if ${_paramchanged} == "yes"

@@ -30,9 +30,25 @@
  * first byte, which is what the PicoCalc's USB-C console showed.
  */
 
-/* The hardware paths of uartinit() only, which this test never calls. */
-static volatile unsigned shim_reg_sink;
-#define	REG32(a)	(*((void)(a), &shim_reg_sink))
+/*
+ * Register accesses come from uartinit(), which this test never calls, and
+ * from uart_pin_setup(), which the pad case calls directly. The two pad
+ * control registers of the case keep their value; every other address
+ * shares one sink.
+ */
+#define	SHIM_PADS_BASE	0x4001c000u	/* PADS_BANK0, datasheet 2.19.6.3. */
+#define	SHIM_PAD(n)	(SHIM_PADS_BASE + 0x04u + 4u * (n))
+#define	SHIM_PAD_RESET	0x56u		/* IE, 4 mA drive, PDE, Schmitt. */
+static volatile unsigned shim_reg_sink, shim_pad[2];
+
+static volatile unsigned *
+shim_reg(unsigned a)
+{
+	if (a == SHIM_PAD(0) || a == SHIM_PAD(1))
+		return &shim_pad[(a - SHIM_PAD(0)) / 4];
+	return &shim_reg_sink;
+}
+#define	REG32(a)	(*shim_reg((unsigned)(a)))
 
 #include "uart.c"
 
@@ -306,6 +322,19 @@ main(void)
 	ttstart(tp);
 	run_idle(100);
 	check(nwire == 10, "the restarted line sends its queue");
+
+	/*
+	 * Pads from their reset value: receive trades the pull-down for the
+	 * pull-up so that an unconnected pin idles high instead of reading
+	 * as a break; transmit keeps its pulls; both read back and drive.
+	 */
+	check(PADS_BANK0_BASE == SHIM_PADS_BASE, "the model's pad base");
+	shim_pad[0] = shim_pad[1] = SHIM_PAD_RESET | PADS_OD;
+	uart_pin_setup(0, 0);
+	uart_pin_setup(1, 1);
+	check(shim_pad[0] == SHIM_PAD_RESET, "transmit pad keeps its pulls");
+	check(shim_pad[1] == ((SHIM_PAD_RESET & ~PADS_PDE) | PADS_PUE),
+	    "receive pad takes the pull-up for the pull-down");
 
 	if (failures) {
 		printf("uart_test: %d failures\n", failures);

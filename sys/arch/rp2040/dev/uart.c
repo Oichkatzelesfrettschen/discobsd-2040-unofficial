@@ -79,6 +79,8 @@ static const struct uart_inst uart[NUART] = {
 #define PADS_BANK0_GPIO(n)	(0x04 + 4 * (n))
 #define PADS_IE			(1UL << 6)	/* Input enable. */
 #define PADS_OD			(1UL << 7)	/* Output disable. */
+#define PADS_PUE		(1UL << 3)	/* Pull-up enable. */
+#define PADS_PDE		(1UL << 2)	/* Pull-down enable, set at reset. */
 
 /* tests/picocalc/uart_test.c supplies its own REG32 for a host build. */
 #ifndef REG32
@@ -93,12 +95,22 @@ uart_unreset(u_int mask)
 	continue;
 }
 
+/*
+ * Drive the pad from the peripheral and let it read back. The receive pad
+ * takes the pull-up in place of the reset pull-down (RP2040 datasheet
+ * 2.19.6.3, GPIO pad PDE set, PUE clear): an idle UART line is high, and a
+ * receive pin left unconnected and pulled low reads as a continuous break
+ * that raises receive interrupts.
+ */
 static void
-uart_pin_setup(u_int gpio)
+uart_pin_setup(u_int gpio, int receive)
 {
-    /* Drive the pad from the peripheral, and let it read back. */
-    REG32(PADS_BANK0_BASE + PADS_BANK0_GPIO(gpio)) =
-	(REG32(PADS_BANK0_BASE + PADS_BANK0_GPIO(gpio)) & ~PADS_OD) | PADS_IE;
+    u_int pad = REG32(PADS_BANK0_BASE + PADS_BANK0_GPIO(gpio));
+
+    pad = (pad & ~PADS_OD) | PADS_IE;
+    if (receive)
+	pad = (pad & ~PADS_PDE) | PADS_PUE;
+    REG32(PADS_BANK0_BASE + PADS_BANK0_GPIO(gpio)) = pad;
     REG32(IO_BANK0_BASE + IO_BANK0_CTRL(gpio)) = GPIO_FUNC_UART;
 }
 
@@ -153,8 +165,8 @@ uartinit(int unit)
     uart_disable(uip->base);
 
     uart_set_baud(uip->base, UART_BAUD);
-    uart_pin_setup(uip->tx_gpio);
-    uart_pin_setup(uip->rx_gpio);
+    uart_pin_setup(uip->tx_gpio, 0);
+    uart_pin_setup(uip->rx_gpio, 1);
 
     /* Start from a clean slate: mask and acknowledge everything. */
     uart_irq_disable(uip->base, UART_INT_ALL);

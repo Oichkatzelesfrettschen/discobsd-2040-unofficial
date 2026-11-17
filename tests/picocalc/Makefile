@@ -1566,7 +1566,8 @@ uart_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h
 UART_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
 		uart_test.c
 
-uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty
+uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
+	uart-mutant-rx-pull-down
 
 uart-mutant-one-byte:
 	${UART_MUT} uart.c \
@@ -1576,6 +1577,10 @@ uart-mutant-one-byte:
 uart-mutant-busy-empty:
 	${UART_MUT} uart.c \
 	    's/^    if (tp->t_outq.c_cc != 0) {$$/    if (1) {/' uart.h
+
+uart-mutant-rx-pull-down:
+	${UART_MUT} uart.c \
+	    's/^\tpad = (pad \& ~PADS_PDE) | PADS_PUE;$$/\t(void)0;/' uart.h
 
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \

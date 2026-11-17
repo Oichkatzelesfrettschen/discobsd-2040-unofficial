@@ -43,10 +43,71 @@ struct	trapframe {
 	u_int	tf_r11;		/* Variable Register 8 or Frame Pointer */
 };
 
-#define	tf_r12	tf_ip		/* Intra-Procedure-Call Scratch Register */
 #define	tf_sp	tf_ip		/* Stack Pointer (as passed by IP) */
 #define	tf_r14	tf_lr		/* Link Register */
 #define	tf_r15	tf_pc		/* Program Counter */
+
+/*
+ * The SIO hardware divider state of a process (RP2040 datasheet 2.3.1.5),
+ * saved by divider_save() at an entry from the process and written back by
+ * divider_restore() on the way out, all five words at every entry and
+ * exit. ds_csr is DIV_CSR as the entry found it; its DIRTY bit
+ * (DS_CSR_DIRTY) marks a sequence between a divider write and its quotient
+ * read, and the restore leaves DIRTY as it found it. A child of fork
+ * returns through a copy of the parent's frame, so it starts with the
+ * divider as the parent left it at the fork call, like every other
+ * register.
+ */
+struct	divider_state {
+	u_int	ds_dividend;	/* DIV_UDIVIDEND */
+	u_int	ds_divisor;	/* DIV_UDIVISOR */
+	u_int	ds_remainder;	/* DIV_REMAINDER */
+	u_int	ds_quotient;	/* DIV_QUOTIENT */
+	u_int	ds_csr;		/* DIV_CSR at entry */
+};
+
+#define	DS_CSR_DIRTY	0x2U	/* DIV_CSR.DIRTY: a result is pending */
+
+/*
+ * The kernel-stack frame of an entry from a process, built by
+ * PendSV_Handler (system calls and asynchronous system traps) and by
+ * arm_fault: the trapframe that u.u_frame names and that the signal
+ * machinery, ptrace and exec read, then the process state an entry at an
+ * arbitrary instruction must carry back and a system call never needed.
+ * tf_sp occupies the trapframe word the hardware frame gives r12, so r12
+ * lives in uf_r12. sendsig and sigreturn (sig_machdep.c) carry both across
+ * a handler. 88 bytes, a multiple of eight, so MSP stays aligned.
+ */
+struct	userframe {
+	struct	trapframe uf_tf;	/* first: u.u_frame points here */
+	u_int	uf_r12;			/* Intra-Procedure-Call Scratch Register */
+	struct	divider_state uf_div;
+};
+
+#define	USERFRAME(tf)	((struct userframe *)(void *)(tf))
+
+/*
+ * exec_clear() (sys/kern/exec_subr.c) zeroes the trapframe for the new
+ * image; this clears the rest of the userframe with it. r12 starts at zero,
+ * and the divider state becomes zero operands and results with DIRTY
+ * clear, so the exit from the exec call writes zeros over whatever the old
+ * image left in the divider.
+ */
+#define	MD_EXEC_CLEAR_FRAME(tf) do {					\
+	struct userframe *md_uf = USERFRAME(tf);			\
+									\
+	md_uf->uf_r12 = 0;						\
+	md_uf->uf_div.ds_dividend = 0;					\
+	md_uf->uf_div.ds_divisor = 0;					\
+	md_uf->uf_div.ds_remainder = 0;					\
+	md_uf->uf_div.ds_quotient = 0;					\
+	md_uf->uf_div.ds_csr = 0;					\
+} while (0)
+
+#ifdef KERNEL
+void	divider_save(struct divider_state *);
+void	divider_restore(const struct divider_state *);
+#endif
 
 /*
  * Exception stack frame of a SysTick exception.

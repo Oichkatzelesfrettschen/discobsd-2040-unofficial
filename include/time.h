@@ -50,6 +50,22 @@ struct tm {
  * caller that must tell the two apart sets tm_wday to -1 before the call
  * and reads it back.
  */
+/*
+ * C17 7.27.1.  clock_t counts microseconds of processor time: POSIX fixes
+ * CLOCKS_PER_SEC at one million under XSI.  TIME_UTC is the one time base
+ * timespec_get() accepts.
+ */
+#ifndef _CLOCK_T
+#define _CLOCK_T
+typedef unsigned long clock_t;
+#endif
+#define CLOCKS_PER_SEC	((clock_t)1000000)
+#define TIME_UTC	1
+
+clock_t clock(void);
+#ifndef __SMALLER_C__
+int timespec_get(struct timespec *, int) __TIME64_NAME(timespec_get);
+#endif
 struct tm *gmtime(const time_t *) __TIME64_NAME(gmtime);
 struct tm *localtime(const time_t *) __TIME64_NAME(localtime);
 time_t mktime(struct tm *) __TIME64_NAME(mktime);

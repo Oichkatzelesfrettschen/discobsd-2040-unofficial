@@ -102,6 +102,7 @@ Grouped by what they investigate.
 | `bootsel-button.md` | BOOTSEL and USB re-entry on bare metal, with no debug probe |
 | `firmware-updates.md` | what firmware an original Pico (silicon B2) carries and what an owner can update |
 | `uart-pl011.md` | the PL011 UART0 console driver and its Renode verification |
+| `rp2040-systick-ast.md` | why a process that makes no system call kept its signals and the processor (SysTick never reached `userret`), the clock-tick trap through PendSV that fixes it, the r12 and SIO divider state the trap must carry, and the Renode calibration with its mutants and size deltas |
 | `swapram-uart-echo-stall.md` | why the Renode capacity gate saw a console echo stall on SwapRAM kernels: `clistbound`'s typed residue overflowing `TTYHOG` under the line-paced PL011 model, the discriminating runs, the state at the stall, the board prediction and the fix with its calibration |
 | `memory-devices.md` | every RAM, ROM and storage device the RP2040 reaches on a bare Pico and on the PicoCalc, checked against the schematic and data sheets (the PSRAM's quad wiring, ALDO2 supply and chip-select pull-up), the keyboard controller's full register set, the clocks user programs can read, a driver audit, the compression early-stop options and a slice-by-slice driver plan |
 | `board-inventory-2026-09-15.txt` | the boards on hand and what each one is |
@@ -178,6 +179,7 @@ Grouped by what they investigate.
 | `footprint-techniques.md` | flash and SRAM techniques ranked by measured payoff and mapped to this tree: XIP libc, multicall membership, alignment-hole packing, bounded scans, per-artifact flag experiments, and why kernel overlays and wholesale shared stacks do not pay |
 | `kernel-footprint-handoff.md` | the measured kernel and libc footprint work queue: never-returning libc entry points, `struct user` load reach, unreferenced kernel functions, the `adjtime` 64-bit divide, a lean PICO beside PICO_DIAG, the `-O2` capacity-index block, kernel LTO blockers and unprototyped designs, each with location, bytes and acceptance |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
+| `c17-library-closure.md` | the hosted C17 clause 7 surface: decomposition of the libc compliance request, measured absent names per header, mechanism invariants, ordered units, and the delivered div/ldiv/lldiv/llabs and `<iso646.h>` contract |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
 | `c17-posix-program-state.md` | observed main, 32 merged and six open program PRs, all fourteen work-package dispositions, resource/evidence boundaries and restart ownership |
 | `c17-shipped-build-baseline.md` | configuration-specific shipped source membership, artifact-bound static resource receipts and the acceptance states left open |

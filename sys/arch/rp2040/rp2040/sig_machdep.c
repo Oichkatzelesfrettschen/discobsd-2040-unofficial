@@ -22,6 +22,21 @@
 #define DIAGNOSTIC
 #endif
 
+struct sigframe {
+	u_int	sf_hwframe[8];
+	struct	sigcontext sf_sc;
+	u_int	sf_r12;
+	struct	divider_state sf_div;
+};
+
+/*
+ * sigaltstack() accepts any stack of MINSIGSTKSZ bytes or more, and sendsig
+ * places the frame below the top rounded down to eight bytes, so the frame
+ * and up to seven bytes of rounding must fit the smallest stack it accepts.
+ */
+_Static_assert(sizeof(struct sigframe) + 7U <= MINSIGSTKSZ,
+    "a minimum-size alternate stack must hold the signal frame");
+
 /*
  * Send an interrupt to process.
  *
@@ -43,16 +58,16 @@ sendsig(sig_t p, int sig, long mask)
 	 * above it. A four-word gap here let the hardware frame land on
 	 * sc_onstack, sc_mask, sc_r0 and sc_r1, so every sigreturn restored
 	 * the trampoline address as the signal mask and the handler address
-	 * as r0. sizeof(struct sigframe) is 104, a multiple of eight, so a
-	 * frame carved from an eight-byte-aligned tf_sp keeps AAPCS
-	 * alignment at the handler entry.
+	 * as r0. After the context, sf_r12 and sf_div hold the interrupted r12
+	 * and SIO divider state, which struct sigcontext has no field for
+	 * and an asynchronous system trap can interrupt live (machine/frame.h
+	 * struct userframe); sigreturn reads them back from the same offsets,
+	 * so the layout is private to this file and sigtramp. sizeof(struct
+	 * sigframe) is 128, a multiple of eight, so a frame carved from an
+	 * eight-byte-aligned tf_sp keeps AAPCS alignment at the handler entry.
 	 */
-	struct sigframe {
-		u_int	sf_hwframe[8];
-		struct	sigcontext sf_sc;
-	};
-
 	struct trapframe *regs = u.u_frame;
+	struct userframe *uf = USERFRAME(regs);
 	struct sigframe *sfp;
 	int oonstack;
 
@@ -112,6 +127,13 @@ sendsig(sig_t p, int sig, long mask)
 	sfp->sf_sc.sc_r9  = regs->tf_r9;
 	sfp->sf_sc.sc_r10 = regs->tf_r10;
 	sfp->sf_sc.sc_r11 = regs->tf_r11;
+	/*
+	 * Every entry saved the whole divider (divider_save), so the frame
+	 * carries the interrupted state for sigreturn whatever the handler
+	 * divides in between.
+	 */
+	sfp->sf_r12 = uf->uf_r12;
+	sfp->sf_div = uf->uf_div;
 
 	/* Call signal handler. */
 	regs->tf_r0 = sig;			/* $a1 - signal number */
@@ -186,8 +208,9 @@ void
 sigreturn(void)
 {
 	struct trapframe *regs = u.u_frame;
-	struct sigcontext context;
-	struct sigcontext *scp = &context;
+	struct userframe *uf = USERFRAME(regs);
+	struct sigframe saved;
+	struct sigcontext *scp = &saved.sf_sc;
 	u_int user_context;
 	/*
 	 * sigtramp issues the sigreturn SVC with sp at the handler entry
@@ -201,7 +224,7 @@ sigreturn(void)
 	}
 	user_context = regs->tf_sp + 32U;
 	if (copyin((caddr_t)user_context, (caddr_t)scp,
-	    sizeof(*scp)) != 0) {
+	    sizeof(saved) - sizeof(saved.sf_hwframe)) != 0) {
 		u.u_error = EFAULT;
 		return;
 	}
@@ -244,6 +267,8 @@ sigreturn(void)
 	regs->tf_r9  = scp->sc_r9;
 	regs->tf_r10 = scp->sc_r10;
 	regs->tf_r11 = scp->sc_r11;
+	uf->uf_r12 = saved.sf_r12;
+	uf->uf_div = saved.sf_div;
 #ifdef DIAGNOSTIC
 	printf("    ...to %#x, stack %#x\n", regs->tf_pc, regs->tf_sp);
 #endif

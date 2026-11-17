@@ -64,6 +64,8 @@ check-host: check-err ${PROG} header_contract.o check-ctime check-zone check-std
 	check-qsort check-strtox check-string-security check-array-memory-line \
 	check-getgrent check-bounded-string check-exit-lifecycle check-quick-exit \
 	check-qsort-context check-dbm-open check-absolute-value check-byte-search \
+	check-integer-division check-c17-locale check-c17-strtof check-c17-time \
+	check-c17-math check-c17-wide \
 	check-character-io
 	${TEST_EXECUTION} run libc.base.native -- ./${PROG}
 
@@ -136,6 +138,217 @@ absolute_value_test_san: ${ABSOLUTE_VALUE_INPUTS} .PHONY
 	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
 
 .PHONY: check-absolute-value
+
+INTEGER_DIVISION_INPUTS= integer_division.py integer_division_test.c \
+	${STDLIB_DIR}/div.c ${STDLIB_DIR}/ldiv.c ${STDLIB_DIR}/lldiv.c \
+	${STDLIB_DIR}/llabs.c ${STDLIB_DIR}/imaxdiv.c
+
+check-integer-division: integer_division_test
+	${TEST_EXECUTION} run libc.integer-division.native -- ./integer_division_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} integer_division_test32
+	${TEST_EXECUTION} run libc.integer-division.ilp32 -- ./integer_division_test32
+.else
+	${TEST_EXECUTION} skip libc.integer-division.ilp32 "check-libc-integer-division: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} integer_division_test_san
+	${TEST_EXECUTION} run libc.integer-division.sanitized -- ./integer_division_test_san
+.else
+	${TEST_EXECUTION} skip libc.integer-division.sanitized "check-libc-integer-division: sanitizer runtime unavailable"
+.endif
+
+integer_division_test: ${INTEGER_DIVISION_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${HOSTCC:Q} $@
+
+integer_division_test32: ${INTEGER_DIVISION_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+integer_division_test_san: ${INTEGER_DIVISION_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-integer-division
+
+# The C17 library families of c17_family.py: each compiles the tree's
+# members of one header group under tree_ names, runs the fixture against
+# the hosting C library or stated values, and requires every named faulty
+# provider to fail. See docs/research/c17-library-closure.md.
+C17_LOCALE_INPUTS= c17_family.py c17_locale_test.c
+check-c17-locale: c17_locale_test
+	${TEST_EXECUTION} run libc.c17-locale.native -- ./c17_locale_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} c17_locale_test32
+	${TEST_EXECUTION} run libc.c17-locale.ilp32 -- ./c17_locale_test32
+.else
+	${TEST_EXECUTION} skip libc.c17-locale.ilp32 "check-libc-c17-locale: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} c17_locale_test_san
+	${TEST_EXECUTION} run libc.c17-locale.sanitized -- ./c17_locale_test_san
+.else
+	${TEST_EXECUTION} skip libc.c17-locale.sanitized "check-libc-c17-locale: sanitizer runtime unavailable"
+.endif
+
+c17_locale_test: ${C17_LOCALE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py locale ${TOPSRC} ${HOSTCC:Q} $@
+
+c17_locale_test32: ${C17_LOCALE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py locale ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+c17_locale_test_san: ${C17_LOCALE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py locale ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-c17-locale
+
+C17_STRTOF_INPUTS= c17_family.py c17_strtof_test.c
+check-c17-strtof: c17_strtof_test
+	${TEST_EXECUTION} run libc.c17-strtof.native -- ./c17_strtof_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} c17_strtof_test32
+	${TEST_EXECUTION} run libc.c17-strtof.ilp32 -- ./c17_strtof_test32
+.else
+	${TEST_EXECUTION} skip libc.c17-strtof.ilp32 "check-libc-c17-strtof: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} c17_strtof_test_san
+	${TEST_EXECUTION} run libc.c17-strtof.sanitized -- ./c17_strtof_test_san
+.else
+	${TEST_EXECUTION} skip libc.c17-strtof.sanitized "check-libc-c17-strtof: sanitizer runtime unavailable"
+.endif
+
+c17_strtof_test: ${C17_STRTOF_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py strtof ${TOPSRC} ${HOSTCC:Q} $@
+
+c17_strtof_test32: ${C17_STRTOF_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py strtof ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+c17_strtof_test_san: ${C17_STRTOF_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py strtof ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-c17-strtof
+
+C17_TIME_INPUTS= c17_family.py c17_time_test.c
+check-c17-time: c17_time_test
+	${TEST_EXECUTION} run libc.c17-time.native -- ./c17_time_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} c17_time_test32
+	${TEST_EXECUTION} run libc.c17-time.ilp32 -- ./c17_time_test32
+.else
+	${TEST_EXECUTION} skip libc.c17-time.ilp32 "check-libc-c17-time: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} c17_time_test_san
+	${TEST_EXECUTION} run libc.c17-time.sanitized -- ./c17_time_test_san
+.else
+	${TEST_EXECUTION} skip libc.c17-time.sanitized "check-libc-c17-time: sanitizer runtime unavailable"
+.endif
+
+c17_time_test: ${C17_TIME_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py time ${TOPSRC} ${HOSTCC:Q} $@
+
+c17_time_test32: ${C17_TIME_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py time ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+c17_time_test_san: ${C17_TIME_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py time ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-c17-time
+
+C17_MATH_INPUTS= c17_family.py c17_math_test.c
+check-c17-math: c17_math_test
+	${TEST_EXECUTION} run libc.c17-math.native -- ./c17_math_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} c17_math_test32
+	${TEST_EXECUTION} run libc.c17-math.ilp32 -- ./c17_math_test32
+.else
+	${TEST_EXECUTION} skip libc.c17-math.ilp32 "check-libc-c17-math: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} c17_math_test_san
+	${TEST_EXECUTION} run libc.c17-math.sanitized -- ./c17_math_test_san
+.else
+	${TEST_EXECUTION} skip libc.c17-math.sanitized "check-libc-c17-math: sanitizer runtime unavailable"
+.endif
+
+c17_math_test: ${C17_MATH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py math ${TOPSRC} ${HOSTCC:Q} $@
+
+c17_math_test32: ${C17_MATH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py math ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+c17_math_test_san: ${C17_MATH_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py math ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-c17-math
+
+C17_WIDE_INPUTS= c17_family.py c17_wide_test.c
+check-c17-wide: c17_wide_test
+	${TEST_EXECUTION} run libc.c17-wide.native -- ./c17_wide_test
+.if ${ILP32_OK} == "yes"
+	@${MAKE} c17_wide_test32
+	${TEST_EXECUTION} run libc.c17-wide.ilp32 -- ./c17_wide_test32
+.else
+	${TEST_EXECUTION} skip libc.c17-wide.ilp32 "check-libc-c17-wide: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if ${ARRAY_MEMORY_SAN_OK} == "yes"
+	@${MAKE} c17_wide_test_san
+	${TEST_EXECUTION} run libc.c17-wide.sanitized -- ./c17_wide_test_san
+.else
+	${TEST_EXECUTION} skip libc.c17-wide.sanitized "check-libc-c17-wide: sanitizer runtime unavailable"
+.endif
+
+c17_wide_test: ${C17_WIDE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py wide ${TOPSRC} ${HOSTCC:Q} $@
+
+c17_wide_test32: ${C17_WIDE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py wide ${TOPSRC} ${HOSTCC:Q}\ -m32 $@
+
+c17_wide_test_san: ${C17_WIDE_INPUTS} .PHONY
+	${PYTHON} ${.CURDIR}/c17_family.py wide ${TOPSRC} "${HOSTCC} ${ARRAY_MEMORY_SAN_FLAGS}" $@
+
+.PHONY: check-c17-wide
+
+# NetBSD's libc and libm as a second oracle: NETBSD_SRC names a src-netbsd
+# checkout, whose sources netbsd_oracle.py compiles against their own headers
+# for each target. The target stands outside every aggregate, because no
+# checkout of it travels with this tree, and an unset NETBSD_SRC fails
+# rather than skipping. Each run prints the NetBSD revision it used.
+NETBSD_FAMILIES=	math wide strtof
+check-c17-netbsd:
+	@if [ -z "${NETBSD_SRC}" ]; then \
+		echo "check-c17-netbsd requires NETBSD_SRC, a src-netbsd checkout" >&2; \
+		exit 2; \
+	fi
+.for family in ${NETBSD_FAMILIES}
+	${PYTHON} ${.CURDIR}/c17_family.py ${family} ${TOPSRC} ${HOSTCC:Q} \
+	    --netbsd ${NETBSD_SRC:Q}
+.endfor
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${HOSTCC:Q} \
+	    --netbsd ${NETBSD_SRC:Q}
+.if ${ILP32_OK} == "yes"
+.for family in ${NETBSD_FAMILIES}
+	${PYTHON} ${.CURDIR}/c17_family.py ${family} ${TOPSRC} ${HOSTCC:Q}\ -m32 \
+	    --netbsd ${NETBSD_SRC:Q}
+.endfor
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${HOSTCC:Q}\ -m32 \
+	    --netbsd ${NETBSD_SRC:Q}
+.else
+	@echo "SKIP check-c17-netbsd ilp32: ${HOSTCC} cannot compile and execute ILP32 binaries"
+.endif
+.if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
+	@echo "check-c17-netbsd: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
+.elif empty(QEMU_ARM)
+	@echo "SKIP check-c17-netbsd qemu: qemu-arm unavailable; no ARM execution occurred"
+.else
+.for family in ${NETBSD_FAMILIES}
+	${PYTHON} ${.CURDIR}/c17_family.py ${family} ${TOPSRC} ${QEMU_ARM_CC:Q} --arm \
+	    --netbsd ${NETBSD_SRC:Q}
+.endfor
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm \
+	    --netbsd ${NETBSD_SRC:Q}
+.endif
+
+.PHONY: check-c17-netbsd
 
 BYTE_SEARCH_INPUTS= byte_search.py byte_search_test.c \
 	${STRING_DIR}/memmem.c ${TOPSRC}/lib/libc/compat/memchr.c
@@ -1703,6 +1916,12 @@ header_contract.o: header_contract.c ${TOPSRC}/include/stdio.h \
 
 clean:
 	rm -f absolute_value_test absolute_value_test32 absolute_value_test_san
+	rm -f integer_division_test integer_division_test32 integer_division_test_san
+	rm -f c17_locale_test c17_locale_test32 c17_locale_test_san
+	rm -f c17_strtof_test c17_strtof_test32 c17_strtof_test_san
+	rm -f c17_time_test c17_time_test32 c17_time_test_san
+	rm -f c17_math_test c17_math_test32 c17_math_test_san
+	rm -f c17_wide_test c17_wide_test32 c17_wide_test_san
 	rm -f byte_search_test byte_search_test32 byte_search_test_san
 	rm -f character_io_test character_io_test32 character_io_test_san
 	rm -f qsort_context_test qsort_context_test32 qsort_context_test_san
@@ -1823,6 +2042,11 @@ check-qemu:
 	${PYTHON} ${.CURDIR}/bounded_string.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/quick_exit.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/absolute_value.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/integer_division.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/c17_family.py locale ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/c17_family.py strtof ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/c17_family.py math ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
+	${PYTHON} ${.CURDIR}/c17_family.py wide ${TOPSRC} ${QEMU_ARM_CC:Q} --arm
 	${PYTHON} ${.CURDIR}/byte_search.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm --calibrate
 	${PYTHON} ${.CURDIR}/character_io.py --compiler ${QEMU_ARM_CC:Q} --target
 	${PYTHON} ${.CURDIR}/qsort_context.py ${TOPSRC} ${QEMU_ARM_CC:Q} --arm

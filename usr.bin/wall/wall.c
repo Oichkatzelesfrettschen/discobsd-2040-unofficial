@@ -31,7 +31,7 @@ char    mesg[3000];
 int msize,sline;
 struct  utmp *utmp;
 char    who[UT_NAMESIZE + 1] = "???";
-time_t  clock;
+time_t  now;
 struct tm *localclock;
 
 extern  int errno;
@@ -51,8 +51,8 @@ char *argv[];
         fprintf(stderr, "Cannot open %s\n", _PATH_UTMP);
         exit(1);
     }
-    clock = time((time_t *)0);
-    localclock = localtime( &clock );
+    now = time((time_t *)0);
+    localclock = localtime( &now );
     sline = ttyslot();  /* 'utmp' slot no. of sender */
     (void) fstat(f, &statb);
     utmp = (struct utmp *)malloc((unsigned)statb.st_size);

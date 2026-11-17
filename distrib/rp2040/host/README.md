@@ -102,7 +102,9 @@ Homebrew.
 ## Web console
 
 The default binds loopback only. Reach it remotely through SSH forwarding
-or a trusted tunnel. LAN access is an explicit opt-in that exposes the
+or a trusted tunnel; [release and transport security](RELEASE-SECURITY.md)
+covers hybrid release verification and post-quantum transport
+recommendations. LAN access is an explicit opt-in that exposes the
 token-revealing short link:
 
     discobsd-console up --bind 0.0.0.0

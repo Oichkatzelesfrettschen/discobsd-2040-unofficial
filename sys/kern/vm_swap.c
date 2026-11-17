@@ -863,6 +863,7 @@ swap_lost_retire (struct proc *p)
     p->p_flag &= ~P_TRACED;
     p->p_sigignore = ~0;
     p->p_sig = 0;
+    exec_text_release (p, NULL);
     proc_zombie (p, SIGKILL);
     bzero (&p->p_ru, sizeof (p->p_ru));
 }

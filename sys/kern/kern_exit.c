@@ -46,12 +46,13 @@ endvfork(void)
 }
 
 /*
- * Make p a zombie that reports rv: release its text, move it from allproc
- * to zombproc and out of the pid hash, give its children to init and tell
- * its parent. It needs no u area, so exit() and the retirement of a
- * process whose image went with the swap device (swap_lost_retire(),
- * vm_swap.c) share it. p_xstat shares storage with p_alive, so every
- * p_alive field it reads is read before p_xstat is written. A kernel
+ * Make p a zombie that reports rv: move it from allproc to zombproc and out
+ * of the pid hash, give its children to init and tell its parent. It needs
+ * no u area and never sleeps, so exit() and the retirement of a process
+ * whose image went with the swap device (swap_lost_retire(), vm_swap.c)
+ * share it; each caller has released the text first, since that can sleep.
+ * p_xstat shares storage with p_alive, so every p_alive field it reads is
+ * read before p_xstat is written. A kernel
  * without SDSWAP_ENABLED has exit() as its one caller and keeps it static,
  * so the compiler folds it into exit() and the kernel pays no call.
  */
@@ -65,7 +66,6 @@ proc_zombie(struct proc *p, int rv)
     struct proc **pp;
     int doingzomb = 0;
 
-    exec_text_release(p, NULL);
     if ((*p->p_prev = p->p_nxt) != NULL)        /* off allproc queue */
         p->p_nxt->p_prev = p->p_prev;
     p->p_nxt = zombproc;                            /* onto zombproc */
@@ -149,8 +149,16 @@ exit (int rv)
     if (p->p_flag & SVFORK)
         endvfork();
 
+    exec_text_release(p, NULL);
+
     if (p->p_pid == 1)
         panic("init died");
+    /*
+     * Nothing below sleeps. With noproc set the clock no longer charges
+     * p_cpu of this process, which shares storage with the p_xstat and
+     * p_ru written from here on.
+     */
+    noproc = 1;
     proc_zombie(p, rv);
     /*
      * Overwrite p_alive substructure of proc - better not be anything
@@ -158,7 +166,6 @@ exit (int rv)
      */
     p->p_ru = u.u_ru;
     ruadd(&p->p_ru, &u.u_cru);
-    noproc = 1;
     wakeup((caddr_t) &runin);
     swtch();
     /* NOTREACHED */

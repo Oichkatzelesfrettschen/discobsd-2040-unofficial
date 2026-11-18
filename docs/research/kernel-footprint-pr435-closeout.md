@@ -215,3 +215,16 @@ python3 -I <scratch>/occupancy.py   # nm -S over the six unix.elf files (memory-
 
 The sorted links reuse each configuration's `LD`, `LDFLAGS`, `SYSTEM_OBJ`,
 `swapunix.o` and `vers.o` from `bmake -V` with `--sort-section=alignment` added.
+
+## Landed successors
+
+`C17_PROTO_FLAGS` covers the four kernel units in the ledger. The linked
+syscall gate checks handler pointers, argument counts, and trace names in
+all six kernel configurations. The two ELF fixtures reverse the expected
+trace selection and corrupt trace bounds and name bytes.
+
+The shared assembly suffix rule owns ISO preprocessing.
+`lib/libc_aout/libc/Makefile` confines object targets to its own directory
+even when a sibling library already has ELF outputs. The cross assembler
+tier calibrates the ROM cell against an inherited traditional CPP command
+and builds both archive representations from the same source.

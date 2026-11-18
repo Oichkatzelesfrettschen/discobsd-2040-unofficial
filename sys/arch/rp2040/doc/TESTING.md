@@ -462,9 +462,21 @@ argument count with `sys/kern/syscalls.master`, including the disabled-network
 and disabled-glob fallbacks used by the configured RP2040 kernels. The gate
 checks table sizes, the initialized count, Thumb bits and executable load
 mappings. Its PICO fixture changes every pointer, argument count and Thumb bit
-and rejects a truncated ELF. The cross gate inspects linked metadata; it does
+and rejects a truncated ELF. The generated kernel definitions select whether
+the image carries the trace decoder and both trace tables. Each packed span
+must name the corresponding master row inside the linked string pool. PICO
+and PICO_DIAG calibrate reversed trace selections, empty and out-of-pool
+spans, and a corrupted name byte. The cross gate inspects linked metadata; it does
 not execute syscall dispatch or establish application behavior. The checker
 also accepts explicit network and glob selections for other configurations.
+
+The cross assembler tier overrides bmake's inherited `COMPILE.S` with a
+traditional preprocessor command. The project suffix rule still builds a
+ROM float cell as a.out and the fixture compares its text and relocations
+with GNU assembly of the ISO-preprocessed source. The direct traditional
+control retains the token-paste operators and fails to assemble.
+The native archive replay builds beside the ELF objects and covers
+the local object-output rule.
 
 `check-rp2040-devsw` compares the linked block and character switch fields,
 sentinels and initialized counts with the matching configured `conf.o`

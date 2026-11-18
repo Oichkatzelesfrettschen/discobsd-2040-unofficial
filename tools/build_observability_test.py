@@ -86,7 +86,8 @@ check-rp2040-vectors: check-python
 .endfor
 
 check-rp2040-syscalls: check-python
-\t${PYTHON} tests/rp2040_syscalls/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+\t${PYTHON} tests/rp2040_syscalls/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf \\
+\t    --trace-kernel sys/arch/rp2040/compile/PICO_DIAG/unix.elf
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
 \t@SYSCALL_CHECK@
 .endfor
@@ -185,8 +186,10 @@ MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
 )
 MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
     "@SYSCALL_CHECK@",
-    "${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master "
-    "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf",
+    "@set -eu; d=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}; \\\n"
+    "\t    param=$$(${MAKE} -C \"$$d\" -V PARAM); \\\n"
+    "\t    ${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master \\\n"
+    "\t    --param=\"$$param\" \"$$d/unix.elf\"",
 )
 MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
     "@TTY_ROOT_CHECK@",
@@ -496,6 +499,8 @@ class BuildObservabilityTest(unittest.TestCase):
             (" check-rp2040-syscalls ", " "),
             ("${PYTHON} tests/rp2040_syscalls/check.py", "true"),
             ("${PYTHON} tools/check_rp2040_syscalls.py", "true"),
+            ("--trace-kernel sys/arch/rp2040/compile/PICO_DIAG/unix.elf", ""),
+            ('--param="$$param"', ""),
         ):
             with self.subTest(original=original):
                 source = MAKEFILE_FIXTURE.replace(original, replacement, 1)

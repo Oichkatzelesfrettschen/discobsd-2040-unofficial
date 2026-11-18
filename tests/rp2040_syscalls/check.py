@@ -28,6 +28,7 @@ def symbol_offset(elf, name):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kernel", required=True, type=Path)
+    parser.add_argument("--trace-kernel", required=True, type=Path)
     args = parser.parse_args()
     for condition, inet, glob, expected in (
         ("ALWAYS", False, False, ("handler", 3)),
@@ -83,11 +84,30 @@ def main():
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
     print(f"PASS RP2040 syscalls: {len(rows)} pointers, counts and Thumb-bit mutants")
+    check_trace_mutants(rows, data, args.trace_kernel.read_bytes())
 
 
-def reject(data, rows, label):
+def check_trace_mutants(rows, plain, traced):
+    checker.check_data(traced, rows, inet=False, glob=False, systrace=True)
+    reject(plain, rows, "expected one definition of each syscall trace symbol", systrace=True)
+    reject(traced, rows, "disabled syscall trace metadata is linked")
+    elf = ELFFile(io.BytesIO(traced))
+    spans = symbol_offset(elf, "syscall_name_spans")
+    pool = symbol_offset(elf, "syscall_name_pool")
+    for invalid_span in (0, 0xffff):
+        modified = bytearray(traced)
+        struct.pack_into("<H", modified, spans, invalid_span)
+        reject(modified, rows, "syscall trace slot 0 span is out of bounds", systrace=True)
+    start = struct.unpack_from("<H", traced, spans)[0] & (checker.NAME_POOL_LIMIT - 1)
+    modified = bytearray(traced)
+    modified[pool + start] ^= 0x80
+    reject(modified, rows, "syscall trace slot 0 name differs", systrace=True)
+    print("PASS RP2040 syscall trace calibration: five corruptions rejected")
+
+
+def reject(data, rows, label, *, systrace=False):
     try:
-        checker.check_data(data, rows, inet=False, glob=False)
+        checker.check_data(data, rows, inet=False, glob=False, systrace=systrace)
     except ValueError as error:
         if label in str(error):
             return

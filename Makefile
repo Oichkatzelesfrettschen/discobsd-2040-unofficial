@@ -531,9 +531,13 @@ check-rp2040-vectors: check-python
 .PHONY: check-rp2040-vectors
 
 check-rp2040-syscalls: check-python
-		${PYTHON} tests/rp2040_syscalls/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+		${PYTHON} tests/rp2040_syscalls/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf \
+		    --trace-kernel sys/arch/rp2040/compile/PICO_DIAG/unix.elf
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
-		${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+		@set -eu; d=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}; \
+		    param=$$(${MAKE} -C "$$d" -V PARAM); \
+		    ${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master \
+		    --param="$$param" "$$d/unix.elf"
 .endfor
 
 .PHONY: check-rp2040-syscalls

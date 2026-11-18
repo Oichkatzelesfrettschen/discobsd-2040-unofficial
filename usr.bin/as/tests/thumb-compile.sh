@@ -42,3 +42,38 @@ if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
 echo "compile: 3 compiler-written programs assemble and agree"
+
+# Reproduce the inherited bmake rule with the production ROM trampoline.
+# The comparison also checks that the project rule used the a.out assembler.
+cpp_work=$(mktemp -d "${TMPDIR:-/tmp}/as-cpp.XXXXXX")
+trap 'rm -r "$cpp_work"' EXIT
+trap 'exit 1' HUP INT TERM
+for file in rom_float_clz.S rom_float.inc; do
+	cp "$TOPSRC/lib/libc/arm/gen/$file" "$cpp_work/$file"
+done
+cat > "$cpp_work/Makefile" <<'MAKEFILE'
+COMPILE.S = ${CC} ${AFLAGS} ${CPPFLAGS} -c -traditional-cpp
+include ${TOPSRC}/share/mk/sys.mk
+AFLAGS = -Wa,-x -B${TOOLBINDIR}/
+MAKEFILE
+(
+	unset MAKEFLAGS MFLAGS
+	GIT_DIR=$(git -C "$TOPSRC" rev-parse --absolute-git-dir)
+	export GIT_DIR
+	"${MAKE:-bmake}" -s -C "$cpp_work" "TOPSRC=$TOPSRC" \
+	    "MACHINE=${MACHINE:?set MACHINE}" "TOOLBINDIR=${TOOLBINDIR:?set TOOLBINDIR}" \
+	    rom_float_clz.o
+)
+$CC -E "$cpp_work/rom_float_clz.S" -o "$cpp_work/modern.s"
+$GNUAS -mcpu="$CPU" -mthumb -o "$cpp_work/modern.o" "$cpp_work/modern.s"
+"$PYTHON" "$here/thumb-aoutdiff.py" "$cpp_work/modern.s" \
+    "$cpp_work/rom_float_clz.o" "$cpp_work/modern.o"
+$CC -E -traditional-cpp "$cpp_work/rom_float_clz.S" -o "$cpp_work/traditional.s"
+grep -F '##' "$cpp_work/traditional.s" >/dev/null
+if $AS -o "$cpp_work/traditional.o" "$cpp_work/traditional.s" \
+    >"$cpp_work/control.log" 2>&1; then
+	echo "compile: native assembler accepted unexpanded token pasting" >&2
+	exit 1
+fi
+grep -F 'bad instruction arguments' "$cpp_work/control.log" >/dev/null
+echo "compile: ISO assembly CPP output matches GNU as; traditional CPP rejected"

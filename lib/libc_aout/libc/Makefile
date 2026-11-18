@@ -215,7 +215,8 @@ $(SYSOBJS):	$(LIBCDIR)/$(MACHINE_ARCH)/sys/SYS.h
 ${ROM_FLOAT_OBJS}: ${LIBCDIR}/arm/gen/rom_float.inc \
 		    ${LIBCDIR}/arm/gen/rom_float_members
 
-# Build objects here instead of ${LIBCDIR} with BSD make.
+# Search the libc directories for sources. Object outputs belong here.
+.NOPATH: ${OBJS}
 .OBJDIR:	${.CURDIR}
 
 install:	../libc.a

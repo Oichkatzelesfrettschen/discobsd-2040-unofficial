@@ -197,6 +197,11 @@ RANLIB=		${C17_CAPTURE_PREFIX}${GCCPREFIX}-ranlib
 SIZE=		${GCCPREFIX}-size
 AS=		${CC} -x assembler-with-cpp -c
 
+# Assembly macros use ISO token pasting for symbol and syscall names.
+# Override suffix rules that select traditional preprocessing.
+.S.o:
+	${AS} ${AFLAGS} ${CPPFLAGS} -o ${.TARGET:Q} ${.IMPSRC:Q}
+
 LEX=		flex
 INSTALL=	${TOOLBINDIR}/binstall -U
 

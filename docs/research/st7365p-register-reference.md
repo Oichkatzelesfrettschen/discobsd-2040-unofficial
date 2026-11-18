@@ -581,8 +581,10 @@ Status: READ; MEASURED `ff` (BOARD), the documented default.
 
 The summary list is on pages 140-144 (pp. 140-144, ll. 7049-7326). Every Command Table 2
 page gives its power-on, software-reset and hardware-reset default as "N/A";
-the HEX column of the parameter rows carries the only default value the
-datasheet prints, and the values below come from that column. CSCON (F0h)
+the HEX column of the parameter rows prints one example byte per parameter,
+and the values below come from that column as printed examples. They are not
+reset defaults: the default tables mark them N/A (for B1h, p. 220,
+ll. 12383-12389), so an unsent parameter has no documented value. CSCON (F0h)
 names the enables "command 2 part I" (C3h) and "part II" (96h)
 (p. 245, ll. 14194-14206); the datasheet does not say which registers belong to
 which part, whether command 2 is enabled after reset, or whether reads through
@@ -613,11 +615,16 @@ Formula (p. 219, ll. 12354-12358; the PDF page shows the same formula):
     frame rate = 10^7 / ((168 + RTNA + 32 x (15 - FRS)) x (480 + VFP + VBP))
 
 FRS 0-15, RTNA 0-31; VFP and VBP come from B5h. DIVA does not appear in the
-formula. HEX A0h, 10h: FRS = 10, DIVA = 0, RTNA = 16, which with VFP = VBP =
-2 gives 10^7 / (344 x 484) = 60.06 Hz.
-Status: SENT as one byte A0h (`st7365p.c:120`); RTNA is not sent, so it keeps
-its reset value, which the HEX column gives as 10h (INF from the break rule,
-p. 252, ll. 14514-14517). MEASURED by eye: set 15 (F0h unlock, then B1h 00h, a
+formula. HEX column A0h, 10h (p. 219, ll. 12332-12334): FRS = 10, DIVA = 0,
+RTNA = 16. If RTNA, VFP and VBP hold the HEX-column values 10h, 02h, 02h, the
+formula gives 10^7 / (344 x 484) = 60.06 Hz. The datasheet marks the reset
+values of B1h as N/A (p. 220, ll. 12383-12389), so that assumption is
+unsupported by the datasheet.
+Status: SENT as one byte A0h (`st7365p.c:120`); RTNA is not sent and B5h is
+never sent, so RTNA, VFP and VBP hold whatever the panel powers up with, which
+is undocumented. The 60.06 Hz figure is computed under the HEX-column
+assumption and unmeasured on the board; the GSCAN line-period reading of 4.2
+decides. MEASURED by eye: set 15 (F0h unlock, then B1h 00h, a
 formula rate of 10^7 / (664 x 484) = 31.1 Hz) flickers (BOARD). Range and
 table in section 4.
 
@@ -650,8 +657,9 @@ Status: SENT as 02h, 2-dot (`st7365p.c:122`). READ through SPIRC (`fb10`,
 Four parameters: VFP[7:0], VBP[7:0], 00h, HBP[7:0] (p. 222, ll. 12578-12584).
 Front and back porch in lines, 02h-FFh (00h and 01h reserved); HBP in dot
 clocks, same range (pp. 222-223, ll. 12586-12634). Must be set before Sleep Out
-(p. 223, l. 12638). HEX 02h, 02h, 00h, 04h.
-Status: NOT IMPLEMENTED. Larger porches are the documented route to frame
+(p. 223, l. 12638). HEX column 02h, 02h, 00h, 04h; the reset values are
+undocumented, as for B1h.
+Status: NOT IMPLEMENTED, so VFP and VBP keep their undocumented power-up values. Larger porches are the documented route to frame
 rates below 30.4 Hz (section 4).
 
 ### B6h DFC -- Display Function Control (p. 224, l. 12680)
@@ -861,8 +869,14 @@ change.
 
 GSCAN returns the line the panel is scanning, counting VSYNC + VBP + VACT +
 VFP lines from the first VSYNC line (p. 201, ll. 11068-11072). At the shipped
-60.06 Hz with 484 lines (480 + VFP 2 + VBP 2), a line lasts
-1 / (60.06 x 484) = 34.40 us and a frame 16.65 ms (INF from the B1h formula).
+the rate the B1h formula gives if RTNA, VFP and VBP hold the HEX-column
+values 10h, 02h, 02h is 60.06 Hz with 484 lines (480 + VFP 2 + VBP 2), a line of
+1 / (60.06 x 484) = 34.40 us and a frame of 16.65 ms (INF). The datasheet gives
+those three fields no reset value (N/A, p. 220, ll. 12383-12389) and the
+driver never sends B5h, so this rate, line period and frame time are computed
+from an assumption and unmeasured on the board; the scanline read below
+decides. Every figure in this section that uses 34.4 us, 484 lines or 16.65 ms
+carries the same condition.
 
 Cost on the wire (INF): a GSCAN read is 8 command clocks, one dummy clock if
 it behaves like the documented multi-byte serial reads (p. 95, l. 4787; the
@@ -876,9 +890,10 @@ every 34 us would occupy about a quarter of it at 3.125 MHz. The useful
 pattern is one read, then a timed wait computed from the line period.
 
 Falsifier for the dummy-clock assumption: read GSCAN twice a known interval
-apart; the two values must differ by interval / 34.40 us modulo 484 after the
-one-bit shift, and by twice that without it. GSCAN has not been read on the
-board.
+apart; the two values must differ by interval / line period modulo the line
+count after the one-bit shift, and by twice that without it. The 34.40 us and
+484 of the assumed case are predictions; the measured differences give the
+actual line period and line count. GSCAN has not been read on the board.
 
 What vertical sync can buy here (INF):
 
@@ -886,7 +901,8 @@ What vertical sync can buy here (INF):
   307,200 bytes, 196.6 ms at 12.5 MHz, 11.8 frames; RGB565 is 204,800 bytes,
   131.1 ms, 7.9 frames. Even at the 15.15 MHz TSCYCW limit RGB565 takes
   108 ms.
-- A band can be. Following the slow-writer example of page 262
+- A band can be, if the assumed line period holds (INF, conditional on the
+  HEX-column assumption above). Following the slow-writer example of page 262
   (p. 262, ll. 15082-15085), a write that starts just behind the scan line stays
   ahead of the next scan pass while k x (write time per line) <= frame time
   + k x (scan time per line). A full-width line takes 614.4 us in RGB666 and
@@ -899,8 +915,9 @@ What vertical sync can buy here (INF):
 
 ### 4.3 Reachable frame rates
 
-The B1h formula (p. 219, ll. 12354-12358) with FRS 0-15, RTNA 0-31 and the HEX
-porches VFP = VBP = 2 reaches 10^7 / (679 x 484) = 30.43 Hz at FRS 0, RTNA
+The B1h formula (p. 219, ll. 12354-12358) with FRS 0-15, RTNA 0-31 and the
+HEX-column porches VFP = VBP = 2 (assumed for the shipped panel; the reset
+values are N/A) reaches 10^7 / (679 x 484) = 30.43 Hz at FRS 0, RTNA
 1Fh up to 10^7 / (168 x 484) = 122.98 Hz at FRS Fh, RTNA 0 (DOC formula,
 INF arithmetic). With VFP = VBP = FFh the floor drops to
 10^7 / (679 x 990) = 14.88 Hz. B5h, which sets the porches, must be written
@@ -916,12 +933,14 @@ row is an inference that the rate divides with it.
 | 30 | Ah | 10h | 1 | 2 / 2 | 30.03 | INF, as above |
 | 40 | 5h | 1Dh | 0 | 2 / 2 | 39.96 | DOC formula |
 | 50 | 8h | 15h | 0 | 2 / 2 | 50.03 | DOC formula |
-| 60 | Ah | 10h | 0 | 2 / 2 | 60.06 | DOC formula; the HEX-column value and the driver's A0h |
+| 60 | Ah | 10h | 0 | 2 / 2 | 60.06 | DOC formula; the HEX-column example values and the driver's A0h, with RTNA and porches unsent and assumed |
 | 75 | Ch | 0Bh | 0 | 2 / 2 | 75.13 | DOC formula |
 | 90 | Eh | 1Eh | 0 | 2 / 2 | 89.83 | DOC formula |
 | 120 | Fh | 04h | 0 | 2 / 2 | 120.12 | DOC formula |
 
-The driver runs the 60.06 Hz row through B1h A0h (`st7365p.c:120`). The only
+The driver sends B1h A0h for the 60.06 Hz row (`st7365p.c:120`) and never sends
+RTNA's companion B5h, so the shipped rate is the 60.06 Hz row only under the
+HEX-column assumption and is unmeasured. The only
 board observation is set 15 (FRS 0, RTNA 10h, a formula rate of 31.1 Hz),
 which the owner saw flicker. The idle-mode and partial-mode line periods
 (B2h RTNB, B3h RTNC) have no printed formula. Lower rates trade flicker

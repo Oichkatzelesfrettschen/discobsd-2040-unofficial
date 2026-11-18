@@ -16,22 +16,21 @@ int     noproc;         /* no one is running just now */
 
 struct  callout *callfree, calltodo;
 
-long    monosec;        /* monotonic clock: seconds since boot */
-u_short monotick;    /* monotonic clock: tick within the second */
-long    realsec = LONG_MAX;     /* earliest ITIMER_REAL deadline, or earlier */
-u_short realtick;
+long itimer_deadline_seconds = LONG_MAX;
+struct itimer_clock itimer_clock;
 
 /*
- * True when the monotonic clock is strictly past (realsec, realtick).  A
- * deadline fires on the first tick after it, so a wait of N ticks lasts
- * longer than N ticks wherever in its tick the setitimer() call landed.
+ * A deadline fires on the first tick after it. A wait of N ticks thus
+ * lasts longer than N ticks wherever in the tick setitimer() landed.
  */
-#define REALDUE()   (monosec > realsec || \
-    (monosec == realsec && monotick > realtick))
+#define REALDUE()   (itimer_clock.seconds > itimer_deadline_seconds || \
+    (itimer_clock.seconds == itimer_deadline_seconds && \
+    itimer_clock.ticks > itimer_clock.deadline_ticks))
 
 /* True when the monotonic clock is strictly past p's ITIMER_REAL deadline. */
-#define TIMERDUE(p) ((p)->p_realtimer.it_value < monosec || \
-    ((p)->p_realtimer.it_value == monosec && (p)->p_realtick < monotick))
+#define TIMERDUE(p) ((p)->p_realtimer.it_value < itimer_clock.seconds || \
+    ((p)->p_realtimer.it_value == itimer_clock.seconds && \
+    (p)->p_realtick < itimer_clock.ticks))
 
 #ifdef UCB_METER
 long hostid;
@@ -110,7 +109,7 @@ gatherstats(caddr_t pc __unused, int ps)
  * periodic timer moves on by its interval from the previous deadline, which
  * keeps its phase; periods missed while the clock interrupt was masked are
  * delivered one per tick until the deadline catches up.  The
- * walk holds splclock so that a setitimer() cannot lower realsec between
+ * walk holds splclock so that setitimer() cannot lower the deadline between
  * the scan of a process and the store of the result; the stored deadline
  * is then never later than any armed timer.  Only allproc is walked: a
  * zombie's p_un holds its exit status.
@@ -146,8 +145,8 @@ realitexpire(void)
             mintick = p->p_realtick;
         }
     }
-    realsec = minsec;
-    realtick = mintick;
+    itimer_deadline_seconds = minsec;
+    itimer_clock.deadline_ticks = mintick;
     splx(s);
 }
 
@@ -319,9 +318,9 @@ hardclock(caddr_t pc, int ps)
         time.tv_sec = wall_advance(time.tv_sec, 1);
     }
 
-    if (++monotick >= hz) {
-        monotick = 0;
-        ++monosec;
+    if (++itimer_clock.ticks >= hz) {
+        itimer_clock.ticks = 0;
+        ++itimer_clock.seconds;
     }
     if (REALDUE())
         needsoft = 1;
@@ -340,10 +339,10 @@ hardclock(caddr_t pc, int ps)
 void
 monoclock_advance(unsigned int ticks)
 {
-    unsigned int n = (unsigned int)monotick + ticks;
+    unsigned int n = (unsigned int)itimer_clock.ticks + ticks;
 
-    monosec += n / hz;
-    monotick = n % hz;
+    itimer_clock.seconds += n / hz;
+    itimer_clock.ticks = n % hz;
 }
 
 /*

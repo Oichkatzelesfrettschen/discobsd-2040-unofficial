@@ -230,8 +230,8 @@ getitimer(void)
         aitv.it_interval.tv_sec = p->p_realtimer.it_interval;
         aitv.it_interval.tv_usec = p->p_realitick * usechz;
         if ((p->p_realtimer.it_value | p->p_realtick) != 0) {
-            sec = p->p_realtimer.it_value - monosec;
-            ticks = p->p_realtick - monotick;
+            sec = p->p_realtimer.it_value - itimer_clock.seconds;
+            ticks = p->p_realtick - itimer_clock.ticks;
             if (ticks < 0) {
                 ticks += hz;
                 sec--;
@@ -291,7 +291,7 @@ setitimer(void)
         return;
     /*
      * A value or interval the timer cannot hold is clamped, not refused.
-     * ITIMER_REAL adds the deadline to monosec, so its limit leaves room
+     * ITIMER_REAL adds the deadline to the monotonic clock, so its limit leaves room
      * for 34 years of uptime below LONG_MAX; the other timers count ticks
      * in a long.
      */
@@ -322,17 +322,18 @@ setitimer(void)
             p->p_realtimer.it_value = 0;
             p->p_realtick = 0;
         } else {
-            vticks += monotick;
-            vsec += monosec;
+            vticks += itimer_clock.ticks;
+            vsec += itimer_clock.seconds;
             if (vticks >= hz) {
                 vticks -= hz;
                 vsec++;
             }
             p->p_realtimer.it_value = vsec;
             p->p_realtick = vticks;
-            if (vsec < realsec || (vsec == realsec && vticks < realtick)) {
-                realsec = vsec;
-                realtick = vticks;
+            if (vsec < itimer_deadline_seconds ||
+                (vsec == itimer_deadline_seconds && vticks < itimer_clock.deadline_ticks)) {
+                itimer_deadline_seconds = vsec;
+                itimer_clock.deadline_ticks = vticks;
             }
         }
     } else {
@@ -371,14 +372,13 @@ itimerfix(struct timeval *tv)
  * of microseconds, which must be less than a second,
  * i.e. < 1000000.  If the timer expires, then reload
  * it.  In this case, carry over (usec - old value) to
- * reducint the value reloaded into the timer so that
+ * reducing the value reloaded into the timer so that
  * the timer does not drift.  This routine assumes
  * that it is called in a context where the timers
  * on which it is operating cannot change in value.
  */
-itimerdecr(itp, usec)
-    register struct itimerval *itp;
-    int usec;
+int
+itimerdecr(struct itimerval *itp, int usec)
 {
 
     if (itp->it_value.tv_usec < usec) {
@@ -439,8 +439,7 @@ timevaladd(struct timeval *t1, struct timeval *t2)
 
 #ifdef NOT_CURRENTLY_IN_USE
 void
-timevalsub(t1, t2)
-    struct timeval *t1, *t2;
+timevalsub(struct timeval *t1, struct timeval *t2)
 {
     t1->tv_sec -= t2->tv_sec;
     t1->tv_usec -= t2->tv_usec;

@@ -95,7 +95,7 @@ struct  proc {
 #define p_tip           p_un.p_alive.P_tip
 #define p_wchan         p_un.p_alive.P_wchan
 /*
- * ITIMER_REAL counts ticks on the monotonic clock (monosec, monotick).
+ * ITIMER_REAL counts ticks on the monotonic clock in itimer_clock.
  * p_realtimer.it_value is the deadline's second and p_realtick its tick;
  * p_realtimer.it_interval is the interval's whole seconds and p_realitick
  * its remaining ticks.  The timer is armed when (it_value | p_realtick) is

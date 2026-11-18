@@ -166,6 +166,43 @@ one extra flash literal load. Timing depends on XIP cache state and
 bus behavior. Measure target cycles before enabling compact dispatch
 in a shipping build.
 
+## Shared base for interval-timer state
+
+`kern_clock.c` and `kern_time.c` access the monotonic seconds and tick
+together with the subsecond expiry bound. Three fields occupy one
+eight-byte BSS record on ARM32. The initialized deadline seconds keeps
+the `LONG_MAX` sentinel in its own word. The timer keeps its strict
+past-deadline comparison, carries ticks at `hz`, and stores the expiry
+bound under the existing clock interrupt exclusion.
+
+Matched RP2040 links against `0a211d15` use GCC 15.2.1 and GNU ld
+2.45.1. Negative values are candidate minus base, in bytes.
+
+| Kernel | Flash payload | Flash span | End of resident kernel RAM |
+| --- | ---: | ---: | ---: |
+| PICO | -40 | 0 | 0 |
+| PICO_DIAG | -40 | 0 | 0 |
+| PICO_UART | -48 | 0 | 0 |
+| PICOCALC | -48 | 0 | 0 |
+| PICOCALC_LEAN | -56 | -256 | 0 |
+| PICOCALC_LEAN_DIAG | -56 | 0 | 0 |
+
+The payload is the sum of file-backed flash load segments. The span
+runs from boot2 to the end of the last such segment. The lean link
+crosses one 256-byte boundary at the board descriptor. A four-field
+record moved eight bytes into initialized data and increased the
+PicoCalc RAM extent by 24 bytes. A seconds-and-ticks pair alone
+reduced payload by 32 bytes per kernel and added eight BSS bytes in
+PICOCALC. The three-field record gives the smaller linked footprint
+where the two constraints compete.
+
+The C17 inventory also retires the two identifier-list definitions
+guarded by `NOT_CURRENTLY_IN_USE` in `kern_time.c`. The exact PICO
+compile flags with that guard defined reject the parent and accept
+the typed functions. `check-storage-correctness` exercises the active
+timer and wall-clock paths and their mutation controls. Silicon
+interrupt timing remains unmeasured.
+
 ## Queue, ordered by payoff over risk
 
 ### Hot `struct user` fields within Thumb-1 load reach (measured: -2,040 to -2,056 bytes)

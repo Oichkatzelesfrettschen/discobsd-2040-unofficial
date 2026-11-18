@@ -1057,8 +1057,16 @@ The voltage-generation and source-voltage diagrams of pages 281-283
 (pp. 281-283, ll. 16006-16102) did not survive the extraction and were not read from
 the PDF.
 
-For one-bit text only levels 0 and 63 matter, so V0P/V0N, V63P/V63N and the
-VAP-VBP span (C1h, C5h) set the two text levels.
+For strictly black and white text only levels 0 and 63 matter, so V0P/V0N,
+V63P/V63N and the VAP-VBP span (C1h, C5h) set the two text levels. The 16-color
+console is not black and white only: `lcd_palette` (`st7365p.c:95-101`) holds
+channel values 0, 60, 90, 100, 120, 127, 200, 205, 238 and 255, and a glyph's
+foreground and background pick palette entries. A channel at one of the
+intermediate values selects a gray level between 0 and 63 after the 8-bit to
+6-bit reduction, so the gamma knots between V0 and V63 (E0h, E1h) shape the
+rendered text for every palette entry other than the pure black, white and
+saturated-channel ones. The endpoint-only conclusion holds for black and white
+text alone.
 
 ### 4.11 Digital gamma
 

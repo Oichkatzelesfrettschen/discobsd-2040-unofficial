@@ -634,6 +634,8 @@ check-rp2040-nlist: check-python
 check-debug-paths: check-python
 		MAKE=${MAKE:Q} ${PYTHON} tools/check_debug_paths.py
 
+.PHONY: check-debug-paths
+
 # Every cross-compiled program and library object a build leaves reaches
 # the __NAME64 symbol of each time function sys/sys/_time_t.h binds, never
 # the 32-bit entry point libc keeps for its own members and for programs
@@ -704,6 +706,8 @@ check-kernel-printf-formats:	check-python
 
 check-aout:
 		${MAKE} -C tests/aout_header check
+
+.PHONY: check-aout
 
 check-native-linker: check-python
 		${MAKE} -C tools/aoututils/ld all
@@ -844,6 +848,8 @@ check-touch-contracts:
 check-touch-contracts-cross:
 		${MAKE} -C tests/touch_contracts check-cross
 
+.PHONY: check-touch-contracts-cross
+
 check-printf-contracts:
 		${MAKE} -C tests/printf_contracts check
 
@@ -920,6 +926,8 @@ check-libc-assert: check-python
 		HOSTCC=${HOSTCC:U${HOST_CC:Ucc}:Q}' -DDISCOBSD_ASSERT_TEST=1' \
 		    ${PYTHON} tests/libc_contracts/assert_check.py
 
+.PHONY: check-libc-assert
+
 # The err family (lib/libc/gen/err.c) against its owning header, with
 # calibrating mutants; check-libc-host-contracts runs it through check-host.
 check-libc-err: check-python
@@ -939,14 +947,20 @@ check-libc-waitpid-cross:
 check-libc-array-memory-line:
 		${MAKE} -C tests/libc_contracts check-array-memory-line
 
+.PHONY: check-libc-array-memory-line
+
 check-libc-array-memory-line-cross:
 		${MAKE} -C tests/libc_contracts check-array-memory-line-cross
+
+.PHONY: check-libc-array-memory-line-cross
 
 # gets(3) is gone from <stdio.h> and from both libc builds, so a caller fails
 # to compile rather than storing an entire line into a fixed buffer. The cross
 # form reads the built lib/libc.a for the symbol as well.
 check-stdio-bounds-cross:
 		${MAKE} -C tests/libc_contracts check-stdio-bounds-cross
+
+.PHONY: check-stdio-bounds-cross
 
 check-libc-aout-contracts:	${BOARDLIBC_WORK}/libc.a
 		${MAKE} -C tests/libc_contracts check-aout
@@ -1094,6 +1108,8 @@ check-libc-exit-lifecycle:
 check-libc-getgrent-cross:
 		${MAKE} -C tests/libc_contracts check-getgrent-cross
 
+.PHONY: check-libc-getgrent-cross
+
 check-sysctl-status: check-python
 		${MAKE} -C tests/sysctl_status check
 
@@ -1161,26 +1177,36 @@ check-scandir-contracts-cross:
 check-cat-contracts:
 		${MAKE} -C tests/cat_contracts check
 
+.PHONY: check-cat-contracts
+
 # getty's tty mode derivation, setflags() in libexec/getty/subr.c, over the
 # flag tables it reads, on the host.
 check-getty-contracts:
 		${MAKE} -C tests/getty_contracts check
+
+.PHONY: check-getty-contracts
 
 # init's refused-fork paths, spawn() through runcom(), single(), dfork() and
 # wstart() in sbin/init/init.c, and its -1 restart marker, on the host.
 check-init-contracts:
 		${MAKE} -C tests/init_contracts check
 
+.PHONY: check-init-contracts
+
 # init's /etc/daemons parser and restart policies, sbin/init/daemons.c, on
 # the host.
 check-init-daemons:
 		${MAKE} -C tests/init_daemons check
+
+.PHONY: check-init-daemons
 
 # The failed-job list of tools/report-nightly-failure.sh against its
 # calibration cases: a passing run prints nothing, and a failed, timed-out
 # or cancelled job prints with its steps.
 check-nightly-report:
 		sh tools/report_nightly_failure_test.sh
+
+.PHONY: check-nightly-report
 
 # tools/mutant_pool.py, which the fourfall, puzzlebox and calc mutant runners
 # share: list order, serial timing mutants alone, MUTANT_JOBS, and a known-bad
@@ -1191,6 +1217,8 @@ check-nightly-report:
 check-mutant-pool: check-python
 		${PYTHON} tools/mutant_pool_test.py
 		${PYTHON} tools/available_cpus_test.py
+
+.PHONY: check-mutant-pool
 
 # tools/exact_clifford_t_2q.py: the integer-only two-qubit Clifford+T
 # statevector over Z[w]. tools/exact_clifford_t_2q_test.py compares it with a
@@ -1204,6 +1232,8 @@ check-clifford-t: check-python
 
 check-cat-contracts-cross:
 		${MAKE} -C tests/cat_contracts check-cross
+
+.PHONY: check-cat-contracts-cross
 
 check-colrm-contracts:
 		${MAKE} -C tests/colrm_contracts check
@@ -1244,28 +1274,44 @@ check-find-contracts-cross:
 check-backgammon-contracts:
 		${MAKE} -C tests/backgammon_contracts check
 
+.PHONY: check-backgammon-contracts
+
 check-backgammon-contracts-cross:
 		${MAKE} -C tests/backgammon_contracts check-cross
+
+.PHONY: check-backgammon-contracts-cross
 
 check-rmdir-contracts:
 		${MAKE} -C tests/rmdir_contracts check
 
+.PHONY: check-rmdir-contracts
+
 check-rmdir-contracts-cross:
 		${MAKE} -C tests/rmdir_contracts check-cross
+
+.PHONY: check-rmdir-contracts-cross
 
 # reboot(8)'s arming rules for the boot ROM loader and boardinfo(1)'s output,
 # each with calibration mutants.
 check-packed-margin:
 		sh tests/packed_margin/check.sh
 
+.PHONY: check-packed-margin
+
 check-reboot-contracts:
 		${MAKE} -C tests/reboot_contracts check mutants
+
+.PHONY: check-reboot-contracts
 
 check-tee-contracts:
 		${MAKE} -C tests/tee_contracts check
 
+.PHONY: check-tee-contracts
+
 check-tee-contracts-cross:
 		${MAKE} -C tests/tee_contracts check-cross
+
+.PHONY: check-tee-contracts-cross
 
 # usr.bin/lex built for the host at the target's table sizes: a grammar that
 # needs more than a table holds exits 1 with the table's diagnostic before
@@ -1283,8 +1329,12 @@ check-lex-tables:	check-python
 check-time-contracts:
 		${MAKE} -C tests/time_contracts check
 
+.PHONY: check-time-contracts
+
 check-time-contracts-cross:
 		${MAKE} -C tests/time_contracts check-cross
+
+.PHONY: check-time-contracts-cross
 
 # lib/libtcl's own source under the address and undefined sanitizers, at the
 # byte extents and counters it once held in unsigned short: values, results,
@@ -1294,17 +1344,27 @@ check-time-contracts-cross:
 check-libtcl-contracts:
 		${MAKE} -C tests/libtcl_contracts check
 
+.PHONY: check-libtcl-contracts
+
 check-du-contracts:
 		${MAKE} -C tests/du_contracts check
+
+.PHONY: check-du-contracts
 
 check-du-contracts-cross:
 		${MAKE} -C tests/du_contracts check-cross
 
+.PHONY: check-du-contracts-cross
+
 check-resize-contracts:
 		${MAKE} -C tests/resize_contracts check
 
+.PHONY: check-resize-contracts
+
 check-resize-contracts-cross:
 		${MAKE} -C tests/resize_contracts check-cross
+
+.PHONY: check-resize-contracts-cross
 
 check-libc-string-security:
 		${MAKE} -C tests/libc_contracts check-string-security
@@ -1548,6 +1608,16 @@ check-config-generated-sync: check-python
 # and the size of the PSRAM /tmp. tools/check_storage_geometry.py builds a
 # private flashimg from the tested sources and holds each restatement to its
 # source; check-picocalc-sd-layout holds the linker scripts to flash.h.
+# A check target names no file, so each one is declared .PHONY: otherwise a
+# file or directory of the same name in the tree makes bmake skip the gate.
+# tools/check_phony_targets.py requires the declaration for every check-*
+# target of this Makefile and the makefiles it includes.
+check-phony-targets: check-python
+		${PYTHON} tools/check_phony_targets.py --self-test
+		${PYTHON} tools/check_phony_targets.py
+
+.PHONY: check-phony-targets
+
 check-storage-geometry: check-python
 		${PYTHON} tools/check_storage_geometry.py --self-test --cc ${HOST_CC:Ucc:Q}
 		${PYTHON} tools/check_storage_geometry.py --cc ${HOST_CC:Ucc:Q}
@@ -1611,9 +1681,13 @@ check-swapram-evac:
 		env -u MAKEFLAGS -u MFLAGS \
 		    make -C sys/arch/rp2040/test/swapram evac
 
+.PHONY: check-swapram-evac
+
 check-flash-swap:
 		${MAKE} -C tests/rp2040/flash_swap check
 		${MAKE} -C sys/arch/rp2040/compile check-flash-swap
+
+.PHONY: check-flash-swap
 
 check-dhara-metadata: check-python
 		${MAKE} -C tests/rp2040/dhara_bounds check PYTHON=${PYTHON:Q}
@@ -1664,6 +1738,8 @@ check-netbsd-imports: check-python
 		${PYTHON} tools/netbsd_imports.py selftest
 		${PYTHON} tools/netbsd_imports.py verify
 
+.PHONY: check-netbsd-imports
+
 check-storage-recovery: check-python
 		${PYTHON} tests/storage_recovery/host_build_test.py
 		${PYTHON} tests/storage_recovery/storage_trace_test.py
@@ -1690,8 +1766,12 @@ check-storage-recovery-models: check-python
 check-v7fs-core: check-python
 		${MAKE} -C tests/v7fs_core check PYTHON=${PYTHON:Q}
 
+.PHONY: check-v7fs-core
+
 check-v7-format: check-python
 		${MAKE} -C tests/kernel check-v7-format PYTHON=${PYTHON:Q}
+
+.PHONY: check-v7-format
 
 # The time stamps tools/fsutil writes into an image, including a clock past
 # January 2038 from FSUTIL_CLOCK, read back with fsutil itself; the gate
@@ -1699,8 +1779,12 @@ check-v7-format: check-python
 check-fsutil-clock: check-python
 		${MAKE} -C tests/fsutil_clock check PYTHON=${PYTHON:Q}
 
+.PHONY: check-fsutil-clock
+
 check-msdosfs-core: check-python
 		${MAKE} -C tests/msdosfs_core check PYTHON=${PYTHON:Q}
+
+.PHONY: check-msdosfs-core
 
 # The loader composite (a kernel UF2 followed by the root image, built by
 # tools/picocalc/mkloaderuf2.py) and the host-tested locator that finds its
@@ -1709,6 +1793,8 @@ check-msdosfs-core: check-python
 # mutants of the locator that must fail; tests/fat32tail/check.sh states each.
 check-fat32-tail: check-python
 		${MAKE} -C tests/fat32tail check PYTHON=${PYTHON:Q}
+
+.PHONY: check-fat32-tail
 
 # check-hsaout and check-fsutil-clock also build tools/hsaout/libhsaout.a, so
 # the three never run beside one another. check-fsutil-clock shares the host
@@ -1725,6 +1811,8 @@ check-fat32-tail: check-python
 # sanitizers, with sixteen mutants that must fail.
 check-corering:
 		${MAKE} -C tests/corering check
+
+.PHONY: check-corering
 
 # Core 1 as the kernel's observer, sys/arch/rp2040/rp2040/core1.c, in three
 # evidence classes. check-core1 runs the two decision functions of core1.h
@@ -1887,6 +1975,8 @@ check-loader-stamp:
 check-picocalc-kbd-bootloader:	check-python
 		${PYTHON} tools/picocalc/kbd_bootloader_id_test.py
 
+.PHONY: check-picocalc-kbd-bootloader
+
 check-usb-line-coding:
 		${MAKE} -C tests/rp2040/usb_line_coding check
 
@@ -1991,7 +2081,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
-		check-userland-layout-flags check-storage-geometry \
+		check-userland-layout-flags check-storage-geometry check-phony-targets \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
 		check-signal-traps
@@ -2182,6 +2272,8 @@ check-archive-stored-times: check-python
 # expr, basename or sed fails. It needs no built tree.
 check-cc-driver:
 		sh tests/cc_driver/check.sh distrib/rp2040/cc
+
+.PHONY: check-cc-driver
 
 .PHONY: check-cp-host
 check-cp-host:
@@ -2537,6 +2629,8 @@ check-renode-capacity:
 		sh tools/renode/check-capacity.sh ${FSIMG}
 		sh tools/renode/check-capacity.sh ${FSIMG} PICO refuse
 
+.PHONY: check-renode-capacity
+
 # The boot-time image comparison on the emulated PICO_UART kernel:
 # tools/renode/check-identity.sh boots the stamped kernel and three altered
 # copies on ${FLASHBIN} and requires the image line of each, so the
@@ -2555,11 +2649,15 @@ check-renode-preempt:
 check-renode-identity:
 		sh tools/renode/check-identity.sh ${FLASHBIN}
 
+.PHONY: check-renode-identity
+
 # The SRAM-resident board probes, flash-id and flash-semantics, built
 # against a Pico SDK that tools/pico-sdk/sdk-path.sh resolves. Outside
 # check for the reason check-renode is: it wants cmake and a fetched SDK.
 check-flash-id:
 		sh tools/pico-sdk/check-flash-id.sh
+
+.PHONY: check-flash-id
 
 # The discobsd-host Python package: its own lint and tests.
 check-host-package:	check-python .WAIT

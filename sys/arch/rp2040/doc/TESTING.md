@@ -1410,6 +1410,23 @@ A failure on a revision containing both barriers requires investigation of
 that revision's dependency paths. These host gates leave ARM execution,
 emulator behavior and board observations to their separate tests.
 
+### Check targets declared phony
+
+`check-phony-targets` is a host gate. A check target names no file, so an
+undeclared one is skipped without a word once a file or directory of the
+same name appears in the tree. `tools/check_phony_targets.py` reads the
+check-* targets of the root Makefile and of the makefiles it includes
+(`share/mk/architecture.mk`, `share/mk/source-date.mk`,
+`distrib/rp2040/Makefile.inc` and `sys/arch/stm32/conf/Makefile.inc`), every
+name of a rule with several targets included, and every `.PHONY` line in
+them, continuation lines joined, and fails on a target no declaration names.
+The self-test passes a declared target, a declaration on a continuation line
+and one in another file, does not take a `:=` assignment for a target, and
+rejects an undeclared target and the undeclared second target of a
+two-target rule; a scanned file that is missing and a scan that finds no
+check target are errors (status 2). The tree before this gate had 44 undeclared
+check targets.
+
 ### Storage sizes restated in build files
 
 `check-storage-geometry` is a host gate. The linker scripts are held to

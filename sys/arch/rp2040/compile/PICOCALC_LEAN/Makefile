@@ -174,7 +174,7 @@ COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
 PARAMSTAMP=	.params
 PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${CSIZEFLAGS:Q} ${CSIZEFLAGS_COPTS:Q} ${AS:Q} ${AFLAGS:Q} \
-		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q}
+		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q} ${C17_PROTO_FLAGS:Q}
 _paramchanged!=	printf '%s\n' ${PARAMSTAMP_VALUES} | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
 .if ${_paramchanged} == "yes"
 .PHONY: ${PARAMSTAMP}

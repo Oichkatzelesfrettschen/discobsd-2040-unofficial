@@ -1,10 +1,10 @@
 # Full PicoCalc kernel size and SD root capacity
 
-The full kernel fits 1,536 more bytes of linked code or data into its
+The full kernel fits 1,792 more bytes of linked code or data into its
 original reservation with the same configured services. The SD-root
 configuration adds another 32,768 bytes of reservation. Only the first
-1,536 bytes count against the requested reduction to 95,880 bytes.
-The full kernel still needs a further 31,232-byte reduction.
+1,792 bytes count against the requested reduction to 95,880 bytes.
+The full kernel still needs a further 30,976-byte reduction.
 
 ## What a byte buys
 
@@ -23,16 +23,18 @@ binary including boot2 has SHA-256
 | Conventional full, baseline | 128,648 | 130,816 | 2,168 |
 | Conventional full, compact panel programs | 128,136 | 130,816 | 2,680 |
 | Conventional full, compact programs and shared data sections | 127,112 | 130,816 | 3,704 |
+| Conventional full, all six shared-state units and single console tty | 126,856 | 130,816 | 3,960 |
 | Required SD root, original panel and section choices | 128,392 | 163,584 | 35,192 |
 | Required SD root, compact panel programs | 128,136 | 163,584 | 35,448 |
 | Required SD root, compact programs and shared data sections | 127,112 | 163,584 | 36,472 |
-| Required SD root plus 32,768 linked test bytes | 159,880 | 163,584 | 3,704 |
+| Required SD root, all six shared-state units and single console tty | 126,856 | 163,584 | 36,728 |
+| Required SD root plus 32,768 linked test bytes | 159,624 | 163,584 | 3,960 |
 
 For a fixed capacity `C` and measured span `S`, free space is `C - S`.
-The composed gain over the original full kernel is exactly 34,304 bytes.
-Subtracting the normal build margin leaves 35,448 bytes available for
-growth in the SD profile and 2,680 in the conventional profile. The
-1,536-byte shrink and the 32,768-byte partition change measure different
+The composed gain over the original full kernel is exactly 34,560 bytes.
+Subtracting the normal build margin leaves 35,704 bytes available for
+growth in the SD profile and 2,936 in the conventional profile. The
+1,792-byte shrink and the 32,768-byte partition change measure different
 operations. Individual source changes can interact at descriptor alignment
 boundaries. The table uses the actual combined links.
 
@@ -63,7 +65,29 @@ boundaries. The table uses the actual combined links.
    The three units use the kernel's GNU17 dialect with fatal prototype
    and old-style-definition diagnostics. The PicoCalc host fixtures also
    exercise terminal and graphics behavior under their strict C17 profile.
-3. **Measure compiler choices at the final link.** A sweep recompiles 92
+3. **Use the console open contract to avoid a stack cost.** The keyboard
+   controller, console driver and bell also share data within each unit.
+   A trial link reduces the main text section by 152, another 46, then
+   another 24 bytes. Together the substitutions cross a descriptor
+   alignment boundary and return 256 bytes of flash. GCC's stack-usage
+   output shows an eight-byte frame increase in `lcdwrite`. The driver
+   admits one terminal minor and dispatches the graphics minor separately.
+   Addressing the one tty directly removes the unused device-index
+   multiplication. A C17 assertion ties the representation to the admitted
+   minor range. The linked `lcdwrite` frame returns to eight bytes. The
+   total main text reduction from these three units and the tty change
+   is 254 bytes. The final flash saving stays at 256 bytes.
+
+   Comparing the two full images with `stack_chain.py --from-table
+   syscall_handlers` gives equal model depths for all 122 roots. Before
+   the tty correction, read, readv, write and writev each gained eight
+   bytes on its modeled maximum path. Two keyboard frames still grow by
+   eight bytes and two shrink by eight. The model gives 3,548 bytes for
+   the conservative combined u-area path against a 2,048-byte stack and
+   1,512 against 2,048 for rendering in both builds. Those sums and their
+   nesting assumptions are documented in the [stack study](kernel-size-flags/README.md).
+
+4. **Measure compiler choices at the final link.** A sweep recompiles 92
    size-optimized translation units from the compact-panel configuration.
    It retains the other objects and the production GNU linker. GCC `-Oz`
    yields 128,136 bytes. Clang 23.1.4 `--target=arm-none-eabi -Oz` yields
@@ -115,10 +139,10 @@ There is no privileged module ABI in either profile. [Component measurements](ti
 
 The test link forces one read-only section of 32,768 bytes live with GNU
 ld's `--undefined` and uses the production objects and linker scripts.
-The expanded ELF places its board descriptor at `0x10026d00`, its data
-load at `0x10026d10` and its RAM routine initializers at `0x10026da0`.
-Boot now depends on bytes beyond the conventional limit. Under the old
-map this ELF exceeds capacity by 29,064 bytes even with zero margin.
+The six-unit growth ELF places its board descriptor at `0x10026c00`, its
+data load at `0x10026c10` and its RAM routine initializers at `0x10026ca0`.
+The reset path reads all three beyond the conventional limit. The conventional
+headroom checker rejects this ELF by 28,808 bytes even with zero margin.
 The normal UF2 builder, board descriptor tool and emulator run against
 the expanded map. The Renode cases cover card login and mount, file
 round-trip through the separate temporary partition, a missing root,
@@ -182,6 +206,150 @@ and zero bytes of flash reservation. The existing map has spare slots.
 Changing protection requires the startup register readback and fault
 evidence described in the MPU guide. [MPU map](../../sys/arch/rp2040/doc/MPU.md)
 
+A full-kernel experiment on the three-unit build replaces the two SRAM
+entries with one 256 KiB entry at `0x20000000`, with RASR `0x0300c023`.
+Its table loses eight bytes. The board alignment absorbs the difference
+and the flash span remains 127,112 bytes. Renode boots to a shell with
+three programmed entries and control readback 5. The shipped `mputest`
+reports one failure, its explicit expectation of four programmed entries.
+Its user-window edge, aliases, kernel addresses, divider, ROM and caught
+fault probes agree with their expected behavior in this run. The standard
+firmware retains the board-qualified map. A physical readback and boundary
+fault run decide whether the extra permission slot is usable on target.
+
+## Which bytes must change representation?
+
+The ARM ELF mapping symbols identify ranges of Thumb code (`$t`) and
+embedded data (`$d`) within the main text section. Each interval runs to
+the next mapping symbol or section end and includes any intervening fill.
+The initialized load segments in `arm-none-eabi-readelf -lW` account for
+the rest. Both columns exclude boot2.
+
+| Owner of flash bytes | Original full | Compact full |
+|---|---:|---:|
+| Thumb ranges including adjacent fill | 101,692 | 101,256 |
+| Data ranges inside the main text section, including vectors, literal pools and tables | 25,542 | 24,406 |
+| Alignment before the board descriptor | 254 | 34 |
+| Board descriptor | 16 | 16 |
+| Initial data copied to ordinary SRAM | 144 | 144 |
+| Instructions and literals copied to ordinary SRAM | 1,000 | 1,000 |
+| **Linked span** | **128,648** | **126,856** |
+
+The compact image's Thumb ranges alone exceed the 95,880-byte target by
+5,376 bytes. An optimization that changes only the other rows therefore
+cannot reach the target, even with zero storage for vectors, literals
+and initialized RAM. The largest measured change in the two columns
+comes from data embedded among instructions. The 220-byte decrease in
+descriptor alignment amplifies the combined 1,572-byte change inside
+the main text section.
+
+**Sharing exact instruction sequences.** The compact image contains 68,322
+bytes in runs of decoded instructions after splitting at a discontinuous
+address, a branch, a supervisor call, an address calculation using the
+program counter, or an explicit program-counter operand. The input is
+`arm-none-eabi-objdump -d -j .text`. Sequence equality compares the
+encoded halfwords, including both halves of a wide instruction.
+For each run, count every contiguous sequence across all runs. At each
+instruction start, the maximum saving is the larger of skipping that
+instruction and replacing a repeated sequence of length `L` bytes at
+cost `C` plus the best saving after it. Evaluate backwards with zero
+saving at the end. The calculation prevents two substitutions from
+claiming the same site. It grants free helper bodies, infinite branch
+reach and replacement of every copy, including the first.
+
+| Bytes per substitution | 2 | 4 | 6 |
+|---|---:|---:|---:|
+| Original full, optimistic saving | 14,122 | 4,854 | 2,338 |
+| Compact full, optimistic saving | 13,912 | 4,806 | 2,300 |
+
+A Thumb long call occupies four bytes. Even the two-byte model, which
+charges only a short branch, leaves 17,064 bytes of the compact image's
+30,976-byte deficit. Distinct register assignments, common control-flow
+graphs and shared operations at the C level lie outside this byte-exact
+model. A C rewrite can exploit those relationships when the error paths,
+live registers and interrupt state agree.
+
+**Pooling addresses.** A GNU ld relink of the compact image with
+`--emit-relocs` records 2,080 absolute word relocations in `.rel.text`.
+The four bytes at every such offset match the production link. Those
+sites contain 910 distinct words. Keeping one of each saves at most
+`4 * (2080 - 910) = 4,680` bytes before references, indexing code and
+literal reach. The base of the current process's kernel area alone
+appears 217 times. Sharing that address everywhere would save 864 bytes
+of literal words before paying for access. GNU ld can exchange branch stubs on a relink. The word comparison covers
+the measured sites in the release ELF.
+
+**Compiling C to a portable instruction stream.** A host experiment
+recompiles 97 size-optimized C units from the three-unit build with the PICOCALC defines and
+include paths. Clang 23.1.4 targets `wasm32-unknown-unknown` at `-Oz`,
+with GNU17, freestanding compilation, unsigned plain char, short enums,
+fatal diagnostics, and the kernel's aliasing and builtin restrictions.
+Each unit links independently with LLD 23.1.4 using `--no-entry
+--export-all --allow-undefined --compress-relocations --strip-all`.
+Binaryen 130 applies `wasm-opt -Oz --all-features`.
+
+Of the 97 units, 30 contain target assembly or register operands that
+the WebAssembly backend rejects. For the 67 that link, the production
+ARM objects contain 60,456 bytes of `.text*` input sections, including
+their literal pools. The optimized WebAssembly CODE sections total
+88,014 bytes, before data sections, imports, a native interpreter and
+the transitions between execution environments. Every linked unit costs
+at least as much in this comparison. Per-unit export roots and the
+linker's small synthetic functions affect the comparison. This is a
+storage experiment on C translation units, with no runtime or ABI
+qualification. It rules out a size gain from this specific general
+bytecode pipeline. A small instruction language specialized for a
+repeated device operation has a different cost, as the panel register
+programs demonstrate. [Per-unit results](kernel-size-flags/picocalc-bytecode.tsv)
+
+### The cost of keeping an interrupt path callable
+
+A page experiment starts from the compact six-unit full kernel. It keeps the
+6,720 bytes through `__hot_end` and all 1,194 bytes after the main text
+section in place. That leaves 118,942 bytes to encode. The ARM Thumb branch
+filter first normalizes branch addresses. Each page then uses either its raw
+bytes or an independent LZMA1 stream, whichever uses less flash. Each
+compressed page decodes byte-for-byte on the host. A second run also keeps
+the three sized function intervals for `USBCTRL_IRQ_Handler`, `usbintr` and
+`usb_service` in flash. Their direct call chain appears in the linked
+disassembly. Its callees, data and other interrupt paths make the actual
+resident set larger.
+
+| Output bytes per page | Packed span with just the hot prefix and tail | Packed span also keeping three USB functions | USB case plus native decoder | SRAM left after one output page and probability table |
+|---:|---:|---:|---:|---:|
+| 4,096 | 95,836 | 96,118 | 98,434 | 3,052 |
+| 6,144 | 93,891 | 94,410 | 96,726 | 1,004 |
+| 7,040 | 93,337 | 93,828 | 96,144 | 108 |
+
+The finite model uses the flat binary after boot2, SHA-256
+`d841f49c9cf67bc53420aa1d93a0680d566970c074e77a0fceacb4630421633f`.
+Split each movable interval from its beginning at the stated page length.
+Restart at the end of each pinned function. Python's `lzma.FORMAT_RAW`
+uses `FILTER_ARMTHUMB` with the page's offset from `0x10000100`, then
+`FILTER_LZMA1` with preset 9, dictionary size 8,192, `lc=lp=0` and
+`pb=2`. Count the pinned bytes once and add each shorter representation.
+
+Coreboot 4.8 at `ebdeb4d0`, `src/lib/lzmadecode.h`, allocates
+`2 * (1846 + (768 << (lc + lp)))` probability bytes. Zero literal context
+bits reduce this to 5,228 bytes. The output page provides the match history.
+The kernel has 12,376 available ordinary SRAM bytes after its dump reserve.
+The SRAM column subtracts both owners from that budget. GCC 16.2.0
+cross-compiles the donor's unmodified `src/lib/lzmadecode.c` with
+`-std=c17 -Os -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft -ffreestanding
+-fno-strict-aliasing -fno-builtin -ffunction-sections -fstack-usage`.
+The `.text.LzmaDecode` section occupies 2,316 bytes and its reported frame
+uses 104 bytes on the caller's stack. The size calculation grants fixed
+decoder properties for free.
+
+At 7,040 bytes per page, pinning just those USB routines changes an apparent
+227-byte flash surplus into a 264-byte deficit. The directory, inverse branch
+filter, transfer into SRAM, relocations and return path all still need
+space. One sleeping kernel call can retain a return address into a page that
+another call displaces. A replacement design has to preserve that address
+or reload its target before returning. These results reject the three
+measured page layouts with this decoder and resident set. They leave the
+cost of other instruction formats and other page boundaries open.
+
 ## Reproduce the independent measurements
 
 Run the commands in a dedicated checkout. The conventional link and the
@@ -202,6 +370,15 @@ tools/bin/rp2040/fsutil --check distrib/rp2040/sdroot-PICOCALC.img
 arm-none-eabi-readelf -lW sys/arch/rp2040/compile/PICOCALC_SD/unix.elf
 ```
 
+The fixed-layout success check uses the same verifier with 34,936 bytes
+of required headroom (`130816 - 95880`). On the six-unit image this command
+returns status 1 with 3,960 bytes of headroom.
+
+```sh
+"${PYTHON}" tools/check_kernel_headroom.py --margin 34936 \
+    sys/arch/rp2040/compile/PICOCALC/unix.elf
+```
+
 To reproduce the growth test, build the optional kernel and UFS image
 first. Assemble a read-only section containing `.fill 32768,1,0x5a`
 under a global symbol. Take the build directory's link arguments from
@@ -216,7 +393,18 @@ with the Renode executable, SD filesystem image and a private output
 directory. The vector table stays free of the PicoCalc loader stamp for
 this direct-boot test.
 
-## Remaining 31,232 bytes and acceptance criteria
+## Remaining 30,976 bytes and acceptance criteria
+
+Let `B` be the linked bytes a proposed rewrite actually owns, `r` the
+fraction it removes, and `H` the added resident code and metadata. A
+first size screen is `r * B - H >= 30,976`. With zero overhead, a
+rewrite that halves its input needs at least 61,952 input bytes. A
+one-third reduction needs 92,928. A one-quarter reduction needs
+123,904. A 16 KiB service, even if it disappears entirely, supplies at
+most 16,384 bytes before its replacement entry point and alignment.
+Choose the service boundary and measure its exclusive linked bytes
+before investing in a replacement ABI. The final link measures changes
+in alignment, shared helpers and branches at that boundary.
 
 | Step | Mechanism and deliverable | Decisive measurement or rejection |
 |---|---|---|

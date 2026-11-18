@@ -103,6 +103,9 @@ void *const lcd_render_sp = &lcd_render_stack[LCD_RSTACK_WORDS];
 static char reply[REPLY_RING];
 static u_int reply_head, reply_tail;
 
+/* lcdopen admits one terminal minor and dispatches graphics separately. */
+_Static_assert(LCDCONS_NTTY == 1 && LCDGFX_MINOR >= LCDCONS_NTTY,
+    "the panel console has one tty and a separate graphics minor");
 struct tty lcdttys[LCDCONS_NTTY];
 
 static int lcd_ready;
@@ -444,7 +447,7 @@ lcdopen(dev_t dev, int flag __unused, int mode __unused)
 		return lcdgfx_open();
 	if (minor(dev) >= LCDCONS_NTTY)
 		return ENXIO;
-	tp = &lcdttys[minor(dev)];
+	tp = &lcdttys[0];
 	if (!lcd_ready)
 		lcdcons_init();
 	tp->t_oproc = lcdstart;
@@ -472,7 +475,7 @@ lcdclose(dev_t dev, int flag __unused, int mode __unused)
 
 	if (minor(dev) == LCDGFX_MINOR)
 		return lcdgfx_close();
-	tp = &lcdttys[minor(dev)];
+	tp = &lcdttys[0];
 	ttywflush(tp);
 	ttyclose(tp);
 	return 0;
@@ -483,7 +486,7 @@ lcdread(dev_t dev, struct uio *uio, int flag)
 {
 	if (minor(dev) == LCDGFX_MINOR)
 		return 0;		/* Write only: end of file. */
-	return ttread(&lcdttys[minor(dev)], uio, flag);
+	return ttread(&lcdttys[0], uio, flag);
 }
 
 int
@@ -491,7 +494,7 @@ lcdwrite(dev_t dev, struct uio *uio, int flag)
 {
 	if (minor(dev) == LCDGFX_MINOR)
 		return lcdgfx_write(uio);
-	return ttwrite(&lcdttys[minor(dev)], uio, flag);
+	return ttwrite(&lcdttys[0], uio, flag);
 }
 
 int
@@ -499,7 +502,7 @@ lcdselect(dev_t dev, int rw)
 {
 	if (minor(dev) == LCDGFX_MINOR)
 		return 1;		/* Always ready. */
-	return ttyselect(&lcdttys[minor(dev)], rw);
+	return ttyselect(&lcdttys[0], rw);
 }
 
 _Static_assert(LCD_GLYPH_FIRST == LT_GLYPH_FIRST &&
@@ -707,7 +710,7 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 			ws->ws_ypixel = LT_ROWS * LT_CELL_H;
 		}
 	}
-	error = ttioctl(&lcdttys[minor(dev)], cmd, addr, flag);
+	error = ttioctl(&lcdttys[0], cmd, addr, flag);
 	if (error < 0)
 		error = ENOTTY;
 	return error;

@@ -86,17 +86,17 @@ arch/rp2040/dev/adc.c			optional dev_adc
 arch/rp2040/dev/gpio.c			optional dev_gpio
 arch/rp2040/dev/uart.c			optional uart
 arch/rp2040/dev/usb.c			optional uartusb
-arch/rp2040/dev/lcdcons.c		optional picocalc
+arch/rp2040/dev/lcdcons.c		optional picocalc compile-with "${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}"
 arch/rp2040/dev/lcdgfx.c		optional dev_lcdgfx compile-with "${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}"
 arch/rp2040/dev/lcdrender.S		optional picocalc
 arch/rp2040/dev/lcdterm.c		optional picocalc compile-with "${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}"
 arch/rp2040/dev/lcdfont.c		optional picocalc
 arch/rp2040/dev/st7365p.c		optional picocalc
-arch/rp2040/dev/picokbd.c		optional picocalc
+arch/rp2040/dev/picokbd.c		optional picocalc compile-with "${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}"
 arch/rp2040/dev/picokbd_map.c		optional picocalc
 arch/rp2040/dev/picokbd_evq.c		optional picocalc compile-with "${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}"
 arch/rp2040/dev/picokbd_req.c		optional picocalc
-arch/rp2040/dev/picoaudio.c		optional picocalc
+arch/rp2040/dev/picoaudio.c		optional picocalc compile-with "${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}"
 arch/rp2040/dev/picopcm.c		optional dev_pcm
 arch/rp2040/dev/sd.c			optional sd
 arch/rp2040/dev/sdspi.c			optional sd

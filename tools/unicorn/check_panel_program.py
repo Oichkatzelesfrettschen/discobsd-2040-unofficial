@@ -88,12 +88,47 @@ class Panel:
             raise ValueError(f"register set {number} changed the selected set")
 
 
+def check_console_minors(image):
+    (tty,) = image.objects("lcdttys")
+    console_dev = 10 << 8
+    uio = 0x20001000
+    terminal = image.function("ttwrite").address
+    graphics = image.function("lcdgfx_write").address
+    patches = [(terminal, BX_LR), (graphics, BX_LR)]
+
+    def routes(machine):
+        calls = []
+
+        def record(cpu, address, size, data):
+            calls.append((address, cpu.reg_read(UC_ARM_REG_R0)))
+
+        for entry in (terminal, graphics):
+            machine.uc.hook_add(UC_HOOK_CODE, record, begin=entry, end=entry)
+        for minor in (0, 1):
+            machine.call("lcdwrite", console_dev | minor, uio, 0, policy=None, budget=64)
+        return calls == [(terminal, tty.address), (graphics, uio)]
+
+    machine = KernelEmulator(image, patches)
+    if not routes(machine):
+        raise ValueError("console or graphics write reaches the wrong object")
+    for minor in range(2, 256):
+        if machine.call("lcdopen", console_dev | minor, 0, 0, policy=None, budget=64) != 6:
+            raise ValueError(f"unassigned console minor {minor} requires ENXIO")
+
+    # A silent write returns to its caller before either dispatch.
+    entry = image.function("lcdwrite").address
+    mutant = KernelEmulator(image, [*patches, (entry, BX_LR)])
+    if routes(mutant):
+        raise ValueError("console routing accepted a silent write")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("elf", type=Path)
     args = parser.parse_args()
     image = KernelImage(args.elf)
     lines = FIXTURE.read_text(encoding="ascii").splitlines()
+    check_console_minors(image)
     panel = Panel(image)
     for row, line in enumerate(lines):
         label, expected = line.split("\t")
@@ -119,7 +154,8 @@ def main():
     else:
         raise ValueError("set zero accepted a successful return without register traffic")
     print(
-        f"PASS panel programs: boot, {len(lines) - 1} sets, two refusals and a silent-set control"
+        f"PASS panel programs: boot, {len(lines) - 1} sets, two refusals, "
+        "silent-set control and console minor routing"
     )
 
 

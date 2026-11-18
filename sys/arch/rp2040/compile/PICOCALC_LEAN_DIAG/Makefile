@@ -154,9 +154,9 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${CSIZEFLAGS_COPTS} ${DEFS} -c $<
-# The terminal, graphics device and keyboard queue each keep related state
-# in one translation unit. A common data section lets Thumb code address
-# neighboring fields from a shared base. Functions retain separate sections.
+# The PicoCalc console, keyboard, graphics and bell drivers each keep
+# related state in one translation unit. A common data section lets Thumb
+# code address neighboring fields from one base.
 DEVICE_STATE_FLAGS= -fno-data-sections
 C17_PROTO_FLAGS=	-Werror=strict-prototypes -Werror=old-style-definition
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
@@ -574,7 +574,7 @@ usb.o: $S/arch/rp2040/dev/usb.c
 	${COMPILE_C}
 
 lcdcons.o: $S/arch/rp2040/dev/lcdcons.c
-	${COMPILE_C}
+	${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}
 
 lcdrender.o: $S/arch/rp2040/dev/lcdrender.S
 	${COMPILE_S}
@@ -589,7 +589,7 @@ st7365p.o: $S/arch/rp2040/dev/st7365p.c
 	${COMPILE_C}
 
 picokbd.o: $S/arch/rp2040/dev/picokbd.c
-	${COMPILE_C}
+	${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}
 
 picokbd_map.o: $S/arch/rp2040/dev/picokbd_map.c
 	${COMPILE_C}
@@ -601,7 +601,7 @@ picokbd_req.o: $S/arch/rp2040/dev/picokbd_req.c
 	${COMPILE_C}
 
 picoaudio.o: $S/arch/rp2040/dev/picoaudio.c
-	${COMPILE_C}
+	${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}
 
 sd.o: $S/arch/rp2040/dev/sd.c
 	${COMPILE_C}

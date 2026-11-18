@@ -121,9 +121,9 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${CSIZEFLAGS_COPTS} ${DEFS} -c $<
-# The terminal, graphics device and keyboard queue each keep related state
-# in one translation unit. A common data section lets Thumb code address
-# neighboring fields from a shared base. Functions retain separate sections.
+# The PicoCalc console, keyboard, graphics and bell drivers each keep
+# related state in one translation unit. A common data section lets Thumb
+# code address neighboring fields from one base.
 DEVICE_STATE_FLAGS= -fno-data-sections
 C17_PROTO_FLAGS=	-Werror=strict-prototypes -Werror=old-style-definition
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \

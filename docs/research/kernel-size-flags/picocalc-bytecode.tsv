@@ -1,0 +1,98 @@
+object	arm_text_inputs	wasm_code	wasm_optimized_code	result
+adc.o	172	239	232	linked
+board.o	536	718	695	linked
+clock.o	232	336	329	linked
+conf.o	322	429	396	linked
+cons.o	416	479	429	linked
+dump.o	260	431	418	linked
+errlist.o	92	163	151	linked
+error.o	24	44	38	linked
+exec_aout.o	664	960	903	linked
+exec_conf.o	0	4	4	linked
+exec_elf.o	500	736	703	linked
+exec_hsaout.o	946	1195	1162	linked
+exec_script.o	244	419	412	linked
+exec_subr.o	2764	4204	4025	linked
+fault.o	-	-	-	Arm assembly or register operand
+flash.o	-	-	-	Arm assembly or register operand
+flash_swap.o	392	587	572	linked
+gpio.o	408	618	580	linked
+heatshrink_encoder.o	918	1585	1524	linked
+hsx_decoder.o	306	595	566	linked
+hsx_stream.o	232	272	255	linked
+init_main.o	-	-	-	Arm assembly or register operand
+init_sysent.o	0	4	4	linked
+ioconf.o	0	4	4	linked
+journal.o	2822	4741	4579	linked
+kern_clock.o	-	-	-	Arm assembly or register operand
+kern_descrip.o	1340	2248	2076	linked
+kern_exec.o	328	509	496	linked
+kern_exit.o	936	1355	1268	linked
+kern_fork.o	1372	2564	2184	linked
+kern_mman.o	88	161	155	linked
+kern_proc.o	128	222	203	linked
+kern_prot.o	388	637	577	linked
+kern_prot2.o	208	355	318	linked
+kern_resource.o	898	1479	1410	linked
+kern_sig.o	-	-	-	Arm assembly or register operand
+kern_sig2.o	-	-	-	Arm assembly or register operand
+kern_subr.o	290	558	550	linked
+kern_synch.o	-	-	-	Arm assembly or register operand
+kern_sysctl.o	3488	5538	5073	linked
+kern_time.o	-	-	-	Arm assembly or register operand
+lcdcons.o	-	-	-	Arm assembly or register operand
+lcdfont.o	0	4	4	linked
+lcdgfx.o	2012	3093	3014	linked
+lcdterm.o	4036	6494	6278	linked
+machdep.o	-	-	-	Arm assembly or register operand
+map.o	1594	2286	2175	linked
+mem.o	208	358	351	linked
+mpu.o	-	-	-	Arm assembly or register operand
+picoaudio.o	-	-	-	Arm assembly or register operand
+picokbd.o	-	-	-	Arm assembly or register operand
+picokbd_evq.o	592	919	898	linked
+picokbd_map.o	370	652	511	linked
+picokbd_req.o	260	466	445	linked
+picopcm.o	544	769	748	linked
+psram.o	388	603	574	linked
+sd.o	-	-	-	Arm assembly or register operand
+sdspi.o	1352	2298	2215	linked
+shutdown_sync.o	-	-	-	Arm assembly or register operand
+sig_machdep.o	672	1285	1260	linked
+st7365p.o	2112	2532	2433	linked
+subr_capacity.o	480	801	746	linked
+subr_crc32.o	48	84	81	linked
+subr_prf.o	-	-	-	Arm assembly or register operand
+subr_rmap.o	1686	2861	2699	linked
+swap.o	1248	1817	1722	linked
+swapram.o	2310	3326	3135	linked
+swapram_pool.o	548	1108	1062	linked
+swapunix.o	0	4	4	linked
+sys_generic.o	-	-	-	Arm assembly or register operand
+sys_inode.o	-	-	-	Arm assembly or register operand
+sys_pipe.o	1094	1681	1577	linked
+sys_process.o	576	975	909	linked
+syscall.o	-	-	-	Arm assembly or register operand
+syscalls.o	52	76	68	linked
+sysctl.o	-	-	-	Arm assembly or register operand
+systick.o	-	-	-	Arm assembly or register operand
+tty.o	-	-	-	Arm assembly or register operand
+tty_subr.o	-	-	-	Arm assembly or register operand
+tty_tty.o	272	303	274	linked
+uart.o	-	-	-	Arm assembly or register operand
+ufs_alloc.o	1074	1560	1521	linked
+ufs_bio.o	-	-	-	Arm assembly or register operand
+ufs_bmap.o	492	656	622	linked
+ufs_dsort.o	160	334	307	linked
+ufs_fio.o	528	881	793	linked
+ufs_inode.o	1904	3040	2838	linked
+ufs_mount.o	-	-	-	Arm assembly or register operand
+ufs_namei.o	4182	6273	5901	linked
+ufs_subr.o	376	626	583	linked
+ufs_syscalls.o	5698	7817	7479	linked
+ufs_syscalls2.o	1244	1776	1666	linked
+usb.o	-	-	-	Arm assembly or register operand
+vfs_vnops.o	630	893	830	linked
+vm_sched.o	-	-	-	Arm assembly or register operand
+vm_swap.o	-	-	-	Arm assembly or register operand
+vm_swp.o	-	-	-	Arm assembly or register operand

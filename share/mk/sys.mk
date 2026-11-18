@@ -68,10 +68,14 @@ GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
 			echo "/does/not/exist" ; \
 	fi
 
-# RP2040 diagnostics read kernel structures through /dev/kmem and sysctl.
-# Keep every target program on the same fixed-table layout as the kernel.
+# RP2040 diagnostics read kernel structures through /dev/kmem and sysctl, so
+# target programs take the fixed-table options of the kernel layout. One root
+# image serves all six kernels, so only the options every Config in
+# MACHINE_KERNEL_CONFIGS sets alike belong here; SINGLE_UFS_ROOT and the
+# NMOUNT count differ between the Pico and PicoCalc kernels and stay out.
+# check-userland-layout-flags holds the list to that rule.
 KERNEL_LAYOUT_CFLAGS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "-DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS -DCOMPACT_SWAPMAP -DSINGLE_UFS_ROOT -DNMOUNT=1" ; \
+		echo "-DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS -DCOMPACT_SWAPMAP" ; \
 	else \
 		echo "" ; \
 	fi

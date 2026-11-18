@@ -24,7 +24,7 @@ OPTIONS = frozenset({
     "-fno-common", "-fno-delete-null-pointer-checks", "-mabi=aapcs",
     "-mcpu=cortex-m0plus", "-mfloat-abi=soft", "-mlittle-endian", "-mthumb",
     "-nostdinc", "-std=gnu17", "-DCOMPACT_INODE_FIELDS", "-DCOMPACT_SWAPMAP",
-    "-DLINEAR_INODE_CACHE", "-DNMOUNT=1", "-DSINGLE_UFS_ROOT", "-D_TIME_BITS=32",
+    "-DLINEAR_INODE_CACHE", "-D_TIME_BITS=32",
     "-D_TIME_BITS=64", "-U_TIME_BITS",
 })
 

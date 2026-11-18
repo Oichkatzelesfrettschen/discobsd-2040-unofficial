@@ -837,13 +837,20 @@ PICOCALC_LEAN_DIAG drop or add, not in the mount count), because
 generic mount code replaces the single-root shortcuts; that, with the
 `conf.c` entries and the detect hook, is the roughly 1,001 of the 3,888 added
 text bytes that the two SD objects (2,887) do not account for; the figure is
-the difference of object sizes, not a separate build. Userland is
-still built with the PICO kernels' layout (`KERNEL_LAYOUT_CFLAGS` in
-`share/mk/sys.mk`), which is harmless for the shipped programs: `ps` reads
-the process table, `df` and `mount` use `statfs` and `mount(2)`, and no
-shipped program reads the in-core inode or mount tables from `/dev/kmem`
-(checked in the sources of `fsck`, `mount`, `umount`, `df` and `ps`). A tool
-that did would misread them on PICOCALC.
+the difference of object sizes, not a separate build. Userland, which one
+root image carries for every kernel, is built with only the layout options
+all six Configs share (`KERNEL_LAYOUT_CFLAGS` in `share/mk/sys.mk`, held to
+that rule by `check-userland-layout-flags`). A program that includes
+`sys/inode.h` therefore sees the PicoCalc kernels' `struct inode`, with
+`i_dev` and `i_fs`, and `NMOUNT` takes the default of 2 from
+`sys/param.h`, which no kernel uses. Neither reaches a shipped program's
+behavior: `ps` reads the process table, `df` and `mount` use `statfs`
+and `mount(2)`, `mkfs` uses `struct inode` only as in-memory scratch and
+writes each on-disk inode field by field, and no userland source names
+`NMOUNT` or `SINGLE_UFS_ROOT` (the gate fails on one that does). A tool
+that read the in-core inode table from `/dev/kmem` would misread it on the
+Pico kernels, and one that read the mount table would misread it on every
+kernel.
 
 The picocalc profile carries the nodes in the `sdcard` closure
 (`distrib/rp2040/mi.rp2040`): `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`,

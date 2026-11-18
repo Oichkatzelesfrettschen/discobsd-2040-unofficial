@@ -844,6 +844,7 @@ file /usr/include/sys/ptrace.h
 file /usr/include/sys/pty.h
 file /usr/include/sys/reboot.h
 file /usr/include/sys/resource.h
+file /usr/include/sys/seek.h
 file /usr/include/sys/select.h
 file /usr/include/sys/signal.h
 file /usr/include/sys/signalvar.h

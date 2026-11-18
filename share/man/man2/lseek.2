@@ -18,7 +18,7 @@ lseek \- move read/write pointer
 .ta 1.25i 1.6i 1.8i
 #define L_SET	0	/* set the seek pointer */
 #define L_INCR	1	/* increment the seek pointer */
-#define L_XTND	2	/* extend the file size */
+#define L_XTND	2	/* relative to the end of the file */
 .PP
 .ft B
 pos = lseek(d, offset, whence)
@@ -58,6 +58,11 @@ Upon successful completion, the resulting pointer location
 as measured in bytes from beginning of the file is returned.
 Some devices are incapable of seeking.  The value of the pointer
 associated with such a device is undefined.
+For a regular file, SEEK_DATA and SEEK_HOLE (declared in
+.IR <unistd.h> )
+locate the first data or hole at or after the absolute byte offset.
+Allocated blocks count as data, including blocks containing only zero bytes.
+The end of the file serves as the final hole when starting below it.
 .SH NOTES
 Seeking far beyond the end of a file, then writing,
 creates a gap or \*(lqhole\*(rq, which occupies no
@@ -83,6 +88,13 @@ is associated with a pipe or a socket.
 [EINVAL]
 .I Whence
 is not a proper value.
+A negative resulting offset on a regular file or directory also gives EINVAL.
+.TP 15
+[EOVERFLOW]
+The relative seek exceeds the representable file offset range.
+.TP 15
+[ENXIO]
+A data or hole search starts at or beyond EOF, or no data follows the offset.
 .SH "SEE ALSO"
 dup(2), open(2)
 .SH BUGS

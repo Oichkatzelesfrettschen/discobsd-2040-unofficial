@@ -767,6 +767,62 @@ close_node(struct node *n)
 	return error;
 }
 
+#include <sys/seek.h>
+
+void lseek(void);
+
+static void
+check_seek(struct file *fp, int origin, off_t offset, int error, off_t result)
+{
+    fp->f_offset = 19;
+    u.u_ofile[3] = fp;
+    u.u_arg[0] = 3;
+    u.u_arg[1] = offset;
+    u.u_arg[2] = origin;
+    u.u_error = 0;
+    lseek();
+    HK_CHECK(u.u_error == error);
+    HK_CHECK(fp->f_offset == (error ? 19 : result));
+    if (!error)
+        HK_CHECK(u.u_rval == result);
+    u.u_ofile[3] = NULL;
+}
+
+static void
+test_sparse_seek(void)
+{
+    struct inode ip = {0};
+    struct file fp = {0};
+    const off_t end = 3 * DEV_BSIZE + 7;
+
+    fp.f_type = DTYPE_INODE;
+    fp.f_data = (caddr_t)&ip;
+    ip.i_mode = IFREG;
+    ip.i_fs = &mount[0].m_filsys;
+    ip.i_size = end;
+    IADDR_SET(&ip, 1, 10);
+    check_seek(&fp, SEEK_DATA, 5, 0, DEV_BSIZE);
+    check_seek(&fp, SEEK_DATA, DEV_BSIZE + 7, 0, DEV_BSIZE + 7);
+    check_seek(&fp, SEEK_HOLE, DEV_BSIZE + 7, 0, 2 * DEV_BSIZE);
+    check_seek(&fp, SEEK_HOLE, 3, 0, 3);
+    check_seek(&fp, SEEK_DATA, 2 * DEV_BSIZE, ENXIO, 0);
+    IADDR_SET(&ip, 3, 11);
+    check_seek(&fp, SEEK_HOLE, end - 1, 0, end);
+    check_seek(&fp, SEEK_HOLE, end, ENXIO, 0);
+    check_seek(&fp, SEEK_DATA, -1, EINVAL, 0);
+    check_seek(&fp, L_INCR, 0x7fffffffL, EOVERFLOW, 0);
+    check_seek(&fp, L_XTND, -end - 1, EINVAL, 0);
+    check_seek(&fp, L_XTND, 1, 0, end + 1);
+    fp.f_flag = FIDENTITY;
+    check_seek(&fp, SEEK_DATA, 0, EBADF, 0);
+    fp.f_flag = FREAD;
+    ip.i_mode = IFCHR;
+    check_seek(&fp, SEEK_DATA, 0, EINVAL, 0);
+    check_seek(&fp, L_SET, -2, 0, -2);
+    fp.f_type = DTYPE_PIPE;
+    check_seek(&fp, SEEK_DATA, 0, ESPIPE, 0);
+}
+
 void fsync(void);
 
 static int
@@ -2728,9 +2784,36 @@ test_flash_reinit_whole_device_caller(void)
 	HK_CHECK(flioctl(FL_WHOLE, DIOCREINIT, NULL, 0) == 0);
 }
 
+static void
+test_indirect_seek(void)
+{
+    struct node n;
+    daddr_t entry = 12;
+    off_t first = NDADDR * DEV_BSIZE;
+
+    boot_machine();
+    HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+    HK_CHECK(open_node(&n, IFREG | 0600, 0, FREAD) == 0);
+    n.ip->i_dev = SD_A;
+    n.ip->i_fs = &must_mount(SD_A)->m_filsys;
+    n.ip->i_size = first + 3 * DEV_BSIZE;
+
+    /* Partition A starts one filesystem block into the disk. */
+    n.ip->i_ib[0] = 8;
+    bcopy(&entry, sd_disk.blocks[9] + sizeof(entry), sizeof(entry));
+    check_seek(n.fp, SEEK_DATA, first, 0, first + DEV_BSIZE);
+    check_seek(n.fp, SEEK_HOLE, first + DEV_BSIZE, 0, first + 2 * DEV_BSIZE);
+    n.ip->i_ib[0] = 10;
+    sd_disk.replaced = 1;
+    check_seek(n.fp, SEEK_DATA, first, EIO, 0);
+    check_seek(n.fp, SEEK_HOLE, first, EIO, 0);
+}
+
 int
 main(void)
 {
+	test_sparse_seek();
+	test_indirect_seek();
 	test_nested_checkpoint_control();
 	test_disk_scheduler_budget();
 	test_unmount_closes_last_user();

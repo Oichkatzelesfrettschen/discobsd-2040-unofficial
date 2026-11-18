@@ -4,6 +4,7 @@
  */
 #include <sys/param.h>
 #include <sys/file.h>
+#include <sys/seek.h>
 #include <sys/user.h>
 #include <sys/inode.h>
 #include <sys/buf.h>
@@ -267,28 +268,78 @@ lseek(void)
         int     sbase;
     } *uap = (struct a *)u.u_arg;
 
+    struct inode *ip;
+    off_t base, position = uap->off;
+
     if ((fp = getf(uap->fd)) == NULL)
         return;
     if (fp->f_type != DTYPE_INODE) {
         u.u_error = ESPIPE;
         return;
     }
+    ip = (struct inode *)fp->f_data;
     switch (uap->sbase) {
-
+    case L_SET:
+        base = 0;
+        break;
     case L_INCR:
-        fp->f_offset += uap->off;
+        base = fp->f_offset;
         break;
     case L_XTND:
-        fp->f_offset = uap->off + ((struct inode *)fp->f_data)->i_size;
+        base = ip->i_size;
         break;
-    case L_SET:
-        fp->f_offset = uap->off;
+    case SEEK_DATA:
+    case SEEK_HOLE:
+        if (fp->f_flag & FIDENTITY) {
+            u.u_error = EBADF;
+            return;
+        }
+        if ((ip->i_mode & IFMT) != IFREG || position < 0) {
+            u.u_error = EINVAL;
+            return;
+        }
+        ilock(ip);
+        if (position >= ip->i_size)
+            u.u_error = ENXIO;
+        while (!u.u_error && position < ip->i_size) {
+            daddr_t block = bmap(ip, IN_LBLKNO(ip, position), B_READ, 0);
+            off_t step = IN_BSIZE(ip) - IN_BLKOFF(ip, position);
+
+            if (u.u_error)
+                break;
+            if (block == 0) {
+                u.u_error = EIO;
+                break;
+            }
+            if ((block > 0) == (uap->sbase == SEEK_DATA))
+                break;
+            if (step >= ip->i_size - position) {
+                position = ip->i_size;
+                if (uap->sbase == SEEK_DATA)
+                    u.u_error = ENXIO;
+                break;
+            }
+            position += step;
+        }
+        iunlock(ip);
+        if (u.u_error)
+            return;
+        base = 0;
         break;
     default:
         u.u_error = EINVAL;
         return;
     }
-    u.u_rval = fp->f_offset;
+    if (__builtin_add_overflow(base, position, &position)) {
+        u.u_error = EOVERFLOW;
+        return;
+    }
+    if (position < 0 && (ip->i_mode & IFMT) != IFCHR &&
+        (ip->i_mode & IFMT) != IFBLK) {
+        u.u_error = EINVAL;
+        return;
+    }
+    u.u_rval = fp->f_offset = position;
 }
 
 /*

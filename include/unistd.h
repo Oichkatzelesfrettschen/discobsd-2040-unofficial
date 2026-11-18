@@ -41,6 +41,7 @@
 #define _UNISTD_H_
 
 #include <sys/types.h>
+#include <sys/seek.h>
 #ifndef __dead
 /* A hosted test can reach the host's <sys/cdefs.h>, which has no __dead. */
 #define __dead		_Noreturn

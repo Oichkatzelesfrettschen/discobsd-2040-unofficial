@@ -55,9 +55,7 @@ typedef unsigned size_t;
 #define stdout      (&_iob[1])
 #define stderr      (&_iob[2])
 
-#define SEEK_SET    0   /* set file offset to offset */
-#define SEEK_CUR    1   /* set file offset to current plus offset */
-#define SEEK_END    2   /* set file offset to EOF plus offset */
+#include <sys/seek.h>
 
 #define P_tmpdir    "/tmp/"
 #define L_tmpnam    12  /* including the terminator for /tmp/XXXXXX */

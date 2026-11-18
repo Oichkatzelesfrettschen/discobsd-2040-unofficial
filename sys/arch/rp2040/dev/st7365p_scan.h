@@ -42,8 +42,10 @@
  * SCAN_DROP above it. A fall of more than SCAN_DROP is a wrap candidate:
  * the next sample confirms it by continuing from the low line and rejects
  * it by lying anywhere else. A rise of more than SCAN_DROP is rejected
- * unless the next sample continues from it, which lets a track that began
- * on a misread find the position. scan_step() returns 1 when it confirms
+ * unless the next sample continues from it, which returns a track that
+ * two equal misreads moved to the scan's position. The track begins only
+ * when two samples in sequence agree, so a misread first sample is not
+ * taken as the position. scan_step() returns 1 when it confirms
  * a wrap, whose time is that of the candidate sample (tr->wrap_us), and
  * sets tr->at when the sample it was given is the scan's position, so the
  * caller takes its line count from those samples alone.
@@ -64,9 +66,18 @@ static inline int
 scan_step(struct scan_track *tr, unsigned int line, unsigned int us)
 {
 	tr->at = 0;
-	if (!tr->have) {
-		tr->have = 1;
-		tr->prev = line;
+	if (tr->have < 2) {
+		/* Two samples in sequence establish the position. */
+		if (tr->have == 1 && line >= tr->up &&
+		    line <= tr->up + SCAN_DROP) {
+			tr->have = 2;
+			tr->prev = line;
+			tr->at = 1;
+		} else {
+			tr->rejected += tr->have;
+			tr->have = 1;
+			tr->up = line;
+		}
 		return 0;
 	}
 	if (tr->cand) {

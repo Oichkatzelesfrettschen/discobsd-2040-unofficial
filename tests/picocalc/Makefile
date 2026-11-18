@@ -93,10 +93,11 @@
 #
 # panel_scan_test runs the GSCAN wrap rule (st7365p_scan.h) over a modeled
 # scan with the misreads the board returned at the line counter's carries;
-# five mutants of the header (a candidate confirmed by any sample, a rise
-# taken as the position, a track that never leaves a misread start, a wrap
-# timed at its confirming sample, a rejected sample reported as the
-# position) must fail it.
+# six mutants of the header (a candidate confirmed by any sample, a rise
+# taken as the position, a track that never returns from two equal
+# misreads, a wrap timed at its confirming sample, a rejected sample
+# reported as the position, a track begun on an unconfirmed sample) must
+# fail it.
 #
 # uart_test includes the RP2040 UART driver (uart.c) unchanged with
 # UART_HOST_MODEL, which replaces the PL011 register helpers of uart.h with
@@ -213,6 +214,8 @@ panel-scan-mutants:
 	${PS_MUT} 's/tr->wrap_us = tr->cand_us;/tr->wrap_us = us;/' \
 	    st7365p_scan.h
 	${PS_MUT} 's/^\ttr->at = 0;/\ttr->at = 1;/' st7365p_scan.h
+	${PS_MUT} 's/if (tr->have == 1 \&\& line >= tr->up \&\&/if (tr->have == 1 ||/' \
+	    st7365p_scan.h
 
 PD_MUT=		@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD} ${SAN}" "${PANELTEST}" \
 		panel_decode_test.c panel_decode.h

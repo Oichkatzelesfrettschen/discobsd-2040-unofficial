@@ -31,8 +31,8 @@
  * A model scans FRAME_LINES lines at LINE_US each and is read every
  * READ_US, as st7365p_scan() reads the controller; the cases add the
  * misreads the PicoCalc board returned on 2026-11-18 (one low line at the
- * 255 to 256 and 127 to 128 carries), a high misread, and a first sample
- * that is itself a misread. Each case requires the wraps a clean scan
+ * 255 to 256 and 127 to 128 carries), a high misread, a first sample that
+ * is itself a low or a high misread, and two low misreads in sequence. Each case requires the wraps a clean scan
  * gives, at the same times.
  */
 #include <stdio.h>
@@ -56,7 +56,7 @@ check(const char *what, unsigned long got, unsigned long want)
 	}
 }
 
-enum { CLEAN, LOW_CARRY, HIGH_CARRY, FIRST_LOW };
+enum { CLEAN, LOW_CARRY, HIGH_CARRY, FIRST_LOW, FIRST_HIGH, LOW_PAIR };
 
 struct result {
 	unsigned wraps, first_us, last_us, rejected, max_line;
@@ -66,7 +66,7 @@ static void
 run(int how, struct result *r)
 {
 	struct scan_track tr;
-	unsigned us, line, last = 0, n = 0;
+	unsigned us, line, last = 0, n = 0, pair = 0;
 
 	memset(&tr, 0, sizeof(tr));
 	memset(r, 0, sizeof(*r));
@@ -84,6 +84,14 @@ run(int how, struct result *r)
 			line = 511;
 		if (how == FIRST_LOW && n == 0)
 			line = 0;
+		if (how == FIRST_HIGH && n == 0)
+			line = 511;
+		/* Two reads in sequence misread low, once, in the third frame. */
+		if (how == LOW_PAIR && us >= 40000 && pair < 2 &&
+		    (pair == 1 || (true_line != last && true_line == 256))) {
+			line = 0;
+			pair++;
+		}
 		last = true_line;
 		if (scan_step(&tr, line, us)) {
 			if (r->wraps == 0)
@@ -129,7 +137,23 @@ main(void)
 	run(FIRST_LOW, &r);
 	check("misread first sample: wraps", r.wraps, clean.wraps);
 	check("misread first sample: first wrap", r.first_us, clean.first_us);
-	check("misread first sample: rejected", r.rejected, 2);
+	check("misread first sample: rejected", r.rejected, 1);
+
+	run(FIRST_HIGH, &r);
+	check("high first sample: wraps", r.wraps, clean.wraps);
+	check("high first sample: first wrap", r.first_us, clean.first_us);
+	check("high first sample: rejected", r.rejected, 1);
+	check("high first sample: highest line", r.max_line, FRAME_LINES - 1);
+
+	/*
+	 * Two equal misreads pass for a wrap, which no rule on two samples
+	 * can tell from one; the track must then return to the position and
+	 * count every later wrap.
+	 */
+	run(LOW_PAIR, &r);
+	check("low pair: wraps", r.wraps, clean.wraps + 1);
+	check("low pair: last wrap", r.last_us, clean.last_us);
+	check("low pair: rejected", r.rejected, 2);
 
 	if (failures) {
 		printf("panel_scan_test: %d failure(s)\n", failures);

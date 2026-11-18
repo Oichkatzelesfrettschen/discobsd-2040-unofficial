@@ -1315,21 +1315,27 @@ unreliable evidence returns `ERROR` (status 2).
 
 `check-version-outside-git` is a host gate. `share/mk/sys.mk` counts the
 commits of HEAD into `BUILD`, and `sys/conf/newvers.sh` stamps the same
-count into the kernel version string. A source export carries no repository
-and git exits 128 there, so both report 0. The gate copies `share/mk`,
-`lib/Makefile` and `newvers.sh` from the tested tree into a private
-temporary directory, sets `GIT_CEILING_DIRECTORIES` so that no enclosing
-repository answers, and requires `VERSION` to expand to the release followed
-by `-0`, the version string's revision field to be 0, and nothing on
-standard error from either reader. Its control rewrites both count commands
-to their unguarded form in a second copy and requires at least three of
-those checks to reject it: an empty build number, the git diagnostic from
-make, and the diagnostic from `newvers.sh`.
+count into the kernel version string. Both take the count only from a
+repository rooted at the source tree, so a source export, which carries
+none, reports 0 wherever it is unpacked. The gate copies `share/mk`,
+`lib/Makefile` and `newvers.sh` from the tested tree into two private
+placements: one where no repository answers (`GIT_CEILING_DIRECTORIES`
+bounds the search), and one beneath an unrelated repository of one commit.
+In each it requires `VERSION` to expand to the release followed by `-0`,
+the version string's revision field to be 0, and nothing on standard error
+from either reader.
+
+Two controls rewrite the count commands in further copies. The unguarded
+command in the first placement has to raise at least three defects: an
+empty build number and the git diagnostic from each reader. A command that
+silences git and falls back to 0 without binding the repository to the
+source tree has to raise exactly two in the second placement, the outer
+repository's count of 1 in each reader.
 
 The claim is the expansion and the generated string for an export of the
-tested files. It establishes no build of an exported tree: the tracked
-kernel Makefiles, the tools and the image stages read git elsewhere
-(`share/mk/source-date.mk`, `tools/check-lint.sh`), and those readers are
+tested files. It establishes no build of an exported tree, and the date
+readers (`share/mk/source-date.mk` and the `HEAD_EPOCH` lookup of
+`newvers.sh`) still search parent directories for a repository; they are
 outside this gate.
 
 ### Production configuration generation and include ordering

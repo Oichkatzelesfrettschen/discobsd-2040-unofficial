@@ -1400,11 +1400,12 @@ check-config-makefile:
 
 # A source export has no repository, so the commit count that names a build
 # is 0 there. tools/check_version_outside_git.sh expands VERSION through
-# share/mk/sys.mk and runs sys/conf/newvers.sh in a private directory that no
-# repository contains, then requires the same checks to reject both count
-# commands in their unguarded form.
+# share/mk/sys.mk and runs sys/conf/newvers.sh on a copy of the tested files,
+# once where no repository answers and once beneath an unrelated one-commit
+# repository, then requires the same checks to reject the count commands in
+# their unguarded form and in a form that searches parent directories.
 check-version-outside-git:
-		sh tools/check_version_outside_git.sh ${TOPSRC} ${MAKE}
+		sh tools/check_version_outside_git.sh ${TOPSRC:Q} ${MAKE:Q}
 
 .PHONY: check-version-outside-git
 

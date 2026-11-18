@@ -71,9 +71,16 @@ then
 fi
 OV=`cat .oldversion`
 
-# Outside a git checkout the revision is 0, the value share/mk/sys.mk gives
-# BUILD there.
-GITREV=`git rev-list --count HEAD -- 2>/dev/null` || GITREV=""
+# The revision is the commit count of the repository rooted at the source
+# tree this script belongs to. A source export has none, and one unpacked
+# beneath an unrelated work tree must not report that tree's count: the
+# revision is then 0, the value share/mk/sys.mk gives BUILD there.
+TOP=`dirname "$0"`/../..
+GITREV=""
+if [ -e "$TOP/.git" ]
+then
+    GITREV=`git -C "$TOP" rev-list --count HEAD -- 2>/dev/null` || GITREV=""
+fi
 
 if [ "x$GITREV" = "x" ]
 then

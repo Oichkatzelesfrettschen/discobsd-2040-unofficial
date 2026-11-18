@@ -29,16 +29,24 @@
 #
 # share/mk/sys.mk counts the commits of HEAD into BUILD, and
 # sys/conf/newvers.sh stamps the same count into the kernel version string.
-# A source export carries no repository, so git exits 128 there. This gate
-# copies the build fragments and newvers.sh from SOURCE_ROOT into a private
-# directory that no repository contains, then requires:
-#   - make to expand VERSION to RELEASE-0 with nothing on standard error
-#     (an unguarded count leaves "RELEASE-" and one warning per Makefile);
+# Both take the count only from a repository rooted at the source tree. A
+# source export carries none, so the number is 0, wherever the export is
+# unpacked. This gate copies the build fragments and newvers.sh from
+# SOURCE_ROOT into two private placements:
+#   plain   a directory where no repository answers;
+#   nested  a directory beneath an unrelated repository of one commit.
+# In each it requires:
+#   - make to expand VERSION to RELEASE-0 with nothing on standard error;
 #   - newvers.sh to write a version string whose revision field is 0, again
 #     with nothing on standard error.
-# Both forms run the copied files, so the verdict covers the working tree.
-# The control rewrites the two count commands to their unguarded form in a
-# second copy and requires the same checks to reject it.
+# Both run the copied files, so the verdict covers the working tree.
+#
+# Two controls rewrite the count commands in further copies and require the
+# same checks to reject them: the unguarded command in the plain placement
+# (an empty number and the git diagnostic from each reader), and a command
+# that silences git and falls back to 0 without binding the repository to
+# the source tree, in the nested placement (the outer repository's count,
+# 1, in each reader).
 #
 # usage: check_version_outside_git.sh SOURCE_ROOT [MAKE]
 
@@ -55,6 +63,7 @@ root=$1
 make=${2:-bmake}
 [ -f "$root/share/mk/sys.mk" ] || die "$root: no share/mk/sys.mk"
 [ -f "$root/sys/conf/newvers.sh" ] || die "$root: no sys/conf/newvers.sh"
+command -v git >/dev/null 2>&1 || die "not run: git is required for the nested placement"
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/version-outside-git.XXXXXX")
 cleanup()
@@ -66,28 +75,47 @@ trap 'cleanup; trap - EXIT; exit 129' HUP
 trap 'cleanup; trap - EXIT; exit 130' INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
 
-# No repository may answer from inside the private directory.
+# No repository above the private directory may answer; the nested
+# placement's own outer repository lies below this ceiling and does.
 GIT_CEILING_DIRECTORIES=$WORK
 export GIT_CEILING_DIRECTORIES
-unset GIT_DIR GIT_WORK_TREE
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 
-# stage NAME: copy the fragments the two readers need into $WORK/NAME.
+# stage PLACEMENT NAME: copy the fragments the two readers need into a tree
+# named NAME and print its path.
 stage()
 {
-	tree=$WORK/$1
+	case $1 in
+	plain)
+		tree=$WORK/$2
+		;;
+	nested)
+		outer=$WORK/$2.outer
+		mkdir -p "$outer"
+		git -C "$outer" init -q
+		git -C "$outer" -c user.name=gate -c user.email=gate@invalid \
+		    -c commit.gpgsign=false commit -q --allow-empty -m outer
+		[ "$(git -C "$outer" rev-list --count HEAD --)" = 1 ] ||
+		    die "$outer: the outer repository does not hold one commit"
+		tree=$outer/export
+		;;
+	*)	die "unknown placement $1" ;;
+	esac
 	mkdir -p "$tree/share" "$tree/lib" "$tree/sys/conf" "$tree/kernel"
 	cp -R "$root/share/mk" "$tree/share/mk"
 	cp "$root/lib/Makefile" "$tree/lib/Makefile"
 	cp "$root/sys/conf/newvers.sh" "$tree/sys/conf/newvers.sh"
-	if (cd "$tree" && git rev-parse --git-dir >/dev/null 2>&1); then
+	if [ "$1" = plain ] &&
+	    (cd "$tree" && git rev-parse --git-dir >/dev/null 2>&1); then
 		die "$tree: a git repository still answers here"
 	fi
+	printf '%s\n' "$tree"
 }
 
-# verdict NAME: print each defect of the staged tree; exit 1 if any.
+# verdict TREE: print each defect of the staged tree; return 1 if any.
 verdict()
 {
-	tree=$WORK/$1
+	tree=$1
 	defects=0
 
 	if ! (cd "$tree/lib" && "$make" MACHINE=rp2040 TOPSRC="$tree" \
@@ -122,19 +150,58 @@ verdict()
 	return $defects
 }
 
-stage tree
-verdict tree || die "the build number is not 0 outside a git checkout"
-echo "PASS version-outside-git: VERSION $(cat "$WORK/tree/version.out"), kernel revision 0"
+# rewrite TREE SYSMK_COMMAND NEWVERS_COMMAND: replace both count commands.
+# The sys.mk assignment spans two lines; the continuation is dropped.
+rewrite()
+{
+	awk -v command="$2" '
+	    /^BUILD!=/ { print "BUILD!=\t\t" command; skip = /\\$/; next }
+	    skip { skip = /\\$/; next }
+	    { print }' "$root/share/mk/sys.mk" > "$1/share/mk/sys.mk"
+	awk -v command="$3" '
+	    /^TOP=/ { next }
+	    /^GITREV=""$/ { print "GITREV=" command; next }
+	    /^if \[ -e "\$TOP\/\.git" \]$/ { drop = 1; next }
+	    drop { if ($0 == "fi") drop = 0; next }
+	    { print }' "$root/sys/conf/newvers.sh" > "$1/sys/conf/newvers.sh"
+	grep -q "^BUILD!=.*$4" "$1/share/mk/sys.mk" ||
+	    die "the control did not rewrite sys.mk"
+	grep -q "^GITREV=.*$4" "$1/sys/conf/newvers.sh" ||
+	    die "the control did not rewrite newvers.sh"
+	if grep -q 'TOP' "$1/sys/conf/newvers.sh"; then
+		die "the control left the bounded lookup in newvers.sh"
+	fi
+}
 
-# The control: the same files with both count commands unguarded.
-stage control
-sed 's|^\(BUILD!=[[:space:]]*\).*|\1git rev-list --count HEAD --|' \
-    "$root/share/mk/sys.mk" > "$WORK/control/share/mk/sys.mk"
-sed 's|^GITREV=.*git rev-list.*|GITREV=`git rev-list --count HEAD --`|' \
-    "$root/sys/conf/newvers.sh" > "$WORK/control/sys/conf/newvers.sh"
-if verdict control > "$WORK/control.out"; then
+for placement in plain nested; do
+	tree=$(stage "$placement" tree."$placement")
+	verdict "$tree" ||
+	    die "$placement placement: the build number is not 0 outside a git checkout"
+	echo "PASS version-outside-git $placement: VERSION $(cat "$tree/version.out"), kernel revision 0"
+done
+
+# Control: the unguarded command where no repository answers.
+tree=$(stage plain control.unguarded)
+rewrite "$tree" 'git rev-list --count HEAD --' \
+    '`git rev-list --count HEAD --`' 'git rev-list --count HEAD --'
+if verdict "$tree" > "$WORK/unguarded.out"; then
 	die "the unguarded control was accepted"
 fi
-count=$(wc -l < "$WORK/control.out" | tr -d ' ')
-[ "$count" -ge 3 ] || die "the unguarded control raised $count defects, expected at least 3"
+count=$(wc -l < "$WORK/unguarded.out" | tr -d ' ')
+[ "$count" -ge 3 ] ||
+    die "the unguarded control raised $count defects, expected at least 3"
 echo "PASS version-outside-git control: the unguarded count is rejected ($count defects)"
+
+# Control: a silenced command with a fallback that still searches parents.
+tree=$(stage nested control.unbounded)
+rewrite "$tree" 'git rev-list --count HEAD -- 2>/dev/null || echo 0' \
+    '`git rev-list --count HEAD -- 2>/dev/null` || GITREV=""' '2>/dev/null'
+if verdict "$tree" > "$WORK/unbounded.out"; then
+	die "the unbounded control was accepted"
+fi
+count=$(wc -l < "$WORK/unbounded.out" | tr -d ' ')
+[ "$count" -eq 2 ] ||
+    die "the unbounded control raised $count defects, expected 2"
+grep -q "VERSION is '.*-1'" "$WORK/unbounded.out" ||
+    die "the unbounded control did not report the outer repository's count"
+echo "PASS version-outside-git control: a parent repository's count is rejected ($count defects)"

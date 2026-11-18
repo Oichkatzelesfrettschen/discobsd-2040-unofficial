@@ -694,9 +694,13 @@ test_power(void)
 		lcdterm_putc('\n');	/* Scrolls the ring before the next open. */
 	lcdgfx_close();
 	expect("reopen", lcdgfx_open(), 0);
+	at = lcdterm_top() * LT_CELL_H;
+	for (i = 0; i < 5; i++)
+		lcdterm_putc('\n');	/* Text the open device does not draw. */
+	expect("the ring moved on", lcdterm_top() * LT_CELL_H != at, 1);
 	expect("xinfo", ioc(LCDG_XINFO, &xi), 0);
 	expect("ram lines", xi.ram_lines, RL);
-	expect("text top", xi.text_top, lcdterm_top() * LT_CELL_H);
+	expect("text top is the ring at the open", xi.text_top, at);
 	expect("the ring moved", xi.text_top != 0, 1);
 	expect("power on", xi.power, LCDG_PWR_ON);
 	expect("read max", xi.read_max, LCDG_READ_MAX);

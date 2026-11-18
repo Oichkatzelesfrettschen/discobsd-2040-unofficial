@@ -106,6 +106,7 @@ static unsigned tw_x, tw_y, tw_w;	/* Column of the block, row and width. */
 
 #ifdef LCD_GFX_EXT
 static unsigned gfx_power;		/* LCDG_PWR_* in force. */
+static unsigned gfx_text_top;		/* The console ring's first line at open. */
 /* LCDG_READ: pixels still wanted, the rectangle's column and width, the */
 /* column and line of the next pixel, and the raw format. */
 static unsigned rd_left;
@@ -276,6 +277,10 @@ lcdgfx_open(void)
 	win_left = 0;
 	tset_left = 0;
 	tw_left = 0;
+#ifdef LCD_GFX_EXT
+	/* The memory keeps the ring as it stood here; later text is not drawn. */
+	gfx_text_top = (unsigned)(lcdterm_top() * LT_CELL_H);
+#endif
 	bzero(atlas, sizeof(atlas));
 	for (i = 0; i < LCDG_NPAL; i++)
 		gfx_pal[i] = rgb565(lcd_palette[i][0], lcd_palette[i][1],
@@ -736,7 +741,7 @@ lcdgfx_ioctl(unsigned cmd, char *addr)
 		return 0;
 	case LCDG_XINFO:
 		xi->ram_lines = LCDG_RAM_LINES;
-		xi->text_top = (u_short)(lcdterm_top() * LT_CELL_H);
+		xi->text_top = (u_short)gfx_text_top;
 		xi->power = (u_char)gfx_power;
 		xi->read_max = LCDG_READ_MAX;
 		return 0;

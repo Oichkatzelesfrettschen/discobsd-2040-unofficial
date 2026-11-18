@@ -282,6 +282,7 @@ ioctl(void)
     case DIOCCHECKPOINT:
 #ifdef PICOCALC_ENABLED
     case LCDG_INFO:
+    case LCDG_XINFO:
     case LCDIOC_GETKEY:
 #endif
         bzero((caddr_t)&payload, sizeof payload);
@@ -321,6 +322,13 @@ ioctl(void)
     case LCDG_COLMOD:
     case LCDG_TILESET:
     case LCDG_TILEWIN:
+    case LCDG_RAMFILL:
+    case LCDG_RAMWIN:
+    case LCDG_READ:
+    case LCDG_SPRITE:
+    case LCDG_WAITLINE:
+    case LCDG_POWER:
+    case LCDG_DITHER:
     case LCDIOC_KEYEVS:
 #endif
         break;
@@ -350,6 +358,12 @@ ioctl(void)
     if (u.u_error == 0 && com == TFALLOC)
         u.u_error = copyout((caddr_t)&payload.offset, uap->cmarg,
             (com >> 16) & IOCPARM_MASK);
+#ifdef PICOCALC_ENABLED
+    /* The scan line a successful wait ended on returns in its record. */
+    if (u.u_error == 0 && com == LCDG_WAITLINE)
+        u.u_error = copyout((caddr_t)&payload, uap->cmarg,
+            (com >> 16) & IOCPARM_MASK);
+#endif
 }
 
 int nselcoll;

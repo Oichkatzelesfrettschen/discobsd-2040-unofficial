@@ -36,7 +36,7 @@
 #
 # lcdgfx_ext_test builds lcdgfx.c with LCD_GFX_EXT, the option of the
 # PICOCALC_SD kernel, against a model of the controller's 480-line memory
-# with its read reply, scan line and power mode; thirty mutants of lcdgfx.c
+# with its read reply, scan line and power mode; thirty-one mutants of lcdgfx.c
 # must fail it: moved line and column bounds of the memory fill, window,
 # read and sprite, a read decoded from the wrong reply bits or byte order,
 # an odd read accepted, the read clock left selected, a raw read wider or
@@ -930,7 +930,8 @@ gfxext-mutants: \
 	gfxext-mutant-power-range \
 	gfxext-mutant-xinfo-top \
 	gfxext-mutant-dither-colmod \
-	gfxext-mutant-dither-on
+	gfxext-mutant-dither-on \
+	gfxext-mutant-xinfo-live
 
 gfxext-mutant-ramfill-line-bound:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1052,7 +1053,12 @@ gfxext-mutant-dither-on:
 	${GFXEXT_MUT} lcdgfx.c \
 	    's/((const struct lcdg_dither \*)addr)->on != 0/0/' ${GFX_SRC}
 
-.PHONY: gfxext-mutants gfxext-mutant-dither-colmod gfxext-mutant-dither-on gfxext-mutant-ramfill-line-bound \
+gfxext-mutant-xinfo-live:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/xi->text_top = (u_short)gfx_text_top;/xi->text_top = (u_short)(lcdterm_top() * LT_CELL_H);/' ${GFX_SRC}
+
+.PHONY: gfxext-mutants gfxext-mutant-dither-colmod gfxext-mutant-dither-on \
+	gfxext-mutant-xinfo-live gfxext-mutant-ramfill-line-bound \
 	gfxext-mutant-ramwin-lines \
 	gfxext-mutant-area-line-bound \
 	gfxext-mutant-area-empty \

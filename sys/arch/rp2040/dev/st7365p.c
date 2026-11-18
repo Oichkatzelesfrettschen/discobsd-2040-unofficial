@@ -513,6 +513,8 @@ st7365p_abort(void)
 	 * a change may have begun; each is harmless in a panel already there.
 	 */
 	if (lcd_power_pending) {
+		/* SLPIN may be the last command sent: page 163's 120 ms. */
+		mdelay(120);
 		lcd_select();
 		lcd_command(CMD_SLPOUT);
 		lcd_deselect();

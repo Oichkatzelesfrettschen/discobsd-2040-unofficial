@@ -485,7 +485,7 @@ int
 lcdread(dev_t dev, struct uio *uio, int flag)
 {
 	if (minor(dev) == LCDGFX_MINOR)
-		return 0;		/* Write only: end of file. */
+		return lcdgfx_read(uio);
 	return ttread(&lcdttys[0], uio, flag);
 }
 

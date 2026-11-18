@@ -48,6 +48,13 @@
  * of n tiles costs one window setup and 64 n pixels, and the window is
  * closed before write(2) returns. Neither stream holds chip select between
  * write(2) calls.
+ *
+ * LCD_GFX_EXT adds the commands that reach all 480 lines of the
+ * controller's memory, read it back, draw sprites, wait for the scan line
+ * and change the power mode (sys/lcdgfx.h). A read is one memory read
+ * command per LCDG_READ_MAX pixels of a line, so no read holds chip select
+ * between read(2) calls either, and the SPI clock is at the read rate only
+ * inside lcdgfx_read() and the scan-line wait.
  */
 
 #include <sys/param.h>
@@ -96,6 +103,17 @@ static unsigned tset_pos, tset_left;	/* LCDG_TILESET: next byte, bytes wanted. *
 static unsigned char tw_row[LCDG_GRID];	/* LCDG_TILEWIN: numbers of one row. */
 static unsigned tw_fill, tw_left;	/* Numbers in tw_row, numbers wanted. */
 static unsigned tw_x, tw_y, tw_w;	/* Column of the block, row and width. */
+
+#ifdef LCD_GFX_EXT
+static unsigned gfx_power;		/* LCDG_PWR_* in force. */
+/* LCDG_READ: pixels still wanted, the rectangle's column and width, the */
+/* column and line of the next pixel, and the raw format. */
+static unsigned rd_left;
+static int rd_x, rd_w, rd_col, rd_y, rd_raw;
+/* LCDG_SPRITE: the same for the indexes write(2) supplies, and the key. */
+static unsigned sp_left, sp_key;
+static int sp_x, sp_w, sp_col, sp_y;
+#endif
 
 _Static_assert(LCDG_GRID * LCDG_TILE_W == LCDG_WIDTH &&
     LCDG_GRID * LCDG_TILE_H == LCDG_HEIGHT,
@@ -231,6 +249,10 @@ window_end(void)
 {
 	tset_left = 0;
 	tw_left = 0;
+#ifdef LCD_GFX_EXT
+	rd_left = 0;
+	sp_left = 0;
+#endif
 	if (win_left != 0) {
 		win_left = 0;
 		lcd_gfx_end();
@@ -268,6 +290,10 @@ int
 lcdgfx_close(void)
 {
 	window_end();
+#ifdef LCD_GFX_EXT
+	lcd_gfx_power(LCDG_PWR_ON);
+	gfx_power = LCDG_PWR_ON;
+#endif
 #ifdef LCD_PANELTEST
 	if (st7365p_set_current() != 0)
 		(void)st7365p_set(0);
@@ -287,6 +313,9 @@ lcdgfx_panel_set(int n)
 	window_end();
 	error = st7365p_set(n);
 	if (error == 0) {
+#ifdef LCD_GFX_EXT
+		gfx_power = LCDG_PWR_ON;	/* The set begins with a reset. */
+#endif
 		gfx_fmt = LCDG_COLMOD_RGB666;
 		scr_top = 0;
 		scr_bottom = LCDGFX_BOTTOM;
@@ -433,6 +462,128 @@ tilewin_write(struct uio *uio)
 	return 0;
 }
 
+#ifdef LCD_GFX_EXT
+/*
+ * Indexes of a LCDG_SPRITE block arrive at most one row at a time. Each run
+ * of indexes other than the key is one panel window on that line, so the
+ * pixels under a key index keep what the memory holds.
+ */
+static int
+sprite_write(struct uio *uio)
+{
+	unsigned char buf[LCDGFX_CHUNK];
+	unsigned n, i, j, k;
+	int error;
+
+	while (uio->uio_resid > 0 && sp_left > 0) {
+		n = (unsigned)(sp_w - sp_col);
+		if (n > uio->uio_resid)
+			n = uio->uio_resid;
+		if (n > sizeof(buf))
+			n = sizeof(buf);
+		error = uiomove((caddr_t)buf, n, uio);
+		if (error != 0)
+			return error;
+		for (i = 0; i < n; i = j) {
+			j = i + 1;
+			if ((buf[i] & (LCDG_NPAL - 1)) == sp_key)
+				continue;
+			while (j < n && (buf[j] & (LCDG_NPAL - 1)) != sp_key)
+				j++;
+			lcd_gfx_window(sp_x + sp_col + (int)i, sp_y,
+			    sp_x + sp_col + (int)j - 1, sp_y);
+			for (k = i; k < j; k++)
+				put_color(gfx_pal[buf[k] & (LCDG_NPAL - 1)]);
+			lcd_gfx_end();
+		}
+		sp_left -= n;
+		sp_col += (int)n;
+		if (sp_col == sp_w) {
+			sp_col = 0;
+			sp_y++;
+		}
+	}
+	return 0;
+}
+
+/* Bits bit .. bit + n - 1 of the reply, the first bit received being bit 0. */
+static unsigned
+reply_bits(const unsigned char *raw, unsigned bit, unsigned n)
+{
+	unsigned v = (unsigned)raw[bit >> 3] << 8 | raw[(bit >> 3) + 1];
+
+	return (v >> (16 - (bit & 7) - n)) & ((1U << n) - 1);
+}
+
+/*
+ * The pixels of a LCDG_READ rectangle, LCDG_READ_MAX at most per memory
+ * read. A pixel is 24 reply bits after the lead, eight each for red, green
+ * and blue with the component in the upper bits (page 178); the RGB565
+ * value keeps the upper five, six and five, the bits a write in either
+ * format sets directly. The reply is decoded in place: pixel i reads from
+ * byte 3 i on and writes bytes 2 i and 2 i + 1 after its three components
+ * are taken.
+ */
+int
+lcdgfx_read(struct uio *uio)
+{
+	unsigned char raw[LCDG_RD_RAW_BYTES(LCDG_READ_MAX)];
+	unsigned n, i, bit, c;
+	int error = 0;
+
+	if (rd_left == 0)
+		return 0;
+	if (rd_raw) {
+		n = LCDG_RD_RAW_BYTES(rd_w);
+		if (uio->uio_resid < n)
+			return EINVAL;
+		lcd_gfx_read_begin();
+		lcd_gfx_read(rd_x, rd_y, rd_w, raw);
+		lcd_gfx_read_end();
+		rd_left = 0;
+		return uiomove((caddr_t)raw, n, uio);
+	}
+	if ((uio->uio_resid & 1) != 0)
+		return EINVAL;
+	lcd_gfx_read_begin();
+	while (uio->uio_resid > 0 && rd_left > 0) {
+		n = (unsigned)(rd_w - rd_col);
+		if (n > LCDG_READ_MAX)
+			n = LCDG_READ_MAX;
+		if (n > uio->uio_resid / 2)
+			n = uio->uio_resid / 2;
+		lcd_gfx_read(rd_x + rd_col, rd_y, (int)n, raw);
+		for (i = 0; i < n; i++) {
+			bit = LCDG_RD_LEAD_BITS + 24 * i;
+			c = reply_bits(raw, bit, 5) << 11 |
+			    reply_bits(raw, bit + 8, 6) << 5 |
+			    reply_bits(raw, bit + 16, 5);
+			raw[2 * i] = c & 0xff;
+			raw[2 * i + 1] = c >> 8;
+		}
+		error = uiomove((caddr_t)raw, 2 * n, uio);
+		if (error != 0)
+			break;
+		rd_left -= n;
+		rd_col += (int)n;
+		if (rd_col == rd_w) {
+			rd_col = 0;
+			rd_y++;
+		}
+	}
+	lcd_gfx_read_end();
+	return error;
+}
+
+/* A rectangle of the controller's memory: x, y, w, h in that order. */
+static int
+area_ok(const unsigned short *v)
+{
+	return v[2] != 0 && v[3] != 0 && v[0] + v[2] <= LCDG_WIDTH &&
+	    v[1] + v[3] <= LCDG_RAM_LINES;
+}
+#endif /* LCD_GFX_EXT */
+
 int
 lcdgfx_write(struct uio *uio)
 {
@@ -440,6 +591,12 @@ lcdgfx_write(struct uio *uio)
 	unsigned n;
 	int error;
 
+#ifdef LCD_GFX_EXT
+	if (gfx_power == LCDG_PWR_SLEEP)
+		return EBUSY;
+	if (sp_left != 0)
+		return sprite_write(uio);
+#endif
 	if (tset_left != 0)
 		return tileset_write(uio);
 	if (tw_left != 0)
@@ -467,10 +624,10 @@ lcdgfx_write(struct uio *uio)
 
 /* LCDG_WINDOW: validate, open the panel window and count the bytes wanted. */
 static int
-window_begin(const struct lcdg_window *w)
+window_begin(const struct lcdg_window *w, unsigned lines)
 {
-	if (!coords_ok(&w->x, 2) || w->w == 0 || w->h == 0 ||
-	    w->x + w->w > LCDG_WIDTH || w->y + w->h > LCDG_HEIGHT ||
+	if (w->x >= LCDG_WIDTH || w->y >= lines || w->w == 0 || w->h == 0 ||
+	    w->x + w->w > LCDG_WIDTH || w->y + w->h > lines ||
 	    w->fmt > LCDG_WIN_BITS || w->fg >= LCDG_NPAL || w->bg >= LCDG_NPAL)
 		return EINVAL;
 	win_fmt = w->fmt;
@@ -501,8 +658,90 @@ lcdgfx_ioctl(unsigned cmd, char *addr)
 	const struct lcdg_tileset *ts = (const struct lcdg_tileset *)addr;
 	const struct lcdg_tilewin *tl = (const struct lcdg_tilewin *)addr;
 	struct lcdg_info *in = (struct lcdg_info *)addr;
+#ifdef LCD_GFX_EXT
+	const struct lcdg_read *rd = (const struct lcdg_read *)addr;
+	const struct lcdg_sprite *sp = (const struct lcdg_sprite *)addr;
+	const struct lcdg_power *pw = (const struct lcdg_power *)addr;
+	struct lcdg_wait *wt = (struct lcdg_wait *)addr;
+	struct lcdg_xinfo *xi = (struct lcdg_xinfo *)addr;
+	unsigned t0;
+	int at, prev, error;
+#endif
 
 	window_end();
+#ifdef LCD_GFX_EXT
+	if (gfx_power == LCDG_PWR_SLEEP && cmd != LCDG_POWER && cmd != LCDG_XINFO)
+		return EBUSY;
+	switch (cmd) {
+	case LCDG_RAMFILL:
+		if (rc->x0 > rc->x1 || rc->y0 > rc->y1 || rc->x1 >= LCDG_WIDTH ||
+		    rc->y1 >= LCDG_RAM_LINES)
+			return EINVAL;
+		fill(rc->x0, rc->y0, rc->x1, rc->y1, rc->color);
+		return 0;
+	case LCDG_RAMWIN:
+		return window_begin((const struct lcdg_window *)addr,
+		    LCDG_RAM_LINES);
+	case LCDG_READ:
+		if (!area_ok(&rd->x) || rd->fmt > LCDG_RD_RAW ||
+		    (rd->fmt == LCDG_RD_RAW &&
+		    (rd->h != 1 || rd->w > LCDG_READ_MAX)))
+			return EINVAL;
+		rd_x = rd->x;
+		rd_y = rd->y;
+		rd_w = rd->w;
+		rd_col = 0;
+		rd_raw = rd->fmt == LCDG_RD_RAW;
+		rd_left = (unsigned)rd->w * (unsigned)rd->h;
+		return 0;
+	case LCDG_SPRITE:
+		if (!area_ok(&sp->x) || sp->key >= LCDG_NPAL)
+			return EINVAL;
+		sp_x = sp->x;
+		sp_y = sp->y;
+		sp_w = sp->w;
+		sp_col = 0;
+		sp_key = sp->key;
+		sp_left = (unsigned)sp->w * (unsigned)sp->h;
+		return 0;
+	case LCDG_WAITLINE:
+		if (wt->line >= LCDG_RAM_LINES || wt->ms == 0 ||
+		    wt->ms > LCDG_WAIT_MAX_MS)
+			return EINVAL;
+		error = ETIMEDOUT;
+		prev = -1;
+		lcd_gfx_read_begin();
+		t0 = lcd_gfx_micros();
+		do {
+			at = lcd_gfx_scanline();
+			if (prev >= (int)wt->line && at >= prev &&
+			    at < (int)wt->line + LCDG_WAIT_SPAN) {
+				error = 0;
+				break;
+			}
+			prev = at;
+		} while (lcd_gfx_micros() - t0 < wt->ms * 1000U);
+		lcd_gfx_read_end();
+		wt->at = (u_short)at;
+		return error;
+	case LCDG_POWER:
+		if (pw->mode > LCDG_PWR_SLEEP)
+			return EINVAL;
+		lcd_gfx_power(pw->mode);
+		gfx_power = pw->mode;
+		return 0;
+	case LCDG_DITHER:
+		lcd_gfx_dither(((const struct lcdg_dither *)addr)->on != 0);
+		lcd_gfx_colmod(gfx_fmt);
+		return 0;
+	case LCDG_XINFO:
+		xi->ram_lines = LCDG_RAM_LINES;
+		xi->text_top = (u_short)(lcdterm_top() * LT_CELL_H);
+		xi->power = (u_char)gfx_power;
+		xi->read_max = LCDG_READ_MAX;
+		return 0;
+	}
+#endif
 	switch (cmd) {
 	case LCDG_FILL:
 	case LCDG_FRAME:
@@ -530,7 +769,8 @@ lcdgfx_ioctl(unsigned cmd, char *addr)
 		circle(ci->x, ci->y, ci->r, ci->color);
 		return 0;
 	case LCDG_WINDOW:
-		return window_begin((const struct lcdg_window *)addr);
+		return window_begin((const struct lcdg_window *)addr,
+		    LCDG_HEIGHT);
 	case LCDG_PALETTE:
 		if (pl->index >= LCDG_NPAL)
 			return EINVAL;

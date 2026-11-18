@@ -34,6 +34,19 @@
 # a block that does not advance its row, an upload or block that survives
 # another command, an atlas that survives an open and a wrong atlas size.
 #
+# lcdgfx_ext_test builds lcdgfx.c with LCD_GFX_EXT, the option of the
+# PICOCALC_SD kernel, against a model of the controller's 480-line memory
+# with its read reply, scan line and power mode; thirty mutants of lcdgfx.c
+# must fail it: moved line and column bounds of the memory fill, window,
+# read and sprite, a read decoded from the wrong reply bits or byte order,
+# an odd read accepted, the read clock left selected, a raw read wider or
+# taller than one reply, a read or sprite that survives another command, a
+# sprite that ignores its key, the index mask or the row step, a scan-line
+# wait that takes one sample, a falling pair, a wider span, twice the time
+# or any line, a sleep that lets a command or a write through, a close that
+# leaves the panel asleep, a power mode out of range, a ring top in rows
+# and a dithering probe that leaves its format or ignores its switch.
+#
 # kbdreq_test runs the keyboard-controller register mailbox against a
 # model of the vendor firmware's register handler; eight mutants of
 # picokbd_req.c and picokbd_req.h must fail it.
@@ -139,15 +152,18 @@ KCSTD=		-std=gnu17 -Wall -Wextra -Werror \
 # PARAM of the generated Makefile); without it lcdgfx.h declares the ENXIO
 # stubs, which collide with the driver's own definitions.
 GFXCSTD=	${KCSTD} -DDEV_LCDGFX
+GFXEXTCSTD=	${GFXCSTD} -DLCD_GFX_EXT
 SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
+check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
+	gametile_test \
 	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
 	uart_test panel_decode_test panel_scan_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
+	./lcdgfx_ext_test
 	./kbdreq_test
 	./kbdevq_test
 	./gametile_test
@@ -159,7 +175,7 @@ check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	./uart_test
 	./panel_decode_test
 	./panel_scan_test
-	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
+	${MAKE} mutants gfx-mutants gfxext-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
 	    picoaudio-mutants picopcm-mutants uart-mutants panel-decode-mutants \
 	    panel-scan-mutants
@@ -172,6 +188,12 @@ lcdgfx_test: lcdgfx_test.c ${DEV}/lcdgfx.c ${DEV}/lcdgfx.h ${DEV}/lcdterm.c \
 	    ${TOPSRC}/sys/sys/lcdgfx.h
 	${HOST_CC} ${GFXCSTD} ${SAN} -g -o $@ lcdgfx_test.c ${DEV}/lcdgfx.c \
 	    ${DEV}/lcdterm.c ${DEV}/lcdfont.c
+
+lcdgfx_ext_test: lcdgfx_ext_test.c ${DEV}/lcdgfx.c ${DEV}/lcdgfx.h \
+	    ${DEV}/lcdterm.c ${DEV}/lcdterm.h ${DEV}/lcdfont.c ${DEV}/lcdfont.h \
+	    ${TOPSRC}/sys/sys/lcdgfx.h
+	${HOST_CC} ${GFXEXTCSTD} ${SAN} -g -o $@ lcdgfx_ext_test.c \
+	    ${DEV}/lcdgfx.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c
 
 kbdreq_test: kbdreq_test.c ${DEV}/picokbd_req.c ${DEV}/picokbd_req.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ kbdreq_test.c \
@@ -874,6 +896,190 @@ GFX_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${GFXCSTD}" "${DEV}" \
 		lcdgfx_test.c
 
 GFX_SRC=	lcdgfx.c lcdgfx.h lcdterm.c lcdterm.h lcdfont.c lcdfont.h
+
+GFXEXT_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" "${GFXEXTCSTD}" "${DEV}" \
+		lcdgfx_ext_test.c
+
+gfxext-mutants: \
+	gfxext-mutant-ramfill-line-bound \
+	gfxext-mutant-ramwin-lines \
+	gfxext-mutant-area-line-bound \
+	gfxext-mutant-area-empty \
+	gfxext-mutant-read-lead \
+	gfxext-mutant-read-green \
+	gfxext-mutant-read-byte-order \
+	gfxext-mutant-read-odd \
+	gfxext-mutant-read-clock \
+	gfxext-mutant-read-raw-width \
+	gfxext-mutant-read-raw-height \
+	gfxext-mutant-read-abandon \
+	gfxext-mutant-sprite-key \
+	gfxext-mutant-sprite-mask \
+	gfxext-mutant-sprite-row \
+	gfxext-mutant-sprite-key-range \
+	gfxext-mutant-sprite-abandon \
+	gfxext-mutant-wait-one-sample \
+	gfxext-mutant-wait-falling \
+	gfxext-mutant-wait-span \
+	gfxext-mutant-wait-time \
+	gfxext-mutant-wait-line-range \
+	gfxext-mutant-wait-clock \
+	gfxext-mutant-sleep-ioctl \
+	gfxext-mutant-sleep-write \
+	gfxext-mutant-close-power \
+	gfxext-mutant-power-range \
+	gfxext-mutant-xinfo-top \
+	gfxext-mutant-dither-colmod \
+	gfxext-mutant-dither-on
+
+gfxext-mutant-ramfill-line-bound:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/rc->y1 >= LCDG_RAM_LINES/rc->y1 > LCDG_RAM_LINES/' ${GFX_SRC}
+
+gfxext-mutant-ramwin-lines:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/case LCDG_RAMWIN:/,/LCDG_RAM_LINES);/s/LCDG_RAM_LINES);/LCDG_HEIGHT);/' ${GFX_SRC}
+
+gfxext-mutant-area-line-bound:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/v\[1\] + v\[3\] <= LCDG_RAM_LINES/v[1] + v[3] <= LCDG_RAM_LINES + 1/' ${GFX_SRC}
+
+gfxext-mutant-area-empty:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/return v\[2\] != 0 \&\& /return /' ${GFX_SRC}
+
+gfxext-mutant-read-lead:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/bit = LCDG_RD_LEAD_BITS + 24 \* i/bit = 24 * i/' ${GFX_SRC}
+
+gfxext-mutant-read-green:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/reply_bits(raw, bit + 8, 6)/reply_bits(raw, bit + 9, 6)/' ${GFX_SRC}
+
+gfxext-mutant-read-byte-order:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/raw\[2 \* i\] = c \& 0xff/raw[2 * i] = c >> 8/' ${GFX_SRC}
+
+gfxext-mutant-read-odd:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/^	if ((uio->uio_resid \& 1) != 0)$$/	if (0)/' ${GFX_SRC}
+
+gfxext-mutant-read-clock:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^lcdgfx_read/,/^}/s/lcd_gfx_read_end();/;/' ${GFX_SRC}
+
+gfxext-mutant-read-raw-width:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/rd->w > LCDG_READ_MAX/rd->w > LCDG_READ_MAX + 1/' ${GFX_SRC}
+
+gfxext-mutant-read-raw-height:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/(rd->h != 1 || /(/' ${GFX_SRC}
+
+gfxext-mutant-read-abandon:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^window_end/,/^}/s/rd_left = 0;/;/' ${GFX_SRC}
+
+gfxext-mutant-sprite-key:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^sprite_write/,/^}/s/== sp_key)$$/== sp_key + 16)/' ${GFX_SRC}
+
+gfxext-mutant-sprite-mask:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/gfx_pal\[buf\[k\] \& (LCDG_NPAL - 1)\]/gfx_pal[buf[k] \& 7]/' ${GFX_SRC}
+
+gfxext-mutant-sprite-row:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/^			sp_y++;$$/			;/' ${GFX_SRC}
+
+gfxext-mutant-sprite-key-range:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/sp->key >= LCDG_NPAL/sp->key > LCDG_NPAL/' ${GFX_SRC}
+
+gfxext-mutant-sprite-abandon:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^window_end/,/^}/s/sp_left = 0;/;/' ${GFX_SRC}
+
+gfxext-mutant-wait-one-sample:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/prev >= (int)wt->line \&\& at >= prev/(prev = at) >= (int)wt->line/' ${GFX_SRC}
+
+gfxext-mutant-wait-falling:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/(int)wt->line \&\& at >= prev \&\&$$/(int)wt->line \&\&/' ${GFX_SRC}
+
+gfxext-mutant-wait-span:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/(int)wt->line + LCDG_WAIT_SPAN/(int)wt->line + 2 * LCDG_WAIT_SPAN/' ${GFX_SRC}
+
+gfxext-mutant-wait-time:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/wt->ms \* 1000U/wt->ms * 2000U/' ${GFX_SRC}
+
+gfxext-mutant-wait-line-range:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (wt->line >= LCDG_RAM_LINES || wt->ms == 0/if (wt->ms == 0/' ${GFX_SRC}
+
+gfxext-mutant-wait-clock:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/case LCDG_WAITLINE:/,/return error;/s/lcd_gfx_read_end();/;/' ${GFX_SRC}
+
+gfxext-mutant-sleep-ioctl:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (gfx_power == LCDG_PWR_SLEEP \&\& cmd != LCDG_POWER/if (0 \&\& cmd != LCDG_POWER/' ${GFX_SRC}
+
+gfxext-mutant-sleep-write:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^lcdgfx_write/,/^}/s/if (gfx_power == LCDG_PWR_SLEEP)/if (0)/' ${GFX_SRC}
+
+gfxext-mutant-close-power:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^lcdgfx_close/,/^}/s/lcd_gfx_power(LCDG_PWR_ON);/;/' ${GFX_SRC}
+
+gfxext-mutant-power-range:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/pw->mode > LCDG_PWR_SLEEP/pw->mode > LCDG_PWR_SLEEP + 1/' ${GFX_SRC}
+
+gfxext-mutant-xinfo-top:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/lcdterm_top() \* LT_CELL_H/lcdterm_top()/' ${GFX_SRC}
+
+gfxext-mutant-dither-colmod:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/case LCDG_DITHER:/,/return 0;/s/lcd_gfx_colmod(gfx_fmt);/;/' ${GFX_SRC}
+
+gfxext-mutant-dither-on:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/((const struct lcdg_dither \*)addr)->on != 0/0/' ${GFX_SRC}
+
+.PHONY: gfxext-mutants gfxext-mutant-dither-colmod gfxext-mutant-dither-on gfxext-mutant-ramfill-line-bound \
+	gfxext-mutant-ramwin-lines \
+	gfxext-mutant-area-line-bound \
+	gfxext-mutant-area-empty \
+	gfxext-mutant-read-lead \
+	gfxext-mutant-read-green \
+	gfxext-mutant-read-byte-order \
+	gfxext-mutant-read-odd \
+	gfxext-mutant-read-clock \
+	gfxext-mutant-read-raw-width \
+	gfxext-mutant-read-raw-height \
+	gfxext-mutant-read-abandon \
+	gfxext-mutant-sprite-key \
+	gfxext-mutant-sprite-mask \
+	gfxext-mutant-sprite-row \
+	gfxext-mutant-sprite-key-range \
+	gfxext-mutant-sprite-abandon \
+	gfxext-mutant-wait-one-sample \
+	gfxext-mutant-wait-falling \
+	gfxext-mutant-wait-span \
+	gfxext-mutant-wait-time \
+	gfxext-mutant-wait-line-range \
+	gfxext-mutant-wait-clock \
+	gfxext-mutant-sleep-ioctl \
+	gfxext-mutant-sleep-write \
+	gfxext-mutant-close-power \
+	gfxext-mutant-power-range \
+	gfxext-mutant-xinfo-top
 
 gfx-mutants: \
 	gfx-mutant-exclusive-open \
@@ -2117,7 +2323,7 @@ uart-mutant-rx-pull-down:
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	    uart_test panel_decode_test panel_scan_test
+	    uart_test panel_decode_test panel_scan_test lcdgfx_ext_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \

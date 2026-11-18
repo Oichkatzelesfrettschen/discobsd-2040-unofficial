@@ -1543,6 +1543,17 @@ check-config-generated-sync: check-python
 # expands it, requires each definition in every Config of
 # MACHINE_KERNEL_CONFIGS with the same value, and fails when a userland source
 # names NMOUNT or SINGLE_UFS_ROOT.
+# distrib/rp2040/Makefile.inc and etc/rc.rp2040 restate storage sizes that
+# flash.h, psram_xfer.h, fsutil and flashimg define: FS_KBYTES, FLASH_FS_ADDR
+# and the size of the PSRAM /tmp. tools/check_storage_geometry.py builds a
+# private flashimg from the tested sources and holds each restatement to its
+# source; check-picocalc-sd-layout holds the linker scripts to flash.h.
+check-storage-geometry: check-python
+		${PYTHON} tools/check_storage_geometry.py --self-test --cc ${HOST_CC:Ucc:Q}
+		${PYTHON} tools/check_storage_geometry.py --cc ${HOST_CC:Ucc:Q}
+
+.PHONY: check-storage-geometry
+
 check-userland-layout-flags: check-python
 		${PYTHON} tools/check_userland_layout_flags.py --self-test
 		${PYTHON} tools/check_userland_layout_flags.py \
@@ -1980,7 +1991,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
-		check-userland-layout-flags \
+		check-userland-layout-flags check-storage-geometry \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
 		check-signal-traps

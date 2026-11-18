@@ -3,11 +3,11 @@
 ## Status
 
 Trim at free is refuted for compile workloads in the host model and on the
-board, and is not merged. The work lives on two unmerged branches:
-`archive/rp2040-trim-freed-blocks` (the inode-first order in `itrunc()`, trim in
-`free()` through `DIOCTRIM`, and `check-trim-order`) and
-`archive/rp2040-free-list-sweep` (a lookup before each trim, `tests/kernel/trim_cost.c`
-and the deferred-sweep arms). On the measured Pico, 8 compiles cost 1,592
+board, and is not merged. `archive/rp2040-free-list-sweep` contains
+`2d154315` (the inode-first order in `itrunc()`, trim in `free()` through
+`DIOCTRIM`, and `check-trim-order`) and extends it with a lookup before
+each trim, `tests/kernel/trim_cost.c` and the deferred-sweep arms. On the
+measured Pico, 8 compiles cost 1,592
 root erase sectors with trim at free, against 1,374 without it and 1,128
 with the later collector trigger that main now carries
 (`sys/arch/rp2040/doc/research/dhara-gc-trigger.md`).

@@ -2,12 +2,10 @@
 
 One record of storage mechanisms that were implemented, measured and left
 out of `main`, with the measurement that decided each and the condition
-that would reopen it. The code is retained on two archive branches:
-
-- `archive/rp2040-trim-freed-blocks` (tip 2d154315, 7 commits from
-  df48d76d);
-- `archive/rp2040-free-list-sweep` (tip 2c35eff2, 11 commits), which
-  contains the first as its prefix.
+that would reopen it. `archive/rp2040-free-list-sweep` at `2c35eff2` carries
+both experiments. The seven-commit trim-at-free series ends at its
+ancestor `2d154315`, seven commits from `df48d76d`. The deferred sweep and
+collector experiments extend that history to eleven commits.
 
 ## What reached main from those branches
 
@@ -50,6 +48,6 @@ In a worktree of `archive/rp2040-free-list-sweep`, build the host tools
 `bmake MACHINE=rp2040 check-trim-order`, which passes `FSUTIL` to
 `tests/kernel`, or the cost report directly:
 `bmake -C tests/kernel trim-cost-report FSUTIL=<tools bin>/fsutil`
-(`trim-cost-model.md`, Method). The branches predate later `main` changes
-to `flash.c`; they build at their own tips and need a rebase before any
-reuse.
+(`trim-cost-model.md`, Method). Use `git worktree add --detach <path> 2d154315`
+for the trim-at-free version after fetching the sweep ref. Both revisions
+predate later `main` changes to `flash.c` and need adaptation before reuse.

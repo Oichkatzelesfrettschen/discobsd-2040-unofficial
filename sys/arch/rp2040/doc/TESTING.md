@@ -3244,7 +3244,7 @@ What a pass establishes, for this Renode build, these third-party models and
 this kernel: the PICOCALC console path runs from `st7365p_init()` through
 the first full-screen clear, the boot banner, fsck and the daemons to the
 `login:` prompt, with every panel byte accounted for (the init sequence
-arrives in the order `st7365p.c` sends it, MADCTL 0x48, COLMOD 0x66 and
+arrives in the order `st7365p.c` sends it, MADCTL 0x48, COLMOD 0x55 and
 VSCRDEF 0/320/160 land, DISPON arrives, no command is unmodeled, no pixel
 lands outside the CASET/RASET window, no byte arrives with chip select
 high); the panel pixels are the cells `lcdterm.c` draws, decoded exactly

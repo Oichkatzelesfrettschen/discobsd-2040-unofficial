@@ -203,17 +203,47 @@ micro-USB port is the console and BOOTSEL path.
 
 ## Display: ST7365P on SPI1
 
-`st7365p.c` runs the PL022 in Motorola mode 0 with eight-bit frames at
-12.5 MHz (prescale 2, SCR 4 from the 125 MHz `clk_peri`). The ST7365P
+`st7365p.c` runs the PL022 in Motorola format with SPO and SPH set (mode 3)
+and eight-bit frames at 12.5 MHz (prescale 2, SCR 4 from the 125 MHz
+`clk_peri`). With SPH clear the PL022 raises its frame signal between the
+words of a continuous transfer and the clock pauses with it (ARM DDI 0194,
+2.3.10); the board measured a full-screen fill at 1.19 times its bit time
+in that format, 9.5 clock periods a byte. With SPH set the words follow
+without a gap (2.3.13), and the second edge of a clock that idles high is
+the rising edge on which the panel samples (page 94). `LCD_SPI_MODE0`
+builds the gapped format for comparison. The ST7365P
 specification's minimum serial write cycle is 66 ns (page 54), which
 caps the clock at 15.1 MHz; the vendor drivers request 25 MHz and get
 20.8 MHz, outside that limit. Chip select, D/C and reset are SIO outputs;
 D/C changes only after the PL022 reports idle.
 
-Pixels are RGB666, three bytes (COLMOD 66h), as every vendor driver for
-this panel sends them. The controller also accepts RGB565 over four-wire
-SPI (page 96); switching would cut a glyph from 180 bytes to 120 and is
-worth measuring once the board has run the RGB666 path.
+The console's pixels are RGB565, two bytes (COLMOD 55h, page 96): a glyph
+is 120 bytes where RGB666 took 180. The controller widens sixteen bits to
+its eighteen-bit memory as EM (B7h) EPF directs (page 228), and
+`/dev/lcdgfx` still opens in RGB666 (66h).
+
+Predictions for the mode 3 format and the RGB565 console, recorded before
+their board run (the baseline is the run of 2026-11-18 on main bff303aa:
+`lcdgfxtest` full 320 by 320 fill 234,000 us in 66h and 156,000 us in 55h,
+both 119% of bit time; `tiledemo` repaint 237,000 us):
+
+1. Mode 3 is accepted: the console draws as before and 0Ah, 0Bh, 0Ch and
+   D3h read 9Ch, 48h, 55h (the console's format; 66h inside paneltest) and
+   `00 3b cb`. Falsifier: a blank or scrambled panel, or changed readback;
+   the comparison kernel built with `LCD_SPI_MODE0` then restores the
+   picture and shows the format as the cause.
+2. Mode 3 removes the gap: the `lcdgfxtest` fills fall to 100% to 104% of
+   bit time, about 197,000 us in 66h and 131,000 us in 55h. Falsifier: the
+   ratio stays near 119%, which would place the gap elsewhere than the
+   frame signal.
+3. `lcdgfxtest`, `tiledemo` and `windowtest` pass unchanged, since
+   `/dev/lcdgfx` programs 66h at open.
+4. Console white under 55h: paneltest's RAMRD entry (2Eh after one FFFFh
+   pixel at line 479) reads `fc fc fc` when EPF widens to full scale and
+   `f8 fc f8` when the low bits stay clear. The driver's B7h write
+   (EPF 11) sits outside the CSCON unlock that B1h was measured to need,
+   so `f8 fc f8` is the expected reply if B7h shares that gate; the
+   visible effect would be a white 1.6% short in red and blue.
 
 The panel shows 320 of the controller's 480 lines. VSCRDEF sets a top
 fixed area of 0, a scroll area of 320 and a bottom fixed area of 160,
@@ -309,9 +339,9 @@ ASCII from a clean bus. Once `panicstr` is set, `panic()`'s own output
 draws with interrupts masked, so neither the renderer, which stops drawing
 tty output, nor nested output can interrupt or abandon the panic message.
 
-Measured costs are owed to the board run. At 12.5 MHz a cell is 180 bytes
-of pixels plus an 11-byte window, about 122 us of wire time, which bounds
-output near 8,000 characters per second before CPU overhead.
+Measured costs are owed to the board run. At 12.5 MHz a cell is 120 bytes
+of pixels plus an 11-byte window, about 84 us of wire time, which bounds
+output near 11,900 characters per second before CPU overhead.
 
 ### Glyph bank
 
@@ -373,7 +403,7 @@ each `compile/<BOARD>` directory, with arm-none-eabi-gcc from the build host
 and parent commit `122ec634`. The bss delta is the 128x9 bank; the text delta
 holds the 288-byte shape table, the copy of defaults, `lcdterm_setglyph()`,
 the ioctl case and the bank branch of `lcd_draw_cell()`. Redrawing the cells
-of one code walks the 1,696-cell store and costs about 122 us of wire time per
+of one code walks the 1,696-cell store and costs about 84 us of wire time per
 matching cell (about 207 ms when the whole screen shows it), at the priority of
 the caller.
 
@@ -394,15 +424,15 @@ Opening takes the panel from the text console: `lcdcons_gfx(1)` takes the
 console's drawing flag, `lcdterm_gfx(1)` sets `gfx_active` so that `lcdterm.c`
 keeps updating its cell store, ring and cursor but calls none of
 `lcd_draw_cell`, `lcd_fill_cells` and `lcd_set_top`, and the driver programs
-scroll start 0, loads the 16-entry palette from the console's colors and
-assumes RGB666 with a 320-line scroll area. A second open fails with `EBUSY`
+scroll start 0, loads the 16-entry palette from the console's colors,
+programs COLMOD 0x66 and assumes a 320-line scroll area. A second open fails with `EBUSY`
 before it touches the console; an open that finds the drawing flag held
 returns `EAGAIN` and leaves the device closed. The last close, which a
 process exit also performs, ends a window that still wants pixels and calls
-`lcdterm_gfx(0)`: `lcd_gfx_reset()` programs COLMOD 0x66, VSCRDEF 0/320/160
+`lcdterm_gfx(0)`: `lcd_gfx_reset()` programs the console's COLMOD 0x55, VSCRDEF 0/320/160
 and clears the two margin columns right of the last cell (the cell draws never
 reach them), then `lcdterm_repaint()` programs VSCSAD from the ring top, draws
-all 1,696 cells from the store (about 195 ms on the bus) and the cursor. Text
+all 1,696 cells from the store (about 142 ms on the bus) and the cursor. Text
 written to the console meanwhile therefore appears at the close. A fatal fault
 runs the same restore: `lcdabandon()` ends the transfer when the device is
 open and `lcdterm_abort()` leaves the mode before the report draws.

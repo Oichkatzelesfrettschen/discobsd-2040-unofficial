@@ -20,8 +20,8 @@
  * One process is resident at a time and every process image occupies the
  * same 192 KB at USER_DATA_START (machparam.h, conf/RP2040.ld), so the
  * protection map is static: the kernel programs it once at startup and no
- * context switch touches it. Unprivileged code, which locore0.S enters by
- * setting CONTROL.nPRIV before the first user instruction, may reach four
+ * context switch touches it. Unprivileged code, which icode in locore.S enters
+ * by setting CONTROL.nPRIV in the user window, may reach four
  * regions and nothing else:
  *
  *   region  base         size    unprivileged  holds
@@ -31,7 +31,7 @@
  *   1       0x20000000   128 KB  rwx           the user window, low part
  *   2       0x20020000   64 KB   rwx           the user window, high part
  *   3       0xd0000000   256 B   rw-           the SIO hardware divider, one
- *                                              32-byte subregion of seven
+ *                                              32-byte subregion of eight
  *
  * 192 KB is not a power of two and PMSAv6 regions are (datasheet table
  * 117, SIZE gives 2^(SIZE+1) bytes), so the window takes two regions, each
@@ -55,9 +55,9 @@
  * integer helpers (lib/libc/arm/gen/aeabi_div.S): the kernel, its
  * interrupts and its callouts contain none, which
  * tools/verify_rp2040_divider_ownership.py enforces on every linked
- * kernel, and processes switch and signals arrive only on the return from a
- * system call or fault, so a divide sequence is never split. Nothing saves
- * the divider across a switch.
+ * kernel. A clock tick can interrupt a user divide sequence. The syscall,
+ * asynchronous trap and user fault paths save and restore the divider
+ * through the user frame.
  *
  * The kernel runs privileged and MPU_CTRL.PRIVDEFENA keeps the default
  * memory map as its background region, so kernel text in XIP flash, kernel
@@ -66,11 +66,11 @@
  * raises HardFault (datasheet 2.4.6.1), which fault.c delivers as SIGSEGV
  * to the process on its own stack.
  *
- * Every write is read back. A region counts as programmed only when RBAR
- * and RASR return what was written, and the MPU is enabled only when all
- * four do: a map missing a user region would fault the first user
- * instruction, so a core or emulator that drops the writes runs with the
- * MPU off and says so through mpu_identify and machdep.mpu. The memory
+ * A grant counts as programmed only when RNR, RBAR and RASR match the
+ * requested region. The kernel requests MPU enable only when all
+ * four match and the remaining slots read back disabled. A map missing
+ * a user region could fault the first user instruction. mpu_identify and
+ * machdep.mpu report the control register after verification. The memory
  * attribute bits S, C and B stay zero; the RP2040 bus fabric consumes none
  * of them (the XIP cache is an address-range cache), and the Cortex-M0+
  * reorders nothing.
@@ -78,7 +78,7 @@
  * usr.bin/mputest is the deliberate fault test: it forks children that
  * read kernel RAM, kernel flash and SIO CPUID and expects each to die of
  * SIGSEGV when machdep.mpu.enable reads 1, while the divider register
- * 0x18 bytes above that closed CPUID reads without harm.
+ * 0x78 bytes above that closed CPUID reads without harm.
  */
 
 #include <sys/param.h>
@@ -93,7 +93,13 @@
 #include <machine/mpuvar.h>
 #include <machine/usercopy.h>
 
-struct mpu_state mpu_state;
+/* Boot-time register readback for the console and machdep.mpu. */
+static struct {
+	u_int	type;
+	u_int	ctrl;
+	u_int	nregions;
+	u_int	programmed;
+} mpu_state;
 
 struct mpu_region {
 	u_int	base;			/* Aligned to 2^log2. */
@@ -147,59 +153,69 @@ static const struct mpu_region mpu_map[] = {
  * both read back as written.
  */
 static int
-mpu_program(u_int n, const struct mpu_region *r)
+mpu_program(u_int n, u_int base, u_int rasr)
 {
-	u_int rbar, rasr;
-
-	rbar = (r->base & MPU_RBAR_ADDR_MASK) | MPU_RBAR_VALID |
-	    (n & MPU_RBAR_REGION_MASK);
-	rasr = r->attrs | ((r->srd << MPU_RASR_SRD_SHIFT) & MPU_RASR_SRD_MASK) |
-	    MPU_RASR_SIZE(r->log2) | MPU_RASR_ENABLE;
-
-	MPU_REG32(MPU_RBAR) = rbar;
+	MPU_REG32(MPU_RBAR) = base | MPU_RBAR_VALID | n;
 	MPU_REG32(MPU_RASR) = rasr;
 	arm_dsb();
 
-	/* VALID always reads as zero; RNR reads back through REGION. */
+	/* VALID reads as zero and REGION reads as RNR. */
 	return MPU_REG32(MPU_RNR) == n &&
-	    MPU_REG32(MPU_RBAR) == ((r->base & MPU_RBAR_ADDR_MASK) | n) &&
-	    MPU_REG32(MPU_RASR) == rasr;
+	    MPU_REG32(MPU_RBAR) == (base | n) && MPU_REG32(MPU_RASR) == rasr;
+}
+
+static void
+mpu_control(u_int ctrl)
+{
+	MPU_REG32(MPU_CTRL) = ctrl;
+	arm_dsb();
+	arm_isb();
+	mpu_state.ctrl = MPU_REG32(MPU_CTRL);
+}
+
+static void
+mpu_disable(void)
+{
+	mpu_control(0);
+	if (mpu_state.ctrl != 0)
+		panic("mpu: cannot disable");
 }
 
 void
 mpu_init(void)
 {
-	u_int n;
+	const u_int ctrl = MPU_CTRL_PRIVDEFENA | MPU_CTRL_ENABLE;
+	const struct mpu_region *r;
+	u_int n, rasr;
 
 	mpu_state.type = MPU_REG32(MPU_TYPE);
 	mpu_state.nregions = (mpu_state.type & MPU_TYPE_DREGION_MASK) >>
 	    MPU_TYPE_DREGION_SHIFT;
 	mpu_state.programmed = 0;
 	mpu_state.ctrl = 0;
-	if (mpu_state.nregions < MPU_NMAP)
+	if (mpu_state.nregions == 0)
 		return;
 
-	/*
-	 * Program with the MPU disabled, as the ARMv6-M ARM B3.5.4 orders
-	 * it, then enable with DSB and ISB so no access after the enable is
-	 * checked against the old map.
-	 */
-	MPU_REG32(MPU_CTRL) = 0;
-	arm_dsb();
-	for (n = 0; n < MPU_NMAP; n++)
-		mpu_state.programmed += mpu_program(n, &mpu_map[n]);
-	for (; n < mpu_state.nregions; n++) {
-		MPU_REG32(MPU_RBAR) = MPU_RBAR_VALID | n;
-		MPU_REG32(MPU_RASR) = 0;
-	}
-	if (mpu_state.programmed != MPU_NMAP) {
-		mpu_state.ctrl = MPU_REG32(MPU_CTRL);
+	mpu_disable();
+	if (mpu_state.nregions < MPU_NMAP ||
+	    mpu_state.nregions > MPU_RBAR_REGION_MASK + 1)
 		return;
+
+	for (n = 0; n < MPU_NMAP; n++) {
+		r = &mpu_map[n];
+		rasr = r->attrs | (r->srd << MPU_RASR_SRD_SHIFT) |
+		    MPU_RASR_SIZE(r->log2) | MPU_RASR_ENABLE;
+		mpu_state.programmed += mpu_program(n, r->base, rasr);
 	}
-	MPU_REG32(MPU_CTRL) = MPU_CTRL_PRIVDEFENA | MPU_CTRL_ENABLE;
-	arm_dsb();
-	arm_isb();
-	mpu_state.ctrl = MPU_REG32(MPU_CTRL);
+	for (; n < mpu_state.nregions; n++) {
+		if (!mpu_program(n, 0, 0))
+			return;
+	}
+	if (mpu_state.programmed == MPU_NMAP) {
+		mpu_control(ctrl);
+		if (mpu_state.ctrl != ctrl)
+			mpu_disable();
+	}
 }
 
 /*

@@ -37,6 +37,8 @@ routine writes the divider, so a map that closes it faults every division.
 must read the datasheet's eight, and enable must be set only when
 .Va machdep.mpu.programmed
 equals the four regions the kernel's map holds.
+.Va machdep.mpu.ctrl
+must read 0x5 when enabled and zero when disabled.
 .Pp
 Each probe prints one line ending in
 .Dq ok
@@ -75,5 +77,4 @@ failed.
 .Xr sysctl 8
 .Sh CAVEATS
 Each closed probe under an enabled MPU is a real HardFault, and the kernel
-prints its fault frame on the console before killing the child, so a run
-with the MPU on produces three fault reports between the probe lines.
+prints its fault frame on the console before delivering the signal.

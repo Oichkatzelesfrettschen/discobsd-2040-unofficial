@@ -767,6 +767,59 @@ close_node(struct node *n)
 	return error;
 }
 
+#include <sys/seek.h>
+
+void lseek(void);
+
+static void
+check_seek(struct file *fp, int origin, off_t offset, int error, off_t result)
+{
+    fp->f_offset = 19;
+    u.u_ofile[3] = fp;
+    u.u_arg[0] = 3;
+    u.u_arg[1] = offset;
+    u.u_arg[2] = origin;
+    u.u_error = 0;
+    lseek();
+    HK_CHECK(u.u_error == error);
+    HK_CHECK(fp->f_offset == (error ? 19 : result));
+    if (!error)
+        HK_CHECK(u.u_rval == result);
+    u.u_ofile[3] = NULL;
+}
+
+static void
+test_sparse_seek(void)
+{
+    struct inode ip = {0};
+    struct file fp = {0};
+    const off_t end = 3 * DEV_BSIZE + 7;
+
+    fp.f_type = DTYPE_INODE;
+    fp.f_data = (caddr_t)&ip;
+    ip.i_mode = IFREG;
+    ip.i_fs = &mount[0].m_filsys;
+    ip.i_size = end;
+    IADDR_SET(&ip, 1, 10);
+    check_seek(&fp, SEEK_DATA, 5, 0, DEV_BSIZE);
+    check_seek(&fp, SEEK_DATA, DEV_BSIZE + 7, 0, DEV_BSIZE + 7);
+    check_seek(&fp, SEEK_HOLE, DEV_BSIZE + 7, 0, 2 * DEV_BSIZE);
+    check_seek(&fp, SEEK_HOLE, 3, 0, 3);
+    check_seek(&fp, SEEK_DATA, 2 * DEV_BSIZE, ENXIO, 0);
+    IADDR_SET(&ip, 3, 11);
+    check_seek(&fp, SEEK_HOLE, end - 1, 0, end);
+    check_seek(&fp, SEEK_HOLE, end, ENXIO, 0);
+    check_seek(&fp, SEEK_DATA, -1, EINVAL, 0);
+    check_seek(&fp, L_INCR, 0x7fffffffL, EOVERFLOW, 0);
+    check_seek(&fp, L_XTND, -end - 1, EINVAL, 0);
+    check_seek(&fp, L_XTND, 1, 0, end + 1);
+    ip.i_mode = IFCHR;
+    check_seek(&fp, SEEK_DATA, 0, EINVAL, 0);
+    check_seek(&fp, L_SET, -2, 0, -2);
+    fp.f_type = DTYPE_PIPE;
+    check_seek(&fp, SEEK_DATA, 0, ESPIPE, 0);
+}
+
 void fsync(void);
 
 static int
@@ -2731,6 +2784,7 @@ test_flash_reinit_whole_device_caller(void)
 int
 main(void)
 {
+	test_sparse_seek();
 	test_nested_checkpoint_control();
 	test_disk_scheduler_budget();
 	test_unmount_closes_last_user();

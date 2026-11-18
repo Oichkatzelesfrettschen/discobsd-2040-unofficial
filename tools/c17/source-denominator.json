@@ -62898,9 +62898,7 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [
-            "integer-cast"
-          ],
+          "integer": [],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],

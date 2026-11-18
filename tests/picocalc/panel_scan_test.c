@@ -32,7 +32,8 @@
  * READ_US, as st7365p_scan() reads the controller; the cases add the
  * misreads the PicoCalc board returned on 2026-11-18 (one low line at the
  * 255 to 256 and 127 to 128 carries), a high misread, a first sample that
- * is itself a low or a high misread, and two low misreads in sequence. Each case requires the wraps a clean scan
+ * is itself a low or a high misread, two low misreads in sequence, and a
+ * misread on the first read of a frame. Each case requires the wraps a clean scan
  * gives, at the same times.
  */
 #include <stdio.h>
@@ -56,7 +57,7 @@ check(const char *what, unsigned long got, unsigned long want)
 	}
 }
 
-enum { CLEAN, LOW_CARRY, HIGH_CARRY, FIRST_LOW, FIRST_HIGH, LOW_PAIR };
+enum { CLEAN, LOW_CARRY, HIGH_CARRY, FIRST_LOW, FIRST_HIGH, LOW_PAIR, AT_WRAP };
 
 struct result {
 	unsigned wraps, first_us, last_us, rejected, max_line;
@@ -86,6 +87,12 @@ run(int how, struct result *r)
 			line = 0;
 		if (how == FIRST_HIGH && n == 0)
 			line = 511;
+		/* One misread on the first read of a frame, once. */
+		if (how == AT_WRAP && us >= 40000 && pair == 0 &&
+		    true_line != last && true_line == 0) {
+			line = 256;
+			pair = 1;
+		}
 		/* Two reads in sequence misread low, once, in the third frame. */
 		if (how == LOW_PAIR && us >= 40000 && pair < 2 &&
 		    (pair == 1 || (true_line != last && true_line == 256))) {
@@ -154,6 +161,13 @@ main(void)
 	check("low pair: wraps", r.wraps, clean.wraps + 1);
 	check("low pair: last wrap", r.last_us, clean.last_us);
 	check("low pair: rejected", r.rejected, 2);
+
+	/* The wrap the misread fell on is counted from the next sample. */
+	run(AT_WRAP, &r);
+	check("misread at a wrap: wraps", r.wraps, clean.wraps);
+	check("misread at a wrap: first wrap", r.first_us, clean.first_us);
+	check("misread at a wrap: last wrap", r.last_us, clean.last_us);
+	check("misread at a wrap: rejected", r.rejected, 1);
 
 	if (failures) {
 		printf("panel_scan_test: %d failure(s)\n", failures);

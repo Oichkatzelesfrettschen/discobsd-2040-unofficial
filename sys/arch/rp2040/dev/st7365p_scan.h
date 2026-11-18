@@ -41,7 +41,9 @@
  * A sample is the scan's position when it lies from the last position to
  * SCAN_DROP above it. A fall of more than SCAN_DROP is a wrap candidate:
  * the next sample confirms it by continuing from the low line and rejects
- * it by lying anywhere else. A rise of more than SCAN_DROP is rejected
+ * it by lying anywhere else, and a rejecting sample is then judged against
+ * the position before the candidate, so a misread that falls on a wrap
+ * costs one sample of delay and not the wrap. A rise of more than SCAN_DROP is rejected
  * unless the next sample continues from it, which returns a track that
  * two equal misreads moved to the scan's position. The track begins only
  * when two samples in sequence agree, so a misread first sample is not
@@ -55,6 +57,7 @@
 struct scan_track {
 	unsigned int	prev;		/* The scan's position. */
 	unsigned int	up;		/* The last rejected rise. */
+	unsigned int	from;		/* The position before a candidate. */
 	unsigned int	cand_us;	/* Time of the wrap candidate. */
 	unsigned int	wrap_us;	/* Time of the last confirmed wrap. */
 	unsigned int	rejected;	/* Samples off the position. */
@@ -81,21 +84,26 @@ scan_step(struct scan_track *tr, unsigned int line, unsigned int us)
 		return 0;
 	}
 	if (tr->cand) {
-		int wrap = line >= tr->prev && line <= tr->prev + SCAN_DROP;
-
 		tr->cand = 0;
-		tr->prev = line;
-		tr->at = (unsigned char)wrap;
-		if (wrap)
+		if (line >= tr->prev && line <= tr->prev + SCAN_DROP) {
+			tr->prev = line;
+			tr->at = 1;
 			tr->wrap_us = tr->cand_us;
-		else
-			tr->rejected++;
-		return wrap;
+			return 1;
+		}
+		/*
+		 * The candidate was a misread. The position before it stands,
+		 * and this sample is judged against that: it may itself be the
+		 * fall of a wrap the misread fell on.
+		 */
+		tr->rejected++;
+		tr->prev = tr->from;
 	}
 	if (line + SCAN_DROP < tr->prev) {
 		tr->cand = 1;
 		tr->cand_us = us;
 		tr->rose = 0;
+		tr->from = tr->prev;
 		tr->prev = line;
 		return 0;
 	}

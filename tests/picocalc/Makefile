@@ -93,7 +93,8 @@
 #
 # panel_scan_test runs the GSCAN wrap rule (st7365p_scan.h) over a modeled
 # scan with the misreads the board returned at the line counter's carries;
-# six mutants of the header (a candidate confirmed by any sample, a rise
+# seven mutants of the header (a candidate confirmed by any sample, a
+# rejected candidate that takes the wrap it fell on with it, a rise
 # taken as the position, a track that never returns from two equal
 # misreads, a wrap timed at its confirming sample, a rejected sample
 # reported as the position, a track begun on an unconfirmed sample) must
@@ -205,7 +206,9 @@ PS_MUT=		@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD} ${SAN}" "${DEV}" \
 
 .PHONY: panel-scan-mutants
 panel-scan-mutants:
-	${PS_MUT} 's/int wrap = line >= tr->prev \&\& line <= tr->prev + SCAN_DROP;/int wrap = 1;/' \
+	${PS_MUT} 's/if (line >= tr->prev \&\& line <= tr->prev + SCAN_DROP) {/if (1) {/' \
+	    st7365p_scan.h
+	${PS_MUT} 's/tr->prev = tr->from;/tr->prev = line; return 0;/' \
 	    st7365p_scan.h
 	${PS_MUT} 's/if (line > tr->prev + SCAN_DROP) {/if (0) {/' \
 	    st7365p_scan.h

@@ -1410,6 +1410,36 @@ A failure on a revision containing both barriers requires investigation of
 that revision's dependency paths. These host gates leave ARM execution,
 emulator behavior and board observations to their separate tests.
 
+### Userland layout options
+
+`check-userland-layout-flags` is a host gate. `share/mk/sys.mk` passes
+`KERNEL_LAYOUT_CFLAGS` to every target program, and one root image serves
+all six kernels, so each definition in it has to be a live `options` line
+with the same value in every Config of `MACHINE_KERNEL_CONFIGS`.
+`tools/check_userland_layout_flags.py` reads the flags as `lib/` expands
+them and parses only live `options` lines, so a comment such as
+"SINGLE_UFS_ROOT (which needs NMOUNT=1) is not set" is not read as the
+option. It also fails when a C, header, lex or yacc source under the
+userland directories (`SUBDIR` of the root Makefile) names `NMOUNT` or
+`SINGLE_UFS_ROOT` outside a comment or a string or character literal; a
+literal is read before a comment can open, so a `/*` or `//` inside one
+hides no code. An empty flag list, a Config without
+options lines and an empty source scan are errors (status 2).
+
+The self-test passes the shared options and rejects an option missing from
+one Config, a value that differs, a token that is not a definition and a
+userland source testing either name, including one after a comment
+opener inside a string, and passes a comment or a string that mentions one. Against the six Configs, the flags of 6311a1089
+(`-DSINGLE_UFS_ROOT -DNMOUNT=1` beside the shared three) fail with six
+defects: the option absent from, and `NMOUNT=3` in, each PicoCalc Config.
+
+The claim is the flag list and the source names. A clean build of the tree
+before and after the two flags left the build, with one `SOURCE_DATE_EPOCH`,
+changed one of 1,686 installed files: `sbin/mkfs`, whose scratch
+`struct inode` grew by `i_dev` and `i_fs` (bss +8 bytes, `bflist` text +4).
+The gate establishes nothing about programs that read kernel structures
+through `/dev/kmem` without naming either option.
+
 ### The kernel's printf, and why it needs a narrower host
 
 `check-kernel-ilp32` is separate from `check-kernel` for selected files

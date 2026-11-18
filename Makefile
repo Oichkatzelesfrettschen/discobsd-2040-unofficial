@@ -1537,6 +1537,21 @@ check-config-generated-sync: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/check_generated_sync.py --root ${TOPSRC} --make ${MAKE}
 
+# One root image serves every RP2040 kernel, so share/mk/sys.mk gives target
+# programs only the layout options all of them share.
+# tools/check_userland_layout_flags.py reads KERNEL_LAYOUT_CFLAGS as lib/
+# expands it, requires each definition in every Config of
+# MACHINE_KERNEL_CONFIGS with the same value, and fails when a userland source
+# names NMOUNT or SINGLE_UFS_ROOT.
+check-userland-layout-flags: check-python
+		${PYTHON} tools/check_userland_layout_flags.py --self-test
+		${PYTHON} tools/check_userland_layout_flags.py \
+		    --flags "$$(${MAKE} -C lib MACHINE=rp2040 -V KERNEL_LAYOUT_CFLAGS)" \
+		    --root ${TOPSRC:Q} --sources ${SUBDIR} \
+		    --configs ${MACHINE_KERNEL_CONFIGS:@c@sys/arch/rp2040/compile/${c}/Config@}
+
+.PHONY: check-userland-layout-flags
+
 check-config-include-order: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/check_include_order.py --root ${TOPSRC} --make ${MAKE}
 
@@ -1965,6 +1980,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
+		check-userland-layout-flags \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
 		check-signal-traps

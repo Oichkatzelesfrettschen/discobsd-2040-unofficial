@@ -10,8 +10,19 @@ OSrev=		${OSMAJOR}${OSMINOR}
 DESTDIR?=	${TOPSRC}/distrib/obj/destdir.${MACHINE}
 RELEASE=	${OSREV}
 # The -- keeps HEAD a revision in a directory that holds a file named head
-# (usr.bin/head after a build) on a case-insensitive filesystem.
-BUILD!=		git rev-list --count HEAD --
+# (usr.bin/head after a build) on a case-insensitive filesystem. The count
+# comes only from a repository rooted at TOPSRC: a source export has none,
+# and one unpacked beneath an unrelated work tree would otherwise report
+# that tree's count. Only that absence selects 0, as it does in
+# sys/conf/newvers.sh; a repository that is present and cannot be counted
+# keeps git's diagnostic and make's warning, and leaves BUILD empty. The
+# variables that select another repository are cleared for the count, so
+# a caller's GIT_DIR cannot name the build.
+# tools/check_version_outside_git.sh holds both readers to this.
+BUILD!=		if test -e ${TOPSRC:Q}/.git; then \
+		    (unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE; \
+		     git -C ${TOPSRC:Q} rev-list --count HEAD --); \
+		else echo 0; fi
 VERSION=	${RELEASE}-${BUILD}
 
 include ${TOPSRC}/share/mk/source-date.mk

@@ -1401,6 +1401,19 @@ check-hsx-decoder:	check-python
 check-config-makefile:
 		${MAKE} -C tools/config check
 
+# A source export has no repository, so the commit count that names a build
+# is 0 there. tools/check_version_outside_git.sh expands VERSION through
+# share/mk/sys.mk and runs sys/conf/newvers.sh on a copy of the tested files,
+# once where no repository answers and once beneath an unrelated one-commit
+# repository, requires a present but uncountable repository to be reported
+# and not counted as 0, then requires the same checks to reject the count
+# commands in their unguarded form and in a form that searches parent
+# directories.
+check-version-outside-git:
+		sh tools/check_version_outside_git.sh ${TOPSRC:Q} ${MAKE:Q}
+
+.PHONY: check-version-outside-git
+
 check-agent-instructions: check-python
 		${PYTHON} -B tools/agent_instructions_test.py
 		${PYTHON} -B tools/check_agent_instructions.py --root ${TOPSRC}
@@ -1910,6 +1923,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
 		check-clifford-t \
 		check-kernel-headroom-validator check-hot-layout-validator \
+		check-version-outside-git \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \

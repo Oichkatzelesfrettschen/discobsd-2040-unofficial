@@ -1312,6 +1312,42 @@ comments calibrate the non-blocking side. A successful empty selection prints
 `changed_comments=0`; rule violations return `FAIL` (status 1), and missing or
 unreliable evidence returns `ERROR` (status 2).
 
+### Build number outside a git checkout
+
+`check-version-outside-git` is a host gate. `share/mk/sys.mk` counts the
+commits of HEAD into `BUILD`, and `sys/conf/newvers.sh` stamps the same
+count into the kernel version string. Both take the count only from a
+repository rooted at the source tree, so a source export, which carries
+none, reports 0 wherever it is unpacked. The gate copies `share/mk`,
+`lib/Makefile` and `newvers.sh` from the tested tree into two private
+placements: one where no repository answers (`GIT_CEILING_DIRECTORIES`
+bounds the search), and one beneath an unrelated repository of one commit.
+In each it requires `VERSION` to expand to the release followed by `-0`,
+the version string's revision field to be 0, and nothing on standard error
+from either reader.
+
+Only the absence of a repository selects 0. A third placement gives the
+copy an empty `.git` file, a repository that is present and cannot be
+counted: there `VERSION` must not end in `-0`, make must pass git's
+diagnostic on, and `newvers.sh` must fail with it. A fourth gives the copy
+its own repository of two commits and runs both readers with `GIT_DIR`
+naming a one-commit repository elsewhere: the number must be 2. The fixture
+repositories are made without the user's templates, hooks or signing
+configuration.
+
+Two controls rewrite the count commands in further copies. The unguarded
+command in the first placement has to raise at least three defects: an
+empty build number and the git diagnostic from each reader. A command that
+silences git and falls back to 0 without binding the repository to the
+source tree has to raise exactly two in the second placement, the outer
+repository's count of 1 in each reader.
+
+The claim is the expansion and the generated string for an export of the
+tested files. It establishes no build of an exported tree, and the date
+readers (`share/mk/source-date.mk` and the `HEAD_EPOCH` lookup of
+`newvers.sh`) still search parent directories for a repository; they are
+outside this gate.
+
 ### Production configuration generation and include ordering
 
 `check-config-generated-sync` builds `tools/config` from the tested source

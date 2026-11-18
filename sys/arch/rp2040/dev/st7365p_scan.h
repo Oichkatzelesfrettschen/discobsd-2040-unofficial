@@ -108,12 +108,12 @@ scan_step(struct scan_track *tr, unsigned int line, unsigned int us)
 		return 0;
 	}
 	if (line > tr->prev + SCAN_DROP) {
-		tr->rejected++;
 		if (tr->rose && line >= tr->up && line <= tr->up + SCAN_DROP) {
 			tr->rose = 0;
 			tr->prev = line;
 			tr->at = 1;
 		} else {
+			tr->rejected++;
 			tr->rose = 1;
 			tr->up = line;
 		}

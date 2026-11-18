@@ -93,7 +93,11 @@ struct picocalc_panel_read {
  * dummy clock first), lies more than 64 below the one before and whose
  * successor continues from it; a single sample off the scan's position is
  * a misread of the moving counter and counts as rejected (st7365p_scan()).
- * A decoded line of 2048 or more counts as bad and is skipped. Times are
+ * A decoded line of 2048 or more counts as bad and is skipped.
+ *
+ * Both structures are read whole by paneltest, which is built from the
+ * same tree as the kernel and ships in the same root image; neither is a
+ * versioned interface, and a paneltest of another revision gets ENOMEM. Times are
  * microseconds from the first read; a wrap's time is that of the sample
  * that saw it, so it lags the wrap by at most max_gap_us. raw_max is the
  * largest raw 24-bit reply among the samples taken as the scan's position, so a reader can decode

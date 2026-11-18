@@ -160,7 +160,8 @@ main(void)
 	run(LOW_PAIR, &r);
 	check("low pair: wraps", r.wraps, clean.wraps + 1);
 	check("low pair: last wrap", r.last_us, clean.last_us);
-	check("low pair: rejected", r.rejected, 2);
+	/* The first sample back on the scan; its successor is accepted. */
+	check("low pair: rejected", r.rejected, 1);
 
 	/* The wrap the misread fell on is counted from the next sample. */
 	run(AT_WRAP, &r);

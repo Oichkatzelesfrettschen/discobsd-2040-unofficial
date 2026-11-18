@@ -75,6 +75,14 @@ production adapter's 256-byte subprograms. Arbitrary electrical corruption,
 repeated interruptions without an intervening successful checkpoint,
 filesystem mounting and board power cuts require separate evidence.
 
+Successive cuts on the same full image can exhaust the backward checkpoint
+search even after the single-cut repair. The successor review records eight
+successful cuts and a ninth failed resume. A recognized journal with no
+valid root now refuses to open before publishing capacity or issuing a
+write. Recovering past the bound and choosing what to do with nonblank
+media with no identifiable checkpoint remain separate.
+[Successor review](residual-review.md)
+
 `check-flash-reset-cells` covers the processor-reset cells of the checkpoint
 driver (every chip command and byte prefix of one page program or sector
 erase); the two oracles overlap in the question but differ in operation scope

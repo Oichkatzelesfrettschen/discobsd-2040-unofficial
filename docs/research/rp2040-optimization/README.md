@@ -8,6 +8,8 @@ states its evidence class; the closeout record
 [`../kernel-footprint-pr435-closeout.md`](../kernel-footprint-pr435-closeout.md)
 holds the disposition of every mechanism of the superseded PR #435 branch and
 the measurements that decide which of them are open.
+[The successor review](residual-review.md) reconciles that historical ledger
+against later work on main and orders the remaining validation.
 
 The program optimizes correctness and recoverability first, then RAM, kernel
 flash, packed-root storage and flash wear. Extra cycles are acceptable when

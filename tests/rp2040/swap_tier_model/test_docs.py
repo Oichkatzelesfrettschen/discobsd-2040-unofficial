@@ -33,11 +33,58 @@ def find(path, pattern):
     return match
 
 
-def define(path, name):
-    match = re.search(rf"#define\s+{name}\s+\(?(\d+)", text(path))
-    if match is None:
+def define(path, name, defined=frozenset()):
+    """The numeric value of NAME in the arm a build with only DEFINED set
+    compiles. #ifdef, #ifndef, #else and #endif are followed, and so is an
+    #if of a number or of a macro the file has already given a number; any
+    other #if around a definition of NAME is an error, so the reading never
+    guesses which arm a kernel takes."""
+    stack = []  # (taking, any arm taken, decidable) per open conditional
+    numbers = {}  # macros given a number in a live arm so far
+    value = None
+    for line in text(path).splitlines():
+        directive = re.match(r"\s*#\s*(\w+)\s*(\w*)", line)
+        if directive is None:
+            continue
+        word, argument = directive.groups()
+        live = all(taking for taking, _, _ in stack)
+        if word in ("ifdef", "ifndef"):
+            taking = (argument in defined) == (word == "ifdef")
+            stack.append((taking, taking, True))
+        elif word == "if":
+            condition = line.split("if", 1)[1].split("/*", 1)[0].strip()
+            if condition.isdigit() or condition in numbers:
+                taking = int(numbers.get(condition, condition or 0)) != 0
+                stack.append((taking, taking, True))
+            else:
+                stack.append((False, False, False))
+        elif word == "elif":
+            _, taken, _ = stack.pop()
+            stack.append((False, True, False))
+        elif word == "else":
+            _, taken, decidable = stack.pop()
+            stack.append((not taken, True, decidable))
+        elif word == "endif":
+            stack.pop()
+        elif word == "define" and live:
+            number = re.match(rf"\s*#\s*define\s+{argument}\s+\(?(\d+)", line)
+            if number is not None:
+                numbers[argument] = int(number.group(1))
+        if word == "define" and argument == name:
+            if not all(decidable for _, _, decidable in stack):
+                raise AssertionError(f"{path.name}: #define {name} under an #if")
+            match = re.match(rf"\s*#\s*define\s+{name}\s+\(?(\d+)", line)
+            if live and match is not None:
+                value = int(match.group(1))
+    if value is None:
         raise AssertionError(f"{path.name}: no #define {name}")
-    return int(match.group(1))
+    return value
+
+
+def test_define_follows_the_configured_arm():
+    flash_h = TOP / "sys" / "arch" / "rp2040" / "dev" / "flash.h"
+    assert define(flash_h, "FLASH_FS_OFFSET") == 128
+    assert define(flash_h, "FLASH_FS_OFFSET", {"PICOCALC_SD"}) == 160
 
 
 def test_endurance_and_erase_time():

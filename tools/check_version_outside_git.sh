@@ -239,8 +239,10 @@ if verdict "$tree" > "$WORK/unguarded.out"; then
 	die "the unguarded control was accepted"
 fi
 count=$(wc -l < "$WORK/unguarded.out" | tr -d ' ')
-[ "$count" -ge 3 ] ||
-    die "the unguarded control raised $count defects, expected at least 3"
+[ "$count" -ge 3 ] || {
+	sed 's/^/  /' "$WORK/unguarded.out" >&2
+	die "the unguarded control raised $count defects, expected at least 3"
+}
 echo "PASS version-outside-git control: the unguarded count is rejected ($count defects)"
 
 # Control: a silenced command with a fallback that still searches parents.
@@ -251,8 +253,9 @@ if verdict "$tree" > "$WORK/unbounded.out"; then
 	die "the unbounded control was accepted"
 fi
 count=$(wc -l < "$WORK/unbounded.out" | tr -d ' ')
-[ "$count" -eq 2 ] ||
-    die "the unbounded control raised $count defects, expected 2"
-grep -q "VERSION is '.*-1'" "$WORK/unbounded.out" ||
-    die "the unbounded control did not report the outer repository's count"
+if [ "$count" -ne 2 ] ||
+    ! grep -q "VERSION is '.*-1'" "$WORK/unbounded.out"; then
+	sed 's/^/  /' "$WORK/unbounded.out" >&2
+	die "the unbounded control raised $count defects, expected the outer repository's count (1) in each reader"
+fi
 echo "PASS version-outside-git control: a parent repository's count is rejected ($count defects)"

@@ -200,6 +200,10 @@ jobs:
             -- bmake MACHINE=rp2040 check-kernel-headroom \
             check-dump-writer-link
 
+      - name: Verify MPU startup and reported permissions in the linked kernels
+        timeout-minutes: 5
+        run: bmake MACHINE=rp2040 check-mpu-startup
+
       - name: Build the flash image
         timeout-minutes: 15
         run: |

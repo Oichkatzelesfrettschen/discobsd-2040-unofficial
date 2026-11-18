@@ -212,7 +212,13 @@ jobs:
 
       - name: Replay the full PicoCalc panel register programs
         timeout-minutes: 2
-        run: bmake MACHINE=rp2040 check-panel-programs
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-panel-programs \
+            --log .build-logs/linux-panel-programs.log \
+            --status .build-logs/linux-panel-programs.status.json \
+            --idle-timeout-seconds 60 --timeout-seconds 90 \
+            -- bmake MACHINE=rp2040 check-panel-programs
 
       - name: Build the flash image
         timeout-minutes: 15
@@ -525,7 +531,13 @@ jobs:
       - name: Boot the expanded PicoCalc SD system
         if: env.FULL_GATES == 'true'
         timeout-minutes: 25
-        run: bmake MACHINE=rp2040 check-renode-picocalc-sd-system
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-renode-picocalc-sd-system \
+            --log .build-logs/linux-renode-picocalc-sd-system.log \
+            --status .build-logs/linux-renode-picocalc-sd-system.status.json \
+            --idle-timeout-seconds 300 --timeout-seconds 1440 \
+            -- bmake MACHINE=rp2040 check-renode-picocalc-sd-system
 
       # savecore ships in the picocalc profile, so the crash-dump tier boots
       # the PICOCALC board's root image.

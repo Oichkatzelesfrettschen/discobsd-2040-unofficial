@@ -332,8 +332,10 @@ link(void)
     }
     ip->i_nlink++;
     ip->i_flag |= ICHG;
-    iupdat(ip, &time, &time, 1);
+    u.u_error = iupdat(ip, &time, &time, 1);
     iunlock(ip);
+    if (u.u_error)
+        goto out;
     NAMEI_INIT_USER(ndp, CREATE, NOFOLLOW, uap->linkname);
     xp = namei(ndp);
     if (xp != NULL) {
@@ -1372,8 +1374,10 @@ rename(void)
      */
     ip->i_nlink++;
     ip->i_flag |= ICHG;
-    iupdat(ip, &time, &time, 1);
+    error = iupdat(ip, &time, &time, 1);
     iunlock(ip);
+    if (error)
+        goto out;
 
     /*
      * When the target exists, both the directory
@@ -1451,7 +1455,12 @@ rename(void)
 #endif
             dp->i_nlink++;
             dp->i_flag |= ICHG;
-            iupdat(dp, &time, &time, 1);
+            error = iupdat(dp, &time, &time, 1);
+            if (error) {
+                dp->i_nlink--;
+                dp->i_flag |= ICHG;
+                goto bad;
+            }
         }
         error = direnter(ip, ndp);
         if (error)
@@ -1600,6 +1609,8 @@ bad1:
     if (xp)
         iput(xp);
 out:
+    if (doingdirectory)
+        ip->i_flag &= ~IRENAME;
     ip->i_nlink--;
     ip->i_flag |= ICHG;
     irele(ip);

@@ -147,9 +147,11 @@ meter_tick(long second, unsigned events, int fifth)
 	METER_CASES(CHECK)
 #undef CHECK
 
-	HK_CHECK(avenrun[0] == (fifth ? 21 : 0));
-	HK_CHECK(avenrun[1] == (fifth ? 5 : 0));
-	HK_CHECK(avenrun[2] == (fifth ? 2 : 0));
+	/* One sample of one runnable process from zero: 256 * (1 - exp(-1/T)) is
+	 * 20.47, 4.23 and 1.42 for T of 12, 60 and 180, rounded to nearest. */
+	HK_CHECK(avenrun[0] == (fifth ? 20 : 0));
+	HK_CHECK(avenrun[1] == (fifth ? 4 : 0));
+	HK_CHECK(avenrun[2] == (fifth ? 1 : 0));
 	allproc = 0;
 }
 

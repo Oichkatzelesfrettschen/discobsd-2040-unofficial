@@ -309,25 +309,47 @@ vmmeter(void)
 }
 
 /*
- * Compute the Tenex-style load average without floating point. The fixed-point
- * algebra keeps the kernel independent of a floating-point runtime.
- *
- * "floating point" numbers here are stored in a 16 bit short, with 8 bits on
- * each side of the decimal point.  Some partial products will have 16 bits to
- * the right.
+ * Load averages over 1, 5 and 15 minutes, sampled every 5 seconds (12, 60 and
+ * 180 samples), as exponential decays toward n, the number of runnable
+ * processes, without floating point. Each average keeps LOADAV_FSHIFT
+ * fraction bits in loadav_fixed; the decay factor exp(-1/T) has LOADAV_CSHIFT
+ * bits. A step sets the average's distance from n to that distance times the
+ * factor, truncated toward n, so a held load reaches n exactly; eight bits
+ * truncated downward left a load of 1 at 244/256, 205/256 and 129/256.
+ * avenrun keeps the 2.11BSD scale of 256 that sysctl, getloadavg and w read,
+ * rounded to nearest.
  */
-static void
-loadav (register short *avg, register int n)
-{
-    register int    i;
-    static const long cexp[3] = {
-        0353,   /* 256 * exp(-1/12)  */
-        0373,   /* 256 * exp(-1/60)  */
-        0376,   /* 256 * exp(-1/180) */
-    };
+#define LOADAV_FSHIFT	14
+#define LOADAV_CSHIFT	13
+_Static_assert(((unsigned long long)NPROC << LOADAV_FSHIFT) *
+    ((1ULL << LOADAV_CSHIFT) - 1) <= 0xffffffffULL,
+    "a full process table's distance times the factor fits 32 bits");
 
-    for (i = 0; i < 3; i++)
-        avg[i] = (cexp[i] * (avg[i]-(n<<8)) + (((long)n)<<16)) >> 8;
+static u_int loadav_fixed[3];
+
+static void
+loadav (short *avg, int n)
+{
+    static const u_int cexp[3] = {
+        7537,   /* 8192 * exp(-1/12)  */
+        8057,   /* 8192 * exp(-1/60)  */
+        8147,   /* 8192 * exp(-1/180) */
+    };
+    u_int target = (u_int)n << LOADAV_FSHIFT;
+    u_int distance;
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        if (loadav_fixed[i] >= target) {
+            distance = (loadav_fixed[i] - target) * cexp[i] >> LOADAV_CSHIFT;
+            loadav_fixed[i] = target + distance;
+        } else {
+            distance = (target - loadav_fixed[i]) * cexp[i] >> LOADAV_CSHIFT;
+            loadav_fixed[i] = target - distance;
+        }
+        avg[i] = (short)((loadav_fixed[i] + (1U << (LOADAV_FSHIFT - 9))) >>
+            (LOADAV_FSHIFT - 8));
+    }
 }
 
 void

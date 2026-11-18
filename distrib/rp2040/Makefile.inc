@@ -261,6 +261,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/distrib/rp2040/boardlibc-members \
 				${TOPSRC}/include/string.h \
 				${TOPSRC}/include/stdio.h \
+				${TOPSRC}/sys/sys/seek.h \
 				${TOPSRC}/include/time.h \
 				${TOPSRC}/include/tzfile.h \
 				${TOPSRC}/include/_featuretest.h \

@@ -148,6 +148,13 @@ mutate "$flash" "$work/flash-any-opener.c" \
 build "$work/flash-any-opener.c" "$work/oracle-any-opener"
 rejects "$work/oracle-any-opener" idle-checkpoint
 
+# A recognized corrupt checkpoint must fail the open before publishing a map.
+mutate "$flash" "$work/flash-ignore-corrupt.c" \
+	'	    err == DHARA_E_CORRUPT_MAP) {' \
+	'	    err == DHARA_E_NONE) {'
+build "$work/flash-ignore-corrupt.c" "$work/oracle-ignore-corrupt"
+rejects "$work/oracle-ignore-corrupt" corrupt-checkpoint
+
 # A close that ignores the unit and the open history checkpoints for a reader.
 mutate "$flash" "$work/flash-any-close.c" \
 	'	if (unit == FL_UNIT_SWAP || written == 0)
@@ -186,7 +193,7 @@ mutate "$test_source" "$work/model-program.c" \
 build "$flash" "$work/oracle-model-program" "$work/model-program.c"
 rejects "$work/oracle-model-program" model-range
 
-echo "flash_checkpoint: PASS (reset, checkpoint, group fill, flush without" \
+echo "flash_checkpoint: PASS (reset, checkpoint, group fill, corrupt checkpoint, flush without" \
 	"a write, wear bound, idle checkpoint; per-request, missing-ioctl," \
-	"no-op checkpoint, read-only-opener, any-close, unrecorded-writer and swap-range model mutations" \
+	"no-op checkpoint, ignored corruption, read-only-opener, any-close, unrecorded-writer and swap-range model mutations" \
 	"rejected)"

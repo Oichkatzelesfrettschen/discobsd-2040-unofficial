@@ -256,19 +256,10 @@ PYTHON?=
 MKBOARDLIBC=	${TOPSRC}/distrib/rp2040/mkboardlibc.py
 BOARDLIBC_WORK=	${TOPSRC}/distrib/obj/boardlibc.${MACHINE}
 
-# Matches share/mk/sys.mk's own GCCPREFIX branch for MACHINE_ARCH=arm: the
-# top-level Makefile does not include sys.mk, so this repeats the same
-# per-host-OS lookup rather than assuming the Linux path.
-_HOST_OSNAME!=	uname -s
-BOARDLIBC_GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
-			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
-		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
-			echo "/usr/local/bin/arm-none-eabi" ; \
-		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
-			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \
-		else \
-			echo "/usr/bin/arm-none-eabi" ; \
-		fi
+# The top-level Makefile does not include sys.mk, so the board libc takes the
+# toolchain prefix from the fragment sys.mk includes.
+include ${TOPSRC}/share/mk/arm-toolchain.mk
+BOARDLIBC_GCCPREFIX=	${ARM_TOOLCHAIN_PREFIX}
 
 ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/compat/memchr.c \

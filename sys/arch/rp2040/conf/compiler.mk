@@ -1,20 +1,8 @@
-# GCC arm-none-eabi toolchain: the one on PATH (Homebrew on macOS), else
-# the packaged path on OpenBSD, FreeBSD, and Linux
+# GCC arm-none-eabi toolchain: the prefix share/mk/arm-toolchain.mk finds.
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-_HOST_OSNAME!=	uname -s
-
-ARM_GCC_PREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
-			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
-		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
-			echo "/usr/local/bin/arm-none-eabi" ; \
-		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
-			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \
-		elif [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
-			echo "/usr/bin/arm-none-eabi" ; \
-		else \
-			echo "/does/not/exist" ; \
-		fi
+include		${TOPSRC}/share/mk/arm-toolchain.mk
+ARM_GCC_PREFIX=	${ARM_TOOLCHAIN_PREFIX}
 
 _AS=		-gcc
 _CC=		-gcc

@@ -1,5 +1,11 @@
 # C17/POSIX expansion program state
 
+This document corrects the capture kept beside it as
+`c17-posix-program-state.md.BAK`. The statements about PRs 560, 562, 563,
+564, 565 and 598 were read again on 2026-11-18 at main `bff303aae` and name
+their merge commits; every other sentence stands as captured at the
+observation time below and was not read again.
+
 The observation time is 2026-11-15 21:40 UTC. Owned remote main is
 `0f077fcac6f09553754b72fd5feea108de96b6bf`. The canonical checkout is clean
 on that revision. The owner requests a final handoff and explicitly requests
@@ -14,8 +20,10 @@ retain their individual denominators and source identities.
 ## Delivery and accounting
 
 The verified PR cohort consists of `codex/*` heads numbered 454 through 598,
-targeting this repository's main branch. It contains 38 PRs: 32 merged and six
-open drafts. Every listed merge commit is reachable from the observed main.
+targeting this repository's main branch. It contains 38 PRs. At the capture 32 were
+merged and six were open drafts; all six have merged since (the integration
+queue below gives each merge commit). Every listed merge commit is reachable
+from the observed main.
 The count excludes concurrent board, storage, calendar and host-tool PRs with
 other branch prefixes. It counts integration units, not 32 new standards
 capabilities. Full PR metadata and file lists remain in the local evidence
@@ -167,11 +175,12 @@ Smaller C inputs. Exact target sizes, offsets, types and preserved caller
 resources accompany these units. Smaller C's missing C99 `_Bool` parser support
 remains explicit; accepted legacy inputs do not imply native C17 support.
 
-Open PR 564 owns canonical time/signal scalar and structure definitions.
+PR 564 (merged, `e5df83945`) owns canonical time/signal scalar and structure
+definitions.
 It repairs standalone completeness while preserving wide, narrow, kernel and
-native layouts and compiler linkage aliases. Open PR 563 owns dependency-free
-FD_ZERO stores and the getty caller initialization repair. Neither is a
-mainline delivery at this snapshot; both have merge conflicts.
+native layouts and compiler linkage aliases. PR 563 (merged, `c889b1fcd`) owns
+dependency-free FD_ZERO stores and the getty caller initialization repair.
+Both were open with merge conflicts at the capture.
 
 The fresh installation audit examines 157 distinct installed header paths
 under six selectors, for 942 standalone compiler cases. All six modes accept
@@ -180,8 +189,8 @@ rejections calibrate compiler observation. The independent installer comparison
 finds two readline headers outside `include/Makefile`, whose own set contains
 155 paths. The complete observed default exposure contains 688 C names: 567
 functions and 121 objects. These are discovery counts, not selected libc APIs.
-The fresh sweep uses the default time view; pending PR 562 supplies both time
-views for its root-only denominator.
+The fresh sweep uses the default time view; PR 562 (merged, `99087f00a`) supplies both
+time views for its root-only denominator.
 
 The audit records 90 names with multiple type spellings across contexts.
 Many arise from the installed kernel dispatch header, for example its
@@ -191,7 +200,8 @@ standalone headers retain unresolved include/context contracts. C17 syntax
 acceptance does not supply complete signatures, attributes, object layout,
 namespace conformance, native acceptance or behavior.
 
-Open PR 562 already provides a substantially stronger reusable root census:
+PR 562 (merged, `99087f00a`) provides a substantially stronger reusable root
+census:
 54 tracked roots, 53 installed root names, four selectors, two time views,
 448 compiler cases, linkage-name-aware provider matching, transitive hashes
 and standalone/combined exposure union. Reuse and extend that instrument for
@@ -306,7 +316,7 @@ shipped mode. The following prerequisites have merged:
   public address expressions retain canonical slots while eligible local calls
   can retain direct implementation references.
 
-Open PR 598 adds exact extents to the four integer-divider aliases. Production
+PR 598 (merged, `de0244209`) adds exact extents to the four integer-divider aliases. Production
 extents are 32/60 bytes; model extents are 38/66 bytes and exclude literal pools.
 Six metadata controls join nine existing instruction-window controls. Arithmetic
 execution performs 480,800 comparisons and 356,220 modeled steps, rejecting
@@ -321,8 +331,9 @@ still awaits its separate model/task decision.
 The fixed reservation is 49,152 bytes immediately after the 131,072-byte kernel.
 The integrated historical calendar envelope occupies 62,396 flash bytes. The
 merged factored-error envelope occupies 61,244 flash bytes and 5,344 writable
-bytes, still 12,092 flash bytes over budget before slots. Open PR 565's newer
-449-member, 647-root replay occupies 62,604 flash bytes and 5,648 writable bytes,
+bytes, still 12,092 flash bytes over budget before slots. The newer
+449-member, 647-root replay of PR 565 (merged, `ea17e4c06`) occupies
+62,604 flash bytes and 5,648 writable bytes,
 including 1,836 initialized bytes: 13,452 flash bytes over budget before slots.
 These are different source/flag/root envelopes; their differences do not isolate
 one mechanism's cost. Dropping memmem saves 456 bytes in a rejection control
@@ -414,7 +425,8 @@ wide-time views/wrappers, calendar functions, mktime transition and negative
 epoch repairs, unsigned stored-time interpretation, image tools and typed
 program consumers. These supply the baseline used by the later native-linker
 and XIP measurements. They are not all merges of this PR cohort. Public
-time/signal type ownership still waits in PR 564.
+time/signal type ownership waited in PR 564 at the capture and landed with its
+merge (`e5df83945`).
 
 Fresh archive inspection supplies mktime, timegm, gettimeofday, times, sleep
 and usleep. It supplies no strptime, clock, timespec_get, clock_gettime,
@@ -467,9 +479,9 @@ the current builtin table and implementation carry authority.
 
 Whole shell-language closure, utility error/operand/environment semantics,
 every selected libc caller, multicall repeated invocation and complete resource
-admission remain open. Open PR 560 repairs the namespace checker's omitted
-CoreMark source family; it reports 40 checked programs versus its earlier 39.
-Its changes are not merged. The 34 shipped resource records supply a different
+admission remain open. PR 560 (merged, `7ab192857`) repairs the namespace
+checker's omitted CoreMark source family; it reports 40 checked programs versus
+its earlier 39. Its changes were unmerged at the capture. The 34 shipped resource records supply a different
 denominator and must not be substituted for source-namespace coverage.
 
 The profile preserves filesystem, terminal, signal, networking, realtime,
@@ -552,16 +564,20 @@ for its metadata-only delta. Main's full current aggregate is not rerun for
 this handoff. Physical-board execution and the shared-libc 10% workloads remain
 unrun in this program. No job launched for this handoff remains active.
 
-## Open integration queue
+## Integration queue at the capture, and its outcome
 
-| PR | Exact remote head | Mergeability | Remaining action |
-| --- | --- | --- | --- |
-| [#560](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/560) | `c3ff7844d9de` | clean | CoreMark/benchmarks namespace source coverage; refresh and validate the actual selected closure. |
-| [#562](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/562) | `1b4a01266fcd` | clean | Reusable root declaration/linkage census; extend it instead of creating a second census. |
-| [#563](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/563) | `34b326501fab` | dirty | FD_ZERO and getty initialization; resolve conflicts and confirm the exact packed-growth exception (+3 gamebox, +2 coil, +4 fourfall). |
-| [#564](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/564) | `801194c98736` | dirty | Canonical public time/signal types; resolve conflicts and retain zero-growth/layout/linkage witnesses. |
-| [#565](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/565) | `11b14a1c7ec0` | clean | Captured 449-member PIC replay; preserve the 13,452-byte excess and finish API/size decisions. |
-| [#598](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/598) | `85089634a933` | clean | Four divider extents; CI passes at 85089634; bounded source-review decision remains pending. |
+The table keeps the queue as captured. The last column was read on
+2026-11-18: each PR is merged at the commit named. Whether the work in a
+row's remaining action was completed inside that merge was not read again.
+
+| PR | Exact remote head | Mergeability | Remaining action | Merged |
+| --- | --- | --- | --- | --- |
+| [#560](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/560) | `c3ff7844d9de` | clean | CoreMark/benchmarks namespace source coverage; refresh and validate the actual selected closure. | `7ab192857` |
+| [#562](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/562) | `1b4a01266fcd` | clean | Reusable root declaration/linkage census; extend it instead of creating a second census. | `99087f00a` |
+| [#563](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/563) | `34b326501fab` | dirty | FD_ZERO and getty initialization; resolve conflicts and confirm the exact packed-growth exception (+3 gamebox, +2 coil, +4 fourfall). | `c889b1fcd` |
+| [#564](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/564) | `801194c98736` | dirty | Canonical public time/signal types; resolve conflicts and retain zero-growth/layout/linkage witnesses. | `e5df83945` |
+| [#565](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/565) | `11b14a1c7ec0` | clean | Captured 449-member PIC replay; preserve the 13,452-byte excess and finish API/size decisions. | `ea17e4c06` |
+| [#598](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/598) | `85089634a933` | clean | Four divider extents; CI passes at 85089634; bounded source-review decision remains pending. | `de0244209` |
 
 GitHub `clean`/`dirty` here describes mergeability at the observation time, not
 working-tree cleanliness or semantic acceptance. All six PRs remain drafts.

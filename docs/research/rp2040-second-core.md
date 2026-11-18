@@ -156,7 +156,17 @@ question, not a second-core one, and stays with those programs.
   code either avoids division or gets a calibrated exception.
 - SRAM4 and SRAM5 hold the USB transmit ring on PICO and PICOCALC; core-1
   code and rings need their own reservation in `RP2040.ld`.
-- USB DPSRAM is execute-never; it can hold data only.
+- USB DPSRAM is execute-never; it can hold data only. `usbinit()` clears all
+  of it by word stores (`sys/arch/rp2040/dev/usb.c`), so state a running
+  core 1 depends on cannot live there. On the UART-only kernel
+  `kern.ldscript` requires `.scratch` to be empty and nothing clears that
+  section, so core-1 state that relies on zeroed storage cannot move to
+  SRAM4 or SRAM5 without a linker-script and initialization change.
+- No core-1 request carries an address inside the user window. A ring entry
+  holds a slot number and an argument (`struct cring_entry`,
+  `sys/arch/rp2040/rp2040/corering.h`), and data a service needs crosses in
+  kernel storage. The window holds whichever process is resident, so an
+  address held on core 1 across a switch names another process's memory.
 - Kernel flash text: PICO has about 22-26 KB free (the two reports disagree
   by build), PICOCALC under 7 KB after the open driver PRs. Core-1 code
   copied to SRAM at boot is stored in flash as its load image
@@ -164,6 +174,50 @@ question, not a second-core one, and stays with those programs.
   and the launch code its own, 600 to 1,100 bytes in all: 9 to 17 percent of
   a 6.5 KB PICOCALC headroom. A console service adds the panel draw path and font
   the same way, unmeasured.
+
+## Proposals examined and not adopted
+
+Each entry is an argument from the sources at main `bff303aae`, with the
+observation that would overturn it. None was run on a kernel or a board.
+
+**A process tag on user-memory requests.** The proposal pairs each core-1
+request with `(pid, swap_epoch)`, increments the epoch at every swap-out and
+has core 0 refuse a copyout whose tag differs from the current process. Two
+cases defeat it. `execve()` replaces the resident image under the same pid
+and swaps nothing, so a request left pending by an interrupted sleep still
+matches after the program it addressed is gone. A process swapped out and
+back in fails the check although its image is resident again, so every
+caller needs a retry path. The rule in the constraints below removes the
+question: no request carries a user address. Each core has its own MPU with
+eight regions, disabled at power-up (hardware report, "NVIC, SysTick and
+the MPU: per core"); two no-access regions of 128 KB and 64 KB over the window would turn
+the rule into a fault on core 1. That enforcement is an inference from the
+register model and is unbuilt. Overturned by a service whose data cannot
+cross through a kernel buffer inside the kernel's RAM budget.
+
+**A lock on the SIO spinlocks.** The proposal claims `SIO.SPINLOCKn` under
+PRIMASK for words both cores write. The supervisor resets core 1 through
+`PSM.FRCE_OFF` after missed pings; a lock core 1 held stays claimed, core 0
+then spins with interrupts masked, its tick record stops, and the observer
+that reports a stopped record is the core just reset. Releasing the lock
+after the reset leaves the guarded words half-written. The design therefore
+keeps the set of two-writer words empty (survey section 5.2), and each
+service operation is a pure function of its request slot. Overturned by a
+word that needs two writers and cannot be given one owner with the other
+core's update sent through the ring.
+
+**Failover that drains the request ring from the supervisor.** The proposal
+has core 0, on a failed heartbeat, take every unanswered entry out of the
+request ring and run it at once. An entry core 1 consumed and did not
+answer is no longer in the ring, so recovery reads the slot table for slots
+still posted, as the survey's ownership-transfer order specifies after
+`FRCE_OFF` reads back set and the devices core 1 drove are quiesced. The
+supervisor is a callout (`core1_poll()`, `sys/arch/rp2040/rp2040/core1.c`),
+which runs at interrupt level, so a service's inline path runs in the
+context of the caller that sleeps on the slot and not in the callout.
+Detection takes `C1_MISS_MAX` periods of one second, which bounds how soon
+any caller resumes. Overturned by a service whose inline path is short
+enough to run at callout level within the clock-tick budget.
 
 ## Checks not run
 

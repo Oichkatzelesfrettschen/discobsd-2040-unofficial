@@ -1,5 +1,12 @@
 # Kernel and userspace footprint work queue
 
+This document corrects the capture kept beside it as
+`kernel-footprint-handoff.md.BAK`. Three items were read again on
+2026-11-18 at main `bff303aae` and are marked where they stand: the kernel
+configuration that bounds growth, the unreferenced-function collection and
+the `adjtime` divide. Every other sentence and figure stands as captured
+and was not read again.
+
 This note hands a measured work queue to an implementer who starts without
 the session that produced it. Each item names the source location, the
 measured or estimated payoff, the hazard that must be cleared first and the
@@ -26,8 +33,12 @@ re-measure; it enforces a 1,024-byte margin.
 | PICOCALC | 113,087 | 112,704 | 112,824 | 17,992 |
 | PICOCALC_PSRAM | not measured | 114,774 | 114,944 | 15,872 |
 
-PICOCALC_PSRAM has the least headroom, so it bounds any change that grows
-shared kernel code.
+PICOCALC_PSRAM had the least headroom at this baseline. That configuration
+has since been retired: `share/mk/architecture.mk` lists the six maintained
+kernels (PICO, PICO_DIAG, PICO_UART, PICOCALC, PICOCALC_LEAN,
+PICOCALC_LEAN_DIAG), PICOCALC carries the PSRAM driver and has the least
+headroom among them, and `sys/arch/rp2040/doc/CAPACITY.md` holds the current
+figures. PICOCALC therefore bounds any change that grows shared kernel code.
 
 PICO data is 256 bytes and bss 39,832, which includes the 16,384-byte
 `.swapram_pool` and the 8,192-byte `.scratch` (`usb_tx_ring`). The largest
@@ -236,6 +247,14 @@ and `u_stack` stays last, because the kernel stack grows down from
 
 ### Unreferenced kernel functions (scratch: up to -2,463 bytes)
 
+The flags have landed: PR #488 (`395804de`) compiles the kernel with
+`-ffunction-sections -fdata-sections` and links it with `--gc-sections`
+(`sys/arch/rp2040/conf/Makefile.rp2040`), so the functions below leave every
+linked kernel that does not reference them. What remains open is deleting
+the unreferenced source, under the intersection rule of the first bullet;
+PICOCALC_PSRAM is no longer one of the configurations to intersect. The
+scratch measurement that preceded the flags follows as captured.
+
 A `-ffunction-sections -fdata-sections` compile with a `--gc-sections` link
 of PICO dropped 67 sections. Among them: `malloc3`, `malloc3_contiguous`,
 `physio`, `rawrw`, `disksort`, `dk_alloc`, `dhara_map_trim`,
@@ -260,6 +279,13 @@ of PICO dropped 67 sections. Among them: `malloc3`, `malloc3_contiguous`,
   name, so the flags cannot remove a reachable syscall.
 
 ### 64-bit divide in `adjtime` (estimate: about -480 bytes)
+
+Done: commit `988101245` (2026-11-10) computes `adjtime` in 32 bits. At
+main `bff303aae`, `arm-none-eabi-nm unix.elf` on each of the six kernels
+lists none of `__aeabi_ldivmod`, `__aeabi_uldivmod`, `__divdi3`,
+`__udivdi3`, `__muldi3`, `__aeabi_lmul`, `__gnu_ldivmod_helper` or
+`__clzdi2` (GCC 16.2.0, a local `logged-build`). The analysis that led to
+the change follows as captured.
 
 `adjtime` is the only PICO caller of `__aeabi_ldivmod` and `__aeabi_lmul`.
 Those calls pull `__divdi3` (304 bytes), `__aeabi_ldivmod`,

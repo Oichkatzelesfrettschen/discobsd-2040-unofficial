@@ -59944,14 +59944,17 @@
     },
     {
       "path": "sbin/reboot/reboot.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sbin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "sbin/reboot",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/sleep-timeout-bound.md",
+        "tests/reboot_contracts/Makefile"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -59972,10 +59975,7 @@
           "pointer": [
             "pointer-integer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }
@@ -60081,14 +60081,16 @@
     },
     {
       "path": "sbin/shutdown/shutdown.c",
-      "class": "unreviewed",
-      "scope": "unreviewed",
-      "owner": "sbin",
-      "profile": "unreviewed",
-      "native_input": "unreviewed",
-      "language_state": "unreviewed",
-      "evidence": [],
-      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "class": "A",
+      "scope": "maintained",
+      "owner": "sbin/shutdown",
+      "profile": "modernized-cross-userland",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "docs/research/sleep-timeout-bound.md"
+      ],
+      "blocker": "",
       "classification": {
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
@@ -60110,10 +60112,7 @@
             "integer-pointer-cast",
             "pointer-integer-cast"
           ],
-          "prototype": [
-            "old-style-declaration",
-            "old-style-definition"
-          ],
+          "prototype": [],
           "variadic": []
         }
       }

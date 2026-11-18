@@ -28,12 +28,10 @@
  */
 #define	OPTS	"lqnhdarsfRBy"
 
-void	markdown();
+static void markdown(void);
 
 int
-main(argc, argv)
-	int argc;
-	char **argv;
+main(int argc, char **argv)
 {
 	int howto;		/* reboot options argument */
 	int needlog = 1;	/* tell syslog what's happening */
@@ -193,8 +191,8 @@ main(argc, argv)
 
 #define	SCPYN(a, b)	strncpy(a, b, sizeof(a))
 
-void
-markdown()
+static void
+markdown(void)
 {
 	struct utmp wtmp;
 	register int f = open(_PATH_WTMP, O_WRONLY|O_APPEND);

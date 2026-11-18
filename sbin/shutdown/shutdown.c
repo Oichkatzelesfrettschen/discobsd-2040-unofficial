@@ -39,14 +39,14 @@
 
 char	hostname[MAXHOSTNAMELEN];
 
-time_t	getsdt(char *);
-void	doitfast();
-void	nolog(time_t);
+static time_t getsdt(const char *);
+static void doitfast(void);
+static void nolog(time_t);
 
 struct	utmp utmp;
 int	sint;
 long	stogo;			/* seconds to go, bounded by main() */
-char	tpath[] =	"/dev/";
+static const char tpath[] = "/dev/";
 int	nlflag = 1;		/* nolog yet to be done */
 int	killflg = 1;
 int	doreboot = 0;
@@ -56,55 +56,54 @@ char    *nosync = NULL;
 char    nosyncflag[] = "-n";
 char	term[sizeof tpath + sizeof utmp.ut_line];
 char	tbuf[BUFSIZ];
-char	nolog1[] = "\n\nNO LOGINS: System going down at %5.5s\n\n";
+static const char nolog1[] = "\n\nNO LOGINS: System going down at %5.5s\n\n";
 char	nolog2[NLOG+1];
 #ifdef	DEBUG
-char	nologin[] = "nologin";
-char    fastboot[] = "fastboot";
+static const char nologin[] = "nologin";
+static const char fastboot[] = "fastboot";
 #else
-char	nologin[] = _PATH_NOLOGIN;
-char	fastboot[] = "/fastboot";
+static const char nologin[] = _PATH_NOLOGIN;
+static const char fastboot[] = "/fastboot";
 #endif
 time_t	nowtime;
 jmp_buf	alarmbuf;
 
-struct interval {
-	int stogo;
-	int sint;
+static const struct interval {
+	unsigned short stogo;
+	unsigned short sint;
 } interval[] = {
-	4 HOURS,	1 HOURS,
-	2 HOURS,	30 MINUTES,
-	1 HOURS,	15 MINUTES,
-	30 MINUTES,	10 MINUTES,
-	15 MINUTES,	5 MINUTES,
-	10 MINUTES,	5 MINUTES,
-	5 MINUTES,	3 MINUTES,
-	2 MINUTES,	1 MINUTES,
-	1 MINUTES,	30 SECONDS,
-	0 SECONDS,	0 SECONDS
+	{ 4 HOURS,	1 HOURS },
+	{ 2 HOURS,	30 MINUTES },
+	{ 1 HOURS,	15 MINUTES },
+	{ 30 MINUTES,	10 MINUTES },
+	{ 15 MINUTES,	5 MINUTES },
+	{ 10 MINUTES,	5 MINUTES },
+	{ 5 MINUTES,	3 MINUTES },
+	{ 2 MINUTES,	1 MINUTES },
+	{ 1 MINUTES,	30 SECONDS },
+	{ 0 SECONDS,	0 SECONDS }
 };
 
 char *shutter;
 
-void finish(sig)
-        int sig;
+static _Noreturn void
+finish(int sig)
 {
+	(void)sig;
 	(void) signal(SIGTERM, SIG_IGN);
 	(void) unlink(nologin);
 	exit(0);
 }
 
-void timeout(sig)
-        int sig;
+static void
+timeout(int sig)
 {
+	(void)sig;
 	longjmp(alarmbuf, 1);
 }
 
-void
-warning(term, sdt, now, type)
-	FILE *term;
-	time_t sdt, now;
-	char *type;
+static void
+warning(FILE *term, time_t sdt, time_t now, const char *type)
 {
 	char *ts;
 	register int delay = (int)(sdt - now);
@@ -131,9 +130,7 @@ warning(term, sdt, now, type)
 }
 
 int
-main(argc,argv)
-	int argc;
-	char **argv;
+main(int argc, char **argv)
 {
 	register int i, ufd;
 	register char *f;
@@ -153,7 +150,7 @@ main(argc,argv)
 	openlog("shutdown", 0, LOG_AUTH);
 	argc--, argv++;
 	while (argc > 0 && (f = argv[0], *f++ == '-')) {
-		while (i = *f++) switch (i) {
+		while ((i = *f++) != '\0') switch (i) {
 		case 'k':
 			killflg = 0;
 			continue;
@@ -224,7 +221,7 @@ main(argc,argv)
 	(void) setpriority(PRIO_PROCESS, 0, PRIO_MIN);
 	(void) fflush(stdout);
 #ifndef DEBUG
-	if (i = fork()) {
+	if ((i = fork()) != 0) {
 		printf("[pid %d]\n", i);
 		exit(0);
 	}
@@ -258,7 +255,8 @@ main(argc,argv)
 			if (setjmp(alarmbuf))
 				continue;
 			(void) strcpy(term, tpath);
-			(void) strncat(term, utmp.ut_line, sizeof utmp.ut_line);
+			memcpy(term + sizeof tpath - 1, utmp.ut_line, sizeof utmp.ut_line);
+			term[sizeof term - 1] = '\0';
 			(void) alarm(3);
 #ifdef DEBUG
 			if ((termf = stdout) != NULL)
@@ -327,9 +325,8 @@ main(argc,argv)
 	}
 }
 
-time_t
-getsdt(s)
-	register char *s;
+static time_t
+getsdt(const char *s)
 {
 	long t, tim;		/* seconds from now, or into today */
 	time_t t1;
@@ -382,8 +379,8 @@ badform:
 	/*NOTREACHED*/
 }
 
-void
-doitfast()
+static void
+doitfast(void)
 {
 	register FILE *fastd;
 
@@ -393,9 +390,8 @@ doitfast()
 	}
 }
 
-void
-nolog(sdt)
-	time_t sdt;
+static void
+nolog(time_t sdt)
 {
 	register FILE *nologf;
 

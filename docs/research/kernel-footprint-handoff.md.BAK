@@ -1,3 +1,9 @@
+> **Historical capture.** This file is the text of `kernel-footprint-handoff.md` as it stood
+> before 2026-11-18, kept for reference and no longer maintained. Main has
+> overtaken parts of it: section collection has landed, `adjtime` no longer links a 64-bit divide and PICOCALC_PSRAM is retired.
+> Read `kernel-footprint-handoff.md` for the current state. Everything below
+> this banner is unchanged.
+
 # Kernel and userspace footprint work queue
 
 This note hands a measured work queue to an implementer who starts without

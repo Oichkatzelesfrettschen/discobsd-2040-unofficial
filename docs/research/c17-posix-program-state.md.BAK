@@ -1,3 +1,9 @@
+> **Historical capture.** This file is the text of `c17-posix-program-state.md` as it stood
+> before 2026-11-18, kept for reference and no longer maintained. Main has
+> overtaken parts of it: the six program PRs it lists as open have merged, and its restart steps name work that is complete.
+> Read `c17-posix-program-state.md` for the current state. Everything below
+> this banner is unchanged.
+
 # C17/POSIX expansion program state
 
 The observation time is 2026-11-15 21:40 UTC. Owned remote main is

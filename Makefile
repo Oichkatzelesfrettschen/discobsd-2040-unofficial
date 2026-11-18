@@ -331,6 +331,35 @@ check-dump-writer-link: check-python
 
 .PHONY: check-dump-writer-link
 
+# The buffer cache's memory holds file-system structures that the kernel
+# reads with word loads, and a Cortex-M0+ faults on an unaligned one:
+# tools/check_kernel_buffer_alignment.py requires bufdata at a multiple of
+# eight in every linked kernel. swap_exchange_sector is a byte buffer that
+# takes whatever address the link gives it, so requiring four of it must
+# exit 1 on the PICO kernel, or a checker that passes every address is
+# reported.
+check-kernel-buffer-alignment: check-python
+.if ${MACHINE} == "rp2040"
+		@set -e; elfs=; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			elfs="$$elfs sys/arch/rp2040/compile/$$configuration/unix.elf"; \
+		done; \
+		${PYTHON} tools/check_kernel_buffer_alignment.py --symbol bufdata:8 $$elfs; \
+		rc=0; \
+		${PYTHON} tools/check_kernel_buffer_alignment.py \
+		    --symbol swap_exchange_sector:4 \
+		    sys/arch/rp2040/compile/PICO/unix.elf >/dev/null 2>&1 || rc=$$?; \
+		if [ "$$rc" -ne 1 ]; then \
+			echo "check-kernel-buffer-alignment: control gave exit $$rc, expected 1" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS buffer-alignment control: an odd byte buffer is rejected"
+.else
+		@echo "check-kernel-buffer-alignment requires MACHINE=rp2040" >&2
+		@exit 2
+.endif
+
+.PHONY: check-kernel-buffer-alignment
+
 check-account-image:	check-python .WAIT ${FSIMG}
 .if ${MACHINE} == "rp2040"
 		${PYTHON} tools/check_rp2040_account_image.py ${FSUTIL} ${FSIMG}

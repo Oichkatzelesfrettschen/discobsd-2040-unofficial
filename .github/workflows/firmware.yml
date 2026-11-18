@@ -210,6 +210,10 @@ jobs:
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-mpu-startup
 
+      - name: Replay the full PicoCalc panel register programs
+        timeout-minutes: 2
+        run: bmake MACHINE=rp2040 check-panel-programs
+
       - name: Build the flash image
         timeout-minutes: 15
         run: |
@@ -518,6 +522,11 @@ jobs:
             --status .build-logs/linux-renode-picocalc.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-picocalc
+      - name: Boot the expanded PicoCalc SD system
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 25
+        run: bmake MACHINE=rp2040 check-renode-picocalc-sd-system
+
       # savecore ships in the picocalc profile, so the crash-dump tier boots
       # the PICOCALC board's root image.
       - name: Build the PicoCalc flash image

@@ -61352,6 +61352,76 @@
       }
     },
     {
+      "path": "sys/arch/rp2040/compile/PICOCALC_SD/ioconf.c",
+      "class": "E",
+      "scope": "generated",
+      "owner": "rp2040-kernel-configuration",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "tools/config/check_generated_sync.py",
+        "tools/config/generated_sync_test.py",
+        "sys/arch/rp2040/compile/PICOCALC_SD/Config"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "hardware-seam",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "sys/arch/rp2040/compile/PICOCALC_SD/swapunix.c",
+      "class": "E",
+      "scope": "generated",
+      "owner": "rp2040-kernel-configuration",
+      "profile": "rp2040-kernel-port",
+      "native_input": "no",
+      "language_state": "accepted",
+      "evidence": [
+        "tools/config/check_generated_sync.py",
+        "tools/config/generated_sync_test.py",
+        "sys/arch/rp2040/compile/PICOCALC_SD/Config"
+      ],
+      "blocker": "",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-kernel",
+        "required_mode": "gnu17-freestanding",
+        "extension_policy": "localized-gnu",
+        "extension_signals": [],
+        "risk_family": "hardware-seam",
+        "risk_tier": "T1",
+        "risk_tier_basis": "boundary-family-conservative",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [],
+          "object_lifetime": [],
+          "pointer": [],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
       "path": "sys/arch/rp2040/compile/PICO_DIAG/ioconf.c",
       "class": "unreviewed",
       "scope": "unreviewed",

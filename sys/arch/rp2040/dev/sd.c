@@ -807,16 +807,21 @@ const struct driver sddriver = {
  * pipedev before services attach, so pipedev moves with it. The card state
  * returns to closed afterwards; the root mount opens it again through
  * sdopen(), which refuses a slot or card that no longer matches the record
- * kept in sdroot. A kernel started any other way keeps the configured root.
+ * kept in sdroot. PICOCALC_SD selects the card on every boot. The standard
+ * configuration keeps the flash root on an unstamped boot.
  */
 void
 sdrootattach(void)
 {
 	int i, error = ENXIO;
 
+#ifdef PICOCALC_SD
+	printf("root: configured for SD, root on sd0\n");
+#else
 	if (!flash_loader_started())
 		return;
 	printf("root: started by the PicoCalc loader, root on sd0\n");
+#endif
 	bzero(&sdroot, sizeof(sdroot));
 	if (board_id() == BOARD_ID_PICOCALC && (error = sd_setup()) == 0) {
 		for (i = 1; i <= MAXPARTITIONS; i++) {

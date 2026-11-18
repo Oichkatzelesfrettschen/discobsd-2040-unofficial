@@ -351,17 +351,13 @@ run_seq(const u_char *p, u_int len)
 }
 
 /*
- * Reset the panel and program it with the nseq tables, leaving the display
- * off. The reset pulse exceeds TRW, 10 us (page 59). The 120 ms after
- * reset release covers note 7 of page 60: 5 ms before any command and
- * 120 ms before SLPOUT. The 120 ms after SLPOUT exceeds the 5 ms page 165
- * requires before the next command.
+ * The reset pulse exceeds TRW, 10 us (page 59). The 120 ms after
+ * reset release covers note 7 of page 60 before the first command.
+ * Chip select stays low across the register sequence through SLPOUT.
  */
 static void
-panel_program(const u_char *const *seq, const u_short *len, int nseq)
+panel_begin(void)
 {
-	int i;
-
 	mdelay(1);
 	pc_gpio_put(PICOCALC_LCD_RST, 0);
 	mdelay(1);
@@ -369,8 +365,12 @@ panel_program(const u_char *const *seq, const u_short *len, int nseq)
 	mdelay(120);
 
 	lcd_select();
-	for (i = 0; i < nseq; i++)
-		run_seq(seq[i], len[i]);
+}
+
+/* The 120 ms after SLPOUT exceeds the 5 ms page 165 requires. */
+static void
+panel_wake(void)
+{
 	lcd_command(CMD_SLPOUT);
 	lcd_deselect();
 	mdelay(120);
@@ -388,9 +388,6 @@ panel_program(const u_char *const *seq, const u_short *len, int nseq)
 void
 st7365p_init(void)
 {
-	static const u_char *const seq[] = { init_seq };
-	static const u_short len[] = { sizeof(init_seq) };
-
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_SPI1);
 
 	SPI_REG(SSPCR1) = 0;
@@ -405,7 +402,9 @@ st7365p_init(void)
 	pc_gpio_output(PICOCALC_LCD_DC, 1);
 	pc_gpio_output(PICOCALC_LCD_RST, 1);
 
-	panel_program(seq, len, 1);
+	panel_begin();
+	run_seq(init_seq, sizeof(init_seq));
+	panel_wake();
 
 	/* The two columns right of the last cell; lcdterm clears the cells. */
 	clear_margin();
@@ -548,13 +547,16 @@ static const u_char CT2_MARK[] = {
 };
 static const u_char LOCK[] = { CMD_CSCON, 1, 0x3c, CMD_CSCON, 1, 0x69 };
 
-#define	SEQ_LEN(t)	((u_short)sizeof(t))
+/* Each row shares its preamble and base with the other register sets. */
+enum { PRE_NONE, PRE_UNLOCK };
+enum { BASE_DRIVER, BASE_VENDOR };
 
 #define	PANELTEST_ROW(name, pre, base, post) \
-	{ { pre, base, post }, { SEQ_LEN(pre), SEQ_LEN(base), SEQ_LEN(post) } },
-static const struct {
-	const u_char *seq[3];
-	u_short len[3];
+	{ post, sizeof(post), PRE_##pre, BASE_##base },
+static const struct panel_set {
+	const u_char *post;
+	u_short post_len;
+	u_char pre, base;
 } panel_sets[] = { PANELTEST_SETS(PANELTEST_ROW) };
 
 _Static_assert(sizeof(panel_sets) / sizeof(panel_sets[0]) == PANELTEST_NSETS,
@@ -570,9 +572,22 @@ static int panel_set_now;
 int
 st7365p_set(int n)
 {
+	const struct panel_set *s;
+
 	if (n < 0 || n >= PANELTEST_NSETS)
 		return EINVAL;
-	panel_program(panel_sets[n].seq, panel_sets[n].len, 3);
+	s = &panel_sets[n];
+	panel_begin();
+	if (s->pre == PRE_UNLOCK)
+		run_seq(UNLOCK, sizeof(UNLOCK));
+	else
+		run_seq(NONE, sizeof(NONE));
+	if (s->base == BASE_VENDOR)
+		run_seq(VENDOR, sizeof(VENDOR));
+	else
+		run_seq(DRIVER, sizeof(DRIVER));
+	run_seq(s->post, s->post_len);
+	panel_wake();
 	lcd_gfx_colmod(COLMOD_RGB666);
 	clear_margin();
 	st7365p_display_on();

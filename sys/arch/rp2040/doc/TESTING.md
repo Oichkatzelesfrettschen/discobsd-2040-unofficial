@@ -568,6 +568,7 @@ upload and hidden-file inclusion.
 | renode image identity | `check-renode-identity` | Renode, the fetched RP2040 models, a built PICO_UART kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
 | MPU startup under Unicorn | `check-mpu-startup` runs the linked kernel configurations using Unicorn, Capstone and pyelftools. It models the register bank, checks grant and spare-slot words, observes the five sysctl leaves through copyout, and exercises read-only ROM spans with protection enabled and disabled. | yes, Linux firmware job after linking | no |
+| PicoCalc panel programs under Unicorn | `check-panel-programs` runs the full PICOCALC ELF against the boot and numbered register-write and delay traces in `tools/unicorn/panel-programs.tsv`. It checks both out-of-range indices and rejects a machine-code control that returns success without programming the panel. The same ELF routes minor 0 writes to the console tty, minor 1 writes to graphics, and rejects opens of all 254 unassigned minors. A silent write supplies the missing-dispatch control. The model makes the transmit FIFO immediately ready. The trace measures register traffic and requested delays. | yes, Linux firmware job | no |
 | kernel functions under Unicorn | `check-unicorn-kernel` | Hypothesis, Unicorn, capstone and pyelftools under `${PYTHON}`, a built kernel (`KERNEL_CONFIGURATION`, PICO by default) | no: on demand, outside `check` and every aggregate, because `firmware.yml` installs no Hypothesis | no |
 | PicoCalc cycle model | `check-picocalc-cycle-model` | Unicorn and Capstone under `${PYTHON}`, the arm-none-eabi toolchain, `bmake` and a built tree (`bin/sh/sh`, `usr.bin/awk/awk`). `oracle.sh` compares the committed `run-output.tsv` (the fixed oracle of the note's cycle counts, pinned to one compiler version) with a fresh model run: compiler options and the four synthetic rows must match, and the sh and awk rows only when the input a.outs match; another compiler version is reported as a skip with its reason. `selftest.sh` calibrates the comparison and the harness on known-bad input | yes: the `firmware/rp2040` job, after the core 1 emulation step; skips on a compiler other than the oracle's | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0009, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
@@ -3248,6 +3249,20 @@ docs/research/picocalc-emulation.md: the GPIO function table from GP9 up, the
 PL022 receive-FIFO status polarity, the PL022 burst start and stop, and frame
 delivery to a registered SPI device. check-picocalc.sh refuses a model build
 that predates 0008.
+
+### Expanded PicoCalc SD kernel
+
+`check-picocalc-sd-layout` compares the two linker maps, compiles C17
+assertions against both flash drivers and rejects a standard driver paired
+with the expanded map. `picocalc-sd-kernel` checks the linked ELF against its
+own region and stamps its UF2 for the PicoCalc. The full configuration's
+options and devices are checked by `check-config-generated-sync`.
+
+`check-renode-picocalc-sd-system` builds the expanded kernel and card
+filesystem. Its unstamped UF2 boots with the foreign flash interval
+starting at 0x10028000, mounts the card, executes the SD installation's
+`cal 2 2000`, checks the separate temporary partition and exercises the
+missing-root panic. The nightly Linux firmware job owns this emulator gate.
 
 ## Board tier
 

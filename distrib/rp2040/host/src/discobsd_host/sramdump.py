@@ -12,7 +12,8 @@ subcommands split the work:
 capture destroys the running session: it forces the board at PORT into the
 boot ROM with `picotool reboot -u -f`, waits for product 0003 on that port,
 and saves SRAM (0x20000000-0x20042000) and the kernel flash region
-(0x10000000-0x10020000) to sram.bin and flash.bin. The port is mandatory
+(128 KiB, or 160 KiB with --kernel-layout picocalc-sd) to sram.bin and
+flash.bin. The port is mandatory
 even with one board attached, every picotool call carries the --bus and
 --address that the port's sysfs node holds at that moment (the address
 changes at each re-enumeration), and the 2e8a devices on every other port
@@ -46,6 +47,7 @@ SRAM_BASE = 0x20000000
 SRAM_END = 0x20042000
 FLASH_BASE = 0x10000000
 FLASH_END = 0x10020000
+FLASH_LAYOUT_END = {"standard": FLASH_END, "picocalc-sd": 0x10028000}
 SRAM_SIZE = SRAM_END - SRAM_BASE
 FLASH_SIZE = FLASH_END - FLASH_BASE
 
@@ -324,7 +326,7 @@ def check_identity(kern: Kernel, flash: Image) -> None:
     addr, size = kern.syms["version"]
     if size == 0:
         raise ToolError("the ELF's version symbol has no size; identity cannot be checked")
-    if not (FLASH_BASE <= addr and addr + size <= FLASH_END):
+    if not (FLASH_BASE <= addr and addr + size <= flash.base + len(flash.data)):
         raise ToolError("the ELF's version string at 0x%x is outside the saved flash range" % addr)
     want = kern.elf_bytes(addr, size)
     if want is None:
@@ -423,11 +425,14 @@ def decode_report(kern: Kernel, sram: Image) -> list[str]:
 
 def run_decode(args) -> int:
     sram = load_image(args.sram, SRAM_BASE, SRAM_SIZE, "SRAM")
-    flash = load_image(args.flash, FLASH_BASE, FLASH_SIZE, "flash") if args.flash else None
     kern = Kernel(args.elf)
     try:
         kern.require(REQUIRED_SYMBOLS)
-        if flash is not None:
+        if args.flash:
+            end = kern.syms.get("__kernel_flash_end", (FLASH_END, 0))[0]
+            if end not in FLASH_LAYOUT_END.values():
+                raise ToolError("unsupported ELF kernel flash end %#x" % end)
+            flash = load_image(args.flash, FLASH_BASE, end - FLASH_BASE, "flash")
             check_identity(kern, flash)
             print("identity: the saved flash holds this ELF's version string", file=sys.stderr)
         else:
@@ -485,10 +490,13 @@ def read_devices(sysfs: str) -> dict[str, Device]:
 
 
 class Capture:
-    def __init__(self, port: str, sysfs: str, out_dir: str, resume: bool, log=None):
+    def __init__(
+        self, port: str, sysfs: str, out_dir: str, resume: bool, log=None, flash_end=FLASH_END
+    ):
         self.port = port
         self.sysfs = sysfs
         self.out_dir = out_dir
+        self.flash_end = flash_end
         self.resume = resume
         self.log = log or (lambda text: print(text, file=sys.stderr))
         self.others_before = self.others()
@@ -617,7 +625,7 @@ class Capture:
                 "discobsd-sramdump: port %s is already in the boot ROM; no reset issued" % self.port
             )
         sram = self.save(SRAM_BASE, SRAM_END, SRAM_FILE, SRAM_SIZE)
-        flash = self.save(FLASH_BASE, FLASH_END, FLASH_FILE, FLASH_SIZE)
+        flash = self.save(FLASH_BASE, self.flash_end, FLASH_FILE, self.flash_end - FLASH_BASE)
         if self.resume:
             self.unmount_volume()
             self.picotool("reboot")
@@ -651,7 +659,9 @@ def _listing(devices: dict[str, Device]) -> str:
     return "; ".join(d.describe() for d in devices.values()) or "none"
 
 
-def plan_text(dev: Device, others: dict[str, Device], out_dir: str, resume: bool) -> list[str]:
+def plan_text(
+    dev: Device, others: dict[str, Device], out_dir: str, resume: bool, flash_end=FLASH_END
+) -> list[str]:
     lines = [
         "discobsd-sramdump will capture the board at USB port %s (%s)" % (dev.port, dev.describe())
     ]
@@ -670,7 +680,7 @@ def plan_text(dev: Device, others: dict[str, Device], out_dir: str, resume: bool
     )
     lines.append(
         "  4. picotool save -r 0x%08x 0x%08x %s"
-        % (FLASH_BASE, FLASH_END, os.path.join(out_dir, FLASH_FILE))
+        % (FLASH_BASE, flash_end, os.path.join(out_dir, FLASH_FILE))
     )
     lines.append(
         "  5. %s"
@@ -715,7 +725,8 @@ def run_capture(args) -> int:
         )
     out_dir = args.out or datetime.now(timezone.utc).strftime("sramdump-%Y%m%dT%H%M%SZ")
     others = {p: d for p, d in devices.items() if p != port}
-    for line in plan_text(dev, others, out_dir, args.resume):
+    flash_end = FLASH_LAYOUT_END[args.kernel_layout]
+    for line in plan_text(dev, others, out_dir, args.resume, flash_end):
         print(line, file=sys.stderr)
     if not args.force_reset:
         print(
@@ -731,7 +742,7 @@ def run_capture(args) -> int:
                 "%s already exists in %s; name a fresh --out directory" % (name, out_dir)
             )
     os.makedirs(out_dir, exist_ok=True)
-    Capture(port, sysfs, out_dir, args.resume).run()
+    Capture(port, sysfs, out_dir, args.resume, flash_end=flash_end).run()
     return 0
 
 
@@ -763,6 +774,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="acknowledge that the capture resets the board and ends its session",
     )
+    cap.add_argument("--kernel-layout", choices=tuple(FLASH_LAYOUT_END), default="standard",
+                     help="kernel flash reservation to capture (default: standard)")
     cap.add_argument("--out", metavar="DIR", help="output directory (default sramdump-<UTC time>)")
     cap.add_argument(
         "--resume",
@@ -779,7 +792,7 @@ def build_parser() -> argparse.ArgumentParser:
     dec.add_argument(
         "--flash",
         metavar="FLASH.BIN",
-        help="the saved 0x10000000-0x10020000 image; checks the ELF is the kernel that ran",
+        help="the saved kernel flash image, sized for the supplied ELF",
     )
     return parser
 

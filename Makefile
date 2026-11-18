@@ -201,6 +201,9 @@ check-dpucp-donor-ledger: check-python
 
 build:		check-python .WAIT symlinks tools
 		$(MAKE) kernel
+		$(MAKE) install-world
+
+install-world:
 		$(MAKE) -C etc DESTDIR=${DESTDIR} distrib-dirs
 		$(MAKE) -C include includes
 		for dir in ${SUBDIR} ${LEGACY_SUBDIRS}; do \
@@ -1723,7 +1726,11 @@ check-mpu-startup: check-python
 		${PYTHON} tools/unicorn/check_mpu_startup.py \
 		    ${MACHINE_KERNEL_CONFIGS:@cfg@sys/arch/rp2040/compile/${cfg}/unix.elf@}
 
-.PHONY: check-mpu-startup
+check-panel-programs: check-python
+		${PYTHON} tools/unicorn/check_panel_program.py \
+		    sys/arch/rp2040/compile/PICOCALC/unix.elf
+
+.PHONY: check-mpu-startup check-panel-programs
 
 # check-unicorn-kernel calls single functions of a built kernel's unix.elf
 # (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares
@@ -2453,6 +2460,14 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
+check-renode-picocalc-sd-system: picocalc-sd-system
+		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
+		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
+		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
+		    tools/renode/vendor/results/picocalc-sd-system
+
+.PHONY: check-renode-picocalc-sd-system
+
 # The board's kernel UF2, the file the PicoCalc UF2 loader programs, stamped
 # (vector entries 4 to 10, foreign bytes over the flash root; the kernel's own
 # second stage stays in flash bytes 0-255) with Renode's SD card model
@@ -2550,9 +2565,7 @@ multicall-staging:
 # date as -d @seconds and by BSD date as -r seconds, and the build time
 # where the variable is unset.
 # A tree without git history says so rather than failing.
-${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
-		etc-distribution multicall-staging
-		rm -f $@ distrib/$(MACHINE)/_manifest
+root-release:	etc-distribution
 		commit=`git -C ${TOPSRC} describe --always --dirty --tags 2>/dev/null || echo unknown`; \
 		stamp=`date -u -d "@$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u -r "$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
@@ -2560,6 +2573,10 @@ ${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
 		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
 		    "$$stamp" "$$commit" "`uname -s`" \
 		    > ${DESTDIR}/etc/release
+
+${FSIMG}:	distrib/${MACHINE}/md.${MACHINE} ${MI_MANIFEST} distrib/base/mi.home \
+		root-release multicall-staging
+		rm -f $@ distrib/$(MACHINE)/_manifest
 		cat ${MI_MANIFEST} distrib/$(MACHINE)/md.$(MACHINE) > distrib/$(MACHINE)/_manifest
 		$(FSUTIL) --repartition=${PARTITIONS} $@
 		${FSUTIL} --new --partition=1 ${FS_INODES_ARG} --manifest=distrib/${MACHINE}/_manifest $@ ${DESTDIR}
@@ -2725,3 +2742,5 @@ check-matezinho-sd: check-python
 	${MAKE} -C tests/matezinho check-sd
 
 .PHONY: check-matezinho-host check-matezinho-qemu check-matezinho-sd
+
+.PHONY: install-world root-release

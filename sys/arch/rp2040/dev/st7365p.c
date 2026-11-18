@@ -19,17 +19,18 @@
  * three cell primitives lcdterm.c draws through and the pixel primitives
  * lcdgfx.c draws through.
  *
- * SPI1 is the RP2040's PL022 (datasheet 4.4) in Motorola mode 0 with
- * eight-bit frames. clk_peri runs at BUS_KHZ, 125 MHz, and a prescale of
+ * SPI1 is the RP2040's PL022 (datasheet 4.4) in Motorola format with SPO
+ * and SPH set (mode 3) and eight-bit frames; LCD_SPI_FORMAT gives the
+ * reason. clk_peri runs at BUS_KHZ, 125 MHz, and a prescale of
  * 2 with SCR 4 gives 12.5 MHz, an 80 ns clock, inside the 66 ns minimum
  * write cycle (TSCYCW) of ST7365P_SPEC_V1.0 page 54. Chip select, D/C
  * and reset are SIO outputs so that select stays low across a command
  * and its parameters. D/C changes only once the PL022 reports idle,
  * because the panel samples it with the last bit of each byte.
  *
- * Pixels go out as RGB666 in three bytes (COLMOD 66h), the format every
- * vendor driver for this board uses; the ST7365P also accepts RGB565 over
- * four-wire SPI (page 96), which would cut a glyph from 180 to 120 bytes.
+ * The console's pixels go out as RGB565 in two bytes (COLMOD 55h, page
+ * 96), 120 bytes a glyph; lcdgfx.c selects RGB666 in three bytes (66h),
+ * the format the vendor drivers for this board use, or RGB565.
  * The panel shows 320 of the controller's 480 lines, so the vertical
  * scroll definition is a 320-line scroll area with a 160-line bottom
  * fixed area, which sums to 480 as page 184 requires, and with MADCTL MV
@@ -665,7 +666,7 @@ send_spirc(u_int fb)
 /*
  * One read command (page 94): the command byte with D/CX low, then n bytes
  * clocked with D/CX high while the panel shifts SDO, sampled on the rising
- * edge as the PL022 does in mode 0. lcd_command() drains the byte received
+ * edge as the PL022 does in mode 3. lcd_command() drains the byte received
  * during the command. The clock drops to 3.125 MHz, inside TSCYCR (150 ns,
  * page 77), and returns to the write clock after. how selects the Command
  * Table 2 variant (PANEL_RD_*, machine/picocalcvar.h).
@@ -689,7 +690,6 @@ lcd_read(const u_char *r, u_char *out)
 		lcd_window(0, LCD_GRAM_LINES - 1, 0, LCD_GRAM_LINES - 1);
 		put16(0xffff);
 		lcd_deselect();
-		lcd_gfx_colmod(COLMOD_RGB666);
 	}
 	if (fb != 0 && (how & (PANEL_RD_FB_FIRST | PANEL_RD_ONE_CS)) == 0)
 		send_spirc(fb);
@@ -740,6 +740,8 @@ lcd_read(const u_char *r, u_char *out)
  * EPF selects how sixteen bits widen to eighteen (page 228): a reply of
  * FCh FCh FCh is full white, F8h FCh F8h is white with the low bit of red
  * and blue clear, which is the widening the datasheet gives for EPF 00.
+ * The entry leaves the panel in 55h; lcdgfx_panel_read() programs the
+ * format lcdgfx.c is in again.
  */
 #define	M	PANEL_RD_MARK
 static const u_char panel_reads[][4] = {

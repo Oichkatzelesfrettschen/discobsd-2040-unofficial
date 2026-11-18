@@ -137,7 +137,9 @@ stage()
 }
 
 # verdict TREE [COUNT]: print each defect of the staged tree against the
-# expected build number, 0 unless COUNT is given; return 1 if any.
+# expected build number, 0 unless COUNT is given, one line per defect; return
+# 1 if any. A defect that quotes captured text prints it with printf, since
+# echo in dash and in the macOS sh expands the \n of the version string.
 verdict()
 {
 	tree=$1
@@ -152,11 +154,11 @@ verdict()
 	version=$(cat "$tree/version.out")
 	case $version in
 	*[0-9].[0-9]*-"$expect") ;;
-	*)	echo "VERSION is '$version', expected RELEASE-$expect"
+	*)	printf '%s\n' "VERSION is '$version', expected RELEASE-$expect"
 		defects=1 ;;
 	esac
 	if [ -s "$tree/version.err" ]; then
-		echo "make wrote to standard error: $(head -n 1 "$tree/version.err")"
+		printf '%s\n' "make wrote to standard error: $(head -n 1 "$tree/version.err")"
 		defects=1
 	fi
 
@@ -166,11 +168,11 @@ verdict()
 		defects=1
 	fi
 	if ! grep -q "^const char version\\[\\] = \".* #1 $expect: " "$tree/vers.c"; then
-		echo "newvers.sh revision field is not $expect: $(head -n 1 "$tree/vers.c")"
+		printf '%s\n' "newvers.sh revision field is not $expect: $(head -n 1 "$tree/vers.c")"
 		defects=1
 	fi
 	if [ -s "$tree/vers.err" ]; then
-		echo "newvers.sh wrote to standard error: $(head -n 1 "$tree/vers.err")"
+		printf '%s\n' "newvers.sh wrote to standard error: $(head -n 1 "$tree/vers.err")"
 		defects=1
 	fi
 	return $defects
@@ -202,7 +204,7 @@ for placement in plain nested; do
 	tree=$(stage "$placement" tree."$placement")
 	verdict "$tree" ||
 	    die "$placement placement: the build number is not 0 outside a git checkout"
-	echo "PASS version-outside-git $placement: VERSION $(cat "$tree/version.out"), kernel revision 0"
+	printf '%s\n' "PASS version-outside-git $placement: VERSION $(cat "$tree/version.out"), kernel revision 0"
 done
 
 # A repository that is present and cannot be counted is not an export.
@@ -229,7 +231,7 @@ repository "$tree" 2
 repository "$WORK/elsewhere" 1
 (GIT_DIR=$WORK/elsewhere/.git; export GIT_DIR; verdict "$tree" 2) ||
     die "counted placement: the build number is not the source repository's count"
-echo "PASS version-outside-git counted: VERSION $(cat "$tree/version.out") with GIT_DIR naming another repository"
+printf '%s\n' "PASS version-outside-git counted: VERSION $(cat "$tree/version.out") with GIT_DIR naming another repository"
 
 # Control: the unguarded command where no repository answers.
 tree=$(stage plain control.unguarded)

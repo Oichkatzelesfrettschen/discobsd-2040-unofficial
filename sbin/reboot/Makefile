@@ -6,7 +6,7 @@ OBJS            = reboot.o
 MAN             = reboot.0
 MANSRC          = reboot.8
 
-CFLAGS          += -Wall
+CFLAGS          += -std=c17 -pedantic-errors -Wstrict-prototypes -Wold-style-definition
 
 all:            reboot ${MAN}
 

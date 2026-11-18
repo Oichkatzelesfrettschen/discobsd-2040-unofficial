@@ -88,7 +88,7 @@ static int ndraw, nfill, ntop;
 
 /* The pixel layer. */
 static unsigned fb[PH][PW];
-static unsigned panel_colmod = 0x66;
+static unsigned panel_colmod = 0x55;	/* The console's format. */
 static int def_top, def_bottom = 160;	/* VSCRDEF fixed areas. */
 static int vscsad;
 static int nwindow, nscroll, nscrdef, ncolmod, nreset;
@@ -298,7 +298,7 @@ lcd_gfx_reset(void)
 
 	if (win_open)
 		violation("text restore inside a window");
-	panel_colmod = 0x66;
+	panel_colmod = 0x55;
 	def_top = 0;
 	def_bottom = LCDG_RAM_LINES - PH;
 	for (y = 0; y < PH; y++)
@@ -401,7 +401,7 @@ reset(void)
 	text_clear();
 	lcdterm_init();
 	fb_clear();
-	panel_colmod = 0x66;
+	panel_colmod = 0x55;
 	def_top = 0;
 	def_bottom = 160;
 	vscsad = 0;
@@ -1225,12 +1225,13 @@ test_scroll_colmod_info(void)
 	scrdef(30, 30);
 	scroll(100);
 	lcdgfx_close();
-	expect_int("close restores COLMOD", panel_colmod, 0x66);
+	expect_int("close restores the console's COLMOD", panel_colmod, 0x55);
 	expect_int("close restores the top fixed area", def_top, 0);
 	expect_int("close restores the bottom fixed area", def_bottom, 160);
 
 	/* A new open starts again from RGB666 and the default scroll area. */
 	open_ok("reopen");
+	expect_int("open programs COLMOD 0x66", panel_colmod, 0x66);
 	fb_clear();
 	expect_err("fill after reopen", fill(1, 1, 1, 1, 0x4321), 0);
 	expect_int("reopen is RGB666 again", fb[1][1], exp666(0x4321));
@@ -1984,7 +1985,7 @@ test_restore(void)
 	out(during);
 	expect_int("text during graphics is silent", ndraw + nfill + ntop, 0);
 	lcdgfx_close();
-	expect_int("restore: COLMOD", panel_colmod, 0x66);
+	expect_int("restore: COLMOD", panel_colmod, 0x55);
 	expect_int("restore: top fixed area", def_top, 0);
 	expect_int("restore: bottom fixed area", def_bottom, 160);
 	expect_int("restore: scroll start at the ring top", vscsad,
@@ -2042,7 +2043,7 @@ test_fatal_path(void)
 	scrdef(10, 10);
 	counters_clear();
 	lcdterm_abort();
-	expect_int("abort restores COLMOD", panel_colmod, 0x66);
+	expect_int("abort restores COLMOD", panel_colmod, 0x55);
 	expect_int("abort restores the scroll definition", def_bottom, 160);
 	expect_int("abort repaints the store", panel_ch[0][0], 'r');
 	expect_int("abort puts the scroll start at the ring", vscsad,

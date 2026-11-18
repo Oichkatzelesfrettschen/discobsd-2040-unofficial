@@ -11,7 +11,7 @@
  * Opening the device switches the 320x320 panel from the text console to
  * graphics mode; the console keeps updating its cell store but draws
  * nothing. The last close, which process exit performs, returns the panel
- * to the text configuration (RGB666, a 320-line scroll area with a
+ * to the text configuration (RGB565, a 320-line scroll area with a
  * 160-line bottom fixed area) and repaints every cell. A second open fails
  * with EBUSY. Input stays on the console tty: a program opens /dev/tty for
  * the keyboard and /dev/lcdgfx for the panel.
@@ -55,9 +55,10 @@
  * lines are the first 320 RAM lines.
  *
  * LCDG_COLMOD selects the pixel format the panel receives: 0x66 (RGB666,
- * three bytes per pixel) or 0x55 (RGB565, two bytes). The close restores
- * 0x66. LCDG_INFO reports the panel size, the atlas capacity in tiles
- * (LCDG_ATLAS_N) and the bits per pixel of the current format (18 or 16).
+ * three bytes per pixel) or 0x55 (RGB565, two bytes). An open starts in
+ * 0x66 and the close restores the console's 0x55. LCDG_INFO reports the
+ * panel size, the atlas capacity in tiles (LCDG_ATLAS_N) and the bits per
+ * pixel of the current format (18 or 16).
  *
  * The tile atlas holds LCDG_ATLAS_N tiles of 8x8 pixels, each pixel a palette
  * index of four bits: a tile is LCDG_TILE_BYTES (32) bytes, its eight pixel

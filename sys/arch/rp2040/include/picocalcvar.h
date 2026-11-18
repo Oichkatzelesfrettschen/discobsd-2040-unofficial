@@ -49,7 +49,7 @@ int	picocalc_sysctl(int *, u_int, void *, size_t *, void *, size_t);
 #define	CPU_PICOCALC_PANEL_SCAN		8	/* struct: scanline sample */
 #define	CPU_PICOCALC_MAXID		9
 
-#define	PANEL_READ_N		33	/* Entries of a readback. */
+#define	PANEL_READ_N		34	/* Entries of a readback. */
 #define	PANEL_READ_BYTES	5	/* Bytes kept per entry. */
 
 /*
@@ -72,6 +72,7 @@ int	picocalc_sysctl(int *, u_int, void *, size_t *, void *, size_t);
 #define	PANEL_RD_FB_FIRST	0x02
 #define	PANEL_RD_LOCK		0x04
 #define	PANEL_RD_ONE_CS		0x08
+#define	PANEL_RD_PIXEL		0x10	/* write one FFFFh pixel under 55h first */
 #define	PANEL_MARK_C5		0x2a	/* VCMPCTL: VCOM inside 00h-3Fh */
 #define	PANEL_MARK_B1_0		0x50	/* FRMCTR1: FRS 5, DIVA 0 */
 #define	PANEL_MARK_B1_1		0x1c	/* FRMCTR1: RTNA 28 (40 Hz) */

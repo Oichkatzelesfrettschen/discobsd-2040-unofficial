@@ -2781,10 +2781,36 @@ test_flash_reinit_whole_device_caller(void)
 	HK_CHECK(flioctl(FL_WHOLE, DIOCREINIT, NULL, 0) == 0);
 }
 
+static void
+test_indirect_seek(void)
+{
+    struct node n;
+    daddr_t entry = 12;
+    off_t first = NDADDR * DEV_BSIZE;
+
+    boot_machine();
+    HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
+    HK_CHECK(open_node(&n, IFREG | 0600, 0, FREAD) == 0);
+    n.ip->i_dev = SD_A;
+    n.ip->i_fs = &must_mount(SD_A)->m_filsys;
+    n.ip->i_size = first + 3 * DEV_BSIZE;
+
+    /* Partition A starts one filesystem block into the disk. */
+    n.ip->i_ib[0] = 8;
+    bcopy(&entry, sd_disk.blocks[9] + sizeof(entry), sizeof(entry));
+    check_seek(n.fp, SEEK_DATA, first, 0, first + DEV_BSIZE);
+    check_seek(n.fp, SEEK_HOLE, first + DEV_BSIZE, 0, first + 2 * DEV_BSIZE);
+    n.ip->i_ib[0] = 10;
+    sd_disk.replaced = 1;
+    check_seek(n.fp, SEEK_DATA, first, EIO, 0);
+    check_seek(n.fp, SEEK_HOLE, first, EIO, 0);
+}
+
 int
 main(void)
 {
 	test_sparse_seek();
+	test_indirect_seek();
 	test_nested_checkpoint_control();
 	test_disk_scheduler_budget();
 	test_unmount_closes_last_user();

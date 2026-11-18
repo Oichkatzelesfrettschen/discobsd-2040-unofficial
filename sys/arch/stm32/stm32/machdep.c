@@ -108,7 +108,13 @@ struct timezone		tz = { 8 * 60, 1 };
 int			nproc = NPROC;
 
 struct namecache	namecache[NNAMECACHE];
-char			bufdata[NBUF * MAXBSIZE];
+/*
+ * File-system code reads superblocks, inodes and directory entries out of
+ * the buffer cache with word and doubleword loads, so its memory takes the
+ * alignment of the widest of them; a character array alone would let the
+ * link place it at any address.
+ */
+_Alignas(8) char	bufdata[NBUF * MAXBSIZE];
 struct inode		inode[NINODE];
 struct callout		callout[NCALL];
 struct mount		mount[NMOUNT];

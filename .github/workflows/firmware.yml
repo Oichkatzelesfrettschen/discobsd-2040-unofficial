@@ -198,7 +198,7 @@ jobs:
             --status .build-logs/linux-kernel-headroom.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-kernel-headroom \
-            check-dump-writer-link
+            check-dump-writer-link check-kernel-buffer-alignment
 
       - name: Verify MPU startup and reported permissions in the linked kernels
         timeout-minutes: 5
@@ -837,7 +837,7 @@ jobs:
             --status .build-logs/macos-kernel-headroom.status.json \
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake MACHINE=rp2040 check-kernel-headroom \
-            check-dump-writer-link
+            check-dump-writer-link check-kernel-buffer-alignment
       - name: Build the flash image
         timeout-minutes: 15
         run: |

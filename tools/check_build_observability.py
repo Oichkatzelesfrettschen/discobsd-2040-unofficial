@@ -67,7 +67,8 @@ EXPECTED_COMMANDS = {
         'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 BOARD=PICOCALC flash'
     ),
     "linux-kernel-headroom": (
-        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link"
+        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link "
+        "check-kernel-buffer-alignment"
     ),
     "linux-lint": "bmake MACHINE=rp2040 check-lint",
     "linux-matezinho-sd": "bmake MACHINE=rp2040 check-matezinho-sd",
@@ -95,7 +96,8 @@ EXPECTED_COMMANDS = {
     "macos-host-a": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a',
     "macos-host-b": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b',
     "macos-kernel-headroom": (
-        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link"
+        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link "
+        "check-kernel-buffer-alignment"
     ),
     "macos-lint": "bmake MACHINE=rp2040 check-lint",
     "macos-smaller-c": "bmake -C usr.bin/smlrc test",

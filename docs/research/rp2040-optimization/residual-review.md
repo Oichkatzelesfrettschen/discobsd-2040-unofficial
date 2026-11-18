@@ -82,7 +82,7 @@ tracks broader modernization work and makes no repository-wide closure claim.
 | 18 | Does relocating UART scratch save power? | **Unmeasured.** Packing places all flash work in SRAM4 and could free SRAM5 for a later power-state experiment. It saves no linked bytes and placement alone leaves the bank powered. Pair UART boot, reboot and flash operations with supply-current readings before changing the layout. |
 | 19 | Is a smaller USB ring safe under backpressure? | **Unmeasured for admission.** Peak and drop counters exist. Measure boot, consecutive bursts, disconnect, slow host, reattach and prolonged console load. Record drops, blocked time and tail latency against the current configuration, including PicoCalc's different scratch owners. |
 | 20 | Does a watermark reveal stack-pointer minima? | **No.** Paint measures touched words, so reserved unwritten frames and sentinel coincidences can hide depth. Pair overwrite watermarks with minimum-SP captures and verify the sampling and fault code's own stack cost. [Capacity](../../../sys/arch/rp2040/doc/CAPACITY.md) |
-| 21 | Which static stack chain can happen in one execution? | **Highest priority.** Drive traced script exec, close-on-exec terminal drain, interruption, last close of an unlinked file with indirect blocks and Dhara collection. Count how often each prerequisite actually occurs. A passing stdio run cannot establish coverage of this chain. [Stack model](../kernel-size-flags/README.md) |
+| 21 | Which static stack chain can happen in one execution? | **Highest priority.** Drive traced script exec, close-on-exec terminal drain, interruption, last close of an unlinked file with indirect blocks and Dhara collection. Account for descriptor ownership during the interruption as well as stack depth. [Stack model](../kernel-size-flags/README.md) |
 | 22 | Can interrupt and swap overlays coexist at the worst point? | **Open.** Measure actual masking and nesting there, with USB/UART, clock, PicoCalc input and swap-buffer pressure. Log the call-chain waypoint and interrupt state so a lower peak can be explained rather than generalized. |
 | 23 | Can the failure reporter run on the exhausted stack? | **Open.** The retained model has a possible panic re-entry through console input, leaves deeper recursion unbounded and omits combined panic/swap and renderer fault cases. Prove recursion bounds or isolate bounded panic output before using it as the observation channel. |
 | 24 | Are ROM and loader stacks pinned to actual board bytes? | **Open on silicon.** The B2 ROM model is hash-bound. A version-byte match alone leaves identity unproven, and the PicoCalc loader's second stage differs. Capture ROM identity and measure the actual loader separately. |
@@ -127,7 +127,7 @@ PICOCALC still has 1,904 bytes free and all six pass the headroom gate.
 The stack and ROM tools passed their known-good self-tests and rejected
 24 and six malformed inputs respectively. The retained six-configuration
 stack sums are from `793d3432` with GCC 16.2.0. This review rebuilt current
-PICOCALC in a private worktree with GCC 15.3.1, adding
+PICOCALC at the remediation revision `4a632e47` with GCC 15.3.1, adding
 `-fstack-usage -fcallgraph-info=su` to the normal debug flags. The resulting
 ELF has the same section sizes as the ordinary build. Running
 `stack_chain.py` on that ELF and call graph gives these bounds.
@@ -147,6 +147,22 @@ sum assumes the listed interrupt levels can occur on top and reports
 panic and swap separately. A reachable-path test should record the
 minimum SP, each relevant event, interrupt priorities and masking
 before treating a shorter real trace as a tighter bound.
+
+The source trace narrows the test conditions. In `exec_clear()` a traced
+exec posts `SIGTRAP` before processing `UF_EXCLOSE` descriptors. If the
+LCD tty still has queued output or is busy after `lcdstart()`, `ttywait()`
+sleeps at `TTOPRI` above `PZERO`, enabling signal checks. The tracer's kill
+request can then enter `exit()` from that wait. The descriptor remains
+published until the original `closef()` returns, while `vn_closefile()`
+has already cleared its inode pointer. An instrumented host probe re-entered
+the production exit file loop from that close callback. The regular path
+closed once, and the re-entry passed a null inode to the close seam.
+Production `closei()` dereferences the inode at entry. This establishes
+the ownership failure under modeled re-entry. The on-device test needs to
+establish the event sequence and whether earlier descriptors reach flash
+collection before exit encounters the closing descriptor. A repair needs
+to release the in-flight file and inode exactly once on both nested exit
+and syscall unwind. Clearing the slot alone would leave that cleanup open.
 
 ## Repeated checkpoint cuts
 

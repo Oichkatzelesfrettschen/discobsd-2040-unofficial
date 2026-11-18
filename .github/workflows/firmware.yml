@@ -202,7 +202,13 @@ jobs:
 
       - name: Verify MPU startup and reported permissions in the linked kernels
         timeout-minutes: 5
-        run: bmake MACHINE=rp2040 check-mpu-startup
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-mpu-startup \
+            --log .build-logs/linux-mpu-startup.log \
+            --status .build-logs/linux-mpu-startup.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake MACHINE=rp2040 check-mpu-startup
 
       - name: Build the flash image
         timeout-minutes: 15

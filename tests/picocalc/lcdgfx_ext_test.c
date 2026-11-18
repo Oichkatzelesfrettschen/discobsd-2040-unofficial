@@ -548,6 +548,13 @@ test_read(void)
 	expect("raw is one read", xfer(0, raw, sizeof(raw)), 0);
 	expect("raw then end of file", resid_after, (long)sizeof(raw));
 
+	expect("select by the superuser", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
+	reader = 0;
+	expect("read by another user", xfer(0, got, 8), EPERM);
+	expect("nothing moved", resid_after, 8);
+	reader = 1;
+	expect("the superuser still reads it", xfer(0, got, 8), 0);
+	expect("all four pixels", resid_after, 0);
 	reader = 0;
 	expect("select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), EPERM);
 	expect("raw select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RAW),

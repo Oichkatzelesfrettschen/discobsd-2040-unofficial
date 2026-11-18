@@ -550,6 +550,9 @@ lcdgfx_read(struct uio *uio)
 
 	if (rd_left == 0)
 		return 0;
+	/* The caller may not be the process that selected the rectangle. */
+	if (!lcdcons_gfx_reader())
+		return EPERM;
 	if (rd_raw) {
 		n = LCDG_RD_RAW_BYTES(rd_w);
 		if (uio->uio_resid < n)

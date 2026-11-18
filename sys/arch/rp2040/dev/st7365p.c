@@ -198,7 +198,14 @@ spi_clock(u_int scr)
 #endif
 
 #ifdef LCD_GFX_EXT
+#define	CMD_SLPIN		0x10
+#define	CMD_DISPOFF		0x28
+#define	CMD_RAMRD		0x2e
+#define	CMD_IDMOFF		0x38
+#define	CMD_IDMON		0x39
+
 static u_int lcd_power_mode;		/* LCDG_PWR_* in force. */
+static u_int lcd_power_pending;		/* A mode change may have begun. */
 #endif
 
 /* Send a command byte; the caller holds chip select low. */
@@ -424,6 +431,7 @@ panel_begin(void)
 	mdelay(120);
 #ifdef LCD_GFX_EXT
 	lcd_power_mode = LCDG_PWR_ON;	/* panel_wake() follows every reset. */
+	lcd_power_pending = 0;
 #endif
 
 	lcd_select();
@@ -498,8 +506,24 @@ st7365p_abort(void)
 	pc_gpio_put(PICOCALC_LCD_CS, 1);
 	pc_gpio_put(PICOCALC_LCD_DC, 1);
 #ifdef LCD_GFX_EXT
-	/* The report that follows must be visible. */
-	lcd_gfx_power(LCDG_PWR_ON);
+	/*
+	 * The report that follows must be visible. A fault can arrive between
+	 * the commands of a mode change, where lcd_power_mode names neither
+	 * the old mode nor the new, so every leaving command goes out whenever
+	 * a change may have begun; each is harmless in a panel already there.
+	 */
+	if (lcd_power_pending) {
+		lcd_select();
+		lcd_command(CMD_SLPOUT);
+		lcd_deselect();
+		mdelay(120);
+		lcd_select();
+		lcd_command(CMD_IDMOFF);
+		lcd_command(CMD_DISPON);
+		lcd_deselect();
+		lcd_power_mode = LCDG_PWR_ON;
+		lcd_power_pending = 0;
+	}
 #endif
 }
 
@@ -508,11 +532,6 @@ st7365p_abort(void)
  * The LCD_GFX_EXT primitives of lcdgfx.c (lcdterm.h). Only lcdgfx.c calls
  * them, with /dev/lcdgfx open and no window in flight.
  */
-#define	CMD_SLPIN		0x10
-#define	CMD_DISPOFF		0x28
-#define	CMD_RAMRD		0x2e
-#define	CMD_IDMOFF		0x38
-#define	CMD_IDMON		0x39
 
 void
 lcd_gfx_read_begin(void)
@@ -584,7 +603,7 @@ lcd_gfx_power(unsigned mode)
 
 	if (mode == was)
 		return;
-	lcd_power_mode = mode;
+	lcd_power_pending = 1;
 	lcd_select();
 	if (was != LCDG_PWR_ON) {
 		lcd_command(leave[was]);
@@ -599,6 +618,9 @@ lcd_gfx_power(unsigned mode)
 	lcd_deselect();
 	if (mode == LCDG_PWR_SLEEP)
 		mdelay(120);
+	lcd_power_mode = mode;
+	/* st7365p_abort() wakes the panel while any mode but on may hold. */
+	lcd_power_pending = mode != LCDG_PWR_ON;
 }
 
 /*

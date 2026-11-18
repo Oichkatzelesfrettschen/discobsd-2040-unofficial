@@ -110,8 +110,9 @@
  * controller returns. Each read(2) carries an even number of bytes and one
  * beyond the last pixel returns only the pixels that remain; a read(2)
  * with no rectangle selected returns end of file. The memory holds the text
- * console's screen from before the open, so LCDG_READ fails with EPERM for a
- * caller other than the superuser. With fmt LCDG_RD_RAW the
+ * console's screen from before the open, so LCDG_READ, and each read(2) of
+ * a selected rectangle, fails with EPERM for a caller other than the
+ * superuser. With fmt LCDG_RD_RAW the
  * rectangle is one line of at most LCDG_READ_MAX pixels and one read(2) of
  * at least LCDG_RD_RAW_BYTES(w) bytes returns the reply bytes of the
  * controller's memory read command as they arrived, for a program that

@@ -376,9 +376,8 @@ itimerfix(struct timeval *tv)
  * that it is called in a context where the timers
  * on which it is operating cannot change in value.
  */
-itimerdecr(itp, usec)
-    register struct itimerval *itp;
-    int usec;
+int
+itimerdecr(struct itimerval *itp, int usec)
 {
 
     if (itp->it_value.tv_usec < usec) {
@@ -439,8 +438,7 @@ timevaladd(struct timeval *t1, struct timeval *t2)
 
 #ifdef NOT_CURRENTLY_IN_USE
 void
-timevalsub(t1, t2)
-    struct timeval *t1, *t2;
+timevalsub(struct timeval *t1, struct timeval *t2)
 {
     t1->tv_sec -= t2->tv_sec;
     t1->tv_usec -= t2->tv_usec;

@@ -901,8 +901,13 @@ pattern is one read, then a timed wait computed from the line period.
 Falsifier for the dummy-clock assumption: read GSCAN twice a known interval
 apart; the two values must differ by interval / line period modulo the line
 count after the one-bit shift, and by twice that without it. The 34.40 us and
-484 of the assumed case are predictions; the measured differences give the
-actual line period and line count. GSCAN has not been read on the board.
+484 of the assumed case are predictions. Two reads alone cannot give both the
+line period and the line count: the difference is known only modulo the
+unknown count, and the interval may cross a frame boundary. A measurement
+samples through at least one observed wrap (the value falling back toward
+zero), takes the largest value seen before a wrap as the line count less one,
+and derives the line period from samples inside one frame; the frame period is
+the time between two wraps. GSCAN has not been read on the board.
 
 What vertical sync can buy here (INF):
 

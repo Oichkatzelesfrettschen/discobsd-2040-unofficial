@@ -96,7 +96,7 @@ struct picocalc_panel_read {
  * A decoded line of 2048 or more counts as bad and is skipped. Times are
  * microseconds from the first read; a wrap's time is that of the sample
  * that saw it, so it lags the wrap by at most max_gap_us. raw_max is the
- * largest raw 24-bit reply among the good samples, so a reader can decode
+ * largest raw 24-bit reply among the samples taken as the scan's position, so a reader can decode
  * it either way.
  */
 struct picocalc_panel_scan {

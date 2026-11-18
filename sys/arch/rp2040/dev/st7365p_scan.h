@@ -44,7 +44,9 @@
  * it by lying anywhere else. A rise of more than SCAN_DROP is rejected
  * unless the next sample continues from it, which lets a track that began
  * on a misread find the position. scan_step() returns 1 when it confirms
- * a wrap, whose time is that of the candidate sample (tr->wrap_us).
+ * a wrap, whose time is that of the candidate sample (tr->wrap_us), and
+ * sets tr->at when the sample it was given is the scan's position, so the
+ * caller takes its line count from those samples alone.
  */
 #define	SCAN_DROP		64	/* Lines no two samples lie apart. */
 
@@ -55,11 +57,13 @@ struct scan_track {
 	unsigned int	wrap_us;	/* Time of the last confirmed wrap. */
 	unsigned int	rejected;	/* Samples off the position. */
 	unsigned char	have, cand, rose;
+	unsigned char	at;		/* The last sample was the position. */
 };
 
 static inline int
 scan_step(struct scan_track *tr, unsigned int line, unsigned int us)
 {
+	tr->at = 0;
 	if (!tr->have) {
 		tr->have = 1;
 		tr->prev = line;
@@ -70,6 +74,7 @@ scan_step(struct scan_track *tr, unsigned int line, unsigned int us)
 
 		tr->cand = 0;
 		tr->prev = line;
+		tr->at = (unsigned char)wrap;
 		if (wrap)
 			tr->wrap_us = tr->cand_us;
 		else
@@ -88,6 +93,7 @@ scan_step(struct scan_track *tr, unsigned int line, unsigned int us)
 		if (tr->rose && line >= tr->up && line <= tr->up + SCAN_DROP) {
 			tr->rose = 0;
 			tr->prev = line;
+			tr->at = 1;
 		} else {
 			tr->rose = 1;
 			tr->up = line;
@@ -96,6 +102,7 @@ scan_step(struct scan_track *tr, unsigned int line, unsigned int us)
 	}
 	tr->rose = 0;
 	tr->prev = line;
+	tr->at = 1;
 	return 0;
 }
 

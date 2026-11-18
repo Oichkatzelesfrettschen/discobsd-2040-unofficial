@@ -59,7 +59,7 @@ check(const char *what, unsigned long got, unsigned long want)
 enum { CLEAN, LOW_CARRY, HIGH_CARRY, FIRST_LOW };
 
 struct result {
-	unsigned wraps, first_us, last_us, rejected;
+	unsigned wraps, first_us, last_us, rejected, max_line;
 };
 
 static void
@@ -91,6 +91,8 @@ run(int how, struct result *r)
 			r->last_us = tr.wrap_us;
 			r->wraps++;
 		}
+		if (tr.at && line > r->max_line)
+			r->max_line = line;
 	}
 	r->rejected = tr.rejected;
 }
@@ -104,6 +106,7 @@ main(void)
 	/* 160000 us from line 300: wraps at 184 lines, then every 484. */
 	check("clean wraps", clean.wraps, 9);
 	check("clean rejected", clean.rejected, 0);
+	check("clean highest line", clean.max_line, FRAME_LINES - 1);
 	/* Line 0 begins at 184 * 36 = 6624 us; the read at 6630 sees it. */
 	check("clean first wrap", clean.first_us, 6630);
 	check("clean span is eight frames within a read",
@@ -121,6 +124,7 @@ main(void)
 	check("high misreads: wraps", r.wraps, clean.wraps);
 	check("high misreads: last wrap", r.last_us, clean.last_us);
 	check("high misreads: rejected", r.rejected, 9);
+	check("high misreads: highest line", r.max_line, FRAME_LINES - 1);
 
 	run(FIRST_LOW, &r);
 	check("misread first sample: wraps", r.wraps, clean.wraps);

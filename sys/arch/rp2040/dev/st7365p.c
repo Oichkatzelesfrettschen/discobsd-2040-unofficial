@@ -769,14 +769,14 @@ st7365p_scan(struct picocalc_panel_scan *sc)
 			sc->bad++;
 			continue;
 		}
-		if (raw > sc->raw_max)
-			sc->raw_max = raw;
 		if (scan_step(&tr, line, now - t0)) {
 			if (sc->wraps == 0)
 				sc->first_us = tr.wrap_us;
 			sc->last_us = tr.wrap_us;
 			sc->wraps++;
 		}
+		if (tr.at && raw > sc->raw_max)
+			sc->raw_max = raw;
 	} while (sc->wraps < SCAN_WRAPS && now - t0 < SCAN_US);
 	sc->elapsed_us = now - t0;
 	sc->rejected = tr.rejected;

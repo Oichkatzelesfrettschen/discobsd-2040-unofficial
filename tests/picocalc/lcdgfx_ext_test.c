@@ -589,8 +589,7 @@ test_sprite(void)
 			    (size_t)(w * h) - done : step;
 			expect("sprite data", xfer(1, idx + done, n), 0);
 		}
-		if (trial < 20)
-			expect("one window a run", nwin - before, runs);
+		expect("one window a run", nwin - before, runs);
 		expect("every window is one line", win_multi, 0);
 		bad = 0;
 		for (i = 0; i < w * h; i++) {
@@ -617,7 +616,11 @@ test_sprite(void)
 	expect("sprite past column 320", sprite(319, 0, 2, 1, 0), EINVAL);
 	expect("sprite of no width", sprite(0, 0, 0, 1, 0), EINVAL);
 	expect("sprite", sprite(0, 0, 4, 4, 0), 0);
+	idx[0] = idx[1] = 5;
+	expect("two pixels of an unfinished run", xfer(1, idx, 2), 0);
+	expect("the run's window is open", win_open, 1);
 	expect("another command", ramfill(0, 0, 0, 0, 0), 0);
+	expect("closed the run's window", win_open, 0);
 	expect("abandons the sprite", xfer(1, idx, 4), EINVAL);
 	expect("no violation", violations, 0);
 }

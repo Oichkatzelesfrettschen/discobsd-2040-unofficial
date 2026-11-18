@@ -367,13 +367,12 @@ power(int seed)
 		if (ioctl(fd, LCDG_XINFO, &xi) < 0 || xi.power != mode)
 			fail("LCDG_XINFO power");
 		if (mode == LCDG_PWR_SLEEP) {
-			ramfill(0, 0, 0, 0, 0);		/* Must be refused. */
-			if (errors > 0 && errno == EBUSY)
-				errors--;
-			else {
-				errno = 0;
-				fail("a fill ran in sleep");
-			}
+			struct lcdg_rect r;
+
+			memset(&r, 0, sizeof(r));
+			errno = 0;
+			if (ioctl(fd, LCDG_RAMFILL, &r) == 0 || errno != EBUSY)
+				fail("a fill in sleep was not refused with EBUSY");
 		}
 		printf("power %s\n", names[mode]);
 		sleep(1);
@@ -386,6 +385,13 @@ power(int seed)
 		fail("read after sleep");
 	for (x = 0; x < W; x++)
 		bad += back[x] != pat(x, 200, seed);
+	/* A fill in the hidden lines, read back. */
+	ramfill(5, LINES - 2, 5, LINES - 2, 0x07e0);
+	if (select_read(5, LINES - 2, 1, 1, LCDG_RD_RGB565) < 0 ||
+	    read(fd, back, 2) != 2 || back[0] != 0x07e0) {
+		errno = 0;
+		fail("a fill at line 478 did not read back");
+	}
 	printf("memory after sleep: %d of 320 pixels of line 200 differ\n", bad);
 	if (bad != 0) {
 		errno = 0;

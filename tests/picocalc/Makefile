@@ -36,12 +36,13 @@
 #
 # lcdgfx_ext_test builds lcdgfx.c with LCD_GFX_EXT, the option of the
 # PICOCALC_SD kernel, against a model of the controller's 480-line memory
-# with its read reply, scan line and power mode; thirty-one mutants of lcdgfx.c
+# with its read reply, scan line and power mode; thirty-three mutants of lcdgfx.c
 # must fail it: moved line and column bounds of the memory fill, window,
 # read and sprite, a read decoded from the wrong reply bits or byte order,
 # an odd read accepted, the read clock left selected, a raw read wider or
 # taller than one reply, a read or sprite that survives another command, a
-# sprite that ignores its key, the index mask or the row step, a scan-line
+# sprite that ignores its key, the index mask or the row step, divides a
+# run at a transfer boundary or leaves a run's window open, a scan-line
 # wait that takes one sample, a falling pair, a wider span, twice the time
 # or any line, a sleep that lets a command or a write through, a close that
 # leaves the panel asleep, a power mode out of range, a ring top in rows
@@ -931,7 +932,9 @@ gfxext-mutants: \
 	gfxext-mutant-xinfo-top \
 	gfxext-mutant-dither-colmod \
 	gfxext-mutant-dither-on \
-	gfxext-mutant-xinfo-live
+	gfxext-mutant-xinfo-live \
+	gfxext-mutant-sprite-run-split \
+	gfxext-mutant-sprite-run-abandon
 
 gfxext-mutant-ramfill-line-bound:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -983,11 +986,11 @@ gfxext-mutant-read-abandon:
 
 gfxext-mutant-sprite-key:
 	${GFXEXT_MUT} lcdgfx.c \
-	    '/^sprite_write/,/^}/s/== sp_key)$$/== sp_key + 16)/' ${GFX_SRC}
+	    '/^sprite_write/,/^}/s/if (v == sp_key) {/if (v == sp_key + 16) {/' ${GFX_SRC}
 
 gfxext-mutant-sprite-mask:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/gfx_pal\[buf\[k\] \& (LCDG_NPAL - 1)\]/gfx_pal[buf[k] \& 7]/' ${GFX_SRC}
+	    's/v = buf\[i\] \& (LCDG_NPAL - 1);/v = buf[i] \& 7;/' ${GFX_SRC}
 
 gfxext-mutant-sprite-row:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1057,7 +1060,16 @@ gfxext-mutant-xinfo-live:
 	${GFXEXT_MUT} lcdgfx.c \
 	    's/xi->text_top = (u_short)gfx_text_top;/xi->text_top = (u_short)(lcdterm_top() * LT_CELL_H);/' ${GFX_SRC}
 
-.PHONY: gfxext-mutants gfxext-mutant-dither-colmod gfxext-mutant-dither-on \
+gfxext-mutant-sprite-run-split:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^sprite_write/,/^}/s/^		sp_left -= n;$$/		if (sp_run) { lcd_gfx_end(); sp_run = 0; } sp_left -= n;/' ${GFX_SRC}
+
+gfxext-mutant-sprite-run-abandon:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^window_end/,/^}/s/if (sp_run) {/if (0) {/' ${GFX_SRC}
+
+.PHONY: gfxext-mutants gfxext-mutant-sprite-run-split \
+	gfxext-mutant-sprite-run-abandon gfxext-mutant-dither-colmod gfxext-mutant-dither-on \
 	gfxext-mutant-xinfo-live gfxext-mutant-ramfill-line-bound \
 	gfxext-mutant-ramwin-lines \
 	gfxext-mutant-area-line-bound \

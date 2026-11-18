@@ -114,6 +114,7 @@ static int rd_x, rd_w, rd_col, rd_y, rd_raw;
 /* LCDG_SPRITE: the same for the indexes write(2) supplies, and the key. */
 static unsigned sp_left, sp_key;
 static int sp_x, sp_w, sp_col, sp_y;
+static int sp_run;			/* A run's window is open. */
 #endif
 
 _Static_assert(LCDG_GRID * LCDG_TILE_W == LCDG_WIDTH &&
@@ -253,6 +254,10 @@ window_end(void)
 #ifdef LCD_GFX_EXT
 	rd_left = 0;
 	sp_left = 0;
+	if (sp_run) {
+		sp_run = 0;
+		lcd_gfx_end();
+	}
 #endif
 	if (win_left != 0) {
 		win_left = 0;
@@ -469,15 +474,19 @@ tilewin_write(struct uio *uio)
 
 #ifdef LCD_GFX_EXT
 /*
- * Indexes of a LCDG_SPRITE block arrive at most one row at a time. Each run
- * of indexes other than the key is one panel window on that line, so the
- * pixels under a key index keep what the memory holds.
+ * The indexes of a LCDG_SPRITE block. A run of indexes other than the key
+ * is one panel window: it opens at the run's first pixel, spans to the end
+ * of the block's row on that line, and ends at the first key index or the
+ * end of the row, with fewer pixels than it could hold. The window stays
+ * open across the transfer unit and across write(2) calls, as a
+ * LCDG_WINDOW does, so a run is never divided, and the pixels under a key
+ * index keep what the memory holds.
  */
 static int
 sprite_write(struct uio *uio)
 {
 	unsigned char buf[LCDGFX_CHUNK];
-	unsigned n, i, j, k;
+	unsigned n, i, v;
 	int error;
 
 	while (uio->uio_resid > 0 && sp_left > 0) {
@@ -489,21 +498,29 @@ sprite_write(struct uio *uio)
 		error = uiomove((caddr_t)buf, n, uio);
 		if (error != 0)
 			return error;
-		for (i = 0; i < n; i = j) {
-			j = i + 1;
-			if ((buf[i] & (LCDG_NPAL - 1)) == sp_key)
+		for (i = 0; i < n; i++) {
+			v = buf[i] & (LCDG_NPAL - 1);
+			if (v == sp_key) {
+				if (sp_run) {
+					lcd_gfx_end();
+					sp_run = 0;
+				}
 				continue;
-			while (j < n && (buf[j] & (LCDG_NPAL - 1)) != sp_key)
-				j++;
-			lcd_gfx_window(sp_x + sp_col + (int)i, sp_y,
-			    sp_x + sp_col + (int)j - 1, sp_y);
-			for (k = i; k < j; k++)
-				put_color(gfx_pal[buf[k] & (LCDG_NPAL - 1)]);
-			lcd_gfx_end();
+			}
+			if (!sp_run) {
+				lcd_gfx_window(sp_x + sp_col + (int)i, sp_y,
+				    sp_x + sp_w - 1, sp_y);
+				sp_run = 1;
+			}
+			put_color(gfx_pal[v]);
 		}
 		sp_left -= n;
 		sp_col += (int)n;
 		if (sp_col == sp_w) {
+			if (sp_run) {
+				lcd_gfx_end();
+				sp_run = 0;
+			}
 			sp_col = 0;
 			sp_y++;
 		}

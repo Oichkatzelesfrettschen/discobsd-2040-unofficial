@@ -581,8 +581,10 @@ Status: READ; MEASURED `ff` (BOARD), the documented default.
 
 The summary list is on pages 140-144 (pp. 140-144, ll. 7049-7326). Every Command Table 2
 page gives its power-on, software-reset and hardware-reset default as "N/A";
-the HEX column of the parameter rows carries the only default value the
-datasheet prints, and the values below come from that column. CSCON (F0h)
+the HEX column of the parameter rows prints one example byte per parameter,
+and the values below come from that column as printed examples. They are not
+reset defaults: the default tables mark them N/A (for B1h, p. 220,
+ll. 12383-12389), so an unsent parameter has no documented value. CSCON (F0h)
 names the enables "command 2 part I" (C3h) and "part II" (96h)
 (p. 245, ll. 14194-14206); the datasheet does not say which registers belong to
 which part, whether command 2 is enabled after reset, or whether reads through
@@ -613,11 +615,16 @@ Formula (p. 219, ll. 12354-12358; the PDF page shows the same formula):
     frame rate = 10^7 / ((168 + RTNA + 32 x (15 - FRS)) x (480 + VFP + VBP))
 
 FRS 0-15, RTNA 0-31; VFP and VBP come from B5h. DIVA does not appear in the
-formula. HEX A0h, 10h: FRS = 10, DIVA = 0, RTNA = 16, which with VFP = VBP =
-2 gives 10^7 / (344 x 484) = 60.06 Hz.
-Status: SENT as one byte A0h (`st7365p.c:120`); RTNA is not sent, so it keeps
-its reset value, which the HEX column gives as 10h (INF from the break rule,
-p. 252, ll. 14514-14517). MEASURED by eye: set 15 (F0h unlock, then B1h 00h, a
+formula. HEX column A0h, 10h (p. 219, ll. 12332-12334): FRS = 10, DIVA = 0,
+RTNA = 16. If RTNA, VFP and VBP hold the HEX-column values 10h, 02h, 02h, the
+formula gives 10^7 / (344 x 484) = 60.06 Hz. The datasheet marks the reset
+values of B1h as N/A (p. 220, ll. 12383-12389), so that assumption is
+unsupported by the datasheet.
+Status: SENT as one byte A0h (`st7365p.c:120`); RTNA is not sent and B5h is
+never sent, so RTNA, VFP and VBP hold whatever the panel powers up with, which
+is undocumented. The 60.06 Hz figure is computed under the HEX-column
+assumption and unmeasured on the board; the GSCAN line-period reading of 4.2
+decides. MEASURED by eye: set 15 (F0h unlock, then B1h 00h, a
 formula rate of 10^7 / (664 x 484) = 31.1 Hz) flickers (BOARD). Range and
 table in section 4.
 
@@ -650,8 +657,9 @@ Status: SENT as 02h, 2-dot (`st7365p.c:122`). READ through SPIRC (`fb10`,
 Four parameters: VFP[7:0], VBP[7:0], 00h, HBP[7:0] (p. 222, ll. 12578-12584).
 Front and back porch in lines, 02h-FFh (00h and 01h reserved); HBP in dot
 clocks, same range (pp. 222-223, ll. 12586-12634). Must be set before Sleep Out
-(p. 223, l. 12638). HEX 02h, 02h, 00h, 04h.
-Status: NOT IMPLEMENTED. Larger porches are the documented route to frame
+(p. 223, l. 12638). HEX column 02h, 02h, 00h, 04h; the reset values are
+undocumented, as for B1h.
+Status: NOT IMPLEMENTED, so VFP and VBP keep their undocumented power-up values. Larger porches are the documented route to frame
 rates below 30.4 Hz (section 4).
 
 ### B6h DFC -- Display Function Control (p. 224, l. 12680)
@@ -664,13 +672,20 @@ the non-display area: 00 normal, 10 interval), D1-D0 PT (source level in the
 partial-mode non-display area: V63, V0, AGND, Hi-Z) (pp. 224-225, ll. 12693-12757);
 byte 2 D6 GS (gate scan G1 to G480 or reverse), D5 SS (source S1 to S960 or
 reverse; with the RGB bit it sets the R, G, B assignment to source pins),
-D4 SM (gate pin arrangement), D3-D0 ISC (interval-scan cycle, odd n from 3 to
-31 frames) (p. 225, ll. 12761-12801); byte 3 D5-D0 NL, lines driven = 8 x (NL +
+D4 SM (gate pin arrangement), D3-D0 ISC (the datasheet names the field ISC in
+the parameter row and ICS in its description) (p. 225, ll. 12689, 12781-12784).
+When PTG selects interval scan, the field sets the scan cycle in the
+non-display-area drive period, defined as n frame periods with n an odd number
+from 3 to 31; the liquid-crystal polarity inverts on the same cycle. The
+datasheet prints no mapping from the 4-bit field value to n, so the encoding
+is unverified; byte 3 D5-D0 NL, lines driven = 8 x (NL +
 1), 00h-3Bh; GRAM mapping is unaffected; NL must cover the glass
 (p. 226, ll. 12897-12905). Must be set before Sleep Out (p. 227, l. 12916). HEX 80h,
 02h, 3Bh.
-Status: SENT as 02h 02h 3Bh (`st7365p.c:123`): BYPASS 0, PT = 10 (AGND), ISC 2,
-NL 3Bh (480 lines). The vendor ST7796SP sequence sends 80h 02h 3Bh.
+Status: SENT as 02h 02h 3Bh (`st7365p.c:123`): BYPASS 0, PTG = 00 (normal
+scan, so the ISC field is not consulted), PT = 10 (AGND), ISC field value 2
+(an even raw value, which n = 3 to 31 odd cannot equal; its meaning is
+unverified), NL 3Bh (480 lines). The vendor ST7796SP sequence sends 80h 02h 3Bh.
 NOT IMPLEMENTED: NL = 27h (320 lines), which the glass would allow; whether
 the frame formula's constant 480 tracks NL is not documented, so the gain in
 frame time is unverified.
@@ -706,8 +721,10 @@ Status: SENT as 17h 15h (`st7365p.c:114`): AVDD 6.20 V, AVCL -4.6 V, low nibble
 
 One parameter: VRH[6:0] (p. 231, l. 13170). VAP(GVDD) = 3.55 V + 0.05 V x VRH +
 (VCOM + VCOM offset) for VRH 00h-27h (this file's closed form for the printed
-table), 28h-3Fh reserved; VAN(GVCL) is the
-negative mirror (pp. 231-232, ll. 13177-13272). Note: VCOM default 1Ch (1.0 V), offset
+table), 28h-3Fh reserved; VAN(GVCL) = -(3.55 V + 0.05 V x VRH) +
+(VCOM + VCOM offset): the printed VAN rows negate the VRH term only and add the
+VCOM terms with a plus sign (pp. 231-232, ll. 13224-13272). The two rails are
+therefore not mirror images unless VCOM + offset is 0. Note: VCOM default 1Ch (1.0 V), offset
 00h (p. 232, ll. 13276-13280). HEX 13h (4.5 V + VCOM terms).
 Status: SENT as 41h (`st7365p.c:115`), which lies above the printed table (40h-7Fh
 are not listed); the resulting GVDD is undocumented.
@@ -861,8 +878,14 @@ change.
 
 GSCAN returns the line the panel is scanning, counting VSYNC + VBP + VACT +
 VFP lines from the first VSYNC line (p. 201, ll. 11068-11072). At the shipped
-60.06 Hz with 484 lines (480 + VFP 2 + VBP 2), a line lasts
-1 / (60.06 x 484) = 34.40 us and a frame 16.65 ms (INF from the B1h formula).
+the rate the B1h formula gives if RTNA, VFP and VBP hold the HEX-column
+values 10h, 02h, 02h is 60.06 Hz with 484 lines (480 + VFP 2 + VBP 2), a line of
+1 / (60.06 x 484) = 34.40 us and a frame of 16.65 ms (INF). The datasheet gives
+those three fields no reset value (N/A, p. 220, ll. 12383-12389) and the
+driver never sends B5h, so this rate, line period and frame time are computed
+from an assumption and unmeasured on the board; the scanline read below
+decides. Every figure in this section that uses 34.4 us, 484 lines or 16.65 ms
+carries the same condition.
 
 Cost on the wire (INF): a GSCAN read is 8 command clocks, one dummy clock if
 it behaves like the documented multi-byte serial reads (p. 95, l. 4787; the
@@ -876,9 +899,15 @@ every 34 us would occupy about a quarter of it at 3.125 MHz. The useful
 pattern is one read, then a timed wait computed from the line period.
 
 Falsifier for the dummy-clock assumption: read GSCAN twice a known interval
-apart; the two values must differ by interval / 34.40 us modulo 484 after the
-one-bit shift, and by twice that without it. GSCAN has not been read on the
-board.
+apart; the two values must differ by interval / line period modulo the line
+count after the one-bit shift, and by twice that without it. The 34.40 us and
+484 of the assumed case are predictions. Two reads alone cannot give both the
+line period and the line count: the difference is known only modulo the
+unknown count, and the interval may cross a frame boundary. A measurement
+samples through at least one observed wrap (the value falling back toward
+zero), takes the largest value seen before a wrap as the line count less one,
+and derives the line period from samples inside one frame; the frame period is
+the time between two wraps. GSCAN has not been read on the board.
 
 What vertical sync can buy here (INF):
 
@@ -886,7 +915,8 @@ What vertical sync can buy here (INF):
   307,200 bytes, 196.6 ms at 12.5 MHz, 11.8 frames; RGB565 is 204,800 bytes,
   131.1 ms, 7.9 frames. Even at the 15.15 MHz TSCYCW limit RGB565 takes
   108 ms.
-- A band can be. Following the slow-writer example of page 262
+- A band can be, if the assumed line period holds (INF, conditional on the
+  HEX-column assumption above). Following the slow-writer example of page 262
   (p. 262, ll. 15082-15085), a write that starts just behind the scan line stays
   ahead of the next scan pass while k x (write time per line) <= frame time
   + k x (scan time per line). A full-width line takes 614.4 us in RGB666 and
@@ -899,8 +929,9 @@ What vertical sync can buy here (INF):
 
 ### 4.3 Reachable frame rates
 
-The B1h formula (p. 219, ll. 12354-12358) with FRS 0-15, RTNA 0-31 and the HEX
-porches VFP = VBP = 2 reaches 10^7 / (679 x 484) = 30.43 Hz at FRS 0, RTNA
+The B1h formula (p. 219, ll. 12354-12358) with FRS 0-15, RTNA 0-31 and the
+HEX-column porches VFP = VBP = 2 (assumed for the shipped panel; the reset
+values are N/A) reaches 10^7 / (679 x 484) = 30.43 Hz at FRS 0, RTNA
 1Fh up to 10^7 / (168 x 484) = 122.98 Hz at FRS Fh, RTNA 0 (DOC formula,
 INF arithmetic). With VFP = VBP = FFh the floor drops to
 10^7 / (679 x 990) = 14.88 Hz. B5h, which sets the porches, must be written
@@ -916,12 +947,14 @@ row is an inference that the rate divides with it.
 | 30 | Ah | 10h | 1 | 2 / 2 | 30.03 | INF, as above |
 | 40 | 5h | 1Dh | 0 | 2 / 2 | 39.96 | DOC formula |
 | 50 | 8h | 15h | 0 | 2 / 2 | 50.03 | DOC formula |
-| 60 | Ah | 10h | 0 | 2 / 2 | 60.06 | DOC formula; the HEX-column value and the driver's A0h |
+| 60 | Ah | 10h | 0 | 2 / 2 | 60.06 | DOC formula; the HEX-column example values and the driver's A0h, with RTNA and porches unsent and assumed |
 | 75 | Ch | 0Bh | 0 | 2 / 2 | 75.13 | DOC formula |
 | 90 | Eh | 1Eh | 0 | 2 / 2 | 89.83 | DOC formula |
 | 120 | Fh | 04h | 0 | 2 / 2 | 120.12 | DOC formula |
 
-The driver runs the 60.06 Hz row through B1h A0h (`st7365p.c:120`). The only
+The driver sends B1h A0h for the 60.06 Hz row (`st7365p.c:120`) and never sends
+B5h (VFP, VBP), so the shipped rate is the 60.06 Hz row only under the
+HEX-column assumption and is unmeasured. The only
 board observation is set 15 (FRS 0, RTNA 10h, a formula rate of 31.1 Hz),
 which the owner saw flicker. The idle-mode and partial-mode line periods
 (B2h RTNB, B3h RTNC) have no printed formula. Lower rates trade flicker
@@ -954,7 +987,8 @@ RAM holds 480 rows, so a full 320-row second page does not fit).
 
 PTLON (12h) shows only rows PSL-PEL of PTLAR (30h); B6h PT sets what the
 sources drive in the non-display area (V63, V0, AGND, Hi-Z) and PTG the gate
-scan there (normal or interval every ISC frames); B3h sets the partial-mode
+scan there (normal or interval scan, whose cycle is an odd n of 3 to 31 frames
+set by the ISC field through an unverified encoding, p. 225, ll. 12781-12784); B3h sets the partial-mode
 line period before Sleep Out (pp. 224-225, ll. 12727-12757, p. 221, l. 12470). On the
 PicoCalc the lines that partial mode would blank are off the glass already
 (4.4); the gain would be lower drive work on lines 320-479, of unmeasured
@@ -1008,7 +1042,10 @@ whose transfer function the extraction does not give.
 
 GVDD (VAP) = 3.55 V + 0.05 V x VRH + (VCOM + VCOM offset), VRH 00h-27h
 (C1h, p. 231, ll. 13177-13217; the closed forms in this paragraph fit the printed
-tables); VAN is its negative. VCOM = 0.300 V + 0.025 V x
+tables); VAN = -(3.55 V + 0.05 V x VRH) + (VCOM + VCOM offset)
+(C1h, p. 231, l. 13224 to p. 232, l. 13272), so VAP and VAN share the VCOM
+term and differ in the sign of the VRH term only; at VCOM = 1.0 V, offset 0, the
+VAN rail sits 2 V above the negative of VAP. VCOM = 0.300 V + 0.025 V x
 VCMP (C5h, p. 234, ll. 13394-13411), plus the C6h offset in steps, with VCOM +
 offset < 1.875 V (p. 234, l. 13413). VBP = VCOM + VCOM offset (p. 263, l. 15162).
 The positive levels are a resistor ladder between VAP and VBP; R is one
@@ -1023,15 +1060,26 @@ ladder unit (pp. 265-266, ll. 15224-15294):
 - Levels between knots are linear: VPk = (VPa - VPb)/(b - a) x (b - k) + VPb.
 - J0P and J1P choose the percentages for VP3, VP5, VP7-VP12 and VP51-VP56,
   VP58, VP60 from a four-column table (p. 264, ll. 15191-15212).
-- The negative side mirrors it about VBN: VN0 = VBN - (VBN - VAN)(129 -
-  V0N)/129 and so on (pp. 266-267, ll. 15298-15369).
+- The negative side has the same form about VBN: VN0 = VBN - (VBN - VAN)(129 -
+  V0N)/129 and so on (pp. 266-267, ll. 15298-15369). The extraction prints no
+  value for VBN (only VBP, p. 263, l. 15162), so the negative levels are
+  expressed through VAN and an undocumented VBN, not as a mirror of the
+  positive ones.
 
 The voltage-generation and source-voltage diagrams of pages 281-283
 (pp. 281-283, ll. 16006-16102) did not survive the extraction and were not read from
 the PDF.
 
-For one-bit text only levels 0 and 63 matter, so V0P/V0N, V63P/V63N and the
-VAP-VBP span (C1h, C5h) set the two text levels.
+For strictly black and white text only levels 0 and 63 matter, so V0P/V0N,
+V63P/V63N and the VAP-VBP span (C1h, C5h) set the two text levels. The 16-color
+console is not black and white only: `lcd_palette` (`st7365p.c:95-101`) holds
+channel values 0, 60, 90, 100, 120, 127, 200, 205, 238 and 255, and a glyph's
+foreground and background pick palette entries. A channel at one of the
+intermediate values selects a gray level between 0 and 63 after the 8-bit to
+6-bit reduction, so the gamma knots between V0 and V63 (E0h, E1h) shape the
+rendered text for every palette entry other than the pure black, white and
+saturated-channel ones. The endpoint-only conclusion holds for black and white
+text alone.
 
 ### 4.11 Digital gamma
 

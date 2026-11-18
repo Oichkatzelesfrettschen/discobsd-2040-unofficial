@@ -90,7 +90,8 @@ trap 'cleanup; trap - EXIT; exit 143' TERM
 # placement's own outer repository lies below this ceiling and does.
 GIT_CEILING_DIRECTORIES=$WORK
 export GIT_CEILING_DIRECTORIES
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
+    GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE
 
 # repository DIR COUNT: an empty repository of COUNT commits in DIR, made
 # without the user's templates, hooks or signing configuration.

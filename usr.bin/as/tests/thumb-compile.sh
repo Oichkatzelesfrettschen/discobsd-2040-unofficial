@@ -61,7 +61,8 @@ include ${TOPSRC}/share/mk/sys.mk
 AFLAGS= -Wa,-x -B${TOOLBINDIR:Q}/ -I${TOPSRC:Q}/lib/libc/arm/gen
 EOF
 printf '#include "rom_float_clz.S"\n' > "$cpp_work/probe.S"
-"${MAKE:?set MAKE}" -s -C "$cpp_work" MACHINE="${MACHINE:?set MACHINE}" \
+MAKEFLAGS= MFLAGS= "${MAKE:?set MAKE}" -s -C "$cpp_work" \
+    MACHINE="${MACHINE:?set MACHINE}" CC="$CC" \
     TOPSRC="$TOPSRC" TOOLBINDIR="${TOOLBINDIR:?set TOOLBINDIR}" \
     BUILD=1 probe.o
 cell="$TOPSRC/lib/libc/arm/gen/rom_float_clz.S"

@@ -535,7 +535,8 @@ check-rp2040-syscalls: check-python
 		    --trace-kernel sys/arch/rp2040/compile/PICO_DIAG/unix.elf
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
 		@set -eu; d=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}; \
-		    param=$$(${MAKE} -C "$$d" -V PARAM); \
+		    param=$$(MAKEFLAGS= MFLAGS= ${MAKE} -C "$$d" -V PARAM \
+		        ${.MAKEOVERRIDES:@variable@${variable}=${${variable}:Q}@}); \
 		    ${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master \
 		    --param="$$param" "$$d/unix.elf"
 .endfor

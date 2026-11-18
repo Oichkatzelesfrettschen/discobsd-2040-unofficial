@@ -187,7 +187,8 @@ MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
 MAKEFILE_FIXTURE = MAKEFILE_FIXTURE.replace(
     "@SYSCALL_CHECK@",
     "@set -eu; d=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}; \\\n"
-    "\t    param=$$(${MAKE} -C \"$$d\" -V PARAM); \\\n"
+    "\t    param=$$(MAKEFLAGS= MFLAGS= ${MAKE} -C \"$$d\" -V PARAM \\\n"
+    "\t        ${.MAKEOVERRIDES:@variable@${variable}=${${variable}:Q}@}); \\\n"
     "\t    ${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master \\\n"
     "\t    --param=\"$$param\" \"$$d/unix.elf\"",
 )
@@ -500,6 +501,7 @@ class BuildObservabilityTest(unittest.TestCase):
             ("${PYTHON} tests/rp2040_syscalls/check.py", "true"),
             ("${PYTHON} tools/check_rp2040_syscalls.py", "true"),
             ("--trace-kernel sys/arch/rp2040/compile/PICO_DIAG/unix.elf", ""),
+            ("MAKEFLAGS= MFLAGS= ", ""),
             ('--param="$$param"', ""),
         ):
             with self.subTest(original=original):

@@ -1684,6 +1684,13 @@ check-core1-emulation: check-python
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
 
+# Exercise MPU setup in the linked kernels with an independent register model.
+check-mpu-startup: check-python
+		${PYTHON} tools/unicorn/check_mpu_startup.py \
+		    ${MACHINE_KERNEL_CONFIGS:@cfg@sys/arch/rp2040/compile/${cfg}/unix.elf@}
+
+.PHONY: check-mpu-startup
+
 # check-unicorn-kernel calls single functions of a built kernel's unix.elf
 # (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares
 # them with Python references under Hypothesis, then requires each property

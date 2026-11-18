@@ -49,7 +49,7 @@ int	picocalc_sysctl(int *, u_int, void *, size_t *, void *, size_t);
 #define	CPU_PICOCALC_PANEL_SCAN		8	/* struct: scanline sample */
 #define	CPU_PICOCALC_MAXID		9
 
-#define	PANEL_READ_N		28	/* Entries of a readback. */
+#define	PANEL_READ_N		33	/* Entries of a readback. */
 #define	PANEL_READ_BYTES	5	/* Bytes kept per entry. */
 
 /*
@@ -90,11 +90,17 @@ struct picocalc_panel_read {
  * A scanline sample: GSCAN read back to back at 3.125 MHz, each read
  * timed with the 1 us system timer, until nine wraps or 400 ms. A wrap is
  * a sample whose line, decoded as bits 22-7 of the three reply bytes (one
- * dummy clock first), lies more than 64 below the one before; a decoded
- * line of 2048 or more counts as bad and is skipped. Times are
+ * dummy clock first), lies more than 64 below the one before and whose
+ * successor continues from it; a single sample off the scan's position is
+ * a misread of the moving counter and counts as rejected (st7365p_scan()).
+ * A decoded line of 2048 or more counts as bad and is skipped.
+ *
+ * Both structures are read whole by paneltest, which is built from the
+ * same tree as the kernel and ships in the same root image; neither is a
+ * versioned interface, and a paneltest of another revision gets ENOMEM. Times are
  * microseconds from the first read; a wrap's time is that of the sample
  * that saw it, so it lags the wrap by at most max_gap_us. raw_max is the
- * largest raw 24-bit reply among the good samples, so a reader can decode
+ * largest raw 24-bit reply among the samples taken as the scan's position, so a reader can decode
  * it either way.
  */
 struct picocalc_panel_scan {
@@ -106,6 +112,7 @@ struct picocalc_panel_scan {
 	unsigned int	elapsed_us;	/* time of the last read */
 	unsigned int	max_gap_us;	/* longest time between two reads */
 	unsigned int	raw_max;	/* largest good raw reply */
+	unsigned int	rejected;	/* samples off the scan's position */
 };
 
 #ifndef	KERNEL

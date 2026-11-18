@@ -91,6 +91,15 @@
 # the wrong bit, the pixel format on the wrong bits, a rate from one wrap,
 # the gamma curve on the wrong bits) must fail it.
 #
+# panel_scan_test runs the GSCAN wrap rule (st7365p_scan.h) over a modeled
+# scan with the misreads the board returned at the line counter's carries;
+# seven mutants of the header (a candidate confirmed by any sample, a
+# rejected candidate that takes the wrap it fell on with it, a rise
+# taken as the position, a track that never returns from two equal
+# misreads, a wrap timed at its confirming sample, a rejected sample
+# reported as the position, a track begun on an unconfirmed sample) must
+# fail it.
+#
 # uart_test includes the RP2040 UART driver (uart.c) unchanged with
 # UART_HOST_MODEL, which replaces the PL011 register helpers of uart.h with
 # a model of the 32-byte transmit FIFO and shift register whose interrupt
@@ -136,7 +145,7 @@ all: check
 
 check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	uart_test panel_decode_test font-sync
+	uart_test panel_decode_test panel_scan_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./kbdreq_test
@@ -149,9 +158,11 @@ check: lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	./picopcm_test
 	./uart_test
 	./panel_decode_test
+	./panel_scan_test
 	${MAKE} mutants gfx-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
-	    picoaudio-mutants picopcm-mutants uart-mutants panel-decode-mutants
+	    picoaudio-mutants picopcm-mutants uart-mutants panel-decode-mutants \
+	    panel-scan-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -186,6 +197,28 @@ PANELTEST=	${TOPSRC}/usr.bin/paneltest
 
 panel_decode_test: panel_decode_test.c ${PANELTEST}/panel_decode.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${PANELTEST} -o $@ panel_decode_test.c
+
+panel_scan_test: panel_scan_test.c ${DEV}/st7365p_scan.h
+	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ panel_scan_test.c
+
+PS_MUT=		@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD} ${SAN}" "${DEV}" \
+		panel_scan_test.c st7365p_scan.h
+
+.PHONY: panel-scan-mutants
+panel-scan-mutants:
+	${PS_MUT} 's/if (line >= tr->prev \&\& line <= tr->prev + SCAN_DROP) {/if (1) {/' \
+	    st7365p_scan.h
+	${PS_MUT} 's/tr->prev = tr->from;/tr->prev = line; return 0;/' \
+	    st7365p_scan.h
+	${PS_MUT} 's/if (line > tr->prev + SCAN_DROP) {/if (0) {/' \
+	    st7365p_scan.h
+	${PS_MUT} 's/if (tr->rose \&\& line >= tr->up/if (0 \&\& line >= tr->up/' \
+	    st7365p_scan.h
+	${PS_MUT} 's/tr->wrap_us = tr->cand_us;/tr->wrap_us = us;/' \
+	    st7365p_scan.h
+	${PS_MUT} 's/^\ttr->at = 0;/\ttr->at = 1;/' st7365p_scan.h
+	${PS_MUT} 's/if (tr->have == 1 \&\& line >= tr->up \&\&/if (tr->have == 1 ||/' \
+	    st7365p_scan.h
 
 PD_MUT=		@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD} ${SAN}" "${PANELTEST}" \
 		panel_decode_test.c panel_decode.h
@@ -2079,7 +2112,7 @@ uart-mutant-rx-pull-down:
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	    uart_test panel_decode_test
+	    uart_test panel_decode_test panel_scan_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \

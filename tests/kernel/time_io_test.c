@@ -23,8 +23,8 @@ dev_t swapdev;
 int blkoverlap(dev_t a, dev_t b) { return a == b; }
 struct timeval time;
 int hz = 100, usechz = 10000, lbolt, adjdelta;
-long monosec, realsec = LONG_MAX;
-u_short monotick, realtick;
+long itimer_deadline_seconds = LONG_MAX;
+struct itimer_clock itimer_clock;
 struct mount mount[NMOUNT];
 struct inode inode[NINODE];
 struct buf buf[NBUF];
@@ -288,7 +288,7 @@ static void clock_cases(void)
     /* One microsecond rounds up to one 10 ms tick: 2 s + 1 tick. */
     HK_CHECK(process.p_realtimer.it_value == 2 && process.p_realtick == 1);
     HK_CHECK(process.p_realtimer.it_interval == 3 && process.p_realitick == 1);
-    HK_CHECK(realsec == 2 && realtick == 1);
+    HK_CHECK(itimer_deadline_seconds == 2 && itimer_clock.deadline_ticks == 1);
 
     timer = (struct itimerval){0};
     timer.it_value.tv_sec = -1;
@@ -358,7 +358,7 @@ static void clock_cases(void)
         old_timer.it_interval.tv_usec == 10000);
     HK_CHECK(process.p_realtimer.it_value == 23 && process.p_realtick == 0);
     HK_CHECK(process.p_realtimer.it_interval == 0 && process.p_realitick == 0);
-    HK_CHECK(realsec == 2 && realtick == 1);
+    HK_CHECK(itimer_deadline_seconds == 2 && itimer_clock.deadline_ticks == 1);
 
     timer.it_value.tv_sec = 29;
     timer_args->which = ITIMER_REAL;

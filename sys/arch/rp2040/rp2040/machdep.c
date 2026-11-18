@@ -29,7 +29,7 @@
 #include <machine/board.h>
 
 #include <machine/intr.h>
-#include <machine/mpu.h>
+#include <machine/mpuvar.h>
 #include <machine/scb.h>
 #include <machine/usercopy.h>
 #include <machine/watchdog.h>
@@ -113,7 +113,8 @@
 
 char	machine[] = MACHINE;		/* from <machine/machparam.h> */
 char	machine_arch[] = MACHINE_ARCH;	/* from <machine/machparam.h> */
-char	cpu_model[64];
+/* cpuidentify prints the chip ID. The read-only hw.model leaf is empty. */
+char	cpu_model[] = "";
 
 int	hz = HZ;
 int	usechz = (1000000L + HZ - 1) / HZ;

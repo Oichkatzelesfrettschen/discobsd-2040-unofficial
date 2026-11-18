@@ -73,6 +73,8 @@ setup(dev)
      */
     if (bread(&dfile, (char *)&sblock, SUPERB, SBSIZE) != 0)
         return (0);
+    if (sblock.fs_magic1 != FSMAGIC1 || sblock.fs_magic2 != FSMAGIC2)
+        errexit("Invalid DiscoBSD filesystem signature on %s\n", dev);
     sblk.b_bno = SUPERB;
     sblk.b_size = SBSIZE;
 

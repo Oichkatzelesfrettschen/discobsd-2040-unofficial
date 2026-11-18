@@ -492,7 +492,7 @@ for scenario in "$@"; do
 	map=$work/$scenario.map
 	rm -f "$img" "$map"
 	case $scenario in
-	file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
+	magic-first | magic-last | file-last | dir-last | orphan-last | free-last | lf-last | orphan-dir | \
 	    full-table | fsck-lf-cycle | fsck-lf-cycle-gap | fsck-lf-chain | \
 	    fsck-dotdot-range | \
 	    fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
@@ -504,6 +504,7 @@ for scenario in "$@"; do
 	*) error "unknown scenario $scenario" ;;
 	esac
 	case $scenario in
+	magic-first | magic-last) layout=file-last ;;
 	fsck-lf-cycle) layout=orphan-cycle ;;
 	fsck-lf-cycle-gap) layout=orphan-cycle-gap ;;
 	fsck-lf-chain) layout=orphan-chain-cycle ;;
@@ -533,7 +534,26 @@ for scenario in "$@"; do
 		    error "$scenario: image generation failed"
 	fi
 	case $scenario in
-	file-last | dir-last) run_clean ;;
+	magic-first | magic-last)
+        "$PYTHON" - "$img" "$scenario" <<'PYTEST'
+from pathlib import Path
+import sys
+
+image = Path(sys.argv[1])
+data = bytearray(image.read_bytes())
+signature = b"FS<<" if sys.argv[2] == "magic-first" else b">>FS"
+offset = data.index(signature, 0, 1024)
+data[offset] ^= 1
+image.write_bytes(data)
+PYTEST
+        cp "$img" "$img.before"
+        check_run -y
+        [ "$status" -eq 8 ] || fail "repair returned $status, want 8"
+        has 'Invalid DiscoBSD filesystem signature'
+        lacks 'Phase 1'
+        cmp -s "$img" "$img.before" || fail "image changed"
+        ;;
+    file-last | dir-last) run_clean ;;
 	orphan-last | lf-last) run_repair FILE after_reconnect ;;
 	orphan-dir) run_repair DIR after_reconnect ;;
 	free-last) run_repair FILE after_create ;;

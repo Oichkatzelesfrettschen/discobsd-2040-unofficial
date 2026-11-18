@@ -567,6 +567,7 @@ upload and hidden-file inclusion.
 | renode asynchronous system trap | `check-renode-preempt` | Renode, the fetched RP2040 models, a built PICO_UART kernel, the selected board's disk image (`${FSIMG}`), `fsutil` and `flashimg`, `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | renode image identity | `check-renode-identity` | Renode, the fetched RP2040 models, a built PICO_UART kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the table exhaustion step | no |
 | core 1 emulation | `check-core1-emulation` | Unicorn and pyelftools under `${PYTHON}`, the arm-none-eabi toolchain, a built PICO_UART kernel | yes: the `firmware/rp2040` job installs `python3-unicorn` | no |
+| MPU startup under Unicorn | `check-mpu-startup` runs the linked kernel configurations using Unicorn, Capstone and pyelftools. It models the register bank, checks grant and spare-slot words, observes the five sysctl leaves through copyout, and exercises read-only ROM spans with protection enabled and disabled. | yes, Linux firmware job after linking | no |
 | kernel functions under Unicorn | `check-unicorn-kernel` | Hypothesis, Unicorn, capstone and pyelftools under `${PYTHON}`, a built kernel (`KERNEL_CONFIGURATION`, PICO by default) | no: on demand, outside `check` and every aggregate, because `firmware.yml` installs no Hypothesis | no |
 | PicoCalc cycle model | `check-picocalc-cycle-model` | Unicorn and Capstone under `${PYTHON}`, the arm-none-eabi toolchain, `bmake` and a built tree (`bin/sh/sh`, `usr.bin/awk/awk`). `oracle.sh` compares the committed `run-output.tsv` (the fixed oracle of the note's cycle counts, pinned to one compiler version) with a fresh model run: compiler options and the four synthetic rows must match, and the sh and awk rows only when the input a.outs match; another compiler version is reported as a skip with its reason. `selftest.sh` calibrates the comparison and the harness on known-bad input | yes: the `firmware/rp2040` job, after the core 1 emulation step; skips on a compiler other than the oracle's | no |
 | renode PicoCalc | `check-renode-picocalc` | Renode, the fetched RP2040 models with the patch series through 0009, a built PICOCALC kernel and the selected board's flash image (`${FLASHBIN}`), `${PYTHON}` | yes: the `firmware/rp2040` job, after the UART0 Renode step | no |
@@ -3548,7 +3549,7 @@ daddr_t width is not evidence about the target's on-disk encoding.
 A separate interval-timer fixture (`tests/kernel/itimer_test.c`) drives the
 production `hardclock()` tick by tick over four `struct proc` entries in
 `allproc` and records every `psignal()` with its tick, 2,455 assertions in all.
-`ITIMER_REAL` counts ticks on the monotonic clock (`monosec`, `monotick`),
+`ITIMER_REAL` counts ticks on the monotonic clock in `itimer_clock`,
 which `settimeofday()` and `adjtime()` leave alone. A one-shot at 1, 10, 500,
 999, 1,000 and 2,500 ms, started from five phases of the second, signals once,
 exactly the wait plus one tick after the call (the deadline is the wait past

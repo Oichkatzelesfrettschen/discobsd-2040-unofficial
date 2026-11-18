@@ -714,8 +714,10 @@ Status: SENT as 17h 15h (`st7365p.c:114`): AVDD 6.20 V, AVCL -4.6 V, low nibble
 
 One parameter: VRH[6:0] (p. 231, l. 13170). VAP(GVDD) = 3.55 V + 0.05 V x VRH +
 (VCOM + VCOM offset) for VRH 00h-27h (this file's closed form for the printed
-table), 28h-3Fh reserved; VAN(GVCL) is the
-negative mirror (pp. 231-232, ll. 13177-13272). Note: VCOM default 1Ch (1.0 V), offset
+table), 28h-3Fh reserved; VAN(GVCL) = -(3.55 V + 0.05 V x VRH) +
+(VCOM + VCOM offset): the printed VAN rows negate the VRH term only and add the
+VCOM terms with a plus sign (pp. 231-232, ll. 13224-13272). The two rails are
+therefore not mirror images unless VCOM + offset is 0. Note: VCOM default 1Ch (1.0 V), offset
 00h (p. 232, ll. 13276-13280). HEX 13h (4.5 V + VCOM terms).
 Status: SENT as 41h (`st7365p.c:115`), which lies above the printed table (40h-7Fh
 are not listed); the resulting GVDD is undocumented.
@@ -1027,7 +1029,10 @@ whose transfer function the extraction does not give.
 
 GVDD (VAP) = 3.55 V + 0.05 V x VRH + (VCOM + VCOM offset), VRH 00h-27h
 (C1h, p. 231, ll. 13177-13217; the closed forms in this paragraph fit the printed
-tables); VAN is its negative. VCOM = 0.300 V + 0.025 V x
+tables); VAN = -(3.55 V + 0.05 V x VRH) + (VCOM + VCOM offset)
+(C1h, p. 231, l. 13224 to p. 232, l. 13272), so VAP and VAN share the VCOM
+term and differ in the sign of the VRH term only; at VCOM = 1.0 V, offset 0, the
+VAN rail sits 2 V above the negative of VAP. VCOM = 0.300 V + 0.025 V x
 VCMP (C5h, p. 234, ll. 13394-13411), plus the C6h offset in steps, with VCOM +
 offset < 1.875 V (p. 234, l. 13413). VBP = VCOM + VCOM offset (p. 263, l. 15162).
 The positive levels are a resistor ladder between VAP and VBP; R is one
@@ -1042,8 +1047,11 @@ ladder unit (pp. 265-266, ll. 15224-15294):
 - Levels between knots are linear: VPk = (VPa - VPb)/(b - a) x (b - k) + VPb.
 - J0P and J1P choose the percentages for VP3, VP5, VP7-VP12 and VP51-VP56,
   VP58, VP60 from a four-column table (p. 264, ll. 15191-15212).
-- The negative side mirrors it about VBN: VN0 = VBN - (VBN - VAN)(129 -
-  V0N)/129 and so on (pp. 266-267, ll. 15298-15369).
+- The negative side has the same form about VBN: VN0 = VBN - (VBN - VAN)(129 -
+  V0N)/129 and so on (pp. 266-267, ll. 15298-15369). The extraction prints no
+  value for VBN (only VBP, p. 263, l. 15162), so the negative levels are
+  expressed through VAN and an undocumented VBN, not as a mirror of the
+  positive ones.
 
 The voltage-generation and source-voltage diagrams of pages 281-283
 (pp. 281-283, ll. 16006-16102) did not survive the extraction and were not read from

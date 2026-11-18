@@ -19,17 +19,18 @@
  * three cell primitives lcdterm.c draws through and the pixel primitives
  * lcdgfx.c draws through.
  *
- * SPI1 is the RP2040's PL022 (datasheet 4.4) in Motorola mode 0 with
- * eight-bit frames. clk_peri runs at BUS_KHZ, 125 MHz, and a prescale of
+ * SPI1 is the RP2040's PL022 (datasheet 4.4) in Motorola format with SPO
+ * and SPH set (mode 3) and eight-bit frames; LCD_SPI_FORMAT gives the
+ * reason. clk_peri runs at BUS_KHZ, 125 MHz, and a prescale of
  * 2 with SCR 4 gives 12.5 MHz, an 80 ns clock, inside the 66 ns minimum
  * write cycle (TSCYCW) of ST7365P_SPEC_V1.0 page 54. Chip select, D/C
  * and reset are SIO outputs so that select stays low across a command
  * and its parameters. D/C changes only once the PL022 reports idle,
  * because the panel samples it with the last bit of each byte.
  *
- * Pixels go out as RGB666 in three bytes (COLMOD 66h), the format every
- * vendor driver for this board uses; the ST7365P also accepts RGB565 over
- * four-wire SPI (page 96), which would cut a glyph from 180 to 120 bytes.
+ * The console's pixels go out as RGB565 in two bytes (COLMOD 55h, page
+ * 96), 120 bytes a glyph; lcdgfx.c selects RGB666 in three bytes (66h),
+ * the format the vendor drivers for this board use, or RGB565.
  * The panel shows 320 of the controller's 480 lines, so the vertical
  * scroll definition is a 320-line scroll area with a 160-line bottom
  * fixed area, which sums to 480 as page 184 requires, and with MADCTL MV
@@ -59,6 +60,8 @@
 #define	SSPICR			0x20
 
 #define	SSPCR0_DSS_8		0x7		/* Eight-bit frames. */
+#define	SSPCR0_SPO		(1UL << 6)	/* Clock idles high. */
+#define	SSPCR0_SPH		(1UL << 7)	/* Data moves on the first edge. */
 #define	SSPCR0_SCR(n)		((u_int)(n) << 8)
 #define	SSPCR1_SSE		(1UL << 1)
 #define	SSPSR_TNF		(1UL << 1)
@@ -68,6 +71,23 @@
 
 #define	LCD_PRESCALE		2
 #define	LCD_SCR			4		/* 125 / (2 * 5) == 12.5 MHz. */
+
+/*
+ * The frame format. With SPH clear the PL022 raises its frame signal
+ * between the words of a continuous transfer (ARM DDI 0194, 2.3.10), and
+ * the clock pauses with it: lcdgfxtest measured a 320 by 320 fill at
+ * 1.19 times its bit time on the board, which is 9.5 clock periods a byte.
+ * With SPO and SPH set the words follow without a gap (2.3.13), and the
+ * panel still samples SDA on the rising edge of SCL (page 94), since the
+ * second edge of a clock that idles high is the rising one. Chip select
+ * is a GPIO, so the frame signal reaches no pin. LCD_SPI_MODE0 keeps the
+ * gapped format for a comparison build.
+ */
+#ifdef LCD_SPI_MODE0
+#define	LCD_SPI_FORMAT		SSPCR0_DSS_8
+#else
+#define	LCD_SPI_FORMAT		(SSPCR0_SPO | SSPCR0_SPH | SSPCR0_DSS_8)
+#endif
 
 #define	CMD_SLPOUT		0x11
 #define	CMD_INVON		0x21
@@ -82,6 +102,7 @@
 
 #define	MADCTL_MX_BGR		0x48		/* Column mirror, BGR panel. */
 #define	COLMOD_RGB666		0x66
+#define	COLMOD_RGB565		0x55
 
 #define	LCD_LINES		320		/* Visible lines. */
 #define	LCD_GRAM_LINES		480		/* Controller lines. */
@@ -89,8 +110,10 @@
 #define	SPI_REG(off)		PC_REG32(SPI1_BASE + (off))
 
 /*
- * Sixteen colors, R, G, B; the panel keeps the upper six bits of each.
- * 0-7 are the SGR 30-37 colors, 8-15 their bold variants.
+ * Sixteen colors, R, G, B. The console sends them as RGB565 (COLMOD 55h),
+ * two bytes a pixel: five bits of red and blue and six of green, which the
+ * controller widens to its eighteen-bit memory. 0-7 are the SGR 30-37
+ * colors, 8-15 their bold variants.
  */
 const u_char lcd_palette[16][3] = {
 	{   0,   0,   0 }, { 205,   0,   0 }, {   0, 205,   0 },
@@ -115,7 +138,7 @@ static const u_char init_seq[] = {
 	0xc1, 1, 0x41,
 	0xc5, 3, 0x00, 0x12, 0x80,
 	CMD_MADCTL, 1, MADCTL_MX_BGR,
-	CMD_COLMOD, 1, COLMOD_RGB666,
+	CMD_COLMOD, 1, COLMOD_RGB565,
 	0xb0, 1, 0x00,
 	0xb1, 1, 0xa0,
 	CMD_INVON, 0,
@@ -187,12 +210,13 @@ lcd_window(u_int x0, u_int y0, u_int x1, u_int y1)
 	lcd_command(CMD_RAMWR);
 }
 
-static void
-put_pixel(const u_char *rgb)
+/* A palette entry as the RGB565 word the console sends. */
+static u_int
+pal565(u_int i)
 {
-	spi_put(rgb[0]);
-	spi_put(rgb[1]);
-	spi_put(rgb[2]);
+	const u_char *rgb = lcd_palette[i];
+
+	return (rgb[0] >> 3) << 11 | (rgb[1] >> 2) << 5 | rgb[2] >> 3;
 }
 
 _Static_assert(LCDFONT_HEIGHT == LT_GLYPH_ROWS,
@@ -201,8 +225,8 @@ _Static_assert(LCDFONT_HEIGHT == LT_GLYPH_ROWS,
 void
 lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 {
-	const u_char *fg = lcd_palette[LT_ATTR_FG(attr)];
-	const u_char *bg = lcd_palette[LT_ATTR_BG(attr)];
+	u_int fg = pal565(LT_ATTR_FG(attr));
+	u_int bg = pal565(LT_ATTR_BG(attr));
 	const u_char *glyph;
 	u_char bank[LT_GLYPH_ROWS];
 	u_int x = (u_int)col * LT_CELL_W, y = (u_int)prow * LT_CELL_H;
@@ -227,7 +251,7 @@ lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 		else	/* A bank glyph repeats its last row; see lcdterm.h. */
 			bits = ch >= LT_GLYPH_FIRST ? glyph[LCDFONT_HEIGHT - 1] : 0;
 		for (px = 0; px < LT_CELL_W; px++, bits <<= 1)
-			put_pixel((bits & 0x80) ? fg : bg);
+			put16((bits & 0x80) ? fg : bg);
 	}
 	lcd_deselect();
 }
@@ -235,7 +259,7 @@ lcd_draw_cell(int prow, int col, int ch, unsigned attr)
 void
 lcd_fill_cells(int prow, int col, int n, unsigned attr)
 {
-	const u_char *bg = lcd_palette[LT_ATTR_BG(attr)];
+	u_int bg = pal565(LT_ATTR_BG(attr));
 	u_int x = (u_int)col * LT_CELL_W, y = (u_int)prow * LT_CELL_H;
 	u_int count = (u_int)n * LT_CELL_W * LT_CELL_H;
 
@@ -244,7 +268,7 @@ lcd_fill_cells(int prow, int col, int n, unsigned attr)
 	lcd_select();
 	lcd_window(x, y, x + (u_int)n * LT_CELL_W - 1, y + LT_CELL_H - 1);
 	while (count-- > 0)
-		put_pixel(bg);
+		put16(bg);
 	lcd_deselect();
 }
 
@@ -318,12 +342,12 @@ clear_margin(void)
 	lcd_select();
 	lcd_window(LT_COLS * LT_CELL_W, 0, 319, LCD_LINES - 1);
 	for (n = (320 - LT_COLS * LT_CELL_W) * LCD_LINES; n > 0; n--)
-		put_pixel(lcd_palette[0]);
+		put16(pal565(0));
 	lcd_deselect();
 }
 
 /*
- * Return the panel to the configuration lcdterm.c draws in: RGB666, the
+ * Return the panel to the configuration lcdterm.c draws in: RGB565, the
  * 320-line scroll area with its 160-line bottom fixed area, and a margin a
  * pixel program may have drawn on cleared. The scroll start is the
  * caller's: lcdterm_repaint() sets it from the ring.
@@ -331,7 +355,7 @@ clear_margin(void)
 void
 lcd_gfx_reset(void)
 {
-	lcd_gfx_colmod(COLMOD_RGB666);
+	lcd_gfx_colmod(COLMOD_RGB565);
 	lcd_gfx_scrdef(0, LCD_GRAM_LINES - LCD_LINES);
 	clear_margin();
 }
@@ -392,7 +416,7 @@ st7365p_init(void)
 
 	SPI_REG(SSPCR1) = 0;
 	SPI_REG(SSPCPSR) = LCD_PRESCALE;
-	SPI_REG(SSPCR0) = SSPCR0_SCR(LCD_SCR) | SSPCR0_DSS_8;
+	SPI_REG(SSPCR0) = SSPCR0_SCR(LCD_SCR) | LCD_SPI_FORMAT;
 	SPI_REG(SSPCR1) = SSPCR1_SSE;
 
 	pc_pin(PICOCALC_LCD_SCK, PC_FUNC_SPI, 0);
@@ -567,7 +591,7 @@ static int panel_set_now;
 
 /*
  * Reset the panel and program register set n, then return it to the
- * format and scroll state lcdgfx.c expects: COLMOD 66h, the 320-line
+ * format and scroll state lcdgfx.c opens with: COLMOD 66h, the 320-line
  * scroll area at start 0, cleared margin, display on.
  */
 int
@@ -589,8 +613,10 @@ st7365p_set(int n)
 		run_seq(DRIVER, sizeof(DRIVER));
 	run_seq(s->post, s->post_len);
 	panel_wake();
-	lcd_gfx_colmod(COLMOD_RGB666);
+	/* The margin clears in the console's format; lcdgfx.c then takes 66h. */
+	lcd_gfx_colmod(COLMOD_RGB565);
 	clear_margin();
+	lcd_gfx_colmod(COLMOD_RGB666);
 	st7365p_display_on();
 	panel_set_now = n;
 	return 0;
@@ -616,7 +642,7 @@ spi_clock(u_int scr)
 {
 	spi_wait_idle();
 	SPI_REG(SSPCR1) = 0;
-	SPI_REG(SSPCR0) = SSPCR0_SCR(scr) | SSPCR0_DSS_8;
+	SPI_REG(SSPCR0) = SSPCR0_SCR(scr) | LCD_SPI_FORMAT;
 	SPI_REG(SSPCR1) = SSPCR1_SSE;
 }
 
@@ -640,7 +666,7 @@ send_spirc(u_int fb)
 /*
  * One read command (page 94): the command byte with D/CX low, then n bytes
  * clocked with D/CX high while the panel shifts SDO, sampled on the rising
- * edge as the PL022 does in mode 0. lcd_command() drains the byte received
+ * edge as the PL022 does in mode 3. lcd_command() drains the byte received
  * during the command. The clock drops to 3.125 MHz, inside TSCYCR (150 ns,
  * page 77), and returns to the write clock after. how selects the Command
  * Table 2 variant (PANEL_RD_*, machine/picocalcvar.h).
@@ -658,6 +684,13 @@ lcd_read(const u_char *r, u_char *out)
 	}
 	if (how & PANEL_RD_LOCK)
 		send_seq(LOCK, sizeof(LOCK));
+	if (how & PANEL_RD_PIXEL) {
+		lcd_gfx_colmod(COLMOD_RGB565);
+		lcd_select();
+		lcd_window(0, LCD_GRAM_LINES - 1, 0, LCD_GRAM_LINES - 1);
+		put16(0xffff);
+		lcd_deselect();
+	}
 	if (fb != 0 && (how & (PANEL_RD_FB_FIRST | PANEL_RD_ONE_CS)) == 0)
 		send_spirc(fb);
 	spi_clock(LCD_READ_SCR);
@@ -700,6 +733,15 @@ lcd_read(const u_char *r, u_char *out)
  * FBh, so a reply that changes with the parameter number shows SPIRC
  * acting on a register known to be readable, and one that does not shows
  * SPIRC inert on this link.
+ *
+ * The last entry writes one FFFFh pixel under COLMOD 55h to the last line
+ * of the controller's memory, which the glass does not show, and reads it
+ * back with RAMRD (2Eh, page 178). The console draws in 55h, and EM (B7h)
+ * EPF selects how sixteen bits widen to eighteen (page 228): a reply of
+ * FCh FCh FCh is full white, F8h FCh F8h is white with the low bit of red
+ * and blue clear, which is the widening the datasheet gives for EPF 00.
+ * The entry leaves the panel in 55h; lcdgfx_panel_read() programs the
+ * format lcdgfx.c is in again.
  */
 #define	M	PANEL_RD_MARK
 static const u_char panel_reads[][4] = {
@@ -717,6 +759,7 @@ static const u_char panel_reads[][4] = {
 	{ 0xb1, 0x10, 5, M }, { 0xb1, 0x11, 5, M },
 	{ 0xd2, 0, 5, 0 }, { 0xd2, 0x10, 5, 0 },
 	{ 0xd3, 0x10, 4, 0 }, { 0xd3, 0x11, 4, 0 }, { 0xd3, 0x12, 4, 0 },
+	{ 0x2e, 0, 5, PANEL_RD_PIXEL },
 };
 #undef	M
 _Static_assert(sizeof(panel_reads) / sizeof(panel_reads[0]) <= PANEL_READ_N,

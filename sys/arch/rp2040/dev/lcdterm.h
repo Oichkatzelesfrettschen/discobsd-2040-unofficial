@@ -84,7 +84,7 @@ void	lcd_set_top(int prow);
  * lcd_gfx_end() deselects the panel. lcd_gfx_scroll() programs VSCSAD,
  * lcd_gfx_scrdef() VSCRDEF with `top` and `bottom` fixed lines, and
  * lcd_gfx_colmod() COLMOD. lcd_gfx_reset() returns the panel to the text
- * configuration: COLMOD 0x66, VSCRDEF 0/320/160 and the two pixel columns
+ * configuration: COLMOD 0x55, VSCRDEF 0/320/160 and the two pixel columns
  * right of the last cell cleared. lcd_palette holds the console's sixteen
  * colors, red, green and blue as 8-bit values.
  */

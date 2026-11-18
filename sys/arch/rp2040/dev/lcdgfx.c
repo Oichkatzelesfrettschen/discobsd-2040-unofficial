@@ -258,6 +258,8 @@ lcdgfx_open(void)
 	for (i = 0; i < LCDG_NPAL; i++)
 		gfx_pal[i] = rgb565(lcd_palette[i][0], lcd_palette[i][1],
 		    lcd_palette[i][2]);
+	/* The console draws in 55h; a pixel program starts in 66h. */
+	lcd_gfx_colmod(gfx_fmt);
 	lcd_gfx_scroll(0);
 	return 0;
 }
@@ -299,6 +301,8 @@ lcdgfx_panel_read(struct picocalc_panel_read *rb)
 		return EBUSY;
 	window_end();
 	st7365p_readback(rb);
+	/* The readback's pixel entry leaves the panel in 55h. */
+	lcd_gfx_colmod(gfx_fmt);
 	return 0;
 }
 

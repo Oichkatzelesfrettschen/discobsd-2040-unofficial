@@ -243,7 +243,7 @@ def panel_status_failures(status: str) -> list[str]:
     expect(status.startswith("display on,"), "panel: DISPON was never received")
     expect(", sleep out," in status, "panel: SLPOUT was never received (still in sleep mode)")
     expect("madctl 0x48" in status, "panel: MADCTL 0x48 not programmed")
-    expect("colmod 0x66" in status, "panel: COLMOD 0x66 not programmed")
+    expect("colmod 0x55" in status, "panel: COLMOD 0x55 not programmed")
     expect("scroll top 0 area 320 bottom 160" in status,
            "panel: VSCRDEF 0/320/160 not programmed")
     expect(" 0 unknown commands" in status, "panel: unmodeled commands received")
@@ -373,9 +373,9 @@ READ_COMMANDS = {
 
 # What each register reads, from the datasheet's Default tables (pages 147,
 # 151, 153, 155, 157, 159, 160, 162, 215 to 217) and from the field layouts
-# for the driver's configuration: MADCTL 48h (MX, BGR), COLMOD 66h, INVON,
+# for the driver's configuration: MADCTL 48h (MX, BGR), COLMOD 55h, INVON,
 # SLPOUT and DISPON. RDDST after the driver: BSTON 1, MX 1, RGB 1 (A4h);
-# IFPF 110, SLPOUT 1, NORON 1 (63h); INVON 1, DISON 1 (24h); gamma curve 0.
+# IFPF 101, SLPOUT 1, NORON 1 (53h); INVON 1, DISON 1 (24h); gamma curve 0.
 # Masks hold the bits the model leaves at zero because the datasheet does not
 # say when they set: ST15 of RDDST and VSSON of RDDIM (vertical scroll mode).
 READ_MASKS = {0x09: 0xFFFF7FFF, 0x0D: 0x7F}
@@ -394,12 +394,12 @@ READ_AFTER_RESET = {
     0x0D: 0x00, 0x0E: 0x00, 0x0F: 0x00, 0xDA: 0xFF, 0xDB: 0xFF, 0xDC: 0xFF,
 }
 READ_AFTER_INIT = {
-    0x04: 0xFFFFFF, 0x09: 0xA4632400, 0x0A: 0x9C, 0x0B: 0x48, 0x0C: 0x66,
+    0x04: 0xFFFFFF, 0x09: 0xA4532400, 0x0A: 0x9C, 0x0B: 0x48, 0x0C: 0x55,
     0x0D: 0x20, 0x0E: 0x00, 0x0F: 0x00, 0xDA: 0xFF, 0xDB: 0xFF, 0xDC: 0xFF,
 }
 # SWRESET leaves MADCTL and COLMOD alone and returns sleep, display and
 # inversion to their defaults (pages 151, 153, 155, 157, 159).
-READ_AFTER_SWRESET = {**READ_AFTER_RESET, 0x09: 0x24610000, 0x0B: 0x48, 0x0C: 0x66}
+READ_AFTER_SWRESET = {**READ_AFTER_RESET, 0x09: 0x24510000, 0x0B: 0x48, 0x0C: 0x55}
 
 # The bytes st7365p_init() sends after init_seq: SLPOUT, VSCRDEF (0, 320,
 # 160 lines), VSCSAD 0, then st7365p_display_on() sends DISPON.
@@ -649,7 +649,7 @@ def check_monitors(run: Run) -> None:
 
 # A Status line the model printed after a passing boot (st7365p.cs Status()).
 GOOD_STATUS = (
-    "display on, sleep out, invert on, madctl 0x48, colmod 0x66, "
+    "display on, sleep out, invert on, madctl 0x48, colmod 0x55, "
     "scroll top 0 area 320 bottom 160 start 0, 779602 bytes, 250660 pixels, "
     "0 outside the window, 0 unknown commands, 0 without chip select")
 

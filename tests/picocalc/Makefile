@@ -24,9 +24,9 @@
 # repaints on entering the mode, and a fatal path that does not leave the
 # mode. lcdgfx_test drives the /dev/lcdgfx
 # driver (lcdgfx.c) and the real terminal against a model of the panel's
-# write path; sixty-one mutants of lcdgfx.c and lcdterm.c must fail it:
-# a skipped exclusive open, restore, range check, window abandonment or
-# scroll-start update, wrong color widening, byte order, palette
+# write path; sixty-two mutants of lcdgfx.c and lcdterm.c must fail it:
+# a skipped exclusive open, restore, open-time pixel format, range check,
+# window abandonment or scroll-start update, wrong color widening, byte order, palette
 # handling, bit-row padding, line, circle and frame drawing, and, for the
 # tile atlas, a moved upload or block bound, a wrong upload offset or clamp,
 # a tile number accepted past the atlas, tile pixel lines drawn tile by tile
@@ -878,6 +878,7 @@ GFX_SRC=	lcdgfx.c lcdgfx.h lcdterm.c lcdterm.h lcdfont.c lcdfont.h
 gfx-mutants: \
 	gfx-mutant-exclusive-open \
 	gfx-mutant-no-restore \
+	gfx-mutant-open-colmod \
 	gfx-mutant-coord-bound \
 	gfx-mutant-rect-order \
 	gfx-mutant-circle-right \
@@ -945,6 +946,10 @@ gfx-mutant-exclusive-open:
 gfx-mutant-no-restore:
 	${GFX_MUT} lcdgfx.c \
 	    's/return lcdcons_gfx(0);/return 0;/' ${GFX_SRC}
+
+gfx-mutant-open-colmod:
+	${GFX_MUT} lcdgfx.c \
+	    's/^	lcd_gfx_colmod(gfx_fmt);$$/	;/' ${GFX_SRC}
 
 gfx-mutant-coord-bound:
 	${GFX_MUT} lcdgfx.c \
@@ -2212,6 +2217,7 @@ clean:
 .PHONY: gametile-mutants gametile-mutant-fill-column-sum gametile-mutant-fill-row-sum gametile-mutant-fill-origin-unchecked gametile-mutant-load-sum gametile-mutant-load-product gametile-mutant-touch-unchecked gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
 
 .PHONY: gfx-mutants gfx-mutant-exclusive-open gfx-mutant-no-restore \
+	gfx-mutant-open-colmod \
 	gfx-mutant-coord-bound gfx-mutant-rect-order gfx-mutant-circle-right \
 	gfx-mutant-circle-left gfx-mutant-window-format \
 	gfx-mutant-window-extent gfx-mutant-window-gray \

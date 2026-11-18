@@ -127,6 +127,7 @@ UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
 # Virtual seconds for the card stage: SPI at 398 kHz through
 # identification, then sector reads of the table and the superblock.
 SD_BUDGET_SECONDS = 60.0
+ROOT_SLICE_SECONDS = 0.1
 
 # Every PicoCalc kernel; the configuration name in parentheses differs.
 BANNER = "DiscoBSD 2.7 (PICOCALC"
@@ -326,6 +327,24 @@ def make_card(path, root_img, p3_type, layout, tmp_entry=False):
     return sectors * SECTOR
 
 
+def wait_root_lines(run, texts):
+    """Wait until every root line has been on the panel in some frame.
+
+    The lines need not share a frame: the partition listings that follow
+    them scroll a 32-row panel within a fraction of a second, so the frames
+    are taken a tenth of a second apart and every frame's lines count."""
+    spent = 0.0
+    while spent < SD_BUDGET_SECONDS:
+        run.advance(ROOT_SLICE_SECONDS)
+        spent += ROOT_SLICE_SECONDS
+        if all(run.saw(text) for text in texts):
+            print(f"check-picocalc: root lines after {run.virtual:.1f} virtual seconds")
+            return True
+    run.fail(f"root lines: {texts!r} not on the panel after {run.virtual:.1f} "
+             "virtual seconds")
+    raise cp.StageFailed("root lines")
+
+
 def boot(renode_path, kernel, flash, card, capacity, outdir, start):
     renode = Renode(renode_path, os.path.join(outdir, "renode.log"), cp.WALL_SECONDS)
     renode.command(f"$unix_bin=@{kernel}")
@@ -350,7 +369,7 @@ def case_root(renode_path, kernel, flash, root_img, outdir, layout, start, reaso
         # The banner scrolls off the 32-row panel before the card answers,
         # so the waits run one after the other.
         run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
-        run.wait_for([reason, "root: sd0c", LAYOUTS[layout][2]], "root lines", SD_BUDGET_SECONDS)
+        wait_root_lines(run, [reason, "root: sd0c", LAYOUTS[layout][2]])
         run.snapshot("root")
         run.wait_until(
             lambda: parse_root_dev(run.lines) is not None,
@@ -413,7 +432,7 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
         run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
-        run.wait_for([reason, "root: sd0c", LAYOUTS["tmp"][2]], "root lines", SD_BUDGET_SECONDS)
+        wait_root_lines(run, [reason, "root: sd0c", LAYOUTS["tmp"][2]])
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")
         run.wait_for_prompt("shell prompt", cp.KEY_BUDGET_SECONDS)

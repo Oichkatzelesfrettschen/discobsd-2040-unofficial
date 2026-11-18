@@ -948,7 +948,7 @@ row is an inference that the rate divides with it.
 | 120 | Fh | 04h | 0 | 2 / 2 | 120.12 | DOC formula |
 
 The driver sends B1h A0h for the 60.06 Hz row (`st7365p.c:120`) and never sends
-RTNA's companion B5h, so the shipped rate is the 60.06 Hz row only under the
+B5h (VFP, VBP), so the shipped rate is the 60.06 Hz row only under the
 HEX-column assumption and is unmeasured. The only
 board observation is set 15 (FRS 0, RTNA 10h, a formula rate of 31.1 Hz),
 which the owner saw flicker. The idle-mode and partial-mode line periods

@@ -14,8 +14,8 @@ boundary and passed it. It is not merged, because it costs wear on this
 medium: a trim runs Dhara's collector as a write does and the free list
 hands the block out again at once, so eight compiles on the measured Pico
 erased 1,592 root sectors with trim at free against 1,374 without
-(`trim-cost-model.md`). The code stays on the branches
-`archive/rp2040-trim-freed-blocks` and `archive/rp2040-free-list-sweep`. The ordering is
+(`trim-cost-model.md`). `archive/rp2040-free-list-sweep` contains the exact
+trim-at-free tip `2d154315`. The ordering is
 the prerequisite for an erase or discard at free on an SD card
 (`log-structured-store-scope.md`), where the 2.11BSD order this tree
 inherited would let a reset leave a file naming erased blocks.

@@ -1,6 +1,6 @@
 # One RP2040 kernel for every board: what the four configurations reduce to
 
-The RP2040 port builds four kernels from `sys/arch/rp2040/compile/*/Config`:
+The comparison at `458cc01a` builds four kernels from `sys/arch/rp2040/compile/*/Config`:
 PICO (bare Pico, USB console), PICO_UART (bare Pico, UART0 console),
 PICOCALC (Pico on the ClockworkPi PicoCalc carrier, panel and keyboard console)
 and PICOCALC_PSRAM (PICOCALC plus the carrier's ESP-PSRAM64H as swap). This
@@ -130,3 +130,26 @@ keyboard-presence discriminant is untested against a cold PicoCalc boot; a
 board capture of `picokbd_version()` at probe time across power cycles raises
 or lowers it. The Renode USB behavior is unknown until the gate in item 2
 runs.
+
+## Configuration retirement
+
+The current build has six configurations. `BOARD` selects the descriptor
+written into the kernel image. `UNION_KERNEL` selects the kernel to pair with
+that descriptor. `check-board-descriptor` checks the descriptor and
+`check-renode-union` boots PICOCALC with the UART console descriptor. The
+lean and diagnostic lean configurations have their own boot gates in
+`sys/arch/rp2040/doc/TESTING.md`.
+
+The PicoCalc panel run at `b47cda40` establishes register readback and
+visible patterns on the measured carrier. The SD-root emulator replay
+establishes a login on the modeled panel, an SD root, and a writable
+`/tmp` on its type-ba partition. The two runs leave cold-start keyboard
+identification, physical PSRAM swap and flash fallback open. Their
+records live in `sys/arch/rp2040/doc/PANELTEST.md` and
+`sys/arch/rp2040/doc/PICOCALC.md`.
+
+PICO and PICO_UART link the core 1 observer. The PicoCalc configurations
+omit it. A single replacement kernel needs a disposition for that
+observer and the renderer's use of core 1, a linked flash and RAM bound,
+and the bare-Pico and PicoCalc board coverage above. These criteria
+supersede the configuration-retirement checklist at `96d761e7`.

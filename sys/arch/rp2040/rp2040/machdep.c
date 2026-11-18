@@ -29,7 +29,7 @@
 #include <machine/board.h>
 
 #include <machine/intr.h>
-#include <machine/mpu.h>
+#include <machine/mpuvar.h>
 #include <machine/scb.h>
 #include <machine/usercopy.h>
 #include <machine/watchdog.h>

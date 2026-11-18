@@ -113,9 +113,9 @@ address-range cache) and the Cortex-M0+ reorders nothing.
 
 The kernel runs privileged and sees the default map as its background, so
 kernel text in XIP flash, kernel data above the window, the peripherals at
-0x40000000, SIO at 0xd0000000 and the PPB stay reachable to it and closed
-to a process. A process may read, write and execute its own window, and
-read and execute the boot ROM. Nothing else. That includes the unstriped
+0x40000000, SIO at 0xd0000000 and the PPB stay reachable to the kernel. A process
+may read, write and execute its own window, read and execute the boot ROM,
+and read and write the divider subregion. Uncovered addresses fault. That includes the unstriped
 SRAM windows at 0x21000000-0x2103ffff (datasheet 2.6.2), which name the
 same cells as the user window and kernel RAM one bank at a time: no region
 covers them, so an unprivileged access faults, and a region that granted
@@ -126,13 +126,21 @@ uncovered; the fault test section lists them.
 
 ## Programming order and readback
 
-mpu.c writes MPU_CTRL 0, then each region through RBAR with VALID set and
-its RASR, then MPU_CTRL 0x5, with DSB after the region writes and DSB then
-ISB after the enable (ARMv6-M ARM B3.5.4). Every write is read back: a
-region counts as programmed only when RNR, RBAR and RASR return what was
-written, and the enable is written only when every region does. A map
-missing a user region would fault the first user instruction, so a core or
-emulator that drops the writes runs with the MPU off and says so.
+When MPU_TYPE reports regions, mpu.c first writes zero to MPU_CTRL and
+checks its readback. With the MPU disabled it selects each slot through
+RBAR with VALID set, writes RASR, and issues DSB before reading the slot.
+For each of the four grants it checks RNR, the base and region in RBAR,
+and the full RASR. For each remaining slot it checks RNR, a zero base with
+the selected region number in RBAR, and a zero RASR. A failed check leaves
+the MPU disabled. The programmed count includes only verified grants, so it
+can read four even if clearing a spare slot failed.
+
+After all checks pass, the kernel requests CTRL 0x5. Each control write
+is followed by DSB and ISB before readback. If the enable readback differs
+from 0x5, the kernel restores CTRL to zero. Boot stops if a requested
+disable cannot be confirmed. A core reporting no regions skips programming.
+A nonzero count too small for the map or too large for the region selector
+leaves the MPU disabled.
 
 What was read back, not what was written, is what the kernel reports. The
 console line after the `cpu:` banner reads
@@ -210,8 +218,9 @@ MPU fault from a bus error, and both print the same frame.
 CPUID and DIV_CSR lie 0x78 bytes apart inside the same 256-byte region, so
 the pair decides the subregion disables rather than the region's presence,
 and the division that follows is what the boot ROM actually does with the
-register it was granted. The test also requires `nregions` to read 8 and
-`enable` to be set only with `programmed` equal to 4, and ends with `MPUTEST OK (mpu on)` or
+register it was granted. The test requires `nregions` to read 8, `ctrl`
+to read 0x5 when enabled and zero when disabled, and `programmed` to read
+four when enabled. It ends with `MPUTEST OK (mpu on)` or
 `MPUTEST OK (mpu off)` when every line agrees, so the same program on the
 same image distinguishes a map the registers accepted from one they
 dropped. Each closed probe under an enabled MPU is a real HardFault, and
@@ -327,8 +336,8 @@ peripheral, so the emulator decides the register-level claim and the fault
 path ahead of the board; the map, the readback and the test carry no
 emulator-specific assumption.
 
-Cost: 656 bytes of text and 16 of bss in the PICO kernel, 688 and 16 in
-PICO_UART, and 7,988 bytes of root for mputest.
+The earlier build measured 656 bytes of text and 16 of bss in the PICO
+kernel, 688 and 16 in PICO_UART, and 7,988 bytes of root for mputest.
 
 ## Read-only admission of system-call arguments
 

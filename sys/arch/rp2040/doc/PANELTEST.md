@@ -231,3 +231,64 @@ frame-rate measurement or read control; those arrived later).
    white compresses the ratios and exposure differed between runs.
 5. E7 lines (prediction 8): a photograph of pattern 7 shows bands 5-9
    in the top half and undrawn RAM noise below, as predicted.
+
+## Results, 2026-11-18
+
+Board run on the PICOCALC kernel of main bff303aa (sets 0-27, the first
+with the scanline sampler and the read control).
+
+1. Scanline decode: every sample set gives 484 lines with the one-clock
+   shift (raw maximum `00 f1 80`), which is 480 + VFP + VBP with the
+   porches the frame-rate sets write, and 242 without it. GSCAN answers on
+   this link with one dummy clock, as 04h, 09h and D3h do.
+2. The wrap rule miscounted. Repeated samples of one set reported rates
+   from 58 to 155 Hz, each with an error bound under 0.2 Hz. The span from
+   the first to the last counted wrap, divided by one frame period, is an
+   integer or an integer plus or minus 0.53 (once 0.26) in every sample;
+   256 / 484 = 0.529 and 128 / 484 = 0.264. The sampler counted a wrap on
+   any fall of more than 64 lines, and a read that meets the line counter
+   during the 255 to 256 or 127 to 128 carry returns one low line. No
+   fraction near 0.79 (383 to 384) occurred in 85 samples. The reads are
+   sound and the rule was the defect; `st7365p_scan.h` now requires the
+   sample after a fall to continue from the low line and counts the
+   samples it sets aside (`rejected`). The carry explanation is an
+   inference from the span fractions; the kernel that carries the new rule
+   has not sampled the board.
+3. Frame period, recovered from 8 to 10 samples per set by fitting one
+   period to the spans (mean residual 0.001 to 0.004 frame):
+
+   | Set | Formula | Recovered | Ratio |
+   | --- | --- | --- | --- |
+   | 0 shipped | 60.06 Hz | 57.95 Hz | 0.965 |
+   | 1 vendor | 60.06 Hz | 57.97 Hz | 0.965 |
+   | 14, B1h 00h without CSCON | 31.0 Hz | 58.00 Hz | not applied |
+   | 15, B1h 00h after CSCON | 31.0 Hz | 30.18 Hz | 0.974 |
+   | 21, 24 Hz, DIVA 01b | 24.02 Hz | 23.33 Hz | 0.971 |
+   | 22, 40 Hz | 40.04 Hz | 38.72 Hz | 0.967 |
+   | 23, 60 Hz | 60.06 Hz | 57.94 Hz | 0.965 |
+   | 24, 75 Hz | 75.13 Hz | 72.30 Hz | 0.962 |
+   | 25, 90 Hz | 89.83 Hz | 86.51 Hz | 0.963 |
+   | 26, 120 Hz | 120.13 Hz | 117.04 Hz | 0.974 |
+
+   The FRMCTR1 formula of page 219 holds on this controller with its
+   oscillator 2.6% to 3.8% slow, and DIVA 01b halves the rate, which the
+   printed formula omits.
+4. E1 gating, measured for B1h: the write is discarded without the CSCON
+   unlock (set 14 keeps the default period) and acts after it (set 15).
+   `st7365p.c` never sends F0h, so its B1h write has never acted; whether
+   its other Command Table 2 writes (gamma, power, VCOM, inversion, entry
+   mode) share the gate is not measured, and the set 16 striping of
+   2026-11-17, seen by eye, would mean C5h does not.
+5. Read control (prediction of 2026-11-17, entries 21-28): B1h and C5h
+   read 00 in all eight variants in all 28 sets, with the mark values
+   written just before each read. Section 9.3 of the datasheet prints read
+   rows only for D2h and D3h in Command Table 2; B0h-B7h, C0h-C6h, E0h-E8h
+   and F0h have write rows only. The zeros agree with the datasheet. The
+   positive control remains open: entries 29-33 read D2h, and D3h through
+   FBh 10h, 11h and 12h.
+6. Board tests on the same kernel passed: divtest, fptest, forktest,
+   sigtest, filetab, inotab, textcrc, streamtest, swapmaptest, tartest,
+   romprobe, clistbound, proctab and evactest as root, lcdgfxtest,
+   windowtest, and stdiocap with each operation. tiledemo's key session
+   was refused from the UART terminal, as its header says; it was not run
+   from the console.

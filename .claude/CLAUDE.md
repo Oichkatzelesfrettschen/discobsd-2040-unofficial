@@ -32,6 +32,14 @@ With two boards attached, name the USB port (`--usb-port 1-3` or
 and `discobsd-web`) whatever their serials; all four refuse to act on an
 unnamed board then.
 
+A PicoCalc takes a new kernel from its SD card, not from USB: the UF2 goes
+to `/pico1-apps/discobsd.uf2`, and the loader programs it only when entered
+with both USB cables unplugged, power off, then Up held while pressing power
+(Up twice more reaches the list). A plain power-on starts the kernel already
+in flash, and micro-USB plugged at power-on puts the loader in USB drive mode
+with no application list; confirm the result with `sysctl kern.version`.
+`sys/arch/rp2040/doc/PICOCALC.md` owns the procedure.
+
 ## Build, image, flash
 
 Select `PYTHON` in the caller before every build or gate that invokes a Python

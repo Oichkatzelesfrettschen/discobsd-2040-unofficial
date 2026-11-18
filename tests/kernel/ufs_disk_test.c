@@ -813,6 +813,9 @@ test_sparse_seek(void)
     check_seek(&fp, L_INCR, 0x7fffffffL, EOVERFLOW, 0);
     check_seek(&fp, L_XTND, -end - 1, EINVAL, 0);
     check_seek(&fp, L_XTND, 1, 0, end + 1);
+    fp.f_flag = FIDENTITY;
+    check_seek(&fp, SEEK_DATA, 0, EBADF, 0);
+    fp.f_flag = FREAD;
     ip.i_mode = IFCHR;
     check_seek(&fp, SEEK_DATA, 0, EINVAL, 0);
     check_seek(&fp, L_SET, -2, 0, -2);

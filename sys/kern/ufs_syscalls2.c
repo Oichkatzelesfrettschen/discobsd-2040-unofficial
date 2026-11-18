@@ -290,6 +290,10 @@ lseek(void)
         break;
     case SEEK_DATA:
     case SEEK_HOLE:
+        if (fp->f_flag & FIDENTITY) {
+            u.u_error = EBADF;
+            return;
+        }
         if ((ip->i_mode & IFMT) != IFREG || position < 0) {
             u.u_error = EINVAL;
             return;

@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/dir.h>
 #include <sys/time.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -79,7 +80,7 @@ int
 copy(from, to)
     char *from, *to;
 {
-    int fold, fnew, n, exists;
+    int fold, fnew, n, exists, done, count;
     char *last, destname[MAXPATHLEN + 1], buf[MAXBSIZE];
     struct stat stfrom, stto;
 
@@ -167,15 +168,30 @@ copy(from, to)
         if (n == 0)
             break;
         if (n < 0) {
+            if (errno == EINTR)
+                continue;
             Perror(from);
             (void) close(fold); (void) close(fnew); return (1);
         }
-        if (write(fnew, buf, n) != n) {
+        for (done = 0; done < n;) {
+            count = write(fnew, buf + done, n - done);
+            if (count > 0) {
+                done += count;
+                continue;
+            }
+            if (count < 0 && errno == EINTR)
+                continue;
+            if (count == 0)
+                errno = EIO;
             Perror(to);
             (void) close(fold); (void) close(fnew); return (1);
         }
     }
-    (void) close(fold); (void) close(fnew);
+    (void) close(fold);
+    if (close(fnew) < 0) {
+        Perror(to);
+        return (1);
+    }
     if (pflag)
         return (setimes(to, &stfrom));
     return (0);
@@ -191,7 +207,7 @@ rcopy(from, to)
     int errs = 0;
     char fromname[MAXPATHLEN + 1];
 
-    if (fold == 0 || (pflag && fstat(fold->dd_fd, &statb) < 0)) {
+    if (fold == 0 || (pflag && fstat(dirfd(fold), &statb) < 0)) {
         Perror(from);
         return (1);
     }

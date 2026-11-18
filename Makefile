@@ -1910,7 +1910,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor \
-		check-tar-host check-textbox-host check-cpio-host \
+		check-cp-host check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
 
 # The macOS firmware job runs the host tier as two steps, check-host-a and
@@ -2093,6 +2093,10 @@ check-archive-stored-times: check-python
 # expr, basename or sed fails. It needs no built tree.
 check-cc-driver:
 		sh tests/cc_driver/check.sh distrib/rp2040/cc
+
+.PHONY: check-cp-host
+check-cp-host:
+		CC=${HOST_CC:Ucc:Q} sh bin/cp/tests/transfer.sh
 
 check-tar-host:
 		sh bin/tar/tests/tartest.sh

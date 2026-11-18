@@ -5,7 +5,7 @@
  * The gate links sys/kern/kern_clock.c, kern_time.c and kern_fork.c, calls
  * hardclock() once per tick over a small allproc, and records every
  * psignal() with the tick it arrived on. The tick count of a signal is
- * monosec * hz + monotick after the hardclock() call that delivered it, and a
+ * monotonic tick count after the hardclock() call that delivered it, and a
  * setitimer() call lands inside the tick that count names, at an unknown
  * fraction of it. A wait of N ticks is therefore long enough only when the
  * signal arrives at least N + 1 ticks after the call.
@@ -42,7 +42,7 @@ static unsigned nsigs;
 static long
 ticknow(void)
 {
-    return monosec * hz + monotick;
+    return itimer_clock.seconds * hz + itimer_clock.ticks;
 }
 
 int suser(void) { return 1; }
@@ -188,10 +188,10 @@ reset(void)
     noproc = 1;
     u.u_procp = &proc[0];
     nsigs = 0;
-    monosec = 0;
-    monotick = 0;
-    realsec = LONG_MAX;
-    realtick = 0;
+    itimer_clock.seconds = 0;
+    itimer_clock.ticks = 0;
+    itimer_deadline_seconds = LONG_MAX;
+    itimer_clock.deadline_ticks = 0;
     hk_ipl = 0;
 }
 
@@ -296,8 +296,8 @@ one_shot(void)
             unsigned raises;
 
             reset();
-            monosec = 7;
-            monotick = phases[f];
+            itimer_clock.seconds = 7;
+            itimer_clock.ticks = phases[f];
             start = ticknow();
             HK_CHECK(set_timer(&proc[1], ITIMER_REAL, wait, 0) == 0);
             HK_CHECK(armed(&proc[1]));
@@ -320,7 +320,7 @@ one_shot(void)
                 proc[1].p_realtick == 0);
             tick(3000);
             HK_CHECK(nsigs == 1);
-            HK_CHECK(realsec == LONG_MAX);
+            HK_CHECK(itimer_deadline_seconds == LONG_MAX);
             HK_CHECK(hk_ipl == 0);
         }
 }
@@ -334,8 +334,8 @@ periodic(void)
 
     /* First signal on the first tick past the deadline, 11 ticks out. */
     reset();
-    monosec = 3;
-    monotick = 640;
+    itimer_clock.seconds = 3;
+    itimer_clock.ticks = 640;
     start = ticknow();
     HK_CHECK(set_timer(&proc[0], ITIMER_REAL, 10, 10) == 0);
     tick(1000);
@@ -374,8 +374,8 @@ readback(void)
     unsigned i;
 
     reset();
-    monosec = 9;
-    monotick = 998;
+    itimer_clock.seconds = 9;
+    itimer_clock.ticks = 998;
     HK_CHECK(set_timer(&proc[0], ITIMER_REAL, 500, 250) == 0);
     itv = get_timer(&proc[0], ITIMER_REAL);
     HK_CHECK(usec_of(itv.it_value) == 500000);
@@ -444,7 +444,7 @@ rearm(void)
     start = ticknow();
     HK_CHECK(set_timer(&proc[0], ITIMER_REAL, 400, 0) == 0);
     tick(401);
-    HK_CHECK(nsigs == 1 && realsec == LONG_MAX);
+    HK_CHECK(nsigs == 1 && itimer_deadline_seconds == LONG_MAX);
     start = ticknow();
     HK_CHECK(set_timer(&proc[1], ITIMER_REAL, 30, 0) == 0);
     tick(100);
@@ -467,7 +467,7 @@ cancel(void)
     tick(150);
     HK_CHECK(nsigs == 0);
     /* The stale earliest value cost one scan and was recomputed. */
-    HK_CHECK(realsec == 0 && realtick == 300);
+    HK_CHECK(itimer_deadline_seconds == 0 && itimer_clock.deadline_ticks == 300);
     tick(400);
     HK_CHECK(nsigs == 1 && sigs[0].proc == &proc[1] &&
         sigs[0].tick == start + 301);
@@ -579,13 +579,13 @@ time_steps(void)
         tv.tv_usec = 123000;
         sargs->tv = &tv;
         sargs->tzp = NULL;
-        sec_before = monosec;
-        tick_before = monotick;
+        sec_before = itimer_clock.seconds;
+        tick_before = itimer_clock.ticks;
         u.u_error = 0;
         gate_settimeofday();
         HK_CHECK(u.u_error == 0);
         HK_CHECK(time.tv_sec == tv.tv_sec);
-        HK_CHECK(monosec == sec_before && monotick == tick_before);
+        HK_CHECK(itimer_clock.seconds == sec_before && itimer_clock.ticks == tick_before);
         HK_CHECK(proc[0].p_realtimer.it_value == deadline_sec &&
             proc[0].p_realtick == deadline_tick);
 
@@ -598,7 +598,7 @@ time_steps(void)
             u.u_error = 0;
             adjtime();
             HK_CHECK(u.u_error == 0);
-            HK_CHECK(monosec == sec_before && monotick == tick_before);
+            HK_CHECK(itimer_clock.seconds == sec_before && itimer_clock.ticks == tick_before);
             HK_CHECK(proc[0].p_realtimer.it_value == deadline_sec &&
                 proc[0].p_realtick == deadline_tick);
         }
@@ -621,7 +621,7 @@ catch_up(void)
     HK_CHECK(set_timer(&proc[0], ITIMER_REAL, 100, 0) == 0);
     tick(10);
     monoclock_advance(5000);
-    HK_CHECK(monosec == 5 && monotick == 10);
+    HK_CHECK(itimer_clock.seconds == 5 && itimer_clock.ticks == 10);
     HK_CHECK(nsigs == 0);
     tick(1);
     HK_CHECK(nsigs == 1 && sigs[0].tick == start + 5011);
@@ -646,15 +646,15 @@ catch_up(void)
 
     /* Carry from the tick counter into seconds. */
     reset();
-    monotick = 999;
+    itimer_clock.ticks = 999;
     monoclock_advance(1);
-    HK_CHECK(monosec == 1 && monotick == 0);
+    HK_CHECK(itimer_clock.seconds == 1 && itimer_clock.ticks == 0);
     monoclock_advance(2999);
-    HK_CHECK(monosec == 3 && monotick == 999);
+    HK_CHECK(itimer_clock.seconds == 3 && itimer_clock.ticks == 999);
     monoclock_advance(1);
-    HK_CHECK(monosec == 4 && monotick == 0);
+    HK_CHECK(itimer_clock.seconds == 4 && itimer_clock.ticks == 0);
     tick(1000);
-    HK_CHECK(monosec == 5 && monotick == 0);
+    HK_CHECK(itimer_clock.seconds == 5 && itimer_clock.ticks == 0);
 }
 
 /* The largest accepted interval and value survive a round trip. */
@@ -664,8 +664,8 @@ limits(void)
     struct itimerval itv, back;
 
     reset();
-    monosec = 12345;
-    monotick = 321;
+    itimer_clock.seconds = 12345;
+    itimer_clock.ticks = 321;
     bzero(&itv, sizeof itv);
     itv.it_value.tv_sec = 100000000L;
     itv.it_interval.tv_sec = 100000000L;
@@ -720,8 +720,8 @@ clamps(void)
     int which;
 
     reset();
-    monosec = 12345;
-    monotick = 321;
+    itimer_clock.seconds = 12345;
+    itimer_clock.ticks = 321;
     bzero(&itv, sizeof itv);
     itv.it_value.tv_sec = 0x7fffffffL;
     itv.it_interval.tv_sec = 0x7fffffffL;
@@ -1005,7 +1005,7 @@ virtual_prof(void)
             HK_CHECK(back.it_value.tv_usec ==
                 cases[i].ticks % hz * usechz);
             HK_CHECK(proc[0].p_realtimer.it_value == 0 &&
-                !armed(&proc[0]) && realsec == LONG_MAX);
+                !armed(&proc[0]) && itimer_deadline_seconds == LONG_MAX);
         }
 }
 

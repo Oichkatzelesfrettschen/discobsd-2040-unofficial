@@ -3,8 +3,6 @@
 # configuration compiles. Regenerate with c17_inventory.py --update.
 sys/kern/kern_glob.c definition rdglob scan
 sys/kern/kern_glob.c definition wrglob scan
-sys/kern/kern_time.c definition itimerdecr scan
-sys/kern/kern_time.c definition timevalsub scan
 sys/kern/subr_log.c definition logclose scan
 sys/kern/subr_log.c definition loginit scan
 sys/kern/subr_log.c definition logioctl scan

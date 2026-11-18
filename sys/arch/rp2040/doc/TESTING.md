@@ -3536,7 +3536,7 @@ daddr_t width is not evidence about the target's on-disk encoding.
 A separate interval-timer fixture (`tests/kernel/itimer_test.c`) drives the
 production `hardclock()` tick by tick over four `struct proc` entries in
 `allproc` and records every `psignal()` with its tick, 2,455 assertions in all.
-`ITIMER_REAL` counts ticks on the monotonic clock (`monosec`, `monotick`),
+`ITIMER_REAL` counts ticks on the monotonic clock in `itimer_clock`,
 which `settimeofday()` and `adjtime()` leave alone. A one-shot at 1, 10, 500,
 999, 1,000 and 2,500 ms, started from five phases of the second, signals once,
 exactly the wait plus one tick after the call (the deadline is the wait past

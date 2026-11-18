@@ -97,15 +97,13 @@
 static struct {
 	u_int	type;
 	u_int	ctrl;
-	u_int	nregions;
-	u_int	programmed;
+	u_char	nregions;	/* MPU_TYPE.DREGION is eight bits. */
+	u_char	programmed;	/* At most one per selectable slot. */
 } mpu_state;
 
 struct mpu_region {
 	u_int	base;			/* Aligned to 2^log2. */
-	u_int	log2;			/* Size as a power of two. */
-	u_int	attrs;			/* RASR AP and XN bits. */
-	u_int	srd;			/* One bit per eighth; 1 disables. */
+	u_int	rasr;			/* Encoded attributes, size and enable. */
 };
 
 /*
@@ -137,13 +135,17 @@ _Static_assert(((USER_DATA_START + (1UL << MPU_USER_LOW_LOG2)) &
 _Static_assert(MPU_SIO_DIV_SRD == 0xf7UL,
     "only the subregion holding SIO offsets 0x060 to 0x07f may be enabled");
 
+#define	MPU_GRANT(log2, attrs, srd) \
+	(MPU_RASR_SIZE(log2) | (attrs) | ((srd) << MPU_RASR_SRD_SHIFT) | \
+	    MPU_RASR_ENABLE)
+
 static const struct mpu_region mpu_map[] = {
-	{ 0x00000000UL, MPU_ROM_LOG2, MPU_AP_RO, 0 },
-	{ USER_DATA_START, MPU_USER_LOW_LOG2, MPU_AP_RW, 0 },
-	{ USER_DATA_START + (1UL << MPU_USER_LOW_LOG2), MPU_USER_HIGH_LOG2,
-	    MPU_AP_RW, 0 },
-	{ MPU_SIO_BASE, MPU_SIO_LOG2, MPU_AP_RW | MPU_RASR_XN,
-	    MPU_SIO_DIV_SRD },
+	{ 0, MPU_GRANT(MPU_ROM_LOG2, MPU_AP_RO, 0) },
+	{ USER_DATA_START, MPU_GRANT(MPU_USER_LOW_LOG2, MPU_AP_RW, 0) },
+	{ USER_DATA_START + (1UL << MPU_USER_LOW_LOG2),
+	    MPU_GRANT(MPU_USER_HIGH_LOG2, MPU_AP_RW, 0) },
+	{ MPU_SIO_BASE, MPU_GRANT(MPU_SIO_LOG2, MPU_AP_RW | MPU_RASR_XN,
+	    MPU_SIO_DIV_SRD) },
 };
 #define	MPU_NMAP	(sizeof mpu_map / sizeof mpu_map[0])
 
@@ -186,7 +188,7 @@ mpu_init(void)
 {
 	const u_int ctrl = MPU_CTRL_PRIVDEFENA | MPU_CTRL_ENABLE;
 	const struct mpu_region *r;
-	u_int n, rasr;
+	u_int n;
 
 	mpu_state.type = MPU_REG32(MPU_TYPE);
 	mpu_state.nregions = (mpu_state.type & MPU_TYPE_DREGION_MASK) >>
@@ -203,9 +205,7 @@ mpu_init(void)
 
 	for (n = 0; n < MPU_NMAP; n++) {
 		r = &mpu_map[n];
-		rasr = r->attrs | (r->srd << MPU_RASR_SRD_SHIFT) |
-		    MPU_RASR_SIZE(r->log2) | MPU_RASR_ENABLE;
-		mpu_state.programmed += mpu_program(n, r->base, rasr);
+		mpu_state.programmed += mpu_program(n, r->base, r->rasr);
 	}
 	for (; n < mpu_state.nregions; n++) {
 		if (!mpu_program(n, 0, 0))
@@ -235,9 +235,13 @@ mpu_user_rospan(u_int start, u_int nbytes)
 {
 	const struct mpu_region *r;
 
+	/* Unrolling lets the compiler fold each fixed grant and its bounds. */
+#pragma GCC unroll 4
 	for (r = mpu_map; r < &mpu_map[MPU_NMAP]; r++)
-		if ((r->attrs & MPU_RASR_AP_MASK) == MPU_AP_RO &&
-		    rp2040_user_region_span_contains(r->base, r->log2, r->srd,
+		if ((r->rasr & MPU_RASR_AP_MASK) == MPU_AP_RO &&
+		    rp2040_user_region_span_contains(r->base,
+		    1 + ((r->rasr & MPU_RASR_SIZE_MASK) >> MPU_RASR_SIZE_SHIFT),
+		    (r->rasr & MPU_RASR_SRD_MASK) >> MPU_RASR_SRD_SHIFT,
 		    start, nbytes))
 			return 1;
 	return 0;

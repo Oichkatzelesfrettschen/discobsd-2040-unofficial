@@ -150,8 +150,8 @@
  * acts on 24-bit input alone.
  *
  * LCDG_XINFO reports the controller's line count, the first line of the
- * text console's ring at the open (the memory line the console showed at
- * the top of the glass), the power mode and LCDG_READ_MAX.
+ * text console's ring when the console gave up the panel (the memory line
+ * it showed at the top of the glass), the power mode and LCDG_READ_MAX.
  */
 #define LCDG_ATLAS_N		128
 #define LCDG_TILE_W		8

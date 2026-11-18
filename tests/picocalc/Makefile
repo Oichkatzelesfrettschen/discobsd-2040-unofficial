@@ -1047,7 +1047,7 @@ gfxext-mutant-power-range:
 
 gfxext-mutant-xinfo-top:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/lcdterm_top() \* LT_CELL_H/lcdterm_top()/' ${GFX_SRC}
+	    's/lcdterm_gfx_top() \* LT_CELL_H/lcdterm_gfx_top()/' ${GFX_SRC}
 
 gfxext-mutant-dither-colmod:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1059,7 +1059,7 @@ gfxext-mutant-dither-on:
 
 gfxext-mutant-xinfo-live:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/xi->text_top = (u_short)gfx_text_top;/xi->text_top = (u_short)(lcdterm_top() * LT_CELL_H);/' ${GFX_SRC}
+	    's/lcdterm_gfx_top() \* LT_CELL_H/lcdterm_top() * LT_CELL_H/' ${GFX_SRC}
 
 gfxext-mutant-sprite-run-split:
 	${GFXEXT_MUT} lcdgfx.c \

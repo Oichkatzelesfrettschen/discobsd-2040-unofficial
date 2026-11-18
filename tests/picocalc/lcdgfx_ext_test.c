@@ -102,10 +102,17 @@ void lcd_gfx_scrdef(int top, int bottom) { (void)top; (void)bottom; }
 void lcd_gfx_colmod(unsigned fmt) { colmod = (int)fmt; }
 void lcd_gfx_reset(void) { colmod = 0x55; }
 
+static int drain_lines;		/* Text the release drains after a takeover. */
+
 int
 lcdcons_gfx(int on)
 {
+	int i;
+
 	lcdterm_gfx(on);
+	/* lcdcons.c drains deferred output when it releases the drawing flag. */
+	for (i = 0; on && i < drain_lines; i++)
+		lcdterm_putc('\n');
 	return 0;
 }
 
@@ -712,8 +719,11 @@ test_power(void)
 	for (i = 0; i < 37; i++)
 		lcdterm_putc('\n');	/* Scrolls the ring before the next open. */
 	lcdgfx_close();
-	expect("reopen", lcdgfx_open(), 0);
 	at = lcdterm_top() * LT_CELL_H;
+	drain_lines = 3;
+	expect("reopen", lcdgfx_open(), 0);
+	drain_lines = 0;
+	expect("the takeover's drain moved the ring", lcdterm_top() * LT_CELL_H != at, 1);
 	for (i = 0; i < 5; i++)
 		lcdterm_putc('\n');	/* Text the open device does not draw. */
 	expect("the ring moved on", lcdterm_top() * LT_CELL_H != at, 1);

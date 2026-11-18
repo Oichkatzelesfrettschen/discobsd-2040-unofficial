@@ -147,6 +147,7 @@ int	lcdterm_setglyph(int code, const unsigned char *rows);
 int	lcdterm_cell(int row, int col);
 unsigned lcdterm_attr(int row, int col);
 int	lcdterm_top(void);
+int	lcdterm_gfx_top(void);	/* LCD_GFX_EXT: top at lcdterm_gfx(1). */
 void	lcdterm_cursor(int *row, int *col);
 
 #endif /* !_LCDTERM_H */

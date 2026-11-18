@@ -130,21 +130,70 @@ rect(int x,int y,int w,int h,uint16_t c)
     if(y1>clip_bottom)y1=clip_bottom;
     for(j=y;j<y1;j++) for(i=x;i<x1;i++) pixels[(j-band_y)*320+i]=c;
 }
+static const unsigned char *
+glyph_rows(unsigned char ch)
+{
+    if (ch < LCDFONT_FIRST || ch >= LCDFONT_FIRST + LCDFONT_NCHARS)
+        ch = '?';
+    return lcdfont[ch - LCDFONT_FIRST];
+}
+
+static void
+glyph(int x, int y, const unsigned char *rows, uint16_t color, int scale)
+{
+    int row, col;
+
+    for (row = 0; row < LCDFONT_HEIGHT; row++)
+        for (col = 0; col < 6; col++)
+            if (rows[row] & (128u >> col))
+                rect(x + col * scale, y + row * scale, scale, scale, color);
+}
+
 static void
 text(int x,int y,const char *p,uint16_t c,int scale)
 {
-    int row,col,start=x;
+    int start=x;
     unsigned ch;
     while((ch=(unsigned char)*p++)!=0) {
         if(ch=='\n') { x=start; y+=11*scale; continue; }
         if(x+6*scale>310) { x=start; y+=11*scale; }
-        if(ch<32||ch>126) ch='?';
-        for(row=0;row<9;row++) for(col=0;col<6;col++)
-            if(lcdfont[ch-32][row] & (128u>>col))
-                rect(x+col*scale,y+row*scale,scale,scale,c);
+        glyph(x, y, glyph_rows(ch), c, scale);
         x+=6*scale;
     }
 }
+
+static int
+title_advance(const unsigned char *rows)
+{
+    unsigned ink = 0;
+    int row, columns = 6;
+
+    for (row = 0; row < LCDFONT_HEIGHT; row++)
+        ink |= rows[row];
+    while (columns > 1 && !(ink & (128u >> (columns - 1))))
+        columns--;
+    return columns + 1;
+}
+
+static void
+tile_title(int x, int y, const char *title)
+{
+    const char *p;
+    int advance = 0;
+
+    if (y + LCDFONT_HEIGHT <= band_y || y >= band_y + MZ_BAND)
+        return;
+    for (p = title; *p; p++)
+        advance += title_advance(glyph_rows(*p));
+    /* The last glyph's advance includes the gap before the next glyph. */
+    x += (96 - (advance - 1)) / 2;
+    for (p = title; *p; p++) {
+        const unsigned char *rows = glyph_rows(*p);
+        glyph(x, y, rows, TEXT, 1);
+        x += title_advance(rows);
+    }
+}
+
 static int
 icon(struct mz_io *io,int app,int x,int y)
 {
@@ -178,7 +227,7 @@ scene(struct mz *s,struct mz_io *io)
                 rect(x,y,2,80,GREEN); rect(x+94,y,2,80,GREEN);
             }
             if(icon(io,i,x+36,y+10)<0) return -1;
-            text(x+(96-(int)strlen(mz_names[i])*6)/2,y+42,mz_names[i],TEXT,1);
+            tile_title(x, y + 42, mz_names[i]);
             if(i==1) text(x+12,y+59,s->note_dirty?"Unsaved":"Editor",MUTED,1);
             else if(i==8) text(x+12,y+59,"Asset volume",MUTED,1);
             else if(i==2) text(x+12,y+59,"192 KiB/user",MUTED,1);

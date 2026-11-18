@@ -336,7 +336,13 @@ types with the selected host compiler and rejects incompatible assignments.
 Host fixtures exercise RP2040 and STM32 driver dispatch, startup service order, privileged `ucall`
 authorization, its refusal with `EPERM` at securelevel above 0 (the routine and the priority
 untouched), argument order, result and priority restoration, and the ARM
-EABI copy entry argument order. Mutations calibrate the exercised failure
+EABI copy entry argument order. `tests/kernel/bcopy_overlap.py` extracts the
+production `bcopy` of the rp2040 and stm32 `machdep.c`, builds it with cc
+and clang, and requires namei's symbolic-link shift ("l/file" through a link
+to "ab", a long remainder through "target") and every overlapping copy of
+0 to 40 bytes at eight source alignments and destination offsets -8 to 8 to
+match `memmove`; the forward-only copy without the backward branch must
+fail. Mutations calibrate the exercised failure
 paths. The host tier does not execute ARM instructions, a kernel boot, or the
 physical board. Firmware CI owns the gate through `check-host`.
 
@@ -2516,7 +2522,9 @@ numbers.
 
 `check-renode` runs tools/renode/check-boot.sh, which boots the UART0
 console kernel from the real RP2040 boot ROM, asserts the console through
-the device probe, logs in, runs `uname` and five ps listings as operator, tries to
+the device probe, logs in, runs `uname`, reads a file through a symbolic
+link used as a directory (`cat l/file` with `l` naming `ab`, a path namei
+shifts one byte inside its own buffer), runs five ps listings as operator, tries to
 open the kernel memory devices as operator, runs fstat on the shell and on init, `sysctl kern.capacity`, `mputest` and `mputest residue`, reads core 1's
 state, then holds the Renode log to a fixed set of warning classes.
 

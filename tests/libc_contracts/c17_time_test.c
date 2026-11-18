@@ -196,8 +196,14 @@ main(void)
 		printf("FAIL timespec_get: tv_nsec %ld\n", stamp.tv_nsec);
 		return 2;
 	}
+	/*
+	 * The host time() reads the seconds of the last timekeeping update
+	 * (the Linux vDSO's coarse clock), which can trail the gettimeofday()
+	 * behind tree_timespec_get() by up to a tick, so across a second
+	 * boundary time() reads one second less.
+	 */
 	checks++;
-	if (now < stamp.tv_sec || now - stamp.tv_sec > 2) {
+	if (now < stamp.tv_sec ? stamp.tv_sec - now > 1 : now - stamp.tv_sec > 2) {
 		printf("FAIL timespec_get: tv_sec disagrees with time()\n");
 		return 2;
 	}

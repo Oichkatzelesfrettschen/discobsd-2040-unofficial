@@ -34,6 +34,15 @@ int	lcdgfx_close(void);
 int	lcdgfx_write(struct uio *uio);
 int	lcdgfx_ioctl(unsigned cmd, char *addr);
 int	lcdgfx_isopen(void);
+#ifdef LCD_GFX_EXT
+int	lcdgfx_read(struct uio *uio);
+#else
+/* Without the read command the device is write only: end of file. */
+static inline int lcdgfx_read(struct uio *uio __attribute__((unused)))
+{
+	return 0;
+}
+#endif
 #else
 #include <sys/errno.h>
 
@@ -44,6 +53,7 @@ int	lcdgfx_isopen(void);
 static inline int lcdgfx_open(void) { return ENXIO; }
 static inline int lcdgfx_close(void) { return 0; }
 static inline int lcdgfx_write(struct uio *uio __unused) { return ENXIO; }
+static inline int lcdgfx_read(struct uio *uio __unused) { return 0; }
 static inline int lcdgfx_ioctl(unsigned cmd __unused, char *addr __unused)
 {
 	return ENXIO;
@@ -58,6 +68,12 @@ static inline int lcdgfx_isopen(void) { return 0; }
  * flag; leaving always completes.
  */
 int	lcdcons_gfx(int on);
+
+/*
+ * Supplied by lcdcons.c, or by the host test: whether the calling process
+ * may read the controller's memory (LCDG_READ), which is the superuser.
+ */
+int	lcdcons_gfx_reader(void);
 
 #ifdef LCD_PANELTEST
 /*

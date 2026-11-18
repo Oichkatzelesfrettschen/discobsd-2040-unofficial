@@ -430,7 +430,9 @@ FIONREAD_MUTANTS=	direct-user-pointer unconditional-publication wrong-width \
 				omitted-glyph-case omitted-lcdg-draw-cases \
 				omitted-lcdg-window-case omitted-lcdg-control-cases \
 				omitted-lcdg-info-case omitted-lcdg-tile-cases \
-				omitted-getkey-case omitted-keyevs-case
+				omitted-getkey-case omitted-keyevs-case \
+				omitted-lcdg-memory-cases omitted-waitline-case \
+				omitted-waitline-publication
 FIONREAD_HEADER_DEPS=	hostkern.h hostintr.h \
 	${TOPSRC}/sys/sys/buf.h ${TOPSRC}/sys/sys/capacity.h \
 	${TOPSRC}/sys/sys/cdefs.h ${TOPSRC}/sys/sys/conf.h \
@@ -1584,6 +1586,9 @@ check-fionread-mutants: \
 			omitted-lcdg-tile-cases) expected='provider_data != unaligned' ;; \
 			omitted-getkey-case) expected='provider_data != unaligned' ;; \
 			omitted-keyevs-case) expected='provider_data != unaligned' ;; \
+			omitted-lcdg-memory-cases) expected='provider_data != unaligned' ;; \
+			omitted-waitline-case) expected='provider_data != unaligned' ;; \
+			omitted-waitline-publication) expected='copyout_calls == 1 && copyout_bytes == sizeof answer' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || ! grep -F "$$expected" $$output >/dev/null; then \
 			cat $$output >&2; \

@@ -432,6 +432,8 @@ output_ownership_cases(void)
 		{ DIOCGETPART, sizeof(struct diskpart), _Alignof(struct diskpart) },
 		{ DIOCMEDIAGONE, sizeof(int), _Alignof(int) },
 		{ LCDG_INFO, sizeof(struct lcdg_info), _Alignof(struct lcdg_info) },
+		{ LCDG_XINFO, sizeof(struct lcdg_xinfo),
+		    _Alignof(struct lcdg_xinfo) },
 		{ LCDIOC_GETKEY, sizeof(struct lcd_keyevs),
 		    _Alignof(struct lcd_keyevs) },
 	};
@@ -616,6 +618,16 @@ input_ownership_cases(void)
 		    _Alignof(struct lcdg_tileset) },
 		{ LCDG_TILEWIN, sizeof(struct lcdg_tilewin),
 		    _Alignof(struct lcdg_tilewin) },
+		{ LCDG_RAMFILL, sizeof(struct lcdg_rect), _Alignof(struct lcdg_rect) },
+		{ LCDG_RAMWIN, sizeof(struct lcdg_window),
+		    _Alignof(struct lcdg_window) },
+		{ LCDG_READ, sizeof(struct lcdg_read), _Alignof(struct lcdg_read) },
+		{ LCDG_SPRITE, sizeof(struct lcdg_sprite),
+		    _Alignof(struct lcdg_sprite) },
+		{ LCDG_POWER, sizeof(struct lcdg_power),
+		    _Alignof(struct lcdg_power) },
+		{ LCDG_DITHER, sizeof(struct lcdg_dither),
+		    _Alignof(struct lcdg_dither) },
 		{ LCDIOC_KEYEVS, sizeof(int), _Alignof(int) },
 	};
 	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
@@ -743,6 +755,13 @@ lcdg_cases(void)
 		{ LCDG_INFO, sizeof(struct lcdg_info) },
 		{ LCDG_TILESET, sizeof(struct lcdg_tileset) },
 		{ LCDG_TILEWIN, sizeof(struct lcdg_tilewin) },
+		{ LCDG_RAMFILL, sizeof(struct lcdg_rect) },
+		{ LCDG_RAMWIN, sizeof(struct lcdg_window) },
+		{ LCDG_READ, sizeof(struct lcdg_read) },
+		{ LCDG_SPRITE, sizeof(struct lcdg_sprite) },
+		{ LCDG_POWER, sizeof(struct lcdg_power) },
+		{ LCDG_DITHER, sizeof(struct lcdg_dither) },
+		{ LCDG_XINFO, sizeof(struct lcdg_xinfo) },
 		{ LCDIOC_GETKEY, sizeof(struct lcd_keyevs) },
 		{ LCDIOC_KEYEVS, sizeof(int) },
 	};
@@ -860,9 +879,51 @@ inout_ownership_cases(void)
 	HK_CHECK(load_user_off(unaligned) == requested);
 }
 
+/*
+ * LCDG_WAITLINE carries its request in and the line the wait ended on out:
+ * one aligned copy each way on success, no copy back on failure.
+ */
+static void
+waitline_cases(void)
+{
+	caddr_t unaligned = (caddr_t)&user_storage[USER_LOWER + 1];
+	unsigned char original[sizeof(struct lcdg_wait)];
+	unsigned char answer[sizeof(struct lcdg_wait)];
+	u_int index;
+
+	for (index = 0; index < sizeof answer; index++)
+		answer[index] = (unsigned char)(0xc0 + index);
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	store_user_bytes(unaligned, sizeof original);
+	bcopy(unaligned, original, sizeof original);
+	provider_capture_bytes = sizeof original;
+	set_provider_write(answer, sizeof answer);
+	provider_succeeds_without_write = 1;
+	call_ioctl(FD, LCDG_WAITLINE, unaligned);
+	HK_CHECK(u.u_error == 0 && provider_calls == 1);
+	HK_CHECK(provider_data != unaligned);
+	HK_CHECK((u_long)provider_data % _Alignof(struct lcdg_wait) == 0);
+	HK_CHECK(copyin_calls == 1 && copyin_bytes == sizeof original);
+	HK_CHECK(copyout_calls == 1 && copyout_bytes == sizeof answer);
+	HK_CHECK(same_bytes(provider_capture, original, sizeof original));
+	HK_CHECK(same_bytes((unsigned char *)unaligned, answer, sizeof answer));
+
+	reset(DTYPE_INODE, IFREG, FREAD);
+	store_user_bytes(unaligned, sizeof original);
+	bcopy(unaligned, original, sizeof original);
+	set_provider_write(answer, sizeof answer);
+	provider_error = ETIMEDOUT;
+	call_ioctl(FD, LCDG_WAITLINE, unaligned);
+	HK_CHECK(u.u_error == ETIMEDOUT && provider_calls == 1);
+	HK_CHECK(copyin_calls == 1 && copyout_calls == 0);
+	HK_CHECK(same_bytes((unsigned char *)unaligned, original, sizeof original));
+}
+
 int
 main(void)
 {
+	waitline_cases();
 	provider_cases();
 	failure_cases();
 	command_geometry_cases();

@@ -76,6 +76,9 @@ static unsigned cattr;		/* Attribute for cells written now. */
 
 static int autowrap, insertmode, cursor_on, appcursor, gfx;
 static int gfx_active;		/* A pixel program owns the panel. */
+#ifdef LCD_GFX_EXT
+static int gfx_top;		/* top when the pixel program took the panel. */
+#endif
 
 static int cursor_drawn, cd_prow, cd_col;
 
@@ -806,6 +809,10 @@ lcdterm_gfx(int on)
 {
 	cursor_drawn = 0;
 	gfx_active = on;
+#ifdef LCD_GFX_EXT
+	if (on)
+		gfx_top = top;
+#endif
 	if (!on) {
 		lcd_gfx_reset();
 		lcdterm_repaint();
@@ -1028,6 +1035,19 @@ lcdterm_top(void)
 {
 	return top;
 }
+
+#ifdef LCD_GFX_EXT
+/*
+ * The physical row the panel's memory holds at its first line while a pixel
+ * program owns it: text written since the takeover moves top and draws
+ * nothing, so the memory keeps the ring as lcdterm_gfx(1) found it.
+ */
+int
+lcdterm_gfx_top(void)
+{
+	return gfx_top;
+}
+#endif
 
 void
 lcdterm_cursor(int *row, int *col)

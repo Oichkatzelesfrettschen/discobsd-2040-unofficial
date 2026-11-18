@@ -1311,6 +1311,27 @@ comments calibrate the non-blocking side. A successful empty selection prints
 `changed_comments=0`; rule violations return `FAIL` (status 1), and missing or
 unreliable evidence returns `ERROR` (status 2).
 
+### Build number outside a git checkout
+
+`check-version-outside-git` is a host gate. `share/mk/sys.mk` counts the
+commits of HEAD into `BUILD`, and `sys/conf/newvers.sh` stamps the same
+count into the kernel version string. A source export carries no repository
+and git exits 128 there, so both report 0. The gate copies `share/mk`,
+`lib/Makefile` and `newvers.sh` from the tested tree into a private
+temporary directory, sets `GIT_CEILING_DIRECTORIES` so that no enclosing
+repository answers, and requires `VERSION` to expand to the release followed
+by `-0`, the version string's revision field to be 0, and nothing on
+standard error from either reader. Its control rewrites both count commands
+to their unguarded form in a second copy and requires at least three of
+those checks to reject it: an empty build number, the git diagnostic from
+make, and the diagnostic from `newvers.sh`.
+
+The claim is the expansion and the generated string for an export of the
+tested files. It establishes no build of an exported tree: the tracked
+kernel Makefiles, the tools and the image stages read git elsewhere
+(`share/mk/source-date.mk`, `tools/check-lint.sh`), and those readers are
+outside this gate.
+
 ### Production configuration generation and include ordering
 
 `check-config-generated-sync` builds `tools/config` from the tested source

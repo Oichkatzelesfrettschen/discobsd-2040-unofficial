@@ -71,11 +71,13 @@ then
 fi
 OV=`cat .oldversion`
 
-GITREV=`git rev-list --count HEAD --`
+# Outside a git checkout the revision is 0, the value share/mk/sys.mk gives
+# BUILD there.
+GITREV=`git rev-list --count HEAD -- 2>/dev/null` || GITREV=""
 
 if [ "x$GITREV" = "x" ]
 then
-    GITREV="Untracked"
+    GITREV="0"
 fi
 
 if [ "x$GITREV" != "x$OV" ]

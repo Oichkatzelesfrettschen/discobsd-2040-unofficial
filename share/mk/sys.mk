@@ -10,8 +10,11 @@ OSrev=		${OSMAJOR}${OSMINOR}
 DESTDIR?=	${TOPSRC}/distrib/obj/destdir.${MACHINE}
 RELEASE=	${OSREV}
 # The -- keeps HEAD a revision in a directory that holds a file named head
-# (usr.bin/head after a build) on a case-insensitive filesystem.
-BUILD!=		git rev-list --count HEAD --
+# (usr.bin/head after a build) on a case-insensitive filesystem. A source
+# export has no repository to count, and git exits 128 there: the build
+# number is then 0, as it is in sys/conf/newvers.sh.
+# tools/check_version_outside_git.sh holds both to that value.
+BUILD!=		git rev-list --count HEAD -- 2>/dev/null || echo 0
 VERSION=	${RELEASE}-${BUILD}
 
 include ${TOPSRC}/share/mk/source-date.mk

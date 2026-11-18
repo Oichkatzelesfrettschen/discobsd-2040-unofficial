@@ -42,3 +42,41 @@ if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
 echo "compile: 3 compiler-written programs assemble and agree"
+
+# The ROM cell's token-pasted names exercise the host suffix rule.
+cpp_work=$(mktemp -d "$work/thumb-cpp.XXXXXX")
+cleanup_cpp()
+{
+	rm -f "$cpp_work/Makefile" "$cpp_work/probe.S" "$cpp_work/probe.o" \
+	    "$cpp_work/probe.o.sec" "$cpp_work/iso.s" "$cpp_work/iso.o" \
+	    "$cpp_work/traditional.s" "$cpp_work/traditional.o" \
+	    "$cpp_work/traditional.o.sec" "$cpp_work/traditional.log"
+	rmdir "$cpp_work"
+}
+trap cleanup_cpp EXIT
+trap 'exit 130' HUP INT TERM
+cat > "$cpp_work/Makefile" <<'EOF'
+COMPILE.S= ${CC} ${AFLAGS} ${CPPFLAGS} -c -traditional-cpp
+include ${TOPSRC}/share/mk/sys.mk
+AFLAGS= -Wa,-x -B${TOOLBINDIR:Q}/ -I${TOPSRC:Q}/lib/libc/arm/gen
+EOF
+printf '#include "rom_float_clz.S"\n' > "$cpp_work/probe.S"
+"${MAKE:?set MAKE}" -s -C "$cpp_work" MACHINE="${MACHINE:?set MACHINE}" \
+    TOPSRC="$TOPSRC" TOOLBINDIR="${TOOLBINDIR:?set TOOLBINDIR}" \
+    BUILD=1 probe.o
+cell="$TOPSRC/lib/libc/arm/gen/rom_float_clz.S"
+$CC -E "$cell" -o "$cpp_work/iso.s"
+$GNUAS -mcpu="$CPU" -mthumb -o "$cpp_work/iso.o" "$cpp_work/iso.s"
+"$PYTHON" "$here/thumb-aoutdiff.py" "$cpp_work/iso.s" \
+    "$cpp_work/probe.o" "$cpp_work/iso.o"
+$CC -E -traditional-cpp "$cell" -o "$cpp_work/traditional.s"
+if ! grep -F '##' "$cpp_work/traditional.s" >/dev/null; then
+	echo "compile: traditional CPP control lost its token-pasting witness" >&2
+	exit 1
+fi
+if $AS -o "$cpp_work/traditional.o" "$cpp_work/traditional.s" \
+    > "$cpp_work/traditional.log" 2>&1; then
+	echo "compile: traditional CPP control assembled" >&2
+	exit 1
+fi
+echo "compile: ISO-preprocessed ROM cell agrees with GNU; traditional CPP rejects"

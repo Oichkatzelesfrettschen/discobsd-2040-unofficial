@@ -13,11 +13,13 @@ RELEASE=	${OSREV}
 # (usr.bin/head after a build) on a case-insensitive filesystem. The count
 # comes only from a repository rooted at TOPSRC: a source export has none,
 # and one unpacked beneath an unrelated work tree would otherwise report
-# that tree's count. The build number is then 0, as it is in
-# sys/conf/newvers.sh. tools/check_version_outside_git.sh holds both to
-# that value.
-BUILD!=		{ test -e ${TOPSRC:Q}/.git && \
-		    git -C ${TOPSRC:Q} rev-list --count HEAD -- 2>/dev/null; } || echo 0
+# that tree's count. Only that absence selects 0, as it does in
+# sys/conf/newvers.sh; a repository that is present and cannot be counted
+# keeps git's diagnostic and make's warning, and leaves BUILD empty.
+# tools/check_version_outside_git.sh holds both readers to this.
+BUILD!=		if test -e ${TOPSRC:Q}/.git; then \
+		    git -C ${TOPSRC:Q} rev-list --count HEAD --; \
+		else echo 0; fi
 VERSION=	${RELEASE}-${BUILD}
 
 include ${TOPSRC}/share/mk/source-date.mk

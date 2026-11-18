@@ -73,18 +73,22 @@ OV=`cat .oldversion`
 
 # The revision is the commit count of the repository rooted at the source
 # tree this script belongs to. A source export has none, and one unpacked
-# beneath an unrelated work tree must not report that tree's count: the
-# revision is then 0, the value share/mk/sys.mk gives BUILD there.
+# beneath an unrelated work tree must not report that tree's count: only
+# that absence selects 0, the value share/mk/sys.mk gives BUILD there. A
+# repository that is present and cannot be counted stops the script with
+# git's diagnostic, so a damaged checkout never reads as an export.
 TOP=`dirname "$0"`/../..
-GITREV=""
 if [ -e "$TOP/.git" ]
 then
-    GITREV=`git -C "$TOP" rev-list --count HEAD -- 2>/dev/null` || GITREV=""
+    GITREV=`git -C "$TOP" rev-list --count HEAD --` || exit 1
+else
+    GITREV="0"
 fi
 
 if [ "x$GITREV" = "x" ]
 then
-    GITREV="0"
+    echo "newvers.sh: empty commit count" >&2
+    exit 1
 fi
 
 if [ "x$GITREV" != "x$OV" ]

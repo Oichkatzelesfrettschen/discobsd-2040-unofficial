@@ -1325,6 +1325,11 @@ In each it requires `VERSION` to expand to the release followed by `-0`,
 the version string's revision field to be 0, and nothing on standard error
 from either reader.
 
+Only the absence of a repository selects 0. A third placement gives the
+copy an empty `.git` file, a repository that is present and cannot be
+counted: there `VERSION` must not end in `-0`, make must pass git's
+diagnostic on, and `newvers.sh` must fail with it.
+
 Two controls rewrite the count commands in further copies. The unguarded
 command in the first placement has to raise at least three defects: an
 empty build number and the git diagnostic from each reader. A command that

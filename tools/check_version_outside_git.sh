@@ -41,6 +41,12 @@
 #     with nothing on standard error.
 # Both run the copied files, so the verdict covers the working tree.
 #
+# Only the absence of a repository selects 0. In a third placement, broken,
+# the tree's .git is an empty file, a repository that is present and cannot
+# be counted: there make has to leave the number empty and pass git's
+# diagnostic on, and newvers.sh has to fail with it, so a damaged checkout
+# never reads as an export.
+#
 # Two controls rewrite the count commands in further copies and require the
 # same checks to reject them: the unguarded command in the plain placement
 # (an empty number and the git diagnostic from each reader), and a command
@@ -159,8 +165,7 @@ rewrite()
 	    skip { skip = /\\$/; next }
 	    { print }' "$root/share/mk/sys.mk" > "$1/share/mk/sys.mk"
 	awk -v command="$3" '
-	    /^TOP=/ { next }
-	    /^GITREV=""$/ { print "GITREV=" command; next }
+	    /^TOP=/ { print "GITREV=" command; next }
 	    /^if \[ -e "\$TOP\/\.git" \]$/ { drop = 1; next }
 	    drop { if ($0 == "fi") drop = 0; next }
 	    { print }' "$root/sys/conf/newvers.sh" > "$1/sys/conf/newvers.sh"
@@ -168,7 +173,7 @@ rewrite()
 	    die "the control did not rewrite sys.mk"
 	grep -q "^GITREV=.*$4" "$1/sys/conf/newvers.sh" ||
 	    die "the control did not rewrite newvers.sh"
-	if grep -q 'TOP' "$1/sys/conf/newvers.sh"; then
+	if grep -q '[$]TOP' "$1/sys/conf/newvers.sh"; then
 		die "the control left the bounded lookup in newvers.sh"
 	fi
 }
@@ -179,6 +184,24 @@ for placement in plain nested; do
 	    die "$placement placement: the build number is not 0 outside a git checkout"
 	echo "PASS version-outside-git $placement: VERSION $(cat "$tree/version.out"), kernel revision 0"
 done
+
+# A repository that is present and cannot be counted is not an export.
+tree=$(stage plain tree.broken)
+: > "$tree/.git"
+(cd "$tree/lib" && "$make" MACHINE=rp2040 TOPSRC="$tree" -V '${VERSION}') \
+    > "$tree/version.out" 2> "$tree/version.err" || :
+case $(cat "$tree/version.out") in
+*-0)	die "broken placement: make reported build number 0 for an uncountable repository" ;;
+esac
+[ -s "$tree/version.err" ] ||
+    die "broken placement: make passed no diagnostic on"
+if (cd "$tree/kernel" && SOURCE_DATE_EPOCH=0 sh "$tree/sys/conf/newvers.sh") \
+    > "$tree/vers.c" 2> "$tree/vers.err"; then
+	die "broken placement: newvers.sh succeeded on an uncountable repository"
+fi
+[ -s "$tree/vers.err" ] ||
+    die "broken placement: newvers.sh failed without a diagnostic"
+echo "PASS version-outside-git broken: an uncountable repository is reported, not counted as 0"
 
 # Control: the unguarded command where no repository answers.
 tree=$(stage plain control.unguarded)
@@ -195,7 +218,7 @@ echo "PASS version-outside-git control: the unguarded count is rejected ($count 
 # Control: a silenced command with a fallback that still searches parents.
 tree=$(stage nested control.unbounded)
 rewrite "$tree" 'git rev-list --count HEAD -- 2>/dev/null || echo 0' \
-    '`git rev-list --count HEAD -- 2>/dev/null` || GITREV=""' '2>/dev/null'
+    '`git rev-list --count HEAD -- 2>/dev/null` || GITREV="0"' '2>/dev/null'
 if verdict "$tree" > "$WORK/unbounded.out"; then
 	die "the unbounded control was accepted"
 fi

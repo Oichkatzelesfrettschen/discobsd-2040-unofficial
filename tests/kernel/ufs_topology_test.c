@@ -53,6 +53,7 @@ static unsigned checkpath_calls;
 static unsigned directory_template_reads;
 static unsigned directory_template_writes;
 static int sleep_result;
+static struct inode *failed_update;
 
 int
 tsleep(caddr_t channel, int priority, u_int timeout)
@@ -174,7 +175,7 @@ iupdat(struct inode *inode, struct timeval *access_time,
     HK_CHECK(inode != NULL);
     HK_CHECK(access_time == &time && modify_time == &time);
     HK_CHECK(waitfor == 1);
-    return 0;
+    return inode == failed_update ? EIO : 0;
 }
 
 int
@@ -301,6 +302,7 @@ reset_fixture(enum operation_kind requested_operation, uid_t user_id)
         .i_flag = ILOCKED, .i_count = 1, .i_number = 11, .i_mode = IFREG,
     };
     operation = requested_operation;
+    failed_update = NULL;
     namei_calls = 0;
     direnter_calls = 0;
     dirremove_calls = 0;
@@ -389,6 +391,20 @@ directory_rename_holds_gate_through_relocation(void)
 }
 
 static void
+rename_refuses_failed_link_update(struct inode *failed)
+{
+    reset_fixture(OP_RENAME_DIRECTORY, 100);
+    failed_update = failed;
+    set_rename_arguments();
+    kernel_rename();
+    HK_CHECK(u.u_error == EIO);
+    HK_CHECK(direnter_calls == 0 && dirremove_calls == 0);
+    HK_CHECK(source_inode.i_nlink == 1 && destination_parent.i_nlink == 0);
+    HK_CHECK((source_inode.i_flag & IRENAME) == 0);
+    require_gate_free();
+}
+
+static void
 rename_releases_gate_after_lookup_errors(void)
 {
     reset_fixture(OP_RENAME_MISSING, 100);
@@ -434,8 +450,16 @@ main(void)
     directory_link_is_rejected(100);
     directory_unlink_is_rejected(0);
     directory_unlink_is_rejected(100);
+    reset_fixture(OP_LINK_DIRECTORY, 100);
+    source_inode.i_mode = IFREG;
+    failed_update = &source_inode;
+    kernel_link();
+    HK_CHECK(u.u_error == EIO && source_inode.i_nlink == 1);
+    HK_CHECK(namei_calls == 1 && direnter_calls == 0);
     rename_holds_gate_through_source_removal();
     directory_rename_holds_gate_through_relocation();
+    rename_refuses_failed_link_update(&source_inode);
+    rename_refuses_failed_link_update(&destination_parent);
     rename_releases_gate_after_lookup_errors();
     rename_preserves_owner_when_gate_wait_is_interrupted();
     return hk_verdict("UFS topology mutation serialization");

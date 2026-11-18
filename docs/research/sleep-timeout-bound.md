@@ -213,3 +213,30 @@ blocks. The 25-block regression watermark stops that build. The
 first-parent revisions sampled back to PR #584 and 128 bytes with GCC
 16.2.0. Across those revisions, the frame measurement follows the
 compiler. The archive tip `7eff04612` records both observations.
+
+### Administration applet prototype and storage changes
+
+`reboot` and `shutdown` compile in strict C17 with fatal prototype
+diagnostics. The migration types the signal callbacks and uses the
+declared eight-byte terminal field when appending it to the device path.
+A terminator follows even a full-width field.
+
+The read-only shutdown schedule uses two unsigned 16-bit values per
+entry on ARM32. Its greatest threshold is 14,400 seconds. Halving the
+table removes 40 bytes before linker padding. The fixed output strings
+and paths are read-only as well.
+
+| `adminbox` stage | Raw bytes | Packed bytes | Allocated blocks | Static RAM |
+| --- | ---: | ---: | ---: | ---: |
+| `0a211d15` | 29,456 | 23,416 | 24 | 31,956 |
+| Strict C17 functions | 29,360 | 23,381 | 24 | 31,860 |
+| Read-only and narrower shutdown data | 29,328 | 23,369 | 24 | 31,828 |
+
+The comparison uses GCC 15.2.1, GNU ld 2.45.1 and the default RP2040
+root selection. The packed margin to the 25-block budget increases
+from 1,160 to 1,207 bytes. The standalone `shutdown` image uses 144
+fewer bytes of static RAM. The `reboot` image has the same size.
+The full root keeps 218 free UFS blocks.
+An ASan and UBSan differential of the production schedule and path
+composition matched integer delays through two days, and terminal
+fields with every nonzero byte and every termination position.

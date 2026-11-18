@@ -26,6 +26,9 @@
  * claim for the user window rests on.
  */
 #ifdef KERNEL
+void	mpu_init(void);
+void	mpu_identify(void);
+int	mpu_user_rospan(u_int, u_int);
 int	mpu_sysctl(int *, u_int, void *, size_t *, void *, size_t);
 #endif
 

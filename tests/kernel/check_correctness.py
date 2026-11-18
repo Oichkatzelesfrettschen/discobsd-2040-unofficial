@@ -688,8 +688,8 @@ def main():
             "itimer",
             {
                 "kern_clock.c": (
-                    "(monosec == realsec && monotick > realtick))",
-                    "(monosec == realsec && monotick >= realtick))",
+                    "itimer_clock.ticks > itimer_clock.deadline_ticks))",
+                    "itimer_clock.ticks >= itimer_clock.deadline_ticks))",
                 )
             },
             True,
@@ -699,8 +699,8 @@ def main():
             "itimer",
             {
                 "kern_clock.c": (
-                    "(p)->p_realtick < monotick))",
-                    "(p)->p_realtick <= monotick))",
+                    "(p)->p_realtick < itimer_clock.ticks))",
+                    "(p)->p_realtick <= itimer_clock.ticks))",
                 )
             },
             True,
@@ -710,8 +710,8 @@ def main():
             "itimer",
             {
                 "kern_time.c": (
-                    "            vticks += monotick;",
-                    "            vticks += monotick + 1;",
+                    "            vticks += itimer_clock.ticks;",
+                    "            vticks += itimer_clock.ticks + 1;",
                 )
             },
             True,
@@ -732,7 +732,9 @@ def main():
             "itimer",
             {
                 "kern_time.c": (
-                    "            if (vsec < realsec || (vsec == realsec && vticks < realtick)) {",
+                    "            if (vsec < itimer_deadline_seconds ||\n"
+                    "                (vsec == itimer_deadline_seconds && "
+                    "vticks < itimer_clock.deadline_ticks)) {",
                     "            if (0) {",
                 )
             },
@@ -773,9 +775,9 @@ def main():
                 "kern_clock.c": (
                     "            p->p_realtimer.it_value += p->p_realtimer.it_interval;\n"
                     "            p->p_realtick += p->p_realitick;",
-                    "            p->p_realtimer.it_value = monosec +\n"
+                    "            p->p_realtimer.it_value = itimer_clock.seconds +\n"
                     "                p->p_realtimer.it_interval;\n"
-                    "            p->p_realtick = monotick + p->p_realitick;",
+                    "            p->p_realtick = itimer_clock.ticks + p->p_realitick;",
                 )
             },
             True,
@@ -789,7 +791,12 @@ def main():
         (
             "expiry-scan-forgets-later-timers",
             "itimer",
-            {"kern_clock.c": ("    realsec = minsec;\n", "    realsec = LONG_MAX;\n")},
+            {
+                "kern_clock.c": (
+                    "    itimer_deadline_seconds = minsec;\n",
+                    "    itimer_deadline_seconds = LONG_MAX;\n",
+                )
+            },
             True,
         ),
         (
@@ -797,8 +804,8 @@ def main():
             "itimer",
             {
                 "kern_clock.c": (
-                    "        monotick = 0;\n        ++monosec;\n",
-                    "        monotick = 0;\n",
+                    "        itimer_clock.ticks = 0;\n        ++itimer_clock.seconds;\n",
+                    "        itimer_clock.ticks = 0;\n",
                 )
             },
             True,
@@ -806,7 +813,7 @@ def main():
         (
             "advance-does-not-carry-seconds",
             "itimer",
-            {"kern_clock.c": ("    monosec += n / hz;\n", "")},
+            {"kern_clock.c": ("    itimer_clock.seconds += n / hz;\n", "")},
             True,
         ),
         (

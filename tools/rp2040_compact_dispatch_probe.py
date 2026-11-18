@@ -221,7 +221,7 @@ def experiment(config, out, rows):
     wanted = [selected(row, **features) for row in rows]
     handlers = [name for name, _ in wanted]
     original = (directory / "unix.elf").read_bytes()
-    check_data(original, rows, **features)
+    check_data(original, rows, systrace="SYSTRACE" in defines, **features)
     compact_path = link(directory, out, variables, handlers)
     compact = compact_path.read_bytes()
     old, new = (ELFFile(io.BytesIO(data)) for data in (original, compact))

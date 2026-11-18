@@ -215,7 +215,9 @@ $(SYSOBJS):	$(LIBCDIR)/$(MACHINE_ARCH)/sys/SYS.h
 ${ROM_FLOAT_OBJS}: ${LIBCDIR}/arm/gen/rom_float.inc \
 		    ${LIBCDIR}/arm/gen/rom_float_members
 
-# Build objects here instead of ${LIBCDIR} with BSD make.
+# The search path supplies source files. An ELF object beside its source
+# cannot satisfy the native archive's a.out target.
+.NOPATH: ${OBJS}
 .OBJDIR:	${.CURDIR}
 
 install:	../libc.a

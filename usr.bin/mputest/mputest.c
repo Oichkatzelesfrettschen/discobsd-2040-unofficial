@@ -455,7 +455,7 @@ residue_check(void)
 int
 main(int argc, char **argv)
 {
-	int enable, nregions, programmed, fails = 0, closed;
+	int ctrl, enable, nregions, programmed, fails = 0, closed;
 
 	if (argc > 1 && strcmp(argv[1], "residue") == 0)
 		return argc > 2 ? residue_check() : residue_plant();
@@ -463,10 +463,13 @@ main(int argc, char **argv)
 	enable = mpu_sysctl_int(CPU_MPU_ENABLE);
 	nregions = mpu_sysctl_int(CPU_MPU_NREGIONS);
 	programmed = mpu_sysctl_int(CPU_MPU_PROGRAMMED);
+	ctrl = mpu_sysctl_int(CPU_MPU_CTRL);
 	printf("machdep.mpu: enable %d, nregions %d, programmed %d, ctrl 0x%x\n",
-	    enable, nregions, programmed, mpu_sysctl_int(CPU_MPU_CTRL));
+	    enable, nregions, programmed, ctrl);
 
 	fails += report("nregions", 0, DATASHEET_REGIONS, nregions);
+	/* RP2040 MPU_CTRL has PRIVDEFENA at bit 2 and ENABLE at bit 0. */
+	fails += report("control readback", 0, enable ? 0x5 : 0, ctrl);
 	fails += report("enable implies map", 0, enable,
 	    enable && programmed == MAP_REGIONS);
 

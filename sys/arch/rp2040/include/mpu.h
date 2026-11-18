@@ -82,21 +82,4 @@
 
 #define	MPU_REG32(a)		(*(volatile u_int *)(a))
 
-/*
- * What mpu_init programmed, read back from the registers after the write
- * so a core or an emulator that drops the writes reports itself; sysctl.c
- * and the cpu: banner print these rather than the values that were sent.
- */
-struct mpu_state {
-	u_int	type;			/* MPU_TYPE as read. */
-	u_int	ctrl;			/* MPU_CTRL read back after enable. */
-	u_int	nregions;		/* DREGION from MPU_TYPE. */
-	u_int	programmed;		/* Regions written and read back intact. */
-};
-extern struct mpu_state mpu_state;
-
-void	mpu_init(void);
-void	mpu_identify(void);
-int	mpu_user_rospan(u_int, u_int);
-
 #endif	/* !_MACHINE_MPU_H_ */

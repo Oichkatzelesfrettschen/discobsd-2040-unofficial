@@ -197,6 +197,10 @@ RANLIB=		${C17_CAPTURE_PREFIX}${GCCPREFIX}-ranlib
 SIZE=		${GCCPREFIX}-size
 AS=		${CC} -x assembler-with-cpp -c
 
+# ROM cell and syscall names use ISO token pasting in preprocessed assembly.
+.S.o:
+	${CC} ${AFLAGS} ${CPPFLAGS} -c ${.IMPSRC:Q} -o ${.TARGET:Q}
+
 LEX=		flex
 INSTALL=	${TOOLBINDIR}/binstall -U
 

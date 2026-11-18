@@ -369,10 +369,14 @@ def validate_makefile(source):
     syscalls_recipe = (
         "check-rp2040-syscalls: check-python\n"
         "\t${PYTHON} tests/rp2040_syscalls/check.py --kernel "
-        "sys/arch/rp2040/compile/PICO/unix.elf\n"
+        "sys/arch/rp2040/compile/PICO/unix.elf \\\n"
+        "\t    --trace-kernel sys/arch/rp2040/compile/PICO_DIAG/unix.elf\n"
         ".for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}\n"
-        "\t${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master "
-        "sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf\n"
+        "\t@set -eu; d=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}; \\\n"
+        "\t    param=$$(MAKEFLAGS= MFLAGS= ${MAKE} -C \"$$d\" -V PARAM \\\n"
+        "\t        ${.MAKEOVERRIDES:@variable@${variable}=${${variable}:Q}@}); \\\n"
+        "\t    ${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master \\\n"
+        "\t    --param=\"$$param\" \"$$d/unix.elf\"\n"
         ".endfor"
     )
     if re.search(r"^" + re.escape(syscalls_recipe) + r"$", normalized_source, re.MULTILINE) is None:

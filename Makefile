@@ -531,9 +531,14 @@ check-rp2040-vectors: check-python
 .PHONY: check-rp2040-vectors
 
 check-rp2040-syscalls: check-python
-		${PYTHON} tests/rp2040_syscalls/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf
+		${PYTHON} tests/rp2040_syscalls/check.py --kernel sys/arch/rp2040/compile/PICO/unix.elf \
+		    --trace-kernel sys/arch/rp2040/compile/PICO_DIAG/unix.elf
 .for KERNEL_CONFIGURATION in ${MACHINE_KERNEL_CONFIGS}
-		${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}/unix.elf
+		@set -eu; d=sys/arch/rp2040/compile/${KERNEL_CONFIGURATION:Q}; \
+		    param=$$(MAKEFLAGS= MFLAGS= ${MAKE} -C "$$d" -V PARAM \
+		        ${.MAKEOVERRIDES:@variable@${variable}=${${variable}:Q}@}); \
+		    ${PYTHON} tools/check_rp2040_syscalls.py --master sys/kern/syscalls.master \
+		    --param="$$param" "$$d/unix.elf"
 .endfor
 
 .PHONY: check-rp2040-syscalls
@@ -1684,6 +1689,13 @@ check-core1-emulation: check-python
 
 .PHONY: check-core1 check-core1-image check-core1-emulation
 
+# Exercise MPU setup in the linked kernels with an independent register model.
+check-mpu-startup: check-python
+		${PYTHON} tools/unicorn/check_mpu_startup.py \
+		    ${MACHINE_KERNEL_CONFIGS:@cfg@sys/arch/rp2040/compile/${cfg}/unix.elf@}
+
+.PHONY: check-mpu-startup
+
 # check-unicorn-kernel calls single functions of a built kernel's unix.elf
 # (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares
 # them with Python references under Hypothesis, then requires each property
@@ -1910,7 +1922,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor \
-		check-tar-host check-textbox-host check-cpio-host \
+		check-cp-host check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
 
 # The macOS firmware job runs the host tier as two steps, check-host-a and
@@ -2093,6 +2105,10 @@ check-archive-stored-times: check-python
 # expr, basename or sed fails. It needs no built tree.
 check-cc-driver:
 		sh tests/cc_driver/check.sh distrib/rp2040/cc
+
+.PHONY: check-cp-host
+check-cp-host:
+		CC=${HOST_CC:Ucc:Q} sh bin/cp/tests/transfer.sh
 
 check-tar-host:
 		sh bin/tar/tests/tartest.sh

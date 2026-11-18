@@ -36,7 +36,7 @@ followed by `cc -o d d.c; sync` repeated.
 | `B.txt`, `L-B.txt` | the vendored Dhara trigger main carried before the change | 8, 24 |
 | `G4.txt`, `L-G4.txt` | cleaning starts at journal capacity - 64 - live sectors / 4 | 8, 24 |
 | `G5.txt`, `L-G5.txt` | cleaning starts at journal capacity - 64 - live sectors / 5 | 8, 24 |
-| `T.txt` | trim at free (branch `archive/rp2040-trim-freed-blocks`) | 8 |
+| `T.txt` | trim at free (`2d154315`, contained in `archive/rp2040-free-list-sweep`) | 8 |
 | `A-B.txt`, `A-G4.txt` | as `B` and `G4`, root image with the in-memory assembler and linker streams | 24 |
 | `A-F.txt` | the merged trigger (the `G4` threshold less one checkpoint group of 8 pages; `sys/arch/rp2040/doc/research/dhara-gc-trigger.md`), same root image | 24 |
 

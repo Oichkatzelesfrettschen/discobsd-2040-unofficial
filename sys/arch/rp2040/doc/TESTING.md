@@ -1410,6 +1410,30 @@ A failure on a revision containing both barriers requires investigation of
 that revision's dependency paths. These host gates leave ARM execution,
 emulator behavior and board observations to their separate tests.
 
+### Storage sizes restated in build files
+
+`check-storage-geometry` is a host gate. The linker scripts are held to
+`sys/arch/rp2040/dev/flash.h` by `check-picocalc-sd-layout`; this gate
+covers three restatements outside them. `FS_KBYTES` in
+`distrib/rp2040/Makefile.inc` must equal the capacity that a `flashimg`
+built from the tested sources reports with `-c` (989 KB), less the
+partition table `fsutil` writes in front of the first partition
+(`offset = 2` sectors in `create_partition_table()`, 1 KB). `FLASH_FS_ADDR`,
+where the flash image's UF2 is placed, must equal
+`FLASH_XIP_BASE + FLASH_FS_OFFSET` of the default `flash.h` arm. The size
+`etc/rc.rp2040` gives `mkfs` for the PSRAM `/tmp` (`/dev/psram1`) must equal
+`(PSRAM_BYTES - PSRAM_SWAP_BYTES) / 1024` of `psram_xfer.h`. The header
+values are compared by `_Static_assert` against the real headers, so no
+expression is parsed.
+
+The self-test passes the tested tree and rejects four mutations, each with
+exactly one defect: `FS_KBYTES` one higher, `FLASH_FS_ADDR` one erase block
+up, the `/tmp` size doubled and a partition table two sectors longer. An
+input that cannot be read or matched exactly once, a `flashimg` that does
+not build or print its capacity, and headers that do not compile are
+errors (status 2). The claim is the agreement of the restated numbers; the
+gate builds no image and runs no board.
+
 ### Userland layout options
 
 `check-userland-layout-flags` is a host gate. `share/mk/sys.mk` passes

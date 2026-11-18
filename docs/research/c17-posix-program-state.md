@@ -21,9 +21,10 @@ retain their individual denominators and source identities.
 
 The verified PR cohort consists of `codex/*` heads numbered 454 through 598,
 targeting this repository's main branch. It contains 38 PRs. At the capture 32 were
-merged and six were open drafts; all six have merged since (the integration
-queue below gives each merge commit). Every listed merge commit is reachable
-from the observed main.
+merged and six were open drafts; all six have merged since. Every merge commit in the
+table below is reachable from the observed main. The six later merge commits,
+listed in the integration queue, are reachable from `bff303aae` and not from
+the observed main.
 The count excludes concurrent board, storage, calendar and host-tool PRs with
 other branch prefixes. It counts integration units, not 32 new standards
 capabilities. Full PR metadata and file lists remain in the local evidence
@@ -580,7 +581,8 @@ row's remaining action was completed inside that merge was not read again.
 | [#598](https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/pull/598) | `85089634a933` | clean | Four divider extents; CI passes at 85089634; bounded source-review decision remains pending. | `de0244209` |
 
 GitHub `clean`/`dirty` here describes mergeability at the observation time, not
-working-tree cleanliness or semantic acceptance. All six PRs remain drafts.
+working-tree cleanliness or semantic acceptance. All six PRs were drafts at the capture and have
+merged since.
 Some research notes retain an early pending-state sentence even after a later
 qualification or merge; use their source identities, later qualification
 records and the canonical roadmap to reconcile that history. Do not erase
@@ -589,17 +591,22 @@ historical measurements while updating current delivery accounting.
 ## Restart order and ownership
 
 1. Read this record, the canonical roadmap, current project instructions and
-   the compatibility/XIP contracts. Refresh remote main and all six PR states;
-   their exact heads above supply the handoff snapshot rather than a future
-   latest-state claim.
-2. Preserve the divider worktree and its ignored matched archives, control
+   the compatibility/XIP contracts. Refresh remote main. The six PRs of the
+   queue have merged; their exact heads above are the handoff snapshot of that
+   work and no longer name anything to land.
+2. (Captured before PR 598 merged at `de0244209`; whether the worktree and
+   the review decision below still stand was not read again.)
+   Preserve the divider worktree and its ignored matched archives, control
    objects, raw logs and successful CI receipt. Its old directory label is
    historical; deleting it recreates the missing-current-directory problem.
    Obtain or explicitly replace the pending bounded-review decision before
    launching that reviewer. If approved, honor gpt-6.1-sol, medium effort,
    standard tier, read-only payload and disabled edit/test/network/delegation/
    hardware capabilities. Earlier task approvals retain their scopes.
-3. Reconcile and land the existing namespace/census/PIC prerequisites and the
+3. (Completed by the merges of PRs 560, 562, 563, 564 and 565 named in the
+   queue; the step stays as captured, and the invariants it names were not
+   checked against the merged result.)
+   Reconcile and land the existing namespace/census/PIC prerequisites and the
    two conflicted header units through reviewed branches. Reuse their code,
    controls and evidence. Preserve donor/profile/type invariants across conflicts;
    never apply a blanket side selection. Validate exact new source and resources.
@@ -629,7 +636,8 @@ The declarations checkout is a clean main-based investigation branch before
 the handoff documents enter it. Its `.build-logs/declaration-frontier` and
 `shared-declaration-discovery-*` directories retain the fresh observations;
 the copied temporary replay has its source digest in the state receipt.
-The divider branch remains `codex/libc-divider-function-extents` at `85089634`.
+The divider branch was `codex/libc-divider-function-extents` at `85089634` at
+the capture.
 The canonical checkout remains clean on main. Other worktrees and unique
 evidence stay preserved. No new PR or merge forms part of this final handoff.
 

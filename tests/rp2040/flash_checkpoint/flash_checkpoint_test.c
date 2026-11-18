@@ -307,7 +307,7 @@ expect(int condition, const char *scenario, const char *what)
 
 /* Discard every RAM structure of the driver and Dhara, as a reset does. */
 static void
-power_cycle(const char *scenario)
+reset_driver(void)
 {
 	memset(&flmap, 0, sizeof(flmap));
 	flmap_ready = 0;
@@ -316,6 +316,12 @@ power_cycle(const char *scenario)
 	memset(flpage, 0, sizeof(flpage));
 	memset(flscratch, 0, sizeof(flscratch));
 	flscratch_owner = FLS_FREE;
+}
+
+static void
+power_cycle(const char *scenario)
+{
+	reset_driver();
 	expect(flopen(ROOT_DEV, 0, 0) == 0, scenario, "open after reset");
 }
 
@@ -710,10 +716,52 @@ test_model_range(void)
 	    "the last sector of the root region is accepted");
 }
 
+/* A recognizable incomplete checkpoint must not publish an empty disk. */
+static void
+test_corrupt_checkpoint(void)
+{
+	const char *t = "corrupt-checkpoint";
+	u_char complete[FLASH_UNIT_BYTES];
+	u_char input[DEV_BSIZE] = {0};
+	u_char *metadata;
+	unsigned long programs, erases;
+
+	fresh_chip(t);
+	write_block(t, 9, 1);
+	if (checkpoint() != 0 || flmap.journal.root >=
+	    (FLASH_FS_BYTES / FLASH_UNIT_BYTES) - 1) {
+		expect(0, t, "fixture needs a complete checkpoint");
+		return;
+	}
+	metadata = nor + FLASH_FS_OFFSET +
+	    (flmap.journal.root + 1) * FLASH_UNIT_BYTES;
+	memcpy(complete, metadata, sizeof(complete));
+	memset(metadata + FLASH_UNIT_BYTES / 2, 0xff, FLASH_UNIT_BYTES / 2);
+	programs = program_pages;
+	erases = erase_sectors;
+	reset_driver();
+	expect(flopen(ROOT_DEV, FREAD | FWRITE, 0) == EIO, t,
+	    "refuse a recognized journal with no valid root");
+	expect(!flmap_ready && flblocks == 0 &&
+	    fldrives[FL_UNIT_FS].part[RAWPART].dp_nsectors == 0, t,
+	    "do not publish an empty map");
+	expect(transfer(ROOT_DEV, 0, 9, input) != 0, t,
+	    "a direct buffer write also fails");
+	expect(program_pages == programs && erase_sectors == erases, t,
+	    "failed resume issues no program or erase");
+	expect(flopen(SWAP_DEV, FREAD | FWRITE, 0) == 0, t,
+	    "raw swap is independent of root recovery");
+
+	memcpy(metadata, complete, sizeof(complete));
+	expect(flopen(ROOT_DEV, FREAD, 0) == 0 && block_is(9, 1), t,
+	    "the restored checkpoint opens and preserves the block");
+}
+
 int
 main(void)
 {
 	test_model_range();
+	test_corrupt_checkpoint();
 	test_reset_before_checkpoint();
 	test_checkpoint_then_reset();
 	test_group_fill();

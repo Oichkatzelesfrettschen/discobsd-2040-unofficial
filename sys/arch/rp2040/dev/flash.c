@@ -975,11 +975,15 @@ fl_setup(int unit)
 		flash_rom_init();
 		dhara_map_init(&flmap, &flnand, flpage, FLASH_GC_RATIO);
 		/*
-		 * A fresh chip has no stored state, which dhara_map_resume
-		 * reports by returning -1 after initializing an empty map.
-		 * That is the newly-formatted case rather than a failure.
+		 * Preserve provisioning when no checkpoint is found. If a
+		 * checkpoint header exists but all candidate roots fail
+		 * validation, refuse to publish a writable empty map.
 		 */
-		(void)dhara_map_resume(&flmap, &err);
+		if (dhara_map_resume(&flmap, &err) < 0 &&
+		    err == DHARA_E_CORRUPT_MAP) {
+			printf("fl%d: corrupt checkpoint map\n", unit);
+			return EIO;
+		}
 		flblocks = (daddr_t)dhara_map_capacity(&flmap) /
 		    (DEV_BSIZE / FLASH_UNIT_BYTES);
 		flmap_ready = 1;

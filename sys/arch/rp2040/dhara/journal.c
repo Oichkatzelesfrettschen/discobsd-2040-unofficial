@@ -522,7 +522,8 @@ static int find_root(struct dhara_journal *j, dhara_page_t start,
 		}
 	}
 
-	dhara_set_error(err, DHARA_E_TOO_BAD);
+	/* A checkpoint header exists, but none of the candidates has a root. */
+	dhara_set_error(err, DHARA_E_CORRUPT_MAP);
 	return -1;
 }
 

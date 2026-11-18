@@ -65,16 +65,23 @@ Omitting a metadata page is rejected during the next collection write with
 `DHARA_E_RECOVER` (dhara error 7); the workload does not silently complete.
 
 The partial-prefix run programs half of a 1 KiB page or erases half of an
-8 KiB block before the cut. At `d81b1788` it fails at cut 26 of 464 with a
-mixed sector before the first acknowledgement, and the script reports
-`LIMIT`. Production NOR reads copy XIP bytes without ECC, so a successful map
-resume alone establishes no payload integrity. Against the journal of branch
-`rp2040/dhara-torn-checkpoint` (`30fed2a1`, checkpoint acceptance requires a
-whole sector tree) the same run passes, so the oracle discriminates the
-repair; that branch is not on `main`. The result is a model counterexample,
-not a frequency on silicon. Copy operations aggregate the production adapter's
-256-byte subprograms; arbitrary electrical corruption, filesystem mounting and
-board power cuts remain outside the test.
+8 KiB block before each cut. At `d81b1788` it found a mixed sector at cut 26
+before the first acknowledgement. Checkpoint validation landed in
+`c439e459` and `3d3bd986`. The production journal now must pass all 464
+partial-prefix cuts, and bypassing its tree check reproduces the mixed
+sector at cut 26. Acceptance requires the recovered bytes, since production
+NOR reads copy XIP bytes without ECC. Copy operations aggregate the
+production adapter's 256-byte subprograms. Arbitrary electrical corruption,
+repeated interruptions without an intervening successful checkpoint,
+filesystem mounting and board power cuts require separate evidence.
+
+Successive cuts on the same full image can exhaust the backward checkpoint
+search even after the single-cut repair. The successor review records eight
+successful cuts and a ninth failed resume. A recognized journal with no
+valid root now refuses to open before publishing capacity or issuing a
+write. Recovering past the bound and choosing what to do with nonblank
+media with no identifiable checkpoint remain separate.
+[Successor review](residual-review.md)
 
 `check-flash-reset-cells` covers the processor-reset cells of the checkpoint
 driver (every chip command and byte prefix of one page program or sector
@@ -82,7 +89,8 @@ erase); the two oracles overlap in the question but differ in operation scope
 and in model, and neither replaces the other.
 
 The deciding next evidence is a byte and phase capture from the production
-adapter under controlled interruption. The alternatives are explicit payload
+adapter under controlled interruption. Main already includes the diagnostic
+reset hook for named chip commands in STORAGE_STATS kernels. The alternatives are explicit payload
 integrity with a recovery fallback, a validated atomic-program assumption or
 a weaker documented durability contract. Choosing a persistent
 representation or weakening acknowledgement semantics is an architecture

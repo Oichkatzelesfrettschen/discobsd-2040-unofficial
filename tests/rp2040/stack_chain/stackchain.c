@@ -45,6 +45,8 @@
  *				there; a helper restarts the output later so
  *				that the dying child's own close returns
  *
+ *	stackchain execplain	the same without the file, as the control
+ *
  * Every step prints one key=value line.
  */
 #include <sys/types.h>
@@ -153,7 +155,7 @@ stage_file(void)
 }
 
 static int
-stage_exec(void)
+stage_exec(int deep)
 {
 	static const char script[] = "#!/bin/sh\necho ran >" MARK "\n";
 	int fd, tty, status;
@@ -197,10 +199,12 @@ stage_exec(void)
 			fflush(stdout);
 			_exit(8);
 		}
-		if (deep_file() < 0)
-			_exit(7);
-		dirty_buffer();
-		printf("child_exec=1\n");
+		if (deep) {
+			if (deep_file() < 0)
+				_exit(7);
+			dirty_buffer();
+		}
+		printf("child_exec=1 deep=%d\n", deep);
 		fflush(stdout);
 		execl(SCRIPT, "sc.sh", (char *)0);
 		printf("exec_errno=%d\n", errno);
@@ -239,7 +243,9 @@ main(int argc, char **argv)
 	if (argc == 2 && strcmp(argv[1], "file") == 0)
 		return stage_file();
 	if (argc == 2 && strcmp(argv[1], "exec") == 0)
-		return stage_exec();
-	fprintf(stderr, "usage: stackchain churn N | file | exec\n");
+		return stage_exec(1);
+	if (argc == 2 && strcmp(argv[1], "execplain") == 0)
+		return stage_exec(0);
+	fprintf(stderr, "usage: stackchain churn N | file | exec | execplain\n");
 	return 2;
 }

@@ -1,6 +1,7 @@
 # lcdexttest -- PicoCalc extended pixel commands on the board
 
-lcdexttest opens `/dev/lcdgfx` read-write and exercises the commands a kernel
+lcdexttest, run as root (the memory read is the superuser's), opens
+`/dev/lcdgfx` read-write and exercises the commands a kernel
 built with `options LCD_GFX_EXT` adds (`sys/sys/lcdgfx.h`; the PICOCALC_SD
 kernel carries the option). On any other kernel it prints
 `LCDEXTTEST SKIP` and exits 2.

@@ -109,6 +109,14 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
+static int reader = 1;
+
+int
+lcdcons_gfx_reader(void)
+{
+	return reader;
+}
+
 void
 lcd_gfx_window(int x0, int y0, int x1, int y1)
 {
@@ -533,6 +541,14 @@ test_read(void)
 	expect("raw is one read", xfer(0, raw, sizeof(raw)), 0);
 	expect("raw then end of file", resid_after, (long)sizeof(raw));
 
+	reader = 0;
+	expect("select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), EPERM);
+	expect("raw select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RAW),
+	    EPERM);
+	expect("nothing to read", xfer(0, got, 8), 0);
+	expect("nothing moved", resid_after, 8);
+	expect("drawing stays open to every user", ramfill(0, 0, 0, 0, 1), 0);
+	reader = 1;
 	expect("raw of two lines", rdsel(0, 0, 4, 2, LCDG_RD_RAW), EINVAL);
 	expect("raw too wide", rdsel(0, 0, LCDG_READ_MAX + 1, 1, LCDG_RD_RAW),
 	    EINVAL);

@@ -677,6 +677,16 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
+/*
+ * /dev/lcdgfx is open to every user for drawing; the memory it reads back
+ * can hold what the console showed to another, so only the superuser reads.
+ */
+int
+lcdcons_gfx_reader(void)
+{
+	return u.u_uid == 0;
+}
+
 int
 lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {

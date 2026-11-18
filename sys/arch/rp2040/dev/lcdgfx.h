@@ -69,6 +69,12 @@ static inline int lcdgfx_isopen(void) { return 0; }
  */
 int	lcdcons_gfx(int on);
 
+/*
+ * Supplied by lcdcons.c, or by the host test: whether the calling process
+ * may read the controller's memory (LCDG_READ), which is the superuser.
+ */
+int	lcdcons_gfx_reader(void);
+
 #ifdef LCD_PANELTEST
 /*
  * The panel register test (doc/PANELTEST.md). lcdgfx_panel_set() and

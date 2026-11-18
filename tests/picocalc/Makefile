@@ -36,9 +36,9 @@
 #
 # lcdgfx_ext_test builds lcdgfx.c with LCD_GFX_EXT, the option of the
 # PICOCALC_SD kernel, against a model of the controller's 480-line memory
-# with its read reply, scan line and power mode; thirty-three mutants of lcdgfx.c
+# with its read reply, scan line and power mode; thirty-four mutants of lcdgfx.c
 # must fail it: moved line and column bounds of the memory fill, window,
-# read and sprite, a read decoded from the wrong reply bits or byte order,
+# read and sprite, a read open to every user, a read decoded from the wrong reply bits or byte order,
 # an odd read accepted, the read clock left selected, a raw read wider or
 # taller than one reply, a read or sprite that survives another command, a
 # sprite that ignores its key, the index mask or the row step, divides a
@@ -934,7 +934,8 @@ gfxext-mutants: \
 	gfxext-mutant-dither-on \
 	gfxext-mutant-xinfo-live \
 	gfxext-mutant-sprite-run-split \
-	gfxext-mutant-sprite-run-abandon
+	gfxext-mutant-sprite-run-abandon \
+	gfxext-mutant-read-any-user
 
 gfxext-mutant-ramfill-line-bound:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1068,7 +1069,11 @@ gfxext-mutant-sprite-run-abandon:
 	${GFXEXT_MUT} lcdgfx.c \
 	    '/^window_end/,/^}/s/if (sp_run) {/if (0) {/' ${GFX_SRC}
 
-.PHONY: gfxext-mutants gfxext-mutant-sprite-run-split \
+gfxext-mutant-read-any-user:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (!lcdcons_gfx_reader())/if (0)/' ${GFX_SRC}
+
+.PHONY: gfxext-mutants gfxext-mutant-read-any-user gfxext-mutant-sprite-run-split \
 	gfxext-mutant-sprite-run-abandon gfxext-mutant-dither-colmod gfxext-mutant-dither-on \
 	gfxext-mutant-xinfo-live gfxext-mutant-ramfill-line-bound \
 	gfxext-mutant-ramwin-lines \

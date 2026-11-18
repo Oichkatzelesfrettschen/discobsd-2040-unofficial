@@ -705,6 +705,9 @@ lcdgfx_ioctl(unsigned cmd, char *addr)
 		return window_begin((const struct lcdg_window *)addr,
 		    LCDG_RAM_LINES);
 	case LCDG_READ:
+		/* The memory holds the console's screen from before the open. */
+		if (!lcdcons_gfx_reader())
+			return EPERM;
 		if (!area_ok(&rd->x) || rd->fmt > LCDG_RD_RAW ||
 		    (rd->fmt == LCDG_RD_RAW &&
 		    (rd->h != 1 || rd->w > LCDG_READ_MAX)))

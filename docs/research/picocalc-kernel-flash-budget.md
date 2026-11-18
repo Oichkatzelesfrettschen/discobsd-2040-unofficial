@@ -138,6 +138,18 @@ limit that attribution. The 12,888-byte gap below the first u-area includes
 512 bytes reserved for the dump probe. It leaves 12,376 ordinary SRAM bytes
 for additional owners under this layout.
 
+The baseline ELF contains 866 distinct sized function intervals in the
+XIP text section. Their union occupies 112,414 bytes. A disassembly
+scan finds 215 intervals with decoded instructions and no apparent
+`bl`, `blx` or `svc`. Their union holds only 9,598 bytes. Taking those
+bytes out of the image entirely still falls 23,170 bytes short of the
+original target. This is an optimistic filter for call-free code. It also
+admits tail branches, functions reached by interrupts and functions that
+access MMIO. The scan uses `arm-none-eabi-objdump -d -j .text` over the
+nonempty STT_FUNC intervals from the ELF symbol table, clears the Thumb
+bit on entry addresses and merges overlapping intervals before summing.
+A larger decomposition has to handle calls across the residency boundary.
+
 A byte-for-byte packing trial slices the baseline flat binary after boot2
 at fixed offsets, compresses each slice independently and retains the
 shorter of raw and encoded bytes. A single zlib level-9 stream takes
@@ -169,6 +181,40 @@ the 192 KiB user window arithmetically. It would free a permission slot
 and zero bytes of flash reservation. The existing map has spare slots.
 Changing protection requires the startup register readback and fault
 evidence described in the MPU guide. [MPU map](../../sys/arch/rp2040/doc/MPU.md)
+
+## Reproduce the independent measurements
+
+Run the commands in a dedicated checkout. The conventional link and the
+SD-only system can be built independently. For the SD-only dependency
+test, start at the `picocalc-sd-system` command in a fresh checkout. It
+produces both outputs with no `compile/PICOCALC/unix.elf` or
+`distrib/rp2040/sdcard-PICOCALC.img` present. The filesystem checker
+reports 1,746 files in that fresh SD image.
+
+```sh
+PYTHON=${PYTHON:-python3}
+export PYTHON
+bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 logged-build
+bmake MACHINE=rp2040 check-panel-programs check-kernel-headroom check-hot-layout
+bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 picocalc-sd-system
+bmake MACHINE=rp2040 check-renode-picocalc-sd-system
+tools/bin/rp2040/fsutil --check distrib/rp2040/sdroot-PICOCALC.img
+arm-none-eabi-readelf -lW sys/arch/rp2040/compile/PICOCALC_SD/unix.elf
+```
+
+To reproduce the growth test, build the optional kernel and UFS image
+first. Assemble a read-only section containing `.fill 32768,1,0x5a`
+under a global symbol. Take the build directory's link arguments from
+`bmake -v LDFLAGS`, `bmake -v SYSTEM_OBJ` and `bmake -v LDADD`. Relink
+the complete object list, `vers.o`, `swapunix.o` and the extra object in
+that directory with `--undefined` naming the symbol and a separate
+output ELF and map. Run the host `kernsum` on the ELF, then
+`picotool uf2 convert` and `distrib/rp2040/mkboarduf2.py --board=PICOCALC`
+on that result. These commands operate on files. Pass the stamped board
+descriptor UF2 to `tools/renode/check-picocalc-sdroot.py --configured`
+with the Renode executable, SD filesystem image and a private output
+directory. The vector table stays free of the PicoCalc loader stamp for
+this direct-boot test.
 
 ## Remaining 31,232 bytes and acceptance criteria
 

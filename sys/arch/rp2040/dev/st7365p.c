@@ -449,6 +449,7 @@ st7365p_abort(void)
 #include <machine/picocalcvar.h>
 #include <rp2040/dev/paneltest_sets.h>
 #include <rp2040/dev/lcdgfx.h>
+#include <rp2040/dev/st7365p_scan.h>
 
 #define	CMD_CSCON		0xf0
 #define	CMD_SPIRC		0xfb
@@ -676,6 +677,14 @@ lcd_read(const u_char *r, u_char *out)
  * number 1, FBh before the unlock, command 2 locked again before FBh, FBh
  * in the read's chip select; then B1h through parameter numbers 0 and 1.
  * Five bytes each show where in the reply a mark value lands.
+ *
+ * The last five are the two Command Table 2 registers that section 9.3
+ * prints with read rows: NVM Status Read (D2h, page 235: the ID and VCOM
+ * program counts, BUSY and the stored VMF[5:0]), plain and through FBh
+ * 10h, and RDID4 (D3h) through FBh 10h, 11h and 12h. D3h answers without
+ * FBh, so a reply that changes with the parameter number shows SPIRC
+ * acting on a register known to be readable, and one that does not shows
+ * SPIRC inert on this link.
  */
 #define	M	PANEL_RD_MARK
 static const u_char panel_reads[][4] = {
@@ -691,6 +700,8 @@ static const u_char panel_reads[][4] = {
 	{ 0xc5, 0x10, 5, M | PANEL_RD_LOCK },
 	{ 0xc5, 0x10, 5, M | PANEL_RD_ONE_CS },
 	{ 0xb1, 0x10, 5, M }, { 0xb1, 0x11, 5, M },
+	{ 0xd2, 0, 5, 0 }, { 0xd2, 0x10, 5, 0 },
+	{ 0xd3, 0x10, 4, 0 }, { 0xd3, 0x11, 4, 0 }, { 0xd3, 0x12, 4, 0 },
 };
 #undef	M
 _Static_assert(sizeof(panel_reads) / sizeof(panel_reads[0]) <= PANEL_READ_N,
@@ -723,19 +734,22 @@ st7365p_readback(struct picocalc_panel_read *rb)
  * 3.125 MHz, about 10 us; interrupts stay enabled, and max_gap_us records
  * how far any of them delayed a sample. The clock drops once, around the
  * whole loop.
+ * st7365p_scan.h holds the rule that tells a wrap from a misread of the
+ * moving counter; rejected counts the samples it set aside.
  */
 #define	CMD_GSCAN		0x45
 #define	SCAN_US			400000	/* Eight frames at 24 Hz with a lead. */
 #define	SCAN_WRAPS		9
-#define	SCAN_DROP		64	/* Fall, in lines, that counts as a wrap. */
 #define	SCAN_LINE_LIMIT		2048	/* Decoded lines at or above are bad. */
 
 void
 st7365p_scan(struct picocalc_panel_scan *sc)
 {
-	u_int t0, now, prev_t, raw, line, prev = 0;
+	struct scan_track tr;
+	u_int t0, now, prev_t, raw, line;
 
 	bzero(sc, sizeof(*sc));
+	bzero(&tr, sizeof(tr));
 	spi_clock(LCD_READ_SCR);
 	t0 = prev_t = pc_micros();
 	do {
@@ -757,15 +771,15 @@ st7365p_scan(struct picocalc_panel_scan *sc)
 		}
 		if (raw > sc->raw_max)
 			sc->raw_max = raw;
-		if (line + SCAN_DROP < prev) {
+		if (scan_step(&tr, line, now - t0)) {
 			if (sc->wraps == 0)
-				sc->first_us = now - t0;
-			sc->last_us = now - t0;
+				sc->first_us = tr.wrap_us;
+			sc->last_us = tr.wrap_us;
 			sc->wraps++;
 		}
-		prev = line;
 	} while (sc->wraps < SCAN_WRAPS && now - t0 < SCAN_US);
 	sc->elapsed_us = now - t0;
+	sc->rejected = tr.rejected;
 	spi_clock(LCD_SCR);
 }
 #endif /* LCD_PANELTEST */

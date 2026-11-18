@@ -269,7 +269,7 @@ measure(void)
 {
 	int mib[3] = { CTL_MACHDEP, CPU_PICOCALC, CPU_PICOCALC_PANEL_SCAN };
 	size_t len = sizeof(sc);
-	char line[200];
+	char line[220];
 
 	if (sysctl(mib, 3, &sc, &len, NULL, 0) < 0) {
 		snprintf(line, sizeof(line), "scan set %d failed", cur_set);
@@ -281,12 +281,13 @@ measure(void)
 		snprintf(line, sizeof(line), "scan set %d %s: %s%lu.%02lu Hz "
 		    "+-%lu.%02lu, lines %u (unshifted %u, may miss %u); "
 		    "reads %u every %u us, wraps %u at %u..%u us, bad %u, "
-		    "gap %u us, elapsed %u us, raw_max %06x", cur_set,
+		    "rejected %u, gap %u us, elapsed %u us, raw_max %06x",
+		    cur_set,
 		    set_names[cur_set], scan.ok ? "" : "no rate ",
 		    scan.chz / 100, scan.chz % 100, scan.err_chz / 100,
 		    scan.err_chz % 100, scan.lines, scan.lines_raw,
 		    scan.lines_slack, sc.samples, scan.sample_us, sc.wraps,
-		    sc.first_us, sc.last_us, sc.bad, sc.max_gap_us,
+		    sc.first_us, sc.last_us, sc.bad, sc.rejected, sc.max_gap_us,
 		    sc.elapsed_us, sc.raw_max);
 	}
 	log_line(line);

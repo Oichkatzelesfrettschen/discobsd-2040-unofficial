@@ -47,6 +47,11 @@
 # diagnostic on, and newvers.sh has to fail with it, so a damaged checkout
 # never reads as an export.
 #
+# A fourth placement, counted, gives the copy its own repository of two
+# commits and runs both readers with GIT_DIR naming the one-commit outer
+# repository: the number has to be 2, the count of the repository at the
+# source root, whatever repository the caller's environment selects.
+#
 # Two controls rewrite the count commands in further copies and require the
 # same checks to reject them: the unguarded command in the plain placement
 # (an empty number and the git diagnostic from each reader), and a command
@@ -87,6 +92,23 @@ GIT_CEILING_DIRECTORIES=$WORK
 export GIT_CEILING_DIRECTORIES
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 
+# repository DIR COUNT: an empty repository of COUNT commits in DIR, made
+# without the user's templates, hooks or signing configuration.
+repository()
+{
+	mkdir -p "$1" "$WORK/template"
+	git -C "$1" init -q --template="$WORK/template"
+	made=0
+	while [ "$made" -lt "$2" ]; do
+		git -C "$1" -c user.name=gate -c user.email=gate@invalid \
+		    -c commit.gpgsign=false -c core.hooksPath=/dev/null \
+		    commit -q --allow-empty -m "commit $made"
+		made=$((made + 1))
+	done
+	[ "$(git -C "$1" rev-list --count HEAD --)" = "$2" ] ||
+	    die "$1: the fixture repository does not hold $2 commits"
+}
+
 # stage PLACEMENT NAME: copy the fragments the two readers need into a tree
 # named NAME and print its path.
 stage()
@@ -97,12 +119,7 @@ stage()
 		;;
 	nested)
 		outer=$WORK/$2.outer
-		mkdir -p "$outer"
-		git -C "$outer" init -q
-		git -C "$outer" -c user.name=gate -c user.email=gate@invalid \
-		    -c commit.gpgsign=false commit -q --allow-empty -m outer
-		[ "$(git -C "$outer" rev-list --count HEAD --)" = 1 ] ||
-		    die "$outer: the outer repository does not hold one commit"
+		repository "$outer" 1 >&2
 		tree=$outer/export
 		;;
 	*)	die "unknown placement $1" ;;
@@ -118,10 +135,12 @@ stage()
 	printf '%s\n' "$tree"
 }
 
-# verdict TREE: print each defect of the staged tree; return 1 if any.
+# verdict TREE [COUNT]: print each defect of the staged tree against the
+# expected build number, 0 unless COUNT is given; return 1 if any.
 verdict()
 {
 	tree=$1
+	expect=${2:-0}
 	defects=0
 
 	if ! (cd "$tree/lib" && "$make" MACHINE=rp2040 TOPSRC="$tree" \
@@ -131,8 +150,8 @@ verdict()
 	fi
 	version=$(cat "$tree/version.out")
 	case $version in
-	*[0-9].[0-9]*-0) ;;
-	*)	echo "VERSION is '$version', expected RELEASE-0"
+	*[0-9].[0-9]*-"$expect") ;;
+	*)	echo "VERSION is '$version', expected RELEASE-$expect"
 		defects=1 ;;
 	esac
 	if [ -s "$tree/version.err" ]; then
@@ -145,8 +164,8 @@ verdict()
 		echo "newvers.sh failed"
 		defects=1
 	fi
-	if ! grep -q '^const char version\[\] = ".* #1 0: ' "$tree/vers.c"; then
-		echo "newvers.sh revision field is not 0: $(head -n 1 "$tree/vers.c")"
+	if ! grep -q "^const char version\\[\\] = \".* #1 $expect: " "$tree/vers.c"; then
+		echo "newvers.sh revision field is not $expect: $(head -n 1 "$tree/vers.c")"
 		defects=1
 	fi
 	if [ -s "$tree/vers.err" ]; then
@@ -202,6 +221,14 @@ fi
 [ -s "$tree/vers.err" ] ||
     die "broken placement: newvers.sh failed without a diagnostic"
 echo "PASS version-outside-git broken: an uncountable repository is reported, not counted as 0"
+
+# The repository at the source root names the build, not the caller's GIT_DIR.
+tree=$(stage plain tree.counted)
+repository "$tree" 2
+repository "$WORK/elsewhere" 1
+(GIT_DIR=$WORK/elsewhere/.git; export GIT_DIR; verdict "$tree" 2) ||
+    die "counted placement: the build number is not the source repository's count"
+echo "PASS version-outside-git counted: VERSION $(cat "$tree/version.out") with GIT_DIR naming another repository"
 
 # Control: the unguarded command where no repository answers.
 tree=$(stage plain control.unguarded)

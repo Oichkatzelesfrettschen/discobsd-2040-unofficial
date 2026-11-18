@@ -1328,7 +1328,11 @@ from either reader.
 Only the absence of a repository selects 0. A third placement gives the
 copy an empty `.git` file, a repository that is present and cannot be
 counted: there `VERSION` must not end in `-0`, make must pass git's
-diagnostic on, and `newvers.sh` must fail with it.
+diagnostic on, and `newvers.sh` must fail with it. A fourth gives the copy
+its own repository of two commits and runs both readers with `GIT_DIR`
+naming a one-commit repository elsewhere: the number must be 2. The fixture
+repositories are made without the user's templates, hooks or signing
+configuration.
 
 Two controls rewrite the count commands in further copies. The unguarded
 command in the first placement has to raise at least three defects: an

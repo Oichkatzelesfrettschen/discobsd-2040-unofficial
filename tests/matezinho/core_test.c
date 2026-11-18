@@ -47,6 +47,12 @@ int main(void)
     mz_init(&s);
     compare(&s);
     assert(incremental[21*320]==0x9e6b);
+    /* The six-column font packs "Files" into a 27-pixel tile label. */
+    assert(incremental[73*320+42]==0x2124);
+    assert(incremental[73*320+43]==0xef7d);
+    assert(incremental[73*320+46]==0xef7d);
+    assert(incremental[75*320+60]==0xef7d);
+    assert(incremental[75*320+62]==0x2124);
     emitted=0;
     mz_action(&s,MZ_RIGHT);
     assert(mz_render(&s,&out)==0);

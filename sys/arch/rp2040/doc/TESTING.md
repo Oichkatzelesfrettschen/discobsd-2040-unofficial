@@ -4253,8 +4253,9 @@ Proofs concern the stated policy, not Python/OpenSSL refinement or hardware.
 
 `check-matezinho-host` (in check-host) executes the original state machine and
 band renderer under ASan/UBSan, compares incremental output with full scene
-reconstruction through 1500 seeded actions, checks view retention and input
-bounds, verifies pinned artwork bytes, and rejects malformed/truncated packs
+reconstruction through 1500 seeded actions, pins the centered Files tile
+label's leading edge and the position of its trailing glyphs, checks view
+retention and input bounds, verifies pinned artwork bytes, and rejects malformed/truncated packs
 and image overwrite. Sparse 16 MiB, 32 MiB and approximately 32 GB images are
 host files, not SRAM. The test oracle's full frames are absent from the desktop.
 

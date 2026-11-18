@@ -672,13 +672,20 @@ the non-display area: 00 normal, 10 interval), D1-D0 PT (source level in the
 partial-mode non-display area: V63, V0, AGND, Hi-Z) (pp. 224-225, ll. 12693-12757);
 byte 2 D6 GS (gate scan G1 to G480 or reverse), D5 SS (source S1 to S960 or
 reverse; with the RGB bit it sets the R, G, B assignment to source pins),
-D4 SM (gate pin arrangement), D3-D0 ISC (interval-scan cycle, odd n from 3 to
-31 frames) (p. 225, ll. 12761-12801); byte 3 D5-D0 NL, lines driven = 8 x (NL +
+D4 SM (gate pin arrangement), D3-D0 ISC (the datasheet names the field ISC in
+the parameter row and ICS in its description) (p. 225, ll. 12689, 12781-12784).
+When PTG selects interval scan, the field sets the scan cycle in the
+non-display-area drive period, defined as n frame periods with n an odd number
+from 3 to 31; the liquid-crystal polarity inverts on the same cycle. The
+datasheet prints no mapping from the 4-bit field value to n, so the encoding
+is unverified; byte 3 D5-D0 NL, lines driven = 8 x (NL +
 1), 00h-3Bh; GRAM mapping is unaffected; NL must cover the glass
 (p. 226, ll. 12897-12905). Must be set before Sleep Out (p. 227, l. 12916). HEX 80h,
 02h, 3Bh.
-Status: SENT as 02h 02h 3Bh (`st7365p.c:123`): BYPASS 0, PT = 10 (AGND), ISC 2,
-NL 3Bh (480 lines). The vendor ST7796SP sequence sends 80h 02h 3Bh.
+Status: SENT as 02h 02h 3Bh (`st7365p.c:123`): BYPASS 0, PTG = 00 (normal
+scan, so the ISC field is not consulted), PT = 10 (AGND), ISC field value 2
+(an even raw value, which n = 3 to 31 odd cannot equal; its meaning is
+unverified), NL 3Bh (480 lines). The vendor ST7796SP sequence sends 80h 02h 3Bh.
 NOT IMPLEMENTED: NL = 27h (320 lines), which the glass would allow; whether
 the frame formula's constant 480 tracks NL is not documented, so the gain in
 frame time is unverified.
@@ -975,7 +982,8 @@ RAM holds 480 rows, so a full 320-row second page does not fit).
 
 PTLON (12h) shows only rows PSL-PEL of PTLAR (30h); B6h PT sets what the
 sources drive in the non-display area (V63, V0, AGND, Hi-Z) and PTG the gate
-scan there (normal or interval every ISC frames); B3h sets the partial-mode
+scan there (normal or interval scan, whose cycle is an odd n of 3 to 31 frames
+set by the ISC field through an unverified encoding, p. 225, ll. 12781-12784); B3h sets the partial-mode
 line period before Sleep Out (pp. 224-225, ll. 12727-12757, p. 221, l. 12470). On the
 PicoCalc the lines that partial mode would blank are off the glass already
 (4.4); the gain would be lower drive work on lines 320-479, of unmeasured

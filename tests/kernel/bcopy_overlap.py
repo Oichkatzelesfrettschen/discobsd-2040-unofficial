@@ -56,6 +56,9 @@ PREFIX = """\
 #include <string.h>
 typedef unsigned char u_char;
 typedef unsigned int u_int;
+/* The macOS SDK defines bcopy as a fortified macro; the kernel's is a function. */
+#undef bcopy
+#define bcopy kernel_bcopy
 """
 HARNESS = r"""
 static int shift(const char *start, unsigned consumed, const char *target)

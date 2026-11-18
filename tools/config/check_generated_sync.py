@@ -1,4 +1,4 @@
-"""Compare production RP2040 Makefiles with isolated real config output."""
+"""Compare production RP2040 kernel configuration files with isolated config output."""
 
 import argparse
 import difflib
@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_LEAN",
-          "PICOCALC_LEAN_DIAG")
+          "PICOCALC_LEAN_DIAG", "PICOCALC_SD")
 # The diagnostic options a _DIAG kernel adds to its lean base; a further
 # diagnostic option joins this tuple.
 DIAGNOSTIC_OPTIONS = ("options SYSTRACE", "options CAPACITY_STATS")
@@ -31,6 +31,9 @@ VARIANTS = (
     ("PICOCALC_LEAN", "PICOCALC", (),
      OPTIONAL_DEVICE_OPTIONS + DIAGNOSTIC_OPTIONS + PANEL_OPTIONS),
     ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN", DIAGNOSTIC_OPTIONS, ()),
+    ("PICOCALC_SD", "PICOCALC",
+     ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a'),
+     ('ldscript "RP2040.ld"', 'config unix root on fl0a')),
 )
 COMPILE = Path("sys/arch/rp2040/compile")
 CONF = Path("sys/arch/rp2040/conf")
@@ -70,7 +73,8 @@ def copy_inputs(root, destination, expected=False):
         if not re.search(rf'^board\s+"{board}"\s*(?:#.*)?$', config, re.MULTILINE):
             raise SyncError(f"{board}: Config must retain the production board identity")
         if expected:
-            copy_file(root, destination, COMPILE / board / "Makefile")
+            for name in ("Makefile", "ioconf.c", "swapunix.c"):
+                copy_file(root, destination, COMPILE / board / name)
 
 
 def child_environment():
@@ -170,6 +174,12 @@ def compare(root, workspace, generator):
         original = expected.read_bytes()
         regenerated = generate(generator, workspace / COMPILE / board, board)
         hashes[board] = hashlib.sha256(regenerated).hexdigest()
+        for name in ("ioconf.c", "swapunix.c"):
+            compiled = COMPILE / board / name
+            if not (root / compiled).is_file() or not (workspace / compiled).is_file():
+                raise SyncError(f"{board}: missing generated {name}")
+            if (root / compiled).read_bytes() != (workspace / compiled).read_bytes():
+                differences.append(f"{board}: generated {name} differs byte for byte")
         if original != regenerated:
             difference = "".join(difflib.unified_diff(
                 original.decode("utf-8", errors="replace").splitlines(keepends=True),

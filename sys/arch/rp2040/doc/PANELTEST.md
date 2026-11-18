@@ -50,9 +50,11 @@ draws the calibration patterns.
   independent of what an earlier read clocked into the registers. Set 27
   programs the same marks, so they also stand in the panel between
   readbacks.
-- PICO, PICO_DIAG and the PICOCALC_LEAN pair omit the option and compile
-  none of this; their panel sequence is
-  unchanged (`panel_program()` runs the same `init_seq` bytes).
+- The PicoCalc lean kernels program the panel at startup with `init_seq`.
+  The full kernel also stores one post-sequence pointer and length per
+  numbered set, plus selectors for its preamble and base. Set zero sends
+  a NOP on either side of `init_seq`. Ordinary startup sends `init_seq`
+  directly. The bare Pico configurations use their own console drivers.
 
 ## Running it
 

@@ -152,6 +152,10 @@ PARAM+= -DSTORAGE_STATS
 # SUFFIX is the file suffix, capitalized (e.g. C for a .c file).
 
 COMPILE_C=	${CC} ${CFLAGS} ${CSIZEFLAGS_COPTS} ${DEFS} -c $<
+# The terminal, graphics device and keyboard queue each keep related state
+# in one translation unit. A common data section lets Thumb code address
+# neighboring fields from a shared base. Functions retain separate sections.
+DEVICE_STATE_FLAGS= -fno-data-sections
 C17_PROTO_FLAGS=	-Werror=strict-prototypes -Werror=old-style-definition
 COMPILE_SIZE_C=	${CC} ${DEBUG} ${DEBUG_PATH_MAP} ${CWARNFLAGS} ${CSTDFLAGS} \
 		${CMACHFLAGS} -Os ${CSIZEFLAGS_MI} ${DEFS} -c $<
@@ -174,7 +178,7 @@ COMPILE_S=	${AS} ${AFLAGS} ${DEFS} -c $<
 
 PARAMSTAMP=	.params
 PARAMSTAMP_VALUES:= ${PARAM:Q} ${CC:Q} ${CFLAGS:Q} ${CSIZEFLAGS:Q} ${CSIZEFLAGS_COPTS:Q} ${AS:Q} ${AFLAGS:Q} \
-		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q} ${C17_PROTO_FLAGS:Q}
+		${LD:Q} ${LDFLAGS:Q} ${LDADD:Q} ${C17_PROTO_FLAGS:Q} ${DEVICE_STATE_FLAGS:Q}
 _paramchanged!=	printf '%s\n' ${PARAMSTAMP_VALUES} | cmp -s - ${PARAMSTAMP} 2>/dev/null || echo yes
 .if ${_paramchanged} == "yes"
 .PHONY: ${PARAMSTAMP}
@@ -571,7 +575,7 @@ lcdrender.o: $S/arch/rp2040/dev/lcdrender.S
 	${COMPILE_S}
 
 lcdterm.o: $S/arch/rp2040/dev/lcdterm.c
-	${COMPILE_C}
+	${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}
 
 lcdfont.o: $S/arch/rp2040/dev/lcdfont.c
 	${COMPILE_C}
@@ -586,7 +590,7 @@ picokbd_map.o: $S/arch/rp2040/dev/picokbd_map.c
 	${COMPILE_C}
 
 picokbd_evq.o: $S/arch/rp2040/dev/picokbd_evq.c
-	${COMPILE_C}
+	${COMPILE_C} ${DEVICE_STATE_FLAGS} ${C17_PROTO_FLAGS}
 
 picokbd_req.o: $S/arch/rp2040/dev/picokbd_req.c
 	${COMPILE_C}

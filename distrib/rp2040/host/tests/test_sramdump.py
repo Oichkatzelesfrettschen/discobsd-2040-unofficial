@@ -816,6 +816,16 @@ MUTANTS = {
 
 
 @capture_only
+def test_expanded_sd_capture(tmp_path):
+    result, _, output = capture(
+        tmp_path, ["--usb-port", "1-3", "--force-reset", "--kernel-layout", "picocalc-sd"]
+    )
+    assert result.returncode == 0, result.stderr
+    assert "save -r 0x10000000 0x10028000" in "\n".join(picotool_log(tmp_path))
+    assert (output / "flash.bin").stat().st_size == 160 * 1024
+
+
+@capture_only
 @pytest.mark.parametrize("name", sorted(MUTANTS))
 def test_mutant_is_caught(name, tmp_path):
     anchor, replacement, scenario = MUTANTS[name]

@@ -69,7 +69,10 @@ observations and on altered root device, mount source and flash samples,
 and the gate stops with status 1 unless the good ones pass and every altered
 one fails.
 
-Usage: check-picocalc-sdroot.py RENODE KERNEL SDROOT_IMG OUTPUT_DIR
+The --configured run boots the 160 KiB profile directly, with no loader stamp.
+Its foreign flash starts at 0x10028000.
+
+Usage: check-picocalc-sdroot.py [--configured] RENODE KERNEL SDROOT_IMG OUTPUT_DIR
        check-picocalc-sdroot.py --self-test
 KERNEL is a flat unix.bin or a kernel UF2 such as the board image
 distrib/rp2040/unix-PICOCALC.uf2 that goes on the card.
@@ -97,11 +100,15 @@ _spec.loader.exec_module(cp)
 
 LOADER_STAMP = struct.pack("<2I", 0xE98CC638, 0x101FC000) + b"/pico1-apps/discobsd"
 STAMP_OFFSET = 0x110
-FLASH_ROOT_BYTES = 1536 * 1024
 FOREIGN = 0xA5
-# Sampled words of the flash root region (0x10020000 up to fl1 at
-# 0x101a0000): its first and last word and one in each 256 KiB.
-FOREIGN_SAMPLES = [0x10020000 + i * 0x40000 for i in range(6)] + [0x1019FFFC]
+SWAP_START = 0x101A0000
+FLASH_ROOT = 0x10020000
+SD_KERNEL_END = 0x10028000
+
+
+def foreign_samples(start):
+    return [*range(start, SWAP_START, 0x40000), SWAP_START - 4]
+
 
 SECTOR = 512
 # Card layouts: total sectors and the start of the b7 entry. The FAT32
@@ -123,7 +130,8 @@ SD_BUDGET_SECONDS = 60.0
 
 # Every PicoCalc kernel; the configuration name in parentheses differs.
 BANNER = "DiscoBSD 2.7 (PICOCALC"
-ROOT_LINES = ["root: started by the PicoCalc loader, root on sd0", "root: sd0c"]
+LOADER_ROOT = "root: started by the PicoCalc loader, root on sd0"
+CONFIGURED_ROOT = "root: configured for SD, root on sd0"
 NO_B7_LINE = "panic: root: no partition of type b7 on sd0"
 
 
@@ -176,7 +184,7 @@ def tmp_verdict(mount_source, want):
     return []
 
 
-def root_verdict(root_dev, mount_source, flash_words):
+def root_verdict(root_dev, mount_source, flash_words, start=FLASH_ROOT):
     """Failures in the root observations; an empty list is a pass.
 
     root_dev is the (major, minor) the kernel printed, mount_source the
@@ -188,7 +196,7 @@ def root_verdict(root_dev, mount_source, flash_words):
         failures.append(f"root dev {root_dev}, want {ROOT_DEV}")
     if mount_source != ROOT_SOURCE:
         failures.append(f"/ mounted from {mount_source}, want {ROOT_SOURCE}")
-    if sorted(flash_words) != sorted(FOREIGN_SAMPLES):
+    if sorted(flash_words) != foreign_samples(start):
         failures.append("flash root samples are not the sampled addresses")
     bad = [hex(a) for a, w in sorted(flash_words.items()) if w != FOREIGN * 0x01010101]
     if bad:
@@ -198,13 +206,18 @@ def root_verdict(root_dev, mount_source, flash_words):
 
 def self_test():
     """Calibrate root_verdict() and the parsers; returns failure messages."""
-    good_words = {a: FOREIGN * 0x01010101 for a in FOREIGN_SAMPLES}
+    good_words = {a: FOREIGN * 0x01010101 for a in foreign_samples(FLASH_ROOT)}
     failures = []
 
     def expect(label, got, want):
         if got != want:
             failures.append(f"{label}: {got!r}, want {want!r}")
 
+    expanded_words = {a: FOREIGN * 0x01010101 for a in foreign_samples(SD_KERNEL_END)}
+    expect("expanded observations",
+           root_verdict(ROOT_DEV, ROOT_SOURCE, expanded_words, SD_KERNEL_END), [])
+    if not root_verdict(ROOT_DEV, ROOT_SOURCE, good_words, SD_KERNEL_END):
+        failures.append("expanded layout accepted samples at the standard boundary")
     expect("good observations", root_verdict(ROOT_DEV, ROOT_SOURCE, good_words), [])
     altered = {
         "minor of sd0b": ((5, 2), ROOT_SOURCE, good_words),
@@ -218,7 +231,7 @@ def self_test():
     for label, (dev, source, words) in altered.items():
         if not root_verdict(dev, source, words):
             failures.append(f"{label}: accepted")
-    for address in FOREIGN_SAMPLES:
+    for address in foreign_samples(FLASH_ROOT):
         words = dict(good_words)
         words[address] ^= 0x00000100
         if not root_verdict(ROOT_DEV, ROOT_SOURCE, words):
@@ -265,18 +278,23 @@ def flat_kernel(path):
     return image
 
 
-def stamped_kernel(kernel, path):
+def prepare_kernel(kernel, path, start):
     image = flat_kernel(kernel)
     if len(LOADER_STAMP) != 28 or len(image) < STAMP_OFFSET + 28:
         raise ValueError("stamp or kernel size")
-    image[STAMP_OFFSET : STAMP_OFFSET + 28] = LOADER_STAMP
+    if len(image) > start - 0x10000000:
+        raise ValueError("kernel extends into the foreign flash interval")
+    if start == FLASH_ROOT:
+        image[STAMP_OFFSET : STAMP_OFFSET + 28] = LOADER_STAMP
+    elif image[STAMP_OFFSET : STAMP_OFFSET + 4] == LOADER_STAMP[:4]:
+        raise ValueError("configured SD boot requires an unstamped input")
     with open(path, "wb") as stream:
         stream.write(image)
 
 
-def foreign_flash(path):
+def foreign_flash(path, start):
     with open(path, "wb") as stream:
-        stream.write(bytes([FOREIGN]) * FLASH_ROOT_BYTES)
+        stream.write(bytes([FOREIGN]) * (SWAP_START - start))
 
 
 def mbr_entry(kind, start, count):
@@ -308,10 +326,11 @@ def make_card(path, root_img, p3_type, layout, tmp_entry=False):
     return sectors * SECTOR
 
 
-def boot(renode_path, kernel, flash, card, capacity, outdir):
+def boot(renode_path, kernel, flash, card, capacity, outdir, start):
     renode = Renode(renode_path, os.path.join(outdir, "renode.log"), cp.WALL_SECONDS)
     renode.command(f"$unix_bin=@{kernel}")
     renode.command(f"$flash_bin=@{flash}")
+    renode.command(f"$flash_start={start:#x}")
     renode.command(f"include @{os.path.join(HERE, 'picocalc-machine.resc')}")
     renode.command(
         'machine LoadPlatformDescriptionFromString "sd: SD.SDCard @ spi0 '
@@ -322,16 +341,16 @@ def boot(renode_path, kernel, flash, card, capacity, outdir):
     return renode, cp.Run(renode, outdir)
 
 
-def case_root(renode_path, kernel, flash, root_img, outdir, layout):
+def case_root(renode_path, kernel, flash, root_img, outdir, layout, start, reason):
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
     capacity = make_card(card, root_img, 0xB7, layout)
-    renode, run = boot(renode_path, kernel, flash, card, capacity, outdir)
+    renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
         # The banner scrolls off the 32-row panel before the card answers,
         # so the waits run one after the other.
         run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
-        run.wait_for(ROOT_LINES + [LAYOUTS[layout][2]], "root lines", SD_BUDGET_SECONDS)
+        run.wait_for([reason, "root: sd0c", LAYOUTS[layout][2]], "root lines", SD_BUDGET_SECONDS)
         run.snapshot("root")
         run.wait_until(
             lambda: parse_root_dev(run.lines) is not None,
@@ -355,16 +374,20 @@ def case_root(renode_path, kernel, flash, root_img, outdir, layout):
         for message in tmp_verdict(parse_mount_tmp(run.lines), None):
             run.fail(message)
         flash_words = {
-            a: monitor_int(renode, f"sysbus ReadDoubleWord {a:#x}") for a in FOREIGN_SAMPLES
+            a: monitor_int(renode, f"sysbus ReadDoubleWord {a:#x}") for a in foreign_samples(start)
         }
-        bad = root_verdict(root_dev, mount_source, flash_words)
+        bad = root_verdict(root_dev, mount_source, flash_words, start)
         for message in bad:
             run.fail(message)
         if not bad:
             print(
                 f"check-picocalc-sdroot: root dev {root_dev}, / from {mount_source}, "
-                f"flash root region intact at {len(FOREIGN_SAMPLES)} sampled words"
+                f"flash root region intact at {len(flash_words)} sampled words"
             )
+        if start == SD_KERNEL_END:
+            run.type_line("cal 2 2000")
+            run.wait_for(["February 2000", "29"], "SD calendar", cp.KEY_BUDGET_SECONDS)
+            run.snapshot("calendar")
         # The SD root's /etc/ttys runs a getty on tty0, UART0, which the
         # PicoCalc's USB-C port carries.
         with open(os.path.join(outdir, "uart0.txt"), "rb") as stream:
@@ -379,7 +402,7 @@ def case_root(renode_path, kernel, flash, root_img, outdir, layout):
     return run.failures
 
 
-def case_tmp(renode_path, kernel, flash, root_img, outdir):
+def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
     """The card holds a type-ba entry in slot 4: /etc/rc.rp2040 makes a file
     system on /dev/sd0t and mounts it at /tmp, which then holds files.
     sdswapattach() finds no PSRAM to widen here (the Renode model has none),
@@ -387,10 +410,10 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir):
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
     capacity = make_card(card, root_img, 0xB7, "tmp", tmp_entry=True)
-    renode, run = boot(renode_path, kernel, flash, card, capacity, outdir)
+    renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
         run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
-        run.wait_for(ROOT_LINES + [LAYOUTS["tmp"][2]], "root lines", SD_BUDGET_SECONDS)
+        run.wait_for([reason, "root: sd0c", LAYOUTS["tmp"][2]], "root lines", SD_BUDGET_SECONDS)
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")
         run.wait_for_prompt("shell prompt", cp.KEY_BUDGET_SECONDS)
@@ -443,14 +466,14 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir):
     return run.failures
 
 
-def case_nob7(renode_path, kernel, flash, root_img, outdir):
+def case_nob7(renode_path, kernel, flash, root_img, outdir, start, reason):
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
     capacity = make_card(card, root_img, 0x83, "small")
-    renode, run = boot(renode_path, kernel, flash, card, capacity, outdir)
+    renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
         run.wait_for(
-            [ROOT_LINES[0], NO_B7_LINE], "panic without a b7 entry", cp.BOOT_BUDGET_SECONDS
+            [reason, NO_B7_LINE], "panic without a b7 entry", cp.BOOT_BUDGET_SECONDS
         )
         run.snapshot("panic")
         run.expect(not run.has("login:"), "login reached without a root partition")
@@ -462,6 +485,11 @@ def case_nob7(renode_path, kernel, flash, root_img, outdir):
 
 
 def main(argv):
+    configured = argv[:1] == ["--configured"]
+    if configured:
+        argv = argv[1:]
+    start = SD_KERNEL_END if configured else FLASH_ROOT
+    reason = CONFIGURED_ROOT if configured else LOADER_ROOT
     if argv == ["--self-test"] or len(argv) == 4:
         failed = self_test()
         for message in failed:
@@ -479,16 +507,17 @@ def main(argv):
     renode_path = argv[0]
     unix_bin, root_img, outdir = (os.path.abspath(p) for p in argv[1:])
     os.makedirs(outdir, exist_ok=True)
-    kernel = os.path.join(outdir, "unix-stamped.bin")
+    kernel = os.path.join(outdir, "unix-boot.bin")
     flash = os.path.join(outdir, "flash-foreign.bin")
-    stamped_kernel(unix_bin, kernel)
-    foreign_flash(flash)
+    prepare_kernel(unix_bin, kernel, start)
+    foreign_flash(flash, start)
     failures = []
     try:
         cases = (
-            ("sdroot", lambda d: case_root(renode_path, kernel, flash, root_img, d, "small")),
-            ("tmp", lambda d: case_tmp(renode_path, kernel, flash, root_img, d)),
-            ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d)),
+            ("sdroot", lambda d: case_root(
+                renode_path, kernel, flash, root_img, d, "small", start, reason)),
+            ("tmp", lambda d: case_tmp(renode_path, kernel, flash, root_img, d, start, reason)),
+            ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d, start, reason)),
         )
         for name, case in cases:
             print(f"check-picocalc-sdroot: case {name}", flush=True)

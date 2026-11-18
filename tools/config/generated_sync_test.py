@@ -110,6 +110,17 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
             sync.check(self.root)
 
+    def test_sd_variant_rejects_a_generated_flash_root(self):
+        self.mutate(sync.COMPILE / "PICOCALC_SD/swapunix.c", "rootdev = makedev(5, 1)",
+                    "rootdev = makedev(0, 1)")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_SD: generated swapunix.c differs"):
+            sync.check(self.root)
+
+    def test_sd_variant_keeps_the_full_panel(self):
+        self.mutate(sync.COMPILE / "PICOCALC_SD/Config", "options         LCD_PANELTEST", "")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_SD: Config must equal"):
+            sync.check(self.root)
+
     def test_lean_variant_without_a_kept_device_is_rejected(self):
         self.mutate(sync.COMPILE / "PICOCALC_LEAN/Config", self.PSRAM_LINE, "")
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):

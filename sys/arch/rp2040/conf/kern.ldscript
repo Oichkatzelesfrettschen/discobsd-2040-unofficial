@@ -113,6 +113,8 @@ SECTIONS {
 		*(.rodata.Fops)
 		*(.rodata.pipeops)
 		__hot_end = .;
+		FILL(0xa5a5a5a5)
+		. += 32768;
 		. = ALIGN(8);
 		*(.text*)
 		. = ALIGN(8);

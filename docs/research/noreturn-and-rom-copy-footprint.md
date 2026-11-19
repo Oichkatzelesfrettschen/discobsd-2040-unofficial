@@ -1,0 +1,190 @@
+# Kernel footprint candidates: noreturn exit and sched, boot ROM copy and fill
+
+Two candidates from the kernel-minification notes, measured on the host by
+building all six RP2040 kernels at `4726ff64e` (`arm-none-eabi-gcc` 16.2.0,
+`bmake MACHINE=rp2040 -j12 kernel`) before and after a prototype. Neither
+prototype is applied to the tree; this note records the measurements, the
+source argument each depends on and what remains open. Board measurements
+(speed, boot behavior) wait for the GizmoBSD rename (decision D148).
+
+Baseline sizes (`arm-none-eabi-size`, bytes):
+
+| Kernel | text | data | bss |
+| --- | ---: | ---: | ---: |
+| PICO | 98,250 | 128 | 42,688 |
+| PICO_DIAG | 100,785 | 128 | 42,800 |
+| PICO_UART | 90,187 | 120 | 18,064 |
+| PICOCALC | 127,122 | 144 | 53,592 |
+| PICOCALC_LEAN | 119,382 | 144 | 48,672 |
+| PICOCALC_LEAN_DIAG | 121,909 | 144 | 48,784 |
+
+"Image" below is the length of `arm-none-eabi-objcopy -O binary` of
+`unix.elf`, which the link rounds to 256-byte pages, so a text change moves
+the image only when it crosses a page boundary.
+
+## `__dead` on `exit()` and `sched()`
+
+**Claim.** Neither function returns, so declaring both `__dead`
+(`sys/sys/cdefs.h`: `_Noreturn` or `__attribute__((__noreturn__))`) is
+correct and lets callers drop the code after the call.
+
+**Source argument.**
+
+- `sched()` (`sys/kern/vm_sched.c`) is one `for (;;)` loop. Its two
+  `break` statements leave inner `for (rp = ...)` scans of the process
+  list; nothing leaves the outer loop.
+- `exit()` (`sys/kern/kern_exit.c`) ends in `swtch()` after
+  `proc_zombie()` sets `p_stat = SZOMB` and moves the process to
+  `zombproc`. `swtch()` (`sys/kern/kern_synch.c`) returns into a user
+  process only through its `u_rsave`, after selecting it from the run queue
+  `qs`. A zombie never returns to `qs`: `setrun()` panics on `SZOMB`, and
+  every other `setrq()` caller acts on a runnable or swapped-in process. So
+  `swtch()` does not return into `exit()`.
+- Falsifier: a path that calls `setrq()` on a zombie, or a `return` added to
+  `sched()`'s outer loop. With `__dead` and the
+  `__builtin_unreachable()` below, such a path becomes undefined behavior
+  instead of a return into the caller.
+
+**Prototype.** `__dead` on both declarations in `sys/sys/proc.h`, and
+`__builtin_unreachable()` after the `swtch()` call so GCC accepts the
+`noreturn` definition warning-free (the changed lines):
+
+```c
+/* sys/sys/proc.h */
+__dead void sched (void);
+__dead void exit (int rv);
+
+/* sys/kern/kern_exit.c, the end of exit() */
+    wakeup((caddr_t) &runin);
+    swtch();
+    __builtin_unreachable();
+    /* NOTREACHED */
+}
+```
+
+**Measurement.**
+
+| Kernel | text | data | bss | image |
+| --- | ---: | ---: | ---: | ---: |
+| PICO | -16 | 0 | 0 | -256 |
+| PICO_DIAG | -8 | 0 | 0 | 0 |
+| PICO_UART | -8 | 0 | 0 | 0 |
+| PICOCALC | -8 | 0 | 0 | 0 |
+| PICOCALC_LEAN | -8 | 0 | 0 | 0 |
+| PICOCALC_LEAN_DIAG | -8 | 0 | 0 | 0 |
+
+`arm-none-eabi-nm -S` places the change in `exit` (-4), `rexit` (-4) and
+`procxmt` (-4), with `newproc` +4 on PICOCALC. PICO's image crosses a page
+boundary, which is the one image change. The warning count of the kernel build
+is unchanged (12).
+
+**Reading.** Positive in every kernel, and small. The change is a declaration
+fix of the kind the C17 work makes anyway; by the plan's rule (drop if not
+positive) it survives as a candidate.
+
+## Boot ROM `memcpy` and `memset` behind `bcopy` and `bzero`
+
+**Claim.** The kernel's `bcopy()`, `bzero()`, `memcpy()` and the two
+`__aeabi_memcpy` entries (`sys/arch/rp2040/rp2040/machdep.c`) can call the
+boot ROM's `memcpy` ('MC') and `memset` ('MS'), found through the existing
+`rom_func_lookup()` (`sys/arch/rp2040/dev/flash.c`), so their own word loops
+leave flash.
+
+**Contract.** At `4726ff64e`, `bcopy()`'s comment declares overlapping
+regions undefined and its loops copy forward only, yet `namei()`
+(`sys/kern/ufs_namei.c`, the symbolic-link step) shifts the rest of the path
+within its own `path` buffer with `bcopy(cp, path + dp->i_size, pathlen)`.
+With `cp - path` bytes consumed, the destination starts inside the source
+whenever `0 < i_size - (cp - path) < pathlen`. That overlap corrupts the path. On
+the host, `tests/kernel/bcopy_overlap.py` (pull request #711) runs the
+production `bcopy` of both `machdep.c` files at `4726ff64e`: "l/file"
+through a link to "ab" becomes `ab//////`, and of its 5,576 copies (every
+length, offset and alignment of the grid) all 2,272 whose destination starts
+inside the source differ from `memmove`. Under Renode, `check-renode` boots that
+revision's PICO_UART kernel, and `cat l/file` with `l` naming `ab` prints
+`l/file: No such file or directory`; with #711 the stage passes. The board
+was not run. The host harness hid the defect: `tests/kernel/hostkern_kern.c` gives the kernel tests a `bcopy` that
+copies backward. The fix gives `bcopy` memmove semantics, so the ROM
+`memcpy`, which has no overlap handling, can back it only beside an overlap
+branch. The prototype below omits that branch, so its text figures are an
+upper bound on the saving of a correct veneer.
+
+**Prototype.** Two function pointers in bss, resolved by `rom_copy_init()` as
+the second statement of `startup()`; each entry jumps through its pointer.
+The word and byte loops of `bcopy()` and `bzero()` are gone:
+
+```c
+/* sys/arch/rp2040/rp2040/machdep.c */
+static void rom_copy_init(void);
+
+void
+startup(void)
+{
+	SystemClock_Config();
+
+	rom_copy_init();
+	/* ... the rest of startup() unchanged ... */
+}
+
+static void *(*rom_memcpy)(void *, const void *, u_int);
+static void *(*rom_memset)(void *, int, u_int);
+
+static void
+rom_copy_init(void)
+{
+	rom_memcpy = (void *(*)(void *, const void *, u_int))
+	    rom_func_lookup(ROM_CODE('M', 'C'));
+	rom_memset = (void *(*)(void *, int, u_int))
+	    rom_func_lookup(ROM_CODE('M', 'S'));
+}
+
+void
+bcopy(const void *src0, void *dst0, size_t nbytes)
+{
+	rom_memcpy(dst0, src0, nbytes);
+}
+
+/* memcpy, __aeabi_memcpy and __aeabi_memcpy4 call rom_memcpy the same way. */
+
+void
+bzero(void *dst0, size_t nbytes)
+{
+	rom_memset(dst0, 0, nbytes);
+}
+```
+
+**Measurement.**
+
+| Kernel | text | data | bss | image |
+| --- | ---: | ---: | ---: | ---: |
+| PICO | -136 | 0 | +8 | -256 |
+| PICO_DIAG | -136 | 0 | +8 | 0 |
+| PICO_UART | -136 | 0 | +8 | -256 |
+| PICOCALC | -128 | 0 | +8 | 0 |
+| PICOCALC_LEAN | -136 | 0 | +8 | -256 |
+| PICOCALC_LEAN_DIAG | -128 | 0 | +8 | -256 |
+
+The kernel's copies take 232 bytes of text at the baseline (`bcopy` 110,
+`bzero` 106, `memcpy` 16); in the prototype `bcopy` and `bzero` are 20
+bytes each and `memcpy` 16. The 8 bytes of bss are the two pointers. The
+warning count is unchanged (12).
+
+**Both budgets.** About 130 bytes of flash for 8 bytes of RAM. The kernel's
+RAM and text budgets do not trade freely, so the 8 bytes count against
+kernel SRAM. No gate covers that cost: `check-kernel-headroom` measures the
+flash-resident bytes alone.
+
+**Open, and needing the board.**
+
+- Speed: the ROM routines against the current loops, on the measured board,
+  for the sizes the buffer cache and `copyin`/`copyout` move.
+- Ordering: any copy or fill before `rom_copy_init()` jumps through a null
+  pointer. The prototype resolves the pointers after `SystemClock_Config()`,
+  which was not checked for copies; a landing change needs a gate or a
+  zero-RAM fallback that resolves at the first call.
+- Core 1: whether code on core 1 calls these entries before core 0 resolves
+  the pointers.
+- Overlap: the branch that copies backward when the destination starts
+  inside the source, in front of the ROM call, and its text cost.
+- XIP: the ROM routines run from ROM, but the veneers and their callers stay
+  in flash, so the change gives no copy that works while XIP is off.

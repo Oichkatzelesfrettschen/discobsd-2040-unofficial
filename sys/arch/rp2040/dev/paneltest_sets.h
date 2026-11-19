@@ -36,7 +36,7 @@
  * /dev/lcdgfx keeps its pixel format. BASE is DRIVER (st7365p.c init_seq)
  * or VENDOR (the PicoMite ST7796SP sequence of the vendor tree). The
  * sequence names (UNLOCK, GAMMA_DEFAULT, ...) are byte tables in
- * st7365p.c; NONE is empty. Values come from ST7365P_SPEC_V1.0: CSCON F0h
+ * st7365p.c; NONE sends a NOP. Values come from ST7365P_SPEC_V1.0: CSCON F0h
  * C3h/96h (page 245), PGC/NGC defaults (pages 240-241), PWR3 C2h default
  * A5h (page 233), VCMPCTL C5h (page 235), DIC B4h (page 223), FRMCTR1 B1h
  * (page 220), BPC B5h (page 222), MADCTL 36h (page 188). Sets are appended,
@@ -73,7 +73,10 @@
 	X("frame 75hz unlocked",	UNLOCK,	DRIVER,	FRAME_75HZ) \
 	X("frame 90hz unlocked",	UNLOCK,	DRIVER,	FRAME_90HZ) \
 	X("frame 120hz unlocked",	UNLOCK,	DRIVER,	FRAME_120HZ) \
-	X("ct2 mark unlocked",		UNLOCK,	DRIVER,	CT2_MARK)
+	X("ct2 mark unlocked",		UNLOCK,	DRIVER,	CT2_MARK) \
+	X("frame true60 unlocked",	UNLOCK,	DRIVER,	FRAME_62HZ) \
+	X("frame true75 unlocked",	UNLOCK,	DRIVER,	FRAME_78HZ) \
+	X("frame true120 unlocked",	UNLOCK,	DRIVER,	FRAME_123HZ)
 
 #define	PANELTEST_COUNT_ONE(name, pre, base, post)	+ 1
 #define	PANELTEST_NSETS	(0 PANELTEST_SETS(PANELTEST_COUNT_ONE))

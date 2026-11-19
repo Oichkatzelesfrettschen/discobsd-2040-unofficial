@@ -1,0 +1,64 @@
+#
+# Copyright (c) 2026 DiscoBSD
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+# Full PicoCalc with a required SD root and a 160 KiB kernel reservation.
+# check_generated_sync.py compares every directive to the full PICOCALC
+# configuration, apart from the linker script, the root and LCD_GFX_EXT:
+# the extended /dev/lcdgfx commands (sys/sys/lcdgfx.h), which the 128 KiB
+# kernel has no room for. The SD service resolves the first type-b7 partition
+# before root mount. Raw flash swap retains its standard location.
+architecture    "rp2040"
+cpu             "RP2040"
+board           "PICOCALC_SD"
+ldscript        "RP2040-sd.ld"
+makeoptions     DEBUG="-g"
+options         "CPU_KHZ=125000"
+options         "BUS_KHZ=125000"
+options         "HALTREBOOT"
+options         SYSTRACE
+options         CAPACITY_STATS
+options         LCD_PANELTEST
+options         LCD_GFX_EXT
+config          unix    root on sd0a
+                        swap on fl1
+                        dumps on none
+options         "NFL=2"
+options         "NMOUNT=3"
+options         LINEAR_INODE_CACHE
+options         COMPACT_INODE_FIELDS
+options         COMPACT_SWAPMAP
+options         LINEAR_BUFFER_CACHE
+options         LINEAR_NAME_CACHE
+options         "CORE_DEFAULT=0"
+options         "ROOT_MOUNT_FLAGS=MNT_NOATIME"
+device          picocalc
+options         "CONS_MAJOR=LCDCONS_MAJOR"
+options         "CONS_MINOR=0"
+device          psram
+device          sd
+service         sdroot
+service         sdswap
+device          uart0
+options         "UART_BAUD=115200"
+options         "NUART=1"
+device          uartusb
+options         "USB_TXRING=4096"
+options        SWAPRAM
+options        "SWAPRAM_KB=16"
+options        EXEC_HSAOUT
+options         DEV_ADC
+options         DEV_GPIO
+options         DEV_LCDGFX
+options         DEV_PCM

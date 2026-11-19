@@ -48,25 +48,13 @@ memset(void *d, int c, size_t n)
 
 /*
  * heatshrink_encoder.c slides its backlog down with memmove. machdep.c's
- * bcopy copies forward and documents overlap as undefined, so the
- * descending case is spelled out here rather than assumed.
+ * bcopy copies overlapping regions as memmove does, so the call passes
+ * straight through.
  */
 static __inline void *
 memmove(void *d, const void *s, size_t n)
 {
-	u_char *dp = (u_char *)d;
-	const u_char *sp = (const u_char *)s;
-
-	if (dp == sp || n == 0)
-		return d;
-	if (dp < sp) {
-		bcopy(s, d, n);
-		return d;
-	}
-	dp += n;
-	sp += n;
-	while (n--)
-		*--dp = *--sp;
+	bcopy(s, d, n);
 	return d;
 }
 

@@ -10,8 +10,19 @@ OSrev=		${OSMAJOR}${OSMINOR}
 DESTDIR?=	${TOPSRC}/distrib/obj/destdir.${MACHINE}
 RELEASE=	${OSREV}
 # The -- keeps HEAD a revision in a directory that holds a file named head
-# (usr.bin/head after a build) on a case-insensitive filesystem.
-BUILD!=		git rev-list --count HEAD --
+# (usr.bin/head after a build) on a case-insensitive filesystem. The count
+# comes only from a repository rooted at TOPSRC: a source export has none,
+# and one unpacked beneath an unrelated work tree would otherwise report
+# that tree's count. Only that absence selects 0, as it does in
+# sys/conf/newvers.sh; a repository that is present and cannot be counted
+# keeps git's diagnostic and make's warning, and leaves BUILD empty. The
+# variables that select another repository are cleared for the count, so
+# a caller's GIT_DIR cannot name the build.
+# tools/check_version_outside_git.sh holds both readers to this.
+BUILD!=		if test -e ${TOPSRC:Q}/.git; then \
+		    (unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE; \
+		     git -C ${TOPSRC:Q} rev-list --count HEAD --); \
+		else echo 0; fi
 VERSION=	${RELEASE}-${BUILD}
 
 include ${TOPSRC}/share/mk/source-date.mk
@@ -43,24 +54,18 @@ _LIBBSD_LIBS!=	if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
 			echo "" ; \
 		fi
 
-# The arm toolchain on PATH first (Homebrew on macOS, or any prefix the
-# developer chose), then the path each operating system's package uses.
-GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
-			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
-		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
-			echo "/usr/local/bin/arm-none-eabi" ; \
-		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
-			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \
-		elif [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
-			echo "/usr/bin/arm-none-eabi" ; \
-		else \
-			echo "/does/not/exist" ; \
-	fi
+# The arm toolchain prefix (share/mk/arm-toolchain.mk).
+include ${TOPSRC}/share/mk/arm-toolchain.mk
+GCCPREFIX=	${ARM_TOOLCHAIN_PREFIX}
 
-# RP2040 diagnostics read kernel structures through /dev/kmem and sysctl.
-# Keep every target program on the same fixed-table layout as the kernel.
+# RP2040 diagnostics read kernel structures through /dev/kmem and sysctl, so
+# target programs take the fixed-table options of the kernel layout. One root
+# image serves all six kernels, so only the options every Config in
+# MACHINE_KERNEL_CONFIGS sets alike belong here; SINGLE_UFS_ROOT and the
+# NMOUNT count differ between the Pico and PicoCalc kernels and stay out.
+# check-userland-layout-flags holds the list to that rule.
 KERNEL_LAYOUT_CFLAGS!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "-DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS -DCOMPACT_SWAPMAP -DSINGLE_UFS_ROOT -DNMOUNT=1" ; \
+		echo "-DLINEAR_INODE_CACHE -DCOMPACT_INODE_FIELDS -DCOMPACT_SWAPMAP" ; \
 	else \
 		echo "" ; \
 	fi

@@ -110,6 +110,9 @@ def main():
             "omitted-lcdg-tile-cases",
             "omitted-getkey-case",
             "omitted-keyevs-case",
+            "omitted-lcdg-memory-cases",
+            "omitted-waitline-case",
+            "omitted-waitline-publication",
         ),
         required=True,
     )
@@ -201,7 +204,8 @@ def main():
     elif arguments.mutation == "omitted-lcdg-info-case":
         source = replace_once(
             source,
-            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDIOC_GETKEY:\n#endif\n",
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDG_XINFO:\n"
+            "    case LCDIOC_GETKEY:\n#endif\n",
             "#ifdef PICOCALC_ENABLED\n    case LCDIOC_GETKEY:\n#endif\n",
             arguments.mutation,
         )
@@ -212,13 +216,31 @@ def main():
             "",
             arguments.mutation,
         )
+    elif arguments.mutation == "omitted-lcdg-memory-cases":
+        source = replace_once(
+            source,
+            "    case LCDG_RAMFILL:\n    case LCDG_RAMWIN:\n    case LCDG_READ:\n"
+            "    case LCDG_SPRITE:\n",
+            "",
+            arguments.mutation,
+        )
+    elif arguments.mutation == "omitted-waitline-case":
+        source = replace_once(source, "    case LCDG_WAITLINE:\n", "", arguments.mutation)
+    elif arguments.mutation == "omitted-waitline-publication":
+        source = replace_once(
+            source,
+            "    if (u.u_error == 0 && com == LCDG_WAITLINE)\n",
+            "    if (0)\n",
+            arguments.mutation,
+        )
     elif arguments.mutation == "omitted-keyevs-case":
         source = replace_once(source, "    case LCDIOC_KEYEVS:\n", "", arguments.mutation)
     elif arguments.mutation == "omitted-getkey-case":
         source = replace_once(
             source,
-            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDIOC_GETKEY:\n#endif\n",
-            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n#endif\n",
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDG_XINFO:\n"
+            "    case LCDIOC_GETKEY:\n#endif\n",
+            "#ifdef PICOCALC_ENABLED\n    case LCDG_INFO:\n    case LCDG_XINFO:\n#endif\n",
             arguments.mutation,
         )
     else:

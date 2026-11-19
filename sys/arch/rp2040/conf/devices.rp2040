@@ -2,3 +2,4 @@
 # List of block devices and majors
 #
 fl      0
+sd      5

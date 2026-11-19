@@ -20,6 +20,8 @@ EXPECTED_LABELS = {
     "linux-kernel-headroom",
     "linux-lint",
     "linux-matezinho-sd",
+    "linux-mpu-startup",
+    "linux-panel-programs",
     "linux-qemu",
     "linux-renode",
     "linux-renode-capacity",
@@ -27,6 +29,7 @@ EXPECTED_LABELS = {
     "linux-renode-identity",
     "linux-renode-picocalc",
     "linux-renode-picocalc-dump",
+    "linux-renode-picocalc-sd-system",
     "linux-renode-union",
     "linux-renode-union-diag",
     "linux-renode-union-lean",
@@ -67,10 +70,13 @@ EXPECTED_COMMANDS = {
         'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 BOARD=PICOCALC flash'
     ),
     "linux-kernel-headroom": (
-        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link"
+        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link "
+        "check-kernel-buffer-alignment"
     ),
     "linux-lint": "bmake MACHINE=rp2040 check-lint",
     "linux-matezinho-sd": "bmake MACHINE=rp2040 check-matezinho-sd",
+    "linux-mpu-startup": "bmake MACHINE=rp2040 check-mpu-startup",
+    "linux-panel-programs": "bmake MACHINE=rp2040 check-panel-programs",
     "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
     "linux-core1-emulation": "bmake MACHINE=rp2040 check-core1-emulation",
     "linux-cycle-model": "bmake MACHINE=rp2040 check-picocalc-cycle-model",
@@ -80,6 +86,7 @@ EXPECTED_COMMANDS = {
     "linux-renode-identity": "bmake MACHINE=rp2040 check-renode-identity",
     "linux-renode-picocalc": "bmake MACHINE=rp2040 check-renode-picocalc",
     "linux-renode-picocalc-dump": "bmake MACHINE=rp2040 check-renode-picocalc-dump",
+    "linux-renode-picocalc-sd-system": "bmake MACHINE=rp2040 check-renode-picocalc-sd-system",
     "linux-renode-union": "bmake MACHINE=rp2040 check-renode-union",
     "linux-renode-union-diag": "bmake MACHINE=rp2040 check-renode-union-diag",
     "linux-renode-union-lean": "bmake MACHINE=rp2040 check-renode-union-lean",
@@ -95,7 +102,8 @@ EXPECTED_COMMANDS = {
     "macos-host-a": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a',
     "macos-host-b": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b',
     "macos-kernel-headroom": (
-        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link"
+        "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link "
+        "check-kernel-buffer-alignment"
     ),
     "macos-lint": "bmake MACHINE=rp2040 check-lint",
     "macos-smaller-c": "bmake -C usr.bin/smlrc test",

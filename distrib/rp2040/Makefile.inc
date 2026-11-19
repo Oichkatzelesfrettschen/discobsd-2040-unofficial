@@ -151,7 +151,7 @@ list-closures:	check-python .WAIT
 		    ${FS_CLOSURE_ARGS} ${FS_PROFILE_ARGS} ${FS_SELECT_ARGS} \
 		    ${FS_IMAGE_ARGS} --append=distrib/rp2040/md.rp2040
 
-build fs:	check-image-selection
+build fs install-world:	check-image-selection
 
 .PHONY:		image-selection check-image-selection list-closures
 
@@ -207,7 +207,7 @@ SDROOT_MANIFEST=	distrib/${MACHINE}/_manifest.sdroot${BOARD_OUT_SUFFIX}${IMAGE_O
 
 sdroot:		${SDROOTIMG}
 
-${SDROOTIMG}:	${FSIMG} ${MI_MANIFEST} distrib/${MACHINE}/md.${MACHINE} \
+${SDROOTIMG}:	root-release multicall-staging boardlibc-install ${MI_MANIFEST} distrib/${MACHINE}/md.${MACHINE} \
 		${TOPSRC}/tools/picocalc/mksdroot.sh \
 		${TOPSRC}/distrib/${MACHINE}/mksdmanifest.py
 		${MAKE} -C ${TOPSRC}/tests/rp2040 MACHINE=${MACHINE} \
@@ -218,6 +218,27 @@ ${SDROOTIMG}:	${FSIMG} ${MI_MANIFEST} distrib/${MACHINE}/md.${MACHINE} \
 		sh ${TOPSRC}/tools/picocalc/mksdroot.sh ${TOOLBINDIR}/fsutil \
 		    ${DESTDIR} ${SDROOT_MANIFEST} ${SDROOT_KBYTES} \
 		    ${SDROOT_PART} $@
+
+# A separate compile directory keeps the card-root image and the normal
+# flash-root family independently buildable when either kernel is full.
+PICOCALC_SD_DIR=	${TOPSRC}/sys/arch/rp2040/compile/PICOCALC_SD
+PICOCALC_SD_UF2=	${TOPSRC}/distrib/rp2040/unix-PICOCALC-SD.uf2
+
+check-picocalc-sd-layout: check-python
+		${PYTHON} tools/check_picocalc_sd_layout.py --cc ${HOST_CC:Ucc:Q}
+
+picocalc-sd-kernel: check-picocalc-sd-layout .WAIT tools
+		${MAKE} -C ${PICOCALC_SD_DIR} all
+		${PYTHON} tools/check_kernel_headroom.py \
+		    --linker-script sys/arch/rp2040/conf/RP2040-sd.ld ${PICOCALC_SD_DIR}/unix.elf
+		${PYTHON} ${MKBOARDUF2} --board=PICOCALC ${PICOCALC_SD_DIR}/unix.uf2 ${PICOCALC_SD_UF2}
+
+picocalc-sd-system: check-python .WAIT symlinks tools
+		${MAKE} BOARD=PICOCALC PROFILE=picocalc install-world
+		${MAKE} BOARD=PICOCALC PROFILE=picocalc sdroot
+		${MAKE} picocalc-sd-kernel
+
+.PHONY: check-picocalc-sd-layout picocalc-sd-kernel picocalc-sd-system
 
 cleansdroot:
 		rm -f ${SDROOTIMG} ${SDROOT_MANIFEST} ${SDROOT_MANIFEST}.base
@@ -235,19 +256,10 @@ PYTHON?=
 MKBOARDLIBC=	${TOPSRC}/distrib/rp2040/mkboardlibc.py
 BOARDLIBC_WORK=	${TOPSRC}/distrib/obj/boardlibc.${MACHINE}
 
-# Matches share/mk/sys.mk's own GCCPREFIX branch for MACHINE_ARCH=arm: the
-# top-level Makefile does not include sys.mk, so this repeats the same
-# per-host-OS lookup rather than assuming the Linux path.
-_HOST_OSNAME!=	uname -s
-BOARDLIBC_GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
-			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
-		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
-			echo "/usr/local/bin/arm-none-eabi" ; \
-		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
-			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \
-		else \
-			echo "/usr/bin/arm-none-eabi" ; \
-		fi
+# The top-level Makefile does not include sys.mk, so the board libc takes the
+# toolchain prefix from the fragment sys.mk includes.
+include ${TOPSRC}/share/mk/arm-toolchain.mk
+BOARDLIBC_GCCPREFIX=	${ARM_TOOLCHAIN_PREFIX}
 
 ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/compat/memchr.c \

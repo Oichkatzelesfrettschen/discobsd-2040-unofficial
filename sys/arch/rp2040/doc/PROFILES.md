@@ -539,3 +539,43 @@ file; the default one asserts that a zone file named in `TZ` is not opened
 and that the answer is the kernel's offset. The two cannot be confused by
 accident: `tzload()` is not declared in the default build, so a call to it
 fails to compile rather than reaching a file.
+
+## Full PicoCalc with a 160 KiB kernel and an SD root
+
+`picocalc-sd-system` builds two host files. The kernel contains the full
+PICOCALC drivers, diagnostics and panel register programs. Boot selects
+the first MBR partition of type 0xb7 on the SD card, including a boot
+directly from the board ROM. A missing or unusable root stops boot.
+The configured root and pipe device move together. The SD driver checks
+the selected partition's recorded geometry when the root mount opens it.
+
+```sh
+PYTHON=${PYTHON:-python3}
+export PYTHON
+bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 picocalc-sd-system
+```
+
+| Output in `distrib/rp2040` | Destination and content |
+|---|---|
+| `unix-PICOCALC-SD.uf2` | Kernel for the board's QSPI flash. The descriptor selects the PicoCalc console. |
+| `sdroot-PICOCALC.img` | Filesystem payload for an SD partition, including the full installed userland. The default is 32 MiB. Its fstab names slot c. `SDROOT_PART=a`, `b`, `c` or `d` selects the actual slot at build time. |
+
+The kernel range including boot2 is `[0x10000000,0x10028000)`. Above it,
+the flash driver addresses a 1,504 KiB Dhara region up to `0x101a0000`.
+Raw swap starts there. The ordinary flash-root system reserves 128 KiB
+and starts Dhara at `0x10020000`. These are incompatible on-flash
+geometries. A kernel that extends into the extra eight 4 KiB sectors
+overwrites part of an existing flash-root journal. Preserve the original
+kernel and root together before migration. Restoring the flash-root
+system requires its matching kernel and journal. Pairing a standard
+`flash-PICOCALC.uf2` root payload with the expanded kernel can overwrite
+executable bytes. The expanded build produces the SD filesystem separately
+and needs neither a standard kernel link nor a standard flash-root image.
+
+The card carries executables and data. The existing exec path reads
+programs into the 192 KiB user window. Kernel instructions still execute
+from QSPI or the linked SRAM routines. The standard release downloader
+and its pair validator describe the 128 KiB family. The expanded system
+uses the two build outputs above. For a host SRAM capture of the expanded
+system, `discobsd-sramdump capture --kernel-layout picocalc-sd` selects
+the 160 KiB flash extent. Decode obtains the extent from the kernel ELF.

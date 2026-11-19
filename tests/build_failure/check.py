@@ -520,29 +520,40 @@ def check_version_identity(root, make, scratch):
                    "USER": "private-user-fixture"}
     source = (root / "sys/conf/newvers.sh").read_text()
 
-    def exercise(script, directory):
+    def stage(script, directory, repository=True):
+        # newvers.sh counts commits only in a repository at its own source
+        # root, two levels above sys/conf, so the fixture gives the script
+        # that position and marks the root; the stub git supplies the count.
         directory.mkdir()
-        fixture = directory / "newvers.sh"
+        root_directory = directory / "source"
+        fixture = root_directory / "sys/conf/newvers.sh"
+        fixture.parent.mkdir(parents=True)
+        if repository:
+            (root_directory / ".git").mkdir()
         fixture.write_text(script)
+        return fixture
+
+    def exercise(script, directory, revision="123", repository=True):
+        fixture = stage(script, directory, repository)
         result = run(["sh", str(fixture)], directory, environment)
         expect(result.returncode == 0, "kernel version generation failed", result.stdout)
         for private in ("private-host-fixture", "private-user-fixture", str(directory)):
             expect(private not in result.stdout, "kernel version exposes build identity", "")
-        expect('DiscoBSD 2.7' in result.stdout and ' 123:' in result.stdout and
+        expect('DiscoBSD 2.7' in result.stdout and f' {revision}:' in result.stdout and
                f'({directory.name.upper()})' in result.stdout,
                "kernel version omits release, configuration or revision", result.stdout)
         return result.stdout
 
     exercise(source, scratch / "control")
+    # Without a repository at the source root the stub is never consulted.
+    exercise(source, scratch / "export", revision="0", repository=False)
     environment["SOURCE_DATE_EPOCH"] = "946684800"
     reproducible = exercise(source, scratch / "reproducible")
     expect("Sat Jan  1 00:00:00 UTC 2000" in reproducible,
            "SOURCE_DATE_EPOCH is ignored", reproducible)
     environment["SOURCE_DATE_EPOCH"] = "not-a-timestamp"
     invalid = scratch / "invalid"
-    invalid.mkdir()
-    fixture = invalid / "newvers.sh"
-    fixture.write_text(source)
+    fixture = stage(source, invalid)
     result = run(["sh", str(fixture)], invalid, environment)
     expect(result.returncode != 0 and not (invalid / ".compileversion").exists(),
            "invalid SOURCE_DATE_EPOCH changed version state", result.stdout)
@@ -571,9 +582,7 @@ def check_version_identity(root, make, scratch):
     environment["FIXTURE_DATE_STYLE"] = "gnu"
     environment["SOURCE_DATE_EPOCH"] = "99999999999999999999999999"
     out_of_range = scratch / "out-of-range"
-    out_of_range.mkdir()
-    fixture = out_of_range / "newvers.sh"
-    fixture.write_text(source)
+    fixture = stage(source, out_of_range)
     result = run(["sh", str(fixture)], out_of_range, environment)
     expect(result.returncode != 0 and not (out_of_range / ".compileversion").exists(),
            "out-of-range GNU epoch fell back to a file timestamp", result.stdout)

@@ -50,16 +50,18 @@ draws the calibration patterns.
   independent of what an earlier read clocked into the registers. Set 27
   programs the same marks, so they also stand in the panel between
   readbacks.
-- PICO, PICO_DIAG and the PICOCALC_LEAN pair omit the option and compile
-  none of this; their panel sequence is
-  unchanged (`panel_program()` runs the same `init_seq` bytes).
+- The PicoCalc lean kernels program the panel at startup with `init_seq`.
+  The full kernel also stores one post-sequence pointer and length per
+  numbered set, plus selectors for its preamble and base. Set zero sends
+  a NOP on either side of `init_seq`. Ordinary startup sends `init_seq`
+  directly. The bare Pico configurations use their own console drivers.
 
 ## Running it
 
 Boot the PICOCALC kernel, which carries `LCD_PANELTEST`, with `paneltest` in the
 root (the PicoCalc SD root installs it), log in, `su`, run `paneltest`.
-Keys: right and left arrows (or `n`/`p`) step the set, down and up
-arrows (or `1`-`7`) step the pattern, `r` reads back, `f` measures the
+Keys: right and left arrows (or `n`/`p`, or `d`/`a`) step the set, down and
+up arrows (or `s`/`w`, or `1`-`7`) step the pattern, `r` reads back, `f` measures the
 frame rate, `q` quits. The top left corner of every pattern (RAM line
 160 under pattern 7, the first line on the glass there) shows the set
 number, its name, the pattern and the rate last measured under the set.
@@ -101,8 +103,15 @@ time that each set's bytes give its nominal rate within 0.25 Hz.
 | 24 | C0h 0Bh | 12 | Fosc | 11 | 275 | 75.13 Hz |
 | 25 | E0h 1Eh | 14 | Fosc | 30 | 230 | 89.83 Hz |
 | 26 | F0h 04h | 15 | Fosc | 4 | 172 | 120.13 Hz |
+| 28 | A0h 04h | 10 | Fosc | 4 | 332 | 62.23 Hz |
+| 29 | C0h 01h | 12 | Fosc | 1 | 265 | 77.96 Hz |
+| 30 | F0h 00h | 15 | Fosc | 0 | 168 | 122.98 Hz |
 
-Sets 21-26 unlock command 2 first. Set 23 writes the datasheet defaults,
+Sets 28-30 aim the formula above a target by the ratio the board measured
+at the same FRS (result 3 of the 2026-11-18 run): 60 / 0.965, 75 / 0.962
+and, for 120, the formula's maximum at these porches (168 line units).
+
+Sets 21-26 and 28-30 unlock command 2 first. Set 23 writes the datasheet defaults,
 so it is the reference the other rates compare against. The shipped
 sequence writes B1h A0h alone (RTNA left as reset) and no B5h; sets 14
 and 15 write B1h 00h alone, 31.1 Hz at RTNA 10h and 484 lines.
@@ -196,6 +205,19 @@ for each judged item, and `/var/log/paneltest.log`.
     numbers 0 and 1, before and after the unlock, locked, and in or out
     of the read's chip select, at 3.125 MHz in four-wire SPI.
 
+## Predictions for the compensated frame-rate sets, recorded before their board run
+
+14. Sets 28, 29 and 30, measured with `f`: 60.05 Hz, 75.0 Hz and 119.8 Hz,
+    each within 0.6 Hz, if the oscillator ratio of a set depends on FRS
+    alone (0.965 at FRS 10, 0.962 at FRS 12, 0.974 at FRS 15, from sets
+    23, 24 and 26). A set that lands at its formula rate times a ratio
+    outside 0.960 to 0.976 means the ratio also depends on RTNA, and the
+    compensation needs a measurement at the exact RTNA.
+15. Set 30 writes RTNA 0, the smallest line period the register holds.
+    Hypothesis: the panel still shows a stable picture; the falsifier is
+    a torn, dim or rolling picture under pattern 1, in which case the
+    highest usable rate is set 26's measured 117.04 Hz.
+
 ## Results, 2026-11-17
 
 Board run on the PICOCALC kernel of branch head b47cda40 (sets 0-20, no
@@ -231,3 +253,102 @@ frame-rate measurement or read control; those arrived later).
    white compresses the ratios and exposure differed between runs.
 5. E7 lines (prediction 8): a photograph of pattern 7 shows bands 5-9
    in the top half and undrawn RAM noise below, as predicted.
+
+## Results, 2026-11-18
+
+Board run on the PICOCALC kernel of main bff303aa (sets 0-27, the first
+with the scanline sampler and the read control).
+
+1. Scanline decode: every sample set gives 484 lines with the one-clock
+   shift (raw maximum `00 f1 80`), which is 480 + VFP + VBP with the
+   porches the frame-rate sets write, and 242 without it. GSCAN answers on
+   this link with one dummy clock, as 04h, 09h and D3h do.
+2. The wrap rule miscounted. Repeated samples of one set reported rates
+   from 58 to 155 Hz, each with an error bound under 0.2 Hz. The span from
+   the first to the last counted wrap, divided by one frame period, is an
+   integer or an integer plus or minus 0.53 (once 0.26) in every sample;
+   256 / 484 = 0.529 and 128 / 484 = 0.264. The sampler counted a wrap on
+   any fall of more than 64 lines, and a read that meets the line counter
+   during the 255 to 256 or 127 to 128 carry returns one low line. No
+   fraction near 0.79 (383 to 384) occurred in 85 samples. The reads are
+   sound and the rule was the defect; `st7365p_scan.h` now requires the
+   sample after a fall to continue from the low line and counts the
+   samples it sets aside (`rejected`). The carry explanation is an
+   inference from the span fractions; the kernel that carries the new rule
+   has not sampled the board.
+3. Frame period, recovered from 8 to 10 samples per set by fitting one
+   period to the spans (mean residual 0.001 to 0.004 frame):
+
+   | Set | Formula | Recovered | Ratio |
+   | --- | --- | --- | --- |
+   | 0 shipped | 60.06 Hz | 57.95 Hz | 0.965 |
+   | 1 vendor | 60.06 Hz | 57.97 Hz | 0.965 |
+   | 14, B1h 00h without CSCON | 31.0 Hz | 58.00 Hz | not applied |
+   | 15, B1h 00h after CSCON | 31.0 Hz | 30.18 Hz | 0.974 |
+   | 21, 24 Hz, DIVA 01b | 24.02 Hz | 23.33 Hz | 0.971 |
+   | 22, 40 Hz | 40.04 Hz | 38.72 Hz | 0.967 |
+   | 23, 60 Hz | 60.06 Hz | 57.94 Hz | 0.965 |
+   | 24, 75 Hz | 75.13 Hz | 72.30 Hz | 0.962 |
+   | 25, 90 Hz | 89.83 Hz | 86.51 Hz | 0.963 |
+   | 26, 120 Hz | 120.13 Hz | 117.04 Hz | 0.974 |
+
+   The FRMCTR1 formula of page 219 holds on this controller with its
+   oscillator 2.6% to 3.8% slow, and DIVA 01b halves the rate, which the
+   printed formula omits.
+4. E1 gating, measured for B1h: the write is discarded without the CSCON
+   unlock (set 14 keeps the default period) and acts after it (set 15).
+   `st7365p.c` never sends F0h, so its B1h write has never acted; whether
+   its other Command Table 2 writes (gamma, power, VCOM, inversion, entry
+   mode) share the gate is not measured, and the set 16 striping of
+   2026-11-17, seen by eye, would mean C5h does not.
+5. Read control (prediction of 2026-11-17, entries 21-28): B1h and C5h
+   read 00 in all eight variants in all 28 sets, with the mark values
+   written just before each read. Section 9.3 of the datasheet prints read
+   rows only for D2h and D3h in Command Table 2; B0h-B7h, C0h-C6h, E0h-E8h
+   and F0h have write rows only. The zeros agree with the datasheet. The
+   positive control remains open: entries 29-33 read D2h, and D3h through
+   FBh 10h, 11h and 12h.
+6. Board tests on the same kernel passed: divtest, fptest, forktest,
+   sigtest, filetab, inotab, textcrc, streamtest, swapmaptest, tartest,
+   romprobe, clistbound, proctab and evactest as root, lcdgfxtest,
+   windowtest, and stdiocap with each operation. tiledemo's key session
+   was refused from the UART terminal, as its header says; it was not run
+   from the console.
+
+## Results, 2026-11-19
+
+Kernel PICOCALC_SD #1 4399 (main f9e9623e2), SPI mode 3, started by the
+loader from the card; paneltest on the UART terminal as root.
+
+1. Readback under sets 0, 2 and 3 is the same as on 2026-11-18 in every
+   entry it shares: 09h `d2 31 d2 00 00`, 0Ah 9Ch, 0Bh 48h, 0Ch 66h,
+   D3h `00 3b cb 00`. The frame format of the link changed and the replies
+   did not.
+2. Scan: 57.92 Hz +-0.03 (set 0), 57.88 Hz +-0.03 (set 2), 57.97 Hz +-0.02
+   (set 3), 484 lines, nine wraps each, with 5, 5 and 3 samples rejected.
+   The wrap rule sets the carry misreads aside on the board and the rate
+   agrees with the 57.95 Hz recovered by hand on 2026-11-18.
+3. NVM status (D2h): `00 00 00 80 00` plain and through FBh 10h.
+4. SPI Read Control on a readable register: D3h through FBh 10h returns
+   `00 00 00 00`, through 11h `00 00 00 00` and through 12h `77 77 77 ff`.
+   FBh selects one parameter by number and the read repeats it, so the
+   control acts on this link, and the zeros of entries 13-28 are what the
+   Command Table 2 registers answer.
+5. Memory read of the white pixel: `20 ff ff ff ff`, then `fe ff ff ff ff`:
+   under 55h the reply is the 16-bit value and does not show the widening.
+   The entry selects 66h before its read from the next kernel on.
+6. Self-diagnostic (0Fh): `00` on the first readback after the open, `c0`
+   on every later one.
+
+Not done: the by-eye comparison of sets 0, 2 and 3.
+
+Kernel PICOCALC_SD #1 4401 (main ab9ac8e7a), the same day; its pixel entry
+reads under 66h:
+
+7. Memory read of the white pixel: `fe | f8 fc f8` under sets 0, 2 and 3.
+   A sixteen-bit pixel is stored with the low bit of red and blue clear
+   whether or not the set unlocks Command 2, and whichever gamma it
+   carries. EM (B7h) through FBh 10h reads `00` under each set. Every set
+   writes EPF 11; the other three EPF values were not tried.
+8. Photographs of sets 0 to 3 at 640 by 480 with glare do not separate
+   them; the by-eye comparison needs full-size frames.

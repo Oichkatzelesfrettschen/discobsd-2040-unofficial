@@ -74,12 +74,15 @@
 #define	FLASH_BLOCK_ERASE_CMD	0xd8		/* Block erase, per SDK. */
 
 /*
- * boot2 and the kernel occupy the low 128K, which conf/RP2040.ld
- * enforces as the FLASH region; doc/STORAGE.md records the measured
- * kernel size. The filesystem starts above it. Keep in step with
- * conf/RP2040.ld.
+ * boot2 and the kernel occupy 128 KiB on the flash-root layout and 160 KiB
+ * on PICOCALC_SD. The Dhara region begins at the next erase boundary.
+ * check-picocalc-sd-layout compares each driver with its linker script.
  */
+#ifdef PICOCALC_SD
+#define	FLASH_FS_OFFSET		(160UL * 1024)
+#else
 #define	FLASH_FS_OFFSET		(128UL * 1024)
+#endif
 #define	FLASH_FS_BYTES		(FLASH_SWAP_OFFSET - FLASH_FS_OFFSET)
 #define	FLASH_FS_BLOCKS		(FLASH_FS_BYTES / FLASH_ERASE_BYTES)
 

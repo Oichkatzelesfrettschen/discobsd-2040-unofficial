@@ -335,7 +335,7 @@ lcdgfx_panel_read(struct picocalc_panel_read *rb)
 		return EBUSY;
 	window_end();
 	st7365p_readback(rb);
-	/* The readback's pixel entry leaves the panel in 55h. */
+	/* The readback's pixel entry changes COLMOD. */
 	lcd_gfx_colmod(gfx_fmt);
 	return 0;
 }

@@ -7,7 +7,7 @@ Recommendation: build our own small BSD-licensed layer. It has retained-mode wid
 Reasons, measured:
 - A Microwindows port must carry a full 51,200 B shadow screen.
 - It links to 59,160 B (floor) to 90,408 B (unpatched) before libc, leaving 47-78 KB of the window for the application.
-- A prototype of the own core compiles to 1,232 B.
+- A purpose-built layer has an estimated fixed overhead of about 20 KB (section 1), most of it estimate: the only measured part is a 143-line prototype core of 1,232 B, and that prototype uses a 4-bit shadow, not the exact-rectangle strip compositor recommended here, which is unbuilt and unmeasured. The port figures are links against dummy symbols, so they are floors, not runnable images.
 - MPL 1.1 files contradict NOTICE's "every component is permissive" (NOTICE:10-11). Adopting them is a licensing decision for the tree.
 
 Board-measured fill times: a 320 by 320 fill takes 197.0 ms under RGB666 and 131.0 ms under RGB565 (PICOCALC.md:296-297). The tile atlas holds 128 tiles (lcdgfx.h:161).
@@ -126,7 +126,7 @@ Headroom: the retained PICOCALC and PICOCALC_PSRAM builds (dated 2026-11-13, not
 
 | Stage | User sees | Prerequisite | Size / RAM | Host test | First falsifiable check |
 |---|---|---|---|---|---|
-| 1 gui core: damage, exact-rect flush, text, palette | demo window with title bar | none | 1.2 KB measured, 5 KB strip (or 51 KB shadow) | shared model panel from lcdgfx_test (ioctl and write wrappers at lines 425, 557) | after random draws the model's pixels equal the layer's expected image; a mutant dropping a damaged band fails; board full flush 197 ms +-15% |
+| 1 gui core: damage, exact-rect flush, text, palette | demo window with title bar | none | core estimated 1.5-3 KB (the 1.2 KB measurement is of the shadow prototype), 5 KB strip | shared model panel from lcdgfx_test (ioctl and write wrappers at lines 425, 557) | after random draws the model's pixels equal the layer's expected image; a mutant dropping a damaged band fails; board full flush 197 ms +-15% |
 | 2 window stack, focus, Ctrl-Tab, key move | overlapping windows | 1 | 2-3 KB (estimate) | visible rectangles partition each window, 10,000 random layouts vs a per-pixel painter | any pixel owned twice or by none |
 | 3 widgets and dialogs | forms, lists, menus | 2 | 7-9 KB (estimate) | golden images of each widget; guard bytes around the buffer | a widget writing outside its clip fails |
 | 4 launcher on the toolkit; keep flag | desktop; app starts without console flash | 3, kernel flag | +100 B kernel | model panel checks no text repaint on close | app switch over 2 s on board refutes (b) |

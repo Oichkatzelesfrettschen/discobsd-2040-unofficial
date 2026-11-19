@@ -66,9 +66,6 @@ widens to eight bits by bit replication.
 Only a few rows are in memory at a time.
 A failed read or write ends the run with a message that names the row, and
 the partial file is removed.
-.Sh EXIT STATUS
-.Nm
-exits 0 when the file is complete, 1 on any failure and 2 on a usage error.
 .Sh FILES
 .Bl -tag -width "/dev/lcdgfx" -compact
 .It Pa /dev/lcdgfx
@@ -76,6 +73,9 @@ the panel's pixel device
 .It Pa /tmp/scrshot.ppm
 the default output
 .El
+.Sh EXIT STATUS
+.Nm
+exits 0 when the file is complete, 1 on any failure and 2 on a usage error.
 .Sh SEE ALSO
 .Xr paneltest 1
 .Sh CAVEATS

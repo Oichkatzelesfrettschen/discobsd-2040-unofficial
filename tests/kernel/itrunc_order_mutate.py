@@ -74,8 +74,10 @@ doquotaupd:"""
 MUTATIONS = {
     # The inode reaches the device after the frees, as 2.11BSD orders it.
     "inode-after-frees": (
-        WRITE, "\n    /*\n     * Indirect blocks first.",
-        RETURN, "\ndoquotaupd:",
+        WRITE,
+        "\n    /*\n     * Indirect blocks first.",
+        RETURN,
+        "\ndoquotaupd:",
     ),
     # A clean flag word makes iupdat() return before it writes.
     "flags-not-marked": (
@@ -117,9 +119,7 @@ def main() -> None:
     parser.add_argument("--mutation", required=True, choices=sorted(MUTATIONS))
     arguments = parser.parse_args()
     text = arguments.source.read_text(encoding="utf-8")
-    arguments.output.write_text(
-        mutate(text, arguments.mutation), encoding="utf-8"
-    )
+    arguments.output.write_text(mutate(text, arguments.mutation), encoding="utf-8")
 
 
 if __name__ == "__main__":

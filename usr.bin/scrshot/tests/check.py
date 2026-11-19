@@ -42,37 +42,75 @@ import tempfile
 from pathlib import Path
 
 CC = os.environ.get("HOSTCC", "cc")
-FLAGS = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror", "-Wshadow",
-         "-Wconversion", "-O1"]
+FLAGS = [
+    "-std=c17",
+    "-pedantic-errors",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wshadow",
+    "-Wconversion",
+    "-O1",
+]
 
-CASES = [("w1", 1, 3), ("w2", 2, 3), ("w3", 3, 3), ("w4", 4, 3), ("w5", 5, 3),
-         ("w7", 7, 2), ("sweep", 256, 256), ("panel", 320, 320), ("ram", 320, 480),
-         ("pin", 3, 2)]
+CASES = [
+    ("w1", 1, 3),
+    ("w2", 2, 3),
+    ("w3", 3, 3),
+    ("w4", 4, 3),
+    ("w5", 5, 3),
+    ("w7", 7, 2),
+    ("sweep", 256, 256),
+    ("panel", 320, 320),
+    ("ram", 320, 480),
+    ("pin", 3, 2),
+]
 PINNED = [0xF800, 0x07E0, 0x001F, 0xFFFF, 0x0000, 0x8410]
 # The pinned colors in 8-bit RGB, worked out by hand from the replication rule:
 # 0x8410 is r5 = 16 (0x84), g6 = 32 (0x82), b5 = 16 (0x84).
-PINNED_RGB = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255), (0, 0, 0),
-              (0x84, 0x82, 0x84)]
+PINNED_RGB = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255), (0, 0, 0), (0x84, 0x82, 0x84)]
+
+# The three component stores of scr_row(), in the two channel orders.
+SEP = "\n\t\t\t"
+EMIT_RGB = SEP.join(f"out[n++] = (unsigned char){c};" for c in "rgb")
+EMIT_BGR = SEP.join(f"out[n++] = (unsigned char){c};" for c in "bgr")
+CLOSE = "\n\t\t}"
 
 # (name, old, new)
 MUTANTS = [
-    ("ppm-writes-blue-first", "out[n++] = (unsigned char)r;\n\t\t\tout[n++] = (unsigned char)g;\n\t\t\tout[n++] = (unsigned char)b;",
-     "out[n++] = (unsigned char)b;\n\t\t\tout[n++] = (unsigned char)g;\n\t\t\tout[n++] = (unsigned char)r;"),
-    ("bmp-writes-red-first", "out[n++] = (unsigned char)b;\n\t\t\tout[n++] = (unsigned char)g;\n\t\t\tout[n++] = (unsigned char)r;\n\t\t}",
-     "out[n++] = (unsigned char)r;\n\t\t\tout[n++] = (unsigned char)g;\n\t\t\tout[n++] = (unsigned char)b;\n\t\t}"),
+    ("ppm-writes-blue-first", EMIT_RGB, EMIT_BGR),
+    ("bmp-writes-red-first", EMIT_BGR + CLOSE, EMIT_RGB + CLOSE),
     ("bmp-rows-lack-padding", "return (w * 3 + 3) & ~3u;", "return w * 3;"),
-    ("bmp-row-padding-not-written", "while (fmt == SCR_BMP && (n & 3) != 0)", "while (0 && (n & 3) != 0)"),
-    ("bmp-height-positive", "n += scr_put_le32(out + n, 0ul - h);", "n += scr_put_le32(out + n, h);"),
-    ("bmp-size-omits-header", "scr_put_le32(out + n, SCR_BMP_HDR + size)", "scr_put_le32(out + n, size)"),
+    (
+        "bmp-row-padding-not-written",
+        "while (fmt == SCR_BMP && (n & 3) != 0)",
+        "while (0 && (n & 3) != 0)",
+    ),
+    (
+        "bmp-height-positive",
+        "n += scr_put_le32(out + n, 0ul - h);",
+        "n += scr_put_le32(out + n, h);",
+    ),
+    (
+        "bmp-size-omits-header",
+        "scr_put_le32(out + n, SCR_BMP_HDR + size)",
+        "scr_put_le32(out + n, size)",
+    ),
     ("red-shift-wrong", "r = v >> 11 & 0x1f;", "r = v >> 10 & 0x1f;"),
     ("green-widened-without-replication", "g = g << 2 | g >> 4;", "g = g << 2;"),
     ("blue-widened-without-replication", "b = b << 3 | b >> 2;", "b = b << 3;"),
     ("green-takes-five-bits", "g = v >> 5 & 0x3f;", "g = v >> 5 & 0x1f;"),
-    ("high-byte-read-first", "v = (unsigned)in[2 * i] | (unsigned)in[2 * i + 1] << 8;",
-     "v = (unsigned)in[2 * i + 1] | (unsigned)in[2 * i] << 8;"),
+    (
+        "high-byte-read-first",
+        "v = (unsigned)in[2 * i] | (unsigned)in[2 * i + 1] << 8;",
+        "v = (unsigned)in[2 * i + 1] | (unsigned)in[2 * i] << 8;",
+    ),
     ("raw-swaps-bytes", "out[i] = in[i];", "out[i] = in[i ^ 1];"),
-    ("ppm-header-width-height-swapped", "n += scr_put_dec(out + n, w);\n\t\tout[n++] = ' ';\n\t\tn += scr_put_dec(out + n, h);",
-     "n += scr_put_dec(out + n, h);\n\t\tout[n++] = ' ';\n\t\tn += scr_put_dec(out + n, w);"),
+    (
+        "ppm-header-width-height-swapped",
+        "n += scr_put_dec(out + n, w);\n\t\tout[n++] = ' ';\n\t\tn += scr_put_dec(out + n, h);",
+        "n += scr_put_dec(out + n, h);\n\t\tout[n++] = ' ';\n\t\tn += scr_put_dec(out + n, w);",
+    ),
 ]
 
 
@@ -92,8 +130,12 @@ def expected(name, w, h):
     ppm = [b"P6\n%d %d\n255\n" % (w, h)]
     rowlen = (w * 3 + 3) // 4 * 4
     size = rowlen * h
-    bmp = [b"BM" + struct.pack("<IIIIiiHHIIiiII", 54 + size, 0, 54, 40, w, -h, 1, 24, 0,
-                               size, 2835, 2835, 0, 0)]
+    bmp = [
+        b"BM"
+        + struct.pack(
+            "<IIIIiiHHIIiiII", 54 + size, 0, 54, 40, w, -h, 1, 24, 0, size, 2835, 2835, 0, 0
+        )
+    ]
     raw = []
     for y in range(h):
         px = [value(name, w, h, x, y) for x in range(w)]
@@ -156,7 +198,9 @@ def main(argv):
         failed = 0
         for name, old, new in MUTANTS:
             if header.count(old) != 1:
-                print(f"mutant {name}: its anchor matches {header.count(old)} times", file=sys.stderr)
+                print(
+                    f"mutant {name}: its anchor matches {header.count(old)} times", file=sys.stderr
+                )
                 failed += 1
                 continue
             mdir = tmp / name

@@ -149,7 +149,10 @@ churn(int rounds)
 				return 1;
 			}
 		(void)close(fd);
-		(void)unlink(DIRTY);
+		if (unlink(DIRTY) < 0) {
+			printf("churn_unlink_errno=%d\n", errno);
+			return 1;
+		}
 		sync();
 	}
 	printf("churn_rounds=%d\n", rounds);
@@ -200,9 +203,17 @@ stage_exec(int deep)
 		    tty >= 0 && ioctl(tty, TIOCSTART, 0) == 0);
 		_exit(3);
 	}
+	if (helper < 0) {
+		printf("helper_fork_errno=%d\n", errno);
+		(void)unlink(SCRIPT);
+		return 1;
+	}
 	pid = fork();
 	if (pid < 0) {
 		printf("fork_errno=%d\n", errno);
+		(void)kill(helper, SIGKILL);
+		(void)waitpid(helper, &status, 0);
+		(void)unlink(SCRIPT);
 		return 1;
 	}
 	if (pid == 0) {
@@ -259,11 +270,8 @@ stage_exec(int deep)
 	printf("script_ran=%d\n", access(MARK, 0) == 0);
 	if (access(MARK, 0) == 0)
 		ok = 0;
-	if (helper > 0) {
-		(void)kill(helper, SIGKILL);
-		if (waitpid(helper, &status, 0) != helper || !WIFSIGNALED(status))
-			ok = 0;
-	} else
+	(void)kill(helper, SIGKILL);
+	if (waitpid(helper, &status, 0) != helper || !WIFSIGNALED(status))
 		ok = 0;
 	(void)unlink(SCRIPT);
 	(void)unlink(DIRTY);
@@ -275,8 +283,17 @@ int
 main(int argc, char **argv)
 {
 	setvbuf(stdout, (char *)0, _IONBF, 0);
-	if (argc == 3 && strcmp(argv[1], "churn") == 0)
-		return churn(atoi(argv[2]));
+	if (argc == 3 && strcmp(argv[1], "churn") == 0) {
+		char *end;
+		long rounds = strtol(argv[2], &end, 10);
+
+		if (end == argv[2] || *end != '\0' || rounds <= 0 ||
+		    rounds > 10000) {
+			fprintf(stderr, "stackchain: churn count 1 to 10000\n");
+			return 2;
+		}
+		return churn((int)rounds);
+	}
 	if (argc == 2 && strcmp(argv[1], "file") == 0)
 		return stage_file();
 	if (argc == 2 && strcmp(argv[1], "exec") == 0)

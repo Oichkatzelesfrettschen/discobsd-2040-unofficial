@@ -498,7 +498,9 @@ check_continue_and_step(void)
 	reset();
 	frame->tf_pc = USER_LOWER + 2;
 	child.p_flag |= P_TRACED;
+	child.p_sig = sigmask(SIGINT) | sigmask(SIGQUIT);
 	HK_CHECK(run_request(PT_KILL, 0, 0) == 1);
+	HK_CHECK(child.p_sig == 0);
 	HK_CHECK(child.p_ptracesig == SIGKILL);
 	HK_CHECK((child.p_flag & P_TRACED) == 0);
 	HK_CHECK(frame->tf_pc == USER_LOWER + 2);

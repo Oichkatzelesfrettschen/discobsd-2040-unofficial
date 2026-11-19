@@ -218,8 +218,12 @@ procxmt(void)
      * files it is still closing.  With the trace bit clear issignal()
      * rescans and returns SIGKILL, an interrupted sleep unwinds to its
      * checkpoint, and the process dies at the system call boundary.
+     * Signals posted while it was stopped are dropped, since the rescan
+     * takes the lowest pending signal first and one below SIGKILL would
+     * decide the exit status or write a core file.
      */
     case PT_KILL:
+        u.u_procp->p_sig = 0;
         u.u_procp->p_flag &= ~P_TRACED;
         u.u_procp->p_ptracesig = SIGKILL;
         return(1);

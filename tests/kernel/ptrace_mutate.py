@@ -106,6 +106,7 @@ MUTATIONS = {
 """,
     ),
     "kill-direct-exit": (
+        "        u.u_procp->p_sig = 0;\n"
         "        u.u_procp->p_flag &= ~P_TRACED;\n"
         "        u.u_procp->p_ptracesig = SIGKILL;\n"
         "        return(1);",

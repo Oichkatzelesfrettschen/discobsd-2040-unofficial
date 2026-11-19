@@ -1452,6 +1452,44 @@ file_owner_test32: file_owner_test.c file_owner_descrip32.o \
 	    hostkern_kern.c file_owner_descrip32.o file_owner_generic32.o \
 	    hostkern32.o
 
+# fdcloseexec() lives in kern_descrip.c; the fixture links that file alone.
+# The mutant closes each descriptor before it empties the slot, the order
+# exec_clear() once used.
+exec_close_descrip32.o: ${FILE_OWNER_DESCRIP_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} ${ILP32} -c -o $@ ${FILE_OWNER_DESCRIP_SRC}
+
+exec_close_test32: exec_close_test.c exec_close_descrip32.o \
+    hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} ${ILP32} \
+	    -DHK_ILP32 ${FILE_OWNER_LDFLAGS} -o $@ exec_close_test.c \
+	    hostkern_kern.c exec_close_descrip32.o hostkern32.o
+
+exec_close_detach.mutant.c: ${FILE_OWNER_DESCRIP_SRC}
+	awk '/^        u\.u_(o|po)file\[cc\] = (NULL|0);$$/ { held = held $$0 "\n"; next } \
+	    /^        \(void\) closef\(fp\);$$/ { print; printf "%s", held; next } \
+	    { print }' ${FILE_OWNER_DESCRIP_SRC} >$@
+	@if cmp -s ${FILE_OWNER_DESCRIP_SRC} $@; then \
+		echo 'FAIL exec close mutation changed nothing' >&2; exit 1; \
+	fi
+
+exec_close_detach.mutant.test: exec_close_detach.mutant.c exec_close_test.c \
+    hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} ${ILP32} \
+	    -c -o exec_close_detach.mutant.o exec_close_detach.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} ${ILP32} \
+	    -DHK_ILP32 ${FILE_OWNER_LDFLAGS} -o $@ exec_close_test.c \
+	    hostkern_kern.c exec_close_detach.mutant.o hostkern32.o
+
+check-exec-close-mutant: exec_close_detach.mutant.test
+	@if ./exec_close_detach.mutant.test >exec_close_detach.mutant.out 2>&1; then \
+		echo 'FAIL exec close mutant accepted' >&2; exit 1; \
+	else status=$$?; fi; \
+	if [ "$$status" -ne 1 ] || ! grep -F 'slot_still_held[slot] == 0' exec_close_detach.mutant.out >/dev/null; then \
+		cat exec_close_detach.mutant.out >&2; exit 1; \
+	fi; echo 'PASS exec close detach mutant rejected'
+
 file_owner_test_sanitized: file_owner_test.c ${FILE_OWNER_DESCRIP_SRC} \
     ${FILE_OWNER_GENERIC_SRC} hostkern_kern.c hostkern.c hostkern.h \
     ${MACHINE_STAMP}
@@ -3360,6 +3398,7 @@ check-pipe-rw-mutants: ${PIPE_RW_MUTANTS:@mutation@pipe_rw_${mutation}.mutant32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test prf_log_test check-prf-log-mutant readlink_test check-readlink-mutant rwuio_test32 check-extract-function pipe_rw_contract32 pipe_rw_contract_single32 check-pipe-rw-mutants file_owner_test32 fionread_test32 sigauth_test \
+	    exec_close_test32 check-exec-close-mutant \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
 	    ptrace_test32 \
 	    mem_span_endpoint-admission.mutant32.test \
@@ -3398,6 +3437,7 @@ check-ilp32:
 	    ${.CURDIR}/hostkern32.o
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
 	${TEST_EXECUTION} run kernel.file-owner.ilp32 -- ./file_owner_test32
+	${TEST_EXECUTION} run kernel.exec-close.ilp32 -- ./exec_close_test32
 	${TEST_EXECUTION} run kernel.fionread.ilp32 -- ./fionread_test32
 	${TEST_EXECUTION} run kernel.swap-ioctl.ilp32 -- ./swap_ioctl_test32
 	${TEST_EXECUTION} run kernel.tty-local-mode.ilp32 -- \
@@ -3497,6 +3537,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.pipe-rw.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.pipe-rw-single.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.file-owner.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.exec-close.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.fionread.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.swap-ioctl.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.tty-local-mode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3635,6 +3676,9 @@ clean:
 	    rwuio_jump_sanitized.o rwuio_hostkern_sanitized.o
 	rm -f file_owner_test file_owner_descrip.o file_owner_generic.o
 	rm -f file_owner_test32 file_owner_descrip32.o file_owner_generic32.o
+	rm -f exec_close_test32 exec_close_descrip32.o exec_close_detach.mutant.c \
+	    exec_close_detach.mutant.o exec_close_detach.mutant.test \
+	    exec_close_detach.mutant.out
 	rm -f file_owner_test_sanitized file_owner_descrip_sanitized.o \
 	    file_owner_generic_sanitized.o file_owner_hostkern_sanitized.o
 	rm -f file_owner_*.mutant.c file_owner_*.mutant.o \

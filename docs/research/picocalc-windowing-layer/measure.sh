@@ -25,7 +25,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Rebuilds the sizes quoted in the B22 windowing study.
+# Rebuilds the sizes quoted in docs/research/picocalc-windowing-layer.md.
 #
 # usage: measure.sh OUTDIR
 #   MW_DIR    Microwindows checkout (ghaerr/microwindows)

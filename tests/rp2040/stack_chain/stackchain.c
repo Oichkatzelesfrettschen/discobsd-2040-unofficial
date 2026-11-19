@@ -244,7 +244,19 @@ churn(int rounds)
 			printf("churn_unlink_errno=%d\n", errno);
 			return 1;
 		}
-		sync();
+		/*
+		 * The unlink queues inode and free-list writes of its own.
+		 * fsync() of the directory flushes the file system and returns
+		 * a write or checkpoint that failed, which sync() cannot.
+		 */
+		fd = open(".", O_RDONLY);
+		if (fd < 0 || fsync(fd) < 0) {
+			printf("churn_flush_errno=%d\n", errno);
+			if (fd >= 0)
+				(void)close(fd);
+			return 1;
+		}
+		(void)close(fd);
 	}
 	printf("churn_rounds=%d\n", rounds);
 	return 0;

@@ -96,6 +96,7 @@
 
 static char block[BLOCK];
 static char private_dir[96];
+static const char *private_name;	/* its last component */
 static const char *tty_name = "/dev/tty0";
 
 /*
@@ -112,6 +113,7 @@ enter_private_dir(const char *parent)
 		printf("private_dir_too_long=1\n");
 		return -1;
 	}
+	private_name = strrchr(private_dir, '/') + 1;
 	if (mkdir(private_dir, 0700) < 0 || chdir(private_dir) < 0) {
 		printf("private_dir_errno=%d\n", errno);
 		return -1;
@@ -126,7 +128,8 @@ leave_private_dir(int status)
 	(void)unlink(DIRTY);
 	(void)unlink(SCRIPT);
 	(void)unlink(MARK);
-	if (chdir("/") < 0 || rmdir(private_dir) < 0) {
+	/* By way of the parent, so that a relative -d still names it. */
+	if (chdir("..") < 0 || rmdir(private_name) < 0) {
 		printf("private_dir_remove_errno=%d\n", errno);
 		return 1;
 	}
@@ -339,8 +342,11 @@ stage_exec(int deep)
 	errno = 0;
 	(void)ptrace(PT_KILL, pid, 0, 0);
 	printf("ptkill_errno=%d\n", errno);
-	if (errno != 0)
+	if (errno != 0) {
+		/* The stopped child would otherwise never be reaped. */
 		ok = 0;
+		(void)kill(pid, SIGKILL);
+	}
 	/*
 	 * A child whose close dropped the terminal's last reference is
 	 * asleep in the drain wait and cannot finish dying until the output

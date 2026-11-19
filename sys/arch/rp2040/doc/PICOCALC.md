@@ -1194,7 +1194,9 @@ other directory, file and symbolic link of the tree, owned by root. The
 image then holds about 1,720 files in 15.6 MB, among them MATEzinho's icon
 pack in `/usr/share/matezinho` (with its CC BY-SA 3.0 notices and the
 source art as `artwork.tar`) and the `desktop` command that starts it,
-`paneltest` (`doc/PANELTEST.md`), and the board test programs of
+`paneltest` (`doc/PANELTEST.md`), `scrshot` (`usr.bin/scrshot`, the panel
+capture, which `/dev/lcdgfx` serves to the superuser on a PICOCALC_SD kernel;
+the flash root omits it), and the board test programs of
 `tests/rp2040` (`fptest`, `sigtest`, `lcdgfxtest`, `windowtest` and the
 rest) in `/usr/tests/rp2040`. It also holds the block and raw nodes of all four card
 partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because

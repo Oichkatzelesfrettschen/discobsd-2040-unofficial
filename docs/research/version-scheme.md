@@ -11,7 +11,7 @@ The owner adopted SemVer. Decision D111 supersedes D87, D91 and D92. Owner's wor
 - D113: `osrelease` (`uname -r`) carries the core version with its pre-release label and no date (D88 kept), for example `0.1.0-alpha`.
 - D114: the build month in artifact and stable-release forms is spelled `+YYYYMM`.
 - D115: tags repeat the core verbatim under the D90 namespace: `gizmobsd-v0.1.0`.
-- The answers of 2026-11-19 (D152 to D159) to the residual decisions narrow the above: they are tabulated under "Residual decisions, answered 2026-11-19", and the specification section marks each clause they withdraw.
+- The answers of 2026-11-19 (D152 to D159; dates of decisions in this note are UTC) to the residual decisions narrow the above: they are tabulated under "Residual decisions, answered 2026-11-19", and the specification section marks each clause they withdraw.
 - D88 (the label is in `version[]` and `osrelease`), D89 (owner's words: "ensure 64-bit time is landed but its still Rev A alpha however the styling is for that."; the tree stays in its alpha state until the 64-bit `time_t` change lands, `docs/research/time-representation-past-2038.md`), D90 (the `gizmobsd-v*` namespace; `host-v*` stays the host package) and D94 (banners in gates and fixtures derive from `newvers.sh` after the rename) stand.
 - Superseded: D87 (scheme S3), D91 (the spelling `RevA-alpha`), D92 (the composite letter, fix and date identifier, owner's words: "Rev A.1, A.2 with Date suffix: Rev A 2026.12 so figure this odd RevA.Semver.datever string being conconcted. Decompose to first principles and elucidate modern research!"), and D93 (owner's words: "Year-month probably but really you are working on an interesting string"; replaced by D112).
 
@@ -144,6 +144,8 @@ The S3 representation as specified, `Rev A` in `version[]` and `RevA` in `osrele
 ## Schemes
 
 ### S1: SemVer 2.0.0 initial-development band, 0.y.z
+
+S1 is described here as the first analysis proposed it. Of its rules the owner adopted the three-field number and the first value (D111); the contract list is a draft awaiting amendment (D152), and the release cycle and the point at which `0.1.0` is cut are the owner's decisions, not rules (D153, D158). "The adopted scheme" below lists what is in force.
 
 Status: adopted by D111. The first value, the `param.h` role and the label placement below are revised by D111 to D115 and by "The adopted scheme"; the measurements stay.
 

@@ -43,19 +43,26 @@ REGION = 7
 AP_PRIV_RW_USER_RO = 2
 
 # The consumer reads "brk saddr sp" triples in hexadecimal and prints
-# "floor rbar rasr" for each, so the model below decides every verdict.
+# "floor rbar rasr" for each, then whether a 36-byte fault frame starting 36
+# and 35 bytes below, 31 and 32 bytes above the rounded break overlaps the
+# guard, so the model below decides every verdict.
 CONSUMER = r"""#include <stdio.h>
 #include <machine/breakguard.h>
 
 int
 main(void)
 {
-    unsigned int brk, saddr, sp, floor;
+    unsigned int brk, saddr, sp, floor, base;
 
     while (scanf("%x %x %x", &brk, &saddr, &sp) == 3) {
         floor = rp2040_break_guard_floor(brk, saddr, sp);
-        printf("%x %x %x\n", floor, rp2040_break_guard_rbar(floor),
-            rp2040_break_guard_rasr(floor));
+        base = (brk + 31U) & ~31U;
+        printf("%x %x %x %d %d %d %d\n", floor, rp2040_break_guard_rbar(floor),
+            rp2040_break_guard_rasr(floor),
+            rp2040_break_guard_hit(floor, base - 36U, 36U),
+            rp2040_break_guard_hit(floor, base - 35U, 36U),
+            rp2040_break_guard_hit(floor, base + 31U, 36U),
+            rp2040_break_guard_hit(floor, base + 32U, 36U));
     }
     return 0;
 }
@@ -79,6 +86,11 @@ MUTANTS = (
         "guard-past-p_saddr",
         "unsigned int stack = saddr < sp ? saddr : sp;",
         "unsigned int stack = sp; (void)saddr;",
+    ),
+    (
+        "frame-overlap-off-by-one",
+        "return start - base < BREAK_GUARD_BYTES;",
+        "return start - base <= BREAK_GUARD_BYTES;",
     ),
     (
         "size-field-512",
@@ -144,11 +156,15 @@ def verdicts(rows, output_lines):
     """Return the first contract violation, or None."""
     require(len(output_lines) == len(rows), "consumer output count differs")
     for (brk, saddr, sp), line in zip(rows, output_lines):
-        floor, rbar, rasr = (int(field, 16) for field in line.split())
+        fields = line.split()
+        floor, rbar, rasr = (int(field, 16) for field in fields[:3])
+        hits = [field == "1" for field in fields[3:]]
         label = f"brk {brk:#x} saddr {saddr:#x} sp {sp:#x}"
         guard = -(-brk // GUARD) * GUARD
         stack = min(saddr, sp)
         armed = stack >= guard + GUARD + MARGIN
+        if hits != [False, armed, armed, False]:
+            return f"{label}: frame overlap {hits}, armed {armed}"
         try:
             intervals = pmsav6_covered(rbar, rasr)
         except ContractError as error:

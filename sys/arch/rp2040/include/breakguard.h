@@ -31,9 +31,9 @@
 /*
  * The break guard: MPU region 7 covers the 32 bytes at the process break
  * rounded up to 32 bytes, privileged read-write and unprivileged read-only,
- * so the first user store past the break and its pad raises HardFault while
- * every load, every kernel access and the bytes between the exact break and
- * the guard stay as they are. A 256-byte region divides into eight 32-byte
+ * so a user store into those 32 bytes raises HardFault while every load,
+ * every kernel access and the pad between the exact break and the guard
+ * stay as they are. A 256-byte region divides into eight 32-byte
  * subregions (ARMv6-M ARM B3.5.9); the guard enables only the one holding
  * the rounded break. It is armed only while the stack, the lower of the
  * deepest stack recorded in p_saddr and the stack pointer the process
@@ -101,6 +101,23 @@ rp2040_break_guard_rasr(unsigned int floor)
 	return BREAK_GUARD_RASR_XN | BREAK_GUARD_RASR_AP |
 	    (srd << BREAK_GUARD_RASR_SRD_SHIFT) | BREAK_GUARD_RASR_SIZE |
 	    BREAK_GUARD_RASR_ENABLE;
+}
+
+/*
+ * Return nonzero when [start, start + length) overlaps the guard a nonzero
+ * floor arms; a zero floor arms none.
+ */
+static inline int
+rp2040_break_guard_hit(unsigned int floor, unsigned int start,
+    unsigned int length)
+{
+	unsigned int base = floor - BREAK_GUARD_BYTES - BREAK_GUARD_MARGIN;
+
+	if (floor == 0 || length == 0)
+		return 0;
+	if (start < base)
+		return base - start < length;
+	return start - base < BREAK_GUARD_BYTES;
 }
 
 #endif	/* !_RP2040_BREAKGUARD_H_ */

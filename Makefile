@@ -1948,8 +1948,9 @@ check-rp2040-usercopy-span: check-python
 		    --output ${TOPSRC:Q}/.build-logs/usercopy-span-contracts.json
 
 # The break guard's region 7 encoding (machine/breakguard.h) against an
-# independent PMSAv6 match model for every 32-byte break in the user window,
-# with six mutants the model must reject.
+# independent PMSAv6 match model for every 32-byte break in the user window
+# and of the fault-frame overlap test, with seven mutants the model must
+# reject.
 check-rp2040-break-guard: check-python
 		${PYTHON} tests/rp2040/break_guard/check.py \
 		    --root ${TOPSRC:Q} --host-cc ${HOST_CC:Ucc:Q} \

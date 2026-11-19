@@ -420,6 +420,16 @@ residue_plant(void)
 		printf("residue: no gap between image and stack\n");
 		return 2;
 	}
+	/*
+	 * The span lies above the break, where the break guard (mpu.c) makes
+	 * the first 32 bytes past the rounded break read-only to this process,
+	 * so the break moves to the top of the span before the marker goes in.
+	 */
+	if ((char *)high > (char *)sbrk(0) &&
+	    sbrk((int)((char *)high - (char *)sbrk(0))) == (void *)-1) {
+		perror("residue: sbrk");
+		return 2;
+	}
 	for (word = low; word < high; word++) {
 		*word = RESIDUE_MARK;
 		count++;

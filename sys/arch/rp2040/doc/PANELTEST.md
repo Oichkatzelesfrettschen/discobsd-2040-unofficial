@@ -108,7 +108,7 @@ time that each set's bytes give its nominal rate within 0.25 Hz.
 | 30 | F0h 00h | 15 | Fosc | 0 | 168 | 122.98 Hz |
 
 Sets 28-30 aim the formula above a target by the ratio the board measured
-at the same FRS (result 3 of the 2026-11-17 run): 60 / 0.965, 75 / 0.962
+at the same FRS (result 3 of the 2026-11-18 run): 60 / 0.965, 75 / 0.962
 and, for 120, the formula's maximum at these porches (168 line units).
 
 Sets 21-26 and 28-30 unlock command 2 first. Set 23 writes the datasheet defaults,

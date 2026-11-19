@@ -2,12 +2,12 @@
 
 The PicoCalc's ST7365P panel controller takes its gamma, power, VCOM,
 frame-rate and inversion settings from Command Table 2 (ST7365P_SPEC_V1.0,
-section 9.3). `st7365p.c` writes those registers from the vendor ILI9488P
-sequence but never sends CSCON F0h C3h/96h, which page 245 documents as the
-enable of command 2, and page 246 gives CSCON's power-on and reset defaults
-as N/A. Whether the shipped writes take effect is therefore open, and so is
-whether other settings render small text more crisply. The panel test
-answers both on the board: the PICOCALC kernel (`options LCD_PANELTEST`) programs
+section 9.3). The vendor ILI9488P sequence that `init_seq` of
+`st7365p.c` carries writes those registers without CSCON F0h C3h/96h,
+which page 245 documents as the enable of command 2, and page 246 gives
+CSCON's power-on and reset defaults as N/A. Which of those writes take
+effect, and whether other settings render small text more crisply, are
+questions for the board. The panel test answers them there: the PICOCALC kernel (`options LCD_PANELTEST`) programs
 one of a fixed list of register sets on request and reads the controller's
 read commands back over SPI1 RX (GP12, the panel's SDO), and `paneltest`
 draws the calibration patterns.
@@ -50,11 +50,17 @@ draws the calibration patterns.
   independent of what an earlier read clocked into the registers. Set 27
   programs the same marks, so they also stand in the panel between
   readbacks.
-- The PicoCalc lean kernels program the panel at startup with `init_seq`.
-  The full kernel also stores one post-sequence pointer and length per
-  numbered set, plus selectors for its preamble and base. Set zero sends
-  a NOP on either side of `init_seq`. Ordinary startup sends `init_seq`
-  directly. The bare Pico configurations use their own console drivers.
+- Every PicoCalc kernel programs the panel at startup with the unlock,
+  `init_seq` and the 78 Hz frame table (`init_unlock`, `init_frame`),
+  which the board runs at 74.94 Hz. The full kernel also stores one
+  post-sequence pointer and length per numbered set, plus selectors for
+  its preamble and base. Set 0 sends the startup bytes, so the last close
+  of `/dev/lcdgfx` returns the panel to its startup state; set 31 sends a
+  NOP on either side of `init_seq`, the locked base that startup sent
+  until the frame rate was chosen and that set 0 named then. In the
+  results below dated 2026-11-19 or earlier, "set 0" and "shipped" mean
+  that locked base. The bare Pico configurations use their own console
+  drivers.
 
 ## Running it
 
@@ -107,13 +113,15 @@ time that each set's bytes give its nominal rate within 0.25 Hz.
 | 29 | C0h 01h | 12 | Fosc | 1 | 265 | 77.96 Hz |
 | 30 | F0h 00h | 15 | Fosc | 0 | 168 | 122.98 Hz |
 
+Set 0 carries the bytes of set 29.
+
 Sets 28-30 aim the formula above a target by the ratio the board measured
 at the same FRS (result 3 of the 2026-11-18 run): 60 / 0.965, 75 / 0.962
 and, for 120, the formula's maximum at these porches (168 line units).
 
 Sets 21-26 and 28-30 unlock command 2 first. Set 23 writes the datasheet defaults,
-so it is the reference the other rates compare against. The shipped
-sequence writes B1h A0h alone (RTNA left as reset) and no B5h; sets 14
+so it is the reference the other rates compare against. `init_seq`
+(set 31) writes B1h A0h alone (RTNA left as reset) and no B5h; sets 14
 and 15 write B1h 00h alone, 31.1 Hz at RTNA 10h and 484 lines.
 
 The kernel reads GSCAN back to back at 3.125 MHz, about 10 us a read,
@@ -217,6 +225,28 @@ for each judged item, and `/var/log/paneltest.log`.
     Hypothesis: the panel still shows a stable picture; the falsifier is
     a torn, dim or rolling picture under pattern 1, in which case the
     highest usable rate is set 26's measured 117.04 Hz.
+
+## Predictions for the startup sequence at 75 Hz, recorded before its board run
+
+The startup sequence takes the bytes of set 29, which measured 74.94 Hz
+with a picture (results of the second 2026-11-19 kernel below).
+
+16. After a boot and before any set change, `f` reads 74.9 Hz within
+    0.3 Hz under set 0, and set 31 reads 57.95 Hz within 0.2 Hz.
+    Falsifier: 57.9 Hz under set 0, which would mean the startup path
+    sends other bytes than `st7365p_set(0)` (the emulated trace shows the
+    same 75 bytes before SLPOUT).
+17. The rate holds across what a session does to the panel: after
+    `lcdexttest`, whose dithering probe locks command 2 again (CSCON 3Ch,
+    69h) and whose power test sends SLPIN and SLPOUT, `f` under set 0
+    still reads 74.9 Hz. Falsifier: 57.9 Hz after it, which would show
+    that a lock or a sleep returns FRMCTR1 to the gated value;
+    `lcd_gfx_dither()` would then stop locking, or the wake path would
+    send the frame table again.
+18. The console and the pixel device draw as before; `lcdgfxtest`,
+    `lcdexttest` and `tiledemo` pass. The scan-line wait of
+    `lcdexttest` keeps its 100 of 100, since its timeout is a count of
+    samples and no constant holds the frame period.
 
 ## Results, 2026-11-17
 
@@ -352,3 +382,17 @@ reads under 66h:
    writes EPF 11; the other three EPF values were not tried.
 8. Photographs of sets 0 to 3 at 640 by 480 with glare do not separate
    them; the by-eye comparison needs full-size frames.
+
+Kernel PICOCALC_SD #1 4421 (main 23ae068cb), the compensated frame-rate
+sets (predictions 14 and 15):
+
+9. Scan: set 28 59.99 Hz +-0.03, set 29 74.94 Hz +-0.06, set 30
+   119.66 Hz +-0.08, each 484 lines and nine wraps with 4, 4 and 3
+   samples rejected. Prediction 14 gave 60.05, 75.0 and 119.8 Hz; all
+   three are inside its 0.6 Hz, so the ratio follows FRS at these RTNA
+   values.
+10. Set 30 shows a black glass while the scan runs at its predicted
+    rate, and the picture returns on leaving the set. Prediction 15's
+    hypothesis is false: RTNA 0 is unusable on this panel, and the
+    fastest rate with a picture stays set 26's 117.04 Hz.
+11. Set 29 shows a stable picture. It became the startup sequence.

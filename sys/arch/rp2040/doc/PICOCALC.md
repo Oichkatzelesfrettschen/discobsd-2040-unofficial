@@ -333,11 +333,18 @@ requires (page 184). VSCSAD (37h) then picks the RAM line shown at the
 top of the panel. The initialization values (gamma, power, VCOM, frame
 rate, inversion on, display function, entry mode, adjust control,
 MADCTL 48h) come from the vendor's PicoMite ILI9488P (320x320) sequence
-for this panel, with three deliberate differences: command E9h, which the
+for this panel, with four deliberate differences: command E9h, which the
 vendor sends but the ST7365P command table does not list, is omitted; the
-scroll definition is programmed before the display turns on; and DISPON
-follows lcdterm's first full clear, so power-on RAM contents never show.
-A board capture decides whether E9h matters.
+scroll definition is programmed before the display turns on; DISPON
+follows lcdterm's first full clear, so power-on RAM contents never show;
+and the frame rate is set apart from the vendor's values. On the measured
+board FRMCTR1 (B1h, page 219) acts only after the Command 2 unlock (CSCON
+F0h C3h, 96h, page 245) and the panel runs at 0.962 to 0.974 of the
+formula's rate, so the vendor's B1h A0h gives 57.95 Hz. `st7365p_init()`
+sends the unlock before the vendor values and BPC (B5h) with FRMCTR1 C0h
+01h after them, 77.96 Hz by the formula and 74.94 Hz measured
+(`PANELTEST.md` holds the measurements; the rate was the owner's choice
+among 60, 75 and 117 Hz). A board capture decides whether E9h matters.
 
 The board drives the backlight from the keyboard controller, which turns
 it on at reset; the kernel does not touch it.

@@ -430,9 +430,9 @@ namespace Antmicro.Renode.Peripherals.SPI
         {
             switch(cmd)
             {
-            case 0xb0: case 0xb1: case 0xb4: case 0xb6: case 0xb7:
+            case 0xb0: case 0xb1: case 0xb4: case 0xb5: case 0xb6: case 0xb7:
             case 0xc0: case 0xc1: case 0xc5:
-            case 0xe0: case 0xe1: case 0xf7:
+            case 0xe0: case 0xe1: case 0xf0: case 0xf7:
                 return true;
             default:
                 return false;

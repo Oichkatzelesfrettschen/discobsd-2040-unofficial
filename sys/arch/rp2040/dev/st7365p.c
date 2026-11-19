@@ -151,6 +151,38 @@ static const u_char init_seq[] = {
 	0xf7, 4, 0xa9, 0x51, 0x2c, 0x82,
 };
 
+/*
+ * The frame rate. FRMCTR1 (B1h, page 219) takes FRS[3:0] and DIVA[1:0] in
+ * its first parameter and RTNA[4:0] in its second, and gives the normal
+ * mode frame rate as 10^7 / ((168 + RTNA + 32 (15 - FRS)) (480 + VFP + VBP)).
+ * BPC (B5h, page 222) has no documented reset value, so a frame table
+ * writes VFP = VBP = 2 (and HBP = 4), the values its table lists, which
+ * makes the second factor 484; B5h precedes SLPOUT as page 223 requires.
+ * FRAME_SET builds a table from its fields and asserts at compile time
+ * that the formula, shifted right by DIVA, lands within 0.25 Hz of the
+ * nominal rate.
+ *
+ * On the measured board B1h acts only after the Command 2 unlock (CSCON
+ * F0h C3h, 96h, page 245), and the rate is 0.962 of the formula at FRS 12
+ * (doc/PANELTEST.md). st7365p_init() therefore sends init_unlock, init_seq
+ * and init_frame: FRS 12, RTNA 1, 77.96 Hz by the formula and 74.94 Hz
+ * measured. The B1h A0h of init_seq, sent first, is overridden.
+ */
+#define	FRAME_LINES	(480 + 2 + 2)
+#define	FRAME_MHZ(frs, diva, rtna) \
+	((10000000000ULL / ((168ULL + (rtna) + 32 * (15 - (frs))) * \
+	FRAME_LINES)) >> (diva))
+#define	FRAME_SET(name, frs, diva, rtna, hz) \
+	static const u_char name[] = { 0xb5, 4, 0x02, 0x02, 0x00, 0x04, \
+	    0xb1, 2, (frs) << 4 | (diva), (rtna) }; \
+	_Static_assert((frs) <= 15 && (diva) <= 3 && (rtna) <= 31 && \
+	    FRAME_MHZ(frs, diva, rtna) + 250 >= (hz) * 1000ULL && \
+	    FRAME_MHZ(frs, diva, rtna) <= (hz) * 1000ULL + 250, \
+	    #name " gives its nominal rate")
+#define	CMD_CSCON		0xf0
+static const u_char init_unlock[] = { CMD_CSCON, 1, 0xc3, CMD_CSCON, 1, 0x96 };
+FRAME_SET(init_frame, 12, 0, 1, 78);
+
 static void
 spi_wait_idle(void)
 {
@@ -473,7 +505,9 @@ st7365p_init(void)
 	pc_gpio_output(PICOCALC_LCD_RST, 1);
 
 	panel_begin();
+	run_seq(init_unlock, sizeof(init_unlock));
 	run_seq(init_seq, sizeof(init_seq));
+	run_seq(init_frame, sizeof(init_frame));
 	panel_wake();
 
 	/* The two columns right of the last cell; lcdterm clears the cells. */
@@ -669,11 +703,10 @@ lcd_gfx_dither(int on)
 #include <rp2040/dev/lcdgfx.h>
 #include <rp2040/dev/st7365p_scan.h>
 
-#define	CMD_CSCON		0xf0
 #define	CMD_SPIRC		0xfb
 
 static const u_char NONE[] = { 0x00, 0 };	/* NOP (page 145). */
-static const u_char UNLOCK[] = { CMD_CSCON, 1, 0xc3, CMD_CSCON, 1, 0x96 };
+#define	UNLOCK	init_unlock
 #define	DRIVER	init_seq
 static const u_char VENDOR[] = {
 	0xc5, 1, 0x1c,
@@ -719,12 +752,7 @@ static const u_char VCOM_3F[] = { 0xc5, 1, 0x3f };
 static const u_char FRAME_31HZ[] = { 0xb1, 1, 0x00 };
 
 /*
- * Frame-rate sets. FRMCTR1 (B1h, page 219) takes FRS[3:0] and DIVA[1:0] in
- * its first parameter and RTNA[4:0] in its second, and gives the normal
- * mode frame rate as 10^7 / ((168 + RTNA + 32 (15 - FRS)) (480 + VFP + VBP)).
- * BPC (B5h, page 222) has no documented reset value, so each set writes
- * VFP = VBP = 2 (and HBP = 4), the values its table lists, which makes the
- * second factor 484; B5h precedes SLPOUT as page 223 requires. The printed
+ * Frame-rate sets, built by FRAME_SET (above init_unlock). The printed
  * formula omits DIVA; the 24 Hz set takes DIVA = 01b (Fosc / 2) to halve a
  * 48 Hz line timing, an inference that the GSCAN measurement checks.
  *
@@ -746,21 +774,9 @@ static const u_char FRAME_31HZ[] = { 0xb1, 1, 0x00 };
  *   78 Hz  12   00b   1     168 + 1 + 96 = 265   77.96 Hz
  *   123 Hz 15   00b   0     168 + 0 + 0 = 168    122.98 Hz
  *
- * FRAME_SET builds each table from its fields and asserts at compile time
- * that the formula, shifted right by DIVA, lands within 0.25 Hz of the
- * nominal rate.
+ * The 78 Hz table is init_frame, the one st7365p_init() sends. On the
+ * board the 123 Hz table scans at 119.66 Hz and the glass stays black.
  */
-#define	FRAME_LINES	(480 + 2 + 2)
-#define	FRAME_MHZ(frs, diva, rtna) \
-	((10000000000ULL / ((168ULL + (rtna) + 32 * (15 - (frs))) * \
-	FRAME_LINES)) >> (diva))
-#define	FRAME_SET(name, frs, diva, rtna, hz) \
-	static const u_char name[] = { 0xb5, 4, 0x02, 0x02, 0x00, 0x04, \
-	    0xb1, 2, (frs) << 4 | (diva), (rtna) }; \
-	_Static_assert((frs) <= 15 && (diva) <= 3 && (rtna) <= 31 && \
-	    FRAME_MHZ(frs, diva, rtna) + 250 >= (hz) * 1000ULL && \
-	    FRAME_MHZ(frs, diva, rtna) <= (hz) * 1000ULL + 250, \
-	    #name " gives its nominal rate")
 FRAME_SET(FRAME_24HZ, 7, 1, 6, 24);
 FRAME_SET(FRAME_40HZ, 5, 0, 28, 40);
 FRAME_SET(FRAME_60HZ, 10, 0, 16, 60);
@@ -768,7 +784,7 @@ FRAME_SET(FRAME_75HZ, 12, 0, 11, 75);
 FRAME_SET(FRAME_90HZ, 14, 0, 30, 90);
 FRAME_SET(FRAME_120HZ, 15, 0, 4, 120);
 FRAME_SET(FRAME_62HZ, 10, 0, 4, 62);
-FRAME_SET(FRAME_78HZ, 12, 0, 1, 78);
+#define	FRAME_78HZ	init_frame
 FRAME_SET(FRAME_123HZ, 15, 0, 0, 123);
 static const u_char MADCTL_40[] = { CMD_MADCTL, 1, 0x40 };
 static const u_char MADCTL_08[] = { CMD_MADCTL, 1, 0x08 };

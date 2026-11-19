@@ -1080,7 +1080,11 @@ static void rebaseimage (unsigned int imagesize, intptr_t delta) {
 // collector and the printer rely on: every pointer is null or the address
 // of a cell the image holds; a chain ends and its cells are no pair's
 // target; and a code block, a stream and a builtin symbol stay inside their
-// tables. How the cells fit together as Lisp data is not examined.
+// tables. An array is checked against its dimensions: they are numbers whose
+// product makearray() would allow, and the tree holds a pair for every
+// subscript, with no pair in two trees or twice in one, and a number in every
+// word of a bit array. The other cells are values whatever they point at, so
+// how they fit together as Lisp data is not examined.
 
 #define IMAGEBLOCK 16  // Cells read at a time
 #define chainbit(bits, i)  ((bits)[(i)>>3] & (1u << ((i) & 7)))
@@ -1111,15 +1115,97 @@ static const char *imagetarget (uintptr_t base, unsigned int cells, const uint8_
   return chainbit(chains, index) ? imagelinked : NULL;
 }
 
+static const char imagearray[] = "image array does not match its dimensions";
+
+struct imagecheck {
+  uintptr_t base;
+  unsigned int cells;
+  const uint8_t *chains;
+  uint8_t *trees;  // Cells claimed by a tree or an array's pair
+};
+
+// Reads the pair at p, which no string chain owns, into *node; a claimed
+// cell must also be new to the arrays checked so far
+static const char *imagepair (const struct imagecheck *ic, uintptr_t p, object *node, bool claim) {
+  unsigned int index;
+  if (!imagepointer(ic->base, ic->cells, p, &index)) return imagerange;
+  if (chainbit(ic->chains, index)) return imagelinked;
+  if (claim) {
+    if (chainbit(ic->trees, index)) return imagearray;
+    setchain(ic->trees, index);
+  }
+  if (!imagecells(index, node, 1)) return "image is truncated";
+  return (node->type == ZZERO || node->type >= PAIR) ? NULL : imagearray;
+}
+
+// Reads the number cell at p into *num
+static const char *imagenumber (const struct imagecheck *ic, uintptr_t p, object *num) {
+  unsigned int index;
+  if (!imagepointer(ic->base, ic->cells, p, &index)) return imagearray;
+  if (!imagecells(index, num, 1)) return "image is truncated";
+  return (num->type == NUMBER) ? NULL : imagearray;
+}
+
+// The tree of buildarray(n, s): the node at p holds n leaves in s slots, and
+// every node a subscript can reach is a pair that no other tree uses. A leaf of
+// a bit array is a number cell; any other leaf is a value, checked as any cell is.
+static const char *imagetree (const struct imagecheck *ic, uintptr_t p, unsigned int n, unsigned int s, bool bits) {
+  object node, leaf;
+  const char *fault = imagepair(ic, p, &node, true);
+  if (fault != NULL) return fault;
+  unsigned int half = s >> 1;
+  for (int side=0; side<2 && fault == NULL; side++) {
+    unsigned int need = side ? ((n > half) ? n - half : 0) : ((n < half) ? n : half);
+    uintptr_t child = (uintptr_t)(side ? cdr(&node) : car(&node));
+    if (need == 0) continue;
+    if (half > 1) fault = imagetree(ic, child, need, half, bits);
+    else if (bits) fault = imagenumber(ic, child, &leaf);
+  }
+  return fault;
+}
+
+// The array whose pair, p, holds its tree and its dimension list. The
+// dimensions are numbers, a negative first one marking a bit array, whose
+// product (in words for a bit array) is one makearray() allows, and the tree
+// has a pair for every subscript, as makearray() builds it. The list is the
+// caller's and may be shared, so it is bounded by the cell count, not claimed.
+static const char *imagearraycheck (const struct imagecheck *ic, uintptr_t p) {
+  object pair, dim, num;
+  const char *fault = imagepair(ic, p, &pair, true);
+  if (fault != NULL) return fault;
+  int size = 1;
+  bool bits = false, toobig = false;
+  uintptr_t d = (uintptr_t)cdr(&pair);
+  for (unsigned int rank=0; d != 0; rank++) {
+    if (rank >= ic->cells) return imagearray;
+    if ((fault = imagepair(ic, d, &dim, false)) != NULL) return fault;
+    if ((fault = imagenumber(ic, (uintptr_t)car(&dim), &num)) != NULL) return fault;
+    int v = num.integer;
+    if (v == INT_MIN || (v < 0 && rank > 0)) return imagearray;
+    if (v < 0) { bits = true; v = -v; }
+    if (v == 0) { size = 0; toobig = false; }
+    else if (size > INT_MAX / v) toobig = true;
+    else size = size * v;
+    d = (uintptr_t)cdr(&dim);
+  }
+  if (bits) size = size / (sizeof(int)*8) + (size % (sizeof(int)*8) != 0);
+  if (toobig || (unsigned int)size > WORKSPACESIZE) return imagearray;
+  if (size == 0) return (car(&pair) == NULL) ? NULL : imagearray;
+  return imagetree(ic, (uintptr_t)car(&pair), size, nextpower2(size), bits);
+}
+
 // Returns NULL for a sound image, or what is wrong with it
 static const char *checkimage (const uintptr_t *header, unsigned int cells) {
   uintptr_t base = header[1];
   // Above the type codes, so no address reads as one, and without wrapping
   if (base <= PAIR || cells > (UINTPTR_MAX - base) / sizeof(object)) return "not an image this uLisp can load";
   size_t bytes = (cells + 7) / 8;
-  if ((uintptr_t)__builtin_frame_address(0) < StackLimit + bytes + 1024) return "no room";
-  uint8_t chains[bytes + 1];
+  // Two bitmaps and the recursion of imagetree(), which is as deep as the array is wide in bits
+  if ((uintptr_t)__builtin_frame_address(0) < StackLimit + 2 * bytes + 2048) return "no room";
+  uint8_t chains[bytes + 1], trees[bytes + 1];
   memset(chains, 0, bytes);
+  memset(trees, 0, bytes);
+  const struct imagecheck ic = { base, cells, chains, trees };
   object block[IMAGEBLOCK];
   // Every string chain: in range, no cell twice (which also ends a loop)
   for (unsigned int first=0; first<cells; first+=IMAGEBLOCK) {
@@ -1154,6 +1240,7 @@ static const char *checkimage (const uintptr_t *header, unsigned int cells) {
         if (fault == NULL && cd != 0) fault = imagetarget(base, cells, chains, cd);
       } else if (type == ARRAY) {
         fault = imagetarget(base, cells, chains, cd);
+        if (fault == NULL) fault = imagearraycheck(&ic, cd);
       } else if (type == SYMBOL) {
         if (longsymbolp(obj)) continue;  // A chain header, checked above
         symbol_t name = obj->name;

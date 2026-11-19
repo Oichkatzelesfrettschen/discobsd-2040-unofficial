@@ -114,3 +114,11 @@ mutant bitarray-lastchar 's/if (!issp(ch)) LastChar = ch;/LastChar = ch;/'
 mutant pop-nil 's/if (\*loc == NULL) return nil;//'
 # A float zero prints as an integer.
 mutant float-zero 's/pfstring("0.0", pfun); return;/pfun(0x30); return;/'
+# The image loader does not check an array against its dimensions.
+mutant array-unchecked 's/if (fault == NULL) fault = imagearraycheck(\&ic, cd);//'
+# A tree node may be reached twice, so a tree may loop or share nodes.
+mutant tree-claim 's/if (chainbit(ic->trees, index)) return imagearray;//'
+# A leaf of a bit array need not be a number cell.
+mutant bit-leaf 's/else if (bits) fault = imagenumber(ic, child, \&leaf);//'
+# A dimension list may loop.
+mutant dim-loop 's/if (rank >= ic->cells) return imagearray;//'

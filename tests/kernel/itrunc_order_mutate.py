@@ -33,7 +33,22 @@ run, so a mutant never silently equals the shipped source.
 import argparse
 from pathlib import Path
 
-COMMENT = "    /*\n     * The shortened inode reaches the device before the first block is\n     * freed, so a reset between the two leaves an inode that names only\n     * blocks it still owns and fsck returns the unreferenced ones to the\n     * free list; the reverse order leaves an on-disk inode claiming blocks\n     * the free list may already hold or have handed out again.  ICHG|IUPD\n     * make iupdat() write, since it returns at once on clean flags, and a\n     * waitfor of 1 submits the write through bwrite() whatever MNT_ASYNC\n     * says.  The frees change only the copy in tip, so no second write\n     * follows them.\n     */\n"
+COMMENT = "".join(
+    line + "\n"
+    for line in (
+        "    /*",
+        "     * The shortened inode reaches the device before the first block is",
+        "     * freed, so a reset between the two leaves an inode that names only",
+        "     * blocks it still owns and fsck returns the unreferenced ones to the",
+        "     * free list; the reverse order leaves an on-disk inode claiming blocks",
+        "     * the free list may already hold or have handed out again.  ICHG|IUPD",
+        "     * make iupdat() write, since it returns at once on clean flags, and a",
+        "     * waitfor of 1 submits the write through bwrite() whatever MNT_ASYNC",
+        "     * says.  The frees change only the copy in tip, so no second write",
+        "     * follows them.",
+        "     */",
+    )
+)
 FLAGS = "    oip->i_flag |= ICHG|IUPD;\n"
 UPDATE = "    iupdat(oip, &time, &time, 1);\n"
 WRITE = COMMENT + FLAGS + UPDATE + "\n    /*\n     * Indirect blocks first."

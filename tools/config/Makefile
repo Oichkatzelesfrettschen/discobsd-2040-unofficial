@@ -48,7 +48,6 @@ config.o:	y.tab.c y.tab.h
 		$(CC) $(CFLAGS) -c -o $@ y.tab.c
 
 main.o: main.c y.tab.h config.h
-mkheaders.o: mkheaders.c config.h y.tab.h
 mkioconf.o: mkioconf.c y.tab.h config.h
 mkmakefile.o: mkmakefile.c y.tab.h config.h
 mkswapconf.o: mkswapconf.c config.h

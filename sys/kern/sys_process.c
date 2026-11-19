@@ -211,10 +211,18 @@ procxmt(void)
         u.u_procp->p_ptracesig = ipc.ip_data;
         return(1);
 
-    /* force exit */
+    /*
+     * End the process through the signal path.  The stopped process may be
+     * asleep inside a system call, since issignal() runs under tsleep(), and
+     * an exit() from here would run on the stack of that call and close the
+     * files it is still closing.  With the trace bit clear issignal()
+     * rescans and returns SIGKILL, an interrupted sleep unwinds to its
+     * checkpoint, and the process dies at the system call boundary.
+     */
     case PT_KILL:
-        exit(u.u_procp->p_ptracesig);
-        return(0); /* exit does not return. */
+        u.u_procp->p_flag &= ~P_TRACED;
+        u.u_procp->p_ptracesig = SIGKILL;
+        return(1);
 
     default:
 error:

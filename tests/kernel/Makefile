@@ -2009,7 +2009,8 @@ ITRUNC_ORDER_LDFLAGS=	-Wl,--gc-sections
 ITRUNC_ORDER_MUTANTS=	inode-after-frees flags-not-marked inode-write-delayed \
 			second-write-kept write-error-ignored \
 			failed-write-not-restored indirect-write-async \
-			unlinked-inode-freed-anyway indirect-not-requeued
+			unlinked-inode-freed-anyway indirect-not-requeued \
+			tail-zeroed-on-failure
 
 itrunc_order_test: itrunc_order_test.c ${ITRUNC_ORDER_SRC} hostkern32.o \
     hostkern.h ${MACHINE_STAMP}

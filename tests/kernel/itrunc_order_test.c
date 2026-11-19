@@ -71,7 +71,15 @@ struct timeval time;
 struct mount mount[NMOUNT];
 int lbolt;
 
+/*
+ * The device and the buffer cache are separate images. A buffer holds the
+ * cache's copy of its block; a synchronous write that succeeds copies it to
+ * the device, a delayed write leaves it in the cache alone, and a write
+ * that fails drops the cache's copy for the device's, as an invalidated
+ * buffer rereads.
+ */
 static char disk[FS_FSIZE][DEV_BSIZE];
+static char cache[FS_FSIZE][DEV_BSIZE];
 static struct buf bufs[NBUFS];
 static int buf_busy[NBUFS];
 
@@ -97,7 +105,7 @@ record(enum event_kind kind, daddr_t blkno)
 	ev->blkno = blkno;
 	bzero((caddr_t)&ev->dinode, sizeof(ev->dinode));
 	if (kind != EV_FREE && blkno == FS_ITOD(&mount[0].m_filsys, GATE_INO))
-		ev->dinode = ((struct dinode *)disk[blkno])[itoo(GATE_INO)];
+		ev->dinode = ((struct dinode *)cache[blkno])[itoo(GATE_INO)];
 }
 
 static struct buf *
@@ -117,7 +125,7 @@ gate_getbuf(dev_t dev, daddr_t blkno)
 		bufs[i].b_dev = dev;
 		bufs[i].b_blkno = blkno;
 		bufs[i].b_bcount = DEV_BSIZE;
-		bufs[i].b_addr = (caddr_t)disk[blkno];
+		bufs[i].b_addr = (caddr_t)cache[blkno];
 		return &bufs[i];
 	}
 	panic("itrunc order: no free buffer");
@@ -196,9 +204,12 @@ bwrite(struct buf *bp)
 		error = fail_write;
 		fail_write = 0;
 	}
-	if (error == 0)
+	if (error == 0) {
+		bcopy(cache[bp->b_blkno], disk[bp->b_blkno], DEV_BSIZE);
 		record((bp->b_flags & B_ASYNC) ? EV_WRITE_DELAYED :
 		    EV_WRITE_SYNC, bp->b_blkno);
+	} else
+		bcopy(disk[bp->b_blkno], cache[bp->b_blkno], DEV_BSIZE);
 	gate_release(bp);
 	return error;
 }
@@ -217,16 +228,18 @@ itrunc_order_free(struct inode *ip, daddr_t bn)
 	record(EV_FREE, bn);
 }
 
-/* Reached from itrunc() only when a file grows or ends inside a block. */
+/*
+ * itrunc() maps the block that holds the new end of a file ending inside a
+ * block. The fixture's files have no holes, so the direct address answers.
+ */
 daddr_t
 bmap(struct inode *ip, daddr_t bn, int rwflg, int flags)
 {
-	(void)ip;
-	(void)bn;
 	(void)rwflg;
 	(void)flags;
-	panic("itrunc order: bmap");
-	return 0;
+	if (bn < 0 || bn >= NDADDR || IADDR_DB(ip, bn) == 0)
+		panic("itrunc order: bmap outside the direct blocks");
+	return IADDR_DB(ip, bn);
 }
 
 static struct inode gate_ip;
@@ -283,6 +296,7 @@ build(int ndirect, int nindirect, int async)
 	bcopy((caddr_t)gate_ip.i_addr,
 	    (caddr_t)((struct dinode *)disk[FS_ITOD(fs, GATE_INO)] +
 	    itoo(GATE_INO))->di_addr, NADDR * sizeof(daddr_t));
+	bcopy((caddr_t)disk, (caddr_t)cache, sizeof(cache));
 	u.u_error = 0;
 	time.tv_sec = 1000;
 }
@@ -382,6 +396,15 @@ run_failed_write(const char *name, int ndirect, int nindirect)
 	fail_write = EIO;
 	fail_skip = 0;
 	itrunc(&gate_ip, 0, 0);
+	/* The device holds the inode as it was before the truncation. */
+	{
+		struct dinode *dp = (struct dinode *)
+		    disk[FS_ITOD(&mount[0].m_filsys, GATE_INO)] + itoo(GATE_INO);
+
+		HK_CHECK((off_t)dp->di_ic1.ic_size == before.i_size);
+		HK_CHECK(bcmp((caddr_t)dp->di_addr, (caddr_t)before.i_addr,
+		    NADDR * sizeof(daddr_t)) == 0);
+	}
 	/* The inode names its blocks again, as the device still does. */
 	HK_CHECK(gate_ip.i_size == before.i_size);
 	HK_CHECK(bcmp((caddr_t)gate_ip.i_addr, (caddr_t)before.i_addr,
@@ -415,9 +438,18 @@ run_failed_indirect_write(void)
 			frees++;
 	hk_note("indirect block write fails: error %d, %u frees\n",
 	    u.u_error, frees);
-	/* The cleared block is left in the cache as a delayed write. */
+	/*
+	 * The device's copy keeps the old entries; the cleared block is left
+	 * in the cache as a delayed write, read again from the device.
+	 */
 	{
+		daddr_t *on_disk = (daddr_t *)disk[blocks_of_file[NDADDR]];
+		daddr_t *cached = (daddr_t *)cache[blocks_of_file[NDADDR]];
 		int requeued = 0;
+
+		HK_CHECK(on_disk[0] != 0 && on_disk[1] != 0 && on_disk[2] != 0);
+		HK_CHECK(cached[0] == on_disk[0] && cached[1] == 0 &&
+		    cached[2] == 0);
 
 		for (i = 0; i < nevents; i++)
 			if (events[i].kind == EV_WRITE_DELAYED &&
@@ -436,6 +468,50 @@ void
 wakeup(caddr_t chan)
 {
 	(void)chan;
+}
+
+/*
+ * A truncation to a length inside a block zeroes the rest of that block.
+ * The bytes are still file contents while the old size stands, so a failed
+ * inode write leaves them, and the size, as they were.
+ */
+static void
+run_tail(int fail)
+{
+	const int keep = 100;
+	daddr_t bn;
+	off_t before;
+	int i, zeros = 0, data = 0;
+
+	build(NDADDR, 0, 0);
+	bn = blocks_of_file[1];
+	for (i = 0; i < DEV_BSIZE; i++)
+		disk[bn][i] = cache[bn][i] = 0x5a;
+	before = gate_ip.i_size;
+	fail_write = fail ? EIO : 0;
+	fail_skip = 0;
+	itrunc(&gate_ip, (off_t)DEV_BSIZE + keep, 0);
+	for (i = keep; i < DEV_BSIZE; i++) {
+		zeros += cache[bn][i] == 0;
+		data += cache[bn][i] == 0x5a;
+	}
+	hk_note("tail of the last kept block, write %s: %d zero, %d kept\n",
+	    fail ? "fails" : "passes", zeros, data);
+	for (i = 0; i < keep; i++)
+		HK_CHECK(cache[bn][i] == 0x5a);
+	if (fail) {
+		HK_CHECK(u.u_error == EIO);
+		HK_CHECK(data == DEV_BSIZE - keep);
+		HK_CHECK(gate_ip.i_size == before);
+	} else {
+		HK_CHECK(u.u_error == 0);
+		HK_CHECK(zeros == DEV_BSIZE - keep);
+		HK_CHECK(gate_ip.i_size == (off_t)DEV_BSIZE + keep);
+	}
+	for (i = 0; i < NBUFS; i++)
+		HK_CHECK(buf_busy[i] == 0);
+	fail_write = 0;
+	u.u_error = 0;
 }
 
 static unsigned ifree_calls;
@@ -497,6 +573,8 @@ main(void)
 	run_failed_indirect_write();
 	run_failed_write("direct, inode write fails", NDADDR, 0);
 	run_failed_write("indirect, inode write fails", NDADDR, 3);
+	run_tail(0);
+	run_tail(1);
 	run_unlinked_release(0);
 	run_unlinked_release(1);
 	return hk_verdict("itrunc order");

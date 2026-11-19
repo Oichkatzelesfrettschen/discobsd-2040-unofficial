@@ -622,6 +622,7 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
     struct buf *bp;
     int offset, level;
     struct inode tip;
+    struct buf *tailbp = NULL;
     int aflags;
 
     if (length < 0) {
@@ -686,9 +687,8 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
             brelse(bp);
             return;
         }
-        bzero (FSBADDR(INODE_FILESYSTEM(oip), bp, bn) + offset,
-            (u_int) (IN_BSIZE(oip) - offset));
-        bdwrite(bp);
+        /* Held unchanged until the inode write below has succeeded. */
+        tailbp = bp;
     }
     /*
      * Update file and block pointers
@@ -725,14 +725,23 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
         /*
          * Nothing is freed while the device still holds the old addresses,
          * and the inode goes back to naming them, so that it agrees with
-         * the device and a later truncation finds the blocks to free.
+         * the device and a later truncation finds the blocks to free.  The
+         * bytes past the new end in the last kept block are still valid
+         * under the old size, so that block is released as it was read.
          */
         if (error) {
+            if (tailbp)
+                brelse(tailbp);
             oip->i_size = tip.i_size;
             bcopy(tip.i_addr, oip->i_addr, NADDR * sizeof(daddr_t));
             u.u_error = error;
             return;
         }
+    }
+    if (tailbp) {
+        bzero (FSBADDR(INODE_FILESYSTEM(oip), tailbp, bn) + offset,
+            (u_int) (IN_BSIZE(oip) - offset));
+        bdwrite(tailbp);
     }
 
     /*

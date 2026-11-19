@@ -53,8 +53,10 @@ FLAGS = "    oip->i_flag |= ICHG|IUPD;\n"
 RESTORE = """            oip->i_size = tip.i_size;
             bcopy(tip.i_addr, oip->i_addr, NADDR * sizeof(daddr_t));
 """
+TAIL_RELEASE = "            if (tailbp)\n                brelse(tailbp);\n"
 CHECK = (
     "        if (error) {\n"
+    + TAIL_RELEASE
     + RESTORE
     + """            u.u_error = error;
             return;
@@ -69,13 +71,15 @@ UPDATE = (
         /*
          * Nothing is freed while the device still holds the old addresses,
          * and the inode goes back to naming them, so that it agrees with
-         * the device and a later truncation finds the blocks to free.
+         * the device and a later truncation finds the blocks to free.  The
+         * bytes past the new end in the last kept block are still valid
+         * under the old size, so that block is released as it was read.
          */
 """
     + CHECK
     + "    }\n"
 )
-WRITE = COMMENT + FLAGS + UPDATE + "\n    /*\n     * Indirect blocks first."
+WRITE = COMMENT + FLAGS + UPDATE
 RETURN = """    /* The inode was written before the frees and the frees leave it as is. */
     return;
 
@@ -86,7 +90,7 @@ MUTATIONS = {
     # The inode reaches the device after the frees, as 2.11BSD orders it.
     "inode-after-frees": (
         WRITE,
-        "\n    /*\n     * Indirect blocks first.",
+        "",
         RETURN,
         "\ndoquotaupd:",
     ),
@@ -124,6 +128,16 @@ MUTATIONS = {
     "indirect-not-requeued": (
         "                    bdwrite(bp);\n                }\n",
         "                    brelse(bp);\n                }\n",
+    ),
+    # A failed inode write still zeroes the tail of the last kept block.
+    "tail-zeroed-on-failure": (
+        TAIL_RELEASE,
+        "            if (tailbp) {\n"
+        "                bzero (FSBADDR(INODE_FILESYSTEM(oip), tailbp, bn)"
+        " + offset,\n"
+        "                    (u_int) (IN_BSIZE(oip) - offset));\n"
+        "                bdwrite(tailbp);\n"
+        "            }\n",
     ),
     # The final update repeats the write the early one made.
     "second-write-kept": (

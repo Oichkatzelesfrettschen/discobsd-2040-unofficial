@@ -115,6 +115,16 @@ MUTATIONS = {
         INDIRECT,
         "        if (aflags & B_SYNC) {\n",
     ),
+    # An unlinked inode is freed although its truncation freed nothing.
+    "unlinked-inode-freed-anyway": (
+        "            if (ip->i_size == 0) {\n",
+        "            {\n",
+    ),
+    # A failed write of a kept indirect block leaves no cleared copy.
+    "indirect-not-requeued": (
+        "                    bdwrite(bp);\n                }\n",
+        "                    brelse(bp);\n                }\n",
+    ),
     # The final update repeats the write the early one made.
     "second-write-kept": (
         RETURN,

@@ -415,9 +415,71 @@ run_failed_indirect_write(void)
 			frees++;
 	hk_note("indirect block write fails: error %d, %u frees\n",
 	    u.u_error, frees);
+	/* The cleared block is left in the cache as a delayed write. */
+	{
+		int requeued = 0;
+
+		for (i = 0; i < nevents; i++)
+			if (events[i].kind == EV_WRITE_DELAYED &&
+			    events[i].blkno == blocks_of_file[NDADDR])
+				requeued = 1;
+		HK_CHECK(requeued);
+	}
 	HK_CHECK(u.u_error == EIO);
 	HK_CHECK(frees == 0);
 	HK_CHECK(fail_write == 0);
+	u.u_error = 0;
+}
+
+/* irele() wakes a sleeper on the inode lock; the fixture has none. */
+void
+wakeup(caddr_t chan)
+{
+	(void)chan;
+}
+
+static unsigned ifree_calls;
+
+void
+ifree(struct inode *ip, ino_t ino)
+{
+	(void)ip;
+	(void)ino;
+	ifree_calls++;
+}
+
+/*
+ * The last reference to an unlinked file goes away. With the inode write
+ * failing, the truncation frees nothing, so the inode keeps its mode and is
+ * not freed either; with the write passing, blocks and inode both go.
+ */
+static void
+run_unlinked_release(int fail)
+{
+	unsigned i, frees = 0;
+
+	build(NDADDR, 0, 0);
+	gate_ip.i_count = 1;
+	gate_ip.i_nlink = 0;
+	ifree_calls = 0;
+	fail_write = fail ? EIO : 0;
+	fail_skip = 0;
+	irele(&gate_ip);
+	for (i = 0; i < nevents; i++)
+		if (events[i].kind == EV_FREE)
+			frees++;
+	hk_note("unlinked release, write %s: %u frees, %u inode frees\n",
+	    fail ? "fails" : "passes", frees, ifree_calls);
+	if (fail) {
+		HK_CHECK(frees == 0);
+		HK_CHECK(ifree_calls == 0);
+		HK_CHECK((gate_ip.i_mode & IFMT) == IFREG);
+	} else {
+		HK_CHECK(frees == NDADDR);
+		HK_CHECK(ifree_calls == 1);
+		HK_CHECK(gate_ip.i_mode == 0);
+	}
+	fail_write = 0;
 	u.u_error = 0;
 }
 
@@ -435,5 +497,7 @@ main(void)
 	run_failed_indirect_write();
 	run_failed_write("direct, inode write fails", NDADDR, 0);
 	run_failed_write("indirect, inode write fails", NDADDR, 3);
+	run_unlinked_release(0);
+	run_unlinked_release(1);
 	return hk_verdict("itrunc order");
 }

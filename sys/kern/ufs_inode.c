@@ -345,10 +345,17 @@ irele(register struct inode *ip)
         ip->i_flag |= ILOCKED;
         if (ip->i_nlink <= 0 && INODE_FILESYSTEM(ip)->fs_ronly == 0) {
             itrunc (ip, (off_t) 0, 0);
-            ip->i_mode = 0;
-            ip->i_rdev = 0;
-            ip->i_flag |= IUPD|ICHG;
-            ifree(ip, ip->i_number);
+            /*
+             * A truncation that could not write the inode leaves the size
+             * and the blocks in place; the inode then stays allocated on
+             * the device with no link, for fsck to clear with its blocks.
+             */
+            if (ip->i_size == 0) {
+                ip->i_mode = 0;
+                ip->i_rdev = 0;
+                ip->i_flag |= IUPD|ICHG;
+                ifree(ip, ip->i_number);
+            }
         }
         IUPDAT(ip, &time, &time, 0);
         IUNLOCK(ip);
@@ -533,6 +540,21 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
             int error = bwrite(bp);
 
             if (error && lastbn >= 0) {
+                /*
+                 * The entries stay allocated.  A delayed copy of the
+                 * cleared block stays in the cache for the next sync to
+                 * write, so a later growth of the file maps none of them.
+                 */
+                bp = bread(INODE_DEVICE(ip), FSBTODB(INODE_FILESYSTEM(ip), bn));
+                if (bp->b_flags & B_ERROR)
+                    brelse(bp);
+                else {
+                    bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, bn);
+                    bzero((caddr_t)&bap[last + 1],
+                        (u_int)(FS_NINDIR(INODE_FILESYSTEM(ip)) - (last + 1)) *
+                        sizeof(daddr_t));
+                    bdwrite(bp);
+                }
                 u.u_error = error;
                 brelse(cpy);
                 return;

@@ -2008,7 +2008,8 @@ ITRUNC_ORDER_CFLAGS=	-ffunction-sections -fdata-sections
 ITRUNC_ORDER_LDFLAGS=	-Wl,--gc-sections
 ITRUNC_ORDER_MUTANTS=	inode-after-frees flags-not-marked inode-write-delayed \
 			second-write-kept write-error-ignored \
-			failed-write-not-restored indirect-write-async
+			failed-write-not-restored indirect-write-async \
+			unlinked-inode-freed-anyway indirect-not-requeued
 
 itrunc_order_test: itrunc_order_test.c ${ITRUNC_ORDER_SRC} hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
@@ -3569,6 +3570,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode-diagnostic.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.itrunc-order.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.block.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.block-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.explicit-time.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"

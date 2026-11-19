@@ -1924,8 +1924,10 @@ fail the inode write and require the error in `u.u_error`, no block freed
 and the inode left dirty and naming its blocks again, since the device then
 still holds every old address. A truncation that keeps one entry of the
 indirect block requires that block's cleared copy written synchronously
-before the first free, and a failure of that write frees nothing. Seven
-mutants of
+before the first free, and a failure of that write frees nothing and
+leaves a delayed copy of the cleared block in the cache. Releasing the last
+reference to an unlinked file frees the inode only when the truncation
+freed its blocks. Nine mutants of
 `itrunc_order_mutate.py` are rejected through the gate's own verdict:
 `inode-after-frees` restores the source as it stood before the change
 , `flags-not-marked` and `inode-write-delayed`
@@ -1933,7 +1935,9 @@ each leave no synchronous inode write ahead of the frees,
 `second-write-kept` repeats the inode write after the frees,
 `write-error-ignored` frees the blocks after a failed inode write,
 `failed-write-not-restored` leaves the shortened inode in core after it,
-and `indirect-write-async` writes a kept indirect block behind the frees.
+`indirect-write-async` writes a kept indirect block behind the frees,
+`unlinked-inode-freed-anyway` frees an inode whose blocks stayed, and
+`indirect-not-requeued` leaves no cleared copy after the failed write.
 `check-itrunc-order-mutants` runs them.
 
 The fifth file, `sys/kern/subr_prf.c`, uses the compiler's variadic argument

@@ -458,44 +458,48 @@ The `alarm()` and `setitimer` bound is already a question of the `sleep()` repai
 note and is not asked again here. Decisions already answered are not repeated: D99 to D110 settle `securelevel`
 (study first), panic strings (shorten), `mkdir -m` (both forms), `date` (adopt
 454), the clean flag (import after measuring) and import timing (after the
-rename). The following remain, one each.
+rename). Patch 500 in the donor repository is settled too: the donor carries
+it as commit `106bc64` with its `PATCHES.md` row and the patch-text hash
+above (donor main `0fe7003`). Five files took a hand resolution, each stated
+in that commit; in `lib/libc/stdio/findfp.c` the patch makes the `_fwalk`
+correction the donor already carried, so the donor matches upstream there
+again. `tools/analysis/bsd211_patch_scope.py` run against that donor at
+`23ae068cb` reports, in the record whose `commit` is `106bc64`, 2,488 paths
+touched by the patch, 391 of them present in this tree (173 under `games`,
+120 `usr.bin`, 34 `bin`, 23 `lib`, 17 `usr.sbin`, 9 `sbin`, 8 `etc`, 4
+`share`, 2 `libexec`, 1 `sys`): 154 textually closer to the pre-patch file,
+81 closer to the post-patch file, 132 equidistant and 24 uncompared. The
+record is selected by commit identifier, as `PATCHES.md` gives it: the
+mapper's `patch` field labels that commit 2 and gives 500 to the
+`PATCHES.md` commit, the `patch_number` defect that
+`upstream-patch-survey.md` records. The relation is textual and decides no
+import; the slices of this note stand as written.
 
-1. **Patch 500 in the donor repository.** Settled as option (a): the donor
-   carries patch 500 as commit `106bc64` with its `PATCHES.md` row and the
-   patch-text hash above (donor main `0fe7003`). Five files took a hand
-   resolution, each stated in that commit; in `lib/libc/stdio/findfp.c`
-   the patch makes the `_fwalk` correction the donor already carried, so
-   the donor matches upstream there again. Run against that donor at
-   `23ae068cb`, `tools/analysis/bsd211_patch_scope.py` reports 2,488
-   paths touched by the patch, 391 of them present in this tree (173 under
-   `games`, 120 `usr.bin`, 34 `bin`, 23 `lib`, 17 `usr.sbin`, 9
-   `sbin`, 8 `etc`, 4 `share`, 2 `libexec`, 1 `sys`): 154 textually
-   closer to the pre-patch file, 81 closer to the post-patch file, 132
-   equidistant and 24 uncompared. The relation is textual and decides no
-   import; the slices of this note stand as written.
-2. **Which side keeps its sysctl numbers.** Options: (a) this tree keeps its
+The following remain, one each.
+
+1. **Which side keeps its sysctl numbers.** Options: (a) this tree keeps its
    numbers and an import takes the next free identifiers (recommended: programs
    built against the current headers keep working, the contract list is not
    touched, and the host tools read names); (b) adopt the donor numbers and
    renumber this tree (identical numbers to upstream, at the cost of an
    interface break for every installed program).
-3. **Where the clean bit lives.** Options: (a) `0x4000` and `0x8000` inside `fs_flags`
+2. **Where the clean bit lives.** Options: (a) `0x4000` and `0x8000` inside `fs_flags`
    (recommended: no layout change, the mount path already overwrites the word, a
    `_Static_assert` pins the values); (b) repurpose a superblock field as a
    dedicated `fs_clean` byte as 4.4BSD and OpenBSD do (clearer semantics, but the
    1,024-byte `struct fs` has no spare field and the format changes); (c) skip the
    feature (`fsck` stays unconditional, no kernel change). This feeds D105.
-4. **Order of the mechanical K&R waves against the rename.** Options: (a) after
+3. **Order of the mechanical K&R waves against the rename.** Options: (a) after
    the rename (recommended: the rename edits 622 files and the converter changes
    768 of the 1,360 files it read; sequencing them avoids rebase conflicts in
    the same files); (b) the libc
    wave W1 before the rename (starts the C17 distance reduction sooner, at the
    cost of a conflict surface with the rename's identity edits).
-5. **Resource limits.** Options: (a) enforce `RLIMIT_DATA` in `brk` only (+20 B,
+4. **Resource limits.** Options: (a) enforce `RLIMIT_DATA` in `brk` only (+20 B,
    recommended: it is measured and the stack paths need a design for what a
    limit violation means for a flat window); (b) enforce both limits (three sites,
    stack half unmeasured); (c) skip (nothing on the image sets a data limit today).
-6. **Shipping the unshipped defects.** Options: (a) fix C5 (`chpass`) and the
+5. **Shipping the unshipped defects.** Options: (a) fix C5 (`chpass`) and the
    `basic` copy of C4 now although neither ships (recommended: both build in
    `usr.bin/Makefile` and a profile can ship them); (b) fix only the shipped
    `date` path and record the others as unshipped ledger rows.

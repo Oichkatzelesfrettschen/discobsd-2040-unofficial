@@ -198,14 +198,22 @@ The 64-bit `time_t` at the user interface is an incompatible user-ABI change (th
 
 ## The adopted scheme: SemVer 0.y.z (D111 to D115)
 
-This section specifies the scheme the owner adopted on 2026-11-16. The answers of 2026-11-19 (the table under "Residual decisions, answered 2026-11-19") withdrew parts of it, and each withdrawn clause below is marked "not adopted" or "undecided" where it stands; an unmarked clause is in force. The harness is Appendix B (SemVer strings measured next to the letter grammars) and the `KERN_OSREV` generator replay is Appendix C.
+This section is the specification written for the decisions of 2026-11-16. The answers of 2026-11-19 (the table under "Residual decisions, answered 2026-11-19") withdrew much of it, so the section is kept as analysis, and only the following is in force:
+
+- the core is SemVer `MAJOR.MINOR.PATCH` with an optional pre-release label, and the label is any identifier SemVer item 9 allows, which the owner names stage by stage (D111, D158);
+- the tree state is `0.1.0-alpha`; when a stage ends, what follows it and when `1.0.0` arrives are the owner's decisions, with no cycle fixed in advance (D153);
+- `version[]` and `osrelease` carry the core with its label and no date (D88, D113);
+- a stable release may carry its build month as `+YYYYMM`, the month of the release day (D114, D154);
+- tags, when the owner starts tagging, use `gizmobsd-v` plus the core (D90, D115); no tag exists at the rename (D159).
+
+Every other clause below, including the two-label grammar, the alpha to beta to release cycle, the development form and its rule, the tagged-epoch month and the packed `KERN_OSREV` encoding, is the 2026-11-16 proposal and binds nothing; the marks on individual clauses name the decision that withdrew each. The harness is Appendix B (SemVer strings measured next to the letter grammars) and the `KERN_OSREV` generator replay is Appendix C.
 
 ### Grammar and forms
 
 ```abnf
 ; RFC 5234. SemVer 2.0.0 restricted to the labels this port uses.
 num     = "0" / %x31-39 *DIGIT          ; no leading zero (SemVer item 2)
-stage   = "alpha" / "beta"              ; D158: no fixed list; the owner names each stage
+stage   = "alpha" / "beta"              ; proposal; D158 sets no fixed list
 core    = num "." num "." num [ "-" stage ]
 month   = 4DIGIT ( "0" %x31-39 / "1" %x30-32 )   ; YYYYMM
 count   = 1*DIGIT                       ; commit count; build metadata allows leading zeros

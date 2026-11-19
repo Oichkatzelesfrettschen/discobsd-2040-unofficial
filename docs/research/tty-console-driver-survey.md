@@ -59,9 +59,9 @@ New code (STYLE-GUIDE.md): f(void) and full prototypes (T01); _Static_assert lay
 
 | # | Stage | Prerequisite | Text / RAM | Kernels | Host test | First falsifier |
 |---|---|---|---|---|---|---|
-| 1 | termios.h (N2 numbering) + libc shim; drop dual paths | none | 0 / 0 kernel; 0.8-1.4 KB per user (818 B prototype, M) | all | round-trip each representable state against a sgtty ioctl model | TCSANOW through a RAW transition must not flush input (as TIOCSETN keeps edit.c's type-ahead); unrepresentable state gives EINVAL |
+| 1 | termios.h (N2 numbering) + libc shim beside the sgtty paths, which stay: `kilo` and `menu` ask for VMIN 0 and VTIME 1, which the shim cannot store, and TIOCSETN flushes input on any change that involves RAW, so the seven dual paths are dropped only after stage 3 | none | 0 / 0 kernel; 0.8-1.4 KB per user (818 B prototype, M) | all | round-trip each representable state against a sgtty ioctl model | a program that needs VMIN, VTIME or a RAW change without a flush still builds and runs on its sgtty path; an unrepresentable state gives EINVAL from the shim |
 | 2 | Repair tty_pty.c build; compile gate | none | 2.4 KB / 0.46 KB when enabled (M) | PICO, PICO_UART, SD | compile under the kernel profile | build fails today (M) |
-| 3 | VMIN/VTIME | 1 helps | +0.4-0.55 KB / 0 (E) | all; PICOCALC if headroom allows | POSIX cases A-D on a model clock | tty.o growth over 0.6 KB |
+| 3 | VMIN/VTIME, and a set request that does not flush input on a RAW change; the dual paths of stage 1 go once both exist | 1 helps | +0.4-0.55 KB / 0 (E) | all; PICOCALC if headroom allows | POSIX cases A-D on a model clock | tty.o growth over 0.6 KB |
 | 4 | lcdterm per-console struct, one console | none | +0.3-0.5 KB / 0 (E) | PICOCALC family | check-picocalc-host logs identical | any model-panel log difference |
 | 5 | Second console, hotkey, minor map, panic to console 0 | 4 | +0.6-0.9 KB more / +3.66 KB per console | PICOCALC_SD first; PICOCALC after a HEAD RAM measurement | two-console model: inactive output draws nothing, repaint equals store; wiring.sh cuts | inactive console calls a draw primitive |
 | 6 | Shared I2C layer; KEY 0x04 | none | about 0 / 0 (E) | PICOCALC family | kbdreq_test with a register model | text growth over 100 B |
@@ -156,7 +156,7 @@ Every (E) figure; hotkey availability on hardware; struct tty padding at 98-99 (
 ## Sources read
 
 - This repository at the revision named below: `sys/kern/tty*.c`, the tty and ioctl headers under `sys/sys`, `sys/arch/rp2040` (dev, conf, the compile Configs, doc), `distrib/rp2040`, `tools/c17`, and the research notes this one builds on.
-- The staged uLisp port (`docs/research/ulisp-c17-port.md` on its branch).
-- The notes repository (discobsd-2040-notes): its PicoCalc index, the vendor keyboard firmware, and the datasheet and schematic text.
-- Donor trees: 4.3BSD-Reno `srcsys`, Net/2 `sys`, the Schillix OS/Net `uts/common` tree, SunOS 4.1.3 `sys`, 2.11BSD, 4.4BSD-Lite2, LiteBSD, OpenBSD, NetBSD and DragonFly `sys`.
+- The uLisp port as staged for pull request 728 at commit aa4fe6038 (`docs/research/ulisp-c17-port.md`).
+- The notes repository (discobsd-2040-notes) at 71b56d3ffe56: its PicoCalc index, the vendor keyboard firmware, and the datasheet and schematic text.
+- Donor trees, each at the revision read. Git checkouts: 2.11BSD fork 0fe700318f86 (patch level 500), 4.4BSD-Lite2 b10da34408c8, LiteBSD 03934b78b7c7, OpenBSD 8849c5d46b9b, NetBSD 1e8e727e461b, DragonFly 94448f622a06. Archives, by their BLAKE3 prefix in the archive catalog: 4.3BSD-Reno `srcsys.tar.gz` 5b278958068d898a, Net/2 `net2.tar.Z` 8cc301e2f31087ad, SunOS 4.1.3 `sunsrc.tar.gz` a2cf572b79f5e76c. The Schillix OS/Net tree was read from an unpacked collection whose archive identity was not recorded, so its line references are reproducible only against that copy.
 - Books: The Design and Implementation of the 4.4BSD Operating System (chapter 10, pp. 337-348), the 4.3BSD volume (chapter 9 outline), POSIX.1-2024 chapter 11 (11.1.7, 11.2.1), and Haerr's Microwindows architecture paper.

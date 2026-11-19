@@ -21,11 +21,16 @@ Each label and pin number comes from the PDF text layer with its page
 coordinates (points). The coordinates were checked against 300 dpi crops of the
 page, which the evidence column names by file name (for example
 `j301_top.png`); the crops are not stored here. A net is joined across the
-sheet by label identity: two labels of the same name are one net, and the sheet
-draws no wire for these joins -- `3V3_OUT` (J301 pin 5 and the power symbols),
-`GP28` (J301 pin 7 and J703 pin 7), `LEDA` and `LEDK` (panel connector and
-backlight driver), and J703 `GP2`-`GP5` and `GP21` (joined to the Pico GPIO
-nets by pin name only). The Gerber layers were not traced. The CKS32F103
+sheet by label identity: two labels of the same name are read as one net where
+the sheet draws no wire between them. That reading is an inference from the
+drawing's labels, not a traced conductor, and it carries the joins of `3V3_OUT`
+(J301 pin 5 and the power symbols), `GP28` (J301 pin 7 and J703 pin 7), `LEDA`
+and `LEDK` (panel connector and backlight driver), and J703's `GP2`-`GP5` and
+`GP21` (whose names at the Pico socket are also the Pico's pin names). The
+ledger marks those rows inferred, and the Unresolved table lists the
+expansion-header joins: nothing here establishes that a J703 pin reaches a Pico
+pin until the copper or a continuity test shows it. The Gerber layers were not
+traced. The CKS32F103
 assignments are confirmed against the firmware source, not against the 64-pin
 table of its datasheet, except pins 46 and 49.
 
@@ -73,6 +78,7 @@ These functions have a path on the sheet that does not reach a Pico pin.
 | U102 reverse conduction when micro-USB powers the Pico and PICO_EN is low; the WAS4603 datasheet is not in the notes | measure IPS with micro-USB plugged and PICO_EN low |
 | WAS7227 SEL polarity, taken from the vendor flashing recipe | continuity or logic probe at U703 pin 10 against SW701 pole 1 |
 | SW501 topology and the role of R509 (0R) | continuity at SW501 and the jack |
+| J703 to the Pico: pins 2-7 are labeled `GP2`, `GP3`, `GP4`, `GP5`, `GP21`, `GP28` and pin 1 `3V3_OUT`, joined to the socket by label only | continuity from each J703 pin to the Pico socket pin of that name (J302 pins 4-7, J301 pins 14, 7 and 5), or the Gerber layers |
 
 ## Unused wiring
 
@@ -83,7 +89,7 @@ Nine connections are drawn and have no consumer in the port.
 | UART1: GP8/GP9 to controller PC11/PC10 (USART3 remap) | The vendor firmware never opens USART3: `Serial1(PA10, PA9)` is the debug UART on J702, and no Serial3, USART3, PC10 or PC11 appears in the firmware source. A UART1 driver on GP8/GP9 has no peer until that firmware changes, so none exists. |
 | SD in native 1-bit mode: DAT0=GP16, DAT3=GP17, CLK=GP18, CMD=GP19 | A PIO SD driver could replace SPI mode. DAT1, DAT2 and WP are no-connect, so 4-bit mode and write-protect sensing cannot exist. |
 | Panel TE (J401 pin 35) and RD (pin 31) | Both unwired: the panel has no tearing line. The read-back line SDO is wired and used. |
-| GP28 on J703 | A free GPIO or ADC2; `gpio.c` offers it to programs. |
+| GP28, labeled on J703 pin 7 | A free GPIO or ADC2 at the Pico; `gpio.c` offers it to programs. That it reaches J703 rests on the label (see Unresolved). |
 | J702 UART0 taps TP1, TP2 | External serial access; the CH340C stays connected. |
 | Keyboard controller USB (M_USB_DP, M_USB_DM, SW701 pole 2) | No use in the Pico software; the firmware has no USB code. |
 | AXP IRQ to PC9 only | Not routed to the Pico, so the Pico can only poll the controller. |

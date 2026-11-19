@@ -52,7 +52,8 @@ MUTANTS = [
      "if (sp != WOFF_END)\n\t\t\t\t\treturn sp + 1;",
      "if (sp == WOFF_END + 1)\n\t\t\t\t\treturn sp + 1;", "t_wrap"),
     ("undo-drops-deleted-text", "word_buf.c",
-     "\t\t\tif (raw_insert(u->pos, u->ref, u->len) != 0)\n\t\t\t\treturn -1;\n\t\t\t*pos = u->pos + u->len;\n\t\t}\n\t\tupos--;",
+     "\t\t\tif (raw_insert(u->pos, u->ref, u->len) != 0)\n\t\t\t\treturn -1;\n"
+     "\t\t\t*pos = u->pos + u->len;\n\t\t}\n\t\tupos--;",
      "\t\t\t*pos = u->pos;\n\t\t}\n\t\tupos--;", "t_vi"),
     ("spill-read-off-by-one", "word_buf.c",
      "return blk_byte(ADDBIT, ref);", "return blk_byte(ADDBIT, ref + 1);", "t_large"),

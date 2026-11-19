@@ -2089,7 +2089,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-word-host \
+		check-fstat-host check-sh-editor \
 		check-cp-host check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver
 
@@ -2245,6 +2246,12 @@ check-calc-host: check-python .WAIT symlinks
 # of usr.bin/picofetch/hwinfo_sysctl.c runs on no host.
 check-picofetch-host: check-python
 		${MAKE} -C usr.bin/picofetch test
+
+# word on a 53x32 pseudo-terminal: the Word, vi and nano key modes, wrap,
+# search and replace, undo, the scrap, the file picker and a document past
+# the in-memory add stream, then the mutants (usr.bin/word/tests).
+check-word-host: check-python
+		${MAKE} -C usr.bin/word test
 
 check-fstat-host: check-python
 		${MAKE} -C usr.bin/fstat/tests check
@@ -2837,7 +2844,8 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor check-tar-host \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-word-host \
+		check-fstat-host check-sh-editor check-tar-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host check-host-a check-host-b check-host-split \

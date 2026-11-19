@@ -43,7 +43,7 @@ static const struct word_menu_item main_items[] = {
 	{ "Insert",   "Einfuegen",   'I', KIND_BUILTIN, ACT_INSERT },
 	{ "Jump",     "Gehezu",      'J', KIND_SUB,     MENU_JUMP },
 	{ "Library",  "Bibliothek",  'L', KIND_SUB,     MENU_LIBRARY },
-	{ "Options",  "Zusaetze",    'O', KIND_TODO,    0 },
+	{ "Options",  "Zusaetze",    'O', KIND_BUILTIN, ACT_OPTIONS },
 	{ "Print",    "Druck",       'P', KIND_SUB,     MENU_PRINT },
 	{ "Quit",     "Quitt",       'Q', KIND_BUILTIN, ACT_QUIT },
 	{ "Replace",  "Wechseln",    'R', KIND_BUILTIN, ACT_REPLACE },
@@ -90,16 +90,16 @@ static const struct word_menu_item gallery_items[] = {
 
 static const struct word_menu_item help_items[] = {
 	{ "Exit",     "Wiederaufnahme",    'E', KIND_BUILTIN, ACT_BACK },
-	{ "Basics",   "Grundbegriffe",     'B', KIND_BUILTIN, ACT_HELP_BASICS },
+	{ "Basics",   "Grundbegriffe",     'B', KIND_BUILTIN, ACT_HELP },
 	{ "Next",     "Naechste-seite",    'N', KIND_TODO,    0 },
 	{ "Previous", "Vorhergehende",     'P', KIND_TODO,    0 },
 	{ "Index",    "Register",          'I', KIND_TODO,    0 },
-	{ "Keyboard", "Tastatur",          'K', KIND_BUILTIN, ACT_HELP_BASICS },
+	{ "Keyboard", "Tastatur",          'K', KIND_BUILTIN, ACT_HELP },
 	{ "Mouse",    "Maus",              'M', KIND_TODO,    0 }
 };
 
 static const struct word_menu_item jump_items[] = {
-	{ "Page",       "Bildschirmseite", 'P', KIND_BUILTIN, ACT_JUMP_LINE },
+	{ "Page",       "Bildschirmseite", 'P', KIND_BUILTIN, ACT_JUMP_PAGE },
 	{ "Footnote",   "Fussnote",        'F', KIND_TODO,    0 },
 	{ "Annotation", "Anmerkung",       'A', KIND_TODO,    0 },
 	{ "Bookmark",   "Textmarke",       'K', KIND_TODO,    0 }
@@ -107,12 +107,13 @@ static const struct word_menu_item jump_items[] = {
 
 static const struct word_menu_item library_items[] = {
 	{ "Autosort",           "Sortieren",      'A', KIND_TODO, 0 },
-	{ "Document-retrieval", "Datei-manager",  'D', KIND_SUB,  MENU_DOC_RETRIEVAL },
+	{ "Count",              "Zaehlen",        'C', KIND_BUILTIN, ACT_COUNT },
+	{ "Document-retrieval", "Datei-manager",  'D', KIND_BUILTIN, ACT_PICK },
 	{ "Hyphenate",          "Trennhilfe",     'H', KIND_TODO, 0 },
 	{ "Index",              "Index",          'I', KIND_TODO, 0 },
 	{ "Link",               "Verknuepfen",    'L', KIND_TODO, 0 },
 	{ "Number",             "Numerieren",     'N', KIND_TODO, 0 },
-	{ "Run",                "Betriebssystem", 'R', KIND_TODO, 0 },
+	{ "Run",                "Betriebssystem", 'R', KIND_BUILTIN, ACT_RUN },
 	{ "Spell",              "Rechtschreibung",'S', KIND_SUB,  MENU_SPELL },
 	{ "Table",              "Verzeichnis",    'T', KIND_TODO, 0 },
 	{ "Thesaurus",          "Thesaurus",      'E', KIND_SUB,  MENU_THESAURUS }
@@ -134,11 +135,11 @@ static const struct word_menu_item transfer_items[] = {
 	{ "Load",     "Laden",      'L', KIND_BUILTIN, ACT_LOAD },
 	{ "Save",     "Speichern",  'S', KIND_BUILTIN, ACT_SAVE },
 	{ "Clear",    "Loeschen",   'C', KIND_BUILTIN, ACT_CLEAR },
-	{ "Delete",   "Entfernen",  'D', KIND_TODO,    0 },
-	{ "Merge",    "Einfuegen",  'M', KIND_TODO,    0 },
-	{ "Options",  "Optionen",   'O', KIND_TODO,    0 },
+	{ "Delete",   "Entfernen",  'D', KIND_BUILTIN, ACT_FDELETE },
+	{ "Merge",    "Einfuegen",  'M', KIND_BUILTIN, ACT_MERGE },
+	{ "Options",  "Optionen",   'O', KIND_BUILTIN, ACT_CHDIR },
 	{ "Glossary", "Textbaustein",'G',KIND_TODO,    0 },
-	{ "Rename",   "Umbenennen", 'R', KIND_TODO,    0 }
+	{ "Rename",   "Umbenennen", 'R', KIND_BUILTIN, ACT_RENAME }
 };
 
 static const struct word_menu_item window_items[] = {
@@ -178,7 +179,7 @@ static const struct word_menu_item position_items[] = {
 
 static const struct word_menu_item view_items[] = {
 	{ "Print",   "Drucken",  'P', KIND_TODO,    0 },
-	{ "Jump",    "Gehezu",   'J', KIND_BUILTIN, ACT_JUMP_LINE },
+	{ "Jump",    "Gehezu",   'J', KIND_BUILTIN, ACT_JUMP_PAGE },
 	{ "Options", "Optionen", 'O', KIND_TODO,    0 },
 	{ "Exit",    "Beenden",  'E', KIND_BUILTIN, ACT_BACK }
 };
@@ -212,27 +213,27 @@ word_menu_get(enum word_menu_id id)
 }
 
 const struct word_menu_item *
-word_menu_item_at(const struct word_menu *m, enum word_lang lang, uint8_t vis_idx)
+word_menu_item_at(const struct word_menu *m, enum word_lang lg, uint8_t vis_idx)
 {
 	uint8_t raw_idx;
 
 	if (vis_idx >= m->count)
 		return NULL;
-	raw_idx = (lang == LANG_DE && m->de_order != NULL)
+	raw_idx = (lg == LANG_DE && m->de_order != NULL)
 	    ? m->de_order[vis_idx]
 	    : vis_idx;
 	return &m->items[raw_idx];
 }
 
 int
-word_menu_find_accel(const struct word_menu *m, enum word_lang lang, char ch)
+word_menu_find_accel(const struct word_menu *m, enum word_lang lg, char ch)
 {
 	int up = toupper((unsigned char)ch);
 	uint8_t i;
 
 	for (i = 0; i < m->count; i++) {
-		const struct word_menu_item *it = word_menu_item_at(m, lang, i);
-		char want = (lang == LANG_DE) ? it->de[0] : it->accel;
+		const struct word_menu_item *it = word_menu_item_at(m, lg, i);
+		char want = (lg == LANG_DE) ? it->de[0] : it->accel;
 		if (toupper((unsigned char)want) == up)
 			return (int)i;
 	}

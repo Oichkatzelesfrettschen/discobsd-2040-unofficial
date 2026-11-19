@@ -28,7 +28,8 @@
 
 /*
  * word_find.c: the search pattern compiler and matcher (SPEC.md, Command
- * menu: search text).
+ * menu: search text). The matcher reads the document through buf_at(), so
+ * it searches a document of any size. There is no repetition operator.
  */
 
 #include "word.h"
@@ -36,13 +37,13 @@
 #include <ctype.h>
 
 static int
-is_word_char(unsigned char c)
+is_word_char(int c)
 {
-	return isalnum(c) || c == '_';
+	return c >= 0 && (isalnum(c) || c == '_');
 }
 
 static int
-chars_equal(unsigned char a, unsigned char b, int match_case)
+chars_equal(int a, int b, int match_case)
 {
 	if (match_case)
 		return a == b;
@@ -93,8 +94,10 @@ word_pat_compile(struct word_pattern *p, const char *text,
 					p->len++;
 					break;
 				case '-':
+				case '^':
+				case '?':
 					p->atoms[p->len].kind = ATOM_CH;
-					p->atoms[p->len].ch = '-';
+					p->atoms[p->len].ch = n;
 					p->len++;
 					break;
 				case 'p':
@@ -128,92 +131,76 @@ word_pat_compile(struct word_pattern *p, const char *text,
 }
 
 static int
-match_at(const struct word_pattern *p, const char *doc, size_t doc_len,
-    size_t at, size_t *end_out)
+match_at(const struct word_pattern *p, woff_t at, woff_t *end_out)
 {
-	size_t pos = at;
+	woff_t pos = at;
 	size_t k;
+	int c;
 
 	for (k = 0; k < p->len; k++) {
 		const struct word_atom *a = &p->atoms[k];
+
+		c = buf_at(pos);
 		switch (a->kind) {
 		case ATOM_CH:
-			if (pos >= doc_len ||
-			    !chars_equal((unsigned char)doc[pos],
-			    (unsigned char)a->ch, p->match_case))
+			if (c < 0 || !chars_equal(c, (unsigned char)a->ch,
+			    p->match_case))
 				return 0;
 			pos++;
 			break;
 		case ATOM_ANY:
-			if (pos >= doc_len || doc[pos] == '\n')
+			if (c < 0 || c == '\n')
 				return 0;
 			pos++;
 			break;
 		case ATOM_BREAK:
-			if (pos >= doc_len || doc[pos] != '\n')
+			if (c != '\n')
 				return 0;
 			pos++;
 			break;
-		case ATOM_WHITERUN: {
-			size_t start = pos;
-			while (pos < doc_len &&
-			    (doc[pos] == ' ' || doc[pos] == '\t'))
-				pos++;
-			if (pos == start)
+		case ATOM_WHITERUN:
+			if (c != ' ' && c != '\t')
 				return 0;
+			while ((c = buf_at(pos)) == ' ' || c == '\t')
+				pos++;
 			break;
-		}
 		default:
 			return 0;
 		}
 	}
-
 	if (p->whole_word) {
-		if (at > 0 && is_word_char((unsigned char)doc[at - 1]))
+		if (at > 0 && is_word_char(buf_at(at - 1)))
 			return 0;
-		if (pos < doc_len && is_word_char((unsigned char)doc[pos]))
+		if (is_word_char(buf_at(pos)))
 			return 0;
 	}
-
 	*end_out = pos;
 	return 1;
 }
 
 int
-word_pat_find(const struct word_pattern *p, const char *doc, size_t doc_len,
-    size_t from, int dir_down, struct word_match *out)
+word_pat_find(const struct word_pattern *p, woff_t from, int down,
+    woff_t *start, woff_t *end)
 {
-	size_t pos;
-	size_t end;
+	woff_t len = buf_len(), pos;
 
 	if (p->len == 0)
 		return 0;
-
-	if (dir_down) {
-		if (from > doc_len)
-			return 0;
-		for (pos = from; pos <= doc_len; pos++) {
-			if (match_at(p, doc, doc_len, pos, &end)) {
-				out->start = pos;
-				out->end = end;
+	if (down) {
+		for (pos = from; pos < len; pos++)
+			if (match_at(p, pos, end)) {
+				*start = pos;
 				return 1;
 			}
-		}
 		return 0;
 	}
-
 	if (from == 0)
 		return 0;
-	pos = (from > doc_len) ? doc_len : from - 1;
-	for (;;) {
-		if (match_at(p, doc, doc_len, pos, &end)) {
-			out->start = pos;
-			out->end = end;
+	pos = from > len ? len : from;
+	while (pos-- > 0)
+		if (match_at(p, pos, end)) {
+			*start = pos;
 			return 1;
 		}
-		if (pos == 0)
-			break;
-		pos--;
-	}
 	return 0;
 }

@@ -23,19 +23,26 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-# word -- clean-room Word 5.1 command-menu TUI editor for DiscoBSD/rp2040.
-# Built into DESTDIR/usr/bin/word and swept into the PICOCALC_SD 32 MiB
-# SD root image by distrib/rp2040/mksdmanifest.py (omitted from the 979 KB
-# flash root manifest mi.rp2040).
+# word -- the clean-room word processor of SPEC.md. The rp2040 build is
+# installed to /usr/bin/word, which the PicoCalc SD root carries
+# (distrib/rp2040/mksdmanifest.py); the flash root manifest leaves it out.
+#
+#   all     the target program
+#   host    word.host, the same sources over termios
+#   test    the PTY tests of tests/word_test.py, as a native and an ILP32
+#           program, then the mutants
+#
+# The caller selects PYTHON, as for every Python-backed gate in the tree.
 #
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 BINDIR=		/usr/bin
-
 PROG=		word
-
-OBJS=		word.o word_menus.o word_find.o
+SRCS=		word.c word_buf.c word_find.c word_menus.c word_modes.c \
+		word_pick.c word_term.c
+OBJS=		${SRCS:.c=.o}
+CFLAGS		+= -std=c17
 
 all:		${PROG}
 
@@ -45,18 +52,48 @@ ${PROG}:	${OBJS}
 		${SIZE} $@.elf
 		${ELF2AOUT} $@.elf $@ && rm $@.elf
 
-HOST_CFLAGS=	-std=c17 -Wall -Wextra -Werror -O0 -g -DTERMIOS
+${OBJS}:	word.h
 
-word.host:	word.c word_menus.c word_find.c word.h
-		${HOST_CC} ${HOST_CFLAGS} -o $@ word.c word_menus.c word_find.c
+HOSTCC?=	cc
+HOST_CFLAGS=	-std=c17 -D_DEFAULT_SOURCE -DTERMIOS -Wall -Wextra -Werror \
+		-Wshadow -O1
 
-PYTHON?=	python3
+host:		word.host
 
-test:		word.host
-		${PYTHON} test-word.py ./word.host
+word.host:	${SRCS} word.h
+		${HOSTCC} ${HOST_CFLAGS} -o $@ ${SRCS}
+
+require-python:
+		@if [ -z "${PYTHON}" ]; then \
+			echo "PYTHON must name the intended interpreter" >&2; \
+			exit 2; \
+		fi
+
+test-pty:	require-python host
+		${PYTHON} -I -u tests/word_test.py ./word.host
+
+# The same tests as an ILP32 program: long and size_t are 32 bits there,
+# as on the target.
+M32_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh ilp32 ${HOSTCC} -m32
+
+test-pty32:	require-python
+.if ${M32_OK} == "yes"
+		${HOSTCC} ${HOST_CFLAGS} -m32 -o word.host32 ${SRCS}
+		${PYTHON} -I -u tests/word_test.py ./word.host32
+.else
+		@echo "SKIP word ILP32: ${HOSTCC} -m32 does not link and run; no 32-bit run occurred"
+.endif
+
+test-mutants:	require-python
+		HOSTCC=${HOSTCC} ${PYTHON} -I -u tests/mutants.py .
+
+test:		test-pty test-pty32 .WAIT test-mutants
 
 clean:
-		rm -f *.o *.elf ${PROG} word.host *.dis tags *~
+		rm -f *.o *.elf *.dis ${PROG} word.host word.host32
+		rm -rf tests/__pycache__
 
 install:	all
 		${INSTALL} ${PROG} ${DESTDIR}${BINDIR}/${PROG}
+
+.PHONY:		all host test test-pty test-pty32 test-mutants require-python clean install

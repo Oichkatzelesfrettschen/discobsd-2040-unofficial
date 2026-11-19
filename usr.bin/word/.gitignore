@@ -4,3 +4,4 @@
 /word.host
 /word.host32
 /*.o
+/tests/__pycache__/

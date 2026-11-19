@@ -98,8 +98,9 @@ With `cp - path` bytes consumed, the destination starts inside the source
 whenever `0 < i_size - (cp - path) < pathlen`. That overlap corrupts the path. On
 the host, `tests/kernel/bcopy_overlap.py` (pull request #711) runs the
 production `bcopy` of both `machdep.c` files at `4726ff64e`: "l/file"
-through a link to "ab" becomes `ab//////`, and 2,272 of 5,576 overlapping
-copies differ from `memmove`. Under Renode, `check-renode` boots that
+through a link to "ab" becomes `ab//////`, and of its 5,576 copies (every
+length, offset and alignment of the grid) all 2,272 whose destination starts
+inside the source differ from `memmove`. Under Renode, `check-renode` boots that
 revision's PICO_UART kernel, and `cat l/file` with `l` naming `ab` prints
 `l/file: No such file or directory`; with #711 the stage passes. The board
 was not run. The host harness hid the defect: `tests/kernel/hostkern_kern.c` gives the kernel tests a `bcopy` that
@@ -169,8 +170,9 @@ bytes each and `memcpy` 16. The 8 bytes of bss are the two pointers. The
 warning count is unchanged (12).
 
 **Both budgets.** About 130 bytes of flash for 8 bytes of RAM. The kernel's
-RAM and text budgets do not trade freely, so the 8 bytes count against the
-same RAM margin the kernel-headroom gate watches.
+RAM and text budgets do not trade freely, so the 8 bytes count against
+kernel SRAM. No gate covers that cost: `check-kernel-headroom` measures the
+flash-resident bytes alone.
 
 **Open, and needing the board.**
 

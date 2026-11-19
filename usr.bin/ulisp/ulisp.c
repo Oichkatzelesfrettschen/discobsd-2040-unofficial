@@ -1590,6 +1590,8 @@ static object *makearray (object *dims, object *def, bool bitp) {
   bool toobig = false;  // The product passed INT_MAX; a later zero dimension still empties it
   object *dimensions = dims;
   while (dims != NULL) {
+    if (improperp(dims)) error(notproper, dims);
+    if (!integerp(car(dims))) error(notaninteger, car(dims));
     int d = car(dims)->integer;
     if (d < 0) error2("dimension can't be negative");
     if (d == 0) { size = 0; toobig = false; }
@@ -1868,7 +1870,9 @@ static object *documentation (object *arg, object *env) {
   object *pair = findpair(arg, env);
   if (pair != NULL) {
     object *val = cdr(pair);
-    if (listp(val) && first(val)->name == sym(LAMBDA) && cdr(val) != NULL && cddr(val) != NULL) {
+    // Only a lambda form carries a documentation string; any other value does not.
+    if (val != NULL && listp(val) && car(val) != NULL && symbolp(car(val)) &&
+        car(val)->name == sym(LAMBDA) && cdr(val) != NULL && cddr(val) != NULL) {
       if (stringp(third(val))) return third(val);
     }
   }
@@ -1972,6 +1976,7 @@ static bool boundp (object *var, object *env) {
 }
 
 static object *findvalue (object *var, object *env) {
+  if (!symbolp(var)) error(notasymbol, var);
   object *pair = findpair(var, env);
   if (pair == NULL) error("unknown variable", var);
   return pair;
@@ -2369,6 +2374,7 @@ static gfun_t gstreamfun (object *args) {
   }
   bool n = nstream<USERSTREAMS;
   gstream_ptr_t streamfunction = streamtable(n?0:1)[n?nstream:nstream-USERSTREAMS].gfunptr;
+  if (streamfunction == NULL) error("stream cannot be read", first(args));
   gfun = streamfunction(address);
   return gfun;
 }
@@ -3744,7 +3750,9 @@ static object *fn_numberp (object *args, object *env) {
 static object *fn_floatfn (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  return (floatp(arg)) ? arg : makefloat((float)(arg->integer));
+  if (floatp(arg)) return arg;
+  if (!integerp(arg)) error(notanumber, arg);
+  return makefloat((float)(arg->integer));
 }
 
 static object *fn_floatp (object *args, object *env) {
@@ -4019,7 +4027,7 @@ static object *fn_stringfn (object *args, object *env) {
 static object *fn_concatenate (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (builtin(arg->name) != STRINGFN) error2("only supports strings");
+  if (!isbuiltin(arg, STRINGFN)) error2("only supports strings");
   args = cdr(args);
   object *result = newstring();
   object *tail = result;
@@ -4301,7 +4309,7 @@ static object *fn_writebyte (object *args, object *env) {
 
 static object *fn_writestring (object *args, object *env) {
   (void) env;
-  object *obj = first(args);
+  object *obj = checkstring(first(args));
   pfun_t pfun = pstreamfun(cdr(args));
   flags_t temp = Flags;
   clrflag(PRINTREADABLY);
@@ -4312,7 +4320,7 @@ static object *fn_writestring (object *args, object *env) {
 
 static object *fn_writeline (object *args, object *env) {
   (void) env;
-  object *obj = first(args);
+  object *obj = checkstring(first(args));
   pfun_t pfun = pstreamfun(cdr(args));
   flags_t temp = Flags;
   clrflag(PRINTREADABLY);
@@ -4439,6 +4447,7 @@ static object *fn_millis (object *args, object *env) {
 
 static object *fn_sleep (object *args, object *env) {
   (void) env;
+  if (args == NULL) error2(noargument);
   object *arg1 = first(args);
   doze(checkinteger(arg1));
   return arg1;
@@ -5122,6 +5131,8 @@ static object *eval (object *form, object *env) {
       protect(newenv);
       while (assigns != NULL) {
         object *assign = car(assigns);
+        object *var = consp(assign) ? car(assign) : assign;
+        if (!symbolp(var)) error(notasymbol, var);
         if (!consp(assign)) push(cons(assign,nil), newenv);
         else if (cdr(assign) == NULL) push(cons(first(assign),nil), newenv);
         else push(cons(first(assign), eval(second(assign),env)), newenv);

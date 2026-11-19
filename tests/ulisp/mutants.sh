@@ -48,13 +48,14 @@ if [ -f "$here/rewrite-race.so" ]; then
 	shim=$here/rewrite-race.so
 fi
 
-# mutant NAME SED-EXPRESSION
+# mutant NAME SED-EXPRESSION [SOURCE-FILE]
 mutant() {
 	dir=$work/$1
+	file=${3:-ulisp.c}
 	mkdir "$dir"
 	cp "$src"/*.c "$src"/*.h "$src"/builtins.def "$dir"/
-	sed "$2" "$src/ulisp.c" > "$dir/ulisp.c"
-	if cmp -s "$src/ulisp.c" "$dir/ulisp.c"; then
+	sed "$2" "$src/$file" > "$dir/$file"
+	if cmp -s "$src/$file" "$dir/$file"; then
 		echo "ulisp mutants: $1: the substitution matched nothing" >&2
 		exit 1
 	fi
@@ -103,3 +104,27 @@ mutant negate-int-min 's/makefloat(-(float)result)/makefloat(-result)/'
 mutant array-overflow 's/else if (size > INT_MAX \/ d) toobig = true;/else if (0) toobig = true;/'
 # An array larger than the workspace reaches the power-of-two rounding.
 mutant array-bound 's/if (toobig || (unsigned int)size > WORKSPACESIZE)/if (toobig)/'
+# float takes a symbol or nil for a number.
+mutant float-type '/^static object \*fn_floatfn/,/^}/{/!integerp(arg)/d}'
+# documentation reads the head of a variable's list without checking it.
+mutant doc-guard 's/if (val != NULL \&\& listp(val) \&\& car(val) != NULL \&\& symbolp(car(val)) \&\&/if (listp(val) \&\&/'
+# A line is not clipped to the panel before it is walked.
+mutant line-clip 's/if (!clipline(&x0, &y0, &x1, &y1))/if (0)/' gfx.c
+# A clipped line takes its entry point from a truncating division.
+mutant line-clip-round 's/qx - \*px, true)/qx - *px, false)/' gfx.c
+# A circle larger than the midpoint walk takes is not drawn.
+mutant circle-far 's/bigarcs(x0, y0, x1, y1, r, color, filled);/return;/' gfx.c
+# A triangle with a corner far off the panel is not drawn.
+mutant triangle-far 's/^	int t;$/	int t;\n\n	if (x0 < -(1 << 24) || x2 > (1 << 24))\n		return;/' gfx.c
+# A name that is not a symbol reaches the variable lookup.
+mutant find-nonsymbol '/^static object \*findvalue (object \*var, object \*env) {$/,/^}/{/notasymbol/d}'
+# let binds an object that is not a symbol.
+mutant let-nonsymbol '/if ((name == LET) || (name == LETSTAR)) {/,/goto EVAL/{/notasymbol/d}'
+# A stream with no reader is read.
+mutant stream-unreadable '/^static gfun_t gstreamfun (object \*args) {$/,/^}/{/streamfunction == NULL/d}'
+# A dimension that is not an integer reaches the product.
+mutant array-dimension-type '/^static object \*makearray (object \*dims, object \*def, bool bitp) {$/,/^}/{/!integerp(car(dims))/d}'
+# write-string takes any object for a string.
+mutant write-string-type '/^static object \*fn_writestring (object \*args, object \*env) {$/,/^}/s/checkstring(first(args))/first(args)/'
+# sleep without an argument reads the empty list.
+mutant sleep-noargument '/^static object \*fn_sleep (object \*args, object \*env) {$/,/^}/{/args == NULL/d}'

@@ -46,6 +46,65 @@ Error: no room
 (7 1)
 
 12000> 
-(#\Newline #\Null #\Null)
+(3.0 2.5 -7.0)
 
 12000> 
+Error: 'float' argument is not a number: foo
+12000> 
+Error: 'float' argument is not a number: nil
+12000> 
+Error: 'float' argument is not a number: "abc"
+12000> 
+docv
+
+11992> 
+nil
+
+11992> 
+nil
+
+11992> 
+nil
+
+11992> 
+Error: argument is not a symbol: nil
+11992> 
+Error: argument is not a symbol: 1
+11992> 
+Error: argument is not a symbol: (y)
+11992> 
+Error: 'setq' argument is not a symbol: nil
+11992> 
+Error: 'set' argument is not a symbol: nil
+11992> 
+Error: 'setf' argument is not a symbol: nil
+11992> 
+Error: 'incf' argument is not a symbol: nil
+11992> 
+Error: 'push' argument is not a symbol: nil
+11992> 
+Error: 'make-array' argument is not an integer: a
+11992> 
+Error: 'make-array' argument is not a proper list: 3
+11992> 
+Error: 'make-array' argument is not an integer: 1.5
+11992> 
+Error: 'concatenate' only supports strings
+11992> 
+Error: 'concatenate' only supports strings
+11992> 
+Error: 'write-string' argument is not a string: foo
+11992> 
+Error: 'write-line' argument is not a string: 1
+11992> 
+Error: 'read' stream cannot be read: <string-stream 0>
+11992> 
+Error: 'read-line' stream cannot be read: <string-stream 0>
+11992> 
+Error: 'read-byte' stream cannot be read: <string-stream 0>
+11992> 
+Error: 'sleep' missing argument
+11992> 
+(#\Newline #\Null #\Null)
+
+11992> 

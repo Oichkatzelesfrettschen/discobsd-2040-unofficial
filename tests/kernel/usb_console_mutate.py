@@ -28,6 +28,10 @@ MUTATIONS = {
         "\t\tusb_tx_recovered++;\n\t\tusb_tx_idle();\n",
         "\t\tusbd.tx_busy = 0;\n\t\tusb_tx_recovered++;\n\t\tusb_tx_kick();\n",
     ),
+    "configure-no-requeue": (
+        "\tusbd.tx_tail -= n;\n",
+        "\tusbd.tx_tail -= 0 * n;\n",
+    ),
     "configure-kick": (
         "\t/* Any packet in flight is abandoned with no completion to come. */\n\tusb_tx_idle();\n",
         "\tusbd.tx_busy = 0;\n\tusb_tx_kick();\n",

@@ -24,8 +24,8 @@
  *
  * check_boot_replay() holds console text written before enumeration: 1 KiB
  * queued in the ring must reach the host in order after SET_CONFIGURATION and
- * DTR. "--boot-replay-reconfigured" runs the same text across a second
- * SET_CONFIGURATION taken after the first packet reached the endpoint.
+ * DTR, also across a second SET_CONFIGURATION taken after the first packet
+ * reached the endpoint.
  *
  * check_ring_counts() also holds usb_tx_put()'s accounting, the source of
  * machdep.usb_tx_peak and machdep.usb_tx_dropped, to exact counts at a full
@@ -1223,6 +1223,29 @@ replay_verdict(const char *name)
 		    name, host_text_len, REPLAY_LEN, first);
 }
 
+/*
+ * A bus reset that no enumeration follows, with an echo packet in flight:
+ * the device stays unconfigured, no completion will come, and the tty must
+ * not stay busy, or terminal output would wait in the tty's queue instead
+ * of the ring until the host returned.
+ */
+static void
+check_reset_unconfigured(void)
+{
+	struct tty *tp = &usbttys[0];
+
+	scenario_start();
+	event_apply(EV_TYPE);
+	host_bus_reset();
+	hk_checks++;
+	if (tp->t_state & TS_BUSY) {
+		hk_failures++;
+		hk_note("FAIL echo, then bus reset with no enumeration after it: "
+		    "tty left busy");
+	} else
+		hk_note("PASS echo, then bus reset with no enumeration after it");
+}
+
 static void
 check_boot_replay(void)
 {
@@ -1236,8 +1259,8 @@ check_boot_replay(void)
 
 /*
  * A second SET_CONFIGURATION after the first packet is in the bulk IN buffer
- * and before the host takes it: usb_configure() abandons that packet, which
- * has already left the ring.
+ * and before the host takes it: usb_configure() abandons that packet and
+ * usb_tx_requeue() returns its bytes to the ring.
  */
 static void
 check_boot_replay_reconfigured(void)
@@ -1289,7 +1312,9 @@ run_fixed(void)
 	}
 	run_polled_read();
 	check_ring_counts();
+	check_reset_unconfigured();
 	check_boot_replay();
+	check_boot_replay_reconfigured();
 
 	/* A warm reboot leaves the controller out of reset. */
 	model_resets_held = 0;
@@ -1443,10 +1468,6 @@ main(int argc, char **argv)
 			return 2;
 		excluded[e] = 1;
 		argc--;
-	}
-	if (argc == 2 && hk_streq(argv[1], "--boot-replay-reconfigured")) {
-		check_boot_replay_reconfigured();
-		return hk_verdict("usb console boot replay");
 	}
 	for (a = 0, e = 0; e < EV_COUNT; e++)
 		if (excluded[e])

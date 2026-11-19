@@ -334,7 +334,7 @@ static struct {
 
 	u_char		line_coding[USB_CDC_LINE_CODING_SIZE];
 
-	int		tx_busy;	/* A bulk IN buffer is armed. */
+	int		tx_busy;	/* Bytes armed in the bulk IN buffer. */
 	int		tx_pending;	/* An arm deferred by the E15 guard. */
 	u_int		tx_pending_ctrl;/* Its buffer control word, less AVAILABLE. */
 	u_int		tx_pending_us;	/* TIMERAWL when it was deferred. */
@@ -387,6 +387,7 @@ static u_int usb_sof_us;		/* TIMERAWL at the last SOF interrupt. */
 
 static void usb_tx_kick(void);
 static void usb_tx_idle(void);
+static void	usb_tx_requeue(void);
 
 /*
  * Buffer control words are shared with the controller, which runs from a
@@ -563,6 +564,7 @@ usb_configure(int on)
 		USBSET(USB_INTE) = USB_INTS_DEV_SOF;
 	} else
 		USBCLR(USB_INTE) = USB_INTS_DEV_SOF;
+	usb_tx_requeue();
 	/* Any packet in flight is abandoned with no completion to come. */
 	usb_tx_idle();
 }
@@ -835,6 +837,27 @@ usb_setup(void)
 	usb_ep0_stall();
 }
 
+/*
+ * Return the packet in the bulk IN buffer to the ring. usb_tx_kick() moved
+ * its bytes out and advanced tx_tail; a SET_CONFIGURATION or bus reset that
+ * arrives before the host takes the packet abandons it, and without this the
+ * first 64 bytes queued before the host settled, the kernel banner among
+ * them, never arrive. The bytes are still in the ring unless output has
+ * since wrapped over them, so the tail moves back by the packet's length
+ * less what was overwritten. A host that did take the packet before the
+ * event reads those bytes twice.
+ */
+static void
+usb_tx_requeue(void)
+{
+	u_int room = USB_TXRING - (usbd.tx_head - usbd.tx_tail);
+	u_int n = (u_int)usbd.tx_busy;
+
+	if (n > room)
+		n = room;
+	usbd.tx_tail -= n;
+}
+
 /* The bulk IN buffer is free: fill it from the ring. */
 static void
 usb_tx_kick(void)
@@ -850,7 +873,7 @@ usb_tx_kick(void)
 		DPRAM8(BUF_DATA_IN + i) =
 		    usb_tx_ring[(usbd.tx_tail + i) % USB_TXRING];
 	usbd.tx_tail += n;
-	usbd.tx_busy = 1;
+	usbd.tx_busy = n;
 	ctrl = (n & USB_BUF_CTRL_LEN_MASK) | USB_BUF_CTRL_FULL |
 	    (usbd.data_in_pid ? USB_BUF_CTRL_DATA1 : 0);
 	usbd.data_in_pid ^= 1;

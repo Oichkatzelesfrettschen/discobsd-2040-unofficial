@@ -1,6 +1,6 @@
 # Terminal layer, virtual consoles and PicoCalc drivers: survey and staged plan
 
-Revision surveyed: origin/main at 4e6883edb (2026-11-19). This note is a survey and a proposal; it changes no code. Every figure carries its evidence class.
+Revision surveyed: origin/main at 4e6883edb (2026-11-19). Section 8's pin finding, the owner-record paragraph and the stage rows that cite them were revised against origin/main at 3a68b3686, where `gpio_board_pins()` offers a PicoCalc GP28 alone and `docs/research/picocalc-pin-ledger/` exists; every other section describes 4e6883edb. This note is a survey and a proposal; it changes no code. Every figure carries its evidence class.
 
 Tags: (R) read, (M) measured, (E) estimated, (I) inferred. Port paths are repository-relative. Donor roots: RENO = 4.3RENO srcsys, N2 = Net/2 sys, SCH = Schillix uts/common, SUN = SunOS 4.1.3 sys, OBSD, DFLY = OpenBSD and DragonFly sys. Size basis: object sizes are those of a full PICOCALC kernel build of this revision made by the generated Makefile, with the size flags it applies to `sys/kern` sources (arm-none-eabi-gcc 16.2.0; `arm-none-eabi-size` on the objects in the compile directory; tty.o 5,992 text bytes). The one exception is `tty_pty.c`, which no configuration builds and which does not compile; its figures come from a scratch compile with a `devspec` stub and warnings off, so they are approximate. Flash headroom for PICOCALC is taken as 3.4 KB above the 1,024-byte margin (check-kernel-headroom on that revision); the free-RAM and PICO headroom figures come from a kernel image built on 2026-11-13 and are marked where used.
 
@@ -102,7 +102,7 @@ Ownership comes first. GP28 is reachable as a GPIO, as ADC input 2 and as PWM sl
 | device uart1 (NUART=2) | 0 / about 100 B per tty | PicoCalc refused (GP8/GP9 are the keyboard controller's link, and that controller's firmware does not open its end); UART0 stays the console | with-serial |
 | LCDG_ORIENT, LCDG_INVERT (MADCTL 0x36, INVON/INVOFF) | +100-150 B / 0 | lcdgfx open rules | set-rotation, invert-display |
 
-A PicoCalc owner gets GPIO, ADC and PWM on GP28 alone, with no I2C, SPI or second serial port; those nodes serve a bare Pico. analogreference and the resolution functions need only userland scaling (I). The first four rows add 1.3-1.9 KB, which PICOCALC at 3.4 KB headroom cannot also spend on consoles; PICOCALC_SD or a bare-Pico kernel can.
+A PicoCalc owner gets GPIO, ADC and PWM on GP28 alone, with no I2C, SPI or second serial port; those nodes serve a bare Pico. analogreference and the resolution functions need only userland scaling (I). The first four rows add an estimated 1.3-1.9 KB and the console work of section 3 an estimated 0.9-1.4 KB, 2.2-3.3 KB together against 3.4 KB of PICOCALC headroom above the margin: a narrow fit on estimates, with nothing left for other kernel work, so the combination is admitted on PICOCALC only after each part is measured. PICOCALC_SD and the bare-Pico kernels have the room.
 
 ## 9a. Driver inventory
 

@@ -10,7 +10,8 @@ TIME="        %e real        %U user        %S sys"
 export TIME
 UNAME="hostname"
 
-HOMEDIR=/share/unixbench
+HOMEDIR=/usr/share/unixbench
+SCRPDIR=${HOMEDIR}
 BINDIR=${HOMEDIR}
 TMPDIR=${HOMEDIR}/tmp
 RESULTDIR=${HOMEDIR}/results

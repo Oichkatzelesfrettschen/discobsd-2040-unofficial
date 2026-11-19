@@ -1,0 +1,166 @@
+.\" Copyright (c) 2026 GizmoBSD
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\" 1. Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\" 3. Neither the name of the copyright holder nor the names of its contributors
+.\"    may be used to endorse or promote products derived from this software
+.\"    without specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.TH I86 1 "November 19, 2026"
+.SH NAME
+i86 \- run DOS on an emulated 8086, 80186 or 80286
+.SH SYNOPSIS
+.B i86
+[
+.B \-dqrTv
+] [
+.B \-c
+.I cpu
+] [
+.B \-m
+.I kbytes
+] [
+.B \-f
+.I frames
+] [
+.B \-w
+.I columns
+] [
+.B \-s
+.I pagefile
+] [
+.B \-k
+.I keys
+] [
+.B \-a
+.I floppy
+] [
+.B \-b
+.I floppy
+] [
+.B \-h
+.I disk
+] ...
+.SH DESCRIPTION
+.I I86
+is a personal computer in a process: an Intel 8086, 80186 or 80286 in real
+mode, up to 640 kilobytes of memory, a color text display, a keyboard, an
+18.2 Hz timer, a clock and up to two floppy and two hard disks held in
+image files.
+It starts the boot sector of the first floppy image, or of the first hard
+disk image when no floppy is given, as a PC starts DOS.
+.PP
+The guest's memory is larger than the process that holds it.
+.I I86
+keeps
+.I frames
+pages of one kilobyte resident and holds the others in
+.IR pagefile ,
+which it creates on the first page it must put aside and removes when it
+exits.
+A page the guest never wrote, or filled with zeros, occupies no file space.
+A guest whose working set fits the frames runs without file traffic;
+one that does not runs at the speed of the device under
+.IR pagefile .
+.PP
+The display is the terminal.
+Text the guest writes, through the firmware or straight into display
+memory, is drawn with cursor addressing and the eight colors in two
+intensities; characters outside ASCII are drawn as their nearest ASCII
+shape.
+The terminal needs 25 lines and the guest's width in columns, so on the
+PicoCalc panel's 53 columns run with
+.B \-w
+.BR 40 .
+Control-] leaves the emulator.
+.PP
+Options:
+.TP
+.BI \-a " floppy"
+.TP
+.BI \-b " floppy"
+The images of drives A and B: 160, 180, 320 or 360 kilobytes, 720
+kilobytes, 1.2, 1.44 or 2.88 megabytes.
+.TP
+.BI \-c " cpu"
+The processor:
+.BR 8086 ,
+.B 186
+or
+.B 286
+(the default).
+.TP
+.B \-d
+Draw nothing while running and print the 25 lines of the display on exit.
+.TP
+.BI \-f " frames"
+The number of resident pages, 96 by default.
+.TP
+.BI \-h " disk"
+A hard disk image, with its partition table; the first is drive C, a
+second is drive D.
+The geometry is read from the end of the first partition, or taken as 16
+heads of 63 sectors.
+.TP
+.BI \-k " keys"
+Type the characters of
+.I keys
+whenever the guest waits for the keyboard, and exit when it waits after
+the last one.
+.TP
+.BI \-m " kbytes"
+Guest memory, 64 to 640, by default 640.
+.TP
+.B \-q
+Draw nothing.
+.TP
+.B \-r
+Open the images read-only; the guest's writes fail as on a protected disk.
+.TP
+.BI \-s " pagefile"
+The file for pages that are not resident, by default
+.IR /tmp/i86.page .
+.TP
+.B \-T
+Replace the host's clock with a count of executed instructions and a
+fixed date, so that two runs do the same.
+.TP
+.B \-v
+Print the page statistics on exit.
+.TP
+.BI \-w " columns"
+Start in the 40- or the 80-column text mode (80 by default).
+.SH LIMITS
+The 80286 has no protected mode: the machine status word reads real mode
+and cannot be changed, so programs that need extended memory or a DOS
+extender do not run.
+There is no numeric coprocessor, no graphics mode, no sound, no serial or
+parallel port and no mouse.
+Keys arrive through the firmware keyboard service only; a program that
+takes over the keyboard interrupt sees none.
+.SH FILES
+.TP
+.I /tmp/i86.page
+the default page file
+.SH DIAGNOSTICS
+Exit status 0 when the user or the end of
+.I keys
+ends the session, 1 when no image boots, 2 for a usage error or an
+unusable image, 3 when the page file fails.

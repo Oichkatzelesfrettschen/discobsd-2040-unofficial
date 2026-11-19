@@ -1,0 +1,63 @@
+uLisp 4.8f 
+12000> 
+deep
+
+11968> 
+100
+
+11968> 
+Error: stack overflow
+11968> 
+*nest*
+
+11965> 
+nil
+
+7965> 
+*copy*
+
+7962> 
+nil
+
+3962> 
+nil
+
+3962> 
+Error: stack overflow
+3962> 
+Error: stack overflow
+3962> 
+*parens*
+
+3956> 
+nil
+
+3445> 
+2044
+
+3445> 
+Error: stack overflow
+3445> 
+Error: 'read-from-string' incomplete list
+3445> 
+nil
+
+7445> 
+nil
+
+11445> 
+nil
+
+11957> 
+nil
+
+11957> 
+11951
+
+11957> 
+100
+
+11957> 
+"end"
+
+11957> 

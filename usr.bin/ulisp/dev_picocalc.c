@@ -1,0 +1,175 @@
+/*
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * The uLisp devices of a PicoCalc running DiscoBSD: the pixel display
+ * /dev/lcdgfx, the pins /dev/porta and /dev/portb, and the sample audio
+ * /dev/audio. Each device is opened at its first use. The system has no
+ * analogue input device.
+ */
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/lcdgfx.h>
+#include <machine/gpio.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include "platform.h"
+
+#define AUDIO_RATE	8000	/* Samples a second (dev/picopcm.h). */
+#define AUDIO_HIGH	0xb0	/* The square wave's two levels, about */
+#define AUDIO_LOW	0x50	/* the 0x80 the output rests at. */
+
+static int panel = -1, audio = -1, port[GPIO_NPORTS] = { -1, -1 };
+
+/*
+ * The open takes the panel from the text console, which draws nothing
+ * until dev_release() closes the device again.
+ */
+static int
+display(void)
+{
+	if (panel < 0) {
+		sys_flush();
+		panel = open("/dev/lcdgfx", O_RDWR);
+		if (panel < 0)
+			ulisp_fail("no pixel display");
+	}
+	return panel;
+}
+
+void
+dev_fill(int x0, int y0, int x1, int y1, uint16_t color)
+{
+	struct lcdg_rect r = {
+		(u_short)x0, (u_short)y0, (u_short)x1, (u_short)y1, color
+	};
+
+	(void)ioctl(display(), LCDG_FILL, &r);
+}
+
+/* The kernel lets the superuser alone read the panel's memory. */
+int
+dev_readpixel(int x, int y)
+{
+	struct lcdg_read r = { (u_short)x, (u_short)y, 1, 1, LCDG_RD_RGB565 };
+	u_short pixel;
+	int fd = display();
+
+	if (ioctl(fd, LCDG_READ, &r) < 0 ||
+	    read(fd, &pixel, sizeof pixel) != (ssize_t)sizeof pixel)
+		ulisp_fail("cannot read the display");
+	return pixel;
+}
+
+void
+dev_release(void)
+{
+	if (panel >= 0)
+		(void)close(panel);
+	panel = -1;
+}
+
+/* Sends one request for a pin; the result is the port's levels for a poll. */
+static int
+pin_request(int pin, unsigned int request)
+{
+	static const char *const name[GPIO_NPORTS] = {
+		"/dev/porta", "/dev/portb"
+	};
+	int p = pin >> 4;
+
+	if (pin < 0 || pin > 29)
+		ulisp_fail("invalid pin");
+	if (port[p] < 0 && (port[p] = open(name[p], O_RDWR)) < 0)
+		ulisp_fail("the pins need the superuser");
+	return ioctl(port[p], GPIO_PORT(p) | request, 1 << (pin & 15));
+}
+
+/* The pads have no pull selection here: every input mode is plain input. */
+void
+dev_pinmode(int pin, int mode)
+{
+	(void)pin_request(pin, mode == SYS_OUTPUT ? GPIO_CONFOUT : GPIO_CONFIN);
+}
+
+int
+dev_digitalread(int pin)
+{
+	return (pin_request(pin, GPIO_POLL) >> (pin & 15)) & 1;
+}
+
+void
+dev_digitalwrite(int pin, int level)
+{
+	(void)pin_request(pin, level != 0 ? GPIO_SET : GPIO_CLEAR);
+}
+
+int
+dev_analogread(int pin)
+{
+	(void)pin;
+	ulisp_fail("no analogue input device");
+}
+
+/*
+ * The device plays samples at AUDIO_RATE and its write blocks while its
+ * buffer is full, so writing ms of samples takes ms.
+ */
+bool
+dev_tone(unsigned int hz, unsigned long ms)
+{
+	static unsigned int phase;
+	unsigned char samples[160];
+	unsigned int count = (unsigned int)ms * (AUDIO_RATE / 1000);
+
+	if (audio < 0 && (audio = open("/dev/audio", O_WRONLY)) < 0)
+		return false;
+	if (count > sizeof samples)
+		count = sizeof samples;
+	if (hz > AUDIO_RATE / 2)
+		hz = AUDIO_RATE / 2;
+	for (unsigned int i = 0; i < count; i++) {
+		phase += hz;
+		if (phase >= AUDIO_RATE)
+			phase -= AUDIO_RATE;
+		samples[i] = phase < AUDIO_RATE / 2 ? AUDIO_HIGH : AUDIO_LOW;
+	}
+	return write(audio, samples, count) == (ssize_t)count;
+}
+
+/* entry is odd: defcode assembles Thumb code and the call enters it so. */
+bool
+dev_callcode(const uint8_t *entry, const int param[4], int *result)
+{
+	int (*code)(int, int, int, int) =
+	    (int (*)(int, int, int, int))(uintptr_t)entry;
+
+	*result = code(param[0], param[1], param[2], param[3]);
+	return true;
+}

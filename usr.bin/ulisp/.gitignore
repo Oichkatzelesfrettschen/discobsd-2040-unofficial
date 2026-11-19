@@ -1,0 +1,9 @@
+/ulisp
+/ulisp.elf
+/ulisp.map
+/ulisp.host
+/ulisp.sites
+/ulisp.doc
+/mkdoc
+/*.o
+/*.dis

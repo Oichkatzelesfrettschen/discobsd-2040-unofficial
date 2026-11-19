@@ -1,0 +1,78 @@
+uLisp 4.8f 
+12000> 
+"(mapcar function list1 [list]*)
+Applies the function to each element in one or more lists, and returns the resulting list."
+
+12000> 
+(room)
+Returns the number of free Lisp cells remaining.
+
+12000> 
+nil
+
+12000> 
+written
+
+12000> 
+((saved 1 "two" 3.5) " line" nil)
+
+12000> 
+"more"
+
+12000> 
+((saved 1 "two" 3.5) linemore nil)
+
+12000> 
+(10 40)
+
+12000> 
+Error: 'with-sd-card' problem reading from file or invalid filename
+12000> 
+Error: 'with-sd-card' problem writing to file or invalid filename
+12000> 
+t
+
+11986> 
+(28 nil nil)
+
+11986> 
+libvar libfn other 
+
+11986> 
+*v*
+
+11982> 
+fact
+
+11953> 
+*long*
+
+11924> 
+*arr*
+
+11911> 
+102
+
+11911> 
+*v*
+
+11911> 
+fact
+
+11925> 
+102
+
+11911> 
+(10 120 (a-very-long-symbol-name-indeed "a string of more than four characters" 2.5 #\x) #2A((3 3) (3 3)) 14)
+
+11911> 
+Error: 'load-image' problem loading image or invalid filename
+11911> 
+Error: 'load-image' not an image this uLisp can load
+11911> 
+(10 120)
+
+11911> 
+"end"
+
+11911> 

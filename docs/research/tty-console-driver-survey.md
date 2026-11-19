@@ -2,7 +2,7 @@
 
 Revision surveyed: origin/main at 4e6883edb (2026-11-19). This note is a survey and a proposal; it changes no code. Every figure carries its evidence class.
 
-Tags: (R) read, (M) measured, (E) estimated, (I) inferred. Port paths are repository-relative. Donor roots: RENO = 4.3RENO srcsys, N2 = Net/2 sys, SCH = Schillix uts/common, SUN = SunOS 4.1.3 sys, OBSD, DFLY = OpenBSD and DragonFly sys. Size basis: the PICOCALC elf in the main checkout is dated 2026-11-13, HEAD 2026-11-18, so I recompiled HEAD objects into scratch with the generated PICOCALC command (-Os, GCC 16.2.0; CSIZEFLAGS omitted for sys/kern files; tty_pty needed a devspec stub and -w). Flash headroom for PICOCALC is taken as 3.4 KB above the 1,024-byte margin (check-kernel-headroom on that revision); RAM and PICO figures come from the stale elf.
+Tags: (R) read, (M) measured, (E) estimated, (I) inferred. Port paths are repository-relative. Donor roots: RENO = 4.3RENO srcsys, N2 = Net/2 sys, SCH = Schillix uts/common, SUN = SunOS 4.1.3 sys, OBSD, DFLY = OpenBSD and DragonFly sys. Size basis: object sizes are those of a full PICOCALC kernel build of this revision made by the generated Makefile, with the size flags it applies to `sys/kern` sources (arm-none-eabi-gcc 16.2.0; `arm-none-eabi-size` on the objects in the compile directory; tty.o 5,992 text bytes). The one exception is `tty_pty.c`, which no configuration builds and which does not compile; its figures come from a scratch compile with a `devspec` stub and warnings off, so they are approximate. Flash headroom for PICOCALC is taken as 3.4 KB above the 1,024-byte margin (check-kernel-headroom on that revision); the free-RAM and PICO headroom figures come from a kernel image built on 2026-11-13 and are marked where used.
 
 ## 1. The port's tty layer today
 
@@ -18,7 +18,7 @@ Tags: (R) read, (M) measured, (E) estimated, (I) inferred. Port paths are reposi
 
 ## 2. Feature decomposition
 
-Method: tty.o is 5,994 text bytes for 1,196 comment-stripped code lines, 5.0 B per line; donor lines counted the same way (E).
+Method: tty.o is 5,992 text bytes for 1,196 comment-stripped code lines, 5.0 B per line; donor lines counted the same way (E).
 
 | Feature | State added | Code added | Model donor | Depends on | Unlocks |
 |---|---|---|---|---|---|
@@ -27,7 +27,7 @@ Method: tty.o is 5,994 text bytes for 1,196 comment-stripped code lines, 5.0 B p
 | VMIN/VTIME | 0 (bytes 98-99 of struct tty are padding, I) | +0.4-0.55 KB (E: 75-line block, ioctl pair, callout) | OBSD tty.c:1526-1600, 1220; DFLY tty.c:1747-1756; POSIX 11.1.7 cases A-D | callout table (NCALL 16+2*MAXUSERS) | read timeouts without FIONREAD polling: resize, stevie ESC, uLisp get-key |
 | VERASE VKILL VWERASE VREPRINT VLNEXT; winsize, SIGWINCH | 0 | 0 | present (tty.c:1084, 1180, 1200, 662-672) | | |
 | sessions, ctty, revoke | +8 B per tty | +0.5-0.9 KB (E) | 4.4BSD book pp.343-344; N2 tty.h:68, 89 | proc.p_session | setsid; low value with one login |
-| flow control, queue bounds | +32 B per clist block | 0 | present, tty.c:300-330 | | type-ahead |
+| flow control, queue bounds | 0 (present: 32 clist blocks of 32 B, one pointer and 28 data bytes each) | 0 | present, tty.c:300-330 | | type-ahead |
 | PTY | 464 B bss (M) | 2,395 B text (M) | tty_pty.c; N2 tty_pty.c | devspec repair | script, multiplexers |
 
 Hazards (R): TIOCSETP always drains output and flushes input; TIOCSETN does so too when RAW is set before or after (tty.c:551-554). A shim that maps !ISIG to RAW therefore loses type-ahead on a TCSANOW through a RAW transition, and bin/sh/edit.c chose TIOCSETN to avoid exactly that. TCSADRAIN has no sgtty analogue, and VMIN/VTIME cannot be stored (the shim reports 1 and 0).
@@ -39,7 +39,7 @@ Hazards (R): TIOCSETP always drains output and flushes input; TIOCSETN does so t
 - Switching: vt_switch calls tem_switch, which flips the active pointer and redraws from that VT's buffer (SCH vcons.c:670-770, tem.c:991-1014). The port already has the redraw, lcdterm_repaint(): about 142 ms for 1,696 cells at the document's 84 us per cell (E). An inactive console needs no new mode: "update the store, call no draw primitive" is lcdterm_gfx(1), already verified by check-picocalc-host (R).
 - /dev/lcdgfx: minor 1 of major 10, and the static assertion keeps LCDGFX_MINOR >= LCDCONS_NTTY. ABI-preserving map: minor 0 console, 1 lcdgfx, 2..N consoles, tty index minor-1 (design). Refuse the hotkey while lcdgfx is open; lcdcons_gfx() keeps returning EAGAIN.
 - Panic: lcdabandon() already ends the panel transfer, resets parser state, frees the flag; after panicstr output draws with interrupts masked (R). Add: make console 0 active and reset it before the first byte. SCH tem_safe (CALLED_FROM_STANDALONE) and vis_polledio are the behavior reference.
-- Input: picokbd_evq keeps 32 {state,key} events (64 B), drops the oldest and counts, with the session tied to lcdttys[0] (lcdcons.c:546, 627, 647). VUID's Firm_event is 16 B (SUN vuid_event.h:316-334) in a time-ordered linked pool that drops the newest (vuid_queue.c). Keep the compact event, route the session to the active console's tty, add a 16-bit tick stamp (+64 B) only if a game needs hold timing. Hotkeys: the firmware applies Alt itself and reports Ctrl as 0xA5 (picokbd_map.c:31); F1-F10 are 0x81-0x90; Ctrl+F1..Fn consumed before translation is the candidate (I, board check).
+- Input: picokbd_evq keeps 32 {state,key} events (64 B), drops the oldest and counts, with the session tied to lcdttys[0] (lcdcons.c:546, 627, 647). VUID's Firm_event is 16 B (SUN vuid_event.h:316-334) in a time-ordered linked pool that drops the newest (vuid_queue.c). Keep the compact event, route the session to the active console's tty, add a 16-bit tick stamp (+64 B) only if a game needs hold timing. Hotkeys: the firmware applies Alt itself and reports Ctrl as 0xA5 (picokbd_map.c:31); F1-F9 are 0x81-0x89 and F10 is 0x90, with 0x8a-0x8f unassigned (picokbd_map.c), so a hotkey test names the ten codes and not a range; Ctrl+F1..Fn consumed before translation is the candidate (I, board check).
 - Cost (E): +0.9-1.4 KB text (lcdterm 4,335 x 8-12%, lcdcons 2,262 x 12-18%, hotkeys 100-200 B); +3.66 KB RAM per extra console. The stale elf had 11,256 B kernel RAM free (HEAD unmeasured). Begin with one extra console.
 
 ## 4. Bus and light drivers
@@ -118,7 +118,7 @@ Text bytes are HEAD recompiles (M); "scratch" means the SRAM scratch bank, not f
 | Backlights, battery, power-off | present | picokbd.c | PICOCALC family | sysctl | mailbox host test; board checks open |
 | KEY, C64 registers | absent | none | none | none | none |
 | SD, SPI0 | present | sd.c (3,540), sdspi.c (1,352) | PICOCALC family | sd0, rsd0 | sdspi_test, sdstrat_test; board sd_detach closed |
-| PSRAM, PIO0 | present | psram.c (698), psram_xfer.c (1,692) | PICOCALC, LEAN, SD | block major 3 | check-psram-pio; board not run |
+| PSRAM, PIO0 | present | psram.c (698), psram_xfer.c (1,948) | PICOCALC, LEAN, SD | block major 3 | check-psram-pio; board not run |
 | Bell, /dev/audio | present | picoaudio.c (276), picopcm.c (544) | PICOCALC family; pcm in PICOCALC, SD | /dev/audio | picoaudio_test, picopcm_test; unheard |
 | GPIO | present, root only | gpio.c (408) | PICOCALC, SD | /dev/porta, portb | check-gpio-requests; board not run |
 | ADC | partial | adc.c (172) | PICO, PICO_UART, PICOCALC, SD (not LEAN) | two sysctls | adc_conversion |

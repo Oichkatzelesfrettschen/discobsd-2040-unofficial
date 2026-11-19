@@ -37,6 +37,7 @@ builtin table, the match highlight, the redraw after backspace, kill and a
 wrapped line, and that no escape sequence reaches a terminal that is dumb,
 absent, or told with -n, nor a pipe.
 """
+
 import fcntl
 import os
 import pty
@@ -47,8 +48,19 @@ import sys
 import termios
 import time
 
-SGR_CLASS = {"": ".", "1": "p", "32": "s", "90": "c", "35": "n", "93": "q",
-             "95": "k", "94": "o", "36": "f", "33": "x", "41": "E"}
+SGR_CLASS = {
+    "": ".",
+    "1": "p",
+    "32": "s",
+    "90": "c",
+    "35": "n",
+    "93": "q",
+    "95": "k",
+    "94": "o",
+    "36": "f",
+    "33": "x",
+    "41": "E",
+}
 
 
 class Screen:
@@ -78,7 +90,7 @@ class Screen:
                 j = i + 2
                 while not (0x40 <= ord(text[j]) <= 0x7E):
                     j += 1
-                self.csi(text[i + 2:j], text[j])
+                self.csi(text[i + 2 : j], text[j])
                 i = j + 1
                 continue
             if c == "\r":
@@ -120,7 +132,7 @@ class Screen:
         return rows
 
     def classes(self, row, start, length):
-        return "".join(k for _, k in self.cells[row][start:start + length])
+        return "".join(k for _, k in self.cells[row][start : start + length])
 
 
 def session(binary, doc, keys, term="xterm", args=(), cols=80, gap=0.04):
@@ -179,17 +191,27 @@ def main(argv):
     # capital is a character in reverse video, and a quote and a character
     # literal share one color.
     cases = [
-        ("builtin classes", [b"(defun foo (x) (car x))"],
-         "P" + "ooooo" + "." + "..." + "." + "p.p" + "." + "p" + "fff" + "." + "." + "pp"),
-        ("constants, keyword, string, number, char, comment",
-         [b"nil :k \"s;\" 12 #\\a ; c"], "xxx.kk.ssss.nn.qqq.ccc"),
+        (
+            "builtin classes",
+            [b"(defun foo (x) (car x))"],
+            "P" + "ooooo" + "." + "..." + "." + "p.p" + "." + "p" + "fff" + "." + "." + "pp",
+        ),
+        (
+            "constants, keyword, string, number, char, comment",
+            [b'nil :k "s;" 12 #\\a ; c'],
+            "xxx.kk.ssss.nn.qqq.ccc",
+        ),
         ("a symbol turns into a function as it is typed", [b"ca", b"r"], "fff"),
         ("the closer shows its opener", [b"(a (b))"], "P..p.pp"),
         ("the highlight goes with the next key", [b"(a (b))", b" "], "p..p.pp."),
         ("backspace recolors", [b"(car", b"\x7f", b"d"], "p" + "..."),
         ("a closer with nothing open", [b"())"], "ppE"),
         ("kill line", [b"(foo bar", b"\x15", b"1"], "n"),
-        ("an arrow key is dropped", [b"(+ 1", b"\x1b[A", b" 2)"], "P" + "f" + "." + "n" + "." + "n" + "p"),
+        (
+            "an arrow key is dropped",
+            [b"(+ 1", b"\x1b[A", b" 2)"],
+            "P" + "f" + "." + "n" + "." + "n" + "p",
+        ),
     ]
     for name, keys, classes in cases:
         screen = painted(keys)
@@ -206,8 +228,12 @@ def main(argv):
     for cut in (0, 1, 6, 13):
         keys = [typed] + ([b"\x7f" * cut] if cut else [])
         screen = painted(keys, cols=20)
-        flat = "".join(l.ljust(20) for l in screen.text(1)).rstrip()
-        expect("wrap, %d erased" % cut, flat, ("4000> " + typed[:len(typed) - cut].decode()).ljust(len(flat)))
+        flat = "".join(row.ljust(20) for row in screen.text(1)).rstrip()
+        expect(
+            "wrap, %d erased" % cut,
+            flat,
+            ("4000> " + typed[: len(typed) - cut].decode()).ljust(len(flat)),
+        )
     screen = painted([typed, b"\x15"], cols=20)
     expect("wrap then kill", screen.text(1), ["4000>"])
     # No escape sequence where the terminal cannot take it.
@@ -215,8 +241,13 @@ def main(argv):
         out = session(binary, doc, [b"(car '(1 2))\r"], term=term, args=args)
         expect("no escapes with " + name, b"\x1b" in out, False)
         expect("result with " + name, b"\r\n1\r\n" in out, True)
-    piped = subprocess.run([binary, "-w", "4000"], input=b"(car '(1 2))\n", capture_output=True,
-                           env={"TERM": "xterm", "ULISPDOC": doc}, check=False).stdout
+    piped = subprocess.run(
+        [binary, "-w", "4000"],
+        input=b"(car '(1 2))\n",
+        capture_output=True,
+        env={"TERM": "xterm", "ULISPDOC": doc},
+        check=False,
+    ).stdout
     expect("no escapes in a pipe", b"\x1b" in piped, False)
     if failures:
         print("\n".join("hilite-pty: " + f for f in failures), file=sys.stderr)

@@ -95,7 +95,9 @@ def run_stages(boot, console) -> None:
     console.wait_lines(["login:"], "login prompt", boot.LOGIN_BUDGET_SECONDS)
     console.type_line("operator")
     console.wait_lines(["$"], "shell prompt", boot.COMMAND_BUDGET_SECONDS)
-    console.type_line("ulisp")
+    # -n keeps the console line editor, which colors a terminal's input, out of
+    # the transcript the expectations below match.
+    console.type_line("ulisp -n")
     console.wait_lines(["uLisp 4.8f"], "ulisp starts", STEP_SECONDS)
     for line, expected in LISP_STEPS:
         console.type_line(line)
@@ -114,7 +116,7 @@ def run_stages(boot, console) -> None:
     for line, expected in SHELL_STEPS:
         console.type_line(line)
         console.wait_lines([expected], f"shell {line[:44]}", STEP_SECONDS)
-    console.type_line("ulisp -i t.img")
+    console.type_line("ulisp -n -i t.img")
     console.wait_lines(["uLisp 4.8f"], "second process", STEP_SECONDS)
     console.type_line("*kept*")
     console.wait_lines(

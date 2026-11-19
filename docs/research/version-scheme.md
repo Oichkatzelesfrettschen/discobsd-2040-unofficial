@@ -206,7 +206,7 @@ This section is the specification written for the decisions of 2026-11-16. The a
 - the core is SemVer `MAJOR.MINOR.PATCH` with an optional pre-release label, and the label is any identifier SemVer item 9 allows, which the owner names stage by stage (D111, D158);
 - the tree state is `0.1.0-alpha`; when a stage ends, what follows it and when `1.0.0` arrives are the owner's decisions, with no cycle fixed in advance (D153);
 - `version[]` and `osrelease` carry the core with its label and no date (D88, D113);
-- a stable release may carry its build month as `+YYYYMM`, the month of the release day (D114, D154);
+- a stable release may carry its release month as `+YYYYMM`, the month of the day it is released, by wall clock (D114, D154);
 - tags, when the owner starts tagging, use `gizmobsd-v` plus the core (D90, D115); no tag exists at the rename (D159).
 
 Every other clause below, including the two-label grammar, the alpha to beta to release cycle, the development form and its rule, the tagged-epoch month and the packed `KERN_OSREV` encoding, is the 2026-11-16 proposal and binds nothing; the marks on individual clauses name the decision that withdrew each. The harness is Appendix B (SemVer strings measured next to the letter grammars) and the `KERN_OSREV` generator replay is Appendix C.
@@ -591,7 +591,7 @@ Not run: kernel build and linked-kernel text size (remote build host), Renode st
 5. `KERN_OSREV`: a packed integer generated from the single version source with a compile-time hard error (D112); the encoding, bounds, generation mechanism and mutants above and in Appendix C are a candidate until the study D156 asks for.
 6. Banners in gates and fixtures read `newvers.sh` after the rename (D94).
 
-The questions of the first analysis about the scheme, the label, the tag namespace, the banner literals and the `KERN_OSREV` value are answered by these decisions and no longer stand open.
+The questions of the first analysis about the scheme, the label, the tag namespace and the banner literals are answered by these decisions and no longer stand open; for `KERN_OSREV` the direction (a packed integer) is answered and its encoding and value stay open (D156).
 
 ### Residual decisions, answered 2026-11-19
 
@@ -601,10 +601,10 @@ The first analysis left eight residual decisions, R1 to R8, each with options. T
 | --- | --- | --- |
 | R1, the contract list that moves MINOR | Amend the list before approving it (D152); the amendments are not yet named | the S1 list is a draft |
 | R2, the first stable release and the 64-bit `time_t` change | The tree stays `0.1.0-alpha` until the change lands and then moves to a value such as `0.1.1-alpha`; the owner decides each stage change and `1.0.0` (D153) | supersedes the reading of D89 that `0.1.0` follows the change; no rule in the release cycle of S1 fixes when a stage ends |
-| R3, the build month of a stable release | The month of the release day by wall clock (D154) | the reproducible-from-tag epoch policy is not adopted |
+| R3, the month a stable release carries | The release month: the month of the release day by wall clock (D154), which can differ from the month the artifact was built | the reproducible-from-tag epoch policy is not adopted |
 | R4, a compile-time version macro for programs | None; programs read `kern.osrev` or `uname -r` (D155) | no generated installed header |
 | R5, field widths of the packed integer | Not decided; a study of the encoding from first principles, with a survey of other 32-bit systems, comes first (D156) | the `KERN_OSREV` section and Appendix C are a candidate, and `kern.osrev` keeps its present value meanwhile |
-| R6, the identifier on development artifacts | None adopted (D157) | the development form `core+YYYYMM.count` is not adopted. The option's reason, that it reuses a number `newvers.sh` prints, argued for more work in `newvers.sh`, which the answer to R4 had declined |
+| R6, the identifier on development artifacts | None adopted (D157) | the development form `core+YYYYMM.count` is not adopted. |
 | R7, the pre-release vocabulary | No fixed list; the owner names each stage when it comes (D158) | tools must not hard-code `alpha` and `beta`; the grammar's label rule and the stage digit of the packed integer are open with R5 |
 | R8, a tag at the rename | No tag (D159) | `/etc/release` keeps its present source; the `gizmobsd-v*` namespace (D90, D115) stays reserved |
 

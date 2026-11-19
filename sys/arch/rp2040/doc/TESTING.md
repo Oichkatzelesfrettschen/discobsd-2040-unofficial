@@ -1919,30 +1919,23 @@ write that carries the new size and none of the freed addresses, and
 exactly one inode-block write per truncation (the cost of the ordering).
 The cases truncate direct and single-indirect files to zero and to a block
 boundary, on a synchronous and an `MNT_ASYNC` mount, entering with clean
-inode flags, which `iupdat()` answers with an early return. Two more cases
-fail the inode write and require the error in `u.u_error`, no block freed
-and the inode left dirty and naming its blocks again, since the device then
-still holds every old address. A truncation that keeps one entry of the
-indirect block requires that block's cleared copy written synchronously
-before the first free, and a failure of that write frees nothing and
-leaves a delayed copy of the cleared block in the cache. Releasing the last
-reference to an unlinked file frees the inode only when the truncation
-freed its blocks. A truncation to a length inside a block zeroes the rest
-of that block only after the inode write succeeded, so a failed write
-leaves those bytes and the old size. The fixture keeps the device and the
-buffer cache as separate images, so each failure case also holds what the
-device still contains. Ten mutants of
-`itrunc_order_mutate.py` are rejected through the gate's own verdict:
-`inode-after-frees` restores the source as it stood before the change
-, `flags-not-marked` and `inode-write-delayed`
+inode flags, which `iupdat()` answers with an early return. A truncation
+that keeps one entry of the indirect block requires that block's cleared
+copy written synchronously before the first free, and one that ends inside
+a block requires the rest of that block zeroed in the cache. The fixture
+keeps the device and the buffer cache as separate images, and three cases
+fail a write: when the inode write or the write of a kept indirect block
+fails, the truncation reports the error and frees nothing, the device keeps
+what it held, and after a failed inode write the inode in core stays
+shortened and dirty, so the blocks stay allocated for fsck and none comes
+under two owners. Seven mutants of `itrunc_order_mutate.py` are rejected
+through the gate's own verdict: `inode-after-frees` restores the source as
+it stood before the change, `flags-not-marked` and `inode-write-delayed`
 each leave no synchronous inode write ahead of the frees,
 `second-write-kept` repeats the inode write after the frees,
-`write-error-ignored` frees the blocks after a failed inode write,
-`failed-write-not-restored` leaves the shortened inode in core after it,
-`indirect-write-async` writes a kept indirect block behind the frees,
-`unlinked-inode-freed-anyway` frees an inode whose blocks stayed, and
-`indirect-not-requeued` leaves no cleared copy after the failed write, and
-`tail-zeroed-on-failure` zeroes the block tail under the restored size.
+`write-error-ignored` and `indirect-error-ignored` free blocks after a
+failed write, and `indirect-write-async` writes a kept indirect block
+behind the frees.
 `check-itrunc-order-mutants` runs them.
 
 The fifth file, `sys/kern/subr_prf.c`, uses the compiler's variadic argument

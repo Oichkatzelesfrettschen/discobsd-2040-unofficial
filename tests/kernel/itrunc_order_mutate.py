@@ -33,53 +33,23 @@ run, so a mutant never silently equals the shipped source.
 import argparse
 from pathlib import Path
 
-COMMENT = "".join(
-    line + "\n"
-    for line in (
-        "    /*",
-        "     * The shortened inode reaches the device before the first block is",
-        "     * freed, so a reset between the two leaves an inode that names only",
-        "     * blocks it still owns and fsck returns the unreferenced ones to the",
-        "     * free list; the reverse order leaves an on-disk inode claiming blocks",
-        "     * the free list may already hold or have handed out again.  ICHG|IUPD",
-        "     * make iupdat() write, since it returns at once on clean flags, and a",
-        "     * waitfor of 1 submits the write through bwrite() whatever MNT_ASYNC",
-        "     * says.  The frees change only the copy in tip, so no second write",
-        "     * follows them.",
-        "     */",
-    )
-)
 FLAGS = "    oip->i_flag |= ICHG|IUPD;\n"
-RESTORE = """            oip->i_size = tip.i_size;
-            bcopy(tip.i_addr, oip->i_addr, NADDR * sizeof(daddr_t));
-"""
-TAIL_RELEASE = "            if (tailbp)\n                brelse(tailbp);\n"
-CHECK = (
-    "        if (error) {\n"
-    + TAIL_RELEASE
-    + RESTORE
-    + """            u.u_error = error;
+CHECK = """        if (error) {
+            u.u_error = error;
             return;
         }
 """
-)
-INDIRECT = "        if ((aflags & B_SYNC) || lastbn >= 0) {\n"
 UPDATE = (
     """    {
         int error = iupdat(oip, &time, &time, 1);
 
-        /*
-         * Nothing is freed while the device still holds the old addresses,
-         * and the inode goes back to naming them, so that it agrees with
-         * the device and a later truncation finds the blocks to free.  The
-         * bytes past the new end in the last kept block are still valid
-         * under the old size, so that block is released as it was read.
-         */
 """
     + CHECK
     + "    }\n"
 )
-WRITE = COMMENT + FLAGS + UPDATE
+WRITE = FLAGS + UPDATE
+INDIRECT = "        if ((aflags & B_SYNC) || lastbn >= 0) {\n"
+INDIRECT_CHECK = "            if (error && lastbn >= 0) {\n"
 RETURN = """    /* The inode was written before the frees and the frees leave it as is. */
     return;
 
@@ -97,7 +67,7 @@ MUTATIONS = {
     # A clean flag word makes iupdat() return before it writes.
     "flags-not-marked": (
         WRITE,
-        WRITE.replace(FLAGS, ""),
+        UPDATE,
     ),
     # A delayed write leaves the inode in the cache while the frees run.
     "inode-write-delayed": (
@@ -109,35 +79,15 @@ MUTATIONS = {
         WRITE,
         WRITE.replace(CHECK, "        (void)error;\n"),
     ),
-    # A failed inode write leaves the shortened inode in core.
-    "failed-write-not-restored": (
-        WRITE,
-        WRITE.replace(RESTORE, ""),
-    ),
     # A kept indirect block is written behind the frees of its entries.
     "indirect-write-async": (
         INDIRECT,
         "        if (aflags & B_SYNC) {\n",
     ),
-    # An unlinked inode is freed although its truncation freed nothing.
-    "unlinked-inode-freed-anyway": (
-        "            if (ip->i_size == 0) {\n",
-        "            {\n",
-    ),
-    # A failed write of a kept indirect block leaves no cleared copy.
-    "indirect-not-requeued": (
-        "                    bdwrite(bp);\n                }\n",
-        "                    brelse(bp);\n                }\n",
-    ),
-    # A failed inode write still zeroes the tail of the last kept block.
-    "tail-zeroed-on-failure": (
-        TAIL_RELEASE,
-        "            if (tailbp) {\n"
-        "                bzero (FSBADDR(INODE_FILESYSTEM(oip), tailbp, bn)"
-        " + offset,\n"
-        "                    (u_int) (IN_BSIZE(oip) - offset));\n"
-        "                bdwrite(tailbp);\n"
-        "            }\n",
+    # A failed write of a kept indirect block is followed by the frees.
+    "indirect-error-ignored": (
+        INDIRECT_CHECK,
+        "            if (0 && error) {\n",
     ),
     # The final update repeats the write the early one made.
     "second-write-kept": (

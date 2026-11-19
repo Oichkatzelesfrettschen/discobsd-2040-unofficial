@@ -345,17 +345,10 @@ irele(register struct inode *ip)
         ip->i_flag |= ILOCKED;
         if (ip->i_nlink <= 0 && INODE_FILESYSTEM(ip)->fs_ronly == 0) {
             itrunc (ip, (off_t) 0, 0);
-            /*
-             * A truncation that could not write the inode leaves the size
-             * and the blocks in place; the inode then stays allocated on
-             * the device with no link, for fsck to clear with its blocks.
-             */
-            if (ip->i_size == 0) {
-                ip->i_mode = 0;
-                ip->i_rdev = 0;
-                ip->i_flag |= IUPD|ICHG;
-                ifree(ip, ip->i_number);
-            }
+            ip->i_mode = 0;
+            ip->i_rdev = 0;
+            ip->i_flag |= IUPD|ICHG;
+            ifree(ip, ip->i_number);
         }
         IUPDAT(ip, &time, &time, 0);
         IUNLOCK(ip);
@@ -534,27 +527,13 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
             /*
              * A block that keeps some of its entries stays named by the
              * inode, so its cleared entries reach the device before the
-             * blocks they named are freed, as the inode does in itrunc();
-             * a block freed whole is already unnamed on the device.
+             * blocks they named are freed, as the inode does in itrunc().
+             * A block freed whole is already unnamed on the device.  When
+             * the write fails nothing below this block is freed.
              */
             int error = bwrite(bp);
 
             if (error && lastbn >= 0) {
-                /*
-                 * The entries stay allocated.  A delayed copy of the
-                 * cleared block stays in the cache for the next sync to
-                 * write, so a later growth of the file maps none of them.
-                 */
-                bp = bread(INODE_DEVICE(ip), FSBTODB(INODE_FILESYSTEM(ip), bn));
-                if (bp->b_flags & B_ERROR)
-                    brelse(bp);
-                else {
-                    bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, bn);
-                    bzero((caddr_t)&bap[last + 1],
-                        (u_int)(FS_NINDIR(INODE_FILESYSTEM(ip)) - (last + 1)) *
-                        sizeof(daddr_t));
-                    bdwrite(bp);
-                }
                 u.u_error = error;
                 brelse(cpy);
                 return;
@@ -622,7 +601,6 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
     struct buf *bp;
     int offset, level;
     struct inode tip;
-    struct buf *tailbp = NULL;
     int aflags;
 
     if (length < 0) {
@@ -687,8 +665,9 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
             brelse(bp);
             return;
         }
-        /* Held unchanged until the inode write below has succeeded. */
-        tailbp = bp;
+        bzero (FSBADDR(INODE_FILESYSTEM(oip), bp, bn) + offset,
+            (u_int) (IN_BSIZE(oip) - offset));
+        bdwrite(bp);
     }
     /*
      * Update file and block pointers
@@ -717,31 +696,20 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
      * waitfor of 1 submits the write through bwrite() whatever MNT_ASYNC
      * says.  The frees change only the copy in tip, so no second write
      * follows them.
+     *
+     * When the write fails nothing is freed.  The inode stays shortened
+     * and dirty in core, and the blocks stay allocated with no owner in
+     * core until fsck reclaims them: a failed truncation can lose space
+     * and never puts one block under two owners.
      */
     oip->i_flag |= ICHG|IUPD;
     {
         int error = iupdat(oip, &time, &time, 1);
 
-        /*
-         * Nothing is freed while the device still holds the old addresses,
-         * and the inode goes back to naming them, so that it agrees with
-         * the device and a later truncation finds the blocks to free.  The
-         * bytes past the new end in the last kept block are still valid
-         * under the old size, so that block is released as it was read.
-         */
         if (error) {
-            if (tailbp)
-                brelse(tailbp);
-            oip->i_size = tip.i_size;
-            bcopy(tip.i_addr, oip->i_addr, NADDR * sizeof(daddr_t));
             u.u_error = error;
             return;
         }
-    }
-    if (tailbp) {
-        bzero (FSBADDR(INODE_FILESYSTEM(oip), tailbp, bn) + offset,
-            (u_int) (IN_BSIZE(oip) - offset));
-        bdwrite(tailbp);
     }
 
     /*

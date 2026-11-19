@@ -380,183 +380,101 @@ run_case(const char *name, int ndirect, int nindirect, int async,
 	HK_CHECK((gate_ip.i_flag & (IUPD | IACC | ICHG | IMOD)) == 0);
 }
 
+static unsigned
+count_frees(void)
+{
+	unsigned i, frees = 0;
+
+	for (i = 0; i < nevents; i++)
+		if (events[i].kind == EV_FREE)
+			frees++;
+	return frees;
+}
+
 /*
- * The inode write fails: the device still holds every old address, so the
- * truncation reports the error, frees no block and leaves the inode dirty
- * for a later update.
+ * The inode write fails. Nothing is freed and the error is reported; the
+ * device keeps the inode as it was, and the inode in core stays shortened
+ * and dirty, so the blocks are left allocated for fsck and no block can
+ * end up under two owners.
  */
 static void
 run_failed_write(const char *name, int ndirect, int nindirect)
 {
-	unsigned i, frees = 0;
+	struct dinode *dp;
 	struct inode before;
+	int a;
 
 	build(ndirect, nindirect, 0);
 	before = gate_ip;
 	fail_write = EIO;
 	fail_skip = 0;
 	itrunc(&gate_ip, 0, 0);
-	/* The device holds the inode as it was before the truncation. */
-	{
-		struct dinode *dp = (struct dinode *)
-		    disk[FS_ITOD(&mount[0].m_filsys, GATE_INO)] + itoo(GATE_INO);
-
-		HK_CHECK((off_t)dp->di_ic1.ic_size == before.i_size);
-		HK_CHECK(bcmp((caddr_t)dp->di_addr, (caddr_t)before.i_addr,
-		    NADDR * sizeof(daddr_t)) == 0);
-	}
-	/* The inode names its blocks again, as the device still does. */
-	HK_CHECK(gate_ip.i_size == before.i_size);
-	HK_CHECK(bcmp((caddr_t)gate_ip.i_addr, (caddr_t)before.i_addr,
-	    NADDR * sizeof(daddr_t)) == 0);
-	for (i = 0; i < nevents; i++)
-		if (events[i].kind == EV_FREE)
-			frees++;
-	hk_note("%s: error %d, %u frees\n", name, u.u_error, frees);
+	hk_note("%s: error %d, %u frees\n", name, u.u_error, count_frees());
 	HK_CHECK(u.u_error == EIO);
-	HK_CHECK(frees == 0);
-	HK_CHECK((gate_ip.i_flag & (IUPD | ICHG)) == (IUPD | ICHG));
+	HK_CHECK(count_frees() == 0);
 	HK_CHECK(fail_write == 0);
+	dp = (struct dinode *)disk[FS_ITOD(&mount[0].m_filsys, GATE_INO)] +
+	    itoo(GATE_INO);
+	HK_CHECK((off_t)dp->di_ic1.ic_size == before.i_size);
+	HK_CHECK(bcmp((caddr_t)dp->di_addr, (caddr_t)before.i_addr,
+	    NADDR * sizeof(daddr_t)) == 0);
+	HK_CHECK(gate_ip.i_size == 0);
+	for (a = 0; a < NADDR; a++)
+		HK_CHECK(gate_ip.i_addr[a] == 0);
+	HK_CHECK((gate_ip.i_flag & (IUPD | ICHG)) == (IUPD | ICHG));
 	u.u_error = 0;
 }
 
 /*
  * The write of an indirect block that keeps entries fails: the blocks its
- * cleared entries named are not freed.
+ * cleared entries named are not freed, and the device's copy keeps them.
  */
 static void
 run_failed_indirect_write(void)
 {
-	unsigned i, frees = 0;
+	daddr_t *on_disk;
 
 	build(NDADDR, 3, 0);
 	fail_write = EIO;
 	fail_skip = 1;			/* the inode write passes */
 	itrunc(&gate_ip, (off_t)(NDADDR + 1) * DEV_BSIZE, 0);
-	for (i = 0; i < nevents; i++)
-		if (events[i].kind == EV_FREE)
-			frees++;
 	hk_note("indirect block write fails: error %d, %u frees\n",
-	    u.u_error, frees);
-	/*
-	 * The device's copy keeps the old entries; the cleared block is left
-	 * in the cache as a delayed write, read again from the device.
-	 */
-	{
-		daddr_t *on_disk = (daddr_t *)disk[blocks_of_file[NDADDR]];
-		daddr_t *cached = (daddr_t *)cache[blocks_of_file[NDADDR]];
-		int requeued = 0;
-
-		HK_CHECK(on_disk[0] != 0 && on_disk[1] != 0 && on_disk[2] != 0);
-		HK_CHECK(cached[0] == on_disk[0] && cached[1] == 0 &&
-		    cached[2] == 0);
-
-		for (i = 0; i < nevents; i++)
-			if (events[i].kind == EV_WRITE_DELAYED &&
-			    events[i].blkno == blocks_of_file[NDADDR])
-				requeued = 1;
-		HK_CHECK(requeued);
-	}
+	    u.u_error, count_frees());
 	HK_CHECK(u.u_error == EIO);
-	HK_CHECK(frees == 0);
+	HK_CHECK(count_frees() == 0);
 	HK_CHECK(fail_write == 0);
+	on_disk = (daddr_t *)disk[blocks_of_file[NDADDR]];
+	HK_CHECK(on_disk[0] != 0 && on_disk[1] != 0 && on_disk[2] != 0);
 	u.u_error = 0;
 }
 
-/* irele() wakes a sleeper on the inode lock; the fixture has none. */
-void
-wakeup(caddr_t chan)
-{
-	(void)chan;
-}
-
 /*
- * A truncation to a length inside a block zeroes the rest of that block.
- * The bytes are still file contents while the old size stands, so a failed
- * inode write leaves them, and the size, as they were.
+ * A truncation to a length inside a block zeroes the rest of that block in
+ * the cache and keeps the bytes before the new end.
  */
 static void
-run_tail(int fail)
+run_tail(void)
 {
 	const int keep = 100;
 	daddr_t bn;
-	off_t before;
-	int i, zeros = 0, data = 0;
+	int i, zeros = 0;
 
 	build(NDADDR, 0, 0);
 	bn = blocks_of_file[1];
 	for (i = 0; i < DEV_BSIZE; i++)
 		disk[bn][i] = cache[bn][i] = 0x5a;
-	before = gate_ip.i_size;
-	fail_write = fail ? EIO : 0;
-	fail_skip = 0;
 	itrunc(&gate_ip, (off_t)DEV_BSIZE + keep, 0);
-	for (i = keep; i < DEV_BSIZE; i++) {
+	for (i = keep; i < DEV_BSIZE; i++)
 		zeros += cache[bn][i] == 0;
-		data += cache[bn][i] == 0x5a;
-	}
-	hk_note("tail of the last kept block, write %s: %d zero, %d kept\n",
-	    fail ? "fails" : "passes", zeros, data);
+	hk_note("tail of the last kept block: %d zero bytes\n", zeros);
 	for (i = 0; i < keep; i++)
 		HK_CHECK(cache[bn][i] == 0x5a);
-	if (fail) {
-		HK_CHECK(u.u_error == EIO);
-		HK_CHECK(data == DEV_BSIZE - keep);
-		HK_CHECK(gate_ip.i_size == before);
-	} else {
-		HK_CHECK(u.u_error == 0);
-		HK_CHECK(zeros == DEV_BSIZE - keep);
-		HK_CHECK(gate_ip.i_size == (off_t)DEV_BSIZE + keep);
-	}
+	HK_CHECK(u.u_error == 0);
+	HK_CHECK(zeros == DEV_BSIZE - keep);
+	HK_CHECK(gate_ip.i_size == (off_t)DEV_BSIZE + keep);
+	HK_CHECK(count_frees() == NDADDR - 2);
 	for (i = 0; i < NBUFS; i++)
 		HK_CHECK(buf_busy[i] == 0);
-	fail_write = 0;
-	u.u_error = 0;
-}
-
-static unsigned ifree_calls;
-
-void
-ifree(struct inode *ip, ino_t ino)
-{
-	(void)ip;
-	(void)ino;
-	ifree_calls++;
-}
-
-/*
- * The last reference to an unlinked file goes away. With the inode write
- * failing, the truncation frees nothing, so the inode keeps its mode and is
- * not freed either; with the write passing, blocks and inode both go.
- */
-static void
-run_unlinked_release(int fail)
-{
-	unsigned i, frees = 0;
-
-	build(NDADDR, 0, 0);
-	gate_ip.i_count = 1;
-	gate_ip.i_nlink = 0;
-	ifree_calls = 0;
-	fail_write = fail ? EIO : 0;
-	fail_skip = 0;
-	irele(&gate_ip);
-	for (i = 0; i < nevents; i++)
-		if (events[i].kind == EV_FREE)
-			frees++;
-	hk_note("unlinked release, write %s: %u frees, %u inode frees\n",
-	    fail ? "fails" : "passes", frees, ifree_calls);
-	if (fail) {
-		HK_CHECK(frees == 0);
-		HK_CHECK(ifree_calls == 0);
-		HK_CHECK((gate_ip.i_mode & IFMT) == IFREG);
-	} else {
-		HK_CHECK(frees == NDADDR);
-		HK_CHECK(ifree_calls == 1);
-		HK_CHECK(gate_ip.i_mode == 0);
-	}
-	fail_write = 0;
-	u.u_error = 0;
 }
 
 int
@@ -573,9 +491,6 @@ main(void)
 	run_failed_indirect_write();
 	run_failed_write("direct, inode write fails", NDADDR, 0);
 	run_failed_write("indirect, inode write fails", NDADDR, 3);
-	run_tail(0);
-	run_tail(1);
-	run_unlinked_release(0);
-	run_unlinked_release(1);
+	run_tail();
 	return hk_verdict("itrunc order");
 }

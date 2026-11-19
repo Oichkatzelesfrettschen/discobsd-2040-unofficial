@@ -41,6 +41,13 @@ cc=$3
 work=$(mktemp -d "${TMPDIR:-/tmp}/ulisp-mutants.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
+# The race corpus runs when the Makefile has built its shim (Linux only);
+# the image-reread mutant needs it
+shim=
+if [ -f "$here/rewrite-race.so" ]; then
+	shim=$here/rewrite-race.so
+fi
+
 # mutant NAME SED-EXPRESSION
 mutant() {
 	dir=$work/$1
@@ -54,7 +61,7 @@ mutant() {
 	$cc -std=c17 -D_DEFAULT_SOURCE -Os -w -I"$src/../../sys/arch/rp2040/dev" \
 	    -o "$dir/ulisp" "$dir/ulisp.c" "$dir/unix.c" "$dir/gfx.c" \
 	    "$dir/dev_host.c" "$src/../../sys/arch/rp2040/dev/lcdfont.c" -lm
-	if sh "$here/check.sh" host "$doc" timeout 60 "$dir/ulisp" \
+	if ULISP_REWRITE_SHIM=$shim sh "$here/check.sh" host "$doc" timeout 60 "$dir/ulisp" \
 	    > "$dir/log" 2>&1; then
 		echo "ulisp mutants: $1 passed the check" >&2
 		exit 1
@@ -74,6 +81,14 @@ mutant reader-end 's/ \&\& ch != -1 \&\& index < bufmax/ \&\& index < bufmax/'
 mutant cdr-is-car 's/^  return cdrx(first(args));$/  return carx(first(args));/'
 # String comparison shifts a word wider than the four characters it holds.
 mutant wide-chars 's/int m = 0; chars_t a = 0, b = 0;/int m = 0; unsigned long long a = 0, b = 0;/'
+# Integer division of the most negative int by -1 reaches the remainder.
+mutant divide-min '/(result == INT_MIN) \&\& (i == -1)/d'
+# A left shift by the width of the type reaches the C shift.
+mutant ash-width 's/return number((count >= 32) ? 0 : (int)((unsigned int)value << count));/return number(value << count);/'
+# A float outside the int range converts to an int.
+mutant float-to-int 's/if (f >= -2147483648.0f \&\& f < 2147483648.0f) return number((int)f);/return number((int)f);/'
+# The loader trusts its first check of the file and installs a second read.
+mutant image-reread 's/^  fault = checkimage(header, imagesize);$/  fault = NULL;/'
 # A loaded image is not checked against its own span.
 mutant image-unchecked 's/const char \*fault = checkimage(header, imagesize);/const char *fault = NULL;/'
 # A pair may point into a string chain, whose cells hold characters.

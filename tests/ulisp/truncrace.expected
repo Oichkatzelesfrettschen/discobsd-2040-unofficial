@@ -1,0 +1,15 @@
+uLisp 4.8f 
+12000> 
+marker
+
+11996> 
+Error: 'load-image' image is truncated
+12000> 
+Error: undefined: marker
+12000> 
+11994
+
+12000> 
+3
+
+12000> 

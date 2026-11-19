@@ -1908,6 +1908,37 @@ flushes no inode, and both exhaustion routes that pass through a clean
 superblock return with the filesystem marked clean. The gate runs in
 the portable shape and in PICO's.
 
+A third gate in the same directory, itrunc_order_test, holds the order of
+`itrunc()` in `sys/kern/ufs_inode.c`: the shortened inode is written to
+the device before the first block is freed. The kernel source compiles at
+the target's width in PICO's shape with `free()` of `ufs_alloc.c` renamed,
+so each release lands in an event log beside every buffer write over a RAM
+block store. After a reset that falls between the two, the on-disk inode
+must name only blocks the truncation keeps, so the gate requires a
+synchronous inode-block write ahead of the first free, a dinode in that
+write that carries the new size and none of the freed addresses, and
+exactly one inode-block write per truncation (the cost of the ordering).
+The cases truncate direct and single-indirect files to zero and to a block
+boundary, on a synchronous and an `MNT_ASYNC` mount, entering with clean
+inode flags, which `iupdat()` answers with an early return. A truncation
+that keeps one entry of the indirect block requires that block's cleared
+copy written synchronously before the first free, and one that ends inside
+a block requires the rest of that block zeroed in the cache. The fixture
+keeps the device and the buffer cache as separate images, and three cases
+fail a write: when the inode write or the write of a kept indirect block
+fails, the truncation reports the error and frees nothing, the device keeps
+what it held, and after a failed inode write the inode in core stays
+shortened and dirty, so the blocks stay allocated for fsck and none comes
+under two owners. Seven mutants of `itrunc_order_mutate.py` are rejected
+through the gate's own verdict: `inode-after-frees` restores the source as
+it stood before the change, `flags-not-marked` and `inode-write-delayed`
+each leave no synchronous inode write ahead of the frees,
+`second-write-kept` repeats the inode write after the frees,
+`write-error-ignored` and `indirect-error-ignored` free blocks after a
+failed write, and `indirect-write-async` writes a kept indirect block
+behind the frees.
+`check-itrunc-order-mutants` runs them.
+
 The fifth file, `sys/kern/subr_prf.c`, uses the compiler's variadic argument
 interface. The ILP32 fixture exercises mixed integer, pointer, and long
 arguments, field widths, output routing, and panic formatting at the target's

@@ -523,9 +523,22 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
         bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, bn);
         bzero((caddr_t)&bap[last + 1],
             (u_int)(FS_NINDIR(INODE_FILESYSTEM(ip)) - (last + 1)) * sizeof(daddr_t));
-        if (aflags & B_SYNC)
-            bwrite(bp);
-        else
+        if ((aflags & B_SYNC) || lastbn >= 0) {
+            /*
+             * A block that keeps some of its entries stays named by the
+             * inode, so its cleared entries reach the device before the
+             * blocks they named are freed, as the inode does in itrunc().
+             * A block freed whole is already unnamed on the device.  When
+             * the write fails nothing below this block is freed.
+             */
+            int error = bwrite(bp);
+
+            if (error && lastbn >= 0) {
+                u.u_error = error;
+                brelse(cpy);
+                return;
+            }
+        } else
             bawrite(bp);
         bp = cpy;
     }
@@ -673,6 +686,31 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
         }
     for (i = FS_NDADDR(INODE_FILESYSTEM(oip)) - 1; i > lastblock; i--)
         IADDR_DB_SET(oip, i, 0);
+    /*
+     * The shortened inode reaches the device before the first block is
+     * freed, so a reset between the two leaves an inode that names only
+     * blocks it still owns and fsck returns the unreferenced ones to the
+     * free list; the reverse order leaves an on-disk inode claiming blocks
+     * the free list may already hold or have handed out again.  ICHG|IUPD
+     * make iupdat() write, since it returns at once on clean flags, and a
+     * waitfor of 1 submits the write through bwrite() whatever MNT_ASYNC
+     * says.  The frees change only the copy in tip, so no second write
+     * follows them.
+     *
+     * When the write fails nothing is freed.  The inode stays shortened
+     * and dirty in core, and the blocks stay allocated with no owner in
+     * core until fsck reclaims them: a failed truncation can lose space
+     * and never puts one block under two owners.
+     */
+    oip->i_flag |= ICHG|IUPD;
+    {
+        int error = iupdat(oip, &time, &time, 1);
+
+        if (error) {
+            u.u_error = error;
+            return;
+        }
+    }
 
     /*
      * Indirect blocks first.
@@ -715,6 +753,8 @@ done:
             panic("itrunc2");
 /* END PARANOIA */
 #endif
+    /* The inode was written before the frees and the frees leave it as is. */
+    return;
 
 doquotaupd:
 updret:

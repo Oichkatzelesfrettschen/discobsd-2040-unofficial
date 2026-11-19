@@ -290,3 +290,6 @@ usb_console_driver.c
 usb_console_test
 usb_console_*.o
 usb_console_*.mutant.*
+itrunc_order_test
+itrunc_order_kernel.o
+itrunc_order_*.mutant.*

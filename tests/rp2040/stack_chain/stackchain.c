@@ -201,7 +201,12 @@ static int
 dirty_buffer(void)
 {
 	int fd = open(DIRTY, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-	int ok = fd >= 0 && write(fd, block, sizeof block) == (int)sizeof block;
+	/*
+	 * Half a block: ino_rw() starts the write of a whole block at once
+	 * and leaves only a partial one as a delayed-write buffer.
+	 */
+	int ok = fd >= 0 && write(fd, block, sizeof block / 2) ==
+	    (int)(sizeof block / 2);
 
 	if (!ok)
 		printf("dirty_errno=%d\n", errno);

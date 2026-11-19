@@ -108,11 +108,14 @@ wakeup(caddr_t channel)
 	wakeup_calls++;
 }
 
+/* procxmt() never ends the process itself; each call is a failure. */
+static unsigned exit_calls;
+
 void
 ptrace_process_exit(int status)
 {
 	(void)status;
-	panic("ptrace test unexpectedly reached exit");
+	exit_calls++;
 }
 
 #define exit ptrace_process_exit
@@ -487,6 +490,21 @@ check_continue_and_step(void)
 	reset();
 	HK_CHECK(run_request(100, USER_LOWER, 0) == 0);
 	HK_CHECK(ipc.ip_req == -1);
+
+	/*
+	 * PT_KILL resumes the child with SIGKILL and the trace bit clear, so
+	 * that issignal() delivers it; the child's own stack never runs exit().
+	 */
+	reset();
+	frame->tf_pc = USER_LOWER + 2;
+	child.p_flag |= P_TRACED;
+	child.p_sig = sigmask(SIGINT) | sigmask(SIGQUIT);
+	HK_CHECK(run_request(PT_KILL, 0, 0) == 1);
+	HK_CHECK(child.p_sig == 0);
+	HK_CHECK(child.p_ptracesig == SIGKILL);
+	HK_CHECK((child.p_flag & P_TRACED) == 0);
+	HK_CHECK(frame->tf_pc == USER_LOWER + 2);
+	HK_CHECK(exit_calls == 0);
 }
 
 int

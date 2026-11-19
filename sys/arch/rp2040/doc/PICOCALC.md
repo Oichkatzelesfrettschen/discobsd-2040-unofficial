@@ -164,12 +164,21 @@ wires PWM_L to GP26, and GP28 reaches only the expansion header.
 
 ## USB-C and power
 
-DIP switch SW701 selects, through two WAS7227 switches, whether USB-C
-reaches the CH340C bridge and the Pico's UART0 (default, both selects
-pulled low) or the keyboard controller's USB and UART1 for its own
-firmware updates. In the default position, the USB-C port carries
-`/dev/tty0` at 115200 baud, so a PICO_UART kernel also has a working
-console on this board. The Pico's micro-USB port stays the PICO board's
+DIP switch SW701 holds two independent poles, each a select line pulled
+low by 100 kOhm and tied to the 3.3 V rail through 10 kOhm when closed.
+Pole 1 (SEL1, also the keyboard controller's BOOT0) drives U703: low
+connects the CH340C bridge to the Pico's UART0, high connects it to the
+keyboard controller's USART1 and, through BOOT0, starts that controller's
+system bootloader. Pole 2 (SEL2) drives U701: low connects the USB-C
+data pair to the CH340C, high connects it to the keyboard controller's own
+USB. Both open (the default) leaves the USB-C port carrying `/dev/tty0`
+at 115200 baud, so a PICO_UART kernel also has a working console on this
+board. Pole 2 closed with pole 1 open leaves the CH340C connected to UART0
+and without a cable, so the USB-C port carries no console; the Pico's
+micro-USB CDC-ACM console is unaffected. Pole 1 closed leaves UART0 without
+a peer. The WAS7227 select polarity comes from the vendor flashing recipe;
+the part's datasheet is absent from the notes, so a probe of U703 pin 10
+against pole 1 settles it. The Pico's micro-USB port stays the PICO board's
 CDC-ACM console and the `picotool reboot -u` path, `/dev/ttyUSB0` here.
 
 The AXP2101 PMU powers the system from USB-C alone: its power path
@@ -199,10 +208,18 @@ settles. The explanation the schematic leaves standing:
 `docs/research/hardware-reference-coverage.md` holds the schematic's
 designator-to-part map behind this reading.
 
-The Pico's own micro-USB port feeds the Pico module's VSYS through the
-module's Schottky diode; whether the mainboard's PICO_VSYS net, the STM32
-and the panel run from it is not measured. With cells installed, the
-micro-USB port is the console and BOOTSEL path.
+The schematic powers the Pico from the system rail. U102 (WAS4603) passes
+IPS, the AXP2101 system rail, to PICO_VSYS on socket pin 2 while PICO_EN,
+the keyboard controller's PA13, is high. The keyboard controller (DCDC1,
+MCU_3V3) and the panel (ALDO3, BLDO1) sit upstream of U102, so they run
+whether or not the Pico does; the two AW8010 amplifiers hang on PICO_VSYS
+and are silent when PICO_EN is low. Pico VBUS (socket pin 1) and RUN
+(pin 11) carry no net. The Pico's own micro-USB port feeds the Pico
+module's VSYS through the module's Schottky diode. What the schematic does
+not settle, and a measurement does, is whether micro-USB power back-feeds
+IPS through U102 when PICO_EN is low (the WAS4603 datasheet is absent from
+the notes) and whether the STM32 and the panel run from micro-USB alone.
+With cells installed, the micro-USB port is the console and BOOTSEL path.
 
 ## Display: ST7365P on SPI1
 
@@ -679,7 +696,11 @@ reset of the block. The poll callout runs inside the SysTick exception, so
 it takes those steps one per poll rather than waiting; only the polled
 exchange of the probe and of the console's getc, which runs with
 interrupts masked anyway, waits them out. Reading register 0x08 resets the keyboard
-controller, so the driver never reads it.
+controller, so the driver never reads it. The reset also drops PICO_EN
+(`setup()` drives PA13 low before it raises it after initialization,
+`picocalc_keyboard.ino`), and with it the Pico's supply through U102. This
+is inferred from the firmware source and the schematic and has not been
+measured; a scope on PICO_VSYS across a register 0x08 access decides it.
 
 A register request (battery, backlight, power-off) shares the poller. The
 write phase asks the mailbox in `picokbd_req.c` for a waiting request and
@@ -1350,12 +1371,29 @@ run settles whether they are.
 
 ### Audio
 
+GP26 and GP27 drive the two halves of a NC7WZ16 buffer (U501, powered from
+ALDO4), not the amplifiers. Each buffer output runs through a 220 ohm
+series resistor into a node with 100 nF and 100 ohm to ground, then a
+47 uF coupling capacitor with a 1.8 kOhm load to ground, to the volume
+control SW501 and the headphone jack, and from there to the two AW8010
+amplifiers on PICO_VSYS. The first-order corner of the resistor and 100 nF
+stage is 1/(2 pi R C) with R the 220 ohm in parallel with the 100 ohm and
+the 1.8 kOhm load, which is about 24 kHz (23 kHz without the load). The
+500 kHz PWM carrier of `picopcm.c` is attenuated by about 26 dB and its
+second harmonic by about 32 dB; a first-order stage does not remove it, so
+the carrier reaches the volume control and the amplifier inputs, and
+whether it is audible is a listening and scope question. The amplifier
+enable PA_EN belongs to the keyboard controller (PA14, set from the
+headphone-detect line PC12); the Pico cannot mute the amplifiers. The
+volume control's topology is inferred from its symbol, and R509 (0R) goes
+to ground; continuity at SW501 and the jack settles both.
+
 BEL ships (see Console above): `lcd_bell()` in `picoaudio.c` starts a
 1 kHz square wave at 25 percent duty on both channels of PWM slice 5 and a
 callout stops it 100 ms later; a BEL that arrives while the tone
 sounds is absorbed, and a panic suppresses it because callouts no longer
 run. The 25 percent duty and the 100 ms length are unmeasured choices:
-the board run sets the loudness and checks that the amplifier is silent
+the board run sets the loudness and checks that the speaker is silent
 between tones.
 
 `/dev/audio` ships (`picopcm.c`, character major 13): write only, one

@@ -60,8 +60,8 @@ draws the calibration patterns.
 
 Boot the PICOCALC kernel, which carries `LCD_PANELTEST`, with `paneltest` in the
 root (the PicoCalc SD root installs it), log in, `su`, run `paneltest`.
-Keys: right and left arrows (or `n`/`p`) step the set, down and up
-arrows (or `1`-`7`) step the pattern, `r` reads back, `f` measures the
+Keys: right and left arrows (or `n`/`p`, or `d`/`a`) step the set, down and
+up arrows (or `s`/`w`, or `1`-`7`) step the pattern, `r` reads back, `f` measures the
 frame rate, `q` quits. The top left corner of every pattern (RAM line
 160 under pattern 7, the first line on the glass there) shows the set
 number, its name, the pattern and the rate last measured under the set.
@@ -294,3 +294,30 @@ with the scanline sampler and the read control).
    windowtest, and stdiocap with each operation. tiledemo's key session
    was refused from the UART terminal, as its header says; it was not run
    from the console.
+
+## Results, 2026-11-19
+
+Kernel PICOCALC_SD #1 4399 (main f9e9623e2), SPI mode 3, started by the
+loader from the card; paneltest on the UART terminal as root.
+
+1. Readback under sets 0, 2 and 3 is the same as on 2026-11-18 in every
+   entry it shares: 09h `d2 31 d2 00 00`, 0Ah 9Ch, 0Bh 48h, 0Ch 66h,
+   D3h `00 3b cb 00`. The frame format of the link changed and the replies
+   did not.
+2. Scan: 57.92 Hz +-0.03 (set 0), 57.88 Hz +-0.03 (set 2), 57.97 Hz +-0.02
+   (set 3), 484 lines, nine wraps each, with 5, 5 and 3 samples rejected.
+   The wrap rule sets the carry misreads aside on the board and the rate
+   agrees with the 57.95 Hz recovered by hand on 2026-11-18.
+3. NVM status (D2h): `00 00 00 80 00` plain and through FBh 10h.
+4. SPI Read Control on a readable register: D3h through FBh 10h returns
+   `00 00 00 00`, through 11h `00 00 00 00` and through 12h `77 77 77 ff`.
+   FBh selects one parameter by number and the read repeats it, so the
+   control acts on this link, and the zeros of entries 13-28 are what the
+   Command Table 2 registers answer.
+5. Memory read of the white pixel: `20 ff ff ff ff`, then `fe ff ff ff ff`:
+   under 55h the reply is the 16-bit value and does not show the widening.
+   The entry selects 66h before its read from the next kernel on.
+6. Self-diagnostic (0Fh): `00` on the first readback after the open, `c0`
+   on every later one.
+
+Not done: the by-eye comparison of sets 0, 2 and 3.

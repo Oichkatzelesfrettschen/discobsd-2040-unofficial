@@ -335,7 +335,7 @@ lcdgfx_panel_read(struct picocalc_panel_read *rb)
 		return EBUSY;
 	window_end();
 	st7365p_readback(rb);
-	/* The readback's pixel entry leaves the panel in 55h. */
+	/* The readback's pixel entry changes COLMOD. */
 	lcd_gfx_colmod(gfx_fmt);
 	return 0;
 }
@@ -523,29 +523,22 @@ sprite_write(struct uio *uio)
 	return 0;
 }
 
-/* Bits bit .. bit + n - 1 of the reply, the first bit received being bit 0. */
-static unsigned
-reply_bits(const unsigned char *raw, unsigned bit, unsigned n)
-{
-	unsigned v = (unsigned)raw[bit >> 3] << 8 | raw[(bit >> 3) + 1];
-
-	return (v >> (16 - (bit & 7) - n)) & ((1U << n) - 1);
-}
-
 /*
  * The pixels of a LCDG_READ rectangle, LCDG_READ_MAX at most per memory
- * read. A pixel is 24 reply bits after the lead, eight each for red, green
- * and blue with the component in the upper bits (page 178); the RGB565
- * value keeps the upper five, six and five, the bits a write in either
- * format sets directly. The reply is decoded in place: pixel i reads from
- * byte 3 i on and writes bytes 2 i and 2 i + 1 after its three components
- * are taken.
+ * read. The reply is one lead byte and then pixels in the COLMOD in force,
+ * as the board returned them: under 0x66 three bytes a pixel with the
+ * component in the upper six bits, under 0x55 two bytes, the RGB565 value
+ * with its high byte first. Either way the RGB565 value handed to the
+ * caller holds the five, six and five bits a write sets directly. The
+ * reply is decoded in place: pixel i is taken whole from bytes at or
+ * above 2 i + 1 before bytes 2 i and 2 i + 1 are written.
  */
 int
 lcdgfx_read(struct uio *uio)
 {
 	unsigned char raw[LCDG_RD_RAW_BYTES(LCDG_READ_MAX)];
-	unsigned n, i, bit, c;
+	unsigned n, i, c, bpp;
+	const unsigned char *p;
 	int error = 0;
 
 	if (rd_left == 0)
@@ -558,13 +551,14 @@ lcdgfx_read(struct uio *uio)
 		if (uio->uio_resid < n)
 			return EINVAL;
 		lcd_gfx_read_begin();
-		lcd_gfx_read(rd_x, rd_y, rd_w, raw);
+		lcd_gfx_read(rd_x, rd_y, rd_w, raw, n);
 		lcd_gfx_read_end();
 		rd_left = 0;
 		return uiomove((caddr_t)raw, n, uio);
 	}
 	if ((uio->uio_resid & 1) != 0)
 		return EINVAL;
+	bpp = gfx_fmt == LCDG_COLMOD_RGB565 ? 2 : 3;
 	lcd_gfx_read_begin();
 	while (uio->uio_resid > 0 && rd_left > 0) {
 		n = (unsigned)(rd_w - rd_col);
@@ -572,12 +566,14 @@ lcdgfx_read(struct uio *uio)
 			n = LCDG_READ_MAX;
 		if (n > uio->uio_resid / 2)
 			n = uio->uio_resid / 2;
-		lcd_gfx_read(rd_x + rd_col, rd_y, (int)n, raw);
+		lcd_gfx_read(rd_x + rd_col, rd_y, (int)n, raw, 1 + bpp * n);
 		for (i = 0; i < n; i++) {
-			bit = LCDG_RD_LEAD_BITS + 24 * i;
-			c = reply_bits(raw, bit, 5) << 11 |
-			    reply_bits(raw, bit + 8, 6) << 5 |
-			    reply_bits(raw, bit + 16, 5);
+			p = raw + 1 + bpp * i;
+			if (bpp == 2)
+				c = (unsigned)p[0] << 8 | p[1];
+			else
+				c = (unsigned)(p[0] >> 3) << 11 |
+				    (unsigned)(p[1] >> 2) << 5 | p[2] >> 3;
 			raw[2 * i] = c & 0xff;
 			raw[2 * i + 1] = c >> 8;
 		}

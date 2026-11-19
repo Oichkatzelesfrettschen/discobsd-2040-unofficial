@@ -151,16 +151,18 @@ bits(const unsigned char *raw, unsigned bit, unsigned n)
  * Write six known pixels to the last line of the memory, which the glass
  * does not show, read the reply of the memory read as it arrives, print it,
  * and report every lead of 0 to 15 bits under which the reply decodes to
- * the pixels written. The kernel decodes with LCDG_RD_LEAD_BITS.
+ * the pixels written, at the pixel size of the COLMOD in force: 24 reply
+ * bits a pixel under 0x66 (the component in the upper bits), 16 under 0x55
+ * (the RGB565 value). The kernel decodes with LCDG_RD_LEAD_BITS.
  */
 static void
-framing(const char *name)
+framing(const char *name, unsigned pixel_bits)
 {
 	static const unsigned short known[6] = {
 		0xf800, 0x07e0, 0x001f, 0xffff, 0x0000, 0x8410
 	};
 	unsigned char raw[LCDG_RD_RAW_BYTES(6) + 2];
-	unsigned lead, i, c;
+	unsigned lead, i, c, at;
 	int n, hit = 0;
 
 	ramwin(0, LINES - 1, 6, 1);
@@ -178,15 +180,20 @@ framing(const char *name)
 	printf("\n");
 	for (lead = 0; lead < 16; lead++) {
 		for (i = 0; i < 6; i++) {
-			c = bits(raw, lead + 24 * i, 5) << 11 |
-			    bits(raw, lead + 24 * i + 8, 6) << 5 |
-			    bits(raw, lead + 24 * i + 16, 5);
+			at = lead + pixel_bits * i;
+			if (pixel_bits == 16)
+				c = bits(raw, at, 8) << 8 | bits(raw, at + 8, 8);
+			else
+				c = bits(raw, at, 5) << 11 |
+				    bits(raw, at + 8, 6) << 5 |
+				    bits(raw, at + 16, 5);
 			if (c != known[i])
 				break;
 		}
 		if (i == 6) {
-			printf("%s framing: a lead of %u bits decodes the "
-			    "six pixels\n", name, lead);
+			printf("%s framing: a lead of %u bits and %u bits a "
+			    "pixel decode the six pixels\n", name, lead,
+			    pixel_bits);
 			hit = 1;
 			if (lead != LCDG_RD_LEAD_BITS)
 				fail("the kernel's lead differs");
@@ -401,7 +408,8 @@ power(int seed)
 
 /*
  * The dithering probe: 24-bit pixels of LCDG_DITHER_BYTE without and with
- * MODESEL (B9h), each read back raw. Bytes that differ between the two
+ * MODESEL (B9h), each read back raw under COLMOD 0x66, so the reply shows
+ * all six bits of every component. Bytes that differ between the two
  * replies show the controller dithering into its memory; equal replies show
  * nothing either way.
  */
@@ -487,17 +495,17 @@ main(int argc, char **argv)
 	printf("memory %d lines, console ring at line %d, %d pixels a read\n",
 	    xi.ram_lines, xi.text_top, xi.read_max);
 
-	framing("COLMOD 66h");
+	framing("COLMOD 66h", 24);
 	verify("COLMOD 66h, 480 lines", 1);
 	colmod(LCDG_COLMOD_RGB565);
-	framing("COLMOD 55h");
+	framing("COLMOD 55h", 16);
 	verify("COLMOD 55h, 480 lines", 2);
 	sprite_test(2);
 	waits();
 	scroll_hidden();
 	power(2);
+	colmod(LCDG_COLMOD_RGB666);	/* Three bytes a pixel show every level. */
 	dither();
-	colmod(LCDG_COLMOD_RGB666);
 	close(fd);
 	printf(errors ? "LCDEXTTEST FAILED\n" : "LCDEXTTEST OK\n");
 	return errors != 0;

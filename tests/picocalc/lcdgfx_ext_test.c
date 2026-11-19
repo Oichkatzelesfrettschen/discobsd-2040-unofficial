@@ -34,9 +34,9 @@
  * The model is the controller's memory, 480 lines of 320 pixels of
  * eighteen bits, written through lcd_gfx_window() and lcd_gfx_byte() in
  * the COLMOD in force (a 16-bit pixel widens by bit replication) and read
- * through lcd_gfx_read(), whose reply is a lead byte that is not a pixel,
- * three bytes a pixel with the component in the upper six bits, and one
- * spare byte. The scan line advances with every lcd_gfx_scanline() and
+ * through lcd_gfx_read(), whose reply is a lead byte that is not a pixel
+ * and then pixels in the COLMOD in force, two bytes under 0x55 and three
+ * under 0x66, as the board returned them on 2026-11-19. The scan line advances with every lcd_gfx_scanline() and
  * the clock with every lcd_gfx_micros(). The model records a violation for
  * a window or a read outside the memory, a byte outside a window, a window
  * inside a window, a write window at the read clock, a read or a scan-line
@@ -208,10 +208,16 @@ lcd_gfx_read_end(void)
 	rdclk = 0;
 }
 
+/*
+ * The reply the board returned: a lead byte that is not a pixel, then the
+ * n pixels of the window in the COLMOD in force (two bytes of RGB565, high
+ * byte first, under 0x55; otherwise three bytes with the component in the
+ * upper six bits), the window repeating for as long as bytes are clocked.
+ */
 void
-lcd_gfx_read(int x, int y, int n, unsigned char *raw)
+lcd_gfx_read(int x, int y, int n, unsigned char *raw, unsigned len)
 {
-	int i;
+	unsigned k, bpp = colmod == 0x55 ? 2 : 3, v, c;
 
 	if (!rdclk)
 		violation("memory read at the write clock");
@@ -220,18 +226,22 @@ lcd_gfx_read(int x, int y, int n, unsigned char *raw)
 	if (power == LCDG_PWR_SLEEP)
 		violation("memory read while asleep");
 	if (n < 1 || n > LCDG_READ_MAX || x < 0 || y < 0 || x + n > PW ||
-	    y >= RL) {
-		violation("memory read outside the memory");
-		memset(raw, 0, LCDG_RD_RAW_BYTES(1));
+	    y >= RL || len < 1 || len > LCDG_RD_RAW_BYTES(LCDG_READ_MAX)) {
+		violation("memory read outside the memory or the reply buffer");
 		return;
 	}
+	if (len < 1 + bpp * (unsigned)n)
+		violation("reply shorter than the window's pixels");
 	*raw++ = 0xa5;			/* The lead: not a pixel. */
-	for (i = 0; i < n; i++) {
-		*raw++ = (gram[y][x + i] >> 12) << 2;
-		*raw++ = ((gram[y][x + i] >> 6) & 0x3f) << 2;
-		*raw++ = (gram[y][x + i] & 0x3f) << 2;
+	for (k = 0; k + 1 < len; k++) {
+		v = gram[y][x + (int)(k / bpp) % n];
+		if (bpp == 2) {
+			c = (v >> 13) << 11 | ((v >> 6) & 0x3f) << 5 |
+			    (v & 0x3f) >> 1;
+			*raw++ = k % 2 ? c & 0xff : c >> 8;
+		} else
+			*raw++ = ((v >> (12 - 6 * (k % 3))) & 0x3f) << 2;
 	}
-	*raw = 0x5a;			/* The spare byte. */
 }
 
 int
@@ -534,17 +544,34 @@ test_read(void)
 	uiomove_fail = 0;
 	expect("clock restored after a fault", rdclk, 0);
 
-	expect("raw", rdsel(3, 470, LCDG_READ_MAX, 1, LCDG_RD_RAW), 0);
-	expect("raw short buffer", xfer(0, raw,
-	    LCDG_RD_RAW_BYTES(LCDG_READ_MAX) - 1), EINVAL);
-	memset(raw, 0x11, sizeof(raw));
-	expect("raw read", xfer(0, raw, sizeof(raw)), 0);
-	expect("raw length", (long)sizeof(raw) - resid_after,
-	    LCDG_RD_RAW_BYTES(LCDG_READ_MAX));
-	bad = raw[0] != 0xa5 || raw[1 + 3 * LCDG_READ_MAX] != 0x5a;
-	for (i = 0; i < LCDG_READ_MAX; i++)
-		bad += (unsigned)(raw[1 + 3 * i] >> 3) != pat[470][3 + i] >> 11;
-	expect("raw reply bytes as they arrived", bad, 0);
+	for (fmt = 0; fmt < 2; fmt++) {
+		struct lcdg_colmod cm = { (u_char)(fmt ? LCDG_COLMOD_RGB565 :
+		    LCDG_COLMOD_RGB666) };
+		unsigned c;
+
+		expect("colmod", ioc(LCDG_COLMOD, &cm), 0);
+		expect("raw", rdsel(3, 470, LCDG_READ_MAX, 1, LCDG_RD_RAW), 0);
+		expect("raw short buffer", xfer(0, raw,
+		    LCDG_RD_RAW_BYTES(LCDG_READ_MAX) - 1), EINVAL);
+		memset(raw, 0x11, sizeof(raw));
+		expect("raw read", xfer(0, raw, sizeof(raw)), 0);
+		expect("raw length", (long)sizeof(raw) - resid_after,
+		    LCDG_RD_RAW_BYTES(LCDG_READ_MAX));
+		bad = raw[0] != 0xa5;
+		for (i = 0; i < LCDG_READ_MAX; i++) {
+			if (fmt)
+				c = (unsigned)raw[1 + 2 * i] << 8 | raw[2 + 2 * i];
+			else
+				c = (unsigned)(raw[1 + 3 * i] >> 3) << 11 |
+				    (unsigned)(raw[2 + 3 * i] >> 2) << 5 |
+				    raw[3 + 3 * i] >> 3;
+			bad += c != pat[470][3 + i];
+		}
+		expect("raw reply bytes in the format in force", bad, 0);
+		if (fmt)	/* Two bytes a pixel: the line starts again. */
+			expect("the window repeats", raw[1 + 2 * LCDG_READ_MAX],
+			    pat[470][3] >> 8);
+	}
 	expect("raw is one read", xfer(0, raw, sizeof(raw)), 0);
 	expect("raw then end of file", resid_after, (long)sizeof(raw));
 

@@ -402,7 +402,10 @@ closef(register struct file *fp)
  * The slot and its flags are empty before closef() runs, because the close
  * can sleep and an exit() that interrupts it walks u_ofile: a slot still
  * holding the file would be closed a second time, after its close routine
- * has already released the file's backing object.
+ * has already released the file's backing object.  A driver close that a
+ * signal interrupts is not abandoned: device_driver_call() (ufs_bio.c)
+ * holds the checkpoint that sleep() jumps to while the driver runs, so the
+ * close returns EINTR to closei() and closef() finishes.
  */
 void
 fdcloseexec(void)

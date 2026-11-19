@@ -86,6 +86,41 @@ and listed at the end.
 - F4 and Shift+F4 repeat the last search; F5 toggles overtype; Shift+F1
   undoes; Ctrl+F10 saves.
 
+## Formatting
+
+- Every character carries character properties: bold, italic,
+  underline, double underline, strikethrough, uppercase, small capitals,
+  hidden, a position (normal, superscript, subscript) and a font size.
+  Every paragraph carries paragraph properties: alignment (left,
+  centered, right, justified), left, first-line and right indents, line
+  spacing, space before and after, keep together and keep with next.
+  A paragraph's properties are those of the line break that ends it.
+- Format Character and Format Paragraph show those fields as forms;
+  their values start from the selection's first character or paragraph,
+  and Enter applies every field to the selection. Measurements take a
+  number and a unit: `"` or `in`, `cm`, `p10`, `p12`, `pt` or `li`
+  (a line, 12 points); a bare number is inches for indents and lines for
+  spacing. A measurement that does not parse is refused.
+- Speed keys (Alt, or Ctrl-A then the key): B bold, I italic, U underline,
+  D double underline, K small capitals, S strikethrough, E hidden, + or =
+  superscript, - subscript, Space normal characters; L, C, R, J alignment,
+  F first-line indent of 0.5", N and M add or remove 0.5" of left indent,
+  Q 0.5" on both sides, T a hanging indent, O one line before, 2 double
+  spacing, P a normal paragraph.
+- With no selection a character change applies to the text typed next,
+  until the cursor moves; a paragraph change applies to the cursor's
+  paragraph. Typed text takes the properties of the character before it.
+  Undo and redo cover formatting changes, and the scrap keeps the
+  properties of the text it holds.
+- The console shows bold as bold, underline and double underline as
+  underline, italic in green, strikethrough in red, super- and subscript
+  in magenta, hidden text in gray, uppercase and small capitals as
+  capitals. Indents and centered or right alignment place the rows;
+  justified paragraphs show left-aligned, and line spacing, space before
+  and after and the keep options are kept but not drawn.
+- A text file carries no properties: Transfer Save writes the characters
+  only.
+
 ## Modern modes
 
 The key mode is chosen with `-k word`, `-k vi` or `-k nano`, the

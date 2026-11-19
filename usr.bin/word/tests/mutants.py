@@ -41,45 +41,135 @@ import sys
 import tempfile
 
 CC = os.environ.get("HOSTCC", "cc")
-FLAGS = ["-std=c17", "-D_DEFAULT_SOURCE", "-DTERMIOS", "-Wall", "-Wextra",
-         "-Werror", "-Wshadow", "-O1"]
-SRCS = ["word.c", "word_buf.c", "word_find.c", "word_menus.c", "word_modes.c",
-        "word_pick.c", "word_term.c"]
+FLAGS = [
+    "-std=c17",
+    "-D_DEFAULT_SOURCE",
+    "-DTERMIOS",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wshadow",
+    "-O1",
+]
+SRCS = [
+    "word.c",
+    "word_buf.c",
+    "word_find.c",
+    "word_menus.c",
+    "word_modes.c",
+    "word_pick.c",
+    "word_term.c",
+]
 
 # (name, file, old, new, the test case that must fail)
 MUTANTS = [
-    ("wrap-ignores-the-last-space", "word.c",
-     "if (sp != WOFF_END)\n\t\t\t\t\treturn sp + 1;",
-     "if (sp == WOFF_END + 1)\n\t\t\t\t\treturn sp + 1;", "t_wrap"),
-    ("undo-drops-deleted-text", "word_buf.c",
-     "\t\t\tif (raw_insert(u->pos, u->ref, u->len) != 0)\n\t\t\t\treturn -1;\n"
-     "\t\t\t*pos = u->pos + u->len;\n\t\t}\n\t\tupos--;",
-     "\t\t\t*pos = u->pos;\n\t\t}\n\t\tupos--;", "t_vi"),
-    ("spill-read-off-by-one", "word_buf.c",
-     "return blk_byte(ADDBIT, ref);", "return blk_byte(ADDBIT, ref + 1);", "t_large"),
-    ("save-skips-the-rename", "word_buf.c",
-     "if (e == 0 && rename(tmp, path) != 0)", "if (e == 0 && 0)", "t_save_menu"),
-    ("search-case-flag-ignored", "word_find.c",
-     "\tif (match_case)\n\t\treturn a == b;", "\tif (match_case < 0)\n\t\treturn a == b;",
-     "t_search_replace"),
-    ("replace-no-still-replaces", "word.c",
-     "up == 'Y' || up == 'A'", "up == 'Y' || up == 'A' || up == 'N'",
-     "t_search_replace"),
-    ("vi-dd-keeps-the-newline", "word_modes.c",
-     "\t\tp = ed_eol(p);\n\t\tif (p < len)\n\t\t\tp++;",
-     "\t\tp = ed_eol(p);\n\t\tif (p > len)\n\t\t\tp++;", "t_vi"),
-    ("nano-cuts-do-not-accumulate", "word_modes.c",
-     "ed_del(lo, hi, 1, cut_run);", "ed_del(lo, hi, 1, 0);", "t_nano"),
-    ("piece-split-off-by-one", "word_buf.c",
-     "pt[i + 1].off = pt[i].off + within;", "pt[i + 1].off = pt[i].off + within + 1;",
-     "t_undo_scrap"),
-    ("picker-lists-directories-last", "word_pick.c",
-     "return is_dir[b] - is_dir[a];", "return is_dir[a] - is_dir[b];", "t_picker"),
-    ("color-off-still-colors", "word_term.c",
-     "col = scr_color && cls > 0", "col = cls > 0", "t_ansi"),
-    ("shift-del-fills-the-scrap", "word.c",
-     "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(0);",
-     "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(1);", "t_undo_scrap"),
+    (
+        "wrap-ignores-the-last-space",
+        "word.c",
+        "if (sp != WOFF_END)\n\t\t\t\t\treturn sp + 1;",
+        "if (sp == WOFF_END + 1)\n\t\t\t\t\treturn sp + 1;",
+        "t_wrap",
+    ),
+    (
+        "undo-drops-deleted-text",
+        "word_buf.c",
+        "\t*pos = u->pos + u->len;\n\treturn raw_insert(u->pos, u->ref, u->len, u->chp, u->pap);",
+        "\t*pos = u->pos;\n\treturn 0;",
+        "t_vi",
+    ),
+    (
+        "spill-read-off-by-one",
+        "word_buf.c",
+        "return blk_byte(ADDBIT, ref);",
+        "return blk_byte(ADDBIT, ref + 1);",
+        "t_large",
+    ),
+    (
+        "save-skips-the-rename",
+        "word_buf.c",
+        "if (e == 0 && rename(tmp, path) != 0)",
+        "if (e == 0 && 0)",
+        "t_save_menu",
+    ),
+    (
+        "search-case-flag-ignored",
+        "word_find.c",
+        "\tif (match_case)\n\t\treturn a == b;",
+        "\tif (match_case < 0)\n\t\treturn a == b;",
+        "t_search_replace",
+    ),
+    (
+        "replace-no-still-replaces",
+        "word.c",
+        "up == 'Y' || up == 'A'",
+        "up == 'Y' || up == 'A' || up == 'N'",
+        "t_search_replace",
+    ),
+    (
+        "vi-dd-keeps-the-newline",
+        "word_modes.c",
+        "\t\tp = ed_eol(p);\n\t\tif (p < len)\n\t\t\tp++;",
+        "\t\tp = ed_eol(p);\n\t\tif (p > len)\n\t\t\tp++;",
+        "t_vi",
+    ),
+    (
+        "nano-cuts-do-not-accumulate",
+        "word_modes.c",
+        "ed_del(lo, hi, 1, cut_run);",
+        "ed_del(lo, hi, 1, 0);",
+        "t_nano",
+    ),
+    (
+        "piece-split-off-by-one",
+        "word_buf.c",
+        "pt[i + 1].off = pt[i].off + within;",
+        "pt[i + 1].off = pt[i].off + within + 1;",
+        "t_undo_scrap",
+    ),
+    (
+        "picker-lists-directories-last",
+        "word_pick.c",
+        "return is_dir[b] - is_dir[a];",
+        "return is_dir[a] - is_dir[b];",
+        "t_picker",
+    ),
+    (
+        "color-off-still-colors",
+        "word_term.c",
+        "col = scr_color && cls > 0",
+        "col = cls > 0",
+        "t_ansi",
+    ),
+    (
+        "shift-del-fills-the-scrap",
+        "word.c",
+        "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(0);",
+        "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(1);",
+        "t_undo_scrap",
+    ),
+    ("bold-not-drawn", "word.c", "if (cp->flags & CH_BOLD)", "if (cp->flags & 0)", "t_format"),
+    (
+        "center-not-halved",
+        "word.c",
+        "(w - used) / 2 : w - used",
+        "(w - used) : w - used",
+        "t_format",
+    ),
+    (
+        "indent-does-not-narrow",
+        "word.c",
+        "w = scr_cols - li - ri;",
+        "w = scr_cols - ri;",
+        "t_format",
+    ),
+    ("undo-format-keeps-new", "word_buf.c", "undo ? u->chp : u->nchp", "u->nchp", "t_format"),
+    (
+        "typing-format-ignored",
+        "word.c",
+        "buf_insert_fmt(ed_cur, s, n, ins_chp)",
+        "buf_insert_fmt(ed_cur, s, n, -1)",
+        "t_format",
+    ),
 ]
 
 
@@ -89,9 +179,12 @@ def build(src_dir, out):
 
 
 def run_test(word_dir, binary):
-    return subprocess.run([sys.executable, "-I", "-u",
-                           os.path.join(word_dir, "tests", "word_test.py"), binary],
-                          capture_output=True, text=True, timeout=300)
+    return subprocess.run(
+        [sys.executable, "-I", "-u", os.path.join(word_dir, "tests", "word_test.py"), binary],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
 
 
 def one(word_dir, m):

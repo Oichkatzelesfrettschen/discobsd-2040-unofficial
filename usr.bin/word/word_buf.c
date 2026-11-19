@@ -63,9 +63,16 @@
 #define NUNDO	192u		/* undo records */
 #define ADDBIT	0x80000000u	/* piece offset in the add stream */
 
+/*
+ * Every byte carries two property indexes: its character properties and
+ * the paragraph properties of the paragraph it belongs to (the properties
+ * of a paragraph are those its closing line break carries). Both index
+ * small tables of distinct property records; index 0 is the default.
+ */
 struct piece {
 	uint32_t off;		/* source offset, ADDBIT for the add stream */
 	woff_t len;
+	uint8_t chp, pap;
 };
 
 struct blk {
@@ -76,20 +83,29 @@ struct blk {
 	char data[BLK];
 };
 
-enum { U_INS = 1, U_DEL = 2 };
+enum { U_INS = 1, U_DEL = 2, U_FMT = 3 };
 
+/*
+ * An insert or delete names its text by add stream offset and its
+ * properties by index; a format record names the range and the indexes
+ * before (chp, pap) and after (nchp, npap).
+ */
 struct urec {
 	woff_t pos;
 	woff_t len;
 	woff_t ref;		/* add stream offset of the text */
 	uint16_t group;
-	uint8_t kind;
+	uint8_t kind, chp, pap, nchp, npap;
 };
 
 static struct piece pt[NPIECE];
 static unsigned npiece;
 static woff_t doclen;
 static int srcfd = -1;
+
+static struct word_chp chps[WORD_NCHP];
+static struct word_pap paps[WORD_NPAP];
+static unsigned nchp = 1, npap = 1;
 
 static char addram[ADD_RAM];
 static uint32_t addram_len;
@@ -315,6 +331,58 @@ buf_at(woff_t off)
 	return src_at(pt[i].off + (off - s));
 }
 
+int
+buf_props(woff_t off)
+{
+	woff_t s;
+	unsigned i;
+
+	if (off >= doclen)
+		return -1;
+	i = piece_find(off, &s);
+	return pt[i].pap << 8 | pt[i].chp;
+}
+
+const struct word_chp *
+buf_chp(unsigned i)
+{
+	return &chps[i < nchp ? i : 0];
+}
+
+const struct word_pap *
+buf_pap(unsigned i)
+{
+	return &paps[i < npap ? i : 0];
+}
+
+int
+buf_chp_index(const struct word_chp *c)
+{
+	unsigned i;
+
+	for (i = 0; i < nchp; i++)
+		if (memcmp(&chps[i], c, sizeof(*c)) == 0)
+			return (int)i;
+	if (nchp == WORD_NCHP)
+		return -1;
+	chps[nchp] = *c;
+	return (int)nchp++;
+}
+
+int
+buf_pap_index(const struct word_pap *p)
+{
+	unsigned i;
+
+	for (i = 0; i < npap; i++)
+		if (memcmp(&paps[i], p, sizeof(*p)) == 0)
+			return (int)i;
+	if (npap == WORD_NPAP)
+		return -1;
+	paps[npap] = *p;
+	return (int)npap++;
+}
+
 static void
 hint_reset(void)
 {
@@ -333,6 +401,7 @@ split_at(woff_t off)
 	if (i >= npiece || within == 0)
 		return i;
 	memmove(&pt[i + 2], &pt[i + 1], (npiece - i - 1) * sizeof(pt[0]));
+	pt[i + 1] = pt[i];
 	pt[i + 1].off = pt[i].off + within;
 	pt[i + 1].len = pt[i].len - within;
 	pt[i].len = within;
@@ -342,31 +411,40 @@ split_at(woff_t off)
 }
 
 /*
- * Rewrite the document as one add stream piece when the slots run out.
- * The text is unchanged, so every undo record stays valid.
+ * Rewrite the document when the slots run out: neighbouring pieces with
+ * equal properties become one add stream piece. The text and properties
+ * are unchanged, so every undo record stays valid.
  */
 static int
 compact(void)
 {
-	woff_t ref;
+	unsigned i, j, out = 0;
+	woff_t s = 0, len, ref;
 	int e;
 
-	if (doclen == 0) {
-		npiece = 0;
-		return 0;
+	for (i = 0; i < npiece; i = j) {
+		len = 0;
+		for (j = i; j < npiece && pt[j].chp == pt[i].chp &&
+		    pt[j].pap == pt[i].pap; j++)
+			len += pt[j].len;
+		e = add_copy(s, len, &ref);
+		if (e != 0)
+			return e;
+		s += len;
+		pt[out].off = ref | ADDBIT;
+		pt[out].len = len;
+		pt[out].chp = pt[i].chp;
+		pt[out].pap = pt[i].pap;
+		out++;
+		hint_reset();
 	}
-	e = add_copy(0, doclen, &ref);
-	if (e != 0)
-		return e;
-	pt[0].off = ref | ADDBIT;
-	pt[0].len = doclen;
-	npiece = 1;
+	npiece = out;
 	hint_reset();
-	return 0;
+	return npiece + 2 > NPIECE ? ENOSPC : 0;
 }
 
 static int
-raw_insert(woff_t pos, woff_t ref, woff_t n)
+raw_insert(woff_t pos, woff_t ref, woff_t n, unsigned chp, unsigned pap)
 {
 	unsigned i;
 	woff_t s;
@@ -381,7 +459,8 @@ raw_insert(woff_t pos, woff_t ref, woff_t n)
 	if (pos > 0) {
 		i = piece_find(pos - 1, &s);
 		if (s + pt[i].len == pos && (pt[i].off & ADDBIT) &&
-		    pt[i].off + pt[i].len == (ref | ADDBIT)) {
+		    pt[i].off + pt[i].len == (ref | ADDBIT) &&
+		    pt[i].chp == chp && pt[i].pap == pap) {
 			pt[i].len += n;
 			doclen += n;
 			touched(pos);
@@ -392,6 +471,8 @@ raw_insert(woff_t pos, woff_t ref, woff_t n)
 	memmove(&pt[i + 1], &pt[i], (npiece - i) * sizeof(pt[0]));
 	pt[i].off = ref | ADDBIT;
 	pt[i].len = n;
+	pt[i].chp = (uint8_t)chp;
+	pt[i].pap = (uint8_t)pap;
 	npiece++;
 	doclen += n;
 	touched(pos);
@@ -421,8 +502,32 @@ raw_delete(woff_t pos, woff_t n)
 	return 0;
 }
 
-static void
-urec_push(int kind, woff_t pos, woff_t len, woff_t ref)
+/* Set the property indexes of [pos, pos + n); which: 1 chp, 2 pap. */
+static int
+raw_props(woff_t pos, woff_t n, int which, unsigned chp, unsigned pap)
+{
+	unsigned a, b, i;
+	int e;
+
+	if (n == 0)
+		return 0;
+	if (npiece + 2 > NPIECE && (e = compact()) != 0)
+		return e;
+	a = split_at(pos);
+	b = split_at(pos + n);
+	for (i = a; i < b; i++) {
+		if (which & 1)
+			pt[i].chp = (uint8_t)chp;
+		if (which & 2)
+			pt[i].pap = (uint8_t)pap;
+	}
+	touched(pos);
+	return 0;
+}
+
+static struct urec *
+urec_push(int kind, woff_t pos, woff_t len, woff_t ref, unsigned chp,
+    unsigned pap)
 {
 	struct urec *u;
 
@@ -430,9 +535,10 @@ urec_push(int kind, woff_t pos, woff_t len, woff_t ref)
 	if (ucount > 0) {
 		u = &ur[ucount - 1];
 		if (kind == U_INS && u->kind == U_INS && u->group == ugroup &&
-		    u->pos + u->len == pos && u->ref + u->len == ref) {
+		    u->pos + u->len == pos && u->ref + u->len == ref &&
+		    u->chp == chp && u->pap == pap) {
 			u->len += len;
-			return;
+			return NULL;
 		}
 	}
 	if (ucount == NUNDO) {
@@ -440,12 +546,16 @@ urec_push(int kind, woff_t pos, woff_t len, woff_t ref)
 		ucount--;
 	}
 	u = &ur[ucount++];
+	memset(u, 0, sizeof(*u));
 	u->kind = (uint8_t)kind;
 	u->pos = pos;
 	u->len = len;
 	u->ref = ref;
+	u->chp = (uint8_t)chp;
+	u->pap = (uint8_t)pap;
 	u->group = ugroup;
 	upos = ucount;
+	return u;
 }
 
 void
@@ -455,13 +565,41 @@ buf_mark(void)
 }
 
 int
-buf_insert_ref(woff_t pos, woff_t ref, woff_t n)
+buf_insert_props(woff_t pos, woff_t ref, woff_t n, unsigned chp, unsigned pap)
 {
-	int e = raw_insert(pos, ref, n);
+	int e = raw_insert(pos, ref, n, chp, pap);
 
 	if (e == 0 && n > 0)
-		urec_push(U_INS, pos, n, ref);
+		urec_push(U_INS, pos, n, ref, chp, pap);
 	return e;
+}
+
+/*
+ * Text inserted at pos takes the character properties of the byte before
+ * it (or after it, at the start) and the paragraph properties of the
+ * paragraph it enters, which are those of the next line break.
+ */
+void
+buf_props_for(woff_t pos, unsigned *chp, unsigned *pap)
+{
+	woff_t p;
+	int v;
+
+	v = buf_props(pos > 0 ? pos - 1 : pos);
+	*chp = v < 0 ? 0 : (unsigned)(v & 0xff);
+	for (p = pos; p < doclen && buf_at(p) != '\n'; p++)
+		;
+	v = buf_props(p < doclen ? p : (doclen > 0 ? doclen - 1 : 0));
+	*pap = v < 0 ? 0 : (unsigned)(v >> 8);
+}
+
+int
+buf_insert_ref(woff_t pos, woff_t ref, woff_t n)
+{
+	unsigned chp, pap;
+
+	buf_props_for(pos, &chp, &pap);
+	return buf_insert_props(pos, ref, n, chp, pap);
 }
 
 int
@@ -479,6 +617,22 @@ buf_insert(woff_t pos, const char *s, size_t n)
 }
 
 int
+buf_insert_fmt(woff_t pos, const char *s, size_t n, int chp)
+{
+	unsigned c, p;
+	woff_t ref;
+	int e;
+
+	if (n == 0)
+		return 0;
+	e = add_append(s, n, &ref);
+	if (e != 0)
+		return e;
+	buf_props_for(pos, &c, &p);
+	return buf_insert_props(pos, ref, (woff_t)n, chp >= 0 ? (unsigned)chp : c, p);
+}
+
+int
 buf_copy(woff_t pos, woff_t n, woff_t *ref)
 {
 	if (pos > doclen || n > doclen - pos)
@@ -486,10 +640,16 @@ buf_copy(woff_t pos, woff_t n, woff_t *ref)
 	return add_copy(pos, n, ref);
 }
 
+/*
+ * A deletion copies its text into the add stream, then removes it one
+ * property run at a time from the end, so undo restores each run with
+ * its own properties.
+ */
 int
 buf_delete(woff_t pos, woff_t n, woff_t *ref)
 {
-	woff_t r;
+	woff_t r, end, s, run;
+	unsigned i, c, p;
 	int e;
 
 	if (n == 0)
@@ -497,35 +657,83 @@ buf_delete(woff_t pos, woff_t n, woff_t *ref)
 	e = buf_copy(pos, n, &r);
 	if (e != 0)
 		return e;
-	e = raw_delete(pos, n);
-	if (e != 0)
-		return e;
-	urec_push(U_DEL, pos, n, r);
+	end = pos + n;
+	while (end > pos) {
+		i = piece_find(end - 1, &s);
+		run = end - (s > pos ? s : pos);
+		c = pt[i].chp;
+		p = pt[i].pap;
+		e = raw_delete(end - run, run);
+		if (e != 0)
+			return e;
+		urec_push(U_DEL, end - run, run, r + (end - run - pos), c, p);
+		end -= run;
+	}
 	if (ref != NULL)
 		*ref = r;
 	return 0;
 }
 
 int
+buf_restyle(woff_t lo, woff_t hi, int which,
+    int (*fn)(unsigned old, int which, void *ctx), void *ctx)
+{
+	woff_t s, a, b;
+	unsigned i;
+	int ni, e;
+	struct urec *u;
+
+	if (hi > doclen)
+		hi = doclen;
+	while (lo < hi) {
+		i = piece_find(lo, &s);
+		a = lo;
+		b = s + pt[i].len < hi ? s + pt[i].len : hi;
+		ni = fn(which == 1 ? pt[i].chp : pt[i].pap, which, ctx);
+		if (ni < 0)
+			return ENOSPC;
+		if ((which == 1 && pt[i].chp != ni) || (which == 2 && pt[i].pap != ni)) {
+			uint8_t oc = pt[i].chp, op = pt[i].pap;
+
+			e = raw_props(a, b - a, which, (unsigned)ni, (unsigned)ni);
+			if (e != 0)
+				return e;
+			u = urec_push(U_FMT, a, b - a, 0, oc, op);
+			u->nchp = which == 1 ? (uint8_t)ni : oc;
+			u->npap = which == 2 ? (uint8_t)ni : op;
+		}
+		lo = b;
+	}
+	return 0;
+}
+
+static int
+apply(const struct urec *u, int undo, woff_t *pos)
+{
+	if (u->kind == U_FMT) {
+		*pos = u->pos;
+		return raw_props(u->pos, u->len, 3, undo ? u->chp : u->nchp,
+		    undo ? u->pap : u->npap);
+	}
+	if ((u->kind == U_INS) == (undo != 0)) {
+		*pos = u->pos;
+		return raw_delete(u->pos, u->len);
+	}
+	*pos = u->pos + u->len;
+	return raw_insert(u->pos, u->ref, u->len, u->chp, u->pap);
+}
+
+int
 buf_undo(woff_t *pos)
 {
 	uint16_t g;
-	struct urec *u;
 
 	if (upos == 0)
 		return 0;
 	g = ur[upos - 1].group;
 	while (upos > 0 && ur[upos - 1].group == g) {
-		u = &ur[upos - 1];
-		if (u->kind == U_INS) {
-			if (raw_delete(u->pos, u->len) != 0)
-				return -1;
-			*pos = u->pos;
-		} else {
-			if (raw_insert(u->pos, u->ref, u->len) != 0)
-				return -1;
-			*pos = u->pos + u->len;
-		}
+		if (apply(&ur[upos - 1], 1, pos) != 0)
+			return -1;
 		upos--;
 	}
 	ugroup++;
@@ -536,28 +744,18 @@ int
 buf_redo(woff_t *pos)
 {
 	uint16_t g;
-	struct urec *u;
 
 	if (upos == ucount)
 		return 0;
 	g = ur[upos].group;
 	while (upos < ucount && ur[upos].group == g) {
-		u = &ur[upos];
-		if (u->kind == U_INS) {
-			if (raw_insert(u->pos, u->ref, u->len) != 0)
-				return -1;
-			*pos = u->pos + u->len;
-		} else {
-			if (raw_delete(u->pos, u->len) != 0)
-				return -1;
-			*pos = u->pos;
-		}
+		if (apply(&ur[upos], 0, pos) != 0)
+			return -1;
 		upos++;
 	}
 	ugroup++;
 	return 1;
 }
-
 int
 buf_init(void)
 {
@@ -575,6 +773,7 @@ buf_clear(void)
 	npiece = 0;
 	doclen = 0;
 	ucount = upos = 0;
+	nchp = npap = 1;
 	touched(0);
 	hint_reset();
 }
@@ -600,6 +799,7 @@ buf_load(const char *path)
 	if (st.st_size > 0) {
 		pt[0].off = 0;
 		pt[0].len = (woff_t)st.st_size;
+		pt[0].chp = pt[0].pap = 0;
 		npiece = 1;
 		doclen = (woff_t)st.st_size;
 	}

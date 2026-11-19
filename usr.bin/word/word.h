@@ -54,6 +54,35 @@ typedef uint32_t woff_t;		/* byte offset in the document */
 
 /* ---- word_buf.c: the document store ---- */
 
+/*
+ * Character and paragraph properties (SPEC.md, Formatting). Distances are
+ * in twips, 1/1440 inch; the console shows a column as 1/10 inch.
+ */
+#define WORD_NCHP	64
+#define WORD_NPAP	32
+
+enum {
+	CH_BOLD = 0x01, CH_ITALIC = 0x02, CH_UNDER = 0x04, CH_STRIKE = 0x08,
+	CH_UPPER = 0x10, CH_SMALLCAPS = 0x20, CH_DUNDER = 0x40,
+	CH_HIDDEN = 0x80
+};
+enum { POS_NORMAL = 0, POS_SUPER, POS_SUB };
+enum { AL_LEFT = 0, AL_CENTER, AL_RIGHT, AL_JUSTIFY };
+enum { PA_KEEP = 0x01, PA_FOLLOW = 0x02, PA_SIDE = 0x04 };
+
+struct word_chp {
+	uint8_t flags, pos, font, size;	/* size in half points; 0 default */
+	uint8_t color, pad[3];
+};
+
+struct word_pap {
+	uint8_t align, keep;
+	int16_t left, first, right;	/* twips */
+	uint16_t spacing, before, after;	/* twips; spacing 0 is single */
+};
+
+#define TWIPS_PER_COL	144
+
 int	buf_init(void);
 int	buf_load(const char *path);	/* 0, or an errno value */
 void	buf_clear(void);
@@ -62,6 +91,17 @@ int	buf_at(woff_t off);		/* byte, or -1 past the end */
 int	buf_ref_at(woff_t ref);		/* byte of the add stream */
 int	buf_insert(woff_t pos, const char *s, size_t n);
 int	buf_insert_ref(woff_t pos, woff_t ref, woff_t n);
+int	buf_insert_props(woff_t pos, woff_t ref, woff_t n, unsigned chp,
+	    unsigned pap);
+void	buf_props_for(woff_t pos, unsigned *chp, unsigned *pap);
+int	buf_insert_fmt(woff_t pos, const char *s, size_t n, int chp);
+int	buf_props(woff_t off);		/* pap << 8 | chp, or -1 */
+const struct word_chp *buf_chp(unsigned i);
+const struct word_pap *buf_pap(unsigned i);
+int	buf_chp_index(const struct word_chp *c);	/* -1: table full */
+int	buf_pap_index(const struct word_pap *p);
+int	buf_restyle(woff_t lo, woff_t hi, int which,
+	    int (*fn)(unsigned old, int which, void *ctx), void *ctx);
 int	buf_delete(woff_t pos, woff_t n, woff_t *ref);
 int	buf_copy(woff_t pos, woff_t n, woff_t *ref);
 int	buf_merge(woff_t pos, const char *path, woff_t *n);
@@ -125,7 +165,8 @@ enum {
 #define A_BOLD	0x02
 #define A_UL	0x04
 #define A_CLS(n)	((n) << 3)
-enum { C_TEXT, C_BAR, C_KEY, C_TITLE, C_ERR, C_MARK, C_SEL };
+enum { C_TEXT, C_BAR, C_KEY, C_TITLE, C_ERR, C_MARK, C_SEL, C_ITAL, C_STRIKE,
+	C_HIDE, C_SUPER };
 
 /* Cell characters below 0x20 select the DEC line-drawing set. */
 enum { G_DIAMOND = 1, G_HLINE, G_VLINE, G_UL, G_UR, G_LL, G_LR };
@@ -185,7 +226,9 @@ enum word_builtin {
 	ACT_CHDIR,
 	ACT_RUN,
 	ACT_PICK,
-	ACT_COUNT
+	ACT_COUNT,
+	ACT_FCHAR,
+	ACT_FPARA
 };
 
 enum word_act_kind {
@@ -216,7 +259,7 @@ int	word_menu_find_accel(const struct word_menu *m, char ch);
 
 enum { KEYS_WORD = 0, KEYS_VI, KEYS_NANO };
 enum { F_LOAD = 0, F_SAVE, F_MERGE, F_FDELETE, F_RENAME, F_CHDIR, F_SEARCH,
-	F_REPLACE, F_JUMP, F_LINE, F_RUN, F_OPTIONS, F_NFORMS };
+	F_REPLACE, F_JUMP, F_LINE, F_RUN, F_OPTIONS, F_FCHAR, F_FPARA, F_NFORMS };
 
 extern int keymode, running, scrap_lines;
 extern woff_t ed_cur, ed_anchor;

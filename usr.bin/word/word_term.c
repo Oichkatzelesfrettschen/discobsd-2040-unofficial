@@ -379,10 +379,11 @@ static void
 sgr(int attr)
 {
 	static const char *const fg[] = {
-		"", "44;97", "1;36", "1;33", "1;31", "33", "46;30"
+		"", "44;97", "1;36", "1;33", "1;31", "33", "46;30", "32", "31",
+		"90", "35"
 	};
 	char b[32];
-	int cls = (attr >> 3) & 7, col = scr_color && cls > 0 && cls < 7;
+	int cls = (attr >> 3) & 31, col = scr_color && cls > 0 && cls < 11;
 
 	snprintf(b, sizeof(b), "\033[0%s%s%s%s%sm",
 	    (attr & A_BOLD) ? ";1" : "", (attr & A_UL) ? ";4" : "",

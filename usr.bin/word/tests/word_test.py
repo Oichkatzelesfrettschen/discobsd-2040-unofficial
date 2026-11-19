@@ -65,8 +65,10 @@ def check(cond, what):
 class Screen:
     def __init__(self):
         self.cells = [[" "] * COLS for _ in range(ROWS)]
+        self.attrs = [[0] * COLS for _ in range(ROWS)]
         self.r = self.c = 0
         self.acs = False
+        self.sgr = 0
         self.raw = bytearray()
 
     def feed(self, data):
@@ -91,6 +93,7 @@ class Screen:
                     ch = {"`": "*", "q": "-", "x": "|"}.get(ch, "+")
                 if self.r < ROWS and self.c < COLS:
                     self.cells[self.r][self.c] = ch
+                    self.attrs[self.r][self.c] = self.sgr
                 self.c += 1
             i += 1
 
@@ -105,6 +108,20 @@ class Screen:
             self.c = int(p[1]) - 1 if len(p) > 1 and p[1] else 0
         elif s == b"[2J":
             self.cells = [[" "] * COLS for _ in range(ROWS)]
+        elif s.startswith(b"[") and s.endswith(b"m"):
+            # Bit 0 bold, bit 1 underline, bit 2 reverse; color kept above bit 8.
+            for p in s[1:-1].split(b";") if s[1:-1] else [b"0"]:
+                v = int(p) if p else 0
+                if v == 0:
+                    self.sgr = 0
+                elif v == 1:
+                    self.sgr |= 1
+                elif v == 4:
+                    self.sgr |= 2
+                elif v == 7:
+                    self.sgr |= 4
+                elif 30 <= v <= 37 or 90 <= v <= 97:
+                    self.sgr = (self.sgr & 0xFF) | (v << 8)
 
     def row(self, n):
         return "".join(self.cells[n])
@@ -120,8 +137,15 @@ class Session:
         e = dict(os.environ)
         e.pop("WORDKEYS", None)
         e.update(env or {})
-        self.proc = subprocess.Popen([binary] + list(args), stdin=slave, stdout=slave,
-                                     stderr=slave, close_fds=True, cwd=cwd, env=e)
+        self.proc = subprocess.Popen(
+            [binary] + list(args),
+            stdin=slave,
+            stdout=slave,
+            stderr=slave,
+            close_fds=True,
+            cwd=cwd,
+            env=e,
+        )
         os.close(slave)
         self.fd = master
         self.scr = Screen()
@@ -230,8 +254,7 @@ def t_wrap(b, td):
         check(len(r) <= COLS, "row wider than the screen")
         joined.extend(r.split())
     check(joined == words, "wrapped rows split or lose a word")
-    check(len([r for r in rows if r and not r.startswith("second")]) >= 5,
-          "paragraph did not wrap")
+    check(len([r for r in rows if r and not r.startswith("second")]) >= 5, "paragraph did not wrap")
     # Wrap off: the first row is cut at the edge and the second paragraph follows.
     menu(s, b"o")
     s.send(b"\t", b"n", b"\r")
@@ -397,8 +420,71 @@ def t_ansi(b, td):
     check(s.close(expect_exit=False) == 2, "-l was accepted")
 
 
-TESTS = [t_save_menu, t_wrap, t_search_replace, t_undo_scrap, t_vi, t_nano,
-         t_picker, t_large, t_ansi]
+SHIFT_LEFT = b"\x1b[1;2D"
+ALT = b"\x01"
+
+
+def t_format(b, td):
+    s = Session(b, [os.path.join(td, "f.txt")])
+    s.send(b"plain bold")
+    for _ in range(4):
+        s.send(SHIFT_LEFT)
+    s.send(ALT, b"b")
+    s.send(b"\x1b[F")
+    row = s.scr.row(0)
+    check(row.startswith("plain bold"), "text missing: %r" % row)
+    check(all(s.scr.attrs[0][c] & 1 for c in range(6, 10)), "selection not bold")
+    check(not any(s.scr.attrs[0][c] & 1 for c in range(0, 5)), "bold leaked")
+    # Typing after a speed key with no selection uses the typing format.
+    s.send(ALT, b"u", b"X")
+    check(s.scr.attrs[0][10] & 2 and s.scr.row(0)[10] == "X", "typing format not underlined")
+    # Undo removes the typed X, then the bold.
+    s.send(SHIFT, F1, SHIFT, F1)
+    check(not any(s.scr.attrs[0][c] & 1 for c in range(6, 10)), "undo kept the bold")
+    s.send(b"\x19")
+    check(all(s.scr.attrs[0][c] & 1 for c in range(6, 10)), "redo lost the bold")
+    # Format Paragraph: centered, then a bad measurement is refused.
+    menu(s, b"f", b"p")
+    check(s.has("FORMAT PARAGRAPH") and s.has("alignment:"), "Format Paragraph form missing")
+    s.send(b"c", b"\r")
+    check(s.scr.row(0).index("plain") == (COLS - 10) // 2, "paragraph not centered")
+    menu(s, b"f", b"p")
+    s.send(b"\t", b"abc", b"\r")
+    check(s.has("Not a valid measurement"), "bad indent accepted")
+    s.send(ALT, b"l")
+    check(s.scr.row(0).startswith("plain"), "Alt+L did not align left")
+    # Left indent 1" wraps the paragraph ten columns in.
+    s.send(b"\x1b[F", b" " + b"word " * 20)
+    menu(s, b"f", b"p")
+    s.send(b"\t", b"1", b"\r")
+    rows = [s.scr.row(n) for n in range(4)]
+    check(all(r.startswith(" " * 10) and r[10] != " " for r in rows[:3]), "indent rows %r" % rows)
+    words = [w for w in " ".join(r.strip() for r in rows).split() if w != "*"]
+    check(words == ["plain", "bold"] + ["word"] * 20, "indented wrap lost words %r" % words)
+    # Format Character fields reflect the selection and set italic.
+    s.send(CTRLP, b"\x15", b"\x1b[1;2C" * 5)
+    menu(s, b"f", b"c")
+    check(s.has("FORMAT CHARACTER") and s.has("italic:"), "Format Character form missing")
+    s.send(b"\t", b"y", b"\r", RIGHT)
+    check(all((s.scr.attrs[0][c + 10] >> 8) == 32 for c in range(5)), "italic not shown")
+    check(not s.scr.attrs[0][16] >> 8, "italic past the selection")
+    menu(s, b"q")
+    s.send(b"n")
+    s.close()
+
+
+TESTS = [
+    t_format,
+    t_save_menu,
+    t_wrap,
+    t_search_replace,
+    t_undo_scrap,
+    t_vi,
+    t_nano,
+    t_picker,
+    t_large,
+    t_ansi,
+]
 
 
 def main():

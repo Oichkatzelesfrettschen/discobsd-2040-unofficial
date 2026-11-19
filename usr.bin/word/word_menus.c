@@ -54,8 +54,8 @@ static const struct word_menu_item main_items[] = {
 };
 
 static const struct word_menu_item format_items[] = {
-	{ "Character", 'C', KIND_TODO, 0 },
-	{ "Paragraph", 'P', KIND_TODO, 0 },
+	{ "Character", 'C', KIND_BUILTIN, ACT_FCHAR },
+	{ "Paragraph", 'P', KIND_BUILTIN, ACT_FPARA },
 	{ "Tab", 'T', KIND_TODO, 0 },
 	{ "Border", 'B', KIND_TODO, 0 },
 	{ "Footnote", 'F', KIND_TODO, 0 },

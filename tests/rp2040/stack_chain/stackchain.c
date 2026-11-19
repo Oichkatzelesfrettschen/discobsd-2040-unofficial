@@ -27,8 +27,11 @@
 
 /*
  * Drive the kernel call chains the static stack bound of
- * docs/research/kernel-size-flags names, one stage per invocation, so that
- * kern.capacity read between invocations gives each stage's watermark.
+ * docs/research/kernel-size-flags names, one stage per invocation.
+ * kern.capacity reports the deepest kernel stack since boot and has no
+ * reset, so a stage's own depth is the reading after that stage alone on a
+ * fresh boot; in a sequence of stages a reading bounds every stage so far
+ * and only a rise belongs to the stage that produced it.
  *
  *	stackchain [-a] [-d dir] stage
  *

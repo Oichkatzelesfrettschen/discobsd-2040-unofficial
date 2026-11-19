@@ -50,16 +50,27 @@ COMMENT = "".join(
     )
 )
 FLAGS = "    oip->i_flag |= ICHG|IUPD;\n"
-CHECK = """        if (error) {
-            u.u_error = error;
+RESTORE = """            oip->i_size = tip.i_size;
+            bcopy(tip.i_addr, oip->i_addr, NADDR * sizeof(daddr_t));
+"""
+CHECK = (
+    "        if (error) {\n"
+    + RESTORE
+    + """            u.u_error = error;
             return;
         }
 """
+)
+INDIRECT = "        if ((aflags & B_SYNC) || lastbn >= 0) {\n"
 UPDATE = (
     """    {
         int error = iupdat(oip, &time, &time, 1);
 
-        /* Nothing is freed while the device still holds the old addresses. */
+        /*
+         * Nothing is freed while the device still holds the old addresses,
+         * and the inode goes back to naming them, so that it agrees with
+         * the device and a later truncation finds the blocks to free.
+         */
 """
     + CHECK
     + "    }\n"
@@ -93,6 +104,16 @@ MUTATIONS = {
     "write-error-ignored": (
         WRITE,
         WRITE.replace(CHECK, "        (void)error;\n"),
+    ),
+    # A failed inode write leaves the shortened inode in core.
+    "failed-write-not-restored": (
+        WRITE,
+        WRITE.replace(RESTORE, ""),
+    ),
+    # A kept indirect block is written behind the frees of its entries.
+    "indirect-write-async": (
+        INDIRECT,
+        "        if (aflags & B_SYNC) {\n",
     ),
     # The final update repeats the write the early one made.
     "second-write-kept": (

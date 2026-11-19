@@ -179,17 +179,26 @@ brelse(struct buf *bp)
 	gate_release(bp);
 }
 
-/* Nonzero makes the next synchronous write fail with that error. */
+/*
+ * Nonzero makes a write fail with that error, once: the write after
+ * fail_skip others have passed.
+ */
 static int fail_write;
+static unsigned fail_skip;
 
+/* bawrite() of sys/buf.h arrives here with B_ASYNC set. */
 int
 bwrite(struct buf *bp)
 {
-	int error = fail_write;
+	int error = 0;
 
-	fail_write = 0;
+	if (fail_write != 0 && fail_skip-- == 0) {
+		error = fail_write;
+		fail_write = 0;
+	}
 	if (error == 0)
-		record(EV_WRITE_SYNC, bp->b_blkno);
+		record((bp->b_flags & B_ASYNC) ? EV_WRITE_DELAYED :
+		    EV_WRITE_SYNC, bp->b_blkno);
 	gate_release(bp);
 	return error;
 }
@@ -323,6 +332,22 @@ run_case(const char *name, int ndirect, int nindirect, int async,
 	/* A synchronous inode write precedes every free. */
 	HK_CHECK(first_write >= 0);
 	HK_CHECK(first_free != EV_MAX && (unsigned)first_write < first_free);
+	/*
+	 * An indirect block that keeps entries stays named by the inode, so
+	 * its cleared copy is on the device before the first free as well.
+	 */
+	if (length > (off_t)NDADDR * DEV_BSIZE) {
+		int indirect_write = -1;
+
+		for (i = 0; i < nevents; i++)
+			if (events[i].kind == EV_WRITE_SYNC &&
+			    events[i].blkno == blocks_of_file[ndirect]) {
+				indirect_write = (int)i;
+				break;
+			}
+		HK_CHECK(indirect_write >= 0 &&
+		    (unsigned)indirect_write < first_free);
+	}
 	/* One inode write for the whole truncation. */
 	HK_CHECK(inode_writes == 1);
 	if (first_write < 0)
@@ -350,10 +375,17 @@ static void
 run_failed_write(const char *name, int ndirect, int nindirect)
 {
 	unsigned i, frees = 0;
+	struct inode before;
 
 	build(ndirect, nindirect, 0);
+	before = gate_ip;
 	fail_write = EIO;
+	fail_skip = 0;
 	itrunc(&gate_ip, 0, 0);
+	/* The inode names its blocks again, as the device still does. */
+	HK_CHECK(gate_ip.i_size == before.i_size);
+	HK_CHECK(bcmp((caddr_t)gate_ip.i_addr, (caddr_t)before.i_addr,
+	    NADDR * sizeof(daddr_t)) == 0);
 	for (i = 0; i < nevents; i++)
 		if (events[i].kind == EV_FREE)
 			frees++;
@@ -361,6 +393,30 @@ run_failed_write(const char *name, int ndirect, int nindirect)
 	HK_CHECK(u.u_error == EIO);
 	HK_CHECK(frees == 0);
 	HK_CHECK((gate_ip.i_flag & (IUPD | ICHG)) == (IUPD | ICHG));
+	HK_CHECK(fail_write == 0);
+	u.u_error = 0;
+}
+
+/*
+ * The write of an indirect block that keeps entries fails: the blocks its
+ * cleared entries named are not freed.
+ */
+static void
+run_failed_indirect_write(void)
+{
+	unsigned i, frees = 0;
+
+	build(NDADDR, 3, 0);
+	fail_write = EIO;
+	fail_skip = 1;			/* the inode write passes */
+	itrunc(&gate_ip, (off_t)(NDADDR + 1) * DEV_BSIZE, 0);
+	for (i = 0; i < nevents; i++)
+		if (events[i].kind == EV_FREE)
+			frees++;
+	hk_note("indirect block write fails: error %d, %u frees\n",
+	    u.u_error, frees);
+	HK_CHECK(u.u_error == EIO);
+	HK_CHECK(frees == 0);
 	HK_CHECK(fail_write == 0);
 	u.u_error = 0;
 }
@@ -374,6 +430,9 @@ main(void)
 	run_case("indirect, truncate to 0", NDADDR, 3, 0, 0, NDADDR + 4);
 	run_case("indirect, keep the direct blocks", NDADDR, 3, 1,
 	    NDADDR * DEV_BSIZE, 4);
+	run_case("indirect, keep one indirect entry", NDADDR, 3, 1,
+	    (off_t)(NDADDR + 1) * DEV_BSIZE, 2);
+	run_failed_indirect_write();
 	run_failed_write("direct, inode write fails", NDADDR, 0);
 	run_failed_write("indirect, inode write fails", NDADDR, 3);
 	return hk_verdict("itrunc order");

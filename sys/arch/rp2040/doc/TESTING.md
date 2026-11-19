@@ -1921,14 +1921,19 @@ The cases truncate direct and single-indirect files to zero and to a block
 boundary, on a synchronous and an `MNT_ASYNC` mount, entering with clean
 inode flags, which `iupdat()` answers with an early return. Two more cases
 fail the inode write and require the error in `u.u_error`, no block freed
-and the inode left dirty, since the device then still holds every old
-address. Five mutants of
+and the inode left dirty and naming its blocks again, since the device then
+still holds every old address. A truncation that keeps one entry of the
+indirect block requires that block's cleared copy written synchronously
+before the first free, and a failure of that write frees nothing. Seven
+mutants of
 `itrunc_order_mutate.py` are rejected through the gate's own verdict:
 `inode-after-frees` restores the source as it stood before the change
 , `flags-not-marked` and `inode-write-delayed`
 each leave no synchronous inode write ahead of the frees,
-`second-write-kept` repeats the inode write after the frees, and
-`write-error-ignored` frees the blocks after a failed inode write.
+`second-write-kept` repeats the inode write after the frees,
+`write-error-ignored` frees the blocks after a failed inode write,
+`failed-write-not-restored` leaves the shortened inode in core after it,
+and `indirect-write-async` writes a kept indirect block behind the frees.
 `check-itrunc-order-mutants` runs them.
 
 The fifth file, `sys/kern/subr_prf.c`, uses the compiler's variadic argument

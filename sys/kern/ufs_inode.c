@@ -523,9 +523,21 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
         bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, bn);
         bzero((caddr_t)&bap[last + 1],
             (u_int)(FS_NINDIR(INODE_FILESYSTEM(ip)) - (last + 1)) * sizeof(daddr_t));
-        if (aflags & B_SYNC)
-            bwrite(bp);
-        else
+        if ((aflags & B_SYNC) || lastbn >= 0) {
+            /*
+             * A block that keeps some of its entries stays named by the
+             * inode, so its cleared entries reach the device before the
+             * blocks they named are freed, as the inode does in itrunc();
+             * a block freed whole is already unnamed on the device.
+             */
+            int error = bwrite(bp);
+
+            if (error && lastbn >= 0) {
+                u.u_error = error;
+                brelse(cpy);
+                return;
+            }
+        } else
             bawrite(bp);
         bp = cpy;
     }
@@ -688,8 +700,14 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
     {
         int error = iupdat(oip, &time, &time, 1);
 
-        /* Nothing is freed while the device still holds the old addresses. */
+        /*
+         * Nothing is freed while the device still holds the old addresses,
+         * and the inode goes back to naming them, so that it agrees with
+         * the device and a later truncation finds the blocks to free.
+         */
         if (error) {
+            oip->i_size = tip.i_size;
+            bcopy(tip.i_addr, oip->i_addr, NADDR * sizeof(daddr_t));
             u.u_error = error;
             return;
         }

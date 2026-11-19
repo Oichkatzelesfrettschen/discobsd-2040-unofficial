@@ -2007,7 +2007,8 @@ ITRUNC_ORDER_DEFS=	${IALLOC_PICO_DEFS} -Dfree=itrunc_order_free
 ITRUNC_ORDER_CFLAGS=	-ffunction-sections -fdata-sections
 ITRUNC_ORDER_LDFLAGS=	-Wl,--gc-sections
 ITRUNC_ORDER_MUTANTS=	inode-after-frees flags-not-marked inode-write-delayed \
-			second-write-kept write-error-ignored
+			second-write-kept write-error-ignored \
+			failed-write-not-restored indirect-write-async
 
 itrunc_order_test: itrunc_order_test.c ${ITRUNC_ORDER_SRC} hostkern32.o \
     hostkern.h ${MACHINE_STAMP}

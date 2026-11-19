@@ -49,7 +49,6 @@
 #include <unistd.h>
 
 #define PAGE_LINES	54	/* a 9-inch text area at six lines per inch */
-#define TR(e, d)	(lang == LANG_DE ? (d) : (e))
 
 enum ui {
 	U_EDIT = 0, U_MENU, U_FORM, U_CONF_REPL, U_CONF_QUIT, U_CONF_CLEAR,
@@ -57,7 +56,6 @@ enum ui {
 };
 
 int keymode = KEYS_WORD, running = 1, scrap_lines;
-enum word_lang lang = LANG_EN;
 woff_t ed_cur, ed_anchor;
 int ed_sel;
 char ed_file[WORD_PATH_MAX];
@@ -84,9 +82,9 @@ static unsigned mdepth;
 /* ---- messages ---- */
 
 void
-ed_msg(int err, const char *en, const char *de)
+ed_msg(int err, const char *s)
 {
-	snprintf(msg, sizeof(msg), "%s", TR(en, de));
+	snprintf(msg, sizeof(msg), "%s", s);
 	msg_err = err;
 }
 
@@ -488,7 +486,7 @@ ed_paste(woff_t at)
 	int e;
 
 	if (scrap_len == 0) {
-		ed_msg(1, "The scrap is empty", "Der Zwischenspeicher ist leer");
+		ed_msg(1, "The scrap is empty");
 		return;
 	}
 	e = buf_insert_ref(at, scrap_ref, scrap_len);
@@ -507,7 +505,7 @@ ed_undo(void)
 	int r = buf_undo(&p);
 
 	if (r <= 0) {
-		ed_msg(r < 0, "Nothing to undo", "Nichts rueckgaengig zu machen");
+		ed_msg(r < 0, "Nothing to undo");
 		return;
 	}
 	ed_set(p);
@@ -521,7 +519,7 @@ ed_redo(void)
 	int r = buf_redo(&p);
 
 	if (r <= 0) {
-		ed_msg(r < 0, "Nothing to redo", "Nichts zu wiederholen");
+		ed_msg(r < 0, "Nothing to redo");
 		return;
 	}
 	ed_set(p);
@@ -553,7 +551,7 @@ ed_save(const char *path)
 	int e;
 
 	if (path[0] == '\0') {
-		ed_msg(1, "No file name", "Kein Dateiname");
+		ed_msg(1, "No file name");
 		return -1;
 	}
 	e = buf_save(path, opt_backup);
@@ -564,7 +562,7 @@ ed_save(const char *path)
 	if (path != ed_file)
 		snprintf(ed_file, sizeof(ed_file), "%s", path);
 	saved_gen = buf_gen();
-	ed_msgf(0, TR("Saved %s: %lu bytes", "Gespeichert %s: %lu Bytes"),
+	ed_msgf(0, "Saved %s: %lu bytes",
 	    path, (unsigned long)buf_len());
 	return 0;
 }
@@ -580,13 +578,13 @@ ed_load(const char *path)
 	if (e == ENOENT) {
 		buf_clear();
 		snprintf(ed_file, sizeof(ed_file), "%s", p);
-		ed_msg(0, "New file", "Neue Datei");
+		ed_msg(0, "New file");
 	} else if (e != 0) {
 		msg_errno(e);
 		return -1;
 	} else {
 		snprintf(ed_file, sizeof(ed_file), "%s", p);
-		ed_msgf(0, TR("Loaded %s: %lu bytes", "Geladen %s: %lu Bytes"),
+		ed_msgf(0, "Loaded %s: %lu bytes",
 		    p, (unsigned long)buf_len());
 	}
 	saved_gen = buf_gen();
@@ -604,15 +602,14 @@ ed_quit(int force)
 		return;
 	}
 	ui = U_CONF_QUIT;
-	ed_msg(0, "Save changes? Y saves, N discards, Esc stays",
-	    "Aenderungen speichern? J speichert, N verwirft, Esc bleibt");
+	ed_msg(0, "Save changes? Y saves, N discards, Esc stays");
 }
 
 void
 ed_info(void)
 {
 	ed_msgf(0, "\"%s\"%s %lu bytes, line %lu",
-	    ed_file[0] ? ed_file : TR("(no name)", "(ohne Namen)"),
+	    ed_file[0] ? ed_file : "(no name)",
 	    ed_dirty() ? " *" : "", (unsigned long)buf_len(),
 	    (unsigned long)line_of(ed_cur) + 1);
 }
@@ -636,8 +633,7 @@ word_count(void)
 	}
 	if (len > 0 && buf_at(len - 1) != '\n')
 		lines++;
-	ed_msgf(0, TR("%lu words, %lu lines, %lu characters",
-	    "%lu Woerter, %lu Zeilen, %lu Zeichen"), (unsigned long)words,
+	ed_msgf(0, "%lu words, %lu lines, %lu characters", (unsigned long)words,
 	    (unsigned long)lines, (unsigned long)len);
 }
 
@@ -657,7 +653,7 @@ ed_search(const char *text, int down, int again)
 	if (text != NULL && text != f_text)
 		snprintf(f_text, sizeof(f_text), "%s", text);
 	if (f_text[0] == '\0') {
-		ed_msg(1, "No search text", "Kein Suchtext");
+		ed_msg(1, "No search text");
 		return;
 	}
 	s_up = !down;
@@ -668,7 +664,7 @@ ed_search(const char *text, int down, int again)
 	} else if (again && down && from < buf_len())
 		from++;
 	if (!word_pat_find(&pat, from, down, &s, &e)) {
-		ed_msg(1, "Search text not found", "Suchtext nicht gefunden");
+		ed_msg(1, "Search text not found");
 		return;
 	}
 	ed_anchor = s;
@@ -689,13 +685,12 @@ replace_from(woff_t from)
 			ed_set(e);
 			ed_sel = 1;
 			ui = U_CONF_REPL;
-			ed_msg(0, "Replace? Y replaces, N skips, A all, Esc stops",
-			    "Ersetzen? J ersetzt, N weiter, A alle, Esc Ende");
+			ed_msg(0, "Replace? Y replaces, N skips, A all, Esc stops");
 			return;
 		}
 		if (buf_delete(s, e - s, NULL) != 0 ||
 		    buf_insert(s, f_with, rl) != 0) {
-			ed_msg(1, "Replace failed", "Ersetzen fehlgeschlagen");
+			ed_msg(1, "Replace failed");
 			break;
 		}
 		nrepl++;
@@ -704,7 +699,7 @@ replace_from(woff_t from)
 	}
 	ui = U_EDIT;
 	ed_sel = 0;
-	ed_msgf(0, TR("%lu replacements", "%lu Ersetzungen"), nrepl);
+	ed_msgf(0, "%lu replacements", nrepl);
 }
 
 static void
@@ -717,8 +712,8 @@ replace_key(int k)
 	if (k == K_ESC) {
 		ui = U_EDIT;
 		ed_sel = 0;
-		ed_msgf(0, TR("%lu replacements", "%lu Ersetzungen"), nrepl);
-	} else if (up == 'Y' || up == 'J' || up == 'A') {
+		ed_msgf(0, "%lu replacements", nrepl);
+	} else if (up == 'Y' || up == 'A') {
 		if (up == 'A')
 			r_confirm = 0;
 		buf_delete(s, e - s, NULL);
@@ -734,58 +729,57 @@ replace_key(int k)
 enum { T_TEXT, T_CHOICE };
 
 struct field {
-	const char *en, *de;
+	const char *name;
 	uint8_t type, nch, file;
-	const char *ch_en, *ch_de;	/* choices separated by '|' */
+	const char *choices;	/* choices separated by '|' */
 	char *buf;
 	size_t cap;
 };
 
 struct form {
-	const char *en, *de;
+	const char *name;
 	uint8_t nf;
 	struct field f[6];
 };
 
-#define TXT(e, d, b)	{ e, d, T_TEXT, 0, 0, NULL, NULL, b, sizeof(b) }
-#define FIL(e, d, b)	{ e, d, T_TEXT, 0, 1, NULL, NULL, b, sizeof(b) }
-#define CHO(e, d, n, ce, cd)	{ e, d, T_CHOICE, n, 0, ce, cd, NULL, 0 }
-#define YESNO(e, d)	CHO(e, d, 2, "Yes|No", "Ja|Nein")
+#define TXT(e, b)	{ e, T_TEXT, 0, 0, NULL, b, sizeof(b) }
+#define FIL(e, b)	{ e, T_TEXT, 0, 1, NULL, b, sizeof(b) }
+#define CHO(e, n, ce)	{ e, T_CHOICE, n, 0, ce, NULL, 0 }
+#define YESNO(e)	CHO(e, 2, "Yes|No")
 
 static const struct form forms[F_NFORMS] = {
-	[F_LOAD] = { "TRANSFER LOAD", "UEBERTRAGEN LADEN", 1,
-	    { FIL("filename", "Dateiname", f_name) } },
-	[F_SAVE] = { "TRANSFER SAVE", "UEBERTRAGEN SPEICHERN", 2,
-	    { FIL("filename", "Dateiname", f_name),
-	      YESNO("backup", "Sicherung") } },
-	[F_MERGE] = { "TRANSFER MERGE", "UEBERTRAGEN EINFUEGEN", 1,
-	    { FIL("filename", "Dateiname", f_name) } },
-	[F_FDELETE] = { "TRANSFER DELETE", "UEBERTRAGEN ENTFERNEN", 1,
-	    { FIL("filename", "Dateiname", f_name) } },
-	[F_RENAME] = { "TRANSFER RENAME", "UEBERTRAGEN UMBENENNEN", 1,
-	    { FIL("filename", "Dateiname", f_name) } },
-	[F_CHDIR] = { "TRANSFER OPTIONS", "UEBERTRAGEN OPTIONEN", 1,
-	    { TXT("setup", "Verzeichnis", f_name) } },
-	[F_SEARCH] = { "SEARCH", "SUCHEN", 4,
-	    { TXT("text", "Text", f_text),
-	      CHO("direction", "Richtung", 2, "Up|Down", "Aufwaerts|Abwaerts"),
-	      YESNO("case", "Gross/Klein"), YESNO("whole word", "Ganzes Wort") } },
-	[F_REPLACE] = { "REPLACE", "WECHSELN", 5,
-	    { TXT("text", "Text", f_text), TXT("with text", "durch", f_with),
-	      YESNO("confirm", "Bestaetigen"), YESNO("case", "Gross/Klein"),
-	      YESNO("whole word", "Ganzes Wort") } },
-	[F_JUMP] = { "JUMP PAGE", "GEHEZU SEITE", 1,
-	    { TXT("number", "Nummer", f_num) } },
-	[F_LINE] = { "JUMP LINE", "GEHEZU ZEILE", 1,
-	    { TXT("number", "Nummer", f_num) } },
-	[F_RUN] = { "LIBRARY RUN", "BIBLIOTHEK BETRIEBSSYSTEM", 1,
-	    { TXT("command", "Befehl", f_cmd) } },
-	[F_OPTIONS] = { "OPTIONS", "ZUSAETZE", 6,
-	    { CHO("keys", "Tasten", 3, "Word|vi|nano", "Word|vi|nano"),
-	      YESNO("wrap", "Umbruch"), YESNO("hints", "Hinweise"),
-	      YESNO("color", "Farbe"),
-	      CHO("language", "Sprache", 2, "English|Deutsch", "English|Deutsch"),
-	      CHO("tab width", "Tabulator", 2, "4|8", "4|8") } }
+	[F_LOAD] = { "TRANSFER LOAD", 1,
+	    { FIL("filename", f_name) } },
+	[F_SAVE] = { "TRANSFER SAVE", 2,
+	    { FIL("filename", f_name),
+	      YESNO("backup") } },
+	[F_MERGE] = { "TRANSFER MERGE", 1,
+	    { FIL("filename", f_name) } },
+	[F_FDELETE] = { "TRANSFER DELETE", 1,
+	    { FIL("filename", f_name) } },
+	[F_RENAME] = { "TRANSFER RENAME", 1,
+	    { FIL("filename", f_name) } },
+	[F_CHDIR] = { "TRANSFER OPTIONS", 1,
+	    { TXT("setup", f_name) } },
+	[F_SEARCH] = { "SEARCH", 4,
+	    { TXT("text", f_text),
+	      CHO("direction", 2, "Up|Down"),
+	      YESNO("case"), YESNO("whole word") } },
+	[F_REPLACE] = { "REPLACE", 5,
+	    { TXT("text", f_text), TXT("with text", f_with),
+	      YESNO("confirm"), YESNO("case"),
+	      YESNO("whole word") } },
+	[F_JUMP] = { "JUMP PAGE", 1,
+	    { TXT("number", f_num) } },
+	[F_LINE] = { "JUMP LINE", 1,
+	    { TXT("number", f_num) } },
+	[F_RUN] = { "LIBRARY RUN", 1,
+	    { TXT("command", f_cmd) } },
+	[F_OPTIONS] = { "OPTIONS", 5,
+	    { CHO("keys", 3, "Word|vi|nano"),
+	      YESNO("wrap"), YESNO("hints"),
+	      YESNO("color"),
+	      CHO("tab width", 2, "4|8") } }
 };
 
 static int fid, fcur, ffresh;
@@ -851,8 +845,7 @@ ed_form(int id)
 		fval[1] = !opt_wrap;
 		fval[2] = !hints_on();
 		fval[3] = !scr_color;
-		fval[4] = lang == LANG_DE;
-		fval[5] = tabw == 8;
+		fval[4] = tabw == 8;
 		break;
 	default:
 		break;
@@ -871,8 +864,7 @@ form_run(void)
 	switch (fid) {
 	case F_LOAD:
 		if (ed_dirty()) {
-			ed_msg(1, "Unsaved edits: save or clear first",
-			    "Ungespeichert: erst speichern oder loeschen");
+			ed_msg(1, "Unsaved edits: save or clear first");
 			break;
 		}
 		ed_load(f_name);
@@ -890,7 +882,7 @@ form_run(void)
 		if (e != 0)
 			msg_errno(e);
 		else
-			ed_msgf(0, TR("Merged %lu bytes", "%lu Bytes eingefuegt"),
+			ed_msgf(0, "Merged %lu bytes",
 			    (unsigned long)got);
 		break;
 	}
@@ -898,7 +890,7 @@ form_run(void)
 		if (unlink(f_name) != 0)
 			msg_errno(errno);
 		else
-			ed_msg(0, "File deleted", "Datei entfernt");
+			ed_msg(0, "File deleted");
 		break;
 	case F_RENAME:
 		if (ed_file[0] != '\0' && access(ed_file, F_OK) == 0 &&
@@ -907,7 +899,7 @@ form_run(void)
 			break;
 		}
 		snprintf(ed_file, sizeof(ed_file), "%s", f_name);
-		ed_msg(0, "Renamed", "Umbenannt");
+		ed_msg(0, "Renamed");
 		break;
 	case F_CHDIR:
 		if (chdir(f_name) != 0)
@@ -925,7 +917,7 @@ form_run(void)
 		s_case = fval[3] == 0;
 		s_whole = fval[4] == 0;
 		if (f_text[0] == '\0') {
-			ed_msg(1, "No search text", "Kein Suchtext");
+			ed_msg(1, "No search text");
 			break;
 		}
 		word_pat_compile(&pat, f_text, s_case, s_whole);
@@ -946,8 +938,7 @@ form_run(void)
 		tty_restore();
 		if (system(f_cmd) < 0)
 			perror("word");
-		fputs(TR("\nPress Enter to return to word.",
-		    "\nEingabetaste kehrt zu word zurueck."), stdout);
+		fputs("\nPress Enter to return to word.", stdout);
 		fflush(stdout);
 		{
 			char line[8];
@@ -963,8 +954,7 @@ form_run(void)
 		leftcol = 0;
 		opt_hints = fval[2] == 0;
 		scr_color = fval[3] == 0;
-		lang = fval[4] ? LANG_DE : LANG_EN;
-		tabw = fval[5] ? 8 : 4;
+		tabw = fval[4] ? 8 : 4;
 		scr_invalidate();
 		vi_reset();
 		break;
@@ -983,7 +973,7 @@ form_key(int k)
 	if (k == K_ESC) {
 		ui = U_EDIT;
 		quit_after = 0;
-		ed_msg(0, "Cancelled", "Abgebrochen");
+		ed_msg(0, "Cancelled");
 		return;
 	}
 	if (k == K_ENTER) {
@@ -1010,8 +1000,7 @@ form_key(int k)
 			fval[fcur] = (uint8_t)((fval[fcur] + fl->nch - 1) % fl->nch);
 		else if (k > ' ' && k < 0x7f)
 			for (i = 0; i < fl->nch; i++)
-				if (tolower((unsigned char)choice(TR(fl->ch_en,
-				    fl->ch_de), i, a, sizeof(a))[0]) == tolower(k))
+				if (tolower((unsigned char)choice(fl->choices, i, a, sizeof(a))[0]) == tolower(k))
 					fval[fcur] = (uint8_t)i;
 		return;
 	}
@@ -1053,8 +1042,7 @@ ed_menu(void)
 	mstack[0].id = MENU_MAIN;
 	mstack[0].sel = 0;
 	ui = U_MENU;
-	ed_msg(0, "Type a command's letter, or move and press Enter",
-	    "Buchstaben tippen, oder waehlen und Eingabe");
+	ed_msg(0, "Type a command's letter, or move and press Enter");
 }
 
 void
@@ -1067,8 +1055,7 @@ void
 ed_pick(void)
 {
 	if (ed_dirty()) {
-		ed_msg(1, "Unsaved edits: save or clear first",
-		    "Ungespeichert: erst speichern oder loeschen");
+		ed_msg(1, "Unsaved edits: save or clear first");
 		return;
 	}
 	if (pick_open(".") != 0) {
@@ -1088,7 +1075,7 @@ do_clear(void)
 	ed_set(0);
 	top = 0;
 	ed_sel = 0;
-	ed_msg(0, "Document cleared", "Dokument geleert");
+	ed_msg(0, "Document cleared");
 }
 
 static void
@@ -1188,8 +1175,7 @@ builtin(int b)
 	case ACT_CLEAR:
 		if (ed_dirty()) {
 			ui = U_CONF_CLEAR;
-			ed_msg(0, "Discard unsaved edits? Y or N",
-			    "Ungespeichertes verwerfen? J oder N");
+			ed_msg(0, "Discard unsaved edits? Y or N");
 		} else
 			do_clear();
 		break;
@@ -1219,11 +1205,11 @@ menu_key(int k)
 	else if (k == K_RIGHT || k == ' ' || k == K_TAB)
 		mf->sel = (uint8_t)((mf->sel + 1) % m->count);
 	else if (k == K_ENTER)
-		it = word_menu_item_at(m, lang, mf->sel);
-	else if (k > ' ' && k < 0x7f && (i = word_menu_find_accel(m, lang,
+		it = word_menu_item_at(m, mf->sel);
+	else if (k > ' ' && k < 0x7f && (i = word_menu_find_accel(m,
 	    (char)k)) >= 0) {
 		mf->sel = (uint8_t)i;
-		it = word_menu_item_at(m, lang, mf->sel);
+		it = word_menu_item_at(m, mf->sel);
 	}
 	if (it == NULL)
 		return;
@@ -1235,9 +1221,8 @@ menu_key(int k)
 		builtin(it->target);
 	else {
 		ui = U_EDIT;
-		ed_msgf(1, TR("%s is not available in this version",
-		    "%s ist in dieser Version nicht vorhanden"),
-		    TR(it->en, it->de));
+		ed_msgf(1, "%s is not available in this version",
+		    it->name);
 	}
 }
 
@@ -1389,17 +1374,17 @@ word_key(int k)
 	b = k & K_BASE;
 	if (k == KCTRL('z')) {
 		pmod = KM_SHIFT;
-		ed_msg(0, "Shift", "Umschalt");
+		ed_msg(0, "Shift");
 		return;
 	}
 	if (k == KCTRL('a')) {
 		pmod = KM_ALT;
-		ed_msg(0, "Alt", "Alt");
+		ed_msg(0, "Alt");
 		return;
 	}
 	if (k == KCTRL('c')) {
 		pmod = KM_CTRL;
-		ed_msg(0, "Ctrl", "Strg");
+		ed_msg(0, "Ctrl");
 		return;
 	}
 	if (b >= K_UP && b <= K_PGDN && b != K_INS && b != K_DEL) {
@@ -1429,8 +1414,7 @@ word_key(int k)
 		}
 		return;
 	case K_F6 | KM_SHIFT:
-		ed_msg(1, "Column selection is not available",
-		    "Spaltenauswahl ist nicht vorhanden");
+		ed_msg(1, "Column selection is not available");
 		return;
 	case K_F7:
 		select_word(0);
@@ -1517,8 +1501,7 @@ word_key(int k)
 			return;
 		}
 		if ((k & ~K_BASE) && b >= ' ' && b < 0x7f) {
-			ed_msg(1, "That key combination is not available",
-			    "Diese Tastenkombination ist nicht vorhanden");
+			ed_msg(1, "That key combination is not available");
 			return;
 		}
 	}
@@ -1593,14 +1576,14 @@ draw_menu(void)
 	char t[40];
 	uint8_t i;
 
-	snprintf(t, sizeof(t), "%s:", TR(m->en_title, m->de_title));
+	snprintf(t, sizeof(t), "%s:", m->title);
 	cindent = (int)strlen(t) + 1;
 	cmd_put(t, A_BOLD | A_CLS(C_TITLE));
 	ccol++;
 	for (i = 0; i < m->count; i++) {
-		const struct word_menu_item *it = word_menu_item_at(m, lang, i);
+		const struct word_menu_item *it = word_menu_item_at(m, i);
 
-		cmd_put(TR(it->en, it->de), i == mf->sel ? A_REV | A_CLS(C_SEL) :
+		cmd_put(it->name, i == mf->sel ? A_REV | A_CLS(C_SEL) :
 		    it->kind == KIND_TODO ? 0 : A_BOLD);
 		ccol++;
 	}
@@ -1616,12 +1599,12 @@ draw_form(void)
 	int i, j;
 
 	cindent = 2;
-	cmd_put(TR(f->en, f->de), A_BOLD | A_CLS(C_TITLE));
+	cmd_put(f->name, A_BOLD | A_CLS(C_TITLE));
 	ccol++;
 	for (i = 0; i < f->nf; i++) {
 		const struct field *fl = &f->f[i];
 
-		snprintf(t, sizeof(t), "%s:", TR(fl->en, fl->de));
+		snprintf(t, sizeof(t), "%s:", fl->name);
 		cmd_put(t, 0);
 		if (fl->type == T_TEXT) {
 			snprintf(t, sizeof(t), "%s", fl->buf);
@@ -1639,7 +1622,7 @@ draw_form(void)
 			}
 		} else {
 			for (j = 0; j < fl->nch; j++) {
-				choice(TR(fl->ch_en, fl->ch_de), j, a, sizeof(a));
+				choice(fl->choices, j, a, sizeof(a));
 				if (j == fval[i]) {
 					snprintf(t, sizeof(t), "(%s)", a);
 					cmd_put(t, i == fcur ? A_REV | A_CLS(C_SEL) : A_BOLD);
@@ -1724,7 +1707,7 @@ draw_status(int row)
 	snprintf(left, sizeof(left), "Pg%lu Li%lu Co%d {%s}%s%s %s%s",
 	    (unsigned long)(ln / PAGE_LINES + 1), (unsigned long)(ln + 1),
 	    col_of(rs, ed_cur) + 1, sp, ext ? " EXT" : "", ovr ? " OVR" : "",
-	    ed_file[0] ? ed_file : TR("(no name)", "(ohne Namen)"),
+	    ed_file[0] ? ed_file : "(no name)",
 	    ed_dirty() ? "*" : "");
 	scr_fill(row, 0, scr_cols, A_REV | A_CLS(C_BAR));
 	scr_puts(row, 0, left, A_REV | A_CLS(C_BAR), scr_cols);
@@ -1786,8 +1769,7 @@ draw_help(int row0, int rows)
 	for (; i < rows; i++)
 		scr_fill(row0 + i, 0, scr_cols, 0);
 	if (rows > 1)
-		scr_puts(row0 + rows - 1, 0, TR("Press any key to return.",
-		    "Beliebige Taste kehrt zurueck."), A_CLS(C_KEY), scr_cols);
+		scr_puts(row0 + rows - 1, 0, "Press any key to return.", A_CLS(C_KEY), scr_cols);
 }
 
 static void
@@ -1801,8 +1783,8 @@ render(void)
 		char t[WORD_PATH_MAX + 32];
 
 		snprintf(t, sizeof(t), "  word  %s%s", ed_file[0] ? ed_file :
-		    TR("New Buffer", "Neuer Puffer"), ed_dirty() ?
-		    TR("  Modified", "  Geaendert") : "");
+		    "New Buffer", ed_dirty() ?
+		    "  Modified" : "");
 		scr_fill(0, 0, scr_cols, A_REV | A_CLS(C_BAR));
 		scr_puts(0, 0, t, A_REV | A_CLS(C_BAR), scr_cols);
 	}
@@ -1925,8 +1907,8 @@ dispatch(int k)
 		r = toupper(k & 0xff);
 		ui = U_EDIT;
 		if (k == K_ESC)
-			ed_msg(0, "Cancelled", "Abgebrochen");
-		else if (r == 'Y' || r == 'J') {
+			ed_msg(0, "Cancelled");
+		else if (r == 'Y') {
 			if (ed_file[0] != '\0') {
 				if (ed_save(ed_file) == 0)
 					running = 0;
@@ -1942,7 +1924,7 @@ dispatch(int k)
 	case U_CONF_CLEAR:
 		r = toupper(k & 0xff);
 		ui = U_EDIT;
-		if (r == 'Y' || r == 'J')
+		if (r == 'Y')
 			do_clear();
 		return;
 	default:
@@ -1959,7 +1941,7 @@ dispatch(int k)
 static void
 usage(void)
 {
-	fputs("usage: word [-k word|vi|nano] [-l en|de] [-W] [-c] [file]\n",
+	fputs("usage: word [-k word|vi|nano] [-W] [-c] [file]\n",
 	    stderr);
 	exit(2);
 }
@@ -1988,9 +1970,7 @@ main(int argc, char **argv)
 		if (strcmp(argv[i], "-k") == 0 && i + 1 < argc) {
 			if ((keymode = keys_named(argv[++i])) < 0)
 				usage();
-		} else if (strcmp(argv[i], "-l") == 0 && i + 1 < argc)
-			lang = strcmp(argv[++i], "de") == 0 ? LANG_DE : LANG_EN;
-		else if (strcmp(argv[i], "-W") == 0)
+		} else if (strcmp(argv[i], "-W") == 0)
 			opt_wrap = 0;
 		else if (strcmp(argv[i], "-c") == 0)
 			scr_color = 0;
@@ -2012,8 +1992,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 	if (path == NULL)
-		ed_msg(0, "Type text, or press Esc for the COMMAND menu",
-		    "Text tippen, oder Esc fuer das BEFEHL-Menue");
+		ed_msg(0, "Type text, or press Esc for the COMMAND menu");
 	if (keymode != KEYS_WORD && path == NULL)
 		msg[0] = '\0';
 	tty_size();

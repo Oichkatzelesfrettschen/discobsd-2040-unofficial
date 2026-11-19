@@ -63,7 +63,7 @@ MUTANTS = [
      "\tif (match_case)\n\t\treturn a == b;", "\tif (match_case < 0)\n\t\treturn a == b;",
      "t_search_replace"),
     ("replace-no-still-replaces", "word.c",
-     "up == 'Y' || up == 'J' || up == 'A'", "up == 'Y' || up == 'J' || up == 'A' || up == 'N'",
+     "up == 'Y' || up == 'A'", "up == 'Y' || up == 'A' || up == 'N'",
      "t_search_replace"),
     ("vi-dd-keeps-the-newline", "word_modes.c",
      "\t\tp = ed_eol(p);\n\t\tif (p < len)\n\t\t\tp++;",

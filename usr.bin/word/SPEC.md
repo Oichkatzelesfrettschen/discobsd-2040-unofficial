@@ -33,8 +33,8 @@ and listed at the end.
 ## Command menu (Word key mode)
 
 - Esc opens the COMMAND menu: Copy Delete Format Gallery Help Insert Jump
-  Library Options Print Quit Replace Search Transfer Undo Window. The
-  German menu uses the German names in German alphabetical order.
+  Library Options Print Quit Replace Search Transfer Undo Window. Menus,
+  forms and messages are in English.
 - In a menu the command's capitalized letter runs it; Space, Tab and the
   arrow keys move the highlight and Enter runs the highlighted command. Esc
   leaves the menu and returns to the document.
@@ -112,9 +112,8 @@ The key mode is chosen with `-k word`, `-k vi` or `-k nano`, the
   Backspace goes to the parent, a letter jumps to the next entry starting
   with it, Esc cancels.
 - Options form fields: keys (Word vi nano), wrap (Yes No), hints (Yes No),
-  color (Yes No), language (English Deutsch), tab width (4 8). The command
-  line takes `-k` for the keys, `-l en` or `-l de`, `-W` for wrap off and
-  `-c` for no color.
+  color (Yes No), tab width (4 8). The command line takes `-k` for the
+  keys, `-W` for wrap off and `-c` for no color.
 - Color: the status line, key hints, selection, titles, errors and the end
   mark carry ECMA-48 colors; with color off they use reverse video and
   bold alone. The end mark uses the DEC line-drawing set.

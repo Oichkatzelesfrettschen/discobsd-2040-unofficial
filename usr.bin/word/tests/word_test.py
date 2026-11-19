@@ -143,12 +143,18 @@ class Session:
 
     def send(self, *parts):
         for p in parts:
+            before = bytes(self.scr.raw)
             os.write(self.fd, p)
             self.pump()
             if p == ESC:
-                # The program waits 60 ms after a lone ESC for a sequence.
-                time.sleep(0.1)
-                self.pump()
+                # A lone ESC is decided after a 60 ms wait for a sequence;
+                # the next key goes only once the menu has been drawn.
+                self.wait_change(before)
+
+    def wait_change(self, before, limit=3.0):
+        end = time.monotonic() + limit
+        while bytes(self.scr.raw) == before and time.monotonic() < end:
+            self.pump(0.5, 0.05)
 
     def has(self, s):
         return s in self.scr.text()
@@ -386,10 +392,9 @@ def t_ansi(b, td):
     check(b";44;97m" not in s.scr.raw, "color off still sends colors")
     menu(s, b"q")
     s.close()
+    # Known-bad: a language option no longer exists and is refused.
     s = Session(b, ["-l", "de", os.path.join(td, "a.txt")])
-    check(s.has("BEFEHL:"), "German menu missing")
-    menu(s, b"q")
-    s.close()
+    check(s.close(expect_exit=False) == 2, "-l was accepted")
 
 
 TESTS = [t_save_menu, t_wrap, t_search_replace, t_undo_scrap, t_vi, t_nano,

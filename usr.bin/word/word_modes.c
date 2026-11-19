@@ -281,16 +281,14 @@ ex_command(const char *c)
 			running = 0;
 	} else if (strcmp(word, "q") == 0) {
 		if (ed_dirty())
-			ed_msg(1, "No write since last change (:q! overrides)",
-			    "Nicht gespeichert (:q! erzwingt)");
+			ed_msg(1, "No write since last change (:q! overrides)");
 		else
 			running = 0;
 	} else if (strcmp(word, "q!") == 0) {
 		ed_quit(1);
 	} else if (strcmp(word, "e") == 0 || strcmp(word, "e!") == 0) {
 		if (word[1] != '!' && ed_dirty())
-			ed_msg(1, "No write since last change (:e! overrides)",
-			    "Nicht gespeichert (:e! erzwingt)");
+			ed_msg(1, "No write since last change (:e! overrides)");
 		else if (arg[0] != '\0')
 			ed_load(arg);
 		else if (word[1] == '!' && ed_file[0] != '\0') {
@@ -311,13 +309,13 @@ ex_command(const char *c)
 		else if (strcmp(arg, "nowrap") == 0)
 			ed_set_wrap(0);
 		else
-			ed_msg(1, "Unknown option", "Unbekannte Option");
+			ed_msg(1, "Unknown option");
 	} else if (strcmp(word, "menu") == 0) {
 		ed_menu();
 	} else if (strcmp(word, "help") == 0) {
 		ed_help();
 	} else if (word[0] != '\0')
-		ed_msg(1, "Not an editor command", "Kein Editorbefehl");
+		ed_msg(1, "Not an editor command");
 }
 
 static void
@@ -688,8 +686,7 @@ nano_key(int k)
 	case 0x1e:
 		ed_sel = !ed_sel;
 		ed_anchor = ed_cur;
-		ed_msg(0, ed_sel ? "Mark set" : "Mark unset",
-		    ed_sel ? "Markierung gesetzt" : "Markierung entfernt");
+		ed_msg(0, ed_sel ? "Mark set" : "Mark unset");
 		return;
 	case KCTRL('k'):
 		if (lo == hi) {

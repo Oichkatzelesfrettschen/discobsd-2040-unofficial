@@ -145,11 +145,6 @@ void	scr_invalidate(void);
 
 /* ---- word_menus.c: the command menu tree ---- */
 
-enum word_lang {
-	LANG_EN = 0,
-	LANG_DE = 1
-};
-
 enum word_menu_id {
 	MENU_MAIN = 0,
 	MENU_FORMAT,
@@ -200,26 +195,22 @@ enum word_act_kind {
 };
 
 struct word_menu_item {
-	const char *en;
-	const char *de;
+	const char *name;
 	char accel;
 	uint8_t kind;
 	uint8_t target;		/* enum word_menu_id or enum word_builtin */
 };
 
 struct word_menu {
-	const char *en_title;
-	const char *de_title;
+	const char *title;
 	const struct word_menu_item *items;
 	uint8_t count;
-	const uint8_t *de_order;	/* NULL: the English order */
 };
 
 const struct word_menu *word_menu_get(enum word_menu_id id);
 const struct word_menu_item *word_menu_item_at(const struct word_menu *m,
-	    enum word_lang lang, uint8_t vis_idx);
-int	word_menu_find_accel(const struct word_menu *m, enum word_lang lang,
-	    char ch);
+	    uint8_t idx);
+int	word_menu_find_accel(const struct word_menu *m, char ch);
 
 /* ---- word.c: the editor core that word_modes.c drives ---- */
 
@@ -228,12 +219,11 @@ enum { F_LOAD = 0, F_SAVE, F_MERGE, F_FDELETE, F_RENAME, F_CHDIR, F_SEARCH,
 	F_REPLACE, F_JUMP, F_LINE, F_RUN, F_OPTIONS, F_NFORMS };
 
 extern int keymode, running, scrap_lines;
-extern enum word_lang lang;
 extern woff_t ed_cur, ed_anchor;
 extern int ed_sel;
 extern char ed_file[WORD_PATH_MAX];
 
-void	ed_msg(int err, const char *en, const char *de);
+void	ed_msg(int err, const char *s);
 void	ed_msgf(int err, const char *fmt, ...);
 void	ed_set(woff_t pos);
 woff_t	ed_bol(woff_t pos);

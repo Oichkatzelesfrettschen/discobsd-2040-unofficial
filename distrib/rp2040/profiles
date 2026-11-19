@@ -194,6 +194,9 @@ cost lightup 23 2
 #
 # base       the shell, /etc/rc, the multicall binaries and the editors
 # benchmark  base plus CoreMark, for a reported score on a bare board
+#            with no card; the PicoCalc's SD root carries CoreMark and
+#            UnixBench with the rest of the install tree, so no other
+#            profile names coremark
 # developer  base plus the native compile chain and its link library
 # games      base plus gamebox and puzzlebox with their nine entry points
 #            (the games and puzzles groups)
@@ -214,9 +217,15 @@ profile base
 profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games puzzles
-profile full coremark toolchain toolchainlib games puzzles
-profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop psramtmp
-profile picocalc-lean coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard picofetch picotop psramtmp
+profile full toolchain toolchainlib games puzzles
+profile picocalc toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop psramtmp
+profile picocalc-lean toolchain toolchainlib games puzzles calc-bignum calc sdcard picofetch picotop psramtmp
+
+# The uLisp interpreter is opt-in on flash (PROFILE=lisp or IMAGE_WITH=ulisp); the SD root
+# has it with the rest of the install tree. Its graphics functions report
+# an error on a kernel without the pixel device, so it needs no node.
+closure ulisp needs path /usr/bin/ulisp /usr/share/ulisp/ulisp.doc
+profile lisp sdcard lcdgfx ulisp
 
 # Opt-in desktop; the MATE artwork is supplied on external storage.
 closure matezinho needs closure lcdgfx sdcard

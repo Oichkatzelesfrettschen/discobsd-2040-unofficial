@@ -1101,7 +1101,7 @@ tier 325 s, the qemu tier 99 s and the build 98 s.
 | `check-fgrep-capacity` | fgrep's allocation boundaries and its command path over regular, empty and fifo pattern sources |
 | `check-config-makefile` | the config tool regenerates the tracked kernel Makefile byte for byte |
 | `check-swapram-evac` | the compressed swap pool's evacuation to flash, linking the kernel's swapram.c and subr_rmap.c. A pool image holds no flash blocks, so evacuation reserves an extent for every image before it writes one: five maps that are short by one or more images must return -1 with every image still in the pool, the free total unchanged, zero media writes and every swap address zero, and the exactly sized map must move all six images. A second build with `SDSWAP_ENABLED` (`swapram_evac_test_lost`) repeats every case and then lets the removable swap device leave at each of the 27 block writes of a four-image evacuation: the call must return -1 with no write after the loss, all four images still in the pool and expanding byte for byte through `swapram_in()`, the free total unchanged and every swap address zero; two mutants of `swapram.c` (pool space freed per image as written, reservations kept after the loss) must fail it |
-| `check-fs-profiles` | every maintained profile composes against the maintained manifest with resolved parents, links, closures, and paths. Its default selftest rejects the two broken toolchain selections, the deleted-path cases, a `puzzles` selection without the `gamesdir` closure that creates `/usr/games`, an `sdcard` selection without its whole-card block node or its `/mnt` mount point, and the per-build selection cases (an unknown closure, a closure both added and removed, a multicall binary with no member, a removed member whose link another part needs) rejects `ridge` added to `picocalc-lean` (it needs `lcdgfx`), accepts the `picocalc` profile without `sdcard` and without `psramtmp`, accepts `picocalc-lean` with the five gamebox members and no `ridge`, and rejects `psramtmp` without its `/dev/psram1` node or without `/sbin/mkfs`; `distrib/rp2040/check-image-selection.sh` repeats the refusals through `IMAGE_WITH` and `IMAGE_WITHOUT`, accepts `IMAGE_WITHOUT=sdcard` and `IMAGE_WITHOUT=psramtmp` on the PicoCalc and `IMAGE_WITH=sdcard` and `IMAGE_WITH=psramtmp` on `base`, reads back `GAMEBOX_TOOLS` and `PUZZLEBOX_TOOLS`, the profile and the `sdcard*.img`, `flash*.bin` and `flash*.uf2` names each `BOARD` and `UNION_KERNEL` pair selects (a lean `UNION_KERNEL` on `BOARD=PICOCALC` selects `picocalc-lean` and the `-LEAN` names, and an explicit `PROFILE` wins), and composes `picocalc` and `picocalc-lean` to read their manifests: the PICOCALC Config enables `DEV_LCDGFX` and its root installs `/dev/lcdgfx` and `/usr/games/ridge`, the lean Configs enable no `DEV_LCDGFX` and the lean root installs neither path, and a lean root given `lcdgfx` and `ridge` must be reported (the known-bad input of that check). That check reads Config text and the composed manifest; it executes no kernel. With `BUILD_PDP11_V6=yes`, the same target consumes the two legacy fragments and additionally rejects an emulator without its pack, a PDP-11 closure without its emulator path, and a V6 closure without its guest path. `sys/arch/rp2040/doc/PROFILES.md` is the authority |
+| `check-fs-profiles` | every maintained profile composes against the maintained manifest with resolved parents, links, closures, and paths. Its default selftest rejects the two broken toolchain selections, the deleted-path cases, a `puzzles` selection without the `gamesdir` closure that creates `/usr/games`, an `sdcard` selection without its whole-card block node or its `/mnt` mount point, and the per-build selection cases (an unknown closure, a closure both added and removed, a multicall binary with no member, a removed member whose link another part needs) rejects `ridge` added to `picocalc-lean` (it needs `lcdgfx`), accepts the `picocalc` profile without `sdcard` and without `psramtmp`, accepts `picocalc-lean` with the five gamebox members and no `ridge`, and rejects `psramtmp` without its `/dev/psram1` node or without `/sbin/mkfs`; `distrib/rp2040/check-image-selection.sh` repeats the refusals through `IMAGE_WITH` and `IMAGE_WITHOUT`, accepts `IMAGE_WITHOUT=sdcard` and `IMAGE_WITHOUT=psramtmp` on the PicoCalc and `IMAGE_WITH=sdcard` and `IMAGE_WITH=psramtmp` on `base`, reads back `GAMEBOX_TOOLS` and `PUZZLEBOX_TOOLS`, the profile and the `sdcard*.img`, `flash*.bin` and `flash*.uf2` names each `BOARD` and `UNION_KERNEL` pair selects (a lean `UNION_KERNEL` on `BOARD=PICOCALC` selects `picocalc-lean` and the `-LEAN` names, and an explicit `PROFILE` wins), and composes `picocalc` and `picocalc-lean` to read their manifests: the PICOCALC Config enables `DEV_LCDGFX` and its root installs `/dev/lcdgfx` and `/usr/games/ridge`, the lean Configs enable no `DEV_LCDGFX` and the lean root installs neither path, and a lean root given `lcdgfx` and `ridge` must be reported (the known-bad input of that check). It also requires the `benchmark` root and a `picocalc` root given `IMAGE_WITH=coremark` to install `/usr/bin/coremark` (the calibration) and the `full`, `picocalc` and `picocalc-lean` roots to omit it, since the SD root carries CoreMark. That check reads Config text and the composed manifest; it executes no kernel. With `BUILD_PDP11_V6=yes`, the same target consumes the two legacy fragments and additionally rejects an emulator without its pack, a PDP-11 closure without its emulator path, and a V6 closure without its guest path. `sys/arch/rp2040/doc/PROFILES.md` is the authority |
 | `check-legacy-pdp11-v6` | with `BUILD_PDP11_V6=yes`, the isolated host build of the emulator boots the V6 pack on a pseudo-terminal |
 | usr.bin/stevie, kilo, menu `test` | each editor driven through a pty |
 | usr.bin/tail, sort `test` | output modeled against the host for every option |
@@ -4461,3 +4461,60 @@ negative control for SDSC and SDHC sizes. It does not execute PL022 or Renode's
 scheduler. Renode integration uses the real peripheral interfaces through
 `tools/renode/matezinho.resc`; it is a separate evidence class. Physical board
 qualification remains opt-in and is not performed by any desktop gate.
+
+## uLisp interpreter gates
+
+`check-ulisp-host` (in check-host) builds `usr.bin/ulisp` for the host as
+strict C17 with `-Wall -Wextra -Werror` and runs four corpora of
+`tests/ulisp`, each compared with its checked-in transcript: `language`
+(arithmetic, floats, lists, strings, arrays, closures, errors, tracing, the
+pretty printer), `system` (the documentation file, files, the library file,
+image save and load), `repairs` (float output that differs from upstream on
+purpose) and `devices` (the drawing functions against a frame buffer in
+memory, whose `save-bmp` file is held to a checksum, the directory listing
+the timing functions, the pin functions and two consecutive faulting
+`register` reads that the signal handler must turn into errors). A second process with a smaller workspace then
+loads the saved image, which rebases every address in it. Six mutants of
+`ulisp.c` must fail once the shipped source passes: a collector that leaves
+its trace bit set, an image load that does not rebase arrays, an inexact
+power of ten in the float printer, a reader that takes end of file as a
+symbol character, `cdr` returning the car, and a string comparison over a
+word wider than its four characters. The host devices are stand-ins: the
+gate executes no pin, sound or panel code.
+
+`check-ulisp-qemu` (in check-qemu) runs the a.out the tree links, with the
+tree's libc, libm and float routines, through `tests/qemu_aout/aoutrun` on
+`qemu-arm -cpu cortex-m0` inside the 192 KiB window. The `language`,
+`system` and `repairs` transcripts must equal the host's byte for byte, and
+the image reload runs there too. Two corpora need the target: `stack`
+(recursion in `eval`, `equal`, the printer and the reader ends in the
+"stack overflow" error and the workspace is whole afterwards; a structure
+4,000 cells deep is collected) and `code` (`defcode` assembles Thumb
+instructions into the process's data and calls them). The loader serves no
+directory read, timer or device, so `directory`, `delay`, the drawing
+functions, the pins and the sound are compiled for the target and not
+executed by this gate. The loader answers `sigaction` and `sigprocmask`
+without delivering a signal, so no handler runs here. This is
+instruction-level execution of the linked program, not a kernel boot, an
+MPU test or a PicoCalc run.
+
+`check-renode-ulisp` stands outside the aggregate, as `check-renode` does,
+and needs a flash image built with `IMAGE_WITH=ulisp`. It boots the
+PICO_UART kernel under Renode, logs in and drives `/usr/bin/ulisp` over
+UART0 (`tools/renode/check-ulisp.py`): the kernel's exec and break, a
+recursion that ends in "stack overflow" and the evaluation after it, a file
+written and read back, the directory read, the documentation file, a
+250 ms delay, machine code from `defcode`, two `register` reads the MPU
+faults, the tty's interrupt character ending `(loop)`, end of input, four
+exit statuses and a second process loading the first one's image. The
+kernel has no PicoCalc device, so the drawing, pin and analogue functions
+are held to their error messages. Renode's models are third-party; this
+is not a board run.
+
+`bmake -C tests/ulisp check-oracle ULISP_INO=<path>` stands outside the
+aggregate because the upstream source is not in the tree. It checks the file
+against the pinned SHA-256, builds the unmodified `ulisp-picocalc.ino` for
+the host as 32-bit C++ against the stand-in of `tests/ulisp/oracle`, and
+requires the `language` transcript of the port to equal the upstream
+program's. No uLisp gate runs on a board;
+`docs/research/ulisp-c17-port.md` records what remains unmeasured there.

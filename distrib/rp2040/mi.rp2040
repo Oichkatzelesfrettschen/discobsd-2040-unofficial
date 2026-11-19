@@ -648,6 +648,20 @@ filemode 0644
 file /var/log/messages
 file /var/log/wtmp
 
+#closure ulisp
+# The uLisp interpreter and the documentation file its (documentation)
+# reads. The PicoCalc's SD root carries the install tree whole; on flash
+# the lisp profile or IMAGE_WITH=ulisp selects it.
+pack /usr/bin/ulisp
+mode 0775
+dir /usr/share/ulisp
+default
+filemode 0444
+file /usr/share/ulisp/ulisp.doc
+default
+filemode 0644
+#endclosure ulisp
+
 #closure matezinho
 # Original shell only; artwork is an external file or read-only SD volume.
 pack /usr/bin/matezinho

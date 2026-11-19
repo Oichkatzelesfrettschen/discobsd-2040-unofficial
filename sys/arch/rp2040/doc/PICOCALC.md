@@ -1196,7 +1196,12 @@ pack in `/usr/share/matezinho` (with its CC BY-SA 3.0 notices and the
 source art as `artwork.tar`) and the `desktop` command that starts it,
 `paneltest` (`doc/PANELTEST.md`), and the board test programs of
 `tests/rp2040` (`fptest`, `sigtest`, `lcdgfxtest`, `windowtest` and the
-rest) in `/usr/tests/rp2040`. It also holds the block and raw nodes of all four card
+rest) in `/usr/tests/rp2040`. The benchmarks live here and not on the flash root:
+`/usr/bin/coremark` (no default flash profile names the `coremark` closure;
+`PROFILE=benchmark` or `IMAGE_WITH=coremark` puts it on a bare board's
+flash) and UnixBench in `/usr/share/unixbench`, which holds the compiled
+programs, the scripts, `testdir`, and empty `tmp` and `results`
+directories, the layout `Run` reads (`HOMEDIR`). It also holds the block and raw nodes of all four card
 partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
 `fsck -p` and `mount -a` in `/etc/rc` read it, and a getty on tty0, the
 USB-C port's serial line at 115200 baud, beside the panel's console login. It is written at the first

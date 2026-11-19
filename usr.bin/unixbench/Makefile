@@ -288,9 +288,16 @@ report:
 clean:
 	rm -f $(BINS) pgms/*.elf pgms/*.dis $(SRCDIR)/*.o
 
+# Run reads its programs and scripts from HOMEDIR, the test inputs from
+# HOMEDIR/testdir, and writes HOMEDIR/tmp and HOMEDIR/results, so the install
+# tree keeps that layout rather than the source tree's pgms, testdir split.
+# The PicoCalc SD root carries it (distrib/rp2040/mksdmanifest.py); no flash
+# profile names it.
+UBDEST = ${DESTDIR}/usr/share/unixbench
 install:
-	mkdir -p ${DESTDIR}/usr/share/unixbench
-	cp ${REQD} ${DESTDIR}/usr/share/unixbench
-	cp Run ${DESTDIR}/usr/share/unixbench
+	mkdir -p ${UBDEST}/testdir ${UBDEST}/tmp ${UBDEST}/results
+	cp ${REQD:M${PROGDIR}/*} ${UBDEST}
+	cp ${REQD:M${TESTDIR}/*} ${UBDEST}/testdir
+	cp Run ${UBDEST}
 
 ## END ##

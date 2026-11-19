@@ -2881,7 +2881,7 @@ USB_CONSOLE_CFLAGS=	${USB_CONSOLE_KERN} -nostdinc -DUARTUSB_ENABLED \
 			-I${TOPSRC}/sys/arch/rp2040/dhara/compat
 USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
 			usb_console_sched.o usb_console_hk_kern.o hostkern32.o
-USB_CONSOLE_MUTANTS=	recover-kick configure-kick setif-kick skip-controller-reset \
+USB_CONSOLE_MUTANTS=	recover-kick configure-kick configure-no-requeue setif-kick skip-controller-reset \
 			owake-before-drain halt-wait-open halt-wait-sticks \
 			pollc-late tx-peak-missing tx-drop-missing tx-drop-wraps tx-peak-wraps
 
@@ -2931,7 +2931,8 @@ check-usb-console: usb_console_test \
 		else status=$$?; fi; \
 		case $$mutation in \
 		recover-kick) expected='FAIL echo, then its bulk IN returns with no completion' ;; \
-		configure-kick) expected='FAIL echo, then SET_CONFIGURATION' ;; \
+		configure-kick) expected='FAIL echo, then bus reset with no enumeration after it' ;; \
+		configure-no-requeue) expected='FAIL text queued before enumeration across a second SET_CONFIGURATION' ;; \
 		setif-kick) expected='FAIL echo, then SET_INTERFACE' ;; \
 		skip-controller-reset) expected='FAIL controller reset' ;; \
 		owake-before-drain) expected='FAIL writer above the high-water mark across a bus reset' ;; \

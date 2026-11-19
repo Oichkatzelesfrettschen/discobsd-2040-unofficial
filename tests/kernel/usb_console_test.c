@@ -22,6 +22,11 @@
  * alphabet up to DEPTH and prints the shortest sequence reaching each class
  * of stuck state; "--random SEED COUNT LENGTH" samples longer sequences.
  *
+ * check_boot_replay() holds console text written before enumeration: 1 KiB
+ * queued in the ring must reach the host in order after SET_CONFIGURATION and
+ * DTR, also across a second SET_CONFIGURATION taken after the first packet
+ * reached the endpoint.
+ *
  * check_ring_counts() also holds usb_tx_put()'s accounting, the source of
  * machdep.usb_tx_peak and machdep.usb_tx_dropped, to exact counts at a full
  * ring, past it, at the drop counter's limit and across the index wrap.
@@ -389,7 +394,7 @@ model_interrupt(void)
 static int host_open;			/* A terminal holds the port. */
 static int orphan_seen;			/* TS_BUSY with no packet, any time. */
 static unsigned host_bytes;		/* Bulk IN bytes the host received. */
-static char host_text[512];
+static char host_text[2048];
 static unsigned host_text_len;
 
 static void
@@ -761,13 +766,13 @@ drain_in(void)
 }
 
 /*
- * The state the reboot path starts from: enumerated, a terminal holding the
- * port, rc's output on the console and drained.
+ * The controller and driver as they stand after reset, before any host
+ * request: nothing configured, the transmit ring empty, both data endpoints
+ * enabled.
  */
 static void
-scenario_start(void)
+scenario_init(void)
 {
-	static const char rc_text[] = "--- Errors repaired, rebooting...\n";
 	int i;
 
 	for (i = 0; i < MODEL_REGS_WORDS; i++)
@@ -803,6 +808,18 @@ scenario_start(void)
 	    USB_INTS_SETUP_REQ;
 	DPRAM32(USB_DPRAM_EP_CTRL(EP_DATA, 0)) = USB_EP_CTRL_ENABLE;
 	DPRAM32(USB_DPRAM_EP_CTRL(EP_DATA, 1)) = USB_EP_CTRL_ENABLE;
+}
+
+/*
+ * The state the reboot path starts from: enumerated, a terminal holding the
+ * port, rc's output on the console and drained.
+ */
+static void
+scenario_start(void)
+{
+	static const char rc_text[] = "--- Errors repaired, rebooting...\n";
+
+	scenario_init();
 	host_set_configuration();
 	host_open = 1;
 	host_set_dtr(1);
@@ -1144,6 +1161,128 @@ check_ring_counts(void)
 		hk_note("PASS ring indexes across the unsigned wrap");
 }
 
+/*
+ * Console text written before the host enumerates the device. The ring holds
+ * it while the controller is unconfigured; once the host configures the
+ * device and raises DTR, every byte must arrive in order. A mismatch is
+ * reported as the offset and count of the lost run when the received text is
+ * the written text with that run removed.
+ */
+#define	REPLAY_LEN	1024
+
+static u_char replay_text[REPLAY_LEN];
+
+static void
+replay_write(void)
+{
+	dev_t dev = makedev(UARTUSB_MAJOR, 0);
+	u_int i;
+
+	for (i = 0; i < REPLAY_LEN; i++) {
+		replay_text[i] = (u_char)(i % 251 + 1);
+		usbputc(dev, (char)replay_text[i]);
+	}
+}
+
+static void
+replay_drain(void)
+{
+	int round;
+
+	host_open = 1;
+	for (round = 0; round < 4; round++) {
+		drain_in();
+		host_sof();
+	}
+	drain_in();
+}
+
+static void
+replay_verdict(const char *name)
+{
+	unsigned first = 0, lost, i;
+
+	hk_checks++;
+	while (first < host_text_len && first < REPLAY_LEN &&
+	    (u_char)host_text[first] == replay_text[first])
+		first++;
+	if (host_text_len == REPLAY_LEN && first == REPLAY_LEN) {
+		hk_note("PASS %s", name);
+		return;
+	}
+	hk_failures++;
+	lost = REPLAY_LEN - host_text_len;
+	for (i = first; host_text_len < REPLAY_LEN && i < host_text_len; i++)
+		if ((u_char)host_text[i] != replay_text[i + lost])
+			break;
+	if (host_text_len < REPLAY_LEN && i == host_text_len)
+		hk_note("FAIL %s: %u of %u bytes arrived, bytes %u..%u lost",
+		    name, host_text_len, REPLAY_LEN, first, first + lost - 1);
+	else
+		hk_note("FAIL %s: %u of %u bytes arrived, first mismatch at %u",
+		    name, host_text_len, REPLAY_LEN, first);
+}
+
+/*
+ * A bus reset that no enumeration follows, with an echo packet in flight:
+ * the device stays unconfigured, no completion will come, and the tty must
+ * not stay busy, or terminal output would wait in the tty's queue instead
+ * of the ring until the host returned.
+ */
+static void
+check_reset_unconfigured(void)
+{
+	struct tty *tp = &usbttys[0];
+
+	scenario_start();
+	event_apply(EV_TYPE);
+	host_bus_reset();
+	hk_checks++;
+	if (tp->t_state & TS_BUSY) {
+		hk_failures++;
+		hk_note("FAIL echo, then bus reset with no enumeration after it: "
+		    "tty left busy");
+	} else
+		hk_note("PASS echo, then bus reset with no enumeration after it");
+}
+
+static void
+check_boot_replay(void)
+{
+	scenario_init();
+	replay_write();
+	host_set_configuration();
+	host_set_dtr(1);
+	replay_drain();
+	replay_verdict("text queued before enumeration reaches the host");
+}
+
+/*
+ * A second SET_CONFIGURATION after the first packet is in the bulk IN buffer
+ * and before the host takes it: usb_configure() abandons that packet and
+ * usb_tx_requeue() returns its bytes to the ring.
+ */
+static void
+check_boot_replay_reconfigured(void)
+{
+	scenario_init();
+	replay_write();
+	host_set_configuration();
+	host_set_dtr(1);
+	host_open = 1;
+	if (!host_in_armed()) {
+		hk_checks++;
+		hk_failures++;
+		hk_note("FAIL reconfiguration replay: no packet armed");
+		return;
+	}
+	host_set_configuration();
+	host_set_dtr(1);
+	replay_drain();
+	replay_verdict("text queued before enumeration across a second "
+	    "SET_CONFIGURATION");
+}
+
 static void
 run_polled_read(void)
 {
@@ -1173,6 +1312,9 @@ run_fixed(void)
 	}
 	run_polled_read();
 	check_ring_counts();
+	check_reset_unconfigured();
+	check_boot_replay();
+	check_boot_replay_reconfigured();
 
 	/* A warm reboot leaves the controller out of reset. */
 	model_resets_held = 0;

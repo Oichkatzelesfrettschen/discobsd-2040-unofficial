@@ -153,7 +153,8 @@ table and the sources that agree):
 | UART0 to the CH340C USB-serial bridge | GP0 TX, GP1 RX | `uart.c`, `/dev/tty0` |
 | PSRAM, ESP-PSRAM64H 8 MB | GP2-GP5 (SIO0-3), GP20 CS, GP21 SCK | `psram.c`, `psram_xfer.c`, PIO0 state machine 0, block major 3 |
 | Keyboard controller, I2C1 at 0x1F | GP6 SDA, GP7 SCL | `picokbd.c` |
-| UART1, expansion header | GP8 TX, GP9 RX | none |
+| UART1 to the keyboard controller's UART3 (schematic nets UART1_TX to M_UART3_RX, UART1_RX to M_UART3_TX); on no header | GP8 TX, GP9 RX | none; held back from programs |
+| Expansion header J703: 3V3_OUT, GP2, GP3, GP4, GP5, GP21, GP28, GND | GP28 is free; GP2-GP5 and GP21 are the PSRAM lines above | `gpio.c` offers GP28 |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
 | SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | `sd.c`, `sdspi.c`, `sd0` and `rsd0` |
 | Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone; `picopcm.c`, `/dev/audio` |

@@ -63,7 +63,9 @@
  * a BOARD_ID_ value of <machine/board.h>. The bare Pico keeps GP0 and GP1
  * for UART0 and GP23, GP24, GP25 and GP29 for its regulator mode, VBUS
  * sense, LED and VSYS divider. The PicoCalc carrier wires every pin but
- * GP8, GP9 and GP28, which reach only its expansion header
+ * GP28, which reaches only its expansion header J703. GP8 and GP9 are the
+ * Pico's UART1 lines to the keyboard controller's UART3, so a program
+ * that drove them would drive that controller's pins
  * (doc/PICOCALC.md, "Pin map").
  */
 static inline unsigned int
@@ -73,7 +75,7 @@ gpio_board_pins(int board)
 	case 1:		/* BOARD_ID_PICO */
 		return 0x1c7ffffcU;
 	case 2:		/* BOARD_ID_PICOCALC */
-		return 1U << 8 | 1U << 9 | 1U << 28;
+		return 1U << 28;
 	default:
 		return 0;
 	}

@@ -41,12 +41,14 @@
  * The Lisp functions pass any int. Every sum, difference and product of
  * them here is taken in coord, which holds two sums of ints and a product
  * with a panel-sized or bounded factor; a shape is clipped after that.
- * A triangle edge multiplies two spans, so a triangle with a corner farther
- * than FARTHEST from the panel is not drawn, as a line that long is not
- * walked.
+ * A span of two ints reaches 2^32, so the products that place a clipped line
+ * or a triangle edge are formed by muldiv() in unsigned 64 bits. A line is
+ * clipped to the panel before it is walked, a triangle is walked over the
+ * panel rows alone, and a circle too large for the midpoint walk is drawn
+ * one panel row at a time (bigarcs), so a shape costs at most a few
+ * thousand steps wherever its corners lie.
  */
 typedef long long coord;
-#define FARTHEST	(1 << 24)
 #define CURSOR_LIMIT	(1LL << 40)
 
 static coord cursor_x, cursor_y;
@@ -96,14 +98,85 @@ hspan(coord x0, coord x1, coord y, int color)
 	fill(x0, y, x1 - x0 + 1, 1, color);
 }
 
+/*
+ * a * b / c for |a| and |b| below 2^32 and c != 0, rounded to the nearest
+ * integer or truncated toward zero. The product of the magnitudes stays
+ * below 2^64, so the unsigned arithmetic cannot overflow.
+ */
+static coord
+muldiv(coord a, coord b, coord c, bool nearest)
+{
+	bool neg = ((a < 0) ^ (b < 0) ^ (c < 0)) != 0;
+	unsigned long long ua = a < 0 ? -(unsigned long long)a : (unsigned long long)a;
+	unsigned long long ub = b < 0 ? -(unsigned long long)b : (unsigned long long)b;
+	unsigned long long uc = c < 0 ? -(unsigned long long)c : (unsigned long long)c;
+	unsigned long long n = ua * ub, q = n / uc, r = n % uc;
+
+	if (nearest && 2 * r >= uc)
+		q++;
+	return neg ? -(coord)q : (coord)q;
+}
+
+/* The Cohen-Sutherland region of a point: one bit for each side of the panel it lies beyond. */
+static int
+region(coord x, coord y)
+{
+	return (x < 0) | (x >= GFX_WIDTH) << 1 | (y < 0) << 2 | (y >= GFX_HEIGHT) << 3;
+}
+
+/*
+ * Moves the endpoints of a segment onto the panel along the segment.
+ * Returns false when the segment lies wholly outside it. An endpoint is
+ * rounded to the nearest pixel on the line, which can leave it a pixel off
+ * the panel on the other axis; the next pass clips it again, and a segment
+ * that does not settle in a few passes is not drawn.
+ */
+static bool
+clipline(coord *x0, coord *y0, coord *x1, coord *y1)
+{
+	for (int pass = 0; pass < 16; pass++) {
+		int c0 = region(*x0, *y0), c1 = region(*x1, *y1);
+		coord *px, *py, qx, qy;
+		int out;
+
+		if ((c0 | c1) == 0)
+			return true;
+		if ((c0 & c1) != 0)
+			return false;
+		out = c0 != 0 ? c0 : c1;
+		if (c0 != 0) {
+			px = x0; py = y0; qx = *x1; qy = *y1;
+		} else {
+			px = x1; py = y1; qx = *x0; qy = *y0;
+		}
+		if (out & 3) {
+			coord edge = (out & 1) ? 0 : GFX_WIDTH - 1;
+
+			*py += muldiv(edge - *px, qy - *py, qx - *px, true);
+			*px = edge;
+		} else {
+			coord edge = (out & 4) ? 0 : GFX_HEIGHT - 1;
+
+			*px += muldiv(edge - *py, qx - *px, qy - *py, true);
+			*py = edge;
+		}
+	}
+	return false;
+}
+
 void
 gfx_line(int ix0, int iy0, int ix1, int iy1, int color)
 {
 	coord x0 = ix0, y0 = iy0, x1 = ix1, y1 = iy1;
-	coord dx = x1 > x0 ? x1 - x0 : x0 - x1, sx = x0 < x1 ? 1 : -1;
-	coord dy = y1 > y0 ? y0 - y1 : y1 - y0, sy = y0 < y1 ? 1 : -1;
-	coord err = dx + dy;
+	coord dx, sx, dy, sy, err;
 
+	if (!clipline(&x0, &y0, &x1, &y1))
+		return;
+	dx = x1 > x0 ? x1 - x0 : x0 - x1;
+	sx = x0 < x1 ? 1 : -1;
+	dy = y1 > y0 ? y0 - y1 : y1 - y0;
+	sy = y0 < y1 ? 1 : -1;
+	err = dx + dy;
 	if (dy == 0) {
 		hspan(x0, x1, y0, color);
 		return;
@@ -112,9 +185,7 @@ gfx_line(int ix0, int iy0, int ix1, int iy1, int color)
 		fill(x0, y0 < y1 ? y0 : y1, 1, -dy + 1, color);
 		return;
 	}
-	/* Each step is one pixel; a line far off the panel is not walked. */
-	if (dx > 4 * GFX_WIDTH || -dy > 4 * GFX_HEIGHT)
-		return;
+	/* The clipped segment lies on the panel, so it has at most a few hundred steps. */
 	for (;;) {
 		coord e2 = 2 * err;
 
@@ -141,6 +212,60 @@ gfx_rect(int x, int y, int w, int h, int color)
 	fill((coord)x + w - 1, y, 1, h, color);
 }
 
+/* The largest s with s * s <= n. */
+static coord
+isqrt(unsigned long long n)
+{
+	unsigned long long s = 0, bit = 1ULL << 62;
+
+	while (bit > n)
+		bit >>= 2;
+	while (bit != 0) {
+		if (n >= s + bit) {
+			n -= s + bit;
+			s = (s >> 1) + bit;
+		} else {
+			s >>= 1;
+		}
+		bit >>= 2;
+	}
+	return (coord)s;
+}
+
+/*
+ * The arcs of arcs() for a radius too large to walk step by step: for each
+ * panel row, the run of pixels between the circle's extent on that row and
+ * on the next row toward the pole, so the outline stays connected; a
+ * filled shape takes the whole span. Row j above y0 (or below y1) is j rows
+ * from the pole line, and its extent is isqrt(r*r - j*j), exact in 64 bits.
+ */
+static void
+bigarcs(coord x0, coord y0, coord x1, coord y1, coord r, int color, bool filled)
+{
+	for (int side = 0; side < 2; side++) {
+		coord base = side == 0 ? y0 : y1;
+		coord lo = side == 0 ? base - (GFX_HEIGHT - 1) : -base;
+		coord hi = side == 0 ? base : GFX_HEIGHT - 1 - base;
+
+		if (lo < 0)
+			lo = 0;
+		if (hi > r)
+			hi = r;
+		for (coord j = lo; j <= hi; j++) {
+			coord y = side == 0 ? base - j : base + j;
+			coord out = isqrt((unsigned long long)(r * r - j * j));
+			coord in = j < r ? isqrt((unsigned long long)(r * r - (j + 1) * (j + 1))) : 0;
+
+			if (filled) {
+				hspan(x0 - out, x1 + out, y, color);
+			} else {
+				hspan(x0 - out, x0 - in, y, color);
+				hspan(x1 + in, x1 + out, y, color);
+			}
+		}
+	}
+}
+
 /*
  * The midpoint circle of radius r, as four quarter arcs centered on the
  * corners of the rectangle x0..x1, y0..y1: a circle when the rectangle is
@@ -152,8 +277,12 @@ arcs(coord x0, coord y0, coord x1, coord y1, int r, int color, bool filled)
 {
 	int f, x = 0, y = r;
 
-	if (r < 0 || r > 2 * GFX_WIDTH)
+	if (r < 0)
 		return;
+	if (r > 2 * GFX_WIDTH) {
+		bigarcs(x0, y0, x1, y1, r, color, filled);
+		return;
+	}
 	f = 1 - r;
 	for (;;) {
 		if (filled) {
@@ -238,27 +367,17 @@ gfx_triangle(int x0, int y0, int x1, int y1, int x2, int y2, int color)
 	gfx_line(x2, y2, x0, y0, color);
 }
 
-/* x where the edge (xa,ya)-(xb,yb) crosses row y; ya != yb. */
+/* x where the edge (xa,ya)-(xb,yb) crosses row y, truncated toward xa; ya != yb. */
 static coord
 edge(coord xa, coord ya, coord xb, coord yb, coord y)
 {
-	return xa + (xb - xa) * (y - ya) / (yb - ya);
-}
-
-static bool
-near(int v)
-{
-	return v >= -FARTHEST && v <= FARTHEST;
+	return xa + muldiv(xb - xa, y - ya, yb - ya, false);
 }
 
 void
 gfx_filltriangle(int x0, int y0, int x1, int y1, int x2, int y2, int color)
 {
 	int t;
-
-	if (!(near(x0) && near(y0) && near(x1) && near(y1) && near(x2) &&
-	    near(y2)))
-		return;
 
 #define SWAP(a, b)	(t = a, a = b, b = t)
 	if (y0 > y1) {

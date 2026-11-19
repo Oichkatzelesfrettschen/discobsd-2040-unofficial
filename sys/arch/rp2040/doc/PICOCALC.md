@@ -153,11 +153,11 @@ table and the sources that agree):
 | UART0 to the CH340C USB-serial bridge | GP0 TX, GP1 RX | `uart.c`, `/dev/tty0` |
 | PSRAM, ESP-PSRAM64H 8 MB | GP2-GP5 (SIO0-3), GP20 CS, GP21 SCK | `psram.c`, `psram_xfer.c`, PIO0 state machine 0, block major 3 |
 | Keyboard controller, I2C1 at 0x1F | GP6 SDA, GP7 SCL | `picokbd.c` |
-| UART1, expansion header | GP8 TX, GP9 RX | none |
+| UART1, expansion header | GP8 TX, GP9 RX | none; `GPIO_PWM` on slice 4 through `gpio.c` |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
 | SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | `sd.c`, `sdspi.c`, `sd0` and `rsd0` |
 | Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone; `picopcm.c`, `/dev/audio`; `machdep.adc.0` and `machdep.adc.1` refuse these pins |
-| Expansion header, ADC input 2 | GP28 | `machdep.adc.2` (`adc.c`), shared with the GPIO device |
+| Expansion header, ADC input 2, PWM slice 6 A | GP28 | `machdep.adc.2` (`adc.c`) and `GPIO_PWM` (`gpio.c`), shared with the GPIO device; `GPIO_PWM` on GP28 answers `EBUSY` while `/dev/audio` is open, whose sample clock is slice 6 |
 
 The vendor's `sd_boot/config.h` puts left audio on GP28; the schematic
 wires PWM_L to GP26, and GP28 reaches only the expansion header.

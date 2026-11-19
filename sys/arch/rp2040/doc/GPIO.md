@@ -35,6 +35,7 @@ effect on it, and `GPIO_POLL` reports held pins as zero.
 | `GPIO_STORE` | every configured pin of the port takes its bit of the mask |
 | `GPIO_SET`, `GPIO_CLEAR`, `GPIO_INVERT` | configured pins go high, go low, change |
 | `GPIO_POLL` | returns the input levels of the port's reachable pins |
+| `GPIO_PWM` | PWM: the mask's pins take the PWM function at the fixed carrier; the argument is the mask in its low 16 bits and the duty, 0-255, in its high 16 (see PWM) |
 | `GPIO_CONFOD` | refused with `EINVAL`: the RP2040 pad has no open-drain mode |
 
 Requests combine as in the PIC32 driver (`GPIO_CONFOUT | GPIO_SET`).
@@ -67,6 +68,39 @@ is GP26 and input 1 is GP27). A pin released with `GPIO_DECONF` reads again.
 Reading an input leaves its pad analog, so a program that wants the pin as
 a digital input configures it again.
 
+## PWM
+
+`GPIO_PWM` (command bit 26, a request the PIC32 driver lacks) runs the pins of its
+mask from their PWM slices (datasheet 4.5): `ioctl(fd, GPIO_PORTA | GPIO_PWM,
+1 << 8 | 128 << 16)` puts GP8 at 128 of 255. `GPIO_PWM` stands alone; it is
+refused beside another command. Every slice counts `clk_sys / 255` and wraps
+after 255 counts, so the carrier is 1,922 Hz at a 125 MHz `clk_sys`, a pin is
+high for `duty` counts of each period, duty 0 is a steady low and duty 255
+holds the pin high. The two channels of a slice (GP8 and GP9 share slice 4)
+keep separate duties on one carrier. The pad takes the reset setting of the
+digital pins (input buffer on, pull-down).
+
+Unlike the digital requests, which ignore a pin a board holds, `GPIO_PWM`
+fails: `EINVAL` for a pin the board holds (the table above), an empty mask
+or a duty past 255, and `EBUSY` for a slice the kernel uses.
+
+| Case | Result |
+| --- | --- |
+| PicoCalc, GP8, GP9 (slice 4) | runs, also while `/dev/audio` is open |
+| PicoCalc, GP28 (slice 6 A) | runs; `EBUSY` while `/dev/audio` is open |
+| PicoCalc, slice 5 (GP10, GP11, GP26, GP27) | `EINVAL`: the board holds those pins; the bell and `/dev/audio`'s carrier use the slice |
+| Pico, a free pin (slices 1-7, GP26 and GP27 on slice 5 included) | runs: no Pico kernel driver uses a slice |
+| Pico, GP0, GP1, GP23-GP25, GP29 | `EINVAL` |
+
+A PWM pin is also an owned pin. `GPIO_DECONF` stops it (no function, as for any
+owned pin), a digital `GPIO_CONFIN` or `GPIO_CONFOUT` takes it over, and the
+last close of any port node stops every PWM pin, so a program that exits
+releases its pins; d_close runs once per node, so a second process holding
+the other node has its PWM stopped too. A stopped slice keeps counting;
+it routes no pin. `/dev/audio` answers `EBUSY` to an open while a PWM pin
+is on slice 6, and a PWM request on slice 6 answers `EBUSY` while it is open;
+neither side takes the slice from the other.
+
 ## Evidence
 
 | Claim | Class | State |
@@ -74,6 +108,8 @@ a digital input configures it again.
 | Pin masks, port mapping and request validation | host | `check-gpio-requests`, six mutants rejected |
 | PICOCALC compiles and links the driver; PICOCALC_LEAN and PICOCALC_LEAN_DIAG keep the slot as `NOCDEV`; PICO and PICO_UART keep majors 0-9 | build | observed; `check-kernel-metadata` pins the rows |
 | A configured output drives its pin; an input reads its level; a held pin stays untouched | board | not run; `tests/rp2040/gpioprobe` decides it |
+| `GPIO_PWM` decoding, board pin refusals, slice ownership against the audio drivers, duty range, carrier and compare word | host | `check-gpio-requests`, sixteen mutants rejected |
+| `GPIO_PWM` drives GP8, GP9 and GP28 at the stated duty and frequency; `/dev/audio` and slice 6 refuse each other; the last close stops the pins | board | not run; an oscilloscope on GP8 (50 percent at 1.92 kHz) and a duty sweep on GP28 would decide it |
 | `machdep.adc.N` input refusals: board-owned pins, pins the GPIO device holds, inputs past the sensor | host | `check-adc-conversion`, four mutants rejected |
 | Input 2 on GP28 follows the voltage at the PicoCalc's expansion header | board | not run; a bench supply at 0 V, 1.65 V and 3.3 V on GP28 should read near 0, 2048 and 4095 |
 

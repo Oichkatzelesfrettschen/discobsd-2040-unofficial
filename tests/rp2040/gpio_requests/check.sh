@@ -1,6 +1,7 @@
 #!/bin/sh
 # Host check of the pin masks, port mapping and request validation in
-# sys/arch/rp2040/include/gpio.h, and of six mutants that must fail it.
+# sys/arch/rp2040/include/gpio.h, and of its PWM refusals, slice ownership
+# and duty arithmetic, and of sixteen mutants that must fail it.
 
 set -eu
 
@@ -56,3 +57,13 @@ mutant port-b-reach 's/(mask << 16) \& GPIO_PORTB_PINS/mask << 16/'
 mutant open-drain 's/GPIO_STORE | GPIO_SET | GPIO_CLEAR/GPIO_CONFOD | GPIO_STORE | GPIO_SET | GPIO_CLEAR/'
 mutant unknown-bit 's/(commands \& ~known) != 0)/(commands \& ~known) == GPIO_COMMAND)/'
 mutant group 's/(GPIO_IOC_VOID | .g. << 8))/(GPIO_IOC_VOID | (request \& 0xff00)))/'
+mutant pwm-alone 's/commands != (GPIO_PWM \& GPIO_COMMAND))/commands == 0)/'
+mutant pwm-held-pin 's/(pins \& ~gpio_board_pins(board)) != 0 ||/(pins \& ~gpio_board_pins(board)) == 99 ||/'
+mutant pwm-empty-mask 's/if (pins == 0 ||/if (pins == 99 ||/'
+mutant pwm-slice5 's/if ((pins \& GPIO_PWM_SLICE_PINS(GPIO_PWM_SLICE_BELL)) != 0)/if (0)/'
+mutant pwm-audio-slice 's/return audio_open != 0 \&\&/return audio_open == 99 \&\&/'
+mutant pwm-duty-range 's/duty > GPIO_PWM_DUTY_MAX)$/duty > 2 * GPIO_PWM_DUTY_MAX)/'
+mutant pwm-duty-scale 's/| duty << shift;/| (duty * 2) << shift;/'
+mutant pwm-top 's/(GPIO_PWM_DUTY_MAX - 1)/(GPIO_PWM_DUTY_MAX)/'
+mutant pwm-channel 's/16 \* (pin \& 1)/16 * (~pin \& 1)/'
+mutant pwm-slice-map 's/(((pin) >> 1) \& 7U)/(((pin) >> 1) \& 3U)/'

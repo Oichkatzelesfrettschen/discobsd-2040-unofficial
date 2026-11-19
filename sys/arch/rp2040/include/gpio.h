@@ -32,6 +32,17 @@
  * without effect, and GPIO_POLL reports them as zero. Output requests act
  * on pins this device configured. The RP2040 pad has no open-drain mode, so
  * GPIO_CONFOD, which the PIC32 driver accepts, is refused here.
+ *
+ * GPIO_PWM, a request the PIC32 driver lacks, drives pins from a PWM slice
+ * at a fixed frequency. Its argument is the pin mask in the low 16 bits and
+ * the duty in the high 16, a count of GPIO_PWM_DUTY_MAX parts:
+ *
+ *	ioctl(fd, GPIO_PORTA | GPIO_PWM, 1 << 8 | 128 << 16);	GP8 at 50 percent
+ *
+ * Unlike the digital requests it answers EINVAL for a pin the board holds,
+ * a duty past the maximum or an empty mask, and EBUSY for a slice the
+ * kernel uses. GPIO_DECONF stops the pins; the last close of any port node
+ * stops every PWM pin.
  */
 
 #ifndef _RP2040_GPIO_H_
@@ -53,6 +64,18 @@
 #define	GPIO_CLEAR	GPIO_REQUEST(22)	/* set to 0 by mask */
 #define	GPIO_INVERT	GPIO_REQUEST(23)	/* invert by mask */
 #define	GPIO_POLL	GPIO_REQUEST(24)	/* return the pin levels */
+#define	GPIO_PWM	GPIO_REQUEST(26)	/* PWM by mask; duty << 16 */
+
+/*
+ * The PWM carrier: every slice counts clk_sys / GPIO_PWM_DIV_INT and wraps
+ * after GPIO_PWM_DUTY_MAX counts, 1,922 Hz at a 125 MHz clk_sys. A channel
+ * is high while the counter is below its compare value, which the duty sets
+ * directly; TOP is one less than the period, so the duty GPIO_PWM_DUTY_MAX
+ * lies above the counter's range and holds the pin high.
+ */
+#define	GPIO_PWM_DUTY_MAX	255U
+#define	GPIO_PWM_TOP		(GPIO_PWM_DUTY_MAX - 1)
+#define	GPIO_PWM_DIV_INT	255U
 
 #define	GPIO_NPORTS	2
 #define	GPIO_PORTA_PINS	0x0000ffffU		/* GP0-GP15 */
@@ -112,8 +135,8 @@ gpio_request_valid(unsigned int request)
 {
 	unsigned int commands = request & GPIO_COMMAND;
 	unsigned int known = (GPIO_CONFIN | GPIO_CONFOUT | GPIO_DECONF |
-	    GPIO_STORE | GPIO_SET | GPIO_CLEAR | GPIO_INVERT | GPIO_POLL) &
-	    GPIO_COMMAND;
+	    GPIO_STORE | GPIO_SET | GPIO_CLEAR | GPIO_INVERT | GPIO_POLL |
+	    GPIO_PWM) & GPIO_COMMAND;
 
 	if ((request & ~GPIO_COMMAND) != (GPIO_IOC_VOID | 'g' << 8))
 		return 0;
@@ -122,18 +145,87 @@ gpio_request_valid(unsigned int request)
 	if ((commands & GPIO_CONFIN & GPIO_COMMAND) != 0 &&
 	    (commands & GPIO_CONFOUT & GPIO_COMMAND) != 0)
 		return 0;
+	if ((commands & GPIO_PWM & GPIO_COMMAND) != 0 &&
+	    commands != (GPIO_PWM & GPIO_COMMAND))
+		return 0;
 	return 1;
+}
+
+/*
+ * The PWM slice of a pin (datasheet 4.5.2: slice n serves GP2n and GP2n+1,
+ * wrapping every 16 pins; channel A is the even pin) and the pins of a slice.
+ */
+#define	GPIO_PWM_SLICE(pin)	(((pin) >> 1) & 7U)
+#define	GPIO_PWM_SLICE_PINS(s)	(3U << 2 * (s) | 3U << (2 * (s) + 16))
+
+/*
+ * The refusals of GPIO_PWM, as the errno values they become (EINVAL and
+ * EBUSY; gpio.c asserts the match).
+ */
+#define	GPIO_PWM_EINVAL		22
+#define	GPIO_PWM_EBUSY		16
+
+#define	GPIO_PWM_SLICE_BELL	5U	/* PicoCalc: the amplifier pins */
+#define	GPIO_PWM_SLICE_PCM	6U	/* PicoCalc: /dev/audio's sample clock */
+
+/*
+ * True when pins (GPn bits) lie on a slice the kernel uses: on a PicoCalc,
+ * slice 5 always (the bell and /dev/audio's carrier) and slice 6 while
+ * /dev/audio is open. The bare Pico's kernel uses no slice.
+ */
+static inline int
+gpio_pwm_slice_held(int board, unsigned int pins, int audio_open)
+{
+	if (board != 2)		/* BOARD_ID_PICOCALC */
+		return 0;
+	if ((pins & GPIO_PWM_SLICE_PINS(GPIO_PWM_SLICE_BELL)) != 0)
+		return 1;
+	return audio_open != 0 &&
+	    (pins & GPIO_PWM_SLICE_PINS(GPIO_PWM_SLICE_PCM)) != 0;
+}
+
+/*
+ * Zero when a PWM request may run, else the errno it fails with: pins is
+ * the whole mask the request names, not the part the board leaves free.
+ */
+static inline int
+gpio_pwm_check(int board, unsigned int pins, unsigned int duty,
+    int audio_open)
+{
+	if (pins == 0 || (pins & ~gpio_board_pins(board)) != 0 ||
+	    duty > GPIO_PWM_DUTY_MAX)
+		return GPIO_PWM_EINVAL;
+	if (gpio_pwm_slice_held(board, pins, audio_open))
+		return GPIO_PWM_EBUSY;
+	return 0;
+}
+
+/*
+ * The slice's compare word with the channel of pin set to duty: channel A
+ * is the low half and channel B the high half, and the other keeps its value.
+ */
+static inline unsigned int
+gpio_pwm_compare(unsigned int pin, unsigned int old, unsigned int duty)
+{
+	unsigned int shift = 16 * (pin & 1);
+
+	return (old & ~(0xffffU << shift)) | duty << shift;
 }
 
 #ifdef KERNEL
 struct uio;
 
 int	gpioopen(dev_t dev, int flag, int mode);
+int	gpioclose(dev_t dev, int flag, int mode);
 int	gpiorw(dev_t dev, struct uio *uio, int flag);
 int	gpioioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);
 
-/* The GPn bits gpioioctl() configured; machdep.adc.N reads it. */
+/*
+ * The GPn bits gpioioctl() configured, PWM pins included, which
+ * machdep.adc.N reads; and the PWM pins among them, which /dev/audio reads.
+ */
 extern u_int gpio_owned;
+extern u_int gpio_pwm_pins;
 #endif
 
 #endif /* !_RP2040_GPIO_H_ */

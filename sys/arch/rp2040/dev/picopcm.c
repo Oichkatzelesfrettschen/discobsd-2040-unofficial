@@ -19,6 +19,11 @@
  * at PCM_RATE samples per second on both amplifier channels (GP26 and
  * GP27, PWM slice 5; picoaudio.c describes the wiring).
  *
+ * A program that holds a PWM pin of slice 6 through /dev/porta or
+ * /dev/portb (GPIO_PWM; GP28 on a PicoCalc) keeps the device closed: the
+ * open answers EBUSY until that pin is stopped, and a PWM request on slice 6
+ * answers EBUSY while the device is open.
+ *
  * Slice 5 runs a 500 kHz carrier (clk_sys / 250) whose duty cycle is the
  * sample; the board's output filter passes the audio band and the carrier
  * sits far above it. Slice 6 routes no pin and serves as the sample clock:
@@ -50,6 +55,7 @@
 #include <sys/uio.h>
 
 #include <machine/board.h>
+#include <machine/gpio.h>
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
@@ -131,6 +137,11 @@ pcmopen(dev_t dev, int flag __unused, int mode __unused)
 		return ENXIO;
 	if (picoaudio_pcm)
 		return EBUSY;
+#ifdef DEV_GPIO
+	/* A program's PWM pin on slice 6 would run against the sample clock. */
+	if ((gpio_pwm_pins & GPIO_PWM_SLICE_PINS(PCM_CLOCK_SLICE)) != 0)
+		return EBUSY;
+#endif
 	picoaudio_pcm = 1;
 
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_PWM);

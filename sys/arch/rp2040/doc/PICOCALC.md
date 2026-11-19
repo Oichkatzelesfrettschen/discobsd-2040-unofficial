@@ -49,7 +49,7 @@ choices, and the evidence each driver has.
 
 Each on-board or on-chip driver past the console is a kernel option, so a
 configuration carries exactly the hardware it drives: `DEV_ADC` (the
-temperature and VSYS sysctls, `dev/adc.c`), `DEV_GPIO` (`/dev/porta` and
+temperature, VSYS and raw-input sysctls, `dev/adc.c`), `DEV_GPIO` (`/dev/porta` and
 `/dev/portb`, cdevsw 12), `DEV_LCDGFX` (`/dev/lcdgfx`, minor 1 of the
 console major) and `DEV_PCM` (`/dev/audio`, cdevsw 13). PICOCALC lists all
 four; PICOCALC_LEAN and PICOCALC_LEAN_DIAG list none. A configuration without one keeps the majors after it at their
@@ -156,7 +156,8 @@ table and the sources that agree):
 | UART1, expansion header | GP8 TX, GP9 RX | none |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
 | SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | `sd.c`, `sdspi.c`, `sd0` and `rsd0` |
-| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone; `picopcm.c`, `/dev/audio` |
+| Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone; `picopcm.c`, `/dev/audio`; `machdep.adc.0` and `machdep.adc.1` refuse these pins |
+| Expansion header, ADC input 2 | GP28 | `machdep.adc.2` (`adc.c`), shared with the GPIO device |
 
 The vendor's `sd_boot/config.h` puts left audio on GP28; the schematic
 wires PWM_L to GP26, and GP28 reaches only the expansion header.

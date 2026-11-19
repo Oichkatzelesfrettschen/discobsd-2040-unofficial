@@ -50,7 +50,7 @@ _Static_assert(BOARD_ID_PICO == 1 && BOARD_ID_PICOCALC == 2,
 #define	SIO_GPIO_OE_SET		0xd0000024UL
 #define	SIO_GPIO_OE_CLR		0xd0000028UL
 
-static u_int gpio_owned;	/* GPn bits this device configured. */
+u_int gpio_owned;	/* GPn bits this device configured. */
 
 int
 gpioopen(dev_t dev, int flag __unused, int mode __unused)

@@ -131,6 +131,9 @@ struct uio;
 int	gpioopen(dev_t dev, int flag, int mode);
 int	gpiorw(dev_t dev, struct uio *uio, int flag);
 int	gpioioctl(dev_t dev, u_int cmd, caddr_t addr, int flag);
+
+/* The GPn bits gpioioctl() configured; machdep.adc.N reads it. */
+extern u_int gpio_owned;
 #endif
 
 #endif /* !_RP2040_GPIO_H_ */

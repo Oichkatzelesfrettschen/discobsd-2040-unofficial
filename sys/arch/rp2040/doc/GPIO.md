@@ -43,6 +43,30 @@ outlives the close. The PIC32 driver's text interface (`echo ..1. >
 /dev/porta`) and its `/dev/confa` nodes are absent: `read()` and
 `write()` return `ENODEV`.
 
+## Analog input
+
+`machdep.adc.N` (mib `{ CTL_MACHDEP, CPU_ADC, N }`, `sysctl machdep.adc.N`) returns the raw 12-bit
+count of ADC input N, 0 to 4, one conversion per read, for any user. Input
+0-2 are GP26-GP28, input 3 is GP29 (the Pico's VSYS divider) and input 4 is
+the die sensor; the reference is the 3.3 V ADC_AVDD, so a count is
+3300 / 4096 mV. Each read of inputs 0-3 first sets its pad to analog (no
+function, input buffer, output and both pulls off), then converts. The node
+refuses by the table below and the kernel `DEV_ADC` option gates it (a
+kernel without it answers `EOPNOTSUPP` as the two older nodes do).
+
+| Input | Pin | Pico | PicoCalc |
+| --- | --- | --- | --- |
+| 0, 1 | GP26, GP27 | read | `EPERM`: the audio amplifier pins |
+| 2 | GP28 | read | read; `EBUSY` while the GPIO device has configured the pin |
+| 3 | GP29 | read (VSYS / 3) | read |
+| 4 | die sensor | read | read |
+| 5 and up | none | `EINVAL` | `EINVAL` |
+
+The `EBUSY` rule applies to inputs 0-2 on every board (on a Pico, input 0
+is GP26 and input 1 is GP27). A pin released with `GPIO_DECONF` reads again.
+Reading an input leaves its pad analog, so a program that wants the pin as
+a digital input configures it again.
+
 ## Evidence
 
 | Claim | Class | State |
@@ -50,6 +74,8 @@ outlives the close. The PIC32 driver's text interface (`echo ..1. >
 | Pin masks, port mapping and request validation | host | `check-gpio-requests`, six mutants rejected |
 | PICOCALC compiles and links the driver; PICOCALC_LEAN and PICOCALC_LEAN_DIAG keep the slot as `NOCDEV`; PICO and PICO_UART keep majors 0-9 | build | observed; `check-kernel-metadata` pins the rows |
 | A configured output drives its pin; an input reads its level; a held pin stays untouched | board | not run; `tests/rp2040/gpioprobe` decides it |
+| `machdep.adc.N` input refusals: board-owned pins, pins the GPIO device holds, inputs past the sensor | host | `check-adc-conversion`, four mutants rejected |
+| Input 2 on GP28 follows the voltage at the PicoCalc's expansion header | board | not run; a bench supply at 0 V, 1.65 V and 3.3 V on GP28 should read near 0, 2048 and 4095 |
 
 `tests/rp2040/gpioprobe` drives GP2 of a bare Pico high and low through
 `/dev/porta` and reads it back, requests the UART0 pins and checks that

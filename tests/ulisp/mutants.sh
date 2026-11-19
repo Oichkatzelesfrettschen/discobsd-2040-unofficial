@@ -88,3 +88,29 @@ mutant negate-int-min 's/makefloat(-(float)result)/makefloat(-result)/'
 mutant array-overflow 's/else if (size > INT_MAX \/ d) toobig = true;/else if (0) toobig = true;/'
 # An array larger than the workspace reaches the power-of-two rounding.
 mutant array-bound 's/if (toobig || (unsigned int)size > WORKSPACESIZE)/if (toobig)/'
+# A negative remainder of zero takes the divisor, as (mod 5 -1) = -1.
+mutant mod-sign 's/if (mod \&\& remainder != 0 \&\& (remainder<0)/if (mod \&\& (remainder<0)/'
+# rem corrects its sign like mod.
+mutant rem-sign 's/if (mod \&\& remainder != 0/if (remainder != 0/'
+# round takes a half to the next integer, not the even one.
+mutant round-even 's/d == 0.5 \&\& fmodf(f, 2.0) != 0.0/d == 0.5/'
+# floor, ceiling, truncate and round divide by an integer zero.
+mutant divide-zero 's/if (den == 0) error2(divisionbyzero);//'
+# A float quotient beyond the integers is cast to int.
+mutant float-range 's/if (!(f >= -2147483648.0 \&\& f < 2147483648.0)) error2(outofrange);//'
+# ash shifts by the count as given.
+mutant ash-width 's/count > 31 ? 0 : //'
+# A decimal literal wider than the integers wraps.
+mutant literal-wrap 's/if (big) return makefloat(fresult\*sign);//'
+# A semicolon comment ends at the next opening parenthesis.
+mutant comment-end 's/while(ch != .\\n. \&\& ch != -1);/while(ch != 0x28 \&\& ch != -1);/'
+# A block comment does not nest.
+mutant block-nest 's/else if (last == .#. \&\& ch == .|.) { depth++; ch = 0; }//'
+# A three-letter character name is read as three decimal digits.
+mutant char-digits 's/if (index == 3 \&\& digitvalue(buffer\[0\]) < 10 \&\& digitvalue(buffer\[1\]) < 10 \&\& digitvalue(buffer\[2\]) < 10)/if (index == 3)/'
+# A bit array leaves the character after it for the next read.
+mutant bitarray-lastchar 's/if (!issp(ch)) LastChar = ch;/LastChar = ch;/'
+# pop of an empty place is an error.
+mutant pop-nil 's/if (\*loc == NULL) return nil;//'
+# A float zero prints as an integer.
+mutant float-zero 's/pfstring("0.0", pfun); return;/pfun(0x30); return;/'

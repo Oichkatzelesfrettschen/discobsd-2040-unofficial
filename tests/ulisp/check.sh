@@ -29,9 +29,9 @@
 #
 # Runs the uLisp that COMMAND starts over the corpora of this directory, in
 # a directory of its own, and compares each transcript with its .expected
-# file. host runs the language, system, images, repairs and devices corpora;
-# qemu runs the first four and, in place of devices, the stack and
-# machine-code corpora that need the target. Both reload the image the
+# file. host runs the language, system, images, repairs, conformance and
+# devices corpora; qemu runs the first five and, in place of devices, the
+# stack and machine-code corpora that need the target. Both reload the image the
 # system corpus saved in a second process with a smaller workspace, which
 # rebases it. The images corpus loads damaged copies of that image
 # (corrupt-image.py, which needs PYTHON) and requires each to be refused
@@ -68,8 +68,8 @@ compare() {
 }
 
 case $mode in
-host)	corpora="language system images repairs devices" ;;
-qemu)	corpora="language system images repairs stack code" ;;
+host)	corpora="language system images repairs conformance devices" ;;
+qemu)	corpora="language system images repairs conformance stack code" ;;
 *)	echo "usage: check.sh host|qemu DOCFILE COMMAND [ARG...]" >&2; exit 2 ;;
 esac
 

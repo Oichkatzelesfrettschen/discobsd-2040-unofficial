@@ -27,23 +27,25 @@
 #
 # Transcript tests of the uLisp interpreter (usr.bin/ulisp).
 #
-#   check         the host build over the language, system, images, repairs and
-#                 devices corpora; the same corpora with the address and
+#   check         the host build over the language, system, images, repairs,
+#                 conformance and devices corpora; the same corpora with the address and
 #                 undefined-behavior sanitizers, which turn an overflow, an
 #                 out-of-range access or a misaligned pointer into a failure;
 #                 then the mutants of ulisp.c that the check must reject
 #                 (mutants.sh)
 #   check-qemu    the a.out the tree links, run by tests/qemu_aout/aoutrun
-#                 under qemu-arm: the language, system, images and repairs corpora
-#                 against the same expected transcripts as the host, and the
+#                 under qemu-arm: the language, system, images, repairs and
+#                 conformance corpora against the same expected transcripts as
+#                 the host, and the
 #                 stack and machine-code corpora that need the target
 #   check-oracle  the language corpus through the unmodified upstream source
 #                 built for the host (oracle/), compared with the host build;
 #                 ULISP_INO names ulisp-picocalc.ino, which is not in the tree
 #
 # The expected transcripts are the interpreter's own output: language.expected
-# is the one check-oracle holds to the upstream program, and repairs.lisp
-# holds the forms whose output differs from upstream on purpose.
+# is the one check-oracle holds to the upstream program, repairs.lisp
+# holds the forms whose output differs from upstream on purpose, and
+# conformance.lisp holds cases cited to sections of the Common Lisp HyperSpec.
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 include ${TOPSRC}/tools/qemu-arm.mk

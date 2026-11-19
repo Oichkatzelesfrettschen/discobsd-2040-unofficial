@@ -46,6 +46,106 @@ Error: no room
 (7 1)
 
 12000> 
-(#\Newline #\Null #\Null)
+(1 3 -3 -1 0 0 0 0)
 
 12000> 
+(1 -1 1 -1 0 0)
+
+12000> 
+(0.4 0.5 0.0 -0.5 0.5 -0.5 0.0)
+
+12000> 
+(2 4 -2 0 2 4 2 -4 -2 2)
+
+12000> 
+(-2 -2 -1 -1 -1 -1 -2 2 -2)
+
+12000> 
+Error: 'floor' division by zero
+12000> 
+Error: 'ceiling' division by zero
+12000> 
+Error: 'truncate' division by zero
+12000> 
+Error: 'round' division by zero
+12000> 
+Error: 'floor' division by zero
+12000> 
+Error: 'round' division by zero
+12000> 
+Error: 'floor' result out of range
+12000> 
+Error: 'floor' result out of range
+12000> 
+Error: 'round' result out of range
+12000> 
+(-2147483648 0 0 0 0 -1 -1 0 -2 0 0)
+
+12000> 
+((1.0e11 -1.0e11 2147483647 2.14748e9 4.29497e9 4.29497e9 1.23457e13 -2147483648 -2.14748e9))
+
+12000> 
+(1.23457e29 2147483647 -1)
+
+12000> 
+(nil nil)
+
+12000> 
+(t t t t nil nil)
+
+12000> 
+(0.0 0.0 0.0 0.0 0.0 (0.5))
+
+12000> 
+1
+
+11998> 
+(1 2 3)
+
+11984> 
+(1 2)
+
+11974> 
+4
+
+11972> 
+(1 2 3)
+
+11959> 
+(5)
+
+11952> 
+6
+
+11950> 
+(a c)
+
+11935> 
+(#\; #\( #\) #\" #\a)
+
+11916> 
+#*101
+
+11899> 
+(1)
+
+11892> 
+(#*1 #*10)
+
+11861> 
+#\A
+
+11859> 
+#\Space
+
+11857> 
+Error: unknown character
+11857> 
+Error: unknown character
+11857> 
+(#\Null #\A #\a #\Newline)
+
+11841> 
+(#\Newline #\Null #\Null)
+
+11818> 

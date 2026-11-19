@@ -87,7 +87,7 @@ enum { COLOR_WHITE = 0xffff, COLOR_BLACK = 0 };
 #define tstflag(x)         (Flags & 1<<(x))
 
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
-#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#' || x == '\'')
+#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#' || x == '\'' || x == ';')
 #define fntype(x)          (getminmax((uint16_t)(x))>>6)
 #define longsymbolp(x)     (((x)->name & 0x03) == 0)
 #define longnamep(x)       (((x) & 0x03) == 0)
@@ -697,6 +697,7 @@ static const char toomanyargs[] = "too many arguments";
 static const char toofewargs[] = "too few arguments";
 static const char noargument[] = "missing argument";
 static const char divisionbyzero[] = "division by zero";
+static const char outofrange[] = "result out of range";
 static const char indexnegative[] = "index can't be negative";
 static const char invalidarg[] = "invalid argument";
 static const char invalidkey[] = "invalid keyword";
@@ -1476,14 +1477,14 @@ static object *remmod (object *args, bool mod) {
     if (divisor == 0) error2(divisionbyzero);
     int dividend = arg1->integer;
     int remainder = (divisor == -1) ? 0 : dividend % divisor;  // INT_MIN % -1 overflows
-    if (mod && (dividend<0) != (divisor<0)) remainder = remainder + divisor;
+    if (mod && remainder != 0 && (remainder<0) != (divisor<0)) remainder = remainder + divisor;  // CLHS MOD: the sign of the divisor
     return number(remainder);
   } else {
     float fdivisor = checkintfloat(arg2);
     if (fdivisor == 0.0) error2(divisionbyzero);
     float fdividend = checkintfloat(arg1);
     float fremainder = fmodf(fdividend , fdivisor);
-    if (mod && (fdividend<0) != (fdivisor<0)) fremainder = fremainder + fdivisor;
+    if (mod && fremainder != 0.0 && (fremainder<0) != (fdivisor<0)) fremainder = fremainder + fdivisor;
     return makefloat(fremainder);
   }
 }
@@ -1669,7 +1670,7 @@ static object *readbitarray (gfun_t gfun) {
     tail = cell;
     ch = gfun();
   }
-  LastChar = ch;
+  if (!issp(ch)) LastChar = ch;
   int size = listlength(head);
   object *array = makearray(cons(number(size), NULL), number(0), true);
   size = (size + sizeof(int)*8 - 1)/(sizeof(int)*8);
@@ -2629,6 +2630,7 @@ static object *sp_pop (object *args, object *env) {
   if (arg == NULL) error2(invalidarg);
   object **loc = place(arg, env, &bit);
   if (bit < -1) error(invalidarg, arg);
+  if (*loc == NULL) return nil;
   if (!consp(*loc)) error(notalist, *loc);
   object *result = car(*loc);
   pop(*loc);
@@ -3135,8 +3137,7 @@ static object *fn_keywordp (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   if (!symbolp(arg)) return nil;
-  if (colonp(arg->name)) return tee;
-  if (keywordp(arg)) return (number((int)lookupfn(builtin(arg->name))));
+  if (colonp(arg->name) || keywordp(arg)) return tee;
   return nil;
 }
 
@@ -3798,58 +3799,54 @@ static object *fn_expt (object *args, object *env) {
   return makefloat(expf(value));
 }
 
+// FLOOR, CEILING, TRUNCATE and ROUND of CLHS: mode 0 to 3. Two integers divide
+// exactly; any other operands divide as floats. No second value is returned.
+static object *quotient (object *args, int mode) {
+  object *arg = first(args);
+  object *arg2 = cdr(args);
+  if (integerp(arg) && (arg2 == NULL || integerp(first(arg2)))) {
+    int num = arg->integer, den = (arg2 != NULL) ? first(arg2)->integer : 1;
+    if (den == 0) error2(divisionbyzero);
+    if (den == -1 && num == INT_MIN) error2(outofrange);
+    int quo = num/den, rem = num - quo*den;
+    if (rem != 0) {
+      bool same = (num < 0) == (den < 0);  // The exact quotient is positive
+      unsigned int ar = (rem < 0) ? -(unsigned int)rem : (unsigned int)rem;
+      unsigned int ad = (den < 0) ? -(unsigned int)den : (unsigned int)den;
+      if (mode == 0 ? !same : mode == 1 ? same : mode == 3 && (ar > ad - ar || (ar == ad - ar && (quo & 1)))) quo = quo + (same ? 1 : -1);
+    }
+    return number(quo);
+  }
+  float y = (arg2 != NULL) ? checkintfloat(first(arg2)) : 1.0;
+  float x = checkintfloat(arg);
+  if (y == 0.0) error2(divisionbyzero);
+  x = x / y;
+  float f = floorf(x), d = x - f;
+  if (mode == 1) f = ceilf(x);
+  else if (mode == 2) { if (x < 0) f = ceilf(x); }
+  else if (mode == 3 && (d > 0.5 || (d == 0.5 && fmodf(f, 2.0) != 0.0))) f = f + 1.0;
+  if (!(f >= -2147483648.0 && f < 2147483648.0)) error2(outofrange);
+  return number((int)f);
+}
+
 static object *fn_ceiling (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  args = cdr(args);
-  if (args != NULL) {
-    object *arg2 = first(args);
-    if (integerp(arg) && integerp(arg2)) {
-      int num = arg->integer, den = arg2->integer, quo = num/den, rem = num-(quo*den);
-      if (((num<0) != (den<0)) || rem==0) return number(quo); else return number(quo+1);
-    } else return number(ceilf(checkintfloat(arg) / checkintfloat(first(args))));
-  } else {
-    if (integerp(arg)) return number(arg->integer);
-    else return number(ceilf(checkintfloat(arg)));
-  }
+  return quotient(args, 1);
 }
 
 static object *fn_floor (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  args = cdr(args);
-  if (args != NULL) {
-    object *arg2 = first(args);
-    if (integerp(arg) && integerp(arg2)) {
-      int num = arg->integer, den = arg2->integer, quo = num/den, rem = num-(quo*den);
-      if (((num<0) == (den<0)) || rem==0) return number(quo); else return number(quo-1);
-    } else return number(floorf(checkintfloat(arg) / checkintfloat(first(args))));
-  } else {
-    if (integerp(arg)) return number(arg->integer);
-    else return number(floorf(checkintfloat(arg)));
-  }
+  return quotient(args, 0);
 }
 
 static object *fn_truncate (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  args = cdr(args);
-  if (args != NULL) {
-    object *arg2 = first(args);
-    if (integerp(arg) && integerp(arg2)) return number(arg->integer / arg2->integer);
-    else return number((int)(checkintfloat(arg) / checkintfloat(first(args))));
-  } else {
-    if (integerp(arg)) return number(arg->integer);
-    else return number((int)(checkintfloat(arg)));
-  }
+  return quotient(args, 2);
 }
 
 static object *fn_round (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  args = cdr(args);
-  if (args != NULL) return number(roundf(checkintfloat(arg) / checkintfloat(first(args))));
-  else return number(roundf(checkintfloat(arg)));
+  return quotient(args, 3);
 }
 
 // Characters
@@ -4112,8 +4109,9 @@ static object *fn_ash (object *args, object *env) {
   (void) env;
   int value = checkinteger(first(args));
   int count = checkinteger(second(args));
-  if (count >= 0) return number(value << count);
-  else return number(value >> abs(count));
+  // A count past the word width gives the shifted-out value, not an undefined shift.
+  if (count >= 0) return number(count > 31 ? 0 : (int)((unsigned int)value << count));
+  else return number(value >> (count < -31 ? 31 : -count));
 }
 
 static object *fn_logbitp (object *args, object *env) {
@@ -5336,7 +5334,7 @@ static void pmantissa (float f, pfun_t pfun) {
 
 static void pfloat (float f, pfun_t pfun) {
   if (isnan(f)) { pfstring("NaN", pfun); return; }
-  if (f == 0.0) { pfun('0'); return; }
+  if (f == 0.0) { pfstring("0.0", pfun); return; }
   if (isinf(f)) { pfstring("Inf", pfun); return; }
   if (f < 0) { pfun('-'); f = -f; }
   // Calculate exponent
@@ -5432,13 +5430,12 @@ static int gserial (void) {
 
 static object *nextitem (gfun_t gfun) {
   int ch = gfun();
-  while(issp(ch)) ch = gfun();
-
-  if (ch == ';') {
+  for (;;) {  // CLHS 2.4.4: a semicolon comment runs to the end of the line
+    while(issp(ch)) ch = gfun();
+    if (ch != ';') break;
     do { ch = gfun(); if (ch == ';' || ch == '(') setflag(NOECHO); }
-    while(ch != '(');
+    while(ch != '\n' && ch != -1);
   }
-  if (ch == '\n') ch = gfun();
   if (ch == -1) return (object *)ENDOFINPUT;
   if (ch == ')') return (object *)KET;
   if (ch == '(') return (object *)BRA;
@@ -5454,6 +5451,7 @@ static object *nextitem (gfun_t gfun) {
   unsigned int result = 0;
   bool isfloat = false;
   float fresult = 0.0;
+  bool big = false;  // The digits no longer fit result
 
   if (ch == '+') {
     buffer[index++] = ch;
@@ -5477,9 +5475,15 @@ static object *nextitem (gfun_t gfun) {
       base = 0; ch = gfun();
       if (issp(ch) || isbr(ch)) return character(ch);
       else LastChar = ch;
-    } else if (ch == '|') {
-      do { while (gfun() != '|'); }
-      while (gfun() != '#');
+    } else if (ch == '|') {  // CLHS 2.4.8.19: balanced against nested #| and |#
+      int depth = 1, last = 0;
+      while (depth > 0) {
+        ch = gfun();
+        if (ch == -1) return (object *)ENDOFINPUT;
+        if (last == '|' && ch == '#') { depth--; ch = 0; }
+        else if (last == '#' && ch == '|') { depth++; ch = 0; }
+        last = ch;
+      }
       return nextitem(gfun);
     } else if (ch2 == 'B') base = 2;
     else if (ch2 == 'O') base = 8;
@@ -5507,9 +5511,9 @@ static object *nextitem (gfun_t gfun) {
     buffer[index++] = ch;
     if (base == 10 && ch == '.' && !isexponent) {
       isfloat = true;
-      fresult = result;
+      if (!big) fresult = result;
     } else if (base == 10 && (ch == 'e' || ch == 'E')) {
-      if (!isfloat) { isfloat = true; fresult = result; }
+      if (!isfloat) { isfloat = true; if (!big) fresult = result; }
       isexponent = true;
       if (valid == 1) valid = 0; else valid = -1;
     } else if (isexponent && ch == '-') {
@@ -5524,7 +5528,11 @@ static object *nextitem (gfun_t gfun) {
         fresult = fresult + digit / divisor;
         divisor = divisor * 10.0;
       } else {
-        result = result * base + digit;
+        if (valid == 1) {
+          if (result > (UINT_MAX - digit) / base) { if (!big) fresult = result; big = true; }
+          if (big) fresult = fresult * base + digit;
+          result = result * base + digit;
+        }
       }
     }
     ch = gfun();
@@ -5534,6 +5542,7 @@ static object *nextitem (gfun_t gfun) {
   if (isbr(ch)) LastChar = ch;
   if (isfloat && valid == 1) return makefloat(fresult * sign * tento(exponent * esign));
   else if (valid == 1) {
+    if (big) return makefloat(fresult*sign);
     if (base == 10 && result > ((unsigned int)INT_MAX+(1-sign)/2))
       return makefloat((float)result*sign);
     return number(result*sign);
@@ -5544,7 +5553,8 @@ static object *nextitem (gfun_t gfun) {
       if (strcasecmp(buffer, p) == 0) return character(c);
       p = p + strlen(p) + 1; c++;
     }
-    if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
+    if (index == 3 && digitvalue(buffer[0]) < 10 && digitvalue(buffer[1]) < 10 && digitvalue(buffer[2]) < 10)
+      return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
     error2("unknown character");
   }
 

@@ -103,8 +103,15 @@ time that each set's bytes give its nominal rate within 0.25 Hz.
 | 24 | C0h 0Bh | 12 | Fosc | 11 | 275 | 75.13 Hz |
 | 25 | E0h 1Eh | 14 | Fosc | 30 | 230 | 89.83 Hz |
 | 26 | F0h 04h | 15 | Fosc | 4 | 172 | 120.13 Hz |
+| 28 | A0h 04h | 10 | Fosc | 4 | 332 | 62.23 Hz |
+| 29 | C0h 01h | 12 | Fosc | 1 | 265 | 77.96 Hz |
+| 30 | F0h 00h | 15 | Fosc | 0 | 168 | 122.98 Hz |
 
-Sets 21-26 unlock command 2 first. Set 23 writes the datasheet defaults,
+Sets 28-30 aim the formula above a target by the ratio the board measured
+at the same FRS (result 3 of the 2026-11-18 run): 60 / 0.965, 75 / 0.962
+and, for 120, the formula's maximum at these porches (168 line units).
+
+Sets 21-26 and 28-30 unlock command 2 first. Set 23 writes the datasheet defaults,
 so it is the reference the other rates compare against. The shipped
 sequence writes B1h A0h alone (RTNA left as reset) and no B5h; sets 14
 and 15 write B1h 00h alone, 31.1 Hz at RTNA 10h and 484 lines.
@@ -197,6 +204,19 @@ for each judged item, and `/var/log/paneltest.log`.
     recorded negative for these conditions: FBh SPI_REN with parameter
     numbers 0 and 1, before and after the unlock, locked, and in or out
     of the read's chip select, at 3.125 MHz in four-wire SPI.
+
+## Predictions for the compensated frame-rate sets, recorded before their board run
+
+14. Sets 28, 29 and 30, measured with `f`: 60.05 Hz, 75.0 Hz and 119.8 Hz,
+    each within 0.6 Hz, if the oscillator ratio of a set depends on FRS
+    alone (0.965 at FRS 10, 0.962 at FRS 12, 0.974 at FRS 15, from sets
+    23, 24 and 26). A set that lands at its formula rate times a ratio
+    outside 0.960 to 0.976 means the ratio also depends on RTNA, and the
+    compensation needs a measurement at the exact RTNA.
+15. Set 30 writes RTNA 0, the smallest line period the register holds.
+    Hypothesis: the panel still shows a stable picture; the falsifier is
+    a torn, dim or rolling picture under pattern 1, in which case the
+    highest usable rate is set 26's measured 117.04 Hz.
 
 ## Results, 2026-11-17
 

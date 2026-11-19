@@ -736,6 +736,16 @@ static const u_char FRAME_31HZ[] = { 0xb1, 1, 0x00 };
  *   90 Hz  14   00b   30    168 + 30 + 32 = 230  89.83 Hz
  *   120 Hz 15   00b   4     168 + 4 + 0 = 172    120.13 Hz
  *
+ * The measured board runs the formula 2.6% to 3.8% slow (doc/PANELTEST.md),
+ * so three further sets aim the formula above a target rate by the ratio
+ * measured at the same FRS: 62.23 Hz for 60 (ratio 0.965), 77.96 Hz for 75
+ * (0.962) and 122.98 Hz, the formula's maximum at these porches, for 120
+ * (0.974).
+ *
+ *   62 Hz  10   00b   4     168 + 4 + 160 = 332  62.23 Hz
+ *   78 Hz  12   00b   1     168 + 1 + 96 = 265   77.96 Hz
+ *   123 Hz 15   00b   0     168 + 0 + 0 = 168    122.98 Hz
+ *
  * FRAME_SET builds each table from its fields and asserts at compile time
  * that the formula, shifted right by DIVA, lands within 0.25 Hz of the
  * nominal rate.
@@ -757,6 +767,9 @@ FRAME_SET(FRAME_60HZ, 10, 0, 16, 60);
 FRAME_SET(FRAME_75HZ, 12, 0, 11, 75);
 FRAME_SET(FRAME_90HZ, 14, 0, 30, 90);
 FRAME_SET(FRAME_120HZ, 15, 0, 4, 120);
+FRAME_SET(FRAME_62HZ, 10, 0, 4, 62);
+FRAME_SET(FRAME_78HZ, 12, 0, 1, 78);
+FRAME_SET(FRAME_123HZ, 15, 0, 0, 123);
 static const u_char MADCTL_40[] = { CMD_MADCTL, 1, 0x40 };
 static const u_char MADCTL_08[] = { CMD_MADCTL, 1, 0x08 };
 /* Distinctive in-range values that the marked readback variants expect. */

@@ -673,6 +673,19 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
         }
     for (i = FS_NDADDR(INODE_FILESYSTEM(oip)) - 1; i > lastblock; i--)
         IADDR_DB_SET(oip, i, 0);
+    /*
+     * The shortened inode reaches the device before the first block is
+     * freed, so a reset between the two leaves an inode that names only
+     * blocks it still owns and fsck returns the unreferenced ones to the
+     * free list; the reverse order leaves an on-disk inode claiming blocks
+     * the free list may already hold or have handed out again.  ICHG|IUPD
+     * make iupdat() write, since it returns at once on clean flags, and a
+     * waitfor of 1 submits the write through bwrite() whatever MNT_ASYNC
+     * says.  The frees change only the copy in tip, so no second write
+     * follows them.
+     */
+    oip->i_flag |= ICHG|IUPD;
+    iupdat(oip, &time, &time, 1);
 
     /*
      * Indirect blocks first.
@@ -715,6 +728,8 @@ done:
             panic("itrunc2");
 /* END PARANOIA */
 #endif
+    /* The inode was written before the frees and the frees leave it as is. */
+    return;
 
 doquotaupd:
 updret:

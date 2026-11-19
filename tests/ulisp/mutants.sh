@@ -74,3 +74,15 @@ mutant reader-end 's/ \&\& ch != -1 \&\& index < bufmax/ \&\& index < bufmax/'
 mutant cdr-is-car 's/^  return cdrx(first(args));$/  return carx(first(args));/'
 # String comparison shifts a word wider than the four characters it holds.
 mutant wide-chars 's/int m = 0; chars_t a = 0, b = 0;/int m = 0; unsigned long long a = 0, b = 0;/'
+# analogread returns the 12-bit count where upstream's default is 10 bits.
+mutant analogread-scale 's/sys_analogread(pin) >> 2/sys_analogread(pin)/'
+# analogread accepts the pin after GP29.
+mutant analogread-range 's/if (!(pin>=26 \&\& pin<=29)) error(invalidpin/if (!(pin>=26 \&\& pin<=30)) error(invalidpin/'
+# analogwrite accepts the pin after GP29.
+mutant analogwrite-range 's/if (!(pin>=0 \&\& pin<=29)) error(invalidpin/if (!(pin>=0 \&\& pin<=30)) error(invalidpin/'
+# analogwrite hands the device the next pin.
+mutant analogwrite-pin 's/sys_analogwrite(pin, /sys_analogwrite(pin + 1, /'
+# analogwrite passes a duty above 255 on to the device.
+mutant analogwrite-clamp-high 's/duty > 255 ? 255 : duty/duty > 255 ? duty : duty/'
+# analogwrite passes a negative duty on to the device.
+mutant analogwrite-clamp-low 's/duty < 0 ? 0 : duty/duty < 0 ? duty : duty/'

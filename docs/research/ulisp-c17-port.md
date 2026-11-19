@@ -148,10 +148,21 @@ below the integer; the port's float quotient prints `1.0e-4`.
 ## What does not map
 
 - `with-i2c`, `with-spi`, `with-serial`, `restart-i2c`, the Wi-Fi
-  functions, `analogwrite`, `analogreference` and the two resolution
-  functions are absent: the kernel exposes none of those devices.
+  functions, `analogreference` and the two resolution functions are
+  absent: the kernel exposes none of those devices, and the resolutions are
+  fixed at upstream's defaults of 10 bits in and 8 bits out.
 - `set-rotation` and `invert-display` are absent.
-- `analogread` reports an error (no device).
+- `analogread` reads GP26-GP29 through `machdep.adc.N` as a 10-bit
+  value, upstream's default, from the kernel's 12-bit count. On a PicoCalc
+  the kernel refuses GP26 and GP27 (the audio amplifier) and the function
+  reports "no analogue input device", the message it also gives when the
+  kernel lacks the node; GP28 is the expansion header's ADC2. `analogwrite`
+  sets a duty of 0-255 on pins GP0-GP29 through the GPIO device's PWM
+  request, a 1.9 kHz carrier; the kernel refuses the pins the board holds,
+  and on a PicoCalc GP8, GP9 and GP28 can be driven (GP28 not while
+  `/dev/audio` is open), reported as "no analogue output device". The
+  pins need the superuser. The host model is a loopback; the ADC and PWM
+  paths have run on no board.
 - `note` selects a tone that sounds while `delay`, `for-millis` or `sleep`
   waits, since `/dev/audio` takes samples and has no free-running tone.
 - The pins need the superuser, and the PicoCalc leaves GP8, GP9 and GP28.

@@ -4440,15 +4440,20 @@ pretty printer), `system` (the documentation file, files, the library file,
 image save and load), `repairs` (float output that differs from upstream on
 purpose) and `devices` (the drawing functions against a frame buffer in
 memory, whose `save-bmp` file is held to a checksum, the directory listing
-the timing functions, the pin functions and two consecutive faulting
+the timing functions, the pin functions, `analogwrite` with an analogue
+loopback in the host device model (a duty written to a pin reads back as its
+12-bit count, scaled to uLisp's 10 bits on the way out, the duty clamped to 0-255 on
+the way in, and pins past GP29 refused) and two consecutive faulting
 `register` reads that the signal handler must turn into errors). A second process with a smaller workspace then
 loads the saved image, which rebases every address in it. Six mutants of
 `ulisp.c` must fail once the shipped source passes: a collector that leaves
 its trace bit set, an image load that does not rebase arrays, an inexact
 power of ten in the float printer, a reader that takes end of file as a
 symbol character, `cdr` returning the car, and a string comparison over a
-word wider than its four characters. The host devices are stand-ins: the
-gate executes no pin, sound or panel code.
+word wider than its four characters; six more fail on `analogread` and
+`analogwrite` (the 10-bit scaling, the pin ranges of both, the pin handed to
+the device, the high and the low duty clamp). The host devices are
+stand-ins: the gate executes no pin, ADC, PWM, sound or panel code.
 
 `check-ulisp-qemu` (in check-qemu) runs the a.out the tree links, with the
 tree's libc, libm and float routines, through `tests/qemu_aout/aoutrun` on
@@ -4475,8 +4480,11 @@ written and read back, the directory read, the documentation file, a
 250 ms delay, machine code from `defcode`, two `register` reads the MPU
 faults, the tty's interrupt character ending `(loop)`, end of input, four
 exit statuses and a second process loading the first one's image. The
-kernel has no PicoCalc device, so the drawing, pin and analogue functions
-are held to their error messages. Renode's models are third-party; this
+kernel has no PicoCalc device, so the drawing and pin functions, `analogwrite`
+included, are held to their error messages; `analogread` reads input 0 of
+a bare Pico, which Renode's ADC model answers, and the step expects an
+integer. The two steps changed with the ADC and PWM interface and have not
+been run since. Renode's models are third-party; this
 is not a board run.
 
 `bmake -C tests/ulisp check-oracle ULISP_INO=<path>` stands outside the

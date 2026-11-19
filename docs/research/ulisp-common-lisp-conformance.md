@@ -29,7 +29,7 @@ values, no packages) or are listed under "Recorded, not repaired".
   `gitlab.common-lisp.net/ansi-test/ansi-test` commit
   `941290a6151b1c0e5ede819739fe5f46d4b3d6b6`, in one directory per area of the
   HyperSpec (numbers 1,447, cons 1,651, data-and-control-flow 1,454, iteration
-  840, strings 503, characters 259, reader 167, and others). Its licence is
+  840, strings 503, characters 259, reader 167, and others). Its license is
   MIT (Copyright 2004 Paul F. Dietz); `rt.lsp`, the regression tester every
   file needs, carries the MIT 1990 permission notice. The README says the
   suite is partial and not a ranking.

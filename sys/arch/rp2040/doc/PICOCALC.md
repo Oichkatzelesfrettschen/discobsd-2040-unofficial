@@ -90,8 +90,8 @@ name a file there, with a page for a PDF.
 | A raw key event session records nothing outside itself: `LCDIOC_KEYEVS` starts it only for a descriptor open for reading in the tty's foreground group, the queue is empty and its bytes cleared at its start and end, it needs a RAW or CBREAK tty, belongs to the process that started it and ends on that process's exit or exec, on any change of the tty's mode word (so a getpass() read cannot be recorded), on a mode-setting ioctl by another process, on the owner's last close, on request and when the foreground group changes, and `LCDIOC_GETKEY` drains oldest first, six per call, from the owning, readable, foreground caller only, drops the oldest event when full and reports the drops; the xterm bytes the poller types are those of `picokbd_translate()` alone | host | observed by `check-picocalc-host` (`kbdevq_test`): write-only, background and non-owner starts, drains and stops refused with the queue and drop count intact, a second owner refused, the owner's exit ending the session while another process holds the file, pid and slot reuse refused, nothing held and no key byte in memory outside a session, a getpass-like ECHO clear ending the session, restored flags not reviving it, RAW to CBREAK and ECHO and CRMOD toggles ending it, cooked starts refused, session end by close, exit, request and foreground change, every state against every key, a 20,000-event run, overflow at 33, 40, 50 and 1,000 events, the count saturating at 255; 44 mutants of `picokbd_evq.c` fail it, and `wiring.sh` fails sixteen cuts in the kernel glue it reads (the poller's `picokbd_event()` and `lcdcons_keycheck()` calls, the `lcd_modeset()` hook of the five mode-setting ioctls, `lcdcons_fileclose()` and `lcdcons_procexit()`, the `FREAD`, process-group and pid arguments of both requests, the hooks in `vn_closefile()`, `exit()` and `exec_clear()`); `kbd_poll()`, `lcd_ioctl_file()` and the close hook themselves run on no host |
 | The tile atlas and `LCDIOC_GETKEY` compile into the PicoCalc kernels only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +1,432, bss +4,264 (112,975 / 368 / 53,088); with PSRAM text +1,432, bss +4,264 (115,133 / 424 / 53,240); flash headroom 17,728 and 15,512 bytes; the kernel's data and bss end 62,408 bytes below the end of the RAM region (Tile atlas) |
 | The tile atlas on the panel: the tiles appear, a 40-tile row costs 4.92 ms plus a window, a one-row vertical scroll step costs 4.9 ms, the raw key events arrive at the keyboard's rate | board | not run: `tests/rp2040/tiledemo` is built by `check-board-build` (text 7,379 bytes) and a board run is opt-in |
-| With `options LCD_GFX_EXT` (the PICOCALC_SD kernel) `/dev/lcdgfx` fills and streams windows into all 480 lines of the controller's memory (`LCDG_RAMFILL`, `LCDG_RAMWIN`), returns a rectangle of it through `read(2)` as RGB565 or one reply raw (`LCDG_READ`), draws a block of palette indexes around a transparent index as one window per run (`LCDG_SPRITE`), waits for two successive scan-line samples inside a 64-line span or times out (`LCDG_WAITLINE`), selects idle, display off and sleep and refuses drawing in sleep (`LCDG_POWER`), reports the console ring's first line (`LCDG_XINFO`) and runs the fixed dithering probe (`LCDG_DITHER`); the last close leaves the panel on | host | observed by `check-picocalc-host` (`lcdgfx_ext_test`) against a model of the 480-line memory, its read reply (an 8-bit lead, three bytes a pixel), a scan line that advances per sample and a recorded power mode: both pixel formats written and read back whole and in 40 random rectangles, 60 random sprites compared pixel by pixel, 200 random waits, a misread and a falling pair refused, both timeouts, every range case, and the read refused with `EPERM` to a caller other than the superuser at the selection and at each `read(2)`, while drawing stays open; 35 mutants fail it. `lcd_gfx_power()`, `lcd_gfx_read()`, `lcd_gfx_scanline()` and `lcd_gfx_dither()` of `st7365p.c` run on no host |
-| The extended commands on the panel: the read reply's framing, a write and read-back of all 480 lines in both formats, the sprite, the scan-line wait, the memory after sleep, the dithering probe | board | not run: `tests/rp2040/lcdexttest` prints the raw reply and every lead that decodes it, and a board run is opt-in |
+| With `options LCD_GFX_EXT` (the PICOCALC_SD kernel) `/dev/lcdgfx` fills and streams windows into all 480 lines of the controller's memory (`LCDG_RAMFILL`, `LCDG_RAMWIN`), returns a rectangle of it through `read(2)` as RGB565 or one reply raw (`LCDG_READ`), draws a block of palette indexes around a transparent index as one window per run (`LCDG_SPRITE`), waits for two successive scan-line samples inside a 64-line span or times out (`LCDG_WAITLINE`), selects idle, display off and sleep and refuses drawing in sleep (`LCDG_POWER`), reports the console ring's first line (`LCDG_XINFO`) and runs the fixed dithering probe (`LCDG_DITHER`); the last close leaves the panel on | host | observed by `check-picocalc-host` (`lcdgfx_ext_test`) against a model of the 480-line memory, its read reply (an 8-bit lead, then pixels in the COLMOD in force: three bytes under 0x66, two under 0x55), a scan line that advances per sample and a recorded power mode: both pixel formats written and read back whole and in 40 random rectangles, 60 random sprites compared pixel by pixel, 200 random waits, a misread and a falling pair refused, both timeouts, every range case, and the read refused with `EPERM` to a caller other than the superuser at the selection and at each `read(2)`, while drawing stays open; 38 mutants fail it. `lcd_gfx_power()`, `lcd_gfx_read()`, `lcd_gfx_scanline()` and `lcd_gfx_dither()` of `st7365p.c` run on no host |
+| The extended commands on the panel: the read reply's framing, a write and read-back of all 480 lines in both formats, the sprite, the scan-line wait, the memory after sleep, the dithering probe | board | observed 2026-11-19 on PICOCALC_SD #1 4399 (results below): framing, the 480-line read-back, the scan-line wait and the dithering probe under COLMOD 0x66; under 0x55 the kernel of that run decoded three bytes a pixel where the panel answers two, so the 0x55 read-back, the sprite and the memory after sleep are not yet observed with the corrected decode |
 | `lcdgfx.c` compiles into the PicoCalc kernels only; PICO and PICO_UART keep their data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +2,145, bss +72; with PSRAM text +2,145, bss +80; PICO 95,403 / 248 / 39,848 and PICO_UART 85,618 / 192 / 14,832, 9 text bytes above the measurement before the pixel device, which was taken in a different build path, the offset `version[]` carries (not traced further); at `-O` under GCC 16.2 the PICO and PICO_UART images differed only inside `version[]` (`objcopy -O binary`) |
 | `st7365p.c` clocks the pixel primitives and `lcd_gfx_reset()` to the panel | build | compiles and links; `st7365p.c` has no host model, so the SPI bytes, the VSCRDEF value and the COLMOD 0x55 pixel format are read from the source and from the model's protocol, not run |
 | `/dev/lcdgfx` on the panel: the shapes appear, the timings match the research note's table, a killed program leaves the text visible | board | not run: `tests/rp2040/lcdgfxtest` is built by `check-board-build` and a board run is opt-in |
@@ -266,6 +266,38 @@ Recorded before the first board run of the extended commands
    the datasheet gives 24-bit input to the parallel bus only (page 96
    against page 65); replies that differ show MODESEL acting on this
    link, which the ST7796S command table does not list.
+
+Board results, 2026-11-19, kernel PICOCALC_SD #1 4399 (main f9e9623e2),
+started by the loader from the card:
+
+- SPI mode 3 (prediction 1 of the first list): accepted. 0Ah reads 9Ch,
+  0Bh 48h, D3h `00 3b cb`.
+- Fill times (prediction 2): a 320 by 320 fill takes 197,000 us under 66h
+  against 196,615 us of bit time and 131,000 us under 55h against 131,079,
+  at the 1 ms resolution of the clock. The frame gap is gone, and a DMA
+  transfer has no bus time left to recover.
+- `lcdgfxtest` (prediction 3): passes.
+- White under 55h (prediction 4): not decidable as it was written. The
+  memory read answers in the COLMOD in force, so the entry's reply under
+  55h was `fe ff ff ff ff`, the 16-bit value. The entry now selects 66h
+  before the read.
+- Read framing: under 66h the reply is `91 | fc 00 00 | 00 fc 00 |
+  00 00 fc | fc fc fc | 00 00 00 | 84 80 84`, a lead of 8 bits and three
+  bytes a pixel, as predicted. Under 55h it is `cc | f8 00 | 07 e0 | 00 1f |
+  ff ff | 00 00 | 84 10` and then the window again: two bytes a pixel. The
+  prediction covered one format; `lcdgfx_read()` now decodes by format.
+- Read-back: 0 of 153,600 pixels differ under 66h (340 ms to write,
+  1,915 ms to read). The 55h comparison of that run is void (see above).
+- Scan-line wait: 100 of 100 calls returned inside their span.
+- Dithering probe: positive. 24-bit pixels of 82h are accepted over the
+  serial link and store the six-bit level 20h; after MODESEL (B9h) 02h
+  successive pixels store 20h and 21h in green (seen through the 565
+  read), a spatial dither of the half level.
+- Frame rate: 57.92, 57.88 and 57.97 Hz under sets 0, 2 and 3, with 5, 5
+  and 3 samples set aside by the wrap rule.
+- SPI Read Control on a readable register: D3h through FBh 10h, 11h and
+  12h returns `00`, `00` and `77`, its parameters by number, so the
+  zeros the Command Table 2 registers return through FBh are their answer.
 
 The panel shows 320 of the controller's 480 lines. VSCRDEF sets a top
 fixed area of 0, a scroll area of 320 and a bottom fixed area of 160,

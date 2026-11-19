@@ -36,7 +36,7 @@
 #
 # lcdgfx_ext_test builds lcdgfx.c with LCD_GFX_EXT, the option of the
 # PICOCALC_SD kernel, against a model of the controller's 480-line memory
-# with its read reply, scan line and power mode; thirty-five mutants of lcdgfx.c
+# with its read reply, scan line and power mode; thirty-eight mutants of lcdgfx.c
 # must fail it: moved line and column bounds of the memory fill, window,
 # read and sprite, a read open to every user, a read decoded from the wrong reply bits or byte order,
 # an odd read accepted, the read clock left selected, a raw read wider or
@@ -936,7 +936,10 @@ gfxext-mutants: \
 	gfxext-mutant-sprite-run-split \
 	gfxext-mutant-sprite-run-abandon \
 	gfxext-mutant-read-any-user \
-	gfxext-mutant-read-handoff
+	gfxext-mutant-read-handoff \
+	gfxext-mutant-read-always-666 \
+	gfxext-mutant-read-565-order \
+	gfxext-mutant-read-short-reply
 
 gfxext-mutant-ramfill-line-bound:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -956,11 +959,11 @@ gfxext-mutant-area-empty:
 
 gfxext-mutant-read-lead:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/bit = LCDG_RD_LEAD_BITS + 24 \* i/bit = 24 * i/' ${GFX_SRC}
+	    's/p = raw + 1 + bpp \* i;/p = raw + bpp * i;/' ${GFX_SRC}
 
 gfxext-mutant-read-green:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/reply_bits(raw, bit + 8, 6)/reply_bits(raw, bit + 9, 6)/' ${GFX_SRC}
+	    's/(unsigned)(p\[1\] >> 2) << 5/(unsigned)(p[1] >> 3) << 6/' ${GFX_SRC}
 
 gfxext-mutant-read-byte-order:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1078,7 +1081,21 @@ gfxext-mutant-read-handoff:
 	${GFXEXT_MUT} lcdgfx.c \
 	    '/^lcdgfx_read/,/^}/s/if (!lcdcons_gfx_reader())/if (0)/' ${GFX_SRC}
 
-.PHONY: gfxext-mutants gfxext-mutant-read-handoff gfxext-mutant-read-any-user gfxext-mutant-sprite-run-split \
+gfxext-mutant-read-always-666:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/bpp = gfx_fmt == LCDG_COLMOD_RGB565 ? 2 : 3;/bpp = 3;/' ${GFX_SRC}
+
+gfxext-mutant-read-565-order:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/c = (unsigned)p\[0\] << 8 | p\[1\];/c = (unsigned)p[1] << 8 | p[0];/' ${GFX_SRC}
+
+gfxext-mutant-read-short-reply:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/raw, 1 + bpp \* n);/raw, bpp * n);/' ${GFX_SRC}
+
+.PHONY: gfxext-mutants gfxext-mutant-read-always-666 \
+	gfxext-mutant-read-565-order gfxext-mutant-read-short-reply \
+	gfxext-mutant-read-handoff gfxext-mutant-read-any-user gfxext-mutant-sprite-run-split \
 	gfxext-mutant-sprite-run-abandon gfxext-mutant-dither-colmod gfxext-mutant-dither-on \
 	gfxext-mutant-xinfo-live gfxext-mutant-ramfill-line-bound \
 	gfxext-mutant-ramwin-lines \

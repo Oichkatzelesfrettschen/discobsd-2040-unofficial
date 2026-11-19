@@ -11,7 +11,8 @@ kernel carries the option). On any other kernel it prints
 1. **Read framing.** Six known pixels go to the last line of the controller's
    memory, which the glass does not show. The reply of the memory read is
    printed byte for byte, and every lead of 0 to 15 bits under which it
-   decodes to those pixels is reported. The kernel decodes with
+   decodes to those pixels is reported, at 24 reply bits a pixel under
+   COLMOD 0x66 and 16 under 0x55, the sizes the board returned. The kernel decodes with
    `LCDG_RD_LEAD_BITS`; a different lead is a failure and the printed bytes
    are the evidence for changing it. The stage runs under COLMOD 0x66 and
    0x55.

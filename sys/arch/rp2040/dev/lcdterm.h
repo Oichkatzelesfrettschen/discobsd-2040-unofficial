@@ -100,15 +100,14 @@ extern const unsigned char lcd_palette[16][3];
 /*
  * The primitives of lcdgfx.c's LCD_GFX_EXT commands. lcd_gfx_read_begin()
  * lowers the SPI clock to the panel's read rate and lcd_gfx_read_end()
- * restores the write rate; between them lcd_gfx_read() stores the
- * LCDG_RD_RAW_BYTES(n) reply bytes of a memory read of n pixels of line y
- * from column x, and lcd_gfx_scanline() returns the line the controller
+ * restores the write rate; between them lcd_gfx_read() stores len reply
+ * bytes of a memory read of n pixels of line y from column x, and lcd_gfx_scanline() returns the line the controller
  * is scanning. lcd_gfx_micros() is a free-running microsecond count.
  * lcd_gfx_power() moves the panel to an LCDG_PWR_* mode.
  */
 void	lcd_gfx_read_begin(void);
 void	lcd_gfx_read_end(void);
-void	lcd_gfx_read(int x, int y, int n, unsigned char *raw);
+void	lcd_gfx_read(int x, int y, int n, unsigned char *raw, unsigned len);
 int	lcd_gfx_scanline(void);
 unsigned lcd_gfx_micros(void);
 void	lcd_gfx_power(unsigned mode);

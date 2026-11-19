@@ -116,7 +116,11 @@
  * rectangle is one line of at most LCDG_READ_MAX pixels and one read(2) of
  * at least LCDG_RD_RAW_BYTES(w) bytes returns the reply bytes of the
  * controller's memory read command as they arrived, for a program that
- * measures the reply's framing.
+ * measures the reply's framing. The reply is LCDG_RD_LEAD_BITS of lead and
+ * then pixels in the COLMOD in force: three bytes a pixel under 0x66, the
+ * component in the upper six bits, and two under 0x55, the RGB565 value
+ * with its high byte first; bytes past the last pixel repeat the line from
+ * its first pixel.
  *
  * LCDG_SPRITE draws a w x h block of palette indexes, lines up to
  * LCDG_RAM_LINES, in which the index `key` is transparent: the following
@@ -175,7 +179,7 @@
 #define LCDG_RD_RAW		1
 #define LCDG_READ_MAX		20	/* Pixels of one memory read. */
 #define LCDG_RD_LEAD_BITS	8	/* Reply bits ahead of the first pixel. */
-/* Reply bytes of an n-pixel read: the lead, 24 bits a pixel and one spare. */
+/* Room for the reply of an n-pixel read in either format, and one spare. */
 #define LCDG_RD_RAW_BYTES(n)	((LCDG_RD_LEAD_BITS + 24 * (n) + 7) / 8 + 1)
 
 #define LCDG_DITHER_N		8

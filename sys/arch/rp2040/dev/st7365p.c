@@ -548,13 +548,14 @@ lcd_gfx_read_end(void)
 }
 
 /*
- * RAMRD (2Eh, page 178) over a window of n pixels of one line. The reply
- * is stored as it arrives; lcdgfx.c holds the framing (LCDG_RD_LEAD_BITS).
+ * RAMRD (2Eh, page 178) over a window of n pixels of one line: len reply
+ * bytes, stored as they arrive. lcdgfx.c holds the framing, which follows
+ * the COLMOD in force; bytes past the window's last pixel repeat it from
+ * its first.
  */
 void
-lcd_gfx_read(int x, int y, int n, unsigned char *raw)
+lcd_gfx_read(int x, int y, int n, unsigned char *raw, unsigned len)
 {
-	u_int len = LCDG_RD_RAW_BYTES(n);
 
 	lcd_select();
 	lcd_command(CMD_CASET);
@@ -865,6 +866,8 @@ lcd_read(const u_char *r, u_char *out)
 		lcd_window(0, LCD_GRAM_LINES - 1, 0, LCD_GRAM_LINES - 1);
 		put16(0xffff);
 		lcd_deselect();
+		/* The reply takes the format in force: read it as 18 bits. */
+		lcd_gfx_colmod(COLMOD_RGB666);
 	}
 	if (fb != 0 && (how & (PANEL_RD_FB_FIRST | PANEL_RD_ONE_CS)) == 0)
 		send_spirc(fb);
@@ -910,13 +913,14 @@ lcd_read(const u_char *r, u_char *out)
  * SPIRC inert on this link.
  *
  * The last entry writes one FFFFh pixel under COLMOD 55h to the last line
- * of the controller's memory, which the glass does not show, and reads it
- * back with RAMRD (2Eh, page 178). The console draws in 55h, and EM (B7h)
- * EPF selects how sixteen bits widen to eighteen (page 228): a reply of
- * FCh FCh FCh is full white, F8h FCh F8h is white with the low bit of red
- * and blue clear, which is the widening the datasheet gives for EPF 00.
- * The entry leaves the panel in 55h; lcdgfx_panel_read() programs the
- * format lcdgfx.c is in again.
+ * of the controller's memory, which the glass does not show, selects 66h
+ * and reads it back with RAMRD (2Eh, page 178). The memory read answers in
+ * the format in force (the board returned two bytes a pixel under 55h and
+ * three under 66h), so only a read under 66h shows how EM (B7h) EPF widened
+ * the sixteen bits to eighteen (page 228): FCh FCh FCh is full white,
+ * F8h FCh F8h white with the low bit of red and blue clear, the widening
+ * the datasheet gives for EPF 00. The entry leaves the panel in 66h;
+ * lcdgfx_panel_read() programs the format lcdgfx.c is in again.
  */
 #define	M	PANEL_RD_MARK
 static const u_char panel_reads[][4] = {

@@ -48,6 +48,9 @@
  * system for the Dhara chain, and -a measures the chain of the device that
  * is there.
  *
+ * A file stage that succeeds leaves its directory, holding the dirty file,
+ * and prints it as left_dir: read kern.capacity first, then remove it.
+ *
  * Every step prints one key=value line. A stage exits 0 only when each
  * condition it exists to produce held: the churn rounds written and
  * removed, or the file unlinked and written and the dirty buffer left.
@@ -113,8 +116,8 @@ leave_private_dir(int status)
 
 /*
  * Name the device under the run's directory and say whether it is the
- * Dhara root partition: 1 when it is /dev/fl0a, 0 when it is another device
- * or the comparison could not be made.
+ * Dhara root partition: 1 when it is /dev/fl0a, 0 when it is another
+ * device, -1 when the directory's device could not be read.
  */
 static int
 on_flash_root(void)
@@ -124,7 +127,7 @@ on_flash_root(void)
 
 	if (stat(".", &dir) < 0) {
 		printf("storage_stat_errno=%d\n", errno);
-		return 0;
+		return -1;
 	}
 	same = stat("/dev/fl0a", &flash) == 0 &&
 	    (flash.st_mode & S_IFMT) == S_IFBLK && flash.st_rdev == dir.st_dev;
@@ -243,8 +246,8 @@ churn(int rounds)
 }
 
 /*
- * The exit under measurement is a child's, so that the parent is left to
- * remove the dirty file and the run's directory.
+ * The exit under measurement is a child's, so that the parent reports its
+ * status and, when the stage failed, removes the run's directory.
  */
 static int
 stage_file(void)
@@ -281,7 +284,7 @@ main(int argc, char **argv)
 	const char *parent = "/tmp";
 	long rounds = 0;
 	char *end;
-	int stage, c, any = 0;
+	int stage, c, any = 0, flash, status;
 
 	setvbuf(stdout, (char *)0, _IONBF, 0);
 	while ((c = getopt(argc, argv, "ad:")) != -1)
@@ -314,12 +317,26 @@ main(int argc, char **argv)
 	}
 	if (enter_private_dir(parent) < 0)
 		return 1;
-	if (!on_flash_root() && !any) {
+	flash = on_flash_root();
+	if (flash < 0)
+		/* A device that cannot be named is not measured, -a or not. */
+		return leave_private_dir(1);
+	if (!flash && !any) {
 		printf("refused=not_flash_root\n");
 		(void)leave_private_dir(4);
 		return 4;
 	}
 	if (stage == 0)
 		return leave_private_dir(churn((int)rounds));
-	return leave_private_dir(stage_file());
+	/*
+	 * Removing the dirty file is a file system operation with a stack
+	 * chain of its own, and the watermark is read after this program
+	 * ends, so a file stage that succeeded leaves its directory and
+	 * names it for removal once kern.capacity has been read.
+	 */
+	status = stage_file();
+	if (status != 0)
+		return leave_private_dir(status);
+	printf("left_dir=%s\n", private_dir);
+	return 0;
 }

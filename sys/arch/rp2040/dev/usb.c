@@ -546,6 +546,8 @@ usb_string_desc(u_int index, u_int wlength)
 static void
 usb_configure(int on)
 {
+	/* Before tx_pending is cleared: it says the packet was never sent. */
+	usb_tx_requeue();
 	usbd.configured = on;
 	usbd.dtr = 0;
 	usbd.tx_pending = 0;
@@ -564,7 +566,6 @@ usb_configure(int on)
 		USBSET(USB_INTE) = USB_INTS_DEV_SOF;
 	} else
 		USBCLR(USB_INTE) = USB_INTS_DEV_SOF;
-	usb_tx_requeue();
 	/* Any packet in flight is abandoned with no completion to come. */
 	usb_tx_idle();
 }
@@ -844,8 +845,11 @@ usb_setup(void)
  * first 64 bytes queued before the host settled, the kernel banner among
  * them, never arrive. The bytes are still in the ring unless output has
  * since wrapped over them, so the tail moves back by the packet's length
- * less what was overwritten. A host that did take the packet before the
- * event reads those bytes twice.
+ * less what was overwritten. Only a packet the controller still holds is
+ * returned: one the E15 guard has not yet handed over, or one whose buffer
+ * control word still reads AVAILABLE. The controller clears AVAILABLE when
+ * the host takes a packet, so a packet whose completion is pending in the
+ * same interrupt as the event is left alone and is not sent twice.
  */
 static void
 usb_tx_requeue(void)
@@ -853,6 +857,9 @@ usb_tx_requeue(void)
 	u_int room = USB_TXRING - (usbd.tx_head - usbd.tx_tail);
 	u_int n = (u_int)usbd.tx_busy;
 
+	if (! usbd.tx_pending &&
+	    ! (DPRAM32(USB_DPRAM_BUF_CTRL(EP_DATA, 1)) & USB_BUF_CTRL_AVAIL))
+		return;
 	if (n > room)
 		n = room;
 	usbd.tx_tail -= n;

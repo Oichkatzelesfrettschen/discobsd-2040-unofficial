@@ -52,9 +52,49 @@ mutant() {
 		exit 1
 	fi
 	$cc -std=c17 -D_DEFAULT_SOURCE -Os -w -I"$src/../../sys/arch/rp2040/dev" \
-	    -o "$dir/ulisp" "$dir/ulisp.c" "$dir/unix.c" "$dir/gfx.c" \
+	    -o "$dir/ulisp" "$dir/ulisp.c" "$dir/unix.c" "$dir/hilite.c" "$dir/gfx.c" \
 	    "$dir/dev_host.c" "$src/../../sys/arch/rp2040/dev/lcdfont.c" -lm
 	if sh "$here/check.sh" host "$doc" timeout 60 "$dir/ulisp" \
+	    > "$dir/log" 2>&1; then
+		echo "ulisp mutants: $1 passed the check" >&2
+		exit 1
+	fi
+	echo "ulisp mutants: $1 rejected"
+}
+
+# hmutant NAME SED-EXPRESSION: the same for hilite.c, which hilite-test must reject
+hmutant() {
+	dir=$work/$1
+	mkdir "$dir"
+	sed "$2" "$src/hilite.c" > "$dir/hilite.c"
+	if cmp -s "$src/hilite.c" "$dir/hilite.c"; then
+		echo "ulisp mutants: $1: the substitution matched nothing" >&2
+		exit 1
+	fi
+	$cc -std=c17 -D_DEFAULT_SOURCE -w -I"$src" -o "$dir/hilite-test" \
+	    "$here/hilite-test.c" "$dir/hilite.c"
+	if "$dir/hilite-test" > "$dir/log" 2>&1; then
+		echo "ulisp mutants: $1 passed the check" >&2
+		exit 1
+	fi
+	echo "ulisp mutants: $1 rejected"
+}
+
+# pmutant NAME FILE SED-EXPRESSION: the interpreter with one defect in FILE
+# that hilite-pty.py must reject
+pmutant() {
+	dir=$work/$1
+	mkdir "$dir"
+	cp "$src"/*.c "$src"/*.h "$src"/builtins.def "$dir"/
+	sed "$3" "$src/$2" > "$dir/$2"
+	if cmp -s "$src/$2" "$dir/$2"; then
+		echo "ulisp mutants: $1: the substitution matched nothing" >&2
+		exit 1
+	fi
+	$cc -std=c17 -D_DEFAULT_SOURCE -Os -w -I"$src/../../sys/arch/rp2040/dev" \
+	    -o "$dir/ulisp" "$dir/ulisp.c" "$dir/unix.c" "$dir/hilite.c" "$dir/gfx.c" \
+	    "$dir/dev_host.c" "$src/../../sys/arch/rp2040/dev/lcdfont.c" -lm
+	if "${PYTHON:?set PYTHON}" -I "$here/hilite-pty.py" "$dir/ulisp" "$doc" \
 	    > "$dir/log" 2>&1; then
 		echo "ulisp mutants: $1 passed the check" >&2
 		exit 1
@@ -122,3 +162,29 @@ mutant tree-claim 's/if (chainbit(ic->trees, index)) return imagearray;//'
 mutant bit-leaf 's/else if (bits) fault = imagenumber(ic, child, \&leaf);//'
 # A dimension list may loop.
 mutant dim-loop 's/if (rank >= ic->cells) return imagearray;//'
+
+# The highlighter's tokenizer: a backslash in a string does not escape.
+hmutant hl-string-escape 's/if (c == .\\\\. \&\& j < n)/if (0)/'
+# A block comment does not nest.
+hmutant hl-block-nest 's/else if (c == .#. \&\& c2 == .|.) {/else if (0) {/'
+# A semicolon does not end a token.
+hmutant hl-semicolon 's/ || (c) == .;.)/)/'
+# The sign of an exponent is not a digit.
+hmutant hl-exponent-sign 's/else if (exponent \&\& (c == .-. || c == .+.))/else if (0)/'
+# A character literal of a delimiter takes the name after it.
+hmutant hl-char-delimiter 's/if (j < n \&\& DELIM(s\[j\]))/if (0)/'
+# A closing parenthesis with nothing open is a parenthesis.
+hmutant hl-unbalanced 's/k = st->depth ? HL_PAREN : HL_ERROR;/k = HL_PAREN;/'
+# A radix token with a bad digit is a number.
+hmutant hl-radix-digit 's/HL_NUMBER : HL_PLAIN;/HL_NUMBER : HL_NUMBER;/'
+# A token that begins with a colon is an ordinary symbol.
+hmutant hl-keyword 's/else if (c == .:.)/else if (0)/'
+
+# A special form takes the color of a function.
+pmutant hl-table-class ulisp.c 's/return (fntype(x) != OTHER_FORMS/return HL_FUNCTION; return (fntype(x) != OTHER_FORMS/'
+# The editor does not move up over the rows of a wrapped line.
+pmutant hl-wrap-redraw unix.c 's/if (up > 0) {/if (0) {/'
+# The match highlight stays after the next key.
+pmutant hl-match-stays unix.c 's/cls\[m\] |= 0x80;/cls[m] |= 0x00;/'
+# The editor colors a dumb terminal.
+pmutant hl-dumb unix.c 's/strcmp(term, "dumb") != 0/1/'

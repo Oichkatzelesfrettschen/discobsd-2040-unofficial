@@ -39,11 +39,13 @@
 #else
 #include <dirent.h>
 #endif
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 #ifdef ULISP_SGTTY
 #include <sgtty.h>
 #else
@@ -67,7 +69,7 @@
 #define HOST_CELLS	22280		/* The workspace of uLisp on a Pico. */
 #define HOST_STACK	(512 * 1024)
 
-#define IOBUF	128
+#define IOBUF	96
 
 struct sysfile {
 	int	fd;
@@ -81,6 +83,9 @@ static struct sysfile conout = { .fd = 1, .writing = true };
 static struct sysfile conin;
 static volatile sig_atomic_t interrupted;
 static bool interactive;
+static bool hlok, hlon, nohl;	/* Colors allowed here; the editor reads now; -n */
+static int outcol;		/* Characters written since the last line end */
+static struct hl_state hlst;	/* What the lines read so far left open */
 static struct timeval started;
 static unsigned int tone;
 static uint32_t seed;
@@ -166,6 +171,12 @@ sys_init(unsigned int *cells, size_t cellsize, uintptr_t *stacklimit)
 	for (int i = 0; i < SYS_NFILES; i++)
 		files[i].fd = -1;
 	interactive = isatty(0) != 0;
+	{
+		const char *term = getenv("TERM");
+
+		hlok = interactive && !nohl && isatty(1) && term != NULL &&
+		    strcmp(term, "dumb") != 0;
+	}
 	(void)gettimeofday(&started, NULL);
 	seed = (uint32_t)started.tv_usec * 2654435761u + (uint32_t)getpid();
 	catch(SIGINT);
@@ -214,6 +225,7 @@ void
 sys_putc(char c)
 {
 	fileputc(&conout, c);
+	outcol = (c == '\n' || c == '\r') ? 0 : outcol + 1;
 	if (c == '\n')
 		sys_flush();
 }
@@ -223,6 +235,223 @@ sys_flush(void)
 {
 	(void)fileflush(&conout);
 	conout.failed = false;
+}
+
+/*
+ * The line editor behind the colors: with the terminal in unechoed character
+ * mode it takes a line into conin.buf, prints it with the SGR color of every
+ * character's class (hilite.c), and on each key repaints what a key changed.
+ * Its keys are the printable ones, backspace and DEL, ^U (kill the line),
+ * ^D at an empty line (end of input), and Return; an escape sequence, such
+ * as an arrow key, is dropped and ^C discards the line. A line that fills
+ * the buffer is handed over whole and the next one continues it.
+ */
+#ifdef ULISP_SGTTY
+static struct sgttyb savedtty;
+static bool ttykeep;		/* TIOCSETN, which keeps typed-ahead input */
+#else
+static struct termios savedtty;
+#endif
+
+/*
+ * Puts the terminal into unechoed character mode, with the saved state to
+ * return to; false when it is not a terminal. Only keep is a choice, and
+ * only for sgtty: TIOCSETP discards what was typed ahead of the call.
+ */
+static bool
+ttyraw(bool keep)
+{
+#ifdef ULISP_SGTTY
+	struct sgttyb raw;
+
+	if (ioctl(0, TIOCGETP, &savedtty) != 0)
+		return false;
+	raw = savedtty;
+	raw.sg_flags |= CBREAK;
+	raw.sg_flags &= ~ECHO;
+	ttykeep = keep;
+	(void)ioctl(0, keep ? TIOCSETN : TIOCSETP, &raw);
+#else
+	struct termios raw;
+
+	(void)keep;
+	if (tcgetattr(0, &savedtty) != 0)
+		return false;
+	raw = savedtty;
+	raw.c_lflag &= ~(tcflag_t)(ICANON | ECHO);
+	raw.c_cc[VMIN] = 1;
+	raw.c_cc[VTIME] = 0;
+	(void)tcsetattr(0, TCSANOW, &raw);
+#endif
+	return true;
+}
+
+static void
+ttyrestore(void)
+{
+#ifdef ULISP_SGTTY
+	(void)ioctl(0, ttykeep ? TIOCSETN : TIOCSETP, &savedtty);
+#else
+	(void)tcsetattr(0, TCSANOW, &savedtty);
+#endif
+}
+
+static void
+putstr(const char *s)
+{
+	while (*s != '\0')
+		fileputc(&conout, *s++);
+}
+
+static void
+putnum(int v)
+{
+	if (v >= 10)
+		putnum(v / 10);
+	fileputc(&conout, (char)('0' + v % 10));
+}
+
+/* The SGR attributes of each class; bit 7 of a class asks for reverse video. */
+static void
+setclass(int k)
+{
+	static const uint8_t sgr[] = { 0, 1, 32, 90, 35, 93, 93, 95, 94, 36, 33, 41 };
+
+	putstr("\033[0");
+	if (k & 0x80)
+		putstr(";7");
+	if (sgr[k & 0x7f] != 0) {
+		fileputc(&conout, ';');
+		putnum(sgr[k & 0x7f]);
+	}
+	fileputc(&conout, 'm');
+}
+
+static void
+paint(const char *s, const uint8_t *cls, int from, int n)
+{
+	int now = HL_PLAIN;
+
+	for (int i = from; i < n; i++) {
+		if (cls[i] != now)
+			setclass(now = cls[i]);
+		fileputc(&conout, s[i]);
+	}
+	if (now != HL_PLAIN)
+		setclass(HL_PLAIN);
+}
+
+/* True when a line was read into conin.buf; false at end of input. */
+static bool
+editline(void)
+{
+	uint8_t cls[IOBUF], shown[IOBUF];
+	struct hl_state first = hlst;
+	struct winsize ws;
+	char *line = conin.buf;
+	int n = 0, shownn = 0, plen = outcol, esc = 0, width = 80;
+	bool eof = false;
+	unsigned char key;
+
+	if (ioctl(1, TIOCGWINSZ, &ws) == 0 && ws.ws_col >= 20)
+		width = ws.ws_col;
+	for (;;) {
+		if (read(0, &key, 1) != 1) {
+			if (errno != EINTR) {
+				eof = true;
+				break;
+			}
+			n = 0;			/* An interrupt discards the line. */
+			esc = 0;
+		} else if (esc != 0) {
+			esc = (esc == 1 && (key == '[' || key == 'O')) ? 2 :
+			    (esc == 2 && (key < 0x40 || key > 0x7e)) ? 2 : 0;
+			continue;
+		} else if (key == 033) {
+			esc = 1;
+			continue;
+		} else if (key == '\r' || key == '\n') {
+			break;
+		} else if (key == 4) {
+			if (n > 0)
+				continue;
+			eof = true;
+			break;
+		} else if (key == 8 || key == 0x7f) {
+			if (n == 0)
+				continue;
+			n--;
+		} else if (key == 21) {
+			n = 0;
+		} else if (key >= ' ' && key < 0x7f) {
+			line[n++] = (char)key;
+		} else
+			continue;
+		hlst = first;
+		hl_scan(&hlst, line, n, cls, ulisp_symclass);
+		/* A closing parenthesis shows the one it closes. */
+		if (n > 0 && line[n - 1] == ')' && cls[n - 1] == HL_PAREN) {
+			int depth = 0;
+
+			for (int m = n - 1; m >= 0; m--)
+				if (cls[m] == HL_PAREN &&
+				    (depth += (line[m] == ')') ? 1 : -1) == 0) {
+					cls[m] |= 0x80;
+					break;
+				}
+		}
+		if (n != shownn + 1 || memcmp(cls, shown, (size_t)shownn) != 0) {
+			/* Back to the first character and clear from there. */
+			if (shownn > 0) {
+				int up = (plen + shownn - 1) / width - plen / width;
+
+				if (up > 0) {
+					putstr("\033[");
+					putnum(up);
+					fileputc(&conout, 'A');
+				}
+				putstr("\033[");
+				putnum(plen % width + 1);
+				putstr("G\033[J");
+			}
+			shownn = 0;
+		}
+		paint(line, cls, shownn, n);
+		memcpy(shown, cls, (size_t)n);
+		shownn = n;
+		sys_flush();
+		if (n >= IOBUF - 2) {
+			outcol = plen + n;
+			ttyrestore();
+			conin.pos = 0;
+			conin.len = (short)n;
+			return true;
+		}
+	}
+	ttyrestore();
+	if (eof)
+		return false;
+	line[n++] = '\n';		/* Plain: hlst is already what the line leaves open. */
+	fileputc(&conout, '\n');
+	sys_flush();
+	outcol = 0;
+	conin.pos = 0;
+	conin.len = (short)n;
+	return true;
+}
+
+void
+sys_hilite(bool on)
+{
+	hlon = on;
+	if (on)
+		memset(&hlst, 0, sizeof hlst);
+}
+
+void
+sys_nohilite(void)
+{
+	nohl = true;
 }
 
 int
@@ -236,7 +465,10 @@ sys_getc(void)
 		 * A line typed while the panel shows graphics is the request
 		 * to see the console again.
 		 */
-		c = filegetc(&conin);
+		if (hlok && hlon && ttyraw(true))
+			c = editline() ? filegetc(&conin) : -1;
+		else
+			c = filegetc(&conin);
 		dev_release();
 	} else
 		c = filegetc(&conin);
@@ -248,43 +480,16 @@ int
 sys_getkey(void)
 {
 	unsigned char c;
+	bool tty;
 	ssize_t n;
 
 	if (conin.pos < conin.len)
 		return filegetc(&conin);
 	sys_flush();
-	{
-#ifdef ULISP_SGTTY
-		struct sgttyb saved, raw;
-		bool tty = ioctl(0, TIOCGETP, &saved) == 0;
-
-		/* saved holds the terminal's state only when the query worked. */
-		if (tty) {
-			raw = saved;
-			raw.sg_flags |= CBREAK;
-			raw.sg_flags &= ~ECHO;
-			(void)ioctl(0, TIOCSETP, &raw);
-		}
-		n = read(0, &c, 1);
-		if (tty)
-			(void)ioctl(0, TIOCSETP, &saved);
-#else
-		struct termios saved, raw;
-		bool tty = tcgetattr(0, &saved) == 0;
-
-		/* saved holds the terminal's state only when the query worked. */
-		if (tty) {
-			raw = saved;
-			raw.c_lflag &= ~(tcflag_t)(ICANON | ECHO);
-			raw.c_cc[VMIN] = 1;
-			raw.c_cc[VTIME] = 0;
-			(void)tcsetattr(0, TCSANOW, &raw);
-		}
-		n = read(0, &c, 1);
-		if (tty)
-			(void)tcsetattr(0, TCSANOW, &saved);
-#endif
-	}
+	tty = ttyraw(false);
+	n = read(0, &c, 1);
+	if (tty)
+		ttyrestore();
 	return n == 1 ? c : 0;
 }
 

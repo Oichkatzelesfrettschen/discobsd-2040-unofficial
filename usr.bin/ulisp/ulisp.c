@@ -5715,6 +5715,16 @@ static void initenv (void) {
   tee = bsymbol(TEE);
 }
 
+// The class of a symbol for the colors of the console line editor (hilite.c),
+// from the table the reader looks symbols up in
+int ulisp_symclass (const char *name) {
+  builtin_t x = lookupbuiltin((char *)name);
+  if (x == ENDFUNCTIONS) return HL_PLAIN;
+  if (x == NIL || x == TEE) return HL_CONSTANT;
+  if (fntype(x) == FUNCTIONS) return HL_FUNCTION;
+  return (fntype(x) != OTHER_FORMS || (getminmax(x) & 077)) ? HL_SPECIAL : HL_PLAIN;
+}
+
 // Read/Evaluate/Print loop
 
 static void repl (object *env) {
@@ -5727,7 +5737,9 @@ static void repl (object *env) {
     }
     pserial('>'); pserial(' ');
     Context = NIL;
+    sys_hilite(true);
     object *line = readmain(gserial);
+    sys_hilite(false);
     // Break handling
     if (BreakLevel) {
       if (line == nil || line == bsymbol(COLONC)) {
@@ -5784,7 +5796,7 @@ static void loadfile (const char *path) {
 }
 
 static void usage (void) {
-  pfstring("usage: ulisp [-w cells] [-i image] [file ...]\n", pserial);
+  pfstring("usage: ulisp [-n] [-w cells] [-i image] [file ...]\n", pserial);
   sys_exit(2);
 }
 
@@ -5794,6 +5806,7 @@ int main (int argc, char **argv) {
   unsigned int cells = 0;
   while (next < argc && argv[next][0] == '-' && argv[next][1] != '\0') {
     char option = argv[next++][1];
+    if (option == 'n') { sys_nohilite(); continue; }
     if (next == argc) usage();
     if (option == 'w') {
       for (const char *s = argv[next]; *s != '\0'; s++) {

@@ -31,8 +31,11 @@
 #                 conformance and devices corpora; the same corpora with the address and
 #                 undefined-behavior sanitizers, which turn an overflow, an
 #                 out-of-range access or a misaligned pointer into a failure;
-#                 then the mutants of ulisp.c that the check must reject
-#                 (mutants.sh)
+#                 hilite-test, the classes of hilite.c on a table of lines,
+#                 also with the sanitizers; hilite-pty.py, the interpreter on
+#                 a pseudo-terminal, which checks the colors of the builtin
+#                 table and the repaint; then the mutants of ulisp.c and
+#                 hilite.c that the check must reject (mutants.sh)
 #   check-qemu    the a.out the tree links, run by tests/qemu_aout/aoutrun
 #                 under qemu-arm: the language, system, images, repairs and
 #                 conformance corpora against the same expected transcripts as
@@ -56,7 +59,7 @@ LOADER=		${TOPSRC}/tests/qemu_aout
 GUEST_BASE?=	0x100000
 ORACLE_SHA256=	65608bb7d6a48dc02dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b
 ORACLE_CXX?=	g++ -m32 -msse2 -mfpmath=sse
-HOST_SRCS=	${SRC}/ulisp.c ${SRC}/unix.c ${SRC}/gfx.c ${SRC}/dev_host.c \
+HOST_SRCS=	${SRC}/ulisp.c ${SRC}/unix.c ${SRC}/hilite.c ${SRC}/gfx.c ${SRC}/dev_host.c \
 		${TOPSRC}/sys/arch/rp2040/dev/lcdfont.c
 SANITIZE=	-fsanitize=address,undefined -fno-sanitize-recover=all \
 		-fno-omit-frame-pointer
@@ -70,6 +73,13 @@ check:
 	    -I${TOPSRC}/sys/arch/rp2040/dev -o ulisp.san ${HOST_SRCS} -lm
 	sh check.sh host ${SRC}/ulisp.doc env ASAN_OPTIONS=detect_leaks=0 \
 	    ${.CURDIR}/ulisp.san
+	${HOST_CC} -std=c17 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I${SRC} \
+	    -o hilite-test hilite-test.c ${SRC}/hilite.c
+	./hilite-test
+	${HOST_CC} -std=c17 -D_DEFAULT_SOURCE -O1 -g ${SANITIZE} -I${SRC} \
+	    -o hilite-test.san hilite-test.c ${SRC}/hilite.c
+	ASAN_OPTIONS=detect_leaks=0 ./hilite-test.san
+	${PYTHON} -I hilite-pty.py ${SRC}/ulisp.host ${SRC}/ulisp.doc
 	sh mutants.sh ${SRC} ${SRC}/ulisp.doc "${HOST_CC}"
 
 check-qemu:
@@ -105,6 +115,6 @@ check-oracle:
 .endif
 
 clean:
-	rm -f ulisp.san ulisp.sites oracle.cc oracle.bin oracle.out oracle.host
+	rm -f ulisp.san hilite-test hilite-test.san ulisp.sites oracle.cc oracle.bin oracle.out oracle.host
 
 .PHONY: all check check-qemu check-oracle clean

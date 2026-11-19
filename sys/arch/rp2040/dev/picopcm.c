@@ -55,7 +55,9 @@
 #include <sys/uio.h>
 
 #include <machine/board.h>
+#ifdef DEV_GPIO
 #include <machine/gpio.h>
+#endif
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>

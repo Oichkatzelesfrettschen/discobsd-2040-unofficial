@@ -158,7 +158,7 @@ deep_file(void)
 		(NDIRECT + NPOINTER) * BLOCK,
 		NDIRECT * BLOCK,
 	};
-	int fd, i;
+	int fd, i, failed;
 
 	for (i = 0; i < 3; i++) {
 		fd = open(DEEP, O_RDWR | O_CREAT | O_TRUNC, 0600);
@@ -176,8 +176,16 @@ deep_file(void)
 			printf("deep_levels=%d\n", 3 - i);
 			return fd;
 		}
-		printf("deep_level_%d_errno=%d\n", 3 - i, errno);
+		failed = errno;
+		printf("deep_level_%d_errno=%d\n", 3 - i, failed);
 		(void)close(fd);
+		/*
+		 * Only a size the file system refuses outright, before it
+		 * allocates anything, leads to the next level down; any other
+		 * failure may have left blocks behind and ends the stage.
+		 */
+		if (failed != EFBIG)
+			return -1;
 	}
 	return -1;
 }
@@ -217,6 +225,12 @@ churn(int rounds)
 				(void)close(fd);
 				return 1;
 			}
+		/* sync() reports nothing; fsync() returns a failed write. */
+		if (fsync(fd) < 0) {
+			printf("churn_fsync_errno=%d\n", errno);
+			(void)close(fd);
+			return 1;
+		}
 		(void)close(fd);
 		if (unlink(DIRTY) < 0) {
 			printf("churn_unlink_errno=%d\n", errno);

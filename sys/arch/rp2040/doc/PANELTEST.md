@@ -341,3 +341,14 @@ loader from the card; paneltest on the UART terminal as root.
    on every later one.
 
 Not done: the by-eye comparison of sets 0, 2 and 3.
+
+Kernel PICOCALC_SD #1 4401 (main ab9ac8e7a), the same day; its pixel entry
+reads under 66h:
+
+7. Memory read of the white pixel: `fe | f8 fc f8` under sets 0, 2 and 3.
+   A sixteen-bit pixel is stored with the low bit of red and blue clear
+   whether or not the set unlocks Command 2, and whichever gamma it
+   carries. EM (B7h) through FBh 10h reads `00` under each set. Every set
+   writes EPF 11; the other three EPF values were not tried.
+8. Photographs of sets 0 to 3 at 640 by 480 with glare do not separate
+   them; the by-eye comparison needs full-size frames.

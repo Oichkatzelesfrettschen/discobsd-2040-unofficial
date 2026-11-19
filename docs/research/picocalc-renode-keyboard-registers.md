@@ -1,9 +1,12 @@
 # Renode keyboard model: backlight conditioning for the register sysctls
 
 The Renode PicoCalc keyboard model (`tools/renode/picocalc/picocalc_keyboard.cs`)
-conditions backlight writes as the vendor firmware does. The same change is
-kept as `picocalc-renode-keyboard-backlight.patch`, a diff against the model
-before it carried the conditioning.
+conditions backlight writes as the vendor firmware does and starts the LCD
+register at the firmware's initial value, 32.
+`picocalc-renode-keyboard-backlight.patch` is a diff against the model
+before it carried the conditioning; it holds the write rounding alone and
+not the reset value, so applying it to that earlier model leaves the LCD
+register starting at 0x80.
 
 The model already serves the registers the `machdep.picocalc` sysctls use:
 0x05 and 0x0A (backlights, read and write), 0x0B (battery, set from the

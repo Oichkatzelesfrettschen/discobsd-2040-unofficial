@@ -41,6 +41,7 @@ Given the builtin table, the script also fails when a builtin is neither
 covered here nor listed in NO_NUMBER_ARGUMENT, so a builtin added later must
 be classified before the gate passes.
 """
+
 import re
 import sys
 
@@ -53,7 +54,18 @@ SHORT = [v for v in EDGES if v < 100]
 # sleep counts seconds, so only the counts that do not wait
 NOWAIT = [v for v in EDGES if v <= 0]
 # Floats that sit at or past the integer range, and the halves that round.
-FLOATS = ["2147483648.0", "-2147483904.0", "1.0e10", "-1.0e10", "3.4e38", "-3.4e38", "0.5", "-0.5", "1.5", "-1.5"]
+FLOATS = [
+    "2147483648.0",
+    "-2147483904.0",
+    "1.0e10",
+    "-1.0e10",
+    "3.4e38",
+    "-3.4e38",
+    "0.5",
+    "-0.5",
+    "1.5",
+    "-1.5",
+]
 FEW_FLOATS = ["2147483648.0", "-1.0e10", "3.4e38", "0.5"]
 SAMPLE = 120
 LIST = "'(1 2 3)"
@@ -62,22 +74,90 @@ STRING = '"abcdefghijklmnopqrstuvwxyz0123456789"'
 
 # name, arguments of the form, and which values each may take
 UNARY = [
-    "1+", "1-", "abs", "plusp", "minusp", "zerop", "oddp", "evenp",
-    "integerp", "numberp", "float", "-", "/", "lognot", "string",
-    "princ-to-string", "prin1-to-string", "code-char", "char-code", "not",
-    "ceiling", "floor", "truncate", "round", "digitalread", "analogread",
-    "set-text-size", "set-text-wrap", "fill-screen", "set-text-color",
-    "length", "reverse", "copy-list", "eval", "list",
+    "1+",
+    "1-",
+    "abs",
+    "plusp",
+    "minusp",
+    "zerop",
+    "oddp",
+    "evenp",
+    "integerp",
+    "numberp",
+    "float",
+    "-",
+    "/",
+    "lognot",
+    "string",
+    "princ-to-string",
+    "prin1-to-string",
+    "code-char",
+    "char-code",
+    "not",
+    "ceiling",
+    "floor",
+    "truncate",
+    "round",
+    "digitalread",
+    "analogread",
+    "set-text-size",
+    "set-text-wrap",
+    "fill-screen",
+    "set-text-color",
+    "length",
+    "reverse",
+    "copy-list",
+    "eval",
+    "list",
 ]
 # Transcendental functions: the value is libm's, so the transcript keeps its type
-FLOATFNS = ["sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "exp", "sqrt", "log"]
+FLOATFNS = [
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "sinh",
+    "cosh",
+    "tanh",
+    "exp",
+    "sqrt",
+    "log",
+]
 # Variadic arithmetic and comparison, applied to every pair and a sample of triples
 VARIADIC = [
-    "+", "-", "*", "/", "max", "min", "/=", "=", "<", "<=", ">", ">=",
-    "logand", "logior", "logxor",
+    "+",
+    "-",
+    "*",
+    "/",
+    "max",
+    "min",
+    "/=",
+    "=",
+    "<",
+    "<=",
+    ">",
+    ">=",
+    "logand",
+    "logior",
+    "logxor",
 ]
-BINARY = ["mod", "rem", "ash", "logbitp", "expt", "eq", "equal", "atan", "log",
-          "ceiling", "floor", "truncate", "round"]
+BINARY = [
+    "mod",
+    "rem",
+    "ash",
+    "logbitp",
+    "expt",
+    "eq",
+    "equal",
+    "atan",
+    "log",
+    "ceiling",
+    "floor",
+    "truncate",
+    "round",
+]
 # Templates over {a}, {b}, ...; mode "all" crosses the edges, "sample" samples them
 CUSTOM = [
     ("nth", "(nth {a} " + LIST + ")", 1, "all", EDGES),
@@ -94,14 +174,42 @@ CUSTOM = [
     ("make-array", "(array-dimensions (make-array (list {a} {b})))", 2, "all", EDGES),
     ("make-array", "(array-dimensions (make-array (list {a} {b} {c})))", 3, "sample", EDGES),
     ("make-array", "(aref (make-array {a} :initial-element {b}) 0)", 2, "all", EDGES),
-    ("make-array", "(aref (make-array {a} :element-type 'bit :initial-element {b}) 0)", 2, "all", EDGES),
+    (
+        "make-array",
+        "(aref (make-array {a} :element-type 'bit :initial-element {b}) 0)",
+        2,
+        "all",
+        EDGES,
+    ),
     ("array-dimensions", "(array-dimensions (make-array (list {a} {b})))", 2, "all", EDGES),
     ("setf", "(let ((s (copy-list '(1 2 3)))) (setf (nth {a} s) {b}) s)", 2, "all", EDGES),
     ("setf", "(let ((s (make-array 5))) (setf (aref s {a}) {b}) s)", 2, "all", EDGES),
     ("setf", "(let ((s (make-array '(2 2)))) (setf (aref s {a} {b}) 1) s)", 2, "all", EDGES),
-    ("setf", "(let ((s (make-array 70 :element-type 'bit))) (setf (aref s {a}) {b}) s)", 2, "all", EDGES),
-    ("setf", "(let ((s (concatenate 'string \"abcdef\"))) (setf (char s {a}) (code-char {b})) " + CODES + ")", 2, "all", EDGES),
-    ("setf", "(let ((s (concatenate 'string \"abcdef\"))) (setf (char s 2) (code-char {a})) " + CODES + ")", 1, "all", EDGES),
+    (
+        "setf",
+        "(let ((s (make-array 70 :element-type 'bit))) (setf (aref s {a}) {b}) s)",
+        2,
+        "all",
+        EDGES,
+    ),
+    (
+        "setf",
+        '(let ((s (concatenate \'string "abcdef"))) (setf (char s {a}) (code-char {b})) '
+        + CODES
+        + ")",
+        2,
+        "all",
+        EDGES,
+    ),
+    (
+        "setf",
+        '(let ((s (concatenate \'string "abcdef"))) (setf (char s 2) (code-char {a})) '
+        + CODES
+        + ")",
+        1,
+        "all",
+        EDGES,
+    ),
     ("random", "(let ((r (random {a}))) (and (>= r 0) (< r {a})))", 1, "all", EDGES),
     ("random", "(floatp (random {a}))", 1, "floats", FLOATS),
     ("incf", "(let ((v {a})) (incf v) v)", 1, "all", EDGES),
@@ -111,7 +219,13 @@ CUSTOM = [
     ("incf", "(let ((v {a})) (incf v {b}) v)", 2, "floats", FEW_FLOATS),
     ("dotimes", "(dotimes (i {a}) (return i))", 1, "all", EDGES),
     ("dotimes", "(dotimes (i {a} i) (return 7))", 1, "all", EDGES),
-    ("case", "(case {a} (1 'one) (2147483647 'max) (-2147483648 'min) (t 'other))", 1, "all", EDGES),
+    (
+        "case",
+        "(case {a} (1 'one) (2147483647 'max) (-2147483648 'min) (t 'other))",
+        1,
+        "all",
+        EDGES,
+    ),
     ("pinmode", "(pinmode {a} {b})", 2, "all", EDGES),
     ("digitalwrite", "(digitalwrite {a} {b})", 2, "all", EDGES),
     ("digitalread", "(digitalread {a})", 1, "all", EDGES),
@@ -122,7 +236,13 @@ CUSTOM = [
     ("delay", "(delay {a})", 1, "all", SHORT),
     ("sleep", "(sleep {a})", 1, "all", NOWAIT),
     ("for-millis", "(for-millis ({a}) 1)", 1, "all", SHORT),
-    ("write-byte", "(char-code (char (with-output-to-string (s) (write-byte {a} s)) 0))", 1, "all", EDGES),
+    (
+        "write-byte",
+        "(char-code (char (with-output-to-string (s) (write-byte {a} s)) 0))",
+        1,
+        "all",
+        EDGES,
+    ),
     ("read-byte", "(read-byte {a})", 1, "all", EDGES),
     ("read-line", "(read-line {a})", 1, "all", EDGES),
     ("read", "(read {a})", 1, "all", EDGES),
@@ -130,8 +250,8 @@ CUSTOM = [
     ("prin1", "(prin1 1 {a})", 1, "all", EDGES),
     ("print", "(print 1 {a})", 1, "all", EDGES),
     ("princ", "(princ 1 {a})", 1, "all", EDGES),
-    ("write-string", "(write-string \"x\" {a})", 1, "all", EDGES),
-    ("write-line", "(write-line \"x\" {a})", 1, "all", EDGES),
+    ("write-string", '(write-string "x" {a})', 1, "all", EDGES),
+    ("write-line", '(write-line "x" {a})', 1, "all", EDGES),
     ("backtrace", "(backtrace {a})", 1, "all", EDGES),
     ("pprint", "(pprint {a} {b})", 2, "all", EDGES),
     ("set-cursor", "(set-cursor {a} {b})", 2, "all", EDGES),
@@ -155,24 +275,24 @@ CUSTOM = [
     ("draw-char", "(draw-char {a} {b} {c} {d} {e})", 5, "sample", EDGES),
     ("draw-char", "(draw-char 1 1 #\\A 1 {a})", 1, "all", EDGES),
     ("with-gfx", "(with-gfx (s) (draw-pixel {a} {b}))", 2, "all", EDGES),
-    ("format", "(format nil \"~{a}d\" 5)", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~{a}a\" 5)", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~{a}s\" \"x\")", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~{a}x\" 255)", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~{a}b\" 5)", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~{a}o\" 8)", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~d\" {a})", 1, "all", EDGES),
-    ("format", "(format nil \"~a\" {a})", 1, "all", EDGES),
-    ("format", "(format nil \"~s\" {a})", 1, "all", EDGES),
-    ("format", "(format nil \"~x\" {a})", 1, "all", EDGES),
-    ("format", "(format nil \"~o\" {a})", 1, "all", EDGES),
-    ("format", "(format nil \"~b\" {a})", 1, "all", EDGES),
-    ("format", "(format nil \"~c\" {a})", 1, "all", EDGES),
-    ("format", "(format nil \"~10,{a}d\" 5)", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~{a},{b}d\" 5)", 2, "nonneg", EDGES),
-    ("format", "(format nil \"~~{a}%\")", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~{a}&\")", 1, "nonneg", EDGES),
-    ("format", "(format nil \"~d~d\" {a} {b})", 2, "all", EDGES),
+    ("format", '(format nil "~{a}d" 5)', 1, "nonneg", EDGES),
+    ("format", '(format nil "~{a}a" 5)', 1, "nonneg", EDGES),
+    ("format", '(format nil "~{a}s" "x")', 1, "nonneg", EDGES),
+    ("format", '(format nil "~{a}x" 255)', 1, "nonneg", EDGES),
+    ("format", '(format nil "~{a}b" 5)', 1, "nonneg", EDGES),
+    ("format", '(format nil "~{a}o" 8)', 1, "nonneg", EDGES),
+    ("format", '(format nil "~d" {a})', 1, "all", EDGES),
+    ("format", '(format nil "~a" {a})', 1, "all", EDGES),
+    ("format", '(format nil "~s" {a})', 1, "all", EDGES),
+    ("format", '(format nil "~x" {a})', 1, "all", EDGES),
+    ("format", '(format nil "~o" {a})', 1, "all", EDGES),
+    ("format", '(format nil "~b" {a})', 1, "all", EDGES),
+    ("format", '(format nil "~c" {a})', 1, "all", EDGES),
+    ("format", '(format nil "~10,{a}d" 5)', 1, "nonneg", EDGES),
+    ("format", '(format nil "~{a},{b}d" 5)', 2, "nonneg", EDGES),
+    ("format", '(format nil "~~{a}%")', 1, "nonneg", EDGES),
+    ("format", '(format nil "~{a}&")', 1, "nonneg", EDGES),
+    ("format", '(format nil "~d~d" {a} {b})', 2, "all", EDGES),
 ]
 FLOATFORMS = [
     ("float", "(float {a})", 1),
@@ -224,22 +344,114 @@ FLOATFORMS = [
 # is given (a hardware register on the board, any address on the host), and
 # gc, whose argument is a flag and whose report carries a time
 NO_NUMBER_ARGUMENT = {
-    "quote", "defun", "defvar", "defcode", "car", "first", "cdr", "rest",
-    "setq", "or", "loop", "push", "pop", "setf", "dolist", "do", "do*",
-    "trace", "untrace", "time", "with-output-to-string", "with-sd-card",
-    "progn", "if", "cond", "when", "unless", "and", "null", "cons", "atom",
-    "listp", "consp", "symbolp", "arrayp", "boundp", "keywordp", "set",
-    "streamp", "caar", "cadr", "second", "cdar", "cddr", "caaar", "caadr",
-    "cadar", "caddr", "third", "cdaar", "cdadr", "cddar", "cdddr",
-    "assoc", "member", "apply", "funcall", "append", "mapc", "mapl",
-    "mapcar", "mapcan", "maplist", "mapcon", "floatp", "characterp",
-    "stringp", "string=", "string<", "string>", "string/=", "string<=",
-    "string>=", "sort", "concatenate", "search", "read-from-string",
-    "return", "globals", "locals", "makunbound", "break", "pprintall",
-    "require", "list-library", "?", "documentation", "apropos",
-    "apropos-list", "unwind-protect", "ignore-errors", "error", "directory",
-    "get-key", "cls", "millis", "room", "save-image", "load-image", "edit",
-    "save-bmp", "register", "gc", "bit", "closure", "lambda", "let", "let*",
+    "quote",
+    "defun",
+    "defvar",
+    "defcode",
+    "car",
+    "first",
+    "cdr",
+    "rest",
+    "setq",
+    "or",
+    "loop",
+    "push",
+    "pop",
+    "setf",
+    "dolist",
+    "do",
+    "do*",
+    "trace",
+    "untrace",
+    "time",
+    "with-output-to-string",
+    "with-sd-card",
+    "progn",
+    "if",
+    "cond",
+    "when",
+    "unless",
+    "and",
+    "null",
+    "cons",
+    "atom",
+    "listp",
+    "consp",
+    "symbolp",
+    "arrayp",
+    "boundp",
+    "keywordp",
+    "set",
+    "streamp",
+    "caar",
+    "cadr",
+    "second",
+    "cdar",
+    "cddr",
+    "caaar",
+    "caadr",
+    "cadar",
+    "caddr",
+    "third",
+    "cdaar",
+    "cdadr",
+    "cddar",
+    "cdddr",
+    "assoc",
+    "member",
+    "apply",
+    "funcall",
+    "append",
+    "mapc",
+    "mapl",
+    "mapcar",
+    "mapcan",
+    "maplist",
+    "mapcon",
+    "floatp",
+    "characterp",
+    "stringp",
+    "string=",
+    "string<",
+    "string>",
+    "string/=",
+    "string<=",
+    "string>=",
+    "sort",
+    "concatenate",
+    "search",
+    "read-from-string",
+    "return",
+    "globals",
+    "locals",
+    "makunbound",
+    "break",
+    "pprintall",
+    "require",
+    "list-library",
+    "?",
+    "documentation",
+    "apropos",
+    "apropos-list",
+    "unwind-protect",
+    "ignore-errors",
+    "error",
+    "directory",
+    "get-key",
+    "cls",
+    "millis",
+    "room",
+    "save-image",
+    "load-image",
+    "edit",
+    "save-bmp",
+    "register",
+    "gc",
+    "bit",
+    "closure",
+    "lambda",
+    "let",
+    "let*",
 }
 
 
@@ -274,7 +486,7 @@ SEEN = set()
 def line(form):
     if form not in SEEN:
         SEEN.add(form)
-        print("(progn (princ '%s) (princ \" => \") (prin1 %s) (terpri) nothing)" % (form, form))
+        print('(progn (princ \'%s) (princ " => ") (prin1 %s) (terpri) nothing)' % (form, form))
 
 
 def emit(covered, name, template, count, values, mode, seed, wrap=None):
@@ -298,15 +510,38 @@ def main():
     for name in VARIADIC:
         for count in (2, 3):
             seed += 1
-            emit(covered, name, "(%s %s)" % (name, " ".join("{%s}" % "abc"[i] for i in range(count))),
-                 count, EDGES, "all" if count == 2 else "sample", seed)
+            emit(
+                covered,
+                name,
+                "(%s %s)" % (name, " ".join("{%s}" % "abc"[i] for i in range(count))),
+                count,
+                EDGES,
+                "all" if count == 2 else "sample",
+                seed,
+            )
         seed += 1
-        emit(covered, name, "(%s {a} {b})" % name, 2, FEW_FLOATS + [str(v) for v in (INT_MIN, -1, 0, 1, INT_MAX)], "all", seed)
+        emit(
+            covered,
+            name,
+            "(%s {a} {b})" % name,
+            2,
+            FEW_FLOATS + [str(v) for v in (INT_MIN, -1, 0, 1, INT_MAX)],
+            "all",
+            seed,
+        )
         emit(covered, name, "(%s {a})" % name, 1, EDGES, "all", seed)
     for name in BINARY:
         seed += 1
         emit(covered, name, "(%s {a} {b})" % name, 2, EDGES, "all", seed)
-        emit(covered, name, "(%s {a} {b})" % name, 2, FEW_FLOATS + [str(v) for v in (INT_MIN, -1, 0, 1, INT_MAX)], "all", seed)
+        emit(
+            covered,
+            name,
+            "(%s {a} {b})" % name,
+            2,
+            FEW_FLOATS + [str(v) for v in (INT_MIN, -1, 0, 1, INT_MAX)],
+            "all",
+            seed,
+        )
     for name, template, count, mode, values in CUSTOM:
         seed += 1
         emit(covered, name, template, count, values, mode, seed)
@@ -322,17 +557,45 @@ def read_forms(covered):
     """Number text at and past the integer range, in every radix the reader takes."""
     covered.add("read-from-string")
     texts = []
-    for v in EDGES + [INT_MAX + 1, INT_MIN - 1, 1 << 32, (1 << 32) - 1, 1 << 63, 1 << 64, 10 ** 20]:
+    for v in EDGES + [INT_MAX + 1, INT_MIN - 1, 1 << 32, (1 << 32) - 1, 1 << 63, 1 << 64, 10**20]:
         texts.append(str(v))
         texts.append("+" + str(abs(v)))
     for radix, digits in (("x", "x"), ("b", "b"), ("o", "o")):
         for v in (0, 1, 7, INT_MAX, INT_MAX + 1, (1 << 32) - 1, 1 << 32, 1 << 40):
             texts.append("#" + radix + format(v, digits))
             texts.append("#" + radix + "-" + format(v, digits))
-    texts += ["#x", "#b", "#o", "#xG", "#b2", "#o8", "-", "+", "1e", "1e+", "1e999", "-1e999",
-              "1e-999", "1.", ".5", "-.5", "1.5e10", "3.4e38", "3.5e38", "1e38", "1e39",
-              "0.0000000000000000000000000000000000000000000001", "123456789012345678901234567890",
-              "2147483647.5", "-2147483648.5", "0x10", "1/2", "--1", "1-1", "1+1"]
+    texts += [
+        "#x",
+        "#b",
+        "#o",
+        "#xG",
+        "#b2",
+        "#o8",
+        "-",
+        "+",
+        "1e",
+        "1e+",
+        "1e999",
+        "-1e999",
+        "1e-999",
+        "1.",
+        ".5",
+        "-.5",
+        "1.5e10",
+        "3.4e38",
+        "3.5e38",
+        "1e38",
+        "1e39",
+        "0.0000000000000000000000000000000000000000000001",
+        "123456789012345678901234567890",
+        "2147483647.5",
+        "-2147483648.5",
+        "0x10",
+        "1/2",
+        "--1",
+        "1-1",
+        "1+1",
+    ]
     for text in texts:
         line('(read-from-string "%s")' % text)
         line('(1+ (read-from-string "%s"))' % text)
@@ -341,10 +604,28 @@ def read_forms(covered):
 def print_forms():
     """Floats that print at the limits of the format: the extremes, the
     smallest and the values no float holds."""
-    for value in ["3.4e38", "-3.4e38", "1.0e38", "1.0e-38", "1.17549e-38", "1.0e-45", "16777216.0",
-                  "16777217.0", "0.1", "123456.7", "9.99999e-5", "(* 3.4e38 10)", "(- (* 3.4e38 10))",
-                  "(sqrt -1)", "(/ 1.0e-38 1.0e38)", "(float 2147483647)", "(float -2147483648)",
-                  "(- (float 2147483647))", "(* 1.0e19 1.0e19)", "(float 16777217)"]:
+    for value in [
+        "3.4e38",
+        "-3.4e38",
+        "1.0e38",
+        "1.0e-38",
+        "1.17549e-38",
+        "1.0e-45",
+        "16777216.0",
+        "16777217.0",
+        "0.1",
+        "123456.7",
+        "9.99999e-5",
+        "(* 3.4e38 10)",
+        "(- (* 3.4e38 10))",
+        "(sqrt -1)",
+        "(/ 1.0e-38 1.0e38)",
+        "(float 2147483647)",
+        "(float -2147483648)",
+        "(- (float 2147483647))",
+        "(* 1.0e19 1.0e19)",
+        "(float 16777217)",
+    ]:
         for call in ("prin1-to-string", "princ-to-string", "string"):
             line("(%s %s)" % (call, value))
         line('(format nil "~a ~d" %s %s)' % (value, value))

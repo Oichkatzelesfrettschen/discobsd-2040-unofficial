@@ -164,6 +164,37 @@ target run found these, in order:
    tree does not match its dimensions) is not examined; a resulting
    fault is the SIGSEGV the port turns into a Lisp error.
 
+11. A second review and a sweep of every integer builtin found more
+   undefined or fatal edges. `tests/ulisp/gen-arith.py` applies each
+   builtin that takes a number to the edge values of a 32-bit integer (all
+   pairs, a sample of larger tuples, floats past the int range, number text
+   for the reader, floats at the limits of the printer): 12686 forms in the
+   `arith` corpus, run under the address, undefined-behavior and
+   float-cast sanitizers. The reports, now fixed: `(/ INT_MIN -1)` raised
+   SIGFPE in the remainder (the pair is checked first); `ceiling`,
+   `floor` and `truncate` divided by zero and by -1 in `int` (a Lisp
+   error, and a float for INT_MIN / -1); `truncate`, `floor`,
+   `ceiling` and `round` converted floats beyond the int range (the
+   result is the float itself, as `+` does on overflow); `ash` and
+   `logbitp` shifted by 32 or more, by a negative count, or a negative
+   value left (counts of 32 or more clear the bits or leave the sign, the
+   left shift keeps the low 32 bits, a negative `logbitp` index is an
+   error); `expt` squared past the int range; `note` summed octaves in
+   `int` and indexed the scale with a negative remainder (a negative note
+   counts down); `sleep` multiplied seconds in `int`; `delay` and
+   `for-millis` turned a negative count into a wait of about 49 days or
+   more (now no wait); strings built from a byte above 127 and `setf` of a
+   character or bit shifted signed values. Not a sanitizer report but kept:
+   `char` and `setf` of `char` with a negative index read the position
+   the low bits named (now an error). Upstream's `1+`-style printing of
+   -Inf as `Inf` is left. `register` (the address is the argument) and
+   `gc` (a flag, a timed report) stay out of the corpus. The loader also
+   checks the cells it installed, not only the file it read first (the
+   `race` and `truncrace` corpora change the file between the two reads
+   with an LD_PRELOAD shim on Linux), and `initworkspace()` zeroes the
+   free count; a top-level error recovery recounts it, so no transcript
+   shows that last defect and no mutant holds it.
+
 Item 3 reproduces in the unmodified upstream program built for the host
 (a file ending in a symbol reads back with a tail of 0xff bytes). Items 4
 to 6 are read from the upstream source and were not run there. One

@@ -117,7 +117,7 @@ The key mode is chosen with `-k word`, `-k vi` or `-k nano`, the
   `-c` for no color.
 - Color: the status line, key hints, selection, titles, errors and the end
   mark carry ECMA-48 colors; with color off they use reverse video and
-  bold alone. The end mark and frame glyphs use the DEC line-drawing set.
+  bold alone. The end mark uses the DEC line-drawing set.
 - From later Word versions: redo, Library Count, a backup copy on save
   (the Transfer Save `backup` field keeps the old file as `name~`),
   accumulating cuts in nano mode, and typing that replaces the selection.

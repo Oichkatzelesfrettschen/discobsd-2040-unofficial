@@ -158,10 +158,14 @@ motion(int k, int n, woff_t *p, int *lines)
 		break;
 	case 'l':
 	case K_RIGHT:
-	case ' ':
-		for (i = 0; i < n && q < ed_eol(*p); i++)
+	case ' ': {
+		/* The cursor rests on the last character; an operator reaches past it. */
+		woff_t e = ed_eol(*p), lim = vop || e == ed_bol(*p) ? e : e - 1;
+
+		for (i = 0; i < n && q < lim; i++)
 			q++;
 		break;
+	}
 	case 'w':
 		for (i = 0; i < n; i++)
 			q = ed_wordfwd(q);
@@ -184,6 +188,8 @@ motion(int k, int n, woff_t *p, int *lines)
 	case '$':
 	case K_END:
 		q = ed_eol(q);
+		if (!vop && q > ed_bol(q))
+			q--;
 		break;
 	case 'G':
 		q = vcount > 0 ? ed_line_off((woff_t)vcount - 1) :
@@ -439,6 +445,21 @@ vi_key(int k)
 	}
 	n = vcount > 0 ? vcount : 1;
 	p = ed_cur;
+	if (vop == 'c' && k == 'w') {
+		/* cw changes to the end of the word, as ce does. */
+		vop = 0;
+		vcount = 0;
+		while (n-- > 0)
+			p = ed_wordend(p);
+		apply_op('c', ed_cur, p + 1, 0);
+		return;
+	}
+	if (vop == 0 && (k == 'j' || k == 'k' || k == K_DOWN || k == K_UP)) {
+		/* Without an operator j and k keep the column, by display row. */
+		ed_vmove(k == 'j' || k == K_DOWN ? n : -n);
+		vcount = 0;
+		return;
+	}
 	if (motion(k, n, &p, &lines)) {
 		if (vop != 0) {
 			int op = vop;
@@ -485,12 +506,6 @@ vi_key(int k)
 		if (k == op)
 			apply_op(op, ed_cur, lines_end(ed_cur, n) > ed_cur ?
 			    lines_end(ed_cur, n) - 1 : ed_cur, 1);
-		else if (op == 'c' && k == 'w') {
-			p = ed_cur;
-			while (n-- > 0)
-				p = ed_wordend(p);
-			apply_op('c', ed_cur, p + 1, 0);
-		}
 		return;
 	}
 	vcount = 0;

@@ -35,7 +35,8 @@
  * screen is two cell arrays: the frame being composed and the frame on
  * the terminal; scr_flush() sends only the cells that differ, with ECMA-48
  * cursor addressing, SGR attributes and colors, and the DEC line-drawing
- * set for the end mark and frame glyphs.
+ * set for the end mark; the line and corner glyph codes are reserved for a
+ * window frame that the screen does not draw yet.
  */
 
 #include "word.h"

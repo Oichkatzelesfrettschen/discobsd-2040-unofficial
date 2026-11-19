@@ -195,6 +195,15 @@ line_of(woff_t off)
 
 	if (buf_lowmark() < li_off)
 		li_valid = 0;
+	if (li_valid && off < li_off) {
+		/* Count back from the cached point rather than from byte 0. */
+		for (p = off, n = li_line; p < li_off; p++)
+			if (buf_at(p) == '\n')
+				n--;
+		li_off = off;
+		li_line = n;
+		return n;
+	}
 	if (li_valid && off >= li_off) {
 		p = li_off;
 		n = li_line;

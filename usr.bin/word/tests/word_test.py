@@ -145,6 +145,10 @@ class Session:
         for p in parts:
             os.write(self.fd, p)
             self.pump()
+            if p == ESC:
+                # The program waits 60 ms after a lone ESC for a sequence.
+                time.sleep(0.1)
+                self.pump()
 
     def has(self, s):
         return s in self.scr.text()
@@ -294,12 +298,15 @@ def t_vi(b, td):
     s.close()
     check(read(path) == b"orld\nworld", "vi result %r" % read(path))
     s = Session(b, ["-k", "vi", path])
+    s.send(b"l", b"j")
+    check(s.scr.row(31).find("Li2 Co2") >= 0, "vi j lost the column")
+    s.send(b"k", b"cwX", ESC)
     s.send(b":menu\r")
     check(s.has("COMMAND: Copy Delete Format"), ":menu did not show the COMMAND menu")
     s.send(ESC)
     s.send(b"vlld", b"u", b"\x12", b":x\r")
     s.close()
-    check(read(path) == b"d\nworld", "vi visual/redo result %r" % read(path))
+    check(read(path) == b"o\nworld", "vi cw/visual/redo result %r" % read(path))
 
 
 def t_nano(b, td):

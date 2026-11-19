@@ -44,7 +44,7 @@ Sections marked "considered and not adopted" keep their measurements; the S3 dis
 | Banner and motd text | `etc/motd:1`, `README.md:19,49,68`, `distrib/notes/ANNOUNCEMENT.md:1-17` | people |
 | Literal "DiscoBSD 2.7" in checks | 48 tracked files contain the string (`git grep -lI "DiscoBSD 2\.7"`), 34 under `docs/` and 14 elsewhere: 7 gate and fixture files (the five Renode files below, `tests/build_failure/check.py`, `usr.bin/picofetch/tests/render.py`), 3 shipped text files (`README.md`, `distrib/notes/ANNOUNCEMENT.md`, `etc/motd`), 3 documents (`sys/arch/rp2040/doc/TESTING.md`, `sys/arch/rp2040/doc/research/emulation.md`, `legacy/pdp11-v6/docs/research/v6-emulator-on-discobsd.md`) and the `param.h` comment; `hwinfo_fixture.c` holds the type and the number as separate strings (lines 85-86) and is not among the 14, so the rename inventory is these files plus that fixture; Renode stages `tools/renode/check-boot.py:570,582`, `check-capacity.py:217`, `check-identity.py:142`, `check-picocalc.py:54,572,770`, `picocalc_fb.py:199`; `tests/build_failure/check.py:530`; the picofetch fixture `usr.bin/picofetch/tests/hwinfo_fixture.c:86` and `render.py:242`; `sys/arch/rp2040/doc/TESTING.md:2875` | substring match on the boot banner and `uname -sr` output; nothing parses the number into fields (a `git grep` for `osrelease`, `kern.version` and `OSRELEASE` over `tools tests usr.bin sbin bin lib/libc/gen distrib` finds display code in `usr.bin/picofetch`, the library call `lib/libc/gen/uname.c:69`, a gate stub `tests/kernel/sysctl_test.c:130` and a comment at `tests/rp2040/swap_tier_model/trace.py:184`) |
 | Host package | `version = "1.0.9"` (`distrib/rp2040/host/pyproject.toml:7`), `__version__ = "1.0.9"` (`distrib/rp2040/host/src/discobsd_host/__init__.py:11`), `discobsd-host (1.0.9)` (`distrib/rp2040/host/packaging/debian/changelog:1`), `pkgver=1.0.9` (`distrib/rp2040/host/packaging/arch/PKGBUILD:14`); release workflow fires on tags `host-v*` (`.github/workflows/host-release.yml`) | pip, dpkg, pacman; the last tag is `host-v1.0.7` (`git tag -l "host-v*"`, 2026-09-16), so 1.0.8 and 1.0.9 carry no tag |
-| Planned | host package `gizmobsd-host 2.0.0` with `discobsd-*` aliases for one release (owner decision D38, fixed); OS version: S3 "Rev A" (D87), label `RevA-alpha` (D91), composite identifier of the section below (D92); `param.h` macro carries the `KERN_OSREV` value (D52, D93); plan D3 proposes "GizmoBSD 0.1" with "derived from DiscoBSD 2.7" in `etc/COPYRIGHT` and motd, and D4 a `GizmoBSD 202611` value for `KERN_OSREV` (the rename plan's open proposals) | |
+| Planned | host package `gizmobsd-host 2.0.0` with `discobsd-*` aliases for one release (owner decision D38, fixed); OS version: SemVer, tree state `0.1.0-alpha` (D111, D153), with no tag, no fixed stage list and no artifact suffix at the rename (D157 to D159); `kern.osrev` keeps its value until the packed integer is studied (D156); no compile-time version macro for programs (D155) | |
 
 Upstream release history (`git tag`, tag commit dates): DISCOBSD_2_0 2022-12-31, 2_1 2023-08-31, 2_2 2024-02-29, 2_3 2024-08-11, 2_4 2025-02-11, 2_5 2025-08-11, 2_6 2026-02-11, 2_7 2026-08-11. The `OSR` history (`git log -G"^OSR="`) shows `2.2-beta` through `2.7-beta` commits between 1 and 31 days before each release tag, then upstream `2.7-current` on 2026-09-15 (upstream/master d143605c). The upstream rule is one counter step in tenths per half-year release: the number increments when the beta starts, the release keeps it, and -current keeps it after the release (`newvers.sh:18-20`).
 
@@ -572,49 +572,29 @@ Not run: kernel build and linked-kernel text size (remote build host), Renode st
 
 1. Scheme: SemVer 0.y.z with the first tree state `0.1.0-alpha` (D111, superseding D87, D91 and D92).
 2. Label placement: the core version with its label, no date, in `version[]` and `osrelease` (D88, D113).
-3. Build month: `+YYYYMM` on artifact names and stable releases (D111, D114); the specification adds the commit count for development artifacts.
+3. Build month: `+YYYYMM` on artifact names and stable releases (D111, D114). The commit count the specification adds for development artifacts is not adopted (D157).
 4. Tags: `gizmobsd-v` plus the core verbatim (D90, D115).
 5. `KERN_OSREV`: a packed integer generated from the single version source with a compile-time hard error (D112); the encoding, bounds, generation mechanism and mutants are specified above and replayed in Appendix C.
 6. Banners in gates and fixtures read `newvers.sh` after the rename (D94).
 
 The questions of the first analysis about the scheme, the label, the tag namespace, the banner literals and the `KERN_OSREV` value are answered by these decisions and no longer stand open.
 
-### Residual decisions
+### Residual decisions, answered 2026-11-19
 
-Each decision lists its options with the reason for each.
+The first analysis left eight residual decisions, R1 to R8, each with options. The owner answered them on 2026-11-19 and asked that the rename stay a rename; the answers below replace the options, and where an answer departs from a recommendation of this note the sections above keep their measurements as analysis only.
 
-**R1. Approve the contract list as the rule that moves MINOR.**
-- (a) Approve the S1 list (recommended): it states which changes set the one claim the number makes, and falsifiers 1 to 3 of the S1 recommendation check it over the first six releases.
-- (b) Amend the list before approval: decide, for instance, whether the removal of a libc symbol moves MINOR before the first stable tag; costs a revision of the list text.
+| Residual | Answer | Effect on this note |
+| --- | --- | --- |
+| R1, the contract list that moves MINOR | Amend the list before approving it (D152); the amendments are not yet named | the S1 list is a draft |
+| R2, the first stable release and the 64-bit `time_t` change | The tree stays `0.1.0-alpha` until the change lands and then moves to a value such as `0.1.1-alpha`; the owner decides each stage change and `1.0.0` (D153) | supersedes the reading of D89 that `0.1.0` follows the change; no rule in the release cycle of S1 fixes when a stage ends |
+| R3, the build month of a stable release | The month of the release day by wall clock (D154) | the reproducible-from-tag epoch policy is not adopted |
+| R4, a compile-time version macro for programs | None; programs read `kern.osrev` or `uname -r` (D155) | no generated installed header |
+| R5, field widths of the packed integer | Not decided; a study of the encoding from first principles, with a survey of other 32-bit systems, comes first (D156) | the `KERN_OSREV` section and Appendix C are a candidate, and `kern.osrev` keeps its present value meanwhile |
+| R6, the identifier on development artifacts | None adopted (D157) | the development form `core+YYYYMM.count` is not adopted. The option's reason, that it reuses a number `newvers.sh` prints, argued for more work in `newvers.sh`, which the answer to R4 had declined |
+| R7, the pre-release vocabulary | No fixed list; the owner names each stage when it comes (D158) | tools must not hard-code `alpha` and `beta`; the grammar's label rule and the stage digit of the packed integer are open with R5 |
+| R8, a tag at the rename | No tag (D159) | `/etc/release` keeps its present source; the `gizmobsd-v*` namespace (D90, D115) stays reserved |
 
-**R2. When the first stable release ships relative to the 64-bit `time_t` change.**
-- (a) `0.1.0` waits for the change (the literal reading of D89; recommended): the tree stays `0.1.0-alpha` until it lands, so the interface break is part of the first stable contract and no MINOR step records it.
-- (b) `0.1.0` ships first and the change ships as `0.2.0`: an earlier stable release for users, and the break is recorded by the number as SemVer intends; costs one more stable release whose programs recompile.
-
-**R3. Epoch policy for the build month of a stable release.**
-- (a) An annotated tag records the epoch; the artifact is built with the tagged commit's committer date and a caller-supplied epoch is refused (recommended): the month is reproducible from the tag.
-- (b) Lightweight tags, the month from the committer date, an override allowed and noted in the release notes: less release machinery; the month can disagree with the tag.
-- (c) The month of the release day by wall clock: matches "release date" in speech; the artifact no longer reproduces from the commit.
-
-**R4. A compile-time version macro for user programs after `param.h` drops `DiscoBSD`.**
-- (a) None: programs read `kern.osrev` or `uname -r` at run time (recommended): no reader of the macro exists in the tree, and no generated installed file is added.
-- (b) Generate and install a header from `newvers.sh`: programs can test the version at compile time; adds a generated installed file that the build keeps in step.
-
-**R5. Field widths of the packed integer.**
-- (a) Major at most 20, minor at most 99, patch at most 99999 (recommended): each MINOR step is an incompatible break, so 99 is far beyond the expected count, and the value stays inside a signed 32-bit `long`.
-- (b) A second sysctl node carrying a 64-bit value: wider fields; adds kernel text and a second interface that D112 did not ask for.
-
-**R6. Identifier appended to development artifacts.**
-- (a) The commit count, `+202611.3000` (recommended): orders in build order and reuses the number `newvers.sh` prints.
-- (b) The abbreviated hash, `+202611.gabc1234`: unique across branches; unordered.
-
-**R7. Pre-release vocabulary.**
-- (a) `alpha` and `beta` only (recommended): two stages fit the S1 cycle and the stage digit has room for more.
-- (b) Add `rc` with stage digit 3: a release-candidate step between beta and final; one more state to keep in order across tools.
-
-**R8. A tag for the pre-release state at the rename.**
-- (a) Tag `gizmobsd-v0.1.0-alpha` at the rename (recommended): `git describe --match 'gizmobsd-v*'` then prints a version in `/etc/release` from the first build.
-- (b) No tag before `0.1.0`: no extra tag; `/etc/release` shows only the hash until then.
+At the rename the version work is the identity strings alone: `GizmoBSD` and `0.1.0-alpha` in `version[]` and `osrelease` (D111, D113).
 
 ## Appendix A: replay of the size measurement
 

@@ -68,13 +68,57 @@
 #define	BLOCK		1024L
 #define	NDIRECT		4L
 #define	NPOINTER	256L	/* block addresses in one indirect block */
-#define	DEEP		"/tmp/sc.deep"
-#define	DIRTY		"/tmp/sc.dirty"
-#define	SCRIPT		"/tmp/sc.sh"
-#define	MARK		"/tmp/sc.ran"
+/*
+ * The files live in a directory this run creates with mode 0700 and enters,
+ * so no name in the world-writable /tmp is opened or executed.
+ */
+#define	DEEP		"sc.deep"
+#define	DIRTY		"sc.dirty"
+#define	SCRIPT		"./sc.sh"
+#define	MARK		"sc.ran"
 #define	HELPER_SECONDS	60	/* bound on a stage that never stops the child */
 
 static char block[BLOCK];
+static char private_dir[32];
+
+/* Create and enter the run's directory; mkdir fails on an existing name. */
+static int
+enter_private_dir(void)
+{
+	snprintf(private_dir, sizeof private_dir, "/tmp/stackchain.%d",
+	    (int)getpid());
+	if (mkdir(private_dir, 0700) < 0 || chdir(private_dir) < 0) {
+		printf("private_dir_errno=%d\n", errno);
+		return -1;
+	}
+	return 0;
+}
+
+static int
+leave_private_dir(int status)
+{
+	(void)unlink(DEEP);
+	(void)unlink(DIRTY);
+	(void)unlink(SCRIPT);
+	(void)unlink(MARK);
+	if (chdir("/") < 0 || rmdir(private_dir) < 0) {
+		printf("private_dir_remove_errno=%d\n", errno);
+		return 1;
+	}
+	return status;
+}
+
+/* waitpid that a signal to this process does not cut short. */
+static pid_t
+wait_for(pid_t pid, int *status, int options)
+{
+	pid_t got;
+
+	do
+		got = waitpid(pid, status, options);
+	while (got < 0 && errno == EINTR);
+	return got;
+}
 
 /*
  * An unlinked file whose last block sits behind as many indirection levels
@@ -212,7 +256,7 @@ stage_exec(int deep)
 	if (pid < 0) {
 		printf("fork_errno=%d\n", errno);
 		(void)kill(helper, SIGKILL);
-		(void)waitpid(helper, &status, 0);
+		(void)wait_for(helper, &status, 0);
 		(void)unlink(SCRIPT);
 		return 1;
 	}
@@ -238,7 +282,7 @@ stage_exec(int deep)
 		fflush(stdout);
 		_exit(9);
 	}
-	if (waitpid(pid, &status, WUNTRACED) != pid) {
+	if (wait_for(pid, &status, WUNTRACED) != pid) {
 		printf("wait_errno=%d\n", errno);
 		return 1;
 	}
@@ -257,7 +301,7 @@ stage_exec(int deep)
 		(void)close(tty);
 	if (!started)
 		ok = 0;
-	if (waitpid(pid, &status, 0) != pid) {
+	if (wait_for(pid, &status, 0) != pid) {
 		printf("wait2_errno=%d\n", errno);
 		ok = 0;
 	} else {
@@ -271,7 +315,7 @@ stage_exec(int deep)
 	if (access(MARK, 0) == 0)
 		ok = 0;
 	(void)kill(helper, SIGKILL);
-	if (waitpid(helper, &status, 0) != helper || !WIFSIGNALED(status))
+	if (wait_for(helper, &status, 0) != helper || !WIFSIGNALED(status))
 		ok = 0;
 	(void)unlink(SCRIPT);
 	(void)unlink(DIRTY);
@@ -282,24 +326,40 @@ stage_exec(int deep)
 int
 main(int argc, char **argv)
 {
+	long rounds = 0;
+	char *end;
+	int stage;
+
 	setvbuf(stdout, (char *)0, _IONBF, 0);
 	if (argc == 3 && strcmp(argv[1], "churn") == 0) {
-		char *end;
-		long rounds = strtol(argv[2], &end, 10);
-
+		rounds = strtol(argv[2], &end, 10);
 		if (end == argv[2] || *end != '\0' || rounds <= 0 ||
 		    rounds > 10000) {
 			fprintf(stderr, "stackchain: churn count 1 to 10000\n");
 			return 2;
 		}
-		return churn((int)rounds);
+		stage = 0;
+	} else if (argc == 2 && strcmp(argv[1], "file") == 0)
+		stage = 1;
+	else if (argc == 2 && strcmp(argv[1], "exec") == 0)
+		stage = 2;
+	else if (argc == 2 && strcmp(argv[1], "execplain") == 0)
+		stage = 3;
+	else {
+		fprintf(stderr,
+		    "usage: stackchain churn N | file | exec | execplain\n");
+		return 2;
 	}
-	if (argc == 2 && strcmp(argv[1], "file") == 0)
-		return stage_file();
-	if (argc == 2 && strcmp(argv[1], "exec") == 0)
-		return stage_exec(1);
-	if (argc == 2 && strcmp(argv[1], "execplain") == 0)
-		return stage_exec(0);
-	fprintf(stderr, "usage: stackchain churn N | file | exec | execplain\n");
-	return 2;
+	if (enter_private_dir() < 0)
+		return 1;
+	if (stage == 0)
+		return leave_private_dir(churn((int)rounds));
+	if (stage == 1)
+		/*
+		 * A stage that reaches its end exits inside stage_file()
+		 * holding the unlinked file, and leaves the directory with
+		 * the dirty file for /tmp's next clearing.
+		 */
+		return leave_private_dir(stage_file());
+	return leave_private_dir(stage_exec(stage == 2));
 }

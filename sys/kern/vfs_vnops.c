@@ -161,8 +161,14 @@ vn_open_at(register struct nameidata *ndp, volatile int fmode, int cmode,
             }
         }
     }
-    if (fmode & O_TRUNC)
+    if (fmode & O_TRUNC) {
         itrunc(ip, (off_t)0, fmode & O_FSYNC ? IO_SYNC : 0);
+        /* A truncation that could not write its metadata fails the open. */
+        if (u.u_error) {
+            error = u.u_error;
+            goto bad;
+        }
+    }
     /*
      * 4.4 returns the vnode locked from vn_open which means that each caller
      * has to go and unlock it.

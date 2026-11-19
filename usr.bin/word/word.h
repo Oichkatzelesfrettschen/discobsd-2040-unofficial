@@ -47,7 +47,7 @@ typedef uint32_t woff_t;		/* byte offset in the document */
 #define WORD_PATH_MAX	128u
 #define WORD_FIELD_MAX	96u
 #define WORD_MSG_MAX	96u
-#define WORD_PAT_MAX	64u
+#define WORD_PAT_MAX	WORD_FIELD_MAX	/* an atom takes at least one character */
 #define WORD_MENU_DEPTH	4u
 #define WORD_ROWS_MAX	48
 #define WORD_COLS_MAX	120
@@ -63,6 +63,7 @@ int	buf_ref_at(woff_t ref);		/* byte of the add stream */
 int	buf_insert(woff_t pos, const char *s, size_t n);
 int	buf_insert_ref(woff_t pos, woff_t ref, woff_t n);
 int	buf_delete(woff_t pos, woff_t n, woff_t *ref);
+int	buf_replace(woff_t pos, woff_t n, const char *s, size_t len);
 int	buf_copy(woff_t pos, woff_t n, woff_t *ref);
 int	buf_merge(woff_t pos, const char *path, woff_t *n);
 int	buf_save(const char *path, int backup);

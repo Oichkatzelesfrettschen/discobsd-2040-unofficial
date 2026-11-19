@@ -53,13 +53,14 @@
 #include <sys/select.h>
 
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
 int scr_rows = 24, scr_cols = 80, scr_color = 1;
 
-static int rawmode;
+static volatile sig_atomic_t rawmode;
 #ifdef TERMIOS
 static struct termios orig_tio;
 #else
@@ -134,6 +135,54 @@ tty_size(void)
 		scr_cols = WORD_COLS_MAX;
 }
 
+#define TTY_RESTORE_SEQ "\033[0m\033(B\033[?7h\033[?25h\033[2J\033[H\033[?1049l"
+
+/* Put the terminal back; write(2), tcsetattr(3) and ioctl(2) only. */
+static void
+tty_reset_modes(void)
+{
+	ssize_t r = write(STDOUT_FILENO, TTY_RESTORE_SEQ,
+	    sizeof(TTY_RESTORE_SEQ) - 1);
+
+	(void)r;
+#ifdef TERMIOS
+	tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_tio);
+#else
+	ioctl(STDIN_FILENO, TIOCSETP, &orig_sg);
+	ioctl(STDIN_FILENO, TIOCSETC, &orig_tc);
+	ioctl(STDIN_FILENO, TIOCSLTC, &orig_ltc);
+#endif
+	rawmode = 0;
+}
+
+/*
+ * A terminating signal restores the terminal and then takes its default
+ * action, so a kill leaves neither raw mode nor the alternate screen.
+ */
+static void
+on_term_signal(int sig)
+{
+	if (rawmode)
+		tty_reset_modes();
+	signal(sig, SIG_DFL);
+	kill(getpid(), sig);
+}
+
+static void
+catch_term_signals(void)
+{
+	static const int sigs[] = { SIGHUP, SIGINT, SIGQUIT, SIGTERM };
+	static int done;
+	unsigned i;
+
+	if (done)
+		return;
+	done = 1;
+	for (i = 0; i < sizeof(sigs) / sizeof(sigs[0]); i++)
+		if (signal(sigs[i], on_term_signal) == SIG_IGN)
+			signal(sigs[i], SIG_IGN);
+}
+
 int
 tty_raw(void)
 {
@@ -180,6 +229,7 @@ tty_raw(void)
 	ioctl(STDIN_FILENO, TIOCSLTC, &ltc);
 #endif
 	rawmode = 1;
+	catch_term_signals();
 	ostr("\033[?1049h\033[?7l");
 	scr_invalidate();
 	return 0;
@@ -190,16 +240,8 @@ tty_restore(void)
 {
 	if (!rawmode)
 		return;
-	ostr("\033[0m\033(B\033[?7h\033[?25h\033[2J\033[H\033[?1049l");
 	oflush();
-#ifdef TERMIOS
-	tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_tio);
-#else
-	ioctl(STDIN_FILENO, TIOCSETP, &orig_sg);
-	ioctl(STDIN_FILENO, TIOCSETC, &orig_tc);
-	ioctl(STDIN_FILENO, TIOCSLTC, &orig_ltc);
-#endif
-	rawmode = 0;
+	tty_reset_modes();
 }
 
 /* One byte, waiting at most ms milliseconds when ms is not negative. */
@@ -312,7 +354,11 @@ key_read(void)
 		if (c < 0)
 			return K_ESC;
 		if (c >= '0' && c <= '9') {
-			p[np] = p[np] * 10 + (c - '0');
+			/* A parameter past 9999 stays there and names no key. */
+			if (p[np] < 1000)
+				p[np] = p[np] * 10 + (c - '0');
+			else
+				p[np] = 9999;
 			continue;
 		}
 		if (c == ';' && np == 0) {

@@ -437,7 +437,7 @@ vi_key(int k)
 		vcount = vcount * 10 + (k - '0');
 		return;
 	}
-	if (k == '0' && vcount > 0) {
+	if (k == '0' && vcount > 0 && vcount < 100000) {
 		vcount *= 10;
 		return;
 	}

@@ -205,6 +205,12 @@ add_append(const char *s, size_t n, woff_t *ref)
 		s += k;
 		n -= k;
 		if (addram_len == ADD_RAM && n > 0) {
+			/*
+			 * blk_byte() leaves the shared descriptor at its read
+			 * position; the append goes to the end of the stream.
+			 */
+			if (lseek(spillfd, (off_t)spilled, SEEK_SET) < 0)
+				return errno;
 			if (write(spillfd, addram, ADD_RAM) != (ssize_t)ADD_RAM)
 				return errno != 0 ? errno : EIO;
 			spilled += ADD_RAM;
@@ -478,6 +484,38 @@ buf_insert(woff_t pos, const char *s, size_t n)
 	return buf_insert_ref(pos, ref, (woff_t)n);
 }
 
+/*
+ * Replace n bytes at pos by s[0..len). Both texts are staged in the add
+ * stream and the piece slots are secured before the document changes, so a
+ * failure leaves the document and the undo records as they were.
+ */
+int
+buf_replace(woff_t pos, woff_t n, const char *s, size_t len)
+{
+	woff_t dref = 0, iref = 0;
+	int e;
+
+	if (pos > doclen || n > doclen - pos)
+		return EINVAL;
+	if (n == 0 && len == 0)
+		return 0;
+	if (len > 0 && (e = add_append(s, len, &iref)) != 0)
+		return e;
+	if (n > 0 && (e = add_copy(pos, n, &dref)) != 0)
+		return e;
+	if (npiece + 4 > NPIECE && (e = compact()) != 0)
+		return e;
+	if ((e = raw_delete(pos, n)) != 0)
+		return e;
+	if (n > 0)
+		urec_push(U_DEL, pos, n, dref);
+	if ((e = raw_insert(pos, iref, (woff_t)len)) != 0)
+		return e;
+	if (len > 0)
+		urec_push(U_INS, pos, (woff_t)len, iref);
+	return 0;
+}
+
 int
 buf_copy(woff_t pos, woff_t n, woff_t *ref)
 {
@@ -655,17 +693,29 @@ write_all(int fd, const char *p, size_t n)
 int
 buf_save(const char *path, int backup)
 {
-	char tmp[WORD_PATH_MAX + 8], bak[WORD_PATH_MAX + 2], chunk[BLK];
+	char tmp[WORD_PATH_MAX + 32], bak[WORD_PATH_MAX + 2], chunk[BLK];
 	struct stat st;
-	int fd, e = 0, have = stat(path, &st) == 0;
+	int fd = -1, e = 0, have = stat(path, &st) == 0;
+	unsigned tries;
 	woff_t off = 0;
 
 	if (strlen(path) >= WORD_PATH_MAX)
 		return ENAMETOOLONG;
-	snprintf(tmp, sizeof(tmp), "%s.wtmp", path);
-	fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+	/*
+	 * The temporary is created exclusively under a name that carries the
+	 * process id and a retry counter. O_EXCL refuses an existing file and
+	 * a symbolic link alike, so a pre-made name is skipped and never
+	 * written through.
+	 */
+	for (tries = 0; tries < 32 && fd < 0; tries++) {
+		snprintf(tmp, sizeof(tmp), "%s.wtmp.%ld.%u", path,
+		    (long)getpid(), tries);
+		fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0600);
+		if (fd < 0 && errno != EEXIST)
+			return errno;
+	}
 	if (fd < 0)
-		return errno;
+		return EEXIST;
 	while (e == 0 && off < doclen) {
 		size_t k = 0;
 

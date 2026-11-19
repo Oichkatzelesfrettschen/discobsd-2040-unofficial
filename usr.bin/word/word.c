@@ -534,11 +534,22 @@ type_char(int c)
 	woff_t lo, hi;
 
 	sel_range(&lo, &hi);
-	if (lo < hi)
-		ed_del(lo, hi, 0, 0);
-	else if (ovr && c != '\n' && buf_at(ed_cur) >= 0 &&
-	    buf_at(ed_cur) != '\n')
-		buf_delete(ed_cur, 1, NULL);
+	if (lo < hi) {
+		if (ed_del(lo, hi, 0, 0) != 0)
+			return;
+	} else if (ovr && c != '\n' && buf_at(ed_cur) >= 0 &&
+	    buf_at(ed_cur) != '\n') {
+		int e = buf_replace(ed_cur, 1, &ch, 1);
+
+		if (e != 0) {
+			msg_errno(e);
+			return;
+		}
+		ed_cur++;
+		goal = -1;
+		ext = 0;
+		return;
+	}
 	ed_ins(&ch, 1);
 	ext = 0;
 }
@@ -642,6 +653,7 @@ word_count(void)
 static char f_text[WORD_FIELD_MAX], f_with[WORD_FIELD_MAX];
 static char f_name[WORD_PATH_MAX], f_cmd[WORD_FIELD_MAX], f_num[12];
 static uint8_t s_up, s_case, s_whole, r_confirm = 1;
+static uint8_t r_ask;		/* this Replace still asks before each match */
 static unsigned long nrepl;
 static struct word_pattern pat;
 
@@ -673,6 +685,15 @@ ed_search(const char *text, int down, int again)
 	msg[0] = '\0';
 }
 
+/* A failed replacement leaves the text as it was and keeps its message. */
+static void
+replace_failed(void)
+{
+	ui = U_EDIT;
+	ed_sel = 0;
+	ed_msgf(1, "Replace failed; %lu replaced", nrepl);
+}
+
 static void
 replace_from(woff_t from)
 {
@@ -680,7 +701,7 @@ replace_from(woff_t from)
 	size_t rl = strlen(f_with);
 
 	while (word_pat_find(&pat, from, 1, &s, &e)) {
-		if (r_confirm) {
+		if (r_ask) {
 			ed_anchor = s;
 			ed_set(e);
 			ed_sel = 1;
@@ -688,10 +709,9 @@ replace_from(woff_t from)
 			ed_msg(0, "Replace? Y replaces, N skips, A all, Esc stops");
 			return;
 		}
-		if (buf_delete(s, e - s, NULL) != 0 ||
-		    buf_insert(s, f_with, rl) != 0) {
-			ed_msg(1, "Replace failed");
-			break;
+		if (buf_replace(s, e - s, f_with, rl) != 0) {
+			replace_failed();
+			return;
 		}
 		nrepl++;
 		from = s + (woff_t)rl;
@@ -715,9 +735,11 @@ replace_key(int k)
 		ed_msgf(0, "%lu replacements", nrepl);
 	} else if (up == 'Y' || up == 'A') {
 		if (up == 'A')
-			r_confirm = 0;
-		buf_delete(s, e - s, NULL);
-		buf_insert(s, f_with, strlen(f_with));
+			r_ask = 0;
+		if (buf_replace(s, e - s, f_with, strlen(f_with)) != 0) {
+			replace_failed();
+			return;
+		}
 		nrepl++;
 		replace_from(s + (woff_t)strlen(f_with));
 	} else if (up == 'N')
@@ -922,6 +944,7 @@ form_run(void)
 		}
 		word_pat_compile(&pat, f_text, s_case, s_whole);
 		nrepl = 0;
+		r_ask = r_confirm;
 		buf_mark();
 		replace_from(ed_cur);
 		break;
@@ -930,6 +953,8 @@ form_run(void)
 		n = strtol(f_num, NULL, 10);
 		if (n < 1)
 			n = 1;
+		else if (n > 1000000)
+			n = 1000000;
 		ed_set(ed_line_off(fid == F_JUMP ? (woff_t)(n - 1) * PAGE_LINES :
 		    (woff_t)(n - 1)));
 		ed_sel = 0;

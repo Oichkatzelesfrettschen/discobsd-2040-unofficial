@@ -56,6 +56,9 @@ and listed at the end.
 - Search finds text down or up from the cursor and selects it; Replace
   replaces each match, asking Y (replace), N (skip), A (all the rest)
   or Esc (stop) when confirm is Yes, and reports the number of replacements.
+  A is local to that Replace; the form's confirm choice is unchanged. A
+  replacement that cannot be stored stops the run, leaves the matched text
+  in place and keeps the failure message.
 - Search text: `?` matches any one character, `^w` a run of spaces and
   tabs, `^t` a tab, `^s` a space, `^-` a hyphen, `^p` and `^n` a line
   break. `^^` for a caret and `^?` for a question mark are this program's
@@ -129,7 +132,11 @@ The key mode is chosen with `-k word`, `-k vi` or `-k nano`, the
   including a missing final line break. Bytes outside printable ASCII show
   as `?` and are kept.
 - Save writes a temporary file beside the target and renames it over the
-  target, so a failed save leaves the old file whole.
+  target, so a failed save leaves the old file whole. The temporary is
+  created exclusively under a name that carries the process id, so an
+  existing file or link of any name is never written through.
+- SIGHUP, SIGINT, SIGQUIT and SIGTERM restore the terminal before the
+  program ends by the signal.
 - The document may exceed the process's memory: the loaded file stays on
   disk and is read on demand, and inserted or copied text spills to an
   unlinked temporary file when its memory buffer fills.

@@ -38,6 +38,7 @@ import os
 import pty
 import re
 import select
+import signal
 import struct
 import subprocess
 import sys
@@ -113,6 +114,13 @@ class Screen:
         return "\n".join(self.row(n) for n in range(ROWS))
 
 
+def default_signals():
+    # A caller under nohup or a background job passes ignored signals on; the
+    # program keeps an ignored signal ignored, so the tests start it clean.
+    for sig in (signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM):
+        signal.signal(sig, signal.SIG_DFL)
+
+
 class Session:
     def __init__(self, binary, args=(), cwd=None, env=None):
         master, slave = pty.openpty()
@@ -121,7 +129,8 @@ class Session:
         e.pop("WORDKEYS", None)
         e.update(env or {})
         self.proc = subprocess.Popen([binary] + list(args), stdin=slave, stdout=slave,
-                                     stderr=slave, close_fds=True, cwd=cwd, env=e)
+                                     stderr=slave, close_fds=True, cwd=cwd, env=e,
+                                     preexec_fn=default_signals)
         os.close(slave)
         self.fd = master
         self.scr = Screen()
@@ -397,8 +406,139 @@ def t_ansi(b, td):
     check(s.close(expect_exit=False) == 2, "-l was accepted")
 
 
+def t_spill_append(b, td):
+    # The add stream's spill file is read and appended through one descriptor:
+    # a save reads it, and the next 8 KiB flush must still land at its end.
+    big = os.path.join(td, "big.txt")
+    data = b"".join(b"line %06d of the spill test\n" % i for i in range(1200))
+    write(big, data)
+    out = os.path.join(td, "out.txt")
+    s = Session(b, [out])
+    menu(s, b"t", b"m")
+    s.send(big.encode(), b"\r")
+    menu(s, b"t", b"s")
+    s.send(b"\r")
+    check(read(out) == data, "first save differs")
+    s.send(CTRLP, b"\x15")
+    menu(s, b"t", b"m")
+    s.send(big.encode(), b"\r")
+    menu(s, b"t", b"s")
+    s.send(b"\r")
+    check(read(out) == data + data, "append after a read overwrote spilled text")
+    menu(s, b"q")
+    s.close()
+
+
+def t_save_temp(b, td):
+    # The save temporary is created exclusively: a name that already exists,
+    # even as a link to another file, is skipped and never written through.
+    out = os.path.join(td, "note.txt")
+    victim = os.path.join(td, "victim.txt")
+    write(victim, b"precious")
+    s = Session(b, [out])
+    for name in (out + ".wtmp", "%s.wtmp.%d.0" % (out, s.proc.pid)):
+        os.symlink(victim, name)
+    s.send(b"Hello")
+    menu(s, b"t", b"s")
+    s.send(b"\r")
+    check(read(out) == b"Hello", "save wrote %r" % read(out))
+    check(read(victim) == b"precious", "save wrote through a planted link")
+    check(sorted(os.listdir(td)) == ["note.txt", "note.txt.wtmp",
+          "note.txt.wtmp.%d.0" % s.proc.pid, "victim.txt"],
+          "save left a temporary: %r" % sorted(os.listdir(td)))
+    menu(s, b"q")
+    s.close()
+
+
+def t_replace_failure(b, td):
+    # The add stream cannot spill (TMPDIR names no directory), so a long
+    # run of replacements ends in a failure. The failing match stays in the
+    # text, the failure message stays on screen and no match is lost.
+    path = os.path.join(td, "r.txt")
+    write(path, b"abc " * 200)
+    s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
+    menu(s, b"r")
+    s.send(b"abc", b"\t", b"Q" * 90, b"\t", b"n", b"\r")
+    check(s.has("Replace failed"), "failed replacement not reported")
+    check(not s.has("replacements"), "failure message overwritten by the count")
+    menu(s, b"t", b"s")
+    s.send(b"\r")
+    got = read(path)
+    check(got.count(b"abc") > 0 and got.count(b"abc") < 200,
+          "run did not stop part way: %d" % got.count(b"abc"))
+    check(got.count(b"abc") + got.count(b"Q" * 90) == 200, "a match was lost")
+    menu(s, b"q")
+    s.close()
+
+
+def t_replace_all_local(b, td):
+    # Answering A turns off the asking for that replacement only.
+    path = os.path.join(td, "a.txt")
+    write(path, b"x x x")
+    s = Session(b, [path])
+    menu(s, b"r")
+    s.send(b"x", b"\t", b"y", b"\r")
+    check(s.has("Replace?"), "replace did not ask")
+    s.send(b"a")
+    check(s.has("3 replacements"), "A did not replace all")
+    s.send(b"\x1b[1;5H")
+    menu(s, b"r")
+    s.send(b"y", b"\t", b"z", b"\r")
+    check(s.has("Replace?"), "A turned off asking for later replacements")
+    s.send(ESC)
+    menu(s, b"q")
+    s.close(expect_exit=False)
+
+
+def t_overlong_pattern(b, td):
+    # A pattern past the compiled capacity is matched in full, not cut.
+    path = os.path.join(td, "p.txt")
+    write(path, b"x" * 64 + b"Y\n")
+    s = Session(b, [path])
+    menu(s, b"s")
+    s.send(b"x" * 64 + b"Z", b"\r")
+    check(s.has("Search text not found"), "a long pattern was cut and matched")
+    menu(s, b"s")
+    s.send(b"x" * 64 + b"Y", b"\r")
+    check(not s.has("Search text not found"), "a long pattern did not match")
+    menu(s, b"q")
+    s.close()
+
+
+def t_csi_overflow(b, td):
+    # 4294967299 is 3 (Delete) modulo 2**32: a parameter that wraps names no key.
+    path = os.path.join(td, "c.txt")
+    write(path, b"abc")
+    s = Session(b, [path])
+    s.send(b"\x1b[4294967299~")
+    s.send(ESC)
+    check(s.scr.row(0).startswith("abc"), "a wrapped CSI parameter acted as a key")
+    menu(s, b"q")
+    s.close(expect_exit=False)
+
+
+def t_signal_restore(b, td):
+    path = os.path.join(td, "s.txt")
+    write(path, b"abc")
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        s = Session(b, [path])
+        s.proc.send_signal(sig)
+        rc = s.proc.wait(timeout=10.0)
+        s.pump()
+        check(rc == -sig, "exit status %r after %s" % (rc, sig.name))
+        check(s.scr.raw.endswith(b"\x1b[?1049l")
+              or b"\x1b[?1049l" in bytes(s.scr.raw[-40:]),
+              "alternate screen left after %s" % sig.name)
+        lflag = termios.tcgetattr(s.fd)[3]
+        check(lflag & termios.ICANON and lflag & termios.ECHO,
+              "terminal left raw after %s" % sig.name)
+        os.close(s.fd)
+
+
 TESTS = [t_save_menu, t_wrap, t_search_replace, t_undo_scrap, t_vi, t_nano,
-         t_picker, t_large, t_ansi]
+         t_picker, t_large, t_ansi, t_spill_append, t_save_temp,
+         t_replace_failure, t_replace_all_local, t_overlong_pattern,
+         t_csi_overflow, t_signal_restore]
 
 
 def main():

@@ -34,7 +34,7 @@
  *
  *	churn N		write and remove a 64 KiB file N times, which wraps
  *			the Dhara journal and starts its garbage collection
- *	file		exit holding an unlinked file with indirect blocks,
+ *	file		a child exits holding an unlinked file with indirect blocks,
  *			beside a dirty buffer
  *	exec		a traced child stops output on the terminal, queues
  *			bytes there on a close-on-exec descriptor, holds the
@@ -92,6 +92,7 @@
 #define	DIRTY		"sc.dirty"
 #define	SCRIPT		"./sc.sh"
 #define	MARK		"sc.ran"
+#define	START_TRIES	10	/* restarts of the output the parent attempts */
 #define	HELPER_SECONDS	60	/* bound on a stage that never stops the child */
 
 static char block[BLOCK];
@@ -253,23 +254,38 @@ churn(int rounds)
 	return 0;
 }
 
+/*
+ * The exit under measurement is a child's, so that the parent is left to
+ * remove the dirty file and the run's directory.
+ */
 static int
 stage_file(void)
 {
-	if (deep_file() < 0)
+	int status;
+	pid_t pid = fork();
+
+	if (pid < 0) {
+		printf("fork_errno=%d\n", errno);
 		return 1;
-	if (dirty_buffer() < 0)
+	}
+	if (pid == 0) {
+		if (deep_file() < 0 || dirty_buffer() < 0)
+			_exit(1);
+		printf("file_exit=1\n");
+		_exit(0);
+	}
+	if (wait_for(pid, &status, 0) != pid) {
+		printf("wait_errno=%d\n", errno);
 		return 1;
-	printf("file_exit=1\n");
-	fflush(stdout);
-	_exit(0);
+	}
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : 1;
 }
 
 static int
 stage_exec(int deep)
 {
 	static const char script[] = "#!/bin/sh\necho ran >" MARK "\n";
-	int fd, tty, status, ok, started, held;
+	int fd, tty, status, ok, started, held, tries;
 	pid_t pid, helper, got;
 
 	(void)unlink(MARK);
@@ -358,14 +374,31 @@ stage_exec(int deep)
 	printf("held_in_close=%d\n", held);
 	if (!held)
 		ok = 0;
-	tty = open(tty_name, O_WRONLY | O_NONBLOCK);
-	started = tty >= 0 && ioctl(tty, TIOCSTART, 0) == 0;
+	/*
+	 * The child cannot die until the output restarts, so the restart is
+	 * tried START_TRIES times a second apart, and a child that is still
+	 * held after the last is reported and left, not waited for.
+	 */
+	started = 0;
+	for (tries = 0; tries < START_TRIES && !started; tries++) {
+		if (tries > 0)
+			sleep(1);
+		tty = open(tty_name, O_WRONLY | O_NONBLOCK);
+		started = tty >= 0 && ioctl(tty, TIOCSTART, 0) == 0;
+		if (tty >= 0)
+			(void)close(tty);
+	}
 	printf("parent_start=%d\n", started);
-	if (tty >= 0)
-		(void)close(tty);
-	if (!started)
+	if (!started) {
 		ok = 0;
-	if (got != pid && wait_for(pid, &status, 0) != pid) {
+		if (got != pid)
+			got = wait_for(pid, &status, WNOHANG);
+		if (got != pid)
+			printf("child_left_stopped=1\n");
+	}
+	if (!started && got != pid)
+		;
+	else if (got != pid && wait_for(pid, &status, 0) != pid) {
 		printf("wait2_errno=%d\n", errno);
 		ok = 0;
 	} else {
@@ -453,11 +486,6 @@ main(int argc, char **argv)
 	if (stage == 0)
 		return leave_private_dir(churn((int)rounds));
 	if (stage == 1)
-		/*
-		 * A stage that reaches its end exits inside stage_file()
-		 * holding the unlinked file, and leaves the directory with
-		 * the dirty file for the next clearing of its parent.
-		 */
 		return leave_private_dir(stage_file());
 	return leave_private_dir(stage_exec(stage == 2));
 }

@@ -39,6 +39,7 @@
 #else
 #include <dirent.h>
 #endif
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -124,8 +125,16 @@ static int
 filegetc(struct sysfile *f)
 {
 	if (f->pos == f->len) {
-		ssize_t n = read(f->fd, f->buf, IOBUF);
+		ssize_t n;
 
+		/*
+		 * A signal handler that returns (SIGINT sets interrupted)
+		 * ends the read with EINTR; that is no end of input, so the
+		 * read is made again.
+		 */
+		do
+			n = read(f->fd, f->buf, IOBUF);
+		while (n < 0 && errno == EINTR);
 		if (n <= 0)
 			return -1;
 		f->pos = 0;

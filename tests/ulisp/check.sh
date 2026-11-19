@@ -60,11 +60,24 @@ run() {
 	if [ -f "$name.lisp" ]; then
 		input=$name.lisp
 	fi
-	if ! env -i ULISPLIB="$here/library.lisp" ULISPDOC="$doc" \
-	    "$@" -w "$cells" < "$input" > "$name.out" 2>&1; then
-		echo "ulisp $mode: $name: the interpreter failed" >&2
-		status=1
-	fi
+	rc=0
+	env -i ULISPLIB="$here/library.lisp" ULISPDOC="$doc" \
+	    "$@" -w "$cells" < "$input" > "$name.out" 2>&1 || rc=$?
+	# 124 is timeout(1) ending a run that did not finish; 126 and 127
+	# are a command that could not be started. Neither is a transcript
+	# verdict, so the check ends at once with status 3 (did not finish)
+	# or 4 (did not start), apart from the status 1 of a failed or
+	# differing transcript.
+	case $rc in
+	0)	;;
+	124)	echo "ulisp $mode: $name: the run did not finish in its time" >&2
+		exit 3 ;;
+	126|127)
+		echo "ulisp $mode: $name: the command did not start (status $rc)" >&2
+		exit 4 ;;
+	*)	echo "ulisp $mode: $name: the interpreter failed" >&2
+		status=1 ;;
+	esac
 }
 compare() {
 	if ! diff "$here/$1.expected" "$1.out" > "$1.diff"; then
@@ -117,6 +130,33 @@ if [ "$mode" = host ] && [ -n "${ULISP_REWRITE_SHIM:-}" ]; then
 		compare "$race"
 		corpora="$corpora $race"
 	done
+fi
+
+# SIGINT while the interpreter waits for input ends the read with EINTR,
+# which is no end of input: a form sent afterwards is still evaluated. The
+# signal goes to the command and to its child, since a timeout(1) or env(1)
+# in front of the interpreter may or may not pass it on.
+if [ "$mode" = host ]; then
+	mkfifo intr.fifo
+	env -i ULISPLIB="$here/library.lisp" ULISPDOC="$doc" \
+	    "$@" -w 9000 < intr.fifo > intr.out 2>&1 &
+	pid=$!
+	exec 9> intr.fifo
+	sleep 1
+	kill -INT "$pid" 2> /dev/null || true
+	pkill -INT -P "$pid" 2> /dev/null || true
+	sleep 1
+	# An interpreter that has already exited leaves the pipe without a
+	# reader; the write then fails here instead of ending this script.
+	trap '' PIPE
+	echo '(* 6 7)' >&9 2> /dev/null || true
+	trap - PIPE
+	exec 9>&-
+	wait "$pid" || true
+	if ! grep -q 42 intr.out; then
+		echo "ulisp $mode: SIGINT at the prompt ended the session" >&2
+		status=1
+	fi
 fi
 
 if [ "$status" -eq 0 ]; then

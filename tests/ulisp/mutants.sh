@@ -48,10 +48,14 @@ if [ -f "$here/rewrite-race.so" ]; then
 	shim=$here/rewrite-race.so
 fi
 
-# mutant NAME SED-EXPRESSION [SOURCE-FILE]
+# mutant NAME SED-EXPRESSION [SOURCE-FILE [STATUS]]
+# STATUS is the one status of check.sh that rejects the mutant: 1, a failed
+# or differing transcript, unless the defect is a run that never ends, which
+# check.sh reports as 3. Any other nonzero status is a failure of the harness.
 mutant() {
 	dir=$work/$1
 	file=${3:-ulisp.c}
+	want=${4:-1}
 	mkdir "$dir"
 	cp "$src"/*.c "$src"/*.h "$src"/builtins.def "$dir"/
 	sed "$2" "$src/$file" > "$dir/$file"
@@ -62,9 +66,16 @@ mutant() {
 	$cc -std=c17 -D_DEFAULT_SOURCE -Os -w -I"$src/../../sys/arch/rp2040/dev" \
 	    -o "$dir/ulisp" "$dir/ulisp.c" "$dir/unix.c" "$dir/gfx.c" \
 	    "$dir/dev_host.c" "$src/../../sys/arch/rp2040/dev/lcdfont.c" -lm
-	if ULISP_REWRITE_SHIM=$shim sh "$here/check.sh" host "$doc" timeout 60 "$dir/ulisp" \
-	    > "$dir/log" 2>&1; then
+	rc=0
+	ULISP_REWRITE_SHIM=$shim sh "$here/check.sh" host "$doc" timeout 60 "$dir/ulisp" \
+	    > "$dir/log" 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
 		echo "ulisp mutants: $1 passed the check" >&2
+		exit 1
+	fi
+	if [ "$rc" -ne "$want" ]; then
+		echo "ulisp mutants: $1: status $rc from the check, $want rejects it" >&2
+		tail -5 "$dir/log" >&2
 		exit 1
 	fi
 	echo "ulisp mutants: $1 rejected"
@@ -108,8 +119,9 @@ mutant array-bound 's/if (toobig || (unsigned int)size > WORKSPACESIZE)/if (toob
 mutant float-type '/^static object \*fn_floatfn/,/^}/{/!integerp(arg)/d}'
 # documentation reads the head of a variable's list without checking it.
 mutant doc-guard 's/if (val != NULL \&\& listp(val) \&\& car(val) != NULL \&\& symbolp(car(val)) \&\&/if (listp(val) \&\&/'
-# A line is not clipped to the panel before it is walked.
-mutant line-clip 's/if (!clipline(&x0, &y0, &x1, &y1))/if (0)/' gfx.c
+# A line is not clipped to the panel before it is walked: the walk of a
+# far-off line does not end within the run's time.
+mutant line-clip 's/if (!clipline(&x0, &y0, &x1, &y1))/if (0)/' gfx.c 3
 # A clipped line takes its entry point from a truncating division.
 mutant line-clip-round 's/qx - \*px, true)/qx - *px, false)/' gfx.c
 # A circle larger than the midpoint walk takes is not drawn.
@@ -128,3 +140,5 @@ mutant array-dimension-type '/^static object \*makearray (object \*dims, object 
 mutant write-string-type '/^static object \*fn_writestring (object \*args, object \*env) {$/,/^}/s/checkstring(first(args))/first(args)/'
 # sleep without an argument reads the empty list.
 mutant sleep-noargument '/^static object \*fn_sleep (object \*args, object \*env) {$/,/^}/{/args == NULL/d}'
+# An interrupted read of the console is taken as the end of input.
+mutant read-eintr 's/while (n < 0 \&\& errno == EINTR);/while (0);/' unix.c

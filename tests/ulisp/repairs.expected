@@ -6,3 +6,46 @@ uLisp 4.8f
 (9.99999e-5 1.00001e-4 9.9999e-4)
 
 12000> 
+0
+
+12000> 
+Error: 'random' limit must be positive: 0
+12000> 
+Error: 'random' limit must be positive: -5
+12000> 
+Error: 'random' limit must be positive: -2147483648
+12000> 
+(-2147483648 -2147483648 -5)
+
+12000> 
+(0 0 0 -1)
+
+12000> 
+2.14748e9
+
+12000> 
+(-5 -2.5 0)
+
+12000> 
+Error: no room
+12000> 
+Error: no room
+12000> 
+Error: no room
+12000> 
+Error: no room
+12000> 
+Error: no room
+12000> 
+(100000 100000 0)
+
+12000> 
+(0 100000 100000)
+
+12000> 
+(7 1)
+
+12000> 
+(#\Newline #\Null #\Null)
+
+12000> 

@@ -258,11 +258,13 @@ sys_getkey(void)
 		struct sgttyb saved, raw;
 		bool tty = ioctl(0, TIOCGETP, &saved) == 0;
 
-		raw = saved;
-		raw.sg_flags |= CBREAK;
-		raw.sg_flags &= ~ECHO;
-		if (tty)
+		/* saved holds the terminal's state only when the query worked. */
+		if (tty) {
+			raw = saved;
+			raw.sg_flags |= CBREAK;
+			raw.sg_flags &= ~ECHO;
 			(void)ioctl(0, TIOCSETP, &raw);
+		}
 		n = read(0, &c, 1);
 		if (tty)
 			(void)ioctl(0, TIOCSETP, &saved);
@@ -270,12 +272,14 @@ sys_getkey(void)
 		struct termios saved, raw;
 		bool tty = tcgetattr(0, &saved) == 0;
 
-		raw = saved;
-		raw.c_lflag &= ~(tcflag_t)(ICANON | ECHO);
-		raw.c_cc[VMIN] = 1;
-		raw.c_cc[VTIME] = 0;
-		if (tty)
+		/* saved holds the terminal's state only when the query worked. */
+		if (tty) {
+			raw = saved;
+			raw.c_lflag &= ~(tcflag_t)(ICANON | ECHO);
+			raw.c_cc[VMIN] = 1;
+			raw.c_cc[VTIME] = 0;
 			(void)tcsetattr(0, TCSANOW, &raw);
+		}
 		n = read(0, &c, 1);
 		if (tty)
 			(void)tcsetattr(0, TCSANOW, &saved);
@@ -402,6 +406,17 @@ sys_fputc(int file, char c)
 
 	if (f->fd >= 0 && f->writing)
 		fileputc(f, c);
+}
+
+bool
+sys_fseek(int file, size_t offset)
+{
+	struct sysfile *f = &files[file];
+
+	if (f->fd < 0 || f->writing || lseek(f->fd, (off_t)offset, SEEK_SET) < 0)
+		return false;
+	f->pos = f->len = 0;
+	return true;
 }
 
 bool

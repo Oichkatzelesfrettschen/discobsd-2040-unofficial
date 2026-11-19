@@ -37,15 +37,26 @@
 
 #define CELL_W	6
 #define CELL_H	10
+/*
+ * The Lisp functions pass any int. Every sum, difference and product of
+ * them here is taken in coord, which holds two sums of ints and a product
+ * with a panel-sized or bounded factor; a shape is clipped after that.
+ * A triangle edge multiplies two spans, so a triangle with a corner farther
+ * than FARTHEST from the panel is not drawn, as a line that long is not
+ * walked.
+ */
+typedef long long coord;
+#define FARTHEST	(1 << 24)
+#define CURSOR_LIMIT	(1LL << 40)
 
-static int cursor_x, cursor_y;
+static coord cursor_x, cursor_y;
 static int text_color = 0xffff, text_bg = GFX_TRANSPARENT, text_size = 1;
 static bool text_wrap = true;
 
-void
-gfx_fillrect(int x, int y, int w, int h, int color)
+static void
+fill(coord x, coord y, coord w, coord h, int color)
 {
-	int x1 = x + w - 1, y1 = y + h - 1;
+	coord x1 = x + w - 1, y1 = y + h - 1;
 
 	if (w <= 0 || h <= 0 || x >= GFX_WIDTH || y >= GFX_HEIGHT ||
 	    x1 < 0 || y1 < 0)
@@ -58,49 +69,56 @@ gfx_fillrect(int x, int y, int w, int h, int color)
 		x1 = GFX_WIDTH - 1;
 	if (y1 >= GFX_HEIGHT)
 		y1 = GFX_HEIGHT - 1;
-	dev_fill(x, y, x1, y1, (uint16_t)color);
+	dev_fill((int)x, (int)y, (int)x1, (int)y1, (uint16_t)color);
+}
+
+void
+gfx_fillrect(int x, int y, int w, int h, int color)
+{
+	fill(x, y, w, h, color);
 }
 
 void
 gfx_pixel(int x, int y, int color)
 {
-	gfx_fillrect(x, y, 1, 1, color);
+	fill(x, y, 1, 1, color);
 }
 
 /* The horizontal run x0..x1 in either order. */
 static void
-hspan(int x0, int x1, int y, int color)
+hspan(coord x0, coord x1, coord y, int color)
 {
 	if (x0 > x1) {
-		int t = x0;
+		coord t = x0;
 		x0 = x1;
 		x1 = t;
 	}
-	gfx_fillrect(x0, y, x1 - x0 + 1, 1, color);
+	fill(x0, y, x1 - x0 + 1, 1, color);
 }
 
 void
-gfx_line(int x0, int y0, int x1, int y1, int color)
+gfx_line(int ix0, int iy0, int ix1, int iy1, int color)
 {
-	int dx = x1 > x0 ? x1 - x0 : x0 - x1, sx = x0 < x1 ? 1 : -1;
-	int dy = y1 > y0 ? y0 - y1 : y1 - y0, sy = y0 < y1 ? 1 : -1;
-	int err = dx + dy;
+	coord x0 = ix0, y0 = iy0, x1 = ix1, y1 = iy1;
+	coord dx = x1 > x0 ? x1 - x0 : x0 - x1, sx = x0 < x1 ? 1 : -1;
+	coord dy = y1 > y0 ? y0 - y1 : y1 - y0, sy = y0 < y1 ? 1 : -1;
+	coord err = dx + dy;
 
 	if (dy == 0) {
 		hspan(x0, x1, y0, color);
 		return;
 	}
 	if (dx == 0) {
-		gfx_fillrect(x0, y0 < y1 ? y0 : y1, 1, -dy + 1, color);
+		fill(x0, y0 < y1 ? y0 : y1, 1, -dy + 1, color);
 		return;
 	}
 	/* Each step is one pixel; a line far off the panel is not walked. */
 	if (dx > 4 * GFX_WIDTH || -dy > 4 * GFX_HEIGHT)
 		return;
 	for (;;) {
-		int e2 = 2 * err;
+		coord e2 = 2 * err;
 
-		gfx_pixel(x0, y0, color);
+		fill(x0, y0, 1, 1, color);
 		if (x0 == x1 && y0 == y1)
 			break;
 		if (e2 >= dy) {
@@ -117,10 +135,10 @@ gfx_line(int x0, int y0, int x1, int y1, int color)
 void
 gfx_rect(int x, int y, int w, int h, int color)
 {
-	gfx_fillrect(x, y, w, 1, color);
-	gfx_fillrect(x, y + h - 1, w, 1, color);
-	gfx_fillrect(x, y, 1, h, color);
-	gfx_fillrect(x + w - 1, y, 1, h, color);
+	fill(x, y, w, 1, color);
+	fill(x, (coord)y + h - 1, w, 1, color);
+	fill(x, y, 1, h, color);
+	fill((coord)x + w - 1, y, 1, h, color);
 }
 
 /*
@@ -130,12 +148,13 @@ gfx_rect(int x, int y, int w, int h, int color)
  * draws the runs between the left and right arcs.
  */
 static void
-arcs(int x0, int y0, int x1, int y1, int r, int color, bool filled)
+arcs(coord x0, coord y0, coord x1, coord y1, int r, int color, bool filled)
 {
-	int f = 1 - r, x = 0, y = r;
+	int f, x = 0, y = r;
 
 	if (r < 0 || r > 2 * GFX_WIDTH)
 		return;
+	f = 1 - r;
 	for (;;) {
 		if (filled) {
 			hspan(x0 - x, x1 + x, y0 - y, color);
@@ -143,14 +162,14 @@ arcs(int x0, int y0, int x1, int y1, int r, int color, bool filled)
 			hspan(x0 - y, x1 + y, y0 - x, color);
 			hspan(x0 - y, x1 + y, y1 + x, color);
 		} else {
-			gfx_pixel(x0 - x, y0 - y, color);
-			gfx_pixel(x1 + x, y0 - y, color);
-			gfx_pixel(x0 - x, y1 + y, color);
-			gfx_pixel(x1 + x, y1 + y, color);
-			gfx_pixel(x0 - y, y0 - x, color);
-			gfx_pixel(x1 + y, y0 - x, color);
-			gfx_pixel(x0 - y, y1 + x, color);
-			gfx_pixel(x1 + y, y1 + x, color);
+			fill(x0 - x, y0 - y, 1, 1, color);
+			fill(x1 + x, y0 - y, 1, 1, color);
+			fill(x0 - x, y1 + y, 1, 1, color);
+			fill(x1 + x, y1 + y, 1, 1, color);
+			fill(x0 - y, y0 - x, 1, 1, color);
+			fill(x1 + y, y0 - x, 1, 1, color);
+			fill(x0 - y, y1 + x, 1, 1, color);
+			fill(x1 + y, y1 + x, 1, 1, color);
 		}
 		if (x >= y)
 			break;
@@ -176,35 +195,39 @@ gfx_fillcircle(int x, int y, int r, int color)
 }
 
 /* The radius a rounded rectangle of w by h can carry. */
-static int
-corner(int w, int h, int r)
+static coord
+corner(coord w, coord h, coord r)
 {
-	int most = (w < h ? w : h) / 2;
+	coord most = (w < h ? w : h) / 2;
 
 	return r > most ? most : r;
 }
 
 void
-gfx_roundrect(int x, int y, int w, int h, int r, int color)
+gfx_roundrect(int ix, int iy, int iw, int ih, int ir, int color)
 {
+	coord x = ix, y = iy, w = iw, h = ih, r;
+
 	if (w <= 0 || h <= 0)
 		return;
-	r = corner(w, h, r);
-	gfx_fillrect(x + r, y, w - 2 * r, 1, color);
-	gfx_fillrect(x + r, y + h - 1, w - 2 * r, 1, color);
-	gfx_fillrect(x, y + r, 1, h - 2 * r, color);
-	gfx_fillrect(x + w - 1, y + r, 1, h - 2 * r, color);
-	arcs(x + r, y + r, x + w - 1 - r, y + h - 1 - r, r, color, false);
+	r = corner(w, h, ir);
+	fill(x + r, y, w - 2 * r, 1, color);
+	fill(x + r, y + h - 1, w - 2 * r, 1, color);
+	fill(x, y + r, 1, h - 2 * r, color);
+	fill(x + w - 1, y + r, 1, h - 2 * r, color);
+	arcs(x + r, y + r, x + w - 1 - r, y + h - 1 - r, (int)r, color, false);
 }
 
 void
-gfx_fillroundrect(int x, int y, int w, int h, int r, int color)
+gfx_fillroundrect(int ix, int iy, int iw, int ih, int ir, int color)
 {
+	coord x = ix, y = iy, w = iw, h = ih, r;
+
 	if (w <= 0 || h <= 0)
 		return;
-	r = corner(w, h, r);
-	gfx_fillrect(x, y + r, w, h - 2 * r, color);
-	arcs(x + r, y + r, x + w - 1 - r, y + h - 1 - r, r, color, true);
+	r = corner(w, h, ir);
+	fill(x, y + r, w, h - 2 * r, color);
+	arcs(x + r, y + r, x + w - 1 - r, y + h - 1 - r, (int)r, color, true);
 }
 
 void
@@ -216,16 +239,26 @@ gfx_triangle(int x0, int y0, int x1, int y1, int x2, int y2, int color)
 }
 
 /* x where the edge (xa,ya)-(xb,yb) crosses row y; ya != yb. */
-static int
-edge(int xa, int ya, int xb, int yb, int y)
+static coord
+edge(coord xa, coord ya, coord xb, coord yb, coord y)
 {
-	return xa + (int)((long long)(xb - xa) * (y - ya) / (yb - ya));
+	return xa + (xb - xa) * (y - ya) / (yb - ya);
+}
+
+static bool
+near(int v)
+{
+	return v >= -FARTHEST && v <= FARTHEST;
 }
 
 void
 gfx_filltriangle(int x0, int y0, int x1, int y1, int x2, int y2, int color)
 {
 	int t;
+
+	if (!(near(x0) && near(y0) && near(x1) && near(y1) && near(x2) &&
+	    near(y2)))
+		return;
 
 #define SWAP(a, b)	(t = a, a = b, b = t)
 	if (y0 > y1) {
@@ -248,7 +281,7 @@ gfx_filltriangle(int x0, int y0, int x1, int y1, int x2, int y2, int color)
 		return;
 	}
 	for (int y = y0 < 0 ? 0 : y0; y <= y2 && y < GFX_HEIGHT; y++) {
-		int xa = edge(x0, y0, x2, y2, y), xb;
+		coord xa = edge(x0, y0, x2, y2, y), xb;
 
 		if (y < y1 || y1 == y2)
 			xb = (y0 == y1) ? x1 : edge(x0, y0, x1, y1, y);
@@ -258,13 +291,13 @@ gfx_filltriangle(int x0, int y0, int x1, int y1, int x2, int y2, int color)
 	}
 }
 
-void
-gfx_char(int x, int y, int c, int color, int bg, int size)
+static void
+glyph(coord x, coord y, int c, int color, int bg, int size)
 {
 	if (size < 1 || c < LCDFONT_FIRST || c >= LCDFONT_FIRST + LCDFONT_NCHARS)
 		return;
 	if (bg != color && bg != GFX_TRANSPARENT)
-		gfx_fillrect(x, y, CELL_W * size, CELL_H * size, bg);
+		fill(x, y, (coord)CELL_W * size, (coord)CELL_H * size, bg);
 	for (int row = 0; row < LCDFONT_HEIGHT; row++) {
 		unsigned int bits = lcdfont[c - LCDFONT_FIRST][row];
 
@@ -275,8 +308,8 @@ gfx_char(int x, int y, int c, int color, int bg, int size)
 			while (run < CELL_W && (bits & (0x80u >> run)) != 0)
 				run++;
 			if (run > col) {
-				gfx_fillrect(x + col * size, y + row * size,
-				    (run - col) * size, size, color);
+				fill(x + (coord)col * size, y + (coord)row * size,
+				    (coord)(run - col) * size, size, color);
 				col = run;
 			}
 		}
@@ -284,21 +317,35 @@ gfx_char(int x, int y, int c, int color, int bg, int size)
 }
 
 void
+gfx_char(int x, int y, int c, int color, int bg, int size)
+{
+	glyph(x, y, c, color, bg, size);
+}
+
+/* The cursor stays within CURSOR_LIMIT however long the text runs. */
+static coord
+advance(coord at, coord by)
+{
+	at += by;
+	return at > CURSOR_LIMIT ? CURSOR_LIMIT : at;
+}
+
+void
 gfx_write(char c)
 {
 	if (c == '\n') {
 		cursor_x = 0;
-		cursor_y += CELL_H * text_size;
+		cursor_y = advance(cursor_y, (coord)CELL_H * text_size);
 		return;
 	}
 	if (c == '\r')
 		return;
-	if (text_wrap && cursor_x + CELL_W * text_size > GFX_WIDTH) {
+	if (text_wrap && cursor_x + (coord)CELL_W * text_size > GFX_WIDTH) {
 		cursor_x = 0;
-		cursor_y += CELL_H * text_size;
+		cursor_y = advance(cursor_y, (coord)CELL_H * text_size);
 	}
-	gfx_char(cursor_x, cursor_y, c, text_color, text_bg, text_size);
-	cursor_x += CELL_W * text_size;
+	glyph(cursor_x, cursor_y, c, text_color, text_bg, text_size);
+	cursor_x = advance(cursor_x, (coord)CELL_W * text_size);
 }
 
 void

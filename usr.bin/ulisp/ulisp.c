@@ -111,6 +111,7 @@ enum { COLOR_WHITE = 0xffff, COLOR_BLACK = 0 };
 #define USERSTREAMS        16
 #define TRACEMAX 3  // Maximum number of traced functions
 enum type { ZZERO=0, SYMBOL=2, CODE=4, NUMBER=6, STREAM=8, CHARACTER=10, FLOAT=12, ARRAY=14, STRING=16, PAIR=18 };  // ARRAY STRING and PAIR must be last
+enum stream { SERIALSTREAM, SDSTREAM, STRINGSTREAM, GFXSTREAM };
 enum token { UNUSED, BRA, KET, QUO, DOT, ENDOFINPUT };
 enum fntypes_t { OTHER_FORMS, TAIL_FORMS, FUNCTIONS, SPECIAL_FORMS };
 
@@ -1070,6 +1071,113 @@ static void rebaseimage (unsigned int imagesize, intptr_t delta) {
   }
 }
 
+// An image is checked in the file, before a cell reaches the workspace, so
+// that a damaged or foreign one is refused with the workspace as it was.
+// The check reads the cells in blocks and follows each string chain by
+// seeking, and it keeps one bit for each cell on the stack to record the
+// cells that chains own. What it establishes is what rebaseimage(), the
+// collector and the printer rely on: every pointer is null or the address
+// of a cell the image holds; a chain ends and its cells are no pair's
+// target; and a code block, a stream and a builtin symbol stay inside their
+// tables. How the cells fit together as Lisp data is not examined.
+
+#define IMAGEBLOCK 16  // Cells read at a time
+#define chainbit(bits, i)  ((bits)[(i)>>3] & (1u << ((i) & 7)))
+#define setchain(bits, i)  ((bits)[(i)>>3] |= (uint8_t)(1u << ((i) & 7)))
+
+static bool imagecells (unsigned int first, object *cells, unsigned int count) {
+  size_t offset = IMAGEWORDS * sizeof(uintptr_t) + CODESIZE + (size_t)first * sizeof(object);
+  return sys_fseek(SYS_FTMP, offset) && sys_fread(SYS_FTMP, cells, count * sizeof(object));
+}
+
+// True when p is the address of one of the cells, which are cells long from base
+static bool imagepointer (uintptr_t base, unsigned int cells, uintptr_t p, unsigned int *index) {
+  if (p < base) return false;
+  uintptr_t offset = p - base;
+  if (offset % sizeof(object) != 0 || offset / sizeof(object) >= cells) return false;
+  *index = offset / sizeof(object);
+  return true;
+}
+
+static const char imagerange[] = "image pointer out of range";
+static const char imagelinked[] = "image pair points into a string";
+static const char imageinvalid[] = "image cell is invalid";
+
+// NULL when p is the address of a cell that no string chain owns
+static const char *imagetarget (uintptr_t base, unsigned int cells, const uint8_t *chains, uintptr_t p) {
+  unsigned int index;
+  if (!imagepointer(base, cells, p, &index)) return imagerange;
+  return chainbit(chains, index) ? imagelinked : NULL;
+}
+
+// Returns NULL for a sound image, or what is wrong with it
+static const char *checkimage (const uintptr_t *header, unsigned int cells) {
+  uintptr_t base = header[1];
+  // Above the type codes, so no address reads as one, and without wrapping
+  if (base <= PAIR || cells > (UINTPTR_MAX - base) / sizeof(object)) return "not an image this uLisp can load";
+  size_t bytes = (cells + 7) / 8;
+  if ((uintptr_t)__builtin_frame_address(0) < StackLimit + bytes + 1024) return "no room";
+  uint8_t chains[bytes + 1];
+  memset(chains, 0, bytes);
+  object block[IMAGEBLOCK];
+  // Every string chain: in range, no cell twice (which also ends a loop)
+  for (unsigned int first=0; first<cells; first+=IMAGEBLOCK) {
+    unsigned int count = (cells - first < IMAGEBLOCK) ? cells - first : IMAGEBLOCK;
+    if (!imagecells(first, block, count)) return "image is truncated";
+    for (unsigned int k=0; k<count; k++) {
+      object *obj = &block[k];
+      if (!(obj->type == STRING || (obj->type == SYMBOL && longsymbolp(obj)))) continue;
+      uintptr_t p = (uintptr_t)cdr(obj);
+      while (p != 0) {
+        unsigned int index;
+        if (!imagepointer(base, cells, p, &index)) return imagerange;
+        if (chainbit(chains, index)) return "image string chain is shared or loops";
+        setchain(chains, index);
+        object link;
+        if (!imagecells(index, &link, 1)) return "image is truncated";
+        p = (uintptr_t)car(&link);
+      }
+    }
+  }
+  // The other cells, by type; the chains are known now
+  for (unsigned int first=0; first<cells; first+=IMAGEBLOCK) {
+    unsigned int count = (cells - first < IMAGEBLOCK) ? cells - first : IMAGEBLOCK;
+    if (!imagecells(first, block, count)) return "image is truncated";
+    for (unsigned int k=0; k<count; k++) {
+      if (chainbit(chains, first + k)) continue;
+      object *obj = &block[k];
+      uintptr_t type = obj->type, cd = (uintptr_t)cdr(obj);
+      const char *fault = NULL;
+      if (type == ZZERO || type >= PAIR) {
+        if (type != ZZERO) fault = imagetarget(base, cells, chains, type);
+        if (fault == NULL && cd != 0) fault = imagetarget(base, cells, chains, cd);
+      } else if (type == ARRAY) {
+        fault = imagetarget(base, cells, chains, cd);
+      } else if (type == SYMBOL) {
+        if (longsymbolp(obj)) continue;  // A chain header, checked above
+        symbol_t name = obj->name;
+        if (untwist(name) >= BUILTINS && untwist(name) - BUILTINS >= tablesize(0) + tablesize(1))
+          fault = imageinvalid;
+      } else if (type == CODE) {
+        if (startblock(obj) > endblock(obj) || endblock(obj) > CODESIZE) fault = imageinvalid;
+      } else if (type == STREAM) {
+        if ((unsigned int)obj->integer >> 8 > GFXSTREAM || (obj->integer & 0xFF) > 1) fault = imageinvalid;
+      } else if (type == STRING) {
+        continue;
+      } else if (!(type == NUMBER || type == CHARACTER || type == FLOAT)) {
+        fault = imageinvalid;
+      }
+      if (fault != NULL) return fault;
+    }
+  }
+  // The roots: a null, or a cell that is not part of a chain
+  for (int r=3; r<IMAGEWORDS; r++) {
+    const char *fault = (header[r] == 0) ? NULL : imagetarget(base, cells, chains, header[r]);
+    if (fault != NULL) return fault;
+  }
+  return NULL;
+}
+
 // Returns the image size and stores the function the image runs at startup
 static int loadimagefile (const char *path, object **autorun) {
   uintptr_t header[IMAGEWORDS];
@@ -1078,8 +1186,10 @@ static int loadimagefile (const char *path, object **autorun) {
     && header[2] <= WORKSPACESIZE;
   if (!ok) { sys_fclose(SYS_FTMP); error2("not an image this uLisp can load"); }
   unsigned int imagesize = header[2];
+  const char *fault = checkimage(header, imagesize);
+  if (fault != NULL) { sys_fclose(SYS_FTMP); error2(fault); }
   intptr_t delta = (uintptr_t)Workspace - header[1];
-  ok = sys_fread(SYS_FTMP, MyCode, CODESIZE)
+  ok = sys_fseek(SYS_FTMP, sizeof header) && sys_fread(SYS_FTMP, MyCode, CODESIZE)
     && sys_fread(SYS_FTMP, Workspace, imagesize * sizeof(object));
   sys_fclose(SYS_FTMP);
   if (!ok) {  // The workspace is part old and part new: start again
@@ -1331,7 +1441,7 @@ static object *subtract_floats (object *args, float fresult) {
 static object *negate (object *arg) {
   if (integerp(arg)) {
     int result = arg->integer;
-    if (result == INT_MIN) return makefloat(-result);
+    if (result == INT_MIN) return makefloat(-(float)result);
     else return number(-result);
   } else if (floatp(arg)) return makefloat(-(arg->single_float));
   else error(notanumber, arg);
@@ -1365,7 +1475,7 @@ static object *remmod (object *args, bool mod) {
     int divisor = arg2->integer;
     if (divisor == 0) error2(divisionbyzero);
     int dividend = arg1->integer;
-    int remainder = dividend % divisor;
+    int remainder = (divisor == -1) ? 0 : dividend % divisor;  // INT_MIN % -1 overflows
     if (mod && (dividend<0) != (divisor<0)) remainder = remainder + divisor;
     return number(remainder);
   } else {
@@ -1457,18 +1567,23 @@ static object *buildarray (int n, int s, object *def) {
 
 static object *makearray (object *dims, object *def, bool bitp) {
   int size = 1;
+  bool toobig = false;  // The product passed INT_MAX; a later zero dimension still empties it
   object *dimensions = dims;
   while (dims != NULL) {
     int d = car(dims)->integer;
     if (d < 0) error2("dimension can't be negative");
-    size = size * d;
+    if (d == 0) { size = 0; toobig = false; }
+    else if (size > INT_MAX / d) toobig = true;
+    else size = size * d;
     dims = cdr(dims);
   }
   // Bit array identified by making first dimension negative
   if (bitp) {
-    size = (size + sizeof(int)*8 - 1)/(sizeof(int)*8);
+    size = size / (sizeof(int)*8) + (size % (sizeof(int)*8) != 0);
     car(dimensions) = number(-(car(dimensions)->integer));
   }
+  // The tree takes about one cell for each element, or each word of bits
+  if (toobig || (unsigned int)size > WORKSPACESIZE) { Context = NIL; error2("no room"); }
   object *ptr = myalloc();
   ptr->type = ARRAY;
   object *tree = nil;
@@ -2148,7 +2263,6 @@ static object *dobody (object *args, object *env, bool star) {
 
 // Streams
 
-enum stream { SERIALSTREAM, SDSTREAM, STRINGSTREAM, GFXSTREAM };
 
 static void SDwrite (char c) { sys_fputc(SYS_FOUT, c); }
 static void gfxwrite (char c) { gfx_write(c); }
@@ -3455,7 +3569,10 @@ static object *fn_abs (object *args, object *env) {
 static object *fn_random (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (integerp(arg)) return number(sys_random() % (uint32_t)arg->integer);
+  if (integerp(arg)) {
+    if (arg->integer <= 0) error("limit must be positive", arg);
+    return number(sys_random() % (uint32_t)arg->integer);
+  }
   else if (floatp(arg)) return makefloat((float)(sys_random() >> 8) * arg->single_float / 16777216.0f);
   else error(notanumber, arg);
   return nil;
@@ -5153,7 +5270,7 @@ static void pfstring (const char *s, pfun_t pfun) {
 
 static void pint (int i, pfun_t pfun) {
   uint32_t j = i;
-  if (i<0) { pfun('-'); j=-i; }
+  if (i<0) { pfun('-'); j=0u-j; }
   pintbase(j, 10, pfun);
 }
 

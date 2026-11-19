@@ -74,3 +74,17 @@ mutant reader-end 's/ \&\& ch != -1 \&\& index < bufmax/ \&\& index < bufmax/'
 mutant cdr-is-car 's/^  return cdrx(first(args));$/  return carx(first(args));/'
 # String comparison shifts a word wider than the four characters it holds.
 mutant wide-chars 's/int m = 0; chars_t a = 0, b = 0;/int m = 0; unsigned long long a = 0, b = 0;/'
+# A loaded image is not checked against its own span.
+mutant image-unchecked 's/const char \*fault = checkimage(header, imagesize);/const char *fault = NULL;/'
+# A pair may point into a string chain, whose cells hold characters.
+mutant image-chain-target 's/return chainbit(chains, index) ? imagelinked : NULL;/return NULL;/'
+# A random limit of zero reaches the modulus.
+mutant random-zero 's/if (arg->integer <= 0) error("limit must be positive", arg);//'
+# The remainder of INT_MIN by -1 reaches the division.
+mutant rem-overflow 's/(divisor == -1) ? 0 : dividend % divisor/dividend % divisor/'
+# The negation of INT_MIN happens in int.
+mutant negate-int-min 's/makefloat(-(float)result)/makefloat(-result)/'
+# Array dimensions are multiplied without a check against INT_MAX.
+mutant array-overflow 's/else if (size > INT_MAX \/ d) toobig = true;/else if (0) toobig = true;/'
+# An array larger than the workspace reaches the power-of-two rounding.
+mutant array-bound 's/if (toobig || (unsigned int)size > WORKSPACESIZE)/if (toobig)/'

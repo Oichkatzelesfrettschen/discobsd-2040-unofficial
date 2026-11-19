@@ -27,11 +27,14 @@
 #
 # Transcript tests of the uLisp interpreter (usr.bin/ulisp).
 #
-#   check         the host build over the language, system, repairs and devices
-#                 corpora, then six mutants of ulisp.c that the check must
-#                 reject (mutants.sh)
+#   check         the host build over the language, system, images, repairs and
+#                 devices corpora; the same corpora with the address and
+#                 undefined-behavior sanitizers, which turn an overflow, an
+#                 out-of-range access or a misaligned pointer into a failure;
+#                 then the mutants of ulisp.c that the check must reject
+#                 (mutants.sh)
 #   check-qemu    the a.out the tree links, run by tests/qemu_aout/aoutrun
-#                 under qemu-arm: the language, system and repairs corpora
+#                 under qemu-arm: the language, system, images and repairs corpora
 #                 against the same expected transcripts as the host, and the
 #                 stack and machine-code corpora that need the target
 #   check-oracle  the language corpus through the unmodified upstream source
@@ -51,12 +54,20 @@ LOADER=		${TOPSRC}/tests/qemu_aout
 GUEST_BASE?=	0x100000
 ORACLE_SHA256=	65608bb7d6a48dc02dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b
 ORACLE_CXX?=	g++ -m32 -msse2 -mfpmath=sse
+HOST_SRCS=	${SRC}/ulisp.c ${SRC}/unix.c ${SRC}/gfx.c ${SRC}/dev_host.c \
+		${TOPSRC}/sys/arch/rp2040/dev/lcdfont.c
+SANITIZE=	-fsanitize=address,undefined -fno-sanitize-recover=all \
+		-fno-omit-frame-pointer
 
 all: check
 
 check:
 	${MAKE} -C ${SRC} ulisp.host ulisp.doc
 	sh check.sh host ${SRC}/ulisp.doc ${SRC}/ulisp.host
+	${HOST_CC} -std=c17 -D_DEFAULT_SOURCE -O1 -g ${SANITIZE} \
+	    -I${TOPSRC}/sys/arch/rp2040/dev -o ulisp.san ${HOST_SRCS} -lm
+	sh check.sh host ${SRC}/ulisp.doc env ASAN_OPTIONS=detect_leaks=0 \
+	    ${.CURDIR}/ulisp.san
 	sh mutants.sh ${SRC} ${SRC}/ulisp.doc "${HOST_CC}"
 
 check-qemu:
@@ -92,6 +103,6 @@ check-oracle:
 .endif
 
 clean:
-	rm -f ulisp.sites oracle.cc oracle.bin oracle.out oracle.host
+	rm -f ulisp.san ulisp.sites oracle.cc oracle.bin oracle.out oracle.host
 
 .PHONY: all check check-qemu check-oracle clean

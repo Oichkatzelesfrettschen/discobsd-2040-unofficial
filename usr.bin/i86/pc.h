@@ -53,7 +53,7 @@ extern int pc_idle;		/* the guest waits; leave the step loop */
 void pc_init(struct i86 *c, const struct pc_config *cf);
 void pc_poll(struct i86 *c);
 void pc_dump(void);
-void pc_restore(void);
+void pc_restore(int draw);
 
 /* main.c */
 int host_ready(int ms);		/* 1 input waits, 0 none within ms, -1 end */

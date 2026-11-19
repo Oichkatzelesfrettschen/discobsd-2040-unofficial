@@ -54,9 +54,11 @@ import gzip
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 FLAGS = [
     "-std=c17",
@@ -156,6 +158,18 @@ MUTANTS = [
     ("pc.c", "if (++t >= 0x1800b0) {", "if (t >= 0x1800b0) {"),
     ("pc.c", "mem_ww(4 * 8, ROM_OFF + ROM_TIMER);", ";"),
     ("main.c", "(!cpu.halted || cpu.irq); i++)", "!cpu.halted; i++)"),
+    ("main.c", "mem_failed = store_failed;", "(void)store_failed;"),
+    ("main.c", "if (caught)\n\t\t\thost_exit(128 + (int)caught);", ";"),
+    ("main.c", '"/tmp/i86.%u", (unsigned)getpid() & 0xffffffu', '"/tmp/i86.%u", 0u'),
+    ("mem.c", "O_RDWR | O_CREAT | O_EXCL", "O_RDWR | O_CREAT | O_TRUNC"),
+    ("mem.c", "unlink(store_path);", ";"),
+    ("pc.c", "mbr[0x1be + 5] != 0xff) {", "1) {"),
+    ("pc.c", "d->spt = mbr[0x1be + 6] & 63;", "d->spt = mbr[0x1be + 6] & 31;"),
+    (
+        "pc.c",
+        "else if (dl >= 0x80 && dl < 0x82)\n\t\td = &disks[dl - 0x80 + 2];",
+        "else if (dl >= 0x80 && dl < 0x82)\n\t\td = &disks[dl - 0x80];",
+    ),
 ]
 
 
@@ -203,6 +217,122 @@ def run(binary, work, args, timeout=10):
         raise Failure("no statistics: " + " ".join(args))
     names = ["soft", "zero", "in", "out", "elided", "clean"]
     return done.stdout, dict(zip(names, (int(x) for x in stats.groups())))
+
+
+def hard_disk(work, heads_byte, spt):
+    """The guest program as the boot sector of a 2 MB hard disk image whose
+    first partition entry ends on the given head byte and sector."""
+    with open(os.path.join(work, "guest.img"), "rb") as handle:
+        data = bytearray(handle.read(4 * 512))
+    data[0x1BE + 5] = heads_byte
+    data[0x1BE + 6] = spt
+    path = os.path.join(work, "hard.img")
+    with open(path, "wb") as handle:
+        handle.write(data)
+        handle.truncate(2048 * 1024)
+    return path
+
+
+def sector(path, lba):
+    with open(path, "rb") as handle:
+        handle.seek(lba * 512)
+        return handle.read(512)
+
+
+PATTERN = bytes((3 + 7 * i) & 0xFF for i in range(512))
+
+
+def test_disks(binary, work):
+    """Geometry: the sector the guest writes at cylinder 1 lands where the
+    image's geometry puts it, and the reported geometry is that one."""
+    store = os.path.join(work, "page")
+    image = os.path.join(work, "run.img")
+    shutil.copyfile(os.path.join(work, "guest.img"), image)
+    subprocess.run(
+        [binary, "-q", "-T", "-s", store, "-a", image, "-k", KEYS], timeout=10, check=True
+    )
+    if sector(image, 18) != PATTERN:
+        raise Failure("floppy: cylinder 1 is not sector 18 of a 360 KB image")
+    # 4 heads of 40 sectors: 25 cylinders in 2 MB, cylinder 1 at 160. A
+    # head byte of FFh names no geometry: 16 heads of 63 sectors apply.
+    for heads_byte, spt, lba, shown in ((3, 40, 160, "18280301"), (0xFF, 40, 1008, "033F0F01")):
+        image = hard_disk(work, heads_byte, spt)
+        done = subprocess.run(
+            [binary, "-d", "-T", "-s", store, "-h", image, "-k", KEYS],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        what = "hard disk, head byte %02X" % heads_byte
+        if done.returncode != 0:
+            raise Failure("%s: exit %d" % (what, done.returncode))
+        if ("DISK OK " + shown) not in done.stdout.decode("latin-1"):
+            raise Failure("%s: geometry line is not %s" % (what, shown))
+        if sector(image, lba) != PATTERN:
+            raise Failure("%s: cylinder 1 is not sector %d" % (what, lba))
+
+
+def test_endings(binary, work):
+    """Every way out removes the page file and reports itself."""
+    image = os.path.join(work, "run.img")
+    shutil.copyfile(os.path.join(work, "guest.img"), image)
+    # A page file path that exists is refused and left as it was.
+    store = os.path.join(work, "occupied")
+    with open(store, "w") as handle:
+        handle.write("not a page file\n")
+    done = subprocess.run(
+        [binary, "-q", "-T", "-f", "8", "-s", store, "-a", image, "-k", KEYS],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    with open(store) as handle:
+        kept = handle.read() == "not a page file\n"
+    os.remove(store)
+    if done.returncode != 3 or not kept or b"page file I/O failed" not in done.stderr:
+        raise Failure(
+            "occupied page file: exit %d, file kept: %s, said %r"
+            % (done.returncode, kept, done.stderr)
+        )
+    # A termination signal while the guest waits for a key.
+    store = os.path.join(work, "page")
+    with subprocess.Popen(
+        [binary, "-q", "-T", "-f", "8", "-s", store, "-a", image], stdin=subprocess.PIPE
+    ) as child:
+        for _ in range(200):
+            if os.path.exists(store):
+                break
+            time.sleep(0.01)
+        else:
+            child.kill()
+            raise Failure("signal: no page file appeared")
+        time.sleep(0.1)
+        child.send_signal(signal.SIGTERM)
+        try:
+            status = child.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            raise Failure("signal: the emulator ignores SIGTERM") from None
+    if status != 128 + signal.SIGTERM or os.path.exists(store):
+        raise Failure("signal: exit %d, page file left: %s" % (status, os.path.exists(store)))
+    # Two emulators started without -s do not share a page file.
+    stores = set()
+    for _ in range(2):
+        with subprocess.Popen(
+            [binary, "-q", "-T", "-f", "8", "-a", image], stdin=subprocess.PIPE
+        ) as child:
+            name = "/tmp/i86.%d" % child.pid
+            for _ in range(200):
+                if os.path.exists(name):
+                    stores.add(name)
+                    break
+                time.sleep(0.01)
+            child.send_signal(signal.SIGTERM)
+            child.wait(timeout=10)
+            if os.path.exists(name):
+                raise Failure("default page file %s left behind" % name)
+    if len(stores) != 2:
+        raise Failure("default page file is not named by process: %r" % sorted(stores))
 
 
 def check_screen(lines, cpu, kbytes, what):
@@ -345,6 +475,8 @@ def test(binary, work):
             raise Failure(
                 "terminal line %d shows %r, display holds %r" % (number + 1, a.rstrip(), b.rstrip())
             )
+    test_disks(binary, work)
+    test_endings(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):

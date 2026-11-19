@@ -70,6 +70,11 @@ extern struct mem_stats mem_stats;
  * resident pages, store the file that holds the others (opened on the
  * first eviction). Returns 0, or -1 when the frames cannot be allocated. */
 int mem_init(uint32_t ram, unsigned frames, const char *store);
+/* Called when the store cannot hold or return a page. Guest memory is
+ * lost at that point, so the function must end the program without
+ * touching guest memory; when it is null or returns, mem.c exits with
+ * status 3. */
+extern void (*mem_failed)(void);
 void mem_fini(void);
 /* A resident region outside paged memory (video memory). */
 void mem_fixed(uint32_t addr, uint8_t *p, uint32_t len);

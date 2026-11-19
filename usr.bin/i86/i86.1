@@ -74,7 +74,9 @@ keeps
 pages of one kilobyte resident and holds the others in
 .IR pagefile ,
 which it creates on the first page it must put aside and removes when it
-exits.
+exits; a
+.I pagefile
+that already exists is not touched and ends the session with status 3.
 A page the guest never wrote, or filled with zeros, occupies no file space.
 A guest whose working set fits the frames runs without file traffic;
 one that does not runs at the speed of the device under
@@ -111,7 +113,8 @@ or
 Draw nothing while running and print the 25 lines of the display on exit.
 .TP
 .BI \-f " frames"
-The number of resident pages, 96 by default.
+The number of resident pages, 128 by default; the RP2040 process window
+holds 136.
 .TP
 .BI \-h " disk"
 A hard disk image, with its partition table; the first is drive C, a
@@ -136,7 +139,8 @@ Open the images read-only; the guest's writes fail as on a protected disk.
 .TP
 .BI \-s " pagefile"
 The file for pages that are not resident, by default
-.IR /tmp/i86.page .
+.IR /tmp/i86. pid
+for the emulator's process number.
 .TP
 .B \-T
 Replace the host's clock with a count of executed instructions and a
@@ -157,10 +161,13 @@ Keys arrive through the firmware keyboard service only; a program that
 takes over the keyboard interrupt sees none.
 .SH FILES
 .TP
-.I /tmp/i86.page
+.IR /tmp/i86. pid
 the default page file
 .SH DIAGNOSTICS
 Exit status 0 when the user or the end of
 .I keys
 ends the session, 1 when no image boots, 2 for a usage error or an
-unusable image, 3 when the page file fails.
+unusable image, 3 when the page file cannot be written or read back, and
+128 plus the signal number when an interrupt, hangup or termination signal
+ends it.
+In every case the terminal mode is restored and the page file removed.

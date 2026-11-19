@@ -33,6 +33,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,7 @@
 
 static struct pc_config cf;
 static int verbose, dump, raw, in_eof;
+static volatile sig_atomic_t caught;
 static unsigned long nsteps;
 #ifdef HOSTBUILD
 static struct termios saved;
@@ -84,10 +86,18 @@ tty_raw(void)
 #endif
 }
 
+/* The one way out: the terminal gets its mode and margins back and the
+ * page file is removed, whatever ends the session. Status 3 is the page
+ * store's failure, after which guest memory can no longer be read. */
 void
 host_exit(int code)
 {
-	pc_restore();
+	static int leaving;
+
+	if (leaving)
+		_exit(code);
+	leaving = 1;
+	pc_restore(code != 3);
 	if (raw) {
 #ifdef HOSTBUILD
 		(void)tcsetattr(0, TCSANOW, &saved);
@@ -95,7 +105,7 @@ host_exit(int code)
 		(void)ioctl(0, TIOCSETP, &saved);
 #endif
 	}
-	if (dump)
+	if (dump && code != 3)
 		pc_dump();
 	mem_fini();
 	if (verbose)
@@ -105,6 +115,21 @@ host_exit(int code)
 		    mem_stats.in, mem_stats.out, mem_stats.elided,
 		    mem_stats.clean);
 	exit(code);
+}
+
+static void
+store_failed(void)
+{
+	static const char msg[] = "i86: page file I/O failed\n";
+
+	(void)!write(2, msg, sizeof(msg) - 1);
+	host_exit(3);
+}
+
+static void
+on_signal(int sig)
+{
+	caught = sig;
 }
 
 int
@@ -183,10 +208,13 @@ int
 main(int argc, char **argv)
 {
 	static struct i86 cpu;
-	const char *store = "/tmp/i86.page";
-	unsigned frames = 96, nhard = 0;
+	static char store_name[32];
+	const char *store = store_name;
+	unsigned frames = 128, nhard = 0;
 	int ch, i;
 
+	/* One page file for each running emulator. */
+	sprintf(store_name, "/tmp/i86.%u", (unsigned)getpid() & 0xffffffu);
 	cf.ram_kb = 640;
 	cf.cols = 80;
 	cf.model = I86_286;
@@ -254,6 +282,10 @@ main(int argc, char **argv)
 		fprintf(stderr, "i86: no memory for %u page frames\n", frames);
 		return (1);
 	}
+	mem_failed = store_failed;
+	signal(SIGINT, on_signal);
+	signal(SIGHUP, on_signal);
+	signal(SIGTERM, on_signal);
 	if (!cf.quiet && cf.keys == NULL)
 		tty_raw();
 	pc_init(&cpu, &cf);
@@ -262,6 +294,8 @@ main(int argc, char **argv)
 		    (!cpu.halted || cpu.irq); i++)
 			i86_step(&cpu);
 		nsteps++;
+		if (caught)
+			host_exit(128 + (int)caught);
 		pc_poll(&cpu);
 	}
 }

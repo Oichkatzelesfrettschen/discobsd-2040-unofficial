@@ -94,8 +94,19 @@ static unsigned olen;
 
 static unsigned long next_tick, vtime;
 static unsigned ticks_due;
-static uint8_t imask, crtc_index, pit_flip;
+static uint8_t imask, crtc_index, pit_flip, cmos_index;
 static uint16_t pit_count;
+
+/* With I86_TRACE defined, a host build reports each firmware function and
+ * port the machine does not implement, one line a use on standard error;
+ * sys/arch/rp2040/doc/I86.md holds the table this produced for three DOS
+ * systems. */
+#ifdef I86_TRACE
+#include <stdio.h>
+#define TRACE(what, a, b)	fprintf(stderr, "trace %s %02x %04x\n", what, a, b)
+#else
+#define TRACE(what, a, b)	((void)0)
+#endif
 
 static unsigned
 bda8(unsigned off)
@@ -435,6 +446,7 @@ video(struct i86 *c)
 		}
 		break;
 	default:	/* cursor shape, pages, palette, EGA and later */
+		TRACE("int10", ah, c->r[R_BX]);
 		break;
 	}
 }
@@ -597,6 +609,7 @@ keyboard(struct i86 *c)
 		c->r[R_AX] &= 0xff00;
 		break;
 	default:
+		TRACE("int16", c->r[R_AX] >> 8, c->r[R_AX]);
 		break;
 	}
 	return (0);
@@ -648,12 +661,13 @@ disk_open(unsigned i, const char *path)
 	/* The first partition's last sector names the geometry it was
 	 * made with. */
 	if (read(d->fd, mbr, 512) == 512 && mbr[510] == 0x55 &&
-	    mbr[511] == 0xaa && (mbr[0x1be + 6] & 63) != 0) {
+	    mbr[511] == 0xaa && (mbr[0x1be + 6] & 63) != 0 &&
+	    mbr[0x1be + 5] != 0xff) {
 		d->heads = (uint8_t)(mbr[0x1be + 5] + 1);
 		d->spt = mbr[0x1be + 6] & 63;
 	}
 	k = d->nsec / ((unsigned)d->heads * d->spt);
-	d->cyl = (uint16_t)(k > 1024 ? 1024 : k);
+	d->cyl = (uint16_t)(k > 1024 ? 1024 : k < 1 ? 1 : k);
 }
 
 static struct disk *
@@ -783,6 +797,7 @@ disk_service(struct i86 *c)
 			c->fl &= (uint16_t)~F_CF;
 			return;
 		default:
+			TRACE("int13", ah, dl);
 			st = 0x01;
 			break;
 		}
@@ -818,7 +833,7 @@ boot(struct i86 *c)
 		i86_setfl(c, F_IF);
 		return (1);
 	}
-	pc_restore();
+	pc_restore(1);
 	host_write(msg, sizeof(msg) - 1);
 	host_exit(1);
 	return (1);
@@ -832,10 +847,47 @@ bcd(unsigned v)
 	return ((v / 10) << 4 | v % 10);
 }
 
+/* The calendar: the host's, or 1990-01-01 12:00:00 when the clock is
+ * fixed. */
+static struct tm *
+calendar(void)
+{
+	time_t now = cf.fixed_clock ? (time_t)631195200L : time(NULL);
+
+	return (cf.fixed_clock ? gmtime(&now) : localtime(&now));
+}
+
+/* The battery-backed memory of the AT behind ports 70h and 71h: the clock
+ * in BCD and 24-hour form, 640 KB of base memory and no extended memory.
+ * Every other cell reads zero. */
+static unsigned
+cmos(unsigned i)
+{
+	struct tm *tm = calendar();
+
+	if (tm == NULL)
+		return (0);
+	switch (i) {
+	case 0x00: return (bcd((unsigned)tm->tm_sec));
+	case 0x02: return (bcd((unsigned)tm->tm_min));
+	case 0x04: return (bcd((unsigned)tm->tm_hour));
+	case 0x06: return ((unsigned)tm->tm_wday + 1);
+	case 0x07: return (bcd((unsigned)tm->tm_mday));
+	case 0x08: return (bcd((unsigned)tm->tm_mon + 1));
+	case 0x09: return (bcd((unsigned)tm->tm_year % 100));
+	case 0x0a: return (0x26);
+	case 0x0b: return (0x02);
+	case 0x0d: return (0x80);
+	case 0x15: return (cf.ram_kb & 0xff);
+	case 0x16: return (cf.ram_kb >> 8);
+	case 0x32: return (bcd(((unsigned)tm->tm_year + 1900) / 100));
+	default: return (0);
+	}
+}
+
 static void
 clock_service(struct i86 *c)
 {
-	time_t now;
 	struct tm *tm;
 	unsigned ah = c->r[R_AX] >> 8;
 
@@ -853,9 +905,7 @@ clock_service(struct i86 *c)
 		break;
 	case 0x02:
 	case 0x04:
-		/* 1990-01-01 12:00:00 when the clock is fixed. */
-		now = cf.fixed_clock ? (time_t)631195200L : time(NULL);
-		tm = cf.fixed_clock ? gmtime(&now) : localtime(&now);
+		tm = calendar();
 		if (tm == NULL) {
 			c->fl |= F_CF;
 			break;
@@ -873,6 +923,7 @@ clock_service(struct i86 *c)
 		}
 		break;
 	default:
+		TRACE("int1a", ah, c->r[R_CX]);
 		c->fl |= F_CF;
 		break;
 	}
@@ -928,6 +979,7 @@ pc_trap(struct i86 *c, unsigned n)
 			c->fl &= (uint16_t)~F_CF;
 			break;
 		default:
+			TRACE("int15", c->r[R_AX] >> 8, c->r[R_AX]);
 			c->r[R_AX] = (uint16_t)(0x8600 | (c->r[R_AX] & 0xff));
 			c->fl |= F_CF;
 			break;
@@ -946,6 +998,8 @@ pc_trap(struct i86 *c, unsigned n)
 		clock_service(c);
 		break;
 	default:
+		if (n < 0x20 && n != 0x1c)
+			TRACE("int", n, c->r[R_AX]);
 		break;
 	}
 	return (0);
@@ -976,6 +1030,9 @@ pc_in(struct i86 *c, unsigned port, int w)
 	case 0x64:
 		v = 0;
 		break;
+	case 0x71:
+		v = cmos(cmos_index & 0x7f);
+		break;
 	case 0x61:
 		pit_flip ^= 2;
 		v = (pit_flip & 2) ? 0x10 : 0;
@@ -991,6 +1048,7 @@ pc_in(struct i86 *c, unsigned port, int w)
 		v = (pit_flip & 4) ? 9 : 0;
 		break;
 	default:
+		TRACE("in", 0, port);
 		break;
 	}
 	return (w ? v | 0xff00 : v);
@@ -1008,6 +1066,9 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 	case 0x21:
 		imask = (uint8_t)v;
 		break;
+	case 0x70:
+		cmos_index = (uint8_t)v;
+		break;
 	case 0x3d4:
 		crtc_index = (uint8_t)v;
 		break;
@@ -1021,6 +1082,7 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 		bda8w(0x51, pos / cols);
 		break;
 	default:
+		TRACE("out", v, port);
 		break;
 	}
 }
@@ -1122,13 +1184,23 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	(void)boot(c);
 }
 
-/* Give the terminal back its margins and a line below the guest's. */
+/* Give the terminal back its margins and a line below the guest's. With
+ * draw clear the pending cells stay undrawn and guest memory unread. */
 void
-pc_restore(void)
+pc_restore(int draw)
 {
+#ifdef I86_TRACE
+	static const uint8_t watched[] = { 8, 9, 0x10, 0x13, 0x15, 0x16, 0x1c };
+	unsigned i;
+
+	for (i = 0; draw && i < sizeof(watched); i++)
+		if (mem_rw(watched[i] * 4 + 2) != 0xf000)
+			TRACE("hooked", watched[i], mem_rw(watched[i] * 4 + 2));
+#endif
 	if (cf.quiet)
 		return;
-	refresh();
+	if (draw)
+		refresh();
 	oputs("\033[0m\033[r\033[?7h\033[26;1H");
 	oflush();
 }

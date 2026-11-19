@@ -1,0 +1,218 @@
+Renode runs of the RP2040 a.out of usr.bin/i86, 2026-11-19
+
+Source: branch usr.bin/x86-dos-emulator at 194eaf7d2 plus the default of
+128 page frames. Kernel PICO_UART, flash image built by logged-distribution
+and logged-flash with two staged manifest entries (pack /usr/bin/i86,
+file /guest.img) that are not part of the tree. /guest.img is
+usr.bin/i86/tests/guest.hex padded to 16 KB with F6h bytes, which the
+emulator takes as a 160 KB-format floppy. Renode
+1.17.0+20260907gitf1dd1b4af with the tree's pinned RP2040 models, driven
+through the Console class of tools/renode/check-boot.py: the commands are
+typed on UART0 and the transcript is UART0 with escape sequences removed.
+Class of evidence: Renode. The times are Renode virtual time in 0.5 s
+slices and say nothing about the board's speed.
+
+Expected departures from the host gate's lines in these runs: "WRAP BAD"
+whenever guest memory ends below 196 KB, because the wrap test of
+guest.asm uses segments 2000h and 3000h; "DISK OK 27080001" instead of
+27090101, the geometry of the 160 KB format.
+
+==== Run 1: paging on the flash root (16 frames, 160 KB guest), and the
+==== refusal of 144 frames
+root dev  = (0,1)
+
+swap dev  = (0,8)
+
+root size = 988 kbytes
+
+swap size = 380 kbytes
+
+Automatic boot in progress: starting file system checks.
+/dev/fl0a: 105 files, 805 used, 174 free
+Thu Nov 19 14:37:35 PST 2026
+
+
+2.11 BSD UNIX (pico) (console)
+
+
+
+login: operator
+DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
+
+You are operator, in /home/operator, which starts empty; the system is
+under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"
+colors directories blue, and "vi FILE" edits
+UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.
+
+operator@pico:~$ 
+operator@pico:~$ cp /guest.img g.img; echo E"N"D0=$?
+END0=0
+
+operator@pico:~$ 
+operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 144 -a g.img -k aB1; echo E"N"D1=$?
+i86: no memory for 144 page frames
+END1=1
+
+operator@pico:~$ 
+operator@pico:~$ i86 -d -T -v -c 286 -m 160 -f 16 -s /tmp/pg -a g.img -k aB1; echo E"N"D2=$?
+DIRECT00D
+LINE ZZZC
+LINE 000B
+LINE 000A
+LINE 0009
+LINE 0008
+LINE 0007
+LINE 0006
+LINE 0005
+LINE 0004
+LINE 0003
+LINE 0002
+LINE 0001
+CPU 286
+MEM 00A0 OK
+IDIV 80
+WRAP BAD
+DISK OK 27080001
+TICK OK
+SPIN OK
+HOOK OK
+VID OK
+a=1E61 B=3042 1=0231
+DONE
+
+i86: 31 polls of 2048 steps; pages: 90 soft, 198 zero, 100 in, 99 out, 96 elided, 87 clean
+END2=0
+
+operator@pico:~$ 
+operator@pico:~$ ls -l /tmp; echo E"N"D3=$?
+total 0
+END3=0
+
+operator@pico:~$
+
+
+==== Run 2: 136, 128, 124, 120 and 112 frames with 208 KB of guest memory
+check-renode: login after 4.0 virtual seconds
+check-renode: shell after 4.5 virtual seconds
+check-renode: cp /guest.img g.img after 5.0 virtual seconds
+virtual seconds for 'cp /guest.img g.img': 0.5
+check-renode: i86 -d -T -v -c 8086 -m 208 -f 136 -a g.img -k aB1 | tail -4 after 6.0 virtual seconds
+virtual seconds for 'i86 -d -T -v -c 8086 -m 208 -f 136 -a g.img -k aB1 | tail -4': 1.0
+check-renode: i86 -d -T -v -c 8086 -m 208 -f 128 -a g.img -k aB1 | tail -4 after 7.5 virtual seconds
+virtual seconds for 'i86 -d -T -v -c 8086 -m 208 -f 128 -a g.img -k aB1 | tail -4': 1.5
+check-renode: i86 -d -T -v -c 8086 -m 208 -f 124 -a g.img -k aB1 | tail -4 after 9.0 virtual seconds
+virtual seconds for 'i86 -d -T -v -c 8086 -m 208 -f 124 -a g.img -k aB1 | tail -4': 1.5
+check-renode: i86 -d -T -v -c 8086 -m 208 -f 120 -a g.img -k aB1 | tail -4 after 10.5 virtual seconds
+virtual seconds for 'i86 -d -T -v -c 8086 -m 208 -f 120 -a g.img -k aB1 | tail -4': 1.5
+check-renode: i86 -d -T -v -c 8086 -m 208 -f 112 -a g.img -k aB1 | tail -4 after 12.0 virtual seconds
+virtual seconds for 'i86 -d -T -v -c 8086 -m 208 -f 112 -a g.img -k aB1 | tail -4': 1.5
+r/bin and /usr/games. "menu" lists every program, "ls"
+colors directories blue, and "vi FILE" edits
+UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.
+
+operator@pico:~$ 
+operator@pico:~$ cp /guest.img g.img; echo E"N"D0=$?
+END0=0
+
+operator@pico:~$ 
+operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 136 -a g.img -k aB1 | tail -4; echo E"N"D1=$?
+i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 14 clean
+VID OK
+a=1E61 B=3042 1=0231
+DONE
+
+END1=0
+
+operator@pico:~$ 
+operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 128 -a g.img -k aB1 | tail -4; echo E"N"D2=$?
+i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 22 clean
+VID OK
+a=1E61 B=3042 1=0231
+DONE
+
+END2=0
+
+operator@pico:~$ 
+operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 124 -a g.img -k aB1 | tail -4; echo E"N"D3=$?
+i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 26 clean
+VID OK
+a=1E61 B=3042 1=0231
+DONE
+
+END3=0
+
+operator@pico:~$ 
+operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 120 -a g.img -k aB1 | tail -4; echo E"N"D4=$?
+i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 30 clean
+VID OK
+a=1E61 B=3042 1=0231
+DONE
+
+END4=0
+
+operator@pico:~$ 
+operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 112 -a g.img -k aB1 | tail -4; echo E"N"D5=$?
+i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 38 clean
+VID OK
+a=1E61 B=3042 1=0231
+DONE
+
+END5=0
+
+operator@pico:~$
+
+
+==== Run 3: interactive, real clock, raw terminal; keys a B 1 typed on
+==== UART0, then Control-]
+check-renode: login after 4.0 virtual seconds
+check-renode: shell after 4.5 virtual seconds
+check-renode: cp /guest.img g.img after 5.0 virtual seconds
+virtual seconds for 'cp /guest.img g.img': 0.5
+check-renode: wait VID after 6.0 virtual seconds
+virtual seconds until 'VID': 1.0
+check-renode: wait DONE after 7.5 virtual seconds
+virtual seconds until 'DONE': 0.0
+check-renode: wait $ after 8.0 virtual seconds
+virtual seconds until '$': 0.0
+check-renode: echo back after 8.5 virtual seconds
+virtual seconds for 'echo back': 0.5
+check-renode: stty 2>&1 | head -3 after 9.0 virtual seconds
+virtual seconds for 'stty 2>&1 | head -3': 0.5
+                                                   LINE 000B                                                                       LINE 000A                                                                       LINE 0009                                                                       LINE 0008                                                                       LINE 0007                                                                       LINE 0006                                                                       
+LINE 0005
+LINE 0004
+LINE 0003
+LINE 0002
+LINE 0001
+CPU 186
+MEM 0070 OK
+IDIV 80
+WRAP BAD
+DISK OK 27080001
+TICK OK
+SPIN OK
+HOOK OK
+DIRECTZZZVID OK
+a=1E61B=30421=0231
+DONE
+
+operator@pico:~$ 
+operator@pico:~$ echo back; echo E"N"D7=$?
+back
+END7=0
+
+operator@pico:~$ 
+operator@pico:~$ stty 2>&1 | head -3; echo E"N"D8=$?
+speed 0 baud; nl -echo tabs 
+END8=0
+
+operator@pico:~$
+
+
+==== Run 4: stty before and after an interactive session
+operator@pico:~$ stty; echo E"N"D0=$?
+speed 115200 baud; -tabs crt pendin 
+END0=0
+operator@pico:~$ stty; echo E"N"D8=$?
+speed 115200 baud; -tabs crt pendin 
+END8=0

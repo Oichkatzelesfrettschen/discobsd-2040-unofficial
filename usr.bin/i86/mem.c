@@ -68,6 +68,8 @@ static uint8_t stored[(MEM_NPAGE + 7) / 8];
 static const char *store_path;
 static int store_fd = -1;
 
+void (*mem_failed)(void);
+
 static const uint8_t *rom_p;
 static uint32_t rom_addr, rom_len;
 
@@ -130,7 +132,9 @@ store_io(unsigned page, uint8_t *p, int wr)
 	ssize_t n;
 
 	if (store_fd < 0) {
-		store_fd = open(store_path, O_RDWR | O_CREAT | O_TRUNC, 0600);
+		/* The store is this run's own file: an existing path is
+		 * refused, so mem_fini() removes only what was created. */
+		store_fd = open(store_path, O_RDWR | O_CREAT | O_EXCL, 0600);
 		if (store_fd < 0)
 			goto fail;
 	}
@@ -140,8 +144,8 @@ store_io(unsigned page, uint8_t *p, int wr)
 	if (n == (ssize_t)MEM_PGSIZE)
 		return;
 fail:
-	/* Guest memory is lost; no guest state is worth continuing with. */
-	(void)!write(2, "i86: page store I/O failed\n", 27);
+	if (mem_failed != NULL)
+		mem_failed();
 	_exit(3);
 }
 

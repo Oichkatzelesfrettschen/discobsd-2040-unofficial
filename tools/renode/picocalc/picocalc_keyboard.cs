@@ -9,9 +9,14 @@
  * (state, key) event from a 31-entry FIFO that drops new events when full
  * (conf_app.h FIFO_SIZE), 0x05 and 0x0A are the LCD and keyboard backlights,
  * 0x0B the battery, 0x04 the FIFO depth and lock flags, and 0x0E the
- * power-off countdown clamped to at least 6. Any other register answers
- * zeros. Register 0x08 resets the real controller after a delay, so the
- * model records the request in ResetRequests and does nothing else.
+ * power-off countdown clamped to at least 6. A backlight write is conditioned
+ * as backlight.ino does: the LCD level rounds down to a multiple of 16 and
+ * stays within 16..240, the keyboard level rounds down to a multiple of 32
+ * and drops to 0 below 32 or above 240, so a guest that writes a level reads
+ * back the level the light took. The LCD level starts at 32. Any other
+ * register answers zeros. Register 0x08 resets the real controller after a
+ * delay, so the model records the request in ResetRequests and does nothing
+ * else.
  *
  * Key injection happens through the monitor: PressKey, ReleaseKey, TypeKey,
  * TypeText, TypeLine and TypeCtrl queue the (state, key) events the firmware
@@ -65,7 +70,7 @@ namespace Antmicro.Renode.Peripherals.I2C
                 reply[0] = 0;
                 reply[1] = 0;
                 readIndex = 0;
-                backlight = 0x80;
+                backlight = 32;
                 keyBacklight = 0;
                 batteryPercent = 100;
                 charging = false;
@@ -113,7 +118,7 @@ namespace Antmicro.Renode.Peripherals.I2C
                 case RegBacklight:
                     if(isWrite)
                     {
-                        backlight = value;
+                        backlight = (byte)Math.Min(240, Math.Max(16, value / 16 * 16));
                     }
                     reply[0] = reg;
                     reply[1] = backlight;
@@ -121,7 +126,8 @@ namespace Antmicro.Renode.Peripherals.I2C
                 case RegKeyBacklight:
                     if(isWrite)
                     {
-                        keyBacklight = value;
+                        var level = value / 32 * 32;
+                        keyBacklight = (byte)(level < 32 || level > 240 ? 0 : level);
                     }
                     reply[0] = reg;
                     reply[1] = keyBacklight;

@@ -697,7 +697,6 @@ static const char toomanyargs[] = "too many arguments";
 static const char toofewargs[] = "too few arguments";
 static const char noargument[] = "missing argument";
 static const char divisionbyzero[] = "division by zero";
-static const char outofrange[] = "result out of range";
 static const char indexnegative[] = "index can't be negative";
 static const char invalidarg[] = "invalid argument";
 static const char invalidkey[] = "invalid keyword";
@@ -713,6 +712,7 @@ static const char canttakecdr[] = "can't take cdr";
 
 static void initworkspace (void) {
   Freelist = NULL;
+  Freespace = 0;
   for (int i=WORKSPACESIZE-1; i>=0; i--) {
     object *obj = &Workspace[i];
     car(obj) = NULL;
@@ -1073,7 +1073,9 @@ static void rebaseimage (unsigned int imagesize, intptr_t delta) {
 }
 
 // An image is checked in the file, before a cell reaches the workspace, so
-// that a damaged or foreign one is refused with the workspace as it was.
+// that a damaged or foreign one is refused with the workspace as it was; the
+// cells the loader then installs are checked again in the workspace, since
+// the file can change between its two reads.
 // The check reads the cells in blocks and follows each string chain by
 // seeking, and it keeps one bit for each cell on the stack to record the
 // cells that chains own. What it establishes is what rebaseimage(), the
@@ -1090,7 +1092,15 @@ static void rebaseimage (unsigned int imagesize, intptr_t delta) {
 #define chainbit(bits, i)  ((bits)[(i)>>3] & (1u << ((i) & 7)))
 #define setchain(bits, i)  ((bits)[(i)>>3] |= (uint8_t)(1u << ((i) & 7)))
 
+// The cells checkimage() reads: the open file, or the copy installed in the
+// workspace when ImageSource names it
+static const object *ImageSource;
+
 static bool imagecells (unsigned int first, object *cells, unsigned int count) {
+  if (ImageSource != NULL) {
+    memcpy(cells, ImageSource + first, count * sizeof(object));
+    return true;
+  }
   size_t offset = IMAGEWORDS * sizeof(uintptr_t) + CODESIZE + (size_t)first * sizeof(object);
   return sys_fseek(SYS_FTMP, offset) && sys_fread(SYS_FTMP, cells, count * sizeof(object));
 }
@@ -1283,6 +1293,14 @@ static int loadimagefile (const char *path, object **autorun) {
   if (!ok) {  // The workspace is part old and part new: start again
     initworkspace(); initenv();
     error2("image is truncated");
+  }
+  // The file can change between the two reads: the cells that count are the installed ones
+  ImageSource = Workspace;
+  fault = checkimage(header, imagesize);
+  ImageSource = NULL;
+  if (fault != NULL) {
+    initworkspace(); initenv();
+    error2(fault);
   }
   rebaseimage(imagesize, delta);
   *autorun = rebase((object *)header[3], delta);
@@ -1596,14 +1614,15 @@ static object *compare (object *args, bool lt, bool gt, bool eq) {
   return tee;
 }
 
+// Unsigned, so the squares the last step discards wrap instead of overflowing
 static int intpower (int base, int exp) {
-  int result = 1;
+  unsigned int result = 1, factor = (unsigned int)base;
   while (exp) {
-    if (exp & 1) result = result * base;
+    if (exp & 1) result = result * factor;
     exp = exp / 2;
-    base = base * base;
+    factor = factor * factor;
   }
-  return result;
+  return (int)result;
 }
 
 // Association lists
@@ -1834,15 +1853,15 @@ static void buildstring (char ch, object** tail) {
   if (cdr(*tail) == NULL) {
     cell = myalloc(); cdr(*tail) = cell;
   } else if (((*tail)->chars & 0xFFFFFF) == 0) {
-    (*tail)->chars |= ch<<16; return;
+    (*tail)->chars |= (chars_t)(uint8_t)ch<<16; return;
   } else if (((*tail)->chars & 0xFFFF) == 0) {
-    (*tail)->chars |= ch<<8; return;
+    (*tail)->chars |= (chars_t)(uint8_t)ch<<8; return;
   } else if (((*tail)->chars & 0xFF) == 0) {
     (*tail)->chars |= ch; return;
   } else {
     cell = myalloc(); car(*tail) = cell;
   }
-  car(cell) = NULL; cell->chars = ch<<24; *tail = cell;
+  car(cell) = NULL; cell->chars = (chars_t)(uint8_t)ch<<24; *tail = cell;
 }
 
 static object *readstring (uint8_t delim, bool esc, gfun_t gfun) {
@@ -2166,6 +2185,7 @@ static object **place (object *args, object *env, int *bit) {
     if (sname == sym(CHAR)) {
       int index = checkinteger(eval(third(args), env));
       object *string = checkstring(eval(second(args), env));
+      if (index < 0) { Context = CHAR; error(indexnegative, number(index)); }
       object **loc = getcharplace(string, index, bit);
       if ((*loc) == NULL || (((((*loc)->chars)>>((-(*bit)-2)<<3)) & 0xFF) == 0)) { Context = CHAR; error(indexrange, number(index)); }
       return loc;
@@ -2450,12 +2470,16 @@ static void checkanalogread (int pin) {
 
 static const int scale[] = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
 
+// A note below zero counts down from the octave, in a wider type than the sum
 static void playnote (int pin, int note, int octave) {
   (void) pin;
-  int oct = octave + note/12;
-  int prescaler = 8 - oct;
-  if (prescaler<0 || prescaler>8) error("octave out of range", number(oct));
-  sys_tone(scale[note%12]>>prescaler);
+  int semitone = note % 12;
+  if (semitone < 0) semitone = semitone + 12;
+  long long oct = (long long)octave + ((long long)note - semitone) / 12;
+  if (oct < 0 || oct > 8) {
+    error("octave out of range", number((oct < 0) ? ((oct < INT_MIN) ? INT_MIN : (int)oct) : INT_MAX));
+  }
+  sys_tone(scale[semitone]>>(8 - (int)oct));
 }
 
 static void nonote (int pin) {
@@ -2465,8 +2489,13 @@ static void nonote (int pin) {
 
 // Sleep
 
+// Each step stays below the 32-bit millisecond limit; a negative count waits not at all
 static void doze (int secs) {
-  sys_delay(1000 * secs);
+  while (secs > 0) {
+    int step = (secs > 4000000) ? 4000000 : secs;
+    sys_delay(1000UL * (unsigned int)step);
+    secs = secs - step;
+  }
 }
 
 // Prettyprint
@@ -2820,8 +2849,10 @@ static object *sp_setf (object *args, object *env) {
     object **loc = place(first(args), env, &bit);
     arg = eval(second(args), env);
     if (bit == -1) *loc = arg;
-    else if (bit < -1) (*loc)->chars = ((*loc)->chars & ~(0xff<<((-bit-2)<<3))) | checkchar(arg)<<((-bit-2)<<3);
-    else *loc = number((checkinteger(*loc) & ~(1<<bit)) | checkbitvalue(arg)<<bit);
+    else if (bit < -1) {
+      int shift = (-bit-2)<<3;
+      (*loc)->chars = ((*loc)->chars & ~((chars_t)0xff<<shift)) | (chars_t)checkchar(arg)<<shift;
+    } else *loc = number((int)(((unsigned int)checkinteger(*loc) & ~(1u<<bit)) | (unsigned int)checkbitvalue(arg)<<bit));
     args = cddr(args);
   }
   return arg;
@@ -2934,7 +2965,10 @@ static object *sp_formillis (object *args, object *env) {
   object *param = checkarguments(args, 0, 1);
   unsigned long start = sys_millis();
   unsigned long now, total = 0;
-  if (param != NULL) total = checkinteger(eval(first(param), env));
+  if (param != NULL) {
+    int count = checkinteger(eval(first(param), env));
+    total = (count < 0) ? 0 : (unsigned long)count;
+  }
   eval(tf_progn(cdr(args),env), env);
   do {
     now = sys_millis() - start;
@@ -3597,8 +3631,9 @@ static object *fn_divide (object *args, object *env) {
       } else if (integerp(arg)) {
         int i = arg->integer;
         if (i == 0) error2(divisionbyzero);
-        if ((result % i) != 0) return divide_floats(args, result);
+        // INT_MIN / -1 has no int result and traps in both / and %
         if ((result == INT_MIN) && (i == -1)) return divide_floats(args, result);
+        if ((result % i) != 0) return divide_floats(args, result);
         result = result / i;
         args = cdr(args);
       } else error(notanumber, arg);
@@ -3894,7 +3929,7 @@ static object *quotient (object *args, int mode) {
   if (integerp(arg) && (arg2 == NULL || integerp(first(arg2)))) {
     int num = arg->integer, den = (arg2 != NULL) ? first(arg2)->integer : 1;
     if (den == 0) error2(divisionbyzero);
-    if (den == -1 && num == INT_MIN) error2(outofrange);
+    if (den == -1 && num == INT_MIN) return makefloat(-(float)num);  // No int holds it
     int quo = num/den, rem = num - quo*den;
     if (rem != 0) {
       bool same = (num < 0) == (den < 0);  // The exact quotient is positive
@@ -3912,7 +3947,7 @@ static object *quotient (object *args, int mode) {
   if (mode == 1) f = ceilf(x);
   else if (mode == 2) { if (x < 0) f = ceilf(x); }
   else if (mode == 3 && (d > 0.5 || (d == 0.5 && fmodf(f, 2.0) != 0.0))) f = f + 1.0;
-  if (!(f >= -2147483648.0 && f < 2147483648.0)) error2(outofrange);
+  if (!(f >= -2147483648.0 && f < 2147483648.0)) return makefloat(f);
   return number((int)f);
 }
 
@@ -3943,7 +3978,9 @@ static object *fn_char (object *args, object *env) {
   object *arg = first(args);
   if (!stringp(arg)) error(notastring, arg);
   object *n = second(args);
-  char c = nthchar(arg, checkinteger(n));
+  int index = checkinteger(n);
+  if (index < 0) error(indexnegative, n);
+  char c = nthchar(arg, index);
   if (c == 0) error(indexrange, n);
   return character(c);
 }
@@ -4192,20 +4229,26 @@ static object *fn_lognot (object *args, object *env) {
   return number(~result);
 }
 
+// A left shift keeps the low 32 bits; a shift of 32 or more clears them, or
+// leaves the sign for a right shift. The shift is on the unsigned value.
 static object *fn_ash (object *args, object *env) {
   (void) env;
   int value = checkinteger(first(args));
   int count = checkinteger(second(args));
-  // A count past the word width gives the shifted-out value, not an undefined shift.
-  if (count >= 0) return number(count > 31 ? 0 : (int)((unsigned int)value << count));
-  else return number(value >> (count < -31 ? 31 : -count));
+  if (count >= 0) return number((count >= 32) ? 0 : (int)((unsigned int)value << count));
+  if (count <= -32) return number((value < 0) ? -1 : 0);
+  return number(value >> -count);
 }
 
+// An index past the top bit reads the sign, as in an unbounded integer
 static object *fn_logbitp (object *args, object *env) {
   (void) env;
-  int index = checkinteger(first(args));
+  object *arg = first(args);
+  int index = checkinteger(arg);
   int value = checkinteger(second(args));
-  return (((value >> index) & 1) == 1) ? tee : nil;
+  if (index < 0) error(indexnegative, arg);
+  if (index >= 32) return (value < 0) ? tee : nil;
+  return ((((unsigned int)value >> index) & 1) == 1) ? tee : nil;
 }
 
 // System functions
@@ -4442,7 +4485,8 @@ static object *fn_delay (object *args, object *env) {
   (void) env;
   object *arg1 = first(args);
   unsigned long start = sys_millis();
-  unsigned long total = checkinteger(arg1);
+  int count = checkinteger(arg1);
+  unsigned long total = (count < 0) ? 0 : (unsigned long)count;
   do testescape();
   while (sys_millis() - start < total);
   return arg1;

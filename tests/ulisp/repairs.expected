@@ -73,11 +73,14 @@ Error: 'floor' division by zero
 12000> 
 Error: 'round' division by zero
 12000> 
-Error: 'floor' result out of range
+2.14748e9
+
 12000> 
-Error: 'floor' result out of range
+1.0e10
+
 12000> 
-Error: 'round' result out of range
+-3.0e9
+
 12000> 
 (-2147483648 0 0 0 0 -1 -1 0 -2 0 0)
 

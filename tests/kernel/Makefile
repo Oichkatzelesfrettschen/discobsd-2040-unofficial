@@ -3553,6 +3553,7 @@ check-v7-format: ${MACHINE_STAMP} v7_format_check.sh v7_format_test.c \
 .endif
 
 check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal check-swap-lost \
+	check-loadav-precision \
 	check-swap-lost-io check-swap-temp-lost \
     check-rmap-ring-mutants check-swap-ring-io \
     check-v7-format \
@@ -3570,6 +3571,13 @@ check: ${PROGS} ${SHUTDOWN_CHECKS} check-fork-swap-refusal check-swap-lost \
 		echo "run ./$$prog"; \
 		./$$prog || exit 1; \
 	done
+
+# The production loadav() of sys/kern/vm_sched.c on held and vanishing loads,
+# against the 2.11BSD function it replaced; see loadav_precision.py.
+check-loadav-precision:
+	${PYTHON} loadav_precision.py
+
+.PHONY: check-loadav-precision
 
 clean:
 	rm -rf ${V7_FORMAT_WORK}

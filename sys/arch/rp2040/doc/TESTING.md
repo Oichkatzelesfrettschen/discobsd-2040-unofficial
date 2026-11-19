@@ -3658,7 +3658,14 @@ The suite checks explicit IO_SYNC on async mounts,
 data/flush/inode-update failures, counter saturation, and `vmmeter()` folding
 and clearing all ten distinct counter values above 65,535 on ordinary and
 fifth-second ticks. The fifth-second cases also check the swap rate
-replacement and all three load averages. The synchronization fixture
+replacement and all three load averages after one sample of one runnable
+process (20, 4 and 1 at scale 256, the rounded 256 (1 - exp(-1/T))).
+`check-loadav-precision` (in `check-kernel`) builds the production
+`loadav()` with NPROC of 16 and 25 and requires a held load of 1, 4 and
+NPROC to read exactly 256 n, an emptied table to read 0, and the averages to
+pass 256 (1 - 1/e) after 12, 60 and 180 samples, one either way; the 2.11BSD
+function the port carried before, which stops a load of 1 at 244, 205 and
+129, must fail it. The synchronization fixture
 executes 80 assertions at native width and at ILP32 when its signed-overflow
 sanitizer runtime is available. It checks `tsleep()` accepting
 an `INT_MAX` timeout while refusing `INT_MAX + 1` and `UINT_MAX` before the

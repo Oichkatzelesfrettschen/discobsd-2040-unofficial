@@ -127,6 +127,14 @@ bcopy(const void *src0, void *dst0, size_t nbytes)
 	u_int		*aligned_dst;
 	const u_int	*aligned_src;
 
+	/* dst inside (src, src + nbytes): an unsigned distance below nbytes. */
+	if ((u_int)dst - (u_int)src < nbytes && dst != src) {
+		dst += nbytes;
+		src += nbytes;
+		while (nbytes--)
+			*--dst = *--src;
+		return;
+	}
 	/* printf("bcopy (%08x, %08x, %d)\n", src0, dst0, nbytes); */
 	/* If the size is small, or either SRC or DST is unaligned,
 	 * then punt into the byte copy loop.  This should be rare. */

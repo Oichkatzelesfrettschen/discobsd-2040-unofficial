@@ -1,11 +1,11 @@
 # compiler arm-none-eabi-gcc (Arch Repository) 16.2.0
-# cflags -g -gdwarf-4 -Wall -Wextra -Werror -Wshadow -Wundef -Wformat=2 -std=gnu17  -ffreestanding -fno-builtin -fno-common -fno-strict-aliasing -fshort-enums -mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian  -mthumb -mfloat-abi=soft -fno-delete-null-pointer-checks -ffunction-sections -fdata-sections -pipe -Os -nostdinc -I. -I../../../.. -I../../../../arch -I../../../../arch/arm/include -I../../../../arch/rp2040/dhara/compat -I../../../../arch/rp2040/heatshrink -I../../../../arch/rp2040/heatshrink/compat -DPICO -DRP2040 -DUARTUSB_ENABLED -DUART_ENABLED -DDEV_ADC -DEXEC_HSAOUT -DSWAPRAM_KB=16 -DSWAPRAM -DUART_BAUD=115200 -DCONS_MINOR=0 -DCONS_MAJOR=UARTUSB_MAJOR -DROOT_MOUNT_FLAGS=MNT_NOATIME -DCORE_DEFAULT=0 -DLINEAR_NAME_CACHE -DLINEAR_BUFFER_CACHE -DCOMPACT_SWAPMAP -DCOMPACT_INODE_FIELDS -DLINEAR_INODE_CACHE -DSINGLE_UFS_ROOT -DNMOUNT=1 -DNFL=2 -DCORE1 -DCAPACITY_STATS -DSYSTRACE -DHALTREBOOT -DBUS_KHZ=125000 -DCPU_KHZ=125000 -DKERNEL
-# input sh sha256 12d2c1314ce7cc5d6f62b51cfab43c289525963ae639bf0e736d23d915853ebe
-# input awk sha256 fb9e44f2955ffbb09754f420bf5299e5883ffec57c3924a2fe16379706c0b6d1
+# cflags -g -gdwarf-4 -Wall -Wextra -Werror -Wshadow -Wundef -Wformat=2 -std=gnu17  -ffreestanding -fno-builtin -fno-common -fno-strict-aliasing -fshort-enums -mcpu=cortex-m0plus -mabi=aapcs -mlittle-endian  -mthumb -mfloat-abi=soft -fno-delete-null-pointer-checks -ffunction-sections -fdata-sections -pipe -Os  -nostdinc -I. -I../../../.. -I../../../../arch -I../../../../arch/arm/include -I../../../../arch/rp2040/dhara/compat -I../../../../arch/rp2040/heatshrink -I../../../../arch/rp2040/heatshrink/compat -DPICO -DRP2040 -DUARTUSB_ENABLED -DUART_ENABLED -DDEV_ADC -DEXEC_HSAOUT -DSWAPRAM_KB=16 -DSWAPRAM -DUART_BAUD=115200 -DCONS_MINOR=0 -DCONS_MAJOR=UARTUSB_MAJOR -DROOT_MOUNT_FLAGS=MNT_NOATIME -DCORE_DEFAULT=0 -DLINEAR_NAME_CACHE -DLINEAR_BUFFER_CACHE -DCOMPACT_SWAPMAP -DCOMPACT_INODE_FIELDS -DLINEAR_INODE_CACHE -DSINGLE_UFS_ROOT -DNMOUNT=1 -DNFL=2 -DCORE1 -DHALTREBOOT -DBUS_KHZ=125000 -DCPU_KHZ=125000 -DKERNEL
+# input sh sha256 d61c2f0ef197196fa15262ffe4c3cd5d5157791fed7e31cab447a9f2a88d44c9
+# input awk sha256 0c8b44c1af77a273c1d0ce66fcbd2b7b33b2ebadbd503724068ca0b56991d275
 segment	raw	compressed	count_cycles	write_cycles	decode_cycles	encode_cycles_per_byte	decode_cycles_per_byte	encode_ms	decode_ms	round_trip
-sh data+bss	9608	1535	13333267	13331573	235713	2775.3	24.5	213.32	1.89	ok
-awk data+bss	13068	214	3117270	3117298	270078	477.1	20.7	49.88	2.16	ok
-stack 4 KB synthetic	4096	108	962556	962533	84811	470.0	20.7	15.40	0.68	ok
-u area 3 KB synthetic	3072	358	3394946	3394494	70304	2210.1	22.9	54.32	0.56	ok
-zeros 4 KB	4096	36	212742	212840	83843	103.9	20.5	3.40	0.67	ok
-random 4 KB	4096	4608	48191895	48184558	144043	23529.4	35.2	771.01	1.15	ok
+sh data+bss	9608	1535	13305584	13303862	235956	2769.5	24.6	212.88	1.89	ok
+awk data+bss	13068	216	3149508	3149543	270027	482.0	20.7	50.39	2.16	ok
+stack 4 KB synthetic	4096	108	961503	961484	84811	469.5	20.7	15.38	0.68	ok
+u area 3 KB synthetic	3072	358	3391598	3391162	70304	2207.9	22.9	54.26	0.56	ok
+zeros 4 KB	4096	36	212333	212431	83843	103.7	20.5	3.40	0.67	ok
+random 4 KB	4096	4608	48150596	48143508	144043	23509.3	35.2	770.35	1.15	ok

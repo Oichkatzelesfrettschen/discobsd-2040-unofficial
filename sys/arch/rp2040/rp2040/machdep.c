@@ -1223,8 +1223,10 @@ strncmp(const char *s1, const char *s2, size_t n)
 
 /*
  * Copy data from the memory region pointed to by src0 to the memory
- * region pointed to by dst0.
- * If the regions overlap, the behavior is undefined.
+ * region pointed to by dst0. Overlapping regions copy as memmove copies
+ * them: when dst0 starts inside the source, the copy runs backward byte by
+ * byte, so namei()'s shift of a path within its own buffer keeps the bytes
+ * it has not read yet. Every other case takes the forward word copy.
  */
 void
 bcopy(const void *src0, void *dst0, size_t nbytes)
@@ -1234,6 +1236,14 @@ bcopy(const void *src0, void *dst0, size_t nbytes)
 	u_int		*aligned_dst;
 	const u_int	*aligned_src;
 
+	/* dst inside (src, src + nbytes): an unsigned distance below nbytes. */
+	if ((u_int)dst - (u_int)src < nbytes && dst != src) {
+		dst += nbytes;
+		src += nbytes;
+		while (nbytes--)
+			*--dst = *--src;
+		return;
+	}
 	/* printf("bcopy (%08x, %08x, %d)\n", src0, dst0, nbytes); */
 	/* If the size is small, or either SRC or DST is unaligned,
 	 * then punt into the byte copy loop.  This should be rare. */

@@ -31,8 +31,9 @@
  * PANELTEST.md). It holds /dev/lcdgfx, so the kernel accepts
  * machdep.picocalc.panel_variant and panel_read, draws the calibration
  * patterns of the experiments, and logs every register set and readback to
- * /var/log/paneltest.log. Keys: the right and left arrows (or n and p)
- * step the register set, the up and down arrows (or 1 to 7) pick a
+ * /var/log/paneltest.log. Keys: the right and left arrows (or n and p, or
+ * d and a) step the register set, the up and down arrows (or w and s, or 1
+ * to 7) pick a
  * pattern, r reads the panel registers back, f measures the frame rate
  * through the scanline sample, q quits; the kernel programs the shipped
  * set again when the device closes. Every pattern shows the set number,
@@ -544,14 +545,17 @@ main(void)
 		}
 		if (k == 'q' || k == 'Q' || k == 3)
 			break;
-		if (k == 'n' || k == K_RIGHT)
+		/* W, A, S and D stand in for the arrows, in either case. */
+		if (k >= 'A' && k <= 'Z')
+			k += 'a' - 'A';
+		if (k == 'n' || k == 'd' || k == K_RIGHT)
 			change_set((cur_set + 1) % PANELTEST_NSETS);
-		else if (k == 'p' || k == K_LEFT)
+		else if (k == 'p' || k == 'a' || k == K_LEFT)
 			change_set((cur_set + PANELTEST_NSETS - 1) %
 			    PANELTEST_NSETS);
-		else if (k == K_UP)
+		else if (k == 'w' || k == K_UP)
 			cur_pat = cur_pat == 1 ? NPAT : cur_pat - 1;
-		else if (k == K_DOWN)
+		else if (k == 's' || k == K_DOWN)
 			cur_pat = cur_pat % NPAT + 1;
 		else if (k >= '1' && k <= '0' + NPAT)
 			cur_pat = k - '0';

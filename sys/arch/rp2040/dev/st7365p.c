@@ -50,6 +50,9 @@
 #include <rp2040/dev/picocalc_reg.h>
 #include <rp2040/dev/lcdterm.h>
 #include <rp2040/dev/lcdfont.h>
+#ifdef LCD_GFX_EXT
+#include <sys/lcdgfx.h>
+#endif
 
 #define	SPI1_BASE		0x40040000UL
 #define	SSPCR0			0x00
@@ -165,6 +168,45 @@ spi_put(u_int b)
 		continue;
 	SPI_REG(SSPDR) = b;
 }
+
+#if defined(LCD_PANELTEST) || defined(LCD_GFX_EXT)
+/*
+ * The read side: a byte exchanged for the one the panel shifts out on SDO,
+ * and the clock change a read needs, since TSCYCR is 150 ns (page 77)
+ * against the 66 ns of a write.
+ */
+#define	LCD_READ_SCR		19		/* 125 / (2 * 20) == 3.125 MHz. */
+#define	CMD_GSCAN		0x45
+
+static u_int
+spi_xfer(u_int b)
+{
+	spi_put(b);
+	while ((SPI_REG(SSPSR) & SSPSR_RNE) == 0)
+		continue;
+	return SPI_REG(SSPDR);
+}
+
+static void
+spi_clock(u_int scr)
+{
+	spi_wait_idle();
+	SPI_REG(SSPCR1) = 0;
+	SPI_REG(SSPCR0) = SSPCR0_SCR(scr) | LCD_SPI_FORMAT;
+	SPI_REG(SSPCR1) = SSPCR1_SSE;
+}
+#endif
+
+#ifdef LCD_GFX_EXT
+#define	CMD_SLPIN		0x10
+#define	CMD_DISPOFF		0x28
+#define	CMD_RAMRD		0x2e
+#define	CMD_IDMOFF		0x38
+#define	CMD_IDMON		0x39
+
+static u_int lcd_power_mode;		/* LCDG_PWR_* in force. */
+static u_int lcd_power_pending;		/* A mode change may have begun. */
+#endif
 
 /* Send a command byte; the caller holds chip select low. */
 static void
@@ -387,6 +429,10 @@ panel_begin(void)
 	mdelay(1);
 	pc_gpio_put(PICOCALC_LCD_RST, 1);
 	mdelay(120);
+#ifdef LCD_GFX_EXT
+	lcd_power_mode = LCDG_PWR_ON;	/* panel_wake() follows every reset. */
+	lcd_power_pending = 0;
+#endif
 
 	lcd_select();
 }
@@ -459,7 +505,156 @@ st7365p_abort(void)
 	SPI_REG(SSPICR) = SSPICR_RORIC;
 	pc_gpio_put(PICOCALC_LCD_CS, 1);
 	pc_gpio_put(PICOCALC_LCD_DC, 1);
+#ifdef LCD_GFX_EXT
+	/*
+	 * The report that follows must be visible. A fault can arrive between
+	 * the commands of a mode change, where lcd_power_mode names neither
+	 * the old mode nor the new, so every leaving command goes out whenever
+	 * a change may have begun; each is harmless in a panel already there.
+	 */
+	if (lcd_power_pending) {
+		/* SLPIN may be the last command sent: page 163's 120 ms. */
+		mdelay(120);
+		lcd_select();
+		lcd_command(CMD_SLPOUT);
+		lcd_deselect();
+		mdelay(120);
+		lcd_select();
+		lcd_command(CMD_IDMOFF);
+		lcd_command(CMD_DISPON);
+		lcd_deselect();
+		lcd_power_mode = LCDG_PWR_ON;
+		lcd_power_pending = 0;
+	}
+#endif
 }
+
+#ifdef LCD_GFX_EXT
+/*
+ * The LCD_GFX_EXT primitives of lcdgfx.c (lcdterm.h). Only lcdgfx.c calls
+ * them, with /dev/lcdgfx open and no window in flight.
+ */
+
+void
+lcd_gfx_read_begin(void)
+{
+	spi_clock(LCD_READ_SCR);
+}
+
+void
+lcd_gfx_read_end(void)
+{
+	spi_clock(LCD_SCR);
+}
+
+/*
+ * RAMRD (2Eh, page 178) over a window of n pixels of one line: len reply
+ * bytes, stored as they arrive. lcdgfx.c holds the framing, which follows
+ * the COLMOD in force; bytes past the window's last pixel repeat it from
+ * its first.
+ */
+void
+lcd_gfx_read(int x, int y, int n, unsigned char *raw, unsigned len)
+{
+
+	lcd_select();
+	lcd_command(CMD_CASET);
+	put16((u_int)x);
+	put16((u_int)(x + n - 1));
+	lcd_command(CMD_RASET);
+	put16((u_int)y);
+	put16((u_int)y);
+	lcd_command(CMD_RAMRD);
+	while (len-- > 0)
+		*raw++ = spi_xfer(0);
+	lcd_deselect();
+}
+
+/* GSCAN (45h, page 201), decoded as st7365p_scan() decodes it. */
+int
+lcd_gfx_scanline(void)
+{
+	u_int raw;
+
+	lcd_select();
+	lcd_command(CMD_GSCAN);
+	raw = spi_xfer(0) << 16;
+	raw |= spi_xfer(0) << 8;
+	raw |= spi_xfer(0);
+	lcd_deselect();
+	return (raw >> 7) & 0xffff;
+}
+
+unsigned
+lcd_gfx_micros(void)
+{
+	return pc_micros();
+}
+
+/*
+ * Leave the mode in force, then enter the one asked for. SLPIN and SLPOUT
+ * each need 5 ms before the next command and 120 ms before the other of
+ * the pair (pages 163 and 165); 120 ms covers both. Sleep keeps the
+ * display-on state and the memory.
+ */
+void
+lcd_gfx_power(unsigned mode)
+{
+	static const u_char leave[] = { 0, CMD_IDMOFF, CMD_DISPON, CMD_SLPOUT };
+	static const u_char enter[] = { 0, CMD_IDMON, CMD_DISPOFF, CMD_SLPIN };
+	u_int was = lcd_power_mode;
+
+	if (mode == was)
+		return;
+	lcd_power_pending = 1;
+	lcd_select();
+	if (was != LCDG_PWR_ON) {
+		lcd_command(leave[was]);
+		if (was == LCDG_PWR_SLEEP) {
+			lcd_deselect();
+			mdelay(120);
+			lcd_select();
+		}
+	}
+	if (mode != LCDG_PWR_ON)
+		lcd_command(enter[mode]);
+	lcd_deselect();
+	if (mode == LCDG_PWR_SLEEP)
+		mdelay(120);
+	lcd_power_mode = mode;
+	/* st7365p_abort() wakes the panel while any mode but on may hold. */
+	lcd_power_pending = mode != LCDG_PWR_ON;
+}
+
+/*
+ * The LCDG_DITHER probe (sys/lcdgfx.h). COLMOD 77h is the register's 24-bit
+ * value (page 196); the 4-line serial interface lists 16- and 18-bit input
+ * only (page 96), so what the memory keeps of these pixels is the
+ * measurement. MODESEL (B9h, page 229) has the one parameter 02h, dithering
+ * on, and is a Command Table 2 register, so the unlock precedes it.
+ */
+void
+lcd_gfx_dither(int on)
+{
+	static const u_char modesel[] = {
+		0xf0, 1, 0xc3, 0xf0, 1, 0x96,
+		0xb9, 1, 0x02,
+		0xf0, 1, 0x3c, 0xf0, 1, 0x69,
+	};
+	int n;
+
+	lcd_select();
+	lcd_command(CMD_COLMOD);
+	spi_put(0x77);
+	if (on)
+		run_seq(modesel, sizeof(modesel));
+	lcd_window(LCDG_DITHER_X, LCD_GRAM_LINES - 1,
+	    LCDG_DITHER_X + LCDG_DITHER_N - 1, LCD_GRAM_LINES - 1);
+	for (n = 3 * LCDG_DITHER_N; n > 0; n--)
+		spi_put(LCDG_DITHER_BYTE);
+	lcd_deselect();
+}
+#endif /* LCD_GFX_EXT */
 
 #ifdef LCD_PANELTEST
 /*
@@ -476,7 +671,6 @@ st7365p_abort(void)
 
 #define	CMD_CSCON		0xf0
 #define	CMD_SPIRC		0xfb
-#define	LCD_READ_SCR		19		/* 125 / (2 * 20) == 3.125 MHz. */
 
 static const u_char NONE[] = { 0x00, 0 };	/* NOP (page 145). */
 static const u_char UNLOCK[] = { CMD_CSCON, 1, 0xc3, CMD_CSCON, 1, 0x96 };
@@ -542,6 +736,16 @@ static const u_char FRAME_31HZ[] = { 0xb1, 1, 0x00 };
  *   90 Hz  14   00b   30    168 + 30 + 32 = 230  89.83 Hz
  *   120 Hz 15   00b   4     168 + 4 + 0 = 172    120.13 Hz
  *
+ * The measured board runs the formula 2.6% to 3.8% slow (doc/PANELTEST.md),
+ * so three further sets aim the formula above a target rate by the ratio
+ * measured at the same FRS: 62.23 Hz for 60 (ratio 0.965), 77.96 Hz for 75
+ * (0.962) and 122.98 Hz, the formula's maximum at these porches, for 120
+ * (0.974).
+ *
+ *   62 Hz  10   00b   4     168 + 4 + 160 = 332  62.23 Hz
+ *   78 Hz  12   00b   1     168 + 1 + 96 = 265   77.96 Hz
+ *   123 Hz 15   00b   0     168 + 0 + 0 = 168    122.98 Hz
+ *
  * FRAME_SET builds each table from its fields and asserts at compile time
  * that the formula, shifted right by DIVA, lands within 0.25 Hz of the
  * nominal rate.
@@ -563,6 +767,9 @@ FRAME_SET(FRAME_60HZ, 10, 0, 16, 60);
 FRAME_SET(FRAME_75HZ, 12, 0, 11, 75);
 FRAME_SET(FRAME_90HZ, 14, 0, 30, 90);
 FRAME_SET(FRAME_120HZ, 15, 0, 4, 120);
+FRAME_SET(FRAME_62HZ, 10, 0, 4, 62);
+FRAME_SET(FRAME_78HZ, 12, 0, 1, 78);
+FRAME_SET(FRAME_123HZ, 15, 0, 0, 123);
 static const u_char MADCTL_40[] = { CMD_MADCTL, 1, 0x40 };
 static const u_char MADCTL_08[] = { CMD_MADCTL, 1, 0x08 };
 /* Distinctive in-range values that the marked readback variants expect. */
@@ -628,24 +835,6 @@ st7365p_set_current(void)
 	return panel_set_now;
 }
 
-static u_int
-spi_xfer(u_int b)
-{
-	spi_put(b);
-	while ((SPI_REG(SSPSR) & SSPSR_RNE) == 0)
-		continue;
-	return SPI_REG(SSPDR);
-}
-
-static void
-spi_clock(u_int scr)
-{
-	spi_wait_idle();
-	SPI_REG(SSPCR1) = 0;
-	SPI_REG(SSPCR0) = SSPCR0_SCR(scr) | LCD_SPI_FORMAT;
-	SPI_REG(SSPCR1) = SSPCR1_SSE;
-}
-
 static void
 send_seq(const u_char *p, u_int len)
 {
@@ -690,6 +879,8 @@ lcd_read(const u_char *r, u_char *out)
 		lcd_window(0, LCD_GRAM_LINES - 1, 0, LCD_GRAM_LINES - 1);
 		put16(0xffff);
 		lcd_deselect();
+		/* The reply takes the format in force: read it as 18 bits. */
+		lcd_gfx_colmod(COLMOD_RGB666);
 	}
 	if (fb != 0 && (how & (PANEL_RD_FB_FIRST | PANEL_RD_ONE_CS)) == 0)
 		send_spirc(fb);
@@ -735,13 +926,14 @@ lcd_read(const u_char *r, u_char *out)
  * SPIRC inert on this link.
  *
  * The last entry writes one FFFFh pixel under COLMOD 55h to the last line
- * of the controller's memory, which the glass does not show, and reads it
- * back with RAMRD (2Eh, page 178). The console draws in 55h, and EM (B7h)
- * EPF selects how sixteen bits widen to eighteen (page 228): a reply of
- * FCh FCh FCh is full white, F8h FCh F8h is white with the low bit of red
- * and blue clear, which is the widening the datasheet gives for EPF 00.
- * The entry leaves the panel in 55h; lcdgfx_panel_read() programs the
- * format lcdgfx.c is in again.
+ * of the controller's memory, which the glass does not show, selects 66h
+ * and reads it back with RAMRD (2Eh, page 178). The memory read answers in
+ * the format in force (the board returned two bytes a pixel under 55h and
+ * three under 66h), so only a read under 66h shows how EM (B7h) EPF widened
+ * the sixteen bits to eighteen (page 228): FCh FCh FCh is full white,
+ * F8h FCh F8h white with the low bit of red and blue clear, the widening
+ * the datasheet gives for EPF 00. The entry leaves the panel in 66h;
+ * lcdgfx_panel_read() programs the format lcdgfx.c is in again.
  */
 #define	M	PANEL_RD_MARK
 static const u_char panel_reads[][4] = {
@@ -795,7 +987,6 @@ st7365p_readback(struct picocalc_panel_read *rb)
  * st7365p_scan.h holds the rule that tells a wrap from a misread of the
  * moving counter; rejected counts the samples it set aside.
  */
-#define	CMD_GSCAN		0x45
 #define	SCAN_US			400000	/* Eight frames at 24 Hz with a lead. */
 #define	SCAN_WRAPS		9
 #define	SCAN_LINE_LIMIT		2048	/* Decoded lines at or above are bad. */

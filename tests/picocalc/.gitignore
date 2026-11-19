@@ -11,3 +11,4 @@ uart_test
 picopcm_test
 panel_decode_test
 panel_scan_test
+lcdgfx_ext_test

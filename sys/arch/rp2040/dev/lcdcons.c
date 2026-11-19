@@ -485,7 +485,7 @@ int
 lcdread(dev_t dev, struct uio *uio, int flag)
 {
 	if (minor(dev) == LCDGFX_MINOR)
-		return 0;		/* Write only: end of file. */
+		return lcdgfx_read(uio);
 	return ttread(&lcdttys[0], uio, flag);
 }
 
@@ -675,6 +675,16 @@ lcdcons_gfx(int on)
 		reply_flush();
 	}
 	return 0;
+}
+
+/*
+ * /dev/lcdgfx is open to every user for drawing; the memory it reads back
+ * can hold what the console showed to another, so only the superuser reads.
+ */
+int
+lcdcons_gfx_reader(void)
+{
+	return u.u_uid == 0;
 }
 
 int

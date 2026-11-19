@@ -9,7 +9,8 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-BOARD_PROGS=	divtest exec_hsaout fptest gpioprobe lcdgfxtest romprobe sigtest \
+BOARD_PROGS=	divtest exec_hsaout fptest gpioprobe lcdexttest lcdgfxtest romprobe \
+		sigtest \
 		streamtest \
 		stdio_capacity swapmaptest swapram_evacuate tartest tiledemo \
 		user_window fork_refusal capacity_exhaustion preempt
@@ -26,7 +27,8 @@ build-${program}:
 # PicoCalc's SD root (distrib/rp2040/Makefile.inc, sdroot), which has the
 # space the flash root lacks. The host-side drivers (*.py) stay here.
 BOARD_BINS=	divtest/divtest exec_hsaout/textcrc fptest/fptest \
-		lcdgfxtest/lcdgfxtest romprobe/romprobe sigtest/sigtest \
+		lcdexttest/lcdexttest lcdgfxtest/lcdgfxtest romprobe/romprobe \
+		sigtest/sigtest \
 		streamtest/streamtest stdio_capacity/stdiocap \
 		swapmaptest/swapmaptest swapram_evacuate/evactest \
 		tartest/tartest tiledemo/tiledemo user_window/windowtest \

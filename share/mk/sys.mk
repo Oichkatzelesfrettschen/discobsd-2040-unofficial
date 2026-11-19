@@ -54,19 +54,9 @@ _LIBBSD_LIBS!=	if [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
 			echo "" ; \
 		fi
 
-# The arm toolchain on PATH first (Homebrew on macOS, or any prefix the
-# developer chose), then the path each operating system's package uses.
-GCCPREFIX!=if command -v arm-none-eabi-gcc >/dev/null 2>&1 ; then \
-			echo "$$(command -v arm-none-eabi-gcc | sed 's/-gcc$$//')" ; \
-		elif [ x"${_HOST_OSNAME}" = x"OpenBSD" ] ; then \
-			echo "/usr/local/bin/arm-none-eabi" ; \
-		elif [ x"${_HOST_OSNAME}" = x"FreeBSD" ] ; then \
-			echo "/usr/local/gcc-arm-embedded/bin/arm-none-eabi" ; \
-		elif [ x"${_HOST_OSNAME}" = x"Linux" ] ; then \
-			echo "/usr/bin/arm-none-eabi" ; \
-		else \
-			echo "/does/not/exist" ; \
-	fi
+# The arm toolchain prefix (share/mk/arm-toolchain.mk).
+include ${TOPSRC}/share/mk/arm-toolchain.mk
+GCCPREFIX=	${ARM_TOOLCHAIN_PREFIX}
 
 # RP2040 diagnostics read kernel structures through /dev/kmem and sysctl, so
 # target programs take the fixed-table options of the kernel layout. One root

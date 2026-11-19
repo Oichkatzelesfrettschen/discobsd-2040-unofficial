@@ -32,7 +32,8 @@ VARIANTS = (
      OPTIONAL_DEVICE_OPTIONS + DIAGNOSTIC_OPTIONS + PANEL_OPTIONS),
     ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN", DIAGNOSTIC_OPTIONS, ()),
     ("PICOCALC_SD", "PICOCALC",
-     ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a'),
+     ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a',
+      'options LCD_GFX_EXT'),
      ('ldscript "RP2040.ld"', 'config unix root on fl0a')),
 )
 COMPILE = Path("sys/arch/rp2040/compile")

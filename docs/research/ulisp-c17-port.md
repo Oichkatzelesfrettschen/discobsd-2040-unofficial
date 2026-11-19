@@ -137,6 +137,33 @@ target run found these, in order:
    qemu loader returned zero and hid it; the loader now returns what the
    kernel does and the port asks through `sbrk()`.
 
+9. A review of the port found edge inputs that end the process or are
+   undefined, each held by `tests/ulisp/repairs.lisp` (or `devices.lisp`
+   for the drawing ones) and the sanitizer pass of `tests/ulisp`:
+   `(random 0)` and a negative limit divided by zero (now a Lisp error);
+   `rem` and `mod` of INT_MIN by -1 raised SIGFPE (now 0); `(- INT_MIN)`
+   and printing INT_MIN negated in `int`; array dimensions multiplied
+   before any bound, so `'(65536 32768 2 2 2)` wrapped to an empty array
+   and 1500000000 elements overflowed the power-of-two rounding (now
+   "no room"); `get-key` copied terminal state after a failed query
+   (no observable difference; the copy is now inside the success branch);
+   and drawing geometry summed ints, so `(fill-rect 100 100 2147483647 1 c)`
+   drew nothing (all geometry is now 64-bit and clips; a triangle with a
+   corner beyond 2^24 is not drawn, as a line that long is not walked).
+   Upstream's `random` and `mod` share the first three; upstream's
+   `mod` also returns -1 for `(mod 5 -1)` and -3 for `(mod 6 -3)`, where
+   Common Lisp returns 0; the port keeps that result.
+10. The image loader trusted the saved pointers. `checkimage()` now reads
+   the file before any cell reaches the workspace and refuses a pointer
+   outside the image, a string chain that loops or is shared, a pair or
+   root that points into a string chain, and a code block, stream or
+   builtin symbol outside its table. The `images` corpus loads 27 copies
+   of a real image, each with one pointer or cell damaged by
+   `corrupt-image.py`, and requires each refusal with the workspace
+   unchanged. How valid cells fit together as Lisp data (an array whose
+   tree does not match its dimensions) is not examined; a resulting
+   fault is the SIGSEGV the port turns into a Lisp error.
+
 Item 3 reproduces in the unmodified upstream program built for the host
 (a file ending in a symbol reads back with a tail of 0xff bytes). Items 4
 to 6 are read from the upstream source and were not run there. One
@@ -167,10 +194,10 @@ below the integer; the port's float quotient prints `1.0e-4`.
 
 | Class | What ran |
 | --- | --- |
-| Host, 64-bit and 32-bit | every corpus; six mutants rejected; the image reload under address-space randomization |
+| Host, 64-bit and 32-bit | every corpus; thirteen mutants rejected; the image reload under address-space randomization |
 | Upstream oracle on the host | the `language` corpus, 310 lines, equal byte for byte |
-| Host under ASan and UBSan, and built with clang | every corpus |
-| qemu-arm, linked a.out | `language`, `system`, `repairs`, `stack`, `code`, image reload |
+| Host under ASan and UBSan (`make -C tests/ulisp check`), and built with clang | every corpus, including the damaged images |
+| qemu-arm, linked a.out | `language`, `system`, `images`, `repairs`, `stack`, `code`, image reload |
 | Renode, PICO_UART kernel | `check-renode-ulisp`: 34 stages over UART0, listed in `tools/renode/check-ulisp.py` |
 | Board | nothing |
 

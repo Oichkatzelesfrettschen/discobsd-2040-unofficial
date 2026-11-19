@@ -11,6 +11,7 @@ The owner adopted SemVer. Decision D111 supersedes D87, D91 and D92. Owner's wor
 - D113: `osrelease` (`uname -r`) carries the core version with its pre-release label and no date (D88 kept), for example `0.1.0-alpha`.
 - D114: the build month in artifact and stable-release forms is spelled `+YYYYMM`.
 - D115: tags repeat the core verbatim under the D90 namespace: `gizmobsd-v0.1.0`.
+- The answers of 2026-11-19 (D152 to D159) to the residual decisions narrow the above: they are tabulated under "Residual decisions, answered 2026-11-19", and the specification section marks each clause they withdraw.
 - D88 (the label is in `version[]` and `osrelease`), D89 (owner's words: "ensure 64-bit time is landed but its still Rev A alpha however the styling is for that."; the tree stays in its alpha state until the 64-bit `time_t` change lands, `docs/research/time-representation-past-2038.md`), D90 (the `gizmobsd-v*` namespace; `host-v*` stays the host package) and D94 (banners in gates and fixtures derive from `newvers.sh` after the rename) stand.
 - Superseded: D87 (scheme S3), D91 (the spelling `RevA-alpha`), D92 (the composite letter, fix and date identifier, owner's words: "Rev A.1, A.2 with Date suffix: Rev A 2026.12 so figure this odd RevA.Semver.datever string being conconcted. Decompose to first principles and elucidate modern research!"), and D93 (owner's words: "Year-month probably but really you are working on an interesting string"; replaced by D112).
 
@@ -197,14 +198,14 @@ The 64-bit `time_t` at the user interface is an incompatible user-ABI change (th
 
 ## The adopted scheme: SemVer 0.y.z (D111 to D115)
 
-This section specifies the scheme the owner adopted. The harness is Appendix B (SemVer strings measured next to the letter grammars) and the `KERN_OSREV` generator replay is Appendix C.
+This section specifies the scheme the owner adopted on 2026-11-16. The answers of 2026-11-19 (the table under "Residual decisions, answered 2026-11-19") withdrew parts of it, and each withdrawn clause below is marked "not adopted" or "undecided" where it stands; an unmarked clause is in force. The harness is Appendix B (SemVer strings measured next to the letter grammars) and the `KERN_OSREV` generator replay is Appendix C.
 
 ### Grammar and forms
 
 ```abnf
 ; RFC 5234. SemVer 2.0.0 restricted to the labels this port uses.
 num     = "0" / %x31-39 *DIGIT          ; no leading zero (SemVer item 2)
-stage   = "alpha" / "beta"
+stage   = "alpha" / "beta"              ; D158: no fixed list; the owner names each stage
 core    = num "." num "." num [ "-" stage ]
 month   = 4DIGIT ( "0" %x31-39 / "1" %x30-32 )   ; YYYYMM
 count   = 1*DIGIT                       ; commit count; build metadata allows leading zeros
@@ -213,7 +214,7 @@ version = core [ "+" month [ "." count ] ]
 
 - Core: `MAJOR.MINOR.PATCH` with the optional label. While MAJOR is 0, MINOR increments when the contract list of S1 changes incompatibly against the previous stable release and PATCH increments for compatible fixes. The pre-release vocabulary is `alpha` and `beta` (`-dev` and `-current` are excluded for the ordering reasons of S1).
 - Stable form, `core+YYYYMM` (`0.1.0+202701`): a stable release carries its build month (D111, D114). Item 10 of SemVer: "Build metadata MUST be ignored when determining version precedence."
-- Development form, `core+YYYYMM.count` (`0.1.0-alpha+202611.3000`): a non-final artifact appends the commit count (the number `newvers.sh` already reads with `git rev-list --count HEAD`). Two commits of one month under one `0.1.0-alpha` then differ, and the build identifier stays outside precedence.
+- Development form (not adopted, D157; kept as analysis), `core+YYYYMM.count` (`0.1.0-alpha+202611.3000`): a non-final artifact appends the commit count (the number `newvers.sh` already reads with `git rev-list --count HEAD`). Two commits of one month under one `0.1.0-alpha` then differ, and the build identifier stays outside precedence.
 
 Surfaces, first tree state (the tree remains `0.1.0-alpha` until the 64-bit `time_t` change lands, D89):
 
@@ -221,10 +222,10 @@ Surfaces, first tree state (the tree remains `0.1.0-alpha` until the 64-bit `tim
 | --- | --- | --- |
 | `osrelease[]`, `uname -r` (D113) | core | `0.1.0-alpha` |
 | `version[]` | core, then the existing build counter, commit count and full date | `GizmoBSD 0.1.0-alpha (PICO) #1 3000: <date>` |
-| `KERN_OSREV` (D112) | packed integer | 1000001 |
-| Git tag (D115) | `gizmobsd-v` plus the core | `gizmobsd-v0.1.0-alpha` at the rename (a base for `git describe`), `gizmobsd-v0.1.0` at the first stable release |
-| `/etc/release` | `git describe --match 'gizmobsd-v*' --tags --dirty` | `gizmobsd-v0.1.0-alpha-4-g<hash>`, with `-dirty` appended for local changes |
-| Development artifact names | development form | `gizmobsd-0.1.0-alpha+202611.3000.uf2` |
+| `KERN_OSREV` (D112) | packed integer; the encoding is undecided (D156) and `kern.osrev` keeps its present value until it is | 1000001 under the candidate encoding |
+| Git tag (D115) | `gizmobsd-v` plus the core | `gizmobsd-v0.1.0` at the first stable release; no tag at the rename (D159) |
+| `/etc/release` | `git describe --match 'gizmobsd-v*' --tags --dirty` once a `gizmobsd-v*` tag exists; until then its present source (D159) | `gizmobsd-v0.1.0-4-g<hash>`, with `-dirty` appended for local changes |
+| Development artifact names | no suffix adopted (D157) | -- |
 | Stable artifact names and citations | stable form | `gizmobsd-0.1.0+202701.uf2`, "0.1.0, 2027.01" |
 
 Release cycle: `0.1.0-alpha`, `0.1.0-beta`, `0.1.0`, then the trunk moves to `0.1.1-alpha`, and a change to the contract list moves it to `0.2.0-alpha`. The packed integers of this chain increase in that order (below).
@@ -233,7 +234,7 @@ Release cycle: `0.1.0-alpha`, `0.1.0-beta`, `0.1.0`, then the trunk moves to `0.
 
 1. Contract baseline. The contract list is compared against the previous stable release. Alpha and beta states promise nothing: SemVer item 9 reads "A pre-release version indicates that the version is unstable and might not satisfy the intended compatibility requirements as denoted by its associated normal version." The first stable release `0.1.0` has no predecessor, so the 64-bit `time_t` interface change of D89 lands inside the pre-release states and is part of `0.1.0` without moving MINOR. After `0.1.0` an incompatible change moves MINOR.
 2. 1.0.0 is not cut before the 64-bit `time_t` change has landed (D111, D89) and the criterion of S1 holds: the contract list has not changed incompatibly across two consecutive stable releases and the host-link wire is documented.
-3. Canonical epoch. The build month is the UTC month of the `SOURCE_DATE_EPOCH` in effect, not the wall clock. `newvers.sh` uses the committer date of HEAD when the variable is unset, and a caller can set it to anything, so the month is a function of the commit and the epoch. A stable release is built with the committer date of its tagged commit as the epoch, from an annotated tag whose message records the epoch; a caller-supplied epoch for a stable artifact is a defect of the release process (residual decision R3).
+3. Canonical epoch (not adopted for stable releases, D154: the month of a stable release is the month of its release day by wall clock; the rule below is kept as analysis). The build month is the UTC month of the `SOURCE_DATE_EPOCH` in effect, not the wall clock. `newvers.sh` uses the committer date of HEAD when the variable is unset, and a caller can set it to anything, so the month is a function of the commit and the epoch. A stable release is built with the committer date of its tagged commit as the epoch, from an annotated tag whose message records the epoch; a caller-supplied epoch for a stable artifact is a defect of the release process (residual decision R3).
 4. One artifact set. A published stable release identifies one artifact set; a rebuild that changes content takes the next PATCH. Development artifacts are identified by the development form, so the month alone never has to separate two builds.
 5. Minimum-release check. A consumer that requires a minimum release compares the full precedence, stage included: `0.1.1-alpha` does not satisfy a minimum of `0.1.1`, and a pre-release is accepted only when the consumer names it or sets an explicit opt-in. The packed integer carries the same order (`KERN_OSREV >= 1000019` is "at least 0.1.1"; `0.1.1-alpha` is 1000011). No host tool performs such a check today (the `sramdump` identity check compares `version[]` bytes).
 
@@ -269,6 +270,8 @@ Mapping to package ecosystems, for `0.2.3-beta+202712.3500`:
 git describe, measured in a scratch repository with the options `Makefile:2236` passes (`--dirty --tags`) plus `--match 'gizmobsd-v*'`: at the tag commit it prints `gizmobsd-v0.1.0-alpha`; one commit later `gizmobsd-v0.1.0-alpha-1-g<hash>` (the hash varies with the scratch repository's commit time); with a modified file `-dirty` follows. The pattern `^(.+)-([0-9]+)-g([0-9a-f]+)(-dirty)?$` recovers the tag, the count, the hash and the dirty marker.
 
 ### KERN_OSREV
+
+The encoding below is a candidate: D156 leaves the field widths undecided until a study of the packed integer, and D158 leaves the stage list open, so nothing here is implemented at the rename.
 
 D112 asks for a packed integer that follows the version source and fails the build when it cannot.
 
@@ -574,7 +577,7 @@ Not run: kernel build and linked-kernel text size (remote build host), Renode st
 2. Label placement: the core version with its label, no date, in `version[]` and `osrelease` (D88, D113).
 3. Build month: `+YYYYMM` on artifact names and stable releases (D111, D114). The commit count the specification adds for development artifacts is not adopted (D157).
 4. Tags: `gizmobsd-v` plus the core verbatim (D90, D115).
-5. `KERN_OSREV`: a packed integer generated from the single version source with a compile-time hard error (D112); the encoding, bounds, generation mechanism and mutants are specified above and replayed in Appendix C.
+5. `KERN_OSREV`: a packed integer generated from the single version source with a compile-time hard error (D112); the encoding, bounds, generation mechanism and mutants above and in Appendix C are a candidate until the study D156 asks for.
 6. Banners in gates and fixtures read `newvers.sh` after the rename (D94).
 
 The questions of the first analysis about the scheme, the label, the tag namespace, the banner literals and the `KERN_OSREV` value are answered by these decisions and no longer stand open.

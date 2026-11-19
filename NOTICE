@@ -433,6 +433,43 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
+19. David Johnson-Davies (the uLisp interpreter, /usr/bin/ulisp, and its
+    documentation file /usr/share/ulisp/ulisp.doc)
+    License: MIT
+
+usr.bin/ulisp/ulisp.c and usr.bin/ulisp/builtins.def derive from
+ulisp-picocalc.ino, uLisp PicoCalc Release 4.8f, of
+https://github.com/technoblogy/ulisp-picocalc at commit
+c031b63c00b1e55ef64e556fd3372e38ed0ab062 (SHA-256
+65608bb7d6a48dc02dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b). The
+source carries this notice and names the MIT license:
+
+uLisp PicoCalc Release 4.8f - www.ulisp.com
+David Johnson-Davies - www.technoblogy.com - 14th October 2025
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+No flash profile ships the program by default; the PicoCalc's SD root
+and a flash root built with PROFILE=lisp or IMAGE_WITH=ulisp carry it.
+
+------------------------------------------------------------------------
 Appendix. Build and test dependencies, which no image contains
 
 The sections above cover everything a redistributed image carries. The

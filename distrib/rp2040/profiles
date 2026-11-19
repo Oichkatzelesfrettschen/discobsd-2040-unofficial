@@ -218,6 +218,12 @@ profile full coremark toolchain toolchainlib games puzzles
 profile picocalc coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop psramtmp
 profile picocalc-lean coremark toolchain toolchainlib games puzzles calc-bignum calc sdcard picofetch picotop psramtmp
 
+# The uLisp interpreter is opt-in on flash (PROFILE=lisp or IMAGE_WITH=ulisp); the SD root
+# has it with the rest of the install tree. Its graphics functions report
+# an error on a kernel without the pixel device, so it needs no node.
+closure ulisp needs path /usr/bin/ulisp /usr/share/ulisp/ulisp.doc
+profile lisp sdcard lcdgfx ulisp
+
 # Opt-in desktop; the MATE artwork is supplied on external storage.
 closure matezinho needs closure lcdgfx sdcard
 closure matezinho needs path /usr/bin/matezinho /dev/lcdgfx /dev/rsd0

@@ -133,6 +133,7 @@ Grouped by what they investigate.
 | `calculator-and-games-review-round2.md` | adjudication of the second Codex and Grok reviews of the same branch: 28 merged findings with verdicts and probes, 17 defects both missed, and the commit that resolves each |
 | `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
 | `time-representation-past-2038.md` | the four-byte `time_t` and its 2038 limit: each claim of a widening proposal checked against the tree, the measured cost of a closed-form calendar in each direction, a 64-bit day split built from 32-bit divisions, the `timegm()` range defect and its repair, and the open choice of interface width |
+| `ulisp-c17-port.md` | the PicoCalc's uLisp as a DiscoBSD program: the candidate blockers and their measured outcome, the linked size and workspace, the mechanisms the port adds (stackless collector, bounded recursion, relocatable images, external documentation), the upstream defects the comparison found, and what no board has yet measured |
 
 ### USB console
 

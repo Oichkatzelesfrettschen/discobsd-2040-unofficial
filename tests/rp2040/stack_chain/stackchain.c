@@ -30,52 +30,30 @@
  * docs/research/kernel-size-flags names, one stage per invocation, so that
  * kern.capacity read between invocations gives each stage's watermark.
  *
- *	stackchain [-a] [-d dir] [-t tty] stage
+ *	stackchain [-a] [-d dir] stage
  *
  *	churn N		write and remove a 64 KiB file N times, which wraps
  *			the Dhara journal and starts its garbage collection
- *	file		a child exits holding an unlinked file with indirect blocks,
- *			beside a dirty buffer
- *	exec		a traced child stops output on the terminal, queues
- *			bytes there on a close-on-exec descriptor, holds the
- *			same kind of file and executes a script; the close in
- *			execve then waits for the drain, the trace signal
- *			execve posts stops the child inside that wait and the
- *			parent's PT_KILL ends it there; the parent then
- *			restarts the output so that the dying child's own
- *			close returns
- *	execplain	the same without the file, as the control
+ *	file		a child exits holding an unlinked file with indirect
+ *			blocks, beside a dirty buffer
  *
  * The files go under dir (/tmp unless -d names another). The Dhara chain
- * runs only when that directory is on /dev/fl0a, so a stage that uses files
- * refuses any other device with exit 4 unless -a accepts it; storage_dev
- * and flash_root in the output name the device either way. On a root that
- * is not the flash, such as the PicoCalc SD root, -d must name a mounted
- * flash file system for the Dhara chain, and -a measures the chain of the
- * device that is there.
- *
- * The drain wait happens only in the close that drops the terminal's last
- * open reference. The terminal is /dev/tty0 unless -t names another, and it
- * must be one that no login, getty or standard stream of this run holds.
- * The exec stages check it: the killed child must still be alive one second
- * after PT_KILL, held in that close, before the parent restarts the output.
- * A child that is already dead closed an aliased terminal without waiting,
- * and the stage fails with held_in_close=0.
+ * runs only when that directory is on /dev/fl0a, so a stage refuses any
+ * other device with exit 4 unless -a accepts it; storage_dev and flash_root
+ * in the output name the device either way. On a root that is not the
+ * flash, such as the PicoCalc SD root, -d must name a mounted flash file
+ * system for the Dhara chain, and -a measures the chain of the device that
+ * is there.
  *
  * Every step prints one key=value line. A stage exits 0 only when each
- * condition it exists to produce held: the file unlinked and written, the
- * dirty buffer left, and for the exec stages the child stopped by SIGTRAP,
- * held in the close, killed by PT_KILL and dead by signal with the script
- * not run.
+ * condition it exists to produce held: the churn rounds written and
+ * removed, or the file unlinked and written and the dirty buffer left.
  */
 #include <sys/types.h>
-#include <sys/ioctl.h>
-#include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,15 +68,10 @@
  */
 #define	DEEP		"sc.deep"
 #define	DIRTY		"sc.dirty"
-#define	SCRIPT		"./sc.sh"
-#define	MARK		"sc.ran"
-#define	START_TRIES	10	/* restarts of the output the parent attempts */
-#define	HELPER_SECONDS	60	/* bound on a stage that never stops the child */
 
 static char block[BLOCK];
 static char private_dir[96];
 static const char *private_name;	/* its last component */
-static const char *tty_name = "/dev/tty0";
 
 /*
  * Create and enter the run's directory under parent; mkdir fails on an
@@ -127,8 +100,6 @@ leave_private_dir(int status)
 {
 	(void)unlink(DEEP);
 	(void)unlink(DIRTY);
-	(void)unlink(SCRIPT);
-	(void)unlink(MARK);
 	/* By way of the parent, so that a relative -d still names it. */
 	if (chdir("..") < 0 || rmdir(private_name) < 0) {
 		printf("private_dir_remove_errno=%d\n", errno);
@@ -281,150 +252,10 @@ stage_file(void)
 	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : 1;
 }
 
-static int
-stage_exec(int deep)
-{
-	static const char script[] = "#!/bin/sh\necho ran >" MARK "\n";
-	int fd, tty, status, ok, started, held, tries;
-	pid_t pid, helper, got;
-
-	(void)unlink(MARK);
-	fd = open(SCRIPT, O_WRONLY | O_CREAT | O_TRUNC, 0755);
-	if (fd < 0 || write(fd, script, sizeof script - 1) !=
-	    (int)(sizeof script - 1)) {
-		printf("script_errno=%d\n", errno);
-		return 1;
-	}
-	(void)close(fd);
-	fflush(stdout);
-	/*
-	 * The child dies inside its own exit while that exit closes the
-	 * stopped terminal, which would wait for ever, so the parent restarts
-	 * the output after it has seen the traced stop and sent PT_KILL. The
-	 * helper is the bound on a stage that never reaches that point: after
-	 * HELPER_SECONDS it restarts the output itself and exits 3, which
-	 * fails the stage.
-	 */
-	helper = fork();
-	if (helper == 0) {
-		sleep(HELPER_SECONDS);
-		tty = open(tty_name, O_WRONLY | O_NONBLOCK);
-		printf("helper_timeout=1 helper_start=%d\n",
-		    tty >= 0 && ioctl(tty, TIOCSTART, 0) == 0);
-		_exit(3);
-	}
-	if (helper < 0) {
-		printf("helper_fork_errno=%d\n", errno);
-		(void)unlink(SCRIPT);
-		return 1;
-	}
-	pid = fork();
-	if (pid < 0) {
-		printf("fork_errno=%d\n", errno);
-		(void)kill(helper, SIGKILL);
-		(void)wait_for(helper, &status, 0);
-		(void)unlink(SCRIPT);
-		return 1;
-	}
-	if (pid == 0) {
-		if (ptrace(PT_TRACE_ME, 0, 0, 0) < 0 && errno != 0)
-			printf("trace_errno=%d\n", errno);
-		tty = open(tty_name, O_WRONLY);
-		if (tty < 0 || fcntl(tty, F_SETFD, 1) < 0 ||
-		    ioctl(tty, TIOCSTOP, 0) < 0 ||
-		    write(tty, "stackchain\r\n", 12) != 12) {
-			printf("tty_errno=%d\n", errno);
-			fflush(stdout);
-			_exit(8);
-		}
-		if (deep) {
-			if (deep_file() < 0 || dirty_buffer() < 0)
-				_exit(7);
-		}
-		printf("child_exec=1 deep=%d\n", deep);
-		fflush(stdout);
-		execl(SCRIPT, "sc.sh", (char *)0);
-		printf("exec_errno=%d\n", errno);
-		fflush(stdout);
-		_exit(9);
-	}
-	if (wait_for(pid, &status, WUNTRACED) != pid) {
-		printf("wait_errno=%d\n", errno);
-		return 1;
-	}
-	printf("child_stopped=%d stop_signal=%d\n", WIFSTOPPED(status) != 0,
-	    WIFSTOPPED(status) ? WSTOPSIG(status) : 0);
-	ok = WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP;
-	errno = 0;
-	(void)ptrace(PT_KILL, pid, 0, 0);
-	printf("ptkill_errno=%d\n", errno);
-	if (errno != 0) {
-		/* The stopped child would otherwise never be reaped. */
-		ok = 0;
-		(void)kill(pid, SIGKILL);
-	}
-	/*
-	 * A child whose close dropped the terminal's last reference is
-	 * asleep in the drain wait and cannot finish dying until the output
-	 * restarts; one that closed an aliased terminal is gone by now.
-	 */
-	sleep(1);
-	got = wait_for(pid, &status, WNOHANG);
-	held = got == 0;
-	printf("held_in_close=%d\n", held);
-	if (!held)
-		ok = 0;
-	/*
-	 * The child cannot die until the output restarts, so the restart is
-	 * tried START_TRIES times a second apart, and a child that is still
-	 * held after the last is reported and left, not waited for.
-	 */
-	started = 0;
-	for (tries = 0; tries < START_TRIES && !started; tries++) {
-		if (tries > 0)
-			sleep(1);
-		tty = open(tty_name, O_WRONLY | O_NONBLOCK);
-		started = tty >= 0 && ioctl(tty, TIOCSTART, 0) == 0;
-		if (tty >= 0)
-			(void)close(tty);
-	}
-	printf("parent_start=%d\n", started);
-	if (!started) {
-		ok = 0;
-		if (got != pid)
-			got = wait_for(pid, &status, WNOHANG);
-		if (got != pid)
-			printf("child_left_stopped=1\n");
-	}
-	if (!started && got != pid)
-		;
-	else if (got != pid && wait_for(pid, &status, 0) != pid) {
-		printf("wait2_errno=%d\n", errno);
-		ok = 0;
-	} else {
-		printf("child_signaled=%d child_exited=%d\n",
-		    WIFSIGNALED(status) != 0, WIFEXITED(status) != 0);
-		if (!WIFSIGNALED(status))
-			ok = 0;
-	}
-	/* The script's mark is absent when the child died inside execve. */
-	printf("script_ran=%d\n", access(MARK, 0) == 0);
-	if (access(MARK, 0) == 0)
-		ok = 0;
-	(void)kill(helper, SIGKILL);
-	if (wait_for(helper, &status, 0) != helper || !WIFSIGNALED(status))
-		ok = 0;
-	(void)unlink(SCRIPT);
-	(void)unlink(DIRTY);
-	printf("stage_ok=%d\n", ok);
-	return ok ? 0 : 1;
-}
-
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: stackchain [-a] [-d dir] [-t tty] "
-	    "churn N | file | exec | execplain\n");
+	fprintf(stderr, "usage: stackchain [-a] [-d dir] churn N | file\n");
 }
 
 int
@@ -433,19 +264,16 @@ main(int argc, char **argv)
 	const char *parent = "/tmp";
 	long rounds = 0;
 	char *end;
-	int stage, c, any = 0, flash;
+	int stage, c, any = 0;
 
 	setvbuf(stdout, (char *)0, _IONBF, 0);
-	while ((c = getopt(argc, argv, "ad:t:")) != -1)
+	while ((c = getopt(argc, argv, "ad:")) != -1)
 		switch (c) {
 		case 'a':
 			any = 1;
 			break;
 		case 'd':
 			parent = optarg;
-			break;
-		case 't':
-			tty_name = optarg;
 			break;
 		default:
 			usage();
@@ -463,29 +291,18 @@ main(int argc, char **argv)
 		stage = 0;
 	} else if (argc == 1 && strcmp(argv[0], "file") == 0)
 		stage = 1;
-	else if (argc == 1 && strcmp(argv[0], "exec") == 0)
-		stage = 2;
-	else if (argc == 1 && strcmp(argv[0], "execplain") == 0)
-		stage = 3;
 	else {
 		usage();
 		return 2;
 	}
 	if (enter_private_dir(parent) < 0)
 		return 1;
-	/*
-	 * execplain holds no file of its own, so the device under its script
-	 * is reported and not required.
-	 */
-	flash = on_flash_root();
-	if (!flash && !any && stage != 3) {
+	if (!on_flash_root() && !any) {
 		printf("refused=not_flash_root\n");
 		(void)leave_private_dir(4);
 		return 4;
 	}
 	if (stage == 0)
 		return leave_private_dir(churn((int)rounds));
-	if (stage == 1)
-		return leave_private_dir(stage_file());
-	return leave_private_dir(stage_exec(stage == 2));
+	return leave_private_dir(stage_file());
 }

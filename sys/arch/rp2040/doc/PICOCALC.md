@@ -220,9 +220,12 @@ caps the clock at 15.1 MHz; the vendor drivers request 25 MHz and get
 D/C changes only after the PL022 reports idle.
 
 The console's pixels are RGB565, two bytes (COLMOD 55h, page 96): a glyph
-is 120 bytes where RGB666 took 180. The controller widens sixteen bits to
-its eighteen-bit memory as EM (B7h) EPF directs (page 228), and
-`/dev/lcdgfx` still opens in RGB666 (66h).
+is 120 bytes where RGB666 took 180. The controller's memory is eighteen
+bits a pixel, and on the measured board a sixteen-bit pixel is stored with
+the low bit of red and blue clear, so sixteen-bit white is 62, 63, 62 of
+63. EM (B7h) EPF selects that widening on paper (page 228); the EPF 11 the
+initialization writes did not change it (results below). `/dev/lcdgfx`
+still opens in RGB666 (66h).
 
 Predictions for the mode 3 format and the RGB565 console, recorded before
 their board run (the baseline is the run of 2026-11-18 on main bff303aa:
@@ -298,6 +301,30 @@ started by the loader from the card:
 - SPI Read Control on a readable register: D3h through FBh 10h, 11h and
   12h returns `00`, `00` and `77`, its parameters by number, so the
   zeros the Command Table 2 registers return through FBh are their answer.
+
+Board results, 2026-11-19, kernel PICOCALC_SD #1 4401 (main ab9ac8e7a),
+whose memory read decodes by format:
+
+- White under 55h (prediction 4 of the first list): `f8 fc f8`. Pixels
+  FFFFh, 0821h, 8410h and F7DEh written under 55h read under 66h as
+  `f8 fc f8`, `08 04 08`, `80 80 80` and `f0 f8 f0`: the low bit of
+  red and blue is clear in each. The reply is the same on a fresh boot
+  before any paneltest run and under paneltest sets 0, 2 and 3, so the
+  CSCON unlock does not change it. EPF 00, 01 and 10 were not written, so
+  whether EPF acts at all on this part is open; EM read through FBh 10h
+  returns `00`.
+- Read framing under 55h: `cc | f8 00 | 07 e0 | 00 1f | ff ff | 00 00 |
+  84 10`, an 8-bit lead and two bytes a pixel, decoded as such.
+- Read-back: 0 of 153,600 pixels differ under 66h (341 ms to write,
+  1,797 ms to read) and under 55h (242 ms, 1,321 ms). The sprite compares
+  0 of 256.
+- Sleep keeps the memory (prediction 3 of the second list): 0 of 320
+  pixels of line 200 differ after SLPIN and SLPOUT.
+- Scan-line wait: 100 of 100 inside their span; 240 scroll steps, each
+  with a scan line.
+- Dithering probe: as on the earlier kernel, 80h without MODESEL against
+  80h and 84h alternating with it (the 66h read of the six-bit levels
+  20h and 21h).
 
 The panel shows 320 of the controller's 480 lines. VSCRDEF sets a top
 fixed area of 0, a scroll area of 320 and a bottom fixed area of 160,

@@ -290,6 +290,7 @@ Grouped by what they investigate.
 | `dpucp-2024-donor-ledger.json` | pinned BSD donor mechanisms, licenses, invariants, dependency closures, C17 rewrites, promotion state, size evidence and deciding gates |
 | `bsd-donor-inventory.json` | all 20 BSD checkout observations, authoritative development refs, retained fetch attempts and unresolved immediate-source identities |
 | `posix-archive-donor-frontier.md`, `posix-archive-donor-frontier.json` | 13 additional archive roots, 23 content-identified investigations, per-file permission boundaries, reusable invariants, conflicts and deciding experiments |
+| `tty-console-driver-survey.md` | The port's sgtty terminal layer as it stands, a per-feature cost table for termios, VMIN/VTIME, sessions and PTYs, virtual consoles over the existing lcdterm split, the PicoCalc bus and light drivers against the vendor register set, device nodes that would give programs ADC, PWM, I2C and SPI, driver and software inventories, donor licenses and an eight-stage order |
 | `coherent-donor-review.md` | pinned Coherent sources, libc/archive/FILE/regex mechanisms, exec/fork/ABI ownership, C17 conflicts and deciding experiments |
 | `quick-exit-contracts.md` | independent quick-exit registry, live-head callback ordering, allocation failure and target/native qualification boundaries |
 | `callback-allocation-accounting.md` | calibrated ILP32 callback-node extents, cold heap commitment, allocator alignment and storage-policy limits |

@@ -463,8 +463,8 @@ it as commit `106bc64` with its `PATCHES.md` row and the patch-text hash
 above (donor main `0fe7003`). Five files took a hand resolution, each stated
 in that commit; in `lib/libc/stdio/findfp.c` the patch makes the `_fwalk`
 correction the donor already carried, so the donor matches upstream there
-again. `tools/analysis/bsd211_patch_scope.py` run against that donor at
-`23ae068cb` reports, in the record whose `commit` is `106bc64`, 2,488 paths
+again. `tools/analysis/bsd211_patch_scope.py` run with that donor main as the donor
+revision and `23ae068cb` of this tree as the recipient reports, in the record whose `commit` is `106bc64`, 2,488 paths
 touched by the patch, 391 of them present in this tree (173 under `games`,
 120 `usr.bin`, 34 `bin`, 23 `lib`, 17 `usr.sbin`, 9 `sbin`, 8 `etc`, 4
 `share`, 2 `libexec`, 1 `sys`): 154 textually closer to the pre-patch file,

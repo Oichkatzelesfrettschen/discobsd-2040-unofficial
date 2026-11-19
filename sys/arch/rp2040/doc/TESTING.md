@@ -1928,14 +1928,17 @@ fail a write: when the inode write or the write of a kept indirect block
 fails, the truncation reports the error and frees nothing, the device keeps
 what it held, and after a failed inode write the inode in core stays
 shortened and dirty, so the blocks stay allocated for fsck and none comes
-under two owners. Seven mutants of `itrunc_order_mutate.py` are rejected
+under two owners; after a failed write of a kept indirect block a delayed
+copy of the cleared block stays in the cache, so a file that grows again
+maps none of the entries past its end. Eight mutants of `itrunc_order_mutate.py` are rejected
 through the gate's own verdict: `inode-after-frees` restores the source as
 it stood before the change, `flags-not-marked` and `inode-write-delayed`
 each leave no synchronous inode write ahead of the frees,
 `second-write-kept` repeats the inode write after the frees,
 `write-error-ignored` and `indirect-error-ignored` free blocks after a
-failed write, and `indirect-write-async` writes a kept indirect block
-behind the frees.
+failed write, `indirect-write-async` writes a kept indirect block behind
+the frees, and `indirect-not-requeued` leaves no cleared copy after the
+failed write.
 `check-itrunc-order-mutants` runs them.
 
 The fifth file, `sys/kern/subr_prf.c`, uses the compiler's variadic argument

@@ -534,6 +534,22 @@ indirtrunc(struct inode *ip, daddr_t bn, daddr_t lastbn, int level, int aflags)
             int error = bwrite(bp);
 
             if (error && lastbn >= 0) {
+                /*
+                 * The device still names the entries.  A delayed copy of
+                 * the cleared block stays in the cache for the next sync
+                 * to write, so a later growth of the file maps none of
+                 * them; they stay allocated until that write or fsck.
+                 */
+                bp = bread(INODE_DEVICE(ip), FSBTODB(INODE_FILESYSTEM(ip), bn));
+                if (bp->b_flags & B_ERROR)
+                    brelse(bp);
+                else {
+                    bap = (daddr_t*) FSBADDR(INODE_FILESYSTEM(ip), bp, bn);
+                    bzero((caddr_t)&bap[last + 1],
+                        (u_int)(FS_NINDIR(INODE_FILESYSTEM(ip)) - (last + 1)) *
+                        sizeof(daddr_t));
+                    bdwrite(bp);
+                }
                 u.u_error = error;
                 brelse(cpy);
                 return;

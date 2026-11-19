@@ -445,6 +445,22 @@ run_failed_indirect_write(void)
 	HK_CHECK(fail_write == 0);
 	on_disk = (daddr_t *)disk[blocks_of_file[NDADDR]];
 	HK_CHECK(on_disk[0] != 0 && on_disk[1] != 0 && on_disk[2] != 0);
+	/*
+	 * The cache holds the cleared block as a delayed write, so a file
+	 * that grows again maps none of the entries past its end.
+	 */
+	{
+		daddr_t *cached = (daddr_t *)cache[blocks_of_file[NDADDR]];
+		unsigned i, requeued = 0;
+
+		HK_CHECK(cached[0] == on_disk[0] && cached[1] == 0 &&
+		    cached[2] == 0);
+		for (i = 0; i < nevents; i++)
+			if (events[i].kind == EV_WRITE_DELAYED &&
+			    events[i].blkno == blocks_of_file[NDADDR])
+				requeued = 1;
+		HK_CHECK(requeued);
+	}
 	u.u_error = 0;
 }
 

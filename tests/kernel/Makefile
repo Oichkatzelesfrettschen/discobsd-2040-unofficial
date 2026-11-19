@@ -2008,7 +2008,8 @@ ITRUNC_ORDER_CFLAGS=	-ffunction-sections -fdata-sections
 ITRUNC_ORDER_LDFLAGS=	-Wl,--gc-sections
 ITRUNC_ORDER_MUTANTS=	inode-after-frees flags-not-marked inode-write-delayed \
 			second-write-kept write-error-ignored \
-			indirect-write-async indirect-error-ignored
+			indirect-write-async indirect-error-ignored \
+			indirect-not-requeued
 
 itrunc_order_test: itrunc_order_test.c ${ITRUNC_ORDER_SRC} hostkern32.o \
     hostkern.h ${MACHINE_STAMP}

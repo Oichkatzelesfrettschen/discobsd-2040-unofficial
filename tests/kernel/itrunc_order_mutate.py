@@ -89,6 +89,11 @@ MUTATIONS = {
         INDIRECT_CHECK,
         "            if (0 && error) {\n",
     ),
+    # A failed write of a kept indirect block leaves no cleared copy.
+    "indirect-not-requeued": (
+        "                    bdwrite(bp);\n                }\n",
+        "                    brelse(bp);\n                }\n",
+    ),
     # The final update repeats the write the early one made.
     "second-write-kept": (
         RETURN,

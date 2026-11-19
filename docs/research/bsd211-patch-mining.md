@@ -460,12 +460,19 @@ note and is not asked again here. Decisions already answered are not repeated: D
 454), the clean flag (import after measuring) and import timing (after the
 rename). The following remain, one each.
 
-1. **Patch 500 in the donor repository.** Options: (a) add one donor commit with
-   a `PATCHES.md` row and the patch-text hash (recommended: the scope mapper and
-   the witness then reach patch 500, and the post-patch tree this note rebuilt in
-   scratch becomes reproducible); (b) keep the text as a hashed input that
-   notes cite (no donor change, but every future study re-extracts it); (c) skip
-   (the mapper keeps reporting patch 499 as the last patch).
+1. **Patch 500 in the donor repository.** Settled as option (a): the donor
+   carries patch 500 as commit `106bc64` with its `PATCHES.md` row and the
+   patch-text hash above (donor main `0fe7003`). Five files took a hand
+   resolution, each stated in that commit; in `lib/libc/stdio/findfp.c`
+   the patch makes the `_fwalk` correction the donor already carried, so
+   the donor matches upstream there again. Run against that donor at
+   `23ae068cb`, `tools/analysis/bsd211_patch_scope.py` reports 2,488
+   paths touched by the patch, 391 of them present in this tree (173 under
+   `games`, 120 `usr.bin`, 34 `bin`, 23 `lib`, 17 `usr.sbin`, 9
+   `sbin`, 8 `etc`, 4 `share`, 2 `libexec`, 1 `sys`): 154 textually
+   closer to the pre-patch file, 81 closer to the post-patch file, 132
+   equidistant and 24 uncompared. The relation is textual and decides no
+   import; the slices of this note stand as written.
 2. **Which side keeps its sysctl numbers.** Options: (a) this tree keeps its
    numbers and an import takes the next free identifiers (recommended: programs
    built against the current headers keep working, the contract list is not

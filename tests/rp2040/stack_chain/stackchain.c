@@ -42,12 +42,15 @@
  *				execve then waits for the drain, the trace
  *				signal execve posts stops the child inside
  *				that wait and the parent's PT_KILL ends it
- *				there; a helper restarts the output later so
+ *				there; the parent then restarts the output so
  *				that the dying child's own close returns
  *
  *	stackchain execplain	the same without the file, as the control
  *
- * Every step prints one key=value line.
+ * Every step prints one key=value line. A stage exits 0 only when each
+ * condition it exists to produce held: the file unlinked and written, the
+ * dirty buffer left, and for the exec stages the child stopped by SIGTRAP,
+ * killed by PT_KILL and dead by signal with the script not run.
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -69,6 +72,7 @@
 #define	DIRTY		"/tmp/sc.dirty"
 #define	SCRIPT		"/tmp/sc.sh"
 #define	MARK		"/tmp/sc.ran"
+#define	HELPER_SECONDS	60	/* bound on a stage that never stops the child */
 
 static char block[BLOCK];
 
@@ -93,7 +97,11 @@ deep_file(void)
 			printf("deep_open_errno=%d\n", errno);
 			return -1;
 		}
-		(void)unlink(DEEP);
+		if (unlink(DEEP) < 0) {
+			printf("deep_unlink_errno=%d\n", errno);
+			(void)close(fd);
+			return -1;
+		}
 		if (lseek(fd, (off_t)first[i], SEEK_SET) == (off_t)first[i] &&
 		    write(fd, block, sizeof block) == (int)sizeof block) {
 			printf("deep_levels=%d\n", 3 - i);
@@ -105,16 +113,21 @@ deep_file(void)
 	return -1;
 }
 
-/* Leave a delayed-write buffer for the next buffer claim to flush. */
-static void
+/*
+ * Leave a delayed-write buffer for the next buffer claim to flush; -1 when
+ * the write that makes it failed.
+ */
+static int
 dirty_buffer(void)
 {
 	int fd = open(DIRTY, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	int ok = fd >= 0 && write(fd, block, sizeof block) == (int)sizeof block;
 
-	if (fd < 0 || write(fd, block, sizeof block) != (int)sizeof block)
+	if (!ok)
 		printf("dirty_errno=%d\n", errno);
 	if (fd >= 0)
 		(void)close(fd);
+	return ok ? 0 : -1;
 }
 
 static int
@@ -148,7 +161,8 @@ stage_file(void)
 {
 	if (deep_file() < 0)
 		return 1;
-	dirty_buffer();
+	if (dirty_buffer() < 0)
+		return 1;
 	printf("file_exit=1\n");
 	fflush(stdout);
 	_exit(0);
@@ -158,7 +172,7 @@ static int
 stage_exec(int deep)
 {
 	static const char script[] = "#!/bin/sh\necho ran >" MARK "\n";
-	int fd, tty, status;
+	int fd, tty, status, ok, started;
 	pid_t pid, helper;
 
 	(void)unlink(MARK);
@@ -172,16 +186,19 @@ stage_exec(int deep)
 	fflush(stdout);
 	/*
 	 * The child dies inside its own exit while that exit closes the
-	 * stopped terminal, which would wait for ever: a helper restarts the
-	 * output once the child has had time to be stopped and killed.
+	 * stopped terminal, which would wait for ever, so the parent restarts
+	 * the output after it has seen the traced stop and sent PT_KILL. The
+	 * helper is the bound on a stage that never reaches that point: after
+	 * HELPER_SECONDS it restarts the output itself and exits 3, which
+	 * fails the stage.
 	 */
 	helper = fork();
 	if (helper == 0) {
-		sleep(8);
+		sleep(HELPER_SECONDS);
 		tty = open("/dev/tty0", O_WRONLY | O_NONBLOCK);
-		printf("helper_start=%d\n",
+		printf("helper_timeout=1 helper_start=%d\n",
 		    tty >= 0 && ioctl(tty, TIOCSTART, 0) == 0);
-		_exit(0);
+		_exit(3);
 	}
 	pid = fork();
 	if (pid < 0) {
@@ -200,9 +217,8 @@ stage_exec(int deep)
 			_exit(8);
 		}
 		if (deep) {
-			if (deep_file() < 0)
+			if (deep_file() < 0 || dirty_buffer() < 0)
 				_exit(7);
-			dirty_buffer();
 		}
 		printf("child_exec=1 deep=%d\n", deep);
 		fflush(stdout);
@@ -217,21 +233,42 @@ stage_exec(int deep)
 	}
 	printf("child_stopped=%d stop_signal=%d\n", WIFSTOPPED(status) != 0,
 	    WIFSTOPPED(status) ? WSTOPSIG(status) : 0);
+	ok = WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP;
 	errno = 0;
 	(void)ptrace(PT_KILL, pid, 0, 0);
 	printf("ptkill_errno=%d\n", errno);
-	if (waitpid(pid, &status, 0) != pid)
+	if (errno != 0)
+		ok = 0;
+	tty = open("/dev/tty0", O_WRONLY | O_NONBLOCK);
+	started = tty >= 0 && ioctl(tty, TIOCSTART, 0) == 0;
+	printf("parent_start=%d\n", started);
+	if (tty >= 0)
+		(void)close(tty);
+	if (!started)
+		ok = 0;
+	if (waitpid(pid, &status, 0) != pid) {
 		printf("wait2_errno=%d\n", errno);
-	else
+		ok = 0;
+	} else {
 		printf("child_signaled=%d child_exited=%d\n",
 		    WIFSIGNALED(status) != 0, WIFEXITED(status) != 0);
+		if (!WIFSIGNALED(status))
+			ok = 0;
+	}
 	/* The script's mark is absent when the child died inside execve. */
 	printf("script_ran=%d\n", access(MARK, 0) == 0);
-	if (helper > 0)
-		(void)waitpid(helper, &status, 0);
+	if (access(MARK, 0) == 0)
+		ok = 0;
+	if (helper > 0) {
+		(void)kill(helper, SIGKILL);
+		if (waitpid(helper, &status, 0) != helper || !WIFSIGNALED(status))
+			ok = 0;
+	} else
+		ok = 0;
 	(void)unlink(SCRIPT);
 	(void)unlink(DIRTY);
-	return 0;
+	printf("stage_ok=%d\n", ok);
+	return ok ? 0 : 1;
 }
 
 int

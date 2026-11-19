@@ -1,0 +1,86 @@
+.Dd November 19, 2026
+.Dt SCRSHOT 1
+.Os
+.Sh NAME
+.Nm scrshot
+.Nd save the PicoCalc panel to an image file
+.Sh SYNOPSIS
+.Nm
+.Op Fl a
+.Op Fl f Ar ppm | bmp | raw
+.Op Fl o Ar file
+.Sh DESCRIPTION
+.Nm
+reads the controller memory behind the 320 by 320 panel through
+.Pa /dev/lcdgfx
+and writes it to
+.Ar file
+one row at a time.
+It needs the superuser, because the memory holds the text console's screen
+from before the open, and a PICOCALC_SD kernel, the one built with
+.Dv LCD_GFX_EXT .
+.Pp
+Opening the device takes the panel from the text console but leaves the
+memory as the console drew it, and the console keeps its cell store current
+meanwhile, so the capture shows the screen as it stood when
+.Nm
+started.
+The console scrolls by moving the controller's scroll start, so the glass
+shows memory line
+.Pq T + y
+mod 320 at screen row y.
+.Nm
+asks the kernel for T with
+.Dv LCDG_XINFO ,
+which reports the memory line the console showed at the top of the glass
+when it gave up the panel, and reads the lines in that order, so the image
+matches the glass from top to bottom.
+When the panel is closed again the console repaints its text.
+.Pp
+The options are:
+.Bl -tag -width "-f format"
+.It Fl a
+Save all 480 lines of controller memory in memory order, 320 by 480
+pixels, instead of the visible window.
+Lines 320 to 479 lie below the visible area and hold whatever a pixel
+program drew there.
+.It Fl f Ar format
+.Cm ppm ,
+the default, is a binary PPM (P6) with 8 bits per channel.
+.Cm bmp
+is a 24-bit BMP, stored top down, with each row padded to four bytes.
+.Cm raw
+is the RGB565 rows as the kernel returned them, two bytes per pixel, low
+byte first, with no header.
+.It Fl o Ar file
+The output file.
+The default is
+.Pa /tmp/scrshot.ppm ,
+or the same name with the extension of the chosen format.
+.El
+.Pp
+The controller returns six bits per component and the kernel keeps the
+upper five, six and five of red, green and blue, which
+.Nm
+widens to eight bits by bit replication.
+Only a few rows are in memory at a time.
+A failed read or write ends the run with a message that names the row, and
+the partial file is removed.
+.Sh FILES
+.Bl -tag -width "/dev/lcdgfx" -compact
+.It Pa /dev/lcdgfx
+the panel's pixel device
+.It Pa /tmp/scrshot.ppm
+the default output
+.El
+.Sh EXIT STATUS
+.Nm
+exits 0 when the file is complete, 1 on any failure and 2 on a usage error.
+.Sh SEE ALSO
+.Xr paneltest 1
+.Sh CAVEATS
+Only one program can hold
+.Pa /dev/lcdgfx ,
+so
+.Nm
+fails with a busy device while a pixel program runs.

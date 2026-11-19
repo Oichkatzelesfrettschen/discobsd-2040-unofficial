@@ -11,6 +11,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 BOARD_PROGS=	divtest exec_hsaout fptest gpioprobe lcdexttest lcdgfxtest romprobe \
 		sigtest \
+		stack_chain \
 		streamtest \
 		stdio_capacity swapmaptest swapram_evacuate tartest tiledemo \
 		user_window fork_refusal capacity_exhaustion preempt
@@ -28,7 +29,7 @@ build-${program}:
 # space the flash root lacks. The host-side drivers (*.py) stay here.
 BOARD_BINS=	divtest/divtest exec_hsaout/textcrc fptest/fptest \
 		lcdexttest/lcdexttest lcdgfxtest/lcdgfxtest romprobe/romprobe \
-		sigtest/sigtest \
+		sigtest/sigtest stack_chain/stackchain \
 		streamtest/streamtest stdio_capacity/stdiocap \
 		swapmaptest/swapmaptest swapram_evacuate/evactest \
 		tartest/tartest tiledemo/tiledemo user_window/windowtest \

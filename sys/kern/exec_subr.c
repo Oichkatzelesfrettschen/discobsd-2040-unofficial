@@ -854,15 +854,7 @@ void exec_clear(struct exec_params *epp)
     /*
      * Clear (close) files
      */
-    for (cp = u.u_pofile, cc = 0; cc <= u.u_lastfile; cc++, cp++) {
-        if (*cp & UF_EXCLOSE) {
-            (void) closef (u.u_ofile [cc]);
-            u.u_ofile [cc] = NULL;
-            *cp = 0;
-        }
-    }
-    while (u.u_lastfile >= 0 && u.u_ofile [u.u_lastfile] == NULL)
-        u.u_lastfile--;
+    fdcloseexec();
 
     DEBUG("\texec_clear(): end\n");
 }

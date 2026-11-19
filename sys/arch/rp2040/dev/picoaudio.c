@@ -17,9 +17,11 @@
 /*
  * The PicoCalc's bell: a short square-wave tone on PWM slice 5.
  *
- * The board's audio amplifier takes the left channel on GP26 and the right
- * on GP27 (clockwork_Mainboard_V2.0_Schematic.pdf; PICOCALC.md), which the
- * RP2040 routes to PWM5 A and PWM5 B through function 4 (datasheet 1.4.3).
+ * The left channel leaves on GP26 and the right on GP27 into a buffer and a
+ * low-pass filter ahead of the volume control and the amplifiers, whose
+ * enable belongs to the keyboard controller
+ * (clockwork_Mainboard_V2.0_Schematic.pdf; PICOCALC.md). The RP2040 routes
+ * the two pins to PWM5 A and PWM5 B through function 4 (datasheet 1.4.3).
  * The slice counts clk_sys divided by BELL_DIV_INT, so BELL_COUNT counts
  * make one period of BELL_HZ, and the compare value holds the output high
  * for BELL_DUTY_PCT percent of it on both channels (datasheet 4.5.2.1,

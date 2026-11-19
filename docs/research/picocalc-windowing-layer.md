@@ -5,8 +5,8 @@ Finding. As of 2026-11-19 the tree has a pixel device and a launcher, not a wind
 Recommendation: build our own small BSD-licensed layer. It has retained-mode widgets, a window stack, exact damage rectangles composited in a strip buffer, and an optional per-window 4-bit backing store for canvases. Run one application at a time in the 192 KiB window, with the toolkit linked into each. Borrow Microwindows only as architecture: a GdXxx engine layered under an API, the clip cache, and expose-by-repaint.
 
 Reasons, measured:
-- A Microwindows port must carry a full 51,200 B shadow screen.
-- It links to 59,160 B (floor) to 90,408 B (unpatched) before libc, leaving 47-78 KB of the window for the application.
+- A Microwindows port through its framebuffer subdrivers, the route examined here, carries a full 51,200 B shadow screen. A screen driver that maps each primitive to an lcdgfx command and reads pixels back with LCDG_READ was not built or measured (section 3).
+- It links to 59,152 B (floor) to 90,400 B (unpatched) before libc, leaving 47-78 KB of the window for the application.
 - A purpose-built layer has an estimated fixed overhead of about 20 KB (section 1), most of it estimate: the only measured part is a 143-line prototype core of 1,232 B, and that prototype uses a 4-bit shadow, not the exact-rectangle strip compositor recommended here, which is unbuilt and unmeasured. The port figures are links against dummy symbols, so they are floors, not runnable images.
 - MPL 1.1 files contradict NOTICE's "every component is permissive" (NOTICE:10-11). Adopting them is a licensing decision for the tree.
 
@@ -49,7 +49,7 @@ Two cooperating resident processes cannot coexist: every hand-off swaps a whole 
 
 - (a) One GUI process, applications as linked modules. Supported, but there is no dynamic loader (flat OMAGIC), so every app is compiled in and the window holds all their text and bss together. Windows are real and overlapping. Scheduling is cooperative, so a Lisp loop stalls the desktop.
 - (b) Launcher forks and waits for one application at a time. Already implemented (main.c:251-257, MATEZINHO.md:160-163). The launcher image swaps out while the child runs. "Multiple windows" means dialogs, menus and panes inside one application, with chrome from the linked toolkit.
-- (c) Hand-off through swap with a saved screen. The pixels survive only while /dev/lcdgfx stays open, because the last close repaints the console (lcdgfx.c:295-308). It needs the keep flag of section 5 plus application state files. It gives task switching by re-exec, not live background windows.
+- (c) Hand-off through swap with a saved screen. The pixels survive only while /dev/lcdgfx stays open, because the last close repaints the console (lcdgfx.c:295-308). An application that inherits the launcher's open descriptor keeps them (section 5); it also needs application state files. It gives task switching by re-exec, not live background windows.
 
 Recommendation: (b), with (c)-style state files, and (a)-style in-process views for small built-in tools. A fixed-address XIP widget library (docs/research/xip-shared-libc) can later take the toolkit text out of each window.
 
@@ -66,15 +66,15 @@ No command-stream driver exists.
 - The batching idiom is a malloc'd shadow plus psd->Update(x,y,w,h) (device.h:97; scr_ajaguar.c:51, scr_nuttx.c), and PSF_DELAYUPDATE flushed through PreSelect (scr_x11.c:575,723-739; scr_sdl2.c:180,253-270).
 - Subdrivers call Update per primitive in fblin8.c (lines 55, 95, 127), but fblin4.c has no Update call (grep). A 4-bit port therefore gets damage only from blit paths and from wrappers we would write around the subdriver pointers.
 - ReadPixel is used by alpha blending, stipple and the software cursor (devdraw.c:923-1030, devstipple.c:208, devmouse.c:615).
-- Conclusion: a port forces the full shadow, option (b) or (c).
+- Conclusion: a port by way of the framebuffer subdrivers needs the full shadow, option (b) or (c). The alternative is a SCREENDEVICE whose DrawPixel, line, FillRect and ReadPixel entries call LCDG_PIXEL, LCDG_LINE, LCDG_FILL and LCDG_READ directly. It needs no shadow; it pays one ioctl per primitive, read-back at 8.6-12.5 us per pixel for the paths that read (blending, stipple, the software cursor), a superuser server for LCDG_READ, and its blit entries would be written new. That driver was not written, so its size and speed are unmeasured, and the linked code size of the port (59,152 B floor) applies to it unchanged.
 
 Measured sizes (Microwindows 36c8d0edfa5; 4-bpp palette, NONETWORK, no images/float/portrait; fonts are mutable .data):
-- Engine closure of a ten-call stub: 25,078 B code and rodata, 12,560 B data (11,960 of it the two compiled fonts), 2,458 B bss. rasterops.o alone is 8,932 B and survives the link.
+- Engine closure of a ten-call stub: 25,100 B code and rodata, 12,560 B data (11,960 of it the two compiled fonts), 2,458 B bss. rasterops.o alone is 8,932 B and survives the link.
 - Objects: devrgn 3,280, devdraw 2,808, devfont 2,631, fblin4 2,248, devclip 768, genmem 1,006. convblit_frameb (11,716) is truecolor-only.
-- Nano-X server plus nanowm, NONETWORK: 43,520 text, 12,940 data, 2,700 bss = 59,160 B linked floor. With every depth subdriver (unpatched fb.c) it is 90,408 B. Summing all objects gives about 105 KB.
+- Nano-X server plus nanowm, NONETWORK: 43,512 text, 12,940 data, 2,700 bss = 59,152 B linked floor. With every depth subdriver (unpatched fb.c) it is 90,400 B. Summing all objects gives about 105 KB.
 - Struct sizes: 100 B per window, 100 B per GC, 32 B + 16 B per rectangle per region.
 - Win32 layer objects: 26,372 B core plus 28,279 B for ten controls.
-- Window accounting for the Nano-X port: 59,160 B (or 90,408) + 51,200 B screen + 7.9 KB libc = 118 KB (149 KB). That leaves 78 KB (47 KB) of 192 KiB with the app linked into the server, before heap for windows and regions. The floor needs only stub arrays written for this tree, not edits to MPL files.
+- Window accounting for the Nano-X port: 59,152 B (or 90,400) + 51,200 B screen + 7.9 KB libc = 118 KB (149 KB). That leaves 78 KB (47 KB) of 192 KiB with the app linked into the server, before heap for windows and regions. The floor needs only stub arrays written for this tree, not edits to MPL files.
 
 Own layer.
 - A 143-line prototype (4-bit shadow, damage bands, rectangle-subtraction clipping, z-order, title bars, 6x9 text) compiles to 1,232 B text and 51,396 B bss. Compile only; behavior untested; no widgets or events.
@@ -115,7 +115,7 @@ Fonts:
 
 Headroom: the retained PICOCALC and PICOCALC_PSRAM builds (dated 2026-11-13, not rebuilt) leave 12,586 B and 10,458 B of the 130,816 B region. A later measurement on main gives about 3.4 KB for PICOCALC; these retained products predate it. PICOCALC_SD has a 163,584 B region (RP2040-sd.ld:34). Per-object costs: lcdgfx.o 1,740 B at -O under GCC 16.2, lcdcons.o +128 (PICOCALC.md:586-).
 
-- Keep-pixels flag so close and reopen skip the text repaint: 60-120 B text, 1 B bss (estimate).
+- No keep-pixels flag is needed for the hand-off. A child keeps the launcher's /dev/lcdgfx descriptor across fork and exec unless it is marked close-on-exec (fdcloseexec() in sys/kern/kern_descrip.c closes only UF_EXCLOSE slots), and lcdgfx_close() runs only at the last close, so the console repaint does not happen while launcher or application holds the file. The convention is a fixed inherited descriptor number; the device stays owned throughout. Not exercised on a board.
 - Wake select on raw events. select(2) exists (syscalls.master:95) and lcdselect serves the console (lcdcons.c:501-505), so no blocking ioctl is needed; MATEzinho polls every 20 ms (main.c:278). Modifier-only events do not reach the tty queue, so a wakeup in the event queue costs 40-100 B (estimate).
 - No new clock. The next PL022 divisor (125/8 = 15.6 MHz, 64 ns) breaks the 66 ns TSCYCW (st7365p.c:24-26); RGB565 is the lever.
 - LCDG_WAITLINE and the extra lines on the base kernel: code size unmeasured.
@@ -129,7 +129,7 @@ Headroom: the retained PICOCALC and PICOCALC_PSRAM builds (dated 2026-11-13, not
 | 1 gui core: damage, exact-rect flush, text, palette | demo window with title bar | none | core estimated 1.5-3 KB (the 1.2 KB measurement is of the shadow prototype), 5 KB strip | shared model panel from lcdgfx_test (ioctl and write wrappers at lines 425, 557) | after random draws the model's pixels equal the layer's expected image; a mutant dropping a damaged band fails; board full flush 197 ms +-15% |
 | 2 window stack, focus, Ctrl-Tab, key move | overlapping windows | 1 | 2-3 KB (estimate) | visible rectangles partition each window, 10,000 random layouts vs a per-pixel painter | any pixel owned twice or by none |
 | 3 widgets and dialogs | forms, lists, menus | 2 | 7-9 KB (estimate) | golden images of each widget; guard bytes around the buffer | a widget writing outside its clip fails |
-| 4 launcher on the toolkit; keep flag | desktop; app starts without console flash | 3, kernel flag | +100 B kernel | model panel checks no text repaint on close | app switch over 2 s on board refutes (b) |
+| 4 launcher on the toolkit; inherited graphics descriptor | desktop; app starts without console flash | 3 | no kernel change | model panel checks no text repaint on close | app switch over 2 s on board refutes (b) |
 | 5 word and file manager on it | formatted text, file list | 4 | word about 149 KB (estimate) | existing word tests plus golden frames | window overflow in word with (b) |
 | 6 uLisp canvas window | Lisp drawing in a window | 4 | canvas 4-bit buffer sized to the window | uLisp fill/line output equals model | canvas pixels differ after an overlapping menu |
 | 7 optional page-flip experiment, RGB565 default | tear-free half-screen | 1, PICOCALC_SD | 0 RAM | none (board only) | tear or wrong picture in the camera capture |
@@ -158,4 +158,4 @@ Headroom: the retained PICOCALC and PICOCALC_PSRAM builds (dated 2026-11-13, not
 - Whether select wakes on modifier events.
 - The reading of MPL 1.1 above is an engineer's reading of the license text, not legal advice.
 
-Sources: sys/sys/lcdgfx.h, lcdcons.h; sys/arch/rp2040/dev/lcdgfx.c, st7365p.c, lcdcons.c, lcdfont.h; sys/arch/rp2040/doc/PICOCALC.md, PANELTEST.md, MATEZINHO.md; sys/arch/rp2040/conf/RP2040*.ld; usr.bin/matezinho; docs/research/picocalc-calculator-and-gui.md, matezinho-validation.md, licensing.md, xip-shared-libc; tests/picocalc/lcdgfx_test.c; donors: microwindows/src/{include,engine,drivers,nanox,mwin}, MPL 1.1 page (sha256 211d9a1c). The donor clones, the stub screen driver, the prototype and the compiled objects are not retained in the tree.
+Sources: sys/sys/lcdgfx.h, lcdcons.h; sys/arch/rp2040/dev/lcdgfx.c, st7365p.c, lcdcons.c, lcdfont.h; sys/arch/rp2040/doc/PICOCALC.md, PANELTEST.md, MATEZINHO.md; sys/arch/rp2040/conf/RP2040*.ld; usr.bin/matezinho; docs/research/picocalc-calculator-and-gui.md, matezinho-validation.md, licensing.md, xip-shared-libc; tests/picocalc/lcdgfx_test.c; donors: microwindows/src/{include,engine,drivers,nanox,mwin}, MPL 1.1 page (sha256 211d9a1c). The stub screen driver, the link stubs, the prototype core and the script that rebuilds every size above are in docs/research/picocalc-windowing-layer/ (measure.sh and its README.md); the donor clones and compiled objects are not retained.

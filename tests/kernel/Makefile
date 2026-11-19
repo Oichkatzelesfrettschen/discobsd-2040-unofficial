@@ -2038,6 +2038,62 @@ ufs_explicit_time_cred.o: ${UFS_EXPLICIT_TIME_CRED_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${CRED_KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
 	    ${UFS_EXPLICIT_TIME_CFLAGS} -c -o $@ ${UFS_EXPLICIT_TIME_CRED_SRC}
 
+# itrunc() of ufs_inode.c writes the shortened inode before it frees a block.
+# The kernel source compiles at the target's width in the PICO configuration
+# with free() of ufs_alloc.c renamed, so the gate's event log sees each release;
+# function sections let it link itrunc, indirtrunc and iupdat without the rest.
+ITRUNC_ORDER_SRC=	${TOPSRC}/sys/kern/ufs_inode.c
+ITRUNC_ORDER_DEFS=	${IALLOC_PICO_DEFS} -Dfree=itrunc_order_free
+ITRUNC_ORDER_CFLAGS=	-ffunction-sections -fdata-sections
+ITRUNC_ORDER_LDFLAGS=	-Wl,--gc-sections
+ITRUNC_ORDER_MUTANTS=	inode-after-frees flags-not-marked inode-write-delayed \
+			second-write-kept write-error-ignored \
+			indirect-write-async indirect-error-ignored \
+			indirect-not-requeued
+
+itrunc_order_test: itrunc_order_test.c ${ITRUNC_ORDER_SRC} hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ITRUNC_ORDER_DEFS} ${ILP32} \
+	    ${ITRUNC_ORDER_CFLAGS} -c -o itrunc_order_kernel.o ${ITRUNC_ORDER_SRC}
+	${HOST_CC} ${GATE_CFLAGS} ${ITRUNC_ORDER_DEFS} ${ILP32} \
+	    ${ITRUNC_ORDER_LDFLAGS} -o $@ itrunc_order_test.c \
+	    itrunc_order_kernel.o hostkern32.o
+
+.for mutation in ${ITRUNC_ORDER_MUTANTS}
+itrunc_order_${mutation}.mutant.c: itrunc_order_mutate.py ${ITRUNC_ORDER_SRC}
+	${PYTHON} itrunc_order_mutate.py --source ${ITRUNC_ORDER_SRC} \
+	    --output $@ --mutation ${mutation}
+
+itrunc_order_${mutation}.mutant.test: itrunc_order_${mutation}.mutant.c \
+    itrunc_order_test.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ITRUNC_ORDER_DEFS} ${ILP32} \
+	    ${ITRUNC_ORDER_CFLAGS} -c -o itrunc_order_${mutation}.mutant.o \
+	    itrunc_order_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${ITRUNC_ORDER_DEFS} ${ILP32} \
+	    ${ITRUNC_ORDER_LDFLAGS} -o $@ itrunc_order_test.c \
+	    itrunc_order_${mutation}.mutant.o hostkern32.o
+.endfor
+
+# A mutant must fail through the gate's own verdict, not by a crash or a
+# build error.
+check-itrunc-order-mutants: \
+    ${ITRUNC_ORDER_MUTANTS:@mutation@itrunc_order_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${ITRUNC_ORDER_MUTANTS}; do \
+		output=itrunc_order_$$mutation.mutant.out; \
+		if ./itrunc_order_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "checks failed" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL itrunc order $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS itrunc order $$mutation rejected"; \
+	done
+
 ufs_explicit_time_test: ufs_explicit_time_test.c ${UFS_EXPLICIT_TIME_SRC} \
     ufs_explicit_time_cred.o hostkern32.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
@@ -3415,6 +3471,7 @@ check-ilp32:
 	    sysctl_test_compact sysctl_test_wide check-sysctl-proc-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
+	    itrunc_order_test check-itrunc-order-mutants \
 	    ufs_explicit_time_test ufs_explicit_time_bad \
 	    ufs_explicit_time_signed_bad futimes_test32 \
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
@@ -3524,6 +3581,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.inode-diagnostic.ilp32 -- ./ialloc_test_diagnostic
 	${TEST_EXECUTION} run kernel.block.ilp32 -- ./balloc_test
 	${TEST_EXECUTION} run kernel.block-pico.ilp32 -- ./balloc_test_pico
+	${TEST_EXECUTION} run kernel.itrunc-order.ilp32 -- ./itrunc_order_test
 	${TEST_EXECUTION} run kernel.explicit-time.ilp32 -- ./ufs_explicit_time_test
 	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
 	${TEST_EXECUTION} run kernel.explicit-time-signed-negative.ilp32 -- ./ufs_explicit_time_signed_bad
@@ -3556,6 +3614,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode-diagnostic.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.itrunc-order.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.block.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.block-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.explicit-time.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3733,6 +3792,9 @@ clean:
 	rm -f balloc_kernel.o balloc_kernel_pico.o
 	rm -f balloc_shim.o balloc_shim_pico.o
 	rm -f balloc_test balloc_test_pico
+	rm -f itrunc_order_kernel.o itrunc_order_test itrunc_order_*.mutant.c \
+	    itrunc_order_*.mutant.o itrunc_order_*.mutant.test \
+	    itrunc_order_*.mutant.out
 	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o \
 	    ufs_explicit_time_signed_bad_kernel.o ufs_explicit_time_cred.o
 	rm -f ufs_explicit_time_test ufs_explicit_time_bad \

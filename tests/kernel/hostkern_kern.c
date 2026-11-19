@@ -20,7 +20,8 @@
 
 /*
  * The kernel's bcopy. Kernel callers pass overlapping ranges, so the copy
- * runs backwards when the destination starts inside the source.
+ * runs backwards when the destination starts inside the source, as the
+ * rp2040 and stm32 machdep.c bcopy does.
  */
 void
 bcopy(const void *src, void *dst, size_t nbytes)

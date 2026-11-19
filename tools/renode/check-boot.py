@@ -343,6 +343,24 @@ class Console:
 CORE1_CONFIGS = ("PICO_UART",)
 
 
+def check_symlink_path(console: Console) -> None:
+    """Read a file through a symbolic link used as a directory.
+
+    namei() follows the link by shifting the rest of the path within its own
+    buffer, then copying the link's target in front of it. With the link as
+    the first component and a target one byte longer than its name, the
+    shift's destination starts one byte inside its source, so a forward-only
+    bcopy repeats the "/" and the lookup fails. The file's content is typed
+    as sym''link-ok, so only cat's output carries the needle.
+    """
+    console.type_line("cd; mkdir sl sl/ab; echo sym''link-ok > sl/ab/file; "
+                      "ln -s ab sl/l; cd sl")
+    console.wait_lines(["$"], "symbolic link fixture", COMMAND_BUDGET_SECONDS)
+    console.type_line("cat l/file; cd")
+    console.wait_lines(["symlink-ok"], "path through a symbolic link",
+                       COMMAND_BUDGET_SECONDS)
+
+
 def check_ps(console: Console) -> None:
     """Require a ps row for every process, wherever its image lives.
 
@@ -612,6 +630,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.wait_lines(["$"], "shell prompt", COMMAND_BUDGET_SECONDS)
     console.type_line("uname -sr")
     console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
+    check_symlink_path(console)
     check_ps(console)
     check_memory_devices(console)
     check_fstat(console)

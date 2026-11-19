@@ -792,6 +792,7 @@ check-kernel-abi-contracts: check-python
 		${PYTHON} tests/kernel/service_dispatch.py
 		${PYTHON} tests/kernel/ucall_contract.py
 		${PYTHON} tests/kernel/aeabi_memcpy4.py
+		${PYTHON} tests/kernel/bcopy_overlap.py
 
 .PHONY: check-kernel-abi-contracts
 

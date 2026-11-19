@@ -79,7 +79,7 @@
  * Region 7 is the break guard (machine/breakguard.h): 32 bytes at the
  * process break rounded up to 32, inside the window, that unprivileged
  * code may read but not write. It wins over region 1 or 2 as the higher
- * number, so the first user store past the break and its pad faults, and
+ * number, so a user store into those 32 bytes faults, and
  * fault.c delivers SIGSEGV as for any other bad address; a handler that
  * grows the break and returns replays the store. AP 010 keeps the bytes
  * writable to the kernel, so copyout, swapin, exec_clear and the frame

@@ -194,21 +194,30 @@ DRIVER_SOURCE = os.path.normpath(
 def expected_init_trace(path: str = DRIVER_SOURCE) -> list[str]:
     """The panel bytes st7365p_init() sends before SLPOUT, from its source.
 
-    Each init_seq entry is a command byte, a parameter count and the
-    parameters; the command goes out with D/C low (token cNN) and each
-    parameter with D/C high (dNN). Macro names resolve through the
-    #define lines of the same file.
+    st7365p_init() sends init_unlock, init_seq and init_frame in that
+    order. Each entry of a table is a command byte, a parameter count and
+    the parameters; the command goes out with D/C low (token cNN) and each
+    parameter with D/C high (dNN). Macro names resolve through the #define
+    lines of the same file. init_frame comes from FRAME_SET(init_frame,
+    FRS, DIVA, RTNA, Hz): BPC B5h 02h 02h 00h 04h, then FRMCTR1 B1h with
+    FRS << 4 | DIVA and RTNA.
     """
     with open(path, encoding="ascii") as handle:
         text = handle.read()
     macros = dict(re.findall(r"#define\s+(\w+)\s+(0x[0-9a-fA-F]+|\d+)\b", text))
-    body = re.search(r"init_seq\[\]\s*=\s*\{(.*?)\};", text, re.S)
-    if body is None:
-        raise ValueError(f"{path}: no init_seq")
     values = []
-    for token in re.findall(r"[A-Za-z_]\w*|0x[0-9a-fA-F]+|\d+",
-                            re.sub(r"/\*.*?\*/", "", body.group(1), flags=re.S)):
-        values.append(int(macros.get(token, token), 0))
+    for name in ("init_unlock", "init_seq"):
+        body = re.search(name + r"\[\]\s*=\s*\{(.*?)\};", text, re.S)
+        if body is None:
+            raise ValueError(f"{path}: no {name}")
+        for token in re.findall(r"[A-Za-z_]\w*|0x[0-9a-fA-F]+|\d+",
+                                re.sub(r"/\*.*?\*/", "", body.group(1), flags=re.S)):
+            values.append(int(macros.get(token, token), 0))
+    frame = re.search(r"FRAME_SET\(init_frame,\s*(\d+),\s*(\d+),\s*(\d+),", text)
+    if frame is None:
+        raise ValueError(f"{path}: no FRAME_SET(init_frame, ...)")
+    frs, diva, rtna = (int(field) for field in frame.groups())
+    values += [0xB5, 4, 0x02, 0x02, 0x00, 0x04, 0xB1, 2, frs << 4 | diva, rtna]
     trace: list[str] = []
     index = 0
     while index < len(values):
@@ -325,7 +334,7 @@ def check_panel_readback(run: Run) -> None:
     """Read every ST7365P read command at power-on, after the driver's bytes
     and after SWRESET, with the emulated CPU not yet started.
 
-    The bytes are st7365p.c's init_seq (parsed from the source) and the calls
+    The bytes are st7365p.c's startup tables (parsed from the source) and the calls
     that follow it, so the values read are what the board's driver leaves in
     the controller. The read commands must also stay out of the model's
     unmodeled-command count. The model returns to its power-on state before
@@ -401,7 +410,7 @@ READ_AFTER_INIT = {
 # inversion to their defaults (pages 151, 153, 155, 157, 159).
 READ_AFTER_SWRESET = {**READ_AFTER_RESET, 0x09: 0x24510000, 0x0B: 0x48, 0x0C: 0x55}
 
-# The bytes st7365p_init() sends after init_seq: SLPOUT, VSCRDEF (0, 320,
+# The bytes st7365p_init() sends after its tables: SLPOUT, VSCRDEF (0, 320,
 # 160 lines), VSCSAD 0, then st7365p_display_on() sends DISPON.
 INIT_TAIL = ["c11", "c33", "d00", "d00", "d01", "d40", "d00", "da0",
              "c37", "d00", "d00", "c29"]
@@ -835,7 +844,7 @@ def main(argv: list[str]) -> int:
                   if re.fullmatch(r"\s*([cd][0-9a-f]{2}\s*)+", line)]
         seen = traced[-1].split() if traced else []
         run.expect(seen == init_trace,
-                   f"panel: init bytes differ from st7365p.c's init_seq: {seen[:12]}")
+                   f"panel: init bytes differ from st7365p.c's startup tables: {seen[:12]}")
         run.wait_for(["login:"], "login prompt", LOGIN_BUDGET_SECONDS)
         run.snapshot("login")
         # The operator account has an empty password (the image checker

@@ -58632,9 +58632,7 @@
             "shift-expression"
           ],
           "object_lifetime": [],
-          "pointer": [
-            "integer-pointer-cast"
-          ],
+          "pointer": [],
           "prototype": [],
           "variadic": []
         }

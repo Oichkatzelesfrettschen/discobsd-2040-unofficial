@@ -46,23 +46,23 @@ MUTATIONS = (
     ("baseline", "", ""),
     (
         "dropped_destroy_damage",
-        "\twin->used = 0;\n\treturn damage_window(s, win);",
-        "\twin->used = 0;\n\treturn 0;",
+        "\twin->used = 0;\n\tdamage_window(s, win);",
+        "\twin->used = 0;",
     ),
     (
         "dropped_move_damage",
-        "\twin->y = y;\n\trc = damage_rect(s, &old);",
-        "\twin->y = y;\n\trc = 0;",
+        "\twin->y = y;\n\tdamage_rect(s, &old);",
+        "\twin->y = y;",
     ),
     (
         "dropped_raise_damage",
-        "\ts->z[s->nwin - 1] = (unsigned char)j;\n\treturn damage_window(s, win);",
-        "\ts->z[s->nwin - 1] = (unsigned char)j;\n\treturn 0;",
+        "\ts->z[s->nwin - 1] = (unsigned char)j;\n\tdamage_window(s, win);",
+        "\ts->z[s->nwin - 1] = (unsigned char)j;",
     ),
     (
         "overflow_loses_damage",
-        "\tif (s->ndamage == WIN_DAMAGE_MAX) {\n\t\trc = win_flush(s);",
-        "\tif (s->ndamage == WIN_DAMAGE_MAX) {\n\t\trc = 0;\n\t\ts->ndamage = 0;",
+        "\tif (s->ndamage > WIN_DAMAGE_MAX - WIN_DAMAGE_RESERVE)\n\t\treturn win_flush(s);",
+        "\tif (s->ndamage > WIN_DAMAGE_MAX - WIN_DAMAGE_RESERVE)\n\t\treturn s->ndamage = 0;",
     ),
     (
         "inexact_merge",
@@ -108,6 +108,23 @@ MUTATIONS = (
         "glyph_row_shifted",
         "\t\t\tpy = gy + row;",
         "\t\t\tpy = gy + row + 1;",
+    ),
+    (
+        "widen_on_failure",
+        "\t\t\ts->ndamage = n - i;",
+        "\t\t\ts->ndamage = 1;\n\t\t\ts->damage[0].x0 = 0;\n"
+        "\t\t\ts->damage[0].y0 = 0;\n\t\t\ts->damage[0].x1 = WIN_PANEL_W;\n"
+        "\t\t\ts->damage[0].y1 = WIN_PANEL_H;",
+    ),
+    (
+        "swallowed_create_failure",
+        "\t    y != clampi(y) || make_room(s) < 0)\n\t\treturn NULL;",
+        "\t    y != clampi(y))\n\t\treturn NULL;\n\t(void)make_room(s);",
+    ),
+    (
+        "foreign_handle_accepted",
+        "\t\t\treturn s->wins[i].used ? i : -1;\n\treturn -1;",
+        "\t\t\treturn s->wins[i].used ? i : -1;\n\treturn w != NULL && w->used ? 0 : -1;",
     ),
     (
         "hline_one_short",

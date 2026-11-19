@@ -40,6 +40,7 @@
 
 #define GLYPH_W		6
 #define PIXEL_MASK	0x0f
+#define WIN_DAMAGE_RESERVE	2	/* Rectangles one call adds at most. */
 
 static int
 clampi(int v)
@@ -229,25 +230,30 @@ damage_drop(struct win_scene *s, int i)
 	s->damage[i] = s->damage[s->ndamage];
 }
 
-static int
+/*
+ * Record [x0, x1) x [y0, y1), clipped to the panel. Every public call makes
+ * room first (make_room), so the list has a free slot for each rectangle a
+ * call adds, and the store below never finds it full.
+ */
+static void
 damage_add(struct win_scene *s, int x0, int y0, int x1, int y1)
 {
 	struct win_rect n;
 	struct win_rect *e;
-	int i, again, rc;
+	int i, again;
 
 	n.x0 = max_i(x0, 0);
 	n.y0 = max_i(y0, 0);
 	n.x1 = min_i(x1, WIN_PANEL_W);
 	n.y1 = min_i(y1, WIN_PANEL_H);
 	if (rect_empty(&n))
-		return 0;
+		return;
 	do {
 		again = 0;
 		for (i = 0; i < s->ndamage && !again; i++) {
 			e = &s->damage[i];
 			if (rect_has(e, &n))
-				return 0;
+				return;
 			if (rect_has(&n, e) || rect_join(&n, e)) {
 				damage_drop(s, i);
 				again = 1;
@@ -257,21 +263,20 @@ damage_add(struct win_scene *s, int x0, int y0, int x1, int y1)
 			}
 		}
 	} while (again);
-	rc = 0;
-	if (s->ndamage == WIN_DAMAGE_MAX) {
-		rc = win_flush(s);
-		if (s->ndamage == WIN_DAMAGE_MAX) {
-			/* The backend refuses: keep a superset instead. */
-			e = &s->damage[0];
-			e->x0 = min_i(e->x0, n.x0);
-			e->y0 = min_i(e->y0, n.y0);
-			e->x1 = max_i(e->x1, n.x1);
-			e->y1 = max_i(e->y1, n.y1);
-			return -1;
-		}
-	}
 	s->damage[s->ndamage++] = n;
-	return rc;
+}
+
+/*
+ * Free the slots one call needs before it changes anything. A backend
+ * failure here leaves the scene and the list as they were, so the call can
+ * report it and change nothing.
+ */
+static int
+make_room(struct win_scene *s)
+{
+	if (s->ndamage > WIN_DAMAGE_MAX - WIN_DAMAGE_RESERVE)
+		return win_flush(s);
+	return 0;
 }
 
 static void
@@ -283,19 +288,19 @@ window_rect(const struct win *w, struct win_rect *r)
 	r->y1 = w->y + w->h;
 }
 
-static int
+static void
 damage_rect(struct win_scene *s, const struct win_rect *r)
 {
-	return damage_add(s, r->x0, r->y0, r->x1, r->y1);
+	damage_add(s, r->x0, r->y0, r->x1, r->y1);
 }
 
-static int
+static void
 damage_window(struct win_scene *s, const struct win *w)
 {
 	struct win_rect r;
 
 	window_rect(w, &r);
-	return damage_rect(s, &r);
+	damage_rect(s, &r);
 }
 
 /* Rendering */
@@ -399,7 +404,8 @@ win_scene_init(struct win_scene *s, const struct win_backend *be)
 	s->be = *be;
 	s->desktop = WIN_C_DESKTOP;
 	memset(s->buf, WIN_GUARD_BYTE, sizeof(s->buf));
-	return damage_add(s, 0, 0, WIN_PANEL_W, WIN_PANEL_H);
+	damage_add(s, 0, 0, WIN_PANEL_W, WIN_PANEL_H);
+	return 0;
 }
 
 int
@@ -411,10 +417,16 @@ win_set_palette(struct win_scene *s, int index, int r, int g, int b)
 	return s->be.palette(s->be.self, index, r, g, b);
 }
 
+/* The slot of a window of this scene, or -1. Pointers compare by equality. */
 static int
-win_ok(const struct win_scene *s, const struct win *w)
+win_slot(const struct win_scene *s, const struct win *w)
 {
-	return w != NULL && w >= s->wins && w < s->wins + WIN_MAX && w->used;
+	int i;
+
+	for (i = 0; i < WIN_MAX; i++)
+		if (&s->wins[i] == w)
+			return s->wins[i].used ? i : -1;
+	return -1;
 }
 
 static int
@@ -443,7 +455,7 @@ win_create(struct win_scene *s, int x, int y, int w, int h,
 	int i;
 
 	if (s->nwin >= WIN_MAX || !size_ok(w, h) || x != clampi(x) ||
-	    y != clampi(y))
+	    y != clampi(y) || make_room(s) < 0)
 		return NULL;
 	for (i = 0; s->wins[i].used; i++)
 		;
@@ -457,7 +469,7 @@ win_create(struct win_scene *s, int x, int y, int w, int h,
 	win->used = 1;
 	title_copy(win, title);
 	s->z[s->nwin++] = (unsigned char)i;
-	(void)damage_window(s, win);
+	damage_window(s, win);
 	return win;
 }
 
@@ -466,54 +478,55 @@ win_destroy(struct win_scene *s, struct win *win)
 {
 	int i, j;
 
-	if (!win_ok(s, win))
+	j = win_slot(s, win);
+	if (j < 0 || make_room(s) < 0)
 		return -1;
-	j = (int)(win - s->wins);
 	for (i = 0; s->z[i] != j; i++)
 		;
 	for (; i + 1 < s->nwin; i++)
 		s->z[i] = s->z[i + 1];
 	s->nwin--;
 	win->used = 0;
-	return damage_window(s, win);
+	damage_window(s, win);
+	return 0;
 }
 
 int
 win_move(struct win_scene *s, struct win *win, int x, int y)
 {
 	struct win_rect old;
-	int rc;
 
-	if (!win_ok(s, win) || x != clampi(x) || y != clampi(y))
+	if (win_slot(s, win) < 0 || x != clampi(x) || y != clampi(y))
 		return -1;
 	if (x == win->x && y == win->y)
 		return 0;
+	if (make_room(s) < 0)
+		return -1;
 	window_rect(win, &old);
 	win->x = x;
 	win->y = y;
-	rc = damage_rect(s, &old);
-	if (damage_window(s, win) < 0)
-		rc = -1;
-	return rc;
+	damage_rect(s, &old);
+	damage_window(s, win);
+	return 0;
 }
 
 int
 win_resize(struct win_scene *s, struct win *win, int w, int h)
 {
 	struct win_rect old;
-	int rc;
 
-	if (!win_ok(s, win) || !size_ok(w, h))
+	if (win_slot(s, win) < 0 || !size_ok(w, h))
 		return -1;
 	if (w == win->w && h == win->h)
 		return 0;
+	if (make_room(s) < 0)
+		return -1;
 	window_rect(win, &old);
 	win->w = w;
 	win->h = h;
-	rc = damage_rect(s, &old);
-	if (damage_window(s, win) < 0)
-		rc = -1;
-	return rc;
+	damage_rect(s, &old);
+	damage_window(s, win);
+	return 0;
 }
 
 int
@@ -521,27 +534,31 @@ win_raise(struct win_scene *s, struct win *win)
 {
 	int i, j;
 
-	if (!win_ok(s, win))
+	j = win_slot(s, win);
+	if (j < 0)
 		return -1;
-	j = (int)(win - s->wins);
 	if (s->z[s->nwin - 1] == j)
 		return 0;
+	if (make_room(s) < 0)
+		return -1;
 	for (i = 0; s->z[i] != j; i++)
 		;
 	for (; i + 1 < s->nwin; i++)
 		s->z[i] = s->z[i + 1];
 	s->z[s->nwin - 1] = (unsigned char)j;
-	return damage_window(s, win);
+	damage_window(s, win);
+	return 0;
 }
 
 int
 win_set_title(struct win_scene *s, struct win *win, const char *title)
 {
-	if (!win_ok(s, win))
+	if (win_slot(s, win) < 0 || make_room(s) < 0)
 		return -1;
 	title_copy(win, title);
-	return damage_add(s, win->x + 1, win->y + 1, win->x + win->w - 1,
+	damage_add(s, win->x + 1, win->y + 1, win->x + win->w - 1,
 	    win->y + 1 + WIN_TITLE_H);
+	return 0;
 }
 
 int
@@ -549,16 +566,19 @@ win_invalidate(struct win_scene *s, int x, int y, int w, int h)
 {
 	if (w <= 0 || h <= 0)
 		return 0;
+	if (make_room(s) < 0)
+		return -1;
 	x = clampi(x);
 	y = clampi(y);
-	return damage_add(s, x, y, x + clampi(w), y + clampi(h));
+	damage_add(s, x, y, x + clampi(w), y + clampi(h));
+	return 0;
 }
 
 int
 win_invalidate_client(struct win_scene *s, struct win *win,
     int x, int y, int w, int h)
 {
-	if (!win_ok(s, win))
+	if (win_slot(s, win) < 0)
 		return -1;
 	return win_invalidate(s, win->x + 1 + clampi(x),
 	    win->y + WIN_TITLE_H + 1 + clampi(y), w, h);

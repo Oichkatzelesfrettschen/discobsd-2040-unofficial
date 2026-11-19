@@ -93,6 +93,10 @@ static long win_pos;
 static long n_ioctl_window, n_bytes, n_ioctl_palette, n_writes;
 static int palette_seen[16][3];
 static long op_index;
+static long n_injected;			/* Backend calls the model failed. */
+static int inject_every;		/* Fail one call in this many; 0 is never. */
+static int fail_countdown;		/* Fail the call this many calls ahead; 0 is off. */
+static uint32_t model_rng = 0x51ed270bu;
 
 static char trail[4][96];		/* The last four operations. */
 static long trail_n;
@@ -123,6 +127,29 @@ fail(const char *fmt, ...)
 	exit(1);
 }
 
+/* A backend call that fails abandons the window it had open, as the device does. */
+static int
+inject(void)
+{
+	int hit = 0;
+
+	if (fail_countdown > 0 && --fail_countdown == 0)
+		hit = 1;
+	if (inject_every > 0) {
+		model_rng ^= model_rng << 13;
+		model_rng ^= model_rng >> 17;
+		model_rng ^= model_rng << 5;
+		if (model_rng % (uint32_t)inject_every == 0)
+			hit = 1;
+	}
+	if (hit) {
+		n_injected++;
+		win_open = 0;
+		errno = EIO;
+	}
+	return hit;
+}
+
 static int
 model_ioctl(int fd, unsigned long req, void *arg)
 {
@@ -131,6 +158,8 @@ model_ioctl(int fd, unsigned long req, void *arg)
 
 	if (fd != MODEL_FD)
 		fail("ioctl on descriptor %d", fd);
+	if (inject())
+		return -1;
 	if (win_open && win_pos != (long)win_w * win_h)
 		fail("command inside a half-filled window (%ld of %ld bytes)",
 		    win_pos, (long)win_w * win_h);
@@ -177,6 +206,8 @@ model_write(int fd, const void *buf, size_t n)
 		errno = EINVAL;
 		return -1;
 	}
+	if (inject())
+		return -1;
 	left = (long)win_w * win_h - win_pos;
 	if ((long)n > left)
 		fail("write of %zu bytes with %ld pixels left", n, left);
@@ -222,6 +253,7 @@ static struct {
 } holder;
 #define scene (holder.s)
 
+static struct win_scene other;		/* A second scene, for foreign handles. */
 static struct win_lcdgfx lcd;
 static struct win_backend backend;
 static struct twin tw[WIN_MAX];
@@ -444,9 +476,16 @@ check_scene_mirror(void)
 
 	if (scene.nwin != norder)
 		fail("library holds %d windows, test %d", scene.nwin, norder);
-	for (k = 0; k < norder; k++)
-		if (&scene.wins[scene.z[k]] != tw[order[k]].handle)
+	for (k = 0; k < norder; k++) {
+		const struct twin *w = &tw[order[k]];
+		const struct win *l = &scene.wins[scene.z[k]];
+
+		if (l != w->handle)
 			fail("z position %d holds another window", k);
+		if (l->x != w->x || l->y != w->y || l->w != w->w || l->h != w->h ||
+		    strncmp(l->title, w->title, R_TITLE_MAX) != 0)
+			fail("window %d differs from what the calls reported", order[k]);
+	}
 }
 
 static void
@@ -474,6 +513,8 @@ reset_world(void)
 	memset(tw, 0, sizeof(tw));
 	memset(holder.pad, 0xcc, sizeof(holder.pad));
 	norder = 0;
+	inject_every = 0;
+	fail_countdown = 0;
 	win_open = 0;
 	n_ioctl_window = n_bytes = n_ioctl_palette = n_writes = 0;
 	win_lcdgfx_init(&backend, &lcd, MODEL_FD);
@@ -534,10 +575,25 @@ order_remove(int id)
 	norder--;
 }
 
+/* A call fails exactly when the model failed a backend call during it. */
+static int
+call_ok(int rc, long injected_before, const char *what)
+{
+	if (rc == 0) {
+		if (n_injected != injected_before)
+			fail("%s succeeded although the backend failed", what);
+		return 1;
+	}
+	if (n_injected == injected_before)
+		fail("%s failed with no backend failure", what);
+	return 0;
+}
+
 static void
 op_create(void)
 {
 	struct twin *t;
+	long inj = n_injected;
 	int id;
 
 	for (id = 0; id < WIN_MAX && tw[id].used; id++)
@@ -548,19 +604,22 @@ op_create(void)
 		return;
 	}
 	t = &tw[id];
-	t->used = 1;
+	memset(t, 0, sizeof(*t));
 	t->x = rr(-40, PW + 10);
 	t->y = rr(-40, PH + 10);
 	t->w = rr(8, 150);
 	t->h = rr(14, 130);
 	random_title(t->title);
 	random_ops(t);
-	mark_window(t);
 	note("create %d at %d,%d %dx%d", id, t->x, t->y, t->w, t->h);
 	t->handle = win_create(&scene, t->x, t->y, t->w, t->h, t->title,
 	    paint_cb, t);
-	if (t->handle == NULL)
-		fail("win_create refused a valid window");
+	if (!call_ok(t->handle != NULL ? 0 : -1, inj, "win_create")) {
+		memset(t, 0, sizeof(*t));
+		return;
+	}
+	t->used = 1;
+	mark_window(t);
 	order[norder++] = id;
 }
 
@@ -568,80 +627,89 @@ static void
 op_move(void)
 {
 	struct twin *t;
-	int id = pick_window();
+	long inj = n_injected;
+	int id = pick_window(), nx, ny;
 
 	if (id < 0)
 		return;
 	t = &tw[id];
-	mark_window(t);
 	note("move %d from %d,%d", id, t->x, t->y);
 	if (rr(0, 1)) {
-		t->x += rr(-12, 12);
-		t->y += rr(-12, 12);
+		nx = t->x + rr(-12, 12);
+		ny = t->y + rr(-12, 12);
 	} else {
-		t->x = rr(-40, PW + 10);
-		t->y = rr(-40, PH + 10);
+		nx = rr(-40, PW + 10);
+		ny = rr(-40, PH + 10);
 	}
+	if (!call_ok(win_move(&scene, t->handle, nx, ny), inj, "win_move"))
+		return;
 	mark_window(t);
-	if (win_move(&scene, t->handle, t->x, t->y) != 0)
-		fail("win_move");
+	t->x = nx;
+	t->y = ny;
+	mark_window(t);
 }
 
 static void
 op_resize(void)
 {
 	struct twin *t;
-	int id = pick_window();
+	long inj = n_injected;
+	int id = pick_window(), nw, nh;
 
 	if (id < 0)
 		return;
 	t = &tw[id];
-	mark_window(t);
 	note("resize %d from %dx%d", id, t->w, t->h);
-	t->w = rr(8, 150);
-	t->h = rr(14, 130);
+	nw = rr(8, 150);
+	nh = rr(14, 130);
+	if (!call_ok(win_resize(&scene, t->handle, nw, nh), inj, "win_resize"))
+		return;
 	mark_window(t);
-	if (win_resize(&scene, t->handle, t->w, t->h) != 0)
-		fail("win_resize");
+	t->w = nw;
+	t->h = nh;
+	mark_window(t);
 }
 
 static void
 op_raise(void)
 {
 	struct twin *t;
+	long inj = n_injected;
 	int id = pick_window();
 
 	if (id < 0)
 		return;
 	t = &tw[id];
-	mark_window(t);
 	note("raise %d", id);
+	if (!call_ok(win_raise(&scene, t->handle), inj, "win_raise"))
+		return;
+	mark_window(t);
 	order_remove(id);
 	order[norder++] = id;
-	if (win_raise(&scene, t->handle) != 0)
-		fail("win_raise");
 }
 
 static void
 op_destroy(void)
 {
 	struct twin *t;
+	long inj = n_injected;
 	int id = pick_window();
 
 	if (id < 0)
 		return;
 	t = &tw[id];
-	mark_window(t);
 	note("destroy %d", id);
+	if (!call_ok(win_destroy(&scene, t->handle), inj, "win_destroy"))
+		return;
+	mark_window(t);
 	order_remove(id);
-	if (win_destroy(&scene, t->handle) != 0)
-		fail("win_destroy");
 	memset(t, 0, sizeof(*t));
 }
 
 static void
 op_invalidate(void)
 {
+	long inj = n_injected;
 	int x = rr(-20, PW + 10), y = rr(-20, PH + 10);
 	int w = rr(1, 60), h = rr(1, 40);
 
@@ -649,26 +717,28 @@ op_invalidate(void)
 		x = y = -5;
 		w = h = PW + 20;
 	}
-	mark(x, y, x + w, y + h);
 	note("invalidate %d,%d %dx%d", x, y, w, h);
-	if (win_invalidate(&scene, x, y, w, h) != 0)
-		fail("win_invalidate");
+	if (call_ok(win_invalidate(&scene, x, y, w, h), inj, "win_invalidate"))
+		mark(x, y, x + w, y + h);
 }
 
 static void
 op_title(void)
 {
 	struct twin *t;
+	long inj = n_injected;
+	char title[40];
 	int id = pick_window();
 
 	if (id < 0)
 		return;
 	t = &tw[id];
 	note("title %d", id);
+	random_title(title);
+	if (!call_ok(win_set_title(&scene, t->handle, title), inj, "win_set_title"))
+		return;
+	strcpy(t->title, title);
 	mark(t->x + 1, t->y + 1, t->x + t->w - 1, t->y + 1 + R_TITLE_ROWS);
-	random_title(t->title);
-	if (win_set_title(&scene, t->handle, t->title) != 0)
-		fail("win_set_title");
 }
 
 static void
@@ -696,14 +766,16 @@ run_random(long nops)
 		else if (r < 85)
 			op_title();
 		else {
+			long inj = n_injected;
+
 			note("flush");
-			if (win_flush(&scene) != 0)
-				fail("win_flush");
-			flushed = 1;
+			flushed = call_ok(win_flush(&scene), inj, "win_flush");
 		}
 		after_op(flushed);
 	}
+	/* A working backend brings the panel equal to the reference. */
 	op_index = nops;
+	inject_every = 0;
 	if (win_flush(&scene) != 0)
 		fail("final win_flush");
 	after_op(1);
@@ -773,11 +845,13 @@ run_burst(void)
 static void
 run_api(void)
 {
-	struct win *w;
+	struct win *w, *foreign;
 	int i;
 
 	reset_world();
 	op_index = -2;
+	if (win_scene_init(&other, &backend) != 0)
+		fail("win_scene_init");
 	if (win_create(&scene, 0, 0, WIN_MIN_W - 1, 40, "t", NULL, NULL) != NULL ||
 	    win_create(&scene, 0, 0, 40, WIN_MIN_H - 1, "t", NULL, NULL) != NULL ||
 	    win_create(&scene, 0, 0, WIN_LIMIT + 1, 40, "t", NULL, NULL) != NULL ||
@@ -786,6 +860,19 @@ run_api(void)
 	w = win_create(&scene, 0, 0, WIN_MIN_W, WIN_MIN_H, "t", NULL, NULL);
 	if (w == NULL)
 		fail("smallest window refused");
+	/* A window of another scene is no handle of this one. */
+	foreign = win_create(&other, 5, 5, 40, 30, "theirs", NULL, NULL);
+	if (foreign == NULL)
+		fail("window of the second scene refused");
+	if (win_set_title(&scene, foreign, "mine") != -1 ||
+	    strcmp(foreign->title, "theirs") != 0)
+		fail("a window of another scene was accepted");
+	if (win_move(&scene, foreign, 9, 9) != -1 ||
+	    win_resize(&scene, foreign, 20, 20) != -1 ||
+	    win_raise(&scene, foreign) != -1 || win_destroy(&scene, foreign) != -1 ||
+	    win_invalidate_client(&scene, foreign, 0, 0, 4, 4) != -1 ||
+	    foreign->x != 5 || foreign->w != 40 || other.nwin != 1)
+		fail("a call accepted a window of another scene");
 	if (win_resize(&scene, w, 7, 40) != -1 || win_move(&scene, w, 9999, 0) != -1 ||
 	    win_destroy(&scene, NULL) != -1 || win_raise(&scene, NULL) != -1)
 		fail("an invalid call succeeded");
@@ -804,6 +891,67 @@ run_api(void)
 	    palette_seen[3][1] != 2 || palette_seen[3][2] != 3)
 		fail("palette calls");
 	printf("PASS api: invalid calls refused, palette forwarded\n");
+}
+
+/*
+ * A backend that fails leaves the scene as the call reported and the damage
+ * exact: the refused rectangles stay, nothing is widened, and a retry on a
+ * working backend repairs the panel.
+ */
+static void
+run_failure(void)
+{
+	struct twin *a = &tw[0];
+	int i, before;
+
+	reset_world();
+	op_index = -4;
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	for (i = 0; i < 7; i++) {
+		mark(i * 40, 0, i * 40 + 4, 4);
+		if (win_invalidate(&scene, i * 40, 0, 4, 4) != 0)
+			fail("win_invalidate");
+	}
+	before = scene.ndamage;
+	if (before != 7)
+		fail("seven separate rectangles left %d in the list", before);
+
+	/* The next call must flush first; its first backend call fails. */
+	fail_countdown = 1;
+	if (win_create(&scene, 10, 10, 60, 40, "late", paint_cb, a) != NULL)
+		fail("win_create succeeded although the backend failed");
+	if (scene.nwin != 0 || scene.ndamage != before)
+		fail("a failed create changed the scene or the damage list");
+	fail_countdown = 1;
+	if (win_invalidate(&scene, 200, 200, 8, 8) != -1 ||
+	    scene.ndamage != before)
+		fail("a failed invalidate was reported or recorded wrongly");
+	/* A failure in the middle of a rectangle's pixels. */
+	fail_countdown = 2;
+	if (win_flush(&scene) != -1 || scene.ndamage != before)
+		fail("a failed flush dropped or widened damage");
+	check_memory();
+
+	/* Retry: create now works, and the flush repairs everything. */
+	memset(a, 0, sizeof(*a));
+	a->x = 10;
+	a->y = 10;
+	a->w = 60;
+	a->h = 40;
+	strcpy(a->title, "late");
+	a->handle = win_create(&scene, a->x, a->y, a->w, a->h, a->title, paint_cb, a);
+	if (a->handle == NULL)
+		fail("win_create refused after the backend recovered");
+	a->used = 1;
+	order[norder++] = 0;
+	mark_window(a);
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	printf("PASS failure: refused calls change nothing, damage stays exact, "
+	    "%ld backend failures\n", n_injected);
 }
 
 /* Backend bytes for three workloads, as the model counts them. */
@@ -868,11 +1016,16 @@ main(int argc, char **argv)
 		return 2;
 	}
 	reset_world();
+	inject_every = 150;
 	run_random(nops);
+	if (n_injected < 20)
+		fail("only %ld backend failures injected", n_injected);
 	printf("PASS random: %ld operations, %ld windows and %ld bytes sent, "
-	    "%ld writes\n", nops, n_ioctl_window, n_bytes, n_writes);
+	    "%ld writes, %ld backend failures\n", nops, n_ioctl_window, n_bytes,
+	    n_writes, n_injected);
 	run_burst();
 	run_api();
+	run_failure();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

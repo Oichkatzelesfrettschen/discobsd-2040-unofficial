@@ -52,10 +52,19 @@
  * contains existing ones replaces them, two that join into a rectangle are
  * merged, and a partial overlap is trimmed where the remainder is itself a
  * rectangle, so the list covers exactly the pixels invalidated and few
- * pixels twice. A full list is flushed before the new rectangle is
- * stored, so a rectangle is never widened and the flush never writes a
- * pixel outside the invalidated area. A failed backend call leaves its
- * rectangle and the later ones in the list and makes win_flush() return -1.
+ * pixels twice. A rectangle is never widened.
+ *
+ * Failure rule. A call adds at most two rectangles, so it first flushes the
+ * list when fewer than two slots are free, before it changes the scene.
+ * When that flush fails at the backend the call returns -1 (NULL from
+ * win_create) having changed nothing: the caller holds no new window, the
+ * existing windows, their order and geometry are as before, and the
+ * rectangle of an invalidate is not recorded. The unflushed rectangles,
+ * including the one the backend refused, stay in the list, so a later
+ * win_flush() or call retries them and writes only invalidated pixels.
+ * A failing win_flush() returns -1 and keeps the same rectangles. A call
+ * that returns 0 has recorded all of its damage. Pixels a failed flush had
+ * already sent stay on the panel.
  *
  * Paint callbacks draw only through the context and do not call the scene
  * functions. Calls return 0, or -1 for an invalid argument, a full scene

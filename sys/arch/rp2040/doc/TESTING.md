@@ -1919,12 +1919,16 @@ write that carries the new size and none of the freed addresses, and
 exactly one inode-block write per truncation (the cost of the ordering).
 The cases truncate direct and single-indirect files to zero and to a block
 boundary, on a synchronous and an `MNT_ASYNC` mount, entering with clean
-inode flags, which `iupdat()` answers with an early return. Four mutants of
+inode flags, which `iupdat()` answers with an early return. Two more cases
+fail the inode write and require the error in `u.u_error`, no block freed
+and the inode left dirty, since the device then still holds every old
+address. Five mutants of
 `itrunc_order_mutate.py` are rejected through the gate's own verdict:
 `inode-after-frees` restores the source as it stood before the change
-(5 of 218 checks fail), `flags-not-marked` and `inode-write-delayed`
-each leave no synchronous inode write ahead of the frees, and
-`second-write-kept` repeats the inode write after the frees.
+, `flags-not-marked` and `inode-write-delayed`
+each leave no synchronous inode write ahead of the frees,
+`second-write-kept` repeats the inode write after the frees, and
+`write-error-ignored` frees the blocks after a failed inode write.
 `check-itrunc-order-mutants` runs them.
 
 The fifth file, `sys/kern/subr_prf.c`, uses the compiler's variadic argument

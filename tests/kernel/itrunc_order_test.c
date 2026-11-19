@@ -179,12 +179,19 @@ brelse(struct buf *bp)
 	gate_release(bp);
 }
 
+/* Nonzero makes the next synchronous write fail with that error. */
+static int fail_write;
+
 int
 bwrite(struct buf *bp)
 {
-	record(EV_WRITE_SYNC, bp->b_blkno);
+	int error = fail_write;
+
+	fail_write = 0;
+	if (error == 0)
+		record(EV_WRITE_SYNC, bp->b_blkno);
 	gate_release(bp);
-	return 0;
+	return error;
 }
 
 void
@@ -334,6 +341,30 @@ run_case(const char *name, int ndirect, int nindirect, int async,
 	HK_CHECK((gate_ip.i_flag & (IUPD | IACC | ICHG | IMOD)) == 0);
 }
 
+/*
+ * The inode write fails: the device still holds every old address, so the
+ * truncation reports the error, frees no block and leaves the inode dirty
+ * for a later update.
+ */
+static void
+run_failed_write(const char *name, int ndirect, int nindirect)
+{
+	unsigned i, frees = 0;
+
+	build(ndirect, nindirect, 0);
+	fail_write = EIO;
+	itrunc(&gate_ip, 0, 0);
+	for (i = 0; i < nevents; i++)
+		if (events[i].kind == EV_FREE)
+			frees++;
+	hk_note("%s: error %d, %u frees\n", name, u.u_error, frees);
+	HK_CHECK(u.u_error == EIO);
+	HK_CHECK(frees == 0);
+	HK_CHECK((gate_ip.i_flag & (IUPD | ICHG)) == (IUPD | ICHG));
+	HK_CHECK(fail_write == 0);
+	u.u_error = 0;
+}
+
 int
 main(void)
 {
@@ -343,5 +374,7 @@ main(void)
 	run_case("indirect, truncate to 0", NDADDR, 3, 0, 0, NDADDR + 4);
 	run_case("indirect, keep the direct blocks", NDADDR, 3, 1,
 	    NDADDR * DEV_BSIZE, 4);
+	run_failed_write("direct, inode write fails", NDADDR, 0);
+	run_failed_write("indirect, inode write fails", NDADDR, 3);
 	return hk_verdict("itrunc order");
 }

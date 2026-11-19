@@ -685,7 +685,15 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
      * follows them.
      */
     oip->i_flag |= ICHG|IUPD;
-    iupdat(oip, &time, &time, 1);
+    {
+        int error = iupdat(oip, &time, &time, 1);
+
+        /* Nothing is freed while the device still holds the old addresses. */
+        if (error) {
+            u.u_error = error;
+            return;
+        }
+    }
 
     /*
      * Indirect blocks first.

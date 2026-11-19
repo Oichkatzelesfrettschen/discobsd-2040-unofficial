@@ -50,7 +50,20 @@ COMMENT = "".join(
     )
 )
 FLAGS = "    oip->i_flag |= ICHG|IUPD;\n"
-UPDATE = "    iupdat(oip, &time, &time, 1);\n"
+CHECK = """        if (error) {
+            u.u_error = error;
+            return;
+        }
+"""
+UPDATE = (
+    """    {
+        int error = iupdat(oip, &time, &time, 1);
+
+        /* Nothing is freed while the device still holds the old addresses. */
+"""
+    + CHECK
+    + "    }\n"
+)
 WRITE = COMMENT + FLAGS + UPDATE + "\n    /*\n     * Indirect blocks first."
 RETURN = """    /* The inode was written before the frees and the frees leave it as is. */
     return;
@@ -73,6 +86,11 @@ MUTATIONS = {
     "inode-write-delayed": (
         WRITE,
         WRITE.replace("&time, &time, 1)", "&time, &time, 0)"),
+    ),
+    # A failed inode write is followed by the frees all the same.
+    "write-error-ignored": (
+        WRITE,
+        WRITE.replace(CHECK, "        (void)error;\n"),
     ),
     # The final update repeats the write the early one made.
     "second-write-kept": (

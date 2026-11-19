@@ -76,7 +76,7 @@ Board runs stay behind the opt-in. PICO and PICO_UART had 29,304 and 38,576 B of
 |---|---|---|
 | RENO kern/tty.c, tty_subr.c, tty_compat.c, tty_conf.c, sys/tty.h, ttychars.h | "Berkeley software License Agreement" legend, no grant text | not a three-clause grant; it is the legend NOTICE section 2 already carries; an import needs an owner decision |
 | RENO kern/tty_pty.c, sys/termios.h, ioctl_compat.h | "Redistribution is only permitted until one year after the first shipment of 4.4BSD" | grant expired by its own words (I); do not import |
-| N2 kern/tty.c, tty_subr.c, tty_compat.c, tty_pty.c, sys/termios.h, tty.h, ttydefaults.h | three-clause | importable per header; Net/2 file history not checked |
+| N2 kern/tty.c, tty_subr.c, tty_compat.c, tty_pty.c, sys/termios.h, tty.h, ttydefaults.h | four conditions, the third being the advertising clause (kern/tty.c header, conditions 1-4) | importable with the header kept whole, all four conditions included; the University of California's 1999 rescission of that clause is not part of the archive read here and would have to be cited before an import relied on it; Net/2 file history not checked |
 | OBSD kern/tty.c | three-clause, lines 5-28 | importable |
 | DFLY kern/tty.c, NetBSD kern/tty.c | headers not read | consult only |
 | SCH ldterm, ttcompat, ptem, ptm, pts, tem*, vcons, wscons, conskbd | CDDL (ldterm.c) | behavior only |
@@ -99,7 +99,7 @@ Ownership comes first. GP28 is reachable as a GPIO, as ADC input 2 and as PWM sl
 | GPIO_PWM request (free command bit 25), argument duty<<16 or pin mask | +250-350 B / 2 B | owned pins only; refuse slice 5 on PicoCalc; GP28 is slice 6, shared with /dev/audio, so EBUSY while audio is open | analogwrite |
 | /dev/i2c0, /dev/i2c1, one XFER ioctl, 32 B each way | +0.5-0.7 KB / 8 B | PicoCalc: both refused (I2C1 is the keyboard bus; I2C0 has no free pins). Bare Pico: both pins in the free mask and acquired from the owner record; refuse addresses 0x00-0x07, 0x78-0x7f; 100 ms poll bound with abort recovery as picokbd | with-i2c, restart-i2c |
 | /dev/spi0, /dev/spi1, one XFER ioctl, 64 B, chip select via the GPIO node | +0.45-0.6 KB / 6 B | PicoCalc: both refused (SD, panel). Bare Pico: pin mask | with-spi |
-| device uart1 (NUART=2) | 0 / about 100 B per tty | PicoCalc refused (GP8/GP9 are the keyboard controller's link, and that controller's firmware does not open its end); UART0 stays the console | with-serial |
+| device uart1 (initialize and expose the second unit) | small / 0 on PICO and PICO_UART, which already allocate its tty; about 100 B of RAM for the tty on a kernel built with NUART=1 | PicoCalc refused (GP8/GP9 are the keyboard controller's link, and that controller's firmware does not open its end); UART0 stays the console | with-serial |
 | LCDG_ORIENT, LCDG_INVERT (MADCTL 0x36, INVON/INVOFF) | +100-150 B / 0 | lcdgfx open rules | set-rotation, invert-display |
 
 A PicoCalc owner gets GPIO, ADC and PWM on GP28 alone, with no I2C, SPI or second serial port; those nodes serve a bare Pico. analogreference and the resolution functions need only userland scaling (I). The first four rows add an estimated 1.3-1.9 KB and the console work of section 3 an estimated 0.9-1.4 KB, 2.2-3.3 KB together against 3.4 KB of PICOCALC headroom above the margin: a narrow fit on estimates, with nothing left for other kernel work, so the combination is admitted on PICOCALC only after each part is measured. PICOCALC_SD and the bare-Pico kernels have the room.
@@ -111,7 +111,7 @@ Text bytes are HEAD recompiles (M); "scratch" means the SRAM scratch bank, not f
 | Device or bus | State | File (text) | Kernels | User interface | Test evidence |
 |---|---|---|---|---|---|
 | UART0 | present | uart.c (1,410) | all | /dev/tty0 | uart_test model, 8 mutants; Renode boot |
-| UART1 | source only | uart.c | none (NUART=1) | none | none |
+| UART1 | compiled, not initialized, not usable | uart.c | PICO and PICO_UART leave NUART at its default of 2 (uart.h), so they build the UART1 table row and a second tty, while machdep.c initializes unit 0 only; every PicoCalc Config sets NUART=1 and builds neither | none that opens | none |
 | USB CDC-ACM | present | usb.c (3,963 + 4,096 scratch) | PICO, PICOCALC family | /dev/ttyUSB0 | check-usb-* host gates |
 | ST7365P, SPI1 | present | st7365p.c (3,184) | PICOCALC family | via lcdterm, lcdgfx | check-picocalc-host; board bytes 2026-11-17 |
 | Console terminal | present | lcdterm.c (4,335), lcdcons.c (2,262) | PICOCALC family | /dev/console | check-picocalc-host, mutants |

@@ -39,8 +39,8 @@ include ${TOPSRC}/share/mk/sys.mk
 
 BINDIR=		/usr/bin
 PROG=		word
-SRCS=		word.c word_buf.c word_find.c word_menus.c word_modes.c \
-		word_pick.c word_term.c
+SRCS=		word.c word_buf.c word_doc.c word_find.c word_menus.c \
+		word_modes.c word_pick.c word_term.c
 OBJS=		${SRCS:.c=.o}
 CFLAGS		+= -std=c17
 

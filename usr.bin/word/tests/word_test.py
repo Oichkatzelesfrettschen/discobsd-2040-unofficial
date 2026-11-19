@@ -473,7 +473,114 @@ def t_format(b, td):
     s.close()
 
 
+def wdoc(text, chp_runs, pap_runs, charset=0x229B, pages_extra=0):
+    """A Word 5.1 document (SPEC.md, Word document files) from text with CR LF
+    marks, character runs [(fc_lim, record)] and paragraph runs [(fc_lim,
+    record)], each record the property bytes after its length byte."""
+
+    def fkp(runs):
+        pg = bytearray(128)
+        struct.pack_into("<I", pg, 0, 0x80)
+        top = 127
+        for i, (lim, rec) in enumerate(runs):
+            if rec:
+                top -= len(rec) + 1
+                pg[top] = len(rec)
+                pg[top + 1 : top + 1 + len(rec)] = rec
+                ptr = top - 4
+            else:
+                ptr = 0xFFFF
+            struct.pack_into("<IH", pg, 4 + 6 * i, lim, ptr)
+        pg[127] = len(runs)
+        return bytes(pg)
+
+    fcmac = 0x80 + len(text)
+    body = text + b"\0" * (-len(text) % 128)
+    pnpara = fcmac // 128 + (1 if fcmac % 128 else 0) + 1
+    h = bytearray(128)
+    struct.pack_into("<HHH", h, 0, 0xBE31, 0, 0xAB00)
+    struct.pack_into("<I", h, 0x0E, fcmac)
+    struct.pack_into("<H", h, 0x12, pnpara)
+    for off in (0x14, 0x16, 0x18, 0x1A, 0x1C, 0x76, 0x78, 0x7C):
+        struct.pack_into("<H", h, off, pnpara + 1)
+    struct.pack_into("<H", h, 0x6A, pnpara + 1 + pages_extra)
+    struct.pack_into("<H", h, 0x7E, charset)
+    return bytes(h) + body + fkp(chp_runs) + fkp(pap_runs)
+
+
+def wdoc_parse(data):
+    """(text, character runs, paragraph runs) of a Word 5.1 document."""
+    check(struct.unpack_from("<HHH", data, 0) == (0xBE31, 0, 0xAB00), "bad header")
+    check(struct.unpack_from("<H", data, 0x7E)[0] == 0x229B, "bad character set")
+    fcmac = struct.unpack_from("<I", data, 0x0E)[0]
+    pnpara = struct.unpack_from("<H", data, 0x12)[0]
+    pnmac = struct.unpack_from("<H", data, 0x6A)[0]
+    check(pnmac * 128 <= len(data), "pnMac past the end of the file")
+
+    def runs(first, last, end):
+        out, page = [], first
+        while page < last and (not out or out[-1][0] < end):
+            pg = data[page * 128 : page * 128 + 128]
+            for i in range(pg[127]):
+                lim, ptr = struct.unpack_from("<IH", pg, 4 + 6 * i)
+                rec = b"" if ptr == 0xFFFF else pg[ptr + 5 : ptr + 5 + pg[ptr + 4]]
+                out.append((lim, bytes(rec)))
+            page += 1
+        return out
+
+    chp_page = fcmac // 128 + (1 if fcmac % 128 else 0)
+    return data[0x80:fcmac], runs(chp_page, pnpara, fcmac), runs(pnpara, pnmac, fcmac + 1)
+
+
+def t_docfmt(b, td):
+    src = os.path.join(td, "in.doc")
+    text = b"ab cd ef\r\nmid\r\n"
+    end = 0x80 + len(text)
+    write(
+        src,
+        wdoc(
+            text, [(0x83, b""), (0x85, b"\0\1"), (end, b"")], [(0x8A, b""), (end + 1, b"\x3c\x01")]
+        ),
+    )
+    s = Session(b, [src])
+    check(s.scr.row(0).startswith("ab cd ef"), "Word text not loaded: %r" % s.scr.row(0))
+    check(all(s.scr.attrs[0][c] & 1 for c in (3, 4)), "bold run not loaded")
+    check(not s.scr.attrs[0][0] & 1 and not s.scr.attrs[0][6] & 1, "bold leaked")
+    check(s.scr.row(1).index("mid") == (COLS - 3) // 2, "centered paragraph not loaded")
+    out = os.path.join(td, "out.doc")
+    s.send(b"X")
+    menu(s, b"t", b"s")
+    check(s.has("format:(Word)"), "Word format not the default for a Word file")
+    s.send(out.encode(), b"\r")
+    t2, cr, pr = wdoc_parse(read(out))
+    check(t2 == b"Xab cd ef\r\nmid\r\n", "saved text %r" % t2)
+    bold = [(lim, r) for lim, r in cr if r and r[1] & 1]
+    check(bold and bold[0][0] == 0x86 and len(bold) == 1, "saved character runs %r" % cr)
+    check(pr[-1][0] == 0x80 + len(t2) + 1 and pr[-1][1][1] & 3 == 1, "saved paragraph runs %r" % pr)
+    check(pr[0][1] == b"" or pr[0][1][1] & 3 == 0, "first paragraph saved centered")
+    # Known-bad: Text-only of a formatted document asks; N writes nothing.
+    plain = os.path.join(td, "plain.txt")
+    menu(s, b"t", b"s")
+    s.send(plain.encode(), b"\t", b"t", b"\r")
+    check(s.has("drops the formatting"), "no warning before dropping formatting")
+    s.send(b"n")
+    check(not os.path.exists(plain), "cancelled text save wrote a file")
+    menu(s, b"t", b"s")
+    s.send(plain.encode(), b"\t", b"t", b"\r", b"y")
+    check(read(plain) == b"Xab cd ef\nmid\n", "text-only bytes %r" % read(plain))
+    menu(s, b"q")
+    s.send(b"n")
+    s.close()
+    # Known-bad: another character set and a short file are refused.
+    for name, cs, extra in (("cs.doc", 0x1B5, 0), ("short.doc", 0x229B, 3)):
+        p = os.path.join(td, name)
+        write(p, wdoc(text, [(end, b"")], [(end + 1, b"")], charset=cs, pages_extra=extra))
+        s = Session(b, [p])
+        check(s.close(expect_exit=False) == 1, "%s was not refused" % name)
+
+
 TESTS = [
+    t_docfmt,
     t_format,
     t_save_menu,
     t_wrap,

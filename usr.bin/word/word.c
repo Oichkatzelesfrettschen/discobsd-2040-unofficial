@@ -52,7 +52,7 @@
 
 enum ui {
 	U_EDIT = 0, U_MENU, U_FORM, U_CONF_REPL, U_CONF_QUIT, U_CONF_CLEAR,
-	U_PICK, U_HELP
+	U_PICK, U_HELP, U_CONF_LOSS
 };
 
 int keymode = KEYS_WORD, running = 1, scrap_lines;
@@ -69,6 +69,7 @@ static uint32_t saved_gen;
 static char msg[WORD_MSG_MAX];
 static int msg_err;
 static int ins_chp = -1;		/* typing format, or -1 to inherit */
+static int doc_word;			/* the document is a Word file */
 
 /* Logical line cache: the line number of li_off is li_line. */
 static woff_t li_off, li_line;
@@ -672,7 +673,7 @@ ed_save(const char *path)
 		ed_msg(1, "No file name");
 		return -1;
 	}
-	e = buf_save(path, opt_backup);
+	e = doc_word ? doc_save(path, opt_backup) : buf_save(path, opt_backup);
 	if (e != 0) {
 		msg_errno(e);
 		return -1;
@@ -692,8 +693,15 @@ ed_load(const char *path)
 	int e;
 
 	snprintf(p, sizeof(p), "%s", path);
-	e = buf_load(p);
+	doc_word = doc_probe(p) == 1;
+	e = doc_word ? doc_load(p) : buf_load(p);
+	if (e == EINVAL && doc_word)
+		e = ENOEXEC;
 	if (e == ENOENT) {
+		size_t n = strlen(p);
+
+		doc_word = n > 4 && (strcmp(p + n - 4, ".doc") == 0 ||
+		    strcmp(p + n - 4, ".dcx") == 0);
 		buf_clear();
 		snprintf(ed_file, sizeof(ed_file), "%s", p);
 		ed_msg(0, "New file");
@@ -869,9 +877,9 @@ struct form {
 static const struct form forms[F_NFORMS] = {
 	[F_LOAD] = { "TRANSFER LOAD", 1,
 	    { FIL("filename", f_name) } },
-	[F_SAVE] = { "TRANSFER SAVE", 2,
+	[F_SAVE] = { "TRANSFER SAVE", 3,
 	    { FIL("filename", f_name),
-	      YESNO("backup") } },
+	      CHO("format", 2, "Word|Text-only"), YESNO("backup") } },
 	[F_MERGE] = { "TRANSFER MERGE", 1,
 	    { FIL("filename", f_name) } },
 	[F_FDELETE] = { "TRANSFER DELETE", 1,
@@ -1150,9 +1158,12 @@ ed_form(int id)
 		f_name[0] = '\0';
 		break;
 	case F_SAVE:
+		snprintf(f_name, sizeof(f_name), "%s", ed_file);
+		fval[1] = !doc_word;
+		fval[2] = !opt_backup;
+		break;
 	case F_RENAME:
 		snprintf(f_name, sizeof(f_name), "%s", ed_file);
-		fval[1] = !opt_backup;
 		break;
 	case F_CHDIR:
 		if (getcwd(f_name, sizeof(f_name)) == NULL)
@@ -1231,7 +1242,13 @@ form_run(void)
 		ed_load(f_name);
 		break;
 	case F_SAVE:
-		opt_backup = fval[1] == 0;
+		opt_backup = fval[2] == 0;
+		if (fval[1] == 1 && doc_formatted()) {
+			ui = U_CONF_LOSS;
+			ed_msg(0, "Text-only drops the formatting: Y saves, N cancels");
+			break;
+		}
+		doc_word = fval[1] == 0;
 		if (ed_save(f_name) == 0 && quit_after)
 			running = 0;
 		quit_after = 0;
@@ -2359,6 +2376,17 @@ dispatch(int k)
 			running = 0;
 		else
 			ui = U_CONF_QUIT;
+		return;
+	case U_CONF_LOSS:
+		r = toupper(k & 0xff);
+		ui = U_EDIT;
+		if (r == 'Y') {
+			doc_word = 0;
+			if (ed_save(f_name) == 0 && quit_after)
+				running = 0;
+		} else
+			ed_msg(0, "Cancelled");
+		quit_after = 0;
 		return;
 	case U_CONF_CLEAR:
 		r = toupper(k & 0xff);

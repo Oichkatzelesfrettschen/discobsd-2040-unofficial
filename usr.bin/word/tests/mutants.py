@@ -54,6 +54,7 @@ FLAGS = [
 SRCS = [
     "word.c",
     "word_buf.c",
+    "word_doc.c",
     "word_find.c",
     "word_menus.c",
     "word_modes.c",

@@ -95,6 +95,15 @@ int	buf_insert_props(woff_t pos, woff_t ref, woff_t n, unsigned chp,
 	    unsigned pap);
 void	buf_props_for(woff_t pos, unsigned *chp, unsigned *pap);
 int	buf_insert_fmt(woff_t pos, const char *s, size_t n, int chp);
+int	buf_append_props(const char *s, size_t n, unsigned chp, unsigned pap);
+void	buf_loaded(void);		/* end of a load: no undo history */
+
+/* ---- word_doc.c: Word 5.1 document files ---- */
+
+int	doc_probe(const char *path);	/* 1 Word document, 0 other, -1 error */
+int	doc_load(const char *path);	/* 0, or an errno value */
+int	doc_save(const char *path, int backup);
+int	doc_formatted(void);		/* 1 when any property is not default */
 int	buf_props(woff_t off);		/* pap << 8 | chp, or -1 */
 const struct word_chp *buf_chp(unsigned i);
 const struct word_pap *buf_pap(unsigned i);

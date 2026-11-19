@@ -118,8 +118,53 @@ and listed at the end.
   capitals. Indents and centered or right alignment place the rows;
   justified paragraphs show left-aligned, and line spacing, space before
   and after and the keep options are kept but not drawn.
-- A text file carries no properties: Transfer Save writes the characters
-  only.
+- A text file carries no properties. Transfer Save has a format field,
+  Word or Text-only; it starts at Word for a document loaded from a Word
+  file or named `.doc` or `.dcx`, and at Text-only otherwise. Saving a
+  formatted document as Text-only asks first.
+
+## Word document files
+
+The program reads and writes the document files of Word 5.1 for UNIX.
+The layout below was established by saving documents that differ in one
+property from the original program and comparing the files, and checked
+by loading files this program writes back into the original.
+
+- The file is 128-byte pages, little-endian. Page 0 is the header: the
+  identifier 0xBE31 at 0, the document type 0 at 2, 0xAB00 at 4, the end
+  of the text as a file offset at 0x0E (0x80 plus the text length), the
+  first paragraph-run page at 0x12, further table pages at 0x14 to 0x1C
+  and 0x76 to 0x7C, the style sheet name at 0x1E, the printer name at
+  0x62, the page count at 0x6A, the default tab width in twips at 0x70
+  and the character set 0x229B (ISO 8859-1) at 0x7E.
+- The text starts at byte 0x80. A paragraph mark is CR LF; this program
+  keeps it as LF and writes LF back as CR LF. A lone CR also ends a
+  paragraph. Other bytes are kept as they are.
+- After the text, from the next page boundary, come the character-run
+  pages, then from the page at 0x12 the paragraph-run pages. A run page
+  holds the file offset its first run starts at, then for each run its
+  end offset (4 bytes) and the page offset, less 4, of its property
+  record, or 0xFFFF for default properties; a paragraph page follows the
+  run entries with six bytes per run that this program writes as zero.
+  The run count is the last byte of the page, and the property records
+  fill the page from byte 126 down. Character runs end at the text end;
+  the last paragraph run ends one byte past it.
+- A property record is a length byte and that many leading bytes of the
+  property structure; the rest keep their defaults. Character structure:
+  byte 1 bold (1) and italic (2), byte 2 the size in half points (24 by
+  default), byte 3 underline (1), strikethrough (2), double underline
+  (4), uppercase (0x10), small capitals (0x30 when written; 0x20 read),
+  hidden (0x80), byte 5 a signed vertical offset (positive superscript,
+  negative subscript). Paragraph structure: byte 0 the style (0x3C, the
+  Normal style), byte 1 the alignment in bits 0-1, keep together 4, keep
+  with next 8, side by side 0x10; then 16-bit twips: right indent at 4,
+  left indent at 6, first line at 8, line spacing at 10 (240 by
+  default), space before at 12 and after at 14.
+- A file whose header identifies another tool loads as text. A Word file
+  with another character set, or one shorter than its page count, is
+  refused. Fonts, colors, tab stops, styles, divisions, footnotes,
+  bookmarks and the summary are not kept; a save writes the header, the
+  text and the two run tables.
 
 ## Modern modes
 

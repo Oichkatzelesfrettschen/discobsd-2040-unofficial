@@ -617,6 +617,27 @@ buf_insert(woff_t pos, const char *s, size_t n)
 }
 
 int
+buf_append_props(const char *s, size_t n, unsigned chp, unsigned pap)
+{
+	woff_t ref;
+	int e;
+
+	if (n == 0)
+		return 0;
+	e = add_append(s, n, &ref);
+	if (e != 0)
+		return e;
+	return raw_insert(doclen, ref, (woff_t)n, chp, pap);
+}
+
+void
+buf_loaded(void)
+{
+	ucount = upos = 0;
+	touched(0);
+}
+
+int
 buf_insert_fmt(woff_t pos, const char *s, size_t n, int chp)
 {
 	unsigned c, p;

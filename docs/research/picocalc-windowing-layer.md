@@ -69,17 +69,17 @@ No command-stream driver exists.
 - Conclusion: a port by way of the framebuffer subdrivers needs the full shadow, option (b) or (c). The alternative is a SCREENDEVICE whose DrawPixel, line, FillRect and ReadPixel entries call LCDG_PIXEL, LCDG_LINE, LCDG_FILL and LCDG_READ directly. It needs no shadow; it pays one ioctl per primitive, read-back at 8.6-12.5 us per pixel for the paths that read (blending, stipple, the software cursor), a superuser server for LCDG_READ, and its blit entries would be written new. That driver was not written, so its size and speed are unmeasured, and the linked code size of the port (59,152 B floor) applies to it unchanged.
 
 Measured sizes (Microwindows 36c8d0edfa5; 4-bpp palette, NONETWORK, no images/float/portrait; fonts are mutable .data):
-- Engine closure of a ten-call stub: 25,100 B code and rodata, 12,560 B data (11,960 of it the two compiled fonts), 2,458 B bss. rasterops.o alone is 8,932 B and survives the link.
+- Engine closure of a ten-call stub: 25,100 B code and rodata, 12,560 B data (11,960 of it the two compiled fonts), 2,460 B bss. rasterops.o is 9,304 B (8,932 B of it the function GdRasterOp, which the link keeps).
 - Objects: devrgn 3,280, devdraw 2,808, devfont 2,631, fblin4 2,248, devclip 768, genmem 1,006. convblit_frameb (11,716) is truecolor-only.
 - Nano-X server plus nanowm, NONETWORK: 43,512 text, 12,940 data, 2,700 bss = 59,152 B linked floor. With every depth subdriver (unpatched fb.c) it is 90,400 B. Summing all objects gives about 105 KB.
 - Struct sizes: 100 B per window, 100 B per GC, 32 B + 16 B per rectangle per region.
-- Win32 layer objects: 26,372 B core plus 28,279 B for ten controls.
+- Win32 layer objects: 26,372 B core plus 28,279 B for ten controls (compiled earlier; measure.sh does not reproduce them).
 - Window accounting for the Nano-X port: 59,152 B (or 90,400) + 51,200 B screen + 7.9 KB libc = 118 KB (149 KB). That leaves 78 KB (47 KB) of 192 KiB with the app linked into the server, before heap for windows and regions. The floor needs only stub arrays written for this tree, not edits to MPL files.
 
 Own layer.
 - A 143-line prototype (4-bit shadow, damage bands, rectangle-subtraction clipping, z-order, title bars, 6x9 text) compiles to 1,232 B text and 51,396 B bss. Compile only; behavior untested; no widgets or events.
 - Scope-equivalent toolkit estimate: 700-1,000 lines, 9-13 KB text. Proxies: uGUI 11,906 B whole library (no shadow, pixel callbacks), MATEzinho 13,259 B text for nine views, winlib controls 28 KB.
-- LVGL (label, button, 6,400 B 10-row partial buffer, 24 KiB pool) links to 104,116 B text and 34,684 B bss, too big.
+- LVGL (label, button, 6,400 B RGB565 10-row partial buffer, 24 KiB pool) links to 104,116 B text and 31,484 B bss, too big.
 
 License.
 - MPL 1.1 is file-level copyleft. Modified files stay MPL with source offered (3.1-3.2). An Exhibit A notice goes in each file (3.5). A source-availability notice goes in documentation shipped with images (3.6). A larger work may mix other licenses (3.7).

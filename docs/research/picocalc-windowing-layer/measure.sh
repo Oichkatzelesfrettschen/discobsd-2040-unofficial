@@ -31,24 +31,50 @@
 #   MW_DIR    Microwindows checkout (ghaerr/microwindows)
 #   UGUI_DIR  uGUI checkout (achimdoebler/UGUI)
 #   LVGL_DIR  LVGL checkout (lvgl/lvgl)
-#   CC, SIZE  tool names (default arm-none-eabi-gcc, arm-none-eabi-size)
+#   CC, SIZE, NM  tool names (default arm-none-eabi-gcc, -size, -nm)
 #   JOBS      parallel compiles for LVGL (default 4)
-# Nothing is cloned and nothing outside OUTDIR is written. Each figure is one
-# line: FIG <name> text=<n> data=<n> bss=<n> (arm-none-eabi-size, Berkeley).
+# Nothing is cloned and nothing outside OUTDIR is written. OUTDIR must not exist
+# or must be empty, so no object from an earlier run reaches a link. Each
+# checkout must be the root of a git work tree at the revision pinned below,
+# with no modified tracked file; any other state stops the script before a
+# compile. Each figure is one line: FIG <name> text=<n> data=<n> bss=<n>
+# (arm-none-eabi-size, Berkeley); STRUCT <name> bytes=<n> gives a type size.
 set -eu
+
+# Donor revisions measured; README.md states the same three values.
+MW_REV=36c8d0edfa5423600027438b8f4bf0aa5bb49d28
+UGUI_REV=ce0bccb5b7d4877c42081419fccadf7aa5727303
+LVGL_REV=622f63df2f7da0c063eb26e6d1fa2702822f6193
+
+die() { echo "measure.sh: $*" >&2; exit 1; }
 
 [ $# -eq 1 ] || { echo "usage: $0 OUTDIR" >&2; exit 2; }
 OUT=$1
 : "${MW_DIR:?set MW_DIR}" "${UGUI_DIR:?set UGUI_DIR}" "${LVGL_DIR:?set LVGL_DIR}"
 CC=${CC:-arm-none-eabi-gcc}
 SIZE=${SIZE:-arm-none-eabi-size}
+NM=${NM:-arm-none-eabi-nm}
 JOBS=${JOBS:-4}
 HERE=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$OUT"
+[ -z "$(ls -A "$OUT")" ] || die "output directory $OUT is not empty"
 OUT=$(cd "$OUT" && pwd)
-MW=$(cd "$MW_DIR" && pwd)
-UGUI=$(cd "$UGUI_DIR" && pwd)
-LVGL=$(cd "$LVGL_DIR" && pwd)
+MW=$(cd "$MW_DIR" && pwd -P)
+UGUI=$(cd "$UGUI_DIR" && pwd -P)
+LVGL=$(cd "$LVGL_DIR" && pwd -P)
+
+# A checkout names its own work tree root (a subdirectory of another
+# repository would report that repository's HEAD) and its pinned revision.
+pin() { # name dir revision
+	top=$(git -C "$2" rev-parse --show-toplevel 2>/dev/null) || die "$1: $2 is not a git checkout"
+	[ "$top" = "$2" ] || die "$1: $2 is not the root of a git work tree"
+	head=$(git -C "$2" rev-parse HEAD)
+	[ "$head" = "$3" ] || die "$1: checkout is at $head, pinned revision is $3"
+	[ -z "$(git -C "$2" status --porcelain --untracked-files=no)" ] || die "$1: checkout has modified tracked files"
+}
+pin Microwindows "$MW" "$MW_REV"
+pin uGUI "$UGUI" "$UGUI_REV"
+pin LVGL "$LVGL" "$LVGL_REV"
 
 ARCH="-Os -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft -ffunction-sections -fdata-sections"
 LD="-mcpu=cortex-m0plus -mthumb -nostdlib -nostartfiles -Wl,--gc-sections"
@@ -102,11 +128,23 @@ N=$OUT/mw_nx; mkdir -p "$N"; : > "$N/objs.txt"
 mwbuild "$N" "$MWBASE $NXF" $ENG_FULL $NX_SRV scr_stub main_nx
 lnk "$N/floor.elf" $LD -Wl,-e,app $(defsyms "$SYMS_FLOOR") $(cat "$N/objs.txt") -lgcc
 fig mw_nanox_wm_floor "$N/floor.elf"
+# Per-object sizes in the Nano-X flag set (all shapes and polygon regions on).
+for n in engine_devrgn engine_devdraw engine_devfont drivers_fblin4 engine_devclip drivers_genmem drivers_rasterops engine_convblit_frameb; do
+	fig "mw_nx_obj_$n" "$N/$n.o"
+done
 mwbuild "$N" "$MWBASE $NXF" $UNPATCHED_EXTRA
 lnk "$N/unpatched.elf" $LD -Wl,-e,app $(defsyms "$SYMS_ALL") $(cat "$N/objs.txt") -lgcc
 fig mw_nanox_wm_unpatched "$N/unpatched.elf"
 $SIZE $(cat "$N/objs.txt") | awk 'NR > 1 && $1 ~ /^[0-9]+$/ { t += $1; d += $2; b += $3 }
 	END { printf "FIG mw_nanox_wm_all_objects text=%d data=%d bss=%d\n", t, d, b }'
+
+# Type sizes of the Nano-X server structures and the region types (sizes.c
+# declares one constant array per type; its symbol size is sizeof).
+S=$OUT/sizes; mkdir -p "$S"
+(cd "$MW/src" && $CC $MWBASE $NXF -c "$HERE/sizes.c" -o "$S/sizes.o")
+"$NM" -S "$S/sizes.o" | awk '$4 ~ /^sz_/ { print $4, $2 }' | while read -r name hex; do
+	printf 'STRUCT %s bytes=%d\n' "${name#sz_}" "0x$hex"
+done
 
 # --- purpose-built core prototype -------------------------------------------
 P=$OUT/proto; mkdir -p "$P"

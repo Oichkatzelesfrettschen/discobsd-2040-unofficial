@@ -27,7 +27,8 @@
  */
 
 #include "lvgl.h"
-static lv_color_t buf1[320 * 10];
+/* Ten rows of the RGB565 display format, two bytes a pixel: 6,400 B. */
+static uint16_t buf1[320 * 10];
 static void flush(lv_display_t *d, const lv_area_t *a, uint8_t *px) { lv_display_flush_ready(d); }
 static uint32_t tick(void) { return 0; }
 int app(void)

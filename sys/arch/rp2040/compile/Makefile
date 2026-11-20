@@ -132,7 +132,7 @@ check-ufs-prototypes:
 check-flash-swap:
 		@set -e; for i in ${SUBDIR}; do ${MAKE} -C $$i all; done
 		@set -e; for i in ${SUBDIR}; do \
-			tool_prefix=$$(${MAKE} -C $$i -V ARM_GCC_PREFIX); \
+			tool_prefix=$$(${MAKE} -C $$i -v ARM_GCC_PREFIX); \
 			swapram_arg=; \
 			if [ -r $$i/swapram.o ]; then \
 				swapram_arg="--swapram-object $$i/swapram.o"; \

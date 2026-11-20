@@ -110,7 +110,20 @@ muldiv(coord a, coord b, coord c, bool nearest)
 	unsigned long long ua = a < 0 ? -(unsigned long long)a : (unsigned long long)a;
 	unsigned long long ub = b < 0 ? -(unsigned long long)b : (unsigned long long)b;
 	unsigned long long uc = c < 0 ? -(unsigned long long)c : (unsigned long long)c;
-	unsigned long long n = ua * ub, q = n / uc, r = n % uc;
+	unsigned long long n = ua * ub, q = 0, r = 0;
+
+	/*
+	 * Bitwise long division: the library's 64-bit divide is 400 bytes the
+	 * program has no other use for. uc stays far below 2^63 (a panel
+	 * coordinate difference), so the shifted remainder cannot overflow.
+	 */
+	for (int i = 63; i >= 0; i--) {
+		r = r << 1 | ((n >> i) & 1);
+		if (r >= uc) {
+			r -= uc;
+			q |= 1ULL << i;
+		}
+	}
 
 	if (nearest && 2 * r >= uc)
 		q++;

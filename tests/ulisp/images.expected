@@ -13,6 +13,81 @@ Error: 'load-image' image pointer out of range
 42
 
 11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
+Error: 'load-image' image array does not match its dimensions
+11996> 
+42
+
+11996> 
 Error: 'load-image' image pointer out of range
 11996> 
 42
@@ -138,12 +213,12 @@ Error: 'load-image' image cell is invalid
 42
 
 11996> 
-102
+124
 
-11911> 
+11889> 
 (10 120)
 
-11911> 
+11889> 
 "end"
 
-11911> 
+11889> 

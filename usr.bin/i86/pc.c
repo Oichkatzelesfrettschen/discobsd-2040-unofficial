@@ -1602,9 +1602,12 @@ pc_restore(int draw)
 #endif
 	if (cf.quiet || restored)
 		return;
-	restored = 1;
+	/* The frame reads guest memory; when the page store fails under it
+	 * host_exit() comes back here, and that second call must still
+	 * give the terminal back. */
 	if (draw)
 		refresh();
+	restored = 1;
 	oputs("\033[0m\033[r\033[?7h\033[26;1H");
 	oflush();
 }

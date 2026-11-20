@@ -4,4 +4,6 @@
 /oracle.out
 /oracle.host
 /ulisp.san
+/hilite-test
+/hilite-test.san
 /rewrite-race.so

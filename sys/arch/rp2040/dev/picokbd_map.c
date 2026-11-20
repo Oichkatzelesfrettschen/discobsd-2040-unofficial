@@ -75,6 +75,17 @@ cursor_key(char *out, int final, int appcursor)
 	return 3;
 }
 
+#ifdef LCD_VT
+int
+picokbd_vt_key(int state, int key, int ctrl)
+{
+	key &= 0xff;
+	if (!ctrl || state != PICOKBD_PRESSED || key < KEY_F1 || key > KEY_F1 + 1)
+		return -1;
+	return key - KEY_F1;
+}
+#endif
+
 int
 picokbd_translate(int state, int key, int appcursor, int *ctrl,
     char out[PICOKBD_MAXSEQ])

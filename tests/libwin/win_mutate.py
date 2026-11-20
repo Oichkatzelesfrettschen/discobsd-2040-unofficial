@@ -305,8 +305,8 @@ DEV_MUTATIONS = (
     ("baseline", "", ""),
     (
         "tty_bytes_not_drained",
-        "n = (int)read(src->fd, buf, sizeof(buf));",
-        "n = src->raw ? 0 : (int)read(src->fd, buf, sizeof(buf));",
+        "n = typed(src, buf, sizeof(buf));",
+        "n = src->raw ? 0 : typed(src, buf, sizeof(buf));",
     ),
     (
         "lost_count_ignored",
@@ -315,8 +315,43 @@ DEV_MUTATIONS = (
     ),
     (
         "raw_session_not_polled",
-        "if ((src->raw || in->esc != 0) && (slice < 0 || slice > WIN_POLL_MS))",
-        "if (in->esc != 0 && (slice < 0 || slice > WIN_POLL_MS))",
+        "(src->raw && !src->wake) || ",
+        "",
+    ),
+    (
+        "wake_kernel_still_polled",
+        "(src->raw && !src->wake) || ",
+        "src->raw || ",
+    ),
+    (
+        "wake_assumed_after_fallback",
+        "\t\treturn -1;\n\tsrc->raw = 1;\n\treturn 0;",
+        "\t\treturn -1;\n\tsrc->raw = 1;\n\tsrc->wake = 1;\n\treturn 0;",
+    ),
+    (
+        "wake_request_not_made",
+        "int on = 2;",
+        "int on = 1;",
+    ),
+    (
+        "plain_session_not_offered",
+        "\tif (errno != EINVAL)\n\t\treturn -1;",
+        "\tif (1)\n\t\treturn -1;",
+    ),
+    (
+        "empty_tty_queue_read",
+        "\tif (src->wake) {\n\t\tif (ioctl(",
+        "\tif (0) {\n\t\tif (ioctl(",
+    ),
+    (
+        "wake_kept_by_dead_session",
+        "\t\t\tsrc->raw = 0;\n\t\t\tsrc->wake = 0;",
+        "\t\t\tsrc->raw = 0;",
+    ),
+    (
+        "wake_kept_by_close",
+        "\tsrc->raw = 0;\n\tsrc->wake = 0;\n}",
+        "\tsrc->raw = 0;\n}",
     ),
     (
         "lone_esc_never_resolved",

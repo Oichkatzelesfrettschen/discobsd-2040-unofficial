@@ -69,7 +69,8 @@ LISP_STEPS = [
     ("(* 1111 4)", "\n4444\n"),
     ("(draw-pixel 1 1)", "Error: no pixel display"),
     ("(pinmode 9 :output)", "Error: the pins need the superuser"),
-    ("(analogread 26)", "Error: no analogue input device"),
+    ("(analogwrite 9 100)", "Error: the pins need the superuser"),
+    ("(integerp (analogread 26))", "\nt\n"),
     ("(list 3.5 1e-4 (expt 2 0.5) (sin 1.0))", "(3.5 1.0e-4 1.41421 0.841471)"),
     ('(defvar *kept* (list \'a-long-symbol-name "text" 2.5))', "\n*kept*\n"),
     ('(save-image "t.img")', "> "),
@@ -95,7 +96,9 @@ def run_stages(boot, console) -> None:
     console.wait_lines(["login:"], "login prompt", boot.LOGIN_BUDGET_SECONDS)
     console.type_line("operator")
     console.wait_lines(["$"], "shell prompt", boot.COMMAND_BUDGET_SECONDS)
-    console.type_line("ulisp")
+    # -n keeps the console line editor, which colors a terminal's input, out of
+    # the transcript the expectations below match.
+    console.type_line("ulisp -n")
     console.wait_lines(["uLisp 4.8f"], "ulisp starts", STEP_SECONDS)
     for line, expected in LISP_STEPS:
         console.type_line(line)
@@ -114,7 +117,7 @@ def run_stages(boot, console) -> None:
     for line, expected in SHELL_STEPS:
         console.type_line(line)
         console.wait_lines([expected], f"shell {line[:44]}", STEP_SECONDS)
-    console.type_line("ulisp -i t.img")
+    console.type_line("ulisp -n -i t.img")
     console.wait_lines(["uLisp 4.8f"], "second process", STEP_SECONDS)
     console.type_line("*kept*")
     console.wait_lines(

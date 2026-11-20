@@ -83,7 +83,7 @@ TAIL = [
     "MEM %04X OK",
     "IDIV %s",
     "WRAP OK",
-    "DISK OK 27090101",
+    "DISK OK 270901010109",
     "TICK OK",
     "SPIN OK",
     "KBD OK",
@@ -97,6 +97,10 @@ TAIL = [
 ]
 
 MUTANTS = [
+    ("cpu.c", "(d.reg == 7 || (!w && d.reg > 1))", "(d.reg == 7 && !w)"),
+    ("cpu.c", "if (c->model != I86_8086 && (d.reg == 7", "if (c->model == I86_286 && (d.reg == 7"),
+    ("pc.c", "p[4] = (uint8_t)spt;", ";"),
+    ("pc.c", "c->r[R_BX] = d->spt == 36 ? 6 : d->spt == 18 ?", "c->r[R_BX] = d->spt == 18 ?"),
     ("pc.c", "kb_put(scan | 0x80, 0);", ";"),
     ("pc.c", "pic_isr &= (uint8_t)(pic_isr - 1);", "pic_isr &= pic_isr;"),
     (
@@ -304,6 +308,24 @@ def test_disks(binary, work):
     )
     if sector(image, 18) != PATTERN:
         raise Failure("floppy: cylinder 1 is not sector 18 of a 360 KB image")
+    # Each floppy format reports its own geometry, drive type and
+    # parameter table.
+    for kbytes, shown in (
+        (720, "4F0901010309"),
+        (1200, "4F0F0101020F"),
+        (1440, "4F1201010412"),
+        (2880, "4F2401010624"),
+    ):
+        with open(image, "r+b") as handle:
+            handle.truncate(kbytes * 1024)
+        done = subprocess.run(
+            [binary, "-d", "-T", "-s", store, "-a", image, "-k", KEYS],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        if ("DISK OK " + shown) not in done.stdout.decode("latin-1"):
+            raise Failure("%d KB floppy: parameters are not %s" % (kbytes, shown))
     # 4 heads of 40 sectors: 25 cylinders in 2 MB, cylinder 1 at 160. A
     # head byte of FFh names no geometry: 16 heads of 63 sectors apply.
     for heads_byte, spt, lba, shown in ((3, 40, 160, "18280301"), (0xFF, 40, 1008, "033F0F01")):
@@ -611,6 +633,35 @@ def test_vectors(sstrun, src, work, frames="1024", suite="8088"):
     return len(vectors)
 
 
+def test_undefined(sstrun, work):
+    """The undefined members of the FE and FF groups raise interrupt 6 on
+    the 80186 and the 80286, with the stack frame of the instruction."""
+    regs = [0, 0, 0, 0, 0x1000, 0x2000, 0, 0, 0x200, 0, 0, 0, 0x100, 2]
+    lines = []
+    forms = ((0xFE, 0xD0), (0xFE, 0x30), (0xFF, 0xF8), (0xFF, 0x38))
+    for first, second in forms:
+        ram = [0x10100, first, 0x10101, second, 0x18, 0x34, 0x19, 0x12, 0x1A, 0x78, 0x1B, 0x56]
+        lines.append(" ".join(str(x) for x in regs + [len(ram) // 2] + ram + [0]))
+    for model in ("1", "2"):
+        done = subprocess.run(
+            sstrun.split() + [model, "64", os.path.join(work, "sstpage")],
+            input="\n".join(lines) + "\n",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        replies = [[int(x) for x in line.split()] for line in done.stdout.splitlines()]
+        if done.returncode != 0 or len(replies) != len(forms):
+            raise Failure("undefined forms: sstrun exit %d" % done.returncode)
+        for (first, second), got in zip(forms, replies):
+            if (got[4], got[12], got[8]) != (0x5678, 0x1234, 0x1FA):
+                raise Failure(
+                    "model %s executes %02X %02X: cs:ip %04X:%04X sp %04X"
+                    % (model, first, second, got[4], got[12], got[8])
+                )
+
+
 def test(binary, work):
     for cpu in ("8086", "186", "286"):
         for frames, kbytes in ((8, 640), (64, 640), (640, 640), (8, 256)):
@@ -696,6 +747,7 @@ def main(argv):
             build(src, sstrun, cc, vsources)
             print("%d 8088 vectors pass" % test_vectors(sstrun, src, work))
             print("%d 80286 vectors pass" % test_vectors(sstrun, src, work, suite="80286"))
+            test_undefined(sstrun, work)
             # Sixteen resident pages: the same vectors through the page
             # store, which every instruction's memory then crosses.
             test_vectors(sstrun, src, work, "16")
@@ -724,6 +776,7 @@ def main(argv):
                     test(mutant, work)
                     test_vectors(sstrun + "-mutant", src, work)
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")
+                    test_undefined(sstrun + "-mutant", work)
                 except Failure:
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))

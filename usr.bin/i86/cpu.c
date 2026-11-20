@@ -1163,6 +1163,12 @@ prefixed:
 		break;
 	case 0xfe: case 0xff:
 		modrm(c, &d);
+		/* The byte group has two members and the word group seven;
+		 * past the 8086 the rest raise interrupt 6. */
+		if (c->model != I86_8086 && (d.reg == 7 || (!w && d.reg > 1))) {
+			fault(c, 6, ip0, 1);
+			break;
+		}
 		switch (d.reg) {
 		case 0:
 		case 1:

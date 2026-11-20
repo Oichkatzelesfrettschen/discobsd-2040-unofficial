@@ -86,7 +86,9 @@
 #define ROM_ADDR	0xff800u
 #define ROM_OFF		0xf800u		/* offset of the ROM in F000 */
 #define ROM_TIMER	0x400u		/* ROM offsets of the fixed parts */
-#define ROM_DPT		0x410u
+#define ROM_DPT		0x410u		/* drive A's table; B's DPT_STEP on */
+#define DPT_STEP	0x20u
+#define DPT_SIZE	11
 #define ROM_RESET	0x7f0u
 #define ROM_KEY		0x420u
 #define TRAP_TICK	0x08
@@ -692,6 +694,7 @@ key_escape(void)
 }
 
 static void menu(void);
+static void dpt_set(unsigned i);
 
 static void
 key_pump(void)
@@ -959,6 +962,7 @@ menu(void)
 					close(old.fd);
 				strcpy(path[i], full);
 				disk_path[i] = path[i];
+				dpt_set(i);
 			}
 		}
 	}
@@ -966,6 +970,23 @@ menu(void)
 	memset(shadow, 0, sizeof(shadow));
 	oputs("\033[2J");
 	tx = ty = tattr = -1;
+}
+
+/* The parameter table of floppy drive i for the format of its image:
+ * sectors a track, and the read and format gaps that go with them. */
+static void
+dpt_set(unsigned i)
+{
+	static const uint8_t dpt[DPT_SIZE] = {
+		0xdf, 0x02, 0x25, 0x02, 18, 0x1b, 0xff, 0x6c, 0xf6, 0x0f, 0x08
+	};
+	uint8_t *p = rom + ROM_DPT + DPT_STEP * i;
+	unsigned spt = disks[i].fd >= 0 ? disks[i].spt : 18;
+
+	memcpy(p, dpt, sizeof(dpt));
+	p[4] = (uint8_t)spt;
+	p[5] = spt >= 15 ? 0x1b : 0x2a;
+	p[7] = spt == 18 ? 0x6c : spt == 15 ? 0x54 : spt == 36 ? 0x53 : 0x50;
 }
 
 static struct disk *
@@ -1077,10 +1098,12 @@ disk_service(struct i86 *c)
 			    ((d->cyl - 1) >> 8) << 6 | d->spt);
 			c->r[R_DX] = (uint16_t)((d->heads - 1) << 8 | n);
 			if (!hard) {
-				c->r[R_BX] = d->spt == 18 ? 4 : d->spt == 15 ?
-				    2 : d->cyl == 80 ? 3 : 1;
+				c->r[R_BX] = d->spt == 36 ? 6 : d->spt == 18 ?
+				    4 : d->spt == 15 ? 2 : d->cyl == 80 ? 3 : 1;
+				dpt_set(dl);
 				c->s[S_ES] = 0xf000;
-				c->r[R_DI] = ROM_OFF + ROM_DPT;
+				c->r[R_DI] = (uint16_t)(ROM_OFF + ROM_DPT +
+				    DPT_STEP * dl);
 			}
 			break;
 		case 0x15:
@@ -1457,9 +1480,6 @@ pc_poll(struct i86 *c)
 void
 pc_init(struct i86 *c, const struct pc_config *config)
 {
-	static const uint8_t dpt[11] = {
-		0xdf, 0x02, 0x25, 0x02, 18, 0x1b, 0xff, 0x54, 0xf6, 0x0f, 0x08
-	};
 	/* The trap, then for the timer the user hook, then the end of
 	 * interrupt as guest code: push ax; mov al, 20h; out 20h, al;
 	 * pop ax; iret. */
@@ -1483,7 +1503,6 @@ pc_init(struct i86 *c, const struct pc_config *config)
 		mem_ww(4 * i + 2, 0xf000);
 	}
 	memcpy(rom + ROM_TIMER, timer, sizeof(timer));
-	memcpy(rom + ROM_DPT, dpt, sizeof(dpt));
 	memcpy(rom + ROM_KEY, key, sizeof(key));
 	mem_ww(4 * 8, ROM_OFF + ROM_TIMER);
 	mem_ww(4 * 9, ROM_OFF + ROM_KEY);
@@ -1508,6 +1527,8 @@ pc_init(struct i86 *c, const struct pc_config *config)
 			host_write("\r\n", 2);
 			host_exit(2);
 		}
+	dpt_set(0);
+	dpt_set(1);
 	nfloppy = (disks[0].fd >= 0) + (disks[1].fd >= 0);
 	mem_ww(BDA + 0x10, (cf.cols == 40 ? 0x10 : 0x20) |
 	    (nfloppy ? 1 | (nfloppy - 1) << 6 : 0));

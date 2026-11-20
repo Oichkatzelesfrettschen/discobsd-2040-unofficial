@@ -111,6 +111,7 @@ enum { COLOR_WHITE = 0xffff, COLOR_BLACK = 0 };
 #define USERSTREAMS        16
 #define TRACEMAX 3  // Maximum number of traced functions
 enum type { ZZERO=0, SYMBOL=2, CODE=4, NUMBER=6, STREAM=8, CHARACTER=10, FLOAT=12, ARRAY=14, STRING=16, PAIR=18 };  // ARRAY STRING and PAIR must be last
+enum stream { SERIALSTREAM, SDSTREAM, STRINGSTREAM, GFXSTREAM };
 enum token { UNUSED, BRA, KET, QUO, DOT, ENDOFINPUT };
 enum fntypes_t { OTHER_FORMS, TAIL_FORMS, FUNCTIONS, SPECIAL_FORMS };
 
@@ -713,6 +714,7 @@ static const char canttakecdr[] = "can't take cdr";
 
 static void initworkspace (void) {
   Freelist = NULL;
+  Freespace = 0;
   for (int i=WORKSPACESIZE-1; i>=0; i--) {
     object *obj = &Workspace[i];
     car(obj) = NULL;
@@ -1072,6 +1074,123 @@ static void rebaseimage (unsigned int imagesize, intptr_t delta) {
   }
 }
 
+// An image is checked in the file, before a cell reaches the workspace, so
+// that a damaged or foreign one is refused with the workspace as it was; the
+// cells the loader then installs are checked again in the workspace, since
+// the file can change between its two reads.
+// The check reads the cells in blocks and follows each string chain by
+// seeking, and it keeps one bit for each cell on the stack to record the
+// cells that chains own. What it establishes is what rebaseimage(), the
+// collector and the printer rely on: every pointer is null or the address
+// of a cell the image holds; a chain ends and its cells are no pair's
+// target; and a code block, a stream and a builtin symbol stay inside their
+// tables. How the cells fit together as Lisp data is not examined.
+
+#define IMAGEBLOCK 16  // Cells read at a time
+#define chainbit(bits, i)  ((bits)[(i)>>3] & (1u << ((i) & 7)))
+#define setchain(bits, i)  ((bits)[(i)>>3] |= (uint8_t)(1u << ((i) & 7)))
+
+// The cells checkimage() reads: the open file, or the copy installed in the
+// workspace when ImageSource names it
+static const object *ImageSource;
+
+static bool imagecells (unsigned int first, object *cells, unsigned int count) {
+  if (ImageSource != NULL) {
+    memcpy(cells, ImageSource + first, count * sizeof(object));
+    return true;
+  }
+  size_t offset = IMAGEWORDS * sizeof(uintptr_t) + CODESIZE + (size_t)first * sizeof(object);
+  return sys_fseek(SYS_FTMP, offset) && sys_fread(SYS_FTMP, cells, count * sizeof(object));
+}
+
+// True when p is the address of one of the cells, which are cells long from base
+static bool imagepointer (uintptr_t base, unsigned int cells, uintptr_t p, unsigned int *index) {
+  if (p < base) return false;
+  uintptr_t offset = p - base;
+  if (offset % sizeof(object) != 0 || offset / sizeof(object) >= cells) return false;
+  *index = offset / sizeof(object);
+  return true;
+}
+
+static const char imagerange[] = "image pointer out of range";
+static const char imagelinked[] = "image pair points into a string";
+static const char imageinvalid[] = "image cell is invalid";
+
+// NULL when p is the address of a cell that no string chain owns
+static const char *imagetarget (uintptr_t base, unsigned int cells, const uint8_t *chains, uintptr_t p) {
+  unsigned int index;
+  if (!imagepointer(base, cells, p, &index)) return imagerange;
+  return chainbit(chains, index) ? imagelinked : NULL;
+}
+
+// Returns NULL for a sound image, or what is wrong with it
+static const char *checkimage (const uintptr_t *header, unsigned int cells) {
+  uintptr_t base = header[1];
+  // Above the type codes, so no address reads as one, and without wrapping
+  if (base <= PAIR || cells > (UINTPTR_MAX - base) / sizeof(object)) return "not an image this uLisp can load";
+  size_t bytes = (cells + 7) / 8;
+  if ((uintptr_t)__builtin_frame_address(0) < StackLimit + bytes + 1024) return "no room";
+  uint8_t chains[bytes + 1];
+  memset(chains, 0, bytes);
+  object block[IMAGEBLOCK];
+  // Every string chain: in range, no cell twice (which also ends a loop)
+  for (unsigned int first=0; first<cells; first+=IMAGEBLOCK) {
+    unsigned int count = (cells - first < IMAGEBLOCK) ? cells - first : IMAGEBLOCK;
+    if (!imagecells(first, block, count)) return "image is truncated";
+    for (unsigned int k=0; k<count; k++) {
+      object *obj = &block[k];
+      if (!(obj->type == STRING || (obj->type == SYMBOL && longsymbolp(obj)))) continue;
+      uintptr_t p = (uintptr_t)cdr(obj);
+      while (p != 0) {
+        unsigned int index;
+        if (!imagepointer(base, cells, p, &index)) return imagerange;
+        if (chainbit(chains, index)) return "image string chain is shared or loops";
+        setchain(chains, index);
+        object link;
+        if (!imagecells(index, &link, 1)) return "image is truncated";
+        p = (uintptr_t)car(&link);
+      }
+    }
+  }
+  // The other cells, by type; the chains are known now
+  for (unsigned int first=0; first<cells; first+=IMAGEBLOCK) {
+    unsigned int count = (cells - first < IMAGEBLOCK) ? cells - first : IMAGEBLOCK;
+    if (!imagecells(first, block, count)) return "image is truncated";
+    for (unsigned int k=0; k<count; k++) {
+      if (chainbit(chains, first + k)) continue;
+      object *obj = &block[k];
+      uintptr_t type = obj->type, cd = (uintptr_t)cdr(obj);
+      const char *fault = NULL;
+      if (type == ZZERO || type >= PAIR) {
+        if (type != ZZERO) fault = imagetarget(base, cells, chains, type);
+        if (fault == NULL && cd != 0) fault = imagetarget(base, cells, chains, cd);
+      } else if (type == ARRAY) {
+        fault = imagetarget(base, cells, chains, cd);
+      } else if (type == SYMBOL) {
+        if (longsymbolp(obj)) continue;  // A chain header, checked above
+        symbol_t name = obj->name;
+        if (untwist(name) >= BUILTINS && untwist(name) - BUILTINS >= tablesize(0) + tablesize(1))
+          fault = imageinvalid;
+      } else if (type == CODE) {
+        if (startblock(obj) > endblock(obj) || endblock(obj) > CODESIZE) fault = imageinvalid;
+      } else if (type == STREAM) {
+        if ((unsigned int)obj->integer >> 8 > GFXSTREAM || (obj->integer & 0xFF) > 1) fault = imageinvalid;
+      } else if (type == STRING) {
+        continue;
+      } else if (!(type == NUMBER || type == CHARACTER || type == FLOAT)) {
+        fault = imageinvalid;
+      }
+      if (fault != NULL) return fault;
+    }
+  }
+  // The roots: a null, or a cell that is not part of a chain
+  for (int r=3; r<IMAGEWORDS; r++) {
+    const char *fault = (header[r] == 0) ? NULL : imagetarget(base, cells, chains, header[r]);
+    if (fault != NULL) return fault;
+  }
+  return NULL;
+}
+
 // Returns the image size and stores the function the image runs at startup
 static int loadimagefile (const char *path, object **autorun) {
   uintptr_t header[IMAGEWORDS];
@@ -1080,13 +1199,23 @@ static int loadimagefile (const char *path, object **autorun) {
     && header[2] <= WORKSPACESIZE;
   if (!ok) { sys_fclose(SYS_FTMP); error2("not an image this uLisp can load"); }
   unsigned int imagesize = header[2];
+  const char *fault = checkimage(header, imagesize);
+  if (fault != NULL) { sys_fclose(SYS_FTMP); error2(fault); }
   intptr_t delta = (uintptr_t)Workspace - header[1];
-  ok = sys_fread(SYS_FTMP, MyCode, CODESIZE)
+  ok = sys_fseek(SYS_FTMP, sizeof header) && sys_fread(SYS_FTMP, MyCode, CODESIZE)
     && sys_fread(SYS_FTMP, Workspace, imagesize * sizeof(object));
   sys_fclose(SYS_FTMP);
   if (!ok) {  // The workspace is part old and part new: start again
     initworkspace(); initenv();
     error2("image is truncated");
+  }
+  // The file can change between the two reads: the cells that count are the installed ones
+  ImageSource = Workspace;
+  fault = checkimage(header, imagesize);
+  ImageSource = NULL;
+  if (fault != NULL) {
+    initworkspace(); initenv();
+    error2(fault);
   }
   rebaseimage(imagesize, delta);
   *autorun = rebase((object *)header[3], delta);
@@ -1333,7 +1462,7 @@ static object *subtract_floats (object *args, float fresult) {
 static object *negate (object *arg) {
   if (integerp(arg)) {
     int result = arg->integer;
-    if (result == INT_MIN) return makefloat(-result);
+    if (result == INT_MIN) return makefloat(-(float)result);
     else return number(-result);
   } else if (floatp(arg)) return makefloat(-(arg->single_float));
   else error(notanumber, arg);
@@ -1367,7 +1496,7 @@ static object *remmod (object *args, bool mod) {
     int divisor = arg2->integer;
     if (divisor == 0) error2(divisionbyzero);
     int dividend = arg1->integer;
-    int remainder = dividend % divisor;
+    int remainder = (divisor == -1) ? 0 : dividend % divisor;  // INT_MIN % -1 overflows
     if (mod && (dividend<0) != (divisor<0)) remainder = remainder + divisor;
     return number(remainder);
   } else {
@@ -1400,14 +1529,15 @@ static object *compare (object *args, bool lt, bool gt, bool eq) {
   return tee;
 }
 
+// Unsigned, so the squares the last step discards wrap instead of overflowing
 static int intpower (int base, int exp) {
-  int result = 1;
+  unsigned int result = 1, factor = (unsigned int)base;
   while (exp) {
-    if (exp & 1) result = result * base;
+    if (exp & 1) result = result * factor;
     exp = exp / 2;
-    base = base * base;
+    factor = factor * factor;
   }
-  return result;
+  return (int)result;
 }
 
 // Association lists
@@ -1459,18 +1589,25 @@ static object *buildarray (int n, int s, object *def) {
 
 static object *makearray (object *dims, object *def, bool bitp) {
   int size = 1;
+  bool toobig = false;  // The product passed INT_MAX; a later zero dimension still empties it
   object *dimensions = dims;
   while (dims != NULL) {
+    if (improperp(dims)) error(notproper, dims);
+    if (!integerp(car(dims))) error(notaninteger, car(dims));
     int d = car(dims)->integer;
     if (d < 0) error2("dimension can't be negative");
-    size = size * d;
+    if (d == 0) { size = 0; toobig = false; }
+    else if (size > INT_MAX / d) toobig = true;
+    else size = size * d;
     dims = cdr(dims);
   }
   // Bit array identified by making first dimension negative
   if (bitp) {
-    size = (size + sizeof(int)*8 - 1)/(sizeof(int)*8);
+    size = size / (sizeof(int)*8) + (size % (sizeof(int)*8) != 0);
     car(dimensions) = number(-(car(dimensions)->integer));
   }
+  // The tree takes about one cell for each element, or each word of bits
+  if (toobig || (unsigned int)size > WORKSPACESIZE) { Context = NIL; error2("no room"); }
   object *ptr = myalloc();
   ptr->type = ARRAY;
   object *tree = nil;
@@ -1564,7 +1701,7 @@ static object *readbitarray (gfun_t gfun) {
   while (head != NULL) {
     object **loc = arrayref(array, index>>(sizeof(int)==4 ? 5 : 4), size);
     int bit = index & (sizeof(int)==4 ? 0x1F : 0x0F);
-    *loc = number((((*loc)->integer) & ~(1<<bit)) | (car(head)->integer)<<bit);
+    *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)(car(head)->integer)<<bit));
     index++;
     head = cdr(head);
   }
@@ -1633,15 +1770,15 @@ static void buildstring (char ch, object** tail) {
   if (cdr(*tail) == NULL) {
     cell = myalloc(); cdr(*tail) = cell;
   } else if (((*tail)->chars & 0xFFFFFF) == 0) {
-    (*tail)->chars |= ch<<16; return;
+    (*tail)->chars |= (chars_t)(uint8_t)ch<<16; return;
   } else if (((*tail)->chars & 0xFFFF) == 0) {
-    (*tail)->chars |= ch<<8; return;
+    (*tail)->chars |= (chars_t)(uint8_t)ch<<8; return;
   } else if (((*tail)->chars & 0xFF) == 0) {
     (*tail)->chars |= ch; return;
   } else {
     cell = myalloc(); car(*tail) = cell;
   }
-  car(cell) = NULL; cell->chars = ch<<24; *tail = cell;
+  car(cell) = NULL; cell->chars = (chars_t)(uint8_t)ch<<24; *tail = cell;
 }
 
 static object *readstring (uint8_t delim, bool esc, gfun_t gfun) {
@@ -1735,7 +1872,9 @@ static object *documentation (object *arg, object *env) {
   object *pair = findpair(arg, env);
   if (pair != NULL) {
     object *val = cdr(pair);
-    if (listp(val) && first(val)->name == sym(LAMBDA) && cdr(val) != NULL && cddr(val) != NULL) {
+    // Only a lambda form carries a documentation string; any other value does not.
+    if (val != NULL && listp(val) && car(val) != NULL && symbolp(car(val)) &&
+        car(val)->name == sym(LAMBDA) && cdr(val) != NULL && cddr(val) != NULL) {
       if (stringp(third(val))) return third(val);
     }
   }
@@ -1839,6 +1978,7 @@ static bool boundp (object *var, object *env) {
 }
 
 static object *findvalue (object *var, object *env) {
+  if (!symbolp(var)) error(notasymbol, var);
   object *pair = findpair(var, env);
   if (pair == NULL) error("unknown variable", var);
   return pair;
@@ -1965,6 +2105,7 @@ static object **place (object *args, object *env, int *bit) {
     if (sname == sym(CHAR)) {
       int index = checkinteger(eval(third(args), env));
       object *string = checkstring(eval(second(args), env));
+      if (index < 0) { Context = CHAR; error(indexnegative, number(index)); }
       object **loc = getcharplace(string, index, bit);
       if ((*loc) == NULL || (((((*loc)->chars)>>((-(*bit)-2)<<3)) & 0xFF) == 0)) { Context = CHAR; error(indexrange, number(index)); }
       return loc;
@@ -2150,7 +2291,6 @@ static object *dobody (object *args, object *env, bool star) {
 
 // Streams
 
-enum stream { SERIALSTREAM, SDSTREAM, STRINGSTREAM, GFXSTREAM };
 
 static void SDwrite (char c) { sys_fputc(SYS_FOUT, c); }
 static void gfxwrite (char c) { gfx_write(c); }
@@ -2236,6 +2376,7 @@ static gfun_t gstreamfun (object *args) {
   }
   bool n = nstream<USERSTREAMS;
   gstream_ptr_t streamfunction = streamtable(n?0:1)[n?nstream:nstream-USERSTREAMS].gfunptr;
+  if (streamfunction == NULL) error("stream cannot be read", first(args));
   gfun = streamfunction(address);
   return gfun;
 }
@@ -2254,12 +2395,16 @@ static void checkanalogwrite (int pin) {
 
 static const int scale[] = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
 
+// A note below zero counts down from the octave, in a wider type than the sum
 static void playnote (int pin, int note, int octave) {
   (void) pin;
-  int oct = octave + note/12;
-  int prescaler = 8 - oct;
-  if (prescaler<0 || prescaler>8) error("octave out of range", number(oct));
-  sys_tone(scale[note%12]>>prescaler);
+  int semitone = note % 12;
+  if (semitone < 0) semitone = semitone + 12;
+  long long oct = (long long)octave + ((long long)note - semitone) / 12;
+  if (oct < 0 || oct > 8) {
+    error("octave out of range", number((oct < 0) ? ((oct < INT_MIN) ? INT_MIN : (int)oct) : INT_MAX));
+  }
+  sys_tone(scale[semitone]>>(8 - (int)oct));
 }
 
 static void nonote (int pin) {
@@ -2269,8 +2414,13 @@ static void nonote (int pin) {
 
 // Sleep
 
+// Each step stays below the 32-bit millisecond limit; a negative count waits not at all
 static void doze (int secs) {
-  sys_delay(1000 * secs);
+  while (secs > 0) {
+    int step = (secs > 4000000) ? 4000000 : secs;
+    sys_delay(1000UL * (unsigned int)step);
+    secs = secs - step;
+  }
 }
 
 // Prettyprint
@@ -2544,7 +2694,7 @@ static object *sp_incf (object *args, object *env) {
     int newvalue = (((*loc)->integer)>>bit & 1) + increment;
 
     if (newvalue & ~1) error2("result is not a bit value");
-    *loc = number((((*loc)->integer) & ~(1<<bit)) | newvalue<<bit);
+    *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)newvalue<<bit));
     return number(newvalue);
   }
 
@@ -2587,7 +2737,7 @@ static object *sp_decf (object *args, object *env) {
     int newvalue = (((*loc)->integer)>>bit & 1) - decrement;
 
     if (newvalue & ~1) error2("result is not a bit value");
-    *loc = number((((*loc)->integer) & ~(1<<bit)) | newvalue<<bit);
+    *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)newvalue<<bit));
     return number(newvalue);
   }
 
@@ -2623,8 +2773,10 @@ static object *sp_setf (object *args, object *env) {
     object **loc = place(first(args), env, &bit);
     arg = eval(second(args), env);
     if (bit == -1) *loc = arg;
-    else if (bit < -1) (*loc)->chars = ((*loc)->chars & ~(0xff<<((-bit-2)<<3))) | checkchar(arg)<<((-bit-2)<<3);
-    else *loc = number((checkinteger(*loc) & ~(1<<bit)) | checkbitvalue(arg)<<bit);
+    else if (bit < -1) {
+      int shift = (-bit-2)<<3;
+      (*loc)->chars = ((*loc)->chars & ~((chars_t)0xff<<shift)) | (chars_t)checkchar(arg)<<shift;
+    } else *loc = number((int)(((unsigned int)checkinteger(*loc) & ~(1u<<bit)) | (unsigned int)checkbitvalue(arg)<<bit));
     args = cddr(args);
   }
   return arg;
@@ -2737,7 +2889,10 @@ static object *sp_formillis (object *args, object *env) {
   object *param = checkarguments(args, 0, 1);
   unsigned long start = sys_millis();
   unsigned long now, total = 0;
-  if (param != NULL) total = checkinteger(eval(first(param), env));
+  if (param != NULL) {
+    int count = checkinteger(eval(first(param), env));
+    total = (count < 0) ? 0 : (unsigned long)count;
+  }
   eval(tf_progn(cdr(args),env), env);
   do {
     now = sys_millis() - start;
@@ -2790,6 +2945,7 @@ static object *sp_withsdcard (object *args, object *env) {
   params = cdr(params);
   int mode = 0;
   if (params != NULL && first(params) != NULL) mode = checkinteger(first(params));
+  if (mode < 0 || mode > 2) error("invalid mode", first(params));
   char buffer[PATHSIZE];
   int file = (mode >= 1) ? SYS_FOUT : SYS_FIN;
   if (!sys_fopen(file, MakeFilename(filename, buffer), (mode == 1) ? SYS_APPEND : (mode == 2) ? SYS_WRITE : SYS_READ)) {
@@ -2800,7 +2956,8 @@ static object *sp_withsdcard (object *args, object *env) {
   push(pair,env);
   object *forms = cdr(args);
   object *result = eval(tf_progn(forms,env), env);
-  sys_fclose(file);
+  // The close writes the last buffered bytes of an output file.
+  if (!sys_fclose(file) && mode >= 1) error2("problem writing to file or invalid filename");
   return result;
 }
 
@@ -2816,7 +2973,7 @@ static object *sp_defcode (object *args, object *env) {
   int regn = 0;
   while (params != NULL) {
     if (regn > 3) error("more than 4 parameters", var);
-    object *regpair = cons(car(params), bsymbol((builtin_t)((toradix40('r')*40+toradix40('0')+regn)*2560000))); // Symbol for r0 etc
+    object *regpair = cons(car(params), bsymbol((builtin_t)((uint32_t)(toradix40('r')*40+toradix40('0')+regn)*2560000U))); // Symbol for r0 etc
     push(regpair,env);
     regn++;
     params = cdr(params);
@@ -3401,8 +3558,9 @@ static object *fn_divide (object *args, object *env) {
       } else if (integerp(arg)) {
         int i = arg->integer;
         if (i == 0) error2(divisionbyzero);
-        if ((result % i) != 0) return divide_floats(args, result);
+        // INT_MIN / -1 has no int result and traps in both / and %
         if ((result == INT_MIN) && (i == -1)) return divide_floats(args, result);
+        if ((result % i) != 0) return divide_floats(args, result);
         result = result / i;
         args = cdr(args);
       } else error(notanumber, arg);
@@ -3461,7 +3619,10 @@ static object *fn_abs (object *args, object *env) {
 static object *fn_random (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (integerp(arg)) return number(sys_random() % (uint32_t)arg->integer);
+  if (integerp(arg)) {
+    if (arg->integer <= 0) error("limit must be positive", arg);
+    return number(sys_random() % (uint32_t)arg->integer);
+  }
   else if (floatp(arg)) return makefloat((float)(sys_random() >> 8) * arg->single_float / 16777216.0f);
   else error(notanumber, arg);
   return nil;
@@ -3597,7 +3758,9 @@ static object *fn_numberp (object *args, object *env) {
 static object *fn_floatfn (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  return (floatp(arg)) ? arg : makefloat((float)(arg->integer));
+  if (floatp(arg)) return arg;
+  if (!integerp(arg)) error(notanumber, arg);
+  return makefloat((float)(arg->integer));
 }
 
 static object *fn_floatp (object *args, object *env) {
@@ -3687,6 +3850,19 @@ static object *fn_expt (object *args, object *env) {
   return makefloat(expf(value));
 }
 
+// The integer a rounded float names, or the float itself when no int holds it
+static object *roundedresult (float f) {
+  if (f >= -2147483648.0f && f < 2147483648.0f) return number((int)f);
+  return makefloat(f);
+}
+
+// Nonzero divisor of a rounding division; INT_MIN / -1 has no int quotient
+static float rounddivisor (object *arg) {
+  float f = checkintfloat(arg);
+  if (f == 0.0) error2(divisionbyzero);
+  return f;
+}
+
 static object *fn_ceiling (object *args, object *env) {
   (void) env;
   object *arg = first(args);
@@ -3694,12 +3870,15 @@ static object *fn_ceiling (object *args, object *env) {
   if (args != NULL) {
     object *arg2 = first(args);
     if (integerp(arg) && integerp(arg2)) {
-      int num = arg->integer, den = arg2->integer, quo = num/den, rem = num-(quo*den);
+      int num = arg->integer, den = arg2->integer;
+      if (den == 0) error2(divisionbyzero);
+      if (num == INT_MIN && den == -1) return makefloat(-(float)num);
+      int quo = num/den, rem = num-(quo*den);
       if (((num<0) != (den<0)) || rem==0) return number(quo); else return number(quo+1);
-    } else return number(ceilf(checkintfloat(arg) / checkintfloat(first(args))));
+    } else return roundedresult(ceilf(checkintfloat(arg) / rounddivisor(arg2)));
   } else {
     if (integerp(arg)) return number(arg->integer);
-    else return number(ceilf(checkintfloat(arg)));
+    else return roundedresult(ceilf(checkintfloat(arg)));
   }
 }
 
@@ -3710,12 +3889,15 @@ static object *fn_floor (object *args, object *env) {
   if (args != NULL) {
     object *arg2 = first(args);
     if (integerp(arg) && integerp(arg2)) {
-      int num = arg->integer, den = arg2->integer, quo = num/den, rem = num-(quo*den);
+      int num = arg->integer, den = arg2->integer;
+      if (den == 0) error2(divisionbyzero);
+      if (num == INT_MIN && den == -1) return makefloat(-(float)num);
+      int quo = num/den, rem = num-(quo*den);
       if (((num<0) == (den<0)) || rem==0) return number(quo); else return number(quo-1);
-    } else return number(floorf(checkintfloat(arg) / checkintfloat(first(args))));
+    } else return roundedresult(floorf(checkintfloat(arg) / rounddivisor(arg2)));
   } else {
     if (integerp(arg)) return number(arg->integer);
-    else return number(floorf(checkintfloat(arg)));
+    else return roundedresult(floorf(checkintfloat(arg)));
   }
 }
 
@@ -3725,11 +3907,15 @@ static object *fn_truncate (object *args, object *env) {
   args = cdr(args);
   if (args != NULL) {
     object *arg2 = first(args);
-    if (integerp(arg) && integerp(arg2)) return number(arg->integer / arg2->integer);
-    else return number((int)(checkintfloat(arg) / checkintfloat(first(args))));
+    if (integerp(arg) && integerp(arg2)) {
+      int num = arg->integer, den = arg2->integer;
+      if (den == 0) error2(divisionbyzero);
+      if (num == INT_MIN && den == -1) return makefloat(-(float)num);
+      return number(num / den);
+    } else return roundedresult(checkintfloat(arg) / rounddivisor(arg2));
   } else {
     if (integerp(arg)) return number(arg->integer);
-    else return number((int)(checkintfloat(arg)));
+    else return roundedresult(checkintfloat(arg));
   }
 }
 
@@ -3737,8 +3923,8 @@ static object *fn_round (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   args = cdr(args);
-  if (args != NULL) return number(roundf(checkintfloat(arg) / checkintfloat(first(args))));
-  else return number(roundf(checkintfloat(arg)));
+  if (args != NULL) return roundedresult(roundf(checkintfloat(arg) / rounddivisor(first(args))));
+  else return roundedresult(roundf(checkintfloat(arg)));
 }
 
 // Characters
@@ -3748,7 +3934,9 @@ static object *fn_char (object *args, object *env) {
   object *arg = first(args);
   if (!stringp(arg)) error(notastring, arg);
   object *n = second(args);
-  char c = nthchar(arg, checkinteger(n));
+  int index = checkinteger(n);
+  if (index < 0) error(indexnegative, n);
+  char c = nthchar(arg, index);
   if (c == 0) error(indexrange, n);
   return character(c);
 }
@@ -3847,7 +4035,7 @@ static object *fn_stringfn (object *args, object *env) {
 static object *fn_concatenate (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (builtin(arg->name) != STRINGFN) error2("only supports strings");
+  if (!isbuiltin(arg, STRINGFN)) error2("only supports strings");
   args = cdr(args);
   object *result = newstring();
   object *tail = result;
@@ -3997,19 +4185,26 @@ static object *fn_lognot (object *args, object *env) {
   return number(~result);
 }
 
+// A left shift keeps the low 32 bits; a shift of 32 or more clears them, or
+// leaves the sign for a right shift. The shift is on the unsigned value.
 static object *fn_ash (object *args, object *env) {
   (void) env;
   int value = checkinteger(first(args));
   int count = checkinteger(second(args));
-  if (count >= 0) return number(value << count);
-  else return number(value >> abs(count));
+  if (count >= 0) return number((count >= 32) ? 0 : (int)((unsigned int)value << count));
+  if (count <= -32) return number((value < 0) ? -1 : 0);
+  return number(value >> -count);
 }
 
+// An index past the top bit reads the sign, as in an unbounded integer
 static object *fn_logbitp (object *args, object *env) {
   (void) env;
-  int index = checkinteger(first(args));
+  object *arg = first(args);
+  int index = checkinteger(arg);
   int value = checkinteger(second(args));
-  return (((value >> index) & 1) == 1) ? tee : nil;
+  if (index < 0) error(indexnegative, arg);
+  if (index >= 32) return (value < 0) ? tee : nil;
+  return ((((unsigned int)value >> index) & 1) == 1) ? tee : nil;
 }
 
 // System functions
@@ -4122,7 +4317,7 @@ static object *fn_writebyte (object *args, object *env) {
 
 static object *fn_writestring (object *args, object *env) {
   (void) env;
-  object *obj = first(args);
+  object *obj = checkstring(first(args));
   pfun_t pfun = pstreamfun(cdr(args));
   flags_t temp = Flags;
   clrflag(PRINTREADABLY);
@@ -4133,7 +4328,7 @@ static object *fn_writestring (object *args, object *env) {
 
 static object *fn_writeline (object *args, object *env) {
   (void) env;
-  object *obj = first(args);
+  object *obj = checkstring(first(args));
   pfun_t pfun = pstreamfun(cdr(args));
   flags_t temp = Flags;
   clrflag(PRINTREADABLY);
@@ -4259,7 +4454,8 @@ static object *fn_delay (object *args, object *env) {
   (void) env;
   object *arg1 = first(args);
   unsigned long start = sys_millis();
-  unsigned long total = checkinteger(arg1);
+  int count = checkinteger(arg1);
+  unsigned long total = (count < 0) ? 0 : (unsigned long)count;
   do testescape();
   while (sys_millis() - start < total);
   return arg1;
@@ -4272,6 +4468,7 @@ static object *fn_millis (object *args, object *env) {
 
 static object *fn_sleep (object *args, object *env) {
   (void) env;
+  if (args == NULL) error2(noargument);
   object *arg1 = first(args);
   doze(checkinteger(arg1));
   return arg1;
@@ -4955,6 +5152,8 @@ static object *eval (object *form, object *env) {
       protect(newenv);
       while (assigns != NULL) {
         object *assign = car(assigns);
+        object *var = consp(assign) ? car(assign) : assign;
+        if (!symbolp(var)) error(notasymbol, var);
         if (!consp(assign)) push(cons(assign,nil), newenv);
         else if (cdr(assign) == NULL) push(cons(first(assign),nil), newenv);
         else push(cons(first(assign), eval(second(assign),env)), newenv);
@@ -5172,7 +5371,7 @@ static void pfstring (const char *s, pfun_t pfun) {
 
 static void pint (int i, pfun_t pfun) {
   uint32_t j = i;
-  if (i<0) { pfun('-'); j=-i; }
+  if (i<0) { pfun('-'); j=0u-j; }
   pintbase(j, 10, pfun);
 }
 

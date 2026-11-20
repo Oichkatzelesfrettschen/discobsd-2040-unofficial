@@ -188,3 +188,53 @@ flash-resident bytes alone.
   inside the source, in front of the ROM call, and its text cost.
 - XIP: the ROM routines run from ROM, but the veneers and their callers stay
   in flash, so the change gives no copy that works while XIP is off.
+
+## Table lookup on each zero fill
+
+On the PICOCALC_SD kernel at f871ca7f5, a zero-fill veneer returns immediately
+for zero bytes and otherwise calls the ROM MS routine through rom_func_lookup
+with the destination, zero and the requested length. This design requires
+neither a writable pointer nor an initialization hook. The overlap-sensitive
+bcopy path keeps its existing implementation in both builds.
+
+| GCC 16.2.0 ARM link | Text | Data | BSS | Initialized flash span |
+| --- | ---: | ---: | ---: | ---: |
+| Existing bzero | 128,916 | 144 | 53,680 | 128,904 |
+| ROM fill with lookup per nonempty call | 128,844 | 144 | 53,680 | 128,904 |
+
+ARM nm reports a 32-byte candidate bzero. The 72-byte reduction in linked
+text stays within the padding before the aligned board record.
+The bytes do not move the flash-image boundary.
+
+The pinned Renode RP2040 B2 ELF has SHA-256
+`3a3c4c617d83bc9b910a6fa7bfdffa11ce26ff89370271d861507be821cc49aa`.
+Unicorn 2.1.4 executes its actual table lookup through the 16-bit pointers
+at offsets 0x14 and 0x18. MC resolves to Thumb entry 0x261d and MS to
+0x26b9. For lengths 0 through 80 inclusive, the disjoint copy probe crosses
+four source alignments with four destination alignments. The fill probe
+crosses four byte values with four destination alignments. All 1,296 cases
+per function preserve their guard bytes, return the destination and balance
+the stack.
+
+A second probe loads each linked kernel and the ROM, calls its bzero with
+four destination alignments, checks the bytes around the destination and
+counts executed instructions with UC_HOOK_CODE. For a word-aligned
+destination the counts are as follows.
+
+| Bytes cleared | Existing instructions | ROM veneer instructions |
+| ---: | ---: | ---: |
+| 0 | 4 | 5 |
+| 1 | 23 | 73 |
+| 4 | 43 | 76 |
+| 16 | 45 | 95 |
+| 64 | 69 | 104 |
+| 256 | 165 | 140 |
+| 1,024 | 549 | 284 |
+
+The direction changes between the sampled 64- and 256-byte aligned cases.
+At 64 bytes and offset one, the existing routine takes 113 instructions
+and the veneer takes 111. Fill length and alignment therefore both matter.
+The instruction counts exclude silicon fetch latency and bus contention.
+The production kernel retains its existing bzero pending a representative
+size and alignment distribution, paired device timing and an image that
+crosses a flash placement boundary.

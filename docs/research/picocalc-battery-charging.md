@@ -157,6 +157,17 @@ power-off waits inside its main loop for the whole countdown
 (SRC-FW `:304-307`), which is why keys typed during it may be lost
 (`PICOCALC.md:1015-1024`).
 
+### AXP2101 ranges and charger codes (datasheet V1.4, defaults not measured on this board)
+
+Every programmable rail (ALDO1-4, BLDO1-2) steps from 0.5 V to 3.5 V in 100 mV, 31 steps (datasheet p. 1; REG 92 ALDO1 voltage setting, p. 53), so a rail's range is known where its value is not: the reset value of each voltage register is the EFUSE column of the register table.
+
+| Register | Coding | Default the datasheet prints |
+| --- | --- | --- |
+| REG 62, fast-charge current ICC (p. 48) | 25 x N mA for N up to 8 (0 to 200 mA), 200 + 100 x (N - 8) mA above (01001 is 300 mA, 10000 is 1000 mA), higher codes reserved | section 6.7.1 (p. 23): default 300 mA, "range: 0mA~200mA, step:25mA, 200~1000mA, step:100mA"; the register's default column is an EFUSE-defined pattern; the electrical table gives ICHG_REG_RANGE 0 to 1000 mA (p. 12) |
+| REG 64, charge voltage limit (p. 48) | 000 5.0 V, 001 4.0 V, 010 4.1 V, 011 4.2 V, 100 4.35 V, 101 4.4 V, 11x reserved | POR 011b, 4.2 V; section 6.7.1 lists 4.0 to 4.4 V and omits code 000 |
+
+The earlier reading of a 300 mA default against a 0 to 200 mA range was one wrapped line in the text extraction: the PDF prints the second segment (200 to 1000 mA in 100 mA steps) on the next line, so the document is self-consistent and the 300 mA default is code 01001. Whether this board's PMU resets to that code is unmeasured, because the register's default column names the EFUSE; a read of REG 62 (and REG 64) through the PMU's I2C address settles it.
+
 ## Driver plan
 
 Each slice is one pull request. Kernel costs are estimates (I) at GCC 14.2.1

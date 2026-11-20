@@ -16,7 +16,7 @@ reaches both.
 | Board | Reachable | Held by the kernel or the board |
 | --- | --- | --- |
 | Raspberry Pi Pico | GP2-GP22, GP26-GP28 | GP0, GP1 (UART0); GP23 (regulator mode), GP24 (VBUS sense), GP25 (LED), GP29 (VSYS divider) |
-| PicoCalc | GP8, GP9, GP28 (the expansion header) | every other pin: `PICOCALC.md`, "Pin map" |
+| PicoCalc | GP28 (expansion header J703) | every other pin: `PICOCALC.md`, "Pin map" |
 
 The device is part of a kernel configured with the PicoCalc console and
 the SD driver, whose character majors 10 and 11 fix its own at 12; that is

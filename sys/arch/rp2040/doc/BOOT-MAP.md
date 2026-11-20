@@ -44,14 +44,18 @@ Port artifacts:
 | process 0 u area | 0x2003e800 | 3K | U0AREA |
 | current u area and stack | 0x2003f400 | 3K, `_estack` = 0x20040000 | UAREA |
 | SRAM4, SRAM5 | 0x20040000 | 8K | `RP2040.ld` SCRATCH: the USB console transmit ring; the UART-only kernel uses 1,536 bytes for the Dhara page, boot2 copy, and flash program-page buffer |
-| USB DPSRAM tail | 0x50100240 | 3,520 bytes | endpoint controls and buffers stop at 0x50100240; the USB kernel uses 2,320 tail bytes for the Dhara page, shared heatshrink workspace, and flash program-page buffer; the boot2 copy is called as code and DPSRAM is execute-never, so it stays in bss |
+| USB DPSRAM tail | 0x50100240 | 3,520 bytes | endpoint controls and buffers stop at 0x50100240; the USB kernel uses 2,320 tail bytes for the Dhara page, shared heatshrink workspace, and flash program-page buffer; the USB SD driver reserves another 512 bytes for partial-sector transfers; the boot2 copy is called as code and DPSRAM is execute-never, so it stays in bss |
 
 The SCRATCH and DPSRAM rows are link-time facts: `kern.ldscript` places
 each buffer at an absolute address and refuses an overlap. In the USB kernel
 the tail holds the Dhara page at 0x50100240 (1,024 bytes), the heatshrink
 workspace at 0x50100740 (1,040) and the flash program-page buffer at
 0x50100f00 (256), with 256 bytes at 0x50100640 and 944 at 0x50100b50
-unassigned. In the UART-only kernel 0x20040500-0x20041eff (6,656 bytes) of
+unassigned on kernels without an SD driver. On USB kernels with SD, the
+partial-sector buffer occupies 0x50100d00 through 0x50100eff, leaving
+432 bytes at 0x50100b50. The SD strategy publishes read bytes only after
+the sector CRC succeeds and fills the entire buffer before a write. USB
+initialization clears DPSRAM during startup before disk attachment. In the UART-only kernel 0x20040500-0x20041eff (6,656 bytes) of
 SRAM4 and SRAM5 is unassigned.
 
 The windows at 0x21000000-0x2103ffff are the same 256 KB of SRAM0-3 seen one

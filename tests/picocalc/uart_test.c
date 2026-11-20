@@ -84,6 +84,9 @@ shim_reg(unsigned a)
 #define	REG32(a)	(*shim_reg((unsigned)(a)))
 
 #include "uart.c"
+#ifdef PICOCALC_ENABLED
+#include "psram_pio.h"
+#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -562,6 +565,34 @@ main(void)
 	check(shim_pad[0] == SHIM_PAD_RESET, "transmit pad keeps its pulls");
 	check(shim_pad[1] == ((SHIM_PAD_RESET & ~PADS_PDE) | PADS_PUE),
 	    "receive pad takes the pull-up for the pull-down");
+
+	/*
+	 * UART1's pins. A PicoCalc build puts them on GP8 and GP9, the keyboard
+	 * controller's USART3 pair, and none of them may fall on a PSRAM line:
+	 * SIO0-SIO3 are four consecutive pins from PSRAM_PIN_SIO0, beside the
+	 * chip select and the clock. Every other board keeps GP4 and GP5.
+	 */
+#if NUART > 1
+#ifdef PICOCALC_ENABLED
+	check(uart[1].tx_gpio == 8 && uart[1].rx_gpio == 9,
+	    "UART1 pins on a PicoCalc are GP8 and GP9");
+	{
+		unsigned pin, bad = 0;
+
+		for (pin = 0; pin < 2; pin++) {
+			unsigned g = pin ? uart[1].rx_gpio : uart[1].tx_gpio;
+
+			if ((g >= PSRAM_PIN_SIO0 && g < PSRAM_PIN_SIO0 + 4) ||
+			    g == PSRAM_PIN_CS || g == PSRAM_PIN_SCK)
+				bad++;
+		}
+		check(bad == 0, "UART1 pins avoid the PSRAM lines");
+	}
+#else
+	check(uart[1].tx_gpio == 4 && uart[1].rx_gpio == 5,
+	    "UART1 pins off a PicoCalc are GP4 and GP5");
+#endif
+#endif
 
 	if (failures) {
 		printf("uart_test: %d failures\n", failures);

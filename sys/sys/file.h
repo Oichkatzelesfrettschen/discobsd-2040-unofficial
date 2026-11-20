@@ -65,6 +65,11 @@ struct file *falloc (void);
 int closef (struct file *fp);
 
 /*
+ * Close every close-on-exec descriptor of the current process.
+ */
+void fdcloseexec (void);
+
+/*
  * Set/clear file flags: nonblock and async.
  */
 int fset (struct file *fp, int bit, int value);

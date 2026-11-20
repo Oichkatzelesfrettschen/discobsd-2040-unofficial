@@ -21,7 +21,7 @@ require(int condition, const char *message)
  */
 static const int pico_held[] = { 0, 1, 23, 24, 25, 29 };
 static const int picocalc_held[] = {
-	0, 1, 2, 3, 4, 5, 20, 21, 6, 7, 10, 11, 12, 13, 14, 15,
+	0, 1, 2, 3, 4, 5, 20, 21, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 	16, 17, 18, 19, 22, 26, 27, 23, 24, 25, 29
 };
 
@@ -160,8 +160,10 @@ main(void)
 	    "the Pico's free pins are not the complement of its held pins");
 	require(gpio_board_pins(2) == (all & ~calc),
 	    "the PicoCalc's free pins are not the complement of its held pins");
-	require(gpio_board_pins(2) == (1U << 8 | 1U << 9 | 1U << 28),
-	    "the PicoCalc leaves other pins than GP8, GP9 and GP28");
+	require(gpio_board_pins(2) == 1U << 28,
+	    "the PicoCalc leaves a pin other than GP28");
+	require((gpio_board_pins(2) & (1U << 8 | 1U << 9)) == 0,
+	    "the PicoCalc offers the keyboard controller's UART pins");
 	require(gpio_board_pins(0) == 0 && gpio_board_pins(3) == 0,
 	    "an unknown board has reachable pins");
 

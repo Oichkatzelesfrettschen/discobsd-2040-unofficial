@@ -90,7 +90,7 @@ name a file there, with a page for a PDF.
 | A raw key event session records nothing outside itself: `LCDIOC_KEYEVS` starts it only for a descriptor open for reading in the tty's foreground group, the queue is empty and its bytes cleared at its start and end, it needs a RAW or CBREAK tty, belongs to the process that started it and ends on that process's exit or exec, on any change of the tty's mode word (so a getpass() read cannot be recorded), on a mode-setting ioctl by another process, on the owner's last close, on request and when the foreground group changes, and `LCDIOC_GETKEY` drains oldest first, six per call, from the owning, readable, foreground caller only, drops the oldest event when full and reports the drops; the xterm bytes the poller types are those of `picokbd_translate()` alone | host | observed by `check-picocalc-host` (`kbdevq_test`): write-only, background and non-owner starts, drains and stops refused with the queue and drop count intact, a second owner refused, the owner's exit ending the session while another process holds the file, pid and slot reuse refused, nothing held and no key byte in memory outside a session, a getpass-like ECHO clear ending the session, restored flags not reviving it, RAW to CBREAK and ECHO and CRMOD toggles ending it, cooked starts refused, session end by close, exit, request and foreground change, every state against every key, a 20,000-event run, overflow at 33, 40, 50 and 1,000 events, the count saturating at 255; 44 mutants of `picokbd_evq.c` fail it, and `wiring.sh` fails sixteen cuts in the kernel glue it reads (the poller's `picokbd_event()` and `lcdcons_keycheck()` calls, the `lcd_modeset()` hook of the five mode-setting ioctls, `lcdcons_fileclose()` and `lcdcons_procexit()`, the `FREAD`, process-group and pid arguments of both requests, the hooks in `vn_closefile()`, `exit()` and `exec_clear()`); `kbd_poll()`, `lcd_ioctl_file()` and the close hook themselves run on no host |
 | The tile atlas and `LCDIOC_GETKEY` compile into the PicoCalc kernels only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +1,432, bss +4,264 (112,975 / 368 / 53,088); with PSRAM text +1,432, bss +4,264 (115,133 / 424 / 53,240); flash headroom 17,728 and 15,512 bytes; the kernel's data and bss end 62,408 bytes below the end of the RAM region (Tile atlas) |
 | The tile atlas on the panel: the tiles appear, a 40-tile row costs 4.92 ms plus a window, a one-row vertical scroll step costs 4.9 ms, the raw key events arrive at the keyboard's rate | board | not run: `tests/rp2040/tiledemo` is built by `check-board-build` (text 7,379 bytes) and a board run is opt-in |
-| With `options LCD_GFX_EXT` (the PICOCALC_SD kernel) `/dev/lcdgfx` fills and streams windows into all 480 lines of the controller's memory (`LCDG_RAMFILL`, `LCDG_RAMWIN`), returns a rectangle of it through `read(2)` as RGB565 or one reply raw (`LCDG_READ`), draws a block of palette indexes around a transparent index as one window per run (`LCDG_SPRITE`), waits for two successive scan-line samples inside a 64-line span or times out (`LCDG_WAITLINE`), selects idle, display off and sleep and refuses drawing in sleep (`LCDG_POWER`), reports the console ring's first line (`LCDG_XINFO`) and runs the fixed dithering probe (`LCDG_DITHER`); the last close leaves the panel on | host | observed by `check-picocalc-host` (`lcdgfx_ext_test`) against a model of the 480-line memory, its read reply (an 8-bit lead, then pixels in the COLMOD in force: three bytes under 0x66, two under 0x55), a scan line that advances per sample and a recorded power mode: both pixel formats written and read back whole and in 40 random rectangles, 60 random sprites compared pixel by pixel, 200 random waits, a misread and a falling pair refused, both timeouts, every range case, and the read refused with `EPERM` to a caller other than the superuser at the selection and at each `read(2)`, while drawing stays open; 38 mutants fail it. `lcd_gfx_power()`, `lcd_gfx_read()`, `lcd_gfx_scanline()` and `lcd_gfx_dither()` of `st7365p.c` run on no host |
+| With `options LCD_GFX_EXT` (the PICOCALC_SD kernel) `/dev/lcdgfx` fills and streams windows into all 480 lines of the controller's memory (`LCDG_RAMFILL`, `LCDG_RAMWIN`), returns a rectangle of it through `read(2)` as RGB565 or one reply raw (`LCDG_READ`), draws a block of palette indexes around a transparent index as one window per run (`LCDG_SPRITE`), waits for two successive scan-line samples inside a 64-line span or times out (`LCDG_WAITLINE`), selects idle, display off and sleep and refuses drawing in sleep (`LCDG_POWER`), reports the console ring's first line (`LCDG_XINFO`) and runs the fixed dithering probe (`LCDG_DITHER`); the last close leaves the panel on | host | observed by `check-picocalc-host` (`lcdgfx_ext_test`) against a model of the 480-line memory, its read reply (an 8-bit lead, then pixels in the COLMOD in force: three bytes under 0x66, two under 0x55), a scan line that advances per sample and a recorded power mode: both pixel formats written and read back whole and in 40 random rectangles, 60 random sprites compared pixel by pixel, 200 random waits, a misread and a falling pair refused, both timeouts, every range case, and the read refused with `EPERM` at the selection and at each `read(2)` until the open has finished, and after a non-root open every word of the 480 lines is blank before the first command (a read selected during the clear is refused, a root open clears nothing and reads the model's console words, kernel text draws no cell while the device is open), with every drawing, scrolling, tile, sprite, palette, power and wait command answering root and non-root openers alike; 48 mutants fail it. `lcd_gfx_power()`, `lcd_gfx_read()`, `lcd_gfx_scanline()` and `lcd_gfx_dither()` of `st7365p.c` run on no host |
 | The extended commands on the panel: the read reply's framing, a write and read-back of all 480 lines in both formats, the sprite, the scan-line wait, the memory after sleep, the dithering probe | board | observed 2026-11-19 on PICOCALC_SD #1 4399 (results below): framing, the 480-line read-back, the scan-line wait and the dithering probe under COLMOD 0x66; under 0x55 the kernel of that run decoded three bytes a pixel where the panel answers two. Observed 2026-11-19 on PICOCALC_SD #1 4401, which decodes by format: the 0x55 read-back (0 of 153,600 pixels differ), the sprite (0 of 256) and the memory after sleep (0 of 320 pixels of line 200), with the 0x66 results repeated |
 | `lcdgfx.c` compiles into the PicoCalc kernels only; PICO and PICO_UART keep their data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +2,145, bss +72; with PSRAM text +2,145, bss +80; PICO 95,403 / 248 / 39,848 and PICO_UART 85,618 / 192 / 14,832, 9 text bytes above the measurement before the pixel device, which was taken in a different build path, the offset `version[]` carries (not traced further); at `-O` under GCC 16.2 the PICO and PICO_UART images differed only inside `version[]` (`objcopy -O binary`) |
 | `st7365p.c` clocks the pixel primitives and `lcd_gfx_reset()` to the panel | build | compiles and links; `st7365p.c` has no host model, so the SPI bytes, the VSCRDEF value and the COLMOD 0x55 pixel format are read from the source and from the model's protocol, not run |
@@ -153,7 +153,8 @@ table and the sources that agree):
 | UART0 to the CH340C USB-serial bridge | GP0 TX, GP1 RX | `uart.c`, `/dev/tty0` |
 | PSRAM, ESP-PSRAM64H 8 MB | GP2-GP5 (SIO0-3), GP20 CS, GP21 SCK | `psram.c`, `psram_xfer.c`, PIO0 state machine 0, block major 3 |
 | Keyboard controller, I2C1 at 0x1F | GP6 SDA, GP7 SCL | `picokbd.c` |
-| UART1, expansion header | GP8 TX, GP9 RX | none; `GPIO_PWM` on slice 4 through `gpio.c` |
+| UART1 to the keyboard controller's UART3 (schematic nets UART1_TX to M_UART3_RX, UART1_RX to M_UART3_TX); on no header | GP8 TX, GP9 RX | none; held back from programs |
+| Expansion header J703, as its pins are labeled on the schematic (no continuity measured): 3V3_OUT, GP2, GP3, GP4, GP5, GP21, GP28, GND | GP28 is free; GP2-GP5 and GP21 are the PSRAM lines above | `gpio.c` offers GP28 |
 | ST7365P panel, SPI1 | GP10 SCK, GP11 TX, GP12 RX, GP13 CS, GP14 D/C, GP15 reset | `st7365p.c` |
 | SD card, SPI0 | GP16 RX, GP17 CS, GP18 SCK, GP19 TX, GP22 card detect | `sd.c`, `sdspi.c`, `sd0` and `rsd0` |
 | Audio, PWM slice 5 | GP26 left (5A), GP27 right (5B) | `picoaudio.c`, the BEL tone; `picopcm.c`, `/dev/audio`; `machdep.adc.0` and `machdep.adc.1` refuse these pins |
@@ -164,12 +165,21 @@ wires PWM_L to GP26, and GP28 reaches only the expansion header.
 
 ## USB-C and power
 
-DIP switch SW701 selects, through two WAS7227 switches, whether USB-C
-reaches the CH340C bridge and the Pico's UART0 (default, both selects
-pulled low) or the keyboard controller's USB and UART1 for its own
-firmware updates. In the default position, the USB-C port carries
-`/dev/tty0` at 115200 baud, so a PICO_UART kernel also has a working
-console on this board. The Pico's micro-USB port stays the PICO board's
+DIP switch SW701 holds two independent poles, each a select line pulled
+low by 100 kOhm and tied to the 3.3 V rail through 10 kOhm when closed.
+Pole 1 (SEL1, also the keyboard controller's BOOT0) drives U703: low
+connects the CH340C bridge to the Pico's UART0, high connects it to the
+keyboard controller's USART1 and, through BOOT0, starts that controller's
+system bootloader. Pole 2 (SEL2) drives U701: low connects the USB-C
+data pair to the CH340C, high connects it to the keyboard controller's own
+USB. Both open (the default) leaves the USB-C port carrying `/dev/tty0`
+at 115200 baud, so a PICO_UART kernel also has a working console on this
+board. Pole 2 closed with pole 1 open leaves the CH340C connected to UART0
+and without a cable, so the USB-C port carries no console; the Pico's
+micro-USB CDC-ACM console is unaffected. Pole 1 closed leaves UART0 without
+a peer. The WAS7227 select polarity comes from the vendor flashing recipe;
+the part's datasheet is absent from the notes, so a probe of U703 pin 10
+against pole 1 settles it. The Pico's micro-USB port stays the PICO board's
 CDC-ACM console and the `picotool reboot -u` path, `/dev/ttyUSB0` here.
 
 The AXP2101 PMU powers the system from USB-C alone: its power path
@@ -199,10 +209,18 @@ settles. The explanation the schematic leaves standing:
 `docs/research/hardware-reference-coverage.md` holds the schematic's
 designator-to-part map behind this reading.
 
-The Pico's own micro-USB port feeds the Pico module's VSYS through the
-module's Schottky diode; whether the mainboard's PICO_VSYS net, the STM32
-and the panel run from it is not measured. With cells installed, the
-micro-USB port is the console and BOOTSEL path.
+The schematic powers the Pico from the system rail. U102 (WAS4603) passes
+IPS, the AXP2101 system rail, to PICO_VSYS on socket pin 2 while PICO_EN,
+the keyboard controller's PA13, is high. The keyboard controller (DCDC1,
+MCU_3V3) and the panel (ALDO3, BLDO1) sit upstream of U102, so they run
+whether or not the Pico does; the two AW8010 amplifiers hang on PICO_VSYS
+and are silent when PICO_EN is low. Pico VBUS (socket pin 1) and RUN
+(pin 11) carry no net. The Pico's own micro-USB port feeds the Pico
+module's VSYS through the module's Schottky diode. What the schematic does
+not settle, and a measurement does, is whether micro-USB power back-feeds
+IPS through U102 when PICO_EN is low (the WAS4603 datasheet is absent from
+the notes) and whether the STM32 and the panel run from micro-USB alone.
+With cells installed, the micro-USB port is the console and BOOTSEL path.
 
 ## Display: ST7365P on SPI1
 
@@ -219,6 +237,25 @@ specification's minimum serial write cycle is 66 ns (page 54), which
 caps the clock at 15.1 MHz; the vendor drivers request 25 MHz and get
 20.8 MHz, outside that limit. Chip select, D/C and reset are SIO outputs;
 D/C changes only after the PL022 reports idle.
+
+The PL022 figures behind this configuration, from ARM DDI 0194H (printed
+pages) and the RP2040 datasheet (printed pages):
+
+| Figure | Value | Source |
+| --- | --- | --- |
+| FIFOs | transmit and receive, each 16 bits wide and 8 locations deep | DDI 0194H 2.2.4, 2.2.5, page 2-4 |
+| Bit clock | SSPCLK / (CPSDVSR x (1 + SCR)); CPSDVSR even 2-254, SCR 0-255 | 2.2.3, 2.3.4, 3.3.1, 3.3.5; pages 2-4, 2-8, 3-4, 3-8 |
+| SSPCLK limits (master) | at least 2 x the fastest bit clock, at most 254 x 256 x the slowest, at most PCLK | 2.3.4, page 2-7 |
+| Peak master bit rate | SSPCLK / 2: 62.5 Mbit/s at 125 MHz (the datasheet prints 62.5 at 133 MHz, which is 66.5) | RP2040 datasheet 4.4.3.4, page 505 |
+| BSY | set while a frame moves or the transmit FIFO is not empty | 3.3.4, page 3-8 |
+| DMA requests | single: one empty transmit location, one received character; burst: four or fewer queued, four or more received; enabled by SSPDMACR TXDMAE (bit 1) and RXDMAE (bit 0) | 2.2.8, pages 2-19, 2-20 (Table 2-1); 3.3.10, page 3-12 |
+| SPI1 DREQ numbers | TX 18, RX 19 (SPI0 16 and 17) | RP2040 datasheet Table 119, page 95 |
+| Interrupt masks | SSPIMSC: TXIM (bit 3) half empty or less, RXIM (bit 2) half full or more, RTIM (bit 1) receive timeout, RORIM (bit 0) overrun | 3.3.6, pages 3-9 and 3-10 |
+| Frame signal between words | SPH clear: pulsed high between words; SPH set: held low | 2.3.10 page 2-11; 2.3.13 page 2-15 |
+
+The driver polls and uses none of the DMA or interrupt rows. The text read
+states no rule for the line behavior when the transmit FIFO runs dry
+between two words of one transfer.
 
 The console's pixels are RGB565, two bytes (COLMOD 55h, page 96): a glyph
 is 120 bytes where RGB666 took 180. The controller's memory is eighteen
@@ -648,6 +685,63 @@ the PicoCalc kernel with PSRAM (0x2002f438 against 0x2003e800), so the bss addit
 that revision's layout. PICO and PICO_UART compile no PicoCalc file and keep
 their text, data and bss.
 
+### Memory read: rate and access
+
+The memory read (`LCDG_READ`) moves 20 pixels per RAMRD command: CASET and
+RASET with four parameters each and RAMRD are 11 bytes, the reply is one lead
+byte and then three bytes a pixel under 66h or two under 55h, all clocked at
+3.125 MHz (`LCD_READ_SCR` 19, a 320 ns period) with chip select held per
+chunk. The 153,600 pixels of a screen are 7,680 chunks of 72 bytes (66h) or 52
+bytes (55h): 1,416 ms and 1,022 ms of wire time. The board measured 1,797 to
+1,915 ms and 1,321 ms, so the clock accounts for 74 to 79 percent of the time
+and the remaining 0.69 to 0.90 microseconds a byte is the polling loop
+of `spi_xfer()`, the decode loop and `uiomove()`. TSCYCR (read clock cycle) is
+150 ns (ST7365P_SPEC_V1.0 page 54, with TSHR and TSLR 60 ns each, TACC 10 to 50
+ns): one continuous reply of 460,800 bytes (66h) or 307,200 (55h) takes 553 ms
+or 369 ms at 6.67 MHz, and the board's rate is 3.2 to 3.6 times that floor.
+The PL022 divides `clk_peri` by an even prescale times SCR + 1, so the fastest
+legal read clock is prescale 2, SCR 9: 6.25 MHz, a 160 ns period. SCR 8 gives
+144 ns, inside the limit that TSCYCR sets. The driver reads at half that rate.
+
+Recorded before a board measurement, not applied: `LCD_READ_SCR` 9 halves the
+wire time (708 ms under 66h, 511 ms under 55h) and costs no text. If the
+remaining time is CPU work that does not follow the clock the 66h read-back
+takes 1.09 to 1.21 s and the 55h read-back 0.81 s; if it is a PL022
+gap per frame that scales with the clock, 0.90 to 0.96 s and 0.66 s. A
+read-back with any of the 153,600 pixels different refutes the margin (TACC
+50 ns against the 80 ns half period) and keeps SCR 19. Chunks of 40 pixels
+save 12 of 132 bytes per 40 pixels (8 percent) and need a 121-byte reply
+buffer that is static, as the kernel stack is not the place for it; receive
+DMA would remove the CPU share and has not been costed in text.
+
+Who may read: the memory holds the console's screen from before the open, and
+lines 320-479 hold whatever an earlier opener drew. `lcdgfx_open()` therefore
+asks `lcdcons_gfx_root()` (the effective uid at open is 0, so a set-uid-root
+program counts as root). The superuser's open clears nothing and reads the
+console's screen as before. Any other open fills the whole memory, all 480
+lines, with black (a 66h full-memory write, about 340 ms on the board's
+measured write rate, unmeasured as a clear) after `lcdcons_gfx(1)` has taken
+the drawing flag and before `gfx_rd` is set, in the one kernel path of the
+open, so no read can be selected between the open and the clear; from then on
+that opener may select and read any rectangle, since everything there was
+drawn after its open. The flag belongs to the open and is cleared by the last
+close, so a descriptor inherited across fork and exec (the libwin launcher
+hand-off) keeps the right and the exclusive open (`EBUSY`) keeps every other
+process from the panel. The console cannot draw while the device is open:
+`lcdterm_gfx(1)` sets `gfx_active`, which skips every console cell, fill and
+scroll start, so kernel messages (`printf`) change the cell store but not the
+panel, and the last close repaints from it. A panic or a fatal fault calls
+`lcdabandon()`, which leaves graphics mode and draws the report on the panel;
+neither returns to the opener, so that text is never read through the
+descriptor. The register sets of the panel test (`machdep.picocalc.panel_variant`,
+`panel_read` and `panel_scan`) stay superuser only, and no command takes an
+address or a register value. Drawing, scrolling, tiles, sprites, the palette,
+power and the scan-line wait have no caller check, and the node is mode 666.
+On the base kernels (no `LCD_GFX_EXT`) a window or fill reaches 320 lines only,
+so lines 320-479 are never written there and no read command exists; `LCDG_SCRDEF`
+and `LCDG_SCROLL` can still bring them onto the glass, where they show what the
+controller held at power-on, and nothing clears them. Against the tree before this branch the rule costs 16 bytes of text and 8 of bss on PICOCALC_SD (headroom stays 1,912, with 84 bytes left before the next 256-byte page); the other kernels compile none of it.
+
 ## Keyboard: picokbd.c and picokbd_map.c
 
 The keyboard controller is an STM32F103 running the vendor's
@@ -679,14 +773,20 @@ reset of the block. The poll callout runs inside the SysTick exception, so
 it takes those steps one per poll rather than waiting; only the polled
 exchange of the probe and of the console's getc, which runs with
 interrupts masked anyway, waits them out. Reading register 0x08 resets the keyboard
-controller, so the driver never reads it.
+controller, so the driver never reads it. The reset also drops PICO_EN
+(`setup()` drives PA13 low before it raises it after initialization,
+`picocalc_keyboard.ino`), and with it the Pico's supply through U102. This
+is inferred from the firmware source and the schematic and has not been
+measured; a scope on PICO_VSYS across a register 0x08 access decides it.
 
 A register request (battery, backlight, power-off) shares the poller. The
 write phase asks the mailbox in `picokbd_req.c` for a waiting request and
 sends it in place of register 0x09; a read is the register number, a write
 is the number with bit 7 set and one value byte, and the two-byte reply of
 either is (register, value), so a write reads back the value the firmware
-kept. The reply goes to the mailbox instead of the key map, and a reply
+kept; the power-off register is the exception, because the firmware answers
+both its read and its write with the constant 1 (`picocalc_keyboard.ino`,
+`REG_ID_OFF`), so the countdown cannot be read back. The reply goes to the mailbox instead of the key map, and a reply
 whose first byte is not the requested register counts as a fault. A fault
 retries the request up to three exchanges before it fails with `EIO`. The
 caller of `picokbd_reg()` sleeps uninterruptibly on the mailbox, and a
@@ -707,7 +807,7 @@ admits a write only from root before any handler runs.
 | `charging` | 0x0B | bit 7 | refused (`EPERM`) |
 | `lcd_backlight` | 0x05, 0x85 | level | level, clamped to 0-240; the firmware raises it to a multiple of 16, at least 16, so the panel never goes dark |
 | `kbd_backlight` | 0x0A, 0x8A | level | level, clamped to 0-240; the firmware rounds down to a multiple of 32 and turns the light off below 32 |
-| `poweroff` | 0x8E | the last countdown requested, 0 if none | seconds, clamped to 6-255, after a `sync()`; the firmware then waits that long and cuts power through the AXP2101, and nothing cancels it |
+| `poweroff` | 0x8E | the last countdown this kernel wrote, 0 if none; the kernel keeps it, since the register reads back the constant 1 | seconds, clamped to 6-255, after a `sync()`; the firmware then waits that long and cuts power through the AXP2101, and nothing cancels it |
 
 The firmware's `sync_bat` stores 0 when the PMU reports no battery
 (read from source, not observed), which `battery` would show as 0 percent
@@ -721,6 +821,11 @@ Backspace sends DEL, matching the tty's ICRNL mapping and `CERASE`.
 Arrows send `ESC [ x` or, after an application sets cursor-key mode,
 `ESC O x`; Home, End, Insert, Delete, Page Up/Down and F1-F10 send the
 xterm termcap entry's `kh`, `@7`, `kI`, `kD`, `kP`, `kN` and `k1`-`k;`.
+Break (key 0xD0, Shift+Esc on the board) sends ETX, the byte Ctrl-C sends,
+so the tty's interrupt character handles both and a RAW program reads both
+as data. The power key (0x91, a short press of the PMU key) types nothing:
+it reaches a raw key event session as the controller's key byte, and the
+kernel applies no shutdown policy to it.
 
 Raw key events. Keystrokes include passwords, so the driver records
 nothing until a program asks. `LCDIOC_KEYEVS` (`_IOW('l', 3, int)`) with 1
@@ -1191,11 +1296,16 @@ every file of the install tree as a bare 32 MiB filesystem
 where the flash root carries its profile's selection.
 `distrib/rp2040/mksdmanifest.py` extends the flash root's composed manifest,
 which keeps its owners, modes, setuid bits, links and nodes, with every
-other directory, file and symbolic link of the tree, owned by root. The
+other directory, file and symbolic link of the tree, owned by root. Added
+regular paths that share an install-tree device and inode share one image
+inode. Explicit entries retain their own representation and metadata. The
 image then holds about 1,720 files in 15.6 MB, among them MATEzinho's icon
 pack in `/usr/share/matezinho` (with its CC BY-SA 3.0 notices and the
 source art as `artwork.tar`) and the `desktop` command that starts it,
-`paneltest` (`doc/PANELTEST.md`), and the board test programs of
+`paneltest` (`doc/PANELTEST.md`), `scrshot` (`usr.bin/scrshot`, the panel
+capture, which shows the console only to the superuser on a PICOCALC_SD kernel
+(any other user's open blanks the memory first);
+the flash root omits it), and the board test programs of
 `tests/rp2040` (`fptest`, `sigtest`, `lcdgfxtest`, `windowtest` and the
 rest) in `/usr/tests/rp2040`. It also holds the block and raw nodes of all four card
 partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
@@ -1348,12 +1458,29 @@ run settles whether they are.
 
 ### Audio
 
+GP26 and GP27 drive the two halves of a NC7WZ16 buffer (U501, powered from
+ALDO4), not the amplifiers. Each buffer output runs through a 220 ohm
+series resistor into a node with 100 nF and 100 ohm to ground, then a
+47 uF coupling capacitor with a 1.8 kOhm load to ground, to the volume
+control SW501 and the headphone jack, and from there to the two AW8010
+amplifiers on PICO_VSYS. The first-order corner of the resistor and 100 nF
+stage is 1/(2 pi R C) with R the 220 ohm in parallel with the 100 ohm and
+the 1.8 kOhm load, which is about 24 kHz (23 kHz without the load). The
+500 kHz PWM carrier of `picopcm.c` is attenuated by about 26 dB and its
+second harmonic by about 32 dB; a first-order stage does not remove it, so
+the carrier reaches the volume control and the amplifier inputs, and
+whether it is audible is a listening and scope question. The amplifier
+enable PA_EN belongs to the keyboard controller (PA14, set from the
+headphone-detect line PC12); the Pico cannot mute the amplifiers. The
+volume control's topology is inferred from its symbol, and R509 (0R) goes
+to ground; continuity at SW501 and the jack settles both.
+
 BEL ships (see Console above): `lcd_bell()` in `picoaudio.c` starts a
 1 kHz square wave at 25 percent duty on both channels of PWM slice 5 and a
 callout stops it 100 ms later; a BEL that arrives while the tone
 sounds is absorbed, and a panic suppresses it because callouts no longer
 run. The 25 percent duty and the 100 ms length are unmeasured choices:
-the board run sets the loudness and checks that the amplifier is silent
+the board run sets the loudness and checks that the speaker is silent
 between tones.
 
 `/dev/audio` ships (`picopcm.c`, character major 13): write only, one

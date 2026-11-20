@@ -105,6 +105,13 @@ MUTATIONS = {
         """        if (ipc.ip_data < 0 || ipc.ip_data > NSIG)
 """,
     ),
+    "kill-direct-exit": (
+        "        u.u_procp->p_sig = 0;\n"
+        "        u.u_procp->p_flag &= ~P_TRACED;\n"
+        "        u.u_procp->p_ptracesig = SIGKILL;\n"
+        "        return(1);",
+        "        exit(u.u_procp->p_ptracesig);\n        return(0);",
+    ),
     "step-fallthrough": (
         """    case PT_STEP:
         /* Cortex-M single-step needs a separate debug-monitor contract. */

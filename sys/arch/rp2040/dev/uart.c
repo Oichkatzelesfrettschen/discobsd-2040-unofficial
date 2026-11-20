@@ -55,8 +55,17 @@ static const struct uart_inst uart[NUART] = {
     /* UART0 on GP0 and GP1, the pair the Pico exposes on pins 1 and 2. */
     { UART0_BASE, 0, 1, UART0_IRQ },
 #if NUART > 1
+#ifdef PICOCALC_ENABLED
+    /*
+     * UART1 on GP8 and GP9, the pair the PicoCalc wires to the keyboard
+     * controller's USART3. GP4 and GP5 are PSRAM data lines (SIO2 and SIO3)
+     * there, so a PicoCalc build never drives them from a UART.
+     */
+    { UART1_BASE, 8, 9, UART1_IRQ },
+#else
     /* UART1 on GP4 and GP5. */
     { UART1_BASE, 4, 5, UART1_IRQ },
+#endif
 #endif
 };
 

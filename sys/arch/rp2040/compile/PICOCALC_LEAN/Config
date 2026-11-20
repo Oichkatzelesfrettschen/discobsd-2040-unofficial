@@ -112,7 +112,7 @@ service         sdswap
 # while DIP switch SW701 is in its default position; it is /dev/tty0.
 device          uart0
 options         "UART_BAUD=115200"          # default speed
-options         "NUART=1"                   # UART1's pins belong to the board
+options         "NUART=1"                   # UART1 (GP8/GP9) wires to the keyboard controller
 
 # The Pico's own micro-USB port as a CDC-ACM device, /dev/ttyUSB0; it also
 # carries the reset interface picotool reboot -u uses.

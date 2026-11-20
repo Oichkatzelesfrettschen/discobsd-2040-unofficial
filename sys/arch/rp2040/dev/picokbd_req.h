@@ -22,7 +22,8 @@
  * read is the register number as one byte; a write is the register number
  * with bit 7 set followed by one value byte. Either exchange is answered by
  * a two-byte read that returns (register number, value), so a write reads
- * back the value the firmware kept.
+ * back the value the firmware kept, except register 0x0e, which answers
+ * (0x0e, 1) to a read and to a write whatever the countdown is.
  *
  * The mailbox holds one request. picokbd.c's write phase asks
  * kbdreq_next() whether a request waits and sends it instead of register

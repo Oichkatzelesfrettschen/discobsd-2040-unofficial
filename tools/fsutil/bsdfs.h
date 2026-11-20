@@ -142,7 +142,7 @@ typedef struct {
     char            name [BSDFS_MAXNAMLEN + 1];
 } fs_dirent_t;
 
-typedef void (*fs_directory_scanner_t) (fs_inode_t *dir,
+typedef int (*fs_directory_scanner_t) (fs_inode_t *dir,
     fs_inode_t *file, char *dirname, char *filename, void *arg);
 
 typedef struct {
@@ -209,7 +209,7 @@ int fs_indirect_block_free (fs_t *fs, unsigned int bno, int nblk);
 int fs_double_indirect_block_free (fs_t *fs, unsigned int bno, int nblk);
 int fs_triple_indirect_block_free (fs_t *fs, unsigned int bno, int nblk);
 
-void fs_directory_scan (fs_inode_t *inode, char *dirname,
+int fs_directory_scan (fs_inode_t *inode, char *dirname,
     fs_directory_scanner_t scanner, void *arg);
 void fs_dirent_pack (unsigned char *data, fs_dirent_t *dirent);
 void fs_dirent_unpack (fs_dirent_t *dirent, unsigned char *data);

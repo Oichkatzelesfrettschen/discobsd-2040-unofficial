@@ -6,3 +6,115 @@ uLisp 4.8f
 (9.99999e-5 1.00001e-4 9.9999e-4)
 
 12000> 
+0
+
+12000> 
+Error: 'random' limit must be positive: 0
+12000> 
+Error: 'random' limit must be positive: -5
+12000> 
+Error: 'random' limit must be positive: -2147483648
+12000> 
+(-2147483648 -2147483648 -5)
+
+12000> 
+(0 0 0 -1)
+
+12000> 
+2.14748e9
+
+12000> 
+(-5 -2.5 0)
+
+12000> 
+Error: no room
+12000> 
+Error: no room
+12000> 
+Error: no room
+12000> 
+Error: no room
+12000> 
+Error: no room
+12000> 
+(100000 100000 0)
+
+12000> 
+(0 100000 100000)
+
+12000> 
+(7 1)
+
+12000> 
+(3.0 2.5 -7.0)
+
+12000> 
+Error: 'float' argument is not a number: foo
+12000> 
+Error: 'float' argument is not a number: nil
+12000> 
+Error: 'float' argument is not a number: "abc"
+12000> 
+docv
+
+11992> 
+nil
+
+11992> 
+nil
+
+11992> 
+nil
+
+11992> 
+Error: argument is not a symbol: nil
+11992> 
+Error: argument is not a symbol: 1
+11992> 
+Error: argument is not a symbol: (y)
+11992> 
+Error: 'setq' argument is not a symbol: nil
+11992> 
+Error: 'set' argument is not a symbol: nil
+11992> 
+Error: 'setf' argument is not a symbol: nil
+11992> 
+Error: 'incf' argument is not a symbol: nil
+11992> 
+Error: 'push' argument is not a symbol: nil
+11992> 
+Error: 'make-array' argument is not an integer: a
+11992> 
+Error: 'make-array' argument is not a proper list: 3
+11992> 
+Error: 'make-array' argument is not an integer: 1.5
+11992> 
+Error: 'concatenate' only supports strings
+11992> 
+Error: 'concatenate' only supports strings
+11992> 
+Error: 'write-string' argument is not a string: foo
+11992> 
+Error: 'write-line' argument is not a string: 1
+11992> 
+Error: 'read' stream cannot be read: <string-stream 0>
+11992> 
+Error: 'read-line' stream cannot be read: <string-stream 0>
+11992> 
+Error: 'read-byte' stream cannot be read: <string-stream 0>
+11992> 
+Error: 'sleep' missing argument
+11992> 
+(1 0 #*00000000000000000000000000000001)
+
+11992> 
+(1 1 0)
+
+11992> 
+Error: 'with-sd-card' invalid mode: 3
+11992> 
+Error: 'with-sd-card' invalid mode: -1
+11992> 
+(#\Newline #\Null #\Null)
+
+11992> 

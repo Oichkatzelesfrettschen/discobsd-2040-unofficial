@@ -1,0 +1,12 @@
+uLisp 4.8f 
+12000> 
+marker
+
+11996> 
+Error: 'load-image' image pointer out of range
+12000> 
+Error: undefined: marker
+12000> 
+3
+
+12000> 

@@ -21,9 +21,13 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def inspect(packed, raw, tool, stage_bytes, linker_script=DEFAULT_LINKER_SCRIPT):
+def inspect(packed, raw, tool, stage_bytes, linker_script=DEFAULT_LINKER_SCRIPT, *,
+            execs=1, restores=0):
     if isinstance(stage_bytes, bool) or not isinstance(stage_bytes, int) or stage_bytes <= 0:
         raise ValueError("stage size must be a positive integer")
+    for name, count in (("execs", execs), ("restores", restores)):
+        if type(count) is not int or count < 0:
+            raise ValueError(f"{name} must be a nonnegative integer")
     packed_bytes = packed.read_bytes()
     raw_bytes = raw.read_bytes()
     tool_hash = digest(tool.read_bytes())
@@ -84,8 +88,22 @@ def inspect(packed, raw, tool, stage_bytes, linker_script=DEFAULT_LINKER_SCRIPT)
             "packed_stream_input_bytes_two_passes": 2 * (packed_text + packed_data),
             "expanded_crc_bytes_two_passes": 2 * (raw_exec[1] + raw_exec[2]),
             "raw_body_rdwri_calls": 1,
-            "exclusions": "header reads and CRC, swap-in, failures, filesystem splitting, "
-                          "stack admission, cache and latency"}
+            "text_restore": {
+                "raw_body_bytes": text_size,
+                "packed_body_bytes": packed_text,
+                "packed_fill_calls": fills_text,
+                "expanded_crc_bytes": text_size,
+            },
+            "workload": {
+                "successful_execs": execs, "successful_clean_text_restores": restores,
+                "raw_body_bytes": execs * image_size + restores * text_size,
+                "packed_body_bytes": (2 * execs * (packed_text + packed_data)
+                                      + restores * packed_text),
+                "packed_fill_calls": 2 * execs * (fills_text + fills_data) + restores * fills_text,
+                "packed_expanded_crc_bytes": 2 * execs * image_size + restores * text_size,
+            },
+            "exclusions": "header reads and CRC, mutable swap image, failures, "
+                          "filesystem splitting, stack admission, cache and latency"}
 
 
 def main():
@@ -95,10 +113,12 @@ def main():
     parser.add_argument("--decoder", type=Path, required=True)
     parser.add_argument("--stage-bytes", type=int, required=True)
     parser.add_argument("--linker-script", type=Path, default=DEFAULT_LINKER_SCRIPT)
+    parser.add_argument("--execs", type=int, default=1)
+    parser.add_argument("--restores", type=int, default=0)
     args = parser.parse_args()
     try:
         print(json.dumps(inspect(args.packed, args.raw, args.decoder, args.stage_bytes,
-                                 args.linker_script),
+                                 args.linker_script, execs=args.execs, restores=args.restores),
                          indent=2, sort_keys=True))
     except (OSError, ValueError) as error:
         print(f"packed exec work: {error}", file=sys.stderr)

@@ -36,9 +36,13 @@
 #
 # lcdgfx_ext_test builds lcdgfx.c with LCD_GFX_EXT, the option of the
 # PICOCALC_SD kernel, against a model of the controller's 480-line memory
-# with its read reply, scan line and power mode; thirty-eight mutants of lcdgfx.c
+# with its read reply, scan line and power mode; forty-eight mutants of lcdgfx.c
 # must fail it: moved line and column bounds of the memory fill, window,
-# read and sprite, a read open to every user, a read decoded from the wrong reply bits or byte order,
+# read and sprite, a read open before the open's clear, an open that skips
+# the clear, clears only the 320 lines of the glass, clears after the read
+# flag is set, clears the superuser too or only the superuser, a read flag
+# never set or kept past the close, a frame, memory fill, sprite or power
+# command gated on the superuser, a read decoded from the wrong reply bits or byte order,
 # an odd read accepted, the read clock left selected, a raw read wider or
 # taller than one reply, a read or sprite that survives another command, a
 # sprite that ignores its key, the index mask or the row step, divides a
@@ -122,8 +126,10 @@
 # It requires output of 1 to 1000 bytes to reach the wire in order with no
 # received byte to run the interrupt handler, and a ttywait() loop after 1,
 # 7, 32 and 100 bytes to return only once the FIFO and shift register are
-# empty, through the drain callout's wakeup. Eight mutants of uart.c must
-# fail it (see uart-mutants).
+# empty, through the drain callout's wakeup. A second build with
+# PICOCALC_ENABLED requires UART1 on GP8 and GP9 and clear of every PSRAM
+# line (GP2-GP5, GP20, GP21), and the build without it requires GP4 and GP5.
+# Twelve mutants of uart.c must fail the two builds (see uart-mutants).
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -161,7 +167,7 @@ all: check
 check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	gametile_test \
 	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	uart_test panel_decode_test panel_scan_test font-sync
+	uart_test uart_picocalc_test panel_decode_test panel_scan_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./lcdgfx_ext_test
@@ -174,6 +180,7 @@ check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	./picoaudio_test
 	./picopcm_test
 	./uart_test
+	./uart_picocalc_test
 	./panel_decode_test
 	./panel_scan_test
 	${MAKE} mutants gfx-mutants gfxext-mutants kbdreq-mutants kbdevq-mutants \
@@ -382,7 +389,8 @@ font-sync:
 
 # Each mutant is the shipped source with one line changed by sed; the
 # sed must change the file, and the test built from it must fail.
-mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
+mutants: mutant-scroll mutant-region mutant-ctrl mutant-break-dropped \
+	mutant-break-byte mutant-power-types mutant-reverse-erase \
 	mutant-bright mutant-bell mutant-bell-any mutant-bank-store mutant-bank-pack \
 	mutant-bank-redraw mutant-bank-ascii mutant-bank-c1 \
 	mutant-bank-acs-shift mutant-bank-ris mutant-bank-rows \
@@ -402,6 +410,19 @@ mutant-region:
 mutant-ctrl:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
 	    's/\*ctrl = 1;/(void)0;/'
+
+# Break types ETX and the power key types nothing.
+mutant-break-dropped:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
+	    's/case KEY_BREAK:/case 0x00:/'
+
+mutant-break-byte:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
+	    's/out\[0\] = 0x03;/out[0] = 0x04;/'
+
+mutant-power-types:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
+	    's/return 0;\t\/\* Shift, Alt/out[0] = 0x1b; return 1; \/* Shift, Alt/'
 
 mutant-reverse-erase:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -936,10 +957,20 @@ gfxext-mutants: \
 	gfxext-mutant-sprite-run-split \
 	gfxext-mutant-sprite-run-abandon \
 	gfxext-mutant-read-any-user \
-	gfxext-mutant-read-handoff \
 	gfxext-mutant-read-always-666 \
 	gfxext-mutant-read-565-order \
-	gfxext-mutant-read-short-reply
+	gfxext-mutant-read-short-reply \
+	gfxext-mutant-clear-missing \
+	gfxext-mutant-clear-partial \
+	gfxext-mutant-clear-after-flag \
+	gfxext-mutant-clear-root-too \
+	gfxext-mutant-clear-root-only \
+	gfxext-mutant-read-flag-unset \
+	gfxext-mutant-read-flag-kept \
+	gfxext-mutant-draw-frame-gated \
+	gfxext-mutant-draw-ramfill-gated \
+	gfxext-mutant-draw-sprite-gated \
+	gfxext-mutant-draw-power-gated
 
 gfxext-mutant-ramfill-line-bound:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1075,11 +1106,8 @@ gfxext-mutant-sprite-run-abandon:
 
 gfxext-mutant-read-any-user:
 	${GFXEXT_MUT} lcdgfx.c \
-	    '/case LCDG_READ:/,/return EPERM;/s/if (!lcdcons_gfx_reader())/if (0)/' ${GFX_SRC}
+	    '/case LCDG_READ:/,/return EPERM;/s/if (!gfx_rd)/if (0)/' ${GFX_SRC}
 
-gfxext-mutant-read-handoff:
-	${GFXEXT_MUT} lcdgfx.c \
-	    '/^lcdgfx_read/,/^}/s/if (!lcdcons_gfx_reader())/if (0)/' ${GFX_SRC}
 
 gfxext-mutant-read-always-666:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1093,9 +1121,82 @@ gfxext-mutant-read-short-reply:
 	${GFXEXT_MUT} lcdgfx.c \
 	    's/raw, 1 + bpp \* n);/raw, bpp * n);/' ${GFX_SRC}
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+gfxext-mutant-clear-missing:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/fill(0, 0, LCDG_WIDTH - 1, LCDG_RAM_LINES - 1, 0);/(void)0;/' ${GFX_SRC}
+
+gfxext-mutant-clear-partial:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/LCDG_WIDTH - 1, LCDG_RAM_LINES - 1, 0);/LCDG_WIDTH - 1, LCDG_HEIGHT - 1, 0);/' ${GFX_SRC}
+
+gfxext-mutant-clear-after-flag:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/^\tif (!lcdcons_gfx_root())$$/\tgfx_rd = 1;\n\tif (!lcdcons_gfx_root())/' ${GFX_SRC}
+
+gfxext-mutant-clear-root-too:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (!lcdcons_gfx_root())$$/if (1)/' ${GFX_SRC}
+
+gfxext-mutant-clear-root-only:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (!lcdcons_gfx_root())$$/if (lcdcons_gfx_root())/' ${GFX_SRC}
+
+gfxext-mutant-read-flag-unset:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/^\tgfx_rd = 1;$$/\tgfx_rd = 0;/' ${GFX_SRC}
+
+gfxext-mutant-read-flag-kept:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^lcdgfx_close/,/^}/s/gfx_rd = 0;/;/' ${GFX_SRC}
+
+gfxext-mutant-draw-frame-gated:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/case LCDG_FRAME:/case LCDG_FRAME: if (!lcdcons_gfx_root()) return EPERM;/' ${GFX_SRC}
+
+gfxext-mutant-draw-ramfill-gated:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/case LCDG_RAMFILL:/case LCDG_RAMFILL: if (!lcdcons_gfx_root()) return EPERM;/' ${GFX_SRC}
+
+gfxext-mutant-draw-sprite-gated:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/case LCDG_SPRITE:/case LCDG_SPRITE: if (!lcdcons_gfx_root()) return EPERM;/' ${GFX_SRC}
+
+gfxext-mutant-draw-power-gated:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/case LCDG_POWER:/case LCDG_POWER: if (!lcdcons_gfx_root()) return EPERM;/' ${GFX_SRC}
+
 .PHONY: gfxext-mutants gfxext-mutant-read-always-666 \
+	gfxext-mutant-clear-missing \
+	gfxext-mutant-clear-partial \
+	gfxext-mutant-clear-after-flag \
+	gfxext-mutant-clear-root-too \
+	gfxext-mutant-clear-root-only \
+	gfxext-mutant-read-flag-unset \
+	gfxext-mutant-read-flag-kept \
+	gfxext-mutant-draw-frame-gated \
+	gfxext-mutant-draw-ramfill-gated \
+	gfxext-mutant-draw-sprite-gated \
+	gfxext-mutant-draw-power-gated \
 	gfxext-mutant-read-565-order gfxext-mutant-read-short-reply \
-	gfxext-mutant-read-handoff gfxext-mutant-read-any-user gfxext-mutant-sprite-run-split \
+	gfxext-mutant-read-any-user gfxext-mutant-sprite-run-split \
 	gfxext-mutant-sprite-run-abandon gfxext-mutant-dither-colmod gfxext-mutant-dither-on \
 	gfxext-mutant-xinfo-live gfxext-mutant-ramfill-line-bound \
 	gfxext-mutant-ramwin-lines \
@@ -1817,15 +1918,15 @@ sdstrat-mutant-root-bind-whole-card:
 # sd_partitions(): the copy of the MBR entries.
 sdstrat-mutant-mbr-offset-shifted:
 	${SDSTRAT_MUT} sd.c \
-	    's/bcopy(b + 446, \&pt\[1\], 64);/bcopy(b + 447, \&pt[1], 64);/' ${SDSTRAT_SRC}
+	    's/(u_char \*)table, 446,/(u_char *)table, 445,/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-mbr-copy-short:
 	${SDSTRAT_MUT} sd.c \
-	    's/bcopy(b + 446, \&pt\[1\], 64);/bcopy(b + 446, \&pt[1], 48);/' ${SDSTRAT_SRC}
+	    's/bcopy(table.slots, \&sdpt\[1\], sizeof(table.slots));/bcopy(table.slots, \&sdpt[1], 3 * sizeof(struct diskpart));/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-mbr-signature-unchecked:
 	${SDSTRAT_MUT} sd.c \
-	    's/if ((b\[510\] | (u_int)b\[511\] << 8) == MBR_MAGIC)/if (1)/' ${SDSTRAT_SRC}
+	    's/if (table.signature != MBR_MAGIC)/if (0)/' ${SDSTRAT_SRC}
 
 # sdswapattach() and the swap partition's size: the device that holds swap.
 sdstrat-mutant-swap-board-ungated:
@@ -2019,11 +2120,11 @@ sdstrat-mutant-open-check:
 
 sdstrat-mutant-reinit-early-clear:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tbzero(pt, sizeof(pt));/\tbzero(pt, sizeof(pt)); bzero(sdpt, sizeof(sdpt));/' ${SDSTRAT_SRC}
+	    's/^\tif (sd_read_mbr(\&sdcard, \&table) != SDE_OK)/\tbzero(sdpt, sizeof(sdpt)); &/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-reinit-keep-old:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\t\tbcopy(pt, sdpt, sizeof(sdpt));/\t\t(void)0;/' ${SDSTRAT_SRC}
+	    's/^\tbcopy(table.slots, \&sdpt\[1\], sizeof(table.slots));/\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-raw-read-unchecked:
 	${SDSTRAT_MUT} sd.c \
@@ -2161,7 +2262,7 @@ sdstrat-mutant-dump-past-card:
 
 sdstrat-mutant-dump-signature-unchecked:
 	${SDSTRAT_MUT} sd.c \
-	    's/tab\[sizeof(tab) - 1\] != 0xaa) {/0) {/' ${SDSTRAT_SRC}
+	    's/^	    table.signature != MBR_MAGIC) {/	    0) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-dump-probe-unarmed:
 	${SDSTRAT_MUT} sd.c \
@@ -2306,14 +2407,22 @@ UARTCSTD=	-std=gnu17 -Wall -Wextra -Werror -DKERNEL -DUART_HOST_MODEL \
 uart_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h
 	${HOST_CC} ${UARTCSTD} ${SAN} -g -I${DEV} -o $@ uart_test.c
 
+# The PicoCalc build of the same test: PICOCALC_ENABLED moves UART1 from GP4
+# and GP5, which are PSRAM data lines on that board, to GP8 and GP9.
+uart_picocalc_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h ${DEV}/psram_pio.h
+	${HOST_CC} ${UARTCSTD} -DPICOCALC_ENABLED ${SAN} -g -I${DEV} -o $@ uart_test.c
+
 UART_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
 		uart_test.c
+UART_PC_MUT=	sh ./mutant_unit.sh "${HOST_CC}" \
+		"${UARTCSTD} -DPICOCALC_ENABLED ${SAN}" "${DEV}" uart_test.c
 
 uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
 	uart-mutant-busy-early uart-mutant-drain-unchecked \
 	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
 	uart-mutant-putc-waits uart-mutant-timer-dup \
-	uart-mutant-rx-pull-down
+	uart-mutant-rx-pull-down uart-mutant-picocalc-psram-pins \
+	uart-mutant-picocalc-guard-dropped uart-mutant-picocalc-sio3
 
 uart-mutant-one-byte:
 	@MUTANT_EXPECT='FAIL login prompt: 1 of 7 bytes reach the wire' ${UART_MUT} uart.c \
@@ -2365,13 +2474,34 @@ uart-mutant-rx-pull-down:
 	@MUTANT_EXPECT='FAIL receive pad takes the pull-up for the pull-down' ${UART_MUT} uart.c \
 	    's/^\tpad = (pad \& ~PADS_PDE) | PADS_PUE;$$/\t(void)0;/' uart.h
 
+# The PicoCalc table row names the PSRAM's SIO2 and SIO3 pins.
+uart-mutant-picocalc-psram-pins:
+	@MUTANT_EXPECT='FAIL UART1 pins on a PicoCalc are GP8 and GP9' \
+	    ${UART_PC_MUT} uart.c 's/{ UART1_BASE, 8, 9, UART1_IRQ }/{ UART1_BASE, 4, 5, UART1_IRQ }/' \
+	    uart.h psram_pio.h
+
+# The PicoCalc guard is dropped, so a PicoCalc build takes the generic pair.
+uart-mutant-picocalc-guard-dropped:
+	@MUTANT_EXPECT='FAIL UART1 pins on a PicoCalc are GP8 and GP9' \
+	    ${UART_PC_MUT} uart.c 's/^#ifdef PICOCALC_ENABLED$$/#if 0/' \
+	    uart.h psram_pio.h
+
+# A pair that is neither the board's nor the generic one but still lands on
+# the PSRAM's SIO3 line.
+uart-mutant-picocalc-sio3:
+	@MUTANT_EXPECT='FAIL UART1 pins avoid the PSRAM lines' \
+	    ${UART_PC_MUT} uart.c 's/{ UART1_BASE, 8, 9, UART1_IRQ }/{ UART1_BASE, 5, 9, UART1_IRQ }/' \
+	    uart.h psram_pio.h
+
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	    uart_test panel_decode_test panel_scan_test lcdgfx_ext_test
+	    uart_test uart_picocalc_test panel_decode_test panel_scan_test \
+	    lcdgfx_ext_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
-	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
+	mutant-ctrl mutant-break-dropped mutant-break-byte mutant-power-types \
+	mutant-reverse-erase mutant-bright mutant-bell \
 	mutant-bell-any mutant-bank-store mutant-bank-pack mutant-bank-redraw \
 	mutant-bank-ascii mutant-bank-c1 mutant-bank-acs-shift \
 	mutant-bank-ris mutant-bank-rows mutant-bank-code clean \
@@ -2538,4 +2668,6 @@ clean:
 .PHONY: uart-mutants uart-mutant-one-byte uart-mutant-busy-empty \
 	uart-mutant-busy-early uart-mutant-drain-unchecked \
 	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
-	uart-mutant-putc-waits uart-mutant-timer-dup
+	uart-mutant-putc-waits uart-mutant-timer-dup \
+	uart-mutant-picocalc-psram-pins uart-mutant-picocalc-guard-dropped \
+	uart-mutant-picocalc-sio3

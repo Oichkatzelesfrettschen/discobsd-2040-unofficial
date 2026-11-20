@@ -8,6 +8,7 @@ tcflow.o
 tcflush.o
 tcgetpgrp.o
 tcgetwinsize.o
+tcsendbreak.o
 tcsetpgrp.o
 tcsetwinsize.o
 order_termios.o

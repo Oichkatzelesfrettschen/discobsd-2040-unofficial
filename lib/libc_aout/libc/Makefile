@@ -118,7 +118,7 @@ OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
                    sleep.o strcasecmp.o strftime.o swab.o sysconf.o sysctl.o syslog.o system.o \
                    stpcpy.o stpncpy.o strndup.o strnlen.o \
                    strcat.o strncat.o strcpy.o strncpy.o strncmp.o \
-                   tcattr.o tcdrain.o tcflow.o tcflush.o tcgetpgrp.o tcgetwinsize.o tcsetpgrp.o tcsetwinsize.o telldir.o time.o timezone.o tzset.o ttyname.o ttyslot.o ualarm.o usleep.o \
+                   tcattr.o tcdrain.o tcflow.o tcflush.o tcgetpgrp.o tcgetwinsize.o tcsendbreak.o tcsetpgrp.o tcsetwinsize.o telldir.o time.o timezone.o tzset.o ttyname.o ttyslot.o ualarm.o usleep.o \
                    strdup.o uname.o vis.o wait.o wait3.o waitpid.o
 
 # libc/stdio

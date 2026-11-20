@@ -2422,7 +2422,9 @@ uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
 	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
 	uart-mutant-putc-waits uart-mutant-timer-dup \
 	uart-mutant-rx-pull-down uart-mutant-picocalc-psram-pins \
-	uart-mutant-picocalc-guard-dropped uart-mutant-picocalc-sio3
+	uart-mutant-picocalc-guard-dropped uart-mutant-picocalc-sio3 \
+	uart-mutant-break-clear uart-mutant-break-clobbers \
+	uart-mutant-break-release uart-mutant-break-on-picocalc
 
 uart-mutant-one-byte:
 	@MUTANT_EXPECT='FAIL login prompt: 1 of 7 bytes reach the wire' ${UART_MUT} uart.c \
@@ -2491,6 +2493,33 @@ uart-mutant-picocalc-guard-dropped:
 uart-mutant-picocalc-sio3:
 	@MUTANT_EXPECT='FAIL UART1 pins avoid the PSRAM lines' \
 	    ${UART_PC_MUT} uart.c 's/{ UART1_BASE, 8, 9, UART1_IRQ }/{ UART1_BASE, 5, 9, UART1_IRQ }/' \
+	    uart.h psram_pio.h
+
+# TIOCSBRK that clears the bit instead of setting it, one that rewrites the
+# whole register, a TIOCCBRK that leaves the bit set, and the guard that keeps
+# the PICOCALC kernel free of the request dropped.
+uart-mutant-break-clear:
+	@MUTANT_EXPECT='FAIL TIOCSBRK sets BRK and keeps the line control' \
+	    ${UART_MUT} uart.c \
+	    's/REG32(base + UART_LCR_H) |= UART_LCR_H_BRK;/REG32(base + UART_LCR_H) \&= ~UART_LCR_H_BRK;/' \
+	    uart.h
+
+uart-mutant-break-clobbers:
+	@MUTANT_EXPECT='FAIL TIOCSBRK sets BRK and keeps the line control' \
+	    ${UART_MUT} uart.c \
+	    's/REG32(base + UART_LCR_H) |= UART_LCR_H_BRK;/REG32(base + UART_LCR_H) = UART_LCR_H_BRK;/' \
+	    uart.h
+
+uart-mutant-break-release:
+	@MUTANT_EXPECT='FAIL TIOCCBRK clears BRK and keeps the line control' \
+	    ${UART_MUT} uart.c \
+	    's/REG32(base + UART_LCR_H) &= ~UART_LCR_H_BRK;/REG32(base + UART_LCR_H) |= 0;/' \
+	    uart.h
+
+uart-mutant-break-on-picocalc:
+	@MUTANT_EXPECT='FAIL TIOCSBRK on a PICOCALC kernel is ENOTTY' \
+	    ${UART_PC_MUT} uart.c \
+	    's/^#if !defined(PICOCALC_ENABLED) || defined(PICOCALC_SD)$$/#if 1/' \
 	    uart.h psram_pio.h
 
 clean:
@@ -2670,4 +2699,6 @@ clean:
 	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
 	uart-mutant-putc-waits uart-mutant-timer-dup \
 	uart-mutant-picocalc-psram-pins uart-mutant-picocalc-guard-dropped \
-	uart-mutant-picocalc-sio3
+	uart-mutant-picocalc-sio3 uart-mutant-break-clear \
+	uart-mutant-break-clobbers uart-mutant-break-release \
+	uart-mutant-break-on-picocalc

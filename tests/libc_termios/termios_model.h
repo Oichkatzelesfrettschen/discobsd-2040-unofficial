@@ -72,6 +72,10 @@ struct model {
 	int vmin, vtime;		/* t_vmin, t_vtime */
 	int drain_errno;		/* nonzero: TIOCDRAIN fails with it (a signal) */
 	int drained;			/* TIOCDRAIN requests that completed */
+	int breaking;			/* TIOCSBRK is in force */
+	long break_us;			/* microseconds slept while it was */
+	long slept_us;			/* all microseconds slept */
+	int no_break;			/* the driver has no break request */
 	int log_flush;			/* the argument of the last TIOCFLUSH */
 	int inq, outq;			/* bytes queued for reading and for output */
 };
@@ -202,6 +206,14 @@ model_ioctl(int fd, unsigned int request, void *data)
 		model.win = *(struct winsize *)data;
 		model.winch++;
 		return 0;
+	case TIOCSBRK:
+	case TIOCCBRK:
+		if (model.no_break) {
+			errno = ENOTTY;
+			return -1;
+		}
+		model.breaking = request == TIOCSBRK;
+		return 0;
 	case TIOCDRAIN:
 		if (model.drain_errno) {
 			errno = model.drain_errno;
@@ -216,6 +228,15 @@ model_ioctl(int fd, unsigned int request, void *data)
 		errno = ENOTTY;
 		return -1;
 	}
+}
+
+/* usleep() is renamed to this: time passes, and a break is timed. */
+void
+test_usleep(long us)
+{
+	model.slept_us += us;
+	if (model.breaking)
+		model.break_us += us;
 }
 
 /* The library's ioctl() is renamed to this (-Dioctl=test_ioctl). */

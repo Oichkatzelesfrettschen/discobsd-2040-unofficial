@@ -176,7 +176,7 @@ function the row changes.
 | tcflow, TCOON | TIOCSTART (sys/kern/tty.c:519) | none | S04 |
 | tcflow, TCIOFF | unsupported: tcflow returns -1 with EINVAL ([EINVAL] is the unsupported-action error on the tcflow page) | the kernel sends flow characters only through t_outq: TANDEM puts stopc and startc there with putc (tty.c:250-253, 317-321) and ttstart refuses to draw or transmit while TS_TTSTOP is set (lcdcons.c:250, uart.c:477, usb.c:1351), so an ordinary write queues behind stopped output exactly as the kernel's own byte does; an out-of-band byte would need a priority transmit slot in each of three drivers | none (declined) |
 | tcflow, TCION | unsupported, as TCIOFF | as TCIOFF | none (declined) |
-| tcsendbreak | TIOCSBRK and TIOCCBRK defined (sys/sys/ioctl.h:186-187), no case in sys/kern/tty.c | a handler in the UART driver; console and USB declined | K07 |
+| tcsendbreak | TIOCSBRK and TIOCCBRK defined (sys/sys/ioctl.h), no case in sys/kern/tty.c | the handler is in the UART driver (uartioctl sets and clears UARTLCR_H BRK, landed K07, absent from the PICOCALC kernel); console and USB answer ENOTTY, so tcsendbreak returns -1 with ENOTTY there (the plan did not say which error) | K07 |
 | tcgetsid | none | sessions (no p_session in sys/); declined | none |
 | tcgetpgrp | TIOCGPGRP (sys/kern/tty.c:658) | none | S05 |
 | tcsetpgrp | TIOCSPGRP (sys/kern/tty.c:641; the source comment at :639 says the group is not verified) | none | S05 |

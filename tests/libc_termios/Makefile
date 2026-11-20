@@ -42,9 +42,9 @@ TREE=	-I. -I${SHIM_DIR} -I${TOPSRC}/include
 
 WARN=	-Wall -Wextra -Werror
 CFLAGS=	-std=c99 ${WARN} -fno-builtin ${ILP32}
-RENAMES=	-Dioctl=test_ioctl -Derrno=test_errno
+RENAMES=	-Dioctl=test_ioctl -Derrno=test_errno -Dusleep=test_usleep
 
-MEMBERS=	cfspeed.o cfmakeraw.o tcattr.o tcdrain.o tcflow.o tcflush.o tcgetpgrp.o tcgetwinsize.o tcsetpgrp.o tcsetwinsize.o
+MEMBERS=	cfspeed.o cfmakeraw.o tcattr.o tcdrain.o tcflow.o tcflush.o tcgetpgrp.o tcgetwinsize.o tcsendbreak.o tcsetpgrp.o tcsetwinsize.o
 ORDER=	order_termios.o order_ioctl.o
 
 ILP32_CC= ${HOSTCC}

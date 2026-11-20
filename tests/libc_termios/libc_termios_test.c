@@ -1233,6 +1233,39 @@ check_pgrp_winsize(void)
 	CHECK(model.winch == 3);
 }
 
+static void
+check_break(void)
+{
+	int d;
+
+	/* A break is 0.25 to 0.5 seconds of TIOCSBRK, then released. */
+	for (d = 0; d < 3; d++) {
+		model_reset(ECHO);
+		CHECK(tcsendbreak(MODEL_FD, d) == 0);
+		CHECK(model.breaking == 0);
+		CHECK(model.break_us >= 250000 && model.break_us <= 500000);
+		CHECK(model.slept_us == model.break_us);
+		CHECK(model.nlog == 2 && model.log[0] == TIOCSBRK &&
+		    model.log[1] == TIOCCBRK);
+	}
+
+	/* A driver without the request fails before the sleep. */
+	model_reset(ECHO);
+	model.no_break = 1;
+	test_errno = 0;
+	CHECK(tcsendbreak(MODEL_FD, 0) == -1 && test_errno == ENOTTY);
+	CHECK(model.slept_us == 0 && model.nlog == 1);
+	test_errno = 0;
+	CHECK(tcsendbreak(MODEL_FD + 1, 0) == -1 && test_errno == EBADF);
+
+	/* A release that fails is reported. */
+	model_reset(ECHO);
+	model.fail_request = TIOCCBRK;
+	test_errno = 0;
+	CHECK(tcsendbreak(MODEL_FD, 0) == -1 && test_errno == ENOTTY);
+	CHECK(model.breaking == 1);
+}
+
 int
 main(void)
 {
@@ -1253,5 +1286,6 @@ main(void)
 	check_drain();
 	check_actions();
 	check_pgrp_winsize();
+	check_break();
 	return lsys_verdict("libc_termios");
 }

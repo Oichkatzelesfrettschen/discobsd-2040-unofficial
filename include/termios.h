@@ -172,6 +172,7 @@ int tcgetattr(int, struct termios *);
 int tcsetattr(int, int, const struct termios *);
 int tcdrain(int);
 int tcflush(int, int);
+int tcsendbreak(int, int);
 int tcflow(int, int);
 int tcgetwinsize(int, struct winsize *);
 int tcsetwinsize(int, const struct winsize *);

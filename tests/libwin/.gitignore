@@ -10,3 +10,11 @@ inp_*.mutant.log
 dev_*.mutant.c
 dev_*.mutant.test
 dev_*.mutant.log
+widget_test
+widget_test_san
+lcd_*.mutant.c
+lcd_*.mutant.test
+lcd_*.mutant.log
+wgt_*.mutant.c
+wgt_*.mutant.test
+wgt_*.mutant.log

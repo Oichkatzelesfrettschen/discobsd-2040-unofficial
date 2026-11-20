@@ -90,7 +90,10 @@
  *
  * Dispatch. An event the manager does not consume goes to the focused
  * window's handler (win_set_handler()); with no focused window it is
- * dropped. The return value of win_input_event() names who took it.
+ * dropped. A handler returns nonzero when it consumed the event and -1 when
+ * a scene call failed at the backend; win_input_event() then returns -1
+ * under the failure contract below. The return value of win_input_event()
+ * names who took the event.
  *
  * Failure contract. When a scene call fails at the backend, win_input_event()
  * and the helpers built on it return -1 at once. The scene, the focus, the
@@ -173,9 +176,19 @@ struct win_input {
 	struct win *mode_win;
 	unsigned mode_gen;		/* Generation of mode_win at mode entry. */
 	int sx, sy, sw, sh;		/* Geometry when the mode began. */
+	struct win *modal;		/* Window that holds the focus, or NULL. */
+	unsigned modal_gen;		/* Generation of modal at win_input_set_modal(). */
 };
 
 void win_input_init(struct win_input *in);
+
+/*
+ * Make win modal (NULL ends it): the window-cycle keys F6, F7 and Ctrl-Tab
+ * are consumed without moving the focus while win is live, so no key leaves
+ * the window the toolkit's dialog (win_widget.h) opened. The mode ends by
+ * itself when the window is destroyed or its slot is reused.
+ */
+void win_input_set_modal(struct win_input *in, struct win *win);
 
 /* Decoders. They return the number of events written. */
 int win_decode_raw(struct win_input *in, int state, int key,

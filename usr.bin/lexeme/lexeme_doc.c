@@ -528,6 +528,16 @@ fkp_add(struct fkp *f, uint32_t lim, unsigned prop)
 	f->lim = lim;
 }
 
+/* Write all n bytes; a short count is an error even when errno is unset. */
+static int
+put_all(int fd, const char *p, unsigned n)
+{
+	errno = 0;
+	if (write(fd, p, n) != (ssize_t)n)
+		return errno != 0 ? errno : EIO;
+	return 0;
+}
+
 /* Write the text with each LF as CR LF; *fcmac gets the end offset. */
 static int
 emit_text(int fd, uint32_t *fcmac)
@@ -536,7 +546,7 @@ emit_text(int fd, uint32_t *fcmac)
 	woff_t p, len = buf_len();
 	uint32_t fc = FC0;
 	unsigned n = 0;
-	int c;
+	int c, e;
 
 	for (p = 0; p < len; p++) {
 		c = buf_at(p);
@@ -546,21 +556,21 @@ emit_text(int fd, uint32_t *fcmac)
 			out[n++] = '\r';	/* W12 */
 			fc++;
 			if (n == sizeof(out)) {
-				if (write(fd, out, n) != (ssize_t)n)
-					return errno;
+				if ((e = put_all(fd, out, n)) != 0)
+					return e;
 				n = 0;
 			}
 		}
 		out[n++] = (char)c;
 		fc++;
 		if (n == sizeof(out)) {
-			if (write(fd, out, n) != (ssize_t)n)
-				return errno;
+			if ((e = put_all(fd, out, n)) != 0)
+				return e;
 			n = 0;
 		}
 	}
-	if (n > 0 && write(fd, out, n) != (ssize_t)n)
-		return errno;
+	if (n > 0 && (e = put_all(fd, out, n)) != 0)
+		return e;
 	*fcmac = fc;
 	return 0;
 }

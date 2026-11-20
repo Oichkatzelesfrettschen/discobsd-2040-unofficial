@@ -49,6 +49,7 @@
 #include <unistd.h>
 
 #define PAGE_LINES	54	/* a 9-inch text area at six lines per inch */
+#define PAP_MEASURE_MAX	32000	/* largest paragraph measurement, twips (int16_t fields) */
 
 enum ui {
 	U_EDIT = 0, U_MENU, U_FORM, U_CONF_REPL, U_CONF_QUIT, U_CONF_CLEAR,
@@ -1010,7 +1011,7 @@ measure(const char *s, int unit, int *out)
 		tw = units[i].tw;
 	}
 	whole = whole * tw + frac * tw / scale;
-	if (whole > 32000)
+	if (whole > PAP_MEASURE_MAX)
 		return -1;
 	*out = (int)(neg ? -whole : whole);
 	return 0;
@@ -1153,7 +1154,10 @@ speed_key(int c)
 	case 'r': new_pap.align = AL_RIGHT; break;
 	case 'j': new_pap.align = AL_JUSTIFY; break;
 	case 'f': new_pap.first = 720; break;
-	case 'n': new_pap.left = (int16_t)(new_pap.left + 720); break;
+	case 'n':	/* Stops at the largest measurement the form accepts. */
+		if (new_pap.left <= PAP_MEASURE_MAX - 720)
+			new_pap.left = (int16_t)(new_pap.left + 720);
+		break;
 	case 'm': new_pap.left = (int16_t)(new_pap.left > 720 ? new_pap.left - 720 : 0); break;
 	case 'q': new_pap.left = new_pap.right = 720; break;
 	case 't': new_pap.left = 720; new_pap.first = -720; break;

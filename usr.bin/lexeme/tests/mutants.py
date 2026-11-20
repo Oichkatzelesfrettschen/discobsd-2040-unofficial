@@ -148,6 +148,13 @@ MUTANTS = [
         "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(1);",
         "t_undo_scrap",
     ),
+    (
+        "indent-key-unbounded",
+        "lexeme.c",
+        "if (new_pap.left <= PAP_MEASURE_MAX - 720)",
+        "if (new_pap.left <= INT16_MAX - 1)",
+        "t_indent_limit",
+    ),
     ("bold-not-drawn", "lexeme.c", "if (cp->flags & CH_BOLD)", "if (cp->flags & 0)", "t_format"),
     (
         "center-not-halved",

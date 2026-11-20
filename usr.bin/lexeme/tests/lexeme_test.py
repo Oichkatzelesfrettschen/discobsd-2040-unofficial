@@ -684,6 +684,23 @@ def t_replace_undo_whole(b, td):
     s.close()
 
 
+def t_indent_limit(b, td):
+    # Alt+N stops at the last 720-twip step inside the largest measurement the
+    # form accepts (32,000 twips), so the 16-bit indent never wraps negative.
+    s = Session(b, [os.path.join(td, "i.txt")])
+    s.send(b"x")
+    menu(s, b"f", b"p")
+    s.send(b"\t", b"21.5", b"\r")
+    for _ in range(3):
+        s.send(ALT, b"n")
+    menu(s, b"f", b"p")
+    check(s.has('left indent:22"'), "left indent after Alt+N at the limit: %r" % s.scr.text())
+    s.send(b"\x1b")
+    menu(s, b"q")
+    s.send(b"n")
+    s.close()
+
+
 def t_docsave_temp(b, td):
     # The Word save uses the same exclusive temporary as the text save.
     out = os.path.join(td, "note.doc")
@@ -950,6 +967,7 @@ TESTS = [
     t_bufcore,
     t_docfmt,
     t_format,
+    t_indent_limit,
     t_save_menu,
     t_wrap,
     t_search_replace,

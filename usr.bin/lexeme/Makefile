@@ -39,8 +39,8 @@ include ${TOPSRC}/share/mk/sys.mk
 
 BINDIR=		/usr/bin
 PROG=		lexeme
-SRCS=		lexeme.c lexeme_buf.c lexeme_find.c lexeme_menus.c lexeme_modes.c \
-		lexeme_pick.c lexeme_term.c
+SRCS=		lexeme.c lexeme_buf.c lexeme_doc.c lexeme_find.c lexeme_menus.c \
+		lexeme_modes.c lexeme_pick.c lexeme_term.c
 OBJS=		${SRCS:.c=.o}
 CFLAGS		+= -std=c17
 

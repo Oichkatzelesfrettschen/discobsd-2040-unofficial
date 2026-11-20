@@ -29,12 +29,15 @@
 /*
  * The uLisp devices of a PicoCalc running DiscoBSD: the pixel display
  * /dev/lcdgfx, the pins /dev/porta and /dev/portb, and the sample audio
- * /dev/audio. Each device is opened at its first use. The system has no
- * analogue input device.
+ * /dev/audio. Each device is opened at its first use. The analogue inputs
+ * are the sysctl nodes machdep.adc.N and the analogue outputs the PWM
+ * request of the pins' device (machine/gpio.h, machine/cpu.h).
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/sysctl.h>
 #include <sys/lcdgfx.h>
+#include <machine/cpu.h>
 #include <machine/gpio.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -95,9 +98,13 @@ dev_release(void)
 	panel = -1;
 }
 
-/* Sends one request for a pin; the result is the port's levels for a poll. */
+/*
+ * Sends one request for a pin; the result is the port's levels for a poll,
+ * or -1 when the kernel refuses. extra fills the argument's high half, the
+ * duty of a PWM request.
+ */
 static int
-pin_request(int pin, unsigned int request)
+pin_request(int pin, unsigned int request, unsigned int extra)
 {
 	static const char *const name[GPIO_NPORTS] = {
 		"/dev/porta", "/dev/portb"
@@ -108,33 +115,59 @@ pin_request(int pin, unsigned int request)
 		ulisp_fail("invalid pin");
 	if (port[p] < 0 && (port[p] = open(name[p], O_RDWR)) < 0)
 		ulisp_fail("the pins need the superuser");
-	return ioctl(port[p], GPIO_PORT(p) | request, 1 << (pin & 15));
+	return ioctl(port[p], GPIO_PORT(p) | request,
+	    1U << (pin & 15) | extra << 16);
 }
 
 /* The pads have no pull selection here: every input mode is plain input. */
 void
 dev_pinmode(int pin, int mode)
 {
-	(void)pin_request(pin, mode == SYS_OUTPUT ? GPIO_CONFOUT : GPIO_CONFIN);
+	(void)pin_request(pin, mode == SYS_OUTPUT ? GPIO_CONFOUT : GPIO_CONFIN,
+	    0);
 }
 
 int
 dev_digitalread(int pin)
 {
-	return (pin_request(pin, GPIO_POLL) >> (pin & 15)) & 1;
+	return (pin_request(pin, GPIO_POLL, 0) >> (pin & 15)) & 1;
 }
 
 void
 dev_digitalwrite(int pin, int level)
 {
-	(void)pin_request(pin, level != 0 ? GPIO_SET : GPIO_CLEAR);
+	(void)pin_request(pin, level != 0 ? GPIO_SET : GPIO_CLEAR, 0);
 }
 
+/*
+ * GP26-GP29 are ADC inputs 0-3. The kernel refuses the pins a board owns
+ * and the node is absent from a kernel built without the ADC, which the
+ * same message reports.
+ */
 int
 dev_analogread(int pin)
 {
-	(void)pin;
-	ulisp_fail("no analogue input device");
+	int mib[3] = { CTL_MACHDEP, CPU_ADC, pin - 26 };
+	int raw;
+	size_t len = sizeof raw;
+
+	if (pin < 26 || pin > 29 ||
+	    sysctl(mib, 3, &raw, &len, NULL, 0) < 0 || len != sizeof raw)
+		ulisp_fail("no analogue input device");
+	return raw;
+}
+
+/*
+ * The kernel drives the pin from a PWM slice at its fixed carrier, and
+ * refuses a pin the board owns and a slice the kernel uses. The pin keeps
+ * the duty until the interpreter exits and closes the device.
+ */
+void
+dev_analogwrite(int pin, int duty)
+{
+	if (pin < 0 || pin > 29 ||
+	    pin_request(pin, GPIO_PWM, (unsigned int)duty) < 0)
+		ulisp_fail("no analogue output device");
 }
 
 /*

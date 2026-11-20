@@ -2005,6 +2005,9 @@ check-adc-conversion:
 check-gpio-requests:
 		${MAKE} -C tests/rp2040/gpio_requests check
 
+check-unixbench-run:
+		${MAKE} -C tests/unixbench check
+
 check-clock-catchup:
 		${MAKE} -C tests/rp2040/clock_catchup check
 
@@ -2080,7 +2083,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-standard-requests \
 		check-usb-set-configuration \
 		check-usb-set-address-interface check-usb-get-descriptor \
-		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
+		check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-userland-layout-flags check-storage-geometry check-phony-targets \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-ulisp-host \
@@ -2822,7 +2825,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

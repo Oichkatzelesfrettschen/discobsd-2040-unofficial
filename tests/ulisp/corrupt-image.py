@@ -125,6 +125,29 @@ def main(argv):
         return s, ls, ar, pr, num, sym
 
     s, ls, ar, pr, num, sym = kinds(probe)
+
+    # The three arrays the image holds: a 2 by 2 matrix, a vector of five and
+    # a bit array of forty bits. An array cell points at a pair, whose car is the
+    # root of the tree and whose cdr is the dimension list.
+    def arrays(im):
+        found = {}
+        for i in im.cells_where(lambda a, d: a == ARRAY):
+            pair = im.index(im.cdr(i))
+            dims = im.index(im.cdr(pair))
+            first = im.index(im.car(dims))
+            value = struct.unpack("<i", struct.pack("<I", im.cdr(first) & 0xFFFFFFFF))[0]
+            rest = im.cdr(dims)
+            kind = "bits" if value < 0 else ("matrix" if rest != 0 else "vector")
+            found[kind] = (pair, im.index(im.car(pair)), dims, first)
+        if sorted(found) != ["bits", "matrix", "vector"]:
+            raise SystemExit("corrupt-image: no matrix, vector and bit array in the image")
+        return found
+
+    arr = arrays(probe)
+    mat_pair, mat_root, mat_dims, mat_first = arr["matrix"]
+    vec_pair, vec_root, vec_dims, vec_first = arr["vector"]
+    bit_pair, bit_root, bit_dims, bit_first = arr["bits"]
+    vec_kid = probe.index(probe.car(vec_root))  # the node for the first four elements
     link = probe.index(probe.cdr(s))  # the first cell of the string's chain
 
     case("string-head-past-end", lambda im: im.setcdr(s, end))
@@ -135,6 +158,23 @@ def main(argv):
     case("chain-wild", lambda im: im.setcar(link, wild))
     case("array-wild", lambda im: im.setcdr(ar, wild))
     case("array-null", lambda im: im.setcdr(ar, 0))
+    # An array whose tree or dimensions do not match one another.
+    case("array-dim-grown", lambda im: im.setcdr(vec_first, 100))
+    case("array-dim-zero", lambda im: im.setcdr(vec_first, 0))
+    case("array-dim-bit-flag", lambda im: im.setcdr(vec_first, (-5) & 0xFFFFFFFF))
+    case("array-dim-second-negative", lambda im: im.setcdr(
+        im.index(im.car(im.index(im.cdr(mat_dims)))), (-2) & 0xFFFFFFFF))
+    case("array-dim-huge", lambda im: im.setcdr(mat_first, 65536))
+    case("array-dim-not-number", lambda im: im.setcar(mat_dims, im.address(mat_pair)))
+    case("array-dim-loop", lambda im: im.setcdr(mat_dims, im.address(mat_dims)))
+    case("array-tree-truncated", lambda im: im.setcar(vec_root, im.address(vec_first)))
+    case("array-tree-null", lambda im: im.setcar(vec_pair, 0))
+    case("array-tree-loop-root", lambda im: im.setcdr(mat_root, im.address(mat_root)))
+    case("array-tree-loop-deep", lambda im: im.setcar(vec_kid, im.address(vec_root)))
+    case("array-tree-shared", lambda im: im.setcdr(mat_root, im.car(mat_root)))
+    case("array-bits-grown", lambda im: im.setcdr(bit_first, (-4000) & 0xFFFFFFFF))
+    case("array-bits-leaf-null", lambda im: im.setcar(bit_root, 0))
+    case("array-bits-leaf-pair", lambda im: im.setcar(bit_root, im.address(bit_root)))
     case("pair-car-wild", lambda im: im.setcar(pr, wild))
     case("pair-car-misaligned", lambda im: im.setcar(pr, im.car(pr) + 1))
     case("pair-cdr-wild", lambda im: im.setcdr(pr, wild))

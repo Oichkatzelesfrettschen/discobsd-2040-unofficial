@@ -30,18 +30,19 @@ include ${TOPSRC}/share/mk/sys.mk
 PROG=		ulisp
 BINDIR=		/usr/bin
 SHAREDIR=	/usr/share/ulisp
-OBJS=		ulisp.o unix.o gfx.o dev_picocalc.o font.o
+OBJS=		ulisp.o unix.o hilite.o gfx.o dev_picocalc.o font.o
 FONTDIR=	${TOPSRC}/sys/arch/rp2040/dev
 CFLAGS+=	-DULISP_BOARD -DULISP_SGTTY -I${FONTDIR}
 LIBS=		-lm -lc
 
-HOST_SRCS=	ulisp.c unix.c gfx.c dev_host.c ${FONTDIR}/lcdfont.c
+HOST_SRCS=	ulisp.c unix.c hilite.c gfx.c dev_host.c ${FONTDIR}/lcdfont.c
 HOST_CFLAGS=	-std=c17 -D_DEFAULT_SOURCE -Wall -Wextra -Werror -Os \
 		-I${FONTDIR}
 
 all: ${PROG} ulisp.doc
 
 ulisp.o: ulisp.c builtins.def platform.h
+hilite.o unix.o: platform.h
 
 font.o: ${FONTDIR}/lcdfont.c
 	${CC} ${CFLAGS} -c -o $@ ${FONTDIR}/lcdfont.c

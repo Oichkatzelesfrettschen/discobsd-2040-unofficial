@@ -64,8 +64,8 @@
 # on close, on the process's exit, on request, on a change of foreground
 # group and on any change of the tty's mode word (a getpass-like ECHO
 # clear), and leaves the queue empty, and the translated bytes must equal
-# those of picokbd_translate() alone; forty-four mutants of picokbd_evq.c
-# and sixteen cut connections in the kernel glue (wiring.sh) must fail it.
+# those of picokbd_translate() alone; fifty-nine mutants of picokbd_evq.c
+# and twenty-six cut connections in the kernel glue (wiring.sh) must fail it.
 #
 # gametile_test runs the tile library (games/gametile.h) against a model of
 # the tile commands of /dev/lcdgfx; twenty-nine mutants of the header must
@@ -118,6 +118,19 @@
 # reported as the position, a track begun on an unconfirmed sample) must
 # fail it.
 #
+# lcdvt_test compiles the console driver (lcdcons.c) with LCD_VT, the option
+# of the PICOCALC_SD kernel, and the real terminal and key decision against
+# the model panel and a tty model (shim-vt): two consoles, one shown, the
+# other frozen by TS_HIDDEN with its screen state parked in the terminal.
+# Its checks cover the round trip of both screen states byte for byte, a
+# frozen console that draws and starts nothing, a writer that sleeps at the
+# high-water mark and loses no byte, a stop that survives a round trip, an
+# explicit restart of a frozen console, the renderer's guard, an escape
+# sequence split across a switch, the unseen-output marker, a switch refused
+# while a pixel program owns the panel, the close of a frozen console, the
+# switch keys, and a panic and a fatal fault with the second console shown;
+# twenty-three mutants of lcdcons.c, lcdterm.c and picokbd_map.c must fail it.
+#
 # uart_test includes the RP2040 UART driver (uart.c) unchanged with
 # UART_HOST_MODEL, which replaces the PL011 register helpers of uart.h with
 # a model of the 32-byte transmit FIFO and shift register whose interrupt
@@ -167,7 +180,8 @@ all: check
 check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	gametile_test \
 	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	uart_test uart_picocalc_test panel_decode_test panel_scan_test font-sync
+	uart_test uart_picocalc_test panel_decode_test panel_scan_test \
+	lcdvt_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./lcdgfx_ext_test
@@ -183,10 +197,11 @@ check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	./uart_picocalc_test
 	./panel_decode_test
 	./panel_scan_test
+	./lcdvt_test
 	${MAKE} mutants gfx-mutants gfxext-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
 	    picoaudio-mutants picopcm-mutants uart-mutants panel-decode-mutants \
-	    panel-scan-mutants
+	    panel-scan-mutants lcdvt-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -249,6 +264,111 @@ panel-scan-mutants:
 	${PS_MUT} 's/^\ttr->at = 0;/\ttr->at = 1;/' st7365p_scan.h
 	${PS_MUT} 's/if (tr->have == 1 \&\& line >= tr->up \&\&/if (tr->have == 1 ||/' \
 	    st7365p_scan.h
+
+# lcdvt_test: the console driver with LCD_VT, the real terminal and the key
+# decision, against the model panel and the tty model of shim-vt. The TS_
+# values of shim-vt/sys/tty.h must equal those of sys/sys/tty.h, which the
+# rule checks before it compiles.
+LCDVT_SRCS=	${DEV}/lcdcons.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c \
+		${DEV}/picokbd_map.c
+LCDVTCSTD=	-I${TOPSRC}/tests/picocalc/shim-vt ${KCSTD} -D_DEFAULT_SOURCE \
+		-DKERNEL -DLCD_VT -DDEV_LCDGFX -DLCDTERM_HOST_TEST -I${DEV}
+LCDVT_SHIM=	shim-vt/sys/tty.h shim-vt/sys/param.h shim-vt/sys/user.h \
+		shim-vt/sys/proc.h shim-vt/sys/file.h shim-vt/sys/systm.h \
+		shim-vt/sys/conf.h shim-vt/sys/config.h shim-vt/sys/ioctl.h \
+		shim-vt/sys/lcdcons.h shim-vt/machine/intr.h \
+		shim-vt/machine/board.h
+
+lcdvt_test: lcdvt_test.c ${LCDVT_SRCS} ${LCDVT_SHIM} ${DEV}/lcdterm.h \
+	    ${DEV}/lcdfont.h ${DEV}/picokbd_map.h ${DEV}/picocalc.h \
+	    ${TOPSRC}/sys/sys/tty.h
+	@for n in $$(sed -n 's/^#define[[:space:]]*\(TS_[A-Z_]*\)[[:space:]].*/\1/p' \
+	    shim-vt/sys/tty.h); do \
+		a=$$(sed -n "s/^#define[[:space:]]*$$n[[:space:]]*\(0x[0-9a-fA-F]*L\).*/\1/p" \
+		    shim-vt/sys/tty.h); \
+		b=$$(sed -n "s/^#define[[:space:]]*$$n[[:space:]]*\(0x[0-9a-fA-F]*L\).*/\1/p" \
+		    ${TOPSRC}/sys/sys/tty.h); \
+		if [ -z "$$a" ] || [ "$$a" != "$$b" ]; then \
+			echo "lcdvt_test: $$n of shim-vt/sys/tty.h is not that of sys/sys/tty.h" >&2; \
+			exit 1; \
+		fi; \
+	done
+	${HOST_CC} ${LCDVTCSTD} ${SAN} -g -o $@ lcdvt_test.c ${LCDVT_SRCS}
+
+LCDVT_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${LCDVTCSTD} ${SAN}" "${DEV}" \
+		lcdvt_test.c
+
+.PHONY: lcdvt-mutants
+lcdvt-mutants:
+	@MUTANT_EXPECT='a console stopped before the switch is still stopped after it' ${LCDVT_MUT} lcdcons.c \
+	    '/^lcd_vtexchange/,/^}/s/TS_HIDDEN/TS_TTSTOP/g' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a start on the frozen console pends no renderer pass' ${LCDVT_MUT} lcdcons.c \
+	    's/(TS_TIMEOUT | TS_BUSY | TS_TTSTOP | TS_HIDDEN)/(TS_TIMEOUT | TS_BUSY | TS_TTSTOP)/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='the renderer drains no tty that carries TS_HIDDEN' ${LCDVT_MUT} lcdcons.c \
+	    's/^#define\tLCD_HELD\t(TS_TTSTOP | TS_HIDDEN)/#define\tLCD_HELD\tTS_TTSTOP/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a panic with ttyv1 shown leaves no ttyv1 text on the panel' ${LCDVT_MUT} lcdcons.c \
+	    '/^\t\t\tlcd_vtexchange(0);$$/d' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a panic with ttyv1 shown leaves no ttyv1 text on the panel' ${LCDVT_MUT} lcdcons.c \
+	    '/^\t\t\tif (!lcdgfx_isopen())$$/,/^\t\t\t\tlcdterm_repaint();$$/d' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='the sequence split across the switch takes effect' ${LCDVT_MUT} lcdterm.c \
+	    '/^lcdterm_exchange/,/^}/s/^\tcursor_drawn = 0;$$/\tcursor_drawn = 0;\n\tlt.state = ST_GROUND;/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='A to B to A: console one state saved whole' ${LCDVT_MUT} lcdterm.c \
+	    's/i < sizeof(lt) \/ sizeof(lt_word);/i < sizeof(lt) \/ sizeof(lt_word) - 1;/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='the scroll start is the restored ring offset' ${LCDVT_MUT} lcdterm.c \
+	    '/^lcdterm_repaint/,/^}/{/lcd_set_top(lt.top);/d;}' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='kernel output while ttyv0 is hidden draws the marker' ${LCDVT_MUT} lcdcons.c \
+	    's/^\t\tlcd_unseen++;$$/\t\t(void)0;/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='switching to ttyv0 clears the marker' ${LCDVT_MUT} lcdcons.c \
+	    '/^lcd_vtexchange/,/^}/s/^\t\tlcd_unseen = 0;$$/\t\t(void)0;/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='kernel output leaves the shown console' ${LCDVT_MUT} lcdterm.c \
+	    '/^lcdterm_marker/,/^}/s/^\tpanel_cell(/\tlt.cells[phys(0)][LT_COLS - 1] = 0x21;\n\tpanel_cell(/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='kernel output is not drawn on the shown console' ${LCDVT_MUT} lcdcons.c \
+	    '/^lcd_vputc/,/^}/s/^\tif (lcd_shown != 0) {$$/\tif (0) {/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='freezing a console clears its output-pass flag' ${LCDVT_MUT} lcdcons.c \
+	    's/ & ~TS_BUSY;$$/;/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a switch is refused while a pixel program owns the panel' ${LCDVT_MUT} lcdcons.c \
+	    's/if (lcdgfx_isopen() || lcd_abandoned) {/if (lcd_abandoned) {/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='closing a frozen console does not wait for a switch' ${LCDVT_MUT} lcdcons.c \
+	    '/^\tif (tp->t_state & TS_HIDDEN)$$/,/^\t\tttyflush(tp, FWRITE);$$/d' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a select on ttyv1 registers on ttyv1' ${LCDVT_MUT} lcdcons.c \
+	    '/^lcdselect/,/^}/s/^\tlcd_sel_tp = tp;$$/\tlcd_sel_tp = \&lcdttys[0];/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a write select on ttyv1 asks ttyv1' ${LCDVT_MUT} lcdcons.c \
+	    '/^lcdselect/,/^}/s/^\t\treturn ttyselect(tp, rw);$$/\t\treturn ttyselect(\&lcdttys[0], rw);/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a key wake reaches the selector of each console' ${LCDVT_MUT} lcdcons.c \
+	    '/^picokbd_evq_wake/,/^}/s/tp < \&lcdttys\[LCDCONS_NTTY\]/tp < \&lcdttys[1]/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='ttyv1 opened while hidden is frozen' ${LCDVT_MUT} lcdcons.c \
+	    's/^\t\tif (tp != LCD_SHOWN)$$/\t\tif (0)/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a console stopped before the switch is still stopped after it' ${LCDVT_MUT} lcdcons.c \
+	    's/lcdttys\[to\].t_state &= ~TS_HIDDEN;/lcdttys[to].t_state \&= ~(TS_HIDDEN | TS_TTSTOP);/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='F1 alone selects nothing' ${LCDVT_MUT} picokbd_map.c \
+	    's/if (!ctrl || state/if ((void)ctrl, state/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='Ctrl+F3 selects nothing' ${LCDVT_MUT} picokbd_map.c \
+	    's/key > KEY_F1 + 1/key > KEY_F1 + 2/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='the outgoing tty is frozen' ${LCDVT_MUT} lcdcons.c \
+	    '/^lcdcons_vtswitch/,/^}/s/^\trender_pend();$$/\t(void)0;/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
 
 PD_MUT=		@sh ./mutant_unit.sh "${HOST_CC}" "${CSTD} ${SAN}" "${PANELTEST}" \
 		panel_decode_test.c panel_decode.h
@@ -401,7 +521,7 @@ mutants: mutant-scroll mutant-region mutant-ctrl mutant-break-dropped \
 
 mutant-scroll:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    's/lcd_set_top(top);/(void)top;/'
+	    's/lcd_set_top(lt.top);/(void)lt.top;/'
 
 mutant-region:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -426,7 +546,7 @@ mutant-power-types:
 
 mutant-reverse-erase:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    's/sgr_rev ? sgr_fg : sgr_bg/sgr_bg/'
+	    's/lt.sgr_rev ? lt.sgr_fg : lt.sgr_bg/lt.sgr_bg/'
 
 mutant-bright:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -494,7 +614,7 @@ mutant-gfx-repaint-row:
 
 mutant-gfx-repaint-top:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    '/^lcdterm_repaint/,/^}/s/lcd_set_top(top);/(void)top;/'
+	    '/^lcdterm_repaint/,/^}/s/lcd_set_top(lt.top);/(void)lt.top;/'
 
 mutant-gfx-repaint-cursor:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -516,7 +636,7 @@ mutant-gfx-enter-draws:
 
 mutant-gfx-abort:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/'
+	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(lt.top);/'
 
 KBDEVQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
 		"${CSTD} -D_DEFAULT_SOURCE -DPICOKBD_EVQ_TEST -I${TOPSRC}/tests/picocalc/shim" \
@@ -569,6 +689,21 @@ kbdevq-mutants: \
 	kbdevq-mutant-procexit-any-process \
 	kbdevq-mutant-owner-pid-ignored \
 	kbdevq-mutant-owner-proc-ignored \
+	kbdevq-mutant-wake-ready-ignores-request \
+	kbdevq-mutant-wake-ready-empty \
+	kbdevq-mutant-wake-ready-any-process \
+	kbdevq-mutant-wake-ready-background \
+	kbdevq-mutant-wake-ready-no-check \
+	kbdevq-mutant-wake-put-silent \
+	kbdevq-mutant-wake-put-ungated \
+	kbdevq-mutant-wake-end-keeps \
+	kbdevq-mutant-wake-select-window \
+	kbdevq-mutant-lost-silent \
+	kbdevq-mutant-lost-not-ready \
+	kbdevq-mutant-lost-any-process \
+	kbdevq-mutant-lost-never-seen \
+	kbdevq-mutant-lost-plain \
+	kbdevq-mutant-lost-check-ends-quietly \
 	kbdevq-mutant-wiring
 
 kbdevq-mutant-drop-newest:
@@ -669,7 +804,7 @@ kbdevq-mutant-fileclose-any-file:
 
 kbdevq-mutant-check-ignored:
 	${KBDEVQ_MUT} picokbd_evq.c \
-	    '/^picokbd_evq_check/,/^}/s/session_end();/(void)tty_pgrp, (void)tty_flags;/' ${KBDEVQ_SRC}
+	    '/^picokbd_evq_check/,/^}/s/session_lost();/(void)tty_pgrp, (void)tty_flags;/' ${KBDEVQ_SRC}
 
 kbdevq-mutant-check-always-ends:
 	${KBDEVQ_MUT} picokbd_evq.c \
@@ -715,6 +850,66 @@ kbdevq-mutant-owner-proc-ignored:
 	${KBDEVQ_MUT} picokbd_evq.c \
 	    's/return owner_proc == proc \&\& owner_pid == pid;/return (owner_proc == proc || 1) \&\& owner_pid == pid;/' ${KBDEVQ_SRC}
 
+kbdevq-mutant-wake-ready-ignores-request:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/return owner_wake \&\& /return 1 \&\& /' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-empty:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/ head != tail \&\&//' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/is_owner(proc, pid)/((void)proc, (void)pid, 1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-background:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/pgrp != 0 \&\& pgrp == tty_pgrp/((void)pgrp, 1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-no-check:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/^\tpicokbd_evq_check(tty_pgrp, tty_flags);$$/\t(void)tty_flags;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-put-silent:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_put/,/^}/s/if (owner_wake)/if (0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-put-ungated:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_put/,/^}/s/if (owner_wake)/if (1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-end-keeps:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_end/,/^}/s/^\towner_wake = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-select-window:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    's/^\tif (!r)$$/\to->restore(x); x = o->raise();\n\tif (!r)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-silent:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_lost/,/^}/s/^\t\tpicokbd_evq_wake();$$/\t\t(void)0;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-not-ready:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/if (lost_proc != 0 \&\& lost_proc == proc/if (0 \&\& lost_proc == proc/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/lost_proc == proc \&\& lost_pid == pid/((void)proc, (void)pid, 1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-never-seen:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^lost_seen/,/^}/s/if (lost_proc == proc \&\& lost_pid == pid)/if (lost_proc == proc \&\& lost_pid == pid \&\& 0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-plain:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_lost/,/^}/s/^\tif (wake) {$$/\tif ((void)wake, 1) {/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-lost-check-ends-quietly:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_check/,/^}/s/session_lost();/session_end();/' ${KBDEVQ_SRC}
+
 kbdevq-mutant-check-ignores-group:
 	${KBDEVQ_MUT} picokbd_evq.c \
 	    '/^picokbd_evq_check/,/^}/s/owner_pgrp != tty_pgrp ||/(owner_pgrp != tty_pgrp \&\& 0) ||/' ${KBDEVQ_SRC}
@@ -741,7 +936,7 @@ kbdevq-mutant-start-no-snapshot:
 
 kbdevq-mutant-modeset-ignored:
 	${KBDEVQ_MUT} picokbd_evq.c \
-	    '/^picokbd_evq_modeset/,/^}/s/session_end();/(void)proc, (void)pid;/' ${KBDEVQ_SRC}
+	    '/^picokbd_evq_modeset/,/^}/s/session_lost();/(void)proc, (void)pid;/' ${KBDEVQ_SRC}
 
 kbdevq-mutant-modeset-owner:
 	${KBDEVQ_MUT} picokbd_evq.c \
@@ -1441,7 +1636,7 @@ gfx-mutant-leave-reset:
 
 gfx-mutant-abort-leave:
 	${GFX_MUT} lcdterm.c \
-	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/' ${GFX_SRC}
+	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(lt.top);/' ${GFX_SRC}
 
 gfx-mutant-tileset-bound-high:
 	${GFX_MUT} lcdgfx.c \
@@ -2497,7 +2692,7 @@ clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
 	    uart_test uart_picocalc_test panel_decode_test panel_scan_test \
-	    lcdgfx_ext_test
+	    lcdgfx_ext_test lcdvt_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-break-dropped mutant-break-byte mutant-power-types \
@@ -2593,7 +2788,7 @@ clean:
 	picoaudio-mutant-override-kept \
 	picoaudio-mutant-busy-kept
 
-.PHONY: kbdevq-mutants kbdevq-mutant-check-ignores-group kbdevq-mutant-check-ignores-mode kbdevq-mutant-mode-counts-line-discipline kbdevq-mutant-start-cooked kbdevq-mutant-start-raw-only kbdevq-mutant-start-no-snapshot kbdevq-mutant-modeset-ignored kbdevq-mutant-modeset-owner kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-check-ignored kbdevq-mutant-check-always-ends kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
+.PHONY: kbdevq-mutants kbdevq-mutant-lost-silent kbdevq-mutant-lost-not-ready kbdevq-mutant-lost-any-process kbdevq-mutant-lost-never-seen kbdevq-mutant-lost-plain kbdevq-mutant-lost-check-ends-quietly kbdevq-mutant-wake-select-window kbdevq-mutant-wake-ready-ignores-request kbdevq-mutant-wake-ready-empty kbdevq-mutant-wake-ready-any-process kbdevq-mutant-wake-ready-background kbdevq-mutant-wake-ready-no-check kbdevq-mutant-wake-put-silent kbdevq-mutant-wake-put-ungated kbdevq-mutant-wake-end-keeps kbdevq-mutant-check-ignores-group kbdevq-mutant-check-ignores-mode kbdevq-mutant-mode-counts-line-discipline kbdevq-mutant-start-cooked kbdevq-mutant-start-raw-only kbdevq-mutant-start-no-snapshot kbdevq-mutant-modeset-ignored kbdevq-mutant-modeset-owner kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-check-ignored kbdevq-mutant-check-always-ends kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
 
 .PHONY: gametile-mutants gametile-mutant-fill-column-sum gametile-mutant-fill-row-sum gametile-mutant-fill-origin-unchecked gametile-mutant-load-sum gametile-mutant-load-product gametile-mutant-touch-unchecked gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
 

@@ -39,6 +39,8 @@
  *   RAW sets PENDIN. The flag word keeps its high 16 bits across both.
  *   TIOCGETC, TIOCSETC, TIOCGLTC, TIOCSLTC: the two character sets.
  *   TIOCLGET, TIOCLSET: the high 16 bits of the flag word, as a 16-bit int.
+ *   TIOCGMINTIME, TIOCSMINTIME: VMIN and VTIME, which ttychars() starts at
+ *   1 and 0.
  */
 #ifndef TERMIOS_MODEL_H
 #define TERMIOS_MODEL_H
@@ -66,6 +68,7 @@ struct model {
 	unsigned int log[MODEL_LOG];	/* requests received, in order */
 	int nlog;
 	unsigned int fail_request;	/* a request that fails with ENOTTY, or 0 */
+	int vmin, vtime;		/* t_vmin, t_vtime */
 };
 
 static struct model model;
@@ -135,6 +138,13 @@ model_ioctl(int fd, unsigned int request, void *data)
 	case TIOCLSET:
 		model.flags = (model.flags & 0xffffU) |
 		    (((unsigned int)*(int *)data & 0xffffU) << 16);
+		return 0;
+	case TIOCGMINTIME:
+		*(int *)data = model.vmin | (model.vtime << 8);
+		return 0;
+	case TIOCSMINTIME:
+		model.vmin = *(int *)data & 0xff;
+		model.vtime = (*(int *)data >> 8) & 0xff;
 		return 0;
 	case TIOCHPCL:
 		model.hupcl = 1;

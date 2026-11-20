@@ -63,6 +63,8 @@ struct state {
 	struct tchars tc;
 	struct ltchars lc;
 	unsigned int flags;		/* t_flags: local word above the sgtty word */
+	int mintime;			/* VMIN | VTIME << 8 (TIOCGMINTIME) */
+	int mintime_ok;			/* the kernel has TIOCGMINTIME */
 };
 
 /* A termios bit that is one sgtty bit, or the absence of it when inv. */
@@ -151,6 +153,10 @@ load(int fd, struct state *s)
 		return -1;
 	s->flags = ((unsigned int)s->sg.sg_flags & 0xffffU) |
 	    (((unsigned int)local & 0xffffU) << 16);
+	/* A kernel without VMIN and VTIME reads as 1 and 0 and keeps them. */
+	s->mintime_ok = ioctl(fd, TIOCGMINTIME, &s->mintime) == 0;
+	if (!s->mintime_ok)
+		s->mintime = 1;
 	return 0;
 }
 
@@ -199,8 +205,8 @@ report(struct state *s, struct termios *t)
 		t->c_cc[i] = _POSIX_VDISABLE;
 	for (c = ccrows; c < ccrows + NCCROWS; c++)
 		t->c_cc[c->index] = *ccref(s, c);
-	t->c_cc[VMIN] = 1;
-	t->c_cc[VTIME] = 0;
+	t->c_cc[VMIN] = s->mintime & 0xff;
+	t->c_cc[VTIME] = (s->mintime >> 8) & 0xff;
 	t->c_ispeed = (unsigned char)s->sg.sg_ispeed;
 	t->c_ospeed = (unsigned char)s->sg.sg_ospeed;
 }
@@ -368,10 +374,16 @@ tcsetattr(int fd, int action, const struct termios *t)
 		}
 	}
 	if (t->c_cc[VEOL2] != _POSIX_VDISABLE ||
-	    t->c_cc[VSTATUS] != _POSIX_VDISABLE ||
-	    t->c_cc[VMIN] != have.c_cc[VMIN] ||
-	    t->c_cc[VTIME] != have.c_cc[VTIME])
+	    t->c_cc[VSTATUS] != _POSIX_VDISABLE)
 		refused = 1;
+	if (t->c_cc[VMIN] != have.c_cc[VMIN] ||
+	    t->c_cc[VTIME] != have.c_cc[VTIME]) {
+		if (cur.mintime_ok) {
+			honored = 1;
+			n.mintime = t->c_cc[VMIN] | (t->c_cc[VTIME] << 8);
+		} else
+			refused = 1;
+	}
 
 	if (t->c_ispeed > B4000000)
 		refused = 1;
@@ -409,6 +421,9 @@ tcsetattr(int fd, int action, const struct termios *t)
 		return -1;
 	if (differs(&n.sg, &cur.sg, sizeof n.sg) &&
 	    ioctl(fd, TIOCSETN, &n.sg) < 0)
+		return -1;
+	if (n.mintime != cur.mintime &&
+	    ioctl(fd, TIOCSMINTIME, &n.mintime) < 0)
 		return -1;
 	if ((t->c_cflag & HUPCL) && ioctl(fd, TIOCHPCL) < 0)
 		return -1;

@@ -239,6 +239,8 @@ model_reset(unsigned int flags)
 
 	model = zero;
 	model.flags = flags;
+	model.vmin = 1;
+	model.vtime = 0;
 	model.sg.sg_ispeed = B9600;
 	model.sg.sg_ospeed = B9600;
 	model.sg.sg_erase = 0x7f;
@@ -396,10 +398,22 @@ check_get_rest(void)
 	CHECK(t.c_cc[VSUSP] == 0x1a && t.c_cc[VDSUSP] == 0x19);
 	CHECK(t.c_cc[VREPRINT] == 0x12 && t.c_cc[VDISCARD] == 0x0f);
 	CHECK(t.c_cc[VWERASE] == 0x17 && t.c_cc[VLNEXT] == 0x16);
-	/* The rows the kernel has no field for, and the read counts. */
+	/* The rows the kernel has no field for. */
 	CHECK(t.c_cc[VEOL2] == _POSIX_VDISABLE);
 	CHECK(t.c_cc[VSTATUS] == _POSIX_VDISABLE);
+	/* The read counts a tty starts with. */
 	CHECK(t.c_cc[VMIN] == 1 && t.c_cc[VTIME] == 0);
+	model.vmin = 0xff;
+	model.vtime = 0x80;
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	CHECK(t.c_cc[VMIN] == 0xff && t.c_cc[VTIME] == 0x80);
+	/* A kernel without the request reads as 1 and 0. */
+	model.fail_request = TIOCGMINTIME;
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	CHECK(t.c_cc[VMIN] == 1 && t.c_cc[VTIME] == 0);
+	model.fail_request = 0;
+	model.vmin = 1;
+	model.vtime = 0;
 
 	/* A character the kernel holds above 0x7f is not sign-extended. */
 	model.tc.t_eofc = (char)0x84;
@@ -450,12 +464,13 @@ check_get_errors(void)
 	model_reset(ECHO);
 	test_errno = 0;
 	CHECK(tcgetattr(MODEL_FD + 1, &t) == -1 && test_errno == EBADF);
-	/* A terminal read is the four requests and nothing else. */
+	/* A terminal read is the five requests and nothing else. */
 	model_reset(ECHO);
 	CHECK(tcgetattr(MODEL_FD, &t) == 0);
-	CHECK(model.nlog == 4);
+	CHECK(model.nlog == 5);
 	CHECK(model.log[0] == TIOCGETP && model.log[1] == TIOCGETC &&
-	    model.log[2] == TIOCGLTC && model.log[3] == TIOCLGET);
+	    model.log[2] == TIOCGLTC && model.log[3] == TIOCLGET &&
+	    model.log[4] == TIOCGMINTIME);
 }
 
 /* ---- tcsetattr ---- */
@@ -485,6 +500,7 @@ static int
 state_equal(const struct model *a, const struct model *b)
 {
 	return a->flags == b->flags && a->hupcl == b->hupcl &&
+	    a->vmin == b->vmin && a->vtime == b->vtime &&
 	    a->sg.sg_ispeed == b->sg.sg_ispeed &&
 	    a->sg.sg_ospeed == b->sg.sg_ospeed &&
 	    a->sg.sg_erase == b->sg.sg_erase &&
@@ -717,6 +733,21 @@ check_rt_chars(void)
 			CHECK(model.flags == before.flags);
 		}
 	}
+	/* VMIN and VTIME are separate bytes of one request. */
+	for (k = 0; k < 2; k++) {
+		for (v = 0; v < COUNT(values); v++) {
+			model_reset(ECHO);
+			CHECK(tcgetattr(MODEL_FD, &t) == 0);
+			e = t;
+			e.c_cc[k ? VTIME : VMIN] = values[v];
+			CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+			CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+			CHECK(termios_equal(&t2, &e));
+			CHECK(model.vmin == e.c_cc[VMIN]);
+			CHECK(model.vtime == e.c_cc[VTIME]);
+			CHECK(model.vmin == (k ? 1 : values[v]));
+		}
+	}
 	/* Every speed name, input and output separately. */
 	for (i = B0; i <= B4000000; i++) {
 		model_reset(ECHO);
@@ -751,6 +782,8 @@ check_set_idempotent(void)
 		model.sg.sg_kill = (char)rnd(&seed);
 		model.tc.t_eofc = (char)rnd(&seed);
 		model.lc.t_lnextc = (char)rnd(&seed);
+		model.vmin = (int)(rnd(&seed) & 0xff);
+		model.vtime = (int)(rnd(&seed) & 0xff);
 		CHECK(tcgetattr(MODEL_FD, &t) == 0);
 		snapshot();
 		CHECK(tcsetattr(MODEL_FD, TCSANOW, &t) == 0);
@@ -817,9 +850,9 @@ struct rf_cc {
 static const struct rf_cc rf_ccs[] = {
 	{ "VEOL2", VEOL2, 0x01 },
 	{ "VSTATUS", VSTATUS, 0x14 },
-	{ "VMIN 0", VMIN, 0 },
-	{ "VMIN 2", VMIN, 2 },
-	{ "VTIME 1", VTIME, 1 },
+	{ "VMIN 0 without the request", VMIN, 0 },
+	{ "VMIN 2 without the request", VMIN, 2 },
+	{ "VTIME 1 without the request", VTIME, 1 },
 };
 
 /*
@@ -854,6 +887,9 @@ check_refusals(void)
 			const struct rf_cc *c = &rf_ccs[i - COUNT(rf_rows)];
 
 			name = c->name;
+			/* VMIN and VTIME refuse only on a kernel without them. */
+			model.fail_request = TIOCGMINTIME;
+			CHECK(tcgetattr(MODEL_FD, &t) == 0);
 			e = t;
 			e.c_cc[c->index] = c->value;
 		} else {
@@ -874,7 +910,7 @@ check_refusals(void)
 			lsys_note("a refused row was not refused:");
 			lsys_note(name);
 		}
-		CHECK(model.nlog == 4);
+		CHECK(model.nlog == 5);
 		CHECK(state_equal(&model, &before));
 		CHECK(sets_issued() == 0);
 		test_errno = 0;
@@ -924,8 +960,8 @@ check_set_special(void)
 	e.c_cflag |= HUPCL;
 	snapshot();
 	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
-	CHECK(model.hupcl == 1 && model.nlog == 5 && sets_issued() == 1);
-	CHECK(model.log[4] == TIOCHPCL);
+	CHECK(model.hupcl == 1 && model.nlog == 6 && sets_issued() == 1);
+	CHECK(model.log[5] == TIOCHPCL);
 	CHECK(tcgetattr(MODEL_FD, &t) == 0 && (t.c_cflag & HUPCL) == 0);
 
 	/* Only TCSANOW is available until the drain and flush request lands. */
@@ -946,14 +982,14 @@ check_set_special(void)
 	    test_errno == EBADF);
 }
 
-/* The requests go out as SETC, SETLTC, LSET, SETN, HPCL, and only the changed. */
+/* The requests go out as SETC, SETLTC, LSET, SETN, SMINTIME, HPCL, and only the changed. */
 static void
 check_set_order(void)
 {
 	struct termios t, e;
 	static const unsigned int failing[] = {
 		TIOCGETP, TIOCGETC, TIOCGLTC, TIOCLGET,
-		TIOCSETC, TIOCSLTC, TIOCLSET, TIOCSETN, TIOCHPCL
+		TIOCSETC, TIOCSLTC, TIOCLSET, TIOCSETN, TIOCSMINTIME, TIOCHPCL
 	};
 	int i, j;
 
@@ -962,16 +998,19 @@ check_set_order(void)
 	e = t;
 	e.c_cc[VINTR] = 0x01;
 	e.c_cc[VSUSP] = 0x02;
+	e.c_cc[VMIN] = 4;
+	e.c_cc[VTIME] = 9;
 	e.c_lflag = (e.c_lflag | ICANON | IEXTEN) & ~ECHO & ~TOSTOP;
 	e.c_lflag |= TOSTOP;
 	e.c_ispeed = B300;
 	e.c_cflag |= HUPCL;
 	snapshot();
 	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
-	CHECK(model.nlog == 9);
-	CHECK(model.log[4] == TIOCSETC && model.log[5] == TIOCSLTC &&
-	    model.log[6] == TIOCLSET && model.log[7] == TIOCSETN &&
-	    model.log[8] == TIOCHPCL);
+	CHECK(model.nlog == 11);
+	CHECK(model.log[5] == TIOCSETC && model.log[6] == TIOCSLTC &&
+	    model.log[7] == TIOCLSET && model.log[8] == TIOCSETN &&
+	    model.log[9] == TIOCSMINTIME && model.log[10] == TIOCHPCL);
+	CHECK(model.vmin == 4 && model.vtime == 9);
 	/* TIOCSETN set PENDIN after TIOCLSET; the later write must keep it. */
 	CHECK((model.flags & PENDIN) != 0 && (model.flags & CBREAK) == 0);
 	CHECK((model.flags & ECHO) == 0 && (model.flags & TOSTOP) != 0);

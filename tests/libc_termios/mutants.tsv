@@ -25,7 +25,7 @@ get-local-word-shift	lib/libc/gen/tcattr.c	s/<< 16)/<< 15)/
 get-flags-sign-extended	lib/libc/gen/tcattr.c	s/((unsigned int)s->sg.sg_flags & 0xffffU)/((unsigned int)s->sg.sg_flags)/
 get-ispeed-sign-extended	lib/libc/gen/tcattr.c	s/t->c_ispeed = (unsigned char)s->sg.sg_ispeed;/t->c_ispeed = (speed_t)s->sg.sg_ispeed;/
 get-unused-cc-zero	lib/libc/gen/tcattr.c	s/t->c_cc\[i\] = _POSIX_VDISABLE;/t->c_cc[i] = 0;/
-get-vmin-zero	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] = 1;/t->c_cc[VMIN] = 0;/
+get-vmin-zero	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] = s->mintime & 0xff;/t->c_cc[VMIN] = 0;/
 get-ixon-clear	lib/libc/gen/tcattr.c	s/t->c_iflag = IXON;/t->c_iflag = 0;/
 get-cread-missing	lib/libc/gen/tcattr.c	s/t->c_cflag = CS8 | CREAD;/t->c_cflag = CS8;/
 get-onlcr-missing	lib/libc/gen/tcattr.c	s/t->c_oflag |= ONLCR;//
@@ -54,3 +54,8 @@ set-any-action	lib/libc/gen/tcattr.c	s/if (action != TCSANOW) {/if (action < 0) 
 set-tchars-always	lib/libc/gen/tcattr.c	s/differs(&n.tc, &cur.tc, sizeof n.tc) &&/1 \&\&/
 set-flags-not-applied	lib/libc/gen/tcattr.c	s/n.sg.sg_flags = (short)(f & 0xffffU);//
 set-split-ignored	lib/libc/gen/tcattr.c	s/\t\thonored = 1;\n\telse if (want != ((have/X/;s/else if (want != ((have.c_iflag & ICRNL) != 0)) {/else if (want == ((have.c_iflag \& ICRNL) != 0)) {/
+get-vtime-from-low	lib/libc/gen/tcattr.c	s/(s->mintime >> 8) & 0xff/s->mintime \& 0xff/
+get-fallback-wrong	lib/libc/gen/tcattr.c	s/s->mintime = 1;/s->mintime = 2;/
+set-mintime-pack	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] | (t->c_cc\[VTIME\] << 8)/t->c_cc[VMIN] | t->c_cc[VTIME]/
+set-mintime-refused	lib/libc/gen/tcattr.c	s/if (cur.mintime_ok) {/if (0) {/
+set-mintime-not-sent	lib/libc/gen/tcattr.c	s/if (n.mintime != cur.mintime &&/if (0 \&\&/

@@ -1,0 +1,11 @@
+# label	sed script over the extracted source; each must make the gate fail
+vmin-default-zero	s/tp->t_vmin = 1;/tp->t_vmin = 0;/
+vtime-default-one	s/tp->t_vtime = 0;/tp->t_vtime = 1;/
+default-dropped	/tp->t_vmin = 1;/d
+get-ignores-vtime	s/tp->t_vmin | (tp->t_vtime << 8)/tp->t_vmin/
+get-bytes-swapped	s/tp->t_vmin | (tp->t_vtime << 8)/tp->t_vtime | (tp->t_vmin << 8)/
+get-shift-seven	s/tp->t_vtime << 8/tp->t_vtime << 7/
+set-bytes-swapped	s/tp->t_vmin = \*(int \*)data & 0xff;/tp->t_vmin = (*(int *)data >> 8) \& 0xff;/
+set-vtime-dropped	s/tp->t_vtime = (\*(int \*)data >> 8) & 0xff;//
+set-touches-winsize	s/tp->t_vtime = (\*(int \*)data >> 8) & 0xff;/tp->t_winsize.ws_col = 0; tp->t_vtime = (*(int *)data >> 8) \& 0xff;/
+unknown-request-accepted	s/return (-1);/return (0);/

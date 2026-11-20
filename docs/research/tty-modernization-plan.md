@@ -150,7 +150,7 @@ function the row changes.
 | VERASE | required | sg_erase, TIOCGETP sys/kern/tty.c:578 | VERASE | none | RT |
 | VINTR | required | tc_intrc, TIOCGETC | VINTR | none | RT |
 | VKILL | required | sg_kill, TIOCGETP | VKILL | none | RT |
-| VMIN | required | none; the shim reports 1 | new request over the two pad bytes of struct tty | storage and request +0.10-0.15 KB / 0; the read semantics are a separate step (+0.30-0.40 KB) | RT after the request lands; KM |
+| VMIN | required | none; the shim reports 1 | TIOCGMINTIME and TIOCSMINTIME (sys/sys/ioctl.h) over t_vmin and t_vtime, the two pad bytes of struct tty; one int, VMIN low byte, VTIME next; ttychars() starts them at 1 and 0 | storage and request +0.10-0.15 KB / 0; the read semantics are a separate step (+0.30-0.40 KB) | RT after the request lands; KM |
 | VQUIT | required | tc_quitc, TIOCGETC | VQUIT | none | RT |
 | VSUSP | required | tc_suspc, TIOCGLTC and TIOCSLTC sys/kern/tty.c:608, 612 | VSUSP | none | RT |
 | VTIME | required | none; the shim reports 0 | as VMIN | as VMIN | RT after the request lands; KM |
@@ -892,7 +892,7 @@ falsifier column point at section 2 and section 6 rows.
 | S03 | tcsetattr TCSANOW with the refusal rules (EINVAL only when no part is honored) | S01, S02 | 200 | 0.4-0.6 KB per program | a "now" row fails RT, or a declined request returns success | RT and RF cases for every row |
 | S04 | tcsetattr TCSADRAIN and TCSAFLUSH, tcflush (3 selectors), tcflow (TCOOFF and TCOON; TCIOFF and TCION return EINVAL) | S03 (TCSADRAIN also K04) | 120 | 0.15-0.25 KB per program | a selector flushes the wrong queue, TCSAFLUSH keeps queued input, or TCIOFF reports success | model with input and output queues; each selector and action; EINVAL for the two input-side actions |
 | S05 | tcgetpgrp, tcsetpgrp, tcgetwinsize, tcsetwinsize | S01 | 60 | 0.1 KB per program | SIGWINCH on an unchanged size | model of TIOCSWINSZ |
-| K01 | VMIN and VTIME in the two pad bytes of struct tty, with the get and set request | none | 60 | +0.10-0.15 KB text, 0 RAM | struct tty grows past 100 B | tests/kernel/tty_layout_contract.c updated by design; request round trip |
+| K01 | VMIN and VTIME in the two pad bytes of struct tty, with the get and set request (the two requests also join the payload lists of sys/kern/sys_generic.c, which copies a request's parameter only for a listed command) | none | 60 | +0.10-0.15 KB text, 0 RAM | struct tty grows past 100 B | tests/kernel/tty_layout_contract.c updated by design; request round trip |
 | K02 | ttread honors VMIN and VTIME (the four Issue 8 cases, with a callout) | K01 | 90 | +0.30-0.40 KB | tty.o grows more than 0.45 KB over K01, or queued bytes are lost | four cases on a model clock; a queue-preservation case |
 | K04 | TIOCDRAIN over ttywait (tty.c:216) | none | 15 | +0.04-0.08 KB | the call returns with a non-empty queue, or blocks forever on a hidden console after its thaw | model with a transmit-complete flag; drain on a hidden console sleeps, wakes at the thaw and is interrupted by a signal |
 | K05 | IUTF8 bit and UTF-8 erase through unputc | none (the shim row needs S03) | 40 | +0.15-0.25 KB | an erase after U+00E9 leaves one byte queued | KM: erase with and without the bit |

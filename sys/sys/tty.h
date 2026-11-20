@@ -82,6 +82,14 @@ struct tty {
     uint8_t         t_ospeed;           /* device */
     struct  ttychars t_chars;           /* tty */
     struct  winsize t_winsize;          /* window size */
+    /*
+     * VMIN and VTIME of the termios interface (include/termios.h), kept in
+     * the two bytes that pad the structure to 100.  Set to 1 and 0 by
+     * ttychars().  TIOCGMINTIME and TIOCSMINTIME read and write them; no
+     * read path consults them yet.
+     */
+    uint8_t         t_vmin;
+    uint8_t         t_vtime;
 /* be careful of tchars & co. */
 #define t_erase     t_chars.tc_erase
 #define t_kill      t_chars.tc_kill

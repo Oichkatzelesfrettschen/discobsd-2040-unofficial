@@ -305,6 +305,11 @@
       "kind": "recursive make"
     },
     {
+      "from": "check-tty-kernel",
+      "to": "tests/tty_kernel:check",
+      "kind": "recursive make"
+    },
+    {
       "from": "check-umount-contracts",
       "to": "tests/umount_contracts:check",
       "kind": "recursive make"
@@ -560,6 +565,7 @@
         "check-backgammon-contracts",
         "check-libc-sysctl",
         "check-libc-termios",
+        "check-tty-kernel",
         "check-posix-sh",
         "check-textbox-host",
         "check-scandir-contracts",
@@ -608,6 +614,7 @@
         "check-backgammon-contracts",
         "check-libc-sysctl",
         "check-libc-termios",
+        "check-tty-kernel",
         "check-posix-sh",
         "check-textbox-host",
         "check-scandir-contracts",
@@ -3702,6 +3709,25 @@
       "recipe": "${TEST_EXECUTION} run libc-termios.ilp32 -- ./libc_termios_test",
       "aliases": [
         "check-libc-termios"
+      ]
+    },
+    {
+      "id": "tty-kernel.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/tty_kernel",
+      "makefile": "tests/tty_kernel/Makefile",
+      "target": "check",
+      "root_target": "check-tty-kernel",
+      "program": "tty_kernel_test",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "tty_kernel_test"
+      ],
+      "recipe": "${TEST_EXECUTION} run tty-kernel.ilp32 -- ./tty_kernel_test",
+      "aliases": [
+        "check-tty-kernel"
       ]
     },
     {

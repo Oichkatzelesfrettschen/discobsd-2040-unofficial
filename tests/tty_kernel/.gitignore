@@ -1,0 +1,5 @@
+tty_kernel_test
+gate.o
+shim.o
+tty_extracted.c
+machine/

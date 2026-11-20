@@ -45,7 +45,19 @@
 #include <machine/gpio.h>
 
 #ifdef DEV_GPIO_PWM
-extern int picoaudio_pcm;	/* picoaudio.c: /dev/audio is open. */
+#ifndef DEV_GPIO
+#error "DEV_GPIO_PWM is the PWM request of DEV_GPIO"
+#endif
+/*
+ * picoaudio.c, which only the PicoCalc kernels compile, owns the flag that
+ * /dev/audio is open; a kernel without it has no audio slice to protect.
+ */
+#ifdef PICOCALC_ENABLED
+extern int picoaudio_pcm;
+#define	GPIO_AUDIO_OPEN		picoaudio_pcm
+#else
+#define	GPIO_AUDIO_OPEN		0
+#endif
 #endif
 
 _Static_assert(GPIO_IOC_VOID == IOC_VOID, "GPIO requests carry no parameter");
@@ -152,7 +164,7 @@ gpio_pwm_start(u_int pins, u_int duty)
 	u_int pin, slice;
 	int error;
 
-	error = gpio_pwm_check(board_id(), pins, duty, picoaudio_pcm);
+	error = gpio_pwm_check(board_id(), pins, duty, GPIO_AUDIO_OPEN);
 	if (error != 0)
 		return error;
 	GREG32(RESETS_BASE + RESETS_RESET_CLR) = RESETS_PWM;

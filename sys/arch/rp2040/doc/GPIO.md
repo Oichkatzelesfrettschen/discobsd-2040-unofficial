@@ -70,6 +70,14 @@ a digital input configures it again.
 
 ## Ownership table
 
+`DEV_GPIO_PWM` needs `DEV_GPIO` (`gpio.c` and `picopcm.c` refuse it otherwise) and the audio interlock reads
+`picoaudio_pcm` only where `PICOCALC_ENABLED` compiles `picoaudio.c`; elsewhere it
+reads zero. `conf.c` refuses `DEV_GPIO` on a kernel without the PicoCalc and SD
+majors, so no bare-Pico kernel carries `GPIO_PWM` today, and none can be added to a
+build check: PICO with `DEV_GPIO` stops at that `#error` with or without the PWM
+option. Built and linked with `DEV_GPIO_PWM` set (inert without `DEV_GPIO`): PICO,
+PICO_UART, PICO_DIAG, PICOCALC and PICOCALC_LEAN.
+
 `gpio_board_claims()` in `<machine/gpio.h>` is the one table of what a board
 leaves to programs and what the kernel keeps back; `GPIO_PWM`,
 `machdep.adc.N`, `/dev/audio` and the digital requests read it and keep no

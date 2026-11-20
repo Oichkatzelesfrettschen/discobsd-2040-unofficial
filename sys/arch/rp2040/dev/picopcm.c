@@ -60,6 +60,9 @@
 
 #include <machine/board.h>
 #ifdef DEV_GPIO_PWM
+#ifndef DEV_GPIO
+#error "DEV_GPIO_PWM is the PWM request of DEV_GPIO"
+#endif
 #include <machine/gpio.h>
 #endif
 

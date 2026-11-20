@@ -43,15 +43,21 @@ model and of sst80286-sample.txt.gz on the 80286 model (README.md)
 on cpu.c through tests/sstrun and compares registers, defined flags and
 memory.
 
-Then every mutant below must fail the same test. When nasm is installed,
-guest.hexdump must equal the assembly of guest.asm; without nasm that
-comparison is reported as not run.
+It builds the emulator a second time around tests/panel.c, a model of the
+PicoCalc's pixel device, and runs tests/panel.py on it: the panel display
+of the text and graphics modes against frames computed there.
+
+Then every mutant below must fail the first test and every mutant of
+tests/panel.py the panel display test. When nasm is installed,
+guest.hexdump and panel.hexdump must equal the assembly of guest.asm and
+panel.asm; without nasm those comparisons are reported as not run.
 
 The second form runs the processor vectors alone through COMMAND, a built
 tests/sstrun with the words that start it, such as a qemu-arm prefix.
 """
 
 import gzip
+import importlib.util
 import os
 import pty
 import re
@@ -75,9 +81,12 @@ FLAGS = [
     "-Wshadow",
     "-O1",
     "-I.",
+    # <sys/lcdgfx.h> is the tree's, found after the host's own headers.
+    "-idirafter",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sys"),
 ]
-SOURCES = ["main.c", "pc.c", "cpu.c", "mem.c"]
-HEADERS = ["i86.h", "mem.h", "pc.h"]
+SOURCES = ["main.c", "pc.c", "gfx.c", "cpu.c", "mem.c"]
+HEADERS = ["font.h", "gfx.h", "i86.h", "mem.h", "pc.h"]
 KEYS = "aB1"
 TAIL = [
     "MEM %04X OK",
@@ -171,10 +180,10 @@ MUTANTS = [
     ("pc.c", "if (cf.quiet)\n\t\t\t\thost_exit(0);\n\t\t\tmenu();", "menu();"),
     ("pc.c", "disks[i] = old;\n\t\t\t\tdisk_path[i] = slash;", "disk_path[i] = slash;"),
     ("pc.c", "if (ch == 'q' || ch < 0)\n\t\thost_exit(0);\n}", "}"),
-    ("pc.c", "tx = ty = tattr = -1;\n\tif (ch == 'q' || ch < 0)", "if (ch == 'q' || ch < 0)"),
+    ("pc.c", "\t\ttx = ty = tattr = -1;\n\t}\n\tif (ch == 'q'", "\t}\n\tif (ch == 'q'"),
     ("pc.c", 'if (n) {\n\t\t\t\tn--;\n\t\t\t\toputs("\\b \\b");\n\t\t\t}', ";"),
     ("pc.c", "(name[n - 3] | 0x20) == 'i'", "(name[n - 3] | 0x20) == 'j'"),
-    ("pc.c", 'memset(shadow, 0, sizeof(shadow));\n\toputs("\\033[2J");', 'oputs("\\033[2J");'),
+    ("pc.c", 'memset(shadow, 0, VRAM_SIZE);\n\t\toputs("\\033[2J");', 'oputs("\\033[2J");'),
     ("main.c", "t.c_lflag &= ~(tcflag_t)(ICANON | ECHO | ISIG);", ";"),
     ("main.c", "(void)tcsetattr(0, TCSANOW, &saved);", ";"),
     ("cpu.c", "(fl & F_AF) && c->model != I86_286 ? 0x9f : 0x99;", "(fl & F_AF) ? 0x9f : 0x99;"),
@@ -294,6 +303,27 @@ def build(src, out, cc, sources=None):
     done = subprocess.run(cmd, cwd=src, capture_output=True, text=True, check=False)
     if done.returncode != 0:
         raise Failure("build failed:\n" + done.stderr)
+
+
+def load_panel(src):
+    """tests/panel.py; the interpreter runs isolated, without the script's
+    directory on its path."""
+    spec = importlib.util.spec_from_file_location("panel", os.path.join(src, "tests", "panel.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def mutate(src, tree, number, name, old, new):
+    """A copy of the sources in tree with one fault in file name."""
+    for item in SOURCES + HEADERS + ["tests/sstrun.c", "tests/panel.c"]:
+        shutil.copyfile(os.path.join(src, item), os.path.join(tree, item))
+    with open(os.path.join(tree, name)) as handle:
+        text = handle.read()
+    if text.count(old) != 1:
+        raise Failure("mutant %d: anchor occurs %d times in %s" % (number, text.count(old), name))
+    with open(os.path.join(tree, name), "w") as handle:
+        handle.write(text.replace(old, new))
 
 
 def guest_image(src, path):
@@ -1202,6 +1232,29 @@ def main(argv):
             # store, which every instruction's memory then crosses.
             test_vectors(sstrun, src, work, "16")
             print("the vectors pass with 16 resident pages")
+            panel = load_panel(src)
+            if nasm:
+                built = os.path.join(work, "panel.bin")
+                subprocess.run(
+                    [nasm, "-f", "bin", "-o", built, os.path.join(src, "tests", "panel.asm")],
+                    check=True,
+                )
+                with open(os.path.join(src, "tests", "panel.hexdump")) as handle:
+                    listed = bytes.fromhex("".join(handle.read().split()))
+                with open(built, "rb") as handle:
+                    if handle.read() != listed:
+                        raise Failure("panel.hexdump differs from panel.asm")
+                print("panel.hexdump matches panel.asm")
+            else:
+                print("NOT RUN panel.hexdump against panel.asm: nasm (package nasm) is absent")
+            psources = SOURCES + ["tests/panel.c", "-DGFX_MODEL"]
+            pbinary = os.path.join(work, "i86-panel")
+            build(src, pbinary, cc, psources)
+            try:
+                panel.test(pbinary, src, work)
+            except panel.Failure as failure:
+                raise Failure(str(failure)) from None
+            print("i86 panel display test passed")
             if "--no-mutants" in argv:
                 return 0
             for number, (name, old, new) in enumerate(MUTANTS, 1):
@@ -1209,16 +1262,7 @@ def main(argv):
                 shutil.rmtree(tree, ignore_errors=True)
                 os.mkdir(tree)
                 os.mkdir(os.path.join(tree, "tests"))
-                for item in SOURCES + HEADERS + ["tests/sstrun.c"]:
-                    shutil.copyfile(os.path.join(src, item), os.path.join(tree, item))
-                with open(os.path.join(tree, name)) as handle:
-                    text = handle.read()
-                if text.count(old) != 1:
-                    raise Failure(
-                        "mutant %d: anchor occurs %d times in %s" % (number, text.count(old), name)
-                    )
-                with open(os.path.join(tree, name), "w") as handle:
-                    handle.write(text.replace(old, new))
+                mutate(src, tree, number, name, old, new)
                 mutant = os.path.join(work, "i86-mutant")
                 build(tree, mutant, cc)
                 build(tree, sstrun + "-mutant", cc, vsources)
@@ -1233,6 +1277,20 @@ def main(argv):
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))
             print("%d mutants fail the test" % len(MUTANTS))
+            for number, (name, old, new) in enumerate(panel.MUTANTS, 1):
+                tree = os.path.join(work, "mutant")
+                shutil.rmtree(tree, ignore_errors=True)
+                os.mkdir(tree)
+                os.mkdir(os.path.join(tree, "tests"))
+                mutate(src, tree, number, name, old, new)
+                mutant = os.path.join(work, "i86-mutant")
+                build(tree, mutant, cc, psources)
+                try:
+                    panel.test(mutant, src, work)
+                except (panel.Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                    continue
+                raise Failure("panel mutant %d survives: %s: %r" % (number, name, old))
+            print("%d mutants fail the panel display test" % len(panel.MUTANTS))
         except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError) as failure:
             sys.stderr.write("i86 check: %s\n" % failure)
             return 1

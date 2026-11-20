@@ -49,44 +49,46 @@ press and release; the mouse by a guest that reads three-byte packets.
 
 ## 2. Graphics modes and the 80-column screen
 
-Missing: CGA modes 4, 5 and 6, and any way to show 80 columns on the panel.
+Built: `i86 -g` draws on `/dev/lcdgfx`, 80 columns in a font four pixels
+wide, all of code page 437, and the color adapter's modes 4, 5 and 6
+(`sys/arch/rp2040/doc/I86.md`, Panel display). An earlier form of this
+item said the device takes a two-bit index format; it does not. Its
+window formats are RGB565, one palette index a byte and one bit a pixel
+(`sys/lcdgfx.h`), and the display uses the last two.
 
-The panel is 320 by 320. Mode 4 (320x200, four colors) fits one to one
-with room to spare. Mode 6 (640x200, two colors) needs each pixel pair
-merged into one, which keeps shapes and loses fine text. Eighty columns of
-text need a font four pixels wide; no such font is in the tree, the two in
-the GPL donors cannot be copied, and one must be drawn (95 ASCII glyphs,
-then the upper half of code page 437).
+Missing:
 
-Mechanism: a second front end beside the ANSI one, on `/dev/lcdgfx`
-(`DEV_LCDGFX`, in PICOCALC and PICOCALC_SD, not in PICOCALC_LEAN). It
-needs 16 KB for CGA memory at B800:0 in place of the 4 KB text page, a
-dirty-row scan like `refresh()`, and `LCDG_WINDOW` writes in the two-bit
-index format the driver already takes. The text front end draws cells from
-its own font through the same call.
+- Speed on the panel. The time of a frame on the wire is unmeasured; a
+  game that changes most of the screen every frame redraws 64,000 pixels
+  a refresh. The dirty unit is a kilobyte of a field, about thirteen scan
+  lines; a finer unit (the pager's pages cannot be smaller, but a second
+  compare inside a dirty page can) is the next step if the board shows
+  the need.
+- The 16-color modes: Tandy and PCjr 320x200, EGA 320x200 and 640x200.
+  Each needs 32 KB or more of display memory, four times the loan a CGA
+  mode takes from the pager, and for EGA the planar latch logic at the
+  graphics controller's ports.
+- Hercules 720x348: more pixels than the panel has in either direction.
+- A second display page and the blink attribute in text modes.
 
-Smaller step on the existing console: the console's glyph bank holds 128
-loadable glyphs (`LCDIOC_SETGLYPH`), exactly the count of code page 437's
-upper half, so box drawing in the 40-column mode can be real with no new
-device.
-
-Check: the model panel of `check-picocalc-host` and the Renode panel both
-give pixels back, so a frame can be compared with a reference. Cost: not
-estimated; the 16 KB of display memory comes out of the page frames.
+Check: `check-i86-host` compares frames with a reference for the built
+part; a new mode adds stages to `tests/panel.asm` and a frame rule to
+`tests/panel.py`.
 
 ## 3. Windows 3.0
 
 Windows 3.0 has a real mode that runs on an 8086 with 640 KB, a hard disk
 and a CGA, Hercules, EGA or VGA display, so the processor model is not the
 obstacle. Its keyboard driver takes interrupt 9, which now exists. What it
-needs that is missing: item 2 with mode 6 (its CGA driver is 640x200 in two colors),
-a hard disk image (present: `-h`, up to 1024 cylinders of 16 heads and 63
-sectors), and patience: at the inferred speed of an XT, Windows 3.0 in real
+needs: mode 6 (its CGA driver is 640x200 in two colors; present with
+`-g`), a hard disk image (present: `-h`, up to 1024 cylinders of 16 heads
+and 63 sectors), a mouse or the keyboard alone (item 1), and patience: at the inferred speed of an XT, Windows 3.0 in real
 mode was slow on real XTs too.
 
-On this panel mode 6 shows at half its horizontal resolution, so Windows
-text will be hard to read. That is a property of a 320-pixel panel, not of
-the emulator.
+On this panel mode 6 shows at half its horizontal resolution, each pair
+of pixels as one of three levels, so Windows text will be hard to read.
+That is a property of a 320-pixel panel, not of the emulator. Windows has
+not been started in it: no image is at hand (below).
 
 Standard and 386 enhanced mode need item 6 and are out of reach here.
 Whether a given application for Windows (Word, Excel) accepts real mode is

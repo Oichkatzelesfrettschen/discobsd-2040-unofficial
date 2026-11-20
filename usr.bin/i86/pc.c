@@ -78,18 +78,21 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "gfx.h"
 #include "mem.h"
 #include "pc.h"
 
 #define ROWS		25
-#define VRAM_ADDR	0xb8000u
-#define ROM_ADDR	0xff800u
-#define ROM_OFF		0xf800u		/* offset of the ROM in F000 */
+#define VRAM_ADDR	GFX_VRAM
+#define VRAM_SIZE	0x1000u		/* a text mode's page */
+#define ROM_ADDR	0xff000u
+#define ROM_OFF		0xf000u		/* offset of the ROM in F000 */
+#define ROM_FONT	0xffa6eu	/* where programs expect the 8x8 font */
 #define ROM_TIMER	0x400u		/* ROM offsets of the fixed parts */
 #define ROM_DPT		0x410u		/* drive A's table; B's DPT_STEP on */
 #define DPT_STEP	0x20u
 #define DPT_SIZE	11
-#define ROM_RESET	0x7f0u
+#define RESET_ADDR	0xffff0u
 #define ROM_KEY		0x420u
 #define TRAP_TICK	0x08
 #define TRAP_KEY	0x09
@@ -111,9 +114,12 @@ struct disk {
 
 int pc_idle;
 
-static uint8_t vram[0x1000];
-static uint8_t shadow[2 * 80 * ROWS];
-static uint8_t rom[0x800];
+/* The cells at B800:0 and the copy of them last drawn; a graphics mode of
+ * the panel display uses both halves for pixels (gfx.h). */
+static uint8_t vmem[2 * VRAM_SIZE];
+#define vram	vmem
+#define shadow	(vmem + VRAM_SIZE)
+static uint8_t rom[0x440], rom_reset[16];
 static struct disk disks[4];
 static const char *disk_path[4];	/* the image each drive holds */
 static struct pc_config cf;
@@ -129,6 +135,9 @@ static uint8_t pic_icw2, pic_icw4;	/* which of them the next one is */
 static uint8_t pic_base = 8, pic_aeoi;	/* what the words selected */
 static unsigned idle_polls, idle_tick;
 static int key_eof;
+
+/* The terminal is drawn on: the display is neither off nor the panel. */
+#define TERMINAL	(!cf.quiet && !gfx_on)
 
 static unsigned cols;
 static int tx = -1, ty = -1, tattr = -1;	/* terminal state; -1 unknown */
@@ -263,6 +272,10 @@ refresh(void)
 
 	if (cf.quiet)
 		return;
+	if (gfx_on) {
+		gfx_refresh(cols, bda8(0x51) * cols + bda8(0x50));
+		return;
+	}
 	for (i = 0; i < n; i++) {
 		if (vram[2 * i] == shadow[2 * i] &&
 		    vram[2 * i + 1] == shadow[2 * i + 1])
@@ -323,8 +336,12 @@ scroll(unsigned top, unsigned left, unsigned bot, unsigned right,
 	h = bot - top + 1;
 	if (n == 0 || n > h)
 		n = h;
+	if (gfx_graphic) {
+		gfx_scroll(top, left, bot, right, n, attr, down);
+		return;
+	}
 	if (!down && n < h && w == cols && top == 0 && bot == ROWS - 1 &&
-	    !(attr & 0x70) && !cf.quiet) {
+	    !(attr & 0x70) && TERMINAL) {
 		/* The terminal scrolls its copy and the frame follows it.
 		 * A terminal fills the new lines with its own background,
 		 * so only a black fill goes this way. */
@@ -361,7 +378,7 @@ tty_out(unsigned ch, unsigned attr, int useattr)
 		col = cols - 1;
 	switch (ch) {
 	case 7:
-		if (!cf.quiet)
+		if (TERMINAL)
 			oputc(7);
 		break;
 	case 8:
@@ -376,9 +393,13 @@ tty_out(unsigned ch, unsigned attr, int useattr)
 		break;
 	default:
 		i = row * cols + col;
-		vram[2 * i] = (uint8_t)ch;
-		if (useattr)
-			vram[2 * i + 1] = (uint8_t)attr;
+		if (gfx_graphic) {
+			gfx_putc(row, col, ch, attr);
+		} else {
+			vram[2 * i] = (uint8_t)ch;
+			if (useattr)
+				vram[2 * i + 1] = (uint8_t)attr;
+		}
 		if (++col == cols) {
 			col = 0;
 			row++;
@@ -388,7 +409,7 @@ tty_out(unsigned ch, unsigned attr, int useattr)
 	if (row == ROWS) {
 		row--;
 		scroll(0, 0, ROWS - 1, cols - 1, 1,
-		    vram[2 * (row * cols + col) + 1], 0);
+		    gfx_graphic ? 0 : vram[2 * (row * cols + col) + 1], 0);
 	}
 	bda8w(0x50, col);
 	bda8w(0x51, row);
@@ -400,14 +421,21 @@ set_mode(unsigned mode)
 	/* The machine has a color adapter only: no memory answers at B000:0,
 	 * so a request for the monochrome mode selects mode 3, as the IBM
 	 * firmware does for an equipment word without a monochrome adapter. */
+	int graphic;
+
 	if ((mode & 0x7f) == 7)
 		mode = (mode & 0x80) | 3;
-	cols = (mode & 0x7e) == 0 ? 40 : 80;
+	/* The graphics modes exist on the panel display alone, which
+	 * clears their memory itself; elsewhere their numbers select 80
+	 * columns of text. */
+	graphic = gfx_on && gfx_mode(mode);
+	cols = graphic ? ((mode & 0x7f) == 6 ? 80 : 40) :
+	    (mode & 0x7e) == 0 ? 40 : 80;
 	bda8w(0x49, mode & 0x7f);
 	bda8w(0x4a, cols);
 	bda8w(0x4b, 0);
-	bda8w(0x4c, (cols * ROWS * 2) & 0xff);
-	bda8w(0x4d, (cols * ROWS * 2) >> 8);
+	bda8w(0x4c, graphic ? 0 : (cols * ROWS * 2) & 0xff);
+	bda8w(0x4d, graphic ? 0x40 : (cols * ROWS * 2) >> 8);
 	bda8w(0x50, 0);
 	bda8w(0x51, 0);
 	bda8w(0x60, 7);
@@ -417,9 +445,10 @@ set_mode(unsigned mode)
 	bda8w(0x64, 0x03);
 	bda8w(0x84, ROWS - 1);
 	if (!(mode & 0x80)) {
-		clear_cells(0, cols * ROWS, 7);
-		if (!cf.quiet) {
-			memset(shadow, 0, sizeof(shadow));
+		if (!graphic)
+			clear_cells(0, cols * ROWS, 7);
+		if (TERMINAL) {
+			memset(shadow, 0, VRAM_SIZE);
 			oputs("\033[0m\033[2J");
 			tx = ty = tattr = -1;
 		}
@@ -432,6 +461,15 @@ video(struct i86 *c)
 	unsigned ah = c->r[R_AX] >> 8, al = c->r[R_AX] & 0xff;
 	unsigned bl = c->r[R_BX] & 0xff, i, n, row, col;
 
+	if (gfx_graphic && gfx_video(c))
+		return;
+	/* These functions write a text mode's cells directly, where no
+	 * write is noted. A graphics mode's services write through the
+	 * watched path and the others change no display memory, so they
+	 * mark nothing: every marked page is drawn again. */
+	if (!gfx_graphic && (ah == 0x00 || ah == 0x06 || ah == 0x07 ||
+	    ah == 0x09 || ah == 0x0a || ah == 0x0e || ah == 0x13))
+		mem_watched |= (1u << (VRAM_SIZE >> MEM_PGSHIFT)) - 1;
 	switch (ah) {
 	case 0x00:
 		set_mode(al);
@@ -457,6 +495,16 @@ video(struct i86 *c)
 		if (row >= ROWS || col >= cols)
 			break;
 		i = row * cols + col;
+		if (gfx_graphic) {
+			/* Pixels are not read back as a character. The
+			 * count writes within the row: the firmware's
+			 * listing gives it valid results on one row only. */
+			if (ah == 8)
+				c->r[R_AX] = 0;
+			for (n = c->r[R_CX]; ah != 8 && n && col < cols; n--)
+				gfx_putc(row, col++, al, bl);
+			break;
+		}
 		if (ah == 8) {
 			c->r[R_AX] = (uint16_t)(vram[2 * i + 1] << 8 | vram[2 * i]);
 			break;
@@ -468,7 +516,7 @@ video(struct i86 *c)
 		}
 		break;
 	case 0x0e:
-		tty_out(al, 0, 0);
+		tty_out(al, bl, 0);
 		break;
 	case 0x0f:
 		c->r[R_AX] = (uint16_t)(cols << 8 | bda8(0x49));
@@ -933,6 +981,7 @@ menu(void)
 {
 	static char path[2][96];
 	char name[48], dir[96], full[96];
+	int panel = gfx_on, graphic = gfx_graphic;
 	const char *slash;
 	struct disk old;
 	struct direct *e;
@@ -941,6 +990,8 @@ menu(void)
 	size_t n;
 	int ch, known = 1;
 
+	/* The console draws nothing while the panel is this program's. */
+	gfx_close();
 	/* One line that fits the 40 columns of the PicoCalc's DOS screen. */
 	oputs("\033[0m\033[2J\033[H"
 	    "i86: q quit, a b floppy, other: back\r\n");
@@ -1001,10 +1052,22 @@ menu(void)
 		}
 	}
 	/* Draw the guest's screen again from nothing, also on the way out,
-	 * so that the session ends on what the guest last showed. */
-	memset(shadow, 0, sizeof(shadow));
-	oputs("\033[2J");
-	tx = ty = tattr = -1;
+	 * so that the session ends on what the guest last showed. A panel
+	 * that cannot be taken back leaves the terminal as the display,
+	 * which has no graphics mode: the failed gfx_open() has put display
+	 * memory back to a text mode's cells and returned the borrowed
+	 * frames, and the mode set gives the guest a text mode's numbers in
+	 * the BIOS data area and blank cells. */
+	if (panel && gfx_open() != 0) {
+		oputs("\033[1;25r\033[?7l");
+		if (graphic)
+			set_mode(cols == 40 ? 1 : 3);
+	}
+	if (!gfx_on) {
+		memset(shadow, 0, VRAM_SIZE);
+		oputs("\033[2J");
+		tx = ty = tattr = -1;
+	}
 	if (ch == 'q' || ch < 0)
 		host_exit(0);
 }
@@ -1485,6 +1548,13 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 	case 0x3d4:
 		crtc_index = (uint8_t)v;
 		break;
+	case 0x3d8:
+	case 0x3d9:
+		if (gfx_on)
+			gfx_out(port, v);
+		else
+			TRACE("out", v, port);
+		break;
 	case 0x3d5:
 		if (crtc_index != 0x0e && crtc_index != 0x0f)
 			break;
@@ -1578,15 +1648,24 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	mem_ww(4 * 9, ROM_OFF + ROM_KEY);
 	mem_ww(4 * 0x1e, ROM_OFF + ROM_DPT);
 	/* FFFF:0000 jumps to the bootstrap; the date and model follow. */
-	rom[ROM_RESET] = 0xea;
-	rom[ROM_RESET + 1] = (uint8_t)(4 * 0x19);
-	rom[ROM_RESET + 2] = ROM_OFF >> 8;
-	rom[ROM_RESET + 3] = 0x00;
-	rom[ROM_RESET + 4] = 0xf0;
-	memcpy(rom + ROM_RESET + 5, "01/01/90", 8);
-	rom[ROM_RESET + 14] = cf.model == I86_286 ? 0xfc : 0xfe;
+	rom_reset[0] = 0xea;
+	rom_reset[1] = (uint8_t)(4 * 0x19);
+	rom_reset[2] = ROM_OFF >> 8;
+	rom_reset[3] = 0x00;
+	rom_reset[4] = 0xf0;
+	memcpy(rom_reset + 5, "01/01/90", 8);
+	rom_reset[14] = cf.model == I86_286 ? 0xfc : 0xfe;
 	mem_rom(ROM_ADDR, rom, sizeof(rom));
-	mem_fixed(VRAM_ADDR, vram, sizeof(vram));
+	mem_rom(ROM_FONT, gfx_font(), 128 * 8);
+	mem_rom(RESET_ADDR, rom_reset, sizeof(rom_reset));
+	mem_fixed(VRAM_ADDR, vram, VRAM_SIZE);
+	gfx_init(vmem);
+	if (cf.panel && !cf.quiet && gfx_open() != 0) {
+		static const char msg[] =
+		    "i86: no panel device; the terminal is the display\r\n";
+
+		(void)!write(2, msg, sizeof(msg) - 1);
+	}
 
 	for (i = 0; i < 4; i++)
 		if (disk_open(i, cf.disk[i]) != 0) {
@@ -1608,9 +1687,8 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	mem_ww(BDA + 0x80, 0x1e);
 	mem_ww(BDA + 0x82, 0x3e);
 	bda8w(0x75, (disks[2].fd >= 0) + (disks[3].fd >= 0));
-	if (!cf.quiet) {
+	if (TERMINAL)
 		oputs("\033[1;25r\033[?7l");
-	}
 	set_mode(cf.cols == 40 ? 1 : 3);
 	next_tick = cf.fixed_clock ? 0 : host_ms() + 55;
 
@@ -1644,6 +1722,11 @@ pc_restore(int draw)
 	if (draw)
 		refresh();
 	restored = 1;
+	if (gfx_on) {
+		/* The console repaints its own screen at the close. */
+		gfx_close();
+		return;
+	}
 	oputs("\033[0m\033[r\033[?7h\033[26;1H");
 	oflush();
 }

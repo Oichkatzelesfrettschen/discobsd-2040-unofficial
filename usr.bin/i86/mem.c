@@ -66,7 +66,7 @@ struct mem_stats mem_stats;
 
 static uint8_t *frames;
 static struct frame *ftab;
-static unsigned nframes, hand;
+static unsigned nframes, hand, lent;
 static uint32_t ram_top;
 static uint8_t stored[(MEM_NPAGE + 7) / 8];
 static const char *store_path;
@@ -74,8 +74,20 @@ static int store_fd = -1;
 
 void (*mem_failed)(void);
 
-static const uint8_t *rom_p;
-static uint32_t rom_addr, rom_len;
+#define NROM		3
+#define WATCH_PAGES	16
+
+static struct {
+	const uint8_t *p;
+	uint32_t addr, len;
+} roms[NROM];
+static unsigned nrom;
+
+/* The watched window: where each page's bytes are, less its guest
+ * address, or zero for a page nothing answers. */
+static uintptr_t watch_map[WATCH_PAGES];
+static uint32_t watch_base;
+unsigned mem_watched;
 
 void
 mem_fixed(uint32_t addr, uint8_t *p, uint32_t len)
@@ -90,9 +102,54 @@ mem_fixed(uint32_t addr, uint8_t *p, uint32_t len)
 void
 mem_rom(uint32_t addr, const uint8_t *p, uint32_t len)
 {
-	rom_p = p;
-	rom_addr = addr;
-	rom_len = len;
+	if (nrom == NROM)
+		return;
+	roms[nrom].p = p;
+	roms[nrom].addr = addr;
+	roms[nrom].len = len;
+	nrom++;
+}
+
+void
+mem_watch(uint32_t base, unsigned first, uint8_t *p, unsigned n)
+{
+	unsigned i, pg;
+
+	watch_base = base;
+	for (i = first; i < first + n && i < WATCH_PAGES; i++) {
+		pg = (base >> MEM_PGSHIFT) + i;
+		watch_map[i] = p == NULL ? 0 : (uintptr_t)p -
+		    ((uintptr_t)(first + (base >> MEM_PGSHIFT)) << MEM_PGSHIFT);
+		mem_rmap[pg] = watch_map[i];
+		mem_wmap[pg] = 0;
+	}
+	mem_watched &= ~(((1u << n) - 1) << first);
+}
+
+unsigned
+mem_rearm(void)
+{
+	unsigned i, m = mem_watched;
+
+	for (i = 0; i < WATCH_PAGES; i++)
+		if (m >> i & 1)
+			mem_wmap[(watch_base >> MEM_PGSHIFT) + i] = 0;
+	mem_watched = 0;
+	return (m);
+}
+
+/* The first write to a watched page since mem_rearm(): note it and let
+ * the writes that follow go straight to the page. */
+static int
+watch_fault(uint32_t a)
+{
+	unsigned i = (a - watch_base) >> MEM_PGSHIFT;
+
+	if (a < watch_base || i >= WATCH_PAGES || !watch_map[i])
+		return (0);
+	mem_watched |= 1u << i;
+	mem_wmap[a >> MEM_PGSHIFT] = watch_map[i];
+	return (1);
 }
 
 int
@@ -239,38 +296,73 @@ all_zero(const uint8_t *p)
 	return (1);
 }
 
+/* Empty frame i, whose page is in neither map. */
+static void
+drop(unsigned i)
+{
+	struct frame *f = &ftab[i];
+	uint8_t *p = frames + ((size_t)i << MEM_PGSHIFT);
+	unsigned pg = f->page;
+
+	if (!(f->flags & FR_DIRTY)) {
+		mem_stats.clean++;
+	} else if (all_zero(p)) {
+		stored[pg >> 3] &= (uint8_t)~(1u << (pg & 7));
+		mem_stats.elided++;
+	} else {
+		store_io(pg, p, 1);
+		stored[pg >> 3] |= (uint8_t)(1u << (pg & 7));
+		mem_stats.out++;
+	}
+	f->page = NOPAGE;
+}
+
 static unsigned
 evict(void)
 {
-	struct frame *f;
-	uint8_t *p;
 	unsigned i, pg;
 
 	for (;;) {
 		i = hand;
 		hand = hand + 1 == nframes ? 0 : hand + 1;
-		f = &ftab[i];
-		pg = f->page;
+		pg = ftab[i].page;
 		if (pg == NOPAGE)
 			return (i);
 		if (mem_rmap[pg]) {
 			mem_rmap[pg] = mem_wmap[pg] = 0;
 			continue;
 		}
-		p = frames + ((size_t)i << MEM_PGSHIFT);
-		if (!(f->flags & FR_DIRTY)) {
-			mem_stats.clean++;
-		} else if (all_zero(p)) {
-			stored[pg >> 3] &= (uint8_t)~(1u << (pg & 7));
-			mem_stats.elided++;
-		} else {
-			store_io(pg, p, 1);
-			stored[pg >> 3] |= (uint8_t)(1u << (pg & 7));
-			mem_stats.out++;
-		}
-		f->page = NOPAGE;
+		drop(i);
 		return (i);
 	}
+}
+
+uint8_t *
+mem_lend(unsigned n)
+{
+	unsigned i, pg;
+
+	if (lent || nframes < n + 4)
+		return (NULL);
+	for (i = nframes - n; i < nframes; i++) {
+		pg = ftab[i].page;
+		if (pg == NOPAGE)
+			continue;
+		mem_rmap[pg] = mem_wmap[pg] = 0;
+		drop(i);
+	}
+	nframes -= n;
+	lent = n;
+	if (hand >= nframes)
+		hand = 0;
+	return (frames + ((size_t)nframes << MEM_PGSHIFT));
+}
+
+void
+mem_return(void)
+{
+	nframes += lent;
+	lent = 0;
 }
 
 /* Make page pg resident and mapped for reading, and for writing when wr. */
@@ -309,12 +401,15 @@ fault(unsigned pg, int wr)
 unsigned
 mem_rslow(uint32_t a)
 {
+	unsigned i;
+
 	if (a < ram_top) {
 		fault(a >> MEM_PGSHIFT, 0);
 		return (*(const uint8_t *)(mem_rmap[a >> MEM_PGSHIFT] + a));
 	}
-	if (a - rom_addr < rom_len)
-		return (rom_p[a - rom_addr]);
+	for (i = 0; i < nrom; i++)
+		if (a - roms[i].addr < roms[i].len)
+			return (roms[i].p[a - roms[i].addr]);
 	return (0xff);
 }
 
@@ -324,7 +419,8 @@ mem_wslow(uint32_t a, unsigned v)
 	if (a < ram_top) {
 		fault(a >> MEM_PGSHIFT, 1);
 		*(uint8_t *)(mem_wmap[a >> MEM_PGSHIFT] + a) = (uint8_t)v;
-	}
+	} else if (watch_fault(a))
+		*(uint8_t *)(mem_wmap[a >> MEM_PGSHIFT] + a) = (uint8_t)v;
 }
 
 uint8_t *
@@ -335,9 +431,10 @@ mem_span(uint32_t a, int wr, uint32_t *len)
 
 	*len = MEM_PGSIZE - (a & MEM_PGMASK);
 	if (!map[pg]) {
-		if (a >= ram_top)
+		if (a < ram_top)
+			fault(pg, wr);
+		else if (!wr || !watch_fault(a))
 			return (NULL);
-		fault(pg, wr);
 	}
 	return ((uint8_t *)(map[pg] + a));
 }

@@ -288,3 +288,131 @@ prompt after 0.5 virtual s
 ---- panel: back at 64.0 virtual s
   |i86: q quit, a or b change that floppy, any other kes
   |operator@pico:~$
+
+==== Run 5: the panel display, i86 -g, the stages of usr.bin/i86/tests/panel.asm
+==== (source: the commit that adds this run)
+/panel.img is tests/panel.hexdump padded to 360 KB. Each stage was started
+with "i86 -g -a /panel.img" (stage 2 with -w 40), its digit typed on the
+keyboard model, and the panel model's frame written with "sysbus.spi1.lcd
+DumpPpm" while the guest stood halted. The frame was compared with the one
+usr.bin/i86/tests/panel.py computes for the stage, each color component
+reduced to the 5, 6 and 5 bits the panel's two-byte format carries, over
+all 320 by 320 pixels:
+
+stage 3 (mode 4: fields, pixels, characters, palettes)  differing pixels: 0
+stage 1 (80 columns, every character and attribute)     differing pixels: 0
+stage 4 (mode 6, a scroll)                               differing pixels: 0
+stage 2 (40 columns)                                     differing pixels: 0
+
+After each frame Control-] put the menu on the console and q left:
+---- panel: menu at 48.5 virtual s
+  |i86: q quit, a b floppy, other: back
+---- panel: back at 50.0 virtual s
+  |i86: q quit, a b floppy, other: back
+  |operator@pico:~$
+
+The frame count the process window holds with this build:
+  |operator@pico:~$ i86 -g -f 136 -k 9 -a /panel.img
+  |i86: no memory for 136 page frames
+  |operator@pico:~$ i86 -g -f 132 -k 9 -a /panel.img
+  |operator@pico:~$
+
+==== Run 6: SvarDOS at 80 columns on the panel, i86 -g -h /dos/hd4.img
+/dos/hd4.img is the 4 MB hard disk image of run 3. The lines below are the
+panel model's frames decoded with the four-pixel font of
+usr.bin/i86/font.h (a scratch decoder, not in the tree); "_" is the
+cursor. Frames at 10, 60 and 100 virtual seconds after the command; "dir"
+and "mem" were typed on the keyboard model.
+---- frame at 10 s (80 columns)
+  |............................................................
+  |Enhanced DR-DOS kernel 20250427 (rev 72ae65f) [built 04/27/25 00:06:20]
+  |source and licensing conditions available at https://github.com/SvarDOS/edrdos
+  |
+  |
+  |
+  |Enhanced DR-DOS kernel 20250427 (rev 72ae65f) [built 04/27/25 00:06:20]
+  |
+  |DR-DOS kernel version 1072
+  |DOS kernel version 7.10
+  |Revision A
+  |DOS is in low memory
+  |
+  |SvarCOM shell ver 2025.1
+  |
+  |C:\>_
+---- frame after dir (80 columns)
+  |
+  |SvarCOM shell ver 2025.1
+  |
+  |C:\>dir
+  |
+  |Volume in drive C is I86DISK
+  |Volume Serial Number is 44EA-512C
+  |
+  |Directory of C:\
+  |
+  |KERNEL   SYS        58,923 04-27-2025 12:06a
+  |COMMAND  COM        25,673 03-13-2025 11:22p
+  |AUTOEXEC BAT            39 11-20-2026  4:41a
+  |CONFIG   SYS            66 11-20-2026  4:41a
+  |MEM      EXE        15,028 11-20-2026  4:41a
+  |MODE     COM        16,244 11-20-2026  4:41a
+  |MORE     COM           500 11-20-2026  4:41a
+  |SVED     COM         6,035 11-20-2026  4:41a
+  |FORMAT   EXE        34,349 11-20-2026  4:41a
+  |FDISK    EXE        39,862 11-20-2026  4:41a
+  |SYS      COM        12,914 11-20-2026  4:41a
+  |      11 file(s)       209,633 bytes
+  |                     3,852,288 bytes free
+  |
+  |C:\>_
+---- frame after mem (80 columns)
+  |MODE     COM        16,244 11-20-2026  4:41a
+  |MORE     COM           500 11-20-2026  4:41a
+  |SVED     COM         6,035 11-20-2026  4:41a
+  |FORMAT   EXE        34,349 11-20-2026  4:41a
+  |FDISK    EXE        39,862 11-20-2026  4:41a
+  |SYS      COM        12,914 11-20-2026  4:41a
+  |      11 file(s)       209,633 bytes
+  |                     3,852,288 bytes free
+  |
+  |C:\>mem
+  |
+  |Memory Type         Total      Used       Free
+  |----------------  --------   --------   --------
+  |Conventional          640K        56K       584K
+  |Upper                   0K         0K         0K
+  |Reserved              384K       384K         0K
+  |Extended (XMS)          0K         0K         0K
+  |----------------  --------   --------   --------
+  |Total memory        1,024K       440K       584K
+  |
+  |Total under 1 MB      640K        56K       584K
+  |
+  |Largest executable program size       584K (598,080 bytes)
+  |
+  |C:\>_---- panel: menu at 215.0 virtual s
+  |i86: q quit, a b floppy, other: back
+---- panel: back at 216.5 virtual s
+  |i86: q quit, a b floppy, other: back
+  |operator@pico:~$
+
+==== Run 7: the page file's name removed through unlinkat_beneath()
+==== (source: the merge of commit d05c8c1cc into this branch)
+The guest program with 8 resident pages and the page file at /tmp/pg on
+the card's /tmp partition, in the background, then a listing.
+  |operator@pico:~$ i86 -q -v -T -f 8 -s /tmp/pg -a /guest.img -k aB1 > /dev/null &
+  |21
+  |operator@pico:~$ i86: 75 polls of 2048 steps; pages:
+  |1171 soft, 1158 zero, 583 in, 581 out, 576 elided, 57
+  |6 clean
+  |operator@pico:~$ ls -a /tmp; df /tmp
+  |.           ..          lost+found
+  |Filesystem  1K-blocks     Used    Avail Capacity  Mou
+  |nted on
+  |/dev/sd0t        8127        2     8125     0%    /tm
+  |p
+The session wrote 581 pages and read 583 back, ended with status 0 (a name
+that cannot be removed ends it with status 3 before the first page) and
+left no file in /tmp. The listing ran after the session had ended, so the
+run shows the removal succeeding, not the directory during the session.

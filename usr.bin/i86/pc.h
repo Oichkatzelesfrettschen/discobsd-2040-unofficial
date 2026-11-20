@@ -43,6 +43,7 @@ struct pc_config {
 	int model;
 	int fixed_clock;	/* virtual time: a poll is PC_POLL_MS long */
 	int quiet;		/* draw nothing; pc_dump() shows the screen */
+	int panel;		/* the PicoCalc panel is the display (gfx.h) */
 	int readonly;
 };
 

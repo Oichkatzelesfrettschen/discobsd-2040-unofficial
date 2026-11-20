@@ -6,16 +6,21 @@
 | `guest.asm`, `guest.hex` | The guest program and its assembly by `nasm -f bin`, 32 bytes a line. `check.py` compares the two when nasm is installed. |
 | `sstrun.c` | Executes single instructions on `cpu.c` for `check.py` and `sst.py`. |
 | `sst8088-sample.txt.gz` | 4,485 single-instruction vectors: twelve for each of the 279 documented instruction forms of the 8088, three hundred for DAA, DAS and each IDIV form. `mksample.py` states the format. |
-| `mksample.py` | Writes the sample from the full vector set. |
+| `sst80286-sample.txt.gz` | 3,047 vectors of the 80286 in real mode: eight for each documented form, three hundred for DAA and for DAS, less the classes `mksample.py` leaves out by rule. |
+| `mksample.py` | Writes either sample from its full vector set. |
 | `sst.py` | Runs the full vector set, which this tree does not carry (about 800 MB): `bmake -C usr.bin/i86 test-sst SST_DIR=<8088/v2>`. |
 
 ## Origin of the vectors
 
 `sst8088-sample.txt.gz` is derived from the SingleStepTests 8088 suite,
 version 2, https://github.com/SingleStepTests/8088 at revision
-`aea84484abc79d09639d855b7b0ab32bc9e4dbeb`. Each vector records the state an
-8088 on a bus-level test rig held before and after one instruction. The
-suite is distributed under this license:
+`aea84484abc79d09639d855b7b0ab32bc9e4dbeb`. `sst80286-sample.txt.gz` is
+derived from the SingleStepTests 80286 suite, `v1_real_mode`,
+https://github.com/SingleStepTests/80286 at revision
+`37c73caf53dcd22d3dd369ff09305d13d117a4fe`. Each vector records the state a
+processor on a bus-level test rig held before and after one instruction.
+Both suites are distributed under this license, the 80286 suite with the
+copyright line "Copyright (c) 2025 Daniel Balsom":
 
     MIT License
 

@@ -65,7 +65,7 @@
 #define TRAP_TICK	0x08
 #define BDA		0x400u
 #define KQ_N		32
-#define IDLE_POLLS	64		/* empty key polls before sleeping */
+#define IDLE_POLLS	256		/* empty key polls a tick before sleeping */
 #define TYPE_TICKS	64		/* timer ticks of polling before typing */
 
 struct disk {
@@ -572,8 +572,12 @@ key_wait(int block)
 		return;
 	if (key_eof)
 		host_exit(0);
-	if (block || key_polls > IDLE_POLLS)
+	/* A guest that only polls sleeps to the next tick; one that counts
+	 * its polls as a delay still gets IDLE_POLLS of them every tick. */
+	if (block || key_polls > IDLE_POLLS) {
 		pc_idle = 1;
+		key_polls = 0;
+	}
 }
 
 static int

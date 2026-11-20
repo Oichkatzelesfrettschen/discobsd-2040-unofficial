@@ -55,6 +55,14 @@
 #define ALIAS_8086(label)	do { if (c->model == I86_8086) goto label; } \
 				while (0)
 
+/* An encoding the 80286 refuses with interrupt 6 and the earlier
+ * processors execute; the list is the one its SingleStepTests vectors
+ * exercise. Used inside the switch of i86_step(). */
+#define UNDEFINED_286(cond)	if (c->model == I86_286 && (cond)) { \
+					fault(c, 6, ip0, 1); \
+					break; \
+				} else (void)0
+
 struct dec {
 	uint8_t mod, reg, rm;
 	uint8_t seg;		/* segment register of the operand */
@@ -590,9 +598,11 @@ bcd(struct i86 *c, unsigned op)
 {
 	unsigned al = c->r[R_AX] & 0xff, ah = c->r[R_AX] >> 8;
 	unsigned fl = c->fl, old = al, cf = fl & F_CF;
-	/* The high-digit test moves with the auxiliary carry: measured on
-	 * the 8088 by the SingleStepTests vectors of 27 and 2F. */
-	unsigned top = (fl & F_AF) ? 0x9f : 0x99;
+	/* On the 8086 the high-digit test moves with the auxiliary carry;
+	 * the 80286 tests against 99h alone and lets DAS borrow into the
+	 * carry. Both are measured: the SingleStepTests vectors of 27 and
+	 * 2F for the 8088 and for the 80286. */
+	unsigned top = (fl & F_AF) && c->model != I86_286 ? 0x9f : 0x99;
 
 	fl &= ~(unsigned)(F_CF | F_ZF | F_SF | F_PF);
 	switch (op) {
@@ -609,6 +619,8 @@ bcd(struct i86 *c, unsigned op)
 		break;
 	case 0x2f:	/* DAS */
 		if ((al & 15) > 9 || (fl & F_AF)) {
+			if (c->model == I86_286 && al < 6)
+				fl |= F_CF;
 			al -= 6;
 			fl |= F_AF;
 		} else
@@ -905,20 +917,23 @@ prefixed:
 		break;
 	case 0x8c:
 		modrm(c, &d);
+		UNDEFINED_286(d.reg > 3);
 		setrm(c, &d, 1, c->s[d.reg & 3]);
 		break;
 	case 0x8d:
 		modrm(c, &d);
+		UNDEFINED_286(d.mod == 3);
 		c->r[d.reg] = d.off;
 		break;
 	case 0x8e:
 		modrm(c, &d);
+		UNDEFINED_286(d.reg > 3 || d.reg == S_CS);
 		setseg(c, d.reg & 3, getrm(c, &d, 1));
 		break;
 	case 0x8f:
-		a = pop(c);
 		modrm(c, &d);
-		setrm(c, &d, 1, a);
+		UNDEFINED_286(d.reg != 0);
+		setrm(c, &d, 1, pop(c));
 		break;
 	case 0x98:
 		c->r[R_AX] = (uint16_t)(int8_t)c->r[R_AX];
@@ -987,6 +1002,7 @@ prefixed:
 		break;
 	case 0xc4: case 0xc5:
 		modrm(c, &d);
+		UNDEFINED_286(d.mod == 3);
 		a = rd16(c, d.seg, d.off);
 		b = rd16(c, d.seg, d.off + 2);
 		c->r[d.reg] = (uint16_t)a;
@@ -994,6 +1010,7 @@ prefixed:
 		break;
 	case 0xc6: case 0xc7:
 		modrm(c, &d);
+		UNDEFINED_286(d.reg != 0);
 		setrm(c, &d, w, w ? fetch16(c) : fetch8(c));
 		break;
 	case 0xc8: {	/* ENTER */

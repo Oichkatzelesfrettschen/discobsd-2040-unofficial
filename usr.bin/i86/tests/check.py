@@ -38,7 +38,8 @@ floppy image from guest.hex, and runs it
     terminal (cursor addressing, scroll region, line feed) and comparing
     that screen with the `-d` display.
 
-It also executes the processor vectors of sst8088-sample.txt.gz (README.md)
+It also executes the processor vectors of sst8088-sample.txt.gz on the 8086
+model and of sst80286-sample.txt.gz on the 80286 model (README.md)
 on cpu.c through tests/sstrun and compares registers, defined flags and
 memory.
 
@@ -89,6 +90,22 @@ TAIL = [
 ]
 
 MUTANTS = [
+    ("cpu.c", "(fl & F_AF) && c->model != I86_286 ? 0x9f : 0x99;", "(fl & F_AF) ? 0x9f : 0x99;"),
+    ("cpu.c", "if (c->model == I86_286 && al < 6)\n\t\t\t\tfl |= F_CF;", ";"),
+    ("cpu.c", "UNDEFINED_286(d.reg > 3 || d.reg == S_CS);", ";"),
+    ("cpu.c", "UNDEFINED_286(d.mod == 3);\n\t\tc->r[d.reg] = d.off;", "c->r[d.reg] = d.off;"),
+    (
+        "cpu.c",
+        "if (c->model == I86_286) {\n\t\t\t\tunsigned ax",
+        "if (c->model == I86_8086) {\n\t\t\t\tunsigned ax",
+    ),
+    ("cpu.c", "fault(c, 0, ip0, c->model == I86_286);\n}", "fault(c, 0, ip0, 0);\n}"),
+    (
+        "cpu.c",
+        "a = c->r[R_SP];\n\t\tfor (b = 0; b < 8; b++)",
+        "a = c->r[R_SP] - 2;\n\t\tfor (b = 0; b < 8; b++)",
+    ),
+    ("cpu.c", "level = fetch8(c) & 31;", "level = fetch8(c);"),
     ("mem.c", "stored[pg >> 3] |= (uint8_t)(1u << (pg & 7));", ";"),
     ("mem.c", "ftab[i].flags |= FR_DIRTY;", ";"),
     ("mem.c", "if (w[i])\n\t\t\treturn (0);", "if (w[i] == 1)\n\t\t\treturn (0);"),
@@ -116,7 +133,7 @@ MUTANTS = [
     ("cpu.c", "c->fl &= (uint16_t)~(F_IF | F_TF);\n\tc->ip", "c->fl &= (uint16_t)~F_TF;\n\tc->ip"),
     ("cpu.c", "if ((a ^ res) & (b ^ res) & sign)", "if ((a ^ b) & sign)"),
     ("cpu.c", "if (!((0x6996 >> (p & 15)) & 1))", "if ((0x6996 >> (p & 15)) & 1)"),
-    ("cpu.c", "unsigned top = (fl & F_AF) ? 0x9f : 0x99;", "unsigned top = 0x99;"),
+    ("cpu.c", "(fl & F_AF) && c->model != I86_286 ? 0x9f : 0x99;", "0x99;"),
     ("cpu.c", "!= (d->rep == 0xf3))\n\t\t\tbreak;", "!= (d->rep == 0xf2))\n\t\t\tbreak;"),
     (
         "cpu.c",
@@ -286,9 +303,11 @@ def test_endings(binary, work):
         timeout=10,
         check=False,
     )
-    with open(store) as handle:
-        kept = handle.read() == "not a page file\n"
-    os.remove(store)
+    kept = False
+    if os.path.exists(store):
+        with open(store) as handle:
+            kept = handle.read() == "not a page file\n"
+        os.remove(store)
     if done.returncode != 3 or not kept or b"page file I/O failed" not in done.stderr:
         raise Failure(
             "occupied page file: exit %d, file kept: %s, said %r"
@@ -399,9 +418,10 @@ def terminal(stream, cols=80, rows=25):
     return ["".join(line) for line in screen]
 
 
-def test_vectors(sstrun, src, work, frames="1024"):
-    """cpu.c against the sampled 8088 vectors."""
-    path = os.path.join(src, "tests", "sst8088-sample.txt.gz")
+def test_vectors(sstrun, src, work, frames="1024", suite="8088"):
+    """cpu.c against the sampled vectors of one processor."""
+    path = os.path.join(src, "tests", "sst%s-sample.txt.gz" % suite)
+    model = "0" if suite == "8088" else "2"
     with gzip.open(path, "rt") as handle:
         vectors = [line.rstrip("\n").split("|") for line in handle]
     lines = []
@@ -414,11 +434,11 @@ def test_vectors(sstrun, src, work, frames="1024"):
         lines.append(" ".join(str(x) for x in parts))
     try:
         done = subprocess.run(
-            sstrun.split() + ["0", frames, os.path.join(work, "sstpage")],
+            sstrun.split() + [model, frames, os.path.join(work, "sstpage")],
             input="\n".join(lines) + "\n",
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120,
             check=False,
         )
     except subprocess.TimeoutExpired:
@@ -441,7 +461,7 @@ def test_vectors(sstrun, src, work, frames="1024"):
             for have, value, m in zip(got[14:], triples[1::3], triples[2::3])
         )
         if got[:14] != want or not memory:
-            raise Failure("vector of form %s fails" % form)
+            raise Failure("%s vector of form %s fails" % (suite, form))
     return len(vectors)
 
 
@@ -494,7 +514,11 @@ def main(argv):
             try:
                 print(
                     "%d processor vectors pass through %s"
-                    % (test_vectors(argv[3], src, work), argv[3])
+                    % (
+                        test_vectors(argv[3], src, work)
+                        + test_vectors(argv[3], src, work, suite="80286"),
+                        argv[3],
+                    )
                 )
             except Failure as failure:
                 sys.stderr.write("i86 check: %s\n" % failure)
@@ -523,7 +547,8 @@ def main(argv):
             vsources = ["tests/sstrun.c", "cpu.c", "mem.c"]
             sstrun = os.path.join(work, "sstrun")
             build(src, sstrun, cc, vsources)
-            print("%d processor vectors pass" % test_vectors(sstrun, src, work))
+            print("%d 8088 vectors pass" % test_vectors(sstrun, src, work))
+            print("%d 80286 vectors pass" % test_vectors(sstrun, src, work, suite="80286"))
             # Sixteen resident pages: the same vectors through the page
             # store, which every instruction's memory then crosses.
             test_vectors(sstrun, src, work, "16")
@@ -551,6 +576,7 @@ def main(argv):
                 try:
                     test(mutant, work)
                     test_vectors(sstrun + "-mutant", src, work)
+                    test_vectors(sstrun + "-mutant", src, work, suite="80286")
                 except Failure:
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))

@@ -195,8 +195,8 @@ MUTANTS = [
     (
         "join-keeps-the-first-format",
         "lexeme_buf.c",
-        "return nl ? rejoin(pos) : 0;",
-        "return nl ? 0 : 0;",
+        "\tif (e == 0 && nl)\n\t\te = rejoin(pos);",
+        "\tif (e == 0 && nl)\n\t\te = 0;",
         "t_docfmt",
     ),
     (

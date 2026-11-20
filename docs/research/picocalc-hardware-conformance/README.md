@@ -68,10 +68,13 @@ each, ST7365P_SPEC_V1.0 pages 240--241) -> `init_seq` (`C0h 80h 25h`,
 `C1h 13h`, `C2h A5h`, `C5h 1Ch`, `MADCTL 48h`, `COLMOD 55h`, `B0h 00h`, `INVON`,
 `B4h 02h`, `B6h 80h 02h 3Bh`, `B7h C6h`) -> `init_frame` -> `init_lock`
 (`F0h 3Ch/69h`) before `SLPOUT` (`Documented`, verified statically by
-`check-picocalc-conformance` and functionally across the ST7365P model in
-`check-renode-picocalc`). `paneltest_sets.h` keeps sets `1..31` unchanged and
-appends `set 32` (`legacy-ili9488-78hz`) under `LCD_PANELTEST` (`Measured` SHA-256
-identity of sets `1..31` preserved in `tools/unicorn/panel-programs.tsv`).
+`check-picocalc-conformance`; live Renode `check-renode-picocalc` stays
+`Not run` locally because external `tools/renode/vendor/Renode_RP2040` models
+are absent, while `tools/renode/check-picocalc.py --self-test` passed).
+`paneltest_sets.h` keeps sets `1..31` unchanged and appends `set 32`
+(`legacy-ili9488-78hz`) under `LCD_PANELTEST` (`Measured` SHA-256 identity of
+sets `1..31` preserved in `tools/unicorn/panel-programs.tsv`, checked by
+`check-panel-programs`).
 
 From FRMCTR1 (`B1h`, page 219) and BPC (`B5h`, page 222, `VFP = 2, VBP = 2`),
 the datasheet normal-mode frame rate equation is (`Documented`):
@@ -226,11 +229,12 @@ headroom stays above the `1,024 B` minimum margin under `check-kernel-headroom`
 `tests/picocalc/conformance_test.py` against the live tree and 13 synthetic
 single-file mutants) enforces all quantitative driver invariants in `HOST_GATES`.
 
-## Unexecuted hardware boundary (`Not run`)
+## Unexecuted emulator and hardware boundary (`Not run`)
 
-No physical-board command was executed; board measurements remaining open under
-explicit opt-in are:
+The following host-external and physical-board checks did not run in this session:
 
+- **Live Renode suites (`check-renode*`)**: `Not run` because the pinned third-party RP2040 peripheral build (`tools/renode/vendor/Renode_RP2040`, commit `205a5e4b`, fetched separately by `tools/renode/fetch-renode-rp2040.sh`) is not present on this host (`tools/renode/check-picocalc.py --self-test` passed locally).
+- **`check-matezinho-sd` default runtime**: vanilla `dotnet run --project sdtest` exits `150` because `.NET 8.0.0` runtime is absent (host carries `3.1.32`, `9.0.22`, `10.0.14`); running the exact suite with `DOTNET_ROLL_FORWARD=Major` compiles `libsd_driver.so` and passes all three `FileSD` card scenarios.
 - `ST7365P` post-W1 readback and optical contrast under native defaults (`0xf7`/`E9h` omitted).
 - Continuity probe at `U703` pin 10 (`WAS7227Q`) vs `SW701` pole 1 and micro-USB reverse-leakage test across `U102` (`WS4603`).
 - Multimeter polarity check on `J303` pin 10 (`TF-03A`) and hot-pull `board_sd_detach.py`.

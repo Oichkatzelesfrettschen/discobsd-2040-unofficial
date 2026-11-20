@@ -26,16 +26,17 @@
  * answers EBUSY while the device is open.
  *
  * Slice 5 runs a 500 kHz carrier (clk_sys / 250) whose duty cycle is the
- * sample. The board's first-order RC filter (a 220 ohm series resistor into
- * 100 nF and 100 ohm to ground, loaded by 1.8 kohm through a 47 uF coupling
- * capacitor) has its corner near 24 kHz, so the audio band passes and the
- * carrier is attenuated by about 26 dB; the filter alone does not remove it.
- * Slice 6 routes no pin and serves as the sample clock:
- * it wraps every clk_sys / PCM_RATE cycles and raises the PWM wrap
- * interrupt (datasheet 4.5.2.6 and the INTE register), whose handler moves
- * one sample from the ring to slice 5's compare register. CC is double
- * buffered (4.5.2.3), so the new duty takes effect at the next carrier
- * wrap, within 2 us.
+ * sample. The board's first-order RC filter (R311/R312 220 ohm series into
+ * C307/C309 100 nF and R313/R314 100 ohm to ground, loaded by U302 WS4603
+ * 1.8 kohm through 1 uF coupling capacitors C304/C305) passes the audio band
+ * and attenuates the carrier. Open and close ramp the PWM duty linearly
+ * between 0 and PCM_SILENCE over 128 samples (16.0 ms at 8 kHz) so the DC step
+ * charges and discharges C304/C305 without an audible click. Slice 6 routes no
+ * pin and serves as the sample clock: it wraps every clk_sys / PCM_RATE cycles
+ * and raises the PWM wrap interrupt (datasheet 4.5.2.6 and the INTE
+ * register), whose handler moves one sample from the ring to slice 5's
+ * compare register. CC is double buffered (4.5.2.3), so the new duty takes
+ * effect at the next carrier wrap, within 2 us.
  *
  * The interrupt keeps the NVIC's reset priority, the highest, which is
  * also SysTick's (IPL_CLOCK maps to 0 in machine/intr.h), so neither
@@ -110,6 +111,7 @@ _Static_assert(CPU_KHZ * 1000 / PCM_LEVELS == 500000,
     "the carrier is 500 kHz");
 
 static struct pcm_ring pcm;
+static volatile u_char pcm_closing;
 
 /* Samples waiting for the sample interrupt; machdep.pcm reports it. */
 unsigned int
@@ -125,7 +127,8 @@ PWM_IRQ_WRAP_Handler(void)
 	u_int level;
 
 	PC_REG32(PWM_INTR) = 1UL << PCM_CLOCK_SLICE;
-	level = pcm_level(pcm_get(&pcm));
+	level = (pcm_closing && pcm_fill(&pcm) == 0) ? 0 :
+	    pcm_level(pcm_get(&pcm));
 	PC_REG32(PWM_SLICE(PCM_SLICE) + PWM_CC) = level | level << 16;
 }
 
@@ -143,11 +146,25 @@ pcm_nap(void)
 	sleep((caddr_t)&pcm, PRIBIO);
 }
 
+/* Linearly sweep duty across [from..to] at PCM_RATE and wait for drain. */
+static void
+pcm_ramp(int from, int to)
+{
+	int v = from, step = from < to ? 1 : -1, naps = 0;
+
+	for (;;) {
+		pcm_put(&pcm, (u_char)v);
+		if (v == to)
+			break;
+		v += step;
+	}
+	while (pcm_fill(&pcm) != 0 && naps++ < PCM_STALL_NAPS)
+		pcm_nap();
+}
+
 int
 pcmopen(dev_t dev, int flag __unused, int mode __unused)
 {
-	u_int rest = pcm_level(PCM_SILENCE);
-
 	if (minor(dev) != 0 || board_id() != BOARD_ID_PICOCALC)
 		return ENXIO;
 	if (picoaudio_pcm)
@@ -158,12 +175,13 @@ pcmopen(dev_t dev, int flag __unused, int mode __unused)
 		return EBUSY;
 #endif
 	picoaudio_pcm = 1;
+	pcm_closing = 0;
 
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_PWM);
 	pcm.head = pcm.tail = 0;
 	PC_REG32(PWM_SLICE(PCM_SLICE) + PWM_TOP) = PCM_LEVELS - 1;
 	PC_REG32(PWM_SLICE(PCM_SLICE) + PWM_DIV) = PWM_DIV_1;
-	PC_REG32(PWM_SLICE(PCM_SLICE) + PWM_CC) = rest | rest << 16;
+	PC_REG32(PWM_SLICE(PCM_SLICE) + PWM_CC) = 0;
 	PC_REG32(PWM_SLICE(PCM_SLICE) + PWM_CSR) = PWM_CSR_EN;
 	pc_pin(PICOCALC_AUDIO_L, PC_FUNC_PWM, 0);
 	pc_pin(PICOCALC_AUDIO_R, PC_FUNC_PWM, 0);
@@ -174,12 +192,14 @@ pcmopen(dev_t dev, int flag __unused, int mode __unused)
 	PC_REG32(PWM_INTE) = 1UL << PCM_CLOCK_SLICE;
 	PC_REG32(NVIC_ISER) = 1UL << PWM_IRQ_WRAP;
 	PC_REG32(PWM_SLICE(PCM_CLOCK_SLICE) + PWM_CSR) = PWM_CSR_EN;
+	pcm_ramp(1, PCM_SILENCE);
 	return 0;
 }
 
 /*
- * Let the queued samples play, for at most the stall limit, then stop the
- * sample clock and hold both pins low as the bell does.
+ * Let the queued samples play, for at most the stall limit, ramp DC bias back
+ * down to 0 if the sample clock is running, then stop the clock and hold both
+ * pins low as the bell does.
  */
 int
 pcmclose(dev_t dev __unused, int flag __unused, int mode __unused)
@@ -188,10 +208,15 @@ pcmclose(dev_t dev __unused, int flag __unused, int mode __unused)
 
 	for (naps = 0; pcm_fill(&pcm) != 0 && naps < PCM_STALL_NAPS; naps++)
 		pcm_nap();
+	if (pcm_fill(&pcm) == 0) {
+		pcm_closing = 1;
+		pcm_ramp(PCM_SILENCE - 1, 0);
+	}
 	PC_REG32(NVIC_ICER) = 1UL << PWM_IRQ_WRAP;
 	PC_REG32(PWM_INTE) = 0;
 	PC_REG32(PWM_SLICE(PCM_CLOCK_SLICE) + PWM_CSR) = 0;
 	picoaudio_mute();
+	pcm_closing = 0;
 	picoaudio_pcm = 0;
 	return 0;
 }

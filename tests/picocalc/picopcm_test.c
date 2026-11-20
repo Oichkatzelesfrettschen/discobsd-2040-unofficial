@@ -63,8 +63,11 @@ void PWM_IRQ_WRAP_Handler(void);
 
 const char *panicstr;
 static int board = BOARD_ID_PICOCALC;
-static void (*pending)(char *);
-static char *pending_arg;
+static struct {
+	void	(*fn)(char *);
+	char	*arg;
+} callouts[4];
+static int ncallouts;
 static int naps, clock_stuck, failures;
 static unsigned char played[8192];
 static unsigned nplayed;
@@ -78,8 +81,31 @@ board_id(void)
 void
 timeout(void (*fn)(char *), char *arg, int ticks __unused)
 {
-	pending = fn;
-	pending_arg = arg;
+	if (ncallouts >= (int)(sizeof(callouts) / sizeof(callouts[0]))) {
+		fprintf(stderr, "FAIL callout queue overflow\n");
+		exit(2);
+	}
+	callouts[ncallouts].fn = fn;
+	callouts[ncallouts].arg = arg;
+	ncallouts++;
+}
+
+static int
+take_callout(caddr_t chan, void (**fnp)(char *), char **argp)
+{
+	int i;
+
+	for (i = 0; i < ncallouts; i++) {
+		if (callouts[i].arg == (char *)chan || chan == NULL) {
+			*fnp = callouts[i].fn;
+			*argp = callouts[i].arg;
+			for (; i + 1 < ncallouts; i++)
+				callouts[i] = callouts[i + 1];
+			ncallouts--;
+			return 1;
+		}
+	}
+	return 0;
 }
 
 void
@@ -117,24 +143,24 @@ sample_tick(void)
 }
 
 void
-sleep(caddr_t chan __unused, int pri)
+sleep(caddr_t chan, int pri)
 {
-	void (*fn)(char *) = pending;
+	void (*fn)(char *) = NULL;
+	char *arg = NULL;
 	int i;
 
 	if (pri >= 25) {
 		fprintf(stderr, "FAIL an interruptible sleep, priority %d\n", pri);
 		failures++;
 	}
-	if (fn == NULL || ++naps > 2000) {
+	if (!take_callout(chan, &fn, &arg) || ++naps > 2000) {
 		fprintf(stderr, "FAIL a sleep that nothing ends\n");
 		exit(2);
 	}
 	if (clock_runs())
 		for (i = 0; i < 4 * PCM_RATE / 1000; i++)
 			sample_tick();
-	pending = NULL;
-	fn(pending_arg);
+	fn(arg);
 }
 
 int
@@ -201,11 +227,18 @@ main(void)
 	board = BOARD_ID_PICOCALC;
 	check("open of minor 1", pcmopen(1, 0, 0), ENXIO);
 
-	/* A bell is sounding when the device opens. */
+	/* A bell is sounding when the device opens; open ramps 1..PCM_SILENCE. */
 	lcd_bell();
+	nplayed = 0;
 	check("open", pcmopen(0, 0, 0), 0);
 	check("second open", pcmopen(0, 0, 0), EBUSY);
 	check("an opened device queues no sample", pcm_queued(), 0);
+	check("open ramp samples played", nplayed >= PCM_SILENCE, 1);
+	for (i = 0; i < PCM_SILENCE && i < nplayed; i++)
+		if (played[i] != pcm_level(i + 1)) {
+			check("open ramp sample", played[i], pcm_level(i + 1));
+			break;
+		}
 	check("carrier period", model_reg(SLICE(5) + TOP), PCM_LEVELS - 1);
 	check("carrier divider 1", model_reg(SLICE(5) + DIV), 1 << 4);
 	check("rest duty on both channels", model_reg(SLICE(5) + CC),
@@ -220,39 +253,54 @@ main(void)
 	check("right pin on the slice", model_reg(GPIO_CTRL(PICOCALC_AUDIO_R)), 4);
 
 	/* The bell's stop callout must leave the slice to the samples. */
-	if (pending != NULL) {
-		void (*fn)(char *) = pending;
+	{
+		void (*fn)(char *);
+		char *arg;
 
-		pending = NULL;
-		fn(pending_arg);
+		if (take_callout(NULL, &fn, &arg))
+			fn(arg);
 	}
 	check("bell stop keeps the carrier", model_reg(SLICE(5) + CSR), 1);
 	check("bell stop keeps the left pin",
 	    model_reg(GPIO_CTRL(PICOCALC_AUDIO_L)), 4);
 	lcd_bell();
-	check("a BEL while open arms no callout", pending == NULL, 1);
+	check("a BEL while open arms no callout", ncallouts == 0, 1);
 	check("a BEL while open keeps the carrier period",
 	    model_reg(SLICE(5) + TOP), PCM_LEVELS - 1);
 
-	/* 1,000 samples through a 255-sample ring, played in order. */
+	/* 1,000 samples through a 255-sample ring, then close ramp down to 0. */
 	for (i = 0; i < sizeof tune; i++)
 		tune[i] = (unsigned char)(i * 37 + 11);
 	nplayed = 0;
 	check("write", write_bytes(tune, sizeof tune), 0);
 	check("close", pcmclose(0, 0, 0), 0);
 	check("a drained device queues no sample", pcm_queued(), 0);
-	check("every sample played", nplayed >= sizeof tune, 1);
+	check("every sample and close ramp played",
+	    nplayed >= sizeof tune + PCM_SILENCE, 1);
 	for (i = 0; i < sizeof tune && i < nplayed; i++)
 		if (played[i] != pcm_level(tune[i])) {
 			check("played sample", played[i], pcm_level(tune[i]));
 			check("at index", i, -1);
 			break;
 		}
-	for (; i < nplayed; i++)
-		if (played[i] != rest) {
-			check("level after the last sample", played[i], rest);
-			break;
-		}
+	for (; i < nplayed && played[i] == rest; i++)
+		continue;
+	check("close ramp present", i + PCM_SILENCE <= nplayed, 1);
+	{
+		unsigned k;
+
+		for (k = 0; k < PCM_SILENCE && i + k < nplayed; k++)
+			if (played[i + k] != pcm_level(PCM_SILENCE - 1 - k)) {
+				check("close ramp sample", played[i + k],
+				    pcm_level(PCM_SILENCE - 1 - k));
+				break;
+			}
+		for (i += PCM_SILENCE; i < nplayed; i++)
+			if (played[i] != 0) {
+				check("level after close ramp", played[i], 0);
+				break;
+			}
+	}
 
 	/* The close stops the clock and holds both pins low. */
 	check("wrap interrupt off", model_reg(PWM_INTE), 0);
@@ -264,8 +312,8 @@ main(void)
 	check("right pin held low", model_reg(GPIO_CTRL(PICOCALC_AUDIO_R)),
 	    4 | OUTOVER_LOW);
 	lcd_bell();
-	check("the bell sounds again after the close", pending != NULL, 1);
-	pending = NULL;
+	check("the bell sounds again after the close", ncallouts == 1, 1);
+	ncallouts = 0;
 
 	/* Reads are refused. */
 	check("read", pcmread(0, (struct uio *)0, 0), ENODEV);

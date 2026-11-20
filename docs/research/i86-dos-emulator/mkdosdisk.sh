@@ -40,7 +40,7 @@
 # requires the shell's banner.
 #
 # It needs mtools (mformat, mcopy, mdel, mdir, minfo) and PYTHON, and
-# writes OUTPUT.IMG, and OUTPUT.IMG.new.PID while it works.
+# writes OUTPUT.IMG, and a file mktemp names beside it while it works.
 set -eu
 
 if [ "$#" -lt 4 ]; then
@@ -75,7 +75,7 @@ fi
 # name only when it boots, so an OUTPUT.IMG that is, or links to, the
 # floppy or one of the files is read whole before anything replaces it.
 work=$(mktemp -d)
-img=$out.new.$
+img=$(mktemp "$out.new.XXXXXX")
 trap 'rm -f "$work/tool.img" "$work/autoexec.bat" "$work/config.sys" \
     "$work/page" "$work/file" "$work/screen" "$img"; rmdir "$work"' EXIT
 

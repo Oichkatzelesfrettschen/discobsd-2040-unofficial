@@ -54,10 +54,10 @@ int	picocalc_sysctl(int *, u_int, void *, size_t *, void *, size_t);
 
 /*
  * One read command: cmd went out with D/CX low, then n bytes were clocked
- * in with D/CX high and the clock at 3.125 MHz (TSCYCR 150 ns, page 77).
+ * in with D/CX high and the clock at 3.125 MHz (TSCYCR 150 ns, page 54).
  * A nonzero fb means SPI Read Control (FBh, page 246) was set to fb first
  * and cleared after. The bytes are raw: the 24- and 32-bit reads (04h, 09h,
- * D3h) carry one dummy clock first (page 94), so their value starts at
+ * D3h) carry one dummy clock first (page 95), so their value starts at
  * bit 6 of byte 0.
  *
  * how names the Command Table 2 read variant. PANEL_RD_MARK unlocks

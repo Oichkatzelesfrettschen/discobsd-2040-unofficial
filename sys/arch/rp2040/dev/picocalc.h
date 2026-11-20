@@ -51,7 +51,11 @@
 #define	PICOCALC_SD_TX		19
 #define	PICOCALC_SD_DET		22
 
-/* Audio amplifier inputs, PWM slice 5 channels A (left) and B (right). */
+/*
+ * Audio outputs, PWM slice 5 channels A (left) and B (right). Each pin
+ * drives a NC7WZ16 buffer and an RC filter ahead of the volume control and
+ * the amplifiers.
+ */
 #define	PICOCALC_AUDIO_L	26
 #define	PICOCALC_AUDIO_R	27
 

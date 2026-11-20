@@ -303,6 +303,24 @@ test_script(void)
 	expect("hold is queued", out.n, 1);
 	expect("hold state", out.ev[0].state, LCD_KEY_HOLD);
 
+	/*
+	 * The power key (no tty bytes) and Break (ETX) reach a raw session
+	 * as the controller sent them, ahead of any translation.
+	 */
+	begin();
+	expect("power types nothing",
+	    picokbd_event(PICOKBD_PRESSED, 0x91, 0, &ctrl, seq), 0);
+	expect("break types one byte",
+	    picokbd_event(PICOKBD_PRESSED, 0xd0, 0, &ctrl, seq), 1);
+	expect("break byte is ETX", seq[0], 3);
+	memset(&out, 0, sizeof(out));
+	expect("power and break: drain", drain_as(&out, PG, PG, 1), 0);
+	expect("power and break are queued", out.n, 2);
+	expect("power key code", out.ev[0].key, 0x91);
+	expect("power state", out.ev[0].state, LCD_KEY_PRESSED);
+	expect("break key code", out.ev[1].key, 0xd0);
+	expect("break state", out.ev[1].state, LCD_KEY_PRESSED);
+
 	/* No event, and states that are no event, do not enter the queue. */
 	begin();
 	expect("idle types nothing", picokbd_event(PICOKBD_IDLE, 0, 0, &ctrl, seq), 0);

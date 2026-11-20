@@ -106,7 +106,7 @@ static void print_help (char *progname)
     printf ("                      List of files and attributes to create.\n");
     printf ("  -m, --mount         Mount the filesystem.\n");
     printf ("  -a, --add           Add files to filesystem.\n");
-    printf ("  -x, --extract       Extract all files.\n");
+    printf ("  -x, --extract       Extract into current directory. Existing files are refused.\n");
     printf ("  -r format, --repartition=format\n");
     printf ("                      Install new partition table.\n");
     printf ("  -p NUM, --partition=NUM\n");
@@ -227,95 +227,129 @@ void print_inode_blocks (fs_inode_t *inode, FILE *out)
     fprintf (out, "\n");
 }
 
-void extract_inode (fs_inode_t *inode, char *path)
-{
-    int fd, n, mode;
-    unsigned long offset;
-    unsigned char data [BSDFS_BSIZE];
+struct extraction_directory {
+    int fd;
+    unsigned inode;
+    const struct extraction_directory *parent;
+};
 
-    /* Allow read/write for user. */
-    mode = (inode->mode & 0777) | 0600;
-    fd = open (path, O_CREAT | O_RDWR, mode);
+static int extract_inode (fs_inode_t *inode, int parent, const char *name)
+{
+    unsigned char data[BSDFS_BSIZE];
+    int fd, ok = 1;
+    unsigned long offset = 0;
+
+    fd = openat (parent, name, O_CREAT | O_EXCL | O_NOFOLLOW | O_WRONLY,
+        (inode->mode & 0777) | 0600);
     if (fd < 0) {
-        perror (path);
-        return;
+        perror (name);
+        return 0;
     }
-    for (offset = 0; offset < inode->size; offset += BSDFS_BSIZE) {
-        n = inode->size - offset;
-        if (n > BSDFS_BSIZE)
-            n = BSDFS_BSIZE;
-        if (! fs_inode_read (inode, offset, data, n)) {
-            fprintf (stderr, "%s: read error at offset %ld\n",
-                path, offset);
+    while (offset < inode->size && ok) {
+        size_t count = inode->size - offset, done = 0;
+        if (count > sizeof(data))
+            count = sizeof(data);
+        if (! fs_inode_read (inode, offset, data, count)) {
+            fprintf (stderr, "%s: read error at offset %lu\n", name, offset);
+            ok = 0;
             break;
         }
-        if (write (fd, data, n) != n) {
-            fprintf (stderr, "%s: write error\n", path);
-            break;
+        while (done < count) {
+            ssize_t n = write (fd, data + done, count - done);
+            if (n < 0 && errno == EINTR)
+                continue;
+            if (n <= 0) {
+                fprintf (stderr, "%s: incomplete write\n", name);
+                ok = 0;
+                break;
+            }
+            done += (size_t)n;
         }
+        offset += count;
     }
-    close (fd);
+    if (close (fd) < 0) {
+        perror (name);
+        ok = 0;
+    }
+    if (!ok && unlinkat (parent, name, 0) < 0)
+        perror (name);
+    return ok;
 }
 
-void extract_symlink (fs_inode_t *inode, char *path)
+static int extract_symlink (fs_inode_t *inode, int parent, const char *name)
 {
-    char data [BSDFS_BSIZE];
+    unsigned char data[BSDFS_BSIZE];
 
-    if (inode->size >= BSDFS_BSIZE) {
-        fprintf (stderr, "%s: too long symlink\n", path);
-        return;
-    }
-    if (! fs_inode_read (inode, 0, (unsigned char*)data, inode->size)) {
-        fprintf (stderr, "%s: error reading symlink\n", path);
-        return;
+    if (inode->size == 0 || inode->size >= sizeof(data) ||
+        ! fs_inode_read (inode, 0, data, inode->size) ||
+        memchr (data, 0, inode->size)) {
+        fprintf (stderr, "%s: invalid symlink contents\n", name);
+        return 0;
     }
     data[inode->size] = 0;
-    if (symlink(data, path) < 0) {
-        perror (path);
-        return;
+    if (symlinkat ((char *)data, parent, name) < 0) {
+        perror (name);
+        return 0;
     }
+    return 1;
 }
 
-void extractor (fs_inode_t *dir, fs_inode_t *inode,
+static int extractor (fs_inode_t *dir, fs_inode_t *inode,
     char *dirname, char *filename, void *arg)
 {
-    FILE *out = arg;
-    char *path, *relpath;
-    size_t pathlen;
+    struct extraction_directory *parent = arg, child;
+    const struct extraction_directory *ancestor;
+    char *path;
+    int ok;
 
+    (void)dir;
     if (verbose)
-        print_inode (inode, dirname, filename, out);
-
-    if ((inode->mode & INODE_MODE_FMT) != INODE_MODE_FDIR &&
-        (inode->mode & INODE_MODE_FMT) != INODE_MODE_FREG &&
-        (inode->mode & INODE_MODE_FMT) != INODE_MODE_FLNK)
-        return;
-
-    pathlen = strlen (dirname) + strlen (filename) + 2;
-    path = alloca (pathlen);
-    strlcpy (path, dirname, pathlen);
-    strlcat (path, "/", pathlen);
-    strlcat (path, filename, pathlen);
-    for (relpath=path; *relpath == '/'; relpath++)
-        continue;
-
+        print_inode (inode, dirname, filename, stdout);
     switch (inode->mode & INODE_MODE_FMT) {
-    case INODE_MODE_FDIR:
-        if (mkdir (relpath, 0775) < 0 && errno != EEXIST)
-            perror (relpath);
-        /* Scan subdirectory. */
-        fs_directory_scan (inode, path, extractor, arg);
-        break;
     case INODE_MODE_FREG:
-        extract_inode (inode, relpath);
-        break;
+        return extract_inode (inode, parent->fd, filename);
     case INODE_MODE_FLNK:
-        extract_symlink (inode, relpath);
+        return extract_symlink (inode, parent->fd, filename);
+    case INODE_MODE_FDIR:
         break;
+    default:
+        return 1;
     }
+    for (ancestor = parent; ancestor; ancestor = ancestor->parent) {
+        if (ancestor->inode == inode->number) {
+            fprintf (stderr, "%s/%s: directory cycle\n", dirname, filename);
+            return 0;
+        }
+    }
+    if (mkdirat (parent->fd, filename, 0775) < 0 && errno != EEXIST) {
+        perror (filename);
+        return 0;
+    }
+    child.fd = openat (parent->fd, filename, O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    if (child.fd < 0) {
+        perror (filename);
+        return 0;
+    }
+    child.inode = inode->number;
+    child.parent = parent;
+    /* The joined path labels diagnostics. Host operations use child.fd. */
+    path = malloc (strlen(dirname) + strlen(filename) + 2);
+    if (path == NULL) {
+        perror ("directory path");
+        close (child.fd);
+        return 0;
+    }
+    sprintf (path, "%s/%s", dirname, filename);
+    ok = fs_directory_scan (inode, path, extractor, &child);
+    free (path);
+    if (close (child.fd) < 0) {
+        perror (filename);
+        return 0;
+    }
+    return ok;
 }
 
-void scanner (fs_inode_t *dir, fs_inode_t *inode,
+int scanner (fs_inode_t *dir, fs_inode_t *inode,
     char *dirname, char *filename, void *arg)
 {
     FILE *out = arg;
@@ -340,8 +374,9 @@ void scanner (fs_inode_t *dir, fs_inode_t *inode,
         strlcpy (path, dirname, pathlen);
         strlcat (path, "/", pathlen);
         strlcat (path, filename, pathlen);
-        fs_directory_scan (inode, path, scanner, arg);
+        return fs_directory_scan (inode, path, scanner, arg);
     }
+    return 1;
 }
 
 /*
@@ -949,13 +984,25 @@ int main (int argc, char **argv)
             print_help (argv[0]);
             return -1;
         }
-        if (! fs_inode_get (&fs, &inode, BSDFS_ROOT_INODE)) {
-            fprintf (stderr, "%s: cannot get inode 1\n", argv[i]);
+        if (! fs_inode_get (&fs, &inode, BSDFS_ROOT_INODE) ||
+            (inode.mode & INODE_MODE_FMT) != INODE_MODE_FDIR) {
+            fprintf (stderr, "%s: cannot open root directory\n", argv[i]);
             return -1;
         }
-        fs_directory_scan (&inode, "", extractor, (void*) stdout);
+        struct extraction_directory root = { .fd = open (".", O_RDONLY | O_DIRECTORY),
+            .inode = BSDFS_ROOT_INODE, .parent = NULL };
+        int ok = 0;
+        if (root.fd < 0)
+            perror (".");
+        else {
+            ok = fs_directory_scan (&inode, "", extractor, &root);
+            if (close (root.fd) < 0) {
+                perror (".");
+                ok = 0;
+            }
+        }
         fs_close (&fs);
-        return 0;
+        return ok ? 0 : 1;
     }
 
     if (add) {
@@ -993,8 +1040,9 @@ int main (int argc, char **argv)
     fs_print (&fs, stdout);
     if (verbose) {
         printf ("--------\n");
-        if (! fs_inode_get (&fs, &inode, BSDFS_ROOT_INODE)) {
-            fprintf (stderr, "%s: cannot get inode 1\n", argv[i]);
+        if (! fs_inode_get (&fs, &inode, BSDFS_ROOT_INODE) ||
+            (inode.mode & INODE_MODE_FMT) != INODE_MODE_FDIR) {
+            fprintf (stderr, "%s: cannot open root directory\n", argv[i]);
             return -1;
         }
         printf ("/\n");
@@ -1006,7 +1054,10 @@ int main (int argc, char **argv)
                 printf ("--------\n");
             }
         }
-        fs_directory_scan (&inode, "", scanner, (void*) stdout);
+        if (! fs_directory_scan (&inode, "", scanner, (void*) stdout)) {
+            fs_close (&fs);
+            return 1;
+        }
     }
     fs_close (&fs);
     return 0;

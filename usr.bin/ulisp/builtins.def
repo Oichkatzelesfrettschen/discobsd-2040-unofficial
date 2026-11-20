@@ -1,0 +1,806 @@
+/*
+ * uLisp builtin table: one line per symbol, in table order.
+ *
+ *	N(enumerator, name, function, minmax, doc)	named in enum builtins
+ *	B(name, function, minmax, doc)			reached by name alone
+ *	K(name, value, context)				keyword with an integer value
+ *
+ * The N lines come first and unbroken, so that an enumerator equals its
+ * table index; ulisp.c holds that with a static assertion. minmax is octal:
+ * the function type, the fewest arguments and the most (7 for any number).
+ * The names, documentation and order are those of uLisp PicoCalc 4.8f, whose
+ * license ulisp.c carries.
+ */
+N(NIL, "nil", NULL, 0000,
+    "nil\n"
+    "A symbol equivalent to the empty list (). Also represents false.")
+N(TEE, "t", NULL, 0000,
+    "t\n"
+    "A symbol representing true.")
+N(NOTHING, "nothing", NULL, 0000,
+    "nothing\n"
+    "A symbol with no value.\n"
+    "It is useful if you want to suppress printing the result of evaluating a function.")
+N(OPTIONAL, "&optional", NULL, 0000,
+    "&optional\n"
+    "Can be followed by one or more optional parameters in a lambda or defun parameter list.")
+N(FEATURES, "*features*", NULL, 0000,
+    "*features*\n"
+    "Returns a list of keywords representing features supported by this platform.")
+N(INITIALELEMENT, ":initial-element", NULL, 0000,
+    NULL)
+N(ELEMENTTYPE, ":element-type", NULL, 0000,
+    NULL)
+N(TEST, ":test", NULL, 0000,
+    NULL)
+N(COLONA, ":a", NULL, 0000,
+    NULL)
+N(COLONB, ":b", NULL, 0000,
+    NULL)
+N(COLONC, ":c", NULL, 0000,
+    NULL)
+N(BIT, "bit", NULL, 0000,
+    NULL)
+N(AMPREST, "&rest", NULL, 0000,
+    "&rest\n"
+    "Can be followed by a parameter in a lambda or defun parameter list,\n"
+    "and is assigned a list of the corresponding arguments.")
+N(LAMBDA, "lambda", NULL, 0017,
+    "(lambda (parameter*) form*)\n"
+    "Creates an unnamed function with parameters. The body is evaluated with the parameters as local variables\n"
+    "whose initial values are defined by the values of the forms after the lambda form.")
+N(LET, "let", NULL, 0017,
+    "(let ((var value) ... ) forms*)\n"
+    "Declares local variables with values, and evaluates the forms with those local variables.")
+N(LETSTAR, "let*", NULL, 0017,
+    "(let* ((var value) ... ) forms*)\n"
+    "Declares local variables with values, and evaluates the forms with those local variables.\n"
+    "Each declaration can refer to local variables that have been defined earlier in the let*.")
+N(CLOSURE, "closure", NULL, 0017,
+    NULL)
+N(PSTAR, "*pc*", NULL, 0007,
+    NULL)
+N(QUOTE, "quote", sp_quote, 0311,
+    NULL)
+N(DEFUN, "defun", sp_defun, 0327,
+    "(defun name (parameters) form*)\n"
+    "Defines a function.")
+N(DEFVAR, "defvar", sp_defvar, 0313,
+    "(defvar variable form)\n"
+    "Defines a global variable.")
+N(DEFCODE, "defcode", sp_defcode, 0307,
+    "(defcode name (parameters) form*)\n"
+    "Creates a machine-code function called name from a series of 16-bit integers given in the body of the form.\n"
+    "These are written into RAM, and can be executed by calling the function in the same way as a normal Lisp function.")
+N(EQ, "eq", fn_eq, 0222,
+    "(eq item item)\n"
+    "Tests whether the two arguments are the same symbol, same character, equal numbers,\n"
+    "or point to the same cons, and returns t or nil as appropriate.")
+N(CAR, "car", fn_car, 0211,
+    "(car list)\n"
+    "Returns the first item in a list.")
+N(FIRST, "first", fn_car, 0211,
+    "(first list)\n"
+    "Returns the first item in a list. Equivalent to car.")
+N(CDR, "cdr", fn_cdr, 0211,
+    "(cdr list)\n"
+    "Returns a list with the first item removed.")
+N(REST, "rest", fn_cdr, 0211,
+    "(rest list)\n"
+    "Returns a list with the first item removed. Equivalent to cdr.")
+N(NTH, "nth", fn_nth, 0222,
+    "(nth number list)\n"
+    "Returns the nth item in list, counting from zero.")
+N(AREF, "aref", fn_aref, 0227,
+    "(aref array index [index*])\n"
+    "Returns an element from the specified array.")
+N(CHAR, "char", fn_char, 0222,
+    "(char string n)\n"
+    "Returns the nth character in a string, counting from zero.")
+N(STRINGFN, "string", fn_stringfn, 0211,
+    "(string item)\n"
+    "Converts its argument to a string.")
+N(PINMODE, "pinmode", fn_pinmode, 0222,
+    "(pinmode pin mode)\n"
+    "Sets the input/output mode of an Arduino pin number, and returns nil.\n"
+    "The mode parameter can be an integer, a keyword, or t or nil.")
+N(DIGITALWRITE, "digitalwrite", fn_digitalwrite, 0222,
+    "(digitalwrite pin state)\n"
+    "Sets the state of the specified Arduino pin number.")
+N(ANALOGREAD, "analogread", fn_analogread, 0211,
+    "(analogread pin)\n"
+    "Reads the specified Arduino analogue pin number and returns the value.")
+N(REGISTER, "register", fn_register, 0212,
+    "(register address [value])\n"
+    "Reads or writes the value of a peripheral register.\n"
+    "If value is not specified the function returns the value of the register at address.\n"
+    "If value is specified the value is written to the register at address and the function returns value.")
+N(FORMAT, "format", fn_format, 0227,
+    "(format output controlstring [arguments]*)\n"
+    "Outputs its arguments formatted according to the format directives in controlstring.")
+B("or", sp_or, 0307,
+    "(or item*)\n"
+    "Evaluates its arguments until one returns non-nil, and returns its value.")
+B("setq", sp_setq, 0327,
+    "(setq symbol value [symbol value]*)\n"
+    "For each pair of arguments assigns the value of the second argument\n"
+    "to the variable specified in the first argument.")
+B("loop", sp_loop, 0307,
+    "(loop forms*)\n"
+    "Executes its arguments repeatedly until one of the arguments calls (return),\n"
+    "which then causes an exit from the loop.")
+B("push", sp_push, 0322,
+    "(push item place)\n"
+    "Modifies the value of place, which should be a list, to add item onto the front of the list,\n"
+    "and returns the new list.")
+B("pop", sp_pop, 0311,
+    "(pop place)\n"
+    "Modifies the value of place, which should be a non-nil list, to remove its first item,\n"
+    "and returns that item.")
+B("incf", sp_incf, 0312,
+    "(incf place [number])\n"
+    "Increments a place, which should have an numeric value, and returns the result.\n"
+    "The third argument is an optional increment which defaults to 1.")
+B("decf", sp_decf, 0312,
+    "(decf place [number])\n"
+    "Decrements a place, which should have an numeric value, and returns the result.\n"
+    "The third argument is an optional decrement which defaults to 1.")
+B("setf", sp_setf, 0327,
+    "(setf place value [place value]*)\n"
+    "For each pair of arguments modifies a place to the result of evaluating value.")
+B("dolist", sp_dolist, 0317,
+    "(dolist (var list [result]) form*)\n"
+    "Sets the local variable var to each element of list in turn, and executes the forms.\n"
+    "It then returns result, or nil if result is omitted.")
+B("dotimes", sp_dotimes, 0317,
+    "(dotimes (var number [result]) form*)\n"
+    "Executes the forms number times, with the local variable var set to each integer from 0 to number-1 in turn.\n"
+    "It then returns result, or nil if result is omitted.")
+B("do", sp_do, 0327,
+    "(do ((var [init [step]])*) (end-test result*) form*)\n"
+    "Accepts an arbitrary number of iteration vars, which are initialised to init and stepped by step sequentially.\n"
+    "The forms are executed until end-test is true. It returns result.")
+B("do*", sp_dostar, 0317,
+    "(do* ((var [init [step]])*) (end-test result*) form*)\n"
+    "Accepts an arbitrary number of iteration vars, which are initialised to init and stepped by step in parallel.\n"
+    "The forms are executed until end-test is true. It returns result.")
+B("trace", sp_trace, 0301,
+    "(trace [function]*)\n"
+    "Turns on tracing of up to TRACEMAX user-defined functions,\n"
+    "and returns a list of the functions currently being traced.")
+B("untrace", sp_untrace, 0301,
+    "(untrace [function]*)\n"
+    "Turns off tracing of up to TRACEMAX user-defined functions, and returns a list of the functions untraced.\n"
+    "If no functions are specified it untraces all functions.")
+B("for-millis", sp_formillis, 0317,
+    "(for-millis ([number]) form*)\n"
+    "Executes the forms and then waits until a total of number milliseconds have elapsed.\n"
+    "Returns the total number of milliseconds taken.")
+B("time", sp_time, 0311,
+    "(time form)\n"
+    "Prints the value returned by the form, and the time taken to evaluate the form\n"
+    "in milliseconds or seconds.")
+B("with-output-to-string", sp_withoutputtostring, 0317,
+    "(with-output-to-string (str) form*)\n"
+    "Returns a string containing the output to the stream variable str.")
+B("with-sd-card", sp_withsdcard, 0327,
+    "(with-sd-card (str filename [mode]) form*)\n"
+    "Evaluates the forms with str bound to an sd-stream reading from or writing to the file filename.\n"
+    "If mode is omitted the file is read, otherwise 0 means read, 1 write-append, or 2 write-overwrite.")
+B("progn", tf_progn, 0107,
+    "(progn form*)\n"
+    "Evaluates several forms grouped together into a block, and returns the result of evaluating the last form.")
+B("if", tf_if, 0123,
+    "(if test then [else])\n"
+    "Evaluates test. If it's non-nil the form then is evaluated and returned;\n"
+    "otherwise the form else is evaluated and returned.")
+B("cond", tf_cond, 0107,
+    "(cond ((test form*) (test form*) ... ))\n"
+    "Each argument is a list consisting of a test optionally followed by one or more forms.\n"
+    "If the test evaluates to non-nil the forms are evaluated, and the last value is returned as the result of the cond.\n"
+    "If the test evaluates to nil, none of the forms are evaluated, and the next argument is processed in the same way.")
+B("when", tf_when, 0117,
+    "(when test form*)\n"
+    "Evaluates the test. If it's non-nil the forms are evaluated and the last value is returned.")
+B("unless", tf_unless, 0117,
+    "(unless test form*)\n"
+    "Evaluates the test. If it's nil the forms are evaluated and the last value is returned.")
+B("case", tf_case, 0117,
+    "(case keyform ((key form*) (key form*) ... ))\n"
+    "Evaluates a keyform to produce a test key, and then tests this against a series of arguments,\n"
+    "each of which is a list containing a key optionally followed by one or more forms.")
+B("and", tf_and, 0107,
+    "(and item*)\n"
+    "Evaluates its arguments until one returns nil, and returns the last value.")
+B("not", fn_not, 0211,
+    "(not item)\n"
+    "Returns t if its argument is nil, or nil otherwise. Equivalent to null.")
+B("null", fn_not, 0211,
+    "(null list)\n"
+    "Returns t if its argument is nil, or nil otherwise. Equivalent to not.")
+B("cons", fn_cons, 0222,
+    "(cons item item)\n"
+    "If the second argument is a list, cons returns a new list with item added to the front of the list.\n"
+    "If the second argument isn't a list cons returns a dotted pair.")
+B("atom", fn_atom, 0211,
+    "(atom item)\n"
+    "Returns t if its argument is a single number, symbol, or nil.")
+B("listp", fn_listp, 0211,
+    "(listp item)\n"
+    "Returns t if its argument is a list.")
+B("consp", fn_consp, 0211,
+    "(consp item)\n"
+    "Returns t if its argument is a non-null list.")
+B("symbolp", fn_symbolp, 0211,
+    "(symbolp item)\n"
+    "Returns t if its argument is a symbol.")
+B("arrayp", fn_arrayp, 0211,
+    "(arrayp item)\n"
+    "Returns t if its argument is an array.")
+B("boundp", fn_boundp, 0211,
+    "(boundp item)\n"
+    "Returns t if its argument is a symbol with a value.")
+B("keywordp", fn_keywordp, 0211,
+    "(keywordp item)\n"
+    "Returns non-nil if its argument is a built-in or user-defined keyword.")
+B("set", fn_setfn, 0227,
+    "(set symbol value [symbol value]*)\n"
+    "For each pair of arguments, assigns the value of the second argument to the value of the first argument.")
+B("streamp", fn_streamp, 0211,
+    "(streamp item)\n"
+    "Returns t if its argument is a stream.")
+B("equal", fn_equal, 0222,
+    "(equal item item)\n"
+    "Tests whether the two arguments are the same symbol, same character, equal numbers,\n"
+    "or point to the same cons, and returns t or nil as appropriate.")
+B("caar", fn_caar, 0211,
+    "(caar list)")
+B("cadr", fn_cadr, 0211,
+    "(cadr list)")
+B("second", fn_cadr, 0211,
+    "(second list)\n"
+    "Returns the second item in a list. Equivalent to cadr.")
+B("cdar", fn_cdar, 0211,
+    "(cdar list)\n"
+    "Equivalent to (cdr (car list)).")
+B("cddr", fn_cddr, 0211,
+    "(cddr list)\n"
+    "Equivalent to (cdr (cdr list)).")
+B("caaar", fn_caaar, 0211,
+    "(caaar list)\n"
+    "Equivalent to (car (car (car list))).")
+B("caadr", fn_caadr, 0211,
+    "(caadr list)\n"
+    "Equivalent to (car (car (cdar list))).")
+B("cadar", fn_cadar, 0211,
+    "(cadar list)\n"
+    "Equivalent to (car (cdr (car list))).")
+B("caddr", fn_caddr, 0211,
+    "(caddr list)\n"
+    "Equivalent to (car (cdr (cdr list))).")
+B("third", fn_caddr, 0211,
+    "(third list)\n"
+    "Returns the third item in a list. Equivalent to caddr.")
+B("cdaar", fn_cdaar, 0211,
+    "(cdaar list)\n"
+    "Equivalent to (cdar (car (car list))).")
+B("cdadr", fn_cdadr, 0211,
+    "(cdadr list)\n"
+    "Equivalent to (cdr (car (cdr list))).")
+B("cddar", fn_cddar, 0211,
+    "(cddar list)\n"
+    "Equivalent to (cdr (cdr (car list))).")
+B("cdddr", fn_cdddr, 0211,
+    "(cdddr list)\n"
+    "Equivalent to (cdr (cdr (cdr list))).")
+B("length", fn_length, 0211,
+    "(length item)\n"
+    "Returns the number of items in a list, the length of a string, or the length of a one-dimensional array.")
+B("array-dimensions", fn_arraydimensions, 0211,
+    "(array-dimensions item)\n"
+    "Returns a list of the dimensions of an array.")
+B("list", fn_list, 0207,
+    "(list item*)\n"
+    "Returns a list of the values of its arguments.")
+B("copy-list", fn_copylist, 0211,
+    "(copy-list list)\n"
+    "Returns a copy of a list.")
+B("make-array", fn_makearray, 0215,
+    "(make-array size [:initial-element element] [:element-type 'bit])\n"
+    "If size is an integer it creates a one-dimensional array with elements from 0 to size-1.\n"
+    "If size is a list of n integers it creates an n-dimensional array with those dimensions.\n"
+    "If :element-type 'bit is specified the array is a bit array.")
+B("reverse", fn_reverse, 0211,
+    "(reverse list)\n"
+    "Returns a list with the elements of list in reverse order.")
+B("assoc", fn_assoc, 0224,
+    "(assoc key list [:test function])\n"
+    "Looks up a key in an association list of (key . value) pairs, using eq or the specified test function,\n"
+    "and returns the matching pair, or nil if no pair is found.")
+B("member", fn_member, 0224,
+    "(member item list [:test function])\n"
+    "Searches for an item in a list, using eq or the specified test function, and returns the list starting\n"
+    "from the first occurrence of the item, or nil if it is not found.")
+B("apply", fn_apply, 0227,
+    "(apply function list)\n"
+    "Returns the result of evaluating function, with the list of arguments specified by the second parameter.")
+B("funcall", fn_funcall, 0217,
+    "(funcall function argument*)\n"
+    "Evaluates function with the specified arguments.")
+B("append", fn_append, 0207,
+    "(append list*)\n"
+    "Joins its arguments, which should be lists, into a single list.")
+B("mapc", fn_mapc, 0227,
+    "(mapc function list1 [list]*)\n"
+    "Applies the function to each element in one or more lists, ignoring the results.\n"
+    "It returns the first list argument.")
+B("mapl", fn_mapl, 0227,
+    "(mapl function list1 [list]*)\n"
+    "Applies the function to one or more lists and then successive cdrs of those lists,\n"
+    "ignoring the results. It returns the first list argument.")
+B("mapcar", fn_mapcar, 0227,
+    "(mapcar function list1 [list]*)\n"
+    "Applies the function to each element in one or more lists, and returns the resulting list.")
+B("mapcan", fn_mapcan, 0227,
+    "(mapcan function list1 [list]*)\n"
+    "Applies the function to each element in one or more lists. The results should be lists,\n"
+    "and these are destructively concatenated together to give the value returned.")
+B("maplist", fn_maplist, 0227,
+    "(maplist function list1 [list]*)\n"
+    "Applies the function to one or more lists and then successive cdrs of those lists,\n"
+    "and returns the resulting list.")
+B("mapcon", fn_mapcon, 0227,
+    "(mapcon function list1 [list]*)\n"
+    "Applies the function to one or more lists and then successive cdrs of those lists,\n"
+    "and these are destructively concatenated together to give the value returned.")
+B("+", fn_add, 0207,
+    "(+ number*)\n"
+    "Adds its arguments together.\n"
+    "If each argument is an integer, and the running total doesn't overflow, the result is an integer,\n"
+    "otherwise a floating-point number.")
+B("-", fn_subtract, 0217,
+    "(- number*)\n"
+    "If there is one argument, negates the argument.\n"
+    "If there are two or more arguments, subtracts the second and subsequent arguments from the first argument.\n"
+    "If each argument is an integer, and the running total doesn't overflow, returns the result as an integer,\n"
+    "otherwise a floating-point number.")
+B("*", fn_multiply, 0207,
+    "(* number*)\n"
+    "Multiplies its arguments together.\n"
+    "If each argument is an integer, and the running total doesn't overflow, the result is an integer,\n"
+    "otherwise it's a floating-point number.")
+B("/", fn_divide, 0217,
+    "(/ number*)\n"
+    "Divides the first argument by the second and subsequent arguments.\n"
+    "If each argument is an integer, and each division produces an exact result, the result is an integer;\n"
+    "otherwise it's a floating-point number.")
+B("mod", fn_mod, 0222,
+    "(mod number number)\n"
+    "Returns its first argument modulo the second argument.\n"
+    "If both arguments are integers the result is an integer; otherwise it's a floating-point number.")
+B("rem", fn_rem, 0222,
+    "(rem number number)\n"
+    "Returns the remainder from dividing the first argument by the second argument.\n"
+    "If both arguments are integers the result is an integer; otherwise it's a floating-point number.")
+B("1+", fn_oneplus, 0211,
+    "(1+ number)\n"
+    "Adds one to its argument and returns it.\n"
+    "If the argument is an integer the result is an integer if possible;\n"
+    "otherwise it's a floating-point number.")
+B("1-", fn_oneminus, 0211,
+    "(1- number)\n"
+    "Subtracts one from its argument and returns it.\n"
+    "If the argument is an integer the result is an integer if possible;\n"
+    "otherwise it's a floating-point number.")
+B("abs", fn_abs, 0211,
+    "(abs number)\n"
+    "Returns the absolute, positive value of its argument.\n"
+    "If the argument is an integer the result will be returned as an integer if possible,\n"
+    "otherwise a floating-point number.")
+B("random", fn_random, 0211,
+    "(random number)\n"
+    "If number is an integer returns a random number between 0 and one less than its argument.\n"
+    "Otherwise returns a floating-point number between zero and number.")
+B("max", fn_maxfn, 0217,
+    "(max number*)\n"
+    "Returns the maximum of one or more arguments.")
+B("min", fn_minfn, 0217,
+    "(min number*)\n"
+    "Returns the minimum of one or more arguments.")
+B("/=", fn_noteq, 0217,
+    "(/= number*)\n"
+    "Returns t if none of the arguments are equal, or nil if two or more arguments are equal.")
+B("=", fn_numeq, 0217,
+    "(= number*)\n"
+    "Returns t if all the arguments, which must be numbers, are numerically equal, and nil otherwise.")
+B("<", fn_less, 0217,
+    "(< number*)\n"
+    "Returns t if each argument is less than the next argument, and nil otherwise.")
+B("<=", fn_lesseq, 0217,
+    "(<= number*)\n"
+    "Returns t if each argument is less than or equal to the next argument, and nil otherwise.")
+B(">", fn_greater, 0217,
+    "(> number*)\n"
+    "Returns t if each argument is greater than the next argument, and nil otherwise.")
+B(">=", fn_greatereq, 0217,
+    "(>= number*)\n"
+    "Returns t if each argument is greater than or equal to the next argument, and nil otherwise.")
+B("plusp", fn_plusp, 0211,
+    "(plusp number)\n"
+    "Returns t if the argument is greater than zero, or nil otherwise.")
+B("minusp", fn_minusp, 0211,
+    "(minusp number)\n"
+    "Returns t if the argument is less than zero, or nil otherwise.")
+B("zerop", fn_zerop, 0211,
+    "(zerop number)\n"
+    "Returns t if the argument is zero.")
+B("oddp", fn_oddp, 0211,
+    "(oddp number)\n"
+    "Returns t if the integer argument is odd.")
+B("evenp", fn_evenp, 0211,
+    "(evenp number)\n"
+    "Returns t if the integer argument is even.")
+B("integerp", fn_integerp, 0211,
+    "(integerp number)\n"
+    "Returns t if the argument is an integer.")
+B("numberp", fn_numberp, 0211,
+    "(numberp number)\n"
+    "Returns t if the argument is a number.")
+B("float", fn_floatfn, 0211,
+    "(float number)\n"
+    "Returns its argument converted to a floating-point number.")
+B("floatp", fn_floatp, 0211,
+    "(floatp number)\n"
+    "Returns t if the argument is a floating-point number.")
+B("sin", fn_sin, 0211,
+    "(sin number)\n"
+    "Returns sin(number).")
+B("cos", fn_cos, 0211,
+    "(cos number)\n"
+    "Returns cos(number).")
+B("tan", fn_tan, 0211,
+    "(tan number)\n"
+    "Returns tan(number).")
+B("asin", fn_asin, 0211,
+    "(asin number)\n"
+    "Returns asin(number).")
+B("acos", fn_acos, 0211,
+    "(acos number)\n"
+    "Returns acos(number).")
+B("atan", fn_atan, 0212,
+    "(atan number1 [number2])\n"
+    "Returns the arc tangent of number1/number2, in radians. If number2 is omitted it defaults to 1.")
+B("sinh", fn_sinh, 0211,
+    "(sinh number)\n"
+    "Returns sinh(number).")
+B("cosh", fn_cosh, 0211,
+    "(cosh number)\n"
+    "Returns cosh(number).")
+B("tanh", fn_tanh, 0211,
+    "(tanh number)\n"
+    "Returns tanh(number).")
+B("exp", fn_exp, 0211,
+    "(exp number)\n"
+    "Returns exp(number).")
+B("sqrt", fn_sqrt, 0211,
+    "(sqrt number)\n"
+    "Returns sqrt(number).")
+B("log", fn_log, 0212,
+    "(log number [base])\n"
+    "Returns the logarithm of number to the specified base. If base is omitted it defaults to e.")
+B("expt", fn_expt, 0222,
+    "(expt number power)\n"
+    "Returns number raised to the specified power.\n"
+    "Returns the result as an integer if the arguments are integers and the result will be within range,\n"
+    "otherwise a floating-point number.")
+B("ceiling", fn_ceiling, 0212,
+    "(ceiling number [divisor])\n"
+    "Returns the integer closest to +infinity for number/divisor. If divisor is omitted it defaults to 1.")
+B("floor", fn_floor, 0212,
+    "(floor number [divisor])\n"
+    "Returns the integer closest to -infinity for number/divisor. If divisor is omitted it defaults to 1.")
+B("truncate", fn_truncate, 0212,
+    "(truncate number [divisor])\n"
+    "Returns the integer part of number/divisor. If divisor is omitted it defaults to 1.")
+B("round", fn_round, 0212,
+    "(round number [divisor])\n"
+    "Returns the integer closest to number/divisor. If divisor is omitted it defaults to 1.")
+B("char-code", fn_charcode, 0211,
+    "(char-code character)\n"
+    "Returns the ASCII code for a character, as an integer.")
+B("code-char", fn_codechar, 0211,
+    "(code-char integer)\n"
+    "Returns the character for the specified ASCII code.")
+B("characterp", fn_characterp, 0211,
+    "(characterp item)\n"
+    "Returns t if the argument is a character and nil otherwise.")
+B("stringp", fn_stringp, 0211,
+    "(stringp item)\n"
+    "Returns t if the argument is a string and nil otherwise.")
+B("string=", fn_stringeq, 0222,
+    "(string= string string)\n"
+    "Returns t if the two strings are the same, or nil otherwise.")
+B("string<", fn_stringless, 0222,
+    "(string< string string)\n"
+    "Returns the index to the first mismatch if the first string is alphabetically less than the second string,\n"
+    "or nil otherwise.")
+B("string>", fn_stringgreater, 0222,
+    "(string> string string)\n"
+    "Returns the index to the first mismatch if the first string is alphabetically greater than the second string,\n"
+    "or nil otherwise.")
+B("string/=", fn_stringnoteq, 0222,
+    "(string/= string string)\n"
+    "Returns the index to the first mismatch if the two strings are not the same, or nil otherwise.")
+B("string<=", fn_stringlesseq, 0222,
+    "(string<= string string)\n"
+    "Returns the index to the first mismatch if the first string is alphabetically less than or equal to\n"
+    "the second string, or nil otherwise.")
+B("string>=", fn_stringgreatereq, 0222,
+    "(string>= string string)\n"
+    "Returns the index to the first mismatch if the first string is alphabetically greater than or equal to\n"
+    "the second string, or nil otherwise.")
+B("sort", fn_sort, 0222,
+    "(sort list test)\n"
+    "Destructively sorts list according to the test function, using an insertion sort, and returns the sorted list.")
+B("concatenate", fn_concatenate, 0217,
+    "(concatenate 'string string*)\n"
+    "Joins together the strings given in the second and subsequent arguments, and returns a single string.")
+B("subseq", fn_subseq, 0223,
+    "(subseq seq start [end])\n"
+    "Returns a subsequence of a list or string from item start to item end-1.")
+B("search", fn_search, 0224,
+    "(search pattern target [:test function])\n"
+    "Returns the index of the first occurrence of pattern in target, or nil if it's not found.\n"
+    "The target can be a list or string. If it's a list a test function can be specified; default eq.")
+B("read-from-string", fn_readfromstring, 0211,
+    "(read-from-string string)\n"
+    "Reads an atom or list from the specified string and returns it.")
+B("princ-to-string", fn_princtostring, 0211,
+    "(princ-to-string item)\n"
+    "Prints its argument to a string, and returns the string.\n"
+    "Characters and strings are printed without quotation marks or escape characters.")
+B("prin1-to-string", fn_prin1tostring, 0211,
+    "(prin1-to-string item [stream])\n"
+    "Prints its argument to a string, and returns the string.\n"
+    "Characters and strings are printed with quotation marks and escape characters,\n"
+    "in a format that will be suitable for read-from-string.")
+B("logand", fn_logand, 0207,
+    "(logand [value*])\n"
+    "Returns the bitwise & of the values.")
+B("logior", fn_logior, 0207,
+    "(logior [value*])\n"
+    "Returns the bitwise | of the values.")
+B("logxor", fn_logxor, 0207,
+    "(logxor [value*])\n"
+    "Returns the bitwise ^ of the values.")
+B("lognot", fn_lognot, 0211,
+    "(lognot value)\n"
+    "Returns the bitwise logical NOT of the value.")
+B("ash", fn_ash, 0222,
+    "(ash value shift)\n"
+    "Returns the result of bitwise shifting value by shift bits. If shift is positive, value is shifted to the left.")
+B("logbitp", fn_logbitp, 0222,
+    "(logbitp bit value)\n"
+    "Returns t if bit number bit in value is a '1', and nil if it is a '0'.")
+B("eval", fn_eval, 0211,
+    "(eval form*)\n"
+    "Evaluates its argument an extra time.")
+B("return", fn_return, 0201,
+    "(return [value])\n"
+    "Exits from a (dotimes ...), (dolist ...), or (loop ...) loop construct and returns value.")
+B("globals", fn_globals, 0200,
+    "(globals)\n"
+    "Returns a list of global variables.")
+B("locals", fn_locals, 0200,
+    "(locals)\n"
+    "Returns an association list of local variables and their values.")
+B("makunbound", fn_makunbound, 0211,
+    "(makunbound symbol)\n"
+    "Removes the value of the symbol from GlobalEnv and returns the symbol.")
+B("break", fn_break, 0200,
+    "(break)\n"
+    "Inserts a breakpoint in the program. When evaluated prints Break! and reenters the REPL.")
+B("read", fn_read, 0201,
+    "(read [stream])\n"
+    "Reads an atom or list from the serial input and returns it.\n"
+    "If stream is specified the item is read from the specified stream.")
+B("prin1", fn_prin1, 0212,
+    "(prin1 item [stream])\n"
+    "Prints its argument, and returns its value.\n"
+    "Strings are printed with quotation marks and escape characters.")
+B("print", fn_print, 0212,
+    "(print item [stream])\n"
+    "Prints its argument with quotation marks and escape characters, on a new line, and followed by a space.\n"
+    "If stream is specified the argument is printed to the specified stream.")
+B("princ", fn_princ, 0212,
+    "(princ item [stream])\n"
+    "Prints its argument, and returns its value.\n"
+    "Characters and strings are printed without quotation marks or escape characters.")
+B("terpri", fn_terpri, 0201,
+    "(terpri [stream])\n"
+    "Prints a new line, and returns nil.\n"
+    "If stream is specified the new line is written to the specified stream.")
+B("read-byte", fn_readbyte, 0202,
+    "(read-byte stream)\n"
+    "Reads a byte from a stream and returns it.")
+B("read-line", fn_readline, 0201,
+    "(read-line [stream])\n"
+    "Reads characters from the serial input up to a newline character, and returns them as a string, excluding the newline.\n"
+    "If stream is specified the line is read from the specified stream.")
+B("write-byte", fn_writebyte, 0212,
+    "(write-byte number [stream])\n"
+    "Writes a byte to a stream.")
+B("write-string", fn_writestring, 0212,
+    "(write-string string [stream])\n"
+    "Writes a string. If stream is specified the string is written to the stream.")
+B("write-line", fn_writeline, 0212,
+    "(write-line string [stream])\n"
+    "Writes a string terminated by a newline character. If stream is specified the string is written to the stream.")
+B("gc", fn_gc, 0201,
+    "(gc [print time])\n"
+    "Forces a garbage collection and prints the number of objects collected, and the time taken.")
+B("room", fn_room, 0200,
+    "(room)\n"
+    "Returns the number of free Lisp cells remaining.")
+B("backtrace", fn_backtrace, 0201,
+    "(backtrace [on])\n"
+    "Sets the state of backtrace according to the boolean flag 'on',\n"
+    "or with no argument displays the current state of backtrace.")
+B("save-image", fn_saveimage, 0201,
+    "(save-image [symbol])\n"
+    "Saves the current uLisp image to non-volatile memory or SD card so it can be loaded using load-image.")
+B("load-image", fn_loadimage, 0201,
+    "(load-image [filename])\n"
+    "Loads a saved uLisp image from non-volatile memory or SD card.")
+B("cls", fn_cls, 0200,
+    "(cls)\n"
+    "Prints a clear-screen character.")
+B("digitalread", fn_digitalread, 0211,
+    "(digitalread pin)\n"
+    "Reads the state of the specified Arduino pin number and returns t (high) or nil (low).")
+B("delay", fn_delay, 0211,
+    "(delay number)\n"
+    "Delays for a specified number of milliseconds.")
+B("millis", fn_millis, 0200,
+    "(millis)\n"
+    "Returns the time in milliseconds that uLisp has been running.")
+B("sleep", fn_sleep, 0201,
+    "(sleep secs)\n"
+    "Puts the processor into a low-power sleep mode for secs.\n"
+    "Only supported on some platforms. On other platforms it does delay(1000*secs).")
+B("note", fn_note, 0203,
+    "(note [pin] [note] [octave])\n"
+    "Generates a square wave on pin.\n"
+    "note represents the note in the well-tempered scale.\n"
+    "The argument octave can specify an octave; default 0.")
+B("edit", fn_edit, 0211,
+    "(edit 'function)\n"
+    "Calls the Lisp tree editor to allow you to edit a function definition.")
+B("pprint", fn_pprint, 0212,
+    "(pprint item [str])\n"
+    "Prints its argument, using the pretty printer, to display it formatted in a structured way.\n"
+    "If str is specified it prints to the specified stream. It returns no value.")
+B("pprintall", fn_pprintall, 0201,
+    "(pprintall [str])\n"
+    "Pretty-prints the definition of every function and variable defined in the uLisp workspace.\n"
+    "If str is specified it prints to the specified stream. It returns no value.")
+B("require", fn_require, 0211,
+    "(require 'symbol)\n"
+    "Loads the definition of a function defined with defun, or a variable defined with defvar, from the Lisp Library.\n"
+    "It returns t if it was loaded, or nil if the symbol is already defined or isn't defined in the Lisp Library.")
+B("list-library", fn_listlibrary, 0200,
+    "(list-library)\n"
+    "Prints a list of the functions defined in the List Library.")
+B("?", sp_help, 0311,
+    "(? item)\n"
+    "Prints the documentation string of a built-in or user-defined function.")
+B("documentation", fn_documentation, 0212,
+    "(documentation 'symbol [type])\n"
+    "Returns the documentation string of a built-in or user-defined function. The type argument is ignored.")
+B("apropos", fn_apropos, 0211,
+    "(apropos item)\n"
+    "Prints the user-defined and built-in functions whose names contain the specified string or symbol.")
+B("apropos-list", fn_aproposlist, 0211,
+    "(apropos-list item)\n"
+    "Returns a list of user-defined and built-in functions whose names contain the specified string or symbol.")
+B("unwind-protect", sp_unwindprotect, 0307,
+    "(unwind-protect form1 [forms]*)\n"
+    "Evaluates form1 and forms in order and returns the value of form1,\n"
+    "but guarantees to evaluate forms even if an error occurs in form1.")
+B("ignore-errors", sp_ignoreerrors, 0307,
+    "(ignore-errors [forms]*)\n"
+    "Evaluates forms ignoring errors.")
+B("error", sp_error, 0317,
+    "(error controlstring [arguments]*)\n"
+    "Signals an error. The message is printed by format using the controlstring and arguments.")
+B("directory", fn_directory, 0200,
+    "(directory)\n"
+    "Returns a list of the filenames of the files on the SD card.")
+B("with-gfx", sp_withgfx, 0317,
+    "(with-gfx (str) form*)\n"
+    "Evaluates the forms with str bound to an gfx-stream so you can print text\n"
+    "to the graphics display using the standard uLisp print commands.")
+B("draw-pixel", fn_drawpixel, 0223,
+    "(draw-pixel x y [colour])\n"
+    "Draws a pixel at coordinates (x,y) in colour, or white if omitted.")
+B("draw-line", fn_drawline, 0245,
+    "(draw-line x0 y0 x1 y1 [colour])\n"
+    "Draws a line from (x0,y0) to (x1,y1) in colour, or white if omitted.")
+B("draw-rect", fn_drawrect, 0245,
+    "(draw-rect x y w h [colour])\n"
+    "Draws an outline rectangle with its top left corner at (x,y), with width w,\n"
+    "and with height h. The outline is drawn in colour, or white if omitted.")
+B("fill-rect", fn_fillrect, 0245,
+    "(fill-rect x y w h [colour])\n"
+    "Draws a filled rectangle with its top left corner at (x,y), with width w,\n"
+    "and with height h. The outline is drawn in colour, or white if omitted.")
+B("draw-circle", fn_drawcircle, 0234,
+    "(draw-circle x y r [colour])\n"
+    "Draws an outline circle with its centre at (x, y) and with radius r.\n"
+    "The circle is drawn in colour, or white if omitted.")
+B("fill-circle", fn_fillcircle, 0234,
+    "(fill-circle x y r [colour])\n"
+    "Draws a filled circle with its centre at (x, y) and with radius r.\n"
+    "The circle is drawn in colour, or white if omitted.")
+B("draw-round-rect", fn_drawroundrect, 0256,
+    "(draw-round-rect x y w h radius [colour])\n"
+    "Draws an outline rounded rectangle with its top left corner at (x,y), with width w,\n"
+    "height h, and corner radius radius. The outline is drawn in colour, or white if omitted.")
+B("fill-round-rect", fn_fillroundrect, 0256,
+    "(fill-round-rect x y w h radius [colour])\n"
+    "Draws a filled rounded rectangle with its top left corner at (x,y), with width w,\n"
+    "height h, and corner radius radius. The outline is drawn in colour, or white if omitted.")
+B("draw-triangle", fn_drawtriangle, 0267,
+    "(draw-triangle x0 y0 x1 y1 x2 y2 [colour])\n"
+    "Draws an outline triangle between (x1,y1), (x2,y2), and (x3,y3).\n"
+    "The outline is drawn in colour, or white if omitted.")
+B("fill-triangle", fn_filltriangle, 0267,
+    "(fill-triangle x0 y0 x1 y1 x2 y2 [colour])\n"
+    "Draws a filled triangle between (x1,y1), (x2,y2), and (x3,y3).\n"
+    "The outline is drawn in colour, or white if omitted.")
+B("draw-char", fn_drawchar, 0236,
+    "(draw-char x y char [colour background size])\n"
+    "Draws the character char with its top left corner at (x,y).\n"
+    "The character is drawn in a 5 x 7 pixel font in colour against background,\n"
+    "which default to white and black respectively.\n"
+    "The character can optionally be scaled by size.")
+B("set-cursor", fn_setcursor, 0222,
+    "(set-cursor x y)\n"
+    "Sets the start point for text plotting to (x, y).")
+B("set-text-color", fn_settextcolor, 0212,
+    "(set-text-color colour [background])\n"
+    "Sets the text colour for text plotted using (with-gfx ...).")
+B("set-text-size", fn_settextsize, 0211,
+    "(set-text-size scale)\n"
+    "Scales text by the specified size, default 1.")
+B("set-text-wrap", fn_settextwrap, 0211,
+    "(set-text-wrap boolean)\n"
+    "Specified whether text wraps at the right-hand edge of the display; the default is t.")
+B("fill-screen", fn_fillscreen, 0201,
+    "(fill-screen [colour])\n"
+    "Fills or clears the screen with colour, default black.")
+B("get-key", fn_getkey, 0200,
+    "(get-key)\n"
+    "Waits for a key press and returns it as a character.")
+B("read-pixel", fn_readpixel, 0222,
+    "(read-pixel x y)\n"
+    "Reads a pixel at coordinates (x,y) and returns the 5-6-5 colour value.")
+B("save-bmp", fn_savebmp, 0211,
+    "(save-bmp filename)\n"
+    "Saves the screen as a BMP file.")
+K(":led-builtin", 25, 0)
+K(":high", 1, DIGITALWRITE)
+K(":low", 0, DIGITALWRITE)
+K(":input", SYS_INPUT, PINMODE)
+K(":input-pullup", SYS_INPUT_PULLUP, PINMODE)
+K(":input-pulldown", SYS_INPUT_PULLDOWN, PINMODE)
+K(":output", SYS_OUTPUT, PINMODE)
+K(":gpio-in", 0xd0000004u, REGISTER)
+K(":gpio-out", 0xd0000010u, REGISTER)
+K(":gpio-out-set", 0xd0000014u, REGISTER)
+K(":gpio-out-clr", 0xd0000018u, REGISTER)
+K(":gpio-out-xor", 0xd000001cu, REGISTER)
+K(":gpio-oe", 0xd0000020u, REGISTER)
+K(":gpio-oe-set", 0xd0000024u, REGISTER)
+K(":gpio-oe-clr", 0xd0000028u, REGISTER)
+K(":gpio-oe-xor", 0xd000002cu, REGISTER)

@@ -24,7 +24,8 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 # scrshot: save what the PicoCalc panel shows to a file (scrshot.1). It
-# reads /dev/lcdgfx and needs the superuser and a PICOCALC_SD kernel; it
+# reads /dev/lcdgfx and shows the console only to the superuser, on a
+# PICOCALC_SD kernel; it
 # ships on the PicoCalc SD root only, so mi.rp2040 does not name it.
 #
 #   all     the target program and its manual page

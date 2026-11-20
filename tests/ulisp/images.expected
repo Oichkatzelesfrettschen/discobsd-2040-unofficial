@@ -1,0 +1,149 @@
+uLisp 4.8f 
+12000> 
+marker
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' not an image this uLisp can load
+11996> 
+42
+
+11996> 
+Error: 'load-image' not an image this uLisp can load
+11996> 
+42
+
+11996> 
+Error: 'load-image' image cell is invalid
+11996> 
+42
+
+11996> 
+Error: 'load-image' image string chain is shared or loops
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image cell is invalid
+11996> 
+42
+
+11996> 
+Error: 'load-image' image cell is invalid
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pair points into a string
+11996> 
+42
+
+11996> 
+Error: 'load-image' image is truncated
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pair points into a string
+11996> 
+42
+
+11996> 
+Error: 'load-image' image cell is invalid
+11996> 
+42
+
+11996> 
+Error: 'load-image' image cell is invalid
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image pointer out of range
+11996> 
+42
+
+11996> 
+Error: 'load-image' image is truncated
+11996> 
+42
+
+11996> 
+Error: 'load-image' image cell is invalid
+11996> 
+42
+
+11996> 
+Error: 'load-image' image cell is invalid
+11996> 
+42
+
+11996> 
+102
+
+11911> 
+(10 120)
+
+11911> 
+"end"
+
+11911> 

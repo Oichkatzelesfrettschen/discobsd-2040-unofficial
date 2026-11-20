@@ -19,14 +19,16 @@
  * three cell primitives lcdterm.c draws through and the pixel primitives
  * lcdgfx.c draws through.
  *
- * SPI1 is the RP2040's PL022 (datasheet 4.4) in Motorola format with SPO
- * and SPH set (mode 3) and eight-bit frames; LCD_SPI_FORMAT gives the
- * reason. clk_peri runs at BUS_KHZ, 125 MHz, and a prescale of
- * 2 with SCR 4 gives 12.5 MHz, an 80 ns clock, inside the 66 ns minimum
- * write cycle (TSCYCW) of ST7365P_SPEC_V1.0 page 54. Chip select, D/C
- * and reset are SIO outputs so that select stays low across a command
- * and its parameters. D/C changes only once the PL022 reports idle,
- * because the panel samples it with the last bit of each byte.
+ * SPI1 is the RP2040's PL022 (datasheet 4.4; ARM DDI 0194H) in Motorola
+ * format with SPO and SPH set (mode 3) and eight-bit frames;
+ * LCD_SPI_FORMAT gives the reason. clk_peri runs at BUS_KHZ, 125 MHz, and
+ * the bit clock is SSPCLK / (CPSDVSR * (1 + SCR)) (DDI 0194H pages 2-8 and
+ * 3-4), so a prescale of 2 with SCR 4 gives 12.5 MHz, an 80 ns clock,
+ * inside the 66 ns minimum write cycle (TSCYCW) of ST7365P_SPEC_V1.0
+ * page 54. Chip select, D/C and reset are SIO outputs so that select
+ * stays low across a command and its parameters. D/C changes only once
+ * the PL022 reports idle (SSPSR BSY, DDI 0194H 3.3.4, page 3-8), because
+ * the panel samples it with the last bit of each byte.
  *
  * The console's pixels go out as RGB565 in two bytes (COLMOD 55h, page
  * 96), 120 bytes a glyph; lcdgfx.c selects RGB666 in three bytes (66h),
@@ -77,14 +79,14 @@
 
 /*
  * The frame format. With SPH clear the PL022 raises its frame signal
- * between the words of a continuous transfer (ARM DDI 0194, 2.3.10), and
- * the clock pauses with it: lcdgfxtest measured a 320 by 320 fill at
- * 1.19 times its bit time on the board, which is 9.5 clock periods a byte.
- * With SPO and SPH set the words follow without a gap (2.3.13), and the
- * panel still samples SDA on the rising edge of SCL (page 94), since the
- * second edge of a clock that idles high is the rising one. Chip select
- * is a GPIO, so the frame signal reaches no pin. LCD_SPI_MODE0 keeps the
- * gapped format for a comparison build.
+ * between the words of a continuous transfer (ARM DDI 0194H, 2.3.10, page
+ * 2-11), and the clock pauses with it: lcdgfxtest measured a 320 by 320
+ * fill at 1.19 times its bit time on the board, which is 9.5 clock periods
+ * a byte. With SPO and SPH set the words follow without a gap (2.3.13,
+ * page 2-15), and the panel still samples SDA on the rising edge of SCL
+ * (page 94), since the second edge of a clock that idles high is the
+ * rising one. Chip select is a GPIO, so the frame signal reaches no pin.
+ * LCD_SPI_MODE0 keeps the gapped format for a comparison build.
  */
 #ifdef LCD_SPI_MODE0
 #define	LCD_SPI_FORMAT		SSPCR0_DSS_8
@@ -204,7 +206,7 @@ spi_put(u_int b)
 #if defined(LCD_PANELTEST) || defined(LCD_GFX_EXT)
 /*
  * The read side: a byte exchanged for the one the panel shifts out on SDO,
- * and the clock change a read needs, since TSCYCR is 150 ns (page 77)
+ * and the clock change a read needs, since TSCYCR is 150 ns (page 54)
  * against the 66 ns of a write.
  */
 #define	LCD_READ_SCR		19		/* 125 / (2 * 20) == 3.125 MHz. */
@@ -873,7 +875,7 @@ send_spirc(u_int fb)
  * clocked with D/CX high while the panel shifts SDO, sampled on the rising
  * edge as the PL022 does in mode 3. lcd_command() drains the byte received
  * during the command. The clock drops to 3.125 MHz, inside TSCYCR (150 ns,
- * page 77), and returns to the write clock after. how selects the Command
+ * page 54), and returns to the write clock after. how selects the Command
  * Table 2 variant (PANEL_RD_*, machine/picocalcvar.h).
  */
 static void

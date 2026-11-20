@@ -1,0 +1,357 @@
+uLisp 4.8f 
+12000> 
+(6 6 24 4 3.5 2 3 6 4)
+
+12000> 
+(3.5 -0.5 2.25 0.333333 1.5 7 7.25)
+
+12000> 
+(2.14748e9 4.29497e9 -2.14748e9 2.14748e9 2.14748e9 -2.14748e9)
+
+12000> 
+(5 2 2 0.5)
+
+12000> 
+(t t t t t t nil)
+
+12000> 
+(t nil t t nil t t nil)
+
+12000> 
+(0.479426 0.877583 0.546303 0.523599 1.0472 0.463648 0.463648)
+
+12000> 
+(0.521095 1.12763 0.462117 2.71828 12.1825 2.30259 3.0 1.41421 4.0)
+
+12000> 
+(1024 1.41421 15.625 -8 2.14748e9 0.01 1073741824)
+
+12000> 
+(3 2 2 3 4 -2 -3 -2 4 3 4)
+
+12000> 
+(1.0e10 1.5e5 1.23457e5 0.001 1.0e5 99999.9 3.14159 0 12345678 1.5e20 2.5e30)
+
+12000> 
+(1.0 2.5 3.5 4.5 10.0 100.0 1000.0 12345.5 0.1 0.2 0.3 0.7 1.0e5 1.0e6 0.001 1.23e6 0.5)
+
+12000> 
+Error: '/' division by zero
+12000> 
+(8 14 6 -1 1024 -128 t nil)
+
+12000> 
+(10 15 255 2147483647 #\a #\Space #\Newline 65 #\a)
+
+12000> 
+((1 . 2) 1 (2) 1 2 (3) (3) 3 1 (2) 2 3)
+
+12000> 
+(c 3 5 (3 2 1) (1 2 3 4) nil)
+
+12000> 
+((2 3) nil (b . 2) ("b" . 2) (2.0 3))
+
+12000> 
+(t nil t t t t t nil t t nil t t t nil nil)
+
+12000> 
+*v*
+
+11996> 
+fact
+
+11965> 
+fib
+
+11933> 
+(3628800 479001600 6.22702e9 610)
+
+11933> 
+tail
+
+11904> 
+20000
+
+11904> 
+opt
+
+11882> 
+rst
+
+11868> 
+((1 5 nil) (1 2 nil) (1 2 3) (1 nil) (1 (2 3)))
+
+11868> 
+(1 2 3 6)
+
+11868> 
+45
+
+11868> 
+(1 4 9)
+
+11868> 
+(0 1 2 3 4)
+
+11868> 
+(3 3 2 yes nil three two-three 3 nil 2 nil)
+
+11868> 
+((10 20 3 4) 10 (20 3 4) (0 20 3 4))
+
+11868> 
+(1 4 9 16)
+
+11868> 
+((11 22 33) (1 1 2 2) (1 3) 10 7)
+
+11868> 
+((c b a) (3 2 1) (1))
+
+11868> 
+make-counter
+
+11845> 
+*c*
+
+11837> 
+(1 2 3)
+
+11836> 
+(t 2 nil 2 1 0 8 7 4)
+
+11836> 
+("world" "hello" (2 3) 3 1 "foobarbaz" "")
+
+11836> 
+(#\e "abc" "x" "12.5" "\"q\\\"uote\"" (1 2 . 3) sym)
+
+11836> 
+(9 #\Backspace #\Escape #\Null #\127 #\200)
+
+11836> 
+(a-very-long-symbol-name-indeed ab abc abcd abcdef abcdefg x1 *star* a-b$c t :keyword :a)
+
+11836> 
+(#(7 7 99 7 7) 99 (5) t)
+
+11836> 
+(#2A((0 1 2) (10 11 12)) 12 (2 3))
+
+11836> 
+(#*0001000000000000000000000000000000000001 1 0 1)
+
+11836> 
+(#(1 2 3) #2A((1 2) (3 4)) 2 #*1011)
+
+11836> 
+("s \"s\" 42 ff 101" "   42|ab    | ff" "1,2,3," "
+x~" "1.5 2")
+
+11836> 
+"abc\"def\"
+12 
+wswl
+A
+(1 2)"
+
+11836> 
+(  42)
+
+11836> 
+cleanup
+
+11836> 
+Error: 'car' can't take car: a
+11836> 
+Error: illegal function: undefined-function
+11836> 
+Error: user error 42
+11836> 
+Error: '/' division by zero
+11836> 
+Error: 'aref' subscript out of range: 5
+11836> 
+Error: 'nth' index can't be negative: -1
+11836> 
+Error: 'car' too many arguments
+11836> 
+Error: 'cons' too few arguments
+11836> 
+5
+
+11836> 
+deep
+
+11810> 
+150
+
+11810> 
+t
+
+11810> 
+inner
+
+11800> 
+outer
+
+11793> 
+Error [inner <- outer]: 'car' can't take car: 1
+11793> 
+nil
+
+11793> 
+(fact)
+
+11793> 
+0: (fact 3)
+  1: (fact 2)
+    2: (fact 1)
+    2: fact returned 1
+  1: fact returned 2
+0: fact returned 6
+6
+
+11793> 
+nil
+
+11793> 
+3000
+
+11793> 
+gc-done
+
+11793> 
+300
+
+11793> 
+(1 1 2 3 4 5 6 9)
+
+11793> 
+("apple" "fig" "pear")
+
+11793> 
+(3 (outer inner deep *c* make-counter rst opt tail fib fact *v*) (draw-pixel draw-line draw-rect draw-circle draw-round-rect draw-triangle draw-char))
+
+11793> 
+documented
+
+11773> 
+("Doubles x." 8)
+
+11773> 
+string (function)
+with-output-to-string (special form)
+stringp (function)
+string= (function)
+string< (function)
+string> (function)
+string/= (function)
+string<= (function)
+string>= (function)
+read-from-string (function)
+princ-to-string (function)
+prin1-to-string (function)
+write-string (function)
+
+11773> 
+
+(defun pretty (x)
+  (if (> x 0)
+    (let ((y (* x x))) (format t "~a~%" y) y)
+    (progn (print x) nil)))
+
+11773> 
+
+(defun documented (x) "Doubles x." (* 2 x))
+
+(defun outer nil (inner))
+
+(defun inner nil (car 1))
+
+(defun deep (n)
+  (if (= n 0) 0 (+ 1 (deep (- n 1)))))
+
+(defvar *c* '(closure ((n . 3)) nil (incf n)))
+
+(defun make-counter nil
+  (let ((n 0)) (lambda nil (incf n))))
+
+(defun rst (a &rest more) (list a more))
+
+(defun opt (a &optional (b 5) c) (list a b c))
+
+(defun tail (n acc)
+  (if (= n 0) acc (tail (- n 1) (+ acc 1))))
+
+(defun fib (n)
+  (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))
+
+(defun fact (n)
+  (if (<= n 1) 1 (* n (fact (- n 1)))))
+
+(defvar *v* '10)
+
+11773> 
+(nil 25 :input :output :high :low)
+
+11773> 
+(1 2 2 2 (3) (3) (4))
+
+11773> 
+((1 2 3) (3 2 1) 2 -2 (a b))
+
+11773> 
+(3 2 1 0)
+
+11773> 
+(3 6)
+
+11773> 
+*s*
+
+11769> 
+(5 5 *s* nil)
+
+11773> 
+((b . 2) (a . 1))
+
+11773> 
+
+11773> 
+<closure>
+
+11773> 
+brk
+
+11759> 
+
+Break!
+11748 : 1> 
+21
+
+11748 : 1> 
+
+11748 : 1> 
+42
+
+11759> 
+
+nil
+
+11759> 
+(:input-pullup :input-pulldown :gpio-out :gpio-out-set :gpio-out-clr :gpio-out-xor :gpio-oe :gpio-oe-set :gpio-oe-clr :gpio-oe-xor :b :c)
+
+11759> 
+11753
+
+11759> 
+(unbalanced)
+
+11759> 
+Error: incomplete list
+11759> 
+"end"
+
+11759> 

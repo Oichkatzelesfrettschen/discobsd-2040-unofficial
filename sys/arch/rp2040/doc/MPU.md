@@ -507,8 +507,21 @@ handler that grows the break replays the store. The burst case prints
 "fault: stack frame in break guard", the child dies of SIGKILL and the
 board keeps running, with `mputest` reporting `MPUTEST OK (mpu on)`
 afterwards, so on this core a fault-frame write into the guard is
-abandoned rather than locking up. Not measured: the calibration run on an
-MPU-off kernel, a PicoCalc, and Renode. The probe prints its header
+abandoned rather than locking up.
+
+Calibration. The same tree with one added line that writes MPU_CTRL 0
+after the enable (kernel `#2 4728`, flashed over the same root, never
+committed) reports `machdep.mpu.enable` 0, `ctrl` 0x0, `guardbase` 7 and
+`guardattr` 0. On it the store at the guard base and the store at the
+base after `sbrk(64)` succeed (want 0, got 0), the burst case is not run,
+and the program ends `GUARD OK (mpu off)` and `MPUTEST OK (mpu off)`;
+every other line reads as on the enabled kernel. The two SIGSEGV lines
+therefore come from region 7 and not from the probe. The burst kill has
+no such control: the probe skips it when the MPU is off, so the SIGKILL
+rests on the enabled run and its console line alone. The
+enabled kernel `#1 4728`, built from main with the guard merged, was
+flashed back and reported `GUARD OK (mpu on)` again. Not measured: a
+PicoCalc and Renode. The probe prints its header
 before it samples the break, because stdio takes its output buffer from
 the break at the first write and the guard moves with it.
 

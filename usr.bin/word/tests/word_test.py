@@ -577,6 +577,13 @@ def t_docfmt(b, td):
     menu(s, b"t", b"s")
     s.send(plain.encode(), b"\t", b"t", b"\r", b"y")
     check(read(plain) == b"Xab cd ef\nmid\n", "text-only bytes %r" % read(plain))
+    # Deleting the first paragraph mark joins the text into the centered one.
+    s.send(CTRLP, b"\x15", b"\x1b[F", DEL)
+    row = s.scr.row(0)
+    check(
+        row.strip() == "Xab cd efmid" and row.index("X") == (COLS - 12) // 2,
+        "joined paragraph not centered: %r" % row,
+    )
     menu(s, b"q")
     s.send(b"n")
     s.close()

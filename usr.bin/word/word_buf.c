@@ -620,6 +620,49 @@ buf_insert(woff_t pos, const char *s, size_t n)
 	return buf_insert_ref(pos, ref, (woff_t)n);
 }
 
+static unsigned join_pap;
+
+static int
+join_map(unsigned old, int which, void *ctx)
+{
+	(void)old;
+	(void)which;
+	(void)ctx;
+	return (int)join_pap;
+}
+
+/*
+ * After a deletion that removed a line break at pos, the text before pos
+ * joins the paragraph after it and takes that paragraph's properties.
+ */
+static int
+rejoin(woff_t pos)
+{
+	woff_t bol = pos;
+	int v;
+
+	if (pos == 0 || pos >= doclen)
+		return 0;
+	while (bol > 0 && buf_at(bol - 1) != '\n')
+		bol--;
+	v = buf_props(pos);
+	join_pap = (unsigned)v >> 8;
+	if (bol == pos || (unsigned)buf_props(pos - 1) >> 8 == join_pap)
+		return 0;
+	return buf_restyle(bol, pos, 2, join_map, NULL);
+}
+
+static int
+has_break(woff_t pos, woff_t n)
+{
+	woff_t p;
+
+	for (p = pos; p < pos + n; p++)
+		if (buf_at(p) == '\n')
+			return 1;
+	return 0;
+}
+
 /*
  * Replace n bytes at pos by s[0..len). Both texts are staged in the add
  * stream and the piece slots are secured before the document changes, so a
@@ -630,10 +673,11 @@ buf_replace(woff_t pos, woff_t n, const char *s, size_t len)
 {
 	woff_t dref = 0, iref = 0, end, s0, run;
 	unsigned chp, pap, i, c, p;
-	int e, v;
+	int e, v, nl;
 
 	if (pos > doclen || n > doclen - pos)
 		return EINVAL;
+	nl = has_break(pos, n);
 	/* The replacement takes the properties of the first byte it replaces. */
 	buf_props_for(pos, &chp, &pap);
 	if (n > 0 && (v = buf_props(pos)) >= 0)
@@ -660,7 +704,7 @@ buf_replace(woff_t pos, woff_t n, const char *s, size_t len)
 		return e;
 	if (len > 0)
 		urec_push(U_INS, pos, (woff_t)len, iref, chp, pap);
-	return 0;
+	return nl ? rejoin(pos + (woff_t)len) : 0;
 }
 
 int
@@ -718,13 +762,14 @@ buf_delete(woff_t pos, woff_t n, woff_t *ref)
 {
 	woff_t r, end, s, run;
 	unsigned i, c, p;
-	int e;
+	int e, nl;
 
 	if (n == 0)
 		return 0;
 	e = buf_copy(pos, n, &r);
 	if (e != 0)
 		return e;
+	nl = has_break(pos, n);
 	end = pos + n;
 	while (end > pos) {
 		i = piece_find(end - 1, &s);
@@ -739,7 +784,7 @@ buf_delete(woff_t pos, woff_t n, woff_t *ref)
 	}
 	if (ref != NULL)
 		*ref = r;
-	return 0;
+	return nl ? rejoin(pos) : 0;
 }
 
 int

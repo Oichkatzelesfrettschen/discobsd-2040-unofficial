@@ -193,6 +193,13 @@ MUTANTS = [
         "t_docfmt",
     ),
     (
+        "join-keeps-the-first-format",
+        "word_buf.c",
+        "return nl ? rejoin(pos) : 0;",
+        "return nl ? 0 : 0;",
+        "t_docfmt",
+    ),
+    (
         "typing-format-ignored",
         "word.c",
         "buf_insert_fmt(ed_cur, s, n, ins_chp)",

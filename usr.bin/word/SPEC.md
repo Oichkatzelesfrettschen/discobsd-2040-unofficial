@@ -98,6 +98,8 @@ and listed at the end.
   centered, right, justified), left, first-line and right indents, line
   spacing, space before and after, keep together and keep with next.
   A paragraph's properties are those of the line break that ends it.
+  Deleting a line break joins the text before it into the following
+  paragraph, which keeps its own properties.
 - Format Character and Format Paragraph show those fields as forms;
   their values start from the selection's first character or paragraph,
   and Enter applies every field to the selection. Measurements take a

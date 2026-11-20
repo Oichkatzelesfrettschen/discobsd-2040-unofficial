@@ -138,7 +138,8 @@ MUTANTS = [
     ("cpu.c", "if (b == 2)\n\t\t\t\t\ta |= F_IF;", ";"),
     ("pc.c", "if (cf.quiet)\n\t\t\t\thost_exit(0);\n\t\t\tmenu();", "menu();"),
     ("pc.c", "disks[i] = old;\n\t\t\t\tdisk_path[i] = slash;", "disk_path[i] = slash;"),
-    ("pc.c", "if (ch == 'q' || ch < 0)\n\t\thost_exit(0);\n\tif (ch == 'a'", "if (ch == 'a'"),
+    ("pc.c", "if (ch == 'q' || ch < 0)\n\t\thost_exit(0);\n}", "}"),
+    ("pc.c", "tx = ty = tattr = -1;\n\tif (ch == 'q' || ch < 0)", "if (ch == 'q' || ch < 0)"),
     ("pc.c", 'if (n) {\n\t\t\t\tn--;\n\t\t\t\toputs("\\b \\b");\n\t\t\t}', ";"),
     ("pc.c", "(name[n - 3] | 0x20) == 'i'", "(name[n - 3] | 0x20) == 'j'"),
     ("pc.c", 'memset(shadow, 0, sizeof(shadow));\n\toputs("\\033[2J");', 'oputs("\\033[2J");'),
@@ -614,6 +615,8 @@ def test_interactive(binary, work):
         raise Failure("terminal session: exit %r" % status)
     if b"1E61" not in plain or b"3042" not in plain or b"0231" not in plain:
         raise Failure("terminal session: typed keys did not arrive")
+    if b"DISK-B3" not in plain[plain.rfind(b"quit") :]:
+        raise Failure("terminal session: the guest's screen is not drawn on leaving")
     if before != after:
         raise Failure("terminal session: terminal mode not restored")
 

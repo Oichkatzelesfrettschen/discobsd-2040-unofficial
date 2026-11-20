@@ -159,3 +159,133 @@ waited 3.0 virtual s for 'Largest'
   |       8 file(s)    122481 bytes
   |                    235520 bytes free
   |A:\>
+
+==== Run 3 (2026-11-20, branch usr.bin/i86-keyboard-irq at 42613d190): the
+==== machine with the interrupt controller and the keyboard interrupt.
+==== /dos/hd4.img is a 4 MB SvarDOS hard disk image made by mkdosdisk.sh
+==== on the host and added to the install tree for the run. SvarDOS boots
+==== from the hard disk alone; MEM is typed with the Shift key of the
+==== keyboard model, so its scan bytes pass through interrupt 9.
+check-picocalc: banner after 0.5 virtual seconds
+check-picocalc: login prompt after 17.0 virtual seconds
+check-picocalc: shell prompt after 18.5 virtual seconds
+check-picocalc: wait C:\> after 26.5 virtual seconds
+waited 5.0 virtual s for 'C:\\>'
+---- panel: boot at 26.5 virtual s
+  |........................................
+  |....................
+  |Enhanced DR-DOS kernel 20250427 (rev 72a
+  |e65f) [built 04/27/25 00:06:20]
+  |source and licensing conditions availabl
+  |e at https://github.com/SvarDOS/edrdos
+  |Enhanced DR-DOS kernel 20250427 (rev 72a
+  |e65f) [built 04/27/25 00:06:20]
+  |DR-DOS kernel version 1072
+  |DOS kernel version 7.10
+  |Revision A
+  |DOS is in low memory
+  |SvarCOM shell ver 2025.1
+  |C:\>
+check-picocalc: wait Largest after 30.5 virtual seconds
+waited 3.0 virtual s for 'Largest'
+---- panel: mem at 30.5 virtual s
+  |C:\>MEM
+  |Memory Type         Total      Used
+  |  Free
+  |----------------  --------   --------
+  |--------          --------   --------
+  |--------
+  |Conventional          640K        56K
+  |    584K
+  |Upper                   0K         0K
+  |      0K
+  |Reserved              384K       384K
+  |      0K
+  |Extended (XMS)          0K         0K
+  |      0K
+  |----------------  --------   --------
+  |--------
+  |Total memory        1,024K       440K
+  |    584K
+  |Total under 1 MB      640K        56K
+  |    584K
+  |Largest executable program size       58
+  |4K (598,080 bytes)
+---- panel: dir at 56.5 virtual s
+  |Largest executable program size       58
+  |4K (598,080 bytes)
+  |C:\>dir
+  |Volume in drive C is I86DISK
+  |Volume Serial Number is 44EA-512C
+  |Directory of C:\
+  |KERNEL   SYS      58923 04-27-25 12:06a
+  |COMMAND  COM      25673 03-13-25 11:22p
+  |AUTOEXEC BAT         39 11-20-26  4:41a
+  |CONFIG   SYS         66 11-20-26  4:41a
+  |MEM      EXE      15028 11-20-26  4:41a
+  |MODE     COM      16244 11-20-26  4:41a
+  |MORE     COM        500 11-20-26  4:41a
+  |SVED     COM       6035 11-20-26  4:41a
+  |FORMAT   EXE      34349 11-20-26  4:41a
+  |FDISK    EXE      39862 11-20-26  4:41a
+
+==== Run 4 (same source): floppy and hard disk together, and the menu.
+==== Control-] on the keyboard model opens it, a lists the images of
+==== /dos, svmin.img is typed, the screen is drawn again, C: still
+==== answers, and Control-] then q returns to the shell. The menu line
+==== of that build was longer than the panel's 53 columns and is cut at
+==== the margin here; the line was shortened afterwards.
+check-picocalc: banner after 0.5 virtual seconds
+check-picocalc: login prompt after 17.0 virtual seconds
+check-picocalc: shell prompt after 18.5 virtual seconds
+check-picocalc: wait A:\> after 28.5 virtual seconds
+waited 5.0 virtual s for 'A:\\>'
+TypeCtrl form that worked: 93
+---- panel: menu at 30.5 virtual s
+  |i86: q quit, a or b change that floppy, any other kes
+---- panel: list at 34.5 virtual s
+  |i86: q quit, a or b change that floppy, any other kes
+  |hd4.img  svmin.img
+  |image:
+---- panel: after at 39.5 virtual s
+  |........................................
+  |....................
+  |Enhanced DR-DOS kernel 20250427 (rev 72a
+  |e65f) [built 04/27/25 00:06:20]
+  |source and licensing conditions availabl
+  |e at https://github.com/SvarDOS/edrdos
+  |Enhanced DR-DOS kernel 20250427 (rev 72a
+  |e65f) [built 04/27/25 00:06:20]
+  |DR-DOS kernel version 1072
+  |DOS kernel version 7.10
+  |Revision A
+  |DOS is in low memory
+  |SvarCOM shell ver 2025.1
+  |A:\>
+---- panel: dirc at 60.5 virtual s
+  |SvarCOM shell ver 2025.1
+  |A:\>dir c:
+  |Volume in drive C is I86DISK
+  |Volume Serial Number is 44EA-512C
+  |Directory of C:\
+  |KERNEL   SYS      58923 04-27-25 12:06a
+  |COMMAND  COM      25673 03-13-25 11:22p
+  |AUTOEXEC BAT         39 11-20-26  4:41a
+  |CONFIG   SYS         66 11-20-26  4:41a
+  |MEM      EXE      15028 11-20-26  4:41a
+  |MODE     COM      16244 11-20-26  4:41a
+  |MORE     COM        500 11-20-26  4:41a
+  |SVED     COM       6035 11-20-26  4:41a
+  |FORMAT   EXE      34349 11-20-26  4:41a
+  |FDISK    EXE      39862 11-20-26  4:41a
+  |SYS      COM      12914 11-20-26  4:41a
+  |      11 file(s)    209633 bytes
+  |                   3852288 bytes free
+  |A:\>
+TypeCtrl form that worked: 93
+check-picocalc: prompt after 64.0 virtual seconds
+prompt after 0.5 virtual s
+---- panel: back at 64.0 virtual s
+  |i86: q quit, a or b change that floppy, any other kes
+  |operator@pico:~$
+

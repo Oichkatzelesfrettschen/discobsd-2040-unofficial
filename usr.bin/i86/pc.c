@@ -922,12 +922,11 @@ menu(void)
 	size_t n;
 	int ch;
 
+	/* One line that fits the 40 columns of the PicoCalc's DOS screen. */
 	oputs("\033[0m\033[2J\033[H"
-	    "i86: q quit, a or b change that floppy, any other key returns\r\n");
+	    "i86: q quit, a b floppy, other: back\r\n");
 	oflush();
 	ch = host_getc();
-	if (ch == 'q' || ch < 0)
-		host_exit(0);
 	if (ch == 'a' || ch == 'b') {
 		i = (unsigned)(ch - 'a');
 		strcpy(dir, ".");
@@ -973,10 +972,13 @@ menu(void)
 			}
 		}
 	}
-	/* Draw the guest's screen again from nothing. */
+	/* Draw the guest's screen again from nothing, also on the way out,
+	 * so that the session ends on what the guest last showed. */
 	memset(shadow, 0, sizeof(shadow));
 	oputs("\033[2J");
 	tx = ty = tattr = -1;
+	if (ch == 'q' || ch < 0)
+		host_exit(0);
 }
 
 /* The parameter table of floppy drive i for the format of its image:

@@ -42,7 +42,9 @@
 #        ci_apt_install.sh --selftest
 #
 # Environment: CI_APT_ATTEMPTS (default 3) and CI_APT_SECONDS (default 150) set
-# the tries and the wall-clock bound of one network phase; CI_APT_SUDO is the
+# the tries and the wall-clock bound of one network phase, and
+# CI_APT_KILL_SECONDS (default 10) the time between the TERM that ends the phase
+# and the KILL that follows when the process ignores it; CI_APT_SUDO is the
 # privilege prefix (default sudo, empty in a root container); CI_APT_GET names
 # the apt-get command. The bound command is timeout(1), or gtimeout(1).
 set -eu
@@ -51,6 +53,7 @@ self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 apt_get=${CI_APT_GET:-apt-get}
 attempts=${CI_APT_ATTEMPTS:-3}
 seconds=${CI_APT_SECONDS:-150}
+kill_after=${CI_APT_KILL_SECONDS:-10}
 priv=${CI_APT_SUDO-sudo}
 
 usage() {
@@ -76,7 +79,7 @@ phase() {
 		# priv is empty or "sudo" and bound is a command name; both stay
 		# unquoted so that an empty prefix vanishes.
 		# shellcheck disable=SC2086
-		$priv $bound "$seconds" "$apt_get" "$@" || rc=$?
+		$priv $bound -k "$kill_after" "$seconds" "$apt_get" "$@" || rc=$?
 		if [ "$rc" -eq 0 ]; then
 			return 0
 		fi
@@ -103,8 +106,9 @@ scenario() {
 	rm -f "$work/hung"
 	start=$(date +%s)
 	rc=0
-	env FAKE_MODE="$mode" FAKE_LOG="$work/log" FAKE_STATE="$work/hung" FAKE_SLEEP=3 \
-	    CI_APT_GET="$work/apt-get" CI_APT_SUDO= CI_APT_SECONDS=1 CI_APT_ATTEMPTS=2 \
+	env FAKE_MODE="$mode" FAKE_LOG="$work/log" FAKE_STATE="$work/hung" FAKE_SLEEP=5 \
+	    CI_APT_GET="$work/apt-get" CI_APT_SUDO= CI_APT_SECONDS=1 CI_APT_KILL_SECONDS=1 \
+	    CI_APT_ATTEMPTS=2 \
 	    sh "$script" "$@" >"$work/out" 2>&1 || rc=$?
 	elapsed=$(($(date +%s) - start))
 	calls=$(tr '\n' ' ' <"$work/log")
@@ -112,22 +116,42 @@ scenario() {
 		echo "ci_apt_install: scenario $name: status $rc (want $want_rc), calls '$calls' (want '$want_calls')" >&2
 		return 1
 	fi
-	if [ "$mode" = hang-download ] && [ "$elapsed" -ge 4 ]; then
-		echo "ci_apt_install: scenario $name: ran $elapsed s, the bound did not hold" >&2
-		return 1
+	# Two attempts of a 1 s bound and a 1 s kill delay end within 4 s; a fake
+	# that sleeps or spins for 5 s per attempt shows an absent bound.
+	case $mode in
+	hang-download | ignore-term-download)
+		if [ "$elapsed" -ge 8 ]; then
+			echo "ci_apt_install: scenario $name: ran $elapsed s, the bound did not hold" >&2
+			return 1
+		fi
+		;;
+	esac
+	return 0
+}
+
+# try SCENARIO-ARGUMENT...: run one scenario, record a failure, and under
+# FAILFAST (the mutant runs) stop the list at the first one.
+try() {
+	if ! scenario "$@"; then
+		status=1
+		if [ -n "$failfast" ]; then
+			return 1
+		fi
 	fi
 	return 0
 }
 
 scenarios() {
 	script=$1
+	failfast=${2:-}
 	status=0
-	scenario "$script" good ok 0 'update download install ' pkga pkgb || status=1
-	scenario "$script" stalled-download hang-first-download 0 'update download download install ' pkga || status=1
-	scenario "$script" stalled-update hang-first-update 0 'update update download install ' pkga || status=1
-	scenario "$script" permanent-stall hang-download 1 'update download download ' pkga || status=1
-	scenario "$script" install-failure fail-install 100 'update download install ' pkga || status=1
-	scenario "$script" no-package ok 2 '' || status=1
+	try "$script" good ok 0 'update download install ' pkga pkgb || return 1
+	try "$script" stalled-download hang-first-download 0 'update download download install ' pkga || return 1
+	try "$script" stalled-update hang-first-update 0 'update update download install ' pkga || return 1
+	try "$script" permanent-stall hang-download 1 'update download download ' pkga || return 1
+	try "$script" term-ignored ignore-term-download 1 'update download download ' pkga || return 1
+	try "$script" install-failure fail-install 100 'update download install ' pkga || return 1
+	try "$script" no-package ok 2 '' || return 1
 	return "$status"
 }
 
@@ -170,6 +194,12 @@ hang-first-download:download | hang-first-update:update)
 	fi
 	;;
 hang-download:download) exec sleep "$FAKE_SLEEP" ;;
+ignore-term-download:download)
+	# A download that ignores TERM and burns CPU for FAKE_SLEEP seconds.
+	trap '' TERM
+	end=$(($(date +%s) + FAKE_SLEEP))
+	while [ "$(date +%s)" -lt "$end" ]; do :; done
+	;;
 fail-install:install) exit 100 ;;
 esac
 exit 0
@@ -179,7 +209,7 @@ FAKE
 		echo "ci_apt_install: selftest: the script fails its own scenarios" >&2
 		exit 1
 	}
-	echo "ci_apt_install: 6 scenarios pass"
+	echo "ci_apt_install: 7 scenarios pass"
 	# Known-bad copies must fail at least one scenario.
 	mutant() {
 		label=$1
@@ -189,13 +219,14 @@ FAKE
 			echo "ci_apt_install: selftest: mutant '$label' changed nothing" >&2
 			exit 1
 		fi
-		if scenarios "$work/mutant.sh" >/dev/null 2>&1; then
+		if scenarios "$work/mutant.sh" failfast >/dev/null 2>&1; then
 			echo "ci_apt_install: selftest: mutant '$label' passed every scenario" >&2
 			exit 1
 		fi
 		echo "mutant rejected: $label"
 	}
-	mutant 'phase without the time bound' 's/\$priv \$bound "\$seconds" "\$apt_get"/$priv "$apt_get"/'
+	mutant 'phase without the time bound' 's/\$bound -k "\$kill_after" "\$seconds" //'
+	mutant 'phase without a kill after the first signal' 's/ -k "\$kill_after"//'
 	mutant 'phase without a retry' 's/if \[ "\$n" -ge "\$attempts" \]; then/if true; then/'
 	mutant 'download and install in one call' 's/--download-only//'
 	mutant 'failure of the last attempt ignored' 's/^\t\t\treturn 1$/\t\t\treturn 0/'
@@ -209,8 +240,8 @@ fi
 if [ "$1" = --selftest ]; then
 	selftest
 fi
-case $attempts:$seconds in
-*[!0-9:]* | :* | *: | 0:* | *:0) usage ;;
+case $attempts:$seconds:$kill_after in
+*[!0-9:]* | :* | *: | *::* | 0:* | *:0:* | *:0) usage ;;
 esac
 bound=$(bound_command)
 if [ -z "$bound" ]; then

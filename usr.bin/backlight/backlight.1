@@ -1,0 +1,93 @@
+.Dd November 20, 2026
+.Dt BACKLIGHT 1
+.Os
+.Sh NAME
+.Nm backlight
+.Nd show and set the PicoCalc backlights
+.Sh SYNOPSIS
+.Nm
+.Op Ar level
+.Nm
+.Cm lcd | kbd
+.Op Ar level
+.Nm
+.Fl s
+.Op Cm lcd
+.Op Ar level
+.Sh DESCRIPTION
+.Nm
+reads and sets the two lights the PicoCalc's keyboard controller drives:
+.Cm lcd ,
+the screen, and
+.Cm kbd ,
+the keys.
+Without arguments it prints both levels, one light per line, as
+.Dq lcd 160
+and
+.Dq kbd 0 .
+A light name alone prints that light's level.
+A
+.Ar level
+sets the named light, or the screen when no light is named, and prints
+the level the controller kept.
+.Pp
+A level is a decimal number from 0 to 240.
+The controller rounds what it is given: the screen level goes down to a
+multiple of 16 and never below 16, so the screen stays lit, and the
+keyboard level goes down to a multiple of 32, with anything below 32
+turning the keys' light off.
+.Pp
+The keyboard's own shortcut keys change the same levels, and
+.Nm
+reports whatever the controller holds at that moment.
+.Pp
+The options are:
+.Bl -tag -width "-s"
+.It Fl s
+After setting the screen level, or with no level the current one, write
+the level the controller kept to
+.Pa /etc/backlight ,
+the screen level
+.Pa /etc/rc
+applies at every boot.
+Only the superuser may use it, and it applies to the screen only.
+.El
+.Pp
+.Nm
+is installed setuid root because the kernel accepts a write to its
+.Va machdep.picocalc
+nodes from the superuser only; with it, any user can change the lights.
+.Sh FILES
+.Bl -tag -width "/etc/backlight"
+.It Pa /etc/backlight
+the screen level for boot: one decimal number.
+At power-on the controller starts the screen at 32, dim enough to look
+black, and
+.Pa /etc/rc
+replaces that with this level, or with 160 when the file is missing or
+holds no number.
+.El
+.Sh EXIT STATUS
+.Nm
+exits 0 on success, 1 when the kernel has no PicoCalc keyboard
+controller, the controller does not answer,
+.Fl s
+is refused or
+.Pa /etc/backlight
+cannot be written, and 2 on an argument it does not accept.
+.Sh EXAMPLES
+Dim the screen and light the keys:
+.Bd -literal -offset indent
+$ backlight 96
+lcd 96
+$ backlight kbd 64
+kbd 64
+.Ed
+.Pp
+Make the current screen level the boot level, as the superuser:
+.Bd -literal -offset indent
+# backlight -s
+lcd 96
+.Ed
+.Sh SEE ALSO
+.Xr sysctl 8

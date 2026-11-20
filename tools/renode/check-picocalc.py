@@ -596,6 +596,36 @@ def logo_frame(shift: int = 0, mono: bool = False) -> tuple[int, bytes]:
     return width, bytes(pixels)
 
 
+def check_backlight(run: Run) -> None:
+    """Check the boot screen level and a change by an ordinary user.
+
+    /etc/rc writes the level of /etc/backlight, or 160 when the file is
+    absent as on a built image, to machdep.picocalc.lcd_backlight; the
+    keyboard model keeps what it is given, conditioned as the vendor firmware
+    does. backlight, run as operator, must reach the node through its setuid
+    mode and print the level the model kept for 88, which is 80. An image
+    without the program checks the boot level alone and says so.
+    """
+    kbd = "sysbus.i2c1.kbd"
+    level = monitor_int(run.renode, f"{kbd} BacklightLevel")
+    run.expect(level == 160, f"backlight: the screen level after boot is {level}, "
+               "expected 160 from /etc/rc")
+    console = picocalc_dump.Console(run)
+    console.type("ls /usr/bin/backlight || echo light-none")
+    run.wait_until(lambda: run.has_line("/usr/bin/backlight") or run.has_line("light-none"),
+                   "backlight probe", "the path or light-none", KEY_BUDGET_SECONDS)
+    if run.has_line("light-none"):
+        print("check-picocalc: skip the backlight command: the image does not carry it "
+              "(both PicoCalc profiles do)")
+        return
+    run.type_line("backlight 88")
+    run.wait_for_line("lcd 80", "backlight answer as operator", KEY_BUDGET_SECONDS)
+    level = monitor_int(run.renode, f"{kbd} BacklightLevel")
+    run.expect(level == 80, f"backlight: the screen level after 'backlight 88' is {level}, "
+               "expected 80")
+    run.snapshot("backlight")
+
+
 def check_monitors(run: Run) -> None:
     """Run picofetch and picotop when the image carries them.
 
@@ -867,6 +897,7 @@ def main(argv: list[str]) -> int:
         run.expect(transactions > 0, "keyboard: no I2C transaction reached 0x1f")
         check_spi_fifo(run)
         check_monitors(run)
+        check_backlight(run)
         if card is not None:
             elf = os.path.splitext(unix_bin)[0] + ".elf"
             picocalc_dump.run_dump_stages(run, os.path.abspath(card), elf)

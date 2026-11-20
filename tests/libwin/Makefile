@@ -4,6 +4,8 @@
 #                    then the mutants, each of which must be rejected
 #   check-native     the library under -Wall -Wextra -Werror -Wshadow
 #                    -Wconversion against the model panel and the reference
+#                    (win_test), then the widget layer against its own model
+#                    and reference painter (widget_test)
 #   check-sanitized  the same under AddressSanitizer and UBSan
 #   check-mutants    one faulted copy of win.c per fault; each must exit 1
 #                    with a FAIL line, and the unfaulted baseline must pass
@@ -25,7 +27,9 @@ BASE_FLAGS=	-std=c17 -pedantic-errors -D_DEFAULT_SOURCE -Wall -Wextra \
 		-Werror -Wold-style-definition -Wshadow -Wconversion -O1 \
 		-I${LIBDIR} -I${DEVDIR} -idirafter ${TOPSRC}/sys
 LIB_SRCS=	${LIBDIR}/win.c ${LIBDIR}/win_input.c ${DEVDIR}/lcdfont.c
-# win_input_dev.c is compiled into win_test.c, behind a model of the kernel.
+# win_input_dev.c is compiled into win_test.c, behind a model of the kernel;
+# win_lcdgfx.c likewise, behind a model of the /dev/lcdgfx system calls.
+WGT_HDRS=	${LIBDIR}/win.h ${LIBDIR}/win_input.h ${LIBDIR}/win_widget.h
 
 # tools/host-test.mk supplies SAN_FLAGS and SAN_OK.
 include ${TOPSRC}/tools/host-test.mk
@@ -38,35 +42,50 @@ win_test: win_test.c ${LIB_SRCS} ${LIBDIR}/win.h ${LIBDIR}/win_input.h ${LIBDIR}
 win_test_san: win_test.c ${LIB_SRCS} ${LIBDIR}/win.h ${LIBDIR}/win_input.h ${LIBDIR}/win_input_dev.c ${LIBDIR}/win_lcdgfx.c
 	${HOSTCC} ${BASE_FLAGS} ${SAN_FLAGS} -o $@ win_test.c ${LIB_SRCS}
 
+widget_test: widget_test.c ${LIB_SRCS} ${LIBDIR}/win_widget.c ${WGT_HDRS}
+	${HOSTCC} ${BASE_FLAGS} -o $@ widget_test.c ${LIB_SRCS} ${LIBDIR}/win_widget.c
+
+widget_test_san: widget_test.c ${LIB_SRCS} ${LIBDIR}/win_widget.c ${WGT_HDRS}
+	${HOSTCC} ${BASE_FLAGS} ${SAN_FLAGS} -o $@ widget_test.c ${LIB_SRCS} ${LIBDIR}/win_widget.c
+
 check: check-native check-sanitized check-mutants
 
-check-native: win_test
+check-native: win_test widget_test
 	./win_test
+	./widget_test
 
 check-sanitized:
 .if ${SAN_OK} == "yes"
-	@${MAKE} win_test_san
+	@${MAKE} win_test_san widget_test_san
 	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
 	    ./win_test_san
+	ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+	    ./widget_test_san
 .else
 	@echo "SKIP libwin sanitized: sanitizer runtime unavailable; no sanitized execution occurred"
 .endif
 
 mutants.stamp: win_mutate.py ${LIBDIR}/win.c ${LIBDIR}/win_input.c \
-    ${LIBDIR}/win_input_dev.c
+    ${LIBDIR}/win_input_dev.c ${LIBDIR}/win_lcdgfx.c ${LIBDIR}/win_widget.c
 	rm -f win_*.mutant.c win_*.mutant.test win_*.mutant.log \
 	    inp_*.mutant.c inp_*.mutant.test inp_*.mutant.log \
-	    dev_*.mutant.c dev_*.mutant.test dev_*.mutant.log
+	    dev_*.mutant.c dev_*.mutant.test dev_*.mutant.log \
+	    lcd_*.mutant.c lcd_*.mutant.test lcd_*.mutant.log \
+	    wgt_*.mutant.c wgt_*.mutant.test wgt_*.mutant.log
 	${PYTHON} -I win_mutate.py ${LIBDIR}/win.c ${LIBDIR}/win_input.c \
-	    ${LIBDIR}/win_input_dev.c .
+	    ${LIBDIR}/win_input_dev.c ${LIBDIR}/win_lcdgfx.c \
+	    ${LIBDIR}/win_widget.c .
 	touch $@
 
-check-mutants: mutants.stamp win_test.c check_mutants.sh
+check-mutants: mutants.stamp win_test.c widget_test.c check_mutants.sh
 	HOSTCC=${HOSTCC} BASE_FLAGS="${BASE_FLAGS}" sh ./check_mutants.sh ${LIBDIR} ${DEVDIR}
 
 clean:
-	rm -f win_test win_test_san win_*.mutant.c win_*.mutant.test \
+	rm -f win_test win_test_san widget_test widget_test_san \
+	    win_*.mutant.c win_*.mutant.test \
 	    win_*.mutant.log inp_*.mutant.c inp_*.mutant.test inp_*.mutant.log \
-	    dev_*.mutant.c dev_*.mutant.test dev_*.mutant.log mutants.stamp
+	    dev_*.mutant.c dev_*.mutant.test dev_*.mutant.log \
+	    lcd_*.mutant.c lcd_*.mutant.test lcd_*.mutant.log \
+	    wgt_*.mutant.c wgt_*.mutant.test wgt_*.mutant.log mutants.stamp
 
 .PHONY: all check check-native check-sanitized check-mutants clean

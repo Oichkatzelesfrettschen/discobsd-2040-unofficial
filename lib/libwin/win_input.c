@@ -72,6 +72,13 @@ win_input_init(struct win_input *in)
 	memset(in, 0, sizeof(*in));
 }
 
+void
+win_input_set_modal(struct win_input *in, struct win *win)
+{
+	in->modal = win;
+	in->modal_gen = win != NULL ? win->gen : 0;
+}
+
 /* Decoders */
 
 static int
@@ -344,12 +351,18 @@ act_close(struct win_scene *s)
 {
 	struct win_event ev;
 	struct win *w = win_focused(s);
+	int r;
 
 	if (w == NULL)
 		return 0;
 	put(&ev, 0, 0, WIN_EV_CLOSE);
-	if (w->on_event != NULL && w->on_event(s, w, &ev, w->on_event_arg) != 0)
-		return 0;
+	if (w->on_event != NULL) {
+		r = w->on_event(s, w, &ev, w->on_event_arg);
+		if (r < 0)
+			return -1;
+		if (r != 0)
+			return 0;
+	}
 	return win_destroy(s, w);
 }
 
@@ -420,6 +433,10 @@ mode_event(struct win_input *in, struct win_scene *s, const struct win_event *ev
 static int
 run_action(struct win_input *in, struct win_scene *s, int action)
 {
+	if (in->modal != NULL && win_is_live(s, in->modal) &&
+	    in->modal->gen == in->modal_gen &&
+	    (action == WIN_ACT_NEXT || action == WIN_ACT_PREV))
+		return 0;
 	switch (action) {
 	case WIN_ACT_NEXT:	return act_cycle(s, 1);
 	case WIN_ACT_PREV:	return act_cycle(s, 0);
@@ -461,8 +478,10 @@ win_input_event(struct win_input *in, struct win_scene *s,
 	w = win_focused(s);
 	if (w == NULL || w->on_event == NULL)
 		return WIN_DISP_DROPPED;
-	return w->on_event(s, w, ev, w->on_event_arg) != 0 ?
-	    WIN_DISP_WINDOW : WIN_DISP_DROPPED;
+	i = w->on_event(s, w, ev, w->on_event_arg);
+	if (i < 0)
+		return -1;
+	return i != 0 ? WIN_DISP_WINDOW : WIN_DISP_DROPPED;
 }
 
 int

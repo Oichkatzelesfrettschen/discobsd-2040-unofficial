@@ -810,7 +810,7 @@ admits a write only from root before any handler runs.
 | --- | --- | --- | --- |
 | `battery` | 0x0B | percent, bits 0-6 | refused (`EPERM`) |
 | `charging` | 0x0B | bit 7 | refused (`EPERM`) |
-| `lcd_backlight` | 0x05, 0x85 | level | level, clamped to 0-240; the firmware raises it to a multiple of 16, at least 16, so the panel never goes dark |
+| `lcd_backlight` | 0x05, 0x85 | level | level, clamped to 0-240; the firmware rounds it down to a multiple of 16 and keeps it within 16-240, so the panel never goes dark |
 | `kbd_backlight` | 0x0A, 0x8A | level | level, clamped to 0-240; the firmware rounds down to a multiple of 32 and turns the light off below 32 |
 | `poweroff` | 0x8E | the last countdown this kernel wrote, 0 if none; the kernel keeps it, since the register reads back the constant 1 | seconds, clamped to 6-255, after a `sync()`; the firmware then waits that long and cuts power through the AXP2101, and nothing cancels it |
 

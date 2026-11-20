@@ -67,7 +67,11 @@ paint_label(struct win_ctx *c, void *arg)
 int
 main(void)
 {
-	struct win_scene scene;
+	/*
+	 * The scene is 5,824 bytes and a process starts with a 2,048-byte
+	 * stack (SSIZE in machine/machparam.h), so it has static storage.
+	 */
+	static struct win_scene scene;
 	struct win_backend backend;
 	struct win_lcdgfx lcd;
 	struct win *a, *b, *c;

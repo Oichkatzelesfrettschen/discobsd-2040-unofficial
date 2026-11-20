@@ -64,6 +64,13 @@ def check(cond, what):
 
 
 class Screen:
+    # An escape sequence the program writes can reach the master in two reads
+    # (a pty hands over what one write left, and macOS in pieces of a few
+    # hundred bytes), so a sequence that ends with the data fed so far is kept
+    # and completed by the next feed.
+    ESC_SEQ = re.compile(rb"\x1b(\[[0-9;?]*[A-Za-z@]|[()][0B]|.)")
+    ESC_PARTIAL = re.compile(rb"\x1b(\[[0-9;?]*|[()])?$")
+
     def __init__(self):
         self.cells = [[" "] * COLS for _ in range(ROWS)]
         self.attrs = [[0] * COLS for _ in range(ROWS)]
@@ -71,14 +78,20 @@ class Screen:
         self.acs = False
         self.sgr = 0
         self.raw = bytearray()
+        self.pending = b""
 
     def feed(self, data):
         self.raw.extend(data)
+        data = self.pending + data
+        self.pending = b""
         i = 0
         while i < len(data):
             b = data[i]
             if b == 0x1B:
-                m = re.compile(rb"\x1b(\[[0-9;?]*[A-Za-z@]|[()][0B]|.)").match(data, i)
+                if self.ESC_PARTIAL.match(data, i):
+                    self.pending = data[i:]
+                    break
+                m = self.ESC_SEQ.match(data, i)
                 if m is None:
                     break
                 self.esc(m.group(1))
@@ -976,7 +989,26 @@ def t_bufcore(b, td):
     check(r.returncode == 0 and "buf_test: PASS" in r.stdout, "buf_test: " + r.stdout[-400:])
 
 
+def t_emulator_split_sequence(b, td):
+    # Known-bad for the screen model: escape sequences cut at every byte of
+    # their length must give the screen of the same bytes fed whole.
+    data = b"ab\x1b[1mCD\x1b[0m\x1b[3;5Hxy\x1b(0q\x1b(Bz"
+    whole = Screen()
+    whole.feed(data)
+    for cut in range(1, len(data)):
+        split = Screen()
+        split.feed(data[:cut])
+        split.feed(data[cut:])
+        check(
+            split.text() == whole.text() and split.attrs == whole.attrs,
+            "screen differs when the sequences are cut at byte %d" % cut,
+        )
+    check(whole.row(0).startswith("abCD"), "whole feed wrong: %r" % whole.row(0))
+    check(whole.attrs[0][2] & 1 and not whole.attrs[2][4] & 1, "attributes wrong")
+
+
 TESTS = [
+    t_emulator_split_sequence,
     t_bufcore,
     t_docfmt,
     t_format,

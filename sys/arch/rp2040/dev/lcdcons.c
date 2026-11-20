@@ -640,12 +640,71 @@ lcdwrite(dev_t dev, struct uio *uio, int flag)
 	return ttwrite(lcd_tty(dev), uio, flag);
 }
 
+/*
+ * A raw event session that asked for it (LCDIOC_KEYEVS 2) is read-ready while
+ * its queue holds an event, for its owner alone, and picokbd_evq_wake()
+ * wakes the selector the tty recorded. Any other session, caller or
+ * descriptor sees the tty queue alone.
+ */
+static int
+lcd_sel_raise(void)
+{
+	return spltty();
+}
+
+static void
+lcd_sel_restore(int x)
+{
+	splx(x);
+}
+
+/* The tty of the select in progress; lcdselect() sets it before the section. */
+static struct tty *lcd_sel_tp;
+
+static int
+lcd_sel_tty(void)
+{
+	return ttyselect(lcd_sel_tp, FREAD);
+}
+
+static const struct picokbd_sel lcd_sel = {
+	lcd_sel_raise, lcd_sel_restore, lcd_sel_tty
+};
+
 int
 lcdselect(dev_t dev, int rw)
 {
+	struct tty *tp;
+
 	if (minor(dev) == LCDGFX_MINOR)
 		return 1;		/* Always ready. */
-	return ttyselect(lcd_tty(dev), rw);
+	tp = lcd_tty(dev);
+	if (rw != FREAD)
+		return ttyselect(tp, rw);
+	lcd_sel_tp = tp;
+	return picokbd_evq_select(&lcd_sel, u.u_procp, u.u_procp->p_pid,
+	    u.u_procp->p_pgrp, LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags);
+}
+
+/*
+ * The session's owner selects on its own console, which is the shown one
+ * while the session lives and may be the hidden one once a switch has ended
+ * it, so the selector of every console tty is woken. A woken process that
+ * is not asleep in select loses only its flag.
+ */
+void
+picokbd_evq_wake(void)
+{
+	struct tty *tp;
+	int x = spltty();
+
+	for (tp = lcdttys; tp < &lcdttys[LCDCONS_NTTY]; tp++)
+		if (tp->t_rsel != NULL) {
+			selwakeup(tp->t_rsel, tp->t_state & TS_RCOLL);
+			tp->t_state &= ~TS_RCOLL;
+			tp->t_rsel = NULL;
+		}
+	splx(x);
 }
 
 _Static_assert(LCD_GLYPH_FIRST == LT_GLYPH_FIRST &&
@@ -752,9 +811,10 @@ lcd_ioctl_file(int flag)
 }
 
 /*
- * LCDIOC_KEYEVS: start or end the raw key event session of this open file
- * (picokbd_evq.h). The checks need the caller's process group and the
- * tty's foreground group, which ttread() compares the same way.
+ * LCDIOC_KEYEVS: start (1, or 2 with select readiness) or end (0) the raw key
+ * event session of this open file (picokbd_evq.h). The checks need the
+ * caller's process group and the tty's foreground group, which ttread()
+ * compares the same way.
  */
 static int
 lcd_keyevs(int flag, int on)
@@ -762,14 +822,16 @@ lcd_keyevs(int flag, int on)
 	const struct file *fp = lcd_ioctl_file(flag);
 	int x, error;
 
-	if (fp == NULL || (on != 0 && on != 1))
+	if (fp == NULL || on < 0 || on > 2)
 		return EINVAL;
 	x = spltty();
-	if (on)
+	if (on) {
 		error = picokbd_evq_start(fp, u.u_procp, u.u_procp->p_pid,
 		    u.u_procp->p_pgrp, LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags,
 		    (flag & FREAD) != 0);
-	else
+		if (error == 0 && on == 2)
+			picokbd_evq_wakeon();
+	} else
 		error = picokbd_evq_stop(fp, u.u_procp, u.u_procp->p_pid);
 	splx(x);
 	return error;

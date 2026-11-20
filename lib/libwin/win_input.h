@@ -203,18 +203,25 @@ int win_input_idle(struct win_input *in, struct win_scene *s);
 struct win_input_src {
 	int fd;
 	int raw;			/* Nonzero while a raw session is active. */
+	int wake;			/* Its kernel wakes select for every event. */
 };
 
-/* Start a raw session on fd. Returns 0, or -1 with the tty source selected. */
+/*
+ * Start a raw session on fd, asking for select readiness (LCDIOC_KEYEVS 2);
+ * a kernel that refuses the request (EINVAL) gets a plain session and the
+ * poll. Returns 0, or -1 with the tty source selected.
+ */
 int win_input_open(struct win_input_src *src, int fd);
 void win_input_close(struct win_input_src *src);
 
 /*
  * Wait up to timeout_ms (or without limit when negative) for input and
- * feed everything that arrived to the manager. Raw sessions poll the
- * event queue every WIN_POLL_MS because select(2) wakes on tty bytes only.
- * Returns the number of events and bytes fed, 0 on a timeout, -1 on error;
- * the call ends within timeout_ms plus WIN_POLL_MS.
+ * feed everything that arrived to the manager. A raw session whose kernel
+ * wakes select(2) for every event (src->wake) sleeps in select for the
+ * whole remaining timeout; otherwise select wakes on tty bytes only and the
+ * session polls the event queue every WIN_POLL_MS. Returns the number of
+ * events and bytes fed, 0 on a timeout, -1 on error; the call ends within
+ * timeout_ms plus WIN_POLL_MS (plus nothing on a waking kernel).
  * A dispatch that fails at the backend returns -1 at once with the scene as
  * before it (see the failure contract above); the failed event and the rest
  * of its read batch are discarded, and the modifier table and the swallowed

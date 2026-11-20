@@ -55,6 +55,7 @@ struct tty {
 	char		t_ispeed, t_ospeed;
 	void		(*t_oproc)(struct tty *);
 	struct winsize	t_winsize;
+	struct proc	*t_rsel;
 };
 
 #define	TS_TIMEOUT	0x000001L
@@ -64,6 +65,7 @@ struct tty {
 #define	TS_ASLEEP	0x000040L
 #define	TS_XCLUDE	0x000080L
 #define	TS_TTSTOP	0x000100L
+#define	TS_RCOLL	0x000800L
 #define	TS_HIDDEN	0x008000L
 
 #define	getc(q)	shim_vt_getc(q)
@@ -80,5 +82,6 @@ int	ttread(struct tty *tp, struct uio *uio, int flag);
 int	ttwrite(struct tty *tp, struct uio *uio, int flag);
 int	ttioctl(struct tty *tp, u_int cmd, caddr_t addr, int flag);
 int	ttyselect(struct tty *tp, int rw);
+void	selwakeup(struct proc *p, long coll);
 
 #endif

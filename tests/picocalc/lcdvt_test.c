@@ -210,6 +210,28 @@ picokbd_evq_drain(struct lcd_keyevs *out __unused, const void *proc __unused,
 	return 0;
 }
 
+void picokbd_evq_wakeon(void) { }
+
+/* The session layer's read-select, reduced to its tty half inside the section. */
+int
+picokbd_evq_select(const struct picokbd_sel *o, const void *proc __unused,
+    int pid __unused, int pgrp __unused, int tty_pgrp __unused,
+    unsigned tty_flags __unused)
+{
+	int x = o->raise(), r = o->tty();
+
+	o->restore(x);
+	return r;
+}
+
+static int nselwakes;
+
+void
+selwakeup(struct proc *p __unused, long coll __unused)
+{
+	nselwakes++;
+}
+
 void picokbd_evq_fileclose(const void *file __unused) { }
 void picokbd_evq_procexit(const void *proc __unused, int pid __unused) { }
 void picokbd_evq_check(int tty_pgrp __unused, unsigned tty_flags __unused) { }
@@ -319,7 +341,14 @@ int ttread(struct tty *tp __unused, struct uio *uio __unused, int flag __unused)
 	return 0;
 }
 
-int ttyselect(struct tty *tp __unused, int rw __unused) { return 0; }
+static struct tty *sel_tp;
+
+int
+ttyselect(struct tty *tp, int rw __unused)
+{
+	sel_tp = tp;
+	return 0;
+}
 
 struct tuio {
 	const char	*p;
@@ -527,6 +556,32 @@ boot(void)
 	CHECK(lcdopen(DEV1, 0, 0) == 0, "open ttyv1");
 	CHECK(lcdopen(makedev(LCDCONS_MAJOR, 3), 0, 0) == ENXIO,
 	    "a minor beyond ttyv1 is refused");
+
+	/* A read-select reaches the tty of its own minor, and a key wake both. */
+	{
+		static struct proc caller;
+
+		if (u.u_procp == NULL)
+			u.u_procp = &caller;
+	}
+	sel_tp = NULL;
+	(void)lcdselect(DEV0, FREAD);
+	CHECK(sel_tp == T0, "a select on ttyv0 registers on ttyv0");
+	(void)lcdselect(DEV1, FREAD);
+	CHECK(sel_tp == T1, "a select on ttyv1 registers on ttyv1");
+	(void)lcdselect(DEV1, FWRITE);
+	CHECK(sel_tp == T1, "a write select on ttyv1 asks ttyv1");
+	{
+		static struct proc sleeper;
+
+		T0->t_rsel = T1->t_rsel = &sleeper;
+		nselwakes = 0;
+		picokbd_evq_wake();
+		CHECK(nselwakes == 2 && T0->t_rsel == NULL && T1->t_rsel == NULL,
+		    "a key wake reaches the selector of each console");
+		picokbd_evq_wake();
+		CHECK(nselwakes == 2, "a key wake with no selector wakes nothing");
+	}
 }
 
 static void

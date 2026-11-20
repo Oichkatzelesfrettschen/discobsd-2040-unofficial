@@ -44,6 +44,7 @@
  * wrote costs no I/O in either direction.
  */
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -128,6 +129,49 @@ mem_fini(void)
 	}
 }
 
+/* Take the store's name away while the file stays open. The name is
+ * removed only if it still names the file this program created: another
+ * process may have renamed that file and put its own at the path, and its
+ * file is not this program's to remove. The system does the check and the
+ * removal as one step (unlink(2), unlinkat_beneath), from the store's own
+ * directory since the call crosses no mount point. A host build is a test
+ * tool on a system without such a call; it compares and then removes. */
+static void
+store_unname(void)
+{
+#if defined(SSTRUN_NEWLIB)
+	(void)unlink(store_path);
+#elif defined(HOSTBUILD)
+	struct stat named, held;
+
+	if (fstat(store_fd, &held) == 0 && lstat(store_path, &named) == 0 &&
+	    named.st_dev == held.st_dev && named.st_ino == held.st_ino)
+		(void)unlink(store_path);
+#else
+	const char *base = strrchr(store_path, '/');
+	char dir[64];
+	size_t n;
+	int dfd;
+
+	if (base == NULL) {
+		n = 1;
+		dir[0] = '.';
+		base = store_path;
+	} else {
+		n = base == store_path ? 1 : (size_t)(base - store_path);
+		if (n >= sizeof(dir))
+			return;
+		memcpy(dir, store_path, n);
+		base++;
+	}
+	dir[n] = '\0';
+	if ((dfd = open(dir, O_RDONLY)) < 0)
+		return;
+	(void)unlinkat_beneath(dfd, base, store_fd);
+	close(dfd);
+#endif
+}
+
 static void
 store_io(unsigned page, uint8_t *p, int wr)
 {
@@ -143,7 +187,7 @@ store_io(unsigned page, uint8_t *p, int wr)
 		store_fd = open(store_path, O_RDWR | O_CREAT | O_EXCL, 0600);
 		if (store_fd < 0)
 			goto fail;
-		(void)unlink(store_path);
+		store_unname();
 	}
 	if (lseek(store_fd, (off_t)page << MEM_PGSHIFT, SEEK_SET) < 0)
 		goto fail;

@@ -36,9 +36,13 @@
 #
 # lcdgfx_ext_test builds lcdgfx.c with LCD_GFX_EXT, the option of the
 # PICOCALC_SD kernel, against a model of the controller's 480-line memory
-# with its read reply, scan line and power mode; thirty-eight mutants of lcdgfx.c
+# with its read reply, scan line and power mode; forty-eight mutants of lcdgfx.c
 # must fail it: moved line and column bounds of the memory fill, window,
-# read and sprite, a read open to every user, a read decoded from the wrong reply bits or byte order,
+# read and sprite, a read open before the open's clear, an open that skips
+# the clear, clears only the 320 lines of the glass, clears after the read
+# flag is set, clears the superuser too or only the superuser, a read flag
+# never set or kept past the close, a frame, memory fill, sprite or power
+# command gated on the superuser, a read decoded from the wrong reply bits or byte order,
 # an odd read accepted, the read clock left selected, a raw read wider or
 # taller than one reply, a read or sprite that survives another command, a
 # sprite that ignores its key, the index mask or the row step, divides a
@@ -939,10 +943,20 @@ gfxext-mutants: \
 	gfxext-mutant-sprite-run-split \
 	gfxext-mutant-sprite-run-abandon \
 	gfxext-mutant-read-any-user \
-	gfxext-mutant-read-handoff \
 	gfxext-mutant-read-always-666 \
 	gfxext-mutant-read-565-order \
-	gfxext-mutant-read-short-reply
+	gfxext-mutant-read-short-reply \
+	gfxext-mutant-clear-missing \
+	gfxext-mutant-clear-partial \
+	gfxext-mutant-clear-after-flag \
+	gfxext-mutant-clear-root-too \
+	gfxext-mutant-clear-root-only \
+	gfxext-mutant-read-flag-unset \
+	gfxext-mutant-read-flag-kept \
+	gfxext-mutant-draw-frame-gated \
+	gfxext-mutant-draw-ramfill-gated \
+	gfxext-mutant-draw-sprite-gated \
+	gfxext-mutant-draw-power-gated
 
 gfxext-mutant-ramfill-line-bound:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1078,11 +1092,8 @@ gfxext-mutant-sprite-run-abandon:
 
 gfxext-mutant-read-any-user:
 	${GFXEXT_MUT} lcdgfx.c \
-	    '/case LCDG_READ:/,/return EPERM;/s/if (!lcdcons_gfx_reader())/if (0)/' ${GFX_SRC}
+	    '/case LCDG_READ:/,/return EPERM;/s/if (!gfx_rd)/if (0)/' ${GFX_SRC}
 
-gfxext-mutant-read-handoff:
-	${GFXEXT_MUT} lcdgfx.c \
-	    '/^lcdgfx_read/,/^}/s/if (!lcdcons_gfx_reader())/if (0)/' ${GFX_SRC}
 
 gfxext-mutant-read-always-666:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1096,9 +1107,82 @@ gfxext-mutant-read-short-reply:
 	${GFXEXT_MUT} lcdgfx.c \
 	    's/raw, 1 + bpp \* n);/raw, bpp * n);/' ${GFX_SRC}
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+gfxext-mutant-clear-missing:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/fill(0, 0, LCDG_WIDTH - 1, LCDG_RAM_LINES - 1, 0);/(void)0;/' ${GFX_SRC}
+
+gfxext-mutant-clear-partial:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/LCDG_WIDTH - 1, LCDG_RAM_LINES - 1, 0);/LCDG_WIDTH - 1, LCDG_HEIGHT - 1, 0);/' ${GFX_SRC}
+
+gfxext-mutant-clear-after-flag:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/^\tif (!lcdcons_gfx_root())$$/\tgfx_rd = 1;\n\tif (!lcdcons_gfx_root())/' ${GFX_SRC}
+
+gfxext-mutant-clear-root-too:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (!lcdcons_gfx_root())$$/if (1)/' ${GFX_SRC}
+
+gfxext-mutant-clear-root-only:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (!lcdcons_gfx_root())$$/if (lcdcons_gfx_root())/' ${GFX_SRC}
+
+gfxext-mutant-read-flag-unset:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/^\tgfx_rd = 1;$$/\tgfx_rd = 0;/' ${GFX_SRC}
+
+gfxext-mutant-read-flag-kept:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^lcdgfx_close/,/^}/s/gfx_rd = 0;/;/' ${GFX_SRC}
+
+gfxext-mutant-draw-frame-gated:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/case LCDG_FRAME:/case LCDG_FRAME: if (!lcdcons_gfx_root()) return EPERM;/' ${GFX_SRC}
+
+gfxext-mutant-draw-ramfill-gated:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/case LCDG_RAMFILL:/case LCDG_RAMFILL: if (!lcdcons_gfx_root()) return EPERM;/' ${GFX_SRC}
+
+gfxext-mutant-draw-sprite-gated:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/case LCDG_SPRITE:/case LCDG_SPRITE: if (!lcdcons_gfx_root()) return EPERM;/' ${GFX_SRC}
+
+gfxext-mutant-draw-power-gated:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/case LCDG_POWER:/case LCDG_POWER: if (!lcdcons_gfx_root()) return EPERM;/' ${GFX_SRC}
+
 .PHONY: gfxext-mutants gfxext-mutant-read-always-666 \
+	gfxext-mutant-clear-missing \
+	gfxext-mutant-clear-partial \
+	gfxext-mutant-clear-after-flag \
+	gfxext-mutant-clear-root-too \
+	gfxext-mutant-clear-root-only \
+	gfxext-mutant-read-flag-unset \
+	gfxext-mutant-read-flag-kept \
+	gfxext-mutant-draw-frame-gated \
+	gfxext-mutant-draw-ramfill-gated \
+	gfxext-mutant-draw-sprite-gated \
+	gfxext-mutant-draw-power-gated \
 	gfxext-mutant-read-565-order gfxext-mutant-read-short-reply \
-	gfxext-mutant-read-handoff gfxext-mutant-read-any-user gfxext-mutant-sprite-run-split \
+	gfxext-mutant-read-any-user gfxext-mutant-sprite-run-split \
 	gfxext-mutant-sprite-run-abandon gfxext-mutant-dither-colmod gfxext-mutant-dither-on \
 	gfxext-mutant-xinfo-live gfxext-mutant-ramfill-line-bound \
 	gfxext-mutant-ramwin-lines \

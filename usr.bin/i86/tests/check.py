@@ -53,12 +53,15 @@ tests/sstrun with the words that start it, such as a qemu-arm prefix.
 
 import gzip
 import os
+import pty
 import re
+import select
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
+import termios
 import time
 
 FLAGS = [
@@ -83,6 +86,7 @@ TAIL = [
     "DISK OK 27090101",
     "TICK OK",
     "SPIN OK",
+    "KBD OK",
     "HOOK OK",
     "VID OK",
     "a=1E61 B=3042 1=0231",
@@ -90,6 +94,10 @@ TAIL = [
 ]
 
 MUTANTS = [
+    ("cpu.c", "if (b == 2)\n\t\t\t\t\ta |= F_IF;", ";"),
+    ("pc.c", "if (ch == 0x1d)\t\t/* Ctrl-]: leave the emulator */\n\t\t\thost_exit(0);", ";"),
+    ("main.c", "t.c_lflag &= ~(tcflag_t)(ICANON | ECHO | ISIG);", ";"),
+    ("main.c", "(void)tcsetattr(0, TCSANOW, &saved);", ";"),
     ("cpu.c", "(fl & F_AF) && c->model != I86_286 ? 0x9f : 0x99;", "(fl & F_AF) ? 0x9f : 0x99;"),
     ("cpu.c", "if (c->model == I86_286 && al < 6)\n\t\t\t\tfl |= F_CF;", ";"),
     ("cpu.c", "UNDEFINED_286(d.reg > 3 || d.reg == S_CS);", ";"),
@@ -354,6 +362,53 @@ def test_endings(binary, work):
         raise Failure("default page file is not named by process: %r" % sorted(stores))
 
 
+def test_interactive(binary, work):
+    """The emulator on a terminal: raw mode, keys as they are typed, the
+    display drawn, Control-] to leave, and the terminal mode restored."""
+    image = os.path.join(work, "run.img")
+    shutil.copyfile(os.path.join(work, "guest.img"), image)
+    master, slave = pty.openpty()
+    before = termios.tcgetattr(slave)
+    child = subprocess.Popen(
+        [binary, "-T", "-s", os.path.join(work, "page"), "-a", image],
+        stdin=slave,
+        stdout=slave,
+        stderr=subprocess.DEVNULL,
+    )
+    seen = b""
+    typed = left = False
+    deadline = time.time() + 20
+    try:
+        while time.time() < deadline and child.poll() is None:
+            ready, _, _ = select.select([master], [], [], 0.05)
+            if ready:
+                seen += os.read(master, 4096)
+            plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
+            if not typed and b"VID" in plain:
+                os.write(master, KEYS.encode())
+                typed = True
+            if typed and not left and b"DONE" in plain:
+                os.write(master, b"\x1d")
+                left = True
+        status = child.wait(timeout=5) if child.poll() is None and left else child.poll()
+    except subprocess.TimeoutExpired:
+        status = None
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+    after = termios.tcgetattr(slave)
+    os.close(master)
+    os.close(slave)
+    plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
+    if status != 0 or not left:
+        raise Failure("terminal session: exit %r, DONE seen: %s" % (status, left))
+    if b"1E61" not in plain or b"3042" not in plain or b"0231" not in plain:
+        raise Failure("terminal session: typed keys did not arrive")
+    if before != after:
+        raise Failure("terminal session: terminal mode not restored")
+
+
 def check_screen(lines, cpu, kbytes, what):
     lines = [line.rstrip() for line in lines]
     while lines and lines[-1] == "":
@@ -497,6 +552,7 @@ def test(binary, work):
             )
     test_disks(binary, work)
     test_endings(binary, work)
+    test_interactive(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):

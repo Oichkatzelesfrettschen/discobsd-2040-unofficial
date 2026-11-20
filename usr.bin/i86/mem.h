@@ -31,7 +31,7 @@
  * The page is one kilobyte: booting FreeDOS 1.1 to its prompt and listing
  * a directory inside 96 KB of resident pages read 837 KB back from the
  * page store with this size, 3.8 MB with 2 KB pages and 6.7 MB with 4 KB
- * pages (docs/research/i86-dos-emulator.md).
+ * pages (sys/arch/rp2040/doc/I86.md).
  *
  * mem_rmap[] and mem_wmap[] hold, for each page, the address of its
  * resident copy minus the page's guest address, so a guest address indexes

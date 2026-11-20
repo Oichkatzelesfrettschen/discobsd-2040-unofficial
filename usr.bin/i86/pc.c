@@ -28,6 +28,12 @@
 /*
  * The machine: an IBM PC as DOS sees it through the firmware interface.
  *
+ * The disk, system and keyboard services (13h, 15h, 16h) return with
+ * interrupts enabled whatever the caller's flag was, as the IBM firmware
+ * does by enabling them and leaving through RETF 2: the SvarDOS kernel
+ * times its start-up key wait by the tick count with interrupts off and
+ * depends on the keyboard service to let the timer in.
+ *
  * No firmware code runs in the guest. Every interrupt vector points at a
  * four-byte entry in segment F000 that holds the trap sequence of i86.h,
  * and pc_trap() performs the service on the registers and guest memory.
@@ -616,7 +622,7 @@ keyboard(struct i86 *c)
 		TRACE("int16", c->r[R_AX] >> 8, c->r[R_AX]);
 		break;
 	}
-	return (0);
+	return (2);
 }
 
 /* Disks. */
@@ -964,7 +970,7 @@ pc_trap(struct i86 *c, unsigned n)
 		break;
 	case 0x13:
 		disk_service(c);
-		break;
+		return (2);
 	case 0x14:
 		c->r[R_AX] = (uint16_t)(0x8000 | (c->r[R_AX] & 0xff));
 		break;
@@ -988,7 +994,7 @@ pc_trap(struct i86 *c, unsigned n)
 			c->fl |= F_CF;
 			break;
 		}
-		break;
+		return (2);
 	case 0x16:
 		return (keyboard(c));
 	case 0x17:

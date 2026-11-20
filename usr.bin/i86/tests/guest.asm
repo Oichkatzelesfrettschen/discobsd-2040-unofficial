@@ -275,6 +275,17 @@ main:	; Thirty lines scroll the screen before the results.
 	je .spin
 	mov si, m_spin
 	call puts
+	; The keyboard service returns with interrupts enabled: a caller
+	; that polls it with interrupts off still sees the ticks move.
+	cli
+	mov bx, [0x46c]
+.kbd:	mov ah, 1
+	int 0x16
+	cmp bx, [0x46c]
+	je .kbd
+	sti
+	mov si, m_kbd
+	call puts
 	cli
 	mov word [0x1c * 4], hook
 	mov [0x1c * 4 + 2], cs
@@ -378,6 +389,7 @@ m_disk:	db "DISK OK ", 0
 m_dbad:	db "DISK BAD", 13, 10, 0
 m_tick:	db "TICK OK", 13, 10, 0
 m_spin:	db "SPIN OK", 13, 10, 0
+m_kbd:	db "KBD OK", 13, 10, 0
 m_hook:	db "HOOK OK", 13, 10, 0
 m_hbad:	db "HOOK BAD", 13, 10, 0
 m_direct: db "DIRECT", 0

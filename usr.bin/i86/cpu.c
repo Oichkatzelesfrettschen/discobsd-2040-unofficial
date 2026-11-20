@@ -809,10 +809,13 @@ prefixed:
 		    mem_rb(LIN(0xf000, c->ip)) == 0xff) {
 			c->ip++;
 			a = fetch8(c);
-			if (pc_trap(c, a) == 0) {
+			b = (unsigned)pc_trap(c, a);
+			if (b != 1) {
 				c->ip = (uint16_t)pop(c);
 				c->s[S_CS] = (uint16_t)pop(c);
 				a = pop(c) & (F_IF | F_TF | F_DF);
+				if (b == 2)
+					a |= F_IF;
 				i86_setfl(c, (c->fl &
 				    ~(unsigned)(F_IF | F_TF | F_DF)) | a);
 			}

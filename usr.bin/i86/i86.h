@@ -77,8 +77,8 @@ void i86_int(struct i86 *c, unsigned n);
 void i86_step(struct i86 *c);
 
 /* Supplied by the machine. pc_trap returns 0 to return from the interrupt
- * frame on the stack with the arithmetic flags of c->fl, 1 to continue
- * with the next instruction. */
+ * frame on the stack with the arithmetic flags of c->fl, 2 to do the same
+ * with interrupts enabled, 1 to continue with the next instruction. */
 int pc_trap(struct i86 *c, unsigned n);
 unsigned pc_in(struct i86 *c, unsigned port, int w);
 void pc_out(struct i86 *c, unsigned port, unsigned v, int w);

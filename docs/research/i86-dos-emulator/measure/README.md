@@ -1,7 +1,7 @@
 # Counting Thumb instructions per guest instruction
 
 These two files produced the interpreter cost figures of
-`../../i86-dos-emulator.md`. They are measurement tools, not gates.
+`sys/arch/rp2040/doc/I86.md`. They are measurement tools, not gates.
 
 `count.c` is a QEMU TCG plugin (QEMU 11 plugin interface) that adds one to a
 counter for every executed instruction, keyed by the ELF symbol that

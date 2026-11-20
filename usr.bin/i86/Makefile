@@ -51,7 +51,7 @@ ${OBJS}:	${HDRS}
 
 # The interpreter is the program's inner loop: at -O2 it executes 161
 # Thumb instructions for each guest instruction of the measured DOS session,
-# at -Os 173, for 2.8 KB more text (docs/research/i86-dos-emulator.md).
+# at -Os 173, for 2.8 KB more text (sys/arch/rp2040/doc/I86.md).
 cpu.o:		cpu.c
 		${CC} ${CFLAGS:N-Os} -O2 -c cpu.c
 

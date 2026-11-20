@@ -124,6 +124,9 @@ begin(void)
 	expect("session start", start_f(&file_a, PG, PG, 1), 0);
 }
 
+static int sel_registered, sel_woke, sel_inject, sel_tty_calls;
+static int sel_depth;
+
 /* The console's wake hook (lcdcons.c supplies it in the kernel). */
 static int wakes;
 
@@ -131,7 +134,42 @@ void
 picokbd_evq_wake(void)
 {
 	wakes++;
+	if (sel_registered) {
+		sel_woke++;
+		sel_registered = 0;
+	}
 }
+
+static void ev_in_late(void);
+
+/* Selector model: the interrupt that queues an event arrives when the level drops. */
+
+static int
+m_raise(void)
+{
+	sel_depth++;
+	return 0;
+}
+
+static void
+m_restore(int x)
+{
+	(void)x;
+	if (--sel_depth == 0 && sel_inject) {
+		sel_inject = 0;
+		ev_in_late();
+	}
+}
+
+static int
+m_tty(void)
+{
+	sel_tty_calls++;
+	sel_registered = 1;
+	return 0;
+}
+
+static const struct picokbd_sel model_sel = { m_raise, m_restore, m_tty };
 
 static int
 ready_as(int pgrp, int tty_pgrp)
@@ -147,6 +185,12 @@ ev_in(int state, int key)
 	int ctrl = 0;
 
 	(void)picokbd_event(state, key, 0, &ctrl, out);
+}
+
+static void
+ev_in_late(void)
+{
+	ev_in(PICOKBD_HOLD, 'a');
 }
 
 static unsigned rng_state = 1;
@@ -1014,6 +1058,57 @@ test_wake(void)
 	expect("a restart is not ready", ready_as(PG, PG), 0);
 }
 
+/*
+ * The read-select registers its selector in the same critical section as
+ * its queue check. The model delivers an event the moment the level drops;
+ * a section that drops it between check and registration queues the event
+ * with no selector to wake, and the caller then sleeps with an event waiting.
+ */
+static void
+sel_reset(void)
+{
+	sel_registered = sel_woke = sel_inject = sel_tty_calls = sel_depth = 0;
+}
+
+static void
+test_select_race(void)
+{
+	int r;
+
+	begin();
+	picokbd_evq_wakeon();
+	sel_reset();
+	sel_inject = 1;
+	r = picokbd_evq_select(&model_sel, &proc_a, PID_A, PG, PG, F_GAME);
+	expect("the check saw an empty queue", r, 0);
+	expect("the event was queued", (long)picokbd_evq_fill(), 1);
+	expect("the selector was registered", sel_tty_calls, 1);
+	expect("the event woke the registered selector", sel_woke, 1);
+	expect("no lost wakeup", r == 0 && picokbd_evq_fill() > 0 && sel_woke == 0, 0);
+
+	/* An event already waiting is ready and registers nothing. */
+	sel_reset();
+	expect("a waiting event is ready", picokbd_evq_select(&model_sel, &proc_a,
+	    PID_A, PG, PG, F_GAME), 1);
+	expect("no registration when ready", sel_tty_calls, 0);
+
+	/* A drain after the wake leaves nothing ready; the next select registers. */
+	expect("drain", drain_as(&(struct lcd_keyevs){0}, PG, PG, 1), 0);
+	expect("drained queue is not ready", picokbd_evq_select(&model_sel,
+	    &proc_a, PID_A, PG, PG, F_GAME), 0);
+	expect("the drained select registers", sel_tty_calls, 1);
+
+	/* Another process falls to the tty alone. */
+	begin();
+	picokbd_evq_wakeon();
+	ev_in(PICOKBD_PRESSED, 'a');
+	sel_reset();
+	expect("a non-owner is not ready", picokbd_evq_select(&model_sel,
+	    &proc_b, PID_B, PG, PG, F_GAME), 0);
+	expect("a non-owner registers", sel_tty_calls, 1);
+	expect("the level is restored", sel_depth, 0);
+}
+
 int
 main(void)
 {
@@ -1032,6 +1127,7 @@ main(void)
 	test_drain_limit();
 	test_overflow();
 	test_wake();
+	test_select_race();
 	if (failures != 0) {
 		fprintf(stderr, "kbdevq_test: %d failures\n", failures);
 		return 1;

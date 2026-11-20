@@ -163,6 +163,20 @@ picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
 	    pgrp != 0 && pgrp == tty_pgrp;
 }
 
+int
+picokbd_evq_select(const struct picokbd_sel *o, const void *proc, int pid,
+    int pgrp, int tty_pgrp, unsigned tty_flags)
+{
+	int x, r;
+
+	x = o->raise();
+	r = picokbd_evq_ready(proc, pid, pgrp, tty_pgrp, tty_flags);
+	if (!r)
+		r = o->tty();
+	o->restore(x);
+	return r;
+}
+
 void
 picokbd_evq_put(int state, int key)
 {

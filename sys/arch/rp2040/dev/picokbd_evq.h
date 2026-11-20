@@ -127,6 +127,27 @@ int	picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
 	    unsigned tty_flags);
 
 /*
+ * The console's read-select. The queue check and the tty's selector
+ * registration (o->tty()) run in one critical section (o->raise() to
+ * o->restore()), because an event queued between them would find no selector
+ * to wake and the caller would sleep with it waiting. The wake takes the
+ * same level, so it runs before the section or after the registration; a
+ * drain runs at that level from an ioctl and cannot interleave, and a
+ * selector left registered when select returns ready is harmless, since
+ * selwakeup() on a process that is not asleep in select clears its flag only.
+ * Two selectors share t_rsel and TS_RCOLL as ttyselect() leaves them, and
+ * picokbd_evq_wake() hands both to selwakeup().
+ */
+struct picokbd_sel {
+	int	(*raise)(void);		/* Block the wake; returns the old level. */
+	void	(*restore)(int);
+	int	(*tty)(void);		/* ttyselect(): ready, else register. */
+};
+
+int	picokbd_evq_select(const struct picokbd_sel *o, const void *proc,
+	    int pid, int pgrp, int tty_pgrp, unsigned tty_flags);
+
+/*
  * Supplied by the console: wake the processes selecting on it. Called from
  * picokbd_evq_put() after each event a readiness-on session records.
  */

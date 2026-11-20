@@ -503,20 +503,37 @@ lcdwrite(dev_t dev, struct uio *uio, int flag)
  * wakes the selector the tty recorded. Any other session, caller or
  * descriptor sees the tty queue alone.
  */
+static int
+lcd_sel_raise(void)
+{
+	return spltty();
+}
+
+static void
+lcd_sel_restore(int x)
+{
+	splx(x);
+}
+
+static int
+lcd_sel_tty(void)
+{
+	return ttyselect(&lcdttys[0], FREAD);
+}
+
+static const struct picokbd_sel lcd_sel = {
+	lcd_sel_raise, lcd_sel_restore, lcd_sel_tty
+};
+
 int
 lcdselect(dev_t dev, int rw)
 {
-	int x, ready = 0;
-
 	if (minor(dev) == LCDGFX_MINOR)
 		return 1;		/* Always ready. */
-	if (rw == FREAD) {
-		x = spltty();
-		ready = picokbd_evq_ready(u.u_procp, u.u_procp->p_pid,
-		    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, lcdttys[0].t_flags);
-		splx(x);
-	}
-	return ready || ttyselect(&lcdttys[0], rw);
+	if (rw != FREAD)
+		return ttyselect(&lcdttys[0], rw);
+	return picokbd_evq_select(&lcd_sel, u.u_procp, u.u_procp->p_pid,
+	    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, lcdttys[0].t_flags);
 }
 
 void

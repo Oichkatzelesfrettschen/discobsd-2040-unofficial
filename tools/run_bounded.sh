@@ -40,8 +40,11 @@
 # to its own end. MUTANT_TIMEOUT seconds (default 120; the slowest passing
 # sanitizer test of tests/picocalc runs in under one second) end the command,
 # with a kill one second after the first signal. Exit status: the command's
-# own status, or 124 when the time bound ended it. A caller treats 124 as "no
-# verdict" and any other failing status as the mutant being rejected. The time bound is timeout(1), or gtimeout(1) where coreutils
+# own status; 124 when the time bound ended it; 125 when the run could not
+# happen (a bad bound, no timeout(1), a command that timeout(1) could not start,
+# which it reports as 125, 126 or 127). A caller treats 124 and 125 as "no
+# verdict" and any other failing status as the mutant being rejected, so a
+# missing tool never turns into a rejection. The time bound is timeout(1), or gtimeout(1) where coreutils
 # installs that name.
 set -eu
 
@@ -61,13 +64,13 @@ run() {
 	case $secs:$cap in
 	*[!0-9:]* | :* | *: | 0:* | *:0)
 		echo "run_bounded.sh: MUTANT_TIMEOUT and MUTANT_OUTPUT_BYTES are positive integers" >&2
-		exit 2
+		exit 125
 		;;
 	esac
 	bound=$(bound_command)
 	if [ -z "$bound" ]; then
 		echo "run_bounded.sh: timeout(1) from coreutils is required" >&2
-		exit 2
+		exit 125
 	fi
 	status="$out.status"
 	: >"$status"
@@ -89,6 +92,7 @@ run() {
 	fi
 	case $rc in
 	137) return 124 ;;
+	125 | 126 | 127) return 125 ;;
 	esac
 	return "$rc"
 }
@@ -142,6 +146,7 @@ scenarios() {
 	export MUTANT_TIMEOUT=1 MUTANT_OUTPUT_BYTES=4096
 	try passing 0 - true || return 1
 	try failing 3 - sh -c 'echo diagnostic; exit 3' || return 1
+	try unrunnable 125 - /nonexistent/run-bounded-command || return 1
 	try sleeping 124 - sleep 4 || return 1
 	# A command that ignores TERM and spins for 6 s: the 1 s bound plus the 1 s
 	# kill-after ends it at 2 s; without the kill it runs to 6 s.
@@ -177,7 +182,7 @@ selftest() {
 		echo "run_bounded.sh: selftest: the script fails its own scenarios" >&2
 		exit 1
 	}
-	echo "run_bounded.sh: 8 scenarios pass"
+	echo "run_bounded.sh: 9 scenarios pass"
 	# mutant LABEL SED-EXPRESSION SCENARIO: the copy must fail SCENARIO and no
 	# earlier one, so that a copy that does not run at all (status 127) is not
 	# taken for a rejection.
@@ -206,6 +211,7 @@ selftest() {
 	mutant 'no kill after the first signal' 's/-k 1 //' term-ignoring
 	mutant 'no output bound' 's/head -c "\$((cap + 1))"/cat/' failing-loudly-stdout
 	mutant 'status of the command lost' 's/echo "\$rc" >"\$status"/echo 0 >"$status"/' failing
+	mutant 'a command that did not start taken for its failure' 's/^\t125 | 126 | 127) return 125 ;;$/\t125 | 126 | 127) return "$rc" ;;/' unrunnable
 	mutant 'a failing status taken for a timeout' 's/^\treturn "\$rc"$/\treturn 124/' passing
 	echo "run_bounded.sh: selftest ok"
 	exit 0
@@ -213,13 +219,13 @@ selftest() {
 
 if [ "$#" -eq 0 ]; then
 	echo "usage: run_bounded.sh OUTPUT COMMAND [ARGUMENT...] | --selftest" >&2
-	exit 2
+	exit 125
 fi
 if [ "$1" = --selftest ]; then
 	selftest
 fi
 if [ "$#" -lt 2 ]; then
 	echo "usage: run_bounded.sh OUTPUT COMMAND [ARGUMENT...] | --selftest" >&2
-	exit 2
+	exit 125
 fi
 run "$@"

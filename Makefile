@@ -1621,11 +1621,12 @@ check-license-headers: check-python
 
 # The mutant scripts run a freshly built test through tools/run_bounded.sh,
 # which bounds its wall-clock time and the output it keeps. --selftest runs the
-# script through a passing command, a failing one, a sleeper, a command that
-# ignores the first signal, a loud failure on each stream and an endless flood,
-# and requires five mutants of the script (no time bound, no kill after the
-# first signal, no output bound, a lost status, a failing status taken for a
-# timeout) to fail them. It prints a SKIP without timeout(1).
+# script through a passing command, a failing one, a command that cannot be
+# started, a sleeper, a command that ignores the first signal, a loud failure on
+# each stream and an endless flood, and requires six mutants of the script (no
+# time bound, no kill after the first signal, no output bound, a lost status, a
+# command that did not start taken for its failure, a failing status taken for
+# a timeout) to fail the scenario each targets. It prints a SKIP without timeout(1).
 check-run-bounded:
 		sh tools/run_bounded.sh --selftest
 

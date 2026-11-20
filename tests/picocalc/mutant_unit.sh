@@ -59,9 +59,9 @@ case $rc in
 	echo "mutant_unit.sh: $test_c passed the mutant '$expr' of $file" >&2
 	exit 1
 	;;
-124)
+124 | 125)
 	echo "mutant_unit.sh: $test_c gave no verdict on the mutant '$expr' of $file" \
-	    "(status $rc, the MUTANT_TIMEOUT bound)" >&2
+	    "(status $rc: 124 the MUTANT_TIMEOUT bound, 125 the run could not happen)" >&2
 	exit 3
 	;;
 esac

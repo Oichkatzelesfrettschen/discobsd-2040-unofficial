@@ -38,6 +38,8 @@
 #               bound, "gave no verdict", with the output kept to its bound
 #   loud        a mutant that fails after printing more than the output
 #               bound: exit 0, "mutant rejected", not a no-verdict
+#   runner      a bound the runner cannot accept (MUTANT_TIMEOUT=0), so the
+#               test never runs: exit 3, "gave no verdict", not a rejection
 #
 # A copy of mutant_unit.sh that runs the test directly must not give the
 # looping case its exit 3, which shows the case depends on the bound.
@@ -73,7 +75,7 @@ case_run() {
 	text=$4
 	expr=$5
 	rc=0
-	MUTANT_TIMEOUT=2 MUTANT_OUTPUT_BYTES=4096 \
+	MUTANT_TIMEOUT=$case_timeout MUTANT_OUTPUT_BYTES=4096 \
 	    sh "$script" "$cc" -O0 "$work/dev" "$work/test.c" limit.c "$expr" limit.c \
 	    >"$work/log" 2>&1 || rc=$?
 	if [ "$rc" != "$want" ] || ! grep -F -q -- "$text" "$work/log"; then
@@ -84,6 +86,7 @@ case_run() {
 	return 0
 }
 
+case_timeout=2
 cases() {
 	script=$1
 	status=0
@@ -93,11 +96,14 @@ cases() {
 	case_run "$script" looping 3 'gave no verdict' 's/return 1;/for (;;) { } return 1;/' || status=1
 	case_run "$script" flooding 3 'gave no verdict' 's/return 1;/for (;;) { putchar(65); } return 1;/' || status=1
 	case_run "$script" loud 0 'mutant rejected' 's/return 1;/{ int i; for (i = 0; i < 20000; i++) puts("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"); return 2; }/' || status=1
+	case_timeout=0
+	case_run "$script" runner 3 'gave no verdict' 's/return 1;/return 2;/' || status=1
+	case_timeout=2
 	return "$status"
 }
 
 cases "$here/mutant_unit.sh" || exit 1
-echo "mutant_bounds_test: 6 cases pass"
+echo "mutant_bounds_test: 7 cases pass"
 
 # Known-bad copy: the test runs directly, without the bounds.
 sed -e 's#^sh "\$here/\.\./\.\./tools/run_bounded\.sh" "\$work/output" "\$work/test" || rc=\$?$#"$work/test" >"$work/output" 2>\&1 || rc=$?#' \

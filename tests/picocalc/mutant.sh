@@ -28,8 +28,8 @@ fi
 rc=0
 sh "$here/../../tools/run_bounded.sh" "$work/output" "$work/lcdterm_test" || rc=$?
 case $rc in
-124)
-	echo "mutant.sh: the test on the mutant '$expr' of $file gave no verdict (status $rc, the MUTANT_TIMEOUT bound)" >&2
+124 | 125)
+	echo "mutant.sh: the test on the mutant '$expr' of $file gave no verdict (status $rc: 124 the MUTANT_TIMEOUT bound, 125 the run could not happen)" >&2
 	exit 3
 	;;
 esac

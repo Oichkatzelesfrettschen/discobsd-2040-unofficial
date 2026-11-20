@@ -11,7 +11,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 CFLAGS		+= -std=c17 -pedantic-errors
 
-OBJS		= win.o win_lcdgfx.o lcdfont.o
+OBJS		= win.o win_input.o win_input_dev.o win_lcdgfx.o lcdfont.o
 
 all:		../libwin.a
 
@@ -19,7 +19,8 @@ all:		../libwin.a
 		${AR} cr $@ ${OBJS}
 		$(RANLIB) $@
 
-win.o win_lcdgfx.o: win.h
+win.o win_lcdgfx.o win_input.o win_input_dev.o: win.h
+win_input.o win_input_dev.o:	win_input.h
 win.o:		${TOPSRC}/sys/arch/rp2040/dev/lcdfont.h
 
 lcdfont.o:	${TOPSRC}/sys/arch/rp2040/dev/lcdfont.c

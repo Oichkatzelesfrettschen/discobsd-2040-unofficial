@@ -3410,7 +3410,9 @@ own region and stamps its UF2 for the PicoCalc. The full configuration's
 options and devices are checked by `check-config-generated-sync`.
 
 `check-renode-picocalc-sd-system` builds the expanded kernel and card
-filesystem. Its unstamped UF2 boots with the foreign flash interval
+filesystem. A host fixture builds and checks a 1 MiB SD root and verifies
+that symbolic links at each staging rewrite boundary leave the last accepted
+image intact. Its unstamped UF2 boots with the foreign flash interval
 starting at 0x10028000, mounts the card, executes the SD installation's
 `cal 2 2000`, checks the separate temporary partition and exercises the
 missing-root panic. The nightly Linux firmware job owns this emulator gate.

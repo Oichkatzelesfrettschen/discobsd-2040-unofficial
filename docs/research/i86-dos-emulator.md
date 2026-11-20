@@ -129,19 +129,35 @@ serial speed.
 
 ## 5. A DOS set for the PicoCalc
 
-`docs/research/i86-dos-emulator/mksvardos.sh` makes a 360 KB SvarDOS boot
-floppy from the first disk of the SvarDOS 360 KB set: kernel, SvarCOM,
-`mem`, `mode`, `more`, the `sved` editor, and a CONFIG.SYS and
-AUTOEXEC.BAT of three lines each. It reports 584 KB free of 640 KB and
-runs resident in 128 page frames (98 pages read back in a session).
+Built, in `docs/research/i86-dos-emulator/`:
 
-To build next: a hard disk image maker (partition table, FAT16 format with
-`sbin/newfs_msdos` or mtools on a host, system files copied in), SvarDOS
-packages unpacked onto it, and settings measured for this machine: BUFFERS
-low (every buffer is guest memory that pages), no disk cache, no EMS or XMS
-driver (there is no memory behind them), FILES at what the applications
-need. SvarDOS's kernel is the EDR-DOS kernel; MS-DOS programs and drivers
-run on it, and an owner-supplied MS-DOS boots as well (5.0 is observed).
+- `mksvardos.sh` makes a 360 KB SvarDOS boot floppy from the first disk of
+  the SvarDOS 360 KB set: kernel, SvarCOM, `mem`, `mode`, `more`, the
+  `sved` editor, and a CONFIG.SYS and AUTOEXEC.BAT of three lines each. It
+  reports 584 KB free of 640 KB and runs resident in 128 page frames (98
+  pages read back in a session).
+- `mkdosdisk.sh` makes a bootable SvarDOS hard disk image of 2 to 500 MB:
+  one FAT partition formatted by mtools, the partition sector of
+  `mbr.asm`, and the system placed by SvarDOS's own `SYS C:` run inside a
+  host build of the emulator. It ends by booting the image and requiring
+  the shell's banner. Observed on the host, 2026-11-20: 16 MB (FAT12) and
+  40 MB (FAT16) images boot on the 80286 model and list their directory.
+  `mbr.asm` exists because the partition sector SvarDOS ships uses 80386
+  instructions, which stop an 80286.
+
+The settings follow from the machine: BUFFERS=4 and a small environment,
+because every such byte is guest memory the emulator pages; no memory
+manager, disk cache, EMS or XMS driver, because no memory exists above
+640 KB. SvarDOS's kernel is the EDR-DOS kernel; MS-DOS programs and
+drivers run on it, and an owner-supplied MS-DOS boots as well (5.0 is
+observed).
+
+To build next: SvarDOS packages unpacked onto the disk image (its `pkg`
+tool reads a package file from the disk, so a set of `.svp` files copied
+in by `mkdosdisk.sh` and installed by a key script is the route), and a
+measured choice of BUFFERS and FILES against page traffic. The images
+are built on a host and copied to the card; the board has no nasm or
+mtools, though `i86` itself runs `FORMAT` and `SYS` there.
 
 ## 6. Protected mode
 

@@ -99,7 +99,16 @@ MUTANTS = [
     ("pc.c", "c->ip -= 3;\n\t\t\t\tc->fl |= F_IF;", "c->ip -= 3;"),
     ("pc.c", "if (key_eof)\n\t\t\thost_exit(0);\n\t\tpc_idle = 1;", "pc_idle = 1;"),
     ("pc.c", "(cf.keys != NULL || key_eof))", "cf.keys != NULL)"),
-    ("mem.c", "\t\tstore_unname();\n\t}", "\t\t(void)store_unname;\n\t}"),
+    (
+        "mem.c",
+        "if (store_unname() != 0)\n\t\t\tgoto fail;",
+        "(void)store_unname;\n\t\tif (0)\n\t\t\tgoto fail;",
+    ),
+    (
+        "mem.c",
+        "memcpy(dir, store_path, n);\n\tdir[n] = '\\0';",
+        "memcpy(dir, store_path, n > 63 ? 63 : n);\n\tdir[n > 63 ? 63 : n] = '\\0';",
+    ),
     (
         "mem.c",
         "named.st_dev == held.st_dev && named.st_ino == held.st_ino)",
@@ -357,6 +366,20 @@ def test_endings(binary, work):
     """Every way out removes the page file and reports itself."""
     image = os.path.join(work, "run.img")
     shutil.copyfile(os.path.join(work, "guest.img"), image)
+    # A page file deep in a long directory path pages and leaves nothing.
+    deep = os.path.join(work, "d" * 70, "e" * 70)
+    os.makedirs(deep)
+    done = subprocess.run(
+        [binary, "-q", "-T", "-f", "8", "-s", os.path.join(deep, "page"), "-a", image, "-k", KEYS],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    if done.returncode != 0 or os.listdir(deep):
+        raise Failure(
+            "page file in a long path: exit %d, left %r" % (done.returncode, os.listdir(deep))
+        )
+    shutil.rmtree(os.path.join(work, "d" * 70))
     # A page file path that exists is refused and left as it was.
     store = os.path.join(work, "occupied")
     with open(store, "w") as handle:

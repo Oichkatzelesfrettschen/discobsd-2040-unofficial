@@ -188,7 +188,9 @@ the default page file
 Exit status 0 when the user or the end of
 .I keys
 ends the session, 1 when no image boots, 2 for a usage error or an
-unusable image, 3 when the page file cannot be written or read back, and
+unusable image, 3 when the page file cannot be written or read back, 4
+when the 80186 or 80286 meets an instruction it does not have and the
+guest has installed no handler for it (the address is printed), and
 128 plus the signal number when an interrupt, hangup or termination signal
 ends it.
 In every case the terminal mode is restored and the page file removed.

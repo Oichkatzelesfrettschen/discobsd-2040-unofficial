@@ -97,6 +97,8 @@ TAIL = [
 ]
 
 MUTANTS = [
+    ("pc.c", "host_exit(4);", "host_exit(0);"),
+    ("pc.c", "mem_rw((sp + 2) & (MEM_SIZE - 1)),", "mem_rw((sp + 4) & (MEM_SIZE - 1)),"),
     ("cpu.c", "(d.reg == 7 || (!w && d.reg > 1))", "(d.reg == 7 && !w)"),
     ("cpu.c", "if (c->model != I86_8086 && (d.reg == 7", "if (c->model == I86_286 && (d.reg == 7"),
     ("pc.c", "p[4] = (uint8_t)spt;", ";"),
@@ -390,6 +392,23 @@ def test_endings(binary, work):
             raise Failure("signal: the emulator ignores SIGTERM") from None
     if status != 128 + signal.SIGTERM or os.path.exists(store):
         raise Failure("signal: exit %d, page file left: %s" % (status, os.path.exists(store)))
+    # An invalid opcode with no guest handler ends the session and names
+    # the instruction; returning would run it again without end.
+    bad = os.path.join(work, "bad.img")
+    with open(bad, "wb") as handle:
+        handle.write(b"\x0f\x0b" + bytes(508) + b"\x55\xaa")
+        handle.truncate(360 * 1024)
+    try:
+        done = subprocess.run(
+            [binary, "-q", "-T", "-c", "286", "-s", store, "-a", bad, "-k", KEYS],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("invalid opcode: the emulator runs on") from None
+    if done.returncode != 4 or b"undefined instruction at 0000:7C00" not in done.stderr:
+        raise Failure("invalid opcode: exit %d, said %r" % (done.returncode, done.stderr))
     # A reader that closes the output: the session ends on SIGPIPE through
     # the same exit, so no page file stays.
     with subprocess.Popen(

@@ -1321,6 +1321,22 @@ pc_trap(struct i86 *c, unsigned n)
 	case 0x1a:
 		clock_service(c);
 		break;
+	case 0x06:
+		/* An invalid opcode the guest has no handler for. Returning
+		 * would run the same instruction again without end. */
+		if (cf.model != I86_8086) {
+			char msg[64];
+			uint32_t sp = ((uint32_t)c->s[S_SS] << 4) + c->r[R_SP];
+			int len = snprintf(msg, sizeof(msg),
+			    "i86: undefined instruction at %04X:%04X\n",
+			    mem_rw((sp + 2) & (MEM_SIZE - 1)),
+			    mem_rw(sp & (MEM_SIZE - 1)));
+
+			pc_restore(1);
+			(void)!write(2, msg, (size_t)len);
+			host_exit(4);
+		}
+		break;
 	default:
 		if (n < 0x20 && n != 0x1c)
 			TRACE("int", n, c->r[R_AX]);
@@ -1556,6 +1572,8 @@ pc_init(struct i86 *c, const struct pc_config *config)
 void
 pc_restore(int draw)
 {
+	static int restored;
+
 #ifdef I86_TRACE
 	static const uint8_t watched[] = { 8, 9, 0x10, 0x13, 0x15, 0x16, 0x1c };
 	unsigned i;
@@ -1564,8 +1582,9 @@ pc_restore(int draw)
 		if (mem_rw(watched[i] * 4 + 2) != 0xf000)
 			TRACE("hooked", watched[i], mem_rw(watched[i] * 4 + 2));
 #endif
-	if (cf.quiet)
+	if (cf.quiet || restored)
 		return;
+	restored = 1;
 	if (draw)
 		refresh();
 	oputs("\033[0m\033[r\033[?7h\033[26;1H");

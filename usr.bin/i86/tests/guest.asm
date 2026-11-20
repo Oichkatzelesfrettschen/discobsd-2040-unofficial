@@ -365,6 +365,30 @@ main:	; Thirty lines scroll the screen before the results.
 	jae .remapped
 	mov si, m_rbad
 .remapped: call puts
+	; Keys a program puts into the firmware's buffer: fifteen fit, the
+	; sixteenth is refused, and they come back as they went in.
+	xor bx, bx
+	mov di, 16
+.stuff:	mov ah, 5
+	mov cx, 0x1234
+	int 0x16
+	cmp al, 1
+	jne .took
+	inc bx
+.took:	dec di
+	jnz .stuff
+	mov di, 15
+.drain:	xor ax, ax
+	int 0x16
+	cmp ax, 0x1234
+	jne .sbad
+	dec di
+	jnz .drain
+	mov si, m_stuff
+	cmp bx, 1
+	je .stuffed
+.sbad:	mov si, m_sbad
+.stuffed: call puts
 	cli
 	mov word [0x1c * 4], hook
 	mov [0x1c * 4 + 2], cs
@@ -557,6 +581,8 @@ m_ibad2: db " BAD", 0
 m_hook:	db "HOOK OK", 13, 10, 0
 m_remap: db "REMAP OK", 13, 10, 0
 m_rbad:	db "REMAP BAD", 13, 10, 0
+m_stuff: db "STUFF OK", 13, 10, 0
+m_sbad:	db "STUFF BAD", 13, 10, 0
 m_hbad:	db "HOOK BAD", 13, 10, 0
 m_direct: db "DIRECT", 0
 m_vid:	db "VID OK", 13, 10, 0

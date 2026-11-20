@@ -539,19 +539,21 @@ bq_empty(void)
 	return (mem_rw(BDA + 0x1a) == mem_rw(BDA + 0x1c));
 }
 
-static void
+/* Returns 0 when the buffer is full and the key is dropped. */
+static int
 bq_put(unsigned code)
 {
 	unsigned tail = mem_rw(BDA + 0x1c), next = tail + 2;
 
 	if (tail < 0x1e || tail > 0x3c)		/* the guest's own value */
-		return;
+		return (0);
 	if (next == 0x3e)
 		next = 0x1e;
 	if (next == mem_rw(BDA + 0x1a))
-		return;
+		return (0);
 	mem_ww(BDA + tail, code);
 	mem_ww(BDA + 0x1c, next);
+	return (1);
 }
 
 static void
@@ -806,8 +808,9 @@ keyboard(struct i86 *c)
 		c->r[R_AX] = (uint16_t)((c->r[R_AX] & 0xff00) | bda8(0x17));
 		break;
 	case 0x05:
-		bq_put(c->r[R_CX]);
-		c->r[R_AX] &= 0xff00;
+		/* AL reports a full buffer. */
+		c->r[R_AX] = (uint16_t)((c->r[R_AX] & 0xff00) |
+		    !bq_put(c->r[R_CX]));
 		break;
 	default:
 		TRACE("int16", c->r[R_AX] >> 8, c->r[R_AX]);
@@ -883,6 +886,15 @@ is_image(const char *name)
 	    ((name[n - 1] | 0x20) == 'g' || (name[n - 1] | 0x20) == 'a'));
 }
 
+/* A file's name on the terminal: a byte that is not a printing ASCII
+ * character could be a terminal's command, and shows as a question mark. */
+static void
+oname(const char *s)
+{
+	for (; *s; s++)
+		oputc(*s >= 0x20 && *s < 0x7f ? *s : '?');
+}
+
 /* A line typed at the terminal, echoed; Escape gives it up. */
 static unsigned
 menu_line(char *buf, unsigned size)
@@ -920,14 +932,14 @@ static void
 menu(void)
 {
 	static char path[2][96];
-	char name[48], dir[80], full[96];
+	char name[48], dir[96], full[96];
 	const char *slash;
 	struct disk old;
 	struct direct *e;
 	DIR *dp;
 	unsigned i;
 	size_t n;
-	int ch;
+	int ch, known = 1;
 
 	/* One line that fits the 40 columns of the PicoCalc's DOS screen. */
 	oputs("\033[0m\033[2J\033[H"
@@ -945,18 +957,27 @@ menu(void)
 			if (n < sizeof(dir)) {
 				memcpy(dir, disk_path[i], n);
 				dir[n] = '\0';
-			}
+			} else
+				known = 0;
 		}
-		if ((dp = opendir(dir)) != NULL) {
+		if (!known) {
+			/* Another directory's images are not offered in
+			 * place of the ones beside the current image. */
+			oputs("the image's directory name is too long; "
+			    "press a key");
+			oflush();
+			(void)host_getc();
+		} else if ((dp = opendir(dir)) != NULL) {
 			while ((e = readdir(dp)) != NULL)
 				if (is_image(e->d_name)) {
-					oputs(e->d_name);
+					oname(e->d_name);
 					oputs("  ");
 				}
 			closedir(dp);
 		}
-		oputs("\r\nimage: ");
-		if (menu_line(name, sizeof(name)) != 0) {
+		if (known)
+			oputs("\r\nimage: ");
+		if (known && menu_line(name, sizeof(name)) != 0) {
 			if (strchr(name, '/') != NULL)
 				n = (size_t)snprintf(full, sizeof(full), "%s", name);
 			else

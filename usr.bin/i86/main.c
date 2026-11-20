@@ -51,7 +51,10 @@
 #define STEPS	2048		/* instructions between polls of the host */
 
 static struct pc_config cf;
-static int verbose, dump, raw, in_eof, in_tty;
+static int verbose, dump, raw, in_eof;
+#ifndef HOSTBUILD
+static int in_tty;		/* input is a terminal: FIONREAD answers */
+#endif
 static volatile sig_atomic_t caught;
 static unsigned long nsteps;
 #ifdef HOSTBUILD
@@ -310,7 +313,9 @@ main(int argc, char **argv)
 		fprintf(stderr, "i86: no memory for %u page frames\n", frames);
 		return (1);
 	}
+#ifndef HOSTBUILD
 	in_tty = isatty(0);
+#endif
 	mem_failed = store_failed;
 	signal(SIGINT, on_signal);
 	signal(SIGHUP, on_signal);

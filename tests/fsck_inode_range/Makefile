@@ -89,7 +89,8 @@ SCENARIOS.fsutil-namlen-empty=	fsutil-lf-hole
 SCENARIOS.fsutil-namlen-split=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-off=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-trim=	fsutil-lf-last fsutil-lf-pristine
-SCENARIOS.fsutil-reclen-bound=	fsutil-lf-overrun
+SCENARIOS.fsutil-reclen-bound=	fsutil-lf-overrun fsutil-name-overlong \
+				fsutil-name-overrun
 SCENARIOS.fsutil-reach-skip=	fsutil-lf-dir fsutil-lf-deep
 SCENARIOS.fsutil-no-rescan=	fsutil-lf-dir fsutil-lf-deep
 SCENARIOS.fsutil-dotdot-keep=	fsutil-lf-dir fsutil-lf-deep

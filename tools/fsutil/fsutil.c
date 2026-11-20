@@ -939,9 +939,9 @@ int main (int argc, char **argv)
             fprintf (stderr, "%s: cannot open\n", argv[i]);
             return -1;
         }
-        fs_check (&fs);
+        int ok = fs_check (&fs);
         fs_close (&fs);
-        return 0;
+        return ok ? 0 : 1;
     }
 
     if (scan) {

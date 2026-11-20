@@ -358,6 +358,12 @@ source_identity_and_policy_failures_preserve_link_count(void)
     HK_CHECK(source_inode.i_nlink == 1);
 
     reset_fixture();
+    source_inode.i_nlink = USHRT_MAX - 1;
+    call_linkat_beneath(ROOT_DESCRIPTOR, SOURCE_DESCRIPTOR);
+    HK_CHECK(u.u_error == 0);
+    HK_CHECK(source_inode.i_nlink == USHRT_MAX);
+
+    reset_fixture();
     source_inode.i_nlink = USHRT_MAX;
     call_linkat_beneath(ROOT_DESCRIPTOR, SOURCE_DESCRIPTOR);
     HK_CHECK(u.u_error == EMLINK);

@@ -42,6 +42,7 @@ def compile_and_run(
         "-Dconfstr=db_confstr",
         "-Derrno=runtime_limits_errno",
         "-Dstatfs=db_statfs",
+        "-Dfcntl=db_fcntl",
         "-Dfstatfs=db_fstatfs",
         "-Dpathconf=db_pathconf",
         "-Dfpathconf=db_fpathconf",
@@ -68,38 +69,14 @@ def main() -> int:
             source, "return MAXSYMLINKS;", "return MAXSYMLINKS - 1;", "symlink-limit"
         ),
         "device-errno": replace_once(
-            source,
-            "\t\tif (selector == _SC_DEVICE_CONTROL)\n"
-            "\t\t\treturn _POSIX_DEVICE_CONTROL;",
-            "\t\tif (selector == _SC_DEVICE_CONTROL) {\n"
-            "\t\t\terrno = EINVAL;\n"
-            "\t\t\treturn _POSIX_DEVICE_CONTROL;\n"
-            "\t\t}",
-            "device-errno",
+            source, "return _POSIX_DEVICE_CONTROL;",
+            "errno = EINVAL; return _POSIX_DEVICE_CONTROL;", "device-errno",
         ),
-        "invalid-errno": replace_once(
-            source,
-            "\terrno = EINVAL;\n\treturn -1;",
-            "\treturn -1;",
-            "invalid-errno",
-        ),
-        "processor-count": replace_once(
-            source,
-            "\t\tif (selector <= _SC_NPROCESSORS_ONLN)\n\t\t\treturn 1;",
-            "\t\tif (selector <= _SC_NPROCESSORS_ONLN)\n\t\t\treturn 2;",
-            "processor-count",
-        ),
-        "signal-count": replace_once(
-            source,
-            "\t\t\treturn 1L << ((selector - _SC_NPROCESSORS_ONLN) * 5);",
-            "\t\t\treturn 1L << ((selector - _SC_NPROCESSORS_ONLN) * 4);",
-            "signal-count",
-        ),
+        "invalid-errno": replace_once(source, "errno = EINVAL;", "", "invalid-errno"),
+        "processor-count": replace_once(source, "return 1;", "return 2;", "processor-count"),
+        "signal-count": replace_once(source, "return NSIG;", "return NSIG - 1;", "signal-count"),
         "page-size": replace_once(
-            source,
-            "\t\t\treturn 1L << ((selector - _SC_NPROCESSORS_ONLN) * 5);",
-            "\t\t\treturn selector == _SC_PAGESIZE ? DEV_BSIZE / 2 : NSIG;",
-            "page-size",
+            source, "return DEV_BSIZE;", "return DEV_BSIZE / 2;", "page-size",
         ),
     }
 

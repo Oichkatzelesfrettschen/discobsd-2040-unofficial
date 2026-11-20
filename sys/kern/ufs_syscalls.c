@@ -1447,12 +1447,10 @@ rename(void)
          * parent we don't fool with the link count.
          */
         if (doingdirectory && newparent) {
-#ifdef V7FS
             if (FS_LINKS_FULL(dp)) {
                 error = EMLINK;
                 goto bad;
             }
-#endif
             dp->i_nlink++;
             dp->i_flag |= ICHG;
             error = iupdat(dp, &time, &time, 1);

@@ -47,6 +47,9 @@ check_value()
 	test ! -s err || exit 1
 }
 
+check_value 25 CHILD_MAX
+check_value 65535 LINK_MAX .
+check_value 4096 PIPE_BUF .
 check_value 5120 ARG_MAX
 check_value 16 NGROUPS_MAX
 check_value 30 OPEN_MAX
@@ -56,6 +59,7 @@ check_value 1 NPROCESSORS_ONLN
 check_value 1024 PAGESIZE
 check_value 1024 PAGE_SIZE
 /usr/tests/rp2040/pathlimit || exit 1
+/usr/tests/rp2040/pipebound || exit 1
 check_value 63 NAME_MAX .
 check_value 8 -- SYMLOOP_MAX
 check_value undefined _POSIX_DEVICE_CONTROL

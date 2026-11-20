@@ -28,13 +28,19 @@
 
 #include <sys/param.h>
 #include <sys/dir.h>
+#include <sys/fs.h>
 #include <sys/mount.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 static long
-name_limit(const struct statfs *mount_info)
+mount_limit(const struct statfs *mount_info, int name)
 {
+	if (name == _PC_PIPE_BUF)
+		return PIPE_BUF;
+	if (name == _PC_LINK_MAX)
+		return (mount_info->f_flags & MNT_V7) ? V7_LINK_MAX : NATIVE_LINK_MAX;
 	return (mount_info->f_flags & MNT_V7) ? V7_NAMELEN : MAXNAMLEN;
 }
 
@@ -43,7 +49,7 @@ pathconf(const char *path, int name)
 {
 	struct statfs mount_info;
 
-	if (name != _PC_NAME_MAX) {
+	if (name != _PC_NAME_MAX && name != _PC_LINK_MAX && name != _PC_PIPE_BUF) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -53,7 +59,7 @@ pathconf(const char *path, int name)
 	}
 	if (statfs(path, &mount_info) == -1)
 		return -1;
-	return name_limit(&mount_info);
+	return mount_limit(&mount_info, name);
 }
 
 long
@@ -61,11 +67,13 @@ fpathconf(int fd, int name)
 {
 	struct statfs mount_info;
 
-	if (name != _PC_NAME_MAX) {
+	if (name == _PC_PIPE_BUF)
+		return fcntl(fd, F_GETFD, 0) < 0 ? -1 : PIPE_BUF;
+	if (name != _PC_NAME_MAX && name != _PC_LINK_MAX) {
 		errno = EINVAL;
 		return -1;
 	}
 	if (fstatfs(fd, &mount_info) == -1)
 		return -1;
-	return name_limit(&mount_info);
+	return mount_limit(&mount_info, name);
 }

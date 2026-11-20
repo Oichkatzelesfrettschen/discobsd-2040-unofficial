@@ -38,46 +38,44 @@
 #include <errno.h>
 #include <unistd.h>
 
-_Static_assert(NSIG == 1 << 5, "sysconf signal encoding must match NSIG");
-_Static_assert(DEV_BSIZE == 1 << 10,
-    "sysconf page-size encoding must match DEV_BSIZE");
+/* A supported option can return -1 while preserving errno. */
+enum { UNKNOWN_SELECTOR = -2 };
+
+static long
+constant_limit(int name)
+{
+	switch (name) {
+	case _SC_ARG_MAX: return ARG_MAX;
+	case _SC_CLK_TCK: return CLK_TCK;
+	case _SC_NGROUPS_MAX: return NGROUPS_MAX;
+	case _SC_OPEN_MAX: return OPEN_MAX;
+	case _SC_JOB_CONTROL:
+	case _SC_NPROCESSORS_CONF:
+	case _SC_NPROCESSORS_ONLN: return 1;
+	case _SC_NSIG: return NSIG;
+	case _SC_PAGESIZE: return DEV_BSIZE;
+	case _SC_DEVICE_CONTROL: return _POSIX_DEVICE_CONTROL;
+	case _SC_SYMLOOP_MAX: return MAXSYMLINKS;
+	}
+	return UNKNOWN_SELECTOR;
+}
 
 long
 sysconf(int name)
 {
-	unsigned int selector = (unsigned int)name;
+	if (name == _SC_CHILD_MAX) {
+		int mib[2] = { CTL_KERN, KERN_CHILD_MAX };
+		int limit;
+		size_t size = sizeof(limit);
 
-	if (selector <= _SC_OPEN_MAX) {
-		if (selector < _SC_NGROUPS_MAX) {
-			if (selector == _SC_ARG_MAX)
-				return ARG_MAX;
-			if (selector == _SC_CLK_TCK)
-				return CLK_TCK;
-		} else {
-			if (selector == _SC_NGROUPS_MAX)
-				return NGROUPS_MAX;
-			if (selector == _SC_OPEN_MAX)
-				return OPEN_MAX;
-		}
-	} else {
-		if (selector <= _SC_NPROCESSORS_ONLN)
-			return 1;
-		if (selector <= _SC_PAGESIZE)
-			return 1L << ((selector - _SC_NPROCESSORS_ONLN) * 5);
-		if (selector == _SC_DEVICE_CONTROL)
-			return _POSIX_DEVICE_CONTROL;
-		if (selector == _SC_SYMLOOP_MAX)
-			return MAXSYMLINKS;
-		if (selector == _SC_CHILD_MAX) {
-			int mib[2] = { CTL_KERN, KERN_CHILD_MAX };
-			int limit;
-			size_t size = sizeof(limit);
-
-			if (__sysctl(mib, 2, &limit, &size, NULL, 0) < 0)
-				return -1;
-			return limit;
-		}
+		if (__sysctl(mib, 2, &limit, &size, NULL, 0) < 0)
+			return -1;
+		return limit;
 	}
-	errno = EINVAL;
-	return -1;
+	long value = constant_limit(name);
+	if (value == UNKNOWN_SELECTOR) {
+		errno = EINVAL;
+		return -1;
+	}
+	return value;
 }

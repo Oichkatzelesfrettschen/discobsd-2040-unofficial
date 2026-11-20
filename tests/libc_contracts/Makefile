@@ -828,7 +828,7 @@ MKTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-isystem ${TOPSRC}/include ${MKTIME_RENAMES} ${NARROW_TIME}
 
 RUNTIME_LIMITS_RENAMES=	-Dsysconf=db_sysconf -Dconfstr=db_confstr \
-	-Dpathconf=db_pathconf -Dfpathconf=db_fpathconf -Dfstatfs=db_fstatfs -Dstatfs=db_statfs \
+	-Dpathconf=db_pathconf -Dfpathconf=db_fpathconf -Dfstatfs=db_fstatfs -Dstatfs=db_statfs -Dfcntl=db_fcntl \
 	-Derrno=runtime_limits_errno
 RUNTIME_LIMITS_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
 	-Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition \
@@ -1027,13 +1027,13 @@ check-runtime-limits: runtime_limits_test runtime_limits_bad_test
 .endif
 
 check-runtime-limits-cross: runtime_sysconf_target.o runtime_confstr_target.o runtime_pathconf_target.o
-	@test "$$(${GCCPREFIX}-nm -u runtime_pathconf_target.o | awk '{print $$NF}' | sort | xargs)" = "db_fstatfs db_statfs runtime_limits_errno"
+	@test "$$(${GCCPREFIX}-nm -u runtime_pathconf_target.o | awk '{print $$NF}' | sort | xargs)" = "db_fcntl db_fstatfs db_statfs runtime_limits_errno"
 	@test "$$(${GCCPREFIX}-nm -u runtime_sysconf_target.o | wc -l)" -eq 2
 	@${GCCPREFIX}-nm -u runtime_sysconf_target.o | grep -q ' U __sysctl$$'
 	@${GCCPREFIX}-nm -u runtime_sysconf_target.o | grep -q ' U runtime_limits_errno$$'
 	@test "$$(${GCCPREFIX}-nm -u runtime_confstr_target.o | wc -l)" -eq 1
 	@${GCCPREFIX}-nm -u runtime_confstr_target.o | grep -q ' U runtime_limits_errno$$'
-	@echo "sysconf queries the kernel quota; confstr imports errno; pathconf queries mount statistics"
+	@echo "sysconf queries the kernel quota; confstr imports errno; pathconf validates mount and descriptor limits"
 
 runtime_limits_test: runtime_limits_contract_test.c runtime_sysconf.o \
 	runtime_confstr.o ${TARGET_DIR}/pathconf.c

@@ -105,9 +105,7 @@ fs_part_resid(u_int resid, int bshift, daddr_t b)
 /* A value the format's 16-bit owner, group and device fields cannot hold. */
 #define FS_WIDE16(fs, v)        (FS_ISV7(fs) && (u_long)(v) > 0xffff)
 /* The V7 link count is a signed 16-bit field. */
-#define FS_LINK_MAX(fs)         (FS_ISV7(fs) ? 0x7fff : USHRT_MAX)
-#define FS_LINKS_FULL(ip)       (FS_ISV7(INODE_FILESYSTEM(ip)) && \
-        (ip)->i_nlink >= 0x7fff)
+#define FS_LINK_MAX(fs)         (FS_ISV7(fs) ? V7_LINK_MAX : NATIVE_LINK_MAX)
 /*
  * Count one block or inode out of a superblock total. A V7 volume's
  * totals are whatever its writer left, so one that reads 0 stays 0.
@@ -221,8 +219,7 @@ int     v7_dirrw (struct inode *ip, struct uio *uio);
 #define FS_BADADDR(fs, bn)      0
 #define FS_BADINO(fs, ino)      0
 #define FS_WIDE16(fs, v)        0
-#define FS_LINK_MAX(fs)         USHRT_MAX
-#define FS_LINKS_FULL(ip)       0
+#define FS_LINK_MAX(fs)         NATIVE_LINK_MAX
 #define FS_TALLY_DOWN(fs, field) (fs)->field--
 #define FS_ALLOCBN(fs, bp)      dbtofsb((bp)->b_blkno)
 #define FS_REMAP(bap, bp)       ((bap) = (daddr_t *)(bp)->b_addr)
@@ -248,5 +245,7 @@ int     v7_dirrw (struct inode *ip, struct uio *uio);
 #define DIRFOOT(ip, ep)         DIRSIZ(ep)
 
 #endif /* V7FS */
+
+#define FS_LINKS_FULL(ip) ((ip)->i_nlink >= FS_LINK_MAX(INODE_FILESYSTEM(ip)))
 
 #endif /* _SYS_FSGEOM_H_ */

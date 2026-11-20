@@ -3422,7 +3422,7 @@ exec_finish_signal_mutant: exec_elf_admission_test.c \
 
 # The pipe file operation receives exactly two arguments. Exercise the
 # production adapter against observers for read/write direction and I/O flags.
-PIPE_RW_MUTANTS= nonblock sync mount append
+PIPE_RW_MUTANTS= nonblock sync mount append exact-fit split-record
 pipe_rw_function.c: ${TOPSRC}/sys/kern/sys_pipe.c pipe_rw_extract.py exec_elf_admission_extract.py
 	${PYTHON} pipe_rw_extract.py --source ${TOPSRC}/sys/kern/sys_pipe.c --output $@
 
@@ -3445,7 +3445,7 @@ pipe_rw_${mutation}.mutant32.test: pipe_rw_contract.c pipe_rw_${mutation}.mutant
 check-pipe-rw-mutants: ${PIPE_RW_MUTANTS:@mutation@pipe_rw_${mutation}.mutant32.test@}
 	@set -eu; for mutation in ${PIPE_RW_MUTANTS}; do \
 		if ./pipe_rw_$$mutation.mutant32.test; then status=0; else status=$$?; fi; \
-		case $$mutation in nonblock) expected=3 ;; sync|mount) expected=18 ;; append) expected=17 ;; esac; \
+		case $$mutation in nonblock) expected=3 ;; sync|mount) expected=18 ;; append) expected=17 ;; exact-fit) expected=40 ;; split-record) expected=41 ;; esac; \
 		if [ "$$status" -ne "$$expected" ]; then \
 			echo "FAIL pipe I/O $$mutation mutation: exit $$status, expected $$expected" >&2; exit 1; \
 		fi; \

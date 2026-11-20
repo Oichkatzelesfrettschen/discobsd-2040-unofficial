@@ -81,6 +81,8 @@
 #define _POSIX_DEVICE_CONTROL   (-1)
 
 #define _PC_NAME_MAX            1
+#define _PC_LINK_MAX            2
+#define _PC_PIPE_BUF            3
 
 #define _CS_PATH                1
 

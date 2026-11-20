@@ -75,21 +75,27 @@ main(int argc, char **argv)
 	const char *name;
 	size_t i;
 	long value;
-	int result;
+	int result, path_selector = 0;
 
 	if (argc > 1 && strcmp(argv[1], "--") == 0) {
 		argc--;
 		argv++;
 	}
 	if (argc < 2 || argc > 3) {
-		fputs("usage: getconf system_var | getconf NAME_MAX pathname\n", stderr);
+		fputs("usage: getconf system_var | getconf path_var pathname\n", stderr);
 		return 1;
 	}
 	name = argv[1];
-	if (argc == 3 && strcmp(name, "NAME_MAX") == 0) {
+	if (strcmp(name, "NAME_MAX") == 0)
+		path_selector = _PC_NAME_MAX;
+	else if (strcmp(name, "LINK_MAX") == 0)
+		path_selector = _PC_LINK_MAX;
+	else if (strcmp(name, "PIPE_BUF") == 0)
+		path_selector = _PC_PIPE_BUF;
+	if (argc == 3 && path_selector) {
 		errno = 0;
-		value = pathconf(argv[2], _PC_NAME_MAX);
-	} else if (argc == 3 || strcmp(name, "NAME_MAX") == 0) {
+		value = pathconf(argv[2], path_selector);
+	} else if (argc == 3 || path_selector) {
 		fprintf(stderr, "getconf: invalid operand count for %s\n", name);
 		return 1;
 	} else if (strcmp(name, "PATH") == 0) {

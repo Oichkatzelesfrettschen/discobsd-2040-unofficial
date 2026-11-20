@@ -498,7 +498,15 @@ sdclose(dev_t dev, int flag __unused, int mode)
  * the bytes asked for, leaving the memory past them alone. The polled
  * strategy routine runs one request at a time, so one buffer serves.
  */
+#ifdef UARTUSB_ENABLED
+/* usbinit clears DPSRAM before disk attachment. Each transfer fills the
+ * entire sector before consuming it. kern.ldscript reserves its range.
+ */
+_Static_assert(SD_SECTOR == 512, "USB workspace holds one SD sector");
+extern u_char sd_tail[SD_SECTOR];
+#else
 static u_char sd_tail[SD_SECTOR];
+#endif
 
 static int
 sd_tail_io(struct buf *bp, u_int sector, u_char *addr, u_int len)

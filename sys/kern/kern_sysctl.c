@@ -236,6 +236,8 @@ kern_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 		return (sysctl_rdstring(oldp, oldlenp, newp, version));
 	case KERN_MAXINODES:
 		return (sysctl_rdint(oldp, oldlenp, newp, NINODE));
+	case KERN_CHILD_MAX:
+		return (sysctl_rdint(oldp, oldlenp, newp, CHILD_PROC_LIMIT));
 	case KERN_MAXPROC:
 		return (sysctl_rdint(oldp, oldlenp, newp, NPROC));
 	case KERN_MAXFILES:

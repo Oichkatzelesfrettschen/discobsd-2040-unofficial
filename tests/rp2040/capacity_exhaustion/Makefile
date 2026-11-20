@@ -7,7 +7,7 @@
 TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-PROGS=		proctab filetab inotab clistbound
+PROGS=		proctab filetab inotab clistbound uidquota
 HELPER=		captest.o
 
 all:		${PROGS}

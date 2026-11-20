@@ -1,5 +1,6 @@
 #include <sys/param.h>
 #include <sys/mount.h>
+#include <sys/sysctl.h>
 #include <errno.h>
 #include <limits.h>
 #include <paths.h>
@@ -19,6 +20,20 @@ static int failures;
 static const char directory[] = "/mnt";
 static unsigned short mount_flags;
 static int calls;
+static int configured_quota = 25;
+
+int
+__sysctl(int *mib, u_int count, void *value, size_t *size, void *newp, size_t newlen)
+{
+	CHECK(count == 2 && mib[0] == CTL_KERN && mib[1] == KERN_CHILD_MAX);
+	CHECK(*size == sizeof(int) && newp == NULL && newlen == 0);
+	if (configured_quota < 0) {
+		errno = EOPNOTSUPP;
+		return -1;
+	}
+	*(int *)value = configured_quota;
+	return 0;
+}
 
 int
 statfs(const char *path, struct statfs *info)
@@ -195,6 +210,12 @@ main(void)
 	CHECK(_SC_PAGE_SIZE == _SC_PAGESIZE);
 	CHECK(_SC_DEVICE_CONTROL == 11);
 	CHECK(_SC_SYMLOOP_MAX == 12);
+	CHECK(_SC_CHILD_MAX == 13);
+	CHECK(db_sysconf(_SC_CHILD_MAX) == 25);
+	configured_quota = 13;
+	CHECK(db_sysconf(_SC_CHILD_MAX) == 13);
+	configured_quota = -1;
+	CHECK(db_sysconf(_SC_CHILD_MAX) == -1 && runtime_limits_errno == EOPNOTSUPP);
 	CHECK(_POSIX_DEVICE_CONTROL == -1);
 	CHECK(_CS_PATH == 1);
 	check_sysconf();

@@ -302,13 +302,13 @@ def mbr_entry(kind, start, count):
     return struct.pack("<B3sB3sII", 0, b"\0\0\0", kind, b"\0\0\0", start, count)
 
 
-def make_card(path, root_img, p3_type, layout, tmp_entry=False):
+def make_card(path, root_img, p3_type, layout, tmp_entry=False, swap_entry=False):
     root = open(root_img, "rb").read()
     if len(root) % SECTOR:
         raise ValueError("root image is not whole sectors")
     sectors, p3_start = LAYOUTS[layout][:2]
     p3 = (p3_type, p3_start, len(root) // SECTOR)
-    p2 = (0x83, p3_start + p3[2], 2048)
+    p2 = (0xB8 if swap_entry else 0x83, p3_start + p3[2], 2048)
     p1 = (0x0C, 2048, p3_start - 2048)
     if p2[1] + p2[2] > sectors:
         raise ValueError("layout does not hold the root image")
@@ -428,7 +428,8 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
     so the swap size on the PSRAM stays unobserved."""
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
-    capacity = make_card(card, root_img, 0xB7, "tmp", tmp_entry=True)
+    capacity = make_card(card, root_img, 0xB7, "tmp", tmp_entry=True,
+                         swap_entry=start == SD_KERNEL_END)
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
         run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
@@ -477,6 +478,13 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
             cp.KEY_BUDGET_SECONDS,
         )
         if start == SD_KERNEL_END:
+            if not run.saw("swap: sd0b"):
+                run.fail("the account limit probe requires the swap partition on sd0b")
+            run.renode.command('sysbus.i2c1.kbd TypeText "/usr/tests/"')
+            run.advance()
+            run.type_line("rp2040/uidquota")
+            run.wait_until(lambda: run.has_line("uidquota-pass"), "25 processes per real uid",
+                           "fork refusal and recovery with free slots", cp.LOGIN_BUDGET_SECONDS)
             run.renode.command('sysbus.i2c1.kbd TypeText "sh /usr/tests/r"')
             run.advance()
             run.type_line("p2040/confcheck")

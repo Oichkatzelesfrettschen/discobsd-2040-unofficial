@@ -97,7 +97,7 @@ reset(uid_t effective, uid_t real)
 	unsigned i;
 
 	for (i = 0; i < PIDHSZ; i++)
-		pidhash[i] = NULL;
+		pidhash[i] = 0;
 	for (i = 0; i < NPROC; i++)
 		bzero((caddr_t)&proc[i], sizeof proc[i]);
 	bzero((caddr_t)&u, sizeof u);
@@ -124,7 +124,7 @@ reset(uid_t effective, uid_t real)
 
 	for (i = 0; i < 3; i++) {
 		proc[i].p_hash = pidhash[PIDHASH(proc[i].p_pid)];
-		pidhash[PIDHASH(proc[i].p_pid)] = &proc[i];
+		pidhash[PIDHASH(proc[i].p_pid)] = pid_slot(&proc[i]);
 	}
 
 	u.u_procp = &proc[0];

@@ -1028,11 +1028,12 @@ check-runtime-limits: runtime_limits_test runtime_limits_bad_test
 
 check-runtime-limits-cross: runtime_sysconf_target.o runtime_confstr_target.o runtime_pathconf_target.o
 	@test "$$(${GCCPREFIX}-nm -u runtime_pathconf_target.o | awk '{print $$NF}' | sort | xargs)" = "db_fstatfs db_statfs runtime_limits_errno"
-	@test "$$(${GCCPREFIX}-nm -u runtime_sysconf_target.o | wc -l)" -eq 1
+	@test "$$(${GCCPREFIX}-nm -u runtime_sysconf_target.o | wc -l)" -eq 2
+	@${GCCPREFIX}-nm -u runtime_sysconf_target.o | grep -q ' U __sysctl$$'
 	@${GCCPREFIX}-nm -u runtime_sysconf_target.o | grep -q ' U runtime_limits_errno$$'
 	@test "$$(${GCCPREFIX}-nm -u runtime_confstr_target.o | wc -l)" -eq 1
 	@${GCCPREFIX}-nm -u runtime_confstr_target.o | grep -q ' U runtime_limits_errno$$'
-	@echo "sysconf and confstr import errno; pathconf imports errno, statfs and fstatfs"
+	@echo "sysconf queries the kernel quota; confstr imports errno; pathconf queries mount statistics"
 
 runtime_limits_test: runtime_limits_contract_test.c runtime_sysconf.o \
 	runtime_confstr.o ${TARGET_DIR}/pathconf.c

@@ -35,7 +35,7 @@ BOARD_BINS=	getconf/confcheck getconf/pathlimit divtest/divtest exec_hsaout/text
 		tartest/tartest tiledemo/tiledemo user_window/windowtest \
 		fork_refusal/forktest capacity_exhaustion/clistbound \
 		capacity_exhaustion/filetab capacity_exhaustion/inotab \
-		capacity_exhaustion/proctab
+		capacity_exhaustion/proctab capacity_exhaustion/uidquota
 
 install:	all
 		mkdir -p ${DESTDIR}/usr/tests/rp2040

@@ -3874,7 +3874,7 @@ clean:
 
 # Exact production ownership definitions with modeled codec and storage I/O.
 FORK_SWAP_FUNCTIONS= fork_swap_functions.c
-FORK_SWAP_MUTANTS= ignore-reservation-refusal publish-allproc-early \
+FORK_SWAP_MUTANTS= quota-off-by-one quota-zombie-effective ignore-reservation-refusal publish-allproc-early \
     advance-cursor-on-failure allocate-again-on-copy \
     child-sidl-during-copy omit-release-wakeup notify-before-release \
     ignore-copy-owner ignore-copy-state ignore-commit-owner \
@@ -4120,6 +4120,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		if ./fork_swap_$$mutation.mutant.test >$$output 2>&1; then \
 			status=0; else status=$$?; fi; \
 		case $$mutation in \
+		quota-off-by-one|quota-zombie-effective) expected='u.u_error == EAGAIN' ;; \
 		ignore-reservation-refusal) expected='u.u_error == ENOMEM' ;; \
 		publish-allproc-early) expected='allproc == &proc[0]' ;; \
 		advance-cursor-on-failure) expected='swapnext == cursor' ;; \

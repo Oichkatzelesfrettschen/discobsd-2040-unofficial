@@ -30,7 +30,8 @@
 
 struct user u;
 struct proc proc[NPROC];
-struct proc *freeproc, *allproc, *zombproc, *pidhash[PIDHSZ];
+struct proc *freeproc, *allproc, *zombproc;
+uint8_t pidhash[PIDHSZ];
 struct timeval time;
 struct vmrate cnt;
 struct forkstat forkstat;
@@ -589,7 +590,7 @@ reset_fixture(void)
     freeproc = &proc[1];
     freeproc->p_nxt = &proc[2];
     zombproc = NULL;
-    pidhash[PIDHASH(9)] = allproc;
+    pidhash[PIDHASH(9)] = pid_slot(allproc);
     u.u_procp = allproc;
     u.u_cdir = &directory;
     u.u_rdir = &directory;
@@ -663,7 +664,7 @@ recorded_refusals(void)
     struct mapent saved_entries[32];
     struct proc saved_procs[NPROC];
     struct user saved_user;
-    struct proc *saved_hash[PIDHSZ];
+    uint8_t saved_hash[PIDHSZ];
     struct inode saved_directory, saved_text;
     struct file saved_file;
     struct sr_ent saved_slots[NPROC];
@@ -786,7 +787,7 @@ successful_forks(void)
         HK_CHECK(u.u_rval == proc[1].p_pid);
         HK_CHECK(allproc == &proc[1]);
         HK_CHECK(freeproc == &proc[2]);
-        HK_CHECK(pidhash[PIDHASH(proc[1].p_pid)] == &proc[1]);
+        HK_CHECK(pidhash[PIDHASH(proc[1].p_pid)] == pid_slot(&proc[1]));
         HK_CHECK(proc[1].p_stat == SRUN);
         HK_CHECK((proc[1].p_flag & SSWAP) != 0);
         HK_CHECK(proc[1].p_daddr == (use_vfork ? parent_before.p_daddr : 4));
@@ -1274,8 +1275,8 @@ boot_fixture(void)
 
     reset_fixture();
     bzero(entries, sizeof(entries));
-    pidhash[PIDHASH(9)] = NULL;
-    pidhash[PIDHASH(0)] = allproc;
+    pidhash[PIDHASH(9)] = 0;
+    pidhash[PIDHASH(0)] = pid_slot(allproc);
     allproc->p_pid = 0;
     allproc->p_flag = SLOAD | SSYS;
     allproc->p_daddr = allproc->p_saddr = 0;
@@ -1988,7 +1989,7 @@ lost_fork_cases(void)
         HK_CHECK(swap_lost == SWAP_LOST_NEW);
         HK_CHECK(allproc == &proc[0] && proc[0].p_nxt == NULL);
         HK_CHECK(lost_child_slot_free());
-        HK_CHECK(pidhash[PIDHASH(mpid)] != &proc[1]);
+        HK_CHECK(pidhash[PIDHASH(mpid)] != pid_slot(&proc[1]));
         HK_CHECK(descriptor.f_count == 1);
         HK_CHECK(directory.i_count == 2);
         HK_CHECK(text_inode.i_count == 1);
@@ -2020,7 +2021,7 @@ lost_sched_fixture(void)
     proc[1].p_prev = &proc[0].p_nxt;
     proc[1].p_pptr = &proc[0];
     proc[1].p_hash = pidhash[PIDHASH(10)];
-    pidhash[PIDHASH(10)] = &proc[1];
+    pidhash[PIDHASH(10)] = pid_slot(&proc[1]);
     entries[0].m_addr = 4;
     entries[0].m_size = 380;
     HK_CHECK(malloc3_contiguous_next(swapmap,
@@ -2040,7 +2041,7 @@ static int
 lost_zombie(const struct proc *p)
 {
     return p->p_stat == SZOMB && p->p_xstat == SIGKILL &&
-        pidhash[PIDHASH(p->p_pid)] != p;
+        pidhash[PIDHASH(p->p_pid)] != pid_slot(p);
 }
 
 static void
@@ -2113,7 +2114,7 @@ lost_sweep_cases(void)
     proc[2].p_flag = SSYS;
     proc[2].p_pptr = &proc[0];
     proc[2].p_hash = pidhash[PIDHASH(11)];
-    pidhash[PIDHASH(11)] = &proc[2];
+    pidhash[PIDHASH(11)] = pid_slot(&proc[2]);
     swap_lost = SWAP_LOST_NEW;
     lost_sweep_call();
     HK_CHECK(swap_lost == SWAP_LOST_SWEPT);
@@ -2224,7 +2225,7 @@ lost_sweep_cases(void)
     /* init cannot be retired. */
     lost_sched_fixture();
     proc[1].p_pid = 1;
-    pidhash[PIDHASH(1)] = &proc[1];
+    pidhash[PIDHASH(1)] = pid_slot(&proc[1]);
     swap_lost = SWAP_LOST_NEW;
     HK_EXPECT_PANIC("init lost with the swap device", lost_sweep_call);
 }
@@ -2509,6 +2510,44 @@ probe_pool_refusals(void)
 }
 #endif
 
+/* A zombie retains its real owner after its user area is released. */
+static void
+real_uid_quota(void)
+{
+    int i;
+    const uid_t owner = 70001;
+
+    reset_fixture();
+    u.u_uid = 42;
+    u.u_ruid = owner;
+    for (i = 0; i < CHILD_PROC_LIMIT - 1; i++) {
+        proc[i].p_uid = 43;
+        proc[i].p_ruid = owner;
+        proc[i].p_nxt = &proc[i + 1];
+    }
+    proc[i - 1].p_nxt = NULL;
+    zombproc = &proc[i++];
+    zombproc->p_ruid = owner;
+    zombproc->p_stat = SZOMB;
+    freeproc = &proc[i++];
+    freeproc->p_nxt = &proc[i];
+    kernel_fork();
+    HK_CHECK(u.u_error == EAGAIN);
+    /* Below the quota the empty swap map becomes the deciding refusal. */
+    zombproc->p_ruid = owner + 1;
+    u.u_error = 0;
+    kernel_fork();
+    HK_CHECK(u.u_error == ENOMEM);
+
+    reset_fixture();
+    u.u_procp->p_uid = u.u_uid = 42;
+    u.u_procp->p_ruid = u.u_ruid = owner;
+    entries[0].m_addr = 4;
+    entries[0].m_size = 380;
+    kernel_fork();
+    HK_CHECK(u.u_error == 0 && proc[1].p_ruid == owner && proc[1].p_uid == 42);
+}
+
 int
 main(void)
 {
@@ -2562,5 +2601,6 @@ main(void)
 #ifdef SDSWAP_ENABLED
     swap_lost_cases();
 #endif
+    real_uid_quota();
     return hk_verdict("fork swap refusal and reservation");
 }

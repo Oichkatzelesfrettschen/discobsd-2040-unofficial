@@ -45,8 +45,7 @@ char __user_data_end[1];
 /* Above SHRT_MAX: a uid that a 16-bit p_uid stores as a negative value. */
 #define WIDE_UID	40000
 
-/* The real uid fill_from_u() reports for each process, by table index. */
-static uid_t real_uid_of[3];
+
 
 /* The tail of psignal(), which reaches the scheduler; none of it decides
  * authorization, so each entry records that it ran and returns. */
@@ -87,21 +86,6 @@ copyout(const caddr_t from, caddr_t to, u_int nbytes)
 	return 0;
 }
 
-/*
- * The real uid of a process whose u area the kernel would read from swap.
- * cansignal() calls it for the target; the gate answers from its table.
- */
-void
-fill_from_u(struct proc *p, uid_t *ruid, struct tty **ttyp, dev_t *ttyd)
-{
-	if (ruid != NULL)
-		*ruid = real_uid_of[p - proc];
-	if (ttyp != NULL)
-		*ttyp = NULL;
-	if (ttyd != NULL)
-		*ttyd = NODEV;
-}
-
 struct uid_arg {
 	uid_t uid;
 };
@@ -122,7 +106,7 @@ reset(uid_t effective, uid_t saved)
 	unsigned i;
 
 	for (i = 0; i < PIDHSZ; i++)
-		pidhash[i] = NULL;
+		pidhash[i] = 0;
 	for (i = 0; i < NPROC; i++)
 		bzero(&proc[i], sizeof proc[i]);
 	bzero(&u, sizeof u);
@@ -132,7 +116,7 @@ reset(uid_t effective, uid_t saved)
 	proc[0].p_pgrp = SELF_PID;
 	proc[0].p_uid = effective;
 	proc[0].p_stat = SRUN;
-	real_uid_of[0] = REAL_UID;
+	proc[0].p_ruid = REAL_UID;
 
 	proc[1].p_pid = CHILD_PID;
 	proc[1].p_ppid = SELF_PID;
@@ -140,7 +124,7 @@ reset(uid_t effective, uid_t saved)
 	proc[1].p_uid = effective;
 	proc[1].p_pptr = &proc[0];
 	proc[1].p_stat = SRUN;
-	real_uid_of[1] = REAL_UID;
+	proc[1].p_ruid = REAL_UID;
 
 	proc[2].p_pid = OTHER_PID;
 	proc[2].p_ppid = 0;
@@ -148,11 +132,11 @@ reset(uid_t effective, uid_t saved)
 	proc[2].p_uid = OTHER_UID;
 	proc[2].p_pptr = NULL;
 	proc[2].p_stat = SRUN;
-	real_uid_of[2] = OTHER_UID;
+	proc[2].p_ruid = OTHER_UID;
 
 	for (i = 0; i < 3; i++) {
 		proc[i].p_hash = pidhash[PIDHASH(proc[i].p_pid)];
-		pidhash[PIDHASH(proc[i].p_pid)] = &proc[i];
+		pidhash[PIDHASH(proc[i].p_pid)] = pid_slot(&proc[i]);
 		proc[i].p_nxt = i + 1 < 3 ? &proc[i + 1] : NULL;
 	}
 	allproc = &proc[0];
@@ -272,7 +256,7 @@ regain_from_unprivileged(void)
 /*
  * uid_t is u_int, and passwd(5) admits any value it holds, so a uid above
  * SHRT_MAX is legitimate; cansignal() compares p_uid with the real uid it
- * reads from the u area, and a p_uid narrower than uid_t makes the
+ * reads from the process table, and a p_uid narrower than uid_t makes the
  * comparison fail for such a uid in both directions. The caller's
  * effective uid equals the stranger's real uid, then the caller's real
  * uid equals the stranger's effective uid; each alone authorizes kill(2).
@@ -282,7 +266,7 @@ wide_uid(void)
 {
 	reset(WIDE_UID, WIDE_UID);
 	check_identity(WIDE_UID, WIDE_UID);
-	real_uid_of[2] = WIDE_UID;
+	proc[2].p_ruid = WIDE_UID;
 	call_kill(OTHER_PID, SIGUSR1);
 	HK_CHECK(u.u_error == 0);
 	HK_CHECK((proc[2].p_sig & sigmask(SIGUSR1)) != 0);

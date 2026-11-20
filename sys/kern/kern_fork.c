@@ -97,6 +97,7 @@ again:
     child->p_realitick = 0;
     child->p_flag = SLOAD;
     child->p_uid = parent->p_uid;
+    child->p_ruid = u.u_ruid;
     child->p_pgrp = parent->p_pgrp;
     child->p_nice = parent->p_nice;
     child->p_pid = mpid;
@@ -129,10 +130,10 @@ again:
     child->p_wchan = 0;
     child->p_slptime = 0;
     {
-    struct proc **hash = &pidhash [PIDHASH (child->p_pid)];
+    uint8_t *hash = &pidhash [PIDHASH (child->p_pid)];
 
     child->p_hash = *hash;
-    *hash = child;
+    *hash = pid_slot(child);
     }
     /*
      * some shuffling here -- in most UNIX kernels, the allproc assign
@@ -208,10 +209,10 @@ again:
             child->p_tip->i_count--;
         child->p_tip = NULL;
         {
-        struct proc **hash = &pidhash [PIDHASH (child->p_pid)];
+        uint8_t *hash = &pidhash [PIDHASH (child->p_pid)];
 
-        while (*hash != child)
-            hash = &(*hash)->p_hash;
+        while (*hash != pid_slot(child))
+            hash = &pid_proc(*hash)->p_hash;
         *hash = child->p_hash;
         }
         if ((*child->p_prev = child->p_nxt) != NULL)
@@ -285,10 +286,10 @@ fork1 (int isvfork)
     a = 0;
     if (u.u_uid != 0) {
         for (p1 = allproc; p1; p1 = p1->p_nxt)
-            if (p1->p_uid == u.u_uid)
+            if (p1->p_ruid == u.u_ruid)
                 a++;
         for (p1 = zombproc; p1; p1 = p1->p_nxt)
-            if (p1->p_uid == u.u_uid)
+            if (p1->p_ruid == u.u_ruid)
                 a++;
     }
     /*
@@ -301,7 +302,7 @@ fork1 (int isvfork)
     if (p2==NULL)
         log(LOG_ERR, "proc: table full\n");
 
-    if (p2==NULL || (u.u_uid!=0 && (p2->p_nxt == NULL || a>MAXUPRC))) {
+    if (p2==NULL || (u.u_uid!=0 && (p2->p_nxt == NULL || a >= CHILD_PROC_LIMIT))) {
         capacity_note(CAPACITY_PROC, 1);
         u.u_error = EAGAIN;
         return;

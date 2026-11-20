@@ -27,7 +27,7 @@ int hz = 1000, usechz = 1000;
 struct timezone tz;
 struct proc proc[NPROC];
 struct proc *allproc, *freeproc, *zombproc, *qs;
-struct proc *pidhash[PIDHSZ];
+uint8_t pidhash[PIDHSZ];
 struct forkstat forkstat;
 struct inode root_inode;
 

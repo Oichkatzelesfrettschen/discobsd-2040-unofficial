@@ -30,17 +30,14 @@
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "captest.h"
 
-/* Free-run slots of the swap map; SMAPSIZ is 29 on this port. */
-#define MAP_ENTRIES 32
-
 static struct kernel_capacity_stats before, full, after_release, after_recovery;
 static struct kinfo_proc self;
-static struct mapent runs[MAP_ENTRIES];
 
 /*
  * The swap blocks one fork reserves for a copy of this process, by the rule
@@ -78,13 +75,23 @@ static unsigned
 flash_images(unsigned span, unsigned *free_blocks, unsigned *nruns)
 {
     int name[2] = { CTL_VM, VM_SWAPMAP };
-    size_t length = sizeof(runs);
+    struct mapent *runs;
+    size_t length, capacity;
     unsigned index, start, end, images = 0;
 
     *free_blocks = 0;
     *nruns = 0;
-    if (span == 0 || sysctl(name, 2, runs, &length, NULL, 0) < 0)
+    if (span == 0 || sysctl(name, 2, NULL, &capacity, NULL, 0) < 0 ||
+        capacity == 0 || capacity % sizeof(*runs) != 0)
         return 0;
+    runs = malloc(capacity);
+    if (runs == NULL)
+        return 0;
+    length = capacity;
+    if (sysctl(name, 2, runs, &length, NULL, 0) < 0 || length > capacity) {
+        free(runs);
+        return 0;
+    }
     for (index = 0; index < length / sizeof(runs[0]); index++) {
         if (runs[index].m_size == 0)
             break;
@@ -96,6 +103,7 @@ flash_images(unsigned span, unsigned *free_blocks, unsigned *nruns)
         if (end > start)
             images += (end - start) / span;
     }
+    free(runs);
     return images;
 }
 

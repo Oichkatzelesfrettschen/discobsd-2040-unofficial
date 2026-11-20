@@ -49,6 +49,14 @@
  * resume: lcdabandon() ends the open panel transfer, resets the terminal
  * parser and frees the flag, so the report draws from a clean bus.
  *
+ * A kernel built with options LCD_VT has two consoles, ttyv0 (minor 0, the
+ * kernel console and the panic target) and ttyv1 (minor LCDCONS_VT1_MINOR).
+ * One is shown and its tty draws; the other is frozen: its screen state is
+ * parked in lcdterm.c, TS_HIDDEN keeps its start routine and the renderer
+ * from drawing it, and its writers sleep on the tty's own output limit. The
+ * switch key asks and the renderer switches, because the repaint takes about
+ * 200 ms and the key arrives in a callout that runs inside SysTick.
+ *
  * Minor LCDGFX_MINOR of the same character major is /dev/lcdgfx (lcdgfx.c):
  * the entry points below hand that minor to it, and lcdcons_gfx() switches
  * the terminal between text and a pixel program under the drawing flag.
@@ -103,18 +111,37 @@ void *const lcd_render_sp = &lcd_render_stack[LCD_RSTACK_WORDS];
 static char reply[REPLY_RING];
 static u_int reply_head, reply_tail;
 
-/* lcdopen admits one terminal minor and dispatches graphics separately. */
+/* lcdopen admits the terminal minors and dispatches graphics separately. */
+#ifdef LCD_VT
+_Static_assert(LCDCONS_NTTY == 2 && LCDGFX_MINOR == 1 &&
+    LCDCONS_VT1_MINOR == 2, "ttyv0 is minor 0, /dev/lcdgfx 1 and ttyv1 2");
+#else
 _Static_assert(LCDCONS_NTTY == 1 && LCDGFX_MINOR >= LCDCONS_NTTY,
     "the panel console has one tty and a separate graphics minor");
+#endif
 struct tty lcdttys[LCDCONS_NTTY];
 
 /*
  * The tty that holds the panel and the keyboard, and the tty a device's
- * minor names. The console has one tty, so both are lcdttys[0].
+ * minor names. Without LCD_VT the console has one tty, lcdttys[0].
  */
+#ifdef LCD_VT
+static int lcd_shown;		/* Index of the console on the panel. */
+static int lcd_want;		/* Index the switch key asked for. */
+static u_int lcd_unseen;	/* Kernel bytes dropped while ttyv0 is hidden. */
+#define	lcd_unit(dev)	(minor(dev) == LCDCONS_VT1_MINOR)
+#define	lcd_badminor(dev)	(minor(dev) != 0 && !lcd_unit(dev))
+#define	LCD_HELD	(TS_TTSTOP | TS_HIDDEN)
+#define	LCD_NOSTART	(TS_TIMEOUT | TS_BUSY | TS_TTSTOP | TS_HIDDEN)
+#else
 #define	lcd_shown	0
+#define	lcd_unit(dev)	0
+#define	lcd_badminor(dev)	(minor(dev) >= LCDCONS_NTTY)
+#define	LCD_HELD	TS_TTSTOP
+#define	LCD_NOSTART	(TS_TIMEOUT | TS_BUSY | TS_TTSTOP)
+#endif
 #define	LCD_SHOWN	(&lcdttys[lcd_shown])
-#define	lcd_tty(dev)	(&lcdttys[0])
+#define	lcd_tty(dev)	(&lcdttys[lcd_unit(dev)])
 
 static int lcd_ready;
 static int lcd_owned;
@@ -151,6 +178,58 @@ render_pend(void)
 	PC_REG32(NVIC_ISPR) = 1UL << LCD_RENDER_IRQ;
 }
 
+#ifdef LCD_VT
+/*
+ * Show console `to`: freeze the outgoing tty (TS_HIDDEN, and the
+ * output pass it may have started is void), swap the screen states and thaw
+ * the incoming tty. Only TS_HIDDEN changes, so a console the user stopped
+ * stays stopped. The caller holds the drawing flag or is the abandon path,
+ * and repaints; interrupts are masked so a fault never sees half a swap.
+ */
+static void
+lcd_vtexchange(int to)
+{
+	struct tty *out = LCD_SHOWN;
+	int s = splhigh();
+
+	out->t_state = (out->t_state | TS_HIDDEN) & ~TS_BUSY;
+	lcdterm_exchange();
+	lcd_shown = lcd_want = to;
+	lcdttys[to].t_state &= ~TS_HIDDEN;
+	if (to == 0)
+		lcd_unseen = 0;
+	splx(s);
+}
+
+/*
+ * The switch key's request, from the keyboard callout: the renderer does
+ * the work (lcdrender), so the callout neither waits for the drawing flag
+ * nor draws for 200 ms inside SysTick.
+ */
+void
+lcdcons_vtswitch(int to)
+{
+	lcd_want = to;
+	render_pend();
+}
+
+/*
+ * Run in the renderer with the drawing flag held. A key for the console
+ * already shown, or one pressed while /dev/lcdgfx owns the panel or after
+ * the console was abandoned, changes nothing.
+ */
+static void
+lcd_vtswitch(void)
+{
+	if (lcdgfx_isopen() || lcd_abandoned) {
+		lcd_want = lcd_shown;
+		return;
+	}
+	lcd_vtexchange(lcd_want);
+	lcdterm_repaint();
+}
+#endif /* LCD_VT */
+
 /*
  * End an owner that will never resume. Called by arm_fault() for a kernel
  * fault, before it prints, and by the putc path once panic() has run.
@@ -169,7 +248,20 @@ lcdabandon(void)
 		 */
 		if (lcd_owned || lcdgfx_isopen())
 			st7365p_abort();
-		lcdterm_abort();
+#ifdef LCD_VT
+		/*
+		 * The report belongs on ttyv0: bring it back before the reset
+		 * below, so that the reset lands on its state, and paint it
+		 * once the terminal is clean (a pixel program's leave repaints).
+		 */
+		if (lcd_shown != 0) {
+			lcd_vtexchange(0);
+			lcdterm_abort();
+			if (!lcdgfx_isopen())
+				lcdterm_repaint();
+		} else
+#endif
+			lcdterm_abort();
 	}
 	lcd_owned = 0;
 	lcd_abandoned = 1;
@@ -205,6 +297,25 @@ defer_put(int c)
 }
 
 /*
+ * Draw one byte of kernel output on the console. Kernel output belongs to
+ * ttyv0: while another console is shown the byte is counted instead, and
+ * lcd_release() draws the marker that lcd_unseen stands for.
+ */
+#ifdef LCD_VT
+static void
+lcd_vputc(int c)
+{
+	if (lcd_shown != 0) {
+		lcd_unseen++;
+		return;
+	}
+	lcdterm_putc((u_char)c);
+}
+#else
+#define	lcd_vputc(c)	lcdterm_putc((u_char)(c))
+#endif
+
+/*
  * Draw the deferred bytes in order and the cursor, then free the flag. The
  * flag clears only with interrupts masked and the ring seen empty, so a
  * byte an interrupt defers while the cursor draws is drawn too.
@@ -220,17 +331,21 @@ lcd_release(void)
 		if (defer_tail != defer_head) {
 			c = defer[defer_tail++ % DEFER_RING];
 			splx(s);
-			lcdterm_putc((u_char)c);
+			lcd_vputc(c);
 			cursor_drawn = 0;
 		} else if (defer_lost != 0) {
 			defer_lost = 0;
 			splx(s);
 			for (m = lost_marker; *m != '\0'; m++)
-				lcdterm_putc((u_char)*m);
+				lcd_vputc(*m);
 			cursor_drawn = 0;
 		} else if (!cursor_drawn) {
 			splx(s);
 			lcdterm_cursor_show();
+#ifdef LCD_VT
+			if (lcd_unseen != 0)
+				lcdterm_marker();
+#endif
 			cursor_drawn = 1;
 		} else {
 			lcd_owned = 0;
@@ -255,7 +370,7 @@ lcdstart(struct tty *tp)
 {
 	int s = spltty();
 
-	if (tp->t_state & (TS_TIMEOUT | TS_BUSY | TS_TTSTOP)) {
+	if (tp->t_state & LCD_NOSTART) {
 		splx(s);
 		return;
 	}
@@ -340,10 +455,15 @@ lcdrender(void)
 		splx(s);
 		return;
 	}
+#ifdef LCD_VT
+	if (lcd_want != lcd_shown)
+		lcd_vtswitch();
+	tp = LCD_SHOWN;
+#endif
 	t0 = pc_micros();
 	sliced = 0;
 	s = spltty();
-	while (tp->t_outq.c_cc > 0 && (tp->t_state & TS_TTSTOP) == 0) {
+	while (tp->t_outq.c_cc > 0 && (tp->t_state & LCD_HELD) == 0) {
 		if (pc_micros() - t0 >= LCD_RENDER_SLICE_US) {
 			sliced = 1;
 			break;
@@ -450,10 +570,13 @@ int
 lcdopen(dev_t dev, int flag __unused, int mode __unused)
 {
 	struct tty *tp;
+#ifdef LCD_VT
+	int x;
+#endif
 
 	if (minor(dev) == LCDGFX_MINOR)
 		return lcdgfx_open();
-	if (minor(dev) >= LCDCONS_NTTY)
+	if (lcd_badminor(dev))
 		return ENXIO;
 	tp = lcd_tty(dev);
 	if (!lcd_ready)
@@ -464,6 +587,13 @@ lcdopen(dev_t dev, int flag __unused, int mode __unused)
 		ttychars(tp);
 		tp->t_ispeed = tp->t_ospeed = B115200;
 		tp->t_state = TS_ISOPEN | TS_CARR_ON;
+#ifdef LCD_VT
+		/* A console opened while the other is shown starts frozen. */
+		x = spltty();
+		if (tp != LCD_SHOWN)
+			tp->t_state |= TS_HIDDEN;
+		splx(x);
+#endif
 		tp->t_flags = ECHO | CRMOD | CRTBS | CRTERA | CTLECH | CRTKIL;
 		tp->t_winsize.ws_row = LT_ROWS;
 		tp->t_winsize.ws_col = LT_COLS;
@@ -484,6 +614,11 @@ lcdclose(dev_t dev, int flag __unused, int mode __unused)
 	if (minor(dev) == LCDGFX_MINOR)
 		return lcdgfx_close();
 	tp = lcd_tty(dev);
+#ifdef LCD_VT
+	/* Closing a frozen console would wait for a switch that may not come. */
+	if (tp->t_state & TS_HIDDEN)
+		ttyflush(tp, FWRITE);
+#endif
 	ttywflush(tp);
 	ttyclose(tp);
 	return 0;

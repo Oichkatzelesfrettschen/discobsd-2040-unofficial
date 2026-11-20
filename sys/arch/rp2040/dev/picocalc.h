@@ -63,7 +63,17 @@
 
 #include <sys/tty.h>
 
+/*
+ * A PICOCALC_SD kernel (options LCD_VT) has a second console, ttyv1, beside
+ * the kernel console ttyv0 (minor 0): minor 1 is /dev/lcdgfx, so ttyv1 is
+ * minor LCDCONS_VT1_MINOR. One console is shown and the other frozen.
+ */
+#ifdef LCD_VT
+#define	LCDCONS_NTTY	2
+#define	LCDCONS_VT1_MINOR	2
+#else
 #define	LCDCONS_NTTY	1
+#endif
 
 int		lcdopen(dev_t dev, int flag, int mode);
 int		lcdclose(dev_t dev, int flag, int mode);
@@ -75,6 +85,9 @@ void		lcdputc(dev_t dev, char c);
 char		lcdgetc(dev_t dev);
 void		lcdcons_init(void);
 void		lcdabandon(void);
+#ifdef LCD_VT
+void		lcdcons_vtswitch(int to);
+#endif
 u_int		lcdcons_render_stack_free(void);
 
 extern struct tty lcdttys[LCDCONS_NTTY];

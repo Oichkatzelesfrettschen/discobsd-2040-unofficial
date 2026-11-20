@@ -838,6 +838,17 @@ lcdterm_init(void)
 	gfx_active = 0;
 	glyph_defaults();
 	full_reset();
+#ifdef LCD_VT
+	/*
+	 * The frozen console starts as a reset terminal too: reset its state
+	 * in the live struct with the panel primitives off, then swap back.
+	 */
+	lcdterm_exchange();
+	gfx_active = 1;
+	full_reset();
+	gfx_active = 0;
+	lcdterm_exchange();
+#endif
 }
 
 static void
@@ -1047,6 +1058,47 @@ lcdterm_top(void)
 {
 	return lt.top;
 }
+
+#ifdef LCD_VT
+/*
+ * The screen state of the frozen console. lcdterm_exchange() swaps it with
+ * lt word by word, with no third buffer; __may_alias__ lets the unsigned
+ * accesses read and write the struct's int and byte members.
+ */
+typedef unsigned __attribute__((__may_alias__)) lt_word;
+_Static_assert(sizeof(struct lterm) % sizeof(lt_word) == 0,
+    "the exchange moves whole words");
+static struct lterm lt_frozen;
+
+void
+lcdterm_exchange(void)
+{
+	lt_word *a = (lt_word *)&lt, *b = (lt_word *)&lt_frozen, w;
+	unsigned i;
+
+	for (i = 0; i < sizeof(lt) / sizeof(lt_word); i++) {
+		w = a[i];
+		a[i] = b[i];
+		b[i] = w;
+	}
+	cursor_drawn = 0;
+}
+
+void
+lcdterm_marker(void)
+{
+	panel_cell(phys(0), LT_COLS - 1, '!', LT_ATTR(7, 1, 0));
+}
+
+#ifdef LCDTERM_HOST_TEST
+const void *
+lcdterm_state(int frozen, unsigned *size)
+{
+	*size = sizeof(lt);
+	return frozen ? (const void *)&lt_frozen : (const void *)&lt;
+}
+#endif
+#endif /* LCD_VT */
 
 #ifdef LCD_GFX_EXT
 /*

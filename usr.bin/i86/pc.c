@@ -1147,8 +1147,13 @@ pc_poll(struct i86 *c)
 			ticks_due--;
 			c->irq = 8;
 		}
-		if (!(pc_idle || c->halted) || waited || c->irq)
+		if (!(pc_idle || c->halted) || waited ||
+		    (c->irq && (c->fl & F_IF)))
 			break;
+		/* Halted with interrupts off, the guest never runs again.
+		 * A scripted session has nothing left to type into it. */
+		if (c->halted && !(c->fl & F_IF) && cf.keys != NULL)
+			host_exit(0);
 		/* The guest waits for a key or an interrupt. */
 		refresh();
 		if (!cf.fixed_clock)

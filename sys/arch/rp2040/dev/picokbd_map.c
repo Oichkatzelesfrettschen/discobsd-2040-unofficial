@@ -21,6 +21,10 @@
  * kP, kN, k1-k;), so termcap programs recognize every key. Enter sends
  * carriage return and Backspace sends DEL, as a terminal does, because the
  * tty layer maps CR to newline and erases on DEL (CERASE in ttychars.h).
+ * Break sends ETX, as Ctrl-C does, so the tty's interrupt character (CINTR
+ * in ttychars.h) handles both and a RAW tty reads both as data. The power
+ * key (0x91) types nothing; picokbd_evq.c records every event for a raw
+ * session before this function sees it.
  */
 
 #include "picokbd_map.h"
@@ -30,6 +34,7 @@
 #define	KEY_ENTER	0x0a
 #define	KEY_MOD_CTRL	0xa5
 #define	KEY_ESC		0xb1
+#define	KEY_BREAK	0xd0		/* Shift+Esc; the firmware's KEY_PAUSE. */
 #define	KEY_LEFT	0xb4
 #define	KEY_UP		0xb5
 #define	KEY_DOWN	0xb6
@@ -110,6 +115,9 @@ picokbd_translate(int state, int key, int appcursor, int *ctrl,
 		return 1;
 	case KEY_ESC:
 		out[0] = '\033';
+		return 1;
+	case KEY_BREAK:
+		out[0] = 0x03;
 		return 1;
 	case KEY_UP:
 		return cursor_key(out, 'A', appcursor);

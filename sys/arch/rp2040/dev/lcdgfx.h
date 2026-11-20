@@ -69,11 +69,16 @@ static inline int lcdgfx_isopen(void) { return 0; }
  */
 int	lcdcons_gfx(int on);
 
+#ifdef LCD_GFX_EXT
 /*
- * Supplied by lcdcons.c, or by the host test: whether the calling process
- * may read the controller's memory (LCDG_READ), which is the superuser.
+ * Supplied by lcdcons.c, or by the host test: whether the opening process
+ * is the superuser by effective uid. The controller's memory holds the
+ * console's screen from before the open, so lcdgfx_open() blanks every line
+ * of it for any other opener before the open returns, and only then may
+ * that opener select and read a rectangle (LCDG_READ).
  */
-int	lcdcons_gfx_reader(void);
+int	lcdcons_gfx_root(void);
+#endif
 
 #ifdef LCD_PANELTEST
 /*

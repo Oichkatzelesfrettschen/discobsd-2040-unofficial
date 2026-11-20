@@ -677,15 +677,18 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
+#ifdef LCD_GFX_EXT
 /*
- * /dev/lcdgfx is open to every user for drawing; the memory it reads back
- * can hold what the console showed to another, so only the superuser reads.
+ * Whether the opener is the superuser, by its effective uid: a set-uid-root
+ * program counts as root. lcdgfx_open() clears the controller's memory for
+ * every other opener, so that what it reads back is what it drew.
  */
 int
-lcdcons_gfx_reader(void)
+lcdcons_gfx_root(void)
 {
 	return u.u_uid == 0;
 }
+#endif
 
 int
 lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)

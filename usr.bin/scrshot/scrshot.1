@@ -16,8 +16,14 @@ reads the controller memory behind the 320 by 320 panel through
 and writes it to
 .Ar file
 one row at a time.
-It needs the superuser, because the memory holds the text console's screen
-from before the open, and a PICOCALC_SD kernel, the one built with
+It captures the text console's screen only as the superuser, because the
+driver blanks the controller's memory when any other user opens the device
+(so that a program reads back only what it drew itself).
+A user other than the superuser therefore receives a blank panel, which is
+all that the session of
+.Nm
+itself drew.
+It needs a PICOCALC_SD kernel, the one built with
 .Dv LCD_GFX_EXT .
 .Pp
 Opening the device takes the panel from the text console but leaves the

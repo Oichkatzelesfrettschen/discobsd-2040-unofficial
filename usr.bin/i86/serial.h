@@ -48,7 +48,8 @@ void ser_poll(unsigned long now);
 int ser_line(void);
 /* One movement in mickeys (right and down positive, each within -128 to
  * 127) with the buttons held. The mouse sends nothing while it has no
- * power, and a report that would not fit whole is dropped. */
+ * power. A report that would not fit whole is dropped and its buttons
+ * are sent again once a report fits. */
 void mouse_report(int dx, int dy, unsigned buttons);
 
 #endif

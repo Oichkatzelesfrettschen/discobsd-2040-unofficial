@@ -317,6 +317,7 @@ MUTANTS = [
         "\t\tpc_out(c, (port + 1) & 0xffff, v >> 8 & 0xff, 0);",
         "\t\t(void)c;",
     ),
+    ("serial.c", "\tif (QN - qn < 3)\n\t\tbehind = 1;", "\tif (QN - qn < 3)\n\t\tbehind = 0;"),
 ]
 
 
@@ -846,13 +847,16 @@ def test_mouse(binary, work):
         (b"p:L.:00:00", RIGHT),
         (b"p:L.:08:00", b"{"),
         (b"p:..:00:00", RIGHT * 4),
-        (b"p:..:40:00", b"\x1c"),
+        (b"p:..:40:00", RIGHT * 15 + b"["),
+        (b"p:L.:00:00", b"\x1c"),
         (b"", b"["),
         (b"k:1A5B", b"\x1d"),
         (b"quit", b"q"),
     ]
     seen, status, restored = menu_session(binary, work, image, steps)
-    plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
+    # The guest's output up to the menu; the screen drawn again after it
+    # repeats lines and could stand in for missing ones.
+    plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen).split(b"i86: q quit")[0]
     want = [
         # COM1 in the data area, the UART's registers, the identification
         # a byte time after the power and held back until OUT2.
@@ -865,8 +869,8 @@ def test_mouse(binary, work):
         b"lsr:60",
         b"lsr:61",
         b"irqs:00",
-        b"irqs:01",
         b"word:600B",
+        b"irqs:01",
         b"iir:04",
         b"id:4D",
         b"ready",
@@ -890,6 +894,10 @@ def test_mouse(binary, work):
         b"p:..:10:00",
         b"p:..:20:00",
         b"p:..:40:00",
+        # Fifteen arrows fill the sixteen reports the mouse holds; the
+        # click's release does not fit and is sent once one fits.
+        b"p:L.:00:00",
+        b"p:..:00:00",
         b"k:1A5B:",
     ]
     at = 0

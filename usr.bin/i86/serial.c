@@ -46,8 +46,11 @@
  * low six bits of X and of Y. The bytes arrive one byte time apart, 7.5 ms
  * at the 1200 bit/s of the protocol, rounded up, and a byte waits in the
  * receive register until the guest reads it, so the stream never loses a
- * byte and stays aligned on reports. The divisor and the line format are
- * kept and not checked.
+ * byte and stays aligned on reports. A report that does not fit in the
+ * sixteen on their way is dropped, and the buttons it carried are sent
+ * again, with no movement, as soon as one fits, so a button never stays
+ * down in the guest after its release was dropped. The divisor and the
+ * line format are kept and not checked.
  */
 #include <stdint.h>
 
@@ -61,6 +64,10 @@ static unsigned qh, qn;
 static uint8_t rbr, ier, lcr, mcr, scr, dll = 0x60, dlm;
 static int ready;			/* the receive register holds a byte */
 static unsigned long now_ms, due;	/* the next byte's earliest time */
+static unsigned buttons_now;		/* the buttons of the last report */
+static int behind;			/* a report was dropped: send them */
+
+static void report(int dx, int dy, unsigned buttons);
 
 static void
 send(const uint8_t *b, unsigned n)
@@ -87,6 +94,10 @@ ser_poll(unsigned long now)
 	qn--;
 	ready = 1;
 	due = now + BYTE_MS;
+	if (behind && QN - qn >= 3) {
+		behind = 0;
+		report(0, 0, buttons_now);
+	}
 }
 
 int
@@ -166,6 +177,7 @@ ser_out(unsigned port, unsigned v)
 		if ((old ^ mcr) & 2) {
 			/* Power off, or on with the identification. */
 			qh = qn = 0;
+			behind = 0;
 			if (mcr & 2)
 				send(&ident, 1);
 		}
@@ -176,17 +188,27 @@ ser_out(unsigned port, unsigned v)
 	}
 }
 
-void
-mouse_report(int dx, int dy, unsigned buttons)
+static void
+report(int dx, int dy, unsigned buttons)
 {
 	uint8_t b[3];
 	unsigned x = (unsigned)dx & 0xff, y = (unsigned)dy & 0xff;
 
-	if (!(mcr & 2) || (mcr & 0x10))
-		return;
 	b[0] = (uint8_t)(0x40 | ((buttons & MOUSE_LEFT) ? 0x20 : 0) |
 	    ((buttons & MOUSE_RIGHT) ? 0x10 : 0) | (y >> 6) << 2 | x >> 6);
 	b[1] = (uint8_t)(x & 0x3f);
 	b[2] = (uint8_t)(y & 0x3f);
 	send(b, 3);
+}
+
+void
+mouse_report(int dx, int dy, unsigned buttons)
+{
+	if (!(mcr & 2) || (mcr & 0x10))
+		return;
+	buttons_now = buttons;
+	if (QN - qn < 3)
+		behind = 1;
+	else
+		report(dx, dy, buttons);
 }

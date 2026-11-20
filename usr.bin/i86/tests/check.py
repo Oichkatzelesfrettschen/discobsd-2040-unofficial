@@ -87,14 +87,27 @@ TAIL = [
     "TICK OK",
     "SPIN OK",
     "KBD OK",
+    "MASK OK",
     "HOOK OK",
     "VID OK",
     "MODE OK",
     "a=1E61 B=3042 1=0231",
+    "IRQ 0882",
     "DONE",
 ]
 
 MUTANTS = [
+    ("pc.c", "kb_put(scan | 0x80, 0);", ";"),
+    ("pc.c", "pic_isr &= (uint8_t)(pic_isr - 1);", "pic_isr &= pic_isr;"),
+    (
+        "pc.c",
+        "c->irq = (pic_irr & ~(unsigned)imask & above) != 0;",
+        "c->irq = (pic_irr & above) != 0;",
+    ),
+    ("pc.c", "flags &= ~(unsigned)mod[i + 1];", "flags &= flags;"),
+    ("pc.c", "if (key & K_SHIFT)\n\t\tkb_put(0x2a, 0);", ";"),
+    ("pc.c", "mem_ww(4 * 9, ROM_OFF + ROM_KEY);", ";"),
+    ("pc.c", "if (kb_n == 0 || kb_full || ((pic_irr | pic_isr) & 2))", "if (kb_n == 0)"),
     ("main.c", "signal(SIGPIPE, on_signal);", ";"),
     (
         "main.c",
@@ -103,7 +116,12 @@ MUTANTS = [
     ),
     ("pc.c", "mode = (mode & 0x80) | 3;", "mode = (mode & 0x80) | 7;"),
     ("cpu.c", "if (b == 2)\n\t\t\t\t\ta |= F_IF;", ";"),
-    ("pc.c", "if (ch == 0x1d)\t\t/* Ctrl-]: leave the emulator */\n\t\t\thost_exit(0);", ";"),
+    ("pc.c", "if (cf.quiet)\n\t\t\t\thost_exit(0);\n\t\t\tmenu();", "menu();"),
+    ("pc.c", "disks[i] = old;\n\t\t\t\tdisk_path[i] = slash;", "disk_path[i] = slash;"),
+    ("pc.c", "if (ch == 'q' || ch < 0)\n\t\thost_exit(0);\n\tif (ch == 'a'", "if (ch == 'a'"),
+    ("pc.c", 'if (n) {\n\t\t\t\tn--;\n\t\t\t\toputs("\\b \\b");\n\t\t\t}', ";"),
+    ("pc.c", "(name[n - 3] | 0x20) == 'i'", "(name[n - 3] | 0x20) == 'j'"),
+    ("pc.c", 'memset(shadow, 0, sizeof(shadow));\n\toputs("\\033[2J");', 'oputs("\\033[2J");'),
     ("main.c", "t.c_lflag &= ~(tcflag_t)(ICANON | ECHO | ISIG);", ";"),
     ("main.c", "(void)tcsetattr(0, TCSANOW, &saved);", ";"),
     ("cpu.c", "(fl & F_AF) && c->model != I86_286 ? 0x9f : 0x99;", "(fl & F_AF) ? 0x9f : 0x99;"),
@@ -185,8 +203,8 @@ MUTANTS = [
     ("pc.c", "tx = col + 1 < cols ? (int)col + 1 : -1;", "tx = (int)col + 2;"),
     (
         "pc.c",
-        "return ((unsigned)(p - keys_hi + 2) << 8 | ch);",
-        "return ((unsigned)(p - keys_hi + 3) << 8 | ch);",
+        "return (K_SHIFT | (unsigned)(p - keys_hi + 2) << 8 | ch);",
+        "return (K_SHIFT | (unsigned)(p - keys_hi + 3) << 8 | ch);",
     ),
     ("pc.c", "if (++t >= 0x1800b0) {", "if (t >= 0x1800b0) {"),
     ("pc.c", "mem_ww(4 * 8, ROM_OFF + ROM_TIMER);", ";"),
@@ -407,9 +425,36 @@ def test_endings(binary, work):
 
 def test_interactive(binary, work):
     """The emulator on a terminal: raw mode, keys as they are typed, the
-    display drawn, Control-] to leave, and the terminal mode restored."""
+    display drawn, the Control-] menu and the terminal mode restored. Each
+    step waits for a text on the terminal, then types. The guest answers r
+    by reading its boot sector again and printing the label there with a
+    count, so the steps see a refused image leave the disk in the drive and
+    an accepted one replace it."""
     image = os.path.join(work, "run.img")
     shutil.copyfile(os.path.join(work, "guest.img"), image)
+    with open(image, "rb") as handle:
+        other = bytearray(handle.read())
+    if other[0x1F8:0x1FE] != b"DISK-A":
+        raise Failure("guest image carries no label")
+    other[0x1F8:0x1FE] = b"DISK-B"
+    with open(os.path.join(work, "b.img"), "wb") as handle:
+        handle.write(other)
+    steps = [
+        (b"VID", KEYS.encode()),
+        (b"DONE", b"r"),
+        (b"DISK-A1", b"\x1d"),
+        (b"quit", b"a"),
+        (b"b.img", b""),
+        (b"image:", b"nosuch.img\r"),
+        (b"cannot", b"x"),
+        (b"DISK-A1", b"r"),
+        (b"DISK-A2", b"\x1d"),
+        (b"quit", b"a"),
+        (b"image:", b"b.imx\x7fg\r"),
+        (b"DISK-A2", b"r"),
+        (b"DISK-B3", b"\x1d"),
+        (b"quit", b"q"),
+    ]
     master, slave = pty.openpty()
     before = termios.tcgetattr(slave)
     child = subprocess.Popen(
@@ -419,21 +464,22 @@ def test_interactive(binary, work):
         stderr=subprocess.DEVNULL,
     )
     seen = b""
-    typed = left = False
-    deadline = time.time() + 20
+    at = step = 0
+    deadline = time.time() + 30
     try:
         while time.time() < deadline and child.poll() is None:
             ready, _, _ = select.select([master], [], [], 0.05)
             if ready:
                 seen += os.read(master, 4096)
             plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
-            if not typed and b"VID" in plain:
-                os.write(master, KEYS.encode())
-                typed = True
-            if typed and not left and b"DONE" in plain:
-                os.write(master, b"\x1d")
-                left = True
-        status = child.wait(timeout=5) if child.poll() is None and left else child.poll()
+            while step < len(steps):
+                found = plain.find(steps[step][0], at)
+                if found < 0:
+                    break
+                at = found + len(steps[step][0])
+                os.write(master, steps[step][1])
+                step += 1
+        status = child.wait(timeout=5) if step == len(steps) else None
     except subprocess.TimeoutExpired:
         status = None
     finally:
@@ -444,8 +490,10 @@ def test_interactive(binary, work):
     os.close(master)
     os.close(slave)
     plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
-    if status != 0 or not left:
-        raise Failure("terminal session: exit %r, DONE seen: %s" % (status, left))
+    if step != len(steps):
+        raise Failure("terminal session: %r never appeared" % steps[step][0])
+    if status != 0:
+        raise Failure("terminal session: exit %r" % status)
     if b"1E61" not in plain or b"3042" not in plain or b"0231" not in plain:
         raise Failure("terminal session: typed keys did not arrive")
     if before != after:

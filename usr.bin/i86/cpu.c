@@ -711,9 +711,8 @@ i86_step(struct i86 *c)
 		if (c->inhibit)
 			c->inhibit = 0;
 		else if (c->irq && (c->fl & F_IF)) {
-			unsigned n = c->irq;
+			unsigned n = pc_inta(c);
 
-			c->irq = 0;
 			c->halted = 0;
 			i86_int(c, n);
 		}

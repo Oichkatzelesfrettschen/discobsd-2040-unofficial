@@ -63,7 +63,7 @@ struct i86 {
 	union {
 		struct {
 			uint8_t halted;	 /* HLT executed; an interrupt clears it */
-			uint8_t irq;	 /* pending maskable vector, 0 when none */
+			uint8_t irq;	 /* the interrupt request line */
 			uint8_t inhibit; /* interrupts held off for one instruction */
 			uint8_t unused;
 		};
@@ -80,6 +80,10 @@ void i86_step(struct i86 *c);
  * frame on the stack with the arithmetic flags of c->fl, 2 to do the same
  * with interrupts enabled, 1 to continue with the next instruction. */
 int pc_trap(struct i86 *c, unsigned n);
+/* The acknowledge cycle: the vector of the interrupt the processor takes
+ * when the request line is up and interrupts are enabled. The machine
+ * lowers c->irq when nothing further is pending. */
+unsigned pc_inta(struct i86 *c);
 unsigned pc_in(struct i86 *c, unsigned port, int w);
 void pc_out(struct i86 *c, unsigned port, unsigned v, int w);
 

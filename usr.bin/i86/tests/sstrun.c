@@ -49,6 +49,13 @@ pc_trap(struct i86 *c, unsigned n)
 }
 
 unsigned
+pc_inta(struct i86 *c)
+{
+	c->irq = 0;
+	return (0);
+}
+
+unsigned
 pc_in(struct i86 *c, unsigned port, int w)
 {
 	(void)c;

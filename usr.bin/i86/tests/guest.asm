@@ -58,8 +58,30 @@ start:	cli
 	jmp main
 .bad:	mov si, m_load
 	call puts
+; After the tests: each r typed reads the boot sector of the drive again
+; and prints the six-letter label at its end with a count, so a changed
+; disk shows.
 halt:	xor ah, ah
 	int 0x16
+	cmp al, 'r'
+	jne halt
+	mov ax, 0x0201
+	mov bx, BUF2
+	mov cx, 0x0001
+	mov dh, 0
+	mov dl, [drive]
+	int 0x13
+	jc halt
+	mov si, BUF2 + 0x1f8
+	mov cx, 6
+.label:	lodsb
+	mov ah, 0x0e
+	int 0x10
+	loop .label
+	inc byte [reads]
+	mov al, [reads]
+	mov ah, 0x0e
+	int 0x10
 	jmp halt
 
 puts:	lodsb
@@ -91,9 +113,11 @@ hex4:	push cx
 	ret
 
 drive:	db 0
+reads:	db '0'
 m_load:	db "LOAD BAD", 13, 10, 0
 
-	times 510 - ($ - $$) db 0
+	times 0x1f8 - ($ - $$) db 0
+	db "DISK-A"
 	dw 0xaa55
 
 main:	; Thirty lines scroll the screen before the results.
@@ -286,6 +310,24 @@ main:	; Thirty lines scroll the screen before the results.
 	sti
 	mov si, m_kbd
 	call puts
+	; A masked timer line delivers nothing; unmasked, the tick it held
+	; back arrives.
+	mov al, 1
+	out 0x21, al
+	mov bx, [0x46c]
+	xor cx, cx
+.mask:	loop .mask
+	mov si, m_mkbad
+	cmp bx, [0x46c]
+	jne .masked
+	xor al, al
+	out 0x21, al
+.open:	cmp bx, [0x46c]
+	je .open
+	mov si, m_mask
+.masked: xor al, al
+	out 0x21, al
+	call puts
 	cli
 	mov word [0x1c * 4], hook
 	mov [0x1c * 4 + 2], cs
@@ -303,7 +345,7 @@ main:	; Thirty lines scroll the screen before the results.
 	; the firmware, and read back.
 	mov ax, 0xb800
 	mov es, ax
-	mov di, 4 * 160		; four lines scroll after this
+	mov di, 5 * 160		; five lines scroll after this
 	mov si, m_direct
 	mov ah, 0x1e
 .cell:	lodsb
@@ -318,7 +360,7 @@ main:	; Thirty lines scroll the screen before the results.
 	int 0x10
 	push dx
 	mov ah, 2
-	mov dx, 0x0505
+	mov dx, 0x0605
 	int 0x10
 	mov ax, 0x095a
 	mov bx, 0x004f
@@ -365,7 +407,16 @@ main:	; Thirty lines scroll the screen before the results.
 	mov si, m_mobad
 .mode:	call puts
 
-	; Keyboard: three keys, each echoed with its key code.
+	; Keyboard: three keys, each echoed with its key code. A handler
+	; on vector 9 counts the scan bytes at port 60h on the way.
+	cli
+	mov ax, [9 * 4]
+	mov [old9], ax
+	mov ax, [9 * 4 + 2]
+	mov [old9 + 2], ax
+	mov word [9 * 4], key9
+	mov [9 * 4 + 2], cs
+	sti
 	mov cx, 3
 .key:	xor ah, ah
 	int 0x16
@@ -380,9 +431,36 @@ main:	; Thirty lines scroll the screen before the results.
 	mov ah, 0x0e
 	int 0x10
 	loop .key
-	mov si, m_done
+	; a, Shift with B, 1: eight scan bytes, the last the release of 1;
+	; then no shift flag stays set and nothing stays in service.
+.scans:	hlt
+	cmp byte [nscan], 8
+	jb .scans
+	mov si, m_irq
+	call puts
+	mov ah, [nscan]
+	mov al, [lscan]
+	call hex4
+	mov ah, 2
+	int 0x16
+	mov bl, al
+	mov al, 0x0b
+	out 0x20, al
+	in al, 0x20
+	or al, bl
+	jz .irqok
+	mov si, m_ibad2
+	call puts
+.irqok:	mov si, m_done
 	call puts
 	jmp halt
+
+key9:	push ax
+	in al, 0x60
+	mov [cs:lscan], al
+	inc byte [cs:nscan]
+	pop ax
+	jmp far [cs:old9]
 
 div0:	mov byte [cs:trapped], 1
 	iret
@@ -397,6 +475,9 @@ hook:	push ax
 	iret
 
 top:	dw 0
+old9:	dw 0, 0
+nscan:	db 0
+lscan:	db 0
 trapped: db 0
 count:	dw 0
 hflags:	dw 0
@@ -418,6 +499,10 @@ m_dbad:	db "DISK BAD", 13, 10, 0
 m_tick:	db "TICK OK", 13, 10, 0
 m_spin:	db "SPIN OK", 13, 10, 0
 m_kbd:	db "KBD OK", 13, 10, 0
+m_mask:	db "MASK OK", 13, 10, 0
+m_mkbad: db "MASK BAD", 13, 10, 0
+m_irq:	db 13, 10, "IRQ ", 0
+m_ibad2: db " BAD", 0
 m_hook:	db "HOOK OK", 13, 10, 0
 m_hbad:	db "HOOK BAD", 13, 10, 0
 m_direct: db "DIRECT", 0

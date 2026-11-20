@@ -497,7 +497,7 @@ rejects seven mutants (TESTING.md). That is host arithmetic only.
 
 Board evidence. `mputest guard` carries the readback, coverage, pad,
 caught-fault, slow-descent, tick-retraction and burst probes. On a bare
-Pico (RP2040 B2, PICO kernel `#1 4716` built from this tree, 2026-11-20)
+Pico (PICO kernel `#1 4716` built from this tree, 2026-11-20)
 all thirteen lines read ok and the run ends `GUARD OK (mpu on)`: region 7
 reads back RBAR `0x20003007` and RASR `0x1200fd0f` for a break of
 `0x20003001`; a store at the guard base and at the base after `sbrk(64)`

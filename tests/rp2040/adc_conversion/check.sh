@@ -1,6 +1,8 @@
 #!/bin/sh
 # Host check of the ADC conversions in sys/arch/rp2040/dev/adc.h against
-# the datasheet formula, and of three mutants that must fail it.
+# the datasheet formula and of its input refusals (the pins a board owns,
+# the pins the GPIO device holds, inputs past the sensor), and of seven
+# mutants that must fail it.
 
 set -eu
 
@@ -21,7 +23,8 @@ build()
 {
 	${CC:-cc} -std=c17 -O1 -g -Wall -Wextra -Werror -Wpedantic \
 		-Wstrict-prototypes -Wold-style-definition \
-		-fsanitize=address,undefined -I"$1" -o "$2" \
+		-fsanitize=address,undefined -I"$1" \
+		-I"$topsrc/sys/arch/rp2040/include" -o "$2" \
 		"$topsrc/tests/rp2040/adc_conversion/adc_conversion_test.c"
 }
 run()
@@ -53,3 +56,7 @@ mutant()
 mutant slope 's/1721/1720/g'
 mutant offset 's/- 706000/- 700000/'
 mutant divider 's/raw \* 9900U/raw * 6600U/'
+mutant held-dropped 's/if ((free_pins & pin) == 0)/if ((free_pins \& pin) == 0 \&\& free_pins == 1)/'
+mutant busy-dropped 's/if ((owned_pins & pin) != 0)/if ((owned_pins \& pin) != 0 \&\& owned_pins == 1)/'
+mutant range-dropped 's/if (input > ADC_INPUT_TEMP)/if (input > 5)/'
+mutant pin-base 's/1U << (26 + input)/1U << (25 + input)/'

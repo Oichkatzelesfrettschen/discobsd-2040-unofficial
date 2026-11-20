@@ -926,6 +926,10 @@ prefixed:
 	case 0x8d:
 		modrm(c, &d);
 		UNDEFINED_286(d.mod == 3);
+		/* The earlier processors take a stale address here; this one
+		 * takes none and does nothing. */
+		if (d.mod == 3)
+			break;
 		c->r[d.reg] = d.off;
 		break;
 	case 0x8e:
@@ -1006,6 +1010,8 @@ prefixed:
 	case 0xc4: case 0xc5:
 		modrm(c, &d);
 		UNDEFINED_286(d.mod == 3);
+		if (d.mod == 3)		/* as for 8Dh: no address, no effect */
+			break;
 		a = rd16(c, d.seg, d.off);
 		b = rd16(c, d.seg, d.off + 2);
 		c->r[d.reg] = (uint16_t)a;

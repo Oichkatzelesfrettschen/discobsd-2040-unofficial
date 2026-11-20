@@ -4,6 +4,13 @@ import argparse
 from pathlib import Path
 
 MUTATIONS = {
+    "quota-off-by-one": ("a >= CHILD_PROC_LIMIT", "a > CHILD_PROC_LIMIT"),
+    "quota-zombie-effective": (
+        "for (p1 = zombproc; p1; p1 = p1->p_nxt)\n"
+        "            if (p1->p_ruid == u.u_ruid)",
+        "for (p1 = zombproc; p1; p1 = p1->p_nxt)\n"
+        "            if (p1->p_uid == u.u_uid)",
+    ),
     "ignore-reservation-refusal": (
         "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return -1;",
         "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return 0;",

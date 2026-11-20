@@ -33,6 +33,7 @@
 
 #include <sys/param.h>
 #include <sys/signal.h>
+#include <sys/sysctl.h>
 
 #include <errno.h>
 #include <unistd.h>
@@ -67,6 +68,15 @@ sysconf(int name)
 			return _POSIX_DEVICE_CONTROL;
 		if (selector == _SC_SYMLOOP_MAX)
 			return MAXSYMLINKS;
+		if (selector == _SC_CHILD_MAX) {
+			int mib[2] = { CTL_KERN, KERN_CHILD_MAX };
+			int limit;
+			size_t size = sizeof(limit);
+
+			if (__sysctl(mib, 2, &limit, &size, NULL, 0) < 0)
+				return -1;
+			return limit;
+		}
 	}
 	errno = EINVAL;
 	return -1;

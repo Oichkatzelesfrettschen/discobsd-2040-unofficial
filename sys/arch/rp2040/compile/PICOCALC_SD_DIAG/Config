@@ -56,6 +56,9 @@ options         LCD_VT
 config          unix    root on sd0a
                         swap on fl1
                         dumps on none
+options         "NPROC=32"
+options         "MAXUPRC=25"
+options         "SMAPSIZ=36"
 options         "NFL=2"
 options         "NMOUNT=3"
 options         LINEAR_INODE_CACHE

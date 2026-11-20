@@ -37,6 +37,7 @@ static const struct {
 	int selector;
 } variables[] = {
 	{ "ARG_MAX", _SC_ARG_MAX },
+	{ "CHILD_MAX", _SC_CHILD_MAX },
 	{ "NGROUPS_MAX", _SC_NGROUPS_MAX },
 	{ "OPEN_MAX", _SC_OPEN_MAX },
 	{ "_POSIX_JOB_CONTROL", _SC_JOB_CONTROL },

@@ -75,6 +75,7 @@
 #define _SC_PAGE_SIZE           _SC_PAGESIZE
 #define _SC_DEVICE_CONTROL      11
 #define _SC_SYMLOOP_MAX         12
+#define _SC_CHILD_MAX           13
 
 /* DPUCP-2024 exposes the standard option boundary without claiming it. */
 #define _POSIX_DEVICE_CONTROL   (-1)

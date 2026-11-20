@@ -63,7 +63,7 @@ void
 proc_zombie(struct proc *p, int rv)
 {
     register struct proc *q;
-    struct proc **pp;
+    uint8_t *pp;
     int doingzomb = 0;
 
     if ((*p->p_prev = p->p_nxt) != NULL)        /* off allproc queue */
@@ -74,8 +74,8 @@ proc_zombie(struct proc *p, int rv)
     p->p_prev = &zombproc;
     zombproc = p;
     p->p_stat = SZOMB;
-    for (pp = &pidhash[PIDHASH(p->p_pid)]; *pp; pp = &(*pp)->p_hash)
-        if (*pp == p) {
+    for (pp = &pidhash[PIDHASH(p->p_pid)]; *pp; pp = &pid_proc(*pp)->p_hash)
+        if (*pp == pid_slot(p)) {
             *pp = p->p_hash;
             goto done;
         }

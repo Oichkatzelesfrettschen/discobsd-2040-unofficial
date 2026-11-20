@@ -21,7 +21,8 @@ _Static_assert(__builtin_offsetof(struct proc, p_un.p_alive.P_addr) == P_ADDR_OF
     "P_ADDR_OFFSET in sys/proc_asm.h must equal offsetof(struct proc, p_addr)");
 #endif
 
-struct proc *pidhash[PIDHSZ];
+_Static_assert(NPROC <= UINT8_MAX, "PID slot indices must fit in a byte");
+uint8_t pidhash[PIDHSZ];
 struct proc *freeproc, *zombproc, *allproc, *qs;
 
 /*
@@ -42,11 +43,14 @@ inferior(register struct proc *p)
 struct proc *
 pfind (register int pid)
 {
-    register struct proc *p = pidhash [PIDHASH(pid)];
+    uint8_t slot = pidhash[PIDHASH(pid)];
 
-    for (; p; p = p->p_hash)
+    while (slot != 0) {
+        struct proc *p = pid_proc(slot);
         if (p->p_pid == pid)
-            return (p);
+            return p;
+        slot = p->p_hash;
+    }
     return ((struct proc *)0);
 }
 

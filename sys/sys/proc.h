@@ -25,14 +25,15 @@ struct  proc {
     struct  proc **p_prev;          /* also zombies, and free proc's */
     struct  proc *p_pptr;           /* pointer to process structure of parent */
     /*
-     * The fixed prefix runs from the widest member to the narrowest, which
-     * leaves one pad byte before the union's four-byte alignment.
+     * Both owner IDs remain resident through swap and zombie accounting.
      */
     uid_t   p_uid;                  /* effective uid, at uid_t width: cansignal() compares it with u_ruid */
+    uid_t   p_ruid;                 /* real uid charged for fork admission */
     long    p_sig;                  /* signals pending to this process */
     short   p_flag;
     short   p_pid;                  /* unique process id */
     short   p_ppid;                 /* process id of parent */
+    uint8_t p_hash;                 /* next PID bucket slot plus one, zero ends chain */
     uint8_t p_stat;                 /* SIDL..SSTOP, see below */
 
     /*
@@ -51,7 +52,6 @@ struct  proc {
             char    P_slptime;      /* secs sleeping */
             char    P_ptracesig;    /* used between parent & traced child */
             u_short P_realtick;     /* ITIMER_REAL deadline tick */
-            struct proc *P_hash;    /* hashed based on p_pid */
             long    P_sigmask;      /* current signal mask */
             long    P_sigignore;    /* signals being ignored */
             long    P_sigcatch;     /* signals being caught by user */
@@ -79,7 +79,6 @@ struct  proc {
 #define p_time          p_un.p_alive.P_time
 #define p_nice          p_un.p_alive.P_nice
 #define p_slptime       p_un.p_alive.P_slptime
-#define p_hash          p_un.p_alive.P_hash
 #define p_ptracesig     p_un.p_alive.P_ptracesig
 #define p_sigmask       p_un.p_alive.P_sigmask
 #define p_sigignore     p_un.p_alive.P_sigignore
@@ -118,11 +117,24 @@ struct  proc {
 #define X_FREECORE      1       /* free core space after swap */
 
 #ifdef KERNEL
-extern struct proc *pidhash[PIDHSZ];
+extern uint8_t pidhash[PIDHSZ];
 extern struct   proc proc[];    /* the proc table itself */
 extern struct proc *freeproc, *zombproc, *allproc, *qs;
                                 /* lists of procs in various states */
 extern int nproc;
+
+static inline uint8_t
+pid_slot(const struct proc *p)
+{
+    return (uint8_t)(p - proc + 1);
+}
+
+/* The caller checks the zero end marker before decoding a slot. */
+static inline struct proc *
+pid_proc(uint8_t slot)
+{
+    return &proc[slot - 1];
+}
 
 /*
  * Init the process queues.

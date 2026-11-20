@@ -63,8 +63,8 @@ concurrency facets retain independent deciding witnesses.
 | `strcasecmp()`, `strncasecmp()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/strcasecmp.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/strcasecmp.html), Base; the POSIX locale acts as lowercase conversion followed by byte comparison; Issue 8 requires unchanged `errno` on valid POSIX-locale input | Typed definitions fold ASCII uppercase letters, preserve high bytes and compare unsigned byte values without permanent storage. | The exhaustive 65,536-pair oracle passes under signed and unsigned char at native/ILP32/sanitized widths, including errno and NUL/count boundaries. Four mutations calibrate rejection. `libc-ascii-casefold-contract.md` records the intentional high-byte compatibility change and linked savings; board execution remains open. |
 | `vscanf()`, `vfscanf()`, `vsscanf()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/vscanf.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/vscanf.html), Base | `include/stdio.h` declares all three interfaces; `scanf.o` implements them over `_doscan`, and `vsscanf()` shares the bounded string-stream constructor with `sscanf()` | `check-libc-scanf` executes all three paths at host width, ILP32 and under AddressSanitizer. The Smaller C `t18_stdio` fixture compiles, links and executes `vsscanf()` through the target archive. Board loading and execution remain a separate evidence class. |
 | `getpgrp()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/getpgrp.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/getpgrp.html), Base, signature `pid_t getpgrp(void)` | `include/unistd.h` declares `pid_t getpgrp(void)`. Syscall 81 takes zero arguments and returns the calling process group without a failure path. | `check-libc-host-contracts` binds the function-pointer type and rejects an argument. `check-kernel` executes the current-process result while preserving poisoned argument storage, and `check-kernel-metadata` rejects an argument-bearing syscall 81. |
-| `sysconf()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/sysconf.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/sysconf.html), Base; Issue 8 adds selectors including `_SC_NPROCESSORS_CONF`, `_SC_NPROCESSORS_ONLN`, `_SC_DEVICE_CONTROL` and `_SC_NSIG` | `lib/libc/gen/sysconf.c` implements eleven explicitly named selectors: five inherited limits, the configured and online processor counts, signal count, software page size the unsupported Device Control option and the symlink traversal limit. | `check-libc-runtime-limits` executes every selected value, distinguishes an unsupported option from an invalid selector through `errno`, and rejects six focused mutations; the cross gate proves target compilation and the expected errno import. `_SC_CHILD_MAX` remains absent because `fork1()` counts effective UIDs and tests the per-user ceiling before insertion with a strict greater-than comparison. Every other required selector remains an explicit gap. |
-| `confstr()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/confstr.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/confstr.html), Base; Issue 8 advances `_V6_`/`_V7_` environment names to `_V7_`/`_V8_` | `lib/libc/gen/confstr.c` implements `_CS_PATH` only | `check-libc-runtime-limits` executes length, truncation, termination and unknown-selector behavior for `_CS_PATH`; the cross gate proves target compilation and the expected errno import. Versioned environment strings remain absent. |
+| `sysconf()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/sysconf.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/sysconf.html), Base; Issue 8 adds selectors including `_SC_NPROCESSORS_CONF`, `_SC_NPROCESSORS_ONLN`, `_SC_DEVICE_CONTROL` and `_SC_NSIG` | `lib/libc/gen/sysconf.c` implements twelve explicitly named selectors: five inherited limits, the configured and online processor counts, signal count, software page size the unsupported Device Control option the symlink traversal limit and the per-real-UID process quota. | `check-libc-runtime-limits` executes every selected value, distinguishes an unsupported option from an invalid selector through `errno`, and rejects six focused mutations; the cross gate proves target compilation and the expected syscall and errno imports. The SD quota and the smaller flash profile have distinct runtime values. Every other required selector remains an explicit gap. |
+| `confstr()` | [Issue 7 XSH](https://pubs.opengroup.org/onlinepubs/9699919799/functions/confstr.html) and [Issue 8 XSH](https://pubs.opengroup.org/onlinepubs/9799919799/functions/confstr.html), Base; Issue 8 advances `_V6_`/`_V7_` environment names to `_V7_`/`_V8_` | `lib/libc/gen/confstr.c` implements `_CS_PATH` only | `check-libc-runtime-limits` executes length, truncation, termination and unknown-selector behavior for `_CS_PATH`; the cross gate proves target compilation and the expected syscall and errno imports. Versioned environment strings remain absent. |
 
 The scanner count bound uses `EOVERFLOW=82`. Both editions of
 `<errno.h>` require distinct positive values for `EOVERFLOW` and `ERANGE`;
@@ -111,7 +111,7 @@ the 1,024-byte software page and `_POSIX_DEVICE_CONTROL=-1`, plus
 selectors set `EINVAL`. Six sysconf mutations calibrate those distinctions and
 values. Two pathconf mutations exchange the mount formats and redirect an
 invalid descriptor to a valid descriptor. The cross gate compiles the target objects and verifies their expected
-errno import.
+syscall and errno imports.
 
 The SD installation provides `/usr/bin/getconf` for the supported system
 limits, processor counts, job and device control options, and default utility
@@ -124,16 +124,14 @@ Failed lookups propagate their errno and unknown selectors set `EINVAL`.
 Other pathname variables, programming environments and the full Issue 8
 variable inventory remain open.
 
-`_SC_CHILD_MAX` stays absent. `fork1()` counts `p_uid`, the effective UID, and
-tests `a > MAXUPRC` before creating a child. The admission predicate permits a twenty-first process at `MAXUPRC=20`.
-The PICOCALC_SD ELF gives `proc` 1,600 BSS bytes for sixteen 100-byte
-entries (`arm-none-eabi-nm -S` and `pahole -C proc`). Table exhaustion
-occurs first. Issue 8 XBD limits.h sets the minimum acceptable
-`_POSIX_CHILD_MAX` to 25 processes per real UID. Nine additional slots alone
-cost 900 resident bytes at this layout, before system processes, the
-privileged reserve, credentials or swap capacity enter the budget. A truthful selector
-requires a separate kernel change that defines and enforces the real-UID limit
-without increasing the process-table footprint.
+`sysconf(_SC_CHILD_MAX)` reads the running kernel's `kern.child_max`.
+The PICOCALC_SD configurations set 32 process slots and a quota of 25,
+the Issue 8 minimum. The conventional RP2040 kernel with sixteen slots
+reports 13. The calculation reserves process zero, init and the last slot
+for privileged admission. Other users and swap consumption can exhaust
+resources before an individual account reaches its configured quota.
+Fork counts both live and unreaped processes against their real UID.
+A privileged caller retains the BSD exemption.
 The header defines neither `_POSIX_VERSION`, `_POSIX2_VERSION` nor
 `_XOPEN_VERSION`.
 

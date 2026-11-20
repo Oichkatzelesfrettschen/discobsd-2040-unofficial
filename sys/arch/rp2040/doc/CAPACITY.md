@@ -16,6 +16,29 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 # Compact kernel metadata and capacity evidence
 
+The dedicated PICOCALC_SD and PICOCALC_SD_DIAG kernels configure 32 process
+slots, 36 swap map entries and a per-real-UID process limit of 25. The
+conventional RP2040 configurations retain sixteen slots. Each 100-byte ARM
+process entry keeps both owner IDs in its resident prefix, including after
+exit. A one-byte PID bucket link stores the table index plus one. Zero ends
+the chain. The hash lookup keeps its sixteen buckets and includes only
+published, live processes.
+
+Against the sixteen-slot full SD kernel, the process table adds 1,600 bytes,
+the SwapRAM owner and segment tables add 384 and 128 bytes, and the swap map
+adds 28 bytes. Compact PID buckets release 48 bytes. Link alignment accounts
+for four bytes, bringing the linked BSS increase to 2,096 bytes. The flat
+process window remains 192 KiB. Signal permission checks read the resident
+owner IDs without fetching the target's user area from swap.
+
+On the configured SD image, the Renode PicoCalc boots with 1,020 KiB of
+usable swap on sd0b and a separate /tmp on sd0t. The operator account
+reaches 25 simultaneous processes. The next fork returns EAGAIN with at
+least two table slots free. Every parked child exits cleanly and its parent
+forks and reaps a fresh child. This measurement covers the emulator's SD
+swap path. Physical PSRAM timing and swap capacity for larger child images
+remain separate from this result.
+
 ## Generated metadata representations
 
 `sys/kern/syscalls.master` is the single authority for syscall numbers,

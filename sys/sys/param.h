@@ -26,7 +26,11 @@
 #define NMOUNT      2       /* number of mountable file systems */
 #endif
 
-#define MAXUPRC     20      /* max processes per user */
+#ifndef MAXUPRC
+#define MAXUPRC     20      /* max processes per real uid */
+#endif
+/* Slot zero, init and the final privileged fork slot are outside this quota. */
+#define CHILD_PROC_LIMIT ((NPROC - 3 < MAXUPRC) ? NPROC - 3 : MAXUPRC)
 #define NOFILE      OPEN_MAX        /* max open files per process */
 #define NCARGS      ARG_MAX         /* # characters in exec arglist */
 #define NGROUPS     NGROUPS_MAX     /* max number groups */

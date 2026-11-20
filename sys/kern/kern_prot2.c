@@ -67,6 +67,7 @@ setuid(void)
     /* Admission is complete; the credential assignments cannot fail. */
     u.u_procp->p_uid = requested_uid;
     u.u_uid = requested_uid;
+    u.u_procp->p_ruid = requested_uid;
     u.u_ruid = requested_uid;
     u.u_svuid = requested_uid;
     u.u_error = 0;

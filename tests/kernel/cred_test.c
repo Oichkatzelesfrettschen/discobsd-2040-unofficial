@@ -31,7 +31,7 @@ struct proc proc[NPROC];
 /* Identities the scenarios below use. Root is uid 0 by definition. */
 #define SELF_PID	17
 #define CHILD_PID	18
-#define OTHER_PID	19
+#define OTHER_PID	(SELF_PID + PIDHSZ)
 #define REAL_UID	1000
 #define OTHER_UID	1001
 #define SAVED_UID	1002
@@ -107,7 +107,7 @@ reset(uid_t effective, uid_t real)
 	unsigned i;
 
 	for (i = 0; i < PIDHSZ; i++)
-		pidhash[i] = NULL;
+		pidhash[i] = 0;
 	for (i = 0; i < NPROC; i++)
 		bzero(&proc[i], sizeof proc[i]);
 	bzero(&u, sizeof u);
@@ -134,12 +134,13 @@ reset(uid_t effective, uid_t real)
 
 	for (i = 0; i < 3; i++) {
 		proc[i].p_hash = pidhash[PIDHASH(proc[i].p_pid)];
-		pidhash[PIDHASH(proc[i].p_pid)] = &proc[i];
+		pidhash[PIDHASH(proc[i].p_pid)] = pid_slot(&proc[i]);
 	}
 
 	u.u_procp = &proc[0];
 	u.u_uid = effective;
 	u.u_ruid = real;
+	proc[0].p_ruid = real;
 	u.u_svuid = SAVED_UID;
 	u.u_rgid = REAL_GID;
 	u.u_svgid = SAVED_GID;
@@ -185,6 +186,7 @@ check_credentials(const struct credential_snapshot *snapshot)
 
 	HK_CHECK(u.u_uid == snapshot->effective_uid);
 	HK_CHECK(u.u_ruid == snapshot->real_uid);
+	HK_CHECK(proc[0].p_ruid == snapshot->real_uid);
 	HK_CHECK(u.u_svuid == snapshot->saved_uid);
 	HK_CHECK(u.u_procp->p_uid == snapshot->process_uid);
 	HK_CHECK(u.u_rgid == snapshot->real_gid);
@@ -466,6 +468,7 @@ change_user(void)
 	HK_CHECK(u.u_error == 0);
 	HK_CHECK(u.u_uid == REAL_UID);
 	HK_CHECK(u.u_ruid == REAL_UID);
+	HK_CHECK(proc[0].p_ruid == REAL_UID);
 	HK_CHECK(u.u_svuid == REAL_UID);
 	HK_CHECK(proc[0].p_uid == (short)REAL_UID);
 
@@ -486,6 +489,7 @@ change_user(void)
 	HK_CHECK(u.u_error == 0);
 	HK_CHECK(u.u_uid == OTHER_UID);
 	HK_CHECK(u.u_ruid == OTHER_UID);
+	HK_CHECK(proc[0].p_ruid == OTHER_UID);
 
 	/* seteuid reaches the real and the saved id without privilege. */
 	reset(REAL_UID, REAL_UID);
@@ -496,6 +500,7 @@ change_user(void)
 	HK_CHECK(u.u_uid == SAVED_UID);
 	HK_CHECK(proc[0].p_uid == SAVED_UID);
 	HK_CHECK(u.u_ruid == REAL_UID);
+	HK_CHECK(proc[0].p_ruid == REAL_UID);
 	HK_CHECK(u.u_svuid == SAVED_UID);
 
 	reset(SAVED_UID, REAL_UID);
@@ -506,6 +511,7 @@ change_user(void)
 	HK_CHECK(u.u_uid == REAL_UID);
 	HK_CHECK(proc[0].p_uid == REAL_UID);
 	HK_CHECK(u.u_ruid == REAL_UID);
+	HK_CHECK(proc[0].p_ruid == REAL_UID);
 	HK_CHECK(u.u_svuid == SAVED_UID);
 
 	/* And nothing else. */

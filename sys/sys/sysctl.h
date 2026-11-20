@@ -153,7 +153,8 @@ struct ctlname {
 #define	KERN_SYSTRACEPID	27	/* int: trace only this pid */
 #define	KERN_CAPACITY		28	/* struct: fixed-table and u-area peaks */
 #define	KERN_TTY		29	/* struct kinfo_tty: the console */
-#define	KERN_MAXID		30	/* number of valid kern ids */
+#define KERN_CHILD_MAX          30      /* int: fork quota per real uid */
+#define	KERN_MAXID		31	/* number of valid kern ids */
 
 #ifndef	KERNEL
 #define	CTL_KERN_NAMES { \
@@ -187,6 +188,7 @@ struct ctlname {
 	{ "systracepid", CTLTYPE_INT }, \
 	{ "capacity", CTLTYPE_STRUCT }, \
 	{ "tty", CTLTYPE_STRUCT }, \
+	{ "child_max", CTLTYPE_INT }, \
 }
 #endif
 

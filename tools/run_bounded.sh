@@ -40,7 +40,9 @@
 # to its own end. MUTANT_TIMEOUT seconds (default 120; the slowest passing
 # sanitizer test of tests/picocalc runs in under one second) end the command,
 # with a kill one second after the first signal. Exit status: the command's
-# own status; 124 when the time bound ended it; 125 when the run could not
+# own status; 124 when the time bound ended it (the run returns at the bound
+# even when the command left a child that holds the output open or ignores the
+# signal; such a child can outlive the run); 125 when the run could not
 # happen (a bad bound, no timeout(1), a command that timeout(1) could not start,
 # which it reports as 125, 126 or 127). A caller treats 124 and 125 as "no
 # verdict" and any other failing status as the mutant being rejected, so a
@@ -74,24 +76,41 @@ run() {
 	fi
 	status="$out.status"
 	: >"$status"
-	# The subshell leaves the command's status in a file, since the pipe
-	# keeps only the status of the reader.
-	(
-		rc=0
-		"$bound" -k 1 "$secs" "$@" 2>&1 || rc=$?
-		echo "$rc" >"$status"
-	) | {
-		head -c "$((cap + 1))" >"$out"
-		cat >/dev/null
-	}
+	# The whole pipeline, the command and the reader of its output, runs under
+	# the one timeout, whose process group the signal reaches: a descendant of
+	# the command that keeps the output pipe open after the command has ended
+	# ends with the bound too, instead of holding the reader. The command's own
+	# status goes to a file, since the pipe keeps only the reader's.
+	outer=0
+	"$bound" -k 1 "$secs" sh -c '
+		# The wrapper takes the first signal without dying, so that the shell
+		# ends only when its pipeline has closed; the command and the reader
+		# run in subshells that the signal ends. A descendant that ignores the
+		# signal can outlive the run, which returns at the bound.
+		trap : TERM
+		status=$1
+		out=$2
+		cap=$3
+		shift 3
+		{ "$@" 2>&1; echo $? >"$status"; } | {
+			head -c "$cap" >"$out"
+			cat >/dev/null
+		}
+	' sh "$status" "$out" "$((cap + 1))" "$@" || outer=$?
 	rc=$(cat "$status")
 	rm -f "$status"
 	size=$(wc -c <"$out" | tr -d ' ')
 	if [ "$size" -gt "$cap" ]; then
 		echo "run_bounded.sh: output of $1 cut at $cap bytes" >&2
 	fi
+	if [ -z "$rc" ]; then
+		# The command had not ended: the time bound, or a run that did not start.
+		case $outer in
+		124 | 137) return 124 ;;
+		esac
+		return 125
+	fi
 	case $rc in
-	137) return 124 ;;
 	125 | 126 | 127) return 125 ;;
 	esac
 	return "$rc"
@@ -147,6 +166,9 @@ scenarios() {
 	try passing 0 - true || return 1
 	try failing 3 - sh -c 'echo diagnostic; exit 3' || return 1
 	try unrunnable 125 - /nonexistent/run-bounded-command || return 1
+	# The command ends at once and leaves a child that holds the output pipe for
+	# 6 s: the run ends with the bound, and the status is the command's own.
+	try descendant 3 - sh -c '(sleep 6) & exit 3' || return 1
 	try sleeping 124 - sleep 4 || return 1
 	# A command that ignores TERM and spins for 6 s: the 1 s bound plus the 1 s
 	# kill-after ends it at 2 s; without the kill it runs to 6 s.
@@ -182,7 +204,7 @@ selftest() {
 		echo "run_bounded.sh: selftest: the script fails its own scenarios" >&2
 		exit 1
 	}
-	echo "run_bounded.sh: 9 scenarios pass"
+	echo "run_bounded.sh: 10 scenarios pass"
 	# mutant LABEL SED-EXPRESSION SCENARIO: the copy must fail SCENARIO and no
 	# earlier one, so that a copy that does not run at all (status 127) is not
 	# taken for a rejection.
@@ -207,10 +229,9 @@ selftest() {
 		fi
 		echo "mutant rejected: $label (scenario $expected)"
 	}
-	mutant 'no time bound' 's/"\$bound" -k 1 "\$secs" "\$@"/"$@"/' sleeping
-	mutant 'no kill after the first signal' 's/-k 1 //' term-ignoring
-	mutant 'no output bound' 's/head -c "\$((cap + 1))"/cat/' failing-loudly-stdout
-	mutant 'status of the command lost' 's/echo "\$rc" >"\$status"/echo 0 >"$status"/' failing
+	mutant 'no time bound' 's/"\$bound" -k 1 "\$secs" sh -c/sh -c/' descendant
+	mutant 'no output bound' 's/head -c "\$cap"/cat/' failing-loudly-stdout
+	mutant 'status of the command lost' 's/echo \$? >"\$status"/echo 0 >"$status"/' failing
 	mutant 'a command that did not start taken for its failure' 's/^\t125 | 126 | 127) return 125 ;;$/\t125 | 126 | 127) return "$rc" ;;/' unrunnable
 	mutant 'a failing status taken for a timeout' 's/^\treturn "\$rc"$/\treturn 124/' passing
 	echo "run_bounded.sh: selftest ok"

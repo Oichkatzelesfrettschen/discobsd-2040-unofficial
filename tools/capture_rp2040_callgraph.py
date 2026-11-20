@@ -32,14 +32,74 @@ def bound_output(limit):
     resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
 
 
+def build_cpp_command(args, config_dir, root, variables, defs_raw=""):
+    """Build deterministic preprocessor invocation for --preprocess."""
+    if not args.preprocess:
+        return None
+    cpp_bin = args.cpp
+    if cpp_bin is None:
+        located = shutil.which("arm-none-eabi-gcc") or shutil.which("cc")
+        if not located:
+            raise ValueError("--preprocess requires --cpp or arm-none-eabi-gcc/cc on PATH")
+        cpp_bin = Path(located)
+    cpp_path = cpp_bin.resolve(strict=True)
+    flags = []
+    seen = set()
+    tokens = (
+        shlex.split(defs_raw)
+        + shlex.split(variables["PARAM"])
+        + shlex.split(variables["INCLUDES"])
+        + shlex.split(variables["CFLAGS"])
+    )
+    idx = 0
+    while idx < len(tokens):
+        tok = tokens[idx]
+        item = None
+        if tok == "-nostdinc":
+            item = [tok]
+        elif tok in ("-D", "-U") and idx + 1 < len(tokens):
+            item = [tok, tokens[idx + 1]]
+            idx += 1
+        elif tok.startswith(("-D", "-U")):
+            item = [tok]
+        elif tok == "-I" and idx + 1 < len(tokens):
+            inc_path = Path(os.path.normpath(config_dir / tokens[idx + 1]))
+            rel = (
+                inc_path.relative_to(root).as_posix()
+                if inc_path.is_relative_to(root)
+                else str(inc_path)
+            )
+            item = ["-I", rel]
+            idx += 1
+        elif tok.startswith("-I"):
+            inc_path = Path(os.path.normpath(config_dir / tok[2:]))
+            rel = (
+                inc_path.relative_to(root).as_posix()
+                if inc_path.is_relative_to(root)
+                else str(inc_path)
+            )
+            item = [f"-I{rel}"]
+        if item is not None:
+            key = tuple(item)
+            if key not in seen:
+                seen.add(key)
+                flags.extend(item)
+        idx += 1
+    return cpp_path, shlex.join([str(cpp_path), "-E", *flags])
+
+
 def capture(args):
     root = args.root.resolve(strict=True)
+    if not re.fullmatch(r"[A-Za-z0-9_]+", args.config):
+        raise ValueError(f"invalid kernel config name: {args.config}")
+    config_rel = Path("sys/arch/rp2040/compile") / args.config
+    generated = tuple(str(config_rel / name) for name in ("ioconf.c", "swapunix.c", "vers.c"))
     source_manifest = args.manifest.read_bytes()
     expected = json.loads(source_manifest)
-    current = compiler_matrix_identity.snapshot(root, GENERATED, [])
+    current = compiler_matrix_identity.snapshot(root, generated, [])
     if current != expected:
         raise ValueError("source identity differs from the supplied manifest")
-    config = root / CONFIG
+    config = root / config_rel
     environment = {"PATH": os.environ.get("PATH", os.defpath), "LC_ALL": "C",
                    "TZ": "UTC", "PYTHON": sys.executable}
     tools = {}
@@ -68,6 +128,22 @@ def capture(args):
         if result.stderr:
             raise ValueError(f"bmake {name} emitted diagnostics: {result.stderr}")
         variables[name] = result.stdout.strip()
+    defs_raw = ""
+    if args.preprocess:
+        defs_res = subprocess.run([str(args.bmake), "-k", "MACHINE=rp2040", "-V", "${DEFS}"],
+                                  cwd=config, env=environment, check=True,
+                                  text=True, capture_output=True)
+        if defs_res.stderr:
+            raise ValueError(f"bmake DEFS emitted diagnostics: {defs_res.stderr}")
+        defs_raw = defs_res.stdout.strip()
+    cpp_info = build_cpp_command(args, config, root, variables, defs_raw)
+    if cpp_info is not None:
+        cpp_path, cpp_cmd = cpp_info
+        cpp_ver = subprocess.run([str(cpp_path), "--version"], cwd=root, env=environment,
+                                 check=True, text=True, capture_output=True)
+        tools["cpp"] = {"path": str(cpp_path), "sha256": digest(cpp_path),
+                        "version": (cpp_ver.stdout + cpp_ver.stderr).splitlines()[0].strip()}
+        cflow_profile.append(f"--cpp={cpp_cmd}")
     allowed = set(expected["tracked"]) | set(expected["generated"])
     sources = []
     for name in shlex.split(variables["CFILES"]) + ["ioconf.c", "vers.c"]:
@@ -80,7 +156,7 @@ def capture(args):
         if relative in sources:
             raise ValueError(f"duplicate configured source: {relative}")
         sources.append(relative)
-    if not sources or not set(GENERATED).issubset(sources):
+    if not sources or not set(generated).issubset(sources):
         raise ValueError("configured source list lacks required generated inputs")
     headers = sorted(name for name in expected["tracked"]
                      if name.startswith("sys/") and name.endswith(".h"))
@@ -136,22 +212,25 @@ def capture(args):
     cscope_command = [str(args.cscope), "-b", "-q", "-k", "-i",
                       str(args.output / "cscope.files"), "-f", str(args.output / "cscope.out")]
     run_tool("cscope", cscope_command, "cscope.stdout")
-    if compiler_matrix_identity.snapshot(root, GENERATED, []) != expected:
+    if compiler_matrix_identity.snapshot(root, generated, []) != expected:
         raise ValueError("source identity changed during graph capture")
     for name, identity in tools.items():
         if digest(Path(identity["path"])) != identity["sha256"]:
             raise ValueError(f"{name} changed during graph capture")
     artifacts = {path.name: digest(path) for path in sorted(args.output.iterdir())
                  if path.is_file()}
-    result = {"schema": 1, "source_manifest_sha256": hashlib.sha256(source_manifest).hexdigest(),
+    limitations = ["cscope indexes lexical references",
+                   "indirect calls and runtime reachability are not established"]
+    if not args.preprocess:
+        limitations.insert(0, "cflow does not apply the build preprocessor configuration")
+    result = {"schema": 1, "config": args.config, "preprocessed": args.preprocess,
+              "source_manifest_sha256": hashlib.sha256(source_manifest).hexdigest(),
               "tools": tools, "configuration": variables, "c_sources": sources,
               "cscope_sources": index_sources, "commands": commands, "artifacts": artifacts,
               "cflow_passes": pass_number + 1,
               "tool_timeout_seconds": TOOL_TIMEOUT,
               "per_file_output_limit_bytes": args.output_limit_bytes,
-              "limitations": ["cflow does not apply the build preprocessor configuration",
-                              "cscope indexes lexical references",
-                              "indirect calls and runtime reachability are not established"]}
+              "limitations": limitations}
     (args.output / "manifest.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n",
                                                 encoding="utf-8")
 
@@ -160,6 +239,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("root", "manifest", "output", "bmake", "cflow", "cscope"):
         parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument("--config", default="PICO",
+                        help="Kernel configuration directory under sys/arch/rp2040/compile")
+    parser.add_argument("--preprocess", action="store_true",
+                        help="Pass configured PARAM/INCLUDES flags to cflow --cpp")
+    parser.add_argument("--cpp", type=Path, default=None,
+                        help="Compiler driver for --preprocess -E")
     parser.add_argument("--output-limit-bytes", type=int, default=OUTPUT_LIMIT)
     args = parser.parse_args()
     try:

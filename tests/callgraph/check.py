@@ -106,6 +106,66 @@ def main():
         changed_graph = (Path(temporary) / "changed/direct.dot").read_text(encoding="utf-8")
         assert "helper -> leaf" in changed_graph
         assert "entry -> helper" not in changed_graph
+
+        cc = shutil.which("cc") or shutil.which("gcc")
+        assert cc is not None, "preprocessed calibration requires cc or gcc"
+        alt_cfg = root / "sys/arch/rp2040/compile/ALT_CFG"
+        alt_cfg.mkdir(parents=True)
+        alt_gen = ("sys/arch/rp2040/compile/ALT_CFG/ioconf.c",
+                   "sys/arch/rp2040/compile/ALT_CFG/swapunix.c",
+                   "sys/arch/rp2040/compile/ALT_CFG/vers.c")
+        source.write_text("int leaf(void) { return 7; }\n"
+                          "#ifdef ENABLE_ALT\n"
+                          "int helper(void) { return leaf(); }\n"
+                          "#else\n"
+                          "int helper(void) { return 3; }\n"
+                          "#endif\n"
+                          "int entry(void) { return helper(); }\n", encoding="utf-8")
+        (alt_cfg / "Makefile").write_text(
+            "PARAM= -DENABLE_ALT\nINCLUDES= -I../../../../kern\n"
+            "CFLAGS= -Wall\nCFILES= ../../../../kern/example.c swapunix.c\n",
+            encoding="utf-8",
+        )
+        for name in ("ioconf.c", "swapunix.c", "vers.c"):
+            (alt_cfg / name).write_text(f"int alt_{name[:-2]}_value;\n", encoding="utf-8")
+        run(["git", "add", "sys"], root)
+        alt_manifest = Path(temporary) / "alt-manifest.json"
+        alt_identity = [sys.executable, str(IDENTITY), "--root", str(root),
+                        "--manifest", str(alt_manifest)]
+        for name in alt_gen:
+            alt_identity += ["--generated-input", name]
+        run(alt_identity + ["--record-only"], root)
+        alt_out = Path(temporary) / "alt-capture"
+        run([sys.executable, str(CAPTURE), "--root", str(root),
+             "--manifest", str(alt_manifest), "--output", str(alt_out),
+             "--bmake", programs["bmake"], "--cflow", programs["cflow"],
+             "--cscope", programs["cscope"], "--config", "ALT_CFG",
+             "--preprocess", "--cpp", cc], root)
+        alt_record = json.loads((alt_out / "manifest.json").read_text(encoding="utf-8"))
+        assert alt_record["config"] == "ALT_CFG" and alt_record["preprocessed"] is True
+        alt_graph = (alt_out / "direct.dot").read_text(encoding="utf-8")
+        assert "helper -> leaf" in alt_graph
+
+        (alt_cfg / "Makefile").write_text(
+            "PARAM=\nINCLUDES= -I../../../../kern\n"
+            "CFLAGS= -Wall\nCFILES= ../../../../kern/example.c swapunix.c\n",
+            encoding="utf-8",
+        )
+        run(["git", "add", "sys"], root)
+        noalt_manifest = Path(temporary) / "noalt-manifest.json"
+        noalt_identity = [sys.executable, str(IDENTITY), "--root", str(root),
+                          "--manifest", str(noalt_manifest)]
+        for name in alt_gen:
+            noalt_identity += ["--generated-input", name]
+        run(noalt_identity + ["--record-only"], root)
+        noalt_out = Path(temporary) / "noalt-capture"
+        run([sys.executable, str(CAPTURE), "--root", str(root),
+             "--manifest", str(noalt_manifest), "--output", str(noalt_out),
+             "--bmake", programs["bmake"], "--cflow", programs["cflow"],
+             "--cscope", programs["cscope"], "--config", "ALT_CFG",
+             "--preprocess", "--cpp", cc], root)
+        noalt_graph = (noalt_out / "direct.dot").read_text(encoding="utf-8")
+        assert "helper -> leaf" not in noalt_graph
     print("PASS configured call-graph capture and input identity controls")
 
 

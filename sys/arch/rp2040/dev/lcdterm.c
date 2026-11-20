@@ -63,32 +63,44 @@ enum {
 	ST_CHARSET,
 };
 
-static unsigned char cells[LT_ROWS][LT_COLS];
-static unsigned char attrs[LT_ROWS][LT_COLS];
+/*
+ * Everything that belongs to one console's screen, gathered so that a second
+ * console can exchange it whole. The scalars come first so that the code reaches them with small offsets from one base
+ * address. The panel-wide state stays outside: the pixel-program flag, the
+ * cursor overlay (hidden before a save and redrawn after a repaint), the
+ * glyph bank and the palette.
+ */
+struct lterm {
+	int top;		/* Physical row shown on panel line 0. */
+	int crow, ccol;		/* Logical cursor. */
+	int wrapnext;		/* A glyph written to the last column. */
+	int mtop, mbot;		/* Scrolling region, inclusive. */
 
-static int top;			/* Physical row shown on panel line 0. */
-static int crow, ccol;		/* Logical cursor. */
-static int wrapnext;		/* A glyph written to the last column. */
-static int mtop, mbot;		/* Scrolling region, inclusive. */
+	int sgr_fg, sgr_bg, sgr_bold, sgr_ul, sgr_rev;
+	unsigned cattr;		/* Attribute for cells written now. */
 
-static int sgr_fg, sgr_bg, sgr_bold, sgr_ul, sgr_rev;
-static unsigned cattr;		/* Attribute for cells written now. */
+	int autowrap, insertmode, cursor_on, appcursor, gfx;
 
-static int autowrap, insertmode, cursor_on, appcursor, gfx;
+	int s_row, s_col, s_fg, s_bg, s_bold, s_ul, s_rev, s_gfx;
+
+	int state;
+	int params[LT_NPARAM];
+	int nparam;
+	int priv;		/* '?' after the CSI. */
+	int inter;		/* '!' intermediate. */
+
+	unsigned char cells[LT_ROWS][LT_COLS];
+	unsigned char attrs[LT_ROWS][LT_COLS];
+};
+
+static struct lterm lt;
+
 static int gfx_active;		/* A pixel program owns the panel. */
 #ifdef LCD_GFX_EXT
-static int gfx_top;		/* top when the pixel program took the panel. */
+static int gfx_top;		/* lt.top when the pixel program took the panel. */
 #endif
 
 static int cursor_drawn, cd_prow, cd_col;
-
-static int s_row, s_col, s_fg, s_bg, s_bold, s_ul, s_rev, s_gfx;
-
-static int state;
-static int params[LT_NPARAM];
-static int nparam;
-static int priv;		/* '?' after the CSI. */
-static int inter;		/* '!' intermediate. */
 
 #define	LT_ACS_FIRST	0x5f		/* First code the DEC set replaces. */
 #define	LT_ACS_N	32		/* 0x5f through 0x7e. */
@@ -185,7 +197,7 @@ glyph_unpack(unsigned char *rows, const unsigned char *packed)
 static int
 phys(int r)
 {
-	return (top + r) % LT_ROWS;
+	return (lt.top + r) % LT_ROWS;
 }
 
 /*
@@ -237,22 +249,22 @@ lcdterm_glyph(int code, unsigned char rows[LT_GLYPH_ROWS])
 static void
 resolve_attr(void)
 {
-	int fg = sgr_fg, bg = sgr_bg;
+	int fg = lt.sgr_fg, bg = lt.sgr_bg;
 
-	if (sgr_rev) {
-		fg = sgr_bg;
-		bg = sgr_fg;
+	if (lt.sgr_rev) {
+		fg = lt.sgr_bg;
+		bg = lt.sgr_fg;
 	}
-	if (sgr_bold)
+	if (lt.sgr_bold)
 		fg |= 8;
-	cattr = LT_ATTR(fg, bg, sgr_ul);
+	lt.cattr = LT_ATTR(fg, bg, lt.sgr_ul);
 }
 
 /* Erased cells take the background the current rendition displays. */
 static unsigned
 erase_attr(void)
 {
-	return LT_ATTR(7, sgr_rev ? sgr_fg : sgr_bg, 0);
+	return LT_ATTR(7, lt.sgr_rev ? lt.sgr_fg : lt.sgr_bg, 0);
 }
 
 static void
@@ -260,7 +272,7 @@ draw(int r, int c)
 {
 	int p = phys(r);
 
-	panel_cell(p, c, cells[p][c], attrs[p][c]);
+	panel_cell(p, c, lt.cells[p][c], lt.attrs[p][c]);
 }
 
 static void
@@ -276,8 +288,8 @@ static void
 cursor_hide(void)
 {
 	if (cursor_drawn) {
-		panel_cell(cd_prow, cd_col, cells[cd_prow][cd_col],
-		    attrs[cd_prow][cd_col]);
+		panel_cell(cd_prow, cd_col, lt.cells[cd_prow][cd_col],
+		    lt.attrs[cd_prow][cd_col]);
 		cursor_drawn = 0;
 	}
 }
@@ -288,15 +300,15 @@ lcdterm_cursor_show(void)
 	unsigned a, inv;
 	int p;
 
-	if (!cursor_on || cursor_drawn)
+	if (!lt.cursor_on || cursor_drawn)
 		return;
-	p = phys(crow);
-	a = attrs[p][ccol];
+	p = phys(lt.crow);
+	a = lt.attrs[p][lt.ccol];
 	inv = LT_ATTR(LT_ATTR_BG(a), LT_ATTR_FG(a) & 7, a & LT_ATTR_UL);
-	panel_cell(p, ccol, cells[p][ccol], inv);
+	panel_cell(p, lt.ccol, lt.cells[p][lt.ccol], inv);
 	cursor_drawn = 1;
 	cd_prow = p;
-	cd_col = ccol;
+	cd_col = lt.ccol;
 }
 
 /* Blank n cells of logical row r from column c, in store and on panel. */
@@ -315,8 +327,8 @@ erase_cells(int r, int c, int n)
 	if (n <= 0)
 		return;
 	for (i = c; i < c + n; i++) {
-		cells[p][i] = ' ';
-		attrs[p][i] = (unsigned char)a;
+		lt.cells[p][i] = ' ';
+		lt.attrs[p][i] = (unsigned char)a;
 	}
 	panel_fill(p, c, n, a);
 }
@@ -336,8 +348,8 @@ copy_row(int dst, int src)
 	int pd = phys(dst), ps = phys(src), c;
 
 	for (c = 0; c < LT_COLS; c++) {
-		cells[pd][c] = cells[ps][c];
-		attrs[pd][c] = attrs[ps][c];
+		lt.cells[pd][c] = lt.cells[ps][c];
+		lt.attrs[pd][c] = lt.attrs[ps][c];
 	}
 }
 
@@ -354,8 +366,8 @@ scroll_up(int t, int b, int n)
 	if (t == 0 && b == LT_ROWS - 1) {
 		while (n-- > 0) {
 			erase_cells(0, 0, LT_COLS);
-			top = (top + 1) % LT_ROWS;
-			panel_top(top);
+			lt.top = (lt.top + 1) % LT_ROWS;
+			panel_top(lt.top);
 		}
 		return;
 	}
@@ -379,8 +391,8 @@ scroll_down(int t, int b, int n)
 	if (t == 0 && b == LT_ROWS - 1) {
 		while (n-- > 0) {
 			erase_cells(LT_ROWS - 1, 0, LT_COLS);
-			top = (top + LT_ROWS - 1) % LT_ROWS;
-			panel_top(top);
+			lt.top = (lt.top + LT_ROWS - 1) % LT_ROWS;
+			panel_top(lt.top);
 		}
 		return;
 	}
@@ -394,19 +406,19 @@ scroll_down(int t, int b, int n)
 static void
 index_down(void)
 {
-	if (crow == mbot)
-		scroll_up(mtop, mbot, 1);
-	else if (crow < LT_ROWS - 1)
-		crow++;
+	if (lt.crow == lt.mbot)
+		scroll_up(lt.mtop, lt.mbot, 1);
+	else if (lt.crow < LT_ROWS - 1)
+		lt.crow++;
 }
 
 static void
 index_up(void)
 {
-	if (crow == mtop)
-		scroll_down(mtop, mbot, 1);
-	else if (crow > 0)
-		crow--;
+	if (lt.crow == lt.mtop)
+		scroll_down(lt.mtop, lt.mbot, 1);
+	else if (lt.crow > 0)
+		lt.crow--;
 }
 
 static void
@@ -414,29 +426,29 @@ put_glyph(int ch)
 {
 	int p, c;
 
-	if (wrapnext) {
-		wrapnext = 0;
-		ccol = 0;
+	if (lt.wrapnext) {
+		lt.wrapnext = 0;
+		lt.ccol = 0;
 		index_down();
 	}
-	p = phys(crow);
-	if (insertmode) {
-		for (c = LT_COLS - 1; c > ccol; c--) {
-			cells[p][c] = cells[p][c - 1];
-			attrs[p][c] = attrs[p][c - 1];
+	p = phys(lt.crow);
+	if (lt.insertmode) {
+		for (c = LT_COLS - 1; c > lt.ccol; c--) {
+			lt.cells[p][c] = lt.cells[p][c - 1];
+			lt.attrs[p][c] = lt.attrs[p][c - 1];
 		}
 	}
-	cells[p][ccol] = (unsigned char)ch;
-	attrs[p][ccol] = (unsigned char)cattr;
-	if (insertmode)
-		redraw_span(crow, ccol, LT_COLS - 1);
+	lt.cells[p][lt.ccol] = (unsigned char)ch;
+	lt.attrs[p][lt.ccol] = (unsigned char)lt.cattr;
+	if (lt.insertmode)
+		redraw_span(lt.crow, lt.ccol, LT_COLS - 1);
 	else
-		draw(crow, ccol);
-	if (ccol == LT_COLS - 1) {
-		if (autowrap)
-			wrapnext = 1;
+		draw(lt.crow, lt.ccol);
+	if (lt.ccol == LT_COLS - 1) {
+		if (lt.autowrap)
+			lt.wrapnext = 1;
 	} else
-		ccol++;
+		lt.ccol++;
 }
 
 static int
@@ -453,9 +465,9 @@ clamp(int v, int lo, int hi)
 static int
 param(int i, int dflt)
 {
-	if (i >= nparam || params[i] == 0)
+	if (i >= lt.nparam || lt.params[i] == 0)
 		return dflt;
-	return params[i];
+	return lt.params[i];
 }
 
 static void
@@ -480,9 +492,9 @@ report_cursor(void)
 
 	buf[len++] = '\033';
 	buf[len++] = '[';
-	reply_number(buf, &len, crow + 1);
+	reply_number(buf, &len, lt.crow + 1);
 	buf[len++] = ';';
-	reply_number(buf, &len, ccol + 1);
+	reply_number(buf, &len, lt.ccol + 1);
 	buf[len++] = 'R';
 	lcdterm_reply(buf, len);
 }
@@ -490,21 +502,21 @@ report_cursor(void)
 static void
 reset_modes(void)
 {
-	sgr_fg = 7;
-	sgr_bg = 0;
-	sgr_bold = sgr_ul = sgr_rev = 0;
+	lt.sgr_fg = 7;
+	lt.sgr_bg = 0;
+	lt.sgr_bold = lt.sgr_ul = lt.sgr_rev = 0;
 	resolve_attr();
-	mtop = 0;
-	mbot = LT_ROWS - 1;
-	autowrap = 1;
-	insertmode = 0;
-	cursor_on = 1;
-	appcursor = 0;
-	gfx = 0;
-	wrapnext = 0;
-	s_row = s_col = 0;
-	s_fg = 7;
-	s_bg = s_bold = s_ul = s_rev = s_gfx = 0;
+	lt.mtop = 0;
+	lt.mbot = LT_ROWS - 1;
+	lt.autowrap = 1;
+	lt.insertmode = 0;
+	lt.cursor_on = 1;
+	lt.appcursor = 0;
+	lt.gfx = 0;
+	lt.wrapnext = 0;
+	lt.s_row = lt.s_col = 0;
+	lt.s_fg = 7;
+	lt.s_bg = lt.s_bold = lt.s_ul = lt.s_rev = lt.s_gfx = 0;
 }
 
 static void
@@ -512,10 +524,10 @@ do_sgr(void)
 {
 	int i, v;
 
-	if (nparam == 0)
-		nparam = 1, params[0] = 0;
-	for (i = 0; i < nparam; i++) {
-		v = params[i];
+	if (lt.nparam == 0)
+		lt.nparam = 1, lt.params[0] = 0;
+	for (i = 0; i < lt.nparam; i++) {
+		v = lt.params[i];
 		/*
 		 * The bright codes branch off first so the chain below spans
 		 * 0-49 only; a wider span makes the compiler lower the chain
@@ -523,33 +535,33 @@ do_sgr(void)
 		 */
 		if (v >= 90) {
 			if (v <= 97)
-				sgr_fg = v - 90 + 8;
+				lt.sgr_fg = v - 90 + 8;
 			else if (v >= 100 && v <= 107)
-				sgr_bg = v - 100;
+				lt.sgr_bg = v - 100;
 		} else if (v == 0) {
-			sgr_fg = 7;
-			sgr_bg = 0;
-			sgr_bold = sgr_ul = sgr_rev = 0;
+			lt.sgr_fg = 7;
+			lt.sgr_bg = 0;
+			lt.sgr_bold = lt.sgr_ul = lt.sgr_rev = 0;
 		} else if (v == 1)
-			sgr_bold = 1;
+			lt.sgr_bold = 1;
 		else if (v == 4)
-			sgr_ul = 1;
+			lt.sgr_ul = 1;
 		else if (v == 7)
-			sgr_rev = 1;
+			lt.sgr_rev = 1;
 		else if (v == 22)
-			sgr_bold = 0;
+			lt.sgr_bold = 0;
 		else if (v == 24)
-			sgr_ul = 0;
+			lt.sgr_ul = 0;
 		else if (v == 27)
-			sgr_rev = 0;
+			lt.sgr_rev = 0;
 		else if (v >= 30 && v <= 37)
-			sgr_fg = v - 30;
+			lt.sgr_fg = v - 30;
 		else if (v == 39)
-			sgr_fg = 7;
+			lt.sgr_fg = 7;
 		else if (v >= 40 && v <= 47)
-			sgr_bg = v - 40;
+			lt.sgr_bg = v - 40;
 		else if (v == 49)
-			sgr_bg = 0;
+			lt.sgr_bg = 0;
 	}
 	resolve_attr();
 }
@@ -559,23 +571,23 @@ set_mode(int on)
 {
 	int i;
 
-	for (i = 0; i < nparam; i++) {
-		if (priv) {
-			switch (params[i]) {
+	for (i = 0; i < lt.nparam; i++) {
+		if (lt.priv) {
+			switch (lt.params[i]) {
 			case 1:
-				appcursor = on;
+				lt.appcursor = on;
 				break;
 			case 7:
-				autowrap = on;
+				lt.autowrap = on;
 				if (!on)
-					wrapnext = 0;
+					lt.wrapnext = 0;
 				break;
 			case 25:
-				cursor_on = on;
+				lt.cursor_on = on;
 				break;
 			}
-		} else if (params[i] == 4)
-			insertmode = on;
+		} else if (lt.params[i] == 4)
+			lt.insertmode = on;
 	}
 }
 
@@ -584,8 +596,8 @@ do_csi(int final)
 {
 	int n, r, c, lo, hi;
 
-	if (inter) {
-		if (inter == '!' && final == 'p') {
+	if (lt.inter) {
+		if (lt.inter == '!' && final == 'p') {
 			reset_modes();	/* DECSTR. */
 		}
 		return;
@@ -594,44 +606,44 @@ do_csi(int final)
 	case 'A':
 	case 'B':
 		n = param(0, 1);
-		lo = (crow >= mtop && crow <= mbot) ? mtop : 0;
-		hi = (crow >= mtop && crow <= mbot) ? mbot : LT_ROWS - 1;
-		crow = clamp(final == 'A' ? crow - n : crow + n, lo, hi);
-		wrapnext = 0;
+		lo = (lt.crow >= lt.mtop && lt.crow <= lt.mbot) ? lt.mtop : 0;
+		hi = (lt.crow >= lt.mtop && lt.crow <= lt.mbot) ? lt.mbot : LT_ROWS - 1;
+		lt.crow = clamp(final == 'A' ? lt.crow - n : lt.crow + n, lo, hi);
+		lt.wrapnext = 0;
 		break;
 	case 'C':
-		ccol = clamp(ccol + param(0, 1), 0, LT_COLS - 1);
-		wrapnext = 0;
+		lt.ccol = clamp(lt.ccol + param(0, 1), 0, LT_COLS - 1);
+		lt.wrapnext = 0;
 		break;
 	case 'D':
-		ccol = clamp(ccol - param(0, 1), 0, LT_COLS - 1);
-		wrapnext = 0;
+		lt.ccol = clamp(lt.ccol - param(0, 1), 0, LT_COLS - 1);
+		lt.wrapnext = 0;
 		break;
 	case 'G':
-		ccol = clamp(param(0, 1) - 1, 0, LT_COLS - 1);
-		wrapnext = 0;
+		lt.ccol = clamp(param(0, 1) - 1, 0, LT_COLS - 1);
+		lt.wrapnext = 0;
 		break;
 	case 'd':
-		crow = clamp(param(0, 1) - 1, 0, LT_ROWS - 1);
-		wrapnext = 0;
+		lt.crow = clamp(param(0, 1) - 1, 0, LT_ROWS - 1);
+		lt.wrapnext = 0;
 		break;
 	case 'H':
 	case 'f':
-		crow = clamp(param(0, 1) - 1, 0, LT_ROWS - 1);
-		ccol = clamp(param(1, 1) - 1, 0, LT_COLS - 1);
-		wrapnext = 0;
+		lt.crow = clamp(param(0, 1) - 1, 0, LT_ROWS - 1);
+		lt.ccol = clamp(param(1, 1) - 1, 0, LT_COLS - 1);
+		lt.wrapnext = 0;
 		break;
 	case 'J':
-		switch (nparam > 0 ? params[0] : 0) {
+		switch (lt.nparam > 0 ? lt.params[0] : 0) {
 		case 0:
-			erase_cells(crow, ccol, LT_COLS - ccol);
-			if (crow < LT_ROWS - 1)
-				erase_rows(crow + 1, LT_ROWS - 1);
+			erase_cells(lt.crow, lt.ccol, LT_COLS - lt.ccol);
+			if (lt.crow < LT_ROWS - 1)
+				erase_rows(lt.crow + 1, LT_ROWS - 1);
 			break;
 		case 1:
-			if (crow > 0)
-				erase_rows(0, crow - 1);
-			erase_cells(crow, 0, ccol + 1);
+			if (lt.crow > 0)
+				erase_rows(0, lt.crow - 1);
+			erase_cells(lt.crow, 0, lt.ccol + 1);
 			break;
 		case 2:
 			erase_rows(0, LT_ROWS - 1);
@@ -639,63 +651,63 @@ do_csi(int final)
 		}
 		break;
 	case 'K':
-		switch (nparam > 0 ? params[0] : 0) {
+		switch (lt.nparam > 0 ? lt.params[0] : 0) {
 		case 0:
-			erase_cells(crow, ccol, LT_COLS - ccol);
+			erase_cells(lt.crow, lt.ccol, LT_COLS - lt.ccol);
 			break;
 		case 1:
-			erase_cells(crow, 0, ccol + 1);
+			erase_cells(lt.crow, 0, lt.ccol + 1);
 			break;
 		case 2:
-			erase_cells(crow, 0, LT_COLS);
+			erase_cells(lt.crow, 0, LT_COLS);
 			break;
 		}
 		break;
 	case 'L':
-		if (crow >= mtop && crow <= mbot)
-			scroll_down(crow, mbot, param(0, 1));
-		ccol = 0;
-		wrapnext = 0;
+		if (lt.crow >= lt.mtop && lt.crow <= lt.mbot)
+			scroll_down(lt.crow, lt.mbot, param(0, 1));
+		lt.ccol = 0;
+		lt.wrapnext = 0;
 		break;
 	case 'M':
-		if (crow >= mtop && crow <= mbot)
-			scroll_up(crow, mbot, param(0, 1));
-		ccol = 0;
-		wrapnext = 0;
+		if (lt.crow >= lt.mtop && lt.crow <= lt.mbot)
+			scroll_up(lt.crow, lt.mbot, param(0, 1));
+		lt.ccol = 0;
+		lt.wrapnext = 0;
 		break;
 	case '@':
-		n = clamp(param(0, 1), 1, LT_COLS - ccol);
-		r = phys(crow);
-		for (c = LT_COLS - 1; c >= ccol + n; c--) {
-			cells[r][c] = cells[r][c - n];
-			attrs[r][c] = attrs[r][c - n];
+		n = clamp(param(0, 1), 1, LT_COLS - lt.ccol);
+		r = phys(lt.crow);
+		for (c = LT_COLS - 1; c >= lt.ccol + n; c--) {
+			lt.cells[r][c] = lt.cells[r][c - n];
+			lt.attrs[r][c] = lt.attrs[r][c - n];
 		}
-		erase_cells(crow, ccol, n);
-		redraw_span(crow, ccol + n, LT_COLS - 1);
-		wrapnext = 0;
+		erase_cells(lt.crow, lt.ccol, n);
+		redraw_span(lt.crow, lt.ccol + n, LT_COLS - 1);
+		lt.wrapnext = 0;
 		break;
 	case 'P':
-		n = clamp(param(0, 1), 1, LT_COLS - ccol);
-		r = phys(crow);
-		for (c = ccol; c + n < LT_COLS; c++) {
-			cells[r][c] = cells[r][c + n];
-			attrs[r][c] = attrs[r][c + n];
+		n = clamp(param(0, 1), 1, LT_COLS - lt.ccol);
+		r = phys(lt.crow);
+		for (c = lt.ccol; c + n < LT_COLS; c++) {
+			lt.cells[r][c] = lt.cells[r][c + n];
+			lt.attrs[r][c] = lt.attrs[r][c + n];
 		}
-		redraw_span(crow, ccol, LT_COLS - n - 1);
-		erase_cells(crow, LT_COLS - n, n);
-		wrapnext = 0;
+		redraw_span(lt.crow, lt.ccol, LT_COLS - n - 1);
+		erase_cells(lt.crow, LT_COLS - n, n);
+		lt.wrapnext = 0;
 		break;
 	case 'X':
-		erase_cells(crow, ccol, clamp(param(0, 1), 1, LT_COLS - ccol));
+		erase_cells(lt.crow, lt.ccol, clamp(param(0, 1), 1, LT_COLS - lt.ccol));
 		break;
 	case 'r':
 		lo = param(0, 1) - 1;
 		hi = param(1, LT_ROWS) - 1;
 		if (lo < hi && hi < LT_ROWS) {
-			mtop = lo;
-			mbot = hi;
-			crow = ccol = 0;
-			wrapnext = 0;
+			lt.mtop = lo;
+			lt.mbot = hi;
+			lt.crow = lt.ccol = 0;
+			lt.wrapnext = 0;
 		}
 		break;
 	case 'm':
@@ -708,15 +720,15 @@ do_csi(int final)
 		set_mode(0);
 		break;
 	case 'n':
-		if (priv)
+		if (lt.priv)
 			break;
-		if (nparam > 0 && params[0] == 6)
+		if (lt.nparam > 0 && lt.params[0] == 6)
 			report_cursor();
-		else if (nparam > 0 && params[0] == 5)
+		else if (lt.nparam > 0 && lt.params[0] == 5)
 			lcdterm_reply("\033[0n", 4);
 		break;
 	case 'c':
-		if (!priv && param(0, 0) == 0)
+		if (!lt.priv && param(0, 0) == 0)
 			lcdterm_reply("\033[?6c", 5);
 		break;
 	}
@@ -725,28 +737,28 @@ do_csi(int final)
 static void
 save_cursor(void)
 {
-	s_row = crow;
-	s_col = ccol;
-	s_fg = sgr_fg;
-	s_bg = sgr_bg;
-	s_bold = sgr_bold;
-	s_ul = sgr_ul;
-	s_rev = sgr_rev;
-	s_gfx = gfx;
+	lt.s_row = lt.crow;
+	lt.s_col = lt.ccol;
+	lt.s_fg = lt.sgr_fg;
+	lt.s_bg = lt.sgr_bg;
+	lt.s_bold = lt.sgr_bold;
+	lt.s_ul = lt.sgr_ul;
+	lt.s_rev = lt.sgr_rev;
+	lt.s_gfx = lt.gfx;
 }
 
 static void
 restore_cursor(void)
 {
-	crow = s_row;
-	ccol = s_col;
-	sgr_fg = s_fg;
-	sgr_bg = s_bg;
-	sgr_bold = s_bold;
-	sgr_ul = s_ul;
-	sgr_rev = s_rev;
-	gfx = s_gfx;
-	wrapnext = 0;
+	lt.crow = lt.s_row;
+	lt.ccol = lt.s_col;
+	lt.sgr_fg = lt.s_fg;
+	lt.sgr_bg = lt.s_bg;
+	lt.sgr_bold = lt.s_bold;
+	lt.sgr_ul = lt.s_ul;
+	lt.sgr_rev = lt.s_rev;
+	lt.gfx = lt.s_gfx;
+	lt.wrapnext = 0;
 	resolve_attr();
 }
 
@@ -754,11 +766,11 @@ static void
 full_reset(void)
 {
 	reset_modes();
-	top = 0;
+	lt.top = 0;
 	panel_top(0);
 	erase_rows(0, LT_ROWS - 1);
-	crow = ccol = 0;
-	state = ST_GROUND;
+	lt.crow = lt.ccol = 0;
+	lt.state = ST_GROUND;
 }
 
 /*
@@ -772,13 +784,13 @@ full_reset(void)
 void
 lcdterm_abort(void)
 {
-	state = ST_GROUND;
+	lt.state = ST_GROUND;
 	cursor_drawn = 0;
 	reset_modes();
 	if (gfx_active)
 		lcdterm_gfx(0);
 	else
-		lcd_set_top(top);
+		lcd_set_top(lt.top);
 }
 
 /*
@@ -792,10 +804,10 @@ lcdterm_repaint(void)
 	int p, c;
 
 	cursor_drawn = 0;
-	lcd_set_top(top);
+	lcd_set_top(lt.top);
 	for (p = 0; p < LT_ROWS; p++)
 		for (c = 0; c < LT_COLS; c++)
-			lcd_draw_cell(p, c, cells[p][c], attrs[p][c]);
+			lcd_draw_cell(p, c, lt.cells[p][c], lt.attrs[p][c]);
 	lcdterm_cursor_show();
 }
 
@@ -811,7 +823,7 @@ lcdterm_gfx(int on)
 	gfx_active = on;
 #ifdef LCD_GFX_EXT
 	if (on)
-		gfx_top = top;
+		gfx_top = lt.top;
 #endif
 	if (!on) {
 		lcd_gfx_reset();
@@ -826,28 +838,39 @@ lcdterm_init(void)
 	gfx_active = 0;
 	glyph_defaults();
 	full_reset();
+#ifdef LCD_VT
+	/*
+	 * The frozen console starts as a reset terminal too: reset its state
+	 * in the live struct with the panel primitives off, then swap back.
+	 */
+	lcdterm_exchange();
+	gfx_active = 1;
+	full_reset();
+	gfx_active = 0;
+	lcdterm_exchange();
+#endif
 }
 
 static void
 esc_final(int c)
 {
-	state = ST_GROUND;
+	lt.state = ST_GROUND;
 	switch (c) {
 	case '[':
-		state = ST_CSI;
-		nparam = 0;
-		params[0] = 0;
-		priv = inter = 0;
+		lt.state = ST_CSI;
+		lt.nparam = 0;
+		lt.params[0] = 0;
+		lt.priv = lt.inter = 0;
 		break;
 	case '(':
-		state = ST_CHARSET;
-		inter = 0;	/* G0; a prior CSI may have left '!'. */
+		lt.state = ST_CHARSET;
+		lt.inter = 0;	/* G0; a prior CSI may have left '!'. */
 		break;
 	case ')':
 	case '*':
 	case '+':
-		state = ST_CHARSET;
-		inter = c;	/* Designates G1-G3: consumed, ignored. */
+		lt.state = ST_CHARSET;
+		lt.inter = c;	/* Designates G1-G3: consumed, ignored. */
 		break;
 	case '7':
 		save_cursor();
@@ -856,16 +879,16 @@ esc_final(int c)
 		restore_cursor();
 		break;
 	case 'D':
-		wrapnext = 0;
+		lt.wrapnext = 0;
 		index_down();
 		break;
 	case 'E':
-		ccol = 0;
-		wrapnext = 0;
+		lt.ccol = 0;
+		lt.wrapnext = 0;
 		index_down();
 		break;
 	case 'M':
-		wrapnext = 0;
+		lt.wrapnext = 0;
 		index_up();
 		break;
 	case 'c':
@@ -881,24 +904,24 @@ static void
 csi_byte(int c)
 {
 	if (c >= '0' && c <= '9') {
-		if (nparam == 0)
-			nparam = 1;
-		if (params[nparam - 1] < LT_PARAM_MAX)
-			params[nparam - 1] = params[nparam - 1] * 10 + (c - '0');
+		if (lt.nparam == 0)
+			lt.nparam = 1;
+		if (lt.params[lt.nparam - 1] < LT_PARAM_MAX)
+			lt.params[lt.nparam - 1] = lt.params[lt.nparam - 1] * 10 + (c - '0');
 	} else if (c == ';') {
-		if (nparam == 0)
-			nparam = 1;
-		if (nparam < LT_NPARAM)
-			params[nparam++] = 0;
+		if (lt.nparam == 0)
+			lt.nparam = 1;
+		if (lt.nparam < LT_NPARAM)
+			lt.params[lt.nparam++] = 0;
 	} else if (c == '?' || c == '>') {
-		priv = c;
+		lt.priv = c;
 	} else if (c >= 0x20 && c <= 0x2f) {
-		inter = c;
+		lt.inter = c;
 	} else if (c >= 0x40 && c <= 0x7e) {
-		state = ST_GROUND;
+		lt.state = ST_GROUND;
 		do_csi(c);
 	} else if (c == 0x18 || c == 0x1a) {
-		state = ST_GROUND;	/* CAN, SUB abort the sequence. */
+		lt.state = ST_GROUND;	/* CAN, SUB abort the sequence. */
 	}
 }
 
@@ -912,27 +935,27 @@ control(int c)
 		 * so the tty's rubout ("\b \b") of the 53rd character of a
 		 * line erases that character rather than the one before it.
 		 */
-		if (wrapnext)
-			wrapnext = 0;
-		else if (ccol > 0)
-			ccol--;
+		if (lt.wrapnext)
+			lt.wrapnext = 0;
+		else if (lt.ccol > 0)
+			lt.ccol--;
 		break;
 	case '\t':
-		wrapnext = 0;
-		ccol = clamp((ccol / 8 + 1) * 8, 0, LT_COLS - 1);
+		lt.wrapnext = 0;
+		lt.ccol = clamp((lt.ccol / 8 + 1) * 8, 0, LT_COLS - 1);
 		break;
 	case '\n':
 	case '\v':
 	case '\f':
-		wrapnext = 0;
+		lt.wrapnext = 0;
 		index_down();
 		break;
 	case '\r':
-		ccol = 0;
-		wrapnext = 0;
+		lt.ccol = 0;
+		lt.wrapnext = 0;
 		break;
 	case 0x1b:
-		state = ST_ESC;
+		lt.state = ST_ESC;
 		break;
 	case '\a':
 		lcd_bell();
@@ -948,12 +971,12 @@ lcdterm_putc(int c)
 	c &= 0xff;
 	cursor_hide();
 
-	switch (state) {
+	switch (lt.state) {
 	case ST_ESC:
 		if (c == 0x1b)
 			return;
 		if (c < 0x20) {
-			state = ST_GROUND;
+			lt.state = ST_GROUND;
 			control(c);
 			return;
 		}
@@ -962,7 +985,7 @@ lcdterm_putc(int c)
 	case ST_CSI:
 		if (c < 0x20 && c != 0x18 && c != 0x1a) {
 			if (c == 0x1b)
-				state = ST_ESC;
+				lt.state = ST_ESC;
 			else
 				control(c);
 			return;
@@ -970,10 +993,10 @@ lcdterm_putc(int c)
 		csi_byte(c);
 		return;
 	case ST_CHARSET:
-		if (inter == 0)
-			gfx = (c == '0');
-		inter = 0;
-		state = ST_GROUND;
+		if (lt.inter == 0)
+			lt.gfx = (c == '0');
+		lt.inter = 0;
+		lt.state = ST_GROUND;
 		return;
 	default:
 		break;
@@ -988,7 +1011,7 @@ lcdterm_putc(int c)
 	if (c >= LT_GLYPH_FIRST) {
 		if (c < LT_C1_END)
 			c = '?';
-	} else if (gfx && c >= LT_ACS_FIRST)
+	} else if (lt.gfx && c >= LT_ACS_FIRST)
 		c = LT_GLYPH_FIRST + (c - LT_ACS_FIRST);
 	put_glyph(c);
 }
@@ -1007,7 +1030,7 @@ lcdterm_setglyph(int code, const unsigned char *rows)
 	cursor_hide();
 	for (r = 0; r < LT_ROWS; r++)
 		for (c = 0; c < LT_COLS; c++)
-			if (cells[phys(r)][c] == code)
+			if (lt.cells[phys(r)][c] == code)
 				draw(r, c);
 	return 0;
 }
@@ -1015,26 +1038,67 @@ lcdterm_setglyph(int code, const unsigned char *rows)
 int
 lcdterm_app_cursor(void)
 {
-	return appcursor;
+	return lt.appcursor;
 }
 
 int
 lcdterm_cell(int row, int col)
 {
-	return cells[phys(row)][col];
+	return lt.cells[phys(row)][col];
 }
 
 unsigned
 lcdterm_attr(int row, int col)
 {
-	return attrs[phys(row)][col];
+	return lt.attrs[phys(row)][col];
 }
 
 int
 lcdterm_top(void)
 {
-	return top;
+	return lt.top;
 }
+
+#ifdef LCD_VT
+/*
+ * The screen state of the frozen console. lcdterm_exchange() swaps it with
+ * lt word by word, with no third buffer; __may_alias__ lets the unsigned
+ * accesses read and write the struct's int and byte members.
+ */
+typedef unsigned __attribute__((__may_alias__)) lt_word;
+_Static_assert(sizeof(struct lterm) % sizeof(lt_word) == 0,
+    "the exchange moves whole words");
+static struct lterm lt_frozen;
+
+void
+lcdterm_exchange(void)
+{
+	lt_word *a = (lt_word *)&lt, *b = (lt_word *)&lt_frozen, w;
+	unsigned i;
+
+	for (i = 0; i < sizeof(lt) / sizeof(lt_word); i++) {
+		w = a[i];
+		a[i] = b[i];
+		b[i] = w;
+	}
+	cursor_drawn = 0;
+}
+
+void
+lcdterm_marker(void)
+{
+	panel_cell(phys(0), LT_COLS - 1, '!', LT_ATTR(7, 1, 0));
+}
+
+#ifdef LCDTERM_HOST_TEST
+const void *
+lcdterm_state(int frozen, unsigned *size)
+{
+	*size = sizeof(lt);
+	return frozen ? (const void *)&lt_frozen : (const void *)&lt;
+}
+#endif
+#endif /* LCD_VT */
 
 #ifdef LCD_GFX_EXT
 /*
@@ -1052,6 +1116,6 @@ lcdterm_gfx_top(void)
 void
 lcdterm_cursor(int *row, int *col)
 {
-	*row = crow;
-	*col = ccol;
+	*row = lt.crow;
+	*col = lt.ccol;
 }

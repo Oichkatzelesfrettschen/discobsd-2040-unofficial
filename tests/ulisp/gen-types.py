@@ -182,7 +182,7 @@ def extras():
         # documentation and help read a variable's value for a lambda form
         line("(let ((x %s)) (documentation 'x))" % kind)
         line("(let ((x %s)) (? x))" % kind)
-        line("(progn (defvar y %s) (documentation 'y))" % kind)
+        line("(progn (defvar y) (setq y %s) (documentation 'y))" % kind)
     for reader in ("read", "read-line", "read-byte", "read-from-string"):
         for kind in ("s", "g"):
             line("(%s %s)" % (reader, kind), kind)

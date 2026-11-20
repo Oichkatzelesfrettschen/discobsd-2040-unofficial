@@ -534,6 +534,10 @@ of one code walks the 1,696-cell store and costs about 84 us of wire time per
 matching cell (about 207 ms when the whole screen shows it), at the priority of
 the caller.
 
+### Second console: ttyv1 (PICOCALC_SD, options LCD_VT)
+
+The PICOCALC_SD kernel has two consoles. ttyv0 is minor 0 of character major 10 (`/dev/console`, the kernel-message and panic target); ttyv1 is minor 2, because minor 1 is `/dev/lcdgfx`. One console is shown and the other is frozen: its screen state (3,540 bytes: scalars, parser, cell and attribute stores) is parked in `lcdterm.c`, its tty carries `TS_HIDDEN` (`sys/sys/tty.h`), its start routine and the renderer draw nothing for it, and a writer sleeps at the tty's high-water mark. `TS_TTSTOP` stays the line discipline's, so a user stop survives a switch and a restart of a frozen console draws nothing until the switch. Ctrl+F1 shows ttyv0 and Ctrl+F2 shows ttyv1 (`picokbd_vt_key()`; the key sequence is untested on the board). The key only records a request: the render interrupt exchanges the two states in place with interrupts masked, repaints from the store (about 200 ms of SPI wire time, derived, not captured) and thaws the incoming tty. A request is dropped while `/dev/lcdgfx` is open. Kernel output is ttyv0's: while ttyv1 is shown it is not drawn, a one-cell marker (`!`, white on red, top right) appears on the shown console and clears on the switch to ttyv0, and the message log keeps the text. A panic or fatal fault first brings ttyv0 back (`lcdabandon()`) and repaints it. The SD root has the nodes `/dev/ttyv0` (minor 0) and `/dev/ttyv1` (minor 2) and runs a getty on `ttyv1` (`tools/picocalc/mksdroot.sh`). Closing a frozen console discards its undrawn output so that an exiting process never waits for a switch. `check-picocalc-host` (`lcdvt_test`) is the only evidence so far; the board has not run it.
+
 ## Pixel device: lcdgfx.c
 
 `/dev/lcdgfx` is minor 1 of the console's character major 10 (`LCDGFX_MINOR` in
@@ -1308,7 +1312,17 @@ capture, which shows the console only to the superuser on a PICOCALC_SD kernel
 (any other user's open blanks the memory first);
 the flash root omits it), and the board test programs of
 `tests/rp2040` (`fptest`, `sigtest`, `lcdgfxtest`, `windowtest` and the
-rest) in `/usr/tests/rp2040`. It also holds the block and raw nodes of all four card
+rest) in `/usr/tests/rp2040`. The benchmarks live here and not on the flash root:
+`/usr/bin/coremark` (no default flash profile names the `coremark` closure;
+`PROFILE=benchmark` or `IMAGE_WITH=coremark` puts it on a bare board's
+flash) and UnixBench in `/usr/share/unixbench`, which holds the compiled
+programs, the scripts and `testdir`, the layout `Run` reads
+(`HOMEDIR`), read-only to a login. `Run` puts `PATH` on that directory,
+copies `testdir` and writes its scratch files, log and report under
+a directory made new for each run, `/tmp/unixbench.UID.PID` (a plain `mkdir`
+under umask 077, which refuses a name that already exists; `UB_WORKDIR` names
+a directory the caller keeps), so root and a non-root login each write only
+there; `/tmp` on the SD kernel is on the card. It also holds the block and raw nodes of all four card
 partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
 `fsck -p` and `mount -a` in `/etc/rc` read it, and a getty on tty0, the
 USB-C port's serial line at 115200 baud, beside the panel's console login. It is written at the first

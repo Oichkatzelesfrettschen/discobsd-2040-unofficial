@@ -51,28 +51,37 @@ fact
 *arr*
 
 11911> 
-102
+*vec*
 
-11911> 
+11898> 
+*bits*
+
+11889> 
+124
+
+11889> 
 *v*
 
-11911> 
+11889> 
 fact
 
-11925> 
-102
+11903> 
+124
 
-11911> 
+11889> 
 (10 120 (a-very-long-symbol-name-indeed "a string of more than four characters" 2.5 #\x) #2A((3 3) (3 3)) 14)
 
-11911> 
+11889> 
+(#(x x x x x) (5) x 1 (40))
+
+11889> 
 Error: 'load-image' problem loading image or invalid filename
-11911> 
+11889> 
 Error: 'load-image' not an image this uLisp can load
-11911> 
+11889> 
 (10 120)
 
-11911> 
+11889> 
 "end"
 
-11911> 
+11889> 

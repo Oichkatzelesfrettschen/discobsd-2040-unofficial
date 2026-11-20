@@ -3,6 +3,36 @@
 marker
 (load-image "bad-array-wild.img")
 marker
+(load-image "bad-array-bits-grown.img")
+marker
+(load-image "bad-array-bits-leaf-null.img")
+marker
+(load-image "bad-array-bits-leaf-pair.img")
+marker
+(load-image "bad-array-dim-bit-flag.img")
+marker
+(load-image "bad-array-dim-grown.img")
+marker
+(load-image "bad-array-dim-huge.img")
+marker
+(load-image "bad-array-dim-loop.img")
+marker
+(load-image "bad-array-dim-not-number.img")
+marker
+(load-image "bad-array-dim-second-negative.img")
+marker
+(load-image "bad-array-dim-zero.img")
+marker
+(load-image "bad-array-tree-loop-deep.img")
+marker
+(load-image "bad-array-tree-loop-root.img")
+marker
+(load-image "bad-array-tree-null.img")
+marker
+(load-image "bad-array-tree-shared.img")
+marker
+(load-image "bad-array-tree-truncated.img")
+marker
 (load-image "bad-autorun-wild.img")
 marker
 (load-image "bad-base-low.img")

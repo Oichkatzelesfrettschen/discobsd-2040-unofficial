@@ -41,7 +41,7 @@ split, so a profile or command that named `games`, `puzzles`, `toolchain` or
 | `toolchain` | `as`, `ld`, `smlrc`, `cc` |
 | `calc-bignum` | `bc`, `dc` |
 
-The remaining closures stand alone: `coremark`, `calc`, `toolchainlib`,
+The remaining closures stand alone: `coremark` (named by the `benchmark` profile only), `calc`, `toolchainlib`,
 `sdcard`, `lcdgfx`, `psramtmp` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
 and the device nodes of the PicoCalc's SD card (block major 5, raw major 11 in
 `conf.c`); the `picocalc` profile names it, `full` does not, and the PICO
@@ -212,9 +212,9 @@ the pack's unused blocks occupy no flash.
 | `benchmark` | `coremark` | 431 | 42 |
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
-| `full` | every closure except the PicoCalc's, including `puzzles` | 241 | 32 |
-| `picocalc` | `full` plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop` and `psramtmp`, so also `puzzles` | 77 (86 with `IMAGE_WITHOUT=psramtmp`), measured on the merged tree that added `psramtmp` to the PICOCALC kernels' roots | 8 (10 without `psramtmp`) |
-| `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch`, `picotop` and `psramtmp` | 86 (95 without `psramtmp`), same tree | 9 (11 without `psramtmp`) |
+| `full` | every closure except the PicoCalc's and `coremark`, including `puzzles` | 231 (215 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root | 26 (25 with it) |
+| `picocalc` | `full` (which holds no `coremark`) plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop` and `psramtmp`, so also `puzzles` | 82 (66 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root; the earlier 77 (86 with `IMAGE_WITHOUT=psramtmp`) was measured with `coremark` in the profile | 8 (7 with it) |
+| `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch`, `picotop` and `psramtmp` | 91 (75 with `IMAGE_WITH=coremark`), same tree as the `picocalc` row | 9 (8 with it) |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -306,6 +306,13 @@ carries, not whether it boots:
     bmake MACHINE=rp2040 PROFILE=base flash        # its UF2
     bmake MACHINE=rp2040 BUILD_PDP11_V6=yes \
         legacy-pdp11-v6-distribution               # full plus PDP-11/V6
+
+CoreMark and UnixBench ship on the PicoCalc's SD root, which carries the whole
+install tree (`/usr/bin/coremark`, `/usr/share/unixbench`), and on no default
+flash root: `full`, `picocalc` and `picocalc-lean` leave out the `coremark`
+closure, and no profile names UnixBench. A bare board without a card runs
+CoreMark from `PROFILE=benchmark` or `IMAGE_WITH=coremark` (16 blocks, 1 inode
+on this tree).
 
 `IMAGE_WITH` and `IMAGE_WITHOUT` take space-separated closure or group names
 and apply on top of whichever profile the board or `PROFILE` selects:

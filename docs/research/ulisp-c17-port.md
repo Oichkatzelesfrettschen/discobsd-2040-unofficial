@@ -152,7 +152,8 @@ target run found these, in order:
    corner beyond 2^24 is not drawn, as a line that long is not walked).
    Upstream's `random` and `mod` share the first three; upstream's
    `mod` also returns -1 for `(mod 5 -1)` and -3 for `(mod 6 -3)`, where
-   Common Lisp returns 0; the port keeps that result.
+   Common Lisp returns 0; the `ulisp/cl-conformance` branch repairs that
+   (see `ulisp-common-lisp-conformance.md`).
 10. The image loader trusted the saved pointers. `checkimage()` now reads
    the file before any cell reaches the workspace and refuses a pointer
    outside the image, a string chain that loops or is shared, a pair or
@@ -160,9 +161,8 @@ target run found these, in order:
    builtin symbol outside its table. The `images` corpus loads 27 copies
    of a real image, each with one pointer or cell damaged by
    `corrupt-image.py`, and requires each refusal with the workspace
-   unchanged. How valid cells fit together as Lisp data (an array whose
-   tree does not match its dimensions) is not examined; a resulting
-   fault is the SIGSEGV the port turns into a Lisp error.
+   unchanged. An array's tree is checked against its dimensions by the
+   `ulisp/cl-conformance` branch (see `ulisp-common-lisp-conformance.md`).
 
 11. A second review and a sweep of every integer builtin found more
    undefined or fatal edges. `tests/ulisp/gen-arith.py` applies each

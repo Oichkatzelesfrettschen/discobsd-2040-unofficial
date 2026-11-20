@@ -238,7 +238,7 @@ main:	; Thirty lines scroll the screen before the results.
 	jne .dbad
 	mov ax, 0x0201
 	mov bx, BUF2
-	mov cx, 0x4f01
+	mov cx, 0xff01		; cylinder 255: past every format
 	mov dh, 0
 	mov dl, [drive]
 	int 0x13
@@ -252,6 +252,12 @@ main:	; Thirty lines scroll the screen before the results.
 	call hex4
 	mov ax, dx
 	call hex4
+	; The drive type and the sectors a track of its parameter table.
+	mov ah, bl
+	mov al, [es:di + 4]
+	call hex4
+	xor ax, ax
+	mov es, ax
 	mov si, m_crlf
 	jmp .ddone
 .dbad:	mov si, m_dbad

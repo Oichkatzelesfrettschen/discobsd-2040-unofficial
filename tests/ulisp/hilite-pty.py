@@ -106,6 +106,9 @@ class Screen:
         if final == "A":
             self.row -= n
             self.pending = False
+        elif final == "B":
+            self.row += n
+            self.pending = False
         elif final == "G":
             self.col, self.pending = n - 1, False
         elif final == "J":
@@ -236,6 +239,43 @@ def main(argv):
         )
     screen = painted([typed, b"\x15"], cols=20)
     expect("wrap then kill", screen.text(1), ["4000>"])
+    # Moving inside the line: the text, the colors and where the cursor stands.
+    left, right, home, end, delete = b"\x1b[D", b"\x1b[C", b"\x1b[H", b"\x1b[F", b"\x1b[3~"
+    inside = [
+        ("insert after two left keys", [b"(list 1 3)", left * 2, b"2 "], "(list 1 2 3)", 10),
+        ("home, then insert", [b"1 2)", home, b"(+ "], "(+ 1 2)", 3),
+        ("end after home", [b"(+ 1 2)", home, end, b"x"], "(+ 1 2)x", 8),
+        ("delete under the cursor", [b"(+ 1 22)", left * 2, delete], "(+ 1 2)", 6),
+        ("backspace in the middle", [b"(+ 1 22)", left * 2, b"\x7f"], "(+ 1 2)", 5),
+        ("right stops at the end", [b"(+ 1 2)", right * 3], "(+ 1 2)", 7),
+        ("left stops at the start", [b"ab", left * 5, b"c"], "cab", 1),
+        ("home and end by control keys", [b"(a)", b"\x01", b"x", b"\x05", b"y"], "x(a)y", 5),
+        ("delete at the end does nothing", [b"(a)", delete], "(a)", 3),
+        ("application cursor keys", [b"(a b)", b"\x1bOD" * 2, b"c"], "(a cb)", 4),
+    ]
+    for name, keys, text, pos in inside:
+        screen = painted(keys)
+        expect(name, screen.text(1)[0], "4000> " + text)
+        expect(name + ", cursor", (screen.row, screen.col), (1, prompt + pos))
+    screen = painted([b"(+ 1 22)", left * 2, delete])
+    expect("colors after delete", screen.classes(1, prompt, 7), "p" + "f" + "." + "n" + "." + "n" + "p")
+    # The same across the rows of a wrapped line: 6 columns of prompt, 20 wide.
+    long = b"(list 'aaaa 'bbbb 'cccc 'dddd"
+    for name, keys, text, pos in (
+        ("wrap: home, then insert", [long, home, b"("], "(" + long.decode(), 1),
+        ("wrap: home, end", [long, home, end], long.decode(), len(long)),
+        ("wrap: end of a full row", [b"(list 'aaaa 'b", home, end, b"c"], "(list 'aaaa 'bc", 15),
+        ("wrap: left over a row", [long, left * 20, b"X"], long[:-20].decode() + "X" + long[-20:].decode(), len(long) - 19),
+        ("wrap: delete across rows", [long, left * 12, delete * 3], long[:-12].decode() + long[-9:].decode(), len(long) - 12),
+    ):
+        screen = painted(keys, cols=20)
+        flat = "".join("".join(ch for ch, _ in screen.cells[r]) for r in range(1, 6)).rstrip()
+        expect(name, flat, ("4000> " + text).ljust(len(flat)))
+        at = 6 + pos
+        expect(name + ", cursor", (screen.row, screen.col), (1 + at // 20, at % 20))
+    # The value the loop prints is colored by the same classes.
+    screen = painted([b"(list 1 \"a\" 'car nil)\r"])
+    expect("value colors", screen.classes(3, 0, 15), "p" + "n" + "." + "sss" + "." + "fff" + "." + "xxx" + "p")
     # No escape sequence where the terminal cannot take it.
     for name, term, args in (("dumb", "dumb", ()), ("no TERM", None, ()), ("-n", "xterm", ("-n",))):
         out = session(binary, doc, [b"(car '(1 2))\r"], term=term, args=args)

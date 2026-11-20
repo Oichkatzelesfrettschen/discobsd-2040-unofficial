@@ -17601,7 +17601,7 @@ Error: 'logbitp' argument is not an integer: 0.5
 (expt 0 -1) => Inf
 
 12000> 
-(expt 0 0) => NaN
+(expt 0 0) => 1
 
 12000> 
 (expt 0 1) => 0.0

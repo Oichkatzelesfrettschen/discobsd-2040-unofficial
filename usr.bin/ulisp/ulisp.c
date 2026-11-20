@@ -146,7 +146,6 @@ typedef int (*intfn_ptr_type)(int w, int x, int y, int z);
 typedef const struct {
   const char *string;
   fn_ptr_type fptr;
-  uint8_t minmax;
 } tbl_entry_t;
 
 // Stream typedefs
@@ -2479,9 +2478,9 @@ static const int scale[] = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,74
 // A note below zero counts down from the octave, in a wider type than the sum
 static void playnote (int pin, int note, int octave) {
   (void) pin;
-  int semitone = note % 12;
-  if (semitone < 0) semitone = semitone + 12;
-  long long oct = (long long)octave + ((long long)note - semitone) / 12;
+  int semitone = note % 12, whole = note / 12;
+  if (semitone < 0) { semitone = semitone + 12; whole--; }
+  long long oct = (long long)octave + whole;
   if (oct < 0 || oct > 8) {
     error("octave out of range", number((oct < 0) ? ((oct < INT_MIN) ? INT_MIN : (int)oct) : INT_MAX));
   }
@@ -2702,10 +2701,10 @@ static object *sp_defvar (object *args, object *env) {
   if (!symbolp(var)) error(notasymbol, var);
   object *val = NULL;
   args = cdr(args);
-  if (args != NULL) { setflag(NOESC); val = eval(first(args), env); clrflag(NOESC); }
   object *pair = value(var->name, GlobalEnv);
-  if (pair != NULL) cdr(pair) = val;
-  else push(cons(var, val), GlobalEnv);
+  if (pair != NULL) return var; // a bound variable keeps its value and its form is not evaluated (CLHS DEFVAR)
+  if (args != NULL) { setflag(NOESC); val = eval(first(args), env); clrflag(NOESC); }
+  push(cons(var, val), GlobalEnv);
   return var;
 }
 
@@ -2761,90 +2760,47 @@ static object *sp_pop (object *args, object *env) {
 
 // Accessors
 
-static object *sp_incf (object *args, object *env) {
+// incf and decf: sign is 1 or -1. An integer result outside 32 bits is a float.
+static object *incdec (object *args, object *env, int sign) {
   int bit;
   object **loc = place(first(args), env, &bit);
   if (bit < -1) error2(notanumber);
   args = cdr(args);
 
   object *x = *loc;
-  object *inc = (args != NULL) ? eval(first(args), env) : NULL;
+  object *amt = (args != NULL) ? eval(first(args), env) : NULL;
 
   if (bit != -1) {
-    int increment;
-    if (inc == NULL) increment = 1; else increment = checkbitvalue(inc);
-    int newvalue = (((*loc)->integer)>>bit & 1) + increment;
+    int step = (amt == NULL) ? 1 : checkbitvalue(amt);
+    int newvalue = (((*loc)->integer)>>bit & 1) + ((sign > 0) ? step : -step);
 
     if (newvalue & ~1) error2("result is not a bit value");
     *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)newvalue<<bit));
     return number(newvalue);
   }
 
-  if (floatp(x) || floatp(inc)) {
-    float increment;
+  if (floatp(x) || floatp(amt)) {
+    float step = (amt == NULL) ? 1.0 : checkintfloat(amt);
     float value = checkintfloat(x);
 
-    if (inc == NULL) increment = 1.0; else increment = checkintfloat(inc);
+    *loc = makefloat((sign > 0) ? value + step : value - step);
+  } else if (integerp(x) && (integerp(amt) || amt == NULL)) {
+    int step = (amt == NULL) ? 1 : amt->integer;
+    long long sum = (sign > 0) ? (long long)x->integer + step : (long long)x->integer - step;
 
-    *loc = makefloat(value + increment);
-  } else if (integerp(x) && (integerp(inc) || inc == NULL)) {
-    int increment;
-    int value = x->integer;
-
-    if (inc == NULL) increment = 1; else increment = inc->integer;
-
-    if (increment < 1) {
-      if (INT_MIN - increment > value) *loc = makefloat((float)value + (float)increment);
-      else *loc = number(value + increment);
-    } else {
-      if (INT_MAX - increment < value) *loc = makefloat((float)value + (float)increment);
-      else *loc = number(value + increment);
-    }
+    if (sum < INT_MIN || sum > INT_MAX)
+      *loc = makefloat((sign > 0) ? (float)x->integer + (float)step : (float)x->integer - (float)step);
+    else *loc = number((int)sum);
   } else error2(notanumber);
   return *loc;
 }
 
+static object *sp_incf (object *args, object *env) {
+  return incdec(args, env, 1);
+}
+
 static object *sp_decf (object *args, object *env) {
-  int bit;
-  object **loc = place(first(args), env, &bit);
-  if (bit < -1) error2(notanumber);
-  args = cdr(args);
-
-  object *x = *loc;
-  object *dec = (args != NULL) ? eval(first(args), env) : NULL;
-
-  if (bit != -1) {
-    int decrement;
-    if (dec == NULL) decrement = 1; else decrement = checkbitvalue(dec);
-    int newvalue = (((*loc)->integer)>>bit & 1) - decrement;
-
-    if (newvalue & ~1) error2("result is not a bit value");
-    *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)newvalue<<bit));
-    return number(newvalue);
-  }
-
-  if (floatp(x) || floatp(dec)) {
-    float decrement;
-    float value = checkintfloat(x);
-
-    if (dec == NULL) decrement = 1.0; else decrement = checkintfloat(dec);
-
-    *loc = makefloat(value - decrement);
-  } else if (integerp(x) && (integerp(dec) || dec == NULL)) {
-    int decrement;
-    int value = x->integer;
-
-    if (dec == NULL) decrement = 1; else decrement = dec->integer;
-
-    if (decrement < 1) {
-      if (INT_MAX + decrement < value) *loc = makefloat((float)value - (float)decrement);
-      else *loc = number(value - decrement);
-    } else {
-      if (INT_MIN + decrement > value) *loc = makefloat((float)value - (float)decrement);
-      else *loc = number(value - decrement);
-    }
-  } else error2(notanumber);
-  return *loc;
+  return incdec(args, env, -1);
 }
 
 static object *sp_setf (object *args, object *env) {
@@ -3921,7 +3877,8 @@ static object *fn_expt (object *args, object *env) {
   (void) env;
   object *arg1 = first(args); object *arg2 = second(args);
   float float1 = checkintfloat(arg1);
-  float value = logf(fabsf(float1)) * checkintfloat(arg2);
+  float power = checkintfloat(arg2);
+  float value = (power == 0) ? 0 : logf(fabsf(float1)) * power; // x**0 is 1, also for 0
   if (integerp(arg1) && integerp(arg2) && ((arg2->integer) >= 0) && (fabsf(value) < 21.4875))
     return number(intpower(arg1->integer, arg2->integer));
   if (float1 < 0) {
@@ -4377,7 +4334,7 @@ static object *fn_writestring (object *args, object *env) {
   clrflag(PRINTREADABLY);
   printstring(obj, pfun);
   Flags = temp;
-  return nil;
+  return obj;
 }
 
 static object *fn_writeline (object *args, object *env) {
@@ -4389,7 +4346,7 @@ static object *fn_writeline (object *args, object *env) {
   printstring(obj, pfun);
   pln(pfun);
   Flags = temp;
-  return nil;
+  return obj;
 }
 
 static object *fn_gc (object *args, object *env) {
@@ -4796,7 +4753,7 @@ static object *sp_ignoreerrors (object *args, object *env) {
   handler = previous_handler;
   if (!muffled) clrflag(MUFFLEERRORS);
 
-  if (signaled) return bsymbol(NOTHING);
+  if (signaled) return nil;
   else return result;
 }
 
@@ -4817,7 +4774,8 @@ static object *sp_error (object *args, object *env) {
 
 static object *fn_directory (object *args, object *env) {
   (void) args, (void) env;
-  if (!sys_diropen(".")) error2("problem reading directory");
+  uint32_t state[SYS_DIRWORDS];
+  if (!sys_diropen(".", state)) error2("problem reading directory");
   object *result = cons(NULL, NULL);
   object *ptr = result;
   const char *name;
@@ -5044,9 +5002,21 @@ static object *fn_savebmp (object *args, object *env) {
 // Built-in symbol lookup table
 
 static const tbl_entry_t lookup_table[] = {
-#define N(e, name, fn, minmax, doc) [e] = { name, fn, minmax },
-#define B(name, fn, minmax, doc) { name, fn, minmax },
-#define K(name, value, context) { name, (fn_ptr_type)(uintptr_t)(value), context },
+#define N(e, name, fn, minmax, doc) [e] = { name, fn },
+#define B(name, fn, minmax, doc) { name, fn },
+#define K(name, value, context) { name, (fn_ptr_type)(uintptr_t)(value) },
+#include "builtins.def"
+#undef N
+#undef B
+#undef K
+};
+
+// The argument counts (or the context of a keyword) of the entries, in their own
+// bytes: in the entry they cost three bytes of padding each
+static const uint8_t minmax_table[] = {
+#define N(e, name, fn, minmax, doc) [e] = minmax,
+#define B(name, fn, minmax, doc) minmax,
+#define K(name, value, context) context,
 #include "builtins.def"
 #undef N
 #undef B
@@ -5063,6 +5033,7 @@ _Static_assert(arraysize(lookup_table) == 0
 #undef B
 #undef K
   , "builtins.def: the N lines must come first and unbroken");
+_Static_assert(arraysize(minmax_table) == arraysize(lookup_table), "one argument count per entry");
 
 // Table cross-reference functions
 
@@ -5098,8 +5069,7 @@ static intptr_t lookupfn (builtin_t name) {
 }
 
 static uint8_t getminmax (builtin_t name) {
-  bool n = name<tablesize(0);
-  return table(n?0:1)[n?name:name-tablesize(0)].minmax;
+  return minmax_table[name];
 }
 
 static void checkminmax (builtin_t name, int nargs) {
@@ -5814,8 +5784,11 @@ static void repl (object *env) {
     protect(line);
     pfl(pserial);
     line = eval(line, env);
+    clrflag(RETURNFLAG); // a return outside a loop ends with its form
     pfl(pserial);
+    sys_colorout(true);
     printobject(line, pserial);
+    sys_colorout(false);
     unprotect();
     pfl(pserial);
     pln(pserial);
@@ -5830,7 +5803,7 @@ void ulisp_fail (const char *message) {
 static void ulisperror (void) {
   // Come here after error
   sys_fclose(SYS_FIN); sys_fclose(SYS_FOUT); sys_fclose(SYS_FTMP);
-  clrflag(NOESC); BreakLevel = 0; TraceStart = 0; TraceTop = 0;
+  clrflag(NOESC); clrflag(RETURNFLAG); sys_colorout(false); BreakLevel = 0; TraceStart = 0; TraceTop = 0;
   setflag(PRINTREADABLY);  // An error inside princ leaves it clear
   for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
 }
@@ -5846,6 +5819,7 @@ static void loadfile (const char *path) {
     if (line == (object *)KET) error2("unmatched right bracket");
     protect(line);
     eval(line, NULL);
+    clrflag(RETURNFLAG);
     unprotect();
     line = readmain(SDread);
   }

@@ -56,6 +56,7 @@ void sys_exit(int status) __attribute__((noreturn));
 
 int sys_getc(void);		/* -1 at the end of input */
 void sys_hilite(bool on);	/* the console line editor colors the next lines */
+void sys_colorout(bool on);	/* the console colors the value printed until it is turned off */
 void sys_nohilite(void);	/* and never does, whatever the terminal */
 int sys_getkey(void);		/* one key, unbuffered and unechoed */
 void sys_putc(char c);
@@ -75,7 +76,13 @@ void sys_fputc(int file, char c);
 bool sys_fseek(int file, size_t offset);	/* from the start of a file open for reading */
 bool sys_fread(int file, void *data, size_t bytes);
 bool sys_fwrite(int file, const void *data, size_t bytes);
-bool sys_diropen(const char *path);
+/*
+ * A directory read keeps its stream in storage of the caller (the block buffer
+ * of a stream is 1 KB, too much to hold in the bss for a call that lasts a
+ * listing): SYS_DIRWORDS words, used only on the board.
+ */
+#define SYS_DIRWORDS 260
+bool sys_diropen(const char *path, void *state);
 const char *sys_dirnext(void);
 const char *sys_library(void);
 /* Positions SYS_FTMP at the documentation of a builtin; returns its length. */

@@ -157,10 +157,11 @@ A
 (1 2)"
 
 11836> 
-(  42)
+(nil nil 42)
 
 11836> 
 cleanup
+nil
 
 11836> 
 Error: 'car' can't take car: a

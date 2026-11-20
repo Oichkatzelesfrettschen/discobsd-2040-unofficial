@@ -4,8 +4,8 @@
 
 uLisp is a deliberate subset of Common Lisp, and where it provides a name it
 mostly behaves as the standard says. Of the 232 symbols in
-`usr.bin/ulisp/builtins.def`, 131 conform on the cases tried, 38 implement a subset of the
-standard entry, 13 differ, and 50 are uLisp's own (pins, drawing, images,
+`usr.bin/ulisp/builtins.def`, 135 conform on the cases tried, 38 implement a subset of the
+standard entry, 9 differ, and 50 are uLisp's own (pins, drawing, images,
 the line editor's keywords). The differences that were plain defects against
 the standard and cheap to repair are repaired on the `ulisp/cl-conformance`
 branch, each with a case in `tests/ulisp/repairs.lisp`, a section-cited case in
@@ -104,7 +104,7 @@ evidence for the exercised cases, not a proof of conformance.
 
 ## Builtins by HyperSpec section
 
-Status counts: 131 conforms, 38 subset, 13 differs, 50 extension.
+Status counts: 135 conforms, 38 subset, 9 differs, 50 extension (131, 38, 13, 50 before the four repairs of the REPL round: `defvar`, `ignore-errors`, `write-string`, `write-line`).
 The Common Lisp column is SBCL 2.6.9's answer to the same expression.
 
 ### CLHS 3.4.1
@@ -119,7 +119,7 @@ The Common Lisp column is SBCL 2.6.9's answer to the same expression.
 | Name | Status | Test expression | uLisp | Common Lisp | Note |
 | --- | --- | --- | --- | --- | --- |
 | `quote` | conforms | `''a` | `(quote a)` | `(QUOTE A)` | prints as (quote a): *print-pretty* nil in CL does too |
-| `defvar` | differs | `(progn (defvar v2 1) (defvar v2 2) v2)` | `2` | `1` | re-evaluates a bound variable's value form: 2 here, 1 in CL |
+| `defvar` | conforms | `(progn (defvar v2 1) (defvar v2 (progn (princ "x") 2)) v2)` | `1` | `1` | a bound variable keeps its value and its form is not evaluated (CLHS DEFVAR); was 2 before this branch |
 | `eval` | conforms | `(eval '(+ 1 2))` | `3` | `3` |  |
 
 ### CLHS 5.3
@@ -167,8 +167,8 @@ The Common Lisp column is SBCL 2.6.9's answer to the same expression.
 | Name | Status | Test expression | uLisp | Common Lisp | Note |
 | --- | --- | --- | --- | --- | --- |
 | `break` | subset |  |  |  | enters a break REPL (:c continues, :a aborts, :b backtrace); CL enters the debugger |
-| `ignore-errors` | differs | `(ignore-errors (car 5))` | `` | `NIL` | yields no value (nothing, not printed); CL returns NIL and the condition |
-| `error` | subset | `(ignore-errors (error "x"))` | `` | `NIL` | a message string only |
+| `ignore-errors` | conforms | `(ignore-errors (car 5))` | `nil` | `NIL` | one value, NIL; CL returns the condition as a second value, and uLisp has no multiple values. Yielded no value (printed nothing) before this branch |
+| `error` | subset | `(ignore-errors (error "x"))` | `nil` | `NIL` | a message string only |
 
 ### CLHS 10.2
 
@@ -227,7 +227,7 @@ The Common Lisp column is SBCL 2.6.9's answer to the same expression.
 | `exp` | conforms | `(exp 0)` | `1.0` | `1.0` |  |
 | `sqrt` | subset | `(sqrt -1)` | `NaN` | `#C(0.0 1.0)` | NaN here, a complex in CL |
 | `log` | subset | `(log 0)` | `Inf` | `ERR DIVISION-BY-ZERO` | Inf here, an error in SBCL; no complex results |
-| `expt` | subset | `(expt 2 -1)` | `0.5` | `1/2` | 0.5 here, 1/2 in CL; (expt 0 0) is NaN here and 1 in CL (plain defect, not repaired within the size limit) |
+| `expt` | subset | `(expt 2 -1)` | `0.5` | `1/2` | 0.5 here, 1/2 in CL; (expt 0 0) is 1 as in CL (NaN before this branch); (expt 0 2) is 0.0 here, 0 in CL |
 | `ceiling` | subset | `(ceiling -7 2)` | `-3` | `-3` | first value only: no multiple values; repaired on this branch |
 | `floor` | subset | `(floor -7 2)` | `-4` | `-4` | first value only; division by an integer zero crashed the host build before this branch |
 | `truncate` | subset | `(truncate -7 2)` | `-3` | `-3` | first value only |
@@ -338,8 +338,8 @@ The Common Lisp column is SBCL 2.6.9's answer to the same expression.
 | `read-byte` | subset |  |  |  | reads a byte from a stream; no binary stream types |
 | `read-line` | differs | `(read-line)` | `""` | `ERR END-OF-FILE` | at end of input returns ""; CL signals end-of-file |
 | `write-byte` | subset |  |  |  | as read-byte |
-| `write-string` | differs | `(write-string "abc")` | `abc nil` | `abc "abc"` | returns nil; CL returns the string |
-| `write-line` | differs | `(write-line "abc")` | `abc nil` | `abc "abc"` | returns nil; CL returns the string |
+| `write-string` | conforms | `(write-string "abc")` | `abc "abc"` | `abc "abc"` | returns the string; returned nil before this branch |
+| `write-line` | conforms | `(write-line "abc")` | `abc "abc"` | `abc "abc"` | returns the string; returned nil before this branch |
 
 ### CLHS 22.3
 
@@ -472,6 +472,11 @@ The Common Lisp column is SBCL 2.6.9's answer to the same expression.
 | `#| |#` | did not nest; endless at the end of a file | nests | 2.4.8.19 |
 | `#\` plus three characters | read as three decimal digits whatever they were | digits only | 2.4.8.1 |
 | `#*101` | the next read failed | reads on | 2.4.8.4 |
+| top-level `(return)` | left the return flag set, so every later `progn` ended after its first form | the flag ends with the form | 5.3 RETURN |
+| `(expt 0 0)` | NaN | 1 | 12.2 EXPT |
+| `defvar` of a bound variable | evaluated the form and replaced the value | keeps the value, the form is not evaluated | 5.3 DEFVAR |
+| `ignore-errors` after an error | no value | `nil` | 9.2 IGNORE-ERRORS |
+| `write-string`, `write-line` | returned `nil` | return the string | 21.2 WRITE-STRING |
 
 The merge of `usr.bin/ulisp-c17` changed one choice made here: a result that
 no 32-bit integer holds (`(floor -2147483648 -1)`, `(floor 1e10)`) is a float,
@@ -480,16 +485,25 @@ with `gen-arith.py`; every changed line is a `mod` or `round` result, the
 printing of 0.0, a decimal literal read as a float, or a `round` of a large
 integer now exact (the float path lost bits above 2^24).
 
+The REPL round regenerated transcripts in these classes only: the free-cell
+count in a prompt after a changed form; `(ignore-errors ...)` printing `nil`
+(the 31 conformance cases that expected the no-value symbol now expect `nil`);
+`(expt 0 0)` in `arith.expected`; in `types.expected`, the repeated
+`(defvar t ...)` forms of the generator keep the first value now, so the
+forms that read `t` afterwards (`(car t)`, `(cdr t)`) see that value, and
+the `documentation` cases bind `y` with `setq`; in `repairs.expected`, the
+new forms. The merge of `origin/main` added the `types` corpus: two classes
+of change there, a float zero printing `0.0` and a two-argument rounding form
+with both arguments wrong naming the divisor first.
+
 ## Recorded, not repaired
 
 - Design choices: 32-bit integers and no bignums (`(+ 2147483647 1)` is a
   float; `(ash 1 31)` wraps), no ratios, no complex numbers, no multiple values
   (`floor` returns its first value), no packages, characters are bytes, lexical
   `let` over a dynamic environment, six-digit float printing.
-- Left within the size limit: `(expt 0 0)` is NaN (CL 1); `defvar` re-evaluates a
-  bound variable; `(append '(1) 3)` is an error; `(case nil (nil 1) (t 2))`
-  selects the `nil` clause and `otherwise` is absent; `ignore-errors` yields no
-  value; `write-string` and `write-line` return `nil`; `(read-line)` at the end of
+- Left: `(expt 0 2)` is `0.0` (CL 0); `(append '(1) 3)` is an error; `(case nil (nil 1) (t 2))`
+  selects the `nil` clause and `otherwise` is absent; `(read-line)` at the end of
   input returns `""`; `1.` reads as a float; `#b102` reads as a symbol; keywords
   are not case-folded; `#\Rubout` and `#\Linefeed` are unknown; `1e39` reads as
   Inf; `setf` of `cadr` and the other `c[ad]r` places is an error.
@@ -537,11 +551,21 @@ The set is the one `sys/arch/rp2040/dev/lcdterm.c` accepts (SGR 0, 1, 7,
 width comes from `TIOCGWINSZ`, which the LCD console, the USB console and the UART
 set. Not classified: the `#` of `#( #* #. #nA` (marked as a reader macro, what
 follows classifies as a token) and tokens longer than 33 characters, which the
-reader splits. Not painted: the value the REPL prints (the brief's "echoed
-result"); the editor colors the input only. Keys: printable, backspace, DEL, ^U,
-^D at an empty line, Return; an escape sequence is dropped; ^C discards the
-line; a line that fills the 95-byte buffer is handed over and the next
-continues it. Cursor movement within a line is not implemented.
+reader splits. The value the REPL prints is colored by the same classes, under
+the same conditions (`sys_colorout()` in `unix.c`): the console buffer of 96
+bytes is classified a line at a time with the state carried across lines, so a
+token that straddles the buffer boundary is colored as two tokens. Keys:
+printable characters (inserted at the cursor), backspace, DEL, ^U, ^A and ^E,
+^D at an empty line, Return, and the escape sequences for Left, Right, Home,
+End and Delete (`ESC [ D C H F`, `ESC [ 1~ 3~ 4~ 7~ 8~`, and the `ESC O` forms
+the PicoCalc keyboard sends in application cursor mode); other escape
+sequences are dropped; ^C discards the line; a line that fills the 95-byte
+buffer is handed over and the next continues it. After a key the line is
+repainted from its first character (a character added at the end paints only
+itself) and the cursor is moved back with CUU, CUD and CHA; a cursor at the end
+of a line that fills its last row would be in the terminal's pending-wrap state,
+which CHA cannot address, so the move reprints the last character. Not
+implemented: history, and kill to the end of the line.
 
 Tests: `hilite-test.c` checks 42 lines (every class, and the hard cases:
 `;` and `#|` inside strings, `#\;` `#\(` `#\)`, `|` in a symbol, `1+`, `-`, `1e5`
@@ -549,12 +573,17 @@ against `e5`, `.5`, `-.5e-3`, a block comment opened in a line comment,
 strings and block comments that continue over a line end), also under the
 sanitizers; `hilite-pty.py` drives the host build on a pseudo-terminal through a
 small terminal model and checks the classes of the real builtin table, the
-match highlight, backspace and kill, repaint across wrapped rows, and that no
-escape reaches a dumb or absent terminal, `-n` or a pipe. Eight mutants of
-`hilite.c` and four of `unix.c` and `ulisp.c` are rejected.
-`tools/renode/check-ulisp.py` now starts the interpreter as `ulisp -n`, since
-the UART console is a terminal with `TERM=xterm` and its expectations match
-the uncolored transcript.
+match highlight, backspace and kill, ten cases of cursor movement inside the
+line and five on a wrapped line (text and cursor position), the colors of the
+printed value, repaint across wrapped rows, and that no escape reaches a dumb
+or absent terminal, `-n` or a pipe. Eight mutants of `hilite.c` and eight of
+`unix.c` and `ulisp.c` are rejected.
+
+The UART console: `tools/renode/check-ulisp.py` starts the interpreter as
+`ulisp -n`, since the UART console is a terminal with `TERM=xterm` and its
+expectations match the uncolored transcript. Without `-n`, color and the
+editor follow `TERM` on that console exactly as on the USB console; `-n` is
+the switch for a terminal that cannot take the sequences.
 
 ## Image check
 
@@ -583,19 +612,40 @@ collector and the printer's escape check already bound.
 | plus the image check | 55,664 | | | |
 | plus the line editor (console buffers 128 to 96 bytes) | 57,640 | | | |
 | after merging `usr.bin/ulisp-c17` | 57,824 | 57,792 | 1,988 | 14,001 cells |
+| after merging `origin/main` (wrong-type sweep, clipped drawing, mode checks) | 59,440 | 59,404 | 1,988 | 13,796 cells |
+| plus the REPL round, with the recovery below | 58,468 | 58,434 | 956 | 14,045 cells |
 
-The repairs cost 344 bytes (limit 1,500), the image check 680, the editor and
-tokenizer about 2,000 net of 160 bytes of buffers. The workspace is the first
-prompt of the linked a.out under `qemu-arm` with an empty environment, the
-same measure as the first row; it is 1 cell above the 14,000 floor, so the next
-addition to the program needs a matching saving. Renode was not rerun.
+The workspace is the first prompt of the linked a.out under `qemu-arm` with an
+empty environment, the same measure as the first row, now a gate
+(`ULISP_FLOOR` in `tests/ulisp/Makefile`, 14,000). A cell is 8 bytes, so a byte
+of program costs an eighth of a cell.
+
+The merge of `origin/main` took the workspace from 14,001 to 13,796 cells
+(about 1,640 bytes). The recovery, in bytes of `text+data+bss` as
+`arm-none-eabi-size` reports them after each step (61,392 after the merge,
+59,390 now: 2,002 bytes, 250 cells):
+
+| Change, in the order made | Bytes |
+| --- | --- |
+| `dirstream`, the 1,040-byte stream of `directory`, moves from the bss to the stack of `fn_directory` (`SYS_DIRWORDS`; `dirfd` closes it after a longjmp); `playnote` takes the octave from an `int` division, which drops `__divdi3` and `__aeabi_ldivmod`; this step also holds the cursor keys, the colored value and the four repairs, which add code | -720 |
+| the clipping division of `gfx.c` by shift and subtract, which drops `__udivmoddi4` and `__aeabi_uldivmod` | -306 |
+| `incf` and `decf` share one body | -188 |
+| the argument counts of the builtin table in their own array (3 bytes of padding in each of 232 entries) | -788 |
+
+The floor holds with 45 cells (about 360 bytes) of margin, not the 100 cells
+asked for. Candidates measured and not taken: the I/O buffers (5 of 96 bytes;
+64 bytes would save 20 cells and halve the editor's line), `fmod` (640 bytes,
+pulled by two `fmodf` sites: an exact float remainder cannot be had from
+`floorf` and a multiply), and the double-precision `sinh`, `exp` and `atan`
+members of the shared `libm`, which a float library would replace.
 
 ## Open decisions
 
-- Whether the Renode UART console should run `ulisp -n` (as the gate now does)
-  or color: the UART and USB consoles are both `TERM=xterm` terminals the
-  program cannot tell apart from the PicoCalc panel.
-- Whether to repair the remaining plain defects (`expt 0 0`, `defvar`,
-  `ignore-errors`, `write-string` result) at about 10 to 60 bytes each, which
-  needs the workspace margin above.
-- Whether the printed value should be colored too.
+- Whether the workspace floor of 14,000 cells stays, with 45 cells of margin
+  after the REPL round (the 100 cells asked for need about 440 more bytes), or
+  moves to 13,900. The gate takes `ULISP_FLOOR`, so the decision is one number.
+- The `directory` stream (1,040 bytes) now lives on the C stack for the
+  length of a listing, from the 3,072 bytes of stack margin that stay above
+  `STACK_MARGIN`'s check; no qemu corpus executes `directory` (the loader
+  serves no directory read), and the Renode gate does. Whether the Renode run
+  should list a directory from deep recursion is open.

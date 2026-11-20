@@ -86,6 +86,9 @@ static bool interactive;
 static bool hlok, hlon, nohl;	/* Colors allowed here; the editor reads now; -n */
 static int outcol;		/* Characters written since the last line end */
 static struct hl_state hlst;	/* What the lines read so far left open */
+static struct hl_state vst;	/* The same for the lines of a printed value */
+static bool vhl;		/* The console colors what it writes (sys_colorout) */
+static void valueflush(void);
 static struct timeval started;
 static unsigned int tone;
 static uint32_t seed;
@@ -93,9 +96,11 @@ static uint32_t seed;
 /*
  * opendir() takes its stream from malloc(), which would move the break past
  * the workspace into the span kept for the stack. readdir() needs only the
- * descriptor and the block buffer, so the stream is static here.
+ * descriptor and the block buffer, so the stream lives in the caller's storage
+ * (sys_diropen); dirfd is what closes it when that storage is gone.
  */
-static DIR dirstream;
+_Static_assert(sizeof(DIR) <= SYS_DIRWORDS * 4, "SYS_DIRWORDS holds a DIR");
+static int dirfd = -1;
 #endif
 static DIR *dir;
 
@@ -104,6 +109,8 @@ fileflush(struct sysfile *f)
 {
 	int done = 0;
 
+	if (f == &conout && vhl && f->len > 0)
+		valueflush();
 	while (done < f->len) {
 		ssize_t n = write(f->fd, f->buf + done, (size_t)(f->len - done));
 
@@ -349,7 +356,71 @@ paint(const char *s, const uint8_t *cls, int from, int n)
 		setclass(HL_PLAIN);
 }
 
-/* True when a line was read into conin.buf; false at end of input. */
+/*
+ * Row, below the row of the first character, of the cursor when it stands at
+ * character i of the shownn painted after a prompt of plen columns. A cursor
+ * left by the last character in the last column has not wrapped yet: it is
+ * still on that character's row.
+ */
+static int
+rowof(int plen, int width, int i, int shownn)
+{
+	int at = plen + i;
+
+	if (i == shownn && i > 0 && at % width == 0)
+		at--;
+	return at / width - plen / width;
+}
+
+/*
+ * Moves the cursor from character from to character to of the painted line.
+ * The end of a line that fills its last row cannot be addressed (a cursor
+ * there is in the pending wrap state), so the move goes to the last
+ * character and prints it again.
+ */
+static void
+curmove(int plen, int width, const char *s, const uint8_t *cls, int shownn, int from, int to)
+{
+	int back = (to == shownn && to > 0) ? to - 1 : to;
+	int dr = rowof(plen, width, from, shownn);
+	int tr = (plen + back) / width - plen / width;
+
+	if (dr != tr) {
+		putstr("\033[");
+		putnum(dr > tr ? dr - tr : tr - dr);
+		fileputc(&conout, dr > tr ? 'A' : 'B');
+	}
+	putstr("\033[");
+	putnum((plen + back) % width + 1);
+	fileputc(&conout, 'G');
+	if (back != to)
+		paint(s, cls, back, to);
+}
+
+/* The editor's colors for a printed value: the buffer of conout, a line at a time. */
+static void
+valueflush(void)
+{
+	uint8_t cls[IOBUF];
+	char text[IOBUF];
+	int n = conout.len;
+
+	memcpy(text, conout.buf, (size_t)n);
+	conout.len = 0;
+	hl_scan(&vst, text, n, cls, ulisp_symclass);
+	vhl = false;
+	paint(text, cls, 0, n);
+	vhl = true;
+}
+
+/*
+ * True when a line was read into conin.buf; false at end of input. The
+ * cursor is pos in a line of n characters; the keys are the printable ones,
+ * backspace and DEL, ^U (kill the line), ^A and ^E (home and end), ^D at an
+ * empty line (end of input), Return, and the arrow, Home, End and Delete
+ * escape sequences. Any other escape sequence is dropped and ^C discards
+ * the line.
+ */
 static bool
 editline(void)
 {
@@ -357,8 +428,8 @@ editline(void)
 	struct hl_state first = hlst;
 	struct winsize ws;
 	char *line = conin.buf;
-	int n = 0, shownn = 0, plen = outcol, esc = 0, width = 80;
-	bool eof = false;
+	int n = 0, pos = 0, cur = 0, shownn = 0, plen = outcol, esc = 0, arg = 0, width = 80;
+	bool eof = false, full = false;
 	unsigned char key;
 
 	if (ioctl(1, TIOCGWINSZ, &ws) == 0 && ws.ws_col >= 20)
@@ -369,12 +440,38 @@ editline(void)
 				eof = true;
 				break;
 			}
-			n = 0;			/* An interrupt discards the line. */
+			n = pos = 0;		/* An interrupt discards the line. */
 			esc = 0;
 		} else if (esc != 0) {
-			esc = (esc == 1 && (key == '[' || key == 'O')) ? 2 :
-			    (esc == 2 && (key < 0x40 || key > 0x7e)) ? 2 : 0;
-			continue;
+			if (esc == 1 && (key == '[' || key == 'O')) {
+				esc = 2;
+				arg = 0;
+				continue;
+			}
+			if (esc == 2 && key >= '0' && key <= '9') {
+				arg = (arg * 10 + (key - '0')) % 1000;
+				continue;
+			}
+			if (esc == 2 && (key < 0x40 || key > 0x7e))
+				continue;
+			if (esc == 1) {
+				esc = 0;
+				continue;
+			}
+			esc = 0;
+			if (key == 'D' && pos > 0)
+				pos--;
+			else if (key == 'C' && pos < n)
+				pos++;
+			else if (key == 'H' || (key == '~' && (arg == 1 || arg == 7)))
+				pos = 0;
+			else if (key == 'F' || (key == '~' && (arg == 4 || arg == 8)))
+				pos = n;
+			else if (key == '~' && arg == 3 && pos < n) {
+				memmove(line + pos, line + pos + 1, (size_t)(n - pos - 1));
+				n--;
+			} else
+				continue;
 		} else if (key == 033) {
 			esc = 1;
 			continue;
@@ -386,59 +483,74 @@ editline(void)
 			eof = true;
 			break;
 		} else if (key == 8 || key == 0x7f) {
-			if (n == 0)
+			if (pos == 0)
 				continue;
+			memmove(line + pos - 1, line + pos, (size_t)(n - pos));
+			pos--;
 			n--;
 		} else if (key == 21) {
-			n = 0;
+			n = pos = 0;
+		} else if (key == 1) {
+			pos = 0;
+		} else if (key == 5) {
+			pos = n;
 		} else if (key >= ' ' && key < 0x7f) {
-			line[n++] = (char)key;
+			memmove(line + pos + 1, line + pos, (size_t)(n - pos));
+			line[pos++] = (char)key;
+			n++;
 		} else
 			continue;
 		hlst = first;
 		hl_scan(&hlst, line, n, cls, ulisp_symclass);
-		/* A closing parenthesis shows the one it closes. */
-		if (n > 0 && line[n - 1] == ')' && cls[n - 1] == HL_PAREN) {
+		/* A closing parenthesis before the cursor shows the one it closes. */
+		if (pos > 0 && line[pos - 1] == ')' && cls[pos - 1] == HL_PAREN) {
 			int depth = 0;
 
-			for (int m = n - 1; m >= 0; m--)
+			for (int m = pos - 1; m >= 0; m--)
 				if (cls[m] == HL_PAREN &&
 				    (depth += (line[m] == ')') ? 1 : -1) == 0) {
 					cls[m] |= 0x80;
 					break;
 				}
 		}
-		if (n != shownn + 1 || memcmp(cls, shown, (size_t)shownn) != 0) {
-			/* Back to the first character and clear from there. */
+		if (cur == shownn && n == shownn + 1 && pos == n &&
+		    memcmp(cls, shown, (size_t)shownn) == 0) {
+			paint(line, cls, shownn, n);	/* A character added at the end. */
+		} else if (n != shownn || memcmp(cls, shown, (size_t)n) != 0) {
+			/* Back to the first character, clear from there, and paint the line. */
 			if (shownn > 0) {
-				int up = (plen + shownn - 1) / width - plen / width;
-
-				if (up > 0) {
-					putstr("\033[");
-					putnum(up);
-					fileputc(&conout, 'A');
-				}
-				putstr("\033[");
-				putnum(plen % width + 1);
-				putstr("G\033[J");
+				curmove(plen, width, line, shown, shownn, cur, 0);
+				putstr("\033[J");
 			}
-			shownn = 0;
+			paint(line, cls, 0, n);
+		} else {
+			goto place;
 		}
-		paint(line, cls, shownn, n);
 		memcpy(shown, cls, (size_t)n);
-		shownn = n;
+		shownn = cur = n;
+place:
+		if (cur != pos)
+			curmove(plen, width, line, shown, shownn, cur, pos);
+		cur = pos;
 		sys_flush();
 		if (n >= IOBUF - 2) {
-			outcol = plen + n;
-			ttyrestore();
-			conin.pos = 0;
-			conin.len = (short)n;
-			return true;
+			full = true;
+			break;
 		}
 	}
+	if (cur != n)
+		curmove(plen, width, line, shown, shownn, cur, n);
 	ttyrestore();
 	if (eof)
 		return false;
+	if (full) {
+		/* A line that fills the buffer is handed over whole; the next one continues it. */
+		outcol = plen + n;
+		conin.pos = 0;
+		conin.len = (short)n;
+		sys_flush();
+		return true;
+	}
 	line[n++] = '\n';		/* Plain: hlst is already what the line leaves open. */
 	fileputc(&conout, '\n');
 	sys_flush();
@@ -454,6 +566,18 @@ sys_hilite(bool on)
 	hlon = on;
 	if (on)
 		memset(&hlst, 0, sizeof hlst);
+}
+
+void
+sys_colorout(bool on)
+{
+	if (on) {
+		memset(&vst, 0, sizeof vst);
+		vhl = hlok;
+	} else if (vhl) {
+		sys_flush();
+		vhl = false;
+	}
 }
 
 void
@@ -669,26 +793,32 @@ sys_fwrite(int file, const void *data, size_t bytes)
 static void
 dirend(void)
 {
-	if (dir == NULL)
-		return;
 #ifdef ULISP_BOARD
-	(void)close(dir->dd_fd);
+	if (dirfd >= 0)
+		(void)close(dirfd);
+	dirfd = -1;
 #else
-	(void)closedir(dir);
+	if (dir != NULL)
+		(void)closedir(dir);
 #endif
 	dir = NULL;
 }
 
 bool
-sys_diropen(const char *path)
+sys_diropen(const char *path, void *state)
 {
 	dirend();
 #ifdef ULISP_BOARD
-	memset(&dirstream, 0, sizeof dirstream);
-	dirstream.dd_fd = open(path, O_RDONLY, 0);
-	if (dirstream.dd_fd >= 0)
-		dir = &dirstream;
+	DIR *d = state;
+
+	memset(d, 0, sizeof *d);
+	d->dd_fd = open(path, O_RDONLY, 0);
+	if (d->dd_fd >= 0) {
+		dirfd = d->dd_fd;
+		dir = d;
+	}
 #else
+	(void)state;
 	dir = opendir(path);
 #endif
 	return dir != NULL;

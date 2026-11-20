@@ -83,7 +83,7 @@
  (ck "3.1 LET 1" (let ((a 1) (b 2)) (+ a b)) 3)
  (ck "3.1 LET 2" (let ((a 1)) (let ((a 2) (b a)) b)) 1)
  (ck "3.1 LET 3" (let (a) a) nil)
- (ck "3.1 LET 4" (ignore-errors (let ((a 1) (b a)) b)) 'nothing)
+ (ck "3.1 LET 4" (ignore-errors (let ((a 1) (b a)) b)) nil)
  (ck "3.1 LET 5" (let () 5) 5)
  (ck "3.1 LET 6" (let ((a 1))) nil))
 ;; CLHS 3.4.1 &OPTIONAL (03_da.htm)
@@ -129,8 +129,8 @@
  (ck "5.3 DEFUN 3" (progn (defun f3 (a &optional b) (list a b)) (list (f3 1) (f3 1 2))) '((1 nil) (1 2)))
  (ck "5.3 DEFUN 4" (progn (defun f4 (a &rest r) (list a r)) (f4 1 2 3)) '(1 (2 3)))
  (ck "5.3 DEFUN 5" (progn (defun f5 (a) "doc" a) (f5 1)) 1)
- (ck "5.3 DEFUN 6" (ignore-errors (progn (defun f6 (a) (+ a 1)) (f6 1 2))) 'nothing)
- (ck "5.3 DEFUN 7" (ignore-errors (progn (defun f7 (a) (+ a 1)) (f7))) 'nothing)
+ (ck "5.3 DEFUN 6" (ignore-errors (progn (defun f6 (a) (+ a 1)) (f6 1 2))) nil)
+ (ck "5.3 DEFUN 7" (ignore-errors (progn (defun f7 (a) (+ a 1)) (f7))) nil)
  (ck "5.3 DEFUN 8" (progn (defun f8 (&optional (a 5)) a) (f8)) 5)
  (ck "5.3 DEFUN 9" (progn (defun f9 (&key a) a) (f9 :a 3)) 3))
 ;; CLHS 5.3 EQ (f_eq.htm)
@@ -155,7 +155,7 @@
 (list
  (ck "5.3 IF 1" (if t 1 2) 1)
  (ck "5.3 IF 2" (if nil 1) nil)
- (ck "5.3 IF 3" (ignore-errors (if nil 1 2 3)) 'nothing)
+ (ck "5.3 IF 3" (ignore-errors (if nil 1 2 3)) nil)
  (ck "5.3 IF 4" (if 0 'yes 'no) 'yes)
  (ck "5.3 IF 5" (if '() 'yes 'no) 'no))
 ;; CLHS 5.3 LAMBDA (a_lambda.htm)
@@ -229,7 +229,7 @@
  (ck "6.2 DO 1" (do ((i 0 (1+ i)) (s 0 (+ s i))) ((= i 4) s)) 6)
  (ck "6.2 DO 2" (do ((i 0 (1+ i))) ((= i 3))) nil)
  (ck "6.2 DO 3" (do ((i 0 (1+ i)) (j 10 (1- j))) ((>= i j) (list i j))) '(5 5))
- (ck "6.2 DO 4" (ignore-errors (do ((i 0 (1+ i)) (j i (+ j 1))) ((= i 3) j))) 'nothing))
+ (ck "6.2 DO 4" (ignore-errors (do ((i 0 (1+ i)) (j i (+ j 1))) ((= i 3) j))) nil))
 ;; CLHS 6.2 DO* (m_do_do.htm)
 (list
  (ck "6.2 DO* 1" (do* ((i 0 (1+ i)) (j i (+ j 1))) ((= i 3) j)) 3))
@@ -253,8 +253,8 @@
  (ck "6.2 LOOP 1" (let ((i 0)) (loop (incf i) (when (> i 3) (return i)))) 4))
 ;; CLHS 9.2 ERROR (a_error.htm)
 (list
- (ck "9.2 ERROR 1" (ignore-errors (error "boom")) 'nothing)
- (ck "9.2 ERROR 2" (ignore-errors (error "boom" 5)) 'nothing))
+ (ck "9.2 ERROR 1" (ignore-errors (error "boom")) nil)
+ (ck "9.2 ERROR 2" (ignore-errors (error "boom" 5)) nil))
 ;; CLHS 9.2 IGNORE-ERRORS (m_ignore.htm)
 (list
  (ck "9.2 IGNORE-ERRORS 1" (ignore-errors 7) 7))
@@ -284,19 +284,19 @@
  (ck "12.2 + 2" (+) 0)
  (ck "12.2 + 3" (+ 1.5 2) '3.5)
  (ck "12.2 + 4" (+ 1073741823 1) 1073741824)
- (ck "12.2 + 5" (ignore-errors (+ 1 'a)) 'nothing))
+ (ck "12.2 + 5" (ignore-errors (+ 1 'a)) nil))
 ;; CLHS 12.2 - (a__.htm)
 (list
  (ck "12.2 - 1" (- 5) -5)
  (ck "12.2 - 2" (- 5 3 1) 1)
- (ck "12.2 - 3" (ignore-errors (-)) 'nothing))
+ (ck "12.2 - 3" (ignore-errors (-)) nil))
 ;; CLHS 12.2 / (a_sl.htm)
 (list
  (ck "12.2 / 1" (/ 12 3) 4)
  (ck "12.2 / 2" (/ 7 2.0) '3.5)
  (ck "12.2 / 3" (/ 4 2 2) 1)
- (ck "12.2 / 4" (ignore-errors (/ 1 0)) 'nothing)
- (ck "12.2 / 5" (ignore-errors (/ 1.0 0)) 'nothing))
+ (ck "12.2 / 4" (ignore-errors (/ 1 0)) nil)
+ (ck "12.2 / 5" (ignore-errors (/ 1.0 0)) nil))
 ;; CLHS 12.2 /= (f_eq_sle.htm)
 (list
  (ck "12.2 /= 1" (/= 1 2) t)
@@ -357,7 +357,7 @@
  (ck "12.2 CEILING 7" (ceiling 5 -2) -2)
  (ck "12.2 CEILING 8" (ceiling -5 -2) 3)
  (ck "12.2 CEILING 9" (ceiling 2.1) 3)
- (ck "12.2 CEILING 10" (ignore-errors (ceiling 5 0)) 'nothing))
+ (ck "12.2 CEILING 10" (ignore-errors (ceiling 5 0)) nil))
 ;; CLHS 12.2 COS (f_sin_c.htm)
 (list
  (ck "12.2 COS 1" (cos 0) '1.0))
@@ -399,7 +399,7 @@
  (ck "12.2 FLOOR 9" (floor -5 -2) 2)
  (ck "12.2 FLOOR 10" (floor 2.7) 2)
  (ck "12.2 FLOOR 11" (floor -2.7) -3)
- (ck "12.2 FLOOR 12" (ignore-errors (floor 5 0)) 'nothing))
+ (ck "12.2 FLOOR 12" (ignore-errors (floor 5 0)) nil))
 ;; CLHS 12.2 INCF (m_incf_.htm)
 (list
  (ck "12.2 INCF 1" (let ((a 1)) (incf a)) 2)
@@ -457,7 +457,7 @@
  (ck "12.2 MOD 2" (mod -13 4) 3)
  (ck "12.2 MOD 3" (mod 13 -4) -3)
  (ck "12.2 MOD 4" (mod -13 -4) -1)
- (ck "12.2 MOD 5" (ignore-errors (mod 5 0)) 'nothing)
+ (ck "12.2 MOD 5" (ignore-errors (mod 5 0)) nil)
  (ck "12.2 MOD 6" (mod -1 5) 4)
  (ck "12.2 MOD 7" (mod 13 4) 1)
  (ck "12.2 MOD 8" (mod -13 4) 3)
@@ -472,7 +472,7 @@
  (ck "12.2 MOD 17" (< (abs (- (mod -13.4 1) 0.6)) 0.0001) t)
  (ck "12.2 MOD 18" (mod 4.0 -2) 0.0)
  (ck "12.2 MOD 19" (mod 5.5 -2) -0.5)
- (ck "12.2 MOD 20" (ignore-errors (mod 5 0)) 'nothing))
+ (ck "12.2 MOD 20" (ignore-errors (mod 5 0)) nil))
 ;; CLHS 12.2 NUMBERP (f_nump.htm)
 (list
  (ck "12.2 NUMBERP 1" (numberp 1.5) t)
@@ -492,7 +492,7 @@
  (ck "12.2 REM 2" (rem 13 -4) 1)
  (ck "12.2 REM 3" (rem -13 4) -1)
  (ck "12.2 REM 4" (rem -13 -4) -1)
- (ck "12.2 REM 5" (ignore-errors (rem 5 0)) 'nothing)
+ (ck "12.2 REM 5" (ignore-errors (rem 5 0)) nil)
  (ck "12.2 REM 6" (rem -1 5) -1)
  (ck "12.2 REM 7" (rem 13 4) 1)
  (ck "12.2 REM 8" (rem -13 4) -1)
@@ -501,7 +501,7 @@
  (ck "12.2 REM 11" (rem 5 -1) 0)
  (ck "12.2 REM 12" (< (abs (- (rem -13.4 1) -0.4)) 0.0001) t)
  (ck "12.2 REM 13" (rem 4.0 -2) 0.0)
- (ck "12.2 REM 14" (ignore-errors (rem 5 0)) 'nothing))
+ (ck "12.2 REM 14" (ignore-errors (rem 5 0)) nil))
 ;; CLHS 12.2 ROUND (f_floorc.htm)
 (list
  (ck "12.2 ROUND 1" (round 3.5) 4)
@@ -517,7 +517,7 @@
  (ck "12.2 ROUND 11" (round 5 2) 2)
  (ck "12.2 ROUND 12" (round -5 2) -2)
  (ck "12.2 ROUND 13" (round 1.4) 1)
- (ck "12.2 ROUND 14" (ignore-errors (round 5 0)) 'nothing))
+ (ck "12.2 ROUND 14" (ignore-errors (round 5 0)) nil))
 ;; CLHS 12.2 SQRT (f_sqrt_.htm)
 (list
  (ck "12.2 SQRT 1" (sqrt 16) '4.0))
@@ -530,7 +530,7 @@
  (ck "12.2 TRUNCATE 5" (truncate -5 2) -2)
  (ck "12.2 TRUNCATE 6" (truncate 5 -2) -2)
  (ck "12.2 TRUNCATE 7" (truncate -2.7) -2)
- (ck "12.2 TRUNCATE 8" (ignore-errors (truncate 5 0)) 'nothing))
+ (ck "12.2 TRUNCATE 8" (ignore-errors (truncate 5 0)) nil))
 ;; CLHS 12.2 ZEROP (f_zerop.htm)
 (list
  (ck "12.2 ZEROP 1" (zerop 0) t)
@@ -552,7 +552,7 @@
  (ck "14.2 APPEND 1" (append '(1) '(2) '(3 4)) '(1 2 3 4))
  (ck "14.2 APPEND 2" (append nil nil) nil)
  (ck "14.2 APPEND 3" (append) nil)
- (ck "14.2 APPEND 4" (ignore-errors (append '(1 . 2) '(3))) 'nothing))
+ (ck "14.2 APPEND 4" (ignore-errors (append '(1 . 2) '(3))) nil))
 ;; CLHS 14.2 ASSOC (f_assocc.htm)
 (list
  (ck "14.2 ASSOC 1" (assoc 'b '((a 1) (b 2))) '(b 2))
@@ -580,7 +580,7 @@
 (list
  (ck "14.2 CAR 1" (car '(1 2)) 1)
  (ck "14.2 CAR 2" (car nil) nil)
- (ck "14.2 CAR 3" (ignore-errors (car 5)) 'nothing))
+ (ck "14.2 CAR 3" (ignore-errors (car 5)) nil))
 ;; CLHS 14.2 CDDDR (f_car_c.htm)
 (list
  (ck "14.2 CDDDR 1" (cdddr '(1 2 3 4)) '(4)))
@@ -637,7 +637,7 @@
 (list
  (ck "14.2 NTH 1" (nth 1 '(a b c)) 'b)
  (ck "14.2 NTH 2" (nth 5 '(a)) nil)
- (ck "14.2 NTH 3" (ignore-errors (nth -1 '(a))) 'nothing))
+ (ck "14.2 NTH 3" (ignore-errors (nth -1 '(a))) nil))
 ;; CLHS 14.2 NULL (a_null.htm)
 (list
  (ck "14.2 NULL 1" (null '()) t)
@@ -648,7 +648,7 @@
 ;; CLHS 15.2 AREF (f_aref.htm)
 (list
  (ck "15.2 AREF 1" (aref (make-array 3 :initial-element 0) 1) 0)
- (ck "15.2 AREF 2" (ignore-errors (aref (make-array 3) 3)) 'nothing)
+ (ck "15.2 AREF 2" (ignore-errors (aref (make-array 3) 3)) nil)
  (ck "15.2 AREF 3" (aref (make-array '(2 2) :initial-element 9) 1 1) 9))
 ;; CLHS 15.2 ARRAY-DIMENSIONS (f_ar_d_1.htm)
 (list
@@ -660,11 +660,11 @@
  (ck "15.2 ARRAYP 2" (arrayp '(1)) nil))
 ;; CLHS 15.2 MAKE-ARRAY (f_mk_ar.htm)
 (list
- (ck "15.2 MAKE-ARRAY 1" (ignore-errors (make-array -1)) 'nothing))
+ (ck "15.2 MAKE-ARRAY 1" (ignore-errors (make-array -1)) nil))
 ;; CLHS 16.2 CHAR (f_char_.htm)
 (list
  (ck "16.2 CHAR 1" (char "abc" 1) #\b)
- (ck "16.2 CHAR 2" (ignore-errors (char "abc" 3)) 'nothing))
+ (ck "16.2 CHAR 2" (ignore-errors (char "abc" 3)) nil))
 ;; CLHS 16.2 STRING (a_string.htm)
 (list
  (ck "16.2 STRING 1" (string "abc") "abc")
@@ -702,7 +702,7 @@
 ;; CLHS 17.3 CONCATENATE (f_concat.htm)
 (list
  (ck "17.3 CONCATENATE 1" (concatenate 'string "a" "b") "ab")
- (ck "17.3 CONCATENATE 2" (ignore-errors (concatenate 'array '(1) '(2))) 'nothing)
+ (ck "17.3 CONCATENATE 2" (ignore-errors (concatenate 'array '(1) '(2))) nil)
  (ck "17.3 CONCATENATE 3" (concatenate 'string) ""))
 ;; CLHS 17.3 LENGTH (f_length.htm)
 (list
@@ -710,7 +710,7 @@
  (ck "17.3 LENGTH 2" (length '(1 2)) 2)
  (ck "17.3 LENGTH 3" (length nil) 0)
  (ck "17.3 LENGTH 4" (length (make-array 3)) 3)
- (ck "17.3 LENGTH 5" (ignore-errors (length 5)) 'nothing))
+ (ck "17.3 LENGTH 5" (ignore-errors (length 5)) nil))
 ;; CLHS 17.3 REVERSE (f_revers.htm)
 (list
  (ck "17.3 REVERSE 1" (reverse '(1 2 3)) '(3 2 1))
@@ -735,9 +735,9 @@
  (ck "17.3 SUBSEQ 2" (subseq "abc" 1) "bc")
  (ck "17.3 SUBSEQ 3" (subseq '(1 2 3) 1) '(2 3))
  (ck "17.3 SUBSEQ 4" (subseq '(1 2 3) 1 2) '(2))
- (ck "17.3 SUBSEQ 5" (ignore-errors (subseq "abc" 2 5)) 'nothing)
- (ck "17.3 SUBSEQ 6" (ignore-errors (subseq "abc" 2 1)) 'nothing)
- (ck "17.3 SUBSEQ 7" (ignore-errors (subseq "abc" -1)) 'nothing))
+ (ck "17.3 SUBSEQ 5" (ignore-errors (subseq "abc" 2 5)) nil)
+ (ck "17.3 SUBSEQ 6" (ignore-errors (subseq "abc" 2 1)) nil)
+ (ck "17.3 SUBSEQ 7" (ignore-errors (subseq "abc" -1)) nil))
 ;; CLHS 21.2 STREAMP (f_stmp.htm)
 (list
  (ck "21.2 STREAMP 1" (streamp 5) nil))
@@ -745,6 +745,6 @@
 (list
  (ck "23.2 READ-FROM-STRING 1" (read-from-string "(1 2)") '(1 2))
  (ck "23.2 READ-FROM-STRING 2" (read-from-string "abc def") 'abc)
- (ck "23.2 READ-FROM-STRING 3" (ignore-errors (read-from-string "")) 'nothing)
+ (ck "23.2 READ-FROM-STRING 3" (ignore-errors (read-from-string "")) nil)
  (ck "23.2 READ-FROM-STRING 4" (read-from-string "  42  ") 42)
  (ck "23.2 READ-FROM-STRING 5" (read-from-string "\"hi\"") "hi"))

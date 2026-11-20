@@ -46,7 +46,8 @@
 #                 under qemu-arm: the language, system, images, repairs and
 #                 conformance corpora against the same expected transcripts as
 #                 the host, and the
-#                 stack and machine-code corpora that need the target
+#                 stack and machine-code corpora that need the target, and
+#                 the workspace floor (ULISP_FLOOR cells at the first prompt)
 #   check-oracle  the language corpus through the unmodified upstream source
 #                 built for the host (oracle/), compared with the host build;
 #                 ULISP_INO names ulisp-picocalc.ino, which is not in the tree
@@ -63,6 +64,10 @@ SRC=		${TOPSRC}/usr.bin/ulisp
 LOADER=		${TOPSRC}/tests/qemu_aout
 # qemu-arm accepts a guest at address 0 only with a guest base (-B).
 GUEST_BASE?=	0x100000
+# The workspace the program leaves at its first prompt under qemu-arm with an
+# empty environment: what is left of the process window after the program's
+# bytes, 8 bytes a cell.
+ULISP_FLOOR?=	14000
 ORACLE_SHA256=	65608bb7d6a48dc02dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b
 ORACLE_CXX?=	g++ -m32 -msse2 -mfpmath=sse
 HOST_SRCS=	${SRC}/ulisp.c ${SRC}/unix.c ${SRC}/hilite.c ${SRC}/gfx.c ${SRC}/dev_host.c \
@@ -109,6 +114,14 @@ check-qemu:
 	sh check.sh qemu ${SRC}/ulisp.doc ${QEMU_ARM} -B ${GUEST_BASE} \
 	    -cpu ${QEMU_ARM_CPU} ${LOADER}/aoutrun ${.CURDIR}/ulisp.sites \
 	    ${SRC}/ulisp
+	@cells=$$(env -i ${QEMU_ARM} -B ${GUEST_BASE} -cpu ${QEMU_ARM_CPU} \
+	    ${LOADER}/aoutrun ${.CURDIR}/ulisp.sites ${SRC}/ulisp < /dev/null | \
+	    awk '/^[0-9]+> / { sub(">.*", ""); print; exit }'); \
+	if [ -z "$$cells" ] || [ "$$cells" -lt ${ULISP_FLOOR} ]; then \
+		echo "ulisp qemu: the first prompt reports '$$cells' workspace cells, below the floor ${ULISP_FLOOR}" >&2; \
+		exit 1; \
+	fi; \
+	echo "ulisp qemu: $$cells workspace cells at the first prompt (floor ${ULISP_FLOOR})"
 .endif
 
 # The upstream program reads its workspace size from its board table: 22280

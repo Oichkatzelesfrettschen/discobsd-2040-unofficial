@@ -218,6 +218,44 @@ Error: 'with-sd-card' invalid mode: 3
 11274> 
 Error: 'with-sd-card' invalid mode: -1
 11256> 
+nil
+
+11251> 
+3
+
+11242> 
+5
+
+11235> 
+(1 3)
+
+11210> 
+(1 1.0 1 1024)
+
+11157> 
+1
+
+11132> 
+nil
+
+11123> 
+(nil nil 3)
+
+11084> 
+abcde
+("abc" "de")
+
+11062> 
+(2.14748e9 -2.14748e9 2 12 9.5 8.5)
+
+10998> 
+(nil nil)
+
+10965> 
+Error: 'note' octave out of range: -178956967
+10951> 
+Error: 'note' octave out of range: 2147483647
+10937> 
 (#\Newline #\Null #\Null)
 
-11233> 
+10914> 

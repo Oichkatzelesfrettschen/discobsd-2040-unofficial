@@ -493,12 +493,24 @@ What it does not cover, and what it changes:
 
 Evidence. `check-rp2040-break-guard` decodes the header's output for every
 32-byte break in the window with an independent PMSAv6 match model and
-rejects seven mutants (TESTING.md). That is host arithmetic only. Board
-evidence is not yet taken: `mputest guard` carries the readback, coverage,
-pad, caught-fault, slow-descent, tick-retraction and burst probes, and its
-run on an MPU-off kernel is the calibration, but none of them has run on
-silicon or under Renode, so whether the core abandons a faulting frame
-write rather than locking up remains unmeasured.
+rejects seven mutants (TESTING.md). That is host arithmetic only.
+
+Board evidence. `mputest guard` carries the readback, coverage, pad,
+caught-fault, slow-descent, tick-retraction and burst probes. On a bare
+Pico (RP2040 B2, PICO kernel `#1 4716` built from this tree, 2026-11-20)
+all thirteen lines read ok and the run ends `GUARD OK (mpu on)`: region 7
+reads back RBAR `0x20003007` and RASR `0x1200fd0f` for a break of
+`0x20003001`; a store at the guard base and at the base after `sbrk(64)`
+raises SIGSEGV; a load, a store 32 bytes past the base and a store one
+byte below it succeed; the old base reads zero after the break grows; a
+handler that grows the break replays the store. The burst case prints
+"fault: stack frame in break guard", the child dies of SIGKILL and the
+board keeps running, with `mputest` reporting `MPUTEST OK (mpu on)`
+afterwards, so on this core a fault-frame write into the guard is
+abandoned rather than locking up. Not measured: the calibration run on an
+MPU-off kernel, a PicoCalc, and Renode. The probe prints its header
+before it samples the break, because stdio takes its output buffer from
+the break at the first write and the guard moves with it.
 
 ## Permanent window and SwapRAM pool
 

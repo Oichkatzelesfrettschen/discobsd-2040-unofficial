@@ -662,6 +662,13 @@ guard_probe(void)
 	unsigned long brk, base, rbar, rasr, old;
 	int enable, fails = 0, segv;
 
+	/*
+	 * stdio takes its output buffer from the break at the first write, which
+	 * moves the break and the guard with it. The header goes out before the
+	 * break is sampled so that no later line moves it.
+	 */
+	printf("guard: region 7 probes\n");
+	fflush(stdout);
 	enable = mpu_sysctl_int(CPU_MPU_ENABLE);
 	segv = enable ? SIGSEGV : 0;
 	if (((unsigned long)sbrk(0) & (GUARD_BYTES - 1)) == 0 &&

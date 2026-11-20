@@ -2092,7 +2092,8 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-word-host \
 		check-fstat-host check-sh-editor \
 		check-cp-host check-tar-host check-textbox-host check-cpio-host \
-		check-compress-host check-archive-stored-times check-cc-driver
+		check-compress-host check-archive-stored-times check-cc-driver \
+		check-libwin-host
 
 # The macOS firmware job runs the host tier as two steps, check-host-a and
 # check-host-b, so that each carries its own deadline. HOST_TIER_B_GATES names
@@ -2608,6 +2609,7 @@ check-renode-picocalc-dump:
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
 check-renode-picocalc-sd-system: picocalc-sd-system
+		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
 		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
 		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
@@ -2852,6 +2854,7 @@ installfs:
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-word-host \
 		check-fstat-host check-sh-editor check-tar-host \
+		check-libwin-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host check-host-a check-host-b check-host-split \
@@ -2896,5 +2899,13 @@ check-matezinho-sd: check-python
 	${MAKE} -C tests/matezinho check-sd
 
 .PHONY: check-matezinho-host check-matezinho-qemu check-matezinho-sd
+
+# lib/libwin's strip compositor against a model of the /dev/lcdgfx panel and
+# an independent per-pixel reference painter, natively and under the
+# sanitizers, then the mutants of win.c.
+check-libwin-host: check-python
+	${MAKE} -C tests/libwin check
+
+.PHONY: check-libwin-host
 
 .PHONY: install-world root-release

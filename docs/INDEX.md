@@ -150,6 +150,8 @@ Grouped by what they investigate.
 
 | Document | Establishes |
 | --- | --- |
+| `historical-porting-operations-mine.md` | mechanisms mined from Hettrick's DiscoBSD port report and the Schultz and Ulmann 2.11BSD operations guides: the missing board-state preservation boundary, emulator-to-board counterexample, linked-capacity precedent, machine-tuple closure and original Arm-port work-item map |
+| [SD component placement](research/sd-component-placement.md) | executable and recovery lifetimes, SD hard-link inventory, donor contracts and placement measurements |
 | `memory-ownership-plan.md` | memory ownership chosen over instruction tuning, and what landed |
 | `hardware-review-reconciliation.md` | twenty-one outside hardware, optimization and mathematics reviews checked against the datasheet and the kernels linked at `7a270276`: the corrected hardware facts, the disposition of every proposal, the ideas that survive in another form, and the ordered instrument-first roadmap |
 | `rp2040-memory-wear-engineering-program.md` | the submitted SRAM and flash-wear audit turned into configuration-specific provenance, recovery, telemetry, SwapRAM, and durability gates |
@@ -290,6 +292,7 @@ Grouped by what they investigate.
 | `dpucp-2024-donor-ledger.json` | pinned BSD donor mechanisms, licenses, invariants, dependency closures, C17 rewrites, promotion state, size evidence and deciding gates |
 | `bsd-donor-inventory.json` | all 20 BSD checkout observations, authoritative development refs, retained fetch attempts and unresolved immediate-source identities |
 | `posix-archive-donor-frontier.md`, `posix-archive-donor-frontier.json` | 13 additional archive roots, 23 content-identified investigations, per-file permission boundaries, reusable invariants, conflicts and deciding experiments |
+| `tty-console-driver-survey.md` | The port's sgtty terminal layer as it stands, a per-feature cost table for termios, VMIN/VTIME, sessions and PTYs, virtual consoles over the existing lcdterm split, the PicoCalc bus and light drivers against the vendor register set, device nodes that would give programs ADC, PWM, I2C and SPI, driver and software inventories, donor licenses and an eight-stage order |
 | `coherent-donor-review.md` | pinned Coherent sources, libc/archive/FILE/regex mechanisms, exec/fork/ABI ownership, C17 conflicts and deciding experiments |
 | `quick-exit-contracts.md` | independent quick-exit registry, live-head callback ordering, allocation failure and target/native qualification boundaries |
 | `callback-allocation-accounting.md` | calibrated ILP32 callback-node extents, cold heap commitment, allocator alignment and storage-policy limits |

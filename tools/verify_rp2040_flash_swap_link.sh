@@ -107,6 +107,11 @@ check_symbol_address()
 if printf '%s\n' "$symbols" |
     awk '$1 == "usb_tx_ring" { found = 1 } END { exit !found }'
 then
+	if printf '%s\n' "$symbols" |
+	    awk '$1 == "sdstrategy" { found = 1 } END { exit !found }'
+	then
+		check_symbol_address sd_tail 50100d00
+	fi
 	check_symbol_address flpage 50100240
 	check_symbol_address flpage_end 50100640
 	# DPSRAM is execute-never; the boot2 copy that flash_enter_xip

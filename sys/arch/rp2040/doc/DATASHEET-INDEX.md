@@ -288,3 +288,20 @@ Line numbers refer to `rp2040-datasheet.txt`, produced by `pdftotext -layout` fr
 | 5.7. | Power Consumption | 622 | 46854 |
 | 5.7.1. | Peripheral power consumption | 622 | 46856 |
 | 5.7.2. | Power consumption for typical user cases | 623 | 46923 |
+
+## Figures the section index does not locate
+
+Printed page numbers of the same build; PDF page numbers are one higher.
+
+| Figure | Where | Page |
+| --- | --- | --- |
+| Worst-case interrupt latency, highest-priority interrupt, zero wait states, no jitter suppression: 15 cycles | 2.4 Cortex-M0+ (exception model) | 73 |
+| Cortex-M0+ instruction cycle counts | Table 81 | 69 |
+| DREQ numbers: SPI0 TX 16, RX 17; SPI1 TX 18, RX 19 | Table 119 | 95 |
+| SPI peak bit rate: SSPCLK / 2 in master mode, SSPCLK / 12 in slave mode | 4.4.3.4 | 505 |
+| Non-striped SRAM mirror at 0x21000000, one bank per 64 kB window | 2.6.2 | 121 |
+
+The Cortex-M0+ TRM (ARM DDI 0484C) states the same latency on page 3-10 and
+lists the cycle counts in Table 3-1 (pages 3-4 to 3-7): MULS takes 1 or 32
+cycles, depending on the implementation's multiplier option, and a load 2 or
+1.

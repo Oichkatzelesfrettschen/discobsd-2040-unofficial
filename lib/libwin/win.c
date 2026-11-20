@@ -303,13 +303,65 @@ damage_window(struct win_scene *s, const struct win *w)
 	damage_rect(s, &r);
 }
 
+/* A hidden window draws nothing, so a change to it is not damage. */
+static void
+damage_shown(struct win_scene *s, const struct win *w)
+{
+	if (!w->hidden)
+		damage_window(s, w);
+}
+
+/* The title bar of the window in a slot. */
+static void
+damage_title(struct win_scene *s, int slot)
+{
+	const struct win *w;
+
+	if (slot < 0)
+		return;
+	w = &s->wins[slot];
+	damage_add(s, w->x + 1, w->y + 1, w->x + w->w - 1,
+	    w->y + 1 + WIN_TITLE_H);
+}
+
+/* Focus a slot (or -1) and redraw the two title bars that change. */
+static void
+focus_set(struct win_scene *s, int slot)
+{
+	if (s->focus == slot)
+		return;
+	damage_title(s, s->focus);
+	s->focus = slot;
+	damage_title(s, slot);
+}
+
+/*
+ * The shown window nearest to z index from, going down the stack and then
+ * wrapping to the top, or -1.
+ */
+static int
+focus_pick(const struct win_scene *s, int from)
+{
+	int k;
+
+	for (k = from; k >= 0; k--)
+		if (!s->wins[s->z[k]].hidden)
+			return s->z[k];
+	for (k = s->nwin - 1; k > from; k--)
+		if (!s->wins[s->z[k]].hidden)
+			return s->z[k];
+	return -1;
+}
+
 /* Rendering */
 
 static void
-paint_window(struct win_ctx *c, const struct win *w)
+paint_window(struct win_ctx *c, const struct win *w, int focused)
 {
 	int tx0, ty0, tx1, ty1, cx0, cy0, cx1, cy1;
 
+	if (w->hidden)
+		return;
 	if (w->x >= c->sx + c->sw || w->x + w->w <= c->sx ||
 	    w->y >= c->sy + c->sh || w->y + w->h <= c->sy)
 		return;
@@ -323,7 +375,8 @@ paint_window(struct win_ctx *c, const struct win *w)
 	tx1 = w->x + w->w - 1;
 	ty1 = ty0 + WIN_TITLE_H;
 	ctx_clip(c, tx0, ty0, tx1, ty1);
-	fill_abs(c, tx0, ty0, tx1, ty1, WIN_C_TITLE_BG);
+	fill_abs(c, tx0, ty0, tx1, ty1,
+	    focused ? WIN_C_TITLE_BG : WIN_C_TITLE_IDLE);
 	c->ox = tx0;
 	c->oy = ty0;
 	win_text(c, 2, 1, w->title, WIN_C_TITLE_FG);
@@ -360,7 +413,7 @@ repaint(struct win_scene *s, const struct win_rect *r)
 		c.sh = h;
 		memset(c.buf, s->desktop & PIXEL_MASK, (size_t)(w * h));
 		for (i = 0; i < s->nwin; i++)
-			paint_window(&c, &s->wins[s->z[i]]);
+			paint_window(&c, &s->wins[s->z[i]], s->z[i] == s->focus);
 		if (s->be.rect == NULL ||
 		    s->be.rect(s->be.self, r->x0, y, w, h, c.buf) < 0)
 			return -1;
@@ -401,6 +454,8 @@ win_scene_init(struct win_scene *s, const struct win_backend *be)
 	if (s == NULL || be == NULL || be->rect == NULL)
 		return -1;
 	memset(s, 0, sizeof(*s));
+	s->focus = -1;
+	s->focus_follows_raise = 1;
 	s->be = *be;
 	s->desktop = WIN_C_DESKTOP;
 	memset(s->buf, WIN_GUARD_BYTE, sizeof(s->buf));
@@ -467,27 +522,36 @@ win_create(struct win_scene *s, int x, int y, int w, int h,
 	win->paint = paint;
 	win->arg = arg;
 	win->used = 1;
+	win->hidden = 0;
+	win->on_event = NULL;
+	win->on_event_arg = NULL;
 	title_copy(win, title);
 	s->z[s->nwin++] = (unsigned char)i;
 	damage_window(s, win);
+	focus_set(s, i);
 	return win;
 }
 
 int
 win_destroy(struct win_scene *s, struct win *win)
 {
-	int i, j;
+	int i, j, p;
 
 	j = win_slot(s, win);
 	if (j < 0 || make_room(s) < 0)
 		return -1;
 	for (i = 0; s->z[i] != j; i++)
 		;
+	p = i;
 	for (; i + 1 < s->nwin; i++)
 		s->z[i] = s->z[i + 1];
 	s->nwin--;
 	win->used = 0;
-	damage_window(s, win);
+	damage_shown(s, win);
+	if (s->focus == j) {
+		s->focus = -1;
+		focus_set(s, focus_pick(s, p - 1));
+	}
 	return 0;
 }
 
@@ -500,6 +564,11 @@ win_move(struct win_scene *s, struct win *win, int x, int y)
 		return -1;
 	if (x == win->x && y == win->y)
 		return 0;
+	if (win->hidden) {
+		win->x = x;
+		win->y = y;
+		return 0;
+	}
 	if (make_room(s) < 0)
 		return -1;
 	window_rect(win, &old);
@@ -519,6 +588,11 @@ win_resize(struct win_scene *s, struct win *win, int w, int h)
 		return -1;
 	if (w == win->w && h == win->h)
 		return 0;
+	if (win->hidden) {
+		win->w = w;
+		win->h = h;
+		return 0;
+	}
 	if (make_room(s) < 0)
 		return -1;
 	window_rect(win, &old);
@@ -532,32 +606,156 @@ win_resize(struct win_scene *s, struct win *win, int w, int h)
 int
 win_raise(struct win_scene *s, struct win *win)
 {
+	int i, j, follow;
+
+	j = win_slot(s, win);
+	if (j < 0)
+		return -1;
+	follow = s->focus_follows_raise && !win->hidden && s->focus != j;
+	if (s->z[s->nwin - 1] == j && !follow)
+		return 0;
+	if (make_room(s) < 0)
+		return -1;
+	if (s->z[s->nwin - 1] != j) {
+		for (i = 0; s->z[i] != j; i++)
+			;
+		for (; i + 1 < s->nwin; i++)
+			s->z[i] = s->z[i + 1];
+		s->z[s->nwin - 1] = (unsigned char)j;
+		damage_shown(s, win);
+	}
+	if (follow)
+		focus_set(s, j);
+	return 0;
+}
+
+/* Send a window to the bottom of the stack. */
+int
+win_lower(struct win_scene *s, struct win *win)
+{
 	int i, j;
 
 	j = win_slot(s, win);
 	if (j < 0)
 		return -1;
-	if (s->z[s->nwin - 1] == j)
+	if (s->z[0] == j)
 		return 0;
 	if (make_room(s) < 0)
 		return -1;
 	for (i = 0; s->z[i] != j; i++)
 		;
-	for (; i + 1 < s->nwin; i++)
-		s->z[i] = s->z[i + 1];
-	s->z[s->nwin - 1] = (unsigned char)j;
+	for (; i > 0; i--)
+		s->z[i] = s->z[i - 1];
+	s->z[0] = (unsigned char)j;
+	damage_shown(s, win);
+	if (s->focus_follows_raise && s->focus == j)
+		focus_set(s, focus_pick(s, s->nwin - 1));
+	return 0;
+}
+
+int
+win_hide(struct win_scene *s, struct win *win)
+{
+	int i, j;
+
+	j = win_slot(s, win);
+	if (j < 0)
+		return -1;
+	if (win->hidden)
+		return 0;
+	if (make_room(s) < 0)
+		return -1;
+	win->hidden = 1;
 	damage_window(s, win);
+	if (s->focus == j) {
+		for (i = 0; s->z[i] != j; i++)
+			;
+		s->focus = -1;
+		focus_set(s, focus_pick(s, i - 1));
+	}
+	return 0;
+}
+
+/* A shown window keeps its place in the stack and takes the focus if none has it. */
+int
+win_show(struct win_scene *s, struct win *win)
+{
+	int j;
+
+	j = win_slot(s, win);
+	if (j < 0)
+		return -1;
+	if (!win->hidden)
+		return 0;
+	if (make_room(s) < 0)
+		return -1;
+	win->hidden = 0;
+	damage_window(s, win);
+	if (s->focus < 0)
+		focus_set(s, j);
+	return 0;
+}
+
+int
+win_focus(struct win_scene *s, struct win *win)
+{
+	int j;
+
+	if (win == NULL) {
+		if (s->focus < 0)
+			return 0;
+		if (make_room(s) < 0)
+			return -1;
+		focus_set(s, -1);
+		return 0;
+	}
+	j = win_slot(s, win);
+	if (j < 0 || win->hidden)
+		return -1;
+	if (s->focus == j)
+		return 0;
+	if (make_room(s) < 0)
+		return -1;
+	focus_set(s, j);
+	return 0;
+}
+
+struct win *
+win_focused(struct win_scene *s)
+{
+	return s->focus < 0 ? NULL : &s->wins[s->focus];
+}
+
+int
+win_is_live(const struct win_scene *s, const struct win *win)
+{
+	return win_slot(s, win) >= 0;
+}
+
+int
+win_set_handler(struct win_scene *s, struct win *win, win_event_fn fn,
+    void *arg)
+{
+	if (win_slot(s, win) < 0)
+		return -1;
+	win->on_event = fn;
+	win->on_event_arg = arg;
 	return 0;
 }
 
 int
 win_set_title(struct win_scene *s, struct win *win, const char *title)
 {
-	if (win_slot(s, win) < 0 || make_room(s) < 0)
+	if (win_slot(s, win) < 0)
+		return -1;
+	if (win->hidden) {
+		title_copy(win, title);
+		return 0;
+	}
+	if (make_room(s) < 0)
 		return -1;
 	title_copy(win, title);
-	damage_add(s, win->x + 1, win->y + 1, win->x + win->w - 1,
-	    win->y + 1 + WIN_TITLE_H);
+	damage_title(s, (int)(win - s->wins));
 	return 0;
 }
 

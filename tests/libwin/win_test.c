@@ -78,6 +78,7 @@
 #define R_DESKTOP	6
 #define R_FRAME		0
 #define R_TITLE_BG	4
+#define R_TITLE_IDLE	8
 #define R_TITLE_FG	15
 #define R_CLIENT	7
 #define R_TITLE_ROWS	11
@@ -241,7 +242,7 @@ struct cop {
 };
 
 struct twin {
-	int used, x, y, w, h, nops;
+	int used, x, y, w, h, nops, hidden;
 	char title[40];
 	struct cop ops[NOPS];
 	struct win *handle;
@@ -258,6 +259,8 @@ static struct win_lcdgfx lcd;
 static struct win_backend backend;
 static struct twin tw[WIN_MAX];
 static int order[WIN_MAX], norder;	/* Test z-order, bottom first. */
+static int tfocus = -1;			/* Test id of the focused window, or -1. */
+static int tpolicy = 1;			/* Test copy of focus_follows_raise. */
 static unsigned char ref[PW * PH];
 
 static uint32_t rng = 0x2f6e2b1u;
@@ -333,7 +336,7 @@ glyph_on(const char *s, int maxlen, int px, int py)
 
 /* The color of window t at (rx, ry) from its top left corner. */
 static int
-ref_window_pixel(const struct twin *t, int rx, int ry)
+ref_window_pixel(const struct twin *t, int focused, int rx, int ry)
 {
 	const struct cop *o;
 	int color, cx, cy, i, inside;
@@ -341,7 +344,7 @@ ref_window_pixel(const struct twin *t, int rx, int ry)
 	if (rx >= 1 && rx < t->w - 1 && ry >= 1 && ry <= R_TITLE_ROWS) {
 		if (glyph_on(t->title, R_TITLE_MAX, rx - 3, ry - 2))
 			return R_TITLE_FG;
-		return R_TITLE_BG;
+		return focused ? R_TITLE_BG : R_TITLE_IDLE;
 	}
 	if (rx < 1 || rx >= t->w - 1 || ry < R_TITLE_ROWS + 1 ||
 	    ry >= t->h - 1)
@@ -384,10 +387,13 @@ ref_render(void)
 	memset(ref, R_DESKTOP, sizeof(ref));
 	for (k = 0; k < norder; k++) {
 		t = &tw[order[k]];
+		if (t->hidden)
+			continue;
 		for (y = t->y < 0 ? 0 : t->y; y < t->y + t->h && y < PH; y++)
 			for (x = t->x < 0 ? 0 : t->x; x < t->x + t->w && x < PW; x++)
 				ref[y * PW + x] = (unsigned char)
-				    ref_window_pixel(t, x - t->x, y - t->y);
+				    ref_window_pixel(t, order[k] == tfocus, x - t->x,
+				    y - t->y);
 	}
 }
 
@@ -469,6 +475,57 @@ check_image(int exact)
 	}
 }
 
+/*
+ * Focus invariants: the library's focus is the test's, it names a live
+ * shown window or none, and the title bar of every shown window that
+ * nothing covers at its top left corner is drawn in the color its focus
+ * state selects (checked on the panel after a flush).
+ */
+static void
+check_focus(void)
+{
+	int want = tfocus < 0 ? -1 : (int)(tw[tfocus].handle - scene.wins);
+
+	if (scene.focus != want)
+		fail("library focus slot %d, test %d", scene.focus, want);
+	if (scene.focus >= 0 &&
+	    (!scene.wins[scene.focus].used || scene.wins[scene.focus].hidden))
+		fail("the focused window is not a shown live window");
+	if (win_focused(&scene) != (want < 0 ? NULL : tw[tfocus].handle))
+		fail("win_focused disagrees with the test");
+}
+
+static void
+check_title_pixels(void)
+{
+	int k, j, px, py, covered, id;
+	const struct twin *t, *u;
+
+	for (k = 0; k < norder; k++) {
+		id = order[k];
+		t = &tw[id];
+		px = t->x + 1;
+		py = t->y + 1;
+		if (t->hidden || px < 0 || px >= PW || py < 0 || py >= PH)
+			continue;
+		covered = 0;
+		for (j = k + 1; j < norder; j++) {
+			u = &tw[order[j]];
+			if (!u->hidden && px >= u->x && px < u->x + u->w &&
+			    py >= u->y && py < u->y + u->h)
+				covered = 1;
+		}
+		if (covered)
+			continue;
+		if (panel[py * PW + px] !=
+		    (scene.focus == (int)(t->handle - scene.wins) ?
+		    R_TITLE_BG : R_TITLE_IDLE))
+			fail("title bar of window %d is not drawn as %s", id,
+			    scene.focus == (int)(t->handle - scene.wins) ?
+			    "focused" : "unfocused");
+	}
+}
+
 static void
 check_scene_mirror(void)
 {
@@ -485,7 +542,11 @@ check_scene_mirror(void)
 		if (l->x != w->x || l->y != w->y || l->w != w->w || l->h != w->h ||
 		    strncmp(l->title, w->title, R_TITLE_MAX) != 0)
 			fail("window %d differs from what the calls reported", order[k]);
+		if (l->hidden != w->hidden)
+			fail("window %d is %s, the test has it %s", order[k],
+			    l->hidden ? "hidden" : "shown", w->hidden ? "hidden" : "shown");
 	}
+	check_focus();
 }
 
 static void
@@ -498,6 +559,7 @@ after_op(int flushed)
 			fail("damage list not empty after a flush");
 		memset(mask, 0, sizeof(mask));
 		check_image(1);
+		check_title_pixels();
 	} else {
 		check_image(0);
 	}
@@ -513,6 +575,8 @@ reset_world(void)
 	memset(tw, 0, sizeof(tw));
 	memset(holder.pad, 0xcc, sizeof(holder.pad));
 	norder = 0;
+	tfocus = -1;
+	tpolicy = 1;
 	inject_every = 0;
 	fail_countdown = 0;
 	win_open = 0;
@@ -563,16 +627,51 @@ pick_window(void)
 	return norder == 0 ? -1 : order[rr(0, norder - 1)];
 }
 
-static void
+static int
 order_remove(int id)
 {
-	int k;
+	int k, p;
 
 	for (k = 0; order[k] != id; k++)
 		;
+	p = k;
 	for (; k + 1 < norder; k++)
 		order[k] = order[k + 1];
 	norder--;
+	return p;
+}
+
+static void
+mark_title(int id)
+{
+	const struct twin *t;
+
+	if (id < 0)
+		return;
+	t = &tw[id];
+	mark(t->x + 1, t->y + 1, t->x + t->w - 1, t->y + 1 + R_TITLE_ROWS);
+}
+
+/* The window that takes the focus after the one at position p left it. */
+static int
+model_pick(int p)
+{
+	int k;
+
+	for (k = p - 1; k >= 0; k--)
+		if (!tw[order[k]].hidden)
+			return order[k];
+	for (k = norder - 1; k >= p; k--)
+		if (!tw[order[k]].hidden)
+			return order[k];
+	return -1;
+}
+
+static void
+mark_shown(const struct twin *t)
+{
+	if (!t->hidden)
+		mark_window(t);
 }
 
 /* A call fails exactly when the model failed a backend call during it. */
@@ -621,6 +720,8 @@ op_create(void)
 	t->used = 1;
 	mark_window(t);
 	order[norder++] = id;
+	mark_title(tfocus);
+	tfocus = id;
 }
 
 static void
@@ -643,10 +744,10 @@ op_move(void)
 	}
 	if (!call_ok(win_move(&scene, t->handle, nx, ny), inj, "win_move"))
 		return;
-	mark_window(t);
+	mark_shown(t);
 	t->x = nx;
 	t->y = ny;
-	mark_window(t);
+	mark_shown(t);
 }
 
 static void
@@ -664,46 +765,191 @@ op_resize(void)
 	nh = rr(14, 130);
 	if (!call_ok(win_resize(&scene, t->handle, nw, nh), inj, "win_resize"))
 		return;
-	mark_window(t);
+	mark_shown(t);
 	t->w = nw;
 	t->h = nh;
+	mark_shown(t);
+}
+
+static void
+do_raise(int id)
+{
+	struct twin *t = &tw[id];
+	long inj = n_injected;
+	int follow = tpolicy && !t->hidden && tfocus != id;
+
+	note("raise %d", id);
+	if (!call_ok(win_raise(&scene, t->handle), inj, "win_raise"))
+		return;
+	if (order[norder - 1] != id) {
+		mark_shown(t);
+		order_remove(id);
+		order[norder++] = id;
+	}
+	if (follow) {
+		mark_title(tfocus);
+		tfocus = id;
+		mark_title(id);
+	}
+}
+
+static void
+do_lower(int id)
+{
+	struct twin *t = &tw[id];
+	long inj = n_injected;
+	int k;
+
+	note("lower %d", id);
+	if (!call_ok(win_lower(&scene, t->handle), inj, "win_lower"))
+		return;
+	if (order[0] == id)
+		return;
+	mark_shown(t);
+	order_remove(id);
+	for (k = norder; k > 0; k--)
+		order[k] = order[k - 1];
+	order[0] = id;
+	norder++;
+	if (tpolicy && tfocus == id) {
+		tfocus = model_pick(norder);
+		mark_title(tfocus);
+	}
+}
+
+static void
+do_destroy(int id)
+{
+	struct twin *t = &tw[id];
+	long inj = n_injected;
+	int p;
+
+	note("destroy %d", id);
+	if (!call_ok(win_destroy(&scene, t->handle), inj, "win_destroy"))
+		return;
+	mark_shown(t);
+	p = order_remove(id);
+	if (tfocus == id) {
+		tfocus = model_pick(p);
+		mark_title(tfocus);
+	}
+	memset(t, 0, sizeof(*t));
+}
+
+static void
+do_hide(int id)
+{
+	struct twin *t = &tw[id];
+	long inj = n_injected;
+	int k;
+
+	note("hide %d", id);
+	if (!call_ok(win_hide(&scene, t->handle), inj, "win_hide"))
+		return;
+	if (t->hidden)
+		return;
 	mark_window(t);
+	t->hidden = 1;
+	if (tfocus == id) {
+		for (k = 0; order[k] != id; k++)
+			;
+		tfocus = model_pick(k);
+		mark_title(tfocus);
+	}
+}
+
+static void
+do_show(int id)
+{
+	struct twin *t = &tw[id];
+	long inj = n_injected;
+
+	note("show %d", id);
+	if (!call_ok(win_show(&scene, t->handle), inj, "win_show"))
+		return;
+	if (!t->hidden)
+		return;
+	t->hidden = 0;
+	mark_window(t);
+	if (tfocus < 0) {
+		tfocus = id;
+		mark_title(id);
+	}
+}
+
+/* id -1 leaves no window focused. */
+static void
+do_focus(int id)
+{
+	long inj = n_injected;
+	struct win *h = id < 0 ? NULL : tw[id].handle;
+	int rc;
+
+	note("focus %d", id);
+	if (id >= 0 && tw[id].hidden) {
+		if (win_focus(&scene, h) != -1)
+			fail("a hidden window took the focus");
+		return;
+	}
+	rc = win_focus(&scene, h);
+	if (!call_ok(rc, inj, "win_focus"))
+		return;
+	if (tfocus != id) {
+		mark_title(tfocus);
+		tfocus = id;
+		mark_title(id);
+	}
 }
 
 static void
 op_raise(void)
 {
-	struct twin *t;
-	long inj = n_injected;
 	int id = pick_window();
 
-	if (id < 0)
-		return;
-	t = &tw[id];
-	note("raise %d", id);
-	if (!call_ok(win_raise(&scene, t->handle), inj, "win_raise"))
-		return;
-	mark_window(t);
-	order_remove(id);
-	order[norder++] = id;
+	if (id >= 0)
+		do_raise(id);
 }
 
 static void
 op_destroy(void)
 {
-	struct twin *t;
-	long inj = n_injected;
+	int id = pick_window();
+
+	if (id >= 0)
+		do_destroy(id);
+}
+
+static void
+op_visibility(void)
+{
 	int id = pick_window();
 
 	if (id < 0)
 		return;
-	t = &tw[id];
-	note("destroy %d", id);
-	if (!call_ok(win_destroy(&scene, t->handle), inj, "win_destroy"))
-		return;
-	mark_window(t);
-	order_remove(id);
-	memset(t, 0, sizeof(*t));
+	if (tw[id].hidden)
+		do_show(id);
+	else
+		do_hide(id);
+}
+
+static void
+op_focus(void)
+{
+	int id = pick_window();
+
+	if (rr(0, 9) == 0)
+		id = -1;
+	if (id >= 0 || tfocus >= 0)
+		do_focus(id);
+}
+
+static void
+op_lower(void)
+{
+	int id = pick_window();
+
+	if (id >= 0)
+		do_lower(id);
 }
 
 static void
@@ -738,7 +984,8 @@ op_title(void)
 	if (!call_ok(win_set_title(&scene, t->handle, title), inj, "win_set_title"))
 		return;
 	strcpy(t->title, title);
-	mark(t->x + 1, t->y + 1, t->x + t->w - 1, t->y + 1 + R_TITLE_ROWS);
+	if (!t->hidden)
+		mark_title(id);
 }
 
 static void
@@ -751,20 +998,26 @@ run_random(long nops)
 		op_index = i;
 		r = rr(0, 99);
 		flushed = 0;
-		if (r < 14)
+		if (r < 12)
 			op_create();
-		else if (r < 34)
+		else if (r < 28)
 			op_move();
-		else if (r < 44)
+		else if (r < 36)
 			op_resize();
-		else if (r < 56)
+		else if (r < 46)
 			op_raise();
-		else if (r < 63)
+		else if (r < 52)
 			op_destroy();
-		else if (r < 80)
+		else if (r < 64)
 			op_invalidate();
-		else if (r < 85)
+		else if (r < 68)
 			op_title();
+		else if (r < 74)
+			op_visibility();
+		else if (r < 78)
+			op_focus();
+		else if (r < 82)
+			op_lower();
 		else {
 			long inj = n_injected;
 
@@ -946,12 +1199,164 @@ run_failure(void)
 		fail("win_create refused after the backend recovered");
 	a->used = 1;
 	order[norder++] = 0;
+	tfocus = 0;
 	mark_window(a);
 	if (win_flush(&scene) != 0)
 		fail("win_flush");
 	after_op(1);
 	printf("PASS failure: refused calls change nothing, damage stays exact, "
 	    "%ld backend failures\n", n_injected);
+}
+
+static void
+rc_expect(int rc)
+{
+	if (rc != -1)
+		fail("a call succeeded although its first flush failed");
+}
+
+static void
+fx_create(int id, int x, int y, int w, int h, const char *title)
+{
+	struct twin *t = &tw[id];
+	long inj = n_injected;
+
+	memset(t, 0, sizeof(*t));
+	t->x = x;
+	t->y = y;
+	t->w = w;
+	t->h = h;
+	strcpy(t->title, title);
+	t->handle = win_create(&scene, x, y, w, h, title, paint_cb, t);
+	if (!call_ok(t->handle != NULL ? 0 : -1, inj, "win_create"))
+		fail("fixed window %d refused", id);
+	t->used = 1;
+	mark_window(t);
+	order[norder++] = id;
+	mark_title(tfocus);
+	tfocus = id;
+}
+
+static void
+expect_focus(int id, const char *what)
+{
+	if (tfocus != id)
+		fail("%s: the test model expects focus %d, got %d", what, id, tfocus);
+	if (win_focused(&scene) != (id < 0 ? NULL : tw[id].handle))
+		fail("%s: the library did not focus window %d", what, id);
+}
+
+static void
+fill_damage(void)
+{
+	int i;
+
+	for (i = 0; i < 7; i++) {
+		mark(i * 40, 300, i * 40 + 4, 304);
+		if (win_invalidate(&scene, i * 40, 300, 4, 4) != 0)
+			fail("win_invalidate");
+	}
+}
+
+/*
+ * Focus and visibility by hand: the focus follows raise and lower, moves to
+ * the next window down when the focused one is destroyed or hidden, never
+ * rests on a hidden window, a hidden window occludes nothing and records no
+ * damage, and a call that fails at the backend changes neither the focus
+ * nor the shown state.
+ */
+static void
+run_focus(void)
+{
+	int i;
+
+	reset_world();
+	op_index = -5;
+	fx_create(0, 10, 10, 100, 80, "a");
+	fx_create(1, 60, 40, 100, 80, "b");
+	fx_create(2, 40, 70, 100, 80, "c");
+	expect_focus(2, "a new window takes the focus");
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	do_raise(0);
+	expect_focus(0, "raise focuses");
+	if (order[2] != 0)
+		fail("raise did not put the window on top");
+	scene.focus_follows_raise = tpolicy = 0;
+	do_raise(1);
+	expect_focus(0, "raise with the policy off keeps the focus");
+	if (order[2] != 1)
+		fail("raise with the policy off did not restack");
+	scene.focus_follows_raise = tpolicy = 1;
+	do_focus(2);
+	expect_focus(2, "explicit focus");
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	do_destroy(2);
+	expect_focus(1, "destroying the bottom focused window focuses the top");
+	do_hide(1);
+	expect_focus(0, "hiding the focused window focuses the next one down");
+	do_hide(0);
+	expect_focus(-1, "no shown window leaves no focus");
+	do_focus(1);
+	expect_focus(-1, "a hidden window takes no focus");
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	if (panel[11 * PW + 11] != R_DESKTOP)
+		fail("a hidden window still covers the desktop");
+	/* A hidden window records no damage. */
+	if (win_move(&scene, tw[0].handle, 30, 30) != 0 ||
+	    win_resize(&scene, tw[0].handle, 90, 70) != 0 ||
+	    win_set_title(&scene, tw[0].handle, "hidden") != 0 ||
+	    scene.ndamage != 0)
+		fail("a change to a hidden window recorded damage");
+	tw[0].x = tw[0].y = 30;
+	tw[0].w = 90;
+	tw[0].h = 70;
+	strcpy(tw[0].title, "hidden");
+	do_show(1);
+	expect_focus(1, "showing a window takes the focus when none has it");
+	do_show(0);
+	expect_focus(1, "showing a window keeps the focus");
+	do_lower(1);
+	expect_focus(0, "lowering the focused window focuses the top one");
+	do_destroy(0);
+	do_destroy(1);
+	expect_focus(-1, "an empty scene has no focus");
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+
+	/* A call refused by the backend changes neither focus nor shown state. */
+	for (i = 0; i < 6; i++) {
+		reset_world();
+		op_index = -6 - i;
+		fx_create(0, 10, 10, 100, 80, "a");
+		fx_create(1, 60, 40, 100, 80, "b");
+		do_hide(0);
+		fx_create(2, 40, 70, 100, 80, "c");
+		if (win_flush(&scene) != 0)
+			fail("win_flush");
+		after_op(1);
+		fill_damage();
+		fail_countdown = 1;
+		switch (i) {
+		case 0: rc_expect(win_hide(&scene, tw[2].handle)); break;
+		case 1: rc_expect(win_show(&scene, tw[0].handle)); break;
+		case 2: rc_expect(win_raise(&scene, tw[1].handle)); break;
+		case 3: rc_expect(win_lower(&scene, tw[2].handle)); break;
+		case 4: rc_expect(win_focus(&scene, tw[1].handle)); break;
+		default: rc_expect(win_destroy(&scene, tw[2].handle)); break;
+		}
+		after_op(0);
+		if (win_flush(&scene) != 0)
+			fail("win_flush");
+		after_op(1);
+	}
+	printf("PASS focus: stack, hide, show and failed-call rules\n");
 }
 
 /* Backend bytes for three workloads, as the model counts them. */
@@ -1026,6 +1431,7 @@ main(int argc, char **argv)
 	run_burst();
 	run_api();
 	run_failure();
+	run_focus();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

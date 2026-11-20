@@ -46,7 +46,7 @@ MUTATIONS = (
     ("baseline", "", ""),
     (
         "dropped_destroy_damage",
-        "\twin->used = 0;\n\tdamage_window(s, win);",
+        "\twin->used = 0;\n\tdamage_shown(s, win);",
         "\twin->used = 0;",
     ),
     (
@@ -56,8 +56,8 @@ MUTATIONS = (
     ),
     (
         "dropped_raise_damage",
-        "\ts->z[s->nwin - 1] = (unsigned char)j;\n\tdamage_window(s, win);",
-        "\ts->z[s->nwin - 1] = (unsigned char)j;",
+        "\t\ts->z[s->nwin - 1] = (unsigned char)j;\n\t\tdamage_shown(s, win);",
+        "\t\ts->z[s->nwin - 1] = (unsigned char)j;",
     ),
     (
         "overflow_loses_damage",
@@ -130,6 +130,61 @@ MUTATIONS = (
         "hline_one_short",
         "win_fill(c, x, y, len, 1, color);",
         "win_fill(c, x, y, len - 1, 1, color);",
+    ),
+    (
+        "focus_not_moved_on_destroy",
+        "\tif (s->focus == j) {\n\t\ts->focus = -1;\n\t\tfocus_set(s, focus_pick(s, p - 1));\n\t}\n\treturn 0;",
+        "\t(void)p;\n\treturn 0;",
+    ),
+    (
+        "focus_not_moved_on_hide",
+        "\tif (s->focus == j) {\n\t\tfor (i = 0;",
+        "\tif (0) {\n\t\tfor (i = 0;",
+    ),
+    (
+        "hidden_still_occludes",
+        "\tif (w->hidden)\n\t\treturn;\n\tif (w->x >=",
+        "\tif (w->x >=",
+    ),
+    (
+        "title_not_distinct",
+        "focused ? WIN_C_TITLE_BG : WIN_C_TITLE_IDLE",
+        "(focused & 0) ? WIN_C_TITLE_IDLE : WIN_C_TITLE_BG",
+    ),
+    (
+        "raise_keeps_focus",
+        "\tif (follow)\n\t\tfocus_set(s, j);",
+        "",
+    ),
+    (
+        "hidden_window_focusable",
+        "\tif (j < 0 || win->hidden)\n\t\treturn -1;\n\tif (s->focus == j)",
+        "\tif (j < 0)\n\t\treturn -1;\n\tif (s->focus == j)",
+    ),
+    (
+        "focus_pick_takes_hidden",
+        "\tfor (k = from; k >= 0; k--)\n\t\tif (!s->wins[s->z[k]].hidden)",
+        "\tfor (k = from; k >= 0; k--)\n\t\tif (1)",
+    ),
+    (
+        "dropped_hide_damage",
+        "\twin->hidden = 1;\n\tdamage_window(s, win);",
+        "\twin->hidden = 1;",
+    ),
+    (
+        "dropped_show_damage",
+        "\twin->hidden = 0;\n\tdamage_window(s, win);",
+        "\twin->hidden = 0;",
+    ),
+    (
+        "new_window_keeps_old_focus",
+        "\tdamage_window(s, win);\n\tfocus_set(s, i);\n\treturn win;",
+        "\tdamage_window(s, win);\n\treturn win;",
+    ),
+    (
+        "focus_change_skips_old_title",
+        "\tdamage_title(s, s->focus);\n\ts->focus = slot;",
+        "\ts->focus = slot;",
     ),
 )
 

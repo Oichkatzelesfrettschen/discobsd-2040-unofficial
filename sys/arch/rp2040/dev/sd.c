@@ -343,41 +343,50 @@ sd_replaced(void)
 _Static_assert(sizeof(u_int) == 4 && sizeof(struct diskpart) == 16,
     "struct diskpart is the 16-byte MBR partition entry");
 
+struct sd_mbr {
+	struct diskpart slots[MAXPARTITIONS];
+	u_short signature;
+};
+
+_Static_assert(__builtin_offsetof(struct sd_mbr, signature) == 64,
+    "MBR signature follows four partition entries");
+
+static int
+sd_read_mbr(struct sdspi *card, struct sd_mbr *table)
+{
+	/* Exclude any trailing alignment padding after the on-disk signature. */
+	return sdspi_read_span(card, 0, (u_char *)table, 446,
+	    sizeof(table->slots) + sizeof(table->signature));
+}
+
 /*
- * Read the partition table from sector 0, keeping entries inside the card.
- * The table is built in a local copy and replaces sdpt only when the read
- * succeeds, so a failed DIOCREINIT leaves the mappings of open partitions
- * intact.
+ * The transfer verifies the sector CRC before the local table replaces
+ * the accepted extents. A read error preserves the current mappings.
  */
 static int
 sd_partitions(void)
 {
-	struct buf *bp = geteblk();
-	const u_char *b = (const u_char *)bp->b_addr;
-	struct diskpart pt[MAXPARTITIONS + 1];
-	int i, error = EIO;
+	struct sd_mbr table;
+	struct diskpart *p;
+	int i;
 
-	bzero(pt, sizeof(pt));
-	pt[0].dp_nsectors = sdcard.nsectors;
-	if (sdspi_read(&sdcard, 0, (u_char *)bp->b_addr) == SDE_OK) {
-		error = 0;
-		if ((b[510] | (u_int)b[511] << 8) == MBR_MAGIC)
-			bcopy(b + 446, &pt[1], 64);
-		for (i = 1; i <= MAXPARTITIONS; i++) {
-			if (pt[i].dp_offset > sdcard.nsectors ||
-			    pt[i].dp_nsectors >
-			    sdcard.nsectors - pt[i].dp_offset)
-				bzero(&pt[i], sizeof(pt[i]));
-			if (pt[i].dp_nsectors != 0)
-				printf("sd0%c: partition type %02x, sector %u, "
-				    "size %u kbytes\n", i + 'a' - 1,
-				    pt[i].dp_type, pt[i].dp_offset,
-				    pt[i].dp_nsectors / 2);
-		}
-		bcopy(pt, sdpt, sizeof(sdpt));
+	if (sd_read_mbr(&sdcard, &table) != SDE_OK)
+		return EIO;
+	if (table.signature != MBR_MAGIC)
+		bzero(table.slots, sizeof(table.slots));
+	for (i = 0; i < MAXPARTITIONS; i++) {
+		p = &table.slots[i];
+		if (p->dp_offset > sdcard.nsectors ||
+		    p->dp_nsectors > sdcard.nsectors - p->dp_offset)
+			bzero(p, sizeof(*p));
+		if (p->dp_nsectors != 0)
+			printf("sd0%c: partition type %02x, sector %u, "
+			    "size %u kbytes\n", i + 'a', p->dp_type,
+			    p->dp_offset, p->dp_nsectors / 2);
 	}
-	brelse(bp);
-	return error;
+	bcopy(table.slots, &sdpt[1], sizeof(table.slots));
+	sdpt[0].dp_nsectors = sdcard.nsectors;
+	return 0;
 }
 
 /* Bring the card up and read its partition table; 0 or an errno. */
@@ -489,7 +498,15 @@ sdclose(dev_t dev, int flag __unused, int mode)
  * the bytes asked for, leaving the memory past them alone. The polled
  * strategy routine runs one request at a time, so one buffer serves.
  */
+#ifdef UARTUSB_ENABLED
+/* usbinit clears DPSRAM before disk attachment. Each transfer fills the
+ * entire sector before consuming it. kern.ldscript reserves its range.
+ */
+_Static_assert(SD_SECTOR == 512, "USB workspace holds one SD sector");
+extern u_char sd_tail[SD_SECTOR];
+#else
 static u_char sd_tail[SD_SECTOR];
+#endif
 
 static int
 sd_tail_io(struct buf *bp, u_int sector, u_char *addr, u_int len)
@@ -730,7 +747,7 @@ sddump(dev_t dev, const struct dump_span *span, u_int nspan,
     u_int image, u_int when)
 {
 	struct sd_dumpdev dd = { { &sd_ops, SD_NONE, 0, 0 }, 0 };
-	u_char tab[MAXPARTITIONS * 16 + 2];
+	struct sd_mbr table;
 	struct diskpart dp;
 	int i, error;
 
@@ -741,13 +758,13 @@ sddump(dev_t dev, const struct dump_span *span, u_int nspan,
 		printf("dump: no SD card\n");
 		return ENXIO;
 	}
-	if (sdspi_read_span(&dd.card, 0, tab, 446, sizeof(tab)) != SDE_OK ||
-	    tab[sizeof(tab) - 2] != 0x55 || tab[sizeof(tab) - 1] != 0xaa) {
+	if (sd_read_mbr(&dd.card, &table) != SDE_OK ||
+	    table.signature != MBR_MAGIC) {
 		printf("dump: no partition table on sd0\n");
 		return ENXIO;
 	}
 	for (i = 0; i < MAXPARTITIONS; i++) {
-		bcopy(&tab[i * 16], &dp, sizeof(dp));
+		dp = table.slots[i];
 		if (dp.dp_type == DUMP_PART_TYPE && dp.dp_nsectors != 0 &&
 		    dp.dp_offset <= dd.card.nsectors &&
 		    dp.dp_nsectors <= dd.card.nsectors - dp.dp_offset)

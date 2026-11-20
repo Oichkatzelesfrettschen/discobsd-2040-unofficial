@@ -92,6 +92,8 @@ char    *getlogin (void);
 pid_t   getpgrp (void);
 pid_t   getpid (void);
 pid_t   getppid (void);
+pid_t   tcgetpgrp (int);
+int     tcsetpgrp (int, pid_t);
 uid_t   getuid (void);
 off_t   lseek (int, off_t, int);
 ssize_t read (int, void *, size_t);

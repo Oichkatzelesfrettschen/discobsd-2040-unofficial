@@ -832,6 +832,19 @@ check-libc-environment:
 check-libc-sysctl:
 		${MAKE} -C tests/libc_sysctl check
 
+# The termios library members of lib/libc/gen against a model of the sgtty
+# ioctls: the header's names and values, the speed accessors and the
+# attribute mapping. It compiles the tree's userland headers, so it runs at
+# ILP32 like check-libc-sysctl.
+check-libc-termios:
+		${MAKE} -C tests/libc_termios check
+
+# The kernel half of the termios work: the sys/kern/tty.c code that keeps
+# VMIN and VTIME, extracted and compiled against the kernel's own struct tty
+# at ILP32.
+check-tty-kernel:
+		${MAKE} -C tests/tty_kernel check
+
 # sbin/umount's exit status over several operands, and the type list it asks
 # once per operand. The gate links the program's own source against a mount
 # table it owns, so nothing it decides needs a mounted filesystem. It reaches
@@ -2062,7 +2075,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-du-contracts check-resize-contracts \
 		check-aout check-native-linker check-as-ld-scratch check-native-nm check-kernel check-fs-stress check-fsck-inode-range \
 		check-kernel-metadata check-root-noatime \
-		check-libc-environment check-libc-sysctl \
+		check-libc-environment check-libc-sysctl check-libc-termios check-tty-kernel \
 		check-umount-contracts check-backgammon-contracts \
 		check-touch-contracts check-printf-contracts \
 		check-recovery-utility-contracts check-timeout-contracts \
@@ -2411,7 +2424,7 @@ check-ilp32-execution: check-python
 		    ${TEST_EXECUTION_REPORT:D--report ${TEST_EXECUTION_REPORT:Q}}
 
 check-ilp32-execution-recipes: check-python .WAIT symlinks .WAIT \
-		check-posix-sh check-kernel .WAIT check-kernel-ilp32 check-libc-sysctl \
+		check-posix-sh check-kernel .WAIT check-kernel-ilp32 check-libc-sysctl check-libc-termios check-tty-kernel \
 		check-dd-contracts check-umount-contracts check-fsck-inode-range \
 		check-backgammon-contracts check-libc-host-contracts check-scandir-contracts \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-textbox-host \
@@ -2822,7 +2835,7 @@ installfs:
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
 		check-fsck-inode-range \
-		check-libc-environment check-libc-sysctl check-umount-contracts \
+		check-libc-environment check-libc-sysctl check-libc-termios check-tty-kernel check-umount-contracts \
 		check-touch-contracts check-lex-tables check-printf-contracts \
 		check-printf-contracts-ilp32 check-printf-contracts-cross \
 		check-recovery-utility-contracts \

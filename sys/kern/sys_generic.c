@@ -276,6 +276,7 @@ ioctl(void)
     case TIOCGLTC:
     case TIOCOUTQ:
     case TIOCGWINSZ:
+    case TIOCGMINTIME:
     case DIOCGETMEDIASIZE:
     case DIOCGETPART:
     case DIOCMEDIAGONE:
@@ -307,6 +308,7 @@ ioctl(void)
     case TIOCSLTC:
     case TIOCSTI:
     case TIOCSWINSZ:
+    case TIOCSMINTIME:
     case TFALLOC:
 #ifdef PICOCALC_ENABLED
     case LCDIOC_SETGLYPH:

@@ -183,6 +183,9 @@ struct ttysize {
 #define     LPENDIN     ((int)(PENDIN>>16))
 #define     LDECCTQ     ((int)(DECCTQ>>16))
 #define     LNOFLSH     ((int)(NOFLSH>>16))
+#define TIOCDRAIN       _IO ('t', 94)       /* wait for output to drain */
+#define TIOCGMINTIME    _IOR('t', 101, int) /* get VMIN | VTIME << 8 */
+#define TIOCSMINTIME    _IOW('t', 100, int) /* set VMIN | VTIME << 8 */
 #define TIOCSBRK        _IO ('t', 123)      /* set break bit */
 #define TIOCCBRK        _IO ('t', 122)      /* clear break bit */
 #define TIOCSDTR        _IO ('t', 121)      /* set data terminal ready */

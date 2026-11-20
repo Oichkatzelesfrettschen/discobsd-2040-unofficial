@@ -197,8 +197,11 @@ MUTATIONS = (
     ),
     (
         "bits_lsb_first",
-        "\t\t\t\tb = (unsigned char)(b << 1);\n\t\t\t\tif (x * 8 + k < w && *fg != *bg &&\n\t\t\t\t    (buf[y * w + x * 8 + k] & PIXEL_MASK) == *fg)\n\t\t\t\t\tb |= 1;",
-        "\t\t\t\tif (x * 8 + k < w && *fg != *bg &&\n\t\t\t\t    (buf[y * w + x * 8 + k] & PIXEL_MASK) == *fg)\n\t\t\t\t\tb |= (unsigned char)(1 << k);",
+        "\t\t\t\tb = (unsigned char)(b << 1);\n\t\t\t\tif (x * 8 + k < w && *fg != *bg &&\n"
+        "\t\t\t\t    (buf[y * w + x * 8 + k] & PIXEL_MASK) == *fg)\n\t\t\t\t\tb |= 1;",
+        "\t\t\t\tif (x * 8 + k < w && *fg != *bg &&\n"
+        "\t\t\t\t    (buf[y * w + x * 8 + k] & PIXEL_MASK) == *fg)\n"
+        "\t\t\t\t\tb |= (unsigned char)(1 << k);",
     ),
     (
         "bits_fg_bg_swapped",
@@ -290,7 +293,8 @@ INPUT_MUTATIONS = (
     ),
     (
         "close_without_handler_chance",
-        "\t\tr = w->on_event(s, w, &ev, w->on_event_arg);\n\t\tif (r < 0)\n\t\t\treturn -1;\n\t\tif (r != 0)\n\t\t\treturn 0;",
+        "\t\tr = w->on_event(s, w, &ev, w->on_event_arg);\n\t\tif (r < 0)\n\t\t\treturn -1;\n"
+        "\t\tif (r != 0)\n\t\t\treturn 0;",
         "\t\tr = w->on_event(s, w, &ev, w->on_event_arg);\n\t\tif (r < 0)\n\t\t\treturn -1;",
     ),
     (
@@ -331,7 +335,9 @@ INPUT_MUTATIONS = (
     ),
     (
         "modal_not_gated",
-        "\tif (in->modal != NULL && win_is_live(s, in->modal) &&\n\t    in->modal->gen == in->modal_gen &&\n\t    (action == WIN_ACT_NEXT || action == WIN_ACT_PREV))\n\t\treturn 0;\n",
+        "\tif (in->modal != NULL && win_is_live(s, in->modal) &&\n"
+        "\t    in->modal->gen == in->modal_gen &&\n"
+        "\t    (action == WIN_ACT_NEXT || action == WIN_ACT_PREV))\n\t\treturn 0;\n",
         "",
     ),
     (
@@ -346,7 +352,8 @@ INPUT_MUTATIONS = (
     ),
     (
         "close_failure_swallowed",
-        "\t\tif (r < 0)\n\t\t\treturn -1;\n\t\tif (r != 0)\n\t\t\treturn 0;\n\t}\n\treturn win_destroy",
+        "\t\tif (r < 0)\n\t\t\treturn -1;\n\t\tif (r != 0)\n\t\t\treturn 0;\n\t}\n"
+        "\treturn win_destroy",
         "\t\tif (r != 0)\n\t\t\treturn 0;\n\t}\n\treturn win_destroy",
     ),
 )
@@ -473,8 +480,10 @@ WIDGET_MUTATIONS = (
     ),
     (
         "field_repaints_whole_field",
-        "\trl_add(&l, w->head.x + 2 + WGT_CELL_W * lo, w->head.y + 2,\n\t    WGT_CELL_W * (hi - lo + 1), WGT_CELL_H);",
-        "\trl_add(&l, w->head.x + 2 + WGT_CELL_W * lo, w->head.y + 2,\n\t    w->head.w + (hi - hi), WGT_CELL_H);",
+        "\trl_add(&l, w->head.x + 2 + WGT_CELL_W * lo, w->head.y + 2,\n"
+        "\t    WGT_CELL_W * (hi - lo + 1), WGT_CELL_H);",
+        "\trl_add(&l, w->head.x + 2 + WGT_CELL_W * lo, w->head.y + 2,\n"
+        "\t    w->head.w + (hi - hi), WGT_CELL_H);",
     ),
     (
         "field_reserve_skipped",
@@ -483,8 +492,10 @@ WIDGET_MUTATIONS = (
     ),
     (
         "activation_hook_after_store",
-        "\tif (f->act != NULL && f->act(f, &k->head, k->head.id, on) < 0)\n\t\treturn -1;\n\tif (focus_to >= 0)\n\t\tfocus_apply(f, focus_to);\n\tk->checked = (unsigned char)on;",
-        "\tif (focus_to >= 0)\n\t\tfocus_apply(f, focus_to);\n\tk->checked = (unsigned char)on;\n\tif (f->act != NULL && f->act(f, &k->head, k->head.id, on) < 0)\n\t\treturn -1;",
+        "\tif (f->act != NULL && f->act(f, &k->head, k->head.id, on) < 0)\n\t\treturn -1;\n"
+        "\tif (focus_to >= 0)\n\t\tfocus_apply(f, focus_to);\n\tk->checked = (unsigned char)on;",
+        "\tif (focus_to >= 0)\n\t\tfocus_apply(f, focus_to);\n\tk->checked = (unsigned char)on;\n"
+        "\tif (f->act != NULL && f->act(f, &k->head, k->head.id, on) < 0)\n\t\treturn -1;",
     ),
 )
 

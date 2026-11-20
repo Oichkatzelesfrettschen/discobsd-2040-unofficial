@@ -83,6 +83,16 @@ nil
 12000> 
 Error: 'analogread' invalid pin: 3
 12000> 
+(100 401 0 300 1023 -5 0 255 0)
+
+12000> 
+Error: 'analogread' invalid pin: 30
+12000> 
+Error: 'analogwrite' invalid pin: 30
+12000> 
+-1
+
+12000> 
 Error: memory fault
 12000> 
 Error: memory fault

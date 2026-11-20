@@ -1,0 +1,89 @@
+CuteMouse on the i86 serial mouse, host build, by hand
+=======================================================
+
+What it shows: a stock DOS mouse driver finds the emulated COM1 mouse by
+itself, installs on interrupt line 4 in Microsoft mode, and reports the
+movements and buttons the PicoCalc mouse keys make through interrupt 33h.
+
+Inputs, outside the tree:
+
+  svdos-1.44M-disk-1.img (SvarDOS 20250427)
+    4db7fcab7388909d8e1d1cd4433f30d96cf3740ae363c889243e9f39bcdccda5
+  ctmouse.svp, the SvarDOS package, from
+  http://www.svardos.org/repo/?a=pull&p=ctmouse
+    a65d3d4c04bf2db3f461d6bcc974eb20edc186e20d68a274824a9915f8b3d395
+  DRIVERS/CTMOUSE/CTMOUSE.EXE from it (CuteMouse 2.1 beta4, GPL)
+    822cf550c9e19a22785722d2306aa08ede10ff20bfe931d5a81a15f77c5f363e
+  MT.COM, assembled from mt.asm beside this file
+
+Disk:
+
+  PYTHON=python3 sh docs/research/i86-dos-emulator/mkdosdisk.sh \
+      usr.bin/i86/i86-host svdos-1.44M-disk-1.img c.img 4 CTMOUSE.EXE MT.COM
+
+Session: usr.bin/i86/i86-host -c 286 -s page -h c.img on a
+pseudo-terminal, real clock. Each key was typed 0.6 s after the text
+before it appeared:
+
+  ctmouse Enter, mt Enter,
+  Control-\ (mouse keys on),
+  Right, Right, Right, Down, then four Right in one write,
+  [ ] { Right { , then q (MT leaves; q is not a mouse key),
+  Control-\ (off), Control-] q (leave the emulator).
+
+Screen, escape sequences removed and repeated lines dropped:
+
+............................................................
+Enhanced DR-DOS kernel 20250427 (rev 72ae65f) [built 04/27/25 00:06:20]
+source and licensing conditions available at https://github.com/SvarDOS/edrdos
+Enhanced DR-DOS kernel 20250427 (rev 72ae65f) [built 04/27/25 00:06:20]
+DR-DOS kernel version 1072
+DOS kernel version 7.10
+Revision A
+DOS is in low memory
+SvarCOM shell ver 2025.1
+C:\>ctmouse
+CuteMouse v2.1 beta4 [FreeDOS]
+Installed at COM1 (03F8h/IRQ4) in Microsoft mode
+No VGA? Use older CTMOUSE if you need EGA RIL support
+C:\>mt
+regs:0F01026000
+reset:0002
+regs:0F01026000
+b:0000,x:0140,y:0060
+b:0000,x:0150,y:0060
+b:0000,x:0160,y:0060
+b:0000,x:0170,y:0060
+b:0000,x:0170,y:0068
+b:0000,x:0180,y:0068
+b:0000,x:01B0,y:0068
+b:0000,x:0210,y:0068
+b:0000,x:0278,y:0068
+b:0001,x:0278,y:0068
+b:0000,x:0278,y:0068
+b:0002,x:0278,y:0068
+b:0000,x:0278,y:0068
+b:0001,x:0278,y:0068
+b:0000,x:0278,y:0068
+C:\>
+
+Reading:
+
+  - Install: CTMOUSE probes, finds the Microsoft mouse at COM1 and line 4.
+    After install the modem control register reads 0Fh: DTR, RTS, OUT1
+    and OUT2. CTMOUSE writes the line and modem control registers with
+    one word to port 3FBh; before the machine split a word access into
+    two byte accesses, OUT2 stayed off and no report reached the driver.
+  - Reset: two buttons; the pointer at (320, 96), the middle of the
+    640 by 200 virtual screen of an 80-column text mode.
+  - Each Right tap moves the text pointer 16 virtual pixels (two
+    columns), the Down tap 8 (one row), at CTMOUSE's default speed.
+  - The four Right arrows in one write are a repeat (8, 16, 32 and 64
+    mickeys); CTMOUSE accelerates further and clamps at x = 278h, the
+    last column.
+  - [ reports button 1 and its release, ] button 2 and its release, {
+    holds button 1 until the second {. The Right between them moves
+    nothing visible because the pointer is at the right edge.
+
+Not covered: the panel display (-g), the kernel and the board; Windows
+3.0's own mouse driver.

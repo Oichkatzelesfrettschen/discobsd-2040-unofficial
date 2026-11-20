@@ -57,6 +57,8 @@ int gfx_mode(unsigned mode);
 /* Draw what changed: the cells of a text mode with cols columns and the
  * cursor at cell index cursor, or the scan lines of a graphics mode. */
 void gfx_refresh(unsigned cols, unsigned cursor);
+/* Show or remove the mark of mouse keys in the panel's top margin. */
+void gfx_pointer(int on);
 /* The firmware's text and pixel services in a graphics mode. */
 void gfx_putc(unsigned row, unsigned col, unsigned ch, unsigned color);
 void gfx_scroll(unsigned top, unsigned left, unsigned bot, unsigned right,

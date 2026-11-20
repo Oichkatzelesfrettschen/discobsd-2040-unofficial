@@ -138,6 +138,13 @@ def default_signals():
         signal.signal(sig, signal.SIG_DFL)
 
 
+
+# spill_open() in lexeme_buf.c opens its temporary file in $TMPDIR, and falls
+# back to /tmp when the name is longer than 48 bytes. A directory that does not
+# exist makes the spill fail; it has to be short, or a long temporary path (the
+# per-user directory of macOS) selects /tmp and the spill succeeds.
+NO_SPILL_DIR = "/nonexistent/lexeme-spill"
+
 class Session:
     def __init__(self, binary, args=(), cwd=None, env=None):
         master, slave = pty.openpty()
@@ -648,7 +655,7 @@ def t_replace_failure(b, td):
     # stays on screen.
     path = os.path.join(td, "r.txt")
     write(path, b"abc " * 200)
-    s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
+    s = Session(b, [path], env={"TMPDIR": NO_SPILL_DIR})
     menu(s, b"r")
     s.send(b"abc", b"\t", b"Q" * 90, b"\t", b"n", b"\r")
     check(s.has("Replace failed"), "failed replacement not reported")
@@ -852,7 +859,13 @@ def t_signal_restore(b, td):
     for sig in (signal.SIGTERM, signal.SIGHUP):
         s = Session(b, [path])
         s.proc.send_signal(sig)
-        rc = s.proc.wait(timeout=10.0)
+        # The handler writes the reset sequences to the terminal; a pty whose
+        # master is not read (macOS holds about one screen) blocks that write
+        # until the test reads, so the master is read while the process ends.
+        deadline = time.monotonic() + 10.0
+        while s.proc.poll() is None and time.monotonic() < deadline:
+            s.pump(0.2, 0.05)
+        rc = s.proc.wait(timeout=1.0)
         s.pump()
         check(rc == -sig, "exit status %r after %s" % (rc, sig.name))
         check(
@@ -886,7 +899,7 @@ def t_select_replace(b, td):
     # in memory: a deletion of three bytes stages them and an 8-byte run map
     # (11), and the replacement needs one more for the typed K.
     path = os.path.join(td, "w.txt")
-    s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
+    s = Session(b, [path], env={"TMPDIR": NO_SPILL_DIR})
     typed = b"q" * 8178 + b"XYZ"
     type_text(s, typed)
     s.send(b"\x1b[1;2D" * 3, b"K")

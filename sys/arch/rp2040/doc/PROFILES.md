@@ -555,6 +555,11 @@ the first MBR partition of type 0xb7 on the SD card, including a boot
 directly from the board ROM. A missing or unusable root stops boot.
 The configured root and pipe device move together. The SD driver checks
 the selected partition's recorded geometry when the root mount opens it.
+PICOCALC_SD is the kernel for board sessions and card images.
+`bmake MACHINE=rp2040 picocalc-sd-diag-kernel` builds PICOCALC_SD_DIAG, the
+testing kernel (the same configuration with DIAGNOSTIC, GLOBAL_DEBUG and
+STORAGE_STATS at `-Og`), as `unix-PICOCALC-SD-DIAG.uf2`; it is built on
+request and belongs to no image rule or release family.
 
 ```sh
 PYTHON=${PYTHON:-python3}

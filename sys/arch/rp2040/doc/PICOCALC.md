@@ -1316,6 +1316,8 @@ a working PSRAM swaps there instead and does not need fl1.
 
 The loader offers no entry from a running system that this tree has read: `bootloader -y` enters the boot ROM's USB loader, which replaces the SD route for that session, and no command asks the loader's own menu to run. The menu stays a power-on, keyboard action.
 
+The UF2 to stage is `distrib/rp2040/unix-PICOCALC-SD.uf2` (`picocalc-sd-kernel`): PICOCALC_SD is the kernel for board sessions and card images, with its root on the card's type b7 partition. `unix-PICOCALC-SD-DIAG.uf2` (`picocalc-sd-diag-kernel`, PICOCALC_SD_DIAG, described above) stages the same way when a session needs its diagnostic output; either file is copied to the card under the one name below, and `sysctl kern.version` names the build that started.
+
 Programming a new kernel from the card (observed on the measured unit, 2026-11-18): copy the UF2 to `/pico1-apps/discobsd.uf2` on the card's FAT partition, unplug both USB cables, switch the PicoCalc off, then hold the Up key while pressing the power key. The loader opens on the card at the `pico1-apps` entry; Up twice more reaches the application list, and selecting `discobsd` programs the file and starts it. Two states look like a failed card and are not. A power-on without the Up key starts the kernel already in flash and leaves the card's copy unprogrammed, so `sysctl kern.version` shows the old build on the new root. A power-on with the micro-USB cable in the Pico puts the loader in USB drive mode: it reports "usb connected", presents the card to the host as a mass-storage device (`cafe:4002`, `UF2LOADER_MSC`), shows no application list and starts nothing; the card is intact. The micro-USB cable goes back in after the kernel has started.
 
 Two more things the loader route changes are handled at boot.
@@ -1335,8 +1337,8 @@ every other application on its menu, so under the loader the fl0 region
 holds another application's bytes, and a Dhara resume over them would read
 them as a journal. A kernel the loader started therefore takes its root
 from the SD card. `sdrootattach()` in `dev/sd.c`, which the PICOCALC,
-PICOCALC_LEAN and PICOCALC_LEAN_DIAG configurations run as the service
-`sdroot` after `binit()`
+PICOCALC_LEAN, PICOCALC_LEAN_DIAG, PICOCALC_SD and PICOCALC_SD_DIAG
+configurations run as the service `sdroot` after `binit()`
 and before the root mount, reads the card's MBR and sets `rootdev` (and
 `pipedev`, which `main()` copied from it before services attach) to the
 first entry of type b7:

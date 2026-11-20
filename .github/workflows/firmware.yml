@@ -324,11 +324,16 @@ jobs:
       # has no Thumb-1 variant and math holds Thumb-1 to glibc-checked digests.
       # This job installs cffi, hypothesis and pytest, so the swap tier
       # model gate fails rather than skips when one is missing.
-      # Measured 899 to 1,098 seconds on runs that finished; one runner had
-      # not finished at 1,140 with every gate so far passing.
+      # Wall time of the Linux host tier on a four-CPU runner: 899 to 1,098
+      # seconds in early November, then 960, 1,104, 1,434 and 1,308 in the
+      # nightlies of 2026-11-17 to 2026-11-20 as the ulisp mutants (62), lexeme
+      # and i86 gates came in. Two dispatch runs of 2026-11-20 reached the former
+      # 1,620 s limit with every gate so far passing, the second with 19 of 168
+      # gates not started: the tier is bound by total CPU work, not by gate
+      # order. The idle timeout still catches a hung gate.
       - name: Run the host tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 28
+        timeout-minutes: 48
         env:
           SWAP_TIER_MODEL_REQUIRED: "1"
         run: |
@@ -336,7 +341,7 @@ jobs:
             --label linux-host \
             --log .build-logs/linux-host.log \
             --status .build-logs/linux-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1620 \
+            --idle-timeout-seconds 300 --timeout-seconds 2700 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       # check-signal-sets-cross owns target signatures and Smaller C input;

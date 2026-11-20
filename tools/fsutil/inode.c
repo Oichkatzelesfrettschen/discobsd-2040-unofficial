@@ -542,18 +542,26 @@ void fs_dirent_pack (unsigned char *data, fs_dirent_t *dirent)
 /*
  * Read dirent from raw data.
  */
-void fs_dirent_unpack (fs_dirent_t *dirent, unsigned char *data)
+int fs_dirent_unpack (fs_dirent_t *dirent, const unsigned char *data, unsigned room)
 {
-    dirent->ino = *data++;
-    dirent->ino |= *data++ << 8;
-    dirent->ino |= *data++ << 16;
-    dirent->ino |= *data++ << 24;
-    dirent->reclen = *data++;
-    dirent->reclen |= *data++ << 8;
-    dirent->namlen = *data++;
-    dirent->namlen |= *data++ << 8;
-    memset (dirent->name, 0, sizeof (dirent->name));
-    memcpy (dirent->name, data, dirent->namlen);
+    if (room < 8)
+        return 0;
+    unsigned reclen = data[4] | (unsigned)data[5] << 8;
+    if (reclen < 8 || (reclen & 3) || reclen > room)
+        return 0;
+    unsigned ino = data[0] | (unsigned)data[1] << 8 |
+        (unsigned)data[2] << 16 | (unsigned)data[3] << 24;
+    unsigned namlen = ino ? data[6] | (unsigned)data[7] << 8 : 0;
+    if (ino && (namlen == 0 || namlen >= sizeof(dirent->name) ||
+        namlen >= reclen - 8 || data[8 + namlen] != 0 ||
+        memchr(data + 8, 0, namlen) || memchr(data + 8, '/', namlen)))
+        return 0;
+    dirent->ino = ino;
+    dirent->reclen = reclen;
+    dirent->namlen = namlen;
+    memcpy(dirent->name, data + 8, namlen);
+    dirent->name[namlen] = 0;
+    return 1;
 }
 
 /*

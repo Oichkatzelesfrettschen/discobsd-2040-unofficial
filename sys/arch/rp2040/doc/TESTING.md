@@ -4601,3 +4601,17 @@ space, partial progress on a large nonblocking write, and records from two
 concurrent writers. The host pipe gate checks residual counts on errors and
 models a drain while a writer waits. Its exact-fit and split-record mutants
 must fail different assertions.
+
+### Host fsutil directory-record validation
+
+`check-fsck-inode-range` preflights every allocated directory through the
+production fsutil decoder before a writable check reaches a repair phase. A
+record must hold its eight-byte header inside the loaded block, have a nonzero
+four-byte-aligned length within that block, and hold a terminated name without
+NUL or slash bytes. A live name must fit both its record and the 64-byte
+destination. The final record may reach the end of its 1024-byte block when a
+repairable inode size ends earlier. Three malformed-image scenarios cover a
+record that crosses its block, a 64-byte live name, and a name whose declared
+length crosses its record. Read-only and writable checks return failure and
+leave each image byte-identical. The calibrated record-bound mutant must fail
+all three scenarios.

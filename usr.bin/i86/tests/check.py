@@ -114,7 +114,16 @@ MUTANTS = [
         "pc_idle = 1;",
     ),
     ("pc.c", "(cf.keys != NULL || key_eof))", "cf.keys != NULL)"),
-    ("mem.c", "\t\tstore_unname();\n\t}", "\t\t(void)store_unname;\n\t}"),
+    (
+        "mem.c",
+        "if (store_unname() != 0)\n\t\t\tgoto fail;",
+        "(void)store_unname;\n\t\tif (0)\n\t\t\tgoto fail;",
+    ),
+    (
+        "mem.c",
+        "memcpy(dir, store_path, n);\n\tdir[n] = '\\0';",
+        "memcpy(dir, store_path, n > 63 ? 63 : n);\n\tdir[n > 63 ? 63 : n] = '\\0';",
+    ),
     (
         "mem.c",
         "named.st_dev == held.st_dev && named.st_ino == held.st_ino)",
@@ -412,6 +421,20 @@ def test_endings(binary, work):
     """Every way out removes the page file and reports itself."""
     image = os.path.join(work, "run.img")
     shutil.copyfile(os.path.join(work, "guest.img"), image)
+    # A page file deep in a long directory path pages and leaves nothing.
+    deep = os.path.join(work, "d" * 70, "e" * 70)
+    os.makedirs(deep)
+    done = subprocess.run(
+        [binary, "-q", "-T", "-f", "8", "-s", os.path.join(deep, "page"), "-a", image, "-k", KEYS],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    if done.returncode != 0 or os.listdir(deep):
+        raise Failure(
+            "page file in a long path: exit %d, left %r" % (done.returncode, os.listdir(deep))
+        )
+    shutil.rmtree(os.path.join(work, "d" * 70))
     # A page file path that exists is refused and left as it was.
     store = os.path.join(work, "occupied")
     with open(store, "w") as handle:
@@ -1125,7 +1148,8 @@ def main(argv):
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")
                     test_undefined(sstrun + "-mutant", work)
                     test_rep_burst(sstrun + "-mutant", work)
-                except Failure:
+                except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                    # A mutant that hangs or dies has failed like any other.
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))
             print("%d mutants fail the test" % len(MUTANTS))
@@ -1139,11 +1163,11 @@ def main(argv):
                 build(tree, mutant, cc, psources)
                 try:
                     panel.test(mutant, src, work)
-                except panel.Failure:
+                except (panel.Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
                     continue
                 raise Failure("panel mutant %d survives: %s: %r" % (number, name, old))
             print("%d mutants fail the panel display test" % len(panel.MUTANTS))
-        except Failure as failure:
+        except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError) as failure:
             sys.stderr.write("i86 check: %s\n" % failure)
             return 1
     return 0

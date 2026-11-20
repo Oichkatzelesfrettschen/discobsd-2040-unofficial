@@ -55,6 +55,9 @@ void *sys_init(unsigned int *cells, size_t cellsize, uintptr_t *stacklimit);
 void sys_exit(int status) __attribute__((noreturn));
 
 int sys_getc(void);		/* -1 at the end of input */
+void sys_hilite(bool on);	/* the console line editor colors the next lines */
+void sys_colorout(bool on);	/* the console colors the value printed until it is turned off */
+void sys_nohilite(void);	/* and never does, whatever the terminal */
 int sys_getkey(void);		/* one key, unbuffered and unechoed */
 void sys_putc(char c);
 void sys_flush(void);
@@ -73,7 +76,13 @@ void sys_fputc(int file, char c);
 bool sys_fseek(int file, size_t offset);	/* from the start of a file open for reading */
 bool sys_fread(int file, void *data, size_t bytes);
 bool sys_fwrite(int file, const void *data, size_t bytes);
-bool sys_diropen(const char *path);
+/*
+ * A directory read keeps its stream in storage of the caller (the block buffer
+ * of a stream is 1 KB, too much to hold in the bss for a call that lasts a
+ * listing): SYS_DIRWORDS words, used only on the board.
+ */
+#define SYS_DIRWORDS 260
+bool sys_diropen(const char *path, void *state);
 const char *sys_dirnext(void);
 const char *sys_library(void);
 /* Positions SYS_FTMP at the documentation of a builtin; returns its length. */
@@ -81,6 +90,17 @@ int sys_docopen(unsigned int index);
 
 /* ulisp.c: raises a Lisp error from the system side; does not return. */
 void ulisp_fail(const char *message) __attribute__((noreturn));
+
+/* hilite.c: the class of every character of a line of Lisp. */
+enum { HL_PLAIN, HL_PAREN, HL_STRING, HL_COMMENT, HL_NUMBER, HL_CHAR, HL_QUOTE,
+    HL_KEYWORD, HL_SPECIAL, HL_FUNCTION, HL_CONSTANT, HL_ERROR };
+struct hl_state {		/* What the lines before this one left open. */
+	uint8_t instring, block, depth;
+};
+void hl_scan(struct hl_state *st, const char *s, int n, uint8_t *cls,
+    int (*symclass)(const char *));
+/* ulisp.c: the class of a symbol name, from the builtin table. */
+int ulisp_symclass(const char *name);
 
 /* Devices. */
 void dev_pinmode(int pin, int mode);

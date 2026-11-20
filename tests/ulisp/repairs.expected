@@ -46,75 +46,219 @@ Error: no room
 (7 1)
 
 12000> 
+(1 3 -3 -1 0 0 0 0)
+
+12000> 
+(1 -1 1 -1 0 0)
+
+12000> 
+(0.4 0.5 0.0 -0.5 0.5 -0.5 0.0)
+
+12000> 
+(2 4 -2 0 2 4 2 -4 -2 2)
+
+12000> 
+(-2 -2 -1 -1 -1 -1 -2 2 -2)
+
+12000> 
+Error: 'floor' division by zero
+12000> 
+Error: 'ceiling' division by zero
+12000> 
+Error: 'truncate' division by zero
+12000> 
+Error: 'round' division by zero
+12000> 
+Error: 'floor' division by zero
+12000> 
+Error: 'round' division by zero
+12000> 
+2.14748e9
+
+12000> 
+1.0e10
+
+12000> 
+-3.0e9
+
+12000> 
+(-2147483648 0 0 0 0 -1 -1 0 -2 0 0)
+
+12000> 
+((1.0e11 -1.0e11 2147483647 2.14748e9 4.29497e9 4.29497e9 1.23457e13 -2147483648 -2.14748e9))
+
+12000> 
+(1.23457e29 2147483647 -1)
+
+12000> 
+(nil nil)
+
+12000> 
+(t t t t nil nil)
+
+12000> 
+(0.0 0.0 0.0 0.0 0.0 (0.5))
+
+12000> 
+1
+
+11998> 
+(1 2 3)
+
+11984> 
+(1 2)
+
+11974> 
+4
+
+11972> 
+(1 2 3)
+
+11959> 
+(5)
+
+11952> 
+6
+
+11950> 
+(a c)
+
+11935> 
+(#\; #\( #\) #\" #\a)
+
+11916> 
+#*101
+
+11899> 
+(1)
+
+11892> 
+(#*1 #*10)
+
+11861> 
+#\A
+
+11859> 
+#\Space
+
+11857> 
+Error: unknown character
+11857> 
+Error: unknown character
+11857> 
+(#\Null #\A #\a #\Newline)
+
+11841> 
 (3.0 2.5 -7.0)
 
-12000> 
+11810> 
 Error: 'float' argument is not a number: foo
-12000> 
+11801> 
 Error: 'float' argument is not a number: nil
-12000> 
+11795> 
 Error: 'float' argument is not a number: "abc"
-12000> 
+11787> 
 docv
 
-11992> 
+11772> 
 nil
 
-11992> 
+11763> 
 nil
 
-11992> 
+11741> 
 nil
 
-11992> 
+11716> 
 Error: argument is not a symbol: nil
-11992> 
+11709> 
 Error: argument is not a symbol: 1
-11992> 
+11698> 
 Error: argument is not a symbol: (y)
-11992> 
+11680> 
 Error: 'setq' argument is not a symbol: nil
-11992> 
+11674> 
 Error: 'set' argument is not a symbol: nil
-11992> 
+11664> 
 Error: 'setf' argument is not a symbol: nil
-11992> 
+11658> 
 Error: 'incf' argument is not a symbol: nil
-11992> 
+11654> 
 Error: 'push' argument is not a symbol: nil
-11992> 
+11648> 
 Error: 'make-array' argument is not an integer: a
-11992> 
+11636> 
 Error: 'make-array' argument is not a proper list: 3
-11992> 
+11625> 
 Error: 'make-array' argument is not an integer: 1.5
-11992> 
+11615> 
 Error: 'concatenate' only supports strings
-11992> 
+11602> 
 Error: 'concatenate' only supports strings
-11992> 
+11592> 
 Error: 'write-string' argument is not a string: foo
-11992> 
+11583> 
 Error: 'write-line' argument is not a string: 1
-11992> 
+11575> 
 Error: 'read' stream cannot be read: <string-stream 0>
-11992> 
+11557> 
 Error: 'read-line' stream cannot be read: <string-stream 0>
-11992> 
+11541> 
 Error: 'read-byte' stream cannot be read: <string-stream 0>
-11992> 
+11525> 
 Error: 'sleep' missing argument
-11992> 
+11520> 
 (1 0 #*00000000000000000000000000000001)
 
-11992> 
+11379> 
 (1 1 0)
 
-11992> 
+11294> 
 Error: 'with-sd-card' invalid mode: 3
-11992> 
+11274> 
 Error: 'with-sd-card' invalid mode: -1
-11992> 
+11256> 
+nil
+
+11251> 
+3
+
+11242> 
+5
+
+11235> 
+(1 3)
+
+11210> 
+(1 1.0 1 1024)
+
+11157> 
+1
+
+11132> 
+nil
+
+11123> 
+(nil nil 3)
+
+11084> 
+abcde
+("abc" "de")
+
+11062> 
+(2.14748e9 -2.14748e9 2 12 9.5 8.5)
+
+10998> 
+(nil nil)
+
+10965> 
+Error: 'note' octave out of range: -178956967
+10951> 
+Error: 'note' octave out of range: 2147483647
+10937> 
+(1.0 0.0 9.99739e-4 0.441053 0.5 1.0)
+
+10859> 
 (#\Newline #\Null #\Null)
 
-11992> 
+10836> 

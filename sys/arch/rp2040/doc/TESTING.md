@@ -4483,32 +4483,46 @@ qualification remains opt-in and is not performed by any desktop gate.
 ## uLisp interpreter gates
 
 `check-ulisp-host` (in check-host) builds `usr.bin/ulisp` for the host as
-strict C17 with `-Wall -Wextra -Werror` and runs four corpora of
+strict C17 with `-Wall -Wextra -Werror` and runs the corpora of
 `tests/ulisp`, each compared with its checked-in transcript: `language`
 (arithmetic, floats, lists, strings, arrays, closures, errors, tracing, the
 pretty printer), `system` (the documentation file, files, the library file,
 image save and load), `repairs` (float output that differs from upstream on
-purpose) and `devices` (the drawing functions against a frame buffer in
+purpose, and the top-level `return`, `defvar`, `ignore-errors`, `write-string`
+and `expt` cases the standard decides), `conformance` (cases cited to sections
+of the Common Lisp HyperSpec), `arith` and `types` (generated from
+`builtins.def`: every integer builtin at the edges of a 32-bit integer, every
+builtin with each argument replaced by an object of each kind; `types` must
+hold no "memory fault"), `images` (damaged saved images that must be refused)
+and `devices` (the drawing functions against a frame buffer in
 memory, whose `save-bmp` file is held to a checksum, the directory listing
 the timing functions, the pin functions, `analogwrite` with an analogue
 loopback in the host device model (a duty written to a pin reads back as its
 12-bit count, scaled to uLisp's 10 bits on the way out, the duty clamped to 0-255 on
 the way in, and pins past GP29 refused) and two consecutive faulting
 `register` reads that the signal handler must turn into errors). A second process with a smaller workspace then
-loads the saved image, which rebases every address in it. Six mutants of
-`ulisp.c` must fail once the shipped source passes: a collector that leaves
-its trace bit set, an image load that does not rebase arrays, an inexact
-power of ten in the float printer, a reader that takes end of file as a
-symbol character, `cdr` returning the car, and a string comparison over a
-word wider than its four characters; six more fail on `analogread` and
-`analogwrite` (the 10-bit scaling, the pin ranges of both, the pin handed to
-the device, the high and the low duty clamp). The host devices are
-stand-ins: the gate executes no pin, ADC, PWM, sound or panel code.
+loads the saved image, which rebases every address in it. The same corpora
+run again with the address and undefined-behavior sanitizers. `hilite-test`
+holds the classes of `hilite.c` to a table of lines, and `hilite-pty.py` runs
+the interpreter on a pseudo-terminal behind a small terminal model: the
+colors of the builtin table, the repaint of a wrapped line, the cursor keys
+(left, right, Home, End, Delete, backspace and insertion inside the line, with
+the cursor position checked on wrapped lines), the colors of the printed value,
+and that no escape sequence reaches a dumb or absent terminal, `-n` or a pipe.
+Then 78 mutants (62 of `ulisp.c` and the other sources, including six on
+`analogread` and `analogwrite`: the 10-bit scaling, the pin ranges of both, the
+pin handed to the device and the high and low duty clamp; 8 of `hilite.c`; 8 of
+the editor and printer) must each fail the check that owns them with its
+status: a transcript difference (status 1), or for a run that never ends the
+timeout (status 3); a mutant that fails to build or start is a harness error.
+The host devices are stand-ins: the gate executes no pin, ADC, PWM, sound or
+panel code.
 
 `check-ulisp-qemu` (in check-qemu) runs the a.out the tree links, with the
 tree's libc, libm and float routines, through `tests/qemu_aout/aoutrun` on
 `qemu-arm -cpu cortex-m0` inside the 192 KiB window. The `language`,
-`system` and `repairs` transcripts must equal the host's byte for byte, and
+`system`, `repairs` and `conformance` transcripts must equal the host's byte
+for byte, and
 the image reload runs there too. Two corpora need the target: `stack`
 (recursion in `eval`, `equal`, the printer and the reader ends in the
 "stack overflow" error and the workspace is whole afterwards; a structure
@@ -4519,7 +4533,10 @@ functions, the pins and the sound are compiled for the target and not
 executed by this gate. The loader answers `sigaction` and `sigprocmask`
 without delivering a signal, so no handler runs here. This is
 instruction-level execution of the linked program, not a kernel boot, an
-MPU test or a PicoCalc run.
+MPU test or a PicoCalc run. The same gate holds the workspace at the first
+prompt (empty environment) to `ULISP_FLOOR` cells, 14,000: the cells are what
+the process window leaves after the program image, at 8 bytes a cell, so each
+byte added to the program costs an eighth of a cell.
 
 `check-renode-ulisp` stands outside the aggregate, as `check-renode` does,
 and needs a flash image built with `IMAGE_WITH=ulisp`. It boots the
@@ -4534,7 +4551,11 @@ kernel has no PicoCalc device, so the drawing and pin functions, `analogwrite`
 included, are held to their error messages; `analogread` reads input 0 of
 a bare Pico, which Renode's ADC model answers, and the step expects an
 integer. The two steps changed with the ADC and PWM interface and have not
-been run since. Renode's models are third-party; this
+been run since. The run starts `ulisp -n`, which keeps the console line editor
+and the colored value off: without `-n` the editor and the color follow `TERM`
+(on when input and output are terminals, `TERM` is set and is not `dumb`), and
+the UART console is a `TERM=xterm` terminal the program cannot tell from the
+panel. Renode's models are third-party; this
 is not a board run.
 
 `bmake -C tests/ulisp check-oracle ULISP_INO=<path>` stands outside the

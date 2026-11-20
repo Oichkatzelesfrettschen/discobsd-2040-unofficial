@@ -10,6 +10,8 @@
 #define MAXNAMLEN   63
 #endif
 
+#define V7_NAMELEN  14      /* bytes in a Seventh Edition directory name */
+
 #define DIRBLKSIZ   1024
 
 /*

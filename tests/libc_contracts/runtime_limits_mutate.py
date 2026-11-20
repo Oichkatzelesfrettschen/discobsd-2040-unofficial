@@ -21,7 +21,8 @@ def replace_once(source: str, old: str, new: str, label: str) -> str:
 
 
 def compile_and_run(
-    compiler: list[str], root: Path, source: str, work: Path, label: str
+    compiler: list[str], root: Path, source: str, work: Path, label: str,
+    path_source: Path | None = None,
 ) -> int:
     mutated_source = work / f"sysconf-{label}.c"
     executable = work / f"runtime-limits-{label}"
@@ -40,6 +41,11 @@ def compile_and_run(
         "-Dsysconf=db_sysconf",
         "-Dconfstr=db_confstr",
         "-Derrno=runtime_limits_errno",
+        "-Dstatfs=db_statfs",
+        "-Dfstatfs=db_fstatfs",
+        "-Dpathconf=db_pathconf",
+        "-Dfpathconf=db_fpathconf",
+        str(path_source or root / "lib/libc/gen/pathconf.c"),
         str(root / "tests/libc_contracts/runtime_limits_contract_test.c"),
         str(mutated_source),
         str(root / "lib/libc/gen/confstr.c"),
@@ -58,6 +64,9 @@ def main() -> int:
     compiler = shlex.split(sys.argv[2])
     source = (root / "lib/libc/gen/sysconf.c").read_text(encoding="utf-8")
     mutations = {
+        "symlink-limit": replace_once(
+            source, "return MAXSYMLINKS;", "return MAXSYMLINKS - 1;", "symlink-limit"
+        ),
         "device-errno": replace_once(
             source,
             "\t\tif (selector == _SC_DEVICE_CONTROL)\n"
@@ -100,6 +109,17 @@ def main() -> int:
             raise MutationError("known-good runtime limit source failed")
         for label, mutated in mutations.items():
             if compile_and_run(compiler, root, mutated, work, label) == 0:
+                raise MutationError(f"{label}: known-bad mutation passed")
+            print(f"PASS runtime-limits mutation {label} rejected")
+        path_source = (root / "lib/libc/gen/pathconf.c").read_text(encoding="utf-8")
+        for original, replacement, label in (
+            ("? V7_NAMELEN : MAXNAMLEN", "? MAXNAMLEN : V7_NAMELEN", "mount-format"),
+            ("fstatfs(fd,", "fstatfs(fd < 0 ? 7 : fd,", "descriptor-forwarding"),
+        ):
+            mutant = work / f"pathconf-{label}.c"
+            modified = replace_once(path_source, original, replacement, label)
+            mutant.write_text(modified, encoding="utf-8")
+            if compile_and_run(compiler, root, source, work, label, mutant) == 0:
                 raise MutationError(f"{label}: known-bad mutation passed")
             print(f"PASS runtime-limits mutation {label} rejected")
     return 0

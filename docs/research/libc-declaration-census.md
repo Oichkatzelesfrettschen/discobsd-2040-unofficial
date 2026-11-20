@@ -1,5 +1,12 @@
 # Root-header declaration census for shared libc
 
+The retained census describes its recorded revision. The current installed
+terminal interface uses the 19-control-character layout in `include/termios.h`.
+The earlier, uninstalled 32-character layout remains in
+`legacy/termios/termios-todo.h`. Keeping the draft outside the public header
+directory lets the live joint-header compile check the shipped interface.
+
+
 The shared-libc declaration frontier covers eight root headers in one default
 namespace. The maintained root-header denominator contains 54 tracked headers.
 The installed root-header set contains 53 names: `include/Makefile` leaves

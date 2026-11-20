@@ -120,6 +120,7 @@ extern struct mount mount[NMOUNT];
 
 int     getfsstat (struct statfs *buf, int bufsize, unsigned flags);
 int     getmntinfo (struct statfs **mntbufp, int flags);
+int     fstatfs (int fd, struct statfs *buf);
 int     statfs (const char *path, struct statfs *buf);
 int     mount (const char *special, const char *name, int flags);
 int     umount (const char *special);

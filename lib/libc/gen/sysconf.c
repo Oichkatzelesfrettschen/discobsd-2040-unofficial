@@ -65,6 +65,8 @@ sysconf(int name)
 			return 1L << ((selector - _SC_NPROCESSORS_ONLN) * 5);
 		if (selector == _SC_DEVICE_CONTROL)
 			return _POSIX_DEVICE_CONTROL;
+		if (selector == _SC_SYMLOOP_MAX)
+			return MAXSYMLINKS;
 	}
 	errno = EINVAL;
 	return -1;

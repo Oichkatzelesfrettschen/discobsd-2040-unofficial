@@ -1,3 +1,5 @@
+#include <sys/param.h>
+#include <sys/mount.h>
 #include <errno.h>
 #include <limits.h>
 #include <paths.h>
@@ -13,6 +15,58 @@ static int failures;
 	if (!(condition)) \
 		failures++; \
 } while (0)
+
+static const char directory[] = "/mnt";
+static unsigned short mount_flags;
+static int calls;
+
+int
+statfs(const char *path, struct statfs *info)
+{
+	calls++;
+	if (path != directory) {
+		errno = ENOENT;
+		return -1;
+	}
+	info->f_flags = mount_flags;
+	return 0;
+}
+
+int
+fstatfs(int fd, struct statfs *info)
+{
+	calls++;
+	if (fd != 7) {
+		errno = EBADF;
+		return -1;
+	}
+	info->f_flags = mount_flags;
+	return 0;
+}
+
+static void
+check_path_limits(void)
+{
+	runtime_limits_errno = 37;
+	CHECK(pathconf(directory, _PC_NAME_MAX) == 63);
+	CHECK(fpathconf(7, _PC_NAME_MAX) == 63);
+	mount_flags = MNT_V7 | MNT_RDONLY;
+	CHECK(pathconf(directory, _PC_NAME_MAX) == 14);
+	CHECK(fpathconf(7, _PC_NAME_MAX) == 14);
+	CHECK(runtime_limits_errno == 37);
+	CHECK(pathconf("", _PC_NAME_MAX) == -1);
+	CHECK(runtime_limits_errno == ENOENT);
+	CHECK(pathconf("/missing", _PC_NAME_MAX) == -1);
+	CHECK(runtime_limits_errno == ENOENT);
+	CHECK(fpathconf(-1, _PC_NAME_MAX) == -1);
+	CHECK(runtime_limits_errno == EBADF);
+	CHECK(pathconf(directory, -1) == -1);
+	CHECK(runtime_limits_errno == EINVAL);
+	runtime_limits_errno = 0;
+	CHECK(fpathconf(7, 0) == -1);
+	CHECK(runtime_limits_errno == EINVAL);
+	CHECK(calls == 6);
+}
 
 static void
 fill_bytes(char *buffer, size_t length, unsigned char value)
@@ -60,6 +114,8 @@ check_sysconf(void)
 	CHECK(db_sysconf(_SC_PAGESIZE) == 1024);
 	runtime_limits_errno = 53;
 	CHECK(db_sysconf(_SC_DEVICE_CONTROL) == -1);
+	CHECK(runtime_limits_errno == 53);
+	CHECK(db_sysconf(_SC_SYMLOOP_MAX) == 8);
 	CHECK(runtime_limits_errno == 53);
 
 	runtime_limits_errno = 0;
@@ -136,10 +192,13 @@ main(void)
 	CHECK(_SC_NPROCESSORS_ONLN == 8);
 	CHECK(_SC_NSIG == 9);
 	CHECK(_SC_PAGESIZE == 10);
+	CHECK(_SC_PAGE_SIZE == _SC_PAGESIZE);
 	CHECK(_SC_DEVICE_CONTROL == 11);
+	CHECK(_SC_SYMLOOP_MAX == 12);
 	CHECK(_POSIX_DEVICE_CONTROL == -1);
 	CHECK(_CS_PATH == 1);
 	check_sysconf();
 	check_confstr();
+	check_path_limits();
 	return failures != 0;
 }

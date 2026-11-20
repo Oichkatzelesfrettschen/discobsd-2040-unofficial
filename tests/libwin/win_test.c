@@ -58,8 +58,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <sys/lcdcons.h>
 
 #include <sys/lcdgfx.h>
 
@@ -234,6 +238,173 @@ model_write(int fd, const void *buf, size_t n)
 #include "win_lcdgfx.c"
 #undef ioctl
 #undef write
+
+/*
+ * Model of the console's raw key session and its tty input queue, behind
+ * the system calls win_input_dev.c makes. It follows the kernel as read:
+ * LCDIOC_GETKEY returns the events whose time has come, six at a time, with
+ * the count dropped before them; the tty queue receives bytes only for the
+ * events that type them (a press, not a hold, a release or a modifier), and
+ * select(2) is ready only while that queue is not empty. The clock advances
+ * only inside select, by its timeout or to the next byte.
+ */
+#define KBD_FD		9
+#define KBD_SCRIPT	96
+
+struct kbev {
+	long t;
+	int state, key, drop, nb;
+	unsigned char bytes[4];
+};
+
+static struct kbev kbs[KBD_SCRIPT];
+static long kb_delivered[KBD_SCRIPT];
+static int nkbs, kb_next, kb_arrived, kb_session, kb_refuse, kb_error;
+static long kb_clock, kb_nselect, kb_nioctl;
+static unsigned char kb_q[KBD_SCRIPT * 4];
+static int kb_qn, kb_qpos;
+
+static void
+kb_reset(void)
+{
+	memset(kbs, 0, sizeof(kbs));
+	memset(kb_delivered, 0, sizeof(kb_delivered));
+	nkbs = kb_next = kb_arrived = kb_session = kb_refuse = kb_error = 0;
+	kb_clock = kb_nselect = kb_nioctl = 0;
+	kb_qn = kb_qpos = 0;
+}
+
+/* A scripted event; a byte string types its bytes into the tty queue. */
+static void
+kb_add(long t, int state, int key, int drop, const char *bytes)
+{
+	struct kbev *e = &kbs[nkbs++];
+
+	e->t = t;
+	e->state = state;
+	e->key = key;
+	e->drop = drop;
+	e->nb = bytes == NULL ? 0 : (int)strlen(bytes);
+	if (e->nb > 4)
+		fail("script bytes");
+	if (e->nb > 0)
+		memcpy(e->bytes, bytes, (size_t)e->nb);
+}
+
+static void
+kb_arrive(void)
+{
+	while (kb_arrived < nkbs && kbs[kb_arrived].t <= kb_clock) {
+		memcpy(kb_q + kb_qn, kbs[kb_arrived].bytes, (size_t)kbs[kb_arrived].nb);
+		kb_qn += kbs[kb_arrived].nb;
+		kb_arrived++;
+	}
+}
+
+static int
+kb_select(int nfd, fd_set *r, fd_set *w, fd_set *e, struct timeval *tv)
+{
+	long timeout = -1, next = -1;
+	int j;
+
+	(void)w;
+	(void)e;
+	if (nfd != KBD_FD + 1 || r == NULL || !FD_ISSET(KBD_FD, r))
+		fail("select on the wrong descriptor");
+	if (++kb_nselect > 400)
+		fail("select was called %ld times: the loop spins", kb_nselect);
+	if (tv != NULL && tv->tv_sec < 3600)
+		timeout = (long)tv->tv_sec * 1000 + (long)tv->tv_usec / 1000;
+	kb_arrive();
+	if (kb_qn > kb_qpos) {
+		FD_ZERO(r);
+		FD_SET(KBD_FD, r);
+		return 1;
+	}
+	for (j = kb_arrived; j < nkbs; j++)
+		if (kbs[j].nb > 0) {
+			next = kbs[j].t;
+			break;
+		}
+	FD_ZERO(r);
+	if (next < 0 || (timeout >= 0 && kb_clock + timeout < next)) {
+		if (timeout < 0)
+			fail("select would block forever");
+		kb_clock += timeout;
+		return 0;
+	}
+	if (next > kb_clock)
+		kb_clock = next;
+	kb_arrive();
+	FD_SET(KBD_FD, r);
+	return 1;
+}
+
+static ssize_t
+kb_read(int fd, void *buf, size_t n)
+{
+	size_t k = (size_t)(kb_qn - kb_qpos);
+
+	if (fd != KBD_FD)
+		fail("read on descriptor %d", fd);
+	if (k > n)
+		k = n;
+	memcpy(buf, kb_q + kb_qpos, k);
+	kb_qpos += (int)k;
+	if (kb_qpos == kb_qn)
+		kb_qpos = kb_qn = 0;
+	return (ssize_t)k;
+}
+
+static int
+kb_ioctl(int fd, unsigned long req, void *arg)
+{
+	struct lcd_keyevs *o = arg;
+	long lost = 0;
+
+	if (fd != KBD_FD)
+		fail("ioctl on descriptor %d", fd);
+	kb_nioctl++;
+	if (req == LCDIOC_KEYEVS) {
+		if (*(int *)arg != 0 && kb_refuse) {
+			errno = EINVAL;
+			return -1;
+		}
+		kb_session = *(int *)arg;
+		return 0;
+	}
+	if (req != LCDIOC_GETKEY)
+		fail("unexpected ioctl %lx", req);
+	if (!kb_session || kb_error) {
+		errno = EINVAL;
+		return -1;
+	}
+	o->n = 0;
+	while (kb_next < nkbs && kbs[kb_next].t <= kb_clock && o->n < LCD_KEYEV_N) {
+		if (kbs[kb_next].drop) {
+			lost++;
+		} else {
+			o->ev[o->n].state = (unsigned char)kbs[kb_next].state;
+			o->ev[o->n].key = (unsigned char)kbs[kb_next].key;
+			o->n++;
+			kb_delivered[kb_next] = kb_clock;
+		}
+		kb_next++;
+	}
+	o->lost = (unsigned char)lost;
+	return 0;
+}
+
+#define ioctl kb_ioctl
+#define read kb_read
+#define select kb_select
+#ifndef WIN_DEV_SOURCE
+#define WIN_DEV_SOURCE "win_input_dev.c"
+#endif
+#include WIN_DEV_SOURCE
+#undef ioctl
+#undef read
+#undef select
 
 /* Test scene */
 
@@ -2269,6 +2440,144 @@ run_input_fixed(void)
 	    "bindings\n");
 }
 
+
+static void
+dev_logs(int id, int key, int mods, int kind)
+{
+	elog[nelog].id = id;
+	elog[nelog].key = key;
+	elog[nelog].mods = mods;
+	elog[nelog].kind = kind;
+	nelog++;
+}
+
+/*
+ * The descriptor side against the kernel model: a raw session wakes on
+ * typing presses only and is polled for the rest, drains tty bytes so
+ * select cannot spin, drains every batch, applies a lost count, and the tty
+ * fallback resolves a lone ESC when its wait runs out.
+ */
+static void
+run_dev(void)
+{
+	struct win_input_src src;
+	int i, r;
+
+	op_index = -40;
+	msrc_raw = 1;
+
+	/* Latency: modifier, hold and release events are seen within a poll. */
+	kb_reset();
+	fixed_world(2);
+	kb_add(5, 1, 0xa5, 0, NULL);
+	kb_add(8, 1, 'w', 0, "\027");
+	kb_add(9, 2, 'w', 0, NULL);
+	kb_add(12, 3, 'w', 0, NULL);
+	kb_add(13, 3, 0xa5, 0, NULL);
+	kb_add(40, 1, 'q', 0, "q");
+	kb_add(45, 3, 'q', 0, NULL);
+	for (i = 0; i < 8; i++)
+		kb_add(70, 1, 'a' + i, 0, (const char[]){ (char)('a' + i), 0 });
+	if (win_input_open(&src, KBD_FD) != 0 || !src.raw || !kb_session)
+		fail("win_input_open did not start the session");
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (r < 1 || kb_clock != 8 || scene.nwin != 1)
+		fail("the first wait returned %d at %ld ms with %d windows", r,
+		    kb_clock, scene.nwin);
+	mark_window(&tw[1]);
+	order_remove(1);
+	memset(&tw[1], 0, sizeof(tw[1]));
+	tfocus = 0;
+	elog[nelog].id = 1; elog[nelog].key = 0; elog[nelog].mods = 0;
+	elog[nelog].kind = WIN_EV_CLOSE; nelog++;
+	compare_logs();
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (r < 1 || kb_clock > 28 || nalog != 0)
+		fail("the held keys were not drained by a poll: %d at %ld ms", r, kb_clock);
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (r < 1 || kb_clock != 40)
+		fail("a typing press did not wake select: %d at %ld ms", r, kb_clock);
+	dev_logs(0, 'q', 0, WIN_EV_PRESS);
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (r < 1)
+		fail("the release was not polled");
+	dev_logs(0, 'q', 0, WIN_EV_RELEASE);
+	compare_logs();
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (nalog != 8)
+		fail("a batch of eight presses reached the handler as %d events", nalog);
+	for (i = 0; i < 8; i++)
+		dev_logs(0, 'a' + i, 0, WIN_EV_PRESS);
+	compare_logs();
+	for (i = 0; i < nkbs; i++)
+		if (!kbs[i].drop && kb_delivered[i] - kbs[i].t > WIN_POLL_MS)
+			fail("event %d waited %ld ms", i, kb_delivered[i] - kbs[i].t);
+	win_input_close(&src);
+	if (kb_session)
+		fail("win_input_close left the session open");
+	if (kb_nselect > 30)
+		fail("%ld select calls for 26 events", kb_nselect);
+
+	/* A lost count clears the modifier table before its batch. */
+	kb_reset();
+	fixed_world(2);
+	kb_add(5, 1, 0xa5, 0, NULL);
+	kb_add(25, 3, 0xa5, 1, NULL);
+	kb_add(30, 1, 'a', 0, "a");
+	if (win_input_open(&src, KBD_FD) != 0)
+		fail("open");
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (kb_clock != 20 || in.mods == 0)
+		fail("the first poll did not hold Ctrl (%ld ms)", kb_clock);
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (r < 1)
+		fail("the batch with a lost count was not read");
+	dev_logs(1, 'a', 0, WIN_EV_PRESS);
+	compare_logs();
+	win_input_close(&src);
+
+	/* The tty fallback: sequences, a lone ESC, and the wait's own timeout. */
+	kb_reset();
+	kb_refuse = 1;
+	fixed_world(2);
+	kb_add(5, 0, 0, 0, "\033[A");
+	kb_add(30, 0, 0, 0, "\033");
+	kb_add(80, 0, 0, 0, "x");
+	if (win_input_open(&src, KBD_FD) != -1 || src.raw)
+		fail("a refused session did not select the tty source");
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (r < 1 || kb_clock != 5)
+		fail("tty arrow: %d at %ld ms", r, kb_clock);
+	dev_logs(1, WIN_KEY_UP, 0, WIN_EV_PRESS);
+	r = win_input_wait(&src, &in, &scene, 100);
+	if (kb_clock != 50)
+		fail("a lone ESC was resolved at %ld ms, expected 50", kb_clock);
+	dev_logs(1, WIN_KEY_ESC, 0, WIN_EV_PRESS);
+	r = win_input_wait(&src, &in, &scene, 100);
+	dev_logs(1, 'x', 0, WIN_EV_PRESS);
+	compare_logs();
+
+	/* Timeouts are exact in both sources, and a dead session reports. */
+	kb_reset();
+	fixed_world(1);
+	if (win_input_open(&src, KBD_FD) != 0)
+		fail("open");
+	if (win_input_wait(&src, &in, &scene, 30) != 0 || kb_clock != 30)
+		fail("a raw wait of 30 ms ended at %ld", kb_clock);
+	kb_error = 1;
+	if (win_input_wait(&src, &in, &scene, 30) != -1 || src.raw)
+		fail("a dead session was not reported");
+	kb_reset();
+	kb_refuse = 1;
+	(void)win_input_open(&src, KBD_FD);
+	if (win_input_wait(&src, &in, &scene, 30) != 0 || kb_clock != 30 ||
+	    kb_nselect != 1)
+		fail("a tty wait of 30 ms ended at %ld after %ld selects", kb_clock,
+		    kb_nselect);
+	printf("PASS device: raw session polling, tty drain, lost count, tty "
+	    "fallback and timeouts\n");
+}
+
 /* Backend bytes for three workloads, as the model counts them. */
 static void
 run_measure(void)
@@ -2348,6 +2657,7 @@ main(int argc, char **argv)
 	run_stream(0, 2500);
 	printf("PASS tty stream: 2500 key strokes through the byte decoder\n");
 	run_input_fixed();
+	run_dev();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

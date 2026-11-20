@@ -3,7 +3,8 @@
 # with exit status 1 and a FAIL diagnostic; the baseline copy, which carries
 # no fault, must pass. A mutant that passes, crashes, hangs past the time
 # bound or fails to build means the gate cannot see that fault.
-# win_*.mutant.c are faulted copies of win.c, inp_*.mutant.c of win_input.c.
+# win_*.mutant.c are faulted copies of win.c, inp_*.mutant.c of win_input.c
+# and dev_*.mutant.c of win_input_dev.c.
 # usage: check_mutants.sh LIBWIN_DIRECTORY FONT_DIRECTORY
 # The environment supplies HOSTCC and BASE_FLAGS.
 set -eu
@@ -14,21 +15,25 @@ libdir=$1
 fontdir=$2
 count=0
 
-for source in win_*.mutant.c inp_*.mutant.c; do
+for source in win_*.mutant.c inp_*.mutant.c dev_*.mutant.c; do
     if [ ! -e "$source" ]; then
         echo "win mutants: no mutant sources found" >&2
         exit 1
     fi
     name=${source%.mutant.c}
-    # An inp_ mutant replaces win_input.c; the others replace win.c.
+    # An inp_ mutant replaces win_input.c, a dev_ mutant win_input_dev.c (which
+    # win_test.c includes as source) and the others win.c.
+    devdef=-DWIN_DEV_SOURCE=\"win_input_dev.c\"
     case $name in
-    inp_*) companion=$libdir/win.c ;;
-    *) companion=$libdir/win_input.c ;;
+    inp_*) lib1=$libdir/win.c lib2=$source ;;
+    dev_*) lib1=$libdir/win.c lib2=$libdir/win_input.c
+           devdef=-DWIN_DEV_SOURCE=\"$source\" ;;
+    *) lib1=$source lib2=$libdir/win_input.c ;;
     esac
     # BASE_FLAGS is a word list by construction.
     # shellcheck disable=SC2086
-    "$HOSTCC" $BASE_FLAGS -I"$fontdir" -I"$libdir" -o "$name.mutant.test" \
-        win_test.c "$source" "$companion" "$fontdir/lcdfont.c"
+    "$HOSTCC" $BASE_FLAGS "$devdef" -I"$fontdir" -I"$libdir" \
+        -o "$name.mutant.test" win_test.c "$lib1" "$lib2" "$fontdir/lcdfont.c"
     status=0
     timeout 120 "./$name.mutant.test" > "$name.mutant.log" 2>&1 || status=$?
     if [ "$status" -eq 124 ]; then
@@ -36,7 +41,7 @@ for source in win_*.mutant.c inp_*.mutant.c; do
         exit 1
     fi
     case $name in
-    win_baseline | inp_baseline)
+    win_baseline | inp_baseline | dev_baseline)
         if [ "$status" -ne 0 ]; then
             echo "win mutants: the unfaulted baseline $name exited $status" >&2
             tail -n 3 "$name.mutant.log" >&2

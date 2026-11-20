@@ -26,13 +26,13 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """Write one mutated copy of win.c or win_input.c per fault, and baselines.
 
-Usage: win_mutate.py WIN_C WIN_INPUT_C OUTPUT_DIRECTORY
+Usage: win_mutate.py WIN_C WIN_INPUT_C WIN_INPUT_DEV_C OUTPUT_DIRECTORY
 
 Each mutation replaces text that must occur exactly once, so a refactor of
 win.c that moves or duplicates a site fails here instead of silently
 producing an unmutated "mutant". The output files are win_NAME.mutant.c for
-win.c and inp_NAME.mutant.c for win_input.c; win_baseline.mutant.c and
-inp_baseline.mutant.c carry no fault and must pass the gate, which
+win.c, inp_NAME.mutant.c for win_input.c and dev_NAME.mutant.c for
+win_input_dev.c; the three baselines carry no fault and must pass the gate, which
 calibrates the harness against a known-good input. The font header include
 is rewritten to a bare name so the copy builds away from lib/libwin.
 """
@@ -267,6 +267,42 @@ INPUT_MUTATIONS = (
 )
 
 
+# win_input_dev.c: (name, original text, replacement)
+DEV_MUTATIONS = (
+    ("baseline", "", ""),
+    (
+        "tty_bytes_not_drained",
+        "n = (int)read(src->fd, buf, sizeof(buf));",
+        "n = src->raw ? 0 : (int)read(src->fd, buf, sizeof(buf));",
+    ),
+    (
+        "lost_count_ignored",
+        "\t\tif (ev.lost != 0)\n\t\t\twin_input_lost(in);",
+        "",
+    ),
+    (
+        "raw_session_not_polled",
+        "if ((src->raw || in->esc != 0) && (slice < 0 || slice > WIN_POLL_MS))",
+        "if (in->esc != 0 && (slice < 0 || slice > WIN_POLL_MS))",
+    ),
+    (
+        "lone_esc_never_resolved",
+        "} else if (r == 0 && !src->raw && in->esc != 0) {",
+        "} else if (0) {",
+    ),
+    (
+        "batch_not_drained",
+        "} while (ev.n == LCD_KEYEV_N);",
+        "} while (0);",
+    ),
+    (
+        "timeout_spent_by_wake",
+        "if (r == 0 && left >= 0) {",
+        "if (left >= 0) {",
+    ),
+)
+
+
 def write_set(source, mutations, prefix, out):
     for name, old, new in mutations:
         if old:
@@ -285,12 +321,13 @@ def write_set(source, mutations, prefix, out):
 
 
 def main(argv):
-    if len(argv) != 4:
+    if len(argv) != 5:
         print(__doc__, file=sys.stderr)
         return 2
     source = Path(argv[1]).read_text(encoding="utf-8")
     inp = Path(argv[2]).read_text(encoding="utf-8")
-    out = Path(argv[3])
+    dev = Path(argv[3]).read_text(encoding="utf-8")
+    out = Path(argv[4])
     if source.count(FONT_INCLUDE) != 1:
         print("win_mutate: font include not found exactly once", file=sys.stderr)
         return 1
@@ -299,7 +336,12 @@ def main(argv):
         return 1
     if not write_set(inp, INPUT_MUTATIONS, "inp", out):
         return 1
-    print("win_mutate: wrote %d files" % (len(MUTATIONS) + len(INPUT_MUTATIONS)))
+    if not write_set(dev, DEV_MUTATIONS, "dev", out):
+        return 1
+    print(
+        "win_mutate: wrote %d files"
+        % (len(MUTATIONS) + len(INPUT_MUTATIONS) + len(DEV_MUTATIONS))
+    )
     return 0
 
 

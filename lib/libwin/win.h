@@ -139,17 +139,28 @@ struct win_event;
 
 /*
  * An event handler of one window (win_input.h). It returns nonzero when it
- * consumed the event.
+ * consumed the event, 0 when it did not, and -1 when a scene call failed at
+ * the backend and the event was not applied.
  */
 typedef int (*win_event_fn)(struct win_scene *s, struct win *win,
     const struct win_event *ev, void *arg);
 
-/* Where finished rectangles go. px holds w * h bytes, row by row. */
+/*
+ * Where finished rectangles go. rect takes w * h bytes, row by row. The
+ * optional bits entry takes a rectangle that holds at most two colors as one
+ * bit per pixel, most significant bit first, each row padded to a whole byte
+ * ((w + 7) / 8 bytes): a set bit is palette index fg, a clear bit palette
+ * index bg. win_flush() sends a strip through bits when the entry is set,
+ * the strip's pixels have at most two colors and the packed rows are fewer
+ * bytes than the indexed ones; every other strip goes through rect.
+ */
 struct win_backend {
 	int (*rect)(void *self, int x, int y, int w, int h,
 	    const unsigned char *px);
 	int (*palette)(void *self, int index, int r, int g, int b);
 	void *self;
+	int (*bits)(void *self, int x, int y, int w, int h, int fg, int bg,
+	    const unsigned char *rows);
 };
 
 struct win_rect {

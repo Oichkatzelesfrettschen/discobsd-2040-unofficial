@@ -38,7 +38,11 @@
  * it with the arrows (Enter accepts, Esc cancels), F10 or Ctrl-W closes it.
  * Every other key is shown in the focused window. Keys arrive as raw
  * events when the console grants a session (LCDIOC_KEYEVS), otherwise as tty
- * bytes. A board run is opt-in: it takes over the panel and the keyboard
+ * bytes. A fourth window holds a settings form built from the widget layer
+ * (win_widget.h): a File menu (Save, Exit), a name field, two check boxes, a
+ * list, an Apply button and a status line; Tab and F5 move between controls,
+ * Ctrl plus the underlined letter reaches a control, and Exit opens a
+ * message box whose OK ends the program. A board run is opt-in: it takes over the panel and the keyboard
  * until the program exits. Prints "WINDEMO OK" when every call succeeds.
  *
  * Regression tool, not shipped in the root manifest; stage it with a "file
@@ -54,6 +58,7 @@
 #include <unistd.h>
 
 #include "win_input.h"
+#include "win_widget.h"
 
 #define DEVICE		"/dev/lcdgfx"
 #define STEP		8
@@ -66,6 +71,30 @@ struct pane {
 };
 
 static int quit;
+static int pending = -1;		/* Activation id the form reported, or -1. */
+
+#define ID_APPLY	7
+#define ID_SAVE		10
+#define ID_EXIT		11
+
+static const struct wgt_entry file_entries[] = {
+	{ "&Save", ID_SAVE }, { "E&xit", ID_EXIT }
+};
+static const struct wgt_menu menus[] = { { "&File", file_entries, 2 } };
+static const char *const choices[] = {
+	"one", "two", "three", "four", "five", "six"
+};
+
+/* The hook only records the activation; the main loop acts on it. */
+static int
+on_activate(struct wgt_form *f, struct wgt *w, int id, int value)
+{
+	(void)f;
+	(void)w;
+	(void)value;
+	pending = id;
+	return 0;
+}
 
 static void
 paint_label(struct win_ctx *c, void *arg)
@@ -132,8 +161,17 @@ main(void)
 	struct win_backend backend;
 	struct win_lcdgfx lcd;
 	struct sgttyb saved, raw;
-	struct win *a, *b, *c;
-	int fd, i, status = 0, off = 0, restore = 0;
+	static struct wgt_form form;
+	static struct wgt_dialog dlg;
+	static struct wgt_menubar bar;
+	static struct wgt_label lab_name, status_line;
+	static struct wgt_field name_field;
+	static struct wgt_check c_verbose, c_auto;
+	static struct wgt_button b_apply;
+	static struct wgt_list list;
+	static char name_buf[16];
+	struct win *a, *b, *c, *settings;
+	int fd, i, status = 0, off = 0, restore = 0, dlg_open = 0;
 
 	fd = open(DEVICE, O_WRONLY);
 	if (fd < 0) {
@@ -162,6 +200,29 @@ main(void)
 	if (win_raise(&scene, a) != 0 || win_flush(&scene) != 0) {
 		close(fd);
 		printf("windemo: raise failed\n");
+		return 1;
+	}
+
+	/* The settings form is the top window and takes the focus. */
+	settings = win_create(&scene, 90, 130, 200, 160, "settings", wgt_form_paint,
+	    &form);
+	if (settings == NULL || wgt_form_init(&form, &scene, settings, on_activate,
+	    NULL) != 0 ||
+	    wgt_menubar_init(&bar, 1, 0, 0, 198, menus, 1) != 0 ||
+	    wgt_label_init(&lab_name, 4, 18, 42, "&Name:") != 0 ||
+	    wgt_field_init(&name_field, 2, 50, 16, 100, name_buf, sizeof(name_buf)) != 0 ||
+	    wgt_check_init(&c_verbose, 3, 4, 34, 100, "&Verbose", 0) != 0 ||
+	    wgt_check_init(&c_auto, 4, 4, 48, 100, "Au&to save", 1) != 0 ||
+	    wgt_list_init(&list, 5, 4, 64, 100, 3, choices, 6) != 0 ||
+	    wgt_button_init(&b_apply, ID_APPLY, 120, 64, 52, "&Apply") != 0 ||
+	    wgt_status_init(&status_line, 0, 133, 198, "ready") != 0 ||
+	    wgt_add(&form, &bar.head) != 0 || wgt_add(&form, &lab_name.head) != 0 ||
+	    wgt_add(&form, &name_field.head) != 0 ||
+	    wgt_add(&form, &c_verbose.head) != 0 || wgt_add(&form, &c_auto.head) != 0 ||
+	    wgt_add(&form, &list.head) != 0 || wgt_add(&form, &b_apply.head) != 0 ||
+	    wgt_add(&form, &status_line.head) != 0 || win_flush(&scene) != 0) {
+		close(fd);
+		printf("windemo: settings form failed\n");
 		return 1;
 	}
 
@@ -199,7 +260,23 @@ main(void)
 		}
 		if (n == 0)
 			break;
-		if (win_flush(&scene) != 0) {
+		if (pending == ID_SAVE || pending == ID_APPLY) {
+			if (wgt_set_text(&form, &status_line.head,
+			    pending == ID_SAVE ? "saved" : "applied") != 0)
+				status = 1;
+		} else if (pending == ID_EXIT && !dlg_open) {
+			if (wgt_msgbox_open(&dlg, &scene, &in, "Exit",
+			    "Leave the demo?", 1) != 0)
+				status = 1;
+			else
+				dlg_open = 1;
+		}
+		pending = -1;
+		if (dlg_open && dlg.result != WGT_RES_NONE) {
+			quit = dlg.result == WGT_RES_OK;
+			dlg_open = 0;
+		}
+		if (status != 0 || win_flush(&scene) != 0) {
 			status = 1;
 			break;
 		}

@@ -412,6 +412,59 @@ paint_window(struct win_ctx *c, const struct win *w, int focused)
 		w->paint(c, w->arg);
 }
 
+/*
+ * Pack a strip of w by h pixels of at most two colors into rows of one bit
+ * per pixel, in place, and return the byte count; 0 when the strip has more
+ * than two colors or packing would not shrink it. bg is the first pixel's
+ * color and fg the other one.
+ */
+static size_t
+pack_bits(unsigned char *buf, int w, int h, int *fg, int *bg)
+{
+	size_t n = (size_t)w * (size_t)h, i;
+	int rb = (w + 7) / 8, x, y, k, v;
+	unsigned char b;
+
+	if ((size_t)rb * (size_t)h >= n)
+		return 0;
+	*bg = buf[0] & PIXEL_MASK;
+	*fg = *bg;
+	for (i = 1; i < n; i++) {
+		v = buf[i] & PIXEL_MASK;
+		if (v == *bg || v == *fg)
+			continue;
+		if (*fg != *bg)
+			return 0;
+		*fg = v;
+	}
+	for (y = 0; y < h; y++) {
+		for (x = 0; x < rb; x++) {
+			b = 0;
+			for (k = 0; k < 8; k++) {
+				b = (unsigned char)(b << 1);
+				if (x * 8 + k < w && *fg != *bg &&
+				    (buf[y * w + x * 8 + k] & PIXEL_MASK) == *fg)
+					b |= 1;
+			}
+			buf[y * rb + x] = b;
+		}
+	}
+	return (size_t)rb * (size_t)h;
+}
+
+/* Send a composed strip: one-bit rows when it allows, else one byte a pixel. */
+static int
+send_strip(struct win_scene *s, int x, int y, int w, int h, unsigned char *buf)
+{
+	int fg, bg;
+
+	if (s->be.bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)
+		return s->be.bits(s->be.self, x, y, w, h, fg, bg, buf);
+	if (s->be.rect == NULL)
+		return -1;
+	return s->be.rect(s->be.self, x, y, w, h, buf);
+}
+
 /* Render one damage rectangle, in strips of whole rows, and send each. */
 static int
 repaint(struct win_scene *s, const struct win_rect *r)
@@ -431,8 +484,7 @@ repaint(struct win_scene *s, const struct win_rect *r)
 		memset(c.buf, s->desktop & PIXEL_MASK, (size_t)(w * h));
 		for (i = 0; i < s->nwin; i++)
 			paint_window(&c, &s->wins[s->z[i]], s->z[i] == s->focus);
-		if (s->be.rect == NULL ||
-		    s->be.rect(s->be.self, r->x0, y, w, h, c.buf) < 0)
+		if (send_strip(s, r->x0, y, w, h, c.buf) < 0)
 			return -1;
 	}
 	return 0;

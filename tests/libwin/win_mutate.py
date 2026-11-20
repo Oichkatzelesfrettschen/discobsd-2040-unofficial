@@ -24,15 +24,17 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""Write one mutated copy of win.c or win_input.c per fault, and baselines.
+"""Write one mutated copy of a libwin source per fault, and baselines.
 
-Usage: win_mutate.py WIN_C WIN_INPUT_C WIN_INPUT_DEV_C OUTPUT_DIRECTORY
+Usage: win_mutate.py WIN_C WIN_INPUT_C WIN_INPUT_DEV_C WIN_LCDGFX_C WIN_WIDGET_C
+       OUTPUT_DIRECTORY
 
 Each mutation replaces text that must occur exactly once, so a refactor of
 win.c that moves or duplicates a site fails here instead of silently
 producing an unmutated "mutant". The output files are win_NAME.mutant.c for
 win.c, inp_NAME.mutant.c for win_input.c and dev_NAME.mutant.c for
-win_input_dev.c; the three baselines carry no fault and must pass the gate, which
+win_input_dev.c, lcd_NAME.mutant.c for win_lcdgfx.c and wgt_NAME.mutant.c for
+win_widget.c; the five baselines carry no fault and must pass the gate, which
 calibrates the harness against a known-good input. The font header include
 is rewritten to a bare name so the copy builds away from lib/libwin.
 """
@@ -193,6 +195,36 @@ MUTATIONS = (
         "\tdamage_title(s, s->focus);\n\ts->focus = slot;",
         "\ts->focus = slot;",
     ),
+    (
+        "bits_lsb_first",
+        "\t\t\t\tb = (unsigned char)(b << 1);\n\t\t\t\tif (x * 8 + k < w && *fg != *bg &&\n\t\t\t\t    (buf[y * w + x * 8 + k] & PIXEL_MASK) == *fg)\n\t\t\t\t\tb |= 1;",
+        "\t\t\t\tif (x * 8 + k < w && *fg != *bg &&\n\t\t\t\t    (buf[y * w + x * 8 + k] & PIXEL_MASK) == *fg)\n\t\t\t\t\tb |= (unsigned char)(1 << k);",
+    ),
+    (
+        "bits_fg_bg_swapped",
+        "s->be.bits(s->be.self, x, y, w, h, fg, bg, buf)",
+        "s->be.bits(s->be.self, x, y, w, h, bg, fg, buf)",
+    ),
+    (
+        "bits_rows_not_padded",
+        "int rb = (w + 7) / 8, x, y, k, v;",
+        "int rb = w / 8, x, y, k, v;",
+    ),
+    (
+        "bits_three_colors_accepted",
+        "\t\tif (*fg != *bg)\n\t\t\treturn 0;\n\t\t*fg = v;",
+        "\t\t*fg = v;",
+    ),
+    (
+        "bits_never_used",
+        "if (s->be.bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)",
+        "if (0 && s->be.bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)",
+    ),
+    (
+        "bits_one_column_packed",
+        "\tif ((size_t)rb * (size_t)h >= n)\n\t\treturn 0;\n",
+        "\tif ((size_t)rb * (size_t)h > n)\n\t\treturn 0;\n",
+    ),
 )
 
 
@@ -258,8 +290,8 @@ INPUT_MUTATIONS = (
     ),
     (
         "close_without_handler_chance",
-        "if (w->on_event != NULL && w->on_event(s, w, &ev, w->on_event_arg) != 0)\n\t\treturn 0;",
-        "if (w->on_event != NULL)\n\t\t(void)w->on_event(s, w, &ev, w->on_event_arg);",
+        "\t\tr = w->on_event(s, w, &ev, w->on_event_arg);\n\t\tif (r < 0)\n\t\t\treturn -1;\n\t\tif (r != 0)\n\t\t\treturn 0;",
+        "\t\tr = w->on_event(s, w, &ev, w->on_event_arg);\n\t\tif (r < 0)\n\t\t\treturn -1;",
     ),
     (
         "release_treated_as_press",
@@ -296,6 +328,26 @@ INPUT_MUTATIONS = (
         "\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n"
         "\t\tput(&ev[n + 2], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n"
         "\t\tin->esc = ST_ESC;\n\t\treturn n;",
+    ),
+    (
+        "modal_not_gated",
+        "\tif (in->modal != NULL && win_is_live(s, in->modal) &&\n\t    in->modal->gen == in->modal_gen &&\n\t    (action == WIN_ACT_NEXT || action == WIN_ACT_PREV))\n\t\treturn 0;\n",
+        "",
+    ),
+    (
+        "modal_generation_ignored",
+        "\t    in->modal->gen == in->modal_gen &&\n",
+        "",
+    ),
+    (
+        "handler_failure_swallowed",
+        "\tif (i < 0)\n\t\treturn -1;\n\treturn i != 0 ?",
+        "\treturn i != 0 ?",
+    ),
+    (
+        "close_failure_swallowed",
+        "\t\tif (r < 0)\n\t\t\treturn -1;\n\t\tif (r != 0)\n\t\t\treturn 0;\n\t}\n\treturn win_destroy",
+        "\t\tif (r != 0)\n\t\t\treturn 0;\n\t}\n\treturn win_destroy",
     ),
 )
 
@@ -346,6 +398,97 @@ DEV_MUTATIONS = (
 )
 
 
+# win_lcdgfx.c: (name, original text, replacement)
+LCD_MUTATIONS = (
+    (
+        "baseline",
+        "",
+        "",
+    ),
+    (
+        "bits_colors_swapped",
+        "\twin.fg = (u_char)fg;\n\twin.bg = (u_char)bg;",
+        "\twin.fg = (u_char)bg;\n\twin.bg = (u_char)fg;",
+    ),
+    (
+        "bits_count_unpadded",
+        "\tleft = (size_t)((w + 7) / 8) * (size_t)h;",
+        "\tleft = (size_t)(w / 8) * (size_t)h;",
+    ),
+    (
+        "bits_sent_as_index",
+        "\twin.fmt = LCDG_WIN_BITS;",
+        "\twin.fmt = LCDG_WIN_INDEX;",
+    ),
+)
+
+
+# win_widget.c: (name, original text, replacement)
+WIDGET_MUTATIONS = (
+    ("baseline", "", ""),
+    (
+        "traversal_skips_a_control",
+        "for (step = 1; step <= f->n; step++) {",
+        "for (step = 1; step <= f->n; step += 2) {",
+    ),
+    (
+        "traversal_visits_disabled",
+        "return w->kind >= WGT_BUTTON && (w->flags & (WGT_F_HIDDEN | WGT_F_DISABLED)) == 0;",
+        "return w->kind >= WGT_BUTTON && (w->flags & WGT_F_HIDDEN) == 0;",
+    ),
+    (
+        "mnemonic_reaches_wrong_control",
+        "\t\tif (w->mnem != letter)\n\t\t\tcontinue;",
+        "\t\tif (w->mnem == 0)\n\t\t\tcontinue;",
+    ),
+    (
+        "field_cursor_off_by_one",
+        "\tw->len++;\n\tw->cur++;\n",
+        "\tw->len++;\n",
+    ),
+    (
+        "list_scroll_off_by_one",
+        "\t\ttop = index - w->rows + 1;",
+        "\t\ttop = index - w->rows + 2;",
+    ),
+    (
+        "noop_check_repaints",
+        "\tif (w->checked == on)\n\t\treturn 0;\n",
+        "",
+    ),
+    (
+        "dialog_leaves_focus_behind",
+        "\t\t\t(void)win_focus(s, d->opener);\n",
+        "\t\t\t(void)s;\n",
+    ),
+    (
+        "dialog_stays_modal",
+        "\twin_input_set_modal(d->in, NULL);\n\td->form.win = NULL;",
+        "\td->form.win = NULL;",
+    ),
+    (
+        "list_row_unclipped",
+        "\t\t    list_row_w(w), WGT_LIST_ROW_H);\n\t\tif (i == l->sel)",
+        "\t\t    4000, 4000);\n\t\tif (i == l->sel)",
+    ),
+    (
+        "field_repaints_whole_field",
+        "\trl_add(&l, w->head.x + 2 + WGT_CELL_W * lo, w->head.y + 2,\n\t    WGT_CELL_W * (hi - lo + 1), WGT_CELL_H);",
+        "\trl_add(&l, w->head.x + 2 + WGT_CELL_W * lo, w->head.y + 2,\n\t    w->head.w + (hi - hi), WGT_CELL_H);",
+    ),
+    (
+        "field_reserve_skipped",
+        "\treturn win_reserve(f->s, WIN_DAMAGE_CALL);\n}\n\nint\nwgt_field_set_text",
+        "\t(void)f;\n\treturn 0;\n}\n\nint\nwgt_field_set_text",
+    ),
+    (
+        "activation_hook_after_store",
+        "\tif (f->act != NULL && f->act(f, &k->head, k->head.id, on) < 0)\n\t\treturn -1;\n\tif (focus_to >= 0)\n\t\tfocus_apply(f, focus_to);\n\tk->checked = (unsigned char)on;",
+        "\tif (focus_to >= 0)\n\t\tfocus_apply(f, focus_to);\n\tk->checked = (unsigned char)on;\n\tif (f->act != NULL && f->act(f, &k->head, k->head.id, on) < 0)\n\t\treturn -1;",
+    ),
+)
+
+
 def write_set(source, mutations, prefix, out):
     for name, old, new in mutations:
         if old:
@@ -364,26 +507,32 @@ def write_set(source, mutations, prefix, out):
 
 
 def main(argv):
-    if len(argv) != 5:
+    if len(argv) != 7:
         print(__doc__, file=sys.stderr)
         return 2
     source = Path(argv[1]).read_text(encoding="utf-8")
     inp = Path(argv[2]).read_text(encoding="utf-8")
     dev = Path(argv[3]).read_text(encoding="utf-8")
-    out = Path(argv[4])
+    lcd = Path(argv[4]).read_text(encoding="utf-8")
+    wgt = Path(argv[5]).read_text(encoding="utf-8")
+    out = Path(argv[6])
     if source.count(FONT_INCLUDE) != 1:
         print("win_mutate: font include not found exactly once", file=sys.stderr)
         return 1
     source = source.replace(FONT_INCLUDE, '#include "lcdfont.h"')
-    if not write_set(source, MUTATIONS, "win", out):
-        return 1
-    if not write_set(inp, INPUT_MUTATIONS, "inp", out):
-        return 1
-    if not write_set(dev, DEV_MUTATIONS, "dev", out):
-        return 1
-    print(
-        "win_mutate: wrote %d files" % (len(MUTATIONS) + len(INPUT_MUTATIONS) + len(DEV_MUTATIONS))
+    sets = (
+        (source, MUTATIONS, "win"),
+        (inp, INPUT_MUTATIONS, "inp"),
+        (dev, DEV_MUTATIONS, "dev"),
+        (lcd, LCD_MUTATIONS, "lcd"),
+        (wgt, WIDGET_MUTATIONS, "wgt"),
     )
+    total = 0
+    for text, mutations, prefix in sets:
+        if not write_set(text, mutations, prefix, out):
+            return 1
+        total += len(mutations)
+    print("win_mutate: wrote %d files" % total)
     return 0
 
 

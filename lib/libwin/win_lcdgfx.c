@@ -70,6 +70,40 @@ lcdgfx_rect(void *self, int x, int y, int w, int h, const unsigned char *px)
 	return 0;
 }
 
+/* A two-color rectangle: LCDG_WIN_BITS rows with the two palette entries. */
+static int
+lcdgfx_bits(void *self, int x, int y, int w, int h, int fg, int bg,
+    const unsigned char *rows)
+{
+	const struct win_lcdgfx *st = self;
+	struct lcdg_window win;
+	size_t left;
+	ssize_t n;
+
+	if (x < 0 || y < 0 || w < 1 || h < 1 || x + w > LCDG_WIDTH ||
+	    y + h > LCDG_HEIGHT || fg < 0 || fg >= LCDG_NPAL || bg < 0 ||
+	    bg >= LCDG_NPAL)
+		return -1;
+	win.x = (u_short)x;
+	win.y = (u_short)y;
+	win.w = (u_short)w;
+	win.h = (u_short)h;
+	win.fmt = LCDG_WIN_BITS;
+	win.fg = (u_char)fg;
+	win.bg = (u_char)bg;
+	if (ioctl(st->fd, LCDG_WINDOW, &win) < 0)
+		return -1;
+	left = (size_t)((w + 7) / 8) * (size_t)h;
+	while (left > 0) {
+		n = write(st->fd, rows, left);
+		if (n <= 0)
+			return -1;
+		rows += n;
+		left -= (size_t)n;
+	}
+	return 0;
+}
+
 static int
 lcdgfx_palette(void *self, int index, int r, int g, int b)
 {
@@ -90,4 +124,5 @@ win_lcdgfx_init(struct win_backend *be, struct win_lcdgfx *st, int fd)
 	be->rect = lcdgfx_rect;
 	be->palette = lcdgfx_palette;
 	be->self = st;
+	be->bits = lcdgfx_bits;
 }

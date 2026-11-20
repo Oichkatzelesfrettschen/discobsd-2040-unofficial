@@ -96,6 +96,9 @@ static unsigned char mask[PW * PH];	/* Pending damage, from the test's own rules
 static int mask_all;			/* Measurements do not check the mask. */
 static int win_open, win_x, win_y, win_w, win_h;
 static long win_pos;
+static long win_total;			/* Bytes the open window wants. */
+static int win_fmt, win_fg, win_bg;
+static long n_bits_windows, n_index_windows;
 static long n_ioctl_window, n_bytes, n_ioctl_palette, n_writes;
 static int palette_seen[16][3];
 static long op_index;
@@ -166,17 +169,28 @@ model_ioctl(int fd, unsigned long req, void *arg)
 		fail("ioctl on descriptor %d", fd);
 	if (inject())
 		return -1;
-	if (win_open && win_pos != (long)win_w * win_h)
+	if (win_open && win_pos != win_total)
 		fail("command inside a half-filled window (%ld of %ld bytes)",
-		    win_pos, (long)win_w * win_h);
+		    win_pos, win_total);
 	win_open = 0;
 	if (req == LCDG_WINDOW) {
 		if (w->w == 0 || w->h == 0 || w->x + w->w > PW ||
 		    w->y + w->h > PH)
 			fail("window %u,%u %ux%u leaves the panel", w->x, w->y,
 			    w->w, w->h);
-		if (w->fmt != LCDG_WIN_INDEX)
-			fail("window format %u, expected LCDG_WIN_INDEX", w->fmt);
+		if (w->fmt != LCDG_WIN_INDEX && w->fmt != LCDG_WIN_BITS)
+			fail("window format %u, expected INDEX or BITS", w->fmt);
+		if (w->fmt == LCDG_WIN_BITS && (w->fg >= 16 || w->bg >= 16))
+			fail("bits window colors %u and %u", w->fg, w->bg);
+		win_fmt = w->fmt;
+		win_fg = w->fg;
+		win_bg = w->bg;
+		win_total = w->fmt == LCDG_WIN_BITS ?
+		    (long)((w->w + 7) / 8) * w->h : (long)w->w * w->h;
+		if (w->fmt == LCDG_WIN_BITS)
+			n_bits_windows++;
+		else
+			n_index_windows++;
 		win_open = 1;
 		win_x = w->x;
 		win_y = w->y;
@@ -214,12 +228,29 @@ model_write(int fd, const void *buf, size_t n)
 	}
 	if (inject())
 		return -1;
-	left = (long)win_w * win_h - win_pos;
+	left = win_total - win_pos;
 	if ((long)n > left)
-		fail("write of %zu bytes with %ld pixels left", n, left);
+		fail("write of %zu bytes with %ld bytes left", n, left);
 	if (n > WRITE_CAP)
 		n = WRITE_CAP;
 	for (i = 0; i < (long)n; i++, win_pos++) {
+		if (win_fmt == LCDG_WIN_BITS) {
+			long rb = (win_w + 7) / 8;
+			int k, c;
+
+			y = win_y + (int)(win_pos / rb);
+			for (k = 0; k < 8; k++) {
+				c = (int)(win_pos % rb) * 8 + k;
+				if (c >= win_w)
+					break;
+				x = win_x + c;
+				if (!mask_all && !mask[y * PW + x])
+					fail("pixel %d,%d written outside the damage", x, y);
+				panel[y * PW + x] = (unsigned char)
+				    ((b[i] & (0x80 >> k)) != 0 ? win_fg : win_bg);
+			}
+			continue;
+		}
 		x = win_x + (int)(win_pos % win_w);
 		y = win_y + (int)(win_pos / win_w);
 		if (b[i] > 15)
@@ -235,7 +266,10 @@ model_write(int fd, const void *buf, size_t n)
 
 #define ioctl model_ioctl
 #define write model_write
-#include "win_lcdgfx.c"
+#ifndef WIN_LCD_SOURCE
+#define WIN_LCD_SOURCE "win_lcdgfx.c"
+#endif
+#include WIN_LCD_SOURCE
 #undef ioctl
 #undef write
 
@@ -769,6 +803,13 @@ reset_world(void)
 		fail("win_scene_init");
 }
 
+/* The fixed byte-count cases below count one byte per pixel. */
+static void
+use_bits(int on)
+{
+	scene.be.bits = on ? backend.bits : NULL;
+}
+
 static void
 random_title(char *t)
 {
@@ -1247,6 +1288,7 @@ run_burst(void)
 
 	op_index = -1;
 	reset_world();
+	use_bits(0);
 	if (win_flush(&scene) != 0)
 		fail("win_flush");
 	after_op(1);
@@ -2983,6 +3025,177 @@ run_wait_bound(void)
 	    "%ld ms of 50\n", kb_clock);
 }
 
+static int stub_result;
+static int stub_calls;
+
+static int
+stub_handler(struct win_scene *s, struct win *w, const struct win_event *ev,
+    void *arg)
+{
+	(void)s;
+	(void)w;
+	(void)ev;
+	(void)arg;
+	stub_calls++;
+	return stub_result;
+}
+
+static int
+send_key(struct win_input *pin, int key, int mods)
+{
+	struct win_event ev;
+
+	ev.key = key;
+	ev.mods = (unsigned char)mods;
+	ev.kind = WIN_EV_PRESS;
+	return win_input_event(pin, &scene, &ev);
+}
+
+/*
+ * A modal window keeps the focus against the window-cycle keys, a handler
+ * result of -1 is a failure the dispatcher returns, and a close request the
+ * handler answered with -1 is not swallowed.
+ */
+static void
+run_modal(void)
+{
+	struct win_input inp;
+	struct win *a, *b, *c;
+	int r, top;
+
+	reset_world();
+	mask_all = 1;
+	op_index = -5;
+	win_input_init(&inp);
+	a = win_create(&scene, 10, 10, 100, 60, "a", NULL, NULL);
+	b = win_create(&scene, 60, 40, 100, 60, "b", NULL, NULL);
+	if (a == NULL || b == NULL || win_focused(&scene) != b)
+		fail("modal fixture");
+	if (send_key(&inp, WIN_KEY_F1 + 5, 0) != WIN_DISP_MANAGER ||
+	    win_focused(&scene) != a)
+		fail("without a modal window F6 must cycle (focus %p)",
+		    (void *)win_focused(&scene));
+	if (win_focus(&scene, b) != 0)
+		fail("refocus");
+	inp.held = 0;
+	win_input_set_modal(&inp, b);
+	top = scene.z[scene.nwin - 1];
+	if (send_key(&inp, WIN_KEY_F1 + 5, 0) != WIN_DISP_MANAGER ||
+	    win_focused(&scene) != b || scene.z[scene.nwin - 1] != top)
+		fail("F6 moved the focus or the stack past a modal window");
+	inp.held = 0;
+	if (send_key(&inp, WIN_KEY_F1 + 6, 0) != WIN_DISP_MANAGER ||
+	    win_focused(&scene) != b || scene.z[scene.nwin - 1] != top)
+		fail("F7 moved the focus or the stack past a modal window");
+	inp.held = 0;
+	if (send_key(&inp, WIN_KEY_TAB, WIN_MOD_CTRL) != WIN_DISP_MANAGER ||
+	    win_focused(&scene) != b)
+		fail("Ctrl-Tab moved the focus past a modal window");
+	/* The mode ends with its window, and a reused slot is not modal. */
+	win_input_set_modal(&inp, b);
+	if (win_destroy(&scene, b) != 0)
+		fail("destroy");
+	c = win_create(&scene, 60, 40, 100, 60, "c", NULL, NULL);
+	if (c == NULL)
+		fail("create c");
+	inp.held = 0;
+	if (win_focus(&scene, c) != 0 || send_key(&inp, WIN_KEY_F1 + 5, 0) !=
+	    WIN_DISP_MANAGER || win_focused(&scene) != a)
+		fail("a reused slot of a modal window stayed modal");
+	/* Handler results. */
+	win_input_set_modal(&inp, NULL);
+	if (win_set_handler(&scene, a, stub_handler, NULL) != 0 ||
+	    win_focus(&scene, a) != 0)
+		fail("handler");
+	inp.held = 0;
+	stub_result = 1;
+	if (send_key(&inp, 'x', 0) != WIN_DISP_WINDOW)
+		fail("a consumed key must report the window");
+	stub_result = 0;
+	if (send_key(&inp, 'x', 0) != WIN_DISP_DROPPED)
+		fail("an unconsumed key must be dropped");
+	stub_result = -1;
+	if (send_key(&inp, 'x', 0) != -1)
+		fail("a handler failure must be returned");
+	/* Close: -1 is a failure, 1 keeps the window, 0 destroys it. */
+	stub_calls = 0;
+	r = send_key(&inp, 'w', WIN_MOD_CTRL);
+	if (r != -1 || stub_calls != 1 || !win_is_live(&scene, a) || inp.held != 0)
+		fail("a close request answered -1 returned %d, live %d, held %d", r,
+		    win_is_live(&scene, a), inp.held);
+	stub_result = 1;
+	if (send_key(&inp, 'w', WIN_MOD_CTRL) != WIN_DISP_MANAGER ||
+	    !win_is_live(&scene, a))
+		fail("a close request the handler consumed destroyed the window");
+	inp.held = 0;
+	stub_result = 0;
+	if (send_key(&inp, 'w', WIN_MOD_CTRL) != WIN_DISP_MANAGER ||
+	    win_is_live(&scene, a))
+		fail("a close request the handler declined kept the window");
+	mask_all = 0;
+	printf("PASS modal: the cycle keys stop at a modal window and end with it, "
+	    "handler results -1, 0 and 1 and the close request are reported\n");
+}
+
+/* Invalidate one rectangle, flush, and count the windows, bytes and formats. */
+static void
+bits_case(int x, int y, int w, int h, long windows, long bytes, long bits_windows,
+    const char *what)
+{
+	long w0 = n_ioctl_window, b0 = n_bytes, bw0 = n_bits_windows;
+
+	if (win_invalidate(&scene, x, y, w, h) != 0 || win_flush(&scene) != 0)
+		fail("bits case %s: flush", what);
+	if (n_ioctl_window - w0 != windows || n_bytes - b0 != bytes ||
+	    n_bits_windows - bw0 != bits_windows)
+		fail("bits case %s: %ld windows, %ld bytes, %ld of them bit windows; "
+		    "expected %ld, %ld and %ld", what, n_ioctl_window - w0,
+		    n_bytes - b0, n_bits_windows - bw0, windows, bytes, bits_windows);
+}
+
+/*
+ * The one-bit path: a strip of at most two colors goes out as LCDG_WIN_BITS
+ * rows (most significant bit first, padded to a byte, fg the second color),
+ * every other strip and a one-column strip as one byte a pixel. The pixels
+ * of both paths are compared with the reference by every random and fixed
+ * case above; these cases pin the byte counts and the choice of format.
+ */
+static void
+run_bits(void)
+{
+	struct twin *a = &tw[0];
+
+	reset_world();
+	mask_all = 1;
+	op_index = -4;
+	if (win_flush(&scene) != 0)
+		fail("initial flush");
+	/* The bare desktop is one color. */
+	bits_case(10, 10, 13, 3, 1, 6, 1, "13x3 desktop, rows padded to two bytes");
+	bits_case(100, 100, 8, 8, 1, 8, 1, "8x8 desktop, one byte a row");
+	bits_case(100, 100, 9, 8, 1, 16, 1, "9x8 desktop, nine columns need two bytes");
+	bits_case(10, 10, 1, 20, 1, 20, 0, "one column: no saving, indexed");
+	bits_case(0, 10, 320, 16, 1, 640, 1, "full-width strip");
+	a->used = 1; a->x = 50; a->y = 50; a->w = 100; a->h = 60;
+	strcpy(a->title, "t");
+	a->nops = 0;
+	a->handle = win_create(&scene, a->x, a->y, a->w, a->h, a->title, paint_cb, a);
+	if (a->handle == NULL || win_flush(&scene) != 0)
+		fail("bits window");
+	/* Inside the title bar, right of its text: the bar color alone. */
+	bits_case(100, 52, 40, 8, 1, 40, 1, "title bar, one color");
+	/* The window's top left corner: desktop, frame and title bar. */
+	bits_case(40, 45, 40, 8, 1, 320, 0, "corner, three colors, indexed");
+	/* The title text: two colors, drawn with fg 15 over the bar color. */
+	bits_case(51, 51, 12, 11, 1, 22, 1, "title text, two colors");
+	if (n_bits_windows == 0 || n_index_windows == 0)
+		fail("a path was not exercised");
+	mask_all = 0;
+	printf("PASS bits: two-color strips went out as bit rows with the counted "
+	    "bytes, three-color and one-column strips as indexed bytes (%ld bit, "
+	    "%ld indexed windows over the run)\n", n_bits_windows, n_index_windows);
+}
+
 /* Backend bytes for three workloads, as the model counts them. */
 static void
 run_measure(void)
@@ -3066,6 +3279,8 @@ main(int argc, char **argv)
 	run_input_failures();
 	run_compound_sweep();
 	run_wait_bound();
+	run_bits();
+	run_modal();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

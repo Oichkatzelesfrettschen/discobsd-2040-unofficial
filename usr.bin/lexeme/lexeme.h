@@ -96,7 +96,15 @@ int	buf_insert_props(woff_t pos, woff_t ref, woff_t n, unsigned chp,
 void	buf_props_for(woff_t pos, unsigned *chp, unsigned *pap);
 int	buf_insert_fmt(woff_t pos, const char *s, size_t n, int chp);
 int	buf_append_props(const char *s, size_t n, unsigned chp, unsigned pap);
-void	buf_loaded(void);		/* end of a load: no undo history */
+void	buf_loaded(void);
+#ifdef BUF_TEST
+void	buf_test_fault(int at);		/* allocation point at fails */
+unsigned buf_test_peak(void);		/* most slots an atomic edit took */
+void	buf_test_undo(unsigned *count, unsigned *pos);
+unsigned buf_test_reserve(void);	/* BUF_RESERVE */
+void	buf_test_save(void);
+void	buf_test_restore(void);
+#endif		/* end of a load: no undo history */
 
 /* ---- lexeme_doc.c: Word 5.1 document files ---- */
 

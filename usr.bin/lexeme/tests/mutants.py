@@ -291,6 +291,20 @@ MUTANTS = [
         "for (i = 0; i < 1; i++)",
         "t_vi_counts",
     ),
+    (
+        "reservation-one-short",
+        "lexeme_buf.c",
+        "#define BUF_RESERVE\t3u",
+        "#define BUF_RESERVE\t2u",
+        "t_bufcore",
+    ),
+    (
+        "delete-skips-the-reservation",
+        "lexeme_buf.c",
+        "\tnl = has_break(pos, n);\n\tif ((e = reserve()) != 0)\n\t\treturn e;",
+        "\tnl = has_break(pos, n);",
+        "t_bufcore",
+    ),
 ]
 
 

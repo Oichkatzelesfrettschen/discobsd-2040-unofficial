@@ -794,7 +794,37 @@ def t_vi_counts(b, td):
     check(read(path) == b"x\nx\nx\n", "2p left %r" % read(path))
 
 
+def t_bufcore(b, td):
+    # tests/buf_test.c against the lexeme_buf.c beside the program under
+    # test (a mutant's copy when mutants.py runs this), with the program's
+    # word size: undo, the slot reservation and injected allocation failures.
+    here = os.path.dirname(os.path.abspath(__file__))
+    srcdir = os.path.dirname(b)
+    exe = os.path.join(td, "buf_test")
+    cmd = [
+        os.environ.get("HOSTCC", "cc"),
+        "-std=c17",
+        "-D_DEFAULT_SOURCE",
+        "-DTERMIOS",
+        "-DBUF_TEST",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wshadow",
+        "-O1",
+        "-I" + srcdir,
+    ]
+    if b.endswith("32"):
+        cmd.append("-m32")
+    cmd += ["-o", exe, os.path.join(srcdir, "lexeme_buf.c"), os.path.join(here, "buf_test.c")]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    check(r.returncode == 0, "buf_test does not build: " + r.stderr[-300:])
+    r = subprocess.run([exe], capture_output=True, text=True, timeout=600)
+    check(r.returncode == 0 and "buf_test: PASS" in r.stdout, "buf_test: " + r.stdout[-400:])
+
+
 TESTS = [
+    t_bufcore,
     t_docfmt,
     t_format,
     t_save_menu,

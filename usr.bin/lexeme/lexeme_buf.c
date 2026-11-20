@@ -113,6 +113,8 @@ static uint32_t addram_len;
 static woff_t spilled;		/* add stream bytes in the spill file */
 static int spillfd = -1;
 
+static void	note_growth(void);
+
 static struct blk cache[NBLK];
 static uint32_t cache_clock;
 
@@ -206,10 +208,58 @@ spill_open(void)
 	return 0;
 }
 
+/*
+ * Failure injection for tests/buf_test.c: with BUF_TEST, the allocation
+ * point numbered buf_fault_at (counting from 0 at each buf_test_fault()
+ * call) fails with ENOSPC. The allocation points are the add stream
+ * appends and the slot reservation.
+ */
+#ifdef BUF_TEST
+static int fault_at = -1;
+static unsigned peak;		/* most slots an atomic edit took past its start */
+
+void
+buf_test_fault(int at)
+{
+	fault_at = at;
+}
+
+unsigned
+buf_test_peak(void)
+{
+	unsigned p = peak;
+
+	peak = 0;
+	return p;
+}
+
+unsigned
+buf_test_reserve(void);
+
+void
+buf_test_undo(unsigned *count, unsigned *pos)
+{
+	*count = ucount;
+	*pos = upos;
+}
+
+static int
+fault(void)
+{
+	if (fault_at < 0)
+		return 0;
+	return fault_at-- == 0;
+}
+#else
+#define fault()	0
+#endif
+
 /* Append bytes to the add stream; *ref receives their stream offset. */
 static int
 add_append(const char *s, size_t n, woff_t *ref)
 {
+	if (fault())
+		return ENOSPC;
 	if (spillfd < 0 && addram_len + n > ADD_RAM && spill_open() != 0)
 		return ENOSPC;
 	*ref = spilled + addram_len;
@@ -419,14 +469,18 @@ split_at(woff_t off)
 	pt[i + 1].len = pt[i].len - within;
 	pt[i].len = within;
 	npiece++;
+	note_growth();
 	hint_reset();
 	return i + 1;
 }
 
 /*
  * Rewrite the document when the slots run out: neighbouring pieces with
- * equal properties become one add stream piece. The text and properties
- * are unchanged, so every undo record stays valid.
+ * equal properties become one add stream piece. The whole text is copied
+ * first, in one run of the add stream, and the table is rewritten only
+ * after the copy succeeds, so a failed compaction leaves every piece as it
+ * was. The text and properties are unchanged, so every undo record stays
+ * valid.
  */
 static int
 compact(void)
@@ -435,25 +489,136 @@ compact(void)
 	woff_t s = 0, len, ref;
 	int e;
 
+	if (doclen > 0 && (e = add_copy(0, doclen, &ref)) != 0)
+		return e;
 	for (i = 0; i < npiece; i = j) {
 		len = 0;
 		for (j = i; j < npiece && pt[j].chp == pt[i].chp &&
 		    pt[j].pap == pt[i].pap; j++)
 			len += pt[j].len;
-		e = add_copy(s, len, &ref);
-		if (e != 0)
-			return e;
-		s += len;
-		pt[out].off = ref | ADDBIT;
+		pt[out].off = (ref + s) | ADDBIT;
 		pt[out].len = len;
 		pt[out].chp = pt[i].chp;
 		pt[out].pap = pt[i].pap;
+		s += len;
 		out++;
-		hint_reset();
 	}
 	npiece = out;
 	hint_reset();
 	return npiece + 2 > NPIECE ? ENOSPC : 0;
+}
+
+/*
+ * An atomic edit stages its text, then reserves BUF_RESERVE free slots and
+ * runs with reserving set, when no raw operation compacts or fails for
+ * want of a slot. The count is the smallest that tests/buf_test.c accepts:
+ * every delete and replace of its documents succeeds from a table filled
+ * to BUF_RESERVE free slots, and fails with one fewer (each raw operation
+ * asks for two slots before it splits).
+ */
+#define BUF_RESERVE	3u
+
+#ifdef BUF_TEST
+unsigned
+buf_test_reserve(void)
+{
+	return BUF_RESERVE;
+}
+
+/* A copy of the whole store, so tests/buf_test.c rebuilds a document fast. */
+static struct {
+	struct piece pt[NPIECE];
+	unsigned npiece, nchp, npap, ucount, upos;
+	woff_t doclen, spilled;
+	uint32_t addram_len;
+	char addram[ADD_RAM];
+	struct urec ur[NUNDO];
+	struct word_chp chps[WORD_NCHP];
+	struct word_pap paps[WORD_NPAP];
+} saved;
+
+void
+buf_test_save(void)
+{
+	memcpy(saved.pt, pt, sizeof(pt));
+	memcpy(saved.addram, addram, sizeof(addram));
+	memcpy(saved.ur, ur, sizeof(ur));
+	memcpy(saved.chps, chps, sizeof(chps));
+	memcpy(saved.paps, paps, sizeof(paps));
+	saved.npiece = npiece;
+	saved.nchp = nchp;
+	saved.npap = npap;
+	saved.ucount = ucount;
+	saved.upos = upos;
+	saved.doclen = doclen;
+	saved.spilled = spilled;
+	saved.addram_len = addram_len;
+}
+
+void
+buf_test_restore(void)
+{
+	unsigned i;
+
+	memcpy(pt, saved.pt, sizeof(pt));
+	memcpy(addram, saved.addram, sizeof(addram));
+	memcpy(ur, saved.ur, sizeof(ur));
+	memcpy(chps, saved.chps, sizeof(chps));
+	memcpy(paps, saved.paps, sizeof(paps));
+	npiece = saved.npiece;
+	nchp = saved.nchp;
+	npap = saved.npap;
+	ucount = saved.ucount;
+	upos = saved.upos;
+	doclen = saved.doclen;
+	spilled = saved.spilled;
+	addram_len = saved.addram_len;
+	for (i = 0; i < NBLK; i++)
+		cache[i].valid = 0;
+	hint_reset();
+	touched(0);
+}
+#endif
+
+static int reserving;
+static unsigned rbase;		/* npiece when the atomic edit began */
+
+static void
+note_growth(void)
+{
+#ifdef BUF_TEST
+	if (reserving && npiece > rbase && npiece - rbase > peak)
+		peak = npiece - rbase;
+#endif
+}
+
+static int
+reserve(void)
+{
+	int e;
+
+	if (fault())
+		return ENOSPC;
+	if (npiece + BUF_RESERVE > NPIECE) {
+		if ((e = compact()) != 0)
+			return e;
+		if (npiece + BUF_RESERVE > NPIECE)
+			return ENOSPC;
+	}
+	return 0;
+}
+
+/*
+ * Slots for a raw operation: compaction when they run out, except inside
+ * an atomic edit, whose reservation must already hold them (EFAULT, which
+ * tests/buf_test.c treats as a failure, says it did not).
+ */
+static int
+slots(void)
+{
+	if (reserving)
+		return npiece + 2 > NPIECE ? EFAULT : 0;
+	return npiece + 2 > NPIECE ? compact() : 0;
 }
 
 static int
@@ -467,7 +632,7 @@ raw_insert(woff_t pos, woff_t ref, woff_t n, unsigned chp, unsigned pap)
 		return 0;
 	if (pos > doclen)
 		return EINVAL;
-	if (npiece + 2 > NPIECE && (e = compact()) != 0)
+	if ((e = slots()) != 0)
 		return e;
 	if (pos > 0) {
 		i = piece_find(pos - 1, &s);
@@ -487,6 +652,7 @@ raw_insert(woff_t pos, woff_t ref, woff_t n, unsigned chp, unsigned pap)
 	pt[i].chp = (uint8_t)chp;
 	pt[i].pap = (uint8_t)pap;
 	npiece++;
+	note_growth();
 	doclen += n;
 	touched(pos);
 	hint_reset();
@@ -503,7 +669,7 @@ raw_delete(woff_t pos, woff_t n)
 		return 0;
 	if (pos > doclen || n > doclen - pos)
 		return EINVAL;
-	if (npiece + 2 > NPIECE && (e = compact()) != 0)
+	if ((e = slots()) != 0)
 		return e;
 	a = split_at(pos);
 	b = split_at(pos + n);
@@ -524,7 +690,7 @@ raw_props(woff_t pos, woff_t n, int which, unsigned chp, unsigned pap)
 
 	if (n == 0)
 		return 0;
-	if (npiece + 2 > NPIECE && (e = compact()) != 0)
+	if ((e = slots()) != 0)
 		return e;
 	a = split_at(pos);
 	b = split_at(pos + n);
@@ -701,33 +867,26 @@ buf_replace_fmt(woff_t pos, woff_t n, const char *s, size_t len, int fchp)
 		return e;
 	if (n > 0 && (e = add_copy(pos, n, &dref)) != 0)
 		return e;
-	/*
-	 * Reserve every slot the call can need before the document changes:
-	 * two splits for the deleted range, two for the inserted piece and
-	 * two for the paragraph rejoin. A shortage after compaction fails
-	 * here, with the text and the undo records as they were.
-	 */
-	if (npiece + 8 > NPIECE) {
-		if ((e = compact()) != 0)
-			return e;
-		if (npiece + 8 > NPIECE)
-			return ENOSPC;
-	}
+	if ((e = reserve()) != 0)
+		return e;
+	reserving = 1;
+	rbase = npiece;
 	/* One undo record per property run, as buf_delete() makes them. */
-	for (end = pos + n; end > pos; end -= run) {
+	for (end = pos + n; end > pos && e == 0; end -= run) {
 		i = piece_find(end - 1, &s0);
 		run = end - (s0 > pos ? s0 : pos);
 		c = pt[i].chp;
 		p = pt[i].pap;
-		if ((e = raw_delete(end - run, run)) != 0)
-			return e;
-		urec_push(U_DEL, end - run, run, dref + (end - run - pos), c, p);
+		if ((e = raw_delete(end - run, run)) == 0)
+			urec_push(U_DEL, end - run, run, dref + (end - run - pos), c, p);
 	}
-	if ((e = raw_insert(pos, iref, (woff_t)len, chp, pap)) != 0)
-		return e;
-	if (len > 0)
+	if (e == 0 && (e = raw_insert(pos, iref, (woff_t)len, chp, pap)) == 0 &&
+	    len > 0)
 		urec_push(U_INS, pos, (woff_t)len, iref, chp, pap);
-	return nl ? rejoin(pos + (woff_t)len) : 0;
+	if (e == 0 && nl)
+		e = rejoin(pos + (woff_t)len);
+	reserving = 0;
+	return e;
 }
 
 int
@@ -782,9 +941,10 @@ buf_copy(woff_t pos, woff_t n, woff_t *ref)
 }
 
 /*
- * A deletion copies its text into the add stream, then removes it one
- * property run at a time from the end, so undo restores each run with
- * its own properties.
+ * A deletion copies its text into the add stream, reserves its slots, then
+ * removes the text one property run at a time from the end, so undo
+ * restores each run with its own properties, and rejoins the paragraphs
+ * it merged. Every failure point comes before the first change.
  */
 int
 buf_delete(woff_t pos, woff_t n, woff_t *ref)
@@ -795,25 +955,30 @@ buf_delete(woff_t pos, woff_t n, woff_t *ref)
 
 	if (n == 0)
 		return 0;
+	if (pos > doclen || n > doclen - pos)
+		return EINVAL;
 	e = buf_copy(pos, n, &r);
 	if (e != 0)
 		return e;
 	nl = has_break(pos, n);
-	end = pos + n;
-	while (end > pos) {
+	if ((e = reserve()) != 0)
+		return e;
+	reserving = 1;
+	rbase = npiece;
+	for (end = pos + n; end > pos && e == 0; end -= run) {
 		i = piece_find(end - 1, &s);
 		run = end - (s > pos ? s : pos);
 		c = pt[i].chp;
 		p = pt[i].pap;
-		e = raw_delete(end - run, run);
-		if (e != 0)
-			return e;
-		urec_push(U_DEL, end - run, run, r + (end - run - pos), c, p);
-		end -= run;
+		if ((e = raw_delete(end - run, run)) == 0)
+			urec_push(U_DEL, end - run, run, r + (end - run - pos), c, p);
 	}
-	if (ref != NULL)
+	if (e == 0 && nl)
+		e = rejoin(pos);
+	reserving = 0;
+	if (e == 0 && ref != NULL)
 		*ref = r;
-	return nl ? rejoin(pos) : 0;
+	return e;
 }
 
 int

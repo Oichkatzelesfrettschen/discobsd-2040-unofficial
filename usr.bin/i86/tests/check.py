@@ -133,6 +133,8 @@ MUTANTS = [
     ),
     ("cpu.c", "if (tf && !c->inhibit && !faulted)", "if (tf && !c->inhibit)"),
     ("pc.c", "pic_base = v & 0xf8;", "pic_base = 8;"),
+    ("pc.c", "if (cf.model != I86_8086 && c->fault) {", "if (cf.model != I86_8086) {"),
+    ("cpu.c", "i86_int(c, n);\n\tc->fault = 1;", "i86_int(c, n);"),
     ("pc.c", "!bq_put(c->r[R_CX]));", "0 * bq_put(c->r[R_CX]));"),
     (
         "main.c",
@@ -448,6 +450,23 @@ def test_endings(binary, work):
             "page file in a long path: exit %d, left %r" % (done.returncode, os.listdir(deep))
         )
     shutil.rmtree(os.path.join(work, "d" * 70))
+    # A program's own INT 6 on the 80286 returns from the firmware; only a
+    # failing instruction ends the session there.
+    soft = os.path.join(work, "int6.img")
+    code = bytes.fromhex("cd06 b84b0e cd10 fa f4")
+    with open(soft, "wb") as handle:
+        handle.write(code + bytes(510 - len(code)) + b"\x55\xaa")
+        handle.truncate(360 * 1024)
+    done = subprocess.run(
+        [binary, "-d", "-T", "-c", "286", "-s", os.path.join(work, "page"), "-a", soft, "-k", ""],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    if done.returncode != 0 or not done.stdout.startswith(b"K"):
+        raise Failure(
+            "software interrupt 6: exit %d, screen %r" % (done.returncode, done.stdout[:8])
+        )
     # A page file path that exists is refused and left as it was.
     store = os.path.join(work, "occupied")
     with open(store, "w") as handle:

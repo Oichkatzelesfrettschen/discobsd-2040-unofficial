@@ -40,7 +40,7 @@
 # requires the shell's banner.
 #
 # It needs mtools (mformat, mcopy, mdel, mdir, minfo) and PYTHON, and
-# writes OUTPUT.IMG only.
+# writes OUTPUT.IMG, and OUTPUT.IMG.new.PID while it works.
 set -eu
 
 if [ "$#" -lt 4 ]; then
@@ -71,9 +71,13 @@ if [ "$megabytes" -lt 2 ] || [ "$megabytes" -gt 500 ]; then
 	exit 2
 fi
 
+# The image is built beside OUTPUT.IMG under another name and takes that
+# name only when it boots, so an OUTPUT.IMG that is, or links to, the
+# floppy or one of the files is read whole before anything replaces it.
 work=$(mktemp -d)
+img=$out.new.$
 trap 'rm -f "$work/tool.img" "$work/autoexec.bat" "$work/config.sys" \
-    "$work/page" "$work/file" "$work/screen"; rmdir "$work"' EXIT
+    "$work/page" "$work/file" "$work/screen" "$img"; rmdir "$work"' EXIT
 
 # 1008 sectors a cylinder; the partition starts on the second track.
 cylinders=$((megabytes * 2048 / 1008))
@@ -81,15 +85,15 @@ if [ "$cylinders" -gt 1024 ]; then
 	cylinders=1024
 fi
 total=$((cylinders * 1008))
-: >"$out"
-"$PYTHON" -I - "$out" "$total" <<'EOF'
+: >"$img"
+"$PYTHON" -I - "$img" "$total" <<'EOF'
 import sys
 with open(sys.argv[1], "wb") as image:
     image.truncate(int(sys.argv[2]) * 512)
 EOF
-mformat -i "$out@@32256" -T $((total - 63)) -h 16 -s 63 -H 63 -v I86DISK ::
-fat=$(minfo -i "$out@@32256" :: | sed -n 's/.*disk type="\(FAT[0-9]*\).*/\1/p')
-"$PYTHON" -I - "$out" "$total" "$fat" "$here/mbr.hexdump" <<'EOF'
+mformat -i "$img@@32256" -T $((total - 63)) -h 16 -s 63 -H 63 -v I86DISK ::
+fat=$(minfo -i "$img@@32256" :: | sed -n 's/.*disk type="\(FAT[0-9]*\).*/\1/p')
+"$PYTHON" -I - "$img" "$total" "$fat" "$here/mbr.hexdump" <<'EOF'
 import struct
 import sys
 
@@ -128,9 +132,9 @@ printf 'FILES=8\r\nBUFFERS=4\r\nSHELL=COMMAND.COM /e:256 /p\r\n' \
     >"$work/config.sys"
 mcopy -i "$work/tool.img" "$work/autoexec.bat" ::AUTOEXEC.BAT
 mcopy -i "$work/tool.img" "$work/config.sys" ::CONFIG.SYS
-"$i86" -q -T -c 286 -s "$work/page" -a "$work/tool.img" -h "$out" \
+"$i86" -q -T -c 286 -s "$work/page" -a "$work/tool.img" -h "$img" \
     -k "$(printf 'sys c:\r')"
-if ! mdir -i "$out@@32256" ::KERNEL.SYS >/dev/null 2>&1; then
+if ! mdir -i "$img@@32256" ::KERNEL.SYS >/dev/null 2>&1; then
 	echo "mkdosdisk: SYS C: left no kernel on the disk" >&2
 	exit 1
 fi
@@ -140,22 +144,23 @@ fi
 printf '@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\\r\nVER\r\n' >"$work/autoexec.bat"
 printf 'FILES=20\r\nBUFFERS=4\r\nLASTDRIVE=E\r\nSHELL=C:\\COMMAND.COM /E:512 /P\r\n' \
     >"$work/config.sys"
-mcopy -o -i "$out@@32256" "$work/autoexec.bat" ::AUTOEXEC.BAT
-mcopy -o -i "$out@@32256" "$work/config.sys" ::CONFIG.SYS
+mcopy -o -i "$img@@32256" "$work/autoexec.bat" ::AUTOEXEC.BAT
+mcopy -o -i "$img@@32256" "$work/config.sys" ::CONFIG.SYS
 for name in mem.exe mode.com more.com sved.com format.exe fdisk.exe sys.com; do
 	if mcopy -n -i "$work/tool.img" "::$name" "$work/file" 2>/dev/null; then
-		mcopy -o -i "$out@@32256" "$work/file" "::$name"
+		mcopy -o -i "$img@@32256" "$work/file" "::$name"
 		rm -f "$work/file"
 	fi
 done
 for name in "$@"; do
-	mcopy -o -i "$out@@32256" "$name" ::
+	mcopy -o -i "$img@@32256" "$name" ::
 done
 
-"$i86" -d -T -c 286 -s "$work/page" -h "$out" -k "$(printf 'ver\r')" \
+"$i86" -d -T -c 286 -s "$work/page" -h "$img" -k "$(printf 'ver\r')" \
     >"$work/screen"
 if ! grep -q 'SvarCOM' "$work/screen"; then
 	echo "mkdosdisk: the image does not boot to the SvarDOS shell" >&2
 	exit 1
 fi
+mv -f "$img" "$out"
 echo "mkdosdisk: $out boots: $megabytes MB, $fat, $cylinders cylinders"

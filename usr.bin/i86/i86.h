@@ -58,6 +58,9 @@ struct i86 {
 	uint16_t ip;
 	uint16_t fl;
 	uint8_t model;		/* I86_8086, I86_186 or I86_286 */
+	uint8_t fault;		/* the interrupt last entered was raised by
+				 * a failing instruction, not by INT n or
+				 * by a request */
 	/* The three conditions i86_step() examines before an instruction,
 	 * readable as one word that is zero when none holds. */
 	union {

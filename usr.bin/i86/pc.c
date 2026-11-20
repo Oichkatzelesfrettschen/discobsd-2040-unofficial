@@ -1413,8 +1413,9 @@ pc_trap(struct i86 *c, unsigned n)
 		break;
 	case 0x06:
 		/* An invalid opcode the guest has no handler for. Returning
-		 * would run the same instruction again without end. */
-		if (cf.model != I86_8086) {
+		 * would run the same instruction again without end. A
+		 * program's own INT 6 comes here too and returns. */
+		if (cf.model != I86_8086 && c->fault) {
 			char msg[64];
 			uint32_t sp = ((uint32_t)c->s[S_SS] << 4) + c->r[R_SP];
 			int len = snprintf(msg, sizeof(msg),

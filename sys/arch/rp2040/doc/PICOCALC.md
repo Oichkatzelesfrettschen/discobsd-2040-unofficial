@@ -237,6 +237,25 @@ caps the clock at 15.1 MHz; the vendor drivers request 25 MHz and get
 20.8 MHz, outside that limit. Chip select, D/C and reset are SIO outputs;
 D/C changes only after the PL022 reports idle.
 
+The PL022 figures behind this configuration, from ARM DDI 0194H (printed
+pages) and the RP2040 datasheet (printed pages):
+
+| Figure | Value | Source |
+| --- | --- | --- |
+| FIFOs | transmit and receive, each 16 bits wide and 8 locations deep | DDI 0194H 2.2.4, 2.2.5, page 2-4 |
+| Bit clock | SSPCLK / (CPSDVSR x (1 + SCR)); CPSDVSR even 2-254, SCR 0-255 | 2.2.3, 2.3.4, 3.3.1, 3.3.5; pages 2-4, 2-8, 3-4, 3-8 |
+| SSPCLK limits (master) | at least 2 x the fastest bit clock, at most 254 x 256 x the slowest, at most PCLK | 2.3.4, page 2-7 |
+| Peak master bit rate | SSPCLK / 2: 62.5 Mbit/s at 125 MHz (the datasheet prints 62.5 at 133 MHz, which is 66.5) | RP2040 datasheet 4.4.3.4, page 505 |
+| BSY | set while a frame moves or the transmit FIFO is not empty | 3.3.4, page 3-8 |
+| DMA requests | single: one empty transmit location, one received character; burst: four or fewer queued, four or more received; enabled by SSPDMACR TXDMAE (bit 1) and RXDMAE (bit 0) | 2.2.8, pages 2-19, 2-20 (Table 2-1); 3.3.10, page 3-12 |
+| SPI1 DREQ numbers | TX 18, RX 19 (SPI0 16 and 17) | RP2040 datasheet Table 119, page 95 |
+| Interrupt masks | SSPIMSC: TXIM (bit 3) half empty or less, RXIM (bit 2) half full or more, RTIM (bit 1) receive timeout, RORIM (bit 0) overrun | 3.3.6, pages 3-9 and 3-10 |
+| Frame signal between words | SPH clear: pulsed high between words; SPH set: held low | 2.3.10 page 2-11; 2.3.13 page 2-15 |
+
+The driver polls and uses none of the DMA or interrupt rows. The text read
+states no rule for the line behavior when the transmit FIFO runs dry
+between two words of one transfer.
+
 The console's pixels are RGB565, two bytes (COLMOD 55h, page 96): a glyph
 is 120 bytes where RGB666 took 180. The controller's memory is eighteen
 bits a pixel, and on the measured board a sixteen-bit pixel is stored with

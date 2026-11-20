@@ -2089,7 +2089,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-fstat-host check-sh-editor \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
+		check-fstat-host check-sh-editor \
 		check-cp-host check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver \
 		check-libwin-host
@@ -2252,6 +2253,12 @@ check-picofetch-host: check-python
 # mutants. The panel read of usr.bin/scrshot/scrshot.c runs on no host.
 check-scrshot-host: check-python
 		${MAKE} -C usr.bin/scrshot test
+
+# lexeme on a 53x32 pseudo-terminal: the Word, vi and nano key modes, wrap,
+# search and replace, undo, the scrap, the file picker and a document past
+# the in-memory add stream, then the mutants (usr.bin/lexeme/tests).
+check-lexeme-host: check-python
+		${MAKE} -C usr.bin/lexeme test
 
 check-fstat-host: check-python
 		${MAKE} -C usr.bin/fstat/tests check
@@ -2845,7 +2852,8 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-fstat-host check-sh-editor check-tar-host \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
+		check-fstat-host check-sh-editor check-tar-host \
 		check-libwin-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \

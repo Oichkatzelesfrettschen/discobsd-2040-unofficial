@@ -29,7 +29,13 @@ umask 077
 work=/tmp/confcheck.$$
 mkdir "$work"
 cd "$work"
-trap 'rc=$?; cd / && rm -f "$work"/[0-9] "$work"/out "$work"/err "$work"/want && rmdir "$work"; exit "$rc"' 0
+cleanup()
+{
+	rm -f 9 8 7 6 5 4 3 2 1 0 out err want || return 1
+	cd / || return 1
+	rmdir "$work"
+}
+trap 'cleanup; exit 1' 0
 
 check_value()
 {
@@ -81,4 +87,6 @@ cmp 0 out
 if cat 9 >out 2>err; then exit 1; fi
 test ! -s out || exit 1
 grep 'Too many levels of symbolic links' err >/dev/null
+trap 0
+cleanup || exit 1
 echo confcheck-pass

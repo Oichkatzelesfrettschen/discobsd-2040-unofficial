@@ -41,83 +41,321 @@ import sys
 import tempfile
 
 CC = os.environ.get("HOSTCC", "cc")
-FLAGS = ["-std=c17", "-D_DEFAULT_SOURCE", "-DTERMIOS", "-Wall", "-Wextra",
-         "-Werror", "-Wshadow", "-O1"]
-SRCS = ["lexeme.c", "lexeme_buf.c", "lexeme_find.c", "lexeme_menus.c", "lexeme_modes.c",
-        "lexeme_pick.c", "lexeme_term.c"]
+FLAGS = [
+    "-std=c17",
+    "-D_DEFAULT_SOURCE",
+    "-DTERMIOS",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wshadow",
+    "-O1",
+]
+SRCS = [
+    "lexeme.c",
+    "lexeme_buf.c",
+    "lexeme_doc.c",
+    "lexeme_find.c",
+    "lexeme_menus.c",
+    "lexeme_modes.c",
+    "lexeme_pick.c",
+    "lexeme_term.c",
+]
 
 # (name, file, old, new, the test case that must fail)
 MUTANTS = [
-    ("wrap-ignores-the-last-space", "lexeme.c",
-     "if (sp != WOFF_END)\n\t\t\t\t\treturn sp + 1;",
-     "if (sp == WOFF_END + 1)\n\t\t\t\t\treturn sp + 1;", "t_wrap"),
-    ("undo-drops-deleted-text", "lexeme_buf.c",
-     "\t\t\tif (raw_insert(u->pos, u->ref, u->len) != 0)\n\t\t\t\treturn -1;\n"
-     "\t\t\t*pos = u->pos + u->len;\n\t\t}\n\t\tupos--;",
-     "\t\t\t*pos = u->pos;\n\t\t}\n\t\tupos--;", "t_vi"),
-    ("spill-read-off-by-one", "lexeme_buf.c",
-     "return blk_byte(ADDBIT, ref);", "return blk_byte(ADDBIT, ref + 1);", "t_large"),
-    ("save-skips-the-rename", "lexeme_buf.c",
-     "if (e == 0 && rename(tmp, path) != 0)", "if (e == 0 && 0)", "t_save_menu"),
-    ("search-case-flag-ignored", "lexeme_find.c",
-     "\tif (match_case)\n\t\treturn a == b;", "\tif (match_case < 0)\n\t\treturn a == b;",
-     "t_search_replace"),
-    ("replace-no-still-replaces", "lexeme.c",
-     "up == 'Y' || up == 'A'", "up == 'Y' || up == 'A' || up == 'N'",
-     "t_search_replace"),
-    ("vi-dd-keeps-the-newline", "lexeme_modes.c",
-     "\t\tp = ed_eol(p);\n\t\tif (p < len)\n\t\t\tp++;",
-     "\t\tp = ed_eol(p);\n\t\tif (p > len)\n\t\t\tp++;", "t_vi"),
-    ("nano-cuts-do-not-accumulate", "lexeme_modes.c",
-     "ed_del(lo, hi, 1, cut_run);", "ed_del(lo, hi, 1, 0);", "t_nano"),
-    ("piece-split-off-by-one", "lexeme_buf.c",
-     "pt[i + 1].off = pt[i].off + within;", "pt[i + 1].off = pt[i].off + within + 1;",
-     "t_undo_scrap"),
-    ("picker-lists-directories-last", "lexeme_pick.c",
-     "return is_dir[b] - is_dir[a];", "return is_dir[a] - is_dir[b];", "t_picker"),
-    ("color-off-still-colors", "lexeme_term.c",
-     "col = scr_color && cls > 0", "col = cls > 0", "t_ansi"),
-    ("spill-append-ignores-the-end", "lexeme_buf.c",
-     "if (lseek(spillfd, (off_t)spilled, SEEK_SET) < 0)", "if (0)", "t_spill_append"),
-    ("save-temporary-follows-links", "lexeme_buf.c",
-     "O_WRONLY | O_CREAT | O_EXCL, 0600", "O_WRONLY | O_CREAT | O_TRUNC, 0600",
-     "t_save_temp"),
-    ("replace-deletes-before-it-can-insert", "lexeme.c",
-     "buf_replace(s, e - s, f_with, rl) != 0",
-     "buf_delete(s, e - s, NULL) != 0 || buf_insert(s, f_with, rl) != 0",
-     "t_replace_failure"),
-    ("replace-all-answer-sticks", "lexeme.c",
-     "\t\t\tr_ask = 0;", "\t\t\tr_ask = r_confirm = 0;", "t_replace_all_local"),
-    ("pattern-capacity-cuts-the-query", "lexeme.h",
-     "#define WORD_PAT_MAX\tWORD_FIELD_MAX", "#define WORD_PAT_MAX\t64u",
-     "t_overlong_pattern"),
-    ("csi-parameter-wraps", "lexeme_term.c",
-     "if (p[np] < 1000)", "if (1)", "t_csi_overflow"),
-    ("signal-leaves-the-terminal-raw", "lexeme_term.c",
-     "\tif (rawmode)\n\t\ttty_reset_modes();\n\tsignal(sig, SIG_DFL);",
-     "\tif (0)\n\t\ttty_reset_modes();\n\tsignal(sig, SIG_DFL);", "t_signal_restore"),
-    ("nano-typing-keeps-the-selection", "lexeme_modes.c",
-     "\t\tif (lo < hi)\n\t\t\ted_replace(lo, hi, &ch, 1);",
-     "\t\tif (0)\n\t\t\ted_replace(lo, hi, &ch, 1);", "t_select_replace"),
-    ("selection-typing-deletes-before-inserting", "lexeme.c",
-     "\t\ted_replace(lo, hi, &ch, 1);\n\telse if (ovr",
-     "\t\t{ ed_del(lo, hi, 0, 0); ed_ins(&ch, 1); }\n\telse if (ovr",
-     "t_select_replace"),
-    ("dirty-follows-the-undo-depth", "lexeme_buf.c",
-     "return upos > 0 ? ur[upos - 1].seq : 0xffffffffu - ulost;", "return upos;",
-     "t_dirty_undo"),
-    ("vi-operator-drops-its-prefix-count", "lexeme_modes.c",
-     "n = vprefix > 100000 / n ? 100000 : vprefix * n;", "n = n + 0;",
-     "t_vi_counts"),
-    ("vi-join-ignores-its-count", "lexeme_modes.c",
-     "for (i = n > 2 ? n - 1 : 1; i > 0; i--)", "for (i = 1; i > 0; i--)",
-     "t_vi_counts"),
-    ("vi-paste-ignores-its-count", "lexeme_modes.c",
-     "for (i = 0; i < n && i < 1000; i++)", "for (i = 0; i < 1; i++)",
-     "t_vi_counts"),
-    ("shift-del-fills-the-scrap", "lexeme.c",
-     "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(0);",
-     "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(1);", "t_undo_scrap"),
+    (
+        "wrap-ignores-the-last-space",
+        "lexeme.c",
+        "if (sp != WOFF_END)\n\t\t\t\t\treturn sp + 1;",
+        "if (sp == WOFF_END + 1)\n\t\t\t\t\treturn sp + 1;",
+        "t_wrap",
+    ),
+    (
+        "undo-drops-deleted-text",
+        "lexeme_buf.c",
+        "\t*pos = u->pos + u->len;\n\treturn map_insert(u->pos, u->ref, u->map, u->len);",
+        "\t*pos = u->pos;\n\treturn 0;",
+        "t_vi",
+    ),
+    (
+        "spill-read-off-by-one",
+        "lexeme_buf.c",
+        "return blk_byte(ADDBIT, ref);",
+        "return blk_byte(ADDBIT, ref + 1);",
+        "t_large",
+    ),
+    (
+        "save-skips-the-rename",
+        "lexeme_buf.c",
+        "if (e == 0 && rename(sv->tmp, sv->path) != 0)",
+        "if (e == 0 && 0)",
+        "t_save_menu",
+    ),
+    (
+        "search-case-flag-ignored",
+        "lexeme_find.c",
+        "\tif (match_case)\n\t\treturn a == b;",
+        "\tif (match_case < 0)\n\t\treturn a == b;",
+        "t_search_replace",
+    ),
+    (
+        "replace-no-still-replaces",
+        "lexeme.c",
+        "up == 'Y' || up == 'A'",
+        "up == 'Y' || up == 'A' || up == 'N'",
+        "t_search_replace",
+    ),
+    (
+        "vi-dd-keeps-the-newline",
+        "lexeme_modes.c",
+        "\t\tp = ed_eol(p);\n\t\tif (p < len)\n\t\t\tp++;",
+        "\t\tp = ed_eol(p);\n\t\tif (p > len)\n\t\t\tp++;",
+        "t_vi",
+    ),
+    (
+        "nano-cuts-do-not-accumulate",
+        "lexeme_modes.c",
+        "ed_del(lo, hi, 1, cut_run);",
+        "ed_del(lo, hi, 1, 0);",
+        "t_nano",
+    ),
+    (
+        "piece-split-off-by-one",
+        "lexeme_buf.c",
+        "pt[i + 1].off = pt[i].off + within;",
+        "pt[i + 1].off = pt[i].off + within + 1;",
+        "t_undo_scrap",
+    ),
+    (
+        "picker-lists-directories-last",
+        "lexeme_pick.c",
+        "return is_dir[b] - is_dir[a];",
+        "return is_dir[a] - is_dir[b];",
+        "t_picker",
+    ),
+    (
+        "color-off-still-colors",
+        "lexeme_term.c",
+        "col = scr_color && cls > 0",
+        "col = cls > 0",
+        "t_ansi",
+    ),
+    (
+        "shift-del-fills-the-scrap",
+        "lexeme.c",
+        "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(0);",
+        "\tcase K_DEL | KM_SHIFT:\n\t\tdelete_sel(1);",
+        "t_undo_scrap",
+    ),
+    (
+        "indent-key-unbounded",
+        "lexeme.c",
+        "if (new_pap.left <= PAP_MEASURE_MAX - 720)",
+        "if (new_pap.left <= INT16_MAX - 1)",
+        "t_indent_limit",
+    ),
+    ("bold-not-drawn", "lexeme.c", "if (cp->flags & CH_BOLD)", "if (cp->flags & 0)", "t_format"),
+    (
+        "center-not-halved",
+        "lexeme.c",
+        "(w - used) / 2 : w - used",
+        "(w - used) : w - used",
+        "t_format",
+    ),
+    (
+        "indent-does-not-narrow",
+        "lexeme.c",
+        "w = scr_cols - li - ri;",
+        "w = scr_cols - ri;",
+        "t_format",
+    ),
+    ("undo-format-keeps-new", "lexeme_buf.c", "undo ? m.chp : m.nchp", "m.nchp", "t_format"),
+    (
+        "save-keeps-bare-lf",
+        "lexeme_doc.c",
+        "\t\tif (c == '\\n') {\n\t\t\tout[n++] = '\\r';",
+        "\t\tif (c == 0x100) {\n\t\t\tout[n++] = '\\r';",
+        "t_docfmt",
+    ),
+    (
+        "record-pointer-off-by-four",
+        "lexeme_doc.c",
+        "b = (b & 0xff) + 4;",
+        "b = (b & 0xff);",
+        "t_docfmt",
+    ),
+    (
+        "no-phantom-paragraph-end",
+        "lexeme_doc.c",
+        "fkp_add(&f, fcmac + 1, have ? prop : 0);",
+        "fkp_add(&f, fcmac, have ? prop : 0);",
+        "t_docfmt",
+    ),
+    (
+        "charset-not-checked",
+        "lexeme_doc.c",
+        "!header_ok(h) ||\n\t    get16(h + 0x7e) != CHARSET)",
+        "!header_ok(h))",
+        "t_docfmt",
+    ),
+    (
+        "join-keeps-the-first-format",
+        "lexeme_buf.c",
+        "\tif (e == 0 && nl)\n\t\te = rejoin(pos);",
+        "\tif (e == 0 && nl)\n\t\te = 0;",
+        "t_docfmt",
+    ),
+    (
+        "typing-format-ignored",
+        "lexeme.c",
+        "buf_insert_fmt(ed_cur, s, n, ins_chp)",
+        "buf_insert_fmt(ed_cur, s, n, -1)",
+        "t_format",
+    ),
+    (
+        "spill-append-ignores-the-end",
+        "lexeme_buf.c",
+        "if (lseek(spillfd, (off_t)spilled, SEEK_SET) < 0)",
+        "if (0)",
+        "t_spill_append",
+    ),
+    (
+        "save-temporary-follows-links",
+        "lexeme_buf.c",
+        "O_WRONLY | O_CREAT | O_EXCL, 0600",
+        "O_WRONLY | O_CREAT | O_TRUNC, 0600",
+        "t_save_temp",
+    ),
+    (
+        "replace-all-answer-sticks",
+        "lexeme.c",
+        "\t\t\tr_ask = 0;",
+        "\t\t\tr_ask = r_confirm = 0;",
+        "t_replace_all_local",
+    ),
+    (
+        "pattern-capacity-cuts-the-query",
+        "lexeme.h",
+        "#define WORD_PAT_MAX\tWORD_FIELD_MAX",
+        "#define WORD_PAT_MAX\t64u",
+        "t_overlong_pattern",
+    ),
+    ("csi-parameter-wraps", "lexeme_term.c", "if (p[np] < 1000)", "if (1)", "t_csi_overflow"),
+    (
+        "signal-leaves-the-terminal-raw",
+        "lexeme_term.c",
+        "\tif (rawmode)\n\t\ttty_reset_modes();\n\tsignal(sig, SIG_DFL);",
+        "\tif (0)\n\t\ttty_reset_modes();\n\tsignal(sig, SIG_DFL);",
+        "t_signal_restore",
+    ),
+    (
+        "nano-typing-keeps-the-selection",
+        "lexeme_modes.c",
+        "\t\tif (lo < hi)\n\t\t\ted_replace(lo, hi, &ch, 1);",
+        "\t\tif (0)\n\t\t\ted_replace(lo, hi, &ch, 1);",
+        "t_select_replace",
+    ),
+    (
+        "selection-typing-deletes-before-inserting",
+        "lexeme.c",
+        "\t\ted_replace(lo, hi, &ch, 1);\n\telse if (ovr",
+        "\t\t{ ed_del(lo, hi, 0, 0); ed_ins(&ch, 1); }\n\telse if (ovr",
+        "t_select_replace",
+    ),
+    (
+        "dirty-follows-the-undo-depth",
+        "lexeme_buf.c",
+        "return upos > 0 ? ur[upos - 1].seq : 0xffffffffu - ulost;",
+        "return upos;",
+        "t_dirty_undo",
+    ),
+    (
+        "vi-operator-drops-its-prefix-count",
+        "lexeme_modes.c",
+        "n = vprefix > 100000 / n ? 100000 : vprefix * n;",
+        "n = n + 0;",
+        "t_vi_counts",
+    ),
+    (
+        "vi-join-ignores-its-count",
+        "lexeme_modes.c",
+        "for (i = n > 2 ? n - 1 : 1; i > 0; i--)",
+        "for (i = 1; i > 0; i--)",
+        "t_vi_counts",
+    ),
+    (
+        "vi-paste-ignores-its-count",
+        "lexeme_modes.c",
+        "for (i = 0; i < n && i < 1000; i++)",
+        "for (i = 0; i < 1; i++)",
+        "t_vi_counts",
+    ),
+    (
+        "reservation-one-short",
+        "lexeme_buf.c",
+        "#define BUF_RESERVE\t3u",
+        "#define BUF_RESERVE\t2u",
+        "t_bufcore",
+    ),
+    (
+        "delete-skips-the-reservation",
+        "lexeme_buf.c",
+        "\tnl = has_break(pos, n);\n\tif ((e = reserve()) != 0)\n\t\treturn e;",
+        "\tnl = has_break(pos, n);",
+        "t_bufcore",
+    ),
+    (
+        "word-save-skips-the-exclusive-temporary",
+        "lexeme_doc.c",
+        "\tif ((e = save_begin(path, &sv)) != 0)\n\t\treturn e;\n\tfd = sv.fd;",
+        '\tsnprintf(sv.tmp, sizeof(sv.tmp), "%s.wtmp", path);\n\tsv.path = path;\n'
+        "\tsv.have = 0;\n\tsv.fd = open(sv.tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);\n"
+        "\tfd = sv.fd;",
+        "t_docsave_temp",
+    ),
+    (
+        "refused-format-keeps-table-records",
+        "lexeme_buf.c",
+        "\t\tnchp = snc;\n\t\tnpap = snp;\n\t\treturn e;",
+        "\t\t(void)snc;\n\t\t(void)snp;\n\t\treturn e;",
+        "t_bufcore",
+    ),
+    (
+        "full-history-drops-one-record",
+        "lexeme_buf.c",
+        "if (ur[0].group != ugroup)",
+        "if (0)",
+        "t_bufcore",
+    ),
+    (
+        "replace-is-many-records",
+        "lexeme_buf.c",
+        "\tsnapping = 1;",
+        "\tsnapping = 0;",
+        "t_replace_undo_whole",
+    ),
+    (
+        "load-skips-the-table-prescan",
+        "lexeme_doc.c",
+        "for (pass = 0; pass < 2; pass++) {",
+        "for (pass = 1; pass < 2; pass++) {",
+        "t_docload_overflow",
+    ),
+    (
+        "paste-skips-its-reservation",
+        "lexeme_buf.c",
+        "\tif ((e = reserve_n(k + 2)) != 0)\n\t\treturn e;",
+        "\t(void)k;",
+        "t_bufcore",
+    ),
+    (
+        "format-skips-its-reservation",
+        "lexeme_buf.c",
+        "\tif (e == 0 && changed)\n\t\te = reserve_n(4);",
+        "",
+        "t_bufcore",
+    ),
 ]
 
 
@@ -126,17 +364,20 @@ def build(src_dir, out):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
-def run_test(word_dir, binary):
-    return subprocess.run([sys.executable, "-I", "-u",
-                           os.path.join(word_dir, "tests", "lexeme_test.py"), binary],
-                          capture_output=True, text=True, timeout=300)
+def run_test(src_dir, binary):
+    return subprocess.run(
+        [sys.executable, "-I", "-u", os.path.join(src_dir, "tests", "lexeme_test.py"), binary],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
 
 
-def one(word_dir, m):
+def one(src_dir, m):
     name, path, old, new, case = m
     with tempfile.TemporaryDirectory(prefix="lexeme-mutant-") as td:
         for s in SRCS + ["lexeme.h"]:
-            shutil.copy(os.path.join(word_dir, s), td)
+            shutil.copy(os.path.join(src_dir, s), td)
         with open(os.path.join(td, path)) as f:
             text = f.read()
         if text.count(old) != 1:
@@ -146,7 +387,7 @@ def one(word_dir, m):
         b = build(td, os.path.join(td, "lexeme.host"))
         if b.returncode != 0:
             return name, "does not build: " + b.stderr.strip()[:200], False
-        r = run_test(word_dir, os.path.join(td, "lexeme.host"))
+        r = run_test(src_dir, os.path.join(td, "lexeme.host"))
         if r.returncode == 0:
             return name, "passed the tests", False
         if ("FAIL " + case) not in r.stdout:
@@ -155,19 +396,19 @@ def one(word_dir, m):
 
 
 def main():
-    word_dir = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else ".")
+    src_dir = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else ".")
     with tempfile.TemporaryDirectory(prefix="lexeme-mutant-base-") as td:
-        b = build(word_dir, os.path.join(td, "lexeme.host"))
+        b = build(src_dir, os.path.join(td, "lexeme.host"))
         if b.returncode != 0:
             print("mutants: the unmutated sources do not build\n" + b.stderr)
             return 1
-        r = run_test(word_dir, os.path.join(td, "lexeme.host"))
+        r = run_test(src_dir, os.path.join(td, "lexeme.host"))
         if r.returncode != 0:
             print("mutants: the unmutated program fails the tests\n" + r.stdout)
             return 1
     bad = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
-        for name, what, ok in ex.map(lambda m: one(word_dir, m), MUTANTS):
+        for name, what, ok in ex.map(lambda m: one(src_dir, m), MUTANTS):
             print("%s %s: %s" % ("ok  " if ok else "FAIL", name, what))
             bad += not ok
     if bad:

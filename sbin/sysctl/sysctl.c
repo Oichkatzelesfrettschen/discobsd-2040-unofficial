@@ -136,6 +136,9 @@ int	sysctl_mpu(char *, char **, int *, int, int *);
 #ifdef CPU_PICOCALC
 int	sysctl_picocalc(char *, char **, int *, int, int *);
 #endif /* CPU_PICOCALC */
+#ifdef CPU_ADC
+int	sysctl_adc(char *, char **, int *, int, int *);
+#endif /* CPU_ADC */
 int	sysctl_leaf(char *, char **, int *, int *, struct list *);
 int	findname(char *, char *, char **, struct list *);
 void	usage(void);
@@ -387,6 +390,14 @@ parse(char *string, int flags)
 			break;
 		}
 #endif /* CPU_PICOCALC */
+#ifdef CPU_ADC
+		if (mib[1] == CPU_ADC) {
+			len = sysctl_adc(string, &bufp, mib, flags, &type);
+			if (len <= 0)
+				return (len < 0);
+			break;
+		}
+#endif /* CPU_ADC */
 		break;
 
 	case CTL_FS:
@@ -853,6 +864,21 @@ sysctl_picocalc(char *string, char **bufpp, int mib[], int flags, int *typep)
 	return (sysctl_leaf(string, bufpp, mib, typep, &picocalclist));
 }
 #endif /* CPU_PICOCALC */
+
+#ifdef CPU_ADC
+struct ctlname adcname[] = CTL_ADC_NAMES;
+struct list adclist = { adcname, CPU_ADC_MAXID };
+
+/*
+ * Handle machdep.adc requests: the leaf name is the input number.
+ */
+int
+sysctl_adc(char *string, char **bufpp, int mib[], int flags, int *typep)
+{
+	(void)flags;			/* Every adc leaf is an integer. */
+	return (sysctl_leaf(string, bufpp, mib, typep, &adclist));
+}
+#endif /* CPU_ADC */
 
 /*
  * Scan a list of names searching for a particular name.

@@ -159,7 +159,10 @@ MUTANTS = [
     ("cpu.c", "(fl & F_AF) && c->model != I86_286 ? 0x9f : 0x99;", "(fl & F_AF) ? 0x9f : 0x99;"),
     ("cpu.c", "if (c->model == I86_286 && al < 6)\n\t\t\t\tfl |= F_CF;", ";"),
     ("cpu.c", "UNDEFINED_286(d.reg > 3 || d.reg == S_CS);", ";"),
-    ("cpu.c", "UNDEFINED_286(d.mod == 3);\n\t\tc->r[d.reg] = d.off;", "c->r[d.reg] = d.off;"),
+    ("cpu.c", "UNDEFINED_286(d.mod == 3);\n\t\t/* The earlier", "/* The earlier"),
+    ("cpu.c", "if (d.mod == 3)\n\t\t\tbreak;\n\t\tc->r[d.reg] = d.off;", "c->r[d.reg] = d.off;"),
+    ("cpu.c", "if (d.mod == 3)\t\t/* as for 8Dh: no address, no effect */\n\t\t\tbreak;", ";"),
+    ("main.c", "if (leaving) {\n\t\tpc_restore(0);\n\t\ttty_restore();", "if (leaving) {"),
     (
         "cpu.c",
         "if (c->model == I86_286) {\n\t\t\t\tunsigned ax",
@@ -762,9 +765,15 @@ def test_vectors(sstrun, src, work, frames="1024", suite="8088"):
         got = [int(x) for x in reply.split()]
         want = [int(x, 16) for x in after.split()]
         mask = int(mask, 16)
+        triples = [int(x, 16) for x in compare.split()]
+        # A reply short of a field would drop that comparison unnoticed.
+        if len(got) != 14 + len(triples) // 3:
+            raise Failure(
+                "%s vector of form %s: %d fields in the reply, expected %d"
+                % (suite, form, len(got), 14 + len(triples) // 3)
+            )
         got[13] &= mask
         want[13] &= mask
-        triples = [int(x, 16) for x in compare.split()]
         memory = all(
             (have ^ value) & m == 0
             for have, value, m in zip(got[14:], triples[1::3], triples[2::3])
@@ -772,6 +781,93 @@ def test_vectors(sstrun, src, work, frames="1024", suite="8088"):
         if got[:14] != want or not memory:
             raise Failure("%s vector of form %s fails" % (suite, form))
     return len(vectors)
+
+
+def test_short_replies(sstrun, src, work):
+    """The vector comparison is calibrated on a runner whose replies lack
+    the memory fields: it must not report them as passing."""
+    wrapper = os.path.join(work, "sstrun-short")
+    with open(wrapper, "w") as handle:
+        handle.write('#!/bin/sh\n%s "$@" | cut -d" " -f1-14\n' % sstrun)
+    os.chmod(wrapper, 0o755)
+    try:
+        test_vectors(wrapper, src, work)
+    except Failure:
+        return
+    raise Failure("vectors: replies without their memory fields pass")
+
+
+def test_exit_store_failure(binary, work):
+    """The page store fails while the last frame is drawn on the way out:
+    status 3, and the terminal has its mode and margins back.
+
+    The guest turns interrupts off and jumps into zero memory, which
+    executes as ADD [BX+SI], AL through 64 pages without end and without
+    one read from the page file. With eight frames the firmware's data
+    page is in the page file except for an instant after each timer tick,
+    when the display reads the cursor from it. The emulator is stopped,
+    its page file cut to nothing through /proc, and it is continued with
+    a termination signal pending, so the next read of that page is the
+    one the exit makes."""
+    if not os.path.isdir("/proc/self/fd"):
+        print("NOT RUN page store failure at exit: no /proc")
+        return
+    code = bytes.fromhex("fa b80030 8ed8 31db 31f6 30c0 ea00000020")
+    image = os.path.join(work, "zero.img")
+    with open(image, "wb") as handle:
+        handle.write(code + bytes(510 - len(code)) + b"\x55\xaa")
+        handle.truncate(360 * 1024)
+    store = os.path.join(work, "page")
+    for _ in range(8):
+        master, slave = pty.openpty()
+        before = termios.tcgetattr(slave)
+        child = subprocess.Popen(
+            [binary, "-f", "8", "-s", store, "-a", image],
+            stdin=slave,
+            stdout=slave,
+            stderr=subprocess.DEVNULL,
+        )
+        seen = b""
+        try:
+            time.sleep(0.4)
+            os.kill(child.pid, signal.SIGSTOP)
+            time.sleep(0.05)
+            cut = False
+            for name in os.listdir("/proc/%d/fd" % child.pid):
+                path = "/proc/%d/fd/%s" % (child.pid, name)
+                if os.readlink(path).startswith(store):
+                    os.truncate(path, 0)
+                    cut = True
+            if not cut:
+                raise Failure("page store failure at exit: no page file to cut")
+            os.kill(child.pid, signal.SIGTERM)
+            os.kill(child.pid, signal.SIGCONT)
+            deadline = time.time() + 5
+            while time.time() < deadline and child.poll() is None:
+                ready, _, _ = select.select([master], [], [], 0.05)
+                if ready:
+                    seen += os.read(master, 4096)
+            ready, _, _ = select.select([master], [], [], 0.1)
+            if ready:
+                seen += os.read(master, 4096)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+                status = None
+            else:
+                status = child.returncode
+            after = termios.tcgetattr(slave)
+            os.close(master)
+            os.close(slave)
+        if status == 128 + signal.SIGTERM:
+            continue  # the page was resident at that instant
+        if status != 3:
+            raise Failure("page store failure at exit: exit %r" % status)
+        if before != after or not seen.endswith(b"\x1b[0m\x1b[r\x1b[?7h\x1b[26;1H"):
+            raise Failure("page store failure at exit: terminal not restored")
+        return
+    raise Failure("page store failure at exit: the exit never read the page file")
 
 
 def test_undefined(sstrun, work):
@@ -801,6 +897,36 @@ def test_undefined(sstrun, work):
                     "model %s executes %02X %02X: cs:ip %04X:%04X sp %04X"
                     % (model, first, second, got[4], got[12], got[8])
                 )
+    # The register forms of LEA, LES and LDS name no address. The 80286
+    # raises interrupt 6; the 8086 and 80186 models do nothing, twice
+    # over, so that a value left by one instruction cannot pass for the
+    # effect of the next.
+    regs = [0x1111, 0x2222, 0x3333, 0x4444, 0x1000, 0x2000, 0x5555, 0x6666]
+    regs += [0x200, 0x7777, 0x8888, 0x9999, 0x100, 2]
+    forms = ((0x8D, 0xC0), (0xC4, 0xC8), (0xC5, 0xD0), (0x8D, 0xD8))
+    lines = []
+    for first, second in forms:
+        ram = [0x10100, first, 0x10101, second, 0x18, 0x34, 0x19, 0x12, 0x1A, 0x78, 0x1B, 0x56]
+        lines.append(" ".join(str(x) for x in regs + [len(ram) // 2] + ram + [0]))
+    for model in ("0", "1", "2"):
+        done = subprocess.run(
+            sstrun.split() + [model, "64", os.path.join(work, "sstpage")],
+            input="\n".join(lines) + "\n",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        replies = [[int(x) for x in line.split()] for line in done.stdout.splitlines()]
+        if done.returncode != 0 or len(replies) != len(forms):
+            raise Failure("register forms: sstrun exit %d" % done.returncode)
+        for (first, second), got in zip(forms, replies):
+            if model == "2":
+                good = (got[4], got[12], got[8]) == (0x5678, 0x1234, 0x1FA)
+            else:
+                good = got[:14] == regs[:12] + [0x102, got[13]]
+            if not good:
+                raise Failure("model %s on %02X %02X: %r" % (model, first, second, got[:14]))
 
 
 def test(binary, work):
@@ -835,6 +961,7 @@ def test(binary, work):
             )
     test_disks(binary, work)
     test_endings(binary, work)
+    test_exit_store_failure(binary, work)
     test_interactive(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
@@ -889,6 +1016,7 @@ def main(argv):
             print("%d 8088 vectors pass" % test_vectors(sstrun, src, work))
             print("%d 80286 vectors pass" % test_vectors(sstrun, src, work, suite="80286"))
             test_undefined(sstrun, work)
+            test_short_replies(sstrun, src, work)
             # Sixteen resident pages: the same vectors through the page
             # store, which every instruction's memory then crosses.
             test_vectors(sstrun, src, work, "16")

@@ -44,4 +44,14 @@
 int	picokbd_translate(int state, int key, int appcursor, int *ctrl,
 	    char out[PICOKBD_MAXSEQ]);
 
+#ifdef LCD_VT
+/*
+ * The console a key event selects (LCD_VT): Ctrl+F1 is 0 and Ctrl+F2 is 1,
+ * taken from the first press only (a repeat selects the same console again,
+ * which changes nothing). Returns -1 for every other event. The caller
+ * consumes a selecting event instead of translating it.
+ */
+int	picokbd_vt_key(int state, int key, int ctrl);
+#endif
+
 #endif /* !_PICOKBD_MAP_H */

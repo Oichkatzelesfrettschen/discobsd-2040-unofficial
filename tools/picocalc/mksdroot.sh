@@ -122,11 +122,21 @@ sed 's/^\(tty0[[:space:]].*[[:space:]]\)off[[:space:]][[:space:]]*secure$/\1on i
 	echo "mksdroot: /etc/ttys has no tty0 line of the form ... off secure" >&2
 	exit 1
 }
+# The PICOCALC_SD kernel (options LCD_VT) has two consoles on the console's
+# character major: ttyv0 is minor 0, the device /dev/console names, and ttyv1
+# is minor 2. The getty of ttyv1 runs here and only here, because the
+# flash-root kernels have no ttyv1; ttyv0 keeps the console's getty and gets
+# a node so that both consoles have a name of the same form.
+printf 'ttyv1\t"/usr/libexec/getty std.default"\txterm\ton insecure\n' >> "$WORK/ttys"
 cp "$WORK/ttys" "$WORK/tree/etc/ttys"
 
 # The manifest keeps every entry of the flash root; the partition nodes it
 # lacks follow, each named once.
 cp "$MANIFEST" "$WORK/manifest"
+grep -qx "cdev /dev/ttyv0" "$WORK/manifest" ||
+	printf 'cdev /dev/ttyv0\nmajor 10\nminor 0\n' >> "$WORK/manifest"
+grep -qx "cdev /dev/ttyv1" "$WORK/manifest" ||
+	printf 'cdev /dev/ttyv1\nmajor 10\nminor 2\n' >> "$WORK/manifest"
 for n in 1 2 3 4; do
 	letter=$(printf '%s' "abcd" | cut -c "$n")
 	for kind in b c; do

@@ -152,7 +152,8 @@ target run found these, in order:
    corner beyond 2^24 is not drawn, as a line that long is not walked).
    Upstream's `random` and `mod` share the first three; upstream's
    `mod` also returns -1 for `(mod 5 -1)` and -3 for `(mod 6 -3)`, where
-   Common Lisp returns 0; the port keeps that result.
+   Common Lisp returns 0; the `ulisp/cl-conformance` branch repairs that
+   (see `ulisp-common-lisp-conformance.md`).
 10. The image loader trusted the saved pointers. `checkimage()` now reads
    the file before any cell reaches the workspace and refuses a pointer
    outside the image, a string chain that loops or is shared, a pair or
@@ -160,9 +161,8 @@ target run found these, in order:
    builtin symbol outside its table. The `images` corpus loads 27 copies
    of a real image, each with one pointer or cell damaged by
    `corrupt-image.py`, and requires each refusal with the workspace
-   unchanged. How valid cells fit together as Lisp data (an array whose
-   tree does not match its dimensions) is not examined; a resulting
-   fault is the SIGSEGV the port turns into a Lisp error.
+   unchanged. An array's tree is checked against its dimensions by the
+   `ulisp/cl-conformance` branch (see `ulisp-common-lisp-conformance.md`).
 
 11. A second review and a sweep of every integer builtin found more
    undefined or fatal edges. `tests/ulisp/gen-arith.py` applies each
@@ -206,13 +206,24 @@ below the integer; the port's float quotient prints `1.0e-4`.
 ## What does not map
 
 - `with-i2c`, `with-spi`, `with-serial`, `restart-i2c`, the Wi-Fi
-  functions, `analogwrite`, `analogreference` and the two resolution
-  functions are absent: the kernel exposes none of those devices.
+  functions, `analogreference` and the two resolution functions are
+  absent: the kernel exposes none of those devices, and the resolutions are
+  fixed at upstream's defaults of 10 bits in and 8 bits out.
 - `set-rotation` and `invert-display` are absent.
-- `analogread` reports an error (no device).
+- `analogread` reads GP26-GP29 through `machdep.adc.N` as a 10-bit
+  value, upstream's default, from the kernel's 12-bit count. On a PicoCalc
+  the kernel refuses GP26 and GP27 (the audio amplifier) and the function
+  reports "no analogue input device", the message it also gives when the
+  kernel lacks the node; GP28 is the expansion header's ADC2. `analogwrite`
+  sets a duty of 0-255 on pins GP0-GP29 through the GPIO device's PWM
+  request, a 1.9 kHz carrier; the kernel refuses the pins the board holds,
+  and on a PicoCalc only GP28 can be driven, on the PICOCALC_SD kernel
+  alone (the `DEV_GPIO_PWM` option) and not while `/dev/audio` is open, reported as "no analogue output device". The
+  pins need the superuser. The host model is a loopback; the ADC and PWM
+  paths have run on no board.
 - `note` selects a tone that sounds while `delay`, `for-millis` or `sleep`
   waits, since `/dev/audio` takes samples and has no free-running tone.
-- The pins need the superuser, and the PicoCalc leaves GP8, GP9 and GP28.
+- The pins need the superuser, and the PicoCalc leaves GP28.
 - `read-pixel` and `save-bmp` need the superuser (`LCDG_READ`).
 - Opening `/dev/lcdgfx` takes the panel from the text console. The port
   opens it at the first drawing call and closes it when the next line of

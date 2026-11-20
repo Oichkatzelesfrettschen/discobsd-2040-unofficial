@@ -35,6 +35,158 @@ held_mask(const int *pins, unsigned int n)
 	return mask;
 }
 
+/*
+ * The PWM request. The slice table is the datasheet's GPIO function list
+ * (GP8 and GP9 PWM4 A and B, GP10 and GP11 PWM5, GP12 PWM6 A, GP26 and GP27
+ * PWM5, GP28 and GP29 PWM6) and the PicoCalc's users of it: the bell and
+ * /dev/audio's carrier on slice 5 (GP26, GP27) and /dev/audio's sample
+ * clock on slice 6, a slice no pin of the PicoCalc's amplifier uses.
+ */
+static void
+pwm_checks(void)
+{
+	static const struct { unsigned int pin, slice; } map[] = {
+		{ 0, 0 }, { 1, 0 }, { 2, 1 }, { 8, 4 }, { 9, 4 }, { 10, 5 },
+		{ 11, 5 }, { 12, 6 }, { 13, 6 }, { 14, 7 }, { 15, 7 },
+		{ 16, 0 }, { 25, 4 }, { 26, 5 }, { 27, 5 }, { 28, 6 },
+		{ 29, 6 }
+	};
+	const unsigned int gp8 = 1U << 8, gp9 = 1U << 9, gp28 = 1U << 28;
+	unsigned int i, duty, word;
+
+	for (i = 0; i < sizeof(map) / sizeof(map[0]); i++)
+		require(GPIO_PWM_SLICE(map[i].pin) == map[i].slice &&
+		    (GPIO_PWM_SLICE_PINS(map[i].slice) >> map[i].pin & 1) == 1,
+		    "a pin is on another PWM slice than the datasheet gives");
+	require(GPIO_PWM_SLICE_PINS(5) == (3U << 10 | 3U << 26) &&
+	    GPIO_PWM_SLICE_PINS(6) == (3U << 12 | 3U << 28),
+	    "slice 5 or 6 names other pins");
+
+	/*
+	 * The board table, written from the datasheet's function list and the
+	 * pin maps: the PicoCalc's kernel runs slice 5 always and slice 6 with
+	 * /dev/audio open; GP28, its one free pin, is on slice 6; no free
+	 * pin is on slice 5. The Pico's kernel runs no slice, and a board the
+	 * table lacks grants and holds nothing.
+	 */
+	{
+		struct gpio_board_claims pico = gpio_board_claims(1);
+		struct gpio_board_claims calc = gpio_board_claims(2);
+		struct gpio_board_claims none = gpio_board_claims(0);
+		struct gpio_board_claims other = gpio_board_claims(3);
+
+		require(pico.free_pins == 0x1c7ffffcU &&
+		    pico.slices_always == 0 && pico.slices_audio == 0,
+		    "the Pico's table row is not its free pins and no slice");
+		require(calc.free_pins == gp28 &&
+		    calc.slices_always == 1U << 5 &&
+		    calc.slices_audio == 1U << 6,
+		    "the PicoCalc's table row is not GP28, slice 5 and slice 6");
+		require((calc.free_pins & GPIO_PWM_SLICE_PINS(5)) == 0 &&
+		    (calc.free_pins & GPIO_PWM_SLICE_PINS(6)) == gp28,
+		    "a free PicoCalc pin lies on slice 5, or GP28 is off slice 6");
+		require(none.free_pins == 0 && none.slices_always == 0 &&
+		    none.slices_audio == 0 && other.free_pins == 0 &&
+		    other.slices_always == 0 && other.slices_audio == 0,
+		    "a board the table lacks holds or grants something");
+		require(gpio_board_pins(1) == pico.free_pins &&
+		    gpio_board_pins(2) == calc.free_pins,
+		    "gpio_board_pins() does not read the table");
+		require(gpio_pwm_slice_held(2, 1U << 13, 0) == 0 &&
+		    gpio_pwm_slice_held(2, 1U << 13, 1) == 1 &&
+		    gpio_pwm_slice_held(2, 1U << 29, 0) == 0 &&
+		    gpio_pwm_slice_held(2, 1U << 29, 1) == 1 &&
+		    gpio_pwm_slice_held(2, 1U << 11, 0) == 1 &&
+		    gpio_pwm_slice_held(2, 1U << 14, 1) == 0,
+		    "the table's slices are not held as it states");
+	}
+
+	/* PicoCalc: GP28 only, slice 6 shared with the audio. */
+	require(gpio_pwm_check(2, gp28, 0, 0) == 0 &&
+	    gpio_pwm_check(2, gp28, 255, 0) == 0,
+	    "the PicoCalc refuses its expansion header pin");
+	require(gpio_pwm_check(2, gp8, 0, 0) == 22 &&
+	    gpio_pwm_check(2, gp9, 128, 0) == 22 &&
+	    gpio_pwm_check(2, gp8 | gp9, 128, 0) == 22 &&
+	    gpio_pwm_check(2, gp8 | gp28, 128, 0) == 22 &&
+	    gpio_pwm_check(2, gp8, 128, 1) == 22,
+	    "the PicoCalc drives the keyboard controller's UART1 pins");
+	require(gpio_pwm_check(2, gp28, 128, 1) == 16 &&
+	    gpio_pwm_check(2, gp28, 0, 1) == 16,
+	    "GP28 is driven while /dev/audio's sample clock runs");
+	require(gpio_pwm_check(2, 1U << 26, 128, 0) == 22 &&
+	    gpio_pwm_check(2, 1U << 27, 128, 0) == 22 &&
+	    gpio_pwm_check(2, 1U << 10, 128, 0) == 22 &&
+	    gpio_pwm_check(2, gp8 | 1U << 26, 128, 0) == 22 &&
+	    gpio_pwm_check(2, 1U << 2, 128, 0) == 22,
+	    "a PicoCalc pin the board holds is driven");
+	require(gpio_pwm_slice_held(2, 1U << 26, 0) == 1 &&
+	    gpio_pwm_slice_held(2, 1U << 27, 0) == 1 &&
+	    gpio_pwm_slice_held(2, 1U << 10, 0) == 1 &&
+	    gpio_pwm_slice_held(2, 1U << 11, 1) == 1 &&
+	    gpio_pwm_slice_held(2, gp28, 0) == 0 &&
+	    gpio_pwm_slice_held(2, gp28, 1) == 1 &&
+	    gpio_pwm_slice_held(2, 1U << 12, 1) == 1 &&
+	    gpio_pwm_slice_held(2, gp8, 1) == 0,
+	    "the PicoCalc's PWM slices are not slice 5 always and slice 6 "
+	    "with the audio open");
+	require(gpio_pwm_slice_held(1, 1U << 26, 1) == 0 &&
+	    gpio_pwm_slice_held(1, gp28, 1) == 0 &&
+	    gpio_pwm_slice_held(0, 1U << 26, 1) == 0,
+	    "a bare Pico reports a slice the kernel uses");
+
+	/* Bare Pico: its free pins, GP26 and GP27 on slice 5 included. */
+	require(gpio_pwm_check(1, 1U << 2, 1, 0) == 0 &&
+	    gpio_pwm_check(1, 1U << 26 | 1U << 27, 200, 0) == 0 &&
+	    gpio_pwm_check(1, 1U << 10, 200, 0) == 0 &&
+	    gpio_pwm_check(1, gp28, 200, 0) == 0,
+	    "the Pico refuses a free pin");
+	require(gpio_pwm_check(1, 1U << 0, 1, 0) == 22 &&
+	    gpio_pwm_check(1, 1U << 1, 1, 0) == 22 &&
+	    gpio_pwm_check(1, 1U << 25, 1, 0) == 22 &&
+	    gpio_pwm_check(1, 1U << 29, 1, 0) == 22 &&
+	    gpio_pwm_check(1, 1U << 2 | 1U << 23, 1, 0) == 22,
+	    "the Pico drives UART0, the LED or the VSYS divider");
+	require(gpio_pwm_check(0, gp8, 1, 0) == 22 &&
+	    gpio_pwm_check(3, gp8, 1, 0) == 22,
+	    "an unknown board drives a pin");
+
+	/* Request shape: no mask, a duty past the maximum. */
+	require(gpio_pwm_check(1, 0, 1, 0) == 22 &&
+	    gpio_pwm_check(2, 0, 1, 0) == 22, "an empty mask is accepted");
+	require(gpio_pwm_check(1, 1U << 2, 255, 0) == 0 &&
+	    gpio_pwm_check(1, 1U << 2, 256, 0) == 22 &&
+	    gpio_pwm_check(1, 1U << 2, 0xffffU, 0) == 22,
+	    "the duty range is not 0 to 255");
+
+	/*
+	 * The carrier: a pin is high while the counter (0 to TOP) is below
+	 * its compare value, so the duty is the number of high counts of
+	 * 255, and the top duty exceeds TOP and holds the pin high.
+	 */
+	require(GPIO_PWM_DUTY_MAX == 255 && GPIO_PWM_TOP == 254,
+	    "the PWM period is not 255 counts");
+	for (duty = 0; duty <= GPIO_PWM_DUTY_MAX; duty++)
+		require((duty > GPIO_PWM_TOP ? GPIO_PWM_TOP + 1 : duty) ==
+		    duty, "a duty is not its high count of a period");
+	require(GPIO_PWM_DUTY_MAX > GPIO_PWM_TOP,
+	    "the top duty does not hold the pin high");
+	require(125000000U / GPIO_PWM_DIV_INT / (GPIO_PWM_TOP + 1) > 1900 &&
+	    125000000U / GPIO_PWM_DIV_INT / (GPIO_PWM_TOP + 1) < 1950,
+	    "the carrier is not 1.9 kHz at 125 MHz");
+
+	/* The compare word: channel A low, channel B high, the other kept. */
+	for (duty = 0; duty <= GPIO_PWM_DUTY_MAX; duty++) {
+		word = gpio_pwm_compare(8, 0xaaaa5555U, duty);
+		require(word == (0xaaaa0000U | duty), "channel A is not low");
+		word = gpio_pwm_compare(9, 0xaaaa5555U, duty);
+		require(word == (0x00005555U | duty << 16),
+		    "channel B is not high");
+	}
+	require(gpio_pwm_compare(28, 0, 7) == 7 &&
+	    gpio_pwm_compare(27, 0, 7) == 7U << 16, "GP28 or GP27 channel");
+}
+
 int
 main(void)
 {
@@ -84,10 +236,17 @@ main(void)
 	    gpio_request_valid(GPIO_CONFOUT) && gpio_request_valid(GPIO_DECONF) &&
 	    gpio_request_valid(GPIO_STORE) && gpio_request_valid(GPIO_SET) &&
 	    gpio_request_valid(GPIO_CLEAR) && gpio_request_valid(GPIO_INVERT) &&
-	    gpio_request_valid(GPIO_POLL), "a single request is refused");
+	    gpio_request_valid(GPIO_POLL) && gpio_request_valid(GPIO_PWM),
+	    "a single request is refused");
 	require(gpio_request_valid(GPIO_CONFOUT | GPIO_SET) &&
 	    gpio_request_valid(GPIO_STORE | GPIO_POLL),
 	    "combined requests are refused");
+	require(GPIO_PWM == 0x24006700U, "GPIO_PWM is not command bit 26");
+	require(!gpio_request_valid(GPIO_PWM | GPIO_SET) &&
+	    !gpio_request_valid(GPIO_PWM | GPIO_CONFOUT) &&
+	    !gpio_request_valid(GPIO_PWM | GPIO_POLL) &&
+	    !gpio_request_valid(GPIO_PWM | GPIO_DECONF),
+	    "PWM beside another command is accepted");
 	require(!gpio_request_valid(GPIO_CONFOD), "open drain is accepted");
 	require(!gpio_request_valid(GPIO_CONFOUT | GPIO_CONFOD),
 	    "open drain beside output is accepted");
@@ -106,6 +265,7 @@ main(void)
 	    "a request with a parameter direction is accepted");
 	require(!gpio_request_valid(GPIO_SET | 1),
 	    "a request with its port number left in is accepted");
-	puts("gpio_requests: PASS (pins, ports and requests)");
+	pwm_checks();
+	puts("gpio_requests: PASS (pins, ports, requests and PWM)");
 	return 0;
 }

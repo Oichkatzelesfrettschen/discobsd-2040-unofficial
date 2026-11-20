@@ -87,10 +87,13 @@ def run_form(job):
         got = [int(x) for x in reply.split()]
         want = [int(x, 16) for x in after.split()]
         mask = int(mask, 16)
+        triples = [int(x, 16) for x in compare.split()]
+        # A reply short of a field fails; it is not compared in part.
+        whole = len(got) == 14 + len(triples) // 3
+        got = (got + [0] * 14)[: max(len(got), 14)]
         got[13] &= mask
         want[13] &= mask
-        triples = [int(x, 16) for x in compare.split()]
-        memory = all(
+        memory = whole and all(
             (have ^ value) & m == 0
             for have, value, m in zip(got[14:], triples[1::3], triples[2::3])
         )

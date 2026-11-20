@@ -35,10 +35,11 @@
 #define	CLOCKS_CLK_ADC_CTRL	0x40008060UL
 #define	CLK_ADC_ENABLE		(1UL << 11)	/* AUXSRC 0 is pll_usb. */
 
-#define	IO_BANK0_GPIO29_CTRL	0x400140ecUL
+#define	IO_BANK0_CTRL(pin)	(0x40014004UL + 8 * (pin))
 #define	IO_FUNC_NULL		0x1f
-#define	PADS_BANK0_GPIO29	0x4001c078UL
+#define	PADS_BANK0_GPIO(pin)	(0x4001c004UL + 4 * (pin))
 #define	PAD_OD			(1UL << 7)	/* Output disable. */
+#define	ADC_FIRST_PIN		26		/* Input 0 is GP26. */
 
 #define	ADC_CS			0x4004c000UL
 #define	ADC_RESULT		0x4004c004UL
@@ -71,9 +72,6 @@ adc_wait_ready(void)
 /*
  * Start clk_adc from pll_usb (48 MHz, the frequency the block requires),
  * release the block and enable it with the temperature sensor's bias on.
- * GPIO29 becomes an analog input: no function, digital input and output
- * off and both pulls off, because the reset pull-down would load the
- * VSYS divider.
  */
 static int
 adc_start(void)
@@ -85,16 +83,27 @@ adc_start(void)
 	while ((AREG32(RESETS_BASE + RESETS_DONE) & RESETS_ADC) == 0)
 		if (--spins == 0)
 			return -1;
-	AREG32(IO_BANK0_GPIO29_CTRL) = IO_FUNC_NULL;
-	AREG32(PADS_BANK0_GPIO29) = PAD_OD;
 	AREG32(ADC_CS) = ADC_CS_EN | ADC_CS_TS_EN;
 	return adc_wait_ready();
 }
 
 /*
- * Convert one input, 0-4, and store the 12-bit result. Returns 0, or -1
- * when the block does not come up or never finishes. Process context;
- * nothing else uses the block.
+ * A pin input becomes an analog input: no function, digital input and
+ * output off and both pulls off, because the reset pull-down would load
+ * the source (the VSYS divider on input 3). Each reading repeats it, so a
+ * pin that the GPIO device configured since the last reading is taken back.
+ */
+static void
+adc_pad(unsigned int input)
+{
+	AREG32(IO_BANK0_CTRL(ADC_FIRST_PIN + input)) = IO_FUNC_NULL;
+	AREG32(PADS_BANK0_GPIO(ADC_FIRST_PIN + input)) = PAD_OD;
+}
+
+/*
+ * Convert one input, 0-4, and store the 12-bit result, after preparing its
+ * pad. Returns 0, or -1 when the block does not come up or never finishes.
+ * Process context; nothing else uses the block.
  */
 int
 adc_read(unsigned int input, unsigned int *raw)
@@ -106,6 +115,8 @@ adc_read(unsigned int input, unsigned int *raw)
 			return -1;
 		adc_up = 1;
 	}
+	if (input <= ADC_INPUT_VSYS)
+		adc_pad(input);
 	AREG32(ADC_CS) = ADC_CS_EN | ADC_CS_TS_EN |
 	    (input << ADC_CS_AINSEL_SHIFT) | ADC_CS_START_ONCE;
 	if (adc_wait_ready() != 0)

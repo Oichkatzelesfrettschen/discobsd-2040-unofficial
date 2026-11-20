@@ -1670,9 +1670,12 @@ pc_restore(int draw)
 #endif
 	if (cf.quiet || restored)
 		return;
-	restored = 1;
+	/* The frame reads guest memory; when the page store fails under it
+	 * host_exit() comes back here, and that second call must still
+	 * give the terminal back. */
 	if (draw)
 		refresh();
+	restored = 1;
 	if (gfx_on) {
 		/* The console repaints its own screen at the close. */
 		gfx_close();

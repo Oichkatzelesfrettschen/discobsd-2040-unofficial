@@ -86,25 +86,37 @@ tty_raw(void)
 #endif
 }
 
+static void
+tty_restore(void)
+{
+	if (!raw)
+		return;
+#ifdef HOSTBUILD
+	(void)tcsetattr(0, TCSANOW, &saved);
+#else
+	(void)ioctl(0, TIOCSETP, &saved);
+#endif
+}
+
 /* The one way out: the terminal gets its mode and margins back and the
  * page file is closed, whatever ends the session. Status 3 is the page
- * store's failure, after which guest memory can no longer be read. */
+ * store's failure, after which guest memory can no longer be read. The
+ * last frame is drawn from guest memory, so the store can fail inside this
+ * function; it is then entered a second time and gives the terminal back
+ * without drawing. */
 void
 host_exit(int code)
 {
 	static int leaving;
 
-	if (leaving)
+	if (leaving) {
+		pc_restore(0);
+		tty_restore();
 		_exit(code);
+	}
 	leaving = 1;
 	pc_restore(code != 3);
-	if (raw) {
-#ifdef HOSTBUILD
-		(void)tcsetattr(0, TCSANOW, &saved);
-#else
-		(void)ioctl(0, TIOCSETP, &saved);
-#endif
-	}
+	tty_restore();
 	if (dump && code != 3)
 		pc_dump();
 	mem_fini();

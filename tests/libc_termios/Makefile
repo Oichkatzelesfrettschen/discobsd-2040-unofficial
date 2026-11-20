@@ -18,7 +18,7 @@ WARN=	-Wall -Wextra -Werror
 CFLAGS=	-std=c99 ${WARN} -fno-builtin ${ILP32}
 RENAMES=	-Dioctl=test_ioctl -Derrno=test_errno
 
-MEMBERS=	cfspeed.o cfmakeraw.o
+MEMBERS=	cfspeed.o cfmakeraw.o tcattr.o
 ORDER=	order_termios.o order_ioctl.o
 
 ILP32_CC= ${HOSTCC}
@@ -49,7 +49,7 @@ ${member}.o: ${TARGET_DIR}/${member}.c ${MACHINE_STAMP} ${TOPSRC}/include/termio
 	${HOSTCC} ${CFLAGS} ${TREE} ${RENAMES} -c -o $@ ${TARGET_DIR}/${member}.c
 .endfor
 
-gate.o: libc_termios_test.c ${MACHINE_STAMP} ${TOPSRC}/include/termios.h
+gate.o: libc_termios_test.c termios_model.h ${MACHINE_STAMP} ${TOPSRC}/include/termios.h
 	${HOSTCC} ${CFLAGS} ${TREE} ${RENAMES} -c -o $@ libc_termios_test.c
 
 order_termios.o: order.c ${MACHINE_STAMP} ${TOPSRC}/include/termios.h

@@ -119,6 +119,7 @@ function the row changes.
 | CSTOPB | required | none | report clear; set unchanged | declined; UART0 line control planned later (E: +0.1 KB) | RV, RF |
 | PARENB, PARODD | required | EVENP and ODDP sys/sys/ioctl.h:139-141 are stored in t_flags and read by nothing in sys/kern/tty.c (search) | report clear; set unchanged (reporting the stored bits would claim parity the line does not apply) | declined: 0 / 0 | RV, RF |
 | HUPCL | required | TIOCHPCL sys/sys/ioctl.h:111 sets TS_HUPCLS sys/kern/tty.c:487; sys/sys/tty.h:261; no reader or clearer | report clear; a set request is passed to TIOCHPCL (set only) | planned get and clear in the VMIN and VTIME request: +20-40 B / 0 | RV; RT after the request lands |
+| MDMBUF, CRTSCTS (extensions) | no | MDMBUF sys/kern/tty.c:781; RTSCTS sys/kern/tty.c:256, 326 | MDMBUF and CRTSCTS in c_cflag (include/termios.h; the plan listed them under c_lflag, the code places them with the modem-control bits) | none | RT |
 | B0 (hang up) | required | sg_ispeed, sg_ospeed sys/kern/tty.c:546, 581; B0 effect not read | passed through; effect unexamined (not verified) | none | RT of the stored value only |
 | B50 to B38400 (names required) and the stty extras to B4000000 | required (to B38400) | sg_ispeed, sg_ospeed sys/kern/tty.c:546, 581; t_ispeed below NSPEEDS, sys/sys/tty.h | stored and returned; the console ignores them | none | RT |
 
@@ -139,7 +140,6 @@ function the row changes.
 | ECHOPRT (extension) | no | PRTERA sys/sys/ioctl.h:151; sys/kern/tty.c:984 | PRTERA | none | RT |
 | FLUSHO (extension) | no | FLUSHO sys/sys/ioctl.h:157; sys/kern/tty.c:962 | FLUSHO | none | RT |
 | PENDIN (extension) | no | PENDIN sys/sys/ioctl.h:163; sys/kern/tty.c:371, 386 | PENDIN | none | RT |
-| MDMBUF, CRTSCTS (extensions) | no | MDMBUF sys/kern/tty.c:781; RTSCTS sys/kern/tty.c:256, 326 | MDMBUF, CRTSCTS | none | RT |
 
 ### c_cc (11.2.6), one row per index
 

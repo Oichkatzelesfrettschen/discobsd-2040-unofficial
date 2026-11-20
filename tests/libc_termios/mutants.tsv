@@ -15,3 +15,21 @@ hdr-vmin-eq-vtime	include/termios.h	s/^#define VMIN     6/#define VMIN     5/
 hdr-cs8-not-csize	include/termios.h	s/^#define   CS8   0x00000030/#define   CS8   0x00000020/
 hdr-echoe-overlaps-echo	include/termios.h	s/^#define ECHOE   0x00000010/#define ECHOE   0x00000008/
 hdr-nccs-too-small	include/termios.h	s/^#define NCCS 19/#define NCCS 18/
+get-istrip-not-inverted	lib/libc/gen/tcattr.c	s/{ W_IFLAG, 1, ISTRIP,  PASS8 }/{ W_IFLAG, 0, ISTRIP,  PASS8 }/
+get-ixany-not-inverted	lib/libc/gen/tcattr.c	s/{ W_IFLAG, 1, IXANY,   DECCTQ }/{ W_IFLAG, 0, IXANY,   DECCTQ }/
+get-echoe-from-crtbs	lib/libc/gen/tcattr.c	s/ECHOE,   CRTERA/ECHOE,   CRTBS/
+get-opost-ignores-litout	lib/libc/gen/tcattr.c	s/if ((f & (RAW | LITOUT)) == 0)/if ((f \& RAW) == 0)/
+get-icanon-ignores-cbreak	lib/libc/gen/tcattr.c	s/if ((f & (RAW | CBREAK)) == 0)/if ((f \& RAW) == 0)/
+get-isig-from-cbreak	lib/libc/gen/tcattr.c	s/if ((f & RAW) == 0)/if ((f \& CBREAK) == 0)/
+get-local-word-shift	lib/libc/gen/tcattr.c	s/<< 16)/<< 15)/
+get-flags-sign-extended	lib/libc/gen/tcattr.c	s/((unsigned int)s->sg.sg_flags & 0xffffU)/((unsigned int)s->sg.sg_flags)/
+get-ispeed-sign-extended	lib/libc/gen/tcattr.c	s/t->c_ispeed = (unsigned char)s->sg.sg_ispeed;/t->c_ispeed = (speed_t)s->sg.sg_ispeed;/
+get-unused-cc-zero	lib/libc/gen/tcattr.c	s/t->c_cc\[i\] = _POSIX_VDISABLE;/t->c_cc[i] = 0;/
+get-vmin-zero	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] = 1;/t->c_cc[VMIN] = 0;/
+get-ixon-clear	lib/libc/gen/tcattr.c	s/t->c_iflag = IXON;/t->c_iflag = 0;/
+get-cread-missing	lib/libc/gen/tcattr.c	s/t->c_cflag = CS8 | CREAD;/t->c_cflag = CS8;/
+get-onlcr-missing	lib/libc/gen/tcattr.c	s/t->c_oflag |= ONLCR;//
+get-tab3-missing	lib/libc/gen/tcattr.c	s/t->c_oflag |= TAB3;//
+get-lnext-offset	lib/libc/gen/tcattr.c	s/{ VLNEXT,   G_LTC,   5 }/{ VLNEXT,   G_LTC,   4 }/
+get-kill-from-erase	lib/libc/gen/tcattr.c	s/{ VKILL,    G_KILL,  0 }/{ VKILL,    G_ERASE, 0 }/
+get-short-read	lib/libc/gen/tcattr.c	s/ioctl(fd, TIOCGLTC, &s->lc) < 0 ||/0 ||/

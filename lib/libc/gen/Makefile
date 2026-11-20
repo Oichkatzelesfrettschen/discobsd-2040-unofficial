@@ -51,7 +51,7 @@ STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c 
 		  stpcpy.c stpncpy.c strcat.c strcmp.c strcpy.c strdup.c \
 		  strndup.c strnlen.c strftime.c strlen.c \
 		  strncat.c strncmp.c strncpy.c swab.c sysconf.c sysctl.c syslog.c \
-		  system.c telldir.c time.c timespec_get.c timezone.c tolower.c toupper.c tzset.c \
+		  system.c tcattr.c telldir.c time.c timespec_get.c timezone.c tolower.c toupper.c tzset.c \
 		  ttyname.c ttyslot.c \
 		  ualarm.c uname.c unvis.c usleep.c vis.c \
 		  wait.c wait3.c waitpid.c
@@ -75,7 +75,7 @@ STDOBJ		= abort.o alarm.o aligned_alloc.o assert_fail.o asctime.o atof.o atoi.o 
 		  stpcpy.o stpncpy.o strcat.o strcmp.o strcpy.o strdup.o \
 		  strndup.o strnlen.o strftime.o strlen.o \
 		  strncat.o strncmp.o strncpy.o swab.o sysconf.o sysctl.o syslog.o \
-		  system.o telldir.o time.o timespec_get.o timezone.o tolower.o toupper.o tzset.o \
+		  system.o tcattr.o telldir.o time.o timespec_get.o timezone.o tolower.o toupper.o tzset.o \
 		  ttyname.o ttyslot.o \
 		  ualarm.o uname.o unvis.o usleep.o vis.o \
 		  wait.o wait3.o waitpid.o

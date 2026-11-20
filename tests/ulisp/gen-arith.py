@@ -230,6 +230,7 @@ CUSTOM = [
     ("digitalwrite", "(digitalwrite {a} {b})", 2, "all", EDGES),
     ("digitalread", "(digitalread {a})", 1, "all", EDGES),
     ("analogread", "(analogread {a})", 1, "all", EDGES),
+    ("analogwrite", "(analogwrite {a} {b})", 2, "all", EDGES),
     ("note", "(note {a})", 1, "all", EDGES),
     ("note", "(note {a} {b})", 2, "all", EDGES),
     ("note", "(note {a} {b} {c})", 3, "sample", EDGES),

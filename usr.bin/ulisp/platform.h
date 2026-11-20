@@ -86,7 +86,10 @@ void ulisp_fail(const char *message) __attribute__((noreturn));
 void dev_pinmode(int pin, int mode);
 int dev_digitalread(int pin);
 void dev_digitalwrite(int pin, int level);
+/* The raw 12-bit count of the analogue input on pin 26-29; fails by ulisp_fail(). */
 int dev_analogread(int pin);
+/* Holds pin at duty, 0-255, of a fixed-frequency square wave; fails by ulisp_fail(). */
+void dev_analogwrite(int pin, int duty);
 /* Plays ms of a square wave of hz; false when there is no sound device. */
 bool dev_tone(unsigned int hz, unsigned long ms);
 bool dev_callcode(const uint8_t *entry, const int param[4], int *result);
@@ -99,6 +102,7 @@ void dev_release(void);		/* returns the panel to the text console */
 #define sys_digitalread		dev_digitalread
 #define sys_digitalwrite	dev_digitalwrite
 #define sys_analogread		dev_analogread
+#define sys_analogwrite		dev_analogwrite
 #define sys_callcode		dev_callcode
 void sys_tone(unsigned int hz);	/* sounds during sys_delay(); 0 is silence */
 

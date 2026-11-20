@@ -324,11 +324,13 @@ jobs:
       # has no Thumb-1 variant and math holds Thumb-1 to glibc-checked digests.
       # This job installs cffi, hypothesis and pytest, so the swap tier
       # model gate fails rather than skips when one is missing.
-      # Measured 899 to 1,098 seconds on runs that finished; one runner had
-      # not finished at 1,140 with every gate so far passing.
+      # The tier is bound by total CPU work on a four-CPU runner, not by the
+      # order of its gates; sys/arch/rp2040/doc/TESTING.md (check-host-split)
+      # holds the measured wall times. The hard timeout leaves room above the
+      # slowest tier measured, and the idle timeout still ends a hung gate.
       - name: Run the host tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 28
+        timeout-minutes: 48
         env:
           SWAP_TIER_MODEL_REQUIRED: "1"
         run: |
@@ -336,7 +338,7 @@ jobs:
             --label linux-host \
             --log .build-logs/linux-host.log \
             --status .build-logs/linux-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1620 \
+            --idle-timeout-seconds 300 --timeout-seconds 2700 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       # check-signal-sets-cross owns target signatures and Smaller C input;

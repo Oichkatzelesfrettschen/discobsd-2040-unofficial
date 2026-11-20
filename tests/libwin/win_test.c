@@ -64,6 +64,7 @@
 #include <sys/lcdgfx.h>
 
 #include "win.h"
+#include "win_input.h"
 #include "lcdfont.h"
 
 #define PW		WIN_PANEL_W
@@ -1359,6 +1360,915 @@ run_focus(void)
 	printf("PASS focus: stack, hide, show and failed-call rules\n");
 }
 
+
+/*
+ * Input layer. The test drives key strokes through both decoders into the
+ * scene and keeps its own model of what the manager must do: the binding
+ * list below, the mode rules and the focus rules are written here again,
+ * not read from lib/libwin. After each stroke the scene's geometry, order,
+ * shown state and focus, the application handlers' event logs and the
+ * pixels are compared with the model.
+ */
+struct logent {
+	int id, key, mods, kind;
+};
+
+static struct logent alog[512], elog[512];	/* Actual and expected. */
+static int nalog, nelog;
+static int h_has[WIN_MAX], h_eat[WIN_MAX], h_close_eats[WIN_MAX];
+static struct win_input in;
+static int msrc_raw;				/* 1: raw events, 0: tty bytes. */
+static struct { int mode, id, sx, sy, sw, sh; } im;
+
+static int
+test_handler(struct win_scene *s, struct win *w, const struct win_event *ev,
+    void *arg)
+{
+	int id = (int)((struct twin *)arg - tw);
+
+	(void)s;
+	(void)w;
+	if (nalog < 512) {
+		alog[nalog].id = id;
+		alog[nalog].key = ev->key;
+		alog[nalog].mods = ev->mods;
+		alog[nalog].kind = ev->kind;
+		nalog++;
+	}
+	return ev->kind == WIN_EV_CLOSE ? h_close_eats[id] : h_eat[id];
+}
+
+static void
+input_window(int id, int x, int y, int w, int h)
+{
+	char title[8];
+
+	title[0] = 'w';
+	title[1] = (char)('0' + id);
+	title[2] = '\0';
+	fx_create(id, x, y, w, h, title);
+	h_has[id] = rr(0, 4) != 0;
+	h_eat[id] = rr(0, 2) != 0;
+	h_close_eats[id] = rr(0, 2) == 0;
+	if (h_has[id] &&
+	    win_set_handler(&scene, tw[id].handle, test_handler, &tw[id]) != 0)
+		fail("win_set_handler");
+}
+
+static void
+input_world(void)
+{
+	int n = rr(2, 5), i;
+
+	reset_world();
+	memset(&in, 0, sizeof(in));
+	win_input_init(&in);
+	memset(&im, 0, sizeof(im));
+	nalog = nelog = 0;
+	for (i = 0; i < n; i++)
+		input_window(i, rr(-20, 200), rr(-10, 220), rr(30, 150), rr(20, 120));
+	if (rr(0, 2) == 0)
+		do_hide(rr(0, n - 1));
+}
+
+/* The model's binding table. */
+static int
+model_action(int key, int ctrl)
+{
+	if (!ctrl) {
+		switch (key) {
+		case WIN_KEY_F1 + 5: return 1;
+		case WIN_KEY_F1 + 6: return 2;
+		case WIN_KEY_F1 + 7: return 3;
+		case WIN_KEY_F1 + 8: return 4;
+		case WIN_KEY_F1 + 9: return 5;
+		default: return 0;
+		}
+	}
+	if (key == WIN_KEY_TAB)
+		return 1;
+	if (key == WIN_KEY_BACKSPACE)
+		return 2;
+	return key == 'w' ? 5 : 0;
+}
+
+static int
+mclamp(int v, int lo, int hi)
+{
+	if (hi < lo)
+		hi = lo;
+	return v < lo ? lo : (v > hi ? hi : v);
+}
+
+/* Model state changes, with the damage they must cause. */
+static void
+m_raise_top(int id)
+{
+	mark_shown(&tw[id]);
+	order_remove(id);
+	order[norder++] = id;
+	if (tfocus != id) {
+		mark_title(tfocus);
+		tfocus = id;
+		mark_title(id);
+	}
+}
+
+static void
+m_lower_bottom(int id)
+{
+	int k;
+
+	mark_shown(&tw[id]);
+	order_remove(id);
+	for (k = norder; k > 0; k--)
+		order[k] = order[k - 1];
+	order[0] = id;
+	norder++;
+	if (tfocus == id) {
+		tfocus = model_pick(norder);
+		mark_title(tfocus);
+	}
+}
+
+static void
+m_stroke_action(int action)
+{
+	int k, id, shown = 0, p;
+
+	for (k = 0; k < norder; k++)
+		shown += !tw[order[k]].hidden;
+	switch (action) {
+	case 1:
+	case 2:
+		if (shown < 2)
+			return;
+		if (action == 1) {
+			for (k = 0; tw[order[k]].hidden; k++)
+				;
+			id = order[k];
+			m_raise_top(id);
+		} else {
+			for (k = norder - 1; tw[order[k]].hidden; k--)
+				;
+			id = order[k];
+			m_lower_bottom(id);
+			/* The focus follows to the top shown window. */
+			if (tfocus != model_pick(norder)) {
+				mark_title(tfocus);
+				tfocus = model_pick(norder);
+				mark_title(tfocus);
+			}
+		}
+		if (action == 1 && tfocus != id)
+			fail("model: next did not focus");
+		return;
+	case 3:
+	case 4:
+		if (tfocus < 0)
+			return;
+		im.mode = action - 2;
+		im.id = tfocus;
+		im.sx = tw[tfocus].x;
+		im.sy = tw[tfocus].y;
+		im.sw = tw[tfocus].w;
+		im.sh = tw[tfocus].h;
+		return;
+	default:
+		if (tfocus < 0)
+			return;
+		id = tfocus;
+		if (h_has[id]) {
+			elog[nelog].id = id;
+			elog[nelog].key = 0;
+			elog[nelog].mods = 0;
+			elog[nelog].kind = WIN_EV_CLOSE;
+			nelog++;
+			if (h_close_eats[id])
+				return;
+		}
+		mark_shown(&tw[id]);
+		p = order_remove(id);
+		tfocus = model_pick(p);
+		mark_title(tfocus);
+		memset(&tw[id], 0, sizeof(tw[id]));
+		return;
+	}
+}
+
+/* Resize clamp: the size from the minimum to the panel edge. */
+static void
+nw_h(struct twin *t, int dx, int dy)
+{
+	t->w = mclamp(t->w + dx, 8, PW - t->x);
+	t->h = mclamp(t->h + dy, 14, PH - t->y);
+}
+
+static void
+m_mode_key(int key, int count)
+{
+	struct twin *t = &tw[im.id];
+	int dx = 0, dy = 0, i;
+
+	if (key == WIN_KEY_ENTER) {
+		im.mode = 0;
+		return;
+	}
+	if (key == WIN_KEY_ESC) {
+		mark_shown(t);
+		t->x = im.sx;
+		t->y = im.sy;
+		t->w = im.sw;
+		t->h = im.sh;
+		mark_shown(t);
+		im.mode = 0;
+		return;
+	}
+	if (key == WIN_KEY_LEFT)
+		dx = -8;
+	else if (key == WIN_KEY_RIGHT)
+		dx = 8;
+	else if (key == WIN_KEY_UP)
+		dy = -8;
+	else if (key == WIN_KEY_DOWN)
+		dy = 8;
+	else
+		return;
+	for (i = 0; i < count; i++) {
+		mark_shown(t);
+		if (im.mode == 1) {
+			t->x = mclamp(t->x + dx, 0, PW - t->w);
+			t->y = mclamp(t->y + dy, 0, PH - t->h);
+		} else {
+			nw_h(t, dx, dy);
+		}
+		mark_shown(t);
+	}
+}
+
+
+/* Independent encoders of the controller's keys. */
+static int
+raw_code(int key)
+{
+	if (key >= 0x20 && key <= 0x7e)
+		return key;
+	if (key >= WIN_KEY_F1 && key < WIN_KEY_F1 + 9)
+		return 0x81 + (key - WIN_KEY_F1);
+	switch (key) {
+	case WIN_KEY_F10: return 0x90;
+	case WIN_KEY_BACKSPACE: return 0x08;
+	case WIN_KEY_TAB: return 0x09;
+	case WIN_KEY_ENTER: return 0x0a;
+	case WIN_KEY_ESC: return 0xb1;
+	case WIN_KEY_LEFT: return 0xb4;
+	case WIN_KEY_UP: return 0xb5;
+	case WIN_KEY_DOWN: return 0xb6;
+	case WIN_KEY_RIGHT: return 0xb7;
+	case WIN_KEY_INSERT: return 0xd1;
+	case WIN_KEY_HOME: return 0xd2;
+	case WIN_KEY_DELETE: return 0xd4;
+	case WIN_KEY_END: return 0xd5;
+	case WIN_KEY_PAGE_UP: return 0xd6;
+	default: return 0xd7;
+	}
+}
+
+/* The bytes the console sends for a key; app selects the ESC O cursor form. */
+static int
+tty_encode(int key, int ctrl, int app, int alt, char *out)
+{
+	static const char *const fk[10] = { "\033OP", "\033OQ", "\033OR", "\033OS",
+	    "\033[15~", "\033[17~", "\033[18~", "\033[19~", "\033[20~",
+	    "\033[21~" };
+	const char *s = NULL;
+	char tmp[8];
+
+	if (key >= 0x20 && key <= 0x7e) {
+		out[0] = (char)(ctrl ? key - 'a' + 1 : key);
+		return 1;
+	}
+	if (key >= WIN_KEY_F1 && key <= WIN_KEY_F10)
+		s = fk[key - WIN_KEY_F1];
+	switch (key) {
+	case WIN_KEY_BACKSPACE: out[0] = alt ? 8 : 0x7f; return 1;
+	case WIN_KEY_TAB: out[0] = '\t'; return 1;
+	case WIN_KEY_ENTER: out[0] = alt ? '\n' : '\r'; return 1;
+	case WIN_KEY_ESC: out[0] = 0x1b; return 1;
+	case WIN_KEY_LEFT: s = "D"; break;
+	case WIN_KEY_UP: s = "A"; break;
+	case WIN_KEY_DOWN: s = "B"; break;
+	case WIN_KEY_RIGHT: s = "C"; break;
+	case WIN_KEY_HOME: s = "H"; break;
+	case WIN_KEY_END: s = "F"; break;
+	case WIN_KEY_INSERT: s = "\033[2~"; break;
+	case WIN_KEY_DELETE: s = "\033[3~"; break;
+	case WIN_KEY_PAGE_UP: s = "\033[5~"; break;
+	case WIN_KEY_PAGE_DOWN: s = "\033[6~"; break;
+	default: break;
+	}
+	if (s != NULL && s[0] != 033) {
+		tmp[0] = 033;
+		tmp[1] = app ? 'O' : '[';
+		tmp[2] = s[0];
+		memcpy(out, tmp, 3);
+		return 3;
+	}
+	if (s == NULL)
+		fail("tty_encode: key %d", key);
+	strcpy(out, s);
+	return (int)strlen(s);
+}
+
+static void
+rawev(int state, int code)
+{
+	if (win_input_raw(&in, &scene, state, code) < 0)
+		fail("a raw event failed with a working backend");
+}
+
+static void
+model_stroke(int key, int ctrl, int holds, int early, int caps)
+{
+	int act, i, count = 1 + (msrc_raw ? holds : 0);
+	int kinds, mods, typed;
+
+	/* The key as the controller reports it for the release after Ctrl is up. */
+	typed = key;
+	if (key >= 'a' && key <= 'z' && ctrl && caps)
+		typed = key - 'a' + 'A';
+	if (ctrl && key >= 'A' && key <= 'Z')
+		key = key - 'A' + 'a';
+
+	if (im.mode != 0) {
+		m_mode_key(key, (key == WIN_KEY_ENTER || key == WIN_KEY_ESC) ? 1 : count);
+		return;
+	}
+	act = model_action(key, ctrl);
+	if (act != 0) {
+		m_stroke_action(act);
+		return;
+	}
+	if (tfocus < 0 || !h_has[tfocus])
+		return;
+	kinds = msrc_raw ? count + 1 : 1;
+	for (i = 0; i < kinds; i++) {
+		mods = ctrl && !(i == kinds - 1 && msrc_raw && early);
+		elog[nelog].id = tfocus;
+		elog[nelog].key = key;
+		if (i == kinds - 1 && msrc_raw && ctrl && early)
+			elog[nelog].key = typed;
+		elog[nelog].mods = mods;
+		elog[nelog].kind = i == 0 ? WIN_EV_PRESS :
+		    (msrc_raw && i == kinds - 1 ? WIN_EV_RELEASE : WIN_EV_REPEAT);
+		nelog++;
+	}
+}
+
+static void
+feed_raw(int key, int ctrl, int holds, int early, int caps)
+{
+	int code = raw_code(key), h;
+
+	if (ctrl && caps && key >= 'a' && key <= 'z')
+		code = key - 'a' + 'A';
+	if (rr(0, 9) == 0) {
+		rawev(1, 0xa2);			/* A modifier the table ignores. */
+		rawev(3, 0xa2);
+	}
+	if (ctrl)
+		rawev(1, 0xa5);
+	rawev(1, code);
+	for (h = 0; h < holds; h++) {
+		if (ctrl && rr(0, 2) == 0)
+			rawev(2, 0xa5);
+		rawev(2, code);
+	}
+	if (early && ctrl)
+		rawev(3, 0xa5);
+	rawev(3, code);
+	if (ctrl && !early)
+		rawev(3, 0xa5);
+}
+
+static void
+feed_tty(int key, int ctrl)
+{
+	char b[8];
+	int n = tty_encode(key, ctrl, rr(0, 1), rr(0, 1), b), i;
+
+	for (i = 0; i < n; i++)
+		if (win_input_byte(&in, &scene, (unsigned char)b[i]) < 0)
+			fail("a byte failed with a working backend");
+	if (in.esc != 0 && rr(0, 3) != 0 && win_input_idle(&in, &scene) < 0)
+		fail("idle failed with a working backend");
+}
+
+static void
+compare_logs(void)
+{
+	int i;
+
+	if (nalog != nelog)
+		fail("handlers saw %d events, the model expects %d", nalog, nelog);
+	for (i = 0; i < nalog; i++)
+		if (alog[i].id != elog[i].id || alog[i].key != elog[i].key ||
+		    alog[i].mods != elog[i].mods || alog[i].kind != elog[i].kind)
+			fail("event %d: window %d key %d mods %d kind %d, expected "
+			    "window %d key %d mods %d kind %d", i, alog[i].id,
+			    alog[i].key, alog[i].mods, alog[i].kind, elog[i].id,
+			    elog[i].key, elog[i].mods, elog[i].kind);
+	nalog = nelog = 0;
+}
+
+static int
+pick_key(int raw, int *ctrl)
+{
+	static const int plain[] = { WIN_KEY_BACKSPACE, WIN_KEY_TAB, WIN_KEY_HOME,
+	    WIN_KEY_END, WIN_KEY_INSERT, WIN_KEY_DELETE, WIN_KEY_PAGE_UP,
+	    WIN_KEY_PAGE_DOWN };
+	int r = rr(0, 99), key;
+
+	*ctrl = 0;
+	if (r < 25)
+		key = WIN_KEY_F1 + (rr(0, 1) ? rr(5, 9) : rr(0, 9));
+	else if (r < 50)
+		key = WIN_KEY_LEFT + rr(0, 3);
+	else if (r < 58)
+		key = rr(0, 1) ? WIN_KEY_ENTER : WIN_KEY_ESC;
+	else if (r < 68) {
+		*ctrl = 1;
+		key = rr(0, 1) ? 'w' : 'a' + rr(0, 25);
+		if (!raw && (key == 'h' || key == 'i' || key == 'j' || key == 'm'))
+			key = 'q';
+		return key;
+	} else if (r < 73) {
+		if (!raw)
+			return 'z';
+		*ctrl = 1;
+		return rr(0, 1) ? WIN_KEY_TAB : WIN_KEY_BACKSPACE;
+	} else if (r < 85)
+		key = rr(0, 2) == 0 ? '0' + rr(0, 9) : (rr(0, 1) ? 'a' : 'A') + rr(0, 25);
+	else
+		key = plain[rr(0, 7)];
+	if (raw && rr(0, 9) == 0 && key != WIN_KEY_ESC)
+		*ctrl = 1;
+	return key;
+}
+
+static void
+run_stream(int raw, long nstrokes)
+{
+	long i;
+	int key, ctrl, holds, early, caps, id, k;
+
+	input_world();
+	msrc_raw = raw;
+	for (i = 0; i < nstrokes; i++) {
+		op_index = i;
+		if (in.esc == 0 && (norder == 0 || (rr(0, 50) == 0 && scene.nwin < WIN_MAX))) {
+			for (id = 0; tw[id].used; id++)
+				;
+			input_window(id, rr(-20, 200), rr(-10, 220), rr(30, 150),
+			    rr(20, 120));
+		}
+		if (in.esc == 0 && norder > 0 && rr(0, 70) == 0) {
+			k = order[rr(0, norder - 1)];
+			if (tw[k].hidden)
+				do_show(k);
+			else
+				do_hide(k);
+		}
+		key = pick_key(raw, &ctrl);
+		holds = raw ? (rr(0, 3) == 0 ? rr(1, 3) : 0) : 0;
+		early = rr(0, 3) == 0;
+		caps = rr(0, 1);
+		if (raw && !ctrl && rr(0, 40) == 0) {
+			rawev(1, 0xa5);		/* Its release is lost. */
+			win_input_lost(&in);
+		}
+		note("%s stroke key %d ctrl %d holds %d", raw ? "raw" : "tty", key,
+		    ctrl, holds);
+		model_stroke(key, ctrl, holds, early, caps);
+		if (raw)
+			feed_raw(key, ctrl, holds, early, caps);
+		else
+			feed_tty(key, ctrl);
+		if (in.esc != 0)
+			continue;
+		compare_logs();
+		if (in.mode != im.mode)
+			fail("manager mode %d, model %d", in.mode, im.mode);
+		if (rr(0, 5) == 0) {
+			if (win_flush(&scene) != 0)
+				fail("win_flush");
+			after_op(1);
+		} else {
+			after_op(0);
+		}
+	}
+	if (win_input_idle(&in, &scene) < 0)
+		fail("idle");
+	compare_logs();
+	if (win_flush(&scene) != 0)
+		fail("final win_flush");
+	after_op(1);
+}
+
+/* Every key the console can send, as semantic codes. */
+static int
+all_keys(int *keys)
+{
+	int n = 0, k;
+
+	for (k = 0x20; k <= 0x7e; k++)
+		keys[n++] = k;
+	for (k = WIN_KEY_BACKSPACE; k <= WIN_KEY_PAGE_DOWN; k++)
+		keys[n++] = k;
+	for (k = WIN_KEY_F1; k <= WIN_KEY_F10; k++)
+		keys[n++] = k;
+	return n;
+}
+
+static struct win_event canary_ev[4];
+
+static int
+dec_byte(int byte)
+{
+	int n;
+
+	canary_ev[2].key = canary_ev[3].key = -77;
+	canary_ev[2].kind = canary_ev[3].kind = 99;
+	n = win_decode_byte(&in, byte, canary_ev);
+	if (n < 0 || n > 2 || canary_ev[2].key != -77 || canary_ev[3].key != -77 ||
+	    canary_ev[2].kind != 99 || canary_ev[3].kind != 99)
+		fail("win_decode_byte wrote %d events or past its array", n);
+	return n;
+}
+
+static void
+expect_plain_a(const char *what)
+{
+	if (in.esc != 0)
+		fail("%s: the decoder is not back at its start", what);
+	if (dec_byte('a') != 1 || canary_ev[0].key != 'a' ||
+	    canary_ev[0].kind != WIN_EV_PRESS)
+		fail("%s: the byte after it did not decode as a plain key", what);
+}
+
+/* Both decoders: tables, truncations, garbage and fuzz. */
+static void
+run_decoders(void)
+{
+	static const char *const garbage[] = { "\033[1;5A", "\033[99~", "\033[1A",
+	    "\033OZ", "\033[", "\033[?25h", "\033[2;~", "\033[65541~",
+	    "\033[999999999A", "\033[~", "\033[;A", "\033O", "\033[2", "\033[1;" ,
+	    "\033[ A", "\033[\177", "\033[\200" };
+	int keys[160], nk, i, c, cut, len, n, app, alt, total = 0;
+	char seq[8];
+	long f;
+
+	op_index = -20;
+	win_input_init(&in);
+	nk = all_keys(keys);
+	for (i = 0; i < nk; i++) {
+		for (app = 0; app < 2; app++) {
+			len = tty_encode(keys[i], 0, app, 0, seq);
+			win_input_init(&in);
+			for (c = 0; c < len; c++) {
+				n = dec_byte((unsigned char)seq[c]);
+				if (n != (c == len - 1 && keys[i] != WIN_KEY_ESC))
+					fail("key %d byte %d gave %d events", keys[i], c, n);
+			}
+			if (keys[i] == WIN_KEY_ESC) {
+				if (in.esc == 0 || win_decode_idle(&in, canary_ev) != 1)
+					fail("a lone ESC did not wait for the idle call");
+			}
+			if (canary_ev[0].key != keys[i] || canary_ev[0].mods != 0 ||
+			    canary_ev[0].kind != WIN_EV_PRESS)
+				fail("key %d decoded as %d", keys[i], canary_ev[0].key);
+			if (in.esc != 0)
+				fail("key %d left the decoder mid-sequence", keys[i]);
+			/* Every strict prefix of a sequence makes no key. */
+			for (cut = 1; cut < len; cut++) {
+				win_input_init(&in);
+				for (c = 0; c < cut; c++)
+					if (dec_byte((unsigned char)seq[c]) != 0)
+						fail("a prefix of key %d made a key", keys[i]);
+				n = win_decode_idle(&in, canary_ev);
+				if (n != (cut == 1 ? 1 : 0) ||
+				    (cut == 1 && canary_ev[0].key != WIN_KEY_ESC))
+					fail("prefix %d of key %d: idle gave %d events",
+					    cut, keys[i], n);
+				expect_plain_a("a truncated sequence");
+				total++;
+			}
+		}
+	}
+	for (alt = 0; alt < 2; alt++) {
+		for (c = 1; c <= 26; c++) {
+			if (c == 8 || c == 9 || c == 10 || c == 13)
+				continue;
+			win_input_init(&in);
+			seq[0] = (char)c;
+			if (dec_byte(c) != 1 || canary_ev[0].key != 'a' + c - 1 ||
+			    canary_ev[0].mods != WIN_MOD_CTRL)
+				fail("Ctrl-letter byte %d", c);
+		}
+		win_input_init(&in);
+		if (dec_byte(0x08) != 1 || canary_ev[0].key != WIN_KEY_BACKSPACE ||
+		    dec_byte(0x00) != 0 || dec_byte(0x80) != 0 || dec_byte(0xff) != 0 ||
+		    dec_byte(0x1c) != 0)
+			fail("controls and high bytes");
+	}
+	for (i = 0; i < (int)(sizeof(garbage) / sizeof(garbage[0])); i++) {
+		win_input_init(&in);
+		for (c = 0; garbage[i][c] != '\0'; c++)
+			if (dec_byte((unsigned char)garbage[i][c]) != 0)
+				fail("garbage sequence %d made a key at byte %d", i, c);
+		if (win_decode_idle(&in, canary_ev) != 0)
+			fail("idle after garbage sequence %d made a key", i);
+		expect_plain_a("garbage");
+	}
+	/* ESC then an ordinary byte, ESC ESC, and a sequence cut by ESC. */
+	win_input_init(&in);
+	if (dec_byte(0x1b) != 0 || dec_byte('x') != 2 ||
+	    canary_ev[0].key != WIN_KEY_ESC || canary_ev[1].key != 'x')
+		fail("ESC then x");
+	if (dec_byte(0x1b) != 0 || dec_byte(0x1b) != 1 ||
+	    canary_ev[0].key != WIN_KEY_ESC || dec_byte('[') != 0 ||
+	    dec_byte('A') != 1 || canary_ev[0].key != WIN_KEY_UP)
+		fail("ESC ESC [ A");
+	if (dec_byte(0x1b) != 0 || dec_byte('[') != 0 || dec_byte('1') != 0 ||
+	    dec_byte(0x1b) != 0 || dec_byte('O') != 0 || dec_byte('P') != 1 ||
+	    canary_ev[0].key != WIN_KEY_F1)
+		fail("a sequence cut by ESC");
+	/* Fuzz: random bytes with random idle calls never leave the bounds. */
+	win_input_init(&in);
+	for (f = 0; f < 200000; f++) {
+		static const unsigned char alpha[] = { 0x1b, '[', 'O', '0', '1', '2',
+		    '5', '9', ';', '~', 'A', 'B', 'P', 'Z', 0x7f, 0x80, 0xff, 0, '\r', ' ',
+		    '?', 'q' };
+		int b = rr(0, 9) == 0 ? rr(0, 255) : alpha[rr(0, (int)sizeof(alpha) - 1)];
+
+		if (rr(0, 12) == 0)
+			(void)win_decode_idle(&in, canary_ev);
+		else
+			(void)dec_byte(b);
+		if (in.esc > 3)
+			fail("decoder state %d out of range", in.esc);
+	}
+	(void)win_decode_idle(&in, canary_ev);
+	expect_plain_a("the fuzz run");
+	/* The raw decoder: states and key bytes, all of them. */
+	win_input_init(&in);
+	for (f = 0; f < 70000; f++) {
+		int state = (int)(f / 256) % 5, code = (int)(f % 256);
+		struct win_event e;
+
+		e.key = -5;
+		n = win_decode_raw(&in, state, code, &e);
+		if (n != 0 && n != 1)
+			fail("win_decode_raw returned %d", n);
+		if (n == 1 && (e.kind < WIN_EV_PRESS || e.kind > WIN_EV_RELEASE ||
+		    (e.mods & ~WIN_MOD_CTRL) != 0 || e.key == 0 ||
+		    (e.key >= 0x100 && (e.key < WIN_KEY_BACKSPACE ||
+		    e.key > WIN_KEY_F10)) || (e.key < 0x100 && (e.key < 0x20 ||
+		    e.key > 0x7e))))
+			fail("win_decode_raw state %d code %d made a bad event", state, code);
+	}
+	printf("PASS decoders: %d truncations, %d garbage sequences, 200,000 fuzzed "
+	    "bytes and every raw state and code\n", total,
+	    (int)(sizeof(garbage) / sizeof(garbage[0])));
+}
+
+/* The window the fixed cases act on. */
+static void
+fixed_world(int nwin)
+{
+	int i;
+
+	reset_world();
+	win_input_init(&in);
+	memset(&im, 0, sizeof(im));
+	nalog = nelog = 0;
+	for (i = 0; i < nwin; i++) {
+		fx_create(i, 20 + 30 * i, 20 + 20 * i, 100, 70, "w");
+		h_has[i] = 1;
+		h_eat[i] = 1;
+		h_close_eats[i] = 0;
+		if (win_set_handler(&scene, tw[i].handle, test_handler, &tw[i]) != 0)
+			fail("win_set_handler");
+	}
+}
+
+static void
+fixed_check(const char *what)
+{
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	compare_logs();
+	(void)what;
+}
+
+static void
+expect_geom(int id, int x, int y, int w, int h, const char *what)
+{
+	const struct win *l = tw[id].handle;
+
+	if (l->x != x || l->y != y || l->w != w || l->h != h)
+		fail("%s: window %d is %d,%d %dx%d, expected %d,%d %dx%d", what, id,
+		    l->x, l->y, l->w, l->h, x, y, w, h);
+	tw[id].x = x;
+	tw[id].y = y;
+	tw[id].w = w;
+	tw[id].h = h;
+	mark_window(&tw[id]);
+}
+
+static void
+rawkey(int code)
+{
+	rawev(1, code);
+	rawev(3, code);
+}
+
+static void
+run_input_fixed(void)
+{
+	int i, rc;
+
+	op_index = -30;
+	msrc_raw = 1;
+	note("fixed: held close");
+	/* A held Ctrl-W closes once; its repeat and release stay with the manager. */
+	fixed_world(2);
+	h_close_eats[1] = 0;
+	rawev(1, 0xa5);
+	rawev(1, 'w');
+	rawev(2, 'w');
+	rawev(2, 'w');
+	rawev(3, 'w');
+	rawev(3, 0xa5);
+	tfocus = 0;
+	mark_window(&tw[1]);
+	order_remove(1);
+	memset(&tw[1], 0, sizeof(tw[1]));
+	elog[nelog].id = 1; elog[nelog].key = 0; elog[nelog].mods = 0;
+	elog[nelog].kind = WIN_EV_CLOSE; nelog++;
+	if (scene.nwin != 1 || nalog != 1)
+		fail("a held Ctrl-W closed %d windows after %d requests", 2 - scene.nwin, nalog);
+	fixed_check("held close");
+	/* A handler that eats the close request keeps the window. */
+	h_close_eats[0] = 1;
+	rawev(1, 0xa5);
+	rawev(1, 'w');
+	rawev(3, 'w');
+	rawev(3, 0xa5);
+	elog[nelog].id = 0; elog[nelog].key = 0; elog[nelog].mods = 0;
+	elog[nelog].kind = WIN_EV_CLOSE; nelog++;
+	if (scene.nwin != 1)
+		fail("a handler that took the close request lost its window");
+	fixed_check("eaten close");
+
+	note("fixed: lost");
+	/* A modifier whose release the kernel dropped does not stay latched. */
+	fixed_world(2);
+	rawev(1, 0xa5);
+	win_input_lost(&in);
+	rawkey('w');
+	if (scene.nwin != 2)
+		fail("a Ctrl whose release was lost closed a window");
+	elog[nelog].id = 1; elog[nelog].key = 'w'; elog[nelog].mods = 0;
+	elog[nelog].kind = WIN_EV_PRESS; nelog++;
+	elog[nelog] = elog[nelog - 1];
+	elog[nelog].kind = WIN_EV_RELEASE; nelog++;
+	fixed_check("lost");
+	/* Ctrl still held re-asserts itself with its next HOLD. */
+	rawev(2, 0xa5);
+	rawkey('w');
+	elog[nelog].id = 1; elog[nelog].key = 0; elog[nelog].mods = 0;
+	elog[nelog].kind = WIN_EV_CLOSE; nelog++;
+	if (nalog != 1)
+		fail("a held Ctrl did not return after its HOLD");
+	tfocus = 0;
+	mark_window(&tw[1]);
+	order_remove(1);
+	memset(&tw[1], 0, sizeof(tw[1]));
+	compare_logs();
+
+	note("fixed: move");
+	/* Move mode: clamp at every edge, accept keeps, cancel restores exactly. */
+	fixed_world(1);
+	rawkey(0x88 + 0);			/* F8 (0x81 + 7 = 0x88). */
+	for (i = 0; i < 20; i++)
+		rawkey(0xb4);			/* Left: clamps at x = 0. */
+	expect_geom(0, 0, 20, 100, 70, "move left clamp");
+	for (i = 0; i < 60; i++)
+		rawkey(0xb7);			/* Right: clamps at 320 - 100. */
+	expect_geom(0, 220, 20, 100, 70, "move right clamp");
+	for (i = 0; i < 60; i++)
+		rawkey(0xb6);
+	expect_geom(0, 220, 250, 100, 70, "move down clamp");
+	rawkey(0xb1);				/* Esc: back to 20,20. */
+	expect_geom(0, 20, 20, 100, 70, "cancel restores");
+	rawkey(0x88);
+	rawkey(0xb7);
+	rawkey(0x0a);				/* Enter accepts. */
+	expect_geom(0, 28, 20, 100, 70, "accept keeps");
+	rawkey(0xb7);				/* Mode over: the key reaches the window. */
+	elog[nelog].id = 0; elog[nelog].key = WIN_KEY_RIGHT; elog[nelog].mods = 0;
+	elog[nelog].kind = WIN_EV_PRESS; nelog++;
+	elog[nelog] = elog[nelog - 1];
+	elog[nelog].kind = WIN_EV_RELEASE; nelog++;
+	fixed_check("mode over");
+
+	note("fixed: resize");
+	/* Resize mode, including a window already off the panel. */
+	fixed_world(1);
+	rawkey(0x89);				/* F9. */
+	for (i = 0; i < 40; i++)
+		rawkey(0xb4);
+	for (i = 0; i < 40; i++)
+		rawkey(0xb5);
+	expect_geom(0, 20, 20, 8, 14, "resize to the minimum");
+	for (i = 0; i < 60; i++) {
+		rawkey(0xb7);
+		rawkey(0xb6);
+	}
+	expect_geom(0, 20, 20, 300, 300, "resize to the panel edge");
+	rawkey(0x0a);
+	if (win_move(&scene, tw[0].handle, -30, 300) != 0 ||
+	    win_resize(&scene, tw[0].handle, 150, 100) != 0)
+		fail("setup");
+	tw[0].x = -30;
+	tw[0].y = 300;
+	tw[0].w = 150;
+	tw[0].h = 100;
+	mark_window(&tw[0]);
+	rawkey(0x88);
+	rawkey(0xb4);
+	rawkey(0xb5);
+	rawkey(0xb1);
+	expect_geom(0, -30, 300, 150, 100, "cancel restores an off-panel window");
+	rawkey(0x89);
+	rawkey(0xb7);
+	rawkey(0xb1);
+	expect_geom(0, -30, 300, 150, 100, "cancel restores a size");
+	fixed_check("resize");
+
+	note("fixed: refused step");
+	/* A refused step keeps the mode and the geometry; the key then works. */
+	fixed_world(1);
+	rawkey(0x88);
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	fill_damage();
+	fail_countdown = 1;
+	rc = win_input_raw(&in, &scene, 1, 0xb7);
+	if (rc != -1 || tw[0].handle->x != 20 || in.mode != WIN_MODE_MOVE)
+		fail("a refused move step changed the window or ended the mode");
+	mark_window(&tw[0]);
+	rawkey(0xb7);
+	expect_geom(0, 28, 20, 100, 70, "retry after a refused step");
+	rawkey(0x0a);
+	fixed_check("refused step");
+
+	note("fixed: tty");
+	/* The tty decoder carries the same bindings. */
+	msrc_raw = 0;
+	fixed_world(3);
+	win_input_byte(&in, &scene, 0x1b);
+	win_input_byte(&in, &scene, '[');
+	win_input_byte(&in, &scene, '1');
+	win_input_byte(&in, &scene, '7');
+	win_input_byte(&in, &scene, '~');		/* F6: next window. */
+	m_raise_top(0);
+	fixed_check("tty F6");
+	win_input_byte(&in, &scene, 0x17);		/* Ctrl-W. */
+	elog[nelog].id = 0; elog[nelog].key = 0; elog[nelog].mods = 0;
+	elog[nelog].kind = WIN_EV_CLOSE; nelog++;
+	{
+		int p;
+
+		mark_window(&tw[0]);
+		p = order_remove(0);
+		mark_title(model_pick(p));
+		tfocus = model_pick(p);
+		memset(&tw[0], 0, sizeof(tw[0]));
+	}
+	fixed_check("tty Ctrl-W");
+	win_input_byte(&in, &scene, 0x1b);
+	win_input_idle(&in, &scene);			/* A lone Esc reaches the window. */
+	elog[nelog].id = tfocus; elog[nelog].key = WIN_KEY_ESC; elog[nelog].mods = 0;
+	elog[nelog].kind = WIN_EV_PRESS; nelog++;
+	fixed_check("tty Esc");
+	printf("PASS input: held keys, lost events, move and resize modes, tty "
+	    "bindings\n");
+}
+
 /* Backend bytes for three workloads, as the model counts them. */
 static void
 run_measure(void)
@@ -1432,6 +2342,12 @@ main(int argc, char **argv)
 	run_api();
 	run_failure();
 	run_focus();
+	run_decoders();
+	run_stream(1, 2500);
+	printf("PASS raw stream: 2500 key strokes through the raw decoder\n");
+	run_stream(0, 2500);
+	printf("PASS tty stream: 2500 key strokes through the byte decoder\n");
+	run_input_fixed();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

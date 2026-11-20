@@ -24,14 +24,15 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-"""Write one mutated copy of win.c per fault, and an unmutated baseline.
+"""Write one mutated copy of win.c or win_input.c per fault, and baselines.
 
-Usage: win_mutate.py WIN_C OUTPUT_DIRECTORY
+Usage: win_mutate.py WIN_C WIN_INPUT_C OUTPUT_DIRECTORY
 
 Each mutation replaces text that must occur exactly once, so a refactor of
 win.c that moves or duplicates a site fails here instead of silently
-producing an unmutated "mutant". The output files are win_NAME.mutant.c;
-win_baseline.mutant.c carries no fault and must pass the gate, which
+producing an unmutated "mutant". The output files are win_NAME.mutant.c for
+win.c and inp_NAME.mutant.c for win_input.c; win_baseline.mutant.c and
+inp_baseline.mutant.c carry no fault and must pass the gate, which
 calibrates the harness against a known-good input. The font header include
 is rewritten to a bare name so the copy builds away from lib/libwin.
 """
@@ -189,17 +190,85 @@ MUTATIONS = (
 )
 
 
-def main(argv):
-    if len(argv) != 3:
-        print(__doc__, file=sys.stderr)
-        return 2
-    source = Path(argv[1]).read_text(encoding="utf-8")
-    out = Path(argv[2])
-    if source.count(FONT_INCLUDE) != 1:
-        print("win_mutate: font include not found exactly once", file=sys.stderr)
-        return 1
-    source = source.replace(FONT_INCLUDE, '#include "lcdfont.h"')
-    for name, old, new in MUTATIONS:
+# win_input.c: (name, original text, replacement)
+INPUT_MUTATIONS = (
+    ("baseline", "", ""),
+    (
+        "repeat_as_press",
+        "kind = WIN_EV_REPEAT;",
+        "kind = WIN_EV_PRESS;",
+    ),
+    (
+        "cancel_not_restoring",
+        "\t\tif (win_resize(s, in->mode_win, in->sw, in->sh) < 0 ||\n"
+        "\t\t    win_move(s, in->mode_win, in->sx, in->sy) < 0)\n\t\t\treturn -1;\n",
+        "",
+    ),
+    (
+        "truncated_escape_as_key",
+        "\tif (pending != ST_ESC)\n\t\treturn 0;",
+        "\tif (pending == ST_GROUND)\n\t\treturn 0;",
+    ),
+    (
+        "modifier_not_rebuilt",
+        "\tin->mods = 0;\n\tin->held = 0;",
+        "\tin->held = 0;",
+    ),
+    (
+        "held_key_not_swallowed",
+        "if (in->held != 0 && fold(ev->key) == fold(in->held) &&",
+        "if (0 && in->held != 0 && fold(ev->key) == fold(in->held) &&",
+    ),
+    (
+        "ctrl_letter_not_lowered",
+        "\t\tk += 'a' - 'A';",
+        "\t\tk += 0;",
+    ),
+    (
+        "move_unclamped",
+        "nx = clampi(w->x + dx, 0, WIN_PANEL_W - w->w);",
+        "nx = w->x + dx;",
+    ),
+    (
+        "resize_unclamped",
+        "nx = clampi(w->w + dx, WIN_MIN_W, WIN_PANEL_W - w->x);",
+        "nx = w->w + dx;",
+    ),
+    (
+        "bound_key_reaches_window",
+        "\t\t\tin->held = (short)ev->key;\n\t\t\treturn WIN_DISP_MANAGER;",
+        "\t\t\tin->held = (short)ev->key;",
+    ),
+    (
+        "mode_not_modal",
+        "\tif (in->mode != WIN_MODE_NONE)\n\t\treturn mode_event(in, s, ev) < 0 ? -1 : WIN_DISP_MANAGER;",
+        "\tif (in->mode != WIN_MODE_NONE)\n\t\t(void)mode_event(in, s, ev);",
+    ),
+    (
+        "esc_before_byte_lost",
+        "\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n\t\treturn n + tty_plain(",
+        "\t\treturn n + tty_plain(",
+    ),
+    (
+        "close_without_handler_chance",
+        "if (w->on_event != NULL && w->on_event(s, w, &ev, w->on_event_arg) != 0)\n\t\treturn 0;",
+        "if (w->on_event != NULL)\n\t\t(void)w->on_event(s, w, &ev, w->on_event_arg);",
+    ),
+    (
+        "release_treated_as_press",
+        "kind = WIN_EV_RELEASE;",
+        "kind = WIN_EV_PRESS;",
+    ),
+    (
+        "decoder_writes_past_events",
+        "\t\tif (in->esc == ST_ESC)\n\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n\t\tin->esc = ST_ESC;\n\t\treturn n;",
+        "\t\tif (in->esc == ST_ESC)\n\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n\t\tput(&ev[n + 2], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n\t\tin->esc = ST_ESC;\n\t\treturn n;",
+    ),
+)
+
+
+def write_set(source, mutations, prefix, out):
+    for name, old, new in mutations:
         if old:
             if source.count(old) != 1:
                 print(
@@ -207,12 +276,30 @@ def main(argv):
                     % (name, source.count(old)),
                     file=sys.stderr,
                 )
-                return 1
+                return False
             text = source.replace(old, new)
         else:
             text = source
-        (out / ("win_%s.mutant.c" % name)).write_text(text, encoding="utf-8")
-    print("win_mutate: wrote %d files" % len(MUTATIONS))
+        (out / ("%s_%s.mutant.c" % (prefix, name))).write_text(text, encoding="utf-8")
+    return True
+
+
+def main(argv):
+    if len(argv) != 4:
+        print(__doc__, file=sys.stderr)
+        return 2
+    source = Path(argv[1]).read_text(encoding="utf-8")
+    inp = Path(argv[2]).read_text(encoding="utf-8")
+    out = Path(argv[3])
+    if source.count(FONT_INCLUDE) != 1:
+        print("win_mutate: font include not found exactly once", file=sys.stderr)
+        return 1
+    source = source.replace(FONT_INCLUDE, '#include "lcdfont.h"')
+    if not write_set(source, MUTATIONS, "win", out):
+        return 1
+    if not write_set(inp, INPUT_MUTATIONS, "inp", out):
+        return 1
+    print("win_mutate: wrote %d files" % (len(MUTATIONS) + len(INPUT_MUTATIONS)))
     return 0
 
 

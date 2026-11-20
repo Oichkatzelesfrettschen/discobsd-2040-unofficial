@@ -3379,8 +3379,11 @@ fails here with the firmware's 32. When the root image carries
 skip line), the stage types `backlight 88` as `operator` and requires the
 line `lcd 80` and the model's level 80: the program reaches the root-only
 node through its setuid mode and prints the level the model kept, which the
-model conditions as the firmware's `backlight.ino` does. The path through an
-existing `/etc/backlight` and the panel's brightness stay unexercised.
+model conditions as the firmware's `backlight.ino` does. One run outside
+the gate booted an image whose `/etc/backlight` holds 96, and the stage
+failed with 96 against its 160, so the saved level reaches the node through
+the target shell's `read`; the gate boots no such image, and the panel's
+brightness stays unexercised.
 
 What a pass establishes, for this Renode build, these third-party models and
 this kernel: the PICOCALC console path runs from `st7365p_init()` through

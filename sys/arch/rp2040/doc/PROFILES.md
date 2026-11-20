@@ -239,7 +239,13 @@ free inodes) and `base` with the closure (428 and 35), built with `bmake
 MACHINE=rp2040 PROFILE=base IMAGE_WITH=backlight fs` and read with the same
 `fsutil --verbose --partition=1` command; the `picocalc` and
 `picocalc-lean` rows were not measured again with it and sit two blocks and
-one inode above what those images now hold.
+one inode above what those images now hold. The `picocalc` image itself
+holds 78 free blocks and 7 free inodes with the closure and 80 and 8 with
+`IMAGE_WITHOUT=backlight` (`BOARD=PICOCALC fs`, the same `fsutil` command).
+Either way `check-renode-union` booted on that image (`BOARD=PICOCALC`)
+runs out of inodes in its native-compile stage, one stage earlier with the
+closure; the hosted run boots the PICO board's image, which passes. The
+floor of free inodes a PicoCalc root keeps is open as issue #764.
 
 The `psramtmp` cost is the difference between `base` (437 free blocks and 37
 free inodes) and `base` with the closure (428 and 35), built with `bmake

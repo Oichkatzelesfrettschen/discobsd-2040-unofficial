@@ -106,10 +106,20 @@ jobs:
       # need. The 32-bit shell conformance run is the posix-sh job below.
       # cffi, hypothesis and pytest run check-swap-tier-model in the host
       # tier, which prints a SKIP without them.
+      - name: Select the apt cache week
+        id: apt-week-rp2040
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache the apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-rp2040-${{ steps.apt-week-rp2040.outputs.week }}-${{ hashFiles('.github/workflows/firmware.yml') }}
+          restore-keys: |
+            apt-rp2040-
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          CI_APT_ARCHIVES="$HOME/apt-archives" sh tools/ci_apt_install.sh \
             bmake make build-essential cmake git clang cflow cscope ripgrep jq \
             gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
@@ -667,10 +677,20 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Select the apt cache week
+        id: apt-week-stm32
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache the apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-stm32-${{ steps.apt-week-stm32.outputs.week }}-${{ hashFiles('.github/workflows/firmware.yml') }}
+          restore-keys: |
+            apt-stm32-
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          CI_APT_ARCHIVES="$HOME/apt-archives" sh tools/ci_apt_install.sh \
             bmake make build-essential \
             gcc-arm-none-eabi binutils-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
@@ -719,10 +739,20 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Select the apt cache week
+        id: apt-week-ilp32
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache the apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-ilp32-${{ steps.apt-week-ilp32.outputs.week }}-${{ hashFiles('.github/workflows/firmware.yml') }}
+          restore-keys: |
+            apt-ilp32-
       - name: Install bmake and the 32-bit compiler support
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          CI_APT_ARCHIVES="$HOME/apt-archives" sh tools/ci_apt_install.sh \
             bmake build-essential gcc-multilib python3 pkg-config libbsd-dev \
             bison flex
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
@@ -988,7 +1018,7 @@ jobs:
     name: flash-id against the Pico SDK
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       # The kernel builds -nostdinc against the tree's own libc, so the
@@ -998,10 +1028,20 @@ jobs:
       # Debian and Ubuntu ship those apart from the compiler and
       # gcc-arm-none-eabi does not depend on them, so naming the compiler
       # alone leaves the link without a C library.
+      - name: Select the apt cache week
+        id: apt-week-flash-id
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache the apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-flash-id-${{ steps.apt-week-flash-id.outputs.week }}-${{ hashFiles('.github/workflows/firmware.yml') }}
+          restore-keys: |
+            apt-flash-id-
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          CI_APT_ARCHIVES="$HOME/apt-archives" sh tools/ci_apt_install.sh \
             bmake cmake ninja-build git \
             gcc-arm-none-eabi binutils-arm-none-eabi \
             libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3

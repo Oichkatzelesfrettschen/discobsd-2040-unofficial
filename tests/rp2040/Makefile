@@ -14,7 +14,7 @@ BOARD_PROGS=	divtest exec_hsaout fptest gpioprobe lcdexttest lcdgfxtest romprobe
 		stack_chain \
 		streamtest \
 		stdio_capacity swapmaptest swapram_evacuate tartest tiledemo \
-		user_window fork_refusal capacity_exhaustion preempt
+		user_window fork_refusal capacity_exhaustion preempt windemo
 BOARD_TARGETS=	${BOARD_PROGS:S/^/build-/}
 
 all:		${BOARD_TARGETS}

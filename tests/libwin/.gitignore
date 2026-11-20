@@ -1,0 +1,6 @@
+win_test
+win_test_san
+win_*.mutant.c
+win_*.mutant.test
+win_*.mutant.log
+mutants.stamp

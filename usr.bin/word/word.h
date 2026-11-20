@@ -70,7 +70,7 @@ int	buf_save(const char *path, int backup);
 void	buf_mark(void);			/* start a new undo group */
 int	buf_undo(woff_t *pos);
 int	buf_redo(woff_t *pos);
-uint32_t buf_gen(void);			/* changes with every edit */
+uint32_t buf_gen(void);			/* names the document state; undo restores it */
 woff_t	buf_lowmark(void);		/* lowest offset edited since last call */
 unsigned buf_pieces(void);
 woff_t	buf_spilled(void);
@@ -237,6 +237,7 @@ void	ed_vmove(int rows);
 int	ed_rows(void);
 int	ed_ins(const char *s, size_t n);
 int	ed_del(woff_t lo, woff_t hi, int scrap, int append);
+int	ed_replace(woff_t lo, woff_t hi, const char *s, size_t n);
 void	ed_yank(woff_t lo, woff_t hi, int lines);
 void	ed_paste(woff_t at);
 void	ed_undo(void);

@@ -462,6 +462,22 @@ ed_del(woff_t lo, woff_t hi, int scrap, int append)
 	return 0;
 }
 
+/* Replace [lo, hi) by s in one step; a failure leaves the text as it was. */
+int
+ed_replace(woff_t lo, woff_t hi, const char *s, size_t n)
+{
+	int e = buf_replace(lo, hi - lo, s, n);
+
+	if (e != 0) {
+		msg_errno(e);
+		return -1;
+	}
+	ed_set(lo + (woff_t)n);
+	ed_sel = 0;
+	goal = -1;
+	return 0;
+}
+
 void
 ed_yank(woff_t lo, woff_t hi, int lines)
 {
@@ -534,23 +550,13 @@ type_char(int c)
 	woff_t lo, hi;
 
 	sel_range(&lo, &hi);
-	if (lo < hi) {
-		if (ed_del(lo, hi, 0, 0) != 0)
-			return;
-	} else if (ovr && c != '\n' && buf_at(ed_cur) >= 0 &&
-	    buf_at(ed_cur) != '\n') {
-		int e = buf_replace(ed_cur, 1, &ch, 1);
-
-		if (e != 0) {
-			msg_errno(e);
-			return;
-		}
-		ed_cur++;
-		goal = -1;
-		ext = 0;
-		return;
-	}
-	ed_ins(&ch, 1);
+	if (lo < hi)
+		ed_replace(lo, hi, &ch, 1);
+	else if (ovr && c != '\n' && buf_at(ed_cur) >= 0 &&
+	    buf_at(ed_cur) != '\n')
+		ed_replace(ed_cur, ed_cur + 1, &ch, 1);
+	else
+		ed_ins(&ch, 1);
 	ext = 0;
 }
 

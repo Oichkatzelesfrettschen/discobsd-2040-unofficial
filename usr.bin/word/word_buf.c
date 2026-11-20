@@ -82,6 +82,7 @@ struct urec {
 	woff_t pos;
 	woff_t len;
 	woff_t ref;		/* add stream offset of the text */
+	uint32_t seq;		/* names this record's text state; never reused */
 	uint16_t group;
 	uint8_t kind;
 };
@@ -102,7 +103,8 @@ static uint32_t cache_clock;
 static struct urec ur[NUNDO];
 static unsigned ucount, upos;
 static uint16_t ugroup;
-static uint32_t gen;
+static uint32_t useq;		/* last record sequence number */
+static uint32_t ulost;		/* records dropped from the oldest end */
 static woff_t lowmark;		/* lowest offset edited since buf_lowmark() */
 
 /* Piece lookup hint: the index and document offset of a piece. */
@@ -253,10 +255,16 @@ buf_len(void)
 	return doclen;
 }
 
+/*
+ * The document state as the undo stack names it: the sequence number of the
+ * newest applied record, or a value that moves with each dropped record when
+ * none is applied. Undo back to a state returns its value; an edit after an
+ * undo takes a new record number, so it never returns to a saved one.
+ */
 uint32_t
 buf_gen(void)
 {
-	return gen;
+	return upos > 0 ? ur[upos - 1].seq : 0xffffffffu - ulost;
 }
 
 woff_t
@@ -271,7 +279,6 @@ buf_lowmark(void)
 static void
 touched(woff_t pos)
 {
-	gen++;
 	if (pos < lowmark)
 		lowmark = pos;
 }
@@ -438,12 +445,14 @@ urec_push(int kind, woff_t pos, woff_t len, woff_t ref)
 		if (kind == U_INS && u->kind == U_INS && u->group == ugroup &&
 		    u->pos + u->len == pos && u->ref + u->len == ref) {
 			u->len += len;
+			u->seq = ++useq;
 			return;
 		}
 	}
 	if (ucount == NUNDO) {
 		memmove(&ur[0], &ur[1], (NUNDO - 1) * sizeof(ur[0]));
 		ucount--;
+		ulost++;
 	}
 	u = &ur[ucount++];
 	u->kind = (uint8_t)kind;
@@ -451,6 +460,7 @@ urec_push(int kind, woff_t pos, woff_t len, woff_t ref)
 	u->len = len;
 	u->ref = ref;
 	u->group = ugroup;
+	u->seq = ++useq;
 	upos = ucount;
 }
 
@@ -613,6 +623,7 @@ buf_clear(void)
 	npiece = 0;
 	doclen = 0;
 	ucount = upos = 0;
+	ulost = 0;
 	touched(0);
 	hint_reset();
 }

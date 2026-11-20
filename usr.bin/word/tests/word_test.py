@@ -535,10 +535,75 @@ def t_signal_restore(b, td):
         os.close(s.fd)
 
 
+def type_text(s, text):
+    for i in range(0, len(text), 500):
+        s.send(text[i:i + 500])
+
+
+def t_select_replace(b, td):
+    # Typing over a selection replaces it, in the Word and nano modes.
+    path = os.path.join(td, "n.txt")
+    write(path, b"abc")
+    s = Session(b, ["-k", "nano", path])
+    s.send(b"\x1e", RIGHT, RIGHT, b"X")
+    s.send(b"\x0f", b"\r")
+    s.send(b"\x18")
+    s.close()
+    check(read(path) == b"Xc", "nano typing kept the selection: %r" % read(path))
+    # A failing replacement (no spill directory, add stream full) keeps the
+    # selected text and the document.
+    path = os.path.join(td, "w.txt")
+    s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
+    typed = b"q" * 8186 + b"XYZ"
+    type_text(s, typed)
+    s.send(b"\x1b[1;2D" * 3, b"K")
+    menu(s, b"t", b"s")
+    s.send(b"\r")
+    check(read(path) == typed, "a failed replacement changed the text")
+    menu(s, b"q")
+    s.close(expect_exit=False)
+
+
+def t_dirty_undo(b, td):
+    path = os.path.join(td, "d.txt")
+    s = Session(b, ["-k", "vi", path])
+    s.send(b"iab", ESC, b":w\r")
+    s.send(b"ac", ESC, b"u")
+    s.send(b":q\r")
+    s.close()
+    # Known-bad: an edit after an undo is a different state than the saved one.
+    s = Session(b, ["-k", "vi", path])
+    s.send(b"ix", ESC, b":w\r")
+    s.send(b"u", b"iy", ESC, b":q\r")
+    check(s.has("No write since last change"), "an edit after undo read clean")
+    s.send(b":q!\r")
+    s.close()
+
+
+def t_vi_counts(b, td):
+    path = os.path.join(td, "c.txt")
+    write(path, b"".join(b"l%d\n" % i for i in range(1, 10)))
+    s = Session(b, ["-k", "vi", path])
+    s.send(b"2dd", b"d2d", b"2d2d", b":wq\r")
+    s.close()
+    check(read(path) == b"l9\n", "2dd, d2d and 2d2d left %r" % read(path))
+    write(path, b"a\nb\nc\nd\n")
+    s = Session(b, ["-k", "vi", path])
+    s.send(b"3J", b":wq\r")
+    s.close()
+    check(read(path) == b"a b c\nd\n", "3J left %r" % read(path))
+    write(path, b"x\n")
+    s = Session(b, ["-k", "vi", path])
+    s.send(b"yy", b"2p", b":wq\r")
+    s.close()
+    check(read(path) == b"x\nx\nx\n", "2p left %r" % read(path))
+
+
 TESTS = [t_save_menu, t_wrap, t_search_replace, t_undo_scrap, t_vi, t_nano,
          t_picker, t_large, t_ansi, t_spill_append, t_save_temp,
          t_replace_failure, t_replace_all_local, t_overlong_pattern,
-         t_csi_overflow, t_signal_restore]
+         t_csi_overflow, t_signal_restore, t_select_replace, t_dirty_undo,
+         t_vi_counts]
 
 
 def main():

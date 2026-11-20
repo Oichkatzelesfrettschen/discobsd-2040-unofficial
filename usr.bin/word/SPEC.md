@@ -99,13 +99,19 @@ The key mode is chosen with `-k word`, `-k vi` or `-k nano`, the
   cw cc r yy p P J, i a I A o O, u, / ? n N, :w :q :q! :wq :x ZZ, :e file,
   :e!, :f, :N for a line number, and Ctrl-G. It adds Ctrl-R (redo), v
   (character selection, then d y c or x), :set wrap and :set nowrap,
-  :menu (the Word COMMAND menu) and :help.
+  :menu (the Word COMMAND menu) and :help. A count before a command applies
+  to x, X, J (joins that many lines), p, P and the motions; a count before
+  an operator multiplies with one after it (2d3w removes six words, 2dd
+  and d2d two lines). D, C, Y and r take no count.
 - nano mode inserts every printable key and binds Ctrl-G help, Ctrl-X exit,
   Ctrl-O write, Ctrl-R insert a file, Ctrl-W search, Ctrl-\\ replace,
   Ctrl-K cut the line or selection, Ctrl-U paste, Ctrl-^ set the mark,
   Ctrl-C position, Ctrl-_ go to line, Ctrl-T the file picker, Ctrl-A and Ctrl-E line ends, Ctrl-Y and
   Ctrl-V page up and down, Ctrl-Z or Esc u undo, Esc e redo. Consecutive
-  Ctrl-K cuts accumulate.
+  Ctrl-K cuts accumulate. Typing with the mark set replaces the marked
+  text.
+- A document reads as modified unless its text is the text last loaded or
+  saved; undoing an edit back to that text reads as saved.
 - Key hints: with hints on (the default in nano mode, an option elsewhere)
   two lines above the status line name the main keys of the current mode.
 - Redo (Ctrl-Y in Word mode, Ctrl-R in vi, Esc e in nano) reapplies an

@@ -53,7 +53,7 @@ Output of one clean run (arm-none-eabi-size, Berkeley columns; nm -S for STRUCT)
     STRUCT psd bytes=196
     STRUCT region bytes=32
     STRUCT window bytes=100
-    FIG own_core_prototype text=1232 data=8 bss=51396
+    FIG own_core_prototype text=1240 data=8 bss=51396
     FIG ugui_whole_library text=11906 data=0 bss=12
     FIG lvgl_label_button text=104116 data=0 bss=31484
 

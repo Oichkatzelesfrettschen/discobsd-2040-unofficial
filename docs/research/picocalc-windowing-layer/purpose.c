@@ -109,6 +109,7 @@ static int visible(int i, struct rect *v)
 	int n = 1, j, k, m;
 	v[0] = zorder[i]->r;
 	for (j = i + 1; j < nwin; j++) {
+		if (!zorder[j]->shown) continue;
 		m = 0;
 		for (k = 0; k < n && m + 4 <= MAXCLIP; k++) m += subtract(&v[k], &zorder[j]->r, tmp + m);
 		memcpy(v, tmp, m * sizeof(tmp[0]));

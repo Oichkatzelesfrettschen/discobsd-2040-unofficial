@@ -1619,6 +1619,19 @@ check-license-headers: check-python
 
 .PHONY: check-license-headers
 
+# CI installs its packages through tools/ci_apt_install.sh, which bounds each
+# network phase of apt-get in wall-clock time and retries it: a mirror that
+# trickles bytes never trips apt's idle timeout, and one such download held the
+# flash-id job for 16 minutes. --selftest runs the script against a fake
+# apt-get through a good run, a stalled download, a stalled update, a permanent
+# stall, an install failure and a call with no package, and requires four
+# mutants of the script (no bound, no retry, one-call install, a swallowed final
+# failure) to fail them. It prints a SKIP without timeout(1).
+check-ci-apt-install:
+		sh tools/ci_apt_install.sh --selftest
+
+.PHONY: check-ci-apt-install
+
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
@@ -2085,7 +2098,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene check-license-headers \
+		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
 		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \

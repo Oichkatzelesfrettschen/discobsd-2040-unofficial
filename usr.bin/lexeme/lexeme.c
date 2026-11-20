@@ -27,15 +27,15 @@
  */
 
 /*
- * word: a clean-room word processor in the command model of Word 5.1 for
+ * lexeme: a clean-room word processor in the command model of Word 5.1 for
  * UNIX (SPEC.md), with vi and nano key modes. This file holds the editor
  * core: the cursor and selection, the wrapped layout of paragraphs into
  * display rows, the screen composition, the command menu and its forms,
- * and the Word key mode. word_buf.c holds the document, word_term.c the
- * terminal and word_modes.c the vi and nano keys.
+ * and the Word key mode. lexeme_buf.c holds the document, lexeme_term.c the
+ * terminal and lexeme_modes.c the vi and nano keys.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -229,7 +229,7 @@ cell_w(int c, int col)
 
 /*
  * The properties of the paragraph holding off. Every byte of a paragraph
- * carries them (word_buf.c), so one lookup answers without a scan.
+ * carries them (lexeme_buf.c), so one lookup answers without a scan.
  */
 static const struct word_pap *
 para_pap(woff_t off)
@@ -562,6 +562,24 @@ ed_del(woff_t lo, woff_t hi, int scrap, int append)
 	return 0;
 }
 
+/* Replace [lo, hi) by s in one step; a failure leaves the text as it was. */
+int
+ed_replace(woff_t lo, woff_t hi, const char *s, size_t n)
+{
+	int keep = ins_chp;
+	int e = buf_replace_fmt(lo, hi - lo, s, n, keep);
+
+	if (e != 0) {
+		msg_errno(e);
+		return -1;
+	}
+	ed_set(lo + (woff_t)n);
+	ins_chp = keep;		/* the typing format outlives the typed text */
+	ed_sel = 0;
+	goal = -1;
+	return 0;
+}
+
 void
 ed_yank(woff_t lo, woff_t hi, int lines)
 {
@@ -644,23 +662,13 @@ type_char(int c)
 	woff_t lo, hi;
 
 	sel_range(&lo, &hi);
-	if (lo < hi) {
-		if (ed_del(lo, hi, 0, 0) != 0)
-			return;
-	} else if (ovr && c != '\n' && buf_at(ed_cur) >= 0 &&
-	    buf_at(ed_cur) != '\n') {
-		int e = buf_replace(ed_cur, 1, &ch, 1);
-
-		if (e != 0) {
-			msg_errno(e);
-			return;
-		}
-		ed_cur++;
-		goal = -1;
-		ext = 0;
-		return;
-	}
-	ed_ins(&ch, 1);
+	if (lo < hi)
+		ed_replace(lo, hi, &ch, 1);
+	else if (ovr && c != '\n' && buf_at(ed_cur) >= 0 &&
+	    buf_at(ed_cur) != '\n')
+		ed_replace(ed_cur, ed_cur + 1, &ch, 1);
+	else
+		ed_ins(&ch, 1);
 	ext = 0;
 }
 
@@ -1331,8 +1339,8 @@ form_run(void)
 	case F_RUN:
 		tty_restore();
 		if (system(f_cmd) < 0)
-			perror("word");
-		fputs("\nPress Enter to return to word.", stdout);
+			perror("lexeme");
+		fputs("\nPress Enter to return to lexeme.", stdout);
 		fflush(stdout);
 		{
 			char line[8];
@@ -2253,7 +2261,7 @@ render(void)
 	if (keymode == KEYS_NANO) {
 		char t[WORD_PATH_MAX + 32];
 
-		snprintf(t, sizeof(t), "  word  %s%s", ed_file[0] ? ed_file :
+		snprintf(t, sizeof(t), "  lexeme  %s%s", ed_file[0] ? ed_file :
 		    "New Buffer", ed_dirty() ?
 		    "  Modified" : "");
 		scr_fill(0, 0, scr_cols, A_REV | A_CLS(C_BAR));
@@ -2424,7 +2432,7 @@ dispatch(int k)
 static void
 usage(void)
 {
-	fputs("usage: word [-k word|vi|nano] [-W] [-c] [file]\n",
+	fputs("usage: lexeme [-k word|vi|nano] [-W] [-c] [file]\n",
 	    stderr);
 	exit(2);
 }
@@ -2467,11 +2475,11 @@ main(int argc, char **argv)
 	buf_init();
 	saved_gen = buf_gen();
 	if (path != NULL && strlen(path) >= WORD_PATH_MAX) {
-		fputs("word: file name too long\n", stderr);
+		fputs("lexeme: file name too long\n", stderr);
 		return 1;
 	}
 	if (path != NULL && ed_load(path) != 0) {
-		fprintf(stderr, "word: %s: %s\n", path, msg);
+		fprintf(stderr, "lexeme: %s: %s\n", path, msg);
 		return 1;
 	}
 	if (path == NULL)
@@ -2480,7 +2488,7 @@ main(int argc, char **argv)
 		msg[0] = '\0';
 	tty_size();
 	if (tty_raw() != 0) {
-		perror("word: tty");
+		perror("lexeme: tty");
 		return 1;
 	}
 	vi_reset();

@@ -27,7 +27,7 @@
  */
 
 /*
- * word_buf.c: the document as a piece table.
+ * lexeme_buf.c: the document as a piece table.
  *
  * A piece names a run of bytes in one of two sources: the loaded file,
  * which stays open read-only and is read on demand, or the add stream,
@@ -44,7 +44,7 @@
  * readable, so the pieces stay valid after the rename.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -94,6 +94,7 @@ struct urec {
 	woff_t pos;
 	woff_t len;
 	woff_t ref;		/* add stream offset of the text */
+	uint32_t seq;		/* names this record's text state; never reused */
 	uint16_t group;
 	uint8_t kind, chp, pap, nchp, npap;
 };
@@ -118,7 +119,8 @@ static uint32_t cache_clock;
 static struct urec ur[NUNDO];
 static unsigned ucount, upos;
 static uint16_t ugroup;
-static uint32_t gen;
+static uint32_t useq;		/* last record sequence number */
+static uint32_t ulost;		/* records dropped from the oldest end */
 static woff_t lowmark;		/* lowest offset edited since buf_lowmark() */
 
 /* Piece lookup hint: the index and document offset of a piece. */
@@ -269,10 +271,16 @@ buf_len(void)
 	return doclen;
 }
 
+/*
+ * The document state as the undo stack names it: the sequence number of the
+ * newest applied record, or a value that moves with each dropped record when
+ * none is applied. Undo back to a state returns its value; an edit after an
+ * undo takes a new record number, so it never returns to a saved one.
+ */
 uint32_t
 buf_gen(void)
 {
-	return gen;
+	return upos > 0 ? ur[upos - 1].seq : 0xffffffffu - ulost;
 }
 
 woff_t
@@ -287,7 +295,6 @@ buf_lowmark(void)
 static void
 touched(woff_t pos)
 {
-	gen++;
 	if (pos < lowmark)
 		lowmark = pos;
 }
@@ -544,12 +551,14 @@ urec_push(int kind, woff_t pos, woff_t len, woff_t ref, unsigned chp,
 		    u->pos + u->len == pos && u->ref + u->len == ref &&
 		    u->chp == chp && u->pap == pap) {
 			u->len += len;
+			u->seq = ++useq;
 			return NULL;
 		}
 	}
 	if (ucount == NUNDO) {
 		memmove(&ur[0], &ur[1], (NUNDO - 1) * sizeof(ur[0]));
 		ucount--;
+		ulost++;
 	}
 	u = &ur[ucount++];
 	memset(u, 0, sizeof(*u));
@@ -560,6 +569,7 @@ urec_push(int kind, woff_t pos, woff_t len, woff_t ref, unsigned chp,
 	u->chp = (uint8_t)chp;
 	u->pap = (uint8_t)pap;
 	u->group = ugroup;
+	u->seq = ++useq;
 	upos = ucount;
 	return u;
 }
@@ -664,12 +674,14 @@ has_break(woff_t pos, woff_t n)
 }
 
 /*
- * Replace n bytes at pos by s[0..len). Both texts are staged in the add
+ * Replace n bytes at pos by s[0..len); fchp >= 0 names the character
+ * properties of the new text (the typing format), otherwise it takes those
+ * of the first byte it replaces. Both texts are staged in the add
  * stream and the piece slots are secured before the document changes, so a
  * failure leaves the document and the undo records as they were.
  */
 int
-buf_replace(woff_t pos, woff_t n, const char *s, size_t len)
+buf_replace_fmt(woff_t pos, woff_t n, const char *s, size_t len, int fchp)
 {
 	woff_t dref = 0, iref = 0, end, s0, run;
 	unsigned chp, pap, i, c, p;
@@ -678,18 +690,29 @@ buf_replace(woff_t pos, woff_t n, const char *s, size_t len)
 	if (pos > doclen || n > doclen - pos)
 		return EINVAL;
 	nl = has_break(pos, n);
-	/* The replacement takes the properties of the first byte it replaces. */
 	buf_props_for(pos, &chp, &pap);
 	if (n > 0 && (v = buf_props(pos)) >= 0)
 		chp = (unsigned)(v & 0xff);
+	if (fchp >= 0)
+		chp = (unsigned)fchp;
 	if (n == 0 && len == 0)
 		return 0;
 	if (len > 0 && (e = add_append(s, len, &iref)) != 0)
 		return e;
 	if (n > 0 && (e = add_copy(pos, n, &dref)) != 0)
 		return e;
-	if (npiece + 4 > NPIECE && (e = compact()) != 0)
-		return e;
+	/*
+	 * Reserve every slot the call can need before the document changes:
+	 * two splits for the deleted range, two for the inserted piece and
+	 * two for the paragraph rejoin. A shortage after compaction fails
+	 * here, with the text and the undo records as they were.
+	 */
+	if (npiece + 8 > NPIECE) {
+		if ((e = compact()) != 0)
+			return e;
+		if (npiece + 8 > NPIECE)
+			return ENOSPC;
+	}
 	/* One undo record per property run, as buf_delete() makes them. */
 	for (end = pos + n; end > pos; end -= run) {
 		i = piece_find(end - 1, &s0);
@@ -705,6 +728,12 @@ buf_replace(woff_t pos, woff_t n, const char *s, size_t len)
 	if (len > 0)
 		urec_push(U_INS, pos, (woff_t)len, iref, chp, pap);
 	return nl ? rejoin(pos + (woff_t)len) : 0;
+}
+
+int
+buf_replace(woff_t pos, woff_t n, const char *s, size_t len)
+{
+	return buf_replace_fmt(pos, n, s, len, -1);
 }
 
 int
@@ -887,6 +916,7 @@ buf_clear(void)
 	doclen = 0;
 	ucount = upos = 0;
 	nchp = npap = 1;
+	ulost = 0;
 	touched(0);
 	hint_reset();
 }

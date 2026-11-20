@@ -27,14 +27,14 @@
  */
 
 /*
- * word_modes.c: the vi and nano key modes (SPEC.md, Modern modes). Both
- * drive the editor core of word.c, so they share its document, scrap,
+ * lexeme_modes.c: the vi and nano key modes (SPEC.md, Modern modes). Both
+ * drive the editor core of lexeme.c, so they share its document, scrap,
  * undo groups, forms and file picker. vi follows the commands of this
  * system's vi (usr.bin/stevie) and adds visual selection, redo and :set;
  * nano binds its control keys to the same core commands.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -42,7 +42,7 @@
 
 enum { VI_NORMAL = 0, VI_INSERT, VI_VISUAL, VI_CMD };
 
-static int vst, vcount, vop, vpend;
+static int vst, vcount, vop, vpend, vprefix;
 static char vcmd[WORD_FIELD_MAX];
 static size_t vcmdlen;
 static char vpat[WORD_FIELD_MAX];
@@ -397,7 +397,7 @@ insert_key(int k)
 void
 vi_key(int k)
 {
-	int n, lines;
+	int n, lines, i;
 	woff_t p;
 
 	if (vst == VI_CMD) {
@@ -414,10 +414,11 @@ vi_key(int k)
 		    buf_at(ed_cur) != '\n') {
 			char c = (char)k;
 
+			woff_t at = ed_cur;
+
 			buf_mark();
-			ed_del(ed_cur, ed_cur + 1, 0, 0);
-			ed_ins(&c, 1);
-			ed_set(ed_cur - 1);
+			if (ed_replace(at, at + 1, &c, 1) == 0)
+				ed_set(at);
 		}
 		return;
 	}
@@ -442,6 +443,8 @@ vi_key(int k)
 		return;
 	}
 	n = vcount > 0 ? vcount : 1;
+	if (vop != 0 && vprefix > 1)	/* 2d3w is six words, as in vi */
+		n = vprefix > 100000 / n ? 100000 : vprefix * n;
 	p = ed_cur;
 	if (vop == 'c' && k == 'w') {
 		/* cw changes to the end of the word, as ce does. */
@@ -512,6 +515,7 @@ vi_key(int k)
 	case 'c':
 	case 'y':
 		vop = k;
+		vprefix = n;
 		return;
 	case 'g':
 	case 'Z':
@@ -537,27 +541,35 @@ vi_key(int k)
 		apply_op('y', ed_cur, ed_cur, 1);
 		return;
 	case 'J':
-		p = ed_eol(ed_cur);
-		if (buf_at(p) == '\n') {
-			woff_t q = p + 1;
-			int c;
+		/* nJ joins n lines, as n - 1 joins. */
+		buf_mark();
+		for (i = n > 2 ? n - 1 : 1; i > 0; i--) {
+			p = ed_eol(ed_cur);
+			if (buf_at(p) == '\n') {
+				woff_t q = p + 1;
+				int c;
 
-			while ((c = buf_at(q)) == ' ' || c == '\t')
-				q++;
-			buf_mark();
-			ed_del(p, q, 0, 0);
-			ed_ins(" ", 1);
-			ed_set(p);
+				while ((c = buf_at(q)) == ' ' || c == '\t')
+					q++;
+				if (ed_replace(p, q, " ", 1) != 0)
+					break;
+				ed_set(p);
+			}
 		}
 		return;
 	case 'p':
 	case 'P':
 		buf_mark();
-		if (scrap_lines)
-			paste_lines(k == 'p');
-		else
-			ed_paste(k == 'p' && buf_at(ed_cur) >= 0 &&
-			    buf_at(ed_cur) != '\n' ? ed_cur + 1 : ed_cur);
+		for (i = 0; i < n && i < 1000; i++) {
+			if (scrap_lines)
+				paste_lines(k == 'p');
+			else if (i > 0)
+				ed_paste(ed_cur);
+			else
+				ed_paste(k == 'p' && buf_at(ed_cur) >= 0 &&
+				    buf_at(ed_cur) != '\n' ? ed_cur + 1 :
+				    ed_cur);
+		}
 		return;
 	case 'i':
 		enter_insert();
@@ -766,7 +778,11 @@ nano_key(int k)
 	if (k == K_ENTER || k == K_TAB || (k >= ' ' && k < 0x7f)) {
 		char ch = k == K_ENTER ? '\n' : (char)k;
 
-		ed_sel = 0;
-		ed_ins(&ch, 1);
+		if (lo < hi)
+			ed_replace(lo, hi, &ch, 1);
+		else {
+			ed_sel = 0;
+			ed_ins(&ch, 1);
+		}
 	}
 }

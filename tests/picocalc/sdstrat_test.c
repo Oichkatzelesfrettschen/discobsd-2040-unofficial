@@ -145,11 +145,13 @@ int
 sdspi_read_span(struct sdspi *sd __attribute__((unused)), unsigned sector,
     unsigned char *buf, unsigned off, unsigned len)
 {
+	command_entered();
 	if (sector >= CARD_SECTORS || (int)sector == fail_sector ||
 	    off > SD_SECTOR || len > SD_SECTOR - off)
 		return SDE_IO;
 	nread[sector]++;
 	memcpy(buf, card[sector] + off, len);
+	command_done(sector);
 	return SDE_OK;
 }
 

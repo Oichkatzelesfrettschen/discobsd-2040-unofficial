@@ -81,11 +81,33 @@ esac
 # for make to treat as current. The scratch tree copies read-only
 # directories, which chmod reopens before the plain recursive remove.
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/mksdroot.XXXXXX")
-NEW=$OUT.new.$$
-trap 'chmod -R u+w "$WORK" 2>/dev/null; rm -r "$WORK"; rm -f "$NEW"' EXIT HUP INT TERM
+OUTDIR=$(mktemp -d "${OUT}.new.XXXXXXXX") || { rmdir "$WORK"; exit 1; }
+NEW=$OUTDIR/image
+trap 'chmod -R u+w "$WORK" 2>/dev/null; rm -r "$WORK"; rm -f "$NEW"; rmdir "$OUTDIR"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+if [ -d "$OUT" ]; then
+	echo "mksdroot: output is a directory" >&2
+	exit 2
+fi
 
 cp -pR "$DESTDIR" "$WORK/tree"
-chmod u+w "$WORK/tree/etc" "$WORK/tree/etc/fstab" 2>/dev/null || true
+# Inspect each component in the private copy before opening a writable path.
+for directory in "$WORK/tree" "$WORK/tree/etc"; do
+	if [ -L "$directory" ] || [ ! -d "$directory" ]; then
+		echo "mksdroot: the staged root and etc must be directories" >&2
+		exit 1
+	fi
+done
+for name in fstab ttys; do
+	path=$WORK/tree/etc/$name
+	if [ -L "$path" ] || [ ! -f "$path" ]; then
+		echo "mksdroot: staged etc/$name must be a regular file" >&2
+		exit 1
+	fi
+done
+chmod u+w "$WORK/tree/etc" "$WORK/tree/etc/fstab"
 printf '/dev/sd0%s\t/\tufs\trw,async,noaccesstime\t1\t1\n' "$PART" \
     > "$WORK/tree/etc/fstab"
 
@@ -125,7 +147,6 @@ done
 grep -qx "bdev /dev/sd0t" "$WORK/manifest" ||
 	printf 'bdev /dev/sd0t\nmajor 5\nminor 5\nmode 0600\n' >> "$WORK/manifest"
 
-rm -f "$NEW"
 "$FSUTIL" --new --size="$KBYTES" --inodes=$((KBYTES / 8)) \
     --manifest="$WORK/manifest" "$NEW" \
     "$WORK/tree" >/dev/null

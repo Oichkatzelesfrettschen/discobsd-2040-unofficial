@@ -23,13 +23,13 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-# word -- the clean-room word processor of SPEC.md. The rp2040 build is
-# installed to /usr/bin/word, which the PicoCalc SD root carries
+# lexeme -- the clean-room word processor of SPEC.md. The rp2040 build is
+# installed to /usr/bin/lexeme, which the PicoCalc SD root carries
 # (distrib/rp2040/mksdmanifest.py); the flash root manifest leaves it out.
 #
 #   all     the target program
-#   host    word.host, the same sources over termios
-#   test    the PTY tests of tests/word_test.py, as a native and an ILP32
+#   host    lexeme.host, the same sources over termios
+#   test    the PTY tests of tests/lexeme_test.py, as a native and an ILP32
 #           program, then the mutants
 #
 # The caller selects PYTHON, as for every Python-backed gate in the tree.
@@ -38,9 +38,9 @@ TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 BINDIR=		/usr/bin
-PROG=		word
-SRCS=		word.c word_buf.c word_doc.c word_find.c word_menus.c \
-		word_modes.c word_pick.c word_term.c
+PROG=		lexeme
+SRCS=		lexeme.c lexeme_buf.c lexeme_doc.c lexeme_find.c lexeme_menus.c \
+		lexeme_modes.c lexeme_pick.c lexeme_term.c
 OBJS=		${SRCS:.c=.o}
 CFLAGS		+= -std=c17
 
@@ -52,15 +52,15 @@ ${PROG}:	${OBJS}
 		${SIZE} $@.elf
 		${ELF2AOUT} $@.elf $@ && rm $@.elf
 
-${OBJS}:	word.h
+${OBJS}:	lexeme.h
 
 HOSTCC?=	cc
 HOST_CFLAGS=	-std=c17 -D_DEFAULT_SOURCE -DTERMIOS -Wall -Wextra -Werror \
 		-Wshadow -O1
 
-host:		word.host
+host:		lexeme.host
 
-word.host:	${SRCS} word.h
+lexeme.host:	${SRCS} lexeme.h
 		${HOSTCC} ${HOST_CFLAGS} -o $@ ${SRCS}
 
 require-python:
@@ -70,7 +70,7 @@ require-python:
 		fi
 
 test-pty:	require-python host
-		${PYTHON} -I -u tests/word_test.py ./word.host
+		${PYTHON} -I -u tests/lexeme_test.py ./lexeme.host
 
 # The same tests as an ILP32 program: long and size_t are 32 bits there,
 # as on the target.
@@ -78,10 +78,10 @@ M32_OK!=	sh ${TOPSRC}/tools/compiler-probe.sh ilp32 ${HOSTCC} -m32
 
 test-pty32:	require-python
 .if ${M32_OK} == "yes"
-		${HOSTCC} ${HOST_CFLAGS} -m32 -o word.host32 ${SRCS}
-		${PYTHON} -I -u tests/word_test.py ./word.host32
+		${HOSTCC} ${HOST_CFLAGS} -m32 -o lexeme.host32 ${SRCS}
+		${PYTHON} -I -u tests/lexeme_test.py ./lexeme.host32
 .else
-		@echo "SKIP word ILP32: ${HOSTCC} -m32 does not link and run; no 32-bit run occurred"
+		@echo "SKIP lexeme ILP32: ${HOSTCC} -m32 does not link and run; no 32-bit run occurred"
 .endif
 
 test-mutants:	require-python
@@ -90,7 +90,7 @@ test-mutants:	require-python
 test:		test-pty test-pty32 .WAIT test-mutants
 
 clean:
-		rm -f *.o *.elf *.dis ${PROG} word.host word.host32
+		rm -f *.o *.elf *.dis ${PROG} lexeme.host lexeme.host32
 		rm -rf tests/__pycache__
 
 install:	all

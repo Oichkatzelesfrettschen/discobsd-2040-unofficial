@@ -1,7 +1,0 @@
-/word
-/word.elf
-/word.dis
-/word.host
-/word.host32
-/*.o
-/tests/__pycache__/

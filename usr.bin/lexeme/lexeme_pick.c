@@ -27,7 +27,7 @@
  */
 
 /*
- * word_pick.c: the file picker (SPEC.md, Modern modes). It lists one
+ * lexeme_pick.c: the file picker (SPEC.md, Modern modes). It lists one
  * directory, subdirectories first and each marked with '/', into a fixed
  * name pool; a directory with more entries than the pool holds lists its
  * first PICK_MAX names and says so on the title line. Directories are read
@@ -35,7 +35,7 @@
  * interface on DiscoBSD.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

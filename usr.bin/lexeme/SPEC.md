@@ -1,13 +1,14 @@
-# word: behavior specification
+# lexeme: behavior specification
 
-`word` is a clean-room word processor for DiscoBSD that follows the command
+`lexeme` is a clean-room word processor for DiscoBSD that follows the command
 model of Microsoft Word 5.1 for UNIX and adds modern editing modes. This
 document states the behavior the program implements, in this project's own
 words. Its sources are short interface facts (menu names, key bindings,
 prompt field names) from the original's menus, key list and manual, and the
-screens the original drew when it ran on a Linux host under ibcs-us.
-No code, table or prose of the original is reproduced here or in the
-program, and features whose behavior those sources do not fix are left out
+screens the original drew when it ran on a Linux host under ibcs-us, and
+the document files the original saves (see Word document files). No code,
+table or prose of the original is reproduced here or in the program, and
+features whose behavior those sources do not fix are left out
 and listed at the end.
 
 ## Screen
@@ -116,7 +117,11 @@ and listed at the end.
   until the cursor moves; a paragraph change applies to the cursor's
   paragraph. Typed text takes the properties of the character before it.
   Undo and redo cover formatting changes, and the scrap keeps the
-  properties of the text it holds.
+  properties of the text it holds. Typing over a selection replaces it in
+  one step and one undo record; the new text takes the typing format when
+  one is pending, otherwise the properties of the first replaced
+  character. A replacement that cannot be stored leaves the selected text
+  and its properties as they were.
 - The console shows bold as bold, underline and double underline as
   underline, italic in green, strikethrough in red, super- and subscript
   in magenta, hidden text in gray, uppercase and small capitals as
@@ -131,9 +136,16 @@ and listed at the end.
 ## Word document files
 
 The program reads and writes the document files of Word 5.1 for UNIX.
-The layout below was established by saving documents that differ in one
-property from the original program and comparing the files, and checked
-by loading files this program writes back into the original.
+
+Provenance. The layout below was established by observation of the
+original program's files and nothing else. Documents that differ in one
+property were saved by the original and the files compared byte by byte, and
+hand-built files, written to test a hypothesis about one field, were
+loaded into the original to see whether it accepted them and what it drew.
+No code of the original was decompiled, disassembled or translated into
+this program; every offset, flag value and default below is a stated
+observation of a file, and the constants in `lexeme_doc.c` carry only
+those values.
 
 - The file is 128-byte pages, little-endian. Page 0 is the header: the
   identifier 0xBE31 at 0, the document type 0 at 2, 0xAB00 at 4, the end
@@ -181,13 +193,19 @@ The key mode is chosen with `-k word`, `-k vi` or `-k nano`, the
   cw cc r yy p P J, i a I A o O, u, / ? n N, :w :q :q! :wq :x ZZ, :e file,
   :e!, :f, :N for a line number, and Ctrl-G. It adds Ctrl-R (redo), v
   (character selection, then d y c or x), :set wrap and :set nowrap,
-  :menu (the Word COMMAND menu) and :help.
+  :menu (the Word COMMAND menu) and :help. A count before a command applies
+  to x, X, J (joins that many lines), p, P and the motions; a count before
+  an operator multiplies with one after it (2d3w removes six words, 2dd
+  and d2d two lines). D, C, Y and r take no count.
 - nano mode inserts every printable key and binds Ctrl-G help, Ctrl-X exit,
   Ctrl-O write, Ctrl-R insert a file, Ctrl-W search, Ctrl-\\ replace,
   Ctrl-K cut the line or selection, Ctrl-U paste, Ctrl-^ set the mark,
   Ctrl-C position, Ctrl-_ go to line, Ctrl-T the file picker, Ctrl-A and Ctrl-E line ends, Ctrl-Y and
   Ctrl-V page up and down, Ctrl-Z or Esc u undo, Esc e redo. Consecutive
-  Ctrl-K cuts accumulate.
+  Ctrl-K cuts accumulate. Typing with the mark set replaces the marked
+  text.
+- A document reads as modified unless its text is the text last loaded or
+  saved; undoing an edit back to that text reads as saved.
 - Key hints: with hints on (the default in nano mode, an option elsewhere)
   two lines above the status line name the main keys of the current mode.
 - Redo (Ctrl-Y in Word mode, Ctrl-R in vi, Esc e in nano) reapplies an
@@ -225,10 +243,10 @@ The key mode is chosen with `-k word`, `-k vi` or `-k nano`, the
 
 ## Left out
 
-The original's character and paragraph formatting, style sheets, Gallery,
+The original's fonts, colors, tab stops, style sheets, Gallery,
 windows, printing, spelling, thesaurus, hyphenation, outlining, macros,
-glossaries, footnotes, bookmarks, annotations, revision marks, the mouse,
-and its own document file format: the sources give their names but not
+glossaries, footnotes, bookmarks, annotations, revision marks and the
+mouse: the sources give their names but not
 behavior this program could reproduce in a plain-text document, or they
 need a layout engine beyond the 192 KiB process window. Menu leaves for
 them report that they are not available.

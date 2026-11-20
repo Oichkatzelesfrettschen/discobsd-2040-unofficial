@@ -27,7 +27,7 @@
  */
 
 /*
- * word_doc.c: reading and writing Word 5.1 document files (SPEC.md, Word
+ * lexeme_doc.c: reading and writing Word 5.1 document files (SPEC.md, Word
  * document files).
  *
  * The file is 128-byte pages. Page 0 is the header, the text starts at
@@ -45,7 +45,7 @@
  * the file open.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

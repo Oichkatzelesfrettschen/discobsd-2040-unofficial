@@ -46,6 +46,11 @@ FONT_INCLUDE = '#include "../../sys/arch/rp2040/dev/lcdfont.h"'
 
 # (name, original text, replacement)
 MUTATIONS = (
+    (
+        "bits_on_by_default",
+        "\ts->be = *be;\n",
+        "\ts->be = *be;\n\ts->bits = win_lcdgfx_bits;\n",
+    ),
     ("baseline", "", ""),
     (
         "dropped_destroy_damage",
@@ -205,8 +210,8 @@ MUTATIONS = (
     ),
     (
         "bits_fg_bg_swapped",
-        "s->be.bits(s->be.self, x, y, w, h, fg, bg, buf)",
-        "s->be.bits(s->be.self, x, y, w, h, bg, fg, buf)",
+        "s->bits(s->be.self, x, y, w, h, fg, bg, buf)",
+        "s->bits(s->be.self, x, y, w, h, bg, fg, buf)",
     ),
     (
         "bits_rows_not_padded",
@@ -220,8 +225,8 @@ MUTATIONS = (
     ),
     (
         "bits_never_used",
-        "if (s->be.bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)",
-        "if (0 && s->be.bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)",
+        "if (s->bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)",
+        "if (0 && s->bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)",
     ),
     (
         "bits_one_column_packed",
@@ -432,6 +437,11 @@ LCD_MUTATIONS = (
 
 # win_widget.c: (name, original text, replacement)
 WIDGET_MUTATIONS = (
+    (
+        "field_enter_always_consumed",
+        "\t\treturn r < 0 ? -1 : r > 0 ? 0 : 1;\n\t}\n\tif (k >= 0x20",
+        "\t\treturn r < 0 ? -1 : 1;\n\t}\n\tif (k >= 0x20",
+    ),
     ("baseline", "", ""),
     (
         "traversal_skips_a_control",

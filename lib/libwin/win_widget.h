@@ -231,7 +231,11 @@ struct wgt_menubar {
  * value it will take), a field's Enter (0), a list's Enter (the selected
  * item), a menu entry (0; the entry's id). The hook runs before the control
  * changes state and may veto it by returning -1, which the handler reports.
+ * For a field's or list's Enter a hook may return WGT_ACT_PASS to leave the
+ * key unhandled; a dialog without a hook of its own does so, so Enter in a
+ * field presses the default OK.
  */
+#define WGT_ACT_PASS	1		/* Hook result: leave the key unhandled. */
 typedef int (*wgt_act_fn)(struct wgt_form *f, struct wgt *w, int id, int value);
 
 struct wgt_form {

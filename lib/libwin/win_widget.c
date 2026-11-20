@@ -1585,7 +1585,7 @@ field_key(struct wgt_form *f, struct wgt_field *w, const struct win_event *ev)
 	if (k == WIN_KEY_ENTER) {
 		r = ev->kind == WIN_EV_PRESS && f->act != NULL ?
 		    f->act(f, &w->head, w->head.id, 0) : 0;
-		return r < 0 ? -1 : 1;
+		return r < 0 ? -1 : r > 0 ? 0 : 1;
 	}
 	if (k >= 0x20 && k <= 0x7e)
 		r = w->len < w->cap - 1 ? wgt_field_insert(f, w, k) : 0;
@@ -1614,7 +1614,7 @@ list_key(struct wgt_form *f, struct wgt_list *w, const struct win_event *ev)
 	if (k == WIN_KEY_ENTER) {
 		r = ev->kind == WIN_EV_PRESS && w->n > 0 && f->act != NULL ?
 		    f->act(f, &w->head, w->head.id, w->sel) : 0;
-		return r < 0 ? -1 : 1;
+		return r < 0 ? -1 : r > 0 ? 0 : 1;
 	}
 	if (w->n == 0)
 		return 0;
@@ -1726,7 +1726,10 @@ dlg_act(struct wgt_form *f, struct wgt *w, int id, int value)
 		return wgt_dialog_finish(d, WGT_RES_OK);
 	if (w->kind == WGT_BUTTON && id == WGT_ID_CANCEL && d->has_cancel)
 		return wgt_dialog_finish(d, WGT_RES_CANCEL);
-	return d->act != NULL ? d->act(f, w, id, value) : 0;
+	if (d->act != NULL)
+		return d->act(f, w, id, value);
+	/* No hook for a field or list: leave Enter to the dialog's default OK. */
+	return w->kind == WGT_FIELD || w->kind == WGT_LIST ? WGT_ACT_PASS : 0;
 }
 
 static int

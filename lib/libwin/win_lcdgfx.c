@@ -71,8 +71,8 @@ lcdgfx_rect(void *self, int x, int y, int w, int h, const unsigned char *px)
 }
 
 /* A two-color rectangle: LCDG_WIN_BITS rows with the two palette entries. */
-static int
-lcdgfx_bits(void *self, int x, int y, int w, int h, int fg, int bg,
+int
+win_lcdgfx_bits(void *self, int x, int y, int w, int h, int fg, int bg,
     const unsigned char *rows)
 {
 	const struct win_lcdgfx *st = self;
@@ -124,5 +124,4 @@ win_lcdgfx_init(struct win_backend *be, struct win_lcdgfx *st, int fd)
 	be->rect = lcdgfx_rect;
 	be->palette = lcdgfx_palette;
 	be->self = st;
-	be->bits = lcdgfx_bits;
 }

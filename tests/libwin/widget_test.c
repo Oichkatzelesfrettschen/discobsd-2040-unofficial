@@ -866,9 +866,9 @@ new_scene(void)
 	be.rect = be_rect;
 	be.palette = NULL;
 	be.self = NULL;
-	be.bits = bits_enabled ? be_bits : NULL;
 	if (win_scene_init(&scene, &be) != 0)
 		fail("win_scene_init");
+	win_scene_set_bits(&scene, bits_enabled ? be_bits : NULL);
 	win_input_init(&inp);
 }
 
@@ -1787,6 +1787,25 @@ run_dialog(void)
 		fail("the dialog did not give the focus back to its opener");
 	if (win_destroy(&scene, b) != 0)
 		fail("destroy b");
+	/* Enter in a field of a dialog without a hook presses OK. */
+	{
+		static struct wgt_field fld;
+		static char fbuf[8];
+
+		if (wgt_dialog_init(&dlg, &inp, "Edit", 130, 80, 1) != 0 ||
+		    wgt_field_init(&fld, 3, 8, 10, 100, fbuf, sizeof(fbuf)) != 0 ||
+		    wgt_add(&dlg.form, &fld.head) != 0 ||
+		    wgt_dialog_open(&dlg, &scene, 95, 100) != 0)
+			fail("dialog with a field");
+		if (dlg.form.focus != 0)
+			fail("the field must hold the focus first");
+		(void)feed(press('a', 0));
+		if (feed(press(WIN_KEY_ENTER, 0)) != WIN_DISP_WINDOW ||
+		    dlg.result != WGT_RES_OK || fbuf[0] != 'a')
+			fail("Enter in a dialog field did not press OK (result %d)", dlg.result);
+		/* A hook that consumes Enter keeps the dialog open. */
+		dlg.result = WGT_RES_NONE;
+	}
 	/* A backend failure: open and finish fail whole and can be repeated. */
 	for (r = 0; r < 2; r++) {
 		build_world();

@@ -801,13 +801,14 @@ reset_world(void)
 	win_lcdgfx_init(&backend, &lcd, MODEL_FD);
 	if (win_scene_init(&scene, &backend) != 0)
 		fail("win_scene_init");
+	win_scene_set_bits(&scene, win_lcdgfx_bits);
 }
 
 /* The fixed byte-count cases below count one byte per pixel. */
 static void
 use_bits(int on)
 {
-	scene.be.bits = on ? backend.bits : NULL;
+	win_scene_set_bits(&scene, on ? win_lcdgfx_bits : NULL);
 }
 
 static void
@@ -3165,6 +3166,14 @@ run_bits(void)
 {
 	struct twin *a = &tw[0];
 
+	reset_world();
+	/* A scene that never called win_scene_set_bits() sends indexed strips only. */
+	if (win_scene_init(&scene, &backend) != 0)
+		fail("win_scene_init");
+	n_bits_windows = 0;
+	n_index_windows = 0;
+	if (win_flush(&scene) != 0 || n_bits_windows != 0 || n_index_windows == 0)
+		fail("a scene without win_scene_set_bits() used the bits path");
 	reset_world();
 	mask_all = 1;
 	op_index = -4;

@@ -458,8 +458,8 @@ send_strip(struct win_scene *s, int x, int y, int w, int h, unsigned char *buf)
 {
 	int fg, bg;
 
-	if (s->be.bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)
-		return s->be.bits(s->be.self, x, y, w, h, fg, bg, buf);
+	if (s->bits != NULL && pack_bits(buf, w, h, &fg, &bg) != 0)
+		return s->bits(s->be.self, x, y, w, h, fg, bg, buf);
 	if (s->be.rect == NULL)
 		return -1;
 	return s->be.rect(s->be.self, x, y, w, h, buf);
@@ -530,6 +530,12 @@ win_scene_init(struct win_scene *s, const struct win_backend *be)
 	memset(s->buf, WIN_GUARD_BYTE, sizeof(s->buf));
 	damage_add(s, 0, 0, WIN_PANEL_W, WIN_PANEL_H);
 	return 0;
+}
+
+void
+win_scene_set_bits(struct win_scene *s, win_bits_fn fn)
+{
+	s->bits = fn;
 }
 
 int

@@ -1,0 +1,8 @@
+/i86
+/i86.elf
+/i86.0
+/i86-host
+/*.o
+/tests/sstrun
+/tests/sstrun-arm
+/tests/__pycache__/

@@ -2107,7 +2107,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
-		check-fstat-host check-sh-editor \
+		check-i86-host check-fstat-host check-sh-editor \
 		check-cp-host check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver \
 		check-libwin-host
@@ -2270,6 +2270,13 @@ check-picofetch-host: check-python
 # mutants. The panel read of usr.bin/scrshot/scrshot.c runs on no host.
 check-scrshot-host: check-python
 		${MAKE} -C usr.bin/scrshot test
+
+# i86 on the host: the guest program of usr.bin/i86/tests/guest.asm on the
+# 8086, 80186 and 80286 with 8, 64 and 640 resident pages, the terminal
+# replay, the sampled 8088 vectors, then the mutants. The target a.out
+# runs on no host.
+check-i86-host: check-python
+		${MAKE} -C usr.bin/i86 test
 
 # lexeme on a 53x32 pseudo-terminal: the Word, vi and nano key modes, wrap,
 # search and replace, undo, the scrap, the file picker and a document past
@@ -2568,6 +2575,7 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/smlrc test
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libcalc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/calc check-qemu
+		REQUIRE_QEMU=1 ${MAKE} -C usr.bin/i86 check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libbn check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/dcbc check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/libc_contracts check-qemu
@@ -2871,7 +2879,7 @@ installfs:
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
-		check-fstat-host check-sh-editor check-tar-host \
+		check-i86-host check-fstat-host check-sh-editor check-tar-host \
 		check-libwin-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \

@@ -51,6 +51,7 @@ page in those files without carrying them here.
 | `GPIO.md` | the pins `/dev/porta` and `/dev/portb` reach on each board, the requests they take and what is refused | `sys/arch/rp2040/dev/gpio.c`, `sys/arch/rp2040/include/gpio.h`, `distrib/rp2040/mi.rp2040` |
 | `MPU.md` | the Cortex-M0+ MPU map the kernel programs, the registers it reads back, and the fault test that proves it | `sys/arch/rp2040/rp2040/mpu.c`, `usr.bin/mputest` |
 | `MULTICALL-BSS-OVERLAY.md` | how applets in one multicall binary share a BSS lifetime | the multicall `*.c.in` generators |
+| `I86.md` | the PC emulator `i86`: processor models and where each differs, the pager and its page-size measurement, the firmware services, cost per interpreter step, limits, and the evidence each claim has | `usr.bin/i86`, `usr.bin/i86/Makefile` |
 | `PICOCALC.md` | the PicoCalc pin map, the console drivers' timing and protocol choices, the evidence each has, and the next board work | `sys/arch/rp2040/dev/picocalc.h`, `compile/PICOCALC/Config` |
 | `PROFILES.md` | the root filesystem profiles, the measured block cost of each optional closure, and what the composition checker refuses | `distrib/rp2040/mi.rp2040`, `profiles`, `mkmanifest.py`, `Makefile.inc`, the root `Makefile` |
 | `STORAGE.md` | the flash budget and the 128 KB / 1536 KB / 384 KB layout chosen | `distrib/rp2040/Makefile.inc` |
@@ -370,6 +371,7 @@ names; a correction goes in a new document rather than in the ledger.
 | `audit-handbacks/step5-omagic-crosscheck-handback.md` | the OMAGIC candidate cross-check |
 | `audit-handbacks/step5-printf-float-handback.md` | printf floating conversion, its source and linkage |
 | `sixteen-bit-audit-response.md` | the 16-bit assumption audit ruled item by item: kernel items closed in `ce33939` with the `tsleep` bound gated since, the libtcl extent, cache, reference-count, separator, regexp and regsub defects, the `vmrate` counters and the `ps` UID width repaired with calibrated gates, retained narrow formats, and deferrals with their validation paths |
+| `i86-dos-emulator.md` | what `i86` does not do yet, each item scoped: keyboard interrupt and mouse, graphics and 80 columns, Windows 3.0, disk exchange, a DOS set, protected mode, expanded memory and compression, network, speed; with the Renode transcripts, measurement tools and the SvarDOS floppy maker in `i86-dos-emulator/` |
 | `picocalc-emulation.md` | the PicoCalc survey of emulators (Renode, rp2040js, QEMU), the Renode carrier model for the ST7365P panel and the keyboard controller, the four SPI-path corrections to the pinned RP2040 models, and the host-to-hardware test pipeline |
 | `picocalc-session-handoff.md` | the PicoCalc hand-off: what PRs #344, #345 and the test-pipeline PR put in the tree, the two board builds and what they share, every test stage from host to PicoCalc hardware with its state, and the ordered next work |
 | `renode-rp2040-upstream-reports.md` | two issue texts for matgla/Renode_RP2040 with their `git am` patch series and the board measurement behind them, unsent |

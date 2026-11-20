@@ -11,9 +11,10 @@ include ${TOPSRC}/share/mk/sys.mk
 # capture scrshot, the lexeme word processor of the PicoCalc SD root and, in
 # picofetch and picotop, readers of its machdep sysctl nodes; STM32 has no
 # matching sysctl interface. ulisp draws on the PicoCalc's pixel device and
-# sizes its workspace from the RP2040 process window.
+# sizes its workspace from the RP2040 process window, as the PC emulator i86
+# sizes its page frames.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc as ld mputest paneltest scrshot boardinfo matezinho picofetch picotop lexeme ulisp" ; \
+		echo "lex smlrc as ld mputest paneltest scrshot boardinfo matezinho picofetch picotop lexeme ulisp i86" ; \
 	else \
 		echo "lex smlrc as ld" ; \
 	fi

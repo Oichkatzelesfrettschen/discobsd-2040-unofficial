@@ -1,0 +1,161 @@
+Renode runs of usr.bin/i86 on the PICOCALC_SD kernel, 2026-11-20
+
+Kernel PICOCALC_SD (unix-PICOCALC-SD.uf2) with the 32 MiB SD root built by
+"bmake MACHINE=rp2040 picocalc-sd-system", which carries the whole install
+tree and so /usr/bin/i86. Two files were added to the install tree for
+these runs and are not part of the tree: /guest.img (tests/guest.hexdump
+padded to 360 KB) and /svmin.img (the SvarDOS boot floppy that
+mksvardos.sh makes from the SvarDOS 20250427 360 KB disk 1). The card is
+the "tmp" layout of tools/renode/check-picocalc-sdroot.py: the root in MBR
+slot 3 (type b7) and an 8 MiB type-ba entry that /etc/rc.rp2040 mounts at
+/tmp, where the emulator puts its page file by default. Renode
+1.17.0+20260907gitf1dd1b4af with the tree's RP2040 models, the SD card
+model, the ST7365P panel model and the keyboard controller model; commands
+are typed through the keyboard model and the lines below are the panel's
+frame decoded to text by tools/renode/picocalc_fb.py (53 columns: longer
+shell lines wrap). Class of evidence: Renode. Virtual times are Renode's
+and say nothing about the board's speed; the models have no PSRAM.
+
+==== Run 1: the guest program, 640 KB guest, 16 resident pages, page file
+==== on the card's /tmp partition (source: commit 85ab62d7a)
+check-picocalc: banner after 0.5 virtual seconds
+check-picocalc: login prompt after 17.0 virtual seconds
+check-picocalc: shell prompt after 18.5 virtual seconds
+check-picocalc: prompt after 30.0 virtual seconds
+prompt after 2.5 virtual s
+---- panel: guest at 30.0 virtual s
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |16 -s /tmp/pg -a /guest.img -k aB1 | tail -14
+  |clear: not found
+  |i86: 34 polls of 2048 steps; pages: 505 soft, 1158 ze
+  |ro, 582 in, 579 out, 576 elided, 569 clean
+  |LINE 0002
+  |LINE 0001
+  |CPU 286
+  |MEM 0280 OK
+  |IDIV 80
+  |WRAP OK
+  |DISK OK 27090101
+  |TICK OK
+  |SPIN OK
+  |HOOK OK
+  |VID OK
+  |a=1E61 B=3042 1=0231
+  |DONE
+  |operator@pico:~$
+check-picocalc: prompt after 32.0 virtual seconds
+prompt after 1.0 virtual s
+---- panel: tmp at 32.0 virtual s
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |operator@pico:~$ clear; i86 -d -T -v -w 40 -c 286 -f
+  |16 -s /tmp/pg -a /guest.img -k aB1 | tail -14
+  |clear: not found
+  |i86: 34 polls of 2048 steps; pages: 505 soft, 1158 ze
+  |ro, 582 in, 579 out, 576 elided, 569 clean
+  |LINE 0002
+  |LINE 0001
+  |CPU 286
+  |MEM 0280 OK
+  |IDIV 80
+  |WRAP OK
+  |DISK OK 27090101
+  |TICK OK
+  |SPIN OK
+  |HOOK OK
+  |VID OK
+  |a=1E61 B=3042 1=0231
+  |DONE
+  |operator@pico:~$ ls -l /tmp
+  |total 1
+  |drwxr-xr-x  2 root         1024 Nov 19 15:25 lost+fou
+  |nd
+  |operator@pico:~$
+
+
+==== Run 2: SvarDOS typed and drawn on the panel, 40 columns, 128 resident
+==== pages (source: 85ab62d7a plus the firmware services that return with
+==== interrupts enabled)
+check-picocalc: banner after 0.5 virtual seconds
+check-picocalc: login prompt after 17.0 virtual seconds
+check-picocalc: shell prompt after 18.5 virtual seconds
+check-picocalc: wait A:\> after 26.5 virtual seconds
+waited 5.0 virtual s for 'A:\\>'
+---- panel: boot at 26.5 virtual s
+  |........................................
+  |....................
+  |Enhanced DR-DOS kernel 20250427 (rev 72a
+  |e65f) [built 04/27/25 00:06:20]
+  |source and licensing conditions availabl
+  |e at https://github.com/SvarDOS/edrdos
+  |Enhanced DR-DOS kernel 20250427 (rev 72a
+  |e65f) [built 04/27/25 00:06:20]
+  |DR-DOS kernel version 1072
+  |DOS kernel version 7.10
+  |Revision A
+  |DOS is in low memory
+  |SvarCOM shell ver 2025.1
+  |A:\>
+check-picocalc: wait Largest after 30.5 virtual seconds
+waited 3.0 virtual s for 'Largest'
+---- panel: mem at 30.5 virtual s
+  |A:\>mem
+  |Memory Type         Total      Used
+  |  Free
+  |----------------  --------   --------
+  |--------
+  |Conventional          640K        56K
+  |    584K
+  |Upper                   0K         0K
+  |      0K
+  |Reserved              384K       384K
+  |      0K
+  |Extended (XMS)          0K         0K
+  |      0K
+  |----------------  --------   --------
+  |--------              ?---   --------
+  |--------
+  |Total memory        1,024K       440K
+  |    584K
+  |Total under 1 MB      640K        56K
+  |    584K
+  |Largest executable program size       58
+  |4K (598,400 bytes)
+---- panel: dir at 56.5 virtual s
+  |Total under 1 MB      640K        56K
+  |    584K
+  |Largest executable program size       58
+  |4K (598,400 bytes)
+  |A:\>dir
+  |Volume in drive A is 20250427
+  |Volume Serial Number is 5BB3-F359
+  |Directory of A:\
+  |AUTOEXEC BAT         29 11-19-26  9:52a
+  |CONFIG   SYS         49 11-19-26  9:52a
+  |COMMAND  COM      25673 03-13-25 11:22p
+  |KERNEL   SYS      58923 04-27-25 12:06a
+  |MEM      EXE      15028 03-01-22  9:47p
+  |MODE     COM      16244 11-25-15  8:00p
+  |MORE     COM        500 11-19-24 12:00p
+  |SVED     COM       6035 02-27-24  2:10p
+  |       8 file(s)    122481 bytes
+  |                    235520 bytes free
+  |A:\>

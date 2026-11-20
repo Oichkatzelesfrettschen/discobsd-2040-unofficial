@@ -114,7 +114,13 @@ MUTANTS = [
         "pc_idle = 1;",
     ),
     ("pc.c", "(cf.keys != NULL || key_eof))", "cf.keys != NULL)"),
-    ("mem.c", "(void)unlink(store_path);", ";"),
+    ("mem.c", "\t\tstore_unname();\n\t}", "\t\t(void)store_unname;\n\t}"),
+    (
+        "mem.c",
+        "named.st_dev == held.st_dev && named.st_ino == held.st_ino)",
+        "named.st_dev != held.st_dev)",
+    ),
+    ("cpu.c", "if (tf && !c->inhibit && !faulted)", "if (tf && !c->inhibit)"),
     ("pc.c", "(c->irq && (c->fl & F_IF)))\n\t\t\tbreak;", "c->irq)\n\t\t\tbreak;"),
     (
         "pc.c",
@@ -938,6 +944,22 @@ def test_undefined(sstrun, work):
                     "model %s executes %02X %02X: cs:ip %04X:%04X sp %04X"
                     % (model, first, second, got[4], got[12], got[8])
                 )
+    # With the trace flag set, an instruction that faults enters its
+    # handler alone: one frame, and no trace interrupt ahead of it.
+    traced = [0, 0, 0, 0, 0x1000, 0x2000, 0, 0, 0x200, 0, 0, 0, 0x100, 0x102]
+    ram = [0x10100, 0xFE, 0x10101, 0xD0, 0x18, 0x34, 0x19, 0x12, 0x1A, 0x78, 0x1B, 0x56]
+    ram += [0x04, 0xF0, 0x05, 0xDE, 0x06, 0xBC, 0x07, 0x9A]
+    done = subprocess.run(
+        sstrun.split() + ["2", "64", os.path.join(work, "sstpage")],
+        input=" ".join(str(x) for x in traced + [len(ram) // 2] + ram + [0]) + "\n",
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    got = [int(x) for x in done.stdout.split()]
+    if done.returncode != 0 or (got[4], got[12], got[8]) != (0x5678, 0x1234, 0x1FA):
+        raise Failure("a traced fault: cs:ip %04X:%04X sp %04X" % (got[4], got[12], got[8]))
     # The register forms of LEA, LES and LDS name no address. The 80286
     # raises interrupt 6; the 8086 and 80186 models do nothing, twice
     # over, so that a value left by one instruction cannot pass for the

@@ -419,12 +419,15 @@ cond(const struct i86 *c, unsigned cc)
 	return (r ^ (int)(cc & 1));
 }
 
+static uint8_t faulted;		/* the traced instruction raised a fault */
+
 /* Interrupt n raised by the instruction that began at ip0. */
 static void
 fault(struct i86 *c, unsigned n, unsigned ip0, int restart)
 {
 	if (restart)
 		c->ip = (uint16_t)ip0;
+	faulted = 1;
 	i86_int(c, n);
 }
 
@@ -731,6 +734,8 @@ i86_step(struct i86 *c)
 			return;
 	}
 	tf = c->fl & F_TF;
+	if (tf)
+		faulted = 0;
 	ip0 = c->ip;
 	d.ovr = -1;
 	d.rep = 0;
@@ -1227,6 +1232,8 @@ prefixed:
 		fault(c, 6, ip0, 1);
 		break;
 	}
-	if (tf && !c->inhibit)
+	/* The trace interrupt follows an instruction that completed. One
+	 * that faulted has entered its handler, which runs first. */
+	if (tf && !c->inhibit && !faulted)
 		i86_int(c, 1);
 }

@@ -107,9 +107,9 @@ jobs:
       # cffi, hypothesis and pytest run check-swap-tier-model in the host
       # tier, which prints a SKIP without them.
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sh tools/ci_apt_install.sh \
             bmake make build-essential cmake git clang cflow cscope ripgrep jq \
             gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
@@ -668,9 +668,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sh tools/ci_apt_install.sh \
             bmake make build-essential \
             gcc-arm-none-eabi binutils-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
@@ -720,9 +720,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install bmake and the 32-bit compiler support
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sh tools/ci_apt_install.sh \
             bmake build-essential gcc-multilib python3 pkg-config libbsd-dev \
             bison flex
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
@@ -988,7 +988,7 @@ jobs:
     name: flash-id against the Pico SDK
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       # The kernel builds -nostdinc against the tree's own libc, so the
@@ -999,9 +999,9 @@ jobs:
       # gcc-arm-none-eabi does not depend on them, so naming the compiler
       # alone leaves the link without a C library.
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sh tools/ci_apt_install.sh \
             bmake cmake ninja-build git \
             gcc-arm-none-eabi binutils-arm-none-eabi \
             libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3

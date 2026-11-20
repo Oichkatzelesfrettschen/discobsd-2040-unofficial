@@ -348,6 +348,32 @@ class BuildObservabilityTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "runner linux-storage-prefix command differs"):
             observability.validate_workflow(source)
 
+    def test_apt_get_step_without_a_step_deadline_is_rejected(self):
+        step = (
+            "      - name: Install the fixture packages\n"
+            "        run: |\n"
+            "          sudo apt-get install -y bmake\n"
+        )
+        marker = "      - name: Retain fixture logs\n"
+        source = FIXTURE.replace(marker, step + marker, 1)
+        with self.assertRaisesRegex(
+            ValueError, "fixture step Install the fixture packages calls apt-get.*timeout-minutes"
+        ):
+            self.validate(source)
+        bounded = step.replace("        run:", "        timeout-minutes: 5\n        run:")
+        self.validate(FIXTURE.replace(marker, bounded + marker, 1))
+
+    def test_install_step_of_the_repository_workflow_needs_its_deadline(self):
+        source = (ROOT / ".github/workflows/firmware.yml").read_text(encoding="utf-8")
+        marker = "      - name: Install the host toolchain\n        timeout-minutes: 20\n"
+        self.assertIn(marker, source)
+        with self.assertRaisesRegex(ValueError, "step Install the host toolchain calls apt-get"):
+            observability.validate_workflow(
+                source.replace(marker, "      - name: Install the host toolchain\n", 1).replace(
+                    "sh tools/ci_apt_install.sh", "sudo apt-get install -y", 1
+                )
+            )
+
     def test_repository_workflow_satisfies_the_contract(self):
         observability.check(ROOT)
 

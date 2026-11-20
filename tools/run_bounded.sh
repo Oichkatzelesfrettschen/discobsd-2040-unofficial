@@ -63,12 +63,16 @@ run() {
 	shift
 	secs=${MUTANT_TIMEOUT:-120}
 	cap=${MUTANT_OUTPUT_BYTES:-1048576}
-	case $secs:$cap in
-	*[!0-9:]* | :* | *: | 0:* | *:0)
-		echo "run_bounded.sh: MUTANT_TIMEOUT and MUTANT_OUTPUT_BYTES are positive integers" >&2
-		exit 125
-		;;
-	esac
+	# Each bound is a positive decimal integer without a leading zero (the
+	# shell would read 08 as octal): the two are checked one at a time.
+	for bound_value in "$secs" "$cap"; do
+		case $bound_value in
+		'' | *[!0-9]* | 0 | 0[0-9]*)
+			echo "run_bounded.sh: MUTANT_TIMEOUT and MUTANT_OUTPUT_BYTES are positive integers" >&2
+			exit 125
+			;;
+		esac
+	done
 	bound=$(bound_command)
 	if [ -z "$bound" ]; then
 		echo "run_bounded.sh: timeout(1) from coreutils is required" >&2
@@ -146,6 +150,24 @@ check() {
 # Every scenario but the last ends by itself within a few seconds even when
 # the bound under test is absent, so a broken copy fails instead of hanging;
 # the last one is reached only by a copy that passed the others.
+# try_config NAME WANT-STATUS VAR=VALUE...: the runner, started with the named
+# variables and a command that would pass, must end with WANT-STATUS.
+try_config() {
+	name=$1
+	want=$2
+	shift 2
+	rc=0
+	env "$@" "$self" "$work/out" true >/dev/null 2>&1 || rc=$?
+	if [ "$rc" != "$want" ]; then
+		echo "run_bounded.sh: scenario $name: status $rc, want $want" >&2
+		status=1
+		if [ -n "$failfast" ]; then
+			return 1
+		fi
+	fi
+	return 0
+}
+
 # try SCENARIO...: run one check and, under failfast (the mutant runs), stop
 # the list at the first failure.
 try() {
@@ -166,6 +188,9 @@ scenarios() {
 	try passing 0 - true || return 1
 	try failing 3 - sh -c 'echo diagnostic; exit 3' || return 1
 	try unrunnable 125 - /nonexistent/run-bounded-command || return 1
+	try_config bad-output-bound 125 MUTANT_OUTPUT_BYTES=1:2 || return 1
+	try_config bad-timeout-octal 125 MUTANT_TIMEOUT=08 || return 1
+	try_config bad-timeout-zero 125 MUTANT_TIMEOUT=0 || return 1
 	# The command ends at once and leaves a child that holds the output pipe for
 	# 6 s: the run ends with the bound, and the status is the command's own.
 	try descendant 3 - sh -c '(sleep 6) & exit 3' || return 1
@@ -204,7 +229,7 @@ selftest() {
 		echo "run_bounded.sh: selftest: the script fails its own scenarios" >&2
 		exit 1
 	}
-	echo "run_bounded.sh: 10 scenarios pass"
+	echo "run_bounded.sh: 13 scenarios pass"
 	# mutant LABEL SED-EXPRESSION SCENARIO: the copy must fail SCENARIO and no
 	# earlier one, so that a copy that does not run at all (status 127) is not
 	# taken for a rejection.
@@ -233,6 +258,7 @@ selftest() {
 	mutant 'no output bound' 's/head -c "\$cap"/cat/' failing-loudly-stdout
 	mutant 'status of the command lost' 's/echo \$? >"\$status"/echo 0 >"$status"/' failing
 	mutant 'a command that did not start taken for its failure' 's/^\t125 | 126 | 127) return 125 ;;$/\t125 | 126 | 127) return "$rc" ;;/' unrunnable
+	mutant 'a malformed bound accepted' 's/^\t\t\texit 125$/\t\t\texit 0/' bad-output-bound
 	mutant 'a failing status taken for a timeout' 's/^\treturn "\$rc"$/\treturn 124/' passing
 	echo "run_bounded.sh: selftest ok"
 	exit 0

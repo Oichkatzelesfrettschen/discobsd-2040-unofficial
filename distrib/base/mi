@@ -875,6 +875,7 @@ file /usr/include/sys/vmparam.h
 file /usr/include/sys/vmsystm.h
 file /usr/include/sys/wait.h
 file /usr/include/term.h
+file /usr/include/termios.h
 file /usr/include/time.h
 file /usr/include/ttyent.h
 file /usr/include/tzfile.h

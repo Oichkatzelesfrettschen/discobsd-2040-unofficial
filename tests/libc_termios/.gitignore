@@ -1,0 +1,17 @@
+libc_termios_test
+gate.o
+cfspeed.o
+cfmakeraw.o
+tcattr.o
+tcdrain.o
+tcflow.o
+tcflush.o
+tcgetpgrp.o
+tcgetwinsize.o
+tcsendbreak.o
+tcsetpgrp.o
+tcsetwinsize.o
+order_termios.o
+order_ioctl.o
+shim.o
+machine/

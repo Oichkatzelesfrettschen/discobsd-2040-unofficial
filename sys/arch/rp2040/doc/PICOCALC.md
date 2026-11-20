@@ -1238,6 +1238,45 @@ alone.
 Flashing follows `distrib/rp2040/host/DEVELOPMENT.md` and needs the
 board in BOOTSEL mode; a board run is an explicit opt-in.
 
+### PICOCALC_SD_DIAG: the testing kernel
+
+`PICOCALC_SD_DIAG` is PICOCALC_SD plus `options DIAGNOSTIC`,
+`options GLOBAL_DEBUG=9` and `options STORAGE_STATS`, compiled at `-Og`
+(`makeoptions COPTS="-Og"` overrides the `COPTS?= -Os` default of
+`Makefile.rp2040`). It is the kernel for board testing and source-level
+debugging; the shipped kernels stay at `-Os`, and no release, image rule or
+CI tier builds it. `options PICOCALC_SD` defines the macro that
+`dev/flash.h`, `dev/sd.c` and `dev/uart.c` test, because a `board` line
+defines only its own name.
+
+- `DIAGNOSTIC`: `sendsig()` in `rp2040/sig_machdep.c` prints three console
+  lines on every signal delivery, and the other `#ifdef DIAGNOSTIC` checks
+  of the kernel sources compile in.
+- `GLOBAL_DEBUG=9` (`include/debug.h`): `DEBUG()` becomes `printf()`. Every
+  `DEBUG()` call in the kernel (the exec path: `kern_exec.c`, `exec_aout.c`,
+  `exec_elf.c`, `exec_script.c`, `exec_subr.c`) prints at any level. No
+  source calls `DEBUG1` through `DEBUG9`, so levels 0, 1 and 9 link to
+  byte-identical images; 9 is recorded so that a later `DEBUGn` site
+  prints. One a.out `execve(2)` prints about 40 lines (five of them wrap on
+  the 53-column panel), so a boot to login, which execs about fifteen programs
+  (the `/etc/rc` script and its shell, `fsck`, `hostname`, `umount`, `mount`,
+  `dd`, `mkfs`, `chmod`, `rm`, `date`, `getty`, `login`), prints several
+  hundred lines to the console and the message buffer (a count from reading
+  the sources, not a board capture).
+- `STORAGE_STATS`: `machdep.storage_stats` and the flash wear counters
+  (`STORAGE.md`).
+
+    bmake MACHINE=rp2040 picocalc-sd-diag-kernel    # distrib/rp2040/unix-PICOCALC-SD-DIAG.uf2
+
+The target runs `check-kernel-headroom` against `RP2040-sd.ld`. Measured
+with GCC 16.2.0 on the tree that added it: PICOCALC_SD at `-Os` has text
+130,664, data 144, bss 56,848 (flash image 130,696 of 163,584 bytes, headroom
+32,888); PICOCALC_SD_DIAG has text 155,587, data 472, bss 57,072 (flash image
+155,848, headroom 7,736 with the 1,024-byte margin); without GLOBAL_DEBUG it
+has text 152,787 and headroom 10,552. `-O0` overflows FLASH and is not
+offered. `unix.elf`, `unix.map` and `unix.dis` stay in
+`sys/arch/rp2040/compile/PICOCALC_SD_DIAG`.
+
 ## Coexisting with the PicoCalc UF2 loader
 
 The PicoCalc ships with a UF2 loader (pelrun/uf2loader) that keeps its own

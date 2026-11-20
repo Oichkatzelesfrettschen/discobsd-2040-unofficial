@@ -189,6 +189,8 @@ ttychars(struct tty *tp)
     };
 
     tp->t_chars = ttydefaults;
+    tp->t_vmin = 1;
+    tp->t_vtime = 0;
 }
 
 /*
@@ -445,6 +447,10 @@ ttioctl(register struct tty *tp, u_int com, caddr_t data, int flag)
     case TIOCLSET:
     case TIOCSTI:
     case TIOCSWINSZ:
+    case TIOCSMINTIME:
+    case TIOCDRAIN:
+    case TIOCSTOP:
+    case TIOCSTART:
         while (u.u_procp->p_pgrp != tp->t_pgrp && tp == u.u_ttyp &&
            (u.u_procp->p_flag & SVFORK) == 0 &&
            !(u.u_procp->p_sigignore & sigmask(SIGTTOU)) &&
@@ -505,6 +511,14 @@ ttioctl(register struct tty *tp, u_int com, caddr_t data, int flag)
 
     case TIOCOUTQ:
         *(int *)data = tp->t_outq.c_cc;
+        break;
+
+    /*
+     * Return when the queue and the transmitter are empty: the same wait
+     * TIOCSETP makes, interrupted by a signal as any sleep at TTOPRI is.
+     */
+    case TIOCDRAIN:
+        ttywait(tp);
         break;
 
     case TIOCSTOP:
@@ -669,6 +683,16 @@ ttioctl(register struct tty *tp, u_int com, caddr_t data, int flag)
 
     case TIOCGWINSZ:
         *(struct winsize *)data = tp->t_winsize;
+        break;
+
+    /* VMIN in the low byte, VTIME in the next. */
+    case TIOCGMINTIME:
+        *(int *)data = tp->t_vmin | (tp->t_vtime << 8);
+        break;
+
+    case TIOCSMINTIME:
+        tp->t_vmin = *(int *)data & 0xff;
+        tp->t_vtime = (*(int *)data >> 8) & 0xff;
         break;
 
     default:

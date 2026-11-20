@@ -38,7 +38,7 @@ SUBDIR		= ar arch awk basic calendar chflags chpass dc diff emg env \
 		  printenv rev size sort split sum tail tee time touch tr tsort tty \
 		  uniq unifdef w wc who bc calc egrep mail su vmstat wall write strip false nohup \
 		  true cut paste seq dirname nl cksum expand unexpand mkfifo \
-		uuencode uudecode cpio getopt yes strings users unixbench
+		uuencode uudecode cpio getopt getconf yes strings users unixbench
 
 # TODO: pforth sre adc-demo lorder mkdep
 

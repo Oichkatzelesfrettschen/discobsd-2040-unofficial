@@ -58,6 +58,9 @@ def main() -> int:
     compiler = shlex.split(sys.argv[2])
     source = (root / "lib/libc/gen/sysconf.c").read_text(encoding="utf-8")
     mutations = {
+        "symlink-limit": replace_once(
+            source, "return MAXSYMLINKS;", "return MAXSYMLINKS - 1;", "symlink-limit"
+        ),
         "device-errno": replace_once(
             source,
             "\t\tif (selector == _SC_DEVICE_CONTROL)\n"

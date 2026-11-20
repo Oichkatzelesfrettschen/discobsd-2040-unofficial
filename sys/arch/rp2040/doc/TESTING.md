@@ -3428,7 +3428,8 @@ filesystem. A host fixture builds and checks a 1 MiB SD root and verifies
 that symbolic links at each staging rewrite boundary leave the last accepted
 image intact. Its unstamped UF2 boots with the foreign flash interval
 starting at 0x10028000, mounts the card, executes the SD installation's
-`cal 2 2000`, checks the separate temporary partition, runs the installed
+`cal 2 2000`, checks getconf output, diagnostics and the eight-link traversal
+boundary through the SD regression script, checks the separate temporary partition, runs the installed
 `cut` on a file there with valid and invalid range operands, and exercises
 the missing-root panic. The nightly Linux firmware job owns this emulator gate.
 

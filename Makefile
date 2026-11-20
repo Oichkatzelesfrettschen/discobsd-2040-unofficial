@@ -2083,7 +2083,8 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-userland-layout-flags check-storage-geometry check-phony-targets \
-		check-fs-profiles check-picocalc-host check-matezinho-host check-psram-pio \
+		check-fs-profiles check-picocalc-host check-matezinho-host check-ulisp-host \
+		check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
 		check-signal-traps
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
@@ -2559,6 +2560,7 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/c17_headers check-qemu
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 		${MAKE} check-matezinho-qemu
+		${MAKE} check-ulisp-qemu
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
@@ -2899,6 +2901,24 @@ check-matezinho-sd: check-python
 	${MAKE} -C tests/matezinho check-sd
 
 .PHONY: check-matezinho-host check-matezinho-qemu check-matezinho-sd
+
+# The uLisp interpreter's transcripts: the host build with its mutants, and
+# the linked a.out under qemu-arm through tests/qemu_aout's loader.
+check-ulisp-host: check-python
+	${MAKE} -C tests/ulisp check
+
+check-ulisp-qemu: check-python
+	REQUIRE_QEMU=1 ${MAKE} -C tests/ulisp check-qemu
+
+# The interpreter on the kernel itself: a PICO_UART boot under Renode, driven
+# over UART0 (tools/renode/check-ulisp.py). Outside "check" for the reason
+# check-renode is, and it needs a flash image built with IMAGE_WITH=ulisp.
+check-renode-ulisp: check-python
+	${PYTHON} -I -u tools/renode/check-ulisp.py renode \
+	    ${.CURDIR}/sys/arch/rp2040/compile/PICO_UART/unix.bin \
+	    ${FLASHBIN} ${.CURDIR}/tools/renode/vendor/results/ulisp
+
+.PHONY: check-ulisp-host check-ulisp-qemu check-renode-ulisp
 
 # lib/libwin's strip compositor against a model of the /dev/lcdgfx panel and
 # an independent per-pixel reference painter, natively and under the

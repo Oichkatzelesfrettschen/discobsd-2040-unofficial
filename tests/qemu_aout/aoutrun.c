@@ -86,7 +86,8 @@ enum {
 	B_EXIT = 1, B_READ = 3, B_WRITE = 4, B_OPEN = 5, B_CLOSE = 6,
 	B_LSEEK = 19, B_GETPID = 20, B_GETUID = 24, B_GETEUID = 25,
 	B_GETPPID = 27, B_GETGID = 47, B_GETEGID = 48, B_IOCTL = 54,
-	B_FSTAT = 62, B_BRK = 69, B_GETTIMEOFDAY = 116
+	B_FSTAT = 62, B_BRK = 69, B_GETTIMEOFDAY = 116,
+	B_SIGACTION = 31, B_SIGPROCMASK = 32
 };
 
 #define E_IO 5
@@ -393,9 +394,23 @@ serve(u32 code, u32 *r, u32 sp, u32 *rv)
 		    sp - want < 1024u)
 			return E_NOMEM;
 		brk_cur = want;
-		*rv = 0;
+		/* The kernel returns the new break (u_rval in brk()). */
+		*rv = want;
 		return 0;
 	}
+	case B_SIGACTION:
+		/*
+		 * The loader delivers no signal to the guest, so a handler it
+		 * installs never runs and the previous action is not reported.
+		 */
+		*rv = 0;
+		return 0;
+	case B_SIGPROCMASK:
+		/* sigprocmask(how, set, oset): the mask stays empty. */
+		if (r[2] != 0)
+			*(u32 *)r[2] = 0;
+		*rv = 0;
+		return 0;
 	default:
 		put_dec(2, code);
 		die(" <- unserved DiscoBSD system call (aoutrun)\n",

@@ -331,7 +331,7 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
 
     ucp = (caddr_t)roundup((unsigned)ucp, NBPW) + pad;
     if ((caddr_t)ucp != (caddr_t)topp) {
-        DEBUG("\texec_setupstack(): error: copy arg list, ucp = %#x, topp = %#x\n", ucp, topp);
+        DEBUG("\texec_setupstack(): error: copy arg list, ucp = %#x, topp = %#x\n", (u_int)ucp, (u_int)topp);
         panic("exec check");
     }
     if (epp->spool.pos != epp->spool.size)
@@ -434,16 +434,16 @@ int exec_estab(struct exec_params *epp)
     size_t need;
     DEBUG("\texec_estab(): start\n");
 
-    DEBUG("\texec_estab(): text  = %#x..%#x, len = %d\n", epp->text.vaddr,
-      epp->text.vaddr + epp->text.len, epp->text.len);
-    DEBUG("\texec_estab(): data  = %#x..%#x, len = %d\n", epp->data.vaddr,
-      epp->data.vaddr + epp->data.len, epp->data.len);
-    DEBUG("\texec_estab(): bss   = %#x..%#x, len = %d\n", epp->bss.vaddr,
-      epp->bss.vaddr + epp->bss.len, epp->bss.len);
-    DEBUG("\texec_estab(): heap  = %#x..%#x, len = %d\n", epp->heap.vaddr,
-      epp->heap.vaddr + epp->heap.len, epp->heap.len);
-    DEBUG("\texec_estab(): stack = %#x..%#x, len = %d\n", epp->stack.vaddr,
-      epp->stack.vaddr + epp->stack.len, epp->stack.len);
+    DEBUG("\texec_estab(): text  = %#x..%#x, len = %d\n", (u_int)epp->text.vaddr,
+      (u_int)(epp->text.vaddr + epp->text.len), epp->text.len);
+    DEBUG("\texec_estab(): data  = %#x..%#x, len = %d\n", (u_int)epp->data.vaddr,
+      (u_int)(epp->data.vaddr + epp->data.len), epp->data.len);
+    DEBUG("\texec_estab(): bss   = %#x..%#x, len = %d\n", (u_int)epp->bss.vaddr,
+      (u_int)(epp->bss.vaddr + epp->bss.len), epp->bss.len);
+    DEBUG("\texec_estab(): heap  = %#x..%#x, len = %d\n", (u_int)epp->heap.vaddr,
+      (u_int)(epp->heap.vaddr + epp->heap.len), epp->heap.len);
+    DEBUG("\texec_estab(): stack = %#x..%#x, len = %d\n", (u_int)epp->stack.vaddr,
+      (u_int)(epp->stack.vaddr + epp->stack.len), epp->stack.len);
 
     need = epp->text.len + epp->data.len + epp->bss.len + epp->heap.len +
       epp->stack.len;

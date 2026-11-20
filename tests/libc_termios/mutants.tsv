@@ -1,0 +1,95 @@
+# label	file	sed script. Each line is one mutant that the gate must reject.
+cf-range-open	lib/libc/gen/cfspeed.c	0,/speed > B4000000/s/speed > B4000000/speed > B4000000 + 1/
+cf-ispeed-stores-out	lib/libc/gen/cfspeed.c	0,/t->c_ispeed = speed;/s/t->c_ispeed = speed;/t->c_ospeed = speed;/
+cf-setspeed-input-only	lib/libc/gen/cfspeed.c	/^cfsetspeed/,$s/t->c_ospeed = speed;/(void)speed;/
+cf-getospeed-reads-in	lib/libc/gen/cfspeed.c	/^cfgetospeed/,/^}/s/c_ospeed/c_ispeed/
+cf-errno-lost	lib/libc/gen/cfspeed.c	0,/errno = EINVAL;/s/errno = EINVAL;/errno = 0;/
+raw-keeps-isig	lib/libc/gen/cfmakeraw.c	s/ICANON | ISIG | IEXTEN/ICANON | IEXTEN/
+raw-keeps-opost	lib/libc/gen/cfmakeraw.c	s/t->c_oflag &= ~OPOST;/t->c_oflag \&= ~0U;/
+raw-cs7	lib/libc/gen/cfmakeraw.c	s/t->c_cflag |= CS8;/t->c_cflag |= CS7;/
+raw-vmin-zero	lib/libc/gen/cfmakeraw.c	s/t->c_cc\[VMIN\] = 1;/t->c_cc[VMIN] = 0;/
+raw-clears-too-much	lib/libc/gen/cfmakeraw.c	s/t->c_oflag &= ~OPOST;/t->c_oflag = 0;/
+hdr-icrnl-overlaps-igncr	include/termios.h	s/^#define ICRNL   0x00000100/#define ICRNL   0x00000080/
+hdr-tab3-not-union	include/termios.h	s/^#define   TAB3  0x00001800/#define   TAB3  0x00000800/
+hdr-vmin-eq-vtime	include/termios.h	s/^#define VMIN     6/#define VMIN     5/
+hdr-cs8-not-csize	include/termios.h	s/^#define   CS8   0x00000030/#define   CS8   0x00000020/
+hdr-echoe-overlaps-echo	include/termios.h	s/^#define ECHOE   0x00000010/#define ECHOE   0x00000008/
+hdr-nccs-too-small	include/termios.h	s/^#define NCCS 19/#define NCCS 18/
+get-istrip-not-inverted	lib/libc/gen/tcattr.c	s/{ W_IFLAG, 1, ISTRIP,  PASS8 }/{ W_IFLAG, 0, ISTRIP,  PASS8 }/
+get-ixany-not-inverted	lib/libc/gen/tcattr.c	s/{ W_IFLAG, 1, IXANY,   DECCTQ }/{ W_IFLAG, 0, IXANY,   DECCTQ }/
+get-echoe-from-crtbs	lib/libc/gen/tcattr.c	s/ECHOE,   CRTERA/ECHOE,   CRTBS/
+get-opost-ignores-litout	lib/libc/gen/tcattr.c	s/if ((f & (RAW | LITOUT)) == 0)/if ((f \& RAW) == 0)/
+get-icanon-ignores-cbreak	lib/libc/gen/tcattr.c	s/if ((f & (RAW | CBREAK)) == 0)/if ((f \& RAW) == 0)/
+get-isig-from-cbreak	lib/libc/gen/tcattr.c	s/if ((f & RAW) == 0)/if ((f \& CBREAK) == 0)/
+get-local-word-shift	lib/libc/gen/tcattr.c	s/<< 16)/<< 15)/
+get-flags-sign-extended	lib/libc/gen/tcattr.c	s/((unsigned int)s->sg.sg_flags & 0xffffU)/((unsigned int)s->sg.sg_flags)/
+get-ispeed-sign-extended	lib/libc/gen/tcattr.c	s/t->c_ispeed = (unsigned char)s->sg.sg_ispeed;/t->c_ispeed = (speed_t)s->sg.sg_ispeed;/
+get-unused-cc-zero	lib/libc/gen/tcattr.c	s/t->c_cc\[i\] = _POSIX_VDISABLE;/t->c_cc[i] = 0;/
+get-vmin-zero	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] = s->mintime & 0xff;/t->c_cc[VMIN] = 0;/
+get-ixon-clear	lib/libc/gen/tcattr.c	s/t->c_iflag = IXON;/t->c_iflag = 0;/
+get-cread-missing	lib/libc/gen/tcattr.c	s/t->c_cflag = CS8 | CREAD;/t->c_cflag = CS8;/
+get-onlcr-missing	lib/libc/gen/tcattr.c	s/t->c_oflag |= ONLCR;//
+get-tab3-missing	lib/libc/gen/tcattr.c	s/t->c_oflag |= TAB3;//
+get-lnext-offset	lib/libc/gen/tcattr.c	s/{ VLNEXT,   G_LTC,   5 }/{ VLNEXT,   G_LTC,   4 }/
+get-kill-from-erase	lib/libc/gen/tcattr.c	s/{ VKILL,    G_KILL,  0 }/{ VKILL,    G_ERASE, 0 }/
+get-short-read	lib/libc/gen/tcattr.c	s/ioctl(fd, TIOCGLTC, &s->lc) < 0 ||/0 ||/
+set-row-inverted	lib/libc/gen/tcattr.c	s/if (want != r->inv)/if (want == r->inv)/
+set-crmod-split-sets	lib/libc/gen/tcattr.c	s/if (want != ((t->c_oflag & ONLCR) != 0))/if (0)/
+set-opost-under-raw	lib/libc/gen/tcattr.c	s/else if ((f & RAW) == 0)/else/
+set-opost-litout-kept	lib/libc/gen/tcattr.c	s/\tif (want)\n//;s/f &= ~LITOUT;/f \&= ~0U;/
+set-tab0-as-tab1	lib/libc/gen/tcattr.c	s/tab == TAB0/tab == TAB1/
+set-refuse-always-fails	lib/libc/gen/tcattr.c	s/if (refused \&\& !honored)/if (refused || !honored)/
+set-refuse-never-fails	lib/libc/gen/tcattr.c	s/if (refused \&\& !honored)/if (refused \&\& !honored \&\& 0)/
+set-crdly-known	lib/libc/gen/tcattr.c	s/known\[W_OFLAG\] = OPOST | ONLCR | TABDLY;/known[W_OFLAG] = OPOST | ONLCR | TABDLY | CRDLY;/
+set-lset-dropped	lib/libc/gen/tcattr.c	s/(f >> 16) != (cur.flags >> 16) &&/(f >> 16) != (cur.flags >> 16) \&\& 0 \&\&/
+set-hupcl-dropped	lib/libc/gen/tcattr.c	s/(t->c_cflag & HUPCL) && ioctl/0 \&\& ioctl/
+set-iexten-unchecked	lib/libc/gen/tcattr.c	s/if (((t->c_lflag & IEXTEN) != 0) != icanon)/if (0)/
+set-mode-swapped	lib/libc/gen/tcattr.c	s/isig ? CBREAK : RAW/isig ? RAW : CBREAK/
+set-mode-icanon-isig-allowed	lib/libc/gen/tcattr.c	s/if (icanon && !isig)/if (0)/
+set-cc-dropped	lib/libc/gen/tcattr.c	s/\*ccref(&n, c) = t->c_cc\[c->index\];//
+set-vmin-unchecked	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] != have.c_cc\[VMIN\] ||/0 ||/
+set-ispeed-unchecked	lib/libc/gen/tcattr.c	s/if (ispeed > B4000000)/if (0)/
+set-ospeed-from-ispeed	lib/libc/gen/tcattr.c	s/n.sg.sg_ospeed = (char)t->c_ospeed;/n.sg.sg_ospeed = (char)t->c_ispeed;/
+set-any-action	lib/libc/gen/tcattr.c	s/if (action != TCSANOW \&\& action != TCSADRAIN \&\& action != TCSAFLUSH) {/if (action < -1000) {/
+set-tchars-always	lib/libc/gen/tcattr.c	s/differs(&n.tc, &cur.tc, sizeof n.tc) &&/1 \&\&/
+set-flags-not-applied	lib/libc/gen/tcattr.c	s/n.sg.sg_flags = (short)(f & 0xffffU);//
+set-split-ignored	lib/libc/gen/tcattr.c	s/\t\thonored = 1;\n\telse if (want != ((have/X/;s/else if (want != ((have.c_iflag & ICRNL) != 0)) {/else if (want == ((have.c_iflag \& ICRNL) != 0)) {/
+get-vtime-from-low	lib/libc/gen/tcattr.c	s/(s->mintime >> 8) & 0xff/s->mintime \& 0xff/
+get-fallback-wrong	lib/libc/gen/tcattr.c	s/s->mintime = 1;/s->mintime = 2;/
+set-mintime-pack	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] | (t->c_cc\[VTIME\] << 8)/t->c_cc[VMIN] | t->c_cc[VTIME]/
+set-mintime-refused	lib/libc/gen/tcattr.c	s/if (cur.mintime_ok) {/if (0) {/
+set-mintime-not-sent	lib/libc/gen/tcattr.c	s/if (n.mintime != cur.mintime &&/if (0 \&\&/
+drain-wrong-request	lib/libc/gen/tcdrain.c	s/TIOCDRAIN/TIOCSTOP/
+drain-result-dropped	lib/libc/gen/tcdrain.c	s/return ioctl(fd, TIOCDRAIN);/ioctl(fd, TIOCDRAIN); return 0;/
+set-drain-after-change	lib/libc/gen/tcattr.c	s/if (action == TCSADRAIN \&\& ioctl(fd, TIOCDRAIN) < 0)/if (action == TCSADRAIN \&\& 0)/
+set-drain-for-flush	lib/libc/gen/tcattr.c	s/action == TCSADRAIN \&\& ioctl/action != TCSANOW \&\& ioctl/
+set-flush-uses-setn	lib/libc/gen/tcattr.c	s/ioctl(fd, TIOCSETP, \&n.sg) < 0/ioctl(fd, TIOCSETN, \&n.sg) < 0/
+set-flush-only-if-changed	lib/libc/gen/tcattr.c	s/if (action == TCSAFLUSH) {/if (action == TCSAFLUSH \&\& differs(\&n.sg, \&cur.sg, sizeof n.sg)) {/
+set-now-uses-setp	lib/libc/gen/tcattr.c	s/ioctl(fd, TIOCSETN, \&n.sg) < 0)/ioctl(fd, TIOCSETP, \&n.sg) < 0)/
+set-drain-rejected	lib/libc/gen/tcattr.c	s/action != TCSANOW \&\& action != TCSADRAIN \&\&/action != TCSANOW \&\&/
+flush-in-wrong-bit	lib/libc/gen/tcflush.c	s/what = FREAD;/what = FWRITE;/
+flush-both-only-input	lib/libc/gen/tcflush.c	s/what = FREAD | FWRITE;/what = FREAD;/
+flush-bad-queue-accepted	lib/libc/gen/tcflush.c	s/errno = EINVAL;/errno = 0;/
+flush-passes-queue	lib/libc/gen/tcflush.c	s/ioctl(fd, TIOCFLUSH, \&what)/ioctl(fd, TIOCFLUSH, \&queue) + what * 0/
+flow-off-starts	lib/libc/gen/tcflow.c	s/return ioctl(fd, TIOCSTOP);/return ioctl(fd, TIOCSTART);/
+flow-ioff-accepted	lib/libc/gen/tcflow.c	s/\tdefault:/\tcase TCIOFF:\n\t\treturn 0;\n\tdefault:/
+flow-errno-lost	lib/libc/gen/tcflow.c	s/errno = EINVAL;/errno = 0;/
+pgrp-get-wrong-request	lib/libc/gen/tcgetpgrp.c	s/TIOCGPGRP/TIOCSPGRP/
+pgrp-get-zero-fails	lib/libc/gen/tcgetpgrp.c	s/return pgrp;/return pgrp ? pgrp : -1;/
+pgrp-set-wrong-request	lib/libc/gen/tcsetpgrp.c	s/TIOCSPGRP/TIOCGPGRP/
+pgrp-set-error-dropped	lib/libc/gen/tcsetpgrp.c	s/return ioctl(fd, TIOCSPGRP, &group);/ioctl(fd, TIOCSPGRP, \&group); return 0;/
+winsize-get-wrong-request	lib/libc/gen/tcgetwinsize.c	s/TIOCGWINSZ/TIOCSWINSZ/
+winsize-set-wrong-request	lib/libc/gen/tcsetwinsize.c	s/TIOCSWINSZ/TIOCGWINSZ/
+winsize-set-writes-caller	lib/libc/gen/tcsetwinsize.c	s/struct winsize copy = \*size;/struct winsize copy = *size; ((struct winsize *)size)->ws_row = 0;/
+winsize-set-error-dropped	lib/libc/gen/tcsetwinsize.c	s/return ioctl(fd, TIOCSWINSZ, &copy);/ioctl(fd, TIOCSWINSZ, \&copy); return 0;/
+break-too-short	lib/libc/gen/tcsendbreak.c	s/300000L/100000L/
+break-too-long	lib/libc/gen/tcsendbreak.c	s/300000L/900000L/
+break-never-released	lib/libc/gen/tcsendbreak.c	s/return ioctl(fd, TIOCCBRK);/return 0;/
+break-sleeps-after-failure	lib/libc/gen/tcsendbreak.c	s/if (ioctl(fd, TIOCSBRK) < 0)/if (ioctl(fd, TIOCSBRK) < 0) { usleep(300000L); return -1; } if (0)/
+break-released-first	lib/libc/gen/tcsendbreak.c	s/TIOCSBRK/TIOCCBRK/
+set-ispeed-zero-literal	lib/libc/gen/tcattr.c	s/if (ispeed == 0 \&\& have.c_ispeed != 0)/if (0)/
+set-ispeed-zero-always	lib/libc/gen/tcattr.c	s/if (ispeed == 0 \&\& have.c_ispeed != 0)/if (ispeed == 0)/
+set-ispeed-zero-ignores-ospeed	lib/libc/gen/tcattr.c	s/ispeed = t->c_ospeed;/ispeed = have.c_ospeed;/
+set-split-honored	lib/libc/gen/tcattr.c	0,/refused = 1;/{/if (want != ((t->c_oflag \& ONLCR) != 0))/{n;s/refused = 1;/honored = 1;/}}
+pgrp-set-zero-allowed	lib/libc/gen/tcsetpgrp.c	s/if (pgrp <= 0) {/if (pgrp < 0) {/
+pgrp-set-negative-allowed	lib/libc/gen/tcsetpgrp.c	s/if (pgrp <= 0) {/if (pgrp == 0) {/

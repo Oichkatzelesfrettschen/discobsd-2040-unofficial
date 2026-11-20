@@ -346,6 +346,24 @@ uartioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
     if (! tp->t_addr)
         return ENODEV;
 
+#if !defined(PICOCALC_ENABLED) || defined(PICOCALC_SD)
+    /*
+     * TIOCSBRK holds TX low until TIOCCBRK; the duration is the caller's
+     * (tcsendbreak(3) sleeps between the two).  The PICOCALC kernel, whose
+     * flash has no room for this, answers ENOTTY as the console and USB
+     * ttys do.
+     */
+    if (cmd == TIOCSBRK || cmd == TIOCCBRK) {
+        register u_int base = ((const struct uart_inst *)tp->t_addr)->base;
+
+        if (cmd == TIOCSBRK)
+            REG32(base + UART_LCR_H) |= UART_LCR_H_BRK;
+        else
+            REG32(base + UART_LCR_H) &= ~UART_LCR_H_BRK;
+        return (0);
+    }
+#endif
+
     error = ttioctl(tp, cmd, addr, flag);
     if (error < 0)
         error = ENOTTY;

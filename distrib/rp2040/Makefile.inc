@@ -233,12 +233,25 @@ picocalc-sd-kernel: check-picocalc-sd-layout .WAIT tools
 		    --linker-script sys/arch/rp2040/conf/RP2040-sd.ld ${PICOCALC_SD_DIR}/unix.elf
 		${PYTHON} ${MKBOARDUF2} --board=PICOCALC ${PICOCALC_SD_DIR}/unix.uf2 ${PICOCALC_SD_UF2}
 
+# Testing kernel: PICOCALC_SD with DIAGNOSTIC, GLOBAL_DEBUG and STORAGE_STATS at -Og
+# (compile/PICOCALC_SD_DIAG/Config). It is built on request and is not part of
+# MACHINE_KERNEL_CONFIGS, the release family or any image rule.
+PICOCALC_SD_DIAG_DIR=	${TOPSRC}/sys/arch/rp2040/compile/PICOCALC_SD_DIAG
+PICOCALC_SD_DIAG_UF2=	${TOPSRC}/distrib/rp2040/unix-PICOCALC-SD-DIAG.uf2
+
+picocalc-sd-diag-kernel: check-picocalc-sd-layout .WAIT tools
+		${MAKE} -C ${PICOCALC_SD_DIAG_DIR} all
+		${PYTHON} tools/check_kernel_headroom.py \
+		    --linker-script sys/arch/rp2040/conf/RP2040-sd.ld ${PICOCALC_SD_DIAG_DIR}/unix.elf
+		${PYTHON} ${MKBOARDUF2} --board=PICOCALC ${PICOCALC_SD_DIAG_DIR}/unix.uf2 ${PICOCALC_SD_DIAG_UF2}
+
 picocalc-sd-system: check-python .WAIT symlinks tools
 		${MAKE} BOARD=PICOCALC PROFILE=picocalc install-world
 		${MAKE} BOARD=PICOCALC PROFILE=picocalc sdroot
 		${MAKE} picocalc-sd-kernel
 
-.PHONY: check-picocalc-sd-layout picocalc-sd-kernel picocalc-sd-system
+.PHONY: check-picocalc-sd-layout picocalc-sd-kernel picocalc-sd-diag-kernel \
+		picocalc-sd-system
 
 cleansdroot:
 		rm -f ${SDROOTIMG} ${SDROOT_MANIFEST} ${SDROOT_MANIFEST}.base

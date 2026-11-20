@@ -171,6 +171,38 @@ What differs from the plan:
 - One rule covers every operation that changes more than one thing: each public call reserves its worst case (`WIN_DAMAGE_CALL`, 2 rectangles) before its first change, and a compound operation reserves k times that with `win_reserve()`. The only compound in the input layer is the window cycle (restack, then refocus): 4. Create, destroy and hide with their focus hand-off, show, raise, lower, focus, move, resize and set_geometry reserve 2 each, set_title and invalidate use 1 of their 2. `win_input_wait()` charges elapsed time on every loop turn with gettimeofday(), which the target resolves to the 1 ms tick (kern_time.c, HZ 1000), so it returns within the timeout plus one 20 ms poll even for a source that stays readable without completing an event.
 - A lost count clears the modifier table before the batch it precedes, because the dropped events are the oldest; a held Ctrl returns with its next HOLD.
 
+## Stage 3 as built
+
+Stage 3 (widgets and dialogs) is in lib/libwin/win_widget.c and win_widget.h, with the one-bit strip path in win.c and win_lcdgfx.c, the modal state in win_input.c, the demonstration in tests/rp2040/windemo (a settings form with a File menu, name field, two check boxes, list, Apply button, status line and an exit message box) and the host gate in tests/libwin (`widget_test.c` beside `win_test.c`, run by `check-libwin-host`). No board ran it.
+
+Widget set: label, status line, button, check box, single-line field (cursor, insertion and deletion in the middle, horizontal scroll), list with selection, vertical scroll and a scroll bar drawn from the list state, menu bar with pull-downs, modal dialog and message box (OK and optional Cancel). A form is the paint callback and key handler of one window; the caller owns the control structures. The controls hold the only state; every pixel repaints from it, and an open pull-down is an overlay repainted from the bar's state (rule 4, no save-under).
+
+Keys (rule 9). The PicoCalc firmware applies Shift before the key byte, so no raw event names Shift and Shift-Tab does not exist; reverse traversal is F5 (`ESC [ 15 ~` on the tty, `WIN_KEY_F1 + 4`), which no window-manager binding uses. Tab is forward. Ctrl plus the underlined letter of a control focuses it, and activates a button, toggles a check box or opens a menu title; the letters h, i, j, m and w are refused because the tty sends them as Backspace, Tab, Enter, Enter and the window-close key. Inside an open pull-down a bare letter runs the entry marked with it. Enter or Space activates, Esc closes a menu or cancels a dialog, arrows, Page Up and Down, Home and End move in lists, menus and fields. A press activates; repeat and release do not, so a held Enter closes a dialog once.
+
+Atomicity. An operation validates, reserves two damage slots per rectangle with `win_reserve()`, asks the activation hook for its veto, then stores state and invalidates, so the reservation is the only step that reaches the backend. A failure returns -1 (the key handler returns -1 to `win_input_event()`, which returns it), leaves controls, focus and scene unchanged, and the same key can be sent again. The input layer gained a handler failure result and `win_input_set_modal()`: a dialog's window keeps the focus against F6, F7 and Ctrl-Tab, and the state ends when the window is destroyed or its slot is reused. `wgt_dialog_finish()` reserves four slots for the destroy and the focus hand-back to the opener.
+
+Rule 6 as measured. Each control repaints only the rectangle whose state changed: a no-op set records no damage and writes 0 bytes; one changed status character is one 6 by 10 glyph cell; a character typed in a focused field is one 12 by 10 run (the typed cell and the new cursor cell); a check box toggle is its 9 by 9 box.
+
+Rule 11 as measured. The strip compositor sends a strip through the optional bits entry set with `win_scene_set_bits()` (`win_lcdgfx_bits`, `LCDG_WIN_BITS`: one bit per pixel, rows padded to a byte, two palette entries) when its pixels have at most two colors and packing is smaller, and through `LCDG_WIN_INDEX` otherwise. It is decided per strip rather than per text run, so a glyph row on a uniform background and a blank rectangle both qualify. Bytes against the indexed path, from the model panel: a changed status character 10 B against 60 B, a toggled check box (two colors, 9 by 9) 18 B against 81 B, a 13 by 3 blank 6 B against 39 B, a 320 by 16 blank strip 640 B against 5,120 B, and a one-column strip stays indexed. A strip with three or more colors, such as a focused field's typed run (120 B), is unchanged. The CPU cost of the packing scan on the Cortex-M0+ and the panel's per-window setup cost were not measured; the saving is SPI payload only, while wire time per pixel is unchanged (section 1).
+
+Sizes, arm-none-eabi-gcc 16.2.0 at -Os, text in bytes, data and bss zero for every object:
+
+| Object | Stage 2 | Stage 3 |
+|---|---|---|
+| win.o | 3,904 | 4,176 |
+| win_input.o | 1,658 | 1,714 |
+| win_input_dev.o | 524 | 524 |
+| win_lcdgfx.o | 168 | 304 |
+| win_widget.o | none | 9,200 |
+
+The stage added 9,200 B for the widgets and 464 B elsewhere, 9,664 B in all against the estimate of 7-9 KB: the widgets alone are 200 B over its upper end and the whole stage 664 B over. windemo links to 22,407 B text, 264 B data and 6,652 B bss with libc (12,751, 260 and 5,932 at stage 2); the demonstration form accounts for about 720 B of the added bss.
+
+RAM per instance on the target: `struct wgt` head 12 B, label and status line 52, button 52, check box 54, field 24 plus the caller's text buffer, list 20, menu bar 20, form 72 (twelve control pointers), dialog 292, `struct win_input` 40 (32 before), `struct win_scene` 5,856 (5,852 before: the `bits` pointer).
+
+Differences from the plan. The golden images compare against a reference painter written from the geometry in win_widget.h, not stored files, so a geometry change edits the header and the reference together. A dialog is polled (`result`), not blocking, so no dialog runs inside an event handler. The 8-window limit and the eight-entry damage list are unchanged; a pull-down must fit inside the client area when the bar is added.
+
+Not done: a multi-line text view, a pointer substitute, any board run, and the CPU cost of the strip packing.
+
 ## Donors and licenses
 
 | Donor (revision) | Read | License | Takeaway / why unfit |

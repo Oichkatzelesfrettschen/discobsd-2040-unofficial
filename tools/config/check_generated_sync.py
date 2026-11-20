@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_LEAN",
-          "PICOCALC_LEAN_DIAG", "PICOCALC_SD")
+          "PICOCALC_LEAN_DIAG", "PICOCALC_SD", "PICOCALC_SD_DIAG")
 # The diagnostic options a _DIAG kernel adds to its lean base; a further
 # diagnostic option joins this tuple.
 DIAGNOSTIC_OPTIONS = ("options SYSTRACE", "options CAPACITY_STATS")
@@ -24,6 +24,15 @@ PANEL_OPTIONS = ("options LCD_PANELTEST",)
 # PICOCALC_LEAN omits.
 OPTIONAL_DEVICE_OPTIONS = ("options DEV_ADC", "options DEV_GPIO",
                            "options DEV_LCDGFX", "options DEV_PCM")
+# The additions of PICOCALC_SD_DIAG, the testing kernel: the signal-path
+# prints, the exec trace of sys/arch/rp2040/include/debug.h, the storage
+# counters and a -Og compile (makeoptions COPTS reaches Makefile.rp2040's
+# COPTS?= default). Sources test -DPICOCALC_SD (dev/flash.h,
+# dev/sd.c, dev/uart.c) and a board line defines only its own name, so the
+# variant defines PICOCALC_SD with an option.
+SD_DIAG_OPTIONS = ("options PICOCALC_SD", "options DIAGNOSTIC",
+                   'options "GLOBAL_DEBUG=9"', "options STORAGE_STATS",
+                   'makeoptions COPTS="-Og"')
 # (variant, base, directives the variant adds to the base Config, directives
 # it removes from it).
 VARIANTS = (
@@ -35,6 +44,7 @@ VARIANTS = (
      ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a',
       'options LCD_GFX_EXT', 'options DEV_GPIO_PWM', 'options LCD_VT'),
      ('ldscript "RP2040.ld"', 'config unix root on fl0a')),
+    ("PICOCALC_SD_DIAG", "PICOCALC_SD", SD_DIAG_OPTIONS, ()),
 )
 COMPILE = Path("sys/arch/rp2040/compile")
 CONF = Path("sys/arch/rp2040/conf")

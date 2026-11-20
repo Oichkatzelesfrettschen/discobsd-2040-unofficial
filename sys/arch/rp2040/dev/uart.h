@@ -56,6 +56,7 @@ _Static_assert(NUART == 1 || NUART == 2, "the RP2040 has UART0 and UART1");
 #define	UART_IFLS_RX_HALF	(2u << 3)	/* RXIFLSEL: RX FIFO >= 1/2 full. */
 #define	UART_IFLS_TX_HALF	(2u << 0)	/* TXIFLSEL: TX FIFO <= 1/2 full. */
 
+#define	UART_LCR_H_BRK		0x0001		/* Send break: hold TX low. */
 #define	UART_LCR_H_FEN		0x0010		/* FIFOs enabled. */
 #define	UART_LCR_H_WLEN_8	0x0060		/* Eight data bits. */
 

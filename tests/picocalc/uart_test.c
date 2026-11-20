@@ -72,13 +72,16 @@
 #define	SHIM_PADS_BASE	0x4001c000u	/* PADS_BANK0, datasheet 2.19.6.3. */
 #define	SHIM_PAD(n)	(SHIM_PADS_BASE + 0x04u + 4u * (n))
 #define	SHIM_PAD_RESET	0x56u		/* IE, 4 mA drive, PDE, Schmitt. */
-static volatile unsigned shim_reg_sink, shim_pad[2];
+#define	SHIM_LCR_H	0x4003402cu	/* UART0 UARTLCR_H, datasheet 4.2.8. */
+static volatile unsigned shim_reg_sink, shim_pad[2], shim_lcr_h;
 
 static volatile unsigned *
 shim_reg(unsigned a)
 {
 	if (a == SHIM_PAD(0) || a == SHIM_PAD(1))
 		return &shim_pad[(a - SHIM_PAD(0)) / 4];
+	if (a == SHIM_LCR_H)
+		return &shim_lcr_h;
 	return &shim_reg_sink;
 }
 #define	REG32(a)	(*shim_reg((unsigned)(a)))
@@ -478,6 +481,45 @@ case_drain(const char *name, const unsigned char *p, int n)
 	    name, nwire, slept, co_runs, interrupts);
 }
 
+/*
+ * TIOCSBRK and TIOCCBRK hold the line's TX low through UARTLCR_H's BRK bit
+ * and release it, leaving the word length and FIFO enable alone; a kernel
+ * whose flash has no room for them (the PICOCALC build) answers ENOTTY,
+ * as every other request the driver does not own does.
+ */
+static void
+case_break(void)
+{
+	dev_t dev = makedev(UART_MAJOR, 0);
+	unsigned line_control = UART_LCR_H_WLEN_8 | UART_LCR_H_FEN;
+
+	(void)line();
+	shim_lcr_h = line_control;
+#if !defined(PICOCALC_ENABLED) || defined(PICOCALC_SD)
+	check(uartioctl(dev, TIOCSBRK, 0, 0) == 0 &&
+	    shim_lcr_h == (line_control | UART_LCR_H_BRK),
+	    "TIOCSBRK sets BRK and keeps the line control");
+	check(uartioctl(dev, TIOCSBRK, 0, 0) == 0 &&
+	    shim_lcr_h == (line_control | UART_LCR_H_BRK),
+	    "a second TIOCSBRK changes nothing");
+	check(uartioctl(dev, TIOCCBRK, 0, 0) == 0 && shim_lcr_h == line_control,
+	    "TIOCCBRK clears BRK and keeps the line control");
+	check(uartioctl(dev, TIOCCBRK, 0, 0) == 0 && shim_lcr_h == line_control,
+	    "a TIOCCBRK with no break leaves the line control");
+#else
+	check(uartioctl(dev, TIOCSBRK, 0, 0) == ENOTTY &&
+	    shim_lcr_h == line_control, "TIOCSBRK on a PICOCALC kernel is ENOTTY");
+	check(uartioctl(dev, TIOCCBRK, 0, 0) == ENOTTY &&
+	    shim_lcr_h == line_control, "TIOCCBRK on a PICOCALC kernel is ENOTTY");
+#endif
+	check(uartioctl(dev, TIOCSBRK + 1, 0, 0) == ENOTTY &&
+	    shim_lcr_h == line_control, "another request leaves UARTLCR_H alone");
+	/* A line that is not open on a UART has no register to drive. */
+	uartttys[0].t_addr = 0;
+	check(uartioctl(dev, TIOCSBRK, 0, 0) == ENODEV &&
+	    shim_lcr_h == line_control, "TIOCSBRK without a line is ENODEV");
+}
+
 int
 main(void)
 {
@@ -552,6 +594,9 @@ main(void)
 	check(drain_wait(tp, 64, &early) >= 0 && early == 0 && nwire == 4 &&
 	    memcmp(wire, big, 3) == 0 && wire[3] == '!',
 	    "uartputc() during the drain follows the queued bytes");
+
+	check(UART0_BASE + UART_LCR_H == SHIM_LCR_H, "the model's UARTLCR_H address");
+	case_break();
 
 	/*
 	 * Pads from their reset value: receive trades the pull-down for the

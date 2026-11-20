@@ -29,7 +29,7 @@ STD=	_featuretest.h a.out.h alloca.h ar.h assert.h \
 	setjmp.h sgtty.h \
 	stdalign.h stdarg.h stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h \
 	string.h strings.h struct.h syscall.h sysexits.h \
-	term.h tgmath.h time.h ttyent.h tzfile.h uchar.h \
+	term.h termios.h tgmath.h time.h ttyent.h tzfile.h uchar.h \
 	unistd.h utime.h utmp.h vis.h vmf.h wchar.h wctype.h
 
 LINKS=	errno.h signal.h stdbool.h stdint.h syslog.h

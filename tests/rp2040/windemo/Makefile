@@ -13,7 +13,7 @@ ${PROG}:	${OBJS} ${TOPSRC}/lib/libwin.a
 		${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf ${OBJS} ${LIBS}
 		${SIZE} $@.elf
 		${ELF2AOUT} $@.elf $@ && rm $@.elf
-${OBJS}:	${LIBDIR}/win.h
+${OBJS}:	${LIBDIR}/win.h ${LIBDIR}/win_input.h ${LIBDIR}/win_widget.h
 ${TOPSRC}/lib/libwin.a:
 		${MAKE} -C ${LIBDIR} all
 clean:

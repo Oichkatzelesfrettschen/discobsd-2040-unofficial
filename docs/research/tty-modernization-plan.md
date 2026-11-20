@@ -81,7 +81,7 @@ function the row changes.
 | Item | Issue 8 | Today (sgtty source of truth) | Shim mapping | Kernel change: text / RAM (E) | Test |
 |---|---|---|---|---|---|
 | BRKINT | required | no bit; tty.c has no break-input path (search, I) | report clear; set unchanged | declined: 0 / 0 | RV, RF |
-| ICRNL | required | CRMOD sys/sys/ioctl.h:137; input map sys/kern/tty.c:1002 | ICRNL and ONLCR move together onto CRMOD; a split request is part-honored | none; a split bit costs +30-50 B (E) and is built only on a program need | RT |
+| ICRNL | required | CRMOD sys/sys/ioctl.h:137; input map sys/kern/tty.c:1002 | ICRNL and ONLCR move together onto CRMOD; a split request alone is refused with EINVAL, and beside an honored change leaves CRMOD unchanged | none; a split bit costs +30-50 B (E) and is built only on a program need | RT |
 | IGNBRK | required | no bit | report clear; set unchanged | declined: 0 / 0 | RV, RF |
 | IGNCR | required | no bit; sys/kern/tty.c:1002 maps CR to NL only | report clear; set unchanged | declined; +30 B if built (E) | RV, RF |
 | IGNPAR | required | no bit; EVENP and ODDP sys/sys/ioctl.h:139-141 have no reader in sys/kern/tty.c (search) | report clear; set unchanged | declined: 0 / 0 | RV, RF |
@@ -98,7 +98,7 @@ function the row changes.
 
 | Item | Issue 8 | Today (sgtty source of truth) | Shim mapping | Kernel change: text / RAM (E) | Test |
 |---|---|---|---|---|---|
-| OPOST | required | RAW or LITOUT disables output processing, sys/kern/tty.c:1266 (sys/sys/ioctl.h:138, 155) | OPOST is clear when RAW or LITOUT is set; clearing OPOST sets LITOUT | none | RT |
+| OPOST | required | RAW or LITOUT disables output processing, sys/kern/tty.c:1266 (sys/sys/ioctl.h:138, 155) | OPOST is clear when RAW or LITOUT is set; clearing OPOST sets LITOUT unless RAW is set after the request (RAW hides OPOST already, so a state read back and written again stays identical) | none | RT |
 | ONLCR | required | CRMOD; output map sys/kern/tty.c:1310 | with ICRNL | none | RT |
 | OCRNL | required | no bit | report clear; set unchanged | declined; +30 B if built (E) | RV, RF |
 | ONOCR | required | no bit | report clear; set unchanged | declined: 0 / 0 | RV, RF |
@@ -119,6 +119,7 @@ function the row changes.
 | CSTOPB | required | none | report clear; set unchanged | declined; UART0 line control planned later (E: +0.1 KB) | RV, RF |
 | PARENB, PARODD | required | EVENP and ODDP sys/sys/ioctl.h:139-141 are stored in t_flags and read by nothing in sys/kern/tty.c (search) | report clear; set unchanged (reporting the stored bits would claim parity the line does not apply) | declined: 0 / 0 | RV, RF |
 | HUPCL | required | TIOCHPCL sys/sys/ioctl.h:111 sets TS_HUPCLS sys/kern/tty.c:487; sys/sys/tty.h:261; no reader or clearer | report clear; a set request is passed to TIOCHPCL (set only) | planned get and clear in the VMIN and VTIME request: +20-40 B / 0 | RV; RT after the request lands |
+| MDMBUF, CRTSCTS (extensions) | no | MDMBUF sys/kern/tty.c:781; RTSCTS sys/kern/tty.c:256, 326 | MDMBUF and CRTSCTS in c_cflag (include/termios.h; the plan listed them under c_lflag, the code places them with the modem-control bits) | none | RT |
 | B0 (hang up) | required | sg_ispeed, sg_ospeed sys/kern/tty.c:546, 581; B0 effect not read | passed through; effect unexamined (not verified) | none | RT of the stored value only |
 | B50 to B38400 (names required) and the stty extras to B4000000 | required (to B38400) | sg_ispeed, sg_ospeed sys/kern/tty.c:546, 581; t_ispeed below NSPEEDS, sys/sys/tty.h | stored and returned; the console ignores them | none | RT |
 
@@ -139,7 +140,6 @@ function the row changes.
 | ECHOPRT (extension) | no | PRTERA sys/sys/ioctl.h:151; sys/kern/tty.c:984 | PRTERA | none | RT |
 | FLUSHO (extension) | no | FLUSHO sys/sys/ioctl.h:157; sys/kern/tty.c:962 | FLUSHO | none | RT |
 | PENDIN (extension) | no | PENDIN sys/sys/ioctl.h:163; sys/kern/tty.c:371, 386 | PENDIN | none | RT |
-| MDMBUF, CRTSCTS (extensions) | no | MDMBUF sys/kern/tty.c:781; RTSCTS sys/kern/tty.c:256, 326 | MDMBUF, CRTSCTS | none | RT |
 
 ### c_cc (11.2.6), one row per index
 
@@ -150,7 +150,7 @@ function the row changes.
 | VERASE | required | sg_erase, TIOCGETP sys/kern/tty.c:578 | VERASE | none | RT |
 | VINTR | required | tc_intrc, TIOCGETC | VINTR | none | RT |
 | VKILL | required | sg_kill, TIOCGETP | VKILL | none | RT |
-| VMIN | required | none; the shim reports 1 | new request over the two pad bytes of struct tty | storage and request +0.10-0.15 KB / 0; the read semantics are a separate step (+0.30-0.40 KB) | RT after the request lands; KM |
+| VMIN | required | none; the shim reports 1 | TIOCGMINTIME and TIOCSMINTIME (sys/sys/ioctl.h) over t_vmin and t_vtime, the two pad bytes of struct tty; one int, VMIN low byte, VTIME next; ttychars() starts them at 1 and 0 | storage and request +0.10-0.15 KB / 0; the read semantics are a separate step (+0.30-0.40 KB) | RT after the request lands; KM |
 | VQUIT | required | tc_quitc, TIOCGETC | VQUIT | none | RT |
 | VSUSP | required | tc_suspc, TIOCGLTC and TIOCSLTC sys/kern/tty.c:608, 612 | VSUSP | none | RT |
 | VTIME | required | none; the shim reports 0 | as VMIN | as VMIN | RT after the request lands; KM |
@@ -168,7 +168,7 @@ function the row changes.
 | tcsetattr, TCSANOW | TIOCSETN, TIOCSETC, TIOCSLTC, TIOCLSET (sys/kern/tty.c:541, 603, 608, 627); TIOCSETN does not flush input except across RAW (:551-554) | four ioctls are not one atomic change; VMIN and VTIME set | S03, K01 |
 | tcsetattr, TCSADRAIN | drain request, then the TCSANOW path | the drain request (TIOCDRAIN over ttywait, sys/kern/tty.c:216) | S04, K04 |
 | tcsetattr, TCSAFLUSH | TIOCSETP (drains output, flushes input, sys/kern/tty.c:540, 551) then TIOCSETC, TIOCSLTC, TIOCLSET | none | S04 |
-| tcdrain | TIOCDRAIN; a poll of TIOCOUTQ (sys/kern/tty.c:506) is inexact because it ignores bytes in the UART FIFO | TIOCDRAIN | K04 |
+| tcdrain | TIOCDRAIN (_IO('t', 94), landed K04); a poll of TIOCOUTQ (sys/kern/tty.c:506) is inexact because it ignores bytes in the UART FIFO | none | K04 |
 | tcflush, TCIFLUSH | TIOCFLUSH with FREAD (sys/kern/tty.c:490) | none | S04 |
 | tcflush, TCOFLUSH | TIOCFLUSH with FWRITE | none | S04 |
 | tcflush, TCIOFLUSH | TIOCFLUSH with 0 or both | none | S04 |
@@ -176,7 +176,7 @@ function the row changes.
 | tcflow, TCOON | TIOCSTART (sys/kern/tty.c:519) | none | S04 |
 | tcflow, TCIOFF | unsupported: tcflow returns -1 with EINVAL ([EINVAL] is the unsupported-action error on the tcflow page) | the kernel sends flow characters only through t_outq: TANDEM puts stopc and startc there with putc (tty.c:250-253, 317-321) and ttstart refuses to draw or transmit while TS_TTSTOP is set (lcdcons.c:250, uart.c:477, usb.c:1351), so an ordinary write queues behind stopped output exactly as the kernel's own byte does; an out-of-band byte would need a priority transmit slot in each of three drivers | none (declined) |
 | tcflow, TCION | unsupported, as TCIOFF | as TCIOFF | none (declined) |
-| tcsendbreak | TIOCSBRK and TIOCCBRK defined (sys/sys/ioctl.h:186-187), no case in sys/kern/tty.c | a handler in the UART driver; console and USB declined | K07 |
+| tcsendbreak | TIOCSBRK and TIOCCBRK defined (sys/sys/ioctl.h), no case in sys/kern/tty.c | the handler is in the UART driver (uartioctl sets and clears UARTLCR_H BRK, landed K07, absent from the PICOCALC kernel); console and USB answer ENOTTY, so tcsendbreak returns -1 with ENOTTY there (the plan did not say which error) | K07 |
 | tcgetsid | none | sessions (no p_session in sys/); declined | none |
 | tcgetpgrp | TIOCGPGRP (sys/kern/tty.c:658) | none | S05 |
 | tcsetpgrp | TIOCSPGRP (sys/kern/tty.c:641; the source comment at :639 says the group is not verified) | none | S05 |
@@ -892,7 +892,7 @@ falsifier column point at section 2 and section 6 rows.
 | S03 | tcsetattr TCSANOW with the refusal rules (EINVAL only when no part is honored) | S01, S02 | 200 | 0.4-0.6 KB per program | a "now" row fails RT, or a declined request returns success | RT and RF cases for every row |
 | S04 | tcsetattr TCSADRAIN and TCSAFLUSH, tcflush (3 selectors), tcflow (TCOOFF and TCOON; TCIOFF and TCION return EINVAL) | S03 (TCSADRAIN also K04) | 120 | 0.15-0.25 KB per program | a selector flushes the wrong queue, TCSAFLUSH keeps queued input, or TCIOFF reports success | model with input and output queues; each selector and action; EINVAL for the two input-side actions |
 | S05 | tcgetpgrp, tcsetpgrp, tcgetwinsize, tcsetwinsize | S01 | 60 | 0.1 KB per program | SIGWINCH on an unchanged size | model of TIOCSWINSZ |
-| K01 | VMIN and VTIME in the two pad bytes of struct tty, with the get and set request | none | 60 | +0.10-0.15 KB text, 0 RAM | struct tty grows past 100 B | tests/kernel/tty_layout_contract.c updated by design; request round trip |
+| K01 | VMIN and VTIME in the two pad bytes of struct tty, with the get and set request (the two requests also join the payload lists of sys/kern/sys_generic.c, which copies a request's parameter only for a listed command) | none | 60 | +0.10-0.15 KB text, 0 RAM | struct tty grows past 100 B | tests/kernel/tty_layout_contract.c updated by design; request round trip |
 | K02 | ttread honors VMIN and VTIME (the four Issue 8 cases, with a callout) | K01 | 90 | +0.30-0.40 KB | tty.o grows more than 0.45 KB over K01, or queued bytes are lost | four cases on a model clock; a queue-preservation case |
 | K04 | TIOCDRAIN over ttywait (tty.c:216) | none | 15 | +0.04-0.08 KB | the call returns with a non-empty queue, or blocks forever on a hidden console after its thaw | model with a transmit-complete flag; drain on a hidden console sleeps, wakes at the thaw and is interrupted by a signal |
 | K05 | IUTF8 bit and UTF-8 erase through unputc | none (the shim row needs S03) | 40 | +0.15-0.25 KB | an erase after U+00E9 leaves one byte queued | KM: erase with and without the bit |

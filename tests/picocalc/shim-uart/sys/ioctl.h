@@ -16,4 +16,6 @@ struct winsize {
 #define	CTLECH	0x00100000
 #define	CRTKIL	0x00400000
 #define	B115200	17
+#define	TIOCSBRK	0x2000747bu	/* _IO('t', 123) */
+#define	TIOCCBRK	0x2000747au	/* _IO('t', 122) */
 #endif

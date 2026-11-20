@@ -359,6 +359,7 @@ act_mode(struct win_input *in, struct win_scene *s, int mode)
 		return 0;
 	in->mode = (unsigned char)mode;
 	in->mode_win = w;
+	in->mode_gen = w->gen;
 	in->sx = w->x;
 	in->sy = w->y;
 	in->sw = w->w;
@@ -403,8 +404,8 @@ mode_event(struct win_input *in, struct win_scene *s, const struct win_event *ev
 		return 0;
 	}
 	if (ev->kind == WIN_EV_PRESS && ev->key == WIN_KEY_ESC) {
-		if (win_resize(s, in->mode_win, in->sw, in->sh) < 0 ||
-		    win_move(s, in->mode_win, in->sx, in->sy) < 0)
+		if (win_set_geometry(s, in->mode_win, in->sx, in->sy, in->sw,
+		    in->sh) < 0)
 			return -1;
 		in->mode = WIN_MODE_NONE;
 		in->held = WIN_KEY_ESC;
@@ -432,7 +433,8 @@ win_input_event(struct win_input *in, struct win_scene *s,
 	struct win *w;
 	int i;
 
-	if (in->mode != WIN_MODE_NONE && !win_is_live(s, in->mode_win))
+	if (in->mode != WIN_MODE_NONE &&
+	    (!win_is_live(s, in->mode_win) || in->mode_win->gen != in->mode_gen))
 		in->mode = WIN_MODE_NONE;
 	if (in->mode != WIN_MODE_NONE)
 		return mode_event(in, s, ev) < 0 ? -1 : WIN_DISP_MANAGER;
@@ -474,12 +476,12 @@ static int
 feed(struct win_input *in, struct win_scene *s, const struct win_event *ev,
     int n)
 {
-	int i, rc = 0;
+	int i;
 
 	for (i = 0; i < n; i++)
 		if (win_input_event(in, s, &ev[i]) < 0)
-			rc = -1;
-	return rc;
+			return -1;
+	return 0;
 }
 
 int

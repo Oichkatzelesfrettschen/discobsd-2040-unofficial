@@ -523,6 +523,7 @@ win_create(struct win_scene *s, int x, int y, int w, int h,
 	win->arg = arg;
 	win->used = 1;
 	win->hidden = 0;
+	win->gen = ++s->next_gen;
 	win->on_event = NULL;
 	win->on_event_arg = NULL;
 	title_copy(win, title);
@@ -600,6 +601,31 @@ win_resize(struct win_scene *s, struct win *win, int w, int h)
 	win->h = h;
 	damage_rect(s, &old);
 	damage_window(s, win);
+	return 0;
+}
+
+int
+win_set_geometry(struct win_scene *s, struct win *win, int x, int y, int w,
+    int h)
+{
+	struct win_rect old;
+
+	if (win_slot(s, win) < 0 || x != clampi(x) || y != clampi(y) ||
+	    !size_ok(w, h))
+		return -1;
+	if (x == win->x && y == win->y && w == win->w && h == win->h)
+		return 0;
+	if (!win->hidden && make_room(s) < 0)
+		return -1;
+	window_rect(win, &old);
+	win->x = x;
+	win->y = y;
+	win->w = w;
+	win->h = h;
+	if (!win->hidden) {
+		damage_rect(s, &old);
+		damage_window(s, win);
+	}
 	return 0;
 }
 
@@ -746,7 +772,9 @@ win_set_handler(struct win_scene *s, struct win *win, win_event_fn fn,
 int
 win_set_title(struct win_scene *s, struct win *win, const char *title)
 {
-	if (win_slot(s, win) < 0)
+	int j = win_slot(s, win);
+
+	if (j < 0)
 		return -1;
 	if (win->hidden) {
 		title_copy(win, title);
@@ -755,7 +783,7 @@ win_set_title(struct win_scene *s, struct win *win, const char *title)
 	if (make_room(s) < 0)
 		return -1;
 	title_copy(win, title);
-	damage_title(s, (int)(win - s->wins));
+	damage_title(s, j);
 	return 0;
 }
 

@@ -254,14 +254,14 @@ model_write(int fd, const void *buf, size_t n)
 struct kbev {
 	long t;
 	int state, key, drop, nb;
-	unsigned char bytes[4];
+	unsigned char bytes[8];
 };
 
 static struct kbev kbs[KBD_SCRIPT];
 static long kb_delivered[KBD_SCRIPT];
 static int nkbs, kb_next, kb_arrived, kb_session, kb_refuse, kb_error;
 static long kb_clock, kb_nselect, kb_nioctl;
-static unsigned char kb_q[KBD_SCRIPT * 4];
+static unsigned char kb_q[KBD_SCRIPT * 8];
 static int kb_qn, kb_qpos;
 
 static void
@@ -285,7 +285,7 @@ kb_add(long t, int state, int key, int drop, const char *bytes)
 	e->key = key;
 	e->drop = drop;
 	e->nb = bytes == NULL ? 0 : (int)strlen(bytes);
-	if (e->nb > 4)
+	if (e->nb > 8)
 		fail("script bytes");
 	if (e->nb > 0)
 		memcpy(e->bytes, bytes, (size_t)e->nb);
@@ -2259,6 +2259,12 @@ expect_geom(int id, int x, int y, int w, int h, const char *what)
 }
 
 static void
+rawev_try(int state, int code)
+{
+	(void)win_input_raw(&in, &scene, state, code);
+}
+
+static void
 rawkey(int code)
 {
 	rawev(1, code);
@@ -2578,6 +2584,279 @@ run_dev(void)
 	    "fallback and timeouts\n");
 }
 
+/* Everything the API reports and the manager decides, for comparison. */
+struct snap {
+	struct win wins[WIN_MAX];
+	unsigned char z[WIN_MAX];
+	int nwin, focus;
+	struct win_input in;
+};
+
+static void
+snap_take(struct snap *sn)
+{
+	memcpy(sn->wins, scene.wins, sizeof(sn->wins));
+	memcpy(sn->z, scene.z, sizeof(sn->z));
+	sn->nwin = scene.nwin;
+	sn->focus = scene.focus;
+	sn->in = in;
+}
+
+/* ignore_in: a failure also clears the modifier table and the held key. */
+static int
+snap_same(const struct snap *sn, int ignore_in)
+{
+	struct win_input a = sn->in, b = in;
+
+	if (ignore_in) {
+		a.mods = b.mods = 0;
+		a.held = b.held = 0;
+		a.esc = b.esc = 0;
+		a.csi_len = b.csi_len = 0;
+		a.csi_num = b.csi_num = 0;
+	}
+	return memcmp(sn->wins, scene.wins, sizeof(sn->wins)) == 0 &&
+	    memcmp(sn->z, scene.z, sizeof(sn->z)) == 0 && sn->nwin == scene.nwin &&
+	    sn->focus == scene.focus && memcmp(&a, &b, sizeof(a)) == 0;
+}
+
+static void
+check_sane(void)
+{
+	int seen[WIN_MAX] = { 0 }, k;
+
+	if (scene.nwin < 0 || scene.nwin > WIN_MAX)
+		fail("window count %d", scene.nwin);
+	for (k = 0; k < scene.nwin; k++) {
+		if (scene.z[k] >= WIN_MAX || seen[scene.z[k]]++ ||
+		    !scene.wins[scene.z[k]].used)
+			fail("stacking order holds a bad or repeated slot");
+	}
+	if (scene.focus >= 0 && (!scene.wins[scene.focus].used ||
+	    scene.wins[scene.focus].hidden))
+		fail("focus on a dead or hidden window");
+}
+
+static void
+fill_damage_n(int n)
+{
+	int i;
+
+	for (i = 0; i < n; i++) {
+		mark(i * 40, 300, i * 40 + 4, 304);
+		if (win_invalidate(&scene, i * 40, 300, 4, 4) != 0)
+			fail("win_invalidate");
+	}
+}
+
+static void
+settle(void)
+{
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+}
+
+/*
+ * Failing backend against the input layer. Each case makes the next flush
+ * fail while the call needs one: the call must return -1 with the scene,
+ * the focus and the mode as before, and the same key must then work.
+ */
+static void
+run_input_failures(void)
+{
+	struct snap sn;
+	struct win *w;
+	int kind, n, rc, k;
+	long inj;
+	long nfail = 0;
+
+	op_index = -50;
+	msrc_raw = 1;
+	mask_all = 1;		/* The panel is not compared here; state is. */
+	for (kind = 0; kind < 6; kind++) {
+		fixed_world(3);
+		settle();
+		if (kind >= 3) {
+			rawkey(kind == 5 ? 0x89 : 0x88);	/* F9 or F8. */
+			if (kind == 4) {
+				rawkey(0xb7);	/* Something for Esc to undo. */
+				settle();
+			}
+		}
+		fill_damage_n(7);
+		snap_take(&sn);
+		inj = n_injected;
+		fail_countdown = 1;
+		switch (kind) {
+		case 0: rc = win_input_raw(&in, &scene, 1, 0x86); break;
+		case 1: rc = win_input_raw(&in, &scene, 1, 0x87); break;
+		case 2:
+			rawev(1, 0xa5);
+			rc = win_input_raw(&in, &scene, 1, 'w');
+			break;
+		case 3:
+		case 5: rc = win_input_raw(&in, &scene, 1, 0xb7); break;
+		default: rc = win_input_raw(&in, &scene, 1, 0xb1); break;
+		}
+		fail_countdown = 0;
+		if (kind == 2) {
+			snap_take(&sn);	/* Ctrl is held; compare the rest. */
+		}
+		if (rc != -1 || n_injected == inj)
+			fail("case %d: the injected failure was not reported (%d)",
+			    kind, rc);
+		nfail++;
+		if (kind != 2 && !snap_same(&sn, 0))
+			fail("case %d: a failed call changed the scene or mode", kind);
+		/* The same key then works. */
+		rc = kind == 2 ? win_input_raw(&in, &scene, 1, 'w') :
+		    win_input_raw(&in, &scene, 1, kind == 0 ? 0x86 : kind == 1 ?
+		    0x87 : kind == 5 ? 0xb7 : kind == 3 ? 0xb7 : 0xb1);
+		if (rc != 0)
+			fail("case %d: the retry failed", kind);
+		if (kind == 0 && scene.z[2] == sn.z[2])
+			fail("next window did nothing on retry");
+		if (kind == 2 && scene.nwin != sn.nwin - 1)
+			fail("close did nothing on retry");
+		check_sane();
+	}
+
+	/*
+	 * Cancel is one operation: size and position both return, or neither,
+	 * whatever the damage list holds when it is called.
+	 */
+	for (n = 0; n <= 7; n++) {
+		fixed_world(2);
+		settle();
+		rawkey(0x89);			/* Resize mode on window 1. */
+		w = tw[1].handle;
+		rawkey(0xb7);
+		rawkey(0xb6);
+		if (win_move(&scene, w, w->x + 16, w->y + 8) != 0)
+			fail("win_move");
+		if (win_flush(&scene) != 0)
+			fail("win_flush");
+		fill_damage_n(n);
+		snap_take(&sn);
+		fail_countdown = 1;
+		rc = win_input_raw(&in, &scene, 1, 0xb1);
+		fail_countdown = 0;
+		if (rc == -1) {
+			if (!snap_same(&sn, 0))
+				fail("cancel failed after changing the window (%d rects)", n);
+			if (in.mode != WIN_MODE_RESIZE)
+				fail("a failed cancel ended the mode");
+			nfail++;
+		} else if (w->x != 20 + 30 || w->y != 20 + 20 || w->w != 100 ||
+		    w->h != 70 || in.mode != WIN_MODE_NONE) {
+			fail("cancel did not restore the geometry (%d rects)", n);
+		}
+		check_sane();
+	}
+
+	/* A window destroyed, or its slot reused, under a mode ends the mode. */
+	fixed_world(3);
+	settle();
+	rawkey(0x88);
+	w = tw[2].handle;
+	if (win_destroy(&scene, w) != 0)
+		fail("win_destroy");
+	k = 0;
+	rawkey(0xb7);
+	if (in.mode != WIN_MODE_NONE)
+		fail("the mode survived its window");
+	fixed_world(3);
+	settle();
+	rawkey(0x88);
+	w = tw[2].handle;
+	if (win_destroy(&scene, w) != 0)
+		fail("win_destroy");
+	w = win_create(&scene, 5, 5, 60, 40, "new", NULL, NULL);
+	if (w == NULL || w != tw[2].handle)
+		fail("the slot was not reused (setup)");
+	rawkey(0xb7);
+	rawkey(0xb6);
+	if (w->x != 5 || w->y != 5 || in.mode != WIN_MODE_NONE)
+		fail("a mode moved a window that reused its slot (%d,%d)", w->x, w->y);
+	(void)k;
+
+	/* Random keys with a failing backend: reports match, state stays sane. */
+	{
+		long i, ev_fail = 0;
+		int key, ctrl;
+
+		input_world();
+		inject_every = 5;
+		for (i = 0; i < 4000; i++) {
+			if (norder == 0)
+				break;
+			key = pick_key(1, &ctrl);
+			if (ctrl) {
+				rawev_try(1, 0xa5);
+			}
+			snap_take(&sn);
+			inj = n_injected;
+			rc = win_input_raw(&in, &scene, 1, raw_code(key));
+			if (rc == -1) {
+				if (n_injected == inj || !snap_same(&sn, 1))
+					fail("a failed key changed state or was not injected");
+				win_input_lost(&in);
+				ev_fail++;
+			} else if (n_injected != inj) {
+				fail("a backend failure was lost by the input layer");
+			}
+			(void)win_input_raw(&in, &scene, 3, raw_code(key));
+			if (ctrl)
+				(void)win_input_raw(&in, &scene, 3, 0xa5);
+			check_sane();
+			/* Keep the model's bookkeeping out of it: only the library. */
+			if (scene.nwin == 0)
+				break;
+		}
+		nfail += ev_fail;
+		inject_every = 0;
+		if (win_flush(&scene) != 0)
+			fail("win_flush");
+	}
+
+	/* The descriptor loop. */
+	for (kind = 0; kind < 2; kind++) {
+		struct win_input_src src;
+
+		kb_reset();
+		kb_refuse = kind;
+		fixed_world(3);
+		settle();
+		if (kind == 0) {
+			kb_add(6, 1, 0x86, 0, NULL);
+			kb_add(60, 1, 0x86, 0, NULL);
+		} else {
+			kb_add(5, 0, 0, 0, "\033[17~");
+			kb_add(60, 0, 0, 0, "\033[17~");
+		}
+		(void)win_input_open(&src, KBD_FD);
+		fill_damage_n(7);
+		snap_take(&sn);
+		inj = n_injected;
+		fail_countdown = 1;
+		rc = win_input_wait(&src, &in, &scene, 100);
+		fail_countdown = 0;
+		if (rc != -1 || n_injected == inj)
+			fail("the loop lost a dispatch failure (%d)", rc);
+		if (!snap_same(&sn, 1) || in.mods != 0 || in.esc != 0)
+			fail("the loop changed the scene or kept stale state");
+		nfail++;
+		rc = win_input_wait(&src, &in, &scene, 100);
+		if (rc < 1 || scene.z[2] == sn.z[2])
+			fail("the key sent again after a failure did nothing (%d)", rc);
+		win_input_close(&src);
+		check_sane();
+	}
+	mask_all = 0;
+	printf("PASS input failures: %ld injected failures reported with scene and "
+	    "mode unchanged, atomic cancel, slot reuse, descriptor loop\n", nfail);
+}
+
 /* Backend bytes for three workloads, as the model counts them. */
 static void
 run_measure(void)
@@ -2658,6 +2937,7 @@ main(int argc, char **argv)
 	printf("PASS tty stream: 2500 key strokes through the byte decoder\n");
 	run_input_fixed();
 	run_dev();
+	run_input_failures();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

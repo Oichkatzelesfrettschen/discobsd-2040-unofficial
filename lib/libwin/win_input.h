@@ -91,8 +91,16 @@
  * Dispatch. An event the manager does not consume goes to the focused
  * window's handler (win_set_handler()); with no focused window it is
  * dropped. The return value of win_input_event() names who took it.
- * A scene call that fails at the backend returns -1 and the mode and the
- * window are as before, so the same key can be sent again.
+ *
+ * Failure contract. When a scene call fails at the backend, win_input_event()
+ * and the helpers built on it return -1 at once. The scene, the focus, the
+ * geometry of every window and the active mode are exactly as before the
+ * event (cancel restores position and size in one win_set_geometry() call),
+ * and the failed event is not applied: the caller may send the same key
+ * again. A helper that decodes several events (win_input_byte() with an ESC
+ * before an ordinary byte) discards the events after the failed one. A mode
+ * ends cleanly, keeping the geometry, when its window is destroyed or its
+ * slot is reused by a new window (compared by creation generation).
  */
 #ifndef _WIN_INPUT_H_
 #define _WIN_INPUT_H_
@@ -163,6 +171,7 @@ struct win_input {
 	short csi_num;			/* Their value, or -1 when malformed. */
 	short held;			/* Key whose press the manager took, or 0. */
 	struct win *mode_win;
+	unsigned mode_gen;		/* Generation of mode_win at mode entry. */
 	int sx, sy, sw, sh;		/* Geometry when the mode began. */
 };
 
@@ -205,6 +214,11 @@ void win_input_close(struct win_input_src *src);
  * feed everything that arrived to the manager. Raw sessions poll the
  * event queue every WIN_POLL_MS because select(2) wakes on tty bytes only.
  * Returns the number of events and bytes fed, 0 on a timeout, -1 on error.
+ * A dispatch that fails at the backend returns -1 at once with the scene as
+ * before it (see the failure contract above); the failed event and the rest
+ * of its read batch are discarded, and the modifier table and the swallowed
+ * key are cleared (win_input_lost()) because releases may be among the
+ * discarded events. The caller resends the key or continues.
  */
 #define WIN_POLL_MS	20
 int win_input_wait(struct win_input_src *src, struct win_input *in,

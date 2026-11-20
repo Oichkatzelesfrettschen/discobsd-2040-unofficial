@@ -151,6 +151,7 @@ struct win {
 	char title[WIN_TITLE_MAX];
 	int used;
 	int hidden;			/* Not drawn, not focusable. */
+	unsigned gen;			/* Set at creation; a reused slot differs. */
 	win_event_fn on_event;
 	void *on_event_arg;
 };
@@ -164,6 +165,7 @@ struct win_scene {
 	int desktop;			/* Palette index behind the windows. */
 	int focus;			/* Slot of the focused window, or -1. */
 	int focus_follows_raise;	/* Nonzero: raise and lower move the focus. */
+	unsigned next_gen;		/* Generation of the next window created. */
 	struct win_backend be;
 	unsigned char buf[WIN_GUARD + WIN_STRIP_BYTES + WIN_GUARD];
 };
@@ -179,6 +181,9 @@ struct win *win_create(struct win_scene *s, int x, int y, int w, int h,
 int win_destroy(struct win_scene *s, struct win *win);
 int win_move(struct win_scene *s, struct win *win, int x, int y);
 int win_resize(struct win_scene *s, struct win *win, int w, int h);
+/* Position and size in one call: all of it changes or none of it does. */
+int win_set_geometry(struct win_scene *s, struct win *win, int x, int y,
+    int w, int h);
 int win_raise(struct win_scene *s, struct win *win);
 int win_set_title(struct win_scene *s, struct win *win, const char *title);
 int win_lower(struct win_scene *s, struct win *win);

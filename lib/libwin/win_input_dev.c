@@ -97,9 +97,13 @@ drain(struct win_input_src *src, struct win_input *in, struct win_scene *s)
 		}
 		if (ev.lost != 0)
 			win_input_lost(in);
-		for (i = 0; i < ev.n && i < LCD_KEYEV_N; i++)
-			if (win_input_raw(in, s, ev.ev[i].state, ev.ev[i].key) == 0)
-				fed++;
+		for (i = 0; i < ev.n && i < LCD_KEYEV_N; i++) {
+			if (win_input_raw(in, s, ev.ev[i].state, ev.ev[i].key) < 0) {
+				win_input_lost(in);
+				return -2;
+			}
+			fed++;
+		}
 	} while (ev.n == LCD_KEYEV_N);
 	return fed;
 }
@@ -129,15 +133,24 @@ win_input_wait(struct win_input_src *src, struct win_input *in,
 			if (n < 0)
 				return -1;
 			if (!src->raw)
-				for (i = 0; i < n; i++)
-					if (win_input_byte(in, s, buf[i]) == 0)
-						fed++;
+				for (i = 0; i < n; i++) {
+					if (win_input_byte(in, s, buf[i]) < 0) {
+						win_input_lost(in);
+						return -1;
+					}
+					fed++;
+				}
 		} else if (r == 0 && !src->raw && in->esc != 0) {
-			if (win_input_idle(in, s) == 0)
-				fed++;
+			if (win_input_idle(in, s) < 0) {
+				win_input_lost(in);
+				return -1;
+			}
+			fed++;
 		}
 		if (src->raw) {
 			n = drain(src, in, s);
+			if (n == -2)
+				return -1;	/* A dispatch failure; the session stays. */
 			if (n < 0)
 				return -1;
 			fed += n;

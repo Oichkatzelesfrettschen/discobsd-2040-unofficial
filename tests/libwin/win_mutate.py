@@ -201,8 +201,8 @@ INPUT_MUTATIONS = (
     ),
     (
         "cancel_not_restoring",
-        "\t\tif (win_resize(s, in->mode_win, in->sw, in->sh) < 0 ||\n"
-        "\t\t    win_move(s, in->mode_win, in->sx, in->sy) < 0)\n\t\t\treturn -1;\n",
+        "\t\tif (win_set_geometry(s, in->mode_win, in->sx, in->sy, in->sw,\n"
+        "\t\t    in->sh) < 0)\n\t\t\treturn -1;\n",
         "",
     ),
     (
@@ -262,6 +262,22 @@ INPUT_MUTATIONS = (
         "kind = WIN_EV_PRESS;",
     ),
     (
+        "cancel_not_atomic",
+        "\t\tif (win_set_geometry(s, in->mode_win, in->sx, in->sy, in->sw,\n\t\t    in->sh) < 0)",
+        "\t\tif (win_resize(s, in->mode_win, in->sw, in->sh) < 0 ||\n"
+        "\t\t    win_move(s, in->mode_win, in->sx, in->sy) < 0)",
+    ),
+    (
+        "mode_survives_slot_reuse",
+        "\t    (!win_is_live(s, in->mode_win) || in->mode_win->gen != in->mode_gen))",
+        "\t    !win_is_live(s, in->mode_win))",
+    ),
+    (
+        "decode_failure_continues",
+        "\t\tif (win_input_event(in, s, &ev[i]) < 0)\n\t\t\treturn -1;\n\treturn 0;",
+        "\t\t(void)win_input_event(in, s, &ev[i]);\n\treturn 0;",
+    ),
+    (
         "decoder_writes_past_events",
         "\t\tif (in->esc == ST_ESC)\n"
         "\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n"
@@ -296,6 +312,16 @@ DEV_MUTATIONS = (
         "lone_esc_never_resolved",
         "} else if (r == 0 && !src->raw && in->esc != 0) {",
         "} else if (0) {",
+    ),
+    (
+        "raw_dispatch_failure_swallowed",
+        "\t\t\t\twin_input_lost(in);\n\t\t\t\treturn -2;",
+        "\t\t\t\twin_input_lost(in);\n\t\t\t\tcontinue;",
+    ),
+    (
+        "tty_dispatch_failure_swallowed",
+        "\t\t\t\t\t\twin_input_lost(in);\n\t\t\t\t\t\treturn -1;",
+        "\t\t\t\t\t\twin_input_lost(in);",
     ),
     (
         "batch_not_drained",

@@ -43,6 +43,11 @@
  * are set. In a text mode the bits select the pages whose cells are
  * compared with the copy last drawn.
  *
+ * A mode set that asks for memory to be kept (bit 7) keeps all of it
+ * between graphics modes. Between a text and a graphics mode only the
+ * cells' 4 KB exist on both sides; the other 12 KB are zeros on entering
+ * a graphics mode.
+ *
  * A graphics mode needs 16 KB where a text mode needs 4. The even scan
  * lines take the 8 KB that hold the cells and their copy in a text mode;
  * the odd ones take eight page frames from the pager for as long as the
@@ -189,9 +194,16 @@ palette(void)
 static int
 kind_set(int k)
 {
-	if (k != K_TEXT && bank[1] == NULL &&
-	    (bank[1] = mem_lend(BANK_PAGES)) == NULL)
-		return (-1);
+	if (k != K_TEXT && bank[1] == NULL) {
+		if ((bank[1] = mem_lend(BANK_PAGES)) == NULL)
+			return (-1);
+		/* From cells to pixels: the cells' four kilobytes are the
+		 * same memory in both and stay; the rest held the copy of
+		 * the cells last drawn and the pager's pages, which are not
+		 * display memory, and reads as zeros. */
+		memset(bank[0] + 0x1000, 0, 0x1000);
+		memset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);
+	}
 	if (k == K_TEXT && bank[1] != NULL) {
 		mem_return();
 		bank[1] = NULL;
@@ -266,8 +278,8 @@ gfx_mode(unsigned mode)
 	mem_wb(0x466, reg_color);
 	palette();
 	if (k != K_TEXT && !(mode & 0x80)) {
-		memset(bank[0], 0, FIELD);
-		memset(bank[1], 0, FIELD);
+		memset(bank[0], 0, BANK_PAGES << MEM_PGSHIFT);
+		memset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);
 	}
 	return (k != K_TEXT);
 }

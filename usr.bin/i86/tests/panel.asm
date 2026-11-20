@@ -119,14 +119,15 @@ key:	mov ah, 1
 
 stages:	dw stage0, stage1, stage2, stage3, stage4, stage5, stage6, stage7, stage8, stage9
 
-; Mode 4 entered a second time, which must clear what the first left, and
-; a disk sector read straight into display memory.
+; Mode 4 left for text and entered again with memory kept: the text mode's
+; cells are what is kept, the rest reads as zeros. Then a disk sector read
+; straight into display memory.
 stage0:	mov ax, 4
 	int 0x10
 	call fields
 	mov ax, 3
 	int 0x10
-	mov ax, 4
+	mov ax, 0x84			; keep memory: the cells stay
 	int 0x10
 	call vseg
 	mov ax, 0x0201
@@ -171,6 +172,11 @@ stage2:	mov ax, 1
 ; Mode 4: the fields, pixels written and read, characters, both palettes.
 stage3:	mov ax, 4
 	int 0x10
+	call vseg
+	mov byte [es:0x1f41], 0xff	; past each field's last line
+	mov byte [es:0x3f41], 0xff
+	mov ax, 4			; the mode again: all of it cleared
+	int 0x10
 	call fields
 	mov ax, 0x0c02
 	mov cx, 17
@@ -187,6 +193,16 @@ stage3:	mov ax, 4
 	mov ah, 0x0c
 	mov cx, 1
 	mov dx, 1
+	int 0x10
+	mov al, [es:0x1f41]
+	mov ah, 0x0c
+	mov cx, 2
+	mov dx, 2
+	int 0x10
+	mov al, [es:0x3f41]
+	mov ah, 0x0c
+	mov cx, 3
+	mov dx, 2
 	int 0x10
 	mov dx, 0x0304
 	call cursor
@@ -237,6 +253,8 @@ stage4:	mov ax, 6
 stage5:	mov ax, 4
 	int 0x10
 	call fields
+	mov ax, 0x85			; mode 5, memory kept
+	int 0x10
 	mov ax, 0x0602
 	mov bh, 0x55
 	mov cx, 0x0203

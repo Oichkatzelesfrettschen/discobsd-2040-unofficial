@@ -73,8 +73,27 @@ MUTANTS = [
     ("gfx.c", "(void)DEV_IOCTL(fd, LCDG_FILL, &all);", "(void)all;"),
     ("gfx.c", "#define GFX_Y0\t\t60", "#define GFX_Y0\t\t59"),
     ("gfx.c", "cm.fmt = LCDG_COLMOD_RGB565;", "cm.fmt = LCDG_COLMOD_RGB666;"),
-    ("gfx.c", "memset(bank[0], 0, FIELD);", "memset(bank[0], 0, FIELD / 2);"),
-    ("gfx.c", "memset(bank[1], 0, FIELD);", "memset(bank[1], 0, FIELD / 2);"),
+    (
+        "gfx.c",
+        "\t\tmemset(bank[0], 0, BANK_PAGES << MEM_PGSHIFT);",
+        "\t\tmemset(bank[0], 0, FIELD);",
+    ),
+    (
+        "gfx.c",
+        "\t\tmemset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);\n\t}\n\treturn (k != K_TEXT);",
+        "\t\tmemset(bank[1], 0, FIELD / 2);\n\t}\n\treturn (k != K_TEXT);",
+    ),
+    (
+        "gfx.c",
+        "memset(bank[0] + 0x1000, 0, 0x1000);\n\t\tmemset(bank[1]",
+        "memset(bank[0] + 0x1000, 0, 0x10);\n\t\tmemset(bank[1]",
+    ),
+    (
+        "gfx.c",
+        "\t\tmemset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);\n\t}\n\tif (k == K_TEXT && bank[1]",
+        "\t}\n\tif (k == K_TEXT && bank[1]",
+    ),
+    ("gfx.c", "(reg_mode & 4) ? 0x743 :", "(reg_mode & 8) ? 0x743 :"),
     ("gfx.c", "mem_rb(line_addr(down ? y - n : y + n) + x)", "mem_rb(line_addr(y + n) + x)"),
     ("gfx.c", "k >= h - n ? fill :", "k >= h - n ? fill ^ 0xff :"),
     ("gfx.c", "if (color & 0x80) {\n\t\t\told", "if (color & 0x40) {\n\t\t\told"),
@@ -251,7 +270,11 @@ def expected(stage, fonts, boot):
     wide = fonts[0]
     ramp = [((0x4567 + 0x0123 * i) & 255, (0x4567 + 0x0123 * i) >> 8 & 255) for i in range(2000)]
     if stage == 0:
+        # The text mode cleared its 2,000 cells; what the first graphics
+        # mode left in the rest of their four kilobytes is still there.
         cga = Cga(wide, fill=False)
+        cga.fields[0][0:4000] = bytes([0x20, 0x07]) * 2000
+        cga.fields[0][4000:4096] = bytes((5 * i + 1) & 255 for i in range(4000, 4096))
         cga.fields[0][0x100:0x300] = boot[:512]
         return cga4_frame(cga.fields, 0x30)
     if stage == 1:
@@ -268,6 +291,8 @@ def expected(stage, fonts, boot):
         cga.pixel(17, 33, 2)
         cga.pixel(300, 199, 0x83)
         cga.pixel(1, 1, cga.pixel(17, 33))
+        cga.pixel(2, 2, 0)
+        cga.pixel(3, 2, 0)
         cga.putc(3, 4, ord("A"), 2)
         cga.putc(3, 5, ord("b"), 3)
         for col in (37, 38, 39):
@@ -285,7 +310,7 @@ def expected(stage, fonts, boot):
         cga = Cga(wide)
         cga.scroll(2, 3, 10, 20, 2, 0x55, False)
         cga.scroll(12, 0, 24, 39, 1, 0xAA, True)
-        return cga4_frame(cga.fields, 0x2A)
+        return cga4_frame(cga.fields, 0x2A, burst_off=True)
     if stage == 6:
         cga = Cga(wide)
         cga.fields[0][4000] = 0x1B

@@ -1,0 +1,7 @@
+/lexeme
+/lexeme.elf
+/lexeme.dis
+/lexeme.host
+/lexeme.host32
+/*.o
+/tests/__pycache__/

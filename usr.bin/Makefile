@@ -8,12 +8,12 @@ include ${TOPSRC}/share/mk/sys.mk
 
 # Both maintained machines build the Thumb native toolchain. RP2040 also
 # carries the MPU diagnostic, the PicoCalc panel register test, the panel
-# capture scrshot and, in picofetch and picotop, readers of its machdep
-# sysctl nodes; STM32 has no matching sysctl interface. ulisp draws on the
-# PicoCalc's pixel device and sizes its workspace from the RP2040 process
-# window.
+# capture scrshot, the lexeme word processor of the PicoCalc SD root and, in
+# picofetch and picotop, readers of its machdep sysctl nodes; STM32 has no
+# matching sysctl interface. ulisp draws on the PicoCalc's pixel device and
+# sizes its workspace from the RP2040 process window.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc as ld mputest paneltest scrshot boardinfo matezinho picofetch picotop ulisp" ; \
+		echo "lex smlrc as ld mputest paneltest scrshot boardinfo matezinho picofetch picotop lexeme ulisp" ; \
 	else \
 		echo "lex smlrc as ld" ; \
 	fi

@@ -61,6 +61,8 @@ check_sysconf(void)
 	runtime_limits_errno = 53;
 	CHECK(db_sysconf(_SC_DEVICE_CONTROL) == -1);
 	CHECK(runtime_limits_errno == 53);
+	CHECK(db_sysconf(_SC_SYMLOOP_MAX) == 8);
+	CHECK(runtime_limits_errno == 53);
 
 	runtime_limits_errno = 0;
 	CHECK(db_sysconf(2) == -1);
@@ -136,7 +138,9 @@ main(void)
 	CHECK(_SC_NPROCESSORS_ONLN == 8);
 	CHECK(_SC_NSIG == 9);
 	CHECK(_SC_PAGESIZE == 10);
+	CHECK(_SC_PAGE_SIZE == _SC_PAGESIZE);
 	CHECK(_SC_DEVICE_CONTROL == 11);
+	CHECK(_SC_SYMLOOP_MAX == 12);
 	CHECK(_POSIX_DEVICE_CONTROL == -1);
 	CHECK(_CS_PATH == 1);
 	check_sysconf();

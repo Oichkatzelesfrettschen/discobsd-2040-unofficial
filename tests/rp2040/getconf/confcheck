@@ -1,0 +1,87 @@
+#!/bin/sh
+# Copyright (c) 2026 GizmoBSD
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+set -eu
+umask 077
+work=/tmp/confcheck.$$
+mkdir "$work"
+cd "$work"
+cleanup()
+{
+	rm -f 9 8 7 6 5 4 3 2 1 0 out err want || return 1
+	cd / || return 1
+	rmdir "$work"
+}
+trap 'cleanup; exit 1' 0
+
+check_value()
+{
+	expected=$1
+	shift
+	printf '%s\n' "$expected" >want
+	/usr/bin/getconf "$@" >out 2>err
+	cmp want out
+	test ! -s err || exit 1
+}
+
+check_value 5120 ARG_MAX
+check_value 16 NGROUPS_MAX
+check_value 30 OPEN_MAX
+check_value 1 _POSIX_JOB_CONTROL
+check_value 1 NPROCESSORS_CONF
+check_value 1 NPROCESSORS_ONLN
+check_value 1024 PAGESIZE
+check_value 1024 PAGE_SIZE
+check_value 8 -- SYMLOOP_MAX
+check_value undefined _POSIX_DEVICE_CONTROL
+check_value /usr/bin:/bin:/usr/sbin:/sbin PATH
+check_error()
+{
+	if /usr/bin/getconf "$@" >out 2>err; then exit 1; fi
+	test ! -s out || exit 1
+	test -s err || exit 1
+}
+
+check_error UNKNOWN
+if /usr/bin/getconf >out 2>err; then exit 1; fi
+test ! -s out || exit 1
+test -s err || exit 1
+check_error OPEN_MAX extra
+
+echo payload >0
+previous=0
+for next in 1 2 3 4 5 6 7 8 9; do
+	ln -s "$previous" "$next"
+	previous=$next
+done
+cat 8 >out
+cmp 0 out
+if cat 9 >out 2>err; then exit 1; fi
+test ! -s out || exit 1
+grep 'Too many levels of symbolic links' err >/dev/null
+trap 0
+cleanup || exit 1
+echo confcheck-pass

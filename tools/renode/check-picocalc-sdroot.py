@@ -477,6 +477,11 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
             cp.KEY_BUDGET_SECONDS,
         )
         if start == SD_KERNEL_END:
+            run.renode.command('sysbus.i2c1.kbd TypeText "sh /usr/tests/r"')
+            run.advance()
+            run.type_line("p2040/confcheck")
+            run.wait_until(lambda: run.has_line("confcheck-pass"), "SD getconf",
+                           "configuration values and symlink boundary", SD_BUDGET_SECONDS)
             run.type_line("cut -b2- p")
             run.wait_until(lambda: run.has_line("k"), "SD cut open range",
                            "the second byte of ok", cp.KEY_BUDGET_SECONDS)

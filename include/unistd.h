@@ -72,7 +72,9 @@
 #define _SC_NPROCESSORS_ONLN    8
 #define _SC_NSIG                9
 #define _SC_PAGESIZE            10
+#define _SC_PAGE_SIZE           _SC_PAGESIZE
 #define _SC_DEVICE_CONTROL      11
+#define _SC_SYMLOOP_MAX         12
 
 /* DPUCP-2024 exposes the standard option boundary without claiming it. */
 #define _POSIX_DEVICE_CONTROL   (-1)

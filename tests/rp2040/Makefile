@@ -27,7 +27,7 @@ build-${program}:
 # The executables the board runs, installed in /usr/tests/rp2040 for the
 # PicoCalc's SD root (distrib/rp2040/Makefile.inc, sdroot), which has the
 # space the flash root lacks. The host-side drivers (*.py) stay here.
-BOARD_BINS=	divtest/divtest exec_hsaout/textcrc fptest/fptest \
+BOARD_BINS=	getconf/confcheck divtest/divtest exec_hsaout/textcrc fptest/fptest \
 		lcdexttest/lcdexttest lcdgfxtest/lcdgfxtest romprobe/romprobe \
 		sigtest/sigtest stack_chain/stackchain \
 		streamtest/streamtest stdio_capacity/stdiocap \

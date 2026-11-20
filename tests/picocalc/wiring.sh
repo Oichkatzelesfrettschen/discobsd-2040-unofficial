@@ -84,7 +84,8 @@ check() {
 	has "$_cons" lcdselect 'picokbd_evq_select(&lcd_sel,' || return 1
 	has "$_cons" lcd_sel_raise 'spltty(' || return 1
 	has "$_cons" lcd_sel_restore 'splx(' || return 1
-	has "$_cons" lcd_sel_tty 'ttyselect(&lcdttys[0], FREAD)' || return 1
+	has "$_cons" lcd_sel_tty 'ttyselect(lcd_sel_tp, FREAD)' || return 1
+	has "$_cons" lcdselect 'lcd_sel_tp = tp;' || return 1
 	has "$_cons" lcdselect 'p_pgrp' || return 1
 	has "$_cons" lcdselect 'p_pid' || return 1
 	has "$_cons" lcdselect 't_flags' || return 1
@@ -153,19 +154,19 @@ mutant exit-hook-missing xit 's/lcdcons_procexit(p);/(void)p;/'
 mutant exec-hook-missing xec 's/lcdcons_procexit(u\.u_procp);/(void)0;/'
 mutant procexit-ends-nothing cons 's/picokbd_evq_procexit(p, p->p_pid);/(void)p;/'
 mutant requests-ignore-pid cons 's/u\.u_procp->p_pid/0/'
-mutant keycheck-ignores-flags cons 's/lcdttys\[0\]\.t_pgrp, lcdttys\[0\]\.t_flags);/lcdttys[0].t_pgrp, 0);/'
-mutant keycheck-ignores-group cons 's/picokbd_evq_check(lcdttys\[0\]\.t_pgrp,/picokbd_evq_check(0,/'
-mutant requests-ignore-flags cons 's/lcdttys\[0\]\.t_flags,$/0,/'
+mutant keycheck-ignores-flags cons 's/LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags);/LCD_SHOWN->t_pgrp, 0);/'
+mutant keycheck-ignores-group cons 's/picokbd_evq_check(LCD_SHOWN->t_pgrp,/picokbd_evq_check(0,/'
+mutant requests-ignore-flags cons 's/LCD_SHOWN->t_flags,$/0,/'
 mutant modeset-hook-missing cons 's/^\t\tlcd_modeset();$/\t\t(void)0;/'
 mutant modeset-ends-nothing cons 's/picokbd_evq_modeset(u\.u_procp, u\.u_procp->p_pid);/(void)0;/'
 mutant modeset-misses-setlocal cons 's/cmd == TIOCLSET/cmd == 0/'
 mutant select-ignores-queue cons 's/picokbd_evq_select(&lcd_sel,/lcd_sel_tty(/'
 mutant select-any-direction cons 's/rw != FREAD/rw == 0/'
 mutant select-any-process cons 's/picokbd_evq_select(&lcd_sel, u\.u_procp, u\.u_procp->p_pid,/picokbd_evq_select(\&lcd_sel, 0, 0,/'
-mutant select-ignores-group cons 's/^\t    u\.u_procp->p_pgrp, lcdttys\[0\]\.t_pgrp, lcdttys\[0\]\.t_flags);/\t    0, lcdttys[0].t_pgrp, lcdttys[0].t_flags);/'
+mutant select-ignores-group cons '/^lcdselect/,/^}/s/^\t    u\.u_procp->p_pgrp, LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags);/\t    0, LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags);/'
 mutant select-no-level cons 's/return spltty();/return 0;/'
 mutant select-no-restore cons 's/^\tsplx(x);$/\t(void)x;/'
-mutant select-tty-direction cons 's/ttyselect(&lcdttys\[0\], FREAD)/ttyselect(\&lcdttys[0], FWRITE)/'
+mutant select-tty-direction cons 's/ttyselect(lcd_sel_tp, FREAD)/ttyselect(lcd_sel_tp, FWRITE)/'
 mutant request-two-ignored cons 's/error == 0 && on == 2/error == 0 \&\& on == 3/'
 mutant wakeon-missing cons 's/picokbd_evq_wakeon();/(void)0;/'
 mutant wake-missing cons 's/selwakeup(tp->t_rsel, tp->t_state & TS_RCOLL);/(void)tp;/'

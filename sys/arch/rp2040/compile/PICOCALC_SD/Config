@@ -15,8 +15,9 @@
 #
 # Full PicoCalc with a required SD root and a 160 KiB kernel reservation.
 # check_generated_sync.py compares every directive to the full PICOCALC
-# configuration, apart from the linker script, the root and LCD_GFX_EXT:
-# the extended /dev/lcdgfx commands (sys/sys/lcdgfx.h), which the 128 KiB
+# configuration, apart from the linker script, the root, LCD_GFX_EXT and
+# LCD_VT: the extended /dev/lcdgfx commands (sys/sys/lcdgfx.h) and the
+# second console ttyv1 (sys/arch/rp2040/dev/lcdcons.c), which the 128 KiB
 # kernel has no room for. The SD service resolves the first type-b7 partition
 # before root mount. Raw flash swap retains its standard location.
 architecture    "rp2040"
@@ -31,6 +32,7 @@ options         SYSTRACE
 options         CAPACITY_STATS
 options         LCD_PANELTEST
 options         LCD_GFX_EXT
+options         LCD_VT
 config          unix    root on sd0a
                         swap on fl1
                         dumps on none

@@ -1606,6 +1606,19 @@ check-changed-text: check-python
 
 .PHONY: check-text-hygiene check-changed-text
 
+# A file whose head names a GizmoBSD copyright line is under the BSD 3-Clause
+# words of NOTICE section 1 (tools/check_license_headers.py). The gate compares
+# each such head with NOTICE word for word, so a header that stops mid-disclaimer
+# fails, and requires every year to lie inside the GizmoBSD range of NOTICE and
+# etc/COPYRIGHT. --selftest first rejects a truncated disclaimer, a dropped
+# clause, a changed word, a year outside the range, a malformed copyright line,
+# and trees with no header or no NOTICE.
+check-license-headers: check-python
+		${PYTHON} tools/check_license_headers.py --selftest
+		${PYTHON} tools/check_license_headers.py --root ${TOPSRC}
+
+.PHONY: check-license-headers
+
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
@@ -2072,7 +2085,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene \
+		check-comment-hygiene check-text-hygiene check-license-headers \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
 		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \

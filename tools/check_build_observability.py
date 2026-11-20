@@ -128,7 +128,7 @@ HOST_REQUIRED_LOGS = {
 JOB_PATTERN = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$", re.MULTILINE)
 STEP_PATTERN = re.compile(r"^      - (?:name|uses):", re.MULTILINE)
 LABEL_PATTERN = re.compile(r"--label\s+([A-Za-z0-9._-]+)")
-APT_GET_PATTERN = re.compile(r"\bapt-get\b")
+APT_GET_PATTERN = re.compile(r"\b(?:apt-get|ci_apt_install\.sh)\b")
 DIRECT_BMAKE_PATTERN = re.compile(
     r"^(?:env(?:\s+-[^\s]+)*\s+)?"
     r"(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]+\s+)*(?:[^\s]*/)?bmake\b"
@@ -212,7 +212,8 @@ def validate_workflow(source, *, expected_jobs=EXPECTED_JOBS,
                     re.MULTILINE,
             ) is None:
                 raise ValueError(
-                    f"job {job_name} step {name} calls apt-get without a step timeout-minutes"
+                    f"job {job_name} step {name} installs packages (apt-get or "
+                    "tools/ci_apt_install.sh) without a step timeout-minutes"
                 )
             continued_command = False
             for line in active_step.splitlines():

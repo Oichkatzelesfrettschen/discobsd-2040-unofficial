@@ -357,7 +357,7 @@ class BuildObservabilityTest(unittest.TestCase):
         marker = "      - name: Retain fixture logs\n"
         source = FIXTURE.replace(marker, step + marker, 1)
         with self.assertRaisesRegex(
-            ValueError, "fixture step Install the fixture packages calls apt-get.*timeout-minutes"
+            ValueError, "step Install the fixture packages installs packages.*timeout-minutes"
         ):
             self.validate(source)
         bounded = step.replace("        run:", "        timeout-minutes: 5\n        run:")
@@ -367,12 +367,21 @@ class BuildObservabilityTest(unittest.TestCase):
         source = (ROOT / ".github/workflows/firmware.yml").read_text(encoding="utf-8")
         marker = "      - name: Install the host toolchain\n        timeout-minutes: 20\n"
         self.assertIn(marker, source)
-        with self.assertRaisesRegex(ValueError, "step Install the host toolchain calls apt-get"):
-            observability.validate_workflow(
-                source.replace(marker, "      - name: Install the host toolchain\n", 1).replace(
+        bare = marker.replace("        timeout-minutes: 20\n", "")
+        for label, candidate in (
+            ("helper step without its deadline", source.replace(marker, bare, 1)),
+            (
+                "direct apt-get step without its deadline",
+                source.replace(marker, bare, 1).replace(
                     "sh tools/ci_apt_install.sh", "sudo apt-get install -y", 1
-                )
-            )
+                ),
+            ),
+        ):
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(
+                    ValueError, "step Install the host toolchain installs packages"
+                ):
+                    observability.validate_workflow(candidate)
 
     def test_repository_workflow_satisfies_the_contract(self):
         observability.check(ROOT)

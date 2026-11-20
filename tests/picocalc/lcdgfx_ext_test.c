@@ -90,10 +90,11 @@ const unsigned char lcd_palette[16][3] = {
 	{  60, 255, 255 }, { 255, 255, 255 },
 };
 
+static int cells_drawn;		/* Console cells drawn onto the panel. */
 void lcd_draw_cell(int prow, int col, int ch, unsigned attr)
-{ (void)prow; (void)col; (void)ch; (void)attr; }
+{ (void)prow; (void)col; (void)ch; (void)attr; cells_drawn++; }
 void lcd_fill_cells(int prow, int col, int n, unsigned attr)
-{ (void)prow; (void)col; (void)n; (void)attr; }
+{ (void)prow; (void)col; (void)n; (void)attr; cells_drawn++; }
 void lcd_set_top(int prow) { (void)prow; }
 void lcd_bell(void) { }
 void lcdterm_reply(const char *s, int n) { (void)s; (void)n; }
@@ -116,44 +117,32 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
-/*
- * The facts lcdcons_gfx_reader() reads on the board: the caller's uid and
- * the one process table entry pfind() could return for the console
- * session. The session and the latched owner are the production
- * lcdgfx_console_*() and lcdgfx_reader_ok().
- */
-#define	OWNER_UID	1000
+/* The opener's effective uid: 0 is the superuser, whose open clears nothing. */
 #define	OTHER_UID	1001
-#define	LOGIN_PID	100
 
 static unsigned cur_uid;
-static int leader_alive;
-static int leader_pid;
-static int leader_pgrp;
-static unsigned leader_uid;
 
 int
-lcdcons_gfx_reader(void)
+lcdcons_gfx_root(void)
 {
-	int sess = lcdgfx_console_session();
-	/* pfind(0) would find a process of pid 0, which the driver never asks. */
-	int found = leader_alive && leader_pid == sess;
-
-	/* A caller that finds no process hands over stale values. */
-	return lcdgfx_reader_ok(cur_uid, found, found ? leader_pgrp : sess,
-	    found ? leader_uid : cur_uid);
+	return cur_uid == 0;
 }
 
-/* The caller is the superuser (1) or a user who does not own the console. */
-static void
-as_reader(int on)
-{
-	cur_uid = on ? 0 : OTHER_UID;
-}
+/*
+ * What a read selection returns while the open still clears the panel: the
+ * first window the open draws stands in for a concurrent caller.
+ */
+static int probe_armed, probe_result;
 
 void
 lcd_gfx_window(int x0, int y0, int x1, int y1)
 {
+	if (probe_armed) {
+		struct lcdg_read r = { 0, 0, 4, 1, LCDG_RD_RGB565 };
+
+		probe_armed = 0;
+		probe_result = lcdgfx_ioctl(LCDG_READ, (char *)&r);
+	}
 	if (win_open)
 		violation("window inside a window");
 	if (rdclk)
@@ -380,13 +369,21 @@ xfer(int wr, void *data, size_t len)
 	return error;
 }
 
+/* A fresh model whose memory holds fill, as the console leaves it, opened as uid. */
 static void
-fresh(void)
+fresh_as(unsigned uid, unsigned fill)
 {
+	unsigned y, x;
+
 	if (lcdgfx_isopen())
 		lcdgfx_close();
 	lcdterm_init();
-	memset(gram, 0, sizeof(gram));
+	for (y = 0; y < RL; y++)
+		for (x = 0; x < PW; x++)
+			gram[y][x] = fill;
+	cur_uid = uid;
+	probe_result = -1;
+	probe_armed = 1;
 	colmod = 0x55;
 	win_open = rdclk = power = npower = 0;
 	nwin = win_multi = 0;
@@ -396,6 +393,13 @@ fresh(void)
 	scan_glitch_call = -1;
 	uiomove_fail = 0;
 	expect("open", lcdgfx_open(), 0);
+	probe_armed = 0;
+}
+
+static void
+fresh(void)
+{
+	fresh_as(0, 0);
 }
 
 /* The memory value a 565 color leaves in either COLMOD. */
@@ -452,40 +456,6 @@ pwr(int mode)
 }
 
 /*
- * getty(8) opens the console as group leader pid, login(1) then runs as
- * root until it sets the user's uid: the console of a login by uid.
- */
-static void
-login_as(int pid, unsigned uid)
-{
-	lcdgfx_console_close();
-	leader_alive = 1;
-	leader_pid = pid;
-	leader_pgrp = pid;
-	leader_uid = 0;
-	lcdgfx_console_open(pid);
-	leader_uid = uid;
-}
-
-static void
-logout(void)
-{
-	lcdgfx_console_close();
-	leader_alive = 0;
-}
-
-/* One read of four red pixels at the top left, as the caller now is. */
-static int
-read_four(unsigned short *got)
-{
-	int error = rdsel(0, 0, 4, 1, LCDG_RD_RGB565);
-
-	if (error != 0)
-		return error;
-	return xfer(0, got, 8);
-}
-
-/*
  * Every drawing, scrolling, tile, sprite, palette, power and wait function
  * of the device answers a caller who is neither the superuser nor the
  * console's owner exactly as it answers the superuser: none checks the
@@ -511,8 +481,7 @@ test_open_to_every_user(unsigned uid)
 	struct lcdg_xinfo xi;
 	unsigned char pix[4] = { 0, 0, 0, 0 };
 
-	fresh();
-	cur_uid = uid;
+	fresh_as(uid, 0);
 	expect("fill", ioc(LCDG_FILL, &rc), 0);
 	expect("frame", ioc(LCDG_FRAME, &rc), 0);
 	expect("line", ioc(LCDG_LINE, &ln), 0);
@@ -544,101 +513,77 @@ test_open_to_every_user(unsigned uid)
 	expect("no violation", violations, 0);
 }
 
+/* The number of memory words that differ from v. */
+static long
+differ(unsigned v)
+{
+	long n = 0;
+	int y, x;
+
+	for (y = 0; y < RL; y++)
+		for (x = 0; x < PW; x++)
+			n += gram[y][x] != v;
+	return n;
+}
+
+#define	CONSOLE	mem(0xf81f)	/* What the console and an earlier opener left. */
+
 static void
 test_access(void)
 {
 	unsigned short got[4];
-	unsigned char raw[LCDG_RD_RAW_BYTES(4)];
-	int i;
+	int cells, wins;
 
-	fresh();
-	login_as(LOGIN_PID, OWNER_UID);
-	cur_uid = OWNER_UID;
-	expect("owner writes", ramfill(0, 0, 3, 0, 0xf800), 0);
-	expect("owner reads", read_four(got), 0);
-	expect("all four pixels", resid_after, 0);
-	for (i = 0; i < 4; i++)
-		expect("owner's pixel", got[i], 0xf800);
-	expect("owner selects a raw read", rdsel(0, 0, 4, 1, LCDG_RD_RAW), 0);
-	expect("owner raw read", xfer(0, raw, sizeof(raw)), 0);
+	/* The superuser's open clears nothing and reads the memory as it stands. */
+	fresh_as(0, CONSOLE);
+	expect("root open leaves every word", differ(CONSOLE), 0);
+	expect("root open drew no window", nwin, 0);
+	expect("root selects", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
+	expect("root reads the console", xfer(0, got, 8), 0);
+	expect("root's pixel", got[3], 0xf81f);
+	expect("root selects an off-screen line", rdsel(0, 400, 4, 1, 0), 0);
+	expect("root reads it", xfer(0, got, 8), 0);
+	expect("root's off-screen pixel", got[0], 0xf81f);
 
-	/* A user who does not own the console. */
-	cur_uid = OTHER_UID;
-	expect("other's select", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), EPERM);
-	cur_uid = OWNER_UID;
-	expect("owner selects again", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
-	cur_uid = OTHER_UID;
-	expect("other's read of the owner's selection", xfer(0, got, 8), EPERM);
-	expect("nothing moved", resid_after, 8);
+	/* Another user's open blanks all 480 lines before it returns. */
+	fresh_as(OTHER_UID, CONSOLE);
+	expect("open blanked every word, lines 0-479", differ(0), 0);
+	expect("the clear is one window", nwin, 1);
+	expect("a read selected during the clear is refused", probe_result, EPERM);
+	expect("no violation", violations, 0);
+	expect("select at the top", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
+	expect("read at the top", xfer(0, got, 8), 0);
+	expect("blank pixel", got[0], 0);
+	expect("select past the glass", rdsel(316, 479, 4, 1, LCDG_RD_RGB565), 0);
+	expect("read past the glass", xfer(0, got, 8), 0);
+	expect("blank off-screen pixel", got[3], 0);
+	expect("draws", ramfill(0, 330, 3, 330, 0x07e0), 0);
+	expect("select what it drew", rdsel(0, 330, 4, 1, LCDG_RD_RGB565), 0);
+	expect("read what it drew", xfer(0, got, 8), 0);
+	expect("its own pixel", got[2], 0x07e0);
+
+	/* The descriptor carries the right: a forked or exec'd holder of it. */
 	cur_uid = 0;
-	expect("the superuser completes it", xfer(0, got, 8), 0);
+	expect("inherited select", rdsel(0, 330, 4, 1, LCDG_RD_RGB565), 0);
+	cur_uid = OTHER_UID + 1;
+	expect("inherited by a third user", rdsel(0, 330, 4, 1, 0), 0);
 
-	/* The check runs at each read(2), not at the selection alone. */
-	expect("the superuser selects", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
-	cur_uid = OWNER_UID;
-	expect("owner finishes the superuser's selection", xfer(0, got, 8), 0);
+	/* Console text cannot draw onto the panel or into the memory. */
+	cells = cells_drawn;
+	wins = nwin;
+	lcdterm_putc('x');
+	lcdterm_putc('\n');
+	expect("kernel text draws no cell", cells_drawn, cells);
+	expect("kernel text draws no window", nwin, wins);
 
-	/* The leader's uid changes after the latch: the login user stays. */
-	leader_uid = OTHER_UID;		/* The shell itself became another user. */
-	cur_uid = OTHER_UID;
-	expect("leader became other: other refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	cur_uid = OWNER_UID;
-	expect("leader became other: login user reads", rdsel(0, 0, 4, 1, 0), 0);
-	leader_uid = 0;			/* Or root, or a service account. */
-	cur_uid = OWNER_UID;
-	expect("leader became root: login user reads", rdsel(0, 0, 4, 1, 0), 0);
-	cur_uid = OTHER_UID;
-	expect("leader became root: other refused", rdsel(0, 0, 4, 1, 0), EPERM);
-
-	/* No login yet: the leader is still root, only the superuser reads. */
-	login_as(LOGIN_PID + 1, 0);
-	cur_uid = OWNER_UID;
-	expect("no login: user refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	expect("no login: still refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	cur_uid = 0;
-	expect("no login: superuser reads", rdsel(0, 0, 4, 1, 0), 0);
-	leader_uid = OWNER_UID;		/* The login completes. */
-	cur_uid = OWNER_UID;
-	expect("login completes: user reads", rdsel(0, 0, 4, 1, 0), 0);
-
-	/* Logout, then another user logs in: the old owner is shut out. */
-	logout();
-	cur_uid = OWNER_UID;
-	expect("after logout: old owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	login_as(LOGIN_PID + 2, OTHER_UID);
-	expect("other's login: old owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	cur_uid = OTHER_UID;
-	expect("other's login: other reads", rdsel(0, 0, 4, 1, 0), 0);
-
-	/* A later open does not move the session. */
-	lcdgfx_console_open(LOGIN_PID + 9);
-	expect("a job's group does not move it", lcdgfx_console_session(),
-	    LOGIN_PID + 2);
-
-	/* The console stays open across a logout: no leader, nobody reads. */
-	leader_alive = 0;
-	cur_uid = OTHER_UID;
-	expect("leader gone: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	login_as(LOGIN_PID + 3, OWNER_UID);
-	leader_pgrp = LOGIN_PID + 4;	/* The pid was reused by another group. */
-	cur_uid = OWNER_UID;
-	expect("reused pid: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
-
-	/* An open that sets no group names no session. */
-	logout();
-	lcdgfx_console_open(0);
-	leader_alive = 1;
-	leader_pid = 0;			/* A process of pid 0 with a uid. */
-	leader_pgrp = 0;
-	leader_uid = OWNER_UID;
-	cur_uid = OWNER_UID;
-	expect("no session: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	cur_uid = 0;
-	expect("no session: superuser reads", rdsel(0, 0, 4, 1, 0), 0);
+	/* The right ends with the open. */
+	lcdgfx_close();
+	expect("no read after the close", rdsel(0, 0, 4, 1, 0), EPERM);
+	fresh_as(OTHER_UID, CONSOLE);
+	expect("a second non-root open clears again", differ(0), 0);
 
 	test_open_to_every_user(OTHER_UID);
-	test_open_to_every_user(OWNER_UID);
-	logout();
+	test_open_to_every_user(0);
 	cur_uid = 0;
 }
 
@@ -794,20 +739,8 @@ test_read(void)
 	expect("raw then end of file", resid_after, (long)sizeof(raw));
 
 	expect("select by the superuser", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
-	as_reader(0);
-	expect("read by another user", xfer(0, got, 8), EPERM);
-	expect("nothing moved", resid_after, 8);
-	as_reader(1);
-	expect("the superuser still reads it", xfer(0, got, 8), 0);
+	expect("read of the rectangle", xfer(0, got, 8), 0);
 	expect("all four pixels", resid_after, 0);
-	as_reader(0);
-	expect("select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), EPERM);
-	expect("raw select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RAW),
-	    EPERM);
-	expect("nothing to read", xfer(0, got, 8), 0);
-	expect("nothing moved", resid_after, 8);
-	expect("drawing stays open to every user", ramfill(0, 0, 0, 0, 1), 0);
-	as_reader(1);
 	expect("raw of two lines", rdsel(0, 0, 4, 2, LCDG_RD_RAW), EINVAL);
 	expect("raw too wide", rdsel(0, 0, LCDG_READ_MAX + 1, 1, LCDG_RD_RAW),
 	    EINVAL);

@@ -106,6 +106,7 @@ static unsigned tw_x, tw_y, tw_w;	/* Column of the block, row and width. */
 
 #ifdef LCD_GFX_EXT
 static unsigned gfx_power;		/* LCDG_PWR_* in force. */
+static int gfx_rd;			/* This open may select and read. */
 /* LCDG_READ: pixels still wanted, the rectangle's column and width, the */
 /* column and line of the next pixel, and the raw format. */
 static unsigned rd_left;
@@ -288,6 +289,18 @@ lcdgfx_open(void)
 	/* The console draws in 55h; a pixel program starts in 66h. */
 	lcd_gfx_colmod(gfx_fmt);
 	lcd_gfx_scroll(0);
+#ifdef LCD_GFX_EXT
+	/*
+	 * The memory holds the console's screen, and what an earlier opener
+	 * drew in lines 320-479. The superuser reads it as it stands; any
+	 * other opener gets every line blanked before gfx_rd lets it select a
+	 * read, so everything it reads was drawn after its open. The console
+	 * cannot draw meanwhile: lcdcons_gfx(1) set gfx_active above.
+	 */
+	if (!lcdcons_gfx_root())
+		fill(0, 0, LCDG_WIDTH - 1, LCDG_RAM_LINES - 1, 0);
+	gfx_rd = 1;
+#endif
 	return 0;
 }
 
@@ -304,6 +317,9 @@ lcdgfx_close(void)
 		(void)st7365p_set(0);
 #endif
 	gfx_open = 0;
+#ifdef LCD_GFX_EXT
+	gfx_rd = 0;
+#endif
 	return lcdcons_gfx(0);
 }
 
@@ -543,9 +559,6 @@ lcdgfx_read(struct uio *uio)
 
 	if (rd_left == 0)
 		return 0;
-	/* The caller may not be the process that selected the rectangle. */
-	if (!lcdcons_gfx_reader())
-		return EPERM;
 	if (rd_raw) {
 		n = LCDG_RD_RAW_BYTES(rd_w);
 		if (uio->uio_resid < n)
@@ -589,41 +602,6 @@ lcdgfx_read(struct uio *uio)
 	}
 	lcd_gfx_read_end();
 	return error;
-}
-
-static int con_sess;			/* The console session's group, or 0. */
-static unsigned con_uid;		/* Its latched owner, or 0 for none. */
-
-void
-lcdgfx_console_open(int tpgrp)
-{
-	if (con_sess == 0)
-		con_sess = tpgrp;
-}
-
-void
-lcdgfx_console_close(void)
-{
-	con_sess = 0;
-	con_uid = 0;
-}
-
-int
-lcdgfx_console_session(void)
-{
-	return con_sess;
-}
-
-int
-lcdgfx_reader_ok(unsigned uid, int found, int lpgrp, unsigned luid)
-{
-	if (uid == 0)
-		return 1;
-	if (con_sess == 0 || !found || lpgrp != con_sess)
-		return 0;
-	if (con_uid == 0)
-		con_uid = luid;
-	return con_uid != 0 && uid == con_uid;
 }
 
 /* A rectangle of the controller's memory: x, y, w, h in that order. */
@@ -734,8 +712,8 @@ lcdgfx_ioctl(unsigned cmd, char *addr)
 		return window_begin((const struct lcdg_window *)addr,
 		    LCDG_RAM_LINES);
 	case LCDG_READ:
-		/* The memory holds the console's screen from before the open. */
-		if (!lcdcons_gfx_reader())
+		/* Set once the open has blanked the memory, or for the superuser. */
+		if (!gfx_rd)
 			return EPERM;
 		if (!area_ok(&rd->x) || rd->fmt > LCDG_RD_RAW ||
 		    (rd->fmt == LCDG_RD_RAW &&

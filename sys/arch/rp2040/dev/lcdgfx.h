@@ -71,37 +71,13 @@ int	lcdcons_gfx(int on);
 
 #ifdef LCD_GFX_EXT
 /*
- * Supplied by lcdcons.c, or by the host test: whether the calling process
- * may read the controller's memory (LCDG_READ). The controller's memory
- * holds the console's screen from before the open, so the reader is the
- * superuser or the console's owner; lcdgfx_reader_ok() is the rule.
+ * Supplied by lcdcons.c, or by the host test: whether the opening process
+ * is the superuser by effective uid. The controller's memory holds the
+ * console's screen from before the open, so lcdgfx_open() blanks every line
+ * of it for any other opener before the open returns, and only then may
+ * that opener select and read a rectangle (LCDG_READ).
  */
-int	lcdcons_gfx_reader(void);
-
-/*
- * The console's owner is the user logged in on it: the effective uid of the
- * console session's leader, the login shell, latched at the first check that
- * finds the leader with a nonzero uid. The session is the tty's process
- * group at the first open that sets one (lcdgfx_console_open(), called after
- * ttyopen() with the tty's t_pgrp) and ends at the last close
- * (lcdgfx_console_close()). Job control moves the foreground group and a
- * set-uid program or su in the foreground changes the uid of processes that
- * are not the leader; neither moves the session or the latched uid.
- */
-void	lcdgfx_console_open(int tpgrp);
-void	lcdgfx_console_close(void);
-int	lcdgfx_console_session(void);
-
-/*
- * The rule of lcdcons_gfx_reader(), over the facts it gathers: the caller's
- * effective uid and whether pfind(lcdgfx_console_session()) found a process,
- * with that process's group and effective uid. The superuser reads. Any
- * other caller reads only as the latched owner, and only while the session
- * leader is alive and still leads its group: no session, no such process or
- * a process of another group (a reused pid) leave the memory to the
- * superuser, and so does a console with no login yet (leader uid 0).
- */
-int	lcdgfx_reader_ok(unsigned uid, int found, int lpgrp, unsigned luid);
+int	lcdcons_gfx_root(void);
 #endif
 
 #ifdef LCD_PANELTEST

@@ -223,8 +223,9 @@ mode 622
 # (sys/arch/rp2040/rp2040/conf.c, sys/arch/rp2040/dev/lcdgfx.c). It takes
 # the panel from the text console while open, one program at a time, and
 # any user may open it as any user may write /dev/tty. Drawing is open to
-# every opener; a PICOCALC_SD kernel reads the controller's memory back to the
-# superuser and the console's user alone (sys/sys/lcdgfx.h).
+# every opener; a PICOCALC_SD kernel blanks the controller's memory when a
+# user other than the superuser opens it, so that opener reads back only what
+# it drew (sys/sys/lcdgfx.h).
 #
 cdev /dev/lcdgfx
 major 10

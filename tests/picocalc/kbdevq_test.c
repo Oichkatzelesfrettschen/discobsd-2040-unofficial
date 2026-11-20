@@ -1021,8 +1021,8 @@ test_wake(void)
 	picokbd_evq_wakeon();
 	ev_in(PICOKBD_PRESSED, 'a');
 	expect("owner ready", ready_as(PG, PG), 1);
-	expect("a background owner is not ready", ready_as(PG, OTHER), 0);
-	expect("session ended by the group change", picokbd_evq_fill(), 0);
+	expect("a group change ends the session", (ready_as(PG, OTHER), (long)picokbd_evq_fill()), 0);
+	expect("its lost session makes the former owner ready", ready_as(PG, OTHER), 1);
 	begin();
 	picokbd_evq_wakeon();
 	ev_in(PICOKBD_PRESSED, 'a');
@@ -1038,7 +1038,7 @@ test_wake(void)
 
 	/* Ending the session or changing the mode ends the readiness. */
 	cur_flags = F_RAW;
-	expect("a mode change is not ready", ready_as(PG, PG), 0);
+	expect("a mode change leaves no event", (ready_as(PG, PG), (long)picokbd_evq_fill()), 0);
 	begin();
 	picokbd_evq_wakeon();
 	ev_in(PICOKBD_PRESSED, 'a');
@@ -1056,6 +1056,108 @@ test_wake(void)
 	ev_in(PICOKBD_PRESSED, 'a');
 	expect("a restart is plain", wakes, 0);
 	expect("a restart is not ready", ready_as(PG, PG), 0);
+}
+
+/*
+ * A waking session ended by another party (a foreground group or mode change,
+ * a mode-setting request of another process) wakes its owner's selector and
+ * leaves the owner read-ready until the owner's next request, which reports
+ * the missing session. The owner's own stop, close and exit leave nothing.
+ */
+static void
+test_lost(void)
+{
+	struct lcd_keyevs out;
+
+	/* A mode change seen by the poller, with the owner asleep in select. */
+	begin();
+	picokbd_evq_wakeon();
+	wakes = 0;
+	cur_flags = F_RAW;
+	check_f(PG);
+	expect("a lost session wakes the selector", wakes, 1);
+	expect("a lost session is ready", ready_as(PG, PG), 1);
+	expect("it stays ready until a request", ready_as(PG, PG), 1);
+	expect("one wake for one loss", wakes, 1);
+	as_process(&proc_b, PID_B);
+	expect("another process is not ready for it", ready_as(PG, PG), 0);
+	as_process(&proc_a, PID_B);
+	expect("a reused pid is not ready for it", ready_as(PG, PG), 0);
+	as_process(&proc_a, PID_A);
+	expect("the drain reports the missing session", drain_as(&out, PG, PG, 1), EINVAL);
+	expect("the report ends the readiness", ready_as(PG, PG), 0);
+
+	/* A foreground group change: the owner is ready from the background. */
+	begin();
+	picokbd_evq_wakeon();
+	wakes = 0;
+	check_f(OTHER);
+	expect("a group change wakes the selector", wakes, 1);
+	expect("the background former owner is ready", ready_as(PG, OTHER), 1);
+	expect("its drain is refused", drain_as(&out, PG, OTHER, 1), EIO);
+	expect("the refusal ends the readiness", ready_as(PG, OTHER), 0);
+
+	/* A mode-setting request by another process. */
+	begin();
+	picokbd_evq_wakeon();
+	wakes = 0;
+	picokbd_evq_modeset(&proc_b, PID_B);
+	expect("a foreign mode request wakes the selector", wakes, 1);
+	expect("a foreign mode request leaves the owner ready", ready_as(PG, PG), 1);
+	expect("stop with no session", stop_f(&file_a), 0);
+	expect("a stop ends the readiness", ready_as(PG, PG), 0);
+
+	/* A restart by the former owner ends the readiness of the lost session. */
+	begin();
+	picokbd_evq_wakeon();
+	picokbd_evq_modeset(&proc_b, PID_B);
+	expect("restart", start_f(&file_a, PG, PG, 1), 0);
+	expect("a restarted session is not ready", ready_as(PG, PG), 0);
+
+	/* The former owner exits: a later process in its slot is not ready. */
+	begin();
+	picokbd_evq_wakeon();
+	picokbd_evq_modeset(&proc_b, PID_B);
+	picokbd_evq_procexit(&proc_a, PID_A);
+	expect("an exited former owner is not ready", ready_as(PG, PG), 0);
+
+	/* Another process's new session does not hide the loss from the former owner. */
+	begin();
+	picokbd_evq_wakeon();
+	picokbd_evq_modeset(&proc_b, PID_B);
+	as_process(&proc_b, PID_B);
+	expect("another process starts", start_f(&file_b, PG, PG, 1), 0);
+	as_process(&proc_a, PID_A);
+	expect("the former owner is still ready", ready_as(PG, PG), 1);
+	expect("its drain is refused", drain_as(&out, PG, PG, 1), EPERM);
+	expect("and it is ready no longer", ready_as(PG, PG), 0);
+
+	/* A plain session lost the same way wakes nothing and is not ready. */
+	begin();
+	wakes = 0;
+	picokbd_evq_modeset(&proc_b, PID_B);
+	expect("a plain lost session wakes nothing", wakes, 0);
+	expect("a plain lost session is not ready", ready_as(PG, PG), 0);
+
+	/* The owner's own acts are not a loss. */
+	begin();
+	picokbd_evq_wakeon();
+	wakes = 0;
+	picokbd_evq_fileclose(&file_a);
+	expect("a close wakes nothing", wakes, 0);
+	expect("a close is not ready", ready_as(PG, PG), 0);
+	begin();
+	picokbd_evq_wakeon();
+	picokbd_evq_modeset(&proc_a, PID_A);
+	expect("the owner's mode request keeps the session", drain_as(&out, PG, PG, 1), 0);
+	expect("and wakes nothing", wakes, 0);
+
+	/* A reset forgets a loss. */
+	begin();
+	picokbd_evq_wakeon();
+	picokbd_evq_modeset(&proc_b, PID_B);
+	picokbd_evq_reset();
+	expect("a reset forgets the loss", ready_as(PG, PG), 0);
 }
 
 /*
@@ -1127,6 +1229,7 @@ main(void)
 	test_drain_limit();
 	test_overflow();
 	test_wake();
+	test_lost();
 	test_select_race();
 	if (failures != 0) {
 		fprintf(stderr, "kbdevq_test: %d failures\n", failures);

@@ -48,6 +48,8 @@ static int owner_pgrp;			/* Its process group; the foreground group is required 
 static unsigned owner_mode;		/* The tty's mode word when the session started. */
 static int active;			/* A session is open; events are recorded. */
 static int owner_wake;			/* Its select(2) readiness is on. */
+static const void *lost_proc;		/* Former owner of a waking session ended from outside, */
+static int lost_pid;			/* until its next request; it is read-ready meanwhile. */
 
 /* Leave no keystroke in memory: the queue is cleared, not just emptied. */
 static void
@@ -70,6 +72,37 @@ session_end(void)
 	lost = 0;
 }
 
+/*
+ * The session ends by an act that is not its owner's: a change of the
+ * foreground group or of the tty's mode word. An owner that asked for
+ * select(2) readiness may be asleep in select() with no event to come, so
+ * it becomes read-ready and its selector is woken; its next request finds
+ * no session and reports that.
+ */
+static void
+session_lost(void)
+{
+	const void *proc = owner_proc;
+	int pid = owner_pid, wake = owner_wake;
+
+	session_end();
+	if (wake) {
+		lost_proc = proc;
+		lost_pid = pid;
+		picokbd_evq_wake();
+	}
+}
+
+/* A request by the former owner of a lost session ends its readiness. */
+static void
+lost_seen(const void *proc, int pid)
+{
+	if (lost_proc == proc && lost_pid == pid) {
+		lost_proc = 0;
+		lost_pid = 0;
+	}
+}
+
 /* The caller is the process that started the session. */
 static int
 is_owner(const void *proc, int pid)
@@ -88,6 +121,7 @@ int
 picokbd_evq_start(const void *file, const void *proc, int pid, int pgrp,
     int tty_pgrp, unsigned tty_flags, int readable)
 {
+	lost_seen(proc, pid);
 	if (!readable)
 		return EBADF;
 	if (pgrp == 0 || pgrp != tty_pgrp)
@@ -110,6 +144,7 @@ picokbd_evq_start(const void *file, const void *proc, int pid, int pgrp,
 int
 picokbd_evq_stop(const void *file, const void *proc, int pid)
 {
+	lost_seen(proc, pid);
 	if (!active)
 		return 0;
 	if (owner != file || !is_owner(proc, pid))
@@ -128,6 +163,7 @@ picokbd_evq_fileclose(const void *file)
 void
 picokbd_evq_procexit(const void *proc, int pid)
 {
+	lost_seen(proc, pid);
 	if (active && is_owner(proc, pid))
 		session_end();
 }
@@ -136,14 +172,14 @@ void
 picokbd_evq_check(int tty_pgrp, unsigned tty_flags)
 {
 	if (active && (owner_pgrp != tty_pgrp || owner_mode != mode_of(tty_flags)))
-		session_end();
+		session_lost();
 }
 
 void
 picokbd_evq_modeset(const void *proc, int pid)
 {
 	if (active && !is_owner(proc, pid))
-		session_end();
+		session_lost();
 }
 
 void
@@ -153,12 +189,18 @@ picokbd_evq_wakeon(void)
 		owner_wake = 1;
 }
 
-/* owner_wake is set only while a session is active and cleared when it ends. */
+/*
+ * owner_wake is set only while a session is active and cleared when it ends.
+ * The former owner of a lost session is ready whatever its group, since the
+ * foreground group may be what changed.
+ */
 int
 picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
     unsigned tty_flags)
 {
 	picokbd_evq_check(tty_pgrp, tty_flags);
+	if (lost_proc != 0 && lost_proc == proc && lost_pid == pid)
+		return 1;
 	return owner_wake && head != tail && is_owner(proc, pid) &&
 	    pgrp != 0 && pgrp == tty_pgrp;
 }
@@ -205,6 +247,7 @@ picokbd_evq_drain(struct lcd_keyevs *out, const void *proc, int pid, int pgrp,
 {
 	unsigned n = 0;
 
+	lost_seen(proc, pid);
 	if (!readable)
 		return EBADF;
 	if (pgrp == 0 || pgrp != tty_pgrp)
@@ -226,6 +269,8 @@ void
 picokbd_evq_reset(void)
 {
 	session_end();
+	lost_proc = 0;
+	lost_pid = 0;
 }
 
 int

@@ -121,7 +121,9 @@ void	picokbd_evq_wakeon(void);
  * `pgrp`) is ready on the queue: the session is active with readiness on,
  * the caller owns it and is in the foreground group (the callers a drain
  * accepts) and an event is waiting. A drain that takes the last event clears
- * it.
+ * it. The former owner of such a session that a group or mode change, or
+ * another process's mode-setting ioctl, ended is ready too, from any group,
+ * until its next start, stop or drain or its exit.
  */
 int	picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
 	    unsigned tty_flags);

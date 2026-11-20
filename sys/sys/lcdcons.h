@@ -77,7 +77,11 @@
  * state or key. LCDIOC_GETKEY clears the readiness by emptying the queue
  * (n < LCD_KEYEV_N), so a program that drains after each wake does not spin;
  * one that selects and never drains stays ready, which is why readiness is
- * a request. A kernel without the request returns EINVAL for 2, which is
+ * a request. A session with readiness on that another party ends (a change
+ * of the foreground group or of the mode, as above) wakes the selector and
+ * leaves its former owner read-ready until that owner's next LCDIOC_KEYEVS or
+ * LCDIOC_GETKEY, which reports the missing session, so a program asleep in
+ * select() learns of the end. A kernel without the request returns EINVAL for 2, which is
  * how a program learns it is absent; it then starts with 1 and polls. A
  * session started with 1, and every process but the owner, sees select as
  * the tty queue alone.

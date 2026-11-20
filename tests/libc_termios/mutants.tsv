@@ -1,0 +1,17 @@
+# label	file	sed script. Each line is one mutant that the gate must reject.
+cf-range-open	lib/libc/gen/cfspeed.c	0,/speed > B4000000/s/speed > B4000000/speed > B4000000 + 1/
+cf-ispeed-stores-out	lib/libc/gen/cfspeed.c	0,/t->c_ispeed = speed;/s/t->c_ispeed = speed;/t->c_ospeed = speed;/
+cf-setspeed-input-only	lib/libc/gen/cfspeed.c	/^cfsetspeed/,$s/t->c_ospeed = speed;/(void)speed;/
+cf-getospeed-reads-in	lib/libc/gen/cfspeed.c	/^cfgetospeed/,/^}/s/c_ospeed/c_ispeed/
+cf-errno-lost	lib/libc/gen/cfspeed.c	0,/errno = EINVAL;/s/errno = EINVAL;/errno = 0;/
+raw-keeps-isig	lib/libc/gen/cfmakeraw.c	s/ICANON | ISIG | IEXTEN/ICANON | IEXTEN/
+raw-keeps-opost	lib/libc/gen/cfmakeraw.c	s/t->c_oflag &= ~OPOST;/t->c_oflag \&= ~0U;/
+raw-cs7	lib/libc/gen/cfmakeraw.c	s/t->c_cflag |= CS8;/t->c_cflag |= CS7;/
+raw-vmin-zero	lib/libc/gen/cfmakeraw.c	s/t->c_cc\[VMIN\] = 1;/t->c_cc[VMIN] = 0;/
+raw-clears-too-much	lib/libc/gen/cfmakeraw.c	s/t->c_oflag &= ~OPOST;/t->c_oflag = 0;/
+hdr-icrnl-overlaps-igncr	include/termios.h	s/^#define ICRNL   0x00000100/#define ICRNL   0x00000080/
+hdr-tab3-not-union	include/termios.h	s/^#define   TAB3  0x00001800/#define   TAB3  0x00000800/
+hdr-vmin-eq-vtime	include/termios.h	s/^#define VMIN     6/#define VMIN     5/
+hdr-cs8-not-csize	include/termios.h	s/^#define   CS8   0x00000030/#define   CS8   0x00000020/
+hdr-echoe-overlaps-echo	include/termios.h	s/^#define ECHOE   0x00000010/#define ECHOE   0x00000008/
+hdr-nccs-too-small	include/termios.h	s/^#define NCCS 19/#define NCCS 18/

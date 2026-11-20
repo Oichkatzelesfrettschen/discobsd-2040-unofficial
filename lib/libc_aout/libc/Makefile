@@ -103,7 +103,7 @@ OBJS            += ${WIDEGENOBJS} ${WIDECOMPATOBJS}
 
 # libc/gen
 OBJS            += abort.o alarm.o asctime.o atof.o atoi.o atol.o basename.o \
-                   calloc.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
+                   calloc.o cfmakeraw.o cfspeed.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
                    ctermid.o daemon.o devname.o difftime.o dirname.o ecvt.o err.o \
                    execvp.o fakcu.o frexp.o fstab.o gcvt.o getenv.o getgrent.o \
                    getgrgid.o getgrnam.o getlogin.o \

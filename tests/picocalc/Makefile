@@ -1741,8 +1741,10 @@ KBDREQ_SRC=	picokbd_req.c picokbd_req.h
 
 kbdreq-mutants: kbdreq-mutant-write-bit kbdreq-mutant-echo \
 	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
-	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \
-	kbdreq-mutant-off-ceiling
+	kbdreq-mutant-percent kbdreq-mutant-level \
+	kbdreq-mutant-lcd-floor kbdreq-mutant-lcd-step \
+	kbdreq-mutant-kbd-zero kbdreq-mutant-kbd-step \
+	kbdreq-mutant-off-floor kbdreq-mutant-off-ceiling
 
 kbdreq-mutant-write-bit:
 	${KBDREQ_MUT} picokbd_req.c \
@@ -1768,6 +1770,22 @@ kbdreq-mutant-level:
 	${KBDREQ_MUT} picokbd_req.c \
 	    's/return v < 0 ? 0 : v > KBD_LEVEL_MAX/return v > KBD_LEVEL_MAX/' \
 	    ${KBDREQ_SRC}
+
+kbdreq-mutant-lcd-floor:
+	${KBDREQ_MUT} picokbd_req.h \
+	    's/KBD_LCD_MIN		16/KBD_LCD_MIN		0/' ${KBDREQ_SRC}
+
+kbdreq-mutant-lcd-step:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/(v \/ KBD_LCD_STEP) \* KBD_LCD_STEP/v/' ${KBDREQ_SRC}
+
+kbdreq-mutant-kbd-zero:
+	${KBDREQ_MUT} picokbd_req.c \
+	    '/^kbdreq_kbd_level/,/^}/s/return 0;/return KBD_KBD_STEP;/' ${KBDREQ_SRC}
+
+kbdreq-mutant-kbd-step:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/(v \/ KBD_KBD_STEP) \* KBD_KBD_STEP/v/' ${KBDREQ_SRC}
 
 kbdreq-mutant-off-floor:
 	${KBDREQ_MUT} picokbd_req.h \

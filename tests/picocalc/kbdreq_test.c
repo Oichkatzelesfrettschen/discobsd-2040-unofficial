@@ -208,6 +208,23 @@ test_values(void)
 	expect("level 240", kbdreq_level(240), 240);
 	expect("level 241", kbdreq_level(241), 240);
 	expect("level 300", kbdreq_level(300), 240);
+	expect("lcd level -5", kbdreq_lcd_level(-5), 16);
+	expect("lcd level 0", kbdreq_lcd_level(0), 16);
+	expect("lcd level 15", kbdreq_lcd_level(15), 16);
+	expect("lcd level 16", kbdreq_lcd_level(16), 16);
+	expect("lcd level 31", kbdreq_lcd_level(31), 16);
+	expect("lcd level 0x58", kbdreq_lcd_level(0x58), 0x50);
+	expect("lcd level 240", kbdreq_lcd_level(240), 240);
+	expect("lcd level 300", kbdreq_lcd_level(300), 240);
+	expect("kbd level -5", kbdreq_kbd_level(-5), 0);
+	expect("kbd level 31", kbdreq_kbd_level(31), 0);
+	expect("kbd level 32", kbdreq_kbd_level(32), 32);
+	expect("kbd level 63", kbdreq_kbd_level(63), 32);
+	expect("kbd level 240", kbdreq_kbd_level(240), 224);
+	expect("kbd level 255", kbdreq_kbd_level(255), 224);
+	expect("level_for BKL 0", kbdreq_level_for(KBD_REG_BKL, 0), 16);
+	expect("level_for BK2 255", kbdreq_level_for(KBD_REG_BK2, 255), 224);
+	expect("level_for BAT 200", kbdreq_level_for(KBD_REG_BAT, 200), 200);
 	expect("off 0", kbdreq_off_seconds(0), 6);
 	expect("off 5", kbdreq_off_seconds(5), 6);
 	expect("off 6", kbdreq_off_seconds(6), 6);
@@ -222,12 +239,16 @@ test_registers(void)
 
 	expect("battery read", transact(KBD_REG_BAT, 0, 0, &v), KRE_NONE);
 	expect("battery value", v, 0x8a);
+	expect("lcd zero write conditioned",
+	    transact(KBD_REG_BKL, 1, kbdreq_level_for(KBD_REG_BKL, 0), &v),
+	    KRE_NONE);
+	expect("lcd zero floor", v, 16);
 	expect("lcd write", transact(KBD_REG_BKL, 1, 0x58, &v), KRE_NONE);
 	expect("lcd quantized by firmware", v, 0x50);
 	expect("lcd read back", transact(KBD_REG_BKL, 0, 0, &v), KRE_NONE);
 	expect("lcd read value", v, 0x50);
 	expect("kbd write", transact(KBD_REG_BK2, 1,
-	    kbdreq_level(255), &v), KRE_NONE);
+	    kbdreq_level_for(KBD_REG_BK2, 255), &v), KRE_NONE);
 	expect("kbd clamped then quantized", v, 224);
 	expect("poweroff write", transact(KBD_REG_OFF, 1,
 	    kbdreq_off_seconds(0), &v), KRE_NONE);

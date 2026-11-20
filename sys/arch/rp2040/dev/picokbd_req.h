@@ -43,6 +43,11 @@
 #define	KBD_WRITE_BIT		0x80
 #define	KBD_BAT_CHARGING	0x80
 #define	KBD_LEVEL_MAX		240	/* Firmware ceiling for both lights. */
+#define	KBD_LCD_STEP		16	/* LCD_BACKLIGHT_STEP in firmware. */
+#define	KBD_LCD_MIN		16	/* Firmware floor on REG_ID_BKL. */
+#define	KBD_LCD_MAX		240	/* Firmware ceiling on REG_ID_BKL. */
+#define	KBD_KBD_STEP		32	/* KBD_BACKLIGHT_STEP in firmware. */
+#define	KBD_KBD_MAX		224	/* Largest reachable REG_ID_BK2 step. */
 #define	KBD_OFF_MIN		6	/* Firmware floor for the countdown. */
 
 /* Mailbox states. */
@@ -98,6 +103,9 @@ int	kbdreq_finish(struct kbdreq *q, int *val);
 
 /* Value encodings. */
 int	kbdreq_level(int v);		/* Clamp a light level to 0..240. */
+int	kbdreq_lcd_level(int v);	/* Firmware LCD backlight: 16..240, step 16. */
+int	kbdreq_kbd_level(int v);	/* Firmware keyboard light: 0 or 32..224, step 32. */
+int	kbdreq_level_for(int reg, int v);
 int	kbdreq_off_seconds(int v);	/* Clamp a countdown to 6..255. */
 int	kbdreq_battery_percent(int v);
 int	kbdreq_battery_charging(int v);

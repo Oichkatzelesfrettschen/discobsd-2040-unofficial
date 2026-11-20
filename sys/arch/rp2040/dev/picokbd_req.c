@@ -110,6 +110,36 @@ kbdreq_level(int v)
 }
 
 int
+kbdreq_lcd_level(int v)
+{
+	if (v <= KBD_LCD_MIN)
+		return KBD_LCD_MIN;
+	if (v >= KBD_LCD_MAX)
+		return KBD_LCD_MAX;
+	return (v / KBD_LCD_STEP) * KBD_LCD_STEP;
+}
+
+int
+kbdreq_kbd_level(int v)
+{
+	if (v < KBD_KBD_STEP)
+		return 0;
+	if (v >= KBD_KBD_MAX)
+		return KBD_KBD_MAX;
+	return (v / KBD_KBD_STEP) * KBD_KBD_STEP;
+}
+
+int
+kbdreq_level_for(int reg, int v)
+{
+	if (reg == KBD_REG_BKL)
+		return kbdreq_lcd_level(v);
+	if (reg == KBD_REG_BK2)
+		return kbdreq_kbd_level(v);
+	return kbdreq_level(v);
+}
+
+int
 kbdreq_off_seconds(int v)
 {
 	return v < KBD_OFF_MIN ? KBD_OFF_MIN : v > 255 ? 255 : v;

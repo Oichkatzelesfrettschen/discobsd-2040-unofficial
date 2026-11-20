@@ -29,7 +29,10 @@
 /*
  * The uLisp devices of a development host: the display is a frame buffer
  * in memory, which save-bmp writes out, and there are no pins, no sound
- * and no machine code.
+ * and no machine code. Analogue pins form a loopback: analogwrite stores
+ * the duty and analogread returns the 12-bit count of the voltage that duty
+ * averages, so a transcript shows the pin and the value that crossed the
+ * platform interface.
  */
 #include "platform.h"
 
@@ -75,11 +78,21 @@ dev_digitalwrite(int pin, int level)
 	(void)level;
 }
 
+static int duty_written[32];
+
 int
 dev_analogread(int pin)
 {
-	(void)pin;
-	return 0;
+	if (pin < 0 || pin > 31)
+		return 0;
+	return duty_written[pin] * 4095 / 255;
+}
+
+void
+dev_analogwrite(int pin, int duty)
+{
+	if (pin >= 0 && pin <= 31)
+		duty_written[pin] = duty;
 }
 
 bool

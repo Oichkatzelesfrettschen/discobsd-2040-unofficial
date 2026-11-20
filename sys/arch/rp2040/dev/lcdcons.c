@@ -108,6 +108,14 @@ _Static_assert(LCDCONS_NTTY == 1 && LCDGFX_MINOR >= LCDCONS_NTTY,
     "the panel console has one tty and a separate graphics minor");
 struct tty lcdttys[LCDCONS_NTTY];
 
+/*
+ * The tty that holds the panel and the keyboard, and the tty a device's
+ * minor names. The console has one tty, so both are lcdttys[0].
+ */
+#define	lcd_shown	0
+#define	LCD_SHOWN	(&lcdttys[lcd_shown])
+#define	lcd_tty(dev)	(&lcdttys[0])
+
 static int lcd_ready;
 static int lcd_owned;
 static int lcd_abandoned;
@@ -280,7 +288,7 @@ lcdcons_render_stack_free(void)
 static void
 reply_flush(void)
 {
-	struct tty *tp = &lcdttys[0];
+	struct tty *tp = LCD_SHOWN;
 	int s = spltty();
 
 	while (reply_tail != reply_head) {
@@ -316,7 +324,7 @@ render_resume(caddr_t arg __unused)
 void
 lcdrender(void)
 {
-	struct tty *tp = &lcdttys[0];
+	struct tty *tp = LCD_SHOWN;
 	u_int t0;
 	int s, c, sliced;
 
@@ -411,7 +419,7 @@ lcdgetc(dev_t dev __unused)
 void
 lcdcons_input(const char *s, int n)
 {
-	struct tty *tp = &lcdttys[0];
+	struct tty *tp = LCD_SHOWN;
 	int x;
 
 	if ((tp->t_state & TS_ISOPEN) == 0)
@@ -447,7 +455,7 @@ lcdopen(dev_t dev, int flag __unused, int mode __unused)
 		return lcdgfx_open();
 	if (minor(dev) >= LCDCONS_NTTY)
 		return ENXIO;
-	tp = &lcdttys[0];
+	tp = lcd_tty(dev);
 	if (!lcd_ready)
 		lcdcons_init();
 	tp->t_oproc = lcdstart;
@@ -475,7 +483,7 @@ lcdclose(dev_t dev, int flag __unused, int mode __unused)
 
 	if (minor(dev) == LCDGFX_MINOR)
 		return lcdgfx_close();
-	tp = &lcdttys[0];
+	tp = lcd_tty(dev);
 	ttywflush(tp);
 	ttyclose(tp);
 	return 0;
@@ -486,7 +494,7 @@ lcdread(dev_t dev, struct uio *uio, int flag)
 {
 	if (minor(dev) == LCDGFX_MINOR)
 		return lcdgfx_read(uio);
-	return ttread(&lcdttys[0], uio, flag);
+	return ttread(lcd_tty(dev), uio, flag);
 }
 
 int
@@ -494,7 +502,7 @@ lcdwrite(dev_t dev, struct uio *uio, int flag)
 {
 	if (minor(dev) == LCDGFX_MINOR)
 		return lcdgfx_write(uio);
-	return ttwrite(&lcdttys[0], uio, flag);
+	return ttwrite(lcd_tty(dev), uio, flag);
 }
 
 int
@@ -502,7 +510,7 @@ lcdselect(dev_t dev, int rw)
 {
 	if (minor(dev) == LCDGFX_MINOR)
 		return 1;		/* Always ready. */
-	return ttyselect(&lcdttys[0], rw);
+	return ttyselect(lcd_tty(dev), rw);
 }
 
 _Static_assert(LCD_GLYPH_FIRST == LT_GLYPH_FIRST &&
@@ -543,7 +551,7 @@ _Static_assert(PICOKBD_EVQ_RAW_OR_CBREAK == (RAW | CBREAK) &&
 void
 lcdcons_keycheck(void)
 {
-	picokbd_evq_check(lcdttys[0].t_pgrp, lcdttys[0].t_flags);
+	picokbd_evq_check(LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags);
 }
 
 /*
@@ -624,7 +632,7 @@ lcd_keyevs(int flag, int on)
 	x = spltty();
 	if (on)
 		error = picokbd_evq_start(fp, u.u_procp, u.u_procp->p_pid,
-		    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, lcdttys[0].t_flags,
+		    u.u_procp->p_pgrp, LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags,
 		    (flag & FREAD) != 0);
 	else
 		error = picokbd_evq_stop(fp, u.u_procp, u.u_procp->p_pid);
@@ -644,7 +652,7 @@ lcd_getkey(int flag, struct lcd_keyevs *out)
 	int error;
 
 	error = picokbd_evq_drain(out, u.u_procp, u.u_procp->p_pid,
-	    u.u_procp->p_pgrp, lcdttys[0].t_pgrp, lcdttys[0].t_flags,
+	    u.u_procp->p_pgrp, LCD_SHOWN->t_pgrp, LCD_SHOWN->t_flags,
 	    (flag & FREAD) != 0);
 	splx(x);
 	return error;
@@ -723,7 +731,7 @@ lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 			ws->ws_ypixel = LT_ROWS * LT_CELL_H;
 		}
 	}
-	error = ttioctl(&lcdttys[0], cmd, addr, flag);
+	error = ttioctl(lcd_tty(dev), cmd, addr, flag);
 	if (error < 0)
 		error = ENOTTY;
 	return error;

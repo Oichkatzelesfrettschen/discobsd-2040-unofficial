@@ -288,4 +288,3 @@ prompt after 0.5 virtual s
 ---- panel: back at 64.0 virtual s
   |i86: q quit, a or b change that floppy, any other kes
   |operator@pico:~$
-

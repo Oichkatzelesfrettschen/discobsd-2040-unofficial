@@ -67,3 +67,29 @@ denominator for this edition.
 5. Revisit a ROM veneer, a new lifetime overlay or an executable overlay when its admission and recovery contract has a witness. The existing memory map, measured peak and negative controls form the baseline.
 
 [Kernel flash budget](picocalc-kernel-flash-budget.md) · [ROM copy experiment](noreturn-and-rom-copy-footprint.md) · [Filesystem components](tiny-rump-components.md) · [C17 migration](c17-semantic-migration-plan.md)
+
+## Raw execution and clean-text restoration on the SD profile
+
+A fresh packed exec validates and then loads both streams. A clean-text
+restore reads only the text stream. For E successful execs and R successful
+clean-text restores, body input is (2E + R) times packed text plus 2E times
+packed data. Raw input is (E + R) times text plus E times data.
+The two multipliers follow the calls in exec_hsaout.c and exec_aout.c.
+The input stage occupies 480 bytes on ARMv6-M, measured by compiling an
+array of HSX_STAGE bytes and reading its ELF symbol size.
+
+| Installed program | Raw file bytes | Packed file bytes | Raw body input, E=R=1 | Packed body input, E=R=1 |
+| --- | ---: | ---: | ---: | ---: |
+| /bin/sh | 37,348 | 31,788 | 72,200 | 93,767 |
+| /sbin/fsck | 27,488 | 23,217 | 54,500 | 69,232 |
+| /usr/bin/cal | 5,996 | 5,181 | 11,640 | 15,187 |
+| /usr/bin/textbox | 38,936 | 31,762 | 77,524 | 94,945 |
+
+Inputs come from the RP2040 installation at 9a87d032a, compressed with
+its hsaout. Reproduce each row with inspect_packed_exec_work.py using
+the raw and packed files, the matching decoder, and
+`--stage-bytes 480 --execs 1 --restores 1`. Each comparison checks the
+decoded program body against the raw executable. Every pair trades fewer
+stored bytes for more modeled input at this workload. Filesystem cache hits,
+allocated blocks, SD transfers, scheduler delays and elapsed time require
+separate measurements before changing the installed representation.

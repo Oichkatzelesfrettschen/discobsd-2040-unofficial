@@ -64,11 +64,12 @@ run() {
 	secs=${MUTANT_TIMEOUT:-120}
 	cap=${MUTANT_OUTPUT_BYTES:-1048576}
 	# Each bound is a positive decimal integer without a leading zero (the
-	# shell would read 08 as octal): the two are checked one at a time.
+	# shell would read 08 as octal) and of at most nine digits (the arithmetic
+	# below must not overflow): the two are checked one at a time.
 	for bound_value in "$secs" "$cap"; do
 		case $bound_value in
-		'' | *[!0-9]* | 0 | 0[0-9]*)
-			echo "run_bounded.sh: MUTANT_TIMEOUT and MUTANT_OUTPUT_BYTES are positive integers" >&2
+		'' | *[!0-9]* | 0 | 0[0-9]* | [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]*)
+			echo "run_bounded.sh: MUTANT_TIMEOUT and MUTANT_OUTPUT_BYTES are positive integers of at most nine digits" >&2
 			exit 125
 			;;
 		esac
@@ -79,7 +80,12 @@ run() {
 		exit 125
 	fi
 	status="$out.status"
-	: >"$status"
+	capture="$out.capture"
+	# true, not :, so that a failed redirection does not end the shell.
+	if ! { true >"$status" && true >"$capture" && true >"$out"; } 2>/dev/null; then
+		echo "run_bounded.sh: cannot write $out or its status files" >&2
+		exit 125
+	fi
 	# The whole pipeline, the command and the reader of its output, runs under
 	# the one timeout, whose process group the signal reaches: a descendant of
 	# the command that keeps the output pipe open after the command has ended
@@ -94,15 +100,22 @@ run() {
 		trap : TERM
 		status=$1
 		out=$2
-		cap=$3
-		shift 3
+		capture=$3
+		cap=$4
+		shift 4
 		{ "$@" 2>&1; echo $? >"$status"; } | {
-			head -c "$cap" >"$out"
+			head -c "$cap" >"$out" || echo 1 >"$capture"
 			cat >/dev/null
 		}
-	' sh "$status" "$out" "$((cap + 1))" "$@" || outer=$?
+	' sh "$status" "$out" "$capture" "$((cap + 1))" "$@" || outer=$?
 	rc=$(cat "$status")
-	rm -f "$status"
+	failed=$(cat "$capture")
+	rm -f "$status" "$capture"
+	if [ -n "$failed" ]; then
+		# The output could not be kept whole: no verdict on the command.
+		echo "run_bounded.sh: the output of $1 could not be written to $out" >&2
+		return 125
+	fi
 	size=$(wc -c <"$out" | tr -d ' ')
 	if [ "$size" -gt "$cap" ]; then
 		echo "run_bounded.sh: output of $1 cut at $cap bytes" >&2
@@ -168,6 +181,42 @@ try_config() {
 	return 0
 }
 
+# try_raw NAME WANT-STATUS OUTPUT COMMAND...: a run whose output path is
+# unusable must end with WANT-STATUS.
+try_raw() {
+	name=$1
+	want=$2
+	shift 2
+	rc=0
+	"$self" "$@" >/dev/null 2>&1 || rc=$?
+	if [ "$rc" != "$want" ]; then
+		echo "run_bounded.sh: scenario $name: status $rc, want $want" >&2
+		status=1
+		if [ -n "$failfast" ]; then
+			return 1
+		fi
+	fi
+	return 0
+}
+
+# try_capture: a run whose output file cannot hold what the reader writes
+# (a file-size limit of one block) must end with 125.
+try_capture() {
+	rc=0
+	(
+		ulimit -f 1
+		"$self" "$work/capture" sh -c 'head -c 3000 /dev/zero'
+	) >/dev/null 2>&1 || rc=$?
+	if [ "$rc" != 125 ]; then
+		echo "run_bounded.sh: scenario capture-failure: status $rc, want 125" >&2
+		status=1
+		if [ -n "$failfast" ]; then
+			return 1
+		fi
+	fi
+	return 0
+}
+
 # try SCENARIO...: run one check and, under failfast (the mutant runs), stop
 # the list at the first failure.
 try() {
@@ -189,8 +238,13 @@ scenarios() {
 	try failing 3 - sh -c 'echo diagnostic; exit 3' || return 1
 	try unrunnable 125 - /nonexistent/run-bounded-command || return 1
 	try_config bad-output-bound 125 MUTANT_OUTPUT_BYTES=1:2 || return 1
+	try_config huge-output-bound 125 MUTANT_OUTPUT_BYTES=99999999999 || return 1
 	try_config bad-timeout-octal 125 MUTANT_TIMEOUT=08 || return 1
 	try_config bad-timeout-zero 125 MUTANT_TIMEOUT=0 || return 1
+	try_raw bad-output-path 125 /nonexistent/run-bounded-dir/out true || return 1
+	# A file-size limit of one block makes the capture fail after the command
+	# has printed: the status of the command must not be taken for a verdict.
+	try_capture || return 1
 	# The command ends at once and leaves a child that holds the output pipe for
 	# 6 s: the run ends with the bound, and the status is the command's own.
 	try descendant 3 - sh -c '(sleep 6) & exit 3' || return 1
@@ -229,7 +283,7 @@ selftest() {
 		echo "run_bounded.sh: selftest: the script fails its own scenarios" >&2
 		exit 1
 	}
-	echo "run_bounded.sh: 13 scenarios pass"
+	echo "run_bounded.sh: 16 scenarios pass"
 	# mutant LABEL SED-EXPRESSION SCENARIO: the copy must fail SCENARIO and no
 	# earlier one, so that a copy that does not run at all (status 127) is not
 	# taken for a rejection.
@@ -258,6 +312,7 @@ selftest() {
 	mutant 'no output bound' 's/head -c "\$cap"/cat/' failing-loudly-stdout
 	mutant 'status of the command lost' 's/echo \$? >"\$status"/echo 0 >"$status"/' failing
 	mutant 'a command that did not start taken for its failure' 's/^\t125 | 126 | 127) return 125 ;;$/\t125 | 126 | 127) return "$rc" ;;/' unrunnable
+	mutant 'a capture failure ignored' 's/^\tif \[ -n "\$failed" \]; then$/\tif false; then/' capture-failure
 	mutant 'a malformed bound accepted' 's/^\t\t\texit 125$/\t\t\texit 0/' bad-output-bound
 	mutant 'a failing status taken for a timeout' 's/^\treturn "\$rc"$/\treturn 124/' passing
 	echo "run_bounded.sh: selftest ok"

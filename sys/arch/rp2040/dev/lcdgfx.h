@@ -79,16 +79,29 @@ int	lcdcons_gfx(int on);
 int	lcdcons_gfx_reader(void);
 
 /*
- * The rule of lcdcons_gfx_reader(), over the facts it gathers: the caller's
- * effective uid, the console tty's foreground process group tpgrp, and
- * whether pfind(tpgrp) found a process, with that process's group and
- * effective uid. The superuser reads. Any other caller reads only when the
- * process that leads the console's foreground group is its own: no group,
- * no such process, or a process whose group is not tpgrp (a reused pid)
- * leave the memory to the superuser.
+ * The console's owner is the user logged in on it: the effective uid of the
+ * console session's leader, the login shell, latched at the first check that
+ * finds the leader with a nonzero uid. The session is the tty's process
+ * group at the first open that sets one (lcdgfx_console_open(), called after
+ * ttyopen() with the tty's t_pgrp) and ends at the last close
+ * (lcdgfx_console_close()). Job control moves the foreground group and a
+ * set-uid program or su in the foreground changes the uid of processes that
+ * are not the leader; neither moves the session or the latched uid.
  */
-int	lcdgfx_reader_ok(unsigned uid, int tpgrp, int found, int lpgrp,
-	    unsigned luid);
+void	lcdgfx_console_open(int tpgrp);
+void	lcdgfx_console_close(void);
+int	lcdgfx_console_session(void);
+
+/*
+ * The rule of lcdcons_gfx_reader(), over the facts it gathers: the caller's
+ * effective uid and whether pfind(lcdgfx_console_session()) found a process,
+ * with that process's group and effective uid. The superuser reads. Any
+ * other caller reads only as the latched owner, and only while the session
+ * leader is alive and still leads its group: no session, no such process or
+ * a process of another group (a reused pid) leave the memory to the
+ * superuser, and so does a console with no login yet (leader uid 0).
+ */
+int	lcdgfx_reader_ok(unsigned uid, int found, int lpgrp, unsigned luid);
 #endif
 
 #ifdef LCD_PANELTEST

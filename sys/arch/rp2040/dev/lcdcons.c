@@ -442,6 +442,7 @@ int
 lcdopen(dev_t dev, int flag __unused, int mode __unused)
 {
 	struct tty *tp;
+	int error;
 
 	if (minor(dev) == LCDGFX_MINOR)
 		return lcdgfx_open();
@@ -465,7 +466,11 @@ lcdopen(dev_t dev, int flag __unused, int mode __unused)
 	if ((tp->t_state & TS_XCLUDE) && u.u_uid != 0)
 		return EBUSY;
 	picokbd_poll_start();
-	return ttyopen(dev, tp);
+	error = ttyopen(dev, tp);
+#ifdef LCD_GFX_EXT
+	lcdgfx_console_open(tp->t_pgrp);
+#endif
+	return error;
 }
 
 int
@@ -478,6 +483,9 @@ lcdclose(dev_t dev, int flag __unused, int mode __unused)
 	tp = &lcdttys[0];
 	ttywflush(tp);
 	ttyclose(tp);
+#ifdef LCD_GFX_EXT
+	lcdgfx_console_close();
+#endif
 	return 0;
 }
 
@@ -681,19 +689,20 @@ lcdcons_gfx(int on)
 /*
  * /dev/lcdgfx is open to every user for drawing; the memory it reads back
  * can hold what the console showed to another, so only the superuser and
- * the console's owner read (lcdgfx_reader_ok()). The owner is the user of
- * the process that leads the console's foreground process group. Only a
- * user who can open the console tty for reading can move that group
- * (TIOCSPGRP, sys/kern/tty.c), and login(1) leaves the tty readable by
- * its user alone.
+ * the console's owner read (lcdgfx_reader_ok()). The owner is the user
+ * logged in on the console: the uid of the session's leader, the login
+ * shell, which getty(8) made the tty's process group at its open and which
+ * login(1) then setuid'ed. login(1) leaves the tty readable by that user
+ * alone. Foreground jobs, su and set-uid programs run in other processes
+ * and move neither the session nor the latched uid.
  */
 int
 lcdcons_gfx_reader(void)
 {
-	int pgrp = lcdttys[0].t_pgrp;
-	struct proc *p = pgrp != 0 ? pfind(pgrp) : NULL;
+	int sess = lcdgfx_console_session();
+	struct proc *p = sess != 0 ? pfind(sess) : NULL;
 
-	return lcdgfx_reader_ok(u.u_uid, pgrp, p != NULL,
+	return lcdgfx_reader_ok(u.u_uid, p != NULL,
 	    p != NULL ? p->p_pgrp : 0, p != NULL ? p->p_uid : 0);
 }
 #endif

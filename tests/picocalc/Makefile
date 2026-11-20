@@ -37,11 +37,13 @@
 # lcdgfx_ext_test builds lcdgfx.c with LCD_GFX_EXT, the option of the
 # PICOCALC_SD kernel, against a model of the controller's 480-line memory
 # with its read reply, scan line and power mode, and a table of the console's
-# foreground process; forty-nine mutants of lcdgfx.c
+# console session's leader; fifty-three mutants of lcdgfx.c
 # must fail it: moved line and column bounds of the memory fill, window,
 # read and sprite, a read open to every user or closed to the console's owner
-# or to the superuser, an owner rule that skips the group, the process, the
-# group match or the uid, a frame, memory fill, sprite or power command gated
+# or to the superuser, an owner that follows the leader's uid instead of the
+# latched one, a rule that skips the session, the process or the group match,
+# a close that keeps the owner or the session, an open that moves the
+# session, a frame, memory fill, sprite or power command gated
 # on the reader, a read decoded from the wrong reply bits or byte order,
 # an odd read accepted, the read clock left selected, a raw read wider or
 # taller than one reply, a read or sprite that survives another command, a
@@ -950,10 +952,14 @@ gfxext-mutants: \
 	gfxext-mutant-read-root-denied \
 	gfxext-mutant-read-everyone \
 	gfxext-mutant-read-owner-denied \
-	gfxext-mutant-read-no-group-check \
+	gfxext-mutant-read-uid-inverted \
+	gfxext-mutant-read-tracks-leader \
+	gfxext-mutant-read-no-session-check \
 	gfxext-mutant-read-no-process-check \
-	gfxext-mutant-read-no-pgrp-match \
-	gfxext-mutant-read-any-leader \
+	gfxext-mutant-read-no-group-match \
+	gfxext-mutant-console-close-keeps-owner \
+	gfxext-mutant-console-close-keeps-session \
+	gfxext-mutant-console-open-moves-session \
 	gfxext-mutant-draw-frame-gated \
 	gfxext-mutant-draw-ramfill-gated \
 	gfxext-mutant-draw-sprite-gated \
@@ -1111,33 +1117,56 @@ gfxext-mutant-read-short-reply:
 	${GFXEXT_MUT} lcdgfx.c \
 	    's/raw, 1 + bpp \* n);/raw, bpp * n);/' ${GFX_SRC}
 
+
+
+
+
+
+
+
 gfxext-mutant-read-root-denied:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/return uid == 0 ||/return 0 ||/' ${GFX_SRC}
+	    's/if (uid == 0)/if (0)/' ${GFX_SRC}
 
 gfxext-mutant-read-everyone:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/return uid == 0 ||/return 1 ||/' ${GFX_SRC}
+	    's/return con_uid != 0 \&\& uid == con_uid;/return 1;/' ${GFX_SRC}
 
 gfxext-mutant-read-owner-denied:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/(tpgrp != 0 \&\& found/(0 \&\& found/' ${GFX_SRC}
+	    's/return con_uid != 0 \&\& uid == con_uid;/return 0;/' ${GFX_SRC}
 
-gfxext-mutant-read-no-group-check:
+gfxext-mutant-read-uid-inverted:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/(tpgrp != 0 \&\& found/(found/' ${GFX_SRC}
+	    's/uid == con_uid;/uid != con_uid;/' ${GFX_SRC}
+
+gfxext-mutant-read-tracks-leader:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (con_uid == 0)/if (1)/' ${GFX_SRC}
+
+gfxext-mutant-read-no-session-check:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/con_sess == 0 || //' ${GFX_SRC}
 
 gfxext-mutant-read-no-process-check:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/(tpgrp != 0 \&\& found/(tpgrp != 0 \&\& (found | 1)/' ${GFX_SRC}
+	    's/!found ||/(found \& 0) ||/' ${GFX_SRC}
 
-gfxext-mutant-read-no-pgrp-match:
+gfxext-mutant-read-no-group-match:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/lpgrp == tpgrp/(lpgrp | 1)/' ${GFX_SRC}
+	    's/lpgrp != con_sess/(lpgrp \& 0)/' ${GFX_SRC}
 
-gfxext-mutant-read-any-leader:
+gfxext-mutant-console-close-keeps-owner:
 	${GFXEXT_MUT} lcdgfx.c \
-	    's/luid == uid/(luid | 1)/' ${GFX_SRC}
+	    '/^lcdgfx_console_close/,/^}/s/con_uid = 0;/;/' ${GFX_SRC}
+
+gfxext-mutant-console-close-keeps-session:
+	${GFXEXT_MUT} lcdgfx.c \
+	    '/^lcdgfx_console_close/,/^}/s/con_sess = 0;/;/' ${GFX_SRC}
+
+gfxext-mutant-console-open-moves-session:
+	${GFXEXT_MUT} lcdgfx.c \
+	    's/if (con_sess == 0)$$/if (1)/' ${GFX_SRC}
 
 gfxext-mutant-draw-frame-gated:
 	${GFXEXT_MUT} lcdgfx.c \
@@ -1159,10 +1188,14 @@ gfxext-mutant-draw-power-gated:
 	gfxext-mutant-read-root-denied \
 	gfxext-mutant-read-everyone \
 	gfxext-mutant-read-owner-denied \
-	gfxext-mutant-read-no-group-check \
+	gfxext-mutant-read-uid-inverted \
+	gfxext-mutant-read-tracks-leader \
+	gfxext-mutant-read-no-session-check \
 	gfxext-mutant-read-no-process-check \
-	gfxext-mutant-read-no-pgrp-match \
-	gfxext-mutant-read-any-leader \
+	gfxext-mutant-read-no-group-match \
+	gfxext-mutant-console-close-keeps-owner \
+	gfxext-mutant-console-close-keeps-session \
+	gfxext-mutant-console-open-moves-session \
 	gfxext-mutant-draw-frame-gated \
 	gfxext-mutant-draw-ramfill-gated \
 	gfxext-mutant-draw-sprite-gated \

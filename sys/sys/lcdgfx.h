@@ -112,10 +112,11 @@
  * with no rectangle selected returns end of file. The memory holds the text
  * console's screen from before the open, so LCDG_READ, and each read(2) of
  * a selected rectangle, fails with EPERM for a caller who is neither the
- * superuser nor the console's owner: the user of the process that leads
- * the console tty's foreground process group, as login(1) leaves it. A
- * console with no such process, or with no foreground group, serves the
- * superuser alone. Every other command of this header, drawing, scrolling,
+ * superuser nor the console's owner: the user logged in on the console, the
+ * uid of the console session's leader (the login shell) as latched at the
+ * first check after login(1) set it. Job control, su and set-uid programs
+ * in the foreground do not move it, and a console with no login, no live
+ * leader or a new login by another user serves the superuser alone. Every other command of this header, drawing, scrolling,
  * tiles, sprites, palette, power and the scan-line wait included, is open
  * to every user who can open the device. The reader still sees what an
  * earlier opener left in lines 320-479, which the console does not draw.

@@ -591,12 +591,39 @@ lcdgfx_read(struct uio *uio)
 	return error;
 }
 
-int
-lcdgfx_reader_ok(unsigned uid, int tpgrp, int found, int lpgrp,
-    unsigned luid)
+static int con_sess;			/* The console session's group, or 0. */
+static unsigned con_uid;		/* Its latched owner, or 0 for none. */
+
+void
+lcdgfx_console_open(int tpgrp)
 {
-	return uid == 0 ||
-	    (tpgrp != 0 && found && lpgrp == tpgrp && luid == uid);
+	if (con_sess == 0)
+		con_sess = tpgrp;
+}
+
+void
+lcdgfx_console_close(void)
+{
+	con_sess = 0;
+	con_uid = 0;
+}
+
+int
+lcdgfx_console_session(void)
+{
+	return con_sess;
+}
+
+int
+lcdgfx_reader_ok(unsigned uid, int found, int lpgrp, unsigned luid)
+{
+	if (uid == 0)
+		return 1;
+	if (con_sess == 0 || !found || lpgrp != con_sess)
+		return 0;
+	if (con_uid == 0)
+		con_uid = luid;
+	return con_uid != 0 && uid == con_uid;
 }
 
 /* A rectangle of the controller's memory: x, y, w, h in that order. */

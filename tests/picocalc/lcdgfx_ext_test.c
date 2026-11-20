@@ -117,27 +117,31 @@ lcdcons_gfx(int on)
 }
 
 /*
- * The facts lcdcons_gfx_reader() reads on the board: the caller's uid, the
- * console tty's foreground group and the one process table entry pfind()
- * could return for it. The rule is the production lcdgfx_reader_ok().
+ * The facts lcdcons_gfx_reader() reads on the board: the caller's uid and
+ * the one process table entry pfind() could return for the console
+ * session. The session and the latched owner are the production
+ * lcdgfx_console_*() and lcdgfx_reader_ok().
  */
 #define	OWNER_UID	1000
 #define	OTHER_UID	1001
-#define	CON_PGRP	100
+#define	LOGIN_PID	100
 
 static unsigned cur_uid;
-static int con_pgrp = CON_PGRP;
-static int leader_alive = 1;
-static int leader_pgrp = CON_PGRP;
-static unsigned leader_uid = OWNER_UID;
+static int leader_alive;
+static int leader_pid;
+static int leader_pgrp;
+static unsigned leader_uid;
 
 int
 lcdcons_gfx_reader(void)
 {
+	int sess = lcdgfx_console_session();
+	/* pfind(0) would find a process of pid 0, which the driver never asks. */
+	int found = leader_alive && leader_pid == sess;
+
 	/* A caller that finds no process hands over stale values. */
-	return lcdgfx_reader_ok(cur_uid, con_pgrp, leader_alive,
-	    leader_alive ? leader_pgrp : con_pgrp,
-	    leader_alive ? leader_uid : cur_uid);
+	return lcdgfx_reader_ok(cur_uid, found, found ? leader_pgrp : sess,
+	    found ? leader_uid : cur_uid);
 }
 
 /* The caller is the superuser (1) or a user who does not own the console. */
@@ -447,15 +451,27 @@ pwr(int mode)
 	return ioc(LCDG_POWER, &p);
 }
 
-/* The facts of a console whose owner is OWNER_UID, as login(1) leaves them. */
+/*
+ * getty(8) opens the console as group leader pid, login(1) then runs as
+ * root until it sets the user's uid: the console of a login by uid.
+ */
 static void
-console_of_owner(void)
+login_as(int pid, unsigned uid)
 {
-	con_pgrp = CON_PGRP;
+	lcdgfx_console_close();
 	leader_alive = 1;
-	leader_pgrp = CON_PGRP;
-	leader_uid = OWNER_UID;
-	cur_uid = OWNER_UID;
+	leader_pid = pid;
+	leader_pgrp = pid;
+	leader_uid = 0;
+	lcdgfx_console_open(pid);
+	leader_uid = uid;
+}
+
+static void
+logout(void)
+{
+	lcdgfx_console_close();
+	leader_alive = 0;
 }
 
 /* One read of four red pixels at the top left, as the caller now is. */
@@ -536,7 +552,8 @@ test_access(void)
 	int i;
 
 	fresh();
-	console_of_owner();
+	login_as(LOGIN_PID, OWNER_UID);
+	cur_uid = OWNER_UID;
 	expect("owner writes", ramfill(0, 0, 3, 0, 0xf800), 0);
 	expect("owner reads", read_four(got), 0);
 	expect("all four pixels", resid_after, 0);
@@ -557,36 +574,71 @@ test_access(void)
 	expect("the superuser completes it", xfer(0, got, 8), 0);
 
 	/* The check runs at each read(2), not at the selection alone. */
-	console_of_owner();
-	cur_uid = 0;
 	expect("the superuser selects", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
 	cur_uid = OWNER_UID;
 	expect("owner finishes the superuser's selection", xfer(0, got, 8), 0);
 
-	/* No console owner is known: only the superuser reads. */
-	console_of_owner();
-	con_pgrp = 0;
-	leader_pgrp = 0;	/* A process of pid 0 and the owner's uid. */
-	expect("no foreground group: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	cur_uid = 0;
-	expect("no foreground group: superuser reads", rdsel(0, 0, 4, 1, 0), 0);
-	console_of_owner();
-	leader_alive = 0;
-	expect("leader gone: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	console_of_owner();
-	leader_pgrp = CON_PGRP + 1;
-	expect("reused pid: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
-	console_of_owner();
-	leader_uid = OTHER_UID;
-	expect("another user leads the console: owner refused",
-	    rdsel(0, 0, 4, 1, 0), EPERM);
+	/* The leader's uid changes after the latch: the login user stays. */
+	leader_uid = OTHER_UID;		/* The shell itself became another user. */
 	cur_uid = OTHER_UID;
-	expect("another user leads the console: that user reads",
-	    rdsel(0, 0, 4, 1, 0), 0);
+	expect("leader became other: other refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	cur_uid = OWNER_UID;
+	expect("leader became other: login user reads", rdsel(0, 0, 4, 1, 0), 0);
+	leader_uid = 0;			/* Or root, or a service account. */
+	cur_uid = OWNER_UID;
+	expect("leader became root: login user reads", rdsel(0, 0, 4, 1, 0), 0);
+	cur_uid = OTHER_UID;
+	expect("leader became root: other refused", rdsel(0, 0, 4, 1, 0), EPERM);
+
+	/* No login yet: the leader is still root, only the superuser reads. */
+	login_as(LOGIN_PID + 1, 0);
+	cur_uid = OWNER_UID;
+	expect("no login: user refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	expect("no login: still refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	cur_uid = 0;
+	expect("no login: superuser reads", rdsel(0, 0, 4, 1, 0), 0);
+	leader_uid = OWNER_UID;		/* The login completes. */
+	cur_uid = OWNER_UID;
+	expect("login completes: user reads", rdsel(0, 0, 4, 1, 0), 0);
+
+	/* Logout, then another user logs in: the old owner is shut out. */
+	logout();
+	cur_uid = OWNER_UID;
+	expect("after logout: old owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	login_as(LOGIN_PID + 2, OTHER_UID);
+	expect("other's login: old owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	cur_uid = OTHER_UID;
+	expect("other's login: other reads", rdsel(0, 0, 4, 1, 0), 0);
+
+	/* A later open does not move the session. */
+	lcdgfx_console_open(LOGIN_PID + 9);
+	expect("a job's group does not move it", lcdgfx_console_session(),
+	    LOGIN_PID + 2);
+
+	/* The console stays open across a logout: no leader, nobody reads. */
+	leader_alive = 0;
+	cur_uid = OTHER_UID;
+	expect("leader gone: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	login_as(LOGIN_PID + 3, OWNER_UID);
+	leader_pgrp = LOGIN_PID + 4;	/* The pid was reused by another group. */
+	cur_uid = OWNER_UID;
+	expect("reused pid: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
+
+	/* An open that sets no group names no session. */
+	logout();
+	lcdgfx_console_open(0);
+	leader_alive = 1;
+	leader_pid = 0;			/* A process of pid 0 with a uid. */
+	leader_pgrp = 0;
+	leader_uid = OWNER_UID;
+	cur_uid = OWNER_UID;
+	expect("no session: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	cur_uid = 0;
+	expect("no session: superuser reads", rdsel(0, 0, 4, 1, 0), 0);
 
 	test_open_to_every_user(OTHER_UID);
 	test_open_to_every_user(OWNER_UID);
-	console_of_owner();
+	logout();
 	cur_uid = 0;
 }
 

@@ -1104,11 +1104,12 @@ def main(argv):
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")
                     test_undefined(sstrun + "-mutant", work)
                     test_rep_burst(sstrun + "-mutant", work)
-                except Failure:
+                except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                    # A mutant that hangs or dies has failed like any other.
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))
             print("%d mutants fail the test" % len(MUTANTS))
-        except Failure as failure:
+        except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError) as failure:
             sys.stderr.write("i86 check: %s\n" % failure)
             return 1
     return 0

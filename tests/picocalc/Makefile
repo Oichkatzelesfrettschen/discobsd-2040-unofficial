@@ -385,7 +385,8 @@ font-sync:
 
 # Each mutant is the shipped source with one line changed by sed; the
 # sed must change the file, and the test built from it must fail.
-mutants: mutant-scroll mutant-region mutant-ctrl mutant-reverse-erase \
+mutants: mutant-scroll mutant-region mutant-ctrl mutant-break-dropped \
+	mutant-break-byte mutant-power-types mutant-reverse-erase \
 	mutant-bright mutant-bell mutant-bell-any mutant-bank-store mutant-bank-pack \
 	mutant-bank-redraw mutant-bank-ascii mutant-bank-c1 \
 	mutant-bank-acs-shift mutant-bank-ris mutant-bank-rows \
@@ -405,6 +406,19 @@ mutant-region:
 mutant-ctrl:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
 	    's/\*ctrl = 1;/(void)0;/'
+
+# Break types ETX and the power key types nothing.
+mutant-break-dropped:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
+	    's/case KEY_BREAK:/case 0x00:/'
+
+mutant-break-byte:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
+	    's/out\[0\] = 0x03;/out[0] = 0x04;/'
+
+mutant-power-types:
+	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
+	    's/return 0;\t\/\* Shift, Alt/out[0] = 0x1b; return 1; \/* Shift, Alt/'
 
 mutant-reverse-erase:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -2402,7 +2416,8 @@ clean:
 	    lcdgfx_ext_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
-	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
+	mutant-ctrl mutant-break-dropped mutant-break-byte mutant-power-types \
+	mutant-reverse-erase mutant-bright mutant-bell \
 	mutant-bell-any mutant-bank-store mutant-bank-pack mutant-bank-redraw \
 	mutant-bank-ascii mutant-bank-c1 mutant-bank-acs-shift \
 	mutant-bank-ris mutant-bank-rows mutant-bank-code clean \

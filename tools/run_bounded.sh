@@ -80,9 +80,8 @@ run() {
 		exit 125
 	fi
 	status="$out.status"
-	capture="$out.capture"
 	# true, not :, so that a failed redirection does not end the shell.
-	if ! { true >"$status" && true >"$capture" && true >"$out"; } 2>/dev/null; then
+	if ! { true >"$status" && true >"$out"; } 2>/dev/null; then
 		echo "run_bounded.sh: cannot write $out or its status files" >&2
 		exit 125
 	fi
@@ -100,22 +99,28 @@ run() {
 		trap : TERM
 		status=$1
 		out=$2
-		capture=$3
-		cap=$4
-		shift 4
+		cap=$3
+		shift 3
+		# The status of the reader ends the wrapper, so that a failure to keep
+		# the output reaches the caller without another write to the same disk.
 		{ "$@" 2>&1; echo $? >"$status"; } | {
-			head -c "$cap" >"$out" || echo 1 >"$capture"
+			head -c "$cap" >"$out"
+			hrc=$?
 			cat >/dev/null
+			exit "$hrc"
 		}
-	' sh "$status" "$out" "$capture" "$((cap + 1))" "$@" || outer=$?
+	' sh "$status" "$out" "$((cap + 1))" "$@" || outer=$?
 	rc=$(cat "$status")
-	failed=$(cat "$capture")
-	rm -f "$status" "$capture"
-	if [ -n "$failed" ]; then
-		# The output could not be kept whole: no verdict on the command.
-		echo "run_bounded.sh: the output of $1 could not be written to $out" >&2
+	rm -f "$status"
+	case $outer in
+	0 | 124 | 137) ;;
+	*)
+		# The output could not be kept whole, or timeout(1) could not run the
+		# wrapper: no verdict on the command.
+		echo "run_bounded.sh: the output of $1 could not be kept (status $outer)" >&2
 		return 125
-	fi
+		;;
+	esac
 	size=$(wc -c <"$out" | tr -d ' ')
 	if [ "$size" -gt "$cap" ]; then
 		echo "run_bounded.sh: output of $1 cut at $cap bytes" >&2
@@ -312,7 +317,7 @@ selftest() {
 	mutant 'no output bound' 's/head -c "\$cap"/cat/' failing-loudly-stdout
 	mutant 'status of the command lost' 's/echo \$? >"\$status"/echo 0 >"$status"/' failing
 	mutant 'a command that did not start taken for its failure' 's/^\t125 | 126 | 127) return 125 ;;$/\t125 | 126 | 127) return "$rc" ;;/' unrunnable
-	mutant 'a capture failure ignored' 's/^\tif \[ -n "\$failed" \]; then$/\tif false; then/' capture-failure
+	mutant 'a capture failure ignored' 's/exit "\$hrc"/exit 0/' capture-failure
 	mutant 'a malformed bound accepted' 's/^\t\t\texit 125$/\t\t\texit 0/' bad-output-bound
 	mutant 'a failing status taken for a timeout' 's/^\treturn "\$rc"$/\treturn 124/' passing
 	echo "run_bounded.sh: selftest ok"

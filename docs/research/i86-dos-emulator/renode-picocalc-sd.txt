@@ -396,3 +396,23 @@ and "mem" were typed on the keyboard model.
 ---- panel: back at 216.5 virtual s
   |i86: q quit, a b floppy, other: back
   |operator@pico:~$
+
+==== Run 7: the page file's name removed through unlinkat_beneath()
+==== (source: the merge of commit d05c8c1cc into this branch)
+The guest program with 8 resident pages and the page file at /tmp/pg on
+the card's /tmp partition, in the background, then a listing.
+  |operator@pico:~$ i86 -q -v -T -f 8 -s /tmp/pg -a /guest.img -k aB1 > /dev/null &
+  |21
+  |operator@pico:~$ i86: 75 polls of 2048 steps; pages:
+  |1171 soft, 1158 zero, 583 in, 581 out, 576 elided, 57
+  |6 clean
+  |operator@pico:~$ ls -a /tmp; df /tmp
+  |.           ..          lost+found
+  |Filesystem  1K-blocks     Used    Avail Capacity  Mou
+  |nted on
+  |/dev/sd0t        8127        2     8125     0%    /tm
+  |p
+The session wrote 581 pages and read 583 back, ended with status 0 (a name
+that cannot be removed ends it with status 3 before the first page) and
+left no file in /tmp. The listing ran after the session had ended, so the
+run shows the removal succeeding, not the directory during the session.

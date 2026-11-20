@@ -1820,15 +1820,15 @@ sdstrat-mutant-root-bind-whole-card:
 # sd_partitions(): the copy of the MBR entries.
 sdstrat-mutant-mbr-offset-shifted:
 	${SDSTRAT_MUT} sd.c \
-	    's/bcopy(b + 446, \&pt\[1\], 64);/bcopy(b + 447, \&pt[1], 64);/' ${SDSTRAT_SRC}
+	    's/(u_char \*)table, 446,/(u_char *)table, 445,/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-mbr-copy-short:
 	${SDSTRAT_MUT} sd.c \
-	    's/bcopy(b + 446, \&pt\[1\], 64);/bcopy(b + 446, \&pt[1], 48);/' ${SDSTRAT_SRC}
+	    's/bcopy(table.slots, \&sdpt\[1\], sizeof(table.slots));/bcopy(table.slots, \&sdpt[1], 3 * sizeof(struct diskpart));/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-mbr-signature-unchecked:
 	${SDSTRAT_MUT} sd.c \
-	    's/if ((b\[510\] | (u_int)b\[511\] << 8) == MBR_MAGIC)/if (1)/' ${SDSTRAT_SRC}
+	    's/if (table.signature != MBR_MAGIC)/if (0)/' ${SDSTRAT_SRC}
 
 # sdswapattach() and the swap partition's size: the device that holds swap.
 sdstrat-mutant-swap-board-ungated:
@@ -2022,11 +2022,11 @@ sdstrat-mutant-open-check:
 
 sdstrat-mutant-reinit-early-clear:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\tbzero(pt, sizeof(pt));/\tbzero(pt, sizeof(pt)); bzero(sdpt, sizeof(sdpt));/' ${SDSTRAT_SRC}
+	    's/^\tif (sd_read_mbr(\&sdcard, \&table) != SDE_OK)/\tbzero(sdpt, sizeof(sdpt)); &/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-reinit-keep-old:
 	${SDSTRAT_MUT} sd.c \
-	    's/^\t\tbcopy(pt, sdpt, sizeof(sdpt));/\t\t(void)0;/' ${SDSTRAT_SRC}
+	    's/^\tbcopy(table.slots, \&sdpt\[1\], sizeof(table.slots));/\t(void)0;/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-raw-read-unchecked:
 	${SDSTRAT_MUT} sd.c \
@@ -2164,7 +2164,7 @@ sdstrat-mutant-dump-past-card:
 
 sdstrat-mutant-dump-signature-unchecked:
 	${SDSTRAT_MUT} sd.c \
-	    's/tab\[sizeof(tab) - 1\] != 0xaa) {/0) {/' ${SDSTRAT_SRC}
+	    's/^	    table.signature != MBR_MAGIC) {/	    0) {/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-dump-probe-unarmed:
 	${SDSTRAT_MUT} sd.c \

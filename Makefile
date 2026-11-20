@@ -2602,6 +2602,7 @@ check-renode-picocalc-dump:
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
 check-renode-picocalc-sd-system: picocalc-sd-system
+		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
 		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
 		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \

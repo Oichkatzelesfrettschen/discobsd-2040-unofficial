@@ -30,13 +30,13 @@ insert(Range *r)
 	Range *l, *p, *t;
 
 	for (p = NULL, l = list; l; p = l, l = l->next) {
-		if (r->max && r->max + 1 < l->min) {
+		if (r->max && r->max < l->min - 1) {
 			r->next = l;
 			break;
-		} else if (!l->max || r->min < l->max + 2) {
+		} else if (!l->max || r->min - 1 <= l->max) {
 			l->min = MIN(r->min, l->min);
 			for (p = l, t = l->next; t; p = t, t = t->next)
-				if (r->max && r->max + 1 < t->min)
+				if (r->max && r->max < t->min - 1)
 					break;
 			l->max = (p->max && r->max) ? MAX(p->max, r->max) : 0;
 			l->next = t;
@@ -49,6 +49,24 @@ insert(Range *r)
 		list = r;
 }
 
+static size_t
+position(char **cursor)
+{
+	char *s = *cursor;
+	size_t value = 0;
+
+	while (*s >= '0' && *s <= '9') {
+		unsigned digit = (unsigned)(*s++ - '0');
+		if (value > (SIZE_T_MAX - digit) / 10)
+			eprintf("list value too large\n");
+		value = value * 10 + digit;
+	}
+	if (!value)
+		eprintf("expected a positive list value\n");
+	*cursor = s;
+	return value;
+}
+
 static void
 parselist(char *str)
 {
@@ -59,15 +77,25 @@ parselist(char *str)
 	if (!*str)
 		eprintf("empty list\n");
 	for (s = str; *s; s++) {
-		if (*s == ' ')
+		if (*s == ' ' || *s == '\t')
 			*s = ',';
 		if (*s == ',')
 			n++;
 	}
 	r = ereallocarray(NULL, n, sizeof(*r));
 	for (s = str; n; n--, s++) {
-		r->min = (*s == '-') ? 1 : strtoul(s, &s, 10);
-		r->max = (*s == '-') ? strtoul(s + 1, &s, 10) : r->min;
+		if (*s == '-') {
+			s++;
+			r->min = 1;
+			r->max = position(&s);
+		} else {
+			r->min = position(&s);
+			r->max = r->min;
+			if (*s == '-') {
+				s++;
+				r->max = (!*s || *s == ',') ? 0 : position(&s);
+			}
+		}
 		r->next = NULL;
 		if (!r->min || (r->max && r->max < r->min) || (*s && *s != ','))
 			eprintf("bad list value\n");
@@ -78,7 +106,7 @@ parselist(char *str)
 static size_t
 seek(struct line *s, size_t pos, size_t *prev, size_t count)
 {
-	size_t n = pos - *prev, i, j;
+	size_t n = pos - *prev, i;
 
 	if (mode == 'b') {
 		if (n >= s->len)
@@ -93,7 +121,7 @@ seek(struct line *s, size_t pos, size_t *prev, size_t count)
 			if (UTF8_POINT(s->data[i]) && !--n)
 				break;
 	} else {
-		for (i = (count < delimlen + 1) ? 0 : delimlen; n && i < s->len; ) {
+		for (i = count <= delimlen ? 0 : MIN(delimlen, s->len); n && i < s->len; ) {
 			if ((s->len - i) >= delimlen &&
 			    !memcmp(s->data + i, delim, delimlen)) {
 				if (!--n && count)
@@ -101,8 +129,8 @@ seek(struct line *s, size_t pos, size_t *prev, size_t count)
 				i += delimlen;
 				continue;
 			}
-			for (j = 1; j + i <= s->len && !fullrune(s->data + i, j); j++);
-			i += j;
+			/* The textbox rune backend consumes one byte per character. */
+			i++;
 		}
 	}
 	*prev = pos;
@@ -138,7 +166,7 @@ cut(FILE *fp, const char *fname)
 			i += (mode == 'f') ? delimlen : 1;
 			if (!s.len)
 				break;
-			if (!r->max) {
+			if (!r->max || r->max == SIZE_T_MAX) {
 				fwrite(s.data, 1, s.len, stdout);
 				break;
 			}

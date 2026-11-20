@@ -22,11 +22,13 @@
  * input enabled, Schmitt trigger, 4 mA drive and the pull-down, so an
  * unconnected input reads zero. Released pins return to no function.
  *
- * GPIO_PWM gives pins to a PWM slice (datasheet 4.5) instead: the slice runs
- * the fixed carrier of <machine/gpio.h> and each pin's channel holds the
- * duty. Every kernel PWM user is on the PicoCalc, whose slice 5 is the
- * bell and /dev/audio's carrier and whose slice 6 is /dev/audio's sample
- * clock; gpio_pwm_check() refuses those, and pcmopen() refuses to open
+ * With the DEV_GPIO_PWM option, GPIO_PWM gives pins to a PWM slice (datasheet
+ * 4.5) instead: the slice runs the fixed carrier of <machine/gpio.h> and
+ * each pin's channel holds the duty. A kernel without the option answers
+ * GPIO_PWM with EOPNOTSUPP and carries none of this code. Every kernel PWM
+ * user is on the PicoCalc, whose slice 5 is the bell and /dev/audio's
+ * carrier and whose slice 6 is /dev/audio's sample clock; gpio_pwm_check()
+ * refuses those, and pcmopen() refuses to open
  * while a program holds slice 6. A PWM pin is also an owned pin, so
  * GPIO_DECONF, a digital configuration request and the last close all
  * take it back, to no function after DECONF and close.
@@ -42,16 +44,20 @@
 #include <machine/board.h>
 #include <machine/gpio.h>
 
+#ifdef DEV_GPIO_PWM
 extern int picoaudio_pcm;	/* picoaudio.c: /dev/audio is open. */
+#endif
 
 _Static_assert(GPIO_IOC_VOID == IOC_VOID, "GPIO requests carry no parameter");
 _Static_assert(BOARD_ID_PICO == 1 && BOARD_ID_PICOCALC == 2,
     "gpio_board_pins() switches on these values");
+#ifdef DEV_GPIO_PWM
 _Static_assert(GPIO_PWM_EINVAL == EINVAL && GPIO_PWM_EBUSY == EBUSY,
     "gpio_pwm_check() returns errno values");
 _Static_assert(CPU_KHZ * 1000 / GPIO_PWM_DIV_INT / GPIO_PWM_DUTY_MAX > 1000,
     "the carrier is an audible-band PWM no slower than 1 kHz");
 _Static_assert(GPIO_PWM_DIV_INT <= 255, "DIV.INT is eight bits");
+#endif
 
 #define	GREG32(a)		(*(volatile u_int *)(a))
 
@@ -82,7 +88,9 @@ _Static_assert(GPIO_PWM_DIV_INT <= 255, "DIV.INT is eight bits");
 #define	SIO_GPIO_OE_CLR		0xd0000028UL
 
 u_int gpio_owned;	/* GPn bits this device configured. */
+#ifdef DEV_GPIO_PWM
 u_int gpio_pwm_pins;	/* The part of gpio_owned that a PWM slice drives. */
+#endif
 
 int
 gpioopen(dev_t dev, int flag __unused, int mode __unused)
@@ -117,6 +125,7 @@ gpio_route(u_int pins, u_int func)
 		}
 }
 
+#ifdef DEV_GPIO_PWM
 /*
  * The last close of a port node stops every PWM pin: d_close runs once per
  * node, and one open file reaches both ports, so no finer owner exists.
@@ -163,6 +172,7 @@ gpio_pwm_start(u_int pins, u_int duty)
 	gpio_pwm_pins |= pins;
 	return 0;
 }
+#endif /* DEV_GPIO_PWM */
 
 /*
  * The port is the low byte of the request, as in the PIC32 driver, so one
@@ -181,8 +191,12 @@ gpioioctl(dev_t dev __unused, u_int cmd, caddr_t addr, int flag __unused)
 	if (port >= GPIO_NPORTS)
 		return ENXIO;
 	if (cmd == GPIO_PWM)
+#ifdef DEV_GPIO_PWM
 		return gpio_pwm_start(gpio_port_bits(port, (u_int)addr),
 		    (u_int)addr >> 16);
+#else
+		return EOPNOTSUPP;
+#endif
 	pins = gpio_port_bits(port, (u_int)addr) & free_pins;
 
 	if (cmd & GPIO_COMMAND & (GPIO_CONFIN | GPIO_CONFOUT)) {
@@ -192,11 +206,15 @@ gpioioctl(dev_t dev __unused, u_int cmd, caddr_t addr, int flag __unused)
 		if (cmd & GPIO_COMMAND & GPIO_CONFOUT)
 			GREG32(SIO_GPIO_OE_SET) = pins;
 		gpio_owned |= pins;
+#ifdef DEV_GPIO_PWM
 		gpio_pwm_pins &= ~pins;
+#endif
 	}
 	if (cmd & GPIO_COMMAND & GPIO_DECONF) {
 		mine = pins & gpio_owned;
+#ifdef DEV_GPIO_PWM
 		gpio_pwm_pins &= ~mine;
+#endif
 		GREG32(SIO_GPIO_OE_CLR) = mine;
 		gpio_route(mine, IO_FUNC_NULL);
 		gpio_owned &= ~mine;

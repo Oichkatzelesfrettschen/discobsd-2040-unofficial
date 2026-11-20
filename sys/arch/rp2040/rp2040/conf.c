@@ -293,7 +293,11 @@ const struct cdevsw cdevsw[] = {
 	 */
 	{	/* 12 - general-purpose pins, porta and portb */
 #ifdef DEV_GPIO
+#ifdef DEV_GPIO_PWM
 		gpioopen,	gpioclose,	gpiorw,		gpiorw,
+#else
+		gpioopen,	nullclose,	gpiorw,		gpiorw,
+#endif
 		gpioioctl,	nullstop,	0,		seltrue,
 		nostrategy,	0,		0,
 #else

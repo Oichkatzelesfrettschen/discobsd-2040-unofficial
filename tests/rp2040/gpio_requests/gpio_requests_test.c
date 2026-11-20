@@ -62,16 +62,57 @@ pwm_checks(void)
 	    GPIO_PWM_SLICE_PINS(6) == (3U << 12 | 3U << 28),
 	    "slice 5 or 6 names other pins");
 
-	/* PicoCalc: GP8, GP9 and GP28 only, slice 6 shared with the audio. */
-	require(gpio_pwm_check(2, gp8, 0, 0) == 0 &&
-	    gpio_pwm_check(2, gp8 | gp9, 128, 0) == 0 &&
+	/*
+	 * The board table, written from the datasheet's function list and the
+	 * pin maps: the PicoCalc's kernel runs slice 5 always and slice 6 with
+	 * /dev/audio open; GP28, its one free pin, is on slice 6; no free
+	 * pin is on slice 5. The Pico's kernel runs no slice, and a board the
+	 * table lacks grants and holds nothing.
+	 */
+	{
+		struct gpio_board_claims pico = gpio_board_claims(1);
+		struct gpio_board_claims calc = gpio_board_claims(2);
+		struct gpio_board_claims none = gpio_board_claims(0);
+		struct gpio_board_claims other = gpio_board_claims(3);
+
+		require(pico.free_pins == 0x1c7ffffcU &&
+		    pico.slices_always == 0 && pico.slices_audio == 0,
+		    "the Pico's table row is not its free pins and no slice");
+		require(calc.free_pins == gp28 &&
+		    calc.slices_always == 1U << 5 &&
+		    calc.slices_audio == 1U << 6,
+		    "the PicoCalc's table row is not GP28, slice 5 and slice 6");
+		require((calc.free_pins & GPIO_PWM_SLICE_PINS(5)) == 0 &&
+		    (calc.free_pins & GPIO_PWM_SLICE_PINS(6)) == gp28,
+		    "a free PicoCalc pin lies on slice 5, or GP28 is off slice 6");
+		require(none.free_pins == 0 && none.slices_always == 0 &&
+		    none.slices_audio == 0 && other.free_pins == 0 &&
+		    other.slices_always == 0 && other.slices_audio == 0,
+		    "a board the table lacks holds or grants something");
+		require(gpio_board_pins(1) == pico.free_pins &&
+		    gpio_board_pins(2) == calc.free_pins,
+		    "gpio_board_pins() does not read the table");
+		require(gpio_pwm_slice_held(2, 1U << 13, 0) == 0 &&
+		    gpio_pwm_slice_held(2, 1U << 13, 1) == 1 &&
+		    gpio_pwm_slice_held(2, 1U << 29, 0) == 0 &&
+		    gpio_pwm_slice_held(2, 1U << 29, 1) == 1 &&
+		    gpio_pwm_slice_held(2, 1U << 11, 0) == 1 &&
+		    gpio_pwm_slice_held(2, 1U << 14, 1) == 0,
+		    "the table's slices are not held as it states");
+	}
+
+	/* PicoCalc: GP28 only, slice 6 shared with the audio. */
+	require(gpio_pwm_check(2, gp28, 0, 0) == 0 &&
 	    gpio_pwm_check(2, gp28, 255, 0) == 0,
-	    "the PicoCalc refuses a pin of its expansion header");
-	require(gpio_pwm_check(2, gp8, 128, 1) == 0 &&
-	    gpio_pwm_check(2, gp8 | gp9, 128, 1) == 0,
-	    "the PicoCalc's slice 4 is refused while /dev/audio is open");
+	    "the PicoCalc refuses its expansion header pin");
+	require(gpio_pwm_check(2, gp8, 0, 0) == 22 &&
+	    gpio_pwm_check(2, gp9, 128, 0) == 22 &&
+	    gpio_pwm_check(2, gp8 | gp9, 128, 0) == 22 &&
+	    gpio_pwm_check(2, gp8 | gp28, 128, 0) == 22 &&
+	    gpio_pwm_check(2, gp8, 128, 1) == 22,
+	    "the PicoCalc drives the keyboard controller's UART1 pins");
 	require(gpio_pwm_check(2, gp28, 128, 1) == 16 &&
-	    gpio_pwm_check(2, gp8 | gp28, 128, 1) == 16,
+	    gpio_pwm_check(2, gp28, 0, 1) == 16,
 	    "GP28 is driven while /dev/audio's sample clock runs");
 	require(gpio_pwm_check(2, 1U << 26, 128, 0) == 22 &&
 	    gpio_pwm_check(2, 1U << 27, 128, 0) == 22 &&

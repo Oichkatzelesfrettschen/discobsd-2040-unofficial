@@ -217,13 +217,13 @@ below the integer; the port's float quotient prints `1.0e-4`.
   kernel lacks the node; GP28 is the expansion header's ADC2. `analogwrite`
   sets a duty of 0-255 on pins GP0-GP29 through the GPIO device's PWM
   request, a 1.9 kHz carrier; the kernel refuses the pins the board holds,
-  and on a PicoCalc GP8, GP9 and GP28 can be driven (GP28 not while
-  `/dev/audio` is open), reported as "no analogue output device". The
+  and on a PicoCalc only GP28 can be driven, on the PICOCALC_SD kernel
+  alone (the `DEV_GPIO_PWM` option) and not while `/dev/audio` is open, reported as "no analogue output device". The
   pins need the superuser. The host model is a loopback; the ADC and PWM
   paths have run on no board.
 - `note` selects a tone that sounds while `delay`, `for-millis` or `sleep`
   waits, since `/dev/audio` takes samples and has no free-running tone.
-- The pins need the superuser, and the PicoCalc leaves GP8, GP9 and GP28.
+- The pins need the superuser, and the PicoCalc leaves GP28.
 - `read-pixel` and `save-bmp` need the superuser (`LCDG_READ`).
 - Opening `/dev/lcdgfx` takes the panel from the text console. The port
   opens it at the first drawing call and closes it when the next line of

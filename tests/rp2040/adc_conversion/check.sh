@@ -23,7 +23,8 @@ build()
 {
 	${CC:-cc} -std=c17 -O1 -g -Wall -Wextra -Werror -Wpedantic \
 		-Wstrict-prototypes -Wold-style-definition \
-		-fsanitize=address,undefined -I"$1" -o "$2" \
+		-fsanitize=address,undefined -I"$1" \
+		-I"$topsrc/sys/arch/rp2040/include" -o "$2" \
 		"$topsrc/tests/rp2040/adc_conversion/adc_conversion_test.c"
 }
 run()

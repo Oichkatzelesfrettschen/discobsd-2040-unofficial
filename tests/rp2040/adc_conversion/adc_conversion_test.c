@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include <adc.h>
+#include <gpio.h>
 
 static void
 require(int condition, const char *message)
@@ -52,12 +53,13 @@ main(void)
 	/*
 	 * Which inputs a program may read. The reachable sets are written from
 	 * the Pico datasheet's pin list (GP2-GP22 and GP26-GP28 free) and the
-	 * PicoCalc pin map (GP8, GP9 and GP28 free; GP26 and GP27 drive the
-	 * audio amplifier), not from gpio.h.
+	 * PicoCalc pin map (only GP28 free; GP26 and GP27 drive the audio
+	 * amplifier), and then compared with the board table of gpio.h that
+	 * the kernel passes in.
 	 */
 	{
 		const unsigned int pico = 0x1c7ffffcU;
-		const unsigned int calc = 1U << 8 | 1U << 9 | 1U << 28;
+		const unsigned int calc = 1U << 28;
 		unsigned int input;
 
 		require(ADC_ERR_RANGE == 22 && ADC_ERR_HELD == 1 &&
@@ -82,6 +84,12 @@ main(void)
 		    adc_input_check(pico, 1U << 26, 1) == 0 &&
 		    adc_input_check(calc, 1U << 8, 2) == 0,
 		    "a pin the GPIO device holds is read, or another is refused");
+		require(gpio_board_pins(1) == pico && gpio_board_pins(2) == calc,
+		    "the kernel's board table differs from the pin maps");
+		for (input = 0; input <= 4; input++)
+			require(adc_input_check(gpio_board_pins(0), 0, input) ==
+			    (input < 3 ? ADC_ERR_HELD : 0),
+			    "an unknown board's table row lets a program read a pin");
 		require(adc_input_check(pico, 0, 5) == ADC_ERR_RANGE &&
 		    adc_input_check(pico, 0, 0xffffffffU) == ADC_ERR_RANGE &&
 		    adc_input_check(calc, 0, 6) == ADC_ERR_RANGE,

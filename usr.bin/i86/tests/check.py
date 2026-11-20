@@ -88,6 +88,7 @@ TAIL = [
     "SPIN OK",
     "KBD OK",
     "MASK OK",
+    "REMAP OK",
     "HOOK OK",
     "VID OK",
     "MODE OK",
@@ -121,6 +122,9 @@ MUTANTS = [
         "named.st_dev != held.st_dev)",
     ),
     ("cpu.c", "if (tf && !c->inhibit && !faulted)", "if (tf && !c->inhibit)"),
+    ("pc.c", "pic_base = v & 0xf8;", "pic_base = 8;"),
+    ("pc.c", "pic_aeoi = v >> 1 & 1;", "pic_aeoi = 0;"),
+    ("pc.c", "pic_irr = pic_isr = imask = pic_aeoi = 0;", "pic_irr = pic_isr = imask = 0;"),
     ("pc.c", "(c->irq && (c->fl & F_IF)))\n\t\t\tbreak;", "c->irq)\n\t\t\tbreak;"),
     (
         "pc.c",

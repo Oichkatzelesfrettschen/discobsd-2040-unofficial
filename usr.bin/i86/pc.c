@@ -123,7 +123,10 @@ static uint16_t kb_code[KB_N];		/* the key code a make byte stands for */
 static unsigned kb_head, kb_n, key_polls, nticks, poll_tick;
 static uint8_t kb_latch, kb_full;	/* port 60h and its status bit */
 static uint16_t kb_latch_code;
-static uint8_t pic_irr, pic_isr, pic_readisr, pic_icw;
+static uint8_t pic_irr, pic_isr, pic_readisr;
+static uint8_t pic_icw;			/* initialization words still to come */
+static uint8_t pic_icw2, pic_icw4;	/* which of them the next one is */
+static uint8_t pic_base = 8, pic_aeoi;	/* what the words selected */
 static unsigned idle_polls, idle_tick;
 static int key_eof;
 
@@ -516,14 +519,16 @@ pc_inta(struct i86 *c)
 
 	if (req == 0) {
 		c->irq = 0;
-		return (0x0f);		/* the controller's spurious level */
+		return (pic_base + 7u);	/* the controller's spurious level */
 	}
 	while (!(req >> n & 1))
 		n++;
 	pic_irr &= (uint8_t)~(1u << n);
-	pic_isr |= (uint8_t)(1u << n);
+	/* With automatic end of interrupt nothing stays in service. */
+	if (!pic_aeoi)
+		pic_isr |= (uint8_t)(1u << n);
 	pic_update(c);
-	return (8 + n);
+	return (pic_base + n);
 }
 
 /* The firmware's key buffer in the data area: head at 40:1A, tail at
@@ -1424,7 +1429,9 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 			/* Initialization: the words that follow at port
 			 * 21h are not masks. */
 			pic_icw = (uint8_t)(1 + !(v & 2) + (v & 1));
-			pic_irr = pic_isr = imask = 0;
+			pic_icw2 = 1;
+			pic_icw4 = v & 1;
+			pic_irr = pic_isr = imask = pic_aeoi = 0;
 		} else if (v & 0x08) {
 			if (v & 2)
 				pic_readisr = v & 1;
@@ -1437,9 +1444,16 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 		pic_update(c);
 		break;
 	case 0x21:
-		if (pic_icw)
+		if (pic_icw) {
+			/* The vector base, then the cascade word of a
+			 * controller that is not alone, then the mode. */
+			if (pic_icw2)
+				pic_base = v & 0xf8;
+			else if (pic_icw == 1 && pic_icw4)
+				pic_aeoi = v >> 1 & 1;
+			pic_icw2 = 0;
 			pic_icw--;
-		else
+		} else
 			imask = (uint8_t)v;
 		pic_update(c);
 		break;

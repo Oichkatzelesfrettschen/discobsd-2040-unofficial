@@ -334,6 +334,37 @@ main:	; Thirty lines scroll the screen before the results.
 .masked: xor al, al
 	out 0x21, al
 	call puts
+	; The controller initialized with another vector base and automatic
+	; end of interrupt: two ticks reach a handler there that sends no
+	; end of interrupt. The firmware's base and mode come back after.
+	cli
+	mov word [0x60 * 4], remap
+	mov [0x60 * 4 + 2], cs
+	mov al, 0x13			; alone, a mode word follows
+	out 0x20, al
+	mov al, 0x60
+	out 0x21, al
+	mov al, 0x03
+	out 0x21, al
+	sti
+	mov cx, 16
+.remap:	hlt
+	cmp word [rcount], 2
+	jae .moved
+	loop .remap
+.moved:	cli
+	mov al, 0x13
+	out 0x20, al
+	mov al, 0x08
+	out 0x21, al
+	mov al, 0x01
+	out 0x21, al
+	sti
+	mov si, m_remap
+	cmp word [rcount], 2
+	jae .remapped
+	mov si, m_rbad
+.remapped: call puts
 	cli
 	mov word [0x1c * 4], hook
 	mov [0x1c * 4 + 2], cs
@@ -488,6 +519,10 @@ hook:	push ax
 	inc word [cs:count]
 	iret
 
+; The timer's handler at the moved vector: no end of interrupt.
+remap:	inc word [cs:rcount]
+	iret
+
 top:	dw 0
 old9:	dw 0, 0
 nscan:	db 0
@@ -495,6 +530,7 @@ lscan:	db 0
 t0:	dw 0
 trapped: db 0
 count:	dw 0
+rcount:	dw 0
 hflags:	dw 0
 m_line:	db "LINE ", 0
 m_crlf:	db 13, 10, 0
@@ -519,6 +555,8 @@ m_mkbad: db "MASK BAD", 13, 10, 0
 m_irq:	db 13, 10, "IRQ ", 0
 m_ibad2: db " BAD", 0
 m_hook:	db "HOOK OK", 13, 10, 0
+m_remap: db "REMAP OK", 13, 10, 0
+m_rbad:	db "REMAP BAD", 13, 10, 0
 m_hbad:	db "HOOK BAD", 13, 10, 0
 m_direct: db "DIRECT", 0
 m_vid:	db "VID OK", 13, 10, 0

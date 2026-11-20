@@ -106,11 +106,22 @@ if cmp -s "$here/mutant_unit.sh" "$work/copy/mutant_unit.sh"; then
 	echo "mutant_bounds_test: the unbounded copy equals the script" >&2
 	exit 1
 fi
+outer=
+for name in timeout gtimeout; do
+	if command -v "$name" >/dev/null 2>&1; then
+		outer=$name
+		break
+	fi
+done
+if [ -z "$outer" ]; then
+	echo "mutant_bounds_test: timeout(1) (coreutils) is required for the unbounded copy" >&2
+	exit 2
+fi
 rc=0
-MUTANT_TIMEOUT=2 timeout 8 sh "$work/copy/mutant_unit.sh" "$cc" -O0 "$work/dev" "$work/test.c" \
+MUTANT_TIMEOUT=2 "$outer" 8 sh "$work/copy/mutant_unit.sh" "$cc" -O0 "$work/dev" "$work/test.c" \
     limit.c 's/return 1;/for (;;) { } return 1;/' limit.c >/dev/null 2>&1 || rc=$?
-if [ "$rc" = 3 ]; then
-	echo "mutant_bounds_test: a copy without the bounds still ended the looping case" >&2
+if [ "$rc" != 124 ]; then
+	echo "mutant_bounds_test: the unbounded copy ended with status $rc, not at the 8 s bound (124)" >&2
 	exit 1
 fi
-echo "mutant_bounds_test: the unbounded copy hangs (status $rc), so the bound is what ends the looping case"
+echo "mutant_bounds_test: the unbounded copy runs to the outer 8 s bound (status 124), so the bound is what ends the looping case"

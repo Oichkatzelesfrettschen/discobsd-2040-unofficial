@@ -189,6 +189,10 @@ printf 'abde\n' > "$WORK/cut.edges"
 printf 'abcde\n' | "$WORK/cut" -b '4-,-2' > "$WORK/cut.actual"
 check "cut open ranges in reverse order" "$WORK/cut.actual" "$WORK/cut.edges"
 
+printf 'a::c\na\n' > "$WORK/cut.fields"
+printf 'a::b::c\na::b\n' | "$WORK/cut" -d:: -f1,3 > "$WORK/cut.actual"
+check "cut bounds multi-byte field separators" "$WORK/cut.actual" "$WORK/cut.fields"
+
 # --- paste ---
 build paste paste.c eprintf.c fshut.c unescape.c rune.c \
 	$EREALLOCARRAY

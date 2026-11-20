@@ -106,7 +106,7 @@ parselist(char *str)
 static size_t
 seek(struct line *s, size_t pos, size_t *prev, size_t count)
 {
-	size_t n = pos - *prev, i, j;
+	size_t n = pos - *prev, i;
 
 	if (mode == 'b') {
 		if (n >= s->len)
@@ -121,7 +121,7 @@ seek(struct line *s, size_t pos, size_t *prev, size_t count)
 			if (UTF8_POINT(s->data[i]) && !--n)
 				break;
 	} else {
-		for (i = (count < delimlen + 1) ? 0 : delimlen; n && i < s->len; ) {
+		for (i = count <= delimlen ? 0 : MIN(delimlen, s->len); n && i < s->len; ) {
 			if ((s->len - i) >= delimlen &&
 			    !memcmp(s->data + i, delim, delimlen)) {
 				if (!--n && count)
@@ -129,8 +129,8 @@ seek(struct line *s, size_t pos, size_t *prev, size_t count)
 				i += delimlen;
 				continue;
 			}
-			for (j = 1; j + i <= s->len && !fullrune(s->data + i, j); j++);
-			i += j;
+			/* The textbox rune backend consumes one byte per character. */
+			i++;
 		}
 	}
 	*prev = pos;

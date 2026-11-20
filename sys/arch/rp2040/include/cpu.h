@@ -184,7 +184,14 @@
  * Read-only.
  */
 #define	CPU_FLASH_SWAP_WEAR	53	/* struct: u_short erases per swap sector */
-#define	CPU_MAXID		54	/* number of valid machdep ids */
+/*
+ * machdep.adc.N, N 0-4, read only: the raw 12-bit count of ADC input N, one
+ * conversion per read. Inputs 0-3 are GP26-GP29 and input 4 the die sensor;
+ * arch/rp2040/dev/adc.h states which a board lets a program read.
+ */
+#define	CPU_ADC			54	/* node: raw ADC inputs */
+#define	CPU_ADC_MAXID		5	/* inputs 0-4 */
+#define	CPU_MAXID		55	/* number of valid machdep ids */
 
 struct cpu_pcm_info {
 	unsigned int	rate;
@@ -251,5 +258,14 @@ struct cpu_pcm_info {
 	{ "flash_reset_program", CTLTYPE_INT }, \
 	{ "flash_reset_erase", CTLTYPE_INT }, \
 	{ "flash_swap_wear", CTLTYPE_STRUCT }, \
+	{ "adc", CTLTYPE_NODE }, \
+}
+
+#define	CTL_ADC_NAMES { \
+	{ "0", CTLTYPE_INT }, \
+	{ "1", CTLTYPE_INT }, \
+	{ "2", CTLTYPE_INT }, \
+	{ "3", CTLTYPE_INT }, \
+	{ "4", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */

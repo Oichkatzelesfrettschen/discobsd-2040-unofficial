@@ -103,6 +103,8 @@ boundaries. The table uses the actual combined links.
    flag sweeps also record a repeatable pipe throughput loss for a small
    size win on a bare Pico. Those outcomes keep blanket flag changes out
    of the production rule. [Prior sweeps](kernel-size-flags/README.md)
+   The open acceptance for LTO code while XIP is suspended is in
+   [xip-off-linked-code-proof.md](xip-off-linked-code-proof.md).
 
 The per-object table records byte counts before final section collection.
 The GCC anchor column uses `-Os -fno-data-sections -fsection-anchors`.
@@ -121,7 +123,9 @@ kernel and preserves the raw swap start at `0x101a0000`. The independent
 card filesystem supplies root and installed programs. A paired build
 contains 988 filesystem blocks with 66 free and seven free inodes on the
 conventional flash root. The 32,768-block card image has 16,751 free blocks
-and 2,350 free inodes. These counts describe the recorded installation.
+and 2,350 free inodes. These counts describe the recorded installation;
+the open floor after sustained use is in
+[picocalc-writable-reserve.md](picocalc-writable-reserve.md).
 A shift of the root address changes Dhara page numbering. The old journal
 cannot serve as the image for the shifted layout.
 

@@ -238,50 +238,59 @@ void fs_inode_print (fs_inode_t *inode, FILE *out)
     fprintf (out, "Last access: %s", ctime (&inode->atime));
 }
 
-void fs_directory_scan (fs_inode_t *dir, char *dirname,
+int fs_directory_scan (fs_inode_t *dir, char *dirname,
     fs_directory_scanner_t scanner, void *arg)
 {
     fs_inode_t file;
     unsigned long offset;
-    unsigned char name [BSDFS_BSIZE - 12];
-    struct {
-        unsigned int inum;
-        unsigned short reclen;
-        unsigned short namlen;
-    } dirent;
+    unsigned char header[8];
+    char name[BSDFS_MAXNAMLEN + 1];
+    unsigned inum, reclen, namlen;
+    const char *label = dirname[0] ? dirname : "/";
 
-    /* Variable record per file */
-    for (offset = 0; offset < dir->size; offset += dirent.reclen) {
-        if (! fs_inode_read (dir, offset, (unsigned char*) &dirent, sizeof(dirent))) {
-            fprintf (stderr, "%s: read error at offset %ld\n",
-                dirname[0] ? dirname : "/", offset);
-            return;
-        }
-/*printf ("scan offset %lu: inum=%u, reclen=%u, namlen=%u\n", offset, dirent.inum, dirent.reclen, dirent.namlen);*/
-        if (! fs_inode_read (dir, offset+sizeof(dirent), name, (dirent.namlen + 4) / 4 * 4)) {
-            fprintf (stderr, "%s: name read error at offset %ld\n",
-                dirname[0] ? dirname : "/", offset);
-            return;
-        }
-/*printf ("scan offset %lu: name='%s'\n", offset, name);*/
-
-        if (dirent.inum == 0 || (name[0]=='.' && name[1]==0) ||
-            (name[0]=='.' && name[1]=='.' && name[2]==0))
+    for (offset = 0; offset < dir->size; offset += reclen) {
+        if (dir->size - offset < sizeof(header) ||
+            ! fs_inode_read (dir, offset, header, sizeof(header)))
+            goto bad_entry;
+        inum = header[0] | (unsigned)header[1] << 8 |
+            (unsigned)header[2] << 16 | (unsigned)header[3] << 24;
+        reclen = header[4] | (unsigned)header[5] << 8;
+        namlen = header[6] | (unsigned)header[7] << 8;
+        if (reclen < sizeof(header) || (reclen & 3) != 0 ||
+            reclen > dir->size - offset ||
+            reclen > BSDFS_BSIZE - offset % BSDFS_BSIZE)
+            goto bad_entry;
+        if (inum == 0)
             continue;
-
-        if (! fs_inode_get (dir->fs, &file, dirent.inum)) {
-            fprintf (stderr, "cannot scan inode %d\n", dirent.inum);
+        if (namlen == 0 || namlen > BSDFS_MAXNAMLEN ||
+            namlen + 1 > reclen - sizeof(header) ||
+            ! fs_inode_read (dir, offset + sizeof(header),
+                (unsigned char *)name, namlen))
+            goto bad_entry;
+        if (memchr (name, 0, namlen) || memchr (name, '/', namlen))
+            goto bad_entry;
+        name[namlen] = 0;
+        if (strcmp (name, ".") == 0 || strcmp (name, "..") == 0)
             continue;
+        if (! fs_inode_get (dir->fs, &file, inum)) {
+            fprintf (stderr, "%s: cannot scan inode %u\n", label, inum);
+            return 0;
         }
-        scanner (dir, &file, dirname, (char*) name, arg);
+        if (! scanner (dir, &file, dirname, name, arg))
+            return 0;
     }
+    return 1;
+
+bad_entry:
+    fprintf (stderr, "%s: invalid directory record at offset %lu\n", label, offset);
+    return 0;
 }
 
 /*
  * Return the physical block number on a device given the
  * inode and the logical block number in a file.
  */
-static unsigned map_block (fs_inode_t *inode, unsigned lbn)
+static int map_block (fs_inode_t *inode, unsigned lbn, unsigned *physical)
 {
     unsigned block [BSDFS_BSIZE / 4];
     unsigned int nb, i, j, sh;
@@ -289,9 +298,11 @@ static unsigned map_block (fs_inode_t *inode, unsigned lbn)
     /*
      * Blocks 0..NADDR-4 are direct blocks.
      */
+    *physical = 0;
     if (lbn < NADDR-3) {
         /* small file algorithm */
-        return inode->addr [lbn];
+        *physical = inode->addr [lbn];
+        return 1;
     }
 
     /*
@@ -318,7 +329,7 @@ static unsigned map_block (fs_inode_t *inode, unsigned lbn)
      */
     nb = inode->addr [NADDR-j];
     if (nb == 0)
-        return 0;
+        return 1;
 
     /*
      * Fetch through the indirect blocks.
@@ -331,9 +342,10 @@ static unsigned map_block (fs_inode_t *inode, unsigned lbn)
         i = (lbn >> sh) & NMASK;
         nb = block [i];
         if (nb == 0)
-            return 0;
+            return 1;
     }
-    return nb;
+    *physical = nb;
+    return 1;
 }
 
 /*
@@ -437,7 +449,7 @@ int fs_inode_read (fs_inode_t *inode, unsigned long offset,
     unsigned long n;
     unsigned int bn, inblock_offset;
 
-    if (bytes + offset > inode->size)
+    if (offset > inode->size || bytes > inode->size - offset)
         return 0;
     while (bytes != 0) {
         inblock_offset = offset % BSDFS_BSIZE;
@@ -445,13 +457,17 @@ int fs_inode_read (fs_inode_t *inode, unsigned long offset,
         if (n > bytes)
             n = bytes;
 
-        bn = map_block (inode, offset / BSDFS_BSIZE);
-        if (bn == 0)
+        if (! map_block (inode, offset / BSDFS_BSIZE, &bn))
             return 0;
-
-        if (! fs_read_block (inode->fs, bn, block))
-            return 0;
-        memcpy (data, block + inblock_offset, n);
+        if (bn == 0) {
+            if ((inode->mode & INODE_MODE_FMT) != INODE_MODE_FREG)
+                return 0;
+            memset (data, 0, n);
+        } else {
+            if (! fs_read_block (inode->fs, bn, block))
+                return 0;
+            memcpy (data, block + inblock_offset, n);
+        }
         data += n;
         offset += n;
         bytes -= n;

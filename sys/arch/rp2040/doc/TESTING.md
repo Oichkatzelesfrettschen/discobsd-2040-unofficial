@@ -3417,6 +3417,14 @@ starting at 0x10028000, mounts the card, executes the SD installation's
 `cal 2 2000`, checks the separate temporary partition and exercises the
 missing-root panic. The nightly Linux firmware job owns this emulator gate.
 
+The host check `check-fsutil-clock` also exercises the built extractor with
+a regular file containing a sparse extent, a symbolic link, a preexisting
+directory and an existing regular file with a hard-link peer. Extraction
+into the current directory keeps the historical fresh-file mode and umask.
+A name collision stops extraction with a nonzero status. Completed entries
+remain available. Extraction requires a destination controlled by the caller
+throughout the operation.
+
 ## Board tier
 
 `tests/rp2040/image_identity/board_image_identity.py` answers which kernel a

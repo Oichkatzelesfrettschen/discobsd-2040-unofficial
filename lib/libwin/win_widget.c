@@ -1786,6 +1786,9 @@ wgt_dialog_open(struct wgt_dialog *d, struct win_scene *s, int x, int y)
 	ox = d->has_cancel ? cw / 2 - DLG_BTN_W - DLG_BTN_GAP / 2 :
 	    (cw - DLG_BTN_W) / 2;
 	if (!d->built) {
+		/* Room for every button first, so a refusal leaves the form as it was. */
+		if (d->form.n + 1 + d->has_cancel > WGT_MAX)
+			return -1;
 		if (wgt_button_init(&d->ok, WGT_ID_OK, ox, by, DLG_BTN_W, "&OK") < 0 ||
 		    wgt_add(&d->form, &d->ok.head) < 0)
 			return -1;

@@ -1806,6 +1806,37 @@ run_dialog(void)
 		/* A hook that consumes Enter keeps the dialog open. */
 		dlg.result = WGT_RES_NONE;
 	}
+	/* Capacity: both buttons fit or neither is added; a retry after freeing works. */
+	{
+		static struct wgt_label fill[WGT_MAX];
+		int ncaller, cancel;
+
+		for (ncaller = 10; ncaller <= WGT_MAX; ncaller++)
+			for (cancel = 0; cancel < 2; cancel++) {
+				int fits = ncaller + 1 + cancel <= WGT_MAX;
+
+				build_world();
+				if (wgt_dialog_init(&dlg, &inp, "Full", 130, 80, cancel) != 0)
+					fail("capacity init");
+				for (i = 0; i < ncaller; i++)
+					if (wgt_label_init(&fill[i], 0, 0, 10, "x") != 0 ||
+					    wgt_add(&dlg.form, &fill[i].head) != 0)
+						fail("capacity filler %d", i);
+				r = wgt_dialog_open(&dlg, &scene, 95, 100);
+				if ((r == 0) != fits)
+					fail("%d controls, cancel %d: open returned %d", ncaller,
+					    cancel, r);
+				if (!fits) {
+					if (dlg.form.n != ncaller || scene.nwin != 1)
+						fail("a refused open changed the form (%d controls) or scene",
+						    dlg.form.n);
+					dlg.form.n--;	/* Free one control and retry. */
+					r = wgt_dialog_open(&dlg, &scene, 95, 100);
+					if ((r == 0) != (ncaller - 1 + 1 + cancel <= WGT_MAX))
+						fail("the retry after freeing a control returned %d", r);
+				}
+			}
+	}
 	/* A backend failure: open and finish fail whole and can be repeated. */
 	for (r = 0; r < 2; r++) {
 		build_world();

@@ -438,6 +438,11 @@ LCD_MUTATIONS = (
 # win_widget.c: (name, original text, replacement)
 WIDGET_MUTATIONS = (
     (
+        "dialog_checks_one_button_slot",
+        "if (d->form.n + 1 + d->has_cancel > WGT_MAX)",
+        "if (d->form.n + 1 > WGT_MAX)",
+    ),
+    (
         "field_enter_always_consumed",
         "\t\treturn r < 0 ? -1 : r > 0 ? 0 : 1;\n\t}\n\tif (k >= 0x20",
         "\t\treturn r < 0 ? -1 : 1;\n\t}\n\tif (k >= 0x20",

@@ -50,6 +50,10 @@
  *      That probe shows the range is closed to user mode; it does not by
  *      itself show the MPU.
  *
+ *   7. "mputest guard" checks the break guard, region 7, from user mode;
+ *      guard_probe below lists its probes. "mputest residue" checks that
+ *      an exec leaves nothing of the previous image in the window.
+ *
  * CPUID and DIV_CSR are 0x78 bytes apart inside one 256-byte region, so
  * checking both decides the subregion disables rather than the region.
  *
@@ -420,6 +424,16 @@ residue_plant(void)
 		printf("residue: no gap between image and stack\n");
 		return 2;
 	}
+	/*
+	 * The span lies above the break, where the break guard (mpu.c) makes
+	 * the first 32 bytes past the rounded break read-only to this process,
+	 * so the break moves to the top of the span before the marker goes in.
+	 */
+	if ((char *)high > (char *)sbrk(0) &&
+	    sbrk((int)((char *)high - (char *)sbrk(0))) == (void *)-1) {
+		perror("residue: sbrk");
+		return 2;
+	}
 	for (word = low; word < high; word++) {
 		*word = RESIDUE_MARK;
 		count++;
@@ -452,6 +466,256 @@ residue_check(void)
 	return 1;
 }
 
+/*
+ * The break guard probe: mpu.c region 7 (machine/breakguard.h) covers the
+ * 32 bytes at the break rounded up to 32, read-only to user code, while the
+ * stack stays BREAK_GUARD_MARGIN bytes clear of it. The probe predicts the
+ * registers from sbrk(0) with its own copy of the encoding, then checks
+ * each behavior the guard claims in a child, so a kill leaves the parent
+ * to report it:
+ *
+ *   readback   machdep.mpu.guardbase and guardattr equal the prediction;
+ *   coverage   a store at the guard base dies of SIGSEGV, a load there
+ *              reads, and a store 32 bytes above it, past the guard,
+ *              succeeds;
+ *   pad        stores between the exact break and the guard base succeed;
+ *              after sbrk(64) the old base takes a store and the new base
+ *              faults, so the guard moved at the system call's return;
+ *   caught     a SIGSEGV handler that grows the break and returns lets the
+ *              replayed store complete;
+ *   slow       a recursion that makes a system call in every frame reaches
+ *              to within 192 bytes of the break, and the guard then reads
+ *              off, because p_saddr records the deeper stack;
+ *   tick       a stack that descends without a system call, spins for
+ *              several clock ticks near the guard and then descends
+ *              through it survives, because systick() turned the guard off;
+ *   burst      a stack pointer moved into the guard by one instruction
+ *              faults on its own exception frame, which the kernel answers
+ *              with SIGKILL and the console line "fault: stack frame in
+ *              break guard" rather than a lockup.
+ *
+ * With the MPU off every store succeeds, guardattr reads 0 and the burst is
+ * skipped; that run is the calibration, and the last line names the state.
+ */
+#define	GUARD_BYTES		32UL
+#define	GUARD_MARGIN		1024UL
+#define	GUARD_RASR_FIXED	0x1200000fUL	/* XN, AP 010, SIZE 7, ENABLE. */
+#define	GUARD_ROOM		3072UL		/* Break to stack in a child. */
+#define	GUARD_SPIN		400000UL	/* Several 1 ms ticks. */
+#define	GUARD_MARK		0x5a
+
+static unsigned long
+guard_base(void)
+{
+	return ((unsigned long)sbrk(0) + GUARD_BYTES - 1) & ~(GUARD_BYTES - 1);
+}
+
+static unsigned long
+guard_rasr(unsigned long base)
+{
+	return GUARD_RASR_FIXED |
+	    ((0xffUL & ~(1UL << ((base >> 5) & 7UL))) << 8);
+}
+
+/*
+ * Run fn(arg) in a child, which ends in _exit. Returns 0 when the child
+ * exited 0, the signal number when it was killed, 100 plus the exit status
+ * otherwise.
+ */
+static int
+guard_child(void (*fn)(unsigned long), unsigned long arg)
+{
+	int status;
+	pid_t pid;
+
+	fflush(stdout);
+	pid = fork();
+	if (pid < 0) {
+		perror("fork");
+		exit(2);
+	}
+	if (pid == 0) {
+		fn(arg);
+		_exit(0);
+	}
+	if (waitpid(pid, &status, 0) != pid)
+		return -1;
+	if (WIFSIGNALED(status))
+		return WTERMSIG(status);
+	return WEXITSTATUS(status) == 0 ? 0 : 100 + WEXITSTATUS(status);
+}
+
+static void
+guard_store(unsigned long addr)
+{
+	*(volatile unsigned char *)addr = GUARD_MARK;
+}
+
+static void
+guard_load(unsigned long addr)
+{
+	(void)*(volatile unsigned char *)addr;
+}
+
+/* Move the break to GUARD_ROOM bytes below the caller's stack. */
+static void
+guard_close_in(void)
+{
+	volatile char here;
+	unsigned long want = ((unsigned long)&here - GUARD_ROOM) & ~7UL;
+
+	if (sbrk((int)(want - (unsigned long)sbrk(0))) == (void *)-1)
+		_exit(3);
+}
+
+static void
+guard_grow(int sig)
+{
+	(void)sig;
+	if (sbrk(64) == (void *)-1)
+		_exit(3);
+}
+
+static void
+guard_caught(unsigned long addr)
+{
+	(void)signal(SIGSEGV, guard_grow);
+	*(volatile unsigned char *)addr = GUARD_MARK;
+	if (*(volatile unsigned char *)addr != GUARD_MARK)
+		_exit(4);
+}
+
+/* Each frame enters the kernel, which records the deeper stack. */
+static int
+guard_descend_slow(unsigned long lowest)
+{
+	volatile char frame[48];
+
+	frame[0] = 1;
+	(void)getpid();
+	if ((unsigned long)frame >= lowest + 64)
+		return guard_descend_slow(lowest) + frame[0] - 1;
+	return 0;
+}
+
+static void
+guard_slow(unsigned long unused)
+{
+	(void)unused;
+	guard_close_in();
+	(void)guard_descend_slow((unsigned long)sbrk(0) + 128);
+	if (mpu_sysctl_int(CPU_MPU_GUARDATTR) != 0)
+		_exit(4);
+}
+
+/* No system call: only systick() sees this stack before it reaches low. */
+static int
+guard_descend_quiet(unsigned long spin_at, unsigned long low)
+{
+	volatile char frame[48];
+	volatile unsigned long i;
+
+	frame[0] = 1;
+	if (spin_at != 0 && (unsigned long)frame <= spin_at) {
+		for (i = 0; i < GUARD_SPIN; i++)
+			continue;
+		spin_at = 0;
+	}
+	if ((unsigned long)frame >= low + 64)
+		return guard_descend_quiet(spin_at, low) + frame[0] - 1;
+	return 0;
+}
+
+static void
+guard_tick(unsigned long unused)
+{
+	unsigned long base;
+
+	(void)unused;
+	guard_close_in();
+	base = guard_base();
+	(void)guard_descend_quiet(base + GUARD_BYTES + GUARD_MARGIN / 2,
+	    base + 8);
+}
+
+static void
+guard_burst(unsigned long unused)
+{
+	unsigned long target;
+
+	(void)unused;
+	guard_close_in();
+	target = guard_base() + 16;
+	__asm volatile (
+	    "mov	r1, sp\n\t"
+	    "mov	sp, %0\n\t"
+	    "push	{r1}\n\t"		/* Into the guard. */
+	    "pop	{r1}\n\t"
+	    "mov	sp, r1\n\t"
+	    : : "l" (target) : "r1", "memory");
+	_exit(5);
+}
+
+static int
+guard_probe(void)
+{
+	unsigned long brk, base, rbar, rasr, old;
+	int enable, fails = 0, segv;
+
+	enable = mpu_sysctl_int(CPU_MPU_ENABLE);
+	segv = enable ? SIGSEGV : 0;
+	if (((unsigned long)sbrk(0) & (GUARD_BYTES - 1)) == 0 &&
+	    sbrk(1) == (void *)-1) {
+		perror("sbrk");
+		return 2;
+	}
+	brk = (unsigned long)sbrk(0);
+	base = guard_base();
+	rbar = (unsigned long)mpu_sysctl_int(CPU_MPU_GUARDBASE);
+	rasr = (unsigned long)mpu_sysctl_int(CPU_MPU_GUARDATTR);
+	printf("guard: break 0x%08lx, base 0x%08lx, rbar 0x%08lx, rasr 0x%08lx\n",
+	    brk, base, rbar, rasr);
+	fails += report("guard rbar", base, 1,
+	    !enable || rbar == ((base & ~0xffUL) | 7UL));
+	fails += report("guard rasr", base, 1,
+	    enable ? rasr == guard_rasr(base) : rasr == 0);
+
+	fails += report("guard store", base, segv,
+	    guard_child(guard_store, base));
+	fails += report("guard load", base, 0, guard_child(guard_load, base));
+	fails += report("past guard store", base + GUARD_BYTES, 0,
+	    guard_child(guard_store, base + GUARD_BYTES));
+	fails += report("pad store", base - 1, 0,
+	    guard_child(guard_store, base - 1));
+
+	old = base;
+	if (sbrk(64) == (void *)-1) {
+		perror("sbrk");
+		return fails + 2;
+	}
+	base = guard_base();
+	fails += report("old base after sbrk", old, 0,
+	    guard_child(guard_store, old));
+	fails += report("old base reads zero", old, 0,
+	    *(volatile unsigned char *)old);
+	fails += report("new base store", base, segv,
+	    guard_child(guard_store, base));
+
+	fails += report("caught store", base, 0,
+	    guard_child(guard_caught, base));
+	fails += report("slow descent", 0, 0, guard_child(guard_slow, 0));
+	fails += report("tick retraction", 0, 0, guard_child(guard_tick, 0));
+	if (enable)
+		fails += report("burst", 0, SIGKILL,
+		    guard_child(guard_burst, 0));
+
+	if (fails == 0)
+		printf("GUARD OK (mpu %s)\n", enable ? "on" : "off");
+	else
+		printf("GUARD FAIL: %d\n", fails);
+	return fails;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -459,6 +723,8 @@ main(int argc, char **argv)
 
 	if (argc > 1 && strcmp(argv[1], "residue") == 0)
 		return argc > 2 ? residue_check() : residue_plant();
+	if (argc > 1 && strcmp(argv[1], "guard") == 0)
+		return guard_probe();
 
 	enable = mpu_sysctl_int(CPU_MPU_ENABLE);
 	nregions = mpu_sysctl_int(CPU_MPU_NREGIONS);

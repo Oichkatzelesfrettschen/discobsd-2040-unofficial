@@ -3,11 +3,14 @@
 The RP2040's Cortex-M0+ carries an eight-region Protected Memory System
 Architecture MPU (RP2040 datasheet 2.4.1, 2.4.2.5, 2.4.6; ARMv6-M
 Architecture Reference Manual B3.5). sys/arch/rp2040/rp2040/mpu.c programs
-it once at startup and never again: one process is resident at a time and
-every process image occupies the same 192 KB window at USER_DATA_START, so
-the map is static and no context switch touches it. This document is the
-authority for that map, the register values behind it, the privilege
-transition it depends on, and the fault test that proves it.
+regions 0 to 3 once at startup and never again: one process is resident at a
+time and every process image occupies the same 192 KB window at
+USER_DATA_START, so that part of the map is static and no context switch
+touches it. Region 7, the break guard, is the one slot the kernel rewrites
+afterwards, at a return to a process whose break or stack moved it (see
+"The break guard" below). This document is the authority for that map, the
+register values behind it, the privilege transition it depends on, and the
+fault test that proves it.
 
 ## Registers
 
@@ -37,7 +40,14 @@ fault status or fault address register.
 | 1 | 0x20000000 | 128 KB | AP 011, XN 0, SIZE 16 | rwx | the user window, low part |
 | 2 | 0x20020000 | 64 KB | AP 011, XN 0, SIZE 15 | rwx | the user window, high part |
 | 3 | 0xd0000000 | 256 B | AP 011, XN 1, SIZE 7, SRD 0xf7 | rw- | SIO offsets 0x060 to 0x07f, the hardware divider |
-| 4 to 7 | | | RASR 0 | | disabled |
+| 4 to 6 | | | RASR 0 | | disabled |
+| 7 | the break rounded down to 256 bytes | 256 B | AP 010, XN 1, SIZE 7, SRD all but one subregion; RASR 0 while off | r-- | the break guard: the 32 bytes at the break rounded up to 32 |
+
+Regions 0 to 3 are fixed. Region 7 starts disabled and follows the
+resident process, so its base, its enabled subregion and whether it is
+enabled at all change with the break and the stack; `machdep.mpu.guardbase`
+and `machdep.mpu.guardattr` read its RBAR and RASR back while the calling
+process runs. `machdep.mpu.programmed` counts regions 0 to 3 alone.
 
 MPU_CTRL is written 0x5, PRIVDEFENA and ENABLE, and HFNMIENA stays clear so
 the HardFault handler runs with the MPU off.
@@ -420,7 +430,75 @@ downward between syscalls with no kernel bookkeeping -- `syscall.c`
 derives `p_ssize` from the stack pointer on entry -- and ARMv6-M supplies
 no fault address register, so a kernel that fenced the unused span could
 not tell a growing stack from a stray pointer, and could not resume the
-first. Narrowing waits on a core that reports the faulting address.
+first. Narrowing waits on a core that reports the faulting address. The
+break guard fences the 32 bytes nearest the break and steps back whenever
+the stack approaches them, so it narrows nothing.
+
+## The break guard
+
+Region 7 covers 32 bytes above the process break, so the first sequential
+overrun of the break faults instead of writing into the gap below the stack.
+`sys/arch/rp2040/include/breakguard.h` computes its registers and
+`mpu.c` programs them.
+
+- **Placement.** Let the exact break be `p_daddr + u_dsize`, the value
+  `user_entry` (`syscall.c`) and `sendsig` (`sig_machdep.c`) compare the
+  stack against, and let b be that break rounded up to 32 bytes. The guard
+  covers [b, b + 32): RBAR holds b rounded down to 256 bytes with region 7,
+  RASR enables only subregion (b >> 5) & 7 of a 256-byte region, with AP 010
+  (privileged read-write, unprivileged read-only) and XN.
+- **Arming.** The guard is on only while the MPU verified at startup and
+  the stack, the lower of `p_saddr` and the stack pointer the process
+  resumes with, lies at least 32 + 1,024 bytes above b. The 1,024-byte
+  margin is `BREAK_GUARD_MARGIN`. No covered byte is below the exact break
+  or within the margin below the stack, so the guard takes no byte a
+  working program uses: the pad between the exact break and b stays
+  writable, and the kernel's brk, exec and fork paths are unchanged.
+- **Updates.** `mpu_guard_update` recomputes the guard at every return to
+  a process: after `userret` in `ast()` and `syscall()` (`syscall.c`)
+  and in `arm_fault()` (`fault.c`) before the frame goes back. Every
+  process switch happens inside `userret`, so the process that resumes is
+  the one whose guard is programmed. The registers are written only when
+  the answer changes; the floor b + 32 + 1,024 in `mpu_guard_floor` is the
+  only state kept. Region 7 is disabled before its base moves.
+- **Retraction.** `systick()` turns the guard off when a tick taken from
+  the process finds the stack frame below the floor. Because `p_saddr`
+  records the deepest stack the kernel has seen, a stack once seen near the
+  break keeps the guard off until the next exec.
+- **Faults.** A user store into the guard with an intact exception frame
+  is an ordinary MPU fault: `arm_fault` delivers SIGSEGV, and a handler
+  that grows the break and returns replays the store successfully, which
+  is the pattern `bin/sh`'s `fault()` follows. When the fault frame, its
+  32 bytes and the alignment word, overlaps the armed guard, the stack
+  itself fell into the guard; the frame holds no return state, so
+  `arm_fault` prints "fault: stack frame in break guard" and sends
+  SIGKILL.
+
+What it does not cover, and what it changes:
+
+- Everything from b + 32 up to the stack stays writable: a stray store more
+  than 32 bytes past the break is not caught.
+- The guard is off whenever the gap between the break and the stack is
+  under 1,056 bytes.
+- **Kill window.** A process that survives without the guard dies with it
+  when its stack falls more than the margin in under one tick (1 ms) with
+  no system call, to within about 100 bytes of b (32 guard, 32 frame, 36
+  push). That is the first of the two behavior changes.
+- **Data above the break.** A program that stores into [b, b + 32) without
+  growing the break now receives SIGSEGV. Such a store never survived a
+  swap, a fork or a later brk, which zeroes from the exact break; it is the
+  second behavior change.
+- `mputest residue` writes above its own break, so it moves the break to
+  the top of its span before planting.
+
+Evidence. `check-rp2040-break-guard` decodes the header's output for every
+32-byte break in the window with an independent PMSAv6 match model and
+rejects seven mutants (TESTING.md). That is host arithmetic only. Board
+evidence is not yet taken: `mputest guard` carries the readback, coverage,
+pad, caught-fault, slow-descent, tick-retraction and burst probes, and its
+run on an MPU-off kernel is the calibration, but none of them has run on
+silicon or under Renode, so whether the core abandons a faulting frame
+write rather than locking up remains unmeasured.
 
 ## Permanent window and SwapRAM pool
 

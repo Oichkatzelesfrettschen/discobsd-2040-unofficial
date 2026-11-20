@@ -6,6 +6,10 @@ tcattr.o
 tcdrain.o
 tcflow.o
 tcflush.o
+tcgetpgrp.o
+tcgetwinsize.o
+tcsetpgrp.o
+tcsetwinsize.o
 order_termios.o
 order_ioctl.o
 shim.o

@@ -74,3 +74,11 @@ flush-passes-queue	lib/libc/gen/tcflush.c	s/ioctl(fd, TIOCFLUSH, \&what)/ioctl(f
 flow-off-starts	lib/libc/gen/tcflow.c	s/return ioctl(fd, TIOCSTOP);/return ioctl(fd, TIOCSTART);/
 flow-ioff-accepted	lib/libc/gen/tcflow.c	s/\tdefault:/\tcase TCIOFF:\n\t\treturn 0;\n\tdefault:/
 flow-errno-lost	lib/libc/gen/tcflow.c	s/errno = EINVAL;/errno = 0;/
+pgrp-get-wrong-request	lib/libc/gen/tcgetpgrp.c	s/TIOCGPGRP/TIOCSPGRP/
+pgrp-get-zero-fails	lib/libc/gen/tcgetpgrp.c	s/return pgrp;/return pgrp ? pgrp : -1;/
+pgrp-set-wrong-request	lib/libc/gen/tcsetpgrp.c	s/TIOCSPGRP/TIOCGPGRP/
+pgrp-set-error-dropped	lib/libc/gen/tcsetpgrp.c	s/return ioctl(fd, TIOCSPGRP, &group);/ioctl(fd, TIOCSPGRP, \&group); return 0;/
+winsize-get-wrong-request	lib/libc/gen/tcgetwinsize.c	s/TIOCGWINSZ/TIOCSWINSZ/
+winsize-set-wrong-request	lib/libc/gen/tcsetwinsize.c	s/TIOCSWINSZ/TIOCGWINSZ/
+winsize-set-writes-caller	lib/libc/gen/tcsetwinsize.c	s/struct winsize copy = \*size;/struct winsize copy = *size; ((struct winsize *)size)->ws_row = 0;/
+winsize-set-error-dropped	lib/libc/gen/tcsetwinsize.c	s/return ioctl(fd, TIOCSWINSZ, &copy);/ioctl(fd, TIOCSWINSZ, \&copy); return 0;/

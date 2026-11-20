@@ -37,6 +37,7 @@
 #include <errno.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <unistd.h>
 
 #include "libc_shim.h"
 #include "termios_model.h"
@@ -1183,6 +1184,55 @@ check_actions(void)
 	CHECK(tcflow(MODEL_FD + 1, TCOON) == -1 && test_errno == EBADF);
 }
 
+static void
+check_pgrp_winsize(void)
+{
+	struct winsize w, got;
+
+	/* The foreground group reads back as written, in the kernel's range. */
+	model_reset(ECHO);
+	model.pgrp = 42;
+	CHECK(tcgetpgrp(MODEL_FD) == 42);
+	CHECK(tcsetpgrp(MODEL_FD, 0) == 0 && tcgetpgrp(MODEL_FD) == 0);
+	CHECK(tcsetpgrp(MODEL_FD, 32767) == 0 && tcgetpgrp(MODEL_FD) == 32767);
+	test_errno = 0;
+	CHECK(tcsetpgrp(MODEL_FD, 32768) == -1 && test_errno == EINVAL);
+	test_errno = 0;
+	CHECK(tcsetpgrp(MODEL_FD, -1) == -1 && test_errno == EINVAL);
+	CHECK(tcgetpgrp(MODEL_FD) == 32767);
+	test_errno = 0;
+	CHECK(tcgetpgrp(MODEL_FD + 1) == -1 && test_errno == EBADF);
+	test_errno = 0;
+	CHECK(tcsetpgrp(MODEL_FD + 1, 5) == -1 && test_errno == EBADF);
+
+	/* A group id of zero is a valid answer, not a failure. */
+	model.pgrp = 0;
+	CHECK(tcgetpgrp(MODEL_FD) == 0);
+
+	/* The window size reads back whole; SIGWINCH only on a change. */
+	model_reset(ECHO);
+	w.ws_row = 32;
+	w.ws_col = 53;
+	w.ws_xpixel = 320;
+	w.ws_ypixel = 320;
+	CHECK(tcsetwinsize(MODEL_FD, &w) == 0 && model.winch == 1);
+	CHECK(tcgetwinsize(MODEL_FD, &got) == 0);
+	CHECK(got.ws_row == 32 && got.ws_col == 53 && got.ws_xpixel == 320 &&
+	    got.ws_ypixel == 320);
+	CHECK(tcsetwinsize(MODEL_FD, &w) == 0 && model.winch == 1);
+	w.ws_ypixel = 0;
+	CHECK(tcsetwinsize(MODEL_FD, &w) == 0 && model.winch == 2);
+	CHECK(model.win.ws_ypixel == 0);
+	/* The caller's struct is read, not written. */
+	w.ws_row = 24;
+	CHECK(tcsetwinsize(MODEL_FD, &w) == 0 && w.ws_row == 24);
+	test_errno = 0;
+	CHECK(tcgetwinsize(MODEL_FD + 1, &got) == -1 && test_errno == EBADF);
+	test_errno = 0;
+	CHECK(tcsetwinsize(MODEL_FD + 1, &w) == -1 && test_errno == EBADF);
+	CHECK(model.winch == 3);
+}
+
 int
 main(void)
 {
@@ -1202,5 +1252,6 @@ main(void)
 	check_raw_flush();
 	check_drain();
 	check_actions();
+	check_pgrp_winsize();
 	return lsys_verdict("libc_termios");
 }

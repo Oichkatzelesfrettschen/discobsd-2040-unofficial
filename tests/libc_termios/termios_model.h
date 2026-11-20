@@ -78,6 +78,18 @@ struct model {
 
 static struct model model;
 
+/* The kernel compares the old and new sizes with bcmp(). */
+static int
+bytes_differ(const void *a, const void *b, unsigned n)
+{
+	const unsigned char *p = a, *q = b;
+
+	while (n-- > 0)
+		if (*p++ != *q++)
+			return 1;
+	return 0;
+}
+
 static int
 model_ioctl(int fd, unsigned int request, void *data)
 {
@@ -170,6 +182,25 @@ model_ioctl(int fd, unsigned int request, void *data)
 		return 0;
 	case TIOCSTART:
 		model.stopped = 0;
+		return 0;
+	case TIOCGPGRP:
+		*(int *)data = model.pgrp;
+		return 0;
+	case TIOCSPGRP:
+		if (*(int *)data < 0 || *(int *)data > 32767) {
+			errno = EINVAL;
+			return -1;
+		}
+		model.pgrp = *(int *)data;
+		return 0;
+	case TIOCGWINSZ:
+		*(struct winsize *)data = model.win;
+		return 0;
+	case TIOCSWINSZ:
+		if (!bytes_differ(&model.win, data, sizeof model.win))
+			return 0;
+		model.win = *(struct winsize *)data;
+		model.winch++;
 		return 0;
 	case TIOCDRAIN:
 		if (model.drain_errno) {

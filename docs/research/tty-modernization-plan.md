@@ -174,8 +174,8 @@ function the row changes.
 | tcflush, TCIOFLUSH | TIOCFLUSH with 0 or both | none | S04 |
 | tcflow, TCOOFF | TIOCSTOP (sys/kern/tty.c:510) | none | S04 |
 | tcflow, TCOON | TIOCSTART (sys/kern/tty.c:519) | none | S04 |
-| tcflow, TCIOFF | write of VSTOP to the tty | none in the kernel; the write queues behind stopped output (I) | S04 |
-| tcflow, TCION | write of VSTART to the tty | as TCIOFF | S04 |
+| tcflow, TCIOFF | unsupported: tcflow returns -1 with EINVAL ([EINVAL] is the unsupported-action error on the tcflow page) | the kernel sends flow characters only through t_outq: TANDEM puts stopc and startc there with putc (tty.c:250-253, 317-321) and ttstart refuses to draw or transmit while TS_TTSTOP is set (lcdcons.c:250, uart.c:477, usb.c:1351), so an ordinary write queues behind stopped output exactly as the kernel's own byte does; an out-of-band byte would need a priority transmit slot in each of three drivers | none (declined) |
+| tcflow, TCION | unsupported, as TCIOFF | as TCIOFF | none (declined) |
 | tcsendbreak | TIOCSBRK and TIOCCBRK defined (sys/sys/ioctl.h:186-187), no case in sys/kern/tty.c | a handler in the UART driver; console and USB declined | K07 |
 | tcgetsid | none | sessions (no p_session in sys/); declined | none |
 | tcgetpgrp | TIOCGPGRP (sys/kern/tty.c:658) | none | S05 |
@@ -418,13 +418,22 @@ PICOCALC_SD that leaves 9,608 B of the 13,264 B free kernel RAM, and on
 PICOCALC 9,672 B of 13,328 B (M basis, section 1). V02 moves the slot off bss.
 
 Processes that write to the frozen console wait on the tty's own flow control.
-The freeze path sets TS_TTSTOP on the frozen tty; lcdstart returns without
-drawing when TS_TTSTOP is set (sys/arch/rp2040/dev/lcdcons.c:250), and the
-renderer drains only the shown tty, because a program can clear TS_TTSTOP with
-TIOCSTART (sys/kern/tty.c:519). Output accumulates in the frozen tty's queue to
-TTHIWAT, capped at 336 B (tty.c:41-53), and ttwrite then sleeps (tty.c:1548).
-This reuses an existing mechanism, loses no byte, draws nothing into the wrong
-store and keeps order: the queued bytes (at most the cap plus one 100 B chunk)
+The freeze has its own state bit, TS_HIDDEN, a new internal state bit in
+sys/sys/tty.h (0x008000L is unassigned among the bits at tty.h:251-266; a grep of
+sys/ for the value precedes use). TS_TTSTOP stays the line discipline's: it
+records Ctrl-S, TCOOFF and TIOCSTOP, and a user stop survives a round trip.
+TS_HIDDEN is tested wherever output starts: ttstart is only a call through
+t_oproc (sys/kern/tty.c:355-359), so every start, including the one TIOCSTART
+makes (tty.c:519-527), reaches lcdstart, whose refusal test at
+sys/arch/rp2040/dev/lcdcons.c:250 gains TS_HIDDEN beside TS_TIMEOUT, TS_BUSY and
+TS_TTSTOP, and the renderer's drain condition at lcdcons.c:338 gains it too. An
+explicit restart of a hidden console clears TS_TTSTOP as asked and draws nothing;
+the thaw clears only TS_HIDDEN and calls ttstart, so a console the user stopped
+stays stopped. ttyflush with FWRITE clears TS_TTSTOP (tty.c:281), which would
+have thawed a TS_TTSTOP-based freeze on tcflush(TCOFLUSH); it leaves TS_HIDDEN
+alone. Output accumulates in the frozen tty's queue to TTHIWAT, capped at 336 B
+(tty.c:41-53), and ttwrite then sleeps (tty.c:1548). This reuses the existing
+sleep, loses no byte, draws nothing into the wrong store and keeps order: the queued bytes (at most the cap plus one 100 B chunk)
 render after the restore. Processes that do not write keep running, and
 readers of the frozen tty sleep because keyboard input goes to the shown tty
 only. Whether the ttwrite sleep is interruptible by a signal was not read.
@@ -447,9 +456,10 @@ picokbd_evq_check read lcdttys[0] today (lcdcons.c:546, 627, 647) and take the
 shown index.
 
 Switch sequence, under the drawing flag (lcd_acquire): hide the cursor; set
-TS_TTSTOP on the outgoing tty; exchange; program the scroll start from the
-restored ring offset (lcd_set_top); repaint; clear TS_TTSTOP on the incoming tty;
-release the flag; pend the renderer if the incoming queue holds bytes.
+TS_HIDDEN on the outgoing tty; exchange; program the scroll start from the
+restored ring offset (lcd_set_top); repaint; clear TS_HIDDEN on the incoming tty;
+release the flag; call ttstart on the incoming tty, which stays quiet if the user
+had stopped it.
 
 Redraw time: lcdterm_repaint draws 1,696 cells at 115-122 us each (191 bytes x
 8 bits / 12.5 MHz SPI = 122 us, docs/research/picocalc-console-review.md:140-144,
@@ -470,7 +480,9 @@ terminal, clears the screen and prints on a blank console 0, and console 0's
 earlier text is lost. The rule costs +60-120 B text (E), and its repaint is the
 195-207 ms above.
 
-First falsifiable check: after A to B to A, console 0's cells, attributes,
+Hidden-console operations (tcsetattr TCSADRAIN and TCSAFLUSH, tcdrain, tcflush,
+tcflow, tcsendbreak) are checked against the same state in "Operations that
+must act while output is stopped" below. First falsifiable check: after A to B to A, console 0's cells, attributes,
 cursor, ring offset and parser state equal their values before the first
 switch, and likewise B after B to A to B, compared byte for byte; the frozen
 console never calls a draw primitive; lcdputc draws nothing while console 1 is
@@ -479,12 +491,30 @@ console; a panic with console 1 shown leaves console 1's text on the model panel
 
 Host test: the two-console model of check-picocalc-host with recording
 primitives, a tty model that reaches TTHIWAT and sleeps its writer, and an
-escape sequence split across the switch (ESC [ 3 8 ; 5 before, ; 1 9 6 m after).
-Mutants: skip the parser state in the exchange; restore without lcd_set_top;
+escape sequence split across the switch (ESC [ 3 8 ; 5 before, ; 1 9 6 m after),
+and two switch tests: a console stopped with TIOCSTOP before the switch is still
+stopped, with its queue undrawn, after a round trip; and TIOCSTART on the hidden
+console clears TS_TTSTOP but calls no draw primitive until the thaw. Two further
+mutants: freeze with TS_TTSTOP instead of TS_HIDDEN (the first test fails), and
+omit TS_HIDDEN from the lcdstart refusal test (the second fails). Other mutants: skip the parser state in the exchange; restore without lcd_set_top;
 let the renderer drain the frozen tty; omit the restore in lcdabandon.
 
 Cost: V00 (the state struct, no behavior change) +0.3-0.5 KB text (E, survey);
 V01 +0.3-0.5 KB text (E) and +3,656 B RAM.
+
+### Operations that must act while output is stopped
+
+Each row names how the operation behaves when the output is held (TS_TTSTOP by
+the user, or TS_HIDDEN by a switch).
+
+| Operation | Behavior while held | Rule |
+|---|---|---|
+| tcflush TCOFLUSH, TCIOFLUSH | ttyflush discards queued output whatever the stop state, calls the driver stop routine, wakes writers (tty.c:266-290) | works on a hidden console; clears TS_TTSTOP (tty.c:281, existing 4.3BSD behavior) and leaves TS_HIDDEN |
+| tcflush TCIFLUSH | touches input queues only | unaffected |
+| tcflow TCOOFF, TCOON | TIOCSTOP and TIOCSTART change TS_TTSTOP at once (tty.c:510-527) | act immediately; on a hidden console TCOON clears the stop and draws nothing until the thaw |
+| tcflow TCIOFF, TCION | the byte would sit in t_outq behind held output | unsupported (EINVAL), see the function table |
+| tcsendbreak | a driver ioctl on the line, not an output-queue byte; K07 sets the break bit directly | not delayed by held output; console and USB declined |
+| tcdrain, TCSADRAIN, TCSAFLUSH (drain part) | ttywait loops while the queue is non-empty and sleeps on the output channel at TTOPRI, 29, above PZERO, 25 (tty.c:216-235; sys/sys/tty.h; sys/sys/param.h:43) | on a held console the call sleeps until the stop is lifted or the console is thawed, and a signal interrupts it, as a drain behind a user's Ctrl-S already does; the thaw's ttstart lets the renderer drain and wake the sleeper; a console the user never switches back to keeps its drain asleep, which the owner of that process can interrupt; whether the sleep is signal-interruptible at this priority was not read |
 
 ### Step V02: the frozen store in PSRAM
 
@@ -860,11 +890,11 @@ falsifier column point at section 2 and section 6 rows.
 | S01 | termios.h, cfgetispeed, cfgetospeed, cfsetispeed, cfsetospeed, cfsetspeed, cfmakeraw | none | 120 | 0 kernel; 0.1 KB per linking program | a name or value differs from the chapter 11 tables, or two bits of one register overlap | compile-time distinctness assertions; accessor round trip |
 | S02 | tcgetattr over TIOCGETP, TIOCGETC, TIOCGLTC, TIOCLGET | S01 | 150 | 0.3-0.5 KB per program | an sgtty state in a "now" row maps to a different termios value than the row says | sgtty-model states to termios, every row of section 2 |
 | S03 | tcsetattr TCSANOW with the refusal rules (EINVAL only when no part is honored) | S01, S02 | 200 | 0.4-0.6 KB per program | a "now" row fails RT, or a declined request returns success | RT and RF cases for every row |
-| S04 | tcsetattr TCSADRAIN and TCSAFLUSH, tcflush (3 selectors), tcflow (4 actions) | S03 (TCSADRAIN also K04) | 120 | 0.15-0.25 KB per program | a selector flushes the wrong queue, or TCSAFLUSH keeps queued input | model with input and output queues; each selector and action |
+| S04 | tcsetattr TCSADRAIN and TCSAFLUSH, tcflush (3 selectors), tcflow (TCOOFF and TCOON; TCIOFF and TCION return EINVAL) | S03 (TCSADRAIN also K04) | 120 | 0.15-0.25 KB per program | a selector flushes the wrong queue, TCSAFLUSH keeps queued input, or TCIOFF reports success | model with input and output queues; each selector and action; EINVAL for the two input-side actions |
 | S05 | tcgetpgrp, tcsetpgrp, tcgetwinsize, tcsetwinsize | S01 | 60 | 0.1 KB per program | SIGWINCH on an unchanged size | model of TIOCSWINSZ |
 | K01 | VMIN and VTIME in the two pad bytes of struct tty, with the get and set request | none | 60 | +0.10-0.15 KB text, 0 RAM | struct tty grows past 100 B | tests/kernel/tty_layout_contract.c updated by design; request round trip |
 | K02 | ttread honors VMIN and VTIME (the four Issue 8 cases, with a callout) | K01 | 90 | +0.30-0.40 KB | tty.o grows more than 0.45 KB over K01, or queued bytes are lost | four cases on a model clock; a queue-preservation case |
-| K04 | TIOCDRAIN over ttywait (tty.c:216) | none | 15 | +0.04-0.08 KB | the call returns with a non-empty queue | model with a transmit-complete flag |
+| K04 | TIOCDRAIN over ttywait (tty.c:216) | none | 15 | +0.04-0.08 KB | the call returns with a non-empty queue, or blocks forever on a hidden console after its thaw | model with a transmit-complete flag; drain on a hidden console sleeps, wakes at the thaw and is interrupted by a signal |
 | K05 | IUTF8 bit and UTF-8 erase through unputc | none (the shim row needs S03) | 40 | +0.15-0.25 KB | an erase after U+00E9 leaves one byte queued | KM: erase with and without the bit |
 | K06 | HUPCL get and clear in the K01 request | K01 | 15 | +0.02-0.04 KB | TS_HUPCLS is not cleared by the request | KM on t_state |
 | K07 | UART0 break (TIOCSBRK, TIOCCBRK case and the line-control bit) | none | 40 | +0.06-0.10 KB; not on PICOCALC | the break lasts outside 0.25-0.5 s for duration 0 | UART model |
@@ -969,6 +999,7 @@ donor tables that carry no mark were not reopened.
 - Whether a PSRAM write frame takes as long as the 4.6 us read frame the driver
   model states, the PSRAM carve-out for the frozen store, and whether the ttwrite
   sleep on a frozen console is signal-interruptible;
+- Signal interruptibility of the ttywait sleep (TTOPRI above PZERO), and that bit 0x008000L is free of other users in the tree;
 - The 195-207 ms repaint is derived from SPI wire time, not captured on a board;
 - The IXANY inverse of DECCTQ and the "no reader" of EVENP and ODDP rest on
   searches of the C sources;

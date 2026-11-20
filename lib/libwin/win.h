@@ -54,6 +54,17 @@
  * rectangle, so the list covers exactly the pixels invalidated and few
  * pixels twice. A rectangle is never widened.
  *
+ * Compound operations. Every public call makes room for its own
+ * WIN_DAMAGE_CALL rectangles before it changes anything (the list of
+ * per-call worst cases is above make_room() in win.c), so a call fails whole
+ * or not at all. A caller that performs several calls as one operation (the
+ * window cycle of win_input.c is two) reserves k * WIN_DAMAGE_CALL slots
+ * with win_reserve() first; the inner calls then find their room and cannot
+ * fail midway. One rule covers destroy and hide with a focus hand-off, show,
+ * raise, lower and create with their title bars: each is a single call that
+ * reserves its two rectangles up front. win_reserve() needs
+ * k * WIN_DAMAGE_CALL <= WIN_DAMAGE_MAX.
+ *
  * Failure rule. A call adds at most two rectangles, so it first flushes the
  * list when fewer than two slots are free, before it changes the scene.
  * When that flush fails at the backend the call returns -1 (NULL from
@@ -65,6 +76,19 @@
  * A failing win_flush() returns -1 and keeps the same rectangles. A call
  * that returns 0 has recorded all of its damage. Pixels a failed flush had
  * already sent stay on the panel.
+ *
+ * Focus and visibility. At most one window is focused (the scene's focus
+ * slot is -1 when none is). The focused window's title bar is drawn with
+ * WIN_C_TITLE_BG and every other title bar with WIN_C_TITLE_IDLE. A new
+ * window takes the focus. win_raise() and win_lower() move the focus with
+ * the stack while focus_follows_raise is set (the default): raising a shown
+ * window focuses it, and lowering the focused window focuses the topmost
+ * shown window. A hidden window is skipped by the renderer, so it occludes
+ * nothing, is never focused, and its move, resize and title change record
+ * no damage. When the focused window is destroyed or hidden the focus moves
+ * to the next shown window in z-order, the nearest one below it, wrapping
+ * to the top. A call that fails at the backend leaves the focus and the
+ * shown state as they were, like every other state.
  *
  * Paint callbacks draw only through the context and do not call the scene
  * functions. Calls return 0, or -1 for an invalid argument, a full scene
@@ -80,6 +104,7 @@
 #define WIN_PANEL_H	320
 #define WIN_MAX		8
 #define WIN_DAMAGE_MAX	8
+#define WIN_DAMAGE_CALL	2		/* Rectangles one public call adds at most. */
 #define WIN_STRIP_BYTES	5120		/* 16 rows of a full-width strip. */
 #define WIN_GUARD	8		/* Guard bytes on each side of the strip. */
 #define WIN_GUARD_BYTE	0xa5
@@ -93,7 +118,8 @@
 /* Palette indexes the library draws with. */
 #define WIN_C_DESKTOP	6
 #define WIN_C_FRAME	0
-#define WIN_C_TITLE_BG	4
+#define WIN_C_TITLE_BG	4		/* Title bar of the focused window. */
+#define WIN_C_TITLE_IDLE	8	/* Title bar of every other window. */
 #define WIN_C_TITLE_FG	15
 #define WIN_C_CLIENT	7
 
@@ -106,6 +132,17 @@ struct win_ctx {
 };
 
 typedef void (*win_paint_fn)(struct win_ctx *ctx, void *arg);
+
+struct win;
+struct win_scene;
+struct win_event;
+
+/*
+ * An event handler of one window (win_input.h). It returns nonzero when it
+ * consumed the event.
+ */
+typedef int (*win_event_fn)(struct win_scene *s, struct win *win,
+    const struct win_event *ev, void *arg);
 
 /* Where finished rectangles go. px holds w * h bytes, row by row. */
 struct win_backend {
@@ -125,6 +162,10 @@ struct win {
 	void *arg;
 	char title[WIN_TITLE_MAX];
 	int used;
+	int hidden;			/* Not drawn, not focusable. */
+	unsigned gen;			/* Set at creation; a reused slot differs. */
+	win_event_fn on_event;
+	void *on_event_arg;
 };
 
 struct win_scene {
@@ -134,6 +175,9 @@ struct win_scene {
 	struct win_rect damage[WIN_DAMAGE_MAX];
 	int ndamage;
 	int desktop;			/* Palette index behind the windows. */
+	int focus;			/* Slot of the focused window, or -1. */
+	int focus_follows_raise;	/* Nonzero: raise and lower move the focus. */
+	unsigned next_gen;		/* Generation of the next window created. */
 	struct win_backend be;
 	unsigned char buf[WIN_GUARD + WIN_STRIP_BYTES + WIN_GUARD];
 };
@@ -142,6 +186,8 @@ struct win_scene {
 int win_scene_init(struct win_scene *s, const struct win_backend *be);
 int win_set_palette(struct win_scene *s, int index, int r, int g, int b);
 int win_flush(struct win_scene *s);
+/* Flush if fewer than n damage slots are free; -1 changes nothing. */
+int win_reserve(struct win_scene *s, int n);
 
 /* Windows. A new window is on top. */
 struct win *win_create(struct win_scene *s, int x, int y, int w, int h,
@@ -149,8 +195,23 @@ struct win *win_create(struct win_scene *s, int x, int y, int w, int h,
 int win_destroy(struct win_scene *s, struct win *win);
 int win_move(struct win_scene *s, struct win *win, int x, int y);
 int win_resize(struct win_scene *s, struct win *win, int w, int h);
+/* Position and size in one call: all of it changes or none of it does. */
+int win_set_geometry(struct win_scene *s, struct win *win, int x, int y,
+    int w, int h);
 int win_raise(struct win_scene *s, struct win *win);
 int win_set_title(struct win_scene *s, struct win *win, const char *title);
+int win_lower(struct win_scene *s, struct win *win);
+int win_show(struct win_scene *s, struct win *win);
+int win_hide(struct win_scene *s, struct win *win);
+
+/* Focus. win_focus(s, NULL) leaves no window focused. */
+int win_focus(struct win_scene *s, struct win *win);
+struct win *win_focused(struct win_scene *s);
+
+/* Nonzero when win is a live window of this scene. */
+int win_is_live(const struct win_scene *s, const struct win *win);
+int win_set_handler(struct win_scene *s, struct win *win, win_event_fn fn,
+    void *arg);
 
 /* Damage: a rectangle in panel pixels, or in client pixels of one window. */
 int win_invalidate(struct win_scene *s, int x, int y, int w, int h);

@@ -24,17 +24,18 @@ DEVDIR=		${TOPSRC}/sys/arch/rp2040/dev
 BASE_FLAGS=	-std=c17 -pedantic-errors -D_DEFAULT_SOURCE -Wall -Wextra \
 		-Werror -Wold-style-definition -Wshadow -Wconversion -O1 \
 		-I${LIBDIR} -I${DEVDIR} -idirafter ${TOPSRC}/sys
-LIB_SRCS=	${LIBDIR}/win.c ${DEVDIR}/lcdfont.c
+LIB_SRCS=	${LIBDIR}/win.c ${LIBDIR}/win_input.c ${DEVDIR}/lcdfont.c
+# win_input_dev.c is compiled into win_test.c, behind a model of the kernel.
 
 # tools/host-test.mk supplies SAN_FLAGS and SAN_OK.
 include ${TOPSRC}/tools/host-test.mk
 
 all: check
 
-win_test: win_test.c ${LIB_SRCS} ${LIBDIR}/win.h ${LIBDIR}/win_lcdgfx.c
+win_test: win_test.c ${LIB_SRCS} ${LIBDIR}/win.h ${LIBDIR}/win_input.h ${LIBDIR}/win_input_dev.c ${LIBDIR}/win_lcdgfx.c
 	${HOSTCC} ${BASE_FLAGS} -o $@ win_test.c ${LIB_SRCS}
 
-win_test_san: win_test.c ${LIB_SRCS} ${LIBDIR}/win.h ${LIBDIR}/win_lcdgfx.c
+win_test_san: win_test.c ${LIB_SRCS} ${LIBDIR}/win.h ${LIBDIR}/win_input.h ${LIBDIR}/win_input_dev.c ${LIBDIR}/win_lcdgfx.c
 	${HOSTCC} ${BASE_FLAGS} ${SAN_FLAGS} -o $@ win_test.c ${LIB_SRCS}
 
 check: check-native check-sanitized check-mutants
@@ -51,9 +52,13 @@ check-sanitized:
 	@echo "SKIP libwin sanitized: sanitizer runtime unavailable; no sanitized execution occurred"
 .endif
 
-mutants.stamp: win_mutate.py ${LIBDIR}/win.c
-	rm -f win_*.mutant.c win_*.mutant.test win_*.mutant.log
-	${PYTHON} -I win_mutate.py ${LIBDIR}/win.c .
+mutants.stamp: win_mutate.py ${LIBDIR}/win.c ${LIBDIR}/win_input.c \
+    ${LIBDIR}/win_input_dev.c
+	rm -f win_*.mutant.c win_*.mutant.test win_*.mutant.log \
+	    inp_*.mutant.c inp_*.mutant.test inp_*.mutant.log \
+	    dev_*.mutant.c dev_*.mutant.test dev_*.mutant.log
+	${PYTHON} -I win_mutate.py ${LIBDIR}/win.c ${LIBDIR}/win_input.c \
+	    ${LIBDIR}/win_input_dev.c .
 	touch $@
 
 check-mutants: mutants.stamp win_test.c check_mutants.sh
@@ -61,6 +66,7 @@ check-mutants: mutants.stamp win_test.c check_mutants.sh
 
 clean:
 	rm -f win_test win_test_san win_*.mutant.c win_*.mutant.test \
-	    win_*.mutant.log mutants.stamp
+	    win_*.mutant.log inp_*.mutant.c inp_*.mutant.test inp_*.mutant.log \
+	    dev_*.mutant.c dev_*.mutant.test dev_*.mutant.log mutants.stamp
 
 .PHONY: all check check-native check-sanitized check-mutants clean

@@ -113,6 +113,15 @@ closure picofetch needs path /usr/bin/picofetch
 closure picotop needs path /usr/bin/picotop
 
 #
+# usr.bin/backlight shows and sets the PicoCalc's screen and keyboard
+# backlights through the machdep.picocalc nodes, installed setuid root so
+# that any user can change them. A kernel without the keyboard controller
+# refuses the nodes, so both PicoCalc profiles name the closure and no other
+# profile does.
+#
+closure backlight needs path /usr/bin/backlight
+
+#
 # The PicoCalc's SD card is block major 5 and raw major 11 of the PICOCALC
 # kernels (sys/arch/rp2040/rp2040/conf.c). The sdcard closure carries the
 # /mnt mount point, the nodes for the whole card and its first two
@@ -172,6 +181,7 @@ cost calc-bignum 60 3
 cost calc 33 1
 cost picofetch 14 1
 cost picotop 15 1
+cost backlight 2 1
 cost sdcard 11 8
 cost lcdgfx 0 1
 cost psramtmp 9 3
@@ -205,8 +215,9 @@ cost lightup 23 2
 # picocalc   full plus the ClockworkPi PicoCalc's own closures: the
 #            arbitrary-precision calculator, the scientific calculator, the
 #            SD card's device nodes, the pixel device node, the platformer
-#            that draws on it, picofetch and picotop, and the PSRAM's /tmp
-#            node with mkfs; the PICOCALC board's default
+#            that draws on it, picofetch and picotop, the setuid backlight
+#            command, and the PSRAM's /tmp node with mkfs; the PICOCALC
+#            board's default
 # picocalc-lean
 #            picocalc without the closures that need a driver the
 #            PICOCALC_LEAN kernels omit (DEV_LCDGFX): the pixel device node
@@ -218,8 +229,8 @@ profile benchmark coremark
 profile developer toolchain toolchainlib
 profile games games puzzles
 profile full toolchain toolchainlib games puzzles
-profile picocalc toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop psramtmp
-profile picocalc-lean toolchain toolchainlib games puzzles calc-bignum calc sdcard picofetch picotop psramtmp
+profile picocalc toolchain toolchainlib games puzzles calc-bignum calc sdcard lcdgfx ridge picofetch picotop psramtmp backlight
+profile picocalc-lean toolchain toolchainlib games puzzles calc-bignum calc sdcard picofetch picotop psramtmp backlight
 
 # The uLisp interpreter is opt-in on flash (PROFILE=lisp or IMAGE_WITH=ulisp); the SD root
 # has it with the rest of the install tree. Its graphics functions report

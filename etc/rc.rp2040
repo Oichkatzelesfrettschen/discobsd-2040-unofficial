@@ -10,6 +10,24 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin; export PATH
 
 exec >/dev/console 2>&1
 
+#
+# The PicoCalc's keyboard controller starts the screen backlight at 32 of
+# 240 at power-on (reg_init() in the vendor firmware), dim enough to look
+# black. The level in /etc/backlight, which `backlight -s` writes, or else
+# 160 replaces it; a value that is not one to three digits counts as no
+# level, and the kernel clamps the rest to 240. This runs before the
+# autoboot test so that the switch from single-user mode lights the screen
+# too. A kernel without the controller refuses the node (EOPNOTSUPP), and
+# the discarded output keeps the bare Pico's boot silent.
+#
+bl=
+test -r /etc/backlight && read bl </etc/backlight
+case "$bl" in
+[0-9]|[0-9][0-9]|[0-9][0-9][0-9]) ;;
+*) bl=160 ;;
+esac
+sysctl -w machdep.picocalc.lcd_backlight="$bl" >/dev/null 2>&1
+
 if test "$1" != "autoboot"; then
     #
     # Switch from single-user to multi-user mode.

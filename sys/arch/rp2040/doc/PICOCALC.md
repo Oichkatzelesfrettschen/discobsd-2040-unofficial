@@ -132,6 +132,9 @@ name a file there, with a page for a PDF.
 | Swap on a real card: selection at boot, swap traffic under a compile, a card pulled while it holds images, and the return of swap to `fl1` | board | not run; the retirement of the processes a pulled card held and the return to the fixed device rest on `check-swap-lost` and `check-swap-lost-io` (host) and on source; `sdswap_fallback()` runs on the host in `sdstrat_test` (built with `SDSWAP_ENABLED`), which requires it to release the card's hold on the swap partition, whose open by `main()` sets no descriptor bit, so that a replacement card opens, and a block descriptor still open on the old card, on the swap partition itself or another one, to keep the replacement refused until it closes; card detect has no Renode model |
 | A panic on the board writes a dump that `savecore` saves | board | not run: the bench board is a Pico without the PicoCalc's SD socket |
 | The controller answers the battery, backlight and power-off registers, the sysctl write reaches the right register, and the split-phase poller keeps polling keys around a request | board | not run |
+| `backlight(1)`: argument checks, the kept level it prints and saves, `-s` for root only, and its refusals | host | observed by `check-backlight-host` over a model of the controller's two light registers; fourteen mutants fail it (`TESTING.md`) |
+| `/etc/rc` sets the screen to 160 at boot and `backlight`, run as `operator` through its setuid mode, changes it | Renode | observed by `check-renode-picocalc` on the keyboard model, which conditions levels as the firmware does; an image whose `/etc/rc` lacks the `sysctl` line fails the stage with the firmware's 32. The path through an existing `/etc/backlight` is not run on the target shell; a profile that drops the setuid mode is refused by `mkmanifest.py` before any image exists |
+| Level 160 lights the panel readably; the level the keyboard shortcuts set and `backlight` report agree | board | not run: only 32 (dark) and 240 (readable) were seen on the panel, 2026-11-20 |
 | `psram_xfer.c` and the PIO program in `psram_pio.h` execute frames against a timing model of the ESP-PSRAM64H: waveforms, tCEM, tCSP, tCHD, tCPH, clock period, read sampling margin, the 98-clock Read ID with its 48-bit EID, 40 random transfers, four injected faults, parts of 1 KB to 4 MB that wrap their addresses, the four placements of the two register stages and seventeen mutants | host | observed by `check-psram-pio` (1,226 checks); the model's pad delays and the clock of the two register stages are assumptions. `psram.c` is not compiled on the host: its probe lines rest on the PicoCalc kernels' build, the format gate and the source (host test tracked at https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial/issues/508) |
 | PICO, PICO_DIAG and PICO_UART carry no PSRAM driver | build | observed: no `psram` symbol in the `unix.elf` of PICO, PICO_UART and the PicoCalc kernel without PSRAM when the driver landed, and PICO and PICO_UART sizes equal those recorded before it; PICO_DIAG configures no `psram` device, so `files.rp2040` compiles no PSRAM source into it |
 | The Renode RP2040 model runs the PSRAM program | Renode | not run: the pinned model has PIO but no input synchronizer latency, the tree has no PSRAM peripheral, and `renode-test` cannot run on the build host (`docs/research/picocalc-psram.md`) |
@@ -386,7 +389,10 @@ sends the unlock before the vendor values and BPC (B5h) with FRMCTR1 C0h
 among 60, 75 and 117 Hz). A board capture decides whether E9h matters.
 
 The board drives the backlight from the keyboard controller, which turns
-it on at reset; the kernel does not touch it.
+it on at reset at level 32 of 240 (`reg_init()` in the vendor firmware's
+`reg.ino`), dim enough to look black; the kernel does not touch it.
+`/etc/rc` sets the boot level through `machdep.picocalc.lcd_backlight`
+(see Keyboard below).
 
 ## Console: lcdterm.c and lcdcons.c
 
@@ -813,6 +819,18 @@ admits a write only from root before any handler runs.
 | `lcd_backlight` | 0x05, 0x85 | level | level, clamped to 0-240; the firmware rounds it down to a multiple of 16 and keeps it within 16-240, so the panel never goes dark |
 | `kbd_backlight` | 0x0A, 0x8A | level | level, clamped to 0-240; the firmware rounds down to a multiple of 32 and turns the light off below 32 |
 | `poweroff` | 0x8E | the last countdown this kernel wrote, 0 if none; the kernel keeps it, since the register reads back the constant 1 | seconds, clamped to 6-255, after a `sync()`; the firmware then waits that long and cuts power through the AXP2101, and nothing cancels it |
+
+A backlight write returns the old level only when the caller asks for it,
+and never the level the firmware kept, so a caller reads the node again
+after writing. `backlight(1)` (`usr.bin/backlight`) is that caller for
+users: installed setuid root by the `backlight` closure of both PicoCalc
+profiles, it accepts `lcd` or `kbd` and a decimal level of at most 240,
+prints the level the controller kept, and with `-s`, for the real user
+root only, writes the kept screen level to `/etc/backlight`. At every
+boot `/etc/rc` (`etc/rc.rp2040`) writes that level, or 160 when the
+file is absent or holds no one-to-three-digit number, to `lcd_backlight`
+before the autoboot test; a kernel without the controller refuses the
+node and the line prints nothing.
 
 The firmware's `sync_bat` stores 0 when the PMU reports no battery
 (read from source, not observed), which `battery` would show as 0 percent

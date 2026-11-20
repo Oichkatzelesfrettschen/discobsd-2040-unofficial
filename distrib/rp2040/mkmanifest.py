@@ -83,6 +83,9 @@ ATTRIBUTE_DIRECTIVES = frozenset(
 # A hard link resolves against an inode fsutil has already created, so
 # only these entry types can be a link target.
 LINKABLE = frozenset(["f", "p", "l"])
+# A closure whose program is setuid: (closure, path, packed mode). verify()
+# requires the mode in every profile that selects the closure.
+SETUID_CLOSURES = (("backlight", "/usr/bin/backlight", 0o4755),)
 
 
 class ManifestError(Exception):
@@ -573,6 +576,9 @@ def verify(entries, selected, decl):
         if entry.kind in LINKABLE:
             linkable.add(path)
     required_modes = {"/usr/bin/passwd": 0o4755, "/usr/bin/su": 0o4751}
+    for closure, path, mode in SETUID_CLOSURES:
+        if closure in selected:
+            required_modes[path] = mode
     for path, expected_mode in required_modes.items():
         entry = entries_by_path.get(path)
         if entry is None:
@@ -790,15 +796,24 @@ def list_closures(decl, lines, selected):
     print("file; '-' marks a closure with no recorded measurement.")
 
 
-def drop(lines, text):
-    """Return the lines with one directive removed, for the calibration."""
+def drop(lines, text, after=None):
+    """Return the lines with one directive removed, for the calibration.
+
+    With after, only the directive that directly follows the line after
+    counts, as a mode line follows the entry it applies to.
+    """
     wanted = text.split()
+    before = after.split() if after is not None else None
     kept = []
     removed = 0
+    previous = None
     for line in lines:
-        if line.text.split() == wanted:
+        words = line.text.split()
+        if words == wanted and (before is None or previous == before):
             removed += 1
+            previous = words
             continue
+        previous = words
         kept.append(line)
     if removed != 1:
         raise ManifestError("selftest: '%s' matches %d lines" % (text, removed))
@@ -1069,21 +1084,32 @@ def selftest(lines, appended, decl, selected_extra):
         else:
             print("selftest: reject %s -- %s" % (label, expected))
 
-    selected = select(decl, full, selected_extra)
     mode_cases = (
         (
             "passwd without setuid mode",
+            "full",
+            "pack /usr/bin/passwd",
             "mode 04755",
             "/usr/bin/passwd mode is 0775, expected packed mode 4755",
         ),
         (
             "su without setuid mode",
+            "full",
+            "pack /usr/bin/su",
             "mode 04751",
             "/usr/bin/su mode is 0775, expected packed mode 4751",
         ),
+        (
+            "backlight without setuid mode",
+            "picocalc",
+            "pack /usr/bin/backlight",
+            "mode 04755",
+            "/usr/bin/backlight mode is 0775, expected packed mode 4755",
+        ),
     )
-    for label, removed_mode, expected_mode_error in mode_cases:
-        bad_mode_lines = drop(lines, removed_mode)
+    for label, profile, entry, removed_mode, expected_mode_error in mode_cases:
+        selected = select(decl, decl.profiles[profile], selected_extra)
+        bad_mode_lines = drop(lines, removed_mode, after=entry)
         bad_mode_entries = parse_entries(compose(bad_mode_lines, selected) + appended)
         mode_errors = verify(bad_mode_entries, selected, decl)
         if expected_mode_error not in "\n".join(mode_errors):

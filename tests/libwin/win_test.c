@@ -280,7 +280,11 @@ model_write(int fd, const void *buf, size_t n)
  * the count dropped before them; the tty queue receives bytes only for the
  * events that type them (a press, not a hold, a release or a modifier), and
  * select(2) is ready only while that queue is not empty. The clock advances
- * only inside select, by its timeout or to the next byte.
+ * only inside select, by its timeout or to the next byte. A model with
+ * kb_cap set is a kernel that knows LCDIOC_KEYEVS 2: a session started with
+ * it is also ready while an event waits and wakes at the next event, of any
+ * kind; a model without it answers 2 with EINVAL, as the kernel before the
+ * request did. A read of the empty tty queue would sleep, which fails.
  */
 #define KBD_FD		9
 #define KBD_SCRIPT	96
@@ -293,7 +297,7 @@ struct kbev {
 
 static struct kbev kbs[KBD_SCRIPT];
 static long kb_delivered[KBD_SCRIPT];
-static int nkbs, kb_next, kb_arrived, kb_session, kb_refuse, kb_error;
+static int nkbs, kb_next, kb_arrived, kb_session, kb_refuse, kb_error, kb_cap;
 static long kb_clock, kb_nselect, kb_nioctl;
 static unsigned char kb_q[KBD_SCRIPT * 8];
 static int kb_qn, kb_qpos;
@@ -304,6 +308,7 @@ kb_reset(void)
 	memset(kbs, 0, sizeof(kbs));
 	memset(kb_delivered, 0, sizeof(kb_delivered));
 	nkbs = kb_next = kb_arrived = kb_session = kb_refuse = kb_error = 0;
+	kb_cap = 0;
 	kb_clock = kb_nselect = kb_nioctl = 0;
 	kb_qn = kb_qpos = 0;
 }
@@ -339,7 +344,7 @@ static int
 kb_select(int nfd, fd_set *r, fd_set *w, fd_set *e, struct timeval *tv)
 {
 	long timeout = -1, next = -1;
-	int j;
+	int j, wake = kb_cap && kb_session == 2;
 
 	(void)w;
 	(void)e;
@@ -350,7 +355,8 @@ kb_select(int nfd, fd_set *r, fd_set *w, fd_set *e, struct timeval *tv)
 	if (tv != NULL && tv->tv_sec < 3600)
 		timeout = (long)tv->tv_sec * 1000 + (long)tv->tv_usec / 1000;
 	kb_arrive();
-	if (kb_qn > kb_qpos) {
+	if (kb_qn > kb_qpos ||
+	    (wake && kb_next < nkbs && kbs[kb_next].t <= kb_clock)) {
 		FD_ZERO(r);
 		FD_SET(KBD_FD, r);
 		return 1;
@@ -360,6 +366,8 @@ kb_select(int nfd, fd_set *r, fd_set *w, fd_set *e, struct timeval *tv)
 			next = kbs[j].t;
 			break;
 		}
+	if (wake && kb_next < nkbs && (next < 0 || kbs[kb_next].t < next))
+		next = kbs[kb_next].t;
 	FD_ZERO(r);
 	if (next < 0 || (timeout >= 0 && kb_clock + timeout < next)) {
 		if (timeout < 0)
@@ -381,6 +389,8 @@ kb_read(int fd, void *buf, size_t n)
 
 	if (fd != KBD_FD)
 		fail("read on descriptor %d", fd);
+	if (k == 0)
+		fail("read of an empty tty queue would sleep");
 	if (k > n)
 		k = n;
 	memcpy(buf, kb_q + kb_qpos, k);
@@ -399,8 +409,13 @@ kb_ioctl(int fd, unsigned long req, void *arg)
 	if (fd != KBD_FD)
 		fail("ioctl on descriptor %d", fd);
 	kb_nioctl++;
+	if (req == FIONREAD) {
+		kb_arrive();
+		*(long *)arg = (long)(kb_qn - kb_qpos);
+		return 0;
+	}
 	if (req == LCDIOC_KEYEVS) {
-		if (*(int *)arg != 0 && kb_refuse) {
+		if (*(int *)arg != 0 && (kb_refuse || (*(int *)arg == 2 && !kb_cap))) {
 			errno = EINVAL;
 			return -1;
 		}
@@ -2540,6 +2555,9 @@ run_dev(void)
 		kb_add(70, 1, 'a' + i, 0, (const char[]){ (char)('a' + i), 0 });
 	if (win_input_open(&src, KBD_FD) != 0 || !src.raw || !kb_session)
 		fail("win_input_open did not start the session");
+	if (src.wake || kb_session != 1)
+		fail("a kernel without the wake request got wake mode (session %d)",
+		    kb_session);
 	r = win_input_wait(&src, &in, &scene, 100);
 	if (r < 1 || kb_clock != 8 || scene.nwin != 1)
 		fail("the first wait returned %d at %ld ms with %d windows", r,
@@ -2625,7 +2643,7 @@ run_dev(void)
 	if (win_input_wait(&src, &in, &scene, 30) != 0 || kb_clock != 30)
 		fail("a raw wait of 30 ms ended at %ld", kb_clock);
 	kb_error = 1;
-	if (win_input_wait(&src, &in, &scene, 30) != -1 || src.raw)
+	if (win_input_wait(&src, &in, &scene, 30) != -1 || src.raw || src.wake)
 		fail("a dead session was not reported");
 	kb_reset();
 	kb_refuse = 1;
@@ -2634,8 +2652,55 @@ run_dev(void)
 	    kb_nselect != 1)
 		fail("a tty wait of 30 ms ended at %ld after %ld selects", kb_clock,
 		    kb_nselect);
-	printf("PASS device: raw session polling, tty drain, lost count, tty "
-	    "fallback and timeouts\n");
+
+	/*
+	 * A kernel that wakes select for every event: the wait sleeps in one
+	 * select until the next event of any kind, a wake for an event that typed
+	 * nothing reads no tty byte, and a quiet timeout is one select.
+	 */
+	kb_reset();
+	kb_cap = 1;
+	fixed_world(2);
+	kb_add(40, 1, 'q', 0, "q");
+	kb_add(45, 3, 'q', 0, NULL);
+	kb_add(60, 1, 0xa5, 0, NULL);
+	kb_add(70, 3, 0xa5, 0, NULL);
+	if (win_input_open(&src, KBD_FD) != 0 || !src.raw || !src.wake ||
+	    kb_session != 2)
+		fail("a waking kernel did not give wake mode (session %d)", kb_session);
+	r = win_input_wait(&src, &in, &scene, 1000);
+	if (r < 1 || kb_clock != 40 || kb_nselect != 1)
+		fail("a typing press woke the wait at %ld ms after %ld selects",
+		    kb_clock, kb_nselect);
+	dev_logs(1, 'q', 0, WIN_EV_PRESS);
+	r = win_input_wait(&src, &in, &scene, 1000);
+	if (r < 1 || kb_clock != 45 || kb_nselect != 2)
+		fail("a release woke the wait at %ld ms after %ld selects", kb_clock,
+		    kb_nselect);
+	dev_logs(1, 'q', 0, WIN_EV_RELEASE);
+	compare_logs();
+	r = win_input_wait(&src, &in, &scene, 1000);
+	if (r < 1 || kb_clock != 60 || kb_nselect != 3 || in.mods == 0)
+		fail("a modifier press woke the wait at %ld ms after %ld selects",
+		    kb_clock, kb_nselect);
+	r = win_input_wait(&src, &in, &scene, 1000);
+	if (r < 1 || kb_clock != 70 || kb_nselect != 4 || in.mods != 0)
+		fail("a modifier release woke the wait at %ld ms after %ld selects",
+		    kb_clock, kb_nselect);
+	r = win_input_wait(&src, &in, &scene, 500);
+	if (r != 0 || kb_clock != 570 || kb_nselect != 5)
+		fail("a quiet wait of 500 ms ended at %ld ms after %ld selects", kb_clock,
+		    kb_nselect);
+	win_input_close(&src);
+	if (kb_session != 0 || src.raw || src.wake)
+		fail("win_input_close left a waking session open");
+	if (win_input_open(&src, KBD_FD) != 0 || !src.wake)
+		fail("a waking session did not reopen");
+	kb_error = 1;
+	if (win_input_wait(&src, &in, &scene, 30) != -1 || src.raw || src.wake)
+		fail("a dead waking session kept its wake mode");
+	printf("PASS device: raw session polling, event wake, tty drain, lost "
+	    "count, tty fallback and timeouts\n");
 }
 
 /* Everything the API reports and the manager decides, for comparison. */

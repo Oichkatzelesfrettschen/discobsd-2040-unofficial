@@ -34,14 +34,19 @@
  * select(2) on the console tty is ready when the tty's input queue holds a
  * byte (lcdselect() calls ttyselect(), sys/arch/rp2040/dev/lcdcons.c).
  * picokbd_translate() (picokbd_map.c) returns no byte for a HOLD or a
- * RELEASED event or for a modifier key, and kbd_poll() (picokbd.c) queues
- * the raw event without waking the tty, so select wakes on a press that
- * types a byte and on nothing else. A raw session therefore polls the event
- * queue every WIN_POLL_MS and also on every wake. Each PRESSED event of a
- * typing key also leaves its bytes in the tty queue, so a wake reads and
- * discards them: left in place they keep select ready and the loop spins.
- * Waking select on every raw event (a selwakeup() in picokbd_evq_put()) is
- * a kernel change, recorded as open and not made here.
+ * RELEASED event or for a modifier key, so on a kernel that only does this
+ * select wakes on a press that types a byte and on nothing else, and a raw
+ * session polls the event queue every WIN_POLL_MS and also on every wake.
+ * A kernel that knows LCDIOC_KEYEVS 2 (lcdselect() and picokbd_evq_wake())
+ * also makes select ready while the event queue holds an event and wakes it
+ * for every event the queue takes; win_input_open() learns that from the
+ * request being accepted, and the wait then sleeps in select for the whole
+ * remaining timeout. Either way each PRESSED event of a typing key also
+ * leaves its bytes in the tty queue, so a wake reads and discards them: left
+ * in place they keep select ready and the loop spins; a drain empties the
+ * event queue and clears the event readiness. A wake for an event that typed
+ * nothing finds the tty queue empty, and the wait reads only what FIONREAD
+ * reports.
  *
  * The timeout is charged on every iteration against gettimeofday(), which
  * the target answers from the 1 ms tick (kern_time.c: lbolt times usechz at
@@ -65,10 +70,19 @@
 int
 win_input_open(struct win_input_src *src, int fd)
 {
-	int on = 1;
+	int on = 2;
 
 	src->fd = fd;
 	src->raw = 0;
+	src->wake = 0;
+	if (ioctl(fd, LCDIOC_KEYEVS, &on) == 0) {
+		src->raw = 1;
+		src->wake = 1;
+		return 0;
+	}
+	if (errno != EINVAL)
+		return -1;
+	on = 1;
 	if (ioctl(fd, LCDIOC_KEYEVS, &on) < 0)
 		return -1;
 	src->raw = 1;
@@ -83,6 +97,7 @@ win_input_close(struct win_input_src *src)
 	if (src->raw)
 		(void)ioctl(src->fd, LCDIOC_KEYEVS, &off);
 	src->raw = 0;
+	src->wake = 0;
 }
 
 /* Everything the kernel holds now: the events, or the bytes. Returns the count or -1. */
@@ -95,6 +110,7 @@ drain(struct win_input_src *src, struct win_input *in, struct win_scene *s)
 	do {
 		if (ioctl(src->fd, LCDIOC_GETKEY, &ev) < 0) {
 			src->raw = 0;
+			src->wake = 0;
 			return -1;
 		}
 		if (ev.lost != 0)
@@ -110,6 +126,25 @@ drain(struct win_input_src *src, struct win_input *in, struct win_scene *s)
 	return fed;
 }
 
+/*
+ * The tty bytes waiting, read at most len. On a waking kernel select is
+ * also ready for an event that typed nothing, and a read of the empty tty
+ * queue would sleep, so the byte count (FIONREAD) comes first.
+ */
+static int
+typed(const struct win_input_src *src, unsigned char *buf, size_t len)
+{
+	long avail = 0;
+
+	if (src->wake) {
+		if (ioctl(src->fd, FIONREAD, &avail) < 0)
+			return -1;
+		if (avail <= 0)
+			return 0;
+	}
+	return (int)read(src->fd, buf, len);
+}
+
 int
 win_input_wait(struct win_input_src *src, struct win_input *in,
     struct win_scene *s, int timeout_ms)
@@ -123,7 +158,8 @@ win_input_wait(struct win_input_src *src, struct win_input *in,
 	(void)gettimeofday(&t0, NULL);
 	for (;;) {
 		slice = timeout_ms < 0 ? -1 : (int)(timeout_ms - elapsed);
-		if ((src->raw || in->esc != 0) && (slice < 0 || slice > WIN_POLL_MS))
+		if (((src->raw && !src->wake) || in->esc != 0) &&
+		    (slice < 0 || slice > WIN_POLL_MS))
 			slice = WIN_POLL_MS;
 		FD_ZERO(&rd);
 		FD_SET(src->fd, &rd);
@@ -133,7 +169,7 @@ win_input_wait(struct win_input_src *src, struct win_input *in,
 		if (r < 0 && errno != EINTR)
 			return -1;
 		if (r > 0) {
-			n = (int)read(src->fd, buf, sizeof(buf));
+			n = typed(src, buf, sizeof(buf));
 			if (n < 0)
 				return -1;
 			if (!src->raw)

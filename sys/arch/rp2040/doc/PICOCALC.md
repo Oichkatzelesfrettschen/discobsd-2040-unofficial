@@ -88,7 +88,7 @@ name a file there, with a page for a PDF.
 | The ioctl classifier copies each `LCDG_*` payload (at most 12 bytes) into aligned kernel storage under `PICOCALC_ENABLED` and stages `LCDG_INFO` and `LCDIOC_GETKEY` (14 bytes) as zeroed output, `LCDIOC_KEYEVS` as an integer input | host | observed by `check-kernel` (`fionread_test`, 688 checks, was 605): ownership, upper span edge, crossing span, provider error and reserved-bit cases for all thirteen `LCDG_*` commands, `LCDIOC_GETKEY` and `LCDIOC_KEYEVS`; seven mutants (one per command family, the tile commands and the two key commands included) fail it |
 | `LCDG_TILESET` stores tiles into a 128-tile atlas that is zero at every open, bounded by `first + count <= 128`; `LCDG_TILEWIN` draws a block of tile numbers as one panel window per tile row, with the eight pixel lines of every tile in the row interleaved, through the palette and COLMOD in force; a field out of range or a tile number of 128 or more draws nothing further | host | observed by `check-picocalc-host` (`lcdgfx_test`) against the model panel, which logs each window with its pixel count and stores each pixel at its raster position: 128 tiles uploaded in nine write sizes, blocks from one tile to the 40 by 40 grid (exactly one window of `tw * 8` by 8 per tile row, every pixel compared with a reference render), palette and COLMOD 0x55 draws, 20 rejected commands, upload bounds and abandonment, a copy fault resumed, and the zero atlas at open; 24 mutants fail it |
 | `games/gametile.h` sends one `LCDG_TILEWIN` per maximal run of changed tiles in a tile row, none for a clean tile, and leaves a failed run owed | host | observed by `check-picocalc-host` (`gametile_test`) against a model of the tile commands: 300 random rounds and scripted cases compared with runs counted by an independent loop; ranges near the limits of int are refused without an overflowing sum (`gtile_fill`, `gtile_load`, run under UBSan); 29 mutants fail it |
-| A raw key event session records nothing outside itself: `LCDIOC_KEYEVS` starts it only for a descriptor open for reading in the tty's foreground group, the queue is empty and its bytes cleared at its start and end, it needs a RAW or CBREAK tty, belongs to the process that started it and ends on that process's exit or exec, on any change of the tty's mode word (so a getpass() read cannot be recorded), on a mode-setting ioctl by another process, on the owner's last close, on request and when the foreground group changes, and `LCDIOC_GETKEY` drains oldest first, six per call, from the owning, readable, foreground caller only, drops the oldest event when full and reports the drops; the xterm bytes the poller types are those of `picokbd_translate()` alone | host | observed by `check-picocalc-host` (`kbdevq_test`): write-only, background and non-owner starts, drains and stops refused with the queue and drop count intact, a second owner refused, the owner's exit ending the session while another process holds the file, pid and slot reuse refused, nothing held and no key byte in memory outside a session, a getpass-like ECHO clear ending the session, restored flags not reviving it, RAW to CBREAK and ECHO and CRMOD toggles ending it, cooked starts refused, session end by close, exit, request and foreground change, every state against every key, a 20,000-event run, overflow at 33, 40, 50 and 1,000 events, the count saturating at 255; 44 mutants of `picokbd_evq.c` fail it, and `wiring.sh` fails sixteen cuts in the kernel glue it reads (the poller's `picokbd_event()` and `lcdcons_keycheck()` calls, the `lcd_modeset()` hook of the five mode-setting ioctls, `lcdcons_fileclose()` and `lcdcons_procexit()`, the `FREAD`, process-group and pid arguments of both requests, the hooks in `vn_closefile()`, `exit()` and `exec_clear()`); `kbd_poll()`, `lcd_ioctl_file()` and the close hook themselves run on no host |
+| A raw key event session records nothing outside itself: `LCDIOC_KEYEVS` starts it only for a descriptor open for reading in the tty's foreground group, the queue is empty and its bytes cleared at its start and end, it needs a RAW or CBREAK tty, belongs to the process that started it and ends on that process's exit or exec, on any change of the tty's mode word (so a getpass() read cannot be recorded), on a mode-setting ioctl by another process, on the owner's last close, on request and when the foreground group changes, and `LCDIOC_GETKEY` drains oldest first, six per call, from the owning, readable, foreground caller only, drops the oldest event when full and reports the drops; the xterm bytes the poller types are those of `picokbd_translate()` alone | host | observed by `check-picocalc-host` (`kbdevq_test`): write-only, background and non-owner starts, drains and stops refused with the queue and drop count intact, a second owner refused, the owner's exit ending the session while another process holds the file, pid and slot reuse refused, nothing held and no key byte in memory outside a session, a getpass-like ECHO clear ending the session, restored flags not reviving it, RAW to CBREAK and ECHO and CRMOD toggles ending it, cooked starts refused, session end by close, exit, request and foreground change, every state against every key, a 20,000-event run, overflow at 33, 40, 50 and 1,000 events, the count saturating at 255; 53 mutants of `picokbd_evq.c` fail it, and `wiring.sh` fails twenty-six cuts in the kernel glue it reads (the poller's `picokbd_event()` and `lcdcons_keycheck()` calls, the `lcd_modeset()` hook of the five mode-setting ioctls, `lcdcons_fileclose()` and `lcdcons_procexit()`, the `FREAD`, process-group and pid arguments of both requests, the hooks in `vn_closefile()`, `exit()` and `exec_clear()`); `kbd_poll()`, `lcd_ioctl_file()` and the close hook themselves run on no host |
 | The tile atlas and `LCDIOC_GETKEY` compile into the PicoCalc kernels only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +1,432, bss +4,264 (112,975 / 368 / 53,088); with PSRAM text +1,432, bss +4,264 (115,133 / 424 / 53,240); flash headroom 17,728 and 15,512 bytes; the kernel's data and bss end 62,408 bytes below the end of the RAM region (Tile atlas) |
 | The tile atlas on the panel: the tiles appear, a 40-tile row costs 4.92 ms plus a window, a one-row vertical scroll step costs 4.9 ms, the raw key events arrive at the keyboard's rate | board | not run: `tests/rp2040/tiledemo` is built by `check-board-build` (text 7,379 bytes) and a board run is opt-in |
 | With `options LCD_GFX_EXT` (the PICOCALC_SD kernel) `/dev/lcdgfx` fills and streams windows into all 480 lines of the controller's memory (`LCDG_RAMFILL`, `LCDG_RAMWIN`), returns a rectangle of it through `read(2)` as RGB565 or one reply raw (`LCDG_READ`), draws a block of palette indexes around a transparent index as one window per run (`LCDG_SPRITE`), waits for two successive scan-line samples inside a 64-line span or times out (`LCDG_WAITLINE`), selects idle, display off and sleep and refuses drawing in sleep (`LCDG_POWER`), reports the console ring's first line (`LCDG_XINFO`) and runs the fixed dithering probe (`LCDG_DITHER`); the last close leaves the panel on | host | observed by `check-picocalc-host` (`lcdgfx_ext_test`) against a model of the 480-line memory, its read reply (an 8-bit lead, then pixels in the COLMOD in force: three bytes under 0x66, two under 0x55), a scan line that advances per sample and a recorded power mode: both pixel formats written and read back whole and in 40 random rectangles, 60 random sprites compared pixel by pixel, 200 random waits, a misread and a falling pair refused, both timeouts, every range case, and the read refused with `EPERM` at the selection and at each `read(2)` until the open has finished, and after a non-root open every word of the 480 lines is blank before the first command (a read selected during the clear is refused, a root open clears nothing and reads the model's console words, kernel text draws no cell while the device is open), with every drawing, scrolling, tile, sprite, palette, power and wait command answering root and non-root openers alike; 48 mutants fail it. `lcd_gfx_power()`, `lcd_gfx_read()`, `lcd_gfx_scanline()` and `lcd_gfx_dither()` of `st7365p.c` run on no host |
@@ -534,6 +534,10 @@ of one code walks the 1,696-cell store and costs about 84 us of wire time per
 matching cell (about 207 ms when the whole screen shows it), at the priority of
 the caller.
 
+### Second console: ttyv1 (PICOCALC_SD, options LCD_VT)
+
+The PICOCALC_SD kernel has two consoles. ttyv0 is minor 0 of character major 10 (`/dev/console`, the kernel-message and panic target); ttyv1 is minor 2, because minor 1 is `/dev/lcdgfx`. One console is shown and the other is frozen: its screen state (3,540 bytes: scalars, parser, cell and attribute stores) is parked in `lcdterm.c`, its tty carries `TS_HIDDEN` (`sys/sys/tty.h`), its start routine and the renderer draw nothing for it, and a writer sleeps at the tty's high-water mark. `TS_TTSTOP` stays the line discipline's, so a user stop survives a switch and a restart of a frozen console draws nothing until the switch. Ctrl+F1 shows ttyv0 and Ctrl+F2 shows ttyv1 (`picokbd_vt_key()`; the key sequence is untested on the board). The key only records a request: the render interrupt exchanges the two states in place with interrupts masked, repaints from the store (about 200 ms of SPI wire time, derived, not captured) and thaws the incoming tty. A request is dropped while `/dev/lcdgfx` is open. Kernel output is ttyv0's: while ttyv1 is shown it is not drawn, a one-cell marker (`!`, white on red, top right) appears on the shown console and clears on the switch to ttyv0, and the message log keeps the text. A panic or fatal fault first brings ttyv0 back (`lcdabandon()`) and repaints it. The SD root has the nodes `/dev/ttyv0` (minor 0) and `/dev/ttyv1` (minor 2) and runs a getty on `ttyv1` (`tools/picocalc/mksdroot.sh`). Closing a frozen console discards its undrawn output so that an exiting process never waits for a switch. `check-picocalc-host` (`lcdvt_test`) is the only evidence so far; the board has not run it.
+
 ## Pixel device: lcdgfx.c
 
 `/dev/lcdgfx` is minor 1 of the console's character major 10 (`LCDGFX_MINOR` in
@@ -831,7 +835,7 @@ kernel applies no shutdown policy to it.
 Raw key events. Keystrokes include passwords, so the driver records
 nothing until a program asks. `LCDIOC_KEYEVS` (`_IOW('l', 3, int)`) with 1
 starts a session owned by the calling process and the open console file it is
-called on, and with 0 the owner ends it; `LCDIOC_GETKEY` (`_IOR('l', 2, struct lcd_keyevs)`) then returns up to six
+called on, with 2 starts the same session with select readiness on (below), and with 0 the owner ends it; `LCDIOC_GETKEY` (`_IOR('l', 2, struct lcd_keyevs)`) then returns up to six
 `{ state, key }` events (`LCD_KEY_PRESSED`, `HOLD`, `RELEASED` and the
 controller's key byte) from a queue of 32 that `picokbd_evq.c` keeps. A start
 needs a descriptor open for reading (`EBADF` otherwise), a caller whose
@@ -894,6 +898,24 @@ classified in `ioctl()` (`LCDIOC_KEYEVS` as a four-byte input, `LCDIOC_GETKEY`
 as zeroed output). The polled `picokbd_getc()` of the console's fatal path does not
 queue. Cost: 592 bytes of text and 100 of bss in `picokbd_evq.o`, 344 of text
 in `lcdcons.o` (Tile atlas, above).
+
+Select readiness. `select(2)` on the console is ready for the tty's input
+queue, which a press that types a byte fills and nothing else does
+(`picokbd_translate()` returns no byte for a hold, a release or a modifier).
+`LCDIOC_KEYEVS` with 2 starts the same session with readiness on:
+`lcdselect()` then reports the owner (in the foreground group, through any
+descriptor) readable while the queue holds an event, and `picokbd_evq_put()`
+calls `picokbd_evq_wake()`, which runs `selwakeup()` on the selector the tty
+recorded, after every event it queues. `LCDIOC_GETKEY` empties the queue
+and so clears the readiness; a program that selects and never drains stays
+ready, so the readiness is a request, and a session started with 1, a
+process that is not the owner and a program with no session see the tty queue
+alone. A select that finds the tty empty returns ready for an event that
+typed nothing, so a reader takes `FIONREAD` before it reads. A kernel
+without the request answers 2 with `EINVAL`; `libwin`'s `win_input_open()`
+takes that as the capability test and falls back to 1 and its 20 ms poll.
+Cost, measured on fresh builds: 248 bytes of kernel text in both PICOCALC and
+PICOCALC_SD, none in PICO.
 
 The counts are programmed for 100 kHz, between the vendor helloworld's
 10 kHz and its FUZIX port's 400 kHz; datasheet 4.3.14.1 adds one ic_clk
@@ -1308,7 +1330,17 @@ capture, which shows the console only to the superuser on a PICOCALC_SD kernel
 (any other user's open blanks the memory first);
 the flash root omits it), and the board test programs of
 `tests/rp2040` (`fptest`, `sigtest`, `lcdgfxtest`, `windowtest` and the
-rest) in `/usr/tests/rp2040`. It also holds the block and raw nodes of all four card
+rest) in `/usr/tests/rp2040`. The benchmarks live here and not on the flash root:
+`/usr/bin/coremark` (no default flash profile names the `coremark` closure;
+`PROFILE=benchmark` or `IMAGE_WITH=coremark` puts it on a bare board's
+flash) and UnixBench in `/usr/share/unixbench`, which holds the compiled
+programs, the scripts and `testdir`, the layout `Run` reads
+(`HOMEDIR`), read-only to a login. `Run` puts `PATH` on that directory,
+copies `testdir` and writes its scratch files, log and report under
+a directory made new for each run, `/tmp/unixbench.UID.PID` (a plain `mkdir`
+under umask 077, which refuses a name that already exists; `UB_WORKDIR` names
+a directory the caller keeps), so root and a non-root login each write only
+there; `/tmp` on the SD kernel is on the card. It also holds the block and raw nodes of all four card
 partitions, an `/etc/fstab` naming `/dev/sd0c` (`SDROOT_PART`), because
 `fsck -p` and `mount -a` in `/etc/rc` read it, and a getty on tty0, the
 USB-C port's serial line at 115200 baud, beside the panel's console login. It is written at the first

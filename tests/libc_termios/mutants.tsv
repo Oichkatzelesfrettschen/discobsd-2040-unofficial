@@ -91,3 +91,5 @@ set-ispeed-zero-literal	lib/libc/gen/tcattr.c	s/if (ispeed == 0 \&\& have.c_ispe
 set-ispeed-zero-always	lib/libc/gen/tcattr.c	s/if (ispeed == 0 \&\& have.c_ispeed != 0)/if (ispeed == 0)/
 set-ispeed-zero-ignores-ospeed	lib/libc/gen/tcattr.c	s/ispeed = t->c_ospeed;/ispeed = have.c_ospeed;/
 set-split-honored	lib/libc/gen/tcattr.c	0,/refused = 1;/{/if (want != ((t->c_oflag \& ONLCR) != 0))/{n;s/refused = 1;/honored = 1;/}}
+pgrp-set-zero-allowed	lib/libc/gen/tcsetpgrp.c	s/if (pgrp <= 0) {/if (pgrp < 0) {/
+pgrp-set-negative-allowed	lib/libc/gen/tcsetpgrp.c	s/if (pgrp <= 0) {/if (pgrp == 0) {/

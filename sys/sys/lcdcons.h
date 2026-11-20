@@ -69,6 +69,23 @@
  * it. A program that must change its mode mid-game ends its own session and
  * starts a new one after.
  *
+ * select(2) wakes on the tty's input queue, which receives bytes for a press
+ * that types one and for nothing else. LCDIOC_KEYEVS with 2 starts the same
+ * session with readiness on: a read-select by the owner (in the foreground
+ * group) on the console is ready while the event queue holds an event, and
+ * the driver wakes a sleeping selector when it queues one, whatever its
+ * state or key. LCDIOC_GETKEY clears the readiness by emptying the queue
+ * (n < LCD_KEYEV_N), so a program that drains after each wake does not spin;
+ * one that selects and never drains stays ready, which is why readiness is
+ * a request. A session with readiness on that another party ends (a change
+ * of the foreground group or of the mode, as above) wakes the selector and
+ * leaves its former owner read-ready until that owner's next LCDIOC_KEYEVS or
+ * LCDIOC_GETKEY, which reports the missing session, so a program asleep in
+ * select() learns of the end. A kernel without the request returns EINVAL for 2, which is
+ * how a program learns it is absent; it then starts with 1 and polls. A
+ * session started with 1, and every process but the owner, sees select as
+ * the tty queue alone.
+ *
  * LCDIOC_GETKEY removes up to LCD_KEYEV_N events, oldest first, into
  * ev[0 .. n - 1], and sets `lost` to the number dropped since the previous
  * call (255 at most); a program that sees lost nonzero rebuilds its key

@@ -28,10 +28,11 @@
 
 /*
  * Make a process group the foreground group of a terminal: TIOCSPGRP, which
- * refuses a group outside 0 to SHRT_MAX and, for an unprivileged caller, a
+ * refuses a group above SHRT_MAX and, for an unprivileged caller, a
  * terminal not open for reading. The kernel does not verify that the group
  * exists (sys/kern/tty.c, TIOCSPGRP).
  */
+#include <errno.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
@@ -40,5 +41,10 @@ tcsetpgrp(int fd, pid_t pgrp)
 {
 	int group = pgrp;
 
+	/* Group 0 means "no group" to the kernel and is no foreground group. */
+	if (pgrp <= 0) {
+		errno = EINVAL;
+		return -1;
+	}
 	return ioctl(fd, TIOCSPGRP, &group);
 }

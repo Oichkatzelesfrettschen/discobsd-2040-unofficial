@@ -108,6 +108,53 @@ void	picokbd_evq_check(int tty_pgrp, unsigned tty_flags);
 /* A mode-setting ioctl from process `proc`: end the session unless the owner made it. */
 void	picokbd_evq_modeset(const void *proc, int pid);
 
+/*
+ * Turn on select readiness for the active session: picokbd_evq_ready()
+ * reports its queue and picokbd_evq_wake() follows every recorded event. It
+ * lasts until the session ends, so a plain start (LCDIOC_KEYEVS 1) leaves
+ * select as the tty alone drives it.
+ */
+void	picokbd_evq_wakeon(void);
+
+/*
+ * Whether a select(2) for reading by process `proc` (pid `pid`, group
+ * `pgrp`) is ready on the queue: the session is active with readiness on,
+ * the caller owns it and is in the foreground group (the callers a drain
+ * accepts) and an event is waiting. A drain that takes the last event clears
+ * it. The former owner of such a session that a group or mode change, or
+ * another process's mode-setting ioctl, ended is ready too, from any group,
+ * until its next start, stop or drain or its exit.
+ */
+int	picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
+	    unsigned tty_flags);
+
+/*
+ * The console's read-select. The queue check and the tty's selector
+ * registration (o->tty()) run in one critical section (o->raise() to
+ * o->restore()), because an event queued between them would find no selector
+ * to wake and the caller would sleep with it waiting. The wake takes the
+ * same level, so it runs before the section or after the registration; a
+ * drain runs at that level from an ioctl and cannot interleave, and a
+ * selector left registered when select returns ready is harmless, since
+ * selwakeup() on a process that is not asleep in select clears its flag only.
+ * Two selectors share t_rsel and TS_RCOLL as ttyselect() leaves them, and
+ * picokbd_evq_wake() hands both to selwakeup().
+ */
+struct picokbd_sel {
+	int	(*raise)(void);		/* Block the wake; returns the old level. */
+	void	(*restore)(int);
+	int	(*tty)(void);		/* ttyselect(): ready, else register. */
+};
+
+int	picokbd_evq_select(const struct picokbd_sel *o, const void *proc,
+	    int pid, int pgrp, int tty_pgrp, unsigned tty_flags);
+
+/*
+ * Supplied by the console: wake the processes selecting on it. Called from
+ * picokbd_evq_put() after each event a readiness-on session records.
+ */
+void	picokbd_evq_wake(void);
+
 /* Record one controller event if a session is active and the state is an event. */
 void	picokbd_evq_put(int state, int key);
 

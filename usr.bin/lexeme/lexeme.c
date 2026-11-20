@@ -49,10 +49,11 @@
 #include <unistd.h>
 
 #define PAGE_LINES	54	/* a 9-inch text area at six lines per inch */
+#define PAP_MEASURE_MAX	32000	/* largest paragraph measurement, twips (int16_t fields) */
 
 enum ui {
 	U_EDIT = 0, U_MENU, U_FORM, U_CONF_REPL, U_CONF_QUIT, U_CONF_CLEAR,
-	U_PICK, U_HELP
+	U_PICK, U_HELP, U_CONF_LOSS
 };
 
 int keymode = KEYS_WORD, running = 1, scrap_lines;
@@ -68,6 +69,8 @@ static woff_t scrap_ref, scrap_len;
 static uint32_t saved_gen;
 static char msg[WORD_MSG_MAX];
 static int msg_err;
+static int ins_chp = -1;		/* typing format, or -1 to inherit */
+static int doc_word;			/* the document is a Word file */
 
 /* Logical line cache: the line number of li_off is li_line. */
 static woff_t li_off, li_line;
@@ -225,12 +228,51 @@ cell_w(int c, int col)
 	return 1;
 }
 
+/*
+ * The properties of the paragraph holding off. Every byte of a paragraph
+ * carries them (lexeme_buf.c), so one lookup answers without a scan.
+ */
+static const struct word_pap *
+para_pap(woff_t off)
+{
+	woff_t len = buf_len();
+	int v = buf_props(off < len ? off : (len > 0 ? len - 1 : 0));
+
+	return buf_pap(v < 0 ? 0 : (unsigned)v >> 8);
+}
+
+/*
+ * The text width of the display row starting at s and its indent in
+ * columns: the left indent, plus the first-line indent on a paragraph's
+ * first row, less the right indent; a row keeps at least 8 columns.
+ */
+static int
+row_geom(woff_t s, int *indent)
+{
+	const struct word_pap *pp = para_pap(s);
+	int li = pp->left / TWIPS_PER_COL, ri = pp->right / TWIPS_PER_COL, w;
+
+	if (s == 0 || buf_at(s - 1) == '\n')
+		li += pp->first / TWIPS_PER_COL;
+	if (li < 0)
+		li = 0;
+	if (ri < 0)
+		ri = 0;
+	w = scr_cols - li - ri;
+	if (w < 8) {
+		li = 0;
+		w = scr_cols;
+	}
+	*indent = li;
+	return w;
+}
+
 /* Start of the display row after the one at s; WOFF_END after the last. */
 static woff_t
 row_next(woff_t s)
 {
 	woff_t p = s, len = buf_len(), sp = WOFF_END;
-	int col = 0, c, w;
+	int col = 0, c, w, ind, width = row_geom(s, &ind);
 
 	for (;;) {
 		if (p >= len)
@@ -239,10 +281,10 @@ row_next(woff_t s)
 		if (c == '\n')
 			return p + 1;
 		if (opt_wrap) {
-			if (c == ' ' && col >= scr_cols)
+			if (c == ' ' && col >= width)
 				return p + 1;
 			w = cell_w(c, col);
-			if (col + w > scr_cols) {
+			if (col + w > width) {
 				if (sp != WOFF_END)
 					return sp + 1;
 				return p > s ? p : p + 1;
@@ -279,6 +321,27 @@ col_of(woff_t s, woff_t off)
 	return col;
 }
 
+static int
+col_of(woff_t s, woff_t off);
+
+/* The screen column of the row's first character: indent and alignment. */
+static int
+row_shift(woff_t r, woff_t n)
+{
+	const struct word_pap *pp = para_pap(r);
+	woff_t e = n == WOFF_END ? buf_len() : n;
+	int ind, w = row_geom(r, &ind), used, ch;
+
+	if (!opt_wrap || pp->align == AL_LEFT || pp->align == AL_JUSTIFY)
+		return ind;
+	while (e > r && ((ch = buf_at(e - 1)) == '\n' || ch == ' '))
+		e--;
+	used = col_of(r, e);
+	if (used >= w)
+		return ind;
+	return ind + (pp->align == AL_CENTER ? (w - used) / 2 : w - used);
+}
+
 static woff_t
 at_col(woff_t s, int want)
 {
@@ -302,6 +365,7 @@ ed_set(woff_t pos)
 
 	ed_cur = pos > len ? len : pos;
 	goal = -1;
+	ins_chp = -1;
 }
 
 void
@@ -425,7 +489,7 @@ sel_range(woff_t *lo, woff_t *hi)
 int
 ed_ins(const char *s, size_t n)
 {
-	int e = buf_insert(ed_cur, s, n);
+	int e = buf_insert_fmt(ed_cur, s, n, ins_chp);
 
 	if (e != 0) {
 		msg_errno(e);
@@ -436,6 +500,38 @@ ed_ins(const char *s, size_t n)
 	return 0;
 }
 
+/*
+ * The scrap keeps the property runs of its text, up to SRUN_MAX runs;
+ * text past the last recorded run takes that run's properties.
+ */
+#define SRUN_MAX	32
+static struct word_run srun[SRUN_MAX];
+static unsigned nsrun;
+
+static void
+scrap_runs(woff_t lo, woff_t hi, int append)
+{
+	woff_t p;
+	int v, last = -1;
+
+	if (!append)
+		nsrun = 0;
+	else if (nsrun > 0)
+		last = srun[nsrun - 1].pap << 8 | srun[nsrun - 1].chp;
+	for (p = lo; p < hi; p++) {
+		v = buf_props(p);
+		if (v == last || (nsrun == SRUN_MAX && nsrun > 0)) {
+			srun[nsrun - 1].len++;
+			continue;
+		}
+		srun[nsrun].len = 1;
+		srun[nsrun].chp = (uint8_t)(v & 0xff);
+		srun[nsrun].pap = (uint8_t)(v >> 8);
+		nsrun++;
+		last = v;
+	}
+}
+
 int
 ed_del(woff_t lo, woff_t hi, int scrap, int append)
 {
@@ -444,15 +540,32 @@ ed_del(woff_t lo, woff_t hi, int scrap, int append)
 
 	if (hi <= lo)
 		return 0;
+	if (scrap)
+		scrap_runs(lo, hi, append && scrap_len > 0);
 	e = buf_delete(lo, hi - lo, &ref);
 	if (e != 0) {
 		msg_errno(e);
 		return -1;
 	}
 	if (scrap) {
+		woff_t a, b;
+
+		/*
+		 * An accumulating cut keeps the scrap one run of the add stream:
+		 * when the new text does not follow it there, both are copied to
+		 * the end of the stream.
+		 */
 		if (append && scrap_len > 0 && scrap_ref + scrap_len == ref)
 			scrap_len += hi - lo;
-		else {
+		else if (append && scrap_len > 0 &&
+		    buf_ref_copy(scrap_ref, scrap_len, &a) == 0 &&
+		    buf_ref_copy(ref, hi - lo, &b) == 0 && b == a + scrap_len) {
+			scrap_ref = a;
+			scrap_len += hi - lo;
+		} else {
+			/* A failed copy keeps the new text only, unformatted. */
+			if (append && scrap_len > 0)
+				nsrun = 0;
 			scrap_ref = ref;
 			scrap_len = hi - lo;
 		}
@@ -466,13 +579,15 @@ ed_del(woff_t lo, woff_t hi, int scrap, int append)
 int
 ed_replace(woff_t lo, woff_t hi, const char *s, size_t n)
 {
-	int e = buf_replace(lo, hi - lo, s, n);
+	int keep = ins_chp;
+	int e = buf_replace_fmt(lo, hi - lo, s, n, keep);
 
 	if (e != 0) {
 		msg_errno(e);
 		return -1;
 	}
 	ed_set(lo + (woff_t)n);
+	ins_chp = keep;		/* the typing format outlives the typed text */
 	ed_sel = 0;
 	goal = -1;
 	return 0;
@@ -486,6 +601,7 @@ ed_yank(woff_t lo, woff_t hi, int lines)
 
 	if (hi <= lo)
 		return;
+	scrap_runs(lo, hi, 0);
 	e = buf_copy(lo, hi - lo, &ref);
 	if (e != 0) {
 		msg_errno(e);
@@ -505,7 +621,7 @@ ed_paste(woff_t at)
 		ed_msg(1, "The scrap is empty");
 		return;
 	}
-	e = buf_insert_ref(at, scrap_ref, scrap_len);
+	e = buf_insert_runs(at, scrap_ref, scrap_len, srun, nsrun);
 	if (e != 0) {
 		msg_errno(e);
 		return;
@@ -571,7 +687,7 @@ ed_save(const char *path)
 		ed_msg(1, "No file name");
 		return -1;
 	}
-	e = buf_save(path, opt_backup);
+	e = doc_word ? doc_save(path, opt_backup) : buf_save(path, opt_backup);
 	if (e != 0) {
 		msg_errno(e);
 		return -1;
@@ -590,9 +706,20 @@ ed_load(const char *path)
 	char p[WORD_PATH_MAX];
 	int e;
 
+	int word;
+
 	snprintf(p, sizeof(p), "%s", path);
-	e = buf_load(p);
+	word = doc_probe(p) == 1;
+	e = word ? doc_load(p) : buf_load(p);
+	if (e == EINVAL && word)
+		e = ENOEXEC;
+	if (e == 0 || e == ENOENT)
+		doc_word = word;
 	if (e == ENOENT) {
+		size_t n = strlen(p);
+
+		doc_word = n > 4 && (strcmp(p + n - 4, ".doc") == 0 ||
+		    strcmp(p + n - 4, ".dcx") == 0);
 		buf_clear();
 		snprintf(ed_file, sizeof(ed_file), "%s", p);
 		ed_msg(0, "New file");
@@ -658,6 +785,7 @@ word_count(void)
 
 static char f_text[WORD_FIELD_MAX], f_with[WORD_FIELD_MAX];
 static char f_name[WORD_PATH_MAX], f_cmd[WORD_FIELD_MAX], f_num[12];
+static char f_size[8], f_li[12], f_fi[12], f_ri[12], f_ls[12], f_sb[12], f_sa[12];
 static uint8_t s_up, s_case, s_whole, r_confirm = 1;
 static uint8_t r_ask;		/* this Replace still asks before each match */
 static unsigned long nrepl;
@@ -692,12 +820,29 @@ ed_search(const char *text, int down, int again)
 }
 
 /* A failed replacement leaves the text as it was and keeps its message. */
+/*
+ * A Replace is one undo record: buf_snap_begin() at its start, and
+ * buf_snap_end() when it ends. A replacement that fails returns the
+ * document to its state before the Replace.
+ */
+static void
+replace_done(void)
+{
+	ui = U_EDIT;
+	ed_sel = 0;
+	if (buf_snap_end(1) != 0)
+		ed_msg(1, "Replace failed; the document is unchanged");
+	else
+		ed_msgf(0, "%lu replacements", nrepl);
+}
+
 static void
 replace_failed(void)
 {
 	ui = U_EDIT;
 	ed_sel = 0;
-	ed_msgf(1, "Replace failed; %lu replaced", nrepl);
+	buf_snap_end(0);
+	ed_msg(1, "Replace failed; the document is unchanged");
 }
 
 static void
@@ -723,9 +868,7 @@ replace_from(woff_t from)
 		from = s + (woff_t)rl;
 		ed_set(from);
 	}
-	ui = U_EDIT;
-	ed_sel = 0;
-	ed_msgf(0, "%lu replacements", nrepl);
+	replace_done();
 }
 
 static void
@@ -735,11 +878,9 @@ replace_key(int k)
 	int up = toupper(k & 0xff);
 
 	sel_range(&s, &e);
-	if (k == K_ESC) {
-		ui = U_EDIT;
-		ed_sel = 0;
-		ed_msgf(0, "%lu replacements", nrepl);
-	} else if (up == 'Y' || up == 'A') {
+	if (k == K_ESC)
+		replace_done();
+	else if (up == 'Y' || up == 'A') {
 		if (up == 'A')
 			r_ask = 0;
 		if (buf_replace(s, e - s, f_with, strlen(f_with)) != 0) {
@@ -767,7 +908,7 @@ struct field {
 struct form {
 	const char *name;
 	uint8_t nf;
-	struct field f[6];
+	struct field f[10];
 };
 
 #define TXT(e, b)	{ e, T_TEXT, 0, 0, NULL, b, sizeof(b) }
@@ -778,9 +919,9 @@ struct form {
 static const struct form forms[F_NFORMS] = {
 	[F_LOAD] = { "TRANSFER LOAD", 1,
 	    { FIL("filename", f_name) } },
-	[F_SAVE] = { "TRANSFER SAVE", 2,
+	[F_SAVE] = { "TRANSFER SAVE", 3,
 	    { FIL("filename", f_name),
-	      YESNO("backup") } },
+	      CHO("format", 2, "Word|Text-only"), YESNO("backup") } },
 	[F_MERGE] = { "TRANSFER MERGE", 1,
 	    { FIL("filename", f_name) } },
 	[F_FDELETE] = { "TRANSFER DELETE", 1,
@@ -807,11 +948,227 @@ static const struct form forms[F_NFORMS] = {
 	    { CHO("keys", 3, "Word|vi|nano"),
 	      YESNO("wrap"), YESNO("hints"),
 	      YESNO("color"),
-	      CHO("tab width", 2, "4|8") } }
+	      CHO("tab width", 2, "4|8") } },
+	[F_FCHAR] = { "FORMAT CHARACTER", 10,
+	    { YESNO("bold"), YESNO("italic"), YESNO("underline"),
+	      YESNO("strikethrough"), YESNO("uppercase"), YESNO("small caps"),
+	      YESNO("double underline"),
+	      CHO("position", 3, "Normal|Superscript|Subscript"),
+	      TXT("font size", f_size), YESNO("hidden") } },
+	[F_FPARA] = { "FORMAT PARAGRAPH", 9,
+	    { CHO("alignment", 4, "Left|Centered|Right|Justified"),
+	      TXT("left indent", f_li), TXT("first line", f_fi),
+	      TXT("right indent", f_ri), TXT("line spacing", f_ls),
+	      TXT("space before", f_sb), TXT("space after", f_sa),
+	      YESNO("keep together"), YESNO("keep follow") } }
 };
 
+/* The character flags of the Format Character Yes/No fields, in order. */
+static const uint8_t fchar_flag[7] = {
+	CH_BOLD, CH_ITALIC, CH_UNDER, CH_STRIKE, CH_UPPER, CH_SMALLCAPS,
+	CH_DUNDER
+};
+
+/*
+ * A measurement field: a number with an optional unit (" or in, cm, p10,
+ * p12, pt, li), in twips; a bare number takes the field's unit.
+ */
+static int
+measure(const char *s, int unit, int *out)
+{
+	static const struct { const char *u; int tw; } units[] = {
+		{ "\"", 1440 }, { "in", 1440 }, { "cm", 567 }, { "p10", 144 },
+		{ "p12", 120 }, { "pt", 20 }, { "li", 240 }
+	};
+	long whole = 0, frac = 0, scale = 1;
+	int neg = 0, tw = unit;
+	size_t i;
+
+	while (*s == ' ')
+		s++;
+	if (*s == '-') {
+		neg = 1;
+		s++;
+	}
+	if (!isdigit((unsigned char)*s) && *s != '.')
+		return -1;
+	while (isdigit((unsigned char)*s) && whole < 100000)
+		whole = whole * 10 + (*s++ - '0');
+	if (*s == '.')
+		for (s++; isdigit((unsigned char)*s); s++)
+			if (scale < 1000) {
+				frac = frac * 10 + (*s - '0');
+				scale *= 10;
+			}
+	while (*s == ' ')
+		s++;
+	if (*s != '\0') {
+		for (i = 0; i < sizeof(units) / sizeof(units[0]); i++)
+			if (strcmp(s, units[i].u) == 0)
+				break;
+		if (i == sizeof(units) / sizeof(units[0]))
+			return -1;
+		tw = units[i].tw;
+	}
+	whole = whole * tw + frac * tw / scale;
+	if (whole > PAP_MEASURE_MAX)
+		return -1;
+	*out = (int)(neg ? -whole : whole);
+	return 0;
+}
+
+/* Twips as inches (unit 1440, suffix ") or lines (unit 240, " li"). */
+static void
+show_measure(char *out, size_t sz, int tw, int unit)
+{
+	int a = tw < 0 ? -tw : tw, w = a / unit, f = (a % unit) * 100 / unit;
+
+	if (f == 0)
+		snprintf(out, sz, "%s%d%s", tw < 0 ? "-" : "", w,
+		    unit == 1440 ? "\"" : " li");
+	else
+		snprintf(out, sz, "%s%d.%02d%s", tw < 0 ? "-" : "", w, f,
+		    unit == 1440 ? "\"" : " li");
+}
+
 static int fid, fcur, ffresh;
-static uint8_t fval[6];
+static uint8_t fval[10];
+
+/*
+ * Formatting. A change applies to the selection; with none, character
+ * formatting applies to the text typed next (ins_chp, dropped when the
+ * cursor moves) and paragraph formatting to the cursor's paragraph.
+ */
+static struct word_chp new_chp;
+static struct word_pap new_pap;
+static uint8_t chp_set, chp_clear;	/* speed keys: flags to set or clear */
+static int chp_whole;			/* 1: new_chp replaces the record */
+
+static int
+chp_map(unsigned old, int which, void *ctx)
+{
+	struct word_chp c = *buf_chp(old);
+
+	(void)which;
+	(void)ctx;
+	if (chp_whole) {
+		new_chp.font = c.font;
+		new_chp.color = c.color;
+		c = new_chp;
+	} else {
+		c.flags = (uint8_t)((c.flags | chp_set) & ~chp_clear);
+		if (chp_whole < 0) {
+			c.pos = new_chp.pos;
+		}
+	}
+	return buf_chp_index(&c);
+}
+
+static int
+pap_map(unsigned old, int which, void *ctx)
+{
+	(void)old;
+	(void)which;
+	(void)ctx;
+	return buf_pap_index(&new_pap);
+}
+
+/* Apply the pending character change to the selection or the typing format. */
+static void
+apply_chp(void)
+{
+	woff_t lo, hi;
+
+	sel_range(&lo, &hi);
+	if (lo == hi) {
+		int i = chp_map(ins_chp >= 0 ? (unsigned)ins_chp :
+		    (unsigned)(buf_props(lo > 0 ? lo - 1 : 0) < 0 ? 0 :
+		    buf_props(lo > 0 ? lo - 1 : 0) & 0xff), 1, NULL);
+
+		if (i < 0)
+			ed_msg(1, "Too many different character formats");
+		else
+			ins_chp = i;
+		return;
+	}
+	buf_mark();
+	if (buf_restyle(lo, hi, 1, chp_map, NULL) != 0)
+		ed_msg(1, "Too many different character formats");
+}
+
+/* Apply new_pap to every paragraph the selection touches. */
+static void
+apply_pap(void)
+{
+	woff_t lo, hi, len = buf_len();
+
+	sel_range(&lo, &hi);
+	lo = ed_bol(lo);
+	hi = ed_eol(hi > lo && buf_at(hi - 1) == '\n' ? hi - 1 : hi);
+	if (hi < len)
+		hi++;
+	if (hi == lo)
+		return;
+	buf_mark();
+	if (buf_restyle(lo, hi, 2, pap_map, NULL) != 0)
+		ed_msg(1, "Too many different paragraph formats");
+}
+
+/* Alt+letter speed formatting keys (SPEC.md, Formatting). */
+static int
+speed_key(int c)
+{
+	const struct word_pap *pp = para_pap(ed_bol(ed_cur));
+	static const struct { char k; uint8_t f; } chars[] = {
+		{ 'b', CH_BOLD }, { 'i', CH_ITALIC }, { 'u', CH_UNDER },
+		{ 'd', CH_DUNDER }, { 'k', CH_SMALLCAPS }, { 's', CH_STRIKE },
+		{ 'e', CH_HIDDEN }
+	};
+	size_t i;
+
+	c = tolower(c);
+	chp_whole = 0;
+	chp_set = chp_clear = 0;
+	for (i = 0; i < sizeof(chars) / sizeof(chars[0]); i++)
+		if (chars[i].k == c) {
+			chp_set = chars[i].f;
+			apply_chp();
+			return 1;
+		}
+	if (c == ' ') {
+		memset(&new_chp, 0, sizeof(new_chp));
+		chp_whole = 1;
+		apply_chp();
+		return 1;
+	}
+	if (c == '+' || c == '=' || c == '-') {
+		new_chp.pos = c == '-' ? POS_SUB : POS_SUPER;
+		chp_whole = -1;
+		apply_chp();
+		return 1;
+	}
+	new_pap = *pp;
+	switch (c) {
+	case 'l': new_pap.align = AL_LEFT; break;
+	case 'c': new_pap.align = AL_CENTER; break;
+	case 'r': new_pap.align = AL_RIGHT; break;
+	case 'j': new_pap.align = AL_JUSTIFY; break;
+	case 'f': new_pap.first = 720; break;
+	case 'n':	/* Stops at the largest measurement the form accepts. */
+		if (new_pap.left <= PAP_MEASURE_MAX - 720)
+			new_pap.left = (int16_t)(new_pap.left + 720);
+		break;
+	case 'm': new_pap.left = (int16_t)(new_pap.left > 720 ? new_pap.left - 720 : 0); break;
+	case 'q': new_pap.left = new_pap.right = 720; break;
+	case 't': new_pap.left = 720; new_pap.first = -720; break;
+	case 'o': new_pap.before = 240; break;
+	case '2': new_pap.spacing = 480; break;
+	case 'p': memset(&new_pap, 0, sizeof(new_pap)); break;
+	default: return 0;
+	}
+	apply_pap();
+	return 1;
+}
 
 /* The n-th '|'-separated choice of list, copied into out. */
 static const char *
@@ -846,9 +1203,12 @@ ed_form(int id)
 		f_name[0] = '\0';
 		break;
 	case F_SAVE:
+		snprintf(f_name, sizeof(f_name), "%s", ed_file);
+		fval[1] = !doc_word;
+		fval[2] = !opt_backup;
+		break;
 	case F_RENAME:
 		snprintf(f_name, sizeof(f_name), "%s", ed_file);
-		fval[1] = !opt_backup;
 		break;
 	case F_CHDIR:
 		if (getcwd(f_name, sizeof(f_name)) == NULL)
@@ -875,6 +1235,35 @@ ed_form(int id)
 		fval[3] = !scr_color;
 		fval[4] = tabw == 8;
 		break;
+	case F_FCHAR: {
+		int v = buf_props(ed_sel ? (ed_anchor < ed_cur ? ed_anchor : ed_cur) :
+		    (ed_cur > 0 ? ed_cur - 1 : 0));
+		const struct word_chp *cp = ins_chp >= 0 ? buf_chp((unsigned)ins_chp) :
+		    buf_chp(v < 0 ? 0 : (unsigned)(v & 0xff));
+		int i;
+
+		for (i = 0; i < 7; i++)
+			fval[i] = !(cp->flags & fchar_flag[i]);
+		fval[7] = cp->pos;
+		fval[9] = !(cp->flags & CH_HIDDEN);
+		snprintf(f_size, sizeof(f_size), "%d", cp->size ? cp->size / 2 : 12);
+		break;
+	}
+	case F_FPARA: {
+		const struct word_pap *pp = para_pap(ed_bol(ed_sel ?
+		    (ed_anchor < ed_cur ? ed_anchor : ed_cur) : ed_cur));
+
+		fval[0] = pp->align;
+		show_measure(f_li, sizeof(f_li), pp->left, 1440);
+		show_measure(f_fi, sizeof(f_fi), pp->first, 1440);
+		show_measure(f_ri, sizeof(f_ri), pp->right, 1440);
+		show_measure(f_ls, sizeof(f_ls), pp->spacing ? pp->spacing : 240, 240);
+		show_measure(f_sb, sizeof(f_sb), pp->before, 240);
+		show_measure(f_sa, sizeof(f_sa), pp->after, 240);
+		fval[7] = !(pp->keep & PA_KEEP);
+		fval[8] = !(pp->keep & PA_FOLLOW);
+		break;
+	}
 	default:
 		break;
 	}
@@ -898,7 +1287,13 @@ form_run(void)
 		ed_load(f_name);
 		break;
 	case F_SAVE:
-		opt_backup = fval[1] == 0;
+		opt_backup = fval[2] == 0;
+		if (fval[1] == 1 && doc_formatted()) {
+			ui = U_CONF_LOSS;
+			ed_msg(0, "Text-only drops the formatting: Y saves, N cancels");
+			break;
+		}
+		doc_word = fval[1] == 0;
 		if (ed_save(f_name) == 0 && quit_after)
 			running = 0;
 		quit_after = 0;
@@ -952,6 +1347,10 @@ form_run(void)
 		nrepl = 0;
 		r_ask = r_confirm;
 		buf_mark();
+		if (buf_snap_begin() != 0) {
+			ed_msg(1, "Replace failed; the document is unchanged");
+			break;
+		}
 		replace_from(ed_cur);
 		break;
 	case F_JUMP:
@@ -979,6 +1378,49 @@ form_run(void)
 		}
 		tty_raw();
 		break;
+	case F_FCHAR: {
+		int i, sz;
+
+		memset(&new_chp, 0, sizeof(new_chp));
+		for (i = 0; i < 7; i++)
+			if (fval[i] == 0)
+				new_chp.flags |= fchar_flag[i];
+		if (fval[9] == 0)
+			new_chp.flags |= CH_HIDDEN;
+		new_chp.pos = fval[7];
+		sz = atoi(f_size);
+		if (sz < 4 || sz > 127) {
+			ed_msg(1, "Font size must be 4 to 127 points");
+			break;
+		}
+		new_chp.size = sz == 12 ? 0 : (uint8_t)(sz * 2);
+		chp_whole = 1;
+		apply_chp();
+		break;
+	}
+	case F_FPARA: {
+		int li, fi, ri, ls, sb, sa;
+
+		if (measure(f_li, 1440, &li) || measure(f_fi, 1440, &fi) ||
+		    measure(f_ri, 1440, &ri) || measure(f_ls, 240, &ls) ||
+		    measure(f_sb, 240, &sb) || measure(f_sa, 240, &sa) ||
+		    li < 0 || ri < 0 || ls < 0 || sb < 0 || sa < 0) {
+			ed_msg(1, "Not a valid measurement");
+			break;
+		}
+		memset(&new_pap, 0, sizeof(new_pap));
+		new_pap.align = fval[0];
+		new_pap.left = (int16_t)li;
+		new_pap.first = (int16_t)fi;
+		new_pap.right = (int16_t)ri;
+		new_pap.spacing = (uint16_t)(ls == 240 ? 0 : ls);
+		new_pap.before = (uint16_t)sb;
+		new_pap.after = (uint16_t)sa;
+		new_pap.keep = (uint8_t)((fval[7] == 0 ? PA_KEEP : 0) |
+		    (fval[8] == 0 ? PA_FOLLOW : 0));
+		apply_pap();
+		break;
+	}
 	case F_OPTIONS:
 		keymode = fval[0];
 		opt_wrap = fval[1] == 0;
@@ -1199,6 +1641,12 @@ builtin(int b)
 		break;
 	case ACT_COUNT:
 		word_count();
+		break;
+	case ACT_FCHAR:
+		ed_form(F_FCHAR);
+		break;
+	case ACT_FPARA:
+		ed_form(F_FPARA);
 		break;
 	case ACT_HELP:
 		ed_help();
@@ -1531,6 +1979,9 @@ word_key(int k)
 			type_char(k);
 			return;
 		}
+		if ((k & ~K_BASE) == KM_ALT && b >= ' ' && b < 0x7f &&
+		    speed_key(b))
+			return;
 		if ((k & ~K_BASE) && b >= ' ' && b < 0x7f) {
 			ed_msg(1, "That key combination is not available");
 			return;
@@ -1540,11 +1991,35 @@ word_key(int k)
 
 /* ---- screen composition ---- */
 
+/* The cell attribute for character properties v; *c may become a capital. */
+static int
+chp_attr(int v, int *c)
+{
+	const struct word_chp *cp = buf_chp(v < 0 ? 0 : (unsigned)(v & 0xff));
+	int a = 0;
+
+	if (cp->flags & CH_BOLD)
+		a |= A_BOLD;
+	if (cp->flags & (CH_UNDER | CH_DUNDER))
+		a |= A_UL;
+	if (cp->flags & (CH_UPPER | CH_SMALLCAPS))
+		*c = toupper(*c);
+	if (cp->flags & CH_HIDDEN)
+		a |= A_CLS(C_HIDE);
+	else if (cp->pos != POS_NORMAL)
+		a |= A_CLS(C_SUPER);
+	else if (cp->flags & CH_STRIKE)
+		a |= A_CLS(C_STRIKE);
+	else if (cp->flags & CH_ITALIC)
+		a |= A_CLS(C_ITAL);
+	return a;
+}
+
 static void
 draw_doc(int row0, int rows)
 {
 	woff_t r = top, n, p, lo, hi, len = buf_len();
-	int i, col, c, w, x, attr;
+	int i, col, c, w, x, attr, sh;
 
 	sel_range(&lo, &hi);
 	for (i = 0; i < rows; i++) {
@@ -1556,15 +2031,18 @@ draw_doc(int row0, int rows)
 		}
 		n = row_next(r);
 		col = 0;
+		sh = row_shift(r, n) - (int)(opt_wrap ? 0 : leftcol);
 		for (p = r; p < (n == WOFF_END ? len : n); p++) {
 			c = buf_at(p);
 			if (c == '\n')
 				break;
 			w = cell_w(c, col);
-			attr = (ed_sel && p >= lo && p < hi) ?
-			    A_REV | A_CLS(C_SEL) : 0;
+			if (ed_sel && p >= lo && p < hi)
+				attr = A_REV | A_CLS(C_SEL);
+			else
+				attr = chp_attr(buf_props(p), &c);
 			for (x = 0; x < w; x++, col++) {
-				int sc = (int)((woff_t)col - (opt_wrap ? 0 : leftcol));
+				int sc = col + sh;
 
 				if (!opt_wrap && (woff_t)col < leftcol)
 					continue;
@@ -1573,11 +2051,9 @@ draw_doc(int row0, int rows)
 			}
 		}
 		if (ed_sel && p >= lo && p < hi && buf_at(p) == '\n')
-			scr_put(row0 + i, col - (int)(opt_wrap ? 0 : leftcol), ' ',
-			    A_REV | A_CLS(C_SEL));
+			scr_put(row0 + i, col + sh, ' ', A_REV | A_CLS(C_SEL));
 		if (n == WOFF_END && keymode == KEYS_WORD)
-			scr_put(row0 + i, col - (int)(opt_wrap ? 0 : leftcol),
-			    G_DIAMOND, A_CLS(C_MARK));
+			scr_put(row0 + i, col + sh, G_DIAMOND, A_CLS(C_MARK));
 		r = n;
 	}
 }
@@ -1882,7 +2358,8 @@ render(void)
 			i++;
 		}
 		cr = r0 + i;
-		cc = col_of(rs, ed_cur) - (int)(opt_wrap ? 0 : leftcol);
+		cc = row_shift(rs, row_next(rs)) + col_of(rs, ed_cur) -
+		    (int)(opt_wrap ? 0 : leftcol);
 		if (cc >= scr_cols)
 			cc = scr_cols - 1;
 	} else if (ui == U_MENU) {
@@ -1951,6 +2428,17 @@ dispatch(int k)
 			running = 0;
 		else
 			ui = U_CONF_QUIT;
+		return;
+	case U_CONF_LOSS:
+		r = toupper(k & 0xff);
+		ui = U_EDIT;
+		if (r == 'Y') {
+			doc_word = 0;
+			if (ed_save(f_name) == 0 && quit_after)
+				running = 0;
+		} else
+			ed_msg(0, "Cancelled");
+		quit_after = 0;
 		return;
 	case U_CONF_CLEAR:
 		r = toupper(k & 0xff);

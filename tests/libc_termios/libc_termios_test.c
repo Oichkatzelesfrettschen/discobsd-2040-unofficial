@@ -1236,11 +1236,19 @@ check_pgrp_winsize(void)
 {
 	struct winsize w, got;
 
-	/* The foreground group reads back as written, in the kernel's range. */
+	/* The foreground group reads back as written, in 1 to 32767. */
 	model_reset(ECHO);
 	model.pgrp = 42;
 	CHECK(tcgetpgrp(MODEL_FD) == 42);
-	CHECK(tcsetpgrp(MODEL_FD, 0) == 0 && tcgetpgrp(MODEL_FD) == 0);
+	/* Group 0 is refused before any request; the group stays as it was. */
+	model.nlog = 0;
+	test_errno = 0;
+	CHECK(tcsetpgrp(MODEL_FD, 0) == -1 && test_errno == EINVAL);
+	CHECK(tcgetpgrp(MODEL_FD) == 42 && model.nlog == 1);
+	test_errno = 0;
+	CHECK(tcsetpgrp(MODEL_FD, -5) == -1 && test_errno == EINVAL);
+	CHECK(model.nlog == 1);
+	CHECK(tcsetpgrp(MODEL_FD, 1) == 0 && tcgetpgrp(MODEL_FD) == 1);
 	CHECK(tcsetpgrp(MODEL_FD, 32767) == 0 && tcgetpgrp(MODEL_FD) == 32767);
 	test_errno = 0;
 	CHECK(tcsetpgrp(MODEL_FD, 32768) == -1 && test_errno == EINVAL);

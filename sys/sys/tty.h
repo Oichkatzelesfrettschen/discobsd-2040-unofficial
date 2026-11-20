@@ -270,6 +270,7 @@ void ttywflush (struct tty *tp);
 #define TS_TBLOCK   0x000400L   /* tandem queue blocked */
 #define TS_RCOLL    0x000800L   /* collision in read select */
 #define TS_WCOLL    0x001000L   /* collision in write select */
+#define TS_HIDDEN   0x008000L   /* console not shown: output held, not drawn */
 #define TS_ASYNC    0x004000L   /* tty in async i/o mode */
 /* state for intra-line fancy editing work */
 #define TS_ERASE    0x040000L   /* within a \.../ for PRTRUB */

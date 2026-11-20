@@ -209,4 +209,24 @@ else
 	echo "check-image-selection: calibration: the path check reports a lean root with the pixel closures"
 fi
 
+# CoreMark and UnixBench live on the PicoCalc's SD root, so no default flash
+# root carries /usr/bin/coremark. Calibration first: the benchmark profile and
+# a picocalc root built with IMAGE_WITH=coremark do carry it.
+composed benchmark >"$tmp/benchmark"
+composed full >"$tmp/full"
+composed picocalc --with=coremark >"$tmp/picocalc-coremark"
+if lacks "$tmp/benchmark" /usr/bin/coremark; then
+	fail "calibration: the benchmark root lacks /usr/bin/coremark"
+fi
+if lacks "$tmp/picocalc-coremark" /usr/bin/coremark; then
+	fail "calibration: a picocalc root with IMAGE_WITH=coremark lacks /usr/bin/coremark"
+fi
+for root in full picocalc lean; do
+	if lacks "$tmp/$root" /usr/bin/coremark; then
+		echo "check-image-selection: the $root flash root carries no /usr/bin/coremark"
+	else
+		fail "the $root flash root carries /usr/bin/coremark, which the SD root holds"
+	fi
+done
+
 exit "$status"

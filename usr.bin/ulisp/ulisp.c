@@ -87,7 +87,7 @@ enum { COLOR_WHITE = 0xffff, COLOR_BLACK = 0 };
 #define tstflag(x)         (Flags & 1<<(x))
 
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
-#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#' || x == '\'')
+#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#' || x == '\'' || x == ';')
 #define fntype(x)          (getminmax((uint16_t)(x))>>6)
 #define longsymbolp(x)     (((x)->name & 0x03) == 0)
 #define longnamep(x)       (((x) & 0x03) == 0)
@@ -146,7 +146,6 @@ typedef int (*intfn_ptr_type)(int w, int x, int y, int z);
 typedef const struct {
   const char *string;
   fn_ptr_type fptr;
-  uint8_t minmax;
 } tbl_entry_t;
 
 // Stream typedefs
@@ -1084,7 +1083,11 @@ static void rebaseimage (unsigned int imagesize, intptr_t delta) {
 // collector and the printer rely on: every pointer is null or the address
 // of a cell the image holds; a chain ends and its cells are no pair's
 // target; and a code block, a stream and a builtin symbol stay inside their
-// tables. How the cells fit together as Lisp data is not examined.
+// tables. An array is checked against its dimensions: they are numbers whose
+// product makearray() would allow, and the tree holds a pair for every
+// subscript, with no pair in two trees or twice in one, and a number in every
+// word of a bit array. The other cells are values whatever they point at, so
+// how they fit together as Lisp data is not examined.
 
 #define IMAGEBLOCK 16  // Cells read at a time
 #define chainbit(bits, i)  ((bits)[(i)>>3] & (1u << ((i) & 7)))
@@ -1123,15 +1126,97 @@ static const char *imagetarget (uintptr_t base, unsigned int cells, const uint8_
   return chainbit(chains, index) ? imagelinked : NULL;
 }
 
+static const char imagearray[] = "image array does not match its dimensions";
+
+struct imagecheck {
+  uintptr_t base;
+  unsigned int cells;
+  const uint8_t *chains;
+  uint8_t *trees;  // Cells claimed by a tree or an array's pair
+};
+
+// Reads the pair at p, which no string chain owns, into *node; a claimed
+// cell must also be new to the arrays checked so far
+static const char *imagepair (const struct imagecheck *ic, uintptr_t p, object *node, bool claim) {
+  unsigned int index;
+  if (!imagepointer(ic->base, ic->cells, p, &index)) return imagerange;
+  if (chainbit(ic->chains, index)) return imagelinked;
+  if (claim) {
+    if (chainbit(ic->trees, index)) return imagearray;
+    setchain(ic->trees, index);
+  }
+  if (!imagecells(index, node, 1)) return "image is truncated";
+  return (node->type == ZZERO || node->type >= PAIR) ? NULL : imagearray;
+}
+
+// Reads the number cell at p into *num
+static const char *imagenumber (const struct imagecheck *ic, uintptr_t p, object *num) {
+  unsigned int index;
+  if (!imagepointer(ic->base, ic->cells, p, &index)) return imagearray;
+  if (!imagecells(index, num, 1)) return "image is truncated";
+  return (num->type == NUMBER) ? NULL : imagearray;
+}
+
+// The tree of buildarray(n, s): the node at p holds n leaves in s slots, and
+// every node a subscript can reach is a pair that no other tree uses. A leaf of
+// a bit array is a number cell; any other leaf is a value, checked as any cell is.
+static const char *imagetree (const struct imagecheck *ic, uintptr_t p, unsigned int n, unsigned int s, bool bits) {
+  object node, leaf;
+  const char *fault = imagepair(ic, p, &node, true);
+  if (fault != NULL) return fault;
+  unsigned int half = s >> 1;
+  for (int side=0; side<2 && fault == NULL; side++) {
+    unsigned int need = side ? ((n > half) ? n - half : 0) : ((n < half) ? n : half);
+    uintptr_t child = (uintptr_t)(side ? cdr(&node) : car(&node));
+    if (need == 0) continue;
+    if (half > 1) fault = imagetree(ic, child, need, half, bits);
+    else if (bits) fault = imagenumber(ic, child, &leaf);
+  }
+  return fault;
+}
+
+// The array whose pair, p, holds its tree and its dimension list. The
+// dimensions are numbers, a negative first one marking a bit array, whose
+// product (in words for a bit array) is one makearray() allows, and the tree
+// has a pair for every subscript, as makearray() builds it. The list is the
+// caller's and may be shared, so it is bounded by the cell count, not claimed.
+static const char *imagearraycheck (const struct imagecheck *ic, uintptr_t p) {
+  object pair, dim, num;
+  const char *fault = imagepair(ic, p, &pair, true);
+  if (fault != NULL) return fault;
+  int size = 1;
+  bool bits = false, toobig = false;
+  uintptr_t d = (uintptr_t)cdr(&pair);
+  for (unsigned int rank=0; d != 0; rank++) {
+    if (rank >= ic->cells) return imagearray;
+    if ((fault = imagepair(ic, d, &dim, false)) != NULL) return fault;
+    if ((fault = imagenumber(ic, (uintptr_t)car(&dim), &num)) != NULL) return fault;
+    int v = num.integer;
+    if (v == INT_MIN || (v < 0 && rank > 0)) return imagearray;
+    if (v < 0) { bits = true; v = -v; }
+    if (v == 0) { size = 0; toobig = false; }
+    else if (size > INT_MAX / v) toobig = true;
+    else size = size * v;
+    d = (uintptr_t)cdr(&dim);
+  }
+  if (bits) size = size / (sizeof(int)*8) + (size % (sizeof(int)*8) != 0);
+  if (toobig || (unsigned int)size > WORKSPACESIZE) return imagearray;
+  if (size == 0) return (car(&pair) == NULL) ? NULL : imagearray;
+  return imagetree(ic, (uintptr_t)car(&pair), size, nextpower2(size), bits);
+}
+
 // Returns NULL for a sound image, or what is wrong with it
 static const char *checkimage (const uintptr_t *header, unsigned int cells) {
   uintptr_t base = header[1];
   // Above the type codes, so no address reads as one, and without wrapping
   if (base <= PAIR || cells > (UINTPTR_MAX - base) / sizeof(object)) return "not an image this uLisp can load";
   size_t bytes = (cells + 7) / 8;
-  if ((uintptr_t)__builtin_frame_address(0) < StackLimit + bytes + 1024) return "no room";
-  uint8_t chains[bytes + 1];
+  // Two bitmaps and the recursion of imagetree(), which is as deep as the array is wide in bits
+  if ((uintptr_t)__builtin_frame_address(0) < StackLimit + 2 * bytes + 2048) return "no room";
+  uint8_t chains[bytes + 1], trees[bytes + 1];
   memset(chains, 0, bytes);
+  memset(trees, 0, bytes);
+  const struct imagecheck ic = { base, cells, chains, trees };
   object block[IMAGEBLOCK];
   // Every string chain: in range, no cell twice (which also ends a loop)
   for (unsigned int first=0; first<cells; first+=IMAGEBLOCK) {
@@ -1166,6 +1251,7 @@ static const char *checkimage (const uintptr_t *header, unsigned int cells) {
         if (fault == NULL && cd != 0) fault = imagetarget(base, cells, chains, cd);
       } else if (type == ARRAY) {
         fault = imagetarget(base, cells, chains, cd);
+        if (fault == NULL) fault = imagearraycheck(&ic, cd);
       } else if (type == SYMBOL) {
         if (longsymbolp(obj)) continue;  // A chain header, checked above
         symbol_t name = obj->name;
@@ -1489,6 +1575,23 @@ static object *divide_floats (object *args, float fresult) {
   return makefloat(fresult);
 }
 
+// The exact remainder of x by y with the sign of x, as fmodf() gives it. The
+// library's is a double-precision routine of 650 bytes the program has no other
+// use for; here each step subtracts the largest y*2^k not above the rest, which
+// is exact, so the result is too.
+static float fmodx (float x, float y) {
+  float ax = fabsf(x), ay = fabsf(y);
+  if (ay == 0) return ay / ay;
+  if (ay != ay) return ay;
+  if (ax - ax != 0) return ax - ax;
+  while (ax >= ay) {
+    float t = ay;
+    while (t + t <= ax) t = t + t;
+    ax = ax - t;
+  }
+  return (x < 0) ? -ax : ax;
+}
+
 static object *remmod (object *args, bool mod) {
   object *arg1 = first(args);
   object *arg2 = second(args);
@@ -1497,14 +1600,14 @@ static object *remmod (object *args, bool mod) {
     if (divisor == 0) error2(divisionbyzero);
     int dividend = arg1->integer;
     int remainder = (divisor == -1) ? 0 : dividend % divisor;  // INT_MIN % -1 overflows
-    if (mod && (dividend<0) != (divisor<0)) remainder = remainder + divisor;
+    if (mod && remainder != 0 && (remainder<0) != (divisor<0)) remainder = remainder + divisor;  // CLHS MOD: the sign of the divisor
     return number(remainder);
   } else {
     float fdivisor = checkintfloat(arg2);
     if (fdivisor == 0.0) error2(divisionbyzero);
     float fdividend = checkintfloat(arg1);
-    float fremainder = fmodf(fdividend , fdivisor);
-    if (mod && (fdividend<0) != (fdivisor<0)) fremainder = fremainder + fdivisor;
+    float fremainder = fmodx(fdividend , fdivisor);
+    if (mod && fremainder != 0.0 && (fremainder<0) != (fdivisor<0)) fremainder = fremainder + fdivisor;
     return makefloat(fremainder);
   }
 }
@@ -1693,7 +1796,7 @@ static object *readbitarray (gfun_t gfun) {
     tail = cell;
     ch = gfun();
   }
-  LastChar = ch;
+  if (!issp(ch)) LastChar = ch;
   int size = listlength(head);
   object *array = makearray(cons(number(size), NULL), number(0), true);
   size = (size + sizeof(int)*8 - 1)/(sizeof(int)*8);
@@ -2398,9 +2501,9 @@ static const int scale[] = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,74
 // A note below zero counts down from the octave, in a wider type than the sum
 static void playnote (int pin, int note, int octave) {
   (void) pin;
-  int semitone = note % 12;
-  if (semitone < 0) semitone = semitone + 12;
-  long long oct = (long long)octave + ((long long)note - semitone) / 12;
+  int semitone = note % 12, whole = note / 12;
+  if (semitone < 0) { semitone = semitone + 12; whole--; }
+  long long oct = (long long)octave + whole;
   if (oct < 0 || oct > 8) {
     error("octave out of range", number((oct < 0) ? ((oct < INT_MIN) ? INT_MIN : (int)oct) : INT_MAX));
   }
@@ -2621,10 +2724,10 @@ static object *sp_defvar (object *args, object *env) {
   if (!symbolp(var)) error(notasymbol, var);
   object *val = NULL;
   args = cdr(args);
-  if (args != NULL) { setflag(NOESC); val = eval(first(args), env); clrflag(NOESC); }
   object *pair = value(var->name, GlobalEnv);
-  if (pair != NULL) cdr(pair) = val;
-  else push(cons(var, val), GlobalEnv);
+  if (pair != NULL) return var; // a bound variable keeps its value and its form is not evaluated (CLHS DEFVAR)
+  if (args != NULL) { setflag(NOESC); val = eval(first(args), env); clrflag(NOESC); }
+  push(cons(var, val), GlobalEnv);
   return var;
 }
 
@@ -2671,6 +2774,7 @@ static object *sp_pop (object *args, object *env) {
   if (arg == NULL) error2(invalidarg);
   object **loc = place(arg, env, &bit);
   if (bit < -1) error(invalidarg, arg);
+  if (*loc == NULL) return nil;
   if (!consp(*loc)) error(notalist, *loc);
   object *result = car(*loc);
   pop(*loc);
@@ -2679,90 +2783,47 @@ static object *sp_pop (object *args, object *env) {
 
 // Accessors
 
-static object *sp_incf (object *args, object *env) {
+// incf and decf: sign is 1 or -1. An integer result outside 32 bits is a float.
+static object *incdec (object *args, object *env, int sign) {
   int bit;
   object **loc = place(first(args), env, &bit);
   if (bit < -1) error2(notanumber);
   args = cdr(args);
 
   object *x = *loc;
-  object *inc = (args != NULL) ? eval(first(args), env) : NULL;
+  object *amt = (args != NULL) ? eval(first(args), env) : NULL;
 
   if (bit != -1) {
-    int increment;
-    if (inc == NULL) increment = 1; else increment = checkbitvalue(inc);
-    int newvalue = (((*loc)->integer)>>bit & 1) + increment;
+    int step = (amt == NULL) ? 1 : checkbitvalue(amt);
+    int newvalue = (((*loc)->integer)>>bit & 1) + ((sign > 0) ? step : -step);
 
     if (newvalue & ~1) error2("result is not a bit value");
     *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)newvalue<<bit));
     return number(newvalue);
   }
 
-  if (floatp(x) || floatp(inc)) {
-    float increment;
+  if (floatp(x) || floatp(amt)) {
+    float step = (amt == NULL) ? 1.0 : checkintfloat(amt);
     float value = checkintfloat(x);
 
-    if (inc == NULL) increment = 1.0; else increment = checkintfloat(inc);
+    *loc = makefloat((sign > 0) ? value + step : value - step);
+  } else if (integerp(x) && (integerp(amt) || amt == NULL)) {
+    int step = (amt == NULL) ? 1 : amt->integer;
+    long long sum = (sign > 0) ? (long long)x->integer + step : (long long)x->integer - step;
 
-    *loc = makefloat(value + increment);
-  } else if (integerp(x) && (integerp(inc) || inc == NULL)) {
-    int increment;
-    int value = x->integer;
-
-    if (inc == NULL) increment = 1; else increment = inc->integer;
-
-    if (increment < 1) {
-      if (INT_MIN - increment > value) *loc = makefloat((float)value + (float)increment);
-      else *loc = number(value + increment);
-    } else {
-      if (INT_MAX - increment < value) *loc = makefloat((float)value + (float)increment);
-      else *loc = number(value + increment);
-    }
+    if (sum < INT_MIN || sum > INT_MAX)
+      *loc = makefloat((sign > 0) ? (float)x->integer + (float)step : (float)x->integer - (float)step);
+    else *loc = number((int)sum);
   } else error2(notanumber);
   return *loc;
 }
 
+static object *sp_incf (object *args, object *env) {
+  return incdec(args, env, 1);
+}
+
 static object *sp_decf (object *args, object *env) {
-  int bit;
-  object **loc = place(first(args), env, &bit);
-  if (bit < -1) error2(notanumber);
-  args = cdr(args);
-
-  object *x = *loc;
-  object *dec = (args != NULL) ? eval(first(args), env) : NULL;
-
-  if (bit != -1) {
-    int decrement;
-    if (dec == NULL) decrement = 1; else decrement = checkbitvalue(dec);
-    int newvalue = (((*loc)->integer)>>bit & 1) - decrement;
-
-    if (newvalue & ~1) error2("result is not a bit value");
-    *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)newvalue<<bit));
-    return number(newvalue);
-  }
-
-  if (floatp(x) || floatp(dec)) {
-    float decrement;
-    float value = checkintfloat(x);
-
-    if (dec == NULL) decrement = 1.0; else decrement = checkintfloat(dec);
-
-    *loc = makefloat(value - decrement);
-  } else if (integerp(x) && (integerp(dec) || dec == NULL)) {
-    int decrement;
-    int value = x->integer;
-
-    if (dec == NULL) decrement = 1; else decrement = dec->integer;
-
-    if (decrement < 1) {
-      if (INT_MAX + decrement < value) *loc = makefloat((float)value - (float)decrement);
-      else *loc = number(value - decrement);
-    } else {
-      if (INT_MIN + decrement > value) *loc = makefloat((float)value - (float)decrement);
-      else *loc = number(value - decrement);
-    }
-  } else error2(notanumber);
-  return *loc;
+  return incdec(args, env, -1);
 }
 
 static object *sp_setf (object *args, object *env) {
@@ -3184,8 +3245,7 @@ static object *fn_keywordp (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   if (!symbolp(arg)) return nil;
-  if (colonp(arg->name)) return tee;
-  if (keywordp(arg)) return (number((int)lookupfn(builtin(arg->name))));
+  if (colonp(arg->name) || keywordp(arg)) return tee;
   return nil;
 }
 
@@ -3840,7 +3900,8 @@ static object *fn_expt (object *args, object *env) {
   (void) env;
   object *arg1 = first(args); object *arg2 = second(args);
   float float1 = checkintfloat(arg1);
-  float value = logf(fabsf(float1)) * checkintfloat(arg2);
+  float power = checkintfloat(arg2);
+  float value = (power == 0) ? 0 : logf(fabsf(float1)) * power; // x**0 is 1, also for 0
   if (integerp(arg1) && integerp(arg2) && ((arg2->integer) >= 0) && (fabsf(value) < 21.4875))
     return number(intpower(arg1->integer, arg2->integer));
   if (float1 < 0) {
@@ -3850,81 +3911,54 @@ static object *fn_expt (object *args, object *env) {
   return makefloat(expf(value));
 }
 
-// The integer a rounded float names, or the float itself when no int holds it
-static object *roundedresult (float f) {
-  if (f >= -2147483648.0f && f < 2147483648.0f) return number((int)f);
-  return makefloat(f);
-}
-
-// Nonzero divisor of a rounding division; INT_MIN / -1 has no int quotient
-static float rounddivisor (object *arg) {
-  float f = checkintfloat(arg);
-  if (f == 0.0) error2(divisionbyzero);
-  return f;
+// FLOOR, CEILING, TRUNCATE and ROUND of CLHS: mode 0 to 3. Two integers divide
+// exactly; any other operands divide as floats. No second value is returned.
+static object *quotient (object *args, int mode) {
+  object *arg = first(args);
+  object *arg2 = cdr(args);
+  if (integerp(arg) && (arg2 == NULL || integerp(first(arg2)))) {
+    int num = arg->integer, den = (arg2 != NULL) ? first(arg2)->integer : 1;
+    if (den == 0) error2(divisionbyzero);
+    if (den == -1 && num == INT_MIN) return makefloat(-(float)num);  // No int holds it
+    int quo = num/den, rem = num - quo*den;
+    if (rem != 0) {
+      bool same = (num < 0) == (den < 0);  // The exact quotient is positive
+      unsigned int ar = (rem < 0) ? -(unsigned int)rem : (unsigned int)rem;
+      unsigned int ad = (den < 0) ? -(unsigned int)den : (unsigned int)den;
+      if (mode == 0 ? !same : mode == 1 ? same : mode == 3 && (ar > ad - ar || (ar == ad - ar && (quo & 1)))) quo = quo + (same ? 1 : -1);
+    }
+    return number(quo);
+  }
+  float y = (arg2 != NULL) ? checkintfloat(first(arg2)) : 1.0;
+  float x = checkintfloat(arg);
+  if (y == 0.0) error2(divisionbyzero);
+  x = x / y;
+  float f = floorf(x), d = x - f;
+  if (mode == 1) f = ceilf(x);
+  else if (mode == 2) { if (x < 0) f = ceilf(x); }
+  else if (mode == 3 && (d > 0.5 || (d == 0.5 && fmodx(f, 2.0) != 0.0))) f = f + 1.0;
+  if (!(f >= -2147483648.0 && f < 2147483648.0)) return makefloat(f);
+  return number((int)f);
 }
 
 static object *fn_ceiling (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  args = cdr(args);
-  if (args != NULL) {
-    object *arg2 = first(args);
-    if (integerp(arg) && integerp(arg2)) {
-      int num = arg->integer, den = arg2->integer;
-      if (den == 0) error2(divisionbyzero);
-      if (num == INT_MIN && den == -1) return makefloat(-(float)num);
-      int quo = num/den, rem = num-(quo*den);
-      if (((num<0) != (den<0)) || rem==0) return number(quo); else return number(quo+1);
-    } else return roundedresult(ceilf(checkintfloat(arg) / rounddivisor(arg2)));
-  } else {
-    if (integerp(arg)) return number(arg->integer);
-    else return roundedresult(ceilf(checkintfloat(arg)));
-  }
+  return quotient(args, 1);
 }
 
 static object *fn_floor (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  args = cdr(args);
-  if (args != NULL) {
-    object *arg2 = first(args);
-    if (integerp(arg) && integerp(arg2)) {
-      int num = arg->integer, den = arg2->integer;
-      if (den == 0) error2(divisionbyzero);
-      if (num == INT_MIN && den == -1) return makefloat(-(float)num);
-      int quo = num/den, rem = num-(quo*den);
-      if (((num<0) == (den<0)) || rem==0) return number(quo); else return number(quo-1);
-    } else return roundedresult(floorf(checkintfloat(arg) / rounddivisor(arg2)));
-  } else {
-    if (integerp(arg)) return number(arg->integer);
-    else return roundedresult(floorf(checkintfloat(arg)));
-  }
+  return quotient(args, 0);
 }
 
 static object *fn_truncate (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  args = cdr(args);
-  if (args != NULL) {
-    object *arg2 = first(args);
-    if (integerp(arg) && integerp(arg2)) {
-      int num = arg->integer, den = arg2->integer;
-      if (den == 0) error2(divisionbyzero);
-      if (num == INT_MIN && den == -1) return makefloat(-(float)num);
-      return number(num / den);
-    } else return roundedresult(checkintfloat(arg) / rounddivisor(arg2));
-  } else {
-    if (integerp(arg)) return number(arg->integer);
-    else return roundedresult(checkintfloat(arg));
-  }
+  return quotient(args, 2);
 }
 
 static object *fn_round (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  args = cdr(args);
-  if (args != NULL) return roundedresult(roundf(checkintfloat(arg) / rounddivisor(first(args))));
-  else return roundedresult(roundf(checkintfloat(arg)));
+  return quotient(args, 3);
 }
 
 // Characters
@@ -4323,7 +4357,7 @@ static object *fn_writestring (object *args, object *env) {
   clrflag(PRINTREADABLY);
   printstring(obj, pfun);
   Flags = temp;
-  return nil;
+  return obj;
 }
 
 static object *fn_writeline (object *args, object *env) {
@@ -4335,7 +4369,7 @@ static object *fn_writeline (object *args, object *env) {
   printstring(obj, pfun);
   pln(pfun);
   Flags = temp;
-  return nil;
+  return obj;
 }
 
 static object *fn_gc (object *args, object *env) {
@@ -4755,7 +4789,7 @@ static object *sp_ignoreerrors (object *args, object *env) {
   handler = previous_handler;
   if (!muffled) clrflag(MUFFLEERRORS);
 
-  if (signaled) return bsymbol(NOTHING);
+  if (signaled) return nil;
   else return result;
 }
 
@@ -4776,7 +4810,8 @@ static object *sp_error (object *args, object *env) {
 
 static object *fn_directory (object *args, object *env) {
   (void) args, (void) env;
-  if (!sys_diropen(".")) error2("problem reading directory");
+  uint32_t state[SYS_DIRWORDS];
+  if (!sys_diropen(".", state)) error2("problem reading directory");
   object *result = cons(NULL, NULL);
   object *ptr = result;
   const char *name;
@@ -5003,9 +5038,21 @@ static object *fn_savebmp (object *args, object *env) {
 // Built-in symbol lookup table
 
 static const tbl_entry_t lookup_table[] = {
-#define N(e, name, fn, minmax, doc) [e] = { name, fn, minmax },
-#define B(name, fn, minmax, doc) { name, fn, minmax },
-#define K(name, value, context) { name, (fn_ptr_type)(uintptr_t)(value), context },
+#define N(e, name, fn, minmax, doc) [e] = { name, fn },
+#define B(name, fn, minmax, doc) { name, fn },
+#define K(name, value, context) { name, (fn_ptr_type)(uintptr_t)(value) },
+#include "builtins.def"
+#undef N
+#undef B
+#undef K
+};
+
+// The argument counts (or the context of a keyword) of the entries, in their own
+// bytes: in the entry they cost three bytes of padding each
+static const uint8_t minmax_table[] = {
+#define N(e, name, fn, minmax, doc) [e] = minmax,
+#define B(name, fn, minmax, doc) minmax,
+#define K(name, value, context) context,
 #include "builtins.def"
 #undef N
 #undef B
@@ -5022,6 +5069,7 @@ _Static_assert(arraysize(lookup_table) == 0
 #undef B
 #undef K
   , "builtins.def: the N lines must come first and unbroken");
+_Static_assert(arraysize(minmax_table) == arraysize(lookup_table), "one argument count per entry");
 
 // Table cross-reference functions
 
@@ -5057,8 +5105,7 @@ static intptr_t lookupfn (builtin_t name) {
 }
 
 static uint8_t getminmax (builtin_t name) {
-  bool n = name<tablesize(0);
-  return table(n?0:1)[n?name:name-tablesize(0)].minmax;
+  return minmax_table[name];
 }
 
 static void checkminmax (builtin_t name, int nargs) {
@@ -5437,7 +5484,7 @@ static void pmantissa (float f, pfun_t pfun) {
 
 static void pfloat (float f, pfun_t pfun) {
   if (isnan(f)) { pfstring("NaN", pfun); return; }
-  if (f == 0.0) { pfun('0'); return; }
+  if (f == 0.0) { pfstring("0.0", pfun); return; }
   if (isinf(f)) { pfstring("Inf", pfun); return; }
   if (f < 0) { pfun('-'); f = -f; }
   // Calculate exponent
@@ -5533,13 +5580,12 @@ static int gserial (void) {
 
 static object *nextitem (gfun_t gfun) {
   int ch = gfun();
-  while(issp(ch)) ch = gfun();
-
-  if (ch == ';') {
+  for (;;) {  // CLHS 2.4.4: a semicolon comment runs to the end of the line
+    while(issp(ch)) ch = gfun();
+    if (ch != ';') break;
     do { ch = gfun(); if (ch == ';' || ch == '(') setflag(NOECHO); }
-    while(ch != '(');
+    while(ch != '\n' && ch != -1);
   }
-  if (ch == '\n') ch = gfun();
   if (ch == -1) return (object *)ENDOFINPUT;
   if (ch == ')') return (object *)KET;
   if (ch == '(') return (object *)BRA;
@@ -5555,6 +5601,7 @@ static object *nextitem (gfun_t gfun) {
   unsigned int result = 0;
   bool isfloat = false;
   float fresult = 0.0;
+  bool big = false;  // The digits no longer fit result
 
   if (ch == '+') {
     buffer[index++] = ch;
@@ -5578,9 +5625,15 @@ static object *nextitem (gfun_t gfun) {
       base = 0; ch = gfun();
       if (issp(ch) || isbr(ch)) return character(ch);
       else LastChar = ch;
-    } else if (ch == '|') {
-      do { while (gfun() != '|'); }
-      while (gfun() != '#');
+    } else if (ch == '|') {  // CLHS 2.4.8.19: balanced against nested #| and |#
+      int depth = 1, last = 0;
+      while (depth > 0) {
+        ch = gfun();
+        if (ch == -1) return (object *)ENDOFINPUT;
+        if (last == '|' && ch == '#') { depth--; ch = 0; }
+        else if (last == '#' && ch == '|') { depth++; ch = 0; }
+        last = ch;
+      }
       return nextitem(gfun);
     } else if (ch2 == 'B') base = 2;
     else if (ch2 == 'O') base = 8;
@@ -5608,9 +5661,9 @@ static object *nextitem (gfun_t gfun) {
     buffer[index++] = ch;
     if (base == 10 && ch == '.' && !isexponent) {
       isfloat = true;
-      fresult = result;
+      if (!big) fresult = result;
     } else if (base == 10 && (ch == 'e' || ch == 'E')) {
-      if (!isfloat) { isfloat = true; fresult = result; }
+      if (!isfloat) { isfloat = true; if (!big) fresult = result; }
       isexponent = true;
       if (valid == 1) valid = 0; else valid = -1;
     } else if (isexponent && ch == '-') {
@@ -5625,7 +5678,11 @@ static object *nextitem (gfun_t gfun) {
         fresult = fresult + digit / divisor;
         divisor = divisor * 10.0;
       } else {
-        result = result * base + digit;
+        if (valid == 1) {
+          if (result > (UINT_MAX - digit) / base) { if (!big) fresult = result; big = true; }
+          if (big) fresult = fresult * base + digit;
+          result = result * base + digit;
+        }
       }
     }
     ch = gfun();
@@ -5635,6 +5692,7 @@ static object *nextitem (gfun_t gfun) {
   if (isbr(ch)) LastChar = ch;
   if (isfloat && valid == 1) return makefloat(fresult * sign * tento(exponent * esign));
   else if (valid == 1) {
+    if (big) return makefloat(fresult*sign);
     if (base == 10 && result > ((unsigned int)INT_MAX+(1-sign)/2))
       return makefloat((float)result*sign);
     return number(result*sign);
@@ -5645,7 +5703,8 @@ static object *nextitem (gfun_t gfun) {
       if (strcasecmp(buffer, p) == 0) return character(c);
       p = p + strlen(p) + 1; c++;
     }
-    if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
+    if (index == 3 && digitvalue(buffer[0]) < 10 && digitvalue(buffer[1]) < 10 && digitvalue(buffer[2]) < 10)
+      return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
     error2("unknown character");
   }
 
@@ -5719,6 +5778,16 @@ static void initenv (void) {
   tee = bsymbol(TEE);
 }
 
+// The class of a symbol for the colors of the console line editor (hilite.c),
+// from the table the reader looks symbols up in
+int ulisp_symclass (const char *name) {
+  builtin_t x = lookupbuiltin((char *)name);
+  if (x == ENDFUNCTIONS) return HL_PLAIN;
+  if (x == NIL || x == TEE) return HL_CONSTANT;
+  if (fntype(x) == FUNCTIONS) return HL_FUNCTION;
+  return (fntype(x) != OTHER_FORMS || (getminmax(x) & 077)) ? HL_SPECIAL : HL_PLAIN;
+}
+
 // Read/Evaluate/Print loop
 
 static void repl (object *env) {
@@ -5731,7 +5800,9 @@ static void repl (object *env) {
     }
     pserial('>'); pserial(' ');
     Context = NIL;
+    sys_hilite(true);
     object *line = readmain(gserial);
+    sys_hilite(false);
     // Break handling
     if (BreakLevel) {
       if (line == nil || line == bsymbol(COLONC)) {
@@ -5749,8 +5820,11 @@ static void repl (object *env) {
     protect(line);
     pfl(pserial);
     line = eval(line, env);
+    clrflag(RETURNFLAG); // a return outside a loop ends with its form
     pfl(pserial);
+    sys_colorout(true);
     printobject(line, pserial);
+    sys_colorout(false);
     unprotect();
     pfl(pserial);
     pln(pserial);
@@ -5765,7 +5839,7 @@ void ulisp_fail (const char *message) {
 static void ulisperror (void) {
   // Come here after error
   sys_fclose(SYS_FIN); sys_fclose(SYS_FOUT); sys_fclose(SYS_FTMP);
-  clrflag(NOESC); BreakLevel = 0; TraceStart = 0; TraceTop = 0;
+  clrflag(NOESC); clrflag(RETURNFLAG); sys_colorout(false); BreakLevel = 0; TraceStart = 0; TraceTop = 0;
   setflag(PRINTREADABLY);  // An error inside princ leaves it clear
   for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
 }
@@ -5781,6 +5855,7 @@ static void loadfile (const char *path) {
     if (line == (object *)KET) error2("unmatched right bracket");
     protect(line);
     eval(line, NULL);
+    clrflag(RETURNFLAG);
     unprotect();
     line = readmain(SDread);
   }
@@ -5788,7 +5863,7 @@ static void loadfile (const char *path) {
 }
 
 static void usage (void) {
-  pfstring("usage: ulisp [-w cells] [-i image] [file ...]\n", pserial);
+  pfstring("usage: ulisp [-n] [-w cells] [-i image] [file ...]\n", pserial);
   sys_exit(2);
 }
 
@@ -5798,6 +5873,7 @@ int main (int argc, char **argv) {
   unsigned int cells = 0;
   while (next < argc && argv[next][0] == '-' && argv[next][1] != '\0') {
     char option = argv[next++][1];
+    if (option == 'n') { sys_nohilite(); continue; }
     if (next == argc) usage();
     if (option == 'w') {
       for (const char *s = argv[next]; *s != '\0'; s++) {

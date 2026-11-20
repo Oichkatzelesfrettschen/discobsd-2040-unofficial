@@ -134,6 +134,43 @@ Headroom: the retained PICOCALC and PICOCALC_PSRAM builds (dated 2026-11-13, not
 | 6 uLisp canvas window | Lisp drawing in a window | 4 | canvas 4-bit buffer sized to the window | uLisp fill/line output equals model | canvas pixels differ after an overlapping menu |
 | 7 optional page-flip experiment, RGB565 default | tear-free half-screen | 1, PICOCALC_SD | 0 RAM | none (board only) | tear or wrong picture in the camera capture |
 
+## Stage 2 as built
+
+Stage 2 (focus, window management keys and an input layer) is in lib/libwin (win.c, win_input.c, win_input_dev.c) and tests/rp2040/windemo, with the host gate in tests/libwin (`check-libwin-host`). No board ran it.
+
+Sizes, arm-none-eabi-gcc 16.2.0 at -Os, text in bytes, data and bss zero for every object:
+
+| Object | Stage 1 | Stage 2 |
+|---|---|---|
+| win.o | 2,790 | 3,904 |
+| win_input.o | none | 1,658 |
+| win_input_dev.o | none | 524 |
+| win_lcdgfx.o | 168 | 168 |
+| lcdfont.o | 855 | 855 |
+
+The stage added 3,296 B of text against the estimate of 2-3 KB, 296 B over its upper end. `struct win_scene` is 5,852 B on the target, `struct win` 68 B and `struct win_input` 32 B; windemo links to 12,751 B text, 260 B data and 5,932 B bss with libc.
+
+Bindings. One table (`win_bindings` in win_input.c) holds them, and each exists on both sources unless noted:
+
+| Action | Keys | Reason |
+|---|---|---|
+| next window | F6, Ctrl-Tab (raw only) | an F-key needs no modifier and has the same meaning on both sources; the tty sends Ctrl-Tab as Tab |
+| previous window | F7, Ctrl-Backspace (raw only) | the tty sends Ctrl-Backspace as DEL |
+| move mode | F8 | arrows, Enter and Esc finish it |
+| resize mode | F9 | same |
+| close request | F10, Ctrl-W | Ctrl-W is a plain Ctrl-letter byte; Ctrl-M, I, H and [ are Enter, Tab, Backspace and Esc on the tty and stay unbound |
+
+Only Ctrl arrives as a modifier key in the tree (key 0xa5, picokbd_map.c:31); the firmware applies Shift, Caps Lock and the symbol layer before the byte, so Shift-Tab and Alt bindings are not available.
+
+What differs from the plan:
+- The plan's stage-2 check (visible rectangles partition each window; repaint set equals new minus old visible area, rule 2) is not built. The compositor repaints every window under each damage rectangle, so no visible-region list exists; a raise or move damages the window's whole rectangle, and the host gate instead compares the panel with a per-pixel reference painter after each operation and key stroke. Computing the exposed set costs rectangle-subtraction code and RAM for a saving of SPI bytes only, so it waits for a measurement that shows the saving matters.
+- Focus follows raise by default (`focus_follows_raise`), a hidden window is skipped by the renderer and records no damage, and the focus moves to the next shown window down the stack when the focused one is destroyed or hidden.
+- Key repeat is the controller's HOLD event; a PRESSED event is always a press. The kernel reaches the tty queue for typing presses only (picokbd_translate() returns no byte for HOLD, RELEASED or a modifier, picokbd_map.c:85), so a tty-source program receives no repeat at all, and select(2) on the console wakes for typing presses and nothing else (lcdselect() is ttyselect() over that queue, lcdcons.c:501-505). A raw session therefore polls GETKEY every 20 ms. A kernel wake from picokbd_evq_put() (picokbd_evq.c:143) would remove the poll; it is recorded as open and not made.
+- A raw session leaves each typed byte in the tty queue as well, so the wait reads and discards them; left in place they keep select ready and the loop spins (the gate's mutant fails by that count).
+- A scene call that fails at the backend returns -1 from the input layer at once, with the scene, focus and mode as before and the failed event not applied; the descriptor loop discards the rest of that read batch, clears the modifier table and the swallowed key, and returns -1. Cancel restores position and size in one `win_set_geometry()` call, so it succeeds whole or changes nothing. A mode ends when its window is destroyed or its slot is reused (compared by creation generation).
+- One rule covers every operation that changes more than one thing: each public call reserves its worst case (`WIN_DAMAGE_CALL`, 2 rectangles) before its first change, and a compound operation reserves k times that with `win_reserve()`. The only compound in the input layer is the window cycle (restack, then refocus): 4. Create, destroy and hide with their focus hand-off, show, raise, lower, focus, move, resize and set_geometry reserve 2 each, set_title and invalidate use 1 of their 2. `win_input_wait()` charges elapsed time on every loop turn with gettimeofday(), which the target resolves to the 1 ms tick (kern_time.c, HZ 1000), so it returns within the timeout plus one 20 ms poll even for a source that stays readable without completing an event.
+- A lost count clears the modifier table before the batch it precedes, because the dropped events are the oldest; a held Ctrl returns with its next HOLD.
+
 ## Donors and licenses
 
 | Donor (revision) | Read | License | Takeaway / why unfit |

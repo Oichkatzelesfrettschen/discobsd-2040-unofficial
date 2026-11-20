@@ -101,4 +101,5 @@
 (list (note 0 -1 4) (note 0 13 3))
 (note 0 -2147483648 4)
 (note 0 2147483647 4)
+(list (rem 1e30 7) (rem -1e30 3) (rem 5.5 1e-3) (rem 3e38 1.1) (mod -7.5 2) (mod 1e30 7))
 (list (get-key) (get-key) (get-key))

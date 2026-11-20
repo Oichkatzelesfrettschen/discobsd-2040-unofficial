@@ -256,6 +256,9 @@ Error: 'note' octave out of range: -178956967
 10951> 
 Error: 'note' octave out of range: 2147483647
 10937> 
+(1.0 0.0 9.99739e-4 0.441053 0.5 1.0)
+
+10859> 
 (#\Newline #\Null #\Null)
 
-10914> 
+10836> 

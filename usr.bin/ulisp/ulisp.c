@@ -25,8 +25,8 @@
  *     loadimage() rebases it;
  *   - cells, symbols and string words are pointer-sized, so one source
  *     serves 32-bit and 64-bit hosts;
- *   - the Wi-Fi, I2C, SPI, extra serial port, analogue output and display
- *     rotation functions are absent, with the devices they need.
+ *   - the Wi-Fi, I2C, SPI, extra serial port and display rotation
+ *     functions are absent, with the devices they need.
  */
 
 // Configuration
@@ -342,6 +342,7 @@ static const stream_entry_t *streamtable (int n);
 static pfun_t pstreamfun (object *args);
 static gfun_t gstreamfun (object *args);
 static void checkanalogread (int pin);
+static void checkanalogwrite (int pin);
 static void playnote (int pin, int note, int octave);
 static void nonote (int pin);
 static void doze (int secs);
@@ -526,6 +527,7 @@ static object *fn_pinmode (object *args, object *env);
 static object *fn_digitalread (object *args, object *env);
 static object *fn_digitalwrite (object *args, object *env);
 static object *fn_analogread (object *args, object *env);
+static object *fn_analogwrite (object *args, object *env);
 static object *fn_delay (object *args, object *env);
 static object *fn_millis (object *args, object *env);
 static object *fn_sleep (object *args, object *env);
@@ -1573,6 +1575,23 @@ static object *divide_floats (object *args, float fresult) {
   return makefloat(fresult);
 }
 
+// The exact remainder of x by y with the sign of x, as fmodf() gives it. The
+// library's is a double-precision routine of 650 bytes the program has no other
+// use for; here each step subtracts the largest y*2^k not above the rest, which
+// is exact, so the result is too.
+static float fmodx (float x, float y) {
+  float ax = fabsf(x), ay = fabsf(y);
+  if (ay == 0) return ay / ay;
+  if (ay != ay) return ay;
+  if (ax - ax != 0) return ax - ax;
+  while (ax >= ay) {
+    float t = ay;
+    while (t + t <= ax) t = t + t;
+    ax = ax - t;
+  }
+  return (x < 0) ? -ax : ax;
+}
+
 static object *remmod (object *args, bool mod) {
   object *arg1 = first(args);
   object *arg2 = second(args);
@@ -1587,7 +1606,7 @@ static object *remmod (object *args, bool mod) {
     float fdivisor = checkintfloat(arg2);
     if (fdivisor == 0.0) error2(divisionbyzero);
     float fdividend = checkintfloat(arg1);
-    float fremainder = fmodf(fdividend , fdivisor);
+    float fremainder = fmodx(fdividend , fdivisor);
     if (mod && fremainder != 0.0 && (fremainder<0) != (fdivisor<0)) fremainder = fremainder + fdivisor;
     return makefloat(fremainder);
   }
@@ -2469,6 +2488,10 @@ static gfun_t gstreamfun (object *args) {
 
 static void checkanalogread (int pin) {
   if (!(pin>=26 && pin<=29)) error(invalidpin, number(pin));
+}
+
+static void checkanalogwrite (int pin) {
+  if (!(pin>=0 && pin<=29)) error(invalidpin, number(pin));
 }
 
 // Note
@@ -3913,7 +3936,7 @@ static object *quotient (object *args, int mode) {
   float f = floorf(x), d = x - f;
   if (mode == 1) f = ceilf(x);
   else if (mode == 2) { if (x < 0) f = ceilf(x); }
-  else if (mode == 3 && (d > 0.5 || (d == 0.5 && fmodf(f, 2.0) != 0.0))) f = f + 1.0;
+  else if (mode == 3 && (d > 0.5 || (d == 0.5 && fmodx(f, 2.0) != 0.0))) f = f + 1.0;
   if (!(f >= -2147483648.0 && f < 2147483648.0)) return makefloat(f);
   return number((int)f);
 }
@@ -4445,7 +4468,20 @@ static object *fn_analogread (object *args, object *env) {
     pin = checkinteger(arg);
     checkanalogread(pin);
   }
-  return number(sys_analogread(pin));
+  return number(sys_analogread(pin) >> 2);  // 12-bit count, upstream's default 10 bits
+}
+
+static object *fn_analogwrite (object *args, object *env) {
+  (void) env;
+  int pin;
+  object *arg = first(args);
+  if (keywordp(arg)) pin = checkkeyword(arg);
+  else pin = checkinteger(arg);
+  checkanalogwrite(pin);
+  object *value = second(args);
+  int duty = checkinteger(value);
+  sys_analogwrite(pin, duty < 0 ? 0 : duty > 255 ? 255 : duty);  // upstream's default 8 bits
+  return value;
 }
 
 static object *fn_delay (object *args, object *env) {

@@ -145,6 +145,18 @@ mutant reader-end 's/ \&\& ch != -1 \&\& index < bufmax/ \&\& index < bufmax/'
 mutant cdr-is-car 's/^  return cdrx(first(args));$/  return carx(first(args));/'
 # String comparison shifts a word wider than the four characters it holds.
 mutant wide-chars 's/int m = 0; chars_t a = 0, b = 0;/int m = 0; unsigned long long a = 0, b = 0;/'
+# analogread returns the 12-bit count where upstream's default is 10 bits.
+mutant analogread-scale 's/sys_analogread(pin) >> 2/sys_analogread(pin)/'
+# analogread accepts the pin after GP29.
+mutant analogread-range 's/if (!(pin>=26 \&\& pin<=29)) error(invalidpin/if (!(pin>=26 \&\& pin<=30)) error(invalidpin/'
+# analogwrite accepts the pin after GP29.
+mutant analogwrite-range 's/if (!(pin>=0 \&\& pin<=29)) error(invalidpin/if (!(pin>=0 \&\& pin<=30)) error(invalidpin/'
+# analogwrite hands the device the next pin.
+mutant analogwrite-pin 's/sys_analogwrite(pin, /sys_analogwrite(pin + 1, /'
+# analogwrite passes a duty above 255 on to the device.
+mutant analogwrite-clamp-high 's/duty > 255 ? 255 : duty/duty > 255 ? duty : duty/'
+# analogwrite passes a negative duty on to the device.
+mutant analogwrite-clamp-low 's/duty < 0 ? 0 : duty/duty < 0 ? duty : duty/'
 # Integer division of the most negative int by -1 reaches the remainder.
 mutant divide-min '/(result == INT_MIN) \&\& (i == -1)/d'
 # A left shift by the width of the type reaches the C shift.
@@ -174,7 +186,7 @@ mutant mod-sign 's/if (mod \&\& remainder != 0 \&\& (remainder<0)/if (mod \&\& (
 # rem corrects its sign like mod.
 mutant rem-sign 's/if (mod \&\& remainder != 0/if (remainder != 0/'
 # round takes a half to the next integer, not the even one.
-mutant round-even 's/d == 0.5 \&\& fmodf(f, 2.0) != 0.0/d == 0.5/'
+mutant round-even 's/d == 0.5 \&\& fmodx(f, 2.0) != 0.0/d == 0.5/'
 # floor, ceiling, truncate and round divide by an integer zero.
 mutant divide-zero 's/if (den == 0) error2(divisionbyzero);//'
 # A decimal literal wider than the integers wraps.
@@ -276,5 +288,8 @@ mutant write-line-nil '/^static object \*fn_writeline (object \*args, object \*e
 mutant decf-min 's/sum < INT_MIN || sum > INT_MAX/sum > INT_MAX/'
 # A note below zero does not count down from the octave.
 mutant note-floor 's/if (semitone < 0) { semitone = semitone + 12; whole--; }/if (semitone < 0) semitone = semitone + 12;/'
+# The float remainder subtracts the divisor once at a time, which for a huge
+# quotient does not end in the run's time.
+mutant fmodx-linear 's/while (t + t <= ax) t = t + t;//' ulisp.c 3
 # The clipping division loses a quotient bit.
 mutant muldiv-bit 's/q |= 1ULL << i;/q |= 0;/' gfx.c

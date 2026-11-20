@@ -7962,6 +7962,357 @@ Error: 'analogread' argument is not an integer: (lambda (x) x)
 (analogread 1 1) => 
 Error: 'analogread' too many arguments
 11960> 
+(analogwrite nil 1) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite t 1) => 
+Error: 'analogwrite' argument is not an integer: (lambda 1 1 1)
+11960> 
+(analogwrite (quote foo) 1) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite (quote car) 1) => 
+Error: 'analogwrite' argument is not an integer: car
+11960> 
+(analogwrite :low 1) => 
+Error: 'analogwrite' argument is not an integer: (lambda 1 1 1)
+11960> 
+(analogwrite abc 1) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite  1) => 
+Error: 'analogwrite' argument is not an integer: ""
+11960> 
+(analogwrite a 1) => 
+Error: 'analogwrite' argument is not an integer: #\a
+11960> 
+(analogwrite 1.5 1) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite (quote (1 2 3)) 1) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 . 2)) 1) => 
+Error: 'analogwrite' argument is not an integer: (1 . 2)
+11960> 
+(analogwrite (quote (nil 2)) 1) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite (make-array 3) 1) => 
+Error: 'analogwrite' argument is not an integer: #(nil nil nil)
+11960> 
+(analogwrite (make-array (quote (2 2))) 1) => 
+Error: 'analogwrite' argument is not an integer: #2A((nil nil) (nil nil))
+11960> 
+(analogwrite s 1) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite g 1) => 
+Error: 'analogwrite' argument is not an integer: <gfx-stream 1>
+11960> 
+(analogwrite (lambda (x) x) 1) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite 1 nil) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite 1 t) => 
+Error: 'analogwrite' argument is not an integer: (lambda 1 1 1)
+11960> 
+(analogwrite 1 (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite 1 (quote car)) => 
+Error: 'analogwrite' argument is not an integer: car
+11960> 
+(analogwrite 1 :low) => 
+Error: 'analogwrite' argument is not an integer: (lambda 1 1 1)
+11960> 
+(analogwrite 1 abc) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite 1 ) => 
+Error: 'analogwrite' argument is not an integer: ""
+11960> 
+(analogwrite 1 a) => 
+Error: 'analogwrite' argument is not an integer: #\a
+11960> 
+(analogwrite 1 1.5) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite 1 (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite 1 (quote (1 . 2))) => 
+Error: 'analogwrite' argument is not an integer: (1 . 2)
+11960> 
+(analogwrite 1 (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite 1 (make-array 3)) => 
+Error: 'analogwrite' argument is not an integer: #(nil nil nil)
+11960> 
+(analogwrite 1 (make-array (quote (2 2)))) => 
+Error: 'analogwrite' argument is not an integer: #2A((nil nil) (nil nil))
+11960> 
+(analogwrite 1 s) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite 1 g) => 
+Error: 'analogwrite' argument is not an integer: <gfx-stream 1>
+11960> 
+(analogwrite 1 (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite nil (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite t (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: (lambda 1 1 1)
+11960> 
+(analogwrite (quote foo) (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite (quote car) (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: car
+11960> 
+(analogwrite :low (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: (lambda 1 1 1)
+11960> 
+(analogwrite abc (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite  (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: ""
+11960> 
+(analogwrite a (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: #\a
+11960> 
+(analogwrite 1.5 (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite (quote (1 2 3)) (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 . 2)) (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: (1 . 2)
+11960> 
+(analogwrite (quote (nil 2)) (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite (make-array 3) (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: #(nil nil nil)
+11960> 
+(analogwrite (make-array (quote (2 2))) (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: #2A((nil nil) (nil nil))
+11960> 
+(analogwrite s (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite g (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: <gfx-stream 1>
+11960> 
+(analogwrite (lambda (x) x) (quote (1 2 3))) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite (quote (1 2 3)) nil) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) t) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) (quote car)) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) :low) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) abc) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) ) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) a) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) 1.5) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) (quote (1 . 2))) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) (make-array 3)) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) (make-array (quote (2 2)))) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) s) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) g) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite (quote (1 2 3)) (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: (1 2 3)
+11960> 
+(analogwrite nil nil) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite nil (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite nil abc) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite nil 1.5) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite nil (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite nil s) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite nil (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: nil
+11960> 
+(analogwrite (quote foo) nil) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite (quote foo) (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite (quote foo) abc) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite (quote foo) 1.5) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite (quote foo) (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite (quote foo) s) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite (quote foo) (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: foo
+11960> 
+(analogwrite abc nil) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite abc (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite abc abc) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite abc 1.5) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite abc (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite abc s) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite abc (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: "abc"
+11960> 
+(analogwrite 1.5 nil) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite 1.5 (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite 1.5 abc) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite 1.5 1.5) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite 1.5 (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite 1.5 s) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite 1.5 (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: 1.5
+11960> 
+(analogwrite (quote (nil 2)) nil) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite (quote (nil 2)) (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite (quote (nil 2)) abc) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite (quote (nil 2)) 1.5) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite (quote (nil 2)) (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite (quote (nil 2)) s) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite (quote (nil 2)) (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: (nil 2)
+11960> 
+(analogwrite s nil) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite s (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite s abc) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite s 1.5) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite s (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite s s) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite s (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: <string-stream 0>
+11960> 
+(analogwrite (lambda (x) x) nil) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite (lambda (x) x) (quote foo)) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite (lambda (x) x) abc) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite (lambda (x) x) 1.5) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite (lambda (x) x) (quote (nil 2))) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite (lambda (x) x) s) => 
+Error: 'analogwrite' argument is not an integer: <closure>
+11960> 
+(analogwrite (lambda (x) x) (lambda (x) x)) => 
+Error: 'analogwrite' argument is not an integer: (lambda (x) x)
+11960> 
+(analogwrite 1 1 1) => 
+Error: 'analogwrite' too many arguments
+11960> 
 (format nil 1) => 
 Error: 'format' argument is not a string: 1
 11960> 
@@ -64163,6 +64514,7 @@ string (function)
 pinmode (function)
 digitalwrite (function)
 analogread (function)
+analogwrite (function)
 register (function)
 format (function)
 or (special form)
@@ -64391,6 +64743,7 @@ aref (function)
 char (function)
 digitalwrite (function)
 analogread (function)
+analogwrite (function)
 format (function)
 trace (special form)
 untrace (special form)
@@ -64522,10 +64875,10 @@ Error: 'apropos' too many arguments
 (apropos-list abc) => nil
 
 11978> 
-(apropos-list ) => (g s :low t nil t  &optional *features* :initial-element :element-type :test :a :b :c bit &rest lambda let let* closure *pc* quote defun defvar defcode eq car first cdr rest nth aref char string pinmode digitalwrite analogread register format or setq loop push pop incf decf setf dolist dotimes do do* trace untrace for-millis time with-output-to-string with-sd-card progn if cond when unless case and not null cons atom listp consp symbolp arrayp boundp keywordp set streamp equal caar cadr second cdar cddr caaar caadr cadar caddr third cdaar cdadr cddar cdddr length array-dimensions list copy-list make-array reverse assoc member apply funcall append mapc mapl mapcar mapcan maplist mapcon + - * / mod rem 1+ 1- abs random max min /= = < <= > >= plusp minusp zerop oddp evenp integerp numberp float floatp sin cos tan asin acos atan sinh cosh tanh exp sqrt log expt ceiling floor truncate round char-code code-char characterp stringp string= string< string> string/= string<= string>= sort concatenate subseq search read-from-string princ-to-string prin1-to-string logand logior logxor lognot ash logbitp eval return globals locals makunbound break read prin1 print princ terpri read-byte read-line write-byte write-string write-line gc room backtrace save-image load-image cls digitalread delay millis sleep note edit pprint pprintall require list-library ? documentation apropos apropos-list unwind-protect ignore-errors error directory with-gfx draw-pixel draw-line draw-rect fill-rect draw-circle fill-circle draw-round-rect fill-round-rect draw-triangle fill-triangle draw-char set-cursor set-text-color set-text-size set-text-wrap fill-screen get-key read-pixel save-bmp :led-builtin :high :low :input :input-pullup :input-pulldown :output :gpio-in :gpio-out :gpio-out-set :gpio-out-clr :gpio-out-xor :gpio-oe :gpio-oe-set :gpio-oe-clr :gpio-oe-xor)
+(apropos-list ) => (g s :low t nil t  &optional *features* :initial-element :element-type :test :a :b :c bit &rest lambda let let* closure *pc* quote defun defvar defcode eq car first cdr rest nth aref char string pinmode digitalwrite analogread analogwrite register format or setq loop push pop incf decf setf dolist dotimes do do* trace untrace for-millis time with-output-to-string with-sd-card progn if cond when unless case and not null cons atom listp consp symbolp arrayp boundp keywordp set streamp equal caar cadr second cdar cddr caaar caadr cadar caddr third cdaar cdadr cddar cdddr length array-dimensions list copy-list make-array reverse assoc member apply funcall append mapc mapl mapcar mapcan maplist mapcon + - * / mod rem 1+ 1- abs random max min /= = < <= > >= plusp minusp zerop oddp evenp integerp numberp float floatp sin cos tan asin acos atan sinh cosh tanh exp sqrt log expt ceiling floor truncate round char-code code-char characterp stringp string= string< string> string/= string<= string>= sort concatenate subseq search read-from-string princ-to-string prin1-to-string logand logior logxor lognot ash logbitp eval return globals locals makunbound break read prin1 print princ terpri read-byte read-line write-byte write-string write-line gc room backtrace save-image load-image cls digitalread delay millis sleep note edit pprint pprintall require list-library ? documentation apropos apropos-list unwind-protect ignore-errors error directory with-gfx draw-pixel draw-line draw-rect fill-rect draw-circle fill-circle draw-round-rect fill-round-rect draw-triangle fill-triangle draw-char set-cursor set-text-color set-text-size set-text-wrap fill-screen get-key read-pixel save-bmp :led-builtin :high :low :input :input-pullup :input-pulldown :output :gpio-in :gpio-out :gpio-out-set :gpio-out-clr :gpio-out-xor :gpio-oe :gpio-oe-set :gpio-oe-clr :gpio-oe-xor)
 
 11978> 
-(apropos-list a) => (&optional *features* :initial-element :a lambda defvar car aref char digitalwrite analogread format trace untrace with-sd-card case and atom arrayp streamp equal caar cadr cdar caaar caadr cadar caddr cdaar cdadr cddar array-dimensions make-array assoc apply funcall append mapc mapl mapcar mapcan maplist mapcon abs random max float floatp tan asin acos atan tanh truncate char-code code-char characterp concatenate search read-from-string logand ash eval globals locals makunbound break read read-byte read-line backtrace save-image load-image digitalread delay pprintall list-library documentation apropos apropos-list draw-pixel draw-line draw-rect draw-circle draw-round-rect draw-triangle fill-triangle draw-char set-text-wrap read-pixel save-bmp)
+(apropos-list a) => (&optional *features* :initial-element :a lambda defvar car aref char digitalwrite analogread analogwrite format trace untrace with-sd-card case and atom arrayp streamp equal caar cadr cdar caaar caadr cadar caddr cdaar cdadr cddar array-dimensions make-array assoc apply funcall append mapc mapl mapcar mapcan maplist mapcon abs random max float floatp tan asin acos atan tanh truncate char-code code-char characterp concatenate search read-from-string logand ash eval globals locals makunbound break read read-byte read-line backtrace save-image load-image digitalread delay pprintall list-library documentation apropos apropos-list draw-pixel draw-line draw-rect draw-circle draw-round-rect draw-triangle fill-triangle draw-char set-text-wrap read-pixel save-bmp)
 
 11978> 
 (apropos-list 1.5) => nil

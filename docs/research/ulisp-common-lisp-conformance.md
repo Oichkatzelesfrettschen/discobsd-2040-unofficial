@@ -614,6 +614,8 @@ collector and the printer's escape check already bound.
 | after merging `usr.bin/ulisp-c17` | 57,824 | 57,792 | 1,988 | 14,001 cells |
 | after merging `origin/main` (wrong-type sweep, clipped drawing, mode checks) | 59,440 | 59,404 | 1,988 | 13,796 cells |
 | plus the REPL round, with the recovery below | 58,468 | 58,434 | 956 | 14,045 cells |
+| after merging the ADC and PWM interface (`analogwrite`, `analogread` on the device) | 58,976 | 58,942 | 956 | 13,981 cells |
+| plus `fmodx` in place of the library's `fmodf` | 58,444 | 58,410 | 956 | 14,048 cells |
 
 The workspace is the first prompt of the linked a.out under `qemu-arm` with an
 empty environment, the same measure as the first row, now a gate
@@ -623,7 +625,7 @@ of program costs an eighth of a cell.
 The merge of `origin/main` took the workspace from 14,001 to 13,796 cells
 (about 1,640 bytes). The recovery, in bytes of `text+data+bss` as
 `arm-none-eabi-size` reports them after each step (61,392 after the merge,
-59,390 now: 2,002 bytes, 250 cells):
+59,390 after the REPL round: 2,002 bytes, 250 cells). The ADC and PWM merge added 508 bytes and put the program 19 cells under the floor; `fmodx`, a 20-line exact float remainder (`rem`, `mod` and the `round` tie test), replaces the library's double-precision `fmod` (about 660 bytes, linked only through `fmodf`) and returns 524 bytes:
 
 | Change, in the order made | Bytes |
 | --- | --- |
@@ -631,18 +633,17 @@ The merge of `origin/main` took the workspace from 14,001 to 13,796 cells
 | the clipping division of `gfx.c` by shift and subtract, which drops `__udivmoddi4` and `__aeabi_uldivmod` | -306 |
 | `incf` and `decf` share one body | -188 |
 | the argument counts of the builtin table in their own array (3 bytes of padding in each of 232 entries) | -788 |
+| `fmodx` in place of `fmodf`, after the ADC and PWM merge | -524 |
 
-The floor holds with 45 cells (about 360 bytes) of margin, not the 100 cells
+The floor holds with 48 cells (about 380 bytes) of margin, not the 100 cells
 asked for. Candidates measured and not taken: the I/O buffers (5 of 96 bytes;
-64 bytes would save 20 cells and halve the editor's line), `fmod` (640 bytes,
-pulled by two `fmodf` sites: an exact float remainder cannot be had from
-`floorf` and a multiply), and the double-precision `sinh`, `exp` and `atan`
+64 bytes would save 20 cells and halve the editor's line), `sinh`, `exp` and `atan`
 members of the shared `libm`, which a float library would replace.
 
 ## Open decisions
 
-- Whether the workspace floor of 14,000 cells stays, with 45 cells of margin
-  after the REPL round (the 100 cells asked for need about 440 more bytes), or
+- Whether the workspace floor of 14,000 cells stays, with 48 cells of margin
+  (the 100 cells asked for need about 420 more bytes), or
   moves to 13,900. The gate takes `ULISP_FLOOR`, so the decision is one number.
 - The `directory` stream (1,040 bytes) now lives on the C stack for the
   length of a listing, from the 3,072 bytes of stack margin that stay above

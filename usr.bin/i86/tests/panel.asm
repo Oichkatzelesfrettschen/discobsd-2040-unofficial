@@ -50,7 +50,7 @@ start:	xor ax, ax
 	mov es, ax
 	mov ss, ax
 	mov sp, 0x7c00
-	mov ax, 0x0201			; the second sector, after this one
+	mov ax, 0x0202			; the two sectors after this one
 	mov cx, 0x0002
 	mov dh, 0
 	mov bx, 0x7e00
@@ -281,6 +281,13 @@ stage6:	mov ax, 4
 	int 0x10
 	call fields
 	call key
+	mov ah, 3			; asking draws nothing
+	mov bh, 0
+	int 0x10
+	mov ah, 0x0f
+	int 0x10
+	mov dx, 0x0101
+	call cursor
 	mov byte [es:4000], 0x1b
 	mov byte [es:0x2000 + 81], 0xe4
 	ret
@@ -333,4 +340,4 @@ stage9:	mov ax, 4
 
 text:	db "TEXT", 0
 
-	times 1024 - ($ - $$) db 0
+	times 1536 - ($ - $$) db 0

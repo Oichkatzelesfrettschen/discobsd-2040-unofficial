@@ -503,6 +503,9 @@ gfx_putc(unsigned row, unsigned col, unsigned ch, unsigned color)
 	}
 }
 
+/* The fill is a byte of display memory, not a color: the IBM firmware
+ * stores BH as it is (MOV AL,BH ahead of the row fill in its graphics
+ * scroll, Technical Reference 6025005, BIOS listing). */
 void
 gfx_scroll(unsigned top, unsigned left, unsigned bot, unsigned right,
     unsigned n, unsigned fill, int down)

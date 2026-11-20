@@ -463,8 +463,13 @@ video(struct i86 *c)
 
 	if (gfx_graphic && gfx_video(c))
 		return;
-	/* The functions below write the cells directly. */
-	mem_watched |= (1u << (VRAM_SIZE >> MEM_PGSHIFT)) - 1;
+	/* These functions write a text mode's cells directly, where no
+	 * write is noted. A graphics mode's services write through the
+	 * watched path and the others change no display memory, so they
+	 * mark nothing: every marked page is drawn again. */
+	if (!gfx_graphic && (ah == 0x00 || ah == 0x06 || ah == 0x07 ||
+	    ah == 0x09 || ah == 0x0a || ah == 0x0e || ah == 0x13))
+		mem_watched |= (1u << (VRAM_SIZE >> MEM_PGSHIFT)) - 1;
 	switch (ah) {
 	case 0x00:
 		set_mode(al);
@@ -491,7 +496,9 @@ video(struct i86 *c)
 			break;
 		i = row * cols + col;
 		if (gfx_graphic) {
-			/* Pixels are not read back as a character. */
+			/* Pixels are not read back as a character. The
+			 * count writes within the row: the firmware's
+			 * listing gives it valid results on one row only. */
 			if (ah == 8)
 				c->r[R_AX] = 0;
 			for (n = c->r[R_CX]; ah != 8 && n && col < cols; n--)

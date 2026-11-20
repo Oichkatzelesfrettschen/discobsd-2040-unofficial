@@ -110,6 +110,11 @@ MUTANTS = [
     ("pc.c", "gfx_close();\n\t/* One line", "/* One line"),
     ("pc.c", "gfx_close();\n\t\treturn;\n\t}\n\toputs(", "return;\n\t}\n\toputs("),
     ("pc.c", "mem_watched |= (1u << (VRAM_SIZE >> MEM_PGSHIFT)) - 1;", "mem_watched |= 0;"),
+    (
+        "pc.c",
+        "if (!gfx_graphic && (ah == 0x00 || ah == 0x06",
+        "if ((ah == 0x00 || ah == 0x02 || ah == 0x06",
+    ),
     ("pc.c", "mem_rom(ROM_FONT, gfx_font(), 128 * 8);", "(void)gfx_font();"),
     ("pc.c", "graphic ? ((mode & 0x7f) == 6 ? 80 : 40) :", "graphic ? 40 :"),
     (

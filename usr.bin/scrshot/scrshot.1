@@ -16,9 +16,14 @@ reads the controller memory behind the 320 by 320 panel through
 and writes it to
 .Ar file
 one row at a time.
-It needs the superuser, because the memory holds the text console's screen
-from before the open, and a PICOCALC_SD kernel, the one built with
+It needs the superuser or the user logged in on the console, because the
+memory holds the text console's screen from before the open, and a
+PICOCALC_SD kernel, the one built with
 .Dv LCD_GFX_EXT .
+The console's user is the owner of the process that leads the console's
+foreground process group; another user, such as one logged in over USB,
+receives
+.Er EPERM .
 .Pp
 Opening the device takes the panel from the text console but leaves the
 memory as the console drew it, and the console keeps its cell store current

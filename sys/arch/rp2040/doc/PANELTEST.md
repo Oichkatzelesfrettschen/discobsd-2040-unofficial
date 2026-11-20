@@ -28,7 +28,7 @@ draws the calibration patterns.
   `/dev/lcdgfx` is open, so the console draws nothing while the panel is
   reprogrammed or read, and the last close programs set 0 again.
 - The readback sends each read command with D/CX low and clocks the reply
-  at 3.125 MHz, inside TSCYCR (150 ns, page 77). The first twelve entries
+  at 3.125 MHz, inside TSCYCR (150 ns, page 54). The first twelve entries
   are Command Table 1 and ID reads (04h, 09h, 0Ah-0Fh, DAh-DCh, D3h), the
   calibration: a dead SDO line reads all zero or all one there. Entries
   13-20 read Command Table 2 registers through SPI Read Control (FBh,

@@ -116,12 +116,35 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
-static int reader = 1;
+/*
+ * The facts lcdcons_gfx_reader() reads on the board: the caller's uid, the
+ * console tty's foreground group and the one process table entry pfind()
+ * could return for it. The rule is the production lcdgfx_reader_ok().
+ */
+#define	OWNER_UID	1000
+#define	OTHER_UID	1001
+#define	CON_PGRP	100
+
+static unsigned cur_uid;
+static int con_pgrp = CON_PGRP;
+static int leader_alive = 1;
+static int leader_pgrp = CON_PGRP;
+static unsigned leader_uid = OWNER_UID;
 
 int
 lcdcons_gfx_reader(void)
 {
-	return reader;
+	/* A caller that finds no process hands over stale values. */
+	return lcdgfx_reader_ok(cur_uid, con_pgrp, leader_alive,
+	    leader_alive ? leader_pgrp : con_pgrp,
+	    leader_alive ? leader_uid : cur_uid);
+}
+
+/* The caller is the superuser (1) or a user who does not own the console. */
+static void
+as_reader(int on)
+{
+	cur_uid = on ? 0 : OTHER_UID;
 }
 
 void
@@ -424,6 +447,149 @@ pwr(int mode)
 	return ioc(LCDG_POWER, &p);
 }
 
+/* The facts of a console whose owner is OWNER_UID, as login(1) leaves them. */
+static void
+console_of_owner(void)
+{
+	con_pgrp = CON_PGRP;
+	leader_alive = 1;
+	leader_pgrp = CON_PGRP;
+	leader_uid = OWNER_UID;
+	cur_uid = OWNER_UID;
+}
+
+/* One read of four red pixels at the top left, as the caller now is. */
+static int
+read_four(unsigned short *got)
+{
+	int error = rdsel(0, 0, 4, 1, LCDG_RD_RGB565);
+
+	if (error != 0)
+		return error;
+	return xfer(0, got, 8);
+}
+
+/*
+ * Every drawing, scrolling, tile, sprite, palette, power and wait function
+ * of the device answers a caller who is neither the superuser nor the
+ * console's owner exactly as it answers the superuser: none checks the
+ * caller. Only the memory read does.
+ */
+static void
+test_open_to_every_user(unsigned uid)
+{
+	struct lcdg_rect rc = { 0, 0, 3, 3, 0x07e0 };
+	struct lcdg_line ln = { 0, 0, 9, 9, 0xffff };
+	struct lcdg_pixel px = { 5, 5, 0x001f };
+	struct lcdg_circle ci = { 40, 40, 8, 0xf800 };
+	struct lcdg_palette pl = { 3, 10, 20, 30 };
+	struct lcdg_scroll sc = { 7 };
+	struct lcdg_scrdef sd = { 0, 0 };
+	struct lcdg_colmod cm = { LCDG_COLMOD_RGB565 };
+	struct lcdg_info in;
+	struct lcdg_tileset ts = { 0, 1 };
+	struct lcdg_tilewin tw = { 0, 0, 1, 1 };
+	struct lcdg_wait wt = { 0, 20, 0 };
+	struct lcdg_window win = { 0, 0, 1, 1, LCDG_WIN_RGB565, 1, 0 };
+	struct lcdg_dither dt = { 1 };
+	struct lcdg_xinfo xi;
+	unsigned char pix[4] = { 0, 0, 0, 0 };
+
+	fresh();
+	cur_uid = uid;
+	expect("fill", ioc(LCDG_FILL, &rc), 0);
+	expect("frame", ioc(LCDG_FRAME, &rc), 0);
+	expect("line", ioc(LCDG_LINE, &ln), 0);
+	expect("pixel", ioc(LCDG_PIXEL, &px), 0);
+	expect("circle", ioc(LCDG_CIRCLE, &ci), 0);
+	expect("palette", ioc(LCDG_PALETTE, &pl), 0);
+	expect("scroll", ioc(LCDG_SCROLL, &sc), 0);
+	sd.bottom = LCDG_RAM_LINES - LCDG_HEIGHT;
+	expect("scroll area", ioc(LCDG_SCRDEF, &sd), 0);
+	expect("color mode", ioc(LCDG_COLMOD, &cm), 0);
+	expect("info", ioc(LCDG_INFO, &in), 0);
+	expect("window", ramwin(0, 0, 2, 2, LCDG_WIN_RGB565), 0);
+	expect("window data", xfer(1, pix, 4), 0);
+	expect("window in the first 320 lines", ioc(LCDG_WINDOW, &win), 0);
+	expect("window data again", xfer(1, pix, 2), 0);
+	expect("memory fill", ramfill(0, 320, 9, 329, 0x1234), 0);
+	expect("sprite", sprite(0, 0, 2, 2, 0), 0);
+	expect("sprite data", xfer(1, pix, 2), 0);
+	expect("tile set", ioc(LCDG_TILESET, &ts), 0);
+	expect("tile window", ioc(LCDG_TILEWIN, &tw), 0);
+	expect("wait for a line", ioc(LCDG_WAITLINE, &wt), 0);
+	expect("idle", pwr(LCDG_PWR_IDLE), 0);
+	expect("display off", pwr(LCDG_PWR_OFF), 0);
+	expect("sleep", pwr(LCDG_PWR_SLEEP), 0);
+	expect("report in sleep", ioc(LCDG_XINFO, &xi), 0);
+	expect("on", pwr(LCDG_PWR_ON), 0);
+	expect("dither", ioc(LCDG_DITHER, &dt), 0);
+	ndither = dither_on = 0;	/* test_power() counts its own probes. */
+	expect("no violation", violations, 0);
+}
+
+static void
+test_access(void)
+{
+	unsigned short got[4];
+	unsigned char raw[LCDG_RD_RAW_BYTES(4)];
+	int i;
+
+	fresh();
+	console_of_owner();
+	expect("owner writes", ramfill(0, 0, 3, 0, 0xf800), 0);
+	expect("owner reads", read_four(got), 0);
+	expect("all four pixels", resid_after, 0);
+	for (i = 0; i < 4; i++)
+		expect("owner's pixel", got[i], 0xf800);
+	expect("owner selects a raw read", rdsel(0, 0, 4, 1, LCDG_RD_RAW), 0);
+	expect("owner raw read", xfer(0, raw, sizeof(raw)), 0);
+
+	/* A user who does not own the console. */
+	cur_uid = OTHER_UID;
+	expect("other's select", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), EPERM);
+	cur_uid = OWNER_UID;
+	expect("owner selects again", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
+	cur_uid = OTHER_UID;
+	expect("other's read of the owner's selection", xfer(0, got, 8), EPERM);
+	expect("nothing moved", resid_after, 8);
+	cur_uid = 0;
+	expect("the superuser completes it", xfer(0, got, 8), 0);
+
+	/* The check runs at each read(2), not at the selection alone. */
+	console_of_owner();
+	cur_uid = 0;
+	expect("the superuser selects", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
+	cur_uid = OWNER_UID;
+	expect("owner finishes the superuser's selection", xfer(0, got, 8), 0);
+
+	/* No console owner is known: only the superuser reads. */
+	console_of_owner();
+	con_pgrp = 0;
+	leader_pgrp = 0;	/* A process of pid 0 and the owner's uid. */
+	expect("no foreground group: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	cur_uid = 0;
+	expect("no foreground group: superuser reads", rdsel(0, 0, 4, 1, 0), 0);
+	console_of_owner();
+	leader_alive = 0;
+	expect("leader gone: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	console_of_owner();
+	leader_pgrp = CON_PGRP + 1;
+	expect("reused pid: owner refused", rdsel(0, 0, 4, 1, 0), EPERM);
+	console_of_owner();
+	leader_uid = OTHER_UID;
+	expect("another user leads the console: owner refused",
+	    rdsel(0, 0, 4, 1, 0), EPERM);
+	cur_uid = OTHER_UID;
+	expect("another user leads the console: that user reads",
+	    rdsel(0, 0, 4, 1, 0), 0);
+
+	test_open_to_every_user(OTHER_UID);
+	test_open_to_every_user(OWNER_UID);
+	console_of_owner();
+	cur_uid = 0;
+}
+
 static void
 test_hidden_lines(void)
 {
@@ -576,20 +742,20 @@ test_read(void)
 	expect("raw then end of file", resid_after, (long)sizeof(raw));
 
 	expect("select by the superuser", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
-	reader = 0;
+	as_reader(0);
 	expect("read by another user", xfer(0, got, 8), EPERM);
 	expect("nothing moved", resid_after, 8);
-	reader = 1;
+	as_reader(1);
 	expect("the superuser still reads it", xfer(0, got, 8), 0);
 	expect("all four pixels", resid_after, 0);
-	reader = 0;
+	as_reader(0);
 	expect("select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), EPERM);
 	expect("raw select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RAW),
 	    EPERM);
 	expect("nothing to read", xfer(0, got, 8), 0);
 	expect("nothing moved", resid_after, 8);
 	expect("drawing stays open to every user", ramfill(0, 0, 0, 0, 1), 0);
-	reader = 1;
+	as_reader(1);
 	expect("raw of two lines", rdsel(0, 0, 4, 2, LCDG_RD_RAW), EINVAL);
 	expect("raw too wide", rdsel(0, 0, LCDG_READ_MAX + 1, 1, LCDG_RD_RAW),
 	    EINVAL);
@@ -825,6 +991,7 @@ int
 main(void)
 {
 	test_hidden_lines();
+	test_access();
 	test_read();
 	test_sprite();
 	test_waitline();

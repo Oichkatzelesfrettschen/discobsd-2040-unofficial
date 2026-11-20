@@ -111,8 +111,15 @@
  * beyond the last pixel returns only the pixels that remain; a read(2)
  * with no rectangle selected returns end of file. The memory holds the text
  * console's screen from before the open, so LCDG_READ, and each read(2) of
- * a selected rectangle, fails with EPERM for a caller other than the
- * superuser. With fmt LCDG_RD_RAW the
+ * a selected rectangle, fails with EPERM for a caller who is neither the
+ * superuser nor the console's owner: the user of the process that leads
+ * the console tty's foreground process group, as login(1) leaves it. A
+ * console with no such process, or with no foreground group, serves the
+ * superuser alone. Every other command of this header, drawing, scrolling,
+ * tiles, sprites, palette, power and the scan-line wait included, is open
+ * to every user who can open the device. The reader still sees what an
+ * earlier opener left in lines 320-479, which the console does not draw.
+ * With fmt LCDG_RD_RAW the
  * rectangle is one line of at most LCDG_READ_MAX pixels and one read(2) of
  * at least LCDG_RD_RAW_BYTES(w) bytes returns the reply bytes of the
  * controller's memory read command as they arrived, for a program that

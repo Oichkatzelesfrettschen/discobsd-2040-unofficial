@@ -69,11 +69,27 @@ static inline int lcdgfx_isopen(void) { return 0; }
  */
 int	lcdcons_gfx(int on);
 
+#ifdef LCD_GFX_EXT
 /*
  * Supplied by lcdcons.c, or by the host test: whether the calling process
- * may read the controller's memory (LCDG_READ), which is the superuser.
+ * may read the controller's memory (LCDG_READ). The controller's memory
+ * holds the console's screen from before the open, so the reader is the
+ * superuser or the console's owner; lcdgfx_reader_ok() is the rule.
  */
 int	lcdcons_gfx_reader(void);
+
+/*
+ * The rule of lcdcons_gfx_reader(), over the facts it gathers: the caller's
+ * effective uid, the console tty's foreground process group tpgrp, and
+ * whether pfind(tpgrp) found a process, with that process's group and
+ * effective uid. The superuser reads. Any other caller reads only when the
+ * process that leads the console's foreground group is its own: no group,
+ * no such process, or a process whose group is not tpgrp (a reused pid)
+ * leave the memory to the superuser.
+ */
+int	lcdgfx_reader_ok(unsigned uid, int tpgrp, int found, int lpgrp,
+	    unsigned luid);
+#endif
 
 #ifdef LCD_PANELTEST
 /*

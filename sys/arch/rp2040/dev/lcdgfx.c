@@ -591,6 +591,14 @@ lcdgfx_read(struct uio *uio)
 	return error;
 }
 
+int
+lcdgfx_reader_ok(unsigned uid, int tpgrp, int found, int lpgrp,
+    unsigned luid)
+{
+	return uid == 0 ||
+	    (tpgrp != 0 && found && lpgrp == tpgrp && luid == uid);
+}
+
 /* A rectangle of the controller's memory: x, y, w, h in that order. */
 static int
 area_ok(const unsigned short *v)

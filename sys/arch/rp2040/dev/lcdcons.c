@@ -677,15 +677,26 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
+#ifdef LCD_GFX_EXT
 /*
  * /dev/lcdgfx is open to every user for drawing; the memory it reads back
- * can hold what the console showed to another, so only the superuser reads.
+ * can hold what the console showed to another, so only the superuser and
+ * the console's owner read (lcdgfx_reader_ok()). The owner is the user of
+ * the process that leads the console's foreground process group. Only a
+ * user who can open the console tty for reading can move that group
+ * (TIOCSPGRP, sys/kern/tty.c), and login(1) leaves the tty readable by
+ * its user alone.
  */
 int
 lcdcons_gfx_reader(void)
 {
-	return u.u_uid == 0;
+	int pgrp = lcdttys[0].t_pgrp;
+	struct proc *p = pgrp != 0 ? pfind(pgrp) : NULL;
+
+	return lcdgfx_reader_ok(u.u_uid, pgrp, p != NULL,
+	    p != NULL ? p->p_pgrp : 0, p != NULL ? p->p_uid : 0);
 }
+#endif
 
 int
 lcdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)

@@ -90,10 +90,11 @@ const unsigned char lcd_palette[16][3] = {
 	{  60, 255, 255 }, { 255, 255, 255 },
 };
 
+static int cells_drawn;		/* Console cells drawn onto the panel. */
 void lcd_draw_cell(int prow, int col, int ch, unsigned attr)
-{ (void)prow; (void)col; (void)ch; (void)attr; }
+{ (void)prow; (void)col; (void)ch; (void)attr; cells_drawn++; }
 void lcd_fill_cells(int prow, int col, int n, unsigned attr)
-{ (void)prow; (void)col; (void)n; (void)attr; }
+{ (void)prow; (void)col; (void)n; (void)attr; cells_drawn++; }
 void lcd_set_top(int prow) { (void)prow; }
 void lcd_bell(void) { }
 void lcdterm_reply(const char *s, int n) { (void)s; (void)n; }
@@ -116,17 +117,32 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
-static int reader = 1;
+/* The opener's effective uid: 0 is the superuser, whose open clears nothing. */
+#define	OTHER_UID	1001
+
+static unsigned cur_uid;
 
 int
-lcdcons_gfx_reader(void)
+lcdcons_gfx_root(void)
 {
-	return reader;
+	return cur_uid == 0;
 }
+
+/*
+ * What a read selection returns while the open still clears the panel: the
+ * first window the open draws stands in for a concurrent caller.
+ */
+static int probe_armed, probe_result;
 
 void
 lcd_gfx_window(int x0, int y0, int x1, int y1)
 {
+	if (probe_armed) {
+		struct lcdg_read r = { 0, 0, 4, 1, LCDG_RD_RGB565 };
+
+		probe_armed = 0;
+		probe_result = lcdgfx_ioctl(LCDG_READ, (char *)&r);
+	}
 	if (win_open)
 		violation("window inside a window");
 	if (rdclk)
@@ -353,13 +369,21 @@ xfer(int wr, void *data, size_t len)
 	return error;
 }
 
+/* A fresh model whose memory holds fill, as the console leaves it, opened as uid. */
 static void
-fresh(void)
+fresh_as(unsigned uid, unsigned fill)
 {
+	unsigned y, x;
+
 	if (lcdgfx_isopen())
 		lcdgfx_close();
 	lcdterm_init();
-	memset(gram, 0, sizeof(gram));
+	for (y = 0; y < RL; y++)
+		for (x = 0; x < PW; x++)
+			gram[y][x] = fill;
+	cur_uid = uid;
+	probe_result = -1;
+	probe_armed = 1;
 	colmod = 0x55;
 	win_open = rdclk = power = npower = 0;
 	nwin = win_multi = 0;
@@ -369,6 +393,13 @@ fresh(void)
 	scan_glitch_call = -1;
 	uiomove_fail = 0;
 	expect("open", lcdgfx_open(), 0);
+	probe_armed = 0;
+}
+
+static void
+fresh(void)
+{
+	fresh_as(0, 0);
 }
 
 /* The memory value a 565 color leaves in either COLMOD. */
@@ -422,6 +453,138 @@ pwr(int mode)
 	struct lcdg_power p = { (u_char)mode };
 
 	return ioc(LCDG_POWER, &p);
+}
+
+/*
+ * Every drawing, scrolling, tile, sprite, palette, power and wait function
+ * of the device answers a caller who is neither the superuser nor the
+ * console's owner exactly as it answers the superuser: none checks the
+ * caller. Only the memory read does.
+ */
+static void
+test_open_to_every_user(unsigned uid)
+{
+	struct lcdg_rect rc = { 0, 0, 3, 3, 0x07e0 };
+	struct lcdg_line ln = { 0, 0, 9, 9, 0xffff };
+	struct lcdg_pixel px = { 5, 5, 0x001f };
+	struct lcdg_circle ci = { 40, 40, 8, 0xf800 };
+	struct lcdg_palette pl = { 3, 10, 20, 30 };
+	struct lcdg_scroll sc = { 7 };
+	struct lcdg_scrdef sd = { 0, 0 };
+	struct lcdg_colmod cm = { LCDG_COLMOD_RGB565 };
+	struct lcdg_info in;
+	struct lcdg_tileset ts = { 0, 1 };
+	struct lcdg_tilewin tw = { 0, 0, 1, 1 };
+	struct lcdg_wait wt = { 0, 20, 0 };
+	struct lcdg_window win = { 0, 0, 1, 1, LCDG_WIN_RGB565, 1, 0 };
+	struct lcdg_dither dt = { 1 };
+	struct lcdg_xinfo xi;
+	unsigned char pix[4] = { 0, 0, 0, 0 };
+
+	fresh_as(uid, 0);
+	expect("fill", ioc(LCDG_FILL, &rc), 0);
+	expect("frame", ioc(LCDG_FRAME, &rc), 0);
+	expect("line", ioc(LCDG_LINE, &ln), 0);
+	expect("pixel", ioc(LCDG_PIXEL, &px), 0);
+	expect("circle", ioc(LCDG_CIRCLE, &ci), 0);
+	expect("palette", ioc(LCDG_PALETTE, &pl), 0);
+	expect("scroll", ioc(LCDG_SCROLL, &sc), 0);
+	sd.bottom = LCDG_RAM_LINES - LCDG_HEIGHT;
+	expect("scroll area", ioc(LCDG_SCRDEF, &sd), 0);
+	expect("color mode", ioc(LCDG_COLMOD, &cm), 0);
+	expect("info", ioc(LCDG_INFO, &in), 0);
+	expect("window", ramwin(0, 0, 2, 2, LCDG_WIN_RGB565), 0);
+	expect("window data", xfer(1, pix, 4), 0);
+	expect("window in the first 320 lines", ioc(LCDG_WINDOW, &win), 0);
+	expect("window data again", xfer(1, pix, 2), 0);
+	expect("memory fill", ramfill(0, 320, 9, 329, 0x1234), 0);
+	expect("sprite", sprite(0, 0, 2, 2, 0), 0);
+	expect("sprite data", xfer(1, pix, 2), 0);
+	expect("tile set", ioc(LCDG_TILESET, &ts), 0);
+	expect("tile window", ioc(LCDG_TILEWIN, &tw), 0);
+	expect("wait for a line", ioc(LCDG_WAITLINE, &wt), 0);
+	expect("idle", pwr(LCDG_PWR_IDLE), 0);
+	expect("display off", pwr(LCDG_PWR_OFF), 0);
+	expect("sleep", pwr(LCDG_PWR_SLEEP), 0);
+	expect("report in sleep", ioc(LCDG_XINFO, &xi), 0);
+	expect("on", pwr(LCDG_PWR_ON), 0);
+	expect("dither", ioc(LCDG_DITHER, &dt), 0);
+	ndither = dither_on = 0;	/* test_power() counts its own probes. */
+	expect("no violation", violations, 0);
+}
+
+/* The number of memory words that differ from v. */
+static long
+differ(unsigned v)
+{
+	long n = 0;
+	int y, x;
+
+	for (y = 0; y < RL; y++)
+		for (x = 0; x < PW; x++)
+			n += gram[y][x] != v;
+	return n;
+}
+
+#define	CONSOLE	mem(0xf81f)	/* What the console and an earlier opener left. */
+
+static void
+test_access(void)
+{
+	unsigned short got[4];
+	int cells, wins;
+
+	/* The superuser's open clears nothing and reads the memory as it stands. */
+	fresh_as(0, CONSOLE);
+	expect("root open leaves every word", differ(CONSOLE), 0);
+	expect("root open drew no window", nwin, 0);
+	expect("root selects", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
+	expect("root reads the console", xfer(0, got, 8), 0);
+	expect("root's pixel", got[3], 0xf81f);
+	expect("root selects an off-screen line", rdsel(0, 400, 4, 1, 0), 0);
+	expect("root reads it", xfer(0, got, 8), 0);
+	expect("root's off-screen pixel", got[0], 0xf81f);
+
+	/* Another user's open blanks all 480 lines before it returns. */
+	fresh_as(OTHER_UID, CONSOLE);
+	expect("open blanked every word, lines 0-479", differ(0), 0);
+	expect("the clear is one window", nwin, 1);
+	expect("a read selected during the clear is refused", probe_result, EPERM);
+	expect("no violation", violations, 0);
+	expect("select at the top", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
+	expect("read at the top", xfer(0, got, 8), 0);
+	expect("blank pixel", got[0], 0);
+	expect("select past the glass", rdsel(316, 479, 4, 1, LCDG_RD_RGB565), 0);
+	expect("read past the glass", xfer(0, got, 8), 0);
+	expect("blank off-screen pixel", got[3], 0);
+	expect("draws", ramfill(0, 330, 3, 330, 0x07e0), 0);
+	expect("select what it drew", rdsel(0, 330, 4, 1, LCDG_RD_RGB565), 0);
+	expect("read what it drew", xfer(0, got, 8), 0);
+	expect("its own pixel", got[2], 0x07e0);
+
+	/* The descriptor carries the right: a forked or exec'd holder of it. */
+	cur_uid = 0;
+	expect("inherited select", rdsel(0, 330, 4, 1, LCDG_RD_RGB565), 0);
+	cur_uid = OTHER_UID + 1;
+	expect("inherited by a third user", rdsel(0, 330, 4, 1, 0), 0);
+
+	/* Console text cannot draw onto the panel or into the memory. */
+	cells = cells_drawn;
+	wins = nwin;
+	lcdterm_putc('x');
+	lcdterm_putc('\n');
+	expect("kernel text draws no cell", cells_drawn, cells);
+	expect("kernel text draws no window", nwin, wins);
+
+	/* The right ends with the open. */
+	lcdgfx_close();
+	expect("no read after the close", rdsel(0, 0, 4, 1, 0), EPERM);
+	fresh_as(OTHER_UID, CONSOLE);
+	expect("a second non-root open clears again", differ(0), 0);
+
+	test_open_to_every_user(OTHER_UID);
+	test_open_to_every_user(0);
+	cur_uid = 0;
 }
 
 static void
@@ -576,20 +739,8 @@ test_read(void)
 	expect("raw then end of file", resid_after, (long)sizeof(raw));
 
 	expect("select by the superuser", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), 0);
-	reader = 0;
-	expect("read by another user", xfer(0, got, 8), EPERM);
-	expect("nothing moved", resid_after, 8);
-	reader = 1;
-	expect("the superuser still reads it", xfer(0, got, 8), 0);
+	expect("read of the rectangle", xfer(0, got, 8), 0);
 	expect("all four pixels", resid_after, 0);
-	reader = 0;
-	expect("select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RGB565), EPERM);
-	expect("raw select by another user", rdsel(0, 0, 4, 1, LCDG_RD_RAW),
-	    EPERM);
-	expect("nothing to read", xfer(0, got, 8), 0);
-	expect("nothing moved", resid_after, 8);
-	expect("drawing stays open to every user", ramfill(0, 0, 0, 0, 1), 0);
-	reader = 1;
 	expect("raw of two lines", rdsel(0, 0, 4, 2, LCDG_RD_RAW), EINVAL);
 	expect("raw too wide", rdsel(0, 0, LCDG_READ_MAX + 1, 1, LCDG_RD_RAW),
 	    EINVAL);
@@ -825,6 +976,7 @@ int
 main(void)
 {
 	test_hidden_lines();
+	test_access();
 	test_read();
 	test_sprite();
 	test_waitline();

@@ -70,6 +70,7 @@ bool sys_fopen(int file, const char *path, int mode);
 bool sys_fclose(int file);	/* false when buffered output was lost */
 int sys_fgetc(int file);
 void sys_fputc(int file, char c);
+bool sys_fseek(int file, size_t offset);	/* from the start of a file open for reading */
 bool sys_fread(int file, void *data, size_t bytes);
 bool sys_fwrite(int file, const void *data, size_t bytes);
 bool sys_diropen(const char *path);

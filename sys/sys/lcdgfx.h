@@ -110,9 +110,22 @@
  * controller returns. Each read(2) carries an even number of bytes and one
  * beyond the last pixel returns only the pixels that remain; a read(2)
  * with no rectangle selected returns end of file. The memory holds the text
- * console's screen from before the open, so LCDG_READ, and each read(2) of
- * a selected rectangle, fails with EPERM for a caller other than the
- * superuser. With fmt LCDG_RD_RAW the
+ * console's screen from before the open, so LCDG_READ fails with EPERM
+ * before the open has finished and after the close. The
+ * superuser's open (effective uid 0, so a set-uid-root program counts) clears
+ * nothing and reads the console's screen as it stands. Any other open blanks
+ * every line of the controller's memory, all LCDG_RAM_LINES, to black before
+ * it returns, and only then may that opener select and read any rectangle:
+ * what it reads was drawn after its open, and the text console's screen,
+ * which that open discarded, returns at the last close. The right belongs to
+ * the open, not to the caller, so a descriptor inherited across fork and exec
+ * keeps it, and the exclusive open keeps any other process from the panel.
+ * While the device is open the text console draws nothing, kernel messages
+ * included (lcdterm_gfx(1)); only a panic or a fatal fault, which never
+ * returns to the opener, draws on the panel. Every other command of this
+ * header, drawing, scrolling, tiles, sprites, palette, power and the
+ * scan-line wait included, has no caller check.
+ * With fmt LCDG_RD_RAW the
  * rectangle is one line of at most LCDG_READ_MAX pixels and one read(2) of
  * at least LCDG_RD_RAW_BYTES(w) bytes returns the reply bytes of the
  * controller's memory read command as they arrived, for a program that

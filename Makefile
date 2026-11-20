@@ -2090,9 +2090,11 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
+		check-fstat-host check-sh-editor \
 		check-cp-host check-tar-host check-textbox-host check-cpio-host \
-		check-compress-host check-archive-stored-times check-cc-driver
+		check-compress-host check-archive-stored-times check-cc-driver \
+		check-libwin-host
 
 # The macOS firmware job runs the host tier as two steps, check-host-a and
 # check-host-b, so that each carries its own deadline. HOST_TIER_B_GATES names
@@ -2246,6 +2248,18 @@ check-calc-host: check-python .WAIT symlinks
 # of usr.bin/picofetch/hwinfo_sysctl.c runs on no host.
 check-picofetch-host: check-python
 		${MAKE} -C usr.bin/picofetch test
+
+# scrshot's pixel conversion and file writers (usr.bin/scrshot/scrfmt.h):
+# every format byte for byte against independently built files, then the
+# mutants. The panel read of usr.bin/scrshot/scrshot.c runs on no host.
+check-scrshot-host: check-python
+		${MAKE} -C usr.bin/scrshot test
+
+# lexeme on a 53x32 pseudo-terminal: the Word, vi and nano key modes, wrap,
+# search and replace, undo, the scrap, the file picker and a document past
+# the in-memory add stream, then the mutants (usr.bin/lexeme/tests).
+check-lexeme-host: check-python
+		${MAKE} -C usr.bin/lexeme test
 
 check-fstat-host: check-python
 		${MAKE} -C usr.bin/fstat/tests check
@@ -2597,6 +2611,7 @@ check-renode-picocalc-dump:
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
 check-renode-picocalc-sd-system: picocalc-sd-system
+		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
 		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
 		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
@@ -2839,7 +2854,9 @@ installfs:
 		check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-fstat-host check-sh-editor check-tar-host \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
+		check-fstat-host check-sh-editor check-tar-host \
+		check-libwin-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host check-host-a check-host-b check-host-split \
@@ -2902,5 +2919,13 @@ check-renode-ulisp: check-python
 	    ${FLASHBIN} ${.CURDIR}/tools/renode/vendor/results/ulisp
 
 .PHONY: check-ulisp-host check-ulisp-qemu check-renode-ulisp
+
+# lib/libwin's strip compositor against a model of the /dev/lcdgfx panel and
+# an independent per-pixel reference painter, natively and under the
+# sanitizers, then the mutants of win.c.
+check-libwin-host: check-python
+	${MAKE} -C tests/libwin check
+
+.PHONY: check-libwin-host
 
 .PHONY: install-world root-release

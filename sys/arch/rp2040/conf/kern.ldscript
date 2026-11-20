@@ -248,6 +248,14 @@ SECTIONS {
 	flscratch = DEFINED(usb_tx_ring) ? 0x50100f00 :
 	    ORIGIN(SCRATCH) + LENGTH(SCRATCH) - 256;
 	flscratch_end = flscratch + 256;
+	/* The USB SD driver stages a partial sector below the program page. */
+	PROVIDE(sd_tail = flscratch - 512);
+	ASSERT(DEFINED(usb_tx_ring) && DEFINED(sd_tail) ?
+	    (sd_tail >= flpage_end && (sd_tail & 3) == 0 &&
+	     (DEFINED(swapram_codec_work) ?
+	      sd_tail >= swapram_codec_work + 1040 : 1) &&
+	     sd_tail + 512 <= flscratch) : 1,
+	    "SD partial sector overlaps USB work buffers")
 	ASSERT(DEFINED(usb_tx_ring) ?
 	    (flpage >= 0x50100240 && flpage_end <= 0x50100740 &&
 	     (DEFINED(swapram_codec_work) ?

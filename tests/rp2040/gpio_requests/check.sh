@@ -51,7 +51,8 @@ mutant()
 	echo "gpio_requests: PASS ($name mutation rejected)"
 }
 mutant pico-uart-pin 's/return 0x1c7ffffcU;/return 0x1c7ffffeU;/'
-mutant picocalc-audio-pin 's/1U << 8 | 1U << 9 | 1U << 28;/1U << 8 | 1U << 9 | 1U << 27;/'
+mutant picocalc-audio-pin 's/return 1U << 28;/return 1U << 27;/'
+mutant picocalc-keyboard-uart 's/return 1U << 28;/return 1U << 8 | 1U << 9 | 1U << 28;/'
 mutant port-b-reach 's/(mask << 16) \& GPIO_PORTB_PINS/mask << 16/'
 mutant open-drain 's/GPIO_STORE | GPIO_SET | GPIO_CLEAR/GPIO_CONFOD | GPIO_STORE | GPIO_SET | GPIO_CLEAR/'
 mutant unknown-bit 's/(commands \& ~known) != 0)/(commands \& ~known) == GPIO_COMMAND)/'

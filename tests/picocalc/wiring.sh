@@ -80,6 +80,16 @@ check() {
 	has "$_cons" lcd_keyevs 'p_pid' || return 1
 	has "$_cons" lcdcons_procexit 'picokbd_evq_procexit(' || return 1
 	has "$_cons" lcd_getkey 'picokbd_evq_drain(' || return 1
+	has "$_cons" lcdselect 'rw == FREAD' || return 1
+	has "$_cons" lcdselect 'return ready ||' || return 1
+	has "$_cons" lcdselect 'picokbd_evq_ready(' || return 1
+	has "$_cons" lcdselect 'p_pgrp' || return 1
+	has "$_cons" lcdselect 'p_pid' || return 1
+	has "$_cons" lcdselect 't_flags' || return 1
+	has "$_cons" lcd_keyevs 'on == 2' || return 1
+	has "$_cons" lcd_keyevs 'picokbd_evq_wakeon(' || return 1
+	has "$_cons" picokbd_evq_wake 'selwakeup(' || return 1
+	has "$_cons" picokbd_evq_wake 't_rsel = NULL' || return 1
 	has "$_cons" lcd_getkey 'p_pgrp' || return 1
 	has "$_cons" lcd_getkey 'FREAD' || return 1
 	has "$_cons" lcd_getkey 'p_pid' || return 1
@@ -147,3 +157,10 @@ mutant requests-ignore-flags cons 's/lcdttys\[0\]\.t_flags,$/0,/'
 mutant modeset-hook-missing cons 's/^\t\tlcd_modeset();$/\t\t(void)0;/'
 mutant modeset-ends-nothing cons 's/picokbd_evq_modeset(u\.u_procp, u\.u_procp->p_pid);/(void)0;/'
 mutant modeset-misses-setlocal cons 's/cmd == TIOCLSET/cmd == 0/'
+mutant select-ignores-queue cons 's/return ready || ttyselect(/return ttyselect(/'
+mutant select-any-direction cons 's/rw == FREAD/rw != 0/'
+mutant select-any-process cons 's/picokbd_evq_ready(u\.u_procp, u\.u_procp->p_pid,/picokbd_evq_ready(0, 0,/'
+mutant select-ignores-group cons 's/^\t\t    u\.u_procp->p_pgrp, lcdttys\[0\]\.t_pgrp, lcdttys\[0\]\.t_flags);/\t\t    0, lcdttys[0].t_pgrp, lcdttys[0].t_flags);/'
+mutant request-two-ignored cons 's/error == 0 && on == 2/error == 0 \&\& on == 3/'
+mutant wakeon-missing cons 's/picokbd_evq_wakeon();/(void)0;/'
+mutant wake-missing cons 's/selwakeup(tp->t_rsel, tp->t_state & TS_RCOLL);/(void)tp;/'

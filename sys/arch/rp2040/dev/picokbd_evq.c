@@ -21,6 +21,11 @@
  * head and tail count events taken in and removed since the session began
  * and wrap modulo 2^32, so head - tail is the fill and the slot of event k
  * is k % LCD_KEYEV_QUEUE.
+ *
+ * A session started with the wake request (picokbd_evq_wakeon()) also makes
+ * the console's select(2) report the owner readable while the queue holds
+ * an event, picokbd_evq_ready(), and calls picokbd_evq_wake() after every
+ * event it queues. A drain empties the queue, which clears the readiness.
  */
 
 #include <sys/errno.h>
@@ -42,6 +47,7 @@ static int owner_pid;
 static int owner_pgrp;			/* Its process group; the foreground group is required to equal it. */
 static unsigned owner_mode;		/* The tty's mode word when the session started. */
 static int active;			/* A session is open; events are recorded. */
+static int owner_wake;			/* Its select(2) readiness is on. */
 
 /* Leave no keystroke in memory: the queue is cleared, not just emptied. */
 static void
@@ -54,6 +60,7 @@ session_end(void)
 		queue[i].key = 0;
 	}
 	active = 0;
+	owner_wake = 0;
 	owner = 0;
 	owner_proc = 0;
 	owner_pid = 0;
@@ -140,6 +147,23 @@ picokbd_evq_modeset(const void *proc, int pid)
 }
 
 void
+picokbd_evq_wakeon(void)
+{
+	if (active)
+		owner_wake = 1;
+}
+
+/* owner_wake is set only while a session is active and cleared when it ends. */
+int
+picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
+    unsigned tty_flags)
+{
+	picokbd_evq_check(tty_pgrp, tty_flags);
+	return owner_wake && head != tail && is_owner(proc, pid) &&
+	    pgrp != 0 && pgrp == tty_pgrp;
+}
+
+void
 picokbd_evq_put(int state, int key)
 {
 	struct lcd_keyev *ev;
@@ -157,6 +181,8 @@ picokbd_evq_put(int state, int key)
 	ev = &queue[head++ & (LCD_KEYEV_QUEUE - 1)];
 	ev->state = (unsigned char)state;
 	ev->key = (unsigned char)key;
+	if (owner_wake)
+		picokbd_evq_wake();
 }
 
 int

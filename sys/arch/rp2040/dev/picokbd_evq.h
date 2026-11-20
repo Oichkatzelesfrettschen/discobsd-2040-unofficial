@@ -108,6 +108,30 @@ void	picokbd_evq_check(int tty_pgrp, unsigned tty_flags);
 /* A mode-setting ioctl from process `proc`: end the session unless the owner made it. */
 void	picokbd_evq_modeset(const void *proc, int pid);
 
+/*
+ * Turn on select readiness for the active session: picokbd_evq_ready()
+ * reports its queue and picokbd_evq_wake() follows every recorded event. It
+ * lasts until the session ends, so a plain start (LCDIOC_KEYEVS 1) leaves
+ * select as the tty alone drives it.
+ */
+void	picokbd_evq_wakeon(void);
+
+/*
+ * Whether a select(2) for reading by process `proc` (pid `pid`, group
+ * `pgrp`) is ready on the queue: the session is active with readiness on,
+ * the caller owns it and is in the foreground group (the callers a drain
+ * accepts) and an event is waiting. A drain that takes the last event clears
+ * it.
+ */
+int	picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
+	    unsigned tty_flags);
+
+/*
+ * Supplied by the console: wake the processes selecting on it. Called from
+ * picokbd_evq_put() after each event a readiness-on session records.
+ */
+void	picokbd_evq_wake(void);
+
 /* Record one controller event if a session is active and the state is an event. */
 void	picokbd_evq_put(int state, int key);
 

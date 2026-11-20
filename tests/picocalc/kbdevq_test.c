@@ -124,6 +124,31 @@ begin(void)
 	expect("session start", start_f(&file_a, PG, PG, 1), 0);
 }
 
+/* The console's wake hook (lcdcons.c supplies it in the kernel). */
+static int wakes;
+
+void
+picokbd_evq_wake(void)
+{
+	wakes++;
+}
+
+static int
+ready_as(int pgrp, int tty_pgrp)
+{
+	return picokbd_evq_ready(cur_proc, cur_pid, pgrp, tty_pgrp, cur_flags);
+}
+
+/* One controller event through the poller's entry point. */
+static void
+ev_in(int state, int key)
+{
+	char out[PICOKBD_MAXSEQ];
+	int ctrl = 0;
+
+	(void)picokbd_event(state, key, 0, &ctrl, out);
+}
+
 static unsigned rng_state = 1;
 
 static unsigned
@@ -863,6 +888,132 @@ test_overflow(void)
 	expect("reset emptied the queue and the count", drain_run("reset", 0, 0), 0);
 }
 
+/*
+ * select(2) readiness: a session started with the wake request is ready for
+ * its owner while an event waits and wakes the selector for every kind of
+ * event, including those that type no byte; every other session and caller
+ * sees nothing, and a drain clears the readiness.
+ */
+static void
+test_wake(void)
+{
+	static const struct {
+		int state, key;
+		const char *what;
+	} kinds[] = {
+		{ PICOKBD_PRESSED, 'a', "typing press" },
+		{ PICOKBD_HOLD, 'a', "hold" },
+		{ PICOKBD_RELEASED, 'a', "release" },
+		{ PICOKBD_PRESSED, LCD_KEY_CTRL, "modifier press" },
+		{ PICOKBD_RELEASED, LCD_KEY_CTRL, "modifier release" },
+	};
+	struct lcd_keyevs out;
+	unsigned i;
+	int k;
+
+	/* Each event kind wakes a selector once and makes the owner ready. */
+	for (i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
+		begin();
+		picokbd_evq_wakeon();
+		wakes = 0;
+		expect("empty queue is not ready", ready_as(PG, PG), 0);
+		ev_in(kinds[i].state, kinds[i].key);
+		expect(kinds[i].what, wakes, 1);
+		expect(kinds[i].what, ready_as(PG, PG), 1);
+		expect("drain", drain_as(&out, PG, PG, 1), 0);
+		expect("readiness clears after the drain", ready_as(PG, PG), 0);
+		expect("a drained queue stays quiet", wakes, 1);
+	}
+
+	/* Readiness lasts until the last event is drained, six at a time. */
+	begin();
+	picokbd_evq_wakeon();
+	for (k = 0; k < 8; k++)
+		ev_in(PICOKBD_PRESSED, 'a' + k);
+	expect("eight events ready", ready_as(PG, PG), 1);
+	expect("first drain", drain_as(&out, PG, PG, 1), 0);
+	expect("two left are still ready", ready_as(PG, PG), 1);
+	expect("second drain", drain_as(&out, PG, PG, 1), 0);
+	expect("empty again", ready_as(PG, PG), 0);
+
+	/* A full queue stays ready while it drops. */
+	begin();
+	picokbd_evq_wakeon();
+	for (k = 0; k < LCD_KEYEV_QUEUE + 5; k++)
+		ev_in(PICOKBD_HOLD, 'a');
+	expect("an overflowing queue is ready", ready_as(PG, PG), 1);
+
+	/* A plain session never wakes and is never ready. */
+	begin();
+	wakes = 0;
+	for (k = 0; k < 4; k++)
+		ev_in(PICOKBD_PRESSED + k % 3, 'a');
+	expect("a plain session wakes nothing", wakes, 0);
+	expect("a plain session is not ready", ready_as(PG, PG), 0);
+
+	/* No session: no wake, no readiness, and the request does nothing. */
+	picokbd_evq_reset();
+	wakes = 0;
+	picokbd_evq_wakeon();
+	ev_in(PICOKBD_PRESSED, 'a');
+	expect("no session wakes nothing", wakes, 0);
+	expect("no session is not ready", ready_as(PG, PG), 0);
+	begin();
+	ev_in(PICOKBD_PRESSED, 'a');
+	expect("the stale request did not carry over", wakes, 0);
+	expect("the stale request left no readiness", ready_as(PG, PG), 0);
+
+	/* An event outside the three states wakes nothing. */
+	begin();
+	picokbd_evq_wakeon();
+	wakes = 0;
+	ev_in(0, 'a');
+	ev_in(4, 'a');
+	expect("a non-event wakes nothing", wakes, 0);
+	expect("a non-event is not ready", ready_as(PG, PG), 0);
+
+	/* Only the owner in the foreground group is ready. */
+	begin();
+	picokbd_evq_wakeon();
+	ev_in(PICOKBD_PRESSED, 'a');
+	expect("owner ready", ready_as(PG, PG), 1);
+	expect("a background owner is not ready", ready_as(PG, OTHER), 0);
+	expect("session ended by the group change", picokbd_evq_fill(), 0);
+	begin();
+	picokbd_evq_wakeon();
+	ev_in(PICOKBD_PRESSED, 'a');
+	expect("no group is not ready", ready_as(0, PG), 0);
+	as_process(&proc_b, PID_B);
+	expect("another process is not ready", ready_as(PG, PG), 0);
+	as_process(&proc_a, PID_B);
+	expect("a reused pid is not ready", ready_as(PG, PG), 0);
+	as_process(&proc_b, PID_A);
+	expect("a reused slot is not ready", ready_as(PG, PG), 0);
+	as_process(&proc_a, PID_A);
+	expect("the owner is still ready", ready_as(PG, PG), 1);
+
+	/* Ending the session or changing the mode ends the readiness. */
+	cur_flags = F_RAW;
+	expect("a mode change is not ready", ready_as(PG, PG), 0);
+	begin();
+	picokbd_evq_wakeon();
+	ev_in(PICOKBD_PRESSED, 'a');
+	expect("stop", stop_f(&file_a), 0);
+	expect("a stopped session is not ready", ready_as(PG, PG), 0);
+	wakes = 0;
+	ev_in(PICOKBD_PRESSED, 'a');
+	expect("a stopped session wakes nothing", wakes, 0);
+
+	/* A restart by the owner with the plain request turns readiness off. */
+	begin();
+	picokbd_evq_wakeon();
+	expect("restart", start_f(&file_a, PG, PG, 1), 0);
+	wakes = 0;
+	ev_in(PICOKBD_PRESSED, 'a');
+	expect("a restart is plain", wakes, 0);
+	expect("a restart is not ready", ready_as(PG, PG), 0);
+}
+
 int
 main(void)
 {
@@ -880,6 +1031,7 @@ main(void)
 	test_foreground();
 	test_drain_limit();
 	test_overflow();
+	test_wake();
 	if (failures != 0) {
 		fprintf(stderr, "kbdevq_test: %d failures\n", failures);
 		return 1;

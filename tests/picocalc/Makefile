@@ -64,8 +64,8 @@
 # on close, on the process's exit, on request, on a change of foreground
 # group and on any change of the tty's mode word (a getpass-like ECHO
 # clear), and leaves the queue empty, and the translated bytes must equal
-# those of picokbd_translate() alone; forty-four mutants of picokbd_evq.c
-# and sixteen cut connections in the kernel glue (wiring.sh) must fail it.
+# those of picokbd_translate() alone; fifty-two mutants of picokbd_evq.c
+# and twenty-three cut connections in the kernel glue (wiring.sh) must fail it.
 #
 # gametile_test runs the tile library (games/gametile.h) against a model of
 # the tile commands of /dev/lcdgfx; twenty-nine mutants of the header must
@@ -569,6 +569,14 @@ kbdevq-mutants: \
 	kbdevq-mutant-procexit-any-process \
 	kbdevq-mutant-owner-pid-ignored \
 	kbdevq-mutant-owner-proc-ignored \
+	kbdevq-mutant-wake-ready-ignores-request \
+	kbdevq-mutant-wake-ready-empty \
+	kbdevq-mutant-wake-ready-any-process \
+	kbdevq-mutant-wake-ready-background \
+	kbdevq-mutant-wake-ready-no-check \
+	kbdevq-mutant-wake-put-silent \
+	kbdevq-mutant-wake-put-ungated \
+	kbdevq-mutant-wake-end-keeps \
 	kbdevq-mutant-wiring
 
 kbdevq-mutant-drop-newest:
@@ -714,6 +722,38 @@ kbdevq-mutant-owner-pid-ignored:
 kbdevq-mutant-owner-proc-ignored:
 	${KBDEVQ_MUT} picokbd_evq.c \
 	    's/return owner_proc == proc \&\& owner_pid == pid;/return (owner_proc == proc || 1) \&\& owner_pid == pid;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-ignores-request:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/return owner_wake \&\& /return 1 \&\& /' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-empty:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/ head != tail \&\&//' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-any-process:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/is_owner(proc, pid)/((void)proc, (void)pid, 1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-background:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/pgrp != 0 \&\& pgrp == tty_pgrp/((void)pgrp, 1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-ready-no-check:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_ready/,/^}/s/^\tpicokbd_evq_check(tty_pgrp, tty_flags);$$/\t(void)tty_flags;/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-put-silent:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_put/,/^}/s/if (owner_wake)/if (0)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-put-ungated:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^picokbd_evq_put/,/^}/s/if (owner_wake)/if (1)/' ${KBDEVQ_SRC}
+
+kbdevq-mutant-wake-end-keeps:
+	${KBDEVQ_MUT} picokbd_evq.c \
+	    '/^session_end/,/^}/s/^\towner_wake = 0;$$/\t(void)0;/' ${KBDEVQ_SRC}
 
 kbdevq-mutant-check-ignores-group:
 	${KBDEVQ_MUT} picokbd_evq.c \
@@ -2593,7 +2633,7 @@ clean:
 	picoaudio-mutant-override-kept \
 	picoaudio-mutant-busy-kept
 
-.PHONY: kbdevq-mutants kbdevq-mutant-check-ignores-group kbdevq-mutant-check-ignores-mode kbdevq-mutant-mode-counts-line-discipline kbdevq-mutant-start-cooked kbdevq-mutant-start-raw-only kbdevq-mutant-start-no-snapshot kbdevq-mutant-modeset-ignored kbdevq-mutant-modeset-owner kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-check-ignored kbdevq-mutant-check-always-ends kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
+.PHONY: kbdevq-mutants kbdevq-mutant-wake-ready-ignores-request kbdevq-mutant-wake-ready-empty kbdevq-mutant-wake-ready-any-process kbdevq-mutant-wake-ready-background kbdevq-mutant-wake-ready-no-check kbdevq-mutant-wake-put-silent kbdevq-mutant-wake-put-ungated kbdevq-mutant-wake-end-keeps kbdevq-mutant-check-ignores-group kbdevq-mutant-check-ignores-mode kbdevq-mutant-mode-counts-line-discipline kbdevq-mutant-start-cooked kbdevq-mutant-start-raw-only kbdevq-mutant-start-no-snapshot kbdevq-mutant-modeset-ignored kbdevq-mutant-modeset-owner kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-check-ignored kbdevq-mutant-check-always-ends kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
 
 .PHONY: gametile-mutants gametile-mutant-fill-column-sum gametile-mutant-fill-row-sum gametile-mutant-fill-origin-unchecked gametile-mutant-load-sum gametile-mutant-load-product gametile-mutant-touch-unchecked gametile-mutant-run-crosses-row gametile-mutant-run-single gametile-mutant-run-bridges-gap gametile-mutant-mark-kept gametile-mutant-pending-uncounted gametile-mutant-pending-kept gametile-mutant-set-always-marks gametile-mutant-set-unmarked gametile-mutant-set-tile-range gametile-mutant-set-x-bound gametile-mutant-init-clean gametile-mutant-fill-range gametile-mutant-fill-tile-range gametile-mutant-short-write-accepted gametile-mutant-ioctl-failure-ignored gametile-mutant-window-height gametile-mutant-write-source gametile-mutant-load-last-tile gametile-mutant-load-high gametile-mutant-load-count-zero gametile-mutant-load-touch-missing gametile-mutant-touch-range gametile-mutant-load-bytes
 

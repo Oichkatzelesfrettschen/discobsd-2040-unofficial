@@ -24,34 +24,28 @@ The ARM text size of the donor cores was not measured: each needs its
 project's SDK headers to compile, and `i86`'s own size is measured, so the
 comparison no longer decides anything.
 
-## 1. Interrupt controller, keyboard interrupt, mouse
+## 1. Key releases and a mouse
 
-Missing: the 8259's priority, mask and end-of-interrupt logic; the keyboard
-controller's data and status ports with scan codes; interrupt 9; a mouse.
+Built since this note was first written: the interrupt controller and the
+keyboard interrupt with scan bytes at port 60h (`I86.md`, Machine).
 
-Why it matters: FreeDOS and MS-DOS take over interrupt 9 (`I86.md`, trace
-table), as do Windows 3.0's keyboard driver and nearly every game. Today
-their handlers never run and their keys arrive only because DOS also reads
-through interrupt 16h.
+Missing: key releases that happen when the key is released, and a mouse.
 
-Mechanism: `struct i86` keeps one pending vector. Replace it in `pc.c`
-with request, in-service and mask bytes; deliver the lowest set request
-that is unmasked and above the in-service level; clear in-service on the
-end-of-interrupt write to port 20h. A key from the terminal becomes a make
-code and a break code on port 60h with interrupt 9 raised for each; the
-default handler behind vector 9 is a trap that does what `key_code()` does
-now and fills the queue interrupt 16h reads. A terminal sends no key
-releases, so each key is a make followed at once by a break, and held keys
-cannot be represented from a tty. The PicoCalc kernel has raw key events
-(`LCDIOC_KEYEVS`), which give real make and break on that console.
+A terminal sends a byte when a key goes down and nothing when it comes
+up, so each key is a make byte followed at once by its break byte. Games
+that move while a key is held see an instant. The PicoCalc kernel has raw
+key events (`LCDIOC_KEYEVS` on the console, a session a foreground program
+opens in RAW or CBREAK mode) that carry press and release; a second
+keyboard source in `pc.c` that reads them, used when the ioctl succeeds,
+gives real make and break on that console and nowhere else.
 
 Mouse: no pointing device exists on the PicoCalc. A serial mouse on an
-emulated COM1 driven by the arrow keys with a modifier is the cheapest
-route that a stock DOS mouse driver accepts.
+emulated COM1, moved by the arrow keys while a modifier is held, is the
+cheapest route a stock DOS mouse driver accepts; it needs a third
+interrupt line and a UART model of about 100 lines.
 
-Check: the guest program hooks interrupt 9, reads port 60h, and sees make
-then break for a typed key; a mutant that drops the end-of-interrupt logic
-fails it. Cost: about 150 lines; text not measured.
+Check: the key-event source on the Renode keyboard model, which sends
+press and release; the mouse by a guest that reads three-byte packets.
 
 ## 2. Graphics modes and the 80-column screen
 
@@ -84,8 +78,8 @@ estimated; the 16 KB of display memory comes out of the page frames.
 
 Windows 3.0 has a real mode that runs on an 8086 with 640 KB, a hard disk
 and a CGA, Hercules, EGA or VGA display, so the processor model is not the
-obstacle. What it needs that is missing: item 1 (its keyboard driver takes
-interrupt 9), item 2 with mode 6 (its CGA driver is 640x200 in two colors),
+obstacle. Its keyboard driver takes interrupt 9, which now exists. What it
+needs that is missing: item 2 with mode 6 (its CGA driver is 640x200 in two colors),
 a hard disk image (present: `-h`, up to 1024 cylinders of 16 heads and 63
 sectors), and patience: at the inferred speed of an XT, Windows 3.0 in real
 mode was slow on real XTs too.
@@ -107,14 +101,11 @@ are free to redistribute.
 
 Present: two floppy and two hard disk images named on the command line.
 
-Missing: changing a floppy while the guest runs; a place and a route for
-images.
+Missing: a place and a route for images.
 
-Changing disks: a hot key (Control-] today leaves the emulator) opens a
-short menu on the terminal: the image files of a directory, chosen by
-number, or quit. `disk_open()` already takes a path at any time; the
-firmware answers the change-line call (13h AH=16h) with "changed" once
-after a swap so DOS rereads the disk. About 80 lines.
+Changing disks is built: Control-] opens a menu that lists the image
+files beside the drive's current one and takes a name (`I86.md`,
+Machine). A floppy library is therefore a directory of images.
 
 A place: the PICOCALC_SD root is on the card, 32 MiB with about 16 MiB
 free (`df` in the Renode transcript), so `/dos` on the root holds floppy
@@ -138,19 +129,35 @@ serial speed.
 
 ## 5. A DOS set for the PicoCalc
 
-`docs/research/i86-dos-emulator/mksvardos.sh` makes a 360 KB SvarDOS boot
-floppy from the first disk of the SvarDOS 360 KB set: kernel, SvarCOM,
-`mem`, `mode`, `more`, the `sved` editor, and a CONFIG.SYS and
-AUTOEXEC.BAT of three lines each. It reports 584 KB free of 640 KB and
-runs resident in 128 page frames (98 pages read back in a session).
+Built, in `docs/research/i86-dos-emulator/`:
 
-To build next: a hard disk image maker (partition table, FAT16 format with
-`sbin/newfs_msdos` or mtools on a host, system files copied in), SvarDOS
-packages unpacked onto it, and settings measured for this machine: BUFFERS
-low (every buffer is guest memory that pages), no disk cache, no EMS or XMS
-driver (there is no memory behind them), FILES at what the applications
-need. SvarDOS's kernel is the EDR-DOS kernel; MS-DOS programs and drivers
-run on it, and an owner-supplied MS-DOS boots as well (5.0 is observed).
+- `mksvardos.sh` makes a 360 KB SvarDOS boot floppy from the first disk of
+  the SvarDOS 360 KB set: kernel, SvarCOM, `mem`, `mode`, `more`, the
+  `sved` editor, and a CONFIG.SYS and AUTOEXEC.BAT of three lines each. It
+  reports 584 KB free of 640 KB and runs resident in 128 page frames (98
+  pages read back in a session).
+- `mkdosdisk.sh` makes a bootable SvarDOS hard disk image of 2 to 500 MB:
+  one FAT partition formatted by mtools, the partition sector of
+  `mbr.asm`, and the system placed by SvarDOS's own `SYS C:` run inside a
+  host build of the emulator. It ends by booting the image and requiring
+  the shell's banner. Observed on the host, 2026-11-20: 16 MB (FAT12) and
+  40 MB (FAT16) images boot on the 80286 model and list their directory.
+  `mbr.asm` exists because the partition sector SvarDOS ships uses 80386
+  instructions, which stop an 80286.
+
+The settings follow from the machine: BUFFERS=4 and a small environment,
+because every such byte is guest memory the emulator pages; no memory
+manager, disk cache, EMS or XMS driver, because no memory exists above
+640 KB. SvarDOS's kernel is the EDR-DOS kernel; MS-DOS programs and
+drivers run on it, and an owner-supplied MS-DOS boots as well (5.0 is
+observed).
+
+To build next: SvarDOS packages unpacked onto the disk image (its `pkg`
+tool reads a package file from the disk, so a set of `.svp` files copied
+in by `mkdosdisk.sh` and installed by a key script is the route), and a
+measured choice of BUFFERS and FILES against page traffic. The images
+are built on a host and copied to the card; the board has no nasm or
+mtools, though `i86` itself runs `FORMAT` and `SYS` there.
 
 ## 6. Protected mode
 

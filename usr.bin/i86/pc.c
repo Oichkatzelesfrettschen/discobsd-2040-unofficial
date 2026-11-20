@@ -34,11 +34,14 @@
  * times its start-up key wait by the tick count with interrupts off and
  * depends on the keyboard service to let the timer in.
  *
+ * Control-] typed at a drawn display opens a one-line menu: leave, or
+ * change the image in a floppy drive while the guest runs.
+ *
  * No firmware code runs in the guest. Every interrupt vector points at a
  * four-byte entry in segment F000 that holds the trap sequence of i86.h,
  * and pc_trap() performs the service on the registers and guest memory.
- * The timer interrupt alone has guest code after its trap, so that a
- * handler hooked on interrupt 1Ch runs.
+ * The two hardware interrupts have guest code after their traps: the end
+ * of interrupt, and for the timer the call of interrupt 1Ch before it.
  *
  * The display is the 4000 bytes of color text memory at B800:0. The
  * firmware services write it, programs may write it directly, and
@@ -47,13 +50,30 @@
  * terminal as line feeds inside a scroll region of the guest's height, so
  * a terminal taller than 25 lines scrolls the guest's lines alone.
  *
- * The keyboard is the terminal's byte stream translated to firmware key
- * codes; interrupt 9 is never raised and the controller ports read idle.
+ * Interrupts come through an interrupt controller at ports 20h and 21h
+ * with request, in-service and mask registers, fixed priority and the
+ * end-of-interrupt commands: the timer on line 0, the keyboard on line 1.
+ *
+ * The keyboard is the terminal's byte stream turned back into key presses.
+ * Each key becomes scan bytes at port 60h, one keyboard interrupt apiece:
+ * the modifiers it needs, its make byte, its break byte, the modifiers
+ * released. A terminal reports no releases, so the break follows the make
+ * at once and no key is ever seen held. The handler behind vector 9 does
+ * the firmware's part: it keeps the shift flags at 40:17 and puts the key
+ * code into the 16-word buffer at 40:1E that interrupt 16h reads. A guest
+ * that takes vector 9 sees the scan bytes first, as on the machine.
  * A guest that polls interrupt 16h without result gives up the processor.
  */
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef HOSTBUILD
+#include <dirent.h>
+#define direct dirent
+#else
+#include <sys/dir.h>
+#endif
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -70,9 +90,15 @@
 #define DPT_STEP	0x20u
 #define DPT_SIZE	11
 #define ROM_RESET	0x7f0u
+#define ROM_KEY		0x420u
 #define TRAP_TICK	0x08
+#define TRAP_KEY	0x09
+#define KB_N		64		/* scan bytes waiting for the controller */
+#define KB_KEY		8		/* the most one key puts there */
+#define K_SHIFT		0x10000u	/* key_code(): typed with this held */
+#define K_CTRL		0x20000u
+#define K_ALT		0x40000u
 #define BDA		0x400u
-#define KQ_N		32
 #define IDLE_POLLS	16		/* empty key polls in one tick: waiting */
 #define TYPE_TICKS	64		/* timer ticks of polling before typing */
 
@@ -89,10 +115,18 @@ static uint8_t vram[0x1000];
 static uint8_t shadow[2 * 80 * ROWS];
 static uint8_t rom[0x800];
 static struct disk disks[4];
+static const char *disk_path[4];	/* the image each drive holds */
 static struct pc_config cf;
 
-static uint16_t kq[KQ_N];
-static unsigned kq_head, kq_n, key_polls, nticks, poll_tick;
+static uint8_t kb_scan[KB_N];		/* scan bytes on their way to port 60h */
+static uint16_t kb_code[KB_N];		/* the key code a make byte stands for */
+static unsigned kb_head, kb_n, key_polls, nticks, poll_tick;
+static uint8_t kb_latch, kb_full;	/* port 60h and its status bit */
+static uint16_t kb_latch_code;
+static uint8_t pic_irr, pic_isr, pic_readisr;
+static uint8_t pic_icw;			/* initialization words still to come */
+static uint8_t pic_icw2, pic_icw4;	/* which of them the next one is */
+static uint8_t pic_base = 8, pic_aeoi;	/* what the words selected */
 static unsigned idle_polls, idle_tick;
 static int key_eof;
 
@@ -111,7 +145,6 @@ static uint16_t pit_count;
  * sys/arch/rp2040/doc/I86.md holds the table this produced for three DOS
  * systems. */
 #ifdef I86_TRACE
-#include <stdio.h>
 #define TRACE(what, a, b)	fprintf(stderr, "trace %s %02x %04x\n", what, a, b)
 #else
 #define TRACE(what, a, b)	((void)0)
@@ -467,11 +500,134 @@ video(struct i86 *c)
 
 /* Keyboard. */
 
+/* The interrupt request line follows the highest request that is unmasked
+ * and above everything in service. */
 static void
-kq_put(unsigned code)
+pic_update(struct i86 *c)
 {
-	if (kq_n < KQ_N)
-		kq[(kq_head + kq_n++) % KQ_N] = (uint16_t)code;
+	unsigned above = pic_isr ? (pic_isr & (0u - pic_isr)) - 1 : 0xff;
+
+	c->irq = (pic_irr & ~(unsigned)imask & above) != 0;
+}
+
+/* The processor acknowledges: the vector of the request it takes. */
+unsigned
+pc_inta(struct i86 *c)
+{
+	unsigned above = pic_isr ? (pic_isr & (0u - pic_isr)) - 1 : 0xff;
+	unsigned req = pic_irr & ~(unsigned)imask & above, n = 0;
+
+	if (req == 0) {
+		c->irq = 0;
+		return (pic_base + 7u);	/* the controller's spurious level */
+	}
+	while (!(req >> n & 1))
+		n++;
+	pic_irr &= (uint8_t)~(1u << n);
+	/* With automatic end of interrupt nothing stays in service. */
+	if (!pic_aeoi)
+		pic_isr |= (uint8_t)(1u << n);
+	pic_update(c);
+	return (pic_base + n);
+}
+
+/* The firmware's key buffer in the data area: head at 40:1A, tail at
+ * 40:1C, sixteen words from 40:1E. */
+static int
+bq_empty(void)
+{
+	return (mem_rw(BDA + 0x1a) == mem_rw(BDA + 0x1c));
+}
+
+/* Returns 0 when the buffer is full and the key is dropped. */
+static int
+bq_put(unsigned code)
+{
+	unsigned tail = mem_rw(BDA + 0x1c), next = tail + 2;
+
+	if (tail < 0x1e || tail > 0x3c)		/* the guest's own value */
+		return (0);
+	if (next == 0x3e)
+		next = 0x1e;
+	if (next == mem_rw(BDA + 0x1a))
+		return (0);
+	mem_ww(BDA + tail, code);
+	mem_ww(BDA + 0x1c, next);
+	return (1);
+}
+
+static void
+kb_put(unsigned scan, unsigned code)
+{
+	unsigned i;
+
+	if (kb_n == KB_N)
+		return;
+	i = (kb_head + kb_n++) % KB_N;
+	kb_scan[i] = (uint8_t)scan;
+	kb_code[i] = (uint16_t)code;
+}
+
+/* One key press, as key_code() describes it, on its way to port 60h. */
+static void
+key_type(unsigned key)
+{
+	unsigned scan = (key >> 8) & 0x7f;
+
+	if (scan == 0) {		/* no key of the keyboard makes it */
+		bq_put(key & 0xffff);
+		return;
+	}
+	if (key & K_SHIFT)
+		kb_put(0x2a, 0);
+	if (key & K_CTRL)
+		kb_put(0x1d, 0);
+	if (key & K_ALT)
+		kb_put(0x38, 0);
+	kb_put(scan, key & 0xffff);
+	kb_put(scan | 0x80, 0);
+	if (key & K_ALT)
+		kb_put(0xb8, 0);
+	if (key & K_CTRL)
+		kb_put(0x9d, 0);
+	if (key & K_SHIFT)
+		kb_put(0xaa, 0);
+}
+
+/* The next scan byte reaches port 60h once the last one has been taken
+ * and its interrupt has ended. */
+static void
+kb_next(void)
+{
+	if (kb_n == 0 || kb_full || ((pic_irr | pic_isr) & 2))
+		return;
+	kb_latch = kb_scan[kb_head];
+	kb_latch_code = kb_code[kb_head];
+	kb_head = (kb_head + 1) % KB_N;
+	kb_n--;
+	kb_full = 1;
+	pic_irr |= 2;
+}
+
+/* The firmware's keyboard interrupt, behind vector 9. */
+static void
+key_irq(void)
+{
+	static const uint8_t mod[] = { 0x2a, 0x02, 0x1d, 0x04, 0x38, 0x08 };
+	unsigned i, flags = bda8(0x17);
+
+	for (i = 0; i < sizeof(mod); i += 2)
+		if ((kb_latch & 0x7f) == mod[i]) {
+			if (kb_latch & 0x80)
+				flags &= ~(unsigned)mod[i + 1];
+			else
+				flags |= mod[i + 1];
+		}
+	bda8w(0x17, flags);
+	if (kb_latch_code)
+		bq_put(kb_latch_code);
+	kb_latch_code = 0;
+	kb_full = 0;
 }
 
 /* Scan codes 02h-35h in order, unshifted and shifted. */
@@ -497,11 +653,11 @@ key_code(unsigned ch)
 		if ((p = strchr(keys_lo, (int)ch)) != NULL)
 			return ((unsigned)(p - keys_lo + 2) << 8 | ch);
 		if ((p = strchr(keys_hi, (int)ch)) != NULL)
-			return ((unsigned)(p - keys_hi + 2) << 8 | ch);
+			return (K_SHIFT | (unsigned)(p - keys_hi + 2) << 8 | ch);
 	}
 	if (ch >= 1 && ch <= 26 &&
 	    (p = strchr(keys_lo, (int)ch + 0x60)) != NULL)
-		return ((unsigned)(p - keys_lo + 2) << 8 | ch);
+		return (K_CTRL | (unsigned)(p - keys_lo + 2) << 8 | ch);
 	return (ch);
 }
 
@@ -520,12 +676,12 @@ key_escape(void)
 	int ch;
 
 	if (host_ready(20) <= 0) {
-		kq_put(0x011b);
+		key_type(0x011b);
 		return;
 	}
 	ch = host_getc();
 	if (ch != '[' && ch != 'O') {
-		kq_put(key_code((unsigned)ch) & 0xff00);
+		key_type(K_ALT | (key_code((unsigned)ch) & 0xff00));
 		return;
 	}
 	for (;;) {
@@ -538,30 +694,37 @@ key_escape(void)
 			break;
 	}
 	if (ch == '~' && n < sizeof(tilde) && tilde[n])
-		kq_put((unsigned)tilde[n] << 8);
+		key_type((unsigned)tilde[n] << 8);
 	else if (ch >= 'P' && ch <= 'S')
-		kq_put((unsigned)(0x3b + ch - 'P') << 8);
+		key_type((unsigned)(0x3b + ch - 'P') << 8);
 	else if (ch > 0 && (p = strchr(letter, ch)) != NULL)
-		kq_put((unsigned)lcode[p - letter] << 8);
+		key_type((unsigned)lcode[p - letter] << 8);
 }
+
+static void menu(void);
+static void dpt_set(unsigned i);
 
 static void
 key_pump(void)
 {
 	int ch;
 
-	while (!key_eof && kq_n < KQ_N - 1 && host_ready(0) != 0) {
+	while (!key_eof && kb_n <= KB_N - KB_KEY && host_ready(0) != 0) {
 		ch = host_getc();
 		if (ch < 0) {
 			key_eof = 1;
 			break;
 		}
-		if (ch == 0x1d)		/* Ctrl-]: leave the emulator */
-			host_exit(0);
+		if (ch == 0x1d) {	/* Ctrl-]: the menu, or out when quiet */
+			if (cf.quiet)
+				host_exit(0);
+			menu();
+			continue;
+		}
 		if (ch == 0x1b)
 			key_escape();
 		else
-			kq_put(key_code((unsigned)ch));
+			key_type(key_code((unsigned)ch));
 	}
 }
 
@@ -573,16 +736,21 @@ key_wait(int block)
 	if (key_polls++ == 0)
 		poll_tick = nticks;
 	if (cf.keys != NULL) {
+		if (kb_n || kb_full) {	/* the last key is still arriving */
+			pc_idle = 1;
+			return;
+		}
 		if (!block && nticks - poll_tick < TYPE_TICKS)
 			return;
 		if (*cf.keys == '\0')
 			host_exit(0);
-		kq_put(key_code((unsigned char)*cf.keys++));
+		key_type(key_code((unsigned char)*cf.keys++));
 		key_polls = 0;
+		pc_idle = 1;
 		return;
 	}
 	key_pump();
-	if (kq_n)
+	if (!bq_empty())
 		return;
 	if (idle_tick != nticks) {
 		idle_tick = nticks;
@@ -594,7 +762,7 @@ key_wait(int block)
 	 * looks at the keyboard now and then while it works is left to
 	 * work, whatever the input holds. */
 	if (block || ++idle_polls > IDLE_POLLS) {
-		if (key_eof)
+		if (key_eof && kb_n == 0 && !kb_full)
 			host_exit(0);
 		pc_idle = 1;
 	}
@@ -603,39 +771,46 @@ key_wait(int block)
 static int
 keyboard(struct i86 *c)
 {
+	unsigned head;
+
 	switch (c->r[R_AX] >> 8) {
 	case 0x00:
 	case 0x10:
-		if (kq_n == 0) {
+		if (bq_empty()) {
 			key_wait(1);
-			if (kq_n == 0) {
+			if (bq_empty()) {
 				/* Run this trap again, with interrupts
 				 * let in between the runs as the firmware's
-				 * wait loop does: the clock keeps time while
-				 * the guest waits for a key. */
+				 * wait loop does: the keyboard interrupt
+				 * brings the key and the clock keeps time. */
 				c->ip -= 3;
 				c->fl |= F_IF;
 				return (1);
 			}
 		}
 		key_polls = 0;
-		c->r[R_AX] = kq[kq_head];
-		kq_head = (kq_head + 1) % KQ_N;
-		kq_n--;
+		head = mem_rw(BDA + 0x1a);
+		c->r[R_AX] = (uint16_t)mem_rw(BDA + head);
+		mem_ww(BDA + 0x1a, head + 2 >= 0x3e ? 0x1e : head + 2);
 		break;
 	case 0x01:
 	case 0x11:
-		if (kq_n == 0)
+		if (bq_empty())
 			key_wait(0);
-		if (kq_n) {
-			c->r[R_AX] = kq[kq_head];
+		if (!bq_empty()) {
+			c->r[R_AX] = (uint16_t)mem_rw(BDA + mem_rw(BDA + 0x1a));
 			c->fl &= (uint16_t)~F_ZF;
 		} else
 			c->fl |= F_ZF;
 		break;
 	case 0x02:
 	case 0x12:
-		c->r[R_AX] &= 0xff00;
+		c->r[R_AX] = (uint16_t)((c->r[R_AX] & 0xff00) | bda8(0x17));
+		break;
+	case 0x05:
+		/* AL reports a full buffer. */
+		c->r[R_AX] = (uint16_t)((c->r[R_AX] & 0xff00) |
+		    !bq_put(c->r[R_CX]));
 		break;
 	default:
 		TRACE("int16", c->r[R_AX] >> 8, c->r[R_AX]);
@@ -646,7 +821,9 @@ keyboard(struct i86 *c)
 
 /* Disks. */
 
-static void
+/* Open the image for drive i. Returns 0, or -1 with the drive empty when
+ * the file cannot serve as a disk. */
+static int
 disk_open(unsigned i, const char *path)
 {
 	static const struct { uint16_t kb; uint8_t cyl, heads, spt; } fmt[] = {
@@ -661,20 +838,19 @@ disk_open(unsigned i, const char *path)
 
 	d->fd = -1;
 	if (path == NULL)
-		return;
+		return (0);
 	d->ro = (uint8_t)cf.readonly;
 	if (d->ro || (d->fd = open(path, O_RDWR)) < 0) {
 		d->ro = 1;
 		d->fd = open(path, O_RDONLY);
 	}
 	if (d->fd < 0 || fstat(d->fd, &st) < 0 || st.st_size < 512) {
-		static const char msg[] = "i86: cannot use disk image ";
-
-		host_write(msg, sizeof(msg) - 1);
-		host_write(path, (unsigned)strlen(path));
-		host_write("\r\n", 2);
-		host_exit(2);
+		if (d->fd >= 0)
+			close(d->fd);
+		d->fd = -1;
+		return (-1);
 	}
+	disk_path[i] = path;
 	d->nsec = (uint32_t)(st.st_size / 512);
 	d->heads = 16;
 	d->spt = 63;
@@ -685,7 +861,7 @@ disk_open(unsigned i, const char *path)
 		d->heads = fmt[k].heads;
 		d->spt = fmt[k].spt;
 		d->cyl = fmt[k].cyl;
-		return;
+		return (0);
 	}
 	/* The first partition's last sector names the geometry it was
 	 * made with. */
@@ -697,6 +873,140 @@ disk_open(unsigned i, const char *path)
 	}
 	k = d->nsec / ((unsigned)d->heads * d->spt);
 	d->cyl = (uint16_t)(k > 1024 ? 1024 : k < 1 ? 1 : k);
+	return (0);
+}
+
+static int
+is_image(const char *name)
+{
+	size_t n = strlen(name);
+
+	return (n > 4 && name[n - 4] == '.' &&
+	    (name[n - 3] | 0x20) == 'i' && (name[n - 2] | 0x20) == 'm' &&
+	    ((name[n - 1] | 0x20) == 'g' || (name[n - 1] | 0x20) == 'a'));
+}
+
+/* A file's name on the terminal: a byte that is not a printing ASCII
+ * character could be a terminal's command, and shows as a question mark. */
+static void
+oname(const char *s)
+{
+	for (; *s; s++)
+		oputc(*s >= 0x20 && *s < 0x7f ? *s : '?');
+}
+
+/* A line typed at the terminal, echoed; Escape gives it up. */
+static unsigned
+menu_line(char *buf, unsigned size)
+{
+	unsigned n = 0;
+	int ch;
+
+	for (;;) {
+		oflush();
+		ch = host_getc();
+		if (ch < 0 || ch == 0x1b)
+			return (0);
+		if (ch == '\r' || ch == '\n')
+			break;
+		if (ch == 8 || ch == 0x7f) {
+			if (n) {
+				n--;
+				oputs("\b \b");
+			}
+		} else if (ch >= ' ' && n < size - 1) {
+			buf[n++] = (char)ch;
+			oputc(ch);
+		}
+	}
+	buf[n] = '\0';
+	return (n);
+}
+
+/* Control-] on a drawn display: leave, or put another image in a floppy
+ * drive. The images offered are the files named *.img and *.ima beside
+ * the drive's current one, and a name without a slash is taken from
+ * there. DOS notices the change itself: the drives report no change line,
+ * so it reads the disk's parameters again before trusting what it holds. */
+static void
+menu(void)
+{
+	static char path[2][96];
+	char name[48], dir[96], full[96];
+	const char *slash;
+	struct disk old;
+	struct direct *e;
+	DIR *dp;
+	unsigned i;
+	size_t n;
+	int ch, known = 1;
+
+	/* One line that fits the 40 columns of the PicoCalc's DOS screen. */
+	oputs("\033[0m\033[2J\033[H"
+	    "i86: q quit, a b floppy, other: back\r\n");
+	oflush();
+	ch = host_getc();
+	if (ch == 'a' || ch == 'b') {
+		i = (unsigned)(ch - 'a');
+		strcpy(dir, ".");
+		if (disk_path[i] != NULL &&
+		    (slash = strrchr(disk_path[i], '/')) != NULL) {
+			n = (size_t)(slash - disk_path[i]);
+			if (n == 0)
+				n = 1;		/* the root directory */
+			if (n < sizeof(dir)) {
+				memcpy(dir, disk_path[i], n);
+				dir[n] = '\0';
+			} else
+				known = 0;
+		}
+		if (!known) {
+			/* Another directory's images are not offered in
+			 * place of the ones beside the current image. */
+			oputs("the image's directory name is too long; "
+			    "press a key");
+			oflush();
+			(void)host_getc();
+		} else if ((dp = opendir(dir)) != NULL) {
+			while ((e = readdir(dp)) != NULL)
+				if (is_image(e->d_name)) {
+					oname(e->d_name);
+					oputs("  ");
+				}
+			closedir(dp);
+		}
+		if (known)
+			oputs("\r\nimage: ");
+		if (known && menu_line(name, sizeof(name)) != 0) {
+			if (strchr(name, '/') != NULL)
+				n = (size_t)snprintf(full, sizeof(full), "%s", name);
+			else
+				n = (size_t)snprintf(full, sizeof(full), "%s/%s",
+				    dir, name);
+			old = disks[i];
+			slash = disk_path[i];
+			if (n >= sizeof(full) || disk_open(i, full) != 0) {
+				disks[i] = old;
+				disk_path[i] = slash;
+				oputs("\r\ncannot use that image; press a key");
+				oflush();
+				(void)host_getc();
+			} else {
+				if (old.fd >= 0)
+					close(old.fd);
+				strcpy(path[i], full);
+				disk_path[i] = path[i];
+				dpt_set(i);
+			}
+		}
+	}
+	/* Draw the guest's screen again from nothing, also on the way out,
+	 * so that the session ends on what the guest last showed. */
+	memset(shadow, 0, sizeof(shadow));
+	oputs("\033[2J");
+	tx = ty = tattr = -1;
+	if (ch == 'q' || ch < 0)
+		host_exit(0);
 }
 
 /* The parameter table of floppy drive i for the format of its image:
@@ -997,6 +1307,9 @@ pc_trap(struct i86 *c, unsigned n)
 	case TRAP_TICK:
 		tick();
 		return (1);
+	case TRAP_KEY:
+		key_irq();
+		return (1);
 	case 0x10:
 		video(c);
 		break;
@@ -1045,6 +1358,23 @@ pc_trap(struct i86 *c, unsigned n)
 	case 0x1a:
 		clock_service(c);
 		break;
+	case 0x06:
+		/* An invalid opcode the guest has no handler for. Returning
+		 * would run the same instruction again without end. A
+		 * program's own INT 6 comes here too and returns. */
+		if (cf.model != I86_8086 && c->fault) {
+			char msg[64];
+			uint32_t sp = ((uint32_t)c->s[S_SS] << 4) + c->r[R_SP];
+			int len = snprintf(msg, sizeof(msg),
+			    "i86: undefined instruction at %04X:%04X\n",
+			    mem_rw((sp + 2) & (MEM_SIZE - 1)),
+			    mem_rw(sp & (MEM_SIZE - 1)));
+
+			pc_restore(1);
+			(void)!write(2, msg, (size_t)len);
+			host_exit(4);
+		}
+		break;
 	default:
 		if (n < 0x20 && n != 0x1c)
 			TRACE("int", n, c->r[R_AX]);
@@ -1062,6 +1392,9 @@ pc_in(struct i86 *c, unsigned port, int w)
 
 	(void)c;
 	switch (port) {
+	case 0x20:
+		v = pic_readisr ? pic_isr : pic_irr;
+		break;
 	case 0x21:
 		v = imask;
 		break;
@@ -1075,8 +1408,11 @@ pc_in(struct i86 *c, unsigned port, int w)
 		pit_flip ^= 1;
 		break;
 	case 0x60:
+		v = kb_latch;
+		kb_full = 0;
+		break;
 	case 0x64:
-		v = 0;
+		v = kb_full;
 		break;
 	case 0x71:
 		v = cmos(cmos_index & 0x7f);
@@ -1107,12 +1443,41 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 {
 	unsigned pos;
 
-	(void)c;
 	(void)w;
 	v &= 0xff;
 	switch (port) {
+	case 0x20:
+		if (v & 0x10) {
+			/* Initialization: the words that follow at port
+			 * 21h are not masks. */
+			pic_icw = (uint8_t)(1 + !(v & 2) + (v & 1));
+			pic_icw2 = 1;
+			pic_icw4 = v & 1;
+			pic_irr = pic_isr = imask = pic_aeoi = 0;
+		} else if (v & 0x08) {
+			if (v & 2)
+				pic_readisr = v & 1;
+		} else if (v & 0x20) {
+			if (v & 0x40)
+				pic_isr &= (uint8_t)~(1u << (v & 7));
+			else
+				pic_isr &= (uint8_t)(pic_isr - 1);
+		}
+		pic_update(c);
+		break;
 	case 0x21:
-		imask = (uint8_t)v;
+		if (pic_icw) {
+			/* The vector base, then the cascade word of a
+			 * controller that is not alone, then the mode. */
+			if (pic_icw2)
+				pic_base = v & 0xf8;
+			else if (pic_icw == 1 && pic_icw4)
+				pic_aeoi = v >> 1 & 1;
+			pic_icw2 = 0;
+			pic_icw--;
+		} else
+			imask = (uint8_t)v;
+		pic_update(c);
 		break;
 	case 0x70:
 		cmos_index = (uint8_t)v;
@@ -1155,10 +1520,12 @@ pc_poll(struct i86 *c)
 				key_pump();
 			refresh();
 		}
-		if (ticks_due && !c->irq && !(imask & 1)) {
+		if (ticks_due && !(pic_irr & 1)) {
 			ticks_due--;
-			c->irq = 8;
+			pic_irr |= 1;
 		}
+		kb_next();
+		pic_update(c);
 		if (!(pc_idle || c->halted) || waited ||
 		    (c->irq && (c->fl & F_IF)))
 			break;
@@ -1183,8 +1550,16 @@ pc_poll(struct i86 *c)
 void
 pc_init(struct i86 *c, const struct pc_config *config)
 {
+	/* The trap, then for the timer the user hook, then the end of
+	 * interrupt as guest code: push ax; mov al, 20h; out 20h, al;
+	 * pop ax; iret. */
 	static const uint8_t timer[] = {
-		0x0f, 0xff, TRAP_TICK, 0xcd, 0x1c, 0xcf
+		0x0f, 0xff, TRAP_TICK, 0xcd, 0x1c,
+		0x50, 0xb0, 0x20, 0xe6, 0x20, 0x58, 0xcf
+	};
+	static const uint8_t key[] = {
+		0x0f, 0xff, TRAP_KEY,
+		0x50, 0xb0, 0x20, 0xe6, 0x20, 0x58, 0xcf
 	};
 	unsigned i, nfloppy;
 
@@ -1198,7 +1573,9 @@ pc_init(struct i86 *c, const struct pc_config *config)
 		mem_ww(4 * i + 2, 0xf000);
 	}
 	memcpy(rom + ROM_TIMER, timer, sizeof(timer));
+	memcpy(rom + ROM_KEY, key, sizeof(key));
 	mem_ww(4 * 8, ROM_OFF + ROM_TIMER);
+	mem_ww(4 * 9, ROM_OFF + ROM_KEY);
 	mem_ww(4 * 0x1e, ROM_OFF + ROM_DPT);
 	/* FFFF:0000 jumps to the bootstrap; the date and model follow. */
 	rom[ROM_RESET] = 0xea;
@@ -1212,7 +1589,14 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	mem_fixed(VRAM_ADDR, vram, sizeof(vram));
 
 	for (i = 0; i < 4; i++)
-		disk_open(i, cf.disk[i]);
+		if (disk_open(i, cf.disk[i]) != 0) {
+			static const char msg[] = "i86: cannot use disk image ";
+
+			host_write(msg, sizeof(msg) - 1);
+			host_write(cf.disk[i], (unsigned)strlen(cf.disk[i]));
+			host_write("\r\n", 2);
+			host_exit(2);
+		}
 	dpt_set(0);
 	dpt_set(1);
 	nfloppy = (disks[0].fd >= 0) + (disks[1].fd >= 0);
@@ -1242,6 +1626,8 @@ pc_init(struct i86 *c, const struct pc_config *config)
 void
 pc_restore(int draw)
 {
+	static int restored;
+
 #ifdef I86_TRACE
 	static const uint8_t watched[] = { 8, 9, 0x10, 0x13, 0x15, 0x16, 0x1c };
 	unsigned i;
@@ -1250,10 +1636,14 @@ pc_restore(int draw)
 		if (mem_rw(watched[i] * 4 + 2) != 0xf000)
 			TRACE("hooked", watched[i], mem_rw(watched[i] * 4 + 2));
 #endif
-	if (cf.quiet)
+	if (cf.quiet || restored)
 		return;
+	/* The frame reads guest memory; when the page store fails under it
+	 * host_exit() comes back here, and that second call must still
+	 * give the terminal back. */
 	if (draw)
 		refresh();
+	restored = 1;
 	oputs("\033[0m\033[r\033[?7h\033[26;1H");
 	oflush();
 }

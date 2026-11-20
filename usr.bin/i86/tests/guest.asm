@@ -58,8 +58,30 @@ start:	cli
 	jmp main
 .bad:	mov si, m_load
 	call puts
+; After the tests: each r typed reads the boot sector of the drive again
+; and prints the six-letter label at its end with a count, so a changed
+; disk shows.
 halt:	xor ah, ah
 	int 0x16
+	cmp al, 'r'
+	jne halt
+	mov ax, 0x0201
+	mov bx, BUF2
+	mov cx, 0x0001
+	mov dh, 0
+	mov dl, [drive]
+	int 0x13
+	jc halt
+	mov si, BUF2 + 0x1f8
+	mov cx, 6
+.label:	lodsb
+	mov ah, 0x0e
+	int 0x10
+	loop .label
+	inc byte [reads]
+	mov al, [reads]
+	mov ah, 0x0e
+	int 0x10
 	jmp halt
 
 puts:	lodsb
@@ -91,9 +113,11 @@ hex4:	push cx
 	ret
 
 drive:	db 0
+reads:	db '0'
 m_load:	db "LOAD BAD", 13, 10, 0
 
-	times 510 - ($ - $$) db 0
+	times 0x1f8 - ($ - $$) db 0
+	db "DISK-A"
 	dw 0xaa55
 
 main:	; Thirty lines scroll the screen before the results.
@@ -292,6 +316,79 @@ main:	; Thirty lines scroll the screen before the results.
 	sti
 	mov si, m_kbd
 	call puts
+	; A masked timer line delivers nothing; unmasked, the tick it held
+	; back arrives.
+	mov al, 1
+	out 0x21, al
+	mov bx, [0x46c]
+	xor cx, cx
+.mask:	loop .mask
+	mov si, m_mkbad
+	cmp bx, [0x46c]
+	jne .masked
+	xor al, al
+	out 0x21, al
+.open:	cmp bx, [0x46c]
+	je .open
+	mov si, m_mask
+.masked: xor al, al
+	out 0x21, al
+	call puts
+	; The controller initialized with another vector base and automatic
+	; end of interrupt: two ticks reach a handler there that sends no
+	; end of interrupt. The firmware's base and mode come back after.
+	cli
+	mov word [0x60 * 4], remap
+	mov [0x60 * 4 + 2], cs
+	mov al, 0x13			; alone, a mode word follows
+	out 0x20, al
+	mov al, 0x60
+	out 0x21, al
+	mov al, 0x03
+	out 0x21, al
+	sti
+	mov cx, 16
+.remap:	hlt
+	cmp word [rcount], 2
+	jae .moved
+	loop .remap
+.moved:	cli
+	mov al, 0x13
+	out 0x20, al
+	mov al, 0x08
+	out 0x21, al
+	mov al, 0x01
+	out 0x21, al
+	sti
+	mov si, m_remap
+	cmp word [rcount], 2
+	jae .remapped
+	mov si, m_rbad
+.remapped: call puts
+	; Keys a program puts into the firmware's buffer: fifteen fit, the
+	; sixteenth is refused, and they come back as they went in.
+	xor bx, bx
+	mov di, 16
+.stuff:	mov ah, 5
+	mov cx, 0x1234
+	int 0x16
+	cmp al, 1
+	jne .took
+	inc bx
+.took:	dec di
+	jnz .stuff
+	mov di, 15
+.drain:	xor ax, ax
+	int 0x16
+	cmp ax, 0x1234
+	jne .sbad
+	dec di
+	jnz .drain
+	mov si, m_stuff
+	cmp bx, 1
+	je .stuffed
+.sbad:	mov si, m_sbad
+.stuffed: call puts
 	cli
 	mov word [0x1c * 4], hook
 	mov [0x1c * 4 + 2], cs
@@ -309,7 +406,7 @@ main:	; Thirty lines scroll the screen before the results.
 	; the firmware, and read back.
 	mov ax, 0xb800
 	mov es, ax
-	mov di, 5 * 160		; five lines scroll after this
+	mov di, 6 * 160		; six lines scroll after this
 	mov si, m_direct
 	mov ah, 0x1e
 .cell:	lodsb
@@ -324,7 +421,7 @@ main:	; Thirty lines scroll the screen before the results.
 	int 0x10
 	push dx
 	mov ah, 2
-	mov dx, 0x0605
+	mov dx, 0x0705
 	int 0x10
 	mov ax, 0x095a
 	mov bx, 0x004f
@@ -372,7 +469,16 @@ main:	; Thirty lines scroll the screen before the results.
 .mode:	call puts
 
 	; Keyboard: three keys, each echoed with its key code, and the
-	; timer ticks that passed while waiting for them.
+	; timer ticks that passed while waiting for them. A handler on
+	; vector 9 counts the scan bytes at port 60h on the way.
+	cli
+	mov ax, [9 * 4]
+	mov [old9], ax
+	mov ax, [9 * 4 + 2]
+	mov [old9 + 2], ax
+	mov word [9 * 4], key9
+	mov [9 * 4 + 2], cs
+	sti
 	mov ax, [0x46c]
 	mov [t0], ax
 	mov cx, 3
@@ -394,9 +500,36 @@ main:	; Thirty lines scroll the screen before the results.
 	mov ax, [0x46c]
 	sub ax, [t0]
 	call hex4
-	mov si, m_done
+	; a, Shift with B, 1: eight scan bytes, the last the release of 1;
+	; then no shift flag stays set and nothing stays in service.
+.scans:	hlt
+	cmp byte [nscan], 8
+	jb .scans
+	mov si, m_irq
+	call puts
+	mov ah, [nscan]
+	mov al, [lscan]
+	call hex4
+	mov ah, 2
+	int 0x16
+	mov bl, al
+	mov al, 0x0b
+	out 0x20, al
+	in al, 0x20
+	or al, bl
+	jz .irqok
+	mov si, m_ibad2
+	call puts
+.irqok:	mov si, m_done
 	call puts
 	jmp halt
+
+key9:	push ax
+	in al, 0x60
+	mov [cs:lscan], al
+	inc byte [cs:nscan]
+	pop ax
+	jmp far [cs:old9]
 
 div0:	mov byte [cs:trapped], 1
 	iret
@@ -410,10 +543,18 @@ hook:	push ax
 	inc word [cs:count]
 	iret
 
+; The timer's handler at the moved vector: no end of interrupt.
+remap:	inc word [cs:rcount]
+	iret
+
 top:	dw 0
+old9:	dw 0, 0
+nscan:	db 0
+lscan:	db 0
 t0:	dw 0
 trapped: db 0
 count:	dw 0
+rcount:	dw 0
 hflags:	dw 0
 m_line:	db "LINE ", 0
 m_crlf:	db 13, 10, 0
@@ -433,7 +574,15 @@ m_dbad:	db "DISK BAD", 13, 10, 0
 m_tick:	db "TICK OK", 13, 10, 0
 m_spin:	db "SPIN OK", 13, 10, 0
 m_kbd:	db "KBD OK", 13, 10, 0
+m_mask:	db "MASK OK", 13, 10, 0
+m_mkbad: db "MASK BAD", 13, 10, 0
+m_irq:	db 13, 10, "IRQ ", 0
+m_ibad2: db " BAD", 0
 m_hook:	db "HOOK OK", 13, 10, 0
+m_remap: db "REMAP OK", 13, 10, 0
+m_rbad:	db "REMAP BAD", 13, 10, 0
+m_stuff: db "STUFF OK", 13, 10, 0
+m_sbad:	db "STUFF BAD", 13, 10, 0
 m_hbad:	db "HOOK BAD", 13, 10, 0
 m_direct: db "DIRECT", 0
 m_vid:	db "VID OK", 13, 10, 0

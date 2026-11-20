@@ -94,7 +94,27 @@ The terminal needs 25 lines and the guest's width in columns, so on the
 PicoCalc panel's 53 columns run with
 .B \-w
 .BR 40 .
-Control-] leaves the emulator.
+Control-] opens a one-line menu:
+.B q
+leaves the emulator,
+.B a
+or
+.B b
+changes the image in that floppy drive while the guest runs, and any other
+key returns.
+The images offered are the files named
+.I *.img
+and
+.I *.ima
+in the directory of the drive's current image; a name typed without a
+slash is taken from that directory.
+DOS reads a changed disk's directory afresh on its next access after a
+pause of two seconds.
+With
+.B \-q
+or
+.B \-d
+Control-] leaves at once.
 .PP
 Options:
 .TP
@@ -160,8 +180,9 @@ and cannot be changed, so programs that need extended memory or a DOS
 extender do not run.
 There is no numeric coprocessor, no graphics mode, no sound, no serial or
 parallel port and no mouse.
-Keys arrive through the firmware keyboard service only; a program that
-takes over the keyboard interrupt sees none.
+Every key arrives as a press followed at once by its release, since a
+terminal reports no releases: a program that acts while a key is held
+sees it only for an instant.
 .SH FILES
 .TP
 .IR /tmp/i86. pid
@@ -170,7 +191,9 @@ the name the default page file is created under
 Exit status 0 when the user or the end of
 .I keys
 ends the session, 1 when no image boots, 2 for a usage error or an
-unusable image, 3 when the page file cannot be written or read back, and
+unusable image, 3 when the page file cannot be written or read back, 4
+when the 80186 or 80286 meets an instruction it does not have and the
+guest has installed no handler for it (the address is printed), and
 128 plus the signal number when an interrupt, hangup or termination signal
 ends it.
 In every case the terminal mode is restored.

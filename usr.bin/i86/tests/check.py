@@ -87,17 +87,25 @@ TAIL = [
     "TICK OK",
     "SPIN OK",
     "KBD OK",
+    "MASK OK",
+    "REMAP OK",
+    "STUFF OK",
     "HOOK OK",
     "VID OK",
     "MODE OK",
     "a=1E61 B=3042 1=0231",
     "WAIT 0000",
+    "IRQ 0882",
     "DONE",
 ]
 
 MUTANTS = [
     ("pc.c", "c->ip -= 3;\n\t\t\t\tc->fl |= F_IF;", "c->ip -= 3;"),
-    ("pc.c", "if (key_eof)\n\t\t\thost_exit(0);\n\t\tpc_idle = 1;", "pc_idle = 1;"),
+    (
+        "pc.c",
+        "if (key_eof && kb_n == 0 && !kb_full)\n\t\t\thost_exit(0);\n\t\tpc_idle = 1;",
+        "pc_idle = 1;",
+    ),
     ("pc.c", "(cf.keys != NULL || key_eof))", "cf.keys != NULL)"),
     (
         "mem.c",
@@ -115,6 +123,19 @@ MUTANTS = [
         "named.st_dev != held.st_dev)",
     ),
     ("cpu.c", "if (tf && !c->inhibit && !faulted)", "if (tf && !c->inhibit)"),
+    ("pc.c", "pic_base = v & 0xf8;", "pic_base = 8;"),
+    ("pc.c", "if (cf.model != I86_8086 && c->fault) {", "if (cf.model != I86_8086) {"),
+    ("cpu.c", "i86_int(c, n);\n\tc->fault = 1;", "i86_int(c, n);"),
+    ("pc.c", "!bq_put(c->r[R_CX]));", "0 * bq_put(c->r[R_CX]));"),
+    (
+        "main.c",
+        "if (caught)\n\t\t\thost_exit(128 + (int)caught);\n\tif (read",
+        "(void)0;\n\tif (read",
+    ),
+    ("pc.c", "} else\n\t\t\t\tknown = 0;", "}"),
+    ("pc.c", "oputc(*s >= 0x20 && *s < 0x7f ? *s : '?');", "oputc(*s);"),
+    ("pc.c", "pic_aeoi = v >> 1 & 1;", "pic_aeoi = 0;"),
+    ("pc.c", "pic_irr = pic_isr = imask = pic_aeoi = 0;", "pic_irr = pic_isr = imask = 0;"),
     ("pc.c", "(c->irq && (c->fl & F_IF)))\n\t\t\tbreak;", "c->irq)\n\t\t\tbreak;"),
     (
         "pc.c",
@@ -122,10 +143,23 @@ MUTANTS = [
         "\t\t\thost_exit(0);",
         ";",
     ),
+    ("pc.c", "host_exit(4);", "host_exit(0);"),
+    ("pc.c", "mem_rw((sp + 2) & (MEM_SIZE - 1)),", "mem_rw((sp + 4) & (MEM_SIZE - 1)),"),
     ("cpu.c", "(d.reg == 7 || (!w && d.reg > 1))", "(d.reg == 7 && !w)"),
     ("cpu.c", "if (c->model != I86_8086 && (d.reg == 7", "if (c->model == I86_286 && (d.reg == 7"),
     ("pc.c", "p[4] = (uint8_t)spt;", ";"),
     ("pc.c", "c->r[R_BX] = d->spt == 36 ? 6 : d->spt == 18 ?", "c->r[R_BX] = d->spt == 18 ?"),
+    ("pc.c", "kb_put(scan | 0x80, 0);", ";"),
+    ("pc.c", "pic_isr &= (uint8_t)(pic_isr - 1);", "pic_isr &= pic_isr;"),
+    (
+        "pc.c",
+        "c->irq = (pic_irr & ~(unsigned)imask & above) != 0;",
+        "c->irq = (pic_irr & above) != 0;",
+    ),
+    ("pc.c", "flags &= ~(unsigned)mod[i + 1];", "flags &= flags;"),
+    ("pc.c", "if (key & K_SHIFT)\n\t\tkb_put(0x2a, 0);", ";"),
+    ("pc.c", "mem_ww(4 * 9, ROM_OFF + ROM_KEY);", ";"),
+    ("pc.c", "if (kb_n == 0 || kb_full || ((pic_irr | pic_isr) & 2))", "if (kb_n == 0)"),
     ("main.c", "signal(SIGPIPE, on_signal);", ";"),
     (
         "main.c",
@@ -134,7 +168,13 @@ MUTANTS = [
     ),
     ("pc.c", "mode = (mode & 0x80) | 3;", "mode = (mode & 0x80) | 7;"),
     ("cpu.c", "if (b == 2)\n\t\t\t\t\ta |= F_IF;", ";"),
-    ("pc.c", "if (ch == 0x1d)\t\t/* Ctrl-]: leave the emulator */\n\t\t\thost_exit(0);", ";"),
+    ("pc.c", "if (cf.quiet)\n\t\t\t\thost_exit(0);\n\t\t\tmenu();", "menu();"),
+    ("pc.c", "disks[i] = old;\n\t\t\t\tdisk_path[i] = slash;", "disk_path[i] = slash;"),
+    ("pc.c", "if (ch == 'q' || ch < 0)\n\t\thost_exit(0);\n}", "}"),
+    ("pc.c", "tx = ty = tattr = -1;\n\tif (ch == 'q' || ch < 0)", "if (ch == 'q' || ch < 0)"),
+    ("pc.c", 'if (n) {\n\t\t\t\tn--;\n\t\t\t\toputs("\\b \\b");\n\t\t\t}', ";"),
+    ("pc.c", "(name[n - 3] | 0x20) == 'i'", "(name[n - 3] | 0x20) == 'j'"),
+    ("pc.c", 'memset(shadow, 0, sizeof(shadow));\n\toputs("\\033[2J");', 'oputs("\\033[2J");'),
     ("main.c", "t.c_lflag &= ~(tcflag_t)(ICANON | ECHO | ISIG);", ";"),
     ("main.c", "(void)tcsetattr(0, TCSANOW, &saved);", ";"),
     ("cpu.c", "(fl & F_AF) && c->model != I86_286 ? 0x9f : 0x99;", "(fl & F_AF) ? 0x9f : 0x99;"),
@@ -225,14 +265,14 @@ MUTANTS = [
     ("pc.c", "tx = col + 1 < cols ? (int)col + 1 : -1;", "tx = (int)col + 2;"),
     (
         "pc.c",
-        "return ((unsigned)(p - keys_hi + 2) << 8 | ch);",
-        "return ((unsigned)(p - keys_hi + 3) << 8 | ch);",
+        "return (K_SHIFT | (unsigned)(p - keys_hi + 2) << 8 | ch);",
+        "return (K_SHIFT | (unsigned)(p - keys_hi + 3) << 8 | ch);",
     ),
     ("pc.c", "if (++t >= 0x1800b0) {", "if (t >= 0x1800b0) {"),
     ("pc.c", "mem_ww(4 * 8, ROM_OFF + ROM_TIMER);", ";"),
     ("main.c", "(!cpu.halted ||\n\t\t    (cpu.irq && (cpu.fl & F_IF))); i++)", "!cpu.halted; i++)"),
     ("main.c", "mem_failed = store_failed;", "(void)store_failed;"),
-    ("main.c", "if (caught)\n\t\t\thost_exit(128 + (int)caught);", ";"),
+    ("main.c", "nsteps++;\n\t\tif (caught)\n\t\t\thost_exit(128 + (int)caught);", "nsteps++;"),
     ("main.c", '"/tmp/i86.%u", (unsigned)getpid() & 0xffffffu', '"/tmp/i86.%u", 0u'),
     ("mem.c", "O_RDWR | O_CREAT | O_EXCL", "O_RDWR | O_CREAT | O_TRUNC"),
     ("pc.c", "mbr[0x1be + 5] != 0xff) {", "1) {"),
@@ -380,6 +420,23 @@ def test_endings(binary, work):
             "page file in a long path: exit %d, left %r" % (done.returncode, os.listdir(deep))
         )
     shutil.rmtree(os.path.join(work, "d" * 70))
+    # A program's own INT 6 on the 80286 returns from the firmware; only a
+    # failing instruction ends the session there.
+    soft = os.path.join(work, "int6.img")
+    code = bytes.fromhex("cd06 b84b0e cd10 fa f4")
+    with open(soft, "wb") as handle:
+        handle.write(code + bytes(510 - len(code)) + b"\x55\xaa")
+        handle.truncate(360 * 1024)
+    done = subprocess.run(
+        [binary, "-d", "-T", "-c", "286", "-s", os.path.join(work, "page"), "-a", soft, "-k", ""],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    if done.returncode != 0 or not done.stdout.startswith(b"K"):
+        raise Failure(
+            "software interrupt 6: exit %d, screen %r" % (done.returncode, done.stdout[:8])
+        )
     # A page file path that exists is refused and left as it was.
     store = os.path.join(work, "occupied")
     with open(store, "w") as handle:
@@ -414,6 +471,23 @@ def test_endings(binary, work):
             raise Failure("signal: the emulator ignores SIGTERM") from None
     if status != 128 + signal.SIGTERM or os.path.exists(store):
         raise Failure("signal: exit %d, page file left: %s" % (status, os.path.exists(store)))
+    # An invalid opcode with no guest handler ends the session and names
+    # the instruction; returning would run it again without end.
+    bad = os.path.join(work, "bad.img")
+    with open(bad, "wb") as handle:
+        handle.write(b"\x0f\x0b" + bytes(508) + b"\x55\xaa")
+        handle.truncate(360 * 1024)
+    try:
+        done = subprocess.run(
+            [binary, "-q", "-T", "-c", "286", "-s", store, "-a", bad, "-k", KEYS],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("invalid opcode: the emulator runs on") from None
+    if done.returncode != 4 or b"undefined instruction at 0000:7C00" not in done.stderr:
+        raise Failure("invalid opcode: exit %d, said %r" % (done.returncode, done.stderr))
     # A reader that closes the output: the session ends on SIGPIPE through
     # the same exit, so no page file stays.
     with subprocess.Popen(
@@ -543,9 +617,36 @@ def test_endings(binary, work):
 
 def test_interactive(binary, work):
     """The emulator on a terminal: raw mode, keys as they are typed, the
-    display drawn, Control-] to leave, and the terminal mode restored."""
+    display drawn, the Control-] menu and the terminal mode restored. Each
+    step waits for a text on the terminal, then types. The guest answers r
+    by reading its boot sector again and printing the label there with a
+    count, so the steps see a refused image leave the disk in the drive and
+    an accepted one replace it."""
     image = os.path.join(work, "run.img")
     shutil.copyfile(os.path.join(work, "guest.img"), image)
+    with open(image, "rb") as handle:
+        other = bytearray(handle.read())
+    if other[0x1F8:0x1FE] != b"DISK-A":
+        raise Failure("guest image carries no label")
+    other[0x1F8:0x1FE] = b"DISK-B"
+    with open(os.path.join(work, "b.img"), "wb") as handle:
+        handle.write(other)
+    steps = [
+        (b"VID", KEYS.encode()),
+        (b"DONE", b"r"),
+        (b"DISK-A1", b"\x1d"),
+        (b"quit", b"a"),
+        (b"b.img", b""),
+        (b"image:", b"nosuch.img\r"),
+        (b"cannot", b"x"),
+        (b"DISK-A1", b"r"),
+        (b"DISK-A2", b"\x1d"),
+        (b"quit", b"a"),
+        (b"image:", b"b.imx\x7fg\r"),
+        (b"DISK-A2", b"r"),
+        (b"DISK-B3", b"\x1d"),
+        (b"quit", b"q"),
+    ]
     master, slave = pty.openpty()
     before = termios.tcgetattr(slave)
     child = subprocess.Popen(
@@ -555,22 +656,24 @@ def test_interactive(binary, work):
         stderr=subprocess.DEVNULL,
     )
     seen = b""
-    typed = left = False
-    deadline = time.time() + 20
+    at = step = 0
+    deadline = time.time() + 30
     try:
         while time.time() < deadline and child.poll() is None:
             ready, _, _ = select.select([master], [], [], 0.05)
             if ready:
                 seen += os.read(master, 4096)
             plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
-            if not typed and b"VID" in plain:
-                time.sleep(0.3)
-                os.write(master, KEYS.encode())
-                typed = True
-            if typed and not left and b"DONE" in plain:
-                os.write(master, b"\x1d")
-                left = True
-        status = child.wait(timeout=5) if child.poll() is None and left else child.poll()
+            while step < len(steps):
+                found = plain.find(steps[step][0], at)
+                if found < 0:
+                    break
+                at = found + len(steps[step][0])
+                if step == 0:
+                    time.sleep(0.3)
+                os.write(master, steps[step][1])
+                step += 1
+        status = child.wait(timeout=5) if step == len(steps) else None
     except subprocess.TimeoutExpired:
         status = None
     finally:
@@ -581,10 +684,14 @@ def test_interactive(binary, work):
     os.close(master)
     os.close(slave)
     plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
-    if status != 0 or not left:
-        raise Failure("terminal session: exit %r, DONE seen: %s" % (status, left))
+    if step != len(steps):
+        raise Failure("terminal session: %r never appeared" % steps[step][0])
+    if status != 0:
+        raise Failure("terminal session: exit %r" % status)
     if b"1E61" not in plain or b"3042" not in plain or b"0231" not in plain:
         raise Failure("terminal session: typed keys did not arrive")
+    if b"DISK-B3" not in plain[plain.rfind(b"quit") :]:
+        raise Failure("terminal session: the guest's screen is not drawn on leaving")
     # The guest counted timer ticks across its wait for the keys. With the
     # clock an instruction count, a third of a second of waiting is far
     # more than the four ticks the machine holds back for a guest that
@@ -594,6 +701,97 @@ def test_interactive(binary, work):
         raise Failure("terminal session: the clock stood still while the guest waited")
     if before != after:
         raise Failure("terminal session: terminal mode not restored")
+
+
+def menu_session(binary, work, image, steps, cwd=None, kill=None):
+    """A session on a pseudo-terminal: each step waits for a text and
+    types. With kill, that signal follows the last step. Returns the raw
+    output, the exit status and whether the terminal mode came back."""
+    master, slave = pty.openpty()
+    before = termios.tcgetattr(slave)
+    child = subprocess.Popen(
+        [binary, "-T", "-s", os.path.join(work, "page"), "-a", image],
+        stdin=slave,
+        stdout=slave,
+        stderr=subprocess.DEVNULL,
+        cwd=cwd,
+    )
+    seen = b""
+    at = step = 0
+    deadline = time.time() + 30
+    status = None
+    try:
+        while time.time() < deadline and child.poll() is None and step < len(steps):
+            ready, _, _ = select.select([master], [], [], 0.05)
+            if ready:
+                seen += os.read(master, 4096)
+            plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
+            found = plain.find(steps[step][0], at)
+            if found < 0:
+                continue
+            at = found + len(steps[step][0])
+            time.sleep(0.3)
+            os.write(master, steps[step][1])
+            step += 1
+        if step == len(steps):
+            if kill is not None:
+                time.sleep(0.5)
+                child.send_signal(kill)
+            status = child.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        status = None
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+        ready, _, _ = select.select([master], [], [], 0.2)
+        if ready:
+            seen += os.read(master, 65536)
+        after = termios.tcgetattr(slave)
+        os.close(master)
+        os.close(slave)
+    if step != len(steps):
+        raise Failure("menu session: %r never appeared" % steps[step][0])
+    return seen, status, before == after
+
+
+def test_menu_edges(binary, work):
+    """The menu under a signal, beside a long directory name and beside a
+    file name that carries a terminal command."""
+    opened = [(b"VID", KEYS.encode()), (b"DONE", b"\x1d")]
+    image = os.path.join(work, "run.img")
+    shutil.copyfile(os.path.join(work, "guest.img"), image)
+    # A termination signal while the menu waits for its key ends the
+    # session at once, the terminal restored.
+    _, status, restored = menu_session(binary, work, image, opened, kill=signal.SIGTERM)
+    if status != 128 + signal.SIGTERM or not restored:
+        raise Failure("signal in the menu: exit %r, terminal restored: %s" % (status, restored))
+    # An image whose directory name the menu cannot hold: no other
+    # directory's images are offered in its place.
+    deep = os.path.join(work, "L" * 60, "M" * 60)
+    os.makedirs(deep)
+    shutil.copyfile(os.path.join(work, "guest.img"), os.path.join(deep, "run.img"))
+    here = os.path.join(work, "here")
+    os.mkdir(here)
+    shutil.copyfile(os.path.join(work, "guest.img"), os.path.join(here, "decoy.img"))
+    steps = opened + [(b"quit", b"a"), (b"too long", b"x"), (b"DONE", b"\x1d"), (b"quit", b"q")]
+    seen, status, restored = menu_session(
+        binary, work, os.path.join(deep, "run.img"), steps, cwd=here
+    )
+    if status != 0 or b"decoy.img" in seen or b"image:" in seen:
+        raise Failure("long image directory: exit %r, another directory offered" % status)
+    shutil.rmtree(os.path.join(work, "L" * 60))
+    shutil.rmtree(here)
+    # A file name with an escape sequence in it is listed without one.
+    odd = os.path.join(work, "odd")
+    os.mkdir(odd)
+    shutil.copyfile(os.path.join(work, "guest.img"), os.path.join(odd, "run.img"))
+    shutil.copyfile(os.path.join(work, "guest.img"), os.path.join(odd, "bad\x1b[7mz.img"))
+    steps = opened + [(b"quit", b"a"), (b"image:", b"\x1b"), (b"DONE", b"\x1d"), (b"quit", b"q")]
+    seen, status, restored = menu_session(binary, work, os.path.join(odd, "run.img"), steps)
+    if status != 0 or b"bad?[7mz.img" not in seen or b"bad\x1b" in seen:
+        raise Failure("file name with an escape sequence: exit %r, listed raw" % status)
+    shutil.rmtree(odd)
 
 
 def check_screen(lines, cpu, kbytes, what):
@@ -944,6 +1142,7 @@ def test(binary, work):
     test_endings(binary, work)
     test_exit_store_failure(binary, work)
     test_interactive(binary, work)
+    test_menu_edges(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):

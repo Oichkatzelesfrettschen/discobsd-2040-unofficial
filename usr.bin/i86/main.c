@@ -192,6 +192,11 @@ host_getc(void)
 {
 	unsigned char ch;
 
+	/* The wait is in slices: a signal caught meanwhile ends the session
+	 * from here too, since the menu reads outside the main loop. */
+	while (host_ready(100) == 0)
+		if (caught)
+			host_exit(128 + (int)caught);
 	if (read(0, &ch, 1) != 1) {
 		in_eof = 1;
 		return (-1);

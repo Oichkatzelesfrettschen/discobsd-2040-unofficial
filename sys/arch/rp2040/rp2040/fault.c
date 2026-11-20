@@ -39,7 +39,9 @@
 
 #include <machine/fault.h>
 #include <machine/frame.h>
+#include <machine/breakguard.h>
 #include <machine/intr.h>
+#include <machine/mpuvar.h>
 #include <machine/scb.h>
 
 void core1_park(void);
@@ -303,6 +305,18 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	if ((u_int)frame < (u_int)__user_data_start ||
 	    (u_int)frame >= (u_int)USER_TOP(u.u_procp))
 		psig = SIGKILL;
+	/*
+	 * A stack that fell into the break guard (mpu.c) between two kernel
+	 * entries faults on its own exception frame: the hardware lowered
+	 * PSP but abandoned the frame writes the guard refused, so the frame
+	 * read here, its 32 bytes and the alignment word, holds no return
+	 * state, and no handler could run on that stack.
+	 */
+	if (rp2040_break_guard_hit(mpu_guard_floor, (u_int)frame,
+	    sizeof(struct faultframe) + sizeof(u_int))) {
+		printf("fault: stack frame in break guard\n");
+		psig = SIGKILL;
+	}
 	u.u_procp->p_sigmask &= ~sigmask(psig);
 	u.u_procp->p_sigignore &= ~sigmask(psig);
 	if (u.u_signal[psig] == SIG_IGN)
@@ -312,6 +326,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	u.u_frame = &uf.uf_tf;
 	psignal(u.u_procp, psig);
 	userret(uf.uf_tf.tf_pc, syst);
+	mpu_guard_update(uf.uf_tf.tf_sp);
 	fault_frame_out(&uf);
 
 	led_control(LED_KERNEL, 0);

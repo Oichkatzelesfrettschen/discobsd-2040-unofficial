@@ -18,9 +18,10 @@
  * The user window under the Cortex-M0+ MPU.
  *
  * One process is resident at a time and every process image occupies the
- * same 192 KB at USER_DATA_START (machparam.h, conf/RP2040.ld), so the
- * protection map is static: the kernel programs it once at startup and no
- * context switch touches it. Unprivileged code, which icode in locore.S enters
+ * same 192 KB at USER_DATA_START (machparam.h, conf/RP2040.ld), so regions 0
+ * to 3 are static: the kernel programs them once at startup and no context
+ * switch touches them. Region 7, the break guard below, is the one slot
+ * rewritten afterwards. Unprivileged code, which icode in locore.S enters
  * by setting CONTROL.nPRIV in the user window, may reach four
  * regions and nothing else:
  *
@@ -75,6 +76,27 @@
  * of them (the XIP cache is an address-range cache), and the Cortex-M0+
  * reorders nothing.
  *
+ * Region 7 is the break guard (machine/breakguard.h): 32 bytes at the
+ * process break rounded up to 32, inside the window, that unprivileged
+ * code may read but not write. It wins over region 1 or 2 as the higher
+ * number, so a user store into those 32 bytes faults, and
+ * fault.c delivers SIGSEGV as for any other bad address; a handler that
+ * grows the break and returns replays the store. AP 010 keeps the bytes
+ * writable to the kernel, so copyout, swapin, exec_clear and the frame
+ * writes of an exception return never fault there. mpu_guard_update
+ * recomputes the guard at every return to a process (syscall.c ast() and
+ * syscall(), fault.c arm_fault()) from the exact break, p_daddr +
+ * u_dsize as user_entry() compares it, and arms it only while the stack
+ * stays BREAK_GUARD_MARGIN bytes clear of it; the registers are written
+ * only when that answer changes. systick() turns it off when a tick finds
+ * the process stack below the armed floor, and it stays off for that
+ * image while p_saddr records the deeper stack. The guard takes no byte
+ * below the break and none above the stack pointer: the pad between the
+ * exact break and the rounded base stays writable. A stack that jumps into
+ * the guard between two kernel entries cannot be resumed, because the
+ * HardFault frame would land in it; arm_fault kills that process with
+ * SIGKILL. sys/arch/rp2040/doc/MPU.md records the kill window.
+ *
  * usr.bin/mputest is the deliberate fault test: it forks children that
  * read kernel RAM, kernel flash and SIO CPUID and expects each to die of
  * SIGSEGV when machdep.mpu.enable reads 1, while the divider register
@@ -89,6 +111,7 @@
 #include <sys/inode.h>
 #include <sys/sysctl.h>
 
+#include <machine/breakguard.h>
 #include <machine/mpu.h>
 #include <machine/mpuvar.h>
 #include <machine/usercopy.h>
@@ -134,6 +157,16 @@ _Static_assert(((USER_DATA_START + (1UL << MPU_USER_LOW_LOG2)) &
     "the high window region base must be aligned to its size");
 _Static_assert(MPU_SIO_DIV_SRD == 0xf7UL,
     "only the subregion holding SIO offsets 0x060 to 0x07f may be enabled");
+_Static_assert(BREAK_GUARD_RASR_AP == MPU_AP_PRIV_RW_USER_RO &&
+    BREAK_GUARD_RASR_XN == MPU_RASR_XN &&
+    BREAK_GUARD_RASR_ENABLE == MPU_RASR_ENABLE &&
+    BREAK_GUARD_RASR_SIZE == MPU_RASR_SIZE(8) &&
+    BREAK_GUARD_RASR_SRD_SHIFT == MPU_RASR_SRD_SHIFT &&
+    BREAK_GUARD_RBAR_VALID == MPU_RBAR_VALID &&
+    BREAK_GUARD_RBAR_ADDR == MPU_RBAR_ADDR_MASK,
+    "breakguard.h encodes region 7 with the mpu.h field values");
+_Static_assert(BREAK_GUARD_BYTES == (1UL << (8 - 3)),
+    "the guard is one subregion of a 256-byte region");
 
 #define	MPU_GRANT(log2, attrs, srd) \
 	(MPU_RASR_SIZE(log2) | (attrs) | ((srd) << MPU_RASR_SRD_SHIFT) | \
@@ -219,6 +252,56 @@ mpu_init(void)
 }
 
 /*
+ * The armed guard's floor (rp2040_break_guard_floor), zero while region 7
+ * is disabled. It is the only state the guard keeps: the base, RBAR and
+ * RASR follow from it.
+ */
+u_int mpu_guard_floor;
+
+/*
+ * Region 7 is disabled before its base moves, so no instant covers a base
+ * with another base's subregion. RNR selects the slot for the RASR write;
+ * the RBAR write selects it again through VALID.
+ */
+static void
+mpu_guard_set(u_int floor)
+{
+	MPU_REG32(MPU_RNR) = BREAK_GUARD_REGION;
+	MPU_REG32(MPU_RASR) = 0;
+	MPU_REG32(MPU_RBAR) = rp2040_break_guard_rbar(floor);
+	MPU_REG32(MPU_RASR) = rp2040_break_guard_rasr(floor);
+	arm_dsb();
+	arm_isb();
+	mpu_guard_floor = floor;
+}
+
+/*
+ * Place the guard for the current process as it resumes with stack
+ * pointer sp. A map that failed verification, or a core without region 7,
+ * leaves it off.
+ */
+void
+mpu_guard_update(u_int sp)
+{
+	const struct proc *p = u.u_procp;
+	u_int floor = 0;
+
+	if ((mpu_state.ctrl & MPU_CTRL_ENABLE) &&
+	    mpu_state.nregions > BREAK_GUARD_REGION)
+		floor = rp2040_break_guard_floor(p->p_daddr + u.u_dsize,
+		    p->p_saddr, sp);
+	if (floor != mpu_guard_floor)
+		mpu_guard_set(floor);
+}
+
+/* systick() calls this from the tick that finds the stack near the guard. */
+void
+mpu_guard_off(void)
+{
+	mpu_guard_set(0);
+}
+
+/*
  * Return 1 when [start, start + nbytes) lies inside one region of the map
  * that grants unprivileged code read and denies it write (AP 110), across
  * enabled subregions only. Those are the bytes a process may read but the
@@ -293,6 +376,16 @@ mpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 		break;
 	case CPU_MPU_PROGRAMMED:
 		v = mpu_state.programmed;
+		break;
+	case CPU_MPU_GUARDBASE:
+	case CPU_MPU_GUARDATTR:
+		/* Region 7 as read back, while this process runs. */
+		v = 0;
+		if (mpu_state.nregions > BREAK_GUARD_REGION) {
+			MPU_REG32(MPU_RNR) = BREAK_GUARD_REGION;
+			v = MPU_REG32(name[0] == CPU_MPU_GUARDBASE ?
+			    MPU_RBAR : MPU_RASR);
+		}
 		break;
 	default:
 		return EOPNOTSUPP;

@@ -23,6 +23,7 @@
 #include <sys/tty.h>
 
 #include <machine/frame.h>
+#include <machine/mpuvar.h>
 
 #include <machine/scb.h>
 
@@ -113,6 +114,15 @@ systick(struct clockframe *frame, u_int exc_return)
 	 */
 	if (exc_return != EXC_RETURN_THREAD_PSP)
 		return;
+	/*
+	 * The break guard (mpu.c) stays armed only while the process stack
+	 * is clear of it; a tick that finds the stack frame below the armed
+	 * floor turns it off before the stack can descend into it. Only a
+	 * tick taken from the process reaches here, so it never races the
+	 * update at a return to the process.
+	 */
+	if ((u_int)frame < mpu_guard_floor)
+		mpu_guard_off();
 	p = u.u_procp;
 	if (runrun || (p->p_sig & ~p->p_sigmask))
 		SCB_REG32(SCB_ICSR) = SCB_ICSR_PENDSVSET;

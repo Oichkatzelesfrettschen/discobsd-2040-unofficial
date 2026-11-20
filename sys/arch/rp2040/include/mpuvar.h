@@ -23,13 +23,17 @@
  * (sys/arch/stm32/include/mpuvar.h), so sbin/sysctl's machdep.mpu handler
  * serves both ports from one table; the RP2040 adds the count of regions
  * mpu_init programmed and read back intact, which is what a protection
- * claim for the user window rests on.
+ * claim for the user window rests on, and region 7's RBAR and RASR as read
+ * back while the calling process runs: the break guard mpu.c places.
  */
 #ifdef KERNEL
 void	mpu_init(void);
 void	mpu_identify(void);
 int	mpu_user_rospan(u_int, u_int);
 int	mpu_sysctl(int *, u_int, void *, size_t *, void *, size_t);
+void	mpu_guard_update(u_int);
+void	mpu_guard_off(void);
+extern u_int mpu_guard_floor;
 #endif
 
 #define	CPU_MPU_ENABLE		1	/* int: MPU_CTRL.ENABLE as read */
@@ -37,7 +41,9 @@ int	mpu_sysctl(int *, u_int, void *, size_t *, void *, size_t);
 #define	CPU_MPU_NREGIONS	3	/* int: MPU_TYPE.DREGION */
 #define	CPU_MPU_SEPARATE	4	/* int: MPU_TYPE.SEPARATE */
 #define	CPU_MPU_PROGRAMMED	5	/* int: regions written and verified */
-#define	CPU_MPU_MAXID		6
+#define	CPU_MPU_GUARDBASE	6	/* int: region 7 RBAR as read */
+#define	CPU_MPU_GUARDATTR	7	/* int: region 7 RASR as read */
+#define	CPU_MPU_MAXID		8
 
 #ifndef	KERNEL
 #define	CTL_MPU_NAMES { \
@@ -47,6 +53,8 @@ int	mpu_sysctl(int *, u_int, void *, size_t *, void *, size_t);
 	{ "nregions", CTLTYPE_INT }, \
 	{ "separate", CTLTYPE_INT }, \
 	{ "programmed", CTLTYPE_INT }, \
+	{ "guardbase", CTLTYPE_INT }, \
+	{ "guardattr", CTLTYPE_INT }, \
 }
 #endif	/* !KERNEL */
 

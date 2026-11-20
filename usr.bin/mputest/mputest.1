@@ -8,6 +8,8 @@
 .Nm
 .Nm
 .Cm residue
+.Nm
+.Cm guard
 .Sh DESCRIPTION
 .Nm
 reads the kernel's report of the Cortex-M0+ memory protection unit through
@@ -67,6 +69,45 @@ The last line is
 when no word survives and
 .Dq RESIDUE LEAK
 otherwise.
+.Pp
+.Nm
+.Cm residue
+moves the break to the top of that span before planting, because the
+break guard below makes the 32 bytes past the rounded break read-only to
+the process.
+.Pp
+.Nm
+.Cm guard
+checks the break guard, MPU region 7, which covers the 32 bytes at the
+break rounded up to 32 and admits user loads but not user stores there
+while the stack stays at least 1,056 bytes above it.
+It predicts
+.Va machdep.mpu.guardbase
+and
+.Va machdep.mpu.guardattr
+from
+.Xr sbrk 2 ,
+then checks in children that a store at the guard base dies of
+.Dv SIGSEGV ,
+a load there and stores below it and 32 bytes above it succeed, the guard
+moves with
+.Fn sbrk 64 ,
+a
+.Dv SIGSEGV
+handler that grows the break lets the replayed store complete, a recursion
+that makes a system call in every frame reaches the break with the guard off,
+a stack that descends without a system call and spins for several clock ticks
+near the guard then descends through it, and a stack pointer moved into the
+guard by one instruction is killed with
+.Dv SIGKILL .
+The last line is
+.Dq GUARD OK
+followed by the MPU state, or
+.Dq GUARD FAIL
+and the count of disagreements.
+With the MPU off every store succeeds, the guard reads disabled and the
+.Dv SIGKILL
+probe is skipped.
 .Sh EXIT STATUS
 The number of probes that disagreed with the kernel's report, or 2 when
 .Xr sysctl 3

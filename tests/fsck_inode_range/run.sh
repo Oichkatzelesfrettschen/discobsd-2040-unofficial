@@ -101,7 +101,10 @@ set_expected_files() {
 	case $status in
 	0) ;;
 	1)
+		# The scenario goes on with no expected count, so that the rejection is
+		# the verdict (status 1) and not a run without one (status 2).
 		fail "$gen rejects the image after repair: $report"
+		files=0
 		return
 		;;
 	*) error "$scenario: $gen --check did not complete, status $status" ;;

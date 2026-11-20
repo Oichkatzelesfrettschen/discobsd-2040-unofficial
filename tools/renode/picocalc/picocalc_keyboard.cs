@@ -8,13 +8,14 @@
  * Register 0x01 answers (0, BIOSVERSION 0x16), register 0x09 dequeues one
  * (state, key) event from a 31-entry FIFO that drops new events when full
  * (conf_app.h FIFO_SIZE), 0x05 and 0x0A are the LCD and keyboard backlights,
- * 0x0B the battery, 0x04 the FIFO depth and lock flags, and 0x0E the
- * power-off countdown clamped to at least 6. A backlight write is conditioned
- * as backlight.ino does: the LCD level rounds down to a multiple of 16 and
- * stays within 16..240, the keyboard level rounds down to a multiple of 32
- * and drops to 0 below 32 or above 240, so a guest that writes a level reads
- * back the level the light took. The LCD level starts at 32. Any other
- * register answers zeros. Register 0x08 resets the real controller after a
+ * 0x0B the battery, 0x04 the FIFO depth (the lock flag bits stay clear),
+ * and 0x0E the power-off countdown clamped to at least 6, which a read or a
+ * write answers with the constant 1 as the firmware does. A backlight write
+ * is conditioned as backlight.ino does: the LCD level rounds down to a
+ * multiple of 16 and stays within 16..240, the keyboard level rounds down to
+ * a multiple of 32 and drops to 0 below 32 or above 240, so a guest that
+ * writes a level reads back the level the light took. The LCD level starts
+ * at 32. Any other register answers zeros. Register 0x08 resets the real controller after a
  * delay, so the model records the request in ResetRequests and does nothing
  * else.
  *

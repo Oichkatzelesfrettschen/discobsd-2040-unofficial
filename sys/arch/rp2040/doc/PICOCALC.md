@@ -783,7 +783,9 @@ write phase asks the mailbox in `picokbd_req.c` for a waiting request and
 sends it in place of register 0x09; a read is the register number, a write
 is the number with bit 7 set and one value byte, and the two-byte reply of
 either is (register, value), so a write reads back the value the firmware
-kept. The reply goes to the mailbox instead of the key map, and a reply
+kept; the power-off register is the exception, because the firmware answers
+both its read and its write with the constant 1 (`picocalc_keyboard.ino`,
+`REG_ID_OFF`), so the countdown cannot be read back. The reply goes to the mailbox instead of the key map, and a reply
 whose first byte is not the requested register counts as a fault. A fault
 retries the request up to three exchanges before it fails with `EIO`. The
 caller of `picokbd_reg()` sleeps uninterruptibly on the mailbox, and a
@@ -804,7 +806,7 @@ admits a write only from root before any handler runs.
 | `charging` | 0x0B | bit 7 | refused (`EPERM`) |
 | `lcd_backlight` | 0x05, 0x85 | level | level, clamped to 0-240; the firmware raises it to a multiple of 16, at least 16, so the panel never goes dark |
 | `kbd_backlight` | 0x0A, 0x8A | level | level, clamped to 0-240; the firmware rounds down to a multiple of 32 and turns the light off below 32 |
-| `poweroff` | 0x8E | the last countdown requested, 0 if none | seconds, clamped to 6-255, after a `sync()`; the firmware then waits that long and cuts power through the AXP2101, and nothing cancels it |
+| `poweroff` | 0x8E | the last countdown this kernel wrote, 0 if none; the kernel keeps it, since the register reads back the constant 1 | seconds, clamped to 6-255, after a `sync()`; the firmware then waits that long and cuts power through the AXP2101, and nothing cancels it |
 
 The firmware's `sync_bat` stores 0 when the PMU reports no battery
 (read from source, not observed), which `battery` would show as 0 percent
@@ -818,6 +820,11 @@ Backspace sends DEL, matching the tty's ICRNL mapping and `CERASE`.
 Arrows send `ESC [ x` or, after an application sets cursor-key mode,
 `ESC O x`; Home, End, Insert, Delete, Page Up/Down and F1-F10 send the
 xterm termcap entry's `kh`, `@7`, `kI`, `kD`, `kP`, `kN` and `k1`-`k;`.
+Break (key 0xD0, Shift+Esc on the board) sends ETX, the byte Ctrl-C sends,
+so the tty's interrupt character handles both and a RAW program reads both
+as data. The power key (0x91, a short press of the PMU key) types nothing:
+it reaches a raw key event session as the controller's key byte, and the
+kernel applies no shutdown policy to it.
 
 Raw key events. Keystrokes include passwords, so the driver records
 nothing until a program asks. `LCDIOC_KEYEVS` (`_IOW('l', 3, int)`) with 1

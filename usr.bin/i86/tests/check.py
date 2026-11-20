@@ -101,8 +101,8 @@ MUTANTS = [
     ("pc.c", "(cf.keys != NULL || key_eof))", "cf.keys != NULL)"),
     (
         "mem.c",
-        "if (store_unname() != 0)\n\t\t\tgoto fail;",
-        "(void)store_unname;\n\t\tif (0)\n\t\t\tgoto fail;",
+        "\treturn (store_unname());\n}",
+        "\t(void)store_unname;\n\treturn (0);\n}",
     ),
     (
         "mem.c",

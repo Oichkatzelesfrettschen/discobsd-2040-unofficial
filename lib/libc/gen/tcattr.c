@@ -27,7 +27,8 @@
  */
 
 /*
- * tcgetattr(3) over the sgtty ioctls, the termios view of one terminal.
+ * tcgetattr(3) and tcsetattr(3) over the sgtty ioctls, the termios view of
+ * one terminal.
  *
  * The kernel keeps one 32-bit flag word (t_flags), two character sets
  * (struct tchars, struct ltchars), the erase and kill characters and two
@@ -38,7 +39,17 @@
  * bit the kernel cannot honor reports its fixed value (IXON set, CREAD set,
  * CS8, the rest clear), so a program that reads the state and writes it
  * back asks for nothing the kernel refuses.
+ *
+ * tcsetattr starts from the state the kernel holds and applies the rows it
+ * can honor, so a bit with no sgtty equivalent keeps its value. A request
+ * that differs from the report only in rows the kernel cannot honor fails
+ * with EINVAL; one that has any honored part succeeds and leaves the rest
+ * as it was (POSIX.1-2024 tcsetattr: EINVAL only when no part of the request
+ * can be honored). The kernel offers no atomic change, so the requests go
+ * out in an order that keeps their side effects apart, and only for the
+ * words that changed.
  */
+#include <errno.h>
 #include <termios.h>
 
 #define W_IFLAG 0
@@ -202,5 +213,204 @@ tcgetattr(int fd, struct termios *t)
 	if (load(fd, &s) < 0)
 		return -1;
 	report(&s, t);
+	return 0;
+}
+
+static int
+differs(const void *a, const void *b, unsigned int n)
+{
+	const unsigned char *p = a;
+	const unsigned char *q = b;
+
+	while (n-- > 0)
+		if (*p++ != *q++)
+			return 1;
+	return 0;
+}
+
+static tcflag_t
+wordof(const struct termios *t, int word)
+{
+	switch (word) {
+	case W_IFLAG:
+		return t->c_iflag;
+	case W_OFLAG:
+		return t->c_oflag;
+	case W_CFLAG:
+		return t->c_cflag;
+	default:
+		return t->c_lflag;
+	}
+}
+
+/*
+ * RAW and CBREAK stand for the pair (ICANON, ISIG): cooked mode has both,
+ * CBREAK keeps signals and drops line editing, RAW drops both. Line editing
+ * without signals has no sgtty state.
+ */
+static int
+set_mode(unsigned int *f, int icanon, int isig)
+{
+	if (icanon && !isig)
+		return 0;
+	*f &= ~(RAW | CBREAK);
+	if (!icanon)
+		*f |= isig ? CBREAK : RAW;
+	return 1;
+}
+
+int
+tcsetattr(int fd, int action, const struct termios *t)
+{
+	struct state cur, n;
+	struct termios have;
+	const struct row *r;
+	const struct ccrow *c;
+	tcflag_t known[4];
+	unsigned int f, honored, refused;
+	int want, icanon, isig, ican, sig, i, local;
+	tcflag_t tab;
+
+	if (action != TCSANOW) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (load(fd, &cur) < 0)
+		return -1;
+	n = cur;
+	report(&cur, &have);
+	f = cur.flags;
+	honored = 0;
+	refused = 0;
+	known[W_IFLAG] = ICRNL;
+	known[W_OFLAG] = OPOST | ONLCR | TABDLY;
+	known[W_CFLAG] = HUPCL;
+	known[W_LFLAG] = ICANON | ISIG | IEXTEN;
+
+	/* One termios bit that is one sgtty bit. */
+	for (r = rows; r < rows + NROWS; r++) {
+		known[r->word] |= r->tbit;
+		want = (wordof(t, r->word) & r->tbit) != 0;
+		if (want == ((wordof(&have, r->word) & r->tbit) != 0))
+			continue;
+		honored = 1;
+		if (want != r->inv)
+			f |= r->sbit;
+		else
+			f &= ~r->sbit;
+	}
+
+	/* ICRNL and ONLCR are CRMOD together; a split request leaves it. */
+	want = (t->c_iflag & ICRNL) != 0;
+	if (want != ((t->c_oflag & ONLCR) != 0))
+		honored = 1;
+	else if (want != ((have.c_iflag & ICRNL) != 0)) {
+		honored = 1;
+		if (want)
+			f |= CRMOD;
+		else
+			f &= ~CRMOD;
+	}
+
+	/* ICANON and ISIG, then IEXTEN against the ICANON that results. */
+	icanon = (have.c_lflag & ICANON) != 0;
+	isig = (have.c_lflag & ISIG) != 0;
+	ican = (t->c_lflag & ICANON) != 0;
+	sig = (t->c_lflag & ISIG) != 0;
+	if (ican != icanon || sig != isig) {
+		if (set_mode(&f, ican, sig)) {
+			honored = 1;
+			icanon = ican;
+		} else
+			refused = 1;
+	}
+	if (((t->c_lflag & IEXTEN) != 0) != icanon)
+		refused = 1;
+
+	/*
+	 * OPOST is LITOUT clear. RAW hides it, so a request is judged against
+	 * what the report shows and LITOUT changes only where it can show.
+	 */
+	want = (t->c_oflag & OPOST) != 0;
+	if (want != ((have.c_oflag & OPOST) != 0))
+		honored = 1;
+	if (want)
+		f &= ~LITOUT;
+	else if ((f & RAW) == 0)
+		f |= LITOUT;
+
+	/* Tab expansion is the one delay field the kernel has. */
+	tab = t->c_oflag & TABDLY;
+	if (tab != (have.c_oflag & TABDLY)) {
+		if (tab == TAB3 || tab == TAB0) {
+			honored = 1;
+			if (tab == TAB3)
+				f |= XTABS;
+			else
+				f &= ~XTABS;
+		} else
+			refused = 1;
+	}
+
+	/* The kernel offers hang-up on last close and no way to read it back. */
+	if (t->c_cflag & HUPCL)
+		honored = 1;
+
+	/* Every other differing bit names a row the kernel cannot honor. */
+	for (i = 0; i < 4; i++)
+		if ((wordof(t, i) ^ wordof(&have, i)) & ~known[i])
+			refused = 1;
+
+	for (c = ccrows; c < ccrows + NCCROWS; c++) {
+		if (t->c_cc[c->index] != have.c_cc[c->index]) {
+			honored = 1;
+			*ccref(&n, c) = t->c_cc[c->index];
+		}
+	}
+	if (t->c_cc[VEOL2] != _POSIX_VDISABLE ||
+	    t->c_cc[VSTATUS] != _POSIX_VDISABLE ||
+	    t->c_cc[VMIN] != have.c_cc[VMIN] ||
+	    t->c_cc[VTIME] != have.c_cc[VTIME])
+		refused = 1;
+
+	if (t->c_ispeed > B4000000)
+		refused = 1;
+	else if (t->c_ispeed != have.c_ispeed) {
+		honored = 1;
+		n.sg.sg_ispeed = (char)t->c_ispeed;
+	}
+	if (t->c_ospeed > B4000000)
+		refused = 1;
+	else if (t->c_ospeed != have.c_ospeed) {
+		honored = 1;
+		n.sg.sg_ospeed = (char)t->c_ospeed;
+	}
+
+	if (refused && !honored) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	/*
+	 * The local word goes before TIOCSETN: that request may set PENDIN
+	 * itself, and a later TIOCLSET would write the old value back.
+	 */
+	n.flags = f;
+	n.sg.sg_flags = (short)(f & 0xffffU);
+	local = (int)(f >> 16);
+	if (differs(&n.tc, &cur.tc, sizeof n.tc) &&
+	    ioctl(fd, TIOCSETC, &n.tc) < 0)
+		return -1;
+	if (differs(&n.lc, &cur.lc, sizeof n.lc) &&
+	    ioctl(fd, TIOCSLTC, &n.lc) < 0)
+		return -1;
+	if ((f >> 16) != (cur.flags >> 16) &&
+	    ioctl(fd, TIOCLSET, &local) < 0)
+		return -1;
+	if (differs(&n.sg, &cur.sg, sizeof n.sg) &&
+	    ioctl(fd, TIOCSETN, &n.sg) < 0)
+		return -1;
+	if ((t->c_cflag & HUPCL) && ioctl(fd, TIOCHPCL) < 0)
+		return -1;
 	return 0;
 }

@@ -169,5 +169,6 @@ int cfsetospeed(struct termios *, speed_t);
 int cfsetspeed(struct termios *, speed_t);
 void cfmakeraw(struct termios *);
 int tcgetattr(int, struct termios *);
+int tcsetattr(int, int, const struct termios *);
 
 #endif /* _TERMIOS_H_ */

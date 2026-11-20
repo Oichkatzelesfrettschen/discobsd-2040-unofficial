@@ -113,6 +113,8 @@ model_ioctl(int fd, unsigned int request, void *data)
 			newflags |= PENDIN;
 		}
 		model.flags = newflags;
+		if (model.flags & RAW)
+			model.stopped = 0;
 		return 0;
 	}
 	case TIOCGETC:
@@ -150,9 +152,13 @@ test_ioctl(int fd, int request, ...)
 	va_list ap;
 	void *data;
 
-	va_start(ap, request);
-	data = va_arg(ap, void *);
-	va_end(ap);
+	data = 0;
+	/* Only a request that carries a parameter has an argument to read. */
+	if (request & (IOC_IN | IOC_OUT)) {
+		va_start(ap, request);
+		data = va_arg(ap, void *);
+		va_end(ap);
+	}
 	return model_ioctl(fd, (unsigned int)request, data);
 }
 

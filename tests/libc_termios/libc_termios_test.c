@@ -458,6 +458,565 @@ check_get_errors(void)
 	    model.log[2] == TIOCGLTC && model.log[3] == TIOCLGET);
 }
 
+/* ---- tcsetattr ---- */
+
+static struct model before;
+
+static void
+snapshot(void)
+{
+	before = model;
+	model.nlog = 0;
+}
+
+static int
+bytes_equal(const void *a, const void *b, unsigned n)
+{
+	const unsigned char *p = a, *q = b;
+
+	while (n-- > 0)
+		if (*p++ != *q++)
+			return 0;
+	return 1;
+}
+
+/* The state the kernel holds is as the snapshot had it. */
+static int
+state_equal(const struct model *a, const struct model *b)
+{
+	return a->flags == b->flags && a->hupcl == b->hupcl &&
+	    a->sg.sg_ispeed == b->sg.sg_ispeed &&
+	    a->sg.sg_ospeed == b->sg.sg_ospeed &&
+	    a->sg.sg_erase == b->sg.sg_erase &&
+	    a->sg.sg_kill == b->sg.sg_kill &&
+	    bytes_equal(&a->tc, &b->tc, sizeof a->tc) &&
+	    bytes_equal(&a->lc, &b->lc, sizeof a->lc);
+}
+
+static int
+is_set_request(unsigned int r)
+{
+	return r == TIOCSETP || r == TIOCSETN || r == TIOCSETC ||
+	    r == TIOCSLTC || r == TIOCLSET || r == TIOCHPCL;
+}
+
+static int
+sets_issued(void)
+{
+	int i, n = 0;
+
+	for (i = 0; i < model.nlog; i++)
+		n += is_set_request(model.log[i]);
+	return n;
+}
+
+static unsigned int
+rnd(unsigned int *seed)
+{
+	*seed = *seed * 1664525U + 1013904223U;
+	return *seed >> 8;
+}
+
+/* Sgtty states the table checks start from. */
+static const unsigned int bases[] = {
+	0,
+	ECHO | CRMOD,
+	ECHO | CRMOD | CRTBS | CRTERA | CRTKIL | CTLECH | DECCTQ,
+	CBREAK | ECHO,
+	RAW,
+	RAW | LITOUT | PASS8,
+	0xffffffffU & ~(RAW | CBREAK),
+	0x00080000U | CRTBS | ODDP | EVENP | 0x00008000U | 0x00000100U,
+};
+
+struct rt_row {
+	int word;
+	tcflag_t bit;
+	unsigned int sbit;
+	int inv;
+};
+
+static const struct rt_row rt_rows[] = {
+	{ 0, ISTRIP, PASS8, 1 }, { 0, IXANY, DECCTQ, 1 },
+	{ 0, IXOFF, TANDEM, 0 },
+	{ 2, CLOCAL, NOHANG, 0 }, { 2, CRTSCTS, RTSCTS, 0 },
+	{ 2, MDMBUF, MDMBUF, 0 },
+	{ 3, ECHO, ECHO, 0 }, { 3, ECHOE, CRTERA, 0 }, { 3, ECHOK, CRTKIL, 0 },
+	{ 3, NOFLSH, NOFLSH, 0 }, { 3, TOSTOP, TOSTOP, 0 },
+	{ 3, ECHOCTL, CTLECH, 0 }, { 3, ECHOPRT, PRTERA, 0 },
+	{ 3, FLUSHO, FLUSHO, 0 }, { 3, PENDIN, PENDIN, 0 },
+};
+
+static tcflag_t *
+wordp(struct termios *t, int word)
+{
+	switch (word) {
+	case 0:
+		return &t->c_iflag;
+	case 1:
+		return &t->c_oflag;
+	case 2:
+		return &t->c_cflag;
+	default:
+		return &t->c_lflag;
+	}
+}
+
+static int
+termios_equal(const struct termios *a, const struct termios *b)
+{
+	int i;
+
+	if (!same_flags(a, b))
+		return 0;
+	for (i = 0; i < NCCS; i++)
+		if (a->c_cc[i] != b->c_cc[i])
+			return 0;
+	return a->c_ispeed == b->c_ispeed && a->c_ospeed == b->c_ospeed;
+}
+
+/* The one change a table row makes: get, change, set, get, compare. */
+static void
+check_rt_bits(void)
+{
+	struct termios t, t2, e;
+	int i, b, target;
+
+	for (i = 0; i < COUNT(rt_rows); i++) {
+		const struct rt_row *r = &rt_rows[i];
+
+		for (b = 0; b < COUNT(bases); b++) {
+			for (target = 0; target <= 1; target++) {
+				unsigned int want;
+
+				model_reset(bases[b]);
+				CHECK(tcgetattr(MODEL_FD, &t) == 0);
+				e = t;
+				if (target)
+					*wordp(&e, r->word) |= r->bit;
+				else
+					*wordp(&e, r->word) &= ~r->bit;
+				snapshot();
+				CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+				CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+				CHECK(termios_equal(&t2, &e));
+				/* Only the row's own sgtty bit moved. */
+				want = (target != r->inv) ?
+				    before.flags | r->sbit :
+				    before.flags & ~r->sbit;
+				CHECK(model.flags == want);
+				CHECK(bytes_equal(&model.tc, &before.tc,
+				    sizeof model.tc));
+				CHECK(bytes_equal(&model.lc, &before.lc,
+				    sizeof model.lc));
+			}
+		}
+	}
+}
+
+static void
+check_rt_pairs(void)
+{
+	struct termios t, t2, e;
+	int b, target, icanon, isig, m;
+	unsigned int want;
+
+	for (b = 0; b < COUNT(bases); b++) {
+		/* ICRNL and ONLCR move together onto CRMOD. */
+		for (target = 0; target <= 1; target++) {
+			model_reset(bases[b]);
+			CHECK(tcgetattr(MODEL_FD, &t) == 0);
+			e = t;
+			e.c_iflag = target ? e.c_iflag | ICRNL : e.c_iflag & ~ICRNL;
+			e.c_oflag = target ? e.c_oflag | ONLCR : e.c_oflag & ~ONLCR;
+			CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+			CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+			CHECK(termios_equal(&t2, &e));
+			CHECK(((model.flags & CRMOD) != 0) == target);
+			CHECK((model.flags & ~CRMOD) == (bases[b] & ~CRMOD));
+
+			/* TAB3 is XTABS and TAB0 clears it. */
+			model_reset(bases[b]);
+			CHECK(tcgetattr(MODEL_FD, &t) == 0);
+			e = t;
+			e.c_oflag = (e.c_oflag & ~TABDLY) | (target ? TAB3 : TAB0);
+			CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+			CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+			CHECK(termios_equal(&t2, &e));
+			CHECK(((model.flags & XTABS) != 0) == target);
+			CHECK((model.flags & ~XTABS) == (bases[b] & ~XTABS));
+		}
+
+		/* OPOST is LITOUT clear, and RAW hides it. */
+		for (target = 0; target <= 1; target++) {
+			model_reset(bases[b]);
+			CHECK(tcgetattr(MODEL_FD, &t) == 0);
+			e = t;
+			e.c_oflag = target ? e.c_oflag | OPOST : e.c_oflag & ~OPOST;
+			CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+			CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+			if (bases[b] & RAW) {
+				CHECK((t2.c_oflag & OPOST) == 0);
+				if (target)
+					CHECK((model.flags & LITOUT) == 0);
+			} else {
+				CHECK(termios_equal(&t2, &e));
+				CHECK(((model.flags & LITOUT) == 0) == target);
+			}
+			CHECK((model.flags & ~LITOUT) == (bases[b] & ~LITOUT));
+		}
+
+		/* ICANON and ISIG are the pair (RAW, CBREAK), in every direction. */
+		for (m = 0; m < 3; m++) {
+			icanon = m == 0;
+			isig = m != 2;
+			model_reset(bases[b]);
+			CHECK(tcgetattr(MODEL_FD, &t) == 0);
+			e = t;
+			e.c_lflag &= ~(ICANON | ISIG | IEXTEN);
+			if (icanon)
+				e.c_lflag |= ICANON | IEXTEN;
+			if (isig)
+				e.c_lflag |= ISIG;
+			CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+			CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+			CHECK((t2.c_lflag & (ICANON | ISIG | IEXTEN)) ==
+			    (e.c_lflag & (ICANON | ISIG | IEXTEN)));
+			want = bases[b] & ~(RAW | CBREAK);
+			if (m == 1)
+				want |= CBREAK;
+			if (m == 2)
+				want |= RAW;
+			CHECK((model.flags & ~(PENDIN | LITOUT)) ==
+			    (want & ~(PENDIN | LITOUT)));
+		}
+	}
+}
+
+static void
+check_rt_chars(void)
+{
+	static const unsigned char values[] = { 0x01, 0x7f, 0x80, 0xe9, 0xff };
+	struct termios t, t2, e;
+	int idx[14], k, v, i;
+
+	idx[0] = VERASE; idx[1] = VKILL; idx[2] = VINTR; idx[3] = VQUIT;
+	idx[4] = VSTART; idx[5] = VSTOP; idx[6] = VEOF; idx[7] = VEOL;
+	idx[8] = VSUSP; idx[9] = VDSUSP; idx[10] = VREPRINT;
+	idx[11] = VDISCARD; idx[12] = VWERASE; idx[13] = VLNEXT;
+	for (k = 0; k < 14; k++) {
+		for (v = 0; v < COUNT(values); v++) {
+			model_reset(ECHO | CRMOD);
+			CHECK(tcgetattr(MODEL_FD, &t) == 0);
+			e = t;
+			e.c_cc[idx[k]] = values[v];
+			snapshot();
+			CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+			CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+			CHECK(termios_equal(&t2, &e));
+			CHECK(model.flags == before.flags);
+		}
+	}
+	/* Every speed name, input and output separately. */
+	for (i = B0; i <= B4000000; i++) {
+		model_reset(ECHO);
+		CHECK(tcgetattr(MODEL_FD, &t) == 0);
+		e = t;
+		e.c_ispeed = (speed_t)i;
+		e.c_ospeed = (speed_t)(B4000000 - i);
+		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+		CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+		CHECK(termios_equal(&t2, &e));
+	}
+}
+
+/*
+ * Reading the state and writing it back changes no sgtty word, including
+ * the bits no termios row names, and issues no set request: TIOCSETN drains
+ * and flushes input whenever RAW is set, even for an unchanged write.
+ */
+static void
+check_set_idempotent(void)
+{
+	struct termios t;
+	unsigned int seed = 12345, f;
+	int i;
+
+	for (i = 0; i < 600; i++) {
+		f = i < COUNT(bases) ? bases[i] : rnd(&seed) ^ (rnd(&seed) << 16);
+		model_reset(f);
+		model.sg.sg_ispeed = (char)(rnd(&seed) % (B4000000 + 1));
+		model.sg.sg_ospeed = (char)(rnd(&seed) % (B4000000 + 1));
+		model.sg.sg_erase = (char)rnd(&seed);
+		model.sg.sg_kill = (char)rnd(&seed);
+		model.tc.t_eofc = (char)rnd(&seed);
+		model.lc.t_lnextc = (char)rnd(&seed);
+		CHECK(tcgetattr(MODEL_FD, &t) == 0);
+		snapshot();
+		CHECK(tcsetattr(MODEL_FD, TCSANOW, &t) == 0);
+		CHECK(state_equal(&model, &before));
+		CHECK(sets_issued() == 0);
+		CHECK(model.flush_in == 0 && model.drains == 0);
+	}
+}
+
+struct rf_row {
+	const char *name;
+	int word;
+	tcflag_t set, clr;
+	unsigned int base;
+};
+
+/* Requests for rows the kernel cannot honor, from a cooked or a raw base. */
+static const struct rf_row rf_rows[] = {
+	{ "BRKINT", 0, BRKINT, 0, ECHO },
+	{ "IGNBRK", 0, IGNBRK, 0, ECHO },
+	{ "IGNCR", 0, IGNCR, 0, ECHO },
+	{ "IGNPAR", 0, IGNPAR, 0, ECHO },
+	{ "INLCR", 0, INLCR, 0, ECHO },
+	{ "INPCK", 0, INPCK, 0, ECHO },
+	{ "PARMRK", 0, PARMRK, 0, ECHO },
+	{ "IXON off", 0, 0, IXON, ECHO },
+	{ "unnamed iflag bit", 0, 0x40000000U, 0, ECHO },
+	{ "OCRNL", 1, OCRNL, 0, ECHO },
+	{ "ONOCR", 1, ONOCR, 0, ECHO },
+	{ "ONLRET", 1, ONLRET, 0, ECHO },
+	{ "OFILL", 1, OFILL, 0, ECHO },
+	{ "OFDEL", 1, OFDEL, 0, ECHO },
+	{ "NL1", 1, NL1, 0, ECHO },
+	{ "CR1", 1, CR1, 0, ECHO },
+	{ "CR2", 1, CR2, 0, ECHO },
+	{ "CR3", 1, CR3, 0, ECHO },
+	{ "BS1", 1, BS1, 0, ECHO },
+	{ "VT1", 1, VT1, 0, ECHO },
+	{ "FF1", 1, FF1, 0, ECHO },
+	{ "TAB1", 1, TAB1, TABDLY, ECHO },
+	{ "TAB2", 1, TAB2, TABDLY, ECHO },
+	{ "CS5", 2, CS5, CSIZE, ECHO },
+	{ "CS6", 2, CS6, CSIZE, ECHO },
+	{ "CS7", 2, CS7, CSIZE, ECHO },
+	{ "CREAD off", 2, 0, CREAD, ECHO },
+	{ "CSTOPB", 2, CSTOPB, 0, ECHO },
+	{ "PARENB", 2, PARENB, 0, ECHO },
+	{ "PARODD", 2, PARODD, 0, ECHO },
+	{ "unnamed cflag bit", 2, 0x00040000U, 0, ECHO },
+	{ "ECHONL", 3, ECHONL, 0, ECHO },
+	{ "IEXTEN off while ICANON", 3, 0, IEXTEN, ECHO },
+	{ "IEXTEN on while not ICANON", 3, IEXTEN, 0, CBREAK | ECHO },
+	{ "IEXTEN on under RAW", 3, IEXTEN, 0, RAW },
+	{ "ICANON without ISIG", 3, 0, ISIG, ECHO },
+	{ "unnamed lflag bit", 3, 0x00010000U, 0, ECHO },
+};
+
+struct rf_cc {
+	const char *name;
+	int index;
+	unsigned char value;
+};
+
+static const struct rf_cc rf_ccs[] = {
+	{ "VEOL2", VEOL2, 0x01 },
+	{ "VSTATUS", VSTATUS, 0x14 },
+	{ "VMIN 0", VMIN, 0 },
+	{ "VMIN 2", VMIN, 2 },
+	{ "VTIME 1", VTIME, 1 },
+};
+
+/*
+ * A request that asks only for what the kernel cannot honor fails with EINVAL
+ * and changes nothing; the same request beside an honored change succeeds,
+ * applies that change and leaves the refused rows as they were.
+ */
+static void
+check_refusals(void)
+{
+	struct termios t, e;
+	int i;
+
+	for (i = 0; i < COUNT(rf_rows) + COUNT(rf_ccs) + 2; i++) {
+		const char *name;
+		unsigned int base;
+
+		model_reset(CRMOD | ECHO);
+		base = CRMOD | ECHO;
+		CHECK(tcgetattr(MODEL_FD, &t) == 0);
+		if (i < COUNT(rf_rows)) {
+			const struct rf_row *r = &rf_rows[i];
+
+			name = r->name;
+			base = r->base | CRMOD;
+			model_reset(base);
+			CHECK(tcgetattr(MODEL_FD, &t) == 0);
+			e = t;
+			*wordp(&e, r->word) &= ~r->clr;
+			*wordp(&e, r->word) |= r->set;
+		} else if (i < COUNT(rf_rows) + COUNT(rf_ccs)) {
+			const struct rf_cc *c = &rf_ccs[i - COUNT(rf_rows)];
+
+			name = c->name;
+			e = t;
+			e.c_cc[c->index] = c->value;
+		} else {
+			name = i == COUNT(rf_rows) + COUNT(rf_ccs) ?
+			    "ispeed past B4000000" : "ospeed past B4000000";
+			e = t;
+			if (i == COUNT(rf_rows) + COUNT(rf_ccs))
+				e.c_ispeed = B4000000 + 1;
+			else
+				e.c_ospeed = 0xffffffffU;
+		}
+		/* Refused alone: EINVAL, no request issued, state untouched. */
+		snapshot();
+		test_errno = 0;
+		if (tcsetattr(MODEL_FD, TCSANOW, &e) != -1 ||
+		    test_errno != EINVAL || sets_issued() != 0 ||
+		    !state_equal(&model, &before)) {
+			lsys_note("a refused row was not refused:");
+			lsys_note(name);
+		}
+		CHECK(model.nlog == 4);
+		CHECK(state_equal(&model, &before));
+		CHECK(sets_issued() == 0);
+		test_errno = 0;
+		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == -1 &&
+		    test_errno == EINVAL);
+
+		/* Beside an honored change: success, the change and no more. */
+		e.c_lflag ^= TOSTOP;
+		snapshot();
+		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+		CHECK((model.flags ^ before.flags) == TOSTOP);
+		CHECK(bytes_equal(&model.tc, &before.tc, sizeof model.tc));
+		CHECK(bytes_equal(&model.lc, &before.lc, sizeof model.lc));
+		CHECK(model.sg.sg_ispeed == before.sg.sg_ispeed &&
+		    model.sg.sg_ospeed == before.sg.sg_ospeed &&
+		    model.sg.sg_erase == before.sg.sg_erase);
+	}
+}
+
+static void
+check_set_special(void)
+{
+	struct termios t, e;
+	int i;
+
+	/* A split ICRNL and ONLCR is part-honored: success, CRMOD untouched. */
+	for (i = 0; i < 2; i++) {
+		model_reset(i ? CRMOD : 0);
+		CHECK(tcgetattr(MODEL_FD, &t) == 0);
+		e = t;
+		e.c_iflag |= ICRNL;
+		e.c_oflag &= ~ONLCR;
+		snapshot();
+		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+		CHECK(state_equal(&model, &before) && sets_issued() == 0);
+		e.c_iflag &= ~ICRNL;
+		e.c_oflag |= ONLCR;
+		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+		CHECK(state_equal(&model, &before) && sets_issued() == 0);
+	}
+
+	/* HUPCL is set only: a set request reaches TIOCHPCL, a clear one does not. */
+	model_reset(ECHO);
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	e = t;
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0 && model.hupcl == 0);
+	e.c_cflag |= HUPCL;
+	snapshot();
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+	CHECK(model.hupcl == 1 && model.nlog == 5 && sets_issued() == 1);
+	CHECK(model.log[4] == TIOCHPCL);
+	CHECK(tcgetattr(MODEL_FD, &t) == 0 && (t.c_cflag & HUPCL) == 0);
+
+	/* Only TCSANOW is available until the drain and flush request lands. */
+	model_reset(ECHO);
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	snapshot();
+	test_errno = 0;
+	CHECK(tcsetattr(MODEL_FD, TCSADRAIN, &t) == -1 && test_errno == EINVAL);
+	test_errno = 0;
+	CHECK(tcsetattr(MODEL_FD, TCSAFLUSH, &t) == -1 && test_errno == EINVAL);
+	test_errno = 0;
+	CHECK(tcsetattr(MODEL_FD, 7, &t) == -1 && test_errno == EINVAL);
+	CHECK(model.nlog == 0);
+
+	/* A bad descriptor fails in the first read. */
+	test_errno = 0;
+	CHECK(tcsetattr(MODEL_FD + 1, TCSANOW, &t) == -1 &&
+	    test_errno == EBADF);
+}
+
+/* The requests go out as SETC, SETLTC, LSET, SETN, HPCL, and only the changed. */
+static void
+check_set_order(void)
+{
+	struct termios t, e;
+	static const unsigned int failing[] = {
+		TIOCGETP, TIOCGETC, TIOCGLTC, TIOCLGET,
+		TIOCSETC, TIOCSLTC, TIOCLSET, TIOCSETN, TIOCHPCL
+	};
+	int i, j;
+
+	model_reset(CBREAK | ECHO | CRMOD);
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	e = t;
+	e.c_cc[VINTR] = 0x01;
+	e.c_cc[VSUSP] = 0x02;
+	e.c_lflag = (e.c_lflag | ICANON | IEXTEN) & ~ECHO & ~TOSTOP;
+	e.c_lflag |= TOSTOP;
+	e.c_ispeed = B300;
+	e.c_cflag |= HUPCL;
+	snapshot();
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+	CHECK(model.nlog == 9);
+	CHECK(model.log[4] == TIOCSETC && model.log[5] == TIOCSLTC &&
+	    model.log[6] == TIOCLSET && model.log[7] == TIOCSETN &&
+	    model.log[8] == TIOCHPCL);
+	/* TIOCSETN set PENDIN after TIOCLSET; the later write must keep it. */
+	CHECK((model.flags & PENDIN) != 0 && (model.flags & CBREAK) == 0);
+	CHECK((model.flags & ECHO) == 0 && (model.flags & TOSTOP) != 0);
+	CHECK(model.sg.sg_ispeed == B300 && model.tc.t_intrc == 0x01 &&
+	    model.lc.t_suspc == 0x02);
+
+	/* Each of the requests can fail, and the call reports it. */
+	for (i = 0; i < COUNT(failing); i++) {
+		model_reset(CBREAK | ECHO | CRMOD);
+		model.fail_request = failing[i];
+		/* The reads must fail too, so use the state of the last run. */
+		if (i < 4) {
+			CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == -1);
+			continue;
+		}
+		model.fail_request = 0;
+		CHECK(tcgetattr(MODEL_FD, &t) == 0);
+		model.fail_request = failing[i];
+		test_errno = 0;
+		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == -1 &&
+		    test_errno == ENOTTY);
+		for (j = 0; j < model.nlog; j++)
+			CHECK(model.log[j] != 0);
+	}
+}
+
+/* Entering RAW flushes input once; an unchanged write issues nothing. */
+static void
+check_raw_flush(void)
+{
+	struct termios t, e;
+
+	model_reset(ECHO | CRMOD);
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	e = t;
+	e.c_lflag &= ~(ICANON | ISIG | IEXTEN);
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+	CHECK((model.flags & RAW) != 0 && model.flush_in == 1);
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+	CHECK(model.flush_in == 1);
+	e.c_lflag ^= ECHO;
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+	CHECK(model.flush_in == 2);
+}
+
 int
 main(void)
 {
@@ -467,5 +1026,13 @@ main(void)
 	check_get_flags();
 	check_get_rest();
 	check_get_errors();
+	check_rt_bits();
+	check_rt_pairs();
+	check_rt_chars();
+	check_set_idempotent();
+	check_refusals();
+	check_set_special();
+	check_set_order();
+	check_raw_flush();
 	return lsys_verdict("libc_termios");
 }

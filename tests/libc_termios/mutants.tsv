@@ -33,3 +33,24 @@ get-tab3-missing	lib/libc/gen/tcattr.c	s/t->c_oflag |= TAB3;//
 get-lnext-offset	lib/libc/gen/tcattr.c	s/{ VLNEXT,   G_LTC,   5 }/{ VLNEXT,   G_LTC,   4 }/
 get-kill-from-erase	lib/libc/gen/tcattr.c	s/{ VKILL,    G_KILL,  0 }/{ VKILL,    G_ERASE, 0 }/
 get-short-read	lib/libc/gen/tcattr.c	s/ioctl(fd, TIOCGLTC, &s->lc) < 0 ||/0 ||/
+set-row-inverted	lib/libc/gen/tcattr.c	s/if (want != r->inv)/if (want == r->inv)/
+set-crmod-split-sets	lib/libc/gen/tcattr.c	s/if (want != ((t->c_oflag & ONLCR) != 0))/if (0)/
+set-opost-under-raw	lib/libc/gen/tcattr.c	s/else if ((f & RAW) == 0)/else/
+set-opost-litout-kept	lib/libc/gen/tcattr.c	s/\tif (want)\n//;s/f &= ~LITOUT;/f \&= ~0U;/
+set-tab0-as-tab1	lib/libc/gen/tcattr.c	s/tab == TAB0/tab == TAB1/
+set-refuse-always-fails	lib/libc/gen/tcattr.c	s/if (refused \&\& !honored)/if (refused || !honored)/
+set-refuse-never-fails	lib/libc/gen/tcattr.c	s/if (refused \&\& !honored)/if (refused \&\& !honored \&\& 0)/
+set-crdly-known	lib/libc/gen/tcattr.c	s/known\[W_OFLAG\] = OPOST | ONLCR | TABDLY;/known[W_OFLAG] = OPOST | ONLCR | TABDLY | CRDLY;/
+set-lset-dropped	lib/libc/gen/tcattr.c	s/(f >> 16) != (cur.flags >> 16) &&/(f >> 16) != (cur.flags >> 16) \&\& 0 \&\&/
+set-hupcl-dropped	lib/libc/gen/tcattr.c	s/(t->c_cflag & HUPCL) && ioctl/0 \&\& ioctl/
+set-iexten-unchecked	lib/libc/gen/tcattr.c	s/if (((t->c_lflag & IEXTEN) != 0) != icanon)/if (0)/
+set-mode-swapped	lib/libc/gen/tcattr.c	s/isig ? CBREAK : RAW/isig ? RAW : CBREAK/
+set-mode-icanon-isig-allowed	lib/libc/gen/tcattr.c	s/if (icanon && !isig)/if (0)/
+set-cc-dropped	lib/libc/gen/tcattr.c	s/\*ccref(&n, c) = t->c_cc\[c->index\];//
+set-vmin-unchecked	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] != have.c_cc\[VMIN\] ||/0 ||/
+set-ispeed-unchecked	lib/libc/gen/tcattr.c	s/if (t->c_ispeed > B4000000)/if (0)/
+set-ospeed-from-ispeed	lib/libc/gen/tcattr.c	s/n.sg.sg_ospeed = (char)t->c_ospeed;/n.sg.sg_ospeed = (char)t->c_ispeed;/
+set-any-action	lib/libc/gen/tcattr.c	s/if (action != TCSANOW) {/if (action < 0) {/
+set-tchars-always	lib/libc/gen/tcattr.c	s/differs(&n.tc, &cur.tc, sizeof n.tc) &&/1 \&\&/
+set-flags-not-applied	lib/libc/gen/tcattr.c	s/n.sg.sg_flags = (short)(f & 0xffffU);//
+set-split-ignored	lib/libc/gen/tcattr.c	s/\t\thonored = 1;\n\telse if (want != ((have/X/;s/else if (want != ((have.c_iflag & ICRNL) != 0)) {/else if (want == ((have.c_iflag \& ICRNL) != 0)) {/

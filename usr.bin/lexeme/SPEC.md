@@ -137,51 +137,53 @@ and listed at the end.
 
 The program reads and writes the document files of Word 5.1 for UNIX.
 
-Provenance. The layout below was established by observation of the
-original program's files and nothing else. Documents that differ in one
-property were saved by the original and the files compared byte by byte, and
-hand-built files, written to test a hypothesis about one field, were
-loaded into the original to see whether it accepted them and what it drew.
-No code of the original was decompiled, disassembled or translated into
-this program; every offset, flag value and default below is a stated
-observation of a file, and the constants in `lexeme_doc.c` carry only
-those values.
+Provenance. Every field, value and default the program uses is listed in
+the table below with the file observation that establishes it. Two kinds of
+observation were made, both of whole files: a document saved by the
+original with one property set (bold, a centered paragraph, an indent) is
+compared byte by byte with the same text saved plain, the baseline; and a
+hand-built file with one field set to a chosen value is loaded into the
+original to see whether it accepts the file and what it shows. No value
+below rests on reading the original's code. The constants in
+`lexeme_doc.c` each name their row.
 
-- The file is 128-byte pages, little-endian. Page 0 is the header: the
-  identifier 0xBE31 at 0, the document type 0 at 2, 0xAB00 at 4, the end
-  of the text as a file offset at 0x0E (0x80 plus the text length), the
-  first paragraph-run page at 0x12, further table pages at 0x14 to 0x1C
-  and 0x76 to 0x7C, the style sheet name at 0x1E, the printer name at
-  0x62, the page count at 0x6A, the default tab width in twips at 0x70
-  and the character set 0x229B (ISO 8859-1) at 0x7E.
-- The text starts at byte 0x80. A paragraph mark is CR LF; this program
-  keeps it as LF and writes LF back as CR LF. A lone CR also ends a
-  paragraph. Other bytes are kept as they are.
-- After the text, from the next page boundary, come the character-run
-  pages, then from the page at 0x12 the paragraph-run pages. A run page
-  holds the file offset its first run starts at, then for each run its
-  end offset (4 bytes) and the page offset, less 4, of its property
-  record, or 0xFFFF for default properties; a paragraph page follows the
-  run entries with six bytes per run that this program writes as zero.
-  The run count is the last byte of the page, and the property records
-  fill the page from byte 126 down. Character runs end at the text end;
-  the last paragraph run ends one byte past it.
-- A property record is a length byte and that many leading bytes of the
-  property structure; the rest keep their defaults. Character structure:
-  byte 1 bold (1) and italic (2), byte 2 the size in half points (24 by
-  default), byte 3 underline (1), strikethrough (2), double underline
-  (4), uppercase (0x10), small capitals (0x30 when written; 0x20 read),
-  hidden (0x80), byte 5 a signed vertical offset (positive superscript,
-  negative subscript). Paragraph structure: byte 0 the style (0x3C, the
-  Normal style), byte 1 the alignment in bits 0-1, keep together 4, keep
-  with next 8, side by side 0x10; then 16-bit twips: right indent at 4,
-  left indent at 6, first line at 8, line spacing at 10 (240 by
-  default), space before at 12 and after at 14.
-- A file whose header identifies another tool loads as text. A Word file
-  with another character set, or one shorter than its page count, is
-  refused. Fonts, colors, tab stops, styles, divisions, footnotes,
-  bookmarks and the summary are not kept; a save writes the header, the
-  text and the two run tables.
+The baseline is the text `ab` and one paragraph mark saved as a Word
+document with nothing formatted. Offsets are bytes from the start of the
+file or of a page; multi-byte values are little-endian.
+
+| Row | Field | Value | Observation |
+|---|---|---|---|
+| W1 | page size | 128 bytes | every saved file is a whole number of 128-byte pages, and every page number in its header times 128 is the offset of a table the other rows describe |
+| W2 | header 0x00 | 0xBE31 | present in every saved file; a hand-built file with another value is refused with "Not a Word document" |
+| W3 | header 0x02, document type | 0 | 0 in every saved document; the shipped glossary and style sheet files carry 1 and 2; a hand-built document with 1 is refused |
+| W4 | header 0x04 | 0xAB00 | present in every saved file; a hand-built file with 0xAB01 loads as plain text, header bytes included |
+| W5 | text start; header 0x0E, text end | 0x80; 0x80 plus the text length | the baseline's text bytes start at 0x80 and 0x0E holds 0x84 (two characters and CR LF); each further typed character adds one to both the text and 0x0E |
+| W6 | run pages; header 0x12 | character-run page at the first page after the text, paragraph-run page number at 0x12 | in the baseline the text ends in page 1, page 2 holds the character runs and 0x12 holds 3, the page of the paragraph runs |
+| W7 | header 0x14, 0x16, 0x18, 0x1A, 0x1C, 0x76, 0x78, 0x7C | the page count | in every saved plain document all eight hold one page number, the page after the paragraph runs; the original loads a file this program wrote with all eight set to its page count, showing its text and an italic word as italic in Format Character |
+| W8 | header 0x6A, page count | file length / 128 | equals the page count of every saved file; a hand-built file whose count exceeds its length is refused |
+| W9 | header 0x70 | 720 | every document saved with the default tab width of 0.5 inch carries 720 (twips) |
+| W10 | header 0x7E, character set | 0x229B | present in every saved file; a hand-built file with 0 loads as an empty document |
+| W11 | every other header byte | 0 | saved files carry a style sheet name at 0x1E, a printer name at 0x62, 0x0040 at 0x6C and 0x0105 at 0x74; the original loads a file this program wrote with all of these zero, showing its text and an italic word as italic in Format Character |
+| W12 | paragraph mark | CR LF (0x0D 0x0A) | a document saved after typing Enter holds 0D 0A where Enter was typed |
+| W13 | run page layout | first-run file offset (4 bytes) at 0; per run, its end offset (4) and a record pointer (2) from 4; pointer 0xFFFF for default properties, otherwise the record sits at the pointer plus 4; run count in byte 127; records packed down from byte 126 | the baseline's character page holds 0x80, one run ending at 0x84 with 0xFFFF, and count 1; a document with "ab" bold holds pointer 0x78 and the record at 0x7C; hand-built pages laid out this way load with their bold and centered runs |
+| W14 | paragraph run entries | six more bytes per run after the run entries, zero | zero in every saved document that was not repaginated; hand-built pages with zeros load |
+| W15 | run ends | the last character run ends at the text end, the last paragraph run one byte past it | in the baseline the character run ends at 0x84 and the paragraph run at 0x85 |
+| W16 | property record | a length byte, then that many leading bytes of the property structure; trailing bytes equal to the default are left out | records saved by the original differ in length by property: 2 bytes for bold, 4 for underline, 6 for superscript, 15 for space after |
+| W17 | character byte 0; byte 1 | 0; bold 0x01, italic 0x02 | the bold, italic and bold-italic documents differ from the baseline only in a record whose byte 0 is 0 and byte 1 is 0x01, 0x02 and 0x03 |
+| W18 | character byte 2, size | half points, 24 by default | records that reach byte 2 for 12-point text hold 24; a hand-built record with 20 shows "font size: 10" in Format Character |
+| W19 | character byte 3 | underline 0x01, strikethrough 0x02, double underline 0x04, uppercase 0x10, small capitals 0x30, hidden 0x80 | one saved document per property differs from the baseline in a record whose byte 3 holds that value |
+| W20 | character bytes 4 and 5 | byte 4 zero; byte 5 superscript 0x0C, subscript 0xF4 | the superscript and subscript documents differ in a 6-byte record ending 00 0C and 00 F4 |
+| W21 | paragraph bytes 0 to 3 | 0x3C, flags, 0x1E, 0 | every saved record of a body-text paragraph starts 0x3C; byte 1 is 0x01 centered, 0x02 right, 0x03 justified, 0x04 keep together, 0x08 keep with next, 0x10 side by side, one document each; every saved record reaching bytes 2 and 3 holds 0x1E and 0 there |
+| W22 | paragraph 16-bit fields | right indent at 4, left at 6, first line at 8, line spacing at 10, space before at 12, space after at 14, in twips; line spacing 240 by default | a 1-inch right indent saves 1440 at 4; a 0.5-inch left indent 720 at 6; a 0.5-inch first-line indent 720 at 8 and a hanging indent -720 there; double spacing 480 at 10; one line before 240 at 12; one line after 240 at 14; records for single-spaced paragraphs that reach byte 10 hold 240 there |
+
+This program's own choices, not claims about the format: a lone CR also
+ends a paragraph; small capitals are read from 0x30 in character byte 3
+and uppercase from 0x10 alone; a byte 5 other than 0x0C or 0xF4 reads as
+superscript when positive and subscript when negative; a Word file with
+another character set, or one shorter than its page count, is refused;
+fonts, colors, tab stops, styles, divisions, footnotes, bookmarks and the
+summary are not kept, and a save writes the header, the text and the two
+run tables.
 
 ## Modern modes
 

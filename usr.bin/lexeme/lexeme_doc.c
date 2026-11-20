@@ -56,15 +56,17 @@
 #include <string.h>
 #include <unistd.h>
 
-#define PG		128
-#define FC0		0x80		/* file offset of the first text byte */
-#define MAGIC		0xbe31
-#define TOOL		0xab00
-#define CHARSET		0x229b		/* ISO 8859-1 text */
-#define NOPROP		0xffff
-#define CHP_LEN		6
-#define PAP_LEN		16
-#define PAP_STYLE	0x3c		/* the Normal paragraph style */
+/* Each value names its row in SPEC.md, Word document files. */
+#define PG		128		/* W1 page size */
+#define FC0		0x80		/* W5 first text byte */
+#define MAGIC		0xbe31		/* W2 */
+#define TOOL		0xab00		/* W4 */
+#define CHARSET		0x229b		/* W10 */
+#define NOPROP		0xffff		/* W13 default-properties pointer */
+#define CHP_LEN		6		/* W17-W20 character bytes 0-5 */
+#define PAP_LEN		16		/* W21-W22 paragraph bytes 0-15 */
+#define PAP_STYLE	0x3c		/* W21 paragraph byte 0 */
+#define DEF_TAB		720		/* W9 */
 
 static unsigned
 get16(const uint8_t *p)
@@ -108,6 +110,7 @@ read_at(int fd, uint32_t off, void *buf, size_t n)
 static int
 header_ok(const uint8_t *h)
 {
+	/* W2, W3 document type 0, W4 */
 	return get16(h) == MAGIC && get16(h + 2) == 0 && get16(h + 4) == TOOL;
 }
 
@@ -130,7 +133,7 @@ static void
 chp_default(uint8_t *b)
 {
 	memset(b, 0, CHP_LEN);
-	b[2] = 24;
+	b[2] = 24;		/* W18 */
 }
 
 static void
@@ -138,31 +141,32 @@ pap_default(uint8_t *b)
 {
 	memset(b, 0, PAP_LEN);
 	b[0] = PAP_STYLE;
-	b[2] = 0x1e;
-	put16(b + 10, 240);
+	b[2] = 0x1e;		/* W21 */
+	put16(b + 10, 240);	/* W22 single spacing */
 }
 
 static void
 chp_decode(const uint8_t *b, struct word_chp *c)
 {
 	memset(c, 0, sizeof(*c));
-	if (b[1] & 1)
+	if (b[1] & 1)		/* W17 */
 		c->flags |= CH_BOLD;
 	if (b[1] & 2)
 		c->flags |= CH_ITALIC;
-	if (b[3] & 0x01)
+	if (b[3] & 0x01)	/* W19 */
 		c->flags |= CH_UNDER;
 	if (b[3] & 0x02)
 		c->flags |= CH_STRIKE;
 	if (b[3] & 0x04)
 		c->flags |= CH_DUNDER;
-	if (b[3] & 0x20)
+	if ((b[3] & 0x30) == 0x30)
 		c->flags |= CH_SMALLCAPS;
 	else if (b[3] & 0x10)
 		c->flags |= CH_UPPER;
 	if (b[3] & 0x80)
 		c->flags |= CH_HIDDEN;
 	c->size = b[2] == 24 ? 0 : b[2];
+	/* W20; other offsets read by their sign (SPEC.md, this program's choices). */
 	c->pos = b[5] == 0 ? POS_NORMAL : (b[5] & 0x80) ? POS_SUB : POS_SUPER;
 }
 
@@ -170,15 +174,17 @@ static void
 chp_encode(const struct word_chp *c, uint8_t *b)
 {
 	chp_default(b);
+	/* W17 */
 	b[1] = (uint8_t)((c->flags & CH_BOLD ? 1 : 0) | (c->flags & CH_ITALIC ? 2 : 0));
 	if (c->size != 0)
 		b[2] = c->size;
+	/* W19 */
 	b[3] = (uint8_t)((c->flags & CH_UNDER ? 0x01 : 0) |
 	    (c->flags & CH_STRIKE ? 0x02 : 0) | (c->flags & CH_DUNDER ? 0x04 : 0) |
 	    (c->flags & CH_UPPER ? 0x10 : 0) |
 	    (c->flags & CH_SMALLCAPS ? 0x30 : 0) |
 	    (c->flags & CH_HIDDEN ? 0x80 : 0));
-	b[5] = c->pos == POS_SUPER ? 12 : c->pos == POS_SUB ? 0xf4 : 0;
+	b[5] = c->pos == POS_SUPER ? 12 : c->pos == POS_SUB ? 0xf4 : 0;	/* W20 */
 }
 
 static void
@@ -187,6 +193,7 @@ pap_decode(const uint8_t *b, struct word_pap *p)
 	unsigned sp = get16(b + 10);
 
 	memset(p, 0, sizeof(*p));
+	/* W21 byte 1, W22 the 16-bit fields. */
 	p->align = b[1] & 3;
 	p->keep = (uint8_t)((b[1] & 4 ? PA_KEEP : 0) | (b[1] & 8 ? PA_FOLLOW : 0) |
 	    (b[1] & 0x10 ? PA_SIDE : 0));
@@ -202,6 +209,7 @@ static void
 pap_encode(const struct word_pap *p, uint8_t *b)
 {
 	pap_default(b);
+	/* W21 byte 1, W22 the 16-bit fields. */
 	b[1] = (uint8_t)(p->align | (p->keep & PA_KEEP ? 4 : 0) |
 	    (p->keep & PA_FOLLOW ? 8 : 0) | (p->keep & PA_SIDE ? 0x10 : 0));
 	put16(b + 4, (unsigned)(uint16_t)p->right);
@@ -212,7 +220,7 @@ pap_encode(const struct word_pap *p, uint8_t *b)
 	put16(b + 14, p->after);
 }
 
-/* The length of the shortest record for b: through its last non-default byte. */
+/* The shortest record for b: through its last non-default byte (W16). */
 static unsigned
 rec_len(const uint8_t *b, const uint8_t *dflt, unsigned n)
 {
@@ -243,7 +251,7 @@ runs_page(struct runs *r)
 	if (e != 0)
 		return e;
 	r->page++;
-	r->n = r->pg[PG - 1];
+	r->n = r->pg[PG - 1];	/* W13 run count; W14 12-byte paragraph runs */
 	r->i = 0;
 	if (r->n == 0 || 4 + (r->para ? 12u : 6u) * r->n > PG - 1)
 		return EINVAL;
@@ -270,7 +278,7 @@ runs_seek(struct runs *r, uint32_t fc)
 			chp_default(dflt);
 		memcpy(full, dflt, len);
 		if (b != NOPROP) {
-			b = (b & 0xff) + 4;
+			b = (b & 0xff) + 4;	/* W13 record at pointer + 4 */
 			if (b >= PG - 1)
 				return EINVAL;
 			cch = r->pg[b];
@@ -311,13 +319,13 @@ doc_load(const char *path)
 	if (fd < 0)
 		return errno;
 	if (fstat(fd, &st) != 0 || read_at(fd, 0, h, PG) != 0 || !header_ok(h) ||
-	    get16(h + 0x7e) != CHARSET) {
+	    get16(h + 0x7e) != CHARSET) {		/* W10 */
 		close(fd);
 		return EINVAL;
 	}
-	fcmac = get32(h + 0x0e);
-	pnpara = get16(h + 0x12);
-	pnmac = get16(h + 0x6a);
+	fcmac = get32(h + 0x0e);	/* W5 */
+	pnpara = get16(h + 0x12);	/* W6 */
+	pnmac = get16(h + 0x6a);	/* W8 */
 	if (fcmac < FC0 || (uint32_t)pnmac * PG > (uint32_t)st.st_size ||
 	    pnpara < (fcmac + PG - 1) / PG || pnpara >= pnmac) {
 		close(fd);
@@ -327,7 +335,7 @@ doc_load(const char *path)
 	memset(&cr, 0, sizeof(cr));
 	memset(&pr, 0, sizeof(pr));
 	cr.fd = pr.fd = fd;
-	cr.page = (fcmac + PG - 1) / PG;
+	cr.page = (fcmac + PG - 1) / PG;	/* W6 */
 	cr.last = pnpara;
 	pr.para = 1;
 	pr.page = pnpara;
@@ -341,7 +349,7 @@ doc_load(const char *path)
 			if ((e = runs_seek(&cr, fc + i)) != 0 ||
 			    (e = runs_seek(&pr, fc + i)) != 0)
 				break;
-			if (c == '\r') {
+			if (c == '\r') {	/* W12 CR LF mark */
 				cr_pending = 1;
 				continue;
 			}
@@ -403,7 +411,7 @@ fkp_start(struct fkp *f, uint32_t fc)
 static void
 fkp_flush(struct fkp *f)
 {
-	f->pg[PG - 1] = (uint8_t)f->n;
+	f->pg[PG - 1] = (uint8_t)f->n;	/* W13 */
 	if (f->e == 0 && write(f->fd, f->pg, PG) != PG)
 		f->e = errno != 0 ? errno : EIO;
 	f->page++;
@@ -414,6 +422,7 @@ static void
 fkp_add(struct fkp *f, uint32_t lim, unsigned prop)
 {
 	uint8_t full[PAP_LEN], dflt[PAP_LEN];
+	/* W13 six bytes per run, W14 six more on a paragraph page */
 	unsigned len, i, off = NOPROP, entry = f->para ? 12 : 6;
 
 	if (f->para) {
@@ -474,7 +483,7 @@ emit_text(int fd, uint32_t *fcmac)
 		if (c < 0)
 			return EIO;
 		if (c == '\n') {
-			out[n++] = '\r';
+			out[n++] = '\r';	/* W12 */
 			fc++;
 			if (n == sizeof(out)) {
 				if (write(fd, out, n) != (ssize_t)n)
@@ -538,7 +547,7 @@ emit_runs(int fd, int para, uint32_t fcmac, unsigned *page)
 		fc += c == '\n' ? 2 : 1;
 	}
 	if (para)
-		fkp_add(&f, fcmac + 1, have ? prop : 0);
+		fkp_add(&f, fcmac + 1, have ? prop : 0);	/* W15 */
 	else
 		fkp_add(&f, fcmac, have ? prop : 0);
 	fkp_flush(&f);
@@ -553,6 +562,7 @@ doc_save(const char *path, int backup)
 	uint8_t h[PG], pad[PG];
 	struct stat st;
 	uint32_t fcmac = FC0;
+	/* W7 */
 	unsigned page, pnpara, slots[] = { 0x14, 0x16, 0x18, 0x1a, 0x1c, 0x76,
 	    0x78, 0x7c }, i;
 	int fd, e, have = stat(path, &st) == 0;
@@ -572,7 +582,7 @@ doc_save(const char *path, int backup)
 		if (write(fd, pad, PG - fcmac % PG) != (ssize_t)(PG - fcmac % PG))
 			e = EIO;
 	}
-	page = (fcmac + PG - 1) / PG;
+	page = (fcmac + PG - 1) / PG;	/* W6 */
 	if (e == 0)
 		e = emit_runs(fd, 0, fcmac, &page);
 	pnpara = page;
@@ -581,17 +591,14 @@ doc_save(const char *path, int backup)
 	if (e == 0) {
 		put16(h, MAGIC);
 		put16(h + 4, TOOL);
-		put32(h + 0x0e, fcmac);
-		put16(h + 0x12, pnpara);
+		put32(h + 0x0e, fcmac);		/* W5 */
+		put16(h + 0x12, pnpara);	/* W6 */
 		for (i = 0; i < sizeof(slots) / sizeof(slots[0]); i++)
 			put16(h + slots[i], page);
-		memcpy(h + 0x1e, "normal.stx", 10);
-		memcpy(h + 0x62, "tty", 3);
-		put16(h + 0x6a, page);
-		put16(h + 0x6c, 0x40);
-		put16(h + 0x70, 720);
-		put16(h + 0x74, 0x105);
-		put16(h + 0x7e, CHARSET);
+		/* W11: the other header bytes stay zero. */
+		put16(h + 0x6a, page);		/* W8 */
+		put16(h + 0x70, DEF_TAB);	/* W9 */
+		put16(h + 0x7e, CHARSET);	/* W10 */
 		if (lseek(fd, 0, SEEK_SET) != 0 || write(fd, h, PG) != PG)
 			e = EIO;
 	}

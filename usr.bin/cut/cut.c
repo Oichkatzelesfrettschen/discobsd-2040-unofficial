@@ -59,7 +59,7 @@ parselist(char *str)
 	if (!*str)
 		eprintf("empty list\n");
 	for (s = str; *s; s++) {
-		if (*s == ' ')
+		if (*s == ' ' || *s == '\t')
 			*s = ',';
 		if (*s == ',')
 			n++;

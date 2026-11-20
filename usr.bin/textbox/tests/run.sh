@@ -166,6 +166,23 @@ check "cut -d: -f2" "$WORK/cut.got" "$WORK/cut.want"
 cut -c1-3 "$WORK/cut.in" > "$WORK/cut.want2"
 check "cut -c1-3" "$WORK/cut.got2" "$WORK/cut.want2"
 
+# Issue 8 XCU cut accepts blank-separated selection lists in each mode.
+tab_list=$(printf '1\t3')
+printf 'ac\n' > "$WORK/cut.selected"
+for option in b c; do
+	for list in "$tab_list" '1 3' '1,3'; do
+		printf 'abc\n' | "$WORK/cut" "-$option" "$list" > "$WORK/cut.actual"
+		check "cut -$option selection" "$WORK/cut.actual" "$WORK/cut.selected"
+	done
+done
+printf 'a:c\n' > "$WORK/cut.fields"
+printf 'a:b:c\n' | "$WORK/cut" -d: -f "$tab_list" > "$WORK/cut.actual"
+check "cut tab-separated field list" "$WORK/cut.actual" "$WORK/cut.fields"
+if "$WORK/cut" -b '1,,3' < /dev/null > "$WORK/cut.actual" 2>&1; then
+	echo "FAIL cut accepts an empty list element"
+	exit 1
+fi
+
 # --- paste ---
 build paste paste.c eprintf.c fshut.c unescape.c rune.c \
 	$EREALLOCARRAY

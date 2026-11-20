@@ -2074,12 +2074,12 @@ check-elf2aout:	tools
 # and host-package tiers compile no C, and bin/sh/tests/posix-sh.sh builds
 # the shell against the host's headers, so those two reach nothing under
 # include.
-# The gates that run longest start first. bmake -j starts prerequisites in
-# the order listed, so a long gate listed late starts late and ends the tier:
-# the Linux host tier of 2026-11-20 (dispatch run 44827935585) reached its
-# 1,620 s limit with check-ulisp-host (about 1,000 s) started 771 s in, behind
-# 150 shorter gates, and check-lexeme-host (540 s) and check-i86-host (380 s)
-# started after 1,200 s. HOST_TIER_A_GATES and HOST_TIER_B_GATES keep this order.
+# The gates with the longest wall time start first. bmake -j starts
+# prerequisites in the order listed, so a long gate listed late starts late and
+# sets the end of the tier. check-host, and the tier loop below that builds
+# HOST_TIER_A_GATES, list these before HOST_GATES and HOST_PROGRAM_GATES;
+# HOST_TIER_B_GATES is its own list and holds none of them. The profile behind
+# the choice is docs/research/macos-host-tier-profile.md and the commit message.
 HOST_LONG_GATES=	check-libc-host-contracts check-ulisp-host check-lexeme-host check-i86-host
 HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \

@@ -134,7 +134,8 @@ MUTATIONS = (
     ),
     (
         "focus_not_moved_on_destroy",
-        "\tif (s->focus == j) {\n\t\ts->focus = -1;\n\t\tfocus_set(s, focus_pick(s, p - 1));\n\t}\n\treturn 0;",
+        "\tif (s->focus == j) {\n\t\ts->focus = -1;\n"
+        "\t\tfocus_set(s, focus_pick(s, p - 1));\n\t}\n\treturn 0;",
         "\t(void)p;\n\treturn 0;",
     ),
     (
@@ -241,7 +242,8 @@ INPUT_MUTATIONS = (
     ),
     (
         "mode_not_modal",
-        "\tif (in->mode != WIN_MODE_NONE)\n\t\treturn mode_event(in, s, ev) < 0 ? -1 : WIN_DISP_MANAGER;",
+        "\tif (in->mode != WIN_MODE_NONE)\n"
+        "\t\treturn mode_event(in, s, ev) < 0 ? -1 : WIN_DISP_MANAGER;",
         "\tif (in->mode != WIN_MODE_NONE)\n\t\t(void)mode_event(in, s, ev);",
     ),
     (
@@ -261,8 +263,13 @@ INPUT_MUTATIONS = (
     ),
     (
         "decoder_writes_past_events",
-        "\t\tif (in->esc == ST_ESC)\n\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n\t\tin->esc = ST_ESC;\n\t\treturn n;",
-        "\t\tif (in->esc == ST_ESC)\n\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n\t\tput(&ev[n + 2], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n\t\tin->esc = ST_ESC;\n\t\treturn n;",
+        "\t\tif (in->esc == ST_ESC)\n"
+        "\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n"
+        "\t\tin->esc = ST_ESC;\n\t\treturn n;",
+        "\t\tif (in->esc == ST_ESC)\n"
+        "\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n"
+        "\t\tput(&ev[n + 2], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n"
+        "\t\tin->esc = ST_ESC;\n\t\treturn n;",
     ),
 )
 
@@ -339,8 +346,7 @@ def main(argv):
     if not write_set(dev, DEV_MUTATIONS, "dev", out):
         return 1
     print(
-        "win_mutate: wrote %d files"
-        % (len(MUTATIONS) + len(INPUT_MUTATIONS) + len(DEV_MUTATIONS))
+        "win_mutate: wrote %d files" % (len(MUTATIONS) + len(INPUT_MUTATIONS) + len(DEV_MUTATIONS))
     )
     return 0
 

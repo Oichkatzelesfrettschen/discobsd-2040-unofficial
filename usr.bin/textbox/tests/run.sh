@@ -178,10 +178,16 @@ done
 printf 'a:c\n' > "$WORK/cut.fields"
 printf 'a:b:c\n' | "$WORK/cut" -d: -f "$tab_list" > "$WORK/cut.actual"
 check "cut tab-separated field list" "$WORK/cut.actual" "$WORK/cut.fields"
-if "$WORK/cut" -b '1,,3' < /dev/null > "$WORK/cut.actual" 2>&1; then
-	echo "FAIL cut accepts an empty list element"
-	exit 1
-fi
+for list in '1,,3' '-' '2-0' '2--1' '-0' '+2' '3-2' '9999999999999999999999999999'; do
+	if "$WORK/cut" -b "$list" < /dev/null > "$WORK/cut.actual" 2> "$WORK/cut.err"; then
+		echo "FAIL cut accepts invalid list $list"
+		exit 1
+	fi
+	test -s "$WORK/cut.err" && test ! -s "$WORK/cut.actual" || exit 1
+done
+printf 'abde\n' > "$WORK/cut.edges"
+printf 'abcde\n' | "$WORK/cut" -b '4-,-2' > "$WORK/cut.actual"
+check "cut open ranges in reverse order" "$WORK/cut.actual" "$WORK/cut.edges"
 
 # --- paste ---
 build paste paste.c eprintf.c fshut.c unescape.c rune.c \

@@ -286,7 +286,11 @@ main(int argc, char **argv)
 	signal(SIGINT, on_signal);
 	signal(SIGHUP, on_signal);
 	signal(SIGTERM, on_signal);
-	if (!cf.quiet && cf.keys == NULL)
+	/* A reader that closes the output ends the session through
+	 * host_exit() like any other signal, so the page file goes with it. */
+	signal(SIGPIPE, on_signal);
+	/* Keys are read one at a time whether or not the display is drawn. */
+	if (cf.keys == NULL)
 		tty_raw();
 	pc_init(&cpu, &cf);
 	for (;;) {

@@ -89,11 +89,19 @@ TAIL = [
     "KBD OK",
     "HOOK OK",
     "VID OK",
+    "MODE OK",
     "a=1E61 B=3042 1=0231",
     "DONE",
 ]
 
 MUTANTS = [
+    ("main.c", "signal(SIGPIPE, on_signal);", ";"),
+    (
+        "main.c",
+        "if (cf.keys == NULL)\n\t\ttty_raw();",
+        "if (!cf.quiet && cf.keys == NULL)\n\t\ttty_raw();",
+    ),
+    ("pc.c", "mode = (mode & 0x80) | 3;", "mode = (mode & 0x80) | 7;"),
     ("cpu.c", "if (b == 2)\n\t\t\t\t\ta |= F_IF;", ";"),
     ("pc.c", "if (ch == 0x1d)\t\t/* Ctrl-]: leave the emulator */\n\t\t\thost_exit(0);", ";"),
     ("main.c", "t.c_lflag &= ~(tcflag_t)(ICANON | ECHO | ISIG);", ";"),
@@ -342,6 +350,41 @@ def test_endings(binary, work):
             raise Failure("signal: the emulator ignores SIGTERM") from None
     if status != 128 + signal.SIGTERM or os.path.exists(store):
         raise Failure("signal: exit %d, page file left: %s" % (status, os.path.exists(store)))
+    # A reader that closes the output: the session ends on SIGPIPE through
+    # the same exit, so no page file stays.
+    with subprocess.Popen(
+        [binary, "-T", "-f", "8", "-s", store, "-a", image, "-k", KEYS],
+        stdout=subprocess.PIPE,
+    ) as child:
+        child.stdout.close()
+        try:
+            status = child.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            raise Failure("closed output: the emulator runs on") from None
+    if status != 128 + signal.SIGPIPE or os.path.exists(store):
+        raise Failure(
+            "closed output: exit %d, page file left: %s" % (status, os.path.exists(store))
+        )
+    # Without a display the keys still arrive one at a time: Control-] ends
+    # a quiet session with no Enter behind it.
+    master, slave = pty.openpty()
+    with subprocess.Popen(
+        [binary, "-q", "-T", "-s", store, "-a", image],
+        stdin=slave,
+        stdout=subprocess.DEVNULL,
+    ) as child:
+        time.sleep(0.5)
+        os.write(master, b"\x1d")
+        try:
+            status = child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            status = None
+    os.close(master)
+    os.close(slave)
+    if status != 0:
+        raise Failure("quiet session: Control-] did not end it (exit %r)" % status)
     # Two emulators started without -s do not share a page file.
     stores = set()
     for _ in range(2):

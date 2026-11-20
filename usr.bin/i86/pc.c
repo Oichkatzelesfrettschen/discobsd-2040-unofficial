@@ -361,6 +361,11 @@ tty_out(unsigned ch, unsigned attr, int useattr)
 static void
 set_mode(unsigned mode)
 {
+	/* The machine has a color adapter only: no memory answers at B000:0,
+	 * so a request for the monochrome mode selects mode 3, as the IBM
+	 * firmware does for an equipment word without a monochrome adapter. */
+	if ((mode & 0x7f) == 7)
+		mode = (mode & 0x80) | 3;
 	cols = (mode & 0x7e) == 0 ? 40 : 80;
 	bda8w(0x49, mode & 0x7f);
 	bda8w(0x4a, cols);

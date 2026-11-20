@@ -325,7 +325,8 @@ Design, in the order the data moves:
 
 - N consoles, N at most 3 (13,328 and 13,264 B of free kernel RAM leave 6,016 and
   5,952 B after two extra shadows). Console 0 stays /dev/console and the
-  panic target.
+  panic target; the panic and fault rules are in "Kernel output while another
+  terminal is visible" below.
 - Minor map as in the survey: 0 console, 1 lcdgfx, 2 and above terminals; the
   static assertion on LCDGFX_MINOR stays.
 - Switch key: Ctrl with F1-F3, consumed in the keyboard path before
@@ -341,6 +342,50 @@ Design, in the order the data moves:
 - Output to an invisible terminal updates its shadow only; DEC cursor state and
   the scroll ring belong to the terminal, so lcd_set_top is programmed from the
   visible terminal on every switch.
+
+### Kernel output while another terminal is visible
+
+How kernel output reaches the panel today (R): printf's putchar calls cnputc
+for console output (sys/kern/subr_prf.c:56), which reaches lcdputc
+(sys/arch/rp2040/dev/lcdcons.c:367). lcdputc always targets lcdttys[0]. After
+panic() it masks interrupts with splhigh, abandons any interrupted drawer once
+through lcdabandon (lcdcons.c:151, which ends the open panel transfer, resets
+the parser and frees the drawing flag), and draws synchronously through
+defer_put and lcd_acquire (lcdcons.c:374-390); lcdrender returns at once under
+panicstr (lcdcons.c:323). The HardFault report path calls lcdabandon from
+arm_fault before its first printf (sys/arch/rp2040/rp2040/fault.c:232) and then
+prints through the same lcdputc with panicstr still NULL until the final
+panic("kernel fault") (fault.c:290).
+
+With terminals, an invisible terminal draws nothing, so console 0's panic text
+would reach only its shadow while VT1 or VT2 is visible. Rule: lcdabandon, the
+single entry both the panic branch and the fault path pass through, also makes
+console 0 the visible terminal. Under the splhigh it already holds, it aborts
+the panel transfer (including a pixel program's, restoring the text
+configuration as lcdterm_gfx(0) does), resets console 0's parser, sets the
+active index to 0, programs the scroll start from console 0's ring and repaints
+it from its shadow, before the caller's first byte. It runs once (the existing
+lcd_abandoned flag), with interrupts as they are at that point, no sleep, no
+allocation and no lock beyond the drawing flag, so it is safe in the fault
+handler's priority. Cost: +60-120 B text (E), plus a repaint of 142 ms (E,
+survey rate) with interrupts masked, accepted because the kernel does not
+resume. The abandoned terminal's shadow is left as is.
+
+Kernel printf outside a panic follows the existing single target: lcdputc
+updates console 0's terminal, and with console 0 invisible the bytes land in
+its shadow only and appear when the user switches back; the message log keeps
+them regardless. No forced switch (a rate-limited warning cannot preempt a
+user's screen); the choice is recorded here for owner review.
+
+Host test (the two-console model of the virtual-terminal stage): write known
+text to console 0, make VT2 visible, set panicstr, call lcdputc with a panic
+line, and assert the model panel ends with console 0's text plus the line and
+that the model's sleep and allocation stubs, which fail the test if called,
+stay uncalled. The same test enters through lcdabandon with panicstr NULL
+(the fault path), and a third case prints without a panic with VT2 visible and
+asserts the panel is unchanged and console 0's shadow holds the byte. Mutant:
+drop the force-to-console-0 step; the panic case must then fail with VT2's text
+on the panel.
 
 ### Where the shadows live
 
@@ -369,14 +414,15 @@ Three readings, with their status:
    code is needed.
 2. The terminal's shadow is written to swap. This needs a new mechanism. The
    kernel's swap interface moves process images and has no kernel-object
-   client; a shadow client would allocate 7 blocks of 512 B for the 3,392 B
-   (E, DEV_BSIZE 512 assumed) with the swap map's allocation interface
+   client; a shadow client would allocate btod(3,392) = 4 blocks (DEV_BSIZE is 1,024,
+   sys/arch/rp2040/include/machparam.h:103, so 4,096 B of swap) for the 3,392 B
+   with the swap map's allocation interface
    (sys/kern/subr_rmap.c:45 malloc, :82 mfree), move them with
    swap_with_buf_result using a kernel RAM address, and must survive
    swap_lost (declared at sys/kern/vm_swp.c:17 and tested at :26) by clearing the screen
    instead of panicking. It saves 3,392 B of RAM per suspended terminal and
    costs about 0.3-0.5 KB text (E) plus a repaint on resume. On the raw-flash
-   swap device (fl1) every suspend would cost a 4 KB erase sector, and the
+   swap device (fl1) every suspend would cost one 4 KB erase sector (the four blocks equal SWAP_IMAGE_ALIGN, machparam.h:116), and the
    flash exchange logic assumes sector-aligned images (vm_swap.c
    SWAP_EXCHANGE_SECTOR_BYTES, the swap_exchange_* group), so the mechanism is
    restricted to PSRAM and SD swap and refused on fl1. Whether the swapram
@@ -437,7 +483,7 @@ without the board. Board runs stay behind the hardware opt-in.
 | stty, getty, login on the shim | shim, VMIN and VTIME | stty +0.8-1.2 KB in sysbox | a mode set through stty differs on read-back from the tcgetattr state | stty option table against a termios model; getty u8 parse |
 | TIOCDRAIN, tcsendbreak on UART0 | shim | +0.10-0.18 KB | tcdrain returns before ttywait's queue is empty | model with a transmit-complete flag |
 | lcdterm per-console struct, one console | UTF-8 and SGR stages | +0.3-0.5 KB (survey) | any difference in the model-panel log | check-picocalc-host logs identical |
-| second and third terminal, switch key, minor map | per-console struct | +0.6-0.9 KB more; 3,656 B per terminal | an invisible terminal calls a draw primitive; a switch changes the active shadow's content | two-console model: repaint equals store; wiring checks; PICOCALC_SD first, PICOCALC after a measured fit against 2,424 B |
+| second and third terminal, switch key, minor map, forced console 0 on abandon | per-console struct | +0.7-1.0 KB more; 3,656 B per terminal | an invisible terminal calls a draw primitive; a switch changes the active shadow's content; a panic with VT2 visible leaves VT2 on the panel | two-console model: repaint equals store; wiring checks; PICOCALC_SD first, PICOCALC after a measured fit against 2,424 B |
 | shadow swap-out (reading 2) | virtual terminals | +0.3-0.5 KB; 3,392 B RAM per suspended terminal | the swap read returns a shadow that differs from the one written, or swap loss panics | swap model with a loss injection; refusal on fl1 |
 
 The stage "second and third terminal" lands on PICOCALC only after the
@@ -498,7 +544,7 @@ donor tables that carry no mark were not reopened.
   arithmetic.
 - Whether the PSRAM transfer path can stream a 106 B row at repaint speed, and the PSRAM carve-out for shadows;
 - The Ctrl+F1-F3 combination on hardware; the swapram tier's treatment of a
-  kernel-object swap client; DEV_BSIZE 512 for the shadow block count.
+  kernel-object swap client.
 - Donor files beyond the lines listed in section 9: tty_inq.c, tty_outq.c,
   tty_subr.c of the BSDs, rubchar bodies, wsdisplay_vcons.c switch code, the
   NuttX serial.c termios path, Mach tty server design (none found), seL4 (no

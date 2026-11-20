@@ -1619,6 +1619,18 @@ check-license-headers: check-python
 
 .PHONY: check-license-headers
 
+# The mutant scripts run a freshly built test through tools/run_bounded.sh,
+# which bounds its wall-clock time and the output it keeps. --selftest runs the
+# script through a passing command, a failing one, a sleeper, a command that
+# ignores the first signal, a loud failure on each stream and an endless flood,
+# and requires five mutants of the script (no time bound, no kill after the
+# first signal, no output bound, a lost status, a failing status taken for a
+# timeout) to fail them. It prints a SKIP without timeout(1).
+check-run-bounded:
+		sh tools/run_bounded.sh --selftest
+
+.PHONY: check-run-bounded
+
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
@@ -2085,7 +2097,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene check-license-headers \
+		check-comment-hygiene check-text-hygiene check-license-headers check-run-bounded \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
 		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \

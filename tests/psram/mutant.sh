@@ -27,10 +27,18 @@ mv "$work/edited" "$work/rp2040/dev/$file"
 "$cc" -std=gnu17 -w -DPSRAM_HOST -fPIC -shared \
     -I"$here" -I"$work" -o "$work/lib.so" "$here/psram_host.c" \
     "$work/rp2040/dev/psram_xfer.c"
-if (cd "$here" && "$py" test_psram.py --lib "$work/lib.so" \
+rc=0
+sh "$here/../../tools/run_bounded.sh" "$work/out" sh -c 'cd "$1" && shift && exec "$@"' sh "$here" \
+    "$py" test_psram.py --lib "$work/lib.so" \
     --header "$work/rp2040/dev/psram_pio.h" \
-    --xfer-header "$work/rp2040/dev/psram_xfer.h" \
-    > "$work/out" 2>&1); then
+    --xfer-header "$work/rp2040/dev/psram_xfer.h" || rc=$?
+case $rc in
+124)
+	echo "mutant.sh: the test on the mutant of $file: $script gave no verdict (status $rc, the MUTANT_TIMEOUT bound)" >&2
+	exit 3
+	;;
+esac
+if [ "$rc" -eq 0 ]; then
 	echo "mutant survived: $file: $script" >&2
 	exit 1
 fi

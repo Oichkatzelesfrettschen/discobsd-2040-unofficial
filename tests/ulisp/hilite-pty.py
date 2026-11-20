@@ -258,15 +258,27 @@ def main(argv):
         expect(name, screen.text(1)[0], "4000> " + text)
         expect(name + ", cursor", (screen.row, screen.col), (1, prompt + pos))
     screen = painted([b"(+ 1 22)", left * 2, delete])
-    expect("colors after delete", screen.classes(1, prompt, 7), "p" + "f" + "." + "n" + "." + "n" + "p")
+    expect(
+        "colors after delete", screen.classes(1, prompt, 7), "p" + "f" + "." + "n" + "." + "n" + "p"
+    )
     # The same across the rows of a wrapped line: 6 columns of prompt, 20 wide.
     long = b"(list 'aaaa 'bbbb 'cccc 'dddd"
     for name, keys, text, pos in (
         ("wrap: home, then insert", [long, home, b"("], "(" + long.decode(), 1),
         ("wrap: home, end", [long, home, end], long.decode(), len(long)),
         ("wrap: end of a full row", [b"(list 'aaaa 'b", home, end, b"c"], "(list 'aaaa 'bc", 15),
-        ("wrap: left over a row", [long, left * 20, b"X"], long[:-20].decode() + "X" + long[-20:].decode(), len(long) - 19),
-        ("wrap: delete across rows", [long, left * 12, delete * 3], long[:-12].decode() + long[-9:].decode(), len(long) - 12),
+        (
+            "wrap: left over a row",
+            [long, left * 20, b"X"],
+            long[:-20].decode() + "X" + long[-20:].decode(),
+            len(long) - 19,
+        ),
+        (
+            "wrap: delete across rows",
+            [long, left * 12, delete * 3],
+            long[:-12].decode() + long[-9:].decode(),
+            len(long) - 12,
+        ),
     ):
         screen = painted(keys, cols=20)
         flat = "".join("".join(ch for ch, _ in screen.cells[r]) for r in range(1, 6)).rstrip()
@@ -274,8 +286,12 @@ def main(argv):
         at = 6 + pos
         expect(name + ", cursor", (screen.row, screen.col), (1 + at // 20, at % 20))
     # The value the loop prints is colored by the same classes.
-    screen = painted([b"(list 1 \"a\" 'car nil)\r"])
-    expect("value colors", screen.classes(3, 0, 15), "p" + "n" + "." + "sss" + "." + "fff" + "." + "xxx" + "p")
+    screen = painted([b'(list 1 "a" \'car nil)\r'])
+    expect(
+        "value colors",
+        screen.classes(3, 0, 15),
+        "p" + "n" + "." + "sss" + "." + "fff" + "." + "xxx" + "p",
+    )
     # No escape sequence where the terminal cannot take it.
     for name, term, args in (("dumb", "dumb", ()), ("no TERM", None, ()), ("-n", "xterm", ("-n",))):
         out = session(binary, doc, [b"(car '(1 2))\r"], term=term, args=args)

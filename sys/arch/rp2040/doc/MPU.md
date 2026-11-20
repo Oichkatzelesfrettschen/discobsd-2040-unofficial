@@ -516,7 +516,9 @@ committed) reports `machdep.mpu.enable` 0, `ctrl` 0x0, `guardbase` 7 and
 base after `sbrk(64)` succeed (want 0, got 0), the burst case is not run,
 and the program ends `GUARD OK (mpu off)` and `MPUTEST OK (mpu off)`;
 every other line reads as on the enabled kernel. The two SIGSEGV lines
-and the kill therefore come from region 7 and not from the probe. The
+therefore come from region 7 and not from the probe. The burst kill has
+no such control: the probe skips it when the MPU is off, so the SIGKILL
+rests on the enabled run and its console line alone. The
 enabled kernel `#1 4728`, built from main with the guard merged, was
 flashed back and reported `GUARD OK (mpu on)` again. Not measured: a
 PicoCalc and Renode. The probe prints its header

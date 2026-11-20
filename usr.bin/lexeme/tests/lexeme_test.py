@@ -243,7 +243,7 @@ def t_save_menu(b, td):
     menu(s, b"t", b"s")
     s.send(os.path.join(td, "nodir", "x.txt").encode(), b"\r")
     check(s.has("No such file or directory"), "failed save not reported")
-    check(not os.path.exists(NO_SPILL_DIR), "failed save created a path")
+    check(not os.path.exists(os.path.join(td, "nodir")), "failed save created a path")
     menu(s, b"q")
     s.close()
     # Known-bad: loading a directory is refused and keeps the document.

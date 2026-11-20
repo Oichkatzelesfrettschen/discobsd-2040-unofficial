@@ -85,8 +85,8 @@ FLAGS = [
     "-idirafter",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sys"),
 ]
-SOURCES = ["main.c", "pc.c", "gfx.c", "cpu.c", "mem.c"]
-HEADERS = ["font.h", "gfx.h", "i86.h", "mem.h", "pc.h"]
+SOURCES = ["main.c", "pc.c", "gfx.c", "serial.c", "cpu.c", "mem.c"]
+HEADERS = ["font.h", "gfx.h", "i86.h", "mem.h", "pc.h", "serial.h"]
 KEYS = "aB1"
 TAIL = [
     "MEM %04X OK",
@@ -290,6 +290,32 @@ MUTANTS = [
         "pc.c",
         "else if (dl >= 0x80 && dl < 0x82)\n\t\td = &disks[dl - 0x80 + 2];",
         "else if (dl >= 0x80 && dl < 0x82)\n\t\td = &disks[dl - 0x80];",
+    ),
+    ("serial.c", "return (ready && (ier & 1) && (mcr & 8));", "return (ready && (ier & 1));"),
+    ("serial.c", "v = ready && (ier & 1) ? 0x04 : 0x01;", "v = 0x01;"),
+    ("serial.c", "if (mcr & 2)\n\t\t\t\tsend(&ident, 1);", "if (mcr & 2)\n\t\t\t\t(void)ident;"),
+    ("serial.c", "\tready = 1;\n\tdue = now + BYTE_MS;", "\tready = 1;\n\tdue = now;"),
+    ("serial.c", "v = 0x60 | (unsigned)ready;", "v = 0x60;"),
+    ("serial.c", "(y >> 6) << 2 | x >> 6);", "x >> 6);"),
+    ("serial.c", "((buttons & MOUSE_LEFT) ? 0x20 : 0)", "((buttons & MOUSE_LEFT) ? 0x10 : 0)"),
+    ("serial.c", "(mcr & 2u) << 3", "(mcr & 2u) << 4"),
+    ("serial.c", "\t\telse if (mcr & 0x10) {", "\t\telse if (mcr & 0x20) {"),
+    ("pc.c", "if (level && !ser_level)", "if (level)"),
+    ("pc.c", "mk_step = mk_step < MK_MAX ? 2 * mk_step : MK_MAX;", "mk_step = MK_STEP;"),
+    ("pc.c", "if (dir == mk_dir && nticks - mk_tick <= MK_TICKS)", "if (dir == mk_dir)"),
+    ("pc.c", "if (mouse_held & b)\n\t\tmouse_held &= ~b;", "if (mouse_held & b)\n\t\t(void)b;"),
+    (
+        "pc.c",
+        "\telse if (ch == '{' || ch == '}')\n\t\tmouse_held |= b;",
+        "\telse if (ch == '{' || ch == '}')\n\t\t(void)b;",
+    ),
+    ("pc.c", "\t\t\tmouse_keys = !mouse_keys;", "\t\t\tmouse_keys = 1;"),
+    ("pc.c", "mem_ww(BDA + 0x00, SER_BASE);", "mem_ww(BDA + 0x00, 0);"),
+    ("pc.c", "(cf.cols == 40 ? 0x10 : 0x20) | 0x200 |", "(cf.cols == 40 ? 0x10 : 0x20) |"),
+    (
+        "pc.c",
+        "\t\tpc_out(c, (port + 1) & 0xffff, v >> 8 & 0xff, 0);",
+        "\t\t(void)c;",
     ),
 ]
 
@@ -785,6 +811,102 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
     return seen, status, before == after
 
 
+RIGHT, DOWN, LEFT, UP, HOME = b"\x1b[C", b"\x1b[B", b"\x1b[D", b"\x1b[A", b"\x1b[H"
+
+
+def mouse_image(src, path):
+    with open(os.path.join(src, "tests", "mouse.hexdump")) as handle:
+        data = bytes.fromhex("".join(handle.read().split()))
+    if len(data) % 512 or data[510:512] != b"\x55\xaa":
+        raise Failure("mouse.hexdump is not a boot program")
+    with open(path, "wb") as handle:
+        handle.write(data)
+        handle.truncate(360 * 1024)
+    return data
+
+
+def test_mouse(binary, work):
+    """COM1 and the mouse keys, through the guest of tests/mouse.asm on a
+    pseudo-terminal. Each key waits for the guest's line about the last
+    one, so a repeat is the four arrows typed in one write."""
+    image = os.path.join(work, "mouse-run.img")
+    shutil.copyfile(os.path.join(work, "mouse.img"), image)
+    steps = [
+        (b"ready", RIGHT),
+        (b"k:4D00", b"\x1c"),
+        (b"", RIGHT),
+        (b"p:..:08:00", RIGHT),
+        (b"p:..:08:00", DOWN),
+        (b"p:..:00:08", LEFT),
+        (b"p:..:F8:00", UP),
+        (b"p:..:00:F8", HOME),
+        (b"k:4700", b"["),
+        (b"p:..:00:00", b"]"),
+        (b"p:..:00:00", b"{"),
+        (b"p:L.:00:00", RIGHT),
+        (b"p:L.:08:00", b"{"),
+        (b"p:..:00:00", RIGHT * 4),
+        (b"p:..:40:00", b"\x1c"),
+        (b"", b"["),
+        (b"k:1A5B", b"\x1d"),
+        (b"quit", b"q"),
+    ]
+    seen, status, restored = menu_session(binary, work, image, steps)
+    plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
+    want = [
+        # COM1 in the data area, the UART's registers, the identification
+        # a byte time after the power and held back until OUT2.
+        b"com:03F8",
+        b"ports:0200",
+        b"scr:5A",
+        b"msr:90",
+        b"lsr:61",
+        b"echo:A5",
+        b"lsr:60",
+        b"lsr:61",
+        b"irqs:00",
+        b"irqs:01",
+        b"word:600B",
+        b"iir:04",
+        b"id:4D",
+        b"ready",
+        # Mouse keys off, then on: arrows, Home, the buttons, a drag.
+        b"k:4D00:01",
+        b"p:..:08:00",
+        b"p:..:08:00",
+        b"p:..:00:08",
+        b"p:..:F8:00",
+        b"p:..:00:F8",
+        b"k:4700",
+        b"p:L.:00:00",
+        b"p:..:00:00",
+        b"p:.R:00:00",
+        b"p:..:00:00",
+        b"p:L.:00:00",
+        b"p:L.:08:00",
+        b"p:..:00:00",
+        # A held arrow doubles its step up to 64 mickeys.
+        b"p:..:08:00",
+        b"p:..:10:00",
+        b"p:..:20:00",
+        b"p:..:40:00",
+        b"k:1A5B:",
+    ]
+    at = 0
+    for token in want:
+        found = plain.find(token, at)
+        if found < 0:
+            raise Failure("mouse: %r missing after %r" % (token, plain[max(0, at - 40) : at]))
+        at = found + len(token)
+    # The bytes of the burst arrive a byte time apart: at most six in one
+    # timer tick of 55 ms.
+    rate = int(plain[at : at + 2], 16)
+    if not 3 <= rate <= 6:
+        raise Failure("mouse: %d bytes in one tick" % rate)
+    if status != 0 or not restored:
+        raise Failure("mouse: exit %r, terminal restored %r" % (status, restored))
+
+
 def test_menu_edges(binary, work):
     """The menu under a signal, beside a long directory name and beside a
     file name that carries a terminal command."""
@@ -1173,6 +1295,7 @@ def test(binary, work):
     test_exit_store_failure(binary, work)
     test_interactive(binary, work)
     test_menu_edges(binary, work)
+    test_mouse(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):
@@ -1202,20 +1325,27 @@ def main(argv):
         return 0
     with tempfile.TemporaryDirectory() as work:
         try:
-            data = guest_image(src, os.path.join(work, "guest.img"))
+            images = (
+                ("guest", guest_image(src, os.path.join(work, "guest.img"))),
+                ("mouse", mouse_image(src, os.path.join(work, "mouse.img"))),
+            )
             nasm = shutil.which("nasm")
-            if nasm:
-                built = os.path.join(work, "guest.bin")
-                subprocess.run(
-                    [nasm, "-f", "bin", "-o", built, os.path.join(src, "tests", "guest.asm")],
-                    check=True,
-                )
-                with open(built, "rb") as handle:
-                    if handle.read() != data:
-                        raise Failure("guest.hexdump differs from guest.asm")
-                print("guest.hexdump matches guest.asm")
-            else:
-                print("NOT RUN guest.hexdump against guest.asm: nasm (package nasm) is absent")
+            for name, data in images:
+                if nasm:
+                    built = os.path.join(work, name + ".bin")
+                    subprocess.run(
+                        [nasm, "-f", "bin", "-o", built, os.path.join(src, "tests", name + ".asm")],
+                        check=True,
+                    )
+                    with open(built, "rb") as handle:
+                        if handle.read() != data:
+                            raise Failure("%s.hexdump differs from %s.asm" % (name, name))
+                    print("%s.hexdump matches %s.asm" % (name, name))
+                else:
+                    print(
+                        "NOT RUN %s.hexdump against %s.asm: nasm (package nasm) is absent"
+                        % (name, name)
+                    )
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
             test(binary, work)

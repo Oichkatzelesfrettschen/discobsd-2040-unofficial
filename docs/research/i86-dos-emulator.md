@@ -29,7 +29,11 @@ comparison no longer decides anything.
 Built since this note was first written: the interrupt controller and the
 keyboard interrupt with scan bytes at port 60h (`I86.md`, Machine).
 
-Missing: key releases that happen when the key is released, and a mouse.
+Built since then too: a Microsoft serial mouse on an emulated COM1, moved
+by mouse keys (`I86.md`, Mouse). CuteMouse finds it and reports it through
+interrupt 33h (`i86-dos-emulator/ctmouse-host.txt`).
+
+Missing: key releases that happen when the key is released.
 
 A terminal sends a byte when a key goes down and nothing when it comes
 up, so each key is a make byte followed at once by its break byte. Games
@@ -39,13 +43,11 @@ opens in RAW or CBREAK mode) that carry press and release; a second
 keyboard source in `pc.c` that reads them, used when the ioctl succeeds,
 gives real make and break on that console and nowhere else.
 
-Mouse: no pointing device exists on the PicoCalc. A serial mouse on an
-emulated COM1, moved by the arrow keys while a modifier is held, is the
-cheapest route a stock DOS mouse driver accepts; it needs a third
-interrupt line and a UART model of about 100 lines.
+With key releases, the mouse keys could also hold a button while its key
+is held, in place of the `{` and `}` latch.
 
 Check: the key-event source on the Renode keyboard model, which sends
-press and release; the mouse by a guest that reads three-byte packets.
+press and release.
 
 ## 2. Graphics modes and the 80-column screen
 

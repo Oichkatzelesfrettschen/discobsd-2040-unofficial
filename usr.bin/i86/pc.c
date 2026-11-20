@@ -52,7 +52,10 @@
  *
  * Interrupts come through an interrupt controller at ports 20h and 21h
  * with request, in-service and mask registers, fixed priority and the
- * end-of-interrupt commands: the timer on line 0, the keyboard on line 1.
+ * end-of-interrupt commands: the timer on line 0, the keyboard on line 1,
+ * COM1 (serial.c) on line 4. Control-\ turns mouse keys on and off: while
+ * on, the arrows and the bracket keys drive the mouse on COM1
+ * (mouse_arrow(), mouse_button()) instead of typing.
  *
  * The keyboard is the terminal's byte stream turned back into key presses.
  * Each key becomes scan bytes at port 60h, one keyboard interrupt apiece:
@@ -81,6 +84,7 @@
 #include "gfx.h"
 #include "mem.h"
 #include "pc.h"
+#include "serial.h"
 
 #define ROWS		25
 #define VRAM_ADDR	GFX_VRAM
@@ -103,6 +107,9 @@
 #define K_ALT		0x40000u
 #define BDA		0x400u
 #define IDLE_POLLS	16		/* empty key polls in one tick: waiting */
+#define MK_STEP		8		/* mickeys an arrow moves the mouse */
+#define MK_MAX		64		/* the most, after repeats */
+#define MK_TICKS	6		/* a press this soon after the last: a repeat */
 #define TYPE_TICKS	64		/* timer ticks of polling before typing */
 
 struct disk {
@@ -135,6 +142,10 @@ static uint8_t pic_icw2, pic_icw4;	/* which of them the next one is */
 static uint8_t pic_base = 8, pic_aeoi;	/* what the words selected */
 static unsigned idle_polls, idle_tick;
 static int key_eof;
+static int ser_level;			/* COM1's interrupt output */
+static int mouse_keys;			/* arrows and brackets move the mouse */
+static unsigned mouse_held;		/* buttons held by { and } */
+static unsigned mk_dir = 4, mk_tick, mk_step;	/* the last arrow */
 
 /* The terminal is drawn on: the display is neither off nor the panel. */
 #define TERMINAL	(!cf.quiet && !gfx_on)
@@ -709,6 +720,52 @@ key_code(unsigned ch)
 	return (ch);
 }
 
+/* COM1's interrupt output: a rising edge is a request on its line. */
+static void
+ser_edge(void)
+{
+	int level = ser_line();
+
+	if (level && !ser_level)
+		pic_irr |= 1u << SER_LINE;
+	ser_level = level;
+}
+
+/* Mouse keys. An arrow moves the mouse MK_STEP mickeys; a press of the
+ * same arrow within MK_TICKS timer ticks of the last one, as the keyboard
+ * sends while a key is held, moves twice as far as that one, up to MK_MAX.
+ * dir is 0 to 3 for up, down, right and left. */
+static void
+mouse_arrow(unsigned dir)
+{
+	static const signed char mx[] = { 0, 0, 1, -1 }, my[] = { -1, 1, 0, 0 };
+
+	if (dir == mk_dir && nticks - mk_tick <= MK_TICKS)
+		mk_step = mk_step < MK_MAX ? 2 * mk_step : MK_MAX;
+	else
+		mk_step = MK_STEP;
+	mk_dir = dir;
+	mk_tick = nticks;
+	mouse_report(mx[dir] * (int)mk_step, my[dir] * (int)mk_step,
+	    mouse_held);
+}
+
+/* [ and ] click the left and right button, { and } press it and leave it
+ * held, for dragging, until either key of that button comes again. */
+static void
+mouse_button(unsigned ch)
+{
+	unsigned b = (ch == '[' || ch == '{') ? MOUSE_LEFT : MOUSE_RIGHT;
+
+	if (mouse_held & b)
+		mouse_held &= ~b;
+	else if (ch == '{' || ch == '}')
+		mouse_held |= b;
+	else
+		mouse_report(0, 0, mouse_held | b);
+	mouse_report(0, 0, mouse_held);
+}
+
 /* The bytes after ESC: a cursor or function key, or Alt with a key. */
 static void
 key_escape(void)
@@ -745,8 +802,12 @@ key_escape(void)
 		key_type((unsigned)tilde[n] << 8);
 	else if (ch >= 'P' && ch <= 'S')
 		key_type((unsigned)(0x3b + ch - 'P') << 8);
-	else if (ch > 0 && (p = strchr(letter, ch)) != NULL)
-		key_type((unsigned)lcode[p - letter] << 8);
+	else if (ch > 0 && (p = strchr(letter, ch)) != NULL) {
+		if (mouse_keys && p - letter < 4)
+			mouse_arrow((unsigned)(p - letter));
+		else
+			key_type((unsigned)lcode[p - letter] << 8);
+	}
 }
 
 static void menu(void);
@@ -767,6 +828,15 @@ key_pump(void)
 			if (cf.quiet)
 				host_exit(0);
 			menu();
+			continue;
+		}
+		if (ch == 0x1c) {	/* Ctrl-\: mouse keys on or off */
+			mouse_keys = !mouse_keys;
+			gfx_pointer(mouse_keys);
+			continue;
+		}
+		if (mouse_keys && ch != 0 && strchr("[]{}", ch) != NULL) {
+			mouse_button((unsigned)ch);
 			continue;
 		}
 		if (ch == 0x1b)
@@ -1453,7 +1523,17 @@ pc_in(struct i86 *c, unsigned port, int w)
 {
 	unsigned v = 0xff;
 
-	(void)c;
+	/* A word is two byte cycles, at port and port + 1, as the bus makes
+	 * them for the machine's eight-bit devices. */
+	if (w)
+		return (pc_in(c, port, 0) |
+		    pc_in(c, (port + 1) & 0xffff, 0) << 8);
+	if (port - SER_BASE < 8) {
+		v = ser_in(port);
+		ser_edge();
+		pic_update(c);
+		return (v);
+	}
 	switch (port) {
 	case 0x20:
 		v = pic_readisr ? pic_isr : pic_irr;
@@ -1498,7 +1578,7 @@ pc_in(struct i86 *c, unsigned port, int w)
 		TRACE("in", 0, port);
 		break;
 	}
-	return (w ? v | 0xff00 : v);
+	return (v);
 }
 
 void
@@ -1506,8 +1586,18 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 {
 	unsigned pos;
 
-	(void)w;
+	if (w) {
+		pc_out(c, port, v & 0xff, 0);
+		pc_out(c, (port + 1) & 0xffff, v >> 8 & 0xff, 0);
+		return;
+	}
 	v &= 0xff;
+	if (port - SER_BASE < 8) {
+		ser_out(port, v);
+		ser_edge();
+		pic_update(c);
+		return;
+	}
 	switch (port) {
 	case 0x20:
 		if (v & 0x10) {
@@ -1595,6 +1685,8 @@ pc_poll(struct i86 *c)
 			pic_irr |= 1;
 		}
 		kb_next();
+		ser_poll(now);
+		ser_edge();
 		pic_update(c);
 		if (!(pc_idle || c->halted) || waited ||
 		    (c->irq && (c->fl & F_IF)))
@@ -1679,7 +1771,9 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	dpt_set(0);
 	dpt_set(1);
 	nfloppy = (disks[0].fd >= 0) + (disks[1].fd >= 0);
-	mem_ww(BDA + 0x10, (cf.cols == 40 ? 0x10 : 0x20) |
+	/* COM1 at 40:00, and one serial port in the equipment word. */
+	mem_ww(BDA + 0x00, SER_BASE);
+	mem_ww(BDA + 0x10, (cf.cols == 40 ? 0x10 : 0x20) | 0x200 |
 	    (nfloppy ? 1 | (nfloppy - 1) << 6 : 0));
 	mem_ww(BDA + 0x13, cf.ram_kb);
 	mem_ww(BDA + 0x1a, 0x1e);

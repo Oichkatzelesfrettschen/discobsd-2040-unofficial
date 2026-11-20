@@ -118,6 +118,21 @@ or
 .B \-d
 Control-] leaves at once.
 .PP
+COM1 has a Microsoft serial mouse on it, which DOS mouse drivers such as
+CTMOUSE find by themselves.
+Control-\e turns mouse keys on and off; while they are on, the panel
+shows a white arrow in its top margin, the arrow keys move the mouse,
+faster while a key is held,
+.B [
+and
+.B ]
+click the left and right button, and
+.B {
+and
+.B }
+press that button and hold it until either of its keys comes again.
+All other keys type as usual.
+.PP
 Options:
 .TP
 .BI \-a " floppy"
@@ -138,8 +153,8 @@ or
 Draw nothing while running and print the 25 lines of the display on exit.
 .TP
 .BI \-f " frames"
-The number of resident pages, 128 by default; the RP2040 process window
-holds 132.
+The number of resident pages, 128 by default, which the RP2040 process
+window holds.
 .TP
 .B \-g
 Use the PicoCalc's panel,
@@ -199,8 +214,8 @@ extender do not run.
 Graphics modes exist only with
 .B \-g
 and are those of the color adapter; there is no EGA or VGA.
-There is no numeric coprocessor, no sound, no serial or parallel port and
-no mouse.
+There is no numeric coprocessor, no sound and no parallel port; COM1
+serves only the mouse, which has two buttons.
 Every key arrives as a press followed at once by its release, since a
 terminal reports no releases: a program that acts while a key is held
 sees it only for an instant.

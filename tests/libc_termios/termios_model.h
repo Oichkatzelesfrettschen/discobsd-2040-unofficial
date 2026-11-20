@@ -47,6 +47,7 @@
 
 #include <stdarg.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/ioctl.h>
 
 #define MODEL_FD 3
@@ -71,6 +72,8 @@ struct model {
 	int vmin, vtime;		/* t_vmin, t_vtime */
 	int drain_errno;		/* nonzero: TIOCDRAIN fails with it (a signal) */
 	int drained;			/* TIOCDRAIN requests that completed */
+	int log_flush;			/* the argument of the last TIOCFLUSH */
+	int inq, outq;			/* bytes queued for reading and for output */
 };
 
 static struct model model;
@@ -112,6 +115,7 @@ model_ioctl(int fd, unsigned int request, void *data)
 		    request == TIOCSETP) {
 			model.drains++;
 			model.flush_in++;
+			model.inq = 0;
 		} else if ((model.flags & CBREAK) != (newflags & CBREAK) &&
 		    !(newflags & CBREAK)) {
 			model.flags |= PENDIN;
@@ -147,6 +151,25 @@ model_ioctl(int fd, unsigned int request, void *data)
 	case TIOCSMINTIME:
 		model.vmin = *(int *)data & 0xff;
 		model.vtime = (*(int *)data >> 8) & 0xff;
+		return 0;
+	case TIOCFLUSH: {
+		int what = *(int *)data;
+
+		model.log_flush = what;
+		if (what == 0)
+			what = FREAD | FWRITE;
+		what &= FREAD | FWRITE;
+		if (what & FREAD)
+			model.inq = 0;
+		if (what & FWRITE)
+			model.outq = 0;
+		return 0;
+	}
+	case TIOCSTOP:
+		model.stopped = 1;
+		return 0;
+	case TIOCSTART:
+		model.stopped = 0;
 		return 0;
 	case TIOCDRAIN:
 		if (model.drain_errno) {

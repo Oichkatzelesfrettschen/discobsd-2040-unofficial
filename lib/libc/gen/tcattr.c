@@ -277,10 +277,13 @@ tcsetattr(int fd, int action, const struct termios *t)
 	int want, icanon, isig, ican, sig, i, local;
 	tcflag_t tab;
 
-	if (action != TCSANOW) {
+	if (action != TCSANOW && action != TCSADRAIN && action != TCSAFLUSH) {
 		errno = EINVAL;
 		return -1;
 	}
+	/* TCSADRAIN waits for the output first, then makes the same change. */
+	if (action == TCSADRAIN && ioctl(fd, TIOCDRAIN) < 0)
+		return -1;
 	if (load(fd, &cur) < 0)
 		return -1;
 	n = cur;
@@ -419,7 +422,15 @@ tcsetattr(int fd, int action, const struct termios *t)
 	if ((f >> 16) != (cur.flags >> 16) &&
 	    ioctl(fd, TIOCLSET, &local) < 0)
 		return -1;
-	if (differs(&n.sg, &cur.sg, sizeof n.sg) &&
+	/*
+	 * TCSAFLUSH is TIOCSETP, which waits for the output and discards the
+	 * input, even when the words are unchanged; the other actions use
+	 * TIOCSETN, which flushes only across RAW.
+	 */
+	if (action == TCSAFLUSH) {
+		if (ioctl(fd, TIOCSETP, &n.sg) < 0)
+			return -1;
+	} else if (differs(&n.sg, &cur.sg, sizeof n.sg) &&
 	    ioctl(fd, TIOCSETN, &n.sg) < 0)
 		return -1;
 	if (n.mintime != cur.mintime &&

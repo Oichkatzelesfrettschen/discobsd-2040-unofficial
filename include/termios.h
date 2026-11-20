@@ -171,5 +171,7 @@ void cfmakeraw(struct termios *);
 int tcgetattr(int, struct termios *);
 int tcsetattr(int, int, const struct termios *);
 int tcdrain(int);
+int tcflush(int, int);
+int tcflow(int, int);
 
 #endif /* _TERMIOS_H_ */

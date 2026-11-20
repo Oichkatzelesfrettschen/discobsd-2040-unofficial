@@ -50,7 +50,7 @@ set-cc-dropped	lib/libc/gen/tcattr.c	s/\*ccref(&n, c) = t->c_cc\[c->index\];//
 set-vmin-unchecked	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] != have.c_cc\[VMIN\] ||/0 ||/
 set-ispeed-unchecked	lib/libc/gen/tcattr.c	s/if (t->c_ispeed > B4000000)/if (0)/
 set-ospeed-from-ispeed	lib/libc/gen/tcattr.c	s/n.sg.sg_ospeed = (char)t->c_ospeed;/n.sg.sg_ospeed = (char)t->c_ispeed;/
-set-any-action	lib/libc/gen/tcattr.c	s/if (action != TCSANOW) {/if (action < 0) {/
+set-any-action	lib/libc/gen/tcattr.c	s/if (action != TCSANOW \&\& action != TCSADRAIN \&\& action != TCSAFLUSH) {/if (action < -1000) {/
 set-tchars-always	lib/libc/gen/tcattr.c	s/differs(&n.tc, &cur.tc, sizeof n.tc) &&/1 \&\&/
 set-flags-not-applied	lib/libc/gen/tcattr.c	s/n.sg.sg_flags = (short)(f & 0xffffU);//
 set-split-ignored	lib/libc/gen/tcattr.c	s/\t\thonored = 1;\n\telse if (want != ((have/X/;s/else if (want != ((have.c_iflag & ICRNL) != 0)) {/else if (want == ((have.c_iflag \& ICRNL) != 0)) {/
@@ -61,3 +61,16 @@ set-mintime-refused	lib/libc/gen/tcattr.c	s/if (cur.mintime_ok) {/if (0) {/
 set-mintime-not-sent	lib/libc/gen/tcattr.c	s/if (n.mintime != cur.mintime &&/if (0 \&\&/
 drain-wrong-request	lib/libc/gen/tcdrain.c	s/TIOCDRAIN/TIOCSTOP/
 drain-result-dropped	lib/libc/gen/tcdrain.c	s/return ioctl(fd, TIOCDRAIN);/ioctl(fd, TIOCDRAIN); return 0;/
+set-drain-after-change	lib/libc/gen/tcattr.c	s/if (action == TCSADRAIN \&\& ioctl(fd, TIOCDRAIN) < 0)/if (action == TCSADRAIN \&\& 0)/
+set-drain-for-flush	lib/libc/gen/tcattr.c	s/action == TCSADRAIN \&\& ioctl/action != TCSANOW \&\& ioctl/
+set-flush-uses-setn	lib/libc/gen/tcattr.c	s/ioctl(fd, TIOCSETP, \&n.sg) < 0/ioctl(fd, TIOCSETN, \&n.sg) < 0/
+set-flush-only-if-changed	lib/libc/gen/tcattr.c	s/if (action == TCSAFLUSH) {/if (action == TCSAFLUSH \&\& differs(\&n.sg, \&cur.sg, sizeof n.sg)) {/
+set-now-uses-setp	lib/libc/gen/tcattr.c	s/ioctl(fd, TIOCSETN, \&n.sg) < 0)/ioctl(fd, TIOCSETP, \&n.sg) < 0)/
+set-drain-rejected	lib/libc/gen/tcattr.c	s/action != TCSANOW \&\& action != TCSADRAIN \&\&/action != TCSANOW \&\&/
+flush-in-wrong-bit	lib/libc/gen/tcflush.c	s/what = FREAD;/what = FWRITE;/
+flush-both-only-input	lib/libc/gen/tcflush.c	s/what = FREAD | FWRITE;/what = FREAD;/
+flush-bad-queue-accepted	lib/libc/gen/tcflush.c	s/errno = EINVAL;/errno = 0;/
+flush-passes-queue	lib/libc/gen/tcflush.c	s/ioctl(fd, TIOCFLUSH, \&what)/ioctl(fd, TIOCFLUSH, \&queue) + what * 0/
+flow-off-starts	lib/libc/gen/tcflow.c	s/return ioctl(fd, TIOCSTOP);/return ioctl(fd, TIOCSTART);/
+flow-ioff-accepted	lib/libc/gen/tcflow.c	s/\tdefault:/\tcase TCIOFF:\n\t\treturn 0;\n\tdefault:/
+flow-errno-lost	lib/libc/gen/tcflow.c	s/errno = EINVAL;/errno = 0;/

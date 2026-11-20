@@ -964,16 +964,14 @@ check_set_special(void)
 	CHECK(model.log[5] == TIOCHPCL);
 	CHECK(tcgetattr(MODEL_FD, &t) == 0 && (t.c_cflag & HUPCL) == 0);
 
-	/* Only TCSANOW is available until the drain and flush request lands. */
+	/* An action that is none of the three fails before any request. */
 	model_reset(ECHO);
 	CHECK(tcgetattr(MODEL_FD, &t) == 0);
 	snapshot();
 	test_errno = 0;
-	CHECK(tcsetattr(MODEL_FD, TCSADRAIN, &t) == -1 && test_errno == EINVAL);
-	test_errno = 0;
-	CHECK(tcsetattr(MODEL_FD, TCSAFLUSH, &t) == -1 && test_errno == EINVAL);
-	test_errno = 0;
 	CHECK(tcsetattr(MODEL_FD, 7, &t) == -1 && test_errno == EINVAL);
+	test_errno = 0;
+	CHECK(tcsetattr(MODEL_FD, -1, &t) == -1 && test_errno == EINVAL);
 	CHECK(model.nlog == 0);
 
 	/* A bad descriptor fails in the first read. */
@@ -1081,6 +1079,110 @@ check_drain(void)
 	CHECK(model.nlog == 1);
 }
 
+/* TCSADRAIN, TCSAFLUSH, tcflush and tcflow against queues. */
+static void
+check_actions(void)
+{
+	struct termios t, e, t2;
+	static const int queues[] = { TCIFLUSH, TCOFLUSH, TCIOFLUSH };
+	int i, a;
+
+	/* TCSANOW leaves queued input alone, also when it changes a flag. */
+	model_reset(ECHO | CRMOD);
+	model.inq = 5;
+	model.outq = 7;
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	e = t;
+	e.c_lflag ^= ECHOE;
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+	CHECK(model.inq == 5 && model.outq == 7 && model.drained == 0);
+
+	/* TCSADRAIN drains first, then makes the TCSANOW change. */
+	model_reset(ECHO | CRMOD);
+	model.inq = 5;
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	e = t;
+	e.c_lflag ^= ECHOE;
+	snapshot();
+	CHECK(tcsetattr(MODEL_FD, TCSADRAIN, &e) == 0);
+	CHECK(model.log[0] == TIOCDRAIN && model.drained == 1);
+	CHECK(model.inq == 5);
+	CHECK(tcgetattr(MODEL_FD, &t2) == 0 && termios_equal(&t2, &e));
+	/* A drain that fails stops the call before it reads or writes. */
+	model_reset(ECHO | CRMOD);
+	model.drain_errno = EINTR;
+	snapshot();
+	test_errno = 0;
+	CHECK(tcsetattr(MODEL_FD, TCSADRAIN, &e) == -1 && test_errno == EINTR);
+	CHECK(model.nlog == 1 && state_equal(&model, &before));
+	/* A request nothing of which is honored still fails with EINVAL. */
+	model_reset(ECHO | CRMOD);
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	t.c_cflag |= PARENB;
+	test_errno = 0;
+	CHECK(tcsetattr(MODEL_FD, TCSADRAIN, &t) == -1 && test_errno == EINVAL);
+
+	/* TCSAFLUSH discards input and waits for output, changed or not. */
+	for (a = 0; a < 2; a++) {
+		model_reset(ECHO | CRMOD);
+		model.inq = 5;
+		model.outq = 7;
+		CHECK(tcgetattr(MODEL_FD, &t) == 0);
+		e = t;
+		if (a)
+			e.c_lflag ^= ECHOE;
+		snapshot();
+		CHECK(tcsetattr(MODEL_FD, TCSAFLUSH, &e) == 0);
+		CHECK(model.inq == 0 && model.drains == 1);
+		/* TIOCSETP drains by itself; a separate drain request is extra. */
+		CHECK(model.drained == 0);
+		CHECK(model.log[model.nlog - 1] == TIOCSETP);
+		CHECK(!a || model.log[model.nlog - 2] == TIOCLSET);
+		CHECK(tcgetattr(MODEL_FD, &t2) == 0 && termios_equal(&t2, &e));
+		CHECK(a || (model.flags == before.flags));
+	}
+	/* A refused request flushes nothing. */
+	model_reset(ECHO | CRMOD);
+	model.inq = 5;
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	t.c_cflag |= CSTOPB;
+	CHECK(tcsetattr(MODEL_FD, TCSAFLUSH, &t) == -1 && model.inq == 5);
+
+	/* tcflush: each selector discards its queue and no other. */
+	for (i = 0; i < 3; i++) {
+		model_reset(ECHO);
+		model.inq = 5;
+		model.outq = 7;
+		CHECK(tcflush(MODEL_FD, queues[i]) == 0);
+		CHECK((model.inq == 0) == (queues[i] != TCOFLUSH));
+		CHECK((model.outq == 0) == (queues[i] != TCIFLUSH));
+		CHECK(model.nlog == 1 && model.log[0] == TIOCFLUSH);
+	}
+	model_reset(ECHO);
+	test_errno = 0;
+	CHECK(tcflush(MODEL_FD, 3) == -1 && test_errno == EINVAL);
+	CHECK(tcflush(MODEL_FD, -1) == -1 && model.nlog == 0);
+	test_errno = 0;
+	CHECK(tcflush(MODEL_FD + 1, TCIFLUSH) == -1 && test_errno == EBADF);
+
+	/* tcflow: output off and on; the input-side actions are unsupported. */
+	model_reset(ECHO);
+	CHECK(tcflow(MODEL_FD, TCOOFF) == 0 && model.stopped == 1);
+	CHECK(model.log[0] == TIOCSTOP);
+	CHECK(tcflow(MODEL_FD, TCOON) == 0 && model.stopped == 0);
+	CHECK(model.log[1] == TIOCSTART);
+	model.stopped = 1;
+	model.nlog = 0;
+	test_errno = 0;
+	CHECK(tcflow(MODEL_FD, TCIOFF) == -1 && test_errno == EINVAL);
+	test_errno = 0;
+	CHECK(tcflow(MODEL_FD, TCION) == -1 && test_errno == EINVAL);
+	CHECK(tcflow(MODEL_FD, 9) == -1 && tcflow(MODEL_FD, -1) == -1);
+	CHECK(model.nlog == 0 && model.stopped == 1);
+	test_errno = 0;
+	CHECK(tcflow(MODEL_FD + 1, TCOON) == -1 && test_errno == EBADF);
+}
+
 int
 main(void)
 {
@@ -1099,5 +1201,6 @@ main(void)
 	check_set_order();
 	check_raw_flush();
 	check_drain();
+	check_actions();
 	return lsys_verdict("libc_termios");
 }

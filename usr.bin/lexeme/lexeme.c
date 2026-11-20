@@ -504,10 +504,7 @@ ed_ins(const char *s, size_t n)
  * text past the last recorded run takes that run's properties.
  */
 #define SRUN_MAX	32
-static struct srun {
-	woff_t len;
-	uint8_t chp, pap;
-} srun[SRUN_MAX];
+static struct word_run srun[SRUN_MAX];
 static unsigned nsrun;
 
 static void
@@ -550,9 +547,24 @@ ed_del(woff_t lo, woff_t hi, int scrap, int append)
 		return -1;
 	}
 	if (scrap) {
+		woff_t a, b;
+
+		/*
+		 * An accumulating cut keeps the scrap one run of the add stream:
+		 * when the new text does not follow it there, both are copied to
+		 * the end of the stream.
+		 */
 		if (append && scrap_len > 0 && scrap_ref + scrap_len == ref)
 			scrap_len += hi - lo;
-		else {
+		else if (append && scrap_len > 0 &&
+		    buf_ref_copy(scrap_ref, scrap_len, &a) == 0 &&
+		    buf_ref_copy(ref, hi - lo, &b) == 0 && b == a + scrap_len) {
+			scrap_ref = a;
+			scrap_len += hi - lo;
+		} else {
+			/* A failed copy keeps the new text only, unformatted. */
+			if (append && scrap_len > 0)
+				nsrun = 0;
 			scrap_ref = ref;
 			scrap_len = hi - lo;
 		}
@@ -602,22 +614,13 @@ ed_yank(woff_t lo, woff_t hi, int lines)
 void
 ed_paste(woff_t at)
 {
-	woff_t off = 0, n;
-	unsigned i;
-	int e = 0;
+	int e;
 
 	if (scrap_len == 0) {
 		ed_msg(1, "The scrap is empty");
 		return;
 	}
-	for (i = 0; i < nsrun && off < scrap_len && e == 0; i++) {
-		n = i + 1 == nsrun ? scrap_len - off : srun[i].len;
-		e = buf_insert_props(at + off, scrap_ref + off, n, srun[i].chp,
-		    srun[i].pap);
-		off += n;
-	}
-	if (e == 0 && off < scrap_len)
-		e = buf_insert_ref(at + off, scrap_ref + off, scrap_len - off);
+	e = buf_insert_runs(at, scrap_ref, scrap_len, srun, nsrun);
 	if (e != 0) {
 		msg_errno(e);
 		return;
@@ -702,11 +705,15 @@ ed_load(const char *path)
 	char p[WORD_PATH_MAX];
 	int e;
 
+	int word;
+
 	snprintf(p, sizeof(p), "%s", path);
-	doc_word = doc_probe(p) == 1;
-	e = doc_word ? doc_load(p) : buf_load(p);
-	if (e == EINVAL && doc_word)
+	word = doc_probe(p) == 1;
+	e = word ? doc_load(p) : buf_load(p);
+	if (e == EINVAL && word)
 		e = ENOEXEC;
+	if (e == 0 || e == ENOENT)
+		doc_word = word;
 	if (e == ENOENT) {
 		size_t n = strlen(p);
 
@@ -812,12 +819,29 @@ ed_search(const char *text, int down, int again)
 }
 
 /* A failed replacement leaves the text as it was and keeps its message. */
+/*
+ * A Replace is one undo record: buf_snap_begin() at its start, and
+ * buf_snap_end() when it ends. A replacement that fails returns the
+ * document to its state before the Replace.
+ */
+static void
+replace_done(void)
+{
+	ui = U_EDIT;
+	ed_sel = 0;
+	if (buf_snap_end(1) != 0)
+		ed_msg(1, "Replace failed; the document is unchanged");
+	else
+		ed_msgf(0, "%lu replacements", nrepl);
+}
+
 static void
 replace_failed(void)
 {
 	ui = U_EDIT;
 	ed_sel = 0;
-	ed_msgf(1, "Replace failed; %lu replaced", nrepl);
+	buf_snap_end(0);
+	ed_msg(1, "Replace failed; the document is unchanged");
 }
 
 static void
@@ -843,9 +867,7 @@ replace_from(woff_t from)
 		from = s + (woff_t)rl;
 		ed_set(from);
 	}
-	ui = U_EDIT;
-	ed_sel = 0;
-	ed_msgf(0, "%lu replacements", nrepl);
+	replace_done();
 }
 
 static void
@@ -855,11 +877,9 @@ replace_key(int k)
 	int up = toupper(k & 0xff);
 
 	sel_range(&s, &e);
-	if (k == K_ESC) {
-		ui = U_EDIT;
-		ed_sel = 0;
-		ed_msgf(0, "%lu replacements", nrepl);
-	} else if (up == 'Y' || up == 'A') {
+	if (k == K_ESC)
+		replace_done();
+	else if (up == 'Y' || up == 'A') {
 		if (up == 'A')
 			r_ask = 0;
 		if (buf_replace(s, e - s, f_with, strlen(f_with)) != 0) {
@@ -1323,6 +1343,10 @@ form_run(void)
 		nrepl = 0;
 		r_ask = r_confirm;
 		buf_mark();
+		if (buf_snap_begin() != 0) {
+			ed_msg(1, "Replace failed; the document is unchanged");
+			break;
+		}
 		replace_from(ed_cur);
 		break;
 	case F_JUMP:

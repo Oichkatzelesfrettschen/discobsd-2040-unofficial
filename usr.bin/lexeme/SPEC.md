@@ -58,13 +58,23 @@ and listed at the end.
   replaces each match, asking Y (replace), N (skip), A (all the rest)
   or Esc (stop) when confirm is Yes, and reports the number of replacements.
   A is local to that Replace; the form's confirm choice is unchanged. A
-  replacement that cannot be stored stops the run, leaves the matched text
-  in place and keeps the failure message.
+  Replace is one command: one Undo reverses all its replacements and one
+  Redo makes them again. A replacement that cannot be stored ends the
+  Replace, returns the document to its state before the Replace and keeps
+  the failure message.
 - Search text: `?` matches any one character, `^w` a run of spaces and
   tabs, `^t` a tab, `^s` a space, `^-` a hyphen, `^p` and `^n` a line
   break. `^^` for a caret and `^?` for a question mark are this program's
   additions.
-- Undo reverses the last edit; repeated Undo goes further back.
+- Undo reverses the last command whole; repeated Undo goes further back.
+  The history holds 192 records. A delete, a paste, a formatting change,
+  typing over a selection or a Replace writes at most three, however much
+  text or how many formats it spans, and a full history drops its oldest
+  command whole, so Undo never restores part of a command. A run of
+  typing writes one record per key; when one run fills the history, its
+  oldest keys are dropped and Undo steps back key by key to the oldest
+  kept. An Undo that cannot restore a command for want of piece table
+  room changes nothing and says so.
 - Jump Page moves to the start of a page; Library Run runs a shell command
   and waits for Enter; Library Count reports words, lines and characters; Library Document-retrieval opens the file picker;
   Options opens the options form; Quit leaves, asking Y (save), N (discard)
@@ -122,6 +132,11 @@ and listed at the end.
   one is pending, otherwise the properties of the first replaced
   character. A replacement that cannot be stored leaves the selected text
   and its properties as they were.
+- A formatting change, a paste and a delete are whole or not at all: the
+  new property records, the room in the piece table and the stored text
+  are all secured before the document changes. A change that needs more
+  distinct formats than the tables hold (64 character, 32 paragraph
+  records) is refused with the document and the tables as they were.
 - The console shows bold as bold, underline and double underline as
   underline, italic in green, strikethrough in red, super- and subscript
   in magenta, hidden text in gray, uppercase and small capitals as
@@ -180,7 +195,10 @@ This program's own choices, not claims about the format: a lone CR also
 ends a paragraph; small capitals are read from 0x30 in character byte 3
 and uppercase from 0x10 alone; a byte 5 other than 0x0C or 0xF4 reads as
 superscript when positive and subscript when negative; a Word file with
-another character set, or one shorter than its page count, is refused;
+another character set, or one shorter than its page count, is refused; a
+Word file with more distinct character or paragraph formats than the
+tables hold (64 and 32 records), or more runs than the piece table holds,
+is refused before the document in the editor is touched;
 fonts, colors, tab stops, styles, divisions, footnotes, bookmarks and the
 summary are not kept, and a save writes the header, the text and the two
 run tables.
@@ -236,7 +254,8 @@ The key mode is chosen with `-k word`, `-k vi` or `-k nano`, the
 - Save writes a temporary file beside the target and renames it over the
   target, so a failed save leaves the old file whole. The temporary is
   created exclusively under a name that carries the process id, so an
-  existing file or link of any name is never written through.
+  existing file or link of any name is never written through; a Word
+  save and a text save use the same temporary.
 - SIGHUP, SIGINT, SIGQUIT and SIGTERM restore the terminal before the
   program ends by the signal.
 - The document may exceed the process's memory: the loaded file stays on

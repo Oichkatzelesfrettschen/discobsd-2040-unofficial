@@ -74,7 +74,7 @@ MUTANTS = [
     (
         "undo-drops-deleted-text",
         "lexeme_buf.c",
-        "\t*pos = u->pos + u->len;\n\treturn raw_insert(u->pos, u->ref, u->len, u->chp, u->pap);",
+        "\t*pos = u->pos + u->len;\n\treturn map_insert(u->pos, u->ref, u->map, u->len);",
         "\t*pos = u->pos;\n\treturn 0;",
         "t_vi",
     ),
@@ -88,7 +88,7 @@ MUTANTS = [
     (
         "save-skips-the-rename",
         "lexeme_buf.c",
-        "if (e == 0 && rename(tmp, path) != 0)",
+        "if (e == 0 && rename(sv->tmp, sv->path) != 0)",
         "if (e == 0 && 0)",
         "t_save_menu",
     ),
@@ -163,7 +163,7 @@ MUTANTS = [
         "w = scr_cols - ri;",
         "t_format",
     ),
-    ("undo-format-keeps-new", "lexeme_buf.c", "undo ? u->chp : u->nchp", "u->nchp", "t_format"),
+    ("undo-format-keeps-new", "lexeme_buf.c", "undo ? m.chp : m.nchp", "m.nchp", "t_format"),
     (
         "save-keeps-bare-lf",
         "lexeme_doc.c",
@@ -219,13 +219,6 @@ MUTANTS = [
         "O_WRONLY | O_CREAT | O_EXCL, 0600",
         "O_WRONLY | O_CREAT | O_TRUNC, 0600",
         "t_save_temp",
-    ),
-    (
-        "replace-deletes-before-it-can-insert",
-        "lexeme.c",
-        "buf_replace(s, e - s, f_with, rl) != 0",
-        "buf_delete(s, e - s, NULL) != 0 || buf_insert(s, f_with, rl) != 0",
-        "t_replace_failure",
     ),
     (
         "replace-all-answer-sticks",
@@ -303,6 +296,57 @@ MUTANTS = [
         "lexeme_buf.c",
         "\tnl = has_break(pos, n);\n\tif ((e = reserve()) != 0)\n\t\treturn e;",
         "\tnl = has_break(pos, n);",
+        "t_bufcore",
+    ),
+    (
+        "word-save-skips-the-exclusive-temporary",
+        "lexeme_doc.c",
+        "\tif ((e = save_begin(path, &sv)) != 0)\n\t\treturn e;\n\tfd = sv.fd;",
+        '\tsnprintf(sv.tmp, sizeof(sv.tmp), "%s.wtmp", path);\n\tsv.path = path;\n'
+        "\tsv.have = 0;\n\tsv.fd = open(sv.tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);\n"
+        "\tfd = sv.fd;",
+        "t_docsave_temp",
+    ),
+    (
+        "refused-format-keeps-table-records",
+        "lexeme_buf.c",
+        "\t\tnchp = snc;\n\t\tnpap = snp;\n\t\treturn e;",
+        "\t\t(void)snc;\n\t\t(void)snp;\n\t\treturn e;",
+        "t_bufcore",
+    ),
+    (
+        "full-history-drops-one-record",
+        "lexeme_buf.c",
+        "if (ur[0].group != ugroup)",
+        "if (0)",
+        "t_bufcore",
+    ),
+    (
+        "replace-is-many-records",
+        "lexeme_buf.c",
+        "\tsnapping = 1;",
+        "\tsnapping = 0;",
+        "t_replace_undo_whole",
+    ),
+    (
+        "load-skips-the-table-prescan",
+        "lexeme_doc.c",
+        "for (pass = 0; pass < 2; pass++) {",
+        "for (pass = 1; pass < 2; pass++) {",
+        "t_docload_overflow",
+    ),
+    (
+        "paste-skips-its-reservation",
+        "lexeme_buf.c",
+        "\tif ((e = reserve_n(k + 2)) != 0)\n\t\treturn e;",
+        "\t(void)k;",
+        "t_bufcore",
+    ),
+    (
+        "format-skips-its-reservation",
+        "lexeme_buf.c",
+        "\tif (e == 0 && changed)\n\t\te = reserve_n(4);",
+        "",
         "t_bufcore",
     ),
 ]

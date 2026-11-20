@@ -258,48 +258,97 @@ runs_page(struct runs *r)
 	return 0;
 }
 
+/* Read the next run: its end into r->lim and its decoded properties. */
+static int
+runs_next(struct runs *r, struct word_chp *c, struct word_pap *p)
+{
+	uint8_t full[PAP_LEN], dflt[PAP_LEN];
+	unsigned len = r->para ? PAP_LEN : CHP_LEN, b, cch;
+	int e;
+
+	if (r->i >= r->n && (e = runs_page(r)) != 0)
+		return e;
+	r->lim = get32(r->pg + 4 + 6 * r->i);
+	b = get16(r->pg + 8 + 6 * r->i);
+	r->i++;
+	if (r->para)
+		pap_default(dflt);
+	else
+		chp_default(dflt);
+	memcpy(full, dflt, len);
+	if (b != NOPROP) {
+		b = (b & 0xff) + 4;	/* W13 record at pointer + 4 */
+		if (b >= PG - 1)
+			return EINVAL;
+		cch = r->pg[b];
+		if (b + 1 + cch > PG - 1)
+			return EINVAL;
+		memcpy(full, r->pg + b + 1, cch < len ? cch : len);
+	}
+	if (r->para)
+		pap_decode(full, p);
+	else
+		chp_decode(full, c);
+	return 0;
+}
+
 /* Advance to the run holding file offset fc and set r->prop. */
 static int
 runs_seek(struct runs *r, uint32_t fc)
 {
-	uint8_t full[PAP_LEN], dflt[PAP_LEN];
-	unsigned len = r->para ? PAP_LEN : CHP_LEN, b, cch;
+	struct word_chp c;
+	struct word_pap p;
 	int e, idx;
 
 	while (fc >= r->lim) {
-		if (r->i >= r->n && (e = runs_page(r)) != 0)
+		if ((e = runs_next(r, &c, &p)) != 0)
 			return e;
-		r->lim = get32(r->pg + 4 + 6 * r->i);
-		b = get16(r->pg + 8 + 6 * r->i);
-		r->i++;
-		if (r->para)
-			pap_default(dflt);
-		else
-			chp_default(dflt);
-		memcpy(full, dflt, len);
-		if (b != NOPROP) {
-			b = (b & 0xff) + 4;	/* W13 record at pointer + 4 */
-			if (b >= PG - 1)
-				return EINVAL;
-			cch = r->pg[b];
-			if (b + 1 + cch > PG - 1)
-				return EINVAL;
-			memcpy(full, r->pg + b + 1, cch < len ? cch : len);
-		}
-		if (r->para) {
-			struct word_pap p;
-
-			pap_decode(full, &p);
-			idx = buf_pap_index(&p);
-		} else {
-			struct word_chp c;
-
-			chp_decode(full, &c);
-			idx = buf_chp_index(&c);
-		}
+		idx = r->para ? buf_pap_index(&p) : buf_chp_index(&c);
 		if (idx < 0)
 			return EFBIG;
 		r->prop = (unsigned)idx;
+	}
+	return 0;
+}
+
+/*
+ * Before the document is cleared, read one run table through to end and
+ * count its runs and its distinct property records, the default included.
+ * A file that would overflow the property table (WORD_NCHP or WORD_NPAP
+ * records) or the piece table is refused whole with EFBIG, and the
+ * document in the editor stays as it was.
+ */
+static int
+runs_prescan(struct runs *r, uint32_t end, unsigned *nrun)
+{
+	static struct word_chp seenc[WORD_NCHP];
+	static struct word_pap seenp[WORD_NPAP];
+	struct word_chp c;
+	struct word_pap p;
+	unsigned nseen = 1, i, cap = r->para ? WORD_NPAP : WORD_NCHP;
+	int e;
+
+	memset(&seenc[0], 0, sizeof(seenc[0]));
+	memset(&seenp[0], 0, sizeof(seenp[0]));
+	memset(&c, 0, sizeof(c));
+	memset(&p, 0, sizeof(p));
+	*nrun = 0;
+	while (r->lim < end) {
+		if ((e = runs_next(r, &c, &p)) != 0)
+			return e;
+		(*nrun)++;
+		for (i = 0; i < nseen; i++)
+			if (r->para ? memcmp(&seenp[i], &p, sizeof(p)) == 0 :
+			    memcmp(&seenc[i], &c, sizeof(c)) == 0)
+				break;
+		if (i < nseen)
+			continue;
+		if (nseen == cap)
+			return EFBIG;
+		if (r->para)
+			seenp[nseen++] = p;
+		else
+			seenc[nseen++] = c;
 	}
 	return 0;
 }
@@ -312,8 +361,8 @@ doc_load(const char *path)
 	struct runs cr, pr;
 	struct stat st;
 	uint32_t fcmac, fc, chunk;
-	unsigned pnpara, pnmac, i, nout = 0, oc = 0, op = 0;
-	int fd, e = 0, cr_pending = 0;
+	unsigned pnpara, pnmac, i, nout = 0, oc = 0, op = 0, nc, np;
+	int fd, e = 0, cr_pending = 0, pass;
 
 	fd = open(path, O_RDONLY);
 	if (fd < 0)
@@ -331,15 +380,26 @@ doc_load(const char *path)
 		close(fd);
 		return EINVAL;
 	}
+	for (pass = 0; pass < 2; pass++) {
+		memset(&cr, 0, sizeof(cr));
+		memset(&pr, 0, sizeof(pr));
+		cr.fd = pr.fd = fd;
+		cr.page = (fcmac + PG - 1) / PG;	/* W6 */
+		cr.last = pnpara;
+		pr.para = 1;
+		pr.page = pnpara;
+		pr.last = pnmac;
+		if (pass == 1)
+			break;
+		/* Each run boundary of either table can start a piece. */
+		if ((e = runs_prescan(&cr, fcmac, &nc)) != 0 ||
+		    (e = runs_prescan(&pr, fcmac, &np)) != 0 ||
+		    (e = nc + np + 2 > buf_piece_cap() ? EFBIG : 0) != 0) {
+			close(fd);
+			return e;
+		}
+	}
 	buf_clear();
-	memset(&cr, 0, sizeof(cr));
-	memset(&pr, 0, sizeof(pr));
-	cr.fd = pr.fd = fd;
-	cr.page = (fcmac + PG - 1) / PG;	/* W6 */
-	cr.last = pnpara;
-	pr.para = 1;
-	pr.page = pnpara;
-	pr.last = pnmac;
 	for (fc = FC0; e == 0 && fc < fcmac; fc += chunk) {
 		chunk = fcmac - fc < PG ? fcmac - fc : PG;
 		e = read_at(fd, fc, text, chunk);
@@ -558,21 +618,17 @@ emit_runs(int fd, int para, uint32_t fcmac, unsigned *page)
 int
 doc_save(const char *path, int backup)
 {
-	char tmp[WORD_PATH_MAX + 8], bak[WORD_PATH_MAX + 2];
+	struct save sv;
 	uint8_t h[PG], pad[PG];
-	struct stat st;
 	uint32_t fcmac = FC0;
 	/* W7 */
 	unsigned page, pnpara, slots[] = { 0x14, 0x16, 0x18, 0x1a, 0x1c, 0x76,
 	    0x78, 0x7c }, i;
-	int fd, e, have = stat(path, &st) == 0;
+	int fd, e;
 
-	if (strlen(path) >= WORD_PATH_MAX)
-		return ENAMETOOLONG;
-	snprintf(tmp, sizeof(tmp), "%s.wtmp", path);
-	fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-	if (fd < 0)
-		return errno;
+	if ((e = save_begin(path, &sv)) != 0)
+		return e;
+	fd = sv.fd;
 	memset(h, 0, PG);
 	e = write(fd, h, PG) == PG ? 0 : EIO;
 	if (e == 0)
@@ -602,21 +658,7 @@ doc_save(const char *path, int backup)
 		if (lseek(fd, 0, SEEK_SET) != 0 || write(fd, h, PG) != PG)
 			e = EIO;
 	}
-	if (have && e == 0 && fchmod(fd, st.st_mode & 07777) != 0)
-		e = errno;
-	if (close(fd) != 0 && e == 0)
-		e = errno;
-	if (e == 0 && have && backup) {
-		snprintf(bak, sizeof(bak), "%s~", path);
-		unlink(bak);
-		if (link(path, bak) != 0)
-			e = errno;
-	}
-	if (e == 0 && rename(tmp, path) != 0)
-		e = errno;
-	if (e != 0)
-		unlink(tmp);
-	return e;
+	return save_end(&sv, e, backup);
 }
 
 int

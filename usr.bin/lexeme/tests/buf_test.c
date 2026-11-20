@@ -143,6 +143,50 @@ build(int fill, int merge)
 	buf_test_restore();
 }
 
+/* Add strikethrough: the mapping a Format Character change makes. */
+static int
+add_strike(unsigned old, int which, void *ctx)
+{
+	struct word_chp c = *buf_chp(old);
+
+	(void)which;
+	(void)ctx;
+	c.flags |= CH_STRIKE;
+	return buf_chp_index(&c);
+}
+
+/* Right alignment: the mapping a Format Paragraph change makes. */
+static int
+set_right(unsigned old, int which, void *ctx)
+{
+	struct word_pap p = *buf_pap(old);
+
+	(void)which;
+	(void)ctx;
+	p.align = AL_RIGHT;
+	return buf_pap_index(&p);
+}
+
+/* Formatting op on [pos, pos + n): 0 character, 1 paragraph, 2 paste. */
+static int
+fmt(int op, woff_t pos, woff_t n)
+{
+	static const struct word_run runs[3] = {
+		{ 2, 0, 0 }, { 1, 1, 1 }, { 4, 2, 2 }
+	};
+	woff_t ref;
+
+	if (op == 0)
+		return buf_restyle(pos, pos + n, 1, add_strike, NULL);
+	if (op == 1)
+		return buf_restyle(pos, pos + n, 2, set_right, NULL);
+	if (n == 0)
+		return 0;
+	if (buf_ref_copy(0, 0, &ref) != 0)
+		return -1;
+	return buf_insert_runs(pos, 0, n, runs, 3);
+}
+
 /* Run edit op on [pos, pos + n); ops 0-1 delete, 2-7 replace. */
 static int
 edit(int op, woff_t pos, woff_t n)
@@ -230,12 +274,134 @@ main(void)
 						if (!same(&before, &after))
 							fail("failed edit changed the document",
 							    op, pos, n, k);
-						if (k == 16) {
+						if (k == 256) {
 							/* Past every allocation point it must work. */
 							fail("edit never succeeded", op, pos, n, k);
 							break;
 						}
 					}
+	/*
+	 * Formatting and paste: every range, a failure injected at each
+	 * allocation point in turn, the document unchanged on failure and
+	 * restored whole by one Undo on success.
+	 */
+	for (phase = 0; phase < 2; phase++)
+	for (op = 0; op < 3; op++)
+		for (pos = 0; pos <= len; pos++)
+			for (n = 1; pos + n <= len; n++)
+				for (k = 0; ; k++) {
+					build(phase ? NPIECE_TEST - 2 : 0, 1);
+					take(&before);
+					buf_mark();
+					buf_test_fault(k);
+					e = fmt(op, pos, n);
+					buf_test_fault(-1);
+					nops++;
+					if (e != 0) {
+						take(&after);
+						if (!same(&before, &after))
+							fail("failed format changed the document",
+							    op + 8, pos, n, k);
+						if (k == 256) {
+							fail("format never succeeded",
+							    op + 8, pos, n, k);
+							break;
+						}
+						continue;
+					}
+					if (buf_undo(&(woff_t){ 0 }) < 0)
+						fail("format undo failed", op + 8, pos, n, -1);
+					take(&after);
+					after.ucount = before.ucount;
+					after.upos = before.upos;
+					if (!same(&before, &after))
+						fail("format undo did not restore", op + 8, pos, n,
+						    k);
+					break;
+				}
+	/*
+	 * A character table one record short of full: the first run's new
+	 * format takes the last record and the second run's finds none, so
+	 * the change is refused with the document and the table unchanged.
+	 */
+	{
+		struct word_chp fill;
+		int last = 0, size;
+
+		build(0, 1);
+		for (size = 1; last < WORD_NCHP - 2 && size < 255; size++) {
+			memset(&fill, 0, sizeof(fill));
+			fill.size = (uint8_t)size;
+			last = buf_chp_index(&fill);
+		}
+		take(&before);
+		e = buf_restyle(0, len, 1, add_strike, NULL);
+		take(&after);
+		if (e == 0 || !same(&before, &after))
+			fail("a full table left a partial format", 8, 0, len, -1);
+		memset(&fill, 0, sizeof(fill));
+		fill.size = 254;
+		if (buf_chp_index(&fill) != WORD_NCHP - 1)
+			fail("a refused format kept table records", 8, 0, len, -1);
+	}
+	/*
+	 * A full history drops its oldest group whole: a replace across a line
+	 * break (three records) followed by enough one-record groups to push
+	 * it out leaves no part of it, so undoing everything ends at the
+	 * document just after the replace.
+	 */
+	{
+		struct snap mid;
+		woff_t q = 0;
+		int steps = 0;
+
+		build(0, 1);
+		buf_mark();
+		if (buf_replace(4, 3, "R", 1) != 0)
+			fail("history replace failed", 19, 4, 3, -1);
+		take(&mid);
+		/* 190 more records make 193: one past the history. */
+		for (i = 0; i < 190; i++) {
+			buf_mark();
+			buf_insert(buf_len(), "t", 1);
+		}
+		while (buf_undo(&q) == 1 && steps < 1000)
+			steps++;
+		/* The evicted typing stays; before it, the document after the replace. */
+		take(&after);
+		if (after.len < mid.len ||
+		    memcmp(after.text, mid.text, mid.len) != 0 ||
+		    memcmp(after.props, mid.props, mid.len * sizeof(mid.props[0])) != 0)
+			fail("history kept part of an evicted command", 19, 4, 3, -1);
+		for (q = mid.len; q < after.len; q++)
+			if (after.text[q] != 't')
+				fail("history undo left stray text", 19, 4, 3, -1);
+	}
+	/*
+	 * Commands over more runs than the undo history holds records: one
+	 * Undo restores each whole.
+	 */
+	for (op = 0; op < 3; op++) {
+		woff_t big;
+
+		build(NPIECE_TEST / 2, 0);
+		big = buf_len();
+		take(&before);
+		buf_mark();
+		e = op == 0 ? buf_restyle(0, big, 1, add_strike, NULL) :
+		    op == 1 ? buf_restyle(0, big, 2, set_right, NULL) :
+		    buf_delete(0, big, NULL);
+		if (e != 0)
+			fail("long command failed", op + 16, 0, big, -1);
+		if (buf_undo(&(woff_t){ 0 }) != 1)
+			fail("long command undo failed", op + 16, 0, big, -1);
+		take(&after);
+		after.ucount = before.ucount;
+		after.upos = before.upos;
+		if (!same(&before, &after))
+			fail("Undo restored part of a long command", op + 16, 0, big,
+			    -1);
+	}
 	printf("buf_test: %ld edits, most slots taken %u, reserve %u\n", nops,
 	    peak, buf_test_reserve());
 	if (peak > buf_test_reserve())

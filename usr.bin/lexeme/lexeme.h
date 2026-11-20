@@ -106,6 +106,17 @@ void	buf_test_save(void);
 void	buf_test_restore(void);
 #endif		/* end of a load: no undo history */
 
+/* A save in progress: the exclusive temporary beside the target. */
+struct save {
+	int fd, have;
+	unsigned mode;
+	const char *path;
+	char tmp[WORD_PATH_MAX + 32];
+};
+
+int	save_begin(const char *path, struct save *sv);
+int	save_end(struct save *sv, int e, int backup);
+
 /* ---- lexeme_doc.c: Word 5.1 document files ---- */
 
 int	doc_probe(const char *path);	/* 1 Word document, 0 other, -1 error */
@@ -117,6 +128,16 @@ const struct word_chp *buf_chp(unsigned i);
 const struct word_pap *buf_pap(unsigned i);
 int	buf_chp_index(const struct word_chp *c);	/* -1: table full */
 int	buf_pap_index(const struct word_pap *p);
+struct word_run {
+	woff_t len;
+	uint8_t chp, pap;
+};
+int	buf_ref_copy(woff_t ref, woff_t n, woff_t *out);
+int	buf_insert_runs(woff_t pos, woff_t ref, woff_t len,
+	    const struct word_run *runs, unsigned nrun);
+unsigned buf_piece_cap(void);		/* piece table slots */
+int	buf_snap_begin(void);		/* start a Replace: one undo record */
+int	buf_snap_end(int ok);		/* keep it, or return to the start */
 int	buf_restyle(woff_t lo, woff_t hi, int which,
 	    int (*fn)(unsigned old, int which, void *ctx), void *ctx);
 int	buf_delete(woff_t pos, woff_t n, woff_t *ref);

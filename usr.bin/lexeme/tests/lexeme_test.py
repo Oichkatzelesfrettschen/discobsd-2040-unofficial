@@ -643,8 +643,9 @@ def t_save_temp(b, td):
 
 def t_replace_failure(b, td):
     # The add stream cannot spill (TMPDIR names no directory), so a long
-    # run of replacements ends in a failure. The failing match stays in the
-    # text, the failure message stays on screen and no match is lost.
+    # run of replacements ends in a failure. The Replace is one command: the
+    # document returns whole to its state before it, and the failure message
+    # stays on screen.
     path = os.path.join(td, "r.txt")
     write(path, b"abc " * 200)
     s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
@@ -655,11 +656,129 @@ def t_replace_failure(b, td):
     menu(s, b"t", b"s")
     s.send(b"\r")
     got = read(path)
+    check(got == b"abc " * 200, "a failed Replace changed the document: %d" % got.count(b"abc"))
+    menu(s, b"q")
+    s.close()
+
+
+def t_replace_undo_whole(b, td):
+    # 250 replacements write more than the 192-record undo history held
+    # record by record; one Undo restores the whole Replace, one Redo redoes it.
+    path = os.path.join(td, "u.txt")
+    write(path, b"x " * 250)
+    s = Session(b, [path])
+    menu(s, b"r")
+    s.send(b"x", b"\t", b"yy", b"\t", b"n", b"\r")
+    check(s.has("250 replacements"), "Replace did not run")
+    s.send(SHIFT, F1)
+    menu(s, b"t", b"s")
+    s.send(b"\r")
     check(
-        got.count(b"abc") > 0 and got.count(b"abc") < 200,
-        "run did not stop part way: %d" % got.count(b"abc"),
+        read(path) == b"x " * 250, "Undo restored part of the Replace: %d" % read(path).count(b"yy")
     )
-    check(got.count(b"abc") + got.count(b"Q" * 90) == 200, "a match was lost")
+    s.send(b"\x19")
+    menu(s, b"t", b"s")
+    s.send(b"\r")
+    check(read(path) == b"yy " * 250, "Redo did not redo the whole Replace")
+    menu(s, b"q")
+    s.close()
+
+
+def t_docsave_temp(b, td):
+    # The Word save uses the same exclusive temporary as the text save.
+    out = os.path.join(td, "note.doc")
+    victim = os.path.join(td, "victim.txt")
+    write(victim, b"precious")
+    s = Session(b, [out])
+    for name in (out + ".wtmp", "%s.wtmp.%d.0" % (out, s.proc.pid)):
+        os.symlink(victim, name)
+    s.send(b"Hello")
+    menu(s, b"t", b"s")
+    check(s.has("format:(Word)"), "a .doc file did not default to the Word format")
+    s.send(b"\r")
+    check(read(victim) == b"precious", "Word save wrote through a planted link")
+    check(read(out)[:2] == b"\x31\xbe", "Word save did not write a Word file")
+    check(
+        sorted(os.listdir(td))
+        == ["note.doc", "note.doc.wtmp", "note.doc.wtmp.%d.0" % s.proc.pid, "victim.txt"],
+        "Word save left a temporary: %r" % sorted(os.listdir(td)),
+    )
+    menu(s, b"q")
+    s.close()
+
+
+def wdoc_pages(text, chp_runs, pap_runs):
+    """A Word 5.1 document whose run tables span as many pages as they need."""
+
+    def pages(runs, para):
+        out, page, top, n, first = [], bytearray(128), 127, 0, 0x80
+        struct.pack_into("<I", page, 0, first)
+        for lim, rec in runs:
+            need = (12 if para else 6) + (len(rec) + 1 if rec else 0)
+            if 4 + (12 if para else 6) * n + need > top:
+                page[127] = n
+                out.append(bytes(page))
+                page, top, n = bytearray(128), 127, 0
+                struct.pack_into("<I", page, 0, first)
+            if rec:
+                top -= len(rec) + 1
+                page[top] = len(rec)
+                page[top + 1 : top + 1 + len(rec)] = rec
+                ptr = top - 4
+            else:
+                ptr = 0xFFFF
+            struct.pack_into("<IH", page, 4 + 6 * n, lim, ptr)
+            n += 1
+            first = lim
+        page[127] = n
+        out.append(bytes(page))
+        return out
+
+    fcmac = 0x80 + len(text)
+    cp, pp = pages(chp_runs, False), pages(pap_runs, True)
+    pnpara = fcmac // 128 + (1 if fcmac % 128 else 0) + len(cp)
+    h = bytearray(128)
+    struct.pack_into("<HHH", h, 0, 0xBE31, 0, 0xAB00)
+    struct.pack_into("<I", h, 0x0E, fcmac)
+    struct.pack_into("<H", h, 0x12, pnpara)
+    for off in (0x14, 0x16, 0x18, 0x1A, 0x1C, 0x6A, 0x76, 0x78, 0x7C):
+        struct.pack_into("<H", h, off, pnpara + len(pp))
+    struct.pack_into("<H", h, 0x7E, 0x229B)
+    return bytes(h) + text + b"\0" * (-len(text) % 128) + b"".join(cp) + b"".join(pp)
+
+
+def t_docload_overflow(b, td):
+    # 70 distinct character formats overflow the 64-record table: the load
+    # is refused whole and the document in the editor stays.
+    keep = os.path.join(td, "keep.txt")
+    write(keep, b"keep me")
+    text = b"x" * 70
+    big = os.path.join(td, "big.doc")
+    write(
+        big,
+        wdoc_pages(
+            text,
+            [(0x81 + i, bytes([0, 0, 30 + i])) for i in range(70)],
+            [(0x80 + len(text) + 1, b"")],
+        ),
+    )
+    ok = os.path.join(td, "ok.doc")
+    write(
+        ok,
+        wdoc_pages(
+            text,
+            [(0x81 + i, bytes([0, 0, 30 + i % 40])) for i in range(70)],
+            [(0x80 + len(text) + 1, b"")],
+        ),
+    )
+    s = Session(b, [keep])
+    menu(s, b"t", b"l")
+    s.send(big.encode(), b"\r")
+    check(s.has("File too large"), "an overflowing load was not refused")
+    check(s.scr.row(0).startswith("keep me"), "a refused load lost the document")
+    menu(s, b"t", b"l")
+    s.send(ok.encode(), b"\r")
+    check(s.scr.row(0).startswith("x" * 40), "a load within the table was refused")
     menu(s, b"q")
     s.close()
 
@@ -746,10 +865,12 @@ def t_select_replace(b, td):
     s.close()
     check(read(path) == b"Xc", "nano typing kept the selection: %r" % read(path))
     # A failing replacement (no spill directory, add stream full) keeps the
-    # selected text and the document.
+    # selected text and the document. 8181 typed bytes leave 11 of the 8192
+    # in memory: a deletion of three bytes stages them and an 8-byte run map
+    # (11), and the replacement needs one more for the typed K.
     path = os.path.join(td, "w.txt")
     s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
-    typed = b"q" * 8186 + b"XYZ"
+    typed = b"q" * 8178 + b"XYZ"
     type_text(s, typed)
     s.send(b"\x1b[1;2D" * 3, b"K")
     menu(s, b"t", b"s")
@@ -841,6 +962,9 @@ TESTS = [
     t_spill_append,
     t_save_temp,
     t_replace_failure,
+    t_replace_undo_whole,
+    t_docsave_temp,
+    t_docload_overflow,
     t_replace_all_local,
     t_overlong_pattern,
     t_csi_overflow,

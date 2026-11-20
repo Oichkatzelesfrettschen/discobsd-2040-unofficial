@@ -210,7 +210,7 @@ host_ms(void)
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: i86 [-dqrTv] [-c 8086|186|286] [-m kbytes] "
+	fprintf(stderr, "usage: i86 [-dgqrTv] [-c 8086|186|286] [-m kbytes] "
 	    "[-f frames] [-w 40|80]\n"
 	    "           [-s pagefile] [-k keys] [-a floppy] [-b floppy] "
 	    "[-h disk] ...\n");
@@ -231,7 +231,7 @@ main(int argc, char **argv)
 	cf.ram_kb = 640;
 	cf.cols = 80;
 	cf.model = I86_286;
-	while ((ch = getopt(argc, argv, "a:b:c:df:h:k:m:qrs:Tvw:")) != -1)
+	while ((ch = getopt(argc, argv, "a:b:c:df:gh:k:m:qrs:Tvw:")) != -1)
 		switch (ch) {
 		case 'a':
 			cf.disk[0] = optarg;
@@ -258,6 +258,9 @@ main(int argc, char **argv)
 			break;
 		case 'f':
 			frames = (unsigned)atoi(optarg);
+			break;
+		case 'g':
+			cf.panel = 1;
 			break;
 		case 'h':
 			if (nhard == 2)

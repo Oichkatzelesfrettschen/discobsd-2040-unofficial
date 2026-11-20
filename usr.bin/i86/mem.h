@@ -79,8 +79,25 @@ extern void (*mem_failed)(void);
 void mem_fini(void);
 /* A resident region outside paged memory (video memory). */
 void mem_fixed(uint32_t addr, uint8_t *p, uint32_t len);
-/* Read-only bytes outside paged memory (the firmware). */
+/* Read-only bytes outside paged memory (the firmware); up to three
+ * regions. */
 void mem_rom(uint32_t addr, const uint8_t *p, uint32_t len);
+
+/* Display memory whose writes are noted: a window of sixteen pages from
+ * base, outside paged memory. mem_watch() puts n pages of it, from page
+ * first, at p (null: nothing answers there) and forgets their notes. The
+ * first write to a page after mem_rearm() sets its bit in mem_watched;
+ * mem_rearm() returns the bits and clears them. A caller that writes the
+ * bytes at p itself sets the bits itself. */
+extern unsigned mem_watched;
+void mem_watch(uint32_t base, unsigned first, uint8_t *p, unsigned n);
+unsigned mem_rearm(void);
+
+/* Take n page frames out of paging for another use, their pages going to
+ * the store first, and give them back. One loan at a time; null when
+ * fewer than four frames would be left. */
+uint8_t *mem_lend(unsigned n);
+void mem_return(void);
 
 unsigned mem_rslow(uint32_t a);
 void mem_wslow(uint32_t a, unsigned v);

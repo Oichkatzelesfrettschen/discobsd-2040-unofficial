@@ -40,8 +40,8 @@ include ${TOPSRC}/tools/qemu-arm.mk
 
 CFLAGS		+= -std=c17 -pedantic-errors -Wall -Wextra -Werror
 
-OBJS		= main.o pc.o cpu.o mem.o
-HDRS		= i86.h mem.h pc.h
+OBJS		= main.o pc.o gfx.o cpu.o mem.o
+HDRS		= font.h gfx.h i86.h mem.h pc.h
 MAN		= i86.0
 MANSRC		= i86.1
 
@@ -64,14 +64,24 @@ ${MAN}:	${MANSRC}
 		${MANROFF} ${MANSRC} > ${MAN}
 
 HOSTCC?=	cc
+# <sys/lcdgfx.h> is the tree's, found after the host's own headers.
 HOST_CFLAGS=	-std=c17 -pedantic-errors -D_DEFAULT_SOURCE -DHOSTBUILD \
-		-Wall -Wextra -Werror -Wshadow -O2 -I.
-HOSTSRCS=	main.c pc.c cpu.c mem.c
+		-Wall -Wextra -Werror -Wshadow -O2 -I. \
+		-idirafter ${TOPSRC}/sys
+HOSTSRCS=	main.c pc.c gfx.c cpu.c mem.c
 
 host:		i86-host
 
 i86-host:	${HOSTSRCS} ${HDRS}
 		${HOSTCC} ${HOST_CFLAGS} -o $@ ${HOSTSRCS}
+
+# The same program with tests/panel.c, a model of /dev/lcdgfx, in place of
+# the device.
+i86-panel:	${HOSTSRCS} ${HDRS} tests/panel.c
+		${HOSTCC} ${HOST_CFLAGS} -DGFX_MODEL -o $@ ${HOSTSRCS} tests/panel.c
+
+font.h:		font/mkfont.py font/4x6-cp437.bdf font/5x8-cp437.bdf
+		${PYTHON} -I font/mkfont.py font font.h
 
 tests/sstrun:	tests/sstrun.c cpu.c mem.c ${HDRS}
 		${HOSTCC} ${HOST_CFLAGS} -o $@ tests/sstrun.c cpu.c mem.c
@@ -112,7 +122,7 @@ check-qemu:	require-python
 .endif
 
 clean:
-		rm -f *.o *.elf ${MAN} i86 i86-host tests/sstrun tests/sstrun-arm tags *~
+		rm -f *.o *.elf ${MAN} i86 i86-host i86-panel tests/sstrun tests/sstrun-arm tags *~
 		rm -rf tests/__pycache__
 
 install:	all

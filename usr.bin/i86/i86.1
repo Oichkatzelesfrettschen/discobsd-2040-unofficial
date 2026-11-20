@@ -29,7 +29,7 @@ i86 \- run DOS on an emulated 8086, 80186 or 80286
 .SH SYNOPSIS
 .B i86
 [
-.B \-dqrTv
+.B \-dgqrTv
 ] [
 .B \-c
 .I cpu
@@ -93,7 +93,9 @@ shape.
 The terminal needs 25 lines and the guest's width in columns, so on the
 PicoCalc panel's 53 columns run with
 .B \-w
-.BR 40 .
+.B 40
+or with
+.BR \-g .
 Control-] opens a one-line menu:
 .B q
 leaves the emulator,
@@ -137,7 +139,23 @@ Draw nothing while running and print the 25 lines of the display on exit.
 .TP
 .BI \-f " frames"
 The number of resident pages, 128 by default; the RP2040 process window
-holds 136.
+holds 132.
+.TP
+.B \-g
+Use the PicoCalc's panel,
+.IR /dev/lcdgfx ,
+as the display and the terminal for the keys alone.
+Both text widths fill the panel, 80 columns in characters four pixels
+wide, with all of code page 437; the graphics modes 4, 5 and 6 of the
+color adapter are drawn, mode 6 at half its 640 pixels a line.
+A graphics mode takes eight of the
+.I frames
+while it lasts.
+The Control-] menu appears on the console, which has the panel for as
+long as the menu is open.
+Without the device the terminal is the display and
+.I i86
+says so.
 .TP
 .BI \-h " disk"
 A hard disk image, with its partition table; the first is drive C, a
@@ -178,12 +196,19 @@ Start in the 40- or the 80-column text mode (80 by default).
 The 80286 has no protected mode: the machine status word reads real mode
 and cannot be changed, so programs that need extended memory or a DOS
 extender do not run.
-There is no numeric coprocessor, no graphics mode, no sound, no serial or
-parallel port and no mouse.
+Graphics modes exist only with
+.B \-g
+and are those of the color adapter; there is no EGA or VGA.
+There is no numeric coprocessor, no sound, no serial or parallel port and
+no mouse.
 Every key arrives as a press followed at once by its release, since a
 terminal reports no releases: a program that acts while a key is held
 sees it only for an instant.
 .SH FILES
+.TP
+.I /dev/lcdgfx
+the panel, with
+.B \-g
 .TP
 .IR /tmp/i86. pid
 the name the default page file is created under

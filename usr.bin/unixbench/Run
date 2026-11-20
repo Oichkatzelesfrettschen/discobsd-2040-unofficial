@@ -11,14 +11,28 @@ export TIME
 UNAME="hostname"
 
 # HOMEDIR is the install tree and stays read-only to a login. Everything
-# Run or a test writes goes to WORKDIR, which defaults to a directory of the
-# caller under /tmp (UB_WORKDIR names another): tmp/ for scratch files,
+# Run or a test writes goes to WORKDIR: tmp/ for scratch files,
 # results/ for the log, report and times, and testdir/, a copy of the test
 # inputs, because the shell and compiler tests write into their working
 # directory. A root run and a non-root run write only under their own WORKDIR.
+# By default WORKDIR is new for each run, /tmp/unixbench.UID.PID, and is made
+# by a plain mkdir under umask 077: mkdir fails on any existing name, a
+# symbolic link included, so nothing another user placed in /tmp beforehand
+# is written through. UB_WORKDIR names a directory the caller answers for,
+# which keeps its results and log.accum from run to run.
 # UB_HOMEDIR names another install tree and UB_SUITE another benchmark list.
 HOMEDIR=${UB_HOMEDIR-/usr/share/unixbench}
-WORKDIR=${UB_WORKDIR-/tmp/unixbench.`id -u`}
+umask 077
+if [ -n "${UB_WORKDIR-}" ]; then
+	WORKDIR=${UB_WORKDIR}
+	mkdir -p "${WORKDIR}" || exit 1
+else
+	WORKDIR=/tmp/unixbench.`id -u`.$$
+	mkdir "${WORKDIR}" || {
+		echo "Run: ${WORKDIR} exists; remove it or set UB_WORKDIR" >&2
+		exit 1
+	}
+fi
 SCRPDIR=${HOMEDIR}
 BINDIR=${HOMEDIR}
 TMPDIR=${WORKDIR}/tmp
@@ -29,7 +43,6 @@ TESTDIR=${WORKDIR}/testdir
 PATH=${HOMEDIR}:${PATH}
 export BINDIR TMPDIR RESULTDIR PATH TESTDIR TIMEACCUM
 
-umask 077
 mkdir -p ${TMPDIR} ${RESULTDIR} ${TESTDIR} || exit 1
 cp ${HOMEDIR}/testdir/* ${TESTDIR} || exit 1
 

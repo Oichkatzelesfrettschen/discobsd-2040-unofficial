@@ -131,3 +131,39 @@ mutant()
 mutant path-dropped 's|^PATH=${HOMEDIR}:${PATH}$|PATH=${PATH}|'
 mutant results-in-home 's|^RESULTDIR=${WORKDIR}/results|RESULTDIR=${HOMEDIR}/results|'
 mutant tests-in-home 's|^TESTDIR=${WORKDIR}/testdir|TESTDIR=${HOMEDIR}/testdir|'
+
+# planted NAME RUNFILE: with no UB_WORKDIR, Run makes /tmp/unixbench.UID.PID.
+# Another user's link is planted at that name first (the shell that plants it
+# becomes Run by exec, so the process ID is the one Run uses). Run must stop
+# and write nothing through the link; return 0 when it does.
+planted()
+{
+	name=$1
+	mkdir "$work/$name" "$work/$name/victim"
+	stage "$2" "$work/$name"
+	(cd "$work/$name" && env -i PATH=/usr/bin:/bin HOME="$work/$name" \
+	    UB_HOMEDIR="$work/$name/home" UB_SUITE="shell" iterations=1 \
+	    background=1 looper=1 CC=true TIME="%e" VICTIM="$work/$name/victim" \
+	    sh -c 'p=/tmp/unixbench.$(id -u).$$; ln -s "$VICTIM" "$p" || exit 9
+	    echo "$p" > link.path; exec sh home/Run' > "$work/$name/out" 2>&1)
+	rc=$?
+	link=$(cat "$work/$name/link.path" 2> /dev/null)
+	left=$(ls -A "$work/$name/victim" | wc -l)
+	case $link in /tmp/unixbench.*) unlink "$link" 2> /dev/null || : ;; esac
+	test "$rc" -ne 0 && test "$rc" -ne 9 && test "$left" -eq 0
+}
+planted link "$ub/Run" || {
+	echo "unixbench_run: FAIL: Run wrote through a link planted at its work directory" >&2
+	exit 1
+}
+echo "unixbench_run: PASS (a planted work directory is refused)"
+sed 's|^	mkdir "${WORKDIR}" \|\| {$|	mkdir -p "${WORKDIR}" \|\| {|' "$ub/Run" > "$work/link-followed.Run"
+if cmp -s "$ub/Run" "$work/link-followed.Run"; then
+	echo "unixbench_run: FAIL: link-followed mutation changed nothing" >&2
+	exit 1
+fi
+if planted link-followed "$work/link-followed.Run"; then
+	echo "unixbench_run: FAIL: link-followed mutation was accepted" >&2
+	exit 1
+fi
+echo "unixbench_run: PASS (link-followed mutation rejected)"

@@ -758,8 +758,46 @@ check_rt_chars(void)
 		e.c_ospeed = (speed_t)(B4000000 - i);
 		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
 		CHECK(tcgetattr(MODEL_FD, &t2) == 0);
+		/* An input speed of 0 follows the output speed. */
+		if (i == B0)
+			e.c_ispeed = e.c_ospeed;
 		CHECK(termios_equal(&t2, &e));
 	}
+}
+
+/* Input speed 0 means "the output speed" and survives a read and a write. */
+static void
+check_zero_ispeed(void)
+{
+	struct termios t, e;
+
+	model_reset(ECHO);
+	model.sg.sg_ispeed = B300;
+	model.sg.sg_ospeed = B9600;
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	e = t;
+	CHECK(cfsetispeed(&e, B0) == 0 && cfsetospeed(&e, B19200) == 0);
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+	CHECK(model.sg.sg_ispeed == B19200 && model.sg.sg_ospeed == B19200);
+	/* Input speed 0 alone, with the output speed unchanged. */
+	model.sg.sg_ispeed = B300;
+	CHECK(tcgetattr(MODEL_FD, &t) == 0);
+	e = t;
+	e.c_ispeed = 0;
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+	CHECK(model.sg.sg_ispeed == B19200);
+
+	/* A terminal already at input speed 0 stays there when written back. */
+	model_reset(ECHO);
+	model.sg.sg_ispeed = B0;
+	model.sg.sg_ospeed = B9600;
+	CHECK(tcgetattr(MODEL_FD, &t) == 0 && t.c_ispeed == B0);
+	snapshot();
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &t) == 0);
+	CHECK(state_equal(&model, &before) && sets_issued() == 0);
+	t.c_ospeed = B19200;
+	CHECK(tcsetattr(MODEL_FD, TCSANOW, &t) == 0);
+	CHECK(model.sg.sg_ispeed == B0 && model.sg.sg_ospeed == B19200);
 }
 
 /*
@@ -937,20 +975,29 @@ check_set_special(void)
 	struct termios t, e;
 	int i;
 
-	/* A split ICRNL and ONLCR is part-honored: success, CRMOD untouched. */
-	for (i = 0; i < 2; i++) {
-		model_reset(i ? CRMOD : 0);
+	/*
+	 * A split ICRNL and ONLCR changes nothing, so alone it is refused; beside
+	 * an honored change the call succeeds and CRMOD stays as it was.
+	 */
+	for (i = 0; i < 4; i++) {
+		model_reset(i & 1 ? CRMOD : 0);
 		CHECK(tcgetattr(MODEL_FD, &t) == 0);
 		e = t;
-		e.c_iflag |= ICRNL;
-		e.c_oflag &= ~ONLCR;
+		if (i & 2) {
+			e.c_iflag |= ICRNL;
+			e.c_oflag &= ~ONLCR;
+		} else {
+			e.c_iflag &= ~ICRNL;
+			e.c_oflag |= ONLCR;
+		}
 		snapshot();
-		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
+		test_errno = 0;
+		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == -1 &&
+		    test_errno == EINVAL);
 		CHECK(state_equal(&model, &before) && sets_issued() == 0);
-		e.c_iflag &= ~ICRNL;
-		e.c_oflag |= ONLCR;
+		e.c_lflag ^= TOSTOP;
 		CHECK(tcsetattr(MODEL_FD, TCSANOW, &e) == 0);
-		CHECK(state_equal(&model, &before) && sets_issued() == 0);
+		CHECK((model.flags ^ before.flags) == TOSTOP);
 	}
 
 	/* HUPCL is set only: a set request reaches TIOCHPCL, a clear one does not. */
@@ -1285,6 +1332,7 @@ main(void)
 	check_raw_flush();
 	check_drain();
 	check_actions();
+	check_zero_ispeed();
 	check_pgrp_winsize();
 	check_break();
 	return lsys_verdict("libc_termios");

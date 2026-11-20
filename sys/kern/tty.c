@@ -448,6 +448,9 @@ ttioctl(register struct tty *tp, u_int com, caddr_t data, int flag)
     case TIOCSTI:
     case TIOCSWINSZ:
     case TIOCSMINTIME:
+    case TIOCDRAIN:
+    case TIOCSTOP:
+    case TIOCSTART:
         while (u.u_procp->p_pgrp != tp->t_pgrp && tp == u.u_ttyp &&
            (u.u_procp->p_flag & SVFORK) == 0 &&
            !(u.u_procp->p_sigignore & sigmask(SIGTTOU)) &&

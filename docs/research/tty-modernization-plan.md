@@ -81,7 +81,7 @@ function the row changes.
 | Item | Issue 8 | Today (sgtty source of truth) | Shim mapping | Kernel change: text / RAM (E) | Test |
 |---|---|---|---|---|---|
 | BRKINT | required | no bit; tty.c has no break-input path (search, I) | report clear; set unchanged | declined: 0 / 0 | RV, RF |
-| ICRNL | required | CRMOD sys/sys/ioctl.h:137; input map sys/kern/tty.c:1002 | ICRNL and ONLCR move together onto CRMOD; a split request succeeds (part-honored) and leaves CRMOD unchanged | none; a split bit costs +30-50 B (E) and is built only on a program need | RT |
+| ICRNL | required | CRMOD sys/sys/ioctl.h:137; input map sys/kern/tty.c:1002 | ICRNL and ONLCR move together onto CRMOD; a split request alone is refused with EINVAL, and beside an honored change leaves CRMOD unchanged | none; a split bit costs +30-50 B (E) and is built only on a program need | RT |
 | IGNBRK | required | no bit | report clear; set unchanged | declined: 0 / 0 | RV, RF |
 | IGNCR | required | no bit; sys/kern/tty.c:1002 maps CR to NL only | report clear; set unchanged | declined; +30 B if built (E) | RV, RF |
 | IGNPAR | required | no bit; EVENP and ODDP sys/sys/ioctl.h:139-141 have no reader in sys/kern/tty.c (search) | report clear; set unchanged | declined: 0 / 0 | RV, RF |

@@ -48,7 +48,7 @@ set-mode-swapped	lib/libc/gen/tcattr.c	s/isig ? CBREAK : RAW/isig ? RAW : CBREAK
 set-mode-icanon-isig-allowed	lib/libc/gen/tcattr.c	s/if (icanon && !isig)/if (0)/
 set-cc-dropped	lib/libc/gen/tcattr.c	s/\*ccref(&n, c) = t->c_cc\[c->index\];//
 set-vmin-unchecked	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] != have.c_cc\[VMIN\] ||/0 ||/
-set-ispeed-unchecked	lib/libc/gen/tcattr.c	s/if (t->c_ispeed > B4000000)/if (0)/
+set-ispeed-unchecked	lib/libc/gen/tcattr.c	s/if (ispeed > B4000000)/if (0)/
 set-ospeed-from-ispeed	lib/libc/gen/tcattr.c	s/n.sg.sg_ospeed = (char)t->c_ospeed;/n.sg.sg_ospeed = (char)t->c_ispeed;/
 set-any-action	lib/libc/gen/tcattr.c	s/if (action != TCSANOW \&\& action != TCSADRAIN \&\& action != TCSAFLUSH) {/if (action < -1000) {/
 set-tchars-always	lib/libc/gen/tcattr.c	s/differs(&n.tc, &cur.tc, sizeof n.tc) &&/1 \&\&/
@@ -87,3 +87,7 @@ break-too-long	lib/libc/gen/tcsendbreak.c	s/300000L/900000L/
 break-never-released	lib/libc/gen/tcsendbreak.c	s/return ioctl(fd, TIOCCBRK);/return 0;/
 break-sleeps-after-failure	lib/libc/gen/tcsendbreak.c	s/if (ioctl(fd, TIOCSBRK) < 0)/if (ioctl(fd, TIOCSBRK) < 0) { usleep(300000L); return -1; } if (0)/
 break-released-first	lib/libc/gen/tcsendbreak.c	s/TIOCSBRK/TIOCCBRK/
+set-ispeed-zero-literal	lib/libc/gen/tcattr.c	s/if (ispeed == 0 \&\& have.c_ispeed != 0)/if (0)/
+set-ispeed-zero-always	lib/libc/gen/tcattr.c	s/if (ispeed == 0 \&\& have.c_ispeed != 0)/if (ispeed == 0)/
+set-ispeed-zero-ignores-ospeed	lib/libc/gen/tcattr.c	s/ispeed = t->c_ospeed;/ispeed = have.c_ospeed;/
+set-split-honored	lib/libc/gen/tcattr.c	0,/refused = 1;/{/if (want != ((t->c_oflag \& ONLCR) != 0))/{n;s/refused = 1;/honored = 1;/}}

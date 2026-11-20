@@ -3,3 +3,5 @@ gate.o
 shim.o
 tty_extracted.c
 machine/
+tty_nolist.c
+tty_nolist_out.c

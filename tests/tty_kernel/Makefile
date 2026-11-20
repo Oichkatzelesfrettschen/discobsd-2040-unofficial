@@ -41,6 +41,7 @@ KERNEL_FLAGS=	-std=gnu17 ${WARN} ${ILP32} -ffreestanding -fno-builtin \
 	-nostdinc -I. -I${SHIM_DIR} -I${TOPSRC}/sys -I${TOPSRC}/sys/arch \
 	-I${PORT_INCLUDE}
 EXTRACTED=	tty_extracted.c
+JOB_CONTROL_REQUESTS=	TIOCSMINTIME TIOCDRAIN TIOCSTOP TIOCSTART
 
 ILP32_CC= ${HOSTCC}
 include ${TOPSRC}/tools/test-execution.mk
@@ -80,6 +81,16 @@ ${PROG}: gate.o shim.o
 # gate must reject; a script that changes nothing or breaks the build is an
 # error.
 mutants: ${EXTRACTED} shim.o ${MACHINE_STAMP}
+	@for label in ${JOB_CONTROL_REQUESTS}; do \
+		sed "0,/^    case $$label:\$$/{//d;}" ${TOPSRC}/sys/kern/tty.c > tty_nolist.c; \
+		if cmp -s tty_nolist.c ${TOPSRC}/sys/kern/tty.c; then \
+			echo "FAIL job-control $$label: the label was not found" >&2; exit 1; fi; \
+		if ${PYTHON} extract.py --source tty_nolist.c \
+		    --payload-source ${TOPSRC}/sys/kern/sys_generic.c \
+		    --output tty_nolist_out.c 2>/dev/null; then \
+			echo "FAIL job-control $$label dropped from the list survived" >&2; exit 1; fi; \
+		echo "PASS job-control list without $$label rejected"; \
+	done; rm -f tty_nolist.c tty_nolist_out.c
 	@while IFS='	' read -r label script; do \
 		case "$$label" in ''|'#'*) continue;; esac; \
 		HOSTCC="${HOSTCC}" KERNEL_FLAGS="${KERNEL_FLAGS}" EXTRACTED="${EXTRACTED}" sh ./mutant.sh "$$label" "$$script" || exit 1; \

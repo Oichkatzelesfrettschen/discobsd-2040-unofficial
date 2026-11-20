@@ -275,6 +275,7 @@ tcsetattr(int fd, int action, const struct termios *t)
 	tcflag_t known[4];
 	unsigned int f, honored, refused;
 	int want, icanon, isig, ican, sig, i, local;
+	speed_t ispeed;
 	tcflag_t tab;
 
 	if (action != TCSANOW && action != TCSADRAIN && action != TCSAFLUSH) {
@@ -309,10 +310,10 @@ tcsetattr(int fd, int action, const struct termios *t)
 			f &= ~r->sbit;
 	}
 
-	/* ICRNL and ONLCR are CRMOD together; a split request leaves it. */
+	/* ICRNL and ONLCR are CRMOD together; a split request is refused. */
 	want = (t->c_iflag & ICRNL) != 0;
 	if (want != ((t->c_oflag & ONLCR) != 0))
-		honored = 1;
+		refused = 1;
 	else if (want != ((have.c_iflag & ICRNL) != 0)) {
 		honored = 1;
 		if (want)
@@ -388,11 +389,19 @@ tcsetattr(int fd, int action, const struct termios *t)
 			refused = 1;
 	}
 
-	if (t->c_ispeed > B4000000)
+	/*
+	 * An input speed of 0 follows the output speed (POSIX.1-2024 cfsetispeed),
+	 * except that a terminal already at input speed 0 stays there, so a state
+	 * read back and written again is unchanged.
+	 */
+	ispeed = t->c_ispeed;
+	if (ispeed == 0 && have.c_ispeed != 0)
+		ispeed = t->c_ospeed;
+	if (ispeed > B4000000)
 		refused = 1;
-	else if (t->c_ispeed != have.c_ispeed) {
+	else if (ispeed != have.c_ispeed) {
 		honored = 1;
-		n.sg.sg_ispeed = (char)t->c_ispeed;
+		n.sg.sg_ispeed = (char)ispeed;
 	}
 	if (t->c_ospeed > B4000000)
 		refused = 1;

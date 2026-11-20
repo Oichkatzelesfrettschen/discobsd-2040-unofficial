@@ -29,7 +29,8 @@
 /*
  * Speed accessors of struct termios. The kernel keeps the speeds as the B*
  * indices of <sys/ttydev.h>, so a value past B4000000 names no speed and
- * the setters refuse it. The stored value reaches the kernel at tcsetattr().
+ * the setters refuse it. The stored value reaches the kernel at tcsetattr(),
+ * which gives an input speed of 0 the output speed (tcattr.c).
  */
 #include <errno.h>
 #include <termios.h>

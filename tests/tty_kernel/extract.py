@@ -44,7 +44,7 @@ FUNCTIONS = (
 # ttioctl cases: (first label, text that ends the last case of the group).
 CASE_GROUPS = (
     ("mintime", "    case TIOCGMINTIME:\n", "    case TIOCSMINTIME:\n        tp->t_vmin"),
-    ("drain", "    case TIOCDRAIN:\n", "    case TIOCDRAIN:\n"),
+    ("drain", "    case TIOCDRAIN:\n        ttywait", "    case TIOCDRAIN:\n        ttywait"),
 )
 
 
@@ -99,6 +99,33 @@ def check_payload_lists(source: str) -> None:
         raise ValueError("TIOCSMINTIME is not in the set payload list")
 
 
+JOB_CONTROL_REQUESTS = (
+    "TIOCSMINTIME",
+    "TIOCDRAIN",
+    "TIOCSTOP",
+    "TIOCSTART",
+)
+
+
+def check_job_control_list(source: str) -> None:
+    """Require the requests that change a terminal in ttioctl()'s first switch.
+
+    A caller in a background process group that issues one of these requests
+    gets SIGTTOU (unless it blocks or ignores the signal) before the request
+    runs; the list of such requests is the run of case labels that ends at
+    the while loop sending the signal.
+    """
+    loop = "        while (u.u_procp->p_pgrp != tp->t_pgrp"
+    if source.count(loop) != 1:
+        raise ValueError("the SIGTTOU loop is not where expected")
+    end = source.index(loop)
+    start = source.rindex("    switch (com) {", 0, end)
+    region = source[start:end]
+    for request in JOB_CONTROL_REQUESTS:
+        if region.count("    case " + request + ":\n") != 1:
+            raise ValueError(request + " is not in the SIGTTOU request list")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", type=Path, required=True)
@@ -109,6 +136,7 @@ def main() -> None:
     check_payload_lists(arguments.payload_source.read_text())
     source_bytes = arguments.source.read_bytes()
     source = source_bytes.decode()
+    check_job_control_list(source)
     parts = [
         "/* Extracted from "
         + arguments.source.name

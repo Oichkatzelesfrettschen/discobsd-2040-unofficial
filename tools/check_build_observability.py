@@ -126,7 +126,7 @@ HOST_REQUIRED_LOGS = {
     "macos": ".build-logs/host-macos.log",
 }
 JOB_PATTERN = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$", re.MULTILINE)
-STEP_PATTERN = re.compile(r"^      - (?:name|uses):", re.MULTILINE)
+STEP_PATTERN = re.compile(r"^      - \S", re.MULTILINE)
 LABEL_PATTERN = re.compile(r"--label\s+([A-Za-z0-9._-]+)")
 APT_GET_PATTERN = re.compile(r"\b(?:apt-get|ci_apt_install\.sh)\b")
 DIRECT_BMAKE_PATTERN = re.compile(
@@ -158,7 +158,7 @@ def step_blocks(job):
 
 
 def step_name(step):
-    match = re.match(r"^      - name:\s*(.+?)\s*$", step, re.MULTILINE)
+    match = re.search(r"^(?:      - |        )name:\s*(.+?)\s*$", step, re.MULTILINE)
     return match.group(1) if match is not None else "unnamed step"
 
 

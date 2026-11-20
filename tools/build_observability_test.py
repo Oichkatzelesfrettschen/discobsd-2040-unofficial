@@ -363,6 +363,23 @@ class BuildObservabilityTest(unittest.TestCase):
         bounded = step.replace("        run:", "        timeout-minutes: 5\n        run:")
         self.validate(FIXTURE.replace(marker, bounded + marker, 1))
 
+    def test_apt_step_that_starts_with_another_key_is_still_a_step(self):
+        # A step may open with id: or if: before its name; the step boundary
+        # is the sequence item, not a name or uses key.
+        marker = "      - name: Retain fixture logs\n"
+        first_key = (
+            "      - id: install\n"
+            "        name: Install the fixture packages\n"
+            "        run: |\n"
+            "          sudo apt-get install -y bmake\n"
+        )
+        with self.assertRaisesRegex(
+            ValueError, "step Install the fixture packages installs packages"
+        ):
+            self.validate(FIXTURE.replace(marker, first_key + marker, 1))
+        bounded = first_key.replace("        run:", "        timeout-minutes: 5\n        run:")
+        self.validate(FIXTURE.replace(marker, bounded + marker, 1))
+
     def test_install_step_of_the_repository_workflow_needs_its_deadline(self):
         source = (ROOT / ".github/workflows/firmware.yml").read_text(encoding="utf-8")
         marker = "      - name: Install the host toolchain\n        timeout-minutes: 20\n"

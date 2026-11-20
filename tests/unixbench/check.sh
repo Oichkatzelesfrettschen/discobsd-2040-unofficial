@@ -34,7 +34,10 @@
 # programs' writes into their directory all run. The check fails on "not
 # found", on a permission error or on a missing result log. Three mutants of
 # Run that restore the unfixed behavior (HOMEDIR off PATH, results in the
-# install tree, tests run in the install tree) must each fail it.
+# install tree, tests run in the install tree) must each fail it. A second
+# case plants a link at the default work directory's name and requires Run to
+# stop with the link's target untouched; a mutant that makes that directory
+# with mkdir -p must fail it.
 
 set -eu
 

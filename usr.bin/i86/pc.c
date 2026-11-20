@@ -609,7 +609,12 @@ keyboard(struct i86 *c)
 		if (kq_n == 0) {
 			key_wait(1);
 			if (kq_n == 0) {
-				c->ip -= 3;	/* run this trap again */
+				/* Run this trap again, with interrupts
+				 * let in between the runs as the firmware's
+				 * wait loop does: the clock keeps time while
+				 * the guest waits for a key. */
+				c->ip -= 3;
+				c->fl |= F_IF;
 				return (1);
 			}
 		}

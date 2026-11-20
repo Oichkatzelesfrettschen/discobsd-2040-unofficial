@@ -22,169 +22,130 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-"""Run cpu.c against the SingleStepTests processor vectors.
+"""Run cpu.c against a whole SingleStepTests suite.
 
-Each vector gives the registers and memory before one instruction and what
-a real processor left after it. This driver feeds the vectors of a
-directory of NN.json.gz files (github.com/SingleStepTests/8088, v2) to
-tests/sstrun and compares registers, flags under the suite's mask of
-defined flags, and memory. The vectors are not part of this tree: the
-directory is named on the command line.
+    sst.py SSTRUN 8088 DIR [--limit N] [--only FORM,...]
+    sst.py SSTRUN 80286 DIR [--limit N] [--only FORM,...]
 
-    sst.py SSTRUN DIR [--limit N] [--min-pass PERCENT] [--only OP,...]
+The samples of this directory hold a few vectors of each instruction form;
+this driver runs every vector of every documented form, or the first N of
+each. DIR is what mksample.py takes for the same suite, and the vectors,
+the flag masks and the classes left out by rule are mksample.py's: a vector
+that the sample would hold is compared here in the same way. The suites are
+not part of this tree (the 8088 one is about 800 MB).
 
-Exit status 0 when every documented form passes every sampled vector.
+Exit status 0 when no documented form fails a vector.
 """
 
 import concurrent.futures
-import gzip
-import json
 import os
 import subprocess
 import sys
 
-REGS = ["ax", "bx", "cx", "dx", "cs", "ss", "ds", "es", "sp", "bp", "si", "di", "ip", "flags"]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mksample  # noqa: E402
+
+MODEL = {"8088": "0", "80286": "2"}
 
 
-def form_meta(meta, name, test):
-    """The metadata entry of a vector: per opcode, or per reg field."""
-    entry = meta.get(name.split(".")[0], {})
-    if "reg" in entry:
-        if "." in name:
-            reg = name.split(".")[1]
-        else:
-            body = [b for b in test["bytes"]]
-            while body and body[0] in (0x26, 0x2E, 0x36, 0x3E, 0xF0, 0xF2, 0xF3):
-                body = body[1:]
-            reg = str((body[1] >> 3) & 7)
-        entry = entry["reg"].get(reg, {})
-    return entry
-
-
-def run_file(args):
-    sstrun, path, meta, limit = args
-    name = os.path.basename(path).split(".json")[0]
-    with gzip.open(path, "rt") as handle:
-        tests = json.load(handle)
+def run_form(job):
+    sstrun, suite, src, entry, name, meta, limit = job
+    tests = mksample.load(suite, src, entry)
     if limit:
         tests = tests[:limit]
-    lines = []
+    vectors = []
+    skipped = 0
     for test in tests:
-        init = test["initial"]
-        want = dict(init["regs"])
-        want.update(test["final"]["regs"])
-        ram = {}
-        for addr, value in init["ram"]:
-            ram[addr] = value
-        for addr, value in test["final"]["ram"]:
-            ram[addr] = value
-        test["_want"] = want
-        test["_ram"] = sorted(ram.items())
-        parts = [str(init["regs"][r]) for r in REGS]
-        parts.append(str(len(init["ram"])))
-        for addr, value in init["ram"]:
-            parts += [str(addr), str(value)]
-        parts.append(str(len(ram)))
-        parts += [str(addr) for addr, _ in test["_ram"]]
-        lines.append(" ".join(parts))
+        form = mksample.form_of(meta, name, test)
+        if form.get("status", "normal") != "normal":
+            return name, 0, 0, 0, None
+        line = mksample.line_of(suite, name, form, test)
+        if line is None:
+            skipped += 1
+            continue
+        vectors.append((test, line.split("|")))
+    lines = []
+    for _, (_, before, _, store, _, compare) in vectors:
+        pairs = [int(x, 16) for x in store.split()]
+        triples = [int(x, 16) for x in compare.split()]
+        parts = [int(x, 16) for x in before.split()]
+        parts += [len(pairs) // 2] + pairs + [len(triples) // 3] + triples[0::3]
+        lines.append(" ".join(str(x) for x in parts))
     done = subprocess.run(
-        [sstrun, "0"], input="\n".join(lines) + "\n", capture_output=True, text=True, check=False
+        [sstrun, MODEL[suite]],
+        input="\n".join(lines) + "\n",
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    out = done.stdout.splitlines()
-    if done.returncode != 0 or len(out) != len(tests):
-        return (
-            name,
-            "normal",
-            len(tests),
-            len(tests),
-            "sstrun failed: exit %d, %d replies" % (done.returncode, len(out)),
-        )
+    replies = done.stdout.splitlines()
+    if done.returncode != 0 or len(replies) != len(vectors):
+        return name, len(vectors), len(vectors), skipped, "sstrun exit %d" % done.returncode
     failed = 0
     first = None
-    status = "normal"
-    for test, line in zip(tests, out):
-        entry = form_meta(meta, name, test)
-        status = entry.get("status", "normal")
-        mask = entry.get("flags-mask", 0xFFFF)
-        got = [int(x) for x in line.split()]
-        why = None
-        # A divide error leaves the arithmetic flags undefined, in the
-        # register and in the image the interrupt pushed.
-        pushed = {}
-        init_regs = test["initial"]["regs"]
-        want_sp = test["_want"]["sp"]
-        if name[:2] in ("D4", "F6", "F7") and want_sp == (init_regs["sp"] - 6) & 0xFFFF:
-            mask &= ~0x08D5
-            base = test["_want"]["ss"] << 4
-            pushed[(base + ((want_sp + 4) & 0xFFFF)) & 0xFFFFF] = mask & 0xFF
-            pushed[(base + ((want_sp + 5) & 0xFFFF)) & 0xFFFFF] = mask >> 8
-        for i, reg in enumerate(REGS):
-            a, b = got[i], test["_want"][reg]
-            if reg == "flags":
-                a &= mask
-                b &= mask
-            if a != b:
-                why = "%s got %04x want %04x" % (reg, got[i], test["_want"][reg])
-                break
-        if why is None:
-            for (addr, value), have in zip(test["_ram"], got[len(REGS) :]):
-                if (value ^ have) & pushed.get(addr, 0xFF):
-                    why = "ram %05x got %02x want %02x" % (addr, have, value)
-                    break
-        if why is not None:
+    for (test, (_, _, mask, _, after, compare)), reply in zip(vectors, replies):
+        got = [int(x) for x in reply.split()]
+        want = [int(x, 16) for x in after.split()]
+        mask = int(mask, 16)
+        got[13] &= mask
+        want[13] &= mask
+        triples = [int(x, 16) for x in compare.split()]
+        memory = all(
+            (have ^ value) & m == 0
+            for have, value, m in zip(got[14:], triples[1::3], triples[2::3])
+        )
+        if got[:14] != want or not memory:
             failed += 1
             if first is None:
-                first = "%s [%s]: %s" % (
-                    test["name"],
+                first = "%s [%s]" % (
+                    test.get("name", "?"),
                     " ".join("%02x" % b for b in test["bytes"]),
-                    why,
                 )
-    return name, status, len(tests), failed, first
+    return name, len(vectors), failed, skipped, first
 
 
 def main(argv):
-    if len(argv) < 3:
+    if len(argv) < 4 or argv[2] not in MODEL:
         sys.stderr.write(__doc__)
         return 2
-    sstrun, directory = argv[1], argv[2]
-    limit, only, min_pass = 0, None, 100.0
-    rest = argv[3:]
+    sstrun, suite, src = argv[1:4]
+    limit, only = 0, None
+    rest = argv[4:]
     while rest:
-        if rest[0] == "--limit":
+        if len(rest) > 1 and rest[0] == "--limit":
             limit = int(rest[1])
-        elif rest[0] == "--only":
+        elif len(rest) > 1 and rest[0] == "--only":
             only = set(rest[1].upper().split(","))
-        elif rest[0] == "--min-pass":
-            min_pass = float(rest[1])
         else:
             sys.stderr.write(__doc__)
             return 2
         rest = rest[2:]
-    with open(os.path.join(directory, "metadata.json")) as handle:
-        meta = json.load(handle)["opcodes"]
+    where = src if suite == "8088" else os.path.join(src, "v1_real_mode")
+    suffix = ".json.gz" if suite == "8088" else ".MOO.gz"
+    meta = mksample.metadata(where)
     jobs = []
-    for entry in sorted(os.listdir(directory)):
-        if not entry.endswith(".json.gz"):
+    for entry in sorted(os.listdir(where)):
+        if not entry.endswith(suffix):
             continue
-        name = entry.split(".json")[0]
-        if only and name.split(".")[0] not in only and name not in only:
+        name = entry[: -len(suffix)]
+        if only and name not in only and name.split(".")[0] not in only:
             continue
-        jobs.append((sstrun, os.path.join(directory, entry), meta, limit))
+        jobs.append((sstrun, suite, src, entry, name, meta, limit))
     if not jobs:
-        sys.stderr.write("sst: no vectors in %s\n" % directory)
+        sys.stderr.write("sst: no vectors in %s\n" % where)
         return 2
-    bad = total = 0
+    total = bad = left_out = 0
     with concurrent.futures.ProcessPoolExecutor() as pool:
-        for name, status, count, failed, first in pool.map(run_file, jobs):
-            documented = status == "normal"
-            if documented:
-                total += count
+        for name, count, failed, skipped, first in pool.map(run_form, jobs):
+            total += count
+            left_out += skipped
             if failed:
-                rate = 100.0 * (count - failed) / count
-                print("%-5s %-12s %5d/%d failed  %s" % (name, status, failed, count, first))
-                if documented and rate < min_pass:
-                    bad += 1
-    print("sst: %d documented vectors, %d forms below %.1f%%" % (total, bad, min_pass))
+                bad += 1
+                print("%-6s %5d of %d fail, first %s" % (name, failed, count, first))
+    print(
+        "sst %s: %d vectors of documented forms run, %d left out by rule, "
+        "%d forms with a failing vector" % (suite, total, left_out, bad)
+    )
     return 1 if bad else 0
 
 

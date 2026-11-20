@@ -8,7 +8,7 @@
 | `sst8088-sample.txt.gz` | 4,485 single-instruction vectors: twelve for each of the 279 documented instruction forms of the 8088, three hundred for DAA, DAS and each IDIV form. `mksample.py` states the format. |
 | `sst80286-sample.txt.gz` | 3,047 vectors of the 80286 in real mode: eight for each documented form, three hundred for DAA and for DAS, less the classes `mksample.py` leaves out by rule. |
 | `mksample.py` | Writes either sample from its full vector set. |
-| `sst.py` | Runs the full vector set, which this tree does not carry (about 800 MB): `bmake -C usr.bin/i86 test-sst SST_DIR=<8088/v2>`. |
+| `sst.py` | Runs a whole suite, which this tree does not carry (the 8088 one is about 800 MB): `bmake -C usr.bin/i86 test-sst SST_SUITE=8088 SST_DIR=<8088/v2>`, or `SST_SUITE=80286 SST_DIR=<80286 checkout>`; `SST_ARGS="--limit 1500"` runs the first 1,500 vectors of each form. |
 
 ## Origin of the vectors
 

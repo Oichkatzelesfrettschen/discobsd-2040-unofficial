@@ -309,7 +309,7 @@ main:	; Thirty lines scroll the screen before the results.
 	; the firmware, and read back.
 	mov ax, 0xb800
 	mov es, ax
-	mov di, 4 * 160		; four lines scroll after this
+	mov di, 5 * 160		; five lines scroll after this
 	mov si, m_direct
 	mov ah, 0x1e
 .cell:	lodsb
@@ -324,7 +324,7 @@ main:	; Thirty lines scroll the screen before the results.
 	int 0x10
 	push dx
 	mov ah, 2
-	mov dx, 0x0505
+	mov dx, 0x0605
 	int 0x10
 	mov ax, 0x095a
 	mov bx, 0x004f
@@ -371,7 +371,10 @@ main:	; Thirty lines scroll the screen before the results.
 	mov si, m_mobad
 .mode:	call puts
 
-	; Keyboard: three keys, each echoed with its key code.
+	; Keyboard: three keys, each echoed with its key code, and the
+	; timer ticks that passed while waiting for them.
+	mov ax, [0x46c]
+	mov [t0], ax
 	mov cx, 3
 .key:	xor ah, ah
 	int 0x16
@@ -386,6 +389,11 @@ main:	; Thirty lines scroll the screen before the results.
 	mov ah, 0x0e
 	int 0x10
 	loop .key
+	mov si, m_wait
+	call puts
+	mov ax, [0x46c]
+	sub ax, [t0]
+	call hex4
 	mov si, m_done
 	call puts
 	jmp halt
@@ -403,6 +411,7 @@ hook:	push ax
 	iret
 
 top:	dw 0
+t0:	dw 0
 trapped: db 0
 count:	dw 0
 hflags:	dw 0
@@ -429,6 +438,7 @@ m_hbad:	db "HOOK BAD", 13, 10, 0
 m_direct: db "DIRECT", 0
 m_vid:	db "VID OK", 13, 10, 0
 m_vbad:	db "VID BAD", 13, 10, 0
+m_wait:	db 13, 10, "WAIT ", 0
 m_mode:	db "MODE OK", 13, 10, 0
 m_mobad: db "MODE BAD", 13, 10, 0
 m_done:	db 13, 10, "DONE", 13, 10, 0

@@ -104,6 +104,7 @@ static uint8_t *bank[2];		/* even and odd scan lines */
 static uint8_t reg_mode = 0x29, reg_color = 0x30;
 static unsigned cur_shown = GFX_NOCURSOR;
 static uint8_t line[LCDG_WIDTH];
+static int pointer;			/* mouse keys are on: show the mark */
 
 /* Device output. A failed command draws nothing and the next refresh
  * finds its pages rearmed, so nothing is retried: the device rejects
@@ -436,6 +437,52 @@ graphic_refresh(void)
 	}
 }
 
+/* The mark of mouse keys (pc.c): a white pointer arrow in the panel's top
+ * margin while they are on, and black there otherwise. Fills take their
+ * color as RGB565 whatever the mode's palette holds. */
+#define PTR_X		308
+#define PTR_Y		26
+
+static void
+pointer_draw(void)
+{
+	static const uint8_t rows[8] = {
+		0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xd8, 0x8c, 0x06
+	};
+	struct lcdg_rect r;
+	unsigned x, y, end;
+
+	r.x0 = PTR_X;
+	r.y0 = PTR_Y;
+	r.x1 = PTR_X + 7;
+	r.y1 = PTR_Y + 7;
+	r.color = 0;
+	(void)DEV_IOCTL(fd, LCDG_FILL, &r);
+	if (!pointer)
+		return;
+	r.color = 0xffff;
+	for (y = 0; y < 8; y++)
+		for (x = 0; x < 8; x = end + 1) {
+			/* One fill a run of the row's pixels. */
+			for (end = x; end < 8 && (rows[y] << end & 0x80); end++)
+				;
+			if (end == x)
+				continue;
+			r.x0 = (u_short)(PTR_X + x);
+			r.x1 = (u_short)(PTR_X + end - 1);
+			r.y0 = r.y1 = (u_short)(PTR_Y + y);
+			(void)DEV_IOCTL(fd, LCDG_FILL, &r);
+		}
+}
+
+void
+gfx_pointer(int on)
+{
+	pointer = on;
+	if (gfx_on)
+		pointer_draw();
+}
+
 void
 gfx_refresh(unsigned cols, unsigned cursor)
 {
@@ -451,6 +498,8 @@ gfx_refresh(unsigned cols, unsigned cursor)
 		all.y1 = LCDG_HEIGHT - 1;
 		all.color = 0;
 		(void)DEV_IOCTL(fd, LCDG_FILL, &all);
+		if (pointer)
+			pointer_draw();
 		if (kind == K_TEXT)
 			memset(bank[0] + 0x1000, 0, 0x1000);
 		cur_shown = GFX_NOCURSOR;

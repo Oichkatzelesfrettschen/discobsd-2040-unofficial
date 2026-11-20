@@ -138,6 +138,13 @@ MUTANTS = [
         "if (fd < 0) {\n\t\t(void)kind_set(K_TEXT);",
         "if (fd < 0) {\n\t\tif (bank[1] == NULL)\n\t\t\t(void)kind_set(K_TEXT);",
     ),
+    ("gfx.c", "\t\tif (pointer)\n\t\t\tpointer_draw();", "\t\t(void)pointer;"),
+    (
+        "gfx.c",
+        "\tr.color = 0;\n\t(void)DEV_IOCTL(fd, LCDG_FILL, &r);\n\tif (!pointer)",
+        "\tr.color = 0;\n\tif (!pointer)",
+    ),
+    ("pc.c", "\t\t\tgfx_pointer(mouse_keys);", "\t\t\tgfx_pointer(1);"),
 ]
 
 
@@ -545,6 +552,45 @@ def test_menu(binary, work, fonts, boot):
     compare(closes[0][0], cga4_frame(Cga(fonts[0]).fields, 0x30), "panel lost in a graphics mode")
 
 
+def pointer(frame):
+    """The mark of mouse keys: a white arrow at panel column 308, line 26."""
+    rows = (0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xD8, 0x8C, 0x06)
+    for y, bits in enumerate(rows):
+        for x in range(8):
+            if bits >> (7 - x) & 1:
+                frame[26 + y][308 + x] = (255, 255, 255)
+    return frame
+
+
+def test_pointer(binary, work, fonts, boot):
+    """Control-\\ shows the mark, the menu's return draws it again, and a
+    second Control-\\ removes it."""
+    _, closes = session(
+        binary,
+        work,
+        [
+            (b"", b"1"),
+            (b"", b"\x1c"),
+            (b"", b"\x1d"),
+            (b"quit", b"x"),
+            (b"", b"\x1d"),
+            (b"quit", b"x"),
+            (b"", b"\x1c"),
+            (b"", b"\x1d"),
+            (b"quit", b"q"),
+        ],
+    )
+    if len(closes) != 4:
+        raise Failure("panel pointer: %d closes" % len(closes))
+    for number, (frame, counts) in enumerate(closes, 1):
+        if counts["errors"]:
+            raise Failure("panel pointer: the device rejected an operation")
+        want = expected(1, fonts, boot)
+        if number <= 2:
+            want = pointer(want)
+        compare(frame, want, "panel pointer, close %d" % number)
+
+
 def test(binary, src, work):
     with open(os.path.join(src, "tests", "panel.hexdump")) as handle:
         boot = bytes.fromhex("".join(handle.read().split()))
@@ -557,3 +603,4 @@ def test(binary, src, work):
     test_stages(binary, work, fonts, boot)
     test_fallbacks(binary, work, fonts, boot)
     test_menu(binary, work, fonts, boot)
+    test_pointer(binary, work, fonts, boot)

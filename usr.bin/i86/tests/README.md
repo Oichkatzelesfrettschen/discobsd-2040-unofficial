@@ -4,6 +4,7 @@
 | --- | --- |
 | `check.py` | The host gate `bmake -C usr.bin/i86 test` runs: the guest program on every processor model and page-frame count, the terminal replay, the processor vectors of the sample, then the mutants. |
 | `guest.asm`, `guest.hexdump` | The guest program and its assembly by `nasm -f bin`, 32 bytes a line. `check.py` compares the two when nasm is installed. |
+| `mouse.asm`, `mouse.hexdump` | The guest of the mouse test: it drives COM1 as a serial mouse driver does and prints each register it reads and each report and key it receives. |
 | `panel.py` | The panel display test `check.py` runs on the emulator built with `panel.c`: the frame each stage must leave, computed from the adapter's rules, and its mutants. |
 | `panel.c` | A model of `/dev/lcdgfx` that writes its frame and counters at every close. |
 | `panel.asm`, `panel.hexdump` | The guest of the panel display test and its assembly. |

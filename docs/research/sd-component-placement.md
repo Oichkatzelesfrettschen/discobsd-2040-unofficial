@@ -18,7 +18,7 @@ Source owners are `sys/arch/rp2040/conf/RP2040-sd.ld`, `dev/sd.c`, `rp2040/exec_
 ## Measurements and falsifiers
 
 * **Identity in the install tree.** A clean RP2040 build followed by construction of the PICOCALC SD root at source revision 0600b89cd (with staged configuration write checks) contains 154 regular-file hard-link groups. Group the regular paths under the installed root by the pair of lstat device and inode numbers. Remove paths named by the composed base manifest. Of the original groups, 152 still contain multiple extra names. Keeping one extra file per such group would replace 374 additional file entries representing 1,599,796 logical bytes. One group spans both manifest classes. These are counts from the source tree. Sparse blocks, directory entries, link-count limits and per-name image policy determine the allocation in the target image. An image-level comparison must check inode identity as well as free blocks.
-* **Packing in the SD profile.** The SD manifest inherits flash-profile packing. The existing stream inspector counts two validation/load passes and excludes text restoration. For executable i, measure the packed-minus-raw time per successful exec and separately per text restore. Multiply each paired difference by that event's workload count. Measure the combined workload to detect an interaction from contention or cache state. The bare-board seq measurements in rp2040-compiler-debug-optimization.md are controls for experimental design. They supply no SD timing coefficient.
+* **Packing in the SD profile.** The SD manifest inherits flash-profile packing. The stream inspector counts two passes at exec and one text-only pass per clean-text restoration. For executable i, measure the packed-minus-raw time per successful exec and separately per text restore. Multiply each paired difference by that event's workload count. Measure the combined workload to detect an interaction from contention or cache state. The bare-board seq measurements in rp2040-compiler-debug-optimization.md are controls for experimental design. They supply no SD timing coefficient.
 * **Shared SRAM.** Applet-private BSS has disjoint lifetimes because the dispatcher selects one applet per process. Codec workspace sharing requires ownership across calls that may sleep. An interference edge connects two objects whenever a reachable schedule keeps both live. Verify address alignment, interrupted execution and core-1 activity before assigning a shared extent. Read the final map and measure the peak stack separately.
 * **ROM substitution.** The historical forward-copy veneer saved 128 PICOCALC text bytes and cost eight permanent BSS bytes. Its overlapping pathname move fails the memmove contract. Repeat the paired link with the overlap-correct implementation, earliest boot caller and XIP-off path before accepting any saving. The rounded image size in the original PICOCALC experiment stayed constant.
 * **Cold services.** Keep partition admission, root discovery and swap recovery resident. Test the read-only partition report against the accepted extents available through DIOCGETPART. Compare the old boot observation and the proposed user command with an unreadable card and a mounted root. Source-side deletion earns a kernel-size claim only if the final linked span shrinks after all interface costs.
@@ -93,3 +93,42 @@ decoded program body against the raw executable. Every pair trades fewer
 stored bytes for more modeled input at this workload. Filesystem cache hits,
 allocated blocks, SD transfers, scheduler delays and elapsed time require
 separate measurements before changing the installed representation.
+
+## Linked ownership on PICOCALC_SD
+
+The ARMv6-M ELF for 345265caa and its parent b71a2ecc0 use the same
+GCC 16.2 build directory and linker script. Bloaty section differences
+and ARM objdump both show 56 fewer text bytes. The initialized flash
+span remains 128,904 bytes. Candidate text ends at 0x1001f39c and the
+board record starts at 0x1001f400. With the remaining sections fixed,
+another 156 text bytes reach the preceding 256-byte alignment boundary.
+The 34,680 bytes between the initialized span and the link-region limit
+already include the 1,024-byte acceptance margin.
+
+| Resource | Linked ownership or hardware role | Derivation and placement constraint |
+| --- | --- | --- |
+| Mask ROM and external QSPI | ROM enters boot2. The first 256 flash bytes hold boot2. The kernel executes through XIP. | Resolve callable ROM services by their table ABI. Earliest startup, overlap semantics and execution during a flash operation decide a copy substitution. |
+| XIP cache and SRAM aliases | The 16 KiB cache holds fetched flash lines. The bank aliases expose the same SRAM0-3 cells. | Counting an alias twice invents capacity. Repurposing cache storage changes execution latency and MPU coverage. See BOOT-MAP.md and MPU.md. |
+| Filesystem and swap flash | The SD map assigns 1,504 KiB at 0x10028000 to filesystem flash and 384 KiB at 0x101a0000 to raw swap. | Root selection and flash ownership have separate contracts. The foreign-flash boot gate samples seven words after SD root selection. |
+| User RAM and kernel RAM | The flat process window occupies 192 KiB. Inside the 58 KiB kernel region, initialized data occupies 144 bytes, SRAM-resident code 1,000 bytes and the SwapRAM pool 16,384 bytes. | The flash writer and PSRAM transfer routines need executable SRAM. The pool stores compressed state. The two 3 KiB user areas beyond kernel RAM hold process-zero and current-process state. |
+| SRAM4 and SRAM5 | The USB transmit ring occupies 4,096 bytes at 0x20040000. The tile atlas occupies the next 4,096 at 0x20041000. | Both owners appear in ARM nm. Console output and graphics can overlap. An additional buffer requires a demonstrated lifetime exclusion or a different owner. |
+| USB dual-port SRAM | Endpoint hardware owns the low area. The Dhara page, shared codec workspace and flash program page occupy 1,024, 1,040 and 256 bytes in the tail. | The two unassigned intervals contain 256 and 944 bytes. A contiguous 1,024-byte object fits neither. This region is execute-never. The callable boot2 copy remains in ordinary SRAM. |
+| PIO-attached PSRAM | The board provides 8 MiB behind PIO0. The default split assigns 2 MiB to swap and 6 MiB to temporary files. A usable SD temporary partition allows swap to occupy the full part. | Access uses bounded transfers. Executables and return addresses require resident, CPU-addressable memory. Loss of PSRAM has a different recovery contract from loss of clean executable text. |
+| SD card | The filesystem owns persistent executables, manuals and assets. A clean-text restore reads the same executable inode. | The hard-link image comparison frees 374 inodes and 1,908 KiB on a fixed-size root. Aliases share one inode only when the installation supplies that identity. |
+| Display and peripheral storage | Panel GRAM holds visible pixels. PIO instruction memory holds transfer programs. Device FIFOs hold pending transfers. Watchdog scratch registers carry reset state. | Display reset, FIFO consumption and reset-time recovery each end a different lifetime. The peripheral driver owns the transition. None of these capacities enters the user process window. |
+
+The partition reader shows how lifetime changes can help before an alignment
+boundary moves. Pahole reports four entries occupying bytes 0-63, a
+two-byte signature at 64, and two trailing alignment bytes. The transport
+consumes the sector for CRC and copies 66 bytes to an aligned local object.
+An error discards that object and preserves the accepted mappings. The
+normal read no longer borrows a filesystem cache block. Host mutations
+exercise failed reinitialization and table publication. Configured Renode
+mounts the root, reads and writes temporary storage, and exercises the
+missing-root panic. These checks leave physical latency and PSRAM timing open.
+
+Reproduce the binary observations with `arm-none-eabi-objdump -h`,
+`arm-none-eabi-nm -S -n`, `pahole -C sd_mbr`, and
+`bloaty -d sections CANDIDATE -- PARENT` on the two unstripped kernels.
+The executable names, linker addresses and member offsets are independently
+readable from the ELF, while all four tools share that artifact as evidence.

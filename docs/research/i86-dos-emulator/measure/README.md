@@ -1,4 +1,4 @@
-# Counting Thumb instructions per guest instruction
+# Counting Thumb instructions per interpreter step
 
 These two files produced the interpreter cost figures of
 `sys/arch/rp2040/doc/I86.md`. They are measurement tools, not gates.
@@ -29,10 +29,16 @@ qemu-arm -cpu cortex-m0 -plugin "$work/libcount.so" "$work/bench" fd.img 1200000
 The image and key script of the recorded figures: the FreeDOS 1.1 floppy of
 the 8086tiny distribution (`fd.img`, 1.44 MB) and
 `dir`, `ver`, `dir`, `type config.sys`, then `dir` eight times, each ended
-by a carriage return, for 12,000,000 guest instructions on the 80286 model.
+by a carriage return, for 12,000,000 steps on the 80286 model. A step is
+one guest instruction, except that a repeated string instruction runs up
+to 256 iterations in a step and a step may only deliver an interrupt.
+Built for the host with `-DCOMPOSITION`, `bench.c` prints how many steps
+of the same run were repeated string instructions and how many iterations
+they carried (the run is deterministic, so the host and the ARM build
+execute the same steps): 46,910 and 824,104 for the shipped build.
 The count includes the firmware services, the display memory and the
 polling of the keyboard service while the key script waits; it excludes
 terminal output and host sleeps, which the stubs remove. The plugin's total
 was checked once against a `-d exec,nochain -one-insn-per-tb` trace of the
-same run: both gave 134,252,058 instructions for 600,000 guest instructions
+same run: both gave 134,252,058 instructions for 600,000 steps
 of the first measured build.

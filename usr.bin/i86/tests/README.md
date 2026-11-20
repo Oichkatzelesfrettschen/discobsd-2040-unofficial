@@ -19,7 +19,10 @@
 code page 437 from the Misc-Fixed 4x6 and 5x8 fonts of the ucs-fonts
 collection, https://www.cl.cam.ac.uk/~mgk25/ucs-fonts.html, each of which
 carries the line `COPYRIGHT "Public domain font.  Share and enjoy."`. The
-kernel console's 6x9 font is from the same family.
+4x6 font has no glyph for fifteen of the pictures of code page 437 below
+32 (01h, 02h, 08h to 0Ch, 0Fh to 11h, 13h, 16h, 17h, 1Eh, 1Fh) or for
+7Fh; `../font/mkfont.py` draws them, and stops on any other character
+without a glyph. The kernel console's 6x9 font is from the same family.
 
 ## Origin of the vectors
 

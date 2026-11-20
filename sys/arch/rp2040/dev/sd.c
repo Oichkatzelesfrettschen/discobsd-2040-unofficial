@@ -38,10 +38,11 @@
  * holds for SD_DET_DEBOUNCE_US marks the card replaced, which fails every
  * transfer with EIO until the last close, because blocks cached for the old
  * card must not reach the new one. A level that returns to the committed
- * level before the interval ends changes nothing. The pin's polarity is not
- * interpreted: any stable change counts. DIOCMEDIAGONE reports the flag to
- * unmount(2), which then releases a mount whose write-back the card can no
- * longer take; DIOCGETPART reports the extents blkoverlap() in conf.c compares.
+ * level before the interval ends changes nothing. sd_setup() requires
+ * SD_DET_PRESENT (0, active-low J303 switch with pull-up) before SPI probing;
+ * DIOCMEDIAGONE reports the flag to unmount(2), which then releases a mount
+ * whose write-back the card can no longer take; DIOCGETPART reports the
+ * extents blkoverlap() in conf.c compares.
  *
  * Every blocking spl on the RP2040 is PRIMASK (machine/intr.h), and
  * splsoftclock() blocks nothing, so the sections that must exclude the
@@ -104,6 +105,7 @@
 #define	SSPCR1_SSE		(1UL << 1)
 #define	SSPSR_TNF		(1UL << 1)
 #define	SSPSR_RNE		(1UL << 2)
+#define	SSPSR_BSY		(1UL << 4)
 
 #define	SPI_REG(off)		PC_REG32(SPI0_BASE + (off))
 #define	PC_RESET_SPI0		(1UL << 16)
@@ -121,6 +123,7 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
     SD_PRESCALE_FAST % 2 == 0, "CPSDVSR is even, 2 to 254");
 
 #define	SD_DET_DEBOUNCE_US	50000
+#define	SD_DET_PRESENT		0	/* J303 TF-03A CD shorts to GND. */
 
 /*
  * The swap partition's bounds in DEV_BSIZE blocks. The swap map's compact
@@ -177,6 +180,8 @@ sd_select(int on)
 static void
 sd_speed(int fast)
 {
+	while ((SPI_REG(SSPSR) & SSPSR_BSY) != 0)
+		continue;
 	SPI_REG(SSPCR1) = 0;
 	SPI_REG(SSPCPSR) = fast ? SD_PRESCALE_FAST : SD_PRESCALE_SLOW;
 	SPI_REG(SSPCR0) = SSPCR0_DSS_8 | SSPCR0_SCR(fast ? 0 : SD_SCR_SLOW);
@@ -280,6 +285,12 @@ static u_int
 sd_det_pin(void)
 {
 	return (PC_REG32(SIO_GPIO_IN) >> PICOCALC_SD_DET) & 1;
+}
+
+static int
+sd_card_present(void)
+{
+	return sd_det_pin() == SD_DET_PRESENT;
 }
 
 void
@@ -393,7 +404,11 @@ sd_partitions(void)
 static int
 sd_setup(void)
 {
-	int err = sdspi_init(&sdcard);
+	int err;
+
+	if (!sd_card_present())
+		return ENODEV;
+	err = sdspi_init(&sdcard);
 
 	if (err != SDE_OK)
 		return err == SDE_NOCARD ? ENODEV : EIO;

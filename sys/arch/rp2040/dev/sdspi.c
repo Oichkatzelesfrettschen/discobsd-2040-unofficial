@@ -135,7 +135,7 @@ sd_cmd(const struct sdspi_ops *o, unsigned cmd, unsigned arg)
 	frame[5] = sd_crc7(frame, 5);
 	for (i = 0; i < 6; i++)
 		(void)o->xfer(frame[i]);
-	for (i = 0; i < NCR_MAX && (r & 0x80); i++)
+	for (i = 0; i <= NCR_MAX && (r & 0x80); i++)
 		r = o->xfer(0xff);
 	return (r & 0x80) ? R1_NONE : r;
 }
@@ -206,6 +206,8 @@ sdspi_csd_sectors(const unsigned char csd[16])
 	case 1:		/* CSD Register (CSD Version 2.0): (C_SIZE + 1) * 512 KiB. */
 		c_size = ((unsigned)(csd[7] & 0x3f) << 16) | (csd[8] << 8) |
 		    csd[9];
+		if (c_size == 0x3fffffU)
+			return ~0U;
 		return (c_size + 1) << 10;
 	case 0:		/* CSD Register (CSD Version 1.0). */
 		len = csd[5] & 0x0f;			/* READ_BL_LEN */

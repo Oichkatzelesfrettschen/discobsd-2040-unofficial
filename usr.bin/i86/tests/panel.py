@@ -133,6 +133,11 @@ MUTANTS = [
         "if (gfx_on) {\n\t\tgfx_refresh(cols, bda8(0x51) * cols + bda8(0x50));\n\t\treturn;\n\t}",
         "if (gfx_on)\n\t\tgfx_refresh(cols, bda8(0x51) * cols + bda8(0x50));",
     ),
+    (
+        "gfx.c",
+        "if (fd < 0) {\n\t\t(void)kind_set(K_TEXT);",
+        "if (fd < 0) {\n\t\tif (bank[1] == NULL)\n\t\t\t(void)kind_set(K_TEXT);",
+    ),
 ]
 
 
@@ -329,9 +334,9 @@ def expected(stage, fonts, boot):
     if stage == 8:
         return cga4_frame(Cga(wide).fields, 0x30)
     cells = [(32, 7)] * 2000
-    for k, ch in enumerate(b"TEXT"):
+    for k, ch in enumerate(b"TEXT4"):
         cells[k] = (ch, 7)
-    return text_frame(fonts, cells, 80, 4)
+    return text_frame(fonts, cells, 80, 5)
 
 
 def read_frame(path):
@@ -385,7 +390,7 @@ def run(binary, work, keys, extra=(), env=None):
 
 def test_stages(binary, work, fonts, boot):
     for stage in range(10):
-        keys = "%d" % stage + ("x" if stage in (6, 7) else "")
+        keys = "%d" % stage + ("x" if stage in (6, 7, 9) else "")
         done, closes = run(binary, work, keys)
         what = "panel stage %d" % stage
         if len(closes) != 1:
@@ -412,7 +417,7 @@ def test_stages(binary, work, fonts, boot):
 
 def test_fallbacks(binary, work, fonts, boot):
     """No device, and too few page frames to lend eight."""
-    done, closes = run(binary, work, "9", env={"I86_PANEL_FAIL": "open"})
+    done, closes = run(binary, work, "9x", env={"I86_PANEL_FAIL": "open"})
     if closes or b"no panel device" not in done.stderr:
         raise Failure("panel absent: no report")
     plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", done.stdout)
@@ -421,7 +426,7 @@ def test_fallbacks(binary, work, fonts, boot):
     # Eleven frames leave fewer than four after a loan of eight: the mode
     # stays text and the session goes on. Twelve suffice, and every page
     # the guest touches then goes through the four that are left.
-    done, closes = run(binary, work, "9", extra=["-f", "11"])
+    done, closes = run(binary, work, "9x", extra=["-f", "11"])
     if len(closes) != 1 or closes[0][1]["errors"]:
         raise Failure("panel with 11 frames: the session failed")
     compare(closes[0][0], expected(9, fonts, boot), "panel with 11 frames")
@@ -518,14 +523,26 @@ def test_menu(binary, work, fonts, boot):
     )
     if len(closes) != 1:
         raise Failure("panel lost: %d closes" % len(closes))
+    # Control-] while stage 9 waits for its key in mode 4: the one close
+    # shows that mode's fields, so the menu came in the graphics mode. The
+    # panel is not taken again, the firmware reports the 40 columns of
+    # mode 1 after the key, and the guest's text reaches the terminal.
     plain, closes = session(
         binary,
         work,
-        [(b"", b"9"), (b"", b"\x1d"), (b"quit", b"x"), (b"TEXT", b"\x1d"), (b"quit", b"q")],
+        [
+            (b"", b"9"),
+            (b"", b"\x1d"),
+            (b"quit", b"x"),
+            (b"", b"x"),
+            (b"TEXT1", b"\x1d"),
+            (b"quit", b"q"),
+        ],
         env={"I86_PANEL_FAIL": "reopen"},
     )
     if len(closes) != 1:
-        raise Failure("panel lost in a text mode: %d closes" % len(closes))
+        raise Failure("panel lost in a graphics mode: %d closes" % len(closes))
+    compare(closes[0][0], cga4_frame(Cga(fonts[0]).fields, 0x30), "panel lost in a graphics mode")
 
 
 def test(binary, src, work):

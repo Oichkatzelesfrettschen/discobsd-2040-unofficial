@@ -1054,7 +1054,10 @@ menu(void)
 	/* Draw the guest's screen again from nothing, also on the way out,
 	 * so that the session ends on what the guest last showed. A panel
 	 * that cannot be taken back leaves the terminal as the display,
-	 * which has no graphics mode. */
+	 * which has no graphics mode: the failed gfx_open() has put display
+	 * memory back to a text mode's cells and returned the borrowed
+	 * frames, and the mode set gives the guest a text mode's numbers in
+	 * the BIOS data area and blank cells. */
 	if (panel && gfx_open() != 0) {
 		oputs("\033[1;25r\033[?7l");
 		if (graphic)

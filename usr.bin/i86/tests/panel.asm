@@ -322,10 +322,16 @@ stage8:	mov dx, 0x3d8
 	out dx, al
 	ret
 
-; A graphics mode and back to text.
+; A graphics mode, a key, and back to text; the text ends with the digit
+; of the mode the firmware reported after the key.
 stage9:	mov ax, 4
 	int 0x10
 	call fields
+	call key
+	mov ah, 0x0f
+	int 0x10
+	add al, '0'
+	push ax
 	mov ax, 3
 	int 0x10
 	mov si, text
@@ -336,7 +342,11 @@ stage9:	mov ax, 4
 	mov bl, 7
 	int 0x10
 	jmp .next
-.done:	ret
+.done:	pop ax
+	mov ah, 0x0e
+	mov bl, 7
+	int 0x10
+	ret
 
 text:	db "TEXT", 0
 

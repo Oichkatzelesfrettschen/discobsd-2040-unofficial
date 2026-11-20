@@ -906,6 +906,16 @@ test_keymap(void)
 	key(PICOKBD_PRESSED, 0x89, 0, &ctrl, "\033[20~", "F9");
 	key(PICOKBD_PRESSED, 0x90, 0, &ctrl, "\033[21~", "F10");
 	key(PICOKBD_PRESSED, 0x91, 0, &ctrl, "", "power");
+	key(PICOKBD_HOLD, 0x91, 0, &ctrl, "", "power hold");
+	key(PICOKBD_RELEASED, 0x91, 0, &ctrl, "", "power release");
+	key(PICOKBD_PRESSED, 0xd0, 0, &ctrl, "\003", "break sends ETX");
+	key(PICOKBD_PRESSED, 0xd0, 1, &ctrl, "\003", "break in application mode");
+	key(PICOKBD_HOLD, 0xd0, 0, &ctrl, "", "break hold types nothing");
+	key(PICOKBD_RELEASED, 0xd0, 0, &ctrl, "", "break release types nothing");
+	key(PICOKBD_PRESSED, 0xa5, 0, &ctrl, "", "ctrl down for break");
+	key(PICOKBD_PRESSED, 0xd0, 0, &ctrl, "\003", "break with ctrl held");
+	key(PICOKBD_RELEASED, 0xa5, 0, &ctrl, "", "ctrl up after break");
+	key(PICOKBD_PRESSED, 0xd1, 0, &ctrl, "\033[2~", "insert after break");
 	key(PICOKBD_PRESSED, 0xa2, 0, &ctrl, "", "shift");
 }
 

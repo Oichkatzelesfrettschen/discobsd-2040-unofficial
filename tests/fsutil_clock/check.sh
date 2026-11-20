@@ -367,6 +367,7 @@ rejected()
 }
 
 link_fsutil superblock "$src/superblock.c" "$work/fsutil"
+"$PYTHON" "$topsrc/tests/fsutil_clock/extraction.py" "$work/fsutil"
 cases "$work/fsutil" >"$work/fsutil.log"
 if grep -q '^FAIL' "$work/fsutil.log"; then
 	grep '^FAIL' "$work/fsutil.log" >&2

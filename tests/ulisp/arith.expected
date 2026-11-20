@@ -36626,34 +36626,34 @@ Error: 'ash' argument is not an integer: 1.5
 Error: 'ash' argument is not an integer: -1.5
 12000> 
 (array-dimensions (make-array 2.14748e9)) => 
-Error: no room
+Error: 'make-array' argument is not an integer: 2.14748e9
 12000> 
 (array-dimensions (make-array -2.14748e9)) => 
-Error: 'make-array' dimension can't be negative
+Error: 'make-array' argument is not an integer: -2.14748e9
 12000> 
 (array-dimensions (make-array 1.0e10)) => 
-Error: no room
+Error: 'make-array' argument is not an integer: 1.0e10
 12000> 
 (array-dimensions (make-array -1.0e10)) => 
-Error: 'make-array' dimension can't be negative
+Error: 'make-array' argument is not an integer: -1.0e10
 12000> 
 (array-dimensions (make-array 3.4e38)) => 
-Error: no room
+Error: 'make-array' argument is not an integer: 3.4e38
 12000> 
 (array-dimensions (make-array -3.4e38)) => 
-Error: 'make-array' dimension can't be negative
+Error: 'make-array' argument is not an integer: -3.4e38
 12000> 
 (array-dimensions (make-array 0.5)) => 
-Error: no room
+Error: 'make-array' argument is not an integer: 0.5
 12000> 
 (array-dimensions (make-array -0.5)) => 
-Error: 'make-array' dimension can't be negative
+Error: 'make-array' argument is not an integer: -0.5
 12000> 
 (array-dimensions (make-array 1.5)) => 
-Error: no room
+Error: 'make-array' argument is not an integer: 1.5
 12000> 
 (array-dimensions (make-array -1.5)) => 
-Error: 'make-array' dimension can't be negative
+Error: 'make-array' argument is not an integer: -1.5
 12000> 
 (subseq abcdefghijklmnopqrstuvwxyz0123456789 2.14748e9) => 
 Error: 'subseq' argument is not an integer: 2.14748e9

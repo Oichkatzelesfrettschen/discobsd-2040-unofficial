@@ -242,7 +242,10 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 - A board that no longer answers on USB is not lost: hold BOOTSEL while
   plugging it in, it appears as the `RPI-RP2` drive, and the two UF2
   files from a release or a build restore it in under a minute ("Build
-  the firmware and flash a board" below).
+  the firmware and flash a board" below). Loading the kernel `unix.uf2`
+  preserves the root file system. Loading `flash.uf2` replaces the whole
+  root, including files under `/home` and local edits under `/etc`; save
+  those files before loading it.
 - Which firmware is on a board: `cat /etc/release` prints the commit,
   date and builder of the root file system, `uname -a` the kernel, and
   `cat /etc/COPYRIGHT` the license notice. A release or a listing states
@@ -334,6 +337,9 @@ external SIMH/V7 oracle are documented in `legacy/pdp11-v6/README.md`.
        picotool load distrib/rp2040/flash.uf2
        picotool reboot
 
+   `unix.uf2` changes the kernel and preserves the root file system.
+   `flash.uf2` replaces the whole root, including `/home` and edited
+   configuration under `/etc`; save local files before loading it.
    A change to the file system alone needs only `flash.uf2` reloaded.
    Copying the two `.uf2` files onto the `RPI-RP2` drive in a file
    manager works as well, one after the other, re-entering BOOTSEL

@@ -221,8 +221,8 @@ units, not a specification.
 A citation correction for the port: `st7365p.c:207`, `st7365p.c:876`,
 `picocalcvar.h:57` and `PANELTEST.md:31` give the 150 ns read cycle as
 "page 77". Page 77 of the datasheet is the 16-bit 8080 read data format;
-TSCYCR is on pages 53 and 54. The figure is right; the page is wrong
-(not changed here; recorded under Open).
+TSCYCR is on pages 53 and 54. The figure was right and the page wrong;
+those four citations now read page 54.
 
 ## Audio
 
@@ -331,7 +331,6 @@ Between donor and port:
 - The 25 MHz write clock against 12.5 MHz.
 - Panel reset timing, COLMOD default, scroll method.
 - Audio carrier and pacing.
-- The port cites the datasheet "page 77" for TSCYCR (pages 53 and 54).
 - Port Renode model note said it served "lock flags" at 0x04; it serves the
   count only (corrected in the keyboard commit).
 

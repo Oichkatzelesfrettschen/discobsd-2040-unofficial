@@ -204,7 +204,7 @@ spi_put(u_int b)
 #if defined(LCD_PANELTEST) || defined(LCD_GFX_EXT)
 /*
  * The read side: a byte exchanged for the one the panel shifts out on SDO,
- * and the clock change a read needs, since TSCYCR is 150 ns (page 77)
+ * and the clock change a read needs, since TSCYCR is 150 ns (page 54)
  * against the 66 ns of a write.
  */
 #define	LCD_READ_SCR		19		/* 125 / (2 * 20) == 3.125 MHz. */
@@ -873,7 +873,7 @@ send_spirc(u_int fb)
  * clocked with D/CX high while the panel shifts SDO, sampled on the rising
  * edge as the PL022 does in mode 3. lcd_command() drains the byte received
  * during the command. The clock drops to 3.125 MHz, inside TSCYCR (150 ns,
- * page 77), and returns to the write clock after. how selects the Command
+ * page 54), and returns to the write clock after. how selects the Command
  * Table 2 variant (PANEL_RD_*, machine/picocalcvar.h).
  */
 static void

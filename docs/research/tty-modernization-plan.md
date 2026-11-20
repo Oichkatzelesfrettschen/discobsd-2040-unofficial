@@ -15,19 +15,21 @@ Keep the sgtty kernel interface and the 32-block clist pool; supply POSIX
 termios as a libc shim over the existing ioctls (0 kernel text), and add only
 what the shim cannot express to the kernel: VMIN and VTIME in the two padding
 bytes of struct tty (0 RAM, +0.40-0.55 KB text), UTF-8-aware erase behind one
-retired local-mode bit (+0.15-0.25 KB) and a drain request (+0.04-0.08 KB).
+retired local-mode bit (+0.15-0.25 KB) and a drain request (+0.04-0.08 KB), as
+steps small enough to review one at a time (section 7).
 Extend the existing lcdterm.c console (4,335 B text, 164 B of parser state)
 instead of importing teken (10,675 B text, 132 B of state, M): add 256-color and
 24-bit SGR reduced to the 16-entry palette at parse time, OSC consumption, a
 UTF-8 decoder whose output is always one of ASCII, a mapped bank code or '?',
-and a cell store that stays at 2 B per cell. Add virtual terminals last, as
-additional cell shadows of 3,656 B each, resident on PICOCALC_SD first. The
+and a cell store that stays at 2 B per cell. Add virtual consoles last, beginning with one frozen background console whose
+3,556 B saved copy sits in kernel RAM (3,656 B with its tty) and later in
+PSRAM, before any resident shadows. The
 numbers that decide it: PICOCALC has 3,448 B of flash headroom, of which
 2,424 B lie above the 1,024 B margin the gate enforces, against an estimated
-1.34-2.13 KB for the termios and console work and 0.9-1.4 KB more for virtual
-terminals (the two together can exceed PICOCALC and fit PICOCALC_SD, which has
+1.42-2.25 KB for the termios and console work and 0.6-1.0 KB more for the frozen
+console (the two together can exceed PICOCALC and fit PICOCALC_SD, which has
 34,680 B); kernel RAM left past the last section is 13,328 B on PICOCALC, so
-two extra shadows (7,312 B) fit and a 4 B-per-cell truecolor store (6,784 B per
+the frozen console (3,656 B) and two extra resident shadows (7,312 B) fit and a 4 B-per-cell truecolor store (6,784 B per
 console) does not; and a native termios struct in the kernel costs an estimated
 2.5-3.5 KB, more than PICOCALC has, for states the shim already carries.
 
@@ -57,7 +59,7 @@ keep that tag; the 5.0 B per comment-stripped C line basis comes from tty.o.
 Source: the Issue 8 base definitions text, chapter 11 (11.2.2 to 11.2.6), and
 the Issue 8 function pages for tcsetattr, tcgetwinsize and tcgetsid. Status
 words: required (named in chapter 11), now (the port honors it today through
-sgtty), planned (stage named in section 7), declined (reason given), report-only (a fixed value the shim reports and cannot change), set only (a request has an effect but the state cannot be read back). A row marked now names its get and set ioctl paths. tcsetattr
+sgtty), planned (step named in section 7), declined (reason given), report-only (a fixed value the shim reports and cannot change), set only (a request has an effect but the state cannot be read back). A row marked now names its get and set ioctl paths. tcsetattr
 sets the attributes the implementation supports, leaves the others unchanged,
 and returns -1 with EINVAL only when no part of the request can be honored
 [V: tcsetattr page, "If no part of the request can be honored"]; chapter 11.2.4
@@ -65,82 +67,129 @@ lets an implementation ignore modes that do not apply to a non-serial terminal
 [V: 11.2.4 text]. A declined bit is therefore cleared on read-back, and the
 shim returns EINVAL for a request that asks for no supported change.
 
-### c_iflag (11.2.2)
+### Test codes
 
-| Flag | Status | Mechanism or reason |
-|---|---|---|
-| ICRNL | required; now | get TIOCGETP, set TIOCSETN, bit CRMOD in sg_flags (tty.c:548, 585); CRMOD couples input CR-to-NL with output NL-to-CRNL (sys/kern/tty.c:872, 1310); the shim sets both from ICRNL and ONLCR together and refuses a request that splits them (EINVAL part-honored) until a kernel bit is split (planned, only if a program needs it) |
-| IXOFF | required; now | get TIOCGETP, set TIOCSETN, bit TANDEM; TANDEM is IXOFF (tty.c:250, 317) |
-| IXON | required; report-only (downgraded) | no bit exists: ttyinput always compares the input against stopc and startc (tty.c:1113-1123), so the shim reports IXON set and cannot clear it; tcsetattr leaves it unchanged |
-| IXANY | required; declined | DECCTQ is the opposite sense (only start restarts); no program on the port asks for it; cost is a branch in the output-restart path |
-| ISTRIP | required; now | get TIOCLGET, set TIOCLBIS and TIOCLBIC, bit PASS8 inverted; PASS8 clear strips to 7 bits (tty.c:1053) |
-| BRKINT, IGNBRK | required; declined on console and USB; planned on UART0 | the panel keyboard and CDC-ACM raise no break; UART0 break detect needs the UART error path |
-| IGNPAR, INPCK, PARMRK | required; declined | no console device carries parity (I); the EVENP and ODDP bits of t_flags stay the only parity surface |
-| IGNCR, INLCR | required; declined | no caller; two input-path branches saved |
-| IUTF8 | extension (no hit in the Issue 8 text extract); planned | takes the retired t_flags bit 0x80000 (sys/sys/ioctl.h comment "old TILDE"); makes ttyrub and the erase path step over UTF-8 continuation bytes |
+RT: round trip, tcsetattr then tcgetattr, against a model of the sgtty ioctls
+(the model implements the get and set paths each row names). RV: the shim
+reports the stated constant for the row. RF: a request the row declines leaves
+the state unchanged, and a request with no supported part returns EINVAL
+[V: tcsetattr page]. KM: a kernel-side host test of the production tty.c
+function the row changes.
 
-### c_oflag (11.2.3)
+### c_iflag (11.2.2), one row per bit
 
-| Flag | Status | Mechanism or reason |
-|---|---|---|
-| OPOST | required; now | get TIOCGETP (RAW) and TIOCLGET (LITOUT); clearing OPOST sets LITOUT; RAW and LITOUT disable output processing (tty.c:1266) |
-| ONLCR | required; now | CRMOD, see ICRNL; same get and set path |
-| OCRNL, ONOCR, ONLRET, OFILL, OFDEL | required; declined | no caller; the delay fields below are the same class |
-| NLDLY, CRDLY, TABDLY, BSDLY, VTDLY, FFDLY | required (XSI); declined | the panel and CDC-ACM need no fill; XTABS covers TAB3 (tty.c:1289); the shim maps TABDLY=TAB3 to XTABS and ignores the others |
+| Item | Issue 8 | Today (sgtty source of truth) | Shim mapping | Kernel change: text / RAM (E) | Test |
+|---|---|---|---|---|---|
+| BRKINT | required | no bit; tty.c has no break-input path (search, I) | report clear; set unchanged | declined: 0 / 0 | RV, RF |
+| ICRNL | required | CRMOD sys/sys/ioctl.h:137; input map sys/kern/tty.c:1002 | ICRNL and ONLCR move together onto CRMOD; a split request is part-honored | none; a split bit costs +30-50 B (E) and is built only on a program need | RT |
+| IGNBRK | required | no bit | report clear; set unchanged | declined: 0 / 0 | RV, RF |
+| IGNCR | required | no bit; sys/kern/tty.c:1002 maps CR to NL only | report clear; set unchanged | declined; +30 B if built (E) | RV, RF |
+| IGNPAR | required | no bit; EVENP and ODDP sys/sys/ioctl.h:139-141 have no reader in sys/kern/tty.c (search) | report clear; set unchanged | declined: 0 / 0 | RV, RF |
+| INLCR | required | no bit; ttyinput has no NL-to-CR map (read) | report clear; set unchanged | declined; +30 B if built (E) | RV, RF |
+| INPCK | required | no bit, as IGNPAR | report clear; set unchanged | declined: 0 / 0 | RV, RF |
+| ISTRIP | required | PASS8 sys/sys/ioctl.h:161; strip at sys/kern/tty.c:1053 | ISTRIP is the inverse of PASS8 | none | RT |
+| IXANY | required | DECCTQ sys/sys/ioctl.h:164; only-start-restarts test at sys/kern/tty.c:1243 | IXANY is the inverse of DECCTQ (a correction to the earlier "declined": the bit exists) | none | RT |
+| IXOFF | required | TANDEM sys/sys/ioctl.h:133; sys/kern/tty.c:250, 317, 1031 | IXOFF is TANDEM | none | RT |
+| IXON | required | no bit; stop and start compared in ttyinput sys/kern/tty.c:1113-1123 | report set; clear request unchanged | declined: 0 / 0 | RV, RF |
+| PARMRK | required | no bit | report clear; set unchanged | declined: 0 / 0 | RV, RF |
+| IUTF8 | extension (no hit in the Issue 8 text extract) | no bit; erase is byte-wise (sys/kern/tty.c:1158-1184, unputc) | a retired t_flags bit, 0x80000 (sys/sys/ioctl.h comment "old TILDE") | erase walks continuation bytes: +0.15-0.25 KB / 0 | RT; KM (erase of U+00E9 with and without the bit) |
 
-### c_cflag (11.2.4)
+### c_oflag (11.2.3), one row per bit and per delay field
 
-| Flag | Status | Mechanism or reason |
-|---|---|---|
-| CS8, CSIZE | required; report-only (downgraded; I) | no get or set path exists; the shim reports CS8 and leaves a request for another size unchanged; the console devices carry 8-bit bytes; CS5-CS7 declined |
-| CLOCAL | required; now (I) | get TIOCLGET, set TIOCLBIS and TIOCLBIC, bit NOHANG |
-| HUPCL | required; set only (downgraded) | TIOCHPCL (sys/sys/ioctl.h:111) only sets TS_HUPCLS (sys/kern/tty.c:487); a search of the C and header sources finds TS_HUPCLS only in its definition, that set and the pstat(8) display (usr.sbin/pstat/pstat.c:372), so no kernel reader or clearer exists (defined at sys/sys/tty.h:261), so tcgetattr cannot report it and tcsetattr cannot clear it; the shim reports HUPCL clear and passes a set request to TIOCHPCL; a get and clear is planned in the request that carries VMIN and VTIME, +20-40 B text (E) |
-| CREAD | required; report-only (downgraded) | always set; no path |
-| CSTOPB, PARENB, PARODD | required; declined on the console, planned on UART0 | UART0 line control exists only as a driver constant; the stty option set shrinks to speeds on the console |
-| Baud B0-B38400 and cfset/cfget speed | required; now | get TIOCGETP, set TIOCSETN (tty.c:546, 581); t_ispeed and t_ospeed hold B* indices below NSPEEDS (sys/sys/tty.h); the console ignores them |
+| Item | Issue 8 | Today (sgtty source of truth) | Shim mapping | Kernel change: text / RAM (E) | Test |
+|---|---|---|---|---|---|
+| OPOST | required | RAW or LITOUT disables output processing, sys/kern/tty.c:1266 (sys/sys/ioctl.h:138, 155) | OPOST is clear when RAW or LITOUT is set; clearing OPOST sets LITOUT | none | RT |
+| ONLCR | required | CRMOD; output map sys/kern/tty.c:1310 | with ICRNL | none | RT |
+| OCRNL | required | no bit | report clear; set unchanged | declined; +30 B if built (E) | RV, RF |
+| ONOCR | required | no bit | report clear; set unchanged | declined: 0 / 0 | RV, RF |
+| ONLRET | required | no bit | report clear; set unchanged | declined: 0 / 0 | RV, RF |
+| OFILL, OFDEL | required | no bit | report clear; set unchanged | declined: 0 / 0 | RV, RF |
+| NLDLY, CRDLY, BSDLY, VTDLY, FFDLY | required (XSI) | delay bits retired from t_flags (sys/sys/ioctl.h comments at 0x100, 0x1000, 0x2000, 0x4000, 0x8000) | report value 0; non-zero request unchanged | declined: 0 / 0 | RV, RF |
+| TABDLY, value TAB3 | required (XSI) | XTABS sys/sys/ioctl.h:144; sys/kern/tty.c:1289 | TAB3 is XTABS | none | RT |
+| TABDLY, values TAB1 and TAB2 | required (XSI) | none | refused (unchanged) | declined: 0 / 0 | RF |
 
-### c_lflag (11.2.5)
+### c_cflag (11.2.4), one row per bit and per value class
 
-| Flag | Status | Mechanism or reason |
-|---|---|---|
-| ECHO | required; now | get TIOCGETP, set TIOCSETN, bit ECHO |
-| ECHOE, ECHOK | required; now (I) | get TIOCLGET, set TIOCLBIS and TIOCLBIC, bits CRTERA and CRTKIL, with CRTBS for the backspace form |
-| ECHONL | required; declined | the console always echoes NL under ECHO; separate bit needs one branch in ttyinput |
-| ICANON | required; now | derived from RAW and CBREAK, which TIOCGETP reads and TIOCSETN writes |
-| ISIG | required; now | same path as ICANON; RAW and CBREAK differ in it: CBREAK keeps signals, RAW drops them; the shim maps (ICANON off, ISIG on) to CBREAK, (off, off) to RAW and refuses (ICANON on, ISIG off) |
-| IEXTEN | required; report-only (downgraded) | no bit exists; LNEXT, WERASE, REPRINT are processed unless RAW; the shim reports IEXTEN set whenever ICANON is set and cannot clear it alone |
-| NOFLSH, TOSTOP | required; now | get TIOCLGET, set TIOCLBIS and TIOCLBIC, bits NOFLSH and TOSTOP (sys/sys/ioctl.h) |
+| Item | Issue 8 | Today (sgtty source of truth) | Shim mapping | Kernel change: text / RAM (E) | Test |
+|---|---|---|---|---|---|
+| CLOCAL | required | NOHANG sys/sys/ioctl.h:158; sys/kern/tty.c:798 | CLOCAL is NOHANG | none | RT |
+| CREAD | required | none | report set; clear unchanged | declined: 0 / 0 | RV, RF |
+| CSIZE, value CS8 | required | none; bytes are 8 bits, PASS8 and ISTRIP act on input | report CS8 | none | RV |
+| CSIZE, values CS5, CS6, CS7 | required | none | refused (unchanged) | declined: 0 / 0 | RF |
+| CSTOPB | required | none | report clear; set unchanged | declined; UART0 line control planned later (E: +0.1 KB) | RV, RF |
+| PARENB, PARODD | required | EVENP and ODDP sys/sys/ioctl.h:139-141 are stored in t_flags and read by nothing in sys/kern/tty.c (search) | report clear; set unchanged (reporting the stored bits would claim parity the line does not apply) | declined: 0 / 0 | RV, RF |
+| HUPCL | required | TIOCHPCL sys/sys/ioctl.h:111 sets TS_HUPCLS sys/kern/tty.c:487; sys/sys/tty.h:261; no reader or clearer | report clear; a set request is passed to TIOCHPCL (set only) | planned get and clear in the VMIN and VTIME request: +20-40 B / 0 | RV; RT after the request lands |
+| B0 (hang up) | required | sg_ispeed, sg_ospeed sys/kern/tty.c:546, 581; B0 effect not read | passed through; effect unexamined (not verified) | none | RT of the stored value only |
+| B50 to B38400 (names required) and the stty extras to B4000000 | required (to B38400) | sg_ispeed, sg_ospeed sys/kern/tty.c:546, 581; t_ispeed below NSPEEDS, sys/sys/tty.h | stored and returned; the console ignores them | none | RT |
 
-### c_cc (11.2.6)
+### c_lflag (11.2.5), one row per bit
 
-| Index | Status | Mechanism or reason |
-|---|---|---|
-| VEOF, VERASE, VINTR, VKILL, VQUIT, VSUSP, VSTART, VSTOP, VEOL | required; now | get and set through TIOCGETP and TIOCSETN (erase, kill), TIOCGETC and TIOCSETC (tty.c:599, 603) and TIOCGLTC and TIOCSLTC (tty.c:608, 612); struct ttychars; VEOL is tc_brkc; _POSIX_VDISABLE is defined (sys/sys/ttychars.h:33) |
-| VMIN, VTIME | required; planned | stored in the two padding bytes of struct tty, so 0 RAM; an uncommon request on a RAW-less read changes ttread (stage names in section 7) |
-| VWERASE, VREPRINT, VLNEXT, VDISCARD | extensions; now | TIOCGLTC and TIOCSLTC; tc_werasc, tc_rprntc, tc_lnextc, tc_flushc in struct ttychars |
-| VEOL2, VSTATUS | extensions; declined | no field in struct ttychars |
+| Item | Issue 8 | Today (sgtty source of truth) | Shim mapping | Kernel change: text / RAM (E) | Test |
+|---|---|---|---|---|---|
+| ECHO | required | ECHO sys/sys/ioctl.h:136; sys/kern/tty.c:864, 922 | ECHO | none | RT |
+| ECHOE | required | CRTERA sys/sys/ioctl.h:152; sys/kern/tty.c:848 (rub string); CRTBS :926 | ECHOE is CRTERA; BSD "crt" also sets CRTBS (bin/stty/stty.c:231-234) | none | RT |
+| ECHOK | required | CRTKIL sys/sys/ioctl.h:160; sys/kern/tty.c:1162 | ECHOK is CRTKIL; the behaviors differ (a visual kill versus a NL after KILL), so the row is approximate (I) | none | RT of the bit only |
+| ECHONL | required | no bit | report clear; set unchanged | declined; one branch in ttyinput, +20 B (E) | RV, RF |
+| ICANON | required | RAW and CBREAK sys/sys/ioctl.h:134, 138; sys/kern/tty.c:389, 1034 | ICANON is clear when RAW or CBREAK is set | none | RT |
+| ISIG | required | CBREAK keeps signals, RAW drops them (sys/kern/tty.c:1034, 1141) | ISIG is clear iff RAW; (ICANON on, ISIG off) refused | none | RT; RF |
+| IEXTEN | required | no bit; LNEXT, WERASE and REPRINT run outside RAW | report set when ICANON is set | declined: 0 / 0 | RV |
+| NOFLSH | required | NOFLSH sys/sys/ioctl.h:165; sys/kern/tty.c:1103, 1130 | NOFLSH | none | RT |
+| TOSTOP | required | TOSTOP sys/sys/ioctl.h:156; sys/kern/tty.c:1575 | TOSTOP | none | RT |
+| ECHOCTL (extension) | no | CTLECH sys/sys/ioctl.h:162; sys/kern/tty.c:875, 950 | CTLECH | none | RT |
+| ECHOPRT (extension) | no | PRTERA sys/sys/ioctl.h:151; sys/kern/tty.c:984 | PRTERA | none | RT |
+| FLUSHO (extension) | no | FLUSHO sys/sys/ioctl.h:157; sys/kern/tty.c:962 | FLUSHO | none | RT |
+| PENDIN (extension) | no | PENDIN sys/sys/ioctl.h:163; sys/kern/tty.c:371, 386 | PENDIN | none | RT |
+| MDMBUF, CRTSCTS (extensions) | no | MDMBUF sys/kern/tty.c:781; RTSCTS sys/kern/tty.c:256, 326 | MDMBUF, CRTSCTS | none | RT |
 
-### Functions
+### c_cc (11.2.6), one row per index
 
-| Function | Status | Mechanism |
-|---|---|---|
-| tcgetattr, tcsetattr TCSANOW | planned (shim) | TIOCGETP, TIOCGETC, TIOCGLTC, TIOCLGET and TIOCSETN (no flush on a RAW transition, which the survey's hazard note requires) |
-| tcsetattr TCSADRAIN, TCSAFLUSH | planned | drain request then TIOCSETN; TCSAFLUSH is TIOCSETP (drain and flush, tty.c:551-554 per the survey) |
-| tcflush | now (shim) | TIOCFLUSH with FREAD or FWRITE (tty.c:490) |
-| tcflow TCOOFF, TCOON | now (shim) | TIOCSTOP, TIOCSTART (tty.c:510, 519) |
-| tcflow TCIOFF, TCION | planned | write of VSTOP or VSTART through the tty |
-| tcdrain | planned | a TIOCDRAIN case calling ttywait (tty.c:216) |
-| tcsendbreak | declined on console and USB; planned on UART0 | TIOCSBRK and TIOCCBRK are defined (sys/sys/ioctl.h:186-187) and no case in tty.c handles them; the UART driver would set the line-control break bit |
-| tcgetpgrp, tcsetpgrp | now (shim) | TIOCGPGRP, TIOCSPGRP (tty.c:641, 658) |
-| tcgetsid | declined | the port has no sessions (rg finds no p_session, setsid, TIOCSCTTY in sys/); +0.5-0.9 KB (E, survey) for one login does not pay |
-| tcgetwinsize, tcsetwinsize | planned (shim) | TIOCGWINSZ, TIOCSWINSZ; SIGWINCH goes to the foreground group only when the size changes (tty.c:662-667), which is the Issue 8 rule [V: tcgetwinsize page] |
-| O_TTY_INIT | declined | needs an open-flag bit and a mode reset in open; getty and login set modes after open |
-| cfmakeraw, cfsetspeed (BSD extras) | planned (libc) | pure user code over the state above |
+| Item | Issue 8 | Today (sgtty source of truth) | Shim mapping | Kernel change: text / RAM (E) | Test |
+|---|---|---|---|---|---|
+| VEOF | required | tc_eofc, TIOCGETC and TIOCSETC sys/kern/tty.c:599, 603 | VEOF | none | RT |
+| VEOL | required | tc_brkc, TIOCGETC | VEOL | none | RT |
+| VERASE | required | sg_erase, TIOCGETP sys/kern/tty.c:578 | VERASE | none | RT |
+| VINTR | required | tc_intrc, TIOCGETC | VINTR | none | RT |
+| VKILL | required | sg_kill, TIOCGETP | VKILL | none | RT |
+| VMIN | required | none; the shim reports 1 | new request over the two pad bytes of struct tty | storage and request +0.10-0.15 KB / 0; the read semantics are a separate step (+0.30-0.40 KB) | RT after the request lands; KM |
+| VQUIT | required | tc_quitc, TIOCGETC | VQUIT | none | RT |
+| VSUSP | required | tc_suspc, TIOCGLTC and TIOCSLTC sys/kern/tty.c:608, 612 | VSUSP | none | RT |
+| VTIME | required | none; the shim reports 0 | as VMIN | as VMIN | RT after the request lands; KM |
+| VSTART | required | tc_startc, TIOCGETC | VSTART | none | RT |
+| VSTOP | required | tc_stopc, TIOCGETC | VSTOP | none | RT |
+| VWERASE, VREPRINT, VLNEXT, VDISCARD (extensions) | no | tc_werasc, tc_rprntc, tc_lnextc, tc_flushc, TIOCGLTC | same names | none | RT |
+| VDSUSP (extension) | no | tc_dsuspc, TIOCGLTC | VDSUSP | none | RT |
+| VEOL2, VSTATUS (extensions) | no | no field in struct ttychars | report disabled (_POSIX_VDISABLE, sys/sys/ttychars.h:33) | declined: 0 / 0 | RV |
 
-Native TIOCGETA, TIOCSETA, TIOCSETAW and TIOCSETAF stay declined until a
-program needs a state the shim cannot express (CS5-CS7, IGNCR, ICRNL without
-ONLCR, ISIG without ICANON). The estimated cost is +2.5-3.5 KB text and +24 B
-per tty (E, survey); on PICOCALC that exceeds the 2,424 B above the margin.
+### Functions, one row per function and selector
+
+| Function and selector | Maps to | Missing | Step |
+|---|---|---|---|
+| tcgetattr | TIOCGETP, TIOCGETC, TIOCGLTC, TIOCLGET (sys/kern/tty.c:578, 599, 612, 631) | VMIN and VTIME read; HUPCL read | S02, K01 |
+| tcsetattr, TCSANOW | TIOCSETN, TIOCSETC, TIOCSLTC, TIOCLSET (sys/kern/tty.c:541, 603, 608, 627); TIOCSETN does not flush input except across RAW (:551-554) | four ioctls are not one atomic change; VMIN and VTIME set | S03, K01 |
+| tcsetattr, TCSADRAIN | drain request, then the TCSANOW path | the drain request (TIOCDRAIN over ttywait, sys/kern/tty.c:216) | S04, K04 |
+| tcsetattr, TCSAFLUSH | TIOCSETP (drains output, flushes input, sys/kern/tty.c:540, 551) then TIOCSETC, TIOCSLTC, TIOCLSET | none | S04 |
+| tcdrain | TIOCDRAIN; a poll of TIOCOUTQ (sys/kern/tty.c:506) is inexact because it ignores bytes in the UART FIFO | TIOCDRAIN | K04 |
+| tcflush, TCIFLUSH | TIOCFLUSH with FREAD (sys/kern/tty.c:490) | none | S04 |
+| tcflush, TCOFLUSH | TIOCFLUSH with FWRITE | none | S04 |
+| tcflush, TCIOFLUSH | TIOCFLUSH with 0 or both | none | S04 |
+| tcflow, TCOOFF | TIOCSTOP (sys/kern/tty.c:510) | none | S04 |
+| tcflow, TCOON | TIOCSTART (sys/kern/tty.c:519) | none | S04 |
+| tcflow, TCIOFF | write of VSTOP to the tty | none in the kernel; the write queues behind stopped output (I) | S04 |
+| tcflow, TCION | write of VSTART to the tty | as TCIOFF | S04 |
+| tcsendbreak | TIOCSBRK and TIOCCBRK defined (sys/sys/ioctl.h:186-187), no case in sys/kern/tty.c | a handler in the UART driver; console and USB declined | K07 |
+| tcgetsid | none | sessions (no p_session in sys/); declined | none |
+| tcgetpgrp | TIOCGPGRP (sys/kern/tty.c:658) | none | S05 |
+| tcsetpgrp | TIOCSPGRP (sys/kern/tty.c:641; the source comment at :639 says the group is not verified) | none | S05 |
+| tcgetwinsize | TIOCGWINSZ (sys/kern/tty.c:671) | none | S05 |
+| tcsetwinsize | TIOCSWINSZ (sys/kern/tty.c:663; SIGWINCH only when the size changes) | none | S05 |
+| cfgetispeed, cfgetospeed | struct field read of the B* index | none | S01 |
+| cfsetispeed, cfsetospeed | struct field write, effective at tcsetattr | none | S01 |
+| cfsetspeed, cfmakeraw (BSD extras) | user code over the same state | none | S01 |
+
+Native TIOCGETA, TIOCSETA, TIOCSETAW and TIOCSETAF stay declined until a row
+above that the shim cannot carry is needed by a program (CS5-CS7, IGNCR, ICRNL
+without ONLCR, ISIG without ICANON); the estimated cost is +2.5-3.5 KB text and
++24 B per tty (E, survey), more than the 2,424 B PICOCALC has above its margin.
 
 ## 3. Queue and line-discipline design
 
@@ -174,23 +223,27 @@ VMIN and VTIME need a timer. The survey names the callout table (NCALL
 
 ### Cost against both budgets (E unless marked)
 
-| Item | Text | RAM | PICOCALC (2,424 above margin) | PICOCALC_SD (34,680) |
-|---|---|---|---|---|
-| libc termios shim (per program that links it) | 0 kernel; 0.8-1.2 KB per program (818 B prototype, survey M) | 0 | fits | fits |
-| VMIN, VTIME, non-flushing set | 0.40-0.55 KB | 0 | fits | fits |
-| IUTF8 erase | 0.15-0.25 KB | 0 | fits | fits |
-| TIOCDRAIN | 0.04-0.08 KB | 0 | fits | fits |
-| lcdterm: extended SGR | 0.25-0.40 KB | 0 per cell | fits | fits |
-| lcdterm: UTF-8 decoder and ACS inverse map | 0.35-0.55 KB | 3 B per terminal | fits | fits |
-| lcdterm: OSC consumption, CSI additions, tab stops | 0.15-0.30 KB | 7-8 B per terminal | fits | fits |
-| tcsendbreak on UART0 (stage-table row, not in the subtotal) | 0.06-0.10 KB | 0 | not planned for PICOCALC | fits |
-| Subtotal without virtual terminals | 1.34-2.13 KB | | 0.3-1.1 KB spare | fits |
-| Latin-1 glyph ROM (96 glyphs, 7 B packed) | 0.67 KB | 0 (loads into the 896 B bank) | declined on PICOCALC | fits |
-| Virtual terminals (survey) | 0.9-1.4 KB | 3,656 B per extra terminal (M) | 2.24-3.53 KB total: no fit at the upper bound | fits |
+Step identifiers are those of section 7.
 
-PICOCALC admits the subtotal and takes virtual terminals only after the
-measured growth of the preceding stages is known; the stage order in section 7
-makes that measurement the gate.
+| Steps | Text | RAM | PICOCALC (2,424 above margin) | PICOCALC_SD (34,680) |
+|---|---|---|---|---|
+| S01-S05, libc shim (per program that links it) | 0 kernel; 0.7-1.1 KB for tcgetattr and tcsetattr, 0.9-1.4 KB with every function (818 B prototype of the first two, survey M) | 0 | fits | fits |
+| K01, K02 (VMIN, VTIME) | 0.40-0.55 KB | 0 | fits | fits |
+| K05 (IUTF8 erase) | 0.15-0.25 KB | 0 | fits | fits |
+| K04, K06 (drain, HUPCL) | 0.06-0.12 KB | 0 | fits | fits |
+| C03 (extended SGR) | 0.25-0.40 KB | 0 per cell | fits | fits |
+| C01 (UTF-8 decoder, ACS inverse map) | 0.35-0.55 KB | 3 B per terminal | fits | fits |
+| C04, C05, C06 (OSC, CSI additions, tab stops) | 0.21-0.38 KB | 7-8 B per terminal | fits | fits |
+| Subtotal without virtual consoles | 1.42-2.25 KB | | 0.1-0.95 KB spare | fits |
+| K07 (UART0 break) | 0.06-0.10 KB | 0 | not planned | fits |
+| C02 (Latin-1 glyph ROM, 96 glyphs, 7 B packed) | 0.67 KB | 0 (loads into the 896 B bank) | declined | fits |
+| V00, V01 (one frozen console) | 0.6-1.0 KB | 3,656 B | 2.02-3.25 KB with the subtotal: no fit at the upper bound | fits |
+| V02 (PSRAM slot) | 0.2-0.35 KB | -3,556 B | PSRAM kernels only | fits |
+| V03 (N resident shadows, survey) | 0.4-0.6 KB more | 3,656 B per console | no | fits |
+
+PICOCALC admits the subtotal; virtual consoles follow only after the measured
+growth of the preceding steps is known, and section 7 makes that measurement
+the gate.
 
 ## 4. Console emulator
 
@@ -313,38 +366,174 @@ State per terminal after the additions: the present 164 B (M, survey) plus
 
 ## 5. Virtual terminals
 
-Costs per extra terminal (cells, attributes and struct tty measured in section 1;
-the 164 B parser figure is the survey's measurement): 1,696 B cells + 1,696 B attributes + 164 B parser, cursor and SGR
-+ 100 B struct tty = 3,656 B. The NetBSD vcons model keeps a character array and
-an attribute array per screen (scr_chars, scr_attrs in
-sys/dev/wscons/wsdisplay_vconsvar.h:44-60 [V]); the port already has the
-same split at 2 B per cell. vcons_redraw_screen (sys/dev/wscons/wsdisplay_vcons.c:664
-[V]) walks the shadow and draws each cell; the port's equivalent is
-lcdterm_repaint (survey, 142 ms for 1,696 cells at 84 us per cell, E). The
-visible screen draws; an invisible screen updates its shadow and calls no panel
-primitive, the same rule lcdterm_gfx(1) applies to a pixel program.
+Measured costs (cells, attributes and struct tty from section 1; the 164 B
+parser, cursor and SGR figure is the survey's measurement): one console's
+state is 1,696 B cells + 1,696 B attributes + 164 B of scalars and parser =
+3,556 B, and its struct tty adds 100 B, 3,656 B per extra console. The NetBSD
+vcons model keeps a character array and an attribute array per screen (scr_chars,
+scr_attrs in sys/dev/wscons/wsdisplay_vconsvar.h:44-60 [V]) and redraws a
+screen from them (sys/dev/wscons/wsdisplay_vcons.c:664 [V]); the port already
+has the same split at 2 B per cell, and lcdterm_repaint is its redraw.
 
-Design, in the order the data moves:
+Three steps, each smaller than the next: V01 freezes one background console in
+kernel RAM, V02 moves the frozen store to PSRAM, and V03 generalizes to
+resident shadows with live output on every console.
 
-- N consoles, N at most 3 (13,328 and 13,264 B of free kernel RAM leave 6,016 and
-  5,952 B after two extra shadows). Console 0 stays /dev/console and the
-  panic target; the panic and fault rules are in "Kernel output while another
-  terminal is visible" below.
+### Step V01: one frozen background console
+
+Two consoles exist. Console 0 (A) is /dev/console, the kernel-message target
+and the panic target; console 1 (B) is the second. One is shown; the other is
+frozen: its screen state is saved, nothing is drawn for it and its writers
+wait. A switch restores the frozen console and freezes the shown one.
+
+What must be saved: the whole of lcdterm.c's file-static state, gathered into
+one struct by step V00.
+
+| State | Bytes | Where in lcdterm.c |
+|---|---|---|
+| cells | 1,696 | cells[LT_ROWS][LT_COLS], line 66 |
+| attrs (fg, bg, underline) | 1,696 | attrs, line 67 |
+| scroll ring offset and cursor | top, crow, ccol, wrapnext, mtop, mbot (lines 69-72) | within the 164 B |
+| SGR rendition | sgr_fg, sgr_bg, sgr_bold, sgr_ul, sgr_rev, cattr (lines 74-75) | within the 164 B |
+| modes | autowrap, insertmode, cursor_on, appcursor, gfx (line 77) | within the 164 B |
+| saved cursor | s_row, s_col, s_fg, s_bg, s_bold, s_ul, s_rev, s_gfx (line 85) | within the 164 B |
+| parser | state, params[8], nparam, priv, inter (lines 87-91): a console frozen mid-escape resumes mid-escape | within the 164 B |
+| total saved copy | 3,556 | 3,392 + 164 (M basis, section 1) |
+
+Not saved: the cursor overlay (cursor_drawn, cd_prow, cd_col, line 83), which
+is hidden before the save and redrawn after the repaint; the palette, a const
+table in flash (sys/arch/rp2040/dev/st7365p.c:121), so there is nothing to save;
+and the glyph bank (896 B packed), which stays a panel-wide resource that a tile
+program loads with LCDIOC_SETGLYPH, so a program that rewrote bank glyphs
+changes how the other console's bank codes look (a stated limit). The tty
+state (t_flags, t_chars, t_winsize, t_pgrp and the queues) lives in each
+console's own struct tty, 100 B, and is not copied; V01 adds lcdttys[1].
+
+Mechanism: an in-place exchange of the live struct with the saved slot, word by
+word, with no third buffer: 889 words. At about 10 cycles per word the exchange
+takes about 71 us at 125 MHz (E); the switch time is the repaint.
+
+Where the copy lives: a 3,556 B slot in kernel bss, plus the 100 B tty. On
+PICOCALC_SD that leaves 9,608 B of the 13,264 B free kernel RAM, and on
+PICOCALC 9,672 B of 13,328 B (M basis, section 1). V02 moves the slot off bss.
+
+Processes that write to the frozen console wait on the tty's own flow control.
+The freeze path sets TS_TTSTOP on the frozen tty; lcdstart returns without
+drawing when TS_TTSTOP is set (sys/arch/rp2040/dev/lcdcons.c:250), and the
+renderer drains only the shown tty, because a program can clear TS_TTSTOP with
+TIOCSTART (sys/kern/tty.c:519). Output accumulates in the frozen tty's queue to
+TTHIWAT, capped at 336 B (tty.c:41-53), and ttwrite then sleeps (tty.c:1548).
+This reuses an existing mechanism, loses no byte, draws nothing into the wrong
+store and keeps order: the queued bytes (at most the cap plus one 100 B chunk)
+render after the restore. Processes that do not write keep running, and
+readers of the frozen tty sleep because keyboard input goes to the shown tty
+only. Whether the ttwrite sleep is interruptible by a signal was not read.
+Stopping a frozen console's foreground group with SIGTSTP is a possible later
+policy (job control exists in tty.c); it is not part of V01.
+
+Kernel messages while console 0 is frozen: lcdputc targets console 0
+(lcdcons.c:367), whose parser would draw into the live store that now holds
+console 1. Rule: while the shown console is not 0, lcdputc calls no terminal or
+panel primitive, counts the dropped bytes as the deferred ring counts its
+drops (lcdcons.c defer_put), and the message log keeps them where it is
+enabled (the TOLOG path of putchar, sys/kern/subr_prf.c).
+
+Switch key: Ctrl+F1 shows console 0 and Ctrl+F2 shows console 1, consumed in the
+keyboard path before translation (sys/arch/rp2040/dev/picokbd_map.c: F1 is 0x81,
+F2 is 0x82, Ctrl is 0xa5; the combination is unverified on hardware). A key for
+the console already shown does nothing, and the key is refused while lcdgfx is
+open. Input follows the shown console: the keyboard session and
+picokbd_evq_check read lcdttys[0] today (lcdcons.c:546, 627, 647) and take the
+shown index.
+
+Switch sequence, under the drawing flag (lcd_acquire): hide the cursor; set
+TS_TTSTOP on the outgoing tty; exchange; program the scroll start from the
+restored ring offset (lcd_set_top); repaint; clear TS_TTSTOP on the incoming tty;
+release the flag; pend the renderer if the incoming queue holds bytes.
+
+Redraw time: lcdterm_repaint draws 1,696 cells at 115-122 us each (191 bytes x
+8 bits / 12.5 MHz SPI = 122 us, docs/research/picocalc-console-review.md:140-144,
+:358; the 115 us figure is docs/research/picocalc-games-survey.md:87), so 195-207
+ms. That is wire time derived from the SPI clock, not a board capture. It
+replaces the survey's 84 us per cell (142 ms), which is below the wire time.
+
+Panic and fault with a frozen console: lcdabandon already serves both entries
+(the panic branch of lcdputc and arm_fault, sys/arch/rp2040/rp2040/fault.c:232).
+Rule: after aborting the panel transfer, if the shown console is not 0 it
+exchanges console 0 back in, makes console 0 shown, programs the scroll start,
+repaints, and only then lets the first byte draw, with interrupts as they are at
+that point, no sleep and no allocation. With the slot in kernel RAM (V01) that is
+the same exchange as a switch. With the slot in PSRAM (V02) the exchange runs
+only when the PSRAM driver is idle; a panic that interrupted a PSRAM frame
+cannot use the PIO state machine safely, so the panic path then resets the
+terminal, clears the screen and prints on a blank console 0, and console 0's
+earlier text is lost. The rule costs +60-120 B text (E), and its repaint is the
+195-207 ms above.
+
+First falsifiable check: after A to B to A, console 0's cells, attributes,
+cursor, ring offset and parser state equal their values before the first
+switch, and likewise B after B to A to B, compared byte for byte; the frozen
+console never calls a draw primitive; lcdputc draws nothing while console 1 is
+shown. Falsifiers: any byte of either store differs; a draw call from the frozen
+console; a panic with console 1 shown leaves console 1's text on the model panel.
+
+Host test: the two-console model of check-picocalc-host with recording
+primitives, a tty model that reaches TTHIWAT and sleeps its writer, and an
+escape sequence split across the switch (ESC [ 3 8 ; 5 before, ; 1 9 6 m after).
+Mutants: skip the parser state in the exchange; restore without lcd_set_top;
+let the renderer drain the frozen tty; omit the restore in lcdabandon.
+
+Cost: V00 (the state struct, no behavior change) +0.3-0.5 KB text (E, survey);
+V01 +0.3-0.5 KB text (E) and +3,656 B RAM.
+
+### Step V02: the frozen store in PSRAM
+
+docs/research/sd-component-placement.md assigns the homes: SRAM4 and SRAM5 are
+owned by the USB transmit ring and the tile atlas, the USB dual-port tail has 432 B
+left after the SD partial sector, kernel SRAM holds ordinary state, and
+PIO-attached PSRAM "serves explicit transfers and loses contents with power", so
+a console store, which is data and not code, can live there. V02 moves the
+3,556 B slot to a reserved PSRAM region (a 4 KiB carve-out beside the 2 MiB swap
+and temporary-file split of sys/arch/rp2040/dev/psram_xfer.h:26-34; the carve-out
+is not designed here).
+
+The exchange streams the slot in 64 B frames (PSRAM_CHUNK, psram_xfer.h:42):
+read a frame, swap it with the live bytes, write it back, 56 frames for 3,556 B.
+The driver's model puts a 64 B read at 144 clocks, 4.6 us, at 31.25 MHz
+(PSRAM_CLKDIV 2, sys/arch/rp2040/dev/psram_pio.h:135;
+docs/research/driver-datasheet-audit.md:169-170), with interrupts masked for
+each frame (psram_xfer.c header comment). The write frame time is not stated and
+is assumed equal (E), so 56 x (4.6 + 4.6) = 0.52 ms of bus time, 0.3% of the
+repaint. RAM falls by 3,556 B, back to the free figures of section 1 less the
+100 B tty.
+
+Open choice: without a probed PSRAM the console 1 either does not exist (the RAM
+saving holds) or keeps a bss slot (no saving). The plan recommends the first for
+PICOCALC and leaves it to the owner.
+
+First falsifiable check: the exchange through the PSRAM driver model leaves the
+same live and saved states as the RAM exchange for the same inputs. Falsifier: one
+frame lost or swapped. Host test: the PSRAM host model of check-psram-pio
+(sys/arch/rp2040/doc/PICOCALC.md:134) under the exchange, with a mutant that drops
+one frame's write-back and one that panics with the driver busy. Text +0.2-0.35 KB
+(E); RAM -3,556 B.
+
+### Step V03: N resident shadows, later
+
+Costs and rules as the survey gave them, now stated against V01 and V02:
+
+- N consoles, N at most 3 (6,016 and 5,952 B of free kernel RAM left after two
+  extra 3,656 B shadows on PICOCALC and PICOCALC_SD). Console 0 stays
+  /dev/console and the panic target.
 - Minor map as in the survey: 0 console, 1 lcdgfx, 2 and above terminals; the
   static assertion on LCDGFX_MINOR stays.
-- Switch key: Ctrl with F1-F3, consumed in the keyboard path before
-  translation (picokbd_map.c: F1-F9 are 0x81-0x89; Ctrl is 0xa5, R). Hardware
-  availability of the combination is unverified; the stage's board check names
-  the ten key codes. The switch is refused while lcdgfx is open.
-- Input follows the active terminal: picokbd_evq_check and the keyboard
-  session read lcdttys[0] today (lcdcons.c:546, 627, 647); they take the active
-  index.
-- Switch: mark the old shadow invisible, make the new one visible, call
-  lcdterm_repaint on the new store; drawing already in flight finishes before
-  the flag changes (the drawing flag of lcdcons.c).
-- Output to an invisible terminal updates its shadow only; DEC cursor state and
-  the scroll ring belong to the terminal, so lcd_set_top is programmed from the
-  visible terminal on every switch.
+- The visible screen draws; an invisible screen keeps updating its shadow and calls
+  no panel primitive, the same rule lcdterm_gfx(1) applies to a pixel program.
+  Unlike V01, background output is processed, not held, and no writer waits.
+- Switch key and input routing as in V01, with Ctrl+F1 to F3. The switch calls
+  lcdterm_repaint on the new store (the same 195-207 ms) and reprograms the
+  scroll start from the visible console's ring offset.
+- The rules for kernel output and panic below apply to all steps.
 
 ### Kernel output while another terminal is visible
 
@@ -361,7 +550,7 @@ prints through the same lcdputc with panicstr still NULL until the final
 panic("kernel fault") (fault.c:290).
 
 With terminals, an invisible terminal draws nothing, so console 0's panic text
-would reach only its shadow while VT1 or VT2 is visible. Rule: lcdabandon, the
+would reach only its shadow while console 1 or 2 is visible. Rule: lcdabandon, the
 single entry both the panic branch and the fault path pass through, also makes
 console 0 the visible terminal. Under the splhigh it already holds, it aborts
 the panel transfer (including a pixel program's, restoring the text
@@ -370,8 +559,8 @@ active index to 0, programs the scroll start from console 0's ring and repaints
 it from its shadow, before the caller's first byte. It runs once (the existing
 lcd_abandoned flag), with interrupts as they are at that point, no sleep, no
 allocation and no lock beyond the drawing flag, so it is safe in the fault
-handler's priority. Cost: +60-120 B text (E), plus a repaint of 142 ms (E,
-survey rate) with interrupts masked, accepted because the kernel does not
+handler's priority. Cost: +60-120 B text (E), plus a repaint of 195-207 ms (derived from SPI wire
+time, V01 above) with interrupts masked, accepted because the kernel does not
 resume. The abandoned terminal's shadow is left as is.
 
 Kernel printf outside a panic follows the existing single target: lcdputc
@@ -381,13 +570,13 @@ them regardless. No forced switch (a rate-limited warning cannot preempt a
 user's screen); the choice is recorded here for owner review.
 
 Host test (the two-console model of the virtual-terminal stage): write known
-text to console 0, make VT2 visible, set panicstr, call lcdputc with a panic
+text to console 0, make console 2 visible, set panicstr, call lcdputc with a panic
 line, and assert the model panel ends with console 0's text plus the line and
 that the model's sleep and allocation stubs, which fail the test if called,
 stay uncalled. The same test enters through lcdabandon with panicstr NULL
-(the fault path), and a third case prints without a panic with VT2 visible and
+(the fault path), and a third case prints without a panic with console 2 visible and
 asserts the panel is unchanged and console 0's shadow holds the byte. Mutant:
-drop the force-to-console-0 step; the panic case must then fail with VT2's text
+drop the force-to-console-0 step; the panic case must then fail with console 2's text
 on the panel.
 
 ### Where the shadows live
@@ -403,8 +592,9 @@ docs/research/sd-component-placement.md is the placement map. Against it, a
 | PIO-attached PSRAM | candidate for suspended shadows | PICOCALC and PICOCALC_SD configure the psram device; access is by explicit bounded transfers, so a repaint would stream a row (53 cells x 2 B = 106 B) at a time rather than read an array; contents die at power-off, which suits a shadow; absent or unprobed PSRAM keeps the shadow resident; the carve-out beside the 2 MiB swap and 6 MiB temporary split is not designed here |
 | Swap device | candidate, reading 2 below | needs the new client described there |
 
-Resident shadows in kernel SRAM are the first stage; the PSRAM and swap homes
-serve only a suspended terminal.
+The frozen console of V01 sits in kernel SRAM bss and moves to PSRAM in V02;
+resident shadows (V03) stay in kernel SRAM, and the swap home serves only a
+suspended terminal (V04).
 
 ### What "suspended to swap" can mean on this kernel
 
@@ -438,64 +628,294 @@ stage, conditional on a measured RAM shortage after the shadows exist.
 
 ## 6. getty, stty, ttys
 
-Present (R): bin/stty/stty.c holds struct sgttyb, tchars, ltchars and winsize
-(lines 128-133) and drives TIOCGETP, TIOCSETN, TIOCGETC, TIOCSETC, TIOCLGET,
-TIOCLSET, TIOCGLTC, TIOCSLTC, TIOCGWINSZ, TIOCSWINSZ; its mode tables are at
-lines 61, 82 and 116. libexec/getty/main.c declares struct sgttyb tmode
-(line 28) and calls TIOCGETP (line 219); gettytab.c reads /etc/gettytab, 164
-lines. etc/ttys lists console, tty0 and ttyUSB0 with the xterm terminal type.
-stty ships inside sysbox (26,131 B) and getty is 13,971 B (survey 9b).
+Present (R): bin/stty/stty.c holds struct sgttyb, tchars, ltchars and winsize and drives
+TIOCGETP, TIOCSETN, TIOCGETC, TIOCSETC, TIOCLGET, TIOCLSET, TIOCGLTC,
+TIOCSLTC, TIOCGWINSZ and TIOCSWINSZ (lines 128-133, 204-215, 322-330).
+libexec/getty/main.c declares struct sgttyb tmode (line 28) and calls TIOCGETP
+(line 219); gettytab.c reads /etc/gettytab, 164 lines. etc/ttys lists console,
+tty0 and ttyUSB0 with the xterm terminal type. stty ships inside sysbox
+(26,131 B) and getty is 13,971 B (survey 9b). Dispositions: kept (same word,
+same effect), mapped (same effect through a termios name; the old word stays
+as an alias), dropped (no effect on this port, reported as not supported),
+added (new word, with its prerequisite step from section 7).
 
-Donor option sets (source reading, unmarked): FreeBSD, NetBSD and OpenBSD stty use
-tcgetattr and tcsetattr and add crt, newcrt, ctlecho, echoke, echoctl, oxtabs
-and iutf8 to the POSIX set; none calls tcgetwinsize.
+### stty(1) keywords, one row per keyword
 
-Changes:
+| Keyword | Today | Disposition | Termios name or new behavior |
+|---|---|---|---|
+| `even` | bin/stty/stty.c:62 (EVENP or ODDP bit) | dropped on console kernels | the bits have no reader in tty.c (search); parenb and parodd are declined, so the word reports "not supported"; planned with UART0 line control |
+| `-even` | bin/stty/stty.c:63 (EVENP or ODDP bit) | dropped on console kernels | the bits have no reader in tty.c (search); parenb and parodd are declined, so the word reports "not supported"; planned with UART0 line control |
+| `odd` | bin/stty/stty.c:64 (EVENP or ODDP bit) | dropped on console kernels | the bits have no reader in tty.c (search); parenb and parodd are declined, so the word reports "not supported"; planned with UART0 line control |
+| `-odd` | bin/stty/stty.c:65 (EVENP or ODDP bit) | dropped on console kernels | the bits have no reader in tty.c (search); parenb and parodd are declined, so the word reports "not supported"; planned with UART0 line control |
+| `raw` | bin/stty/stty.c:66 | mapped | -icanon -isig -opost (RAW) |
+| `-raw` | bin/stty/stty.c:67 | mapped | icanon isig opost |
+| `cooked` | bin/stty/stty.c:68 | mapped | as -raw |
+| `-nl` | bin/stty/stty.c:69 | mapped | icrnl onlcr (CRMOD set; the BSD name is inverted) |
+| `nl` | bin/stty/stty.c:70 | mapped | -icrnl -onlcr |
+| `echo` | bin/stty/stty.c:71 | kept | echo |
+| `-echo` | bin/stty/stty.c:72 | kept | -echo |
+| `-tabs` | bin/stty/stty.c:73 | mapped | tab3 (XTABS) |
+| `tabs` | bin/stty/stty.c:74 | mapped | tab0 |
+| `tandem` | bin/stty/stty.c:75 | mapped | ixoff |
+| `-tandem` | bin/stty/stty.c:76 | mapped | -ixoff |
+| `cbreak` | bin/stty/stty.c:77 | mapped | -icanon isig |
+| `-cbreak` | bin/stty/stty.c:78 | mapped | icanon |
+| `rtscts` | bin/stty/stty.c:83 (local-mode word) | mapped | crtscts |
+| `-rtscts` | bin/stty/stty.c:84 (local-mode word) | mapped | -crtscts |
+| `crtbs` | bin/stty/stty.c:85 (local-mode word) | kept | crtbs (extension) |
+| `-crtbs` | bin/stty/stty.c:86 (local-mode word) | kept | -crtbs |
+| `prterase` | bin/stty/stty.c:87 (local-mode word) | mapped | echoprt |
+| `-prterase` | bin/stty/stty.c:88 (local-mode word) | mapped | -echoprt |
+| `crterase` | bin/stty/stty.c:89 (local-mode word) | mapped | echoe |
+| `-crterase` | bin/stty/stty.c:90 (local-mode word) | mapped | -echoe |
+| `crtkill` | bin/stty/stty.c:91 (local-mode word) | mapped | echok (approximate) |
+| `-crtkill` | bin/stty/stty.c:92 (local-mode word) | mapped | -echok |
+| `mdmbuf` | bin/stty/stty.c:93 (local-mode word) | kept | mdmbuf |
+| `-mdmbuf` | bin/stty/stty.c:94 (local-mode word) | kept | -mdmbuf |
+| `litout` | bin/stty/stty.c:95 (local-mode word) | mapped | -opost |
+| `-litout` | bin/stty/stty.c:96 (local-mode word) | mapped | opost |
+| `pass8` | bin/stty/stty.c:97 (local-mode word) | mapped | -istrip cs8 |
+| `-pass8` | bin/stty/stty.c:98 (local-mode word) | mapped | istrip |
+| `tostop` | bin/stty/stty.c:99 (local-mode word) | kept | tostop |
+| `-tostop` | bin/stty/stty.c:100 (local-mode word) | kept | -tostop |
+| `flusho` | bin/stty/stty.c:101 (local-mode word) | kept | flusho |
+| `-flusho` | bin/stty/stty.c:102 (local-mode word) | kept | -flusho |
+| `nohang` | bin/stty/stty.c:103 (local-mode word) | mapped | clocal |
+| `-nohang` | bin/stty/stty.c:104 (local-mode word) | mapped | -clocal |
+| `ctlecho` | bin/stty/stty.c:105 (local-mode word) | mapped | echoctl |
+| `-ctlecho` | bin/stty/stty.c:106 (local-mode word) | mapped | -echoctl |
+| `pendin` | bin/stty/stty.c:107 (local-mode word) | kept | pendin |
+| `-pendin` | bin/stty/stty.c:108 (local-mode word) | kept | -pendin |
+| `decctlq` | bin/stty/stty.c:109 (local-mode word) | mapped | -ixany |
+| `-decctlq` | bin/stty/stty.c:110 (local-mode word) | mapped | ixany |
+| `noflsh` | bin/stty/stty.c:111 (local-mode word) | kept | noflsh |
+| `-noflsh` | bin/stty/stty.c:112 (local-mode word) | kept | -noflsh |
+| `dcd` | bin/stty/stty.c:117-126 (TIOCMGET, TIOCMSET) | kept | modem-line ioctl, not a termios item; meaningful on UART0 only |
+| `-dcd` | bin/stty/stty.c:117-126 | kept | as dcd |
+| `dsr` | bin/stty/stty.c:117-126 (TIOCMGET, TIOCMSET) | kept | modem-line ioctl, not a termios item; meaningful on UART0 only |
+| `-dsr` | bin/stty/stty.c:117-126 | kept | as dsr |
+| `dtr` | bin/stty/stty.c:117-126 (TIOCMGET, TIOCMSET) | kept | modem-line ioctl, not a termios item; meaningful on UART0 only |
+| `-dtr` | bin/stty/stty.c:117-126 | kept | as dtr |
+| `cts` | bin/stty/stty.c:117-126 (TIOCMGET, TIOCMSET) | kept | modem-line ioctl, not a termios item; meaningful on UART0 only |
+| `-cts` | bin/stty/stty.c:117-126 | kept | as cts |
+| `rts` | bin/stty/stty.c:117-126 (TIOCMGET, TIOCMSET) | kept | modem-line ioctl, not a termios item; meaningful on UART0 only |
+| `-rts` | bin/stty/stty.c:117-126 | kept | as rts |
+| `erase` | bin/stty/stty.c:143-156 (special[]) | kept | verase |
+| `kill` | bin/stty/stty.c:143-156 (special[]) | kept | vkill |
+| `intr` | bin/stty/stty.c:143-156 (special[]) | kept | vintr |
+| `quit` | bin/stty/stty.c:143-156 (special[]) | kept | vquit |
+| `start` | bin/stty/stty.c:143-156 (special[]) | kept | vstart |
+| `stop` | bin/stty/stty.c:143-156 (special[]) | kept | vstop |
+| `eof` | bin/stty/stty.c:143-156 (special[]) | kept | veof |
+| `brk` | bin/stty/stty.c:143-156 (special[]) | mapped | veol (mapped) |
+| `susp` | bin/stty/stty.c:143-156 (special[]) | kept | vsusp |
+| `dsusp` | bin/stty/stty.c:143-156 (special[]) | kept | vdsusp (extension) |
+| `rprnt` | bin/stty/stty.c:143-156 (special[]) | kept | vreprint |
+| `flush` | bin/stty/stty.c:143-156 (special[]) | kept | vdiscard |
+| `werase` | bin/stty/stty.c:143-156 (special[]) | kept | vwerase |
+| `lnext` | bin/stty/stty.c:143-156 (special[]) | kept | vlnext |
+| `crt` | bin/stty/stty.c:231-235 | kept | echoe echok echoctl crtbs, -echoprt |
+| `sane` | bin/stty/stty.c:236-240 (clears CBREAK; sets ECHO, CRMOD, XTABS) | kept, widened | icanon isig iexten echo icrnl onlcr opost tab3 ixon, after S03 |
+| `dec` | bin/stty/stty.c:241-247 | kept | erase ^?, kill ^U, intr ^C, then crt |
+| `flushout` | bin/stty/stty.c:262-265 (TIOCFLUSH) | mapped | tcflush TCIOFLUSH |
+| `hup` | bin/stty/stty.c:266-269 (TIOCHPCL) | kept | hupcl, set only until the get and clear request lands |
+| `rows N` | bin/stty/stty.c:270-274 | mapped | tcsetwinsize |
+| `cols N, columns N` | bin/stty/stty.c:275-279 | mapped | tcsetwinsize |
+| `size` | bin/stty/stty.c:280-284 | mapped | tcgetwinsize |
+| `speed` | bin/stty/stty.c:289-298 | kept | cfgetospeed lookup |
+| `everything, all, -a, -e` | bin/stty/stty.c:180-186, 223-227 | kept | prints the termios state, then the sgtty extras |
+| `-f FILE` | bin/stty/stty.c:187-192 | kept | as today |
+| `0` | bin/stty/stty.c:23 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr (B0 hangs up; effect unexamined) |
+| `50` | bin/stty/stty.c:24 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `75` | bin/stty/stty.c:25 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `150` | bin/stty/stty.c:26 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `200` | bin/stty/stty.c:27 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `300` | bin/stty/stty.c:28 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `600` | bin/stty/stty.c:29 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `1200` | bin/stty/stty.c:30 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `1800` | bin/stty/stty.c:31 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `2400` | bin/stty/stty.c:32 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `4800` | bin/stty/stty.c:33 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `9600` | bin/stty/stty.c:34 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `19200` | bin/stty/stty.c:35 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `38400` | bin/stty/stty.c:36 (speeds[]) | kept | cfsetispeed and cfsetospeed, then tcsetattr |
+| `57600` | bin/stty/stty.c:37 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `115200` | bin/stty/stty.c:38 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `230400` | bin/stty/stty.c:39 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `460800` | bin/stty/stty.c:40 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `500000` | bin/stty/stty.c:41 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `576000` | bin/stty/stty.c:42 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `921600` | bin/stty/stty.c:43 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `1000000` | bin/stty/stty.c:44 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `1152000` | bin/stty/stty.c:45 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `1500000` | bin/stty/stty.c:46 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `2000000` | bin/stty/stty.c:47 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `2500000` | bin/stty/stty.c:48 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `3000000` | bin/stty/stty.c:49 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `3500000` | bin/stty/stty.c:50 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `4000000` | bin/stty/stty.c:51 (speeds[]) | kept | extension beyond B38400; cfsetispeed and cfsetospeed, then tcsetattr |
+| `min N` | absent | added | vmin and vtime; needs K01 and K02 |
+| `time N` | absent | added | vmin and vtime; needs K01 and K02 |
+| `icanon, -icanon` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `isig, -isig` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `iexten, -iexten` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `opost, -opost` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `icrnl, -icrnl` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `onlcr, -onlcr` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `ixoff, -ixoff` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `ixany, -ixany` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `istrip, -istrip` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `clocal, -clocal` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `echoe, -echoe` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `echok, -echok` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `noflsh, -noflsh` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `tostop, -tostop` | absent (reachable only through the BSD names above) | added | the termios name for a row already in section 2; needs S03 |
+| `iutf8, -iutf8` | absent | added | needs K05 |
+| `hupcl, -hupcl` | absent | added | -hupcl needs K06 |
 
-- stty: move the mode tables to the shim's termios state after the shim lands;
-  add min N, time N, icanon, isig, iexten, echoe, echok, ixon, ixoff, icrnl,
-  onlcr, opost, iutf8, and print the state as the POSIX table names it. size,
-  rows and cols stay. Options for declined flags report "not supported" and exit
-  non-zero for the case where nothing could be honored, matching tcsetattr.
-  Risk: stty grows by the shim's 0.8-1.2 KB inside sysbox (E).
-- getty: keep the sgttyb path until the shim exists, then read the line state
-  through it; add one gettytab boolean, u8, that sets IUTF8 for entries whose
-  terminal is UTF-8 capable (name proposed here, not a donor capability). The
-  rest of gettytab stays.
-- ttys: virtual terminals appear as additional lines, off by default
-  (ttyv1 and ttyv2 are the proposed node names, following FreeBSD vt(4)
-  naming; the names are a recommendation, not a measured fact).
-- login: login/tty_modes.c reads the TIOC* calls directly (survey, R); it moves
-  to the shim in the same stage as getty.
-- resize(1): replace the FIONREAD poll with VMIN 0 and VTIME 1 once the kernel
-  stage lands (survey).
+### getty and gettytab, one row per capability read
+
+libexec/getty/init.c lists the capabilities getty reads (strings at lines 19-42, numbers at
+47-54, flags at 59-79); each row cites the line that applies it.
+
+| Capability | Kind | Applied at | Disposition | Note |
+|---|---|---|---|---|
+| `nx` | string | libexec/getty/main.c:286-287 | kept | next table on timeout or break |
+| `cl` | string | libexec/getty/main.c:251-252 | kept | screen clear; xterm sequence works on the console |
+| `im` | string | libexec/getty/main.c:254-255 | kept | initial message |
+| `lm` | string | libexec/getty/main.c:458 | kept | login prompt |
+| `er` | string | libexec/getty/subr.c:96-119 (setchars) | mapped | verase |
+| `kl` | string | libexec/getty/subr.c:96-119 | mapped | vkill |
+| `et` | string | libexec/getty/subr.c:96-119 | mapped | veof |
+| `pc` | string | libexec/getty/main.c:423 | kept | pad character for putpad |
+| `tt` | string | libexec/getty/subr.c:287-288 | kept | TERM |
+| `ev` | string | libexec/getty/subr.c:291 | kept | environment |
+| `lo` | string | libexec/getty/main.c:280 | kept | login program |
+| `hn` | string | libexec/getty/subr.c:194 | kept | host name |
+| `he` | string | libexec/getty/main.c:253 | kept | host name edit |
+| `in` | string | libexec/getty/subr.c:96-119 | mapped | vintr |
+| `qu` | string | libexec/getty/subr.c:96-119 | mapped | vquit |
+| `xn` | string | libexec/getty/subr.c:96-119 | mapped | vstart |
+| `xf` | string | libexec/getty/subr.c:96-119 | mapped | vstop |
+| `bk` | string | libexec/getty/subr.c:96-119 | mapped | veol |
+| `su` | string | libexec/getty/subr.c:96-119 | mapped | vsusp |
+| `ds` | string | libexec/getty/subr.c:96-119 | mapped | vdsusp |
+| `rp` | string | libexec/getty/subr.c:96-119 | mapped | vreprint |
+| `fl` | string | libexec/getty/subr.c:96-119 | mapped | vdiscard |
+| `we` | string | libexec/getty/subr.c:96-119 | mapped | vwerase |
+| `ln` | string | libexec/getty/subr.c:96-119 | mapped | vlnext |
+| `is` | number | libexec/getty/main.c:227-228 | kept | input speed |
+| `os` | number | libexec/getty/main.c:231-232 | kept | output speed |
+| `sp` | number | libexec/getty/main.c:229-233 | kept | both speeds |
+| `to` | number | libexec/getty/main.c:261-263 | kept | login timeout |
+| `f0` | number | libexec/getty/subr.c:129-135 | kept | raw sgtty flag word for output; stays, since sgtty remains the kernel interface |
+| `f1` | number | libexec/getty/subr.c:136-139 | kept | raw flag word for input |
+| `f2` | number | libexec/getty/subr.c:140-143 | kept | raw flag word for the user mode |
+| `pf` | number | libexec/getty/main.c:317-320 | kept | flush delay at the first prompt |
+| `ht` | flag | libexec/getty/subr.c:166 | mapped | -tab3 when false |
+| `nl` | flag | libexec/getty/subr.c:155 | mapped | icrnl onlcr |
+| `ep` | flag | libexec/getty/subr.c:151 | dropped on console kernels | EVENP stored, no effect |
+| `op` | flag | libexec/getty/subr.c:149 | dropped on console kernels | ODDP stored, no effect |
+| `ap` | flag | libexec/getty/subr.c:147 | dropped on console kernels | ANYP stored, no effect |
+| `ec` | flag | libexec/getty/subr.c:178 | mapped | echo |
+| `co` | flag | libexec/getty/main.c:459 | kept | console special case |
+| `cb` | flag | libexec/getty/subr.c:170 | kept | crtbs |
+| `ck` | flag | libexec/getty/subr.c:174 | mapped | echok |
+| `ce` | flag | libexec/getty/subr.c:172 | mapped | echoe |
+| `pe` | flag | libexec/getty/subr.c:176 | mapped | echoprt |
+| `rw` | flag | libexec/getty/subr.c:159 | mapped | -icanon -isig versus cbreak on the read mode |
+| `xc` | flag | libexec/getty/subr.c:180 | mapped | echoctl |
+| `ig` | flag | libexec/getty/main.c:366 | kept | ignore garbage characters in the login name |
+| `ps` | flag | libexec/getty/main.c:247 | kept | port selector |
+| `hc` | flag | libexec/getty/main.c:239-240 | mapped | hupcl, set only (TIOCHPCL) |
+| `ub` | flag | libexec/getty/main.c:439 | kept | unbuffered output |
+| `ab` | flag | libexec/getty/main.c:241 | kept | autobaud (UART0 only in effect) |
+| `dx` | flag | libexec/getty/subr.c:182 | mapped | -ixany |
+| `hf` | flag | libexec/getty/subr.c:153 | mapped | crtscts |
+| `np` | flag | libexec/getty/subr.c:184 | mapped | -istrip cs8 |
+| `u8` | flag | new | added | sets iutf8 for UTF-8 capable terminals; needs K05; the name is proposed here, not a donor capability |
+
+### ttys, login, resize
+
+- ttys: virtual terminals appear as additional lines, off by default (ttyv1 is
+  the proposed node name, after FreeBSD vt(4); a recommendation, not a measured
+  fact). The present lines (console, tty0, ttyUSB0, all xterm) stay.
+- login: login/tty_modes.c reads the TIOC* calls directly (survey, R) and moves
+  to the shim in step U03.
+- resize(1): the FIONREAD poll gives way to VMIN 0 and VTIME 1 after K02
+  (survey).
 
 ## 7. Staged order
 
-Stages are named by content. Every stage gives its first falsifier (the
-observation that refutes the stage's prediction) and a host test that runs
-without the board. Board runs stay behind the hardware opt-in.
+Each step is one reviewable change, about 100-300 lines or one mechanism. The
+size column is changed lines (E). Every step names its first falsifier (the
+observation that refutes its prediction) and a host test that runs without the
+board; board runs stay behind the hardware opt-in. Row references in the
+falsifier column point at section 2 and section 6 rows.
 
-| Stage | Prerequisite | Prediction (E unless marked) | First falsifier | Host test |
-|---|---|---|---|---|
-| termios.h and libc shim | none | 0 kernel text; 0.8-1.2 KB per linking program | a representable state does not round-trip through tcsetattr then tcgetattr, or an unrepresentable request returns success | round trip of every state the table marks "now" against a model of the sgtty ioctls (report-only and set-only rows are excluded from the round trip and tested for their stated report value instead); EINVAL cases from the tables of section 2 |
-| VMIN, VTIME and non-flushing set | shim | tty.o grows 0.40-0.55 KB; struct tty stays 100 B; PICOCALC headroom stays above 1,024 B | tty.o grows more than 0.6 KB, or queued bytes vanish across a mode change | the four Issue 8 cases on a model clock; a queue-preservation case; the layout contract test updated for the two new bytes |
-| UTF-8 decoder and glyph coverage | none | +0.35-0.55 KB; no per-cell growth | any code point draws other than one cell in tables 1-3 or '?', or a stray continuation byte draws a bank glyph | the enumeration of section 4 through lcdterm.c with recording primitives; mutants on each reject rule |
-| IUTF8 erase | UTF-8 decoder | +0.15-0.25 KB; one retired t_flags bit | an erase after a two-byte character leaves one byte queued | cooked queue model: "e" plus U+00E9, erase, with and without IUTF8 |
-| extended SGR, OSC, CSI additions | none | +0.40-0.70 KB combined | known-bad: ESC [38;5;196m on the present lcdterm.c sets bold (I); the test must fail there before the change and pass after | check-picocalc-host through the recording primitives with the properties of section 4, and mutants of each branch |
-| stty, getty, login on the shim | shim, VMIN and VTIME | stty +0.8-1.2 KB in sysbox | a mode set through stty differs on read-back from the tcgetattr state | stty option table against a termios model; getty u8 parse |
-| TIOCDRAIN, tcsendbreak on UART0 | shim | +0.10-0.18 KB | tcdrain returns before ttywait's queue is empty | model with a transmit-complete flag |
-| lcdterm per-console struct, one console | UTF-8 and SGR stages | +0.3-0.5 KB (survey) | any difference in the model-panel log | check-picocalc-host logs identical |
-| second and third terminal, switch key, minor map, forced console 0 on abandon | per-console struct | +0.7-1.0 KB more; 3,656 B per terminal | an invisible terminal calls a draw primitive; a switch changes the active shadow's content; a panic with VT2 visible leaves VT2 on the panel | two-console model: repaint equals store; wiring checks; PICOCALC_SD first, PICOCALC after a measured fit against 2,424 B |
-| shadow swap-out (reading 2) | virtual terminals | +0.3-0.5 KB; 3,392 B RAM per suspended terminal | the swap read returns a shadow that differs from the one written, or swap loss panics | swap model with a loss injection; refusal on fl1 |
+### Termios and userland
 
-The stage "second and third terminal" lands on PICOCALC only after the
-preceding stages' measured text growth shows at least 2.24 KB of the 2,424 B
-unspent; otherwise it stays on PICOCALC_SD and PICO kernels.
+| Step | Mechanism | Needs | Lines | Bytes (E) | First falsifier | Host test |
+|---|---|---|---|---|---|---|
+| S01 | termios.h, cfgetispeed, cfgetospeed, cfsetispeed, cfsetospeed, cfsetspeed, cfmakeraw | none | 120 | 0 kernel; 0.1 KB per linking program | a name or value differs from the chapter 11 tables, or two bits of one register overlap | compile-time distinctness assertions; accessor round trip |
+| S02 | tcgetattr over TIOCGETP, TIOCGETC, TIOCGLTC, TIOCLGET | S01 | 150 | 0.3-0.5 KB per program | an sgtty state in a "now" row maps to a different termios value than the row says | sgtty-model states to termios, every row of section 2 |
+| S03 | tcsetattr TCSANOW with the refusal rules (EINVAL only when no part is honored) | S01, S02 | 200 | 0.4-0.6 KB per program | a "now" row fails RT, or a declined request returns success | RT and RF cases for every row |
+| S04 | tcsetattr TCSADRAIN and TCSAFLUSH, tcflush (3 selectors), tcflow (4 actions) | S03 (TCSADRAIN also K04) | 120 | 0.15-0.25 KB per program | a selector flushes the wrong queue, or TCSAFLUSH keeps queued input | model with input and output queues; each selector and action |
+| S05 | tcgetpgrp, tcsetpgrp, tcgetwinsize, tcsetwinsize | S01 | 60 | 0.1 KB per program | SIGWINCH on an unchanged size | model of TIOCSWINSZ |
+| K01 | VMIN and VTIME in the two pad bytes of struct tty, with the get and set request | none | 60 | +0.10-0.15 KB text, 0 RAM | struct tty grows past 100 B | tests/kernel/tty_layout_contract.c updated by design; request round trip |
+| K02 | ttread honors VMIN and VTIME (the four Issue 8 cases, with a callout) | K01 | 90 | +0.30-0.40 KB | tty.o grows more than 0.45 KB over K01, or queued bytes are lost | four cases on a model clock; a queue-preservation case |
+| K04 | TIOCDRAIN over ttywait (tty.c:216) | none | 15 | +0.04-0.08 KB | the call returns with a non-empty queue | model with a transmit-complete flag |
+| K05 | IUTF8 bit and UTF-8 erase through unputc | none (the shim row needs S03) | 40 | +0.15-0.25 KB | an erase after U+00E9 leaves one byte queued | KM: erase with and without the bit |
+| K06 | HUPCL get and clear in the K01 request | K01 | 15 | +0.02-0.04 KB | TS_HUPCLS is not cleared by the request | KM on t_state |
+| K07 | UART0 break (TIOCSBRK, TIOCCBRK case and the line-control bit) | none | 40 | +0.06-0.10 KB; not on PICOCALC | the break lasts outside 0.25-0.5 s for duration 0 | UART model |
+| U01 | stty on the shim for the kept and mapped words of section 6 | S02, S03 | 250 | stty +0.3-0.5 KB in sysbox | stty prints a different state than today's stty for the same sgtty state | golden output of the old and new stty on each state |
+| U02 | stty added words (min, time, icanon and the other names, iutf8, hupcl) | U01 and the kernel step each word names | 100 | +0.1-0.2 KB | an added word changes a bit the section 2 row does not name | option table against the termios model |
+| U03 | getty and login read and apply the line through the shim | S03 | 150 | +0.2-0.4 KB each | a gettytab entry gives a different line state than today's | parse of every capability row into the state it gives today |
+| U04 | gettytab u8 capability | K05, U03 | 20 | +0.05 KB | u8 absent sets iutf8 | getty parse |
 
-Hazards that carry over from the survey: the shim reports VMIN 1 and VTIME 0
-until the kernel stage lands; TIOCSETN is the only no-flush set request; the
-new struct tty bytes change tests/kernel/tty_layout_contract.c by design.
+### Console emulator
+
+| Step | Mechanism | Needs | Lines | Bytes (E) | First falsifier | Host test |
+|---|---|---|---|---|---|---|
+| C01 | UTF-8 decoder and the coverage tables of section 4 | none | 150 | +0.35-0.55 KB; 3 B per terminal | a code point draws other than one covered cell or '?', or a stray continuation byte reaches the bank | enumeration of all code points and prefixes; mutants on each reject rule |
+| C02 | Latin-1 glyph ROM loaded into bank slots 0xa0-0xff | C01 | 120 (data) | +0.67 KB flash; PICOCALC_SD and PICO only | a loaded slot draws '?' | bank-load test |
+| C03 | 38 and 48 sub-parameters (; and :), nearest-palette reduction | none | 120 | +0.25-0.40 KB | known-bad: ESC [38;5;196m sets bold on today's lcdterm.c (I); the test fails there before and passes after | properties of section 4 (identity below 16, total, primaries) with mutants |
+| C04 | OSC, DCS, APC, PM and SOS consumed to the terminator with a length bound | none | 50 | +0.06-0.10 KB | an OSC payload prints on today's lcdterm.c (I) | model with an OSC title, then text |
+| C05 | CSI E, F, S, T, s, u, I, Z, b | none | 120 | +0.10-0.18 KB | a sequence moves the cursor differently from its definition | per-sequence table through recording primitives |
+| C06 | tab stops: ESC H, CSI g and the HT stop test, one bit per column | C05 | 60 | +0.05-0.10 KB; 7 B per terminal | HT ignores a set stop | stop set and clear sequences |
+
+### Virtual consoles
+
+| Step | Mechanism | Needs | Lines | Bytes (E unless M) | First falsifier | Host test |
+|---|---|---|---|---|---|---|
+| V00 | gather lcdterm.c's static state into one struct | none | 200 | +0.3-0.5 KB | any difference in the model-panel log | check-picocalc-host logs identical |
+| V01 | one frozen second console, in-place exchange, switch key, writer wait, panic restore | V00 | 250 | +0.3-0.5 KB; +3,656 B RAM (3,556 slot, 100 tty; M basis) | A to B to A changes console 0's stores, a frozen console draws, or a panic with console 1 shown leaves its text | section 5 test and four mutants |
+| V02 | the frozen store in PSRAM, 64 B frame exchange | V01 | 150 | +0.2-0.35 KB; -3,556 B RAM | the PSRAM exchange differs from the RAM exchange, or a panic with the driver busy hangs | PSRAM host model; frame-drop and driver-busy mutants |
+| V03 | N resident shadows, live output on every console | V00 (V01 for the key and the panic rule) | 250 | +0.4-0.6 KB more; 3,656 B per console | an invisible console calls a draw primitive | N-console model: repaint equals store |
+| V04 | shadow swap-out (reading 2 of section 5) | V03 | 200 | +0.3-0.5 KB; -3,392 B per suspended console | the swap read differs from the write, or swap loss panics | swap model with loss injection; refusal on fl1 |
+
+### Which steps are independent
+
+- Independent of every other step: S01, K01, K04, K05, K07, C01, C03, C04, C05, V00.
+- Termios chain: S01 then S02 then S03 then S04; S05 needs only S01. The kernel
+  steps K01 to K07 do not wait for the shim: the kernel changes are testable by
+  KM tests alone, and the shim rows that name them (VMIN, VTIME, IUTF8, HUPCL,
+  drain) turn from "report-only" to "now" when their step lands.
+- U01 to U04 follow the shim: U01 needs S02 and S03, U03 needs S03, U02 and U04
+  wait on the kernel step each word or capability names.
+- Console chain: C02 needs C01; C06 needs C05. Console steps do not depend on the
+  termios or userland steps, except K05 wanting C01 for the decoder it erases.
+- Virtual consoles: V01 needs V00, V02 needs V01, V03 needs V00, V04 needs V03.
+  V01 does not need V03; V03 does not wait for V02.
+
+PICOCALC admits the termios and console steps (1.42-2.25 KB, E, against its
+2,424 B above the margin: 0.1-0.95 KB spare) and takes V00 and V01 (+0.6-1.0 KB)
+only if the measured growth of the preceding steps leaves room; otherwise V00
+and V01 land on PICOCALC_SD and PICO kernels first.
+
+Hazards that carry over from the survey: until K01 and K02 land, the shim reports
+VMIN 1 and VTIME 0; TIOCSETN is the only no-flush set request; the new struct tty
+bytes change tests/kernel/tty_layout_contract.c by design.
 
 ## 8. Licenses
 
@@ -532,12 +952,13 @@ wsdisplay_vcons.c:664-690, wsdisplay_vconsvar.h:44-60, wsemul_vt100_subr.c:566;
 FreeBSD vt_core.c:3054; and the license headers listed in section 8.
 POSIX chapter 11 lines read from the Issue 8 text extract: 11.2.1 at 14883,
 c_lflag at 15286-15318, TOSTOP at 14555, the tcgetwinsize prototype at 35268.
-No citation was found wrong. Line counts, struct names and function names in the
+Also read for the frozen-console step: sys/arch/rp2040/dev/psram_xfer.h:26-42, psram_pio.h:135,
+docs/research/driver-datasheet-audit.md:169-170, docs/research/picocalc-console-review.md:140-144 and :358, and the lcdterm.c static declarations at lines 66-91. No citation was found wrong. Line counts, struct names and function names in the
 donor tables that carry no mark were not reopened.
 
 ## 10. Not verified
 
-- Every (E) figure, including the 1.34-2.13 KB subtotal and the per-stage text
+- Every (E) figure, including the 1.42-2.25 KB subtotal and the per-step text
   growth; none of the planned code exists.
 - The 49% agreement figure is a comparison of two tables, not a visual judgment
   on the panel.
@@ -545,8 +966,13 @@ donor tables that carry no mark were not reopened.
   lcdterm.c, not from running it.
 - Padding bytes 98-99 of struct tty: the offsets are asserted, the padding is
   arithmetic.
-- Whether the PSRAM transfer path can stream a 106 B row at repaint speed, and the PSRAM carve-out for shadows;
-- The Ctrl+F1-F3 combination on hardware; the swapram tier's treatment of a
+- Whether a PSRAM write frame takes as long as the 4.6 us read frame the driver
+  model states, the PSRAM carve-out for the frozen store, and whether the ttwrite
+  sleep on a frozen console is signal-interruptible;
+- The 195-207 ms repaint is derived from SPI wire time, not captured on a board;
+- The IXANY inverse of DECCTQ and the "no reader" of EVENP and ODDP rest on
+  searches of the C sources;
+- The Ctrl+F1 to F3 combination on hardware; the swapram tier's treatment of a
   kernel-object swap client.
 - Donor files beyond the lines listed in section 9: tty_inq.c, tty_outq.c,
   tty_subr.c of the BSDs, rubchar bodies, wsdisplay_vcons.c switch code, the

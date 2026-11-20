@@ -34,7 +34,7 @@ WIDEOBJ		= ctime64.o mktime64.o time64.o difftime64.o wait364.o \
 
 STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c atol.c \
 		  basename.c bcmp.c bcopy.c cfmakeraw.c cfspeed.c ctermid.c \
-		  bzero.c calloc.c clock.c closedir.c confstr.c crypt.c ctime.c ctype_.c \
+		  bzero.c calloc.c clock.c closedir.c confstr.c pathconf.c crypt.c ctime.c ctype_.c \
 		  daemon.c devname.c difftime.c dirname.c \
 		  ecvt.c err.c execvp.c fakcu.c ffs.c \
 		  fnmatch.c frexp.c fstab.c gcvt.c getenv.c getgrent.c getgrgid.c \
@@ -58,7 +58,7 @@ STDSRC		= abort.c alarm.c aligned_alloc.c assert_fail.c asctime.c atof.c atoi.c 
 
 STDOBJ		= abort.o alarm.o aligned_alloc.o assert_fail.o asctime.o atof.o atoi.o atol.o \
 		  basename.o bcmp.o bcopy.o cfmakeraw.o cfspeed.o ctermid.o \
-		  bzero.o calloc.o clock.o closedir.o confstr.o crypt.o ctime.o ctype_.o \
+		  bzero.o calloc.o clock.o closedir.o confstr.o pathconf.o crypt.o ctime.o ctype_.o \
 		  daemon.o devname.o difftime.o dirname.o \
 		  ecvt.o err.o execvp.o fakcu.o ffs.o \
 		  fnmatch.o frexp.o fstab.o gcvt.o getenv.o getgrent.o getgrgid.o \

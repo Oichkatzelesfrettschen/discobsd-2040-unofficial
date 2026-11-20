@@ -627,7 +627,7 @@ dirloop2:
 #ifdef V7FS
     /* A V7 entry holds 14 name bytes; V7 itself truncated in silence. */
     if (flag == CREATE && *cp == 0 && FS_ISV7(INODE_FILESYSTEM(dp)) &&
-        ndp->ni_dent.d_namlen > 14) {
+        ndp->ni_dent.d_namlen > V7_NAMELEN) {
         u.u_error = ENAMETOOLONG;
         goto bad;
     }

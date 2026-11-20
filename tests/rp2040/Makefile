@@ -9,7 +9,7 @@
 TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-BOARD_PROGS=	divtest exec_hsaout fptest gpioprobe lcdexttest lcdgfxtest romprobe \
+BOARD_PROGS=	getconf divtest exec_hsaout fptest gpioprobe lcdexttest lcdgfxtest romprobe \
 		sigtest \
 		stack_chain \
 		streamtest \
@@ -27,7 +27,7 @@ build-${program}:
 # The executables the board runs, installed in /usr/tests/rp2040 for the
 # PicoCalc's SD root (distrib/rp2040/Makefile.inc, sdroot), which has the
 # space the flash root lacks. The host-side drivers (*.py) stay here.
-BOARD_BINS=	getconf/confcheck divtest/divtest exec_hsaout/textcrc fptest/fptest \
+BOARD_BINS=	getconf/confcheck getconf/pathlimit divtest/divtest exec_hsaout/textcrc fptest/fptest \
 		lcdexttest/lcdexttest lcdgfxtest/lcdgfxtest romprobe/romprobe \
 		sigtest/sigtest stack_chain/stackchain \
 		streamtest/streamtest stdio_capacity/stdiocap \

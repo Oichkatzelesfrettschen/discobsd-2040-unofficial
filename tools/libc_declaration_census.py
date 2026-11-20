@@ -28,7 +28,7 @@ HEADER = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\.h\Z")
 ARCHIVES = {"libc": "libc", "libm": "libm", "libcurses": "libcurses",
             "libtermlib": "libtermcap", "libutil": "libutil", "libbn": "libbn",
             "libvmf": "libvmf", "libtcl": "libtcl", "libreadline": "libreadline",
-            "libcalc": "libcalc"}
+            "libcalc": "libcalc", "libwin": "libwin"}
 
 
 def require(condition, message):

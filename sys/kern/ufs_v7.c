@@ -23,7 +23,6 @@
 
 #define V7_NADDR        13      /* ten direct addresses, three indirect */
 #define V7_NICINOD      100     /* free inodes cached in the superblock */
-#define V7_NAMELEN      14
 #define V7_SLOT         16      /* a directory entry on the volume */
 #define V7_NSLOT        32      /* entries in one 512-byte block */
 #define V7_VREC         32      /* the record one entry expands to */

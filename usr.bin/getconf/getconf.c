@@ -80,13 +80,20 @@ main(int argc, char **argv)
 		argc--;
 		argv++;
 	}
-	if (argc != 2) {
-		fputs("usage: getconf system_var\n", stderr);
+	if (argc < 2 || argc > 3) {
+		fputs("usage: getconf system_var | getconf NAME_MAX pathname\n", stderr);
 		return 1;
 	}
 	name = argv[1];
-	if (strcmp(name, "PATH") == 0) {
+	if (argc == 3 && strcmp(name, "NAME_MAX") == 0) {
+		errno = 0;
+		value = pathconf(argv[2], _PC_NAME_MAX);
+	} else if (argc == 3 || strcmp(name, "NAME_MAX") == 0) {
+		fprintf(stderr, "getconf: invalid operand count for %s\n", name);
+		return 1;
+	} else if (strcmp(name, "PATH") == 0) {
 		result = print_path();
+		goto output;
 	} else {
 		for (i = 0; i < sizeof(variables) / sizeof(variables[0]); i++)
 			if (strcmp(name, variables[i].name) == 0)
@@ -97,13 +104,14 @@ main(int argc, char **argv)
 		}
 		errno = 0;
 		value = sysconf(variables[i].selector);
-		if (value != -1)
-			result = printf("%ld\n", value);
-		else if (errno == 0)
-			result = puts("undefined");
-		else
-			result = -1;
 	}
+	if (value != -1)
+		result = printf("%ld\n", value);
+	else if (errno == 0)
+		result = puts("undefined");
+	else
+		result = -1;
+output:
 	if (result < 0 || fflush(stdout) == EOF || ferror(stdout)) {
 		perror("getconf");
 		return 1;

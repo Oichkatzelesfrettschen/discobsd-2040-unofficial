@@ -1,0 +1,87 @@
+#
+# Copyright (c) 2026 GizmoBSD
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# ClockworkPi PicoCalc (mainboard V2.0) with a Raspberry Pi Pico and a
+# required SD root: PICOCALC_SD as the testing kernel, with DIAGNOSTIC,
+# GLOBAL_DEBUG=9 and STORAGE_STATS added and compiled at -Og so that a debugger follows
+# source lines and keeps locals. A board line defines only its own name and
+# the sources test -DPICOCALC_SD (dev/flash.h, dev/sd.c, dev/uart.c), so
+# options PICOCALC_SD defines it here. check_generated_sync.py compares every
+# directive to PICOCALC_SD apart from those additions. The shipped PICOCALC_SD
+# kernel stays at -Os. DIAGNOSTIC prints lines on every signal delivery
+# (rp2040/sig_machdep.c) and GLOBAL_DEBUG traces every execve(2); PICOCALC.md
+# carries the sizes.
+architecture    "rp2040"
+cpu             "RP2040"
+board           "PICOCALC_SD_DIAG"
+ldscript        "RP2040-sd.ld"
+makeoptions     DEBUG="-g"
+makeoptions     COPTS="-Og"
+options         "CPU_KHZ=125000"
+options         "BUS_KHZ=125000"
+options         "HALTREBOOT"
+options         SYSTRACE
+options         CAPACITY_STATS
+options         PICOCALC_SD
+options         DIAGNOSTIC
+options         "GLOBAL_DEBUG=9"
+options         STORAGE_STATS
+options         LCD_PANELTEST
+options         LCD_GFX_EXT
+options         LCD_VT
+config          unix    root on sd0a
+                        swap on fl1
+                        dumps on none
+options         "NFL=2"
+options         "NMOUNT=3"
+options         LINEAR_INODE_CACHE
+options         COMPACT_INODE_FIELDS
+options         COMPACT_SWAPMAP
+options         LINEAR_BUFFER_CACHE
+options         LINEAR_NAME_CACHE
+options         "CORE_DEFAULT=0"
+options         "ROOT_MOUNT_FLAGS=MNT_NOATIME"
+device          picocalc
+options         "CONS_MAJOR=LCDCONS_MAJOR"
+options         "CONS_MINOR=0"
+device          psram
+device          sd
+service         sdroot
+service         sdswap
+device          uart0
+options         "UART_BAUD=115200"
+options         "NUART=1"
+device          uartusb
+options         "USB_TXRING=4096"
+options        SWAPRAM
+options        "SWAPRAM_KB=16"
+options        EXEC_HSAOUT
+options         DEV_ADC
+options         DEV_GPIO
+options         DEV_GPIO_PWM
+options         DEV_LCDGFX
+options         DEV_PCM

@@ -72,8 +72,8 @@ sendsig(sig_t p, int sig, long mask)
 	int oonstack;
 
 #ifdef DIAGNOSTIC
-	printf("(%u)sendsig %d, mask=%#x, handler=%#x, tramp=%#x\n",
-	    u.u_procp->p_pid, sig, mask, p, u.u_sigtramp);
+	printf("(%u)sendsig %d, mask=%#lx, handler=%#x, tramp=%#x\n",
+	    u.u_procp->p_pid, sig, mask, (u_int)p, u.u_sigtramp);
 #endif
 	oonstack = u.u_sigstk.ss_flags & SA_ONSTACK;
 
@@ -160,7 +160,7 @@ sendsig(sig_t p, int sig, long mask)
 #ifdef DIAGNOSTIC
 	printf("    ...call handler %p (sig=%d, code=%#x, context=%p)\n",
 	    p, sig, u.u_code, &sfp->sf_sc);
-	printf("    ...stack=%p, return to %p\n", sfp, u.u_sigtramp);
+	printf("    ...stack=%p, return to %#x\n", sfp, u.u_sigtramp);
 #endif
 }
 

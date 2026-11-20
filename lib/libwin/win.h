@@ -139,7 +139,8 @@ struct win_event;
 
 /*
  * An event handler of one window (win_input.h). It returns nonzero when it
- * consumed the event.
+ * consumed the event, 0 when it did not, and -1 when a scene call failed at
+ * the backend and the event was not applied.
  */
 typedef int (*win_event_fn)(struct win_scene *s, struct win *win,
     const struct win_event *ev, void *arg);
@@ -151,6 +152,20 @@ struct win_backend {
 	int (*palette)(void *self, int index, int r, int g, int b);
 	void *self;
 };
+
+/*
+ * The optional one-bit entry, set with win_scene_set_bits() after
+ * win_scene_init(): a rectangle of at most two colors as one bit per pixel,
+ * most significant bit first, each row padded to a whole byte ((w + 7) / 8
+ * bytes); a set bit is palette index fg, a clear bit index bg. It is called
+ * with the backend's self. win_flush() sends a strip through it when the
+ * strip's pixels have at most two colors and the packed rows are fewer bytes
+ * than the indexed ones; every other strip goes through rect. A scene never
+ * reads a field of struct win_backend beyond rect, palette and self, so
+ * callers that fill only those stay valid.
+ */
+typedef int (*win_bits_fn)(void *self, int x, int y, int w, int h, int fg,
+    int bg, const unsigned char *rows);
 
 struct win_rect {
 	int x0, y0, x1, y1;		/* Upper bounds excluded. */
@@ -179,11 +194,14 @@ struct win_scene {
 	int focus_follows_raise;	/* Nonzero: raise and lower move the focus. */
 	unsigned next_gen;		/* Generation of the next window created. */
 	struct win_backend be;
+	win_bits_fn bits;		/* NULL until win_scene_set_bits(). */
 	unsigned char buf[WIN_GUARD + WIN_STRIP_BYTES + WIN_GUARD];
 };
 
 /* Scene: the whole panel starts damaged, so the first flush paints it. */
 int win_scene_init(struct win_scene *s, const struct win_backend *be);
+/* Enable (or, with NULL, disable) the one-bit strip path. */
+void win_scene_set_bits(struct win_scene *s, win_bits_fn fn);
 int win_set_palette(struct win_scene *s, int index, int r, int g, int b);
 int win_flush(struct win_scene *s);
 /* Flush if fewer than n damage slots are free; -1 changes nothing. */
@@ -229,5 +247,8 @@ struct win_lcdgfx {
 	int fd;
 };
 void win_lcdgfx_init(struct win_backend *be, struct win_lcdgfx *st, int fd);
+/* The LCDG_WIN_BITS entry for win_scene_set_bits(); self is the backend's. */
+int win_lcdgfx_bits(void *self, int x, int y, int w, int h, int fg, int bg,
+    const unsigned char *rows);
 
 #endif /* !_WIN_H_ */

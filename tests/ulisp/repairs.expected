@@ -105,6 +105,16 @@ Error: 'read-byte' stream cannot be read: <string-stream 0>
 11992> 
 Error: 'sleep' missing argument
 11992> 
+(1 0 #*00000000000000000000000000000001)
+
+11992> 
+(1 1 0)
+
+11992> 
+Error: 'with-sd-card' invalid mode: 3
+11992> 
+Error: 'with-sd-card' invalid mode: -1
+11992> 
 (#\Newline #\Null #\Null)
 
 11992> 

@@ -43,4 +43,8 @@
 (with-output-to-string (s) (read-line s))
 (with-output-to-string (s) (read-byte s))
 (sleep)
+(let ((a #*00000000000000000000000000000001)) (list (aref a 31) (aref a 0) a))
+(let ((a (make-array 32 :element-type 'bit))) (setf (aref a 31) 1) (incf (aref a 30)) (list (aref a 31) (aref a 30) (aref a 0)))
+(with-sd-card (s "ulisp-mode.tmp" 3) (princ "abc" s))
+(with-sd-card (s "ulisp-mode.tmp" -1) (princ "abc" s))
 (list (get-key) (get-key) (get-key))

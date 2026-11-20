@@ -1699,7 +1699,7 @@ static object *readbitarray (gfun_t gfun) {
   while (head != NULL) {
     object **loc = arrayref(array, index>>(sizeof(int)==4 ? 5 : 4), size);
     int bit = index & (sizeof(int)==4 ? 0x1F : 0x0F);
-    *loc = number((((*loc)->integer) & ~(1<<bit)) | (car(head)->integer)<<bit);
+    *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)(car(head)->integer)<<bit));
     index++;
     head = cdr(head);
   }
@@ -2688,7 +2688,7 @@ static object *sp_incf (object *args, object *env) {
     int newvalue = (((*loc)->integer)>>bit & 1) + increment;
 
     if (newvalue & ~1) error2("result is not a bit value");
-    *loc = number((((*loc)->integer) & ~(1<<bit)) | newvalue<<bit);
+    *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)newvalue<<bit));
     return number(newvalue);
   }
 
@@ -2731,7 +2731,7 @@ static object *sp_decf (object *args, object *env) {
     int newvalue = (((*loc)->integer)>>bit & 1) - decrement;
 
     if (newvalue & ~1) error2("result is not a bit value");
-    *loc = number((((*loc)->integer) & ~(1<<bit)) | newvalue<<bit);
+    *loc = number((int)(((unsigned int)((*loc)->integer) & ~(1U<<bit)) | (unsigned int)newvalue<<bit));
     return number(newvalue);
   }
 
@@ -2939,6 +2939,7 @@ static object *sp_withsdcard (object *args, object *env) {
   params = cdr(params);
   int mode = 0;
   if (params != NULL && first(params) != NULL) mode = checkinteger(first(params));
+  if (mode < 0 || mode > 2) error("invalid mode", first(params));
   char buffer[PATHSIZE];
   int file = (mode >= 1) ? SYS_FOUT : SYS_FIN;
   if (!sys_fopen(file, MakeFilename(filename, buffer), (mode == 1) ? SYS_APPEND : (mode == 2) ? SYS_WRITE : SYS_READ)) {
@@ -2949,7 +2950,8 @@ static object *sp_withsdcard (object *args, object *env) {
   push(pair,env);
   object *forms = cdr(args);
   object *result = eval(tf_progn(forms,env), env);
-  sys_fclose(file);
+  // The close writes the last buffered bytes of an output file.
+  if (!sys_fclose(file) && mode >= 1) error2("problem writing to file or invalid filename");
   return result;
 }
 
@@ -2965,7 +2967,7 @@ static object *sp_defcode (object *args, object *env) {
   int regn = 0;
   while (params != NULL) {
     if (regn > 3) error("more than 4 parameters", var);
-    object *regpair = cons(car(params), bsymbol((builtin_t)((toradix40('r')*40+toradix40('0')+regn)*2560000))); // Symbol for r0 etc
+    object *regpair = cons(car(params), bsymbol((builtin_t)((uint32_t)(toradix40('r')*40+toradix40('0')+regn)*2560000U))); // Symbol for r0 etc
     push(regpair,env);
     regn++;
     params = cdr(params);

@@ -98,6 +98,7 @@ TAIL = [
     "KBD OK",
     "MASK OK",
     "REMAP OK",
+    "STUFF OK",
     "HOOK OK",
     "VID OK",
     "MODE OK",
@@ -132,6 +133,14 @@ MUTANTS = [
     ),
     ("cpu.c", "if (tf && !c->inhibit && !faulted)", "if (tf && !c->inhibit)"),
     ("pc.c", "pic_base = v & 0xf8;", "pic_base = 8;"),
+    ("pc.c", "!bq_put(c->r[R_CX]));", "0 * bq_put(c->r[R_CX]));"),
+    (
+        "main.c",
+        "if (caught)\n\t\t\thost_exit(128 + (int)caught);\n\tif (read",
+        "(void)0;\n\tif (read",
+    ),
+    ("pc.c", "} else\n\t\t\t\tknown = 0;", "}"),
+    ("pc.c", "oputc(*s >= 0x20 && *s < 0x7f ? *s : '?');", "oputc(*s);"),
     ("pc.c", "pic_aeoi = v >> 1 & 1;", "pic_aeoi = 0;"),
     ("pc.c", "pic_irr = pic_isr = imask = pic_aeoi = 0;", "pic_irr = pic_isr = imask = 0;"),
     ("pc.c", "(c->irq && (c->fl & F_IF)))\n\t\t\tbreak;", "c->irq)\n\t\t\tbreak;"),
@@ -270,7 +279,7 @@ MUTANTS = [
     ("pc.c", "mem_ww(4 * 8, ROM_OFF + ROM_TIMER);", ";"),
     ("main.c", "(!cpu.halted ||\n\t\t    (cpu.irq && (cpu.fl & F_IF))); i++)", "!cpu.halted; i++)"),
     ("main.c", "mem_failed = store_failed;", "(void)store_failed;"),
-    ("main.c", "if (caught)\n\t\t\thost_exit(128 + (int)caught);", ";"),
+    ("main.c", "nsteps++;\n\t\tif (caught)\n\t\t\thost_exit(128 + (int)caught);", "nsteps++;"),
     ("main.c", '"/tmp/i86.%u", (unsigned)getpid() & 0xffffffu', '"/tmp/i86.%u", 0u'),
     ("mem.c", "O_RDWR | O_CREAT | O_EXCL", "O_RDWR | O_CREAT | O_TRUNC"),
     ("pc.c", "mbr[0x1be + 5] != 0xff) {", "1) {"),
@@ -705,6 +714,97 @@ def test_interactive(binary, work):
         raise Failure("terminal session: terminal mode not restored")
 
 
+def menu_session(binary, work, image, steps, cwd=None, kill=None):
+    """A session on a pseudo-terminal: each step waits for a text and
+    types. With kill, that signal follows the last step. Returns the raw
+    output, the exit status and whether the terminal mode came back."""
+    master, slave = pty.openpty()
+    before = termios.tcgetattr(slave)
+    child = subprocess.Popen(
+        [binary, "-T", "-s", os.path.join(work, "page"), "-a", image],
+        stdin=slave,
+        stdout=slave,
+        stderr=subprocess.DEVNULL,
+        cwd=cwd,
+    )
+    seen = b""
+    at = step = 0
+    deadline = time.time() + 30
+    status = None
+    try:
+        while time.time() < deadline and child.poll() is None and step < len(steps):
+            ready, _, _ = select.select([master], [], [], 0.05)
+            if ready:
+                seen += os.read(master, 4096)
+            plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen)
+            found = plain.find(steps[step][0], at)
+            if found < 0:
+                continue
+            at = found + len(steps[step][0])
+            time.sleep(0.3)
+            os.write(master, steps[step][1])
+            step += 1
+        if step == len(steps):
+            if kill is not None:
+                time.sleep(0.5)
+                child.send_signal(kill)
+            status = child.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        status = None
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+        ready, _, _ = select.select([master], [], [], 0.2)
+        if ready:
+            seen += os.read(master, 65536)
+        after = termios.tcgetattr(slave)
+        os.close(master)
+        os.close(slave)
+    if step != len(steps):
+        raise Failure("menu session: %r never appeared" % steps[step][0])
+    return seen, status, before == after
+
+
+def test_menu_edges(binary, work):
+    """The menu under a signal, beside a long directory name and beside a
+    file name that carries a terminal command."""
+    opened = [(b"VID", KEYS.encode()), (b"DONE", b"\x1d")]
+    image = os.path.join(work, "run.img")
+    shutil.copyfile(os.path.join(work, "guest.img"), image)
+    # A termination signal while the menu waits for its key ends the
+    # session at once, the terminal restored.
+    _, status, restored = menu_session(binary, work, image, opened, kill=signal.SIGTERM)
+    if status != 128 + signal.SIGTERM or not restored:
+        raise Failure("signal in the menu: exit %r, terminal restored: %s" % (status, restored))
+    # An image whose directory name the menu cannot hold: no other
+    # directory's images are offered in its place.
+    deep = os.path.join(work, "L" * 60, "M" * 60)
+    os.makedirs(deep)
+    shutil.copyfile(os.path.join(work, "guest.img"), os.path.join(deep, "run.img"))
+    here = os.path.join(work, "here")
+    os.mkdir(here)
+    shutil.copyfile(os.path.join(work, "guest.img"), os.path.join(here, "decoy.img"))
+    steps = opened + [(b"quit", b"a"), (b"too long", b"x"), (b"DONE", b"\x1d"), (b"quit", b"q")]
+    seen, status, restored = menu_session(
+        binary, work, os.path.join(deep, "run.img"), steps, cwd=here
+    )
+    if status != 0 or b"decoy.img" in seen or b"image:" in seen:
+        raise Failure("long image directory: exit %r, another directory offered" % status)
+    shutil.rmtree(os.path.join(work, "L" * 60))
+    shutil.rmtree(here)
+    # A file name with an escape sequence in it is listed without one.
+    odd = os.path.join(work, "odd")
+    os.mkdir(odd)
+    shutil.copyfile(os.path.join(work, "guest.img"), os.path.join(odd, "run.img"))
+    shutil.copyfile(os.path.join(work, "guest.img"), os.path.join(odd, "bad\x1b[7mz.img"))
+    steps = opened + [(b"quit", b"a"), (b"image:", b"\x1b"), (b"DONE", b"\x1d"), (b"quit", b"q")]
+    seen, status, restored = menu_session(binary, work, os.path.join(odd, "run.img"), steps)
+    if status != 0 or b"bad?[7mz.img" not in seen or b"bad\x1b" in seen:
+        raise Failure("file name with an escape sequence: exit %r, listed raw" % status)
+    shutil.rmtree(odd)
+
+
 def check_screen(lines, cpu, kbytes, what):
     lines = [line.rstrip() for line in lines]
     while lines and lines[-1] == "":
@@ -1053,6 +1153,7 @@ def test(binary, work):
     test_endings(binary, work)
     test_exit_store_failure(binary, work)
     test_interactive(binary, work)
+    test_menu_edges(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):

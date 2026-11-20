@@ -42,6 +42,15 @@ def main():
                 result["expanded_crc_bytes_two_passes"] != 2 * (len(text) + len(data)) or
                 result["raw_body_rdwri_calls"] != 1):
             raise AssertionError("packed-exec work geometry differs from the source contract")
+        compressed_text, compressed_data = struct.unpack_from(
+            "<II", packed.read_bytes(), 32 + 6 * 4)
+        workload = geometry.inspect(packed, raw, tool, 17, execs=2, restores=3)["workload"]
+        if (workload["packed_body_bytes"] != 7 * compressed_text + 4 * compressed_data or
+                workload["raw_body_bytes"] != 5 * len(text) + 2 * len(data) or
+                workload["packed_expanded_crc_bytes"] != 7 * len(text) + 4 * len(data) or
+                workload["packed_fill_calls"] != 7 * expected_text + 4 * expected_data):
+            raise ValueError("clean text restoration must charge text alone")
+        reject(lambda: geometry.inspect(packed, raw, tool, 17, restores=-1), "negative restores")
         reject(lambda: geometry.inspect(packed, raw, tool, 0), "zero stage size")
         original = packed.read_bytes()
         packed.write_bytes(original[:-1])

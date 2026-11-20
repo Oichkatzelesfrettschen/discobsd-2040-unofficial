@@ -1212,7 +1212,9 @@ every file of the install tree as a bare 32 MiB filesystem
 where the flash root carries its profile's selection.
 `distrib/rp2040/mksdmanifest.py` extends the flash root's composed manifest,
 which keeps its owners, modes, setuid bits, links and nodes, with every
-other directory, file and symbolic link of the tree, owned by root. The
+other directory, file and symbolic link of the tree, owned by root. Added
+regular paths that share an install-tree device and inode share one image
+inode. Explicit entries retain their own representation and metadata. The
 image then holds about 1,720 files in 15.6 MB, among them MATEzinho's icon
 pack in `/usr/share/matezinho` (with its CC BY-SA 3.0 notices and the
 source art as `artwork.tar`) and the `desktop` command that starts it,

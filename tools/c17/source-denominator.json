@@ -62794,7 +62794,8 @@
         "required_mode": "gnu17-freestanding",
         "extension_policy": "localized-gnu",
         "extension_signals": [
-          "gnu-attribute"
+          "gnu-attribute",
+          "target-builtin"
         ],
         "risk_family": "hardware-seam",
         "risk_tier": "T1",

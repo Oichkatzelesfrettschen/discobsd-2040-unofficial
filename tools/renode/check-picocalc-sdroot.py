@@ -476,6 +476,16 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
             "an ok line",
             cp.KEY_BUDGET_SECONDS,
         )
+        if start == SD_KERNEL_END:
+            run.type_line("cut -b2- p")
+            run.wait_until(lambda: run.has_line("k"), "SD cut open range",
+                           "the second byte of ok", cp.KEY_BUDGET_SECONDS)
+            run.type_line("cut -b2-0 p")
+            run.wait_for(["positive list"], "SD cut rejects zero",
+                         cp.KEY_BUDGET_SECONDS)
+            run.type_line("echo s$?")
+            run.wait_until(lambda: run.has_line("s1"), "SD cut failure status",
+                           "s1 after the rejected range", cp.KEY_BUDGET_SECONDS)
         run.snapshot("tmp")
         print("check-picocalc-sdroot: /tmp holds mkfs's lost+found and a written file")
     except cp.StageFailed:

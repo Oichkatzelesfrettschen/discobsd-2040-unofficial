@@ -24,6 +24,8 @@
 # POSSIBILITY OF SUCH DAMAGE.
 """Check SD root staging and preservation of the last accepted image."""
 
+import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -62,7 +64,45 @@ def check(fsutil, work):
         saved.rename(path)
 
 
+def check_links(fsutil, work):
+    tree = work / "members"
+    tree.mkdir()
+    (tree / "first").write_bytes(b"linked payload")
+    os.link(tree / "first", tree / "second")
+    os.link(tree / "first", tree / "explicit")
+    (tree / "copy").write_bytes(b"linked payload")
+    (tree / "symbolic").symlink_to("first")
+    base = work / "base"
+    base.write_text("file /explicit\nmode 0600\n")
+    manifest = work / "composed"
+    generate = [sys.executable, "distrib/rp2040/mksdmanifest.py", base, tree, manifest]
+    subprocess.run(generate, check=True, capture_output=True)
+    composed = manifest.read_bytes()
+    subprocess.run(generate, check=True, capture_output=True)
+    if manifest.read_bytes() != composed:
+        raise ValueError("the same install tree produces a different manifest")
+    image = work / "members.img"
+    subprocess.run(
+        [fsutil, "--new", "--size=1024", f"--manifest={manifest}", image, tree],
+        check=True,
+        capture_output=True,
+    )
+    listing = subprocess.run(
+        [fsutil, "-vvv", image], check=True, text=True, capture_output=True
+    ).stdout
+    numbers = {}
+    for name in ("first", "second", "copy", "explicit", "symbolic"):
+        match = re.search(rf"^/{name} - [^\n]*\n[^\n]*\n +I-node: (\d+)$", listing, re.M)
+        if not match:
+            raise ValueError(f"missing image inode for {name}")
+        numbers[name] = int(match[1])
+    if numbers["first"] != numbers["second"] or len(set(numbers.values())) != 4:
+        raise ValueError(f"installed inode identity differs: {numbers}")
+    subprocess.run([fsutil, "--check", image], check=True, capture_output=True)
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as directory:
         check(sys.argv[1], Path(directory))
+        check_links(sys.argv[1], Path(directory))
     print("PASS SD root staging and image preservation")

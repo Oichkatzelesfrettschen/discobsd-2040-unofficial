@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copyright (c) 2026 GizmoBSD
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 # 1. Redistributions of source code must retain the above copyright notice,
@@ -11,7 +11,7 @@
 # 3. Neither the name of the copyright holder nor the names of its contributors
 #    may be used to endorse or promote products derived from this software
 #    without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -131,6 +131,14 @@ scenarios() {
 	return "$status"
 }
 
+# Remove the selftest's work directory file by file: the files first, then
+# the directories from the deepest, so that no recursive deletion runs.
+cleanup() {
+	trap - EXIT HUP INT TERM
+	find "$work" -depth \( -type f -o -type l \) -exec rm -f {} +
+	find "$work" -depth -type d -exec rmdir {} +
+}
+
 selftest() {
 	bound=$(bound_command)
 	if [ -z "$bound" ]; then
@@ -138,7 +146,8 @@ selftest() {
 		exit 0
 	fi
 	work=$(mktemp -d "${TMPDIR:-/tmp}/ci-apt-install.XXXXXX")
-	trap 'rm -rf "$work"' EXIT HUP INT TERM
+	trap cleanup EXIT
+	trap 'exit 1' HUP INT TERM
 	cat >"$work/apt-get" <<'FAKE'
 #!/bin/sh
 # Fake apt-get: logs the phase of the call; FAKE_MODE picks the misbehavior.

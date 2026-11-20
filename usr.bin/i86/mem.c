@@ -36,6 +36,9 @@
  * finds still unmapped is the victim. The first write to a mapped page
  * takes a soft fault too, which marks the frame modified.
  *
+ * The store file has no name after its creation; mem.h's mem_fini() only
+ * closes it.
+ *
  * A victim reaches the store only when modified and nonzero. A page with
  * no copy in the store is supplied as zeros, so memory the guest never
  * wrote costs no I/O in either direction.
@@ -121,7 +124,6 @@ mem_fini(void)
 {
 	if (store_fd >= 0) {
 		close(store_fd);
-		unlink(store_path);
 		store_fd = -1;
 	}
 }
@@ -133,10 +135,15 @@ store_io(unsigned page, uint8_t *p, int wr)
 
 	if (store_fd < 0) {
 		/* The store is this run's own file: an existing path is
-		 * refused, so mem_fini() removes only what was created. */
+		 * refused, and the new name is removed while the file is
+		 * open. Nothing is ever removed by name afterwards, so a
+		 * file put at that path later is not this program's to
+		 * touch, and the pages go with the process however it
+		 * ends. */
 		store_fd = open(store_path, O_RDWR | O_CREAT | O_EXCL, 0600);
 		if (store_fd < 0)
 			goto fail;
+		(void)unlink(store_path);
 	}
 	if (lseek(store_fd, (off_t)page << MEM_PGSHIFT, SEEK_SET) < 0)
 		goto fail;

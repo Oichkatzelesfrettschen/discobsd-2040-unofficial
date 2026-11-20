@@ -51,7 +51,7 @@
 #define STEPS	2048		/* instructions between polls of the host */
 
 static struct pc_config cf;
-static int verbose, dump, raw, in_eof;
+static int verbose, dump, raw, in_eof, in_tty;
 static volatile sig_atomic_t caught;
 static unsigned long nsteps;
 #ifdef HOSTBUILD
@@ -87,7 +87,7 @@ tty_raw(void)
 }
 
 /* The one way out: the terminal gets its mode and margins back and the
- * page file is removed, whatever ends the session. Status 3 is the page
+ * page file is closed, whatever ends the session. Status 3 is the page
  * store's failure, after which guest memory can no longer be read. */
 void
 host_exit(int code)
@@ -146,6 +146,19 @@ host_ready(int ms)
 		return (poll(&p, 1, ms) > 0);
 	}
 #else
+	/* Input that is not a terminal is asked through select(), which
+	 * also reports the end of a file or pipe: the read that follows
+	 * returns nothing and sets in_eof. The consoles answer FIONREAD. */
+	if (!in_tty) {
+		struct timeval tv;
+		fd_set r;
+
+		FD_ZERO(&r);
+		FD_SET(0, &r);
+		tv.tv_sec = 0;
+		tv.tv_usec = ms > 0 ? ms * 1000L : 0;
+		return (select(1, &r, NULL, NULL, &tv) > 0);
+	}
 	for (;;) {
 		long n = 0;
 
@@ -282,6 +295,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "i86: no memory for %u page frames\n", frames);
 		return (1);
 	}
+	in_tty = isatty(0);
 	mem_failed = store_failed;
 	signal(SIGINT, on_signal);
 	signal(SIGHUP, on_signal);

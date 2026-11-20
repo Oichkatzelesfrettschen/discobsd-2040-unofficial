@@ -69,6 +69,8 @@ struct model {
 	int nlog;
 	unsigned int fail_request;	/* a request that fails with ENOTTY, or 0 */
 	int vmin, vtime;		/* t_vmin, t_vtime */
+	int drain_errno;		/* nonzero: TIOCDRAIN fails with it (a signal) */
+	int drained;			/* TIOCDRAIN requests that completed */
 };
 
 static struct model model;
@@ -145,6 +147,13 @@ model_ioctl(int fd, unsigned int request, void *data)
 	case TIOCSMINTIME:
 		model.vmin = *(int *)data & 0xff;
 		model.vtime = (*(int *)data >> 8) & 0xff;
+		return 0;
+	case TIOCDRAIN:
+		if (model.drain_errno) {
+			errno = model.drain_errno;
+			return -1;
+		}
+		model.drained++;
 		return 0;
 	case TIOCHPCL:
 		model.hupcl = 1;

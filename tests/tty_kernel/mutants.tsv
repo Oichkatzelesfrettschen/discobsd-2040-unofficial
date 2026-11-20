@@ -9,3 +9,10 @@ set-bytes-swapped	s/tp->t_vmin = \*(int \*)data & 0xff;/tp->t_vmin = (*(int *)da
 set-vtime-dropped	s/tp->t_vtime = (\*(int \*)data >> 8) & 0xff;//
 set-touches-winsize	s/tp->t_vtime = (\*(int \*)data >> 8) & 0xff;/tp->t_winsize.ws_col = 0; tp->t_vtime = (*(int *)data >> 8) \& 0xff;/
 unknown-request-accepted	s/return (-1);/return (0);/
+drain-no-wait	s/^        ttywait(tp);/        if (0) ttywait(tp);/
+drain-no-sleep	s/sleep((caddr_t)&tp->t_outq, TTOPRI);/;/
+drain-uninterruptible	s/sleep((caddr_t)&tp->t_outq, TTOPRI);/sleep((caddr_t)\&tp->t_outq, PZERO);/
+drain-returns-busy	s/if (tp->t_outq.c_cc == 0 && !ISSET(tp->t_state,TS_BUSY))/if (tp->t_outq.c_cc == 0)/
+drain-ignores-carrier	s/tp->t_state & TS_CARR_ON && tp->t_oproc/tp->t_oproc/
+drain-waits-for-queue-only	s/while ((tp->t_outq.c_cc || tp->t_state & TS_BUSY)/while ((tp->t_outq.c_cc)/
+drain-keeps-spl	s/splx(s);    \/\* drop priority/(void)s;    \/* drop priority/

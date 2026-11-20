@@ -59,3 +59,5 @@ get-fallback-wrong	lib/libc/gen/tcattr.c	s/s->mintime = 1;/s->mintime = 2;/
 set-mintime-pack	lib/libc/gen/tcattr.c	s/t->c_cc\[VMIN\] | (t->c_cc\[VTIME\] << 8)/t->c_cc[VMIN] | t->c_cc[VTIME]/
 set-mintime-refused	lib/libc/gen/tcattr.c	s/if (cur.mintime_ok) {/if (0) {/
 set-mintime-not-sent	lib/libc/gen/tcattr.c	s/if (n.mintime != cur.mintime &&/if (0 \&\&/
+drain-wrong-request	lib/libc/gen/tcdrain.c	s/TIOCDRAIN/TIOCSTOP/
+drain-result-dropped	lib/libc/gen/tcdrain.c	s/return ioctl(fd, TIOCDRAIN);/ioctl(fd, TIOCDRAIN); return 0;/

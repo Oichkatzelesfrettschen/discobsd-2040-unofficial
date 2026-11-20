@@ -44,7 +44,7 @@ WARN=	-Wall -Wextra -Werror
 CFLAGS=	-std=c99 ${WARN} -fno-builtin ${ILP32}
 RENAMES=	-Dioctl=test_ioctl -Derrno=test_errno
 
-MEMBERS=	cfspeed.o cfmakeraw.o tcattr.o
+MEMBERS=	cfspeed.o cfmakeraw.o tcattr.o tcdrain.o
 ORDER=	order_termios.o order_ioctl.o
 
 ILP32_CC= ${HOSTCC}

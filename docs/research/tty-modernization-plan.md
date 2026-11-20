@@ -168,7 +168,7 @@ function the row changes.
 | tcsetattr, TCSANOW | TIOCSETN, TIOCSETC, TIOCSLTC, TIOCLSET (sys/kern/tty.c:541, 603, 608, 627); TIOCSETN does not flush input except across RAW (:551-554) | four ioctls are not one atomic change; VMIN and VTIME set | S03, K01 |
 | tcsetattr, TCSADRAIN | drain request, then the TCSANOW path | the drain request (TIOCDRAIN over ttywait, sys/kern/tty.c:216) | S04, K04 |
 | tcsetattr, TCSAFLUSH | TIOCSETP (drains output, flushes input, sys/kern/tty.c:540, 551) then TIOCSETC, TIOCSLTC, TIOCLSET | none | S04 |
-| tcdrain | TIOCDRAIN; a poll of TIOCOUTQ (sys/kern/tty.c:506) is inexact because it ignores bytes in the UART FIFO | TIOCDRAIN | K04 |
+| tcdrain | TIOCDRAIN (_IO('t', 94), landed K04); a poll of TIOCOUTQ (sys/kern/tty.c:506) is inexact because it ignores bytes in the UART FIFO | none | K04 |
 | tcflush, TCIFLUSH | TIOCFLUSH with FREAD (sys/kern/tty.c:490) | none | S04 |
 | tcflush, TCOFLUSH | TIOCFLUSH with FWRITE | none | S04 |
 | tcflush, TCIOFLUSH | TIOCFLUSH with 0 or both | none | S04 |

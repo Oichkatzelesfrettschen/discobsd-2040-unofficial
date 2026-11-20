@@ -44,6 +44,45 @@
 
 #include "libc_shim.h"
 
+#define COUNT_OF(a) ((int)(sizeof(a) / sizeof((a)[0])))
+
+/*
+ * The two lines of tty.c above ttywait(), and the kernel's priority and
+ * sleep calls, which the model replaces: spltty() and splx() keep a level,
+ * and sleep() is one transmit-complete interrupt or a signal.
+ */
+#define CLR(t, f) (t) &= ~(f)
+#define ISSET(t, f) ((t) & (f))
+
+static int spl_level;
+static void *xmit_env[5];
+static int xmit_outcome;
+static struct tty *xmit_tty;
+
+static int
+model_spltty(void)
+{
+	int old = spl_level;
+
+	spl_level = 1;
+	return old;
+}
+
+static void
+model_splx(int s)
+{
+	spl_level = s;
+}
+
+/* A mutant that never sleeps leaves it unused. */
+static void model_sleep(caddr_t chan, int pri) __attribute__((unused));
+
+#undef spltty
+#undef splx
+#define spltty() model_spltty()
+#define splx(s) model_splx(s)
+#define sleep(chan, pri) model_sleep(chan, pri)
+
 #ifndef TTY_EXTRACTED
 #define TTY_EXTRACTED "tty_extracted.c"
 #endif
@@ -142,6 +181,143 @@ check_round_trip(void)
 	CHECK(same_bytes(&t, &before, sizeof t));
 }
 
+/*
+ * A transmitter model. The start routine moves queued bytes into a FIFO and
+ * sets TS_BUSY; the transmit-complete interrupt, which each sleep() stands
+ * for, empties the FIFO and clears TS_BUSY. A sleep can instead be cut short
+ * by a signal, which leaves the kernel by a longjmp as sleep() does, and
+ * with hang set the interrupt never comes.
+ */
+static struct {
+	int fifo;
+	int sleeps;
+	int starts;
+	int hang;
+	int signal_at;		/* sleep that a signal interrupts, or 0 */
+} xmit;
+
+#define STEP_LIMIT 50
+
+static void
+model_start(struct tty *tp)
+{
+	if (++xmit.starts > STEP_LIMIT) {
+		xmit_outcome = 2;
+		__builtin_longjmp(xmit_env, 1);
+	}
+	while (tp->t_outq.c_cc > 0) {
+		tp->t_outq.c_cc--;
+		xmit.fifo++;
+	}
+	if (xmit.fifo > 0)
+		tp->t_state |= TS_BUSY;
+}
+
+static void
+model_sleep(caddr_t chan, int pri)
+{
+	CHECK(chan == (caddr_t)&xmit_tty->t_outq);
+	CHECK(pri == TTOPRI);
+	/* A sleep at TTOPRI, above PZERO, is the kind a signal interrupts. */
+	CHECK(pri > PZERO);
+	xmit.sleeps++;
+	if (xmit.signal_at == xmit.sleeps) {
+		xmit_outcome = 1;
+		__builtin_longjmp(xmit_env, 1);
+	}
+	if (!xmit.hang) {
+		xmit.fifo = 0;
+		xmit_tty->t_state &= ~TS_BUSY;
+	}
+}
+
+static void
+drain_setup(struct tty *tp, int queued, int fifo)
+{
+	static const struct tty zero;
+	static const typeof(xmit) idle;
+
+	*tp = zero;
+	xmit = idle;
+	xmit.fifo = fifo;
+	xmit_tty = tp;
+	spl_level = 0;
+	tp->t_oproc = model_start;
+	tp->t_state = TS_CARR_ON | (fifo ? TS_BUSY : 0);
+	tp->t_outq.c_cc = queued;
+}
+
+/* 0 when the request returned, 1 when a signal left it, 2 when it spun. */
+static int
+drain(struct tty *tp)
+{
+	xmit_outcome = 0;
+	if (__builtin_setjmp(xmit_env) == 0) {
+		CHECK(drain_request(tp, TIOCDRAIN, 0) == 0);
+		return 0;
+	}
+	return xmit_outcome;
+}
+
+static void
+check_drain(void)
+{
+	static const int sizes[] = { 1, 7, 32, 100, 255 };
+	struct tty t;
+	int i;
+
+	/* Nothing queued and the transmitter idle: no wait and no start. */
+	drain_setup(&t, 0, 0);
+	CHECK(drain(&t) == 0);
+	CHECK(xmit.sleeps == 0 && xmit.starts == 0 && spl_level == 0);
+
+	/* Queued bytes leave the queue and the transmitter before the return. */
+	for (i = 0; i < COUNT_OF(sizes); i++) {
+		drain_setup(&t, sizes[i], 0);
+		CHECK(drain(&t) == 0);
+		CHECK(t.t_outq.c_cc == 0);
+		CHECK((t.t_state & TS_BUSY) == 0);
+		CHECK(xmit.fifo == 0);
+		CHECK(xmit.sleeps == 1 && spl_level == 0);
+	}
+
+	/* An empty queue with bytes still in the FIFO waits for them. */
+	drain_setup(&t, 0, 5);
+	CHECK(drain(&t) == 0);
+	CHECK(xmit.fifo == 0 && (t.t_state & TS_BUSY) == 0);
+	CHECK(xmit.sleeps == 1);
+
+	/* The wait is a wait: a transmitter that stalls keeps the caller asleep. */
+	drain_setup(&t, 10, 0);
+	xmit.hang = 1;
+	xmit.signal_at = 4;
+	CHECK(drain(&t) == 1);
+	CHECK(xmit.sleeps == 4);
+	/* The signal leaves the bytes where they were; nothing is flushed. */
+	CHECK(xmit.fifo == 10 && (t.t_state & TS_BUSY) != 0);
+
+	/* A signal during the first sleep leaves the same way. */
+	drain_setup(&t, 3, 0);
+	xmit.signal_at = 1;
+	CHECK(drain(&t) == 1);
+	CHECK(xmit.fifo == 3 && (t.t_state & TS_BUSY) != 0);
+
+	/* Without carrier or without a start routine there is nothing to wait for. */
+	drain_setup(&t, 9, 0);
+	t.t_state &= ~TS_CARR_ON;
+	CHECK(drain(&t) == 0);
+	CHECK(t.t_outq.c_cc == 9 && xmit.sleeps == 0 && xmit.starts == 0);
+	drain_setup(&t, 9, 0);
+	t.t_oproc = 0;
+	CHECK(drain(&t) == 0);
+	CHECK(t.t_outq.c_cc == 9 && xmit.sleeps == 0);
+
+	/* A request the drain case does not own is left to the rest of ttioctl(). */
+	drain_setup(&t, 4, 0);
+	CHECK(drain_request(&t, TIOCSMINTIME, (caddr_t)&i) == -1);
+	CHECK(xmit.sleeps == 0 && xmit.starts == 0);
+}
+
 static void
 check_request_codes(void)
 {
@@ -153,6 +329,8 @@ check_request_codes(void)
 	CHECK(((TIOCSMINTIME >> 16) & IOCPARM_MASK) == sizeof(int));
 	CHECK(TIOCGMINTIME != TIOCGWINSZ && TIOCSMINTIME != TIOCSWINSZ);
 	CHECK(TIOCGMINTIME != TIOCGETP && TIOCSMINTIME != TIOCSETP);
+	CHECK((TIOCDRAIN & IOC_VOID) && ((TIOCDRAIN >> 16) & IOCPARM_MASK) == 0);
+	CHECK(TIOCDRAIN != TIOCSTOP && TIOCDRAIN != TIOCSTART);
 }
 
 int
@@ -160,6 +338,7 @@ main(void)
 {
 	check_default();
 	check_round_trip();
+	check_drain();
 	check_request_codes();
 	return lsys_verdict("tty_kernel");
 }

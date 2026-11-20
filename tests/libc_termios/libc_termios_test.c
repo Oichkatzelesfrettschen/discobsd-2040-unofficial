@@ -1056,6 +1056,31 @@ check_raw_flush(void)
 	CHECK(model.flush_in == 2);
 }
 
+static void
+check_drain(void)
+{
+	model_reset(ECHO);
+	CHECK(tcdrain(MODEL_FD) == 0);
+	CHECK(model.nlog == 1 && model.log[0] == TIOCDRAIN && model.drained == 1);
+
+	/* A signal ends the wait: the request's error reaches the caller. */
+	model_reset(ECHO);
+	model.drain_errno = EINTR;
+	test_errno = 0;
+	CHECK(tcdrain(MODEL_FD) == -1 && test_errno == EINTR);
+	CHECK(model.drained == 0);
+
+	/* A kernel without the request, and a descriptor that is no terminal. */
+	model_reset(ECHO);
+	model.fail_request = TIOCDRAIN;
+	test_errno = 0;
+	CHECK(tcdrain(MODEL_FD) == -1 && test_errno == ENOTTY);
+	model_reset(ECHO);
+	test_errno = 0;
+	CHECK(tcdrain(MODEL_FD + 1) == -1 && test_errno == EBADF);
+	CHECK(model.nlog == 1);
+}
+
 int
 main(void)
 {
@@ -1073,5 +1098,6 @@ main(void)
 	check_set_special();
 	check_set_order();
 	check_raw_flush();
+	check_drain();
 	return lsys_verdict("libc_termios");
 }

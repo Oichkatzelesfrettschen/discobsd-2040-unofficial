@@ -3,6 +3,7 @@ gate.o
 cfspeed.o
 cfmakeraw.o
 tcattr.o
+tcdrain.o
 order_termios.o
 order_ioctl.o
 shim.o

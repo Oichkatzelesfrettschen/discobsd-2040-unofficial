@@ -510,6 +510,14 @@ ttioctl(register struct tty *tp, u_int com, caddr_t data, int flag)
         *(int *)data = tp->t_outq.c_cc;
         break;
 
+    /*
+     * Return when the queue and the transmitter are empty: the same wait
+     * TIOCSETP makes, interrupted by a signal as any sleep at TTOPRI is.
+     */
+    case TIOCDRAIN:
+        ttywait(tp);
+        break;
+
     case TIOCSTOP:
         s = spltty();
         if ((tp->t_state & TS_TTSTOP) == 0) {

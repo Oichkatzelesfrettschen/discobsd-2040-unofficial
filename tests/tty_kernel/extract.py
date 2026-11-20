@@ -36,11 +36,15 @@ import argparse
 import hashlib
 from pathlib import Path
 
-FUNCTIONS = (("ttychars", "void\nttychars(struct tty *tp)"),)
+FUNCTIONS = (
+    ("ttychars", "void\nttychars(struct tty *tp)"),
+    ("ttywait", "static void\nttywait(register struct tty *tp)"),
+)
 
 # ttioctl cases: (first label, text that ends the last case of the group).
 CASE_GROUPS = (
     ("mintime", "    case TIOCGMINTIME:\n", "    case TIOCSMINTIME:\n        tp->t_vmin"),
+    ("drain", "    case TIOCDRAIN:\n", "    case TIOCDRAIN:\n"),
 )
 
 
@@ -120,6 +124,7 @@ def main() -> None:
             "static int\n"
             + name
             + "_request(struct tty *tp, u_int com, caddr_t data)\n{\n"
+            + "    (void)data;\n"
             + "    switch (com) {\n"
             + body
             + "    default:\n        return (-1);\n    }\n    return (0);\n}\n\n"

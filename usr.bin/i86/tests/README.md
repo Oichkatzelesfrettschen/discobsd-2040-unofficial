@@ -3,7 +3,7 @@
 | File | Role |
 | --- | --- |
 | `check.py` | The host gate `bmake -C usr.bin/i86 test` runs: the guest program on every processor model and page-frame count, the terminal replay, the processor vectors of the sample, then the mutants. |
-| `guest.asm`, `guest.hex` | The guest program and its assembly by `nasm -f bin`, 32 bytes a line. `check.py` compares the two when nasm is installed. |
+| `guest.asm`, `guest.hexdump` | The guest program and its assembly by `nasm -f bin`, 32 bytes a line. `check.py` compares the two when nasm is installed. |
 | `sstrun.c` | Executes single instructions on `cpu.c` for `check.py` and `sst.py`. |
 | `sst8088-sample.txt.gz` | 4,485 single-instruction vectors: twelve for each of the 279 documented instruction forms of the 8088, three hundred for DAA, DAS and each IDIV form. `mksample.py` states the format. |
 | `sst80286-sample.txt.gz` | 3,047 vectors of the 80286 in real mode: eight for each documented form, three hundred for DAA and for DAS, less the classes `mksample.py` leaves out by rule. |

@@ -4,7 +4,7 @@ Source: branch usr.bin/x86-dos-emulator at 194eaf7d2 plus the default of
 128 page frames. Kernel PICO_UART, flash image built by logged-distribution
 and logged-flash with two staged manifest entries (pack /usr/bin/i86,
 file /guest.img) that are not part of the tree. /guest.img is
-usr.bin/i86/tests/guest.hex padded to 16 KB with F6h bytes, which the
+usr.bin/i86/tests/guest.hexdump padded to 16 KB with F6h bytes, which the
 emulator takes as a 160 KB-format floppy. Renode
 1.17.0+20260907gitf1dd1b4af with the tree's pinned RP2040 models, driven
 through the Console class of tools/renode/check-boot.py: the commands are
@@ -44,16 +44,16 @@ under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"
 colors directories blue, and "vi FILE" edits
 UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ cp /guest.img g.img; echo E"N"D0=$?
 END0=0
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 144 -a g.img -k aB1; echo E"N"D1=$?
 i86: no memory for 144 page frames
 END1=1
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ i86 -d -T -v -c 286 -m 160 -f 16 -s /tmp/pg -a g.img -k aB1; echo E"N"D2=$?
 DIRECT00D
 LINE ZZZC
@@ -83,7 +83,7 @@ DONE
 i86: 31 polls of 2048 steps; pages: 90 soft, 198 zero, 100 in, 99 out, 96 elided, 87 clean
 END2=0
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ ls -l /tmp; echo E"N"D3=$?
 total 0
 END3=0
@@ -110,11 +110,11 @@ r/bin and /usr/games. "menu" lists every program, "ls"
 colors directories blue, and "vi FILE" edits
 UNIX, "su" makes you root. Type "sync" before "exit" or unplugging.
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ cp /guest.img g.img; echo E"N"D0=$?
 END0=0
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 136 -a g.img -k aB1 | tail -4; echo E"N"D1=$?
 i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 14 clean
 VID OK
@@ -123,7 +123,7 @@ DONE
 
 END1=0
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 128 -a g.img -k aB1 | tail -4; echo E"N"D2=$?
 i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 22 clean
 VID OK
@@ -132,7 +132,7 @@ DONE
 
 END2=0
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 124 -a g.img -k aB1 | tail -4; echo E"N"D3=$?
 i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 26 clean
 VID OK
@@ -141,7 +141,7 @@ DONE
 
 END3=0
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 120 -a g.img -k aB1 | tail -4; echo E"N"D4=$?
 i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 30 clean
 VID OK
@@ -150,7 +150,7 @@ DONE
 
 END4=0
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ i86 -d -T -v -c 8086 -m 208 -f 112 -a g.img -k aB1 | tail -4; echo E"N"D5=$?
 i86: 31 polls of 2048 steps; pages: 18 soft, 294 zero, 147 in, 147 out, 144 elided, 38 clean
 VID OK
@@ -178,7 +178,7 @@ check-renode: echo back after 8.5 virtual seconds
 virtual seconds for 'echo back': 0.5
 check-renode: stty 2>&1 | head -3 after 9.0 virtual seconds
 virtual seconds for 'stty 2>&1 | head -3': 0.5
-                                                   LINE 000B                                                                       LINE 000A                                                                       LINE 0009                                                                       LINE 0008                                                                       LINE 0007                                                                       LINE 0006                                                                       
+                                                   LINE 000B                                                                       LINE 000A                                                                       LINE 0009                                                                       LINE 0008                                                                       LINE 0007                                                                       LINE 0006
 LINE 0005
 LINE 0004
 LINE 0003
@@ -196,14 +196,14 @@ DIRECTZZZVID OK
 a=1E61B=30421=0231
 DONE
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ echo back; echo E"N"D7=$?
 back
 END7=0
 
-operator@pico:~$ 
+operator@pico:~$
 operator@pico:~$ stty 2>&1 | head -3; echo E"N"D8=$?
-speed 0 baud; nl -echo tabs 
+speed 0 baud; nl -echo tabs
 END8=0
 
 operator@pico:~$
@@ -211,8 +211,8 @@ operator@pico:~$
 
 ==== Run 4: stty before and after an interactive session
 operator@pico:~$ stty; echo E"N"D0=$?
-speed 115200 baud; -tabs crt pendin 
+speed 115200 baud; -tabs crt pendin
 END0=0
 operator@pico:~$ stty; echo E"N"D8=$?
-speed 115200 baud; -tabs crt pendin 
+speed 115200 baud; -tabs crt pendin
 END8=0

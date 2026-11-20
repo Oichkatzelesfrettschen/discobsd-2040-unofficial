@@ -29,7 +29,7 @@
 ;
 ;	nasm -f bin -o guest.bin guest.asm
 ;
-; guest.hex is that output in hexadecimal; check.py compares the two when
+; guest.hexdump is that output in hexadecimal; check.py compares the two when
 ; nasm is installed.
 
 	bits 16

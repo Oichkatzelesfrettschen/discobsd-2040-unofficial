@@ -3,7 +3,7 @@ Renode runs of usr.bin/i86 on the PICOCALC_SD kernel, 2026-11-20
 Kernel PICOCALC_SD (unix-PICOCALC-SD.uf2) with the 32 MiB SD root built by
 "bmake MACHINE=rp2040 picocalc-sd-system", which carries the whole install
 tree and so /usr/bin/i86. Two files were added to the install tree for
-these runs and are not part of the tree: /guest.img (tests/guest.hex
+these runs and are not part of the tree: /guest.img (tests/guest.hexdump
 padded to 360 KB) and /svmin.img (the SvarDOS boot floppy that
 mksvardos.sh makes from the SvarDOS 20250427 360 KB disk 1). The card is
 the "tmp" layout of tools/renode/check-picocalc-sdroot.py: the root in MBR

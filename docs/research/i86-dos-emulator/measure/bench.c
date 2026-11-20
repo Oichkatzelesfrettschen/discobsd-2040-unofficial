@@ -49,6 +49,6 @@ int main(int argc, char **argv){
 	cf.disk[0]=argv[1]; cf.ram_kb=640; cf.cols=80; cf.model=atoi(argv[3]); cf.fixed_clock=1; cf.quiet=1; cf.readonly=1; cf.keys = argc > 4 ? argv[4] : "";
 	if (mem_init(640u<<10, 640, "/dev/null")) return 7;
 	pc_init(&cpu,&cf);
-	for (i=0;i<n;i++){ if ((i&2047)==0) pc_poll(&cpu); i86_step(&cpu);} 
+	for (i=0;i<n;i++){ if ((i&2047)==0) pc_poll(&cpu); i86_step(&cpu);}
 	return 0;
 }

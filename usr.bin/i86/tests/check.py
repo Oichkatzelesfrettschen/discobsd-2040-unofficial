@@ -28,7 +28,7 @@
     check.py DIR --vectors COMMAND
 
 DIR is usr.bin/i86. The test builds i86-host with HOSTCC, makes a 360 KB
-floppy image from guest.hex, and runs it
+floppy image from guest.hexdump, and runs it
 
   - on the 8086, the 80186 and the 80286, with 8 resident pages, with 64
     and with all 640, and with 256 KB of guest memory, comparing the
@@ -44,7 +44,7 @@ on cpu.c through tests/sstrun and compares registers, defined flags and
 memory.
 
 Then every mutant below must fail the same test. When nasm is installed,
-guest.hex must equal the assembly of guest.asm; without nasm that
+guest.hexdump must equal the assembly of guest.asm; without nasm that
 comparison is reported as not run.
 
 The second form runs the processor vectors alone through COMMAND, a built
@@ -210,10 +210,10 @@ def build(src, out, cc, sources=None):
 
 
 def guest_image(src, path):
-    with open(os.path.join(src, "tests", "guest.hex")) as handle:
+    with open(os.path.join(src, "tests", "guest.hexdump")) as handle:
         data = bytes.fromhex("".join(handle.read().split()))
     if len(data) % 512 or data[510:512] != b"\x55\xaa":
-        raise Failure("guest.hex is not a boot program")
+        raise Failure("guest.hexdump is not a boot program")
     with open(path, "wb") as handle:
         handle.write(data)
         handle.truncate(360 * 1024)
@@ -592,10 +592,10 @@ def main(argv):
                 )
                 with open(built, "rb") as handle:
                     if handle.read() != data:
-                        raise Failure("guest.hex differs from guest.asm")
-                print("guest.hex matches guest.asm")
+                        raise Failure("guest.hexdump differs from guest.asm")
+                print("guest.hexdump matches guest.asm")
             else:
-                print("NOT RUN guest.hex against guest.asm: nasm (package nasm) is not installed")
+                print("NOT RUN guest.hexdump against guest.asm: nasm (package nasm) is not installed")
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
             test(binary, work)

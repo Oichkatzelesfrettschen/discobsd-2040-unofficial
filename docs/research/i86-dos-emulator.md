@@ -216,7 +216,7 @@ the real speed is.
 ## Board run, when the owner opens it
 
 PICOCALC_SD image with `/usr/bin/i86` on the card and two files copied to
-the card's root: `guest.img` (from `usr.bin/i86/tests/guest.hex`) and a
+the card's root: `guest.img` (from `usr.bin/i86/tests/guest.hexdump`) and a
 SvarDOS floppy from `mksvardos.sh`.
 
     i86 -d -T -v -w 40 -f 16 -a /guest.img -k aB1

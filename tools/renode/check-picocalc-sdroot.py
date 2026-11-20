@@ -70,9 +70,11 @@ and the gate stops with status 1 unless the good ones pass and every altered
 one fails.
 
 The --configured run boots the 160 KiB profile directly, with no loader stamp.
-Its foreign flash starts at 0x10028000.
+Its foreign flash starts at 0x10028000. --configured-boot runs the root mount
+and login case alone.
 
-Usage: check-picocalc-sdroot.py [--configured] RENODE KERNEL SDROOT_IMG OUTPUT_DIR
+Usage: check-picocalc-sdroot.py [--configured | --configured-boot]
+                                RENODE KERNEL SDROOT_IMG OUTPUT_DIR
        check-picocalc-sdroot.py --self-test
 KERNEL is a flat unix.bin or a kernel UF2 such as the board image
 distrib/rp2040/unix-PICOCALC.uf2 that goes on the card.
@@ -373,6 +375,8 @@ def case_root(renode_path, kernel, flash, root_img, outdir, start, reason):
             SD_BUDGET_SECONDS,
         )
         root_dev = parse_root_dev(run.lines)
+        size_line = f"root size = {os.path.getsize(root_img) // 1024} kbytes"
+        run.wait_until(lambda: size_line in run.seen, size_line, size_line, SD_BUDGET_SECONDS)
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")
         run.wait_for_prompt("shell prompt", cp.KEY_BUDGET_SECONDS)
@@ -522,7 +526,8 @@ def case_nob7(renode_path, kernel, flash, root_img, outdir, start, reason):
 
 
 def main(argv):
-    configured = argv[:1] == ["--configured"]
+    boot_only = argv[:1] == ["--configured-boot"]
+    configured = boot_only or argv[:1] == ["--configured"]
     if configured:
         argv = argv[1:]
     start = SD_KERNEL_END if configured else FLASH_ROOT
@@ -556,6 +561,8 @@ def main(argv):
             ("tmp", lambda d: case_tmp(renode_path, kernel, flash, root_img, d, start, reason)),
             ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d, start, reason)),
         )
+        if boot_only:
+            cases = cases[:1]
         for name, case in cases:
             print(f"check-picocalc-sdroot: case {name}", flush=True)
             got = case(os.path.join(outdir, name))

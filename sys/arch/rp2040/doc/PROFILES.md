@@ -565,7 +565,7 @@ bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 picocalc-sd-system
 | Output in `distrib/rp2040` | Destination and content |
 |---|---|
 | `unix-PICOCALC-SD.uf2` | Kernel for the board's QSPI flash. The descriptor selects the PicoCalc console. |
-| `sdroot-PICOCALC.img` | Filesystem payload for an SD partition, including the full installed userland. The default is 32 MiB. Set `SDROOT_KBYTES=131072` on `picocalc-sd-system` for a 128 MiB root. Its fstab names slot c. `SDROOT_PART=a`, `b`, `c` or `d` selects the actual slot at build time. |
+| `sdroot-PICOCALC.img` | Filesystem payload for an SD partition, including the full installed userland. PICOCALC_SD and PICOCALC_SD_DIAG share the default 128 MiB root. Set `SDROOT_KBYTES=32768` to build for a 32 MiB partition. Its fstab names slot c. `SDROOT_PART=a`, `b`, `c` or `d` selects the actual slot at build time. |
 
 The kernel range including boot2 is `[0x10000000,0x10028000)`. Above it,
 the flash driver addresses a 1,504 KiB Dhara region up to `0x101a0000`.

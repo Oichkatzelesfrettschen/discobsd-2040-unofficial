@@ -2644,12 +2644,16 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
-check-renode-picocalc-sd-system: picocalc-sd-system
+check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kernel
 		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
 		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
 		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
 		    tools/renode/vendor/results/picocalc-sd-system
+		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured-boot \
+		    "$$(command -v renode)" ${PICOCALC_SD_DIAG_UF2} \
+		    ${TOPSRC}/distrib/${MACHINE}/sdroot-PICOCALC.img \
+		    tools/renode/vendor/results/picocalc-sd-diag-system
 
 .PHONY: check-renode-picocalc-sd-system
 

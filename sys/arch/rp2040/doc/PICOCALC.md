@@ -1353,7 +1353,7 @@ BOARD=PICOCALC sdroot`, which writes
 `distrib/rp2040/sdroot-PICOCALC.img` (`tools/picocalc/mksdroot.sh`;
 with `UNION_KERNEL=PICOCALC_LEAN` or `PICOCALC_LEAN_DIAG` it holds the
 `picocalc-lean` root and is named `sdroot-PICOCALC-LEAN.img`):
-every file of the install tree as a bare 32 MiB filesystem
+every file of the install tree as a bare 128 MiB filesystem
 (`SDROOT_KBYTES`) with no partition table and one inode per 8 kbytes,
 where the flash root carries its profile's selection.
 `distrib/rp2040/mksdmanifest.py` extends the flash root's composed manifest,

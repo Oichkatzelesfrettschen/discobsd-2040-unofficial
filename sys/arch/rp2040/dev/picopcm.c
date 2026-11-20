@@ -19,6 +19,12 @@
  * at PCM_RATE samples per second on both audio channels (GP26 and GP27,
  * PWM slice 5; picoaudio.c describes the wiring).
  *
+ * With the DEV_GPIO_PWM option, a program that holds a PWM pin of slice 6
+ * through /dev/porta or /dev/portb (GPIO_PWM; GP28 on a PicoCalc) keeps the
+ * device closed: the
+ * open answers EBUSY until that pin is stopped, and a PWM request on slice 6
+ * answers EBUSY while the device is open.
+ *
  * Slice 5 runs a 500 kHz carrier (clk_sys / 250) whose duty cycle is the
  * sample. The board's first-order RC filter (a 220 ohm series resistor into
  * 100 nF and 100 ohm to ground, loaded by 1.8 kohm through a 47 uF coupling
@@ -53,6 +59,12 @@
 #include <sys/uio.h>
 
 #include <machine/board.h>
+#ifdef DEV_GPIO_PWM
+#ifndef DEV_GPIO
+#error "DEV_GPIO_PWM is the PWM request of DEV_GPIO"
+#endif
+#include <machine/gpio.h>
+#endif
 
 #include <rp2040/dev/picocalc.h>
 #include <rp2040/dev/picocalc_reg.h>
@@ -72,6 +84,12 @@
 #define	PCM_SLICE		5	/* The audio output pins. */
 #define	PCM_CLOCK_SLICE		6	/* The sample clock; no pin routed. */
 #define	PCM_CLOCK_COUNT		(CPU_KHZ * 1000 / PCM_RATE)
+#ifdef DEV_GPIO_PWM
+/* The board table of <machine/gpio.h> names these slices as the kernel's. */
+_Static_assert(PCM_SLICE == GPIO_PWM_SLICE_BELL &&
+    PCM_CLOCK_SLICE == GPIO_PWM_SLICE_PCM,
+    "gpio_board_claims() keeps programs off the slices this driver runs");
+#endif
 
 #define	PC_RESET_PWM		(1UL << 14)
 #define	PC_FUNC_PWM		4
@@ -134,6 +152,11 @@ pcmopen(dev_t dev, int flag __unused, int mode __unused)
 		return ENXIO;
 	if (picoaudio_pcm)
 		return EBUSY;
+#ifdef DEV_GPIO_PWM
+	/* A program's PWM pin on slice 6 would run against the sample clock. */
+	if ((gpio_pwm_pins & GPIO_PWM_SLICE_PINS(PCM_CLOCK_SLICE)) != 0)
+		return EBUSY;
+#endif
 	picoaudio_pcm = 1;
 
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_PWM);

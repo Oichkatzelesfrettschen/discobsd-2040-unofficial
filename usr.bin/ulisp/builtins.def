@@ -110,6 +110,9 @@ N(DIGITALWRITE, "digitalwrite", fn_digitalwrite, 0222,
 N(ANALOGREAD, "analogread", fn_analogread, 0211,
     "(analogread pin)\n"
     "Reads the specified Arduino analogue pin number and returns the value.")
+N(ANALOGWRITE, "analogwrite", fn_analogwrite, 0222,
+    "(analogwrite pin value)\n"
+    "Writes the value to the specified Arduino pin number.")
 N(REGISTER, "register", fn_register, 0212,
     "(register address [value])\n"
     "Reads or writes the value of a peripheral register.\n"

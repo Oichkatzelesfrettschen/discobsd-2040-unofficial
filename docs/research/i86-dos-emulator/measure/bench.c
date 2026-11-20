@@ -43,12 +43,42 @@ unsigned long host_ms(void){return 0;}
 void host_exit(int code){exit(code);}
 int _unlink(const char *p){(void)p;return 0;}
 int _gettimeofday(struct timeval *tv, void *tz){(void)tz; tv->tv_sec=631195200; tv->tv_usec=0; return 0;}
+#ifdef COMPOSITION
+/* What the next step is: a step is one instruction, except that a repeated
+ * string instruction runs up to 256 iterations in it and a halted
+ * processor runs none. */
+static long reps, iterations, halts;
+static void composition(const struct i86 *c){
+	uint32_t a = ((uint32_t)c->s[S_CS] << 4) + c->ip;
+	unsigned op, rep = 0, k;
+	if (c->halted) { halts++; return; }
+	for (k = 0; k < 4; k++, a++) {
+		op = mem_rb(a & (MEM_SIZE - 1));
+		if (op == 0xf2 || op == 0xf3) rep = 1;
+		else if (op != 0x26 && op != 0x2e && op != 0x36 && op != 0x3e && op != 0xf0) break;
+	}
+	if (rep && ((op >= 0xa4 && op <= 0xa7) || (op >= 0xaa && op <= 0xaf) || (op >= 0x6c && op <= 0x6f))) {
+		reps++;
+		iterations += c->r[R_CX] > 256 ? 256 : c->r[R_CX];
+	}
+}
+#endif
 int main(int argc, char **argv){
 	static struct i86 cpu; struct pc_config cf = {0};
 	long n = atol(argv[2]), i;
 	cf.disk[0]=argv[1]; cf.ram_kb=640; cf.cols=80; cf.model=atoi(argv[3]); cf.fixed_clock=1; cf.quiet=1; cf.readonly=1; cf.keys = argc > 4 ? argv[4] : "";
 	if (mem_init(640u<<10, 640, "/dev/null")) return 7;
 	pc_init(&cpu,&cf);
-	for (i=0;i<n;i++){ if ((i&2047)==0) pc_poll(&cpu); i86_step(&cpu);}
+	for (i=0;i<n;i++){
+		if ((i&2047)==0) pc_poll(&cpu);
+#ifdef COMPOSITION
+		composition(&cpu);
+#endif
+		i86_step(&cpu);
+	}
+#ifdef COMPOSITION
+	printf("%ld steps: %ld repeated string instructions with %ld iterations, "
+	    "%ld halted\n", n, reps, iterations, halts);
+#endif
 	return 0;
 }

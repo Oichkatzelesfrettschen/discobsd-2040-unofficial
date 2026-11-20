@@ -49,9 +49,9 @@ all:		i86 ${MAN}
 
 ${OBJS}:	${HDRS}
 
-# The interpreter is the program's inner loop: at -O2 it executes 161
-# Thumb instructions for each guest instruction of the measured DOS session,
-# at -Os 173, for 2.8 KB more text (sys/arch/rp2040/doc/I86.md).
+# The interpreter is the program's inner loop: at -O2 it executed 161
+# Thumb instructions for each step of the measured DOS session where -Os
+# took 173, for 2.8 KB more text (sys/arch/rp2040/doc/I86.md).
 cpu.o:		cpu.c
 		${CC} ${CFLAGS:N-Os} -O2 -c cpu.c
 

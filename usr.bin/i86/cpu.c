@@ -58,6 +58,8 @@
 /* An encoding the 80286 refuses with interrupt 6 and the earlier
  * processors execute; the list is the one its SingleStepTests vectors
  * exercise. Used inside the switch of i86_step(). */
+#define REP_BURST	256	/* iterations of a repeated instruction a step */
+
 #define UNDEFINED_286(cond)	if (c->model == I86_286 && (cond)) { \
 					fault(c, 6, ip0, 1); \
 					break; \
@@ -523,12 +525,12 @@ group3(struct i86 *c, struct dec *d, int w, unsigned ip0)
 }
 
 static void
-string(struct i86 *c, const struct dec *d, unsigned op)
+string(struct i86 *c, const struct dec *d, unsigned op, unsigned ip0)
 {
 	int w = op & 1;
 	unsigned step = (c->fl & F_DF) ? (w ? 0xfffe : 0xffff) : (w ? 2 : 1);
 	unsigned sseg = d->ovr >= 0 ? (unsigned)d->ovr : S_DS;
-	unsigned a, b;
+	unsigned a, b, done = 0;
 	int compare = 0;
 
 	if (d->rep && c->r[R_CX] == 0)
@@ -590,6 +592,15 @@ string(struct i86 *c, const struct dec *d, unsigned op)
 			break;
 		if (compare && ((c->fl & F_ZF) != 0) != (d->rep == 0xf3))
 			break;
+		/* A repeated instruction can be interrupted between
+		 * iterations: after REP_BURST of them the step ends with
+		 * the instruction pointer back on the first prefix, and
+		 * the next step, or an interrupt's return, goes on from
+		 * the registers as they stand. */
+		if (++done == REP_BURST) {
+			c->ip = (uint16_t)ip0;
+			break;
+		}
 	}
 }
 
@@ -885,7 +896,7 @@ prefixed:
 		/* FALLTHROUGH */
 	case 0xa4: case 0xa5: case 0xa6: case 0xa7:
 	case 0xaa: case 0xab: case 0xac: case 0xad: case 0xae: case 0xaf:
-		string(c, &d, op);
+		string(c, &d, op, ip0);
 		break;
 	case 0x80: case 0x81: case 0x82: case 0x83:
 		modrm(c, &d);

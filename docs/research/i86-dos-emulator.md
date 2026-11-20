@@ -203,7 +203,8 @@ second UART) is the route that needs no radio. Not scoped further.
 
 ## 9. Speed
 
-161 Thumb instructions for each guest instruction is the measured cost.
+163 Thumb instructions for each interpreter step is the measured cost
+(`I86.md`, Cost, says what a step is).
 What remains in the interpreter itself: the decode switch compiles to a
 comparison tree (about 11 instructions), every fetch recomputes the linear
 address (about 14), and the flags are computed eagerly. A threaded decode

@@ -129,6 +129,12 @@ MUTANTS = [
     ("cpu.c", "if (d.mod == 3)\n\t\t\tbreak;\n\t\tc->r[d.reg] = d.off;", "c->r[d.reg] = d.off;"),
     ("cpu.c", "if (d.mod == 3)\t\t/* as for 8Dh: no address, no effect */\n\t\t\tbreak;", ";"),
     ("main.c", "if (leaving) {\n\t\tpc_restore(0);\n\t\ttty_restore();", "if (leaving) {"),
+    ("cpu.c", "if (++done == REP_BURST) {", "if (++done == 0x10000) {"),
+    (
+        "cpu.c",
+        "c->ip = (uint16_t)ip0;\n\t\t\tbreak;\n\t\t}\n\t}",
+        "c->ip = (uint16_t)(ip0 + 1);\n\t\t\tbreak;\n\t\t}\n\t}",
+    ),
     (
         "cpu.c",
         "if (c->model == I86_286) {\n\t\t\t\tunsigned ax",
@@ -765,6 +771,41 @@ def test_exit_store_failure(binary, work):
     raise Failure("page store failure at exit: the exit never read the page file")
 
 
+def test_rep_burst(sstrun, work):
+    """A repeated string instruction gives up the step after 256
+    iterations with the instruction pointer on its prefix, so that
+    interrupts and the host are served, and finishes in later steps."""
+    regs = [0xAB, 0, 0x300, 0, 0x1000, 0x2000, 0, 0x3000, 0x200, 0, 0, 0x10, 0x100, 2]
+    ram = [0x10100, 0xF3, 0x10101, 0xAA]
+    first = " ".join(str(x) for x in regs + [len(ram) // 2] + ram + [3, 0x30010, 0x3010F, 0x30110])
+    more = regs[:]
+    more[2], more[11] = 0x200, 0x110
+    second = " ".join(str(x) for x in more + [0, 3, 0x3010F, 0x3020F, 0x30210])
+    third = more[:]
+    third[2], third[11] = 0x100, 0x210
+    last = " ".join(str(x) for x in third + [0, 2, 0x3030F, 0x30310])
+    done = subprocess.run(
+        sstrun.split() + ["0", "64", os.path.join(work, "sstpage")],
+        input=first + "\n" + second + "\n" + last + "\n",
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    replies = [[int(x) for x in line.split()] for line in done.stdout.splitlines()]
+    if done.returncode != 0 or len(replies) != 3:
+        raise Failure("repeated instruction: sstrun exit %d" % done.returncode)
+    # count, destination index, instruction pointer, then the bytes asked for
+    want = (
+        [0x200, 0x110, 0x100, 0xAB, 0xAB, 0],
+        [0x100, 0x210, 0x100, 0xAB, 0xAB, 0],
+        [0, 0x310, 0x102, 0xAB, 0],
+    )
+    for got, expect in zip(replies, want):
+        if [got[2], got[11], got[12]] + got[14:] != expect:
+            raise Failure("repeated instruction: %r, expected %r" % (got, expect))
+
+
 def test_undefined(sstrun, work):
     """The undefined members of the FE and FF groups raise interrupt 6 on
     the 80186 and the 80286, with the stack frame of the instruction."""
@@ -911,6 +952,7 @@ def main(argv):
             print("%d 8088 vectors pass" % test_vectors(sstrun, src, work))
             print("%d 80286 vectors pass" % test_vectors(sstrun, src, work, suite="80286"))
             test_undefined(sstrun, work)
+            test_rep_burst(sstrun, work)
             test_short_replies(sstrun, src, work)
             # Sixteen resident pages: the same vectors through the page
             # store, which every instruction's memory then crosses.
@@ -941,6 +983,7 @@ def main(argv):
                     test_vectors(sstrun + "-mutant", src, work)
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")
                     test_undefined(sstrun + "-mutant", work)
+                    test_rep_burst(sstrun + "-mutant", work)
                 except Failure:
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))

@@ -97,8 +97,20 @@ TAIL = [
 ]
 
 MUTANTS = [
+    (
+        "pc.c",
+        "if (key_eof && kb_n == 0 && !kb_full)\n\t\t\thost_exit(0);\n\t\tpc_idle = 1;",
+        "pc_idle = 1;",
+    ),
+    ("pc.c", "(cf.keys != NULL || key_eof))", "cf.keys != NULL)"),
+    ("mem.c", "(void)unlink(store_path);", ";"),
     ("pc.c", "(c->irq && (c->fl & F_IF)))\n\t\t\tbreak;", "c->irq)\n\t\t\tbreak;"),
-    ("pc.c", "if (c->halted && !(c->fl & F_IF) && cf.keys != NULL)\n\t\t\thost_exit(0);", ";"),
+    (
+        "pc.c",
+        "if (c->halted && !(c->fl & F_IF) &&\n\t\t    (cf.keys != NULL || key_eof))\n"
+        "\t\t\thost_exit(0);",
+        ";",
+    ),
     ("pc.c", "host_exit(4);", "host_exit(0);"),
     ("pc.c", "mem_rw((sp + 2) & (MEM_SIZE - 1)),", "mem_rw((sp + 4) & (MEM_SIZE - 1)),"),
     ("cpu.c", "(d.reg == 7 || (!w && d.reg > 1))", "(d.reg == 7 && !w)"),
@@ -221,7 +233,6 @@ MUTANTS = [
     ("main.c", "if (caught)\n\t\t\thost_exit(128 + (int)caught);", ";"),
     ("main.c", '"/tmp/i86.%u", (unsigned)getpid() & 0xffffffu', '"/tmp/i86.%u", 0u'),
     ("mem.c", "O_RDWR | O_CREAT | O_EXCL", "O_RDWR | O_CREAT | O_TRUNC"),
-    ("mem.c", "unlink(store_path);", ";"),
     ("pc.c", "mbr[0x1be + 5] != 0xff) {", "1) {"),
     ("pc.c", "d->spt = mbr[0x1be + 6] & 63;", "d->spt = mbr[0x1be + 6] & 31;"),
     (
@@ -378,14 +389,7 @@ def test_endings(binary, work):
     with subprocess.Popen(
         [binary, "-q", "-T", "-f", "8", "-s", store, "-a", image], stdin=subprocess.PIPE
     ) as child:
-        for _ in range(200):
-            if os.path.exists(store):
-                break
-            time.sleep(0.01)
-        else:
-            child.kill()
-            raise Failure("signal: no page file appeared")
-        time.sleep(0.1)
+        time.sleep(0.5)
         child.send_signal(signal.SIGTERM)
         try:
             status = child.wait(timeout=10)
@@ -478,24 +482,63 @@ def test_endings(binary, work):
             "halted guest: exit %d after %.2f s of processor time in one second"
             % (child.returncode, spent)
         )
-    # Two emulators started without -s do not share a page file.
-    stores = set()
-    for _ in range(2):
-        with subprocess.Popen(
-            [binary, "-q", "-T", "-f", "8", "-a", image], stdin=subprocess.PIPE
-        ) as child:
-            name = "/tmp/i86.%d" % child.pid
-            for _ in range(200):
-                if os.path.exists(name):
-                    stores.add(name)
-                    break
-                time.sleep(0.01)
-            child.send_signal(signal.SIGTERM)
-            child.wait(timeout=10)
-            if os.path.exists(name):
-                raise Failure("default page file %s left behind" % name)
-    if len(stores) != 2:
-        raise Failure("default page file is not named by process: %r" % sorted(stores))
+    # At the end of input the session ends where the guest waits for the
+    # keyboard, not before: the tests ahead of the first wait have run.
+    try:
+        done = subprocess.run(
+            [binary, "-d", "-T", "-s", store, "-a", image],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("end of input: the session runs on") from None
+    if done.returncode != 0 or b"SPIN OK" not in done.stdout:
+        raise Failure("end of input: exit %d before the keyboard wait" % done.returncode)
+    # A dead guest whose input is at its end has nothing to wait for.
+    try:
+        done = subprocess.run(
+            [binary, "-q", "-s", store, "-a", dead],
+            stdin=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("halted guest: the session runs on after its input ended") from None
+    if done.returncode != 0:
+        raise Failure("halted guest at end of input: exit %d" % done.returncode)
+    # The page file has no name while it is in use, so nothing at its path
+    # is ever this program's to remove: a file put there during the
+    # session stays. Without -s the name it is created under carries the
+    # process number, which the open file's link shows where /proc exists.
+    with subprocess.Popen(
+        [binary, "-q", "-T", "-f", "8", "-a", image], stdin=subprocess.PIPE
+    ) as child:
+        time.sleep(0.5)
+        links = "/proc/%d/fd" % child.pid
+        held = []
+        if os.path.isdir(links):
+            held = [os.readlink(os.path.join(links, n)) for n in os.listdir(links)]
+        name = "/tmp/i86.%d" % (child.pid & 0xFFFFFF)
+        present = os.path.exists(name)
+        if not present:
+            with open(name, "w") as handle:
+                handle.write("another program's file\n")
+        child.send_signal(signal.SIGTERM)
+        child.wait(timeout=10)
+    if present:
+        os.remove(name)
+        raise Failure("page file %s keeps its name while in use" % name)
+    kept = os.path.exists(name)
+    if kept:
+        os.remove(name)
+    else:
+        raise Failure("a file put at the page file's path was removed")
+    if not os.path.isdir(links):
+        print("NOT RUN page file name by process: no /proc on this host")
+    elif not any(link.startswith(name + " ") for link in held):
+        raise Failure("default page file is not named by process: %r" % held)
 
 
 def test_interactive(binary, work):

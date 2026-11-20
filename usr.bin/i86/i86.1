@@ -73,8 +73,11 @@ keeps
 .I frames
 pages of one kilobyte resident and holds the others in
 .IR pagefile ,
-which it creates on the first page it must put aside and removes when it
-exits; a
+which it creates on the first page it must put aside.
+The name is removed as soon as the file is open, so the pages occupy
+space that no directory shows and that the system frees when the
+emulator ends, however it ends.
+A
 .I pagefile
 that already exists is not touched and ends the session with status 3.
 A page the guest never wrote, or filled with zeros, occupies no file space.
@@ -183,7 +186,7 @@ sees it only for an instant.
 .SH FILES
 .TP
 .IR /tmp/i86. pid
-the default page file
+the name the default page file is created under
 .SH DIAGNOSTICS
 Exit status 0 when the user or the end of
 .I keys
@@ -193,4 +196,4 @@ when the 80186 or 80286 meets an instruction it does not have and the
 guest has installed no handler for it (the address is printed), and
 128 plus the signal number when an interrupt, hangup or termination signal
 ends it.
-In every case the terminal mode is restored and the page file removed.
+In every case the terminal mode is restored.

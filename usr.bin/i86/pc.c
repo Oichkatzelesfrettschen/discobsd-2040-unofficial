@@ -99,7 +99,7 @@
 #define K_CTRL		0x20000u
 #define K_ALT		0x40000u
 #define BDA		0x400u
-#define IDLE_POLLS	256		/* empty key polls a tick before sleeping */
+#define IDLE_POLLS	16		/* empty key polls in one tick: waiting */
 #define TYPE_TICKS	64		/* timer ticks of polling before typing */
 
 struct disk {
@@ -124,6 +124,7 @@ static unsigned kb_head, kb_n, key_polls, nticks, poll_tick;
 static uint8_t kb_latch, kb_full;	/* port 60h and its status bit */
 static uint16_t kb_latch_code;
 static uint8_t pic_irr, pic_isr, pic_readisr, pic_icw;
+static unsigned idle_polls, idle_tick;
 static int key_eof;
 
 static unsigned cols;
@@ -744,13 +745,19 @@ key_wait(int block)
 	key_pump();
 	if (!bq_empty())
 		return;
-	if (key_eof && kb_n == 0 && !kb_full)
-		host_exit(0);
-	/* A guest that only polls sleeps to the next tick; one that counts
-	 * its polls as a delay still gets IDLE_POLLS of them every tick. */
-	if (block || key_polls > IDLE_POLLS) {
+	if (idle_tick != nticks) {
+		idle_tick = nticks;
+		idle_polls = 0;
+	}
+	/* A guest that blocks, or asks more than IDLE_POLLS times within
+	 * one tick, is waiting for the keyboard: it sleeps to the next
+	 * tick, and at the end of input the session is over. One that
+	 * looks at the keyboard now and then while it works is left to
+	 * work, whatever the input holds. */
+	if (block || ++idle_polls > IDLE_POLLS) {
+		if (key_eof && kb_n == 0 && !kb_full)
+			host_exit(0);
 		pc_idle = 1;
-		key_polls = 0;
 	}
 }
 
@@ -1483,8 +1490,10 @@ pc_poll(struct i86 *c)
 		    (c->irq && (c->fl & F_IF)))
 			break;
 		/* Halted with interrupts off, the guest never runs again.
-		 * A scripted session has nothing left to type into it. */
-		if (c->halted && !(c->fl & F_IF) && cf.keys != NULL)
+		 * A session whose keys are scripted or at their end has
+		 * nothing left to wait for. */
+		if (c->halted && !(c->fl & F_IF) &&
+		    (cf.keys != NULL || key_eof))
 			host_exit(0);
 		/* The guest waits for a key or an interrupt. */
 		refresh();

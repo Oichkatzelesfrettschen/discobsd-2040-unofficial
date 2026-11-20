@@ -216,3 +216,29 @@ END0=0
 operator@pico:~$ stty; echo E"N"D8=$?
 speed 115200 baud; -tabs crt pendin
 END8=0
+
+==== Run 5 (2026-11-20, source: the commit that adds this run): input that
+==== is not a terminal. PICO_UART kernel as above, /guest.img from the
+==== guest program of that commit. A pipe, a regular file and /dev/null
+==== each end the session at the guest's keyboard wait once the input is
+==== at its end; the pipe's three letters and the file's first three
+==== arrive as keys. The session with /dev/null ends at the first place
+==== the guest polls the keyboard in a loop, which is the test printed
+==== after SPIN OK.
+$ echo aB1 | i86 -d -T -v -m 112 -f 100 -a g.img | tail -5
+i86: 61025 polls of 2048 steps; pages: 0 soft, 54 zero, 0 in, 0 out, 0 elided, 0 clean
+VID OK
+MODE OK
+a=1E61 B=3042 1=0231
+DONE
+exit status 0
+
+$ i86 -d -T -m 112 -f 100 -a g.img < /etc/motd | tail -3
+D=2044 i=1769 s=1F73
+DONE
+exit status 0
+
+$ i86 -d -T -m 112 -f 100 -a g.img < /dev/null | tail -3
+TICK OK
+SPIN OK
+exit status 0

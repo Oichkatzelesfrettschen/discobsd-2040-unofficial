@@ -67,8 +67,9 @@ extern uintptr_t mem_wmap[MEM_NPAGE];
 extern struct mem_stats mem_stats;
 
 /* ram is the size of paged memory from address 0, frames the number of
- * resident pages, store the file that holds the others (opened on the
- * first eviction). Returns 0, or -1 when the frames cannot be allocated. */
+ * resident pages, store the path at which the file that holds the others
+ * is created on the first eviction; the path must not exist, and the name
+ * is removed as soon as the file is open. Returns 0, or -1 when the frames cannot be allocated. */
 int mem_init(uint32_t ram, unsigned frames, const char *store);
 /* Called when the store cannot hold or return a page. Guest memory is
  * lost at that point, so the function must end the program without

@@ -828,6 +828,7 @@ MKTIME_CFLAGS=	-std=c17 -Wall -Wextra -Werror -Wold-style-definition \
 	-isystem ${TOPSRC}/include ${MKTIME_RENAMES} ${NARROW_TIME}
 
 RUNTIME_LIMITS_RENAMES=	-Dsysconf=db_sysconf -Dconfstr=db_confstr \
+	-Dpathconf=db_pathconf -Dfpathconf=db_fpathconf -Dfstatfs=db_fstatfs -Dstatfs=db_statfs \
 	-Derrno=runtime_limits_errno
 RUNTIME_LIMITS_CFLAGS=	-std=c17 -Wall -Wextra -Werror \
 	-Wstrict-prototypes -Wmissing-prototypes -Wold-style-definition \
@@ -1025,27 +1026,28 @@ check-runtime-limits: runtime_limits_test runtime_limits_bad_test
 	${TEST_EXECUTION} skip libc.runtime-limits.ilp32 "check-libc-runtime-limits: ${HOSTCC} cannot compile and execute ILP32 binaries"
 .endif
 
-check-runtime-limits-cross: runtime_sysconf_target.o runtime_confstr_target.o
+check-runtime-limits-cross: runtime_sysconf_target.o runtime_confstr_target.o runtime_pathconf_target.o
+	@test "$$(${GCCPREFIX}-nm -u runtime_pathconf_target.o | awk '{print $$NF}' | sort | xargs)" = "db_fstatfs db_statfs runtime_limits_errno"
 	@test "$$(${GCCPREFIX}-nm -u runtime_sysconf_target.o | wc -l)" -eq 1
 	@${GCCPREFIX}-nm -u runtime_sysconf_target.o | grep -q ' U runtime_limits_errno$$'
 	@test "$$(${GCCPREFIX}-nm -u runtime_confstr_target.o | wc -l)" -eq 1
 	@${GCCPREFIX}-nm -u runtime_confstr_target.o | grep -q ' U runtime_limits_errno$$'
-	@echo "runtime limit objects use constant storage and import only errno"
+	@echo "sysconf and confstr import errno; pathconf imports errno, statfs and fstatfs"
 
 runtime_limits_test: runtime_limits_contract_test.c runtime_sysconf.o \
-	runtime_confstr.o
+	runtime_confstr.o ${TARGET_DIR}/pathconf.c
 	${HOSTCC} ${RUNTIME_LIMITS_CFLAGS} -o $@ runtime_limits_contract_test.c \
-	    runtime_sysconf.o runtime_confstr.o
+	    runtime_sysconf.o runtime_confstr.o ${TARGET_DIR}/pathconf.c
 
 runtime_limits_test32: runtime_limits_contract_test.c runtime_sysconf32.o \
-	runtime_confstr32.o
+	runtime_confstr32.o ${TARGET_DIR}/pathconf.c
 	${HOSTCC} ${ILP32} ${RUNTIME_LIMITS_CFLAGS} -o $@ \
 	    runtime_limits_contract_test.c \
-	    runtime_sysconf32.o runtime_confstr32.o
+	    runtime_sysconf32.o runtime_confstr32.o ${TARGET_DIR}/pathconf.c
 
-runtime_limits_bad_test: runtime_limits_contract_test.c runtime_limits_bad.c
+runtime_limits_bad_test: runtime_limits_contract_test.c runtime_limits_bad.c ${TARGET_DIR}/pathconf.c
 	${HOSTCC} ${RUNTIME_LIMITS_CFLAGS} -o $@ \
-	    runtime_limits_contract_test.c runtime_limits_bad.c
+	    runtime_limits_contract_test.c runtime_limits_bad.c ${TARGET_DIR}/pathconf.c
 
 runtime_sysconf.o: ${TARGET_DIR}/sysconf.c
 	${HOSTCC} ${RUNTIME_LIMITS_CFLAGS} -c -o $@ ${TARGET_DIR}/sysconf.c
@@ -1066,6 +1068,9 @@ runtime_sysconf_target.o: ${TARGET_DIR}/sysconf.c
 runtime_confstr_target.o: ${TARGET_DIR}/confstr.c
 	${ARM_COMPILER} ${RUNTIME_LIMITS_TARGET_CFLAGS} -c -o $@ \
 	    ${TARGET_DIR}/confstr.c
+
+runtime_pathconf_target.o: ${TARGET_DIR}/pathconf.c
+	${ARM_COMPILER} ${RUNTIME_LIMITS_TARGET_CFLAGS} -c -o $@ ${TARGET_DIR}/pathconf.c
 
 check-difftime: difftime_contract_test
 	${TEST_EXECUTION} run libc.difftime.native -- ./difftime_contract_test
@@ -1962,7 +1967,7 @@ clean:
 	rm -f runtime_limits_test runtime_limits_test32 runtime_limits_bad_test \
 		runtime_sysconf.o runtime_confstr.o runtime_sysconf32.o \
 		runtime_confstr32.o runtime_sysconf_target.o \
-		runtime_confstr_target.o
+		runtime_confstr_target.o runtime_pathconf_target.o
 	rm -f difftime_contract_test difftime_contract_test32 \
 		difftime_bad_test32 difftime_difftime.o difftime_difftime32.o \
 		difftime_target.o

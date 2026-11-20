@@ -49,6 +49,8 @@ check_value 1 NPROCESSORS_CONF
 check_value 1 NPROCESSORS_ONLN
 check_value 1024 PAGESIZE
 check_value 1024 PAGE_SIZE
+/usr/tests/rp2040/pathlimit || exit 1
+check_value 63 NAME_MAX .
 check_value 8 -- SYMLOOP_MAX
 check_value undefined _POSIX_DEVICE_CONTROL
 check_value /usr/bin:/bin:/usr/sbin:/sbin PATH
@@ -59,6 +61,9 @@ check_error()
 	test -s err || exit 1
 }
 
+check_error NAME_MAX ""
+check_error NAME_MAX missing
+check_error NAME_MAX
 check_error UNKNOWN
 if /usr/bin/getconf >out 2>err; then exit 1; fi
 test ! -s out || exit 1

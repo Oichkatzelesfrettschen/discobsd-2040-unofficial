@@ -79,6 +79,8 @@
 /* DPUCP-2024 exposes the standard option boundary without claiming it. */
 #define _POSIX_DEVICE_CONTROL   (-1)
 
+#define _PC_NAME_MAX            1
+
 #define _CS_PATH                1
 
 #define CLK_TCK                 60      /* times(3) ticks per second */
@@ -104,6 +106,8 @@ char    *ttyname (int);
 ssize_t write (int fd, const void *buf, size_t count);
 int     truncate (const char *path, off_t length);
 int     ftruncate (int fd, off_t length);
+long    pathconf (const char *path, int name);
+long    fpathconf (int fd, int name);
 long    sysconf (int name);
 size_t  confstr (int name, char *buffer, size_t length);
 

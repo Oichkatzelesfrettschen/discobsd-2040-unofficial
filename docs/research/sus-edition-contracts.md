@@ -108,20 +108,30 @@ selectors to `ARG_MAX=5120`, `CLK_TCK=60`, `NGROUPS_MAX=16`, `OPEN_MAX=30`,
 job-control value one, one configured and online kernel processor, `NSIG=32`,
 the 1,024-byte software page and `_POSIX_DEVICE_CONTROL=-1`, plus
 `MAXSYMLINKS=8` and `_PATH_STDPATH`. The Device Control selector preserves `errno`; invalid
-selectors set `EINVAL`. Six source mutations calibrate those distinctions and
-values. The cross gate compiles the target objects and verifies their expected
+selectors set `EINVAL`. Six sysconf mutations calibrate those distinctions and
+values. Two pathconf mutations exchange the mount formats and redirect an
+invalid descriptor to a valid descriptor. The cross gate compiles the target objects and verifies their expected
 errno import.
 
 The SD installation provides `/usr/bin/getconf` for the supported system
 limits, processor counts, job and device control options, and default utility
 search path. The flash manifest omits this executable. A negative option
 value with unchanged zero errno prints `undefined`. An unrecognized operand
-produces a diagnostic and fails. Path operands, programming environments and
-the full Issue 8 variable inventory remain open.
+produces a diagnostic and fails. The path operand `NAME_MAX` queries the containing filesystem through
+`statfs()`. The descriptor form `fpathconf()` uses `fstatfs()`. Both return
+63 bytes on the native filesystem and 14 on a mount marked `MNT_V7`.
+Failed lookups propagate their errno and unknown selectors set `EINVAL`.
+Other pathname variables, programming environments and the full Issue 8
+variable inventory remain open.
 
 `_SC_CHILD_MAX` stays absent. `fork1()` counts `p_uid`, the effective UID, and
 tests `a > MAXUPRC` before creating a child. The admission predicate permits a twenty-first process at `MAXUPRC=20`.
-The RP2040 process table has only sixteen slots, so table exhaustion occurs first. A truthful selector
+The PICOCALC_SD ELF gives `proc` 1,600 BSS bytes for sixteen 100-byte
+entries (`arm-none-eabi-nm -S` and `pahole -C proc`). Table exhaustion
+occurs first. Issue 8 XBD limits.h sets the minimum acceptable
+`_POSIX_CHILD_MAX` to 25 processes per real UID. Nine additional slots alone
+cost 900 resident bytes at this layout, before system processes, the
+privileged reserve, credentials or swap capacity enter the budget. A truthful selector
 requires a separate kernel change that defines and enforces the real-UID limit
 without increasing the process-table footprint.
 The header defines neither `_POSIX_VERSION`, `_POSIX2_VERSION` nor

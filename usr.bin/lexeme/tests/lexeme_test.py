@@ -66,8 +66,10 @@ def check(cond, what):
 class Screen:
     def __init__(self):
         self.cells = [[" "] * COLS for _ in range(ROWS)]
+        self.attrs = [[0] * COLS for _ in range(ROWS)]
         self.r = self.c = 0
         self.acs = False
+        self.sgr = 0
         self.raw = bytearray()
 
     def feed(self, data):
@@ -92,6 +94,7 @@ class Screen:
                     ch = {"`": "*", "q": "-", "x": "|"}.get(ch, "+")
                 if self.r < ROWS and self.c < COLS:
                     self.cells[self.r][self.c] = ch
+                    self.attrs[self.r][self.c] = self.sgr
                 self.c += 1
             i += 1
 
@@ -106,6 +109,20 @@ class Screen:
             self.c = int(p[1]) - 1 if len(p) > 1 and p[1] else 0
         elif s == b"[2J":
             self.cells = [[" "] * COLS for _ in range(ROWS)]
+        elif s.startswith(b"[") and s.endswith(b"m"):
+            # Bit 0 bold, bit 1 underline, bit 2 reverse; color kept above bit 8.
+            for p in s[1:-1].split(b";") if s[1:-1] else [b"0"]:
+                v = int(p) if p else 0
+                if v == 0:
+                    self.sgr = 0
+                elif v == 1:
+                    self.sgr |= 1
+                elif v == 4:
+                    self.sgr |= 2
+                elif v == 7:
+                    self.sgr |= 4
+                elif 30 <= v <= 37 or 90 <= v <= 97:
+                    self.sgr = (self.sgr & 0xFF) | (v << 8)
 
     def row(self, n):
         return "".join(self.cells[n])
@@ -128,9 +145,16 @@ class Session:
         e = dict(os.environ)
         e.pop("WORDKEYS", None)
         e.update(env or {})
-        self.proc = subprocess.Popen([binary] + list(args), stdin=slave, stdout=slave,
-                                     stderr=slave, close_fds=True, cwd=cwd, env=e,
-                                     preexec_fn=default_signals)
+        self.proc = subprocess.Popen(
+            [binary] + list(args),
+            stdin=slave,
+            stdout=slave,
+            stderr=slave,
+            close_fds=True,
+            cwd=cwd,
+            env=e,
+            preexec_fn=default_signals,
+        )
         os.close(slave)
         self.fd = master
         self.scr = Screen()
@@ -239,8 +263,7 @@ def t_wrap(b, td):
         check(len(r) <= COLS, "row wider than the screen")
         joined.extend(r.split())
     check(joined == words, "wrapped rows split or lose a word")
-    check(len([r for r in rows if r and not r.startswith("second")]) >= 5,
-          "paragraph did not wrap")
+    check(len([r for r in rows if r and not r.startswith("second")]) >= 5, "paragraph did not wrap")
     # Wrap off: the first row is cut at the edge and the second paragraph follows.
     menu(s, b"o")
     s.send(b"\t", b"n", b"\r")
@@ -406,6 +429,172 @@ def t_ansi(b, td):
     check(s.close(expect_exit=False) == 2, "-l was accepted")
 
 
+SHIFT_LEFT = b"\x1b[1;2D"
+ALT = b"\x01"
+
+
+def t_format(b, td):
+    s = Session(b, [os.path.join(td, "f.txt")])
+    s.send(b"plain bold")
+    for _ in range(4):
+        s.send(SHIFT_LEFT)
+    s.send(ALT, b"b")
+    s.send(b"\x1b[F")
+    row = s.scr.row(0)
+    check(row.startswith("plain bold"), "text missing: %r" % row)
+    check(all(s.scr.attrs[0][c] & 1 for c in range(6, 10)), "selection not bold")
+    check(not any(s.scr.attrs[0][c] & 1 for c in range(0, 5)), "bold leaked")
+    # Typing after a speed key with no selection uses the typing format.
+    s.send(ALT, b"u", b"X")
+    check(s.scr.attrs[0][10] & 2 and s.scr.row(0)[10] == "X", "typing format not underlined")
+    # Undo removes the typed X, then the bold.
+    s.send(SHIFT, F1, SHIFT, F1)
+    check(not any(s.scr.attrs[0][c] & 1 for c in range(6, 10)), "undo kept the bold")
+    s.send(b"\x19")
+    check(all(s.scr.attrs[0][c] & 1 for c in range(6, 10)), "redo lost the bold")
+    # Format Paragraph: centered, then a bad measurement is refused.
+    menu(s, b"f", b"p")
+    check(s.has("FORMAT PARAGRAPH") and s.has("alignment:"), "Format Paragraph form missing")
+    s.send(b"c", b"\r")
+    check(s.scr.row(0).index("plain") == (COLS - 10) // 2, "paragraph not centered")
+    menu(s, b"f", b"p")
+    s.send(b"\t", b"abc", b"\r")
+    check(s.has("Not a valid measurement"), "bad indent accepted")
+    s.send(ALT, b"l")
+    check(s.scr.row(0).startswith("plain"), "Alt+L did not align left")
+    # Left indent 1" wraps the paragraph ten columns in.
+    s.send(b"\x1b[F", b" " + b"word " * 20)
+    menu(s, b"f", b"p")
+    s.send(b"\t", b"1", b"\r")
+    rows = [s.scr.row(n) for n in range(4)]
+    check(all(r.startswith(" " * 10) and r[10] != " " for r in rows[:3]), "indent rows %r" % rows)
+    words = [w for w in " ".join(r.strip() for r in rows).split() if w != "*"]
+    check(words == ["plain", "bold"] + ["word"] * 20, "indented wrap lost words %r" % words)
+    # Format Character fields reflect the selection and set italic.
+    s.send(CTRLP, b"\x15", b"\x1b[1;2C" * 5)
+    menu(s, b"f", b"c")
+    check(s.has("FORMAT CHARACTER") and s.has("italic:"), "Format Character form missing")
+    s.send(b"\t", b"y", b"\r", RIGHT)
+    check(all((s.scr.attrs[0][c + 10] >> 8) == 32 for c in range(5)), "italic not shown")
+    check(not s.scr.attrs[0][16] >> 8, "italic past the selection")
+    menu(s, b"q")
+    s.send(b"n")
+    s.close()
+
+
+def wdoc(text, chp_runs, pap_runs, charset=0x229B, pages_extra=0):
+    """A Word 5.1 document (SPEC.md, Word document files) from text with CR LF
+    marks, character runs [(fc_lim, record)] and paragraph runs [(fc_lim,
+    record)], each record the property bytes after its length byte."""
+
+    def fkp(runs):
+        pg = bytearray(128)
+        struct.pack_into("<I", pg, 0, 0x80)
+        top = 127
+        for i, (lim, rec) in enumerate(runs):
+            if rec:
+                top -= len(rec) + 1
+                pg[top] = len(rec)
+                pg[top + 1 : top + 1 + len(rec)] = rec
+                ptr = top - 4
+            else:
+                ptr = 0xFFFF
+            struct.pack_into("<IH", pg, 4 + 6 * i, lim, ptr)
+        pg[127] = len(runs)
+        return bytes(pg)
+
+    fcmac = 0x80 + len(text)
+    body = text + b"\0" * (-len(text) % 128)
+    pnpara = fcmac // 128 + (1 if fcmac % 128 else 0) + 1
+    h = bytearray(128)
+    struct.pack_into("<HHH", h, 0, 0xBE31, 0, 0xAB00)
+    struct.pack_into("<I", h, 0x0E, fcmac)
+    struct.pack_into("<H", h, 0x12, pnpara)
+    for off in (0x14, 0x16, 0x18, 0x1A, 0x1C, 0x76, 0x78, 0x7C):
+        struct.pack_into("<H", h, off, pnpara + 1)
+    struct.pack_into("<H", h, 0x6A, pnpara + 1 + pages_extra)
+    struct.pack_into("<H", h, 0x7E, charset)
+    return bytes(h) + body + fkp(chp_runs) + fkp(pap_runs)
+
+
+def wdoc_parse(data):
+    """(text, character runs, paragraph runs) of a Word 5.1 document."""
+    check(struct.unpack_from("<HHH", data, 0) == (0xBE31, 0, 0xAB00), "bad header")
+    check(struct.unpack_from("<H", data, 0x7E)[0] == 0x229B, "bad character set")
+    fcmac = struct.unpack_from("<I", data, 0x0E)[0]
+    pnpara = struct.unpack_from("<H", data, 0x12)[0]
+    pnmac = struct.unpack_from("<H", data, 0x6A)[0]
+    check(pnmac * 128 <= len(data), "pnMac past the end of the file")
+
+    def runs(first, last, end):
+        out, page = [], first
+        while page < last and (not out or out[-1][0] < end):
+            pg = data[page * 128 : page * 128 + 128]
+            for i in range(pg[127]):
+                lim, ptr = struct.unpack_from("<IH", pg, 4 + 6 * i)
+                rec = b"" if ptr == 0xFFFF else pg[ptr + 5 : ptr + 5 + pg[ptr + 4]]
+                out.append((lim, bytes(rec)))
+            page += 1
+        return out
+
+    chp_page = fcmac // 128 + (1 if fcmac % 128 else 0)
+    return data[0x80:fcmac], runs(chp_page, pnpara, fcmac), runs(pnpara, pnmac, fcmac + 1)
+
+
+def t_docfmt(b, td):
+    src = os.path.join(td, "in.doc")
+    text = b"ab cd ef\r\nmid\r\n"
+    end = 0x80 + len(text)
+    write(
+        src,
+        wdoc(
+            text, [(0x83, b""), (0x85, b"\0\1"), (end, b"")], [(0x8A, b""), (end + 1, b"\x3c\x01")]
+        ),
+    )
+    s = Session(b, [src])
+    check(s.scr.row(0).startswith("ab cd ef"), "Word text not loaded: %r" % s.scr.row(0))
+    check(all(s.scr.attrs[0][c] & 1 for c in (3, 4)), "bold run not loaded")
+    check(not s.scr.attrs[0][0] & 1 and not s.scr.attrs[0][6] & 1, "bold leaked")
+    check(s.scr.row(1).index("mid") == (COLS - 3) // 2, "centered paragraph not loaded")
+    out = os.path.join(td, "out.doc")
+    s.send(b"X")
+    menu(s, b"t", b"s")
+    check(s.has("format:(Word)"), "Word format not the default for a Word file")
+    s.send(out.encode(), b"\r")
+    t2, cr, pr = wdoc_parse(read(out))
+    check(t2 == b"Xab cd ef\r\nmid\r\n", "saved text %r" % t2)
+    bold = [(lim, r) for lim, r in cr if r and r[1] & 1]
+    check(bold and bold[0][0] == 0x86 and len(bold) == 1, "saved character runs %r" % cr)
+    check(pr[-1][0] == 0x80 + len(t2) + 1 and pr[-1][1][1] & 3 == 1, "saved paragraph runs %r" % pr)
+    check(pr[0][1] == b"" or pr[0][1][1] & 3 == 0, "first paragraph saved centered")
+    # Known-bad: Text-only of a formatted document asks; N writes nothing.
+    plain = os.path.join(td, "plain.txt")
+    menu(s, b"t", b"s")
+    s.send(plain.encode(), b"\t", b"t", b"\r")
+    check(s.has("drops the formatting"), "no warning before dropping formatting")
+    s.send(b"n")
+    check(not os.path.exists(plain), "cancelled text save wrote a file")
+    menu(s, b"t", b"s")
+    s.send(plain.encode(), b"\t", b"t", b"\r", b"y")
+    check(read(plain) == b"Xab cd ef\nmid\n", "text-only bytes %r" % read(plain))
+    # Deleting the first paragraph mark joins the text into the centered one.
+    s.send(CTRLP, b"\x15", b"\x1b[F", DEL)
+    row = s.scr.row(0)
+    check(
+        row.strip() == "Xab cd efmid" and row.index("X") == (COLS - 12) // 2,
+        "joined paragraph not centered: %r" % row,
+    )
+    menu(s, b"q")
+    s.send(b"n")
+    s.close()
+    # Known-bad: another character set and a short file are refused.
+    for name, cs, extra in (("cs.doc", 0x1B5, 0), ("short.doc", 0x229B, 3)):
+        p = os.path.join(td, name)
+        write(p, wdoc(text, [(end, b"")], [(end + 1, b"")], charset=cs, pages_extra=extra))
+        s = Session(b, [p])
+        check(s.close(expect_exit=False) == 1, "%s was not refused" % name)
+
+
 def t_spill_append(b, td):
     # The add stream's spill file is read and appended through one descriptor:
     # a save reads it, and the next 8 KiB flush must still land at its end.
@@ -443,17 +632,20 @@ def t_save_temp(b, td):
     s.send(b"\r")
     check(read(out) == b"Hello", "save wrote %r" % read(out))
     check(read(victim) == b"precious", "save wrote through a planted link")
-    check(sorted(os.listdir(td)) == ["note.txt", "note.txt.wtmp",
-          "note.txt.wtmp.%d.0" % s.proc.pid, "victim.txt"],
-          "save left a temporary: %r" % sorted(os.listdir(td)))
+    check(
+        sorted(os.listdir(td))
+        == ["note.txt", "note.txt.wtmp", "note.txt.wtmp.%d.0" % s.proc.pid, "victim.txt"],
+        "save left a temporary: %r" % sorted(os.listdir(td)),
+    )
     menu(s, b"q")
     s.close()
 
 
 def t_replace_failure(b, td):
     # The add stream cannot spill (TMPDIR names no directory), so a long
-    # run of replacements ends in a failure. The failing match stays in the
-    # text, the failure message stays on screen and no match is lost.
+    # run of replacements ends in a failure. The Replace is one command: the
+    # document returns whole to its state before it, and the failure message
+    # stays on screen.
     path = os.path.join(td, "r.txt")
     write(path, b"abc " * 200)
     s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
@@ -464,9 +656,146 @@ def t_replace_failure(b, td):
     menu(s, b"t", b"s")
     s.send(b"\r")
     got = read(path)
-    check(got.count(b"abc") > 0 and got.count(b"abc") < 200,
-          "run did not stop part way: %d" % got.count(b"abc"))
-    check(got.count(b"abc") + got.count(b"Q" * 90) == 200, "a match was lost")
+    check(got == b"abc " * 200, "a failed Replace changed the document: %d" % got.count(b"abc"))
+    menu(s, b"q")
+    s.close()
+
+
+def t_replace_undo_whole(b, td):
+    # 250 replacements write more than the 192-record undo history held
+    # record by record; one Undo restores the whole Replace, one Redo redoes it.
+    path = os.path.join(td, "u.txt")
+    write(path, b"x " * 250)
+    s = Session(b, [path])
+    menu(s, b"r")
+    s.send(b"x", b"\t", b"yy", b"\t", b"n", b"\r")
+    check(s.has("250 replacements"), "Replace did not run")
+    s.send(SHIFT, F1)
+    menu(s, b"t", b"s")
+    s.send(b"\r")
+    check(
+        read(path) == b"x " * 250, "Undo restored part of the Replace: %d" % read(path).count(b"yy")
+    )
+    s.send(b"\x19")
+    menu(s, b"t", b"s")
+    s.send(b"\r")
+    check(read(path) == b"yy " * 250, "Redo did not redo the whole Replace")
+    menu(s, b"q")
+    s.close()
+
+
+def t_indent_limit(b, td):
+    # Alt+N stops at the last 720-twip step inside the largest measurement the
+    # form accepts (32,000 twips), so the 16-bit indent never wraps negative.
+    s = Session(b, [os.path.join(td, "i.txt")])
+    s.send(b"x")
+    menu(s, b"f", b"p")
+    s.send(b"\t", b"21.5", b"\r")
+    for _ in range(3):
+        s.send(ALT, b"n")
+    menu(s, b"f", b"p")
+    check(s.has('left indent:22"'), "left indent after Alt+N at the limit: %r" % s.scr.text())
+    s.send(b"\x1b")
+    menu(s, b"q")
+    s.send(b"n")
+    s.close()
+
+
+def t_docsave_temp(b, td):
+    # The Word save uses the same exclusive temporary as the text save.
+    out = os.path.join(td, "note.doc")
+    victim = os.path.join(td, "victim.txt")
+    write(victim, b"precious")
+    s = Session(b, [out])
+    for name in (out + ".wtmp", "%s.wtmp.%d.0" % (out, s.proc.pid)):
+        os.symlink(victim, name)
+    s.send(b"Hello")
+    menu(s, b"t", b"s")
+    check(s.has("format:(Word)"), "a .doc file did not default to the Word format")
+    s.send(b"\r")
+    check(read(victim) == b"precious", "Word save wrote through a planted link")
+    check(read(out)[:2] == b"\x31\xbe", "Word save did not write a Word file")
+    check(
+        sorted(os.listdir(td))
+        == ["note.doc", "note.doc.wtmp", "note.doc.wtmp.%d.0" % s.proc.pid, "victim.txt"],
+        "Word save left a temporary: %r" % sorted(os.listdir(td)),
+    )
+    menu(s, b"q")
+    s.close()
+
+
+def wdoc_pages(text, chp_runs, pap_runs):
+    """A Word 5.1 document whose run tables span as many pages as they need."""
+
+    def pages(runs, para):
+        out, page, top, n, first = [], bytearray(128), 127, 0, 0x80
+        struct.pack_into("<I", page, 0, first)
+        for lim, rec in runs:
+            need = (12 if para else 6) + (len(rec) + 1 if rec else 0)
+            if 4 + (12 if para else 6) * n + need > top:
+                page[127] = n
+                out.append(bytes(page))
+                page, top, n = bytearray(128), 127, 0
+                struct.pack_into("<I", page, 0, first)
+            if rec:
+                top -= len(rec) + 1
+                page[top] = len(rec)
+                page[top + 1 : top + 1 + len(rec)] = rec
+                ptr = top - 4
+            else:
+                ptr = 0xFFFF
+            struct.pack_into("<IH", page, 4 + 6 * n, lim, ptr)
+            n += 1
+            first = lim
+        page[127] = n
+        out.append(bytes(page))
+        return out
+
+    fcmac = 0x80 + len(text)
+    cp, pp = pages(chp_runs, False), pages(pap_runs, True)
+    pnpara = fcmac // 128 + (1 if fcmac % 128 else 0) + len(cp)
+    h = bytearray(128)
+    struct.pack_into("<HHH", h, 0, 0xBE31, 0, 0xAB00)
+    struct.pack_into("<I", h, 0x0E, fcmac)
+    struct.pack_into("<H", h, 0x12, pnpara)
+    for off in (0x14, 0x16, 0x18, 0x1A, 0x1C, 0x6A, 0x76, 0x78, 0x7C):
+        struct.pack_into("<H", h, off, pnpara + len(pp))
+    struct.pack_into("<H", h, 0x7E, 0x229B)
+    return bytes(h) + text + b"\0" * (-len(text) % 128) + b"".join(cp) + b"".join(pp)
+
+
+def t_docload_overflow(b, td):
+    # 70 distinct character formats overflow the 64-record table: the load
+    # is refused whole and the document in the editor stays.
+    keep = os.path.join(td, "keep.txt")
+    write(keep, b"keep me")
+    text = b"x" * 70
+    big = os.path.join(td, "big.doc")
+    write(
+        big,
+        wdoc_pages(
+            text,
+            [(0x81 + i, bytes([0, 0, 30 + i])) for i in range(70)],
+            [(0x80 + len(text) + 1, b"")],
+        ),
+    )
+    ok = os.path.join(td, "ok.doc")
+    write(
+        ok,
+        wdoc_pages(
+            text,
+            [(0x81 + i, bytes([0, 0, 30 + i % 40])) for i in range(70)],
+            [(0x80 + len(text) + 1, b"")],
+        ),
+    )
+    s = Session(b, [keep])
+    menu(s, b"t", b"l")
+    s.send(big.encode(), b"\r")
+    check(s.has("File too large"), "an overflowing load was not refused")
+    check(s.scr.row(0).startswith("keep me"), "a refused load lost the document")
+    menu(s, b"t", b"l")
+    s.send(ok.encode(), b"\r")
+    check(s.scr.row(0).startswith("x" * 40), "a load within the table was refused")
     menu(s, b"q")
     s.close()
 
@@ -526,18 +855,20 @@ def t_signal_restore(b, td):
         rc = s.proc.wait(timeout=10.0)
         s.pump()
         check(rc == -sig, "exit status %r after %s" % (rc, sig.name))
-        check(s.scr.raw.endswith(b"\x1b[?1049l")
-              or b"\x1b[?1049l" in bytes(s.scr.raw[-40:]),
-              "alternate screen left after %s" % sig.name)
+        check(
+            s.scr.raw.endswith(b"\x1b[?1049l") or b"\x1b[?1049l" in bytes(s.scr.raw[-40:]),
+            "alternate screen left after %s" % sig.name,
+        )
         lflag = termios.tcgetattr(s.fd)[3]
-        check(lflag & termios.ICANON and lflag & termios.ECHO,
-              "terminal left raw after %s" % sig.name)
+        check(
+            lflag & termios.ICANON and lflag & termios.ECHO, "terminal left raw after %s" % sig.name
+        )
         os.close(s.fd)
 
 
 def type_text(s, text):
     for i in range(0, len(text), 500):
-        s.send(text[i:i + 500])
+        s.send(text[i : i + 500])
 
 
 def t_select_replace(b, td):
@@ -551,10 +882,12 @@ def t_select_replace(b, td):
     s.close()
     check(read(path) == b"Xc", "nano typing kept the selection: %r" % read(path))
     # A failing replacement (no spill directory, add stream full) keeps the
-    # selected text and the document.
+    # selected text and the document. 8181 typed bytes leave 11 of the 8192
+    # in memory: a deletion of three bytes stages them and an 8-byte run map
+    # (11), and the replacement needs one more for the typed K.
     path = os.path.join(td, "w.txt")
     s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
-    typed = b"q" * 8186 + b"XYZ"
+    typed = b"q" * 8178 + b"XYZ"
     type_text(s, typed)
     s.send(b"\x1b[1;2D" * 3, b"K")
     menu(s, b"t", b"s")
@@ -599,11 +932,65 @@ def t_vi_counts(b, td):
     check(read(path) == b"x\nx\nx\n", "2p left %r" % read(path))
 
 
-TESTS = [t_save_menu, t_wrap, t_search_replace, t_undo_scrap, t_vi, t_nano,
-         t_picker, t_large, t_ansi, t_spill_append, t_save_temp,
-         t_replace_failure, t_replace_all_local, t_overlong_pattern,
-         t_csi_overflow, t_signal_restore, t_select_replace, t_dirty_undo,
-         t_vi_counts]
+def t_bufcore(b, td):
+    # tests/buf_test.c against the lexeme_buf.c beside the program under
+    # test (a mutant's copy when mutants.py runs this), with the program's
+    # word size: undo, the slot reservation and injected allocation failures.
+    here = os.path.dirname(os.path.abspath(__file__))
+    srcdir = os.path.dirname(b)
+    if not os.path.exists(os.path.join(srcdir, "lexeme_buf.c")):
+        srcdir = os.path.dirname(here)
+    exe = os.path.join(td, "buf_test")
+    cmd = [
+        os.environ.get("HOSTCC", "cc"),
+        "-std=c17",
+        "-D_DEFAULT_SOURCE",
+        "-DTERMIOS",
+        "-DBUF_TEST",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wshadow",
+        "-O1",
+        "-I" + srcdir,
+    ]
+    if b.endswith("32"):
+        cmd.append("-m32")
+    cmd += ["-o", exe, os.path.join(srcdir, "lexeme_buf.c"), os.path.join(here, "buf_test.c")]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    check(r.returncode == 0, "buf_test does not build: " + r.stderr[-300:])
+    r = subprocess.run([exe], capture_output=True, text=True, timeout=600)
+    check(r.returncode == 0 and "buf_test: PASS" in r.stdout, "buf_test: " + r.stdout[-400:])
+
+
+TESTS = [
+    t_bufcore,
+    t_docfmt,
+    t_format,
+    t_indent_limit,
+    t_save_menu,
+    t_wrap,
+    t_search_replace,
+    t_undo_scrap,
+    t_vi,
+    t_nano,
+    t_picker,
+    t_large,
+    t_ansi,
+    t_spill_append,
+    t_save_temp,
+    t_replace_failure,
+    t_replace_undo_whole,
+    t_docsave_temp,
+    t_docload_overflow,
+    t_replace_all_local,
+    t_overlong_pattern,
+    t_csi_overflow,
+    t_signal_restore,
+    t_select_replace,
+    t_dirty_undo,
+    t_vi_counts,
+]
 
 
 def main():

@@ -96639,7 +96639,9 @@
           "aliasing": [],
           "inline_assembly": [],
           "integer": [
-            "integer-cast"
+            "integer-cast",
+            "shift-expression",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
           "pointer": [
@@ -96712,6 +96714,44 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
+            "shift-expression",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "usr.bin/lexeme/lexeme_doc.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "usr.bin",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "shift-expression",
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
@@ -96889,6 +96929,45 @@
             "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
+          "prototype": [],
+          "variadic": []
+        }
+      }
+    },
+    {
+      "path": "usr.bin/lexeme/tests/buf_test.c",
+      "class": "unreviewed",
+      "scope": "unreviewed",
+      "owner": "usr.bin",
+      "profile": "unreviewed",
+      "native_input": "unreviewed",
+      "language_state": "unreviewed",
+      "evidence": [],
+      "blocker": "Class, evaluated production profile and migration-unit evidence require review.",
+      "classification": {
+        "source_kind": "translation-unit",
+        "build_surface": "rp2040-userland",
+        "required_mode": "strict-c17-and-gnu17",
+        "extension_policy": "portable-only",
+        "extension_signals": [],
+        "risk_family": "portable-leaf",
+        "risk_tier": "unreviewed",
+        "risk_tier_basis": "caller-closure-required",
+        "hazard_basis": "lexical-candidates-v1",
+        "hazards": {
+          "aliasing": [],
+          "inline_assembly": [],
+          "integer": [
+            "integer-cast",
+            "shift-expression",
+            "width-sensitive-sizeof"
+          ],
+          "object_lifetime": [
+            "compound-literal"
+          ],
           "pointer": [
             "integer-pointer-cast"
           ],

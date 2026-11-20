@@ -68503,247 +68503,247 @@ Error: 'draw-pixel' argument is not an integer: <gfx-stream 1>
 Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-pixel nil (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: nil
 11978> 
 (draw-pixel t (quote (1 2 3))) => 
 Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote foo) (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote car) (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: car
 11978> 
 (draw-pixel :low (quote (1 2 3))) => 
 Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel abc (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: "abc"
 11978> 
 (draw-pixel  (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: ""
 11978> 
 (draw-pixel a (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: #\a
 11978> 
 (draw-pixel 1.5 (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: 1.5
 11978> 
 (draw-pixel (quote (1 2 3)) (quote (1 2 3))) => 
 Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 . 2)) (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: (1 . 2)
 11978> 
 (draw-pixel (quote (nil 2)) (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel (make-array 3) (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-pixel (make-array (quote (2 2))) (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-pixel s (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (draw-pixel g (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-pixel (lambda (x) x) (quote (1 2 3))) => 
-Error: 'draw-pixel' argument is not an integer: (1 2 3)
+Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-pixel (quote (1 2 3)) nil) => 
-Error: 'draw-pixel' argument is not an integer: nil
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) t) => 
 Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) (quote foo)) => 
-Error: 'draw-pixel' argument is not an integer: foo
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) (quote car)) => 
-Error: 'draw-pixel' argument is not an integer: car
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) :low) => 
 Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) abc) => 
-Error: 'draw-pixel' argument is not an integer: "abc"
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) ) => 
-Error: 'draw-pixel' argument is not an integer: ""
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) a) => 
-Error: 'draw-pixel' argument is not an integer: #\a
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) 1.5) => 
-Error: 'draw-pixel' argument is not an integer: 1.5
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) (quote (1 . 2))) => 
-Error: 'draw-pixel' argument is not an integer: (1 . 2)
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) (quote (nil 2))) => 
-Error: 'draw-pixel' argument is not an integer: (nil 2)
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) (make-array 3)) => 
-Error: 'draw-pixel' argument is not an integer: #(nil nil nil)
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) (make-array (quote (2 2)))) => 
-Error: 'draw-pixel' argument is not an integer: #2A((nil nil) (nil nil))
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) s) => 
-Error: 'draw-pixel' argument is not an integer: <string-stream 0>
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) g) => 
-Error: 'draw-pixel' argument is not an integer: <gfx-stream 1>
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel (quote (1 2 3)) (lambda (x) x)) => 
-Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
+Error: 'draw-pixel' argument is not an integer: (1 2 3)
 11978> 
 (draw-pixel nil nil) => 
 Error: 'draw-pixel' argument is not an integer: nil
 11978> 
 (draw-pixel nil (quote foo)) => 
-Error: 'draw-pixel' argument is not an integer: foo
+Error: 'draw-pixel' argument is not an integer: nil
 11978> 
 (draw-pixel nil abc) => 
-Error: 'draw-pixel' argument is not an integer: "abc"
+Error: 'draw-pixel' argument is not an integer: nil
 11978> 
 (draw-pixel nil 1.5) => 
-Error: 'draw-pixel' argument is not an integer: 1.5
+Error: 'draw-pixel' argument is not an integer: nil
 11978> 
 (draw-pixel nil (quote (nil 2))) => 
-Error: 'draw-pixel' argument is not an integer: (nil 2)
+Error: 'draw-pixel' argument is not an integer: nil
 11978> 
 (draw-pixel nil s) => 
-Error: 'draw-pixel' argument is not an integer: <string-stream 0>
+Error: 'draw-pixel' argument is not an integer: nil
 11978> 
 (draw-pixel nil (lambda (x) x)) => 
-Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
+Error: 'draw-pixel' argument is not an integer: nil
 11978> 
 (draw-pixel (quote foo) nil) => 
-Error: 'draw-pixel' argument is not an integer: nil
+Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote foo) (quote foo)) => 
 Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote foo) abc) => 
-Error: 'draw-pixel' argument is not an integer: "abc"
+Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote foo) 1.5) => 
-Error: 'draw-pixel' argument is not an integer: 1.5
+Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote foo) (quote (nil 2))) => 
-Error: 'draw-pixel' argument is not an integer: (nil 2)
+Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote foo) s) => 
-Error: 'draw-pixel' argument is not an integer: <string-stream 0>
+Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote foo) (lambda (x) x)) => 
-Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
+Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel abc nil) => 
-Error: 'draw-pixel' argument is not an integer: nil
+Error: 'draw-pixel' argument is not an integer: "abc"
 11978> 
 (draw-pixel abc (quote foo)) => 
-Error: 'draw-pixel' argument is not an integer: foo
+Error: 'draw-pixel' argument is not an integer: "abc"
 11978> 
 (draw-pixel abc abc) => 
 Error: 'draw-pixel' argument is not an integer: "abc"
 11978> 
 (draw-pixel abc 1.5) => 
-Error: 'draw-pixel' argument is not an integer: 1.5
+Error: 'draw-pixel' argument is not an integer: "abc"
 11978> 
 (draw-pixel abc (quote (nil 2))) => 
-Error: 'draw-pixel' argument is not an integer: (nil 2)
+Error: 'draw-pixel' argument is not an integer: "abc"
 11978> 
 (draw-pixel abc s) => 
-Error: 'draw-pixel' argument is not an integer: <string-stream 0>
+Error: 'draw-pixel' argument is not an integer: "abc"
 11978> 
 (draw-pixel abc (lambda (x) x)) => 
-Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
+Error: 'draw-pixel' argument is not an integer: "abc"
 11978> 
 (draw-pixel 1.5 nil) => 
-Error: 'draw-pixel' argument is not an integer: nil
+Error: 'draw-pixel' argument is not an integer: 1.5
 11978> 
 (draw-pixel 1.5 (quote foo)) => 
-Error: 'draw-pixel' argument is not an integer: foo
+Error: 'draw-pixel' argument is not an integer: 1.5
 11978> 
 (draw-pixel 1.5 abc) => 
-Error: 'draw-pixel' argument is not an integer: "abc"
+Error: 'draw-pixel' argument is not an integer: 1.5
 11978> 
 (draw-pixel 1.5 1.5) => 
 Error: 'draw-pixel' argument is not an integer: 1.5
 11978> 
 (draw-pixel 1.5 (quote (nil 2))) => 
-Error: 'draw-pixel' argument is not an integer: (nil 2)
+Error: 'draw-pixel' argument is not an integer: 1.5
 11978> 
 (draw-pixel 1.5 s) => 
-Error: 'draw-pixel' argument is not an integer: <string-stream 0>
+Error: 'draw-pixel' argument is not an integer: 1.5
 11978> 
 (draw-pixel 1.5 (lambda (x) x)) => 
-Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
+Error: 'draw-pixel' argument is not an integer: 1.5
 11978> 
 (draw-pixel (quote (nil 2)) nil) => 
-Error: 'draw-pixel' argument is not an integer: nil
+Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel (quote (nil 2)) (quote foo)) => 
-Error: 'draw-pixel' argument is not an integer: foo
+Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel (quote (nil 2)) abc) => 
-Error: 'draw-pixel' argument is not an integer: "abc"
+Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel (quote (nil 2)) 1.5) => 
-Error: 'draw-pixel' argument is not an integer: 1.5
+Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel (quote (nil 2)) (quote (nil 2))) => 
 Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel (quote (nil 2)) s) => 
-Error: 'draw-pixel' argument is not an integer: <string-stream 0>
+Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel (quote (nil 2)) (lambda (x) x)) => 
-Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
+Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel s nil) => 
-Error: 'draw-pixel' argument is not an integer: nil
+Error: 'draw-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (draw-pixel s (quote foo)) => 
-Error: 'draw-pixel' argument is not an integer: foo
+Error: 'draw-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (draw-pixel s abc) => 
-Error: 'draw-pixel' argument is not an integer: "abc"
+Error: 'draw-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (draw-pixel s 1.5) => 
-Error: 'draw-pixel' argument is not an integer: 1.5
+Error: 'draw-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (draw-pixel s (quote (nil 2))) => 
-Error: 'draw-pixel' argument is not an integer: (nil 2)
+Error: 'draw-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (draw-pixel s s) => 
 Error: 'draw-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (draw-pixel s (lambda (x) x)) => 
-Error: 'draw-pixel' argument is not an integer: <closure>
+Error: 'draw-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (draw-pixel (lambda (x) x) nil) => 
-Error: 'draw-pixel' argument is not an integer: nil
+Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-pixel (lambda (x) x) (quote foo)) => 
-Error: 'draw-pixel' argument is not an integer: foo
+Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-pixel (lambda (x) x) abc) => 
-Error: 'draw-pixel' argument is not an integer: "abc"
+Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-pixel (lambda (x) x) 1.5) => 
-Error: 'draw-pixel' argument is not an integer: 1.5
+Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-pixel (lambda (x) x) (quote (nil 2))) => 
-Error: 'draw-pixel' argument is not an integer: (nil 2)
+Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-pixel (lambda (x) x) s) => 
-Error: 'draw-pixel' argument is not an integer: <string-stream 0>
+Error: 'draw-pixel' argument is not an integer: <closure>
 11978> 
 (draw-pixel (lambda (x) x) (lambda (x) x)) => 
 Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
@@ -68902,7 +68902,7 @@ Error: 'draw-pixel' argument is not an integer: <gfx-stream 1>
 Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-pixel (make-array (quote (2 2))) nil :low) => 
-Error: 'draw-pixel' argument is not an integer: nil
+Error: 'draw-pixel' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-pixel   (lambda (x) x)) => 
 Error: 'draw-pixel' argument is not an integer: (lambda (x) x)
@@ -68932,7 +68932,7 @@ Error: 'draw-pixel' argument is not an integer: car
 Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote foo) (quote (nil 2)) :low) => 
-Error: 'draw-pixel' argument is not an integer: (nil 2)
+Error: 'draw-pixel' argument is not an integer: foo
 11978> 
 (draw-pixel (quote car) (quote car) g) => 
 Error: 'draw-pixel' argument is not an integer: <gfx-stream 1>
@@ -69016,7 +69016,7 @@ Error: 'draw-pixel' argument is not an integer: #(nil nil nil)
 Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel (quote (nil 2)) abc :low) => 
-Error: 'draw-pixel' argument is not an integer: "abc"
+Error: 'draw-pixel' argument is not an integer: (nil 2)
 11978> 
 (draw-pixel :low s (quote (1 . 2))) => 
 Error: 'draw-pixel' argument is not an integer: (1 . 2)
@@ -73108,106 +73108,106 @@ Error: 'fill-triangle' argument is not an integer: <gfx-stream 1>
 Error: 'fill-triangle' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char nil 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char t 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char (quote foo) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char (quote car) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char :low 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char abc 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char  1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char a 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char 1.5 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char (quote (1 2 3)) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char (quote (1 . 2)) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char (quote (nil 2)) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char (make-array 3) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char (make-array (quote (2 2))) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char s 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char g 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char (lambda (x) x) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char 1 nil 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char 1 t 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char 1 (quote foo) 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char 1 (quote car) 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char 1 :low 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char 1 abc 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char 1  1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char 1 a 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char 1 1.5 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char 1 (quote (1 2 3)) 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char 1 (quote (1 . 2)) 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char 1 (quote (nil 2)) 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char 1 (make-array 3) 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char 1 (make-array (quote (2 2))) 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char 1 s 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char 1 g 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char 1 (lambda (x) x) 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char 1 1 nil) => 
 Error: 'draw-char' argument is not a character: nil
@@ -73261,226 +73261,226 @@ Error: 'draw-char' argument is not a character: <gfx-stream 1>
 Error: 'draw-char' argument is not a character: (lambda (x) x)
 11978> 
 (draw-char (lambda (x) x) (quote car) a) => 
-Error: 'draw-char' argument is not an integer: car
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char nil g a) => 
-Error: 'draw-char' argument is not an integer: <gfx-stream 1>
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char (quote car) (make-array (quote (2 2))) (quote foo)) => 
-Error: 'draw-char' argument is not a character: foo
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char 1.5 abc 1.5) => 
-Error: 'draw-char' argument is not a character: 1.5
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char  a (quote (1 2 3))) => 
-Error: 'draw-char' argument is not a character: (1 2 3)
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char :low nil g) => 
-Error: 'draw-char' argument is not a character: <gfx-stream 1>
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char g a a) => 
-Error: 'draw-char' argument is not an integer: #\a
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char s g nil) => 
-Error: 'draw-char' argument is not a character: nil
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char (quote (1 . 2)) (quote (1 2 3)) (quote foo)) => 
-Error: 'draw-char' argument is not a character: foo
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char (quote (nil 2)) (quote (1 . 2)) (quote (1 . 2))) => 
-Error: 'draw-char' argument is not a character: (1 . 2)
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char :low t (quote car)) => 
 Error: 'draw-char' argument is not a character: car
 11978> 
 (draw-char (quote (nil 2)) (make-array (quote (2 2))) (quote (nil 2))) => 
-Error: 'draw-char' argument is not a character: (nil 2)
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char (quote (1 2 3)) a (make-array (quote (2 2)))) => 
-Error: 'draw-char' argument is not a character: #2A((nil nil) (nil nil))
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char a (make-array (quote (2 2))) a) => 
-Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char (quote (1 2 3)) g abc) => 
-Error: 'draw-char' argument is not a character: "abc"
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char abc (make-array 3) abc) => 
-Error: 'draw-char' argument is not a character: "abc"
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char (quote (1 . 2)) (quote foo) t) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char (lambda (x) x) 1.5 (make-array (quote (2 2)))) => 
-Error: 'draw-char' argument is not a character: #2A((nil nil) (nil nil))
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char (quote foo) (make-array 3) abc) => 
-Error: 'draw-char' argument is not a character: "abc"
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char (quote car) (quote (nil 2)) nil) => 
-Error: 'draw-char' argument is not a character: nil
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char g g s) => 
-Error: 'draw-char' argument is not a character: <string-stream 0>
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char (lambda (x) x) (quote foo) nil) => 
-Error: 'draw-char' argument is not a character: nil
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char (quote (nil 2)) :low 1.5) => 
-Error: 'draw-char' argument is not a character: 1.5
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char (make-array 3) (make-array 3) abc) => 
-Error: 'draw-char' argument is not a character: "abc"
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char abc :low (quote foo)) => 
-Error: 'draw-char' argument is not a character: foo
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char (quote car) (quote (1 . 2)) abc) => 
-Error: 'draw-char' argument is not a character: "abc"
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char (quote car) s :low) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char (lambda (x) x) (quote (1 . 2)) g) => 
-Error: 'draw-char' argument is not a character: <gfx-stream 1>
+Error: 'draw-char' argument is not an integer: <closure>
 11978> 
 (draw-char (quote (1 2 3)) (quote car) (quote (1 . 2))) => 
-Error: 'draw-char' argument is not a character: (1 . 2)
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char 1.5 (make-array 3) nil) => 
-Error: 'draw-char' argument is not a character: nil
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char (quote car) (quote car) (quote foo)) => 
-Error: 'draw-char' argument is not a character: foo
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char (quote (1 2 3)) (quote (1 . 2)) (quote car)) => 
-Error: 'draw-char' argument is not a character: car
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char (lambda (x) x) 1.5 (quote (nil 2))) => 
-Error: 'draw-char' argument is not a character: (nil 2)
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char s (make-array 3) 1.5) => 
-Error: 'draw-char' argument is not a character: 1.5
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char (make-array (quote (2 2))) (make-array (quote (2 2))) (quote car)) => 
-Error: 'draw-char' argument is not a character: car
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char  g (quote (nil 2))) => 
-Error: 'draw-char' argument is not a character: (nil 2)
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char a (quote (nil 2)) :low) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char nil s (make-array 3)) => 
-Error: 'draw-char' argument is not a character: #(nil nil nil)
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char (quote (1 . 2)) s (quote foo)) => 
-Error: 'draw-char' argument is not a character: foo
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char 1.5 (quote (nil 2)) (quote (nil 2))) => 
-Error: 'draw-char' argument is not a character: (nil 2)
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char nil 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char t 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char (quote foo) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char (quote car) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char :low 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char abc 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char  1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char a 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char 1.5 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char (quote (1 2 3)) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char (quote (1 . 2)) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char (quote (nil 2)) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char (make-array 3) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char (make-array (quote (2 2))) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char s 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char g 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char (lambda (x) x) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char 1 nil 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char 1 t 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char 1 (quote foo) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char 1 (quote car) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char 1 :low 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char 1 abc 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char 1  1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char 1 a 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char 1 1.5 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char 1 (quote (1 2 3)) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char 1 (quote (1 . 2)) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char 1 (quote (nil 2)) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char 1 (make-array 3) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char 1 (make-array (quote (2 2))) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char 1 s 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char 1 g 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char 1 (lambda (x) x) 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char 1 1 nil 1) => 
 Error: 'draw-char' argument is not a character: nil
@@ -73585,106 +73585,106 @@ Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char nil 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char t 1 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char (quote foo) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char (quote car) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char :low 1 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char abc 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char  1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char a 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char 1.5 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char (quote (1 2 3)) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char (quote (1 . 2)) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char (quote (nil 2)) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char (make-array 3) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char (make-array (quote (2 2))) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char s 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char g 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char (lambda (x) x) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char 1 nil 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char 1 t 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char 1 (quote foo) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char 1 (quote car) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char 1 :low 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char 1 abc 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char 1  1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char 1 a 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char 1 1.5 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char 1 (quote (1 2 3)) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char 1 (quote (1 . 2)) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char 1 (quote (nil 2)) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char 1 (make-array 3) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char 1 (make-array (quote (2 2))) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char 1 s 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char 1 g 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char 1 (lambda (x) x) 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char 1 1 nil 1 1) => 
 Error: 'draw-char' argument is not a character: nil
@@ -73840,106 +73840,106 @@ Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char nil 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char t 1 1 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char (quote foo) 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char (quote car) 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char :low 1 1 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char abc 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char  1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char a 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char 1.5 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char (quote (1 2 3)) 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char (quote (1 . 2)) 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char (quote (nil 2)) 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char (make-array 3) 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char (make-array (quote (2 2))) 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char s 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char g 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char (lambda (x) x) 1 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char 1 nil 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: nil
 11978> 
 (draw-char 1 t 1 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char 1 (quote foo) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: foo
 11978> 
 (draw-char 1 (quote car) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: car
 11978> 
 (draw-char 1 :low 1 1 1 1) => 
 Error: 'draw-char' argument is not a character: 1
 11978> 
 (draw-char 1 abc 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: "abc"
 11978> 
 (draw-char 1  1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: ""
 11978> 
 (draw-char 1 a 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #\a
 11978> 
 (draw-char 1 1.5 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: 1.5
 11978> 
 (draw-char 1 (quote (1 2 3)) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 2 3)
 11978> 
 (draw-char 1 (quote (1 . 2)) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (1 . 2)
 11978> 
 (draw-char 1 (quote (nil 2)) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (nil 2)
 11978> 
 (draw-char 1 (make-array 3) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #(nil nil nil)
 11978> 
 (draw-char 1 (make-array (quote (2 2))) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (draw-char 1 s 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <string-stream 0>
 11978> 
 (draw-char 1 g 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: <gfx-stream 1>
 11978> 
 (draw-char 1 (lambda (x) x) 1 1 1 1) => 
-Error: 'draw-char' argument is not a character: 1
+Error: 'draw-char' argument is not an integer: (lambda (x) x)
 11978> 
 (draw-char 1 1 nil 1 1 1) => 
 Error: 'draw-char' argument is not a character: nil
@@ -74251,247 +74251,247 @@ Error: 'set-cursor' argument is not an integer: <gfx-stream 1>
 Error: 'set-cursor' argument is not an integer: (lambda (x) x)
 11978> 
 (set-cursor nil (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: nil
 11978> 
 (set-cursor t (quote (1 2 3))) => 
 Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote foo) (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: foo
 11978> 
 (set-cursor (quote car) (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: car
 11978> 
 (set-cursor :low (quote (1 2 3))) => 
 Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor abc (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: "abc"
 11978> 
 (set-cursor  (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: ""
 11978> 
 (set-cursor a (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: #\a
 11978> 
 (set-cursor 1.5 (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: 1.5
 11978> 
 (set-cursor (quote (1 2 3)) (quote (1 2 3))) => 
 Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 . 2)) (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: (1 . 2)
 11978> 
 (set-cursor (quote (nil 2)) (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: (nil 2)
 11978> 
 (set-cursor (make-array 3) (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: #(nil nil nil)
 11978> 
 (set-cursor (make-array (quote (2 2))) (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (set-cursor s (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: <string-stream 0>
 11978> 
 (set-cursor g (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: <gfx-stream 1>
 11978> 
 (set-cursor (lambda (x) x) (quote (1 2 3))) => 
-Error: 'set-cursor' argument is not an integer: (1 2 3)
+Error: 'set-cursor' argument is not an integer: (lambda (x) x)
 11978> 
 (set-cursor (quote (1 2 3)) nil) => 
-Error: 'set-cursor' argument is not an integer: nil
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) t) => 
 Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) (quote foo)) => 
-Error: 'set-cursor' argument is not an integer: foo
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) (quote car)) => 
-Error: 'set-cursor' argument is not an integer: car
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) :low) => 
 Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) abc) => 
-Error: 'set-cursor' argument is not an integer: "abc"
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) ) => 
-Error: 'set-cursor' argument is not an integer: ""
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) a) => 
-Error: 'set-cursor' argument is not an integer: #\a
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) 1.5) => 
-Error: 'set-cursor' argument is not an integer: 1.5
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) (quote (1 . 2))) => 
-Error: 'set-cursor' argument is not an integer: (1 . 2)
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) (quote (nil 2))) => 
-Error: 'set-cursor' argument is not an integer: (nil 2)
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) (make-array 3)) => 
-Error: 'set-cursor' argument is not an integer: #(nil nil nil)
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) (make-array (quote (2 2)))) => 
-Error: 'set-cursor' argument is not an integer: #2A((nil nil) (nil nil))
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) s) => 
-Error: 'set-cursor' argument is not an integer: <string-stream 0>
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) g) => 
-Error: 'set-cursor' argument is not an integer: <gfx-stream 1>
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor (quote (1 2 3)) (lambda (x) x)) => 
-Error: 'set-cursor' argument is not an integer: (lambda (x) x)
+Error: 'set-cursor' argument is not an integer: (1 2 3)
 11978> 
 (set-cursor nil nil) => 
 Error: 'set-cursor' argument is not an integer: nil
 11978> 
 (set-cursor nil (quote foo)) => 
-Error: 'set-cursor' argument is not an integer: foo
+Error: 'set-cursor' argument is not an integer: nil
 11978> 
 (set-cursor nil abc) => 
-Error: 'set-cursor' argument is not an integer: "abc"
+Error: 'set-cursor' argument is not an integer: nil
 11978> 
 (set-cursor nil 1.5) => 
-Error: 'set-cursor' argument is not an integer: 1.5
+Error: 'set-cursor' argument is not an integer: nil
 11978> 
 (set-cursor nil (quote (nil 2))) => 
-Error: 'set-cursor' argument is not an integer: (nil 2)
+Error: 'set-cursor' argument is not an integer: nil
 11978> 
 (set-cursor nil s) => 
-Error: 'set-cursor' argument is not an integer: <string-stream 0>
+Error: 'set-cursor' argument is not an integer: nil
 11978> 
 (set-cursor nil (lambda (x) x)) => 
-Error: 'set-cursor' argument is not an integer: (lambda (x) x)
+Error: 'set-cursor' argument is not an integer: nil
 11978> 
 (set-cursor (quote foo) nil) => 
-Error: 'set-cursor' argument is not an integer: nil
+Error: 'set-cursor' argument is not an integer: foo
 11978> 
 (set-cursor (quote foo) (quote foo)) => 
 Error: 'set-cursor' argument is not an integer: foo
 11978> 
 (set-cursor (quote foo) abc) => 
-Error: 'set-cursor' argument is not an integer: "abc"
+Error: 'set-cursor' argument is not an integer: foo
 11978> 
 (set-cursor (quote foo) 1.5) => 
-Error: 'set-cursor' argument is not an integer: 1.5
+Error: 'set-cursor' argument is not an integer: foo
 11978> 
 (set-cursor (quote foo) (quote (nil 2))) => 
-Error: 'set-cursor' argument is not an integer: (nil 2)
+Error: 'set-cursor' argument is not an integer: foo
 11978> 
 (set-cursor (quote foo) s) => 
-Error: 'set-cursor' argument is not an integer: <string-stream 0>
+Error: 'set-cursor' argument is not an integer: foo
 11978> 
 (set-cursor (quote foo) (lambda (x) x)) => 
-Error: 'set-cursor' argument is not an integer: (lambda (x) x)
+Error: 'set-cursor' argument is not an integer: foo
 11978> 
 (set-cursor abc nil) => 
-Error: 'set-cursor' argument is not an integer: nil
+Error: 'set-cursor' argument is not an integer: "abc"
 11978> 
 (set-cursor abc (quote foo)) => 
-Error: 'set-cursor' argument is not an integer: foo
+Error: 'set-cursor' argument is not an integer: "abc"
 11978> 
 (set-cursor abc abc) => 
 Error: 'set-cursor' argument is not an integer: "abc"
 11978> 
 (set-cursor abc 1.5) => 
-Error: 'set-cursor' argument is not an integer: 1.5
+Error: 'set-cursor' argument is not an integer: "abc"
 11978> 
 (set-cursor abc (quote (nil 2))) => 
-Error: 'set-cursor' argument is not an integer: (nil 2)
+Error: 'set-cursor' argument is not an integer: "abc"
 11978> 
 (set-cursor abc s) => 
-Error: 'set-cursor' argument is not an integer: <string-stream 0>
+Error: 'set-cursor' argument is not an integer: "abc"
 11978> 
 (set-cursor abc (lambda (x) x)) => 
-Error: 'set-cursor' argument is not an integer: (lambda (x) x)
+Error: 'set-cursor' argument is not an integer: "abc"
 11978> 
 (set-cursor 1.5 nil) => 
-Error: 'set-cursor' argument is not an integer: nil
+Error: 'set-cursor' argument is not an integer: 1.5
 11978> 
 (set-cursor 1.5 (quote foo)) => 
-Error: 'set-cursor' argument is not an integer: foo
+Error: 'set-cursor' argument is not an integer: 1.5
 11978> 
 (set-cursor 1.5 abc) => 
-Error: 'set-cursor' argument is not an integer: "abc"
+Error: 'set-cursor' argument is not an integer: 1.5
 11978> 
 (set-cursor 1.5 1.5) => 
 Error: 'set-cursor' argument is not an integer: 1.5
 11978> 
 (set-cursor 1.5 (quote (nil 2))) => 
-Error: 'set-cursor' argument is not an integer: (nil 2)
+Error: 'set-cursor' argument is not an integer: 1.5
 11978> 
 (set-cursor 1.5 s) => 
-Error: 'set-cursor' argument is not an integer: <string-stream 0>
+Error: 'set-cursor' argument is not an integer: 1.5
 11978> 
 (set-cursor 1.5 (lambda (x) x)) => 
-Error: 'set-cursor' argument is not an integer: (lambda (x) x)
+Error: 'set-cursor' argument is not an integer: 1.5
 11978> 
 (set-cursor (quote (nil 2)) nil) => 
-Error: 'set-cursor' argument is not an integer: nil
+Error: 'set-cursor' argument is not an integer: (nil 2)
 11978> 
 (set-cursor (quote (nil 2)) (quote foo)) => 
-Error: 'set-cursor' argument is not an integer: foo
+Error: 'set-cursor' argument is not an integer: (nil 2)
 11978> 
 (set-cursor (quote (nil 2)) abc) => 
-Error: 'set-cursor' argument is not an integer: "abc"
+Error: 'set-cursor' argument is not an integer: (nil 2)
 11978> 
 (set-cursor (quote (nil 2)) 1.5) => 
-Error: 'set-cursor' argument is not an integer: 1.5
+Error: 'set-cursor' argument is not an integer: (nil 2)
 11978> 
 (set-cursor (quote (nil 2)) (quote (nil 2))) => 
 Error: 'set-cursor' argument is not an integer: (nil 2)
 11978> 
 (set-cursor (quote (nil 2)) s) => 
-Error: 'set-cursor' argument is not an integer: <string-stream 0>
+Error: 'set-cursor' argument is not an integer: (nil 2)
 11978> 
 (set-cursor (quote (nil 2)) (lambda (x) x)) => 
-Error: 'set-cursor' argument is not an integer: (lambda (x) x)
+Error: 'set-cursor' argument is not an integer: (nil 2)
 11978> 
 (set-cursor s nil) => 
-Error: 'set-cursor' argument is not an integer: nil
+Error: 'set-cursor' argument is not an integer: <string-stream 0>
 11978> 
 (set-cursor s (quote foo)) => 
-Error: 'set-cursor' argument is not an integer: foo
+Error: 'set-cursor' argument is not an integer: <string-stream 0>
 11978> 
 (set-cursor s abc) => 
-Error: 'set-cursor' argument is not an integer: "abc"
+Error: 'set-cursor' argument is not an integer: <string-stream 0>
 11978> 
 (set-cursor s 1.5) => 
-Error: 'set-cursor' argument is not an integer: 1.5
+Error: 'set-cursor' argument is not an integer: <string-stream 0>
 11978> 
 (set-cursor s (quote (nil 2))) => 
-Error: 'set-cursor' argument is not an integer: (nil 2)
+Error: 'set-cursor' argument is not an integer: <string-stream 0>
 11978> 
 (set-cursor s s) => 
 Error: 'set-cursor' argument is not an integer: <string-stream 0>
 11978> 
 (set-cursor s (lambda (x) x)) => 
-Error: 'set-cursor' argument is not an integer: <closure>
+Error: 'set-cursor' argument is not an integer: <string-stream 0>
 11978> 
 (set-cursor (lambda (x) x) nil) => 
-Error: 'set-cursor' argument is not an integer: nil
+Error: 'set-cursor' argument is not an integer: (lambda (x) x)
 11978> 
 (set-cursor (lambda (x) x) (quote foo)) => 
-Error: 'set-cursor' argument is not an integer: foo
+Error: 'set-cursor' argument is not an integer: (lambda (x) x)
 11978> 
 (set-cursor (lambda (x) x) abc) => 
-Error: 'set-cursor' argument is not an integer: "abc"
+Error: 'set-cursor' argument is not an integer: (lambda (x) x)
 11978> 
 (set-cursor (lambda (x) x) 1.5) => 
-Error: 'set-cursor' argument is not an integer: 1.5
+Error: 'set-cursor' argument is not an integer: (lambda (x) x)
 11978> 
 (set-cursor (lambda (x) x) (quote (nil 2))) => 
-Error: 'set-cursor' argument is not an integer: (nil 2)
+Error: 'set-cursor' argument is not an integer: (lambda (x) x)
 11978> 
 (set-cursor (lambda (x) x) s) => 
-Error: 'set-cursor' argument is not an integer: <string-stream 0>
+Error: 'set-cursor' argument is not an integer: <closure>
 11978> 
 (set-cursor (lambda (x) x) (lambda (x) x)) => 
 Error: 'set-cursor' argument is not an integer: (lambda (x) x)
@@ -74653,247 +74653,247 @@ Error: 'set-text-color' argument is not an integer: <gfx-stream 1>
 Error: 'set-text-color' argument is not an integer: (lambda (x) x)
 11978> 
 (set-text-color nil (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: nil
 11978> 
 (set-text-color t (quote (1 2 3))) => 
 Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote foo) (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: foo
 11978> 
 (set-text-color (quote car) (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: car
 11978> 
 (set-text-color :low (quote (1 2 3))) => 
 Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color abc (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: "abc"
 11978> 
 (set-text-color  (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: ""
 11978> 
 (set-text-color a (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: #\a
 11978> 
 (set-text-color 1.5 (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: 1.5
 11978> 
 (set-text-color (quote (1 2 3)) (quote (1 2 3))) => 
 Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 . 2)) (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: (1 . 2)
 11978> 
 (set-text-color (quote (nil 2)) (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: (nil 2)
 11978> 
 (set-text-color (make-array 3) (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: #(nil nil nil)
 11978> 
 (set-text-color (make-array (quote (2 2))) (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (set-text-color s (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: <string-stream 0>
 11978> 
 (set-text-color g (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: <gfx-stream 1>
 11978> 
 (set-text-color (lambda (x) x) (quote (1 2 3))) => 
-Error: 'set-text-color' argument is not an integer: (1 2 3)
+Error: 'set-text-color' argument is not an integer: (lambda (x) x)
 11978> 
 (set-text-color (quote (1 2 3)) nil) => 
-Error: 'set-text-color' argument is not an integer: nil
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) t) => 
 Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) (quote foo)) => 
-Error: 'set-text-color' argument is not an integer: foo
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) (quote car)) => 
-Error: 'set-text-color' argument is not an integer: car
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) :low) => 
 Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) abc) => 
-Error: 'set-text-color' argument is not an integer: "abc"
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) ) => 
-Error: 'set-text-color' argument is not an integer: ""
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) a) => 
-Error: 'set-text-color' argument is not an integer: #\a
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) 1.5) => 
-Error: 'set-text-color' argument is not an integer: 1.5
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) (quote (1 . 2))) => 
-Error: 'set-text-color' argument is not an integer: (1 . 2)
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) (quote (nil 2))) => 
-Error: 'set-text-color' argument is not an integer: (nil 2)
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) (make-array 3)) => 
-Error: 'set-text-color' argument is not an integer: #(nil nil nil)
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) (make-array (quote (2 2)))) => 
-Error: 'set-text-color' argument is not an integer: #2A((nil nil) (nil nil))
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) s) => 
-Error: 'set-text-color' argument is not an integer: <string-stream 0>
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) g) => 
-Error: 'set-text-color' argument is not an integer: <gfx-stream 1>
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color (quote (1 2 3)) (lambda (x) x)) => 
-Error: 'set-text-color' argument is not an integer: (lambda (x) x)
+Error: 'set-text-color' argument is not an integer: (1 2 3)
 11978> 
 (set-text-color nil nil) => 
 Error: 'set-text-color' argument is not an integer: nil
 11978> 
 (set-text-color nil (quote foo)) => 
-Error: 'set-text-color' argument is not an integer: foo
+Error: 'set-text-color' argument is not an integer: nil
 11978> 
 (set-text-color nil abc) => 
-Error: 'set-text-color' argument is not an integer: "abc"
+Error: 'set-text-color' argument is not an integer: nil
 11978> 
 (set-text-color nil 1.5) => 
-Error: 'set-text-color' argument is not an integer: 1.5
+Error: 'set-text-color' argument is not an integer: nil
 11978> 
 (set-text-color nil (quote (nil 2))) => 
-Error: 'set-text-color' argument is not an integer: (nil 2)
+Error: 'set-text-color' argument is not an integer: nil
 11978> 
 (set-text-color nil s) => 
-Error: 'set-text-color' argument is not an integer: <string-stream 0>
+Error: 'set-text-color' argument is not an integer: nil
 11978> 
 (set-text-color nil (lambda (x) x)) => 
-Error: 'set-text-color' argument is not an integer: (lambda (x) x)
+Error: 'set-text-color' argument is not an integer: nil
 11978> 
 (set-text-color (quote foo) nil) => 
-Error: 'set-text-color' argument is not an integer: nil
+Error: 'set-text-color' argument is not an integer: foo
 11978> 
 (set-text-color (quote foo) (quote foo)) => 
 Error: 'set-text-color' argument is not an integer: foo
 11978> 
 (set-text-color (quote foo) abc) => 
-Error: 'set-text-color' argument is not an integer: "abc"
+Error: 'set-text-color' argument is not an integer: foo
 11978> 
 (set-text-color (quote foo) 1.5) => 
-Error: 'set-text-color' argument is not an integer: 1.5
+Error: 'set-text-color' argument is not an integer: foo
 11978> 
 (set-text-color (quote foo) (quote (nil 2))) => 
-Error: 'set-text-color' argument is not an integer: (nil 2)
+Error: 'set-text-color' argument is not an integer: foo
 11978> 
 (set-text-color (quote foo) s) => 
-Error: 'set-text-color' argument is not an integer: <string-stream 0>
+Error: 'set-text-color' argument is not an integer: foo
 11978> 
 (set-text-color (quote foo) (lambda (x) x)) => 
-Error: 'set-text-color' argument is not an integer: (lambda (x) x)
+Error: 'set-text-color' argument is not an integer: foo
 11978> 
 (set-text-color abc nil) => 
-Error: 'set-text-color' argument is not an integer: nil
+Error: 'set-text-color' argument is not an integer: "abc"
 11978> 
 (set-text-color abc (quote foo)) => 
-Error: 'set-text-color' argument is not an integer: foo
+Error: 'set-text-color' argument is not an integer: "abc"
 11978> 
 (set-text-color abc abc) => 
 Error: 'set-text-color' argument is not an integer: "abc"
 11978> 
 (set-text-color abc 1.5) => 
-Error: 'set-text-color' argument is not an integer: 1.5
+Error: 'set-text-color' argument is not an integer: "abc"
 11978> 
 (set-text-color abc (quote (nil 2))) => 
-Error: 'set-text-color' argument is not an integer: (nil 2)
+Error: 'set-text-color' argument is not an integer: "abc"
 11978> 
 (set-text-color abc s) => 
-Error: 'set-text-color' argument is not an integer: <string-stream 0>
+Error: 'set-text-color' argument is not an integer: "abc"
 11978> 
 (set-text-color abc (lambda (x) x)) => 
-Error: 'set-text-color' argument is not an integer: (lambda (x) x)
+Error: 'set-text-color' argument is not an integer: "abc"
 11978> 
 (set-text-color 1.5 nil) => 
-Error: 'set-text-color' argument is not an integer: nil
+Error: 'set-text-color' argument is not an integer: 1.5
 11978> 
 (set-text-color 1.5 (quote foo)) => 
-Error: 'set-text-color' argument is not an integer: foo
+Error: 'set-text-color' argument is not an integer: 1.5
 11978> 
 (set-text-color 1.5 abc) => 
-Error: 'set-text-color' argument is not an integer: "abc"
+Error: 'set-text-color' argument is not an integer: 1.5
 11978> 
 (set-text-color 1.5 1.5) => 
 Error: 'set-text-color' argument is not an integer: 1.5
 11978> 
 (set-text-color 1.5 (quote (nil 2))) => 
-Error: 'set-text-color' argument is not an integer: (nil 2)
+Error: 'set-text-color' argument is not an integer: 1.5
 11978> 
 (set-text-color 1.5 s) => 
-Error: 'set-text-color' argument is not an integer: <string-stream 0>
+Error: 'set-text-color' argument is not an integer: 1.5
 11978> 
 (set-text-color 1.5 (lambda (x) x)) => 
-Error: 'set-text-color' argument is not an integer: (lambda (x) x)
+Error: 'set-text-color' argument is not an integer: 1.5
 11978> 
 (set-text-color (quote (nil 2)) nil) => 
-Error: 'set-text-color' argument is not an integer: nil
+Error: 'set-text-color' argument is not an integer: (nil 2)
 11978> 
 (set-text-color (quote (nil 2)) (quote foo)) => 
-Error: 'set-text-color' argument is not an integer: foo
+Error: 'set-text-color' argument is not an integer: (nil 2)
 11978> 
 (set-text-color (quote (nil 2)) abc) => 
-Error: 'set-text-color' argument is not an integer: "abc"
+Error: 'set-text-color' argument is not an integer: (nil 2)
 11978> 
 (set-text-color (quote (nil 2)) 1.5) => 
-Error: 'set-text-color' argument is not an integer: 1.5
+Error: 'set-text-color' argument is not an integer: (nil 2)
 11978> 
 (set-text-color (quote (nil 2)) (quote (nil 2))) => 
 Error: 'set-text-color' argument is not an integer: (nil 2)
 11978> 
 (set-text-color (quote (nil 2)) s) => 
-Error: 'set-text-color' argument is not an integer: <string-stream 0>
+Error: 'set-text-color' argument is not an integer: (nil 2)
 11978> 
 (set-text-color (quote (nil 2)) (lambda (x) x)) => 
-Error: 'set-text-color' argument is not an integer: (lambda (x) x)
+Error: 'set-text-color' argument is not an integer: (nil 2)
 11978> 
 (set-text-color s nil) => 
-Error: 'set-text-color' argument is not an integer: nil
+Error: 'set-text-color' argument is not an integer: <string-stream 0>
 11978> 
 (set-text-color s (quote foo)) => 
-Error: 'set-text-color' argument is not an integer: foo
+Error: 'set-text-color' argument is not an integer: <string-stream 0>
 11978> 
 (set-text-color s abc) => 
-Error: 'set-text-color' argument is not an integer: "abc"
+Error: 'set-text-color' argument is not an integer: <string-stream 0>
 11978> 
 (set-text-color s 1.5) => 
-Error: 'set-text-color' argument is not an integer: 1.5
+Error: 'set-text-color' argument is not an integer: <string-stream 0>
 11978> 
 (set-text-color s (quote (nil 2))) => 
-Error: 'set-text-color' argument is not an integer: (nil 2)
+Error: 'set-text-color' argument is not an integer: <string-stream 0>
 11978> 
 (set-text-color s s) => 
 Error: 'set-text-color' argument is not an integer: <string-stream 0>
 11978> 
 (set-text-color s (lambda (x) x)) => 
-Error: 'set-text-color' argument is not an integer: <closure>
+Error: 'set-text-color' argument is not an integer: <string-stream 0>
 11978> 
 (set-text-color (lambda (x) x) nil) => 
-Error: 'set-text-color' argument is not an integer: nil
+Error: 'set-text-color' argument is not an integer: (lambda (x) x)
 11978> 
 (set-text-color (lambda (x) x) (quote foo)) => 
-Error: 'set-text-color' argument is not an integer: foo
+Error: 'set-text-color' argument is not an integer: (lambda (x) x)
 11978> 
 (set-text-color (lambda (x) x) abc) => 
-Error: 'set-text-color' argument is not an integer: "abc"
+Error: 'set-text-color' argument is not an integer: (lambda (x) x)
 11978> 
 (set-text-color (lambda (x) x) 1.5) => 
-Error: 'set-text-color' argument is not an integer: 1.5
+Error: 'set-text-color' argument is not an integer: (lambda (x) x)
 11978> 
 (set-text-color (lambda (x) x) (quote (nil 2))) => 
-Error: 'set-text-color' argument is not an integer: (nil 2)
+Error: 'set-text-color' argument is not an integer: (lambda (x) x)
 11978> 
 (set-text-color (lambda (x) x) s) => 
-Error: 'set-text-color' argument is not an integer: <string-stream 0>
+Error: 'set-text-color' argument is not an integer: <closure>
 11978> 
 (set-text-color (lambda (x) x) (lambda (x) x)) => 
 Error: 'set-text-color' argument is not an integer: (lambda (x) x)
@@ -75169,247 +75169,247 @@ Error: 'read-pixel' argument is not an integer: <gfx-stream 1>
 Error: 'read-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (read-pixel nil (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: nil
 11978> 
 (read-pixel t (quote (1 2 3))) => 
 Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote foo) (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: foo
 11978> 
 (read-pixel (quote car) (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: car
 11978> 
 (read-pixel :low (quote (1 2 3))) => 
 Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel abc (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: "abc"
 11978> 
 (read-pixel  (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: ""
 11978> 
 (read-pixel a (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: #\a
 11978> 
 (read-pixel 1.5 (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: 1.5
 11978> 
 (read-pixel (quote (1 2 3)) (quote (1 2 3))) => 
 Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 . 2)) (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: (1 . 2)
 11978> 
 (read-pixel (quote (nil 2)) (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: (nil 2)
 11978> 
 (read-pixel (make-array 3) (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: #(nil nil nil)
 11978> 
 (read-pixel (make-array (quote (2 2))) (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: #2A((nil nil) (nil nil))
 11978> 
 (read-pixel s (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (read-pixel g (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: <gfx-stream 1>
 11978> 
 (read-pixel (lambda (x) x) (quote (1 2 3))) => 
-Error: 'read-pixel' argument is not an integer: (1 2 3)
+Error: 'read-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (read-pixel (quote (1 2 3)) nil) => 
-Error: 'read-pixel' argument is not an integer: nil
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) t) => 
 Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) (quote foo)) => 
-Error: 'read-pixel' argument is not an integer: foo
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) (quote car)) => 
-Error: 'read-pixel' argument is not an integer: car
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) :low) => 
 Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) abc) => 
-Error: 'read-pixel' argument is not an integer: "abc"
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) ) => 
-Error: 'read-pixel' argument is not an integer: ""
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) a) => 
-Error: 'read-pixel' argument is not an integer: #\a
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) 1.5) => 
-Error: 'read-pixel' argument is not an integer: 1.5
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) (quote (1 . 2))) => 
-Error: 'read-pixel' argument is not an integer: (1 . 2)
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) (quote (nil 2))) => 
-Error: 'read-pixel' argument is not an integer: (nil 2)
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) (make-array 3)) => 
-Error: 'read-pixel' argument is not an integer: #(nil nil nil)
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) (make-array (quote (2 2)))) => 
-Error: 'read-pixel' argument is not an integer: #2A((nil nil) (nil nil))
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) s) => 
-Error: 'read-pixel' argument is not an integer: <string-stream 0>
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) g) => 
-Error: 'read-pixel' argument is not an integer: <gfx-stream 1>
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel (quote (1 2 3)) (lambda (x) x)) => 
-Error: 'read-pixel' argument is not an integer: (lambda (x) x)
+Error: 'read-pixel' argument is not an integer: (1 2 3)
 11978> 
 (read-pixel nil nil) => 
 Error: 'read-pixel' argument is not an integer: nil
 11978> 
 (read-pixel nil (quote foo)) => 
-Error: 'read-pixel' argument is not an integer: foo
+Error: 'read-pixel' argument is not an integer: nil
 11978> 
 (read-pixel nil abc) => 
-Error: 'read-pixel' argument is not an integer: "abc"
+Error: 'read-pixel' argument is not an integer: nil
 11978> 
 (read-pixel nil 1.5) => 
-Error: 'read-pixel' argument is not an integer: 1.5
+Error: 'read-pixel' argument is not an integer: nil
 11978> 
 (read-pixel nil (quote (nil 2))) => 
-Error: 'read-pixel' argument is not an integer: (nil 2)
+Error: 'read-pixel' argument is not an integer: nil
 11978> 
 (read-pixel nil s) => 
-Error: 'read-pixel' argument is not an integer: <string-stream 0>
+Error: 'read-pixel' argument is not an integer: nil
 11978> 
 (read-pixel nil (lambda (x) x)) => 
-Error: 'read-pixel' argument is not an integer: (lambda (x) x)
+Error: 'read-pixel' argument is not an integer: nil
 11978> 
 (read-pixel (quote foo) nil) => 
-Error: 'read-pixel' argument is not an integer: nil
+Error: 'read-pixel' argument is not an integer: foo
 11978> 
 (read-pixel (quote foo) (quote foo)) => 
 Error: 'read-pixel' argument is not an integer: foo
 11978> 
 (read-pixel (quote foo) abc) => 
-Error: 'read-pixel' argument is not an integer: "abc"
+Error: 'read-pixel' argument is not an integer: foo
 11978> 
 (read-pixel (quote foo) 1.5) => 
-Error: 'read-pixel' argument is not an integer: 1.5
+Error: 'read-pixel' argument is not an integer: foo
 11978> 
 (read-pixel (quote foo) (quote (nil 2))) => 
-Error: 'read-pixel' argument is not an integer: (nil 2)
+Error: 'read-pixel' argument is not an integer: foo
 11978> 
 (read-pixel (quote foo) s) => 
-Error: 'read-pixel' argument is not an integer: <string-stream 0>
+Error: 'read-pixel' argument is not an integer: foo
 11978> 
 (read-pixel (quote foo) (lambda (x) x)) => 
-Error: 'read-pixel' argument is not an integer: (lambda (x) x)
+Error: 'read-pixel' argument is not an integer: foo
 11978> 
 (read-pixel abc nil) => 
-Error: 'read-pixel' argument is not an integer: nil
+Error: 'read-pixel' argument is not an integer: "abc"
 11978> 
 (read-pixel abc (quote foo)) => 
-Error: 'read-pixel' argument is not an integer: foo
+Error: 'read-pixel' argument is not an integer: "abc"
 11978> 
 (read-pixel abc abc) => 
 Error: 'read-pixel' argument is not an integer: "abc"
 11978> 
 (read-pixel abc 1.5) => 
-Error: 'read-pixel' argument is not an integer: 1.5
+Error: 'read-pixel' argument is not an integer: "abc"
 11978> 
 (read-pixel abc (quote (nil 2))) => 
-Error: 'read-pixel' argument is not an integer: (nil 2)
+Error: 'read-pixel' argument is not an integer: "abc"
 11978> 
 (read-pixel abc s) => 
-Error: 'read-pixel' argument is not an integer: <string-stream 0>
+Error: 'read-pixel' argument is not an integer: "abc"
 11978> 
 (read-pixel abc (lambda (x) x)) => 
-Error: 'read-pixel' argument is not an integer: (lambda (x) x)
+Error: 'read-pixel' argument is not an integer: "abc"
 11978> 
 (read-pixel 1.5 nil) => 
-Error: 'read-pixel' argument is not an integer: nil
+Error: 'read-pixel' argument is not an integer: 1.5
 11978> 
 (read-pixel 1.5 (quote foo)) => 
-Error: 'read-pixel' argument is not an integer: foo
+Error: 'read-pixel' argument is not an integer: 1.5
 11978> 
 (read-pixel 1.5 abc) => 
-Error: 'read-pixel' argument is not an integer: "abc"
+Error: 'read-pixel' argument is not an integer: 1.5
 11978> 
 (read-pixel 1.5 1.5) => 
 Error: 'read-pixel' argument is not an integer: 1.5
 11978> 
 (read-pixel 1.5 (quote (nil 2))) => 
-Error: 'read-pixel' argument is not an integer: (nil 2)
+Error: 'read-pixel' argument is not an integer: 1.5
 11978> 
 (read-pixel 1.5 s) => 
-Error: 'read-pixel' argument is not an integer: <string-stream 0>
+Error: 'read-pixel' argument is not an integer: 1.5
 11978> 
 (read-pixel 1.5 (lambda (x) x)) => 
-Error: 'read-pixel' argument is not an integer: (lambda (x) x)
+Error: 'read-pixel' argument is not an integer: 1.5
 11978> 
 (read-pixel (quote (nil 2)) nil) => 
-Error: 'read-pixel' argument is not an integer: nil
+Error: 'read-pixel' argument is not an integer: (nil 2)
 11978> 
 (read-pixel (quote (nil 2)) (quote foo)) => 
-Error: 'read-pixel' argument is not an integer: foo
+Error: 'read-pixel' argument is not an integer: (nil 2)
 11978> 
 (read-pixel (quote (nil 2)) abc) => 
-Error: 'read-pixel' argument is not an integer: "abc"
+Error: 'read-pixel' argument is not an integer: (nil 2)
 11978> 
 (read-pixel (quote (nil 2)) 1.5) => 
-Error: 'read-pixel' argument is not an integer: 1.5
+Error: 'read-pixel' argument is not an integer: (nil 2)
 11978> 
 (read-pixel (quote (nil 2)) (quote (nil 2))) => 
 Error: 'read-pixel' argument is not an integer: (nil 2)
 11978> 
 (read-pixel (quote (nil 2)) s) => 
-Error: 'read-pixel' argument is not an integer: <string-stream 0>
+Error: 'read-pixel' argument is not an integer: (nil 2)
 11978> 
 (read-pixel (quote (nil 2)) (lambda (x) x)) => 
-Error: 'read-pixel' argument is not an integer: (lambda (x) x)
+Error: 'read-pixel' argument is not an integer: (nil 2)
 11978> 
 (read-pixel s nil) => 
-Error: 'read-pixel' argument is not an integer: nil
+Error: 'read-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (read-pixel s (quote foo)) => 
-Error: 'read-pixel' argument is not an integer: foo
+Error: 'read-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (read-pixel s abc) => 
-Error: 'read-pixel' argument is not an integer: "abc"
+Error: 'read-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (read-pixel s 1.5) => 
-Error: 'read-pixel' argument is not an integer: 1.5
+Error: 'read-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (read-pixel s (quote (nil 2))) => 
-Error: 'read-pixel' argument is not an integer: (nil 2)
+Error: 'read-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (read-pixel s s) => 
 Error: 'read-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (read-pixel s (lambda (x) x)) => 
-Error: 'read-pixel' argument is not an integer: <closure>
+Error: 'read-pixel' argument is not an integer: <string-stream 0>
 11978> 
 (read-pixel (lambda (x) x) nil) => 
-Error: 'read-pixel' argument is not an integer: nil
+Error: 'read-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (read-pixel (lambda (x) x) (quote foo)) => 
-Error: 'read-pixel' argument is not an integer: foo
+Error: 'read-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (read-pixel (lambda (x) x) abc) => 
-Error: 'read-pixel' argument is not an integer: "abc"
+Error: 'read-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (read-pixel (lambda (x) x) 1.5) => 
-Error: 'read-pixel' argument is not an integer: 1.5
+Error: 'read-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (read-pixel (lambda (x) x) (quote (nil 2))) => 
-Error: 'read-pixel' argument is not an integer: (nil 2)
+Error: 'read-pixel' argument is not an integer: (lambda (x) x)
 11978> 
 (read-pixel (lambda (x) x) s) => 
-Error: 'read-pixel' argument is not an integer: <string-stream 0>
+Error: 'read-pixel' argument is not an integer: <closure>
 11978> 
 (read-pixel (lambda (x) x) (lambda (x) x)) => 
 Error: 'read-pixel' argument is not an integer: (lambda (x) x)

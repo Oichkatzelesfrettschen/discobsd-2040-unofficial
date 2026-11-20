@@ -171,6 +171,7 @@ pop(struct i86 *c)
 void
 i86_int(struct i86 *c, unsigned n)
 {
+	c->fault = 0;
 	push(c, c->fl);
 	push(c, c->s[S_CS]);
 	push(c, c->ip);
@@ -429,6 +430,7 @@ fault(struct i86 *c, unsigned n, unsigned ip0, int restart)
 		c->ip = (uint16_t)ip0;
 	faulted = 1;
 	i86_int(c, n);
+	c->fault = 1;
 }
 
 static void

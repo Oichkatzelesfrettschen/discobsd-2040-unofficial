@@ -27,7 +27,7 @@
  */
 
 /*
- * word_buf.c: the document as a piece table.
+ * lexeme_buf.c: the document as a piece table.
  *
  * A piece names a run of bytes in one of two sources: the loaded file,
  * which stays open read-only and is read on demand, or the add stream,
@@ -44,7 +44,7 @@
  * readable, so the pieces stay valid after the rename.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

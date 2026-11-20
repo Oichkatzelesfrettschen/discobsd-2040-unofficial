@@ -27,10 +27,10 @@
  */
 
 /*
- * word_menus.c: the command menu tree (SPEC.md).
+ * lexeme_menus.c: the command menu tree (SPEC.md).
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <ctype.h>
 

@@ -1,13 +1,13 @@
-# word: a proposed graphical mode on the PicoCalc panel
+# lexeme: a proposed graphical mode on the PicoCalc panel
 
-`usr.bin/word` draws through the console terminal: 53 by 32 cells of 6 by
+`usr.bin/lexeme` draws through the console terminal: 53 by 32 cells of 6 by
 10 pixels on the 320 by 320 panel (`sys/arch/rp2040/doc/PICOCALC.md`,
 Console). The pixel device `/dev/lcdgfx` (`sys/sys/lcdgfx.h`) offers a
 second route: fills, lines, frames, pixel windows in RGB565, 4-bit palette
 index or 1 bit per pixel, a 16-entry palette, a 128-tile atlas of 8 by 8
 tiles on a 40 by 40 grid, sprites, and on PICOCALC_SD kernels memory
 read-back and scan-line waits. This note proposes what a graphical mode of
-`word` would add and what it would cost. Nothing here is built; the byte
+`lexeme` would add and what it would cost. Nothing here is built; the byte
 figures are estimates from the current build (text 38 KB, bss 48 KB) and
 the sizes of the neighbouring pixel programs, and a prototype measures
 them.

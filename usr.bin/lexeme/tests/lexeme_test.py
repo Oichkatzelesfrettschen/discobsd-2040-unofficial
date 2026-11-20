@@ -24,14 +24,14 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-# PTY tests of usr.bin/word (SPEC.md) on the host build. Each session runs
+# PTY tests of usr.bin/lexeme (SPEC.md) on the host build. Each session runs
 # the program on a 53x32 pseudo-terminal, the PicoCalc console's size, and
 # reads its output through a small ECMA-48 screen model: cursor addressing,
 # erase, SGR and the DEC line-drawing switch, which are all the program
 # sends. A check reads the modeled screen or the bytes the program saved,
 # and every feature has a case that must succeed and one that must fail.
 #
-# usage: word_test.py ./word.host
+# usage: lexeme_test.py ./lexeme.host
 
 import fcntl
 import os
@@ -608,12 +608,12 @@ TESTS = [t_save_menu, t_wrap, t_search_replace, t_undo_scrap, t_vi, t_nano,
 
 def main():
     if len(sys.argv) != 2:
-        print("usage: word_test.py ./word.host", file=sys.stderr)
+        print("usage: lexeme_test.py ./lexeme.host", file=sys.stderr)
         return 2
     binary = os.path.abspath(sys.argv[1])
     failed = 0
     for t in TESTS:
-        with tempfile.TemporaryDirectory(prefix="word-test-") as td:
+        with tempfile.TemporaryDirectory(prefix="lexeme-test-") as td:
             try:
                 t(binary, td)
                 print("PASS", t.__name__)
@@ -624,9 +624,9 @@ def main():
                 failed += 1
                 print("FAIL", t.__name__ + ": " + type(e).__name__, e)
     if failed:
-        print("word_test: %d of %d failed" % (failed, len(TESTS)))
+        print("lexeme_test: %d of %d failed" % (failed, len(TESTS)))
         return 1
-    print("word_test: all %d passed" % len(TESTS))
+    print("lexeme_test: all %d passed" % len(TESTS))
     return 0
 
 

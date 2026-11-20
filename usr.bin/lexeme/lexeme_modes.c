@@ -27,14 +27,14 @@
  */
 
 /*
- * word_modes.c: the vi and nano key modes (SPEC.md, Modern modes). Both
- * drive the editor core of word.c, so they share its document, scrap,
+ * lexeme_modes.c: the vi and nano key modes (SPEC.md, Modern modes). Both
+ * drive the editor core of lexeme.c, so they share its document, scrap,
  * undo groups, forms and file picker. vi follows the commands of this
  * system's vi (usr.bin/stevie) and adds visual selection, redo and :set;
  * nano binds its control keys to the same core commands.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <ctype.h>
 #include <stdlib.h>

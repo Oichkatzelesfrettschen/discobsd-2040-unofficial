@@ -27,12 +27,12 @@
  */
 
 /*
- * word_find.c: the search pattern compiler and matcher (SPEC.md, Command
+ * lexeme_find.c: the search pattern compiler and matcher (SPEC.md, Command
  * menu: search text). The matcher reads the document through buf_at(), so
  * it searches a document of any size. There is no repetition operator.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #include <ctype.h>
 

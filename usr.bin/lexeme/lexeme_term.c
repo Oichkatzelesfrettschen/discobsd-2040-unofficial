@@ -27,7 +27,7 @@
  */
 
 /*
- * word_term.c: the terminal. Raw mode goes through termios on a host
+ * lexeme_term.c: the terminal. Raw mode goes through termios on a host
  * build (TERMIOS) and through the 2.11BSD sgtty calls on DiscoBSD. Keys
  * arrive as bytes and leave as one key code: an escape sequence is read
  * to its final byte, and a lone ESC is told from the start of a sequence
@@ -39,7 +39,7 @@
  * window frame that the screen does not draw yet.
  */
 
-#include "word.h"
+#include "lexeme.h"
 
 #ifdef TERMIOS
 #include <termios.h>

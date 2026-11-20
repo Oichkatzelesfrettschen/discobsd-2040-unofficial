@@ -27,10 +27,10 @@
  */
 
 /*
- * word: shared declarations of the clean-room word processor (SPEC.md).
+ * lexeme: shared declarations of the clean-room word processor (SPEC.md).
  *
  * Every capacity below is a fixed static size. The document itself has no
- * capacity: word_buf.c keeps it as a piece table over the loaded file and
+ * capacity: lexeme_buf.c keeps it as a piece table over the loaded file and
  * an append-only add stream that spills to an unlinked temporary file.
  */
 
@@ -52,7 +52,7 @@ typedef uint32_t woff_t;		/* byte offset in the document */
 #define WORD_ROWS_MAX	48
 #define WORD_COLS_MAX	120
 
-/* ---- word_buf.c: the document store ---- */
+/* ---- lexeme_buf.c: the document store ---- */
 
 int	buf_init(void);
 int	buf_load(const char *path);	/* 0, or an errno value */
@@ -75,7 +75,7 @@ woff_t	buf_lowmark(void);		/* lowest offset edited since last call */
 unsigned buf_pieces(void);
 woff_t	buf_spilled(void);
 
-/* ---- word_find.c: the search pattern ---- */
+/* ---- lexeme_find.c: the search pattern ---- */
 
 enum word_atom_kind {
 	ATOM_CH = 0,
@@ -101,7 +101,7 @@ void	word_pat_compile(struct word_pattern *p, const char *text,
 int	word_pat_find(const struct word_pattern *p, woff_t from, int down,
 	    woff_t *start, woff_t *end);
 
-/* ---- word_term.c: terminal, keys and the screen ---- */
+/* ---- lexeme_term.c: terminal, keys and the screen ---- */
 
 enum {
 	K_NONE = 0,
@@ -144,7 +144,7 @@ void	scr_fill(int row, int col, int n, int attr);
 void	scr_flush(int crow, int ccol);
 void	scr_invalidate(void);
 
-/* ---- word_menus.c: the command menu tree ---- */
+/* ---- lexeme_menus.c: the command menu tree ---- */
 
 enum word_menu_id {
 	MENU_MAIN = 0,
@@ -213,7 +213,7 @@ const struct word_menu_item *word_menu_item_at(const struct word_menu *m,
 	    uint8_t idx);
 int	word_menu_find_accel(const struct word_menu *m, char ch);
 
-/* ---- word.c: the editor core that word_modes.c drives ---- */
+/* ---- lexeme.c: the editor core that lexeme_modes.c drives ---- */
 
 enum { KEYS_WORD = 0, KEYS_VI, KEYS_NANO };
 enum { F_LOAD = 0, F_SAVE, F_MERGE, F_FDELETE, F_RENAME, F_CHDIR, F_SEARCH,
@@ -254,7 +254,7 @@ void	ed_info(void);
 void	ed_pick(void);
 void	ed_set_wrap(int on);
 
-/* ---- word_modes.c: the vi and nano key modes ---- */
+/* ---- lexeme_modes.c: the vi and nano key modes ---- */
 
 void	vi_key(int k);
 void	vi_reset(void);
@@ -262,7 +262,7 @@ const char *vi_cmdline(void);
 const char *vi_state(void);
 void	nano_key(int k);
 
-/* ---- word_pick.c: the file picker ---- */
+/* ---- lexeme_pick.c: the file picker ---- */
 
 int	pick_open(const char *dir);
 void	pick_draw(int top, int rows);

@@ -26,12 +26,13 @@
  * answers EBUSY while the device is open.
  *
  * Slice 5 runs a 500 kHz carrier (clk_sys / 250) whose duty cycle is the
- * sample. The board's first-order RC filter (R311/R312 220 ohm series into
- * C307/C309 100 nF and R313/R314 100 ohm to ground, loaded by U302 WS4603
- * 1.8 kohm through 1 uF coupling capacitors C304/C305) passes the audio band
- * and attenuates the carrier. Open and close ramp the PWM duty linearly
- * between 0 and PCM_SILENCE over 128 samples (16.0 ms at 8 kHz) so the DC step
- * charges and discharges C304/C305 without an audible click. Slice 6 routes no
+ * sample. The board's first-order RC filter (R501/R502 220 ohm series into
+ * C502/C503 100 nF and R503/R504 100 ohm to ground, AC-coupled through
+ * C504/C505 47 uF into R505/R506 1.8 kohm, SW501, and U502/U503 AW8010
+ * amplifiers) has its low-pass corner near 24 kHz, attenuating the 500 kHz
+ * carrier by 26.4 dB relative to DC. Open and close ramp the PWM duty
+ * linearly between 0 and PCM_SILENCE over 128 samples (16.0 ms at 8 kHz) to
+ * suppress the turn-on/turn-off click across the 1 kHz audio band by 34 dB. Slice 6 routes no
  * pin and serves as the sample clock: it wraps every clk_sys / PCM_RATE cycles
  * and raises the PWM wrap interrupt (datasheet 4.5.2.6 and the INTE
  * register), whose handler moves one sample from the ring to slice 5's

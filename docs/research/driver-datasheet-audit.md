@@ -89,28 +89,26 @@ repository's ignored `docs/local/specs`.
 Each finding names what decides it. "Board" findings change no code here;
 `picocalc-pending-hardware.md` carries those that concern the PicoCalc.
 
-### Panel register values written from another controller's table
+### Panel register values written from another controller's table (resolved in `st7365p.c`)
 
-`st7365p.c` `init_seq` carries the vendor PicoMite ILI9488P values.
-Against ST7365P_SPEC_V1.0 section 9.3:
+Earlier revisions of `st7365p.c` carried the vendor PicoMite ILI9488P values
+listed below (`init_legacy` under `LCD_PANELTEST`, set 32) against
+ST7365P_SPEC_V1.0 section 9.3:
 
-| Bytes sent | Datasheet | Difference |
+| Bytes in legacy sequence | Datasheet | Difference in legacy table (fixed on boot / `set 0`) |
 | --- | --- | --- |
-| `E0h` and `E1h` with 15 parameters each | PGC and NGC take 14 (9.3.19, 9.3.20, pages 240-241) | one byte past the table, and the field layout is the ILI9488's; the eighth `E0h` byte 78h sets a bit the table fixes at 0 |
-| `C1h 41h` | PWR2, `VRH[6:0]`, default 13h; the table defines 00h-27h and reserves 28h-3Fh (9.3.11, page 231) | 41h is past the last listed value; the table says nothing of 40h and above |
-| `C5h 00h 12h 80h` | VCMPCTL takes one parameter, default 1Ch for 1.0 V (9.3.13, page 234) | three bytes; the first sets the lowest VCOM step |
-| `C0h 17h 15h` | PWR1 first parameter has a zero low nibble (9.3.10, page 230) | low nibble 7 |
-| `F7h A9h 51h 2Ch 82h` | no `F7h` in the command table (searched the text for "F7h": no match) | undefined command; the file header and `PICOCALC.md` name E9h as the only undefined vendor command |
+| `E0h` and `E1h` with 15 parameters each | PGC and NGC take 14 (9.3.19, 9.3.20, pages 240-241) | `init_gamma` now sends the 14-byte ST7365P datasheet tables (`GAMMA_DEFAULT`) |
+| `C1h 41h` | PWR2, `VRH[6:0]`, default 13h; 00h-27h defined (9.3.11, page 231) | replaced with ST7365P default `C1h 13h` (`VGH = +15 V`, `VGL = -10 V`) |
+| `C5h 00h 12h 80h` | VCMPCTL takes one parameter, default 1Ch for 1.0 V (9.3.13, page 234) | replaced with one-byte `C5h 1Ch` |
+| `C0h 17h 15h` | PWR1 first parameter has a zero low nibble (9.3.10, page 230) | replaced with `C0h 80h 25h` and `C2h A5h` (page 233) |
+| `F7h A9h 51h 2Ch 82h` | no `F7h` in the command table | omitted from `init_seq` |
 
-The reset pulse (1 ms against 10 us), the 120 ms waits after reset and
-SLPOUT, the 12.5 MHz clock against the 66 ns write cycle, COLMOD 66h,
-MADCTL 48h and the 0 + 320 + 160 scroll definition all match. Page 245
-gates Command Table 2 behind CSCON `F0h` C3h/96h, which the driver never
-sends, so the listed writes may have no effect at all. The branch
-`rp2040-picocalc-panel-register-test` builds the board experiment that
-decides this (register sets with and without the unlock, and a readback
-over SPI1 RX). Decided by: board. Until then the header comment's "E9h is
-the only omission" is the one statement a source edit can correct.
+The boot sequence now unlocks Command Table 2 (`F0h C3h/96h`, page 245), writes
+the native ST7365P values plus the 78 Hz frame table, and re-locks Command
+Table 2 (`F0h 3Ch/69h`) before `SLPOUT`; legacy ILI9488P bytes stay in `set 32`
+only for board comparison. Note `PICOCALC.md` readback runs dated 2026-11-19
+predated this update; a post-update board capture settles contrast and readback
+under the native sequence.
 
 ### USB controller keeps its state across a warm reboot
 
@@ -152,17 +150,20 @@ with no limit, as the boot ROM's own clock setup does. A crystal that
 fails to start leaves no output. The 1 ms
 startup delay (count 47) matches datasheet 2.16.3.
 
-### SD card: checks the specification permits skipping
+### SD card: specification alignment and host-checked protocol
 
-`sdspi.c` leaves CRC off (CMD59 is never sent; the specification, section
-7.2.2, says the host should enable it), ignores the 16-bit data CRC on
-reads, and does not send CMD13 after a write. A flipped bit on the 12.5 MHz
-bus reaches the filesystem unseen. `INIT_US` (1 s) and `BUSY_US` (500 ms)
-equal the specification's "more than" figures; the write limit is twice
-the 250 ms standard figure. Decided by: host for the logic
-(`check-picocalc-host` drives `sdspi.c` through its ops table), board for
-the error rate that would justify CRC code, whose size is unmeasured,
-against PICOCALC_PSRAM's 10,640 bytes of flash headroom.
+`sdspi.c` enables CMD59 (CRC checking), validates CRC7 on command frames and
+16-bit CRC16 on read data blocks, issues CMD13 after writes, accepts the full
+0..8 byte `N_CR` response window (`i <= NCR_MAX`, Part 1 section 7.5.1), and
+clamps CSD v2.0 `C_SIZE = 0x3fffff` (2 TiB) to `~0U` rather than wrapping
+32-bit `nsectors` to 0. `sd.c` polls `SSPSR_BSY` before clearing `SSE` during
+clock changes and checks active-low `SD_DET` (`SD_DET_PRESENT = 0` per
+`hro_tf_03a_lcsc_c693842.pdf` page 1) in `sd_setup()` to fail an empty slot
+fast with `ENODEV`. `INIT_US` (1 s) and `BUSY_US` (500 ms) satisfy the
+specification limits. Decided by: host (`sdspi_test`, `sdstrat_test`,
+`check-matezinho-sd` against FileSD) and Renode (`check-renode-picocalc-dump`,
+`check-renode-picocalc-sd-system`); real-card timing margins and physical
+socket detect polarity remain board-only.
 
 ### PSRAM: margins that documents cannot close
 
@@ -177,13 +178,16 @@ so a read ending within three bytes of 8 MB would clock past the last
 address; `psram.c` reads whole blocks and never reaches that case.
 Decided by: board (`picocalc-psram-capture.md`).
 
-### Keyboard: bus speed and registers left unused
+### Keyboard: bus speed, bus clear, and registers left unused
 
-The I2C bus runs at 96 kHz where the vendor's reference driver uses
-10 kHz, and a fast-phase read follows its register write by 2 ms where the
-vendor waits 16 ms; `PICOCALC.md` already lists both as board checks.
-Registers CFG, INT, KEY, DEB, FRQ and RST are never accessed. Decided by:
-board.
+I2C1 now programs `IC_FS_SPKLEN = 6` (`48 ns <= 50 ns` UM10204 Table 10 bound),
+`IC_FS_SCL_LCNT = 748` (`5,992 ns >= 4,700 ns`), and `IC_FS_SCL_HCNT = 488`
+(`4,008 ns >= 4,000 ns`) from RP2040 section 4.3.14.1 for an exact 100.00 kHz
+SCL clock at 125 MHz, runs a 9-clock UM10204 section 3.1.16 open-drain SIO bus
+clear on init and controller restarts, and quantizes `BKL`/`BK2` backlight
+writes in `picokbd_req.c`. The 2 ms fast-phase write-to-read spacing versus the
+vendor's 16 ms wait remains unmeasured on the controller hardware, and registers
+CFG, INT, KEY, DEB, FRQ and RST remain unused. Decided by: board.
 
 ### Parts trusted without identification
 

@@ -178,9 +178,11 @@ at 115200 baud, so a PICO_UART kernel also has a working console on this
 board. Pole 2 closed with pole 1 open leaves the CH340C connected to UART0
 and without a cable, so the USB-C port carries no console; the Pico's
 micro-USB CDC-ACM console is unaffected. Pole 1 closed leaves UART0 without
-a peer. The WAS7227 select polarity comes from the vendor flashing recipe;
-the part's datasheet is absent from the notes, so a probe of U703 pin 10
-against pole 1 settles it. The Pico's micro-USB port stays the PICO board's
+a peer. The WAS7227Q datasheet (`willsemi_was7227q_datasheet_rev1.4.pdf`, page
+2 truth table, `OE` low) documents `SEL` low routing `D+/D-` to `D1+/D1-` and
+`SEL` high routing to `D2+/D2-`, matching the vendor flashing recipe;
+continuity on a physical board between U703 pin 10 and SW701 pole 1 has not
+been measured. The Pico's micro-USB port stays the PICO board's
 CDC-ACM console and the `picotool reboot -u` path, `/dev/ttyUSB0` here.
 
 The AXP2101 PMU powers the system from USB-C alone: its power path
@@ -210,17 +212,19 @@ settles. The explanation the schematic leaves standing:
 `docs/research/hardware-reference-coverage.md` holds the schematic's
 designator-to-part map behind this reading.
 
-The schematic powers the Pico from the system rail. U102 (WAS4603) passes
+The schematic powers the Pico from the system rail. U102 (schematic label
+WAS4603, matching Will Semiconductor WS4603, `willsemi_ws4603_datasheet_rev1.2.pdf`
+with `R104 = 3.4 kohm` giving `I_OC = 6.8k / 3.4k = 2.0 A` typical) passes
 IPS, the AXP2101 system rail, to PICO_VSYS on socket pin 2 while PICO_EN,
 the keyboard controller's PA13, is high. The keyboard controller (DCDC1,
 MCU_3V3) and the panel (ALDO3, BLDO1) sit upstream of U102, so they run
 whether or not the Pico does; the two AW8010 amplifiers hang on PICO_VSYS
 and are silent when PICO_EN is low. Pico VBUS (socket pin 1) and RUN
 (pin 11) carry no net. The Pico's own micro-USB port feeds the Pico
-module's VSYS through the module's Schottky diode. What the schematic does
-not settle, and a measurement does, is whether micro-USB power back-feeds
-IPS through U102 when PICO_EN is low (the WAS4603 datasheet is absent from
-the notes) and whether the STM32 and the panel run from micro-USB alone.
+module's VSYS through the module's Schottky diode. The WS4603 datasheet
+documents integrated reverse-current blocking (no internal body diode) when
+EN is low; no board measurement has yet checked reverse leakage into IPS or
+whether the STM32 and panel stay off on micro-USB alone when cells are absent.
 With cells installed, the micro-USB port is the console and BOOTSEL path.
 
 ## Display: ST7365P on SPI1
@@ -369,21 +373,22 @@ The panel shows 320 of the controller's 480 lines. VSCRDEF sets a top
 fixed area of 0, a scroll area of 320 and a bottom fixed area of 160,
 which sums to 480 as page 184 requires, with MADCTL MV clear as scrolling
 requires (page 184). VSCSAD (37h) then picks the RAM line shown at the
-top of the panel. The initialization values (gamma, power, VCOM, frame
-rate, inversion on, display function, entry mode, adjust control,
-MADCTL 48h) come from the vendor's PicoMite ILI9488P (320x320) sequence
-for this panel, with four deliberate differences: command E9h, which the
-vendor sends but the ST7365P command table does not list, is omitted; the
-scroll definition is programmed before the display turns on; DISPON
-follows lcdterm's first full clear, so power-on RAM contents never show;
-and the frame rate is set apart from the vendor's values. On the measured
-board FRMCTR1 (B1h, page 219) acts only after the Command 2 unlock (CSCON
-F0h C3h, 96h, page 245) and the panel runs at 0.962 to 0.974 of the
-formula's rate, so the vendor's B1h A0h gives 57.95 Hz. `st7365p_init()`
-sends the unlock before the vendor values and BPC (B5h) with FRMCTR1 C0h
-01h after them, 77.96 Hz by the formula and 74.94 Hz measured
-(`PANELTEST.md` holds the measurements; the rate was the owner's choice
-among 60, 75 and 117 Hz). A board capture decides whether E9h matters.
+top of the panel. `st7365p_init()` unlocks Command Table 2 (`F0h C3h/96h`, page
+245), programs the native ST7365P/ST7796S defaults (`init_gamma` 14-byte
+PGC/NGC tables on pages 240-241, `C0h 80h 25h`, `C1h 13h`, `C2h A5h`, `C5h 1Ch`,
+MADCTL `48h`, COLMOD `55h`, `B0h 00h`, `INVON`, `B4h 02h`, `B6h 80h 02h 3Bh`,
+`B7h C6h`, without the undefined ILI9488P `E9h`/`F7h` opcodes) and BPC
+(`B5h`)/FRMCTR1 (`B1h C0h 01h`: 77.96 Hz nominal, 74.94 Hz measured), then
+re-locks Command Table 2 (`F0h 3Ch/69h`) before SLPOUT, sets the scroll
+definition and waits until lcdterm's first clear before DISPON. On earlier
+kernels (`ab9ac8e7a` and `2026-11-19` board captures below), `init_seq` carried
+the vendor ILI9488P sequence (`F7h` and 15-byte `E0h`/`E1h`, retained under
+`LCD_PANELTEST` as `set 32`), where Command Table 2 writes required the CSCON
+unlock and the panel ran at 0.962 to 0.974 of the FRMCTR1 formula rate
+(`PANELTEST.md` holds the full measurements; the 78 Hz nominal target was
+chosen among 60, 75 and 117 Hz). Whether removing `E9h`/`F7h` and switching
+to native ST7365P defaults changes panel readback or contrast waits for a
+follow-on board capture.
 
 The board drives the backlight from the keyboard controller, which turns
 it on at reset; the kernel does not touch it.
@@ -917,10 +922,19 @@ takes that as the capability test and falls back to 1 and its 20 ms poll.
 Cost, measured on fresh builds: 248 bytes of kernel text in both PICOCALC and
 PICOCALC_SD, none in PICO.
 
-The counts are programmed for 100 kHz, between the vendor helloworld's
-10 kHz and its FUZIX port's 400 kHz; datasheet 4.3.14.1 adds one ic_clk
-to the low count and SPKLEN + 7 to the high count, so SCL runs near
-96 kHz.
+The I2C1 counts solve the RP2040 section 4.3.14.1 period equations
+(`t_LOW = (IC_FS_SCL_LCNT + 1) * t_sys`,
+`t_HIGH = (IC_FS_SCL_HCNT + IC_FS_SPKLEN + 7) * t_sys`) for an exact
+100.00 kHz SCL clock at 125 MHz (`t_sys = 8 ns`): `IC_FS_SPKLEN = 6`
+(48 ns, within UM10204 Table 10's 50 ns Fast-mode spike-suppression limit),
+`IC_FS_SCL_LCNT = 748` (5,992 ns >= 4,700 ns), `IC_FS_SCL_HCNT = 488`
+(4,008 ns >= 4,000 ns) and `IC_SDA_HOLD = 38` (304 ns >= 300 ns), with
+compile-time `_Static_assert` checks. Before enabling I2C1 on boot and on
+error recovery, `i2c_bus_clear()` runs the UM10204 section 3.1.16 recovery in
+open-drain SIO mode (up to nine SCL clocks while SDA reads low, followed by
+a STOP), and `picocalc_sysctl()` quantizes LCD backlight requests to
+16..240 step 16 (`REG_ID_BKL`) and keyboard backlight requests to 0 or
+32..224 step 32 (`REG_ID_BK2`) via `kbdreq_level_for()`.
 
 ## SD card: sd.c and sdspi.c
 
@@ -956,6 +970,13 @@ after one second. The clock runs at 398 kHz until initialization finishes
 400 kHz identification limit), then at 12.5 MHz (prescale 10), half the
 25 MHz default-speed ceiling.
 
+A command waits up to the full `N_CR` specification window (0..8 bytes before
+R1, `i <= NCR_MAX` per Part 1 section 7.5.1), waits on PL022 `SSPSR_BSY`
+before disabling `SSE` during clock-speed changes (`sd_speed()`), clamps CSD
+v2.0 `C_SIZE = 0x3fffff` (2 TiB) to `~0U` sectors rather than wrapping 32-bit
+`nsectors` to 0, and checks active-low `J303 TF-03A` card detect (`SD_DET == 0`,
+documented by `hro_tf_03a_lcsc_c693842.pdf` page 1 `CD-P3` switch) in
+`sd_setup()` so an empty slot fails fast with `ENODEV` without clocking CMD0.
 A transfer is one 512-byte sector per command, CMD17 for a read and CMD24
 for a write. A read waits 100 ms for the 0xFE start token and fails on a
 data error token; a write checks the data response token, waits for
@@ -1041,9 +1062,12 @@ reach the new one. `sdstrategy()` reads that flag before every sector
 command, so a change that lands between two sectors of a request stops it
 there. Accepting an initialized card at the first open sets both levels to
 the pin's present level and clears the flag in one `splbio()` section, so
-the debounce of that card's own insertion does not expire against it. The
-driver does not interpret the polarity; the first insertion on a board
-settles which level means present.
+the debounce of that card's own insertion does not expire against it.
+`sd_setup()` requires active-low `SD_DET == 0` (`J303 TF-03A` switch closed
+to ground, open pull-up HIGH = 1 when empty) before probing SPI; once open,
+any debounced edge away from the accepted level latches removal until last
+close. The HRO TF-03A drawing documents that polarity; a multimeter probe on
+a physical socket remains unrun.
 
 `NMOUNT` is 3 in the PicoCalc kernels, whose third slot holds the `/tmp` RAM
 disk beside the flash root and one SD partition, and `SINGLE_UFS_ROOT` is unset
@@ -1536,10 +1560,11 @@ series resistor into a node with 100 nF and 100 ohm to ground, then a
 47 uF coupling capacitor with a 1.8 kOhm load to ground, to the volume
 control SW501 and the headphone jack, and from there to the two AW8010
 amplifiers on PICO_VSYS. The first-order corner of the resistor and 100 nF
-stage is 1/(2 pi R C) with R the 220 ohm in parallel with the 100 ohm and
-the 1.8 kOhm load, which is about 24 kHz (23 kHz without the load). The
-500 kHz PWM carrier of `picopcm.c` is attenuated by about 26 dB and its
-second harmonic by about 32 dB; a first-order stage does not remove it, so
+stage is `1 / (2 pi R_th C)` with `R_th = 220 || 100 || 1800 = 66.22 ohm`,
+giving `f_c = 24.03 kHz` (`23.16 kHz` at 100 nF without the 1.8 kohm load). The
+500 kHz PWM carrier of `picopcm.c` is attenuated by 26.37 dB relative to DC
+(36.80 dB total from U501 output) and its second harmonic by 32.39 dB
+relative to DC; a first-order stage does not remove it, so
 the carrier reaches the volume control and the amplifier inputs, and
 whether it is audible is a listening and scope question. The amplifier
 enable PA_EN belongs to the keyboard controller (PA14, set from the
@@ -1560,8 +1585,14 @@ opener, unsigned 8-bit mono at 8,000 samples per second on both channels.
 Slice 5 carries a 500 kHz carrier (`clk_sys` / 250) whose duty is the
 sample, in 250 steps; slice 6, which routes no pin, wraps 8,000 times a
 second and its wrap interrupt moves one byte from a 256-byte ring to slice
-5's compare register. An empty ring plays the rest level, half duty. The
-interrupt keeps the NVIC's reset priority, SysTick's, so the two never
+5's compare register. An empty ring plays the rest level (`PCM_SILENCE = 0x80`,
+compare 125 of 250) except during `pcmclose()`'s tear-down ramp, when
+`pcm_closing` holds compare duty at 0 after the ramp drains. To suppress
+the coupling-capacitor click transient (-34.03 dB at 1 kHz spectral energy),
+`pcmopen()` starts compare duty at 0 and sweeps linearly across `1..PCM_SILENCE`
+(128 samples, 16.0 ms), and `pcmclose()` sweeps `PCM_SILENCE - 1..0` after
+draining queued samples when the sample clock is running before `picoaudio_mute()`.
+The interrupt keeps the NVIC's reset priority, SysTick's, so the two never
 nest. A flash erase masks it for the erase's length, which pauses the
 sound and loses no sample. A writer that finds the ring full sleeps 4 ms
 at a time and fails with `EIO` after 500 ms without progress; the close

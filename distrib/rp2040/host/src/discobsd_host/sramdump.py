@@ -104,6 +104,7 @@ TTY_STATE = [
     (0x000800, "TS_RCOLL"),
     (0x001000, "TS_WCOLL"),
     (0x004000, "TS_ASYNC"),
+    (0x008000, "TS_HIDDEN"),
     (0x040000, "TS_ERASE"),
     (0x080000, "TS_LNCH"),
     (0x100000, "TS_TYPEN"),

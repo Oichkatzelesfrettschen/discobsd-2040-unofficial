@@ -32,7 +32,12 @@ With two boards attached, name the USB port (`--usb-port 1-3` or
 and `discobsd-web`) whatever their serials; all four refuse to act on an
 unnamed board then.
 
-A PicoCalc takes a new kernel from its SD card, not from USB: the UF2 goes
+A PicoCalc takes a new kernel from its SD card, not from USB. The kernel for
+board sessions and card images is PICOCALC_SD (`picocalc-sd-kernel`, UF2
+`distrib/rp2040/unix-PICOCALC-SD.uf2`; root on the card's type b7 partition,
+160 KiB layout); PICOCALC_SD_DIAG (`picocalc-sd-diag-kernel`) is the testing
+kernel, the same configuration with DIAGNOSTIC, GLOBAL_DEBUG and STORAGE_STATS
+at `-Og`. The UF2 goes
 to `/pico1-apps/discobsd.uf2`, and the loader programs it only when entered
 with both USB cables unplugged, power off, then Up held while pressing power
 (Up twice more reaches the list). A plain power-on starts the kernel already

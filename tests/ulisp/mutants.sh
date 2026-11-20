@@ -38,6 +38,16 @@ src=$1
 doc=$2
 cc=$3
 
+# check.sh runs the interpreter under env -i, which leaves no PATH to find
+# timeout(1) in: a name that resolves in this shell (coreutils installs gtimeout
+# on macOS, outside the default path) is passed as a full path. A looping mutant
+# needs the bound, so a host with neither is an error.
+tmo=$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || true)
+if [ -z "$tmo" ]; then
+	echo "ulisp mutants: timeout(1) from coreutils is required; a looping mutant would not end" >&2
+	exit 2
+fi
+
 work=$(mktemp -d "${TMPDIR:-/tmp}/ulisp-mutants.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -67,7 +77,7 @@ mutant() {
 	    -o "$dir/ulisp" "$dir/ulisp.c" "$dir/unix.c" "$dir/hilite.c" "$dir/gfx.c" \
 	    "$dir/dev_host.c" "$src/../../sys/arch/rp2040/dev/lcdfont.c" -lm
 	rc=0
-	ULISP_REWRITE_SHIM=$shim sh "$here/check.sh" host "$doc" timeout 60 "$dir/ulisp" \
+	ULISP_REWRITE_SHIM=$shim sh "$here/check.sh" host "$doc" "$tmo" 60 "$dir/ulisp" \
 	    > "$dir/log" 2>&1 || rc=$?
 	if [ "$rc" -eq 0 ]; then
 		echo "ulisp mutants: $1 passed the check" >&2

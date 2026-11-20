@@ -1606,6 +1606,34 @@ check-changed-text: check-python
 
 .PHONY: check-text-hygiene check-changed-text
 
+# A file whose head names a GizmoBSD copyright line is under the BSD 3-Clause
+# words of NOTICE section 1 (tools/check_license_headers.py). The gate compares
+# each such head with NOTICE word for word, so a header that stops mid-disclaimer
+# fails, and requires every year to lie inside the GizmoBSD range of NOTICE and
+# etc/COPYRIGHT. --selftest first rejects a truncated disclaimer, a dropped
+# clause, a changed word, a year outside the range, a malformed copyright line,
+# and trees with no header or no NOTICE.
+check-license-headers: check-python
+		${PYTHON} tools/check_license_headers.py --selftest
+		${PYTHON} tools/check_license_headers.py --root ${TOPSRC}
+
+.PHONY: check-license-headers
+
+# CI installs its packages through tools/ci_apt_install.sh, which bounds each
+# network phase of apt-get in wall-clock time and retries it: a mirror that
+# trickles bytes never trips apt's idle timeout, and one such download held the
+# flash-id job for 16 minutes. --selftest runs the script against a fake
+# apt-get through a good run, a run with an archive directory, a stalled
+# download, a stalled update, a permanent stall, a download that ignores TERM, an
+# install failure and a call with no package, and requires six mutants of the
+# script (no bound, no kill after the first signal, no retry, one-call install,
+# a swallowed final failure, no archive directory) to fail the scenario each
+# targets. It prints a SKIP without timeout(1).
+check-ci-apt-install:
+		sh tools/ci_apt_install.sh --selftest
+
+.PHONY: check-ci-apt-install
+
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/generated_sync_test.py
@@ -2061,6 +2089,13 @@ check-elf2aout:	tools
 # and host-package tiers compile no C, and bin/sh/tests/posix-sh.sh builds
 # the shell against the host's headers, so those two reach nothing under
 # include.
+# The gates with the longest wall time start first. bmake -j starts
+# prerequisites in the order listed, so a long gate listed late starts late and
+# sets the end of the tier. check-host, and the tier loop below that builds
+# HOST_TIER_A_GATES, list these before HOST_GATES and HOST_PROGRAM_GATES;
+# HOST_TIER_B_GATES is its own list and holds none of them. The profile behind
+# the choice is docs/research/macos-host-tier-profile.md and the commit message.
+HOST_LONG_GATES=	check-libc-host-contracts check-ulisp-host check-lexeme-host check-i86-host
 HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed-exec-pair-summary check-rp2040-storage-delta \
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
 		check-clifford-t \
@@ -2072,10 +2107,10 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene \
+		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
-		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \
+		check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \
 		check-dirent-contracts check-getwd-lifetime check-libc-output check-sysctl-status check-libc-casefold check-scandir-contracts check-getty-contracts check-init-contracts check-init-daemons \
 		check-cat-contracts check-colrm-contracts check-unifdef-contracts \
 		check-dd-contracts check-find-contracts \
@@ -2109,15 +2144,15 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
 		check-userland-layout-flags check-storage-geometry check-phony-targets \
-		check-fs-profiles check-picocalc-host check-matezinho-host check-ulisp-host \
+		check-fs-profiles check-picocalc-host check-matezinho-host \
 		check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
 		check-signal-traps
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
-		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
-		check-backlight-host check-i86-host check-fstat-host check-sh-editor \
+		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host \
+		check-backlight-host check-fstat-host check-sh-editor \
 		check-cp-host check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver \
 		check-libwin-host
@@ -2135,7 +2170,7 @@ HOST_TIER_B_GATES=	check-calc-host check-libcalc check-libbn check-ridge-host \
 		check-msdosfs-core check-psram-pio check-lex-tables check-coil-host \
 		check-tar-host check-storage-correctness check-dcbc
 HOST_TIER_A_GATES=
-.for gate in ${HOST_GATES} ${HOST_PROGRAM_GATES}
+.for gate in ${HOST_LONG_GATES} ${HOST_GATES} ${HOST_PROGRAM_GATES}
 .if empty(HOST_TIER_B_GATES:M${gate})
 HOST_TIER_A_GATES+=	${gate}
 .endif
@@ -2380,7 +2415,7 @@ check-fs-profiles:	check-python .WAIT
 		sh distrib/rp2040/check-image-selection.sh ${MAKE}
 
 check-host:	check-python .WAIT symlinks .WAIT \
-		${HOST_GATES} ${HOST_PROGRAM_GATES}
+		${HOST_LONG_GATES} ${HOST_GATES} ${HOST_PROGRAM_GATES}
 
 check-host-a:	check-python .WAIT symlinks .WAIT \
 		${HOST_TIER_A_GATES}
@@ -2394,7 +2429,7 @@ check-host-b:	check-python .WAIT symlinks .WAIT \
 check-host-split:	check-python
 		${PYTHON} tools/check_host_tier_split.py --selftest
 		${PYTHON} tools/check_host_tier_split.py \
-		    --all "${HOST_GATES} ${HOST_PROGRAM_GATES}" \
+		    --all "${HOST_LONG_GATES} ${HOST_GATES} ${HOST_PROGRAM_GATES}" \
 		    --a "${HOST_TIER_A_GATES}" --b "${HOST_TIER_B_GATES}"
 
 # Shell gates that clean a work directory take an EXIT trap and one exiting

@@ -222,6 +222,22 @@ overrun_dotdot(fs_t *fs, const char *name)
 	    fs_inode_save(&dir, 1);
 }
 
+/* Set one directory record's on-disk name length without changing its room. */
+static int
+set_dir_namlen(fs_t *fs, const char *name, unsigned offset, unsigned namlen)
+{
+	fs_inode_t dir;
+	unsigned char block[BSDFS_BSIZE];
+
+	if (!fs_inode_lookup(fs, &dir, name) || offset + 8 > sizeof block ||
+	    !fs_inode_read(&dir, 0, block, sizeof block))
+		return 0;
+	block[offset + 6] = namlen & 0xff;
+	block[offset + 7] = namlen >> 8;
+	return fs_inode_write(&dir, 0, block, sizeof block) &&
+	    fs_inode_save(&dir, 1);
+}
+
 /*
  * Make the ".." entry of directory name, the second entry of its first
  * block, name inode number target, and count the new reference in target.
@@ -465,7 +481,9 @@ build(const char *layout, const char *path)
 	if (strcmp(layout, "tail-evict") == 0) {
 		if (!build_tail_evict(&fs))
 			return fail("cannot build", layout);
-	} else if (strcmp(layout, "empty") == 0) {
+	} else if (strcmp(layout, "empty") == 0 ||
+	    strcmp(layout, "name-overlong") == 0 ||
+	    strcmp(layout, "name-overrun") == 0) {
 		/* Nothing more. */
 	} else if (strcmp(layout, "dir-last") == 0) {
 		if (!make_dir(&fs, "/d00") ||
@@ -575,6 +593,12 @@ build(const char *layout, const char *path)
 			return fail("unknown layout", layout);
 		}
 	}
+	if (strcmp(layout, "name-overlong") == 0 &&
+	    !set_dir_namlen(&fs, "/lost+found", 12, BSDFS_MAXNAMLEN + 1))
+		return fail("cannot corrupt name length", layout);
+	if (strcmp(layout, "name-overrun") == 0 &&
+	    !set_dir_namlen(&fs, "/lost+found", 0, 4))
+		return fail("cannot corrupt name room", layout);
 	if (!fs_sync(&fs, 1))
 		return fail("cannot write", path);
 	fs_close(&fs);
@@ -588,9 +612,9 @@ check(const char *path, int writable)
 
 	if (!fs_open(&fs, path, writable, 0))
 		return fail("cannot open", path);
-	fs_check(&fs);
+	int ok = fs_check(&fs);
 	fs_close(&fs);
-	return 0;
+	return ok ? 0 : 1;
 }
 
 static int

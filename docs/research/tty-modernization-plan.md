@@ -57,7 +57,7 @@ keep that tag; the 5.0 B per comment-stripped C line basis comes from tty.o.
 Source: the Issue 8 base definitions text, chapter 11 (11.2.2 to 11.2.6), and
 the Issue 8 function pages for tcsetattr, tcgetwinsize and tcgetsid. Status
 words: required (named in chapter 11), now (the port honors it today through
-sgtty), planned (stage named in section 7), declined (reason given). tcsetattr
+sgtty), planned (stage named in section 7), declined (reason given), report-only (a fixed value the shim reports and cannot change), set only (a request has an effect but the state cannot be read back). A row marked now names its get and set ioctl paths. tcsetattr
 sets the attributes the implementation supports, leaves the others unchanged,
 and returns -1 with EINVAL only when no part of the request can be honored
 [V: tcsetattr page, "If no part of the request can be honored"]; chapter 11.2.4
@@ -69,10 +69,11 @@ shim returns EINVAL for a request that asks for no supported change.
 
 | Flag | Status | Mechanism or reason |
 |---|---|---|
-| ICRNL | required; now | CRMOD couples input CR-to-NL with output NL-to-CRNL (sys/kern/tty.c:872, 1310); the shim sets both from ICRNL and ONLCR together and refuses a request that splits them (EINVAL part-honored) until a kernel bit is split (planned, only if a program needs it) |
-| IXON, IXOFF | required; now | stop and start characters compared against the input in ttyinput (tty.c:1113-1123); TANDEM sends stop and start for input (tty.c:250, 317), so TANDEM is IXOFF; IXON has no switch (always on outside RAW) |
+| ICRNL | required; now | get TIOCGETP, set TIOCSETN, bit CRMOD in sg_flags (tty.c:548, 585); CRMOD couples input CR-to-NL with output NL-to-CRNL (sys/kern/tty.c:872, 1310); the shim sets both from ICRNL and ONLCR together and refuses a request that splits them (EINVAL part-honored) until a kernel bit is split (planned, only if a program needs it) |
+| IXOFF | required; now | get TIOCGETP, set TIOCSETN, bit TANDEM; TANDEM is IXOFF (tty.c:250, 317) |
+| IXON | required; report-only (downgraded) | no bit exists: ttyinput always compares the input against stopc and startc (tty.c:1113-1123), so the shim reports IXON set and cannot clear it; tcsetattr leaves it unchanged |
 | IXANY | required; declined | DECCTQ is the opposite sense (only start restarts); no program on the port asks for it; cost is a branch in the output-restart path |
-| ISTRIP | required; now | PASS8 clear strips to 7 bits (tty.c:1053) |
+| ISTRIP | required; now | get TIOCLGET, set TIOCLBIS and TIOCLBIC, bit PASS8 inverted; PASS8 clear strips to 7 bits (tty.c:1053) |
 | BRKINT, IGNBRK | required; declined on console and USB; planned on UART0 | the panel keyboard and CDC-ACM raise no break; UART0 break detect needs the UART error path |
 | IGNPAR, INPCK, PARMRK | required; declined | no console device carries parity (I); the EVENP and ODDP bits of t_flags stay the only parity surface |
 | IGNCR, INLCR | required; declined | no caller; two input-path branches saved |
@@ -82,8 +83,8 @@ shim returns EINVAL for a request that asks for no supported change.
 
 | Flag | Status | Mechanism or reason |
 |---|---|---|
-| OPOST | required; now | RAW and LITOUT disable output processing (tty.c:1266) |
-| ONLCR | required; now | CRMOD, see ICRNL |
+| OPOST | required; now | get TIOCGETP (RAW) and TIOCLGET (LITOUT); clearing OPOST sets LITOUT; RAW and LITOUT disable output processing (tty.c:1266) |
+| ONLCR | required; now | CRMOD, see ICRNL; same get and set path |
 | OCRNL, ONOCR, ONLRET, OFILL, OFDEL | required; declined | no caller; the delay fields below are the same class |
 | NLDLY, CRDLY, TABDLY, BSDLY, VTDLY, FFDLY | required (XSI); declined | the panel and CDC-ACM need no fill; XTABS covers TAB3 (tty.c:1289); the shim maps TABDLY=TAB3 to XTABS and ignores the others |
 
@@ -91,30 +92,32 @@ shim returns EINVAL for a request that asks for no supported change.
 
 | Flag | Status | Mechanism or reason |
 |---|---|---|
-| CS8, CSIZE | required; now (CS8 only, I) | the console devices carry 8-bit bytes; CS5-CS7 declined |
-| CLOCAL, CREAD, HUPCL | required; now (I) | CLOCAL maps to NOHANG and HUPCL to TIOCHPCL; CREAD is always set |
+| CS8, CSIZE | required; report-only (downgraded; I) | no get or set path exists; the shim reports CS8 and leaves a request for another size unchanged; the console devices carry 8-bit bytes; CS5-CS7 declined |
+| CLOCAL | required; now (I) | get TIOCLGET, set TIOCLBIS and TIOCLBIC, bit NOHANG |
+| HUPCL | required; set only (downgraded) | TIOCHPCL (sys/sys/ioctl.h:111) only sets TS_HUPCLS (sys/kern/tty.c:487); a search of the C and header sources finds TS_HUPCLS only in its definition, that set and the pstat(8) display (usr.sbin/pstat/pstat.c:372), so no kernel reader or clearer exists (defined at sys/sys/tty.h:261), so tcgetattr cannot report it and tcsetattr cannot clear it; the shim reports HUPCL clear and passes a set request to TIOCHPCL; a get and clear is planned in the request that carries VMIN and VTIME, +20-40 B text (E) |
+| CREAD | required; report-only (downgraded) | always set; no path |
 | CSTOPB, PARENB, PARODD | required; declined on the console, planned on UART0 | UART0 line control exists only as a driver constant; the stty option set shrinks to speeds on the console |
-| Baud B0-B38400 and cfset/cfget speed | required; now | t_ispeed and t_ospeed hold B* indices below NSPEEDS (sys/sys/tty.h); the console ignores them |
+| Baud B0-B38400 and cfset/cfget speed | required; now | get TIOCGETP, set TIOCSETN (tty.c:546, 581); t_ispeed and t_ospeed hold B* indices below NSPEEDS (sys/sys/tty.h); the console ignores them |
 
 ### c_lflag (11.2.5)
 
 | Flag | Status | Mechanism or reason |
 |---|---|---|
-| ECHO | required; now | ECHO |
-| ECHOE, ECHOK | required; now (I) | CRTERA and CRTKIL, with CRTBS for the backspace form |
+| ECHO | required; now | get TIOCGETP, set TIOCSETN, bit ECHO |
+| ECHOE, ECHOK | required; now (I) | get TIOCLGET, set TIOCLBIS and TIOCLBIC, bits CRTERA and CRTKIL, with CRTBS for the backspace form |
 | ECHONL | required; declined | the console always echoes NL under ECHO; separate bit needs one branch in ttyinput |
-| ICANON | required; now | the inverse of CBREAK and RAW together |
-| ISIG | required; now | RAW and CBREAK differ in it: CBREAK keeps signals, RAW drops them; the shim maps (ICANON off, ISIG on) to CBREAK, (off, off) to RAW and refuses (ICANON on, ISIG off) |
-| IEXTEN | required; now | LNEXT, WERASE, REPRINT are processed unless RAW; the shim reports IEXTEN set whenever ICANON is set |
-| NOFLSH, TOSTOP | required; now | NOFLSH, TOSTOP (sys/sys/ioctl.h) |
+| ICANON | required; now | derived from RAW and CBREAK, which TIOCGETP reads and TIOCSETN writes |
+| ISIG | required; now | same path as ICANON; RAW and CBREAK differ in it: CBREAK keeps signals, RAW drops them; the shim maps (ICANON off, ISIG on) to CBREAK, (off, off) to RAW and refuses (ICANON on, ISIG off) |
+| IEXTEN | required; report-only (downgraded) | no bit exists; LNEXT, WERASE, REPRINT are processed unless RAW; the shim reports IEXTEN set whenever ICANON is set and cannot clear it alone |
+| NOFLSH, TOSTOP | required; now | get TIOCLGET, set TIOCLBIS and TIOCLBIC, bits NOFLSH and TOSTOP (sys/sys/ioctl.h) |
 
 ### c_cc (11.2.6)
 
 | Index | Status | Mechanism or reason |
 |---|---|---|
-| VEOF, VERASE, VINTR, VKILL, VQUIT, VSUSP, VSTART, VSTOP, VEOL | required; now | struct ttychars; VEOL is tc_brkc; _POSIX_VDISABLE is defined (sys/sys/ttychars.h:33) |
+| VEOF, VERASE, VINTR, VKILL, VQUIT, VSUSP, VSTART, VSTOP, VEOL | required; now | get and set through TIOCGETP and TIOCSETN (erase, kill), TIOCGETC and TIOCSETC (tty.c:599, 603) and TIOCGLTC and TIOCSLTC (tty.c:608, 612); struct ttychars; VEOL is tc_brkc; _POSIX_VDISABLE is defined (sys/sys/ttychars.h:33) |
 | VMIN, VTIME | required; planned | stored in the two padding bytes of struct tty, so 0 RAM; an uncommon request on a RAW-less read changes ttread (stage names in section 7) |
-| VWERASE, VREPRINT, VLNEXT, VDISCARD | extensions; now | tc_werasc, tc_rprntc, tc_lnextc, tc_flushc in struct ttychars |
+| VWERASE, VREPRINT, VLNEXT, VDISCARD | extensions; now | TIOCGLTC and TIOCSLTC; tc_werasc, tc_rprntc, tc_lnextc, tc_flushc in struct ttychars |
 | VEOL2, VSTATUS | extensions; declined | no field in struct ttychars |
 
 ### Functions
@@ -475,7 +478,7 @@ without the board. Board runs stay behind the hardware opt-in.
 
 | Stage | Prerequisite | Prediction (E unless marked) | First falsifier | Host test |
 |---|---|---|---|---|
-| termios.h and libc shim | none | 0 kernel text; 0.8-1.2 KB per linking program | a representable state does not round-trip through tcsetattr then tcgetattr, or an unrepresentable request returns success | round trip of every representable state against a model of the sgtty ioctls; EINVAL cases from the tables of section 2 |
+| termios.h and libc shim | none | 0 kernel text; 0.8-1.2 KB per linking program | a representable state does not round-trip through tcsetattr then tcgetattr, or an unrepresentable request returns success | round trip of every state the table marks "now" against a model of the sgtty ioctls (report-only and set-only rows are excluded from the round trip and tested for their stated report value instead); EINVAL cases from the tables of section 2 |
 | VMIN, VTIME and non-flushing set | shim | tty.o grows 0.40-0.55 KB; struct tty stays 100 B; PICOCALC headroom stays above 1,024 B | tty.o grows more than 0.6 KB, or queued bytes vanish across a mode change | the four Issue 8 cases on a model clock; a queue-preservation case; the layout contract test updated for the two new bytes |
 | UTF-8 decoder and glyph coverage | none | +0.35-0.55 KB; no per-cell growth | any code point draws other than one cell in tables 1-3 or '?', or a stray continuation byte draws a bank glyph | the enumeration of section 4 through lcdterm.c with recording primitives; mutants on each reject rule |
 | IUTF8 erase | UTF-8 decoder | +0.15-0.25 KB; one retired t_flags bit | an erase after a two-byte character leaves one byte queued | cooked queue model: "e" plus U+00E9, erase, with and without IUTF8 |

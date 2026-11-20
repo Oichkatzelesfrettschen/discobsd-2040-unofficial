@@ -102,6 +102,8 @@ namespace Antmicro.Renode.Peripherals.SPI
                 UnknownCommands = 0;
                 BytesReceived = 0;
                 Generation = 0;
+                command2Unlocked = false;
+                csconStage = 0;
             }
         }
 
@@ -169,6 +171,7 @@ namespace Antmicro.Renode.Peripherals.SPI
 
         public bool DisplayOn { get { lock(sync) { return displayOn; } } }
         public int ScrollStart { get { lock(sync) { return scrollStart; } } }
+        public bool Command2Unlocked { get { lock(sync) { return command2Unlocked; } } }
 
         /* The first bytes after a reset or TraceBytes call: c for command, d for data. */
         public string Trace()
@@ -317,6 +320,10 @@ namespace Antmicro.Renode.Peripherals.SPI
             pixelPhase = 0;
             readBits = null;
             readPos = 0;
+            if(cmd != 0xf0)
+            {
+                csconStage = 0;
+            }
 
             switch(cmd)
             {
@@ -431,7 +438,7 @@ namespace Antmicro.Renode.Peripherals.SPI
             switch(cmd)
             {
             case 0xb0: case 0xb1: case 0xb4: case 0xb5: case 0xb6: case 0xb7:
-            case 0xc0: case 0xc1: case 0xc5:
+            case 0xc0: case 0xc1: case 0xc2: case 0xc5:
             case 0xe0: case 0xe1: case 0xf0: case 0xf7:
                 return true;
             default:
@@ -450,6 +457,29 @@ namespace Antmicro.Renode.Peripherals.SPI
             paramCount++;
             switch(command)
             {
+            case 0xf0:
+                if(paramCount == 1)
+                {
+                    if(csconStage == 0xc3 && b == 0x96)
+                    {
+                        command2Unlocked = true;
+                        csconStage = 0;
+                    }
+                    else if(csconStage == 0x3c && b == 0x69)
+                    {
+                        command2Unlocked = false;
+                        csconStage = 0;
+                    }
+                    else
+                    {
+                        csconStage = (b == 0xc3 || b == 0x3c) ? b : 0;
+                    }
+                }
+                else
+                {
+                    csconStage = 0;
+                }
+                break;
             case 0x2a:
                 if(paramCount == 4)
                 {
@@ -587,6 +617,8 @@ namespace Antmicro.Renode.Peripherals.SPI
         private int topFixed, scrollArea, bottomFixed, scrollStart;
         private byte madctl, colmod;
         private bool displayOn, sleeping, inverted;
+        private bool command2Unlocked;
+        private byte csconStage;
         private int pixelPhase;
         private byte pixelHi;
         private byte[] pixelBytes;

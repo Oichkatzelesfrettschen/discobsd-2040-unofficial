@@ -38,17 +38,19 @@
  * sequence names (UNLOCK, GAMMA_DEFAULT, ...) are byte tables in
  * st7365p.c; NONE sends a NOP. Values come from ST7365P_SPEC_V1.0: CSCON F0h
  * C3h/96h (page 245), PGC/NGC defaults (pages 240-241), PWR3 C2h default
- * A5h (page 233), VCMPCTL C5h (page 235), DIC B4h (page 223), FRMCTR1 B1h
- * (page 220), BPC B5h (page 222), MADCTL 36h (page 188). Sets are appended,
+ * A5h (page 233), VCMPCTL C5h (page 234), DIC B4h (page 221), FRMCTR1 B1h
+ * (page 219), BPC B5h (page 222), MADCTL 36h (page 188). Sets are appended,
  * so a set keeps its number across revisions; set 0 alone follows what
- * st7365p_init() programs at boot, and the last set is the locked base
- * that set 0 was while the boot sequence sent init_seq alone. No set writes an NVM command (D0h,
- * D1h) or a value outside the datasheet's documented range.
+ * st7365p_init() programs at boot, sets 1-31 preserve the historical
+ * ILI9488-derived test bases for regression continuity, and set 32 repeats
+ * the legacy unlocked ILI9488 sequence at 78 Hz for A/B comparison. No set
+ * writes an NVM command (D0h, D1h) or a value outside the datasheet's
+ * documented field range.
  *
  * X(name, pre, base, post); the index in this list is the set number.
  */
 #define	PANELTEST_SETS(X) \
-	X("shipped",			UNLOCK,	DRIVER,	FRAME_78HZ) \
+	X("shipped",			UNLOCK,	NATIVE,	FRAME_78HZ) \
 	X("vendor-st7796sp",		NONE,	VENDOR,	NONE) \
 	X("unlock",			UNLOCK,	DRIVER,	NONE) \
 	X("unlock gamma-default",	UNLOCK,	DRIVER,	GAMMA_DEFAULT) \
@@ -79,7 +81,8 @@
 	X("frame true60 unlocked",	UNLOCK,	DRIVER,	FRAME_62HZ) \
 	X("frame true75 unlocked",	UNLOCK,	DRIVER,	FRAME_78HZ) \
 	X("frame true120 unlocked",	UNLOCK,	DRIVER,	FRAME_123HZ) \
-	X("locked base",		NONE,	DRIVER,	NONE)
+	X("locked base",		NONE,	DRIVER,	NONE) \
+	X("legacy-ili9488-78hz",	UNLOCK,	DRIVER,	FRAME_78HZ)
 
 #define	PANELTEST_COUNT_ONE(name, pre, base, post)	+ 1
 #define	PANELTEST_NSETS	(0 PANELTEST_SETS(PANELTEST_COUNT_ONE))

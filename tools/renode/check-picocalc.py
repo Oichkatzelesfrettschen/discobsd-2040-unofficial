@@ -194,30 +194,35 @@ DRIVER_SOURCE = os.path.normpath(
 def expected_init_trace(path: str = DRIVER_SOURCE) -> list[str]:
     """The panel bytes st7365p_init() sends before SLPOUT, from its source.
 
-    st7365p_init() sends init_unlock, init_seq and init_frame in that
-    order. Each entry of a table is a command byte, a parameter count and
-    the parameters; the command goes out with D/C low (token cNN) and each
-    parameter with D/C high (dNN). Macro names resolve through the #define
-    lines of the same file. init_frame comes from FRAME_SET(init_frame,
-    FRS, DIVA, RTNA, Hz): BPC B5h 02h 02h 00h 04h, then FRMCTR1 B1h with
-    FRS << 4 | DIVA and RTNA.
+    st7365p_init() sends init_unlock, init_gamma, init_seq, init_frame and
+    init_lock in that order. Each entry of a table is a command byte, a
+    parameter count and the parameters; the command goes out with D/C low
+    (token cNN) and each parameter with D/C high (dNN). Macro names resolve
+    through the #define lines of the same file. init_frame comes from
+    FRAME_SET(init_frame, FRS, DIVA, RTNA, Hz): BPC B5h 02h 02h 00h 04h,
+    then FRMCTR1 B1h with FRS << 4 | DIVA and RTNA.
     """
     with open(path, encoding="ascii") as handle:
         text = handle.read()
     macros = dict(re.findall(r"#define\s+(\w+)\s+(0x[0-9a-fA-F]+|\d+)\b", text))
     values = []
-    for name in ("init_unlock", "init_seq"):
+
+    def parse_table(name: str) -> None:
         body = re.search(name + r"\[\]\s*=\s*\{(.*?)\};", text, re.S)
         if body is None:
             raise ValueError(f"{path}: no {name}")
         for token in re.findall(r"[A-Za-z_]\w*|0x[0-9a-fA-F]+|\d+",
                                 re.sub(r"/\*.*?\*/", "", body.group(1), flags=re.S)):
             values.append(int(macros.get(token, token), 0))
+
+    for name in ("init_unlock", "init_gamma", "init_seq"):
+        parse_table(name)
     frame = re.search(r"FRAME_SET\(init_frame,\s*(\d+),\s*(\d+),\s*(\d+),", text)
     if frame is None:
         raise ValueError(f"{path}: no FRAME_SET(init_frame, ...)")
     frs, diva, rtna = (int(field) for field in frame.groups())
     values += [0xB5, 4, 0x02, 0x02, 0x00, 0x04, 0xB1, 2, frs << 4 | diva, rtna]
+    parse_table("init_lock")
     trace: list[str] = []
     index = 0
     while index < len(values):

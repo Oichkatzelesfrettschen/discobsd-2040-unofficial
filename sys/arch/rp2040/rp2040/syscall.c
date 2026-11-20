@@ -22,6 +22,7 @@
 #include <sys/vm.h>
 
 #include <machine/frame.h>
+#include <machine/mpuvar.h>
 #include <machine/scb.h>
 
 /*
@@ -291,6 +292,7 @@ ast(struct trapframe *frame)
 	if (user_entry(frame))
 		psignal(u.u_procp, SIGSEGV);
 	userret(frame->tf_pc, syst);
+	mpu_guard_update(frame->tf_sp);
 	divider_restore(&uf->uf_div);
 }
 
@@ -420,6 +422,7 @@ bad:
 
 out:
 	userret(u.u_frame->tf_pc, syst);
+	mpu_guard_update(u.u_frame->tf_sp);
 	divider_restore(&USERFRAME(frame)->uf_div);
 
 	led_control(LED_KERNEL, 0);

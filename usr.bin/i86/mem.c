@@ -186,35 +186,51 @@ mem_fini(void)
 	}
 }
 
+#ifndef SSTRUN_NEWLIB
+/* The directory of the store's path, allocated, and the name in it. */
+static char *
+store_dir(const char **name)
+{
+	const char *base = strrchr(store_path, '/');
+	size_t n = base == NULL ? 0 : base == store_path ? 1 :
+	    (size_t)(base - store_path);
+	char *dir;
+
+	if ((dir = malloc(n + 2)) == NULL)
+		return (NULL);
+	if (n == 0)
+		dir[n++] = '.';
+	else
+		memcpy(dir, store_path, n);
+	dir[n] = '\0';
+	*name = base == NULL ? store_path : base + 1;
+	return (dir);
+}
+#endif
+
 /* Take the store's name away while the file stays open. The name is
  * removed only if it still names the file this program created: another
  * process may have renamed that file and put its own at the path, and its
  * file is not this program's to remove. The system does the check and the
  * removal as one step (unlink(2), unlinkat_beneath), from the store's own
- * directory since the call crosses no mount point. A host build is a test
- * tool on a system without such a call; it compares and then removes.
- * Returns -1 when the name stays, which the caller treats as a store that
- * cannot be used: pages are not put into a file that outlives the run. */
+ * directory since the call crosses no mount point. The host build has no
+ * such call: it compares and then removes, which leaves a window between
+ * the two that the target does not have. It is kept that way because it
+ * is the test tool for this sequence, create under the name and remove
+ * the name, and a host that created the file without a name would test a
+ * different program. Returns -1 when the name stays. */
 static int
 store_unname(void)
 {
 #if defined(SSTRUN_NEWLIB)
 	return (unlink(store_path));
 #else
-	const char *base = strrchr(store_path, '/');
-	size_t n = base == NULL ? 0 : base == store_path ? 1 :
-	    (size_t)(base - store_path);
-	char *dir;
+	const char *name;
+	char *dir = store_dir(&name);
 	int dfd, r;
 
-	if ((dir = malloc(n + 2)) == NULL)
+	if (dir == NULL)
 		return (-1);
-	if (n == 0)
-		dir[n++] = '.';
-	else
-		memcpy(dir, store_path, n);
-	dir[n] = '\0';
-	base = base == NULL ? store_path : base + 1;
 	dfd = open(dir, O_RDONLY);
 	free(dir);
 	if (dfd < 0)
@@ -225,16 +241,29 @@ store_unname(void)
 
 		r = -1;
 		if (fstat(store_fd, &held) == 0 &&
-		    fstatat(dfd, base, &named, AT_SYMLINK_NOFOLLOW) == 0 &&
+		    fstatat(dfd, name, &named, AT_SYMLINK_NOFOLLOW) == 0 &&
 		    named.st_dev == held.st_dev && named.st_ino == held.st_ino)
-			r = unlinkat(dfd, base, 0);
+			r = unlinkat(dfd, name, 0);
 	}
 #else
-	r = unlinkat_beneath(dfd, base, store_fd);
+	r = unlinkat_beneath(dfd, name, store_fd);
 #endif
 	close(dfd);
 	return (r);
 #endif
+}
+
+/* The store is this run's own file: an existing path is refused, and the
+ * name is removed while the file is open, so the pages go with the process
+ * however it ends and nothing is removed by name afterwards. A name that
+ * cannot be removed is a store that cannot be used. */
+static int
+store_open(void)
+{
+	store_fd = open(store_path, O_RDWR | O_CREAT | O_EXCL, 0600);
+	if (store_fd < 0)
+		return (-1);
+	return (store_unname());
 }
 
 static void
@@ -242,19 +271,8 @@ store_io(unsigned page, uint8_t *p, int wr)
 {
 	ssize_t n;
 
-	if (store_fd < 0) {
-		/* The store is this run's own file: an existing path is
-		 * refused, and the new name is removed while the file is
-		 * open. Nothing is ever removed by name afterwards, so a
-		 * file put at that path later is not this program's to
-		 * touch, and the pages go with the process however it
-		 * ends. */
-		store_fd = open(store_path, O_RDWR | O_CREAT | O_EXCL, 0600);
-		if (store_fd < 0)
-			goto fail;
-		if (store_unname() != 0)
-			goto fail;
-	}
+	if (store_fd < 0 && store_open() != 0)
+		goto fail;
 	if (lseek(store_fd, (off_t)page << MEM_PGSHIFT, SEEK_SET) < 0)
 		goto fail;
 	n = wr ? write(store_fd, p, MEM_PGSIZE) : read(store_fd, p, MEM_PGSIZE);

@@ -246,8 +246,10 @@ check-board-descriptor: check-python
 .PHONY: check-uf2-validator check-uf2-images check-board-descriptor
 
 # The kernel flash image must leave KERNEL_HEADROOM_MARGIN bytes (default in
-# tools/check_kernel_headroom.py) of the FLASH region of RP2040.ld free in
-# every board kernel. check-kernel-headroom-validator calibrates the checker
+# tools/check_kernel_headroom.py) of its FLASH region free in every board
+# kernel. The region is the one in the linker script the kernel links with
+# (LDSCRIPT of its compile Makefile): RP2040.ld gives 128 KiB, and
+# RP2040-sd.ld, which PICOCALC_SD uses, gives 160 KiB. check-kernel-headroom-validator calibrates the checker
 # on synthetic images; check-kernel-headroom applies it to each built kernel
 # and then requires a margin above the region length to fail with exit 1, so
 # a checker that accepts every kernel is reported.
@@ -256,11 +258,18 @@ check-kernel-headroom-validator: check-python
 
 check-kernel-headroom: check-python
 .if ${MACHINE} == "rp2040"
-		@set -e; elfs=; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
-			elfs="$$elfs sys/arch/rp2040/compile/$$configuration/unix.elf"; \
+		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
+			dir=sys/arch/rp2040/compile/$configuration; \
+			script=$(sed -n 's/^LDSCRIPT[ 	]*=[ 	]*"\(.*\)"$/\1/p' $dir/Makefile); \
+			if [ -z "$script" ]; then \
+				echo "check-kernel-headroom: $dir/Makefile names no LDSCRIPT" >&2; \
+				exit 2; \
+			fi; \
+			${PYTHON} tools/check_kernel_headroom.py \
+			    --linker-script sys/arch/rp2040/conf/$script \
+			    ${KERNEL_HEADROOM_MARGIN:D--margin ${KERNEL_HEADROOM_MARGIN}} \
+			    $dir/unix.elf; \
 		done; \
-		${PYTHON} tools/check_kernel_headroom.py \
-		    ${KERNEL_HEADROOM_MARGIN:D--margin ${KERNEL_HEADROOM_MARGIN}} $$elfs; \
 		rc=0; \
 		${PYTHON} tools/check_kernel_headroom.py --margin 1000000 \
 		    sys/arch/rp2040/compile/PICO/unix.elf >/dev/null 2>&1 || rc=$$?; \

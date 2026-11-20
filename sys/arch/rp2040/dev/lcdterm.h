@@ -149,4 +149,21 @@ int	lcdterm_top(void);
 int	lcdterm_gfx_top(void);	/* LCD_GFX_EXT: top at lcdterm_gfx(1). */
 void	lcdterm_cursor(int *row, int *col);
 
+/*
+ * LCD_VT, the second console of lcdcons.c. lcdterm_exchange() swaps the
+ * screen state of the console on the panel (cells, attributes, scroll ring,
+ * cursor, rendition, modes and parser) with that of the frozen console, word
+ * by word and in place, and forgets the cursor overlay; the caller then
+ * calls lcdterm_repaint(). Both consoles start as a reset terminal.
+ * lcdterm_marker() draws the unseen-output marker over the top right cell
+ * without storing it, so the next repaint of that cell removes it.
+ */
+void	lcdterm_exchange(void);
+void	lcdterm_marker(void);
+
+#ifdef LCDTERM_HOST_TEST
+/* The host test compares whole screen states: console 0 is the live one. */
+const void *lcdterm_state(int frozen, unsigned *size);
+#endif
+
 #endif /* !_LCDTERM_H */

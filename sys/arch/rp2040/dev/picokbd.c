@@ -457,8 +457,14 @@ kbd_poll(caddr_t arg __unused)
 			    KBD_CTRL_EXPIRE_MS * 1000U)
 				ctrl = 0;
 			lcdcons_keycheck();
-			n = picokbd_event(state, key, lcdterm_app_cursor(),
-			    &ctrl, seq);
+#ifdef LCD_VT
+			if ((n = picokbd_vt_key(state, key, ctrl)) >= 0) {
+				lcdcons_vtswitch(n);
+				n = 0;
+			} else
+#endif
+				n = picokbd_event(state, key,
+				    lcdterm_app_cursor(), &ctrl, seq);
 			if (n > 0)
 				lcdcons_input(seq, n);
 		} else if (phase == PH_WRITE && fast > 0)

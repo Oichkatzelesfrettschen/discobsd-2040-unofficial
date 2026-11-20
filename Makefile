@@ -1623,11 +1623,12 @@ check-license-headers: check-python
 # network phase of apt-get in wall-clock time and retries it: a mirror that
 # trickles bytes never trips apt's idle timeout, and one such download held the
 # flash-id job for 16 minutes. --selftest runs the script against a fake
-# apt-get through a good run, a stalled download, a stalled update, a permanent
-# stall, a download that ignores TERM, an install failure and a call with no
-# package, and requires five mutants of the script (no bound, no kill after the
-# first signal, no retry, one-call install, a swallowed final failure) to fail
-# them. It prints a SKIP without timeout(1).
+# apt-get through a good run, a run with an archive directory, a stalled
+# download, a stalled update, a permanent stall, a download that ignores TERM, an
+# install failure and a call with no package, and requires six mutants of the
+# script (no bound, no kill after the first signal, no retry, one-call install,
+# a swallowed final failure, no archive directory) to fail the scenario each
+# targets. It prints a SKIP without timeout(1).
 check-ci-apt-install:
 		sh tools/ci_apt_install.sh --selftest
 

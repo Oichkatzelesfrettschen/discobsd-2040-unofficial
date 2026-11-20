@@ -46,7 +46,10 @@
 # CI_APT_KILL_SECONDS (default 10) the time between the TERM that ends the phase
 # and the KILL that follows when the process ignores it; CI_APT_SUDO is the
 # privilege prefix (default sudo, empty in a root container); CI_APT_GET names
-# the apt-get command. The bound command is timeout(1), or gtimeout(1).
+# the apt-get command. CI_APT_ARCHIVES, an absolute path without blanks, is the
+# directory apt keeps its .deb files in (Dir::Cache::archives): the workflow
+# restores and saves it with actions/cache, so a package already there needs no
+# download. The bound command is timeout(1), or gtimeout(1).
 set -eu
 
 self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
@@ -54,6 +57,7 @@ apt_get=${CI_APT_GET:-apt-get}
 attempts=${CI_APT_ATTEMPTS:-3}
 seconds=${CI_APT_SECONDS:-150}
 kill_after=${CI_APT_KILL_SECONDS:-10}
+archives=${CI_APT_ARCHIVES:-}
 priv=${CI_APT_SUDO-sudo}
 
 usage() {
@@ -103,10 +107,12 @@ scenario() {
 	want_calls=$5
 	shift 5
 	: >"$work/log"
+	: >"$work/args"
 	rm -f "$work/hung"
 	start=$(date +%s)
 	rc=0
-	env FAKE_MODE="$mode" FAKE_LOG="$work/log" FAKE_STATE="$work/hung" FAKE_SLEEP=5 \
+	env FAKE_MODE="$mode" FAKE_LOG="$work/log" FAKE_ARGS="$work/args" \
+	    FAKE_STATE="$work/hung" FAKE_SLEEP=5 CI_APT_ARCHIVES="$archives_under_test" \
 	    CI_APT_GET="$work/apt-get" CI_APT_SUDO= CI_APT_SECONDS=1 CI_APT_KILL_SECONDS=1 \
 	    CI_APT_ATTEMPTS=2 \
 	    sh "$script" "$@" >"$work/out" 2>&1 || rc=$?
@@ -115,6 +121,14 @@ scenario() {
 	if [ "$rc" != "$want_rc" ] || [ "$calls" != "$want_calls" ]; then
 		echo "ci_apt_install: scenario $name: status $rc (want $want_rc), calls '$calls' (want '$want_calls')" >&2
 		return 1
+	fi
+	if [ -n "$archives_under_test" ]; then
+		option="-oDir::Cache::archives=$archives_under_test"
+		carried=$(grep -c -F -- "$option" "$work/args" || true)
+		if [ "$carried" != 2 ] || grep -F -- "$option" "$work/args" | grep -q '^update'; then
+			echo "ci_apt_install: scenario $name: the archive option reached the wrong calls" >&2
+			return 1
+		fi
 	fi
 	# Two attempts of a 1 s bound and a 1 s kill delay end within 4 s; a fake
 	# that sleeps or spins for 5 s per attempt shows an absent bound.
@@ -144,8 +158,14 @@ try() {
 scenarios() {
 	script=$1
 	failfast=${2:-}
+	archives_under_test=
 	status=0
 	try "$script" good ok 0 'update download install ' pkga pkgb || return 1
+	archives_under_test=$work/archives
+	rc=0
+	try "$script" archives ok 0 'update download install ' pkga || rc=$?
+	archives_under_test=
+	[ "$rc" = 0 ] || return 1
 	try "$script" stalled-download hang-first-download 0 'update download download install ' pkga || return 1
 	try "$script" stalled-update hang-first-update 0 'update update download install ' pkga || return 1
 	try "$script" permanent-stall hang-download 1 'update download download ' pkga || return 1
@@ -175,7 +195,14 @@ selftest() {
 	cat >"$work/apt-get" <<'FAKE'
 #!/bin/sh
 # Fake apt-get: logs the phase of the call; FAKE_MODE picks the misbehavior.
-case $1 in
+command=
+for arg in "$@"; do
+	case $arg in
+	-o*) ;;
+	*) command=${command:-$arg} ;;
+	esac
+done
+case $command in
 update) phase=update ;;
 install)
 	phase=install
@@ -186,6 +213,7 @@ install)
 *) exit 64 ;;
 esac
 echo "$phase" >>"$FAKE_LOG"
+echo "$phase $*" >>"$FAKE_ARGS"
 case $FAKE_MODE:$phase in
 hang-first-download:download | hang-first-update:update)
 	if [ ! -e "$FAKE_STATE" ]; then
@@ -209,27 +237,37 @@ FAKE
 		echo "ci_apt_install: selftest: the script fails its own scenarios" >&2
 		exit 1
 	}
-	echo "ci_apt_install: 7 scenarios pass"
+	echo "ci_apt_install: 8 scenarios pass"
 	# Known-bad copies must fail at least one scenario.
+	# mutant LABEL SED-EXPRESSION SCENARIO: the copy must fail SCENARIO and no
+	# earlier one, so that a copy that does not run at all is not taken for a
+	# rejection.
 	mutant() {
 		label=$1
 		expr=$2
+		expected=$3
 		sed -e "$expr" "$self" >"$work/mutant.sh"
 		if cmp -s "$self" "$work/mutant.sh"; then
 			echo "ci_apt_install: selftest: mutant '$label' changed nothing" >&2
 			exit 1
 		fi
-		if scenarios "$work/mutant.sh" failfast >/dev/null 2>&1; then
+		if scenarios "$work/mutant.sh" failfast >/dev/null 2>"$work/mutant.err"; then
 			echo "ci_apt_install: selftest: mutant '$label' passed every scenario" >&2
 			exit 1
 		fi
-		echo "mutant rejected: $label"
+		if ! grep -F -q "scenario $expected:" "$work/mutant.err"; then
+			echo "ci_apt_install: selftest: mutant '$label' did not fail scenario $expected:" >&2
+			cat "$work/mutant.err" >&2
+			exit 1
+		fi
+		echo "mutant rejected: $label (scenario $expected)"
 	}
-	mutant 'phase without the time bound' 's/\$bound -k "\$kill_after" "\$seconds" //'
-	mutant 'phase without a kill after the first signal' 's/ -k "\$kill_after"//'
-	mutant 'phase without a retry' 's/if \[ "\$n" -ge "\$attempts" \]; then/if true; then/'
-	mutant 'download and install in one call' 's/--download-only//'
-	mutant 'failure of the last attempt ignored' 's/^\t\t\treturn 1$/\t\t\treturn 0/'
+	mutant 'phase without the time bound' 's/\$bound -k "\$kill_after" "\$seconds" //' stalled-download
+	mutant 'phase without a kill after the first signal' 's/ -k "\$kill_after"//' term-ignored
+	mutant 'phase without a retry' 's/if \[ "\$n" -ge "\$attempts" \]; then/if true; then/' stalled-download
+	mutant 'download and install in one call' 's/--download-only//' good
+	mutant 'failure of the last attempt ignored' 's/^\t\t\treturn 1$/\t\t\treturn 0/' permanent-stall
+	mutant 'archive directory dropped from the apt calls' 's/\$archive_opt //g' archives
 	echo "ci_apt_install: selftest ok"
 	exit 0
 }
@@ -243,6 +281,16 @@ fi
 case $attempts:$seconds:$kill_after in
 *[!0-9:]* | :* | *: | *::* | 0:* | *:0:* | *:0) usage ;;
 esac
+archive_opt=
+if [ -n "$archives" ]; then
+	case $archives in
+	*[[:space:]]*) usage ;;
+	/*) ;;
+	*) usage ;;
+	esac
+	mkdir -p "$archives"
+	archive_opt=-oDir::Cache::archives=$archives
+fi
 bound=$(bound_command)
 if [ -z "$bound" ]; then
 	echo "ci_apt_install: timeout(1) from coreutils is required" >&2
@@ -250,6 +298,8 @@ if [ -z "$bound" ]; then
 fi
 
 phase update update
-phase download install -y --no-install-recommends --download-only "$@"
+# archive_opt is empty or one word; it stays unquoted so that an empty value vanishes.
 # shellcheck disable=SC2086
-$priv "$apt_get" install -y --no-install-recommends "$@"
+phase download $archive_opt install -y --no-install-recommends --download-only "$@"
+# shellcheck disable=SC2086
+$priv "$apt_get" $archive_opt install -y --no-install-recommends "$@"

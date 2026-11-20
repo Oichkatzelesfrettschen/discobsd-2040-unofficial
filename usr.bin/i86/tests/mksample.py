@@ -160,6 +160,12 @@ def load(suite, src, entry):
             return json.load(handle)
 
 
+def metadata(where):
+    """The suite's table of instruction forms."""
+    with open(os.path.join(where, "metadata.json")) as handle:
+        return json.load(handle)["opcodes"]
+
+
 def main(argv):
     if len(argv) != 4 or argv[1] not in PER_FORM:
         sys.stderr.write(__doc__)
@@ -167,8 +173,7 @@ def main(argv):
     suite, src, out = argv[1:]
     where = src if suite == "8088" else os.path.join(src, "v1_real_mode")
     suffix = ".json.gz" if suite == "8088" else ".MOO.gz"
-    with open(os.path.join(where, "metadata.json")) as handle:
-        meta = json.load(handle)["opcodes"]
+    meta = metadata(where)
     lines = []
     for entry in sorted(os.listdir(where)):
         if not entry.endswith(suffix):

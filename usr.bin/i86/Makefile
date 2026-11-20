@@ -30,8 +30,8 @@
 #   test      the host boot test of tests/check.py
 #   check-qemu  cpu.c compiled for ARMv6-M against the sampled vectors,
 #             under qemu-arm
-#   test-sst  cpu.c against the SingleStepTests 8088 vectors in SST_DIR,
-#             which this tree does not carry
+#   test-sst  cpu.c against a whole SingleStepTests suite, which this tree
+#             does not carry: SST_SUITE=8088 or 80286, SST_DIR its place
 #
 # The caller selects PYTHON, as for every Python-backed gate in the tree.
 TOPSRC!=cd ../..; pwd
@@ -86,11 +86,11 @@ test:		require-python
 		HOSTCC=${HOSTCC} ${PYTHON} -I -u tests/check.py .
 
 test-sst:	require-python tests/sstrun
-		@if [ -z "${SST_DIR}" ]; then \
-			echo "SST_DIR must name the 8088 v2 vector directory" >&2; \
+		@if [ -z "${SST_DIR}" ] || [ -z "${SST_SUITE}" ]; then \
+			echo "SST_SUITE (8088 or 80286) and SST_DIR must be set" >&2; \
 			exit 2; \
 		fi
-		${PYTHON} -I -u tests/sst.py tests/sstrun ${SST_DIR} ${SST_ARGS}
+		${PYTHON} -I -u tests/sst.py tests/sstrun ${SST_SUITE} ${SST_DIR} ${SST_ARGS}
 
 # cpu.c and mem.c as Thumb-1 code against newlib, with the Linux EABI system
 # calls of tests/libbn/qemu_support.c, over the sampled vectors. The run

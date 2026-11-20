@@ -242,3 +242,30 @@ $ i86 -d -T -m 112 -f 100 -a g.img < /dev/null | tail -3
 TICK OK
 SPIN OK
 exit status 0
+
+==== Run 6 (2026-11-20, source: the commit that adds this run): paging
+==== with the page file's name removed at creation. PICO_UART kernel,
+==== root on the flash, 160 KB of guest memory in 16 resident pages. The
+==== session reads 100 pages back, /tmp holds no file afterwards, and the
+==== root's used blocks are the same before and after.
+$ df /
+Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
+root              979      824      155    84%    /
+exit status 0
+
+$ i86 -d -T -v -c 286 -m 160 -f 16 -s /tmp/pg -a g.img -k aB1 | tail -6
+i86: 42 polls of 2048 steps; pages: 90 soft, 198 zero, 100 in, 99 out, 96 elided, 87 clean
+VID OK
+MODE OK
+a=1E61 B=3042 1=0231
+WAIT 0000
+DONE
+exit status 0
+
+$ ls -la /tmp; df /
+total 2
+drwxrwxr-x  2 root         1024 Nov 20 04:04 .
+drwxrwxrwx 12 root         1024 Nov 20 04:03 ..
+Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
+root              979      824      155    84%    /
+exit status 0

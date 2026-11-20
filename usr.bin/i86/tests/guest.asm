@@ -351,7 +351,7 @@ main:	; Thirty lines scroll the screen before the results.
 	; the firmware, and read back.
 	mov ax, 0xb800
 	mov es, ax
-	mov di, 5 * 160		; five lines scroll after this
+	mov di, 6 * 160		; six lines scroll after this
 	mov si, m_direct
 	mov ah, 0x1e
 .cell:	lodsb
@@ -366,7 +366,7 @@ main:	; Thirty lines scroll the screen before the results.
 	int 0x10
 	push dx
 	mov ah, 2
-	mov dx, 0x0605
+	mov dx, 0x0705
 	int 0x10
 	mov ax, 0x095a
 	mov bx, 0x004f
@@ -413,8 +413,9 @@ main:	; Thirty lines scroll the screen before the results.
 	mov si, m_mobad
 .mode:	call puts
 
-	; Keyboard: three keys, each echoed with its key code. A handler
-	; on vector 9 counts the scan bytes at port 60h on the way.
+	; Keyboard: three keys, each echoed with its key code, and the
+	; timer ticks that passed while waiting for them. A handler on
+	; vector 9 counts the scan bytes at port 60h on the way.
 	cli
 	mov ax, [9 * 4]
 	mov [old9], ax
@@ -423,6 +424,8 @@ main:	; Thirty lines scroll the screen before the results.
 	mov word [9 * 4], key9
 	mov [9 * 4 + 2], cs
 	sti
+	mov ax, [0x46c]
+	mov [t0], ax
 	mov cx, 3
 .key:	xor ah, ah
 	int 0x16
@@ -437,6 +440,11 @@ main:	; Thirty lines scroll the screen before the results.
 	mov ah, 0x0e
 	int 0x10
 	loop .key
+	mov si, m_wait
+	call puts
+	mov ax, [0x46c]
+	sub ax, [t0]
+	call hex4
 	; a, Shift with B, 1: eight scan bytes, the last the release of 1;
 	; then no shift flag stays set and nothing stays in service.
 .scans:	hlt
@@ -484,6 +492,7 @@ top:	dw 0
 old9:	dw 0, 0
 nscan:	db 0
 lscan:	db 0
+t0:	dw 0
 trapped: db 0
 count:	dw 0
 hflags:	dw 0
@@ -514,6 +523,7 @@ m_hbad:	db "HOOK BAD", 13, 10, 0
 m_direct: db "DIRECT", 0
 m_vid:	db "VID OK", 13, 10, 0
 m_vbad:	db "VID BAD", 13, 10, 0
+m_wait:	db 13, 10, "WAIT ", 0
 m_mode:	db "MODE OK", 13, 10, 0
 m_mobad: db "MODE BAD", 13, 10, 0
 m_done:	db 13, 10, "DONE", 13, 10, 0

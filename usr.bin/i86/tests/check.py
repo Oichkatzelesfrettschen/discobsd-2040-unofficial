@@ -92,11 +92,13 @@ TAIL = [
     "VID OK",
     "MODE OK",
     "a=1E61 B=3042 1=0231",
+    "WAIT 0000",
     "IRQ 0882",
     "DONE",
 ]
 
 MUTANTS = [
+    ("pc.c", "c->ip -= 3;\n\t\t\t\tc->fl |= F_IF;", "c->ip -= 3;"),
     (
         "pc.c",
         "if (key_eof && kb_n == 0 && !kb_full)\n\t\t\thost_exit(0);\n\t\tpc_idle = 1;",
@@ -519,7 +521,8 @@ def test_endings(binary, work):
         time.sleep(0.5)
         links = "/proc/%d/fd" % child.pid
         held = []
-        if os.path.isdir(links):
+        listed = os.path.isdir(links)
+        if listed:
             held = [os.readlink(os.path.join(links, n)) for n in os.listdir(links)]
         name = "/tmp/i86.%d" % (child.pid & 0xFFFFFF)
         present = os.path.exists(name)
@@ -536,7 +539,7 @@ def test_endings(binary, work):
         os.remove(name)
     else:
         raise Failure("a file put at the page file's path was removed")
-    if not os.path.isdir(links):
+    if not listed:
         print("NOT RUN page file name by process: no /proc on this host")
     elif not any(link.startswith(name + " ") for link in held):
         raise Failure("default page file is not named by process: %r" % held)
@@ -596,6 +599,8 @@ def test_interactive(binary, work):
                 if found < 0:
                     break
                 at = found + len(steps[step][0])
+                if step == 0:
+                    time.sleep(0.3)
                 os.write(master, steps[step][1])
                 step += 1
         status = child.wait(timeout=5) if step == len(steps) else None
@@ -617,6 +622,13 @@ def test_interactive(binary, work):
         raise Failure("terminal session: typed keys did not arrive")
     if b"DISK-B3" not in plain[plain.rfind(b"quit") :]:
         raise Failure("terminal session: the guest's screen is not drawn on leaving")
+    # The guest counted timer ticks across its wait for the keys. With the
+    # clock an instruction count, a third of a second of waiting is far
+    # more than the four ticks the machine holds back for a guest that
+    # keeps interrupts off.
+    waited = re.search(rb"WAIT ([0-9A-F]{4})", plain)
+    if waited is None or int(waited.group(1), 16) <= 16:
+        raise Failure("terminal session: the clock stood still while the guest waited")
     if before != after:
         raise Failure("terminal session: terminal mode not restored")
 

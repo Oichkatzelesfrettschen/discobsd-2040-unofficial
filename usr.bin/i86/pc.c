@@ -772,8 +772,10 @@ keyboard(struct i86 *c)
 		if (bq_empty()) {
 			key_wait(1);
 			if (bq_empty()) {
-				/* Run this trap again, with the keyboard
-				 * interrupt let in between the runs. */
+				/* Run this trap again, with interrupts
+				 * let in between the runs as the firmware's
+				 * wait loop does: the keyboard interrupt
+				 * brings the key and the clock keeps time. */
 				c->ip -= 3;
 				c->fl |= F_IF;
 				return (1);

@@ -71,12 +71,13 @@ build() {
 run() {
 	bin=$1
 	dir=$2
+	volume=${3:-$work/volume.img}
 	mkdir -p "$dir/expect"
 	(
 		cd "$dir"
 		status=0
 		timeout "$V7_RUN_SECONDS" \
-		    "$bin" "$work/volume.img" out.img expect \
+		    "$bin" "$volume" out.img expect \
 		    /a="$work/a.bin" /b="$work/b.bin" /c="$work/c.bin" \
 		    /dir/d="$work/d.bin" >test.log 2>&1 || status=$?
 		case $status in
@@ -124,12 +125,16 @@ for name, size in (("a", 100), ("b", 6000), ("c", 40000), ("d", 120000)):
 PY
 (
 	cd "$work"
-	"$tool" newfs volume.img 4096 >/dev/null
-	"$tool" put volume.img a.bin /a
-	"$tool" put volume.img b.bin /b
-	"$tool" put volume.img c.bin /c
-	"$tool" mkdir volume.img /dir
-	"$tool" put volume.img d.bin /dir/d
+	for sectors in 4096 262144; do
+		image=volume-$sectors.img
+		"$tool" newfs "$image" "$sectors" 256 >/dev/null
+		"$tool" put "$image" a.bin /a
+		"$tool" put "$image" b.bin /b
+		"$tool" put "$image" c.bin /c
+		"$tool" mkdir "$image" /dir
+		"$tool" put "$image" d.bin /dir/d
+	done
+	mv volume-4096.img volume.img
 ) >/dev/null
 "$PYTHON" "$here/v7_check.py" "$work/volume.img"
 "$PYTHON" "$here/v7_check.py" --self-test "$work/volume.img"
@@ -153,6 +158,12 @@ fi
 tail -n 2 "$work/run/test.log"
 cat "$work/run/check.log"
 echo "PASS v7-format: kernel reads the core's volume; the core and the checker accept the kernel's"
+
+run "$work/build/v7_format_test" "$work/run-128m" "$work/volume-262144.img" || {
+	cat "$work/run-128m/test.log" "$work/run-128m/check.log" >&2
+	exit 1
+}
+echo "PASS v7-format: 128 MiB volume through kernel, tool and independent checker"
 
 # Mutants: each breaks one claim of the design and must fail the run.
 "$PYTHON" "$here/v7_format_mutate.py" "$top/sys" "$work/mutants"

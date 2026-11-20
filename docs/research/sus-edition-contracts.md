@@ -121,6 +121,12 @@ produces a diagnostic and fails. The path operand `NAME_MAX` queries the contain
 `statfs()`. The descriptor form `fpathconf()` uses `fstatfs()`. Both return
 63 bytes on the native filesystem and 14 on a mount marked `MNT_V7`.
 Failed lookups propagate their errno and unknown selectors set `EINVAL`.
+`LINK_MAX` reports the unsigned native inode ceiling (65535) or the signed V7 ceiling (32767).
+`PIPE_BUF` reports 4096 bytes. A pipe descriptor can answer the latter query through
+`F_GETFD`, including when it has no pathname. The pipe inode lock covers admission
+and the complete transfer of an atomic write. A nonblocking write of at most
+4096 bytes either fits in full or returns `EAGAIN` without transferring a byte.
+Larger requests can return a short count.
 Other pathname variables, programming environments and the full Issue 8
 variable inventory remain open.
 

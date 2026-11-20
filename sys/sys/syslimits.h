@@ -32,6 +32,7 @@
  *	@(#)syslimits.h	8.1 (Berkeley) 6/2/93
  */
 
+#define PIPE_BUF                4096    /* largest atomic pipe write */
 #define	PATH_MAX		 256	/* max bytes in pathname */
 #define	ARG_MAX			5120	/* max bytes in exec arguments */
 #define	NGROUPS_MAX		  16	/* max groups in a credential */

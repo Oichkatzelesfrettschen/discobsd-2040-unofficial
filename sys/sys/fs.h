@@ -124,6 +124,9 @@ struct  fblk {
  * bigger than 4096, pipes will be implemented with large files, which is
  * probably not good.
  */
+#define NATIVE_LINK_MAX 65535   /* unsigned 16-bit inode link count */
+#define V7_LINK_MAX    32767   /* signed 16-bit inode link count */
+
 #define MAXPIPSIZ   (NDADDR * MAXBSIZE)
 
 #ifdef KERNEL

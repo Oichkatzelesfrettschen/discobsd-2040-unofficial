@@ -69,67 +69,51 @@ loop:
 int
 writep(struct file *fp, struct uio *uio, int flag)
 {
-    struct inode *ip;
-    int c;
+    struct inode *ip = (struct inode *)fp->f_data;
+    unsigned request = uio->uio_resid;
     int error = 0;
 
-    ip = (struct inode *)fp->f_data;
-    c = uio->uio_resid;
+    _Static_assert(PIPE_BUF <= MAXPIPSIZ, "an atomic write must fit in an empty pipe");
     ILOCK(ip);
-    if ((fp->f_flag & FNONBLOCK) && ip->i_size + c >= MAXPIPSIZ) {
-        error = EWOULDBLOCK;
-        goto done;
-    }
-loop:
-    /* If all done, return. */
-    if (c == 0) {
-        uio->uio_resid = 0;
-        goto done;
-    }
+    while (uio->uio_resid != 0) {
+        unsigned space = MAXPIPSIZ - ip->i_size;
+        unsigned pending = uio->uio_resid;
+        unsigned chunk = MIN(space, pending);
 
-    /*
-     * If there are not both read and write sides of the pipe active,
-     * return error and signal too.
-     */
-    if (ip->i_count != 2) {
-        psignal(u.u_procp, SIGPIPE);
-        error = EPIPE;
-done:       IUNLOCK(ip);
-        return (error);
+        if (ip->i_count != 2) {
+            psignal(u.u_procp, SIGPIPE);
+            error = EPIPE;
+            break;
+        }
+        if (chunk == 0 || (request <= PIPE_BUF && chunk != pending)) {
+            if (fp->f_flag & FNONBLOCK) {
+                error = EAGAIN;
+                break;
+            }
+            ip->i_mode |= IWRITE;
+            IUNLOCK(ip);
+            sleep((caddr_t)ip+2, PPIPE);
+            ILOCK(ip);
+            continue;
+        }
+        uio->uio_offset = ip->i_size;
+        uio->uio_resid = chunk;
+        error = rwip(ip, uio, flag);
+        uio->uio_resid += pending - chunk;
+        if (ip->i_mode & IREAD) {
+            ip->i_mode &= ~IREAD;
+            wakeup((caddr_t)ip+4);
+        }
+        if (ip->i_rsel) {
+            selwakeup(ip->i_rsel, (long)(ip->i_flag & IRCOLL));
+            ip->i_rsel = 0;
+            ip->i_flag &= ~IRCOLL;
+        }
+        if (error || uio->uio_resid == pending)
+            break;
     }
-
-    /*
-     * If the pipe is full, wait for reads to deplete
-     * and truncate it.
-     */
-    if (ip->i_size >= MAXPIPSIZ) {
-        ip->i_mode |= IWRITE;
-        IUNLOCK(ip);
-        sleep((caddr_t)ip+2, PPIPE);
-        ILOCK(ip);
-        goto loop;
-    }
-
-    /*
-     * Write what is possible and loop back.
-     * If writing less than MAXPIPSIZ, it always goes.
-     * One can therefore get a file > MAXPIPSIZ if write
-     * sizes do not divide MAXPIPSIZ.
-     */
-    uio->uio_offset = ip->i_size;
-    uio->uio_resid = MIN((u_int)c, (u_int)MAXPIPSIZ);
-    c -= uio->uio_resid;
-    error = rwip(ip, uio, flag);
-    if (ip->i_mode&IREAD) {
-        ip->i_mode &= ~IREAD;
-        wakeup((caddr_t)ip+4);
-    }
-    if (ip->i_rsel) {
-        selwakeup(ip->i_rsel, (long)(ip->i_flag & IRCOLL));
-        ip->i_rsel = 0;
-        ip->i_flag &= ~IRCOLL;
-    }
-    goto loop;
+    IUNLOCK(ip);
+    return uio->uio_resid == request ? error : 0;
 }
 
 int

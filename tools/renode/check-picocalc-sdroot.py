@@ -41,13 +41,13 @@ re-entry through it, and flash_ssi_restore() after it are therefore outside
 this gate: it is a stamped-kernel test, not a loader-state test.
 
 Cases, each a fresh emulator:
-  sdroot    a 40 MiB card: the stamped kernel prints the two root lines,
+  sdroot    a card sized for the root image: the stamped kernel prints the two root lines,
             the card line and root dev (5,3), reaches login on the panel,
             a keyboard login runs mount, which names /dev/sd0c on /, the
             flash root region still holds the foreign pattern, and UART0
             carries the tty0 login prompt; root_verdict() judges the root
             device, the mount source and the flash samples
-  tmp       a 48 MiB card with an 8 MiB type-ba entry in slot 4: rc makes
+  tmp       a card with an 8 MiB type-ba entry in slot 4: rc makes
             a file system on /dev/sd0t and `mount` shows it on /tmp, where
             mkfs's lost+found and a written file are visible; the sdroot
             case above shows no /tmp mount for a card without the entry
@@ -82,6 +82,7 @@ Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 import importlib.util
 import os
 import re
+import shutil
 import struct
 import sys
 
@@ -114,12 +115,8 @@ SECTOR = 512
 # Card layouts: total sectors and the start of the b7 entry. The FAT32
 # entry runs from sector 2048 up to the root and the Linux entry, 2048
 # sectors, follows it, as on the owner's card.
-LAYOUTS = {
-    "small": (81920, 8192, "sd0: SD 2.0, 40960 kbytes"),
-    # The same card with an 8 MiB type-ba /tmp entry in slot 4 after the
-    # Linux entry (PTYPE_TMP, sys/sys/disk.h).
-    "tmp": (98304, 8192, "sd0: SD 2.0, 49152 kbytes"),
-}
+ROOT_START = 8192
+CARD_ALIGNMENT = 8192
 TMP_TYPE = 0xBA
 TMP_SECTORS = 16384
 UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
@@ -302,19 +299,16 @@ def mbr_entry(kind, start, count):
     return struct.pack("<B3sB3sII", 0, b"\0\0\0", kind, b"\0\0\0", start, count)
 
 
-def make_card(path, root_img, p3_type, layout, tmp_entry=False, swap_entry=False):
-    root = open(root_img, "rb").read()
-    if len(root) % SECTOR:
-        raise ValueError("root image is not whole sectors")
-    sectors, p3_start = LAYOUTS[layout][:2]
-    p3 = (p3_type, p3_start, len(root) // SECTOR)
-    p2 = (0xB8 if swap_entry else 0x83, p3_start + p3[2], 2048)
-    p1 = (0x0C, 2048, p3_start - 2048)
-    if p2[1] + p2[2] > sectors:
-        raise ValueError("layout does not hold the root image")
+def make_card(path, root_img, p3_type, tmp_entry=False, swap_entry=False):
+    root_bytes = os.path.getsize(root_img)
+    if not root_bytes or root_bytes % SECTOR:
+        raise ValueError("root image must contain whole sectors")
+    p3 = (p3_type, ROOT_START, root_bytes // SECTOR)
+    p2 = (0xB8 if swap_entry else 0x83, ROOT_START + p3[2], 2048)
+    p1 = (0x0C, 2048, ROOT_START - 2048)
     p4 = (TMP_TYPE, p2[1] + p2[2], TMP_SECTORS) if tmp_entry else None
-    if p4 is not None and p4[1] + p4[2] > sectors:
-        raise ValueError("layout does not hold the tmp entry")
+    last = p4 or p2
+    sectors = ((last[1] + last[2] + CARD_ALIGNMENT - 1) // CARD_ALIGNMENT) * CARD_ALIGNMENT
     table = b"".join(mbr_entry(*p) for p in (p1, p2, p3)) + (
         mbr_entry(*p4) if p4 is not None else bytes(16)
     )
@@ -322,8 +316,9 @@ def make_card(path, root_img, p3_type, layout, tmp_entry=False, swap_entry=False
         stream.truncate(sectors * SECTOR)
         stream.seek(446)
         stream.write(table + b"\x55\xaa")
-        stream.seek(p3_start * SECTOR)
-        stream.write(root)
+        stream.seek(ROOT_START * SECTOR)
+        with open(root_img, "rb") as root:
+            shutil.copyfileobj(root, stream)
     return sectors * SECTOR
 
 
@@ -360,16 +355,16 @@ def boot(renode_path, kernel, flash, card, capacity, outdir, start):
     return renode, cp.Run(renode, outdir)
 
 
-def case_root(renode_path, kernel, flash, root_img, outdir, layout, start, reason):
+def case_root(renode_path, kernel, flash, root_img, outdir, start, reason):
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
-    capacity = make_card(card, root_img, 0xB7, layout)
+    capacity = make_card(card, root_img, 0xB7)
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
         # The banner scrolls off the 32-row panel before the card answers,
         # so the waits run one after the other.
         run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
-        wait_root_lines(run, [reason, "root: sd0c", LAYOUTS[layout][2]])
+        wait_root_lines(run, [reason, "root: sd0c", f"sd0: SD 2.0, {capacity // 1024} kbytes"])
         run.snapshot("root")
         run.wait_until(
             lambda: parse_root_dev(run.lines) is not None,
@@ -428,12 +423,12 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
     so the swap size on the PSRAM stays unobserved."""
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
-    capacity = make_card(card, root_img, 0xB7, "tmp", tmp_entry=True,
+    capacity = make_card(card, root_img, 0xB7, tmp_entry=True,
                          swap_entry=start == SD_KERNEL_END)
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
         run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
-        wait_root_lines(run, [reason, "root: sd0c", LAYOUTS["tmp"][2]])
+        wait_root_lines(run, [reason, "root: sd0c", f"sd0: SD 2.0, {capacity // 1024} kbytes"])
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")
         run.wait_for_prompt("shell prompt", cp.KEY_BUDGET_SECONDS)
@@ -511,7 +506,7 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
 def case_nob7(renode_path, kernel, flash, root_img, outdir, start, reason):
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
-    capacity = make_card(card, root_img, 0x83, "small")
+    capacity = make_card(card, root_img, 0x83)
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
         run.wait_for(
@@ -557,7 +552,7 @@ def main(argv):
     try:
         cases = (
             ("sdroot", lambda d: case_root(
-                renode_path, kernel, flash, root_img, d, "small", start, reason)),
+                renode_path, kernel, flash, root_img, d, start, reason)),
             ("tmp", lambda d: case_tmp(renode_path, kernel, flash, root_img, d, start, reason)),
             ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d, start, reason)),
         )

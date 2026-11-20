@@ -2,6 +2,7 @@
 #include <sys/mount.h>
 #include <sys/sysctl.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <paths.h>
 #include <unistd.h>
@@ -48,6 +49,16 @@ statfs(const char *path, struct statfs *info)
 }
 
 int
+fcntl(int fd, int command, ...)
+{
+	CHECK(command == F_GETFD);
+	if (fd == 7)
+		return 0;
+	errno = EBADF;
+	return -1;
+}
+
+int
 fstatfs(int fd, struct statfs *info)
 {
 	calls++;
@@ -65,9 +76,13 @@ check_path_limits(void)
 	runtime_limits_errno = 37;
 	CHECK(pathconf(directory, _PC_NAME_MAX) == 63);
 	CHECK(fpathconf(7, _PC_NAME_MAX) == 63);
+	CHECK(pathconf(directory, _PC_LINK_MAX) == 65535);
+	CHECK(fpathconf(7, _PC_LINK_MAX) == 65535);
 	mount_flags = MNT_V7 | MNT_RDONLY;
 	CHECK(pathconf(directory, _PC_NAME_MAX) == 14);
 	CHECK(fpathconf(7, _PC_NAME_MAX) == 14);
+	CHECK(pathconf(directory, _PC_LINK_MAX) == 32767);
+	CHECK(fpathconf(7, _PC_LINK_MAX) == 32767);
 	CHECK(runtime_limits_errno == 37);
 	CHECK(pathconf("", _PC_NAME_MAX) == -1);
 	CHECK(runtime_limits_errno == ENOENT);
@@ -80,7 +95,12 @@ check_path_limits(void)
 	runtime_limits_errno = 0;
 	CHECK(fpathconf(7, 0) == -1);
 	CHECK(runtime_limits_errno == EINVAL);
-	CHECK(calls == 6);
+	CHECK(pathconf("/missing", _PC_LINK_MAX) == -1 && errno == ENOENT);
+	CHECK(fpathconf(-1, _PC_LINK_MAX) == -1 && errno == EBADF);
+	CHECK(pathconf(directory, _PC_PIPE_BUF) == PIPE_BUF);
+	CHECK(fpathconf(7, _PC_PIPE_BUF) == PIPE_BUF);
+	CHECK(fpathconf(-1, _PC_PIPE_BUF) == -1 && errno == EBADF);
+	CHECK(calls == 13);
 }
 
 static void

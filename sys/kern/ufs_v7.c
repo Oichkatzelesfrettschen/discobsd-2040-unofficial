@@ -34,7 +34,6 @@
 #define V7_INO_MAX      0xffffU /* a directory entry names 16 bits */
 #define V7_DIRSIZE_MAX  0x3fffffffUL    /* doubles into a positive off_t */
 #define V7_SIZE_MAX     0x7fffffffUL    /* a positive off_t */
-#define V7_LINK_MAX     0x7fff          /* the link count is signed */
 
 /* Byte offsets in the superblock. */
 #define SB_ISIZE        0

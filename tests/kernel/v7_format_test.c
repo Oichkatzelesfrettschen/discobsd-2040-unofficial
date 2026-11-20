@@ -762,13 +762,13 @@ hostile(void)
     bytes = disk_bytes;
     disk_bytes -= 512;
     fs->fs_fsize--;
-    ip->i_a16[10] = (u_short)last;
+    HK_CHECK(v7_addr_set(ip, 10, last) == 0);
     HK_CHECK(rdwri(UIO_READ, ip, (caddr_t)got, sizeof(got), (off_t)5120,
         IO_UNIT, (int *)0) == 0);
     for (i = 0; i < (int)sizeof(got); i++)
         HK_CHECK(got[i] == pattern(7, 5120 + i));
     u.u_error = 0;
-    ip->i_a16[10] = keep;
+    HK_CHECK(v7_addr_set(ip, 10, root) == 0);
     evict();
     fs->fs_fsize++;
     disk_bytes = bytes;
@@ -989,6 +989,20 @@ main(int argc, char **argv)
         mp->m_geom = &fs_geom_table[FS_FORMAT_V7];
         mp->m_filsys.fs_flags = MNT_V7;
         HK_CHECK(v7_extent(mp) == 0);
+    }
+    /* The final representable link count admits no further increment. */
+    {
+        struct inode subject = { .i_fs = &mp->m_filsys };
+        mp->m_geom = &fs_geom_table[FS_FORMAT_NATIVE];
+        subject.i_nlink = 65534;
+        HK_CHECK(!FS_LINKS_FULL(&subject));
+        subject.i_nlink++;
+        HK_CHECK(FS_LINKS_FULL(&subject));
+        mp->m_geom = &fs_geom_table[FS_FORMAT_V7];
+        subject.i_nlink = 32766;
+        HK_CHECK(!FS_LINKS_FULL(&subject));
+        subject.i_nlink++;
+        HK_CHECK(FS_LINKS_FULL(&subject));
     }
     rootdir = iget(GATE_DEV, &mp->m_filsys, (ino_t)ROOTINO);
     HK_CHECK(rootdir != NULL);

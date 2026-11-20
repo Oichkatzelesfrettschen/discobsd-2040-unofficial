@@ -26,12 +26,13 @@
 TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 CFLAGS += -std=c17 -Wall -Wextra -Werror
-PROG=		pathlimit
-OBJS=		pathlimit.o
-all:		${PROG}
-${PROG}:	${OBJS} ${TOPSRC}/lib/libc.a
-		${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf ${OBJS} ${LIBS}
+PROGS=		pathlimit pipebound
+all:		${PROGS}
+.for prog in ${PROGS}
+${prog}:	${prog}.o ${TOPSRC}/lib/libc.a
+		${CC} ${CFLAGS} ${LDFLAGS} -o $@.elf ${prog}.o ${LIBS}
 		${SIZE} $@.elf
 		${ELF2AOUT} $@.elf $@ && rm $@.elf
+.endfor
 clean:
-		rm -f ${PROG} ${PROG}.elf ${OBJS}
+		rm -f ${PROGS} ${PROGS:S/$/.elf/} ${PROGS:S/$/.o/}

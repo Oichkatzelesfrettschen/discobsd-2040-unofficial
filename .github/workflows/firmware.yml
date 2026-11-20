@@ -324,13 +324,10 @@ jobs:
       # has no Thumb-1 variant and math holds Thumb-1 to glibc-checked digests.
       # This job installs cffi, hypothesis and pytest, so the swap tier
       # model gate fails rather than skips when one is missing.
-      # Wall time of the Linux host tier on a four-CPU runner: 899 to 1,098
-      # seconds in early November, then 960, 1,104, 1,434 and 1,308 in the
-      # nightlies of 2026-11-17 to 2026-11-20 as the ulisp mutants (62), lexeme
-      # and i86 gates came in. Two dispatch runs of 2026-11-20 reached the former
-      # 1,620 s limit with every gate so far passing, the second with 19 of 168
-      # gates not started: the tier is bound by total CPU work, not by gate
-      # order. The idle timeout still catches a hung gate.
+      # The tier is bound by total CPU work on a four-CPU runner, not by the
+      # order of its gates; sys/arch/rp2040/doc/TESTING.md (check-host-split)
+      # holds the measured wall times. The hard timeout leaves room above the
+      # slowest tier measured, and the idle timeout still ends a hung gate.
       - name: Run the host tier
         if: env.FULL_GATES == 'true'
         timeout-minutes: 48

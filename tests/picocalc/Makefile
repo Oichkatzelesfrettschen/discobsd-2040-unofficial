@@ -512,7 +512,7 @@ mutants: mutant-scroll mutant-region mutant-ctrl mutant-break-dropped \
 
 mutant-scroll:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    's/lcd_set_top(top);/(void)top;/'
+	    's/lcd_set_top(lt.top);/(void)lt.top;/'
 
 mutant-region:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -537,7 +537,7 @@ mutant-power-types:
 
 mutant-reverse-erase:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    's/sgr_rev ? sgr_fg : sgr_bg/sgr_bg/'
+	    's/lt.sgr_rev ? lt.sgr_fg : lt.sgr_bg/lt.sgr_bg/'
 
 mutant-bright:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -605,7 +605,7 @@ mutant-gfx-repaint-row:
 
 mutant-gfx-repaint-top:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    '/^lcdterm_repaint/,/^}/s/lcd_set_top(top);/(void)top;/'
+	    '/^lcdterm_repaint/,/^}/s/lcd_set_top(lt.top);/(void)lt.top;/'
 
 mutant-gfx-repaint-cursor:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
@@ -627,7 +627,7 @@ mutant-gfx-enter-draws:
 
 mutant-gfx-abort:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" lcdterm.c \
-	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/'
+	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(lt.top);/'
 
 KBDEVQ_MUT=	@sh ./mutant_unit.sh "${HOST_CC}" \
 		"${CSTD} -D_DEFAULT_SOURCE -DPICOKBD_EVQ_TEST -I${TOPSRC}/tests/picocalc/shim" \
@@ -1552,7 +1552,7 @@ gfx-mutant-leave-reset:
 
 gfx-mutant-abort-leave:
 	${GFX_MUT} lcdterm.c \
-	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(top);/' ${GFX_SRC}
+	    '/^lcdterm_abort/,/^}/s/lcdterm_gfx(0);/lcd_set_top(lt.top);/' ${GFX_SRC}
 
 gfx-mutant-tileset-bound-high:
 	${GFX_MUT} lcdgfx.c \

@@ -800,6 +800,8 @@ def t_bufcore(b, td):
     # word size: undo, the slot reservation and injected allocation failures.
     here = os.path.dirname(os.path.abspath(__file__))
     srcdir = os.path.dirname(b)
+    if not os.path.exists(os.path.join(srcdir, "lexeme_buf.c")):
+        srcdir = os.path.dirname(here)
     exe = os.path.join(td, "buf_test")
     cmd = [
         os.environ.get("HOSTCC", "cc"),

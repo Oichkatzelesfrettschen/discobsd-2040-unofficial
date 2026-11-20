@@ -32,13 +32,15 @@
 ;
 ; mouse.hexdump is the assembled program, 32 bytes a line. The setup prints
 ; the data area's COM1 address and serial port count, the scratch
-; register, the loopback status and echo, the line status after the
-; mouse's power comes on and two ticks later, the interrupts taken before
-; and after OUT2 (set by one word written to ports 3FBh and 3FCh), the
-; modem control and line status read as one word, the identification
-; register in the handler and the identification byte. Then "ready", then a line for each report (p, the
-; buttons, X and Y as bytes) and for each key (k, its code, and the most
-; bytes the handler took in one timer tick).
+; register, the loopback status and echo, the line status after two ticks
+; of loopback with RTS set (nothing from the mouse), the line status after
+; the mouse's power comes on and two ticks later, the interrupts taken
+; before and after OUT2 (set by one word written to ports 3FBh and 3FCh),
+; the modem control and line status read as one word, the identification
+; register in the handler and the identification byte. Then "ready", then
+; a line for each report (p, the buttons, X and Y as bytes) and for each
+; key (k, its code, and the most bytes the handler took in one timer
+; tick).
 
 	bits 16
 	cpu 8086
@@ -186,6 +188,11 @@ main:	mov si, s_com
 	call sayin
 	mov dx, COM
 	mov si, s_echo
+	call sayin
+	mov cx, 2			; loopback keeps the mouse unpowered
+	call ticks
+	mov dx, COM + 5
+	mov si, s_quiet
 	call sayin
 	mov dx, COM + 4			; power off
 	xor al, al
@@ -351,6 +358,7 @@ s_irqs:	db "irqs:", 0
 s_iir:	db "iir:", 0
 s_id:	db "id:", 0
 s_ready: db "ready", 0
+s_quiet: db "quiet:", 0
 s_word:	db "word:", 0
 s_key:	db "k:", 0
 

@@ -293,7 +293,11 @@ MUTANTS = [
     ),
     ("serial.c", "return (ready && (ier & 1) && (mcr & 8));", "return (ready && (ier & 1));"),
     ("serial.c", "v = ready && (ier & 1) ? 0x04 : 0x01;", "v = 0x01;"),
-    ("serial.c", "if (mcr & 2)\n\t\t\t\tsend(&ident, 1);", "if (mcr & 2)\n\t\t\t\t(void)ident;"),
+    (
+        "serial.c",
+        "if (POWER(mcr))\n\t\t\t\tsend(&ident, 1);",
+        "if (POWER(mcr))\n\t\t\t\t(void)ident;",
+    ),
     ("serial.c", "\tready = 1;\n\tdue = now + BYTE_MS;", "\tready = 1;\n\tdue = now;"),
     ("serial.c", "v = 0x60 | (unsigned)ready;", "v = 0x60;"),
     ("serial.c", "(y >> 6) << 2 | x >> 6);", "x >> 6);"),
@@ -318,6 +322,7 @@ MUTANTS = [
         "\t\t(void)c;",
     ),
     ("serial.c", "\tif (QN - qn < 3)\n\t\tbehind = 1;", "\tif (QN - qn < 3)\n\t\tbehind = 0;"),
+    ("serial.c", "#define POWER(m)\t(((m) & 0x12) == 2)", "#define POWER(m)\t(((m) & 0x02) == 2)"),
 ]
 
 
@@ -866,6 +871,7 @@ def test_mouse(binary, work):
         b"msr:90",
         b"lsr:61",
         b"echo:A5",
+        b"quiet:60",
         b"lsr:60",
         b"lsr:61",
         b"irqs:00",

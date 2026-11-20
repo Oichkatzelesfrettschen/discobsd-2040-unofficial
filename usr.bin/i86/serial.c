@@ -37,7 +37,9 @@
  * that condition only while OUT2 (modem control bit 3) is set, as the PC's
  * serial adapter gates it. The transmitter is always empty, and a byte
  * written goes nowhere except in loopback mode, where it is received and
- * the modem status inputs read the modem control outputs.
+ * the modem status inputs read the modem control outputs. Loopback also
+ * holds the outputs inactive at the connector, so the mouse has no power
+ * then and nothing it sends reaches the receiver.
  *
  * The mouse draws its power from RTS. When RTS rises it starts again and
  * sends 'M', the Microsoft mouse's identification, which drivers wait for
@@ -57,6 +59,7 @@
 #include "serial.h"
 
 #define BYTE_MS		8		/* one byte at 1200 bit/s */
+#define POWER(m)	(((m) & 0x12) == 2)	/* RTS reaches the mouse */
 #define QN		48		/* bytes on the way: sixteen reports */
 
 static uint8_t q[QN];
@@ -174,11 +177,11 @@ ser_out(unsigned port, unsigned v)
 	case 4:
 		old = mcr;
 		mcr = (uint8_t)(v & 0x1f);
-		if ((old ^ mcr) & 2) {
+		if (POWER(old) != POWER(mcr)) {
 			/* Power off, or on with the identification. */
 			qh = qn = 0;
 			behind = 0;
-			if (mcr & 2)
+			if (POWER(mcr))
 				send(&ident, 1);
 		}
 		break;
@@ -204,7 +207,7 @@ report(int dx, int dy, unsigned buttons)
 void
 mouse_report(int dx, int dy, unsigned buttons)
 {
-	if (!(mcr & 2) || (mcr & 0x10))
+	if (!POWER(mcr))
 		return;
 	buttons_now = buttons;
 	if (QN - qn < 3)

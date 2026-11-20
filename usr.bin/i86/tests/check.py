@@ -595,7 +595,7 @@ def main(argv):
                         raise Failure("guest.hexdump differs from guest.asm")
                 print("guest.hexdump matches guest.asm")
             else:
-                print("NOT RUN guest.hexdump against guest.asm: nasm (package nasm) is not installed")
+                print("NOT RUN guest.hexdump against guest.asm: nasm (package nasm) is absent")
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
             test(binary, work)

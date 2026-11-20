@@ -97,6 +97,8 @@ TAIL = [
 ]
 
 MUTANTS = [
+    ("pc.c", "(c->irq && (c->fl & F_IF)))\n\t\t\tbreak;", "c->irq)\n\t\t\tbreak;"),
+    ("pc.c", "if (c->halted && !(c->fl & F_IF) && cf.keys != NULL)\n\t\t\thost_exit(0);", ";"),
     ("pc.c", "host_exit(4);", "host_exit(0);"),
     ("pc.c", "mem_rw((sp + 2) & (MEM_SIZE - 1)),", "mem_rw((sp + 4) & (MEM_SIZE - 1)),"),
     ("cpu.c", "(d.reg == 7 || (!w && d.reg > 1))", "(d.reg == 7 && !w)"),
@@ -214,7 +216,7 @@ MUTANTS = [
     ),
     ("pc.c", "if (++t >= 0x1800b0) {", "if (t >= 0x1800b0) {"),
     ("pc.c", "mem_ww(4 * 8, ROM_OFF + ROM_TIMER);", ";"),
-    ("main.c", "(!cpu.halted || cpu.irq); i++)", "!cpu.halted; i++)"),
+    ("main.c", "(!cpu.halted ||\n\t\t    (cpu.irq && (cpu.fl & F_IF))); i++)", "!cpu.halted; i++)"),
     ("main.c", "mem_failed = store_failed;", "(void)store_failed;"),
     ("main.c", "if (caught)\n\t\t\thost_exit(128 + (int)caught);", ";"),
     ("main.c", '"/tmp/i86.%u", (unsigned)getpid() & 0xffffffu', '"/tmp/i86.%u", 0u'),
@@ -444,6 +446,38 @@ def test_endings(binary, work):
     os.close(slave)
     if status != 0:
         raise Failure("quiet session: Control-] did not end it (exit %r)" % status)
+    # A guest that halts with interrupts off: a scripted session ends, and
+    # an interactive one sleeps instead of spinning until Control-].
+    dead = os.path.join(work, "dead.img")
+    with open(dead, "wb") as handle:
+        handle.write(b"\xfa\xf4" + bytes(508) + b"\x55\xaa")
+        handle.truncate(360 * 1024)
+    try:
+        done = subprocess.run(
+            [binary, "-q", "-T", "-s", store, "-a", dead, "-k", KEYS],
+            timeout=10,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("halted guest: the scripted session runs on") from None
+    if done.returncode != 0:
+        raise Failure("halted guest: exit %d" % done.returncode)
+    master, slave = pty.openpty()
+    child = subprocess.Popen(
+        [binary, "-q", "-s", store, "-a", dead], stdin=slave, stdout=subprocess.DEVNULL
+    )
+    time.sleep(1.0)
+    os.write(master, b"\x1d")
+    _, status, usage = os.wait4(child.pid, 0)
+    child.returncode = os.waitstatus_to_exitcode(status)
+    os.close(master)
+    os.close(slave)
+    spent = usage.ru_utime + usage.ru_stime
+    if child.returncode != 0 or spent > 0.4:
+        raise Failure(
+            "halted guest: exit %d after %.2f s of processor time in one second"
+            % (child.returncode, spent)
+        )
     # Two emulators started without -s do not share a page file.
     stores = set()
     for _ in range(2):

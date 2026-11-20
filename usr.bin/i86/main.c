@@ -294,8 +294,10 @@ main(int argc, char **argv)
 		tty_raw();
 	pc_init(&cpu, &cf);
 	for (;;) {
-		for (i = 0; i < STEPS && !pc_idle &&
-		    (!cpu.halted || cpu.irq); i++)
+		/* A halted processor runs again only for an interrupt it
+		 * can take. */
+		for (i = 0; i < STEPS && !pc_idle && (!cpu.halted ||
+		    (cpu.irq && (cpu.fl & F_IF))); i++)
 			i86_step(&cpu);
 		nsteps++;
 		if (caught)

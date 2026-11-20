@@ -41,8 +41,10 @@
  * that arrangement and saves all LCDG_RAM_LINES lines in memory order.
  *
  * One row of the panel and one row of the image are in memory at a time.
- * The memory read needs the superuser and a kernel built with LCD_GFX_EXT;
- * the output file is removed when a read or a write fails.
+ * The memory read needs a kernel built with LCD_GFX_EXT (sys/sys/lcdgfx.h).
+ * Only the superuser's open leaves the console's screen in the memory; any
+ * other user's open blanks it, so a capture by another user is a blank panel.
+ * The output file is removed when a read or a write fails.
  */
 
 #include <sys/types.h>

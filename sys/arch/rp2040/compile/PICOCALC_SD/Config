@@ -60,5 +60,6 @@ options        "SWAPRAM_KB=16"
 options        EXEC_HSAOUT
 options         DEV_ADC
 options         DEV_GPIO
+options         DEV_GPIO_PWM
 options         DEV_LCDGFX
 options         DEV_PCM

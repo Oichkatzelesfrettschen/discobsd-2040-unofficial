@@ -34,6 +34,7 @@
 #include <machine/watchdog.h>
 #ifdef DEV_ADC
 #include <rp2040/dev/adc.h>
+#include <machine/gpio.h>
 #endif
 #include <rp2040/dev/flash.h>
 #ifdef CORE1
@@ -379,6 +380,28 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 			i = name[0] == CPU_ADC_TEMP ?
 			    adc_temp_millicelsius(raw) :
 			    (int)adc_vsys_millivolts(raw);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
+			    sizeof i);
+		}
+	case CPU_ADC:
+		{
+			u_int raw;
+
+			if (namelen != 2)
+				return ENOTDIR;
+			/* Pin-owner refusal: board pins and the GPIO device. */
+			error = adc_input_check(gpio_board_pins(board_id()),
+#ifdef DEV_GPIO
+			    gpio_owned,
+#else
+			    0,
+#endif
+			    name[1]);
+			if (error != 0)
+				return error;
+			if (adc_read(name[1], &raw) != 0)
+				return EIO;
+			i = (int)raw;
 			return sysctl_rdstruct(oldp, oldlenp, newp, &i,
 			    sizeof i);
 		}

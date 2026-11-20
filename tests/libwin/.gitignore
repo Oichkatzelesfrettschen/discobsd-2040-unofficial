@@ -4,3 +4,9 @@ win_*.mutant.c
 win_*.mutant.test
 win_*.mutant.log
 mutants.stamp
+inp_*.mutant.c
+inp_*.mutant.test
+inp_*.mutant.log
+dev_*.mutant.c
+dev_*.mutant.test
+dev_*.mutant.log

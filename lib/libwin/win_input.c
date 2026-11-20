@@ -330,6 +330,9 @@ act_cycle(struct win_scene *s, int forward)
 
 	if (shown_count(s) < 2)
 		return 0;
+	/* Restack and refocus are two calls: reserve both before the first. */
+	if (win_reserve(s, 2 * WIN_DAMAGE_CALL) < 0)
+		return -1;
 	w = shown_end(s, !forward);
 	if ((forward ? win_raise(s, w) : win_lower(s, w)) < 0)
 		return -1;

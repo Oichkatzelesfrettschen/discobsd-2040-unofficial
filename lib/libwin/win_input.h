@@ -213,7 +213,8 @@ void win_input_close(struct win_input_src *src);
  * Wait up to timeout_ms (or without limit when negative) for input and
  * feed everything that arrived to the manager. Raw sessions poll the
  * event queue every WIN_POLL_MS because select(2) wakes on tty bytes only.
- * Returns the number of events and bytes fed, 0 on a timeout, -1 on error.
+ * Returns the number of events and bytes fed, 0 on a timeout, -1 on error;
+ * the call ends within timeout_ms plus WIN_POLL_MS.
  * A dispatch that fails at the backend returns -1 at once with the scene as
  * before it (see the failure contract above); the failed event and the rest
  * of its read batch are discarded, and the modifier table and the swallowed

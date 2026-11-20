@@ -40,7 +40,6 @@
 
 #define GLYPH_W		6
 #define PIXEL_MASK	0x0f
-#define WIN_DAMAGE_RESERVE	2	/* Rectangles one call adds at most. */
 
 static int
 clampi(int v)
@@ -267,16 +266,34 @@ damage_add(struct win_scene *s, int x0, int y0, int x1, int y1)
 }
 
 /*
- * Free the slots one call needs before it changes anything. A backend
- * failure here leaves the scene and the list as they were, so the call can
- * report it and change nothing.
+ * Free n damage slots before anything changes. A backend failure here leaves
+ * the scene and the list as they were, so the caller reports it and has
+ * changed nothing. The worst case of each public call, in rectangles, is
+ * WIN_DAMAGE_CALL (2):
+ *	win_create		its window, the old focus title bar
+ *	win_destroy, win_hide	the window, the new focus title bar
+ *	win_show		the window (the new focus title is inside it)
+ *	win_raise, win_lower	the window, one other title bar
+ *	win_focus		two title bars
+ *	win_move, win_resize, win_set_geometry	old and new rectangle
+ *	win_set_title, win_invalidate		one
+ * A compound operation of k calls reserves k * WIN_DAMAGE_CALL first
+ * (win_reserve), so no inner call finds the list too full to take its own.
  */
 static int
-make_room(struct win_scene *s)
+make_room(struct win_scene *s, int n)
 {
-	if (s->ndamage > WIN_DAMAGE_MAX - WIN_DAMAGE_RESERVE)
+	if (s->ndamage > WIN_DAMAGE_MAX - n)
 		return win_flush(s);
 	return 0;
+}
+
+int
+win_reserve(struct win_scene *s, int n)
+{
+	if (n < 1 || n > WIN_DAMAGE_MAX)
+		return -1;
+	return make_room(s, n);
 }
 
 static void
@@ -510,7 +527,7 @@ win_create(struct win_scene *s, int x, int y, int w, int h,
 	int i;
 
 	if (s->nwin >= WIN_MAX || !size_ok(w, h) || x != clampi(x) ||
-	    y != clampi(y) || make_room(s) < 0)
+	    y != clampi(y) || make_room(s, WIN_DAMAGE_CALL) < 0)
 		return NULL;
 	for (i = 0; s->wins[i].used; i++)
 		;
@@ -539,7 +556,7 @@ win_destroy(struct win_scene *s, struct win *win)
 	int i, j, p;
 
 	j = win_slot(s, win);
-	if (j < 0 || make_room(s) < 0)
+	if (j < 0 || make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	for (i = 0; s->z[i] != j; i++)
 		;
@@ -570,7 +587,7 @@ win_move(struct win_scene *s, struct win *win, int x, int y)
 		win->y = y;
 		return 0;
 	}
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	window_rect(win, &old);
 	win->x = x;
@@ -594,7 +611,7 @@ win_resize(struct win_scene *s, struct win *win, int w, int h)
 		win->h = h;
 		return 0;
 	}
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	window_rect(win, &old);
 	win->w = w;
@@ -615,7 +632,7 @@ win_set_geometry(struct win_scene *s, struct win *win, int x, int y, int w,
 		return -1;
 	if (x == win->x && y == win->y && w == win->w && h == win->h)
 		return 0;
-	if (!win->hidden && make_room(s) < 0)
+	if (!win->hidden && make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	window_rect(win, &old);
 	win->x = x;
@@ -640,7 +657,7 @@ win_raise(struct win_scene *s, struct win *win)
 	follow = s->focus_follows_raise && !win->hidden && s->focus != j;
 	if (s->z[s->nwin - 1] == j && !follow)
 		return 0;
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	if (s->z[s->nwin - 1] != j) {
 		for (i = 0; s->z[i] != j; i++)
@@ -666,7 +683,7 @@ win_lower(struct win_scene *s, struct win *win)
 		return -1;
 	if (s->z[0] == j)
 		return 0;
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	for (i = 0; s->z[i] != j; i++)
 		;
@@ -689,7 +706,7 @@ win_hide(struct win_scene *s, struct win *win)
 		return -1;
 	if (win->hidden)
 		return 0;
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	win->hidden = 1;
 	damage_window(s, win);
@@ -713,7 +730,7 @@ win_show(struct win_scene *s, struct win *win)
 		return -1;
 	if (!win->hidden)
 		return 0;
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	win->hidden = 0;
 	damage_window(s, win);
@@ -730,7 +747,7 @@ win_focus(struct win_scene *s, struct win *win)
 	if (win == NULL) {
 		if (s->focus < 0)
 			return 0;
-		if (make_room(s) < 0)
+		if (make_room(s, WIN_DAMAGE_CALL) < 0)
 			return -1;
 		focus_set(s, -1);
 		return 0;
@@ -740,7 +757,7 @@ win_focus(struct win_scene *s, struct win *win)
 		return -1;
 	if (s->focus == j)
 		return 0;
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	focus_set(s, j);
 	return 0;
@@ -780,7 +797,7 @@ win_set_title(struct win_scene *s, struct win *win, const char *title)
 		title_copy(win, title);
 		return 0;
 	}
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	title_copy(win, title);
 	damage_title(s, j);
@@ -792,7 +809,7 @@ win_invalidate(struct win_scene *s, int x, int y, int w, int h)
 {
 	if (w <= 0 || h <= 0)
 		return 0;
-	if (make_room(s) < 0)
+	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	x = clampi(x);
 	y = clampi(y);

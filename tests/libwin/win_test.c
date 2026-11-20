@@ -395,9 +395,19 @@ kb_ioctl(int fd, unsigned long req, void *arg)
 	return 0;
 }
 
+static int
+kb_gettimeofday(struct timeval *tv, void *tz)
+{
+	(void)tz;
+	tv->tv_sec = kb_clock / 1000;
+	tv->tv_usec = (kb_clock % 1000) * 1000;
+	return 0;
+}
+
 #define ioctl kb_ioctl
 #define read kb_read
 #define select kb_select
+#define gettimeofday kb_gettimeofday
 #ifndef WIN_DEV_SOURCE
 #define WIN_DEV_SOURCE "win_input_dev.c"
 #endif
@@ -405,6 +415,7 @@ kb_ioctl(int fd, unsigned long req, void *arg)
 #undef ioctl
 #undef read
 #undef select
+#undef gettimeofday
 
 /* Test scene */
 
@@ -2857,6 +2868,121 @@ run_input_failures(void)
 	    "mode unchanged, atomic cancel, slot reuse, descriptor loop\n", nfail);
 }
 
+/* One compound or single operation against a failing flush. */
+static int
+compound_run(int op, struct win **w0)
+{
+	struct win *w = tw[0].handle;
+
+	*w0 = w;
+	switch (op) {
+	case 0: return win_input_raw(&in, &scene, 1, 0x86);	/* Next. */
+	case 1: return win_input_raw(&in, &scene, 1, 0x87);	/* Previous. */
+	case 2:
+		return win_input_raw(&in, &scene, 1, 'w');	/* Close, Ctrl held. */
+	case 3: return win_destroy(&scene, win_focused(&scene));
+	case 4: return win_hide(&scene, win_focused(&scene));
+	case 5: return win_show(&scene, w);
+	case 6: return win_create(&scene, 40, 40, 50, 40, "n", NULL, NULL) ? 0 : -1;
+	case 7: return win_raise(&scene, w);
+	case 8: return win_lower(&scene, win_focused(&scene));
+	case 9: return win_focus(&scene, w);
+	case 10: return win_set_geometry(&scene, w, 70, 70, 80, 60);
+	case 11: return win_move(&scene, w, 90, 90);
+	case 12: return win_resize(&scene, w, 60, 40);
+	default: return win_set_title(&scene, w, "retitled");
+	}
+}
+
+/*
+ * Every operation that restacks, refocuses or shows, with the damage list
+ * at every fill level and either focus policy: a failed flush leaves the
+ * scene, focus, stacking and mode exactly as before, a success adds no more
+ * rectangles than its reserved count, and the list never overflows.
+ */
+static void
+run_compound_sweep(void)
+{
+	static const char *const names[] = { "next", "previous", "close",
+	    "destroy focused", "hide focused", "show with focus", "create", "raise",
+	    "lower focused", "focus", "set_geometry", "move", "resize", "set_title" };
+	struct snap sn;
+	struct win *w0;
+	long inj, flushes;
+	int op, n, policy, rc, nd0, cap, cases = 0, failed = 0;
+
+	op_index = -60;
+	msrc_raw = 1;
+	mask_all = 1;
+	for (op = 0; op < 14; op++)
+		for (policy = 0; policy < 2; policy++)
+			for (n = 0; n <= 7; n++) {
+				fixed_world(3);
+				scene.focus_follows_raise = policy;
+				if (op == 5) {
+					if (win_hide(&scene, tw[0].handle) != 0 ||
+					    win_focus(&scene, NULL) != 0)
+						fail("setup");
+				}
+				settle();
+				fill_damage_n(n);
+				if (op == 2)
+					rawev(1, 0xa5);
+				snap_take(&sn);
+				inj = n_injected;
+				flushes = n_ioctl_window;
+				nd0 = scene.ndamage;
+				fail_countdown = 1;
+				rc = compound_run(op, &w0);
+				fail_countdown = 0;
+				cases++;
+				if (rc == -1) {
+					failed++;
+					if (n_injected == inj)
+						fail("%s: failed with no backend failure", names[op]);
+					if (!snap_same(&sn, 0))
+						fail("%s (policy %d, %d rects): failed after "
+						    "changing state", names[op], policy, n);
+				} else if (n_injected != inj) {
+					fail("%s: a backend failure was lost", names[op]);
+				}
+				cap = op <= 1 ? 2 * WIN_DAMAGE_CALL : WIN_DAMAGE_CALL;
+				if (n_ioctl_window == flushes && scene.ndamage - nd0 > cap)
+					fail("%s added %d rectangles, reserved %d", names[op],
+					    scene.ndamage - nd0, cap);
+				if (scene.ndamage > WIN_DAMAGE_MAX)
+					fail("%s overflowed the damage list", names[op]);
+				check_sane();
+			}
+	mask_all = 0;
+	printf("PASS compound sweep: %d cases, %d failed whole and left the scene "
+	    "unchanged, reserved counts held\n", cases, failed);
+}
+
+/* A source that stays readable without completing an event cannot hold a wait. */
+static void
+run_wait_bound(void)
+{
+	struct win_input_src src;
+	int i, r;
+
+	op_index = -61;
+	kb_reset();
+	kb_refuse = 1;
+	fixed_world(2);
+	kb_add(1, 0, 0, 0, "\033");
+	kb_add(2, 0, 0, 0, "[");
+	for (i = 3; i < 90; i++)
+		kb_add(i, 0, 0, 0, "1");
+	(void)win_input_open(&src, KBD_FD);
+	r = win_input_wait(&src, &in, &scene, 50);
+	if (kb_clock > 50 + WIN_POLL_MS)
+		fail("a never-complete sequence held the wait to %ld ms (%d)",
+		    kb_clock, r);
+	printf("PASS wait bound: an endless incomplete sequence ended the wait at "
+	    "%ld ms of 50\n", kb_clock);
+}
+
 /* Backend bytes for three workloads, as the model counts them. */
 static void
 run_measure(void)
@@ -2938,6 +3064,8 @@ main(int argc, char **argv)
 	run_input_fixed();
 	run_dev();
 	run_input_failures();
+	run_compound_sweep();
+	run_wait_bound();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

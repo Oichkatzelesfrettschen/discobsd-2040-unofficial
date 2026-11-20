@@ -62,8 +62,8 @@ MUTATIONS = (
     ),
     (
         "overflow_loses_damage",
-        "\tif (s->ndamage > WIN_DAMAGE_MAX - WIN_DAMAGE_RESERVE)\n\t\treturn win_flush(s);",
-        "\tif (s->ndamage > WIN_DAMAGE_MAX - WIN_DAMAGE_RESERVE)\n\t\treturn s->ndamage = 0;",
+        "\tif (s->ndamage > WIN_DAMAGE_MAX - n)\n\t\treturn win_flush(s);",
+        "\tif (s->ndamage > WIN_DAMAGE_MAX - n)\n\t\treturn s->ndamage = 0;",
     ),
     (
         "inexact_merge",
@@ -119,8 +119,8 @@ MUTATIONS = (
     ),
     (
         "swallowed_create_failure",
-        "\t    y != clampi(y) || make_room(s) < 0)\n\t\treturn NULL;",
-        "\t    y != clampi(y))\n\t\treturn NULL;\n\t(void)make_room(s);",
+        "\t    y != clampi(y) || make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn NULL;",
+        "\t    y != clampi(y))\n\t\treturn NULL;\n\t(void)make_room(s, WIN_DAMAGE_CALL);",
     ),
     (
         "foreign_handle_accepted",
@@ -182,6 +182,11 @@ MUTATIONS = (
         "new_window_keeps_old_focus",
         "\tdamage_window(s, win);\n\tfocus_set(s, i);\n\treturn win;",
         "\tdamage_window(s, win);\n\treturn win;",
+    ),
+    (
+        "reserve_ignores_count",
+        "\treturn make_room(s, n);\n}",
+        "\treturn make_room(s, 1);\n}",
     ),
     (
         "focus_change_skips_old_title",
@@ -278,6 +283,11 @@ INPUT_MUTATIONS = (
         "\t\t(void)win_input_event(in, s, &ev[i]);\n\treturn 0;",
     ),
     (
+        "cycle_not_reserved",
+        "\tif (win_reserve(s, 2 * WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n",
+        "",
+    ),
+    (
         "decoder_writes_past_events",
         "\t\tif (in->esc == ST_ESC)\n"
         "\t\t\tput(&ev[n++], WIN_KEY_ESC, 0, WIN_EV_PRESS);\n"
@@ -329,9 +339,9 @@ DEV_MUTATIONS = (
         "} while (0);",
     ),
     (
-        "timeout_spent_by_wake",
-        "if (r == 0 && left >= 0) {",
-        "if (left >= 0) {",
+        "timeout_charged_only_on_select_timeout",
+        "\t\tif (timeout_ms >= 0) {\n\t\t\t(void)gettimeofday(&tv, NULL);",
+        "\t\tif (timeout_ms >= 0 && r == 0) {\n\t\t\t(void)gettimeofday(&tv, NULL);",
     ),
 )
 

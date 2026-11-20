@@ -43,10 +43,12 @@
  * Waking select on every raw event (a selwakeup() in picokbd_evq_put()) is
  * a kernel change, recorded as open and not made here.
  *
- * The timeout is spent by select timeouts; a wake that delivers no key (a
- * modifier, an ignored byte or the first byte of a sequence) leaves it
- * unspent, so the call can wait somewhat longer than timeout_ms under a
- * steady stream of such input.
+ * The timeout is charged on every iteration against gettimeofday(), which
+ * the target answers from the 1 ms tick (kern_time.c: lbolt times usechz at
+ * HZ 1000), so the call returns within timeout_ms plus one poll interval
+ * whatever the descriptor reports; a source that stays readable without
+ * completing an event (an endless incomplete escape sequence) returns the
+ * bytes fed at the deadline, with the partial sequence still pending.
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -113,12 +115,14 @@ win_input_wait(struct win_input_src *src, struct win_input *in,
     struct win_scene *s, int timeout_ms)
 {
 	unsigned char buf[READ_CHUNK];
-	struct timeval tv;
+	struct timeval tv, t0;
 	fd_set rd;
-	int slice, n, i, r, fed = 0, left = timeout_ms;
+	long elapsed = 0;
+	int slice, n, i, r, fed = 0;
 
+	(void)gettimeofday(&t0, NULL);
 	for (;;) {
-		slice = left;
+		slice = timeout_ms < 0 ? -1 : (int)(timeout_ms - elapsed);
 		if ((src->raw || in->esc != 0) && (slice < 0 || slice > WIN_POLL_MS))
 			slice = WIN_POLL_MS;
 		FD_ZERO(&rd);
@@ -157,9 +161,11 @@ win_input_wait(struct win_input_src *src, struct win_input *in,
 		}
 		if (fed > 0 && in->esc == 0)
 			return fed;
-		if (r == 0 && left >= 0) {
-			left -= slice;
-			if (left <= 0)
+		if (timeout_ms >= 0) {
+			(void)gettimeofday(&tv, NULL);
+			elapsed = (long)(tv.tv_sec - t0.tv_sec) * 1000 +
+			    (long)(tv.tv_usec - t0.tv_usec) / 1000;
+			if (elapsed >= timeout_ms)
 				return fed;
 		}
 	}

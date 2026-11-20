@@ -142,13 +142,13 @@ Sizes, arm-none-eabi-gcc 16.2.0 at -Os, text in bytes, data and bss zero for eve
 
 | Object | Stage 1 | Stage 2 |
 |---|---|---|
-| win.o | 2,790 | 3,864 |
-| win_input.o | none | 1,642 |
-| win_input_dev.o | none | 496 |
+| win.o | 2,790 | 3,904 |
+| win_input.o | none | 1,658 |
+| win_input_dev.o | none | 524 |
 | win_lcdgfx.o | 168 | 168 |
 | lcdfont.o | 855 | 855 |
 
-The stage added 3,212 B of text against the estimate of 2-3 KB, 212 B over its upper end. `struct win_scene` is 5,852 B on the target, `struct win` 68 B and `struct win_input` 32 B; windemo links to 12,615 B text, 260 B data and 5,932 B bss with libc.
+The stage added 3,296 B of text against the estimate of 2-3 KB, 296 B over its upper end. `struct win_scene` is 5,852 B on the target, `struct win` 68 B and `struct win_input` 32 B; windemo links to 12,751 B text, 260 B data and 5,932 B bss with libc.
 
 Bindings. One table (`win_bindings` in win_input.c) holds them, and each exists on both sources unless noted:
 
@@ -168,6 +168,7 @@ What differs from the plan:
 - Key repeat is the controller's HOLD event; a PRESSED event is always a press. The kernel reaches the tty queue for typing presses only (picokbd_translate() returns no byte for HOLD, RELEASED or a modifier, picokbd_map.c:85), so a tty-source program receives no repeat at all, and select(2) on the console wakes for typing presses and nothing else (lcdselect() is ttyselect() over that queue, lcdcons.c:501-505). A raw session therefore polls GETKEY every 20 ms. A kernel wake from picokbd_evq_put() (picokbd_evq.c:143) would remove the poll; it is recorded as open and not made.
 - A raw session leaves each typed byte in the tty queue as well, so the wait reads and discards them; left in place they keep select ready and the loop spins (the gate's mutant fails by that count).
 - A scene call that fails at the backend returns -1 from the input layer at once, with the scene, focus and mode as before and the failed event not applied; the descriptor loop discards the rest of that read batch, clears the modifier table and the swallowed key, and returns -1. Cancel restores position and size in one `win_set_geometry()` call, so it succeeds whole or changes nothing. A mode ends when its window is destroyed or its slot is reused (compared by creation generation).
+- One rule covers every operation that changes more than one thing: each public call reserves its worst case (`WIN_DAMAGE_CALL`, 2 rectangles) before its first change, and a compound operation reserves k times that with `win_reserve()`. The only compound in the input layer is the window cycle (restack, then refocus): 4. Create, destroy and hide with their focus hand-off, show, raise, lower, focus, move, resize and set_geometry reserve 2 each, set_title and invalidate use 1 of their 2. `win_input_wait()` charges elapsed time on every loop turn with gettimeofday(), which the target resolves to the 1 ms tick (kern_time.c, HZ 1000), so it returns within the timeout plus one 20 ms poll even for a source that stays readable without completing an event.
 - A lost count clears the modifier table before the batch it precedes, because the dropped events are the oldest; a held Ctrl returns with its next HOLD.
 
 ## Donors and licenses

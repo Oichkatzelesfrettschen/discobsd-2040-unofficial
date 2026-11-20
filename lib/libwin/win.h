@@ -54,6 +54,17 @@
  * rectangle, so the list covers exactly the pixels invalidated and few
  * pixels twice. A rectangle is never widened.
  *
+ * Compound operations. Every public call makes room for its own
+ * WIN_DAMAGE_CALL rectangles before it changes anything (the list of
+ * per-call worst cases is above make_room() in win.c), so a call fails whole
+ * or not at all. A caller that performs several calls as one operation (the
+ * window cycle of win_input.c is two) reserves k * WIN_DAMAGE_CALL slots
+ * with win_reserve() first; the inner calls then find their room and cannot
+ * fail midway. One rule covers destroy and hide with a focus hand-off, show,
+ * raise, lower and create with their title bars: each is a single call that
+ * reserves its two rectangles up front. win_reserve() needs
+ * k * WIN_DAMAGE_CALL <= WIN_DAMAGE_MAX.
+ *
  * Failure rule. A call adds at most two rectangles, so it first flushes the
  * list when fewer than two slots are free, before it changes the scene.
  * When that flush fails at the backend the call returns -1 (NULL from
@@ -93,6 +104,7 @@
 #define WIN_PANEL_H	320
 #define WIN_MAX		8
 #define WIN_DAMAGE_MAX	8
+#define WIN_DAMAGE_CALL	2		/* Rectangles one public call adds at most. */
 #define WIN_STRIP_BYTES	5120		/* 16 rows of a full-width strip. */
 #define WIN_GUARD	8		/* Guard bytes on each side of the strip. */
 #define WIN_GUARD_BYTE	0xa5
@@ -174,6 +186,8 @@ struct win_scene {
 int win_scene_init(struct win_scene *s, const struct win_backend *be);
 int win_set_palette(struct win_scene *s, int index, int r, int g, int b);
 int win_flush(struct win_scene *s);
+/* Flush if fewer than n damage slots are free; -1 changes nothing. */
+int win_reserve(struct win_scene *s, int n);
 
 /* Windows. A new window is on top. */
 struct win *win_create(struct win_scene *s, int x, int y, int w, int h,

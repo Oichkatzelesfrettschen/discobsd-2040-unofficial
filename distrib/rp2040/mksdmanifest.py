@@ -3,7 +3,7 @@
 
 Usage: mksdmanifest.py MANIFEST DESTDIR OUTPUT
 
-The PicoCalc's SD root (tools/picocalc/mksdroot.sh) has 32 MiB where the
+The PicoCalc's SD root (tools/picocalc/mksdroot.sh) defaults to 128 MiB where the
 flash root has 979 KB, so it carries the whole install tree rather than the
 flash profile's selection. MANIFEST is the composed flash manifest
 (distrib/rp2040/_manifest: the profile's entries plus md.rp2040), which keeps

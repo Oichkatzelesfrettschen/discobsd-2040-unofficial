@@ -3437,7 +3437,7 @@ unprivileged `uidquota` run counts the account before fork, holds children
 live, distinguishes the real-UID refusal from table and swap exhaustion,
 reaps them and forks again. The gate checks the separate temporary partition, runs the installed
 `cut` on a file there with valid and invalid range operands, and exercises
-the missing-root panic. The nightly Linux firmware job owns this emulator gate.
+the missing-root panic. The diagnostic SD kernel boots the same root image in a fresh emulator and runs the root-mount, calendar and login checks. The nightly Linux firmware job owns this emulator gate.
 
 The host check `check-fsutil-clock` also exercises the built extractor with
 a regular file containing a sparse extent, a symbolic link, a preexisting

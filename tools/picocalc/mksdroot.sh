@@ -46,8 +46,7 @@
 # nodes of all four MBR partitions, which the flash root leaves to mknod
 # for want of inodes, and the block node /dev/sd0t of the type-ba /tmp
 # partition when the card has one. The image has one inode per 8 kbytes
-# (4,096 for 32 MiB): the whole tree takes about 1,700, and fsutil's
-# default of one per 16 kbytes would leave about 350 for the owner's files.
+# (16,384 on the default 128 MiB root).
 
 set -eu
 

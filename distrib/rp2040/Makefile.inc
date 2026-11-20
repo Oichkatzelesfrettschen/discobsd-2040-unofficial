@@ -200,7 +200,7 @@ cleanflash:
 # and the base manifest is composed here from the selection's ${MI_MANIFEST},
 # so a picocalc-lean root and a picocalc root sit side by side and neither
 # reads the _manifest another board's image rule wrote last.
-SDROOT_KBYTES?=	32768
+SDROOT_KBYTES?=	131072
 SDROOT_PART?=	c
 SDROOTIMG=	${TOPSRC}/distrib/${MACHINE}/sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img
 SDROOT_MANIFEST=	distrib/${MACHINE}/_manifest.sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}

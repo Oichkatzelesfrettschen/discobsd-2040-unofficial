@@ -45,7 +45,7 @@ expect(const char *what, long got, long want)
 }
 
 /* Model controller. */
-static unsigned char reg_bkl = 0x80, reg_bk2 = 0x40, reg_bat = 0x8a;
+static unsigned char reg_bkl = 32, reg_bk2 = 0, reg_bat = 0x8a;
 static unsigned char off_seconds;
 static unsigned char fifo[8][2];
 static int fifo_n, fifo_i;

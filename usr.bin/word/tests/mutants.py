@@ -199,6 +199,49 @@ MUTANTS = [
         "buf_insert_fmt(ed_cur, s, n, -1)",
         "t_format",
     ),
+    (
+        "spill-append-ignores-the-end",
+        "word_buf.c",
+        "if (lseek(spillfd, (off_t)spilled, SEEK_SET) < 0)",
+        "if (0)",
+        "t_spill_append",
+    ),
+    (
+        "save-temporary-follows-links",
+        "word_buf.c",
+        "O_WRONLY | O_CREAT | O_EXCL, 0600",
+        "O_WRONLY | O_CREAT | O_TRUNC, 0600",
+        "t_save_temp",
+    ),
+    (
+        "replace-deletes-before-it-can-insert",
+        "word.c",
+        "buf_replace(s, e - s, f_with, rl) != 0",
+        "buf_delete(s, e - s, NULL) != 0 || buf_insert(s, f_with, rl) != 0",
+        "t_replace_failure",
+    ),
+    (
+        "replace-all-answer-sticks",
+        "word.c",
+        "\t\t\tr_ask = 0;",
+        "\t\t\tr_ask = r_confirm = 0;",
+        "t_replace_all_local",
+    ),
+    (
+        "pattern-capacity-cuts-the-query",
+        "word.h",
+        "#define WORD_PAT_MAX\tWORD_FIELD_MAX",
+        "#define WORD_PAT_MAX\t64u",
+        "t_overlong_pattern",
+    ),
+    ("csi-parameter-wraps", "word_term.c", "if (p[np] < 1000)", "if (1)", "t_csi_overflow"),
+    (
+        "signal-leaves-the-terminal-raw",
+        "word_term.c",
+        "\tif (rawmode)\n\t\ttty_reset_modes();\n\tsignal(sig, SIG_DFL);",
+        "\tif (0)\n\t\ttty_reset_modes();\n\tsignal(sig, SIG_DFL);",
+        "t_signal_restore",
+    ),
 ]
 
 

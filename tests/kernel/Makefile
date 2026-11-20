@@ -517,7 +517,8 @@ PTRACE_HEADER_DEPS=	${TOPSRC}/sys/sys/param.h \
 PTRACE_MUTANTS=		negative-trace short-read partial-read-publication \
 			misaligned-u-offset u-upper-endpoint arbitrary-u-write \
 			pc-misalignment sp-misalignment psr-control-overwrite \
-			continue-early-pc signal-upper-endpoint step-fallthrough
+			continue-early-pc signal-upper-endpoint step-fallthrough \
+			kill-direct-exit
 PTRACE_ASM_SRC=	${TOPSRC}/lib/libc/arm/sys/ptrace.S
 PTRACE_ASM_HEADER_DEPS=	${TOPSRC}/lib/libc/arm/sys/SYS.h \
 			${TOPSRC}/include/syscall.h
@@ -658,6 +659,7 @@ check-ptrace-mutants: \
 		continue-early-pc) expected='frame->tf_pc == USER_LOWER + 2' ;; \
 		signal-upper-endpoint) expected='ipc.ip_req == -1' ;; \
 		step-fallthrough) expected='ipc.ip_req == -1' ;; \
+		kill-direct-exit) expected='exit_calls == 0' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \
@@ -1452,6 +1454,44 @@ file_owner_test32: file_owner_test.c file_owner_descrip32.o \
 	    hostkern_kern.c file_owner_descrip32.o file_owner_generic32.o \
 	    hostkern32.o
 
+# fdcloseexec() lives in kern_descrip.c; the fixture links that file alone.
+# The mutant closes each descriptor before it empties the slot, the order
+# exec_clear() once used.
+exec_close_descrip32.o: ${FILE_OWNER_DESCRIP_SRC} ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} ${ILP32} -c -o $@ ${FILE_OWNER_DESCRIP_SRC}
+
+exec_close_test32: exec_close_test.c exec_close_descrip32.o \
+    hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} ${ILP32} \
+	    -DHK_ILP32 ${FILE_OWNER_LDFLAGS} -o $@ exec_close_test.c \
+	    hostkern_kern.c exec_close_descrip32.o hostkern32.o
+
+exec_close_detach.mutant.c: ${FILE_OWNER_DESCRIP_SRC}
+	awk '/^        u\.u_(o|po)file\[cc\] = (NULL|0);$$/ { held = held $$0 "\n"; next } \
+	    /^        \(void\) closef\(fp\);$$/ { print; printf "%s", held; next } \
+	    { print }' ${FILE_OWNER_DESCRIP_SRC} >$@
+	@if cmp -s ${FILE_OWNER_DESCRIP_SRC} $@; then \
+		echo 'FAIL exec close mutation changed nothing' >&2; exit 1; \
+	fi
+
+exec_close_detach.mutant.test: exec_close_detach.mutant.c exec_close_test.c \
+    hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${FILE_OWNER_CFLAGS} \
+	    ${FILE_OWNER_RENAMES} ${ILP32} \
+	    -c -o exec_close_detach.mutant.o exec_close_detach.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${FILE_OWNER_RENAMES} ${ILP32} \
+	    -DHK_ILP32 ${FILE_OWNER_LDFLAGS} -o $@ exec_close_test.c \
+	    hostkern_kern.c exec_close_detach.mutant.o hostkern32.o
+
+check-exec-close-mutant: exec_close_detach.mutant.test
+	@if ./exec_close_detach.mutant.test >exec_close_detach.mutant.out 2>&1; then \
+		echo 'FAIL exec close mutant accepted' >&2; exit 1; \
+	else status=$$?; fi; \
+	if [ "$$status" -ne 1 ] || ! grep -F 'slot_still_held[slot] == 0' exec_close_detach.mutant.out >/dev/null; then \
+		cat exec_close_detach.mutant.out >&2; exit 1; \
+	fi; echo 'PASS exec close detach mutant rejected'
+
 file_owner_test_sanitized: file_owner_test.c ${FILE_OWNER_DESCRIP_SRC} \
     ${FILE_OWNER_GENERIC_SRC} hostkern_kern.c hostkern.c hostkern.h \
     ${MACHINE_STAMP}
@@ -1997,6 +2037,62 @@ balloc_test_pico: balloc_test.c ${BALLOC_SRC} hostkern_kern.c hostkern32.o \
 ufs_explicit_time_cred.o: ${UFS_EXPLICIT_TIME_CRED_SRC} ${MACHINE_STAMP}
 	${HOST_CC} ${CRED_KERN_CFLAGS} ${UFS_EXPLICIT_TIME_DEFS} ${ILP32} \
 	    ${UFS_EXPLICIT_TIME_CFLAGS} -c -o $@ ${UFS_EXPLICIT_TIME_CRED_SRC}
+
+# itrunc() of ufs_inode.c writes the shortened inode before it frees a block.
+# The kernel source compiles at the target's width in the PICO configuration
+# with free() of ufs_alloc.c renamed, so the gate's event log sees each release;
+# function sections let it link itrunc, indirtrunc and iupdat without the rest.
+ITRUNC_ORDER_SRC=	${TOPSRC}/sys/kern/ufs_inode.c
+ITRUNC_ORDER_DEFS=	${IALLOC_PICO_DEFS} -Dfree=itrunc_order_free
+ITRUNC_ORDER_CFLAGS=	-ffunction-sections -fdata-sections
+ITRUNC_ORDER_LDFLAGS=	-Wl,--gc-sections
+ITRUNC_ORDER_MUTANTS=	inode-after-frees flags-not-marked inode-write-delayed \
+			second-write-kept write-error-ignored \
+			indirect-write-async indirect-error-ignored \
+			indirect-not-requeued
+
+itrunc_order_test: itrunc_order_test.c ${ITRUNC_ORDER_SRC} hostkern32.o \
+    hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ITRUNC_ORDER_DEFS} ${ILP32} \
+	    ${ITRUNC_ORDER_CFLAGS} -c -o itrunc_order_kernel.o ${ITRUNC_ORDER_SRC}
+	${HOST_CC} ${GATE_CFLAGS} ${ITRUNC_ORDER_DEFS} ${ILP32} \
+	    ${ITRUNC_ORDER_LDFLAGS} -o $@ itrunc_order_test.c \
+	    itrunc_order_kernel.o hostkern32.o
+
+.for mutation in ${ITRUNC_ORDER_MUTANTS}
+itrunc_order_${mutation}.mutant.c: itrunc_order_mutate.py ${ITRUNC_ORDER_SRC}
+	${PYTHON} itrunc_order_mutate.py --source ${ITRUNC_ORDER_SRC} \
+	    --output $@ --mutation ${mutation}
+
+itrunc_order_${mutation}.mutant.test: itrunc_order_${mutation}.mutant.c \
+    itrunc_order_test.c hostkern32.o hostkern.h ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} ${ITRUNC_ORDER_DEFS} ${ILP32} \
+	    ${ITRUNC_ORDER_CFLAGS} -c -o itrunc_order_${mutation}.mutant.o \
+	    itrunc_order_${mutation}.mutant.c
+	${HOST_CC} ${GATE_CFLAGS} ${ITRUNC_ORDER_DEFS} ${ILP32} \
+	    ${ITRUNC_ORDER_LDFLAGS} -o $@ itrunc_order_test.c \
+	    itrunc_order_${mutation}.mutant.o hostkern32.o
+.endfor
+
+# A mutant must fail through the gate's own verdict, not by a crash or a
+# build error.
+check-itrunc-order-mutants: \
+    ${ITRUNC_ORDER_MUTANTS:@mutation@itrunc_order_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${ITRUNC_ORDER_MUTANTS}; do \
+		output=itrunc_order_$$mutation.mutant.out; \
+		if ./itrunc_order_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; \
+		else \
+			status=$$?; \
+		fi; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "checks failed" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL itrunc order $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS itrunc order $$mutation rejected"; \
+	done
 
 ufs_explicit_time_test: ufs_explicit_time_test.c ${UFS_EXPLICIT_TIME_SRC} \
     ufs_explicit_time_cred.o hostkern32.o hostkern.h ${MACHINE_STAMP}
@@ -3360,6 +3456,7 @@ check-pipe-rw-mutants: ${PIPE_RW_MUTANTS:@mutation@pipe_rw_${mutation}.mutant32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test prf_log_test check-prf-log-mutant readlink_test check-readlink-mutant rwuio_test32 check-extract-function pipe_rw_contract32 pipe_rw_contract_single32 check-pipe-rw-mutants file_owner_test32 fionread_test32 sigauth_test \
+	    exec_close_test32 check-exec-close-mutant \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
 	    ptrace_test32 \
 	    mem_span_endpoint-admission.mutant32.test \
@@ -3374,6 +3471,7 @@ check-ilp32:
 	    sysctl_test_compact sysctl_test_wide check-sysctl-proc-mutants \
 	    ialloc_test ialloc_test_pico ialloc_test_diagnostic \
 	    balloc_test balloc_test_pico \
+	    itrunc_order_test check-itrunc-order-mutants \
 	    ufs_explicit_time_test ufs_explicit_time_bad \
 	    ufs_explicit_time_signed_bad futimes_test32 \
 	    check-futimes-mutants check-openat-ilp32 check-openat-mutants \
@@ -3398,6 +3496,7 @@ check-ilp32:
 	    ${.CURDIR}/hostkern32.o
 	${TEST_EXECUTION} run kernel.rwuio.ilp32 -- ./rwuio_test32
 	${TEST_EXECUTION} run kernel.file-owner.ilp32 -- ./file_owner_test32
+	${TEST_EXECUTION} run kernel.exec-close.ilp32 -- ./exec_close_test32
 	${TEST_EXECUTION} run kernel.fionread.ilp32 -- ./fionread_test32
 	${TEST_EXECUTION} run kernel.swap-ioctl.ilp32 -- ./swap_ioctl_test32
 	${TEST_EXECUTION} run kernel.tty-local-mode.ilp32 -- \
@@ -3482,6 +3581,7 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.inode-diagnostic.ilp32 -- ./ialloc_test_diagnostic
 	${TEST_EXECUTION} run kernel.block.ilp32 -- ./balloc_test
 	${TEST_EXECUTION} run kernel.block-pico.ilp32 -- ./balloc_test_pico
+	${TEST_EXECUTION} run kernel.itrunc-order.ilp32 -- ./itrunc_order_test
 	${TEST_EXECUTION} run kernel.explicit-time.ilp32 -- ./ufs_explicit_time_test
 	${TEST_EXECUTION} run kernel.explicit-time-negative.ilp32 -- ./ufs_explicit_time_bad
 	${TEST_EXECUTION} run kernel.explicit-time-signed-negative.ilp32 -- ./ufs_explicit_time_signed_bad
@@ -3497,6 +3597,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.pipe-rw.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.pipe-rw-single.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.file-owner.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.exec-close.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.fionread.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.swap-ioctl.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.tty-local-mode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3513,6 +3614,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.inode.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.inode-diagnostic.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.itrunc-order.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.block.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.block-pico.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.explicit-time.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3635,6 +3737,9 @@ clean:
 	    rwuio_jump_sanitized.o rwuio_hostkern_sanitized.o
 	rm -f file_owner_test file_owner_descrip.o file_owner_generic.o
 	rm -f file_owner_test32 file_owner_descrip32.o file_owner_generic32.o
+	rm -f exec_close_test32 exec_close_descrip32.o exec_close_detach.mutant.c \
+	    exec_close_detach.mutant.o exec_close_detach.mutant.test \
+	    exec_close_detach.mutant.out
 	rm -f file_owner_test_sanitized file_owner_descrip_sanitized.o \
 	    file_owner_generic_sanitized.o file_owner_hostkern_sanitized.o
 	rm -f file_owner_*.mutant.c file_owner_*.mutant.o \
@@ -3687,6 +3792,9 @@ clean:
 	rm -f balloc_kernel.o balloc_kernel_pico.o
 	rm -f balloc_shim.o balloc_shim_pico.o
 	rm -f balloc_test balloc_test_pico
+	rm -f itrunc_order_kernel.o itrunc_order_test itrunc_order_*.mutant.c \
+	    itrunc_order_*.mutant.o itrunc_order_*.mutant.test \
+	    itrunc_order_*.mutant.out
 	rm -f ufs_explicit_time_kernel.o ufs_explicit_time_bad_kernel.o \
 	    ufs_explicit_time_signed_bad_kernel.o ufs_explicit_time_cred.o
 	rm -f ufs_explicit_time_test ufs_explicit_time_bad \

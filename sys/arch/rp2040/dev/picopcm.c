@@ -16,12 +16,15 @@
 
 /*
  * /dev/audio on the PicoCalc: write-only, one opener, unsigned 8-bit mono
- * at PCM_RATE samples per second on both amplifier channels (GP26 and
- * GP27, PWM slice 5; picoaudio.c describes the wiring).
+ * at PCM_RATE samples per second on both audio channels (GP26 and GP27,
+ * PWM slice 5; picoaudio.c describes the wiring).
  *
  * Slice 5 runs a 500 kHz carrier (clk_sys / 250) whose duty cycle is the
- * sample; the board's output filter passes the audio band and the carrier
- * sits far above it. Slice 6 routes no pin and serves as the sample clock:
+ * sample. The board's first-order RC filter (a 220 ohm series resistor into
+ * 100 nF and 100 ohm to ground, loaded by 1.8 kohm through a 47 uF coupling
+ * capacitor) has its corner near 24 kHz, so the audio band passes and the
+ * carrier is attenuated by about 26 dB; the filter alone does not remove it.
+ * Slice 6 routes no pin and serves as the sample clock:
  * it wraps every clk_sys / PCM_RATE cycles and raises the PWM wrap
  * interrupt (datasheet 4.5.2.6 and the INTE register), whose handler moves
  * one sample from the ring to slice 5's compare register. CC is double
@@ -66,7 +69,7 @@
 #define	PWM_INTR		(PWM_BASE + 0xa4)
 #define	PWM_INTE		(PWM_BASE + 0xa8)
 
-#define	PCM_SLICE		5	/* The amplifier pins. */
+#define	PCM_SLICE		5	/* The audio output pins. */
 #define	PCM_CLOCK_SLICE		6	/* The sample clock; no pin routed. */
 #define	PCM_CLOCK_COUNT		(CPU_KHZ * 1000 / PCM_RATE)
 

@@ -47,7 +47,7 @@ typedef uint32_t woff_t;		/* byte offset in the document */
 #define WORD_PATH_MAX	128u
 #define WORD_FIELD_MAX	96u
 #define WORD_MSG_MAX	96u
-#define WORD_PAT_MAX	64u
+#define WORD_PAT_MAX	WORD_FIELD_MAX	/* an atom takes at least one character */
 #define WORD_MENU_DEPTH	4u
 #define WORD_ROWS_MAX	48
 #define WORD_COLS_MAX	120
@@ -112,6 +112,7 @@ int	buf_pap_index(const struct word_pap *p);
 int	buf_restyle(woff_t lo, woff_t hi, int which,
 	    int (*fn)(unsigned old, int which, void *ctx), void *ctx);
 int	buf_delete(woff_t pos, woff_t n, woff_t *ref);
+int	buf_replace(woff_t pos, woff_t n, const char *s, size_t len);
 int	buf_copy(woff_t pos, woff_t n, woff_t *ref);
 int	buf_merge(woff_t pos, const char *path, woff_t *n);
 int	buf_save(const char *path, int backup);

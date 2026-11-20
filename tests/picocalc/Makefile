@@ -122,8 +122,10 @@
 # It requires output of 1 to 1000 bytes to reach the wire in order with no
 # received byte to run the interrupt handler, and a ttywait() loop after 1,
 # 7, 32 and 100 bytes to return only once the FIFO and shift register are
-# empty, through the drain callout's wakeup. Eight mutants of uart.c must
-# fail it (see uart-mutants).
+# empty, through the drain callout's wakeup. A second build with
+# PICOCALC_ENABLED requires UART1 on GP8 and GP9 and clear of every PSRAM
+# line (GP2-GP5, GP20, GP21), and the build without it requires GP4 and GP5.
+# Twelve mutants of uart.c must fail the two builds (see uart-mutants).
 #
 TOPSRC!=	cd ../..; pwd
 
@@ -161,7 +163,7 @@ all: check
 check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	gametile_test \
 	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	uart_test panel_decode_test panel_scan_test font-sync
+	uart_test uart_picocalc_test panel_decode_test panel_scan_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./lcdgfx_ext_test
@@ -174,6 +176,7 @@ check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	./picoaudio_test
 	./picopcm_test
 	./uart_test
+	./uart_picocalc_test
 	./panel_decode_test
 	./panel_scan_test
 	${MAKE} mutants gfx-mutants gfxext-mutants kbdreq-mutants kbdevq-mutants \
@@ -2306,14 +2309,22 @@ UARTCSTD=	-std=gnu17 -Wall -Wextra -Werror -DKERNEL -DUART_HOST_MODEL \
 uart_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h
 	${HOST_CC} ${UARTCSTD} ${SAN} -g -I${DEV} -o $@ uart_test.c
 
+# The PicoCalc build of the same test: PICOCALC_ENABLED moves UART1 from GP4
+# and GP5, which are PSRAM data lines on that board, to GP8 and GP9.
+uart_picocalc_test: uart_test.c ${DEV}/uart.c ${DEV}/uart.h ${DEV}/psram_pio.h
+	${HOST_CC} ${UARTCSTD} -DPICOCALC_ENABLED ${SAN} -g -I${DEV} -o $@ uart_test.c
+
 UART_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${UARTCSTD} ${SAN}" "${DEV}" \
 		uart_test.c
+UART_PC_MUT=	sh ./mutant_unit.sh "${HOST_CC}" \
+		"${UARTCSTD} -DPICOCALC_ENABLED ${SAN}" "${DEV}" uart_test.c
 
 uart-mutants: uart-mutant-one-byte uart-mutant-busy-empty \
 	uart-mutant-busy-early uart-mutant-drain-unchecked \
 	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
 	uart-mutant-putc-waits uart-mutant-timer-dup \
-	uart-mutant-rx-pull-down
+	uart-mutant-rx-pull-down uart-mutant-picocalc-psram-pins \
+	uart-mutant-picocalc-guard-dropped uart-mutant-picocalc-sio3
 
 uart-mutant-one-byte:
 	@MUTANT_EXPECT='FAIL login prompt: 1 of 7 bytes reach the wire' ${UART_MUT} uart.c \
@@ -2365,10 +2376,30 @@ uart-mutant-rx-pull-down:
 	@MUTANT_EXPECT='FAIL receive pad takes the pull-up for the pull-down' ${UART_MUT} uart.c \
 	    's/^\tpad = (pad \& ~PADS_PDE) | PADS_PUE;$$/\t(void)0;/' uart.h
 
+# The PicoCalc table row names the PSRAM's SIO2 and SIO3 pins.
+uart-mutant-picocalc-psram-pins:
+	@MUTANT_EXPECT='FAIL UART1 pins on a PicoCalc are GP8 and GP9' \
+	    ${UART_PC_MUT} uart.c 's/{ UART1_BASE, 8, 9, UART1_IRQ }/{ UART1_BASE, 4, 5, UART1_IRQ }/' \
+	    uart.h psram_pio.h
+
+# The PicoCalc guard is dropped, so a PicoCalc build takes the generic pair.
+uart-mutant-picocalc-guard-dropped:
+	@MUTANT_EXPECT='FAIL UART1 pins on a PicoCalc are GP8 and GP9' \
+	    ${UART_PC_MUT} uart.c 's/^#ifdef PICOCALC_ENABLED$$/#if 0/' \
+	    uart.h psram_pio.h
+
+# A pair that is neither the board's nor the generic one but still lands on
+# the PSRAM's SIO3 line.
+uart-mutant-picocalc-sio3:
+	@MUTANT_EXPECT='FAIL UART1 pins avoid the PSRAM lines' \
+	    ${UART_PC_MUT} uart.c 's/{ UART1_BASE, 8, 9, UART1_IRQ }/{ UART1_BASE, 5, 9, UART1_IRQ }/' \
+	    uart.h psram_pio.h
+
 clean:
 	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
-	    uart_test panel_decode_test panel_scan_test lcdgfx_ext_test
+	    uart_test uart_picocalc_test panel_decode_test panel_scan_test \
+	    lcdgfx_ext_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-reverse-erase mutant-bright mutant-bell \
@@ -2538,4 +2569,6 @@ clean:
 .PHONY: uart-mutants uart-mutant-one-byte uart-mutant-busy-empty \
 	uart-mutant-busy-early uart-mutant-drain-unchecked \
 	uart-mutant-drain-no-wake uart-mutant-drain-blocks \
-	uart-mutant-putc-waits uart-mutant-timer-dup
+	uart-mutant-putc-waits uart-mutant-timer-dup \
+	uart-mutant-picocalc-psram-pins uart-mutant-picocalc-guard-dropped \
+	uart-mutant-picocalc-sio3

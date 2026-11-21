@@ -31,7 +31,7 @@ or dead costs the observer and no kernel function.
 | Interrupt the processor that stopped answering and record its PC | DragonFly's sampled PC of a non-draining CPU; NetBSD's "hogging kernel lock" IPI | The NMI probe below |
 | A processor that survives the main one and holds its record | the VAX 8600 console processor | Core 1 keeps running from SRAM while core 0 is masked |
 | Ping answered from the service's own loop, restart with backoff, give up after a bound | MINIX 3 Reincarnation Server | Kept. Inverted in one respect: a dead service degrades the system instead of stopping it |
-| State held outside the service, operations safe to repeat | MINIX 3 | A ping is a pure function of its entry; a restart of core 1 loses only state its next ping recomputes |
+| State held outside the service, operations safe to repeat | MINIX 3 | A ping is a pure function of its entry; the observer record `core1.c1_obs` lives outside the service, so a restart, which resets only the rings, keeps it |
 | Launch protocol, forced-off reset, vector table and stack in SRAM | RP2040 datasheet 2.8.2 and 2.13; Pico SDK `multicore.c` read for technique | Written against the registers; no SDK code |
 
 ## Core 1 executes and reads SRAM only

@@ -305,7 +305,10 @@ gives 0.32 million guest instructions a second for a CPU-bound loop on a
 bare Pico at 125 MHz, with no display and no paging: XT speed, and 30 to
 40 percent below the instruction-count estimate, because the loop costs
 about 219 Thumb instructions a step rather than 153 and the board runs at
-about 1.8 cycles per Thumb instruction. The panel, the card and the PSRAM
+about 1.8 cycles per Thumb instruction. The 8254 timer adds 2 Thumb
+instructions a step to that loop (227.8 against 225.7 under qemu-user with
+main.c's run loop, recorded in the same file), 0.9 percent. The panel, the
+card and the PSRAM
 are not in that figure. Panel output runs on the same core: `st7365p.c`
 polls the transmit FIFO at 12.5 MHz for every byte, so a full graphics
 frame of 64,000 RGB565 pixels holds the emulating core for about 82 ms

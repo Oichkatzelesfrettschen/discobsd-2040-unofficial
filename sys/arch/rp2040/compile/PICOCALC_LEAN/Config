@@ -29,9 +29,9 @@
 # ====================================================================
 #
 # The PICOCALC kernel without the per-driver device options (DEV_ADC,
-# DEV_GPIO, DEV_LCDGFX, DEV_PCM), the diagnostic options (SYSTRACE,
-# CAPACITY_STATS) and the panel register test (LCD_PANELTEST): the panel console and keyboard, the SD card,
-# the PSRAM swap device and the two USB serial ports remain. Its sysctl
+# DEV_GPIO, DEV_LCDGFX, DEV_PCM) and the fixed-table accounting
+# (CAPACITY_STATS): the panel console and keyboard, the SD card, the PSRAM
+# swap device and the two USB serial ports remain. Its sysctl
 # answers EOPNOTSUPP for kern.systrace, kern.capacity and the ADC nodes, and
 # /dev/porta, /dev/portb, /dev/lcdgfx and /dev/audio have no driver behind
 # them. This Config and PICOCALC's differ in the board line and those

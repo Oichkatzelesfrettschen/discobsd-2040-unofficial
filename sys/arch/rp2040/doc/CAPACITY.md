@@ -100,7 +100,8 @@ the `SYSTRACE` hooks, and answer `EOPNOTSUPP` for `kern.capacity`,
 "value is not available", and `sbin/sysctl`, `usr.bin/picofetch` and
 `usr.sbin/pstat` treat it as an absent record. PICO_DIAG is PICO plus the
 two options (`compile/PICO_DIAG/unix.uf2`). PICOCALC, the full PicoCalc
-kernel and the default `UNION_KERNEL`, carries both, and PICOCALC_LEAN_DIAG
+kernel and the default `UNION_KERNEL`, carries `CAPACITY_STATS` and leaves
+`SYSTRACE` to the SD-root PICOCALC_SD, and PICOCALC_LEAN_DIAG
 is PICOCALC_LEAN plus the two options; `bmake MACHINE=rp2040
 UNION_KERNEL=PICOCALC_LEAN_DIAG flash` pairs it with a board's descriptor and
 writes `unix[-BOARD]-LEAN-DIAG.uf2` beside the default `unix[-BOARD].uf2`.

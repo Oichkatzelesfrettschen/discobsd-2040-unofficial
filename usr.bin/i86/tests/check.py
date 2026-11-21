@@ -1303,15 +1303,32 @@ def test_pit(binary, work):
     got = pit_run(binary, work, ["-T"])
     if got != want:
         raise Failure("timer -T: %r" % got)
-    got = pit_run(binary, work, [])
-    fields = dict(t.split(":", 1) for t in got if ":" in t)
-    if (
-        not 0x34 <= int(fields.get("irq", "0"), 16) <= 0x37
-        or fields.get("st2") != "00B0"
-        or fields.get("tick") != "ok"
-        or got[-1:] != ["done"]
-    ):
-        raise Failure("timer, host clock: %r" % got)
+    host_clock_irqs(lambda: pit_run(binary, work, []), "timer, host clock")
+
+
+def host_clock_irqs(run, what):
+    """A run of tests/pit.asm on the host's clock must finish whole and
+    count at most 37h interrupts while counter 2 counts 65535 clocks. A
+    host that deschedules the emulator for more than four periods of
+    counter 0 loses the ticks past four (pit_irq queues four at most), so
+    a loaded host counts fewer, never more: one of three runs must count
+    34h to 37h."""
+    seen = []
+    for _ in range(3):
+        got = run()
+        fields = dict(t.split(":", 1) for t in got if ":" in t)
+        irq = int(fields.get("irq", "0"), 16)
+        if (
+            irq > 0x37
+            or fields.get("st2") != "00B0"
+            or fields.get("tick") != "ok"
+            or got[-1:] != ["done"]
+        ):
+            raise Failure("%s: %r" % (what, got))
+        if irq >= 0x34:
+            return
+        seen.append(fields.get("irq"))
+    raise Failure("%s: fewer than 34h interrupts in three runs: %s" % (what, seen))
 
 
 def test_speed(binary, work):
@@ -1319,12 +1336,16 @@ def test_speed(binary, work):
     before "done" alone take 0.36 s (cpu-timing.md: 13.1 clocks each), where
     the whole run takes about 0.1 s unpaced. A lower bound only; the timer's
     interrupts still count the same clocks."""
-    start = time.monotonic()
-    got = pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
-    took = time.monotonic() - start
-    fields = dict(t.split(":", 1) for t in got if ":" in t)
-    if took < 0.3 or not 0x34 <= int(fields.get("irq", "0"), 16) <= 0x37:
-        raise Failure("-S 4.77: %.2f s, %r" % (took, got))
+
+    def paced():
+        start = time.monotonic()
+        got = pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
+        took = time.monotonic() - start
+        if took < 0.3:
+            raise Failure("-S 4.77: %.2f s, %r" % (took, got))
+        return got
+
+    host_clock_irqs(paced, "-S 4.77")
 
 
 def ems_run(binary, work, args, keys, env=None):

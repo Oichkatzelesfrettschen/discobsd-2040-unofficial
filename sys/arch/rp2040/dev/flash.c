@@ -17,7 +17,7 @@
 /*
  * Root filesystem on the RP2040's QSPI flash.
  *
- * DiscoBSD's other targets boot from an SD card, and this board has no
+ * DiscoBSD's other targets boot from an SD card, and this board lacks an
  * socket, so the onboard flash becomes the block device instead. The idea of
  * putting a Unix root on a Pico's flash behind a wear-leveling translation
  * layer is FUZIX's; none of its code is used here, because the FUZIX kernel
@@ -33,10 +33,10 @@
  *	    dhara_nand_*	this file: NOR geometry and erase or program
  *	      bootrom		flash_range_erase, flash_range_program
  *
- * Dhara is written for NAND, and this part is NOR, which costs nothing and
+ * Dhara is written for NAND, and this part is NOR, which suits Dhara at zero cost and
  * saves something. Its contract wants pages programmed sequentially within an
- * eraseblock and never reprogrammed, which NOR satisfies. NOR has no factory
- * bad blocks and no ECC, so the bad-block callbacks below are honest
+ * eraseblock and never reprogrammed, which NOR satisfies. NOR ships without
+ * factory bad blocks and lacks ECC, so the bad-block callbacks below are honest
  * constants rather than stubs awaiting work.
  *
  * The RP2040 constraint that shapes everything here: erasing or programming
@@ -248,7 +248,7 @@ const struct dhara_nand flnand = {
 /*
  * Each ROM entry is a 16-bit address widened through u_int to a pointer,
  * the role uintptr_t has in the Pico SDK's rom_func_lookup(). The kernel's
- * header set has no uintptr_t, so the width it relies on is asserted here.
+ * header set lacks uintptr_t, so the width it relies on is asserted here.
  */
 _Static_assert(sizeof(u_int) == sizeof(void *) &&
     sizeof(u_short) == 2, "ROM table entries widen through u_int");
@@ -261,7 +261,7 @@ rom_func_lookup(u_int code)
 
 	/*
 	 * Both are fixed locations in the boot ROM holding 16-bit pointers,
-	 * so they are read through volatile: the compiler has no object to
+	 * so they are read through volatile: the compiler lacks an object to
 	 * reason about at an absolute address and warns about bounds if
 	 * allowed to try.
 	 */
@@ -473,7 +473,7 @@ flash_reset_hook_arm(u_int erase, u_int n)
  * ID (4Bh) returns 64 factory-set bits after four dummy bytes
  * (W25Q16JV revision G, instruction set table 1 and section 8.2.24).
  *
- * The boot ROM has no entry for an arbitrary command, so the exchange runs
+ * The boot ROM lacks an entry for an arbitrary command, so the exchange runs
  * on the SSI directly, as the Pico SDK's flash_do_cmd() does: the ROM's
  * exit_xip leaves the SSI in eight-bit serial mode, chip select is held low
  * through the IO_QSPI output override because the SSI releases it whenever
@@ -734,7 +734,7 @@ static const struct flash_swap_ops flswap_ops = {
 int
 dhara_nand_is_bad(const struct dhara_nand *n __unused, dhara_block_t b __unused)
 {
-	/* NOR ships no factory bad blocks and marks none at runtime. */
+	/* NOR ships without factory bad blocks and is never marked bad at runtime. */
 	return 0;
 }
 
@@ -806,7 +806,7 @@ dhara_nand_read(const struct dhara_nand *n __unused, dhara_page_t p,
 		dhara_set_error(err, DHARA_E_ECC);
 		return -1;
 	}
-	/* Reads come straight out of the XIP window; NOR carries no ECC. */
+	/* Reads come straight out of the XIP window; NOR lacks ECC. */
 	q = (const u_char *)(FLASH_XIP_BASE + FLASH_FS_OFFSET +
 	    p * FLASH_UNIT_BYTES + offset);
 	bcopy(q, data, length);
@@ -1002,8 +1002,8 @@ fl_setup(int unit)
 	 * The table lives in the first 512 bytes of logical sector 0. Only
 	 * its tail is read, from the physical page Dhara maps the sector to,
 	 * so the frame holds 66 bytes rather than a whole sector. An unmapped
-	 * sector carries no table, as the blank page dhara_map_read would
-	 * return for it carries no MBR_MAGIC.
+	 * sector lacks a table, as the blank page dhara_map_read would
+	 * return for it lacks MBR_MAGIC.
 	 */
 	err = DHARA_E_NONE;
 	if (dhara_map_find(&flmap, 0, &page, &err) < 0) {
@@ -1060,7 +1060,7 @@ flopen(dev_t dev, int flags, int mode __unused)
  * the node's previous last close asked for writing. The last descriptor's own
  * flags do not decide it: a writer may close first and leave a reader to make
  * the last close. A node only ever held for reading forces no padding
- * programs, and the swap unit keeps no map.
+ * programs, and the swap unit writes without a map.
  */
 int
 flclose(dev_t dev, int flag __unused, int mode __unused)
@@ -1291,7 +1291,7 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 		 * filesystem or a descriptor on a partition addresses its blocks
 		 * through the current entries, and flstrategy() would read the new
 		 * ones under it, so the request waits until no partition is open.
-		 * fl has no raw node: the whole-device node is the one fdisk opens
+		 * fl lacks a raw node: the whole-device node is the one fdisk opens
 		 * to rewrite the table, so its open does not hold the table.
 		 */
 		if ((fldrives[unit].openpart & ~(1U << RAWPART)) != 0)
@@ -1301,9 +1301,9 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 
 	case DIOCCHECKPOINT:
 		/*
-		 * The swap unit writes the chip directly and keeps no map.
+		 * The swap unit writes the chip directly, without a map.
 		 * ioctl(2) passes the descriptor's open flags, so a process must
-		 * hold the node open for writing; ufs_sync() passes none.
+		 * hold the node open for writing; ufs_sync() passes 0.
 		 */
 		if (unit == FL_UNIT_SWAP)
 			return EINVAL;

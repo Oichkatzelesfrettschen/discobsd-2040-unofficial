@@ -33,13 +33,13 @@
  * advancing the record by the ticks it hands back. The record moves by whole
  * periods, so a second call from an enclosing window counts only the time
  * the first call did not, and the arithmetic on 32-bit microsecond values
- * is modular, so a TIMERAWL wrap inside the window changes nothing.
+ * is modular, so a TIMERAWL wrap inside the window leaves the result unchanged.
  * Ticks the handler delivers late stay uncounted rather than counted twice:
  * the result is never above the ticks an unmasked SysTick would have raised
  * and at most one below.
  */
 
-/* sys/callout.h carries no include guard; this is its only inclusion here. */
+/* sys/callout.h lacks an include guard; this is its only inclusion here. */
 #include <sys/callout.h>
 
 struct clock_catchup {

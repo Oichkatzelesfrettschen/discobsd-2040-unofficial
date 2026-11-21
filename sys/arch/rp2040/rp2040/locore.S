@@ -95,7 +95,7 @@ resume:
 	ldr	r1, =u0			/* Pointer to u0. area start addr. */
 	ldr	r2, =u			/* Pointer to u. area start addr. */
 	cmp	a1, r2			/* If u (first arg) is the u. area, */
-	beq	2f			/*   there is nothing to remap. */
+	beq	2f			/*   the remap is skipped. */
 
 	ldr	r3, [r2, #0]		/* Pointer to u.u_procp structure. */
 	str	r1, [r3, #P_ADDR_OFFSET]		/* Save &u0 in u.u_procp->p_addr. */

@@ -23,7 +23,7 @@
  * tty layer maps CR to newline and erases on DEL (CERASE in ttychars.h).
  * Break sends ETX, as Ctrl-C does, so the tty's interrupt character (CINTR
  * in ttychars.h) handles both and a RAW tty reads both as data. The power
- * key (0x91) types nothing; picokbd_evq.c records every event for a raw
+ * key (0x91) types zero bytes; picokbd_evq.c records every event for a raw
  * session before this function sees it.
  */
 

@@ -45,8 +45,8 @@
  * the DiscoBSD file-system magic words in the tail. The head is a multiple
  * of 32 KiB, so the tail starts on a sector whatever the cluster size.
  * Section names refer to the Microsoft FAT32 File System
- * Specification (version 1.03; "fatgen103"). The file includes no kernel
- * header, so tests/fat32tail links it against a sector callback over an
+ * Specification (version 1.03; "fatgen103"). The file compiles without kernel
+ * headers, so tests/fat32tail links it against a sector callback over an
  * image, as tests/picocalc does for sdspi.c.
  */
 

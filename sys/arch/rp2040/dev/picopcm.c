@@ -30,7 +30,7 @@
  * 100 nF and 100 ohm to ground, loaded by 1.8 kohm through a 47 uF coupling
  * capacitor) has its corner near 24 kHz, so the audio band passes and the
  * carrier is attenuated by about 26 dB; the filter alone does not remove it.
- * Slice 6 routes no pin and serves as the sample clock:
+ * Slice 6 drives zero pins and serves as the sample clock:
  * it wraps every clk_sys / PCM_RATE cycles and raises the PWM wrap
  * interrupt (datasheet 4.5.2.6 and the INTE register), whose handler moves
  * one sample from the ring to slice 5's compare register. CC is double
@@ -39,7 +39,7 @@
  *
  * The interrupt keeps the NVIC's reset priority, the highest, which is
  * also SysTick's (IPL_CLOCK maps to 0 in machine/intr.h), so neither
- * preempts the other and the handler adds no nesting level to the kernel
+ * preempts the other and the handler adds zero nesting levels to the kernel
  * stack beyond the one SysTick already takes. PRIMASK holds it off like
  * every interrupt: a flash erase under splhigh() (dev/flash.c) pauses the
  * sound for its length and loses no sample, because the ring only empties

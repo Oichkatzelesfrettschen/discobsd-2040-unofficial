@@ -27,12 +27,12 @@
  *
  * Every drawing command validates its whole payload before the first panel
  * write: a coordinate outside the 320x320 panel, or a shape that leaves it,
- * fails with EINVAL and draws nothing. Rectangles, lines and circles are
+ * fails with EINVAL before drawing. Rectangles, lines and circles are
  * drawn through lcd_gfx_window(), lcd_gfx_byte() and lcd_gfx_end() of
  * st7365p.c, which keep chip select low from the window command to the last
  * pixel byte. A window opened by LCDG_WINDOW stays open between write(2)
- * calls; the panel has no other user while gfx_open is set, because
- * lcdterm.c draws nothing then and the console's fatal path ends the
+ * calls; the panel has a single user while gfx_open is set, because
+ * lcdterm.c stops drawing then and the console's fatal path ends the
  * transfer (lcdgfx_isopen()).
  *
  * Colors are RGB565. While the panel runs COLMOD 0x66 each component is

@@ -23,7 +23,7 @@
  * primitives below. The cell store is a ring of physical rows: logical
  * row r lives in physical row (top + r) % LT_ROWS, and a full-screen
  * scroll advances top and moves the panel's hardware scroll start
- * instead of redrawing. The file includes no kernel header, so the host
+ * instead of redrawing. The file compiles without kernel headers, so the host
  * test in tests/picocalc links it against recording primitives.
  *
  * Cell codes 0x20-0x7e are ASCII, drawn from lcdfont.c. Codes 0x80-0xff
@@ -135,7 +135,7 @@ int	lcdterm_app_cursor(void);
 /*
  * lcdterm_glyph() copies the LT_GLYPH_ROWS rows of bank code into rows and
  * returns 1, or returns 0 and leaves rows alone for a code outside the bank. lcdterm_setglyph() replaces one bank glyph and
- * redraws the cells that show it; it returns -1 and changes nothing when
+ * redraws the cells that show it; it returns -1 and leaves the screen unchanged when
  * code is outside the bank or a row sets a bit outside LT_GLYPH_MASK. The
  * caller holds the drawing flag of lcdcons.c.
  */

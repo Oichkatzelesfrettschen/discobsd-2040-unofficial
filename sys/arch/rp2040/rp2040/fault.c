@@ -19,8 +19,8 @@
  *
  * The STM32 edition of this file carries four handlers and decodes HFSR,
  * CFSR, MMFAR, and BFAR to name the cause and the faulting address. ARMv6-M
- * raises one fault exception and defines none of those registers, so the
- * decode has nothing to read and is gone rather than translated. What remains
+ * raises one fault exception and lacks all of those registers, so the
+ * decode has zero registers to read and is gone rather than translated. What remains
  * is the exception stack frame and the EXC_RETURN value.
  *
  * The signal is SIGSEGV rather than the STM32 default of SIGILL. With no
@@ -61,7 +61,7 @@ void lcdabandon(void);
  * does not exist. This is the branch-based form already used by
  * SysTick_Handler in systick.c.
  *
- * The body is the entry sequence itself, so the function carries no AAPCS
+ * The body is the entry sequence itself, so the function lacks an AAPCS
  * boundary: the compiler emits neither prologue nor epilogue, and the
  * sequence owns r0-r3 and reads r4-r11 as the fault left them. It banks
  * r4-r11 into fault_regs, selects the stack holding the exception frame from
@@ -194,7 +194,7 @@ fault_frame_out(const struct userframe *uf)
  * arm_fault(frame, fault_lr)
  *
  * Report what the hardware preserved, signal the process, and return through
- * userret. There is no fault cause to report and no faulting address: see the
+ * userret. The hardware records neither a fault cause nor a faulting address: see the
  * comment at the head of this file.
  */
 static int infault;
@@ -309,7 +309,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	 * A stack that fell into the break guard (mpu.c) between two kernel
 	 * entries faults on its own exception frame: the hardware lowered
 	 * PSP but abandoned the frame writes the guard refused, so the frame
-	 * read here, its 32 bytes and the alignment word, holds no return
+	 * read here, its 32 bytes and the alignment word, lacks a return
 	 * state, and no handler could run on that stack.
 	 */
 	if (rp2040_break_guard_hit(mpu_guard_floor, (u_int)frame,

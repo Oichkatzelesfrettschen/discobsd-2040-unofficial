@@ -21,7 +21,7 @@
  * Section numbers name the SD Physical Layer Simplified Specification
  * (Part 1), Chapter 7 for SPI mode and Chapter 5 for the CSD register.
  * The transport supplies one full-duplex byte, chip select, the SPI clock
- * class and a microsecond clock, so sdspi.c includes no kernel header and
+ * class and a microsecond clock, so sdspi.c compiles without kernel headers and
  * tests/picocalc links it against a card model that replays recorded
  * command transcripts.
  */

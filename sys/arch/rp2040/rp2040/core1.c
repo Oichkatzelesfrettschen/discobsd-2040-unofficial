@@ -27,12 +27,12 @@
  * cores (dev/flash.c), so one instruction or literal fetched from flash
  * during that window would be undefined. Every function core 1 runs is
  * therefore in .ramfunc, including this unit's private copy of corering.c,
- * its vector table and stack are in .bss, and it takes no interrupt: it
+ * its vector table and stack are in .bss, and it runs with interrupts off: it
  * masks them, sleeps in WFI and is woken by its own SysTick becoming
  * pending. tools/verify_rp2040_core1_image.py holds each linked kernel to
  * that rule, and tests/core1 executes the linked code with no flash mapped.
  *
- * Word ownership, since ARMv6-M has nothing to build a lock from: core 1
+ * Word ownership, since ARMv6-M lacks the atomic instructions a lock needs: core 1
  * stores core1.c1_obs, c1_faults, the reply ring's producer words, the
  * request ring's consumer words and core1_probe[0]; core 0 stores the rest,
  * and re-initializes the rings and vector table only while core 1 is in

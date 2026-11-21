@@ -16,7 +16,7 @@
 
 /*
  * Key events of the PicoCalc keyboard controller, translated to the bytes
- * an xterm sends. picokbd_map.c includes no kernel header, so the host
+ * an xterm sends. picokbd_map.c compiles without kernel headers, so the host
  * test in tests/picocalc runs it directly.
  *
  * The controller firmware (picocalc_keyboard, reg.h and keyboard.h) reports
@@ -39,7 +39,7 @@
 /*
  * Translate one event. *ctrl carries the Ctrl state between calls;
  * appcursor is the terminal's cursor-key mode (DECCKM). Returns the number
- * of bytes stored in out, zero for an event that types nothing.
+ * of bytes stored in out, zero for an event that types zero bytes.
  */
 int	picokbd_translate(int state, int key, int appcursor, int *ctrl,
 	    char out[PICOKBD_MAXSEQ]);
@@ -48,7 +48,7 @@ int	picokbd_translate(int state, int key, int appcursor, int *ctrl,
 /*
  * The console a key event selects (LCD_VT): Ctrl+F1 is 0 and Ctrl+F2 is 1,
  * taken from the first press only (a repeat selects the same console again,
- * which changes nothing). Returns -1 for every other event. The caller
+ * which leaves the state unchanged). Returns -1 for every other event. The caller
  * consumes a selecting event instead of translating it.
  */
 int	picokbd_vt_key(int state, int key, int ctrl);

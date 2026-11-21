@@ -25,11 +25,11 @@
  * with MMFAR and BFAR holding the offending address. The STM32 edition of
  * this header decodes all of them.
  *
- * ARMv6-M has none of that. It raises one fault exception, HardFault, and
- * defines no fault status or fault address register at all, so a fault here
- * carries no cause code and no faulting address. Losing that diagnosis is a
- * real capability loss rather than a translation, and there is nothing on the
- * RP2040 to recover it from.
+ * ARMv6-M lacks all of that. It raises one fault exception, HardFault, and
+ * lacks a fault status and a fault address register, so a fault here
+ * arrives without a cause code or faulting address. Losing that diagnosis is a
+ * real capability loss rather than a translation, and the RP2040 keeps that
+ * information nowhere else.
  *
  * What remains is the exception stack frame the hardware pushes, which holds
  * the return address and xPSR of the faulting context. See <machine/frame.h>.

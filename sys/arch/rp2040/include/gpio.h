@@ -30,7 +30,7 @@
  *
  * Only the pins a board leaves free are reachable: a request names others
  * without effect, and GPIO_POLL reports them as zero. Output requests act
- * on pins this device configured. The RP2040 pad has no open-drain mode, so
+ * on pins this device configured. The RP2040 pad lacks an open-drain mode, so
  * GPIO_CONFOD, which the PIC32 driver accepts, is refused here.
  *
  * GPIO_PWM, a request the PIC32 driver lacks, drives pins from a PWM slice

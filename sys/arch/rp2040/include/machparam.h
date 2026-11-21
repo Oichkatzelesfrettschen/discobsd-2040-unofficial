@@ -170,7 +170,7 @@
  */
 #define USERMODE(psr)   ((psr & IPSR_ISR_MASK) == 0)    /* No exceptions. */
 /*
- * ARMv6-M has no BASEPRI register, so "nothing is masked" is PRIMASK zero.
+ * ARMv6-M lacks the BASEPRI register, so "nothing is masked" is PRIMASK zero.
  * The machine-independent kernel calls this macro by its Cortex-M4 name from
  * kern_clock.c, so the name stays and only the test underneath changes.
  */
@@ -208,7 +208,7 @@ void clkstart(void);
 /*
  * The Pico carries one LED on GP25, so every mask above lights the same one.
  * The STM32 header also declared LL_GPIO_EnableClock here, which is an ST HAL
- * entry point for gating a GPIO port's clock. The RP2040 has no such gate and
+ * entry point for gating a GPIO port's clock. The RP2040 lacks such a gate and
  * no such type, so the declaration is gone rather than ported.
  */
 void led_control(int mask, int on);

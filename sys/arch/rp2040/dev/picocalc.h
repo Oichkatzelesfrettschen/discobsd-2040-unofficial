@@ -38,7 +38,7 @@
  * Keyboard controller (an STM32F103 running the vendor's picocalc_keyboard
  * firmware) as an I2C1 target. It also owns the AXP2101 PMU, the LCD and
  * keyboard backlights and power-off; the Pico reaches those only through
- * its registers. The board routes no interrupt line from it to the Pico.
+ * its registers. The board leaves its interrupt line unrouted to the Pico.
  */
 #define	PICOCALC_KBD_SDA	6
 #define	PICOCALC_KBD_SCL	7

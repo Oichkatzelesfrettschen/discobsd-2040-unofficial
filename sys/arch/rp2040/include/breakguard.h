@@ -62,7 +62,7 @@
  * process whose exact break is brk, or zero when the guard stays off. The
  * guard base is brk rounded up to BREAK_GUARD_BYTES and sits that many
  * bytes below the returned value minus BREAK_GUARD_MARGIN. A break so close
- * to 2^32 that the rounding wraps arms nothing.
+ * to 2^32 that the rounding wraps arms zero bytes.
  */
 static inline unsigned int
 rp2040_break_guard_floor(unsigned int brk, unsigned int saddr, unsigned int sp)
@@ -105,7 +105,7 @@ rp2040_break_guard_rasr(unsigned int floor)
 
 /*
  * Return nonzero when [start, start + length) overlaps the guard a nonzero
- * floor arms; a zero floor arms none.
+ * floor arms; a zero floor arms zero bytes.
  */
 static inline int
 rp2040_break_guard_hit(unsigned int floor, unsigned int start,

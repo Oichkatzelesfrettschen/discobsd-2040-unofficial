@@ -561,7 +561,7 @@ SystemClock_Config(void)
  * board and pulled low by the button, so the pad's output is disabled for
  * a moment and the level sampled through SIO. Flash is unreachable while
  * the select floats, which is why this runs from RAM with interrupts
- * masked and calls nothing. startup() is its only caller, before core 1 is
+ * masked and makes zero calls. startup() is its only caller, before core 1 is
  * launched; a caller after that point has to declare the window through
  * watchdog_site(), which withdraws the NMI route core 1 uses. The sequence
  * is the Pico SDK's picoboard/button example, written against the IO_QSPI
@@ -732,7 +732,7 @@ startup(void)
 
 	/*
 	 * The STM32 edition enables the MemManage, BusFault, and UsageFault
-	 * handlers here. ARMv6-M defines none of them: HardFault is the only
+	 * handlers here. ARMv6-M lacks all of them: HardFault is the only
 	 * fault exception, and it is always enabled.
 	 *
 	 * System exception priorities live in SHPR2 and SHPR3 rather than the
@@ -1004,7 +1004,7 @@ mdelay(u_int msec)
 	/*
 	 * The STM32 edition calls the ST HAL's delay, which counts a tick the
 	 * HAL maintains. Nothing here keeps one, so this spins on the
-	 * always-running microsecond timer, which needs no setup.
+	 * always-running microsecond timer, which runs without setup.
 	 */
 	u_int start = MREG32(TIMER_BASE + TIMER_TIMERAWL);
 	u_int usec = msec * 1000;

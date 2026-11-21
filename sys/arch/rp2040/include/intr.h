@@ -14,7 +14,7 @@
  * Derived from sys/arch/stm32/include/intr.h. Two differences follow from
  * ARMv6-M rather than from the board.
  *
- * ARMv6-M defines no BASEPRI register, so it cannot mask by priority level.
+ * ARMv6-M lacks the BASEPRI register, so it cannot mask by priority level.
  * PRIMASK is all there is, and it is all or nothing. Every blocking spl
  * therefore collapses to a global disable, which is what the Cortex-M0 branch
  * of the STM32 header already does. The IPL constants survive because the
@@ -76,7 +76,7 @@
  * every level at or above IPL_HIGH to the most urgent byte 0 and keeps the
  * negative difference out of the unsigned arithmetic.
  *
- * This costs nothing that ARMv6-M had. PRIMASK masks everything or nothing,
+ * This costs ARMv6-M zero capability. PRIMASK masks everything or nothing,
  * so priorities never implement spl here; they only order preemption among
  * interrupts that are already enabled.
  */
@@ -156,7 +156,7 @@ arm_intr_enable_irq(int irq)
 }
 
 /*
- * ARMv6-M has no byte-wide priority store, so a priority write is a
+ * ARMv6-M lacks a byte-wide priority store, so a priority write is a
  * read-modify-write of the containing word. Priority is inverted on Cortex-M,
  * where zero outranks one, hence IPL_TOP - prio.
  */

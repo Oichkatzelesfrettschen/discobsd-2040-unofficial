@@ -85,7 +85,7 @@
  * a byte. With SPO and SPH set the words follow without a gap (2.3.13,
  * page 2-15), and the panel still samples SDA on the rising edge of SCL
  * (page 94), since the second edge of a clock that idles high is the
- * rising one. Chip select is a GPIO, so the frame signal reaches no pin.
+ * rising one. Chip select is a GPIO, so the frame signal stays off the pins.
  * LCD_SPI_MODE0 keeps the gapped format for a comparison build.
  */
 #ifdef LCD_SPI_MODE0
@@ -157,7 +157,7 @@ static const u_char init_seq[] = {
  * The frame rate. FRMCTR1 (B1h, page 219) takes FRS[3:0] and DIVA[1:0] in
  * its first parameter and RTNA[4:0] in its second, and gives the normal
  * mode frame rate as 10^7 / ((168 + RTNA + 32 (15 - FRS)) (480 + VFP + VBP)).
- * BPC (B5h, page 222) has no documented reset value, so a frame table
+ * BPC (B5h, page 222) lacks a documented reset value, so a frame table
  * writes VFP = VBP = 2 (and HBP = 4), the values its table lists, which
  * makes the second factor 484; B5h precedes SLPOUT as page 223 requires.
  * FRAME_SET builds a table from its fields and asserts at compile time
@@ -366,7 +366,7 @@ lcd_set_top(int prow)
 /*
  * The pixel primitives of lcdgfx.c. A transfer is lcd_gfx_window(), the
  * pixel bytes and lcd_gfx_end(); chip select stays low in between, so no
- * other drawer may touch the panel meanwhile (lcdterm.c draws nothing while
+ * other drawer may touch the panel meanwhile (lcdterm.c stops drawing while
  * lcdgfx.c owns it, and st7365p_abort() ends a transfer a fault abandoned).
  */
 void
@@ -696,7 +696,7 @@ lcd_gfx_dither(int on)
 /*
  * The panel register test (doc/PANELTEST.md): register sets compiled from
  * paneltest_sets.h and a readback of the controller's read commands. Only
- * lcdgfx.c calls these, with /dev/lcdgfx open, so lcdterm draws nothing and
+ * lcdgfx.c calls these, with /dev/lcdgfx open, so lcdterm stops drawing and
  * no other transfer is in flight.
  */
 #include <sys/errno.h>

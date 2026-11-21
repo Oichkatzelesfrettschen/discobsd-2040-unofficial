@@ -46,7 +46,7 @@ struct hsx_dec {
     unsigned cnt;               /* bytes left in a pending back-reference */
     unsigned off;               /* distance of the pending back-reference */
     unsigned lb;                /* lookahead bits */
-    unsigned char win[HSXD_WINDOW];  /* history when the caller has no buffer */
+    unsigned char win[HSXD_WINDOW];  /* history when the caller lacks a buffer */
 };
 
 /* Begin a stream with the given lookahead. */

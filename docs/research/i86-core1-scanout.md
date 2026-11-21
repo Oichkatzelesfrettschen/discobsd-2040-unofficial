@@ -13,10 +13,9 @@ has been measured.
 panel in RGB565 (`LCDG_COLMOD` 55h, `usr.bin/i86/gfx.c` `gfx_open()`): a run
 of changed graphics lines is one `LCDG_WINDOW` of `LCDG_WIN_INDEX` and one
 `write(2)` of exactly 320 palette indexes a line (`graphic_refresh()`); text
-cells go as `LCDG_WIN_BITS` windows. The
-kernel expands each byte into wire pixels and feeds SPI1 by polling its
-transmit FIFO (`st7365p.c`), all on core 0, the core that also runs the
-emulator.
+cells go as `LCDG_WIN_BITS` windows. The kernel expands each byte into wire
+pixels and feeds SPI1 by polling its transmit FIFO (`st7365p.c`), all on
+core 0, the core that also runs the emulator.
 
 - Computed: SPI1 runs at 12.5 MHz (80 ns a bit). A 320-pixel RGB565 line
   is 640 bytes, 409.6 us on the wire; i86's 320 by 200 graphics frame is
@@ -28,8 +27,9 @@ emulator.
 - Not a measure of i86's path: the 242 ms write in `PICOCALC.md` comes
   from `tests/rp2040/lcdexttest`, which opens one 320 by 480 `LCDG_RAMWIN`
   window of `LCDG_WIN_RGB565` (no palette expansion), feeds it in 480
-  writes and times its own pattern generator inside the loop. The cost of the palette expansion, of a system call per
-  line and of the FIFO wait on i86's path are all unmeasured.
+  writes and times its own pattern generator inside the loop. The costs of
+  the palette expansion, of a system call per line and of the FIFO wait on
+  i86's path are all unmeasured.
 - Inference: a frame holds core 0 in the draw path for at least its wire
   time, 81.9 ms, longer than one 54.9 ms timer period, so the guest's clock
   interrupts bunch up during a redraw. Of that time, the part spent
@@ -56,6 +56,7 @@ wire bytes, and the kernel RAM free on PICOCALC_SD is a few kilobytes
 (not measured on a current link; `kern.ldscript` also keeps 512 bytes
 free for the dump reserve). A relink of the chosen configuration gives
 the figure before any design counts on it.
+
 Reading i86's buffer in place from core 1 or a DMA master is refused by
 the tree: one 192 KB user window is exchanged between processes, and a
 core-1 entry carries no pointers (`CORE1.md`).
@@ -68,10 +69,10 @@ implementation answers every one before code review.
 - Format and chunking. `/dev/lcdgfx` starts in RGB666 (3 bytes a pixel)
   and admits `LCDG_WIN_BITS`, `LCDG_WIN_RGB565` and `LCDG_RAMWIN` windows,
   with writes of any length that split or cross rows (even lengths only
-  for RGB565; `lcdgfx.c`). An offload either
-  implements every one or covers only `LCDG_WIN_INDEX` at COLMOD 55h and
-  hands every other operation, and any COLMOD change, back to core 0 with
-  the bus idle; its progress record is (x, y, bytes), not a line number.
+  for RGB565; `lcdgfx.c`). An offload either implements every one or
+  covers only `LCDG_WIN_INDEX` at COLMOD 55h and hands every other
+  operation, and any COLMOD change, back to core 0 with the bus idle; its
+  progress record is (x, y, bytes), not a line number.
 - Blocking. A bounded queue lets the writer run only as far ahead as the
   queue; i86 keeps emulating during a frame only if it writes with
   `O_NONBLOCK`, takes `EAGAIN`, and keeps its unsent lines.

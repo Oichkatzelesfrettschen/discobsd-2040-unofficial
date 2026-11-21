@@ -592,17 +592,19 @@ void
 flash_limit_init(void)
 {
 	const volatile u_int *xip = (const volatile u_int *)FLASH_XIP_BASE;
-	uint32_t magic, limit, end;
+	struct loader_layout ll;
+	uint32_t magic, limit;
 	int s;
 
 	magic = xip[LOADER_STAMP_MAGIC_OFFSET / sizeof(u_int)];
 	limit = xip[LOADER_STAMP_LIMIT_OFFSET / sizeof(u_int)];
-	if (loader_stamp_decode(magic, limit, &end) == LOADER_STAMP_INVALID)
+	loader_layout_decode(magic, limit, &ll);
+	if (ll.status == LOADER_STAMP_INVALID)
 		printf("fl: loader stamp limit %x is outside the writable "
 		    "flash; flash writes refused\n", (u_int)limit);
-	flswap_bytes = flash_swap_extent(end);
-	flash_write_end = end;
-	if (magic == LOADER_STAMP_MAGIC) {
+	flswap_bytes = ll.swap_bytes;
+	flash_write_end = ll.write_end;
+	if (ll.loader_boot2) {
 		flash_loader_boot2 = 1;
 		s = splhigh();
 		flash_ssi_restore();

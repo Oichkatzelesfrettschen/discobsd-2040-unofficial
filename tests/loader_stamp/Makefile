@@ -4,7 +4,8 @@
 # sys/arch/rp2040/dev/loader_stamp.h, unchanged, through exhaustive sweeps of
 # offsets and lengths at the 4 KB erase and 256-byte program granularities,
 # the edges at the limit, every limit the decode accepts, the limits it must
-# refuse, and the raw swap writer of flash_swap.c over a whole-chip NOR
+# refuse, the boot layout loader_layout_decode() hands flash_limit_init(),
+# and the raw swap writer of flash_swap.c over a whole-chip NOR
 # model. check_choke.sh requires flash.c's erase and program primitives to
 # be the only boot ROM writers and to apply the bound first, flash_limit_init()
 # to store the decoded end and the swap extent from it and to restore the XIP
@@ -18,8 +19,10 @@
 # that cuts the root accepted, a limit inside the loader's 16 KB accepted, a
 # fail-open fallback, a swap extent that ignores the limit, a swap extent
 # without its cap, either primitive without its bound, a writable end set to
-# the whole chip at init, a swap extent not taken from the decoded end, the
-# divider restore dropped at init or after an XIP re-entry, and a restored
+# the whole chip at init, a swap extent not taken from the decoded layout,
+# the layout never decoded at init, a layout that keeps the full swap region,
+# restores the loader's second stage only for a valid limit or reports every
+# stamp valid, the divider restore dropped at init or after an XIP re-entry, and a restored
 # divider or sample delay that differs from boot2's. A gate that passed them
 # would be checking nothing.
 #
@@ -48,7 +51,9 @@ mutants: mutant-bound-le mutant-offset-only mutant-magic-ignored \
 	mutant-limit-accepted mutant-limit-unaligned mutant-limit-cuts-root \
 	mutant-limit-in-loader mutant-fail-open mutant-swap-extent \
 	mutant-swap-cap mutant-erase-unguarded mutant-program-unguarded \
-	mutant-init-whole-chip mutant-init-swap mutant-init-no-restore \
+	mutant-init-whole-chip mutant-init-swap mutant-init-no-decode \
+	mutant-layout-swap-whole mutant-layout-boot2-valid-only \
+	mutant-layout-status-valid mutant-init-no-restore \
 	mutant-enter-no-restore mutant-clkdiv mutant-sample-dly
 
 # The last byte of an operation may reach the limit itself.
@@ -114,12 +119,31 @@ mutant-program-unguarded:
 # flash_limit_init() leaves the whole chip writable whatever the stamp.
 mutant-init-whole-chip:
 	${MUT} flash.c \
-	    '/^flash_limit_init(/,/^}/s/flash_write_end = end;/flash_write_end = FLASH_TOTAL_BYTES;/'
+	    '/^flash_limit_init(/,/^}/s/flash_write_end = ll.write_end;/flash_write_end = FLASH_TOTAL_BYTES;/'
 
 # fl1 keeps its full size whatever the stamp.
 mutant-init-swap:
 	${MUT} flash.c \
-	    's/flswap_bytes = flash_swap_extent(end);/flswap_bytes = FLASH_SWAP_BYTES;/'
+	    's/flswap_bytes = ll.swap_bytes;/flswap_bytes = FLASH_SWAP_BYTES;/'
+
+# The stamp words are never decoded at init.
+mutant-init-no-decode:
+	${MUT} flash.c '/^flash_limit_init(/,/^}/s/loader_layout_decode(magic, limit, &ll);//'
+
+# The layout keeps the full swap region under the stamp.
+mutant-layout-swap-whole:
+	${MUT} loader_stamp.h \
+	    's/ll->swap_bytes = flash_swap_extent(ll->write_end);/ll->swap_bytes = FLASH_SWAP_BYTES;/'
+
+# A stamp with a bad limit leaves the loader's second stage unrestored.
+mutant-layout-boot2-valid-only:
+	${MUT} loader_stamp.h \
+	    's/ll->loader_boot2 = magic == LOADER_STAMP_MAGIC;/ll->loader_boot2 = ll->status == LOADER_STAMP_VALID;/'
+
+# The layout reports every stamp as valid, so a bad limit prints nothing.
+mutant-layout-status-valid:
+	${MUT} loader_stamp.h \
+	    's/ll->status = loader_stamp_decode(/ll->status = LOADER_STAMP_VALID + 0 * loader_stamp_decode(/'
 
 # The boot-time divider restore under the stamp is dropped.
 mutant-init-no-restore:
@@ -145,5 +169,7 @@ clean:
 	mutant-limit-cuts-root mutant-limit-in-loader mutant-fail-open \
 	mutant-swap-extent mutant-swap-cap mutant-erase-unguarded \
 	mutant-program-unguarded mutant-init-whole-chip mutant-init-swap \
+	mutant-init-no-decode mutant-layout-swap-whole \
+	mutant-layout-boot2-valid-only mutant-layout-status-valid \
 	mutant-init-no-restore mutant-enter-no-restore mutant-clkdiv \
 	mutant-sample-dly clean

@@ -793,6 +793,82 @@ def termios_diff(before, after):
     return "; ".join(parts) or "no field differs"
 
 
+def wait_draining(child, master, seconds):
+    """Wait for child to exit while reading its pseudo-terminal output.
+    Returns the bytes read and the exit status, None when the child still
+    runs after the time. A child that writes more than the pseudo-terminal
+    holds blocks in write() while nothing reads: the emulator draws the
+    guest's screen again on its way out, and a macOS pseudo-terminal holds
+    less than that screen where a Linux one holds more."""
+    got = b""
+    end = time.time() + seconds
+    while child.poll() is None and time.time() < end:
+        ready, _, _ = select.select([master], [], [], 0.05)
+        if ready:
+            try:
+                got += os.read(master, 4096)
+            except OSError:
+                break
+    if child.poll() is None:
+        try:
+            child.wait(timeout=max(0.0, end - time.time()))
+        except subprocess.TimeoutExpired:
+            pass
+    while True:
+        ready, _, _ = select.select([master], [], [], 0.05)
+        if not ready:
+            break
+        try:
+            more = os.read(master, 65536)
+        except OSError:
+            break
+        if not more:
+            break
+        got += more
+    return got, child.poll()
+
+
+def test_wait_draining():
+    """The wait of menu_session against a writer of 1 MiB, more than any
+    pseudo-terminal holds: a plain wait blocks on it, the draining wait
+    returns every byte with the writer's status, and a child that does not
+    exit is reported as running."""
+    size = 1 << 20
+    writer = "import sys; sys.stdout.buffer.write(b'x' * %d); sys.stdout.buffer.flush()" % size
+    sleeper = "import time; time.sleep(60)"
+
+    def run(code, drain, seconds):
+        master, slave = pty.openpty()
+        child = subprocess.Popen(
+            [sys.executable, "-I", "-c", code], stdin=slave, stdout=slave, stderr=subprocess.DEVNULL
+        )
+        try:
+            if drain:
+                got, status = wait_draining(child, master, seconds)
+                return len(got), status
+            try:
+                return child.wait(timeout=seconds)
+            except subprocess.TimeoutExpired:
+                return None
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+            os.close(master)
+            os.close(slave)
+
+    if run(writer, False, 0.5) is not None:
+        raise Failure(
+            "wait_draining: a plain wait returned on a 1 MiB writer, so the case blocks nothing"
+        )
+    got = run(writer, True, 20)
+    if got != (size, 0):
+        raise Failure("wait_draining: the writer gave %r, want (%d, 0)" % (got, size))
+    got = run(sleeper, True, 0.5)
+    if got != (0, None):
+        raise Failure("wait_draining: the sleeper gave %r, want (0, None)" % (got,))
+
+
 def menu_session(binary, work, image, steps, cwd=None, kill=None):
     """A session on a pseudo-terminal: each step waits for a text and
     types. With kill, that signal follows the last step. Returns the raw
@@ -821,16 +897,14 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
                 continue
             at = found + len(steps[step][0])
             time.sleep(0.3)
-            print('TRACE step %d %r at %d of %d after %.2fs, sending %r' % (step, steps[step][0], found, len(plain), time.time() - (deadline - 30), steps[step][1]), file=sys.stderr)
             os.write(master, steps[step][1])
             step += 1
         if step == len(steps):
             if kill is not None:
                 time.sleep(0.5)
                 child.send_signal(kill)
-            status = child.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        status = None
+            more, status = wait_draining(child, master, 5)
+            seen += more
     finally:
         if child.poll() is None:
             child.kill()
@@ -844,7 +918,6 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
     if step != len(steps):
         raise Failure("menu session: %r never appeared" % steps[step][0])
     if status is None:
-        print('TRACE full plain %r' % (re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"|", seen)[-3000:],), file=sys.stderr)
         print(
             "i86 check: menu session: the program did not exit after its last key; "
             "the output ended with %r" % (seen[-400:],),
@@ -1352,6 +1425,7 @@ def test(binary, work):
     test_endings(binary, work)
     test_exit_store_failure(binary, work)
     test_interactive(binary, work)
+    test_wait_draining()
     test_menu_edges(binary, work)
     test_mouse(binary, work)
     # A write-protected image refuses the guest's sector write.

@@ -8,7 +8,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-MAIN_FRAME_LIMIT = 128
+# Each component bound is the largest static frame a supported Arm GCC
+# reports for the shipped source at -Os (main, parse_duration, chain):
+# 13.2.1 (hosted Linux) 128, 48, 176; 14.2.1 136, 40, 176; 16.2.0 128, 40,
+# 168. The chain ceiling is the sum of the two bounds.
+MAIN_FRAME_LIMIT = 136
 PARSE_DURATION_FRAME_LIMIT = 48
 PRE_FORK_CHAIN_LIMIT = MAIN_FRAME_LIMIT + PARSE_DURATION_FRAME_LIMIT
 STACK_MUTATION_ANCHOR = "struct timeout_duration {"

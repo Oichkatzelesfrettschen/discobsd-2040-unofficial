@@ -7,6 +7,7 @@ dbm_open_test32
 exit_lifecycle_test
 exit_lifecycle_test32
 alarm_contract_test
+devname_contract_test
 waitpid_contract_test
 asctime_contract_test
 asctime_contract_bad_test

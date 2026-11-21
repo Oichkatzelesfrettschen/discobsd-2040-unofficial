@@ -22,7 +22,10 @@ BISON=$1
 GRAMMAR=$2
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/dcbc-grammar.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # diagnostics GRAMMAR: bison's conflict warnings for GRAMMAR.
 diagnostics()

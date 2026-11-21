@@ -17,7 +17,10 @@ compile_root=$source_root/sys/arch/rp2040/compile
 # config resolves ../../conf from its working directory, so each case gets
 # its own directory beside the real compile directories.
 test_prefix=$(mktemp -d "$compile_root/config-dumps.XXXXXX")
-trap 'rm -rf "$test_prefix" "$test_prefix".*' EXIT HUP INT TERM
+trap 'rm -rf "$test_prefix" "$test_prefix".*' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # generate NAME SED-SCRIPT: run config on the PICO Config edited by the
 # script, in its own directory, and leave its exit status in $status.

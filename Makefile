@@ -955,6 +955,9 @@ check-libc-host-contracts:
 check-libc-alarm-cross:
 		${MAKE} -C tests/libc_contracts check-alarm-contract-cross
 
+check-libc-devname-cross:
+		${MAKE} -C tests/libc_contracts check-devname-contract-cross
+
 check-libc-waitpid-cross:
 		${MAKE} -C tests/libc_contracts check-waitpid-contract-cross
 
@@ -2164,7 +2167,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
 		check-signal-traps check-alloc-results
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
-		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
+		check-menu-host check-tail-host check-sort-host check-ls-format check-calendar-rules check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host \
 		check-backlight-host check-fstat-host check-sh-editor \
@@ -2195,7 +2198,7 @@ CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-public-ti
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
 		check-c17-headers-cross check-libc-pic-replay \
-		check-libc-alarm-cross \
+		check-libc-alarm-cross check-libc-devname-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
 		check-touch-contracts-cross \
@@ -2293,7 +2296,13 @@ check-sort-host:
 check-ls-format: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} bin/ls/tests/check_format.py
 
-.PHONY: check-ls-format
+# February in date and basic, and the year chpass prints, from the production
+# functions compiled on the host; --selftest restores each earlier defect.
+check-calendar-rules: check-python
+		${PYTHON} tests/calendar_rules/check.py --selftest . ${HOST_CC:Ucc:Q}
+		${PYTHON} tests/calendar_rules/check.py . ${HOST_CC:Ucc:Q}
+
+.PHONY: check-ls-format check-calendar-rules
 
 check-keen-host:
 		${MAKE} -C games/keen test
@@ -2457,19 +2466,15 @@ check-alloc-results: check-python
 		${PYTHON} tools/check_alloc_results.py --selftest
 		${PYTHON} tools/check_alloc_results.py ${ALLOC_RESULT_SOURCES}
 
-# Shell gates that clean a work directory take an EXIT trap and one exiting
+# Shell scripts that clean a work directory take an EXIT trap and one exiting
 # trap per signal: a trap action for HUP, INT or TERM returns to the script,
-# so one action bound to EXIT and a signal lets the gate run on against the
-# removed directory. The scan covers the gates this tree's profile and
-# capacity work changed; tools/check-signal-traps.sh --selftest calibrates it
-# on a conforming and a combined fixture and under SIGTERM.
-SIGNAL_TRAP_SCRIPTS=	distrib/rp2040/check-image-selection.sh \
-		tests/fat32tail/check.sh tools/renode/check-capacity.sh \
-		tools/architecture-isolation/check-architecture-isolation.sh \
-		tests/reboot_contracts/sdk_gap.sh
+# so one action bound to EXIT and a signal lets the script run on against the
+# removed directory. The scan covers every .sh file git tracks, less the
+# exclusions tools/check-signal-traps.sh names with their reasons; its
+# --selftest calibrates the scan, the tracked listing and the SIGTERM idiom.
 check-signal-traps:
 		sh tools/check-signal-traps.sh --selftest
-		sh tools/check-signal-traps.sh ${SIGNAL_TRAP_SCRIPTS}
+		sh tools/check-signal-traps.sh --tracked ${TOPSRC}
 
 # The kernel formatter and neighboring contracts use target-width integer and
 # pointer assumptions. The gate runs them in a 32-bit userspace binary. A host
@@ -2713,14 +2718,21 @@ check-renode-picocalc-dump:
 
 check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kernel
 		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
+		@set -e; out=tools/renode/vendor/results; mkdir -p $$out; \
+		: > $$out/picocalc-sd-system.log; : > $$out/picocalc-sd-diag-system.log; \
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
 		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
 		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
-		    tools/renode/vendor/results/picocalc-sd-system
+		    $$out/picocalc-sd-system >> $$out/picocalc-sd-system.log 2>&1 & sd=$$!; \
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured-boot \
 		    "$$(command -v renode)" ${PICOCALC_SD_DIAG_UF2} \
 		    ${TOPSRC}/distrib/${MACHINE}/sdroot-PICOCALC.img \
-		    tools/renode/vendor/results/picocalc-sd-diag-system
+		    $$out/picocalc-sd-diag-system >> $$out/picocalc-sd-diag-system.log 2>&1 & diag=$$!; \
+		tail -f $$out/picocalc-sd-system.log & follow_sd=$$!; \
+		tail -f $$out/picocalc-sd-diag-system.log & follow_diag=$$!; \
+		status=0; wait $$sd || status=$$?; \
+		wait $$diag || { d=$$?; [ $$status -ne 0 ] || status=$$d; }; \
+		sleep 2; kill $$follow_sd $$follow_diag 2>/dev/null || true; exit $$status
 
 .PHONY: check-renode-picocalc-sd-system
 
@@ -2936,7 +2948,7 @@ installfs:
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-difftime check-libc-difftime-cross check-libc-sleep \
 		check-libc-contracts \
-		check-libc-host-contracts check-libc-alarm-cross \
+		check-libc-host-contracts check-libc-alarm-cross check-libc-devname-cross \
 		check-libc-waitpid-cross \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \

@@ -16,7 +16,10 @@ if [ -d "$destination_path" ]; then
 fi
 
 temporary_path=$(mktemp "$destination_directory/.CLAUDE.md.tmp.XXXXXX")
-trap 'rm -f "$temporary_path"' EXIT HUP INT TERM
+trap 'rm -f "$temporary_path"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 install -m 0644 "$source_path" "$temporary_path"
 mv -f "$temporary_path" "$destination_path"
 trap - EXIT HUP INT TERM

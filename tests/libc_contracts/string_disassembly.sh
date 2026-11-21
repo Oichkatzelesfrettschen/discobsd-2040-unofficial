@@ -9,7 +9,10 @@ fi
 arm_objdump=$1
 object=$2
 temporary_file=$(mktemp)
-trap 'rm -f "$temporary_file"' EXIT HUP INT TERM
+trap 'rm -f "$temporary_file"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 "$arm_objdump" -dr "$object" > "$temporary_file"
 conditional_branches=$(

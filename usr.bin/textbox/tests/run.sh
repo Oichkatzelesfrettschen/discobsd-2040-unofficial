@@ -27,7 +27,9 @@ UB="$TB/.."
 TOPSRC=$(cd "$UB/.." && pwd)
 EXECUTION=$TOPSRC/tools/test_execution.py
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT INT TERM
+trap 'rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 CFLAGS="-D_DEFAULT_SOURCE -D_GNU_SOURCE -Wall -Wextra -Werror -I$TB -o"
 fail=0

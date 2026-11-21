@@ -10,7 +10,10 @@ source_root=$1
 make_command=$2
 target_machine=$3
 temporary_directory=$(mktemp -d)
-trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$temporary_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 build_map()
 {

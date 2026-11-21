@@ -12,6 +12,13 @@ class StackDiagnosticTest(unittest.TestCase):
     def test_supported_gcc_13_frames_satisfy_component_bounds(self) -> None:
         self.assertEqual(stack_test.validate_production_frames(128, 48), 176)
 
+    def test_supported_gcc_14_frames_satisfy_component_bounds(self) -> None:
+        self.assertEqual(stack_test.validate_production_frames(136, 40), 176)
+
+    def test_a_main_frame_past_the_largest_measured_fails(self) -> None:
+        with self.assertRaisesRegex(stack_test.StackFailure, "main=144, total=144, limit=136"):
+            stack_test.validate_production_frames(144, 40)
+
     def test_pre_fork_ceiling_is_the_component_sum(self) -> None:
         self.assertEqual(
             stack_test.PRE_FORK_CHAIN_LIMIT,

@@ -17,7 +17,10 @@ indexer=$tool_directory/ranlib
 linker=$tool_directory/ld
 symbol_reader=$tool_directory/nm
 temporary_directory=$(mktemp -d)
-trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$temporary_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 for required_tool in "$assembler" "$archiver" "$indexer" "$linker" "$symbol_reader"
 do

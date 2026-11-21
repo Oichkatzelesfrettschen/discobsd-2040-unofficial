@@ -13,7 +13,10 @@ nm_command=$1
 readelf_command=$2
 shift 2
 temporary_output=$(mktemp)
-trap 'rm -f "$temporary_output"' EXIT HUP INT TERM
+trap 'rm -f "$temporary_output"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 for object_path do
 	object_name=${object_path##*/}

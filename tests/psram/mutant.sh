@@ -12,7 +12,9 @@ file=$4
 script=$5
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/psram-mutant.XXXXXX")
-trap 'rm -rf "$work"' EXIT INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 mkdir -p "$work/rp2040/dev"
 cp "$src"/psram_pio.h "$src"/psram_xfer.c "$src"/psram_xfer.h \

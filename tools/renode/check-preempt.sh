@@ -83,7 +83,10 @@ echo "check-preempt: Renode ${RUNNING_RENODE:-unknown}"
 
 mkdir -p "$OUTPUT"
 STAGE=$(mktemp -d "$OUTPUT/stage.XXXXXX")
-trap 'rm -f "$STAGE/tmp/preempt"; rmdir "$STAGE/tmp" "$STAGE" 2>/dev/null || :' EXIT HUP INT TERM
+trap 'rm -f "$STAGE/tmp/preempt"; rmdir "$STAGE/tmp" "$STAGE" 2>/dev/null || :' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir "$STAGE/tmp"
 cp "$PROGRAM" "$STAGE/tmp/preempt"
 chmod 755 "$STAGE/tmp/preempt"

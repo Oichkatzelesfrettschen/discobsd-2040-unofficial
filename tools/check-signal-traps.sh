@@ -32,6 +32,7 @@
 # signal's status (129, 130, 143); the EXIT trap then runs once, at exit.
 #
 # usage: check-signal-traps.sh FILE...
+#        check-signal-traps.sh --tracked ROOT
 #        check-signal-traps.sh --selftest
 #
 # The scan rejects any trap command whose signal list names EXIT (or 0) and
@@ -209,6 +210,73 @@ run_normal() {
 	echo "$status"
 }
 
+# Scripts the --tracked scan leaves out, each with its reason.
+# usr.bin/lorder/lorder.sh, the inherited 4.4BSD script, ends its combined
+# trap's action in exit, so a signal ends that script instead of resuming it.
+TRACKED_EXCLUDED='usr.bin/lorder/lorder.sh'
+
+# tracked ROOT: scan every .sh file git tracks under ROOT except those
+# TRACKED_EXCLUDED names. A ROOT without .git reports skip; a missing git, a
+# checkout git cannot read, a failed or empty listing, and an exclusion that
+# names no tracked file fail.
+tracked() {
+	if [ ! -e "$1/.git" ]; then
+		echo "check-signal-traps: skip: $1 is not a git checkout"
+		return 0
+	fi
+	command -v git >/dev/null 2>&1 ||
+		{ echo "check-signal-traps: not run: git is missing; install git" >&2; return 1; }
+	git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
+		{ echo "check-signal-traps: git cannot read the checkout at $1" >&2; return 1; }
+	listing=$(git -C "$1" ls-files -- '*.sh') ||
+		{ echo "check-signal-traps: git ls-files failed in $1" >&2; return 1; }
+	[ -n "$listing" ] ||
+		{ echo "check-signal-traps: git lists no .sh files in $1" >&2; return 1; }
+	for excluded in $TRACKED_EXCLUDED; do
+		printf '%s\n' "$listing" | grep -qxF -- "$excluded" ||
+			{ echo "check-signal-traps: the exclusion $excluded names no tracked script" >&2; return 1; }
+	done
+	count=0
+	tracked_status=0
+	while IFS= read -r file; do
+		case " $TRACKED_EXCLUDED " in
+		*" $file "*) continue ;;
+		esac
+		count=$((count + 1))
+		scan "$1/$file" || tracked_status=1
+	done <<EOF
+$listing
+EOF
+	if [ "$tracked_status" -ne 0 ]; then
+		echo "check-signal-traps: a trap binds EXIT and a signal to one action; use an EXIT trap and one exiting trap per signal" >&2
+		return 1
+	fi
+	echo "check-signal-traps: $count tracked scripts, no combined traps"
+}
+
+# expect_tracked VERDICT LABEL MODE LISTING: run tracked over DIR with a git
+# shim that answers MODE (checkout or none) and lists LISTING, and require
+# it to pass (good), fail (bad) or report skip (skip).
+expect_tracked() {
+	case $3 in
+	none) rm -f "$dir/.git" ;;
+	*) : >"$dir/.git" ;;
+	esac
+	printf '%s\n' "$3" >"$dir/shim.mode"
+	printf '%s' "$4" >"$dir/shim.listing"
+	found=bad
+	if output=$(PATH="$dir/bin:$PATH"; tracked "$dir" 2>/dev/null); then
+		case $output in
+		*"skip:"*) found=skip ;;
+		*) found=good ;;
+		esac
+	fi
+	if [ "$found" != "$1" ]; then
+		echo "selftest: tracked $2: expected $1, the scan said $found" >&2
+		exit 1
+	fi
+}
+
 # remove_directory DIR: delete the files and links under DIR, then its
 # directories from the deepest up; the removal names no recursive delete.
 remove_directory() {
@@ -317,6 +385,29 @@ trap 'exit 143' TERM"
 	expect_scan good "commented trap" "# trap cleanup EXIT TERM"
 	expect_scan good "trap in a quoted string" "printf '%s\n' 'trap cleanup EXIT TERM'"
 	expect_scan good "trap listing" "trap -p"
+	# --tracked over a listing from a git shim.
+	mkdir "$dir/bin"
+	cat >"$dir/bin/git" <<EOF
+#!/bin/sh
+case \$3 in
+rev-parse) [ "\$(cat "$dir/shim.mode")" = checkout ] ;;
+ls-files) cat "$dir/shim.listing" ;;
+esac
+EOF
+	chmod 755 "$dir/bin/git"
+	expect_tracked good "conforming scripts" checkout "good.scan
+usr.bin/lorder/lorder.sh
+"
+	expect_tracked bad "a combined trap" checkout "good.scan
+bad.scan
+usr.bin/lorder/lorder.sh
+"
+	expect_tracked bad "a stale exclusion" checkout "good.scan
+"
+	expect_tracked bad "an empty listing" checkout ""
+	expect_tracked skip "outside a checkout" none ""
+	expect_tracked bad "a checkout git cannot read" broken "good.scan
+"
 	normal_status=$(run_normal good "$dir")
 	[ "$normal_status" -eq 0 ] || { echo "selftest: conforming fixture exited $normal_status after a normal run" >&2; exit 1; }
 	[ ! -e "$dir/good.work" ] || { echo "selftest: conforming fixture left its work directory after a normal exit" >&2; exit 1; }
@@ -358,7 +449,7 @@ selftest() {
 }
 
 if [ "$#" -eq 0 ]; then
-	echo "usage: check-signal-traps.sh FILE... | --selftest" >&2
+	echo "usage: check-signal-traps.sh FILE... | --tracked ROOT | --selftest" >&2
 	exit 2
 fi
 if [ "$1" = --selftest ]; then
@@ -368,6 +459,11 @@ fi
 if [ "$1" = --selftest-body ]; then
 	selftest_body
 	exit 0
+fi
+if [ "$1" = --tracked ]; then
+	[ "$#" -eq 2 ] || { echo "usage: check-signal-traps.sh --tracked ROOT" >&2; exit 2; }
+	tracked "$2"
+	exit
 fi
 status=0
 for file in "$@"; do

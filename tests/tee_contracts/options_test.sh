@@ -8,7 +8,10 @@ fi
 
 tee_program=$(CDPATH= cd "$(dirname "$1")" && pwd)/$(basename "$1")
 temporary_directory=$(mktemp -d)
-trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$temporary_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 cd "$temporary_directory"
 printf 'alpha\nbeta\n' > input

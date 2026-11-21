@@ -14,7 +14,11 @@ archive=$test_root/libextract.a
 
 rm -rf "$test_root"
 mkdir -p "$build_root" "$extract_root"
-trap 'rm -rf "$test_root"' 0 1 2 3 15
+trap 'rm -rf "$test_root"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 131' QUIT
+trap 'exit 143' TERM
 
 # A member occupies its extended name plus its payload, so the pad byte that
 # follows depends on the sum.  An odd name with an even payload is the case

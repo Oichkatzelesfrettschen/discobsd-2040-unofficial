@@ -59,7 +59,9 @@ on the root, so that board pays the nine blocks and two inodes for nothing.
 `/usr/bin/backlight` with mode 4755, setuid root, because the kernel accepts a
 write to the `machdep.picocalc` light nodes from root only; `mkmanifest.py`
 refuses a profile that selects the closure without that mode. Both PicoCalc
-profiles name it. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
+profiles name it, and so does the opt-in `matezinho` profile, because the
+`matezinho` closure needs it: the desktop's Settings view sets the lights
+through it. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
 console's character major 10, mode 666) that the PICOCALC kernels serve; the
 `picocalc` profile names it, and so does the opt-in `matezinho` profile. The
 `ridge` closure carries the hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile

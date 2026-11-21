@@ -30,6 +30,44 @@ def region_error(actual, expected, y0, y1, x0=0, x1=320):
     )
 
 
+def wait_level(run, renode, prop, want, seconds):
+    """Advance until the keyboard model's light property reads want."""
+    level = None
+    for _ in range(int(seconds * 2)):
+        run.advance(0.5)
+        level = monitor_int(renode, f"sysbus.i2c1.kbd {prop}")
+        if level == want:
+            return level
+    raise AssertionError(f"{prop} reads {level}, not {want}, after {seconds} s")
+
+
+def check_lights(run, renode):
+    """Raise both lights one step from the Settings view, as operator.
+
+    The kernel takes a light write from root alone, so the desktop's change
+    reaches the controller only through the setuid backlight(1) it spawns;
+    an image without that helper, or without its setuid mode, leaves the
+    levels where /etc/rc and the controller put them.
+    """
+    if monitor_int(renode, "sysbus.i2c1.kbd BacklightLevel") != 160:
+        raise AssertionError("/etc/rc did not set the screen light to 160")
+    keys = monitor_int(renode, "sysbus.i2c1.kbd KeyBacklightLevel")
+    if keys != 0:
+        raise AssertionError(f"keyboard light starts at {keys}, not off")
+    renode.command("sysbus.i2c1.kbd TypeKey 177")  # Esc: the launcher
+    run.advance(1)
+    renode.command("sysbus.i2c1.kbd TypeKey 182")  # Down: Notes to Settings
+    renode.command("sysbus.i2c1.kbd TypeKey 10")
+    run.advance(2)
+    renode.command("sysbus.i2c1.kbd TypeKey 183")  # Right: screen one step up
+    wait_level(run, renode, "BacklightLevel", 176, 20)
+    renode.command("sysbus.i2c1.kbd TypeKey 182")  # Down: the keyboard row
+    run.advance(1)
+    renode.command("sysbus.i2c1.kbd TypeKey 183")  # Right: keyboard on
+    wait_level(run, renode, "KeyBacklightLevel", 32, 20)
+    run.snapshot("settings")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--renode", default="renode")
@@ -118,6 +156,12 @@ def main():
         print(
             f"matezinho Renode: original icon card and typed Notes matched; "
             f"{reads} SPI sector reads",
+            flush=True,
+        )
+        check_lights(run, renode)
+        print(
+            "matezinho Renode: Settings raised the screen light 160 to 176 and "
+            "the keyboard light 0 to 32 through backlight(1) as operator",
             flush=True,
         )
     finally:

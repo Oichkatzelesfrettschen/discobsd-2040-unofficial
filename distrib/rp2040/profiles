@@ -238,7 +238,8 @@ profile picocalc-lean toolchain toolchainlib games puzzles calc-bignum calc sdca
 closure ulisp needs path /usr/bin/ulisp /usr/share/ulisp/ulisp.doc
 profile lisp sdcard lcdgfx ulisp
 
-# Opt-in desktop; the MATE artwork is supplied on external storage.
-closure matezinho needs closure lcdgfx sdcard
+# Opt-in desktop; the MATE artwork is supplied on external storage. Its
+# Settings view sets the lights through the setuid backlight(1).
+closure matezinho needs closure lcdgfx sdcard backlight
 closure matezinho needs path /usr/bin/matezinho /dev/lcdgfx /dev/rsd0
-profile matezinho games puzzles calc sdcard lcdgfx matezinho
+profile matezinho games puzzles calc sdcard lcdgfx backlight matezinho

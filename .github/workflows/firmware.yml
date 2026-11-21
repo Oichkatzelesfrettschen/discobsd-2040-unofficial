@@ -64,9 +64,10 @@ jobs:
     # system tier ended by the idle timeout after 13 of up to 24 minutes), so a
     # passing run needs about 130 minutes or more. The first fully passing run,
     # dispatch 44895879561, took 148 minutes (host tier 2,490 s, asynchronous
-    # system trap tier 690 s, SD system tier 1,083 s). Runs of one workload
-    # differ by 13 to 44 percent (the SD system tier took 754 s and 1,083 s), and
-    # the host tier grows with the i86 mutant lists, so the bound is 210.
+    # system trap tier 690 s, SD system tier 1,083 s). Two runs of one workload
+    # differed by at least 13 percent (macOS first host part, 2,594 s and more
+    # than 2,935 s), and the host tier grows with the i86 mutant lists, so the
+    # bound is 210.
     timeout-minutes: 210
     steps:
       - uses: actions/checkout@v4

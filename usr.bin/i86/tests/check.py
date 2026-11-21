@@ -762,7 +762,21 @@ def test_interactive(binary, work):
     if waited is None or int(waited.group(1), 16) <= 16:
         raise Failure("terminal session: the clock stood still while the guest waited")
     if before != after:
-        raise Failure("terminal session: terminal mode not restored")
+        raise Failure(
+            "terminal session: terminal mode not restored: " + termios_diff(before, after)
+        )
+
+
+def termios_diff(before, after):
+    """Name the termios fields that differ, with both values, for a failure message."""
+    names = ("iflag", "oflag", "cflag", "lflag", "ispeed", "ospeed")
+    parts = [
+        "%s %#x -> %#x" % (name, b, a) for name, b, a in zip(names, before[:6], after[:6]) if b != a
+    ]
+    parts += [
+        "cc[%d] %r -> %r" % (i, b, a) for i, (b, a) in enumerate(zip(before[6], after[6])) if b != a
+    ]
+    return "; ".join(parts) or "no field differs"
 
 
 def menu_session(binary, work, image, steps, cwd=None, kill=None):

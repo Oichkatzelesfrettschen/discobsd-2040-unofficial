@@ -283,7 +283,11 @@ MUTANTS = [
     ),
     ("pc.c", "if (++t >= 0x1800b0) {", "if (t >= 0x1800b0) {"),
     ("pc.c", "mem_ww(4 * 8, ROM_OFF + ROM_TIMER);", ";"),
-    ("main.c", "(!cpu.halted ||\n\t\t    (cpu.irq && (cpu.fl & F_IF))); i++)", "!cpu.halted; i++)"),
+    (
+        "main.c",
+        "(!cpu.halted || (cpu.irq && (cpu.fl & F_IF))); pc_step++)",
+        "!cpu.halted; pc_step++)",
+    ),
     ("main.c", "mem_failed = store_failed;", "(void)store_failed;"),
     ("main.c", "nsteps++;\n\t\tif (caught)\n\t\t\thost_exit(128 + (int)caught);", "nsteps++;"),
     ("main.c", '"/tmp/i86.%u", (unsigned)getpid() & 0xffffffu', '"/tmp/i86.%u", 0u'),
@@ -425,6 +429,28 @@ MUTANTS = [
         "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);",
         "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);\n"
         "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);",
+    ),
+    ("pc.c", "\t\t\tirq_at += pit[0].count;", "\t\t\tirq_at += 0x10000;"),
+    ("pc.c", "pit_out(2, pit_now()) << 5;", "0 << 5;"),
+    ("pc.c", "\t\t\t\tpit[k].slatched = 1;", "\t\t\t\tpit[k].slatched = 0;"),
+    ("pc.c", "uint32_t t = pit_t + (pc_step * pit_step >> 8);", "uint32_t t = pit_t;"),
+    ("pc.c", "(pit_now() / 18 & 1) << 4", "0 << 4"),
+    ("pc.c", "if ((n != 2 || (port61 & 1)) && e / p->count != p->shown) {", "if (0) {"),
+    (
+        "pc.c",
+        "hi = (c + 1) / 2;\n\t\tv = c - (c & 1) - 2 * (e < hi ? e : e - hi);",
+        "hi = c / 2 ? c / 2 : 1;\n\t\tv = c - 2 * (e % hi);",
+    ),
+    ("pc.c", "bin_bcd(v % 10000) :", "(bin_bcd(0) | v % 10000) :"),
+    ("pc.c", "if (p->mode == 0) {\n\t\t\tp->armed = 0;", "if (0) {\n\t\t\tp->armed = 0;"),
+    ("pc.c", "pit[n].latched = 0;\n\tpit[n].slatched = 0;", "pit[n].latched = 0;"),
+    ("pc.c", "else if ((pc_idle || c->halted) && slice_left() < PC_STEPS) {", "else if (0) {"),
+    ("pc.c", "host_sleep((unsigned)((thr_due - now) / 1000UL));", "(void)thr_due;"),
+    ("pc.c", "return (d < SLICE_MIN ? SLICE_MIN : d);", "return (PC_STEPS);"),
+    (
+        "pc.c",
+        "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 1;",
+        "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 0;",
     ),
     ("ems.c", "(uint8_t)mem_rb((e->at + i) & (MEM_SIZE - 1)) :", "0xff :"),
     (
@@ -1215,6 +1241,64 @@ def ems_expected():
     )
 
 
+def pit_run(binary, work, args):
+    """tests/pit.asm under args; its tokens from the screen dump."""
+    try:
+        done = subprocess.run(
+            [binary, "-d", "-a", os.path.join(work, "pit.img"), "-k", ""] + args,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("timer %s: timeout, counter 2's output never rose" % " ".join(args)) from None
+    if done.returncode != 0:
+        raise Failure("timer %s: exit %d" % (" ".join(args), done.returncode))
+    return done.stdout.decode("latin-1").split()
+
+
+def test_pit(binary, work):
+    """The 8254 through tests/pit.asm. Under -T every count is exact: the
+    latched counter moved 2B0h in mode 3, counter 0 at 1 kHz raised 54
+    interrupts while counter 2 counted 65535 clocks, counter 2's read-back
+    status is B0h, 20 halts at 1 kHz took 54xxh clocks, the refresh bit
+    changed 34h times in 64 reads, a poller saw mode 2's low pulse, all 40
+    reads of an odd mode 3 count were even, the first byte of a new mode 0
+    count drove OUT low, a new control word cleared a latched status, and a
+    BCD count reads as decimal digits. On the host's clock the interrupts
+    are 52 to 55 whatever the host's speed, since both counters count the
+    same clocks."""
+    want = (
+        "dn:02B0 irq:0036 st2:00B0 hlt:0054 rf:0034 m2:0000 m3e:0028 m0s:0000 stat:0012"
+        " bcd:0099 tick:ok done".split()
+    )
+    got = pit_run(binary, work, ["-T"])
+    if got != want:
+        raise Failure("timer -T: %r" % got)
+    got = pit_run(binary, work, [])
+    fields = dict(t.split(":", 1) for t in got if ":" in t)
+    if (
+        not 0x34 <= int(fields.get("irq", "0"), 16) <= 0x37
+        or fields.get("st2") != "00B0"
+        or fields.get("tick") != "ok"
+        or got[-1:] != ["done"]
+    ):
+        raise Failure("timer, host clock: %r" % got)
+
+
+def test_speed(binary, work):
+    """-S paces the guest: under -S 4.77 -c 8088 the 131072 instructions
+    before "done" alone take 0.36 s (cpu-timing.md: 13.1 clocks each), where
+    the whole run takes about 0.1 s unpaced. A lower bound only; the timer's
+    interrupts still count the same clocks."""
+    start = time.monotonic()
+    got = pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
+    took = time.monotonic() - start
+    fields = dict(t.split(":", 1) for t in got if ":" in t)
+    if took < 0.3 or not 0x34 <= int(fields.get("irq", "0"), 16) <= 0x37:
+        raise Failure("-S 4.77: %.2f s, %r" % (took, got))
+
+
 def ems_run(binary, work, args, keys, env=None):
     """tests/ems.asm under args; the lines it wrote to head 1, sectors 1 and 2.
     The emulator must exit 0 and leave no page file."""
@@ -1647,6 +1731,8 @@ def test(binary, work):
     test_menu_edges(binary, work)
     test_mouse(binary, work)
     test_ems(binary, work)
+    test_pit(binary, work)
+    test_speed(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):
@@ -1680,6 +1766,7 @@ def main(argv):
                 ("guest", guest_image(src, os.path.join(work, "guest.img"))),
                 ("mouse", mouse_image(src, os.path.join(work, "mouse.img"))),
                 ("ems", boot_image(src, "ems", os.path.join(work, "ems.img"))),
+                ("pit", boot_image(src, "pit", os.path.join(work, "pit.img"))),
             )
             nasm = shutil.which("nasm")
             for name, data in images:

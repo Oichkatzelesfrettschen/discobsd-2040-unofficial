@@ -128,6 +128,7 @@ const char version[] = "gate";
 const char ostype[] = "gate";
 const char osversion[] = "gate";
 const char osrelease[] = "gate";
+const long osrev = 1000001L;
 
 /*
  * The fixture's swap device: a ring of GATE_SWAP_END blocks whose first

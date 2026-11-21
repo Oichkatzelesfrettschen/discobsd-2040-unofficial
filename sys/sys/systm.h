@@ -41,6 +41,7 @@ extern const char version[];    /* system version */
 extern const char ostype[];     /* operating system name */
 extern const char osversion[];  /* operating system version */
 extern const char osrelease[];  /* operating system release */
+extern const long osrev;        /* packed release number, sys/conf/newvers.sh */
 
 /*
  * Nblkdev is the number of entries (rows) in the block switch.

@@ -28,8 +28,9 @@ on the strength of its 16 KiB RAM pool, whose code is 2,635 bytes):
 | `st7365p.o` | 3,184 |
 | `sys_inode.o` | 3,000 |
 
-The largest functions (`arm-none-eabi-nm -S --size-sort` over
-`compile/PICOCALC/unix.elf`) are `namei_at` (2,992 bytes), `lcdterm_putc`
+The largest functions (the FUNC symbols of
+`arm-none-eabi-readelf -sW sys/arch/rp2040/compile/PICOCALC/unix.elf`,
+sorted by size) are `namei_at` (2,992 bytes), `lcdterm_putc`
 (1,968), `usb_service` (1,708), `prf` (1,360) and `ttioctl` (1,328).
 
 ## Configuration options: the measured lever

@@ -1,0 +1,10 @@
+config	stack	text	data	bss	base	base_bytes	boot	fault	levels	total	budget	panic_total	swap_total
+PICO	uarea	98257	128	42656	syscall	2312	1720	2008	clock=292 nmi=36 tty=444	3084	2048	5956	3516
+PICO_UART	uarea	90597	120	18032	syscall	2320	1728	2016	clock=292 nmi=36 tty=436	3084	2048	5964	3540
+PICO_DIAG	uarea	100800	128	42768	syscall	2336	1728	2016	clock=292 nmi=36 tty=444	3108	2048	5988	3564
+PICOCALC	uarea	127728	144	53080	syscall	2352	1736	2032	audio=36 clock=572 nmi=36 render=36 tty=444	3476	2048	6908	3932
+PICOCALC	render	127728	144	53080	render	424	-	-	audio=36 clock=572 nmi=36 tty=444	1512	2048	4968	1512
+PICOCALC_LEAN	uarea	119730	144	48152	syscall	2328	1728	2024	clock=572 nmi=36 render=36 tty=444	3416	2048	6840	3848
+PICOCALC_LEAN	render	119730	144	48152	render	424	-	-	clock=572 nmi=36 tty=444	1476	2048	4924	1476
+PICOCALC_LEAN_DIAG	uarea	122265	144	48256	syscall	2352	1736	2032	clock=572 nmi=36 render=36 tty=444	3440	2048	6872	3896
+PICOCALC_LEAN_DIAG	render	122265	144	48256	render	424	-	-	clock=572 nmi=36 tty=444	1476	2048	4932	1476

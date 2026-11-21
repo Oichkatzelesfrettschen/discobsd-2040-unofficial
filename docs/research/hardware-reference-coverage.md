@@ -286,4 +286,12 @@ repository keeps the vendor's name until then.
 - The panel module datasheet, the 0.5-40PBSX connector, the JC101GV01
   volume potentiometer and the TP-1221U-K9K5325 switch have no source
   that served them; the notes repository's
-  `docs/NOT-FETCHED.tsv` records each search.
+  `docs/NOT-FETCHED.tsv` records each search. A search on 2026-11-21 for
+  the module (TXW392001B0, ST7365P 320x320, 40-pin FPC) found the maker's
+  catalog page and resellers' 3.92 inch 480x480 listings with an active
+  area of 71.14 by 69.82 mm, but no module drawing or pin definition, and a
+  forum report that the same base module needed the maker's customized pin
+  configuration to fit the PicoCalc, which points to a ClockworkPi-specific
+  flex rather than a catalog part. The mainboard side of the panel
+  connection is complete: `docs/research/st7365p-register-reference.md`,
+  section 1, maps all 40 pins of J401 from the schematic.

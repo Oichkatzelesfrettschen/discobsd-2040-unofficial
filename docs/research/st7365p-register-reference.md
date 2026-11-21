@@ -83,6 +83,39 @@ twice (J401 or the keyboard controller, and the backlight LED driver). Pins
 fixed at VDDI or DGND (p. 42, ll. 2077-2079); whether the panel module ties it on
 its own flex is not documented (INF).
 
+**The 40 pins (DOC, schematic text layer and render).** The symbol's pin
+names come from `pdftotext -bbox` over sheet 1; the nets come from a
+600 dpi render of the same sheet (`pdftoppm -r 600`, the J401 region), in
+which the ground bus runs from pin 1 to the ground symbol below pin 40 and
+the ALDO3 bus runs from the ALDO3 rail label to pin 37. Dots mark the joins.
+
+| J401 pin | Symbol pin name | Board net |
+| --- | --- | --- |
+| 1 | GND | ground bus |
+| 2-6 | (none) | no-connect marks |
+| 7 | GND | ground bus |
+| 8, 9, 10 | IM0, IM1, IM2 | ALDO3 bus |
+| 11 | RESET | LCD_RST (GP15) |
+| 12 | (none) | no-connect mark |
+| 13-28 | DB15 to DB0 | ground bus |
+| 29 | SDO | SPI1_RX (GP12) |
+| 30 | SDA | SPI1_TX (GP11) |
+| 31 | RD | label stub, single node |
+| 32 | WR/SCL | SPI1_SCK (GP10) |
+| 33 | DCX | LCD_DC (GP14) |
+| 34 | CS | SPI1_CS (GP13) |
+| 35 | TE | label stub, single node |
+| 36, 37 | VDD | ALDO3 bus |
+| 38 | GND | ground bus |
+| 39 | LEDA | LEDA, the U401 boost output through D401 |
+| 40 | LEDK | LEDK, U401's feedback side |
+
+The panel's logic supply is therefore ALDO3, the same rail that holds the
+IM pins high, and the backlight is the LEDA/LEDK pair U401 drives. The
+table is the mainboard side. The module's own flex pin numbering, and
+whether its contacts face the board so that module pin 1 meets J401 pin 1,
+come from the module's drawing, which is unpublished (`docs/research/hardware-reference-coverage.md`).
+
 **Write format (DOC).** A byte is sent MSB first, sampled on the rising edge
 of SCL; D/CX low marks a command byte, high a parameter or pixel byte
 (pp. 93-94, ll. 4663-4693). Chip select may rise between bytes; SCL and SDA are

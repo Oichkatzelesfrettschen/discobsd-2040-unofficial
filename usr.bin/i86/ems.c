@@ -515,7 +515,7 @@ move(uint32_t a, int xchg)
 	uint32_t len = grw(a) | (uint32_t)grw(a + 2) << 16, i, n;
 	uint32_t s0, s1;
 	unsigned k, status = OK;
-	int back = 0, dirs = 0;
+	int back = 0, dirs = 0, self0, self1;
 
 	if (len > MEM_SIZE)
 		return (0x96);
@@ -544,6 +544,13 @@ move(uint32_t a, int xchg)
 		} else
 			return (0x98);
 	}
+	/* A conventional region can share bytes with itself through two
+	 * windows on one logical page: an exchange of it is refused as any
+	 * overlap is, and a move into it writes in ascending order. */
+	self0 = e[0].type == 0 && len && alias0(&e[0], &e[0], len);
+	self1 = e[1].type == 0 && len && alias0(&e[1], &e[1], len);
+	if (xchg && (self0 || self1))
+		return (0x97);
 	if (e[0].type == e[1].type && (e[0].type == 0 || e[0].h == e[1].h)) {
 		/* The orders the shared bytes need: a linear overlap's,
 		 * and for conventional regions those of two windows on
@@ -563,7 +570,7 @@ move(uint32_t a, int xchg)
 	} else if (e[0].type != e[1].type && len &&
 	    alias(&e[e[0].type != 0], &e[e[0].type == 0], len))
 		return (0x94);
-	if (dirs == 3) {
+	if (dirs == 3 || (self1 && back)) {
 		staged(e, len, one);
 		return (status);
 	}

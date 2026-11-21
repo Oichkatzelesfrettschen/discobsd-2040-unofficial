@@ -942,6 +942,45 @@ main:	mov ah, 0x40
 	mov al, [es:0]
 	mov si, s_lalias
 	call say4
+	; Logical 0 still at E000h and E400h: an exchange of E000:0000 for
+	; 16385 bytes shares bytes with itself, 97h.
+	mov si, sreg
+	mov ax, 0x5701
+	int 0x67
+	mov si, s_sxch
+	call st
+	; Logical 2 at DC00h (byte 0 22h), 1 at E000h (11h), 0 at E400h and
+	; E800h. A move of 32769 bytes from D800:0000 to E000:0000 overlaps
+	; at E000:0000, so it runs from the end, and its destination holds
+	; logical 0 twice: written in ascending order, logical 0's byte 0 ends
+	; as the one from E000:0000 (11h), where a copy from the end leaves 22h.
+	mov bx, 2
+	mov al, 17
+	call map
+	mov bx, 1
+	xor al, al
+	call map
+	xor bx, bx
+	mov al, 1
+	call map
+	xor bx, bx
+	mov al, 2
+	call map
+	mov ax, 0xdc00
+	mov es, ax
+	mov byte [es:0], 0x22
+	mov ax, 0xe000
+	mov es, ax
+	mov byte [es:0], 0x11
+	mov ax, 0xe400
+	mov es, ax
+	mov byte [es:0], 0
+	mov si, dreg
+	mov ax, 0x5700
+	int 0x67
+	mov al, [es:0]
+	mov si, s_sdst
+	call say2
 	; 57h with a length of 0 at FFFF:0010, past 1 MB: A2h.
 	mov si, wreg0
 	mov ax, 0x5700
@@ -1072,6 +1111,8 @@ s_acycd: db "acycd:", 0
 s_lalias: db "lalias:", 0
 s_ea2z:	db "ea2z:", 0
 s_altdi: db "altdi:", 0
+s_sxch:	db "sxch:", 0
+s_sdst:	db "sdst:", 0
 s_nul1:	db "nul1:", 0
 s_nul0:	db "nul0:", 0
 s_done:	db "done", 0
@@ -1112,6 +1153,16 @@ lreg2:	dd 16384		; 57h: E000:0000 to E300:0000
 	dw 0, 0, 0xe000
 	db 0
 	dw 0, 0, 0xe300
+sreg:	dd 16385		; 57h: 1000:0000 and E000:0000
+	db 0
+	dw 0, 0, 0x1000
+	db 0
+	dw 0, 0, 0xe000
+dreg:	dd 32769		; 57h: D800:0000 to E000:0000
+	db 0
+	dw 0, 0, 0xd800
+	db 0
+	dw 0, 0, 0xe000
 wreg0:	dd 0			; 57h: nothing at FFFF:0010
 	db 0
 	dw 0, 0x10, 0xffff

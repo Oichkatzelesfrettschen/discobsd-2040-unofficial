@@ -1,4 +1,11 @@
-"""Check changed C comments for explicit development-history narration."""
+"""Check changed C comments for development-history narration and determiner negation.
+
+CH001-CH004 flag explicit narration in a changed comment. CH005 flags a
+"<verb> no|none|nothing" phrase (tools/determiner_negation.py) that the file's
+comments hold more often after the change than before it, reported on the
+changed comment that carries it; an inherited comment the change keeps or
+moves inside the file adds nothing to the count.
+"""
 
 import argparse
 import bisect
@@ -11,6 +18,10 @@ import tempfile
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import determiner_negation  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REGULAR_MODES = {"100644", "100755"}
@@ -814,6 +825,30 @@ def inspect_comment(path, comment, advisory_threshold):
     return diagnostics, advisory
 
 
+def comment_phrases(comment):
+    text = normalize_comment_body(comment.body).decode("utf-8", "replace")
+    return [key for key, _ in determiner_negation.phrases(text)]
+
+
+def determiner_diagnostics(path, before_comments, after_comments, selected):
+    """CH005 for each phrase the after comments hold beyond the before ones."""
+    excess = Counter()
+    for comment in after_comments:
+        excess.update(comment_phrases(comment))
+    for comment in before_comments:
+        excess.subtract(comment_phrases(comment))
+    diagnostics = []
+    for comment in selected:
+        for key in comment_phrases(comment):
+            if excess[key] > 0:
+                excess[key] -= 1
+                diagnostics.append(Diagnostic(
+                    "CH005_DETERMINER_NEGATION", path, comment.start_line,
+                    f'negative determiner after a verb "{key}"',
+                ))
+    return diagnostics
+
+
 def selected_contents(root, mode, change, index):
     if change.old_mode not in {ZERO_MODE, *REGULAR_MODES}:
         raise InfrastructureError(
@@ -888,6 +923,9 @@ def check(root, mode, base_revision="HEAD", after_revision=None,
             diagnostics.extend(comment_diagnostics)
             if advisory:
                 advisories.append(advisory)
+        diagnostics.extend(determiner_diagnostics(
+            change.new_path, before_comments, after_comments, selected
+        ))
     result.diagnostics = tuple(diagnostics)
     result.advisories = tuple(advisories)
     return result

@@ -1,6 +1,6 @@
 """Check the text a revision range adds for whitespace errors and British spellings.
 
-Two rules apply to the lines that BASE..HEAD adds:
+Three rules apply to the text that BASE..HEAD adds:
 
 - TX001_WHITESPACE: `git diff --check` reports a whitespace error (trailing
   blanks, a space before a tab in the indent, a blank line at end of file).
@@ -9,8 +9,15 @@ Two rules apply to the lines that BASE..HEAD adds:
   double-quoted string.
   The tree spells American English; an upstream identifier, filename or
   message keeps its owner's spelling inside a code span or quotation.
+- TX003_DETERMINER_NEGATION: a changed Markdown file holds a "<verb>
+  no|none|nothing" phrase (tools/determiner_negation.py) more often at HEAD
+  than at BASE, outside fenced blocks, code spans and quotations. The voice
+  rule puts the negation on the verb or names the action that runs; the
+  whole-file comparison leaves wording a change only moves or keeps to the
+  sweep of existing text.
 
-Markdown under docs/research/copy-reviews is exempt from the spelling rule:
+Markdown under docs/research/copy-reviews is exempt from the spelling and
+determiner rules:
 those files quote the reviewed sources verbatim. Patch files (*.patch,
 *.diff) are exempt from the whitespace rule: a unified diff's blank context
 line is a single space, and the patch must apply byte for byte. Files that
@@ -24,6 +31,10 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import determiner_negation  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 EXEMPT_PREFIXES = ("docs/research/copy-reviews/",)
@@ -151,11 +162,61 @@ def spelling_findings(root, base, head):
     return findings
 
 
+def changed_markdown(root, base, head):
+    """(base path or None, head path) for each Markdown file head adds or changes."""
+    result = git(root, "diff", "--name-status", "-z", "-M", base, head, "--", "*.md")
+    if result.returncode != 0:
+        raise InfrastructureError(result.stderr.strip() or "git diff failed")
+    fields = result.stdout.split("\0")
+    position = 0
+    while position < len(fields) and fields[position]:
+        status = fields[position]
+        if status[0] in "RC":
+            old, new = fields[position + 1], fields[position + 2]
+            position += 3
+        else:
+            old = new = fields[position + 1]
+            position += 2
+        if status[0] == "D":
+            continue
+        yield (None if status[0] == "A" else old), new
+
+
+def show(root, revision, path):
+    result = git(root, "show", f"{revision}:{path}")
+    if result.returncode != 0:
+        raise InfrastructureError(result.stderr.strip() or f"cannot read {path}")
+    return result.stdout
+
+
+def determiner_findings(root, base, head):
+    """New "<verb> no|none|nothing" phrases in changed Markdown prose.
+
+    The whole file at base and at head is compared as a multiset of phrases
+    (tools/determiner_negation.py), so wording a change moves or keeps stays
+    out of the verdict and only wording it adds is reported.
+    """
+    findings = []
+    imported = imported_paths(root, head)
+    for old, new in changed_markdown(root, base, head):
+        if new.startswith(EXEMPT_PREFIXES) or new in imported:
+            continue
+        before = show(root, base, old) if old else ""
+        after = show(root, head, new)
+        for key, line, _ in determiner_negation.new_phrases(before, after, fenced=True):
+            findings.append(f"TX003_DETERMINER_NEGATION {new}:{line}: {key!r}")
+    return findings
+
+
 def check(root, base, head):
     for revision in (base, head):
         if git(root, "rev-parse", "--verify", f"{revision}^{{commit}}").returncode:
             raise InfrastructureError(f"{revision} does not name a commit")
-    return whitespace_findings(root, base, head) + spelling_findings(root, base, head)
+    return (
+        whitespace_findings(root, base, head)
+        + spelling_findings(root, base, head)
+        + determiner_findings(root, base, head)
+    )
 
 
 def main():

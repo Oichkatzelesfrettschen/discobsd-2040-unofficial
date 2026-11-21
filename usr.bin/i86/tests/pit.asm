@@ -36,7 +36,8 @@
 ; through bit 5 of port 61h (irq), counter 2's read-back status then
 ; (st2), how often bit 4 of port 61h changed in 64 reads (rf), and, with
 ; counter 0 back at 65536 and the firmware's handler, that the tick count
-; at 40:6Ch moved (tick).
+; at 40:6Ch moved (tick), then runs 131072 instructions before "done",
+; which -S paces.
 
 	bits 16
 	cpu 8086
@@ -204,6 +205,12 @@ main:	call latch0
 	mov si, s_tick
 	call puts
 	call crlf
+	; 131072 instructions for -S to pace
+	mov dx, 2
+.burn:	xor cx, cx
+.turn:	loop .turn
+	dec dx
+	jnz .burn
 	mov si, s_done
 	call puts
 	call crlf

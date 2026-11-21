@@ -56,7 +56,7 @@ static int verbose, dump, raw, in_eof;
 static int in_tty;		/* input is a terminal: FIONREAD answers */
 #endif
 static volatile sig_atomic_t caught;
-static unsigned long nsteps;
+static unsigned long nsteps, t_start;
 #ifdef HOSTBUILD
 static struct termios saved;
 #else
@@ -123,12 +123,23 @@ host_exit(int code)
 	if (dump && code != 3)
 		pc_dump();
 	mem_fini();
-	if (verbose)
+	if (verbose) {
+		unsigned long ms = host_ms() - t_start, rate;
+
 		fprintf(stderr, "i86: %lu polls of %d steps; pages: %lu soft, "
 		    "%lu zero, %lu in, %lu out, %lu elided, %lu clean\n",
 		    nsteps, PC_STEPS, mem_stats.soft, mem_stats.zero,
 		    mem_stats.in, mem_stats.out, mem_stats.elided,
 		    mem_stats.clean);
+		/* Instructions a second, in parts that stay within 32 bits. */
+		rate = ms == 0 ? 0 : ms > 4000000UL ? pc_ran / (ms / 1000UL) :
+		    pc_ran / ms * 1000UL + pc_ran % ms * 1000UL / ms;
+		fprintf(stderr, "i86: %lu instructions in %lu ms, %lu a second",
+		    pc_ran, ms, rate);
+		if (pc_target())
+			fprintf(stderr, "; -S aims at %lu", pc_target());
+		fprintf(stderr, "\n");
+	}
 	exit(code);
 }
 
@@ -227,6 +238,12 @@ host_ms(void)
 	    (unsigned long)tv.tv_usec / 1000UL);
 }
 
+void
+host_sleep(unsigned ms)
+{
+	usleep(ms * 1000UL);
+}
+
 /* Microseconds, wrapping; the DiscoBSD kernel resolves a millisecond. */
 unsigned long
 host_us(void)
@@ -238,11 +255,29 @@ host_us(void)
 	    (unsigned long)tv.tv_usec);
 }
 
+/* "4.77" and the like: kilohertz, 0 for anything else. */
+static unsigned
+mhz_khz(const char *s)
+{
+	unsigned k = 0, scale = 1000;
+
+	for (; *s >= '0' && *s <= '9'; s++)
+		if ((k = k * 10 + (unsigned)(*s - '0')) > 1000)
+			return (0);
+	k *= 1000;
+	if (*s == '.')
+		for (s++; *s >= '0' && *s <= '9' && scale > 1; s++) {
+			scale /= 10;
+			k += (unsigned)(*s - '0') * scale;
+		}
+	return (*s ? 0 : k);
+}
+
 static void
 usage(void)
 {
 	fprintf(stderr, "usage: i86 [-dgqrTv] [-c 8086|186|286] [-m kbytes] "
-	    "[-e kbytes] [-f frames] [-w 40|80]\n"
+	    "[-e kbytes] [-f frames] [-S mhz] [-w 40|80]\n"
 	    "           [-s pagefile] [-k keys] [-a floppy] [-b floppy] "
 	    "[-h disk] ...\n");
 	exit(2);
@@ -262,7 +297,8 @@ main(int argc, char **argv)
 	cf.ram_kb = 640;
 	cf.cols = 80;
 	cf.model = I86_286;
-	while ((ch = getopt(argc, argv, "a:b:c:de:f:gh:k:m:qrs:Tvw:")) != -1)
+	cf.cpi10 = 52;
+	while ((ch = getopt(argc, argv, "a:b:c:de:f:gh:k:m:qrS:s:Tvw:")) != -1)
 		switch (ch) {
 		case 'a':
 			cf.disk[0] = optarg;
@@ -271,14 +307,21 @@ main(int argc, char **argv)
 			cf.disk[1] = optarg;
 			break;
 		case 'c':
-			if (strcmp(optarg, "8086") == 0 ||
-			    strcmp(optarg, "8088") == 0)
+			/* The clocks an instruction takes for -S, in tenths:
+			 * docs/research/i86-dos-emulator/cpu-timing.md. */
+			if (strcmp(optarg, "8086") == 0) {
 				cf.model = I86_8086;
-			else if (strcmp(optarg, "186") == 0)
+				cf.cpi10 = 99;
+			} else if (strcmp(optarg, "8088") == 0) {
+				cf.model = I86_8086;
+				cf.cpi10 = 131;
+			} else if (strcmp(optarg, "186") == 0) {
 				cf.model = I86_186;
-			else if (strcmp(optarg, "286") == 0)
+				cf.cpi10 = 77;
+			} else if (strcmp(optarg, "286") == 0) {
 				cf.model = I86_286;
-			else
+				cf.cpi10 = 52;
+			} else
 				usage();
 			break;
 		case 'e':
@@ -309,6 +352,11 @@ main(int argc, char **argv)
 			break;
 		case 'r':
 			cf.readonly = 1;
+			break;
+		case 'S':
+			cf.khz = mhz_khz(optarg);
+			if (cf.khz < 1000 || cf.khz > 40000)
+				usage();
 			break;
 		case 's':
 			store = optarg;
@@ -353,6 +401,7 @@ main(int argc, char **argv)
 	if (cf.keys == NULL)
 		tty_raw();
 	pc_init(&cpu, &cf);
+	t_start = host_ms();
 	for (;;) {
 		/* A halted processor runs again only for an interrupt it
 		 * can take. */

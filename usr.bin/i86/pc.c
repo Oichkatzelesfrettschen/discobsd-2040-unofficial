@@ -207,6 +207,39 @@ static uint32_t host_clk, host_rem, run_clk, run_steps;
 static uint32_t pit_learn = PIT_POLL;	/* the first estimate comes soon */
 static unsigned long host_last;
 unsigned pc_step, pc_slice = PC_STEPS;
+unsigned long pc_ran;
+
+/*
+ * -S: the instructions take as long as on the processor at cf.khz, at
+ * cf.cpi10 tenths of a clock each (main.c sets it from -c), the figures
+ * of the loop of docs/research/i86-dos-emulator/measure/speed.asm that
+ * docs/research/i86-dos-emulator/cpu-timing.md derives from Intel's
+ * manuals and checks against silicon captures. The host waits out the
+ * time the guest is ahead; a guest behind, as on a board slower than the
+ * clock asked for, keeps no credit beyond 20 ms.
+ */
+static unsigned long thr_due;
+static uint32_t thr_rem;
+
+unsigned long
+pc_target(void)
+{
+	return (cf.khz ? cf.khz * 10000UL / cf.cpi10 : 0);
+}
+
+static void
+throttle(uint32_t steps)
+{
+	unsigned long now = host_us();
+	uint32_t n = steps * cf.cpi10 * 100u + thr_rem;
+
+	thr_due += n / cf.khz;
+	thr_rem = n % cf.khz;
+	if ((long)(now - thr_due) > 20000L)
+		thr_due = now - 20000UL;
+	else if ((long)(thr_due - now) >= 1000L)
+		host_sleep((unsigned)((thr_due - now) / 1000UL));
+}
 
 /* With I86_TRACE defined, a host build reports each firmware function and
  * port the machine does not implement, one line a use on standard error;
@@ -1961,6 +1994,9 @@ pc_poll(struct i86 *c)
 	int ran = steps == pc_slice && !pc_idle && !c->halted;
 
 	pc_step = 0;
+	pc_ran += steps;
+	if (cf.khz && !cf.fixed_clock)
+		throttle(steps);
 	for (;;) {
 		if (cf.fixed_clock) {
 			if (part && !waited) {
@@ -2127,8 +2163,10 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	next_tick = cf.fixed_clock ? 0 : host_ms() + 55;
 	/* The timer as the firmware leaves it: counter 0 at 18.2 Hz in
 	 * mode 3, counter 1 refreshing, counter 2 loaded for a beep. */
-	host_last = host_us();
-	pit_step = cf.fixed_clock ? PIT_TSTEP : 16;
+	host_last = thr_due = host_us();
+	/* Under -S the clocks a step takes are known while the pace holds. */
+	pit_step = cf.fixed_clock ? PIT_TSTEP : cf.khz ?
+	    (uint32_t)(PIT_HZ * 256UL / pc_target()) : 16;
 	pit[0].mode = 3;
 	pit[0].rw = 3;
 	pit[1].mode = 2;

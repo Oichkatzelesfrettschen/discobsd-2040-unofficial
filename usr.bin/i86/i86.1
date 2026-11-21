@@ -43,6 +43,9 @@ i86 \- run DOS on an emulated 8086, 80186 or 80286
 .B \-f
 .I frames
 ] [
+.B \-S
+.I mhz
+] [
 .B \-w
 .I columns
 ] [
@@ -148,10 +151,13 @@ kilobytes, 1.2, 1.44 or 2.88 megabytes.
 .BI \-c " cpu"
 The processor:
 .BR 8086 ,
+.BR 8088 ,
 .B 186
 or
 .B 286
 (the default).
+The 8086 and 8088 run the same instructions and differ only in the pace of
+.BR \-S .
 .TP
 .B \-d
 Draw nothing while running and print the 25 lines of the display on exit.
@@ -222,12 +228,30 @@ The file for pages that are not resident, by default
 .IR /tmp/i86. pid
 for the emulator's process number.
 .TP
+.BI \-S " mhz"
+Keep the guest to the speed of the chosen processor at this clock, from 1
+to 40 MHz, 4.77 for the IBM PC's 8088: the emulator waits whenever the
+guest runs ahead.
+The pace is that of one loop of everyday instructions, so other programs
+run somewhat faster or slower than on the machine.
+It only slows the guest; where the host is slower than the clock asked
+for, as an RP2040 at 125 MHz is beyond about 4.2 MHz of 8088,
+.B \-S
+changes nothing, and
+.B \-v
+shows the rate reached.
+It has no effect with
+.BR \-T .
+.TP
 .B \-T
 Replace the host's clock with a count of executed instructions and a
 fixed date, so that two runs do the same.
 .TP
 .B \-v
-Print the page statistics on exit.
+Print the page statistics and the instructions run a second on exit, and
+the rate
+.B \-S
+aims at.
 .TP
 .BI \-w " columns"
 Start in the 40- or the 80-column text mode (80 by default).

@@ -43,6 +43,8 @@ struct pc_config {
 	unsigned cols;		/* 40 or 80 */
 	int model;
 	int fixed_clock;	/* virtual time: a poll is PC_POLL_MS long */
+	unsigned khz;		/* -S: the clock to keep to, 0 for none */
+	unsigned cpi10;		/* -S: clocks an instruction takes, tenths */
 	int quiet;		/* draw nothing; pc_dump() shows the screen */
 	int panel;		/* the PicoCalc panel is the display (gfx.h) */
 	int readonly;
@@ -54,11 +56,13 @@ struct pc_config {
 extern int pc_idle;		/* the guest waits; leave the step loop */
 extern unsigned pc_step;	/* instructions run since the last poll */
 extern unsigned pc_slice;	/* instructions to run before the next */
+extern unsigned long pc_ran;	/* instructions run in all */
 
 void pc_init(struct i86 *c, const struct pc_config *cf);
 void pc_poll(struct i86 *c);
 void pc_dump(void);
 void pc_restore(int draw);
+unsigned long pc_target(void);	/* -S's instructions a second, or 0 */
 
 /* main.c */
 int host_ready(int ms);		/* 1 input waits, 0 none within ms, -1 end */
@@ -66,6 +70,7 @@ int host_getc(void);
 void host_write(const char *p, unsigned n);
 unsigned long host_ms(void);
 unsigned long host_us(void);
+void host_sleep(unsigned ms);
 void host_exit(int code);
 
 #endif

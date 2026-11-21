@@ -434,6 +434,7 @@ MUTANTS = [
     ("pc.c", "\t\t\t\tpit[k].slatched = 1;", "\t\t\t\tpit[k].slatched = 0;"),
     ("pc.c", "uint32_t t = pit_t + (pc_step * pit_step >> 8);", "uint32_t t = pit_t;"),
     ("pc.c", "(pit_now() / 18 & 1) << 4", "0 << 4"),
+    ("pc.c", "host_sleep((unsigned)((thr_due - now) / 1000UL));", "(void)thr_due;"),
     ("pc.c", "pc_slice = d < SLICE_MIN ? SLICE_MIN : d;", "pc_slice = PC_STEPS;"),
     (
         "pc.c",
@@ -1229,6 +1230,19 @@ def test_pit(binary, work):
         raise Failure("timer, host clock: %r" % got)
 
 
+def test_speed(binary, work):
+    """-S paces the guest: under -S 4.77 -c 8088 the 131072 instructions
+    before "done" alone take 0.36 s (cpu-timing.md: 13.1 clocks each), where
+    the whole run takes about 0.1 s unpaced. A lower bound only; the timer's
+    interrupts still count the same clocks."""
+    start = time.monotonic()
+    got = pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
+    took = time.monotonic() - start
+    fields = dict(t.split(":", 1) for t in got if ":" in t)
+    if took < 0.3 or not 0x34 <= int(fields.get("irq", "0"), 16) <= 0x37:
+        raise Failure("-S 4.77: %.2f s, %r" % (took, got))
+
+
 def ems_run(binary, work, args, keys, env=None):
     """tests/ems.asm under args; the lines it wrote to head 1, sectors 1 and 2.
     The emulator must exit 0 and leave no page file."""
@@ -1662,6 +1676,7 @@ def test(binary, work):
     test_mouse(binary, work)
     test_ems(binary, work)
     test_pit(binary, work)
+    test_speed(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):

@@ -2167,7 +2167,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
 		check-signal-traps
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
-		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
+		check-menu-host check-tail-host check-sort-host check-ls-format check-calendar-rules check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host \
 		check-backlight-host check-fstat-host check-sh-editor \
@@ -2296,7 +2296,13 @@ check-sort-host:
 check-ls-format: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} bin/ls/tests/check_format.py
 
-.PHONY: check-ls-format
+# February in date and basic, and the year chpass prints, from the production
+# functions compiled on the host; --selftest restores each earlier defect.
+check-calendar-rules: check-python
+		${PYTHON} tests/calendar_rules/check.py --selftest . ${HOST_CC:Ucc:Q}
+		${PYTHON} tests/calendar_rules/check.py . ${HOST_CC:Ucc:Q}
+
+.PHONY: check-ls-format check-calendar-rules
 
 check-keen-host:
 		${MAKE} -C games/keen test

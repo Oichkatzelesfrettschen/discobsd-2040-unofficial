@@ -115,6 +115,13 @@ const char *wday_l[] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Frid
 const char *month_l[] = {"January","February","March","April","May","June","July","August","September","October","November","December",0};
 const char *month_s[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",0};
 
+/* Gregorian leap year for a struct tm year count (years since 1900). */
+static int
+leapyear(int tm_year)
+{
+	return (isleap(tm_year + TM_YEAR_BASE));
+}
+
 void fmttime(char *fmt, struct tm *tm)
 {
 	char *p;
@@ -186,7 +193,7 @@ void fmttime(char *fmt, struct tm *tm)
 						switch(tm->tm_mon)
 						{
 							case 0:		printf("%d",31); break;	// Jan
-							case 1:		printf("%d",((tm->tm_year+1900) % 4 == 0) ? 29 : 28); break;	// Feb
+							case 1:		printf("%d",leapyear(tm->tm_year) ? 29 : 28); break;	// Feb
 							case 2:		printf("%d",31); break;	// Mar
 							case 3:		printf("%d",30); break;	// Apr
 							case 4:		printf("%d",31); break; // May
@@ -200,7 +207,7 @@ void fmttime(char *fmt, struct tm *tm)
 						}
 						break;
 					case 'L':
-						printf("%d",((tm->tm_year+1900) % 4 == 0) ? 1 : 0);
+						printf("%d",leapyear(tm->tm_year) ? 1 : 0);
 						break;
 					case 'o':
 					case 'Y':

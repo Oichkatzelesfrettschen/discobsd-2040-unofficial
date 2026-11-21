@@ -41,8 +41,8 @@ ttoa(tval)
 
 	if (tval) {
 		tp = localtime(&tval);
-		(void)sprintf(tbuf, "%s %d, 19%d", months[tp->tm_mon],
-		    tp->tm_mday, tp->tm_year);
+		(void)sprintf(tbuf, "%s %d, %d", months[tp->tm_mon],
+		    tp->tm_mday, tp->tm_year + 1900);
 	}
 	else
 		*tbuf = '\0';

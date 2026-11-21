@@ -150,8 +150,26 @@ no directory API; native/board backends supply it.
 
 Calculator accepts `a + b`, `-`, `*` and integer `/`, with operands in
 [-32767,32767], and rejects division by zero and invalid trailing text. It does
-not replace the existing scientific `calc` program. Settings toggles larger
-headings; it does not claim that all text has been enlarged. Clock and the
+not replace the existing scientific `calc` program.
+
+Settings holds three rows that Up and Down choose: the screen light, the
+keyboard light and larger headings. Left and Right step a light by one level
+of the keyboard controller's firmware, 16 for the screen and 32 for the keys
+(`backlight.ino` keeps the screen at a multiple of 16 within 16-240 and the
+keys at a multiple of 32, 0 meaning off), and the row shows the level the
+controller kept, read back through `machdep.picocalc.lcd_backlight` and
+`kbd_backlight`. Any user reads those nodes; the kernel takes a write from
+root alone, so for any other user the desktop runs `/usr/bin/backlight`,
+setuid root, with the new level, its output sent to `/dev/null` because the
+tty is raw under the desktop. Keys that arrive together cost one such run per
+light. The view reads the levels again when it opens, on F5 and once a
+second, because the keyboard's own shortcuts change them behind the desktop.
+A kernel without the controller shows both lights as unavailable. A change
+lasts until power-off; the boot level stays with `backlight -s`, which root
+runs (`PICOCALC.md`). Space, or Enter on the third row, toggles larger
+headings; it does not claim that all text has been enlarged. The
+development and QEMU builds keep the two levels in a stand-in that rounds
+as the firmware does, starting the screen at 160, the level `/etc/rc` sets. Clock and the
 live desktop clock show elapsed shell-session time; wall time is not invented.
 The board currently derives elapsed seconds from the existing time API; changing
 the system clock affects this counter. A monotonic syscall is separate work.
@@ -224,7 +242,12 @@ The model-driven regression command is:
 ```
 
 Generate reference.ppm with the host executable and the same artwork, passing
-`0` as its final argument for a single initial frame. The gate boots, logs in,
+`0` as its final argument for a single initial frame. The gate boots, logs in as `operator`,
 launches through I2C keys, compares the Files card against the reference with
-the RGB666 quantization tolerance, and requires SPI SD reads. The outputs are
+the RGB666 quantization tolerance, and requires SPI SD reads. It then opens
+Settings and requires the keyboard model's screen level to move from the
+`/etc/rc` level 160 to 176 and its keyboard level from 0 to 32, which only
+the setuid `backlight` path can do for `operator`; the flash image must
+come from `PROFILE=matezinho`, whose `matezinho` closure needs the
+`backlight` closure. The outputs are
 ignored build products. This gate is optional, distinct from host/QEMU tests.

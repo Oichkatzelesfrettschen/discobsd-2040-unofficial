@@ -3379,7 +3379,7 @@ The backlight stage follows. It reads the keyboard model's screen level after
 the boot and requires 160, the level `/etc/rc` writes when
 `/etc/backlight` is absent; an image whose `/etc/rc` lacks that `sysctl` line
 fails here with the firmware's 32. When the root image carries
-`/usr/bin/backlight` (both PicoCalc profiles do; any other image prints a
+`/usr/bin/backlight` (both PicoCalc profiles and `matezinho` do; any other image prints a
 skip line), the stage types `backlight 88` as `operator` and requires the
 line `lcd 80` and the model's level 80: the program reaches the root-only
 node through its setuid mode and prints the level the model kept, which the
@@ -4495,12 +4495,19 @@ band renderer under ASan/UBSan, compares incremental output with full scene
 reconstruction through 1500 seeded actions, pins the centered Files tile
 label's leading edge and the position of its trailing glyphs, checks view
 retention and input bounds, verifies pinned artwork bytes, and rejects malformed/truncated packs
-and image overwrite. Sparse 16 MiB, 32 MiB and approximately 32 GB images are
+and image overwrite. Its Settings checks step both lights from the kept or the
+already requested level, clamp at 0 and 240, and leave an unreadable light
+unstepped; the frame checks require Right to change a light's row, Left to
+undo it, and Left on the unlit keyboard to change nothing, through the
+development build's stand-in controller. Four mutants fail them (a stand-in
+that keeps no write, Left raising a light, no clamp at 0, no write after a
+key). These checks run against the stand-in; the kernel nodes and
+`backlight(1)` run only in the Renode stage below. Sparse 16 MiB, 32 MiB and approximately 32 GB images are
 host files, not SRAM. The test oracle's full frames are absent from the desktop.
 
 `check-matezinho-qemu` (in check-qemu) runs the same application sources as
-Thumb-1 on `qemu-arm -cpu cortex-m0`. Seven scripted frames must equal the
-host renderer byte for byte, and a note must save through Linux EABI. A linker
+Thumb-1 on `qemu-arm -cpu cortex-m0`. Eight scripted frames, one of them Settings after
+both lights step, must equal the host renderer byte for byte, and a note must save through Linux EABI. A linker
 MEMORY region contains the executable, static state, 16 KiB heap and 8 KiB
 stack within 192 KiB. This is a newlib application seam, not a DiscoBSD kernel
 boot, MPU test, timing measurement or RP2040 peripheral test. Directory APIs
@@ -4514,7 +4521,11 @@ sdspi.c drives it through C-callable delegates. The gate checks identification,
 CSD capacity, last-sector read/write, read-only refusal and an absent-transport
 negative control for SDSC and SDHC sizes. It does not execute PL022 or Renode's
 scheduler. Renode integration uses the real peripheral interfaces through
-`tools/renode/matezinho.resc`; it is a separate evidence class. Physical board
+`tools/renode/matezinho.resc`; it is a separate evidence class.
+`tools/renode/check-matezinho.py` also raises both lights from Settings as
+`operator` and requires the keyboard model's levels to move (160 to 176,
+0 to 32), which happens only through the setuid `backlight` the
+`matezinho` closure needs (`MATEZINHO.md`). Physical board
 qualification remains opt-in and is not performed by any desktop gate.
 
 ## uLisp interpreter gates

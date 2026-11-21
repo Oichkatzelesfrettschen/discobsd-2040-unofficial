@@ -116,7 +116,8 @@ closure picotop needs path /usr/bin/picotop
 # usr.bin/backlight shows and sets the PicoCalc's screen and keyboard
 # backlights through the machdep.picocalc nodes, installed setuid root so
 # that any user can change them. A kernel without the keyboard controller
-# refuses the nodes, so only the two PicoCalc profiles name the closure.
+# refuses the nodes, so only the two PicoCalc profiles and the opt-in
+# matezinho profile name the closure.
 #
 closure backlight needs path /usr/bin/backlight
 
@@ -237,7 +238,8 @@ profile picocalc-lean toolchain toolchainlib games puzzles calc-bignum calc sdca
 closure ulisp needs path /usr/bin/ulisp /usr/share/ulisp/ulisp.doc
 profile lisp sdcard lcdgfx ulisp
 
-# Opt-in desktop; the MATE artwork is supplied on external storage.
-closure matezinho needs closure lcdgfx sdcard
+# Opt-in desktop; the MATE artwork is supplied on external storage. Its
+# Settings view sets the lights through the setuid backlight(1).
+closure matezinho needs closure lcdgfx sdcard backlight
 closure matezinho needs path /usr/bin/matezinho /dev/lcdgfx /dev/rsd0
-profile matezinho games puzzles calc sdcard lcdgfx matezinho
+profile matezinho games puzzles calc sdcard lcdgfx backlight matezinho

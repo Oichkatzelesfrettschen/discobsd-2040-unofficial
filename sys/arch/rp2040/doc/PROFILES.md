@@ -59,7 +59,9 @@ on the root, so that board pays the nine blocks and two inodes for nothing.
 `/usr/bin/backlight` with mode 4755, setuid root, because the kernel accepts a
 write to the `machdep.picocalc` light nodes from root only; `mkmanifest.py`
 refuses a profile that selects the closure without that mode. Both PicoCalc
-profiles name it. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
+profiles name it, and so does the opt-in `matezinho` profile, because the
+`matezinho` closure needs it: the desktop's Settings view sets the lights
+through it. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
 console's character major 10, mode 666) that the PICOCALC kernels serve; the
 `picocalc` profile names it, and so does the opt-in `matezinho` profile. The
 `ridge` closure carries the hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile
@@ -127,7 +129,7 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
 | `picofetch` | 14 | 1 | `/usr/bin/picofetch` (15,644 bytes before packing); PicoCalc profile |
 | `picotop` | 15 | 1 | `/usr/bin/picotop` (15,944 bytes before packing); PicoCalc profile |
-| `backlight` | 2 | 1 | `/usr/bin/backlight` (1,692 bytes before packing, 1,509 packed), mode 4755; both PicoCalc profiles |
+| `backlight` | 2 | 1 | `/usr/bin/backlight` (1,692 bytes before packing, 1,509 packed), mode 4755; both PicoCalc profiles and `matezinho` |
 | `sdcard` | 11 | 8 | `/mnt`, the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`, and `/sbin/savecore` (9,141 bytes packed); PicoCalc only |
 | `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
 | `psramtmp` | 9 | 2 | the block node `/dev/psram1` (major 3, minor 1, mode 600) and `/sbin/mkfs` (9,788 bytes before packing); PicoCalc only |

@@ -25,15 +25,13 @@ draws the calibration patterns.
   written value is `0x5054 << 16 | N`; any other value returns EINVAL.
   `machdep.picocalc.panel_read` (superuser, read only) returns a `struct
   picocalc_panel_read` (`machine/picocalcvar.h`). Both return EBUSY unless
-  `/dev/lcdgfx` is open, so the console draws nothing while the panel is
-  reprogrammed or read, and the last close programs set 0 again.
+  `/dev/lcdgfx` is open, so the console stays idle while the panel is reprogrammed or read, and the last close programs set 0 again.
 - The readback sends each read command with D/CX low and clocks the reply
   at 3.125 MHz, inside TSCYCR (150 ns, page 54). The first twelve entries
   are Command Table 1 and ID reads (04h, 09h, 0Ah-0Fh, DAh-DCh, D3h), the
   calibration: a dead SDO line reads all zero or all one there. Entries
   13-20 read Command Table 2 registers through SPI Read Control (FBh,
-  page 246, SPI_REN in bit 4, the parameter number in bits 3-0). If SPIRC
-  has no effect those reads clock zero bytes into the register as
+  page 246, SPI_REN in bit 4, the parameter number in bits 3-0). If SPIRC is ignored those reads clock zero bytes into the register as
   parameters, so `paneltest` programs its set again after every readback.
 - `machdep.picocalc.panel_scan` (superuser, read only, same EBUSY rule)
   samples GSCAN (45h, page 201), the line the controller is scanning, and
@@ -94,8 +92,7 @@ the decode; `panel_decode_test` in `check-picocalc-host` checks it.
 ## Frame-rate sets and measurement
 
 FRMCTR1 (B1h, page 219) gives the normal-mode frame rate as
-10^7 / ((168 + RTNA + 32 (15 - FRS)) (480 + VFP + VBP)). BPC (B5h,
-page 222) has no documented reset value, so every frame-rate set writes
+10^7 / ((168 + RTNA + 32 (15 - FRS)) (480 + VFP + VBP)). BPC (B5h, page 222) lacks a documented reset value, so every frame-rate set writes
 B5h 02h 02h 00h 04h before SLPOUT, which fixes the second factor at 484.
 The formula omits DIVA; the 24 Hz set relies on DIVA = 01b (Fosc / 2)
 halving a 48 Hz timing, an inference. `st7365p.c` asserts at compile
@@ -142,8 +139,7 @@ for 45h, so paneltest also prints the line count without the shift.
   interrupt stretches a gap. The 12 MHz crystal's tolerance adds parts
   per million.
 - Resolution: hundredths of a hertz in the printout; eight frames at
-  24 Hz need 333 ms, inside the 400 ms bound, while fewer than two wraps
-  print no rate.
+  24 Hz need 333 ms, inside the 400 ms bound, while fewer than two wraps leave the rate blank.
 - Line count: the largest line seen plus one. A read interval longer
   than a line period (17 us at 120 Hz and 484 lines) can miss the last
   lines; paneltest prints that slack, the read interval x rate x lines,
@@ -158,7 +154,7 @@ gives each measurement. Each line states what the outcome means.
 1. Readback calibration: 04h returns a nonzero ID after the one-bit dummy
    shift, 0Ah reads 9Ch with the display on and sleep out (BSTON, SLPOUT,
    NORON, DISON per page 151), 0Bh reads 48h and 0Ch reads 66h, in the
-   first byte if the SPI read has no dummy cycle (page 94) and in the
+   first byte if the SPI read skips the dummy cycle (page 94) and in the
    second if it follows the command table's dummy parameter. All-zero or
    all-one bytes mean SDO is not reaching GP12, and every later readback
    is void.
@@ -190,8 +186,7 @@ for each judged item, and `/var/log/paneltest.log`.
 9. GSCAN answers: under set 0 the line count reads 484 or close to it
    with the shift (about 242 without), and the rate reads 60.06 Hz if the
    reset RTNA is 10h and the reset porches are 2 lines. All-zero or
-   all-one samples (no wraps, or every read bad) mean GSCAN returns
-   nothing usable, and the frame-rate rows below are void.
+   all-one samples (no wraps, or every read bad) mean GSCAN returns unusable data, and the frame-rate rows below are void.
 10. Command 2 gating by rate: if the unlocked sets 22-26 measure their
     formula rates within the printed bound, unlocked Command Table 2
     writes take effect; if every set measures set 0's rate, they do not,

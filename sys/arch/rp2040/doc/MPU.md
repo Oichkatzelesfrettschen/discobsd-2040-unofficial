@@ -29,8 +29,7 @@ A region is 2^(SIZE+1) bytes, SIZE at least 7 (256 bytes), at a base
 aligned to its size. Where two enabled regions overlap the higher number
 wins. With PRIVDEFENA set, a privileged access that no region covers uses
 the default memory map; an unprivileged one faults. Every MPU fault on
-ARMv6-M is a HardFault (datasheet 2.4.6.1); the architecture defines no
-fault status or fault address register.
+ARMv6-M is a HardFault (datasheet 2.4.6.1); the architecture lacks fault status and fault address registers.
 
 ## The map
 
@@ -81,7 +80,7 @@ inter-core FIFO, the spinlocks and the interpolators beside it stay closed.
 XN is set because nothing fetches instructions from a peripheral. The grant
 restores what user mode held before the MPU was programmed rather than
 adding a capability, and the divider has user code as its only consumer:
-the kernel, its interrupts and its callouts contain none, which
+the kernel, its interrupts and its callouts never use it, which
 `tools/verify_rp2040_divider_ownership.py` enforces on every linked kernel
 through `check-divider`. The consumers are the boot ROM's float division and
 the libc integer helpers `__aeabi_idiv`, `__aeabi_idivmod`, `__aeabi_uidiv`
@@ -106,8 +105,7 @@ division in between cannot reach the saved words. A handler entered in the
 middle of a sequence starts with a clean divider while the interrupted
 state waits in the kernel-private tail of the signal frame (sig_machdep.c)
 for `sigreturn`, which also carries r12, the other register an
-asynchronous entry finds live. The kernel's interrupts, callouts and
-system calls still contain no divider consumer. A debugger breakpoint
+asynchronous entry finds live. The kernel's interrupts, callouts and system calls still never use the divider. A debugger breakpoint
 planted inside the sequence enters through the fault path and gets the
 same save. The sequence's shape is held by `check-divider`'s
 `--user-helper` check (doc/TESTING.md), and `check-renode-preempt`'s
@@ -117,9 +115,7 @@ handlers under forced switches with a software division.
 192 KB is not a power of two, so the window takes two regions; static
 assertions in mpu.c pin their sum to USER_DATA_SIZE and both bases to their
 region alignments. Text runs from the window because a.out images load into
-SRAM, so XN stays clear. S, C and B stay zero: the RP2040 bus fabric
-consumes none of the exported attributes (the XIP cache is an
-address-range cache) and the Cortex-M0+ reorders nothing.
+SRAM, so XN stays clear. S, C and B stay zero: the RP2040 bus fabric ignores the exported attributes (the XIP cache is an address-range cache) and the Cortex-M0+ keeps program order.
 
 The kernel runs privileged and sees the default map as its background, so
 kernel text in XIP flash, kernel data above the window, the peripherals at
@@ -211,15 +207,13 @@ The `xip cache sram` probe stands apart. The XIP cache stays enabled from
 reset and nothing in the port clears XIP_CTRL.CTRL.EN, and datasheet 2.6.3.1
 answers a cache-as-SRAM access with a bus error while the cache is enabled.
 The probe expects SIGSEGV in both MPU states, so it shows that the range is
-closed to user mode and does not by itself show the MPU: with the MPU on the
-access matches no region and faults before the bus sees it, and with the MPU
+closed to user mode and does not by itself show the MPU: with the MPU on the access falls outside every region and faults before the bus sees it, and with the MPU
 off the bus error is the fault. It does not discriminate a dropped map; a
 kernel that disabled the XIP cache would open the range and fail the probe in
 both states.
 
 The signal comes from the same path in each case. An MPU violation and a
-precise bus error on a data load both enter HardFault on ARMv6-M, which has
-no MemManage or BusFault exception (datasheet 2.4.6.1); the faulting access
+precise bus error on a data load both enter HardFault on ARMv6-M, which lacks the MemManage and BusFault exceptions (datasheet 2.4.6.1); the faulting access
 leaves EXC_RETURN 0xfffffffd, so `arm_fault` (fault.c) takes the process
 branch rather than the kernel-fault panic (`R03`, `PANICS.md`) and delivers SIGSEGV
 through `psignal`. With no fault address register the kernel cannot tell an
@@ -303,7 +297,7 @@ So the map is what closes the alias windows, and on silicon the cache-as-SRAM
 window answers a read with a fault while the XIP cache is enabled, as
 datasheet 2.6.3.1 states. The `xip cache sram` line of the map-on run was
 not captured. A Renode run decides the map-on lines through its third-party
-MPU model and says nothing about the XIP bus error.
+MPU model and leaves the XIP bus error to the board.
 
 Calibration against a known-bad kernel, one that wrote MPU_CTRL 0 after
 programming the regions: the banner read `MPU_CTRL 0x0: protection off`,
@@ -343,8 +337,7 @@ before region 3 existed.
 
 Renode's Cortex-M0+ model implements the region registers through its NVIC
 peripheral, so the emulator decides the register-level claim and the fault
-path ahead of the board; the map, the readback and the test carry no
-emulator-specific assumption.
+path ahead of the board; the map, the readback and the test are free of emulator-specific assumptions.
 
 The earlier build measured 656 bytes of text and 16 of bss in the PICO
 kernel, 688 and 16 in PICO_UART, and 7,988 bytes of root for mputest.
@@ -398,7 +391,7 @@ the map but the architecture:
 - a.out images are OMAGIC and linked at USER_DATA_START, which
   `exec_estab` requires.
 
-Programming more regions changes none of this. A port that wants
+Programming more regions leaves all of this unchanged. A port that wants
 translation wants a different core.
 
 ## Isolation between processes
@@ -427,8 +420,7 @@ console-timed measurement resolves.
 
 The MPU cannot narrow the window to the resident image. The stack grows
 downward between syscalls with no kernel bookkeeping -- `syscall.c`
-derives `p_ssize` from the stack pointer on entry -- and ARMv6-M supplies
-no fault address register, so a kernel that fenced the unused span could
+derives `p_ssize` from the stack pointer on entry -- and ARMv6-M lacks a fault address register, so a kernel that fenced the unused span could
 not tell a growing stack from a stray pointer, and could not resume the
 first. Narrowing waits on a core that reports the faulting address. The
 break guard fences the 32 bytes nearest the break and steps back whenever
@@ -451,8 +443,7 @@ overrun of the break faults instead of writing into the gap below the stack.
   the stack, the lower of `p_saddr` and the stack pointer the process
   resumes with, lies at least 32 + 1,024 bytes above b. The 1,024-byte
   margin is `BREAK_GUARD_MARGIN`. No covered byte is below the exact break
-  or within the margin below the stack, so the guard takes no byte a
-  working program uses: the pad between the exact break and b stays
+  or within the margin below the stack, so the guard covers only bytes a working program leaves unused: the pad between the exact break and b stays
   writable, and the kernel's brk, exec and fork paths are unchanged.
 - **Updates.** `mpu_guard_update` recomputes the guard at every return to
   a process: after `userret` in `ast()` and `syscall()` (`syscall.c`)
@@ -470,7 +461,7 @@ overrun of the break faults instead of writing into the gap below the stack.
   that grows the break and returns replays the store successfully, which
   is the pattern `bin/sh`'s `fault()` follows. When the fault frame, its
   32 bytes and the alignment word, overlaps the armed guard, the stack
-  itself fell into the guard; the frame holds no return state, so
+  itself fell into the guard; the frame's return state is lost, so
   `arm_fault` prints "fault: stack frame in break guard" and sends
   SIGKILL.
 
@@ -516,8 +507,7 @@ committed) reports `machdep.mpu.enable` 0, `ctrl` 0x0, `guardbase` 7 and
 base after `sbrk(64)` succeed (want 0, got 0), the burst case is not run,
 and the program ends `GUARD OK (mpu off)` and `MPUTEST OK (mpu off)`;
 every other line reads as on the enabled kernel. The two SIGSEGV lines
-therefore come from region 7 and not from the probe. The burst kill has
-no such control: the probe skips it when the MPU is off, so the SIGKILL
+therefore come from region 7 and not from the probe. The burst kill lacks such a control: the probe skips it when the MPU is off, so the SIGKILL
 rests on the enabled run and its console line alone. The
 enabled kernel `#1 4728`, built from main with the guard merged, was
 flashed back and reported `GUARD OK (mpu on)` again. Not measured: a

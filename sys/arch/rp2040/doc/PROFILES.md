@@ -44,8 +44,7 @@ split, so a profile or command that named `games`, `puzzles`, `toolchain` or
 The remaining closures stand alone: `coremark` (named by the `benchmark` profile only), `calc`, `toolchainlib`,
 `sdcard`, `lcdgfx`, `psramtmp`, `backlight` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
 and the device nodes of the PicoCalc's SD card (block major 5, raw major 11 in
-`conf.c`); the `picocalc` profile names it, `full` does not, and the PICO
-kernels have no driver behind those majors. Its `needs path` line holds the
+`conf.c`); the `picocalc` profile names it, `full` does not, and the PICO kernels lack a driver behind those majors. Its `needs path` line holds the
 mount point and all six nodes, so a manifest block that loses one stops the
 build. The `psramtmp` closure carries the PSRAM's block node `/dev/psram1` (major 3,
 minor 1, mode 600) and `/sbin/mkfs`, which `/etc/rc.rp2040` runs over the
@@ -99,9 +98,7 @@ exports the result as `GAMEBOX_TOOLS` and `PUZZLEBOX_TOOLS`; the two
 Makefiles read them into `MEMBERS`, which drives the object list, the
 generated dispatch table and the install. A build that leaves them unset
 links every member, and `TOOLS` keeps naming the full set that
-`check-multicall-composition` compares with the manifest. A selection that
-drops a binary builds nothing for it. A binary with one member needs no
-overlap fence between applets, so `tools/generate_multicall_bss_overlay.sh`
+`check-multicall-composition` compares with the manifest. A selection that drops a binary skips its build. A binary with one member holds a single applet, so `tools/generate_multicall_bss_overlay.sh`
 omits `NOCROSSREFS` for a single object.
 
 ## The closures, measured
@@ -147,11 +144,10 @@ no image holds one without the other; `/usr/lib/libc.a` alone installs at
 43010 bytes. The three programs under them are separate closures: `as`,
 `ld` and `smlrc` each stand alone, and `cc` needs all three and the library.
 `bc` and `dc` are independent too: `bc` evaluates through the dc evaluator
-linked into itself and needs no `/usr/bin/dc`. The 60 blocks of the two
+linked into itself and runs without `/usr/bin/dc`. The 60 blocks of the two
 together are one fewer than the sum of the rows (40 + 21), because entries
 that two closures add can share a directory block (inferred from the
-allocation unit, not traced block by block). The `sdcard` closure needs no
-other closure: its eight inodes are `/mnt`, six device nodes and
+allocation unit, not traced block by block). The `sdcard` closure stands alone: its eight inodes are `/mnt`, six device nodes and
 `savecore`, and its eleven blocks are the `/mnt` directory and ten for
 `savecore`, whose 9,141 bytes fill nine (the tenth inferred to be a
 directory block, not traced). The base image measured 426 free blocks and
@@ -197,9 +193,9 @@ image built with `IMAGE_WITHOUT=ridge` (148 free blocks) and as shipped (140);
 binaries account for the whole 60: the nine
 marginal figures sum to 41, `gamesdir` is 1, and the two binaries and their
 shared linkage are the remaining 18. Removing a member removes a hard link,
-which costs no inode, so the marginal inode figure is 0 for every row.
+which leaves the inode count unchanged, so the marginal inode figure is 0 for every row.
 The member figures were measured on the tree that split the closures and not
-repeated here: this branch changes no game, libc or startup source, and its
+repeated here: this branch leaves every game, libc and startup source unchanged, and its
 only userland difference is `sbin/sysctl`.
 
 The two legacy rows are measured only in an image built with
@@ -220,7 +216,7 @@ the pack's unused blocks occupy no flash.
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's and `coremark`, including `puzzles` | 231 (215 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root | 26 (25 with it) |
-| `picocalc` | `full` (which holds no `coremark`) plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop`, `psramtmp` and `backlight`, so also `puzzles` | 82 (66 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root; the earlier 77 (86 with `IMAGE_WITHOUT=psramtmp`) was measured with `coremark` in the profile | 8 (7 with it) |
+| `picocalc` | `full` (which omits `coremark`) plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop`, `psramtmp` and `backlight`, so also `puzzles` | 82 (66 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root; the earlier 77 (86 with `IMAGE_WITHOUT=psramtmp`) was measured with `coremark` in the profile | 8 (7 with it) |
 | `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch`, `picotop`, `psramtmp` and `backlight` | 91 (75 with `IMAGE_WITH=coremark`), same tree as the `picocalc` row | 9 (8 with it) |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
@@ -309,7 +305,7 @@ PROFILE=NAME fs` after a `BUILD_PDP11_V6=yes distribution` build, read with
 the same `fsutil --verbose` command. The base row sits 171 blocks and 3
 inodes below the maintained `base` row, which equals the two legacy rows
 together (14 + 157 blocks, 1 + 2 inodes); neither legacy closure builds
-alone, because `v6disk` reaches no profile without `pdp11`.
+alone, because `v6disk` reaches a profile only through `pdp11`.
 
 ## Choosing what an image carries
 
@@ -360,8 +356,7 @@ variables as follows:
   lists name it directly or through a group (`IMAGE_WITH=games
   IMAGE_WITHOUT=keen` names `keen` twice and fails; to build the games
   without `keen`, start from a profile that already holds them).
-- Adding a closure the profile already holds, or removing one it lacks,
-  changes nothing.
+- Adding a closure the profile already holds, or removing one it lacks, leaves the selection unchanged.
 - The dependencies are then checked, not resolved. `IMAGE_WITHOUT=toolchain`
   fails with `closure toolchainlib needs closure cc, which this profile does
   not select`; the working selection names both, `IMAGE_WITHOUT="toolchain
@@ -392,7 +387,7 @@ it parses, and an empty `PYTHON` leaves them unset, which links every member.
 `tools/fsutil/fsutil.c`'s `add_hardlink()` prints `link source not found`
 on stderr and returns, and fsutil's exit status stays 0. An image composed
 with `link /usr/games/keen` and without `pack /usr/games/gamebox`
-therefore builds clean and boots with a name that opens nothing. A missing
+therefore builds clean and boots with a dangling name. A missing
 `/usr/lib/libc.a` is quieter still: no stage of the build reads it, and
 the failure reaches the user as a compile on the board that cannot link.
 `mkmanifest.py` decides both against the composed manifest before fsutil
@@ -478,10 +473,9 @@ back the member lists the games Makefiles receive.
 
 The declaration checks have their own cases, each fed as extra profile text:
 a group declared twice, a group that contains itself, a group named like a
-closure, a group member that names nothing, a `cost` or `needs closure` that
-names no closure, a `multicall` member with no link to its binary, a
+closure, a group member that names an unknown entry, a `cost` or `needs closure` that names an unknown closure, a `multicall` member with no link to its binary, a
 `multicall` binary its closure never installs, a member claimed by two
-binaries, and a profile that names nothing.
+binaries, and a profile line that names an unknown entry.
 
 When `BUILD_PDP11_V6=yes` supplies the legacy manifest and profile fragments,
 the same selftest adds three refusal cases:
@@ -558,7 +552,7 @@ each, and the image's free blocks by nine.
     bmake MACHINE=rp2040 TZ_ZONEINFO=1 distribution   #  93 free blocks
 
 A system that installs zone files builds with `TZ_ZONEINFO=1`. Selecting it
-without installing them costs the space and changes no answer.
+without installing them costs the space and leaves every answer unchanged.
 
 `tests/libc_contracts` `check-zone` runs in both shapes. The file-backed one
 is where the reader's bounds are measured, because they are the bounds on a

@@ -293,5 +293,5 @@ repository keeps the vendor's name until then.
   forum report that the same base module needed the maker's customized pin
   configuration to fit the PicoCalc, which points to a ClockworkPi-specific
   flex rather than a catalog part. The mainboard side of the panel
-  connection is complete: `docs/research/st7365p-register-reference.md`,
-  section 1, maps all 40 pins of J401 from the schematic.
+  connection is complete in `docs/research/picocalc-pin-ledger/board-nets.tsv`,
+  which classes each of J401's 40 pins.

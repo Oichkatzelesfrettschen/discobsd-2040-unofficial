@@ -60,9 +60,18 @@ Session (i86 -g -c 286 -e 2048 -a blank.img -h c32.img):
 
   Excel: the Setup disk in A:, File, Run, a:\setup.exe. "MICROSOFT EXCEL
   2.1d SETUP", text mode, proposes C:\WINDOWS; C:\EXCEL was entered
-  instead. After the Library disk the screen was Windows again; Setup
-  never asked for the Utilities disk, and whether it finished or quit is
-  unverified. C:\EXCEL held EXCEL.EXE (606,992 bytes), EXCELHLP.HLP, the
+  instead. After the Library disk the screen was Windows again, and Setup
+  never asked for the Utilities disk. It finished: read afterwards with
+  mtools, the disk holds every file of the Setup disk's program set
+  (EXCEL.EXE, EXCELDE, the help, samples, TRANS, MEMSET, XLSETUP and the
+  READMEs) expanded in C:\EXCEL, the Library disk's 12 macro files in
+  C:\EXCEL\LIBRARY, all 50 tutorial files of both disks in
+  C:\EXCEL\EXCELCBT, and in C:\WINDOWS\WIN.INI the xls, xlc, xlw and xlm
+  associations and a [Microsoft Excel] section, none of which Windows'
+  own WIN.INI carries. The Utilities disk holds the Windows/286 run-time
+  (USER, CONTROL, SPOOLER, the display and mouse drivers, the fonts and
+  the memory managers), which Setup installs only where no Windows is
+  present. C:\EXCEL held EXCEL.EXE (606,992 bytes), EXCELHLP.HLP, the
   sample sheets, XLSETUP.EXE and the LIBRARY macros.
   win c:\excel\excel.exe: Sheet1 opens; 12 in A1, 30 in A2 and
   =A1*A2+1 in A3 show 361; File, Save As writes CALC.XLS (904 bytes) to
@@ -73,5 +82,5 @@ Session (i86 -g -c 286 -e 2048 -a blank.img -h c32.img):
     45h 25, 42h 16, 4Eh 15, 44h 10, 58h 9, 40h 7, 46h 6, 41h 6,
     59h 3, 4Bh 3, 43h 2.
 
-Not covered: PowerPoint 2.0; Word's and Excel's optional parts; standard
+Not covered: PowerPoint 2.0, whose disks the owner's media set does not hold; Word's and Excel's optional parts; standard
 mode; the kernel and the board; the speed.

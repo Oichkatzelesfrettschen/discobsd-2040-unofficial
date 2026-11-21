@@ -1,0 +1,6 @@
+win_move by (5,0) of a 100x100 window: painted 10500 px in 3 backend rects (old+new = 20000)
+win_move by (0,5) of a 100x100 window: painted 10500 px in 3 backend rects (old+new = 20000)
+win_move by (5,5) of a 100x100 window: painted 20000 px in 4 backend rects (old+new = 20000)
+win_move by (2,1) of a 100x100 window: painted 20000 px in 4 backend rects (old+new = 20000)
+win_move by (16,16) of a 100x100 window: painted 20000 px in 4 backend rects (old+new = 20000)
+win_move by (50,50) of a 100x100 window: painted 20000 px in 4 backend rects (old+new = 20000)

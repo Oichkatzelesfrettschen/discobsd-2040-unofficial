@@ -1,0 +1,42 @@
+== A. distinct mean colors of k pixels mixed from the 8 RGB corners: (k+1)^3
+k | distinct_means | (k+1)^3 | multisets
+1 | 8 8 8
+2 | 27 27 36
+3 | 64 64 120
+4 | 125 125 330
+5 | 216 216 792
+6 | 343 343 1716
+closed form (k+1)^3 for k=7,9,10,15: [512, 1000, 1331, 4096]
+== B. same count for the console's 16-entry palette (lcd_palette, st7365p.c), cells of k pixels
+palette entries: 16 first: [(0, 0, 0), (205, 0, 0), (0, 205, 0)] last: [(60, 255, 255), (255, 255, 255)]
+k | multisets | distinct_means
+1 | 16 | 16
+2 | 136 | 131
+3 | 816 | 738
+4 | 3876 | 3233
+== C. CGA composite artifact colors as a 4-point DFT of the hdot pattern (VileR pp. 6-9: 4 hdots per color cycle)
+16 patterns -> distinct (luma=popcount, chroma=X1): 15
+zero-chroma patterns: ['0000', '0101', '1010', '1111']
+a one-hdot delay of a pattern multiplies X1 by -i (90 degree hue step): True
+chroma magnitudes^2 by pattern count: {0: 4, 1: 8, 2: 4, 4: 0}
+1024 = 4 character waveforms x 16 foreground x 16 background = 1024 ; 512 = 2 waveforms; 256 = 1 (VileR pp. 11-14)
+== D. Bayer index matrices as a Kronecker object
+m 1 size 2 recursion == closed form (interleave(r xor c, r)): True | entries are a permutation of 0..3: True
+m 2 size 4 recursion == closed form (interleave(r xor c, r)): True | entries are a permutation of 0..15: True
+m 3 size 8 recursion == closed form (interleave(r xor c, r)): True | entries are a permutation of 0..63: True
+m 4 size 16 recursion == closed form (interleave(r xor c, r)): True | entries are a permutation of 0..255: True
+8x8 Bayer: nonzero non-DC DFT coefficients: 28 of 63; random 8x8 permutations (200): min 62 max 63
+4x4 cell, level l lights l pixels for all l in 0..16: True
+== E. SWAR RGB565 blend with guard bits, mask 0x07E0F81F: exhaustive over 65536 pixels x alpha
+mismatching pixels by alpha (6 partner colors x 65536 pixels): {0: 0, 1: 0, 8: 0, 16: 0, 31: 0, 32: 0}
+worst field products at alpha=32 vs window: b 31*32=992 <2^11? True | r True | g 2016 True | alpha=33 g: 2079 False
+== F. Z/2^k is a local ring: lane isolation is not a ring decomposition
+Z/2^8: idempotents [0, 1] | nilpotents 128 of 256 (all even elements)
+Z/2^16: idempotents [0, 1] | nilpotents 32768 of 65536 (all even elements)
+z = 2^8 in Z/2^32: z^3 mod 2^32 = 16777216 , z^4 mod 2^32 = 0 (nilpotent of index 4; a byte-lane shift kills the top byte)
+== G. interpolator lane model calibrated on the datasheet's own examples (RP2040 datasheet pp. 34-38)
+moving_mask unsigned matches datasheet: True | signed matches: True
+worked example 0xdeadbeef >>8 mask 4..7 signed: 0xffffffb0 (datasheet 0xffffffb0)
+blend example (BASE0 + alpha*(BASE1-BASE0)>>8): [500, 582, 666, 748, 832, 914, 998] (datasheet 500 582 666 748 832 914 998)
+clamp example: [0, 0, 0, 0, 0, 64, 128, 192, 255] (datasheet 0 0 0 0 0 64 128 192 255)
+lane (shift 4k-1, mask 1..4) + BASE0 == table + 2*nibble_k for k=1..7: True (nibble 0 would need a left shift: not available in one lane)

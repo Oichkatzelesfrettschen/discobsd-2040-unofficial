@@ -1,0 +1,45 @@
+wire: RGB565 1.280 us/px, RGB666/888 1.920 us/px, window setup (CASET+RASET+RAMWR, 11 bytes) 7.04 us = 5.50 px(565)
+CPU cycles available per pixel at the wire rate (125 MHz): 565 160, 666 240
+limit of ST7365P write cycle 66 ns -> 15.15 MHz; headroom over 12.5 MHz: 1.21x
+
+area A -> frame time and ceiling fps, one window per frame
+viewport     pixels |    565 ms     fps |    666 ms     fps
+320x320      102400 |     131.1     7.6 |     196.6     5.1
+320x240       76800 |      98.3    10.2 |     147.5     6.8
+320x200       64000 |      81.9    12.2 |     122.9     8.1
+256x192       49152 |      62.9    15.9 |      94.4    10.6
+240x160       38400 |      49.2    20.3 |      73.7    13.6
+192x144       27648 |      35.4    28.3 |      53.1    18.8
+160x160       25600 |      32.8    30.5 |      49.2    20.3
+160x120       19200 |      24.6    40.7 |      36.9    27.1
+128x128       16384 |      21.0    47.7 |      31.5    31.8
+
+tiles (8x8) per frame at a target frame rate, 565 / 666, best case (one run) and worst case (one window each)
+60 fps:   203 tiles /   187 tiles (565) ;   136 /   128 (666) of 1600 ; worst-case windows:   187 (565)
+30 fps:   407 tiles /   375 tiles (565) ;   271 /   257 (666) of 1600 ; worst-case windows:   375 (565)
+20 fps:   610 tiles /   562 tiles (565) ;   407 /   385 (666) of 1600 ; worst-case windows:   562 (565)
+15 fps:   814 tiles /   749 tiles (565) ;   543 /   513 (666) of 1600 ; worst-case windows:   749 (565)
+
+hardware scroll: shifting the glass by n lines = rewriting n new lines only (320 px each, one window)
+  n= 1: 565 417 us, 666 621 us; full redraw instead: 131 ms (565)
+  n= 2: 565 826 us, 666 1236 us; full redraw instead: 131 ms (565)
+  n= 4: 565 1645 us, 666 2465 us; full redraw instead: 131 ms (565)
+  n= 8: 565 3284 us, 666 4922 us; full redraw instead: 131 ms (565)
+  n=16: 565 6561 us, 666 9837 us; full redraw instead: 131 ms (565)
+
+strip overhead for strips of h rows, full width (565): setup/(setup+320*h*px)
+  h= 1: 1.69%
+  h= 2: 0.85%
+  h= 4: 0.43%
+  h= 8: 0.21%
+  h=16: 0.11%
+column strips (MADCTL MV=1, one column of H px per window): overhead for H=240: 2.24%, H=160: 3.32%
+break-even gap between two spans of one row (merge instead of a second window): 5.5 px (565), 3.7 px (666)
+
+measured anchors: 320x320 fill 131,000 us (565) / 197,000 us (666) [PICOCALC.md]; model 131079 / 196615 us
+i86 320x200 frame: 81.9 ms (565) [scan-out note: 81.9 ms]
+
+expansion cost vs the wire (cycles per pixel; the loops are compiled in c5_loops.c; counts are inferences from the Thumb-1 listing, README.md)
+  per-pixel palette, polled FIFO (c5_loops.c expand_c, 29 or more)          29.0 cyc/px ->  18.1% of the 565 wire time
+  per-pixel palette into a RAM bounce buffer (c5_loops.c expand_a)          15.0 cyc/px ->   9.4% of the 565 wire time
+  256-entry pair table, 2 px per load (c5_loops.c expand_b, 14 per pair)     7.0 cyc/px ->   4.4% of the 565 wire time

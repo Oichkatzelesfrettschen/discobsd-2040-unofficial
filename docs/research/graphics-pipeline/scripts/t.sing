@@ -1,0 +1,8 @@
+ring r=(integer,256),x,dp;
+ideal I=x^8;
+qring q=std(I);
+ideal a=quotient(ideal(0),ideal(x^3));
+a;
+ideal b=quotient(ideal(0),ideal(2));
+b;
+quit;

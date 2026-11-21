@@ -1,0 +1,5 @@
+kernel lattice of (s,o) -> 16 s + o over Z: [1; -16]
+fibre sizes of (s,o)->(16 s+o) mod 2^20, o in [0,65536), for a = 0, 1, 15, 16, 65535, 65536, 524288, 1048575: [4096, 4096, 4096, 4096, 4096, 4096, 4096, 4096]
+CGA 320x200x2bpp bytes addressed: 16000 distinct, max address 16191, unused bytes inside the 2 x 8 KB banks: 384
+planar 640x350x4bpp bytes per plane: 28000, total 112000 (one 28 KB plane per bit)
+bits moved per 8 pixels in chunky->planar: 32 in 4 bytes out

@@ -41,9 +41,12 @@ document when the lane proceeds:
    kernel and `backlight(1)` accept, still lands at 16, and the OS side
    below narrows its documented range to 16-240 with the new firmware.
 2. `REG_ID_BK2` write: clamp to [0, 240] and write PC8 exactly, with 0 as off.
-3. `BIOSVERSION` (`conf_app.h`) raised past every vendor release, so the
-   OS reads register 0x01 (`REG_ID_VER`) and knows the exact-level firmware
-   is present.
+3. `BIOSVERSION` (`conf_app.h`) set to the private value 0xB7, which no
+   vendor release has used (they run 0x12 to 0x17). The OS treats the
+   exact-level firmware as present only when `REG_ID_VER` equals 0xB7
+   exactly, a predicate the firmware, the kernel's version node and the
+   Renode model's tests all pin; a later vendor release with any other
+   value keeps the rounded behavior.
 
 The Fn key steps (`keyboard.ino`, `lcd_backlight_update(+-LCD_BACKLIGHT_STEP)`)
 keep their 16-step rounding: they move from the current level in steps, so
@@ -102,7 +105,10 @@ power key, then
 
     stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000 PORT
 
-and DIP switch 1 off. `-v` reads every written block back. PORT is the
+then DIP switch 1 off and a power cycle (a long press of the power key to
+turn the board off, then on): the controller keeps running its ROM
+bootloader until a reset, whatever BOOT0 reads afterwards. `-v` reads every
+written block back. PORT is the
 CH340C's serial node, named through `/dev/serial/by-id/` so that the Pico's
 own CDC-ACM console stays out of the command.
 
@@ -120,8 +126,9 @@ runs without the Pico.
 
 ## 7. Verification after the flash
 
-- `REG_ID_VER` returns the new version (the DiscoBSD keyboard driver
-  reads it; `sysctl` exposes it).
+- The kernel's boot line `kbd0: keyboard controller at I2C1 0x1f,
+  firmware 11.7` shows 0xB7 (the running kernel prints the version it reads
+  at attach, so this check runs on the current kernel).
 - Writing 0x05 with 100 reads back 100; the vendor firmware returns 96.
   Writing 17 reads back 17; writing 8 reads back 16.
 - The panel's brightness changes between 96 and 100 (eye, or a light
@@ -140,5 +147,6 @@ board the owner names:
 2. Build the patched firmware (section 3) and record its SHA-256 and size.
 3. Read the identity (section 4, item 1).
 4. Read the backup (section 4, item 2) and record its SHA-256.
-5. Write the patched image (section 5) with `-v`.
+5. Write the patched image (section 5) with `-v`, set DIP switch 1 off and
+   power-cycle the board.
 6. Verify (section 7); on any failure, write the backup back (section 6).

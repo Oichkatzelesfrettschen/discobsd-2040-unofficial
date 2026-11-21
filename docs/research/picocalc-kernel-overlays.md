@@ -36,27 +36,43 @@ the paper's trade.
    resident, so every overlay's state survives an eviction.
 2. **Placement.** GNU ld's `OVERLAY` statement gives every overlay the
    same run address, a buffer in SRAM, and its own load address in a store
-   outside the kernel window. A store in XIP flash (a slice of the root or
-   swap region the layout gives up) loads with a word copy; a store on the
-   SD card needs the SD driver resident and a sleep on the transfer.
-3. **Entry.** Resident code calls an overlay only through a veneer per
-   exported function: the veneer loads the overlay if the buffer holds
-   another, raises the overlay's pin count, calls the function with `BLX`,
-   and drops the pin count on return. Overlay code calls resident code
-   directly, since resident addresses never move. A call from one overlay
-   into another is a link error, enforced by a gate that reads the
-   relocations of every `.ovl.*` section and fails on a target in a
-   different overlay.
-4. **Eviction.** A process can sleep inside an overlay (an SD read, a
-   `tsleep` in a driver). Loading a different overlay waits until the
-   resident one's pin count reaches zero, so no return lands in replaced
-   code. Interrupt handlers, the fault and panic paths, the crash-dump
-   writer and anything `lcdabandon()` reaches stay resident, because they
-   run where a load cannot sleep.
-5. **Verification.** A Unicorn check in the style of
+   that nothing else writes. The current layout leaves no such slice: Dhara
+   owns the flash filesystem region up to `SWAPFLASH` and the raw-swap
+   allocator owns `SWAPFLASH`, so garbage collection, a root-image install
+   or a swap write would erase overlay text placed in either. The store is a
+   new `OVLFLASH` region between `FLASH` and `FSFLASH` in `RP2040.ld`
+   and `RP2040-sd.ld`, carved from the filesystem region, with matching
+   changes to the geometry in `dev/flash.h`, the root image size, the
+   loader stamp's limits (`dev/loader_stamp.h`) and the UF2 composition,
+   which then carries the overlay text after the kernel. An XIP store loads
+   with a word copy. A store on the SD card is a dedicated partition type and
+   needs the SD driver resident and a sleep on each transfer.
+3. **Entry.** Each overlay function is a local symbol; its exported name is
+   a resident veneer. The veneer takes the overlay lock, waits while the
+   buffer is `LOADING` or holds another overlay with a nonzero pin count,
+   marks it `LOADING` and copies the overlay in when the buffer holds
+   another, marks it `READY`, raises the pin count, drops the lock, calls
+   the function with `BLX`, and drops the pin count on return, waking the
+   waiters at zero. Overlay code calls resident code directly, since
+   resident addresses never move.
+4. **Reference gate.** A link-time gate reads every relocation in the
+   kernel and fails on any reference into an `.ovl.*` section except from
+   that overlay's own sections and its veneer table, so a resident caller,
+   a function-pointer table or another overlay cannot reach the shared run
+   address directly. It also builds the call graph and fails when an
+   overlay reaches another overlay's veneer through resident code: overlay
+   A stays pinned while its caller runs, so a path from A to overlay B would
+   wait forever for A's pin count. A DIAGNOSTIC kernel checks the same rule
+   at run time with a per-process record of the overlay it is inside.
+5. **Residency.** Interrupt handlers, the fault and panic paths, the
+   crash-dump writer and anything `lcdabandon()` reaches stay resident,
+   because they run where a load cannot sleep.
+6. **Verification.** A Unicorn check in the style of
    `tools/unicorn/check_panel_program.py` calls each veneer twice with
    another overlay loaded in between and compares the result with the
-   resident build's; a mutant veneer that skips the load must fail it.
+   resident build's, and interleaves two processes that request different
+   overlays while one load sleeps; a mutant veneer that skips the load or
+   raises the pin count after the copy must fail it.
 
 ## Cost
 
@@ -78,9 +94,9 @@ flash and run from RAM (1,000 bytes in the PICOCALC map the survey read).
 
 Each cheaper route comes first:
 
-1. Move a rarely used option to the SD-root kernel, as the 2026-11-21 move
-   of `SYSTRACE` and `LCD_PANELTEST` did (PICOCALC headroom 3,192 to 6,776
-   bytes).
+1. Move a rarely used option to the SD-root kernel, as the move of
+   `SYSTRACE` and `LCD_PANELTEST` in PR #855 does (PICOCALC headroom 3,192
+   bytes before it, 6,776 after).
 2. Grow the SD-root kernels' flash reservation, a layout constant: their
    root lives on the card, so the flash window can widen without touching
    the root, though it shrinks the flash filesystem region beside it;
@@ -90,7 +106,7 @@ Each cheaper route comes first:
 The overlay mechanism earns its RAM when a flash-root kernel (PICO,
 PICOCALC, PICOCALC_LEAN) exceeds its 128 KiB window after those routes are
 spent, with a subsystem that runs only from process context. The falsifier
-for building it now is the headroom table: every flash-root kernel keeps at
-least 6,776 bytes free, 5,752 above the 1,024-byte margin
-(`check-kernel-headroom`, 2026-11-21), so every flash-root kernel still fits
-without it.
+for building it now is the headroom table: PICOCALC, the tightest
+flash-root kernel, keeps 3,192 bytes free before PR #855 and 6,776 after it
+(`check-kernel-headroom`, 2026-11-21), both above the 1,024-byte margin, so
+every flash-root kernel still fits without it.

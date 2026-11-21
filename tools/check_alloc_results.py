@@ -30,8 +30,9 @@ An assignment from malloc, calloc, realloc or strdup, through any casts or
 parentheses, must be followed by an if statement whose whole condition is
 true exactly when one of the assigned objects is NULL (`p == NULL`,
 `p == 0`, `!p`), or must sit inside such a condition itself, as in
-`if ((p = malloc(n)) == NULL)`. The statement or block that condition
-controls must leave: exit, _exit, abort, longjmp, err, errx, return, goto
+`if ((p = malloc(n)) == NULL)`. A statement that the branch always runs
+(the controlled statement, or one at the top level of the controlled
+block, outside any nested condition or loop) must leave: exit, _exit, abort, longjmp, err, errx, return, goto
 or awk's error(FATAL, ...), plus error() in ed and overflo() in awk's b.c,
 which never return. Comments, literals and preprocessor lines are blanked
 first and statements split at a semicolon, brace or the end of a
@@ -230,11 +231,35 @@ def branch(code, position):
     return code[position:]
 
 
+def top_level(body):
+    """Return the statements of a branch that run whenever the branch runs."""
+    body = body.strip()
+    if not body.startswith("{"):
+        return [body]
+    inner = body[1:-1]
+    statements_found = []
+    depth = 0
+    start = 0
+    for i, c in enumerate(inner):
+        if c in "({":
+            depth += 1
+        elif c in ")}":
+            depth -= 1
+            if depth == 0 and c == "}":
+                statements_found.append(inner[start : i + 1])
+                start = i + 1
+        elif c == ";" and depth == 0:
+            statements_found.append(inner[start : i + 1])
+            start = i + 1
+    return [s.strip() for s in statements_found if s.strip()]
+
+
 def leaves(body, label):
+    """True when a statement the branch always runs leaves it."""
     pattern = LEAVES
     if label in PROGRAM_LEAVES:
         pattern += "|" + PROGRAM_LEAVES[label]
-    return re.search(pattern, body) is not None
+    return any(re.match(rf"(?:{pattern})", statement) for statement in top_level(body))
 
 
 def names_of(chain, chain_start, code):
@@ -306,6 +331,13 @@ KNOWN_BAD = {
     "cast of parenthesized call": "p = (char *)(malloc(4));\n*p = 1;\n",
     "test in a conjunction": "p = malloc(4);\nif (p == NULL && verbose)\n\texit(1);\n*p = 1;\n",
     "error without FATAL": 'p = malloc(4);\nif (p == NULL)\n\terror(WARNING, "x");\n*p = 1;\n',
+    "conditional terminator": (
+        "p = malloc(4);\nif (p == NULL) {\n\tif (verbose)\n\t\treturn;\n}\n*p = 1;\n"
+    ),
+    "terminator in a nested block": (
+        "p = malloc(4);\nif (p == NULL) {\n\twhile (busy) {\n\t\texit(1);\n\t}\n}\n*p = 1;\n"
+    ),
+    "terminator in an argument": "p = malloc(4);\nif (p == NULL)\n\tlog(exit_code());\n*p = 1;\n",
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",
@@ -336,6 +368,9 @@ KNOWN_GOOD = {
     "member": "dp->name = strdup(s);\nif (dp->name == NULL)\n\texit(1);\n",
     "parenthesized call": "p = (malloc(4));\nif (p == NULL)\n\treturn;\n",
     "fatal error": 'p = malloc(4);\nif (p == NULL)\n\terror(FATAL, "out of space");\n',
+    "terminator after a message": (
+        'p = malloc(4);\nif (p == NULL) {\n\tfputs("out of memory", stderr);\n\texit(1);\n}\n'
+    ),
     "goto": "p = malloc(4);\nif (!p)\n\tgoto fail;\n",
     "unassigned": "return (malloc(n));\n",
     "cast null": "p = malloc(4);\nif (p == (char *)0)\n\texit(1);\n",

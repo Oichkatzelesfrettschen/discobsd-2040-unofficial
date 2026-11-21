@@ -210,6 +210,10 @@ char **argv;
         globp = "r";
     }
     zero = (int *)malloc(nlall*sizeof(int));
+    if (zero == NULL) {
+        putstr ("ed: out of memory");
+        exit(-1);
+    }
     tfname = mktemp("/tmp/eXXXXX");
     if (! tfname) {
         putstr ("ed: cannot create /tmp/file");

@@ -20,4 +20,4 @@ jobs:
       - name: Run the i86 host gate
         timeout-minutes: 20
         run: |
-          bmake MACHINE=rp2040 check-i86-host
+          (cd usr.bin/i86 && HOSTCC=cc "$PYTHON" -I -u ../../scratch_mutant_builds.py)

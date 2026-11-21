@@ -2712,14 +2712,21 @@ check-renode-picocalc-dump:
 
 check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kernel
 		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
+		@set -e; out=tools/renode/vendor/results; mkdir -p $$out; \
+		: > $$out/picocalc-sd-system.log; : > $$out/picocalc-sd-diag-system.log; \
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
 		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
 		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
-		    tools/renode/vendor/results/picocalc-sd-system
+		    $$out/picocalc-sd-system >> $$out/picocalc-sd-system.log 2>&1 & sd=$$!; \
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured-boot \
 		    "$$(command -v renode)" ${PICOCALC_SD_DIAG_UF2} \
 		    ${TOPSRC}/distrib/${MACHINE}/sdroot-PICOCALC.img \
-		    tools/renode/vendor/results/picocalc-sd-diag-system
+		    $$out/picocalc-sd-diag-system >> $$out/picocalc-sd-diag-system.log 2>&1 & diag=$$!; \
+		tail -f $$out/picocalc-sd-system.log & follow_sd=$$!; \
+		tail -f $$out/picocalc-sd-diag-system.log & follow_diag=$$!; \
+		status=0; wait $$sd || status=$$?; \
+		wait $$diag || { d=$$?; [ $$status -ne 0 ] || status=$$d; }; \
+		sleep 2; kill $$follow_sd $$follow_diag 2>/dev/null || true; exit $$status
 
 .PHONY: check-renode-picocalc-sd-system
 

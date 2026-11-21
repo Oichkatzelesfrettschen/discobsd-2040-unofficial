@@ -69,6 +69,11 @@ observations and on altered root device, mount source and flash samples,
 and the gate stops with status 1 unless the good ones pass and every altered
 one fails.
 
+A run of more than one case starts every case at once, each in a child
+process with its own emulator and output directory, and prints each child's
+lines as they arrive behind the case name in brackets; CHECK_PICOCALC_SERIAL=1
+runs them one after another in this process.
+
 The --configured run boots the 160 KiB profile directly, with no loader stamp.
 Its foreign flash starts at 0x10028000. --configured-boot runs the root mount
 and login case alone.
@@ -86,7 +91,9 @@ import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
+import threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -525,14 +532,57 @@ def case_nob7(renode_path, kernel, flash, root_img, outdir, start, reason):
     return run.failures
 
 
+def run_cases_in_children(names, flags, args):
+    """Run each named case in its own process, all at once.
+
+    Every case boots its own emulator and writes below its own directory,
+    and one emulator occupies one host thread, so the cases share only the
+    prepared kernel and flash images, which they read. Each child's lines
+    are printed as they arrive, prefixed with the case name, so a caller
+    that bounds the time between output lines sees the progress of every
+    case. Returns the worst exit status.
+    """
+    children = [
+        subprocess.Popen(
+            [sys.executable, "-I", "-u", os.path.abspath(__file__), *flags, "--case", name, *args],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        for name in names
+    ]
+    lock = threading.Lock()
+
+    def relay(name, stream):
+        for raw in stream:
+            text = raw.decode("utf-8", errors="replace").rstrip("\n")
+            with lock:
+                print(f"[{name}] {text}", flush=True)
+
+    relays = [
+        threading.Thread(target=relay, args=(name, child.stdout))
+        for name, child in zip(names, children)
+    ]
+    for thread in relays:
+        thread.start()
+    worst = 0
+    for thread, child in zip(relays, children):
+        thread.join()
+        status = child.wait()
+        worst = max(worst, status if status in (0, 1) else 2)
+    return worst
+
+
 def main(argv):
     boot_only = argv[:1] == ["--configured-boot"]
     configured = boot_only or argv[:1] == ["--configured"]
+    flags = argv[:1] if configured else []
     if configured:
         argv = argv[1:]
+    only = None
+    if argv[:1] == ["--case"] and len(argv) >= 2:
+        only = argv[1]
+        argv = argv[2:]
     start = SD_KERNEL_END if configured else FLASH_ROOT
     reason = CONFIGURED_ROOT if configured else LOADER_ROOT
-    if argv == ["--self-test"] or len(argv) == 4:
+    if only is None and (argv == ["--self-test"] or len(argv) == 4):
         failed = self_test()
         for message in failed:
             print(f"check-picocalc-sdroot: self-test FAIL {message}", file=sys.stderr)
@@ -551,8 +601,9 @@ def main(argv):
     os.makedirs(outdir, exist_ok=True)
     kernel = os.path.join(outdir, "unix-boot.bin")
     flash = os.path.join(outdir, "flash-foreign.bin")
-    prepare_kernel(unix_bin, kernel, start)
-    foreign_flash(flash, start)
+    if only is None:
+        prepare_kernel(unix_bin, kernel, start)
+        foreign_flash(flash, start)
     failures = []
     try:
         cases = (
@@ -563,6 +614,16 @@ def main(argv):
         )
         if boot_only:
             cases = cases[:1]
+        if only is not None:
+            cases = tuple(entry for entry in cases if entry[0] == only)
+            if not cases:
+                print(f"check-picocalc-sdroot: no case named {only}", file=sys.stderr)
+                return 2
+        elif len(cases) > 1 and os.environ.get("CHECK_PICOCALC_SERIAL") != "1":
+            status = run_cases_in_children([name for name, _ in cases], flags, argv)
+            if status == 0:
+                print("check-picocalc-sdroot: pass")
+            return status
         for name, case in cases:
             print(f"check-picocalc-sdroot: case {name}", flush=True)
             got = case(os.path.join(outdir, name))
@@ -574,7 +635,8 @@ def main(argv):
         print(f"check-picocalc-sdroot: FAIL {failure}", file=sys.stderr)
     if failures:
         return 1
-    print("check-picocalc-sdroot: pass")
+    if only is None:
+        print("check-picocalc-sdroot: pass")
     return 0
 
 

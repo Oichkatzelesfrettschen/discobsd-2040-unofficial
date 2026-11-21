@@ -51,8 +51,13 @@
  * rectangles. A rectangle inside an existing one is dropped, one that
  * contains existing ones replaces them, two that join into a rectangle are
  * merged, and a partial overlap is trimmed where the remainder is itself a
- * rectangle, so the list covers exactly the pixels invalidated and few
- * pixels twice. A rectangle is never widened.
+ * rectangle. A rectangle that overlaps or touches a recorded one and
+ * neither joins nor trims becomes the pair's bounding box when
+ * cost(box) <= cost(a) + cost(b), with cost(r) = bpp * w * h +
+ * WIN_CMD_BYTES * strips(r) in wire bytes and strips(r) the LCDG_WINDOW
+ * strips repaint() sends. A rectangle is widened only where the bounding
+ * box costs no more wire bytes, so every invalidated pixel is written and
+ * the bytes sent never exceed the unmerged cost.
  *
  * Compound operations. Every public call makes room for its own
  * WIN_DAMAGE_CALL rectangles before it changes anything (the list of
@@ -106,6 +111,9 @@
 #define WIN_DAMAGE_MAX	8
 #define WIN_DAMAGE_CALL	2		/* Rectangles one public call adds at most. */
 #define WIN_STRIP_BYTES	5120		/* 16 rows of a full-width strip. */
+#define WIN_CMD_BYTES	11		/* Wire bytes of one LCDG_WINDOW command. */
+#define WIN_BPP_DEFAULT	3		/* Wire bytes a pixel at COLMOD 0x66. */
+#define WIN_BPP_RGB565	2		/* Wire bytes a pixel at COLMOD 0x55. */
 #define WIN_GUARD	8		/* Guard bytes on each side of the strip. */
 #define WIN_GUARD_BYTE	0xa5
 #define WIN_TITLE_MAX	24		/* Title bytes including the NUL. */
@@ -194,6 +202,7 @@ struct win_scene {
 	int focus_follows_raise;	/* Nonzero: raise and lower move the focus. */
 	unsigned next_gen;		/* Generation of the next window created. */
 	struct win_backend be;
+	int bpp;			/* Wire bytes a pixel: the damage cost rule. */
 	win_bits_fn bits;		/* NULL until win_scene_set_bits(). */
 	unsigned char buf[WIN_GUARD + WIN_STRIP_BYTES + WIN_GUARD];
 };
@@ -247,6 +256,12 @@ struct win_lcdgfx {
 	int fd;
 };
 void win_lcdgfx_init(struct win_backend *be, struct win_lcdgfx *st, int fd);
+/*
+ * Select COLMOD 0x55 on the device and record WIN_BPP_RGB565 in the scene, so
+ * the damage list prices a pixel at 2 wire bytes. Call it once after each open
+ * and win_scene_init(); a scene without the call prices a pixel at 3.
+ */
+int win_lcdgfx_rgb565(struct win_scene *s, const struct win_lcdgfx *st);
 /* The LCDG_WIN_BITS entry for win_scene_set_bits(); self is the backend's. */
 int win_lcdgfx_bits(void *self, int x, int y, int w, int h, int fg, int bg,
     const unsigned char *rows);

@@ -27,8 +27,8 @@
 ; The guest of the expanded memory test (tests/check.py): a boot program
 ; that calls interrupt 67h, the firmware's EMS service, and records one
 ; token a line, "name:HEX". The lines go to the display and, at the end,
-; to sector 1 of head 1 of its own disk, where check.py reads them after
-; a run on the panel display too. Assemble with
+; to sectors 1 and 2 of head 1 of its own disk, where check.py reads them
+; after a run on the panel display too. Assemble with
 ;
 ;	nasm -f bin -o ems.bin ems.asm
 ;
@@ -502,6 +502,85 @@ main:	mov ah, 0x40
 	int 0x67
 	mov si, s_e84
 	call st
+	; 4Dh into a buffer that wraps at 1 MB: the second entry lands at 0:0
+	push word [0]
+	push word [2]
+	mov word [0], 0xffff
+	mov ax, 0xffff
+	mov es, ax
+	mov di, 0x000c
+	mov ah, 0x4d
+	int 0x67
+	mov ax, [0]
+	pop word [2]
+	pop word [0]
+	mov si, s_wrap
+	call say4
+	; 57h from handle page 0 to E000:0001 while that page shows at E000h
+	mov ax, [h]
+	mov [oreg + 5], ax
+	mov bx, 0
+	mov al, 0
+	call map
+	mov ax, 0x5700
+	mov si, oreg
+	int 0x67
+	mov si, s_e94
+	call st
+	mov bx, 1			; and while another page shows there
+	mov al, 0
+	call map
+	mov ax, 0x5700
+	mov si, oreg
+	int 0x67
+	mov si, s_e94no
+	call st
+	mov ax, 0x5b06			; no DMA register sets
+	xor bl, bl
+	mov dl, 1
+	int 0x67
+	mov si, s_e9e
+	call st
+	; 5Dh: the access key
+	mov ax, 0x5d00
+	int 0x67
+	mov [okey], bx
+	mov [okey + 2], cx
+	mov si, s_os
+	call st
+	mov ax, 0x5d01
+	mov bx, [okey]
+	mov cx, [okey + 2]
+	xor cx, 1
+	int 0x67
+	mov si, s_osbad
+	call st
+	mov ax, 0x5d01
+	mov cx, [okey + 2]
+	int 0x67
+	mov si, s_osoff
+	call st
+	mov ax, 0x5b00
+	int 0x67
+	mov si, s_e5b
+	call st
+	push ds
+	pop es
+	mov di, mbuf
+	mov ax, 0x5900
+	int 0x67
+	mov si, s_e59
+	call st
+	mov ax, 0x5d02
+	mov bx, [okey]
+	mov cx, [okey + 2]
+	int 0x67
+	mov si, s_osret
+	call st
+	mov ax, 0x5b00
+	int 0x67
+	mov si, s_oson
+	call st
 	; unmapped physical page 3 reads FFh
 	mov bx, 0xffff
 	mov al, 3
@@ -532,10 +611,10 @@ main:	mov ah, 0x40
 done:	mov si, s_done
 	call puts
 	call crlf
-	xor ax, ax			; the lines to head 1, sector 1
+	xor ax, ax			; the lines to head 1, sectors 1 and 2
 	mov es, ax
 	mov bx, OUTBUF
-	mov ax, 0x0301
+	mov ax, 0x0302
 	mov cx, 0x0001
 	mov dx, 0x0100
 	int 0x13
@@ -579,6 +658,23 @@ s_e84:	db "e84:", 0
 s_unmap: db "unmap:", 0
 s_e86:	db "e86:", 0
 s_free2: db "dealloc:", 0
+s_wrap:	db "wrap:", 0
+s_e94:	db "e94:", 0
+s_e94no: db "e94no:", 0
+s_e9e:	db "e9e:", 0
+s_os:	db "os:", 0
+s_osbad: db "osbad:", 0
+s_osoff: db "osoff:", 0
+s_e5b:	db "e5b:", 0
+s_e59:	db "e59:", 0
+s_osret: db "osret:", 0
+s_oson:	db "oson:", 0
 s_done:	db "done", 0
+okey:	dd 0
+oreg:	dd 16			; 57h: from handle page 0 ...
+	db 1
+	dw 0, 0, 0
+	db 0				; ... to E000:0001
+	dw 0, 1, 0xe000
 
 	times 2560 - ($ - $$) db 0

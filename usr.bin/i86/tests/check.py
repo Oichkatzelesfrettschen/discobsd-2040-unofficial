@@ -353,6 +353,15 @@ MUTANTS = [
     ("mem.c", "lp - pbase[p] < MEM_EMSPG) {", "lp - pbase[p] < MEM_EMSPG && p != 59) {"),
     ("mem.c", "\tb += pg % MEM_EMSPG;", "\tb += 0;"),
     ("mem.c", "mem_rmap[g] = mem_wmap[g] = 0;\n\tpbase[phys]", "(void)g;\n\tpbase[phys]"),
+    ("ems.c", "\tmem_ww(a & (MEM_SIZE - 1), v);", "\tmem_ww(a, v);"),
+    (
+        "ems.c",
+        "\t\tif (m + lo < xs + len && xs < m + hi)",
+        "\t\tif (m + lo < xs + len && xs < m + hi && 0)",
+    ),
+    ("ems.c", "st = bx & 0xff ? 0x9c : 0x9e;", "st = bx & 0xff ? 0x9c : OK;"),
+    ("ems.c", "else if (key_out && ((uint32_t)bx << 16 | cx) != key)", "else if (0)"),
+    ("ems.c", "if (os_off && ((ah == 0x59 && al == 0) || ah == 0x5b))", "if (0)"),
 ]
 
 
@@ -1016,12 +1025,13 @@ def ems_expected():
         + ["sum:%04X" % page_sum(n) for n in range(3)]
         + "alias:AB alias2:AB disk:AA55 save:00 e8d:8D restore:11 multi:00 c000:11 move:00 xchg:00"
         " xgot:45 moved:4D45 landed:4D45 set1:00 alt:0010 get:FFF0 h0:00 e88h0:88 e83:83"
-        " e8a:8A e8b:8B e84:84 unmap:FF e86:86 dealloc:00 free:0010 done".split()
+        " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
+        " e5b:A4 e59:A4 osret:00 oson:00 unmap:FF e86:86 dealloc:00 free:0010 done".split()
     )
 
 
 def ems_run(binary, work, args, keys, env=None):
-    """tests/ems.asm under args; the lines it wrote to head 1, sector 1."""
+    """tests/ems.asm under args; the lines it wrote to head 1, sectors 1 and 2."""
     image = os.path.join(work, "ems-run.img")
     shutil.copyfile(os.path.join(work, "ems.img"), image)
     try:
@@ -1036,7 +1046,7 @@ def ems_run(binary, work, args, keys, env=None):
         raise Failure("ems %s: timeout" % " ".join(args)) from None
     with open(image, "rb") as handle:
         handle.seek(9 * 512)
-        return handle.read(512).split(b"\0")[0].decode("latin-1").split()
+        return handle.read(1024).split(b"\0")[0].decode("latin-1").split()
 
 
 def test_ems(binary, work):

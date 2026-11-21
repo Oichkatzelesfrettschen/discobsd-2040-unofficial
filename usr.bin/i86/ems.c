@@ -49,7 +49,14 @@
  * 5B01h makes current, and the current area stands for the registers.
  * Switching to another area stores the mapping in the one left and loads
  * the new one; 5B00h stores the mapping in the current area before it
- * returns the area's address. There are no DMA register sets.
+ * returns the area's address. There are no DMA register sets: 5B05h
+ * gives none and 5B06h and 5B07h answer 9Eh.
+ *
+ * 5Dh keeps the operating system's access key: the first 5D00h or 5D01h
+ * hands it out in BX:CX, later calls must present it (A4h otherwise), and
+ * 5D02h takes it back. While 5D01h has the functions off, 5900h and 5Bh
+ * answer A4h. The key is a hash of the count of calls so far, the same
+ * from run to run under -T.
  */
 #include <stdlib.h>
 #include <string.h>
@@ -90,11 +97,44 @@ static unsigned npool, nphys;
 static uint8_t blk[NPHYS];	/* each physical page's 16 KB block */
 static uint16_t cur[NPHYS];	/* the logical page it shows */
 static uint32_t alt_area;	/* set 0's save area (5B01h), or 0 */
+static uint8_t os_off;		/* 5D01h: 5900h and 5Bh refused */
+static uint8_t key_out;		/* 5D00h or 5D01h has given out key */
+static uint32_t key, calls;
 
 static uint32_t
 lin(unsigned seg, unsigned off)
 {
 	return (((uint32_t)seg << 4) + off) & (MEM_SIZE - 1);
+}
+
+/*
+ * Guest memory at a linear address that wraps at 1 MB, as the 20 address
+ * lines do. Every buffer address an EMS function derives from a guest
+ * pointer (ES:DI + 4n and the like) passes through these, so a buffer that
+ * crosses the top of memory continues at 0:0 instead of past the maps.
+ */
+static unsigned
+grb(uint32_t a)
+{
+	return (mem_rb(a & (MEM_SIZE - 1)));
+}
+
+static unsigned
+grw(uint32_t a)
+{
+	return (mem_rw(a & (MEM_SIZE - 1)));
+}
+
+static void
+gwb(uint32_t a, unsigned v)
+{
+	mem_wb(a & (MEM_SIZE - 1), v);
+}
+
+static void
+gww(uint32_t a, unsigned v)
+{
+	mem_ww(a & (MEM_SIZE - 1), v);
 }
 
 static void
@@ -203,9 +243,9 @@ put_map(uint32_t a)
 {
 	unsigned p;
 
-	mem_ww(a, nphys);
+	gww(a, nphys);
 	for (p = 0; p < nphys; p++)
-		mem_ww(a + 2 + 2 * p, cur[p]);
+		gww(a + 2 + 2 * p, cur[p]);
 }
 
 /* Whether the save area at a holds a mapping: A3h when it does not. */
@@ -214,10 +254,10 @@ get_map_check(uint32_t a)
 {
 	unsigned p;
 
-	if (mem_rw(a) != nphys)
+	if (grw(a) != nphys)
 		return (0xa3);
 	for (p = 0; p < nphys; p++)
-		if (!base_ok(mem_rw(a + 2 + 2 * p)))
+		if (!base_ok(grw(a + 2 + 2 * p)))
 			return (0xa3);
 	return (OK);
 }
@@ -230,7 +270,7 @@ get_map(uint32_t a)
 	if ((st = get_map_check(a)) != OK)
 		return (st);
 	for (p = 0; p < nphys; p++)
-		show(p, mem_rw(a + 2 + 2 * p));
+		show(p, grw(a + 2 + 2 * p));
 	return (OK);
 }
 
@@ -334,12 +374,39 @@ copy(uint8_t *buf, const struct end *e, uint32_t i, uint32_t n, int wr)
 	}
 }
 
+/*
+ * Whether conventional region c and expanded region x of a move share
+ * bytes: c covers part of a physical page that shows one of x's handle
+ * pages at the offsets x occupies in it (status 94h).
+ */
+static int
+alias(const struct end *c, const struct end *x, uint32_t len)
+{
+	uint32_t xs = (uint32_t)x->page * PAGE + x->at, b, lo, hi, m;
+	unsigned p, k;
+
+	for (p = 0; p < nphys; p++) {
+		b = (uint32_t)blk[p] * PAGE;
+		if (cur[p] == NOBASE || c->at >= b + PAGE || b >= c->at + len)
+			continue;
+		k = (cur[p] - MEM_NPAGE) / MEM_EMSPG;
+		if (owner[k] != x->h + 1)
+			continue;
+		m = (uint32_t)lnum[k] * PAGE;
+		lo = c->at > b ? c->at - b : 0;
+		hi = c->at + len < b + PAGE ? c->at + len - b : PAGE;
+		if (m + lo < xs + len && xs < m + hi)
+			return (1);
+	}
+	return (0);
+}
+
 static unsigned
 move(uint32_t a, int xchg)
 {
 	uint8_t one[256], two[256];
 	struct end e[2];
-	uint32_t len = mem_rw(a) | (uint32_t)mem_rw(a + 2) << 16, i, n;
+	uint32_t len = grw(a) | (uint32_t)grw(a + 2) << 16, i, n;
 	uint32_t s0, s1;
 	unsigned k, status = OK;
 	int back = 0;
@@ -349,15 +416,15 @@ move(uint32_t a, int xchg)
 	for (k = 0; k < 2; k++) {
 		uint32_t d = a + 4 + 7 * k;
 
-		e[k].type = mem_rb(d);
-		e[k].h = mem_rw(d + 1);
-		e[k].page = mem_rw(d + 5);
+		e[k].type = grb(d);
+		e[k].h = grw(d + 1);
+		e[k].page = grw(d + 5);
 		if (e[k].type == 0) {
-			e[k].at = lin(mem_rw(d + 5), mem_rw(d + 3));
+			e[k].at = lin(grw(d + 5), grw(d + 3));
 			if (e[k].at + len > MEM_SIZE)
 				return (0xa2);
 		} else if (e[k].type == 1) {
-			e[k].at = mem_rw(d + 3);
+			e[k].at = grw(d + 3);
 			if (!valid(e[k].h))
 				return (E_HANDLE);
 			if (e[k].at >= PAGE)
@@ -378,7 +445,9 @@ move(uint32_t a, int xchg)
 			if (e[0].type)
 				status = 0x92;
 		}
-	}
+	} else if (e[0].type != e[1].type && len &&
+	    alias(&e[e[0].type != 0], &e[e[0].type == 0], len))
+		return (0x94);
 	for (i = 0; i < len; i += n) {
 		n = len - i < sizeof(one) ? len - i : sizeof(one);
 		k = back ? (unsigned)(len - i - n) : (unsigned)i;
@@ -401,7 +470,10 @@ ems_int(struct i86 *c)
 	uint32_t dssi = lin(c->s[S_DS], c->r[R_SI]);
 	unsigned st = OK, h, k, n, p;
 
-	switch (ah) {
+	calls++;
+	if (os_off && ((ah == 0x59 && al == 0) || ah == 0x5b))
+		st = 0xa4;
+	else switch (ah) {
 	case 0x40:
 		break;
 	case 0x41:
@@ -467,8 +539,8 @@ ems_int(struct i86 *c)
 	case 0x4d:
 		for (h = n = 0; h < NHANDLE; h++)
 			if (hd[h].used) {
-				mem_ww(esdi + 4 * n, h);
-				mem_ww(esdi + 4 * n + 2, hd[h].pages);
+				gww(esdi + 4 * n, h);
+				gww(esdi + 4 * n + 2, hd[h].pages);
 				n++;
 			}
 		c->r[R_BX] = (uint16_t)n;
@@ -485,27 +557,27 @@ ems_int(struct i86 *c)
 		break;
 	case 0x4f:
 		if (al == 0) {
-			n = mem_rw(dssi);
-			mem_ww(esdi, n);
+			n = grw(dssi);
+			gww(esdi, n);
 			for (k = 0; k < n; k++) {
-				unsigned seg = mem_rw(dssi + 2 + 2 * k);
+				unsigned seg = grw(dssi + 2 + 2 * k);
 
 				if ((p = phys_at(seg)) == nphys) {
 					st = E_PPAGE;
 					break;
 				}
-				mem_ww(esdi + 2 + 4 * k, seg);
-				mem_ww(esdi + 4 + 4 * k, cur[p]);
+				gww(esdi + 2 + 4 * k, seg);
+				gww(esdi + 4 + 4 * k, cur[p]);
 			}
 		} else if (al == 1) {
-			n = mem_rw(dssi);
+			n = grw(dssi);
 			for (k = 0; k < n && st == OK; k++) {
-				p = phys_at(mem_rw(dssi + 2 + 4 * k));
+				p = phys_at(grw(dssi + 2 + 4 * k));
 				if (p == nphys ||
-				    !base_ok(mem_rw(dssi + 4 + 4 * k)))
+				    !base_ok(grw(dssi + 4 + 4 * k)))
 					st = 0xa3;
 				else
-					show(p, mem_rw(dssi + 4 + 4 * k));
+					show(p, grw(dssi + 4 + 4 * k));
 			}
 		} else if (al == 2) {
 			if (bx > nphys)
@@ -521,8 +593,8 @@ ems_int(struct i86 *c)
 		else if (!valid(dx))
 			st = E_HANDLE;
 		for (k = 0; k < cx && st == OK; k++) {
-			n = mem_rw(dssi + 4 * k);
-			p = mem_rw(dssi + 4 * k + 2);
+			n = grw(dssi + 4 * k);
+			p = grw(dssi + 4 * k + 2);
 			st = map(al ? phys_at(p) : p, dx, n);
 		}
 		break;
@@ -564,12 +636,12 @@ ems_int(struct i86 *c)
 			st = E_HANDLE;
 		else if (al == 0) {
 			for (k = 0; k < 8; k++)
-				mem_wb(esdi + k, (uint8_t)hd[dx].name[k]);
+				gwb(esdi + k, (uint8_t)hd[dx].name[k]);
 		} else {
 			char name[8];
 
 			for (k = 0; k < 8; k++)
-				name[k] = (char)mem_rb(dssi + k);
+				name[k] = (char)grb(dssi + k);
 			for (h = 0; h < NHANDLE; h++)
 				if (h != dx && hd[h].used &&
 				    memcmp(hd[h].name, name, 8) == 0 &&
@@ -583,9 +655,9 @@ ems_int(struct i86 *c)
 		if (al == 0) {
 			for (h = n = 0; h < NHANDLE; h++)
 				if (hd[h].used) {
-					mem_ww(esdi + 10 * n, h);
+					gww(esdi + 10 * n, h);
 					for (k = 0; k < 8; k++)
-						mem_wb(esdi + 10 * n + 2 + k,
+						gwb(esdi + 10 * n + 2 + k,
 						    (uint8_t)hd[h].name[k]);
 					n++;
 				}
@@ -594,7 +666,7 @@ ems_int(struct i86 *c)
 			char name[8];
 
 			for (k = 0; k < 8; k++)
-				name[k] = (char)mem_rb(dssi + k);
+				name[k] = (char)grb(dssi + k);
 			st = 0xa0;
 			if (memcmp(name, "\0\0\0\0\0\0\0\0", 8) == 0)
 				st = 0xa1;
@@ -623,19 +695,19 @@ ems_int(struct i86 *c)
 			for (k = n = 0; k < 64; k++)
 				for (p = 0; p < nphys; p++)
 					if (blk[p] == k) {
-						mem_ww(esdi + 4 * n, k << 10);
-						mem_ww(esdi + 4 * n + 2, p);
+						gww(esdi + 4 * n, k << 10);
+						gww(esdi + 4 * n + 2, p);
 						n++;
 					}
 		c->r[R_CX] = (uint16_t)nphys;
 		break;
 	case 0x59:
 		if (al == 0) {
-			mem_ww(esdi, PAGE >> 4);
-			mem_ww(esdi + 2, 0);
-			mem_ww(esdi + 4, 2 + 2 * nphys);
-			mem_ww(esdi + 6, 0);
-			mem_ww(esdi + 8, 0);
+			gww(esdi, PAGE >> 4);
+			gww(esdi + 2, 0);
+			gww(esdi + 4, 2 + 2 * nphys);
+			gww(esdi + 6, 0);
+			gww(esdi + 8, 0);
 		} else if (al == 1) {
 			c->r[R_BX] = (uint16_t)nfree();
 			c->r[R_DX] = (uint16_t)npool;
@@ -677,11 +749,13 @@ ems_int(struct i86 *c)
 			c->r[R_BX] &= 0xff00;
 			break;
 		case 4:
-		case 6:
-		case 7:
 		case 8:
 			if (bx & 0xff)
 				st = 0x9c;
+			break;
+		case 6:
+		case 7:
+			st = bx & 0xff ? 0x9c : 0x9e;
 			break;
 		default:
 			st = E_SUB;
@@ -692,6 +766,19 @@ ems_int(struct i86 *c)
 	case 0x5d:
 		if (al > 2)
 			st = E_SUB;
+		else if (key_out && ((uint32_t)bx << 16 | cx) != key)
+			st = 0xa4;
+		else if (al == 2)
+			key_out = os_off = 0;
+		else {
+			if (!key_out) {
+				key = calls * 2654435761u;
+				key_out = 1;
+				c->r[R_BX] = (uint16_t)(key >> 16);
+				c->r[R_CX] = (uint16_t)key;
+			}
+			os_off = (uint8_t)al;
+		}
 		break;
 	default:
 		st = E_FUNC;

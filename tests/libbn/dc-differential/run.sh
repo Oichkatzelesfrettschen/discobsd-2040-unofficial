@@ -18,7 +18,10 @@ count=${2:-3000}
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../../.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/dc-differential.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 mkdir "$work/a" "$work/b"
 files="$src/main.c $src/dc.c $src/bcode.c $src/inout.c $src/mem.c $src/stack.c"

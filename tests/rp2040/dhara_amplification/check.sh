@@ -7,7 +7,10 @@ topsrc=$(cd "$(dirname "$0")/../../.." && pwd)
 dhara=$topsrc/sys/arch/rp2040/dhara
 table=$topsrc/sys/arch/rp2040/doc/dhara-geometry.txt
 work=$(mktemp -d "${TMPDIR:-/tmp}/dhara-amplification.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail()
 {

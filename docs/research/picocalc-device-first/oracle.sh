@@ -93,7 +93,9 @@ fi
 if [ "$mode" = run ]; then
     : "${PYTHON:?set PYTHON to the intended interpreter}"
     T=$(mktemp -d)
-    trap 'rm -r -- "$T"' EXIT INT TERM
+    trap 'rm -r -- "$T"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
     set +e
     sh "$HERE/build.sh" "$T/out" >"$T/log" 2>&1
     status=$?

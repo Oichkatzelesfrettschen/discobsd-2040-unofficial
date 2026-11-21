@@ -29,7 +29,9 @@ FLASH_ID=${1:-$TOPSRC/tools/flash-id}
 RUNS=3
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT INT TERM
+trap 'rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 note() { printf '%s\n' "$*" >&2; }
 

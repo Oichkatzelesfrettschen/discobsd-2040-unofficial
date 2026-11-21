@@ -75,7 +75,10 @@ if ! check_handoff_order "$source_file"; then
 fi
 
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/login-handoff.XXXXXX")
-trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$temporary_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 good_fixture=$temporary_directory/good.c
 missing_fixture=$temporary_directory/missing.c

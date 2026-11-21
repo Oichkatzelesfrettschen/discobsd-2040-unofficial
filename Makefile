@@ -2456,19 +2456,15 @@ check-host-split:	check-python
 		    --all "${HOST_LONG_GATES} ${HOST_GATES} ${HOST_PROGRAM_GATES}" \
 		    --a "${HOST_TIER_A_GATES}" --b "${HOST_TIER_B_GATES}"
 
-# Shell gates that clean a work directory take an EXIT trap and one exiting
+# Shell scripts that clean a work directory take an EXIT trap and one exiting
 # trap per signal: a trap action for HUP, INT or TERM returns to the script,
-# so one action bound to EXIT and a signal lets the gate run on against the
-# removed directory. The scan covers the gates this tree's profile and
-# capacity work changed; tools/check-signal-traps.sh --selftest calibrates it
-# on a conforming and a combined fixture and under SIGTERM.
-SIGNAL_TRAP_SCRIPTS=	distrib/rp2040/check-image-selection.sh \
-		tests/fat32tail/check.sh tools/renode/check-capacity.sh \
-		tools/architecture-isolation/check-architecture-isolation.sh \
-		tests/reboot_contracts/sdk_gap.sh
+# so one action bound to EXIT and a signal lets the script run on against the
+# removed directory. The scan covers every .sh file git tracks, less the
+# exclusions tools/check-signal-traps.sh names with their reasons; its
+# --selftest calibrates the scan, the tracked listing and the SIGTERM idiom.
 check-signal-traps:
 		sh tools/check-signal-traps.sh --selftest
-		sh tools/check-signal-traps.sh ${SIGNAL_TRAP_SCRIPTS}
+		sh tools/check-signal-traps.sh --tracked ${TOPSRC}
 
 # The kernel formatter and neighboring contracts use target-width integer and
 # pointer assumptions. The gate runs them in a 32-bit userspace binary. A host

@@ -13,7 +13,10 @@ config_program=$config_program_directory/$(basename "$1")
 source_root=$(cd "$2" && pwd)
 compile_root=$source_root/sys/arch/rp2040/compile
 test_directory=$(mktemp -d "$compile_root/config-makefile.XXXXXX")
-trap 'rm -rf "$test_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$test_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 sed \
 	-e 's/board[[:space:]]*"PICO"/board           "CONFIG_MAKEFILE"/' \

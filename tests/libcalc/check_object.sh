@@ -12,7 +12,10 @@ nm=$2
 size=$3
 shift 3
 combined=$(mktemp "${TMPDIR:-/tmp}/libcalc-combined.XXXXXX")
-trap 'rm -f "$combined"' EXIT HUP INT TERM
+trap 'rm -f "$combined"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 status=0
 
 # A relocatable link resolves the references between the libcalc objects

@@ -12,7 +12,10 @@ here=$(cd "$(dirname "$0")" && pwd)
 src=$here/../../sys/arch/rp2040/rp2040
 cc=${CC:-cc}
 work=$(mktemp -d "${TMPDIR:-/tmp}/core1.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 cflags='-std=c17 -O1 -g -Wall -Wextra -Werror'
 

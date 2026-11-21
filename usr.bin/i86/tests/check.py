@@ -793,39 +793,18 @@ def termios_diff(before, after):
     return "; ".join(parts) or "no field differs"
 
 
-def wait_draining(child, master, seconds):
-    """Wait for child to exit while reading its pseudo-terminal output.
-    Returns the bytes read and the exit status, None when the child still
-    runs after the time. A child that writes more than the pseudo-terminal
-    holds blocks in write() while nothing reads: the emulator draws the
-    guest's screen again on its way out, and a macOS pseudo-terminal holds
-    less than that screen where a Linux one holds more."""
-    got = b""
-    end = time.time() + seconds
-    while child.poll() is None and time.time() < end:
-        ready, _, _ = select.select([master], [], [], 0.05)
-        if ready:
-            try:
-                got += os.read(master, 4096)
-            except OSError:
-                break
-    if child.poll() is None:
-        try:
-            child.wait(timeout=max(0.0, end - time.time()))
-        except subprocess.TimeoutExpired:
-            pass
-    while True:
-        ready, _, _ = select.select([master], [], [], 0.05)
-        if not ready:
-            break
-        try:
-            more = os.read(master, 65536)
-        except OSError:
-            break
-        if not more:
-            break
-        got += more
-    return got, child.poll()
+def load_ptywait():
+    """tests/ptywait.py, beside this file; the interpreter runs isolated,
+    without the script's directory on its path."""
+    spec = importlib.util.spec_from_file_location(
+        "ptywait", os.path.join(os.path.dirname(os.path.abspath(__file__)), "ptywait.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ptywait = load_ptywait()
 
 
 def test_wait_draining():
@@ -844,7 +823,7 @@ def test_wait_draining():
         )
         try:
             if drain:
-                got, status = wait_draining(child, master, seconds)
+                got, status = ptywait.wait_draining(child, master, seconds)
                 return len(got), status
             try:
                 return child.wait(timeout=seconds)
@@ -903,7 +882,7 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
             if kill is not None:
                 time.sleep(0.5)
                 child.send_signal(kill)
-            more, status = wait_draining(child, master, 5)
+            more, status = ptywait.wait_draining(child, master, 5)
             seen += more
     finally:
         if child.poll() is None:

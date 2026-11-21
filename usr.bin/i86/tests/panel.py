@@ -448,6 +448,20 @@ def test_fallbacks(binary, work, fonts, boot):
     compare(closes[0][0], expected(3, fonts, boot), "panel with 12 frames")
 
 
+def load_ptywait():
+    """tests/ptywait.py, beside this file; the interpreter runs isolated,
+    without the script's directory on its path."""
+    spec = importlib.util.spec_from_file_location(
+        "ptywait", os.path.join(os.path.dirname(os.path.abspath(__file__)), "ptywait.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ptywait = load_ptywait()
+
+
 def session(binary, work, steps, env=None):
     """A session typed at a pseudo-terminal: each step waits for a text
     there or for a close of the panel, then types."""
@@ -486,9 +500,10 @@ def session(binary, work, steps, env=None):
             time.sleep(0.3)
             os.write(master, keys)
             step += 1
-        status = child.wait(timeout=5) if step == len(steps) else None
-    except subprocess.TimeoutExpired:
         status = None
+        if step == len(steps):
+            more, status = ptywait.wait_draining(child, master, 5)
+            seen += more
     finally:
         if child.poll() is None:
             child.kill()

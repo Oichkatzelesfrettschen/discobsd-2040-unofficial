@@ -74,10 +74,14 @@ also ship in PICOCALC_SD, whose linker script gives it about 32 KB of room.
 
 ## Choices for the owner
 
-1. Which diagnostic options PICOCALC keeps. Moving `LCD_PANELTEST` and
-   `SYSTRACE` to the diagnostic configurations (PICOCALC_LEAN_DIAG,
-   PICOCALC_SD_DIAG) frees 3,792 bytes of PICOCALC text; PANEL task 46's
-   photographs use the panel test, which PICOCALC_SD keeps.
+1. Which diagnostic options PICOCALC keeps. Dropping `LCD_PANELTEST` and
+   `SYSTRACE` frees 3,792 bytes of PICOCALC text. The panel test needs
+   `DEV_LCDGFX`, which PICOCALC_LEAN_DIAG omits, so it stays in PICOCALC_SD
+   and PICOCALC_SD_DIAG alone; `SYSTRACE` can also go to
+   PICOCALC_LEAN_DIAG. The panel test's move has a gate cost:
+   `check-panel-programs`, in the PR job, calls `st7365p_set` in the
+   PICOCALC ELF, so it would read the PICOCALC_SD ELF instead, and the PR
+   job would link that kernel first.
 2. Whether the errno message pool moves to the card: 1,298 bytes of flash
    for the same in RAM after a boot-time read, or a read on each lookup.
    The tree lacks a kernel file loader so far; the read path is its cost.

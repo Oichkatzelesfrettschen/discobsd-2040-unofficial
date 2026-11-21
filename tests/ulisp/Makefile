@@ -81,8 +81,9 @@ check:
 	${MAKE} -C ${SRC} ulisp.host ulisp.doc
 	shim=; \
 	if [ "$$(uname -s)" = Linux ]; then \
+		rm -f rewrite-race.so; \
 		${HOST_CC} -std=gnu17 -Wall -Wextra -Werror -shared -fPIC \
-		    -o rewrite-race.so ${.CURDIR}/rewrite-race.c -ldl && \
+		    -o rewrite-race.so ${.CURDIR}/rewrite-race.c -ldl || exit 1; \
 		shim=${.CURDIR}/rewrite-race.so; \
 	else \
 		echo "SKIP ulisp rewrite race: the shim needs Linux LD_PRELOAD; no execution occurred"; \

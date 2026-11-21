@@ -437,13 +437,15 @@ MUTANTS = [
     ("pc.c", "if ((n != 2 || (port61 & 1)) && e / p->count != p->shown) {", "if (0) {"),
     (
         "pc.c",
-        "hi = (c + 1) / 2;\n\t\tv = e < hi ? c - 2 * e : c - (c & 1) - 2 * (e - hi);",
+        "hi = (c + 1) / 2;\n\t\tv = c - (c & 1) - 2 * (e < hi ? e : e - hi);",
         "hi = c / 2 ? c / 2 : 1;\n\t\tv = c - 2 * (e % hi);",
     ),
     ("pc.c", "bin_bcd(v % 10000) :", "(bin_bcd(0) | v % 10000) :"),
     ("pc.c", "if (p->mode == 0) {\n\t\t\tp->armed = 0;", "if (0) {\n\t\t\tp->armed = 0;"),
+    ("pc.c", "pit[n].latched = 0;\n\tpit[n].slatched = 0;", "pit[n].latched = 0;"),
+    ("pc.c", "else if ((pc_idle || c->halted) && slice_left() < PC_STEPS) {", "else if (0) {"),
     ("pc.c", "host_sleep((unsigned)((thr_due - now) / 1000UL));", "(void)thr_due;"),
-    ("pc.c", "pc_slice = d < SLICE_MIN ? SLICE_MIN : d;", "pc_slice = PC_STEPS;"),
+    ("pc.c", "return (d < SLICE_MIN ? SLICE_MIN : d);", "return (PC_STEPS);"),
     (
         "pc.c",
         "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 1;",
@@ -1218,16 +1220,18 @@ def pit_run(binary, work, args):
 
 def test_pit(binary, work):
     """The 8254 through tests/pit.asm. Under -T every count is exact: the
-    latched counter moved 280h in mode 3, counter 0 at 1 kHz raised 54
+    latched counter moved 2B0h in mode 3, counter 0 at 1 kHz raised 54
     interrupts while counter 2 counted 65535 clocks, counter 2's read-back
-    status is B0h, the refresh bit changed 36h times in 64 reads, a poller saw
-    mode 2's low pulse, 16h of 40 reads of an odd mode 3 count were even, the
-    first byte of a new mode 0 count drove OUT low, and a BCD count reads as
-    decimal digits. On the
-    host's clock the interrupts are 52 to 55 whatever the host's speed,
-    since both counters count the same clocks."""
+    status is B0h, 20 halts at 1 kHz took 54xxh clocks, the refresh bit
+    changed 34h times in 64 reads, a poller saw mode 2's low pulse, all 40
+    reads of an odd mode 3 count were even, the first byte of a new mode 0
+    count drove OUT low, a new control word cleared a latched status, and a
+    BCD count reads as decimal digits. On the host's clock the interrupts
+    are 52 to 55 whatever the host's speed, since both counters count the
+    same clocks."""
     want = (
-        "dn:0280 irq:0036 st2:00B0 rf:0036 m2:0000 m3e:0016 m0s:0000 bcd:0099 tick:ok done".split()
+        "dn:02B0 irq:0036 st2:00B0 hlt:0054 rf:0034 m2:0000 m3e:0028 m0s:0000 stat:0012"
+        " bcd:0099 tick:ok done".split()
     )
     got = pit_run(binary, work, ["-T"])
     if got != want:

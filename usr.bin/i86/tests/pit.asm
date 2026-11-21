@@ -38,7 +38,8 @@
 ; poller saw counter 2's mode 2 low pulse (m2, 0), how many of 40 latched
 ; reads of an odd mode 3 count were even (m3e), the high byte of a BCD
 ; count of 10000 just loaded (bcd, 99), OUT after the first byte of a new
-; mode 0 count (m0s, 0), and, with
+; mode 0 count (m0s, 0), the clocks 20 halts take at 1 kHz (hlt, 5D), the
+; count read after a status left latched (stat, 12), and, with
 ; counter 0 back at 65536 and the firmware's handler, that the tick count
 ; at 40:6Ch moved (tick), then runs 131072 instructions before "done",
 ; which -S paces.
@@ -52,7 +53,7 @@ start:	xor ax, ax
 	mov es, ax
 	mov ss, ax
 	mov sp, 0x7c00
-	mov ax, 0x0201			; the sector after this one
+	mov ax, 0x0202			; the two sectors after this one
 	mov cx, 0x0002
 	xor dh, dh
 	mov bx, 0x7e00
@@ -177,6 +178,29 @@ main:	call latch0
 	xor ah, ah
 	mov si, s_st2
 	call say4
+	; 20 halts under the 1 kHz timer: counter 2, mode 0 from FFFFh, moves
+	; about 20 periods (23,860 clocks, high byte 5Dh), not 20 polls
+	mov al, 0xb0
+	out 0x43, al
+	mov al, 0xff
+	out 0x42, al
+	out 0x42, al
+	mov cx, 20
+	sti
+.h20:	hlt
+	loop .h20
+	cli
+	mov al, 0x80
+	out 0x43, al
+	in al, 0x42
+	mov ah, al
+	in al, 0x42
+	xchg al, ah
+	neg ax
+	mov al, ah
+	xor ah, ah
+	mov si, s_hlt
+	call say4
 	; bit 4 of port 61h over 64 reads
 	xor bx, bx
 	in al, 0x61
@@ -252,6 +276,23 @@ main:	call latch0
 	call say4
 	mov al, 0xff
 	out 0x42, al
+	; a status latched and left unread is cleared by a new control word:
+	; the latched count's high byte follows (stat, 12)
+	mov al, 0xe8
+	out 0x43, al
+	mov al, 0xb0
+	out 0x43, al
+	mov al, 0x34
+	out 0x42, al
+	mov al, 0x12
+	out 0x42, al
+	mov al, 0x80
+	out 0x43, al
+	in al, 0x42
+	in al, 0x42
+	xor ah, ah
+	mov si, s_stat
+	call say4
 	; mode 0 in BCD, count 0 (10000): reads as decimal digits, 99xx
 	mov al, 0xb1
 	out 0x43, al
@@ -301,7 +342,9 @@ s_m2:	db "m2:", 0
 s_m3e:	db "m3e:", 0
 s_bcd:	db "bcd:", 0
 s_m0s:	db "m0s:", 0
+s_hlt:	db "hlt:", 0
+s_stat:	db "stat:", 0
 s_tick:	db "tick:ok", 0
 s_done:	db "done", 0
 
-	times 1024 - ($ - $$) db 0
+	times 1536 - ($ - $$) db 0

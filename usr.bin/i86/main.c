@@ -276,7 +276,7 @@ mhz_khz(const char *s)
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: i86 [-dgqrTv] [-c 8086|186|286] [-m kbytes] "
+	fprintf(stderr, "usage: i86 [-dgqrTv] [-c 8086|8088|186|286] [-m kbytes] "
 	    "[-e kbytes] [-f frames] [-S mhz] [-w 40|80]\n"
 	    "           [-s pagefile] [-k keys] [-a floppy] [-b floppy] "
 	    "[-h disk] ...\n");

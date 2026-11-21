@@ -217,7 +217,8 @@ unsigned long pc_ran;
  * docs/research/i86-dos-emulator/cpu-timing.md derives from Intel's
  * manuals and checks against silicon captures. The host waits out the
  * time the guest is ahead; a guest behind, as on a board slower than the
- * clock asked for, keeps no credit beyond 20 ms.
+ * clock asked for, keeps at most 20 ms of credit, and a step back of the
+ * host's clock starts the pace again from there.
  */
 static unsigned long thr_due;
 static uint32_t thr_rem;
@@ -225,7 +226,7 @@ static uint32_t thr_rem;
 unsigned long
 pc_target(void)
 {
-	return (cf.khz ? cf.khz * 10000UL / cf.cpi10 : 0);
+	return (cf.khz && !cf.fixed_clock ? cf.khz * 10000UL / cf.cpi10 : 0);
 }
 
 static void
@@ -238,6 +239,8 @@ throttle(uint32_t steps)
 	thr_rem = n % cf.khz;
 	if ((long)(now - thr_due) > 20000L)
 		thr_due = now - 20000UL;
+	else if ((long)(thr_due - now) > 100000L)
+		thr_due = now;	/* the host's clock stepped back */
 	else if ((long)(thr_due - now) >= 1000L)
 		host_sleep((unsigned)((thr_due - now) / 1000UL));
 }
@@ -1668,10 +1671,10 @@ bin_bcd(unsigned v)
 }
 
 /*
- * The count a read shows. Mode 3 counts down by two twice a period; an
- * odd count spends (count + 1) / 2 clocks in the high half, from count,
- * and (count - 1) / 2 in the low half, from count - 1. A BCD counter
- * wraps at 10000 and reads as four decimal digits.
+ * The count a read shows. Mode 3 counts down by two twice a period, from
+ * the count made even (an odd count loads count - 1): (count + 1) / 2
+ * clocks in the high half and (count - 1) / 2 in the low half. A BCD
+ * counter wraps at 10000 and reads as four decimal digits.
  */
 static unsigned
 pit_value(unsigned n, uint32_t now)
@@ -1688,7 +1691,7 @@ pit_value(unsigned n, uint32_t now)
 	case 3:
 		e %= c;
 		hi = (c + 1) / 2;
-		v = e < hi ? c - 2 * e : c - (c & 1) - 2 * (e - hi);
+		v = c - (c & 1) - 2 * (e < hi ? e : e - hi);
 		break;
 	default:	/* on past zero */
 		v = p->bcd ? (c + 10000 - e % 10000) % 10000 : c - e;
@@ -1745,6 +1748,26 @@ pit_irq(struct i86 *c, uint32_t now)
 	}
 }
 
+/* Steps until counter 0's next interrupt when that comes sooner than a
+ * poll's worth of clocks, which a periodic count shorter than a poll
+ * makes happen; otherwise a whole run. */
+static unsigned
+slice_left(void)
+{
+	uint32_t d, poll = PC_STEPS * pit_step >> 8;
+
+	if (!irq_armed ||
+	    ((pit[0].mode == 2 || pit[0].mode == 3) && pit[0].count >= poll))
+		return (PC_STEPS);
+	d = irq_at - pit_now();
+	if ((int32_t)d <= 0)
+		return (SLICE_MIN);
+	if (d >= poll)
+		return (PC_STEPS);
+	d = (d << 8) / pit_step;
+	return (d < SLICE_MIN ? SLICE_MIN : d);
+}
+
 static void
 pit_load(struct i86 *c, unsigned n, unsigned v)
 {
@@ -1762,6 +1785,9 @@ pit_load(struct i86 *c, unsigned n, unsigned v)
 		irq_at = now + p->count;
 		irq_armed = 1;
 		pit_irq(c, now);
+		/* A faster rate takes effect inside the current run. */
+		if (pc_step + slice_left() < pc_slice)
+			pc_slice = pc_step + slice_left();
 	}
 }
 
@@ -1850,12 +1876,13 @@ pit_control(unsigned v)
 	pit[n].rw = (uint8_t)(v >> 4 & 3);
 	pit[n].bcd = (uint8_t)(v & 1);
 	pit[n].armed = pit[n].wnext = pit[n].rnext = pit[n].latched = 0;
+	pit[n].slatched = 0;
 	if (n == 0)
 		irq_armed = 0;
 }
 
 /* Port 61h: gate 2 in bit 0. Its fall holds the count; its rise restarts
- * it, or in mode 0 lets it go on. */
+ * it in modes 2 and 3 and lets it go on in the others. */
 static void
 port61_out(unsigned v)
 {
@@ -1864,10 +1891,12 @@ port61_out(unsigned v)
 	if ((v ^ port61) & 1) {
 		if (!(v & 1))
 			pit[2].held = now - pit[2].t0;
-		else if (pit[2].mode == 0)
+		else if (pit[2].mode != 2 && pit[2].mode != 3)
 			pit[2].t0 = now - pit[2].held;
-		else
+		else {
 			pit[2].t0 = now;
+			pit[2].shown = 0;
+		}
 	}
 	port61 = (uint8_t)v;
 }
@@ -2045,8 +2074,17 @@ pc_poll(struct i86 *c)
 		throttle(steps);
 	for (;;) {
 		if (cf.fixed_clock) {
-			if (part && !waited) {
+			/* A run the timer cut short moves time by its steps; a
+			 * guest waiting under a timer faster than a poll moves
+			 * it to the next interrupt; any other poll by PIT_POLL. */
+			d = 0;
+			if (part && !waited)
 				d = steps * PIT_TSTEP >> 8;
+			else if ((pc_idle || c->halted) && slice_left() < PC_STEPS) {
+				d = irq_at - pit_t;
+				d = (int32_t)d <= 0 ? 1 : d > PIT_POLL ? PIT_POLL : d;
+			}
+			if (d) {
 				pit_t += d;
 				vt_frac += d * 1000u;
 				while (vt_frac >= PIT_HZ) {
@@ -2116,18 +2154,7 @@ pc_poll(struct i86 *c)
 			key_pump();
 		waited = 1;
 	}
-	/* The next run ends at counter 0's interrupt when that comes
-	 * sooner than a poll. */
-	pc_slice = PC_STEPS;
-	if (irq_armed) {
-		d = irq_at - pit_now();
-		if ((int32_t)d <= 0)
-			pc_slice = SLICE_MIN;
-		else if (d < PC_STEPS * pit_step >> 8) {
-			d = (d << 8) / pit_step;
-			pc_slice = d < SLICE_MIN ? SLICE_MIN : d;
-		}
-	}
+	pc_slice = slice_left();
 	pc_idle = 0;
 }
 
@@ -2223,7 +2250,7 @@ pc_init(struct i86 *c, const struct pc_config *config)
 		pit[i].count = i == 0 ? 0x10000 : i == 1 ? 18 : 0x533;
 		pit[i].armed = 1;
 	}
-	irq_at = pit[0].count;
+	irq_at = 0;		/* the first at the first poll, as the firmware's tick */
 	irq_armed = 1;
 
 	i86_reset(c, cf.model);

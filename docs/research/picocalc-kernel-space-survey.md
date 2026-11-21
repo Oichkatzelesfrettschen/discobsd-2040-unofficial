@@ -89,10 +89,21 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
    PICOCALC_LEAN_DIAG. The panel test's move has a gate cost:
    `check-panel-programs`, in the PR job, calls `st7365p_set` in the
    PICOCALC ELF, so it would read the PICOCALC_SD ELF instead, and the PR
-   job would link that kernel first.
-2. Whether the errno message pool moves to the card: 1,298 bytes of flash
-   for the same in RAM after a boot-time read, or a read on each lookup.
-   The tree lacks a kernel file loader so far; the read path is its cost.
+   job would link that kernel first. The generated-configuration gate
+   moves with it: `check_variant_delta()` in
+   `tools/config/check_generated_sync.py` holds PICOCALC_SD to PICOCALC plus
+   its listed additions and refuses a PICOCALC_LEAN removal its base lacks,
+   so the move adds `LCD_PANELTEST` to PICOCALC_SD's additions, drops
+   `LCD_PANELTEST` and `SYSTRACE` from PICOCALC_LEAN's removals, and
+   regenerates the affected Makefiles.
+2. Whether the errno message table (1,390 bytes with its rules and
+   offsets) leaves the kernel for a message file on the root, the design
+   `memory-devices.md` records: libc `strerror()` reads the file, which
+   lives on `fl0` and so is present on every board with the card out,
+   and falls back to "Error N"; the kernel keeps zero bytes of RAM for it.
+   Its cost is the file format, the build step that writes it and the
+   libc reader. A copy read into RAM at boot would spend the same 1,298
+   bytes of RAM the flash saves, which this survey sets aside.
 3. Whether the kernel symbol table behind `knlist()` (683 bytes:
    `nlist` 288, `sysctl_nlist` 136, names 259) moves to a symbol file
    the build writes and checks against the kernel's version string, as

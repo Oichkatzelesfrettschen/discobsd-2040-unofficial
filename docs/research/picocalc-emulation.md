@@ -134,13 +134,56 @@ emulator, with the falsifier stated first.
    the eight-entry transmit FIFO plus the shift register: SSPSR TNF and TFE
    derive from that level, and a frame written to a full FIFO is discarded
    as on silicon (`check-picocalc.py` writes twelve frames at one virtual
-   instant and expects the panel to count nine). A clock-source timer ends
-   each frame at its exact virtual time, since the clock a register
-   callback reads moves in quanta far longer than a 640 ns frame. A
+   instant and expects the panel to count nine). A
    controller with no registered device keeps the pin-level path that PIO
    interworking needs.
+5. The time a frame occupies the wire is read at register accesses (patch
+   0010). Patch 0008 ended each frame with a one-shot clock-source timer,
+   because the machine's time source moves only when every core has
+   reported and so stands still inside a time grant. A driver waiting for
+   room in a full transmit FIFO then read SSPSR in a loop until the timer
+   fired, and every read leaves translated code for the bus: the SD driver's
+   byte loop (`sd_xfer`, `sys/arch/rp2040/dev/sd.c`) read SSPSR 12.7
+   times per byte (297,333 reads for 23,385 bytes in five windows of 0.01
+   virtual seconds, `sysbus LogAllPeripheralsAccess`), 14.7 register
+   accesses per byte in all. Renode's log folds a repeated line into one
+   line with a count, so a tally of log lines shows three status reads per
+   byte. Patch 0010 keeps the end time of each frame in a queue
+   and retires the ended frames at each SSPSR read and SSPDR write. The
+   time is the accessing core's own: its time handle plus the instructions
+   executed since the handle was last read exactly (`SyncTime`). A status
+   read that finds the transmit FIFO full skips the core to the end of the
+   frame in the shift register (`SkipTime`) and returns with TNF set, so
+   the wait takes the virtual time of the polling loop without its
+   accesses. Such a read lasts up to one frame time and delays an interrupt
+   by as much; a driver that reads SSPSR with a full FIFO and does other
+   work instead of waiting sees that stall where silicon returns at once.
+   Falsifier: the wire rate the driver sees moves. Observed with one
+   kernel on both models: during the long bursts of the first screen fill
+   the panel receives 31,194 bytes per 20 ms of virtual time against 31,210
+   (31,250 at 12.5 MHz), and `check-picocalc.py` reads the same FIFO
+   levels and nine of twelve frames at the panel. Short bursts differ, and
+   the timer model is the one that deviates: a single 640 ns frame written
+   to an idle controller stays busy for 0 to 10 status polls of about 24 ns there
+   (mean 6.7 over 69 bursts) and for 24 with patch 0010, a four-frame burst
+   for 78 against 89. The first frame of a burst ended early, which fits a
+   timer armed against the clock source's time while the writing core is
+   ahead of it inside a grant; the timer's code path was not traced. With
+   full-length first frames the console's text drawing delivers 2.4 percent
+   fewer bytes per virtual second, and the SD-system gate's tmp case
+   reaches each stamp from login on 0.5 s later (login at 20.2 virtual
+   seconds against 19.7, the SD regression script at 77.7 against 77.2)
+   while the sdroot case keeps all eight. The byte loop makes 4.0 register accesses
+   per byte (two status reads), and 6 virtual seconds of PICOCALC_SD boot
+   take 90 s of wall clock against 162 s in a paired run under load
+   (process CPU 125 s against 197 s). Reading the exact time at every
+   access instead (`SyncTime` per access, no skip) measured 89 s against
+   81 s, and the instruction-count clock without the skip 86 and 91 s
+   against 91 and 95 s: the status reads, not the timer events, carry the
+   cost. A driver's BSY wait after a burst still polls, 211 reads for the
+   frames left on the wire.
 
-Patches 0005 through 0008 follow the existing series' form (`git format-patch`
+Patches 0005 through 0008 and 0010 follow the existing series' form (`git format-patch`
 headers, applied in order by `tools/renode/fetch-renode-rp2040.sh`, each
 checked before it is applied). They are candidates for an upstream report in
 the style of `docs/research/renode-rp2040-upstream-reports.md`; no report has

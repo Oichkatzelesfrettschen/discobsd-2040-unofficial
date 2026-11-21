@@ -85,8 +85,8 @@ FLAGS = [
     "-idirafter",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sys"),
 ]
-SOURCES = ["main.c", "pc.c", "gfx.c", "serial.c", "cpu.c", "mem.c"]
-HEADERS = ["font.h", "gfx.h", "i86.h", "mem.h", "pc.h", "serial.h"]
+SOURCES = ["main.c", "pc.c", "gfx.c", "serial.c", "ems.c", "cpu.c", "mem.c"]
+HEADERS = ["ems.h", "font.h", "gfx.h", "i86.h", "mem.h", "pc.h", "serial.h"]
 KEYS = "aB1"
 TAIL = [
     "MEM %04X OK",
@@ -212,12 +212,16 @@ MUTANTS = [
     ),
     ("cpu.c", "level = fetch8(c) & 31;", "level = fetch8(c);"),
     ("mem.c", "stored[pg >> 3] |= (uint8_t)(1u << (pg & 7));", ";"),
-    ("mem.c", "ftab[i].flags |= FR_DIRTY;", ";"),
+    (
+        "mem.c",
+        "\tif (wr) {\n\t\tftab[i].flags |= FR_DIRTY;\n\t\tmem_wmap[pg]",
+        "\tif (wr) {\n\t\t;\n\t\tmem_wmap[pg]",
+    ),
     ("mem.c", "if (w[i])\n\t\t\treturn (0);", "if (w[i] == 1)\n\t\t\treturn (0);"),
     (
         "mem.c",
-        "mem_rmap[pg] = mem_wmap[pg] = 0;\n\t\t\tcontinue;",
-        "mem_rmap[pg] = 0;\n\t\t\tcontinue;",
+        "\t\tmem_rmap[lp] = mem_wmap[lp] = 0;\n\t\treturn (ref);",
+        "\t\tmem_rmap[lp] = 0;\n\t\treturn (ref);",
     ),
     ("mem.c", "(off_t)page << MEM_PGSHIFT", "(off_t)page << (MEM_PGSHIFT - 1)"),
     (
@@ -323,6 +327,32 @@ MUTANTS = [
     ),
     ("serial.c", "\tif (QN - qn < 3)\n\t\tbehind = 1;", "\tif (QN - qn < 3)\n\t\tbehind = 0;"),
     ("serial.c", "#define POWER(m)\t(((m) & 0x12) == 2)", "#define POWER(m)\t(((m) & 0x02) == 2)"),
+    (
+        "ems.c",
+        "\t\tcase 0:\n\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n",
+        "\t\tcase 0:\n",
+    ),
+    (
+        "ems.c",
+        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n\t\t\tif ((alt_area = esdi) != 0)",
+        "\t\t\tif ((alt_area = esdi) != 0)",
+    ),
+    ("ems.c", "st = bx == 0 ? OK : E_FREE;", "st = E_HANDLE;"),
+    ("ems.c", "else if (hd[dx].saved)\n\t\t\tst = 0x86;", "else if (0)\n\t\t\tst = 0x86;"),
+    ("ems.c", "else if (hd[dx].saved)\n\t\t\tst = E_SAVED;", "else if (0)\n\t\t\tst = E_SAVED;"),
+    ("ems.c", "if (n == 0 && !zero_ok)", "if (n == 0 && zero_ok < 0)"),
+    ("ems.c", "n += owner[k] == 0;", "n += 1;"),
+    ("ems.c", "(unsigned)blk[p] << 10 != seg", "(unsigned)blk[p] << 9 != seg"),
+    ("ems.c", "off % PAGE / MEM_PGSIZE", "off / MEM_PGSIZE"),
+    (
+        "ems.c",
+        "if (n != 0xffff && (base = page_base(h, n)) == NOBASE)",
+        "if ((base = page_base(h, n)) == NOBASE)",
+    ),
+    ("pc.c", "if (ems_on)\n\t\t\tems_int(c);", "if (0)\n\t\t\tems_int(c);"),
+    ("mem.c", "lp - pbase[p] < MEM_EMSPG) {", "lp - pbase[p] < MEM_EMSPG && p != 59) {"),
+    ("mem.c", "\tb += pg % MEM_EMSPG;", "\tb += 0;"),
+    ("mem.c", "mem_rmap[g] = mem_wmap[g] = 0;\n\tpbase[phys]", "(void)g;\n\tpbase[phys]"),
 ]
 
 
@@ -820,6 +850,17 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
 RIGHT, DOWN, LEFT, UP, HOME = b"\x1b[C", b"\x1b[B", b"\x1b[D", b"\x1b[A", b"\x1b[H"
 
 
+def boot_image(src, name, path):
+    with open(os.path.join(src, "tests", name + ".hexdump")) as handle:
+        data = bytes.fromhex("".join(handle.read().split()))
+    if len(data) % 512 or data[510:512] != b"\x55\xaa":
+        raise Failure("%s.hexdump is not a boot program" % name)
+    with open(path, "wb") as handle:
+        handle.write(data)
+        handle.truncate(360 * 1024)
+    return data
+
+
 def mouse_image(src, path):
     with open(os.path.join(src, "tests", "mouse.hexdump")) as handle:
         data = bytes.fromhex("".join(handle.read().split()))
@@ -919,6 +960,64 @@ def test_mouse(binary, work):
         raise Failure("mouse: %d bytes in one tick" % rate)
     if status != 0 or not restored:
         raise Failure("mouse: exit %r, terminal restored %r" % (status, restored))
+
+
+def ems_expected():
+    """The lines of tests/ems.asm with 256 KB of expanded memory. The page
+    sums follow from the fill rule alone: byte i of page n is
+    (11h + 2n + i) mod 256, summed as words with a rotate before each add."""
+
+    def page_sum(n):
+        data = bytes((0x11 + 2 * n + i) & 255 for i in range(16384))
+        s = 0
+        for k in range(0, 16384, 2):
+            s = ((s << 1) | (s >> 15)) & 0xFFFF
+            s = (s + data[k] + 256 * data[k + 1]) & 0xFFFF
+        return s
+
+    return (
+        "st:00 frame:E000 free:0010 total:0010 ver:40 phys:0012 alloc:00 handle:0001"
+        " free:000D e87:87 e88:88 e89:89".split()
+        + ["sumx:%04X" % page_sum(2)]
+        + ["sum:%04X" % page_sum(n) for n in range(3)]
+        + "alias:AB alias2:AB disk:AA55 save:00 e8d:8D restore:11 multi:00 c000:11 move:00 xchg:00"
+        " xgot:45 moved:4D45 landed:4D45 set1:00 alt:0010 get:FFF0 h0:00 e88h0:88 e83:83"
+        " e8a:8A e8b:8B e84:84 unmap:FF e86:86 dealloc:00 free:0010 done".split()
+    )
+
+
+def ems_run(binary, work, args, keys, env=None):
+    """tests/ems.asm under args; the lines it wrote to head 1, sector 1."""
+    image = os.path.join(work, "ems-run.img")
+    shutil.copyfile(os.path.join(work, "ems.img"), image)
+    try:
+        subprocess.run(
+            [binary, "-T", "-s", os.path.join(work, "page"), "-a", image, "-k", keys] + args,
+            capture_output=True,
+            timeout=60,
+            check=False,
+            env=dict(os.environ, **(env or {})),
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("ems %s: timeout" % " ".join(args)) from None
+    with open(image, "rb") as handle:
+        handle.seek(9 * 512)
+        return handle.read(512).split(b"\0")[0].decode("latin-1").split()
+
+
+def test_ems(binary, work):
+    """Expanded memory through interrupt 67h: with eight resident pages the
+    pages of expanded memory go through the page file, and the lines must
+    equal those with 64; without -e the service is absent."""
+    want = ems_expected()
+    for frames in ("8", "64"):
+        got = ems_run(binary, work, ["-q", "-e", "256", "-f", frames], "0")
+        if got != want:
+            diff = [(g, w) for g, w in zip(got, want) if g != w][:3]
+            raise Failure("ems, %s frames: %r (%d lines)" % (frames, diff, len(got)))
+    got = ems_run(binary, work, ["-q"], "0")
+    if got != ["st:40", "done"]:
+        raise Failure("ems absent: %r" % got)
 
 
 def test_menu_edges(binary, work):
@@ -1310,6 +1409,7 @@ def test(binary, work):
     test_interactive(binary, work)
     test_menu_edges(binary, work)
     test_mouse(binary, work)
+    test_ems(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):
@@ -1342,6 +1442,7 @@ def main(argv):
             images = (
                 ("guest", guest_image(src, os.path.join(work, "guest.img"))),
                 ("mouse", mouse_image(src, os.path.join(work, "mouse.img"))),
+                ("ems", boot_image(src, "ems", os.path.join(work, "ems.img"))),
             )
             nasm = shutil.which("nasm")
             for name, data in images:
@@ -1360,6 +1461,18 @@ def main(argv):
                         "NOT RUN %s.hexdump against %s.asm: nasm (package nasm) is absent"
                         % (name, name)
                     )
+            if nasm:
+                built = os.path.join(work, "EMS.SYS")
+                subprocess.run(
+                    [nasm, "-f", "bin", "-o", built, os.path.join(src, "dos", "ems.asm")],
+                    check=True,
+                )
+                with open(os.path.join(src, "dos", "ems.hexdump")) as handle:
+                    listed = bytes.fromhex("".join(handle.read().split()))
+                with open(built, "rb") as handle:
+                    if handle.read() != listed:
+                        raise Failure("dos/ems.hexdump differs from dos/ems.asm")
+                print("dos/ems.hexdump matches dos/ems.asm")
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
             test(binary, work)

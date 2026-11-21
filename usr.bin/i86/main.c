@@ -47,6 +47,7 @@
 
 #include "mem.h"
 #include "pc.h"
+#include "ems.h"
 
 #define STEPS	2048		/* instructions between polls of the host */
 
@@ -231,7 +232,7 @@ static void
 usage(void)
 {
 	fprintf(stderr, "usage: i86 [-dgqrTv] [-c 8086|186|286] [-m kbytes] "
-	    "[-f frames] [-w 40|80]\n"
+	    "[-e kbytes] [-f frames] [-w 40|80]\n"
 	    "           [-s pagefile] [-k keys] [-a floppy] [-b floppy] "
 	    "[-h disk] ...\n");
 	exit(2);
@@ -243,7 +244,7 @@ main(int argc, char **argv)
 	static struct i86 cpu;
 	static char store_name[32];
 	const char *store = store_name;
-	unsigned frames = 128, nhard = 0;
+	unsigned frames = 124, nhard = 0;
 	int ch, i;
 
 	/* One page file for each running emulator. */
@@ -251,7 +252,7 @@ main(int argc, char **argv)
 	cf.ram_kb = 640;
 	cf.cols = 80;
 	cf.model = I86_286;
-	while ((ch = getopt(argc, argv, "a:b:c:df:gh:k:m:qrs:Tvw:")) != -1)
+	while ((ch = getopt(argc, argv, "a:b:c:de:f:gh:k:m:qrs:Tvw:")) != -1)
 		switch (ch) {
 		case 'a':
 			cf.disk[0] = optarg;
@@ -269,6 +270,9 @@ main(int argc, char **argv)
 				cf.model = I86_286;
 			else
 				usage();
+			break;
+		case 'e':
+			cf.ems_kb = (unsigned)atoi(optarg);
 			break;
 		case 'd':
 			dump = 1;
@@ -312,10 +316,17 @@ main(int argc, char **argv)
 			usage();
 		}
 	if (optind != argc || (cf.cols != 40 && cf.cols != 80) ||
-	    cf.ram_kb < 64 || cf.ram_kb > 640)
+	    cf.ram_kb < 64 || cf.ram_kb > 640 || cf.ems_kb % 16 ||
+	    cf.ems_kb > 32768)
 		usage();
 	if (mem_init((uint32_t)cf.ram_kb << 10, frames, store) != 0) {
-		fprintf(stderr, "i86: no memory for %u page frames\n", frames);
+		fprintf(stderr, "i86: no memory for %u page frames; "
+		    "a smaller -f fits\n", frames);
+		return (1);
+	}
+	if (cf.ems_kb && ems_init(cf.ems_kb) != 0) {
+		fprintf(stderr, "i86: no memory for the tables of %u KB of "
+		    "expanded memory; a smaller -f fits\n", cf.ems_kb);
 		return (1);
 	}
 #ifndef HOSTBUILD

@@ -37,6 +37,9 @@ i86 \- run DOS on an emulated 8086, 80186 or 80286
 .B \-m
 .I kbytes
 ] [
+.B \-e
+.I kbytes
+] [
 .B \-f
 .I frames
 ] [
@@ -152,9 +155,29 @@ or
 .B \-d
 Draw nothing while running and print the 25 lines of the display on exit.
 .TP
+.BI \-e " kbytes"
+Expanded memory, 16 to 32768 kilobytes in steps of 16, under the Lotus,
+Intel and Microsoft Expanded Memory Specification 4.0 through interrupt
+67h.
+DOS finds it through the driver
+.IR EMS.SYS ,
+loaded by the line
+.B DEVICE=C:\eEMS.SYS
+in
+.IR CONFIG.SYS ;
+the driver stays resident only when
+.B \-e
+is given.
+Its pages take no memory until written and are kept in the page file.
+Windows 3.0 in real mode banks applications into it.
+.TP
 .BI \-f " frames"
-The number of resident pages, 128 by default, which the RP2040 process
-window holds.
+The number of resident pages, 124 by default, which the RP2040 process
+window holds with
+.B \-e
+up to 2048; a larger
+.B \-e
+needs fewer.
 .TP
 .B \-g
 Use the PicoCalc's panel,
@@ -210,7 +233,7 @@ Start in the 40- or the 80-column text mode (80 by default).
 .SH LIMITS
 The 80286 has no protected mode: the machine status word reads real mode
 and cannot be changed, so programs that need extended memory or a DOS
-extender do not run.
+extender do not run, and Windows 3.0 runs in real mode only.
 Graphics modes exist only with
 .B \-g
 and are those of the color adapter; there is no EGA or VGA.

@@ -85,6 +85,7 @@
 #include "mem.h"
 #include "pc.h"
 #include "serial.h"
+#include "ems.h"
 
 #define ROWS		25
 #define VRAM_ADDR	GFX_VRAM
@@ -1443,6 +1444,12 @@ pc_trap(struct i86 *c, unsigned n)
 	case TRAP_KEY:
 		key_irq();
 		return (1);
+	case 0x67:
+		if (ems_on)
+			ems_int(c);
+		else
+			TRACE("int", n, c->r[R_AX]);
+		break;
 	case 0x10:
 		video(c);
 		break;

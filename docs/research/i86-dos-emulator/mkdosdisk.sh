@@ -36,8 +36,9 @@
 # partition of 16 heads and 63 sectors a track, 2 to 500 megabytes, the
 # partition sector of mbr.hexdump beside this script, CONFIG.SYS and
 # AUTOEXEC.BAT for a machine with no memory above 640 KB, the small tools
-# of the floppy, and each FILE named. The last step boots the image and
-# requires the shell's banner.
+# of the floppy, EMS.SYS (usr.bin/i86/dos/ems.hexdump, loaded by
+# CONFIG.SYS; it stays only when i86 runs with -e) and each FILE named.
+# The last step boots the image and requires the shell's banner.
 #
 # It needs mtools (mformat, mcopy, mdel, mdir, minfo) and PYTHON, and
 # writes OUTPUT.IMG, and a file mktemp names beside it while it works.
@@ -76,7 +77,7 @@ fi
 # floppy or one of the files is read whole before anything replaces it.
 work=$(mktemp -d)
 img=$(mktemp "$out.new.XXXXXX")
-trap 'rm -f "$work/tool.img" "$work/autoexec.bat" "$work/config.sys" \
+trap 'rm -f "$work/tool.img" "$work/autoexec.bat" "$work/config.sys" "$work/ems.sys" \
     "$work/page" "$work/file" "$work/screen" "$img"; rmdir "$work"' EXIT
 
 # 1008 sectors a cylinder; the partition starts on the second track.
@@ -140,12 +141,22 @@ if ! mdir -i "$img@@32256" ::KERNEL.SYS >/dev/null 2>&1; then
 fi
 
 # Every buffer and environment byte is guest memory the emulator pages, and
-# no memory exists above 640 KB, so no memory manager is loaded.
+# no memory exists above 640 KB, so no memory manager is loaded. EMS.SYS
+# names i86's expanded memory (-e) to DOS and unloads itself without it.
 printf '@ECHO OFF\r\nPROMPT $P$G\r\nPATH C:\\\r\nVER\r\n' >"$work/autoexec.bat"
-printf 'FILES=20\r\nBUFFERS=4\r\nLASTDRIVE=E\r\nSHELL=C:\\COMMAND.COM /E:512 /P\r\n' \
+printf 'FILES=20\r\nBUFFERS=4\r\nLASTDRIVE=E\r\nSHELL=C:\\COMMAND.COM /E:512 /P\r\nDEVICE=C:\\EMS.SYS\r\n' \
     >"$work/config.sys"
+"$PYTHON" -I - "$here/../../../usr.bin/i86/dos/ems.hexdump" "$work/ems.sys" <<'EOF'
+import sys
+
+with open(sys.argv[1]) as handle:
+    data = bytes.fromhex("".join(handle.read().split()))
+with open(sys.argv[2], "wb") as out:
+    out.write(data)
+EOF
 mcopy -o -i "$img@@32256" "$work/autoexec.bat" ::AUTOEXEC.BAT
 mcopy -o -i "$img@@32256" "$work/config.sys" ::CONFIG.SYS
+mcopy -o -i "$img@@32256" "$work/ems.sys" ::EMS.SYS
 for name in mem.exe mode.com more.com sved.com format.exe fdisk.exe sys.com; do
 	if mcopy -n -i "$work/tool.img" "::$name" "$work/file" 2>/dev/null; then
 		mcopy -o -i "$img@@32256" "$work/file" "::$name"

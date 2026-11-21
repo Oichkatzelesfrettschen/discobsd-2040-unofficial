@@ -821,6 +821,7 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
                 continue
             at = found + len(steps[step][0])
             time.sleep(0.3)
+            print('TRACE step %d %r at %d of %d after %.2fs, sending %r' % (step, steps[step][0], found, len(plain), time.time() - (deadline - 30), steps[step][1]), file=sys.stderr)
             os.write(master, steps[step][1])
             step += 1
         if step == len(steps):
@@ -843,6 +844,7 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
     if step != len(steps):
         raise Failure("menu session: %r never appeared" % steps[step][0])
     if status is None:
+        print('TRACE full plain %r' % (re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"|", seen)[-3000:],), file=sys.stderr)
         print(
             "i86 check: menu session: the program did not exit after its last key; "
             "the output ended with %r" % (seen[-400:],),

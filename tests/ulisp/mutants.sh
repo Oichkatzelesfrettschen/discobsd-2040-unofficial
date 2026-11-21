@@ -54,7 +54,9 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 # The race corpus runs when the Makefile has built its shim (Linux only);
 # the image-reread mutant needs it
 shim=
-if [ -f "$here/rewrite-race.so" ]; then
+# A shim left by a Linux build in a tree that macOS now runs is no shim: the
+# platform decides, and the file only says whether the Linux build made it.
+if [ "$(uname -s)" = Linux ] && [ -f "$here/rewrite-race.so" ]; then
 	shim=$here/rewrite-race.so
 fi
 
@@ -176,7 +178,18 @@ mutant float-to-int 's/if (!(f >= -2147483648.0 \&\& f < 2147483648.0)) return m
 # The most negative int divided by -1 reaches the C division.
 mutant quotient-min 's/if (den == -1 \&\& num == INT_MIN) return makefloat(-(float)num);//'
 # The loader trusts its first check of the file and installs a second read.
-mutant image-reread 's/^  fault = checkimage(header, imagesize);$/  fault = NULL;/'
+# Only the race corpus, which rewrites the file between the two reads through
+# the LD_PRELOAD shim, rejects it. The shim is built on Linux only: a Linux host
+# without it has a failed build, which is an error, and any other host runs no
+# such corpus and skips the mutant.
+if [ -n "$shim" ]; then
+	mutant image-reread 's/^  fault = checkimage(header, imagesize);$/  fault = NULL;/'
+elif [ "$(uname -s)" = Linux ]; then
+	echo "ulisp mutants: image-reread needs rewrite-race.so, which the Linux build did not produce" >&2
+	exit 1
+else
+	echo "SKIP ulisp mutants: image-reread needs the rewrite-race shim (Linux LD_PRELOAD); no execution occurred"
+fi
 # A loaded image is not checked against its own span.
 mutant image-unchecked 's/const char \*fault = checkimage(header, imagesize);/const char *fault = NULL;/'
 # A pair may point into a string chain, whose cells hold characters.

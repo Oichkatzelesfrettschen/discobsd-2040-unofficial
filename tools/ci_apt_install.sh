@@ -262,11 +262,13 @@ FAKE
 		fi
 		echo "mutant rejected: $label (scenario $expected)"
 	}
+	# BSD sed (macOS) reads no \t in an expression: the tab is a character here.
+	tab=$(printf '\t')
 	mutant 'phase without the time bound' 's/\$bound -k "\$kill_after" "\$seconds" //' stalled-download
 	mutant 'phase without a kill after the first signal' 's/ -k "\$kill_after"//' term-ignored
 	mutant 'phase without a retry' 's/if \[ "\$n" -ge "\$attempts" \]; then/if true; then/' stalled-download
 	mutant 'download and install in one call' 's/--download-only//' good
-	mutant 'failure of the last attempt ignored' 's/^\t\t\treturn 1$/\t\t\treturn 0/' permanent-stall
+	mutant 'failure of the last attempt ignored' "s/^${tab}${tab}${tab}return 1\$/${tab}${tab}${tab}return 0/" permanent-stall
 	mutant 'archive directory dropped from the apt calls' 's/\$archive_opt //g' archives
 	echo "ci_apt_install: selftest ok"
 	exit 0

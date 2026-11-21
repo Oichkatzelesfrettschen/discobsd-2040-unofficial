@@ -177,10 +177,14 @@ mutant float-to-int 's/if (!(f >= -2147483648.0 \&\& f < 2147483648.0)) return m
 mutant quotient-min 's/if (den == -1 \&\& num == INT_MIN) return makefloat(-(float)num);//'
 # The loader trusts its first check of the file and installs a second read.
 # Only the race corpus, which rewrites the file between the two reads through
-# the LD_PRELOAD shim, rejects it; a host without the shim (macOS) runs no
+# the LD_PRELOAD shim, rejects it. The shim is built on Linux only: a Linux host
+# without it has a failed build, which is an error, and any other host runs no
 # such corpus and skips the mutant.
 if [ -n "$shim" ]; then
 	mutant image-reread 's/^  fault = checkimage(header, imagesize);$/  fault = NULL;/'
+elif [ "$(uname -s)" = Linux ]; then
+	echo "ulisp mutants: image-reread needs rewrite-race.so, which the Linux build did not produce" >&2
+	exit 1
 else
 	echo "SKIP ulisp mutants: image-reread needs the rewrite-race shim (Linux LD_PRELOAD); no execution occurred"
 fi

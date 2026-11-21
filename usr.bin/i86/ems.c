@@ -556,6 +556,11 @@ ems_int(struct i86 *c)
 			st = E_SUB;
 		break;
 	case 0x4f:
+		/* A partial map names at most every physical page once. */
+		if (al < 2 && grw(dssi) > nphys) {
+			st = 0xa3;
+			break;
+		}
 		if (al == 0) {
 			n = grw(dssi);
 			gww(esdi, n);
@@ -570,15 +575,15 @@ ems_int(struct i86 *c)
 				gww(esdi + 4 + 4 * k, cur[p]);
 			}
 		} else if (al == 1) {
+			/* Every entry is checked before any is applied. */
 			n = grw(dssi);
-			for (k = 0; k < n && st == OK; k++) {
-				p = phys_at(grw(dssi + 2 + 4 * k));
-				if (p == nphys ||
+			for (k = 0; k < n && st == OK; k++)
+				if (phys_at(grw(dssi + 2 + 4 * k)) == nphys ||
 				    !base_ok(grw(dssi + 4 + 4 * k)))
 					st = 0xa3;
-				else
-					show(p, grw(dssi + 4 + 4 * k));
-			}
+			for (k = 0; k < n && st == OK; k++)
+				show(phys_at(grw(dssi + 2 + 4 * k)),
+				    grw(dssi + 4 + 4 * k));
 		} else if (al == 2) {
 			if (bx > nphys)
 				st = E_PPAGE;

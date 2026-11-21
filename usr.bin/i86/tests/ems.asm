@@ -581,6 +581,33 @@ main:	mov ah, 0x40
 	int 0x67
 	mov si, s_oson
 	call st
+	; 4Fh: a count above the 18 physical pages, and a bad second entry
+	mov bx, 1
+	mov al, 0
+	call map
+	push ds
+	pop es
+	mov ax, 0x4f00
+	mov si, p4f0
+	mov di, pbuf
+	int 0x67
+	mov si, s_e4f0
+	call st
+	mov ax, 0x4f01
+	mov si, p4f1
+	int 0x67
+	mov si, s_e4f1
+	call st
+	mov ax, 0x4f01
+	mov si, p4fbad
+	int 0x67
+	mov si, s_e4fb
+	call st
+	mov ax, 0xe000			; physical page 0 still shows page 1
+	mov es, ax
+	mov al, [es:0]
+	mov si, s_kept
+	call say2
 	; unmapped physical page 3 reads FFh
 	mov bx, 0xffff
 	mov al, 3
@@ -669,7 +696,17 @@ s_e5b:	db "e5b:", 0
 s_e59:	db "e59:", 0
 s_osret: db "osret:", 0
 s_oson:	db "oson:", 0
+s_e4f0:	db "e4f0:", 0
+s_e4f1:	db "e4f1:", 0
+s_e4fb:	db "e4fb:", 0
+s_kept:	db "kept:", 0
 s_done:	db "done", 0
+p4f0:	dw 19			; 4F00h: 19 segments
+	times 19 dw 0xe000
+p4f1:	dw 19			; 4F01h: 19 entries, each a valid unmap
+	times 19 dw 0xe000, 0xffff
+p4fbad:	dw 2, 0xe000, 0xffff, 0x1000, 0xffff
+pbuf:	times 2 + 4 * 19 db 0
 okey:	dd 0
 oreg:	dd 16			; 57h: from handle page 0 ...
 	db 1

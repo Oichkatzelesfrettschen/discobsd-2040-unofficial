@@ -452,6 +452,17 @@ jobs:
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
 
+      - name: Run the PicoCalc SD panel primitives under Unicorn
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-panel-gfx-ext \
+            --log .build-logs/linux-panel-gfx-ext.log \
+            --status .build-logs/linux-panel-gfx-ext.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-panel-gfx-ext
+
       # The Renode tiers reuse the PICO_UART and PICOCALC kernels and the
       # flash image built above. Renode needs a dotnet runtime and the
       # fetched peripheral models are a dotnet build, so setup-dotnet

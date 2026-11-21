@@ -36,7 +36,9 @@ statement in it names an assigned object: a statement the branch always
 runs (the controlled statement, or one at the top level of the controlled
 block, outside any nested condition or loop) must be exit, _exit, abort,
 longjmp, err, errx, return or awk's error(FATAL, ...), or error() in
-ed or overflo() in awk's b.c, which never return. Assigning a new value to
+ed or overflo() in awk's b.c, which never return, and every statement
+before it must be a plain one (no jump, label, nested condition, loop or
+switch), since the scan follows no control flow. Assigning a new value to
 an object is not a use, and a preprocessor line between the allocation
 and the end of its branch fails the site, since the scan does not
 evaluate conditional compilation. Comments, literals and preprocessor lines are
@@ -67,6 +69,13 @@ ONE_LVALUE = re.compile(rf"({LVALUE})\s*=(?!=)")
 # never return (ed longjmps to its command loop, overflo() calls awk's
 # error(FATAL)), so they count in those programs alone.
 LEAVES = r"\b(?:exit|_exit|abort|longjmp|err|errx)\s*\(|\breturn\b|\berror\s*\(\s*FATAL\b"
+# A statement before the terminator that can move control elsewhere (a jump,
+# a label, a nested condition, loop or switch) may skip the terminator, so it
+# fails the branch; the scan follows no control flow.
+CONTROL = (
+    r"\b(?:goto|break|continue|if|else|while|for|do|switch|case|default)\b"
+    r"|^\s*[A-Za-z_]\w*\s*:(?!:)|\{"
+)
 PROGRAM_LEAVES = {
     "bin/ed/ed.c": r"\berror\s*\(",
     "usr.bin/awk/b.c": r"\boverflo\s*\(",
@@ -304,6 +313,8 @@ def leaves(body, label, names):
             return False
         if re.match(rf"(?:{pattern})", statement):
             return True
+        if re.search(CONTROL, statement):
+            return False
     return False
 
 
@@ -425,6 +436,12 @@ KNOWN_BAD = {
     "exit reads the pointer": "p = malloc(4);\nif (!p)\n\texit(*p);\n",
     "return reads the pointer": "p = malloc(4);\nif (p == NULL)\n\treturn p->n;\n",
     "goto": "p = malloc(4);\nif (!p)\n\tgoto done;\ndone:\n*p = 1;\n",
+    "goto before exit": "p = malloc(4);\nif (!p) {\n\tgoto out;\n\texit(1);\n}\nout:\n*p = 1;\n",
+    "break before exit": "p = malloc(4);\nif (!p) {\n\tbreak;\n\texit(1);\n}\n*p = 1;\n",
+    "continue before exit": "p = malloc(4);\nif (!p) {\n\tcontinue;\n\texit(1);\n}\n*p = 1;\n",
+    "nested condition before exit": (
+        "p = malloc(4);\nif (!p) {\n\tif (retry)\n\t\tbreak;\n\texit(1);\n}\n*p = 1;\n"
+    ),
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",

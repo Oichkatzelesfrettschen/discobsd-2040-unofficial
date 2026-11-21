@@ -1,6 +1,6 @@
 # Graphics pipeline mathematics: wire budget, copy order, color and dither
 
-This note records ten proposals for the PicoCalc and `i86` display paths, ranked by gain per byte of RAM and flash, and the computations behind them. Evidence labels: [C] a computation the scripts in `scripts/` rerun, [S] a source read at the cited location, [I] inference. The results were computed at `0eeb8636b` (main) and `50f159c5b` (the tip of branch `usr.bin/i86-ems-edges`). The display sources cited below (`lib/libwin`, `usr.bin/matezinho`, `usr.bin/i86/gfx.c`, `st7365p.c`, `lcdgfx.c`, `mpu.c` and `MPU.md`) are identical at `0eeb8636b` and `5d5bfb8ea` (`git diff --stat 0eeb8636b 5d5bfb8ea` over them prints nothing), and `usr.bin/i86/ems.c` and `mem.c` are identical at `50f159c5b` and the PR #848 merge `3366e0256`. Line numbers cite `0eeb8636b` unless a revision is named.
+This note records ten proposals for the PicoCalc and `i86` display paths, ranked by gain per byte of RAM and flash, and the computations behind them. Evidence labels: [C] a computation the scripts in `scripts/` rerun, [S] a source read at the cited location, [I] inference. The results were computed at `0eeb8636b` (main) and `50f159c5b` (the tip of branch `usr.bin/i86-ems-edges`). The display sources cited below (`lib/libwin`, `usr.bin/matezinho`, `usr.bin/i86/gfx.c`, `st7365p.c`, `lcdgfx.c`, `mpu.c` and `MPU.md`) are identical at `0eeb8636b` and `5d5bfb8ea` (`git diff --stat 0eeb8636b 5d5bfb8ea` over them is empty), and `usr.bin/i86/ems.c` and `mem.c` are identical at `50f159c5b` and the PR #848 merge `3366e0256`. Line numbers cite `0eeb8636b` unless a revision is named.
 
 Not run: octree quantization, run-length coding, any board measurement, passagemath, OCI and gcloud.
 
@@ -25,6 +25,11 @@ Items 1, 2, 4, 5 and 6 call for one design note, not yet written, on the panel w
 
 Every command runs from the repository root. Tools: Sage (`sage`), Singular, PARI/GP (`gp`), Python 3 with numpy, scipy, scikit-learn, Pillow and qiskit 2.6.2, a host C compiler, and `arm-none-eabi-gcc` for the Thumb-1 listing. The Python scripts open `sys/arch/rp2040/dev/st7365p.c` by that relative path (the console palette) and read only the sample photographs: `c7_quant_qaoa.py` and `c7b_bayer_sweep.py` use scikit-learn's bundled sample photographs `china.jpg` and `flower.jpg`, so the image set is the library's own and `c7b_bayer_sweep.py` takes the sample name as its argument.
 
+The Python rows run under the interpreter the caller selects, as every Python tool of the repository does:
+
+    : "${PYTHON:?set PYTHON to the intended interpreter}"
+    export PYTHON
+
 | Script | Run | Saved output |
 |---|---|---|
 | `scripts/c1_copy_order.py` | `sage docs/research/graphics-pipeline/scripts/c1_copy_order.py` | `c1_out.txt` |
@@ -32,26 +37,26 @@ Every command runs from the repository root. Tools: Sage (`sage`), Singular, PAR
 | `scripts/c2_color_dither.py` | `sage docs/research/graphics-pipeline/scripts/c2_color_dither.py` | `c2_out.txt` |
 | `scripts/c3.sing`, `scripts/t.sing` | `Singular -q docs/research/graphics-pipeline/scripts/c3.sing` and `Singular -q docs/research/graphics-pipeline/scripts/t.sing` | `c3_sing_out.txt`, `t_sing_out.txt` |
 | `scripts/c3.gp` | `gp -q docs/research/graphics-pipeline/scripts/c3.gp` | `c3_gp_out.txt` |
-| `scripts/c5_wire.py` | `python3 -I docs/research/graphics-pipeline/scripts/c5_wire.py` | `c5_out.txt` |
+| `scripts/c5_wire.py` | `"$PYTHON" -I docs/research/graphics-pipeline/scripts/c5_wire.py` | `c5_out.txt` |
 | `scripts/c5_loops.c` | `arm-none-eabi-gcc -Os -mcpu=cortex-m0plus -mthumb -S docs/research/graphics-pipeline/scripts/c5_loops.c` | sizes below |
-| `scripts/c6_damage.py` | `python3 -I docs/research/graphics-pipeline/scripts/c6_damage.py` | `c6_out.txt` |
+| `scripts/c6_damage.py` | `"$PYTHON" -I docs/research/graphics-pipeline/scripts/c6_damage.py` | `c6_out.txt` |
 | `scripts/c6_win_real.c` | see below | `c6_win_real_out.txt` |
-| `scripts/c7_quant_qaoa.py` | `python3 -I docs/research/graphics-pipeline/scripts/c7_quant_qaoa.py` | `c7_out.txt` |
-| `scripts/c7b_bayer_sweep.py` | `python3 -I docs/research/graphics-pipeline/scripts/c7b_bayer_sweep.py china.jpg` (and `flower.jpg`) | `c7b_china_out.txt`, `c7b_flower_out.txt` |
+| `scripts/c7_quant_qaoa.py` | `"$PYTHON" -I docs/research/graphics-pipeline/scripts/c7_quant_qaoa.py` | `c7_out.txt` |
+| `scripts/c7b_bayer_sweep.py` | `"$PYTHON" -I docs/research/graphics-pipeline/scripts/c7b_bayer_sweep.py china.jpg` (and `flower.jpg`) | `c7b_china_out.txt`, `c7b_flower_out.txt` |
 | `scripts/f1/f1_harness.c`, `scripts/f1/f1b_harness.c` | see below | `f1/f1_out.txt`, `f1/f1_tip.txt`, `f1/f1b_head.txt`, `f1/f1b_tip.txt` |
 
 Timings printed by `c7_quant_qaoa.py` vary from run to run, and the COBYLA starts of the p=2 QAOA row move its fourth digit (0.0177 saved, 0.0176 on a rerun). The saved outputs of `c1b`, `c3`, `c5`, `c7b`, `t.sing` and `f1_tip` are the captures taken when this record was filed. `c1_out.txt` holds `c1_copy_order.py` alone.
 
-The libwin counting harness links the real `lib/libwin/win.c` against a one-line font stub:
+The libwin counting harness links the real `lib/libwin/win.c` against a one-line font stub, building into a scratch directory `T` outside the repository:
 
+    T=$(mktemp -d)
     cc -std=c17 -Wall -Wextra -Werror -Ilib/libwin -Isys/arch/rp2040/dev \
         docs/research/graphics-pipeline/scripts/c6_win_real.c \
         docs/research/graphics-pipeline/scripts/c6_lcdfont_stub.c \
         lib/libwin/win.c -o "$T/c6_win_real" && "$T/c6_win_real"
 
-The EMS harnesses `#include` `ems.c` so that its statics are reachable, and link the revision's `mem.c` with a one-function shim for `unlinkat_beneath`. `T` is a scratch directory outside the repository, and `argv[1]` names the page-store file:
+The EMS harnesses `#include` `ems.c` so that its statics are reachable, and link the revision's `mem.c` with a one-function shim for `unlinkat_beneath`. `T` is the scratch directory of the libwin block, and `argv[1]` names the page-store file:
 
-    T=$(mktemp -d)
     mkdir "$T/head" "$T/tip"
     git archive 0eeb8636b usr.bin/i86 | tar -x -C "$T/head"
     git archive 50f159c5b usr.bin/i86 | tar -x -C "$T/tip"

@@ -164,8 +164,12 @@ What would change this: a reader that cannot decode (decimal wins); an outside c
 ## Reproduction
 
 ```sh
-python3 docs/research/packed-version-integer/encodings.py --selftest
-python3 docs/research/packed-version-integer/encodings.py > docs/research/packed-version-integer/results.txt
+: "${PYTHON:?set PYTHON to the intended interpreter}"
+export PYTHON
+"$PYTHON" docs/research/packed-version-integer/encodings.py --selftest
+"$PYTHON" docs/research/packed-version-integer/encodings.py > docs/research/packed-version-integer/results.txt
 ```
+
+An unknown argument stops the script with status 2.
 
 `survey-sources.tsv` lists the URL, HTTP status and size, SHA-256 and retrieval date of each header read.

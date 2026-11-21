@@ -48,6 +48,7 @@ usage: encodings.py             print the results as TSV
        encodings.py --selftest  calibrate the checks, exit 1 on a failure
 """
 
+import argparse
 import functools
 import itertools
 import re
@@ -665,9 +666,12 @@ def report():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--selftest", action="store_true", help="calibrate the checks")
+    args = parser.parse_args()
     if oracle_ok() is False:
         return 1
-    if "--selftest" in sys.argv[1:]:
+    if args.selftest:
         return selftest()
     return report()
 

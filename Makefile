@@ -2165,7 +2165,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fs-profiles check-picocalc-host check-matezinho-host \
 		check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
-		check-signal-traps
+		check-signal-traps check-panic-codes
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-calendar-rules check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
@@ -2466,6 +2466,12 @@ SIGNAL_TRAP_SCRIPTS=	distrib/rp2040/check-image-selection.sh \
 		tests/fat32tail/check.sh tools/renode/check-capacity.sh \
 		tools/architecture-isolation/check-architecture-isolation.sh \
 		tests/reboot_contracts/sdk_gap.sh
+# Kernel panic codes and sys/arch/rp2040/doc/PANICS.md name each other;
+# tools/check_panic_codes.py --selftest calibrates the comparison.
+check-panic-codes: check-python
+		${PYTHON} tools/check_panic_codes.py --selftest
+		${PYTHON} tools/check_panic_codes.py ${TOPSRC}
+
 check-signal-traps:
 		sh tools/check-signal-traps.sh --selftest
 		sh tools/check-signal-traps.sh ${SIGNAL_TRAP_SCRIPTS}
@@ -2971,7 +2977,7 @@ installfs:
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host check-host-a check-host-b check-host-split \
-		check-signal-traps \
+		check-signal-traps check-panic-codes \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump \

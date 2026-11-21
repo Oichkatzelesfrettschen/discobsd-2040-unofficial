@@ -221,7 +221,7 @@ The signal comes from the same path in each case. An MPU violation and a
 precise bus error on a data load both enter HardFault on ARMv6-M, which has
 no MemManage or BusFault exception (datasheet 2.4.6.1); the faulting access
 leaves EXC_RETURN 0xfffffffd, so `arm_fault` (fault.c) takes the process
-branch rather than the `panic("kernel fault")` branch and delivers SIGSEGV
+branch rather than the kernel-fault panic (`R03`, `PANICS.md`) and delivers SIGSEGV
 through `psignal`. With no fault address register the kernel cannot tell an
 MPU fault from a bus error, and both print the same frame.
 

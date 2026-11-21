@@ -145,7 +145,7 @@ controller's USB pins through U701 and disconnects the CH340C,
 with the board off: in the ROM bootloader PA13 (PICO_EN) floats to its
 pull-up and powers the socket, and the vendor firmware's `setup()` drives
 PA13 low and then high (`picocalc_keyboard.ino`), so the socket carries
-power in every running state, and the PicoCalc console, which needs the
+power in the bootloader and once `setup()` ends, and the PicoCalc console, which needs the
 keyboard controller's application firmware, cannot run `halt` while the
 bootloader runs.
 

@@ -57,8 +57,8 @@ this document describes it:
    Renode model's tests all pin; a later vendor release with any other
    value keeps the rounded behavior.
 
-The Fn key steps (`keyboard.ino`, `lcd_backlight_update(+-LCD_BACKLIGHT_STEP)`)
-keep their 16-step rounding: they move from the current level in steps, so
+The Alt shortcuts (Alt+comma and Alt+period, `keyboard.ino`,
+`lcd_backlight_update(+-LCD_BACKLIGHT_STEP)`) keep their 16-step rounding: they move from the current level in steps, so
 a key press after a fine OS setting snaps back to the grid, which is the
 vendor's behavior for keys and leaves the OS path exact.
 
@@ -86,7 +86,7 @@ SHA-256 recorded before the build, since a branch name can move. With
 arduino-cli the build is one command and its output a binary:
 
     arduino-cli compile --fqbn STMicroelectronics:stm32:GenF1:pnum=GENERIC_F103R8TX \
-        --output-dir build Code/picocalc_keyboard
+        --output-dir "$VENDOR/build" "$VENDOR/Code/picocalc_keyboard"
 
 Installing the core and the library is a package install, so the owner
 runs it or grants it. The vendor's v1.6 and v1.7 binaries are 40,596 and
@@ -141,49 +141,52 @@ Each step's state, from the wiki's route (SW701 switch 1 raises BOOT0 and
 routes the CH340C to the controller's USART1; switch 2 stays off
 throughout, since switch 2 on routes the USB-C data pair to the
 controller's USB pins through U701 and disconnects the CH340C,
-`picocalc-first-power-up.md`):
+`picocalc-first-power-up.md`). The Pico leaves and enters its socket only
+with the board off: in the ROM bootloader PA13 (PICO_EN) floats to its
+pull-up and powers the socket, and the vendor firmware's `setup()` drives
+PA13 low and then high (`picocalc_keyboard.ino`), so the socket carries
+power in every running state, and the PicoCalc console, which needs the
+keyboard controller's application firmware, cannot run `halt` while the
+bootloader runs.
 
-| Step | Switch 1 | Switch 2 | Controller runs | USART1 | Command |
-|---|---|---|---|---|---|
-| a. Enter | on | off | ROM bootloader, after a power-on reset with BOOT0 high | CH340C | power the board off (a long press of the power key while the vendor firmware runs), then on |
-| b. Identity, backup | on | off | ROM bootloader | CH340C | section 4 |
-| c. Write and start | on | off | ROM bootloader, then the new image | CH340C | `stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN -g 0x08000000 PORT` |
-| d. Leave | off | off | the new image; every later reset boots it, BOOT0 being low | Pico side | none |
+| Step | Board power | Pico | Switch 1 | Switch 2 | Controller runs | USART1 | Action |
+|---|---|---|---|---|---|---|---|
+| a. Enter | off, then on | removed while off | set on while off | off | ROM bootloader, after a power-on reset with BOOT0 high | CH340C | `halt` the Pico at its console, power off (a long press of the power key while the vendor firmware runs), remove the Pico, set switch 1 on, power on |
+| b. Identity, backup | on | out | on | off | ROM bootloader | CH340C | section 4 |
+| c. Write and start | on | out | on | off | ROM bootloader, then the new image | CH340C | `stm32flash -w "$VENDOR/build/picocalc_keyboard.ino.bin" -v -S 0x08000000:LEN -g 0x08000000 PORT` |
+| d. Leave | on, then off, then on | seated while off | set off | off | the new image; every later reset boots it, BOOT0 being low | Pico side | set switch 1 off, power off (a long press, which the new image handles), seat the Pico, power on |
 
-The Pico stays out of the PicoCalc from step a through step d, as
-`picocalc-first-power-up.md` prescribes: with U201 in its bootloader, PA13
-(PICO_EN) floats to its pull-up and powers the Pico, and the started
-firmware drives PA13 low, so both step a's power-off and step c's start cut
-the Pico's supply without a `sync`. A Pico left seated is halted at its
-console (`halt`) before step a and again before step c.
+`$VENDOR` names the owner's patched copy of the vendor repository and
+`$LOCAL` the notes repository's `docs/local/`; section 4's commands run
+from this repository's root, so every path outside it goes through one of
+the two variables.
 
 LEN is the image's size rounded up to the 1 KiB flash page, so the erase
 covers the image's pages alone; without a length `stm32flash` extends the
-range to the end of flash and erases all of it. When the Go command prints `failed`, the new image
-still boots from flash: set switch 1 off, remove all power and restore it,
-so the controller resets with BOOT0 low. The Go command rides on the
-write invocation because switch 1 still routes the CH340C at that point;
-once switch 1 goes off, the host loses its serial path to the bootloader. PORT is
-the CH340C's serial node, named through `/dev/serial/by-id/` so that the
-Pico's own CDC-ACM console stays out of the command.
+range to the end of flash and erases all of it. When the Go command prints
+`failed`, the new image still boots from flash: set switch 1 off, remove
+all power and restore it, so the controller resets with BOOT0 low. The Go
+command rides on the write invocation because switch 1 still routes the
+CH340C at that point; once switch 1 goes off, the host loses its serial
+path to the bootloader. PORT is the CH340C's serial node, named through
+`/dev/serial/by-id/` so that the Pico's own CDC-ACM console stays out of
+the command.
 
 ## 6. Recovery
 
 The system bootloader lives in the controller's ROM, which a flash write
 leaves intact, so a bad image recovers through the same table with the
 backup. Step a then needs a power-on reset that the bad image cannot
-refuse: with switch 1 on, remove all power (USB-C and cells out, as in
-`picocalc-first-power-up.md`) and restore it, since the power key's long
-press belongs to the application firmware. Step c becomes
+refuse: remove all power (USB-C out and the cells out of their holders),
+remove the Pico, set switch 1 on and restore power, since the power key's
+long press belongs to the application firmware. Step c becomes
 `stm32flash -w "$LOCAL/kbd-backup-$STAMP-1.bin" -v -S 0x08000000 -g 0x08000000 PORT`,
 whose range runs to the end of flash and so erases all of it, which a full
 backup covers by design; step d follows unchanged. The plan writes only the
 main flash. Option bytes, readout protection and write protection stay
 untouched (`stm32flash` options `-j`, `-k`, `-u` and the option-byte
 commands are excluded; `-u` disables write protection), because readout
-protection would lock the backup path itself. A controller running a bad
-image may leave the Pico unpowered (PA13 drives PICO_EN), which the
-recovery route survives: the bootloader runs without the Pico.
+protection would lock the backup path itself.
 
 ## 7. Verification after the flash
 
@@ -194,23 +197,25 @@ recovery route survives: the bootloader runs without the Pico.
   Writing 17 reads back 17; writing 8 reads back 16.
 - The panel's brightness changes between 96 and 100 (eye, or a light
   sensor against the panel for a number).
-- The Fn keys still step the screen by 16 and the keyboard light cycles.
+- Alt+comma and Alt+period still step the screen by 16, and Alt+Space
+  still cycles the keyboard light.
 
 ## 8. Approval list
 
 Each item runs only after the owner approves this list as written, on the
-board the owner names, with SW701 switch 2 off throughout and the Pico out of its socket from
-item 3 through item 5 (or halted before each power transition, section 5):
+board the owner names, with SW701 switch 2 off throughout and the Pico
+handled as section 5's table states:
 
 1. Install arduino-cli, STM32duino 2.10.0 and XPowersLib 0.2.3 (cuu fork,
    `stm32f103r8t6`, at the recorded commit).
 2. Build the patched firmware (section 3) and record its SHA-256 and size.
-3. Read the identity (section 4, item 1).
+3. Enter the bootloader (section 5, step a), then read the identity
+   (section 4, item 1).
 4. Read the backup (section 4, item 2) twice and record its SHA-256. Item 5
    runs only when both reads have the full length the flash-size word
    gives and the same SHA-256; a short, failed or differing read stops the
    lane before any write.
-5. Write and start the patched image (section 5, step c), then set
-   switch 1 off (step d).
-6. Seat the Pico, then verify (section 7); on any failure, remove the Pico
-   again and write the backup back (section 6).
+5. Write and start the patched image (section 5, step c), then leave
+   (step d), which seats the Pico with the board off.
+6. Verify (section 7); on any failure, recover (section 6), which removes
+   the Pico with the board off.

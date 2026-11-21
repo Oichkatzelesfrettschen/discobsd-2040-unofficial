@@ -48,7 +48,7 @@ malloc (struct map *mp, register size_t size)
     size_t addr;
 
     if (! size)
-        panic ("malloc: size = 0");
+        panic ("K23");
     /*
      * Search for a piece of the resource map which has enough
      * free space to accomodate the request.
@@ -88,7 +88,7 @@ mfree (struct map *mp, size_t size, register size_t addr)
         return;
     /* the address must not be 0, or the protocol has broken down. */
     if (! addr)
-        panic ("mfree: addr = 0");
+        panic ("K24");
 
     /* A ring extent above m_ring_end continues at m_ring_first. */
     if (mp->m_ring_end != 0) {
@@ -120,7 +120,7 @@ mfree (struct map *mp, size_t size, register size_t addr)
 #ifdef DIAGNOSTIC
         /* any overlap is an internal error */
         if (ep->m_addr + ep->m_size > addr)
-            panic("mfree overlap #1");
+            panic("K25");
 #endif
         /* add into piece on the left by increasing its size. */
         ep->m_size += size;
@@ -133,7 +133,7 @@ mfree (struct map *mp, size_t size, register size_t addr)
         if (bp->m_size && addr + size >= bp->m_addr) {
 #ifdef DIAGNOSTIC
             if (addr + size > bp->m_addr)
-                panic("mfree overlap #2");
+                panic("K26");
 #endif
             ep->m_size += bp->m_size;
             do {
@@ -147,7 +147,7 @@ mfree (struct map *mp, size_t size, register size_t addr)
     if (bp->m_size && addr + size >= bp->m_addr) {
 #ifdef DIAGNOSTIC
         if (addr + size > bp->m_addr)
-            panic("mfree overlap #3");
+            panic("K27");
 #endif
         bp->m_addr = addr;
         bp->m_size += size;
@@ -252,7 +252,7 @@ malloc3_contiguous (struct map *mp, size_t d_size, size_t s_size, size_t u_size,
     size_t allocation_size, span, base;
 
     if (align == 0 || (align & (align - 1)) != 0)
-        panic ("malloc3_contiguous: bad alignment");
+        panic ("K28");
     if (d_size > (size_t)-1 - s_size ||
         d_size + s_size > (size_t)-1 - u_size)
         return 0;
@@ -264,7 +264,7 @@ malloc3_contiguous (struct map *mp, size_t d_size, size_t s_size, size_t u_size,
     if (base == 0)
         return 0;
     if ((base & (align - 1)) != 0)
-        panic ("malloc3_contiguous: unaligned map");
+        panic ("K29");
 
     a[0] = base;
     a[1] = base + d_size;
@@ -331,7 +331,7 @@ ring_take (struct map *mp, size_t addr, size_t size)
             addr + size <= (size_t) bp->m_addr + bp->m_size)
             break;
     if (bp->m_size == 0)
-        panic ("ring_take: not free");
+        panic ("K30");
     base = bp->m_addr;
     end = base + bp->m_size;
     if (addr == base) {
@@ -415,7 +415,7 @@ ring_next (struct map *mp, size_t span, size_t align, size_t *nextp)
     low = span < mp->m_ring_end - best ? span : mp->m_ring_end - best;
     if (! ring_take (mp, best, low) ||
         ! ring_take (mp, mp->m_ring_first, span - low))
-        panic ("ring_next: lost placement");
+        panic ("K31");
     *nextp = mp->m_ring_first + (best - mp->m_ring_first + span) % length;
     return best;
 }
@@ -439,9 +439,9 @@ malloc3_contiguous_next (struct map *mp, size_t d_size, size_t s_size,
     int pass, spare;
 
     if (align == 0 || (align & (align - 1)) != 0)
-        panic ("malloc3_contiguous_next: bad alignment");
+        panic ("K32");
     if (nextp == NULL)
-        panic ("malloc3_contiguous_next: no cursor");
+        panic ("K33");
     if (d_size > (size_t)-1 - s_size ||
         d_size + s_size > (size_t)-1 - u_size)
         return 0;
@@ -471,10 +471,10 @@ malloc3_contiguous_next (struct map *mp, size_t d_size, size_t s_size,
         for (bp = mp->m_map; bp->m_size; bp++) {
             if ((bp->m_addr & (align - 1)) != 0 ||
                 (bp->m_size & (align - 1)) != 0)
-                panic ("malloc3_contiguous_next: unaligned map");
+                panic ("K34");
             end = (size_t)bp->m_addr + (size_t)bp->m_size;
             if (end < (size_t)bp->m_addr)
-                panic ("malloc3_contiguous_next: corrupt map");
+                panic ("K35");
             if (bp->m_size < span)
                 continue;
 

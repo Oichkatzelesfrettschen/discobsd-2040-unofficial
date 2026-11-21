@@ -94,7 +94,7 @@ balloc(struct inode *ip __unused, int flags)
              * set, so the flag has to survive this write.
              * Writing the flag set would instead leave a 1 on the disk,
              * which mountfs() keeps on a read-only mount and ufs_sync()
-             * answers with panic("sync: rofs").
+             * answers with its read-only panic (code K56).
              */
             fps->fs_fmod = 0;
             fps->fs_time = time.tv_sec;
@@ -218,7 +218,7 @@ loop:
         ino = fs->fs_lasti;
 #ifdef DIAGNOSTIC
         if (FS_ITOO(fs, ino))
-            panic("ialloc");
+            panic("K38");
 #endif
         adr = FS_ITOD(fs, ino);
     } else {

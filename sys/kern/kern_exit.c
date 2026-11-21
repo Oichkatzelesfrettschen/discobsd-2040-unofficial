@@ -79,7 +79,7 @@ proc_zombie(struct proc *p, int rv)
             *pp = p->p_hash;
             goto done;
         }
-    panic("exit");
+    panic("K10");
 done:
     p->p_xstat = rv;
     q = allproc;

@@ -109,6 +109,6 @@ main(void)
     waiter_acquires_after_owner_release();
     interrupted_waiter_preserves_owner(EINTR);
     interrupted_waiter_preserves_owner(ERESTART);
-    HK_EXPECT_PANIC("ufs namespace gate", release_without_owner);
+    HK_EXPECT_PANIC("K48", release_without_owner);
     return hk_verdict("UFS namespace serialization");
 }

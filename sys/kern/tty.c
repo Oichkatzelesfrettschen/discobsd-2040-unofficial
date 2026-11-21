@@ -1003,7 +1003,7 @@ ttyrub(register int c, register struct tty *tp)
             break;
 
         default:
-            panic("ttyrub");
+            panic("K37");
         }
     } else if (tp->t_flags & PRTERA) {
         if ((tp->t_state & TS_ERASE) == 0) {

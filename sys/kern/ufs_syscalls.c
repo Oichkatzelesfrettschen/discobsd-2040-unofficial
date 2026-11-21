@@ -1524,7 +1524,7 @@ rename(void)
         xp->i_nlink--;
         if (doingdirectory) {
             if (--xp->i_nlink != 0)
-                panic("rename: lnk dir");
+                panic("K54");
             itrunc(xp, (u_long)0, 0);   /* IO_SYNC? */
         }
         xp->i_flag |= ICHG;
@@ -1553,7 +1553,7 @@ rename(void)
      */
     if (xp != ip) {
         if (doingdirectory)
-            panic("rename: lost dir entry");
+            panic("K55");
     } else {
         /*
          * If the source is a directory with a

@@ -619,7 +619,7 @@ postsig(int sig)
     if (action != SIG_DFL) {
 #ifdef DIAGNOSTIC
         if (action == SIG_IGN || (p->p_sigmask & mask))
-            panic("postsig action");
+            panic("K14");
 #endif
         u.u_error = 0;  /* XXX - why? */
         /*

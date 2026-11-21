@@ -155,7 +155,7 @@ void *
 swapram_codec_acquire (unsigned int owner)
 {
     if (owner == 0 || sr_codec_owner != 0)
-        panic ("swapram: codec workspace busy");
+        panic ("R06");
     sr_codec_owner = owner;
     return swapram_codec_work;
 }
@@ -164,7 +164,7 @@ void
 swapram_codec_release (unsigned int owner)
 {
     if (owner == 0 || sr_codec_owner != owner)
-        panic ("swapram: codec workspace owner");
+        panic ("R07");
     sr_codec_owner = 0;
 }
 
@@ -201,7 +201,7 @@ swapram_spool_write (unsigned int off, unsigned int pos, const void *src,
 {
     if (off > sizeof sr_pool || pos > sizeof sr_pool - off ||
         len > sizeof sr_pool - off - pos)
-        panic ("swapram: spool write");
+        panic ("R08");
     bcopy (src, sr_pool + off + pos, len);
 }
 
@@ -211,7 +211,7 @@ swapram_spool_read (unsigned int off, unsigned int pos, void *dst,
 {
     if (off > sizeof sr_pool || pos > sizeof sr_pool - off ||
         len > sizeof sr_pool - off - pos)
-        panic ("swapram: spool read");
+        panic ("R09");
     bcopy (sr_pool + off + pos, dst, len);
 }
 
@@ -219,7 +219,7 @@ void
 swapram_spool_free (unsigned int off, unsigned int size)
 {
     if (sr_spools <= 0 || swapram_pool_free (&sr_map, off, size) < 0)
-        panic ("swapram: spool free");
+        panic ("R10");
     sr_spools--;
 }
 
@@ -229,7 +229,7 @@ sr_slot(struct proc *p)
     int i = p - proc;
 
     if (i < 0 || i >= NPROC)
-        panic ("swapram: proc slot");
+        panic ("R11");
     return &sr_tab[i];
 }
 
@@ -463,7 +463,7 @@ swapram_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc,
 
     sr_pool_init_once ();
     if (e->e_res || e->e_live)
-        panic ("swapram: image already resident");
+        panic ("R12");
     /*
      * Packed-text restoration holds the shared decoder across rdwri sleeps.
      * A swapout scheduled during that interval must use flash instead of
@@ -534,7 +534,7 @@ swapram_put (struct proc *p, int seg, caddr_t src, size_t len)
     int n;
 
     if (len != e->e_rlen[seg])
-        panic ("swapram: segment length changed");
+        panic ("R13");
     if (len == 0) {
         e->e_clen[seg] = 0;
         return;
@@ -543,9 +543,9 @@ swapram_put (struct proc *p, int seg, caddr_t src, size_t len)
     fill = sr_compressed_before (e, seg);
     n = sr_encode (src, len, sr_pool + e->e_off + fill, cap);
     if (n < 0)
-        panic ("swapram: reservation overflow");
+        panic ("R14");
     if (seg != SR_U && (unsigned int) n != cap)
-        panic ("swapram: count mismatch");
+        panic ("R15");
     e->e_clen[seg] = n;
 }
 
@@ -560,7 +560,7 @@ swapram_commit (struct proc *p)
     unsigned int used = sr_compressed_size (e);
 
     if (swapram_pool_trim (&sr_map, e->e_off, e->e_res, used) < 0)
-        panic ("swapram: trim");
+        panic ("R16");
     e->e_res = used;
     e->e_live = 1;
     SR_PROBE_U_BYTES (e->e_clen[SR_U]);
@@ -581,7 +581,7 @@ swapram_cancel (struct proc *p)
     if (entry->e_res == 0)
         return;
     if (swapram_pool_free (&sr_map, entry->e_off, entry->e_res) < 0)
-        panic ("swapram: cancel");
+        panic ("R17");
     bzero (entry, sizeof (*entry));
 }
 
@@ -627,7 +627,7 @@ swapram_in (struct proc *p, caddr_t ddst, caddr_t sdst, caddr_t udst)
     int seg, n;
 
     if (! e->e_live)
-        panic ("swapram: no image");
+        panic ("R18");
     dst[SR_DATA] = ddst;
     dst[SR_STACK] = sdst;
     dst[SR_U] = udst;
@@ -637,11 +637,11 @@ swapram_in (struct proc *p, caddr_t ddst, caddr_t sdst, caddr_t udst)
         n = sr_expand (off, e->e_clen[seg], dst[seg], e->e_rlen[seg], 0,
             NULL);
         if (n != (int) e->e_rlen[seg])
-            panic ("swapram: short expand");
+            panic ("R19");
         off += e->e_clen[seg];
     }
     if (swapram_pool_free (&sr_map, e->e_off, e->e_res) < 0)
-        panic ("swapram: free");
+        panic ("R20");
     if (swapramdebug)
         printf ("swapram: pid %d in %u -> %u bytes, pool %u free\n",
             p->p_pid, e->e_res,
@@ -725,7 +725,7 @@ static void
 sr_evacuated (struct sr_ent *e, struct proc *p)
 {
     if (swapram_pool_free (&sr_map, e->e_off, e->e_res) < 0)
-        panic ("swapram: evacuate free");
+        panic ("R21");
     if (swapramdebug)
         printf ("swapram: pid %d evacuated %u -> %u bytes at %u\n",
             p->p_pid, e->e_res,
@@ -756,9 +756,9 @@ swapram_evacuate (void)
         images++;
         p = &proc[i];
         if (p->p_flag & SLOAD)
-            panic ("swapram: evacuate loaded");
+            panic ("R22");
         if (p->p_daddr || p->p_saddr || p->p_addr)
-            panic ("swapram: flash blocks already assigned");
+            panic ("R23");
 #ifdef SWAP_IMAGE_ALIGN
         if (malloc3_contiguous_next (swapmap, btod (e->e_rlen[SR_DATA]),
             btod (e->e_rlen[SR_STACK]), btod (e->e_rlen[SR_U]),
@@ -800,7 +800,7 @@ swapram_evacuate (void)
                 seg == SR_DATA ? p->p_daddr :
                 seg == SR_STACK ? p->p_saddr : p->p_addr, bp);
             if (n != (int) e->e_rlen[seg])
-                panic ("swapram: evacuate expand");
+                panic ("R24");
             off += e->e_clen[seg];
         }
 #ifndef SDSWAP_ENABLED

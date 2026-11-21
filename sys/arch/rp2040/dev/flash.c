@@ -207,7 +207,7 @@ static void
 flscratch_take(int owner)
 {
 	if (flscratch_owner != FLS_FREE)
-		panic("flash: scratch buffer reentered");
+		panic("R01");
 	flscratch_owner = owner;
 }
 static daddr_t flblocks;		/* Capacity in DEV_BSIZE blocks. */
@@ -824,7 +824,7 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
 	 * one-page static buffer is written before each program call.
 	 */
 	if (flscratch_owner == FLS_SWAP)
-		panic("flash: page copy during a swap write");
+		panic("R02");
 	if (dst >= FLASH_FS_BYTES / FLASH_UNIT_BYTES) {
 		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;

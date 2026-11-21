@@ -289,7 +289,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	 * and returning to the faulting address would fault again forever.
 	 */
 	if (fault_lr != 0xfffffffdUL)
-		panic("kernel fault");
+		panic("R03");
 
 	infault = 0;
 	arm_intr_enable();

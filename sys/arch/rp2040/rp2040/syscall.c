@@ -271,7 +271,7 @@ user_entry(const struct trapframe *frame)
 	    ((frame->tf_psr & XPSR_STKALIGN) ? sizeof(u_int) : 0);
 
 	if ((u_int)frame < (u_int)&u + sizeof(u)) {
-		panic("stack overflow");
+		panic("R25");
 		/* NOTREACHED */
 	}
 	if (sp < p->p_daddr + u.u_dsize)

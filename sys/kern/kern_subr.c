@@ -53,7 +53,7 @@ ureadc(int c, struct uio *uio)
 
 again:
     if (uio->uio_iovcnt == 0)
-        panic("ureadc");
+        panic("K15");
     iov = uio->uio_iov;
     if (iov->iov_len == 0 || uio->uio_resid == 0) {
         uio->uio_iovcnt--;
@@ -82,7 +82,7 @@ uwritec(struct uio *uio)
         return (-1);
 again:
     if (uio->uio_iovcnt <= 0)
-        panic("uwritec");
+        panic("K16");
     iov = uio->uio_iov;
     if (iov->iov_len == 0) {
         uio->uio_iov++;

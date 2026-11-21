@@ -82,7 +82,7 @@ At 133 MHz, 2 of 10 fail their assertion today (D3, D5) and 8 pass. These are th
 | H3 | LCD SPI, `st7365p.c:69-70` | prescale 2, SCR 4 | rate follows: 13.300 MHz at 133 (75.2 ns against the 66 ns minimum cycle; ceiling 15.15 MHz) | still valid at 133, no margin against 150 MHz |
 | H4 | PSRAM PIO divider, `psram_pio.h:135` | PSRAM_CLKDIV 2: SCK = clk_sys / 4 | rate follows: 33.25 MHz at 133 | all six commands in use allow 133 MHz on the ESP part |
 | H5 | PSRAM frame, `psram_xfer.h:33` | 64 bytes | tCEM budget: frame must stay under 8 us | 5.20 us worst frame at 125 MHz, 4.89 us at 133, 8.1 us at 80 MHz |
-| H6 | XIP SSI and boot2 divider, `flash.c:351-352`, `boot2_w25q080.S:100` | divider 2, sample delay 1 | flash SCK 66.5 MHz at 133 | inside the 133 MHz of the part; PicoCalc loader stage uses divider 4 |
+| H6 | XIP SSI and boot2 divider, `flash.c` `SSI_XIP_CLKDIV` and `SSI_XIP_SAMPLE_DLY`, `boot2_w25q080.S:100` | divider 2, sample delay 1 | flash SCK 66.5 MHz at 133 | inside the 133 MHz of the part; PicoCalc loader stage uses divider 4 |
 | H7 | Audio levels, `picopcm.h:34` | PCM_LEVELS 250 | couples to D5 | the carrier is clk_sys / levels |
 | H8 | USB buffer settle, `usb.c:394` | six `nop` | safe to 288 MHz | the datasheet asks for ceil(clk_sys / 48 MHz) = 3 at 133; the SIE_CTRL rule asks for twice that, 6 |
 | H9 | `PLL_USB`, `machdep.c:534`, `:538` | 100, 5, 5 | no | crystal-derived, fixed at 48 MHz |
@@ -184,7 +184,7 @@ DORMANT has no keyboard wake here: the keyboard controller has no interrupt line
 | PSRAM at `PSRAM_CLKDIV` 2, 64-byte frames | clk_sys >= 73.75 MHz by the modeled CS-low time of a read (590 cycles against tCEM 8 us) and >= 81.25 MHz by the modeled interrupt-masked span (650 cycles, which adds the register accesses at six system clocks each). The second is a conservative screening threshold; neither bounds a frame whose FIFOs stall on hardware. 32-byte frames: 41.75 and 49.25 MHz; 16-byte frames: 25.75 and 33.25 MHz (I: 8 cycles per byte over a 78-cycle overhead, from the 125 MHz model times) | ESP-PSRAM64H Table 10-5; `picocalc-psram.md` "Frame length against tCEM"; `memory-devices.md` PSRAM table |
 | UART with `clk_peri` held fixed | UARTCLK <= 5/3 x PCLK: clk_sys >= 28.8 MHz at 48 MHz | DS 4.2.3.1, p. 420 (L31478) |
 | SPI with `clk_peri` held fixed | SSPCLK <= PCLK: clk_sys >= 48 MHz | DS 4.4.3.4, p. 505 |
-| Flash | SCK = clk_sys / 2 stays under 133 MHz at every setpoint; the RX sample delay of 1 clk_sys cycle is unaudited below 62.5 MHz | W25Q16JV 10.6; `flash.c:351` |
+| Flash | SCK = clk_sys / 2 stays under 133 MHz at every setpoint; the RX sample delay of 1 clk_sys cycle is unaudited below 62.5 MHz | W25Q16JV 10.6; `flash.c` `SSI_XIP_SAMPLE_DLY` |
 | Audio sample clock | exact only where clk_sys is a multiple of 8,000 Hz (the assertion at `picopcm.c:84`): 133 MHz is (16,625 cycles); 66.5 MHz (8,312.5 cycles) and 62.5 MHz (7,812.5) are not | `picopcm.c:84` |
 
 ### Which consumers tolerate a run-time change

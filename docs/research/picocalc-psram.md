@@ -12,10 +12,11 @@ The PicoCalc's ESP-PSRAM64H is a quad-I/O device on GP2-GP5 (SIO0-3), GP20
 of PIO0 clocks it. `psram_pio.h` holds a 19-word program, `psram_xfer.c`
 moves frames of at most 64 bytes through it, and `psram.c` makes the device
 a block device, major 3, that replaces `fl1` as the swap device when the
-part identifies itself at boot. The driver links only into the
-PICOCALC_PSRAM kernel configuration, selected by `BOARD=PICOCALC_PSRAM`; the
-PICOCALC kernel carries none and links to the size it had before the driver
-existed. A host simulator executes the shipped program words against a timing
+part identifies itself at boot. The driver links into the five PicoCalc
+kernels (PICOCALC, PICOCALC_LEAN, PICOCALC_LEAN_DIAG, PICOCALC_SD and
+PICOCALC_SD_DIAG); the PICOCALC_PSRAM configuration this note measured was
+folded into PICOCALC (`sys/arch/rp2040/doc/PICOCALC.md`), and the sizes
+below are that configuration's. A host simulator executes the shipped program words against a timing
 model of the part and passes 766 checks; eight mutants of the program and
 driver fail it. PICOCALC_PSRAM adds 2,096 bytes of text, 56 of data and 144
 of bss to PICOCALC; PICO, PICO_UART and PICOCALC link to the same text and
@@ -26,7 +27,7 @@ data as before.
 | Source | Identity |
 | --- | --- |
 | ESP-PSRAM64 and ESP-PSRAM64H Datasheet, Espressif, Version 1.1, October 2020, 24 PDF pages (21 numbered) | `https://www.javanelec.com/stfiles/getappdocument/1/true/84288ad5-f467-49de-9d1e-2bf12d2d4fcc.pdf`, SHA-256 `ab68624cdecfc6a768260747bec907aa20940f14129f269b58c3b2a52acd0605` |
-| the same, Version 1.0, June 2018, 26 PDF pages | `https://cdn-shop.adafruit.com/product-files/4677/4677_esp-psram64_esp-psram64h_datasheet_en.pdf`, SHA-256 `88a9b9535c699a97dc8c6fd123cb58829c39812dbdd641067d4ed9988602a011` |
+| the same, Version 1.0, June 2018, 26 PDF pages | `https://cdn-shop.adafruit.com/product-files/4677/4677_esp-psram64_esp-psram64h_datasheet_en.pdf`, SHA-256 `88b9a9535c699a97dc8c6fd123cb58829c39812dbdd641067d4ed9988602a011` |
 | RP2040 Datasheet, build in `discobsd-2040-notes/docs/rp2040/rp2040-datasheet.pdf` | section pages through `sys/arch/rp2040/doc/DATASHEET-INDEX.md` |
 
 Espressif's own download URL

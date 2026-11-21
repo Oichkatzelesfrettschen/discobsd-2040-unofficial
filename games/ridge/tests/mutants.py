@@ -386,6 +386,14 @@ LOGIC = [
 # (name, old text, new text)
 RENDER = [
     (
+        "view-never-selects-rgb565",
+        [
+            "\tcm.fmt = LCDG_COLMOD_RGB565;\n",
+            "\tif (GTILE_IOCTL(fd, LCDG_COLMOD, &cm) < 0)\n\t\treturn -1;\n",
+        ],
+        ["\t(void)cm;\n", ""],
+    ),
+    (
         "view-ignores-the-camera",
         "rg_base_tile(g, g->cam + x, y);",
         "rg_base_tile(g, x, y);",

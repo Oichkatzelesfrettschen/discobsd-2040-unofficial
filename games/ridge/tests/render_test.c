@@ -17,6 +17,8 @@
  *     two runs of four with the unchanged cell between them left alone,
  *     and a one-pixel step of the player sends the three rows of its
  *     sprite box and one atlas upload;
+ *   - the view selects COLMOD 0x55 at its start, and the model rejects an
+ *     LCDG_TILEWIN issued before that;
  *   - the static tiles, palette, HUD text, sprite pixels (flip and frame)
  *     are those the rules ask for, against values written out here;
  *   - after hundreds of frames of play on every level, and in every state
@@ -69,6 +71,7 @@ struct dev {
 	int wx, wy, ww, wh, wleft, wfill;
 	unsigned char wrow[GTILE_COLS];
 	unsigned tpos, tleft;
+	int colmod;	/* The format set by LCDG_COLMOD; 0 until a program sets it. */
 };
 
 static struct dev DA, DB, *cur = &DA;
@@ -93,12 +96,27 @@ model_ioctl(int fd, unsigned long cmd, void *arg)
 	const struct lcdg_tilewin *w = arg;
 	const struct lcdg_tileset *t = arg;
 	const struct lcdg_palette *p = arg;
+	const struct lcdg_colmod *cm = arg;
 
 	(void)fd;
 	d->nioctl++;
 	d->wleft = 0;
 	d->tleft = 0;
+	if (cmd == LCDG_COLMOD) {
+		if (cm->fmt != LCDG_COLMOD_RGB565 && cm->fmt != LCDG_COLMOD_RGB666) {
+			printf("FAIL model: LCDG_COLMOD %02x is not a format\n", cm->fmt);
+			nbad++;
+			return -1;
+		}
+		d->colmod = cm->fmt;
+		return 0;
+	}
 	if (cmd == LCDG_TILEWIN) {
+		if (d->colmod != LCDG_COLMOD_RGB565) {
+			printf("FAIL model: LCDG_TILEWIN sends pixels at COLMOD %02x, not 55\n", d->colmod);
+			nbad++;
+			return -1;
+		}
 		if (w->tw == 0 || w->th == 0 || w->tx + w->tw > LCDG_GRID ||
 		    w->ty + w->th > LCDG_GRID) {
 			printf("FAIL model: LCDG_TILEWIN %d,%d %dx%d out of range\n", w->tx, w->ty,
@@ -270,6 +288,7 @@ test_static_tiles(void)
 	int i, t;
 
 	start_view(d, &V);
+	CHECK(d->colmod == LCDG_COLMOD_RGB565, "view selects COLMOD 55: %02x", d->colmod);
 	CHECK(d->npal == LCDG_NPAL, "all %d palette entries set: %d", LCDG_NPAL, d->npal);
 	CHECK(d->pal[0][0] == 28 && d->pal[0][2] == 80 && d->pal[14][0] == 246 && d->pal[15][2] == 26,
 	    "palette values");

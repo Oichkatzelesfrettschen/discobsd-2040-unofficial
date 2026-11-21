@@ -1407,12 +1407,21 @@ rg_set_palette(struct rg_view *v)
 	return 0;
 }
 
-/* Load the palette and the static tiles on the open device fd. */
+/*
+ * Select RGB565 on the open device fd, then load the palette and the static
+ * tiles. An open starts in RGB666 (three wire bytes a pixel); the close
+ * restores the console's format.
+ */
 static int
 rg_view_init(struct rg_view *v, int fd)
 {
 	unsigned char px[8][8], packed[LCDG_TILE_BYTES];
+	struct lcdg_colmod cm;
 	int t;
+
+	cm.fmt = LCDG_COLMOD_RGB565;
+	if (GTILE_IOCTL(fd, LCDG_COLMOD, &cm) < 0)
+		return -1;
 
 	memset(v->sig, 0, sizeof v->sig);
 	rg_ridge_init();

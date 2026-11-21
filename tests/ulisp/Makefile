@@ -40,7 +40,9 @@
 #                 hilite-test, the classes of hilite.c on a table of lines,
 #                 also with the sanitizers; hilite-pty.py, the interpreter on
 #                 a pseudo-terminal, which checks the colors of the builtin
-#                 table and the repaint; then the mutants of ulisp.c and
+#                 table and the repaint; dev-picocalc-test, dev_picocalc.c
+#                 against a model of /dev/lcdgfx that rejects a drawing
+#                 command before COLMOD 0x55; then the mutants of ulisp.c and
 #                 hilite.c that the check must reject (mutants.sh)
 #   check-qemu    the a.out the tree links, run by tests/qemu_aout/aoutrun
 #                 under qemu-arm: the language, system, images, repairs and
@@ -100,6 +102,9 @@ check:
 	    -o hilite-test.san hilite-test.c ${SRC}/hilite.c
 	ASAN_OPTIONS=detect_leaks=0 ./hilite-test.san
 	${PYTHON} -I hilite-pty.py ${SRC}/ulisp.host ${SRC}/ulisp.doc
+	${HOST_CC} -std=gnu17 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I${.CURDIR}/shim \
+	    -I${SRC} -o dev-picocalc-test dev-picocalc-test.c
+	./dev-picocalc-test
 	sh mutants.sh ${SRC} ${SRC}/ulisp.doc "${HOST_CC}"
 
 check-qemu:
@@ -143,6 +148,6 @@ check-oracle:
 .endif
 
 clean:
-	rm -f ulisp.san hilite-test hilite-test.san ulisp.sites rewrite-race.so oracle.cc oracle.bin oracle.out oracle.host
+	rm -f ulisp.san hilite-test hilite-test.san dev-picocalc-test ulisp.sites rewrite-race.so oracle.cc oracle.bin oracle.out oracle.host
 
 .PHONY: all check check-qemu check-oracle clean

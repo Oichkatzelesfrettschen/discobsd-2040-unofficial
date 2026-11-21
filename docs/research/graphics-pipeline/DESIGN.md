@@ -61,8 +61,9 @@ pair becomes its bounding box when
     cost(box) <= cost(a) + cost(b),  cost(r) = bpp * w * h + 11 * strips(r)
 
 where `bpp` is the scene's wire bytes a pixel (2 at 0x55, 3 at 0x66),
-`strips(r)` = ceil(h / (5120 / w)) is the number of `LCDG_WINDOW` strips
-`repaint` sends for r, and 11 bytes is the window command a strip costs.
+`strips(r)` = ceil(h / floor(5120 / w)) is the number of `LCDG_WINDOW`
+strips `repaint` sends for r (its strip height is the integer quotient
+`WIN_STRIP_BYTES / w`, so a 34x301 rectangle takes three strips of 150 rows), and 11 bytes is the window command a strip costs.
 The scene carries `bpp`, set by the backend call of decision 1.
 
 This widens damage: a repaint then rewrites pixels that did not change,
@@ -94,10 +95,10 @@ named constants:
 | --- | --- | --- |
 | `LCDG_NS_PER_PX_565` | 1280 | nanoseconds a pixel at COLMOD 0x55 |
 | `LCDG_NS_PER_PX_666` | 1920 | nanoseconds a pixel at COLMOD 0x66 |
-| `LCDG_SCAN_MHZ_X10` | 579 | glass scan rate, tenths of a hertz |
+| `LCDG_SCAN_HZ_X10` | 579 | glass scan rate, tenths of a hertz |
 
 A game sizes its viewport and strips from them: at 30 frames a second
-and 0x55, 26,041 pixels a frame, 407 of the 1,600 8x8 tiles. The figures
+and 0x55, 26,041 pixels a frame, so at most 406 whole 8x8 tiles of the 1,600 before the window commands of their runs are counted. The figures
 are board measurements (`PICOCALC.md:285`, `:322`); a change of panel
 clock changes them, and the header says so.
 
@@ -120,7 +121,7 @@ clock changes them, and the header says so.
 
 | Decision | Host gate | Board evidence |
 | --- | --- | --- |
-| 1 | the host models refuse pixels before 0x55; `check-libwin-host`, `check-ridge-host`, `check-picocalc-host`, `check-matezinho-host` | a redraw timing at 0x55 against 0x66, and the colors on the glass |
+| 1 | the host models refuse pixels before 0x55: `check-libwin-host`, `check-ridge-host`, `check-picocalc-host` (gametile), `check-matezinho-host`, and a host model of `usr.bin/ulisp/dev_picocalc.c`'s lazy open (`check-ulisp-host` builds `dev_host.c`, not this file) | a redraw timing at 0x55 against 0x66, and the colors on the glass |
 | 2 | `check-libwin-host` with the cost oracle and a mutant per rule clause | windemo drag timing |
-| 3 | `check-matezinho-host`, `check-matezinho-qemu` with the range oracle | `tools/renode/check-matezinho.py` |
+| 3 | `check-matezinho-host`, `check-matezinho-qemu` with the range oracle; Renode: `tools/renode/check-matezinho.py` | a redraw capture of a small edit |
 | 4 | compilation of every includer | none |

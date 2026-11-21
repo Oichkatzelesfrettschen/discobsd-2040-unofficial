@@ -2515,7 +2515,7 @@ check-ufs-namespace-mutants: \
 			status=$$?; \
 		fi; \
 		case $$mutation in \
-		omit-acquisition) expected='FAIL unexpected panic: ufs namespace gate' ;; \
+		omit-acquisition) expected='FAIL unexpected panic: K48' ;; \
 		omit-wakeup) expected='wakeup_calls == 1' ;; \
 		clear-on-interrupt) expected='sleep_calls == 2' ;; \
 		esac; \

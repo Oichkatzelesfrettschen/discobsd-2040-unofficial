@@ -17,8 +17,8 @@ kernels (PICOCALC, PICOCALC_LEAN, PICOCALC_LEAN_DIAG, PICOCALC_SD and
 PICOCALC_SD_DIAG); the PICOCALC_PSRAM configuration this note measured was
 folded into PICOCALC (`sys/arch/rp2040/doc/PICOCALC.md`), and the sizes
 below are that configuration's. A host simulator executes the shipped
-program words against a timing model of the part and passes 766 checks;
-eight mutants of the program and driver fail it. When measured, PICOCALC_PSRAM added 2,096 bytes of text,
+program words against a timing model of the part (`check-psram-pio`); its
+current check and mutant counts are in `sys/arch/rp2040/doc/PICOCALC.md`. When measured, PICOCALC_PSRAM added 2,096 bytes of text,
 56 of data and 144 of bss to that revision's PSRAM-less PICOCALC, and PICO
 and PICO_UART linked to the same text and data as before; today's PICOCALC
 carries the driver, so that delta is history, not a current budget.
@@ -299,6 +299,10 @@ PICOCALC_PSRAM equal those of the driver-bearing PICOCALC link except
 
 ### Build selection
 
+This section records the selection as the driver landed. The separate
+configuration it describes has since been folded into PICOCALC, and the
+five PicoCalc kernels carry the driver (`sys/arch/rp2040/doc/PICOCALC.md`).
+
 The owner chose the driver as a PicoCalc option: the default PicoCalc build
 keeps `fl1` swap with no driver. The driver is a separate kernel
 configuration, `sys/arch/rp2040/compile/PICOCALC_PSRAM`, for three reasons.
@@ -358,5 +362,5 @@ evidence.
 The gate compiles `psram_xfer.c` for the host with hooks that forward each
 register access to `tests/psram/pio_sim.py`, runs `tests/psram/test_psram.py`,
 and then runs each mutant. It writes `.build-logs/psram/psram-frames.json`.
-The kernels build with `bmake MACHINE=rp2040 kernel`; the PSRAM kernel is
-`sys/arch/rp2040/compile/PICOCALC_PSRAM/unix.uf2`.
+The kernels build with `bmake MACHINE=rp2040 kernel`; every PicoCalc kernel
+carries the driver, for example `sys/arch/rp2040/compile/PICOCALC/unix.uf2`.

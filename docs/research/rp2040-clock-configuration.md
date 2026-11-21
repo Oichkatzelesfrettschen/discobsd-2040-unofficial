@@ -88,7 +88,7 @@ At 133 MHz, 2 of 10 fail their assertion today (D3, D5) and 8 pass. These are th
 | H9 | `PLL_USB`, `machdep.c:534`, `:538` | 100, 5, 5 | no | crystal-derived, fixed at 48 MHz |
 | H10 | Watchdog tick, `machdep.c:249` | 12 cycles | no | crystal-derived; the 1 MHz TIMER does not depend on clk_sys |
 | H11 | XOSC startup, `machdep.c:446` | 47 | no | crystal-derived |
-| H12 | Spin bounds, `adc.c:56`, `flash.c:417` | 100,000 and 200,000 iterations | the bound's time scales with clk_sys | both far beyond the event they bound |
+| H12 | Spin bounds, `adc.c:56`, `flash.c` `FLASH_CMD_SPINS` | 100,000 and 200,000 iterations | the bound's time scales with clk_sys | both far beyond the event they bound |
 
 Constants outside the kernel that restate the clock, each a place that must move with it:
 

@@ -101,8 +101,12 @@ Both steps only read.
    `check-picocalc-kbd-bootloader`) reports the product ID (0x410 for
    the medium-density family the wiki's log shows), the flash-size word and
    the unique ID, which settles the x8/xB question for this board.
-2. Backup: `"$PYTHON" tools/picocalc/kbd_bootloader_id.py --dump kbd-backup-1.bin PORT`,
-   then again with `kbd-backup-2.bin` (the tool refuses an existing path), which reads
+2. Backup: `"$PYTHON" tools/picocalc/kbd_bootloader_id.py PORT --dump "$LOCAL/kbd-backup-1.bin" > "$LOCAL/kbd-backup-1.json"`,
+   then again with `kbd-backup-2` (the tool refuses an existing path), where
+   `$LOCAL` is the notes repository's ignored `docs/local/` directory, as in
+   `picocalc-first-power-up.md`: the dump is unlicensed vendor firmware and
+   the JSON record carries the part's unique ID, so neither enters a
+   tracked tree. Each read covers
    the whole application flash, sized by the flash-size word the identity
    step reports (64 KiB on an x8 part, 128 KiB on an xB part), and records
    the dump's SHA-256. To name the installed release, the MD5 of the
@@ -136,6 +140,13 @@ controller's USB pins through U701 and disconnects the CH340C,
 | c. Write and start | on | off | ROM bootloader, then the new image | CH340C | `stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN -g 0x08000000 PORT` |
 | d. Leave | off | off | the new image; every later reset boots it, BOOT0 being low | Pico side | none |
 
+The Pico stays out of the PicoCalc from step a through step d, as
+`picocalc-first-power-up.md` prescribes: with U201 in its bootloader, PA13
+(PICO_EN) floats to its pull-up and powers the Pico, and the started
+firmware drives PA13 low, so both step a's power-off and step c's start cut
+the Pico's supply without a `sync`. A Pico left seated is halted at its
+console (`halt`) before step a and again before step c.
+
 LEN is the image's size rounded up to the 1 KiB flash page, so the erase
 covers the image's pages alone; without a length `stm32flash` extends the
 range to the end of flash and erases all of it. The Go command rides on the
@@ -152,7 +163,7 @@ backup. Step a then needs a power-on reset that the bad image cannot
 refuse: with switch 1 on, remove all power (USB-C and cells out, as in
 `picocalc-first-power-up.md`) and restore it, since the power key's long
 press belongs to the application firmware. Step c becomes
-`stm32flash -w kbd-backup-1.bin -v -S 0x08000000 -g 0x08000000 PORT`,
+`stm32flash -w "$LOCAL/kbd-backup-1.bin" -v -S 0x08000000 -g 0x08000000 PORT`,
 whose range runs to the end of flash and so erases all of it, which a full
 backup covers by design; step d follows unchanged. The plan writes only the
 main flash. Option bytes, readout protection and write protection stay
@@ -176,7 +187,8 @@ recovery route survives: the bootloader runs without the Pico.
 ## 8. Approval list
 
 Each item runs only after the owner approves this list as written, on the
-board the owner names, with SW701 switch 2 off throughout:
+board the owner names, with SW701 switch 2 off throughout and the Pico out of its socket from
+item 3 through item 5 (or halted before each power transition, section 5):
 
 1. Install arduino-cli, STM32duino 2.10.0 and XPowersLib 0.2.3 (cuu fork,
    `stm32f103r8t6`, at the recorded commit).
@@ -188,4 +200,5 @@ board the owner names, with SW701 switch 2 off throughout:
    lane before any write.
 5. Write and start the patched image (section 5, step c), then set
    switch 1 off (step d).
-6. Verify (section 7); on any failure, write the backup back (section 6).
+6. Seat the Pico, then verify (section 7); on any failure, remove the Pico
+   again and write the backup back (section 6).

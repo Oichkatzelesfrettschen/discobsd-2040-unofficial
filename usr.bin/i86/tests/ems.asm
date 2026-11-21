@@ -48,7 +48,7 @@ start:	xor ax, ax
 	mov ss, ax
 	mov sp, 0x7c00
 	mov word [optr], OUTBUF
-	mov ax, 0x0205			; the five sectors after this one
+	mov ax, 0x0206			; the six sectors after this one
 	mov cx, 0x0002
 	xor dh, dh
 	mov bx, 0x7e00
@@ -807,6 +807,95 @@ main:	mov ah, 0x40
 	mov ax, 0x5b01
 	xor bl, bl
 	int 0x67			; back to no set 0
+	; 5B00h returns the pointer 5B01h was given, unnormalized.
+	xor ax, ax
+	mov es, ax
+	mov di, pbuf
+	mov ax, 0x4e00
+	int 0x67
+	mov di, pbuf
+	mov ax, 0x5b01
+	xor bl, bl
+	int 0x67
+	mov ax, 0x5b00
+	int 0x67
+	mov ax, es
+	mov si, s_altes
+	call say4
+	xor ax, ax
+	mov es, ax
+	xor di, di
+	mov ax, 0x5b01
+	xor bl, bl
+	int 0x67
+	; 57h from the firmware ROM: FFFF:0005 holds the date "01/01/90".
+	mov si, rreg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_rom
+	call st
+	mov al, [mbuf + 2]
+	mov si, s_romb
+	call say2
+	; 57h past 1 MB, and from a page beyond the handle's three.
+	mov si, wreg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_ea2
+	call st
+	mov ax, [h]
+	mov [lreg + 5], ax
+	mov si, lreg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_e8am
+	call st
+	; Logical 0 at E000h and E400h: a move of 512 bytes from E000:0000
+	; to E400:0001 runs from the end, so byte 101h ends as byte 100h was
+	; (0); a forward copy leaves byte FFh there. An exchange answers 97h.
+	xor bx, bx
+	xor al, al
+	call map
+	xor bx, bx
+	mov al, 1
+	call map
+	mov ax, 0xe000
+	mov es, ax
+	xor dl, dl
+	call fill
+	mov si, areg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_amovs
+	call st
+	mov al, [es:0x101]
+	mov si, s_amov
+	call say2
+	mov si, areg
+	mov ax, 0x5701
+	int 0x67
+	mov si, s_axch
+	call st
+	; 5401h with a name of nulls: A1h while a handle has no name, A0h
+	; once handle 0 and [h] have names.
+	mov si, nm0
+	mov ax, 0x5401
+	int 0x67
+	mov si, s_nul1
+	call st
+	mov si, nm0 + 8
+	xor dx, dx
+	mov ax, 0x5301
+	int 0x67
+	mov si, nm0 + 16
+	mov dx, [h]
+	mov ax, 0x5301
+	int 0x67
+	mov si, nm0
+	mov ax, 0x5401
+	int 0x67
+	mov si, s_nul0
+	call st
 	mov dx, [h]
 	mov ah, 0x48
 	int 0x67
@@ -898,6 +987,16 @@ s_e4f0:	db "e4f0:", 0
 s_e4f1:	db "e4f1:", 0
 s_e4fb:	db "e4fb:", 0
 s_kept:	db "kept:", 0
+s_altes: db "altes:", 0
+s_rom:	db "rom:", 0
+s_romb:	db "romb:", 0
+s_ea2:	db "ea2:", 0
+s_e8am:	db "e8am:", 0
+s_amovs: db "amovs:", 0
+s_amov:	db "amov:", 0
+s_axch:	db "axch:", 0
+s_nul1:	db "nul1:", 0
+s_nul0:	db "nul0:", 0
 s_done:	db "done", 0
 p4f0:	dw 19			; 4F00h: 19 segments
 	times 19 dw 0xe000
@@ -911,5 +1010,28 @@ oreg:	dd 16			; 57h: from handle page 0 ...
 	dw 0, 0, 0
 	db 0				; ... to E000:0001
 	dw 0, 1, 0xe000
+rreg:	dd 8			; 57h: the ROM date at FFFF:0005 to mbuf
+	db 0
+	dw 0, 5, 0xffff
+	db 0
+	dw 0, mbuf, 0
+wreg:	dd 16			; 57h: FFFF:0010, past 1 MB
+	db 0
+	dw 0, 0x10, 0xffff
+	db 0
+	dw 0, mbuf, 0
+lreg:	dd 0			; 57h: handle [h], page 3
+	db 1
+	dw 0, 0, 3
+	db 0
+	dw 0, mbuf, 0
+areg:	dd 512			; 57h: E000:0000 to E400:0001
+	db 0
+	dw 0, 0, 0xe000
+	db 0
+	dw 0, 1, 0xe400
+nm0:	times 8 db 0
+	db "OS-ZERO!"
+	db "TESTPAGE"
 
-	times 3072 - ($ - $$) db 0
+	times 3584 - ($ - $$) db 0

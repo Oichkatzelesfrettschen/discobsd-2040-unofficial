@@ -49,8 +49,13 @@
  * 5B01h makes current, and the current area stands for the registers.
  * Switching to another area stores the mapping in the one left and loads
  * the new one; 5B00h stores the mapping in the current area before it
- * returns the area's address. There are no DMA register sets: 5B05h
- * gives none and 5B06h and 5B07h answer 9Eh.
+ * returns the area's pointer as 5B01h received it. There are no DMA
+ * register sets: 5B05h gives none and 5B06h and 5B07h answer 9Eh.
+ *
+ * 57h reads conventional memory as the bus does, the firmware ROM
+ * included, refuses a region that runs past 1 MB (A2h) and treats two
+ * physical pages that show one logical page as one memory: an exchange
+ * whose regions share bytes through them answers 97h.
  *
  * 5Dh keeps the operating system's access key: the first 5D00h or 5D01h
  * hands it out in BX:CX, later calls must present it (A4h otherwise), and
@@ -102,7 +107,8 @@ static uint16_t cur[NPHYS];	/* the logical page it shows */
  * output buffer may overlap it, so a second read of guest memory could see
  * words that were never checked. */
 static uint16_t arg[1 + 2 * NPHYS];
-static uint32_t alt_area;	/* set 0's save area (5B01h), or 0 */
+static uint32_t alt_area;	/* set 0's save area (5B01h), linear */
+static uint16_t alt_seg, alt_off; /* its pointer as given; 0:0 is none */
 static uint8_t os_off;		/* 5D01h: 5900h and 5Bh refused */
 static uint8_t key_out;		/* 5D00h or 5D01h has given out key */
 static uint32_t key, calls;
@@ -381,10 +387,15 @@ copy(uint8_t *buf, const struct end *e, uint32_t i, uint32_t n, int wr)
 	while (n) {
 		k = n;
 		p = region(e, i, wr, &k);
-		if (p == NULL) {	/* nothing answers: reads FFh */
+		if (p == NULL) {
+			/* Conventional memory outside the pages: the firmware
+			 * ROM, or nothing (FFh), through the slow read; a
+			 * write there goes nowhere, as it would on the bus. */
 			k = 1;
 			if (!wr)
-				*buf = 0xff;
+				*buf = e->type == 0 ?
+				    (uint8_t)mem_rb((e->at + i) & (MEM_SIZE - 1)) :
+				    0xff;
 		} else if (wr)
 			memcpy(p, buf, k);
 		else
@@ -422,6 +433,52 @@ alias(const struct end *c, const struct end *x, uint32_t len)
 	return (0);
 }
 
+/*
+ * Whether conventional regions a (read) and b (written) of a move share
+ * bytes through two physical pages that show one logical page. A shared
+ * byte at offset o of that page is read as byte o + bp - a->at of the
+ * move and written as byte o + bq - b->at; a forward copy writes it
+ * before reading it when the second is smaller, and *back asks for the
+ * copy from the end then. Pairs that ask for both orders cannot be
+ * served in one pass; the move runs forward for them (a region of more
+ * than one page through two windows on one page in crossed order).
+ */
+static int
+alias0(const struct end *a, const struct end *b, uint32_t len, int *back)
+{
+	uint32_t bp, bq, lo, hi;
+	unsigned p, q;
+	int shared = 0, fwd = 0, rev = 0;
+
+	for (p = 0; p < nphys; p++) {
+		bp = (uint32_t)blk[p] * PAGE;
+		if (cur[p] == NOBASE || a->at >= bp + PAGE ||
+		    bp >= a->at + len)
+			continue;
+		for (q = 0; q < nphys; q++) {
+			bq = (uint32_t)blk[q] * PAGE;
+			if (q == p || cur[q] != cur[p] ||
+			    b->at >= bq + PAGE || bq >= b->at + len)
+				continue;
+			lo = a->at > bp ? a->at - bp : 0;
+			if (b->at > bq && b->at - bq > lo)
+				lo = b->at - bq;
+			hi = a->at + len < bp + PAGE ? a->at + len - bp : PAGE;
+			if (b->at + len < bq + PAGE && b->at + len - bq < hi)
+				hi = b->at + len - bq;
+			if (lo >= hi)
+				continue;
+			shared = 1;
+			if (bq + a->at < bp + b->at)
+				rev = 1;
+			else
+				fwd = 1;
+		}
+	}
+	*back = rev && !fwd;
+	return (shared);
+}
+
 static unsigned
 move(uint32_t a, int xchg)
 {
@@ -441,13 +498,16 @@ move(uint32_t a, int xchg)
 		e[k].h = grw(d + 1);
 		e[k].page = grw(d + 5);
 		if (e[k].type == 0) {
-			e[k].at = lin(grw(d + 5), grw(d + 3));
+			/* Unwrapped: a region past 1 MB is refused. */
+			e[k].at = ((uint32_t)grw(d + 5) << 4) + grw(d + 3);
 			if (e[k].at + len > MEM_SIZE)
 				return (0xa2);
 		} else if (e[k].type == 1) {
 			e[k].at = grw(d + 3);
 			if (!valid(e[k].h))
 				return (E_HANDLE);
+			if (e[k].page >= hd[e[k].h].pages)
+				return (E_LPAGE);
 			if (e[k].at >= PAGE)
 				return (0x95);
 			if (len && e[k].page + (e[k].at + len - 1) / PAGE >=
@@ -465,7 +525,9 @@ move(uint32_t a, int xchg)
 			back = s1 > s0;
 			if (e[0].type)
 				status = 0x92;
-		}
+		} else if (e[0].type == 0 && len &&
+		    alias0(&e[0], &e[1], len, &back) && xchg)
+			return (0x97);
 	} else if (e[0].type != e[1].type && len &&
 	    alias(&e[e[0].type != 0], &e[e[0].type == 0], len))
 		return (0x94);
@@ -709,10 +771,17 @@ ems_int(struct i86 *c)
 
 			for (k = 0; k < 8; k++)
 				name[k] = (char)grb(dssi + k);
+			/* A name of nulls finds a handle with no name (A1h),
+			 * or none (A0h) once every open handle has one. */
 			st = 0xa0;
-			if (memcmp(name, "\0\0\0\0\0\0\0\0", 8) == 0)
-				st = 0xa1;
-			else
+			if (memcmp(name, "\0\0\0\0\0\0\0\0", 8) == 0) {
+				for (h = 0; h < NHANDLE; h++)
+					if (hd[h].used && memcmp(hd[h].name,
+					    "\0\0\0\0\0\0\0\0", 8) == 0) {
+						st = 0xa1;
+						break;
+					}
+			} else
 				for (h = 0; h < NHANDLE; h++)
 					if (hd[h].used &&
 					    memcmp(hd[h].name, name, 8) == 0) {
@@ -765,11 +834,11 @@ ems_int(struct i86 *c)
 	case 0x5b:
 		switch (al) {
 		case 0:
-			if (alt_area != 0)
+			if (alt_seg | alt_off)
 				put_map(alt_area);
 			c->r[R_BX] &= 0xff00;
-			c->s[S_ES] = (uint16_t)(alt_area >> 4);
-			c->r[R_DI] = (uint16_t)(alt_area & 15);
+			c->s[S_ES] = alt_seg;
+			c->r[R_DI] = alt_off;
 			break;
 		case 1:
 			if (bx & 0xff) {
@@ -777,12 +846,17 @@ ems_int(struct i86 *c)
 				break;
 			}
 			/* The new set is taken before the old one is
-			 * stored, which may overwrite it. */
-			if (esdi != 0 && (st = load_map(esdi)) != OK)
+			 * stored, which may overwrite it. The pointer is
+			 * kept as given for 5B00h; 0000:0000 is none. */
+			if ((c->s[S_ES] | c->r[R_DI]) &&
+			    (st = load_map(esdi)) != OK)
 				break;
-			if (alt_area != 0)
+			if (alt_seg | alt_off)
 				put_map(alt_area);
-			if ((alt_area = esdi) != 0)
+			alt_seg = c->s[S_ES];
+			alt_off = c->r[R_DI];
+			alt_area = esdi;
+			if (alt_seg | alt_off)
 				apply_map();
 			break;
 		case 2:

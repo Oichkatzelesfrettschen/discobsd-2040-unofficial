@@ -49,7 +49,7 @@ Counts: 27 used, 6 partial, 1 boot only, 1 test only, 7 unused.
 | ADC | `0x4004c000` | 4.9 ADC and Temperature Sensor, p.557 | `adc.h` | used | dev/adc.c (machdep.adc.* sysctls). |
 | PWM | `0x40050000` | 4.5 PWM, p.521 | `pwm.h` | used | dev/gpio.c (user PWM duty), picoaudio.c and picopcm.c (audio). |
 | TIMER | `0x40054000` | 4.6 Timer, p.534 | `timer.h` | used | rp2040/clock.c reads TIMERAWL for the clock; dev/usb.c timestamps start-of-frame and transmit; core1.c uses it for bounded waits. |
-| WATCHDOG | `0x40058000` | 4.7 Watchdog, p.544 | `watchdog.h` | partial | core1.c records scratch words (WD_SITE_STALL and the stall site) and machdep.c keeps the swap cursor in scratch0 across a software reset; include/watchdog.h defines the registers. |
+| WATCHDOG | `0x40058000` | 4.7 Watchdog, p.544 | `watchdog.h` | partial | machdep.c sets the watchdog tick (TICK 12 cycles), reads REASON, disables and re-arms the counter (CTRL, LOAD with the pause bits) and keeps the swap cursor in SCRATCH0 across a software reset; core1.c writes SCRATCH1-3 (the stall site records) and triggers a reset through CTRL; sysctl.c reports the reason, site and arguments (machdep.watchdog_*); include/watchdog.h defines the registers. |
 | RTC | `0x4005c000` | 4.8 RTC, p.548 | `rtc.h` | unused | machdep.c gates clk_rtc off; time of day comes from the timer. |
 | ROSC | `0x40060000` | 2.17 Ring Oscillator (ROSC), p.221 | `rosc.h` | partial | machdep.c swap_cursor_init() samples RANDOMBIT (seven bits per try, up to eight tries) to pick the first swap allocation when watchdog scratch0 holds no tagged cursor. |
 | VREG_AND_CHIP_RESET | `0x40064000` | 2.10 Core Supply Regulator, 2.12 Chip-Level Reset, p.155 | `vreg_and_chip_reset.h` | unused | the boot ROM leaves the regulator at its default. |
@@ -73,12 +73,14 @@ The base addresses and header names come from the SDK; each block was searched i
 
 ```sh
 grep -n '_BASE _u(' /usr/share/pico-sdk/src/rp2040/hardware_regs/include/hardware/regs/addressmap.h
-git grep -n -i -E '(NAME_BASE|0xBASE)' -- sys/arch/rp2040 ':!sys/arch/rp2040/doc' ':!sys/arch/rp2040/compile'
+git grep -n -i -E '(NAME_BASE|0xBASE)' -- sys/arch/rp2040 usr.bin lib sbin bin ':!sys/arch/rp2040/doc' ':!sys/arch/rp2040/compile' ':!*.md' ':!*.tsv' ':!*.json'
 ```
+
+The seven unused blocks were searched over the whole tree (`git grep -l -i -E '(NAME_BASE|0xBASE)' -- . ':!docs' ':!legacy' ':!third_party' ':!sys/arch/rp2040/doc' ':!*.md' ':!*.tsv' ':!*.json' ':!tools/audit'`): I2C0, PIO1, TBMAN, VREG_AND_CHIP_RESET and XIP_AUX have no hit; the DMA and RTC names hit only the STM32 HAL headers of another architecture and the `0x50000000` constant of `tests/kernel/balloc_test.c`, none of them an RP2040 access.
 
 A block reached through a macro with a different spelling (an offset base such as `PC_IO_BANK0_CTRL(n)` in `dev/picocalc_reg.h`, or a base derived from another) was found by the hexadecimal base, not the name. A register-level audit would repeat the search per register name; this ledger stops at the block.
 
 ## Open
 
-- The per-register use inside the `partial` blocks (SYSINFO, SYSCFG, IO_QSPI, ROSC, BUSCTRL, WATCHDOG) is listed in the Port use column and not audited against each register of the SDK header.
+- The per-register use inside the `partial` blocks (SYSINFO, SYSCFG, IO_QSPI, ROSC, BUSCTRL, WATCHDOG) is listed in the Port use column as the registers the search found; it is not audited against each register of the SDK header.
 - PWM, TIMER and SIO have several users; the column names the principal ones.

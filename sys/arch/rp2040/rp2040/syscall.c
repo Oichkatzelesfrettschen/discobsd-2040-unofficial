@@ -243,7 +243,10 @@ divider_restore(const struct divider_state *ds)
 		(void)div[4];		/* clears DIRTY */
 }
 
-/* The eight words (r0-r3, r12, lr, pc, xPSR) exception entry stacks at sp. */
+/*
+ * The eight words (r0-r3, r12, lr, pc, xPSR) exception entry stacks at sp;
+ * with XPSR_STKALIGN set, ARMv6-M records one alignment word after them.
+ */
 #define	HWFRAME_BYTES	(8 * sizeof(u_int))
 
 /*
@@ -252,17 +255,20 @@ divider_restore(const struct divider_state *ds)
  * deeper than the deepest entry recorded so far must be recorded before
  * anything can switch the process out. Returns nonzero when sp has run
  * into the data segment, except while a handler runs on the alternate
- * signal stack (SA_ONSTACK, set by sendsig()) and the hardware frame at sp
- * lies wholly inside the range sigaltstack() registered: that range may be in .bss or the heap, below
- * the break, and such an sp is neither an overflow nor a process-stack
- * depth. An alternate stack above the break is recorded like the process
- * stack it lies in.
+ * signal stack (SA_ONSTACK, set by sendsig()) and the hardware frame at sp,
+ * with its alignment word, lies wholly inside the range sigaltstack()
+ * registered: that range may be in .bss or the heap, below the break, and
+ * such an sp is neither an overflow nor a process-stack depth. An
+ * alternate stack above the break is recorded like the process stack it
+ * lies in.
  */
 static int
 user_entry(const struct trapframe *frame)
 {
 	struct proc *p = u.u_procp;
 	u_int sp = frame->tf_sp;
+	u_int span = HWFRAME_BYTES +
+	    ((frame->tf_psr & XPSR_STKALIGN) ? sizeof(u_int) : 0);
 
 	if ((u_int)frame < (u_int)&u + sizeof(u)) {
 		panic("stack overflow");
@@ -270,9 +276,9 @@ user_entry(const struct trapframe *frame)
 	}
 	if (sp < p->p_daddr + u.u_dsize)
 		return !((u.u_sigstk.ss_flags & SA_ONSTACK) &&
-		    (u_int)u.u_sigstk.ss_size >= HWFRAME_BYTES &&
+		    (u_int)u.u_sigstk.ss_size >= span &&
 		    sp - (u_int)u.u_sigstk.ss_base <=
-		    (u_int)u.u_sigstk.ss_size - HWFRAME_BYTES);
+		    (u_int)u.u_sigstk.ss_size - span);
 	if (p->p_ssize < USER_TOP(p) - sp) {
 		p->p_ssize = USER_TOP(p) - sp;
 		p->p_saddr = sp;

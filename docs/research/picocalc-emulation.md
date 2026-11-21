@@ -151,7 +151,13 @@ emulator, with the falsifier stated first.
    byte. Patch 0010 keeps the end time of each frame in a queue
    and retires the ended frames at each SSPSR read and SSPDR write. The
    time is the accessing core's own: its time handle plus the instructions
-   executed since the handle was last read exactly (`SyncTime`). A status
+   executed since the handle was last read exactly (`SyncTime`). tlib adds
+   a translation block's instructions to both when the block ends
+   (`instructions_count_declaration`), so the time is that of the start
+   of the block making the access, and a frame written to an idle
+   controller is observed short or long by the difference between the
+   instructions that precede the write and the observing read in their
+   blocks. A status
    read that finds the transmit FIFO full skips the core to the end of the
    frame in the shift register (`SkipTime`) and returns with TNF set, so
    the wait takes the virtual time of the polling loop without its
@@ -171,9 +177,10 @@ emulator, with the falsifier stated first.
    ahead of it inside a grant; the timer's code path was not traced. With
    full-length first frames the console's text drawing delivers 2.4 percent
    fewer bytes per virtual second, and the SD-system gate's tmp case
-   reaches each stamp from login on 0.5 s later (login at 20.2 virtual
-   seconds against 19.7, the SD regression script at 77.7 against 77.2)
-   while the sdroot case keeps all eight. The byte loop makes 4.0 register accesses
+   reaches each stamp from login on one 0.5 s sampling slice later in three
+   of four runs (login at 20.2 virtual seconds against 19.7, the SD
+   regression script at 77.7 against 77.2; two of two timer-model runs
+   read 19.7) while the sdroot case keeps all eight. The byte loop makes 4.0 register accesses
    per byte (two status reads), and 6 virtual seconds of PICOCALC_SD boot
    take 90 s of wall clock against 162 s in a paired run under load
    (process CPU 125 s against 197 s). Reading the exact time at every

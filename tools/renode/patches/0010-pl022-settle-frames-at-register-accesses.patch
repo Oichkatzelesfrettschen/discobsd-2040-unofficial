@@ -15,7 +15,9 @@ about 24 ns.
 The end time of each frame on the wire now sits in a queue, and a read of
 SSPSR or a write of SSPDR retires the frames that have ended by the time of
 that access. The time is the accessing core's own clock: its time handle
-plus the instructions executed since the handle was last read exactly,
+plus the instructions executed since the handle was last read exactly
+(both leave out the translation block in flight, so the time is that of
+the start of the block making the access),
 because the machine's time source advances only when every core has
 reported and so stands still inside a time grant. An access from the
 monitor reads the machine's time. A status read that finds the transmit
@@ -26,8 +28,8 @@ one frame time and delays an interrupt by as much. Every frame lasts its
 bit time, the first of a burst included (24 polls). FIFO levels, BSY and
 the discard of a write to a full FIFO are unchanged.
 ---
- emulation/peripherals/spi/rp2040_spi.cs |  166 ++++++++++++++++++++++++-------
- 1 file changed, 127 insertions(+), 39 deletions(-)
+ emulation/peripherals/spi/rp2040_spi.cs |  184 ++++++++++++++++++++++++-------
+ 1 file changed, 142 insertions(+), 42 deletions(-)
 diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi/rp2040_spi.cs
 --- a/emulation/peripherals/spi/rp2040_spi.cs
 +++ b/emulation/peripherals/spi/rp2040_spi.cs
@@ -118,43 +120,53 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
      private void TransferFrame(ISPIPeripheral device, ushort frame)
      {
        if (FrameFifoLevel() >= txBuffer.Capacity)
-@@ -271,42 +271,122 @@
+@@ -271,42 +271,134 @@
        {
          rxBuffer.Enqueue(reply);
        }
 -      if (Interlocked.Increment(ref framesOnWire) == 1)
+-      {
+-        StartFrameTimer();
+-      }
+-    }
+-
+-    // One frame lasts dataSize bit times; the timer counts nanoseconds.
+-    private void StartFrameTimer()
+-    {
 +      // One frame lasts dataSize bit times, in nanoseconds, and starts when
 +      // the frame before it ends.
-+      var rate = bitRate == 0 ? 1UL : bitRate;
-+      var bits = dataSize < 4 ? 4UL : (ulong)dataSize;
+       var rate = bitRate == 0 ? 1UL : bitRate;
+       var bits = dataSize < 4 ? 4UL : (ulong)dataSize;
+-      frameTimer.Enabled = false;
+-      frameTimer.Limit = (bits * 1000000000UL + rate - 1UL) / rate;
+-      frameTimer.Value = 0;
+-      frameTimer.Enabled = true;
 +      var duration = (bits * 1000000000UL + rate - 1UL) / rate;
 +      lock (frameEnds)
-       {
--        StartFrameTimer();
++      {
 +        var start = frameEnds.Count > 0 ? lastFrameEnd : frameNow;
 +        lastFrameEnd = start + duration;
 +        frameEnds.Enqueue(lastFrameEnd);
-       }
++      }
      }
  
--    // One frame lasts dataSize bit times; the timer counts nanoseconds.
--    private void StartFrameTimer()
+-    private void FrameDone()
 +    // The virtual time of a register access, in nanoseconds. The machine's
 +    // time source advances only when every core has reported, so inside a
 +    // time grant it stands still while the accessing core runs on. The
 +    // core's own clock is its time handle plus the instructions executed
 +    // since the handle was last read exactly (SyncTime); that reading is
-+    // taken when the wire is idle, when another core takes over and when
-+    // the handle overtakes the count, which a core that slept produces.
++    // taken when the wire is idle, when another core takes over, when the
++    // handle overtakes the count, which a core that slept produces, and
++    // when the count falls below its base, which a core reset produces.
++    // Both the handle and the count leave out the translation block in
++    // flight, so the time is that of the start of the block making the
++    // access: a frame written to an idle controller is observed for its bit
++    // time less the instructions that precede the write in its block, plus
++    // those that precede the observing read in its own.
 +    // An access from outside a core thread (the monitor) reads the machine.
 +    private ulong AccessTime(ICPU cpu)
-     {
--      var rate = bitRate == 0 ? 1UL : bitRate;
--      var bits = dataSize < 4 ? 4UL : (ulong)dataSize;
--      frameTimer.Enabled = false;
--      frameTimer.Limit = (bits * 1000000000UL + rate - 1UL) / rate;
--      frameTimer.Value = 0;
--      frameTimer.Enabled = true;
++    {
 +      var core = cpu as BaseCPU;
 +      if (core == null || !core.OnPossessedThread)
 +      {
@@ -162,8 +174,14 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +      }
 +      var executed = core.ExecutedInstructions;
 +      var mips = core.PerformanceInMips == 0 ? 1UL : core.PerformanceInMips;
-+      var now = clockBaseTicks + (executed - clockBaseInstructions) * 1000UL / mips;
-+      if (core != clockCore || frameEnds.Count == 0 || core.TimeHandle.TotalElapsedTime.Ticks > now)
++      var now = 0UL;
++      var rebase = core != clockCore || frameEnds.Count == 0 || executed < clockBaseInstructions;
++      if (!rebase)
++      {
++        now = clockBaseTicks + (executed - clockBaseInstructions) * 1000UL / mips;
++        rebase = core.TimeHandle.TotalElapsedTime.Ticks > now;
++      }
++      if (rebase)
 +      {
 +        core.SyncTime();
 +        clockCore = core;
@@ -172,9 +190,8 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +        now = clockBaseTicks;
 +      }
 +      return now;
-     }
- 
--    private void FrameDone()
++    }
++
 +    // Retires the frames that have left the wire by the time of this
 +    // access. statusPoll marks a read of SSPSR: one that finds the transmit
 +    // FIFO full comes from a driver polling for room, and the reading core
@@ -257,7 +274,7 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
      }
  
      private void Step()
-@@ -363,12 +443,12 @@
+@@ -363,12 +455,12 @@
  
      public uint ReadDoubleWord(long offset)
      {
@@ -272,7 +289,7 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
      }
  
      public override void Reset()
-@@ -385,8 +465,11 @@
+@@ -385,8 +477,11 @@
  
        rxBuffer.Clear();
        txBuffer.Clear();
@@ -286,7 +303,7 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
  
        _executionThread.Stop();
  
-@@ -534,8 +617,13 @@
+@@ -534,8 +629,13 @@
      private bool running;
      private byte clockPrescaleDivisor;
      private ulong bitRate;

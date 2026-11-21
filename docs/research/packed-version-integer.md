@@ -153,13 +153,17 @@ The study supports three statements; the owner decides each.
 
 What would change this: a reader that cannot decode (decimal wins); an outside consumer that compares against 202608 (epoch bit, or decimal); a patch counter that approaches 4095 (widen it from the stage or minor field); a need for pre-release serials (`alpha.2`; give Python's serial nibble 4 bits from patch); two stage names with one initial in one core (S2 ties; use S1).
 
+## Owner decisions
+
+The owner answered the three questions of the recommendation on 2026-11-21: decimal (D204), the layout of `version-scheme.md`, `major * 100000000 + minor * 1000000 + patch * 10 + stage` with major 0 to 20, minor 0 to 99 and patch 0 to 99999 (D207), and the stage digit written beside the stage name in the version source (S1, D208). The generator merges after the rename pull request (D209).
+
 ## Limits of this study
 
 - Decoder sizes cover four small C functions on one compiler and one optimization level; the generator script (POSIX sh and awk in `newvers.sh`) is not written or measured.
 - The survey reads the default branch of each project on one date. It states what the header says, not how the project arrived at it, and the encodings of projects not listed are not inferred from the ones that are.
 - The order checks run on a boundary grid, not over all 2^31 values; the mixed-radix argument covers the rest.
 - The OpenAlex search is one query; its negative says that query's top results held no encoding study.
-- Nothing here changes `kern.osrev`, `param.h`, `newvers.sh` or any tool; the study states no owner decision.
+- The study leaves every tree file as it was; the generator that follows from the owner's answers is a separate change.
 
 ## Reproduction
 

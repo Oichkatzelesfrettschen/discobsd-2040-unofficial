@@ -1,7 +1,8 @@
 # Panel scan-out on core 1 for i86: design and the measurements before code
 
 Status: design, 2026-11-21. Owner decision D202 ("Core 1 scan-out") chose
-this path over core-0 SPI1 DMA. Nothing here is built; kernel code waits on
+this path over core-0 SPI1 DMA on a miscomputed comparison, corrected
+below; the choice is back with the owner. Nothing here is built; kernel code waits on
 the board measurements below and on the order D109 sets for new kernel
 work. Every figure below is labeled measured (board), computed or
 inference.
@@ -27,10 +28,21 @@ into wire pixels and feeds SPI1 by polling its transmit FIFO
   core 0 about 100 ms (inference: i86 writes a line a call, whose
   per-call cost is unmeasured). Measurement 1 below replaces both figures.
 
-DMA on core 0 alone recovers only the unoverlapped part (about 45 ms of
-the 242 ms write, computed), because the palette expansion that DMA
-cannot do stays on core 0 (D202's basis, worker report E). Moving the expansion and
-the FIFO feeding to core 1 frees core 0 for nearly the whole write.
+Two ways free core 0, and they differ in what they leave on it:
+
+- Core-0 DMA with bounce buffers hands the FIFO wait (about 197 ms of the
+  242 ms write, the wire time) to the DMA engine and leaves the palette
+  expansion on core 0: the 45 ms by which the write exceeds the wire is
+  that expansion's unoverlapped part, so its whole cost is at least 45 ms
+  and is unmeasured (computed and inference).
+- Core 1 takes the expansion as well and leaves core 0 the copies.
+
+Correction to D202's basis: the question put to the owner said core-0 DMA
+"recovers about 45 ms per full screen". That reverses the figures; it
+recovers up to about 197 ms of the 242 and keeps the expansion. The owner
+re-decides D198 against D202 with these figures; measurement 2 below,
+which splits core 0's time into copy, expansion and FIFO wait, decides the
+difference between them.
 
 ## Constraints the tree sets
 
@@ -60,7 +72,13 @@ the FIFO feeding to core 1 frees core 0 for nearly the whole write.
 ## Design
 
 Core 0 keeps the system call; core 1 owns SPI1 and one DMA channel while
-a scan-out is open.
+a scan-out session is open. A session covers palette-index windows only
+(`LCDG_WIN_INDEX`, the form i86 uses for graphics lines). Every other
+`/dev/lcdgfx` operation, a `LCDG_WIN_BITS` window (text cells), an RGB565
+window, a fill, an ioctl, close and the console renderer, first ends the
+session: core 0 asks core 1 to finish the queued lines and release the bus,
+waits for the reply as in "Failure and recovery", and then runs today's
+core-0 path. Core 1 never sees a format it does not expand.
 
 1. `lcdgfx_write` copies the caller's line of indexes (at most 320 bytes)
    into a kernel line slot and publishes the slot on the core-1 request
@@ -89,11 +107,18 @@ Core 0 must lose nothing when core 1 does (`CORE1.md`: a dead core 1 costs
 no kernel function). Each scan-out session carries an epoch that core 1's
 restart advances. Core 0 bounds every wait on the service: a slot with no
 reply within twice the wire time of the lines ahead of it (about 2 ms for
-four lines, computed), or a changed epoch, ends the session. Core 0 then
-aborts the DMA channel in the order erratum RP2040-E13 gives (clear the
-channel's interrupt enable, abort, poll BUSY, clear the status), waits for
-SPI1 to go idle, takes every slot back, and returns to today's core-0 path
-for the rest of the open file, so a writer sees slower lines, never
+four lines, computed), or a changed epoch, ends the session.
+
+Ending it on a fault, core 0 first stops core 1 through the existing
+supervisor (park and the forced-off reset of `CORE1.md`), so a core 1 that
+was only slow cannot touch DMA or SPI1 again. Then it aborts the DMA
+channel in the order erratum RP2040-E13 gives (clear the channel's
+interrupt enable, abort, poll BUSY, clear the status) and waits for SPI1
+to go idle. Each slot records its line's window row and a done mark that
+core 1 sets after the DMA for that line completes and the FIFO drains;
+core 0 reopens the window at the first line without a mark and sends the
+remaining lines itself, so no line is lost, repeated or shifted. The open
+file then stays on today's core-0 path: a writer sees slower lines, never
 `EAGAIN` forever, and close and ioctls never wait on a dead core.
 
 RAM: 2,560 bytes of buffers, the service's `.ramfunc` code (estimate
@@ -109,12 +134,14 @@ blocking, keeps emulating during it.
 
 ## Alternatives considered
 
-- Core-0 SPI1 DMA (D198, superseded by D202): about 45 ms per full screen
-  recovered (computed); the expansion stays on core 0.
 - Core 1 reading the guest frame buffer directly: refused by the window
   exchange and the pointer rule above.
 - A whole frame staged in kernel RAM (CGA's 16 KB, or 204,800 wire bytes):
   does not fit the 7,488 free bytes.
+- Core-0 DMA with two small bounce buffers (D198): frees the FIFO wait,
+  keeps the expansion on core 0, needs no core-1 code, no CORE1 option and
+  no cross-core recovery; less SRAM. Its gain against this design's is the
+  expansion time, which measurement 2 gives.
 - A faster SPI clock: shortens the wire time itself and is a separate
   question; the ST7365P's write-cycle limit against the 12.5 MHz in use is
   not established here.
@@ -139,6 +166,7 @@ commit and method; the code waits on 1 and 3.
 
 ## Open questions for the owner
 
+- D198 against D202 again, with the corrected figures above.
 - The budget: about 4.6 KB of the 7,488 free SRAM bytes, and the flash
   image of the `.ramfunc` code.
 - Whether the PicoCalc kernels take `options "CORE1"`, which the service

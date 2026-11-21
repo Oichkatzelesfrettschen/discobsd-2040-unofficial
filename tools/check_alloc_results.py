@@ -35,7 +35,7 @@ statement, and the branch that condition controls must leave before any
 statement in it names an assigned object: a statement the branch always
 runs (the controlled statement, or one at the top level of the controlled
 block, outside any nested condition or loop) must be exit, _exit, abort,
-longjmp, err, errx, return, goto or awk's error(FATAL, ...), or error() in
+longjmp, err, errx, return or awk's error(FATAL, ...), or error() in
 ed or overflo() in awk's b.c, which never return. Assigning a new value to
 an object is not a use, and a preprocessor line between the allocation
 and the end of its branch fails the site, since the scan does not
@@ -66,7 +66,7 @@ ONE_LVALUE = re.compile(rf"({LVALUE})\s*=(?!=)")
 # Statements that leave the failure branch. ed's error() and awk's overflo()
 # never return (ed longjmps to its command loop, overflo() calls awk's
 # error(FATAL)), so they count in those programs alone.
-LEAVES = r"\b(?:exit|_exit|abort|longjmp|err|errx)\s*\(|\breturn\b|\bgoto\b|\berror\s*\(\s*FATAL\b"
+LEAVES = r"\b(?:exit|_exit|abort|longjmp|err|errx)\s*\(|\breturn\b|\berror\s*\(\s*FATAL\b"
 PROGRAM_LEAVES = {
     "bin/ed/ed.c": r"\berror\s*\(",
     "usr.bin/awk/b.c": r"\boverflo\s*\(",
@@ -424,6 +424,7 @@ KNOWN_BAD = {
     "parenthesized lvalue": "(p) = malloc(4);\n*p = 1;\n",
     "exit reads the pointer": "p = malloc(4);\nif (!p)\n\texit(*p);\n",
     "return reads the pointer": "p = malloc(4);\nif (p == NULL)\n\treturn p->n;\n",
+    "goto": "p = malloc(4);\nif (!p)\n\tgoto done;\ndone:\n*p = 1;\n",
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",
@@ -461,7 +462,6 @@ KNOWN_GOOD = {
         'p = malloc(4);\nif (p == NULL) {\n\tfputs("out of memory", stderr);\n\texit(1);\n}\n'
     ),
     "qualified cast": "p = (char * const)malloc(4);\nif (p == NULL)\n\texit(1);\n",
-    "goto": "p = malloc(4);\nif (!p)\n\tgoto fail;\n",
     "cast null": "p = malloc(4);\nif (p == (char *)0)\n\texit(1);\n",
 }
 

@@ -25,7 +25,8 @@ the byte and calls `lcd_backlight_update(0)` (`picocalc_keyboard.ino`, the
 `LCD_BACKLIGHT_STEP` (16, `conf_app.h`), raises it to 16 and caps it at 240:
 15 distinct screen levels. Register 0x0A (`REG_ID_BK2`) goes through
 `kbd_backlight_update(0)`, which rounds to multiples of 32 and turns values
-below 32 or above 240 off: 8 keyboard levels. `lcd_backlight_update_reg()`
+below 32 off: 8 keyboard levels (a raw 241-255 rounds down to 224 before
+the test for values above 240, so that test never fires). `lcd_backlight_update_reg()`
 writes the stored byte to the PWM unrounded, and it has zero callers. The
 PWM itself takes 256 levels, so the rounding is the whole limit.
 
@@ -43,6 +44,7 @@ this document describes it:
    kernel and `backlight(1)` accept, still lands at 16, and the OS side
    below narrows its documented range to 16-240 with the new firmware.
 2. `REG_ID_BK2` write: clamp to [0, 240] and write PC8 exactly, with 0 as off.
+   A direct I2C write of 241-255, which lands at 224 today, lands at 240.
 3. `BIOSVERSION` (`conf_app.h`) set to the private value 0xB7, which no
    vendor release has used (they run 0x12 to 0x17). The OS treats the
    exact-level firmware as present only when `REG_ID_VER` equals 0xB7
@@ -123,8 +125,10 @@ The system bootloader lives in the controller's ROM, which a flash write
 leaves intact, so a bad image recovers by the same route with the backup:
 `stm32flash -w kbd-backup.bin -v -S 0x08000000 PORT`. The plan writes only
 the main flash. Option bytes, readout protection and write protection
-stay untouched (`stm32flash` options `-j`, `-k`, `-e` and the option-byte
-commands are excluded), because readout protection would lock the backup
+stay untouched (`stm32flash`
+options `-j`, `-k`, `-u` and the option-byte
+commands are excluded; `-u` disables write protection, and the default
+write erases only the pages the image covers), because readout protection would lock the backup
 path itself. A controller running a bad image may leave the Pico unpowered
 (PA13 drives PICO_EN), which the recovery route survives: the bootloader
 runs without the Pico.
@@ -151,7 +155,10 @@ board the owner names:
    `stm32f103r8t6`, at the recorded commit).
 2. Build the patched firmware (section 3) and record its SHA-256 and size.
 3. Read the identity (section 4, item 1).
-4. Read the backup (section 4, item 2) and record its SHA-256.
+4. Read the backup (section 4, item 2) twice and record its SHA-256. Item 5
+   runs only when both reads have the full length the flash-size word
+   gives and the same SHA-256; a short, failed or differing read stops the
+   lane before any write.
 5. Write the patched image (section 5) with `-v`, set DIP switch 1 off and
    power-cycle the board.
 6. Verify (section 7); on any failure, write the backup back (section 6).

@@ -30,12 +30,15 @@ An assignment from malloc, calloc, realloc or strdup, through any casts or
 parentheses, must be followed by an if statement whose whole condition is
 true exactly when one of the assigned objects is NULL (`p == NULL`,
 `p == 0`, `!p`), or must sit inside such a condition itself, as in
-`if ((p = malloc(n)) == NULL)`. A statement that the branch always runs
-(the controlled statement, or one at the top level of the controlled
-block, outside any nested condition or loop) must leave: exit, _exit, abort, longjmp, err, errx, return, goto
-or awk's error(FATAL, ...), plus error() in ed and overflo() in awk's b.c,
-which never return. Comments, literals and preprocessor lines are blanked
-first and statements split at a semicolon, brace or the end of a
+`if ((p = malloc(n)) == NULL)`. Nothing may follow the call in its own
+statement, and the branch that condition controls must leave before any
+statement in it names an assigned object: a statement the branch always
+runs (the controlled statement, or one at the top level of the controlled
+block, outside any nested condition or loop) must be exit, _exit, abort,
+longjmp, err, errx, return, goto or awk's error(FATAL, ...), or error() in
+ed or overflo() in awk's b.c, which never return. Assigning a new value to
+an object is not a use. Comments, literals and preprocessor lines are
+blanked first and statements split at a semicolon, brace or the end of a
 condition, so a call spread over several lines counts as one statement. An
 allocation that is not assigned (an argument or a return value) is outside
 the rule; its consumer owns the test.
@@ -254,12 +257,49 @@ def top_level(body):
     return [s.strip() for s in statements_found if s.strip()]
 
 
-def leaves(body, label):
-    """True when a statement the branch always runs leaves it."""
+def lvalue_pattern(name):
+    return r"\s*".join(re.escape(part) for part in re.findall(r"->|\.|\w+|\S", name))
+
+
+def mentions(text, names):
+    """True when text reads one of the assigned objects.
+
+    A plain store to the object itself (`p = q`) reads nothing; a store
+    through it (`*p = 1`, `p[0] = 1`, `p->f = 1`) reads the pointer.
+    """
+    for name in names:
+        for match in re.finditer(rf"(?<![\w>.]){lvalue_pattern(name)}(?![\w])", text):
+            store = re.match(r"\s*=(?!=)", text[match.end() :])
+            through = text[: match.start()].rstrip().endswith("*")
+            if not store or through:
+                return True
+    return False
+
+
+def leaves(body, label, names):
+    """True when the branch leaves before any statement uses a NULL object."""
     pattern = LEAVES
     if label in PROGRAM_LEAVES:
         pattern += "|" + PROGRAM_LEAVES[label]
-    return any(re.match(rf"(?:{pattern})", statement) for statement in top_level(body))
+    for statement in top_level(body):
+        if re.match(rf"(?:{pattern})", statement):
+            return True
+        if mentions(statement, names):
+            return False
+    return False
+
+
+def call_ends_statement(stmt, open_paren):
+    """True when nothing but closing parentheses follows the allocator call."""
+    depth = 0
+    for i in range(open_paren, len(stmt)):
+        if stmt[i] == "(":
+            depth += 1
+        elif stmt[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return re.fullmatch(r"[\s)]*;?\s*", stmt[i + 1 :]) is not None
+    return False
 
 
 def names_of(chain, chain_start, code):
@@ -287,16 +327,16 @@ def scan(path, text, root=None):
             line = code.count("\n", 0, start + match.start()) + 1
             names = names_of(match.group(1), start + match.start(1), code)
             if enclosed_test(stmt, match.start(1)) and leaves(
-                branch(code, start + len(stmt)), label
+                branch(code, start + len(stmt)), label, names
             ):
                 continue
-            if index + 1 < len(parts):
+            if call_ends_statement(stmt, match.end() - 1) and index + 1 < len(parts):
                 after, following = parts[index + 1]
                 cond = condition(following)
                 if (
                     cond is not None
                     and tests_null(cond, names)
-                    and leaves(branch(code, after + len(following)), label)
+                    and leaves(branch(code, after + len(following)), label, names)
                 ):
                     continue
             collapsed = re.sub(r"\s+", " ", stmt[: stmt.find("(", match.end() - 1)]).strip()
@@ -338,6 +378,9 @@ KNOWN_BAD = {
         "p = malloc(4);\nif (p == NULL) {\n\twhile (busy) {\n\t\texit(1);\n\t}\n}\n*p = 1;\n"
     ),
     "terminator in an argument": "p = malloc(4);\nif (p == NULL)\n\tlog(exit_code());\n*p = 1;\n",
+    "use in the allocation statement": "p = malloc(4), *p = 1;\nif (!p)\n\texit(1);\n",
+    "use before the exit": "p = malloc(4);\nif (!p) {\n\t*p = 1;\n\texit(1);\n}\n",
+    "inline use before the exit": "if ((p = malloc(4)) == NULL) {\n\tp[0] = 0;\n\texit(1);\n}\n",
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",
@@ -368,6 +411,9 @@ KNOWN_GOOD = {
     "member": "dp->name = strdup(s);\nif (dp->name == NULL)\n\texit(1);\n",
     "parenthesized call": "p = (malloc(4));\nif (p == NULL)\n\treturn;\n",
     "fatal error": 'p = malloc(4);\nif (p == NULL)\n\terror(FATAL, "out of space");\n',
+    "restore before the exit": (
+        "if ((zero = (int *)realloc((char *)zero, n)) == NULL) {\n\tzero = ozero;\n\texit(1);\n}\n"
+    ),
     "terminator after a message": (
         'p = malloc(4);\nif (p == NULL) {\n\tfputs("out of memory", stderr);\n\texit(1);\n}\n'
     ),

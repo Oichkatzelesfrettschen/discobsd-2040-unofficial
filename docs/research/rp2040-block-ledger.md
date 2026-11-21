@@ -1,6 +1,6 @@
 # RP2040 block ledger
 
-The ledger lists every peripheral and memory block that the Pico SDK 2.3.1 address map names (`hardware/regs/addressmap.h`, 53 `*_BASE` entries; the SRAM banks and the XIP cache aliases share the SRAM and XIP rows, and `USBCTRL` and `USBCTRL_DPRAM` the USB rows, which gives 42 rows), with the datasheet section that describes it, the SDK register header, the port source that touches it and how the port uses it. It establishes the register-level footprint of the source tree at the revision below and says nothing about run-time behavior: a block marked `used` has code that addresses it, and a block marked `unused` has none outside the default interrupt vector stubs.
+The ledger lists every peripheral and memory block that the Pico SDK 2.3.1 address map names (`hardware/regs/addressmap.h`, 53 `*_BASE` entries; the SRAM banks and the XIP cache aliases share the SRAM and XIP rows, and `USBCTRL` and `USBCTRL_DPRAM` the USB rows, which gives 42 rows), with the datasheet section that describes it, the SDK register header, the port source that touches it and how the port uses it. It establishes the register-level footprint of the source tree at the revision below and says nothing about run-time behavior: a block marked `used` has code that a shipped kernel configuration or program runs, and a block marked `unused` has none: no register access exists, or the code that has one is built by no shipped configuration.
 
 Source revision: main at `2cca67efe`. SDK: the `pico-sdk` 2.3.1 installation that `tools/pico-sdk/sdk-path.sh` resolves (the tag `tools/pico-sdk/fetch-pico-sdk.sh` pins). Datasheet sections and pages come from `sys/arch/rp2040/doc/DATASHEET-INDEX.md` (printed page numbers).
 
@@ -8,13 +8,13 @@ Source revision: main at `2cca67efe`. SDK: the `pico-sdk` 2.3.1 installation tha
 
 | State | Meaning |
 | --- | --- |
-| used | the port runs the function the datasheet section names (clocks run, a block released from reset, a watchdog armed, a core power-cycled, a bus served) |
+| used | a shipped kernel configuration (`sys/arch/rp2040/compile/*/Config`) or a shipped program runs the function the datasheet section names (clocks run, a block released from reset, a watchdog armed, a core power-cycled, a bus served) |
 | partial | the port reads or writes registers of the block for a purpose other than that function (an identification read, a probe, a pin sampled through a pad, a counter, a random bit) and runs none of the block's own function |
 | boot only | only the boot stage (boot2) touches it |
 | test only | only a board test program touches it |
-| unused | no register access; at most the default interrupt handler of the block |
+| unused | no shipped configuration or program runs the block: the tree has no register access to it, or the code that has one is built by no shipped configuration or reached by no path in one; at most the default interrupt handler of the block |
 
-Counts, from the rows below: 29 used, 4 partial, 1 boot only, 1 test only, 7 unused (42).
+Counts, from the rows below: 28 used, 4 partial, 1 boot only, 1 test only, 8 unused (42).
 
 ## Ledger
 
@@ -41,7 +41,7 @@ Counts, from the rows below: 29 used, 4 partial, 1 boot only, 1 test only, 7 unu
 | PLL_USB | `0x4002c000` | 2.18 PLL, p.228 | `pll.h` | used | machdep.c locks the USB PLL at 48 MHz. |
 | BUSCTRL | `0x40030000` | 2.1 Bus Fabric, p.14 | `busctrl.h` | partial | sysctl.c exposes the bus performance counters (machdep.bus_perfctr0-3 and bus_perfsel0-3). |
 | UART0 | `0x40034000` | 4.2 UART, p.417 | `uart.h` | used | dev/uart.c (the console fallback on GP0/GP1). |
-| UART1 | `0x40038000` | 4.2 UART, p.417 | `uart.h` | used | dev/uart.c, second unit table entry. |
+| UART1 | `0x40038000` | 4.2 UART, p.417 | `uart.h` | unused | dev/uart.c carries a second unit table entry (GP8/GP9 or GP4/GP5) and UART1_IRQ_Handler, but no shipped configuration declares `device uart1` (uartprobe() runs uartinit() for a declared unit only, and the PicoCalc configurations set NUART=1), and no /dev/tty1 node ships (distrib/rp2040/mi.rp2040). |
 | SPI0 | `0x4003c000` | 4.4 SPI, p.501 | `spi.h` | used | dev/sd.c: the PicoCalc SD card on SPI0. |
 | SPI1 | `0x40040000` | 4.4 SPI, p.501 | `spi.h` | used | dev/st7365p.c: the PicoCalc panel on SPI1. |
 | I2C0 | `0x40044000` | 4.3 I2C, p.440 | `i2c.h` | unused | only the default interrupt handler stub in locore0.S. |
@@ -65,7 +65,7 @@ Counts, from the rows below: 29 used, 4 partial, 1 boot only, 1 test only, 7 unu
 
 ## Unused blocks
 
-DMA, I2C0, PIO1, RTC, TBMAN, VREG_AND_CHIP_RESET and XIP_AUX have no register access in the tree. The interrupts of those blocks that have one (DMA, I2C0, PIO1 and RTC) have only the default handler stub in `sys/arch/rp2040/rp2040/locore0.S`; `machdep.c` gates `clk_rtc` off, which touches the CLOCKS block and not RTC.
+UART1 has code that no shipped configuration builds into a reachable unit (see its row). DMA, I2C0, PIO1, RTC, TBMAN, VREG_AND_CHIP_RESET and XIP_AUX have no register access in the tree. The interrupts of those blocks that have one (DMA, I2C0, PIO1 and RTC) have only the default handler stub in `sys/arch/rp2040/rp2040/locore0.S`; `machdep.c` gates `clk_rtc` off, which touches the CLOCKS block and not RTC.
 
 ## Method
 
@@ -79,7 +79,7 @@ grep -n '_BASE _u(' "$sdk/src/rp2040/hardware_regs/include/hardware/regs/address
 git grep -n -i -E '(NAME_BASE|0xBASE)' -- sys/arch/rp2040 usr.bin lib sbin bin ':!sys/arch/rp2040/doc' ':!sys/arch/rp2040/compile' ':!*.md' ':!*.tsv' ':!*.json'
 ```
 
-The seven unused blocks were searched over the whole tree (`git grep -l -i -E '(NAME_BASE|0xBASE)' -- . ':!docs' ':!legacy' ':!third_party' ':!sys/arch/rp2040/doc' ':!*.md' ':!*.tsv' ':!*.json' ':!tools/audit'`): I2C0, PIO1, TBMAN, VREG_AND_CHIP_RESET and XIP_AUX have no hit; the DMA and RTC names hit only the STM32 HAL headers of another architecture and the `0x50000000` constant of `tests/kernel/balloc_test.c`, none of them an RP2040 access.
+The seven blocks without register access were searched over the whole tree (`git grep -l -i -E '(NAME_BASE|0xBASE)' -- . ':!docs' ':!legacy' ':!third_party' ':!sys/arch/rp2040/doc' ':!*.md' ':!*.tsv' ':!*.json' ':!tools/audit'`): I2C0, PIO1, TBMAN, VREG_AND_CHIP_RESET and XIP_AUX have no hit; the DMA and RTC names hit only the STM32 HAL headers of another architecture and the `0x50000000` constant of `tests/kernel/balloc_test.c`, none of them an RP2040 access.
 
 A block reached through a macro with a different spelling (an offset base such as `PC_IO_BANK0_CTRL(n)` in `dev/picocalc_reg.h`, or a full register address such as `IO_QSPI_SS_CTRL_REG` at `0x4001800c` in `dev/flash.c`) escapes a search for the block name or its exact base. `tools/rp2040_block_scan.py` closes that gap: it reads the block bases of the same SDK map, gives each block the address range its datasheet section covers (16 KB for an APB block, 64 KB for the AHB blocks and SIO, 1 MB for the PPB), and classifies every eight-digit hexadecimal literal of the tracked sources under `sys/arch/rp2040`, `usr.bin`, `lib`, `sbin` and `bin` by the block that contains it. Its `--selftest` rejects a range that reaches past a block and a literal pattern that misreads a suffix or a longer literal. A register-level audit would repeat the search per register name; this ledger stops at the block.
 

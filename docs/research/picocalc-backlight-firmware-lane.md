@@ -124,14 +124,17 @@ written block back; `-g address` starts execution there once the write
 ends, through the bootloader's Go command, which jumps without a reset.
 
 Each step's state, from the wiki's route (SW701 switch 1 raises BOOT0 and
-routes the CH340C to the controller's USART1):
+routes the CH340C to the controller's USART1; switch 2 stays off
+throughout, since switch 2 on routes the USB-C data pair to the
+controller's USB pins through U701 and disconnects the CH340C,
+`picocalc-first-power-up.md`):
 
-| Step | Switch 1 | Controller runs | USART1 | Command |
-|---|---|---|---|---|
-| a. Enter | on | ROM bootloader, after a power-on reset with BOOT0 high | CH340C | power the board off (a long press of the power key while the vendor firmware runs), then on |
-| b. Identity, backup | on | ROM bootloader | CH340C | section 4 |
-| c. Write and start | on | ROM bootloader, then the new image | CH340C | `stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN -g 0x08000000 PORT` |
-| d. Leave | off | the new image; every later reset boots it, BOOT0 being low | Pico side | none |
+| Step | Switch 1 | Switch 2 | Controller runs | USART1 | Command |
+|---|---|---|---|---|---|
+| a. Enter | on | off | ROM bootloader, after a power-on reset with BOOT0 high | CH340C | power the board off (a long press of the power key while the vendor firmware runs), then on |
+| b. Identity, backup | on | off | ROM bootloader | CH340C | section 4 |
+| c. Write and start | on | off | ROM bootloader, then the new image | CH340C | `stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN -g 0x08000000 PORT` |
+| d. Leave | off | off | the new image; every later reset boots it, BOOT0 being low | Pico side | none |
 
 LEN is the image's size rounded up to the 1 KiB flash page, so the erase
 covers the image's pages alone; without a length `stm32flash` extends the
@@ -173,7 +176,7 @@ recovery route survives: the bootloader runs without the Pico.
 ## 8. Approval list
 
 Each item runs only after the owner approves this list as written, on the
-board the owner names:
+board the owner names, with SW701 switch 2 off throughout:
 
 1. Install arduino-cli, STM32duino 2.10.0 and XPowersLib 0.2.3 (cuu fork,
    `stm32f103r8t6`, at the recorded commit).

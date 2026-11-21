@@ -19,7 +19,7 @@ Not run: octree quantization, run-length coding, any board measurement, passagem
 | 9 | Pair-table (1 KB) or interpolator palette expansion | Reject for now. | [C] expansion costs 4.4 to 18 percent of wire time (cycle counts are [I], section 2). | Measurement 2 of `docs/research/i86-core1-scanout.md` showing more than about 100 cycles a pixel. | 1 KB RAM, which the kernel lacks | 0 throughput. It frees CPU time only. |
 | 10 | QAOA or Grover for palette selection | Reject. | [C] section 6. | None found. | n/a | 0 |
 
-A design note covers (a) the panel wire budget, COLMOD policy and game-ABI constants (items 1, 5, 6) together with cost-aware damage merging (items 2, 4), and (b) the dependency-graph statement of copy hazards for the D203 EMS work (item 3). The other items stay in this record.
+Items 1, 2, 4, 5 and 6 call for one design note, not yet written, on the panel wire budget, the COLMOD policy, the game-ABI constants and cost-aware damage merging. Item 3's dependency-graph statement of copy hazards belongs with the D203 EMS work it explains. The other items stay in this record.
 
 ## Reproducing the figures
 

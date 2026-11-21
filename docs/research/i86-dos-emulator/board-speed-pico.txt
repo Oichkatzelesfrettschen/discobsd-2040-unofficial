@@ -1,0 +1,69 @@
+i86 interpreter speed on a bare Pico: prediction, procedure, result
+==================================================================
+
+Scope: one CPU-bound guest loop (measure/speed.asm) with interrupts off,
+no display (-d), no paging (0 pages in or out), on a bare Pico running the
+PICO kernel. It measures the interpreter and the per-poll host work only.
+The panel, the SD card, the page file, the keyboard and the PSRAM are
+outside it; a PicoCalc run measures those.
+
+Prediction, written before the board run
+----------------------------------------
+Subject: usr.bin/i86 a.out built at main (sources at 4fa949a69), PICO kernel #1 4728, machdep.cpu_khz=125000, bare Pico.
+Workload: bench.asm, interrupts off, 11,000,309 guest instructions (100 x (3 + 11 x 10000) + 9) plus about 60 for the message.
+Overhead control: bench1.asm, the same with OUTER=1 (110,012 instructions).
+Model: guest MIPS = 125e6 / (T x CPI). T = Thumb instructions per guest instruction (I86.md: 153 for the FreeDOS mix; this loop is simpler, assume 110-150).
+CPI of the M0+ running from SRAM: 1.3-1.6.
+Prediction: 0.52-0.87 guest MIPS; point 0.65 MIPS; the 11.0M run takes 12.6-21 s (point 17 s) beyond the control's time.
+Falsifier: a net time outside 8-40 s means the instruction-count model does not describe the board, or a cost outside the interpreter (system calls, the poll, paging) dominates.
+Host build on the x86-64 workstation for comparison: 202 ms wall for the same run (about 55 MIPS).
+
+## Added after a qemu-user count, still before the board run
+qemu-arm with count.c (scratch build: bench.c plus gfx.c, serial.c and stubs for the directory reader, ioctl and unlinkat_beneath, which the recipe in measure/README.md predates):
+bench1 (0.11M guest instructions, then halted steps to 20M) 23,944,533 Thumb instructions; bench (11.0M, then halted to 20M) 2,416,803,044.
+T for this loop = about 219 Thumb instructions per guest instruction (halted steps cost about 3), outside the 110-150 assumed above. Refined estimate: 11.0M x 219 x CPI / 125e6 = 19.3 s x CPI, so 25-31 s for CPI 1.3-1.6. The original prediction stands as written; a board time near 25-31 s refutes its T assumption, not the model.
+
+Procedure
+---------
+Assemble speed.asm with OUTER=100 (bench) and OUTER=1 (control) and pad
+each to 4096 bytes. Transfer i86 and both images to /tmp on the board over
+the console as tests/rp2040/v7fs/board_v7fs.py does (compress -b 12,
+uuencode, paced lines, cksum compared with the host's). For each image,
+type the command, wait for the echo to settle, then time from the carriage
+return to the shell's sentinel line on the host:
+
+    /tmp/i86 -d -q -v -k x -s /tmp/pf -a /tmp/<img>.img; echo __DONE__ $?
+
+Runs alternate control and bench, three of each. The files were removed
+afterwards; df showed the root as before (979 blocks, 752 used).
+
+Result
+------
+Board: bare Pico, PICO kernel #1 4728 (Fri Nov 20 19:40:07 UTC 2026), machdep.cpu_khz=125000, root on flash, idle apart from the console.
+Binary: usr.bin/i86/i86 a.out, cksum 2978775901 38676 (sources at 4fa949a69). Images: bench4k.img cksum 676243112, bench1.img cksum 3700720698 (4096 bytes each).
+Command: /tmp/i86 -d -q -v -k x -s /tmp/pf -a /tmp/<img>.img; time from the carriage return to the sentinel, host side, 0.2 s read quantum.
+Control (110,012 guest instructions): 2.003, 2.003, 1.803 s. Bench (11,000,309): 35.837, 34.235, 36.840 s. Each run: 0 pages in or out, 4 zero pages, status 0, "BENCH DONE".
+Net: 33.70 s for 10890297 guest instructions = 0.323 million guest instructions per second.
+With qemu's 219 Thumb instructions per guest instruction for this loop: 1.77 cycles per Thumb instruction.
+Prediction (0.52-0.87 MIPS, 12.6-21 s): refuted; T was 219, not 110-150. The refined qemu estimate (25-31 s at CPI 1.3-1.6) also missed: CPI is about 1.77.
+Run-to-run spread of the bench: 34.2-36.8 s (7%), larger than the 0.2 s quantum, on an idle board: cause unknown. Next discriminating capture: elapsed time measured inside i86 with gettimeofday, plus the kernel's interrupt counters read before and after each run.
+Host build (x86-64 workstation): 202 ms for the same 11.0M instructions, about 54 MIPS.
+
+The 219 Thumb instructions per guest instruction come from a cross build:
+measure/README.md's newlib bench, every unit at -O2, run under qemu-user.
+The board's a.out builds cpu.o at -O2 and the other units at -Os, so the
+cycles-per-instruction figure joins two builds and carries that
+uncertainty. The next discriminating measurement is a SysTick-based cycle
+count of the same loop inside the board's own binary.
+
+Reading
+-------
+0.32 million guest instructions a second is the order of an IBM PC XT
+(inference: an 8088 at 4.77 MHz executes about 0.3 to 0.4 million
+instructions a second on mixed code; this loop is not that mix). A speed
+option on the board can only slow the guest; 80286 machines at 6 to 12 MHz
+are out of reach of this interpreter at 125 MHz. The display was off, so
+the figure is an upper bound for a session that draws: each panel frame
+costs the same core the time of its SPI transfer (st7365p.c sends every
+byte by polling the transmit FIFO at 12.5 MHz; a 64,000-pixel RGB565
+frame is about 82 ms on the wire, inference from the byte count).

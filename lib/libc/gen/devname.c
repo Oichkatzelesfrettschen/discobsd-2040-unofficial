@@ -33,40 +33,52 @@
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <paths.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
+#define	DEVPREFIX	"/dev/"
+#define	DEVPREFIXLEN	(sizeof(DEVPREFIX) - 1)
+
+/*
+ * The path buffer holds "/dev/" and the longest directory entry name, and
+ * the returned name is its tail. readdir() returns an entry that lives in
+ * the DIR, which closedir() frees, so the name survives the close only as
+ * this copy; the next call overwrites it.
+ */
+static char devpath[DEVPREFIXLEN + MAXNAMLEN + 1];
+
+/*
+ * Return the name of the special file in /dev whose device number is dev
+ * and whose file type (S_IFCHR or S_IFBLK) is type, or "??" when /dev
+ * holds none. A character and a block device may share one number, so the
+ * type decides between them.
+ */
 char *
-devname(dev, type)
-	dev_t dev;
-	mode_t type;
+devname(int dev, int type)
 {
-        DIR *dir;
-        struct direct *entry;
-        char filename[40];
-        struct stat st;
+	DIR *dir;
+	struct direct *entry;
+	struct stat st;
+	char *name = devpath + DEVPREFIXLEN;
 
-        (void)type;
-        dir = opendir("/dev");
-        if (dir == NULL) {
-                perror("/dev");
-		return "??";
-        }
-        strcpy(filename, "/dev/");
-        while ((entry = readdir(dir)) != NULL) {
-                strcpy(filename+5, entry->d_name);
-                if (stat (filename, &st) < 0)
-                        continue;
-                if (! S_ISCHR(st.st_mode) && ! S_ISBLK(st.st_mode))
-                        continue;
-                if (st.st_rdev == dev) {
-                        closedir(dir);
-                        return entry->d_name;
-                }
-        }
-        closedir(dir);
-	return "??";
+	dir = opendir("/dev");
+	if (dir == NULL) {
+		perror("/dev");
+		return ("??");
+	}
+	memcpy(devpath, DEVPREFIX, DEVPREFIXLEN);
+	while ((entry = readdir(dir)) != NULL) {
+		strcpy(name, entry->d_name);
+		if (stat(devpath, &st) < 0)
+			continue;
+		if ((st.st_mode & S_IFMT) != (mode_t)type)
+			continue;
+		if (st.st_rdev == dev) {
+			closedir(dir);
+			return (name);
+		}
+	}
+	closedir(dir);
+	return ("??");
 }

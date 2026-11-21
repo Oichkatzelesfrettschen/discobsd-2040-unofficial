@@ -74,6 +74,11 @@ fi
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
 grep -aq TransferFrame "$MODELS" ||
 	missing "the built models predate patch 0008 (pl022 frames to an SPI child); rerun sh tools/renode/fetch-renode-rp2040.sh"
+# The frame timing this gate boots with is that of the 0010 patch, which
+# settles the frames on the wire at register accesses. The timer model of an
+# earlier build passes the FIFO probe as well, so it is refused by name.
+grep -aq SettleFrames "$MODELS" ||
+	missing "the built models predate patch 0010 (pl022 frames settled at register accesses); rerun sh tools/renode/fetch-renode-rp2040.sh"
 
 [ -r "$KERNEL" ] ||
 	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"

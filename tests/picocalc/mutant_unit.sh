@@ -31,7 +31,10 @@ expr=$6
 shift 6
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/picocalc-mutant.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 csrcs=
 for f in "$@"; do
 	case $f in

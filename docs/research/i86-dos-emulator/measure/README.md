@@ -20,9 +20,13 @@ cc -shared -fPIC -O2 $(pkg-config --cflags glib-2.0) -o "$work/libcount.so" coun
 sed -e 's/st->st_mode = S_IFCHR;/st->st_mode = S_IFCHR; st->st_size = 1474560;/' \
     -e 's/(void)off;/return fixup(sys3(19, fd, off, whence));/' \
     "$top/tests/libbn/qemu_support.c" >"$work/support.c"
+# newlib lacks the directory reader of pc.c's disk menu and two calls of
+# the DiscoBSD libc; newlib/ supplies them, and the panel and serial units
+# link with the rest.
 arm-none-eabi-gcc -std=gnu17 -O2 -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
-    -nostartfiles -I"$src" -o "$work/bench" bench.c "$src/pc.c" "$src/cpu.c" \
-    "$src/mem.c" "$work/support.c" -lc -lgcc
+    -nostartfiles -Inewlib -include newlib/bench.h -I"$src" -idirafter "$top/sys" \
+    -o "$work/bench" bench.c "$src/pc.c" "$src/cpu.c" "$src/mem.c" "$src/gfx.c" \
+    "$src/serial.c" "$work/support.c" -lc -lgcc
 qemu-arm -cpu cortex-m0 -plugin "$work/libcount.so" "$work/bench" fd.img 12000000 2 "$keys"
 ```
 

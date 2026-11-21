@@ -14,7 +14,11 @@ fault_library=$test_root/archive-transaction-failure.so
 
 rm -rf "$test_root"
 mkdir -p "$test_root"
-trap 'rm -rf "$test_root"' 0 1 2 3 15
+trap 'rm -rf "$test_root"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 131' QUIT
+trap 'exit 143' TERM
 
 "$HOST_CC" -shared -fPIC -Wall -Wextra -Werror \
 	-o "$fault_library" "$SOURCE_ROOT/archive-transaction-failure.c" -ldl

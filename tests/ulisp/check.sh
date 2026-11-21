@@ -47,7 +47,10 @@ doc=$2
 shift 2
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/ulisp-check.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 cd "$work"
 
 status=0

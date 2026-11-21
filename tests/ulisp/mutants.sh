@@ -49,7 +49,10 @@ if [ -z "$tmo" ]; then
 fi
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/ulisp-mutants.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The race corpus runs when the Makefile has built its shim (Linux only);
 # the image-reread mutant needs it

@@ -222,8 +222,18 @@ address (about 14), and the flags are computed eagerly. A threaded decode
 needs computed goto, which strict C17 does not have. The second core of
 the RP2040 is idle on the PicoCalc kernels; using it for the display
 refresh or the pager is a kernel interface (`CORE1.md`), not an emulator
-change. No further work is proposed before a board measurement says what
-the real speed is.
+change.
+
+The first board measurement (`i86-dos-emulator/board-speed-pico.txt`)
+gives 0.32 million guest instructions a second for a CPU-bound loop on a
+bare Pico at 125 MHz, with no display and no paging: XT speed, and 30 to
+40 percent below the instruction-count estimate, because the loop costs
+about 219 Thumb instructions a step rather than 153 and the board runs at
+about 1.8 cycles per Thumb instruction. The panel, the card and the PSRAM
+are not in that figure. Panel output runs on the same core: `st7365p.c`
+polls the transmit FIFO at 12.5 MHz for every byte, so a full graphics
+frame of 64,000 RGB565 pixels holds the emulating core for about 82 ms
+(inference from the byte count), longer than one 55 ms timer tick.
 
 ## Board run, when the owner opens it
 

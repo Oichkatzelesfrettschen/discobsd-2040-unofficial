@@ -21,7 +21,10 @@ compat=$topsrc/usr.sbin/v7fs
 v7fs=$topsrc/sys/fs/v7fs
 newfs=$topsrc/sbin/newfs_v7fs
 work=$(mktemp -d "${TMPDIR:-/tmp}/v7fs-core.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail()
 {

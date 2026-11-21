@@ -11,7 +11,10 @@ fi
 output_path=$1
 shift
 temporary_path=${output_path}.tmp.$$
-trap 'rm -f "$temporary_path"' EXIT HUP INT TERM
+trap 'rm -f "$temporary_path"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 {
 	printf '%s\n' 'SECTIONS' '{' \

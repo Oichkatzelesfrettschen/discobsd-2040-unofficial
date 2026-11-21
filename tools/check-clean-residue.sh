@@ -84,7 +84,9 @@ selftest()
 }
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT INT TERM
+trap 'rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 case ${1-} in
 --selftest)

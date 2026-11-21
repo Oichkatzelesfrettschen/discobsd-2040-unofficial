@@ -38,7 +38,9 @@ REFERENCE=$(absolute "${REFERENCE}")
 SRCDIR=$(absolute "${SRCDIR}")
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/find_contracts.XXXXXX")
-trap 'rm -rf "${WORK}"' EXIT INT TERM
+trap 'rm -rf "${WORK}"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 OUT=${WORK}/out
 ERR=${WORK}/err

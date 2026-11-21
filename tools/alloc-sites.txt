@@ -1,0 +1,116 @@
+# Reviewed allocation sites of the files tools/check_alloc_results.py scans
+# (ALLOC_RESULT_SOURCES in the root Makefile). Each block starts with
+# "@@ PATH -- REASON" and holds the exact source text of one allocation and
+# its NULL handling; the check compares it with runs of white space
+# collapsed. Every mention of malloc, calloc, realloc or strdup in a scanned
+# file must lie inside exactly one block's text, and every block's text must
+# occur exactly once. A new or edited allocation site fails the check until
+# its NULL handling is reviewed and its block written here.
+
+@@ usr.bin/awk/b.c -- overflo() calls error(FATAL), which exits
+	if ((p = ptr = (int *) malloc((n+1)*sizeof(int))) == NULL)
+		overflo();
+
+@@ usr.bin/awk/b.c -- overflo() calls error(FATAL), which exits
+		if ((pfa = (struct fa *) malloc((numtrans + 1) * sizeof(struct fa))) == NULL)
+			overflo();
+
+@@ usr.bin/awk/tran.c -- error(FATAL) exits
+	cp = (cell **) malloc(MAXSYM * sizeof(cell *));
+	if (cp == NULL)
+		error(FATAL, "out of space in makesymtab");
+
+@@ usr.bin/awk/tran.c -- error(FATAL) exits
+	p = (cell *) malloc(sizeof(cell));
+	if (p == NULL)
+		error(FATAL, "symbol table overflow at %s", n);
+
+@@ usr.bin/awk/tran.c -- error(FATAL) exits
+		p = malloc(1);
+		if (p == NULL)
+			error(FATAL, "out of space in tostring on %s", s);
+
+@@ usr.bin/awk/tran.c -- error(FATAL) exits
+		p = malloc(strlen(s)+1);
+		if (p == NULL)
+			error(FATAL, "out of space in tostring on %s", s);
+
+@@ usr.bin/awk/tran.c -- ymalloc, a debugging wrapper compiled only under #ifdef malloc, returns the result to its caller
+#ifdef malloc
+#undef malloc
+char *ymalloc(u) unsigned u;
+{	char *p;
+	p = malloc(u);
+	printf("%o %o\n", u, p);
+	return(p);
+}
+#endif
+
+@@ usr.bin/awk/run.c -- error(FATAL) exits
+	p = buf = (char *)malloc(RECSIZE);
+	if (buf == NULL)
+		error(FATAL, "out of space in format");
+
+@@ usr.bin/awk/run.c -- error(FATAL) exits
+	s = (char *) malloc(n1 + n2 + 1);
+	if (s == NULL)
+		error(FATAL, "out of space in cat");
+
+@@ bin/ls/ls.c -- exit(1) on NULL
+	fp = (struct afile *)calloc((u_int)argc, sizeof (struct afile));
+	if (fp == 0) {
+		fputs("ls: out of memory\n", stderr);
+		exit(1);
+	}
+
+@@ bin/ls/ls.c -- exit(1) on NULL
+			dp = (struct subdirs *)malloc(sizeof (struct subdirs));
+			if (dp == 0) {
+				fputs("ls: out of memory\n", stderr);
+				exit(1);
+			}
+
+@@ bin/ls/ls.c -- exit(1) on NULL
+	fp = *pfp0 = (struct afile *)calloc(nent, sizeof (struct afile));
+	if (fp == 0) {
+		fputs("ls: out of memory\n", stderr);
+		exit(1);
+	}
+
+@@ bin/ls/ls.c -- exit(1) on NULL
+			*pfp0 = (struct afile *)realloc((char *)*pfp0,
+			    2 * nent * sizeof (struct afile));
+			if (*pfp0 == 0) {
+				fputs("ls: out of memory\n", stderr);
+				exit(1);
+			}
+
+@@ bin/ls/ls.c -- exit(1) on NULL
+	register char *cp = strdup(str);
+
+	if (cp == NULL) {
+		fputs("ls: out of memory\n", stderr);
+		exit(1);
+	}
+
+@@ bin/ed/ed.c -- exit(-1) on NULL, before the command loop exists
+    zero = (int *)malloc(nlall*sizeof(int));
+    if (zero == NULL) {
+        putstr ("ed: out of memory");
+        exit(-1);
+    }
+
+@@ bin/ed/ed.c -- error() longjmps to the command loop after restoring the old table
+            if ((zero = (int *)realloc((char *)zero, nlall*sizeof(int)))==NULL) {
+                /* error() longjmps back to the command loop, so the
+                 * capacity has to describe the block that survives. */
+                lastc = '\n';
+                nlall -= 512;
+                zero = ozero;
+                error("MEM?");
+            }
+
+@@ usr.bin/awk/parse.c -- error(FATAL) exits
+	x = (node *) malloc(sizeof(node) + (n-1)*sizeof(node *));
+	if (x == NULL)
+		error(FATAL, "out of space in ALLOC");

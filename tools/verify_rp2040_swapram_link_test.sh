@@ -12,7 +12,10 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 verifier="$here/verify_rp2040_swapram_link.sh"
 work=$(mktemp -d)
-trap 'rm -r "$work"' EXIT HUP INT TERM
+trap 'rm -r "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 printf '#!/bin/sh\nexec cat "$2"\n' > "$work/listing"
 chmod +x "$work/listing"

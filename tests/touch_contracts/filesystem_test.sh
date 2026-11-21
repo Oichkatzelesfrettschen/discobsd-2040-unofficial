@@ -25,7 +25,9 @@ case "${TOUCH}" in
 esac
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/touch_contracts.XXXXXX")
-trap 'rm -rf "${WORK}"' EXIT INT TERM
+trap 'rm -rf "${WORK}"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 checks=0
 failures=0

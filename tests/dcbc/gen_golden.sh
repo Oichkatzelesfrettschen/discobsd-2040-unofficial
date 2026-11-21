@@ -15,7 +15,10 @@ here=$(cd "$(dirname "$0")" && pwd)
 differential=$here/../libbn/dc-differential
 : "${PYTHON:?set PYTHON to the intended interpreter}"
 work=$(mktemp -d "${TMPDIR:-/tmp}/dcbc-golden.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir "$work/dc" "$work/bc" "$work/src"
 
 dcfiles="$dcsrc/main.c $dcsrc/dc.c $dcsrc/bcode.c $dcsrc/inout.c $dcsrc/mem.c $dcsrc/stack.c"

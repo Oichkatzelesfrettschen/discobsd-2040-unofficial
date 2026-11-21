@@ -10,7 +10,10 @@ fi
 
 fgrep_program=$1
 temporary_directory=$(mktemp -d)
-trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$temporary_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 empty_patterns=$temporary_directory/empty.patterns
 patterns=$temporary_directory/patterns
 input=$temporary_directory/input

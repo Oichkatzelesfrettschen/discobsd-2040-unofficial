@@ -2165,7 +2165,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fs-profiles check-picocalc-host check-matezinho-host \
 		check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
-		check-signal-traps check-panic-codes
+		check-signal-traps check-alloc-results check-panic-codes
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-calendar-rules check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
@@ -2456,25 +2456,31 @@ check-host-split:	check-python
 		    --all "${HOST_LONG_GATES} ${HOST_GATES} ${HOST_PROGRAM_GATES}" \
 		    --a "${HOST_TIER_A_GATES}" --b "${HOST_TIER_B_GATES}"
 
-# Shell gates that clean a work directory take an EXIT trap and one exiting
+# Allocation results in ls, ed and awk: every allocator mention lies in a
+# reviewed site that tools/alloc-sites.txt pins with its NULL handling;
+# tools/check_alloc_results.py --selftest calibrates the comparison.
+ALLOC_RESULT_SOURCES=	bin/ls/ls.c bin/ed/ed.c usr.bin/awk/b.c usr.bin/awk/freeze.c \
+		usr.bin/awk/lib.c usr.bin/awk/main.c usr.bin/awk/parse.c \
+		usr.bin/awk/proc.c usr.bin/awk/run.c usr.bin/awk/tran.c
+check-alloc-results: check-python
+		${PYTHON} tools/check_alloc_results.py --selftest
+		${PYTHON} tools/check_alloc_results.py ${ALLOC_RESULT_SOURCES}
+
+# Shell scripts that clean a work directory take an EXIT trap and one exiting
 # trap per signal: a trap action for HUP, INT or TERM returns to the script,
-# so one action bound to EXIT and a signal lets the gate run on against the
-# removed directory. The scan covers the gates this tree's profile and
-# capacity work changed; tools/check-signal-traps.sh --selftest calibrates it
-# on a conforming and a combined fixture and under SIGTERM.
-SIGNAL_TRAP_SCRIPTS=	distrib/rp2040/check-image-selection.sh \
-		tests/fat32tail/check.sh tools/renode/check-capacity.sh \
-		tools/architecture-isolation/check-architecture-isolation.sh \
-		tests/reboot_contracts/sdk_gap.sh
+# so one action bound to EXIT and a signal lets the script run on against the
+# removed directory. The scan covers every .sh file git tracks, less the
+# exclusions tools/check-signal-traps.sh names with their reasons; its
+# --selftest calibrates the scan, the tracked listing and the SIGTERM idiom.
+check-signal-traps:
+		sh tools/check-signal-traps.sh --selftest
+		sh tools/check-signal-traps.sh --tracked ${TOPSRC}
+
 # Kernel panic codes and sys/arch/rp2040/doc/PANICS.md name each other;
 # tools/check_panic_codes.py --selftest calibrates the comparison.
 check-panic-codes: check-python
 		${PYTHON} tools/check_panic_codes.py --selftest
 		${PYTHON} tools/check_panic_codes.py ${TOPSRC}
-
-check-signal-traps:
-		sh tools/check-signal-traps.sh --selftest
-		sh tools/check-signal-traps.sh ${SIGNAL_TRAP_SCRIPTS}
 
 # The kernel formatter and neighboring contracts use target-width integer and
 # pointer assumptions. The gate runs them in a 32-bit userspace binary. A host
@@ -2977,7 +2983,7 @@ installfs:
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host check-host-a check-host-b check-host-split \
-		check-signal-traps check-panic-codes \
+		check-signal-traps check-alloc-results check-panic-codes \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump \

@@ -8,7 +8,10 @@ fi
 
 checker=$1
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/tty-local-mode-ubsan.XXXXXX")
-trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$temporary_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 cat >"$temporary_directory/rejected" <<'EOF'
 #!/bin/sh

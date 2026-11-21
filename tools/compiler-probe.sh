@@ -6,7 +6,10 @@ set -eu
 width=$1
 shift
 probe_directory=$(mktemp -d "${TMPDIR:-/tmp}/discobsd-compiler-probe.XXXXXX")
-trap 'rm -rf "$probe_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$probe_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 case $width in
 ilp32) width_definition=-DREQUIRE_ILP32 ;;

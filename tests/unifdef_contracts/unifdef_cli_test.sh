@@ -3,7 +3,10 @@ set -eu
 
 unifdef_program=$1
 test_directory=$(mktemp -d)
-trap 'rm -rf "${test_directory}"' EXIT HUP INT TERM
+trap 'rm -rf "${test_directory}"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 form_feed=$(printf '\f')
 
 run_case()

@@ -25,7 +25,10 @@ topsrc=$(cd "$(dirname "$0")/../.." && pwd)
 here=$topsrc/tests/msdosfs_core
 reader=$here/fat_reader.py
 work=$(mktemp -d "${TMPDIR:-/tmp}/msdosfs-core.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 export SOURCE_DATE_EPOCH=1700000000
 
 fail()

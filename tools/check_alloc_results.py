@@ -119,7 +119,7 @@ def blank(text):
             j = min(j + 1, n)
             out.append(c + re.sub(r"[^\n]", " ", text[i + 1 : j - 1]) + c)
             i = j
-        elif c == "#" and (i == 0 or text[i - 1] == "\n"):
+        elif c == "#" and re.fullmatch(r"[ \t]*", text[text.rfind("\n", 0, i) + 1 : i]):
             end = i
             while True:
                 end = text.find("\n", end)
@@ -319,6 +319,17 @@ def leaves(body, label, names):
     return False
 
 
+STATEMENT_WORDS = {"return", "case", "default", "goto", "else", "do", "sizeof"}
+
+
+def declaration(prefix):
+    """True when prefix is empty or declaration words, so the assignment is
+    the whole statement."""
+    return re.fullmatch(r"[\w\s*]*", prefix) is not None and not (
+        STATEMENT_WORDS & set(re.findall(r"\w+", prefix))
+    )
+
+
 def call_ends_statement(stmt, open_paren):
     """True when nothing but closing parentheses follows the allocator call."""
     depth = 0
@@ -366,7 +377,7 @@ def scan(path, text, root=None):
             ):
                 continue
             if (
-                re.fullmatch(r"[\w\s*]*", stmt[: match.start()])
+                declaration(stmt[: match.start()])
                 and call_ends_statement(stmt, match.end() - 1)
                 and index + 1 < len(parts)
             ):
@@ -451,6 +462,7 @@ KNOWN_BAD = {
     "conditional FATAL": (
         'p = malloc(4);\nif (p == NULL)\n\terror(FATAL && verbose, "x");\n*p = 1;\n'
     ),
+    "assignment in a return": "return p = malloc(4);\nif (!p)\n\texit(1);\n",
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",
@@ -483,6 +495,9 @@ KNOWN_GOOD = {
     "fatal error": 'p = malloc(4);\nif (p == NULL)\n\terror(FATAL, "out of space");\n',
     "restore before the exit": (
         "if ((zero = (int *)realloc((char *)zero, n)) == NULL) {\n\tzero = ozero;\n\texit(1);\n}\n"
+    ),
+    "indented directive": (
+        " #define M(n) malloc(n)\n\t#if 1\n\t#endif\np = malloc(4);\nif (!p)\n\texit(1);\n"
     ),
     "terminator after a message": (
         'p = malloc(4);\nif (p == NULL) {\n\tfputs("out of memory", stderr);\n\texit(1);\n}\n'

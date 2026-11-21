@@ -245,11 +245,11 @@ spent_segment_list_panics(void)
 {
 	reset(SEGMENTS, UIO_READ);
 	transfer.uio_iovcnt = 0;
-	HK_EXPECT_PANIC("ureadc", call_ureadc_without_segments);
+	HK_EXPECT_PANIC("K15", call_ureadc_without_segments);
 
 	reset(SEGMENTS, UIO_WRITE);
 	transfer.uio_iovcnt = 0;
-	HK_EXPECT_PANIC("uwritec", call_uwritec_without_segments);
+	HK_EXPECT_PANIC("K16", call_uwritec_without_segments);
 }
 
 /*

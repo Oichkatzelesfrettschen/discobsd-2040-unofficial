@@ -49,7 +49,7 @@ ufs_namespace_exit(void)
 {
 #ifdef DIAGNOSTIC
     if (!ufs_namespace_busy)
-        panic("ufs namespace gate");
+        panic("K48");
 #endif
     ufs_namespace_busy = 0;
     if (ufs_namespace_wanted) {
@@ -558,7 +558,7 @@ dirloop2:
                 if (!isdotdot || dp != u.u_rdir)
                     dp = cached_inode;
                 if (dp == NULL)
-                    panic("namei: null cache ino");
+                    panic("K49");
                 if (pdp == dp)
                     dp->i_count++;
                 else if (isdotdot) {
@@ -1004,7 +1004,7 @@ found:
      */
     if (makeentry) {
         if (ncp != NULL)
-            panic("namei: duplicating cache");
+            panic("K50");
         /* Select a reusable cache slot. */
 #ifdef LINEAR_NAME_CACHE
         ncp = nchrecycle();
@@ -1173,7 +1173,7 @@ direnter(struct inode *ip, register struct nameidata *ndp)
          * block.
          */
         if (ndp->ni_offset&(DIRBLKSIZ-1))
-            panic("wdir: newblk");
+            panic("K51");
         ndp->ni_dent.d_reclen = DIRBLKSIZ;
         error = rdwri (UIO_WRITE, dp, (caddr_t)&ndp->ni_dent,
                 newentrysize, ndp->ni_offset,
@@ -1240,11 +1240,11 @@ direnter(struct inode *ip, register struct nameidata *ndp)
      */
     if (ep->d_ino == 0) {
         if (spacefree + dsize < (u_int)newentrysize)
-            panic("wdir: compact1");
+            panic("K52");
         ndp->ni_dent.d_reclen = spacefree + dsize;
     } else {
         if (spacefree < newentrysize)
-            panic("wdir: compact2");
+            panic("K53");
         ndp->ni_dent.d_reclen = spacefree;
         ep->d_reclen = dsize;
         ep = (struct direct *)((char *)ep + dsize);

@@ -213,7 +213,7 @@ mpu_disable(void)
 {
 	mpu_control(0);
 	if (mpu_state.ctrl != 0)
-		panic("mpu: cannot disable");
+		panic("R05");
 }
 
 void

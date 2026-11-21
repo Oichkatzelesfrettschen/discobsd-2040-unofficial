@@ -155,7 +155,7 @@ loop:
                         ino = ROOTINO;
                         goto loop;
                     }
-                panic("no imt");
+                panic("K42");
             }
             if (ip->i_count == 0) {     /* ino on free list */
                 register struct inode *iq;
@@ -184,7 +184,7 @@ loop:
         return(NULL);
     }
     if (ip->i_count)
-        panic("free inode isn't");
+        panic("K43");
     {
     register struct inode *iq;
 
@@ -202,7 +202,7 @@ loop:
 #endif
 #ifdef SINGLE_UFS_ROOT
     if (dev != mount[0].m_dev || fs != &mount[0].m_filsys)
-        panic("iget: filesystem identity");
+        panic("K44");
 #else
     ip->i_dev = dev;
     ip->i_fs = fs;
@@ -332,7 +332,7 @@ iput(register struct inode *ip)
      * Not worth it.  -- KB
      */
     if ((ip->i_flag & ILOCKED) == 0)
-        panic("iput");
+        panic("K45");
 #endif
     IUNLOCK(ip);
     irele(ip);
@@ -763,10 +763,10 @@ done:
 /* BEGIN PARANOIA */
     for (level = SINGLE; level <= TRIPLE; level++)
         if (ip->i_ib[level] != oip->i_ib[level])
-            panic("itrunc1");
+            panic("K46");
     for (i = 0; i < NDADDR; i++)
         if (ip->i_db[i] != oip->i_db[i])
-            panic("itrunc2");
+            panic("K47");
 /* END PARANOIA */
 #endif
     /* The inode was written before the frees and the frees leave it as is. */

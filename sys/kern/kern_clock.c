@@ -358,7 +358,7 @@ timeout (void (*fun)(caddr_t), caddr_t arg, register int t)
         t = 1;
     pnew = callfree;
     if (pnew == NULL)
-        panic("timeout table overflow");
+        panic("K09");
     callfree = pnew->c_next;
     pnew->c_arg = arg;
     pnew->c_func = fun;

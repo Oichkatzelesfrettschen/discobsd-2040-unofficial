@@ -38,7 +38,7 @@ mmrw(dev_t dev, struct uio *uio, int flag __unused)
 			uio->uio_iov++;
 			uio->uio_iovcnt--;
 			if (uio->uio_iovcnt < 0)
-				panic("mmrw");
+				panic("D01");
 			continue;
 		}
 		switch (minor(dev)) {

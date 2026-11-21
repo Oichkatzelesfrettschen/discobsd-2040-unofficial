@@ -188,7 +188,7 @@ pipe_close(struct file *fp)
     ilock(ip);
 #ifdef  DIAGNOSTIC
     if ((ip->i_flag & IPIPE) == 0)
-        panic("pipe_close !IPIPE");
+        panic("K36");
 #endif
     if (ip->i_rsel) {
         selwakeup(ip->i_rsel, (long)(ip->i_flag & IRCOLL));

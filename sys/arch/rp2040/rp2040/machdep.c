@@ -754,7 +754,7 @@ startup(void)
 	 */
 	if ((size_t)__user_data_end - (size_t)__user_data_start !=
 	    USER_DATA_SIZE)
-		panic("user window: linker and machparam.h disagree");
+		panic("R04");
 
 	/*
 	 * The window the check above confirmed is what the MPU admits to

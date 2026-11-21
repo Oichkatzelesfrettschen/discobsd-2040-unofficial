@@ -297,7 +297,7 @@ swap_image_cancel (struct swap_image_reservation *reservation)
     if (reservation->state == SWAP_IMAGE_EMPTY)
         return;
     if (reservation->state != SWAP_IMAGE_RESERVED)
-        panic ("swap image: cancel state");
+        panic ("K57");
 #ifdef SWAPRAM
     if (reservation->tier == SWAP_IMAGE_RAM)
         swapram_cancel (reservation->owner);
@@ -536,7 +536,7 @@ swap_exchange_program_sector (struct buf *bp, size_t flash_base,
             continue;
         /* fl_raw() erases a sector only when a write starts on it. */
         if (writes == 0 && image_start != sector_start)
-            panic ("swap exchange: geometry");
+            panic ("K58");
         if (swap_with_buf_result (bp,
             flash_base + btod (image_start), window_start, length,
             SWAP_IMAGE_WRITE) != 0)
@@ -544,7 +544,7 @@ swap_exchange_program_sector (struct buf *bp, size_t flash_base,
         writes++;
     }
     if (writes == 0)
-        panic ("swap exchange: geometry");
+        panic ("K59");
 }
 
 static void
@@ -580,13 +580,13 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
     if (reservation->owner != outgoing ||
         reservation->state != SWAP_IMAGE_RESERVED ||
         reservation->tier != SWAP_IMAGE_EXCHANGE)
-        panic ("swap exchange: reservation");
+        panic ("K60");
     incoming_sectors = reservation->exchange_span / SWAP_IMAGE_ALIGN;
     outgoing_sectors = reservation->span / SWAP_IMAGE_ALIGN;
     sector_count = incoming_sectors > outgoing_sectors ? incoming_sectors :
         outgoing_sectors;
     if (sector_count > SWAP_EXCHANGE_MAX_SECTORS)
-        panic ("swap exchange: geometry");
+        panic ("K61");
 
     swap_exchange_segments (outgoing, 1, outgoing_segments);
     swap_exchange_segments (incoming, 0, incoming_segments);
@@ -613,7 +613,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
             break;
         }
         if (! found)
-            panic ("swap exchange: ordering");
+            panic ("K62");
         if (candidate < incoming_sectors &&
             swap_with_buf_result (bp,
             incoming->p_daddr + candidate * SWAP_IMAGE_ALIGN,
@@ -661,7 +661,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
     (void) reservation;
     (void) outgoing;
     (void) incoming;
-    panic ("swap exchange: unsupported");
+    panic ("K63");
 #endif
 }
 
@@ -680,7 +680,7 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
 
     if (reservation->owner != p ||
         reservation->state != SWAP_IMAGE_RESERVED)
-        panic ("swap image: copy owner");
+        panic ("K64");
 #ifdef SWAPRAM
     storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
     if (ram)
@@ -767,7 +767,7 @@ swap_image_commit (struct swap_image_reservation *reservation, struct proc *p)
 
     if (reservation->owner != p ||
         reservation->state != SWAP_IMAGE_COPIED)
-        panic ("swap image: commit owner");
+        panic ("K65");
     /*
      * a[] is zero on the RAM tier, which is how swapin and pstat see that
      * the process holds no flash swap blocks. A zero p_addr is never jumped
@@ -800,7 +800,7 @@ swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
     u_int ostack __unused, struct swap_image_reservation *reservation)
 {
     if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)
-        panic ("swapout: no reservation");
+        panic ("K66");
     swap_image_copy_out (reservation, p);
 #ifdef SDSWAP_ENABLED
     if (reservation->state != SWAP_IMAGE_COPIED)

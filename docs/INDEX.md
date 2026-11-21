@@ -49,6 +49,7 @@ page in those files without carrying them here.
 | `CORE1.md` | core 1 as the kernel's observer: launch and park, the tick-record observer, the NMI probe, the reset record, the supervisor, word ownership, cost and the evidence class of each claim | `sys/arch/rp2040/rp2040/core1.c`, `core1.h`, `compile/PICO/Config`, `compile/PICO_UART/Config` |
 | `DATASHEET-INDEX.md` | datasheet section to page number, for both the RP2040 and Pico documents | every hardware citation in the tree |
 | `GPIO.md` | the pins `/dev/porta` and `/dev/portb` reach on each board, the requests they take and what is refused | `sys/arch/rp2040/dev/gpio.c`, `sys/arch/rp2040/include/gpio.h`, `distrib/rp2040/mi.rp2040` |
+| `PANICS.md` | each kernel panic code with its condition, file and function, and the panics that keep their sentence | `tools/check_panic_codes.py` (`check-panic-codes`) |
 | `MPU.md` | the Cortex-M0+ MPU map the kernel programs, the registers it reads back, and the fault test that proves it | `sys/arch/rp2040/rp2040/mpu.c`, `usr.bin/mputest` |
 | `MULTICALL-BSS-OVERLAY.md` | how applets in one multicall binary share a BSS lifetime | the multicall `*.c.in` generators |
 | `I86.md` | the PC emulator `i86`: processor models and where each differs, the pager and its page-size measurement, the firmware services, cost per interpreter step, limits, and the evidence each claim has | `usr.bin/i86`, `usr.bin/i86/Makefile` |

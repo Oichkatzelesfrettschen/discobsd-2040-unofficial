@@ -16,7 +16,7 @@
  * The disk image takes the opposite
  * constraint: mountfs() (sys/kern/ufs_mount.c) leaves the on-disk fs_fmod
  * alone on a read-only mount, and ufs_sync() (sys/kern/ufs_syscalls2.c)
- * answers a set flag on a read-only filesystem with panic("sync: rofs").
+ * answers a set flag on a read-only filesystem with panic("K56").
  *
  * fs_time is the port's clock across a reboot: there is no time-of-day
  * hardware, and main() in sys/kern/init_main.c seeds time.tv_sec from the

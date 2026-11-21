@@ -1036,7 +1036,7 @@ invalid_reservation_transitions(void)
 {
     prepare_transition();
     transition_process = &proc[0];
-    HK_EXPECT_PANIC("swap image: copy owner", copy_transition_call);
+    HK_EXPECT_PANIC("K64", copy_transition_call);
     HK_CHECK(transition_reservation.state == SWAP_IMAGE_RESERVED);
     HK_CHECK(writes == 0);
     swap_image_cancel(&transition_reservation);
@@ -1044,27 +1044,27 @@ invalid_reservation_transitions(void)
     prepare_transition();
     copy_transition_call();
     HK_CHECK(transition_reservation.state == SWAP_IMAGE_COPIED);
-    HK_EXPECT_PANIC("swap image: copy owner", copy_transition_call);
+    HK_EXPECT_PANIC("K64", copy_transition_call);
 
     prepare_transition();
-    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
+    HK_EXPECT_PANIC("K65", commit_transition_call);
     swap_image_cancel(&transition_reservation);
 
     prepare_transition();
     copy_transition_call();
     transition_process = &proc[0];
-    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
+    HK_EXPECT_PANIC("K65", commit_transition_call);
 
     prepare_transition();
     copy_transition_call();
     commit_transition_call();
     HK_CHECK(transition_reservation.state == SWAP_IMAGE_COMMITTED);
-    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
-    HK_EXPECT_PANIC("swap image: cancel state", cancel_transition_call);
+    HK_EXPECT_PANIC("K65", commit_transition_call);
+    HK_EXPECT_PANIC("K57", cancel_transition_call);
 
     prepare_transition();
     copy_transition_call();
-    HK_EXPECT_PANIC("swap image: cancel state", cancel_transition_call);
+    HK_EXPECT_PANIC("K57", cancel_transition_call);
 }
 
 static void
@@ -2404,8 +2404,8 @@ unreserved_swapout(void)
     entries[0].m_size = 380;
     bzero(&unreserved, sizeof(unreserved));
     HK_CHECK(unreserved.state == SWAP_IMAGE_EMPTY);
-    HK_EXPECT_PANIC("swapout: no reservation", null_reservation_call);
-    HK_EXPECT_PANIC("swapout: no reservation", empty_reservation_call);
+    HK_EXPECT_PANIC("K66", null_reservation_call);
+    HK_EXPECT_PANIC("K66", empty_reservation_call);
     HK_CHECK(unreserved.state == SWAP_IMAGE_EMPTY);
     HK_CHECK(writes == 0 && free_total() == 380);
     HK_CHECK((proc[0].p_flag & (SLOAD | SLOCK)) == SLOAD);

@@ -417,7 +417,7 @@ loop:
     if(bp->b_flags & (B_RAMREMAP|B_PHYS)) {
 #ifdef DIAGNOSTIC
         if ((bp < &buf[0]) || (bp >= &buf[NBUF]))
-            panic("getnewbuf: RAMREMAP bp addr");
+            panic("K39");
 #endif
         bp->b_addr = bufdata + DEV_BSIZE * (bp - buf);
     }
@@ -446,7 +446,7 @@ getblk(register dev_t dev, daddr_t blkno)
 
 #ifdef DIAGNOSTIC
     if (major(dev) >= nblkdev)
-        panic("blkdev");
+        panic("K40");
 #endif
     /*
      * Search the cache for the block.  If we hit, but
@@ -543,7 +543,7 @@ biodone(register struct buf *bp)
     int write_error, priority;
 
     if (bp->b_flags & B_DONE)
-        panic("dup biodone");
+        panic("K41");
     bp->b_flags |= B_DONE;
     if ((bp->b_flags & (B_READ | B_ERROR)) == B_ERROR) {
         priority = splbio();

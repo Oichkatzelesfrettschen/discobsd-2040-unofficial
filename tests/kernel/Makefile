@@ -2515,7 +2515,7 @@ check-ufs-namespace-mutants: \
 			status=$$?; \
 		fi; \
 		case $$mutation in \
-		omit-acquisition) expected='FAIL unexpected panic: ufs namespace gate' ;; \
+		omit-acquisition) expected='FAIL unexpected panic: K48' ;; \
 		omit-wakeup) expected='wakeup_calls == 1' ;; \
 		clear-on-interrupt) expected='sleep_calls == 2' ;; \
 		esac; \
@@ -4067,7 +4067,7 @@ check-swap-exchange-inplace: swap_exchange_inplace_test \
 		copy-buffer-before-program) expected='expected_out_data' ;; \
 		refuse-owned-tail) expected='panic_reservation.addr[0] == run' ;; \
 		load-data-over-clean-text) expected='expected_in_data' ;; \
-		tail-ignores-ring-end) expected='swap exchange: reservation' ;; \
+		tail-ignores-ring-end) expected='K60' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \
@@ -4143,7 +4143,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		sched-drop-sload-restore) expected='in_core_keeps_sload' ;; \
 		sched-drop-requeue) expected='runnable_requeued' ;; \
 		sched-swapin-after-refusal) expected='slept_on_runin' ;; \
-		sched-unreserved-swapout) expected='swapout: no reservation' ;; \
+		sched-unreserved-swapout) expected='K66' ;; \
 		sched-sleep-after-refusal) expected='no_sleep_before_exchange' ;; \
 		sched-reselect-refused) expected='reached_next_candidate' ;; \
 		sched-keep-refused-marks) expected='refusal_accounted' ;; \

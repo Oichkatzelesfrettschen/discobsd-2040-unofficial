@@ -28,7 +28,7 @@ MUTATIONS = {
     # second extent, which an exactly full map cannot supply.
     "allocate-again-on-copy": (
         "    if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)\n"
-        '        panic ("swapout: no reservation");',
+        '        panic ("K66");',
         "    struct swap_image_reservation again;\n"
         "\n"
         "    if (swap_image_reserve (&again, p, p, odata, ostack) != 0)\n"
@@ -72,8 +72,8 @@ MUTATIONS = {
     ),
     "ignore-cancel-state": (
         "    if (reservation->state != SWAP_IMAGE_RESERVED)\n"
-        '        panic ("swap image: cancel state");',
-        '    if (0)\n        panic ("swap image: cancel state");',
+        '        panic ("K57");',
+        '    if (0)\n        panic ("K57");',
     ),
     "omit-text-release": ("    iput(ip);", "    (void)ip;"),
     # The probe labels a pool refusal by total free bytes against the

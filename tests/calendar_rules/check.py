@@ -91,6 +91,9 @@ PREAMBLE = """#include <stdio.h>
 #include <time.h>
 """
 TZFILE = "include/tzfile.h"
+# Warnings stay errors; fmttime() in date.c declares a buffer it never uses,
+# the one diagnostic the production text carries.
+WARNINGS = ["-std=gnu17", "-Wall", "-Wextra", "-Werror", "-Wno-unused-variable"]
 
 
 def tzfile_macros(root):
@@ -175,7 +178,7 @@ def run(root, compiler, overrides=None):
         binary = Path(temporary) / "calendar"
         source.write_text(text, encoding="latin-1")
         subprocess.run(
-            compiler + ["-std=gnu17", "-w", "-o", str(binary), str(source)],
+            compiler + WARNINGS + ["-o", str(binary), str(source)],
             check=True,
         )
         output = subprocess.run(

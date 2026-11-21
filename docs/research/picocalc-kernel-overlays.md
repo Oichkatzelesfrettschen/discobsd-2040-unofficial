@@ -36,7 +36,7 @@ the paper's trade.
    resident, so every overlay's state survives an eviction.
 2. **Placement.** GNU ld's `OVERLAY` statement gives every overlay the
    same run address, a buffer in SRAM, and its own load address in a store
-   that nothing else writes. The current layout leaves no such slice: Dhara
+   that nothing else writes. Every slice of the current layout has an owner: Dhara
    owns the flash filesystem region up to `SWAPFLASH` and the raw-swap
    allocator owns `SWAPFLASH`, so garbage collection, a root-image install
    or a swap write would erase overlay text placed in either. The store is a

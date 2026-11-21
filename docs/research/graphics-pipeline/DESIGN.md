@@ -42,8 +42,8 @@ bytes instead of three. What the glass shows at 0x55 is board evidence only: Ren
 (`tools/renode/picocalc/st7365p.cs:513-527`), and the board stores them clear
 (`PICOCALC.md:268-270`).
 
-Each host model of the device (`tests/libwin/win_test.c`, `games/ridge`'s
-`render_test.c`, `gametile_test.c`) rejects an ioctl it does not know; each
+Each host model of the device (`tests/libwin/win_test.c`,
+`games/ridge/tests/render_test.c`, `tests/picocalc/gametile_test.c`) rejects an ioctl it does not know; each
 learns `LCDG_COLMOD`, records the mode set, and fails a program that sends
 pixels before setting 0x55.
 

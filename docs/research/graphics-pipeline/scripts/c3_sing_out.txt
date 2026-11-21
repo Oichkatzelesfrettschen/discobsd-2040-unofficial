@@ -1,0 +1,17 @@
+ann(x^3) in Z/256[x]/(x^8):
+_[1]=x5
+ann(2) in Z/256[x]/(x^8):
+_[1]=128
+ann(2*x^2):
+_[1]=128
+_[2]=x6
+ann(x^8)=whole ring? (x^8=0):
+_[1]=1
+n=8: distinct irreducible factors of x^n+1 over F_2 = 1  (idempotents of F_2[x]/(x^n-1) = 2^that)
+n=16: distinct irreducible factors of x^n+1 over F_2 = 1  (idempotents of F_2[x]/(x^n-1) = 2^that)
+n=12: distinct irreducible factors of x^n+1 over F_2 = 2  (idempotents of F_2[x]/(x^n-1) = 2^that)
+n=10: distinct irreducible factors of x^n+1 over F_2 = 2  (idempotents of F_2[x]/(x^n-1) = 2^that)
+n=15: distinct irreducible factors of x^n+1 over F_2 = 5  (idempotents of F_2[x]/(x^n-1) = 2^that)
+n=256: distinct irreducible factors of x^n+1 over F_2 = 1  (idempotents of F_2[x]/(x^n-1) = 2^that)
+n=320: distinct irreducible factors of x^n+1 over F_2 = 2  (idempotents of F_2[x]/(x^n-1) = 2^that)
+n=480: distinct irreducible factors of x^n+1 over F_2 = 5  (idempotents of F_2[x]/(x^n-1) = 2^that)

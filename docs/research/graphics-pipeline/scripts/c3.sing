@@ -1,0 +1,19 @@
+ring r=(integer,256),x,dp;
+ideal I=x^8;
+qring q=std(I);
+"ann(x^3) in Z/256[x]/(x^8):"; quotient(ideal(0),ideal(x^3));
+"ann(2) in Z/256[x]/(x^8):"; quotient(ideal(0),ideal(2));
+"ann(2*x^2):"; quotient(ideal(0),ideal(2*x^2));
+"ann(x^8)=whole ring? (x^8=0):"; quotient(ideal(0),ideal(x^8));
+setring r;
+kill q;
+ring s=2,x,dp;
+int n;
+list L=8,16,12,10,15,256,320,480;
+for(n=1;n<=size(L);n++){
+  poly f=x^(L[n])+1;
+  list fac=factorize(f);
+  "n=" + string(L[n]) + ": distinct irreducible factors of x^n+1 over F_2 = " + string(size(fac[1])-1) + "  (idempotents of F_2[x]/(x^n-1) = 2^that)";
+  kill f; kill fac;
+}
+quit;

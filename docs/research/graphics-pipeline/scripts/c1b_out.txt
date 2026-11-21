@@ -1,0 +1,11 @@
+chunk K | forward ok | backward ok   (copy A[0..8) -> B[0..8), a swap of the two pages)
+1 | False | False
+2 | False | False
+3 | False | False
+4 | False | False
+5 | False | False
+6 | False | False
+7 | False | False
+8 | True | True
+storage byte dependency graph: acyclic = False | cycles: [[0, 4], [1, 5], [2, 6], [3, 7]] | cycle lengths: [2, 2, 2, 2]
+one temporary byte, cycle by cycle, reproduces the buffered result: True

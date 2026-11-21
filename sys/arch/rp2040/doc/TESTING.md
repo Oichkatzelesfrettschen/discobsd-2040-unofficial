@@ -3379,7 +3379,7 @@ The backlight stage follows. It reads the keyboard model's screen level after
 the boot and requires 160, the level `/etc/rc` writes when
 `/etc/backlight` is absent; an image whose `/etc/rc` lacks that `sysctl` line
 fails here with the firmware's 32. When the root image carries
-`/usr/bin/backlight` (both PicoCalc profiles do; any other image prints a
+`/usr/bin/backlight` (both PicoCalc profiles and `matezinho` do; any other image prints a
 skip line), the stage types `backlight 88` as `operator` and requires the
 line `lcd 80` and the model's level 80: the program reaches the root-only
 node through its setuid mode and prints the level the model kept, which the

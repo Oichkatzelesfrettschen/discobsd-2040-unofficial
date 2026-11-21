@@ -46,8 +46,9 @@ Each host model of a program that opens the device
 (`tests/libwin/win_test.c`, `games/ridge/tests/render_test.c`, and
 `tests/ulisp/dev-picocalc-test.c` for ulisp's lazy open) learns
 `LCDG_COLMOD`, records the mode set, and fails a program that sends
-pixels before setting 0x55. `games/gametile.h` opens nothing: ridge selects
-the format in `rg_view_init`, before gametile's first window, so
+pixels before setting 0x55. `games/gametile.h` draws on a descriptor its caller
+opened: ridge selects the format in `rg_view_init`, before gametile's first
+window, so
 `tests/picocalc/gametile_test.c` keeps its model unchanged.
 
 ## Decision 2: libwin merges damage by wire cost

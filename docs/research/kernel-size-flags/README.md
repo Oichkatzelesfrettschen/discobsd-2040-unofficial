@@ -404,5 +404,10 @@ Every configuration still passes 2,048 bytes on that chain alone. Issue
   root; `HardFault_Handler` is counted on the u area only. A panic raised
   there is counted, and #840 tracks it.
 - **PICOCALC_PSRAM.** The configuration left the tree with the split into
-  PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG (6f522c3ec), so the six
-  measured configurations are every tracked one.
+  PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG (6f522c3ec).
+- **PICOCALC_SD and PICOCALC_SD_DIAG.** The board-session and card-image
+  kernel and its diagnostic build have tracked compile directories outside
+  the six configurations `stack-chain.sh` builds, so this record lacks a
+  bound for them. Adding them takes their names in the script and the
+  model and site rules for their SD services (`sdrootattach`,
+  `sdswapattach`) and the SD-root and swap paths.

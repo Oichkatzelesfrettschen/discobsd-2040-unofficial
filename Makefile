@@ -2162,7 +2162,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-fs-profiles check-picocalc-host check-matezinho-host \
 		check-psram-pio \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
-		check-signal-traps
+		check-signal-traps check-alloc-results
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
@@ -2446,6 +2446,16 @@ check-host-split:	check-python
 		${PYTHON} tools/check_host_tier_split.py \
 		    --all "${HOST_LONG_GATES} ${HOST_GATES} ${HOST_PROGRAM_GATES}" \
 		    --a "${HOST_TIER_A_GATES}" --b "${HOST_TIER_B_GATES}"
+
+# Allocation results in ls, ed and awk: every assignment from malloc, calloc,
+# realloc or strdup is tested for NULL before use; tools/check_alloc_results.py
+# --selftest calibrates the scan.
+ALLOC_RESULT_SOURCES=	bin/ls/ls.c bin/ed/ed.c usr.bin/awk/b.c usr.bin/awk/freeze.c \
+		usr.bin/awk/lib.c usr.bin/awk/main.c usr.bin/awk/parse.c \
+		usr.bin/awk/proc.c usr.bin/awk/run.c usr.bin/awk/tran.c
+check-alloc-results: check-python
+		${PYTHON} tools/check_alloc_results.py --selftest
+		${PYTHON} tools/check_alloc_results.py ${ALLOC_RESULT_SOURCES}
 
 # Shell gates that clean a work directory take an EXIT trap and one exiting
 # trap per signal: a trap action for HUP, INT or TERM returns to the script,
@@ -2955,7 +2965,7 @@ installfs:
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host check-host-a check-host-b check-host-split \
-		check-signal-traps \
+		check-signal-traps check-alloc-results \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump \

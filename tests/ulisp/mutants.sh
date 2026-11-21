@@ -60,14 +60,18 @@ if [ "$(uname -s)" = Linux ] && [ -f "$here/rewrite-race.so" ]; then
 	shim=$here/rewrite-race.so
 fi
 
-# mutant NAME SED-EXPRESSION [SOURCE-FILE [STATUS]]
+# mutant NAME SED-EXPRESSION [SOURCE-FILE [STATUS [CFLAGS]]]
 # STATUS is the one status of check.sh that rejects the mutant: 1, a failed
 # or differing transcript, unless the defect is a run that never ends, which
 # check.sh reports as 3. Any other nonzero status is a failure of the harness.
+# CFLAGS are extra compiler options, a word list, for a defect that only some
+# hardware turns into a failure (an overflowing division traps on x86 and
+# wraps on arm64) and that a sanitizer reports on every host.
 mutant() {
 	dir=$work/$1
 	file=${3:-ulisp.c}
 	want=${4:-1}
+	extra=${5:-}
 	mkdir "$dir"
 	cp "$src"/*.c "$src"/*.h "$src"/builtins.def "$dir"/
 	sed "$2" "$src/$file" > "$dir/$file"
@@ -75,7 +79,8 @@ mutant() {
 		echo "ulisp mutants: $1: the substitution matched nothing" >&2
 		exit 1
 	fi
-	$cc -std=c17 -D_DEFAULT_SOURCE -Os -w -I"$src/../../sys/arch/rp2040/dev" \
+	# shellcheck disable=SC2086 # extra is a word list by construction
+	$cc -std=c17 -D_DEFAULT_SOURCE -Os -w $extra -I"$src/../../sys/arch/rp2040/dev" \
 	    -o "$dir/ulisp" "$dir/ulisp.c" "$dir/unix.c" "$dir/hilite.c" "$dir/gfx.c" \
 	    "$dir/dev_host.c" "$src/../../sys/arch/rp2040/dev/lcdfont.c" -lm
 	rc=0
@@ -196,8 +201,11 @@ mutant image-unchecked 's/const char \*fault = checkimage(header, imagesize);/co
 mutant image-chain-target 's/return chainbit(chains, index) ? imagelinked : NULL;/return NULL;/'
 # A random limit of zero reaches the modulus.
 mutant random-zero 's/if (arg->integer <= 0) error("limit must be positive", arg);//'
-# The remainder of INT_MIN by -1 reaches the division.
-mutant rem-overflow 's/(divisor == -1) ? 0 : dividend % divisor/dividend % divisor/'
+# The remainder of INT_MIN by -1 reaches the division. x86 traps (SIGFPE);
+# arm64 returns 0, which is the right answer, so the unsanitized program
+# passes there and the overflow is reported by the sanitizer instead.
+mutant rem-overflow 's/(divisor == -1) ? 0 : dividend % divisor/dividend % divisor/' \
+    ulisp.c 1 '-fsanitize=signed-integer-overflow -fno-sanitize-recover=all'
 # The negation of INT_MIN happens in int.
 mutant negate-int-min 's/makefloat(-(float)result)/makefloat(-result)/'
 # Array dimensions are multiplied without a check against INT_MAX.

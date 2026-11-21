@@ -366,11 +366,25 @@ MUTANTS = [
     ("ems.c", "else if (cx > nphys)\n\t\t\tst = E_PPAGE;", "else if (0)\n\t\t\tst = E_PPAGE;"),
     (
         "ems.c",
-        "\t\t\t/* Every entry is checked before any is applied. */\n\t\t\tn = grw(dssi);",
-        "\t\t\tn = grw(dssi);\n\t\t\tif (n > 1 && base_ok(grw(dssi + 4)))\n"
-        "\t\t\t\tshow(phys_at(grw(dssi + 2)) % nphys, grw(dssi + 4));",
+        "\t\t\tn = grw(dssi);\n\t\t\ttake(dssi + 2, 2 * n);\n",
+        "\t\t\tn = grw(dssi);\n\t\t\ttake(dssi + 2, 2 * n);\n\t\t\tif (n > 1 && base_ok(arg[1]))\n"
+        "\t\t\t\tshow(phys_at(arg[0]) % nphys, arg[1]);\n",
     ),
     ("ems.c", "!= key : al == 2)", "!= key : 0)"),
+    (
+        "ems.c",
+        "\t\tif ((al == 1 || al == 2) && st == OK)\n\t\t\tapply_map();",
+        "\t\tif ((al == 1 || al == 2) && st == OK)\n"
+        "\t\t\tfor (k = 0; k < nphys; k++) {\n"
+        "\t\t\t\tshow(k, arg[1 + k]);\n\t\t\t\ttake(dssi, 1 + nphys);\n\t\t\t}",
+    ),
+    (
+        "ems.c",
+        "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);\n"
+        "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);",
+        "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);\n"
+        "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);",
+    ),
     (
         "pc.c",
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(0);",
@@ -1041,7 +1055,8 @@ def ems_expected():
         " xchg:00"
         " xgot:45 moved:4D45 landed:4D45 set1:00 alt:0010 get:FFF0 h0:00 e88h0:88 e83:83"
         " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
-        " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF e86:86"
+        " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF e86:86 toc:00"
+        " tocp:04 ovl:00 ovlp:FF"
         " dealloc:00 free:0010 done".split()
     )
 

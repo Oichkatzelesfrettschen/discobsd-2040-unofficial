@@ -96,6 +96,12 @@ static uint16_t *lnum;		/* its page number in that handle */
 static unsigned npool, nphys;
 static uint8_t blk[NPHYS];	/* each physical page's 16 KB block */
 static uint16_t cur[NPHYS];	/* the logical page it shows */
+/* A guest array a function takes (a save area, a partial map, a map
+ * list), read once by take() before any entry is checked or applied.
+ * Applying an entry can remap the guest page the array lies in, and an
+ * output buffer may overlap it, so a second read of guest memory could see
+ * words that were never checked. */
+static uint16_t arg[1 + 2 * NPHYS];
 static uint32_t alt_area;	/* set 0's save area (5B01h), or 0 */
 static uint8_t os_off;		/* 5D01h: 5900h and 5Bh refused */
 static uint8_t key_out;		/* 5D00h or 5D01h has given out key */
@@ -196,11 +202,27 @@ nfree(void)
 	return (n);
 }
 
+static int base_ok(unsigned);
+
+/* Every caller has checked p and base; the test keeps a missed check
+ * from reaching the pager's tables with an index they do not hold. */
 static void
 show(unsigned p, unsigned base)
 {
+	if (p >= nphys || !base_ok(base))
+		return;
 	cur[p] = (uint16_t)base;
 	mem_map16(blk[p], base);
+}
+
+/* Copy n words of guest memory from a into arg[]. */
+static void
+take(uint32_t a, unsigned n)
+{
+	unsigned k;
+
+	for (k = 0; k < n && k < sizeof(arg) / sizeof(arg[0]); k++)
+		arg[k] = (uint16_t)grw(a + 2 * k);
 }
 
 /* Map handle h's page n, or nothing for FFFFh, at physical page p. */
@@ -248,30 +270,29 @@ put_map(uint32_t a)
 		gww(a + 2 + 2 * p, cur[p]);
 }
 
-/* Whether the save area at a holds a mapping: A3h when it does not. */
+/* Take the save area at a into arg[]: A3h when it holds no mapping. */
 static unsigned
-get_map_check(uint32_t a)
+load_map(uint32_t a)
 {
 	unsigned p;
 
-	if (grw(a) != nphys)
+	take(a, 1 + nphys);
+	if (arg[0] != nphys)
 		return (0xa3);
 	for (p = 0; p < nphys; p++)
-		if (!base_ok(grw(a + 2 + 2 * p)))
+		if (!base_ok(arg[1 + p]))
 			return (0xa3);
 	return (OK);
 }
 
-static unsigned
-get_map(uint32_t a)
+/* Show the mapping load_map() took. */
+static void
+apply_map(void)
 {
-	unsigned p, st;
+	unsigned p;
 
-	if ((st = get_map_check(a)) != OK)
-		return (st);
 	for (p = 0; p < nphys; p++)
-		show(p, grw(a + 2 + 2 * p));
-	return (OK);
+		show(p, arg[1 + p]);
 }
 
 /* Give handle h pages from n on until it has want. */
@@ -546,14 +567,20 @@ ems_int(struct i86 *c)
 		c->r[R_BX] = (uint16_t)n;
 		break;
 	case 0x4e:
+		/* The new map is taken before the old one is stored, which
+		 * may overwrite it. */
+		if (al > 3) {
+			st = E_SUB;
+			break;
+		}
+		if (al == 1 || al == 2)
+			st = load_map(dssi);
 		if (al == 0 || al == 2)
 			put_map(esdi);
-		if (al == 1 || al == 2)
-			st = get_map(dssi);
-		else if (al == 3)
+		if ((al == 1 || al == 2) && st == OK)
+			apply_map();
+		if (al == 3)
 			c->r[R_AX] = (uint16_t)(2 + 2 * nphys);
-		else if (al != 0)
-			st = E_SUB;
 		break;
 	case 0x4f:
 		/* A partial map names at most every physical page once. */
@@ -562,28 +589,31 @@ ems_int(struct i86 *c)
 			break;
 		}
 		if (al == 0) {
+			/* The segments are taken before any output word is
+			 * written over them. */
 			n = grw(dssi);
-			gww(esdi, n);
-			for (k = 0; k < n; k++) {
-				unsigned seg = grw(dssi + 2 + 2 * k);
-
-				if ((p = phys_at(seg)) == nphys) {
+			take(dssi + 2, n);
+			for (k = 0; k < n; k++)
+				if (phys_at(arg[k]) == nphys) {
 					st = E_PPAGE;
 					break;
 				}
-				gww(esdi + 2 + 4 * k, seg);
-				gww(esdi + 4 + 4 * k, cur[p]);
+			gww(esdi, n);
+			for (k = 0; k < n && st == OK; k++) {
+				gww(esdi + 2 + 4 * k, arg[k]);
+				gww(esdi + 4 + 4 * k, cur[phys_at(arg[k])]);
 			}
 		} else if (al == 1) {
-			/* Every entry is checked before any is applied. */
+			/* Every entry is taken and checked before any is
+			 * applied. */
 			n = grw(dssi);
+			take(dssi + 2, 2 * n);
 			for (k = 0; k < n && st == OK; k++)
-				if (phys_at(grw(dssi + 2 + 4 * k)) == nphys ||
-				    !base_ok(grw(dssi + 4 + 4 * k)))
+				if (phys_at(arg[2 * k]) == nphys ||
+				    !base_ok(arg[2 * k + 1]))
 					st = 0xa3;
 			for (k = 0; k < n && st == OK; k++)
-				show(phys_at(grw(dssi + 2 + 4 * k)),
-				    grw(dssi + 4 + 4 * k));
+				show(phys_at(arg[2 * k]), arg[2 * k + 1]);
 		} else if (al == 2) {
 			if (bx > nphys)
 				st = E_PPAGE;
@@ -602,9 +632,11 @@ ems_int(struct i86 *c)
 			st = E_HANDLE;
 		else if (cx > nphys)
 			st = E_PPAGE;
+		else
+			take(dssi, 2 * cx);
 		for (k = 0; k < cx && st == OK; k++) {
-			n = grw(dssi + 4 * k);
-			p = grw(dssi + 4 * k + 2);
+			n = arg[2 * k];
+			p = arg[2 * k + 1];
 			st = map(al ? phys_at(p) : p, dx, n);
 		}
 		break;
@@ -744,12 +776,14 @@ ems_int(struct i86 *c)
 				st = 0x9c;
 				break;
 			}
-			if (esdi != 0 && (st = get_map_check(esdi)) != OK)
+			/* The new set is taken before the old one is
+			 * stored, which may overwrite it. */
+			if (esdi != 0 && (st = load_map(esdi)) != OK)
 				break;
 			if (alt_area != 0)
 				put_map(alt_area);
 			if ((alt_area = esdi) != 0)
-				st = get_map(esdi);
+				apply_map();
 			break;
 		case 2:
 			c->r[R_DX] = (uint16_t)(2 + 2 * nphys);

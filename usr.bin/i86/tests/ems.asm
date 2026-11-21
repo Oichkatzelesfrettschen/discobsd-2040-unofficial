@@ -48,7 +48,7 @@ start:	xor ax, ax
 	mov ss, ax
 	mov sp, 0x7c00
 	mov word [optr], OUTBUF
-	mov ax, 0x0204			; the four sectors after this one
+	mov ax, 0x0205			; the five sectors after this one
 	mov cx, 0x0002
 	xor dh, dh
 	mov bx, 0x7e00
@@ -643,6 +643,64 @@ main:	mov ah, 0x40
 	int 0x67
 	mov si, s_e86
 	call st
+	; A save area inside a page the call remaps is read once. E000h
+	; shows logical 0 holding the area; its entry 0 maps logical 1 at
+	; E000h, whose word at offset 4 is FFFFh, and its entry 1 keeps
+	; logical 2 at E400h, which a second read would replace by FFFFh.
+	xor ax, ax
+	mov es, ax
+	mov al, 1
+	mov bx, 2
+	call map
+	xor al, al
+	mov bx, 1
+	call map
+	mov di, pbuf
+	mov ax, 0x4e00
+	int 0x67			; pbuf + 2: logical 1's word
+	mov ax, 0xe000
+	mov es, ax
+	mov word [es:4], 0xffff
+	xor al, al
+	xor bx, bx
+	call map
+	xor di, di
+	mov ax, 0x4e00
+	int 0x67			; the area, at E000:0000
+	mov ax, [pbuf + 2]
+	mov [es:2], ax
+	push ds
+	push es
+	pop ds
+	xor si, si
+	mov ax, 0x4e01
+	int 0x67
+	pop ds
+	mov si, s_toc
+	call st
+	xor ax, ax
+	mov es, ax
+	mov di, pbuf
+	mov ax, 0x4e00
+	int 0x67
+	mov al, [pbuf + 5]
+	mov si, s_tocp
+	call say2
+	; 4E02h with one buffer for both: the new map is read before the
+	; old one is stored over it, so E400h ends unmapped.
+	mov word [pbuf + 4], 0xffff
+	mov si, pbuf
+	mov di, pbuf
+	mov ax, 0x4e02
+	int 0x67
+	mov si, s_ovl
+	call st
+	mov di, pbuf
+	mov ax, 0x4e00
+	int 0x67
+	mov al, [pbuf + 5]
+	mov si, s_ovlp
+	call say2
 	mov ah, 0x48
 	int 0x67
 	mov ah, 0x45
@@ -705,6 +763,10 @@ s_e8b:	db "e8b:", 0
 s_e84:	db "e84:", 0
 s_unmap: db "unmap:", 0
 s_e86:	db "e86:", 0
+s_toc:	db "toc:", 0
+s_tocp:	db "tocp:", 0
+s_ovl:	db "ovl:", 0
+s_ovlp:	db "ovlp:", 0
 s_free2: db "dealloc:", 0
 s_wrap:	db "wrap:", 0
 s_e94:	db "e94:", 0
@@ -736,4 +798,4 @@ oreg:	dd 16			; 57h: from handle page 0 ...
 	db 0				; ... to E000:0001
 	dw 0, 1, 0xe000
 
-	times 2560 - ($ - $$) db 0
+	times 3072 - ($ - $$) db 0

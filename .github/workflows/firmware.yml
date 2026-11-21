@@ -62,8 +62,11 @@ jobs:
     # host tier alone took 36 minutes (run 44844712110) and every later tier
     # took 85 minutes in a run that skipped the host tier (44849576870, its SD
     # system tier ended by the idle timeout after 13 of up to 24 minutes), so a
-    # passing run needs about 130 minutes or more; the bound is 180.
-    timeout-minutes: 180
+    # passing run needs about 130 minutes or more. The first fully passing run,
+    # dispatch 44895879561, took 148 minutes (host tier 2,490 s, asynchronous
+    # system trap tier 690 s, SD system tier 1,083 s); runs of one commit differ
+    # by about 25 percent, so the bound is 210.
+    timeout-minutes: 210
     steps:
       - uses: actions/checkout@v4
         with:
@@ -331,10 +334,11 @@ jobs:
       # The tier is bound by total CPU work on a four-CPU runner, not by the
       # order of its gates; sys/arch/rp2040/doc/TESTING.md (check-host-split)
       # holds the measured wall times. The hard timeout leaves room above the
-      # slowest tier measured, and the idle timeout still ends a hung gate.
+      # slowest tier measured (2,490 s of the 3,600 s limit in dispatch
+      # 44895879561), and the idle timeout still ends a hung gate.
       - name: Run the host tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 48
+        timeout-minutes: 62
         env:
           SWAP_TIER_MODEL_REQUIRED: "1"
         run: |
@@ -342,7 +346,7 @@ jobs:
             --label linux-host \
             --log .build-logs/linux-host.log \
             --status .build-logs/linux-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 2700 \
+            --idle-timeout-seconds 300 --timeout-seconds 3600 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       # check-signal-sets-cross owns target signatures and Smaller C input;
@@ -516,13 +520,13 @@ jobs:
             -- bmake MACHINE=rp2040 check-renode-capacity
       - name: Run the Renode asynchronous system trap tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 15
+        timeout-minutes: 22
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label linux-renode-preempt \
             --log .build-logs/linux-renode-preempt.log \
             --status .build-logs/linux-renode-preempt.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            --idle-timeout-seconds 300 --timeout-seconds 1200 \
             -- bmake MACHINE=rp2040 check-renode-preempt
       - name: Run the Renode image identity tier
         if: env.FULL_GATES == 'true'
@@ -546,13 +550,13 @@ jobs:
             -- bmake MACHINE=rp2040 check-renode-picocalc
       - name: Boot the expanded PicoCalc SD system
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 25
+        timeout-minutes: 32
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label linux-renode-picocalc-sd-system \
             --log .build-logs/linux-renode-picocalc-sd-system.log \
             --status .build-logs/linux-renode-picocalc-sd-system.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1440 \
+            --idle-timeout-seconds 300 --timeout-seconds 1800 \
             -- bmake MACHINE=rp2040 check-renode-picocalc-sd-system
 
       # savecore ships in the picocalc profile, so the crash-dump tier boots

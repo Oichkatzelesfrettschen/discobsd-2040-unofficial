@@ -85,8 +85,8 @@ FLAGS = [
     "-idirafter",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sys"),
 ]
-SOURCES = ["main.c", "pc.c", "gfx.c", "serial.c", "ems.c", "cpu.c", "mem.c"]
-HEADERS = ["ems.h", "font.h", "gfx.h", "i86.h", "mem.h", "pc.h", "serial.h"]
+SOURCES = ["main.c", "pc.c", "gfx.c", "serial.c", "ems.c", "cpu.c", "mem.c", "clock.c"]
+HEADERS = ["clock.h", "ems.h", "font.h", "gfx.h", "i86.h", "mem.h", "pc.h", "serial.h"]
 KEYS = "aB1"
 TAIL = [
     "MEM %04X OK",
@@ -109,6 +109,21 @@ TAIL = [
 ]
 
 MUTANTS = [
+    # clock.c, each through tests/clocktest.c: a step back counted as a
+    # second, a 5 s gap counted whole, a clock set back moving the tick
+    # backwards, -S sleeping out a clock set back, -S keeping no credit
+    # limit, and the 8254's fraction of a clock dropped.
+    ("clock.c", "if ((long)d < 0)\n\t\td = 0;\n\telse if (d > CLK_GAP_US)", "if (d > CLK_GAP_US)"),
+    ("clock.c", "\telse if (d > CLK_GAP_US)\n\t\td = CLK_GAP_US;\n", ""),
+    ("clock.c", "return ((long)d > 0 ? d : 0);", "return (d);"),
+    ("clock.c", "\telse if ((long)(*due - now) > CLK_BACK_US)\n\t\t*due = now;\n", ""),
+    (
+        "clock.c",
+        "if ((long)(now - *due) > CLK_CREDIT_US)\n"
+        "\t\t*due = now - (unsigned long)CLK_CREDIT_US;\n\telse if",
+        "if",
+    ),
+    ("clock.c", "n = k * CLK_PIT_HZ + *rem;", "n = k * CLK_PIT_HZ;"),
     ("pc.c", "c->ip -= 3;\n\t\t\t\tc->fl |= F_IF;", "c->ip -= 3;"),
     (
         "pc.c",
@@ -445,7 +460,11 @@ MUTANTS = [
     ("pc.c", "if (p->mode == 0) {\n\t\t\tp->armed = 0;", "if (0) {\n\t\t\tp->armed = 0;"),
     ("pc.c", "pit[n].latched = 0;\n\tpit[n].slatched = 0;", "pit[n].latched = 0;"),
     ("pc.c", "else if ((pc_idle || c->halted) && slice_left() < PC_STEPS) {", "else if (0) {"),
-    ("pc.c", "host_sleep((unsigned)((thr_due - now) / 1000UL));", "(void)thr_due;"),
+    (
+        "pc.c",
+        "if ((ms = clk_pace(&thr_due, now)) != 0)\n\t\thost_sleep(ms);",
+        "ms = clk_pace(&thr_due, now);\n\t(void)ms;",
+    ),
     ("pc.c", "return (d < SLICE_MIN ? SLICE_MIN : d);", "return (PC_STEPS);"),
     (
         "pc.c",
@@ -519,7 +538,7 @@ def load_panel(src):
 
 def mutate(src, tree, number, name, old, new):
     """A copy of the sources in tree with one fault in file name."""
-    for item in SOURCES + HEADERS + ["tests/sstrun.c", "tests/panel.c"]:
+    for item in SOURCES + HEADERS + ["tests/sstrun.c", "tests/panel.c", "tests/clocktest.c"]:
         shutil.copyfile(os.path.join(src, item), os.path.join(tree, item))
     with open(os.path.join(tree, name)) as handle:
         text = handle.read()
@@ -1257,6 +1276,15 @@ def pit_run(binary, work, args):
     return done.stdout.decode("latin-1").split()
 
 
+def test_clock(clocktest):
+    """clock.c's steps from one host clock reading to the next, through
+    tests/clocktest.c: a clock set back, set forward and wrapping."""
+    done = subprocess.run([clocktest], capture_output=True, text=True, timeout=10, check=False)
+    if done.returncode != 0 or not done.stdout.startswith("clock: "):
+        raise Failure("clock steps:\n" + done.stdout + done.stderr)
+    return done.stdout.strip()
+
+
 def test_pit(binary, work):
     """The 8254 through tests/pit.asm. Under -T every count is exact: the
     latched counter moved 2B0h in mode 3, counter 0 at 1 kHz raised 54
@@ -1275,15 +1303,32 @@ def test_pit(binary, work):
     got = pit_run(binary, work, ["-T"])
     if got != want:
         raise Failure("timer -T: %r" % got)
-    got = pit_run(binary, work, [])
-    fields = dict(t.split(":", 1) for t in got if ":" in t)
-    if (
-        not 0x34 <= int(fields.get("irq", "0"), 16) <= 0x37
-        or fields.get("st2") != "00B0"
-        or fields.get("tick") != "ok"
-        or got[-1:] != ["done"]
-    ):
-        raise Failure("timer, host clock: %r" % got)
+    host_clock_irqs(lambda: pit_run(binary, work, []), "timer, host clock")
+
+
+def host_clock_irqs(run, what):
+    """A run of tests/pit.asm on the host's clock must finish whole and
+    count at most 37h interrupts while counter 2 counts 65535 clocks. A
+    host that deschedules the emulator for more than four periods of
+    counter 0 loses the ticks past four (pit_irq queues four at most), so
+    a loaded host counts fewer, never more: one of three runs must count
+    34h to 37h."""
+    seen = []
+    for _ in range(3):
+        got = run()
+        fields = dict(t.split(":", 1) for t in got if ":" in t)
+        irq = int(fields.get("irq", "0"), 16)
+        if (
+            irq > 0x37
+            or fields.get("st2") != "00B0"
+            or fields.get("tick") != "ok"
+            or got[-1:] != ["done"]
+        ):
+            raise Failure("%s: %r" % (what, got))
+        if irq >= 0x34:
+            return
+        seen.append(fields.get("irq"))
+    raise Failure("%s: fewer than 34h interrupts in three runs: %s" % (what, seen))
 
 
 def test_speed(binary, work):
@@ -1291,12 +1336,16 @@ def test_speed(binary, work):
     before "done" alone take 0.36 s (cpu-timing.md: 13.1 clocks each), where
     the whole run takes about 0.1 s unpaced. A lower bound only; the timer's
     interrupts still count the same clocks."""
-    start = time.monotonic()
-    got = pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
-    took = time.monotonic() - start
-    fields = dict(t.split(":", 1) for t in got if ":" in t)
-    if took < 0.3 or not 0x34 <= int(fields.get("irq", "0"), 16) <= 0x37:
-        raise Failure("-S 4.77: %.2f s, %r" % (took, got))
+
+    def paced():
+        start = time.monotonic()
+        got = pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
+        took = time.monotonic() - start
+        if took < 0.3:
+            raise Failure("-S 4.77: %.2f s, %r" % (took, got))
+        return got
+
+    host_clock_irqs(paced, "-S 4.77")
 
 
 def ems_run(binary, work, args, keys, env=None):
@@ -1799,6 +1848,10 @@ def main(argv):
                 print("dos/ems.hexdump matches dos/ems.asm")
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
+            csources = ["tests/clocktest.c", "clock.c"]
+            clocktest = os.path.join(work, "clocktest")
+            build(src, clocktest, cc, csources)
+            print(test_clock(clocktest))
             # Independent of the emulator, so once, not for every mutant.
             test_wait_draining()
             test(binary, work)
@@ -1849,7 +1902,9 @@ def main(argv):
                 mutant = os.path.join(work, "i86-mutant")
                 build(tree, mutant, cc)
                 build(tree, sstrun + "-mutant", cc, vsources)
+                build(tree, clocktest + "-mutant", cc, csources)
                 try:
+                    test_clock(clocktest + "-mutant")
                     test(mutant, work)
                     test_vectors(sstrun + "-mutant", src, work)
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")

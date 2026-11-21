@@ -229,6 +229,37 @@ damage_drop(struct win_scene *s, int i)
 	s->damage[i] = s->damage[s->ndamage];
 }
 
+/* Rectangles that share at least a corner point or overlap. */
+static int
+rect_touch(const struct win_rect *a, const struct win_rect *b)
+{
+	return a->x0 <= b->x1 && b->x0 <= a->x1 && a->y0 <= b->y1 &&
+	    b->y0 <= a->y1;
+}
+
+/* Wire bytes of repaint(r): its pixels plus one window command a strip. */
+static long
+rect_cost(const struct win_scene *s, const struct win_rect *r)
+{
+	long w, h, rows, strips;
+
+	w = r->x1 - r->x0;
+	h = r->y1 - r->y0;
+	rows = (long)WIN_STRIP_BYTES / w;
+	strips = (h + rows - 1) / rows;
+	return (long)s->bpp * w * h + (long)WIN_CMD_BYTES * strips;
+}
+
+/* Replace a by the bounding box of a and b. */
+static void
+rect_box(struct win_rect *a, const struct win_rect *b)
+{
+	a->x0 = min_i(a->x0, b->x0);
+	a->y0 = min_i(a->y0, b->y0);
+	a->x1 = max_i(a->x1, b->x1);
+	a->y1 = max_i(a->y1, b->y1);
+}
+
 /*
  * Record [x0, x1) x [y0, y1), clipped to the panel. Every public call makes
  * room first (make_room), so the list has a free slot for each rectangle a
@@ -237,7 +268,7 @@ damage_drop(struct win_scene *s, int i)
 static void
 damage_add(struct win_scene *s, int x0, int y0, int x1, int y1)
 {
-	struct win_rect n;
+	struct win_rect n, box;
 	struct win_rect *e;
 	int i, again;
 
@@ -259,6 +290,15 @@ damage_add(struct win_scene *s, int x0, int y0, int x1, int y1)
 			} else if (rect_overlap(&n, e) &&
 			    (rect_trim(&n, e) || rect_trim(e, &n))) {
 				again = 1;
+			} else if (rect_touch(&n, e)) {
+				box = n;
+				rect_box(&box, e);
+				if (rect_cost(s, &box) <=
+				    rect_cost(s, &n) + rect_cost(s, e)) {
+					n = box;
+					damage_drop(s, i);
+					again = 1;
+				}
 			}
 		}
 	} while (again);
@@ -527,6 +567,7 @@ win_scene_init(struct win_scene *s, const struct win_backend *be)
 	s->focus_follows_raise = 1;
 	s->be = *be;
 	s->desktop = WIN_C_DESKTOP;
+	s->bpp = WIN_BPP_DEFAULT;
 	memset(s->buf, WIN_GUARD_BYTE, sizeof(s->buf));
 	damage_add(s, 0, 0, WIN_PANEL_W, WIN_PANEL_H);
 	return 0;

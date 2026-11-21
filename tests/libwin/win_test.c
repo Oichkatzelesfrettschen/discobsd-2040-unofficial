@@ -100,6 +100,14 @@ static long win_total;			/* Bytes the open window wants. */
 static int win_fmt, win_fg, win_bg;
 static long n_bits_windows, n_index_windows;
 static long n_ioctl_window, n_bytes, n_ioctl_palette, n_writes;
+static long n_pixels;			/* Pixels of every LCDG_WINDOW opened. */
+static int colmod_seen;			/* LCDG_COLMOD 0x55 was set. */
+static int strict_marks;		/* The test's marks are exact, not an over-approximation. */
+static int skip_colmod;			/* reset_world leaves the default bpp. */
+static unsigned char wrote[PW * PH];	/* Written since last invalidated. */
+static long iv_cost;			/* Unmerged cost of the pending damage. */
+static long iv_sent0;			/* Wire bytes sent when it began. */
+static long iv_injected0;		/* Backend failures when it began. */
 static int palette_seen[16][3];
 static long op_index;
 static long n_injected;			/* Backend calls the model failed. */
@@ -159,6 +167,22 @@ inject(void)
 	return hit;
 }
 
+/*
+ * A pixel outside the pending damage may be rewritten (a widened rectangle)
+ * only with the value the panel holds.
+ */
+static void
+model_store(int x, int y, unsigned char v)
+{
+	int p = y * PW + x;
+
+	if (!mask_all && !mask[p] && panel[p] != v)
+		fail("pixel %d,%d outside the damage changed from %u to %u", x, y,
+		    panel[p], v);
+	panel[p] = v;
+	wrote[p] = 1;
+}
+
 static int
 model_ioctl(int fd, unsigned long req, void *arg)
 {
@@ -198,6 +222,15 @@ model_ioctl(int fd, unsigned long req, void *arg)
 		win_h = w->h;
 		win_pos = 0;
 		n_ioctl_window++;
+		n_pixels += (long)w->w * w->h;
+		return 0;
+	}
+	if (req == LCDG_COLMOD) {
+		const struct lcdg_colmod *cm = arg;
+
+		if (cm->fmt != LCDG_COLMOD_RGB565)
+			fail("COLMOD %#x, expected 0x55", cm->fmt);
+		colmod_seen = 1;
 		return 0;
 	}
 	if (req == LCDG_PALETTE) {
@@ -226,6 +259,8 @@ model_write(int fd, const void *buf, size_t n)
 		errno = EINVAL;
 		return -1;
 	}
+	if (!colmod_seen && !skip_colmod)
+		fail("pixels sent before LCDG_COLMOD 0x55");
 	if (inject())
 		return -1;
 	left = win_total - win_pos;
@@ -244,10 +279,8 @@ model_write(int fd, const void *buf, size_t n)
 				if (c >= win_w)
 					break;
 				x = win_x + c;
-				if (!mask_all && !mask[y * PW + x])
-					fail("pixel %d,%d written outside the damage", x, y);
-				panel[y * PW + x] = (unsigned char)
-				    ((b[i] & (0x80 >> k)) != 0 ? win_fg : win_bg);
+				model_store(x, y, (unsigned char)
+				    ((b[i] & (0x80 >> k)) != 0 ? win_fg : win_bg));
 			}
 			continue;
 		}
@@ -255,9 +288,7 @@ model_write(int fd, const void *buf, size_t n)
 		y = win_y + (int)(win_pos / win_w);
 		if (b[i] > 15)
 			fail("pixel byte %u at %d,%d", b[i], x, y);
-		if (!mask_all && !mask[y * PW + x])
-			fail("pixel %d,%d written outside the damage", x, y);
-		panel[y * PW + x] = b[i];
+		model_store(x, y, b[i]);
 	}
 	n_bytes += (long)n;
 	n_writes++;
@@ -631,14 +662,49 @@ ref_render(void)
 
 /* Checks */
 
+/* The wire bytes of one rectangle, from the design's rule, not the library's. */
+static long
+wire_cost(int w, int h)
+{
+	long rows = 5120 / w, strips = (h + rows - 1) / rows;
+
+	return (long)scene.bpp * w * h + 11 * strips;
+}
+
+static long
+wire_sent(void)
+{
+	return (long)scene.bpp * n_pixels + 11 * n_ioctl_window;
+}
+
+/* Start a new damage interval: nothing pending, or the whole panel. */
+static void
+interval_reset(int all)
+{
+	memset(mask, all, sizeof(mask));
+	memset(wrote, 0, sizeof(wrote));
+	iv_cost = all ? wire_cost(PW, PH) : 0;
+	iv_sent0 = wire_sent();
+	iv_injected0 = n_injected;
+}
+
 static void
 mark(int x0, int y0, int x1, int y1)
 {
 	int x, y;
 
-	for (y = y0 < 0 ? 0 : y0; y < y1 && y < PH; y++)
-		for (x = x0 < 0 ? 0 : x0; x < x1 && x < PW; x++)
+	x0 = x0 < 0 ? 0 : x0;
+	y0 = y0 < 0 ? 0 : y0;
+	x1 = x1 > PW ? PW : x1;
+	y1 = y1 > PH ? PH : y1;
+	if (x0 >= x1 || y0 >= y1)
+		return;
+	iv_cost += wire_cost(x1 - x0, y1 - y0);
+	for (y = y0; y < y1; y++)
+		for (x = x0; x < x1; x++) {
 			mask[y * PW + x] = 1;
+			wrote[y * PW + x] = 0;
+		}
 }
 
 static void
@@ -781,6 +847,27 @@ check_scene_mirror(void)
 	check_focus();
 }
 
+/*
+ * After a successful flush: every invalidated pixel was written since its
+ * last invalidation, and the wire bytes sent do not exceed the cost of the
+ * rectangles as invalidated. A flush the model failed resends pixels, so the
+ * byte bound holds only for an interval without a backend failure.
+ */
+static void
+check_flushed_damage(void)
+{
+	int p;
+
+	if (mask_all)
+		return;
+	for (p = 0; strict_marks && p < PW * PH; p++)
+		if (mask[p] && !wrote[p])
+			fail("pixel %d,%d invalidated but not written", p % PW, p / PW);
+	if (n_injected == iv_injected0 && wire_sent() - iv_sent0 > iv_cost)
+		fail("flush sent %ld wire bytes, the unmerged cost is %ld",
+		    wire_sent() - iv_sent0, iv_cost);
+}
+
 static void
 after_op(int flushed)
 {
@@ -789,7 +876,8 @@ after_op(int flushed)
 	if (flushed) {
 		if (scene.ndamage != 0)
 			fail("damage list not empty after a flush");
-		memset(mask, 0, sizeof(mask));
+		check_flushed_damage();
+		interval_reset(0);
 		check_image(1);
 		check_title_pixels();
 	} else {
@@ -803,7 +891,6 @@ static void
 reset_world(void)
 {
 	memset(panel, UNWRITTEN, sizeof(panel));
-	memset(mask, 1, sizeof(mask));
 	memset(tw, 0, sizeof(tw));
 	memset(holder.pad, 0xcc, sizeof(holder.pad));
 	norder = 0;
@@ -812,10 +899,14 @@ reset_world(void)
 	inject_every = 0;
 	fail_countdown = 0;
 	win_open = 0;
-	n_ioctl_window = n_bytes = n_ioctl_palette = n_writes = 0;
+	n_ioctl_window = n_bytes = n_ioctl_palette = n_writes = n_pixels = 0;
+	colmod_seen = 0;
 	win_lcdgfx_init(&backend, &lcd, MODEL_FD);
 	if (win_scene_init(&scene, &backend) != 0)
 		fail("win_scene_init");
+	if (!skip_colmod && win_lcdgfx_rgb565(&scene, &lcd) != 0)
+		fail("win_lcdgfx_rgb565");
+	interval_reset(1);
 	win_scene_set_bits(&scene, win_lcdgfx_bits);
 }
 
@@ -984,10 +1075,12 @@ op_move(void)
 	}
 	if (!call_ok(win_move(&scene, t->handle, nx, ny), inj, "win_move"))
 		return;
-	mark_shown(t);
-	t->x = nx;
-	t->y = ny;
-	mark_shown(t);
+	if (nx != t->x || ny != t->y) {	/* A move to the same place leaves the damage list unchanged. */
+		mark_shown(t);
+		t->x = nx;
+		t->y = ny;
+		mark_shown(t);
+	}
 }
 
 static void
@@ -1333,6 +1426,56 @@ run_burst(void)
 	damage_pair(25, 10, 50, 30, 0, 0, 50, 50, 2, 2500 + 25 * 30);
 	printf("PASS burst: 20 scattered rectangles sent %ld windows; gap, "
 	    "touch and overlap cases exact\n", burst_windows);
+}
+
+/*
+ * The bounding-box rule. A 100x100 window moved by (5,5) repaints one
+ * 105x105 box (three strips); rectangles whose box costs more stay apart; the same pair
+ * merges at 2 wire bytes a pixel and stays apart at 3, where each extra
+ * pixel costs more against the 11-byte window command it saves.
+ */
+static void
+run_cost(void)
+{
+	reset_world();
+	use_bits(0);
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	damage_pair(0, 0, 100, 100, 5, 5, 100, 100, 3, 105 * 105);
+	/* Two small rectangles touching at a corner: the box is 64 pixels. */
+	damage_pair(10, 10, 4, 4, 14, 14, 4, 4, 2, 32);
+	/* A thin L: the bounding box is 50x52. */
+	damage_pair(10, 10, 50, 2, 10, 12, 2, 50, 2, 200);
+	/*
+	 * Strips are ceil(h / floor(5120 / w)): a 34x301 rectangle takes three
+	 * strips of 150 rows (5120 / 34 is 150.6), where a real-valued divisor
+	 * counts two, and the overlapping 22x128 and 51x245 pair stays apart
+	 * because the box (three strips) costs more than the pair (four).
+	 */
+	damage_pair(200, 0, 34, 301, 200, 0, 34, 301, 3, 34 * 301);
+	damage_pair(24, 13, 22, 128, 35, 15, 51, 245, 4, 22 * 128 + 51 * 245);
+	/*
+	 * The box is compared with the trimmed cover, not the untrimmed pair:
+	 * the first rectangle loses its overlap with the second (50 rows kept),
+	 * 34,044 bytes at 2 a pixel against 44,055 untrimmed and 36,044 for the box.
+	 */
+	damage_pair(10, 0, 100, 100, 0, 50, 120, 100, 4, 5000 + 12000);
+	/* The break-even pair: 8 box pixels for 4 invalidated ones. */
+	damage_pair(100, 100, 3, 1, 103, 101, 1, 1, 1, 8);
+	skip_colmod = 1;
+	reset_world();
+	use_bits(0);
+	if (scene.bpp != 3)
+		fail("a scene without the backend call prices %d bytes a pixel",
+		    scene.bpp);
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	damage_pair(100, 100, 3, 1, 103, 101, 1, 1, 2, 4);
+	skip_colmod = 0;
+	printf("PASS cost: (5,5) move sent one 105x105 box; far corners and a thin L "
+	    "stay apart; the break-even pair merges at 2 bytes and splits at 3\n");
 }
 
 /* Calls that must refuse. */
@@ -3331,6 +3474,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "usage: win_test [OPERATIONS]\n");
 		return 2;
 	}
+	strict_marks = 1;
 	reset_world();
 	inject_every = 150;
 	run_random(nops);
@@ -3340,6 +3484,8 @@ main(int argc, char **argv)
 	    "%ld writes, %ld backend failures\n", nops, n_ioctl_window, n_bytes,
 	    n_writes, n_injected);
 	run_burst();
+	run_cost();
+	strict_marks = 0;	/* The later scripts mark whole windows, some unchanged. */
 	run_api();
 	run_failure();
 	run_focus();

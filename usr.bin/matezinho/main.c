@@ -81,29 +81,54 @@ read_icon(void *ctx,int app,int row,uint16_t *out)
     for(i=0;i<24;i++) out[i]=(uint16_t)(raw[i*2]|raw[i*2+1]<<8);
     return 0;
 }
+#ifdef MZ_BOARD
+/* The console runs the panel at COLMOD 0x55; each open of /dev/lcdgfx resets
+ * it to 0x66 (18 bits a pixel) and the last close restores 0x55. The desktop
+ * sends RGB565 bands, so the open sets 0x55 again: two wire bytes a pixel. */
 static int
-write_band(void *ctx,int y,const uint16_t *data)
+open_display(void)
+{
+    struct lcdg_colmod cm;
+    int fd=open("/dev/lcdgfx",O_WRONLY);
+    if(fd<0) return -1;
+    cm.fmt=LCDG_COLMOD_RGB565;
+    if(ioctl(fd,LCDG_COLMOD,&cm)<0) { close(fd); return -1; }
+    return fd;
+}
+#endif
+/*
+ * Send columns [xlo, xhi) (MZ_XUNIT-pixel units) of the 8 rows at y. The
+ * board opens one window of that width and writes it row by row from the
+ * 320-column band buffer. The PPM sink writes the same columns at the same
+ * offsets, so the file holds the last range written to every pixel.
+ */
+static int
+write_band(void *ctx,int y,const uint16_t *data,int xlo,int xhi)
 {
     struct backend *b=ctx;
+    int x0=xlo*MZ_XUNIT,w=(xhi-xlo)*MZ_XUNIT,j;
 #ifdef MZ_BOARD
-    struct lcdg_window w;
-    memset(&w,0,sizeof(w));
-    w.x=0; w.y=(unsigned short)y; w.w=320; w.h=8; w.fmt=LCDG_WIN_RGB565;
-    if(ioctl(b->display,LCDG_WINDOW,&w)<0) return -1;
-    return transfer(b->display,(void *)data,5120,1);
+    struct lcdg_window win;
+    memset(&win,0,sizeof(win));
+    win.x=(unsigned short)x0; win.y=(unsigned short)y;
+    win.w=(unsigned short)w; win.h=8; win.fmt=LCDG_WIN_RGB565;
+    if(ioctl(b->display,LCDG_WINDOW,&win)<0) return -1;
+    for(j=0;j<8;j++)
+        if(transfer(b->display,(void *)(data+j*MZ_W+x0),w*2,1)<0) return -1;
+    return 0;
 #else
     unsigned char rgb[960];
-    int i,j;
     unsigned v;
-    if(lseek(b->display,15L+y*960L,SEEK_SET)<0) return -1;
+    int i;
     for(j=0;j<8;j++) {
-        for(i=0;i<320;i++) {
-            v=data[j*320+i];
+        for(i=0;i<w;i++) {
+            v=data[j*MZ_W+x0+i];
             rgb[i*3]=(unsigned char)(((v>>11)*255+15)/31);
             rgb[i*3+1]=(unsigned char)((((v>>5)&63)*255+31)/63);
             rgb[i*3+2]=(unsigned char)(((v&31)*255+15)/31);
         }
-        if(transfer(b->display,rgb,sizeof(rgb),1)<0) return -1;
+        if(lseek(b->display,15L+(y+j)*960L+x0*3L,SEEK_SET)<0) return -1;
+        if(transfer(b->display,rgb,w*3,1)<0) return -1;
     }
     return 0;
 #endif
@@ -369,7 +394,7 @@ board_loop(struct mz_io *io,const char *note_path)
                 }
                 if(pid>0) do reaped=wait(&wait_status);
                     while(reaped!=pid && (reaped>=0 || errno==EINTR));
-                backend.display=open("/dev/lcdgfx",O_WRONLY);
+                backend.display=open_display();
                 /* A tty whose foreground group changed during the shell
                  * keeps the modes its new owner set. */
                 if(backend.display<0 || ioctl(0,TIOCGPGRP,&pgrp)<0 ||
@@ -427,7 +452,7 @@ main(int argc,char **argv)
         return 1;
     }
 #ifdef MZ_BOARD
-    backend.display=open("/dev/lcdgfx",O_WRONLY);
+    backend.display=open_display();
     note_path=argv[2];
 #else
     backend.display=open(argv[2],O_CREAT|O_TRUNC|O_RDWR,0600);

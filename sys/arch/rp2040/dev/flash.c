@@ -35,8 +35,8 @@
  *
  * Dhara is written for NAND, and this part is NOR, which suits Dhara at zero cost and
  * saves something. Its contract wants pages programmed sequentially within an
- * eraseblock and never reprogrammed, which NOR satisfies. NOR lacks factory
- * bad blocks and no ECC, so the bad-block callbacks below are honest
+ * eraseblock and never reprogrammed, which NOR satisfies. NOR ships without
+ * factory bad blocks and lacks ECC, so the bad-block callbacks below are honest
  * constants rather than stubs awaiting work.
  *
  * The RP2040 constraint that shapes everything here: erasing or programming

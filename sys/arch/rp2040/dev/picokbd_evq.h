@@ -131,8 +131,8 @@ int	picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
 /*
  * The console's read-select. The queue check and the tty's selector
  * registration (o->tty()) run in one critical section (o->raise() to
- * o->restore()), because an event queued between them would find the selector gone
- * to wake and the caller would sleep with it waiting. The wake takes the
+ * o->restore()), because an event queued between them would arrive before the selector
+ * is registered, wake nobody, and leave the caller asleep with it waiting. The wake takes the
  * same level, so it runs before the section or after the registration; a
  * drain runs at that level from an ioctl and cannot interleave, and a
  * selector left registered when select returns ready is harmless, since

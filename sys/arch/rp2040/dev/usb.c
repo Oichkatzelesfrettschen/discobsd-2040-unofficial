@@ -1000,8 +1000,8 @@ usb_rx_rearm_if_idle(void)
 
 /*
  * Release a bulk IN endpoint whose completion never arrived. tx_busy says a
- * packet is outstanding and only the completion clears it, so a buffer that
- * holds zero leaves the ring unreadable for the rest of the configuration:
+ * packet is outstanding and only the completion clears it, so an endpoint
+ * whose completion is lost leaves the ring unreadable for the rest of the configuration:
  * usb_tx_kick returns on tx_busy alone, and nothing else writes it.
  *
  * The same three bits that decide the OUT case decide this one. 4.1.2.7.4

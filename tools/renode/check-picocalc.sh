@@ -68,12 +68,13 @@ fi
 	missing "no RP2040 models; run sh tools/renode/fetch-renode-rp2040.sh"
 
 # The panel model is an SPI child of PL022, which hands it frames only after
-# the 0008 patch; a models tree fetched before that patch ran the series
-# without it and would print a banner nowhere.
+# the 0008 patch, and the frame timing this gate boots with is that of the
+# 0010 patch; an earlier model passes the FIFO probe as well. The series
+# stamp refuses a build of any other patch series.
 [ -r "$MODELS" ] ||
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
-grep -aq TransferFrame "$MODELS" ||
-	missing "the built models predate patch 0008 (pl022 frames to an SPI child); rerun sh tools/renode/fetch-renode-rp2040.sh"
+sh "$SCRIPT_DIR/models-series.sh" check "$MODELS" ||
+	missing "the built models do not match tools/renode/patches; rerun sh tools/renode/fetch-renode-rp2040.sh"
 
 [ -r "$KERNEL" ] ||
 	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"

@@ -1640,6 +1640,22 @@ check-run-bounded:
 
 .PHONY: check-run-bounded
 
+# The built Renode models carry the identity of the patch series they were
+# built from (tools/renode/models-series.sh): the fetch stamps the build and
+# every gate that boots the models compares the stamp. The self-test holds
+# the comparison to a fixture series: a build without a stamp, an edited, an
+# added and a renamed patch and a moved pin are refused, and a series
+# without patches cannot be identified.
+check-renode-models-series:
+		sh tools/renode/models-series.sh selftest
+
+.PHONY: check-renode-models-series
+
+# The recipes that start Renode without one of the check-*.sh scripts
+# compare the stamp themselves.
+RENODE_MODELS_CURRENT=	sh tools/renode/models-series.sh check \
+		    tools/renode/vendor/Renode_RP2040/emulation/bin/Release/net8.0/Peripherals.dll
+
 # CI installs its packages through tools/ci_apt_install.sh, which bounds each
 # network phase of apt-get in wall-clock time and retries it: a mirror that
 # trickles bytes never trips apt's idle timeout, and one such download held the
@@ -2134,6 +2150,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
 		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install check-run-bounded \
+		check-renode-models-series \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
 		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \
@@ -2732,6 +2749,7 @@ check-renode-picocalc-dump:
 
 check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kernel
 		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
+		${RENODE_MODELS_CURRENT}
 		@set -e; out=tools/renode/vendor/results; mkdir -p $$out; \
 		: > $$out/picocalc-sd-system.log; : > $$out/picocalc-sd-diag-system.log; \
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
@@ -2758,6 +2776,7 @@ check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kerne
 # (tools/renode/check-picocalc-sdroot.py). BOARD is PICOCALC, and
 # UNION_KERNEL selects PICOCALC, PICOCALC_LEAN or PICOCALC_LEAN_DIAG.
 check-renode-picocalc-sdroot:	sdroot ${BOARD_KERNEL_UF2}
+		${RENODE_MODELS_CURRENT}
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py \
 		    "$$(command -v renode)" ${BOARD_KERNEL_UF2} \
 		    ${SDROOTIMG} tools/renode/vendor/results/picocalc-sdroot
@@ -3045,6 +3064,7 @@ check-ulisp-qemu: check-python
 # over UART0 (tools/renode/check-ulisp.py). Outside "check" for the reason
 # check-renode is, and it needs a flash image built with IMAGE_WITH=ulisp.
 check-renode-ulisp: check-python
+	${RENODE_MODELS_CURRENT}
 	${PYTHON} -I -u tools/renode/check-ulisp.py renode \
 	    ${.CURDIR}/sys/arch/rp2040/compile/PICO_UART/unix.bin \
 	    ${FLASHBIN} ${.CURDIR}/tools/renode/vendor/results/ulisp

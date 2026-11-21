@@ -68,10 +68,12 @@ Session (i86 -g -c 286 -e 2048 -a blank.img -h c32.img):
   C:\EXCEL\LIBRARY, all 50 tutorial files of both disks in
   C:\EXCEL\EXCELCBT, and in C:\WINDOWS\WIN.INI the xls, xlc, xlw and xlm
   associations and a [Microsoft Excel] section, none of which Windows'
-  own WIN.INI carries. The Utilities disk holds the Windows/286 run-time
-  (USER, CONTROL, SPOOLER, the display and mouse drivers, the fonts and
-  the memory managers), which Setup installs only where no Windows is
-  present. C:\EXCEL held EXCEL.EXE (606,992 bytes), EXCELHLP.HLP, the
+  own WIN.INI carries. The Windows/286 run-time that Setup installs where
+  no Windows is present spans two disks: the Library disk carries KERNEL,
+  GDI and the display and mouse drivers beside LIBRARY and part of
+  EXCELCBT, and the Utilities disk carries USERS, CONTROL, SPOOLER, the
+  fonts, the memory managers and the printer drivers, none of which an
+  installation into Windows 3.0 needs. C:\EXCEL held EXCEL.EXE (606,992 bytes), EXCELHLP.HLP, the
   sample sheets, XLSETUP.EXE and the LIBRARY macros.
   win c:\excel\excel.exe: Sheet1 opens; 12 in A1, 30 in A2 and
   =A1*A2+1 in A3 show 361; File, Save As writes CALC.XLS (904 bytes) to
@@ -82,5 +84,10 @@ Session (i86 -g -c 286 -e 2048 -a blank.img -h c32.img):
     45h 25, 42h 16, 4Eh 15, 44h 10, 58h 9, 40h 7, 46h 6, 41h 6,
     59h 3, 4Bh 3, 43h 2.
 
-Not covered: PowerPoint 2.0, whose disks the owner's media set does not hold; Word's and Excel's optional parts; standard
+PowerPoint 2.0 (IMG/PowerPoint, five disks): the Setup disk in A:,
+  File, Run, a:\setup.exe stops at once with a dialog "Sorry, this version
+  of PowerPoint Setup requires protected mode Windows 3." i86 runs Windows
+  3.0 in real mode only, so PowerPoint 2.0 waits for protected mode.
+
+Not covered: PowerPoint 2.0's installation and use (above); Word's and Excel's optional parts; standard
 mode; the kernel and the board; the speed.

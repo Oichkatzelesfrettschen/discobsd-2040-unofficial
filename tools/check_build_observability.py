@@ -66,7 +66,7 @@ EXPECTED_COMMANDS = {
     ),
     "linux-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "linux-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
-    "linux-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
+    "linux-host": 'bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
     "linux-flash-picocalc": (
         'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 BOARD=PICOCALC flash'
     ),
@@ -103,8 +103,8 @@ EXPECTED_COMMANDS = {
     "macos-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',
     "macos-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "macos-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
-    "macos-host-a": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a',
-    "macos-host-b": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b',
+    "macos-host-a": 'bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a',
+    "macos-host-b": 'bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b',
     "macos-kernel-headroom": (
         "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link "
         "check-kernel-buffer-alignment"

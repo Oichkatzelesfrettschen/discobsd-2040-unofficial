@@ -102,6 +102,41 @@ CASES = (
 )
 
 
+# Determiner negation: a phrase the base already holds stays out of the verdict.
+DETERMINER_CASES = (
+    ("determiner added to prose", {"a.md": "The image carries no V6 pack.\n"}, 1,
+     ("TX003_DETERMINER_NEGATION a.md:1",), None),
+    ("determiner split across a line break",
+     {"a.md": "Text.\nApple's Python has\nno pyserial.\n"}, 1,
+     ("TX003_DETERMINER_NEGATION a.md:3",), None),
+    ("determiner in a code span and a fence",
+     {"a.md": "The `returns nothing` stub.\n\n```\nit has no flag\n```\n"}, 0, (), None),
+    ("bound and preposition stay", {"a.md": "It is no longer valid with no board.\n"}, 0, (),
+     None),
+    ("inherited phrase kept beside an edit",
+     {"a.md": "The board carries no V6 pack.\nA new line.\n"}, 0, (),
+     {"a.md": "The board carries no V6 pack.\n"}),
+    ("inherited phrase moved within the file",
+     {"a.md": "Top.\nThe board carries no V6 pack.\n"}, 0, (),
+     {"a.md": "The board carries no V6 pack.\nTop.\n"}),
+    ("copy added ahead of an inherited phrase",
+     {"a.md": "It prints nothing.\nText.\nIt prints nothing.\n"}, 1,
+     ("TX003_DETERMINER_NEGATION a.md:1", "(lines 1, 3)"), {"a.md": "Text.\nIt prints nothing.\n"}),
+    ("heading verb above a paragraph that opens with No",
+     {"a.md": "## Not run\n\nNo board execution.\n"}, 0, (), None),
+    ("capitalized determiner", {"a.md": "## The Handler Returns Nothing\n"}, 1,
+     ("TX003_DETERMINER_NEGATION a.md:1",), None),
+    ("second copy of an inherited phrase",
+     {"a.md": "It prints nothing.\nThen it prints nothing.\n"}, 1,
+     ("TX003_DETERMINER_NEGATION a.md:1", "(lines 1, 2)"), {"a.md": "It prints nothing.\n"}),
+    ("positive rewrite of an inherited phrase",
+     {"a.md": "The board omits the V6 pack.\n"}, 0, (),
+     {"a.md": "The board carries no V6 pack.\n"}),
+    ("copy review keeps the reviewed wording",
+     {"docs/research/copy-reviews/r.md": "It has no effect.\n"}, 0, (), None),
+)
+
+
 # An edit inside a fence the base already holds: the diff carries no fence line.
 EDIT_IN_FENCE = (
     "British word edited inside an existing fence",
@@ -114,7 +149,8 @@ EDIT_IN_FENCE = (
 
 def main():
     failures = 0
-    for label, files, status, codes, *base in (*CASES, EDIT_IN_FENCE):
+    cases = (*CASES, EDIT_IN_FENCE, *DETERMINER_CASES)
+    for label, files, status, codes, *base in cases:
         got, out = run_case(files, base[0] if base else None)
         missing = [code for code in codes if code not in out]
         if got != status or missing:
@@ -123,9 +159,9 @@ def main():
         else:
             print(f"ok {label}")
     if failures:
-        print(f"changed_text_test: {failures} of {len(CASES) + 1} cases failed")
+        print(f"changed_text_test: {failures} of {len(cases)} cases failed")
         return 1
-    print(f"changed_text_test: {len(CASES) + 1} cases pass")
+    print(f"changed_text_test: {len(cases)} cases pass")
     return 0
 
 

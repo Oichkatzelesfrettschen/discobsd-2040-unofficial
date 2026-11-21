@@ -83,6 +83,7 @@
 
 #include "gfx.h"
 #include "mem.h"
+#include "clock.h"
 #include "pc.h"
 #include "serial.h"
 #include "ems.h"
@@ -234,15 +235,12 @@ throttle(uint32_t steps)
 {
 	unsigned long now = host_us();
 	uint32_t n = steps * cf.cpi10 * 100u + thr_rem;
+	unsigned ms;
 
 	thr_due += n / cf.khz;
 	thr_rem = n % cf.khz;
-	if ((long)(now - thr_due) > 20000L)
-		thr_due = now - 20000UL;
-	else if ((long)(thr_due - now) > 100000L)
-		thr_due = now;	/* the host's clock stepped back */
-	else if ((long)(thr_due - now) >= 1000L)
-		host_sleep((unsigned)((thr_due - now) / 1000UL));
+	if ((ms = clk_pace(&thr_due, now)) != 0)
+		host_sleep(ms);
 }
 
 /* With I86_TRACE defined, a host build reports each firmware function and
@@ -1609,27 +1607,26 @@ pc_trap(struct i86 *c, unsigned n)
 
 /* Ports. */
 
-/* The host's clock in PIT clocks, exact through a carried remainder in
- * steps a 32-bit product holds; a gap over a second counts as one, and a
- * step back of the host's clock as none. */
+/* The host's milliseconds for the 55 ms tick, the waits and the serial
+ * port, moving on by every forward step of host_ms() and none of a
+ * backward one (clk_forward), so that a clock set back keeps neither
+ * waiting out the difference. */
+static unsigned long
+host_now(void)
+{
+	static unsigned long last, mono;
+
+	mono += clk_forward(&last, host_ms());
+	return (mono);
+}
+
+/* The host's clock in PIT clocks, exact through a carried remainder;
+ * clk_pit counts a gap over a second as one and a step back of the host's
+ * clock as none. */
 static uint32_t
 host_clock(void)
 {
-	unsigned long us = host_us(), d = us - host_last;
-	uint32_t k, n;
-
-	host_last = us;
-	if ((long)d < 0)		/* the host's clock stepped back */
-		d = 0;
-	else if (d > 1000000UL)
-		d = 1000000UL;
-	while (d) {
-		k = d > 3598 ? 3598 : (uint32_t)d;
-		d -= k;
-		n = k * PIT_HZ + host_rem;
-		host_clk += n / 1000000u;
-		host_rem = n % 1000000u;
-	}
+	host_clk += clk_pit(&host_last, host_us(), &host_rem);
 	return (host_clk);
 }
 
@@ -2112,7 +2109,7 @@ pc_poll(struct i86 *c)
 			}
 			host_prev = clk;
 			pit_t = clk;
-			now = host_ms();
+			now = host_now();
 		}
 		if ((long)(now - next_tick) >= 0) {
 			next_tick += 55;
@@ -2233,7 +2230,7 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	if (TERMINAL)
 		oputs("\033[1;25r\033[?7l");
 	set_mode(cf.cols == 40 ? 1 : 3);
-	next_tick = cf.fixed_clock ? 0 : host_ms() + 55;
+	next_tick = cf.fixed_clock ? 0 : host_now() + 55;
 	/* The timer as the firmware leaves it: counter 0 at 18.2 Hz in
 	 * mode 3, counter 1 refreshing, counter 2 loaded for a beep. */
 	host_last = thr_due = host_us();

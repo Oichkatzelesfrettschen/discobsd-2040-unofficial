@@ -97372,7 +97372,8 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
-            "shift-expression"
+            "shift-expression",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [
             "dynamic-storage"

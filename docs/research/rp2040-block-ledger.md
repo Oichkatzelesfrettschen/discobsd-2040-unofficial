@@ -25,7 +25,7 @@ Counts, from the rows below: 28 used, 5 partial, 1 boot only, 1 test only, 7 unu
 | XIP_CTRL | `0x14000000` | 2.6.3 Flash (XIP cache), p.122 | `xip.h` | used | flash.c disables and flushes the cache around erase and program; sysctl.c reads the cache hit and access counters. |
 | XIP_SRAM | `0x15000000` | 2.6.3 Flash (XIP cache as SRAM), p.122 | `addressmap.h` | test only | usr.bin/mputest probes the window; no kernel use. |
 | XIP_SSI | `0x18000000` | 4.10 SSI, p.567 | `ssi.h` | used | boot2 programs the SSI for quad read; flash.c writes BAUDR and RX_SAMPLE_DLY through XIP_SSI_REG (0x18000000) to re-time the flash clock and restores them after the boot ROM routines (SSIENR is 0 for the write). |
-| SRAM | `0x20000000` | 2.6.2 SRAM, p.121 | `addressmap.h` | used | kernel text-relative data, bss and the process window (linker scripts conf/RP2040.ld and RP2040-sd.ld). |
+| SRAM | `0x20000000` | 2.6.2 SRAM, p.121 | `addressmap.h` | used | kernel text-relative data, bss and the process window (linker scripts conf/RP2040.ld and RP2040-sd.ld); usr.bin/mputest reads four words of the unstriped aliases (SRAM_ALIAS, `0x21000000` through the bank 3 window) to show that no MPU region covers them: word 0 of banks 0 and 3 and the kernel-data word of each. |
 | SRAM4 | `0x20040000` | 2.6.2 SRAM (unstriped banks), p.121 | `addressmap.h` | used | SRAM4 and SRAM5 hold boot2 and the scratch region (conf/RP2040.ld, RP2040-sd.ld SCRATCH). |
 | SYSINFO | `0x40000000` | 2.20 Sysinfo, p.305 | `sysinfo.h` | partial | machdep.c reads CHIP_ID. |
 | SYSCFG | `0x40004000` | 2.21 Syscfg, p.306 | `syscfg.h` | partial | core1.c uses PROC0_NMI_MASK to probe core 1; machdep.c defines the base. |
@@ -69,10 +69,12 @@ DMA, I2C0, PIO1, RTC, TBMAN, VREG_AND_CHIP_RESET and XIP_AUX have no register ac
 
 ## Method
 
-The base addresses and header names come from the SDK; each block was searched in the port with its `*_BASE` name and its hexadecimal base, and every hit was read in place before a state was recorded:
+The base addresses and header names come from the SDK; the first two commands below check that the resolved SDK is 2.3.1 and carries the 53 entries the ledger counts, and a different release or entry count invalidates the denominator. Each block was searched in the port with its `*_BASE` name and its hexadecimal base, and every hit was read in place before a state was recorded:
 
 ```sh
 sdk=$(sh tools/pico-sdk/sdk-path.sh)
+grep -E 'set\(PICO_SDK_VERSION_(MAJOR|MINOR|REVISION) ' "$sdk/pico_sdk_version.cmake"   # 2, 3 and 1
+grep -c '_BASE _u(' "$sdk/src/rp2040/hardware_regs/include/hardware/regs/addressmap.h"      # 53
 grep -n '_BASE _u(' "$sdk/src/rp2040/hardware_regs/include/hardware/regs/addressmap.h"
 git grep -n -i -E '(NAME_BASE|0xBASE)' -- sys/arch/rp2040 usr.bin lib sbin bin ':!sys/arch/rp2040/doc' ':!sys/arch/rp2040/compile' ':!*.md' ':!*.tsv' ':!*.json'
 ```

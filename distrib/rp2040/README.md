@@ -53,7 +53,7 @@ Hold BOOTSEL while plugging the board in; it enumerates as `RPI-RP2`. Then:
 Each `load` programs only the sectors its file covers, so the two do not
 disturb each other; the ROM's mass-storage loader accepts the same files by
 copy. `picotool info -a` afterwards reports the kernel's binary information
-as `none`, which is expected: the kernel carries no SDK metadata block.
+as `none`, which is expected: the kernel omits the SDK metadata block.
 
 ## Console
 

@@ -823,10 +823,10 @@ jobs:
     name: rp2040 kernel, flash image on macOS
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
-    # The explicit step limits add up to 174 minutes (the host tier alone 79);
+    # The explicit step limits add up to 199 minutes (the host tier alone 104);
     # the bound leaves 6 minutes above that sum. The complete run of dispatch
     # 44877305151 took 65 minutes.
-    timeout-minutes: 180
+    timeout-minutes: 205
     steps:
       - uses: actions/checkout@v4
         with:
@@ -949,17 +949,20 @@ jobs:
       # It runs as two steps over one partition of check-host
       # (HOST_TIER_B_GATES in the Makefile; check-host-split proves it exact).
       # The first part finished every gate in 2243 s and the second in 697 s
-      # (dispatch 44877305151); their limits are 1.34 and 1.72 times those.
+      # (dispatch 44877305151). The nightly 44888989971 was still in the last
+      # gate of the first part at 2935 s, when the idle limit ended it, so the
+      # first part's runs span 2243 s to more than 2935 s; its limit is 4500 s,
+      # and the second part's limit is 1.72 times its measurement.
       # The first part carries the C17 library families, whose math and wide
       # fixtures run native and sanitized, and the ulisp mutants.
       - name: Run the host tier, first part
-        timeout-minutes: 55
+        timeout-minutes: 80
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host-a \
             --log .build-logs/macos-host-a.log \
             --status .build-logs/macos-host-a.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 3000 \
+            --idle-timeout-seconds 300 --timeout-seconds 4500 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
       - name: Run the host tier, second part
         timeout-minutes: 24

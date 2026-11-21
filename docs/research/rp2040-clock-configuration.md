@@ -363,7 +363,7 @@ At 1.15 V the regulator's 3% tolerance reaches 1.1845 V, above the 1.16 V DVDD m
 | SD, `sd.c` lines 117-121 | exact | exact | the identification SCR of 312 trips the 255 assertion | compile time |
 | Audio, `picopcm.c` lines 105-109 | `PCM_LEVELS` 300 | 400 | 500 | compile time |
 
-150, 200 and 250 MHz make the SD and LCD rates exact, which 133 MHz does not. The silent rows, LCD and PSRAM, are the ones a clock change must carry assertions for.
+With divisors chosen for each clock, the SD data clock (prescale 12, 16, 20) and the LCD write clock (SCR 5, 7, 9) are exactly 12.5 MHz at 150, 200 and 250 MHz; at 133 MHz neither is (11.08 MHz at the nearest even prescale). The SD identification clock is exactly 400 kHz only at 200 MHz: 398.9 kHz at 150, and at 250 MHz 399.4 kHz with an SCR of 312 that the assertion refuses. The silent rows, LCD and PSRAM, are the ones a clock change must carry assertions for.
 
 ### The vendor 250 MHz
 

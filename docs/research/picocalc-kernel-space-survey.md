@@ -28,7 +28,8 @@ on the strength of its 16 KiB RAM pool, whose code is 2,635 bytes):
 | `st7365p.o` | 3,184 |
 | `sys_inode.o` | 3,000 |
 
-The largest functions are `namei_at` (2,992 bytes), `lcdterm_putc`
+The largest functions (`arm-none-eabi-nm -S --size-sort` over
+`compile/PICOCALC/unix.elf`) are `namei_at` (2,992 bytes), `lcdterm_putc`
 (1,968), `usb_service` (1,708), `prf` (1,360) and `ttioctl` (1,328).
 
 ## Configuration options: the measured lever
@@ -49,7 +50,7 @@ Removing `-DCAPACITY_STATS` alone fails to compile: the Makefile still
 builds `subr_capacity.o`, whose function definitions `capacity.h` then
 turns into stub macros. Measuring it takes `subr_capacity.o` out of
 `OBJS` as well (`docs/research/kernel-footprint-handoff.md`); this
-survey leaves that row unmeasured. Removing both diagnostic options in one build measures 123,944 bytes of
+survey leaves that row unmeasured. Removing `LCD_PANELTEST` and `SYSTRACE` together in one build measures 123,944 bytes of
 text, 3,784 fewer than the baseline (the isolated rows overlap by 8 bytes),
 and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
 3,584 fewer, which leaves 6,776 bytes of headroom against today's 3,192.

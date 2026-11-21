@@ -1916,6 +1916,8 @@ check-mpu-startup: check-python
 check-panel-programs: check-python
 		${PYTHON} tools/unicorn/check_panel_program.py \
 		    sys/arch/rp2040/compile/PICOCALC/unix.elf
+		${PYTHON} tools/unicorn/check_panel_gfx_ext.py \
+		    sys/arch/rp2040/compile/PICOCALC_SD/unix.elf
 
 .PHONY: check-mpu-startup check-panel-programs
 

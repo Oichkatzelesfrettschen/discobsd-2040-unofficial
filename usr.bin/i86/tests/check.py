@@ -842,6 +842,12 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
         os.close(slave)
     if step != len(steps):
         raise Failure("menu session: %r never appeared" % steps[step][0])
+    if termios_modes(before) != termios_modes(after):
+        print(
+            "i86 check: menu session: terminal mode not restored: "
+            + termios_diff(termios_modes(before), termios_modes(after)),
+            file=sys.stderr,
+        )
     return seen, status, termios_modes(before) == termios_modes(after)
 
 

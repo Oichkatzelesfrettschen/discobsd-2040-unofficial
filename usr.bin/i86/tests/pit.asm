@@ -37,7 +37,8 @@
 ; (st2), how often bit 4 of port 61h changed in 64 reads (rf), whether a
 ; poller saw counter 2's mode 2 low pulse (m2, 0), how many of 40 latched
 ; reads of an odd mode 3 count were even (m3e), the high byte of a BCD
-; count of 10000 just loaded (bcd, 99), and, with
+; count of 10000 just loaded (bcd, 99), OUT after the first byte of a new
+; mode 0 count (m0s, 0), and, with
 ; counter 0 back at 65536 and the firmware's handler, that the tick count
 ; at 40:6Ch moved (tick), then runs 131072 instructions before "done",
 ; which -S paces.
@@ -232,6 +233,25 @@ main:	call latch0
 	mov ax, bx
 	mov si, s_m3e
 	call say4
+	; mode 0, count 1, done at once (OUT high); the first byte of a new
+	; count stops it with OUT low (m0s, 0)
+	mov al, 0xb0
+	out 0x43, al
+	mov al, 1
+	out 0x42, al
+	xor al, al
+	out 0x42, al
+	mov cx, 50
+.m0w:	loop .m0w
+	mov al, 0xff
+	out 0x42, al
+	in al, 0x61
+	and al, 0x20
+	xor ah, ah
+	mov si, s_m0s
+	call say4
+	mov al, 0xff
+	out 0x42, al
 	; mode 0 in BCD, count 0 (10000): reads as decimal digits, 99xx
 	mov al, 0xb1
 	out 0x43, al
@@ -280,6 +300,7 @@ s_rf:	db "rf:", 0
 s_m2:	db "m2:", 0
 s_m3e:	db "m3e:", 0
 s_bcd:	db "bcd:", 0
+s_m0s:	db "m0s:", 0
 s_tick:	db "tick:ok", 0
 s_done:	db "done", 0
 

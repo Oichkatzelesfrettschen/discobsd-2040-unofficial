@@ -1607,7 +1607,8 @@ pc_trap(struct i86 *c, unsigned n)
 /* Ports. */
 
 /* The host's clock in PIT clocks, exact through a carried remainder in
- * steps a 32-bit product holds; a gap over a second counts as one. */
+ * steps a 32-bit product holds; a gap over a second counts as one, and a
+ * step back of the host's clock as none. */
 static uint32_t
 host_clock(void)
 {
@@ -1615,7 +1616,9 @@ host_clock(void)
 	uint32_t k, n;
 
 	host_last = us;
-	if (d > 1000000UL)
+	if ((long)d < 0)		/* the host's clock stepped back */
+		d = 0;
+	else if (d > 1000000UL)
 		d = 1000000UL;
 	while (d) {
 		k = d > 3598 ? 3598 : (uint32_t)d;
@@ -1802,8 +1805,14 @@ pit_write(struct i86 *c, unsigned n, unsigned v)
 	else if (p->rw == 2)
 		pit_load(c, n, v << 8);
 	else if (!p->wnext) {
+		/* Mode 0 stops at the first byte of a new count, OUT low. */
 		p->low = (uint8_t)v;
 		p->wnext = 1;
+		if (p->mode == 0) {
+			p->armed = 0;
+			if (n == 0)
+				irq_armed = 0;
+		}
 	} else {
 		p->wnext = 0;
 		pit_load(c, n, p->low | v << 8);

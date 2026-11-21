@@ -46,9 +46,12 @@ this document describes it:
 2. `REG_ID_BK2` write: clamp to [0, 240] and write PC8 exactly, with 0 as off.
    A direct I2C write of 241-255, which lands at 224 today, lands at 240.
 3. `BIOSVERSION` (`conf_app.h`) set to the private value 0xB7, which no
-   vendor release has used: `conf_app.h` and both the v1.6 and v1.7
-   binaries return 0x16 on `REG_ID_VER`, and earlier releases predate the
-   register. The OS treats the
+   vendor release has used: `conf_app.h` defines 0x16, the `REG_ID_VER`
+   handler of both the v1.6 and v1.7 binaries stores 0x16 (`movs r3, #22`
+   then `strb r3, [r4, #1]`, at 0x262c and 0x2634 in
+   `arm-none-eabi-objdump -D -b binary -marm -Mforce-thumb` of
+   `Bin/PicoCalc_BIOS_v1.6.bin` and `v1.7.bin`), and earlier releases
+   predate the register. The OS treats the
    exact-level firmware as present only when `REG_ID_VER` equals 0xB7
    exactly, a predicate the firmware, the kernel's version node and the
    Renode model's tests all pin; a later vendor release with any other
@@ -112,40 +115,49 @@ Both steps only read.
 
 ## 5. Flash route
 
-The wiki's route: DIP switch 1 on (SW701, which raises BOOT0 and routes the
-CH340C to the controller's USART1), USB-C to the host, a long press of the
-power key, then
+The `stm32flash` behavior below comes from its manual page and `main.c` at
+stm32duino/stm32flash `8bc5ceb3d`; this plan has not executed it. `-S
+address:length` erases the pages covering that range (`main.c` computes
+`first_page` and `num_pages` from it, and selects a mass erase when the
+range runs from the first page to the end of flash); `-v` reads every
+written block back; `-g address` starts execution there once the write
+ends, through the bootloader's Go command, which jumps without a reset.
 
-    stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN PORT
+Each step's state, from the wiki's route (SW701 switch 1 raises BOOT0 and
+routes the CH340C to the controller's USART1):
 
-where LEN is the image's size rounded up to the 1 KiB flash page, so the
-erase covers the image's pages alone; without a length `stm32flash`
-extends the range to the end of flash and erases all of it.
+| Step | Switch 1 | Controller runs | USART1 | Command |
+|---|---|---|---|---|
+| a. Enter | on | ROM bootloader, after a power-on reset with BOOT0 high | CH340C | power the board off (a long press of the power key while the vendor firmware runs), then on |
+| b. Identity, backup | on | ROM bootloader | CH340C | section 4 |
+| c. Write and start | on | ROM bootloader, then the new image | CH340C | `stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN -g 0x08000000 PORT` |
+| d. Leave | off | the new image; every later reset boots it, BOOT0 being low | Pico side | none |
 
-then DIP switch 1 off and `stm32flash -g 0x08000000 PORT`, which makes the
-ROM bootloader jump to the new image. The controller stays in its
-bootloader until then, whatever BOOT0 reads, and a long press of the power
-key belongs to the application firmware, which is not running; the other
-way out is removing all power (USB-C and cells out, as in
-`picocalc-first-power-up.md`). `-v` reads every
-written block back. PORT is the
-CH340C's serial node, named through `/dev/serial/by-id/` so that the Pico's
-own CDC-ACM console stays out of the command.
+LEN is the image's size rounded up to the 1 KiB flash page, so the erase
+covers the image's pages alone; without a length `stm32flash` extends the
+range to the end of flash and erases all of it. The Go command rides on the
+write invocation because switch 1 still routes the CH340C at that point;
+once switch 1 goes off, the host loses its serial path to the bootloader. PORT is
+the CH340C's serial node, named through `/dev/serial/by-id/` so that the
+Pico's own CDC-ACM console stays out of the command.
 
 ## 6. Recovery
 
 The system bootloader lives in the controller's ROM, which a flash write
-leaves intact, so a bad image recovers by the same route with the backup:
-`stm32flash -w kbd-backup-1.bin -v -S 0x08000000 PORT`. The plan writes only
-the main flash. Option bytes, readout protection and write protection
-stay untouched (`stm32flash`
-options `-j`, `-k`, `-u` and the option-byte
-commands are excluded; `-u` disables write protection, and the default
-write with the `:LEN` range erases only the pages the image covers; the
-recovery write of a full backup covers the whole flash by design), because readout protection would lock the backup
-path itself. A controller running a bad image may leave the Pico unpowered
-(PA13 drives PICO_EN), which the recovery route survives: the bootloader
-runs without the Pico.
+leaves intact, so a bad image recovers through the same table with the
+backup. Step a then needs a power-on reset that the bad image cannot
+refuse: with switch 1 on, remove all power (USB-C and cells out, as in
+`picocalc-first-power-up.md`) and restore it, since the power key's long
+press belongs to the application firmware. Step c becomes
+`stm32flash -w kbd-backup-1.bin -v -S 0x08000000 -g 0x08000000 PORT`,
+whose range runs to the end of flash and so erases all of it, which a full
+backup covers by design; step d follows unchanged. The plan writes only the
+main flash. Option bytes, readout protection and write protection stay
+untouched (`stm32flash` options `-j`, `-k`, `-u` and the option-byte
+commands are excluded; `-u` disables write protection), because readout
+protection would lock the backup path itself. A controller running a bad
+image may leave the Pico unpowered (PA13 drives PICO_EN), which the
+recovery route survives: the bootloader runs without the Pico.
 
 ## 7. Verification after the flash
 
@@ -171,6 +183,6 @@ board the owner names:
    runs only when both reads have the full length the flash-size word
    gives and the same SHA-256; a short, failed or differing read stops the
    lane before any write.
-5. Write the patched image (section 5) with `-v`, set DIP switch 1 off and
-   start the image with `stm32flash -g 0x08000000 PORT`.
+5. Write and start the patched image (section 5, step c), then set
+   switch 1 off (step d).
 6. Verify (section 7); on any failure, write the backup back (section 6).

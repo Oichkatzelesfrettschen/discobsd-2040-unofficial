@@ -40,8 +40,8 @@ include ${TOPSRC}/tools/qemu-arm.mk
 
 CFLAGS		+= -std=c17 -pedantic-errors -Wall -Wextra -Werror
 
-OBJS		= main.o pc.o gfx.o serial.o cpu.o mem.o
-HDRS		= font.h gfx.h i86.h mem.h pc.h serial.h
+OBJS		= main.o pc.o gfx.o serial.o ems.o cpu.o mem.o
+HDRS		= ems.h font.h gfx.h i86.h mem.h pc.h serial.h
 MAN		= i86.0
 MANSRC		= i86.1
 
@@ -68,7 +68,7 @@ HOSTCC?=	cc
 HOST_CFLAGS=	-std=c17 -pedantic-errors -D_DEFAULT_SOURCE -DHOSTBUILD \
 		-Wall -Wextra -Werror -Wshadow -O2 -I. \
 		-idirafter ${TOPSRC}/sys
-HOSTSRCS=	main.c pc.c gfx.c serial.c cpu.c mem.c
+HOSTSRCS=	main.c pc.c gfx.c serial.c ems.c cpu.c mem.c
 
 host:		i86-host
 

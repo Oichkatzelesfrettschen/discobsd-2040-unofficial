@@ -79,27 +79,43 @@ part; a new mode adds stages to `tests/panel.asm` and a frame rule to
 
 ## 3. Windows 3.0
 
-Windows 3.0 has a real mode that runs on an 8086 with 640 KB, a hard disk
-and a CGA, Hercules, EGA or VGA display, so the processor model is not the
-obstacle. Its keyboard driver takes interrupt 9, which now exists. What it
-needs: mode 6 (its CGA driver is 640x200 in two colors; present with
-`-g`), a hard disk image (present: `-h`, up to 1024 cylinders of 16 heads
-and 63 sectors), a mouse or the keyboard alone (item 1), and patience: at the inferred speed of an XT, Windows 3.0 in real
-mode was slow on real XTs too.
+Runs, in real mode, observed by hand on the host build with the panel
+model (`I86.md`, Evidence status; transcript
+`i86-dos-emulator/windows30-host.txt`). Windows 3.00a installs on a 32 MB
+SvarDOS disk made by `mkdosdisk.sh` from its seven 720 KB disks, changed
+through the Control-] menu. Setup's DOS part detects the CGA, the COM1
+mouse ("Microsoft, or IBM PS/2") and the 84-key keyboard and copies disks
+1 and 2; its Windows part, Windows itself in real mode, asks for disks 3
+to 5 when the printer, application search and documentation steps are
+left out. Program Manager and File Manager run, keys and Alt menus work
+and the mouse driver of Windows draws its pointer. The About box reports
+"Real Mode" and 393 KB free; with `-e 2048` and EMS.SYS it reports "Real
+Mode (Large Frame EMS)", 615 KB free (203 KB in EMS) and 1,776 KB of free
+expanded memory.
 
-On this panel mode 6 shows at half its horizontal resolution, each pair
-of pixels as one of three levels, so Windows text will be hard to read.
-That is a property of a 320-pixel panel, not of the emulator. Windows has
-not been started in it: no image is at hand (below).
+Windows found two defects of the expanded memory manager on the way,
+recorded because nothing else exercises these paths. It tells version 4.0
+from 3.2 by reallocating handle 0 to its own size (51h) and gave up on
+expanded memory when that was refused. It switches tasks through function
+5Bh with save areas, and a manager that loaded the new area without
+storing the old one sent it into a stale bank (an undefined instruction at
+C224:CC4D, inside the C000h pages).
 
-Standard and 386 enhanced mode need item 6 and are out of reach here.
-Whether a given application for Windows (Word, Excel) accepts real mode is
-not verified; several of that period require standard mode.
+`win /s` answers "Your computer cannot run Windows in either standard or
+386 enhanced mode"; WIN.COM asks DOS's multiplex interrupt (2Fh, 4300h)
+for an XMS driver and finds none. Section 6 lists what standard mode
+needs.
 
-The emulator's author does not fetch commercial software. MS-DOS, Windows
-and applications come from images the owner supplies; the gate uses only
-its own guest program, and the documents name FreeDOS and SvarDOS, which
-are free to redistribute.
+Open: Microsoft Office 1.0 (Word 1.1, Excel 2.1, PowerPoint 2.0), whose
+disks are at hand, is not installed yet; whether each program accepts
+real mode is the next decisive run. Mode 6 shows at half its horizontal
+resolution on the 320-pixel panel, so Windows text is small and pairs of
+pixels blend. The speed on a board is not measured.
+
+The emulator's author does not fetch commercial software. The owner
+supplied the Windows and Office disk images; they stay outside the tree,
+and so does every disk image made from them. The gate uses only its own
+guest programs.
 
 ## 4. Disk images, a floppy library, exchange with a host
 
@@ -163,18 +179,70 @@ measured choice of BUFFERS and FILES against page traffic. The images
 are built on a host and copied to the card; the board has no nasm or
 mtools, though `i86` itself runs `FORMAT` and `SYS` there.
 
-## 6. Protected mode
+## 6. Protected mode and extended memory (Windows standard mode)
 
-The 80286 model has none. A faithful one is descriptor tables, the
-descriptor cache of each segment register, privilege checks on every
-segment load and far transfer, the task state segment, and the faults of
-chapters 6 to 9 of the 80286 manual: the 86Box equivalent is
-`x86seg.c` at 2,639 lines beside its instruction core. It would roughly
-double `cpu.c`, add a limit check to every memory access (the segment-limit
-faults the real-mode model also lacks), and needs memory above one
-megabyte, which costs page table space (one kilobyte of tables for each
-megabyte). It buys Windows standard mode and DOS extenders, on a guest of
-XT speed. Not proposed; recorded so the cut has a size.
+The 80286 model has no protected mode, and the first thing standard mode
+asks for is not the processor: WIN.COM refuses before it starts because no
+XMS driver answers (section 3). In the order Windows meets them:
+
+1. **An XMS driver with free extended memory.** Windows 3.0 needs at least
+   256 KB of it for standard mode. Its own HIMEM.SYS drives the hardware
+   (A20 through the keyboard controller, LOADALL or interrupt 15h, 87h on
+   an 80286); an i86 driver in the manner of EMS.SYS, the XMS entry point
+   of interrupt 2Fh, 4310h trapping to firmware, is the lean route and
+   needs nothing of the processor.
+2. **Memory above one megabyte.** The pager's maps are flat: two
+   pointer-sized entries for each kilobyte of address space, 8 KB for the
+   first megabyte. Each further megabyte costs 8 KB more in the 192 KB
+   process window, so 16 MB of 80286 address space is 128 KB of maps and
+   does not fit. A few megabytes fit at the price of page frames; more
+   need a two-level or hashed map above 1 MB with a slower path there.
+   The page file already takes logical pages above 1 MB (expanded memory
+   uses them).
+3. **Address line 20.** Held low today, which keeps the 8086 wrap. The
+   gate is the keyboard controller's output port (commands D0h and D1h on
+   port 64h), which the controller here does not accept; with the line
+   high, FFFF:0010 to FFFF:FFFF reach the 64 KB above 1 MB.
+4. **Firmware.** Interrupt 15h function 88h (extended memory size, 0
+   today), 87h (block move, a copy in C) and 89h (switch to protected
+   mode); CMOS bytes 17h, 18h, 30h and 31h for the memory size; and the
+   way back to real mode. An 80286 leaves protected mode only by reset:
+   Windows' standard-mode loader resets the processor through the keyboard
+   controller (command FEh) or a triple fault, after writing a shutdown
+   code into CMOS byte 0Fh and a resume address at 40:67, and the
+   firmware resumes there without clearing memory. i86 needs that reset.
+5. **The processor.** LMSW with the protection bit, LGDT, LIDT, LLDT, LTR
+   and their stores, LAR, LSL, VERR, VERW, ARPL, CLTS; a descriptor cache
+   (24-bit base, limit, access rights) behind each segment register, used
+   by every memory access instead of segment times 16, with the limit
+   checked; type and privilege checks on segment loads; the faults of
+   chapters 6 to 9 of the 80286 manual with error codes; interrupt and
+   trap gates through the IDT, call gates, and returns across privilege
+   levels; the task state segment; and LOADALL (0F 05), which 80286
+   memory managers use. 86Box's `cpu/x86seg.c` (2,639 lines) is the
+   reference. The SingleStepTests 80286 set, which captures real mode,
+   tests none of it; the vectors left out of the sample for memory above
+   1 MB and interrupts 12 and 13 test the boundaries.
+6. **The budget.** An estimate, not a measurement: `cpu.c` from 10.8 KB
+   of text at `-O2` to some 20 to 25 KB, and a base addition and a limit
+   compare on every memory access; with the maps of a few megabytes, the
+   resident frames fall from 128 toward 100 and paging rises, on a guest
+   already of XT speed.
+
+Not proposed. Real mode with expanded memory runs Windows 3.0 today; the
+next decisive evidence is whether Word 1.1, Excel 2.1 and PowerPoint 2.0
+run there (section 3). Should one of them require standard mode, items 1
+to 4 are the smaller first stage: an XMS driver, a few megabytes above 1
+MB, the A20 gate and the firmware, which also serve DOS programs that use
+XMS without protected mode.
+
+The numeric coprocessor is a separate choice. Neither Windows 3.0 nor
+Office 1.0 needs one; Excel uses it when present. An exact 80287 is the
+x87 instruction set over 80-bit extended precision, as 86Box does with
+Berkeley SoftFloat 3e (`cpu/x87.c`, `cpu/softfloat3e`), tens of kilobytes
+of Thumb code. The RP2040's boot ROM carries fast double precision
+routines, which the Pico SDK's `pico_double` wraps; built on those, a
+287 would be small and fast but round to 53 bits where the 287 keeps 64.
 
 ## 7. More guest memory: PSRAM, compression
 

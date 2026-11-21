@@ -42,6 +42,14 @@
  * A victim reaches the store only when modified and nonzero. A page with
  * no copy in the store is supplied as zeros, so memory the guest never
  * wrote costs no I/O in either direction.
+ *
+ * Frames and the store hold logical pages. Without expanded memory the
+ * logical page of guest page pg is pg itself. With it (mem_ems()), each
+ * 16 KB physical page shows sixteen consecutive logical pages from
+ * pbase[]: conventional memory shows itself until expanded memory is
+ * mapped over it, and the pages of expanded memory are numbered from
+ * MEM_NPAGE. A logical page may show at several guest pages at once, so
+ * dropping it from the maps visits every physical page (unmap()).
  */
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -68,7 +76,10 @@ static uint8_t *frames;
 static struct frame *ftab;
 static unsigned nframes, hand, lent;
 static uint32_t ram_top;
-static uint8_t stored[(MEM_NPAGE + 7) / 8];
+static unsigned ram_pages;
+static uint8_t stored0[(MEM_NPAGE + 7) / 8];
+static uint8_t *stored = stored0;	/* a bit for each page in the store */
+static uint16_t *pbase;			/* null without expanded memory */
 static const char *store_path;
 static int store_fd = -1;
 
@@ -160,6 +171,7 @@ mem_init(uint32_t ram, unsigned n, const char *store)
 	ram_top = (ram + MEM_PGMASK) & ~MEM_PGMASK;
 	if (ram_top > MEM_SIZE)
 		ram_top = MEM_SIZE;
+	ram_pages = ram_top >> MEM_PGSHIFT;
 	if (n > (ram_top >> MEM_PGSHIFT))
 		n = ram_top >> MEM_PGSHIFT;
 	if (n < 4)
@@ -296,6 +308,45 @@ all_zero(const uint8_t *p)
 	return (1);
 }
 
+/* The logical page guest page pg shows, or NOPAGE where no paged memory
+ * answers. */
+static unsigned
+logical(unsigned pg)
+{
+	unsigned b;
+
+	if (pbase == NULL)
+		return (pg < ram_pages ? pg : NOPAGE);
+	if ((b = pbase[pg / MEM_EMSPG]) == NOPAGE)
+		return (NOPAGE);
+	b += pg % MEM_EMSPG;
+	return (b < MEM_NPAGE && b >= ram_pages ? NOPAGE : b);
+}
+
+/* Take every guest page that shows logical page lp out of both maps.
+ * Returns nonzero when one of them was mapped, that is, referenced since
+ * the clock hand last passed. */
+static int
+unmap(unsigned lp)
+{
+	unsigned p, g;
+	int ref;
+
+	if (pbase == NULL) {
+		ref = mem_rmap[lp] != 0;
+		mem_rmap[lp] = mem_wmap[lp] = 0;
+		return (ref);
+	}
+	ref = 0;
+	for (p = 0; p < MEM_NPAGE / MEM_EMSPG; p++)
+		if (pbase[p] != NOPAGE && lp - pbase[p] < MEM_EMSPG) {
+			g = p * MEM_EMSPG + (lp - pbase[p]);
+			ref |= mem_rmap[g] != 0;
+			mem_rmap[g] = mem_wmap[g] = 0;
+		}
+	return (ref);
+}
+
 /* Empty frame i, whose page is in neither map. */
 static void
 drop(unsigned i)
@@ -328,10 +379,8 @@ evict(void)
 		pg = ftab[i].page;
 		if (pg == NOPAGE)
 			return (i);
-		if (mem_rmap[pg]) {
-			mem_rmap[pg] = mem_wmap[pg] = 0;
+		if (unmap(pg))
 			continue;
-		}
 		drop(i);
 		return (i);
 	}
@@ -348,7 +397,7 @@ mem_lend(unsigned n)
 		pg = ftab[i].page;
 		if (pg == NOPAGE)
 			continue;
-		mem_rmap[pg] = mem_wmap[pg] = 0;
+		(void)unmap(pg);
 		drop(i);
 	}
 	nframes -= n;
@@ -365,32 +414,42 @@ mem_return(void)
 	lent = 0;
 }
 
-/* Make page pg resident and mapped for reading, and for writing when wr. */
-static void
-fault(unsigned pg, int wr)
+/* Make logical page lp resident; returns its frame. */
+static unsigned
+resident(unsigned lp)
 {
 	uint8_t *p;
 	unsigned i;
 
 	for (i = 0; i < nframes; i++)
-		if (ftab[i].page == pg)
+		if (ftab[i].page == lp)
 			break;
 	if (i < nframes) {
 		mem_stats.soft++;
 	} else {
 		i = evict();
 		p = frames + ((size_t)i << MEM_PGSHIFT);
-		if (stored[pg >> 3] & (1u << (pg & 7))) {
-			store_io(pg, p, 0);
+		if (stored[lp >> 3] & (1u << (lp & 7))) {
+			store_io(lp, p, 0);
 			mem_stats.in++;
 		} else {
 			memset(p, 0, MEM_PGSIZE);
 			mem_stats.zero++;
 		}
-		ftab[i].page = (uint16_t)pg;
+		ftab[i].page = (uint16_t)lp;
 		ftab[i].flags = 0;
 	}
-	p = frames + ((size_t)i << MEM_PGSHIFT);
+	return (i);
+}
+
+/* Make guest page pg resident and mapped for reading, and for writing
+ * when wr. */
+static void
+fault(unsigned pg, int wr)
+{
+	unsigned i = resident(logical(pg));
+	uint8_t *p = frames + ((size_t)i << MEM_PGSHIFT);
+
 	mem_rmap[pg] = (uintptr_t)p - ((uintptr_t)pg << MEM_PGSHIFT);
 	if (wr) {
 		ftab[i].flags |= FR_DIRTY;
@@ -403,7 +462,7 @@ mem_rslow(uint32_t a)
 {
 	unsigned i;
 
-	if (a < ram_top) {
+	if (logical(a >> MEM_PGSHIFT) != NOPAGE) {
 		fault(a >> MEM_PGSHIFT, 0);
 		return (*(const uint8_t *)(mem_rmap[a >> MEM_PGSHIFT] + a));
 	}
@@ -416,7 +475,7 @@ mem_rslow(uint32_t a)
 void
 mem_wslow(uint32_t a, unsigned v)
 {
-	if (a < ram_top) {
+	if (logical(a >> MEM_PGSHIFT) != NOPAGE) {
 		fault(a >> MEM_PGSHIFT, 1);
 		*(uint8_t *)(mem_wmap[a >> MEM_PGSHIFT] + a) = (uint8_t)v;
 	} else if (watch_fault(a))
@@ -431,10 +490,69 @@ mem_span(uint32_t a, int wr, uint32_t *len)
 
 	*len = MEM_PGSIZE - (a & MEM_PGMASK);
 	if (!map[pg]) {
-		if (a < ram_top)
+		if (logical(pg) != NOPAGE)
 			fault(pg, wr);
 		else if (!wr || !watch_fault(a))
 			return (NULL);
 	}
 	return ((uint8_t *)(map[pg] + a));
+}
+
+int
+mem_ems(unsigned n)
+{
+	unsigned total = MEM_NPAGE + n * MEM_EMSPG, p;
+	uint8_t *bits;
+
+	if (pbase != NULL || total >= NOPAGE)
+		return (-1);
+	bits = calloc((total + 7) / 8, 1);
+	pbase = malloc(MEM_NPAGE / MEM_EMSPG * sizeof(*pbase));
+	if (bits == NULL || pbase == NULL) {
+		free(bits);
+		free(pbase);
+		pbase = NULL;
+		return (-1);
+	}
+	memcpy(bits, stored0, sizeof(stored0));
+	stored = bits;
+	for (p = 0; p < MEM_NPAGE / MEM_EMSPG; p++)
+		pbase[p] = p * MEM_EMSPG < ram_pages ? p * MEM_EMSPG : NOPAGE;
+	return (0);
+}
+
+void
+mem_map16(unsigned phys, unsigned base)
+{
+	unsigned g;
+
+	for (g = phys * MEM_EMSPG; g < (phys + 1) * MEM_EMSPG; g++)
+		mem_rmap[g] = mem_wmap[g] = 0;
+	pbase[phys] = (uint16_t)base;
+}
+
+void
+mem_drop16(unsigned base)
+{
+	unsigned lp, i;
+
+	for (lp = base; lp < base + MEM_EMSPG; lp++) {
+		for (i = 0; i < nframes; i++)
+			if (ftab[i].page == lp) {
+				(void)unmap(lp);
+				ftab[i].page = NOPAGE;
+				ftab[i].flags = 0;
+			}
+		stored[lp >> 3] &= (uint8_t)~(1u << (lp & 7));
+	}
+}
+
+uint8_t *
+mem_lpage(unsigned lp, int wr)
+{
+	unsigned i = resident(lp);
+
+	if (wr)
+		ftab[i].flags |= FR_DIRTY;
+	return (frames + ((size_t)i << MEM_PGSHIFT));
 }

@@ -145,6 +145,7 @@ MUTANTS = [
         "\tr.color = 0;\n\tif (!pointer)",
     ),
     ("pc.c", "\t\t\tgfx_pointer(mouse_keys);", "\t\t\tgfx_pointer(1);"),
+    ("mem.c", "\t\t(void)unmap(pg);\n\t\tdrop(i);", "\t\tdrop(i);"),
 ]
 
 
@@ -606,6 +607,28 @@ def test_pointer(binary, work, fonts, boot):
         compare(frame, want, "panel pointer, close %d" % number)
 
 
+def test_ems_loan(binary, src, work):
+    """Expanded memory with graphics mode 4 set and left while its pages
+    are resident: with 32 frames page 2 and the guest's own pages are all
+    mapped when the mode borrows eight frames, and every line of
+    tests/ems.asm must be as without the loan."""
+    spec = importlib.util.spec_from_file_location(
+        "i86check", os.path.join(src, "tests", "check.py")
+    )
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+    check.boot_image(src, "ems", os.path.join(work, "ems.img"))
+    got = check.ems_run(
+        binary,
+        work,
+        ["-g", "-e", "256", "-f", "32"],
+        "1",
+        env={"I86_PANEL": os.path.join(work, "frame")},
+    )
+    if got != check.ems_expected():
+        raise Failure("ems with a loan of frames: %r" % got[:20])
+
+
 def test(binary, src, work):
     with open(os.path.join(src, "tests", "panel.hexdump")) as handle:
         boot = bytes.fromhex("".join(handle.read().split()))
@@ -619,3 +642,4 @@ def test(binary, src, work):
     test_fallbacks(binary, work, fonts, boot)
     test_menu(binary, work, fonts, boot)
     test_pointer(binary, work, fonts, boot)
+    test_ems_loan(binary, src, work)

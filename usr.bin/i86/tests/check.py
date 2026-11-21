@@ -85,8 +85,8 @@ FLAGS = [
     "-idirafter",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sys"),
 ]
-SOURCES = ["main.c", "pc.c", "gfx.c", "serial.c", "cpu.c", "mem.c"]
-HEADERS = ["font.h", "gfx.h", "i86.h", "mem.h", "pc.h", "serial.h"]
+SOURCES = ["main.c", "pc.c", "gfx.c", "serial.c", "ems.c", "cpu.c", "mem.c"]
+HEADERS = ["ems.h", "font.h", "gfx.h", "i86.h", "mem.h", "pc.h", "serial.h"]
 KEYS = "aB1"
 TAIL = [
     "MEM %04X OK",
@@ -212,12 +212,16 @@ MUTANTS = [
     ),
     ("cpu.c", "level = fetch8(c) & 31;", "level = fetch8(c);"),
     ("mem.c", "stored[pg >> 3] |= (uint8_t)(1u << (pg & 7));", ";"),
-    ("mem.c", "ftab[i].flags |= FR_DIRTY;", ";"),
+    (
+        "mem.c",
+        "\tif (wr) {\n\t\tftab[i].flags |= FR_DIRTY;\n\t\tmem_wmap[pg]",
+        "\tif (wr) {\n\t\t;\n\t\tmem_wmap[pg]",
+    ),
     ("mem.c", "if (w[i])\n\t\t\treturn (0);", "if (w[i] == 1)\n\t\t\treturn (0);"),
     (
         "mem.c",
-        "mem_rmap[pg] = mem_wmap[pg] = 0;\n\t\t\tcontinue;",
-        "mem_rmap[pg] = 0;\n\t\t\tcontinue;",
+        "\t\tmem_rmap[lp] = mem_wmap[lp] = 0;\n\t\treturn (ref);",
+        "\t\tmem_rmap[lp] = 0;\n\t\treturn (ref);",
     ),
     ("mem.c", "(off_t)page << MEM_PGSHIFT", "(off_t)page << (MEM_PGSHIFT - 1)"),
     (
@@ -323,6 +327,109 @@ MUTANTS = [
     ),
     ("serial.c", "\tif (QN - qn < 3)\n\t\tbehind = 1;", "\tif (QN - qn < 3)\n\t\tbehind = 0;"),
     ("serial.c", "#define POWER(m)\t(((m) & 0x12) == 2)", "#define POWER(m)\t(((m) & 0x02) == 2)"),
+    (
+        "ems.c",
+        "\t\tcase 0:\n\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n",
+        "\t\tcase 0:\n",
+    ),
+    (
+        "ems.c",
+        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n\t\t\tif ((alt_area = esdi) != 0)",
+        "\t\t\tif ((alt_area = esdi) != 0)",
+    ),
+    ("ems.c", "st = bx == 0 ? OK : E_FREE;", "st = E_HANDLE;"),
+    ("ems.c", "else if (hd[dx].saved)\n\t\t\tst = 0x86;", "else if (0)\n\t\t\tst = 0x86;"),
+    ("ems.c", "else if (hd[dx].saved)\n\t\t\tst = E_SAVED;", "else if (0)\n\t\t\tst = E_SAVED;"),
+    ("ems.c", "if (n == 0 && !zero_ok)", "if (n == 0 && zero_ok < 0)"),
+    ("ems.c", "n += owner[k] == 0;", "n += 1;"),
+    ("ems.c", "(unsigned)blk[p] << 10 != seg", "(unsigned)blk[p] << 9 != seg"),
+    ("ems.c", "off % PAGE / MEM_PGSIZE", "off / MEM_PGSIZE"),
+    (
+        "ems.c",
+        "if (n != 0xffff && (base = page_base(h, n)) == NOBASE)",
+        "if ((base = page_base(h, n)) == NOBASE)",
+    ),
+    ("pc.c", "if (ems_on)\n\t\t\tems_int(c);", "if (0)\n\t\t\tems_int(c);"),
+    ("mem.c", "lp - pbase[p] < MEM_EMSPG) {", "lp - pbase[p] < MEM_EMSPG && p != 59) {"),
+    ("mem.c", "\tb += pg % MEM_EMSPG;", "\tb += 0;"),
+    ("mem.c", "mem_rmap[g] = mem_wmap[g] = 0;\n\tpbase[phys]", "(void)g;\n\tpbase[phys]"),
+    ("ems.c", "\tmem_ww(a & (MEM_SIZE - 1), v);", "\tmem_ww(a, v);"),
+    (
+        "ems.c",
+        "\t\tif (m + lo < xs + len && xs < m + hi)",
+        "\t\tif (m + lo < xs + len && xs < m + hi && 0)",
+    ),
+    ("ems.c", "st = bx & 0xff ? 0x9c : 0x9e;", "st = bx & 0xff ? 0x9c : OK;"),
+    ("ems.c", "else if (key_out ? ((uint32_t)bx << 16 | cx) != key :", "else if (key_out ? 0 :"),
+    ("ems.c", "if (os_off && ((ah == 0x59 && al == 0) || ah == 0x5b))", "if (0)"),
+    ("ems.c", "if (al < 2 && grw(dssi) > nphys) {", "if (0) {"),
+    ("ems.c", "else if (cx > nphys)\n\t\t\tst = E_PPAGE;", "else if (0)\n\t\t\tst = E_PPAGE;"),
+    (
+        "ems.c",
+        "\t\t\tn = grw(dssi);\n\t\t\ttake(dssi + 2, 2 * n);\n",
+        "\t\t\tn = grw(dssi);\n\t\t\ttake(dssi + 2, 2 * n);\n\t\t\tif (n > 1 && base_ok(arg[1]))\n"
+        "\t\t\t\tshow(phys_at(arg[0]) % nphys, arg[1]);\n",
+    ),
+    ("ems.c", "!= key : al == 2)", "!= key : 0)"),
+    (
+        "ems.c",
+        "\t\t\tn = grw(dssi);\n"
+        "\t\t\ttake(dssi + 2, n);\n"
+        "\t\t\tfor (k = 0; k < n; k++)\n"
+        "\t\t\t\tif (phys_at(arg[k]) == nphys) {\n"
+        "\t\t\t\t\tst = E_PPAGE;\n"
+        "\t\t\t\t\tbreak;\n"
+        "\t\t\t\t}\n"
+        "\t\t\tgww(esdi, n);\n"
+        "\t\t\tfor (k = 0; k < n && st == OK; k++) {\n"
+        "\t\t\t\tgww(esdi + 2 + 4 * k, arg[k]);\n"
+        "\t\t\t\tgww(esdi + 4 + 4 * k, cur[phys_at(arg[k])]);\n"
+        "\t\t\t}",
+        "\t\t\tn = grw(dssi);\n"
+        "\t\t\tgww(esdi, n);\n"
+        "\t\t\tfor (k = 0; k < n; k++) {\n"
+        "\t\t\t\tunsigned seg = grw(dssi + 2 + 2 * k);\n"
+        "\n"
+        "\t\t\t\tif ((p = phys_at(seg)) == nphys) {\n"
+        "\t\t\t\t\tst = E_PPAGE;\n"
+        "\t\t\t\t\tbreak;\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\tgww(esdi + 2 + 4 * k, seg);\n"
+        "\t\t\t\tgww(esdi + 4 + 4 * k, cur[p]);\n"
+        "\t\t\t}",
+    ),
+    (
+        "ems.c",
+        "\t\t\t\tshow(phys_at(arg[2 * k]), arg[2 * k + 1]);",
+        "\t\t\t\ttake(dssi + 2, 2 * n), show(phys_at(arg[2 * k]), arg[2 * k + 1]);",
+    ),
+    ("ems.c", "\t\t\tn = arg[2 * k];", "\t\t\ttake(dssi, 2 * cx);\n\t\t\tn = arg[2 * k];"),
+    (
+        "ems.c",
+        "\t\t\tif (esdi != 0 && (st = load_map(esdi)) != OK)\n\t\t\t\tbreak;\n"
+        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);",
+        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n"
+        "\t\t\tif (esdi != 0 && (st = load_map(esdi)) != OK)\n\t\t\t\tbreak;",
+    ),
+    (
+        "ems.c",
+        "\t\tif ((al == 1 || al == 2) && st == OK)\n\t\t\tapply_map();",
+        "\t\tif ((al == 1 || al == 2) && st == OK)\n"
+        "\t\t\tfor (k = 0; k < nphys; k++) {\n"
+        "\t\t\t\tshow(k, arg[1 + k]);\n\t\t\t\ttake(dssi, 1 + nphys);\n\t\t\t}",
+    ),
+    (
+        "ems.c",
+        "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);\n"
+        "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);",
+        "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);\n"
+        "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);",
+    ),
+    (
+        "pc.c",
+        "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(0);",
+        "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(ems_on ? 3 : 0);",
+    ),
 ]
 
 
@@ -928,6 +1035,17 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
 RIGHT, DOWN, LEFT, UP, HOME = b"\x1b[C", b"\x1b[B", b"\x1b[D", b"\x1b[A", b"\x1b[H"
 
 
+def boot_image(src, name, path):
+    with open(os.path.join(src, "tests", name + ".hexdump")) as handle:
+        data = bytes.fromhex("".join(handle.read().split()))
+    if len(data) % 512 or data[510:512] != b"\x55\xaa":
+        raise Failure("%s.hexdump is not a boot program" % name)
+    with open(path, "wb") as handle:
+        handle.write(data)
+        handle.truncate(360 * 1024)
+    return data
+
+
 def mouse_image(src, path):
     with open(os.path.join(src, "tests", "mouse.hexdump")) as handle:
         data = bytes.fromhex("".join(handle.read().split()))
@@ -1027,6 +1145,75 @@ def test_mouse(binary, work):
         raise Failure("mouse: %d bytes in one tick" % rate)
     if status != 0 or not restored:
         raise Failure("mouse: exit %r, terminal restored %r" % (status, restored))
+
+
+def ems_expected():
+    """The lines of tests/ems.asm with 256 KB of expanded memory. The page
+    sums follow from the fill rule alone: byte i of page n is
+    (11h + 2n + i) mod 256, summed as words with a rotate before each add."""
+
+    def page_sum(n):
+        data = bytes((0x11 + 2 * n + i) & 255 for i in range(16384))
+        s = 0
+        for k in range(0, 16384, 2):
+            s = ((s << 1) | (s >> 15)) & 0xFFFF
+            s = (s + data[k] + 256 * data[k + 1]) & 0xFFFF
+        return s
+
+    return (
+        "st:00 frame:E000 free:0010 total:0010 ver:40 phys:0012 alloc:00 handle:0001"
+        " free:000D e87:87 e88:88 e89:89".split()
+        + ["sumx:%04X" % page_sum(2)]
+        + ["sum:%04X" % page_sum(n) for n in range(3)]
+        + "alias:AB alias2:AB disk:AA55 save:00 e8d:8D restore:11 multi:00 c000:11"
+        " e50l:8B e000l:31 move:00 xchg:00"
+        " xgot:45 moved:4D45 landed:4D45 set1:00 alt:0010 get:FFF0 h0:00 e88h0:88 e83:83"
+        " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
+        " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF"
+        " e86:86 toc:00 tocp:04 ovl:00 ovlp:FF p4o:00 p4t:00 p4tp:04 m50:00 m50p:04 alo:00"
+        " alop:04"
+        " dealloc:00 free:0010 done".split()
+    )
+
+
+def ems_run(binary, work, args, keys, env=None):
+    """tests/ems.asm under args; the lines it wrote to head 1, sectors 1 and 2.
+    The emulator must exit 0 and leave no page file."""
+    image = os.path.join(work, "ems-run.img")
+    shutil.copyfile(os.path.join(work, "ems.img"), image)
+    store = os.path.join(work, "page")
+    try:
+        done = subprocess.run(
+            [binary, "-T", "-s", store, "-a", image, "-k", keys] + args,
+            capture_output=True,
+            timeout=60,
+            check=False,
+            env=dict(os.environ, **(env or {})),
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("ems %s: timeout" % " ".join(args)) from None
+    if done.returncode != 0:
+        raise Failure("ems %s: exit %d" % (" ".join(args), done.returncode))
+    if os.path.exists(store):
+        raise Failure("ems %s: page file left behind" % " ".join(args))
+    with open(image, "rb") as handle:
+        handle.seek(9 * 512)
+        return handle.read(1024).split(b"\0")[0].decode("latin-1").split()
+
+
+def test_ems(binary, work):
+    """Expanded memory through interrupt 67h: with eight resident pages the
+    pages of expanded memory go through the page file, and the lines must
+    equal those with 64; without -e the service is absent."""
+    want = ems_expected()
+    for frames in ("8", "64"):
+        got = ems_run(binary, work, ["-q", "-e", "256", "-f", frames], "0")
+        if got != want:
+            diff = [(g, w) for g, w in zip(got, want) if g != w][:3]
+            raise Failure("ems, %s frames: %r (%d lines)" % (frames, diff, len(got)))
+    got = ems_run(binary, work, ["-q"], "0")
+    if got != ["st:40", "done"]:
+        raise Failure("ems absent: %r" % got)
 
 
 def test_menu_edges(binary, work):
@@ -1420,6 +1607,7 @@ def test(binary, work):
     test_interactive(binary, work)
     test_menu_edges(binary, work)
     test_mouse(binary, work)
+    test_ems(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):
@@ -1452,6 +1640,7 @@ def main(argv):
             images = (
                 ("guest", guest_image(src, os.path.join(work, "guest.img"))),
                 ("mouse", mouse_image(src, os.path.join(work, "mouse.img"))),
+                ("ems", boot_image(src, "ems", os.path.join(work, "ems.img"))),
             )
             nasm = shutil.which("nasm")
             for name, data in images:
@@ -1470,6 +1659,18 @@ def main(argv):
                         "NOT RUN %s.hexdump against %s.asm: nasm (package nasm) is absent"
                         % (name, name)
                     )
+            if nasm:
+                built = os.path.join(work, "EMS.SYS")
+                subprocess.run(
+                    [nasm, "-f", "bin", "-o", built, os.path.join(src, "dos", "ems.asm")],
+                    check=True,
+                )
+                with open(os.path.join(src, "dos", "ems.hexdump")) as handle:
+                    listed = bytes.fromhex("".join(handle.read().split()))
+                with open(built, "rb") as handle:
+                    if handle.read() != listed:
+                        raise Failure("dos/ems.hexdump differs from dos/ems.asm")
+                print("dos/ems.hexdump matches dos/ems.asm")
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
             # Independent of the emulator, so once, not for every mutant.

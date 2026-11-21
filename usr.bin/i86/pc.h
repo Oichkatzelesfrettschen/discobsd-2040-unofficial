@@ -39,6 +39,7 @@ struct pc_config {
 	const char *disk[4];	/* A:, B:, first and second hard disk */
 	const char *keys;	/* keys typed when the guest waits, or null */
 	unsigned ram_kb;
+	unsigned ems_kb;	/* expanded memory, 0 for none (ems.h) */
 	unsigned cols;		/* 40 or 80 */
 	int model;
 	int fixed_clock;	/* virtual time: a poll is PC_POLL_MS long */

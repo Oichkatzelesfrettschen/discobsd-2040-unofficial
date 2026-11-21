@@ -85,9 +85,6 @@ def main():
         run.advance(1)
         run.snapshot("notes")
         renode.command('sysbus.i2c1.kbd TypeText "Hello PicoCalc"')
-        run.advance(1)
-        renode.command("sysbus.spi1.lcd DumpPpm @" + str(args.output / "notes-text.ppm"))
-        actual = picocalc_fb.read_ppm(str(args.output / "notes-text.ppm"))[2]
         with tempfile.TemporaryDirectory() as directory:
             expected_path = Path(directory) / "notes.ppm"
             keys = [257, 10, *(ord(c) for c in "Hello PicoCalc")]
@@ -103,7 +100,20 @@ def main():
                 timeout=10,
             )
             expected = picocalc_fb.read_ppm(str(expected_path))[2]
-        if region_error(actual, expected, 30, 320) > 3:
+        # The guest takes the fourteen keys at the controller's polling rate
+        # and repaints each band as it goes, so the frame is compared until
+        # it matches or ten virtual seconds pass.
+        error = None
+        for _ in range(20):
+            run.advance(0.5)
+            renode.command("sysbus.spi1.lcd DumpPpm @" + str(args.output / "notes-text.ppm"))
+            actual = picocalc_fb.read_ppm(str(args.output / "notes-text.ppm"))[2]
+            error = region_error(actual, expected, 30, 320)
+            if error <= 3:
+                break
+        if monitor_int(renode, "sysbus.i2c1.kbd Dropped") != 0:
+            raise AssertionError("Notes text exceeded the physical key FIFO")
+        if error > 3:
             raise AssertionError("Notes input did not reproduce the reference view")
         print(
             f"matezinho Renode: original icon card and typed Notes matched; "

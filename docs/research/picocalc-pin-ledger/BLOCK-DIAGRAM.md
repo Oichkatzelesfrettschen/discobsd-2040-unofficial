@@ -45,8 +45,8 @@ net or GPIO the ledger records.
 
 ## Panel connector J401 on the board
 
-J401 sits on the bottom side, centered under the Pico socket's pin-20 end,
-with the silkscreen word SCREEN below it. The vendor's Gerber set
+J401 sits on the bottom side between the pin-20 ends of the Pico's two
+header sockets, with the silkscreen word SCREEN below it. The vendor's Gerber set
 (`PCB/CPI_V2.0_Gerber.7z`, copied to the notes repository's
 `docs/picocalc/pcb/`) carries copper, mask, silkscreen, drill drawing and
 outline layers and no pick-and-place file, so the position below is read

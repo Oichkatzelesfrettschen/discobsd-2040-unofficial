@@ -69,7 +69,7 @@ ONE_LVALUE = re.compile(rf"({LVALUE})\s*=(?!=)")
 # Statements that leave the failure branch. ed's error() and awk's overflo()
 # never return (ed longjmps to its command loop, overflo() calls awk's
 # error(FATAL)), so they count in those programs alone.
-LEAVES = r"\b(?:exit|_exit|abort|longjmp|err|errx)\s*\(|\breturn\b|\berror\s*\(\s*FATAL\s*,"
+LEAVES = r"\b(?:exit|_exit|abort|longjmp|err|errx)\s*\(|\breturn\b"
 # A statement before the terminator that can move control elsewhere (a jump,
 # a label, a nested condition, loop or switch) may skip the terminator, so it
 # fails the branch; the scan follows no control flow.
@@ -77,10 +77,11 @@ CONTROL = (
     r"\b(?:goto|break|continue|if|else|while|for|do|switch|case|default)\b"
     r"|^\s*[A-Za-z_]\w*\s*:(?!:)|\{"
 )
-PROGRAM_LEAVES = {
-    "bin/ed/ed.c": r"\berror\s*\(",
-    "usr.bin/awk/b.c": r"\boverflo\s*\(",
-}
+PROGRAM_LEAVES = (
+    ("bin/ed/ed.c", r"\berror\s*\("),
+    ("usr.bin/awk/", r"\berror\s*\(\s*FATAL\s*,"),
+    ("usr.bin/awk/b.c", r"\boverflo\s*\("),
+)
 NULL_WORD = r"(?:NULL|0|\(\s*[A-Za-z_][\w\s]*\*\s*\)\s*0)"
 
 # Statements whose result reaches the caller unchanged. Each entry names the
@@ -194,7 +195,7 @@ def tests_null(cond, names):
     return False
 
 
-def enclosed_test(stmt, chain_start):
+def enclosed_test(stmt, chain_start, call_open):
     """True when the condition is the parenthesized assignment tested for NULL."""
     cond = condition(stmt)
     if cond is None:
@@ -218,6 +219,8 @@ def enclosed_test(stmt, chain_start):
         elif stmt[j] == ")":
             depth -= 1
             if depth == 0:
+                if not call_ends_statement(stmt[: j + 1], call_open):
+                    return False
                 group = re.escape(re.sub(r"\s+", " ", stmt[i : j + 1]))
                 whole = re.sub(r"\s+", " ", cond.strip())
                 return bool(
@@ -307,8 +310,9 @@ def mentions(text, names):
 def leaves(body, label, names):
     """True when the branch leaves before any statement uses a NULL object."""
     pattern = LEAVES
-    if label in PROGRAM_LEAVES:
-        pattern += "|" + PROGRAM_LEAVES[label]
+    for prefix, extra in PROGRAM_LEAVES:
+        if label.startswith(prefix):
+            pattern += "|" + extra
     for statement in top_level(body):
         if mentions(statement, names):
             return False
@@ -371,7 +375,7 @@ def scan(path, text, root=None):
             names = names_of(match.group(1), start + match.start(1), code)
             span = branch_span(code, start + len(stmt))
             if (
-                enclosed_test(stmt, match.start(1))
+                enclosed_test(stmt, match.start(1), match.end() - 1)
                 and not conditional(text, (start + match.start(), span[1]))
                 and leaves(code[span[0] : span[1]], label, names)
             ):
@@ -463,6 +467,8 @@ KNOWN_BAD = {
         'p = malloc(4);\nif (p == NULL)\n\terror(FATAL && verbose, "x");\n*p = 1;\n'
     ),
     "assignment in a return": "return p = malloc(4);\nif (!p)\n\texit(1);\n",
+    "comma in the tested group": "if ((p = malloc(4), q) == NULL)\n\texit(1);\n*p = 1;\n",
+    "FATAL outside awk": 'p = malloc(4);\nif (p == NULL)\n\terror(FATAL, "x");\n*p = 1;\n',
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",
@@ -492,7 +498,10 @@ KNOWN_GOOD = {
     "comment between": "p = malloc(4); /* buffer */\nif (p == NULL)\n\texit(1);\n",
     "member": "dp->name = strdup(s);\nif (dp->name == NULL)\n\texit(1);\n",
     "parenthesized call": "p = (malloc(4));\nif (p == NULL)\n\treturn;\n",
-    "fatal error": 'p = malloc(4);\nif (p == NULL)\n\terror(FATAL, "out of space");\n',
+    "fatal error": (
+        "usr.bin/awk/run.c",
+        'p = malloc(4);\nif (p == NULL)\n\terror(FATAL, "out of space");\n',
+    ),
     "restore before the exit": (
         "if ((zero = (int *)realloc((char *)zero, n)) == NULL) {\n\tzero = ozero;\n\texit(1);\n}\n"
     ),

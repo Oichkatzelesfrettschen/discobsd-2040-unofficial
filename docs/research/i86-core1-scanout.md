@@ -83,6 +83,19 @@ a scan-out is open.
    request too, so core 1 applies it between lines in order; core 0 never
    touches SPI1 while the service is open.
 
+## Failure and recovery
+
+Core 0 must lose nothing when core 1 does (`CORE1.md`: a dead core 1 costs
+no kernel function). Each scan-out session carries an epoch that core 1's
+restart advances. Core 0 bounds every wait on the service: a slot with no
+reply within twice the wire time of the lines ahead of it (about 2 ms for
+four lines, computed), or a changed epoch, ends the session. Core 0 then
+aborts the DMA channel in the order erratum RP2040-E13 gives (clear the
+channel's interrupt enable, abort, poll BUSY, clear the status), waits for
+SPI1 to go idle, takes every slot back, and returns to today's core-0 path
+for the rest of the open file, so a writer sees slower lines, never
+`EAGAIN` forever, and close and ioctls never wait on a dead core.
+
 RAM: 2,560 bytes of buffers, the service's `.ramfunc` code (estimate
 under 1 KB, also in flash), and the CORE1 observer's 576 bytes of bss and
 544 bytes of code: about 4.6 KB of the 7,488 free (computed from an older

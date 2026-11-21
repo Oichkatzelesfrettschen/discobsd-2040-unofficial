@@ -49,8 +49,11 @@ struct pc_config {
 };
 
 #define PC_POLL_MS	5
+#define PC_STEPS	2048	/* instructions between polls of the host */
 
 extern int pc_idle;		/* the guest waits; leave the step loop */
+extern unsigned pc_step;	/* instructions run since the last poll */
+extern unsigned pc_slice;	/* instructions to run before the next */
 
 void pc_init(struct i86 *c, const struct pc_config *cf);
 void pc_poll(struct i86 *c);
@@ -62,6 +65,7 @@ int host_ready(int ms);		/* 1 input waits, 0 none within ms, -1 end */
 int host_getc(void);
 void host_write(const char *p, unsigned n);
 unsigned long host_ms(void);
+unsigned long host_us(void);
 void host_exit(int code);
 
 #endif

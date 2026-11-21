@@ -49,7 +49,6 @@
 #include "pc.h"
 #include "ems.h"
 
-#define STEPS	2048		/* instructions between polls of the host */
 
 static struct pc_config cf;
 static int verbose, dump, raw, in_eof;
@@ -127,7 +126,7 @@ host_exit(int code)
 	if (verbose)
 		fprintf(stderr, "i86: %lu polls of %d steps; pages: %lu soft, "
 		    "%lu zero, %lu in, %lu out, %lu elided, %lu clean\n",
-		    nsteps, STEPS, mem_stats.soft, mem_stats.zero,
+		    nsteps, PC_STEPS, mem_stats.soft, mem_stats.zero,
 		    mem_stats.in, mem_stats.out, mem_stats.elided,
 		    mem_stats.clean);
 	exit(code);
@@ -228,6 +227,17 @@ host_ms(void)
 	    (unsigned long)tv.tv_usec / 1000UL);
 }
 
+/* Microseconds, wrapping; the DiscoBSD kernel resolves a millisecond. */
+unsigned long
+host_us(void)
+{
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+	return ((unsigned long)tv.tv_sec * 1000000UL +
+	    (unsigned long)tv.tv_usec);
+}
+
 static void
 usage(void)
 {
@@ -245,7 +255,7 @@ main(int argc, char **argv)
 	static char store_name[32];
 	const char *store = store_name;
 	unsigned frames = 124, nhard = 0;
-	int ch, i;
+	int ch;
 
 	/* One page file for each running emulator. */
 	sprintf(store_name, "/tmp/i86.%u", (unsigned)getpid() & 0xffffffu);
@@ -346,8 +356,8 @@ main(int argc, char **argv)
 	for (;;) {
 		/* A halted processor runs again only for an interrupt it
 		 * can take. */
-		for (i = 0; i < STEPS && !pc_idle && (!cpu.halted ||
-		    (cpu.irq && (cpu.fl & F_IF))); i++)
+		for (pc_step = 0; pc_step < pc_slice && !pc_idle &&
+		    (!cpu.halted || (cpu.irq && (cpu.fl & F_IF))); pc_step++)
 			i86_step(&cpu);
 		nsteps++;
 		if (caught)

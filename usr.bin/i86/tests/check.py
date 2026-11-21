@@ -283,7 +283,11 @@ MUTANTS = [
     ),
     ("pc.c", "if (++t >= 0x1800b0) {", "if (t >= 0x1800b0) {"),
     ("pc.c", "mem_ww(4 * 8, ROM_OFF + ROM_TIMER);", ";"),
-    ("main.c", "(!cpu.halted ||\n\t\t    (cpu.irq && (cpu.fl & F_IF))); i++)", "!cpu.halted; i++)"),
+    (
+        "main.c",
+        "(!cpu.halted || (cpu.irq && (cpu.fl & F_IF))); pc_step++)",
+        "!cpu.halted; pc_step++)",
+    ),
     ("main.c", "mem_failed = store_failed;", "(void)store_failed;"),
     ("main.c", "nsteps++;\n\t\tif (caught)\n\t\t\thost_exit(128 + (int)caught);", "nsteps++;"),
     ("main.c", '"/tmp/i86.%u", (unsigned)getpid() & 0xffffffu', '"/tmp/i86.%u", 0u'),
@@ -424,6 +428,17 @@ MUTANTS = [
         "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);",
         "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);\n"
         "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);",
+    ),
+    ("pc.c", "\t\t\tirq_at += pit[0].count;", "\t\t\tirq_at += 0x10000;"),
+    ("pc.c", "pit_out(2, pit_now()) << 5;", "0 << 5;"),
+    ("pc.c", "\t\t\t\tpit[k].slatched = 1;", "\t\t\t\tpit[k].slatched = 0;"),
+    ("pc.c", "uint32_t t = pit_t + (pc_step * pit_step >> 8);", "uint32_t t = pit_t;"),
+    ("pc.c", "(pit_now() / 18 & 1) << 4", "0 << 4"),
+    ("pc.c", "pc_slice = d < SLICE_MIN ? SLICE_MIN : d;", "pc_slice = PC_STEPS;"),
+    (
+        "pc.c",
+        "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 1;",
+        "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 0;",
     ),
     (
         "pc.c",
@@ -1176,6 +1191,44 @@ def ems_expected():
     )
 
 
+def pit_run(binary, work, args):
+    """tests/pit.asm under args; its tokens from the screen dump."""
+    try:
+        done = subprocess.run(
+            [binary, "-d", "-a", os.path.join(work, "pit.img"), "-k", ""] + args,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("timer %s: timeout, counter 2's output never rose" % " ".join(args)) from None
+    if done.returncode != 0:
+        raise Failure("timer %s: exit %d" % (" ".join(args), done.returncode))
+    return done.stdout.decode("latin-1").split()
+
+
+def test_pit(binary, work):
+    """The 8254 through tests/pit.asm. Under -T every count is exact: the
+    latched counter moved 280h in mode 3, counter 0 at 1 kHz raised 54
+    interrupts while counter 2 counted 65535 clocks, counter 2's read-back
+    status is B0h, the refresh bit changed 36h times in 64 reads. On the
+    host's clock the interrupts are 52 to 55 whatever the host's speed,
+    since both counters count the same clocks."""
+    want = "dn:0280 irq:0036 st2:00B0 rf:0036 tick:ok done".split()
+    got = pit_run(binary, work, ["-T"])
+    if got != want:
+        raise Failure("timer -T: %r" % got)
+    got = pit_run(binary, work, [])
+    fields = dict(t.split(":", 1) for t in got if ":" in t)
+    if (
+        not 0x34 <= int(fields.get("irq", "0"), 16) <= 0x37
+        or fields.get("st2") != "00B0"
+        or fields.get("tick") != "ok"
+        or got[-1:] != ["done"]
+    ):
+        raise Failure("timer, host clock: %r" % got)
+
+
 def ems_run(binary, work, args, keys, env=None):
     """tests/ems.asm under args; the lines it wrote to head 1, sectors 1 and 2.
     The emulator must exit 0 and leave no page file."""
@@ -1608,6 +1661,7 @@ def test(binary, work):
     test_menu_edges(binary, work)
     test_mouse(binary, work)
     test_ems(binary, work)
+    test_pit(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):
@@ -1641,6 +1695,7 @@ def main(argv):
                 ("guest", guest_image(src, os.path.join(work, "guest.img"))),
                 ("mouse", mouse_image(src, os.path.join(work, "mouse.img"))),
                 ("ems", boot_image(src, "ems", os.path.join(work, "ems.img"))),
+                ("pit", boot_image(src, "pit", os.path.join(work, "pit.img"))),
             )
             nasm = shutil.which("nasm")
             for name, data in images:

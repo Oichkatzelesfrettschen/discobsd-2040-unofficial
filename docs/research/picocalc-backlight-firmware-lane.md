@@ -31,7 +31,7 @@ PWM itself takes 256 levels, so the rounding is the whole limit.
 
 ## 2. The patch
 
-Three changes to `Code/picocalc_keyboard`. The vendor directory carries no
+Three changes to `Code/picocalc_keyboard`. The vendor directory lacks a
 license (`picocalc-vendor-repository-harvest.md`), so the patch lives in
 the owner's private copy of the vendor repository, outside this tree, and
 this document describes it:

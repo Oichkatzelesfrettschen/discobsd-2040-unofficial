@@ -143,7 +143,9 @@ closure lcdgfx needs path /dev/lcdgfx
 # PICOCALC_LEAN, PICOCALC_LEAN_DIAG, PICOCALC_SD and PICOCALC_SD_DIAG all
 # carry the psram device and NMOUNT=3), whose minor 1 is a 6144 KB RAM
 # disk. /etc/rc.rp2040 runs mkfs over it and mounts it at /tmp, so the
-# closure carries the node and /sbin/mkfs. A PICO kernel has no driver
+# closure carries the node and /sbin/mkfs. A card with a usable type ba
+# entry takes /tmp instead: sd_tmpattach() (sd.c) gives the whole PSRAM to
+# swap, minor 1 is then empty, and /etc/rc.rp2040 mounts /dev/sd0t first. A PICO kernel has no driver
 # behind major 3, and a PICOCALC kernel whose part failed its probe refuses
 # the open, so the open fails with ENXIO and /etc/rc.rp2040 leaves /tmp on
 # the root. Both PicoCalc profiles (picocalc and picocalc-lean) name the

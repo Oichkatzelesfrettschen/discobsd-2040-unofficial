@@ -301,7 +301,8 @@ PICOCALC_PSRAM equal those of the driver-bearing PICOCALC link except
 
 This section records the selection as the driver landed. The separate
 configuration it describes has since been folded into PICOCALC, and the
-five PicoCalc kernels carry the driver (`sys/arch/rp2040/doc/PICOCALC.md`).
+five PicoCalc kernels carry the driver (`device psram` in each
+`sys/arch/rp2040/compile/PICOCALC*/Config`).
 
 The owner chose the driver as a PicoCalc option: the default PicoCalc build
 keeps `fl1` swap with no driver. The driver is a separate kernel
@@ -362,5 +363,7 @@ evidence.
 The gate compiles `psram_xfer.c` for the host with hooks that forward each
 register access to `tests/psram/pio_sim.py`, runs `tests/psram/test_psram.py`,
 and then runs each mutant. It writes `.build-logs/psram/psram-frames.json`.
-The kernels build with `bmake MACHINE=rp2040 kernel`; every PicoCalc kernel
-carries the driver, for example `sys/arch/rp2040/compile/PICOCALC/unix.uf2`.
+`bmake MACHINE=rp2040 kernel` builds PICOCALC, PICOCALC_LEAN and
+PICOCALC_LEAN_DIAG, and `picocalc-sd-kernel` and `picocalc-sd-diag-kernel`
+build the SD pair; each carries the driver, for example
+`sys/arch/rp2040/compile/PICOCALC/unix.uf2`.

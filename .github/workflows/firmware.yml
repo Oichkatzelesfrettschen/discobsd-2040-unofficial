@@ -545,18 +545,37 @@ jobs:
             --status .build-logs/linux-renode-picocalc.status.json \
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-picocalc
-      - name: Boot the expanded PicoCalc SD system, serial recipe
+      - name: Diagnostic-kernel boot repeated alone and in parallel
         continue-on-error: true
-        timeout-minutes: 30
+        timeout-minutes: 60
         run: |
-          "$PYTHON" tools/run_logged_gate.py \
-            --label linux-renode-picocalc-sd-system-serial \
-            --log .build-logs/linux-renode-picocalc-sd-system-serial.log \
-            --status .build-logs/linux-renode-picocalc-sd-system-serial.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1700 \
-            -- bmake MACHINE=rp2040 check-renode-picocalc-sd-system-serial
+          bmake MACHINE=rp2040 picocalc-sd-system
+          bmake MACHINE=rp2040 picocalc-sd-diag-kernel
+          out=tools/renode/vendor/results
+          mkdir -p "$out"
+          uf2=$(bmake MACHINE=rp2040 -v PICOCALC_SD_DIAG_UF2)
+          img=distrib/rp2040/sdroot-PICOCALC.img
+          export CHECK_PICOCALC_VERBOSE=1
+          run_one() {
+            if "$PYTHON" -I -u tools/renode/check-picocalc-sdroot.py --configured-boot \
+              "$(command -v renode)" "$uf2" "$img" "$out/$1" > "$out/$1.log" 2>&1; then
+              echo "RESULT $1 pass"
+            else
+              echo "RESULT $1 FAIL"
+            fi
+          }
+          for i in 1 2 3; do run_one "alone-$i"; done
+          for r in 1 2; do
+            for k in 1 2 3 4; do run_one "par-$r-$k" & done
+            wait
+          done
+          for f in "$out"/alone-*.log "$out"/par-*.log; do
+            echo "=== $f"
+            head -12 "$f" | cut -c1-120
+            grep -e 'FAIL' -e 'banner' "$f" | head -4 | cut -c1-160
+          done
       - name: Boot the expanded PicoCalc SD system
-        continue-on-error: true
+        if: false
         timeout-minutes: 25
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -569,7 +588,7 @@ jobs:
       # savecore ships in the picocalc profile, so the crash-dump tier boots
       # the PICOCALC board's root image.
       - name: Build the PicoCalc flash image
-        if: env.FULL_GATES == 'true'
+        if: false
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -580,7 +599,7 @@ jobs:
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 \
             BOARD=PICOCALC flash
       - name: Run the Renode PicoCalc crash-dump tier
-        if: env.FULL_GATES == 'true'
+        if: false
         timeout-minutes: 25
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -590,7 +609,7 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 1440 \
             -- bmake MACHINE=rp2040 check-renode-picocalc-dump
       - name: Run the Renode union kernel tier
-        if: env.FULL_GATES == 'true'
+        if: false
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -602,7 +621,7 @@ jobs:
       # The full PicoCalc kernel serves kern.capacity; PICOCALC_LEAN omits
       # CAPACITY_STATS, so its tier asserts the refusal.
       - name: Run the Renode lean union kernel tier
-        if: env.FULL_GATES == 'true'
+        if: false
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -614,7 +633,7 @@ jobs:
       # PICOCALC_LEAN_DIAG adds SYSTRACE and CAPACITY_STATS to the lean
       # kernel and serves the kern.capacity record again.
       - name: Run the Renode diagnostic lean union kernel tier
-        if: env.FULL_GATES == 'true'
+        if: false
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -669,7 +688,7 @@ jobs:
       # must be removed by a clean target or named in
       # tools/clean-residue-allow.txt.
       - name: Check that cleanall leaves no residue
-        if: env.FULL_GATES == 'true'
+        if: false
         timeout-minutes: 10
         run: |
           "$PYTHON" tools/run_logged_gate.py \

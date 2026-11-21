@@ -39,10 +39,10 @@ program. Every color already reaches the panel driver as an RGB565 value:
 RGB565 pixels or an entry of the kernel palette `gfx_pal`, so at 0x66 the
 driver only widens 16 bits to 18, and 0x55 sends the same color in two
 bytes instead of three. What the glass shows at 0x55 is board evidence only: Renode replicates the high bits into the low ones
-(`tools/renode/st7365p.cs:513-527`), and the board stores them clear
+(`tools/renode/picocalc/st7365p.cs:513-527`), and the board stores them clear
 (`PICOCALC.md:268-270`).
 
-Each host model of the device (`lib/libwin/win_test.c`, `games/ridge`'s
+Each host model of the device (`tests/libwin/win_test.c`, `games/ridge`'s
 `render_test.c`, `gametile_test.c`) rejects an ioctl it does not know; each
 learns `LCDG_COLMOD`, records the mode set, and fails a program that sends
 pixels before setting 0x55.
@@ -55,10 +55,18 @@ moved diagonally by a few pixels repaints its old and new rectangle in
 full: 20,000 pixels for a 100x100 window moved by (5,5). The bounding box
 of the pair is 11,025 pixels.
 
-The rule: when a new rectangle overlaps or touches a recorded one, the
-pair becomes its bounding box when
+The rule: when a new rectangle overlaps or touches a recorded one,
+`damage_add` first forms what it keeps today (the pair, with a contained
+rectangle dropped, an edge-sharing pair joined, or the overlap trimmed off
+one of them), and the pair becomes its bounding box only when
 
-    cost(box) <= cost(a) + cost(b),  cost(r) = bpp * w * h + 11 * strips(r)
+    cost(box) <= cost(kept),  cost(r) = bpp * w * h + 11 * strips(r)
+
+with cost(kept) the sum over the rectangles that form keeps. Comparing
+against the trimmed form keeps a merge from sending more than the present
+code: rectangles [10,110)x[0,100) and [0,120)x[50,150) at two bytes a
+pixel cost 44,055 bytes untrimmed and 34,044 after the first is trimmed to
+50 rows, so their 36,044-byte bounding box is refused.
 
 where `bpp` is the scene's wire bytes a pixel (2 at 0x55, 3 at 0x66),
 `strips(r)` = ceil(h / floor(5120 / w)) is the number of `LCDG_WINDOW`
@@ -70,7 +78,7 @@ This widens damage: a repaint then rewrites pixels that did not change,
 with the values they already hold. libwin's documented invariant ("never
 widened", `win.h:55`, `:75`) becomes "widened only where the bounding box
 costs no more wire bytes", and the test oracle that marks every written
-pixel as invalidated (`win_test.c:247-259`) becomes a check that every
+pixel as invalidated (`tests/libwin/win_test.c:247-259`) becomes a check that every
 invalidated pixel is written and that the bytes sent never exceed the
 unmerged cost.
 

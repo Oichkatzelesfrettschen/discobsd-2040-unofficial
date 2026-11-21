@@ -46,49 +46,50 @@ the paper's trade.
    loader stamp's limits (`dev/loader_stamp.h`) and the UF2 composition,
    which then carries the overlay text after the kernel. An XIP store loads
    with a word copy. A store on the SD card is a dedicated partition type and
-   needs the SD driver resident and a sleep on each transfer.
-3. **Entry.** Each overlay function is a local symbol; its exported name is
-   a resident veneer. The veneer takes the overlay lock, waits while the
-   buffer is `LOADING` or holds another overlay with a nonzero pin count,
-   marks it `LOADING` and copies the overlay in when the buffer holds
-   another, marks it `READY`, raises the pin count, drops the lock, calls
-   the function with `BLX`, and drops the pin count on return, waking the
-   waiters at zero. Overlay code calls resident code directly, since
-   resident addresses never move.
-4. **Reference gate.** A link-time gate reads every relocation in the
+   needs the SD driver resident.
+3. **Run to completion.** Overlay code, and every resident function it can
+   reach, never sleeps: the call-graph gate below rejects any path from an
+   overlay to `sleep()`, `tsleep()` or `swtch()`. The kernel is
+   non-preemptive on core 0 and interrupt handlers stay resident, so a
+   process inside an overlay keeps the CPU until the call returns; no other
+   process can load a different overlay over it, and no signal can unwind
+   it, because only a sleep reaches the `u_qsave` longjmp
+   (`sys/kern/kern_synch.c`) and the intermediate `setjmp(&u.u_qsave)`
+   sites in `ino_ioctl()`, `rwuio()`, `vn_open_at()` and
+   `device_driver_call()`. This replaces pin counts and per-process
+   ownership, which those non-local exits, `swap_lost_retire()` and the
+   100-byte `struct proc` (asserted in `rp2040/machdep.c`) would each
+   break. The cost is scope: a subsystem that sleeps (a tty read, a wait on
+   a device) cannot become an overlay.
+4. **Entry.** Each overlay function is a local symbol; its exported name is
+   a resident veneer. The veneer copies the overlay into the buffer when the
+   buffer holds another one and then calls the function with `BLX`. The
+   copy itself runs to completion: an XIP store is a word copy, and the SD
+   driver busy-waits on SPI0 for every transfer (`dev/sd.c`). Overlay code
+   calls resident code directly, since resident addresses never move.
+5. **Reference gate.** A link-time gate reads every relocation in the
    kernel and fails on any reference into an `.ovl.*` section except from
    that overlay's own sections and its veneer table, so a resident caller,
    a function-pointer table or another overlay cannot reach the shared run
-   address directly. It also builds the call graph and fails when an
-   overlay reaches another overlay's veneer through resident code: overlay
-   A stays pinned while its caller runs, so a path from A to overlay B would
-   wait forever for A's pin count. A DIAGNOSTIC kernel checks the same rule
-   at run time with a per-process record of the overlay it is inside.
-   Inside an overlay, the gate admits only direct-call relocations
-   (`R_ARM_THM_CALL`, `R_ARM_THM_JUMP*`) to the overlay's own symbols and
-   rejects every address-taking one (`R_ARM_ABS32` and the literal-pool
-   forms), so an overlay can hand a resident facility such as `timeout()`
-   only a veneer's address; a raw buffer address held after the veneer
-   returns would run whichever overlay replaced it.
-5. **Exits.** The veneer's return is one way out of an overlay; the others
-   are the syscall unwind, where an interrupted `sleep()` jumps to the
-   `u_qsave` frame (`sys/kern/kern_synch.c`), process exit, and a fault
-   that kills the process. The veneer therefore records the pin in the
-   process (`p_ovl`: the overlay and a nesting depth, since an overlay may
-   reenter itself through resident code) as well as in the buffer's count, and the unwind path
-   in `syscall()`, `exit()` and the fault kill release the recorded pin,
-   so every exit drops it exactly once.
+   address directly. Inside an overlay it admits only direct-call
+   relocations (`R_ARM_THM_CALL`, `R_ARM_THM_JUMP*`) to the overlay's own
+   symbols and rejects every address-taking one (`R_ARM_ABS32` and the
+   literal-pool forms), so an overlay can hand a resident facility such as
+   `timeout()` only a veneer's address; a raw buffer address held after the
+   call would run whichever overlay replaced it. The same pass builds the
+   call graph and fails on a path from an overlay to a sleep (item 3) or to
+   another overlay's veneer, since the second load would overwrite the
+   caller's code under it.
 6. **Residency.** Interrupt handlers, the fault and panic paths, the
    crash-dump writer and anything `lcdabandon()` reaches stay resident,
-   because they run where a load cannot sleep.
+   because they run outside process context.
 7. **Verification.** A Unicorn check in the style of
    `tools/unicorn/check_panel_program.py` calls each veneer twice with
    another overlay loaded in between and compares the result with the
-   resident build's, and interleaves two processes that request different
-   overlays while one load sleeps, and interrupts a sleep inside an overlay
-   with a signal and then requests another overlay; a mutant veneer that
-   skips the load or raises the pin count after the copy, and a mutant
-   unwind that skips the release, must fail it.
+   resident build's; a mutant veneer that skips the load must fail it. The
+   reference gate is calibrated on a known-bad link: an overlay that calls
+   `tsleep()`, one that stores its own function's address, and a resident
+   caller of an overlay symbol must each be rejected.
 
 ## Cost
 
@@ -102,9 +103,12 @@ the flash text (owner ruling 2026-11-16), or from `SCRATCH`, whose 8 KiB
 already has tenants that this design would have to displace. The flash
 saved is the overlays' text less the veneers and a loader of a few hundred
 bytes (also an estimate). The kernel already runs the static form of this
-mechanism: the `.ramfunc` sections, the flash-programming routines of
-`dev/flash.c` and the PSRAM transfer of `dev/psram_xfer.c`, load from
-flash and run from RAM (1,000 bytes in the PICOCALC map the survey read).
+mechanism: the `.ramfunc` sections (the flash-programming routines of
+`dev/flash.c`, the PSRAM transfer of `dev/psram_xfer.c`, `bootsel_pressed()`
+in `rp2040/machdep.c`, core 1's code in `rp2040/core1.c` and the
+`STORAGE_STATS` hooks of `dev/flash_reset_hook.h`, by configuration) load
+from flash and run from RAM (1,000 bytes in the PICOCALC map the survey
+read).
 
 ## When to build it
 

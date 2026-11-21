@@ -17,9 +17,11 @@ BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_LEAN",
 # The diagnostic options a _DIAG kernel adds to its lean base; a further
 # diagnostic option joins this tuple.
 DIAGNOSTIC_OPTIONS = ("options SYSTRACE", "options CAPACITY_STATS")
-# The panel register test runs through /dev/lcdgfx, so only a kernel with
-# DEV_LCDGFX carries it: PICOCALC does and PICOCALC_LEAN omits both.
-PANEL_OPTIONS = ("options LCD_PANELTEST",)
+# The SD-root kernel's diagnostic additions to PICOCALC: the syscall trace
+# and the panel register test. The panel test runs through /dev/lcdgfx, so
+# it needs DEV_LCDGFX, which PICOCALC_SD inherits and PICOCALC_LEAN_DIAG
+# omits; both options leave the 128 KiB PICOCALC image for room.
+SD_PANEL_OPTIONS = ("options SYSTRACE", "options LCD_PANELTEST")
 # The per-driver device options the full PICOCALC kernel carries and
 # PICOCALC_LEAN omits.
 OPTIONAL_DEVICE_OPTIONS = ("options DEV_ADC", "options DEV_GPIO",
@@ -38,10 +40,10 @@ SD_DIAG_OPTIONS = ("options PICOCALC_SD", "options DIAGNOSTIC",
 VARIANTS = (
     ("PICO_DIAG", "PICO", DIAGNOSTIC_OPTIONS, ()),
     ("PICOCALC_LEAN", "PICOCALC", (),
-     OPTIONAL_DEVICE_OPTIONS + DIAGNOSTIC_OPTIONS + PANEL_OPTIONS),
+     OPTIONAL_DEVICE_OPTIONS + ("options CAPACITY_STATS",)),
     ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN", DIAGNOSTIC_OPTIONS, ()),
     ("PICOCALC_SD", "PICOCALC",
-     ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a',
+     ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a', *SD_PANEL_OPTIONS,
       'options LCD_GFX_EXT', 'options DEV_GPIO_PWM', 'options LCD_VT',
       'options "NPROC=32"', 'options "MAXUPRC=25"', 'options "SMAPSIZ=36"'),
      ('ldscript "RP2040.ld"', 'config unix root on fl0a')),

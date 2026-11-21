@@ -181,7 +181,7 @@ calculator to `full` (`sys/arch/rp2040/doc/PROFILES.md`):
 `distrib/rp2040/flash-${BOARD}.uf2` (and `sdcard-${BOARD}.img`), so the
 images of different boards coexist. `UNION_KERNEL` selects the PicoCalc
 kernel that receives a board's descriptor: `PICOCALC` (the default: PSRAM
-swap, every device option, `kern.systrace` and `kern.capacity`) writes
+swap, every device option and `kern.capacity`) writes
 `unix[-BOARD].uf2`, `PICOCALC_LEAN` (without the device and diagnostic
 options) writes `unix[-BOARD]-LEAN.uf2` and `PICOCALC_LEAN_DIAG`
 (`PICOCALC_LEAN` plus the diagnostic options) writes

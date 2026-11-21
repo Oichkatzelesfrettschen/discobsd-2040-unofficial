@@ -27,17 +27,19 @@ swap partition when the card carries one ("Swap on the card" below), and it
 stays on the flash when neither takes it. PICOCALC is the full PicoCalc
 kernel: the PSRAM driver, every per-driver device option below, the
 keyboard controller's `machdep.picocalc` nodes, the SD card with the crash-dump writer, and the
-diagnostic options `SYSTRACE` and `CAPACITY_STATS` (`kern.systrace`,
-`kern.systracepid`, `kern.capacity`) and the panel register test
-(`LCD_PANELTEST`, `PANELTEST.md`). PICOCALC_LEAN
+fixed-table accounting `CAPACITY_STATS` (`kern.capacity`). The syscall and
+signal trace `SYSTRACE` (`kern.systrace`, `kern.systracepid`) and the panel
+register test (`LCD_PANELTEST`, `PANELTEST.md`) live in PICOCALC_SD, the
+SD-root kernel, whose 160 KiB reservation holds them beside its other
+additions; PICOCALC answers `EOPNOTSUPP` for `kern.systrace` and for the
+panel test's `machdep.picocalc` variables. PICOCALC_LEAN
 (`sys/arch/rp2040/compile/PICOCALC_LEAN/Config`) omits the four device
-options, the two diagnostic options and the panel register test and answers
-`EOPNOTSUPP` for those nodes; PICOCALC_LEAN_DIAG
-(`sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/Config`) is PICOCALC_LEAN with the
-two diagnostic options. The panel register test runs through `/dev/lcdgfx`,
-which PICOCALC_LEAN_DIAG does not carry (`DEV_LCDGFX`), so it stays in
-PICOCALC; later diagnostic options that run without a device join PICOCALC and
-PICOCALC_LEAN_DIAG. All three compile the PicoCalc board descriptor, and
+options and `CAPACITY_STATS` and answers `EOPNOTSUPP` for those nodes;
+PICOCALC_LEAN_DIAG (`sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/Config`) is
+PICOCALC_LEAN with `SYSTRACE` and `CAPACITY_STATS`, the flash-root kernel
+that traces. The panel register test runs through `/dev/lcdgfx`, which
+PICOCALC_LEAN_DIAG does not carry (`DEV_LCDGFX`), so a board runs it under
+PICOCALC_SD. All three compile the PicoCalc board descriptor, and
 `UNION_KERNEL` pairs any of them with a board's descriptor
 (`unix[-BOARD].uf2`, `unix[-BOARD]-LEAN.uf2` or `unix[-BOARD]-LEAN-DIAG.uf2`).
 Size tables below that predate this matrix name the configurations of their

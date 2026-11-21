@@ -151,11 +151,23 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN_DIAG: Config must equal"):
             sync.check(self.root)
 
-    def test_full_kernel_without_the_panel_test_is_rejected(self):
-        self.mutate(sync.COMPILE / "PICOCALC/Config", self.PANEL_LINE, "")
-        with self.assertRaisesRegex(
-                sync.SyncError,
-                "PICOCALC_LEAN: PICOCALC Config lacks the directive options LCD_PANELTEST"):
+    def test_full_kernel_carrying_the_panel_test_is_rejected(self):
+        # The panel test lives in PICOCALC_SD alone; a PICOCALC that regains
+        # it no longer equals PICOCALC_LEAN plus the lean kernel's cuts.
+        self.mutate(sync.COMPILE / "PICOCALC/Config", self.CAPACITY_LINE,
+                    self.CAPACITY_LINE + self.PANEL_LINE)
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
+            sync.check(self.root)
+
+    def test_full_kernel_carrying_systrace_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC/Config", self.CAPACITY_LINE,
+                    self.SYSTRACE_LINE + self.CAPACITY_LINE)
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN: Config must equal"):
+            sync.check(self.root)
+
+    def test_sd_variant_without_systrace_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_SD/Config", "options         SYSTRACE\n", "")
+        with self.assertRaisesRegex(sync.SyncError, "PICOCALC_SD: Config must equal"):
             sync.check(self.root)
 
     def test_full_kernel_without_a_device_option_is_rejected(self):
@@ -244,8 +256,8 @@ class GeneratedSyncTest(unittest.TestCase):
     MOUNT_TABLE = (
         ("PICO_DIAG", "PICO", sync.DIAGNOSTIC_OPTIONS, ()),
         ("PICOCALC_LEAN", "PICOCALC", ('options "NMOUNT=2"',),
-         sync.OPTIONAL_DEVICE_OPTIONS + sync.DIAGNOSTIC_OPTIONS
-         + sync.PANEL_OPTIONS + ('options "NMOUNT=3"',)),
+         sync.OPTIONAL_DEVICE_OPTIONS + ('options CAPACITY_STATS',
+                                         'options "NMOUNT=3"')),
         ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN",
          sync.DIAGNOSTIC_OPTIONS + ('options "NMOUNT=3"',),
          ('options "NMOUNT=2"',)),

@@ -39,8 +39,8 @@ carries the free-running measurement that does.
 CONFIG names the kernel configuration the banner must carry and defaults to
 PICO_UART. PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG are the PicoCalc
 kernels booted with a bare-Pico UART0 descriptor (check-boot.sh patches it
-in). PICOCALC and PICOCALC_LEAN_DIAG carry SYSTRACE and CAPACITY_STATS;
-PICOCALC_LEAN omits both. PICO_UART, PICOCALC and PICOCALC_LEAN_DIAG serve
+in). PICOCALC carries CAPACITY_STATS, PICOCALC_LEAN_DIAG carries SYSTRACE and
+CAPACITY_STATS, and PICOCALC_LEAN omits both. PICO_UART, PICOCALC and PICOCALC_LEAN_DIAG serve
 kern.capacity and are asserted on its record; PICOCALC_LEAN omits the node
 and is asserted to refuse it with EOPNOTSUPP, which sysctl reports as
 "value is not available". The probe stage asserts

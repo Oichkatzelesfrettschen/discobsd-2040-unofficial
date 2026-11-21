@@ -32,10 +32,11 @@
 # The PICOCALC_LEAN kernel plus the options that gather diagnostic
 # evidence: the syscall and signal trace (SYSTRACE, kern.systrace and
 # kern.systracepid) and the fixed-table and u-area accounting
-# (CAPACITY_STATS, kern.capacity). The panel register test (LCD_PANELTEST)
-# stays in PICOCALC alone: it runs through /dev/lcdgfx, which this kernel does
-# not carry (DEV_LCDGFX). Later diagnostic options that need no device join
-# PICOCALC and this kernel together. This Config and PICOCALC_LEAN's
+# (CAPACITY_STATS, kern.capacity). It is the flash-root PicoCalc kernel
+# that traces: PICOCALC carries CAPACITY_STATS alone, and SYSTRACE and the
+# panel register test (LCD_PANELTEST) live in the SD-root PICOCALC_SD. The
+# panel test runs through /dev/lcdgfx, which this kernel does not carry
+# (DEV_LCDGFX). This Config and PICOCALC_LEAN's
 # differ in the board line and those additions only; the generated sync gate
 # (tools/config/check_generated_sync.py) holds them to that. The board name
 # is this directory's name, so PARAM defines -DPICOCALC_LEAN_DIAG.

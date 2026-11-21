@@ -47,11 +47,11 @@ Sources (sha256, URL):
     SingleStepTests/8086 v1 (Intel P80C86A-2, e71c68d2), SingleStepTests/80286
     v1_real_mode (Harris N80C286-12, 37c73caf); the test files of the
     loop's opcodes. Each test is one instruction from a known queue state.
-    SingleStepTests/80186 holds no tests.
+    SingleStepTests/80186 holds only a README.
   86Box at fafa9de4: src/cpu/808x.c for the 8088 and 8086 (and the 80186,
     which it times as the 8086), the 386 core's 80286 charges.
-  Agner Fog's instruction tables (2025-09-20) begin at the Pentium and give
-    nothing for these processors.
+  Agner Fog's instruction tables (2025-09-20) begin at the Pentium; these
+    processors appear only in their glossary.
 
 Clocks for one turn of the loop:
 

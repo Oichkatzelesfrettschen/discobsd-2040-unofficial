@@ -384,6 +384,21 @@ main:	mov ah, 0x40
 	mov al, [es:0]
 	mov si, s_atc000
 	call say2
+	; an array longer than the mappable pages: 8Bh and nothing mapped.
+	; pbuf is still zero: 19 valid entries, logical 0 at physical 0.
+	; E000:0 keeps the byte it held (31h), not logical 0's 11h.
+	mov ax, 0x5000
+	mov cx, 19
+	mov dx, [h]
+	mov si, pbuf
+	int 0x67
+	mov si, s_e50l
+	call st
+	mov ax, 0xe000
+	mov es, ax
+	mov al, [es:0]
+	mov si, s_e000l
+	call say2
 	; move from conventional memory across the end of page 1
 	push ds
 	pop es
@@ -672,6 +687,8 @@ s_e8d:	db "e8d:", 0
 s_restore: db "restore:", 0
 s_multi: db "multi:", 0
 s_atc000: db "c000:", 0
+s_e50l:	db "e50l:", 0
+s_e000l: db "e000l:", 0
 s_move:	db "move:", 0
 s_xchg:	db "xchg:", 0
 s_xgot:	db "xgot:", 0

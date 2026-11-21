@@ -593,10 +593,15 @@ ems_int(struct i86 *c)
 			st = E_SUB;
 		break;
 	case 0x50:
+		/* An array longer than the mappable pages maps nothing (8Bh);
+		 * a bad entry stops the call with the entries before it
+		 * mapped, as the specification's 8Ah and 8Bh texts say. */
 		if (al > 1)
 			st = E_SUB;
 		else if (!valid(dx))
 			st = E_HANDLE;
+		else if (cx > nphys)
+			st = E_PPAGE;
 		for (k = 0; k < cx && st == OK; k++) {
 			n = grw(dssi + 4 * k);
 			p = grw(dssi + 4 * k + 2);

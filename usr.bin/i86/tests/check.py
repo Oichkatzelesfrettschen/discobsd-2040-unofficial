@@ -363,6 +363,7 @@ MUTANTS = [
     ("ems.c", "else if (key_out ? ((uint32_t)bx << 16 | cx) != key :", "else if (key_out ? 0 :"),
     ("ems.c", "if (os_off && ((ah == 0x59 && al == 0) || ah == 0x5b))", "if (0)"),
     ("ems.c", "if (al < 2 && grw(dssi) > nphys) {", "if (0) {"),
+    ("ems.c", "else if (cx > nphys)\n\t\t\tst = E_PPAGE;", "else if (0)\n\t\t\tst = E_PPAGE;"),
     (
         "ems.c",
         "\t\t\t/* Every entry is checked before any is applied. */\n\t\t\tn = grw(dssi);",
@@ -1036,7 +1037,8 @@ def ems_expected():
         " free:000D e87:87 e88:88 e89:89".split()
         + ["sumx:%04X" % page_sum(2)]
         + ["sum:%04X" % page_sum(n) for n in range(3)]
-        + "alias:AB alias2:AB disk:AA55 save:00 e8d:8D restore:11 multi:00 c000:11 move:00 xchg:00"
+        + "alias:AB alias2:AB disk:AA55 save:00 e8d:8D restore:11 multi:00 c000:11 e50l:8B e000l:31 move:00"
+        " xchg:00"
         " xgot:45 moved:4D45 landed:4D45 set1:00 alt:0010 get:FFF0 h0:00 e88h0:88 e83:83"
         " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
         " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF e86:86"

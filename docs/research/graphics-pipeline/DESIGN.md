@@ -27,7 +27,7 @@ that opens the device issues `LCDG_COLMOD` 0x55 once after each open:
 | Program | Pixels it hands the kernel | Change |
 | --- | --- | --- |
 | `usr.bin/matezinho` | RGB565 bands through `LCDG_WINDOW` (`main.c:85-93`) | COLMOD after both opens (`main.c:372`, `:430`) |
-| `lib/libwin` | 1-byte palette indices the kernel expands (`lcdgfx.c:391`) | a backend call that sets COLMOD, used by `tests/rp2040/windemo.c` |
+| `lib/libwin` | 1-byte palette indices the kernel expands (`lcdgfx.c:391`) | a backend call that sets COLMOD, used by `tests/rp2040/windemo/windemo.c` |
 | `games/ridge` through `games/gametile.h` | 4-bit tiles through `LCDG_TILEWIN` | COLMOD after the open (`ridge.c:1858`) |
 | `usr.bin/ulisp` (`dev_picocalc.c`) | RGB565 fills | COLMOD after the lazy open (`:62`) |
 
@@ -113,7 +113,7 @@ clock changes them, and the header says so.
 ## Proposals that wait for a consumer
 
 - Hardware scroll as a library path. `LCDG_SCRDEF` and `LCDG_SCROLL` work
-  (`lcdgfx.c:811-823`, board run of `tests/rp2040/lcdexttest.c`), and no
+  (`lcdgfx.c:811-823`, board run of `tests/rp2040/lcdexttest/lcdexttest.c`), and no
   shipped game scrolls vertically: `ridge` scrolls sideways by re-sending
   tiles. A tear-free ring also needs RAMWIN beyond row 320, which
   `LCDG_TILEWIN` cannot reach (`lcdgfx.c:843-845`). The path is written

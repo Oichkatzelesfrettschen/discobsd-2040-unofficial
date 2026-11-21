@@ -238,6 +238,10 @@ formatd(char *name, int dotitle)
 			    !strcmp(fp->fname, ".."))
 				continue;
 			dp = (struct subdirs *)malloc(sizeof (struct subdirs));
+			if (dp == 0) {
+				fputs("ls: out of memory\n", stderr);
+				exit(1);
+			}
 			dp->sd_name = savestr(cat(name, fp->fname));
 			dp->sd_next = subdirs; subdirs = dp;
 		}
@@ -272,6 +276,10 @@ getdir(const char *dir, struct afile **pfp0, struct afile **pfplast, int *isadir
 	else
 		*isadir = 0;
 	fp = *pfp0 = (struct afile *)calloc(nent, sizeof (struct afile));
+	if (fp == 0) {
+		fputs("ls: out of memory\n", stderr);
+		exit(1);
+	}
 	*pfplast = *pfp0 + nent;
 	nb = 0;
 	while ((dp = readdir(dirp)) != NULL) {

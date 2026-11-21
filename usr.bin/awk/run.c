@@ -334,6 +334,8 @@ char *format(s,a) char *s; node *a;
 
 	os = s;
 	p = buf = (char *)malloc(RECSIZE);
+	if (buf == NULL)
+		error(FATAL, "out of space in format");
 	while (*s) {
 		if (*s != '%') {
 			*p++ = *s++;
@@ -542,6 +544,8 @@ obj cat(a,q) node **a;
 	n1 = strlen(x.optr->sval);
 	n2 = strlen(y.optr->sval);
 	s = (char *) malloc(n1 + n2 + 1);
+	if (s == NULL)
+		error(FATAL, "out of space in cat");
 	strcpy(s, x.optr->sval);
 	strcpy(s+n1, y.optr->sval);
 	tempfree(y);

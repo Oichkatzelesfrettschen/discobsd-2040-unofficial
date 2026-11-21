@@ -34,7 +34,10 @@
 ; the interrupts counter 0 raised at 1 kHz (mode 2, count 1193) while
 ; counter 2 counted 65535 clocks in mode 0 with its gate open, polled
 ; through bit 5 of port 61h (irq), counter 2's read-back status then
-; (st2), how often bit 4 of port 61h changed in 64 reads (rf), and, with
+; (st2), how often bit 4 of port 61h changed in 64 reads (rf), whether a
+; poller saw counter 2's mode 2 low pulse (m2, 0), how many of 40 latched
+; reads of an odd mode 3 count were even (m3e), the high byte of a BCD
+; count of 10000 just loaded (bcd, 99), and, with
 ; counter 0 back at 65536 and the firmware's handler, that the tick count
 ; at 40:6Ch moved (tick), then runs 131072 instructions before "done",
 ; which -S paces.
@@ -188,6 +191,60 @@ main:	call latch0
 	mov ax, bx
 	mov si, s_rf
 	call say4
+	; counter 2 in mode 2, count 1000: a poller sees OUT low once a period
+	mov al, 0xb4
+	out 0x43, al
+	mov al, 0xe8
+	out 0x42, al
+	mov al, 0x03
+	out 0x42, al
+	mov cx, 0xffff
+.m2:	in al, 0x61
+	test al, 0x20
+	jz .m2low
+	loop .m2
+.m2low:	mov ax, cx
+	or ax, ax
+	mov al, 0
+	jnz .m2out
+	mov al, 0xff
+.m2out:	xor ah, ah
+	mov si, s_m2
+	call say4
+	; mode 3, odd count 7: the low half reads even counts
+	mov al, 0xb6
+	out 0x43, al
+	mov al, 7
+	out 0x42, al
+	xor al, al
+	out 0x42, al
+	xor bx, bx
+	mov cx, 40
+.m3:	mov al, 0x80
+	out 0x43, al
+	in al, 0x42
+	mov dl, al
+	in al, 0x42
+	test dl, 1
+	jnz .m3odd
+	inc bx
+.m3odd:	loop .m3
+	mov ax, bx
+	mov si, s_m3e
+	call say4
+	; mode 0 in BCD, count 0 (10000): reads as decimal digits, 99xx
+	mov al, 0xb1
+	out 0x43, al
+	xor al, al
+	out 0x42, al
+	out 0x42, al
+	mov al, 0x80
+	out 0x43, al
+	in al, 0x42
+	in al, 0x42
+	xor ah, ah
+	mov si, s_bcd
+	call say4
 	; counter 0 back at 65536 in mode 3, the firmware's handler back
 	mov al, 0x36
 	out 0x43, al
@@ -220,6 +277,9 @@ s_dn:	db "dn:", 0
 s_irq:	db "irq:", 0
 s_st2:	db "st2:", 0
 s_rf:	db "rf:", 0
+s_m2:	db "m2:", 0
+s_m3e:	db "m3e:", 0
+s_bcd:	db "bcd:", 0
 s_tick:	db "tick:ok", 0
 s_done:	db "done", 0
 

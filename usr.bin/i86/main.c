@@ -400,8 +400,8 @@ main(int argc, char **argv)
 	/* Keys are read one at a time whether or not the display is drawn. */
 	if (cf.keys == NULL)
 		tty_raw();
-	pc_init(&cpu, &cf);
 	t_start = host_ms();
+	pc_init(&cpu, &cf);
 	for (;;) {
 		/* A halted processor runs again only for an interrupt it
 		 * can take. */

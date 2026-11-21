@@ -195,6 +195,7 @@ struct pit {
 	uint8_t wnext, rnext;	/* the next access is the high byte */
 	uint8_t latched;	/* bytes of latch to read */
 	uint8_t slatched, status;	/* a read-back status to read */
+	uint32_t shown;		/* mode 2: the period whose low pulse was read */
 };
 
 static struct pit pit[3];
@@ -1648,23 +1649,49 @@ pit_elapsed(unsigned n, uint32_t now)
 	return (now - pit[n].t0);
 }
 
+/* Four decimal digits each way, for a counter in BCD. */
+static unsigned
+bcd_bin(unsigned v)
+{
+	return ((v >> 12 & 15) * 1000 + (v >> 8 & 15) * 100 +
+	    (v >> 4 & 15) * 10 + (v & 15));
+}
+
+static unsigned
+bin_bcd(unsigned v)
+{
+	return ((v / 1000 % 10) << 12 | (v / 100 % 10) << 8 |
+	    (v / 10 % 10) << 4 | v % 10);
+}
+
+/*
+ * The count a read shows. Mode 3 counts down by two twice a period; an
+ * odd count spends (count + 1) / 2 clocks in the high half, from count,
+ * and (count - 1) / 2 in the low half, from count - 1. A BCD counter
+ * wraps at 10000 and reads as four decimal digits.
+ */
 static unsigned
 pit_value(unsigned n, uint32_t now)
 {
 	struct pit *p = &pit[n];
-	uint32_t e = pit_elapsed(n, now), half;
+	uint32_t e = pit_elapsed(n, now), c = p->count, hi, v;
 
 	if (!p->armed)
 		return (0);
 	switch (p->mode) {
 	case 2:
-		return ((p->count - e % p->count) & 0xffff);
-	case 3:		/* down by two, twice a period */
-		half = p->count / 2 ? p->count / 2 : 1;
-		return ((p->count - 2 * (e % half)) & 0xffff);
+		v = c - e % c;
+		break;
+	case 3:
+		e %= c;
+		hi = (c + 1) / 2;
+		v = e < hi ? c - 2 * e : c - (c & 1) - 2 * (e - hi);
+		break;
 	default:	/* on past zero */
-		return ((p->count - e) & 0xffff);
+		v = p->bcd ? (c + 10000 - e % 10000) % 10000 : c - e;
+		break;
 	}
+	return (p->bcd ? bin_bcd(v % 10000) : v & 0xffff);
 }
 
 static unsigned
@@ -1677,6 +1704,13 @@ pit_out(unsigned n, uint32_t now)
 		return (p->mode != 0);
 	switch (p->mode) {
 	case 2:
+		/* Low for the one clock at the end of each period: shown
+		 * once to the first read after the period ends, since
+		 * time moves between reads in steps of whole instructions. */
+		if ((n != 2 || (port61 & 1)) && e / p->count != p->shown) {
+			p->shown = e / p->count;
+			return (0);
+		}
 		return (1);
 	case 3:
 		return (n == 2 && !(port61 & 1)) ||
@@ -1714,9 +1748,12 @@ pit_load(struct i86 *c, unsigned n, unsigned v)
 	struct pit *p = &pit[n];
 	uint32_t now = pit_now();
 
-	p->count = v ? v : 0x10000;
+	if (p->bcd)
+		v = bcd_bin(v);
+	p->count = v ? v : p->bcd ? 10000 : 0x10000;
 	p->t0 = now;
 	p->held = 0;
+	p->shown = 0;
 	p->armed = 1;
 	if (n == 0) {
 		irq_at = now + p->count;

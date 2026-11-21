@@ -1619,6 +1619,21 @@ check-license-headers: check-python
 
 .PHONY: check-license-headers
 
+# The mutant scripts run a freshly built test through tools/run_bounded.sh,
+# which bounds its wall-clock time and the output it keeps. --selftest runs the
+# script through a passing command, a failing one, a command that cannot be
+# started, a command that leaves a child holding the output, a sleeper, a
+# command that ignores the first signal, a loud failure on each stream and an
+# endless flood, malformed, oversized and unusable bounds and paths and a failed
+# capture, and requires seven mutants of the script (no time bound, no output
+# bound, a lost status, a command that did not start taken for its failure, a
+# capture failure ignored, a malformed bound accepted, a failing status taken
+# for a timeout) to fail the scenario each targets. It prints a SKIP without timeout(1).
+check-run-bounded:
+		sh tools/run_bounded.sh --selftest
+
+.PHONY: check-run-bounded
+
 # CI installs its packages through tools/ci_apt_install.sh, which bounds each
 # network phase of apt-get in wall-clock time and retries it: a mirror that
 # trickles bytes never trips apt's idle timeout, and one such download held the
@@ -2107,7 +2122,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install \
+		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install check-run-bounded \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
 		check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \

@@ -37,7 +37,9 @@ runs (the controlled statement, or one at the top level of the controlled
 block, outside any nested condition or loop) must be exit, _exit, abort,
 longjmp, err, errx, return, goto or awk's error(FATAL, ...), or error() in
 ed or overflo() in awk's b.c, which never return. Assigning a new value to
-an object is not a use. Comments, literals and preprocessor lines are
+an object is not a use, and a preprocessor line between the allocation
+and the end of its branch fails the site, since the scan does not
+evaluate conditional compilation. Comments, literals and preprocessor lines are
 blanked first and statements split at a semicolon, brace or the end of a
 condition, so a call spread over several lines counts as one statement. An
 allocation that is not assigned (an argument or a return value) is outside
@@ -56,7 +58,7 @@ LVALUE = (
     r"(?:\*\s*)?[A-Za-z_]\w*"
     r"(?:\s*(?:->|\.)\s*[A-Za-z_]\w*|\s*\[[^\]]*\])*"
 )
-CAST = r"(?:\(\s*[A-Za-z_][\w\s]*\**\s*\)\s*|\(\s*)*"
+CAST = r"(?:\(\s*[A-Za-z_][\w\s*]*\)\s*|\(\s*)*"
 ASSIGNED_CALL = re.compile(rf"((?:{LVALUE}\s*=(?!=)\s*{CAST})+){ALLOCATORS}\s*\(")
 LABELS = r"(?:(?:case\s+[^:;]+|[A-Za-z_]\w*)\s*:(?!:)\s*)*"
 ONE_LVALUE = re.compile(rf"({LVALUE})\s*=(?!=)")
@@ -216,6 +218,21 @@ def enclosed_test(stmt, chain_start):
     return False
 
 
+def branch_span(code, position):
+    """Return (start, end) of the statement or block that starts at position."""
+    text = branch(code, position)
+    start = position
+    while start < len(code) and code[start].isspace():
+        start += 1
+    return start, start + len(text)
+
+
+def conditional(text, span):
+    """True when a preprocessor line lies inside the span of the original text."""
+    start, end = span
+    return re.search(r"(?m)^[ \t]*#", text[start:end]) is not None
+
+
 def branch(code, position):
     """Return the statement or block that starts at position."""
     while position < len(code) and code[position].isspace():
@@ -326,17 +343,22 @@ def scan(path, text, root=None):
             sites += 1
             line = code.count("\n", 0, start + match.start()) + 1
             names = names_of(match.group(1), start + match.start(1), code)
-            if enclosed_test(stmt, match.start(1)) and leaves(
-                branch(code, start + len(stmt)), label, names
+            span = branch_span(code, start + len(stmt))
+            if (
+                enclosed_test(stmt, match.start(1))
+                and not conditional(text, (start + match.start(), span[1]))
+                and leaves(code[span[0] : span[1]], label, names)
             ):
                 continue
             if call_ends_statement(stmt, match.end() - 1) and index + 1 < len(parts):
                 after, following = parts[index + 1]
                 cond = condition(following)
+                span = branch_span(code, after + len(following))
                 if (
                     cond is not None
                     and tests_null(cond, names)
-                    and leaves(branch(code, after + len(following)), label, names)
+                    and not conditional(text, (start + match.start(), span[1]))
+                    and leaves(code[span[0] : span[1]], label, names)
                 ):
                     continue
             collapsed = re.sub(r"\s+", " ", stmt[: stmt.find("(", match.end() - 1)]).strip()
@@ -381,6 +403,11 @@ KNOWN_BAD = {
     "use in the allocation statement": "p = malloc(4), *p = 1;\nif (!p)\n\texit(1);\n",
     "use before the exit": "p = malloc(4);\nif (!p) {\n\t*p = 1;\n\texit(1);\n}\n",
     "inline use before the exit": "if ((p = malloc(4)) == NULL) {\n\tp[0] = 0;\n\texit(1);\n}\n",
+    "terminator under #if": (
+        "p = malloc(4);\nif (!p) {\n#if FOO\n\texit(1);\n#endif\n}\n*p = 1;\n"
+    ),
+    "test under #if": "p = malloc(4);\n#ifdef CHECKED\nif (!p)\n\texit(1);\n#endif\n*p = 1;\n",
+    "qualified cast": "p = (char * const)malloc(4);\n*p = 1;\n",
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",
@@ -417,6 +444,7 @@ KNOWN_GOOD = {
     "terminator after a message": (
         'p = malloc(4);\nif (p == NULL) {\n\tfputs("out of memory", stderr);\n\texit(1);\n}\n'
     ),
+    "qualified cast": "p = (char * const)malloc(4);\nif (p == NULL)\n\texit(1);\n",
     "goto": "p = malloc(4);\nif (!p)\n\tgoto fail;\n",
     "unassigned": "return (malloc(n));\n",
     "cast null": "p = malloc(4);\nif (p == (char *)0)\n\texit(1);\n",

@@ -64,8 +64,10 @@ jobs:
     # system tier ended by the idle timeout after 13 of up to 24 minutes), so a
     # passing run needs about 130 minutes or more. The first fully passing run,
     # dispatch 44895879561, took 148 minutes (host tier 2,490 s, asynchronous
-    # system trap tier 690 s, SD system tier 1,083 s); runs of one commit differ
-    # by about 25 percent, so the bound is 210.
+    # system trap tier 690 s, SD system tier 1,083 s). Two runs of one workload
+    # differed by at least 13 percent (macOS first host part, 2,594 s and more
+    # than 2,935 s), and the host tier grows with the i86 mutant lists, so the
+    # bound is 210.
     timeout-minutes: 210
     steps:
       - uses: actions/checkout@v4
@@ -955,8 +957,9 @@ jobs:
       # The first part finished every gate in 2243 s and the second in 697 s
       # (dispatch 44877305151). The nightly 44888989971 was still in the last
       # gate of the first part at 2935 s, when the idle limit ended it, so the
-      # first part's runs span 2243 s to more than 2935 s; its limit is 4500 s,
-      # and the second part's limit is 1.72 times its measurement.
+      # first part's runs span 2243 s (113 and 46 i86 mutants) to more than 2935 s
+      # (143 and 47, as in the 2594 s run); its limit is 4500 s, and the second
+      # part's limit is 1.72 times its measurement.
       # The first part carries the C17 library families, whose math and wide
       # fixtures run native and sanitized, and the ulisp mutants.
       - name: Run the host tier, first part

@@ -106,9 +106,10 @@ C224:CC4D, inside the C000h pages).
 for an XMS driver and finds none. Section 6 lists what standard mode
 needs.
 
-Open: Microsoft Office 1.0 (Word 1.1, Excel 2.1, PowerPoint 2.0), whose
-disks are at hand, is not installed yet; whether each program accepts
-real mode is the next decisive run. Mode 6 shows at half its horizontal
+Microsoft Office 1.0 on real mode (`i86-dos-emulator/office10-host.txt`):
+Word 1.1 and Excel 2.1d install and run with expanded memory; PowerPoint
+2.0's Setup refuses with "Sorry, this version of PowerPoint Setup requires
+protected mode Windows 3." Mode 6 shows at half its horizontal
 resolution on the 320-pixel panel, so Windows text is small and pairs of
 pixels blend. The speed on a board is not measured.
 
@@ -230,10 +231,10 @@ XMS driver answers (section 3). In the order Windows meets them:
    resident frames fall from 128 toward 100 and paging rises, on a guest
    already of XT speed.
 
-Not proposed. Real mode with expanded memory runs Windows 3.0 today; the
-next decisive evidence is whether Word 1.1, Excel 2.1 and PowerPoint 2.0
-run there (section 3). Should one of them require standard mode, items 1
-to 4 are the smaller first stage: an XMS driver, a few megabytes above 1
+Not proposed. Real mode with expanded memory runs Windows 3.0, Word 1.1 and
+Excel 2.1d today; PowerPoint 2.0's Setup requires protected-mode Windows 3
+(section 3), the first program measured to need standard mode. Items 1 to
+4 are the smaller first stage toward it: an XMS driver, a few megabytes above 1
 MB, the A20 gate and the firmware, which also serve DOS programs that use
 XMS without protected mode.
 

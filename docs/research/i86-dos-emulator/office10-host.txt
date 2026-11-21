@@ -19,6 +19,11 @@ Inputs, outside the tree, supplied by the owner:
     1c5ad276549ef9bb98392349faeba2eb051653375dc3e39b47da417d707d5d0c  Excel/Setup.img
     5117bf6b45e5dcf20c31dcb538ad15a5e42eb82d98b0d197606c3582852557c8  Excel/Library.img
     bba97278c56e6d31fdfdd237c8dd7cf52b0a0a3e6d3978964a6937ee6eaac2f6  Excel/Utilities.img
+    c7a6146ffe56e0e7a34d587f345a9cd059378083a7ce225282cc474ce1305f7e  PowerPoint/disk1 - setup.img
+    133b70081132ffc5ff21eb4fafaf7a49ec987b5098985030b1d79cbf0caa9902  PowerPoint/disk2.img
+    a0f5e7cd23942f49ca3d9e38d41f103f4e2d14760c1c18363fac0151fffc4d04  PowerPoint/disk3.img
+    c9f16355ad9a4a421a0478c989551f2c44dbf775713c67ecc72183683a1a774d  PowerPoint/disk4.img
+    d928712e8c5106ade0732bc7329e4062530a7a4518014402a32e720aaeb47abf  PowerPoint/disk5.img
   The 32 MB SvarDOS disk of windows30-host.txt with Windows 3.00a and
   DEVICE=C:\EMS.SYS installed.
 
@@ -61,7 +66,8 @@ Session (i86 -g -c 286 -e 2048 -a blank.img -h c32.img):
   Excel: the Setup disk in A:, File, Run, a:\setup.exe. "MICROSOFT EXCEL
   2.1d SETUP", text mode, proposes C:\WINDOWS; C:\EXCEL was entered
   instead. After the Library disk the screen was Windows again, and Setup
-  never asked for the Utilities disk. It finished: read afterwards with
+  never asked for the Utilities disk. The installation is complete,
+  whether or not Setup left through its normal end: read afterwards with
   mtools, the disk holds every file of the Setup disk's program set
   (EXCEL.EXE, EXCELDE, the help, samples, TRANS, MEMSET, XLSETUP and the
   READMEs) expanded in C:\EXCEL, the Library disk's 12 macro files in

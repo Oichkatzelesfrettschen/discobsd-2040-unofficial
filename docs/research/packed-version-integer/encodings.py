@@ -68,11 +68,12 @@ class Encoding:
     final is the stage rank of a release; lower ranks are pre-releases.
     """
 
-    def __init__(self, name, fields, final, note=""):
+    def __init__(self, name, fields, final, note="", base=0):
         self.name = name
         self.fields = fields
         self.final = final
         self.note = note
+        self.base = base
 
     def limits(self):
         out = {name: limit for name, _, limit in self.fields}
@@ -91,7 +92,7 @@ class Encoding:
             raise OverflowError(f"{self.name}: serial {serial} exceeds its field")
         if stage == self.final and serial != 0:
             raise OverflowError(f"{self.name}: a release has no serial")
-        total = 0
+        total = self.base
         for name, weight, limit in self.fields:
             value = values[name]
             if value < 0 or value > limit:
@@ -101,12 +102,13 @@ class Encoding:
 
     def unpack(self, value):
         out = {"serial": 0}
+        value -= self.base
         for name, weight, limit in self.fields:
             out[name] = (value // weight) % (limit + 1)
         return (out["major"], out["minor"], out["patch"], out["stage"], out["serial"])
 
 
-def binary(name, widths, final, note=""):
+def binary(name, widths, final, note="", base=0):
     """Fields from the top: widths is [(field, bits)] with the signed bit free."""
     total = sum(bits for _, bits in widths)
     shift = total
@@ -114,7 +116,7 @@ def binary(name, widths, final, note=""):
     for field, bits in widths:
         shift -= bits
         fields.append((field, 1 << shift, (1 << bits) - 1))
-    return Encoding(name, fields, final, note)
+    return Encoding(name, fields, final, note, base)
 
 
 def decimal(name, parts, final, note=""):
@@ -173,6 +175,13 @@ def reference_set():
             [("major", 7), ("minor", 8), ("patch", 11), ("stage", 5)],
             31,
             "major 7 bits, minor 8, patch 11, stage 5 (initial letter a=1..z=26, release 31)",
+        ),
+        binary(
+            "bin-epoch-6.8.12.4",
+            [("major", 6), ("minor", 8), ("patch", 12), ("stage", 4)],
+            15,
+            "bit 30 set as a scheme epoch: every value exceeds the inherited year-and-month",
+            base=1 << 30,
         ),
         python_layout(),
         Encoding(
@@ -352,6 +361,14 @@ def check_guard(encoding):
         if weight * (limit + 1) > above:
             return False
     return True
+
+
+INHERITED = 202608  # the year-and-month value of sys/sys/param.h before any packing
+
+
+def check_continuity(encoding):
+    """Report only: the first release (0.1.0-alpha, rank 1) packs above INHERITED."""
+    return encoding.pack(0, 1, 0, 1) > INHERITED
 
 
 def check_compact(encoding):
@@ -581,6 +598,10 @@ def selftest():
     if compact["dec-existing"] is not True or compact["bin-gapped-0xMNN00PPS"] is not False:
         print(f"selftest: check_compact misjudges the references: {compact}", file=sys.stderr)
         failed += 1
+    above = {e.name: check_continuity(e) for e in reference_set()}
+    if above["dec-existing"] is not True or above["bin-7.8.12.4"] is not False:
+        print(f"selftest: check_continuity misjudges the references: {above}", file=sys.stderr)
+        failed += 1
     for first, second in (("1.0.0", "1.0.0-alpha"), ("0.2.0-alpha", "0.1.9")):
         if semver_less(first, second):
             print(f"selftest: oracle says {first} < {second}", file=sys.stderr)
@@ -592,7 +613,10 @@ def selftest():
 
 
 def report():
-    print("encoding\tmax\tmajor\tminor\tpatch\tstages\torder\troundtrip\tsigned\tguard\tcompact")
+    print(
+        "encoding\tmax\tmajor\tminor\tpatch\tstages\torder\troundtrip\tsigned\tguard\tcompact"
+        "\tabove_202608"
+    )
     for encoding in reference_set():
         lim = encoding.limits()
         result = evaluate(encoding)
@@ -609,6 +633,7 @@ def report():
                 ]
                 + [str(result[name]).lower() for name, _ in CHECKS]
                 + [str(check_compact(encoding)).lower()]
+                + [str(check_continuity(encoding)).lower()]
             )
         )
     print()

@@ -5,11 +5,12 @@ Source reading at origin/main 1b9a8b21 (the tree). Primary sources were retrieve
 ## Findings
 
 1. The integer has no reader in the tree. `git grep -n -i -E 'osrev|KERN_OSREV' -- sbin usr.sbin usr.bin sys lib include share` finds the sysctl table entry (`sys/sys/sysctl.h:129` and `:164`, `{ "osrevision", CTLTYPE_LONG }`), the one producer (`sys/kern/kern_sysctl.c:231`, which returns `(long)DiscoBSD`, the year-and-month value 202608 of `sys/sys/param.h:8`) and manual pages. Every encoding below therefore costs nothing at the rename, and the choice can wait for the first consumer.
-2. Every positional packing, decimal or binary, is a mixed-radix numeral, so its order equals the lexicographic order of the fields whenever each field stays inside its limit. The choice between candidates is a choice of radix, of field widths and of the source of the stage rank; order is a property of the layout, not of the choice. The harness confirms this on a boundary grid for all five reference layouts and rejects six deliberately wrong layouts, each for its own reason. Reserved zero bits between fields (the shape of OpenSSL's `0xMNN00PP0L`) keep the order and only make the layout non-compact.
-3. A signed 32-bit `long` leaves 31 value bits. A layout whose major field reaches bit 31 (four bits of major at bit 28, as the OpenSSL layout `0xMNN00PP0L` allows) sets the sign bit at major 8. The harness mutant `mutant-signed` shows it.
-4. Binary decoders are 22 bytes of Thumb code with no division; the decimal decoders of the candidate in `version-scheme.md` are 76 bytes and six calls to `__aeabi_uidiv` and `__aeabi_uidivmod` (Cortex-M0+ has no hardware divide; this port's helper in `lib/libc/arm/gen/aeabi_div.S` reaches the RP2040 SIO divider). The kernel itself decodes nothing: the integer is a build-time constant. The cost falls on a reader program, and no reader exists (finding 1).
-5. SemVer 2.0.0 orders pre-release names by ASCII (item 11). The owner's stated stage sequences ("alpha, beta, delta", "alpha, beta, rc", "alpha, rc") are all in ASCII order, so a packed stage rank, a version string and a package tool agree on them. The sequence alpha, beta, gamma, delta, which follows the Greek alphabet, is not: SemVer places `delta` below `gamma`. A rank that follows the owner's chronology would then disagree with every tool that compares `osrelease` strings.
-6. Among 17 projects whose headers were read, two put the pre-release stage inside the integer (Python, `0xMMmmppLs`; OpenSSL 1.1.1, `MNNFFPPS` with a status nibble "0 for development, 1 to e for betas ... and f for release"), and OpenSSL master stopped: its header synthesizes the integer with a zero status nibble and carries the pre-release in a string. Kernels and RTOSes pack three or four numeric fields and leave the stage to a string (Zephyr's EXTRAVERSION, FreeRTOS's trailing `+`, seL4's `17.0.0-dev`).
+2. Every positional packing, decimal or binary, is a mixed-radix numeral, so its order equals the lexicographic order of the fields whenever each field stays inside its limit. The choice between candidates is a choice of radix, of field widths and of the source of the stage rank; order is a property of the layout, not of the choice. The harness confirms this on a boundary grid for all six reference layouts and rejects six deliberately wrong layouts, each for its own reason. Reserved zero bits between fields (the shape of OpenSSL's `0xMNN00PP0L`) keep the order and only make the layout non-compact.
+3. The inherited value is 202608. A decimal layout that starts at `1000001` stays above it, so a comparison against the old value remains monotone across the rename (`version-scheme.md`). Binary layouts with the minor field at bit 16 do not: `0.1.0-alpha` is 65537, and the first release above 202608 is `0.4.0-alpha`. Setting bit 30 as a scheme epoch (`bin-epoch-6.8.12.4`, major 0 to 63) restores the order for one bit of major. No reader in the tree compares against the old value (finding 1); an outside script that did would see a decrease.
+4. A signed 32-bit `long` leaves 31 value bits. A layout whose major field reaches bit 31 (four bits of major at bit 28, as the OpenSSL layout `0xMNN00PP0L` allows) sets the sign bit at major 8. The harness mutant `mutant-signed` shows it.
+5. Binary decoders are 22 bytes of Thumb code with no division; the decimal decoders of the candidate in `version-scheme.md` are 76 bytes and six calls to `__aeabi_uidiv` and `__aeabi_uidivmod` (Cortex-M0+ has no hardware divide; this port's helper in `lib/libc/arm/gen/aeabi_div.S` reaches the RP2040 SIO divider). The kernel itself decodes nothing: the integer is a build-time constant. The cost falls on a reader program, and no reader exists (finding 1).
+6. SemVer 2.0.0 orders pre-release names by ASCII (item 11). The owner's stated stage sequences ("alpha, beta, delta", "alpha, beta, rc", "alpha, rc") are all in ASCII order, so a packed stage rank, a version string and a package tool agree on them. The sequence alpha, beta, gamma, delta, which follows the Greek alphabet, is not: SemVer places `delta` below `gamma`. A rank that follows the owner's chronology would then disagree with every tool that compares `osrelease` strings.
+7. Among 17 projects whose headers were read, two put the pre-release stage inside the integer (Python, `0xMMmmppLs`; OpenSSL 1.1.1, `MNNFFPPS` with a status nibble "0 for development, 1 to e for betas ... and f for release"), and OpenSSL master stopped: its header synthesizes the integer with a zero status nibble and carries the pre-release in a string. Kernels and RTOSes pack three or four numeric fields and leave the stage to a string (Zephyr's EXTRAVERSION, FreeRTOS's trailing `+`, seL4's `17.0.0-dev`).
 
 ## Constraints
 
@@ -66,29 +67,30 @@ A pre-release name list is thus a hidden constraint on any scheme: a stage named
 
 ## Candidate encodings
 
-All five layouts are checked on a grid of the boundary values of every field (0, 1, 2, limit - 1, limit; stage ranks 1, 2, release - 1, release; a serial of 0, 1, 2, limit - 1, limit on a pre-release and 0 on a release); the check sorts the tuples as SemVer does and requires strictly rising packed values. A layout without a serial field refuses a serial above 0. Source: `packed-version-integer/encodings.py`; output: `packed-version-integer/results.txt`.
+All six layouts are checked on a grid of the boundary values of every field (0, 1, 2, limit - 1, limit; stage ranks 1, 2, release - 1, release; a serial of 0, 1, 2, limit - 1, limit on a pre-release and 0 on a release); the check sorts the tuples as SemVer does and requires strictly rising packed values. A layout without a serial field refuses a serial above 0. Source: `packed-version-integer/encodings.py`; output: `packed-version-integer/results.txt`.
 
-| Layout | Fields (major.minor.patch.stage) | Largest value | Pre-release ranks | order | roundtrip | signed 32 | guard |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| dec-existing | 20.99.99999 and 1 digit | 2099999999 | 8 (1 to 8) | pass | pass | pass | pass |
-| bin-7.8.12.4 | 127.255.4095 and 4 bits | 2147483647 | 14 | pass | pass | pass | pass |
-| bin-7.8.11.5 | 127.255.2047 and 5 bits | 2147483647 | 30 | pass | pass | pass | pass |
-| bin-python | 127.255.255, stage nibble, serial nibble (a release has serial 0) | 2147483632 | 14 (serial 0 to 15 on a pre-release, checked on its boundaries) | pass | pass | pass | pass |
-| bin-gapped-0xMNN00PPS | 7.255.255 and 4 bits, bits 12 to 19 reserved: an adaptation of OpenSSL's `0xMNN00PP0L` whose low nibble carries the stage | 2146439167 | 14 | pass | pass | pass | pass (not compact) |
+| Layout | Fields (major.minor.patch.stage) | Largest value | Pre-release ranks | order | roundtrip | signed 32 | guard | 0.1.0-alpha above 202608 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| dec-existing | 20.99.99999 and 1 digit | 2099999999 | 8 (1 to 8) | pass | pass | pass | pass | yes (1000001) |
+| bin-7.8.12.4 | 127.255.4095 and 4 bits | 2147483647 | 14 | pass | pass | pass | pass | no (65537) |
+| bin-epoch-6.8.12.4 | bit 30 set, then 63.255.4095 and 4 bits | 2147483647 | 14 | pass | pass | pass | pass | yes (1073807361) |
+| bin-7.8.11.5 | 127.255.2047 and 5 bits | 2147483647 | 30 | pass | pass | pass | pass | no (65537) |
+| bin-python | 127.255.255, stage nibble, serial nibble (a release has serial 0) | 2147483632 | 14 (serial 0 to 15 on a pre-release, checked on its boundaries) | pass | pass | pass | pass | no (65552) |
+| bin-gapped-0xMNN00PPS | 7.255.255 and 4 bits, bits 12 to 19 reserved: an adaptation of OpenSSL's `0xMNN00PP0L` whose low nibble carries the stage | 2146439167 | 14 | pass | pass | pass | pass (not compact) | yes (1048577) |
 
-Values for the chain of `version-scheme.md` (decimal, with hexadecimal; the 7.8.11.5 column ranks alpha 1, beta 2 and the release 31):
+Values for the chain of `version-scheme.md` (decimal, with hexadecimal; the 7.8.11.5 column ranks alpha 1, beta 2 and the release 31; the epoch column sets bit 30):
 
-| Release | dec-existing | bin-7.8.12.4 | bin-7.8.11.5 |
-| --- | --- | --- | --- |
-| 0.1.0-alpha | 1000001 (0x000f4241) | 65537 (0x00010001) | 65537 (0x00010001) |
-| 0.1.0-beta | 1000002 (0x000f4242) | 65538 (0x00010002) | 65538 (0x00010002) |
-| 0.1.0 | 1000009 (0x000f4249) | 65551 (0x0001000f) | 65567 (0x0001001f) |
-| 0.1.1-alpha | 1000011 (0x000f424b) | 65553 (0x00010011) | 65569 (0x00010021) |
-| 0.1.1 | 1000019 (0x000f4253) | 65567 (0x0001001f) | 65599 (0x0001003f) |
-| 0.2.0-alpha | 2000001 (0x001e8481) | 131073 (0x00020001) | 131073 (0x00020001) |
-| 0.2.0 | 2000009 (0x001e8489) | 131087 (0x0002000f) | 131103 (0x0002001f) |
-| 1.0.0-alpha | 100000001 (0x05f5e101) | 16777217 (0x01000001) | 16777217 (0x01000001) |
-| 1.0.0 | 100000009 (0x05f5e109) | 16777231 (0x0100000f) | 16777247 (0x0100001f) |
+| Release | dec-existing | bin-7.8.12.4 | bin-7.8.11.5 | bin-epoch-6.8.12.4 |
+| --- | --- | --- | --- | --- |
+| 0.1.0-alpha | 1000001 (0x000f4241) | 65537 (0x00010001) | 65537 (0x00010001) | 1073807361 (0x40010001) |
+| 0.1.0-beta | 1000002 (0x000f4242) | 65538 (0x00010002) | 65538 (0x00010002) | 1073807362 (0x40010002) |
+| 0.1.0 | 1000009 (0x000f4249) | 65551 (0x0001000f) | 65567 (0x0001001f) | 1073807375 (0x4001000f) |
+| 0.1.1-alpha | 1000011 (0x000f424b) | 65553 (0x00010011) | 65569 (0x00010021) | 1073807377 (0x40010011) |
+| 0.1.1 | 1000019 (0x000f4253) | 65567 (0x0001001f) | 65599 (0x0001003f) | 1073807391 (0x4001001f) |
+| 0.2.0-alpha | 2000001 (0x001e8481) | 131073 (0x00020001) | 131073 (0x00020001) | 1073872897 (0x40020001) |
+| 0.2.0 | 2000009 (0x001e8489) | 131087 (0x0002000f) | 131103 (0x0002001f) | 1073872911 (0x4002000f) |
+| 1.0.0-alpha | 100000001 (0x05f5e101) | 16777217 (0x01000001) | 16777217 (0x01000001) | 1090519041 (0x41000001) |
+| 1.0.0 | 100000009 (0x05f5e109) | 16777231 (0x0100000f) | 16777247 (0x0100001f) | 1090519055 (0x4100000f) |
 
 Decoders for major, minor, patch and stage, compiled with `arm-none-eabi-gcc -Os -mcpu=cortex-m0plus -mthumb -ffreestanding`:
 
@@ -146,10 +148,10 @@ SemVer 2.0.0 (retrieved text, items 9 to 11) fixes the precedence relation the i
 The study supports three statements; the owner decides each.
 
 1. Radix. Binary, if the first reader is a program or a person using `printf '%#x'`: order, widths and decoders are simplest, and the only cost is that the plain `sysctl` print (decimal) is unreadable (65537 for 0.1.0-alpha). Decimal, if people read the number directly: the layout of `version-scheme.md` or a SQLite-shaped one (`major * 1000000 + minor * 1000 + patch`, a stage digit appended) prints close to the version. The measured price of decimal is 54 more bytes and six helper calls in a reader.
-2. Widths, for binary. 7.8.12.4 (major 0 to 127, minor 0 to 255, patch 0 to 4095, stage 4 bits) with an explicit rank per stage in the version source (S1), which accepts any SemVer pre-release identifier; or 7.8.11.5 (patch 0 to 2047, stage 5 bits) with the rank taken from the first letter of the stage name (S2), which removes the per-stage edit, ties the rank to SemVer's ASCII order and narrows the stage grammar to names that start with a lowercase letter. Patch 4095 is 16 times Linux's 255, whose stable lines have outgrown it.
+2. Widths, for binary. 7.8.12.4 (major 0 to 127, minor 0 to 255, patch 0 to 4095, stage 4 bits) with an explicit rank per stage in the version source (S1), which accepts any SemVer pre-release identifier; or 7.8.11.5 (patch 0 to 2047, stage 5 bits) with the rank taken from the first letter of the stage name (S2), which removes the per-stage edit, ties the rank to SemVer's ASCII order and narrows the stage grammar to names that start with a lowercase letter. Patch 4095 is about 16 times Linux's 255, whose stable lines have outgrown it. Where a comparison against the inherited 202608 must stay monotone, `bin-epoch-6.8.12.4` (bit 30 set, major 0 to 63) keeps 7.8.12.4's other widths; the cost is one bit of major and a value that prints as 1073807361 for `0.1.0-alpha`.
 3. Timing. Nothing reads the integer, so the encoding can wait for the first reader. The generator and its compile-time range checks (each field against its limit, the weights against the spans of the fields below, and the stage rank against the stage name under S1 or S2) are the same for every layout above and are the part D112 requires.
 
-What would change this: a reader that cannot decode (decimal wins); a patch counter that approaches 4095 (widen it from the stage or minor field); a need for pre-release serials (`alpha.2`; give Python's serial nibble 4 bits from patch); two stage names with one initial in one core (S2 ties; use S1).
+What would change this: a reader that cannot decode (decimal wins); an outside consumer that compares against 202608 (epoch bit, or decimal); a patch counter that approaches 4095 (widen it from the stage or minor field); a need for pre-release serials (`alpha.2`; give Python's serial nibble 4 bits from patch); two stage names with one initial in one core (S2 ties; use S1).
 
 ## Limits of this study
 

@@ -137,8 +137,8 @@ target that skips an optional variant establishes execution only for the
 variants it ran. `sys/arch/rp2040/doc/TESTING.md` defines the gates.
 
 A new gate, linter or probe is calibrated against a known-good and a
-known-bad input before its verdict counts, because a gate that passes on
-input it should reject passes whatever its subject.
+known-bad input before its verdict counts, because a pass means the subject is
+good only from a gate that rejects its known-bad input.
 
 For a kernel or driver change that rests on board behavior, record the direct
 observation, governing specification or invariant, implementation hypothesis,

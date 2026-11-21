@@ -2722,6 +2722,20 @@ check-renode-picocalc-dump:
 		FSUTIL=${FSUTIL} sh tools/renode/check-picocalc.sh --dump \
 		    ${TOPSRC}/distrib/${MACHINE}/flash-PICOCALC.bin
 
+check-renode-picocalc-sd-system-serial: picocalc-sd-system .WAIT picocalc-sd-diag-kernel
+		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
+		@set -e; out=tools/renode/vendor/results; mkdir -p $out; \
+		CHECK_PICOCALC_SERIAL=1 ${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
+		    "$(command -v renode)" ${PICOCALC_SD_UF2} \
+		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
+		    $out/picocalc-sd-system-serial; \
+		CHECK_PICOCALC_SERIAL=1 ${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured-boot \
+		    "$(command -v renode)" ${PICOCALC_SD_DIAG_UF2} \
+		    ${TOPSRC}/distrib/${MACHINE}/sdroot-PICOCALC.img \
+		    $out/picocalc-sd-diag-system-serial
+
+.PHONY: check-renode-picocalc-sd-system-serial
+
 check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kernel
 		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
 		@set -e; out=tools/renode/vendor/results; mkdir -p $$out; \

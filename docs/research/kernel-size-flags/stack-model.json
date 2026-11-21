@@ -299,6 +299,45 @@
    ]
   },
   {
+   "function": "picokbd_evq_select",
+   "text": "o->raise(",
+   "targets": [
+    "lcd_sel_raise"
+   ],
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ],
+   "why": "lcdselect() passes lcd_sel, the one struct picokbd_sel; its members are lcd_sel_raise, lcd_sel_restore and lcd_sel_tty"
+  },
+  {
+   "function": "picokbd_evq_select",
+   "text": "o->restore(",
+   "targets": [
+    "lcd_sel_restore"
+   ],
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ],
+   "why": "lcdselect() passes lcd_sel, the one struct picokbd_sel; its members are lcd_sel_raise, lcd_sel_restore and lcd_sel_tty"
+  },
+  {
+   "function": "picokbd_evq_select",
+   "text": "o->tty(",
+   "targets": [
+    "lcd_sel_tty"
+   ],
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ],
+   "why": "lcdselect() passes lcd_sel, the one struct picokbd_sel; its members are lcd_sel_raise, lcd_sel_restore and lcd_sel_tty"
+  },
+  {
    "function": "cring_service.isra.0",
    "text": "fn(ctx",
    "targets": [
@@ -1226,10 +1265,6 @@
   {
    "function": "ttypend",
    "reason": "ttypend clears PENDIN before it replays the queue and only ttioctl sets it, so the ttyinput calls it makes do not enter it again"
-  },
-  {
-   "function": "exit",
-   "reason": "exit clears P_TRACED and ignores every signal before its first call, so a sleep under it finds no signal and cannot reach exit again"
   },
   {
    "function": "exec_script_check",

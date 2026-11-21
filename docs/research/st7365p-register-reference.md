@@ -83,6 +83,14 @@ twice (J401 or the keyboard controller, and the backlight LED driver). Pins
 fixed at VDDI or DGND (p. 42, ll. 2077-2079); whether the panel module ties it on
 its own flex is not documented (INF).
 
+**The 40 pins.** `docs/research/picocalc-pin-ledger/board-nets.tsv` holds
+one evidence-classed row for every J401 pin: ground on 1, 7, 13-28 and 38,
+no-connect on 2-6 and 12, the ALDO3 rail on the IM pins and both VDD pins
+(36, 37), so ALDO3 is also the panel's logic supply, single-node stubs on RD
+and TE, and LEDA and LEDK joined to the U401 backlight boost by name only
+(inferred). The module's own flex numbering and contact side come from the
+module's drawing, which is unpublished (`docs/research/hardware-reference-coverage.md`).
+
 **Write format (DOC).** A byte is sent MSB first, sampled on the rising edge
 of SCL; D/CX low marks a command byte, high a parameter or pixel byte
 (pp. 93-94, ll. 4663-4693). Chip select may rise between bytes; SCL and SDA are

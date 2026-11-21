@@ -842,6 +842,12 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
         os.close(slave)
     if step != len(steps):
         raise Failure("menu session: %r never appeared" % steps[step][0])
+    if status is None:
+        print(
+            "i86 check: menu session: the program did not exit after its last key; "
+            "the output ended with %r" % (seen[-400:],),
+            file=sys.stderr,
+        )
     if termios_modes(before) != termios_modes(after):
         print(
             "i86 check: menu session: terminal mode not restored: "

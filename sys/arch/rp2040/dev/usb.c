@@ -421,7 +421,7 @@ usb_buf_arm(u_int off, u_int len, u_int flags)
  * into the 1 ms frame.
  *
  * A distance past 998 us means the recorded stamp is stale: no SOF has arrived
- * yet, or the host has stopped sending them. A stale stamp carries no frame
+ * yet, or the host has stopped sending them. A stale stamp lacks frame
  * position, so the buffer is armed. That direction keeps the console alive on
  * a host that stops the bus; the other direction strands console output behind
  * an SOF that never comes, with no path back short of BOOTSEL.
@@ -540,7 +540,7 @@ usb_string_desc(u_int index, u_int wlength)
 /*
  * Reset the endpoints the configuration names. Called on
  * SET_CONFIGURATION and again on bus reset, which the datasheet says
- * returns the controller's address to zero but says nothing about the
+ * returns the controller's address to zero but leaves unstated the
  * data toggles, so they are reset here too.
  */
 static void
@@ -579,8 +579,8 @@ usb_reset_to_bootsel(u_int wvalue)
 	/*
 	 * The SDK's contract: bit 8 of wValue says bits 15:9 name an
 	 * activity LED, and the low seven bits are the interfaces to
-	 * disable. The whole cable is about to go away, so there is no
-	 * status stage to send.
+	 * disable. The whole cable is about to go away, so the
+	 * status stage is skipped.
 	 */
 	if (!usb_reset_gpio_mask(wvalue, &gpio_mask))
 		return 0;
@@ -677,7 +677,7 @@ usb_setup(void)
 			if (!usb_get_status_request_allowed(type, wvalue,
 			    windex, wlength, usbd.configured))
 				break;
-			/* The bus-powered device has no remote-wakeup or halt state. */
+			/* The bus-powered device lacks remote-wakeup and halt state. */
 			usbd.reply[0] = 0;
 			usbd.reply[1] = 0;
 			usb_ep0_send(usbd.reply, 2, wlength);
@@ -900,7 +900,7 @@ usb_tx_kick(void)
 }
 
 /*
- * The bulk IN endpoint holds no packet: send the next one or, with the ring
+ * The bulk IN endpoint is empty: send the next one or, with the ring
  * empty, release the tty. TS_BUSY tells the tty layer a packet is
  * outstanding, usbstart() returns while it is set, and only this routine
  * clears it, so every path that ends a packet -- its completion, a recovered
@@ -1001,14 +1001,14 @@ usb_rx_rearm_if_idle(void)
 /*
  * Release a bulk IN endpoint whose completion never arrived. tx_busy says a
  * packet is outstanding and only the completion clears it, so a buffer that
- * holds none leaves the ring unreadable for the rest of the configuration:
+ * holds zero leaves the ring unreadable for the rest of the configuration:
  * usb_tx_kick returns on tx_busy alone, and nothing else writes it.
  *
  * The same three bits that decide the OUT case decide this one. 4.1.2.7.4
  * gives AVAILABLE to the controller while a transaction can still run and
  * FULL to a buffer holding data, and 4.1.2.8.3 has the completion clear both
  * and raise the endpoint's USB_BUFF_STATUS bit. A buffer with all three
- * clear therefore has nothing in flight, nothing waiting to be sent, and no
+ * clear therefore has zero bytes in flight, zero waiting to be sent, and no
  * completion owed, so tx_busy describes a packet that no longer exists. An
  * E15 deferral is the one state that looks the same and is not lost, because
  * its arm is held in tx_pending for the next frame; it is excluded rather
@@ -1034,10 +1034,10 @@ usb_tx_recover_if_idle(void)
  * interrupts masked by the console routines. PRIMASK masks every interrupt on
  * this ARMv6-M core (machine/intr.h: spltty is a global disable), and core 1
  * never enters this driver (rp2040/core1.c runs it as an observer that
- * touches no USB register), so a polled call and the interrupt never
+ * leaves every USB register untouched), so a polled call and the interrupt never
  * interleave.
  * HardFault is the exception: it holds priority -1, PRIMASK raises execution
- * priority only to 0, and ARMv6-M defines no FAULTMASK (ARMv6-M ARM B1.5.1,
+ * priority only to 0, and ARMv6-M lacks FAULTMASK (ARMv6-M ARM B1.5.1,
  * B1.5.4), so a fault inside the driver reaches the console through
  * arm_fault's printf. usb_service_depth turns that re-entry away.
  */
@@ -1283,7 +1283,7 @@ usbopen(dev_t dev, int flag __unused, int mode __unused)
 		tp->t_flags = ECHO | XTABS | CRMOD | CRTBS | CRTERA |
 		    CTLECH | CRTKIL;
 		/*
-		 * A serial line carries no window size, so the console opens
+		 * A serial line lacks a window size, so the console opens
 		 * at the VT100 standard 80x24. resize(1) syncs it to the
 		 * emulator's real size, and a program reads it through
 		 * TIOCGWINSZ (sys/kern/tty.c).
@@ -1417,7 +1417,7 @@ usbdrain(void)
 }
 
 /*
- * Service the controller once from a context that has nothing else to
+ * Service the controller once from a context left with only this to
  * do, a nested fault among them, so the host keeps its console and the
  * reset interface.
  */

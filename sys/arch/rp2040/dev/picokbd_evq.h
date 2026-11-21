@@ -18,8 +18,8 @@
  * The raw key event queue behind LCDIOC_GETKEY (sys/lcdcons.h). The poller
  * of picokbd.c passes every controller event through picokbd_event(), which
  * records it here when a session is active and then translates it to xterm
- * bytes exactly as picokbd_translate() does, so the queue adds no path the
- * tty bytes wait on. The file includes no kernel header beyond
+ * bytes exactly as picokbd_translate() does, so the queue adds zero paths the
+ * tty bytes wait on. The file's only kernel headers are
  * sys/lcdcons.h and sys/errno.h, and tests/picocalc runs it directly; the
  * kernel glue in lcdcons.c supplies the caller's identity as plain values.
  *
@@ -46,7 +46,7 @@
  * line; cooked input is never recorded, and the flag change ends the session.
  * A mode-setting ioctl from any process other than the owner also ends it
  * (picokbd_evq_modeset()) even when it sets the flags it found, because a
- * prompter run by an owner that already has RAW and no ECHO changes nothing
+ * prompter run by an owner that already has RAW set and ECHO clear leaves the modes as they were
  * with that call. A drain requires the readable descriptor and the
  * foreground group, the checks ttread() applies, but a background caller gets
  * EIO at once instead of SIGTTIN, and a rejected drain leaves the queue as it
@@ -77,7 +77,7 @@
  * `file`. readable is nonzero when the descriptor allows reading; pgrp is
  * the caller's process group, tty_pgrp the tty's foreground group and
  * tty_flags its flag word. Returns 0, EBADF (not readable), EIO (not in the
- * foreground group, or the tty has none), EINVAL (the tty is neither RAW nor
+ * foreground group, or the tty lacks one), EINVAL (the tty is neither RAW nor
  * CBREAK) or EBUSY (another process or file owns the session). A second
  * start by the owner empties the queue and continues.
  */
@@ -131,7 +131,7 @@ int	picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
 /*
  * The console's read-select. The queue check and the tty's selector
  * registration (o->tty()) run in one critical section (o->raise() to
- * o->restore()), because an event queued between them would find no selector
+ * o->restore()), because an event queued between them would find the selector gone
  * to wake and the caller would sleep with it waiting. The wake takes the
  * same level, so it runs before the section or after the registration; a
  * drain runs at that level from an ioctl and cannot interleave, and a

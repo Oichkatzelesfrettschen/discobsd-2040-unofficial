@@ -51,7 +51,7 @@ static int owner_wake;			/* Its select(2) readiness is on. */
 static const void *lost_proc;		/* Former owner of a waking session ended from outside, */
 static int lost_pid;			/* until its next request; it is read-ready meanwhile. */
 
-/* Leave no keystroke in memory: the queue is cleared, not just emptied. */
+/* Erase every keystroke from memory: the queue is cleared, not just emptied. */
 static void
 session_end(void)
 {

@@ -16,7 +16,7 @@
  * encoder, the decoder, and the segment table are file-scope statics,
  * which is safe only because swapout and swapin run to completion without
  * a context switch: the flash path sleeps inside swap() on B_DONE, and
- * this path has no geteblk, no sleep, and no buffer. The same property
+ * this path runs without geteblk, sleep or a buffer. The same property
  * keeps the kernel stack out of it, which matters because USIZE is 3072
  * bytes for the u structure and the kernel stack together. The evacuation
  * request runs in the swapper, where sleeping in swap_with_buf() is the
@@ -73,7 +73,7 @@ static int              sr_spools;
 
 /*
  * One entry per proc slot, indexed by p - proc, because a swapped-out
- * process keeps its slot and struct proc has no room for three more fields.
+ * process keeps its slot and struct proc lacks room for three more fields.
  */
 #if SWAPRAM_KB * 1024 <= 65535
 typedef u_short sr_offset_t;
@@ -404,7 +404,7 @@ sr_probe_call (caddr_t dsrc, size_t dlen, caddr_t ssrc, size_t slen,
 }
 
 /*
- * The pool had no run for want bytes: record how short the largest run
+ * The pool lacked a run of want bytes: record how short the largest run
  * fell and whether the compressed data and stack alone (dsn) would fit.
  */
 static void
@@ -745,7 +745,7 @@ swapram_evacuate (void)
     size_t blocks[SR_NSEG], next;
     int i, images = 0, seg, n;
 
-    /* A swap device that left takes no image; the pool keeps them. */
+    /* A swap device that left takes zero images; the pool keeps them. */
     if (swap_lost)
         return -1;
     next = swapnext;
@@ -811,7 +811,7 @@ swapram_evacuate (void)
 #ifdef SDSWAP_ENABLED
     /*
      * A removable swap device can leave during the copy, after which
-     * swap_with_buf() writes nothing and sr_expand() still counts the
+     * swap_with_buf() writes zero bytes and sr_expand() still counts the
      * bytes. The pool space is therefore released only once every image
      * is written; a device that left releases every reservation instead,
      * and each image stays whole in the pool.

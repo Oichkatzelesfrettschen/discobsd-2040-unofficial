@@ -37,7 +37,7 @@ _Static_assert(DUMP_SPANS <= DUMP_MAXSEGMENTS, "the table fits sector 0");
 /*
  * Write the spans as a dump on sectors 0 to nsectors - 1. Returns 0, EINVAL
  * for a span list the table cannot hold, ENOSPC when the dump would not
- * fit, which writes nothing, or EIO when a sector write fails, which leaves
+ * fit, which writes zero sectors, or EIO when a sector write fails, which leaves
  * sector 0 zeroed or untouched and never a valid header.
  */
 int

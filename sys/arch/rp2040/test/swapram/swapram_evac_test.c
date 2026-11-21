@@ -70,7 +70,7 @@ brelse(struct buf *bp)
 #ifdef SDSWAP_ENABLED
 /*
  * A removable swap device that leaves at write number lost_at: as in
- * kern/vm_swp.c, that write and every later one move nothing and return.
+ * kern/vm_swp.c, that write and every later one move zero bytes and return.
  */
 char swap_lost;
 static int lost_at = -1;
@@ -437,7 +437,7 @@ admission(void)
     CHECK(admit(0, &im) == 1);
     CHECK(swapram_evacuate() == 0);
     CHECK(onflash(0, &im));
-    /* empty pool: an evacuation is a no-op that touches nothing */
+    /* empty pool: an evacuation is a no-op that touches zero bytes */
     CHECK(swapram_evacuate() == 0);
     CHECK(writes == btod(1000) + btod(200) + btod(USIZE));
     printf("admission: closed pool refuses, open pool takes, empty evacuation writes nothing\n");

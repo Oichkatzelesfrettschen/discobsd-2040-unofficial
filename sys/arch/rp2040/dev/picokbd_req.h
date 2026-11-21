@@ -28,8 +28,8 @@
  * The mailbox holds one request. picokbd.c's write phase asks
  * kbdreq_next() whether a request waits and sends it instead of register
  * 0x09; the collect phase hands the two reply bytes to kbdreq_done(), and
- * a fault in the exchange goes to kbdreq_abort(). This file includes no
- * kernel header, so tests/picocalc links it against a model controller.
+ * a fault in the exchange goes to kbdreq_abort(). This file compiles without
+ * kernel headers, so tests/picocalc links it against a model controller.
  */
 
 #ifndef _PICOKBD_REQ_H

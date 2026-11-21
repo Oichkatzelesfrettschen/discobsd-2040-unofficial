@@ -30,7 +30,7 @@
  * at 0x114, the first flash address the application may not write, as an
  * execute-in-place address. Both words are vector entries 4 and 5, which
  * ARMv6-M reserves and every DiscoBSD image leaves zero, so an image flashed
- * any other way carries no stamp and keeps the whole chip.
+ * any other way lacks a stamp and keeps the whole chip.
  *
  * With the stamp, everything at and above the stamped limit belongs to the
  * loader. The kernel honors a limit only where it leaves the fixed layout
@@ -38,7 +38,7 @@
  * FLASH_SWAP_OFFSET, so the root filesystem below it is never cut, and at
  * or below the top of the chip less LOADER_RESERVED_BYTES, the 16 KB the
  * stock loader keeps for its stage (pelrun/uf2loader stage3 link map). Any
- * other limit names no layout this kernel can honor, so the decode fails
+ * other limit names a layout this kernel cannot honor, so the decode fails
  * closed: the writable end becomes the start of the filesystem region, the
  * lowest offset any flash write targets, and no erase or program passes
  * flash_write_admitted().
@@ -99,7 +99,7 @@ flash_write_admitted(uint32_t offset, uint32_t len, uint32_t write_end)
 /*
  * Bytes of raw swap, fl1, below the writable end: the region starts at
  * FLASH_SWAP_OFFSET and stops at the end or at FLASH_SWAP_BYTES, whichever
- * comes first. An end at or below the region's start leaves no swap.
+ * comes first. An end at or below the region's start leaves zero swap blocks.
  */
 static inline uint32_t
 flash_swap_extent(uint32_t write_end)

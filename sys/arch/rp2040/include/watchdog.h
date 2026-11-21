@@ -21,7 +21,7 @@
  * masks interrupts and never returns stops the clock, the USB device
  * controller's interrupt, and with it the console, the reset interface and
  * every endpoint, while the device stays enumerated. The recovery is a
- * watchdog reset, which needs no interrupt and passes through any mask and
+ * watchdog reset, which runs without an interrupt and passes through any mask and
  * through a Cortex-M0+ lockup, and `picotool reboot -f` raises one from the
  * host.
  *
@@ -80,7 +80,7 @@
 #define	WD_SITE_FLASH_ERASE	1	/* arg: flash offset */
 #define	WD_SITE_FLASH_PROGRAM	2	/* arg: flash offset */
 /*
- * Stored by core 1 (rp2040/core1.c) when core 0 took no clock tick for
+ * Stored by core 1 (rp2040/core1.c) when core 0 took zero clock ticks for
  * C1_HANG_US with no section declared: SCRATCH2 is the PC and SCRATCH3 the
  * LR that core 0's NMI found stacked, zeros when the NMI went unanswered.
  */

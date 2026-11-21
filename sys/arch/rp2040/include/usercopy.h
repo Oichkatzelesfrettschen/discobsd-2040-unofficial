@@ -38,7 +38,7 @@ rp2040_user_span_contains(unsigned int lower, unsigned int upper,
  * of 2^log2 bytes at base and touches only subregions that srd leaves
  * enabled (one disable bit per eighth, RASR.SRD, ARMv6-M ARM B3.5.9). log2
  * runs from 8 to 31, so the shifts stay below the width of the type, and an
- * empty span touches no subregion. A region ending at 2^32 is outside the
+ * empty span touches zero subregions. A region ending at 2^32 is outside the
  * model and rejected.
  */
 static inline int

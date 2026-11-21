@@ -86,7 +86,7 @@ struct core1_obs {
 /*
  * One sample: now_us is the microsecond timer, stamp_us core 0's tick
  * record read before it, site the declared section. The subtraction is
- * modular, so a timer wrap between the two reads changes nothing.
+ * modular, so a timer wrap between the two reads leaves the result unchanged.
  *
  * A stall needs the same record and no declared section at two samples.
  * One sample alone can pair a record read during a flash erase with a

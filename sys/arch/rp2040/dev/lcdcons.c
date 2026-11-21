@@ -216,7 +216,7 @@ lcdcons_vtswitch(int to)
 /*
  * Run in the renderer with the drawing flag held. A key for the console
  * already shown, or one pressed while /dev/lcdgfx owns the panel or after
- * the console was abandoned, changes nothing.
+ * the console was abandoned, returns at once.
  */
 static void
 lcd_vtswitch(void)

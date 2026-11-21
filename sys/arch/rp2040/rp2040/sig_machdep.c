@@ -59,7 +59,7 @@ sendsig(sig_t p, int sig, long mask)
 	 * sc_onstack, sc_mask, sc_r0 and sc_r1, so every sigreturn restored
 	 * the trampoline address as the signal mask and the handler address
 	 * as r0. After the context, sf_r12 and sf_div hold the interrupted r12
-	 * and SIO divider state, which struct sigcontext has no field for
+	 * and SIO divider state, which struct sigcontext lacks a field for
 	 * and an asynchronous system trap can interrupt live (machine/frame.h
 	 * struct userframe); sigreturn reads them back from the same offsets,
 	 * so the layout is private to this file and sigtramp. sizeof(struct

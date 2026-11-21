@@ -38,7 +38,7 @@
  * holds for SD_DET_DEBOUNCE_US marks the card replaced, which fails every
  * transfer with EIO until the last close, because blocks cached for the old
  * card must not reach the new one. A level that returns to the committed
- * level before the interval ends changes nothing. The pin's polarity is not
+ * level before the interval ends leaves the committed level as it was. The pin's polarity is not
  * interpreted: any stable change counts. DIOCMEDIAGONE reports the flag to
  * unmount(2), which then releases a mount whose write-back the card can no
  * longer take; DIOCGETPART reports the extents blkoverlap() in conf.c compares.
@@ -128,7 +128,7 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
  * and every image is a whole number of SWAP_IMAGE_ALIGN blocks, so the map
  * never names more than the largest aligned 16-bit count. A partition that
  * cannot hold two images of SWAP_IMAGE_GUARD blocks behind the reserved
- * first run is no better than fl1, whose 380 blocks hold one, and is passed
+ * first run matches fl1 at best, whose 380 blocks hold one, and is passed
  * over.
  */
 #define	SD_SWAP_MAX_BLOCKS	((daddr_t)(0xffff & ~(SWAP_IMAGE_ALIGN - 1)))
@@ -141,7 +141,7 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
  * every operation on the minor fails with ENXIO, and the usable entry's own
  * slot minor refuses to open, so the partition has one node. An entry is
  * usable when it
- * holds at least SD_TMP_MIN_BLOCKS and shares no sector with another entry
+ * holds at least SD_TMP_MIN_BLOCKS and shares zero sectors with another entry
  * of the table, so mkfs on it cannot reach the root, the swap partition or
  * the dump partition. The minimum is the size of the PSRAM region the card
  * replaces (PSRAM_BYTES less PSRAM_SWAP_BYTES, 6,144 kbytes): a smaller card
@@ -258,7 +258,7 @@ static u_int sd_swaphold;
 #ifdef SDSWAP_ENABLED
 /*
  * The held partition until main() opens it as swapdev. That open is the
- * hold's own and sets no bit of sd_open, so when swap returns to fl1
+ * hold's own and leaves sd_open unchanged, so when swap returns to fl1
  * (sdswap_fallback()) the bits left are those of descriptors, each cleared
  * by its device's last close, which the hold's release must keep.
  */
@@ -332,7 +332,7 @@ sd_replaced(void)
  * order of the target must match the on-disk entry: type at byte 4, start
  * at byte 8 and length at byte 12, both little-endian 32-bit sector
  * counts. A 16-byte structure of one status byte, three bytes, one type
- * byte, three bytes and two 32-bit counts has no padding, so its size fixes
+ * byte, three bytes and two 32-bit counts is free of padding, so its size fixes
  * those offsets. A byte-by-byte decode costs 64 bytes more flash on the
  * PSRAM PicoCalc kernel (measured), so the assertions below hold the
  * assumption at build time instead.
@@ -705,7 +705,7 @@ sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
  * A partition that a block open still holds is refused, because a mount
  * writes to it through the buffer cache: while the card that open accepted
  * is still in the socket, the dump partition must not overlap the extent of
- * any block-open minor, the whole card included. A replaced card holds no
+ * any block-open minor, the whole card included. A replaced card cannot hold a
  * mount, since every transfer to it fails until the last close, so its
  * dump partition is free.
  */
@@ -820,7 +820,7 @@ const struct driver sddriver = {
  * root region holds foreign bytes and a Dhara resume over them would treat
  * them as a journal. A kernel the loader started therefore takes its root
  * from the first MBR entry of type PTYPE_BSDFFS (b7) on the card, and stops
- * when there is none rather than open fl0. main() copied rootdev into
+ * when the card lacks one rather than open fl0. main() copied rootdev into
  * pipedev before services attach, so pipedev moves with it. The card state
  * returns to closed afterwards; the root mount opens it again through
  * sdopen(), which refuses a slot or card that no longer matches the record
@@ -895,10 +895,10 @@ sd_tmpattach(void)
 /*
  * Swap on the card. A PicoCalc whose PSRAM did not take the swap device
  * (psramprobe() in psram.c) swaps to the first MBR entry of type PTYPE_SWAP
- * (b8) that holds SD_SWAP_MIN_BLOCKS and shares no sector with another
+ * (b8) that holds SD_SWAP_MIN_BLOCKS and shares zero sectors with another
  * entry of the table, so swap writes reach neither the b7 root that
  * sdrootattach() chose nor a partition mounted later. Raw QSPI flash,
- * which has no wear leveling under fl1, then takes no swap traffic while
+ * which lacks wear leveling under fl1, then takes zero swap traffic while
  * such a card is in the socket. With no card, no such entry or a card that does not answer, the
  * configured fl1 stays. main() runs this after sdrootattach() and before it
  * opens swapdev. The chosen partition is held in sd_swaphold from here, so
@@ -974,7 +974,7 @@ sdswap_fallback(void)
 	if (blocks <= 0)
 		return 0;
 	/*
-	 * Release the hold. main()'s open of the partition set no bit of
+	 * Release the hold. main()'s open of the partition left clear every bit of
 	 * sd_open (sd_swapmain), so with no descriptor open the next open
 	 * brings a replacement card up; a descriptor's bit stays and keeps a
 	 * replacement refused until that descriptor closes.

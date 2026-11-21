@@ -73,7 +73,7 @@ SVC_Handler(void)
  * Restore processor state from returned trap frame on return from syscall().
  *
  * The body is the exception entry sequence itself, so the function carries
- * no AAPCS boundary: it takes no argument, returns no value, and the
+ * no AAPCS boundary: it takes zero arguments, returns void, and the
  * compiler emits neither prologue nor epilogue. The sequence owns the whole
  * register file. It reaches MSP and PSP through MRS and MSR, reserves the
  * six words of struct userframe above the trapframe, copies the stacked r12
@@ -293,7 +293,7 @@ user_entry(const struct trapframe *frame)
  * PendSV_Handler, which runs only when no other exception is active, enters
  * here instead of the system call. userret() delivers the signals and
  * switches processes as it does after a system call, so a process that
- * makes no system call still receives SIGALRM or SIGINT and yields the
+ * makes zero system calls still receives SIGALRM or SIGINT and yields the
  * processor once a second (schedcpu) or to a process a wakeup made better.
  * u.u_code keeps the last system call's value for sendsig().
  */

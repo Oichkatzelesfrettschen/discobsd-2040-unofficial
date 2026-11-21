@@ -204,7 +204,7 @@ struct tty uartttys[NUART];
  * reports the FIFO and shift register emptying: the PL011 raises its
  * transmit interrupt only when the level falls through TXIFLSEL, whose
  * lowest setting is 4 entries (RP2040 datasheet 4.2.6.3, 4.2.8 UARTIFLS),
- * and UARTRIS carries no transmit-complete source. UART_TX_DRAIN marks that
+ * and UARTRIS lacks a transmit-complete source. UART_TX_DRAIN marks that
  * phase: uartdrain() runs from a callout each tick, reads UARTFR and clears
  * TS_BUSY with the wakeup ttywait() sleeps on. uartstart() keeps filling
  * the FIFO during it, so output appended then goes out at once.
@@ -259,7 +259,7 @@ uartopen(dev_t dev, int flag __unused, int mode __unused)
         ttychars(tp);
         tp->t_state = TS_ISOPEN | TS_CARR_ON;
         tp->t_flags = ECHO | XTABS | CRMOD | CRTBS | CRTERA | CTLECH | CRTKIL;
-        /* A serial line carries no window size; open at 80x24, which
+        /* A serial line lacks a window size; open at 80x24, which
          * resize(1) then syncs to the terminal's real size. */
         tp->t_winsize.ws_row = 24;
         tp->t_winsize.ws_col = 80;
@@ -350,7 +350,7 @@ uartioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
     /*
      * TIOCSBRK holds TX low until TIOCCBRK; the duration is the caller's
      * (tcsendbreak(3) sleeps between the two).  The PICOCALC kernel, whose
-     * flash has no room for this, answers ENOTTY as the console and USB
+     * flash lacks room for this, answers ENOTTY as the console and USB
      * ttys do.
      */
     if (cmd == TIOCSBRK || cmd == TIOCCBRK) {
@@ -547,7 +547,7 @@ again:
 
     /*
      * Refill the FIFO from t_outq first, so the console byte follows the
-     * queued output. The drain phase needs no wait: the FIFO keeps order,
+     * queued output. The drain phase runs without a wait: the FIFO keeps order,
      * and uartdrain() cannot run while spltty() holds PRIMASK.
      */
     if ((tp->t_state & TS_BUSY) && !(uart_txflags[unit] & UART_TX_DRAIN)) {

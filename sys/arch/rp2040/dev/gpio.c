@@ -25,7 +25,7 @@
  * With the DEV_GPIO_PWM option, GPIO_PWM gives pins to a PWM slice (datasheet
  * 4.5) instead: the slice runs the fixed carrier of <machine/gpio.h> and
  * each pin's channel holds the duty. A kernel without the option answers
- * GPIO_PWM with EOPNOTSUPP and carries none of this code. Every kernel PWM
+ * GPIO_PWM with EOPNOTSUPP and leaves out all of this code. Every kernel PWM
  * user is on the PicoCalc, whose slice 5 is the bell and /dev/audio's
  * carrier and whose slice 6 is /dev/audio's sample clock; gpio_pwm_check()
  * refuses those, and pcmopen() refuses to open
@@ -50,7 +50,7 @@
 #endif
 /*
  * picoaudio.c, which only the PicoCalc kernels compile, owns the flag that
- * /dev/audio is open; a kernel without it has no audio slice to protect.
+ * /dev/audio is open; a kernel without it lacks an audio slice to protect.
  */
 #ifdef PICOCALC_ENABLED
 extern int picoaudio_pcm;
@@ -116,7 +116,7 @@ gpioopen(dev_t dev, int flag __unused, int mode __unused)
 
 /*
  * The PIC32 driver's text interface is absent, and conf.c's norw() would
- * report a write that changed no pin as done, so both directions fail.
+ * report as done a write that left every pin unchanged, so both directions fail.
  */
 int
 gpiorw(dev_t dev __unused, struct uio *uio __unused, int flag __unused)

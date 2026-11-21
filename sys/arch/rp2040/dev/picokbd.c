@@ -20,8 +20,8 @@
  * Reading a register is a one-byte write of its number followed by a
  * two-byte read; the controller's receive handler prepares the reply when
  * the write lands. FIFO register 0x09 yields one key event per exchange
- * as (state, key), and (0, 0) when the FIFO is empty. The board routes no
- * interrupt from the controller, so a callout polls.
+ * as (state, key), and (0, 0) when the FIFO is empty. The controller's
+ * interrupt stays off the Pico's pins, so a callout polls.
  *
  * The exchange is split across callouts so that no poll waits on the bus:
  * one queues the write with STOP, the next queues two reads with STOP, and

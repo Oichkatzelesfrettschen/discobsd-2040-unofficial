@@ -1,7 +1,7 @@
 /*
  * One packed executable stream expanded through a caller-owned decoder.
  * The loop admits a stream only when it consumes every packed byte,
- * produces exactly the promised length, and leaves no complete token
+ * produces exactly the promised length, and leaves at most an incomplete token
  * behind: a stream that ends short, or that carries a token past its
  * length, is refused with the same result whether it is a forged header
  * or a flipped bit. The kernel and the host packer compile this file
@@ -12,7 +12,7 @@
  * sees the bytes. Once rlen bytes are out, the loop keeps decoding one
  * byte at a time into the ring: any byte produced then is a token past the
  * promised length and fails the stream, and a clean stall proves the
- * remaining input holds no complete token.
+ * remaining input holds at most an incomplete token.
  */
 #include <machine/hsx_decoder.h>
 #include <sys/exec_hsaout.h>

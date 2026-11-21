@@ -84,7 +84,7 @@ int	lcdcons_gfx_root(void);
 /*
  * The panel register test (doc/PANELTEST.md). lcdgfx_panel_set() and
  * lcdgfx_panel_read() return EBUSY unless /dev/lcdgfx is open, so the
- * console draws nothing while they reprogram or read the panel; the last
+ * console stops drawing while they reprogram or read the panel; the last
  * close programs set 0 again when another set is in force. st7365p.c
  * supplies the sets and the readback.
  */

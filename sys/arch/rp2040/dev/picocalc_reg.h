@@ -70,7 +70,7 @@ pc_unreset(u_int mask)
 /*
  * Route pin n to function f with the given pad bits, input enabled. The
  * DRIVE field (PADS_BANK0 GPIOn bits 5:4, reset 0x1 for 4 mA) keeps its
- * value when pad names no drive strength and takes the strength pad names
+ * value when pad omits a drive strength and takes the strength pad names
  * otherwise, so a request for 8 mA (0x2) does not combine with the reset
  * value into 12 mA (0x3). A pad word of 0 therefore cannot select 2 mA.
  */

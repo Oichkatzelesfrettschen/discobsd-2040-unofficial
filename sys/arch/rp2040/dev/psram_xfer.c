@@ -404,7 +404,7 @@ psram_write(unsigned int addr, const unsigned char *src, unsigned int len)
 /*
  * Address extent. Manufacturer 0x0d and known-good die 0x5d identify a
  * family, not a density: the APS6404L sheet gives the density only in
- * EID[47:45], and the ESP and Lyontek sheets give none. Hypothesis: a
+ * EID[47:45], and the ESP and Lyontek sheets leave it unstated. Hypothesis: a
  * smaller part answering the same bytes ignores the high address bits, so
  * PSRAM_BYTES / 2, a multiple of any smaller power of two, lands on
  * address 0. The check fails closed either way: the tag written at

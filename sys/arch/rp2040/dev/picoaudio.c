@@ -35,7 +35,7 @@
  * at once leaves the old duty cycle in force. Stopping therefore forces both
  * pins low through the GPIO output override (OUTOVER in GPIOn_CTRL, datasheet 2.19.6)
  * before it disables the slice, which holds in every phase of the period
- * and needs no wait. Starting a tone routes the pins back to the slice,
+ * and completes without a wait. Starting a tone routes the pins back to the slice,
  * which removes the override.
  */
 

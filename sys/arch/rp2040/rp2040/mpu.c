@@ -54,7 +54,7 @@
  * because no instruction is fetched from a peripheral. User code is the
  * divider's only consumer, through that boot ROM division and the libc
  * integer helpers (lib/libc/arm/gen/aeabi_div.S): the kernel, its
- * interrupts and its callouts contain none, which
+ * interrupts and its callouts contain zero divider uses, which
  * tools/verify_rp2040_divider_ownership.py enforces on every linked
  * kernel. A clock tick can interrupt a user divide sequence. The syscall,
  * asynchronous trap and user fault paths save and restore the divider
@@ -72,7 +72,7 @@
  * four match and the remaining slots read back disabled. A map missing
  * a user region could fault the first user instruction. mpu_identify and
  * machdep.mpu report the control register after verification. The memory
- * attribute bits S, C and B stay zero; the RP2040 bus fabric consumes none
+ * attribute bits S, C and B stay zero; the RP2040 bus fabric ignores all three
  * of them (the XIP cache is an address-range cache), and the Cortex-M0+
  * reorders nothing.
  *
@@ -90,7 +90,7 @@
  * stays BREAK_GUARD_MARGIN bytes clear of it; the registers are written
  * only when that answer changes. systick() turns it off when a tick finds
  * the process stack below the armed floor, and it stays off for that
- * image while p_saddr records the deeper stack. The guard takes no byte
+ * image while p_saddr records the deeper stack. The guard takes zero bytes
  * below the break and none above the stack pointer: the pad between the
  * exact break and the rounded base stays writable. A stack that jumps into
  * the guard between two kernel entries cannot be resumed, because the

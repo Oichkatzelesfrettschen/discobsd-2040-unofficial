@@ -29,7 +29,7 @@
  * Erase counts of the raw swap sectors, compiled into flash.c only for
  * STORAGE_STATS kernels.
  *
- * The raw swap region has no wear leveling: an image lands at the sector its
+ * The raw swap region lacks wear leveling: an image lands at the sector its
  * reservation names, so the erases of a workload concentrate on a few
  * sectors and an aggregate counter (STORAGE_SWAP_ERASE_SECTORS) hides the
  * spread. flash_wear_note() adds one erase to the counter of every swap

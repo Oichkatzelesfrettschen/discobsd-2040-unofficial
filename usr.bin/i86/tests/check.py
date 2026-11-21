@@ -159,13 +159,13 @@ MUTANTS = [
     ("pc.c", "p[4] = (uint8_t)spt;", ";"),
     ("pc.c", "c->r[R_BX] = d->spt == 36 ? 6 : d->spt == 18 ?", "c->r[R_BX] = d->spt == 18 ?"),
     ("pc.c", "kb_put(scan | 0x80, 0);", ";"),
-    ("pc.c", "pic_isr &= (uint8_t)(pic_isr - 1);", "pic_isr &= pic_isr;"),
+    ("pc.c", "pic_isr &= (uint8_t)(pic_isr - 1);", "pic_isr &= 0xFF;"),
     (
         "pc.c",
         "c->irq = (pic_irr & ~(unsigned)imask & above) != 0;",
         "c->irq = (pic_irr & above) != 0;",
     ),
-    ("pc.c", "flags &= ~(unsigned)mod[i + 1];", "flags &= flags;"),
+    ("pc.c", "flags &= ~(unsigned)mod[i + 1];", "flags &= ~0u;"),
     ("pc.c", "if (key & K_SHIFT)\n\t\tkb_put(0x2a, 0);", ";"),
     ("pc.c", "mem_ww(4 * 9, ROM_OFF + ROM_KEY);", ";"),
     ("pc.c", "if (kb_n == 0 || kb_full || ((pic_irr | pic_isr) & 2))", "if (kb_n == 0)"),
@@ -793,6 +793,75 @@ def termios_diff(before, after):
     return "; ".join(parts) or "no field differs"
 
 
+def load_ptywait():
+    """tests/ptywait.py, beside this file; the interpreter runs isolated,
+    without the script's directory on its path."""
+    spec = importlib.util.spec_from_file_location(
+        "ptywait", os.path.join(os.path.dirname(os.path.abspath(__file__)), "ptywait.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ptywait = load_ptywait()
+
+
+def test_wait_draining():
+    """The wait of menu_session against a writer of 1 MiB, more than any
+    pseudo-terminal holds: a plain wait blocks on it, the draining wait
+    returns every byte with the writer's status, a child that does not exit
+    is reported as running, and so is one that never stops writing, within
+    the time given."""
+    size = 1 << 20
+    writer = "import sys; sys.stdout.buffer.write(b'x' * %d); sys.stdout.buffer.flush()" % size
+    sleeper = "import time; time.sleep(60)"
+    chatter = "import sys\nwhile 1: sys.stdout.buffer.write(b'x' * 4096)"
+
+    def run(code, drain, seconds):
+        master, slave = pty.openpty()
+        child = subprocess.Popen(
+            [sys.executable, "-I", "-c", code], stdin=slave, stdout=slave, stderr=subprocess.DEVNULL
+        )
+        try:
+            if drain:
+                got, status = ptywait.wait_draining(child, master, seconds)
+                return len(got), status
+            try:
+                return child.wait(timeout=seconds)
+            except subprocess.TimeoutExpired:
+                return None
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+            os.close(master)
+            os.close(slave)
+
+    def late(signum, frame):
+        raise Failure("wait_draining: a child that never stops writing held the wait past its time")
+
+    if run(writer, False, 0.5) is not None:
+        raise Failure(
+            "wait_draining: a plain wait returned on a 1 MiB writer, so the case blocks nothing"
+        )
+    got = run(writer, True, 20)
+    if got != (size, 0):
+        raise Failure("wait_draining: the writer gave %r, want (%d, 0)" % (got, size))
+    got = run(sleeper, True, 0.5)
+    if got != (0, None):
+        raise Failure("wait_draining: the sleeper gave %r, want (0, None)" % (got,))
+    before = signal.signal(signal.SIGALRM, late)
+    signal.alarm(10)
+    try:
+        got = run(chatter, True, 0.5)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, before)
+    if got[0] == 0 or got[1] is not None:
+        raise Failure("wait_draining: the chatterer gave %r, want output and None" % (got,))
+
+
 def menu_session(binary, work, image, steps, cwd=None, kill=None):
     """A session on a pseudo-terminal: each step waits for a text and
     types. With kill, that signal follows the last step. Returns the raw
@@ -827,9 +896,8 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
             if kill is not None:
                 time.sleep(0.5)
                 child.send_signal(kill)
-            status = child.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        status = None
+            more, status = ptywait.wait_draining(child, master, 5)
+            seen += more
     finally:
         if child.poll() is None:
             child.kill()
@@ -1404,6 +1472,8 @@ def main(argv):
                     )
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
+            # Independent of the emulator, so once, not for every mutant.
+            test_wait_draining()
             test(binary, work)
             print("i86 host test passed")
             vsources = ["tests/sstrun.c", "cpu.c", "mem.c"]

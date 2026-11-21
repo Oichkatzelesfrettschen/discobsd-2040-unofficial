@@ -136,17 +136,15 @@ The Thumb-1 sizes of `c5_loops.c` at `-Os`, from `arm-none-eabi-gcc -Os -mcpu=co
 
 ## 3. EGA, CGA, VGA and the books
 
-**Mechanisms with citations, all PDF page numbers of the `.md` transcriptions of the books.**
-- Latch copy (write mode 1): Ferraro 3rd ed., PDF 55 (§2.3.2, "all four planes with the 32-bit latch in a single MOV"; PDF 477 is printed page 260). Also Wilton PDF 133, Kliewer PDF 91 and Sutty PDF 221 (bit-blit with MOVSB).
-- Chain 4 (address bits 0 and 1 select the plane, mode 13h): Sutty PDF 71.
-- Odd/even addressing and CGA emulation: Kliewer PDF 155.
+**Mechanisms with citations.**
+- Latch copy (write mode 1): one MOV moves a byte of all four planes through the 32-bit latch (Ferraro, section 2.3.2). Wilton describes the latches and the Data Rotate/Function Select register in chapter 5, Pixel Programming (p. 119); Kliewer moves windows through the latch registers with write mode 1 (p. 84); Sutty gives a bit-blit routine (p. 202).
+- Chain 4 (address bits 0 and 1 select the plane, mode 13h): Sutty, Sequencer index 4, the Memory Mode register (p. 52).
+- Odd/even addressing and CGA emulation: Kliewer, The Sequencer Registers (p. 151).
 - CGA interleave: the bank formula 8192·(y mod 2) + 80·⌊y/2⌋ + ⌊x/4⌋ addresses 16,000 bytes with 384 unused [C] (`scripts/c3.gp`). `gfx.c:385-440` emulates it with two banks [S].
 - CGA composite colors (VileR, pp. 6-14): one 4-hdot pattern is a 4-point DFT, X1 = (p0−p2) − i(p1−p3). Delaying a pattern by one hdot multiplies X1 by −i, a 90 degree hue step. The 16 patterns fall into 15 (luma, chroma) classes. The patterns 0101 and 1010 coincide in this model, while VileR p. 8 counts 16 solid colors, so the model is incomplete [C, I] (`scripts/c2_out.txt`, section C). The 1,024 colors are 4 character waveforms times 16 foreground times 16 background (pp. 11-14).
 - **The ST7365P lacks a latch copy.** The datasheet omits any RAM-to-RAM command (`docs/research/display-memory-path.md`, section 6). Its analogue is scrolling plus the 160 off-screen lines. COLMOD offers only 16, 18 and 24 bits a pixel (p. 157), so a pixel never costs less than 16 wire bits. IDMON shows 8 colors on the glass (p. 193) but saves no wire bytes. Page numbers are those of the Sitronix ST7365P datasheet V1.0 (2023/02) as transcribed in `docs/research/st7365p-register-reference.md`.
 
-**Books found in the technical-reference collections searched.** Ferraro, Programmer's Guide to the EGA, VGA and Super VGA Cards 3rd ed. Wilton 1987, Programmer's Guide to PC and PS/2 Video Systems. Kliewer 1990, EGA/VGA Programmer's Reference. Sutty 1990, Advanced Programmer's Guide to SuperVGAs. VileR, CGA in 1024 Colors. IBM CGA notes. Hercules GB101 manuals. ATI EGA Wonder and VGA Wonder manuals. Chips 82C452, WD90C00 and Trident VGA datasheets. "Accessing and Programming the Video Cards". Foley and van Dam sample pages. Hearn and Baker, Computer Graphics C version. Marschner 4th ed. Glaeser, Fast Algorithms for 3D Graphics. Haerr, Microwindows architecture, and the Nano-X API manuals. Apollo SAGA sprite hardware chapter. GPU Gems 1 and 2. Simic 2022 on fixed-point error. Xlib manuals.
-
-**Gaps.** Abrash's Graphics Programming Black Book, and with it the Mode X material, were absent. A manifest search did not find Graphics Gems, Real-Time Rendering, Hacker's Delight, Tricks of the Game Programming Gurus. The manifests were not searched for a LIM EMS 4.0 specification. No book was downloaded.
+**References.** Page numbers are the printed pages of these editions. Richard F. Ferraro, Programmer's Guide to the EGA, VGA and Super VGA Cards, 3rd ed. Richard Wilton, Programmer's Guide to PC and PS/2 Video Systems (1987). Bradley Dyck Kliewer, EGA/VGA: A Programmer's Reference Guide, 2nd ed. (1990). George Sutty and Steve Blair, Advanced Programmer's Guide to SuperVGAs (1990). VileR, CGA in 1024 Colors. Michael Abrash's Graphics Programming Black Book, and with it the Mode X material, is outside this record.
 
 ## 4. The display pipeline as a dataflow model
 

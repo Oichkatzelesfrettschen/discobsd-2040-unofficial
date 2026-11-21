@@ -55,9 +55,9 @@ from the copper: `bottom.art` and `solder_bot.art` each hold one row of
 
 | Quantity | Value | Source |
 |---|---|---|
-| Board outline | 91.70 x 165.61 mm (3.6103 x 6.5199 in), origin at the lower left corner, top view | `panel.art` |
+| Board outline | 96.30 x 166.60 mm (3.7914 x 6.5591 in), origin at the lower left corner, top view; the breakaway rails outside x = 0 to 3.7914 in are excluded | `panel.art` vertices |
 | J401 pad row | y = 103.71 mm (4.0830 in) from the lower edge | `bottom.art` flashes |
-| J401 pad span | x = 38.32 to 57.83 mm (1.5088 to 2.2766 in), center 48.07 mm, 2.2 mm right of the board center in top view | `bottom.art` flashes |
+| J401 pad span | x = 38.32 to 57.83 mm (1.5088 to 2.2766 in), center 48.07 mm, on the board's vertical centerline (48.15 mm) in top view | `bottom.art` flashes |
 | Pitch | 0.50 mm (0.0197 in) | 39 gaps: 34 of 0.0197 in, 5 of 0.0196 in |
 | Pad | 0.25 x 1.32 mm copper, 0.36 x 1.42 mm mask opening | apertures of `bottom.art` and `solder_bot.art` |
 | Pin 1 | the pad at x = 38.32 mm in top view, the right end when the bottom side faces the viewer | silkscreen "1" and "40" beside the row |

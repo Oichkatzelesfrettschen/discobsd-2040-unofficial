@@ -116,8 +116,7 @@ closure picotop needs path /usr/bin/picotop
 # usr.bin/backlight shows and sets the PicoCalc's screen and keyboard
 # backlights through the machdep.picocalc nodes, installed setuid root so
 # that any user can change them. A kernel without the keyboard controller
-# refuses the nodes, so both PicoCalc profiles name the closure and no other
-# profile does.
+# refuses the nodes, so only the two PicoCalc profiles name the closure.
 #
 closure backlight needs path /usr/bin/backlight
 

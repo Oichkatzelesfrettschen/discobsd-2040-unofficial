@@ -40,7 +40,8 @@ to 256 iterations in a step and a step may only deliver an interrupt.
 Built for the host with `-DCOMPOSITION`, `bench.c` prints how many steps
 of the same run were repeated string instructions and how many iterations
 they carried (the run is deterministic, so the host and the ARM build
-execute the same steps): 46,910 and 824,104 for the shipped build.
+execute the same steps): 46,910 and 824,104 for the build of the fifth row of the table in
+`sys/arch/rp2040/doc/I86.md`, counted with the earlier loop.
 The count includes the firmware services, the display memory and the
 polling of the keyboard service while the key script waits; it excludes
 terminal output and host sleeps, which the stubs remove. The plugin's total
@@ -50,7 +51,7 @@ of the first measured build.
 
 `bench.c` copied `main.c`'s loop when the 8254 timer arrived
 (`../board-speed-pico.txt`). The FreeDOS figures above (46,910 and
-824,104) and the first five rows of the table of
+824,104) and the first six rows of the table of
 `sys/arch/rp2040/doc/I86.md` were counted with the earlier loop, which
 polled every 2048 steps and stepped on through a halt. The table's last
 two rows count the same recipe with `main.c`'s loop: 2,100,670,992 Thumb

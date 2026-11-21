@@ -45,9 +45,10 @@ and the end of its branch fails the site, since the scan does not
 evaluate conditional compilation. Comments, literals and preprocessor lines are
 blanked first and statements split at a semicolon, brace or the end of a
 condition, so a call spread over several lines counts as one statement. Every
-allocator call in a scanned file must be such an assignment: a call in any
-other form (an argument, a return value, a parenthesized lvalue) fails as
-unread, so the scan fails closed on syntax it does not model.
+mention of an allocator in a scanned file must be the call of such an
+assignment: any other form (an argument, a return value, a parenthesized
+lvalue or designator, a pointer to the function) fails as unread, so the
+scan fails closed on syntax it does not model.
 
 usage: check_alloc_results.py FILE...
        check_alloc_results.py --selftest
@@ -405,12 +406,12 @@ def scan(path, text, root=None):
                 f"{label}:{line}: {', '.join(names)} from an allocation is used "
                 "without a NULL test whose branch leaves"
             )
-    for call in re.finditer(rf"\b{ALLOCATORS}\s*\(", code):
+    for call in re.finditer(rf"\b{ALLOCATORS}\b", code):
         if call.start() not in recognized:
             line = code.count("\n", 0, call.start()) + 1
             findings.append(
-                f"{label}:{line}: an allocation in a form the scan does not read "
-                "(an argument, a return value, an unusual assignment)"
+                f"{label}:{line}: an allocator named in a form the scan does not read "
+                "(an argument, a return value, a pointer to it, an unusual assignment)"
             )
             sites += 1
     return findings, sites, used
@@ -469,6 +470,9 @@ KNOWN_BAD = {
     "assignment in a return": "return p = malloc(4);\nif (!p)\n\texit(1);\n",
     "comma in the tested group": "if ((p = malloc(4), q) == NULL)\n\texit(1);\n*p = 1;\n",
     "FATAL outside awk": 'p = malloc(4);\nif (p == NULL)\n\terror(FATAL, "x");\n*p = 1;\n',
+    "parenthesized designator": "p = (malloc)(4);\n*p = 1;\n",
+    "dereferenced designator": "p = (*malloc)(4);\n*p = 1;\n",
+    "pointer to the allocator": "f = malloc;\n",
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",

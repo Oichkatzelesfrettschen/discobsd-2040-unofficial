@@ -129,7 +129,8 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	locore0.o locore.o ${OBJS} ioconf.o
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ}
-SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
+SYSTEM_LD_HEAD=	rm -f $@ vers.o && sh $S/conf/newvers.sh > vers.c.tmp && mv vers.c.tmp vers.c && \
+		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \

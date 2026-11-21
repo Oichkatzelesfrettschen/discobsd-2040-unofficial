@@ -155,8 +155,8 @@ def main(argv=None):
     arguments = parser.parse_args(argv)
     total = 0
     for path in arguments.paths:
-        with open(path, encoding="utf-8") as source:
-            text = source.read()
+        with open(path, encoding="utf-8", errors="replace") as source:
+            text = normalize(source.read())
         for key, offset in phrases(text, fenced=path.endswith(".md")):
             total += 1
             print(f"{path}:{text.count(chr(10), 0, offset) + 1}: {key}")

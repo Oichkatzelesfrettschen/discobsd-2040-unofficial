@@ -98,8 +98,8 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
    `SYSTRACE` frees 3,584 bytes of PICOCALC's flash image (measured
    together). The panel test needs
    `DEV_LCDGFX`, which PICOCALC_LEAN_DIAG omits, so it stays in PICOCALC_SD
-   and PICOCALC_SD_DIAG alone; `SYSTRACE` can also go to
-   PICOCALC_LEAN_DIAG. The panel test's move has a gate cost:
+   and PICOCALC_SD_DIAG alone; `SYSTRACE` stays in PICOCALC_LEAN_DIAG and
+   joins PICOCALC_SD_DIAG. The panel test's move has a gate cost:
    `check-panel-programs`, in the PR job, calls `st7365p_set` in the
    PICOCALC ELF, so it would read the PICOCALC_SD ELF instead, and the PR
    job would link that kernel first. The same script also checks that
@@ -142,6 +142,9 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
 5. Whether to build a loadable-overlay mechanism for rarely used drivers.
    It is a design with its own linker and relocation work, measured only
    by what it would move (the option table above bounds the driver side).
+   He, Debray and Andrews measured the same idea on Linux ("The Revenge of
+   the Overlay", EMSOFT 2007, filed in the notes repository's
+   `docs/papers/`), loading cold kernel code on demand.
 
 The P5 brief's userland section (the ten largest programs) stays open; the
 multicall packing in `PROFILES.md` records what that work has given so far.

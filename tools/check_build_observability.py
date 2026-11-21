@@ -21,6 +21,7 @@ EXPECTED_LABELS = {
     "linux-lint",
     "linux-matezinho-sd",
     "linux-mpu-startup",
+    "linux-panel-gfx-ext",
     "linux-panel-programs",
     "linux-qemu",
     "linux-renode",
@@ -77,6 +78,9 @@ EXPECTED_COMMANDS = {
     "linux-matezinho-sd": "bmake MACHINE=rp2040 check-matezinho-sd",
     "linux-mpu-startup": "bmake MACHINE=rp2040 check-mpu-startup",
     "linux-panel-programs": "bmake MACHINE=rp2040 check-panel-programs",
+    "linux-panel-gfx-ext": (
+        'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-panel-gfx-ext'
+    ),
     "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
     "linux-core1-emulation": "bmake MACHINE=rp2040 check-core1-emulation",
     "linux-cycle-model": "bmake MACHINE=rp2040 check-picocalc-cycle-model",

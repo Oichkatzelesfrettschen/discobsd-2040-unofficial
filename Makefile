@@ -1917,7 +1917,14 @@ check-panel-programs: check-python
 		${PYTHON} tools/unicorn/check_panel_program.py \
 		    sys/arch/rp2040/compile/PICOCALC/unix.elf
 
-.PHONY: check-mpu-startup check-panel-programs
+# The PICOCALC_SD kernel's LCD_GFX_EXT panel primitives under Unicorn
+# (tools/unicorn/check_panel_gfx_ext.py). build links only
+# MACHINE_KERNEL_CONFIGS, so picocalc-sd-kernel links the ELF first.
+check-panel-gfx-ext: check-python .WAIT picocalc-sd-kernel
+		${PYTHON} tools/unicorn/check_panel_gfx_ext.py \
+		    sys/arch/rp2040/compile/PICOCALC_SD/unix.elf
+
+.PHONY: check-mpu-startup check-panel-programs check-panel-gfx-ext
 
 # check-unicorn-kernel calls single functions of a built kernel's unix.elf
 # (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares

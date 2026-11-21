@@ -93,7 +93,8 @@ Both steps only read.
    `check-picocalc-kbd-bootloader`) reports the product ID (0x410 for
    the medium-density family the wiki's log shows), the flash-size word and
    the unique ID, which settles the x8/xB question for this board.
-2. Backup: `"$PYTHON" tools/picocalc/kbd_bootloader_id.py --dump kbd-backup.bin PORT`, which reads
+2. Backup: `"$PYTHON" tools/picocalc/kbd_bootloader_id.py --dump kbd-backup-1.bin PORT`,
+   then again with `kbd-backup-2.bin` (the tool refuses an existing path), which reads
    the whole application flash, sized by the flash-size word the identity
    step reports (64 KiB on an x8 part, 128 KiB on an xB part), and records
    the dump's SHA-256. To name the installed release, the MD5 of the
@@ -108,9 +109,11 @@ Both steps only read.
 
 The wiki's route: DIP switch 1 on (SW701, which raises BOOT0 and routes the
 CH340C to the controller's USART1), USB-C to the host, a long press of the
-power key, then
+power key, then    stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN PORT
 
-    stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000 PORT
+where LEN is the image's size rounded up to the 1 KiB flash page, so the
+erase covers the image's pages alone; without a length `stm32flash`
+extends the range to the end of flash and erases all of it.
 
 then DIP switch 1 off and a power cycle (a long press of the power key to
 turn the board off, then on): the controller keeps running its ROM
@@ -123,12 +126,13 @@ own CDC-ACM console stays out of the command.
 
 The system bootloader lives in the controller's ROM, which a flash write
 leaves intact, so a bad image recovers by the same route with the backup:
-`stm32flash -w kbd-backup.bin -v -S 0x08000000 PORT`. The plan writes only
+`stm32flash -w kbd-backup-1.bin -v -S 0x08000000 PORT`. The plan writes only
 the main flash. Option bytes, readout protection and write protection
 stay untouched (`stm32flash`
 options `-j`, `-k`, `-u` and the option-byte
 commands are excluded; `-u` disables write protection, and the default
-write erases only the pages the image covers), because readout protection would lock the backup
+write with the `:LEN` range erases only the pages the image covers; the
+recovery write of a full backup covers the whole flash by design), because readout protection would lock the backup
 path itself. A controller running a bad image may leave the Pico unpowered
 (PA13 drives PICO_EN), which the recovery route survives: the bootloader
 runs without the Pico.

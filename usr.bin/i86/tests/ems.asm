@@ -878,7 +878,9 @@ main:	mov ah, 0x40
 	call st
 	; Crossed windows: E000h and EC00h show logical 0, E400h and E800h
 	; logical 1. A 32 KB move from E000:0000 to E800:0000 writes each page
-	; that the other half still has to read, in both orders: 97h.
+	; that the other half still has to read, in both orders, so it goes
+	; through staging: the two pages trade contents. Logical 0 starts
+	; with 11h and logical 1 with 22h; EC00:0000 (logical 0) ends with 22h.
 	mov bx, 1
 	mov al, 1
 	call map
@@ -888,11 +890,22 @@ main:	mov ah, 0x40
 	xor bx, bx
 	mov al, 3
 	call map
+	mov ax, 0xe000
+	mov es, ax
+	mov byte [es:0], 0x11
+	mov ax, 0xe400
+	mov es, ax
+	mov byte [es:0], 0x22
 	mov si, creg
 	mov ax, 0x5700
 	int 0x67
 	mov si, s_acyc
 	call st
+	mov ax, 0xec00
+	mov es, ax
+	mov al, [es:0]
+	mov si, s_acycd
+	call say2
 	; 5401h with a name of nulls: A1h while a handle has no name, A0h
 	; once handle 0 and [h] have names.
 	mov si, nm0
@@ -1013,6 +1026,7 @@ s_amovs: db "amovs:", 0
 s_amov:	db "amov:", 0
 s_axch:	db "axch:", 0
 s_acyc:	db "acyc:", 0
+s_acycd: db "acycd:", 0
 s_nul1:	db "nul1:", 0
 s_nul0:	db "nul0:", 0
 s_done:	db "done", 0

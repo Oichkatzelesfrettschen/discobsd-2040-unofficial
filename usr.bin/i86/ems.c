@@ -55,8 +55,8 @@
  * 57h reads conventional memory as the bus does, the firmware ROM
  * included, refuses a region that runs past 1 MB (A2h) and treats two
  * physical pages that show one logical page as one memory: an exchange
- * whose regions share bytes through them answers 97h, and so does a move
- * that no single copy order serves.
+ * whose regions share bytes through them answers 97h, and a move that no
+ * single copy order serves goes through staging pages past the pool.
  *
  * 5Dh keeps the operating system's access key: the first 5D00h or 5D01h
  * hands it out in BX:CX, later calls must present it (A4h otherwise), and
@@ -73,6 +73,7 @@
 #define NHANDLE		64
 #define NPHYS		48
 #define NOBASE		MEM_NOMAP
+#define NSTAGE		64		/* 16 KB pages past the pool: 1 MB */
 #define PAGE		16384u
 #define OK		0x00
 #define E_HANDLE	0x83		/* no such handle */
@@ -168,7 +169,7 @@ ems_init(unsigned kbytes)
 	owner = calloc(npool ? npool : 1, 1);
 	lnum = calloc(npool ? npool : 1, sizeof(*lnum));
 	if (hd == NULL || owner == NULL || lnum == NULL ||
-	    mem_ems(npool) != 0)
+	    mem_ems(npool + NSTAGE) != 0)
 		return (-1);
 	for (b = 56; b < 60; b++)
 		add(b);
@@ -443,7 +444,7 @@ alias(const struct end *c, const struct end *x, uint32_t len)
  * copy from the end then. Returns 0 when no byte is shared, 1 when one
  * order serves, 2 when pairs ask for both orders (regions of more than a
  * page through windows on two logical pages in crossed order): no single
- * pass copies those, and move() refuses them as overlapping (97h).
+ * pass copies those, so move() stages them (staged()).
  */
 static int
 alias0(const struct end *a, const struct end *b, uint32_t len, int *back)
@@ -481,6 +482,33 @@ alias0(const struct end *a, const struct end *b, uint32_t len, int *back)
 	return (!shared ? 0 : rev && fwd ? 2 : 1);
 }
 
+/*
+ * A move no single copy order serves: the source whole into the NSTAGE
+ * staging pages past the pool, then the destination from them. The pages
+ * live in the page file like any logical page and are forgotten after.
+ */
+static void
+staged(const struct end *e, uint32_t len, uint8_t *buf)
+{
+	uint32_t i, n, lp;
+	unsigned pass;
+
+	for (pass = 0; pass < 2; pass++)
+		for (i = 0; i < len; i += n) {
+			n = len - i < 256 ? len - i : 256;
+			lp = MEM_NPAGE + npool * MEM_EMSPG + i / MEM_PGSIZE;
+			if (pass == 0) {
+				copy(buf, &e[0], i, n, 0);
+				memcpy(mem_lpage(lp, 1) + i % MEM_PGSIZE, buf, n);
+			} else {
+				memcpy(buf, mem_lpage(lp, 0) + i % MEM_PGSIZE, n);
+				copy(buf, &e[1], i, n, 1);
+			}
+		}
+	for (i = 0; i < NSTAGE; i++)
+		mem_drop16(MEM_NPAGE + (npool + i) * MEM_EMSPG);
+}
+
 static unsigned
 move(uint32_t a, int xchg)
 {
@@ -489,7 +517,7 @@ move(uint32_t a, int xchg)
 	uint32_t len = grw(a) | (uint32_t)grw(a + 2) << 16, i, n;
 	uint32_t s0, s1;
 	unsigned k, status = OK;
-	int back = 0, shared;
+	int back = 0, shared = 0;
 
 	if (len > MEM_SIZE)
 		return (0x96);
@@ -528,12 +556,15 @@ move(uint32_t a, int xchg)
 			if (e[0].type)
 				status = 0x92;
 		} else if (e[0].type == 0 && len &&
-		    (shared = alias0(&e[0], &e[1], len, &back)) != 0 &&
-		    (xchg || shared == 2))
+		    (shared = alias0(&e[0], &e[1], len, &back)) != 0 && xchg)
 			return (0x97);
 	} else if (e[0].type != e[1].type && len &&
 	    alias(&e[e[0].type != 0], &e[e[0].type == 0], len))
 		return (0x94);
+	if (shared == 2) {
+		staged(e, len, one);
+		return (status);
+	}
 	for (i = 0; i < len; i += n) {
 		n = len - i < sizeof(one) ? len - i : sizeof(one);
 		k = back ? (unsigned)(len - i - n) : (unsigned)i;

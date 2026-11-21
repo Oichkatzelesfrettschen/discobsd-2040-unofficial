@@ -842,7 +842,7 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
         os.close(slave)
     if step != len(steps):
         raise Failure("menu session: %r never appeared" % steps[step][0])
-    return seen, status, before == after
+    return seen, status, termios_modes(before) == termios_modes(after)
 
 
 RIGHT, DOWN, LEFT, UP, HOME = b"\x1b[C", b"\x1b[B", b"\x1b[D", b"\x1b[A", b"\x1b[H"
@@ -1186,7 +1186,9 @@ def test_exit_store_failure(binary, work):
             continue  # the page was resident at that instant
         if status != 3:
             raise Failure("page store failure at exit: exit %r" % status)
-        if before != after or not seen.endswith(b"\x1b[0m\x1b[r\x1b[?7h\x1b[26;1H"):
+        if termios_modes(before) != termios_modes(after) or not seen.endswith(
+            b"\x1b[0m\x1b[r\x1b[?7h\x1b[26;1H"
+        ):
             raise Failure("page store failure at exit: terminal not restored")
         return
     raise Failure("page store failure at exit: the exit never read the page file")

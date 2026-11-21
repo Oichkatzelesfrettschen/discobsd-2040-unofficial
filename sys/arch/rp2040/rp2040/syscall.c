@@ -247,8 +247,13 @@ divider_restore(const struct divider_state *ds)
  * Check the kernel stack and record the user stack an entry from the
  * process found. swapout() copies p_ssize bytes below USER_TOP, so a stack
  * deeper than the deepest entry recorded so far must be recorded before
- * anything can switch the process out. Returns nonzero when sp has run into
- * the data segment.
+ * anything can switch the process out. Returns nonzero when sp has run
+ * into the data segment, except while a handler runs on the alternate
+ * signal stack (SA_ONSTACK, set by sendsig()) and sp lies inside the range
+ * sigaltstack() registered: that range may be in .bss or the heap, below
+ * the break, and such an sp is neither an overflow nor a process-stack
+ * depth. An alternate stack above the break is recorded like the process
+ * stack it lies in.
  */
 static int
 user_entry(const struct trapframe *frame)
@@ -261,7 +266,9 @@ user_entry(const struct trapframe *frame)
 		/* NOTREACHED */
 	}
 	if (sp < p->p_daddr + u.u_dsize)
-		return 1;
+		return !((u.u_sigstk.ss_flags & SA_ONSTACK) &&
+		    sp - (u_int)u.u_sigstk.ss_base <=
+		    (u_int)u.u_sigstk.ss_size);
 	if (p->p_ssize < USER_TOP(p) - sp) {
 		p->p_ssize = USER_TOP(p) - sp;
 		p->p_saddr = sp;

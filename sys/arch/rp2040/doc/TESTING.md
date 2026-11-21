@@ -3205,7 +3205,7 @@ compares every SIO divider result of two dividing processes and their
 handlers with a software division while a third process forces switches
 every 2 ms; `altstack` runs a handler on an alternate stack of exactly
 `MINSIGSTKSZ` bytes based 7 bytes past an eight-byte boundary and requires
-the signal frame to stay inside it; `execdiv` execs from a sequence that
+the signal frame to stay inside it; `altstack-bss` puts the alternate stack in a static array in .bss, below the break, and requires the handler's `getpid()` there to return the process ID and the program to resume, which a kernel whose `user_entry()` reads every sp below the break as a stack overflow fails with status 139 (SIGSEGV; origin/main at 7f2d3f705); `execdiv` execs from a sequence that
 left the divider DIRTY with known operands and requires the new image not
 to find them; `divclean` has two processes leave their own divider values
 with DIRTY clear and read them back under switches forced every 2 ms. origin/main at 4b3eaf6c fails all five (docs/research/rp2040-systick-ast.md

@@ -133,7 +133,6 @@ UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
 # Virtual seconds for the card stage: SPI at 398 kHz through
 # identification, then sector reads of the table and the superblock.
 SD_BUDGET_SECONDS = 60.0
-ROOT_SLICE_SECONDS = 0.1
 
 # Every PicoCalc kernel; the configuration name in parentheses differs.
 BANNER = "DiscoBSD 2.7 (PICOCALC"
@@ -257,6 +256,8 @@ def self_test():
     expect("parse tmp mount echoed command", parse_mount_tmp(["$ /dev/sd0t on /tmp"]), None)
     expect("tmp on the card", tmp_verdict("/dev/sd0t", TMP_SOURCE), [])
     expect("no tmp entry, none mounted", tmp_verdict(None, None), [])
+    failures += cp.sampling_failures(wait_banner, BANNER + "_DIAG)")
+    failures += cp.sampling_failures(wait_root_device, "root dev  = (5,3)")
     for label, got, want in (
         ("tmp on sd0b", "/dev/sd0b", TMP_SOURCE),
         ("tmp on the PSRAM", "/dev/psram1", TMP_SOURCE),
@@ -331,22 +332,33 @@ def make_card(path, root_img, p3_type, tmp_entry=False, swap_entry=False):
     return sectors * SECTOR
 
 
+def wait_banner(run):
+    """Wait until the banner has been on the panel in some frame.
+
+    The exec chatter of the diagnostic kernel scrolls the banner off the
+    32-row panel within a few tenths of a virtual second of its first frame,
+    so the frames are taken a tenth of a second apart and every frame counts."""
+    return run.wait_seen([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
+
+
+def wait_root_device(run):
+    """Wait until the root device line has been on the panel; return its (major, minor).
+
+    The line and the root size line that follows it stay on the 32-row panel for
+    0.3 virtual seconds before the exec chatter of the diagnostic kernel scrolls
+    them off, so the frames are a tenth of a second apart and every frame counts."""
+    run.wait_until(lambda: parse_root_dev(sorted(run.seen)) is not None, "root device line",
+                   "a root dev line", SD_BUDGET_SECONDS, cp.EARLY_SLICE_SECONDS)
+    return parse_root_dev(sorted(run.seen))
+
+
 def wait_root_lines(run, texts):
     """Wait until every root line has been on the panel in some frame.
 
     The lines need not share a frame: the partition listings that follow
     them scroll a 32-row panel within a fraction of a second, so the frames
     are taken a tenth of a second apart and every frame's lines count."""
-    spent = 0.0
-    while spent < SD_BUDGET_SECONDS:
-        run.advance(ROOT_SLICE_SECONDS)
-        spent += ROOT_SLICE_SECONDS
-        if all(run.saw(text) for text in texts):
-            print(f"check-picocalc: root lines after {run.virtual:.1f} virtual seconds")
-            return True
-    run.fail(f"root lines: {texts!r} not on the panel after {run.virtual:.1f} "
-             "virtual seconds")
-    raise cp.StageFailed("root lines")
+    return run.wait_seen(texts, "root lines", SD_BUDGET_SECONDS)
 
 
 def boot(renode_path, kernel, flash, card, capacity, outdir, start):
@@ -372,18 +384,13 @@ def case_root(renode_path, kernel, flash, root_img, outdir, start, reason):
     try:
         # The banner scrolls off the 32-row panel before the card answers,
         # so the waits run one after the other.
-        run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
+        wait_banner(run)
         wait_root_lines(run, [reason, "root: sd0c", f"sd0: SD 2.0, {capacity // 1024} kbytes"])
         run.snapshot("root")
-        run.wait_until(
-            lambda: parse_root_dev(run.lines) is not None,
-            "root device line",
-            "a root dev line",
-            SD_BUDGET_SECONDS,
-        )
-        root_dev = parse_root_dev(run.lines)
+        root_dev = wait_root_device(run)
         size_line = f"root size = {os.path.getsize(root_img) // 1024} kbytes"
-        run.wait_until(lambda: size_line in run.seen, size_line, size_line, SD_BUDGET_SECONDS)
+        run.wait_until(lambda: size_line in run.seen, size_line, size_line, SD_BUDGET_SECONDS,
+                       cp.EARLY_SLICE_SECONDS)
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")
         run.wait_for_prompt("shell prompt", cp.KEY_BUDGET_SECONDS)
@@ -438,7 +445,7 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
                          swap_entry=start == SD_KERNEL_END)
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
-        run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
+        wait_banner(run)
         wait_root_lines(run, [reason, "root: sd0c", f"sd0: SD 2.0, {capacity // 1024} kbytes"])
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")

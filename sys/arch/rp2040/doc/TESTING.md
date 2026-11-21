@@ -3307,7 +3307,7 @@ emulator, model tree, kernel or image by name before it starts. The root
 image is the selected board's `${FLASHBIN}`, so `BOARD=PICOCALC` pairs the
 PICOCALC kernel with the PICOCALC profile's root (`flash-PICOCALC.bin`) while
 the default board keeps `flash.bin`. It runs without Robot Framework and leaves every network port closed: tools/renode/check-picocalc.py drives Renode through the console
-monitor on stdin, advances virtual time in half-second slices, dumps the
+monitor on stdin, advances virtual time in half-second slices (tenth-second slices while it waits for the banner), dumps the
 panel model's frame after each slice, decodes the frame back into the
 console's 53x32 text with the kernel's own font table
 (tools/renode/picocalc_fb.py, which parses `dev/lcdfont.c`), and waits for the
@@ -3437,7 +3437,7 @@ unprivileged `uidquota` run counts the account before fork, holds children
 live, distinguishes the real-UID refusal from table and swap exhaustion,
 reaps them and forks again. The gate checks the separate temporary partition, runs the installed
 `cut` on a file there with valid and invalid range operands, and exercises
-the missing-root panic. The diagnostic SD kernel boots the same root image in a fresh emulator and runs the root-mount, calendar and login checks. The nightly Linux firmware job owns this emulator gate.
+the missing-root panic. The diagnostic SD kernel boots the same root image in a fresh emulator and runs the root-mount, calendar and login checks. The banner and the root lines are waited for on frames a tenth of a virtual second apart, with every frame counted: the panel is blank until 0.5 virtual seconds on the diagnostic kernel, shows the banner for 0.2 to 0.3 seconds and then scrolls it off under the exec chatter, so a frame every half second samples that window once at most. A failed wait writes `frames.txt` beside its frame dump with the first 60 frames and the last 8 as text. `--self-test` runs both waits against a banner window that starts at each of 41 phases from 0 to 2 seconds: the wait on the current frame at half-second steps must miss the window that starts at 0.55 seconds and the counted wait must find every window, and a mutant that goes back to the current-frame wait fails the self-test. The nightly Linux firmware job owns this emulator gate.
 
 The host check `check-fsutil-clock` also exercises the built extractor with
 a regular file containing a sparse extent, a symbolic link, a preexisting

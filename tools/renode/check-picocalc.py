@@ -9,7 +9,8 @@ without failing it; WALL_SECONDS bounds a hung emulator.
 
 Stages, each asserted on the decoded panel text:
   banner    the kernel banner, lcd0 and kbd0 probe lines, and the psram0
-            probe falling back to swap on fl1 (the machine models no PSRAM)
+            probe falling back to swap on fl1 (the machine models no PSRAM);
+            the banner wait counts every frame, taken 0.1 virtual second apart
   login     the getty prompt, after the root check, daemons and init
   shell     keys typed through the I2C keyboard model log in and run uname
 
@@ -33,9 +34,14 @@ Usage: check-picocalc.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR [CARD FSUTIL]
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer.
 """
 
+import collections
+import contextlib
+import io
 import os
 import re
 import sys
+import tempfile
+import typing
 from collections.abc import Callable
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -50,6 +56,18 @@ SLICE_SECONDS = 0.5
 # a few virtual seconds per minute, and the gate runner ends a step whose output
 # is silent for its idle timeout.
 PROGRESS_SECONDS = 10.0
+# A 32-row panel holds a boot line for a fraction of a second once the console
+# scrolls: the banner of the diagnostic kernel is on the panel for 0.2 to 0.3
+# virtual seconds. A wait for such a line takes frames this far apart and counts
+# every frame (Run.wait_seen), because a frame every SLICE_SECONDS samples a
+# window that short once at most and misses it when the boot text arrives a
+# tenth of a virtual second later.
+EARLY_SLICE_SECONDS = 0.1
+# A failed run writes the first frames and the last ones to frames.txt: the
+# head covers the boot text the early waits look for, the tail the screen the
+# run ended on.
+FRAMES_KEPT_HEAD = 60
+FRAMES_KEPT_TAIL = 8
 BOOT_BUDGET_SECONDS = 20.0
 LOGIN_BUDGET_SECONDS = 120.0
 KEY_BUDGET_SECONDS = 20.0
@@ -109,18 +127,49 @@ class Run:
         # Every line a frame has shown; boot text scrolls off a 32-row panel.
         self.seen: set[str] = set()
         self.failures: list[str] = []
+        # The first and the last frames, written to frames.txt by fail().
+        self.frames_taken = 0
+        self.frames_head: list[tuple[int, float, list[str]]] = []
+        self.frames_tail: collections.deque[tuple[int, float, list[str]]] = (
+            collections.deque(maxlen=FRAMES_KEPT_TAIL))
 
     def advance(self, seconds: float = SLICE_SECONDS) -> list[str]:
         self.renode.command(f'emulation RunFor "{seconds}"')
         self.virtual += seconds
         path = os.path.join(self.outdir, "frame.ppm")
         self.renode.command(f"sysbus.spi1.lcd DumpPpm @{path}")
-        self.lines = picocalc_fb.screen_text(path).split("\n")
-        self.seen.update(line.rstrip() for line in self.lines)
+        return self.show(picocalc_fb.screen_text(path).split("\n"))
+
+    def show(self, lines: list[str]) -> list[str]:
+        """Take the panel text of the frame at the current virtual time."""
+        self.lines = lines
+        self.seen.update(line.rstrip() for line in lines)
+        self.frames_taken += 1
+        frame = (self.frames_taken, self.virtual, [line.rstrip() for line in lines if line.strip()])
+        if len(self.frames_head) < FRAMES_KEPT_HEAD:
+            self.frames_head.append(frame)
+        self.frames_tail.append(frame)
         if os.environ.get("CHECK_PICOCALC_VERBOSE"):
-            last = [line for line in self.lines if line.strip()][-1:] or [""]
+            last = [line for line in lines if line.strip()][-1:] or [""]
             print(f"check-picocalc: t={self.virtual:.1f}s {last[0]!r}", flush=True)
-        return self.lines
+        return lines
+
+    def write_frames(self) -> str:
+        """Write the kept frames as text, so a failed wait shows what the panel held."""
+        path = os.path.join(self.outdir, "frames.txt")
+        shown = {frame[0] for frame in self.frames_head}
+        tail = [frame for frame in self.frames_tail if frame[0] not in shown]
+        with open(path, "w", encoding="utf-8") as handle:
+            for number, virtual, text in self.frames_head:
+                handle.write(f"frame {number} t={virtual:.1f}s\n")
+                handle.writelines(f"  {line}\n" for line in text or ["(blank)"])
+            if tail and tail[0][0] > len(self.frames_head) + 1:
+                handle.write(f"frames {len(self.frames_head) + 1} to {tail[0][0] - 1} "
+                             "are not kept\n")
+            for number, virtual, text in tail:
+                handle.write(f"frame {number} t={virtual:.1f}s\n")
+                handle.writelines(f"  {line}\n" for line in text or ["(blank)"])
+        return path
 
     def snapshot(self, name: str) -> None:
         path = os.path.join(self.outdir, name)
@@ -157,12 +206,12 @@ class Run:
             self.renode.command(f'{kbd} TypeLine "{text}"')
 
     def wait_until(self, predicate: Callable[[], bool], what: str, expect: str,
-                   budget: float) -> bool:
+                   budget: float, slice_seconds: float = SLICE_SECONDS) -> bool:
         spent = 0.0
         noted = 0.0
         while spent < budget:
-            self.advance()
-            spent += SLICE_SECONDS
+            self.advance(slice_seconds)
+            spent += slice_seconds
             if predicate():
                 print(f"check-picocalc: {what} after {self.virtual:.1f} virtual seconds")
                 return True
@@ -178,6 +227,16 @@ class Run:
         return self.wait_until(lambda: all(self.has(text) for text in texts), what,
                                repr(texts), budget)
 
+    def wait_seen(self, texts: list[str], what: str, budget: float) -> bool:
+        """Wait until every text has been on the panel in some frame.
+
+        The texts need not share a frame, and the frames are EARLY_SLICE_SECONDS
+        apart: the lines this waits for scroll off a 32-row panel within a
+        fraction of a second, which a wait on the current frame at SLICE_SECONDS
+        steps (wait_for) can sample once or not at all."""
+        return self.wait_until(lambda: all(self.saw(text) for text in texts), what,
+                               repr(texts), budget, EARLY_SLICE_SECONDS)
+
     def wait_for_line(self, text: str, what: str, budget: float) -> bool:
         return self.wait_until(lambda: self.has_line(text), what, f"a line {text!r}", budget)
 
@@ -190,6 +249,8 @@ class Run:
     def fail(self, message: str) -> None:
         print(f"check-picocalc: FAIL {message}", file=sys.stderr)
         self.failures.append(message)
+        if self.outdir:
+            print(f"check-picocalc: frames kept in {self.write_frames()}", file=sys.stderr)
 
     def expect(self, condition: bool, message: str) -> None:
         if not condition:
@@ -710,6 +771,118 @@ def read_stream(cmd: int, value: int, dummy: bool = True) -> list[int]:
     return [int(stream[i:i + 8], 2) for i in range(0, len(stream), 8)]
 
 
+class TimelineRun(Run):
+    """A Run whose panel follows a function of virtual time, with no emulator."""
+
+    def __init__(self, shown: Callable[[float], list[str]], outdir: str = "") -> None:
+        super().__init__(typing.cast(Renode, None), outdir)
+        self.shown = shown
+
+    def advance(self, seconds: float = SLICE_SECONDS) -> list[str]:
+        self.virtual += seconds
+        return self.show(self.shown(round(self.virtual, 3)))
+
+
+def banner_window(start: float, banner: str, width: float = 0.3) -> Callable[[float], list[str]]:
+    """A panel blank until start, showing the banner for width seconds, then scrolled."""
+    def shown(virtual: float) -> list[str]:
+        if virtual < start:
+            return [""]
+        if virtual < start + width:
+            return [banner, "lcd0: ST7365P 320x320 on SPI1"]
+        return ["        exec_check(): read header"]
+    return shown
+
+
+def wait_outcomes(wait: Callable[[Run], object], banner: str,
+                  starts: list[float]) -> dict[float, bool]:
+    """Whether a banner wait passes for each start of the banner's window."""
+    outcome = {}
+    for start in starts:
+        run = TimelineRun(banner_window(start, banner))
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            try:
+                wait(run)
+                outcome[start] = True
+            except StageFailed:
+                outcome[start] = False
+    return outcome
+
+
+BANNER_STARTS = [step / 20 for step in range(0, 41)]
+
+
+def sampling_failures(wait_banner: typing.Optional[Callable[[Run], object]] = None,
+                      banner: str = "DiscoBSD 2.7 (PICOCALC_SD_DIAG)") -> list[str]:
+    """Calibrate the cadence of a wait for a boot line against windows at every phase.
+
+    The line is on the panel for 0.3 virtual seconds and starts anywhere in the
+    first two seconds. A wait on the current frame at SLICE_SECONDS steps (wait_for) must
+    pass for a window that holds a sample and fail for one that holds none, which
+    proves the windows can miss; the wait under test (wait_seen unless a caller
+    supplies the wait its cases use) must pass for every start."""
+    def coarse(run: Run) -> object:
+        return run.wait_for([banner], "banner", BOOT_BUDGET_SECONDS)
+
+    def fine(run: Run) -> object:
+        return run.wait_seen([banner], "banner", BOOT_BUDGET_SECONDS)
+
+    failures = []
+    bad = wait_outcomes(coarse, banner, BANNER_STARTS)
+    if not bad[0.5] or bad[0.55]:
+        failures.append("the wait on the current frame must pass for a window starting at 0.50 "
+                        "and fail for one starting at 0.55")
+    for name, wait in (("wait_seen", fine), ("the wait the cases use", wait_banner)):
+        if wait is None:
+            continue
+        missed = [start for start, ok in wait_outcomes(wait, banner, BANNER_STARTS).items()
+                  if not ok]
+        if missed:
+            failures.append(f"{name} missed a window of the line starting at {missed[:4]}")
+    def two_lines(virtual: float) -> list[str]:
+        if 0.5 <= virtual < 0.8:
+            return ["first line"]
+        if 1.5 <= virtual < 1.8:
+            return ["second line"]
+        return [""]
+
+    run = TimelineRun(two_lines)
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        try:
+            run.wait_seen(["first line", "second line"], "two lines", BOOT_BUDGET_SECONDS)
+        except StageFailed:
+            failures.append("wait_seen missed two texts that appear in different frames")
+    return failures
+
+
+def frame_record_failures() -> list[str]:
+    """Calibrate the kept frames: the first, a marker for the gap and the last."""
+    failures = []
+    with tempfile.TemporaryDirectory() as outdir:
+        run = TimelineRun(banner_window(1.0, "banner line"), outdir)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            try:
+                run.wait_seen(["never shown"], "unseen text", BOOT_BUDGET_SECONDS)
+            except StageFailed:
+                pass
+        with open(os.path.join(outdir, "frames.txt"), encoding="utf-8") as handle:
+            kept = handle.read().split("\n")
+        taken = run.frames_taken
+        want_gap = f"frames {FRAMES_KEPT_HEAD + 1} to {taken - FRAMES_KEPT_TAIL} are not kept"
+        if kept[0] != "frame 1 t=0.1s" or "  (blank)" not in kept[1:2]:
+            failures.append(f"frames.txt starts with {kept[:2]!r}")
+        if want_gap not in kept:
+            failures.append(f"frames.txt lacks the line {want_gap!r}")
+        if "  banner line" not in kept:
+            failures.append("frames.txt lost the banner window inside the kept head")
+        if f"frame {taken} t={run.virtual:.1f}s" not in kept:
+            failures.append("frames.txt lost the last frame")
+        listed = sum(1 for line in kept if line.startswith("frame "))
+        if listed != FRAMES_KEPT_HEAD + FRAMES_KEPT_TAIL:
+            failures.append("frames.txt keeps a number of frames other than head plus tail")
+    return failures
+
+
 def self_test() -> int:
     """Calibrate panel_status_failures on a good line and on mutants of it."""
     failures = panel_status_failures(GOOD_STATUS)
@@ -811,10 +984,16 @@ def self_test() -> int:
         if not psram_failures(lines):
             print(f"self-test: the {name} psram0 case was not rejected", file=sys.stderr)
             return 1
+    problems = sampling_failures() + frame_record_failures()
+    if problems:
+        for problem in problems:
+            print(f"self-test: {problem}", file=sys.stderr)
+        return 1
     print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
           "good and unbounded FIFO, three good readbacks and five mutants, "
           "good, shifted and one-color logo, psram0 fallback and three mutants, "
-          "12-, 255- and 256-byte dump messages)")
+          "12-, 255- and 256-byte dump messages, banner windows at 41 phases against the "
+          "current-frame wait and the counted frames, the kept frames of a failed wait)")
     return 0
 
 
@@ -865,8 +1044,7 @@ def main(argv: list[str]) -> int:
         renode.command(f"sysbus.uart0 CreateFileBackend @{os.path.join(outdir, 'uart0.txt')} true")
         init_trace = expected_init_trace()
         renode.command(f"sysbus.spi1.lcd TraceBytes {len(init_trace)}")
-        run.wait_until(lambda: all(run.saw(text) for text in BANNER_LINES),
-                       "banner", repr(BANNER_LINES), BOOT_BUDGET_SECONDS)
+        run.wait_seen(BANNER_LINES, "banner", BOOT_BUDGET_SECONDS)
         run.wait_until(lambda: psram_probe_seen(run.lines), "psram probe",
                        "a psram0 outcome line", BOOT_BUDGET_SECONDS)
         run.snapshot("banner")

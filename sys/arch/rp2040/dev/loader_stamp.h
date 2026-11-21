@@ -111,4 +111,27 @@ flash_swap_extent(uint32_t write_end)
 	return write_end - FLASH_SWAP_OFFSET;
 }
 
+/*
+ * The layout a stamp selects at boot, which flash_limit_init() applies:
+ * the writable end, fl1's extent below it, and whether the loader's second
+ * stage occupies flash bytes 0-255, which the magic alone decides, so a
+ * stamp with a bad limit still restores the XIP divider. fl1's extent sizes
+ * nswap whenever swapdev stays on the flash, as it does when no PSRAM
+ * probes, so swap ends at the stamped limit as every flash write does.
+ */
+struct loader_layout {
+	uint32_t	write_end;
+	uint32_t	swap_bytes;
+	int		status;		/* LOADER_STAMP_* */
+	int		loader_boot2;
+};
+
+static inline void
+loader_layout_decode(uint32_t magic, uint32_t limit, struct loader_layout *ll)
+{
+	ll->status = loader_stamp_decode(magic, limit, &ll->write_end);
+	ll->swap_bytes = flash_swap_extent(ll->write_end);
+	ll->loader_boot2 = magic == LOADER_STAMP_MAGIC;
+}
+
 #endif	/* !_RP2040_DEV_LOADER_STAMP_H_ */

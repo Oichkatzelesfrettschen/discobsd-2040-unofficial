@@ -97,9 +97,12 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
    moves with it: `check_variant_delta()` in
    `tools/config/check_generated_sync.py` holds PICOCALC_SD to PICOCALC plus
    its listed additions and refuses a PICOCALC_LEAN removal its base lacks,
-   so the move adds `LCD_PANELTEST` to PICOCALC_SD's additions, drops
-   `LCD_PANELTEST` and `SYSTRACE` from PICOCALC_LEAN's removals, and
-   regenerates the affected Makefiles.
+   so the move takes four rule edits: PICOCALC_SD's additions gain
+   `LCD_PANELTEST`, `SD_DIAG_OPTIONS` (PICOCALC_SD_DIAG's additions) gains
+   `SYSTRACE`, PICOCALC_LEAN's removals drop both options (its base no
+   longer carries them), and PICOCALC_LEAN_DIAG keeps adding
+   `DIAGNOSTIC_OPTIONS`, which brings `SYSTRACE` back there; the affected
+   Makefiles are then regenerated.
 2. Whether the errno message table (1,390 bytes with its rules and
    offsets) leaves the kernel for a message file on the root, the design
    `memory-devices.md` records: libc `strerror()` reads the file from the

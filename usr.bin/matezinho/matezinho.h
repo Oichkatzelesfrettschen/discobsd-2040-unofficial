@@ -6,6 +6,10 @@
 #define MZ_H 320
 #define MZ_BAND 8
 #define MZ_APPS 9
+/* A band's dirty columns are kept in units of MZ_XUNIT pixels, MZ_COLS of them across. */
+#define MZ_XUNIT 4
+#define MZ_COLS (MZ_W/MZ_XUNIT)
+#define MZ_BANDS (MZ_H/MZ_BAND)
 #define MZ_NOTES 1024
 #define MZ_FILES 12
 /*
@@ -23,7 +27,9 @@
 struct mz {
     int focus, active, menu, chooser, large, note_dirty;
     unsigned open, dirty;
-    unsigned char bands[40];
+    /* Dirty columns of each band, [xlo, xhi) in MZ_XUNIT units; a band is
+     * dirty when xlo < xhi. */
+    unsigned char xlo[MZ_BANDS], xhi[MZ_BANDS];
     unsigned char mru[MZ_APPS];
     unsigned ticks, asset_sectors;
     char note[MZ_NOTES], expr[64], result[64];
@@ -39,7 +45,9 @@ struct mz {
 struct mz_io {
     void *ctx;
     int (*icon)(void *, int, int, uint16_t *);
-    int (*band)(void *, int, const uint16_t *);
+    /* band(ctx, y, pixels, xlo, xhi): pixels holds all 320 columns of the
+     * 8 rows at y; only columns [xlo*MZ_XUNIT, xhi*MZ_XUNIT) changed. */
+    int (*band)(void *, int, const uint16_t *, int, int);
 };
 extern const char *const mz_names[MZ_APPS];
 void mz_init(struct mz *);

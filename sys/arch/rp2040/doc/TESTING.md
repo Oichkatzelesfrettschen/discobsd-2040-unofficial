@@ -4463,20 +4463,20 @@ Proofs concern the stated policy, not Python/OpenSSL refinement or hardware.
 
 `check-matezinho-host` (in check-host) executes the original state machine and
 band renderer under ASan/UBSan, compares incremental output with full scene
-reconstruction through 1500 seeded actions, pins the centered Files tile
+reconstruction through 1500 seeded actions (the oracle copies only the dirty columns each band reports, so a `mark` that under-reports fails, and a repaint after each scripted case must leave the same file as the dirty-column writes), pins the centered Files tile
 label's leading edge and the position of its trailing glyphs, checks view
 retention and input bounds, verifies pinned artwork bytes, and rejects malformed/truncated packs
 and image overwrite. Its Settings checks step both lights from the kept or the
 already requested level, clamp at 0 and 240, and leave an unreadable light
 unstepped; the frame checks require Right to change a light's row, Left to
 undo it, and Left on the unlit keyboard to leave it unchanged, through the
-development build's stand-in controller. Four mutants fail them (a stand-in that drops every write, Left raising a light, no clamp at 0, no write after a
+development build's stand-in controller. Five mutants of the dirty-column mechanism (`tests/matezinho/mutants.py`: `mark` ignoring x, replacing instead of widening, reporting full width, a range left dirty after render, a PPM sink writing at column 0) each fail for their named reason after an unmutated run passes. Four mutants fail the Settings checks (a stand-in that drops every write, Left raising a light, no clamp at 0, no write after a
 key). These checks run against the stand-in; the kernel nodes and
 `backlight(1)` run only in the Renode stage below. Sparse 16 MiB, 32 MiB and approximately 32 GB images are
 host files, not SRAM. The test oracle's full frames are absent from the desktop.
 
 `check-matezinho-qemu` (in check-qemu) runs the same application sources as
-Thumb-1 on `qemu-arm -cpu cortex-m0`. Eight scripted frames, one of them Settings after
+Thumb-1 on `qemu-arm -cpu cortex-m0`. Eleven scripted frames, one of them Settings after
 both lights step, must equal the host renderer byte for byte, and a note must save through Linux EABI. A linker
 MEMORY region contains the executable, static state, 16 KiB heap and 8 KiB
 stack within 192 KiB. This is a newlib application seam, not a DiscoBSD kernel

@@ -373,6 +373,24 @@ MUTANTS = [
     ("ems.c", "!= key : al == 2)", "!= key : 0)"),
     (
         "ems.c",
+        "\t\t\tn = grw(dssi);\n\t\t\ttake(dssi + 2, n);\n\t\t\tfor (k = 0; k < n; k++)\n\t\t\t\tif (phys_at(arg[k]) == nphys) {\n\t\t\t\t\tst = E_PPAGE;\n\t\t\t\t\tbreak;\n\t\t\t\t}\n\t\t\tgww(esdi, n);\n\t\t\tfor (k = 0; k < n && st == OK; k++) {\n\t\t\t\tgww(esdi + 2 + 4 * k, arg[k]);\n\t\t\t\tgww(esdi + 4 + 4 * k, cur[phys_at(arg[k])]);\n\t\t\t}",
+        "\t\t\tn = grw(dssi);\n\t\t\tgww(esdi, n);\n\t\t\tfor (k = 0; k < n; k++) {\n\t\t\t\tunsigned seg = grw(dssi + 2 + 2 * k);\n\n\t\t\t\tif ((p = phys_at(seg)) == nphys) {\n\t\t\t\t\tst = E_PPAGE;\n\t\t\t\t\tbreak;\n\t\t\t\t}\n\t\t\t\tgww(esdi + 2 + 4 * k, seg);\n\t\t\t\tgww(esdi + 4 + 4 * k, cur[p]);\n\t\t\t}",
+    ),
+    (
+        "ems.c",
+        "\t\t\t\tshow(phys_at(arg[2 * k]), arg[2 * k + 1]);",
+        "\t\t\t\ttake(dssi + 2, 2 * n), show(phys_at(arg[2 * k]), arg[2 * k + 1]);",
+    ),
+    ("ems.c", "\t\t\tn = arg[2 * k];", "\t\t\ttake(dssi, 2 * cx);\n\t\t\tn = arg[2 * k];"),
+    (
+        "ems.c",
+        "\t\t\tif (esdi != 0 && (st = load_map(esdi)) != OK)\n\t\t\t\tbreak;\n"
+        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);",
+        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n"
+        "\t\t\tif (esdi != 0 && (st = load_map(esdi)) != OK)\n\t\t\t\tbreak;",
+    ),
+    (
+        "ems.c",
         "\t\tif ((al == 1 || al == 2) && st == OK)\n\t\t\tapply_map();",
         "\t\tif ((al == 1 || al == 2) && st == OK)\n"
         "\t\t\tfor (k = 0; k < nphys; k++) {\n"
@@ -1056,7 +1074,7 @@ def ems_expected():
         " xgot:45 moved:4D45 landed:4D45 set1:00 alt:0010 get:FFF0 h0:00 e88h0:88 e83:83"
         " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
         " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF e86:86 toc:00"
-        " tocp:04 ovl:00 ovlp:FF"
+        " tocp:04 ovl:00 ovlp:FF p4o:00 p4t:00 p4tp:04 m50:00 m50p:04 alo:00 alop:04"
         " dealloc:00 free:0010 done".split()
     )
 

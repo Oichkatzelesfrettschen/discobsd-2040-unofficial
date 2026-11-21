@@ -170,6 +170,18 @@ sum:	push cx
 	ret
 
 ; Map handle [h] page bx at physical page al.
+; AL: the high byte of physical page 1's word in the current map (FFh
+; when unmapped). Leaves ES = 0 and pbuf holding the map.
+e400hi:	xor ax, ax
+	mov es, ax
+	mov di, pbuf
+	mov ax, 0x4e00
+	int 0x67
+	mov al, [pbuf + 5]
+	mov dx, 0xe000
+	mov es, dx
+	ret
+
 map:	push dx
 	mov dx, [h]
 	mov ah, 0x44
@@ -178,6 +190,7 @@ map:	push dx
 	ret
 
 h:	dw 0
+b1:	dw 0
 area1:	times 2 + 2 * 18 db 0
 area2:	times 2 + 2 * 18 db 0
 mlist:	dw 2, 0xe000, 0, 0xc000		; logical, segment
@@ -701,6 +714,100 @@ main:	mov ah, 0x40
 	mov al, [pbuf + 5]
 	mov si, s_ovlp
 	call say2
+	; pbuf now holds the map: E000h logical 1 (its word, B1, at pbuf + 2),
+	; E400h unmapped. 4F00h with one buffer for both: both segments are
+	; read before the first pair is stored over the second.
+	mov ax, [pbuf + 2]
+	mov [b1], ax
+	mov word [pbuf], 2
+	mov word [pbuf + 2], 0xe000
+	mov word [pbuf + 4], 0xe400
+	mov si, pbuf
+	mov di, pbuf
+	mov ax, 0x4f00
+	int 0x67
+	mov si, s_p4o
+	call st
+	; 4F01h from a partial map inside a page its entry 0 remaps: entry 1
+	; maps logical 1 at E400h; logical 1's words at that offset say unmap.
+	mov ax, 0xe000
+	mov es, ax
+	mov word [es:6], 0xe400		; E000h shows logical 1 here
+	mov word [es:8], 0xffff
+	xor al, al
+	xor bx, bx
+	call map			; logical 0 at E000h, for the map
+	mov ax, [b1]
+	mov word [es:0], 2
+	mov word [es:2], 0xe000
+	mov [es:4], ax
+	mov word [es:6], 0xe400
+	mov [es:8], ax
+	push ds
+	push es
+	pop ds
+	xor si, si
+	mov ax, 0x4f01
+	int 0x67
+	pop ds
+	mov si, s_p4t
+	call st
+	call e400hi
+	mov si, s_p4tp
+	call say2
+	; 50h from a list inside a page its entry 0 remaps: entry 1 maps
+	; logical 1 at physical page 1; logical 1 there says unmap.
+	mov word [es:0x14], 0xffff	; E000h shows logical 1 again
+	mov word [es:0x16], 1
+	xor al, al
+	xor bx, bx
+	call map
+	mov word [es:0x10], 1
+	mov word [es:0x12], 0
+	mov word [es:0x14], 1
+	mov word [es:0x16], 1
+	push ds
+	push es
+	pop ds
+	mov si, 0x10
+	mov cx, 2
+	mov dx, [cs:h]
+	mov ax, 0x5000
+	int 0x67
+	pop ds
+	mov si, s_m50
+	call st
+	call e400hi
+	mov si, s_m50p
+	call say2
+	; 5B01h with the new set where the old set lies: the new set is
+	; read before the old one is stored over it.
+	xor ax, ax
+	mov es, ax
+	mov di, pbuf
+	mov ax, 0x4e00
+	int 0x67			; E400h shows logical 1
+	mov word [pbuf + 4], 0xffff
+	mov di, pbuf
+	mov ax, 0x5b01
+	xor bl, bl
+	int 0x67			; set 0 is pbuf: E400h unmapped
+	mov ax, [b1]
+	mov [pbuf + 4], ax
+	mov di, pbuf
+	mov ax, 0x5b01
+	xor bl, bl
+	int 0x67
+	mov si, s_alo
+	call st
+	call e400hi
+	mov si, s_alop
+	call say2
+	xor di, di
+	mov ax, 0x5b01
+	xor bl, bl
+	int 0x67			; back to no set 0
+	mov dx, [h]
 	mov ah, 0x48
 	int 0x67
 	mov ah, 0x45
@@ -767,6 +874,13 @@ s_toc:	db "toc:", 0
 s_tocp:	db "tocp:", 0
 s_ovl:	db "ovl:", 0
 s_ovlp:	db "ovlp:", 0
+s_p4o:	db "p4o:", 0
+s_p4t:	db "p4t:", 0
+s_p4tp:	db "p4tp:", 0
+s_m50:	db "m50:", 0
+s_m50p:	db "m50p:", 0
+s_alo:	db "alo:", 0
+s_alop:	db "alop:", 0
 s_free2: db "dealloc:", 0
 s_wrap:	db "wrap:", 0
 s_e94:	db "e94:", 0

@@ -5,24 +5,28 @@ which packing or code techniques remain (P5 brief, 2026-11-17). This record
 measures the candidates on main at 4eb0f4eb3 with arm-none-eabi-gcc
 16.2.0; every number is a linked `unix` image's `size` output or a
 `bloaty`/`pahole` reading of it. PICOCALC is the subject because its
-flash budget is the tight one: text 127,728 bytes against a 128 KB kernel
-slot with a 1,024-byte margin (`check-kernel-headroom`).
+flash budget is the tight one: `tools/check_kernel_headroom.py` measures its
+flash image at 127,624 of 130,816 bytes, 3,192 bytes of headroom and 2,168
+above the 1,024-byte margin.
 
 ## Where the text is
 
-`bloaty -d compileunits` over PICOCALC's `unix.elf` (176 KiB of VM size
-across text, data and the RAM sections):
+`arm-none-eabi-size` over PICOCALC's objects, text column (the flash
+bytes; `bloaty`'s compile-unit view adds RAM, so it puts `swapram.c` first
+on the strength of its 16 KiB RAM pool, whose code is 2,635 bytes):
 
-| Unit | Size |
+| Object | Text |
 | --- | --- |
-| `rp2040/swapram.c` (compressed swap pool) | 18.8 KiB |
-| `rp2040/machdep.c` | 15.8 KiB |
-| `dev/lcdterm.c` | 8.4 KiB |
-| `dev/usb.c` | 8.1 KiB |
-| `kern/vm_swap.c` | 6.8 KiB |
-| `dev/lcdgfx.c` | 6.1 KiB |
-| `kern/tty.c` | 5.8 KiB |
-| `kern/ufs_syscalls.c` | 5.7 KiB |
+| `tty.o` | 6,105 |
+| `ufs_syscalls.o` | 5,875 |
+| `ufs_namei.o` | 4,295 |
+| `lcdterm.o` | 4,271 |
+| `usb.o` | 3,963 |
+| `kern_sysctl.o` | 3,492 |
+| `sd.o` | 3,488 |
+| `flash.o` | 3,434 |
+| `st7365p.o` | 3,184 |
+| `sys_inode.o` | 3,000 |
 
 The largest functions are `namei_at` (2,992 bytes), `lcdterm_putc`
 (1,968), `usb_service` (1,708), `prf` (1,360) and `ttioctl` (1,328).
@@ -41,9 +45,12 @@ relinks (text, data and bss in bytes; the baseline is 127,728, 144 and
 | `DEV_GPIO` | 456 | 8 |
 | `DEV_ADC` | 416 | 8 |
 
-`CAPACITY_STATS` leaves a build that fails to link alone, since other
-options reference its counters. The two diagnostic options together are
-3,792 bytes, more than PICOCALC's current headroom over its margin; both
+Removing `-DCAPACITY_STATS` alone fails to compile: the Makefile still
+builds `subr_capacity.o`, whose function definitions `capacity.h` then
+turns into stub macros. Measuring it takes `subr_capacity.o` out of
+`OBJS` as well (`docs/research/kernel-footprint-handoff.md`); this
+survey leaves that row unmeasured. The two diagnostic options together are
+3,792 bytes, more than PICOCALC's 2,168 bytes above its margin; both
 also ship in PICOCALC_SD, whose linker script gives it about 32 KB of room.
 
 ## Measured nulls

@@ -1,11 +1,11 @@
 # The packed version integer (`kern.osrev`): requirements, candidate encodings and how other systems encode a release
 
-Source reading at origin/main 1b9a8b21 (the tree), primary sources retrieved on 2026-11-21 (UTC) with curl and listed with their SHA-256 in `packed-version-integer/survey-sources.tsv`. Compiler for the decoder sizes: arm-none-eabi-gcc 16.2.0 (local). The text is a research record: it answers decision D156 ("the packed-integer field widths are not decided") with a study, a survey and a recommendation, and changes no tree file. `kern.osrev` keeps its present value until the owner decides.
+Source reading at origin/main 1b9a8b21 (the tree). Primary sources were retrieved on 2026-11-21 (UTC) with curl from immutable raw URLs at the upstream commit recorded for each file in `packed-version-integer/survey-sources.tsv`, with the SHA-256 of each copy. Compiler for the decoder sizes: arm-none-eabi-gcc 16.2.0 (local). The text is a research record: it answers decision D156 ("the packed-integer field widths are not decided") with a study, a survey and a recommendation, and changes no tree file. `kern.osrev` keeps its present value until the owner decides.
 
 ## Findings
 
 1. The integer has no reader in the tree. `git grep -n -i -E 'osrev|KERN_OSREV' -- sbin usr.sbin usr.bin sys lib include share` finds the sysctl table entry (`sys/sys/sysctl.h:129` and `:164`, `{ "osrevision", CTLTYPE_LONG }`), the one producer (`sys/kern/kern_sysctl.c:231`, which returns `(long)DiscoBSD`, the year-and-month value 202608 of `sys/sys/param.h:8`) and manual pages. Every encoding below therefore costs nothing at the rename, and the choice can wait for the first consumer.
-2. Every positional packing, decimal or binary, is a mixed-radix numeral, so its order equals the lexicographic order of the fields whenever each field stays inside its limit. The choice between candidates is a choice of radix, of field widths and of the source of the stage rank; order is a property of the layout, not of the choice. The harness confirms this on a boundary grid for all five reference layouts and rejects four deliberately wrong layouts, each for its own reason.
+2. Every positional packing, decimal or binary, is a mixed-radix numeral, so its order equals the lexicographic order of the fields whenever each field stays inside its limit. The choice between candidates is a choice of radix, of field widths and of the source of the stage rank; order is a property of the layout, not of the choice. The harness confirms this on a boundary grid for all five reference layouts and rejects four deliberately wrong layouts, each for its own reason. Reserved zero bits between fields (OpenSSL's `0xMNN00PP0L`) keep the order and only make the layout non-compact.
 3. A signed 32-bit `long` leaves 31 value bits. A layout whose major field reaches bit 31 (four bits of major at bit 28, as the OpenSSL layout `0xMNN00PP0L` allows) sets the sign bit at major 8. The harness mutant `mutant-signed` shows it.
 4. Binary decoders are 22 bytes of Thumb code with no division; the decimal decoders of the candidate in `version-scheme.md` are 76 bytes and six calls to `__aeabi_uidiv` and `__aeabi_uidivmod` (Cortex-M0+ has no hardware divide; this port's helper in `lib/libc/arm/gen/aeabi_div.S` reaches the RP2040 SIO divider). The kernel itself decodes nothing: the integer is a build-time constant. The cost falls on a reader program, and no reader exists (finding 1).
 5. SemVer 2.0.0 orders pre-release names by ASCII (item 11). The owner's stated stage sequences ("alpha, beta, delta", "alpha, beta, rc", "alpha, rc") are all in ASCII order, so a packed stage rank, a version string and a package tool agree on them. The sequence alpha, beta, gamma, delta, which follows the Greek alphabet, is not: SemVer places `delta` below `gamma`. A rank that follows the owner's chronology would then disagree with every tool that compares `osrelease` strings.
@@ -40,7 +40,7 @@ A consumer asks one question of it: is this kernel at least release X. An intege
 
 ### Mixed-radix layout
 
-Write the fields from least to most significant as digits of a numeral whose digit *i* has radix r_i = limit_i + 1. The weight of a field is the product of the radices below it, and the value is the weighted sum. Two tuples compare as their numerals do, which is lexicographic order from the most significant field, as long as no field exceeds its limit. A field past its limit carries into its neighbor: with the weights of the layout in `version-scheme.md`, minor 100 equals major + 1. The compile-time check D112 asks for is therefore a range check of each field against its limit plus a check that each weight equals the span of the fields below it. The harness's `guard` check performs the second test and the mutant `mutant-overlap` (minor limit 100 at the weight of major) fails it.
+Write the fields from least to most significant as digits of a numeral whose digit *i* has radix r_i = limit_i + 1. The weight of a field is the product of the radices below it, and the value is the weighted sum. Two tuples compare as their numerals do, which is lexicographic order from the most significant field, as long as no field exceeds its limit. A field past its limit carries into its neighbor: with the weights of the layout in `version-scheme.md`, minor 100 equals major + 1. The compile-time check D112 asks for is therefore a range check of each field against its limit plus a check that no field reaches the weight above it. The harness's `guard` check performs both and the mutant `mutant-overlap` (minor limit 100 at the weight of major) fails it; reserved zero bits between fields leave a gap and pass. The separate `compact` column records whether the layout has no gap.
 
 ### Stage rank
 
@@ -49,7 +49,7 @@ A pre-release has lower precedence than its release (SemVer item 11), so the rel
 Where the rank comes from is the open question of D158, because a rank needs a name-to-number map and tools must not hold one. Two sources exist:
 
 - S1, an explicit rank beside the stage name in the version source, set by the owner when a stage is named. It costs one edited line per stage and a 4-bit stage field (14 pre-release ranks).
-- S2, the rank of the first letter of the name (a = 1 to z = 26), release = 31, a 5-bit field. It needs no list and no edit, and it makes the packed order follow the ASCII order that SemVer uses, so rank and string agree by construction for names with distinct initials. Two names with one initial (`alpha` and `abc`) tie.
+- S2, the rank of the first letter of the name (a = 1 to z = 26), release = 31, a 5-bit field. It needs no list and no edit, and it makes the packed order follow the ASCII order that SemVer uses, so rank and string agree by construction for names with distinct initials. It narrows the grammar the version source may carry: a stage name that does not start with a lowercase ASCII letter has no rank and must stop the build, because uppercase letters, digits and hyphens sort below lowercase letters in ASCII (SemVer item 11) and a rank taken from them would disagree with the string order (`RC`, `1`, `-x` are rejected by `initial_rank`). Two names with one initial (`alpha` and `abc`) tie.
 
 ### Stage names against ASCII order
 
@@ -74,7 +74,7 @@ All five layouts are checked on a grid of the boundary values of every field (0,
 | bin-7.8.12.4 | 127.255.4095 and 4 bits | 2147483647 | 14 | pass | pass | pass | pass |
 | bin-7.8.11.5 | 127.255.2047 and 5 bits | 2147483647 | 30 | pass | pass | pass | pass |
 | bin-python | 127.255.255, stage nibble, serial nibble | 2147483632 | 14 (serial 0 to 15) | pass | pass | pass | pass |
-| bin-openssl3 | 7.255.65535 and 4 bits | 2147483647 | 14 | pass | pass | pass | pass |
+| bin-openssl-0xMNN00PP0 | 7.255.255 and 4 bits, bits 12 to 19 reserved | 2146439167 | 14 | pass | pass | pass | pass (not compact) |
 
 Values for the chain of `version-scheme.md` (decimal, with hexadecimal; the 7.8.11.5 column ranks alpha 1, beta 2 and the release 31):
 
@@ -99,11 +99,11 @@ Decoders for major, minor, patch and stage, compiled with `arm-none-eabi-gcc -Os
 
 ### Calibration
 
-`--selftest` requires the reference layouts to pass and four mutants to fail the check each was built to fail, and requires the oracle to order the SemVer specification's own chain. The mutants: `mutant-stage-high` (stage above major) fails order; `mutant-overlap` fails guard; `mutant-signed` (4 bits of major at bit 28) fails signed; `mutant-final-low` fails order. A selftest that accepted a mutant for any other reason would report it.
+`--selftest` requires the reference layouts to pass and four mutants to fail the check each was built to fail, requires the oracle to order the SemVer specification's own chain (and to reject `1.0.0 < 1.0.0-alpha`), and requires `initial_rank` to refuse `RC`, `1`, `-x` and the empty name. The mutants: `mutant-stage-high` (stage above major) fails order; `mutant-overlap` (minor limit 100 at the weight of major, so `0.100.0` packs equal to `1.0.0`) fails guard; `mutant-signed` (4 bits of major at bit 28) fails signed; `mutant-final-low` fails order. A mutant that passed, or failed a different check than the one named, makes the selftest exit 1.
 
 ## Survey of how other systems encode a release
 
-Retrieved from the default branch of each project on 2026-11-21; lines are those of the retrieved copy (hashes in `survey-sources.tsv`). "Stage in integer" is yes only where the pre-release state is a field of the integer.
+Each file was fetched at the upstream commit recorded in `survey-sources.tsv`, on the immutable raw URL that names that commit, and lines are those of that copy (the branch heads of 2026-11-21 returned the same bytes). "Stage in integer" is yes only where the pre-release state is a field of the integer.
 
 | System | Kind | Integer | Layout | Stage in integer | Source (file, lines) |
 | --- | --- | --- | --- | --- | --- |
@@ -126,7 +126,7 @@ Retrieved from the default branch of each project on 2026-11-21; lines are those
 | Boost | library | `BOOST_VERSION` | 100000 * major + 100 * minor + patch (109300) | no | `boost/version.hpp` 18-22 |
 | DiscoBSD (this tree) | kernel | `DiscoBSD` | year and month, 202608 | no | `sys/sys/param.h` 8 |
 
-Not obtained: QNX Neutrino, VxWorks and MINIX 3 (no primary header was retrieved; MINIX's `include/minix/config.h` and NuttX's `include/nuttx/version.h` returned HTTP 404 at the paths tried, and the Haiku headers `BeBuild.h` and `HaikuConfig.h` hold no version macro). Their absence limits the survey to 17 projects: six monolithic or hybrid kernels (Linux, FreeBSD, NetBSD, OpenBSD, Darwin, Windows NT), one microkernel (seL4), five RTOS cores (Zephyr, FreeRTOS, ThreadX, RT-Thread, Mbed OS), the Pico SDK and four libraries (Python, OpenSSL, SQLite, Boost).
+Not obtained: QNX Neutrino, VxWorks and MINIX 3 (no primary header was retrieved; MINIX's `include/minix/config.h` and NuttX's `include/nuttx/version.h` returned HTTP 404 at the paths tried, and the Haiku headers `BeBuild.h` and `HaikuConfig.h` hold no version macro). Their absence (the three 404 paths are listed at the foot of `survey-sources.tsv`) limits the survey to 17 projects: six monolithic or hybrid kernels (Linux, FreeBSD, NetBSD, OpenBSD, Darwin, Windows NT), one microkernel (seL4), five RTOS cores (Zephyr, FreeRTOS, ThreadX, RT-Thread, Mbed OS), the Pico SDK and four libraries (Python, OpenSSL, SQLite, Boost).
 
 ### Patterns
 
@@ -146,7 +146,7 @@ SemVer 2.0.0 (retrieved text, items 9 to 11) fixes the precedence relation the i
 The study supports three statements; the owner decides each.
 
 1. Radix. Binary, if the first reader is a program or a person using `printf '%#x'`: order, widths and decoders are simplest, and the only cost is that the plain `sysctl` print (decimal) is unreadable (65537 for 0.1.0-alpha). Decimal, if people read the number directly: the layout of `version-scheme.md` or a SQLite-shaped one (`major * 1000000 + minor * 1000 + patch`, a stage digit appended) prints close to the version. The measured price of decimal is 54 more bytes and six helper calls in a reader.
-2. Widths, for binary. 7.8.12.4 (major 0 to 127, minor 0 to 255, patch 0 to 4095, stage 4 bits) with an explicit rank per stage in the version source (S1); or 7.8.11.5 (patch 0 to 2047, stage 5 bits) with the rank taken from the first letter of the stage name (S2), which removes the per-stage edit and ties the rank to SemVer's ASCII order. Patch 4095 is 16 times Linux's 255, whose stable lines have outgrown it.
+2. Widths, for binary. 7.8.12.4 (major 0 to 127, minor 0 to 255, patch 0 to 4095, stage 4 bits) with an explicit rank per stage in the version source (S1), which accepts any SemVer pre-release identifier; or 7.8.11.5 (patch 0 to 2047, stage 5 bits) with the rank taken from the first letter of the stage name (S2), which removes the per-stage edit, ties the rank to SemVer's ASCII order and narrows the stage grammar to names that start with a lowercase letter. Patch 4095 is 16 times Linux's 255, whose stable lines have outgrown it.
 3. Timing. Nothing reads the integer, so the encoding can wait for the first reader. The generator and its compile-time range checks (each field against its limit, the weights against the spans of the fields below, and the stage rank against the stage name under S1 or S2) are the same for every layout above and are the part D112 requires.
 
 What would change this: a reader that cannot decode (decimal wins); a patch counter that approaches 4095 (widen it from the stage or minor field); a need for pre-release serials (`alpha.2`; give Python's serial nibble 4 bits from patch); two stage names with one initial in one core (S2 ties; use S1).

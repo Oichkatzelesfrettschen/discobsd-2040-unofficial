@@ -1,11 +1,11 @@
-encoding	max	major	minor	patch	stages	order	roundtrip	signed	guard
-dec-existing	2099999999	20	99	99999	10	true	true	true	true
-bin-7.8.12.4	2147483647	127	255	4095	16	true	true	true	true
-bin-7.8.11.5	2147483647	127	255	2047	32	true	true	true	true
-bin-python	2147483632	127	255	255	16	true	true	true	true
-bin-openssl3	2147483647	7	255	65535	16	true	true	true	true
+encoding	max	major	minor	patch	stages	order	roundtrip	signed	guard	compact
+dec-existing	2099999999	20	99	99999	10	true	true	true	true	true
+bin-7.8.12.4	2147483647	127	255	4095	16	true	true	true	true	true
+bin-7.8.11.5	2147483647	127	255	2047	32	true	true	true	true	true
+bin-python	2147483632	127	255	255	16	true	true	true	true	true
+bin-openssl-0xMNN00PP0	2146439167	7	255	255	16	true	true	true	true	false
 
-chain	dec-existing	bin-7.8.12.4	bin-7.8.11.5	bin-python	bin-openssl3
+chain	dec-existing	bin-7.8.12.4	bin-7.8.11.5	bin-python	bin-openssl-0xMNN00PP0
 0.1.0-alpha	1000001 (0x000f4241)	65537 (0x00010001)	65537 (0x00010001)	65552 (0x00010010)	1048577 (0x00100001)
 0.1.0-beta	1000002 (0x000f4242)	65538 (0x00010002)	65538 (0x00010002)	65568 (0x00010020)	1048578 (0x00100002)
 0.1.0	1000009 (0x000f4249)	65551 (0x0001000f)	65567 (0x0001001f)	65776 (0x000100f0)	1048591 (0x0010000f)

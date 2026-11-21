@@ -166,11 +166,16 @@ def reference_set():
             "major 7 bits, minor 8, patch 11, stage 5 (initial letter a=1..z=26, release 31)",
         ),
         python_layout(),
-        binary(
-            "bin-openssl3",
-            [("major", 3), ("minor", 8), ("patch", 16), ("stage", 4)],
+        Encoding(
+            "bin-openssl-0xMNN00PP0",
+            [
+                ("major", 1 << 28, 7),
+                ("minor", 1 << 20, 255),
+                ("patch", 1 << 4, 255),
+                ("stage", 1, 15),
+            ],
             15,
-            "OPENSSL_VERSION_NUMBER layout 0xMNN00PP0L, major 3 bits when signed",
+            "OpenSSL layout 0xMNN00PP0L: reserved zero bits 12 to 19, major 3 bits when signed",
         ),
     ]
 
@@ -186,13 +191,13 @@ def mutants():
     overlap = Encoding(
         "mutant-overlap",
         [
-            ("major", 10**6, 20),
-            ("minor", 10**4, 100),
+            ("major", 10**8, 20),
+            ("minor", 10**6, 100),
             ("patch", 10, 99999),
             ("stage", 1, 9),
         ],
         9,
-        "minor limit 100 reaches the major weight",
+        "minor limit 100: 0.100.0 packs equal to 1.0.0",
     )
     wide = Encoding(
         "mutant-signed",
@@ -268,19 +273,28 @@ def check_signed(encoding):
 
 
 def check_guard(encoding):
-    """A field one past its limit must be refused, and must not alias another value."""
+    """A field one past its limit is refused, and no field reaches the weight above it."""
     lim = encoding.limits()
     for name in ("major", "minor", "patch", "stage"):
         args = {n: 0 for n in lim}
         args[name] = lim[name] + 1
         try:
-            packed = encoding.pack(args["major"], args["minor"], args["patch"], args["stage"])
+            encoding.pack(args["major"], args["minor"], args["patch"], args["stage"])
         except OverflowError:
             continue
-        del packed
         return False
-    # The fields must also tile the value range: the weight of a field is the
-    # span of the fields below it.
+    # Fields sorted by weight must not overlap: the span of one field (its
+    # weight times its range) stays at or below the weight of the next. Reserved
+    # bits between fields, as in OpenSSL's 0xMNN00PP0L, leave a gap and pass.
+    ordered = sorted(encoding.fields, key=lambda field: field[1])
+    for (_n, weight, limit), (_m, above, _l) in zip(ordered, ordered[1:]):
+        if weight * (limit + 1) > above:
+            return False
+    return True
+
+
+def check_compact(encoding):
+    """Report only: every weight equals the span of the fields below (no gap)."""
     below = 1
     for _name, weight, limit in reversed(encoding.fields):
         if weight != below:
@@ -433,8 +447,17 @@ SEQUENCES = [
 
 
 def initial_rank(name):
-    """Stage rank from the first letter of the name: a=1 .. z=26."""
-    return ord(name[0].lower()) - ord("a") + 1
+    """Stage rank from the first letter of the name: a=1 .. z=26.
+
+    The grammar is narrower than SemVer's: a name that starts with anything but
+    a lowercase ASCII letter has no rank. Uppercase letters, digits and hyphens
+    sort below lowercase letters in ASCII, so a rank taken from them would
+    disagree with SemVer's order.
+    """
+    first = name[:1]
+    if not ("a" <= first <= "z"):
+        raise ValueError(f"stage name {name!r} does not start with a lowercase letter")
+    return ord(first) - ord("a") + 1
 
 
 def sequence_agrees(names):
@@ -464,6 +487,16 @@ def selftest():
         if agrees != expect:
             print(f"selftest: sequence {label} agrees={agrees}, expected {expect}", file=sys.stderr)
             return 1
+    for bad in ("RC", "1", "-x", ""):
+        try:
+            initial_rank(bad)
+        except ValueError:
+            continue
+        print(f"selftest: initial_rank accepts {bad!r}", file=sys.stderr)
+        return 1
+    if (initial_rank("alpha"), initial_rank("rc")) != (1, 18):
+        print("selftest: initial_rank misreads a lowercase name", file=sys.stderr)
+        return 1
     if not oracle_ok():
         print("selftest: the SemVer oracle misorders its own spec chain", file=sys.stderr)
         return 1
@@ -494,7 +527,7 @@ def selftest():
 
 
 def report():
-    print("encoding\tmax\tmajor\tminor\tpatch\tstages\torder\troundtrip\tsigned\tguard")
+    print("encoding\tmax\tmajor\tminor\tpatch\tstages\torder\troundtrip\tsigned\tguard\tcompact")
     for encoding in reference_set():
         lim = encoding.limits()
         result = evaluate(encoding)
@@ -510,6 +543,7 @@ def report():
                     str(lim["stage"] + 1),
                 ]
                 + [str(result[name]).lower() for name, _ in CHECKS]
+                + [str(check_compact(encoding)).lower()]
             )
         )
     print()

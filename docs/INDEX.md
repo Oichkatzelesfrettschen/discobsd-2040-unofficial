@@ -354,6 +354,7 @@ Grouped by what they investigate.
 | `flash-id-build-routes.md` | the Pico SDK, CMake and the port's bmake measured against each other on the same probe |
 | `endian-cdefs-headers.md` | the byte-order and cdefs header audit: which gaps the tree bore out, which risk claims it refuted, the v7fs shim as the requirements list, and the `<sys/endian.h>`, `<sys/cdefs.h>` and `-Wundef` remediation |
 | `version-scheme.md` | version numbering for GizmoBSD: what the tree encodes in five places, the published critiques of SemVer and of 0.x numbering with their counter-arguments, the schemes real systems use, the measured ordering of a letter in a version string and the `Rev A` field-split failure in `newvers.sh`, three schemes costed in `.rodata` bytes, a recommendation with countable falsifiers and the owner decisions it leaves |
+| `packed-version-integer.md` | the packed version integer behind `kern.osrev` (D156): requirements, a mixed-radix argument that fixes order and leaves radix, widths and stage source open, six layouts checked on a boundary grid (serial included) with six calibration mutants, a continuity check against the inherited 202608, decoder size on Cortex-M0+, a survey of 17 projects' version integers read from each project's own headers, and the owner decisions it leaves; its harness and source hashes sit in `packed-version-integer/` |
 | `warning-census.md` | what -Wall -Wextra costs the tree, as instances and as sites, where the warnings are, what the census records, and five ways of measuring it that lied |
 
 ### Audit ledgers and handbacks

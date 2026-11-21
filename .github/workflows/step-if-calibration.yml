@@ -1,0 +1,36 @@
+name: step-if-calibration
+on:
+  push:
+    branches: [scratch/step-if-calibration]
+jobs:
+  first-fails:
+    runs-on: ubuntu-latest
+    steps:
+      - id: a
+        name: a fails
+        run: exit 1
+      - name: b after failed a (expect run)
+        if: ${{ !cancelled() && (success() || steps.a.conclusion == 'failure') }}
+        run: echo b ran
+      - name: c default (expect skipped)
+        run: echo c ran
+  first-passes:
+    runs-on: ubuntu-latest
+    steps:
+      - id: a
+        name: a passes
+        run: echo a
+      - name: b after passed a (expect run)
+        if: ${{ !cancelled() && (success() || steps.a.conclusion == 'failure') }}
+        run: echo b ran
+  earlier-fails:
+    runs-on: ubuntu-latest
+    steps:
+      - name: pre fails
+        run: exit 1
+      - id: a
+        name: a after failed pre (expect skipped)
+        run: echo a
+      - name: b after skipped a (expect skipped)
+        if: ${{ !cancelled() && (success() || steps.a.conclusion == 'failure') }}
+        run: echo b ran

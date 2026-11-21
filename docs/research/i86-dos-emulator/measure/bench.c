@@ -43,6 +43,12 @@ unsigned long host_ms(void){return 0;}
 void host_exit(int code){exit(code);}
 int _unlink(const char *p){(void)p;return 0;}
 int _gettimeofday(struct timeval *tv, void *tz){(void)tz; tv->tv_sec=631195200; tv->tv_usec=0; return 0;}
+#ifdef BENCH_H
+/* The newlib build (newlib/bench.h): the panel is absent and the page
+ * file is never named, so both calls fail as they would without a device. */
+int unlinkat_beneath(int dirfd, const char *name, int fd){(void)dirfd;(void)name;(void)fd;return -1;}
+int ioctl(int fd, int request, ...){(void)fd;(void)request;return -1;}
+#endif
 #ifdef COMPOSITION
 /* What the next step is: a step is one instruction, except that a repeated
  * string instruction runs up to 256 iterations in it and a halted

@@ -819,7 +819,10 @@ jobs:
     name: rp2040 kernel, flash image on macOS
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
-    timeout-minutes: 75
+    # The step limits add up to about 110 minutes (the host tier alone 64): the
+    # job bound sits above that sum, so a gate near its own limit is cut by that
+    # limit and not by the job.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:

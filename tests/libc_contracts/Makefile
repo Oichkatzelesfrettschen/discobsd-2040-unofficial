@@ -54,7 +54,7 @@ include ${TOPSRC}/tools/test-execution.mk
 include ${TOPSRC}/tools/qemu-arm.mk
 
 check-host: check-err ${PROG} header_contract.o check-ctime check-zone check-stdio-bounds \
-	check-unistd-prototypes check-alarm-contract \
+	check-unistd-prototypes check-alarm-contract check-devname-contract \
 	check-waitpid-contract \
 	check-mktime check-calendar64 check-difftime check-sleep \
 	check-runtime-limits check-malloc check-random check-printf \
@@ -630,6 +630,33 @@ alarm_contract_test: alarm_contract_test.c alarm_contract.o
 
 alarm_contract.o: ${TARGET_DIR}/alarm.c
 	${HOSTCC} ${ALARM_SOURCE_CFLAGS} -c -o $@ ${TARGET_DIR}/alarm.c
+
+DEVNAME_CFLAGS=	${ALARM_CFLAGS} -fsanitize=address,undefined \
+		-fno-sanitize-recover=all -fno-omit-frame-pointer
+DEVNAME_SOURCE_CFLAGS=	${DEVNAME_CFLAGS} -nostdinc -isystem ${TOPSRC}/include \
+		-Ddevname=db_devname -Dopendir=test_opendir \
+		-Dreaddir=test_readdir -Dclosedir=test_closedir \
+		-Dstat=test_stat -Dperror=test_perror
+
+check-devname-contract: devname_contract_test
+	${TEST_EXECUTION} run libc.devname.native -- ./devname_contract_test
+	${PYTHON} ${.CURDIR}/devname_contract_mutate.py ${TOPSRC} \
+	    ${HOSTCC:Q} ${.CURDIR}
+
+check-devname-contract-cross:
+	${ARM_COMPILER} ${ALARM_TARGET_CFLAGS} -fsyntax-only \
+	    ${TARGET_DIR}/devname.c
+
+devname_contract_test: devname_contract_test.c devname_contract.o \
+    devname_shim.o devname_shim.h
+	${HOSTCC} ${DEVNAME_CFLAGS} -o $@ devname_contract_test.c \
+	    devname_contract.o devname_shim.o
+
+devname_contract.o: ${TARGET_DIR}/devname.c
+	${HOSTCC} ${DEVNAME_SOURCE_CFLAGS} -c -o $@ ${TARGET_DIR}/devname.c
+
+devname_shim.o: devname_shim.c devname_shim.h
+	${HOSTCC} ${DEVNAME_SOURCE_CFLAGS} -I. -c -o $@ devname_shim.c
 
 WAITPID_CFLAGS=	-std=c17 -pedantic-errors -Wall -Wextra -Werror \
 		-Wstrict-prototypes -Wold-style-definition -Wmissing-prototypes
@@ -1936,6 +1963,7 @@ clean:
 	rm -f ${PROG} raise.o ctermid.o header_contract.o
 	rm -f exit_lifecycle_test exit_lifecycle_test32 quick_exit_test quick_exit_test32
 	rm -f alarm_contract_test alarm_contract.o
+	rm -f devname_contract_test devname_contract.o devname_shim.o
 	rm -f getgrent_contract_test grent_getgrent.o
 	rm -f asctime_contract_test asctime_contract_bad_test \
 		asctime_asctime.o asctime_bad.o
@@ -2129,6 +2157,7 @@ all: check
 .PHONY: all check check-host check-aout check-asctime check-calendar64 check-ctime \
 	check-ctime-cross check-difftime check-difftime-cross \
 	check-alarm-contract check-alarm-contract-cross \
+	check-devname-contract check-devname-contract-cross \
 	check-waitpid-contract check-waitpid-contract-cross \
 	check-runtime-limits check-runtime-limits-cross \
 	check-malloc check-printf check-qsort check-array-memory-line \

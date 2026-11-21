@@ -42,6 +42,7 @@ import argparse
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 BASE_RE = re.compile(r"^#define\s+(\w+)_BASE\s+_u\((0x[0-9a-fA-F]+)\)", re.M)
@@ -99,10 +100,7 @@ def scan(root, blocks):
     for rel in filter(None, names.split("\0")):
         if rel.startswith(SKIP_PREFIXES) or Path(rel).suffix not in SOURCE_SUFFIXES:
             continue
-        try:
-            text = (root / rel).read_text(errors="replace")
-        except OSError:
-            continue
+        text = (root / rel).read_text(errors="replace")
         for literal in literals(text):
             owner = block_of(blocks, int(literal, 16))
             if owner:
@@ -130,6 +128,22 @@ def selftest():
     sample = "#define A 0x40018000UL\n#define B 0x4001800cUL\nx = 0x40018000123;"
     if literals(sample) != ["0x40018000", "0x4001800c"]:
         raise SystemExit("selftest: the literal pattern misreads a suffix or a long literal")
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "sys/arch/rp2040").mkdir(parents=True)
+        source = root / "sys/arch/rp2040/a.c"
+        source.write_text("#define A 0x40018000UL\n")
+        subprocess.run(["git", "-C", tmp, "init", "-q"], check=True)
+        subprocess.run(["git", "-C", tmp, "add", "."], check=True)
+        if scan(root, blocks).get("IO_QSPI", {}).get("sys/arch/rp2040/a.c") != {"0x40018000"}:
+            raise SystemExit("selftest: the scan misses a literal of a tracked file")
+        source.unlink()
+        try:
+            scan(root, blocks)
+        except OSError:
+            pass
+        else:
+            raise SystemExit("selftest: the scan ignores a tracked file it cannot read")
     print("rp2040_block_scan: selftest ok")
 
 
@@ -157,7 +171,11 @@ def main():
     if not blocks:
         print("rp2040_block_scan: no block with a register range in the map", file=sys.stderr)
         return 1
-    hits = scan(root, blocks)
+    try:
+        hits = scan(root, blocks)
+    except OSError as err:
+        print(f"rp2040_block_scan: a tracked source is unreadable: {err}", file=sys.stderr)
+        return 1
     for name, _, _ in blocks:
         for rel in sorted(hits.get(name, {})):
             print(f"{name}\t{rel}\t{','.join(sorted(hits[name][rel]))}")

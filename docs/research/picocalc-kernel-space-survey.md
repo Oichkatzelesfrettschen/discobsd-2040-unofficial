@@ -157,7 +157,8 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
    by what it would move (the option table above bounds the driver side).
    He, Debray and Andrews measured the same idea on Linux ("The Revenge of
    the Overlay", EMSOFT 2007, filed in the notes repository's
-   `docs/papers/`), loading cold kernel code on demand.
+   `docs/papers/`), loading cold kernel code on demand. The owner chose
+   "Design it"; `picocalc-kernel-overlays.md` holds the design.
 
 The P5 brief's userland section (the ten largest programs) stays open; the
 multicall packing in `PROFILES.md` records what that work has given so far.

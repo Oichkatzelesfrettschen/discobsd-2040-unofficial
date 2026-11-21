@@ -64,15 +64,31 @@ the paper's trade.
    A stays pinned while its caller runs, so a path from A to overlay B would
    wait forever for A's pin count. A DIAGNOSTIC kernel checks the same rule
    at run time with a per-process record of the overlay it is inside.
-5. **Residency.** Interrupt handlers, the fault and panic paths, the
+   Inside an overlay, the gate admits only direct-call relocations
+   (`R_ARM_THM_CALL`, `R_ARM_THM_JUMP*`) to the overlay's own symbols and
+   rejects every address-taking one (`R_ARM_ABS32` and the literal-pool
+   forms), so an overlay can hand a resident facility such as `timeout()`
+   only a veneer's address; a raw buffer address held after the veneer
+   returns would run whichever overlay replaced it.
+5. **Exits.** The veneer's return is one way out of an overlay; the others
+   are the syscall unwind, where an interrupted `sleep()` jumps to the
+   `u_qsave` frame (`sys/kern/kern_synch.c`), process exit, and a fault
+   that kills the process. The veneer therefore records the pin in the
+   process (`p_ovl`: the overlay and a nesting depth, since an overlay may
+   reenter itself through resident code) as well as in the buffer's count, and the unwind path
+   in `syscall()`, `exit()` and the fault kill release the recorded pin,
+   so every exit drops it exactly once.
+6. **Residency.** Interrupt handlers, the fault and panic paths, the
    crash-dump writer and anything `lcdabandon()` reaches stay resident,
    because they run where a load cannot sleep.
-6. **Verification.** A Unicorn check in the style of
+7. **Verification.** A Unicorn check in the style of
    `tools/unicorn/check_panel_program.py` calls each veneer twice with
    another overlay loaded in between and compares the result with the
    resident build's, and interleaves two processes that request different
-   overlays while one load sleeps; a mutant veneer that skips the load or
-   raises the pin count after the copy must fail it.
+   overlays while one load sleeps, and interrupts a sleep inside an overlay
+   with a signal and then requests another overlay; a mutant veneer that
+   skips the load or raises the pin count after the copy, and a mutant
+   unwind that skips the release, must fail it.
 
 ## Cost
 

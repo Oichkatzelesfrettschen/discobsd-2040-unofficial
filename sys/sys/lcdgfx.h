@@ -191,9 +191,10 @@
 /*
  * Wire time of one pixel at each COLMOD and the glass scan rate, for a
  * program that sizes its redraw to a frame budget. The values come from the
- * PicoCalc board runs in sys/arch/rp2040/doc/PICOCALC.md (a 320 by 320 fill
- * of 131,079 us at 0x55 and 196,615 us at 0x66 on the 12.5 MHz panel bus; a
- * scan of 57.95 Hz). A change of the panel clock or of the controller's
+ * PicoCalc board runs in sys/arch/rp2040/doc/PICOCALC.md: a 320 by 320 fill
+ * measured 131,000 us at 0x55 and 197,000 us at 0x66 on the 12.5 MHz panel
+ * bus, against bit times of 131,079 and 196,615 us, and the glass scanned at
+ * 57.88 to 57.97 Hz. A change of the panel clock or of the controller's
  * frame-rate setting changes all three.
  */
 #define LCDG_NS_PER_PX_565	1280	/* Nanoseconds a pixel at COLMOD 0x55. */

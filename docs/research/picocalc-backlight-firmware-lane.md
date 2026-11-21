@@ -10,7 +10,7 @@ approval of the exact list in "Approval list".
 
 Sources: the clockworkpi/PicoCalc repository at `fdcfe2c`
 (`Code/picocalc_keyboard`, `Bin/`, and the wiki page "Setting Up Arduino
-Development for PicoCalc keyboard"), cited by file and line;
+Development for PicoCalc keyboard"), cited by file;
 `docs/research/picocalc-vendor-repository-harvest.md` for the register map;
 `sys/arch/rp2040/doc/PICOCALC.md` for the OS side.
 
@@ -41,12 +41,14 @@ this document describes it:
    exactly (`lcd_backlight_update_reg()` after the clamp), so every value
    the OS sends from 16 to 240 lands as sent. The floor keeps the panel
    lit, as the rounding does today; a request from 0 to 15, which the
-   kernel and `backlight(1)` accept, still lands at 16, and the OS side
-   below narrows its documented range to 16-240 with the new firmware.
+   kernel and `backlight(1)` accept, still lands at 16, the kept range `picocalcvar.h` and PICOCALC.md
+   already document.
 2. `REG_ID_BK2` write: clamp to [0, 240] and write PC8 exactly, with 0 as off.
    A direct I2C write of 241-255, which lands at 224 today, lands at 240.
 3. `BIOSVERSION` (`conf_app.h`) set to the private value 0xB7, which no
-   vendor release has used (they run 0x12 to 0x17). The OS treats the
+   vendor release has used: `conf_app.h` and both the v1.6 and v1.7
+   binaries return 0x16 on `REG_ID_VER`, and earlier releases predate the
+   register. The OS treats the
    exact-level firmware as present only when `REG_ID_VER` equals 0xB7
    exactly, a predicate the firmware, the kernel's version node and the
    Renode model's tests all pin; a later vendor release with any other
@@ -60,13 +62,16 @@ vendor's behavior for keys and leaves the OS path exact.
 OS side, after the firmware: the kernel reads the version at attach
 (`picokbd_version()`, `dev/picokbd.c`) but keeps it for the boot message
 alone, so a read-only sysctl node for it comes first, with its host test
-and the text cost measured on PICOCALC. `backlight(1)` and the MATEzinho
-adjuster then offer fine steps only when that node reports the new
-version, and PICOCALC.md's firmware-rounding paragraph gains the version
-condition. The level path itself (clamp to 0-240, pass through) stays as
+and the text cost measured on PICOCALC. `backlight(1)` already passes any level
+from 0 to 240 as given; the MATEzinho adjuster, which steps by
+`MZ_SCREEN_STEP`, offers fine steps only when that node reports the new
+version, and `backlight.1` and PICOCALC.md's firmware-rounding paragraph
+gain the version condition. The level path itself (clamp to 0-240, pass through) stays as
 it is. The Renode keyboard model, which conditions levels as the vendor
 firmware does (`picocalc-renode-keyboard-registers.md`), gains a version
-switch.
+switch. That OS-side change is gated on `check-backlight-host` and
+`check-renode-picocalc` passing with the model's switch in both
+positions.
 
 ## 3. Build
 
@@ -109,15 +114,20 @@ Both steps only read.
 
 The wiki's route: DIP switch 1 on (SW701, which raises BOOT0 and routes the
 CH340C to the controller's USART1), USB-C to the host, a long press of the
-power key, then    stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN PORT
+power key, then
+
+    stm32flash -w build/picocalc_keyboard.ino.bin -v -S 0x08000000:LEN PORT
 
 where LEN is the image's size rounded up to the 1 KiB flash page, so the
 erase covers the image's pages alone; without a length `stm32flash`
 extends the range to the end of flash and erases all of it.
 
-then DIP switch 1 off and a power cycle (a long press of the power key to
-turn the board off, then on): the controller keeps running its ROM
-bootloader until a reset, whatever BOOT0 reads afterwards. `-v` reads every
+then DIP switch 1 off and `stm32flash -g 0x08000000 PORT`, which makes the
+ROM bootloader jump to the new image. The controller stays in its
+bootloader until then, whatever BOOT0 reads, and a long press of the power
+key belongs to the application firmware, which is not running; the other
+way out is removing all power (USB-C and cells out, as in
+`picocalc-first-power-up.md`). `-v` reads every
 written block back. PORT is the
 CH340C's serial node, named through `/dev/serial/by-id/` so that the Pico's
 own CDC-ACM console stays out of the command.
@@ -147,8 +157,6 @@ runs without the Pico.
 - The panel's brightness changes between 96 and 100 (eye, or a light
   sensor against the panel for a number).
 - The Fn keys still step the screen by 16 and the keyboard light cycles.
-- `check-backlight-host` and `check-renode-picocalc` pass with the model's
-  version switch in both positions.
 
 ## 8. Approval list
 
@@ -164,5 +172,5 @@ board the owner names:
    gives and the same SHA-256; a short, failed or differing read stops the
    lane before any write.
 5. Write the patched image (section 5) with `-v`, set DIP switch 1 off and
-   power-cycle the board.
+   start the image with `stm32flash -g 0x08000000 PORT`.
 6. Verify (section 7); on any failure, write the backup back (section 6).

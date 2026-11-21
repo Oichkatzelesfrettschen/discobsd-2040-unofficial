@@ -828,7 +828,7 @@ profiles, it accepts `lcd` or `kbd` and a decimal level of at most 240,
 prints the level the controller kept, and with `-s`, for the real user
 root only, writes the kept screen level to `/etc/backlight`. At every
 boot `/etc/rc` (`etc/rc.rp2040`) writes that level, or 160 when the
-file is absent or its content is not a one-to-three-digit number, to `lcd_backlight`
+file is absent or its first line is not a one-to-three-digit number, to `lcd_backlight`
 before the autoboot test; a kernel without the controller refuses the
 node and the line prints nothing.
 

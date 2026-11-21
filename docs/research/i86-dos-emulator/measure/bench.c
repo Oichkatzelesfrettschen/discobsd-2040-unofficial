@@ -40,6 +40,8 @@ int host_ready(int ms){(void)ms;return 0;}
 int host_getc(void){return -1;}
 void host_write(const char *p, unsigned n){(void)p;(void)n;}
 unsigned long host_ms(void){return 0;}
+unsigned long host_us(void){return 0;}
+void host_sleep(unsigned ms){(void)ms;}
 void host_exit(int code){exit(code);}
 int _unlink(const char *p){(void)p;return 0;}
 int _gettimeofday(struct timeval *tv, void *tz){(void)tz; tv->tv_sec=631195200; tv->tv_usec=0; return 0;}
@@ -71,16 +73,23 @@ static void composition(const struct i86 *c){
 #endif
 int main(int argc, char **argv){
 	static struct i86 cpu; struct pc_config cf = {0};
-	long n = atol(argv[2]), i;
+	long n = atol(argv[2]), i, polls;
 	cf.disk[0]=argv[1]; cf.ram_kb=640; cf.cols=80; cf.model=atoi(argv[3]); cf.fixed_clock=1; cf.quiet=1; cf.readonly=1; cf.keys = argc > 4 ? argv[4] : "";
 	if (mem_init(640u<<10, 640, "/dev/null")) return 7;
 	pc_init(&cpu,&cf);
-	for (i=0;i<n;i++){
-		if ((i&2047)==0) pc_poll(&cpu);
+	/* main.c's loop: runs of pc_slice steps counted in pc_step, a poll
+	 * after each. The run ends after INSTRUCTIONS steps, at a halt with
+	 * interrupts off, or after INSTRUCTIONS polls. */
+	for (i=0, polls=0; i<n && polls<n && (!cpu.halted || (cpu.fl & F_IF)); polls++){
+		for (pc_step=0; pc_step<pc_slice && !pc_idle && (!cpu.halted ||
+		    (cpu.irq && (cpu.fl & F_IF))); pc_step++){
 #ifdef COMPOSITION
-		composition(&cpu);
+			composition(&cpu);
 #endif
-		i86_step(&cpu);
+			i86_step(&cpu);
+		}
+		i += pc_step;
+		pc_poll(&cpu);
 	}
 #ifdef COMPOSITION
 	printf("%ld steps: %ld repeated string instructions with %ld iterations, "

@@ -67,3 +67,30 @@ the figure is an upper bound for a session that draws: each panel frame
 costs the same core the time of its SPI transfer (st7365p.c sends every
 byte by polling the transmit FIFO at 12.5 MHz; a 64,000-pixel RGB565
 frame is about 82 ms on the wire, inference from the byte count).
+
+Recount after the 8254 timer, before a board run of it
+------------------------------------------------------
+qemu-arm with count.c and the measure/ recipe (ems.c added to its link
+line), bench and bench1 images as above, model 2. bench.c's loop for each
+tree copies the condition of that tree's main.c loop, so the run ends at
+the guest's HLT with interrupts off: at 3366e0256 (before the timer) runs
+of 2048 steps counted in a local, at dd65f4524 (with it) runs of pc_slice
+steps counted in the global pc_step, which pc_poll and the timer read;
+pc_poll after each run.
+
+  sources      bench           bench1        per guest instruction   main per instruction
+  3366e0256    2,483,118,255   24,860,883    225.7                   13.0
+  dd65f4524    2,505,872,281   25,088,789    227.8                   15.0
+
+Per guest instruction = (bench - bench1) / (11,000,309 - 110,012). The
+whole difference is the run loop in main, 2.0 Thumb instructions a step;
+pc_poll grows from 0.03 to 0.07 a step. The 219 above came from the earlier
+bench loop, which polled on i & 2047 and never tested pc_idle, the halt or
+the interrupt flag; with the real loop the board time implies about 1.72
+cycles per Thumb instruction rather than 1.77.
+
+Prediction for the dd65f4524 binary on the same bare Pico: bench 0.9
+percent slower than the 34.2 to 36.8 s measured above, 34.5 to 37.2 s,
+which the run-to-run spread covers; 0.32 million guest instructions a
+second to two figures. Falsifier: a dd65f4524 board time outside 34 to
+38 s.

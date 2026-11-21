@@ -5,10 +5,11 @@ These two files produced the interpreter cost figures of
 
 `count.c` is a QEMU TCG plugin (QEMU 11 plugin interface) that adds one to a
 counter for every executed instruction, keyed by the ELF symbol that
-contains it. `bench.c` links the emulator's `pc.c`, `cpu.c` and `mem.c`
+contains it. `bench.c` links the emulator's `pc.c`, `cpu.c`, `mem.c` and `ems.c`
 with host stubs that draw nothing and never sleep, boots a floppy image
-with the fixed clock, types an optional key script and stops after a given
-number of `i86_step()` calls.
+with the fixed clock, types an optional key script and runs `main.c`'s loop (runs of
+`pc_slice` steps, a poll after each) until a given number of
+`i86_step()` calls, a halt with interrupts off, or as many polls.
 
 ```sh
 top=$(git rev-parse --show-toplevel)
@@ -26,7 +27,7 @@ sed -e 's/st->st_mode = S_IFCHR;/st->st_mode = S_IFCHR; st->st_size = 1474560;/'
 arm-none-eabi-gcc -std=gnu17 -O2 -mcpu=cortex-m0plus -mthumb -mfloat-abi=soft \
     -nostartfiles -Inewlib -include newlib/bench.h -I"$src" -idirafter "$top/sys" \
     -o "$work/bench" bench.c "$src/pc.c" "$src/cpu.c" "$src/mem.c" "$src/gfx.c" \
-    "$src/serial.c" "$work/support.c" -lc -lgcc
+    "$src/serial.c" "$src/ems.c" "$work/support.c" -lc -lgcc
 qemu-arm -cpu cortex-m0 -plugin "$work/libcount.so" "$work/bench" fd.img 12000000 2 "$keys"
 ```
 
@@ -46,3 +47,9 @@ terminal output and host sleeps, which the stubs remove. The plugin's total
 was checked once against a `-d exec,nochain -one-insn-per-tb` trace of the
 same run: both gave 134,252,058 instructions for 600,000 steps
 of the first measured build.
+
+`bench.c` copied `main.c`'s loop when the 8254 timer arrived
+(`../board-speed-pico.txt`). The FreeDOS figures above and the table of
+`sys/arch/rp2040/doc/I86.md` were counted with the earlier loop, which
+polled every 2048 steps and stepped on through a halt; they have not been
+counted again with the new one.

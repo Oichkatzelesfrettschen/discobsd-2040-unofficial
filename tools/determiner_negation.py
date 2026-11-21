@@ -99,8 +99,13 @@ FENCE = re.compile(r"^ {0,3}(`{3,}(?=[^`\n]*$)|~{3,})", re.M)
 CLOSING_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
 
 
+# Code and quotations are filled with a non-blank placeholder, so the words
+# on their two sides stay apart and never form a phrase across them.
+_FILL = "\x01"
+
+
 def _blank(match):
-    return re.sub(r"[^\n]", " ", match.group())
+    return re.sub(r"[^\n]", _FILL, match.group())
 
 
 def blank_code(text, fenced=False):

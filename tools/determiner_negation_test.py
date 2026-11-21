@@ -51,6 +51,7 @@ KNOWN_BAD = (
     "```foo`bar``` is inline code.\n\nIt has no effect.",
     "## The cache is no\nlonger valid.",
     "Otherwise nothing has no effect.",
+    "It passes no `x` longer than 4 bytes.",
     "Use \\` to open. It returns nothing. Use \\` to close.",
 )
 KNOWN_GOOD = (
@@ -70,6 +71,7 @@ KNOWN_GOOD = (
     "The step runs.\n\n- None of the cases fails.",
     "The instruction is no-op and uses no-cache.",
     "During a dry-run no files are modified.",
+    "It uses `x` no differently.",
     "With copy-on-write no pages are duplicated.",
 )
 FENCED = "Text.\n\n```\nit returns nothing\n```\nThe map holds none.\n"

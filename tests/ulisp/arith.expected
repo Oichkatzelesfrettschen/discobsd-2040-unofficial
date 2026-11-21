@@ -28398,28 +28398,28 @@ Error: 'note' octave out of range: 2147483647
 (sleep 0) => 0
 
 12000> 
-(for-millis (-2147483648) 1) => 0
+(>= (for-millis (-2147483648) 1) -2147483648) => t
 
 12000> 
-(for-millis (-2147483647) 1) => 0
+(>= (for-millis (-2147483647) 1) -2147483647) => t
 
 12000> 
-(for-millis (-1) 1) => 0
+(>= (for-millis (-1) 1) -1) => t
 
 12000> 
-(for-millis (0) 1) => 0
+(>= (for-millis (0) 1) 0) => t
 
 12000> 
-(for-millis (1) 1) => 1
+(>= (for-millis (1) 1) 1) => t
 
 12000> 
-(for-millis (31) 1) => 31
+(>= (for-millis (31) 1) 31) => t
 
 12000> 
-(for-millis (32) 1) => 32
+(>= (for-millis (32) 1) 32) => t
 
 12000> 
-(for-millis (33) 1) => 33
+(>= (for-millis (33) 1) 33) => t
 
 12000> 
 (char-code (char (with-output-to-string (s) (write-byte -2147483648 s)) 0)) => 

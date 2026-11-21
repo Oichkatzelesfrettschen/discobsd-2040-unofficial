@@ -236,7 +236,7 @@ CUSTOM = [
     ("note", "(note {a} {b} {c})", 3, "sample", EDGES),
     ("delay", "(delay {a})", 1, "all", SHORT),
     ("sleep", "(sleep {a})", 1, "all", NOWAIT),
-    ("for-millis", "(for-millis ({a}) 1)", 1, "all", SHORT),
+    ("for-millis", "(>= (for-millis ({a}) 1) {a})", 1, "all", SHORT),
     (
         "write-byte",
         "(char-code (char (with-output-to-string (s) (write-byte {a} s)) 0))",

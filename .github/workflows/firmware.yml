@@ -824,8 +824,8 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     # The explicit step limits add up to 174 minutes (the host tier alone 79);
-    # the bound leaves 6 minutes above that sum, and no complete run has been
-    # measured (see the first part of the host tier).
+    # the bound leaves 6 minutes above that sum. The complete run of dispatch
+    # 44877305151 took 65 minutes.
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
@@ -948,14 +948,10 @@ jobs:
       # The host tier owns PTY completion, terminal nohup, libc quick-exit and ndbm constructor witnesses.
       # It runs as two steps over one partition of check-host
       # (HOST_TIER_B_GATES in the Makefile; check-host-split proves it exact).
-      # The second part finished every gate in 748 s (dispatch 44842461207, no
-      # limit reached); its limit is 1.6 times that. No run has finished the
-      # first part with every gate passing: the ulisp mutants did not start in
-      # that run (ulisp stopped at its first transcript), and a later run
-      # (44852590032) was still running ulisp and lexeme at 1693 s when i86
-      # failed. The first part carries the C17 library families, whose math
-      # and wide fixtures run native and sanitized, and the ulisp mutants; its
-      # 3000 s limit is a placeholder until a passing run measures it.
+      # The first part finished every gate in 2243 s and the second in 697 s
+      # (dispatch 44877305151); their limits are 1.34 and 1.72 times those.
+      # The first part carries the C17 library families, whose math and wide
+      # fixtures run native and sanitized, and the ulisp mutants.
       - name: Run the host tier, first part
         timeout-minutes: 55
         run: |

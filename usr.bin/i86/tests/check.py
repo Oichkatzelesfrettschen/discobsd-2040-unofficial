@@ -360,7 +360,7 @@ MUTANTS = [
         "\t\tif (m + lo < xs + len && xs < m + hi && 0)",
     ),
     ("ems.c", "st = bx & 0xff ? 0x9c : 0x9e;", "st = bx & 0xff ? 0x9c : OK;"),
-    ("ems.c", "else if (key_out && ((uint32_t)bx << 16 | cx) != key)", "else if (0)"),
+    ("ems.c", "else if (key_out ? ((uint32_t)bx << 16 | cx) != key :", "else if (key_out ? 0 :"),
     ("ems.c", "if (os_off && ((ah == 0x59 && al == 0) || ah == 0x5b))", "if (0)"),
     ("ems.c", "if (al < 2 && grw(dssi) > nphys) {", "if (0) {"),
     (
@@ -368,6 +368,12 @@ MUTANTS = [
         "\t\t\t/* Every entry is checked before any is applied. */\n\t\t\tn = grw(dssi);",
         "\t\t\tn = grw(dssi);\n\t\t\tif (n > 1 && base_ok(grw(dssi + 4)))\n"
         "\t\t\t\tshow(phys_at(grw(dssi + 2)) % nphys, grw(dssi + 4));",
+    ),
+    ("ems.c", "!= key : al == 2)", "!= key : 0)"),
+    (
+        "pc.c",
+        "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(0);",
+        "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(ems_on ? 3 : 0);",
     ),
 ]
 
@@ -1033,18 +1039,20 @@ def ems_expected():
         + "alias:AB alias2:AB disk:AA55 save:00 e8d:8D restore:11 multi:00 c000:11 move:00 xchg:00"
         " xgot:45 moved:4D45 landed:4D45 set1:00 alt:0010 get:FFF0 h0:00 e88h0:88 e83:83"
         " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
-        " e5b:A4 e59:A4 osret:00 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF e86:86"
+        " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF e86:86"
         " dealloc:00 free:0010 done".split()
     )
 
 
 def ems_run(binary, work, args, keys, env=None):
-    """tests/ems.asm under args; the lines it wrote to head 1, sectors 1 and 2."""
+    """tests/ems.asm under args; the lines it wrote to head 1, sectors 1 and 2.
+    The emulator must exit 0 and leave no page file."""
     image = os.path.join(work, "ems-run.img")
     shutil.copyfile(os.path.join(work, "ems.img"), image)
+    store = os.path.join(work, "page")
     try:
-        subprocess.run(
-            [binary, "-T", "-s", os.path.join(work, "page"), "-a", image, "-k", keys] + args,
+        done = subprocess.run(
+            [binary, "-T", "-s", store, "-a", image, "-k", keys] + args,
             capture_output=True,
             timeout=60,
             check=False,
@@ -1052,6 +1060,10 @@ def ems_run(binary, work, args, keys, env=None):
         )
     except subprocess.TimeoutExpired:
         raise Failure("ems %s: timeout" % " ".join(args)) from None
+    if done.returncode != 0:
+        raise Failure("ems %s: exit %d" % (" ".join(args), done.returncode))
+    if os.path.exists(store):
+        raise Failure("ems %s: page file left behind" % " ".join(args))
     with open(image, "rb") as handle:
         handle.seek(9 * 512)
         return handle.read(1024).split(b"\0")[0].decode("latin-1").split()

@@ -54,7 +54,7 @@
  *
  * 5Dh keeps the operating system's access key: the first 5D00h or 5D01h
  * hands it out in BX:CX, later calls must present it (A4h otherwise), and
- * 5D02h takes it back. While 5D01h has the functions off, 5900h and 5Bh
+ * 5D02h takes it back; 5D02h with no key out answers A4h. While 5D01h has the functions off, 5900h and 5Bh
  * answer A4h. The key is a hash of the count of calls so far, the same
  * from run to run under -T.
  */
@@ -771,8 +771,8 @@ ems_int(struct i86 *c)
 	case 0x5d:
 		if (al > 2)
 			st = E_SUB;
-		else if (key_out && ((uint32_t)bx << 16 | cx) != key)
-			st = 0xa4;
+		else if (key_out ? ((uint32_t)bx << 16 | cx) != key : al == 2)
+			st = 0xa4;	/* a wrong key, or 5D02h with none out */
 		else if (al == 2)
 			key_out = os_off = 0;
 		else {

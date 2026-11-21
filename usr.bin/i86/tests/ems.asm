@@ -577,6 +577,10 @@ main:	mov ah, 0x40
 	int 0x67
 	mov si, s_osret
 	call st
+	mov ax, 0x5d02			; with no key out
+	int 0x67
+	mov si, s_osnone
+	call st
 	mov ax, 0x5b00
 	int 0x67
 	mov si, s_oson
@@ -696,6 +700,7 @@ s_e5b:	db "e5b:", 0
 s_e59:	db "e59:", 0
 s_osret: db "osret:", 0
 s_oson:	db "oson:", 0
+s_osnone: db "osnone:", 0
 s_e4f0:	db "e4f0:", 0
 s_e4f1:	db "e4f1:", 0
 s_e4fb:	db "e4fb:", 0

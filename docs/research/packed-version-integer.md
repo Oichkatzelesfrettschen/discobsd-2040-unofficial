@@ -155,7 +155,7 @@ What would change this: a reader that cannot decode (decimal wins); an outside c
 
 ## Owner decisions
 
-The owner answered the three questions of the recommendation on 2026-11-21: decimal (D204), the layout of `version-scheme.md`, `major * 100000000 + minor * 1000000 + patch * 10 + stage` with major 0 to 20, minor 0 to 99 and patch 0 to 99999 (D207), and the stage digit written beside the stage name in the version source (S1, D208). The generator merges after the rename pull request (D209).
+The owner answered the three questions of the recommendation on 2026-11-21: decimal (D204), the layout of `version-scheme.md`, `major * 100000000 + minor * 1000000 + patch * 10 + stage` with major 0 to 20, minor 0 to 99 and patch 0 to 99999, and the stage digit written beside the stage name in the version source (S1). The generator merges after the rename pull request (D209).
 
 ## Limits of this study
 

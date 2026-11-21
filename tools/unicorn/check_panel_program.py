@@ -124,11 +124,15 @@ def check_console_minors(image):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("elf", type=Path)
+    parser.add_argument("elf", type=Path,
+                        help="kernel with LCD_PANELTEST whose panel programs replay")
+    parser.add_argument("--console-elf", type=Path,
+                        help="kernel whose console minors are checked (default: elf); "
+                             "it must lack LCD_VT, which answers minor 2")
     args = parser.parse_args()
     image = KernelImage(args.elf)
     lines = FIXTURE.read_text(encoding="ascii").splitlines()
-    check_console_minors(image)
+    check_console_minors(KernelImage(args.console_elf or args.elf))
     panel = Panel(image)
     for row, line in enumerate(lines):
         label, expected = line.split("\t")

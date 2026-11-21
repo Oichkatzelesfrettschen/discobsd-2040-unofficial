@@ -2850,7 +2850,7 @@ one 256-byte block that starts with the descriptor magic, so a union kernel
 without its `.board` section stops there by name.
 
 The stages are `check-renode`'s through the exec residue probe, with the
-banner naming `PICOCALC`, which carries `SYSTRACE` and `CAPACITY_STATS`: its
+banner naming `PICOCALC`, which carries `CAPACITY_STATS`: its
 capacity stages assert the record as `check-renode` reads it for PICO_UART,
 and a mutant of the gate that expects the refusal there fails.
 `check-renode-union-lean` boots `PICOCALC_LEAN`, which omits both options,

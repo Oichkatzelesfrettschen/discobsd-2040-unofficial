@@ -7,7 +7,7 @@ section 9.3). The vendor ILI9488P sequence that `init_seq` of
 which page 245 documents as the enable of command 2, and page 246 gives
 CSCON's power-on and reset defaults as N/A. Which of those writes take
 effect, and whether other settings render small text more crisply, are
-questions for the board. The panel test answers them there: the PICOCALC kernel (`options LCD_PANELTEST`) programs
+questions for the board. The panel test answers them there: the PICOCALC_SD kernel (`options LCD_PANELTEST`) programs
 one of a fixed list of register sets on request and reads the controller's
 read commands back over SPI1 RX (GP12, the panel's SDO), and `paneltest`
 draws the calibration patterns.
@@ -62,8 +62,8 @@ draws the calibration patterns.
 
 ## Running it
 
-Boot the PICOCALC kernel, which carries `LCD_PANELTEST`, with `paneltest` in the
-root (the PicoCalc SD root installs it), log in, `su`, run `paneltest`.
+Boot the PICOCALC_SD kernel, which carries `LCD_PANELTEST`, from the PicoCalc
+SD card, whose root installs `paneltest`; log in, `su`, run `paneltest`.
 Keys: right and left arrows (or `n`/`p`, or `d`/`a`) step the set, down and
 up arrows (or `s`/`w`, or `1`-`7`) step the pattern, `r` reads back, `f` measures the
 frame rate, `q` quits. The top left corner of every pattern (RAM line

@@ -118,6 +118,19 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
    `tools/config/generated_sync_test.py`'s test that rejects a full kernel
    without the panel test changes with the rule, and the affected Makefiles
    are regenerated.
+
+   Decided 2026-11-21: both options leave PICOCALC and live in PICOCALC_SD,
+   the kernel the PicoCalc boots from its card. PICOCALC_SD's Config already
+   carried `SYSTRACE` and `LCD_PANELTEST` as inherited lines, so the rule
+   names both as PICOCALC_SD additions (`SD_PANEL_OPTIONS`) and both
+   Configs of the SD kernels stay unchanged; the `SD_DIAG_OPTIONS` edit
+   and the `SYSTRACE` removal above are unnecessary. PICOCALC_LEAN's
+   removals are `OPTIONAL_DEVICE_OPTIONS` plus `CAPACITY_STATS`. The
+   PICOCALC flash image measures 123,944 bytes of text, headroom 6,776 bytes
+   (`check-kernel-headroom`), and `check-panel-programs` replays the
+   panel programs in the PICOCALC_SD ELF and the console minors in the
+   PICOCALC ELF (`--console-elf`). A flash-root board that needs the trace
+   boots PICOCALC_LEAN_DIAG.
 2. Whether the errno message table (the pool, rules and offsets, 1,298
    bytes, plus 92 bytes of `kernel_errmsg` and `errno_message_expand`
    code quoted from `memory-devices.md`) leaves the kernel for a message file on the root, the design

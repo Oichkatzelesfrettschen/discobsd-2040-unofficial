@@ -19,12 +19,12 @@
 # The full PicoCalc kernel: the panel console and keyboard, the keyboard
 # controller's machdep.picocalc nodes, the SD card with the crash-dump
 # writer, the ESP-PSRAM64H as swap, every per-driver device option and the
-# diagnostic options (SYSTRACE: kern.systrace and kern.systracepid;
-# CAPACITY_STATS: kern.capacity) and the panel register test (LCD_PANELTEST,
-# which needs DEV_LCDGFX: the test runs only while /dev/lcdgfx is open).
-# PICOCALC_LEAN is this Config without the device options, the diagnostic
-# options and the panel register test; PICOCALC_LEAN_DIAG is PICOCALC_LEAN
-# with the diagnostic options. The generated sync gate
+# fixed-table accounting (CAPACITY_STATS: kern.capacity). The syscall trace
+# (SYSTRACE) and the panel register test (LCD_PANELTEST) live in the SD-root
+# kernel PICOCALC_SD, whose flash image has the room; PICOCALC_LEAN_DIAG
+# carries SYSTRACE for a flash-root board. PICOCALC_LEAN is this Config
+# without the device options and CAPACITY_STATS; PICOCALC_LEAN_DIAG is
+# PICOCALC_LEAN with SYSTRACE and CAPACITY_STATS. The generated sync gate
 # (tools/config/check_generated_sync.py) holds both to that. The board name
 # is this directory's name, so PARAM defines -DPICOCALC; like every kernel
 # with the picocalc device it compiles the PicoCalc board descriptor
@@ -51,9 +51,7 @@ makeoptions     DEBUG="-g"                  # Debug symbols
 options         "CPU_KHZ=125000"            # clk_sys after PLL bring-up
 options         "BUS_KHZ=125000"            # clk_peri runs from clk_sys
 options         "HALTREBOOT"                # If halted, press key to reboot
-options         SYSTRACE                    # kern.systrace console trace
 options         CAPACITY_STATS              # fixed-table and u-area peaks
-options         LCD_PANELTEST               # panel register sets and readback
 
 # Root filesystem at /dev/fl0a, swap on /dev/fl1, the same layout as the
 # PICO board: the Pico module's own QSPI flash. The SD socket on SPI0 is

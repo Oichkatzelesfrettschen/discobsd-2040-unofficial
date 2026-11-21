@@ -25,9 +25,10 @@
 # PICOCALC_LEAN_DIAG are the PicoCalc kernels: each unix.bin carries the
 # PicoCalc panel descriptor, and the gate boots a copy whose descriptor
 # distrib/rp2040/mkboarduf2.py rewrote to a bare Pico with the UART0
-# console. PICOCALC and PICOCALC_LEAN_DIAG carry SYSTRACE and CAPACITY_STATS
-# and PICOCALC_LEAN omits them; the gate reads the kern.capacity record of
-# the first two, where PICOCALC_LEAN must refuse the node.
+# console. PICOCALC carries CAPACITY_STATS, PICOCALC_LEAN_DIAG carries
+# SYSTRACE and CAPACITY_STATS, and PICOCALC_LEAN omits both; the gate reads
+# the kern.capacity record of the first two, where PICOCALC_LEAN must refuse
+# the node.
 
 set -eu
 

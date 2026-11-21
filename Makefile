@@ -1916,9 +1916,14 @@ check-mpu-startup: check-python
 		${PYTHON} tools/unicorn/check_mpu_startup.py \
 		    ${MACHINE_KERNEL_CONFIGS:@cfg@sys/arch/rp2040/compile/${cfg}/unix.elf@}
 
-check-panel-programs: check-python
+# Replay the panel register programs in PICOCALC_SD, the kernel that carries
+# LCD_PANELTEST, and check console minor routing in PICOCALC, whose console
+# lacks LCD_VT's second terminal on minor 2. build links only
+# MACHINE_KERNEL_CONFIGS, so picocalc-sd-kernel links the SD ELF first.
+check-panel-programs: check-python .WAIT picocalc-sd-kernel
 		${PYTHON} tools/unicorn/check_panel_program.py \
-		    sys/arch/rp2040/compile/PICOCALC/unix.elf
+		    --console-elf sys/arch/rp2040/compile/PICOCALC/unix.elf \
+		    sys/arch/rp2040/compile/PICOCALC_SD/unix.elf
 
 # The PICOCALC_SD kernel's LCD_GFX_EXT panel primitives under Unicorn
 # (tools/unicorn/check_panel_gfx_ext.py). build links only

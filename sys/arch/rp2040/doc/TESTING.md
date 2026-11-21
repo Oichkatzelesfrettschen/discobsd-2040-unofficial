@@ -3446,8 +3446,9 @@ options and devices are checked by `check-config-generated-sync`.
 `check-renode-picocalc-sd-system` builds the expanded kernel and card
 filesystem. Its four boots (the cases sdroot, tmp and nob7 on PICOCALC_SD and
 the sdroot case on PICOCALC_SD_DIAG) run concurrently, one emulator process
-and one output directory each, and their transcripts print in that fixed
-order; on a six-core host under load the target measured 11 minutes against
+and one output directory each, and their lines print as they arrive, each
+PICOCALC_SD line behind its case name in brackets, so a wrapper that bounds the time between
+output lines sees every boot's progress; on a six-core host under load the target measured 11 minutes against
 21.5 minutes for the same boots one after another
 (`CHECK_PICOCALC_SERIAL=1` restores the serial order within one kernel). A host fixture builds and checks a 1 MiB SD root and verifies
 that symbolic links at each staging rewrite boundary leave the last accepted

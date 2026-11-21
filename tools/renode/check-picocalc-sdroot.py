@@ -70,9 +70,9 @@ and the gate stops with status 1 unless the good ones pass and every altered
 one fails.
 
 A run of more than one case starts every case at once, each in a child
-process with its own emulator and output directory, and prints the children's
-output in case order; CHECK_PICOCALC_SERIAL=1 runs them one after another in
-this process.
+process with its own emulator and output directory, and prints each child's
+lines as they arrive behind the case name in brackets; CHECK_PICOCALC_SERIAL=1
+runs them one after another in this process.
 
 The --configured run boots the 160 KiB profile directly, with no loader stamp.
 Its foreign flash starts at 0x10028000. --configured-boot runs the root mount
@@ -93,6 +93,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -536,9 +537,10 @@ def run_cases_in_children(names, flags, args):
 
     Every case boots its own emulator and writes below its own directory,
     and one emulator occupies one host thread, so the cases share only the
-    prepared kernel and flash images, which they read. Each child's output
-    is held and printed whole in the order of names, so the transcript reads
-    as a serial run does. Returns the worst exit status.
+    prepared kernel and flash images, which they read. Each child's lines
+    are printed as they arrive, prefixed with the case name, so a caller
+    that bounds the time between output lines sees the progress of every
+    case. Returns the worst exit status.
     """
     children = [
         subprocess.Popen(
@@ -546,12 +548,25 @@ def run_cases_in_children(names, flags, args):
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         for name in names
     ]
+    lock = threading.Lock()
+
+    def relay(name, stream):
+        for raw in stream:
+            text = raw.decode("utf-8", errors="replace").rstrip("\n")
+            with lock:
+                print(f"[{name}] {text}", flush=True)
+
+    relays = [
+        threading.Thread(target=relay, args=(name, child.stdout))
+        for name, child in zip(names, children)
+    ]
+    for thread in relays:
+        thread.start()
     worst = 0
-    for child in children:
-        output, _ = child.communicate()
-        sys.stdout.write(output.decode("utf-8", errors="replace"))
-        sys.stdout.flush()
-        worst = max(worst, child.returncode if child.returncode in (0, 1) else 2)
+    for thread, child in zip(relays, children):
+        thread.join()
+        status = child.wait()
+        worst = max(worst, status if status in (0, 1) else 2)
     return worst
 
 

@@ -81,6 +81,10 @@ int main(int argc, char **argv){
 	 * after each. The run ends after INSTRUCTIONS steps, at a halt with
 	 * interrupts off, or after INSTRUCTIONS polls. */
 	for (i=0, polls=0; i<n && polls<n && (!cpu.halted || (cpu.fl & F_IF)); polls++){
+		/* The last run stops at the budget; pc_poll sets pc_slice
+		 * again, so the loop below stays main.c's. */
+		if ((long)pc_slice > n-i)
+			pc_slice = (unsigned)(n-i);
 		for (pc_step=0; pc_step<pc_slice && !pc_idle && (!cpu.halted ||
 		    (cpu.irq && (cpu.fl & F_IF))); pc_step++){
 #ifdef COMPOSITION

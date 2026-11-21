@@ -20,7 +20,7 @@
 # For a release, move to S="" and keep same version number.
 
 OST="DiscoBSD"
-OSR="2.7"
+OSR="0.1.0-alpha"
 
 #S="-current"
 #S="-beta"

@@ -977,7 +977,11 @@ jobs:
       # part's limit is 1.72 times its measurement.
       # The first part carries the C17 library families, whose math and wide
       # fixtures run native and sanitized, and the ulisp mutants.
+      # The second part runs after a failed first part, so one run lists the
+      # failing gates of both; a cancelled run or a failed earlier step still
+      # skips it.
       - name: Run the host tier, first part
+        id: macos_host_a
         timeout-minutes: 80
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -987,6 +991,7 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 4500 \
             -- bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
       - name: Run the host tier, second part
+        if: ${{ !cancelled() && (success() || steps.macos_host_a.conclusion == 'failure') }}
         timeout-minutes: 24
         run: |
           "$PYTHON" tools/run_logged_gate.py \

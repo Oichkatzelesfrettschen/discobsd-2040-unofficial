@@ -11,7 +11,7 @@ notes repository's `docs/picocalc/`, the vendor repository at
 `fdcfe2c8`); each box names its reference designator and each arrow the
 net or GPIO the ledger records.
 
-```
+```text
  USB-C J701 ─┬─ VBUS_IN ─────────────► U101 AXP2101 PMU ◄── J101 2x18650 (VBAT)
              │                         │  I2C PB10/PB11, IRQ PC9 (to U201 only)
              │                         ├─ DCDC1 ─► MCU_3V3: U201, CH340C, both switches
@@ -71,8 +71,8 @@ LEDK on pins 39 and 40; the rest unconnected.
 The renders that locate it are `docs/picocalc/pcb/renders/` in the notes
 repository at commit cfa3daeeb869: `top.png` and `bottom.png` at 100 dpi and
 `j401-bottom.png`, a 300 dpi crop mirrored so its silkscreen reads, drawn by
-`tools/render-gerber.py` there; the README beside the renders gives each
-command.
+`tools/render-gerber.py` there; `docs/picocalc/README.md` in that repository
+gives each command.
 
 ## Claims about the panel module, checked
 

@@ -825,27 +825,31 @@ def inspect_comment(path, comment, advisory_threshold):
     return diagnostics, advisory
 
 
-def comment_phrases(comment):
-    text = normalize_comment_body(comment.body).decode("utf-8", "replace")
-    return [key for key, _ in determiner_negation.phrases(text)]
+def comment_text(comments):
+    """The comments as one text, a normalized body per line with blank lines
+    between, so that no phrase spans two comments."""
+    return "\n\n".join(
+        normalize_comment_body(comment.body).decode("utf-8", "replace")
+        for comment in comments
+    )
 
 
 def determiner_diagnostics(path, before_comments, after_comments, selected):
-    """CH005 for each phrase the after comments hold beyond the before ones."""
-    excess = Counter()
-    for comment in after_comments:
-        excess.update(comment_phrases(comment))
-    for comment in before_comments:
-        excess.subtract(comment_phrases(comment))
+    """CH005 for each phrase the after comments hold beyond the before ones,
+    on the comment that adds it (determiner_negation.new_phrases())."""
     diagnostics = []
-    for comment in selected:
-        for key in comment_phrases(comment):
-            if excess[key] > 0:
-                excess[key] -= 1
-                diagnostics.append(Diagnostic(
-                    "CH005_DETERMINER_NEGATION", path, comment.start_line,
-                    f'negative determiner after a verb "{key}"',
-                ))
+    chosen = set(selected)
+    added = determiner_negation.new_phrases(
+        comment_text(before_comments), comment_text(after_comments)
+    )
+    for key, line, _ in added:
+        comment = after_comments[(line - 1) // 2]
+        if comment not in chosen:
+            continue
+        diagnostics.append(Diagnostic(
+            "CH005_DETERMINER_NEGATION", path, comment.start_line,
+            f'negative determiner after a verb "{key}"',
+        ))
     return diagnostics
 
 

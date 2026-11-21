@@ -621,6 +621,20 @@ class AttributionTests(GitFixture):
         self.assertEqual([(item.rule_id, item.line) for item in result.diagnostics],
                          [("CH005_DETERMINER_NEGATION", 3)])
 
+    def test_added_copy_beside_reworded_inherited_comment_is_reported(self):
+        self.write("sample.c", "/* first: it returns nothing */\nint baseline;\n")
+        self.stage("sample.c")
+        self.git("commit", "-qm", "inherited")
+        self.base = self.git("rev-parse", "HEAD").decode().strip()
+        self.write("sample.c", "/* first, reworded: it returns nothing */\nint baseline;\n"
+                   "/* second: it returns nothing */\nint other;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual([(item.rule_id, item.line) for item in result.diagnostics],
+                         [("CH005_DETERMINER_NEGATION", 3)])
+
     def test_new_line_comment_group_detects_phrase_split_across_members(self):
         self.write("sample.c", "// in this\n// PR\nint baseline;\n")
         self.stage("sample.c")

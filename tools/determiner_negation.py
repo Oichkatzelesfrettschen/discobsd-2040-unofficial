@@ -68,9 +68,16 @@ VERBS = frozenset(
 DETERMINERS = ("no", "none", "nothing")
 # "no" before these names a bound or an idiom, not an absent operand.
 BOUNDS = frozenset(("longer", "later", "earlier", "sooner", "more", "less", "fewer", "matter"))
+# Verb and determiner sit in one block: blanks, or one line break that
+# neither leaves a heading or table line nor starts a new block (a blank
+# line, heading, list item, table row or quotation).
+_BREAK = r"[ \t]*\n(?![ \t]*(?:\n|#|[-*+][ \t]|\d+[.)][ \t]|\||>))[ \t]*"
 PHRASE = re.compile(
-    r"\b([A-Za-z]+)\s+(no|none|nothing)\b(?:[ \t]*\n?[ \t]*([A-Za-z][\w-]*))?", re.IGNORECASE
+    r"\b([A-Za-z]+)(?:[ \t]+|" + _BREAK + r")(no|none|nothing)\b"
+    r"(?:(?:[ \t]+|" + _BREAK + r")([A-Za-z][\w-]*))?",
+    re.IGNORECASE,
 )
+_SINGLE_LINE_BLOCK = re.compile(r"^[ \t]*(?:#|\|)")
 # A code span opens and closes on backtick runs of one length (CommonMark 6.1)
 # and stays inside its paragraph.
 CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)")
@@ -111,8 +118,13 @@ def blank_code(text, fenced=False):
 def phrases(text, fenced=False):
     """(key, offset) for each determiner after a listed verb, in order."""
     found = []
-    for match in PHRASE.finditer(blank_code(text, fenced)):
+    blanked = blank_code(text, fenced)
+    for match in PHRASE.finditer(blanked):
         verb, determiner, follower = match.group(1), match.group(2), match.group(3)
+        if "\n" in blanked[match.start(1) : match.start(2)]:
+            line_start = blanked.rfind("\n", 0, match.start(1)) + 1
+            if _SINGLE_LINE_BLOCK.match(blanked, line_start):
+                continue
         if verb.lower() not in VERBS:
             continue
         if determiner.lower() == "no" and follower and follower.lower() in BOUNDS:
@@ -144,27 +156,34 @@ def main(argv=None):
 def new_phrases(before, after, fenced=False):
     """The phrases of after beyond those before holds: (key, line, offset).
 
-    A key that after holds k times more than before is reported k times, on
-    the occurrences that lie in lines the change inserted or replaced
-    (difflib's alignment of the two texts) first, so a copy added ahead of
-    an inherited one is reported where it was added.
+    difflib aligns the lines of the two texts. Inside each inserted or
+    replaced hunk, the occurrences after holds beyond those of the hunk it
+    replaced are the candidates, and the excess of each key over the whole
+    text caps how many are reported: a phrase the change moves cancels
+    against its deletion, an inherited one a hunk rewords around stays out,
+    and a copy added ahead of an inherited one is reported where it was
+    added.
     """
-    excess = Counter(key for key, _ in phrases(after, fenced))
-    excess.subtract(key for key, _ in phrases(before, fenced))
-    changed = set()
-    matcher = difflib.SequenceMatcher(None, before.splitlines(), after.splitlines(), autojunk=False)
-    for tag, _, _, start, end in matcher.get_opcodes():
-        if tag in ("replace", "insert"):
-            changed.update(range(start + 1, end + 1))
-    found = [
-        (key, after.count("\n", 0, offset) + 1, offset) for key, offset in phrases(after, fenced)
+    found_after = [
+        (key, after.count("\n", 0, offset), offset) for key, offset in phrases(after, fenced)
     ]
-    ordered = sorted(found, key=lambda item: (item[1] not in changed, item[2]))
+    found_before = [(key, before.count("\n", 0, offset)) for key, offset in phrases(before, fenced)]
+    excess = Counter(key for key, _, _ in found_after)
+    excess.subtract(key for key, _ in found_before)
+    matcher = difflib.SequenceMatcher(None, before.splitlines(), after.splitlines(), autojunk=False)
     added = []
-    for key, line, offset in ordered:
-        if excess[key] > 0:
-            excess[key] -= 1
-            added.append((key, line, offset))
+    for tag, b0, b1, a0, a1 in matcher.get_opcodes():
+        if tag not in ("replace", "insert"):
+            continue
+        held = Counter(key for key, line in found_before if b0 <= line < b1)
+        for key, line, offset in found_after:
+            if not a0 <= line < a1:
+                continue
+            if held[key] > 0:
+                held[key] -= 1
+            elif excess[key] > 0:
+                excess[key] -= 1
+                added.append((key, line + 1, offset))
     return sorted(added, key=lambda item: item[2])
 
 

@@ -59,6 +59,10 @@ KNOWN_GOOD = (
     "The bound is no more than 240 and no later than the first tick.",
     'It prints "has no effect" and the `returns nothing` stub stays.',
     "With no board attached, the tool says so.",
+    "## Not run\n\nNo board execution.",
+    "## Not run\nNo board execution.",
+    "| Runs | Notes |\n| No | board |",
+    "The step runs.\n\n- None of the cases fails.",
 )
 FENCED = "Text.\n\n```\nit returns nothing\n```\nThe map holds none.\n"
 # A fence line with an info string inside a block leaves the block open.

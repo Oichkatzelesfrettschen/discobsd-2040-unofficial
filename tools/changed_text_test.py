@@ -122,6 +122,8 @@ DETERMINER_CASES = (
     ("copy added ahead of an inherited phrase",
      {"a.md": "It prints nothing.\nText.\nIt prints nothing.\n"}, 1,
      ("TX003_DETERMINER_NEGATION a.md:1",), {"a.md": "Text.\nIt prints nothing.\n"}),
+    ("heading verb above a paragraph that opens with No",
+     {"a.md": "## Not run\n\nNo board execution.\n"}, 0, (), None),
     ("capitalized determiner", {"a.md": "## The Handler Returns Nothing\n"}, 1,
      ("TX003_DETERMINER_NEGATION a.md:1",), None),
     ("second copy of an inherited phrase",

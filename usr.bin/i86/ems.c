@@ -110,7 +110,7 @@ static uint16_t cur[NPHYS];	/* the logical page it shows */
  * words that were never checked. */
 static uint16_t arg[1 + 2 * NPHYS];
 static uint32_t alt_area;	/* set 0's save area (5B01h), linear */
-static uint16_t alt_seg, alt_off; /* its pointer as given; 0:0 is none */
+static uint16_t alt_seg, alt_off; /* its pointer as given; 0:0 disables */
 static uint8_t os_off;		/* 5D01h: 5900h and 5Bh refused */
 static uint8_t key_out;		/* 5D00h or 5D01h has given out key */
 static uint32_t key, calls;
@@ -481,7 +481,7 @@ alias0(const struct end *a, const struct end *b, uint32_t len)
 }
 
 /*
- * A move no single copy order serves: the source whole into the NSTAGE
+ * A move that needs both copy orders: the source whole into the NSTAGE
  * staging pages past the pool, then the destination from them. The pages
  * live in the page file like any logical page and are forgotten after.
  */
@@ -890,7 +890,7 @@ ems_int(struct i86 *c)
 			}
 			/* The new set is taken before the old one is
 			 * stored, which may overwrite it. The pointer is
-			 * kept as given for 5B00h; 0000:0000 is none. */
+			 * kept as given for 5B00h; 0000:0000 disables set 0. */
 			if ((c->s[S_ES] | c->r[R_DI]) &&
 			    (st = load_map(esdi)) != OK)
 				break;

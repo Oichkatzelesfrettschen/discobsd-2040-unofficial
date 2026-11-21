@@ -101,12 +101,11 @@ fi
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
 # The console stages need the PL011 transmit FIFO of the 0009 patch: without
 # it the transmit interrupt always fires and a driver that stalls on the
-# datasheet's level-crossing rule (4.2.6.3) still reaches a login.
-# TryQueueTransmitCharacter is the method of the revision that refuses a
-# write to a full FIFO before the backend sees it; a build of an earlier
-# 0009 lacks it.
-grep -aq TryQueueTransmitCharacter "$MODELS" ||
-	missing "the built models predate patch 0009 (pl011 transmit FIFO and trigger); rerun sh tools/renode/fetch-renode-rp2040.sh"
+# datasheet's level-crossing rule (4.2.6.3) still reaches a login. The
+# series stamp refuses a build of any other patch series, an earlier
+# revision of one patch included.
+sh "$SCRIPT_DIR/models-series.sh" check "$MODELS" ||
+	missing "the built models do not match tools/renode/patches; rerun sh tools/renode/fetch-renode-rp2040.sh"
 
 # sys/arch/rp2040/compile/Makefile builds every MACHINE_KERNEL_CONFIGS entry,
 # so a tree without the selected image has a directory config(8) has not

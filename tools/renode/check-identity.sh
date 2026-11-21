@@ -41,6 +41,8 @@ command -v renode >/dev/null 2>&1 ||
 	missing "no renode in PATH; install Renode 1.17 or later"
 [ -r "$MODELS" ] ||
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
+sh "$SCRIPT_DIR/models-series.sh" check "$MODELS" ||
+	missing "the built models do not match tools/renode/patches; rerun sh tools/renode/fetch-renode-rp2040.sh"
 [ -r "$KERNEL" ] ||
 	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"
 [ -r "$IMAGE" ] ||

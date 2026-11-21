@@ -136,4 +136,8 @@ fi
 
 dotnet build "$DEST/emulation/Peripherals.csproj" -c Release
 
+# The gates compare this stamp with the series in patches/ before they boot
+# the models (models-series.sh).
+sh "$SCRIPT_DIR/models-series.sh" stamp "$DEST/emulation/bin/Release/net8.0/Peripherals.dll"
+
 echo "built: $DEST/emulation/bin/Release/net8.0/Peripherals.dll"

@@ -55,7 +55,8 @@
  * 57h reads conventional memory as the bus does, the firmware ROM
  * included, refuses a region that runs past 1 MB (A2h) and treats two
  * physical pages that show one logical page as one memory: an exchange
- * whose regions share bytes through them answers 97h.
+ * whose regions share bytes through them answers 97h, and so does a move
+ * that no single copy order serves.
  *
  * 5Dh keeps the operating system's access key: the first 5D00h or 5D01h
  * hands it out in BX:CX, later calls must present it (A4h otherwise), and
@@ -439,9 +440,10 @@ alias(const struct end *c, const struct end *x, uint32_t len)
  * byte at offset o of that page is read as byte o + bp - a->at of the
  * move and written as byte o + bq - b->at; a forward copy writes it
  * before reading it when the second is smaller, and *back asks for the
- * copy from the end then. Pairs that ask for both orders cannot be
- * served in one pass; the move runs forward for them (a region of more
- * than one page through two windows on one page in crossed order).
+ * copy from the end then. Returns 0 when no byte is shared, 1 when one
+ * order serves, 2 when pairs ask for both orders (regions of more than a
+ * page through windows on two logical pages in crossed order): no single
+ * pass copies those, and move() refuses them as overlapping (97h).
  */
 static int
 alias0(const struct end *a, const struct end *b, uint32_t len, int *back)
@@ -476,7 +478,7 @@ alias0(const struct end *a, const struct end *b, uint32_t len, int *back)
 		}
 	}
 	*back = rev && !fwd;
-	return (shared);
+	return (!shared ? 0 : rev && fwd ? 2 : 1);
 }
 
 static unsigned
@@ -487,7 +489,7 @@ move(uint32_t a, int xchg)
 	uint32_t len = grw(a) | (uint32_t)grw(a + 2) << 16, i, n;
 	uint32_t s0, s1;
 	unsigned k, status = OK;
-	int back = 0;
+	int back = 0, shared;
 
 	if (len > MEM_SIZE)
 		return (0x96);
@@ -526,7 +528,8 @@ move(uint32_t a, int xchg)
 			if (e[0].type)
 				status = 0x92;
 		} else if (e[0].type == 0 && len &&
-		    alias0(&e[0], &e[1], len, &back) && xchg)
+		    (shared = alias0(&e[0], &e[1], len, &back)) != 0 &&
+		    (xchg || shared == 2))
 			return (0x97);
 	} else if (e[0].type != e[1].type && len &&
 	    alias(&e[e[0].type != 0], &e[e[0].type == 0], len))

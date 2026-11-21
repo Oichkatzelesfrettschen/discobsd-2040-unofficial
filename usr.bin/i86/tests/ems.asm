@@ -876,6 +876,23 @@ main:	mov ah, 0x40
 	int 0x67
 	mov si, s_axch
 	call st
+	; Crossed windows: E000h and EC00h show logical 0, E400h and E800h
+	; logical 1. A 32 KB move from E000:0000 to E800:0000 writes each page
+	; that the other half still has to read, in both orders: 97h.
+	mov bx, 1
+	mov al, 1
+	call map
+	mov bx, 1
+	mov al, 2
+	call map
+	xor bx, bx
+	mov al, 3
+	call map
+	mov si, creg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_acyc
+	call st
 	; 5401h with a name of nulls: A1h while a handle has no name, A0h
 	; once handle 0 and [h] have names.
 	mov si, nm0
@@ -995,6 +1012,7 @@ s_e8am:	db "e8am:", 0
 s_amovs: db "amovs:", 0
 s_amov:	db "amov:", 0
 s_axch:	db "axch:", 0
+s_acyc:	db "acyc:", 0
 s_nul1:	db "nul1:", 0
 s_nul0:	db "nul0:", 0
 s_done:	db "done", 0
@@ -1030,6 +1048,11 @@ areg:	dd 512			; 57h: E000:0000 to E400:0001
 	dw 0, 0, 0xe000
 	db 0
 	dw 0, 1, 0xe400
+creg:	dd 32768		; 57h: E000:0000 to E800:0000, crossed
+	db 0
+	dw 0, 0, 0xe000
+	db 0
+	dw 0, 0, 0xe800
 nm0:	times 8 db 0
 	db "OS-ZERO!"
 	db "TESTPAGE"

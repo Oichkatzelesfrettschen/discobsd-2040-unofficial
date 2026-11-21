@@ -82,8 +82,9 @@ read_icon(void *ctx,int app,int row,uint16_t *out)
     return 0;
 }
 #ifdef MZ_BOARD
-/* The console leaves the panel at COLMOD 0x66 (18 bits a pixel); the desktop
- * sends RGB565 bands, so the open sets 0x55, two wire bytes a pixel. */
+/* The console runs the panel at COLMOD 0x55; each open of /dev/lcdgfx resets
+ * it to 0x66 (18 bits a pixel) and the last close restores 0x55. The desktop
+ * sends RGB565 bands, so the open sets 0x55 again: two wire bytes a pixel. */
 static int
 open_display(void)
 {

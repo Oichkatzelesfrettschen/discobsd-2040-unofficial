@@ -8,13 +8,13 @@ Source revision: main at `2cca67efe`. SDK: the `pico-sdk` 2.3.1 installation tha
 
 | State | Meaning |
 | --- | --- |
-| used | a driver or core file reads or writes the block in the normal run |
-| partial | only some registers are touched, as the notes name them |
+| used | the port runs the function the datasheet section names (clocks run, a block released from reset, a watchdog armed, a core power-cycled, a bus served) |
+| partial | the port reads or writes registers of the block for a purpose other than that function (an identification read, a probe, a pin sampled through a pad, a counter, a random bit) and runs none of the block's own function |
 | boot only | only the boot stage (boot2) touches it |
 | test only | only a board test program touches it |
 | unused | no register access; at most the default interrupt handler of the block |
 
-Counts: 27 used, 6 partial, 1 boot only, 1 test only, 7 unused.
+Counts, from the rows below: 28 used, 5 partial, 1 boot only, 1 test only, 7 unused (42).
 
 ## Ledger
 
@@ -29,11 +29,11 @@ Counts: 27 used, 6 partial, 1 boot only, 1 test only, 7 unused.
 | SRAM4 | `0x20040000` | 2.6.2 SRAM (unstriped banks), p.121 | `addressmap.h` | used | SRAM4 and SRAM5 hold boot2 and the scratch region (conf/RP2040.ld, RP2040-sd.ld SCRATCH). |
 | SYSINFO | `0x40000000` | 2.20 Sysinfo, p.305 | `sysinfo.h` | partial | machdep.c reads CHIP_ID. |
 | SYSCFG | `0x40004000` | 2.21 Syscfg, p.306 | `syscfg.h` | partial | core1.c uses PROC0_NMI_MASK to probe core 1; machdep.c defines the base. |
-| CLOCKS | `0x40008000` | 2.15 Clocks, p.178 | `clocks.h` | used | machdep.c clocks_init disables clk_peri, clk_usb, clk_adc, clk_rtc and clk_gpout0-3, locks the PLLs and re-enables clk_peri and clk_usb; clk_ref and clk_sys switch through their glitchless muxes. |
+| CLOCKS | `0x40008000` | 2.15 Clocks, p.178 | `clocks.h` | used | machdep.c SystemClock_Config() disables clk_peri, clk_usb, clk_adc, clk_rtc and clk_gpout0-3, locks the PLLs and re-enables clk_peri and clk_usb; clk_ref and clk_sys switch through their glitchless muxes. |
 | RESETS | `0x4000c000` | 2.14 Subsystem Resets, p.172 | `resets.h` | used | machdep.c and the drivers (adc.c, gpio.c, uart.c and others) release their block from reset. |
 | PSM | `0x40010000` | 2.13 Power-On State Machine, p.168 | `psm.h` | used | core1.c forces core 1 off and on (FRCE_OFF) and selects the watchdog reset set (WDSEL); watchdog.h defines the base. |
 | IO_BANK0 | `0x40014000` | 2.19 GPIO (IO_BANK0), p.236 | `io_bank0.h` | used | function select in machdep.c, dev/uart.c and the PicoCalc register macros (dev/picocalc_reg.h). |
-| IO_QSPI | `0x40018000` | 2.19 GPIO (IO_QSPI), p.236 | `io_qspi.h` | partial | machdep.c reads the BOOTSEL button through IO_QSPI SS_CTRL and SIO (the Pico SDK picoboard/button sequence, run from RAM). |
+| IO_QSPI | `0x40018000` | 2.19 GPIO (IO_QSPI), p.236 | `io_qspi.h` | partial | machdep.c bootsel_pressed() reads the BOOTSEL button through IO_QSPI_SS_CTRL (the GPIO_QSPI_SS control register) and SIO (the Pico SDK picoboard/button sequence, run from RAM). |
 | PADS_BANK0 | `0x4001c000` | 2.19 GPIO (PADS_BANK0), p.236 | `pads_bank0.h` | used | pad configuration in dev/uart.c and the PicoCalc register macros (dev/picocalc_reg.h). |
 | PADS_QSPI | `0x40020000` | 2.19 GPIO (PADS_QSPI), p.236 | `pads_qspi.h` | boot only | boot2 sets the QSPI pad drive and slew. |
 | XOSC | `0x40024000` | 2.16 Crystal Oscillator (XOSC), p.216 | `xosc.h` | used | machdep.c starts the crystal and waits for STABLE. |
@@ -49,7 +49,7 @@ Counts: 27 used, 6 partial, 1 boot only, 1 test only, 7 unused.
 | ADC | `0x4004c000` | 4.9 ADC and Temperature Sensor, p.557 | `adc.h` | used | dev/adc.c (machdep.adc.* sysctls). |
 | PWM | `0x40050000` | 4.5 PWM, p.521 | `pwm.h` | used | dev/gpio.c (user PWM duty), picoaudio.c and picopcm.c (audio). |
 | TIMER | `0x40054000` | 4.6 Timer, p.534 | `timer.h` | used | rp2040/clock.c reads TIMERAWL for the clock; dev/usb.c timestamps start-of-frame and transmit; core1.c uses it for bounded waits. |
-| WATCHDOG | `0x40058000` | 4.7 Watchdog, p.544 | `watchdog.h` | partial | machdep.c sets the watchdog tick (TICK 12 cycles), reads REASON, disables and re-arms the counter (CTRL, LOAD with the pause bits) and keeps the swap cursor in SCRATCH0 across a software reset; core1.c writes SCRATCH1-3 (the stall site records) and triggers a reset through CTRL; sysctl.c reports the reason, site and arguments (machdep.watchdog_*); include/watchdog.h defines the registers. |
+| WATCHDOG | `0x40058000` | 4.7 Watchdog, p.544 | `watchdog.h` | used | machdep.c sets the watchdog tick (TICK 12 cycles), reads REASON, disables and re-arms the counter (CTRL, LOAD with the pause bits) and keeps the swap cursor in SCRATCH0 across a software reset; core1.c writes SCRATCH1-3 (the stall site records) and triggers a reset through CTRL; sysctl.c reports the reason, site and arguments (machdep.watchdog_*); include/watchdog.h defines the registers. |
 | RTC | `0x4005c000` | 4.8 RTC, p.548 | `rtc.h` | unused | machdep.c gates clk_rtc off; time of day comes from the timer. |
 | ROSC | `0x40060000` | 2.17 Ring Oscillator (ROSC), p.221 | `rosc.h` | partial | machdep.c swap_cursor_init() samples RANDOMBIT (seven bits per try, up to eight tries) to pick the first swap allocation when watchdog scratch0 holds no tagged cursor. |
 | VREG_AND_CHIP_RESET | `0x40064000` | 2.10 Core Supply Regulator, 2.12 Chip-Level Reset, p.155 | `vreg_and_chip_reset.h` | unused | the boot ROM leaves the regulator at its default. |
@@ -72,7 +72,8 @@ DMA, I2C0, PIO1, RTC, TBMAN, VREG_AND_CHIP_RESET and XIP_AUX have no register ac
 The base addresses and header names come from the SDK; each block was searched in the port with its `*_BASE` name and its hexadecimal base, and every hit was read in place before a state was recorded:
 
 ```sh
-grep -n '_BASE _u(' /usr/share/pico-sdk/src/rp2040/hardware_regs/include/hardware/regs/addressmap.h
+sdk=$(sh tools/pico-sdk/sdk-path.sh)
+grep -n '_BASE _u(' "$sdk/src/rp2040/hardware_regs/include/hardware/regs/addressmap.h"
 git grep -n -i -E '(NAME_BASE|0xBASE)' -- sys/arch/rp2040 usr.bin lib sbin bin ':!sys/arch/rp2040/doc' ':!sys/arch/rp2040/compile' ':!*.md' ':!*.tsv' ':!*.json'
 ```
 
@@ -82,5 +83,5 @@ A block reached through a macro with a different spelling (an offset base such a
 
 ## Open
 
-- The per-register use inside the `partial` blocks (SYSINFO, SYSCFG, IO_QSPI, ROSC, BUSCTRL, WATCHDOG) is listed in the Port use column as the registers the search found; it is not audited against each register of the SDK header.
+- The per-register use inside the `partial` blocks (SYSINFO, SYSCFG, IO_QSPI, ROSC, BUSCTRL) and the `used` blocks that touch a few registers (PSM, WATCHDOG) is listed in the Port use column as the registers the search found; it is not audited against each register of the SDK header.
 - PWM, TIMER and SIO have several users; the column names the principal ones.

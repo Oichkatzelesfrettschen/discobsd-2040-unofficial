@@ -360,7 +360,7 @@ At 1.15 V the regulator's 3% tolerance reaches 1.1845 V, above the 1.16 V DVDD m
 | XIP flash, boot2 divider 2 (`boot2_w25q080.S` line 100) | SCK 75 MHz | 100 MHz | 125 MHz | all under 133 MHz at 3.0-3.6 V (W25Q16JV 10.6, p. 61); the one-cycle RX sample delay needs a board soak |
 | LCD, `st7365p.c` lines 77-78 (prescale 2, SCR 4) | 15.0 MHz | 20 MHz | 25 MHz | silent: over the 15.15 MHz write limit at 200 and 250; SCR 5, 7 and 9 restore 12.5 MHz |
 | PSRAM, `PSRAM_CLKDIV` 2 (`psram_pio.h` line 135) | SCK 37.5 MHz, margin 1.3 ns | 50 MHz, -2.0 ns | 62.5 MHz, -4.0 ns | silent: the section 3 pin-delay model goes negative; divider 3 at 200 and 4 at 250 restore 8.0 and 12.0 ns; no assertion guards it |
-| SD, `sd.c` lines 117-121 | exact | exact | the identification SCR of 312 trips the 255 assertion | compile time |
+| SD, `sd.c` lines 117-121 | data 12.5 MHz exact; identification 398.9 kHz | data exact; identification 400 kHz exact | data exact; the identification SCR of 312 trips the 255 assertion | compile time at 250 MHz only |
 | Audio, `picopcm.c` lines 105-109 | `PCM_LEVELS` 300 | 400 | 500 | compile time |
 
 With divisors chosen for each clock, the SD data clock (prescale 12, 16, 20) and the LCD write clock (SCR 5, 7, 9) are exactly 12.5 MHz at 150, 200 and 250 MHz; at 133 MHz neither is (11.08 MHz at the nearest even prescale). The SD identification clock is exactly 400 kHz only at 200 MHz: 398.9 kHz at 150, and at 250 MHz 399.4 kHz with an SCR of 312 that the assertion refuses. The silent rows, LCD and PSRAM, are the ones a clock change must carry assertions for.

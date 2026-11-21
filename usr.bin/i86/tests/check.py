@@ -761,10 +761,24 @@ def test_interactive(binary, work):
     waited = re.search(rb"WAIT ([0-9A-F]{4})", plain)
     if waited is None or int(waited.group(1), 16) <= 16:
         raise Failure("terminal session: the clock stood still while the guest waited")
-    if before != after:
+    if termios_modes(before) != termios_modes(after):
         raise Failure(
-            "terminal session: terminal mode not restored: " + termios_diff(before, after)
+            "terminal session: terminal mode not restored: "
+            + termios_diff(termios_modes(before), termios_modes(after))
         )
+
+
+def termios_modes(attrs):
+    """The attributes with PENDIN cleared.
+
+    PENDIN (retype pending input) is a status flag of the line discipline, not a
+    mode: macOS sets it in c_lflag when a mode change finds input queued, and
+    nothing the program does clears it. Every other bit, speed and control
+    character is still compared.
+    """
+    attrs = list(attrs)
+    attrs[3] &= ~getattr(termios, "PENDIN", 0)
+    return attrs
 
 
 def termios_diff(before, after):

@@ -1,0 +1,21 @@
+image sha256 3a3c4c617d83bc9b910a6fa7bfdffa11ce26ff89370271d861507be821cc49aa
+contents sha256 9c19b46f068c21f90d200c514faad4a0d5cecfc978f155b8c9d25cb6bc2efd81
+version 3
+second stage contents sha256 951c8ffe4ac70218fc92e55f01b40263476e85f7969f1e449933e774cc507326
+IF connect_internal_flash 8
+    connect_internal_flash[8]
+EX flash_exit_xip 64
+    flash_exit_xip[40] -> flash_put_get[24]
+RE flash_range_erase 88
+    flash_range_erase[24] -> flash_user_erase[16] -> flash_wait_ready[24] -> flash_put_get[24]
+RP flash_range_program 88
+    flash_range_program[24] -> flash_page_program[16] -> flash_wait_ready[24] -> flash_put_get[24]
+FC flash_flush_cache 8
+    flash_flush_cache[8]
+UB reset_usb_boot 16
+    reset_usb_boot[8] -> watchdog_reboot[8]
+lookup table_lookup 0
+    table_lookup[0]
+boot2 _stage2_boot 24
+    _stage2_boot[4] -> read_flash_sreg[8] -> wait_ssi_ready[12]
+PASS 15 site rules of stack-model.json agree

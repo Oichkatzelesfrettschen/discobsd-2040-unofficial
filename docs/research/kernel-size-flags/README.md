@@ -301,7 +301,7 @@ which has none of the entries added since, the tool reproduces that
 commit's `mi` report byte for byte.
 
 - **Configurations.** The model lists the six configurations. An entry
-  with its own list applies to those alone (21 site rules, three guards,
+  with its own list applies to those alone (24 site rules, three guards,
   three roots, one exemption and the render stack), and such an entry is held to the
   same rule as any other in the kernels it names.
 - **Roots.** `PendSV_Handler` (system calls), `main`, `HardFault_Handler`
@@ -311,17 +311,14 @@ commit's `mi` report byte for byte.
   `NMI_Handler` are added on top, each with a 36-byte exception frame,
   whether or not the deepest point masks them. `panic` and `boot` are
   reported alone.
-- **Indirect calls.** 94 site rules. 66 read their targets from the linked
+- **Indirect calls.** 97 site rules. 66 read their targets from the linked
   image (`cdevsw`, `bdevsw`, `Fops`, `execsw`, `syscall_handlers`,
   `conf_service_init`, `flswap_ops`, `sd_ops`) through DWARF member
-  offsets; 10 name functions assigned at run time (callouts, `t_oproc`,
-  driver probes, sysctl subtrees, the core ring, the dump writer); 15
+  offsets; 13 name functions assigned at run time (callouts, `t_oproc`, driver probes, sysctl subtrees, the core ring, the dump writer, the PicoCalc console's select hooks); 15
   carry a measured depth for a ROM routine or the second stage; 2 count
   frames only; 1, `ucall`, names a call left out.
 - **Cycles.** Five bounded recursions (`wakeup`, `psignal`, `mfree` two
-  deep, `indirtrunc` three, `errno_message_expand` five), three functions
-  whose second entry returns before any call (`ttypend`, `exit`,
-  `exec_script_check`) and the two overlay nestings, each with its reason
+  deep, `indirtrunc` three, `errno_message_expand` five), two functions whose second entry returns before any call (`ttypend`, `exec_script_check`; `exit` left the list at the refresh below) and the two overlay nestings, each with its reason
   in the file.
 - **Guards.** 43 calls whose arguments rule out part of the callee:
   26 callers that sleep only at `PZERO` or below and so never test a
@@ -332,10 +329,59 @@ commit's `mi` report byte for byte.
   synchronous-write arms, and the tool checks `UIO_READ` at each of their
   calls), and a pipe's release, which has no indirect block.
 
+### Refresh at 4eb0f4eb3
+
+`stack-4eb0f4eb3/` holds the same outputs for main at 4eb0f4eb3, built
+with arm-none-eabi-gcc 16.2.0; the sections above keep the 793d3432
+figures and the flag comparison built on them. Two model entries changed
+for this run. `exit` left the reentry list: since 2e8cad18b a PT_KILL
+child ends through SIGKILL rather than `exit()` under `procxmt`, so the
+chain that re-entered it is gone, and the tool refuses a reentry entry it
+never meets. `picokbd_evq_select` gained site rules for its three indirect
+calls (`o->raise`, `o->restore`, `o->tty`) on the three PicoCalc
+configurations, where `lcdselect()` passes the one `struct picokbd_sel`,
+`lcd_sel`; the tool stops at an indirect call outside every rule.
+
+| PICO | base | mi | all | ext |
+|---|---|---|---|---|
+| Text | 98,881 | 98,257 | 98,145 | 97,897 |
+| Deepest system call chain | 2,328 | 2,312 | 2,304 | 2,304 |
+| Sum | 3,100 | 3,084 | 3,076 | 3,076 |
+| Sum with buffers of the swap pseudo-device | 3,588 | 3,516 | 3,508 | 3,540 |
+| Sum with a panic | 6,020 | 5,956 | 5,844 | 5,988 |
+
+| | PICO | PICO_UART | PICO_DIAG | PICOCALC | PICOCALC_LEAN | PICOCALC_LEAN_DIAG |
+|---|---|---|---|---|---|---|
+| Text | 98,257 | 90,597 | 100,800 | 127,728 | 119,730 | 122,265 |
+| Deepest system call chain | 2,312 | 2,320 | 2,336 | 2,352 | 2,328 | 2,352 |
+| Deepest boot chain | 1,720 | 1,728 | 1,728 | 1,736 | 1,728 | 1,736 |
+| Deepest user fault chain | 2,008 | 2,016 | 2,016 | 2,032 | 2,024 | 2,032 |
+| Clock interrupt | 292 | 292 | 292 | 572 | 572 | 572 |
+| Terminal interrupt | 444 | 436 | 444 | 444 | 444 | 444 |
+| Sum on the u area | 3,084 | 3,084 | 3,108 | 3,476 | 3,416 | 3,440 |
+| With buffers of the swap pseudo-device | 3,516 | 3,540 | 3,564 | 3,932 | 3,848 | 3,896 |
+| With a panic | 5,956 | 5,964 | 5,988 | 6,908 | 6,840 | 6,872 |
+| Sum on the render stack | - | - | - | 1,512 | 1,476 | 1,476 |
+| Render stack, with a panic | - | - | - | 4,968 | 4,924 | 4,932 |
+
+The deepest chain is 80 bytes shallower on PICO and no longer passes
+through `procxmt` and `exit`. It is now the lookup of
+`exec_script_check`, which drops the last reference to an unlinked inode
+while Dhara collects garbage:
+
+    PendSV_Handler 88, syscall 32, execv 8, execve 400, exec_check 40,
+    exec_script_check 120, namei 8, namei_at 368, iget 32, iput .. irele 24,
+    itrunc 144, indirtrunc 168, free .. bwrite 80, flstrategy 56,
+    dhara_map_write .. flash_erase 656, the boot ROM's flash_range_erase 88
+
+Every configuration still passes 2,048 bytes on that chain alone. Issue
+#839 tracks the bound, #838 the path from a panic's print back into
+`panic` through `wakeup`, and #840 the panic on the render stack.
+
 ### What the bound leaves out
 
 - **Panics nested more than two deep.** The path through `wakeup` above
-  has no bound in the graph.
+  has no bound in the graph (#838).
 - **The two overlays together.** A panic's sync over buffers of the swap
   pseudo-device is counted by neither.
 - **The board's ROM and the PicoCalc loader's second stage.** The ROM
@@ -355,5 +401,13 @@ commit's `mi` report byte for byte.
   its callers, which is wider than any one caller's device.
 - **Core 1.** Its functions run on `core1_stack`.
 - **A fault inside the renderer.** The render stack's bound has no fault
-  root; `HardFault_Handler` is counted on the u area only.
-- **PICOCALC_PSRAM.** It has no tracked compile directory.
+  root; `HardFault_Handler` is counted on the u area only. A panic raised
+  there is counted, and #840 tracks it.
+- **PICOCALC_PSRAM.** The configuration left the tree with the split into
+  PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG (6f522c3ec).
+- **PICOCALC_SD and PICOCALC_SD_DIAG.** The board-session and card-image
+  kernel and its diagnostic build have tracked compile directories outside
+  the six configurations `stack-chain.sh` builds, so this record lacks a
+  bound for them. Adding them takes their names in the script and the
+  model and site rules for their SD services (`sdrootattach`,
+  `sdswapattach`) and the SD-root and swap paths.

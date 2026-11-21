@@ -30,9 +30,10 @@ An assignment from malloc, calloc, realloc or strdup, through any casts or
 parentheses, must be followed by an if statement whose whole condition is
 true exactly when one of the assigned objects is NULL (`p == NULL`,
 `p == 0`, `!p`), or must sit inside such a condition itself, as in
-`if ((p = malloc(n)) == NULL)`. Nothing may follow the call in its own
-statement, and the branch that condition controls must leave before any
-statement in it names an assigned object: a statement the branch always
+`if ((p = malloc(n)) == NULL)`. The assignment must be its whole
+statement (after declaration words) and nothing may follow the call, and
+the branch that condition controls must leave before any statement in it
+names an assigned object: a statement the branch always
 runs (the controlled statement, or one at the top level of the controlled
 block, outside any nested condition or loop) must be exit, _exit, abort,
 longjmp, err, errx, return or awk's error(FATAL, ...), or error() in
@@ -68,7 +69,7 @@ ONE_LVALUE = re.compile(rf"({LVALUE})\s*=(?!=)")
 # Statements that leave the failure branch. ed's error() and awk's overflo()
 # never return (ed longjmps to its command loop, overflo() calls awk's
 # error(FATAL)), so they count in those programs alone.
-LEAVES = r"\b(?:exit|_exit|abort|longjmp|err|errx)\s*\(|\breturn\b|\berror\s*\(\s*FATAL\b"
+LEAVES = r"\b(?:exit|_exit|abort|longjmp|err|errx)\s*\(|\breturn\b|\berror\s*\(\s*FATAL\s*,"
 # A statement before the terminator that can move control elsewhere (a jump,
 # a label, a nested condition, loop or switch) may skip the terminator, so it
 # fails the branch; the scan follows no control flow.
@@ -364,7 +365,11 @@ def scan(path, text, root=None):
                 and leaves(code[span[0] : span[1]], label, names)
             ):
                 continue
-            if call_ends_statement(stmt, match.end() - 1) and index + 1 < len(parts):
+            if (
+                re.fullmatch(r"[\w\s*]*", stmt[: match.start()])
+                and call_ends_statement(stmt, match.end() - 1)
+                and index + 1 < len(parts)
+            ):
                 after, following = parts[index + 1]
                 cond = condition(following)
                 span = branch_span(code, after + len(following))
@@ -441,6 +446,10 @@ KNOWN_BAD = {
     "continue before exit": "p = malloc(4);\nif (!p) {\n\tcontinue;\n\texit(1);\n}\n*p = 1;\n",
     "nested condition before exit": (
         "p = malloc(4);\nif (!p) {\n\tif (retry)\n\t\tbreak;\n\texit(1);\n}\n*p = 1;\n"
+    ),
+    "assignment inside a call": "use(p = malloc(4));\nif (!p)\n\texit(1);\n",
+    "conditional FATAL": (
+        'p = malloc(4);\nif (p == NULL)\n\terror(FATAL && verbose, "x");\n*p = 1;\n'
     ),
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",

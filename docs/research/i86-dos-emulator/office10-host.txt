@@ -90,7 +90,8 @@ Session (i86 -g -c 286 -e 2048 -a blank.img -h c32.img):
     45h 25, 42h 16, 4Eh 15, 44h 10, 58h 9, 40h 7, 46h 6, 41h 6,
     59h 3, 4Bh 3, 43h 2.
 
-PowerPoint 2.0 (IMG/PowerPoint, five disks): the Setup disk in A:,
+PowerPoint 2.0 (IMG/PowerPoint, five disks), with the host build at
+  dd65f4524 and the same scratch change: the Setup disk in A:,
   File, Run, a:\setup.exe stops at once with a dialog "Sorry, this version
   of PowerPoint Setup requires protected mode Windows 3." i86 runs Windows
   3.0 in real mode only, so PowerPoint 2.0 waits for protected mode.

@@ -233,6 +233,16 @@ def check_abort(panel):
             failures.append(f"abort after mode {mode}: {panel.tokens} != {want}")
         if panel.get_word("lcd_power_mode") != PWR_ON or panel.get_word("lcd_power_pending"):
             failures.append(f"abort after mode {mode}: panel not recorded as on")
+    # A fault inside a mode change: the recorded mode still reads on while
+    # the flag says a change may have begun, so the wake goes out; with the
+    # flag clear the recorded mode alone sends nothing.
+    for mode, pending, wake in ((PWR_ON, 1, True), (PWR_SLEEP, 0, False)):
+        panel.set_word("lcd_power_mode", mode)
+        panel.set_word("lcd_power_pending", pending)
+        panel.call("st7365p_abort")
+        want = wake_expected() if wake else []
+        if panel.tokens != want:
+            failures.append(f"abort with mode {mode} pending {pending}: {panel.tokens}")
     return failures
 
 

@@ -41,9 +41,10 @@ an object is not a use, and a preprocessor line between the allocation
 and the end of its branch fails the site, since the scan does not
 evaluate conditional compilation. Comments, literals and preprocessor lines are
 blanked first and statements split at a semicolon, brace or the end of a
-condition, so a call spread over several lines counts as one statement. An
-allocation that is not assigned (an argument or a return value) is outside
-the rule; its consumer owns the test.
+condition, so a call spread over several lines counts as one statement. Every
+allocator call in a scanned file must be such an assignment: a call in any
+other form (an argument, a return value, a parenthesized lvalue) fails as
+unread, so the scan fails closed on syntax it does not model.
 
 usage: check_alloc_results.py FILE...
        check_alloc_results.py --selftest
@@ -59,7 +60,7 @@ LVALUE = (
     r"(?:\s*(?:->|\.)\s*[A-Za-z_]\w*|\s*\[[^\]]*\])*"
 )
 CAST = r"(?:\(\s*[A-Za-z_][\w\s*]*\)\s*|\(\s*)*"
-ASSIGNED_CALL = re.compile(rf"((?:{LVALUE}\s*=(?!=)\s*{CAST})+){ALLOCATORS}\s*\(")
+ASSIGNED_CALL = re.compile(rf"((?:{LVALUE}\s*=(?!=)\s*{CAST})+)({ALLOCATORS})\s*\(")
 LABELS = r"(?:(?:case\s+[^:;]+|[A-Za-z_]\w*)\s*:(?!:)\s*)*"
 ONE_LVALUE = re.compile(rf"({LVALUE})\s*=(?!=)")
 # Statements that leave the failure branch. ed's error() and awk's overflo()
@@ -299,10 +300,10 @@ def leaves(body, label, names):
     if label in PROGRAM_LEAVES:
         pattern += "|" + PROGRAM_LEAVES[label]
     for statement in top_level(body):
-        if re.match(rf"(?:{pattern})", statement):
-            return True
         if mentions(statement, names):
             return False
+        if re.match(rf"(?:{pattern})", statement):
+            return True
     return False
 
 
@@ -338,9 +339,11 @@ def scan(path, text, root=None):
     findings = []
     used = set()
     sites = 0
+    recognized = set()
     for index, (start, stmt) in enumerate(parts):
         for match in ASSIGNED_CALL.finditer(stmt):
             sites += 1
+            recognized.add(start + match.start(2))
             line = code.count("\n", 0, start + match.start()) + 1
             names = names_of(match.group(1), start + match.start(1), code)
             span = branch_span(code, start + len(stmt))
@@ -371,6 +374,14 @@ def scan(path, text, root=None):
                 f"{label}:{line}: {', '.join(names)} from an allocation is used "
                 "without a NULL test whose branch leaves"
             )
+    for call in re.finditer(rf"\b{ALLOCATORS}\s*\(", code):
+        if call.start() not in recognized:
+            line = code.count("\n", 0, call.start()) + 1
+            findings.append(
+                f"{label}:{line}: an allocation in a form the scan does not read "
+                "(an argument, a return value, an unusual assignment)"
+            )
+            sites += 1
     return findings, sites, used
 
 
@@ -408,6 +419,11 @@ KNOWN_BAD = {
     ),
     "test under #if": "p = malloc(4);\n#ifdef CHECKED\nif (!p)\n\texit(1);\n#endif\n*p = 1;\n",
     "qualified cast": "p = (char * const)malloc(4);\n*p = 1;\n",
+    "unassigned": "return (malloc(n));\n",
+    "argument": "use(malloc(n));\n",
+    "parenthesized lvalue": "(p) = malloc(4);\n*p = 1;\n",
+    "exit reads the pointer": "p = malloc(4);\nif (!p)\n\texit(*p);\n",
+    "return reads the pointer": "p = malloc(4);\nif (p == NULL)\n\treturn p->n;\n",
     "overflo outside awk": "if ((p = malloc(n)) == NULL)\n\toverflo();\n*p = 1;\n",
     "error outside ed": "p = malloc(4);\nif (p == NULL)\n\terror(Q);\n*p = 1;\n",
     "commented test": "p = malloc(4);\n/* if (p == NULL) exit(1); */\np[0] = 0;\n",
@@ -446,7 +462,6 @@ KNOWN_GOOD = {
     ),
     "qualified cast": "p = (char * const)malloc(4);\nif (p == NULL)\n\texit(1);\n",
     "goto": "p = malloc(4);\nif (!p)\n\tgoto fail;\n",
-    "unassigned": "return (malloc(n));\n",
     "cast null": "p = malloc(4);\nif (p == (char *)0)\n\texit(1);\n",
 }
 
@@ -460,8 +475,7 @@ def selftest():
     for name, body in KNOWN_GOOD.items():
         label, body = body if isinstance(body, tuple) else ("good.c", body)
         found, sites, _ = scan(Path(label), "void f(void) {\n" + body + "}\n")
-        expected = 0 if name == "unassigned" else 1
-        if sites != expected or found:
+        if sites != 1 or found:
             failures.append(f"known-good {name}: sites={sites} findings={found}")
     if failures:
         for failure in failures:

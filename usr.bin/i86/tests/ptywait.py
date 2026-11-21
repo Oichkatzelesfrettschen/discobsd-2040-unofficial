@@ -36,10 +36,11 @@ def wait_draining(child, master, seconds):
     """Wait for child to exit while reading its pseudo-terminal output.
 
     Returns the bytes read and the exit status, None when the child still
-    runs after the time. A child that writes more than the pseudo-terminal
-    holds blocks in write() while nothing reads: the emulator draws the
-    guest's screen again on its way out, and a macOS pseudo-terminal holds
-    less than that screen where a Linux one holds more.
+    runs after the time, however much it keeps writing. A child that writes
+    more than the pseudo-terminal holds blocks in write() while nothing
+    reads: the emulator draws the guest's screen again on its way out, and a
+    macOS pseudo-terminal holds less than that screen where a Linux one
+    holds more.
     """
     got = b""
     end = time.time() + seconds
@@ -54,8 +55,10 @@ def wait_draining(child, master, seconds):
         try:
             child.wait(timeout=max(0.0, end - time.time()))
         except subprocess.TimeoutExpired:
-            pass
-    while True:
+            return got, None
+    # The child has exited, so what is left in the master is all it wrote.
+    stop = time.time() + 2
+    while time.time() < stop:
         ready, _, _ = select.select([master], [], [], 0.05)
         if not ready:
             break

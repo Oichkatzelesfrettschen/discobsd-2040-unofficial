@@ -810,11 +810,13 @@ ptywait = load_ptywait()
 def test_wait_draining():
     """The wait of menu_session against a writer of 1 MiB, more than any
     pseudo-terminal holds: a plain wait blocks on it, the draining wait
-    returns every byte with the writer's status, and a child that does not
-    exit is reported as running."""
+    returns every byte with the writer's status, a child that does not exit
+    is reported as running, and so is one that never stops writing, within
+    the time given."""
     size = 1 << 20
     writer = "import sys; sys.stdout.buffer.write(b'x' * %d); sys.stdout.buffer.flush()" % size
     sleeper = "import time; time.sleep(60)"
+    chatter = "import sys\nwhile 1: sys.stdout.buffer.write(b'x' * 4096)"
 
     def run(code, drain, seconds):
         master, slave = pty.openpty()
@@ -836,6 +838,9 @@ def test_wait_draining():
             os.close(master)
             os.close(slave)
 
+    def late(signum, frame):
+        raise Failure("wait_draining: a child that never stops writing held the wait past its time")
+
     if run(writer, False, 0.5) is not None:
         raise Failure(
             "wait_draining: a plain wait returned on a 1 MiB writer, so the case blocks nothing"
@@ -846,6 +851,15 @@ def test_wait_draining():
     got = run(sleeper, True, 0.5)
     if got != (0, None):
         raise Failure("wait_draining: the sleeper gave %r, want (0, None)" % (got,))
+    before = signal.signal(signal.SIGALRM, late)
+    signal.alarm(10)
+    try:
+        got = run(chatter, True, 0.5)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, before)
+    if got[0] == 0 or got[1] is not None:
+        raise Failure("wait_draining: the chatterer gave %r, want output and None" % (got,))
 
 
 def menu_session(binary, work, image, steps, cwd=None, kill=None):
@@ -1404,7 +1418,6 @@ def test(binary, work):
     test_endings(binary, work)
     test_exit_store_failure(binary, work)
     test_interactive(binary, work)
-    test_wait_draining()
     test_menu_edges(binary, work)
     test_mouse(binary, work)
     # A write-protected image refuses the guest's sector write.
@@ -1459,6 +1472,8 @@ def main(argv):
                     )
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
+            # Independent of the emulator, so once, not for every mutant.
+            test_wait_draining()
             test(binary, work)
             print("i86 host test passed")
             vsources = ["tests/sstrun.c", "cpu.c", "mem.c"]

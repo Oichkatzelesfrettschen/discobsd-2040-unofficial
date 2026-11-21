@@ -3,8 +3,12 @@
 The owner asked what in the kernel image could move to the SD card and
 which packing or code techniques remain (P5 brief, 2026-11-17). This record
 measures the candidates on main at 4eb0f4eb3 with arm-none-eabi-gcc
-16.2.0; every number is a linked `unix` image's `size` output or a
-`bloaty`/`pahole` reading of it. PICOCALC is the subject because its
+16.2.0. The numbers come from the linked `unix` image of that build
+(`size`, `bloaty`, `pahole`, `tools/check_kernel_headroom.py`), except
+the link-map and `readelf` figures, read from PICOCALC at f780f6796 with
+the same compiler, whose text is the same 127,728 bytes, and the figures
+marked as quoted from `memory-devices.md`, which that record measured at
+4b3eaf6c with GCC 14.2.1. PICOCALC is the subject because its
 flash budget is the tight one: `tools/check_kernel_headroom.py` measures its
 flash image at 127,624 of 130,816 bytes, 3,192 bytes of headroom and 2,168
 above the 1,024-byte margin.
@@ -98,18 +102,22 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
    regenerates the affected Makefiles.
 2. Whether the errno message table (1,390 bytes with its rules and
    offsets) leaves the kernel for a message file on the root, the design
-   `memory-devices.md` records: libc `strerror()` reads the file, which
-   lives on `fl0` and so is present on every board with the card out,
-   and falls back to "Error N"; the kernel keeps zero bytes of RAM for it.
+   `memory-devices.md` records: libc `strerror()` reads the file from the
+   running kernel's root, `fl0` on PICOCALC and PICOCALC_LEAN, where it
+   is present with the card out, and `sd0a` on PICOCALC_SD and
+   PICOCALC_SD_DIAG, which reach user space only with the card in, so the
+   file goes into each root image; it falls back to "Error N"; the kernel keeps zero bytes of RAM for it.
    Its cost is the file format, the build step that writes it and the
    libc reader. A copy read into RAM at boot would spend the same 1,298
    bytes of RAM the flash saves, which this survey sets aside.
-3. Whether the kernel symbol table behind `knlist()` (683 bytes:
-   `nlist` 288, `sysctl_nlist` 136, names 259) moves to a symbol file
+3. Whether the kernel symbol table behind `knlist()` (`nlist` 288 bytes
+   and `sysctl_nlist` 146 by `readelf` at f780f6796, plus 259 bytes of
+   names quoted from `memory-devices.md`) moves to a symbol file
    the build writes and checks against the kernel's version string, as
    `memory-devices.md` records it.
 4. Whether the PicoCalc kernels drop ELF execution (`exec_elf_check` and
-   its strings, 496 plus about 30 bytes, `memory-devices.md`), a removal
+   its strings: 500 bytes by `readelf` at f780f6796, plus about 30 bytes of
+   strings quoted from `memory-devices.md`), a removal
    from the PicoCalc `execsw` once a check confirms that every shipped
    program is a.out.
 5. Whether to build a loadable-overlay mechanism for rarely used drivers.

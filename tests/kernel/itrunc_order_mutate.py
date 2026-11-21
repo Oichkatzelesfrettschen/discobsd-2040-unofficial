@@ -55,8 +55,20 @@ RETURN = """    /* The inode was written before the frees and the frees leave it
 
 doquotaupd:"""
 
+EMPTY = "        if (length != 0 || (type != IFREG && type != IFDIR && type != IFLNK))\n"
+
 # name -> (old fragment, new fragment, ...) in anchored pairs
 MUTATIONS = {
+    # An empty file returns early with the blocks its inode still names.
+    "empty-returns-early": (
+        EMPTY,
+        "        if (length != 0 || type != 0)\n",
+    ),
+    # A device inode takes the release path and frees its device number.
+    "device-released": (
+        EMPTY,
+        "        if (length != 0 || type == 0)\n",
+    ),
     # The inode reaches the device after the frees, as 2.11BSD orders it.
     "inode-after-frees": (
         WRITE,

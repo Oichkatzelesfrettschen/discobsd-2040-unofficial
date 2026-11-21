@@ -5,7 +5,7 @@ Source reading at origin/main 1b9a8b21 (the tree). Primary sources were retrieve
 ## Findings
 
 1. The integer has no reader in the tree. `git grep -n -i -E 'osrev|KERN_OSREV' -- sbin usr.sbin usr.bin sys lib include share` finds the sysctl table entry (`sys/sys/sysctl.h:129` and `:164`, `{ "osrevision", CTLTYPE_LONG }`), the one producer (`sys/kern/kern_sysctl.c:231`, which returns `(long)DiscoBSD`, the year-and-month value 202608 of `sys/sys/param.h:8`) and manual pages. Every encoding below therefore costs nothing at the rename, and the choice can wait for the first consumer.
-2. Every positional packing, decimal or binary, is a mixed-radix numeral, so its order equals the lexicographic order of the fields whenever each field stays inside its limit. The choice between candidates is a choice of radix, of field widths and of the source of the stage rank; order is a property of the layout, not of the choice. The harness confirms this on a boundary grid for all five reference layouts and rejects four deliberately wrong layouts, each for its own reason. Reserved zero bits between fields (OpenSSL's `0xMNN00PP0L`) keep the order and only make the layout non-compact.
+2. Every positional packing, decimal or binary, is a mixed-radix numeral, so its order equals the lexicographic order of the fields whenever each field stays inside its limit. The choice between candidates is a choice of radix, of field widths and of the source of the stage rank; order is a property of the layout, not of the choice. The harness confirms this on a boundary grid for all five reference layouts and rejects five deliberately wrong layouts, each for its own reason. Reserved zero bits between fields (the shape of OpenSSL's `0xMNN00PP0L`) keep the order and only make the layout non-compact.
 3. A signed 32-bit `long` leaves 31 value bits. A layout whose major field reaches bit 31 (four bits of major at bit 28, as the OpenSSL layout `0xMNN00PP0L` allows) sets the sign bit at major 8. The harness mutant `mutant-signed` shows it.
 4. Binary decoders are 22 bytes of Thumb code with no division; the decimal decoders of the candidate in `version-scheme.md` are 76 bytes and six calls to `__aeabi_uidiv` and `__aeabi_uidivmod` (Cortex-M0+ has no hardware divide; this port's helper in `lib/libc/arm/gen/aeabi_div.S` reaches the RP2040 SIO divider). The kernel itself decodes nothing: the integer is a build-time constant. The cost falls on a reader program, and no reader exists (finding 1).
 5. SemVer 2.0.0 orders pre-release names by ASCII (item 11). The owner's stated stage sequences ("alpha, beta, delta", "alpha, beta, rc", "alpha, rc") are all in ASCII order, so a packed stage rank, a version string and a package tool agree on them. The sequence alpha, beta, gamma, delta, which follows the Greek alphabet, is not: SemVer places `delta` below `gamma`. A rank that follows the owner's chronology would then disagree with every tool that compares `osrelease` strings.
@@ -66,15 +66,15 @@ A pre-release name list is thus a hidden constraint on any scheme: a stage named
 
 ## Candidate encodings
 
-All five layouts are checked on a grid of the boundary values of every field (0, 1, 2, limit - 1, limit; stage ranks 1, 2, release - 1, release); the check sorts the tuples as SemVer does and requires strictly rising packed values. Source: `packed-version-integer/encodings.py`; output: `packed-version-integer/results.txt`.
+All five layouts are checked on a grid of the boundary values of every field (0, 1, 2, limit - 1, limit; stage ranks 1, 2, release - 1, release; a serial of 0, 1, 2, limit - 1, limit on a pre-release and 0 on a release); the check sorts the tuples as SemVer does and requires strictly rising packed values. A layout without a serial field refuses a serial above 0. Source: `packed-version-integer/encodings.py`; output: `packed-version-integer/results.txt`.
 
 | Layout | Fields (major.minor.patch.stage) | Largest value | Pre-release ranks | order | roundtrip | signed 32 | guard |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | dec-existing | 20.99.99999 and 1 digit | 2099999999 | 8 (1 to 8) | pass | pass | pass | pass |
 | bin-7.8.12.4 | 127.255.4095 and 4 bits | 2147483647 | 14 | pass | pass | pass | pass |
 | bin-7.8.11.5 | 127.255.2047 and 5 bits | 2147483647 | 30 | pass | pass | pass | pass |
-| bin-python | 127.255.255, stage nibble, serial nibble | 2147483632 | 14 (serial 0 to 15) | pass | pass | pass | pass |
-| bin-openssl-0xMNN00PP0 | 7.255.255 and 4 bits, bits 12 to 19 reserved | 2146439167 | 14 | pass | pass | pass | pass (not compact) |
+| bin-python | 127.255.255, stage nibble, serial nibble | 2147483647 | 14 (serial 0 to 15, checked on its boundaries) | pass | pass | pass | pass |
+| bin-gapped-0xMNN00PPS | 7.255.255 and 4 bits, bits 12 to 19 reserved: an adaptation of OpenSSL's `0xMNN00PP0L` whose low nibble carries the stage | 2146439167 | 14 | pass | pass | pass | pass (not compact) |
 
 Values for the chain of `version-scheme.md` (decimal, with hexadecimal; the 7.8.11.5 column ranks alpha 1, beta 2 and the release 31):
 
@@ -99,7 +99,7 @@ Decoders for major, minor, patch and stage, compiled with `arm-none-eabi-gcc -Os
 
 ### Calibration
 
-`--selftest` requires the reference layouts to pass and four mutants to fail the check each was built to fail, requires the oracle to order the SemVer specification's own chain (and to reject `1.0.0 < 1.0.0-alpha`), and requires `initial_rank` to refuse `RC`, `1`, `-x` and the empty name. The mutants: `mutant-stage-high` (stage above major) fails order; `mutant-overlap` (minor limit 100 at the weight of major, so `0.100.0` packs equal to `1.0.0`) fails guard; `mutant-signed` (4 bits of major at bit 28) fails signed; `mutant-final-low` fails order. A mutant that passed, or failed a different check than the one named, makes the selftest exit 1.
+`--selftest` requires the reference layouts to pass and five mutants to fail the check each was built to fail, requires the oracle to order the SemVer specification's own chain (and to reject `1.0.0 < 1.0.0-alpha`), and requires `initial_rank` to refuse `RC`, `1`, `-x` and the empty name. The mutants: `mutant-serial-high` (serial above stage, so `alpha.15` sorts above `beta.0`) and `mutant-stage-high` (stage above major) fail order; `mutant-overlap` (minor limit 100 at the weight of major, so `0.100.0` packs equal to `1.0.0`) fails guard; `mutant-signed` (4 bits of major at bit 28) fails signed; `mutant-final-low` (the release below its pre-releases) fails order. A mutant that passed, or failed a different check than the one named, makes the selftest exit 1.
 
 ## Survey of how other systems encode a release
 

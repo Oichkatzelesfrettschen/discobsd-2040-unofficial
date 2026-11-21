@@ -75,11 +75,20 @@ class Encoding:
         self.note = note
 
     def limits(self):
-        return {name: limit for name, _, limit in self.fields}
+        out = {name: limit for name, _, limit in self.fields}
+        out.setdefault("serial", 0)
+        return out
 
-    def pack(self, major, minor, patch, stage):
-        values = {"major": major, "minor": minor, "patch": patch, "stage": stage}
-        values["serial"] = 0
+    def pack(self, major, minor, patch, stage, serial=0):
+        values = {
+            "major": major,
+            "minor": minor,
+            "patch": patch,
+            "stage": stage,
+            "serial": serial,
+        }
+        if serial < 0 or serial > self.limits()["serial"]:
+            raise OverflowError(f"{self.name}: serial {serial} exceeds its field")
         total = 0
         for name, weight, limit in self.fields:
             value = values[name]
@@ -89,12 +98,10 @@ class Encoding:
         return total
 
     def unpack(self, value):
-        out = {}
+        out = {"serial": 0}
         for name, weight, limit in self.fields:
             out[name] = (value // weight) % (limit + 1)
-        if "serial" in out and out["serial"] != 0:
-            raise ValueError("serial is fixed at 0 in the grid")
-        return (out["major"], out["minor"], out["patch"], out["stage"])
+        return (out["major"], out["minor"], out["patch"], out["stage"], out["serial"])
 
 
 def binary(name, widths, final, note=""):
@@ -167,7 +174,7 @@ def reference_set():
         ),
         python_layout(),
         Encoding(
-            "bin-openssl-0xMNN00PP0",
+            "bin-gapped-0xMNN00PPS",
             [
                 ("major", 1 << 28, 7),
                 ("minor", 1 << 20, 255),
@@ -175,7 +182,8 @@ def reference_set():
                 ("stage", 1, 15),
             ],
             15,
-            "OpenSSL layout 0xMNN00PP0L: reserved zero bits 12 to 19, major 3 bits when signed",
+            "adapts OpenSSL 0xMNN00PP0L: bits 12 to 19 reserved, "
+            "the low nibble carries the stage as the 1.1.1 status nibble did",
         ),
     ]
 
@@ -216,7 +224,20 @@ def mutants():
         0,
         "release ranked below its pre-releases",
     )
+    serial_high = Encoding(
+        "mutant-serial-high",
+        [
+            ("major", 1 << 24, 127),
+            ("minor", 1 << 16, 255),
+            ("patch", 1 << 8, 255),
+            ("serial", 1 << 4, 15),
+            ("stage", 1, 15),
+        ],
+        15,
+        "serial above stage: alpha.15 sorts above beta.0",
+    )
     return [
+        (serial_high, "order"),
         (stage_high, "order"),
         (overlap, "guard"),
         (wide, "signed"),
@@ -225,7 +246,10 @@ def mutants():
 
 
 def grid(encoding):
-    """Boundary values of every field: 0, 1, 2, limit-1, limit; stage ranks 1..final."""
+    """Boundary values of every field: 0, 1, 2, limit-1, limit; stage ranks 1..final.
+
+    The serial counts builds inside one pre-release stage; a release has none.
+    """
     lim = encoding.limits()
 
     def edge(limit):
@@ -233,15 +257,20 @@ def grid(encoding):
 
     stages = sorted({1, 2, encoding.final - 1, encoding.final})
     stages = [s for s in stages if 0 <= s <= lim["stage"]]
-    return list(
-        itertools.product(edge(lim["major"]), edge(lim["minor"]), edge(lim["patch"]), stages)
+    points = itertools.product(
+        edge(lim["major"]),
+        edge(lim["minor"]),
+        edge(lim["patch"]),
+        stages,
+        edge(lim["serial"]),
     )
+    return [t for t in points if t[3] != encoding.final or t[4] == 0]
 
 
 def rank_key(encoding, tup):
-    """SemVer order of a tuple: the core, then every pre-release below the release."""
-    major, minor, patch, stage = tup
-    return (major, minor, patch, 10**9 if stage == encoding.final else stage)
+    """SemVer order of a tuple: the core, every pre-release below the release, serial."""
+    major, minor, patch, stage, serial = tup
+    return (major, minor, patch, 10**9 if stage == encoding.final else stage, serial)
 
 
 def check_order(encoding):
@@ -268,18 +297,24 @@ def check_roundtrip(encoding):
 
 def check_signed(encoding):
     lim = encoding.limits()
-    top = encoding.pack(lim["major"], lim["minor"], lim["patch"], lim["stage"])
+    top = encoding.pack(lim["major"], lim["minor"], lim["patch"], lim["stage"], lim["serial"])
     return 0 <= top <= INT_MAX
 
 
 def check_guard(encoding):
     """A field one past its limit is refused, and no field reaches the weight above it."""
     lim = encoding.limits()
-    for name in ("major", "minor", "patch", "stage"):
+    for name in ("major", "minor", "patch", "stage", "serial"):
         args = {n: 0 for n in lim}
         args[name] = lim[name] + 1
         try:
-            encoding.pack(args["major"], args["minor"], args["patch"], args["stage"])
+            encoding.pack(
+                args["major"],
+                args["minor"],
+                args["patch"],
+                args["stage"],
+                args["serial"],
+            )
         except OverflowError:
             continue
         return False
@@ -531,7 +566,7 @@ def report():
     for encoding in reference_set():
         lim = encoding.limits()
         result = evaluate(encoding)
-        top = encoding.pack(lim["major"], lim["minor"], lim["patch"], lim["stage"])
+        top = encoding.pack(lim["major"], lim["minor"], lim["patch"], lim["stage"], lim["serial"])
         print(
             "\t".join(
                 [

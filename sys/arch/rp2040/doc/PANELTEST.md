@@ -25,7 +25,7 @@ draws the calibration patterns.
   written value is `0x5054 << 16 | N`; any other value returns EINVAL.
   `machdep.picocalc.panel_read` (superuser, read only) returns a `struct
   picocalc_panel_read` (`machine/picocalcvar.h`). Both return EBUSY unless
-  `/dev/lcdgfx` is open, so the console stays idle while the panel is reprogrammed or read, and the last close programs set 0 again.
+  `/dev/lcdgfx` is open, so console rendering pauses while the panel is reprogrammed or read (the console's cell store stays current), and the last close programs set 0 again.
 - The readback sends each read command with D/CX low and clocks the reply
   at 3.125 MHz, inside TSCYCR (150 ns, page 54). The first twelve entries
   are Command Table 1 and ID reads (04h, 09h, 0Ah-0Fh, DAh-DCh, D3h), the

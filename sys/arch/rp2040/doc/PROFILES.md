@@ -387,7 +387,7 @@ it parses, and an empty `PYTHON` leaves them unset, which links every member.
 `tools/fsutil/fsutil.c`'s `add_hardlink()` prints `link source not found`
 on stderr and returns, and fsutil's exit status stays 0. An image composed
 with `link /usr/games/keen` and without `pack /usr/games/gamebox`
-therefore builds clean and boots with a dangling name. A missing
+therefore builds clean and boots without `/usr/games/keen`: fsutil skips the link, so the directory entry is never created. A missing
 `/usr/lib/libc.a` is quieter still: no stage of the build reads it, and
 the failure reaches the user as a compile on the board that cannot link.
 `mkmanifest.py` decides both against the composed manifest before fsutil

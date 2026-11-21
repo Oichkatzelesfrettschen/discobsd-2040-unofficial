@@ -848,7 +848,7 @@ def determiner_diagnostics(path, before_groups, after_groups, selected):
     for key in sorted(key for key, extra in counts.items() if extra > 0):
         holders = [group for k, group in after if k == key]
         group = next((item for item in holders if item in chosen), holders[0])
-        lines = ", ".join(str(item.start_line) for item in holders)
+        lines = ", ".join(str(line) for line in sorted({item.start_line for item in holders}))
         diagnostics.append(Diagnostic(
             "CH005_DETERMINER_NEGATION", path, group.start_line,
             f'negative determiner after a verb "{key}", {counts[key]} more than '

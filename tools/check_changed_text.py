@@ -63,6 +63,8 @@ def git(root, *args):
         ["git", "-C", str(root), *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return result
@@ -210,10 +212,11 @@ def determiner_findings(root, base, head):
             continue
         before = show(root, base, old) if old else ""
         after = show(root, head, new)
+        shown = new.encode("utf-8", "backslashreplace").decode("utf-8")
         for key, extra, lines in determiner_negation.excess(before, after, fenced=True):
             where = ", ".join(str(line) for line in lines)
             findings.append(
-                f"TX003_DETERMINER_NEGATION {new}:{lines[0]}: {key!r} {extra} more than "
+                f"TX003_DETERMINER_NEGATION {shown}:{lines[0]}: {key!r} {extra} more than "
                 f"the base holds (lines {where})"
             )
     return findings

@@ -50,6 +50,8 @@ KNOWN_BAD = (
     "Python has\r\nno pyserial.",
     "```foo`bar``` is inline code.\n\nIt has no effect.",
     "## The cache is no\nlonger valid.",
+    "Otherwise nothing has no effect.",
+    "Use \\` to open. It returns nothing. Use \\` to close.",
 )
 KNOWN_GOOD = (
     "register only when the caller supplies an old-value buffer, and writes it",
@@ -67,6 +69,8 @@ KNOWN_GOOD = (
     "| Runs | Notes |\n| No | board |",
     "The step runs.\n\n- None of the cases fails.",
     "The instruction is no-op and uses no-cache.",
+    "During a dry-run no files are modified.",
+    "With copy-on-write no pages are duplicated.",
 )
 FENCED = "Text.\n\n```\nit returns nothing\n```\nThe map holds none.\n"
 # A fence line with an info string inside a block leaves the block open.
@@ -100,6 +104,11 @@ def main():
     crlf = before.replace("\n", "\r\n") + "A second copy prints nothing.\r\n"
     if finder.excess(before, crlf) != [("prints nothing", 1, [2, 3])]:
         failures.append(f"CRLF copy miscounted: {finder.excess(before, crlf)}")
+    two = finder.phrases("A stub that does nothing returns nothing.")
+    if [key for key, _ in two] != ["does nothing", "returns nothing"]:
+        failures.append(f"a verb after a determiner was swallowed: {two}")
+    if finder.excess("The handler returns nothing at all.\n", "The handler returns nothing.\n"):
+        failures.append("rewording after an inherited phrase counted as new")
     for failure in failures:
         print(f"FAIL {failure}")
     if failures:

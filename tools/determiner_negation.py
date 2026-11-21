@@ -28,11 +28,18 @@ The port's voice rule (AGENTS.md, Source comments; the agent reference's
 mechanism voice) moves a clause's negation back onto the verb or replaces it
 with the action that runs: "passes no old buffer" becomes "passes NULL for
 the old-value pointer". The finder reports each "<verb> no|none|nothing"
-from a closed verb list built from the forms measured in the tree, with the
-next word, as a phrase key. Fixed quantity and time bounds ("no longer",
+from a closed verb list built from the forms measured in the tree; the verb
+and determiner form the phrase key, so rewording around a kept phrase leaves
+its key unchanged. Fixed quantity and time bounds ("no longer",
 "no more than", "no later than") stay. Text inside backticks, double quotes
 and fenced code blocks is blanked first, keeping offsets, so code, messages
 and quoted upstream text stay out of reach.
+
+The finder is lexical. It reads top-level fences, code spans and one-line
+double quotations as code; a fence nested in a list or a quotation, a
+quotation that wraps or escapes its quote marks, and a table row without a
+leading pipe read as prose. A finding there names its line, and the author
+rephrases or marks the text as code.
 
 excess() compares two versions of one text as multisets of phrase keys and
 reports each key the newer version holds more often, with every line that
@@ -71,15 +78,19 @@ BOUNDS = frozenset(("longer", "later", "earlier", "sooner", "more", "less", "few
 # neither leaves a heading or table line nor starts a new block (a blank
 # line, heading, list item, table row or quotation).
 _BREAK = r"[ \t]*\n(?![ \t]*(?:\n|#|[-*+][ \t]|\d+[.)][ \t]|\||>))[ \t]*"
+# The verb is a whole word (a hyphenated compound's tail is a noun part);
+# the word after the determiner is read by lookahead only, so a verb that
+# follows the determiner starts its own match.
 PHRASE = re.compile(
-    r"\b([A-Za-z]+)(?:[ \t]+|" + _BREAK + r")(no|none|nothing)(?![\w-])"
-    r"(?:(?:[ \t]+|" + _BREAK + r")([A-Za-z][\w-]*))?",
+    r"(?<![\w-])([A-Za-z]+)(?:[ \t]+|" + _BREAK + r")(no|none|nothing)(?![\w-])"
+    r"(?=(?:[ \t]+|" + _BREAK + r")([A-Za-z][\w-]*))?",
     re.IGNORECASE,
 )
 _SINGLE_LINE_BLOCK = re.compile(r"^[ \t]*(?:#|\|)")
 # A code span opens and closes on backtick runs of one length (CommonMark 6.1)
 # and stays inside its paragraph.
-CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)")
+# A backslash-escaped backtick is a literal (CommonMark 2.4) and opens no span.
+CODE_SPAN = re.compile(r"(?<![`\\])(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)")
 QUOTED = re.compile(r'"[^"\n]*"')
 # A backtick fence's info string holds no backtick (CommonMark 4.5), so a
 # line that opens with an inline code span stays prose.
@@ -132,7 +143,7 @@ def phrases(text, fenced=False):
             line_start = blanked.rfind("\n", 0, match.start(1)) + 1
             if _SINGLE_LINE_BLOCK.match(blanked, line_start):
                 continue
-        if follower and "\n" in blanked[match.start(2) : match.start(3)]:
+        if follower and "\n" in blanked[match.end(2) : match.start(3)]:
             line_start = blanked.rfind("\n", 0, match.start(2)) + 1
             if _SINGLE_LINE_BLOCK.match(blanked, line_start):
                 follower = None
@@ -140,7 +151,7 @@ def phrases(text, fenced=False):
             continue
         if determiner.lower() == "no" and follower and follower.lower() in BOUNDS:
             continue
-        key = " ".join(part.lower() for part in (verb, determiner, follower or "") if part)
+        key = f"{verb.lower()} {determiner.lower()}"
         found.append((key, match.start(2)))
     return found
 

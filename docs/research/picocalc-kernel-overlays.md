@@ -79,7 +79,12 @@ the paper's trade.
    call would run whichever overlay replaced it. The same pass builds the
    call graph and fails on a path from an overlay to a sleep (item 3) or to
    another overlay's veneer, since the second load would overwrite the
-   caller's code under it.
+   caller's code under it. Relocations show only direct calls, so the graph
+   treats every indirect call (a `cdevsw` or `bdevsw` entry, a callout, any
+   function pointer) as reaching every function whose address the kernel
+   takes; an overlay whose resident callees make such a call is accepted
+   only when none of those targets can sleep, which in practice confines
+   overlays to leaf code without indirect calls.
 6. **Residency.** Interrupt handlers, the fault and panic paths, the
    crash-dump writer and anything `lcdabandon()` reaches stay resident,
    because they run outside process context.

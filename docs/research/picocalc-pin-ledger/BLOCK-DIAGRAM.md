@@ -69,9 +69,10 @@ GP13 (pins 29, 30, 32, 33, 34); RD (31) and TE (35) without a net; LEDA and
 LEDK on pins 39 and 40; the rest unconnected.
 
 The renders that locate it are `docs/picocalc/pcb/renders/` in the notes
-repository: `top.png` and `bottom.png` at 100 dpi and `j401-bottom.png`, a
-300 dpi crop mirrored so its silkscreen reads, drawn by
-`tools/render-gerber.py` there.
+repository at commit cfa3daeeb869: `top.png` and `bottom.png` at 100 dpi and
+`j401-bottom.png`, a 300 dpi crop mirrored so its silkscreen reads, drawn by
+`tools/render-gerber.py` there; the README beside the renders gives each
+command.
 
 ## Claims about the panel module, checked
 

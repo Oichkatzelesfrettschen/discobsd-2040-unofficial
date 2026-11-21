@@ -1,0 +1,118 @@
+# Panel scan-out on core 1 for i86: design and the measurements before code
+
+Status: design, 2026-11-21. Owner decision D202 ("Core 1 scan-out") chose
+this path over core-0 SPI1 DMA. Nothing here is built; kernel code waits on
+the board measurements below and on the order D109 sets for new kernel
+work. Every figure below is labeled measured (board), computed or
+inference.
+
+## The problem
+
+`i86 -g` draws the guest's display on the PicoCalc's ST7365P panel through
+`/dev/lcdgfx` (`sys/arch/rp2040/dev/lcdgfx.c`). The emulator sends one
+line of palette indexes a `write(2)`: 320 bytes for a 320-pixel line
+(`usr.bin/i86/gfx.c`). The kernel expands each byte through the palette
+into wire pixels and feeds SPI1 by polling its transmit FIFO
+(`st7365p.c`), all on core 0, the core that also runs the emulator.
+
+- Measured on a PicoCalc (PICOCALC_SD, `sys/arch/rp2040/doc/PICOCALC.md`):
+  a 320 by 320 fill takes 197 ms in RGB666 and 131 ms in RGB565, the bit
+  time at 12.5 MHz; a `write(2)` of 153,600 pixels takes 340 ms and
+  242 ms.
+- Computed from those: the wire is the floor, about 45 ms of each such
+  write is core-0 work beyond the wire, and the rest of the 242 ms is
+  core 0 waiting on the FIFO.
+- Inference: during a full-screen redraw the emulator stops for the whole
+  write, longer than four 54.9 ms timer periods.
+
+DMA on core 0 alone recovers only the unoverlapped part (about 45 ms per
+full screen, computed), because the palette expansion that DMA cannot do
+stays on core 0 (D202's basis, worker report E). Moving the expansion and
+the FIFO feeding to core 1 frees core 0 for nearly the whole write.
+
+## Constraints the tree sets
+
+- Core 1 runs only code and data in SRAM. A flash erase or program
+  stops execute-in-place for both cores (`sys/arch/rp2040/doc/CORE1.md`);
+  every function core 1 runs is `.ramfunc`, so the scan-out code costs
+  SRAM, not flash.
+- One owner per word, rings of slot numbers and arguments, never pointers
+  (`CORE1.md`, `corering.c`). Core 1 must not follow a pointer into a
+  process's memory.
+- One 192 KB user window serves every process and is exchanged at a
+  switch; the MPU belongs to core 0 and does not fence a DMA master or
+  core 1 (`MPU.md`). Core 1 therefore cannot read i86's frame buffer in
+  place: by the time it reads, another process may own the window.
+- Kernel RAM: about 7,488 bytes free on a linked PICOCALC_SD image
+  (computed from an older link, worker report E); the scratch area is
+  full. Any staging buffer comes out of those bytes.
+- The PicoCalc kernels do not carry `options "CORE1"` today
+  (`CORE1.md`); the observer runs on PICO and PICO_UART.
+- SPI1 serves only the panel (the card is on SPI0), but the console
+  renderer, `lcdgfx` ioctls, `st7365p_abort` and close all touch SPI1;
+  each must wait for the scan-out to go idle or hand the bus over.
+
+## Design
+
+Core 0 keeps the system call; core 1 owns SPI1 and one DMA channel while
+a scan-out is open.
+
+1. `lcdgfx_write` copies the caller's line of indexes (at most 320 bytes)
+   into a kernel line slot and publishes the slot on the core-1 request
+   ring. Four slots of 320 bytes: 1,280 bytes. Core 0's cost per line is
+   the copy and the publish.
+2. Core 1 takes the slot, expands it through the current palette into
+   RGB565 with its interpolator (INTERP0 in lane-lookup mode: index to
+   table address), into one of two 640-byte wire buffers (1,280 bytes),
+   starts DMA from that buffer to SPI1's data register (DREQ 18), and
+   expands the next slot into the other buffer while the first goes out.
+3. Core 1 returns the slot on the reply ring; core 0 blocks a writer only
+   when all four slots are full, so a burst of lines runs ahead of the
+   wire by four lines.
+4. A window change, a palette change, a mode change or close is a ring
+   request too, so core 1 applies it between lines in order; core 0 never
+   touches SPI1 while the service is open.
+
+RAM: 2,560 bytes of buffers plus the service's SRAM code (estimate under
+1 KB), about 3.5 KB of the 7,488 free (computed). Inference: core 0's time
+per full screen falls from about 242 ms to the copies, a few milliseconds.
+
+The wire time does not change: a full 320 by 320 frame still takes
+131 ms at 12.5 MHz in RGB565. What changes is that i86 keeps running
+during it.
+
+## Alternatives considered
+
+- Core-0 SPI1 DMA (D198, superseded by D202): about 45 ms per full screen
+  recovered (computed); the expansion stays on core 0.
+- Core 1 reading the guest frame buffer directly: refused by the window
+  exchange and the pointer rule above.
+- A whole frame staged in kernel RAM (CGA's 16 KB, or 204,800 wire bytes):
+  does not fit the 7,488 free bytes.
+- A faster SPI clock: shortens the wire time itself and is a separate
+  question; the ST7365P's write-cycle limit against the 12.5 MHz in use is
+  not established here.
+
+## Measurements before code (board, PICOCALC_SD)
+
+1. i86's own redraw: the time of a full graphics-mode redraw and of a
+   text-mode scroll, from `write(2)` entry to return, with `i86 -v`'s
+   instruction rate during a redraw-heavy run. Falsifier for the whole
+   design: if the redraw share of a typical session is under 10 percent
+   of core 0's time, the service is not worth its SRAM.
+2. Core 0's cycles in `lcdgfx_write` per line, split into copy, expansion
+   and FIFO wait (a SysTick sample or a cycle counter read on each side).
+3. The interpolator's expansion rate on core 1 for 320 indexes
+   (a bare-metal probe, no kernel change): it must beat the wire's
+   640 bytes in 410 us at 12.5 MHz.
+4. The CORE1 observer on a PicoCalc kernel, with the panel renderer
+   running: `CORE1.md` records the effect on the tick record as unmeasured.
+
+Each result goes to `sys/arch/rp2040/doc/PICOCALC.md` with its kernel,
+commit and method; the code waits on 1 and 3.
+
+## Open questions for the owner
+
+- The SRAM budget: about 3.5 KB of the 7,488 free bytes.
+- Whether the PicoCalc kernels take `options "CORE1"`, which the service
+  needs.

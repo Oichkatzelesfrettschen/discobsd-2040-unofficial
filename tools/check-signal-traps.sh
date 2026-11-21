@@ -216,13 +216,18 @@ run_normal() {
 TRACKED_EXCLUDED='usr.bin/lorder/lorder.sh'
 
 # tracked ROOT: scan every .sh file git tracks under ROOT except those
-# TRACKED_EXCLUDED names. A ROOT outside a git checkout reports skip; a
-# failed or empty listing, and an exclusion that names no tracked file, fail.
+# TRACKED_EXCLUDED names. A ROOT without .git reports skip; a missing git, a
+# checkout git cannot read, a failed or empty listing, and an exclusion that
+# names no tracked file fail.
 tracked() {
-	if ! git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	if [ ! -e "$1/.git" ]; then
 		echo "check-signal-traps: skip: $1 is not a git checkout"
 		return 0
 	fi
+	command -v git >/dev/null 2>&1 ||
+		{ echo "check-signal-traps: not run: git is missing; install git" >&2; return 1; }
+	git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
+		{ echo "check-signal-traps: git cannot read the checkout at $1" >&2; return 1; }
 	listing=$(git -C "$1" ls-files -- '*.sh') ||
 		{ echo "check-signal-traps: git ls-files failed in $1" >&2; return 1; }
 	[ -n "$listing" ] ||
@@ -253,6 +258,10 @@ EOF
 # shim that answers MODE (checkout or none) and lists LISTING, and require
 # it to pass (good), fail (bad) or report skip (skip).
 expect_tracked() {
+	case $3 in
+	none) rm -f "$dir/.git" ;;
+	*) : >"$dir/.git" ;;
+	esac
 	printf '%s\n' "$3" >"$dir/shim.mode"
 	printf '%s' "$4" >"$dir/shim.listing"
 	found=bad
@@ -397,6 +406,8 @@ usr.bin/lorder/lorder.sh
 "
 	expect_tracked bad "an empty listing" checkout ""
 	expect_tracked skip "outside a checkout" none ""
+	expect_tracked bad "a checkout git cannot read" broken "good.scan
+"
 	normal_status=$(run_normal good "$dir")
 	[ "$normal_status" -eq 0 ] || { echo "selftest: conforming fixture exited $normal_status after a normal run" >&2; exit 1; }
 	[ ! -e "$dir/good.work" ] || { echo "selftest: conforming fixture left its work directory after a normal exit" >&2; exit 1; }

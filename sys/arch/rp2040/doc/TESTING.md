@@ -3508,7 +3508,7 @@ tests/rp2040/hwcount/board_hwcount.py checks the machdep event counters of
 `machine/cpu.h`: `xip_acc` advancing across a read of a root file with
 `xip_hit` at or below it, a write clearing a counter, every `bus_perfsel`
 taking events 19 and 31 and refusing 20, and a `bus_perfctr` on all SRAM0
-accesses counting, holding once its select is cleared, and reading zero
+accesses counting, holding once its select is set to 31 (`NO_EVENT`), and reading zero
 after a write. It then writes `machdep.xip_cache` 0 and requires the cache
 to read disabled, to stay disabled across a flash write, to count no hit
 over a `cat` of `/bin/sh` and to take longer over it than with the cache

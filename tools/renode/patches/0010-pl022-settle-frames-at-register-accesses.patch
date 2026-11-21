@@ -28,8 +28,8 @@ one frame time and delays an interrupt by as much. Every frame lasts its
 bit time, the first of a burst included (24 polls). FIFO levels, BSY and
 the discard of a write to a full FIFO are unchanged.
 ---
- emulation/peripherals/spi/rp2040_spi.cs |  184 ++++++++++++++++++++++++-------
- 1 file changed, 142 insertions(+), 42 deletions(-)
+ emulation/peripherals/spi/rp2040_spi.cs |  205 +++++++++++++++++++++++++------
+ 1 file changed, 163 insertions(+), 42 deletions(-)
 diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi/rp2040_spi.cs
 --- a/emulation/peripherals/spi/rp2040_spi.cs
 +++ b/emulation/peripherals/spi/rp2040_spi.cs
@@ -120,7 +120,7 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
      private void TransferFrame(ISPIPeripheral device, ushort frame)
      {
        if (FrameFifoLevel() >= txBuffer.Capacity)
-@@ -271,42 +271,134 @@
+@@ -271,42 +271,151 @@
        {
          rxBuffer.Enqueue(reply);
        }
@@ -148,9 +148,8 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +        lastFrameEnd = start + duration;
 +        frameEnds.Enqueue(lastFrameEnd);
 +      }
-     }
- 
--    private void FrameDone()
++    }
++
 +    // The virtual time of a register access, in nanoseconds. The machine's
 +    // time source advances only when every core has reported, so inside a
 +    // time grant it stands still while the accessing core runs on. The
@@ -159,6 +158,9 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +    // taken when the wire is idle, when another core takes over, when the
 +    // handle overtakes the count, which a core that slept produces, and
 +    // when the count falls below its base, which a core reset produces.
++    // A sleep the core has already run past by more than its length goes
++    // unseen until the next exact reading: frames then end late by at most
++    // that sleep and by at most the time they had left on the wire.
 +    // Both the handle and the count leave out the translation block in
 +    // flight, so the time is that of the start of the block making the
 +    // access: a frame written to an idle controller is observed for its bit
@@ -172,21 +174,21 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +      {
 +        return frameMachine.ElapsedVirtualTime.TimeElapsed.Ticks;
 +      }
-+      var executed = core.ExecutedInstructions;
 +      var mips = core.PerformanceInMips == 0 ? 1UL : core.PerformanceInMips;
++      var count = ClockCount(core);
 +      var now = 0UL;
-+      var rebase = core != clockCore || frameEnds.Count == 0 || executed < clockBaseInstructions;
++      var rebase = core != clockCore || frameEnds.Count == 0 || count < clockBaseInstructions;
 +      if (!rebase)
 +      {
-+        now = clockBaseTicks + (executed - clockBaseInstructions) * 1000UL / mips;
++        now = clockBaseTicks + (count - clockBaseInstructions) * 1000UL / mips;
 +        rebase = core.TimeHandle.TotalElapsedTime.Ticks > now;
 +      }
 +      if (rebase)
 +      {
 +        core.SyncTime();
 +        clockCore = core;
-+        clockBaseTicks = core.TimeHandle.TotalElapsedTime.Ticks;
-+        clockBaseInstructions = executed;
++        clockBaseInstructions = ClockCount(core);
++        clockBaseTicks = core.TimeHandle.TotalElapsedTime.Ticks + core.SkipInstructions * 1000UL / mips;
 +        now = clockBaseTicks;
 +      }
 +      return now;
@@ -199,6 +201,15 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +    // returns TNF set after the virtual time the polling would have taken
 +    // and without the register accesses of the loop. Such a read lasts up
 +    // to one frame time, and an interrupt raised meanwhile waits that long.
++    // The instructions the core's clock has moved by: those executed, those
++    // skipped, and those a SkipTime call has queued and the core takes at
++    // its next batch, whichever controller asked for the skip.
++    private static ulong ClockCount(BaseCPU core)
++    {
++      return core.ExecutedInstructions + core.SkippedInstructions + core.SkipInstructions;
+     }
+ 
+-    private void FrameDone()
 +    private void SettleFrames(bool statusPoll)
      {
 -      if (Interlocked.Decrement(ref framesOnWire) > 0)
@@ -219,15 +230,21 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +        {
 +          frameEnds.Dequeue();
 +        }
-+        if (statusPoll && frameEnds.Count > txBuffer.Capacity && clockCore != null && cpu == clockCore)
++        // The skip is taken on the core's own thread and where an
++        // instruction lasts a whole number of nanoseconds, so the skipped
++        // time equals the clock's advance; elsewhere the driver polls.
++        if (statusPoll && frameEnds.Count > txBuffer.Capacity && clockCore != null && cpu == clockCore
++            && clockCore.OnPossessedThread && clockCore.PerformanceInMips != 0
++            && 1000UL % clockCore.PerformanceInMips == 0)
 +        {
-+          var mips = clockCore.PerformanceInMips == 0 ? 1UL : clockCore.PerformanceInMips;
-+          var cycle = mips >= 1000UL ? 1UL : 1000UL / mips;
++          var cycle = 1000UL / clockCore.PerformanceInMips;
 +          var wait = (frameEnds.Peek() - frameNow + cycle - 1UL) / cycle * cycle;
 +          clockCore.SkipTime(TimeInterval.FromTicks(wait));
-+          clockBaseTicks += wait;
 +          frameNow += wait;
-+          frameEnds.Dequeue();
++          while (frameEnds.Count > 0 && frameEnds.Peek() <= frameNow)
++          {
++            frameEnds.Dequeue();
++          }
 +        }
        }
      }
@@ -274,7 +291,7 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
      }
  
      private void Step()
-@@ -363,12 +455,12 @@
+@@ -363,12 +472,12 @@
  
      public uint ReadDoubleWord(long offset)
      {
@@ -289,7 +306,7 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
      }
  
      public override void Reset()
-@@ -385,8 +477,11 @@
+@@ -385,8 +494,15 @@
  
        rxBuffer.Clear();
        txBuffer.Clear();
@@ -298,12 +315,16 @@ diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi
 +      lock (frameEnds)
 +      {
 +        frameEnds.Clear();
++        frameNow = 0;
++        lastFrameEnd = 0;
 +        clockCore = null;
++        clockBaseTicks = 0;
++        clockBaseInstructions = 0;
 +      }
  
        _executionThread.Stop();
  
-@@ -534,8 +629,13 @@
+@@ -534,8 +650,13 @@
      private bool running;
      private byte clockPrescaleDivisor;
      private ulong bitRate;

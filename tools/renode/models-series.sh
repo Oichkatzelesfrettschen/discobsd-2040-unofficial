@@ -69,18 +69,34 @@ series_id() {
 		echo "models-series: no patches under $SCRIPT_DIR/patches" >&2
 		return 2
 	}
-	{
+	for patch in "$@"; do
+		[ -f "$patch" ] && [ -r "$patch" ] || {
+			echo "models-series: $patch is not a readable file" >&2
+			return 2
+		}
+	done
+	id=$({
 		cat "$SCRIPT_DIR/fetch-renode-rp2040.sh"
 		for patch in "$@"; do
 			basename "$patch"
 			cat "$patch"
 		done
-	} | sha256
+	} | sha256) || return 2
+	# A digest of 64 hexadecimal digits, or the hashing failed.
+	case $id in
+	*[!0-9a-f]*) return 2 ;;
+	esac
+	[ ${#id} -eq 64 ] || return 2
+	printf '%s\n' "$id"
 }
 
 check() {
 	want=$(series_id) || return 2
 	[ -n "$want" ] || return 2
+	[ -r "$1" ] || {
+		echo "models-series: no $1" >&2
+		return 1
+	}
 	[ -r "$1.series" ] || {
 		echo "models-series: $1 has no series stamp" >&2
 		return 1
@@ -127,10 +143,18 @@ selftest() {
 	mv "$tmp/patches/0002-renamed.patch" "$tmp/patches/0002-second.patch"
 	echo "RP2040_COMMIT=1111" > "$tmp/fetch-renode-rp2040.sh"
 	expect 1 "the pin moved after the build" check "$tmp/Peripherals.dll"
+	echo "RP2040_COMMIT=0000" > "$tmp/fetch-renode-rp2040.sh"
+	expect 0 "the pin restored" check "$tmp/Peripherals.dll"
+	mv "$tmp/Peripherals.dll" "$tmp/Peripherals.kept"
+	expect 1 "a stamp without its build" check "$tmp/Peripherals.dll"
+	mv "$tmp/Peripherals.kept" "$tmp/Peripherals.dll"
+	mkdir "$tmp/patches/0003-directory.patch"
+	expect 2 "a patch that is not a file" check "$tmp/Peripherals.dll"
+	rmdir "$tmp/patches/0003-directory.patch"
 	rm "$tmp"/patches/*.patch
 	expect 2 "a series without patches" check "$tmp/Peripherals.dll"
 	expect 2 "an unknown mode" frobnicate
-	echo "models-series selftest: ok (stamp, match, edited, added and renamed patch, moved pin, empty series)"
+	echo "models-series selftest: ok (stamp, match, edited, added and renamed patch, moved pin, missing build, patch that is not a file, empty series)"
 }
 
 case ${1:-} in

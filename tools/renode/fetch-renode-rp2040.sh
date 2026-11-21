@@ -134,6 +134,8 @@ if grep -q 'https\{0,1\}://' "$DEST/cores/rp2040.repl"; then
 	exit 1
 fi
 
+# A stamp from an earlier build must not outlive a build that fails.
+rm -f "$DEST/emulation/bin/Release/net8.0/Peripherals.dll.series"
 dotnet build "$DEST/emulation/Peripherals.csproj" -c Release
 
 # The gates compare this stamp with the series in patches/ before they boot

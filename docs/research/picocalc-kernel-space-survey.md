@@ -15,26 +15,31 @@ above the 1,024-byte margin.
 
 ## Where the text is
 
-Each object's linked flash contribution: the `.text` and `.rodata` input
-sections that `sys/arch/rp2040/compile/PICOCALC/unix.map` places in flash,
-summed per object, so the sections `--gc-sections` discarded stay out
-(126,069 bytes in all, of 127,728 bytes of text; the rest is the vector
-table, the boot stage and the exception index). `bloaty`'s compile-unit
-view adds RAM, so it puts `swapram.c` first on the strength of its 16 KiB
-RAM pool, whose code is 2,635 bytes.
+Each object's linked flash contribution: the `.text`, `.rodata` and
+`.ramfunc` input sections that `sys/arch/rp2040/compile/PICOCALC/unix.map`
+places in the image, summed per object, so the sections `--gc-sections`
+discarded stay out. String literals are the exception: the linker merges
+every object's `.rodata.str1.1` into one 5,206-byte pool and the map
+credits all of it to the first such object (`exec_conf.o`, whose own
+strings are 26 bytes), so the pool stands as its own row. The objects sum
+to 121,811 bytes, the pool to 5,206, and the remaining 711 of the 127,728
+text bytes are the boot stage (256), the vector table, the board record
+(16), the exception index and alignment. `bloaty`'s compile-unit view
+adds RAM, so it puts `swapram.c` first on the strength of its 16 KiB RAM
+pool, whose code is 2,635 bytes.
 
 | Object | Linked flash bytes |
 | --- | --- |
 | `tty.o` | 5,869 |
 | `ufs_syscalls.o` | 5,842 |
-| `exec_conf.o` | 5,238 |
+| merged string literals (all objects) | 5,206 |
 | `ufs_namei.o` | 4,182 |
 | `lcdterm.o` | 4,140 |
 | `usb.o` | 3,836 |
 | `kern_sysctl.o` | 3,322 |
 | `st7365p.o` | 3,184 |
 | `sys_inode.o` | 3,000 |
-| `sd.o` | 2,900 |
+| `flash.o` | 2,996 |
 
 The largest functions (the FUNC symbols of
 `arm-none-eabi-readelf -sW sys/arch/rp2040/compile/PICOCALC/unix.elf`,
@@ -44,7 +49,11 @@ sorted by size) are `namei_at` (2,992 bytes), `lcdterm_putc`
 ## Configuration options: the measured lever
 
 Each row removes one `-D` option from PICOCALC's generated Makefile and
-relinks (text, data and bss in bytes; the baseline is 127,728, 144 and
+relinks. The option's objects stay in `OBJS` and leave only through
+`--gc-sections`, so a row understates an option whose object stays rooted:
+`picopcm.o`'s `PWM_IRQ_WRAP_Handler` overrides a weak vector entry and keeps
+the 264-byte `pcm` ring, which PICOCALC.md records as the bss that
+dropping `options DEV_PCM` in the Config saves. Values (text, data and bss in bytes; the baseline is 127,728, 144 and
 53,080):
 
 | Option removed | Text saved | Bss saved |
@@ -93,18 +102,25 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
    PICOCALC_LEAN_DIAG. The panel test's move has a gate cost:
    `check-panel-programs`, in the PR job, calls `st7365p_set` in the
    PICOCALC ELF, so it would read the PICOCALC_SD ELF instead, and the PR
-   job would link that kernel first. The generated-configuration gate
-   moves with it: `check_variant_delta()` in
+   job would link that kernel first. The same script also checks that
+   every console minor from 2 up returns `ENXIO`, which PICOCALC_SD's
+   `LCD_VT` answers on minor 2 (`ttyv1`), so the minor check stays on the
+   PICOCALC ELF while the panel calls move. The generated-configuration
+   gate moves with it: `check_variant_delta()` in
    `tools/config/check_generated_sync.py` holds PICOCALC_SD to PICOCALC plus
-   its listed additions and refuses a PICOCALC_LEAN removal its base lacks,
-   so the move takes four rule edits: PICOCALC_SD's additions gain
-   `LCD_PANELTEST`, `SD_DIAG_OPTIONS` (PICOCALC_SD_DIAG's additions) gains
-   `SYSTRACE`, PICOCALC_LEAN's removals drop both options (its base no
-   longer carries them), and PICOCALC_LEAN_DIAG keeps adding
-   `DIAGNOSTIC_OPTIONS`, which brings `SYSTRACE` back there; the affected
-   Makefiles are then regenerated.
-2. Whether the errno message table (1,390 bytes with its rules and
-   offsets) leaves the kernel for a message file on the root, the design
+   its listed additions and refuses a PICOCALC_LEAN removal its base lacks.
+   The move takes three rule edits, PICOCALC_SD's additions gaining
+   `LCD_PANELTEST`, `SD_DIAG_OPTIONS` (PICOCALC_SD_DIAG's additions)
+   gaining `SYSTRACE`, and PICOCALC_LEAN's removals becoming
+   `OPTIONAL_DEVICE_OPTIONS` plus `CAPACITY_STATS` alone, since the shared
+   `DIAGNOSTIC_OPTIONS` stays as PICO_DIAG and PICOCALC_LEAN_DIAG use it;
+   `PICOCALC_SD/Config` loses its `SYSTRACE` line,
+   `tools/config/generated_sync_test.py`'s test that rejects a full kernel
+   without the panel test changes with the rule, and the affected Makefiles
+   are regenerated.
+2. Whether the errno message table (the pool, rules and offsets, 1,298
+   bytes, plus 92 bytes of `kernel_errmsg` and `errno_message_expand`
+   code quoted from `memory-devices.md`) leaves the kernel for a message file on the root, the design
    `memory-devices.md` records: libc `strerror()` reads the file from the
    running kernel's root, `fl0` on PICOCALC and PICOCALC_LEAN, where it
    is present with the card out, and `sd0a` on PICOCALC_SD and

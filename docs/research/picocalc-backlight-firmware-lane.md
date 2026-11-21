@@ -1,7 +1,8 @@
 # PicoCalc backlight firmware lane: plan for owner approval
 
 D194 (owner, 2026-11-21): research a controller-firmware lane that gives the
-OS the screen backlight's full PWM range, as a read-only plan (patch, build,
+OS every screen backlight level from 16 to 240 exactly (225 levels in place
+of 15), as a read-only plan (patch, build,
 flash route, recovery) approved before any flash. This document is that
 plan. It leaves the vendor firmware's files and the board untouched; every
 command below that writes the keyboard controller waits for the owner's
@@ -35,8 +36,10 @@ document when the lane proceeds:
 
 1. `REG_ID_BKL` write: clamp the byte to [16, 240] and write it to PA8
    exactly (`lcd_backlight_update_reg()` after the clamp), so every value
-   the OS sends in range lands as sent. The floor keeps the panel lit, as
-   the rounding does today.
+   the OS sends from 16 to 240 lands as sent. The floor keeps the panel
+   lit, as the rounding does today; a request from 0 to 15, which the
+   kernel and `backlight(1)` accept, still lands at 16, and the OS side
+   below narrows its documented range to 16-240 with the new firmware.
 2. `REG_ID_BK2` write: clamp to [0, 240] and write PC8 exactly, with 0 as off.
 3. `BIOSVERSION` (`conf_app.h`) raised past every vendor release, so the
    OS reads register 0x01 (`REG_ID_VER`) and knows the exact-level firmware
@@ -47,11 +50,14 @@ keep their 16-step rounding: they move from the current level in steps, so
 a key press after a fine OS setting snaps back to the grid, which is the
 vendor's behavior for keys and leaves the OS path exact.
 
-OS side, after the firmware: `backlight(1)` and the MATEzinho adjuster
-offer fine steps only when `REG_ID_VER` reports the new version, and
-PICOCALC.md's firmware-rounding paragraph gains the version condition.
-The kernel passes levels through and clamps to 0-240 already, so it stays
-as it is. The Renode keyboard model, which conditions levels as the vendor
+OS side, after the firmware: the kernel reads the version at attach
+(`picokbd_version()`, `dev/picokbd.c`) but keeps it for the boot message
+alone, so a read-only sysctl node for it comes first, with its host test
+and the text cost measured on PICOCALC. `backlight(1)` and the MATEzinho
+adjuster then offer fine steps only when that node reports the new
+version, and PICOCALC.md's firmware-rounding paragraph gains the version
+condition. The level path itself (clamp to 0-240, pass through) stays as
+it is. The Renode keyboard model, which conditions levels as the vendor
 firmware does (`picocalc-renode-keyboard-registers.md`), gains a version
 switch.
 
@@ -59,7 +65,9 @@ switch.
 
 The wiki's toolchain, pinned: STM32duino core 2.10.0 ("STM32 MCU based
 boards"), board "Generic STM32F1 series", part number Generic F103R8Tx, and
-XPowersLib 0.2.3 from the `stm32f103r8t6` branch of cuu/XPowersLib. With
+XPowersLib 0.2.3 from the `stm32f103r8t6` branch of cuu/XPowersLib, pinned
+to the exact commit the build uses, with that commit and the archive's
+SHA-256 recorded before the build, since a branch name can move. With
 arduino-cli the build is one command and its output a binary:
 
     arduino-cli compile --fqbn STMicroelectronics:stm32:GenF1:pnum=GENERIC_F103R8TX \
@@ -78,9 +86,13 @@ Both steps only read.
    `check-picocalc-kbd-bootloader`) reports the product ID (0x410 for
    the medium-density family the wiki's log shows), the flash-size word and
    the unique ID, which settles the x8/xB question for this board.
-2. Backup: `stm32flash -r kbd-backup.bin -S 0x08000000:65536 PORT`, the
-   wiki's extraction command, then its SHA-256 beside the vendor
-   binaries' MD5 sums, which names the installed release.
+2. Backup: `kbd_bootloader_id.py --dump kbd-backup.bin PORT`, which reads
+   the whole application flash, sized by the flash-size word the identity
+   step reports (64 KiB on an x8 part, 128 KiB on an xB part), and records
+   the dump's SHA-256. To name the installed release, the MD5 of the
+   backup's first 40,596 and 40,604 bytes is compared with the vendor's
+   MD5 sums for v1.6 and v1.7, and of its first 65,536 bytes with v1.2 and
+   v1.4, the same algorithm over the same byte ranges.
 
 ## 5. Flash route
 
@@ -124,7 +136,7 @@ Each item runs only after the owner approves this list as written, on the
 board the owner names:
 
 1. Install arduino-cli, STM32duino 2.10.0 and XPowersLib 0.2.3 (cuu fork,
-   `stm32f103r8t6`).
+   `stm32f103r8t6`, at the recorded commit).
 2. Build the patched firmware (section 3) and record its SHA-256 and size.
 3. Read the identity (section 4, item 1).
 4. Read the backup (section 4, item 2) and record its SHA-256.

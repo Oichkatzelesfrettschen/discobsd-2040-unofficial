@@ -80,8 +80,8 @@ records what the held sources say about each.
 
 | Claim | Finding |
 |---|---|
-| The driver IC is the ST7365P | Agrees: the vendor repository carries `ST7365P_SPEC_V1.0.pdf` and its drivers program the ST7365P command set (`sys/arch/rp2040/doc/PICOCALC.md`). |
+| The driver IC is the ST7365P | ST7365P is the vendor's designation: the vendor repository carries `ST7365P_SPEC_V1.0.pdf`, a ClockworkPi forum post relays the screen supplier naming it, and the port's drivers program its command set. The measured RDID4 (D3h) response `00 77 96` (`st7365p-register-reference.md`) is also the ST7796S's documented ID, so the readback leaves the two sibling controllers undistinguished; the identity rests on the vendor's word. |
 | J401's netlist is defined pin by pin in the schematic | Agrees, with one correction: the panel's logic supply is the AXP2101's ALDO3, not a 3V3 net, and the backlight runs from U401's boost output (LEDA) and its feedback node (LEDK). |
 | J401 is a "0.5-40PBSX, 40-pin 0.5 mm bottom-contact FPC" | The label and the 0.5 mm, 40-pad row agree; bottom contact is unestablished, since no datasheet for 0.5-40PBSX was found (notes `docs/NOT-FETCHED.tsv`). |
-| TXW392001B0 is a lead, not the panel's part number | Agrees with `panel-sources.md` in the notes repository: the number comes from one forum post, and no ClockworkPi document names the module. |
+| TXW392001B0 is a lead, not the panel's part number | TXW392001B0 stays an unconfirmed candidate: Tianxianwei's catalog lists it as a model with driver IC ST7365P at 480 x 480, a resolution the ST7365P cannot drive, and two ClockworkPi forum posts treat it as a possible match (`panel-sources.md` in the notes repository). A ClockworkPi document naming the module has not been found. |
 | The PCB files give J401's coordinates | The Gerber set lacks a placement file; the coordinates above come from the copper pads. |

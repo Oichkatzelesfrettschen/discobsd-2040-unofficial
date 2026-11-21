@@ -518,6 +518,14 @@ int
 win_input_idle(struct win_input *in, struct win_scene *s)
 {
 	struct win_event ev;
+	int n;
 
-	return feed(in, s, &ev, win_decode_idle(in, &ev));
+	/*
+	 * The decoder fills ev before feed() reads it. Naming the count first
+	 * keeps that order explicit: the operands of one call are unsequenced,
+	 * and clang rejects the single expression as an uninitialized const
+	 * pointer argument.
+	 */
+	n = win_decode_idle(in, &ev);
+	return feed(in, s, &ev, n);
 }

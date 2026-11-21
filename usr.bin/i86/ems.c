@@ -35,10 +35,10 @@
  * physical pages 0 to 3 as version 3.2 programs expect, and A000h to
  * B7FFh and C000h to DFFFh, which this machine leaves empty: 288 KB above
  * 640 KB, the space Windows 3.0 in real mode banks applications into. No
- * conventional memory is mappable. Windows would then shrink handle 0 and
- * map its own pages below 640 KB (large-frame EMS), over memory where
- * EDR-DOS keeps its own data, so handle 0 owns no pages and Windows banks
- * in small-frame mode.
+ * conventional memory is mappable, and handle 0 owns no pages, because
+ * conventional pages would lie over memory where EDR-DOS keeps its own
+ * data. Windows 3.0 reports this arrangement as "Large Frame EMS"
+ * (docs/research/i86-dos-emulator/windows30-host.txt).
  *
  * A mapping is the logical page a physical page shows (cur[]); a save
  * area holds a word of physical page count and then one word for each

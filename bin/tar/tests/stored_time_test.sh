@@ -35,7 +35,10 @@ cc=${CC:-cc}
 tar_source=${TAR_TEST_SOURCE:-$here/../tar.c}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/tar-stored-time.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 failures=0
 cases=0

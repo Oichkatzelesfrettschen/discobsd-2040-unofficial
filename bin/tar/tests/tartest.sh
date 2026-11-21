@@ -13,7 +13,10 @@ set -eu
 
 srcdir=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/tartest.XXXXXX")
-trap 'rm -rf "$work"' EXIT INT HUP TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail() {
 	echo "tartest: FAIL: $*" >&2

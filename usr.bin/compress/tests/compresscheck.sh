@@ -13,7 +13,10 @@ export LC_ALL
 
 source_directory=$(cd "$(dirname "$0")/.." && pwd)
 work_directory=$(mktemp -d "${TMPDIR:-/tmp}/compresscheck.XXXXXX")
-trap 'rm -rf "$work_directory"' EXIT INT HUP TERM
+trap 'rm -rf "$work_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail()
 {

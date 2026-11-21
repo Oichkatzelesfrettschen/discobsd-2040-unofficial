@@ -18,7 +18,10 @@ case $dd_program in
 esac
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/discobsd-dd.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 checks=0
 failures=0

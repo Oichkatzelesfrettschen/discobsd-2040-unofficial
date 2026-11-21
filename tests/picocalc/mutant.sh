@@ -14,7 +14,10 @@ expr=$5
 
 # Each invocation owns its directory, so make -j runs mutants in parallel.
 work=$(mktemp -d "${TMPDIR:-/tmp}/picocalc-mutant.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 cp "$dev/lcdterm.c" "$dev/lcdterm.h" "$dev/lcdfont.c" "$dev/lcdfont.h" \
     "$dev/picokbd_map.c" "$dev/picokbd_map.h" "$work/"
 sed "$expr" "$dev/$file" >"$work/$file"

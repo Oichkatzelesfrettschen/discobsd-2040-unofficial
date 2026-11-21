@@ -5,7 +5,10 @@ set -eu
 
 topsrc=$(cd "$(dirname "$0")/../../.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/dhara-bounds.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 case $(uname -s) in
 Darwin)

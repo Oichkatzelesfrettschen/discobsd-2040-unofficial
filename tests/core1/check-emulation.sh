@@ -33,7 +33,10 @@ fi
 "$PYTHON" -I "$here/emulate.py" "$top/$builddir/unix.elf"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/core1emu.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 tree=$work/tree
 
 # mirror SRC DST SKIP: link every entry of SRC into DST except SKIP.

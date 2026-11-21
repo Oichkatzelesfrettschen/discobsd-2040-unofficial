@@ -43,7 +43,10 @@ script=$3
 members="${MEMBERS:?}"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/libc_termios_mutant.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir "$work/inc" "$work/src"
 
 sed -e "$script" "$TOPSRC/$file" > "$work/mutated"

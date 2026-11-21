@@ -42,7 +42,9 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=${DISCOBSD_ROOT:-$(cd "$HERE/../../.." && pwd)}
 export DISCOBSD_ROOT="$ROOT"
 T=$(mktemp -d)
-trap 'rm -r -- "$T"' EXIT INT TERM
+trap 'rm -r -- "$T"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 cp -R "$HERE" "$T/h"
 fail=0
 

@@ -49,7 +49,9 @@ SDK=$(sh "$SCRIPT_DIR/sdk-path.sh") ||
 	skip "no complete Pico SDK; sdk-path.sh named the candidates it checked"
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT INT TERM
+trap 'rm -rf "$WORK"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 budget=$((SRAM_BYTES - STACK_MARGIN_BYTES))
 printf 'check-flash-id: SDK %s, generator %s\n' "$SDK" "$GEN"

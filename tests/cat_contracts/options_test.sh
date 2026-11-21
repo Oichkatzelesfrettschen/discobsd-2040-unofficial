@@ -3,7 +3,10 @@ set -eu
 
 cat_program=$1
 test_directory=$(mktemp -d "${TMPDIR:-/tmp}/discobsd-cat.XXXXXX")
-trap 'rm -rf "$test_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$test_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail()
 {

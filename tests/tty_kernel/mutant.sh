@@ -39,7 +39,10 @@ script=$2
 : "${HOSTCC:?}" "${KERNEL_FLAGS:?}" "${EXTRACTED:?}"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/tty_kernel_mutant.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 sed -e "$script" "$EXTRACTED" > "$work/mutated.c"
 if cmp -s "$work/mutated.c" "$EXTRACTED"; then

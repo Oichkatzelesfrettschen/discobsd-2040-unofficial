@@ -10,7 +10,10 @@ fi
 
 verifier=$1
 temporary_root=$(mktemp -d)
-trap 'rm -rf "$temporary_root"' EXIT HUP INT TERM
+trap 'rm -rf "$temporary_root"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 manifest_directory=$temporary_root/distrib/rp2040
 compile_root=$temporary_root/sys/arch/rp2040/compile
 pico_directory=$compile_root/PICO

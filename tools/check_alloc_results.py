@@ -30,8 +30,9 @@ tools/alloc-sites.txt pins each reviewed allocation site: a block names the
 file and the reason its NULL handling holds, and carries the exact source
 text of the allocation and that handling. The check collapses runs of white
 space in the file and in each block, then requires every block's text to
-occur exactly once in its file and every mention of malloc, calloc, realloc
-or strdup (in code, comments or directives alike) to lie inside a pinned
+occur exactly once in its file and every mention of an allocator (malloc,
+calloc, realloc, reallocf, reallocarray, strdup, strndup, aligned_alloc,
+posix_memalign, valloc, alloca; in code, comments or directives alike) to lie inside a pinned
 text. It judges no C semantics: a new or edited site fails until a reviewer
 reads its NULL handling and writes or updates its block, so the verdict
 rests on that review and on the text staying as reviewed.
@@ -44,7 +45,10 @@ import re
 import sys
 from pathlib import Path
 
-ALLOCATOR = re.compile(r"\b(?:malloc|calloc|realloc|strdup)\b")
+ALLOCATOR = re.compile(
+    r"\b(?:malloc|calloc|realloc|reallocf|reallocarray|strdup|strndup"
+    r"|aligned_alloc|posix_memalign|valloc|alloca)\b"
+)
 PINS = Path(__file__).resolve().parent / "alloc-sites.txt"
 
 
@@ -131,6 +135,11 @@ CASES = {
     ),
     "an edited reviewed site": (GOOD.replace("exit(1);", 'puts("x");'), GOOD_PINS, True),
     "the reviewed text twice": (GOOD + GOOD.replace("f(void)", "g(void)"), GOOD_PINS, True),
+    "an unpinned alloca": (
+        GOOD.replace("return p;", "q = alloca(8);\n\treturn p;"),
+        GOOD_PINS,
+        True,
+    ),
     "an allocator named in a comment": (GOOD + "/* strdup it later */\n", GOOD_PINS, True),
     "a pin for an unscanned file": (
         GOOD,

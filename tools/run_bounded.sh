@@ -313,13 +313,15 @@ selftest() {
 		fi
 		echo "mutant rejected: $label (scenario $expected)"
 	}
+	# BSD sed (macOS) reads no \t in an expression: the tab is a character here.
+	tab=$(printf '\t')
 	mutant 'no time bound' 's/"\$bound" -k 1 "\$secs" sh -c/sh -c/' descendant
 	mutant 'no output bound' 's/head -c "\$cap"/cat/' failing-loudly-stdout
 	mutant 'status of the command lost' 's/echo \$? >"\$status"/echo 0 >"$status"/' failing
-	mutant 'a command that did not start taken for its failure' 's/^\t125 | 126 | 127) return 125 ;;$/\t125 | 126 | 127) return "$rc" ;;/' unrunnable
+	mutant 'a command that did not start taken for its failure' "s/^${tab}125 | 126 | 127) return 125 ;;\$/${tab}125 | 126 | 127) return \"\$rc\" ;;/" unrunnable
 	mutant 'a capture failure ignored' 's/exit "\$hrc"/exit 0/' capture-failure
-	mutant 'a malformed bound accepted' 's/^\t\t\texit 125$/\t\t\texit 0/' bad-output-bound
-	mutant 'a failing status taken for a timeout' 's/^\treturn "\$rc"$/\treturn 124/' passing
+	mutant 'a malformed bound accepted' "s/^${tab}${tab}${tab}exit 125\$/${tab}${tab}${tab}exit 0/" bad-output-bound
+	mutant 'a failing status taken for a timeout' "s/^${tab}return \"\$rc\"\$/${tab}return 124/" passing
 	echo "run_bounded.sh: selftest ok"
 	exit 0
 }

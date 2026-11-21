@@ -13,9 +13,10 @@ exec >/dev/console 2>&1
 #
 # The PicoCalc's keyboard controller starts the screen backlight at 32 of
 # 240 at power-on (reg_init() in the vendor firmware), dim enough to look
-# black. The level in /etc/backlight, which `backlight -s` writes, or else
-# 160 replaces it; a value that is not one to three digits counts as no
-# level, and the kernel clamps the rest to 240. This runs before the
+# black. The level on the first line of /etc/backlight, which `backlight -s`
+# writes, replaces it; 160 replaces it when the file is unreadable or that
+# line, without surrounding blanks, is not one to three digits, and the
+# kernel clamps the rest to 240. This runs before the
 # autoboot test so that the switch from single-user mode lights the screen
 # too. A kernel without the controller refuses the node (EOPNOTSUPP), and
 # the discarded output keeps the bare Pico's boot silent.

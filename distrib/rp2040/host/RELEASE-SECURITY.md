@@ -4,7 +4,7 @@
 support, which OpenSSL 3.5 and newer provide. It compares no version number:
 it detects support through the key type (the DER public-key prefix and length
 of each key) and the OpenSSL exit status of each sign or verify operation, and
-refuses when either fails. It adds no board code. Both signatures cover the same domain-separated,
+refuses when either fails. It changes host tooling only. Both signatures cover the same domain-separated,
 fixed-size binary manifest. Each release binds four kernel variants and one
 root image: PICO.uf2, PICO_UART.uf2, PICOCALC.uf2, PICOCALC_PSRAM.uf2 and
 root.uf2. The manifest carries version, key epoch, release sequence, source
@@ -35,7 +35,7 @@ On the consuming host, pin public keys through a trusted installation path;
 never trust keys merely because they accompany a download. Create a private
 0700 directory for rollback state. On POSIX the command refuses a state
 directory that the caller does not own or that has group or other permission
-bits; on Windows it checks nothing, and an owner-only ACL is an operator
+bits; on Windows it skips the check, and an owner-only ACL is an operator
 instruction. Verification:
 
 ```sh

@@ -25,7 +25,7 @@ Build dependencies on Ubuntu 24.04:
         pybuild-plugin-pyproject devscripts
 
 The package is native (`debian/source/format` reads `3.0 (native)`), so the
-version in `debian/changelog` carries no Debian revision: `1.0.0`, never
+version in `debian/changelog` omits the Debian revision: `1.0.0`, never
 `1.0.0-1`.
 
 What the binary package installs beyond the Python modules and the four

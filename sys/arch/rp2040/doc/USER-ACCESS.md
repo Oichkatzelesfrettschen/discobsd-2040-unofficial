@@ -1,6 +1,6 @@
 # Connecting to the DiscoBSD RP2040 console
 
-The board has no network interface, so there is no telnet or ssh: the
+The board lacks a network interface, so telnet and ssh are absent: the
 console is a USB CDC-ACM serial line. Connecting means running a serial
 terminal emulator on the host, the same way one talks to any serial
 console. The line is 115200 baud, 8 data bits, no parity, one stop bit, no
@@ -50,7 +50,7 @@ by-id path and launches the first of tio, picocom, minicom or cu that is
 installed, at the right line settings.
 
 Log in as `operator` with no password, then `su` to root: operator is in the
-wheel group, so `su` needs no password. Direct root login on the console is
+wheel group, so `su` skips the password prompt. Direct root login on the console is
 refused.
 
 ## Terminal type
@@ -61,12 +61,11 @@ the screen editor stevie (vi) and the pager more drive the terminal
 correctly. The board's own full-screen programs -- stevie, the menu shell,
 the games -- emit plain ANSI escapes that every xterm-family and vt100
 terminal renders. Leave the emulator at its default type; only the board's
-TERM matters over a serial line, since the line carries no terminal-type
-negotiation.
+TERM matters over a serial line, since a serial line lacks terminal-type negotiation.
 
 ## Terminal size
 
-A serial line carries no window size and no resize event, so the kernel
+A serial line lacks window size and resize events, so the kernel
 opens the console at the VT100 standard 80x24 (dev/usb.c, dev/uart.c) and
 every program reads that through TIOCGWINSZ. Size the emulator window to 80
 columns by 24 rows for an exact fit.
@@ -100,8 +99,7 @@ Windows, and macOS, and `DISCOBSD_PORT` overrides discovery.
 
 - discobsd-web serves the console as a web terminal, so any device on the
   network -- a phone, a tablet, a laptop of any operating system -- opens it
-  in a browser with no client to install. The board has no network of its
-  own, so the host it plugs into is the gateway: discobsd-web bridges the
+  in a browser with no client to install. The board lacks a network of its own, so the host it plugs into is the gateway: discobsd-web bridges the
   serial line to xterm.js in the browser over a WebSocket. It binds
   loopback by default; a non-loopback --bind requires --token SECRET, and
   a WebSocket upgrade must carry the Origin of the page the server served.
@@ -141,10 +139,8 @@ four bytes, read only, signed ints as `sysctl` prints them, EIO when the
 chip's identity did not read), which it joins with `printf %08x%08x` into
 16 hex digits, the value the USB serial string carries before its
 `-rp2040` suffix; `boardinfo` prints it as `unavailable` on a kernel without
-the node. There is no
-command to start the PicoCalc loader's menu: that loader's stage is entered
-at power-on from the keyboard (PICOCALC.md, Coexisting with the PicoCalc UF2
-loader), and no source read here shows a reboot request it honors.
+the node. The PicoCalc loader's menu starts only from the keyboard: that loader's stage is entered at power-on (PICOCALC.md, Coexisting with the PicoCalc UF2
+loader), and the sources read here lack a reboot request it honors.
 
 The bootrom presents a different USB serial, so the by-id console path
 above addresses only the running system and never the bootloader.

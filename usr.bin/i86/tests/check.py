@@ -333,13 +333,13 @@ MUTANTS = [
     ("serial.c", "#define POWER(m)\t(((m) & 0x12) == 2)", "#define POWER(m)\t(((m) & 0x02) == 2)"),
     (
         "ems.c",
-        "\t\tcase 0:\n\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n",
+        "\t\tcase 0:\n\t\t\tif (alt_seg | alt_off)\n\t\t\t\tput_map(alt_area);\n",
         "\t\tcase 0:\n",
     ),
     (
         "ems.c",
-        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n\t\t\tif ((alt_area = esdi) != 0)",
-        "\t\t\tif ((alt_area = esdi) != 0)",
+        "\t\t\tif (alt_seg | alt_off)\n\t\t\t\tput_map(alt_area);\n\t\t\talt_seg = c->s[S_ES];",
+        "\t\t\talt_seg = c->s[S_ES];",
     ),
     ("ems.c", "st = bx == 0 ? OK : E_FREE;", "st = E_HANDLE;"),
     ("ems.c", "else if (hd[dx].saved)\n\t\t\tst = 0x86;", "else if (0)\n\t\t\tst = 0x86;"),
@@ -410,10 +410,11 @@ MUTANTS = [
     ("ems.c", "\t\t\tn = arg[2 * k];", "\t\t\ttake(dssi, 2 * cx);\n\t\t\tn = arg[2 * k];"),
     (
         "ems.c",
-        "\t\t\tif (esdi != 0 && (st = load_map(esdi)) != OK)\n\t\t\t\tbreak;\n"
-        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);",
-        "\t\t\tif (alt_area != 0)\n\t\t\t\tput_map(alt_area);\n"
-        "\t\t\tif (esdi != 0 && (st = load_map(esdi)) != OK)\n\t\t\t\tbreak;",
+        "\t\t\tif ((c->s[S_ES] | c->r[R_DI]) &&\n\t\t\t    (st = load_map(esdi)) != OK)\n"
+        "\t\t\t\tbreak;\n\t\t\tif (alt_seg | alt_off)\n\t\t\t\tput_map(alt_area);",
+        "\t\t\tif (alt_seg | alt_off)\n\t\t\t\tput_map(alt_area);\n"
+        "\t\t\tif ((c->s[S_ES] | c->r[R_DI]) &&\n\t\t\t    (st = load_map(esdi)) != OK)\n"
+        "\t\t\t\tbreak;",
     ),
     (
         "ems.c",
@@ -450,6 +451,43 @@ MUTANTS = [
         "pc.c",
         "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 1;",
         "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 0;",
+    ),
+    ("ems.c", "(uint8_t)mem_rb((e->at + i) & (MEM_SIZE - 1)) :", "0xff :"),
+    (
+        "ems.c",
+        "\treturn (shared ? fwd | rev << 1 : 0);",
+        "\treturn ((shared ? fwd | rev << 1 : 0) & 0);",
+    ),
+    ("ems.c", "if (bq + a->at < bp + b->at)", "if (0)"),
+    (
+        "ems.c",
+        "if (dirs == 3 || (self1 && back)) {\n\t\tstaged(e, len, one);",
+        "if (0) {\n\t\tstaged(e, len, one);",
+    ),
+    (
+        "ems.c",
+        "dirs |= alias0(&e[0], &e[1], len);",
+        "dirs = alias0(&e[0], &e[1], len) ? alias0(&e[0], &e[1], len) : dirs;",
+    ),
+    (
+        "ems.c",
+        "if (e[k].at >= MEM_SIZE || e[k].at + len > MEM_SIZE)",
+        "if (e[k].at + len > MEM_SIZE)",
+    ),
+    ("ems.c", "c->r[R_DI] = alt_off;", "c->r[R_DI] = 0;"),
+    ("ems.c", "if (xchg && (self0 || self1))", "if (xchg && 0 && (self0 || self1))"),
+    ("ems.c", "if (dirs == 3 || (self1 && back)) {", "if (dirs == 3 || (self1 && 0)) {"),
+    ("ems.c", "if (e[k].page >= hd[e[k].h].pages)", "if (0)"),
+    (
+        "ems.c",
+        "e[k].at = ((uint32_t)grw(d + 5) << 4) + grw(d + 3);",
+        "e[k].at = lin(grw(d + 5), grw(d + 3));",
+    ),
+    ("ems.c", "if (hd[h].used && memcmp(hd[h].name,", "if (hd[h].used || memcmp(hd[h].name,"),
+    (
+        "ems.c",
+        "c->s[S_ES] = alt_seg;\n\t\t\tc->r[R_DI] = alt_off;",
+        "c->s[S_ES] = (uint16_t)(alt_area >> 4);\n\t\t\tc->r[R_DI] = (uint16_t)(alt_area & 15);",
     ),
     (
         "pc.c",
@@ -1197,7 +1235,8 @@ def ems_expected():
         " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
         " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF"
         " e86:86 toc:00 tocp:04 ovl:00 ovlp:FF p4o:00 p4t:00 p4tp:04 m50:00 m50p:04 alo:00"
-        " alop:04"
+        " alop:04 altes:0000 altdi:0000 rom:00 romb:2F ea2:A2 e8am:8A amovs:00 amov:00"
+        " axch:97 acyc:00 acycd:1122 lalias:CCAA sxch:97 sdst:11 ea2z:A2 nul1:A1 nul0:A0"
         " dealloc:00 free:0010 done".split()
     )
 

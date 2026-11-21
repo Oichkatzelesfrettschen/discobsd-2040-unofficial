@@ -72,7 +72,7 @@ current Python and keeps the tools out of the system interpreter:
 The same four commands install with `uv tool install discobsd-host`;
 both put their links in `~/.local/bin`, so choose one.
 
-picotool talks to the board through libusb and needs no driver either.
+picotool talks to the board through libusb and works without a driver too.
 Reflash with `discobsd-flash flash.uf2` (or the kernel's `unix.uf2`,
 or both in order): it reboots the kernel into BOOTSEL, waits for the
 boot ROM, unmounts the `RPI-RP2` volume so macOS does not complain that
@@ -88,7 +88,7 @@ Two boards on one host (a bare Pico and a PicoCalc) both enumerate as
 act on either. On Linux, `discobsd-flash` and `discobsd-connect` stop when
 more than one 2e8a device is attached and no board is named, and print the
 candidates with their USB ports. Name the board with `--usb-port 1-3` or
-`DISCOBSD_USB_PORT=1-3`. macOS has no sysfs: there the tools address the one
+`DISCOBSD_USB_PORT=1-3`. macOS lacks sysfs: there the tools address the one
 attached board as before and do not detect a second one.
 
 The release zip holds PyInstaller executables built on Apple silicon and
@@ -121,8 +121,7 @@ an IPv6 literal is refused, because the systemd units build the short link's
 target without the brackets an IPv6 host needs; use `127.0.0.1` for loopback
 or `0.0.0.0` for every interface.
 
-A web.env written before the loopback default keeps its LAN address and has
-no bind setting, so the packaged units now listen on loopback while the short
+A web.env written before the loopback default keeps its LAN address and lacks a bind setting, so the packaged units now listen on loopback while the short
 link still redirects to that address. Run `discobsd-console up` (loopback) or
 `discobsd-console up --bind 0.0.0.0` once after upgrading to rewrite both.
 

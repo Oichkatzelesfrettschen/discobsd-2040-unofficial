@@ -167,8 +167,9 @@ Built, in `docs/research/i86-dos-emulator/`:
 
 The settings follow from the machine: BUFFERS=4 and a small environment,
 because every such byte is guest memory the emulator pages; no memory
-manager, disk cache, EMS or XMS driver, because no memory exists above
-640 KB. SvarDOS's kernel is the EDR-DOS kernel; MS-DOS programs and
+manager, disk cache or XMS driver, because no memory exists above 1 MB;
+EMS.SYS (`usr.bin/i86/dos/ems.asm`) is the one driver, for the expanded
+memory of `-e`. SvarDOS's kernel is the EDR-DOS kernel; MS-DOS programs and
 drivers run on it, and an owner-supplied MS-DOS boots as well (5.0 is
 observed).
 
@@ -257,12 +258,14 @@ sessions carry a usable ba entry, so on them the page file is on the card.
 No board run has shown the PSRAM working (`PICOCALC.md`), so the PSRAM
 case is a build and Renode claim; the Renode models have no PSRAM.
 
-Expanded memory: an EMS page frame at D000:0 backed by the page file is
-the natural way to give DOS programs more than 640 KB, since the pager
-already exists: four more 16 KB windows whose pages come from file offsets
-above one megabyte, and an interrupt 67h service. About 200 lines. This is
-the "swap for more DOS RAM" the owner asked for, in the form DOS programs
-can use.
+Expanded memory is built: `usr.bin/i86/ems.c` serves LIM
+EMS 4.0 on interrupt 67h over the pager, its logical pages at page-file
+offsets above one megabyte, through 18 physical pages (the frame at E000h,
+A000h to B7FFh and C000h to DFFFh), and `dos/ems.asm` is the DOS driver
+EMS.SYS that announces it (`sys/arch/rp2040/doc/I86.md`). It is the "swap
+for more DOS RAM" the owner asked for, in the form DOS programs use:
+Windows 3.00a banks into it in real mode, and Word 1.1 and Excel 2.1d run
+there (`i86-dos-emulator/windows30-host.txt`, `office10-host.txt`).
 
 Compression: the window holds 136 frames. A compressed pool takes frames
 away to hold more pages in the space, and wins only if the pages it keeps

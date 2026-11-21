@@ -1,4 +1,11 @@
-"""Check changed C comments for explicit development-history narration."""
+"""Check changed C comments for development-history narration and determiner negation.
+
+CH001-CH004 flag explicit narration in a changed comment. CH005 flags a
+"<verb> no|none|nothing" phrase (tools/determiner_negation.py) that the file's
+comments hold more often after the change than before it, reported on the
+changed comment that carries it; an inherited comment the change keeps or
+moves inside the file adds nothing to the count.
+"""
 
 import argparse
 import bisect
@@ -11,6 +18,10 @@ import tempfile
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import determiner_negation  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REGULAR_MODES = {"100644", "100755"}
@@ -814,6 +825,38 @@ def inspect_comment(path, comment, advisory_threshold):
     return diagnostics, advisory
 
 
+def group_phrases(groups):
+    """(key, group) for each phrase of each comment group, in order."""
+    found = []
+    for group in groups:
+        text = normalize_comment_body(group.body).decode("utf-8", "replace")
+        found.extend((key, group) for key, _ in determiner_negation.phrases(text))
+    return found
+
+
+def determiner_diagnostics(path, before_groups, after_groups, selected):
+    """CH005 for each phrase key the file's comments hold more often after
+    the change than before it. The count spans every comment group, as
+    comment_groups() joins line comments, so a kept or moved inherited
+    comment cancels; the report names a changed group holding the key."""
+    before = Counter(key for key, _ in group_phrases(before_groups))
+    after = group_phrases(after_groups)
+    counts = Counter(key for key, _ in after)
+    counts.subtract(before)
+    chosen = set(selected)
+    diagnostics = []
+    for key in sorted(key for key, extra in counts.items() if extra > 0):
+        holders = [group for k, group in after if k == key]
+        group = next((item for item in holders if item in chosen), holders[0])
+        lines = ", ".join(str(line) for line in sorted({item.start_line for item in holders}))
+        diagnostics.append(Diagnostic(
+            "CH005_DETERMINER_NEGATION", path, group.start_line,
+            f'negative determiner after a verb "{key}", {counts[key]} more than '
+            f"the base holds (comments at lines {lines})",
+        ))
+    return diagnostics
+
+
 def selected_contents(root, mode, change, index):
     if change.old_mode not in {ZERO_MODE, *REGULAR_MODES}:
         raise InfrastructureError(
@@ -888,6 +931,12 @@ def check(root, mode, base_revision="HEAD", after_revision=None,
             diagnostics.extend(comment_diagnostics)
             if advisory:
                 advisories.append(advisory)
+        diagnostics.extend(determiner_diagnostics(
+            change.new_path,
+            comment_groups(before_contents, before_comments),
+            comment_groups(after_contents, after_comments),
+            selected,
+        ))
     result.diagnostics = tuple(diagnostics)
     result.advisories = tuple(advisories)
     return result

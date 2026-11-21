@@ -148,7 +148,7 @@ cpu.h so their machine node tables match the kernel. The versioned read-only
 snapshot contains cumulative unsigned 32-bit counters since boot, delayed
 buffer occupancy at capture, its peak, and a sticky saturation flag. Take two
 captures around a workload and subtract each field only if neither capture
-is saturated. There is no reset operation. Capture from the same resident
+is saturated. The counters reset only at boot. Capture from the same resident
 process where possible: invoking a utility can itself cause swapping.
 
 The logical root and raw-swap request/byte counters count valid requests
@@ -200,7 +200,7 @@ and initial free space fixed and report logical requests, map operations,
 checkpoint calls, NOR programs, NOR erases and swap separately. This tree
 uses 1024-byte Dhara pages: one logical 1 KiB write attempts one map write,
 although programming its data can require four physical 256-byte pages.
-Counter instrumentation alone changes no coalescing or read-ahead policy.
+Counter instrumentation alone leaves the coalescing and read-ahead policies unchanged.
 
 Paired GCC 13.2.1 Cortex-M0+ builds measured 488 additional text bytes and
 128 additional data bytes for counters in both PICO and PICO_UART, with
@@ -220,7 +220,7 @@ converts requested NOR operations into electrical wear.
 
 ### Erases per swap sector
 
-The raw swap region (384 KiB, 96 sectors of 4 KiB) has no wear leveling: an
+The raw swap region (384 KiB, 96 sectors of 4 KiB) lacks wear leveling: an
 image lands at the sector its reservation names, so a workload that swaps one
 command in and out erases the same few sectors repeatedly while
 `swap_erase_sectors` in `machdep.storage_stats` reports only the total. A
@@ -242,8 +242,7 @@ array as it stood while the copy ran. The array costs 192 bytes of bss, no initi
 data, and 96 to 120 bytes of text on a diagnostic kernel (six configurations,
 GCC 16.2). Take two reads around a
 workload and subtract per sector, unless a counter reads 65535. The counters
-are requested-erase counts, as `storage_stats` is, and establish no
-electrical wear; `check-flash-wear` holds the counting rules over a model,
+are requested-erase counts, as `storage_stats` is, and measure requests, not electrical wear; `check-flash-wear` holds the counting rules over a model,
 and the board has not been asked.
 
 ### Reset at the Nth flash command
@@ -387,10 +386,8 @@ checkpoint. `ufs_sync()` ends with `DIOCCHECKPOINT`, which runs
 one, and so does the last close of a root-unit node that any open since its
 previous last close held for writing (a node held only for reading and the
 swap unit force none); a checkpoint with
-nothing pending programs nothing. An `IO_SYNC` write (a descriptor opened `O_FSYNC`) to a block
-device node has no filesystem to sync, so `rwip()` calls `bdev_checkpoint()` on
-the written device after the buffer write and returns its error; a write
-without `IO_SYNC` takes none. fsync(2) on a block device descriptor drains the
+nothing pending programs nothing. An `IO_SYNC` write (a descriptor opened `O_FSYNC`) to a block device node lacks a filesystem to sync, so `rwip()` calls `bdev_checkpoint()` on
+the written device after the buffer write and returns its error; a write without `IO_SYNC` skips the checkpoint. fsync(2) on a block device descriptor drains the
 represented device's buffers, then checkpoints that device with
 `bdev_checkpoint()` and returns its error, before `ufs_sync()` syncs and
 checkpoints the filesystem that holds the node, which may sit on another
@@ -420,15 +417,14 @@ did. `reboot -n` (`RB_NOSYNC`) skips both, as it skips the buffer flush.
 
 A checkpoint failure reaches fsync(2), synchronous writes and unmount as
 `EIO`. Through `ufs_sync()` it also latches in the mount's `m_write_error`
-(the synchronous block-device write above returns it without a latch, as it
-holds no mount), under the rule that
+(the synchronous block-device write above returns it without a latch, as it lacks a mount), under the rule that
 already governs a failed buffer write: the first error is kept, every later
 `ufs_sync()` of that mount returns it, and nothing clears it while the
 mount exists. The slot is reset only when a mount is made (`mountfs()` loads
 the device's recorded error) and by an unmount over media that
-`DIOCMEDIAGONE` reports removed; the flash driver reports no removal, so a
+`DIOCMEDIAGONE` reports removed; the flash driver never reports removal, so a
 flash mount with a latched error refuses unmount, and the root keeps the
-error until reboot. sync(2) returns no status, so its failure surfaces
+error until reboot. sync(2) returns void, so its failure surfaces
 through that latch, a later fsync(2) and the shutdown report, which also
 prints a failed shutdown checkpoint.
 
@@ -445,7 +441,7 @@ followed by sync(2) survived; a file written 45 seconds before the reset, with
 no sync(2) call, survived by the update(8) checkpoint; directories made
 seconds before a reset were lost or salvaged, `fsck -p` repaired the root and
 rebooted, and the following boot checked clean each time. One boot after
-such a repair gave no USB console output until the next forced reset, which
+such a repair left the USB console silent until the next forced reset, which
 checked clean; the cause is not established. Five later resets through
 the same repair path and fourteen further forced-reset trials, nine of
 which took it, did not repeat it (issue #569 holds the captures and the

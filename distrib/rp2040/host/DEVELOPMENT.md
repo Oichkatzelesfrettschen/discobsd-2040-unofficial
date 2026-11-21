@@ -19,7 +19,7 @@ environment from a checkout:
     ruff check .
     python -m pytest -q
 
-The tests need no board: they exercise the WebSocket framing, the token
+The tests run without a board: they exercise the WebSocket framing, the token
 and origin checks, the USB identity match, the redirector, the Windows
 key translation, the configuration file, and drive the web server end
 to end against a fake serial line. With a board attached, the manual
@@ -37,7 +37,7 @@ on Windows); a symlink named `discobsd-term`, `discobsd-web` or
 | --- | --- | --- |
 | Ubuntu, Debian | `apt install python3-serial python3-pytest` or the venv above | `apt install bmake build-essential gcc-arm-none-eabi binutils-arm-none-eabi byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc`; picotool 2.3.1 built from source (see `.github/workflows/firmware.yml`) |
 | Arch, CachyOS | `pacman -S python-pyserial python-pytest ruff` | `pacman -S bmake arm-none-eabi-gcc arm-none-eabi-binutils byacc bison flex libbsd fuse2 pkgconf mandoc`; picotool 2.3.1 (the 2.3.0 in the AUR aborts on every RP2040) |
-| macOS | `brew install pipx` then `pipx install -e .` or the venv above; Apple's Python 3.9 works but has no pyserial | `brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope shellcheck ruff coreutils cpio jq` (the host gates read GNU cpio from its keg) and `brew install --cask gcc-arm-embedded` |
+| macOS | `brew install pipx` then `pipx install -e .` or the venv above; Apple's Python 3.9 works but lacks pyserial | `brew install bmake byacc bison flex groff mandoc pkgconf picotool cflow cscope shellcheck ruff coreutils cpio jq` (the host gates read GNU cpio from its keg) and `brew install --cask gcc-arm-embedded` |
 | Windows | the venv above from python.org's Python; `pytest` and `ruff` run the same | not supported; build in WSL with the Ubuntu column |
 
 macOS particulars, each verified on macOS 26 with Apple silicon:
@@ -50,11 +50,9 @@ macOS particulars, each verified on macOS 26 with Apple silicon:
   `arm-none-eabi-gcc` is on PATH first, then the packaged path per OS.
 - `yacc` in Apple's command line tools is a shim that demands a full
   Xcode; the build prefers `byacc` wherever it is on PATH.
-- The kernel's version stamp comes from `date(1)`; Apple's awk has no
-  `strftime()`.
+- The kernel's version stamp comes from `date(1)`; Apple's awk lacks `strftime()`.
 - `fsutil --mount` needs FUSE, which on macOS is macFUSE and a kernel
-  extension. The build leaves that command out when `pkg-config fuse`
-  finds nothing; creating, checking and packing images does not need it.
+  extension. The build leaves that command out when `pkg-config fuse` fails; creating, checking and packing images does not need it.
 - The Pico SDK is not a dependency of the port. picotool needs it only
   to be built, and Homebrew's bottle is already built.
 - Nothing needs signing: the console is a CDC-ACM device the system
@@ -145,15 +143,14 @@ itself and skips the check. An empty `--usb-port` operand is an error; an empty
 before each picotool call, before any unmount and before the terminal launch,
 so a board that appears mid-run stops the run. `tests/test_board_select.py` gates both tools with
 a stub picotool and a fake sysfs (`DISCOBSD_SYSFS_USB`, `DISCOBSD_DEVFS`);
-the per-port unmount runs only on a real board, because a fake sysfs has no
-block nodes. Limit: the selector and the refusal read Linux sysfs. On macOS and
+the per-port unmount runs only on a real board, because a fake sysfs lacks block nodes. Limit: the selector and the refusal read Linux sysfs. On macOS and
 in `discobsd-flash.ps1` the tools address picotool's one device as before and
 cannot tell a second board apart; flash with one board attached there.
 `discobsd-term` and `discobsd-web` apply the same rule through
 `ports.find_board()`: `--usb-port PORT` or `DISCOBSD_USB_PORT` names the
 board, the flag wins over the variable, and with more than one 2e8a device and
 none named they exit 2 with the candidate ports before opening a serial line.
-A named port that holds no 2e8a device, or a malformed port, exits 1;
+A named port without a 2e8a device, or a malformed port, exits 1;
 `discobsd-term` waits when the named port exists but its console has not
 re-enumerated yet. `DISCOBSD_PORT` (a device path) and a device path argument
 to `discobsd-web` name the board itself and skip the check, and `discobsd-web`
@@ -161,8 +158,7 @@ refuses a device path together with `--usb-port`. Both tools resolve the selecto
 serial open (`discobsd-web` per browser session, `discobsd-term` per
 reattach), because `/dev/ttyACMn` is renumbered when the boards re-enumerate;
 only a device path is used as given. `discobsd-term --list` still
-prints every board. `discobsd-link` only redirects to a URL and opens no board,
-so it takes no selector; `discobsd-console up` carries `DISCOBSD_USB_PORT` from its own
+prints every board. `discobsd-link` only redirects to a URL and leaves every board closed, so it lacks the selector; `discobsd-console up` carries `DISCOBSD_USB_PORT` from its own
 environment to `discobsd-web`: a detached web inherits it, and with the
 systemd user units it is written to `web.env` (the unit's EnvironmentFile)
 and removed from that file when the variable is unset; a value that is not a
@@ -215,8 +211,7 @@ before the reset). `discobsd-sramdump` turns that into two steps:
 
 `capture` ends the running session, so it takes more than the other tools:
 `--usb-port` (or `DISCOBSD_USB_PORT`) is mandatory even with one board
-attached, and `--force-reset` must be present. Without `--force-reset` it
-prints the exact picotool calls it would make on which port and sends nothing.
+attached, and `--force-reset` must be present. Without `--force-reset` it is a dry run: it prints the exact picotool calls it would make on which port.
 It reads the bus and address of the named port from sysfs before every
 picotool call (`reboot -u -f`, then `save -r 0x20000000 0x20042000 sram.bin`
 and `save -r 0x10000000 0x10020000 flash.bin` after the port shows product
@@ -230,7 +225,7 @@ not replug it, since a power cycle destroys the SRAM. An
 output file that exists, or a picotool save of the wrong length, stops the
 run. Linux only, like `--usb-port` elsewhere.
 
-`decode` needs no board. It reads variable and structure layouts from the
+`decode` runs without a board. It reads variable and structure layouts from the
 DWARF of the kernel ELF that ran (build with `-g`; `pip install
 "discobsd-host[sramdump]"` or the distribution's pyelftools), so a wrong ELF
 decodes to plausible garbage. With `--flash` it first compares the `version`
@@ -275,8 +270,7 @@ busid):
 
     usbipd attach --wsl --busid <busid> --auto-attach
 
-usbipd-win runs its re-attach loop inside the guest as root, so the guest
-needs no watcher of its own. A second re-attacher in the guest (a loop of
+usbipd-win runs its re-attach loop inside the guest as root, so the guest runs without a watcher of its own. A second re-attacher in the guest (a loop of
 `usbip attach`) races it for the same port, and each attach the loser starts
 fails.
 

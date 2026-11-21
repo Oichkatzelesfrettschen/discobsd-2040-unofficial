@@ -2481,7 +2481,7 @@ check-rp2040-shutdown-cross:	check-python kernel
 		${PYTHON} tools/verify_rp2040_shutdown_order.py --selftest
 		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
 			tool_prefix=$$(${MAKE} -C sys/arch/rp2040/compile/$$configuration \
-			    -V ARM_GCC_PREFIX); \
+			    -v ARM_GCC_PREFIX); \
 			${PYTHON} tools/verify_rp2040_shutdown_order.py \
 			    --objdump "$${tool_prefix}-objdump" \
 			    --machdep-object \

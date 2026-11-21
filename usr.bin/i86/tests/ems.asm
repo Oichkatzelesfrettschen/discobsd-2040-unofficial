@@ -48,7 +48,7 @@ start:	xor ax, ax
 	mov ss, ax
 	mov sp, 0x7c00
 	mov word [optr], OUTBUF
-	mov ax, 0x0205			; the five sectors after this one
+	mov ax, 0x0207			; the seven sectors after this one
 	mov cx, 0x0002
 	xor dh, dh
 	mov bx, 0x7e00
@@ -803,10 +803,210 @@ main:	mov ah, 0x40
 	call e400hi
 	mov si, s_alop
 	call say2
+	xor ax, ax
+	mov es, ax
 	xor di, di
 	mov ax, 0x5b01
 	xor bl, bl
 	int 0x67			; back to no set 0
+	; 5B00h returns the pointer 5B01h was given, unnormalized.
+	xor ax, ax
+	mov es, ax
+	mov di, pbuf
+	mov ax, 0x4e00
+	int 0x67
+	mov di, pbuf
+	mov ax, 0x5b01
+	xor bl, bl
+	int 0x67
+	mov ax, 0x5b00
+	int 0x67
+	mov ax, es
+	mov si, s_altes
+	call say4
+	mov ax, di
+	sub ax, pbuf
+	mov si, s_altdi
+	call say4
+	xor ax, ax
+	mov es, ax
+	xor di, di
+	mov ax, 0x5b01
+	xor bl, bl
+	int 0x67
+	; 57h from the firmware ROM: FFFF:0005 holds the date "01/01/90".
+	mov si, rreg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_rom
+	call st
+	mov al, [mbuf + 2]
+	mov si, s_romb
+	call say2
+	; 57h past 1 MB, and from a page beyond the handle's three.
+	mov si, wreg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_ea2
+	call st
+	mov ax, [h]
+	mov [lreg + 5], ax
+	mov si, lreg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_e8am
+	call st
+	; Logical 0 at E000h and E400h: a move of 512 bytes from E000:0000
+	; to E400:0001 runs from the end, so byte 101h ends as byte 100h was
+	; (0); a forward copy leaves byte FFh there. An exchange answers 97h.
+	xor bx, bx
+	xor al, al
+	call map
+	xor bx, bx
+	mov al, 1
+	call map
+	mov ax, 0xe000
+	mov es, ax
+	xor dl, dl
+	call fill
+	mov si, areg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_amovs
+	call st
+	mov al, [es:0x101]
+	mov si, s_amov
+	call say2
+	mov si, areg
+	mov ax, 0x5701
+	int 0x67
+	mov si, s_axch
+	call st
+	; Crossed windows: E000h and EC00h show logical 0, E400h and E800h
+	; logical 1. A 32 KB move from E000:0000 to E800:0000 writes each page
+	; that the other half still has to read, in both orders, so it goes
+	; through staging: the two pages trade contents. Logical 0 starts
+	; with 11h and logical 1 with 22h; EC00:0000 (logical 0) ends with 22h.
+	mov bx, 1
+	mov al, 1
+	call map
+	mov bx, 1
+	mov al, 2
+	call map
+	xor bx, bx
+	mov al, 3
+	call map
+	mov ax, 0xe000
+	mov es, ax
+	mov byte [es:0], 0x11
+	mov ax, 0xe400
+	mov es, ax
+	mov byte [es:0], 0x22
+	mov si, creg
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_acyc
+	call st
+	mov ax, 0xe800
+	mov es, ax
+	mov ah, [es:0]			; logical 1: 11h
+	mov dx, 0xec00
+	mov es, dx
+	mov al, [es:0]			; logical 0: 22h
+	mov si, s_acycd
+	call say4
+	; Logical 0 at E000h and E400h; a 16 KB move from E000:0000 to
+	; E300:0000 overlaps linearly (needs the copy from the end) and
+	; through the second window (needs it forward), so it is staged.
+	; E300:0000 must end with the source's first byte (AAh) and E400:2000
+	; with the byte from E000:3000 (CCh).
+	xor bx, bx
+	xor al, al
+	call map
+	xor bx, bx
+	mov al, 1
+	call map
+	mov ax, 0xe000
+	mov es, ax
+	mov byte [es:0], 0xaa
+	mov byte [es:0x1000], 0xbb
+	mov byte [es:0x3000], 0xcc
+	mov si, lreg2
+	mov ax, 0x5700
+	int 0x67
+	mov ax, 0xe400
+	mov es, ax
+	mov ah, [es:0x2000]
+	mov dx, 0xe300
+	mov es, dx
+	mov al, [es:0]
+	mov si, s_lalias
+	call say4
+	; Logical 0 still at E000h and E400h: an exchange of E000:0000 for
+	; 16385 bytes shares bytes with itself, 97h.
+	mov si, sreg
+	mov ax, 0x5701
+	int 0x67
+	mov si, s_sxch
+	call st
+	; Logical 2 at DC00h (byte 0 22h), 1 at E000h (11h), 0 at E400h and
+	; E800h. A move of 32769 bytes from D800:0000 to E000:0000 overlaps
+	; at E000:0000, so it runs from the end, and its destination holds
+	; logical 0 twice: written in ascending order, logical 0's byte 0 ends
+	; as the one from E000:0000 (11h), where a copy from the end leaves 22h.
+	mov bx, 2
+	mov al, 17
+	call map
+	mov bx, 1
+	xor al, al
+	call map
+	xor bx, bx
+	mov al, 1
+	call map
+	xor bx, bx
+	mov al, 2
+	call map
+	mov ax, 0xdc00
+	mov es, ax
+	mov byte [es:0], 0x22
+	mov ax, 0xe000
+	mov es, ax
+	mov byte [es:0], 0x11
+	mov ax, 0xe400
+	mov es, ax
+	mov byte [es:0], 0
+	mov si, dreg
+	mov ax, 0x5700
+	int 0x67
+	mov al, [es:0]
+	mov si, s_sdst
+	call say2
+	; 57h with a length of 0 at FFFF:0010, past 1 MB: A2h.
+	mov si, wreg0
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_ea2z
+	call st
+	; 5401h with a name of nulls: A1h while a handle has no name, A0h
+	; once handle 0 and [h] have names.
+	mov si, nm0
+	mov ax, 0x5401
+	int 0x67
+	mov si, s_nul1
+	call st
+	mov si, nm0 + 8
+	xor dx, dx
+	mov ax, 0x5301
+	int 0x67
+	mov si, nm0 + 16
+	mov dx, [h]
+	mov ax, 0x5301
+	int 0x67
+	mov si, nm0
+	mov ax, 0x5401
+	int 0x67
+	mov si, s_nul0
+	call st
 	mov dx, [h]
 	mov ah, 0x48
 	int 0x67
@@ -898,6 +1098,23 @@ s_e4f0:	db "e4f0:", 0
 s_e4f1:	db "e4f1:", 0
 s_e4fb:	db "e4fb:", 0
 s_kept:	db "kept:", 0
+s_altes: db "altes:", 0
+s_rom:	db "rom:", 0
+s_romb:	db "romb:", 0
+s_ea2:	db "ea2:", 0
+s_e8am:	db "e8am:", 0
+s_amovs: db "amovs:", 0
+s_amov:	db "amov:", 0
+s_axch:	db "axch:", 0
+s_acyc:	db "acyc:", 0
+s_acycd: db "acycd:", 0
+s_lalias: db "lalias:", 0
+s_ea2z:	db "ea2z:", 0
+s_altdi: db "altdi:", 0
+s_sxch:	db "sxch:", 0
+s_sdst:	db "sdst:", 0
+s_nul1:	db "nul1:", 0
+s_nul0:	db "nul0:", 0
 s_done:	db "done", 0
 p4f0:	dw 19			; 4F00h: 19 segments
 	times 19 dw 0xe000
@@ -911,5 +1128,53 @@ oreg:	dd 16			; 57h: from handle page 0 ...
 	dw 0, 0, 0
 	db 0				; ... to E000:0001
 	dw 0, 1, 0xe000
+rreg:	dd 8			; 57h: the ROM date at FFFF:0005 to mbuf
+	db 0
+	dw 0, 5, 0xffff
+	db 0
+	dw 0, mbuf, 0
+wreg:	dd 16			; 57h: FFFF:0010, past 1 MB
+	db 0
+	dw 0, 0x10, 0xffff
+	db 0
+	dw 0, mbuf, 0
+lreg:	dd 0			; 57h: handle [h], page 3
+	db 1
+	dw 0, 0, 3
+	db 0
+	dw 0, mbuf, 0
+areg:	dd 512			; 57h: E000:0000 to E400:0001
+	db 0
+	dw 0, 0, 0xe000
+	db 0
+	dw 0, 1, 0xe400
+lreg2:	dd 16384		; 57h: E000:0000 to E300:0000
+	db 0
+	dw 0, 0, 0xe000
+	db 0
+	dw 0, 0, 0xe300
+sreg:	dd 16385		; 57h: 1000:0000 and E000:0000
+	db 0
+	dw 0, 0, 0x1000
+	db 0
+	dw 0, 0, 0xe000
+dreg:	dd 32769		; 57h: D800:0000 to E000:0000
+	db 0
+	dw 0, 0, 0xd800
+	db 0
+	dw 0, 0, 0xe000
+wreg0:	dd 0			; 57h: nothing at FFFF:0010
+	db 0
+	dw 0, 0x10, 0xffff
+	db 0
+	dw 0, mbuf, 0
+creg:	dd 32768		; 57h: E000:0000 to E800:0000, crossed
+	db 0
+	dw 0, 0, 0xe000
+	db 0
+	dw 0, 0, 0xe800
+nm0:	times 8 db 0
+	db "OS-ZERO!"
+	db "TESTPAGE"
 
-	times 3072 - ($ - $$) db 0
+	times 4096 - ($ - $$) db 0

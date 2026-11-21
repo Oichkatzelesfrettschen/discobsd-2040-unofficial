@@ -19,18 +19,32 @@ static int clip_bottom=320;
 #define GREEN 0x9e6b
 #define SELECT 0x3186
 
+/* Flag the bands of rows [y, y+h) and widen each one's dirty columns to cover
+ * pixels [x, x+w), rounded outward to MZ_XUNIT units. */
 static void
-mark(struct mz *s, int y, int h)
+mark(struct mz *s, int x, int y, int w, int h)
 {
-    int i;
-    for (i=y/8; i<40 && i<(y+h+7)/8; i++)
-        if (i>=0) s->bands[i]=1;
+    int i,lo,hi;
+    if (x<0) { w+=x; x=0; }
+    lo=x/MZ_XUNIT;
+    hi=(x+w+MZ_XUNIT-1)/MZ_XUNIT;
+    if (hi>MZ_COLS) hi=MZ_COLS;
+    if (lo>=hi) return;
+    for (i=y/8; i<MZ_BANDS && i<(y+h+7)/8; i++) {
+        if (i<0) continue;
+        if (s->xlo[i]>=s->xhi[i]) { s->xlo[i]=(unsigned char)lo; s->xhi[i]=(unsigned char)hi; }
+        else {
+            if (lo<s->xlo[i]) s->xlo[i]=(unsigned char)lo;
+            if (hi>s->xhi[i]) s->xhi[i]=(unsigned char)hi;
+        }
+    }
     s->dirty=1;
 }
 void
 mz_all(struct mz *s)
 {
-    memset(s->bands,1,sizeof(s->bands));
+    int i;
+    for (i=0; i<MZ_BANDS; i++) { s->xlo[i]=0; s->xhi[i]=MZ_COLS; }
     s->dirty=1;
 }
 void
@@ -68,7 +82,7 @@ settings(struct mz *s,int key)
         if(level>MZ_LIGHT_MAX) level=MZ_LIGHT_MAX;
         s->light_want[row]=level;
     } else return;
-    mark(s,24,272);
+    mark(s,8,24,304,272);
 }
 static void
 activate(struct mz *s, int a)
@@ -89,9 +103,9 @@ mz_action(struct mz *s, int key)
     char *p;
     if(key==MZ_TICK) {
         s->ticks++;
-        mark(s,0,24);
-        if(s->active<0 || s->menu)mark(s,118,80);
-        if(s->active==5 || s->active==2) mark(s,24,272);
+        mark(s,272,0,48,24);
+        if(s->active<0 || s->menu)mark(s,216,118,96,80);
+        if(s->active==5 || s->active==2) mark(s,8,24,304,272);
         return;
     }
     if(key==MZ_HOME || key==27) {
@@ -128,8 +142,8 @@ mz_action(struct mz *s, int key)
         if(key==MZ_UP) s->focus=(n+6)%9;
         if(key==MZ_DOWN) s->focus=(n+3)%9;
         if(key=='\n' || key=='\r') { activate(s,s->focus); return; }
-        mark(s,24+(n/3)*88,88);
-        mark(s,24+(s->focus/3)*88,88);
+        mark(s,8+(n%3)*104,24+(n/3)*88,96,88);
+        mark(s,8+(s->focus%3)*104,24+(s->focus/3)*88,96,88);
         return;
     }
     if(s->active==4) { settings(s,key); return; }
@@ -143,7 +157,7 @@ mz_action(struct mz *s, int key)
         p[n]=(char)key; p[n+1]=0;
     }
     if(s->active==1) s->note_dirty=1;
-    mark(s,56,224);
+    mark(s,8,56,304,224);
 }
 static void
 rect(int x,int y,int w,int h,uint16_t c)
@@ -353,10 +367,11 @@ int
 mz_render(struct mz *s,struct mz_io *io)
 {
     int i;
-    for(i=0;i<40;i++) if(s->bands[i]) {
+    for(i=0;i<MZ_BANDS;i++) if(s->xlo[i]<s->xhi[i]) {
         band_y=i*8;
-        if(scene(s,io)<0 || io->band(io->ctx,band_y,pixels)<0) return -1;
-        s->bands[i]=0;
+        if(scene(s,io)<0 ||
+            io->band(io->ctx,band_y,pixels,s->xlo[i],s->xhi[i])<0) return -1;
+        s->xlo[i]=s->xhi[i]=0;
     }
     s->dirty=0;
     return 0;

@@ -7,6 +7,8 @@
 /* Full frames belong only to this host test oracle, never the desktop. */
 static uint16_t incremental[320*320], reference[320*320];
 static int emitted;
+/* Columns reported by every band callback, in MZ_XUNIT units. */
+static long reported_units;
 static int icon(void *ctx,int app,int row,uint16_t *pixels)
 {
     int i;
@@ -15,10 +17,16 @@ static int icon(void *ctx,int app,int row,uint16_t *pixels)
     for(i=0;i<24;i++)pixels[i]=(uint16_t)(app*100+row*24+i);
     return 0;
 }
-static int sink(void *ctx,int y,const uint16_t *pixels)
+/* Only the reported columns reach the frame, as on the panel. */
+static int sink(void *ctx,int y,const uint16_t *pixels,int xlo,int xhi)
 {
+    int j;
     assert(y>=0&&y<=312&&y%8==0);
-    memcpy((uint16_t *)ctx+y*320,pixels,5120);
+    assert(xlo>=0&&xlo<xhi&&xhi<=MZ_COLS);
+    for(j=0;j<8;j++)
+        memcpy((uint16_t *)ctx+(y+j)*320+xlo*MZ_XUNIT,
+            pixels+j*320+xlo*MZ_XUNIT,(size_t)(xhi-xlo)*MZ_XUNIT*2);
+    reported_units+=xhi-xlo;
     emitted++;
     return 0;
 }
@@ -70,9 +78,14 @@ int main(void)
     assert(incremental[75*320+60]==0xef7d);
     assert(incremental[75*320+62]==0x2124);
     emitted=0;
+    reported_units=0;
     mz_action(&s,MZ_RIGHT);
     assert(mz_render(&s,&out)==0);
     assert(emitted>0&&emitted<40);
+    /* Moving the focus one tile dirties the two adjacent tile columns of the
+     * bands they cross (pixels 8-208), never all 80 units. */
+    assert(reported_units<(long)emitted*MZ_COLS);
+    for(i=0;i<MZ_BANDS;i++) assert(s.xlo[i]==s.xhi[i]);
     compare(&s);
     mz_action(&s,10);
     assert(s.active==1);

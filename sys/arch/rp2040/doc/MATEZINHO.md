@@ -126,7 +126,7 @@ the third-party directory beside each volume. Root images and UF2 files exclude 
 
 The screen has a 22-row top panel, a 3x3 launcher grid between panels, and a
 22-row bottom taskbar. The display remains exactly 320x320 at every wrapper
-zoom. Eight-row RGB565 rendering uses 5120 bytes. The shell stores managed view
+zoom. Eight-row RGB565 rendering uses 5120 bytes. Each band also keeps the dirty column range of its edits in 4-pixel units (two bytes a band); the board sends that range as one window of its width, row by row from the band buffer, so a narrow edit crosses the SPI link in a fraction of the full band. The desktop opens `/dev/lcdgfx` and sets `LCDG_COLMOD` 0x55 (two wire bytes a pixel) after every open. The shell stores managed view
 state and reconstructs dirty bands; it does not retain a user framebuffer or
 read old LCD pixels. One process owns the graphics device.
 

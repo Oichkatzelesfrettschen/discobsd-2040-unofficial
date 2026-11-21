@@ -54,7 +54,9 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 # The race corpus runs when the Makefile has built its shim (Linux only);
 # the image-reread mutant needs it
 shim=
-if [ -f "$here/rewrite-race.so" ]; then
+# A shim left by a Linux build in a tree that macOS now runs is no shim: the
+# platform decides, and the file only says whether the Linux build made it.
+if [ "$(uname -s)" = Linux ] && [ -f "$here/rewrite-race.so" ]; then
 	shim=$here/rewrite-race.so
 fi
 

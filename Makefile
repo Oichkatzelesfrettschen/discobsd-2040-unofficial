@@ -2447,9 +2447,9 @@ check-host-split:	check-python
 		    --all "${HOST_LONG_GATES} ${HOST_GATES} ${HOST_PROGRAM_GATES}" \
 		    --a "${HOST_TIER_A_GATES}" --b "${HOST_TIER_B_GATES}"
 
-# Allocation results in ls, ed and awk: every assignment from malloc, calloc,
-# realloc or strdup is tested for NULL before use; tools/check_alloc_results.py
-# --selftest calibrates the scan.
+# Allocation results in ls, ed and awk: every allocator mention lies in a
+# reviewed site that tools/alloc-sites.txt pins with its NULL handling;
+# tools/check_alloc_results.py --selftest calibrates the comparison.
 ALLOC_RESULT_SOURCES=	bin/ls/ls.c bin/ed/ed.c usr.bin/awk/b.c usr.bin/awk/freeze.c \
 		usr.bin/awk/lib.c usr.bin/awk/main.c usr.bin/awk/parse.c \
 		usr.bin/awk/proc.c usr.bin/awk/run.c usr.bin/awk/tran.c

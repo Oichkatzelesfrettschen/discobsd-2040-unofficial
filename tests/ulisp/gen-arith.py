@@ -238,7 +238,7 @@ CUSTOM = [
     ("sleep", "(sleep {a})", 1, "all", NOWAIT),
     (
         "for-millis",
-        "(let ((r (for-millis ({a}) 1))) (and (>= r {a}) (< r (+ 5000 (if (< {a} 0) 0 {a})))))",
+        "(let ((r (for-millis ({a}) 1))) (and (>= r {a}) (< r (+ 500 (if (< {a} 0) 0 {a})))))",
         1,
         "all",
         SHORT,

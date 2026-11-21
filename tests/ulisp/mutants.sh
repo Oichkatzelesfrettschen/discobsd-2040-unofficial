@@ -201,9 +201,9 @@ mutant image-unchecked 's/const char \*fault = checkimage(header, imagesize);/co
 mutant image-chain-target 's/return chainbit(chains, index) ? imagelinked : NULL;/return NULL;/'
 # A random limit of zero reaches the modulus.
 mutant random-zero 's/if (arg->integer <= 0) error("limit must be positive", arg);//'
-# A negative count waits instead of returning at once; only the upper bound
-# of the for-millis rows of the arith corpus notices.
-mutant for-millis-negative-wait 's/total = (count < 0) ? 0 : (unsigned long)count;/total = (count < 0) ? 6000 : (unsigned long)count;/'
+# A negative count waits one second instead of returning at once; only the
+# upper bound of the for-millis rows of the arith corpus notices (500 ms).
+mutant for-millis-negative-wait 's/total = (count < 0) ? 0 : (unsigned long)count;/total = (count < 0) ? 1000 : (unsigned long)count;/'
 # The remainder of INT_MIN by -1 reaches the division. x86 traps (SIGFPE);
 # arm64 returns 0, which is the right answer, so the unsanitized program
 # passes there and the overflow is reported by the sanitizer instead.

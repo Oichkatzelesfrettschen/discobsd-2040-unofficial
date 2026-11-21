@@ -637,8 +637,23 @@ itrunc(register struct inode *oip, off_t length, int ioflags)
      */
     if (oip->i_flag & IPIPE)
         oip->i_size = MAXPIPSIZ;
-    else if (oip->i_size == length)
-        goto updret;
+    else if (oip->i_size == length) {
+        /*
+         * An extending write can publish an indirect block in the inode and
+         * then fail to allocate the block below it (bmap() keeps initialized
+         * ancestors), which leaves the size where it was.  A truncation to
+         * zero of a block-mapped file therefore runs the release path even
+         * at size zero: irele() relies on it before ifree(), and ialloc()
+         * clears the addresses of a reused inode, so a block the inode still
+         * names at that point stays allocated with no owner until fsck.
+         * Device inodes hold the device number in the first address and
+         * take the early return.
+         */
+        int type = oip->i_mode & IFMT;
+
+        if (length != 0 || (type != IFREG && type != IFDIR && type != IFLNK))
+            goto updret;
+    }
 
     /*
      * Lengthen the size of the file. We must ensure that the

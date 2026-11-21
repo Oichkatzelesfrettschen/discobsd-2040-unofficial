@@ -2049,7 +2049,8 @@ ITRUNC_ORDER_LDFLAGS=	-Wl,--gc-sections
 ITRUNC_ORDER_MUTANTS=	inode-after-frees flags-not-marked inode-write-delayed \
 			second-write-kept write-error-ignored \
 			indirect-write-async indirect-error-ignored \
-			indirect-not-requeued
+			indirect-not-requeued empty-returns-early \
+			device-released
 
 itrunc_order_test: itrunc_order_test.c ${ITRUNC_ORDER_SRC} hostkern32.o \
     hostkern.h ${MACHINE_STAMP}

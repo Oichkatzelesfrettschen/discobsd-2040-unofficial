@@ -1947,15 +1947,24 @@ what it held, and after a failed inode write the inode in core stays
 shortened and dirty, so the blocks stay allocated for fsck and none comes
 under two owners; after a failed write of a kept indirect block a delayed
 copy of the cleared block stays in the cache, so a file that grows again
-maps none of the entries past its end. Eight mutants of `itrunc_order_mutate.py` are rejected
-through the gate's own verdict: `inode-after-frees` restores the source as
+maps none of the entries past its end. Two cases enter with an empty file
+whose inode names a single or a double indirect block, the state an
+extending write leaves when `bmap()` publishes the indirect block and then
+fails to allocate the block below it: the truncation to zero that
+`irele()` runs before `ifree()` must free that block after the inode
+write, since `ialloc()` clears the addresses of a reused inode. Two more
+enter with a character and a block device, whose first address holds the
+device number: the truncation frees nothing and keeps the number. Ten
+mutants of `itrunc_order_mutate.py` are rejected through the gate's own
+verdict: `inode-after-frees` restores the source as
 it stood before the change, `flags-not-marked` and `inode-write-delayed`
 each leave no synchronous inode write ahead of the frees,
 `second-write-kept` repeats the inode write after the frees,
 `write-error-ignored` and `indirect-error-ignored` free blocks after a
 failed write, `indirect-write-async` writes a kept indirect block behind
-the frees, and `indirect-not-requeued` leaves no cleared copy after the
-failed write.
+the frees, `indirect-not-requeued` leaves no cleared copy after the
+failed write, `empty-returns-early` returns from an empty file before the
+release path, and `device-released` frees a device inode's number.
 `check-itrunc-order-mutants` runs them.
 
 The fifth file, `sys/kern/subr_prf.c`, uses the compiler's variadic argument

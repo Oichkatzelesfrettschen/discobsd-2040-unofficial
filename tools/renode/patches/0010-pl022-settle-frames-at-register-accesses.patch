@@ -1,0 +1,302 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: eirikr <151315375+Oichkatzelesfrettschen@users.noreply.github.com>
+Date: Sat, 21 Nov 2026 11:20:00 -0800
+Subject: [PATCH 10/10] pl022: settle the frames on the wire at register
+ accesses
+
+A one-shot clock-source timer ended each frame handed to a registered
+device, and a driver waiting for room in a full transmit FIFO read SSPSR in
+a loop until the timer fired: 12.7 status reads per byte at the SD card's
+bit rate, 14.7 register accesses per byte in all, each one leaving
+translated code for the bus. The SD-system boots spent most of their host
+time in those reads.
+
+The end time of each frame on the wire now sits in a queue, and a read of
+SSPSR or a write of SSPDR retires the frames that have ended by the time of
+that access. The time is the accessing core's own clock: its time handle
+plus the instructions executed since the handle was last read exactly,
+because the machine's time source advances only when every core has
+reported and so stands still inside a time grant. An access from the
+monitor reads the machine's time. A status read that finds the transmit
+FIFO full skips the reading core to the end of the frame in the shift
+register and returns with TNF set, so the wait takes the same virtual time
+as the polling loop with 4.0 accesses per byte; such a read lasts up to
+one frame time and delays an interrupt by as much. FIFO levels, BSY, the
+discard of a write to a full FIFO and the frame durations are unchanged.
+---
+ emulation/peripherals/spi/rp2040_spi.cs |  166 ++++++++++++++++++++++++-------
+ 1 file changed, 127 insertions(+), 39 deletions(-)
+diff --git a/emulation/peripherals/spi/rp2040_spi.cs b/emulation/peripherals/spi/rp2040_spi.cs
+--- a/emulation/peripherals/spi/rp2040_spi.cs
++++ b/emulation/peripherals/spi/rp2040_spi.cs
+@@ -19,6 +19,7 @@
+ using Antmicro.Renode.Peripherals.Miscellaneous;
+ using Antmicro.Renode.Time;
+ using Antmicro.Renode.Peripherals.Timers;
++using Antmicro.Renode.Peripherals.CPU;
+ 
+ namespace Antmicro.Renode.Peripherals.SPI
+ {
+@@ -35,8 +36,7 @@
+     public PL022(IMachine machine, RP2040GPIO gpio, int id, RP2040Clocks clocks, ulong address) : base(machine)
+     {
+       this.id = id;
+-      frameTimer = new LimitTimer(machine.ClockSource, 1000000000, this, "SSPFRAME", direction: Direction.Ascending, enabled: false, workMode: WorkMode.OneShot, eventEnabled: true, autoUpdate: true);
+-      frameTimer.LimitReached += FrameDone;
++      this.frameMachine = machine;
+       this.gpio = gpio;
+       this.clocks = clocks;
+       txPins = new HashSet<int>();
+@@ -64,37 +64,37 @@
+     [ConnectionRegion("XOR")]
+     public virtual void WriteDoubleWordXor(long offset, uint value)
+     {
+-      registers.Write(offset, registers.Read(offset) ^ value);
++      WriteRegister(offset, registers.Read(offset) ^ value);
+     }
+ 
+     [ConnectionRegion("SET")]
+     public virtual void WriteDoubleWordSet(long offset, uint value)
+     {
+-      registers.Write(offset, registers.Read(offset) | value);
++      WriteRegister(offset, registers.Read(offset) | value);
+     }
+ 
+     [ConnectionRegion("CLEAR")]
+     public virtual void WriteDoubleWordClear(long offset, uint value)
+     {
+-      registers.Write(offset, registers.Read(offset) & (~value));
++      WriteRegister(offset, registers.Read(offset) & (~value));
+     }
+ 
+     [ConnectionRegion("XOR")]
+     public virtual uint ReadDoubleWordXor(long offset)
+     {
+-      return registers.Read(offset);
++      return ReadRegister(offset);
+     }
+ 
+     [ConnectionRegion("SET")]
+     public virtual uint ReadDoubleWordSet(long offset)
+     {
+-      return registers.Read(offset);
++      return ReadRegister(offset);
+     }
+ 
+     [ConnectionRegion("CLEAR")]
+     public virtual uint ReadDoubleWordClear(long offset)
+     {
+-      return registers.Read(offset);
++      return ReadRegister(offset);
+     }
+ 
+ 
+@@ -238,15 +238,15 @@
+     // silicon. Without a registered device the controller clocks the frame
+     // out on the GPIO pins, bit by bit, as before.
+     //
+-    // The frames still on the wire stand in for the transmit FIFO and the
+-    // shift register: the oldest is being shifted, and the others wait in
+-    // the FIFO, which holds eight entries (PL022 TNF and TFE derive from
+-    // that level). A frame written while the FIFO is full is discarded, as
+-    // the data register discards it on silicon, so a driver that skips the
+-    // TNF wait loses frames here too. A clock-source timer ends each frame
+-    // at its exact virtual time: the machine clock otherwise advances in
+-    // quanta far longer than a frame, and a driver polling TNF would see the
+-    // FIFO drain only once per quantum.
++    // frameEnds holds the virtual time at which each frame still on the
++    // wire ends. They stand in for the transmit FIFO and the shift
++    // register: the oldest is being shifted, and the others wait in the
++    // FIFO, which holds eight entries (PL022 TNF and TFE derive from that
++    // level). A frame written while the FIFO is full is discarded, as the
++    // data register discards it on silicon, so a driver that skips the TNF
++    // wait loses frames here too. SettleFrames retires the ended frames at
++    // each register access; nothing runs between accesses, so a transfer
++    // costs the host only the accesses the driver makes.
+     private void TransferFrame(ISPIPeripheral device, ushort frame)
+     {
+       if (FrameFifoLevel() >= txBuffer.Capacity)
+@@ -271,42 +271,122 @@
+       {
+         rxBuffer.Enqueue(reply);
+       }
+-      if (Interlocked.Increment(ref framesOnWire) == 1)
++      // One frame lasts dataSize bit times, in nanoseconds, and starts when
++      // the frame before it ends.
++      var rate = bitRate == 0 ? 1UL : bitRate;
++      var bits = dataSize < 4 ? 4UL : (ulong)dataSize;
++      var duration = (bits * 1000000000UL + rate - 1UL) / rate;
++      lock (frameEnds)
+       {
+-        StartFrameTimer();
++        var start = frameEnds.Count > 0 ? lastFrameEnd : frameNow;
++        lastFrameEnd = start + duration;
++        frameEnds.Enqueue(lastFrameEnd);
+       }
+     }
+ 
+-    // One frame lasts dataSize bit times; the timer counts nanoseconds.
+-    private void StartFrameTimer()
++    // The virtual time of a register access, in nanoseconds. The machine's
++    // time source advances only when every core has reported, so inside a
++    // time grant it stands still while the accessing core runs on. The
++    // core's own clock is its time handle plus the instructions executed
++    // since the handle was last read exactly (SyncTime); that reading is
++    // taken when the wire is idle, when another core takes over and when
++    // the handle overtakes the count, which a core that slept produces.
++    // An access from outside a core thread (the monitor) reads the machine.
++    private ulong AccessTime(ICPU cpu)
+     {
+-      var rate = bitRate == 0 ? 1UL : bitRate;
+-      var bits = dataSize < 4 ? 4UL : (ulong)dataSize;
+-      frameTimer.Enabled = false;
+-      frameTimer.Limit = (bits * 1000000000UL + rate - 1UL) / rate;
+-      frameTimer.Value = 0;
+-      frameTimer.Enabled = true;
++      var core = cpu as BaseCPU;
++      if (core == null || !core.OnPossessedThread)
++      {
++        return frameMachine.ElapsedVirtualTime.TimeElapsed.Ticks;
++      }
++      var executed = core.ExecutedInstructions;
++      var mips = core.PerformanceInMips == 0 ? 1UL : core.PerformanceInMips;
++      var now = clockBaseTicks + (executed - clockBaseInstructions) * 1000UL / mips;
++      if (core != clockCore || frameEnds.Count == 0 || core.TimeHandle.TotalElapsedTime.Ticks > now)
++      {
++        core.SyncTime();
++        clockCore = core;
++        clockBaseTicks = core.TimeHandle.TotalElapsedTime.Ticks;
++        clockBaseInstructions = executed;
++        now = clockBaseTicks;
++      }
++      return now;
+     }
+ 
+-    private void FrameDone()
++    // Retires the frames that have left the wire by the time of this
++    // access. statusPoll marks a read of SSPSR: one that finds the transmit
++    // FIFO full comes from a driver polling for room, and the reading core
++    // skips to the end of the frame in the shift register, so the read
++    // returns TNF set after the virtual time the polling would have taken
++    // and without the register accesses of the loop. Such a read lasts up
++    // to one frame time, and an interrupt raised meanwhile waits that long.
++    private void SettleFrames(bool statusPoll)
+     {
+-      if (Interlocked.Decrement(ref framesOnWire) > 0)
++      lock (frameEnds)
+       {
+-        StartFrameTimer();
++        if (statusPoll && frameEnds.Count == 0)
++        {
++          return;
++        }
++        frameMachine.SystemBus.TryGetCurrentCPU(out var cpu);
++        var now = AccessTime(cpu);
++        if (now > frameNow)
++        {
++          frameNow = now;
++        }
++        while (frameEnds.Count > 0 && frameEnds.Peek() <= frameNow)
++        {
++          frameEnds.Dequeue();
++        }
++        if (statusPoll && frameEnds.Count > txBuffer.Capacity && clockCore != null && cpu == clockCore)
++        {
++          var mips = clockCore.PerformanceInMips == 0 ? 1UL : clockCore.PerformanceInMips;
++          var cycle = mips >= 1000UL ? 1UL : 1000UL / mips;
++          var wait = (frameEnds.Peek() - frameNow + cycle - 1UL) / cycle * cycle;
++          clockCore.SkipTime(TimeInterval.FromTicks(wait));
++          clockBaseTicks += wait;
++          frameNow += wait;
++          frameEnds.Dequeue();
++        }
+       }
+     }
+ 
+     private bool FrameBusy()
+     {
+-      return Volatile.Read(ref framesOnWire) > 0;
++      lock (frameEnds)
++      {
++        return frameEnds.Count > 0;
++      }
+     }
+ 
+     // Frames waiting in the transmit FIFO: every frame on the wire but the
+     // one in the shift register.
+     private int FrameFifoLevel()
+     {
+-      var frames = Volatile.Read(ref framesOnWire);
+-      return frames > 0 ? frames - 1 : 0;
++      lock (frameEnds)
++      {
++        return frameEnds.Count > 0 ? frameEnds.Count - 1 : 0;
++      }
++    }
++
++    // Every register access, through the plain or an alias region, settles
++    // the wire first when it reads SSPSR or writes SSPDR.
++    private uint ReadRegister(long offset)
++    {
++      if (offset == (long)Registers.SSPSR)
++      {
++        SettleFrames(true);
++      }
++      return registers.Read(offset);
++    }
++
++    private void WriteRegister(long offset, uint value)
++    {
++      if (offset == (long)Registers.SSPDR && RegisteredPeripheral != null)
++      {
++        SettleFrames(false);
++      }
++      registers.Write(offset, value);
+     }
+ 
+     private void Step()
+@@ -363,12 +443,12 @@
+ 
+     public uint ReadDoubleWord(long offset)
+     {
+-      return registers.Read(offset);
++      return ReadRegister(offset);
+     }
+ 
+     public void WriteDoubleWord(long offset, uint value)
+     {
+-      registers.Write(offset, value);
++      WriteRegister(offset, value);
+     }
+ 
+     public override void Reset()
+@@ -385,8 +465,11 @@
+ 
+       rxBuffer.Clear();
+       txBuffer.Clear();
+-      frameTimer.Enabled = false;
+-      Interlocked.Exchange(ref framesOnWire, 0);
++      lock (frameEnds)
++      {
++        frameEnds.Clear();
++        clockCore = null;
++      }
+ 
+       _executionThread.Stop();
+ 
+@@ -534,8 +617,13 @@
+     private bool running;
+     private byte clockPrescaleDivisor;
+     private ulong bitRate;
+-    private readonly LimitTimer frameTimer;
+-    private int framesOnWire;
++    private readonly IMachine frameMachine;
++    private readonly Queue<ulong> frameEnds = new Queue<ulong>();
++    private ulong frameNow;
++    private ulong lastFrameEnd;
++    private BaseCPU clockCore;
++    private ulong clockBaseTicks;
++    private ulong clockBaseInstructions;
+ 
+     private DoubleWordRegisterCollection registers;
+ 

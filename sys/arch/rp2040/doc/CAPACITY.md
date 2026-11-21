@@ -52,7 +52,7 @@ name different operations across the small BSD descendants.
 
 `sys/kern/errlist.master` similarly emits the one shared errno-message pool
 used by RP2040 and STM32. Both pools are stored in less than their text.
-The trace names carry no terminator and form one common superstring, built
+The trace names lack terminators and form one common superstring, built
 by maximum-overlap merging, in which a name lies inside another or across
 the seam of two more; a 16-bit entry holds a 10-bit offset and a 6-bit
 length, and `syscall_name()` returns the span. The errno messages are a
@@ -250,7 +250,7 @@ and `incore-inode-exhaustion` name
 `fork1()` refuses with EAGAIN and notes one process failure only when
 `freeproc` is empty, or for a non-root caller at `MAXUPRC` or the last slot;
 `proctab` therefore runs as root. `newproc()` refuses with ENOMEM and notes
-nothing when `swap_image_reserve()` finds no backing, so the fixture reads
+nothing when `swap_image_reserve()` fails to find backing, so the fixture reads
 the errno to attribute a refusal and reports ENOMEM as an unreached table.
 `falloc()` notes a file failure only for ENFILE; `ufalloc()` refuses with
 EMFILE at `NOFILE` (30) descriptors and notes nothing, and `dup(2)` shares a
@@ -268,7 +268,7 @@ directory, so each holder of `inotab` changes into its own directory and
 opens one file there: two references for one file slot. With the table
 full, an `open` and a `stat` of two further files must both fail with
 ENFILE while the inode counter alone moves and file slots remain free;
-`stat` takes no file slot at all. Every path is relative to the working
+`stat` leaves the file slots untouched. Every path is relative to the working
 directory, so no lookup needs a slot for an intermediate directory.
 `inotab` ends as inconclusive when the free process or file slots cannot
 carry enough holders.

@@ -82,7 +82,7 @@ images on it. The storage profiles above do not yet meet it. Each profile is
 a whole-card image without an MBR: an asset image holds the pack at card byte
 zero and is read through `/dev/rsd0` (minor 0, the whole card), and Renode's
 FileSD presents the image file as the whole card. On a vendor card, sector 0
-holds the MBR, so `matezinho /dev/rsd0` finds no `MZAR0001` header and exits,
+holds the MBR, so `matezinho /dev/rsd0` finds the `MZAR0001` header missing and exits,
 and writing an asset image to the card replaces the MBR and the FAT32 volume.
 
 `sd.c` maps minors 1 to 4 to the four primary MBR entries without a type
@@ -118,10 +118,9 @@ moving network fetch is needed to build a pack. The builder verifies every
 retained source hash before conversion, and `check-matezinho-host` fails when
 a file in that directory lacks a matching README row.
 
-The shell and tools contain no artwork. A generated volume and any capture
+The shell and tools exclude artwork. A generated volume and any capture
 showing the icons are CC BY-SA 3.0 adaptations; the builder writes a copy of
-the third-party directory beside each volume. Root images and UF2 files carry
-no artwork.
+the third-party directory beside each volume. Root images and UF2 files exclude artwork.
 
 ## Desktop behavior and limits
 
@@ -144,9 +143,7 @@ at start. A failed write leaves the note in memory and the previous file in
 place. A pre-existing `.new` file blocks saving rather than being overwritten.
 This is not a rich editor; document scrolling and arbitrary cursor movement are
 not implemented. Files lists at most 12 non-hidden names of at most 31 bytes;
-Enter opens a selected directory and Backspace goes to its parent. There is no
-file mutation or arbitrary file viewer. The QEMU newlib seam deliberately has
-no directory API; native/board backends supply it.
+Enter opens a selected directory and Backspace goes to its parent. File mutation and an arbitrary file viewer are out of scope. The QEMU newlib seam deliberately omits the directory API; native/board backends supply it.
 
 Calculator accepts `a + b`, `-`, `*` and integer `/`, with operands in
 [-32767,32767], and rejects division by zero and invalid trailing text. It does

@@ -66,7 +66,7 @@ sentinel.
 
 ## Facts a driver cannot read from the board
 
-The PICO root ships no `dmesg` and the kernel builds no message log
+The PICO root omits `dmesg` and the kernel omits the message log
 (`distrib/rp2040/mi.rp2040`, `LOG_ENABLED` unset), so boot lines are visible
 only to a reader attached before the kernel prints them. `discobsd-flash`
 returns before the console re-enumerates, so a driver opening the port after
@@ -105,6 +105,5 @@ run, so the extent a unit can hold depends on the free runs the boot left,
 which differ between boots: 280 blocks were granted on one boot and none of
 300, 280, 260 or 240 on the next. A binary search per unit, each probe one
 short `talloc` command, finds the largest grantable extent; three units
-(`/dev/temp0` to `temp2`) held 220, 70 and 22 blocks and left no run large
-enough for a 105-block image. Re-request the best size after the search,
+(`/dev/temp0` to `temp2`) held 220, 70 and 22 blocks and left every run too small for a 105-block image. Re-request the best size after the search,
 because a failed final probe leaves the unit empty.

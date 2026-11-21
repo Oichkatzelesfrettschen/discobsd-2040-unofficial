@@ -40,7 +40,7 @@ What runs on it
 | console | USB CDC-ACM at 115200 8N1, 80x24; login `operator`, no password; `su` to root |
 | commands | 112 names across /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec, and /usr/games, most of them hard links into seven multicall executables |
 | optional Sixth Edition UNIX | `BUILD_PDP11_V6=yes` adds a PDP-11/40 emulator and V6 root pack to a separate legacy image; the default image excludes both |
-| native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board; no preprocessor and no headers ship, so sources declare what they call and use no `#include` |
+| native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board; no preprocessor and no headers ship, so sources declare what they call and omit `#include` |
 
 What the login screen tells you, line by line:
 
@@ -172,8 +172,7 @@ No driver and nothing to sign: macOS binds its own USB serial driver to
 the board and creates `/dev/cu.usbmodemrp20401`, world-writable, the
 moment it is plugged in.
 
-1. Install the tools through Homebrew's pipx (Apple's own Python 3.9 has
-   no pyserial), and picotool if you will reflash:
+1. Install the tools through Homebrew's pipx (Apple's own Python 3.9 lacks pyserial), and picotool if you will reflash:
 
        brew install pipx picotool
        pipx ensurepath          # once, then open a new terminal
@@ -208,14 +207,14 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 
 #### If something does not work
 
-- `discobsd-term --list` prints nothing: the cable is power-only, or the
+- `discobsd-term --list` prints an empty list: the cable is power-only, or the
   board is in the bootloader. Try another cable; a board in BOOTSEL mode
   shows up as a USB drive named `RPI-RP2`, so unplug and replug it without
   the button held.
 - "Permission denied" on Linux: you installed the wheel rather than the
   `.deb`, or you are over ssh. Join `dialout` (Ubuntu) or `discobsd` (with
   the `.deb`) and log in again.
-- The console prints nothing after attaching: press Enter once to redraw
+- The console stays blank after attaching: press Enter once to redraw
   the prompt. The kernel keeps the boot messages in an 8 KB ring and
   sends them to the first terminal that opens; a terminal opened while
   the board is still enumerating can lose some of those bytes.
@@ -237,8 +236,7 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   the cable during a write loses at most that write, and `fsck` runs at
   the next boot.
 - An image built with `BUILD_PDP11_V6=yes` keeps its V6 pack and guest writes
-  on the board rather than in the host tools. The default image carries no V6
-  pack.
+  on the board rather than in the host tools. The default image omits the V6 pack.
 - A board that no longer answers on USB is not lost: hold BOOTSEL while
   plugging it in, it appears as the `RPI-RP2` drive, and the two UF2
   files from a release or a build restore it in under a minute ("Build
@@ -284,7 +282,7 @@ Start it from the DiscoBSD prompt as `operator`:
     #
 
 1. Type `unix` at the `@` prompt. The kernel boots in about five seconds.
-2. Type `root` at `login:`; there is no password.
+2. Type `root` at `login:`; the account has an empty password.
 3. Use the 1975 shell: `ls /bin`, `who`, `ed`, `cal 9 2026`, `ls /usr/games`.
 4. Leave with `sync`, then one of: Ctrl-_ (web console: the `^_ exit V6`
    button; discobsd-term: Ctrl-] _), or `~.` typed at the start of a
@@ -293,13 +291,12 @@ Start it from the DiscoBSD prompt as `operator`:
 
 Keys differ in V6. DEL interrupts (Backspace sends DEL on most
 terminals, so Backspace interrupts too), `#` erases a character, `@`
-erases the line, Ctrl-\ quits, Ctrl-D logs out. Ctrl-C, Ctrl-U and the
-arrow keys mean nothing to it. A `#` prompt where `whoami` is "not found"
+erases the line, Ctrl-\ quits, Ctrl-D logs out. It reads Ctrl-C, Ctrl-U and the arrow keys as ordinary input. A `#` prompt where `whoami` is "not found"
 is V6, not DiscoBSD's root shell. The full key table per system is in
 `distrib/rp2040/host/README.md` under "Keys and exits".
 
 What you write on the V6 pack stays on it. The pack is a 1 MB sparse file
-in `/usr/v6`; its untouched blocks cost nothing, and a session that swaps
+in `/usr/v6`; its untouched blocks stay unallocated, and a session that swaps
 or writes allocates about 30 KB of the root the first time, reused after.
 `legacy/pdp11-v6/usr.bin/pdp11/README.md` documents the emulator, the pack,
 and how it was built from the TUHS distribution. The option, host tests, and
@@ -520,8 +517,7 @@ Other platforms: STM32 and archived PIC32
 
 This fork maintains STM32F4 as its second ARM target. The official DiscoBSD
 also supports PIC32MX7, but this fork archives that MIPS source under
-`legacy/non-arm/mips-pic32/` and makes no build, boot, or hardware-support
-claim for it. The official project remains the supported PIC32 source:
+`legacy/non-arm/mips-pic32/` and does not claim build, boot, or hardware support for it. The official project remains the supported PIC32 source:
 
 - Official repository and releases: <https://github.com/chettrick/discobsd>
 - STM32 port notes: `distrib/stm32/README.md`

@@ -21,9 +21,8 @@ reaches both.
 The device is part of a kernel configured with the PicoCalc console and
 the SD driver, whose character majors 10 and 11 fix its own at 12; that is
 the union kernel every board runs. The PICO and PICO_UART configurations
-keep majors 0-9 and have no such device. The union kernel reads the board
-from its descriptor (`board_id()`), so one image applies the right row. A request that names a held pin has no
-effect on it, and `GPIO_POLL` reports held pins as zero.
+keep majors 0-9 and lack the device. The union kernel reads the board
+from its descriptor (`board_id()`), so one image applies the right row. A request that names a held pin leaves it unchanged, and `GPIO_POLL` reports held pins as zero.
 
 ## Requests
 
@@ -36,7 +35,7 @@ effect on it, and `GPIO_POLL` reports held pins as zero.
 | `GPIO_SET`, `GPIO_CLEAR`, `GPIO_INVERT` | configured pins go high, go low, change |
 | `GPIO_POLL` | returns the input levels of the port's reachable pins |
 | `GPIO_PWM` | PWM: the mask's pins take the PWM function at the fixed carrier; the argument is the mask in its low 16 bits and the duty, 0-255, in its high 16 (see PWM) |
-| `GPIO_CONFOD` | refused with `EINVAL`: the RP2040 pad has no open-drain mode |
+| `GPIO_CONFOD` | refused with `EINVAL`: the RP2040 pad lacks an open-drain mode |
 
 Requests combine as in the PIC32 driver (`GPIO_CONFOUT | GPIO_SET`).
 Output requests act only on pins this device configured, and configuration
@@ -80,8 +79,7 @@ PICO_UART, PICO_DIAG, PICOCALC and PICOCALC_LEAN.
 
 `gpio_board_claims()` in `<machine/gpio.h>` is the one table of what a board
 leaves to programs and what the kernel keeps back; `GPIO_PWM`,
-`machdep.adc.N`, `/dev/audio` and the digital requests read it and keep no
-pin list of their own.
+`machdep.adc.N`, `/dev/audio` and the digital requests read it instead of a pin list of their own.
 
 | Board | Free pins | PWM slices the kernel always runs | Slices run while `/dev/audio` is open |
 | --- | --- | --- | --- |
@@ -94,8 +92,7 @@ slice 6 carries `/dev/audio`'s sample clock (`picopcm.c`: its TOP, divider and
 wrap interrupt). One slice has one counter, so a program's PWM on GP28 and
 the sample clock cannot run together. The driver does not take the slice
 from either side: `GPIO_PWM` on GP28 answers `EBUSY` while `/dev/audio` is open,
-and `/dev/audio` answers `EBUSY` to an open while GP28 is a PWM pin. The input
-side has no such conflict: ADC input 2 reads GP28's pad and uses no slice.
+and `/dev/audio` answers `EBUSY` to an open while GP28 is a PWM pin. The input side is free of that conflict: ADC input 2 reads GP28's pad without a PWM slice.
 
 The interface names a pin, an input and a duty. A program never passes a
 register address or value, a PWM slice, a channel or the carrier's divider;
@@ -133,8 +130,7 @@ A PWM pin is also an owned pin. `GPIO_DECONF` stops it (no function, as for any
 owned pin), a digital `GPIO_CONFIN` or `GPIO_CONFOUT` takes it over, and the
 last close of any port node stops every PWM pin, so a program that exits
 releases its pins; d_close runs once per node, so a second process holding
-the other node has its PWM stopped too. A stopped slice keeps counting;
-it routes no pin. `/dev/audio` answers `EBUSY` to an open while a PWM pin
+the other node has its PWM stopped too. A stopped slice keeps counting, detached from every pin. `/dev/audio` answers `EBUSY` to an open while a PWM pin
 is on slice 6, and a PWM request on slice 6 answers `EBUSY` while it is open;
 neither side takes the slice from the other.
 

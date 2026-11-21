@@ -17,8 +17,8 @@ kernels (PICOCALC, PICOCALC_LEAN, PICOCALC_LEAN_DIAG, PICOCALC_SD and
 PICOCALC_SD_DIAG); the PICOCALC_PSRAM configuration this note measured was
 folded into PICOCALC (`sys/arch/rp2040/doc/PICOCALC.md`), and the sizes
 below are that configuration's. A host simulator executes the shipped
-program words against a timing model of the part and passes 766 checks; eight mutants of the program and
-driver fail it. When measured, PICOCALC_PSRAM added 2,096 bytes of text,
+program words against a timing model of the part and passes 766 checks;
+eight mutants of the program and driver fail it. When measured, PICOCALC_PSRAM added 2,096 bytes of text,
 56 of data and 144 of bss to that revision's PSRAM-less PICOCALC, and PICO
 and PICO_UART linked to the same text and data as before; today's PICOCALC
 carries the driver, so that delta is history, not a current budget.

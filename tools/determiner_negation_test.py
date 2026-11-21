@@ -60,6 +60,9 @@ KNOWN_GOOD = (
     "With no board attached, the tool says so.",
 )
 FENCED = "Text.\n\n```\nit returns nothing\n```\nThe map holds none.\n"
+# A fence line with an info string inside a block leaves the block open.
+FENCED_INFO = "```text\n```python\nit returns nothing\n```\nThe map holds none.\n"
+DOUBLE_SPAN = "The ``returns nothing`` stub and ``a `tick` has none`` stay code.\n"
 
 
 def main():
@@ -73,6 +76,11 @@ def main():
     fenced = finder.phrases(FENCED, fenced=True)
     if [key for key, _ in fenced] != ["holds none"]:
         failures.append(f"fenced block not blanked: {fenced}")
+    fenced = finder.phrases(FENCED_INFO, fenced=True)
+    if [key for key, _ in fenced] != ["holds none"]:
+        failures.append(f"fence line with an info string closed the block: {fenced}")
+    if finder.phrases(DOUBLE_SPAN):
+        failures.append(f"double-backtick span read as prose: {finder.phrases(DOUBLE_SPAN)}")
     before = "The board carries no V6 pack.\nIt prints nothing.\n"
     moved = "It prints nothing.\nMore text here.\nThe board carries no V6 pack.\n"
     if finder.new_phrases(before, moved):

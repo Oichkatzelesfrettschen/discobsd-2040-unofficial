@@ -68,9 +68,13 @@ DETERMINERS = ("no", "none", "nothing")
 # "no" before these names a bound or an idiom, not an absent operand.
 BOUNDS = frozenset(("longer", "later", "earlier", "sooner", "more", "less", "fewer", "matter"))
 PHRASE = re.compile(r"\b([A-Za-z]+)\s+(no|none|nothing)\b(?:[ \t]*\n?[ \t]*([A-Za-z][\w-]*))?")
-CODE_SPAN = re.compile(r"`[^`\n]*`")
+# A code span opens and closes on backtick runs of one length (CommonMark 6.1)
+# and stays inside its paragraph.
+CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)")
 QUOTED = re.compile(r'"[^"\n]*"')
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})", re.M)
+# A closing fence carries only blanks after its marker (CommonMark 4.5).
+CLOSING_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
 
 
 def _blank(match):
@@ -90,7 +94,8 @@ def blank_code(text, fenced=False):
                 out.append(_blank(re.match(r"[\s\S]*", line)))
                 continue
             if opener is not None:
-                if match and match.group(1)[0] == opener[0] and len(match.group(1)) >= len(opener):
+                close = CLOSING_FENCE.match(line.rstrip("\r\n"))
+                if close and close.group(1)[0] == opener[0] and len(close.group(1)) >= len(opener):
                     opener = None
                 out.append(_blank(re.match(r"[\s\S]*", line)))
                 continue

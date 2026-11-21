@@ -563,7 +563,7 @@ upload and hidden-file inclusion.
 | tier | target | needs | Linux CI | macOS CI |
 | --- | --- | --- | --- | --- |
 | lint | `check-lint` | shellcheck, ruff | yes | yes |
-| host | `check-host` | host cc, `${PYTHON}` | yes | yes, as two steps: `check-host-a` then `check-host-b`, each under a 960 s hard limit |
+| host | `check-host` | host cc, `${PYTHON}` | yes, as `bmake -k -j` | yes, as two steps under `bmake -k -j`: `check-host-a` then `check-host-b`, each under its own hard limit |
 | ILP32 host | `check-ilp32-execution` | a host cc and runtime that execute 32-bit binaries, native and ILP32 sanitizers, `${PYTHON}` | required in `firmware/posix-sh` | optional variants report SKIP on hosts without ILP32 |
 | shell conformance | `check-posix-sh` | Linux x86-64 with 32-bit libraries | yes | no: bin/sh keeps pointers in int and builds as a 32-bit binary |
 | cross | `check-cross` | arm-none-eabi toolchain, capstone and pyelftools under `${PYTHON}`, a built tree | yes | yes |

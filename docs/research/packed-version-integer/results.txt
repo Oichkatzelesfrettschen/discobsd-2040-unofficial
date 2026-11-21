@@ -2,7 +2,7 @@ encoding	max	major	minor	patch	stages	order	roundtrip	signed	guard	compact
 dec-existing	2099999999	20	99	99999	10	true	true	true	true	true
 bin-7.8.12.4	2147483647	127	255	4095	16	true	true	true	true	true
 bin-7.8.11.5	2147483647	127	255	2047	32	true	true	true	true	true
-bin-python	2147483647	127	255	255	16	true	true	true	true	true
+bin-python	2147483632	127	255	255	16	true	true	true	true	true
 bin-gapped-0xMNN00PPS	2146439167	7	255	255	16	true	true	true	true	false
 
 chain	dec-existing	bin-7.8.12.4	bin-7.8.11.5	bin-python	bin-gapped-0xMNN00PPS

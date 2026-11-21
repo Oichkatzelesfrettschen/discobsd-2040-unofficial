@@ -89,6 +89,8 @@ class Encoding:
         }
         if serial < 0 or serial > self.limits()["serial"]:
             raise OverflowError(f"{self.name}: serial {serial} exceeds its field")
+        if stage == self.final and serial != 0:
+            raise OverflowError(f"{self.name}: a release has no serial")
         total = 0
         for name, weight, limit in self.fields:
             value = values[name]
@@ -188,6 +190,14 @@ def reference_set():
     ]
 
 
+class LossyUnpack(Encoding):
+    """An encoding whose unpack drops the stage: pack is right, the round trip is not."""
+
+    def unpack(self, value):
+        major, minor, patch, _stage, serial = super().unpack(value)
+        return (major, minor, patch, 0, serial)
+
+
 # Deliberately wrong encodings: each must fail the check named beside it.
 def mutants():
     stage_high = binary(
@@ -236,7 +246,19 @@ def mutants():
         15,
         "serial above stage: alpha.15 sorts above beta.0",
     )
+    lossy = LossyUnpack(
+        "mutant-lossy-unpack",
+        [
+            ("major", 1 << 24, 127),
+            ("minor", 1 << 16, 255),
+            ("patch", 1 << 4, 4095),
+            ("stage", 1, 15),
+        ],
+        15,
+        "unpack discards the stage",
+    )
     return [
+        (lossy, "roundtrip"),
         (serial_high, "order"),
         (stage_high, "order"),
         (overlap, "guard"),
@@ -295,10 +317,14 @@ def check_roundtrip(encoding):
     return True
 
 
-def check_signed(encoding):
+def largest(encoding):
+    """The largest valid value: the highest core as a release, which has no serial."""
     lim = encoding.limits()
-    top = encoding.pack(lim["major"], lim["minor"], lim["patch"], lim["stage"], lim["serial"])
-    return 0 <= top <= INT_MAX
+    return encoding.pack(lim["major"], lim["minor"], lim["patch"], encoding.final, 0)
+
+
+def check_signed(encoding):
+    return 0 <= largest(encoding) <= INT_MAX
 
 
 def check_guard(encoding):
@@ -551,6 +577,10 @@ def selftest():
             failed += 1
         else:
             print(f"mutant rejected: {encoding.name} fails {target}")
+    compact = {e.name: check_compact(e) for e in reference_set()}
+    if compact["dec-existing"] is not True or compact["bin-gapped-0xMNN00PPS"] is not False:
+        print(f"selftest: check_compact misjudges the references: {compact}", file=sys.stderr)
+        failed += 1
     for first, second in (("1.0.0", "1.0.0-alpha"), ("0.2.0-alpha", "0.1.9")):
         if semver_less(first, second):
             print(f"selftest: oracle says {first} < {second}", file=sys.stderr)
@@ -566,7 +596,7 @@ def report():
     for encoding in reference_set():
         lim = encoding.limits()
         result = evaluate(encoding)
-        top = encoding.pack(lim["major"], lim["minor"], lim["patch"], lim["stage"], lim["serial"])
+        top = largest(encoding)
         print(
             "\t".join(
                 [

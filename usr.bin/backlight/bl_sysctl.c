@@ -29,9 +29,9 @@
 /*
  * The levels of backlight.h through sysctl(3). The kernel's handler,
  * picocalc_sysctl() in sys/arch/rp2040/dev/picokbd.c, reads the controller's
- * register when the caller asks for the old value and writes it when the
- * caller supplies a new one, so a write passes no old buffer and costs one
- * register exchange instead of two.
+ * register only when the caller supplies an old-value buffer, and writes it
+ * when the caller supplies a new value. bl_set() passes NULL for the
+ * old-value pointer, so a write costs one register exchange instead of two.
  */
 #include <sys/param.h>
 #include <sys/sysctl.h>

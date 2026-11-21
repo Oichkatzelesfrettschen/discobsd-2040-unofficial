@@ -32,12 +32,12 @@
  *
  * The kernel accepts a sysctl write from root only (__sysctl() in
  * sys/kern/kern_sysctl.c), so the manifest installs this program setuid
- * root and any user can change the two lights. The privilege reaches no
- * further than that. An argument is one of the two light names or a
- * decimal level of at most 240, and anything else ends the program before
- * a request. The program reads no environment variable, and the one file it
- * writes, BACKLIGHT_FILE, at a fixed path, it opens only when the real user
- * is root (-s).
+ * root and any user can change the two lights. The privilege is limited to
+ * that. An argument is one of the two light names or a decimal level of at
+ * most 240, and anything else ends the program before a request. The
+ * program takes its input from its arguments, the real user id and the
+ * kernel's replies, and opens its one file, BACKLIGHT_FILE, at a fixed path,
+ * only when the real user is root (-s).
  *
  * The keyboard controller conditions what it is given: the vendor firmware
  * (backlight.ino) rounds a screen level down to a multiple of 16 within

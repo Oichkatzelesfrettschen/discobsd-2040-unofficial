@@ -791,8 +791,36 @@ def test_interactive(binary, work):
     waited = re.search(rb"WAIT ([0-9A-F]{4})", plain)
     if waited is None or int(waited.group(1), 16) <= 16:
         raise Failure("terminal session: the clock stood still while the guest waited")
-    if before != after:
-        raise Failure("terminal session: terminal mode not restored")
+    if termios_modes(before) != termios_modes(after):
+        raise Failure(
+            "terminal session: terminal mode not restored: "
+            + termios_diff(termios_modes(before), termios_modes(after))
+        )
+
+
+def termios_modes(attrs):
+    """The attributes with PENDIN cleared.
+
+    PENDIN (retype pending input) is a status flag of the line discipline, not a
+    mode: macOS sets it in c_lflag when a mode change finds input queued, and
+    nothing the program does clears it. Every other bit, speed and control
+    character is still compared.
+    """
+    attrs = list(attrs)
+    attrs[3] &= ~getattr(termios, "PENDIN", 0)
+    return attrs
+
+
+def termios_diff(before, after):
+    """Name the termios fields that differ, with both values, for a failure message."""
+    names = ("iflag", "oflag", "cflag", "lflag", "ispeed", "ospeed")
+    parts = [
+        "%s %#x -> %#x" % (name, b, a) for name, b, a in zip(names, before[:6], after[:6]) if b != a
+    ]
+    parts += [
+        "cc[%d] %r -> %r" % (i, b, a) for i, (b, a) in enumerate(zip(before[6], after[6])) if b != a
+    ]
+    return "; ".join(parts) or "no field differs"
 
 
 def menu_session(binary, work, image, steps, cwd=None, kill=None):
@@ -844,7 +872,13 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
         os.close(slave)
     if step != len(steps):
         raise Failure("menu session: %r never appeared" % steps[step][0])
-    return seen, status, before == after
+    if termios_modes(before) != termios_modes(after):
+        print(
+            "i86 check: menu session: terminal mode not restored: "
+            + termios_diff(termios_modes(before), termios_modes(after)),
+            file=sys.stderr,
+        )
+    return seen, status, termios_modes(before) == termios_modes(after)
 
 
 RIGHT, DOWN, LEFT, UP, HOME = b"\x1b[C", b"\x1b[B", b"\x1b[D", b"\x1b[A", b"\x1b[H"
@@ -1257,7 +1291,9 @@ def test_exit_store_failure(binary, work):
             continue  # the page was resident at that instant
         if status != 3:
             raise Failure("page store failure at exit: exit %r" % status)
-        if before != after or not seen.endswith(b"\x1b[0m\x1b[r\x1b[?7h\x1b[26;1H"):
+        if termios_modes(before) != termios_modes(after) or not seen.endswith(
+            b"\x1b[0m\x1b[r\x1b[?7h\x1b[26;1H"
+        ):
             raise Failure("page store failure at exit: terminal not restored")
         return
     raise Failure("page store failure at exit: the exit never read the page file")

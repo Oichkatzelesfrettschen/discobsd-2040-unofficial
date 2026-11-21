@@ -5,6 +5,7 @@
 # usage: mutant.sh CC CFLAGS DEVDIR FILE SED-EXPRESSION
 set -eu
 
+here=$(cd "$(dirname "$0")" && pwd)
 cc=$1
 cflags=$2
 dev=$3
@@ -24,7 +25,15 @@ fi
 # shellcheck disable=SC2086
 "$cc" $cflags -I"$work" -o "$work/lcdterm_test" lcdterm_test.c \
     "$work/lcdterm.c" "$work/lcdfont.c" "$work/picokbd_map.c"
-if "$work/lcdterm_test" >/dev/null 2>&1; then
+rc=0
+sh "$here/../../tools/run_bounded.sh" "$work/output" "$work/lcdterm_test" || rc=$?
+case $rc in
+124 | 125)
+	echo "mutant.sh: the test on the mutant '$expr' of $file gave no verdict (status $rc: 124 the MUTANT_TIMEOUT bound, 125 the run could not happen)" >&2
+	exit 3
+	;;
+esac
+if [ "$rc" -eq 0 ]; then
 	echo "mutant.sh: test passed the mutant '$expr' of $file" >&2
 	exit 1
 fi

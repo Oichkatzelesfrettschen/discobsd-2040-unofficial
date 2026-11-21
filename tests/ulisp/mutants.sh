@@ -54,18 +54,24 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 # The race corpus runs when the Makefile has built its shim (Linux only);
 # the image-reread mutant needs it
 shim=
-if [ -f "$here/rewrite-race.so" ]; then
+# A shim left by a Linux build in a tree that macOS now runs is no shim: the
+# platform decides, and the file only says whether the Linux build made it.
+if [ "$(uname -s)" = Linux ] && [ -f "$here/rewrite-race.so" ]; then
 	shim=$here/rewrite-race.so
 fi
 
-# mutant NAME SED-EXPRESSION [SOURCE-FILE [STATUS]]
+# mutant NAME SED-EXPRESSION [SOURCE-FILE [STATUS [CFLAGS]]]
 # STATUS is the one status of check.sh that rejects the mutant: 1, a failed
 # or differing transcript, unless the defect is a run that never ends, which
 # check.sh reports as 3. Any other nonzero status is a failure of the harness.
+# CFLAGS are extra compiler options, a word list, for a defect that only some
+# hardware turns into a failure (an overflowing division traps on x86 and
+# wraps on arm64) and that a sanitizer reports on every host.
 mutant() {
 	dir=$work/$1
 	file=${3:-ulisp.c}
 	want=${4:-1}
+	extra=${5:-}
 	mkdir "$dir"
 	cp "$src"/*.c "$src"/*.h "$src"/builtins.def "$dir"/
 	sed "$2" "$src/$file" > "$dir/$file"
@@ -73,7 +79,8 @@ mutant() {
 		echo "ulisp mutants: $1: the substitution matched nothing" >&2
 		exit 1
 	fi
-	$cc -std=c17 -D_DEFAULT_SOURCE -Os -w -I"$src/../../sys/arch/rp2040/dev" \
+	# shellcheck disable=SC2086 # extra is a word list by construction
+	$cc -std=c17 -D_DEFAULT_SOURCE -Os -w $extra -I"$src/../../sys/arch/rp2040/dev" \
 	    -o "$dir/ulisp" "$dir/ulisp.c" "$dir/unix.c" "$dir/hilite.c" "$dir/gfx.c" \
 	    "$dir/dev_host.c" "$src/../../sys/arch/rp2040/dev/lcdfont.c" -lm
 	rc=0
@@ -176,15 +183,33 @@ mutant float-to-int 's/if (!(f >= -2147483648.0 \&\& f < 2147483648.0)) return m
 # The most negative int divided by -1 reaches the C division.
 mutant quotient-min 's/if (den == -1 \&\& num == INT_MIN) return makefloat(-(float)num);//'
 # The loader trusts its first check of the file and installs a second read.
-mutant image-reread 's/^  fault = checkimage(header, imagesize);$/  fault = NULL;/'
+# Only the race corpus, which rewrites the file between the two reads through
+# the LD_PRELOAD shim, rejects it. The shim is built on Linux only: a Linux host
+# without it has a failed build, which is an error, and any other host runs no
+# such corpus and skips the mutant.
+if [ -n "$shim" ]; then
+	mutant image-reread 's/^  fault = checkimage(header, imagesize);$/  fault = NULL;/'
+elif [ "$(uname -s)" = Linux ]; then
+	echo "ulisp mutants: image-reread needs rewrite-race.so, which the Linux build did not produce" >&2
+	exit 1
+else
+	echo "SKIP ulisp mutants: image-reread needs the rewrite-race shim (Linux LD_PRELOAD); no execution occurred"
+fi
 # A loaded image is not checked against its own span.
 mutant image-unchecked 's/const char \*fault = checkimage(header, imagesize);/const char *fault = NULL;/'
 # A pair may point into a string chain, whose cells hold characters.
 mutant image-chain-target 's/return chainbit(chains, index) ? imagelinked : NULL;/return NULL;/'
 # A random limit of zero reaches the modulus.
 mutant random-zero 's/if (arg->integer <= 0) error("limit must be positive", arg);//'
-# The remainder of INT_MIN by -1 reaches the division.
-mutant rem-overflow 's/(divisor == -1) ? 0 : dividend % divisor/dividend % divisor/'
+# A negative count waits two seconds instead of returning at once; only the
+# upper bound of the for-millis rows of the arith corpus notices. The bound
+# is 1500 ms above the request: a form the host deschedules for longer fails.
+mutant for-millis-negative-wait 's/total = (count < 0) ? 0 : (unsigned long)count;/total = (count < 0) ? 2000 : (unsigned long)count;/'
+# The remainder of INT_MIN by -1 reaches the division. x86 traps (SIGFPE);
+# arm64 returns 0, which is the right answer, so the unsanitized program
+# passes there and the overflow is reported by the sanitizer instead.
+mutant rem-overflow 's/(divisor == -1) ? 0 : dividend % divisor/dividend % divisor/' \
+    ulisp.c 1 '-fsanitize=signed-integer-overflow -fno-sanitize-recover=all'
 # The negation of INT_MIN happens in int.
 mutant negate-int-min 's/makefloat(-(float)result)/makefloat(-result)/'
 # Array dimensions are multiplied without a check against INT_MAX.
@@ -256,7 +281,7 @@ pmutant ed-full-row unix.c 's/if (back != to)/if (0)/'
 # The printed value is not colored.
 pmutant value-color unix.c 's/vhl = hlok;/vhl = false;/'
 # float takes a symbol or nil for a number.
-mutant float-type '/^static object \*fn_floatfn/,/^}/{/!integerp(arg)/d}'
+mutant float-type '/^static object \*fn_floatfn/,/^}/{/!integerp(arg)/d;}'
 # documentation reads the head of a variable's list without checking it.
 mutant doc-guard 's/if (val != NULL \&\& listp(val) \&\& car(val) != NULL \&\& symbolp(car(val)) \&\&/if (listp(val) \&\&/'
 # A line is not clipped to the panel before it is walked: the walk of a
@@ -267,19 +292,22 @@ mutant line-clip-round 's/qx - \*px, true)/qx - *px, false)/' gfx.c
 # A circle larger than the midpoint walk takes is not drawn.
 mutant circle-far 's/bigarcs(x0, y0, x1, y1, r, color, filled);/return;/' gfx.c
 # A triangle with a corner far off the panel is not drawn.
-mutant triangle-far 's/^	int t;$/	int t;\n\n	if (x0 < -(1 << 24) || x2 > (1 << 24))\n		return;/' gfx.c
+mutant triangle-far 's/^	int t;$/	int t;\
+\
+	if (x0 < -(1 << 24) || x2 > (1 << 24))\
+		return;/' gfx.c
 # A name that is not a symbol reaches the variable lookup.
-mutant find-nonsymbol '/^static object \*findvalue (object \*var, object \*env) {$/,/^}/{/notasymbol/d}'
+mutant find-nonsymbol '/^static object \*findvalue (object \*var, object \*env) {$/,/^}/{/notasymbol/d;}'
 # let binds an object that is not a symbol.
-mutant let-nonsymbol '/if ((name == LET) || (name == LETSTAR)) {/,/goto EVAL/{/notasymbol/d}'
+mutant let-nonsymbol '/if ((name == LET) || (name == LETSTAR)) {/,/goto EVAL/{/notasymbol/d;}'
 # A stream with no reader is read.
-mutant stream-unreadable '/^static gfun_t gstreamfun (object \*args) {$/,/^}/{/streamfunction == NULL/d}'
+mutant stream-unreadable '/^static gfun_t gstreamfun (object \*args) {$/,/^}/{/streamfunction == NULL/d;}'
 # A dimension that is not an integer reaches the product.
-mutant array-dimension-type '/^static object \*makearray (object \*dims, object \*def, bool bitp) {$/,/^}/{/!integerp(car(dims))/d}'
+mutant array-dimension-type '/^static object \*makearray (object \*dims, object \*def, bool bitp) {$/,/^}/{/!integerp(car(dims))/d;}'
 # write-string takes any object for a string.
 mutant write-string-type '/^static object \*fn_writestring (object \*args, object \*env) {$/,/^}/s/checkstring(first(args))/first(args)/'
 # sleep without an argument reads the empty list.
-mutant sleep-noargument '/^static object \*fn_sleep (object \*args, object \*env) {$/,/^}/{/args == NULL/d}'
+mutant sleep-noargument '/^static object \*fn_sleep (object \*args, object \*env) {$/,/^}/{/args == NULL/d;}'
 # An interrupted read of the console is taken as the end of input.
 mutant read-eintr 's/while (n < 0 \&\& errno == EINTR);/while (0);/' unix.c
 

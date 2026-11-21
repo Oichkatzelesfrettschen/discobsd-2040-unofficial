@@ -15,6 +15,9 @@
 #include <sys/lcdgfx.h>
 #include <sys/lcdcons.h>
 #include <sys/wait.h>
+#include <sys/sysctl.h>
+#include <machine/cpu.h>
+#include <machine/picocalcvar.h>
 #include <sgtty.h>
 #include <time.h>
 #endif
@@ -128,6 +131,113 @@ files(struct mz *s)
     strcpy(s->files[0],"Directory API: native backend");
 #endif
 }
+#ifdef MZ_BOARD
+/*
+ * The machdep.picocalc light nodes. Any user reads them; the kernel takes a
+ * write from root alone (__sysctl() in sys/kern/kern_sysctl.c), so another
+ * user's change goes through backlight(1), which the backlight closure
+ * installs setuid root. The vfork child points its output at /dev/null,
+ * because the tty is in raw mode under the desktop, and drops the display
+ * and artwork descriptors before the exec.
+ */
+static int
+light_node(int which,int *level,int writing)
+{
+    int mib[3];
+    size_t len=sizeof(*level);
+    mib[0]=CTL_MACHDEP; mib[1]=CPU_PICOCALC;
+    mib[2]=which==MZ_KEYS?CPU_PICOCALC_KBD_BACKLIGHT:CPU_PICOCALC_LCD_BACKLIGHT;
+    if(writing) return sysctl(mib,3,NULL,NULL,level,sizeof(*level));
+    if(sysctl(mib,3,level,&len,NULL,0)<0) return -1;
+    return len==sizeof(*level)?0:-1;
+}
+static int
+light_get(int which,int *level)
+{
+    return light_node(which,level,0);
+}
+static const char *
+light_set(int which,int level)
+{
+    char arg[4];
+    int pid,reaped,wait_status,fd;
+    if(light_node(which,&level,1)==0) return NULL;
+    if(errno!=EPERM) return "Light refused by the kernel";
+    snprintf(arg,sizeof(arg),"%d",level);
+    pid=vfork();
+    if(pid==0) {
+        fd=open("/dev/null",O_WRONLY);
+        if(fd>=0) { dup2(fd,1); dup2(fd,2); if(fd>2) close(fd); }
+        if(backend.display>=0) close(backend.display);
+        close(backend.assets);
+        execl("/usr/bin/backlight","backlight",which==MZ_KEYS?"kbd":"lcd",arg,(char *)0);
+        _exit(127);
+    }
+    if(pid<0) return "No process for backlight(1)";
+    do reaped=wait(&wait_status);
+    while(reaped!=pid && (reaped>=0 || errno==EINTR));
+    if(reaped!=pid || !WIFEXITED(wait_status)) return "backlight(1) did not finish";
+    if(WEXITSTATUS(wait_status)==127) return "backlight(1) is not installed";
+    return WEXITSTATUS(wait_status)?"backlight(1) refused the level":NULL;
+}
+#else
+/*
+ * The development and QEMU builds keep the two levels in this stand-in,
+ * which conditions a write as the controller's firmware does (backlight.ino): the
+ * screen at a multiple of 16 within 16-240, the keys at a multiple of 32,
+ * 0 below 32. The screen starts at 160, the level /etc/rc sets at boot.
+ */
+static int model_light[2]={160,0};
+static int
+light_get(int which,int *level)
+{
+    *level=model_light[which];
+    return 0;
+}
+static const char *
+light_set(int which,int level)
+{
+    if(which==MZ_KEYS) {
+        level=level/MZ_KEYS_STEP*MZ_KEYS_STEP;
+        if(level<MZ_KEYS_STEP) level=0;
+    } else {
+        level=level/MZ_SCREEN_STEP*MZ_SCREEN_STEP;
+        if(level<MZ_SCREEN_STEP) level=MZ_SCREEN_STEP;
+    }
+    model_light[which]=level;
+    return NULL;
+}
+#endif
+/* Read both lights; mark Settings when a level differs from the shown one. */
+static void
+lights(struct mz *s)
+{
+    int i,v;
+    for(i=0;i<2;i++) {
+        if(light_get(i,&v)<0) v=-1;
+        if(v!=s->light[i]) { s->light[i]=v; mz_all(s); }
+    }
+}
+/* Write the levels Left and Right asked for, then show what was kept. */
+static void
+flush_lights(struct mz *s)
+{
+    const char *failure=NULL,*why;
+    int i,last=-1;
+    if(s->light_want[MZ_SCREEN]<0 && s->light_want[MZ_KEYS]<0) return;
+    for(i=0;i<2;i++) if(s->light_want[i]>=0) {
+        why=light_set(i,s->light_want[i]);
+        if(why) failure=why;
+        else last=i;
+        s->light_want[i]=-1;
+    }
+    lights(s);
+    if(failure) snprintf(s->status,sizeof(s->status),"%s",failure);
+    else if(last>=0 && s->light[last]>=0)
+        snprintf(s->status,sizeof(s->status),"%s light %d",
+            last==MZ_KEYS?"Keyboard":"Screen",s->light[last]);
+    mz_all(s);
+}
 static void
 calculate(struct mz *s)
 {
@@ -176,8 +286,11 @@ save_note(const char *path)
 static void
 apply(int key,const char *note_path)
 {
+    int was=state.active;
     if(key==MZ_SAVE) { if(state.active==1)save_note(note_path); return; }
-    if(key==MZ_REFRESH) { files(&state); mz_all(&state); return; }
+    if(key==MZ_REFRESH) { files(&state); lights(&state); mz_all(&state); return; }
+    /* The keyboard's own shortcuts change the levels behind the desktop. */
+    if(key==MZ_TICK && state.active==4 && !state.menu) lights(&state);
     if(state.active==3 && (key=='\n'||key=='\r')) { calculate(&state); return; }
     if(state.active==0 && !state.menu) {
         if(key==MZ_UP && state.file_cursor>0)state.file_cursor--;
@@ -206,6 +319,7 @@ apply(int key,const char *note_path)
         }
     }
     mz_action(&state,key);
+    if(state.active==4 && was!=4) lights(&state);
 }
 #ifdef MZ_BOARD
 static int
@@ -271,6 +385,9 @@ board_loop(struct mz_io *io,const char *note_path)
                 mz_all(&state);
             } else apply(key,note_path);
         }
+        /* One write per light for the whole batch of keys. */
+        if(state.light_want[MZ_SCREEN]>=0 || state.light_want[MZ_KEYS]>=0)
+            flush_lights(&state);
         now=time(NULL);
         if(now>before) { state.ticks+=(unsigned)(now-before-1); apply(MZ_TICK,note_path); }
         before=now;
@@ -342,6 +459,7 @@ main(int argc,char **argv)
 #else
     for(i=3;i<argc&&!status;i++) {
         apply(atoi(argv[i]),note_path);
+        flush_lights(&state);
         if(mz_render(&state,&io)<0)status=1;
     }
     if(argc==3&&!status) {
@@ -353,6 +471,7 @@ main(int argc,char **argv)
                 line[n]=0;n=0;
                 if(!strcmp(line,"quit"))break;
                 apply(atoi(line),note_path);
+                flush_lights(&state);
                 if(mz_render(&state,&io)<0 || write(1,"frame\n",6)!=6)status=1;
             } else if(n<15)line[n++]=ch;
             else {status=1;break;}

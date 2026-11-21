@@ -315,6 +315,13 @@ pack /usr/bin/picofetch
 #closure picotop
 pack /usr/bin/picotop
 #endclosure picotop
+# backlight(1) writes the machdep.picocalc light nodes, which the kernel
+# accepts from root only, so it runs setuid root; mkmanifest.py requires
+# the mode in every profile that selects the closure.
+#closure backlight
+pack /usr/bin/backlight
+mode 04755
+#endclosure backlight
 pack /usr/bin/sed
 pack /usr/bin/grepbox
 pack /usr/bin/find

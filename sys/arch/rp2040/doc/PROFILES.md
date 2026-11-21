@@ -42,7 +42,7 @@ split, so a profile or command that named `games`, `puzzles`, `toolchain` or
 | `calc-bignum` | `bc`, `dc` |
 
 The remaining closures stand alone: `coremark` (named by the `benchmark` profile only), `calc`, `toolchainlib`,
-`sdcard`, `lcdgfx`, `psramtmp` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
+`sdcard`, `lcdgfx`, `psramtmp`, `backlight` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
 and the device nodes of the PicoCalc's SD card (block major 5, raw major 11 in
 `conf.c`); the `picocalc` profile names it, `full` does not, and the PICO
 kernels have no driver behind those majors. Its `needs path` line holds the
@@ -55,7 +55,13 @@ a manifest block that loses one stops the build. The `picocalc` and
 driver and the third mount slot: a PicoCalc whose PSRAM part does not answer
 the probe leaves the driver down, the open fails with `ENXIO` and `/tmp` stays
 on the root, so that board pays the nine blocks and two inodes for nothing.
-`IMAGE_WITHOUT=psramtmp` leaves them out. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
+`IMAGE_WITHOUT=psramtmp` leaves them out. The `backlight` closure carries
+`/usr/bin/backlight` with mode 4755, setuid root, because the kernel accepts a
+write to the `machdep.picocalc` light nodes from root only; `mkmanifest.py`
+refuses a profile that selects the closure without that mode. Both PicoCalc
+profiles name it, and so does the opt-in `matezinho` profile, because the
+`matezinho` closure needs it: the desktop's Settings view sets the lights
+through it. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
 console's character major 10, mode 666) that the PICOCALC kernels serve; the
 `picocalc` profile names it, and so does the opt-in `matezinho` profile. The
 `ridge` closure carries the hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile
@@ -123,6 +129,7 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
 | `picofetch` | 14 | 1 | `/usr/bin/picofetch` (15,644 bytes before packing); PicoCalc profile |
 | `picotop` | 15 | 1 | `/usr/bin/picotop` (15,944 bytes before packing); PicoCalc profile |
+| `backlight` | 2 | 1 | `/usr/bin/backlight` (1,692 bytes before packing, 1,509 packed), mode 4755; both PicoCalc profiles and `matezinho` |
 | `sdcard` | 11 | 8 | `/mnt`, the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`, and `/sbin/savecore` (9,141 bytes packed); PicoCalc only |
 | `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
 | `psramtmp` | 9 | 2 | the block node `/dev/psram1` (major 3, minor 1, mode 600) and `/sbin/mkfs` (9,788 bytes before packing); PicoCalc only |
@@ -213,8 +220,8 @@ the pack's unused blocks occupy no flash.
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's and `coremark`, including `puzzles` | 231 (215 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root | 26 (25 with it) |
-| `picocalc` | `full` (which holds no `coremark`) plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop` and `psramtmp`, so also `puzzles` | 82 (66 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root; the earlier 77 (86 with `IMAGE_WITHOUT=psramtmp`) was measured with `coremark` in the profile | 8 (7 with it) |
-| `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch`, `picotop` and `psramtmp` | 91 (75 with `IMAGE_WITH=coremark`), same tree as the `picocalc` row | 9 (8 with it) |
+| `picocalc` | `full` (which holds no `coremark`) plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop`, `psramtmp` and `backlight`, so also `puzzles` | 82 (66 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root; the earlier 77 (86 with `IMAGE_WITHOUT=psramtmp`) was measured with `coremark` in the profile | 8 (7 with it) |
+| `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch`, `picotop`, `psramtmp` and `backlight` | 91 (75 with `IMAGE_WITH=coremark`), same tree as the `picocalc` row | 9 (8 with it) |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -228,6 +235,19 @@ inodes before `time` joined `utilbox` (446 afterwards), 447 and 42 with
 holds 148 free blocks and 20 free inodes when built with
 `IMAGE_WITHOUT=ridge`; the row reads 140 and 20 as shipped: `ridge` takes
 eight blocks and no inode, because its entry point is a hard link.
+
+The `backlight` cost is the difference between `base` (430 free blocks and 36
+free inodes) and `base` with the closure (428 and 35), built with `bmake
+MACHINE=rp2040 PROFILE=base IMAGE_WITH=backlight fs` and read with the same
+`fsutil --verbose --partition=1` command; the `picocalc` and
+`picocalc-lean` rows were not measured again with it and sit two blocks and
+one inode above what those images now hold. The `picocalc` image itself
+holds 78 free blocks and 7 free inodes with the closure and 80 and 8 with
+`IMAGE_WITHOUT=backlight` (`BOARD=PICOCALC fs`, the same `fsutil` command).
+Either way `check-renode-union` booted on that image (`BOARD=PICOCALC`)
+runs out of inodes in its native-compile stage, one stage earlier with the
+closure; the hosted run boots the PICO board's image, which passes. The
+floor of free inodes a PicoCalc root keeps is open as issue #764.
 
 The `psramtmp` cost is the difference between `base` (437 free blocks and 37
 free inodes) and `base` with the closure (428 and 35), built with `bmake

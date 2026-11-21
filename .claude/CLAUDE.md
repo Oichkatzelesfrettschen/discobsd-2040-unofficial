@@ -133,12 +133,12 @@ Build, host, cross, qemu-user, Renode and physical-board results are separate
 evidence classes. A warning-free build establishes compilation. Qemu-user
 exercises an instruction sequence; Renode boots with third-party peripheral
 models; a board run measures the exercised silicon configuration. A test
-target that skips an optional variant establishes no execution for that
-variant. `sys/arch/rp2040/doc/TESTING.md` defines the gates.
+target that skips an optional variant establishes execution only for the
+variants it ran. `sys/arch/rp2040/doc/TESTING.md` defines the gates.
 
 A new gate, linter or probe is calibrated against a known-good and a
-known-bad input before its verdict counts, because a gate that passes on
-input it should reject reports nothing.
+known-bad input before its verdict counts, because a pass means the subject is
+good only from a gate that rejects its known-bad input.
 
 For a kernel or driver change that rests on board behavior, record the direct
 observation, governing specification or invariant, implementation hypothesis,
@@ -244,7 +244,7 @@ blockers; a missing tool never becomes a passing check.
   and the BSD 3-Clause conditions as NOTICE section 1 words them, with
   GizmoBSD as the holder (LICENSE is upstream's text and keeps its
   placeholder). Data files (.tsv, .json), Markdown and generated files
-  carry none. A file dated a year that NOTICE and etc/COPYRIGHT do not yet
+  do not carry it. A file dated a year that NOTICE and etc/COPYRIGHT do not yet
   name extends their GizmoBSD year range in the same commit. NOTICE
   section 1 names GizmoBSD files as a category beside the earlier
   `Copyright (c) 2026 DiscoBSD` ISC files, so the header is the grant a

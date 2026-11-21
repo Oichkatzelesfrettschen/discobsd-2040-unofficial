@@ -58,8 +58,12 @@ jobs:
     # trap tier adds 10.1. Hosted runners vary by about 25 percent between
     # runs (the same steps took 899 and 1,098 seconds in the host tier), so
     # the limit covers a slow runner's 94 minutes with margin, plus the
-    # qemu tier's C17 math family, which adds up to 25 more.
-    timeout-minutes: 135
+    # qemu tier's C17 math family, which adds up to 25 more. On 2026-11-21 the
+    # host tier alone took 36 minutes (run 44844712110) and every later tier
+    # took 85 minutes in a run that skipped the host tier (44849576870, its SD
+    # system tier ended by the idle timeout after 13 of up to 24 minutes), so a
+    # passing run needs about 130 minutes or more; the bound is 180.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -324,11 +328,13 @@ jobs:
       # has no Thumb-1 variant and math holds Thumb-1 to glibc-checked digests.
       # This job installs cffi, hypothesis and pytest, so the swap tier
       # model gate fails rather than skips when one is missing.
-      # Measured 899 to 1,098 seconds on runs that finished; one runner had
-      # not finished at 1,140 with every gate so far passing.
+      # The tier is bound by total CPU work on a four-CPU runner, not by the
+      # order of its gates; sys/arch/rp2040/doc/TESTING.md (check-host-split)
+      # holds the measured wall times. The hard timeout leaves room above the
+      # slowest tier measured, and the idle timeout still ends a hung gate.
       - name: Run the host tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 28
+        timeout-minutes: 48
         env:
           SWAP_TIER_MODEL_REQUIRED: "1"
         run: |
@@ -336,7 +342,7 @@ jobs:
             --label linux-host \
             --log .build-logs/linux-host.log \
             --status .build-logs/linux-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1620 \
+            --idle-timeout-seconds 300 --timeout-seconds 2700 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       # check-signal-sets-cross owns target signatures and Smaller C input;
@@ -817,7 +823,10 @@ jobs:
     name: rp2040 kernel, flash image on macOS
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
-    timeout-minutes: 75
+    # The explicit step limits add up to 174 minutes (the host tier alone 79);
+    # the bound leaves 6 minutes above that sum, and no complete run has been
+    # measured (see the first part of the host tier).
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -939,29 +948,31 @@ jobs:
       # The host tier owns PTY completion, terminal nohup, libc quick-exit and ndbm constructor witnesses.
       # It runs as two steps over one partition of check-host
       # (HOST_TIER_B_GATES in the Makefile; check-host-split proves it exact).
-      # Whole, the tier took 633 to 1354 s (median 1286 s) on the four runs
-      # that finished and passed 1500 s on a fifth; each step's hard limit is
-      # 1.5 times half that median.
-      # The first part also carries the C17 library families, whose math and
-      # wide fixtures run native and sanitized; with them it ran past 960 s
-      # with no failed gate, so its limit is 1500 s.
+      # The second part finished every gate in 748 s (dispatch 44842461207, no
+      # limit reached); its limit is 1.6 times that. No run has finished the
+      # first part with every gate passing: the ulisp mutants did not start in
+      # that run (ulisp stopped at its first transcript), and a later run
+      # (44852590032) was still running ulisp and lexeme at 1693 s when i86
+      # failed. The first part carries the C17 library families, whose math
+      # and wide fixtures run native and sanitized, and the ulisp mutants; its
+      # 3000 s limit is a placeholder until a passing run measures it.
       - name: Run the host tier, first part
-        timeout-minutes: 27
+        timeout-minutes: 55
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host-a \
             --log .build-logs/macos-host-a.log \
             --status .build-logs/macos-host-a.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1500 \
+            --idle-timeout-seconds 300 --timeout-seconds 3000 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
       - name: Run the host tier, second part
-        timeout-minutes: 18
+        timeout-minutes: 24
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host-b \
             --log .build-logs/macos-host-b.log \
             --status .build-logs/macos-host-b.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 960 \
+            --idle-timeout-seconds 300 --timeout-seconds 1200 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b
       - name: Run the cross tier
         timeout-minutes: 20

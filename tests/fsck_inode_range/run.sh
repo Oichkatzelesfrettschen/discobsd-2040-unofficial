@@ -96,7 +96,19 @@ check_run() {
 # Set $files to the number of files fsck reports after a clean pass: fsutil's
 # count less the legacy inode 1, which pass 1 starts above.
 set_expected_files() {
-	report=$("$gen" --check "$img") || error "$scenario: $gen --check failed"
+	status=0
+	report=$("$gen" --check "$img" 2>&1) || status=$?
+	case $status in
+	0) ;;
+	1)
+		# The scenario goes on with no expected count, so that the rejection is
+		# the verdict (status 1) and not a run without one (status 2).
+		fail "$gen rejects the image after repair: $report"
+		files=0
+		return
+		;;
+	*) error "$scenario: $gen --check did not complete, status $status" ;;
+	esac
 	count=$(printf '%s\n' "$report" |
 	    sed -n 's/^\([0-9][0-9]*\) files .*/\1/p')
 	[ -n "$count" ] || error "$scenario: no file count in the fsutil report"
@@ -197,14 +209,17 @@ lost_name() {
 	esac
 }
 
-# A lost+found whose record runs past its block is damaged: fsutil must
-# leave it alone and report that it has no room for the orphan.
+# A malformed record makes both read-only checking and repair fail before a
+# write. The image remains byte-identical for block, record and name overrun.
 run_fsutil_overrun() {
-	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
-	has 'UNREF FILE'
-	has 'SORRY. NO SPACE IN lost+found DIRECTORY'
-	lost_name FILE
-	[ -z "$found" ] || fail "$name resolves to $found in a damaged lost+found"
+	cp "$img" "$img.before"
+	for operation in --check --fix; do
+		status=0
+		"$gen" "$operation" "$img" >"$out" 2>&1 || status=$?
+		[ "$status" -eq 1 ] || fail "$operation returned $status, want 1"
+		has 'Invalid directory record'
+		cmp -s "$img" "$img.before" || fail "$operation changed the image"
+	done
 }
 
 # run_fsutil KIND CHILD...: fsutil's repair reconnects the unreferenced KIND
@@ -225,6 +240,7 @@ run_fsutil() {
 	lost_name "$kind"
 	[ "$found" = "$ino" ] ||
 	    fail "$name resolves to \"$found\", want $ino"
+	[ "$failed" -eq 0 ] || return
 	# A reconnected directory brings its subtree with it: the phase that
 	# reconnects it walks the entries phase 2 never reached, which is what
 	# gives them their references.
@@ -251,6 +267,7 @@ run_fsutil() {
 		[ "$found" = "$want" ] ||
 		    fail "$name resolves to \"$found\", want $want"
 	done
+	[ "$failed" -eq 0 ] || return
 	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
 	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING|WRONG'
 	set_expected_files
@@ -498,6 +515,7 @@ for scenario in "$@"; do
 	    fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
 	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | fsutil-lf-cycle | fsutil-lf-gap | fsutil-lf-chain | \
 	    fsutil-clear-blocks | fsutil-count-tfree | fsutil-count-tinode | \
+	    fsutil-name-overlong | fsutil-name-overrun | \
 	    fsutil-lf-second | fsutil-lf-one-slot | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
@@ -512,6 +530,8 @@ for scenario in "$@"; do
 	fsutil-lf-last) layout=lf-last ;;
 	fsutil-lf-hole) layout=lf-hole-last ;;
 	fsutil-lf-overrun) layout=lf-overrun-last ;;
+	fsutil-name-overlong) layout=name-overlong ;;
+	fsutil-name-overrun) layout=name-overrun ;;
 	fsutil-lf-pristine) layout=orphan-last ;;
 	fsutil-lf-dir) layout=orphan-dir ;;
 	fsutil-lf-deep) layout=orphan-deep ;;
@@ -571,7 +591,7 @@ PYTEST
 	fsutil-lf-one-slot) run_fsutil_one_slot ;;
 	fsutil-count-tfree) run_fsutil_count 'FREE BLK COUNT WRONG IN SUPERBLOCK' ;;
 	fsutil-count-tinode) run_fsutil_count 'FREE INODE COUNT WRONG IN SUPERBLOCK' ;;
-	fsutil-lf-overrun) run_fsutil_overrun ;;
+	fsutil-lf-overrun | fsutil-name-overlong | fsutil-name-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;
 	df-empty) run_df 32 3 29 ;;
 	df-full) run_df 32 32 0 ;;

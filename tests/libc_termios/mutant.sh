@@ -96,8 +96,16 @@ for extra in ${EXTRA_OBJECTS:-}; do
 done
 # shellcheck disable=SC2086
 $HOSTCC -m32 -o "$work/gate" "$work/gate.o" $objects
-if "$work/gate" > "$work/run.log" 2>&1; then
+rc=0
+sh "$(dirname "$0")/../../tools/run_bounded.sh" "$work/run.log" "$work/gate" || rc=$?
+case $rc in
+124 | 125)
+	echo "FAIL mutant $label: the gate gave no verdict (status $rc: 124 the MUTANT_TIMEOUT bound, 125 the run could not happen)" >&2
+	exit 3
+	;;
+0)
 	echo "FAIL mutant $label survived: the gate passed" >&2
 	exit 1
-fi
+	;;
+esac
 echo "PASS mutant $label rejected"

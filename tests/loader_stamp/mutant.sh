@@ -38,7 +38,15 @@ if ! "$cc" -std=gnu17 -O1 -w -I"$work" -o "$work/test" \
 	echo "mutant does not compile: $file: $script" >&2
 	exit 2
 fi
-if "$work/test" > "$work/out" 2>&1 &&
+rc=0
+sh "$here/../../tools/run_bounded.sh" "$work/out" "$work/test" || rc=$?
+case $rc in
+124 | 125)
+	echo "mutant.sh: the test on the mutant of $file: $script gave no verdict (status $rc: 124 the MUTANT_TIMEOUT bound, 125 the run could not happen)" >&2
+	exit 3
+	;;
+esac
+if [ "$rc" -eq 0 ] &&
     sh "$here/check_choke.sh" "$work/rp2040/dev/flash.c" \
     "$src/../boot2/boot2_w25q080.S" >> "$work/out" 2>&1
 then

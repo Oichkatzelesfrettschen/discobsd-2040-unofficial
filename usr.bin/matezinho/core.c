@@ -42,7 +42,33 @@ mz_init(struct mz *s)
     for(i=0;i<MZ_APPS;i++) s->mru[i]=(unsigned char)i;
     strcpy(s->location,"/");
     strcpy(s->status,"Ready");
+    s->light[MZ_SCREEN]=s->light[MZ_KEYS]=-1;
+    s->light_want[MZ_SCREEN]=s->light_want[MZ_KEYS]=-1;
     mz_all(s);
+}
+/*
+ * Settings rows. Left and Right step a light from the level already asked
+ * for, or else from the kept level, so several presses that reach the
+ * backend together ask for their sum. The kernel takes 0-240, and the
+ * controller rounds what it gets (MZ_SCREEN_STEP in matezinho.h).
+ */
+static void
+settings(struct mz *s,int key)
+{
+    int row=s->setting,level,step;
+    if(key==MZ_UP) s->setting=(row+2)%3;
+    else if(key==MZ_DOWN) s->setting=(row+1)%3;
+    else if(key==' ' || ((key=='\n'||key=='\r') && row==2)) s->large=!s->large;
+    else if((key==MZ_LEFT || key==MZ_RIGHT) && row<2) {
+        level=s->light_want[row]>=0?s->light_want[row]:s->light[row];
+        if(level<0) return;
+        step=row==MZ_SCREEN?MZ_SCREEN_STEP:MZ_KEYS_STEP;
+        level+=key==MZ_RIGHT?step:-step;
+        if(level<0) level=0;
+        if(level>MZ_LIGHT_MAX) level=MZ_LIGHT_MAX;
+        s->light_want[row]=level;
+    } else return;
+    mark(s,24,272);
 }
 static void
 activate(struct mz *s, int a)
@@ -106,7 +132,7 @@ mz_action(struct mz *s, int key)
         mark(s,24+(s->focus/3)*88,88);
         return;
     }
-    if(s->active==4 && key==' ') { s->large=!s->large; mz_all(s); }
+    if(s->active==4) { settings(s,key); return; }
     p=s->active==1?s->note:s->expr;
     if(s->active!=1 && s->active!=3) return;
     n=(int)strlen(p);
@@ -194,6 +220,22 @@ tile_title(int x, int y, const char *title)
     }
 }
 
+static const char *const setting_names[3] = {
+    "Screen light", "Keyboard light", "Large headings"
+};
+/* A light's row: a bar of the kept level out of 240 and its number. */
+static void
+light_bar(const struct mz *s,int which,int y)
+{
+    char buf[12];
+    int v=s->light[which];
+    if(v<0) { text(112,y+2,"unavailable",MUTED,1); return; }
+    rect(112,y,122,12,PANEL);
+    rect(113,y+1,(v<MZ_LIGHT_MAX?v:MZ_LIGHT_MAX)*120/MZ_LIGHT_MAX,10,GREEN);
+    if(which==MZ_KEYS && v==0) strcpy(buf,"off");
+    else snprintf(buf,sizeof(buf),"%d",v);
+    text(242,y+2,buf,TEXT,1);
+}
 static int
 icon(struct mz_io *io,int app,int x,int y)
 {
@@ -262,7 +304,15 @@ scene(struct mz *s,struct mz_io *io)
             text(16,104,s->expr,TEXT,1);
             text(16,137,s->result,GREEN,1); break;
         case 4:
-            text(16,84,"Space: toggle large headings\nOriginal dark theme\nMATE artwork: CC BY-SA 3.0\nSee artwork AUTHORS and COPYING",TEXT,1); break;
+            for(i=0;i<3;i++) {
+                y=68+i*22;
+                if(i==s->setting) rect(12,y-4,296,20,SELECT);
+                text(16,y+2,setting_names[i],TEXT,1);
+                if(i<2) light_bar(s,i,y);
+                else text(112,y+2,s->large?"on":"off",TEXT,1);
+            }
+            text(16,140,"Up/Down: choose  Left/Right: adjust\nSpace: large headings\nBoot level: root runs backlight -s",MUTED,1);
+            text(16,186,"Original dark theme\nMATE artwork: CC BY-SA 3.0\nSee artwork AUTHORS and COPYING",TEXT,1); break;
         case 5:
             snprintf(buf,sizeof(buf),"Session: %u seconds",s->ticks);
             text(16,90,buf,TEXT,scale);
@@ -270,7 +320,7 @@ scene(struct mz *s,struct mz_io *io)
         case 6:
             text(16,80,"Enter: exclusive shell\nDisplay returns after shell exits.\nNo concurrent terminal promised.",TEXT,1); break;
         case 7:
-            text(16,78,"Arrows: select  Enter: open\nEsc: desktop  Tab: next task\nCtrl-W: close  Ctrl-S: save\nF1: applications  F5: refresh\nNotes: 1023 bytes, retained\nFiles: first 12 directory entries\nIcons: MATE/GNOME contributors\nCC BY-SA 3.0; upstream AUTHORS\nIndependent MATE-inspired shell",TEXT,1); break;
+            text(16,78,"Arrows: select  Enter: open\nEsc: desktop  Tab: next task\nCtrl-W: close  Ctrl-S: save\nF1: applications  F5: refresh\nSettings: lights and headings\nNotes: 1023 bytes, retained\nFiles: first 12 directory entries\nIcons: MATE/GNOME contributors\nCC BY-SA 3.0; upstream AUTHORS\nIndependent MATE-inspired shell",TEXT,1); break;
         case 8:
             snprintf(buf,sizeof(buf),"Asset capacity: %u MiB",s->asset_sectors/2048);
             text(16,64,buf,GREEN,1);

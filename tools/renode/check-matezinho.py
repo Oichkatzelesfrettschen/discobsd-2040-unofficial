@@ -30,6 +30,44 @@ def region_error(actual, expected, y0, y1, x0=0, x1=320):
     )
 
 
+def wait_level(run, renode, prop, want, seconds):
+    """Advance until the keyboard model's light property reads want."""
+    level = None
+    for _ in range(int(seconds * 2)):
+        run.advance(0.5)
+        level = monitor_int(renode, f"sysbus.i2c1.kbd {prop}")
+        if level == want:
+            return level
+    raise AssertionError(f"{prop} reads {level}, not {want}, after {seconds} s")
+
+
+def check_lights(run, renode):
+    """Raise both lights one step from the Settings view, as operator.
+
+    The kernel takes a light write from root alone, so the desktop's change
+    reaches the controller only through the setuid backlight(1) it spawns;
+    an image without that helper, or without its setuid mode, leaves the
+    levels where /etc/rc and the controller put them.
+    """
+    if monitor_int(renode, "sysbus.i2c1.kbd BacklightLevel") != 160:
+        raise AssertionError("/etc/rc did not set the screen light to 160")
+    keys = monitor_int(renode, "sysbus.i2c1.kbd KeyBacklightLevel")
+    if keys != 0:
+        raise AssertionError(f"keyboard light starts at {keys}, not off")
+    renode.command("sysbus.i2c1.kbd TypeKey 177")  # Esc: the launcher
+    run.advance(1)
+    renode.command("sysbus.i2c1.kbd TypeKey 182")  # Down: Notes to Settings
+    renode.command("sysbus.i2c1.kbd TypeKey 10")
+    run.advance(2)
+    renode.command("sysbus.i2c1.kbd TypeKey 183")  # Right: screen one step up
+    wait_level(run, renode, "BacklightLevel", 176, 20)
+    renode.command("sysbus.i2c1.kbd TypeKey 182")  # Down: the keyboard row
+    run.advance(1)
+    renode.command("sysbus.i2c1.kbd TypeKey 183")  # Right: keyboard on
+    wait_level(run, renode, "KeyBacklightLevel", 32, 20)
+    run.snapshot("settings")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--renode", default="renode")
@@ -85,9 +123,6 @@ def main():
         run.advance(1)
         run.snapshot("notes")
         renode.command('sysbus.i2c1.kbd TypeText "Hello PicoCalc"')
-        run.advance(1)
-        renode.command("sysbus.spi1.lcd DumpPpm @" + str(args.output / "notes-text.ppm"))
-        actual = picocalc_fb.read_ppm(str(args.output / "notes-text.ppm"))[2]
         with tempfile.TemporaryDirectory() as directory:
             expected_path = Path(directory) / "notes.ppm"
             keys = [257, 10, *(ord(c) for c in "Hello PicoCalc")]
@@ -103,11 +138,30 @@ def main():
                 timeout=10,
             )
             expected = picocalc_fb.read_ppm(str(expected_path))[2]
-        if region_error(actual, expected, 30, 320) > 3:
+        # The guest takes the fourteen keys at the controller's polling rate
+        # and repaints each band as it goes, so the frame is compared until
+        # it matches or ten virtual seconds pass.
+        error = None
+        for _ in range(20):
+            run.advance(0.5)
+            renode.command("sysbus.spi1.lcd DumpPpm @" + str(args.output / "notes-text.ppm"))
+            actual = picocalc_fb.read_ppm(str(args.output / "notes-text.ppm"))[2]
+            error = region_error(actual, expected, 30, 320)
+            if error <= 3:
+                break
+        if monitor_int(renode, "sysbus.i2c1.kbd Dropped") != 0:
+            raise AssertionError("Notes text exceeded the physical key FIFO")
+        if error > 3:
             raise AssertionError("Notes input did not reproduce the reference view")
         print(
             f"matezinho Renode: original icon card and typed Notes matched; "
             f"{reads} SPI sector reads",
+            flush=True,
+        )
+        check_lights(run, renode)
+        print(
+            "matezinho Renode: Settings raised the screen light 160 to 176 and "
+            "the keyboard light 0 to 32 through backlight(1) as operator",
             flush=True,
         )
     finally:

@@ -46,6 +46,10 @@ import picocalc_fb  # noqa: E402
 from renode_monitor import Renode, RenodeError, monitor_int  # noqa: E402
 
 SLICE_SECONDS = 0.5
+# A wait prints a line every this many virtual seconds: a hosted runner emulates
+# a few virtual seconds per minute, and the gate runner ends a step whose output
+# is silent for its idle timeout.
+PROGRESS_SECONDS = 10.0
 BOOT_BUDGET_SECONDS = 20.0
 LOGIN_BUDGET_SECONDS = 120.0
 KEY_BUDGET_SECONDS = 20.0
@@ -155,12 +159,17 @@ class Run:
     def wait_until(self, predicate: Callable[[], bool], what: str, expect: str,
                    budget: float) -> bool:
         spent = 0.0
+        noted = 0.0
         while spent < budget:
             self.advance()
             spent += SLICE_SECONDS
             if predicate():
                 print(f"check-picocalc: {what} after {self.virtual:.1f} virtual seconds")
                 return True
+            if spent - noted >= PROGRESS_SECONDS:
+                noted = spent
+                print(f"check-picocalc: waiting for {what}: {spent:.0f} of {budget:.0f} "
+                      f"virtual seconds spent", flush=True)
         self.fail(f"{what}: {expect} not on the panel after {self.virtual:.1f} "
                   "virtual seconds")
         raise StageFailed(what)
@@ -596,6 +605,36 @@ def logo_frame(shift: int = 0, mono: bool = False) -> tuple[int, bytes]:
     return width, bytes(pixels)
 
 
+def check_backlight(run: Run) -> None:
+    """Check the boot screen level and a change by an ordinary user.
+
+    /etc/rc writes the level of /etc/backlight, or 160 when the file is
+    absent as on a built image, to machdep.picocalc.lcd_backlight; the
+    keyboard model keeps what it is given, conditioned as the vendor firmware
+    does. backlight, run as operator, must reach the node through its setuid
+    mode and print the level the model kept for 88, which is 80. An image
+    without the program checks the boot level alone and says so.
+    """
+    kbd = "sysbus.i2c1.kbd"
+    level = monitor_int(run.renode, f"{kbd} BacklightLevel")
+    run.expect(level == 160, f"backlight: the screen level after boot is {level}, "
+               "expected 160 from /etc/rc")
+    console = picocalc_dump.Console(run)
+    console.type("ls /usr/bin/backlight || echo light-none")
+    run.wait_until(lambda: run.has_line("/usr/bin/backlight") or run.has_line("light-none"),
+                   "backlight probe", "the path or light-none", KEY_BUDGET_SECONDS)
+    if run.has_line("light-none"):
+        print("check-picocalc: skip the backlight command: the image does not carry it "
+              "(both PicoCalc profiles do)")
+        return
+    run.type_line("backlight 88")
+    run.wait_for_line("lcd 80", "backlight answer as operator", KEY_BUDGET_SECONDS)
+    level = monitor_int(run.renode, f"{kbd} BacklightLevel")
+    run.expect(level == 80, f"backlight: the screen level after 'backlight 88' is {level}, "
+               "expected 80")
+    run.snapshot("backlight")
+
+
 def check_monitors(run: Run) -> None:
     """Run picofetch and picotop when the image carries them.
 
@@ -867,6 +906,7 @@ def main(argv: list[str]) -> int:
         run.expect(transactions > 0, "keyboard: no I2C transaction reached 0x1f")
         check_spi_fifo(run)
         check_monitors(run)
+        check_backlight(run)
         if card is not None:
             elf = os.path.splitext(unix_bin)[0] + ".elf"
             picocalc_dump.run_dump_stages(run, os.path.abspath(card), elf)

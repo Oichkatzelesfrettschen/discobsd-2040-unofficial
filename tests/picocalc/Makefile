@@ -198,6 +198,7 @@ check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	./panel_decode_test
 	./panel_scan_test
 	./lcdvt_test
+	sh ./mutant_bounds_test.sh "${HOST_CC}"
 	${MAKE} mutants gfx-mutants gfxext-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
 	    picoaudio-mutants picopcm-mutants uart-mutants panel-decode-mutants \

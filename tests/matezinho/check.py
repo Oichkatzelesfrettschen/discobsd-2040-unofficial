@@ -39,6 +39,18 @@ def result_band(frame):
     return data[HEADER + 137 * ROW : HEADER + 146 * ROW]
 
 
+def light_band(frame, row):
+    """Pixel rows of a Settings light row (0 screen, 1 keyboard): bar and level."""
+    data = frame.read_bytes()
+    top = 68 + row * 22
+    return data[HEADER + top * ROW : HEADER + (top + 12) * ROW]
+
+
+# Down, Right, Enter: the launcher's fifth tile, Settings.
+SETTINGS = [259, 257, 10]
+LEFT, RIGHT, UP, DOWN = 256, 257, 258, 259
+
+
 def artwork_ledger_errors(art):
     """Compare every file under the artwork root with its README.md row."""
     rows = {}
@@ -110,6 +122,7 @@ def run():
             [257, 10, 72, 260, 257, 10, 263],
             [264],
             [260, 261, 257],
+            [*SETTINGS, RIGHT, DOWN, RIGHT],
         ]
         frame = work / "host.ppm"
         for keys in cases:
@@ -134,6 +147,26 @@ def run():
             require(bands[text] == bands[same], f"calculator: {text} differs from {same}")
         require(bands["7/0"] == bands["99999+1"], "calculator: 7/0 is not refused")
         require(bands["7/0"] != bands["42+0"], "calculator: refusal reads as a value")
+        # Settings: Right raises the screen light one step and Left takes it
+        # back; the keyboard light starts off, Right lights it and Left at
+        # off stays off. The stand-in controller keeps levels as the firmware
+        # does, so each band shows a kept level.
+        lights = {}
+        for name, keys in (
+            ("screen", SETTINGS),
+            ("screen+", [*SETTINGS, RIGHT]),
+            ("screen+-", [*SETTINGS, RIGHT, LEFT]),
+            ("keys", [*SETTINGS, DOWN]),
+            ("keys+", [*SETTINGS, DOWN, RIGHT]),
+            ("keys-", [*SETTINGS, DOWN, LEFT]),
+        ):
+            subprocess.run([host, volume, frame, *map(str, keys)], cwd=work, check=True, timeout=10)
+            row = 1 if name.startswith("keys") else 0
+            lights[name] = light_band(frame, row)
+        require(lights["screen+"] != lights["screen"], "settings: Right left the screen light")
+        require(lights["screen+-"] == lights["screen"], "settings: Left did not undo Right")
+        require(lights["keys+"] != lights["keys"], "settings: Right left the keyboard light")
+        require(lights["keys-"] == lights["keys"], "settings: Left below off changed the keys")
         # Notes save and subsequent session load retain the file.
         subprocess.run(
             [host, volume, frame, *map(str, [257, 10, 72, 105, 265])], cwd=work, check=True
@@ -164,7 +197,7 @@ def run():
             require(subprocess.run(too_many, cwd=work).returncode == 71, "argument count bound")
             too_large = [*builder.run_command("qemu", arm, volume, qframe), "0" * 5000]
             require(subprocess.run(too_large, cwd=work).returncode == 71, "argument size bound")
-            print("matezinho QEMU: seven host/ARMv6-M frames identical; note save passed")
+            print("matezinho QEMU: eight host/ARMv6-M frames identical; note save passed")
         print("matezinho assets: provenance, refusal paths and sparse SD capacities passed")
 
 

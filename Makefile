@@ -1619,6 +1619,21 @@ check-license-headers: check-python
 
 .PHONY: check-license-headers
 
+# The mutant scripts run a freshly built test through tools/run_bounded.sh,
+# which bounds its wall-clock time and the output it keeps. --selftest runs the
+# script through a passing command, a failing one, a command that cannot be
+# started, a command that leaves a child holding the output, a sleeper, a
+# command that ignores the first signal, a loud failure on each stream and an
+# endless flood, malformed, oversized and unusable bounds and paths and a failed
+# capture, and requires seven mutants of the script (no time bound, no output
+# bound, a lost status, a command that did not start taken for its failure, a
+# capture failure ignored, a malformed bound accepted, a failing status taken
+# for a timeout) to fail the scenario each targets. It prints a SKIP without timeout(1).
+check-run-bounded:
+		sh tools/run_bounded.sh --selftest
+
+.PHONY: check-run-bounded
+
 # CI installs its packages through tools/ci_apt_install.sh, which bounds each
 # network phase of apt-get in wall-clock time and retries it: a mirror that
 # trickles bytes never trips apt's idle timeout, and one such download held the
@@ -2107,7 +2122,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install \
+		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install check-run-bounded \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
 		check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \
@@ -2152,7 +2167,7 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host \
-		check-fstat-host check-sh-editor \
+		check-backlight-host check-fstat-host check-sh-editor \
 		check-cp-host check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver \
 		check-libwin-host
@@ -2316,6 +2331,13 @@ check-picofetch-host: check-python
 check-scrshot-host: check-python
 		${MAKE} -C usr.bin/scrshot test
 
+# backlight(1) over the controller model of usr.bin/backlight/tests/bl_fixture.c:
+# argument checks, the kept level it prints and saves, the root-only -s and
+# the refusals, then the mutants. The sysctl calls of
+# usr.bin/backlight/bl_sysctl.c run on no host.
+check-backlight-host: check-python
+		${MAKE} -C usr.bin/backlight test
+
 # i86 on the host: the guest program of usr.bin/i86/tests/guest.asm on the
 # 8086, 80186 and 80286 with 8, 64 and 640 resident pages, the terminal
 # replay, the sampled 8088 vectors, then the mutants. The target a.out
@@ -2459,7 +2481,7 @@ check-rp2040-shutdown-cross:	check-python kernel
 		${PYTHON} tools/verify_rp2040_shutdown_order.py --selftest
 		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
 			tool_prefix=$$(${MAKE} -C sys/arch/rp2040/compile/$$configuration \
-			    -V ARM_GCC_PREFIX); \
+			    -v ARM_GCC_PREFIX); \
 			${PYTHON} tools/verify_rp2040_shutdown_order.py \
 			    --objdump "$${tool_prefix}-objdump" \
 			    --machdep-object \
@@ -2928,7 +2950,7 @@ installfs:
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
-		check-i86-host check-fstat-host check-sh-editor check-tar-host \
+		check-backlight-host check-i86-host check-fstat-host check-sh-editor check-tar-host \
 		check-libwin-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \

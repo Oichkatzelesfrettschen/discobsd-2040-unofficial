@@ -49,7 +49,11 @@ same run: both gave 134,252,058 instructions for 600,000 steps
 of the first measured build.
 
 `bench.c` copied `main.c`'s loop when the 8254 timer arrived
-(`../board-speed-pico.txt`). The FreeDOS figures above and the table of
+(`../board-speed-pico.txt`). The FreeDOS figures above (46,910 and
+824,104) and the first five rows of the table of
 `sys/arch/rp2040/doc/I86.md` were counted with the earlier loop, which
-polled every 2048 steps and stepped on through a halt; they have not been
-counted again with the new one.
+polled every 2048 steps and stepped on through a halt. The table's last
+two rows count the same recipe with `main.c`'s loop: 2,100,670,992 Thumb
+instructions at 3366e0256 and 2,125,385,362 at dd65f4524, whose run carried
+46,910 repeated instructions with 824,098 iterations. The same recipe with
+the earlier loop counts 2,028,485,068 at 3366e0256.

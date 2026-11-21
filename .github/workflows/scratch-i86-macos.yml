@@ -1,0 +1,23 @@
+# Scratch: the macOS i86 host gate alone, to read the menu-session screen dump.
+name: scratch-i86-macos
+on:
+  push:
+    branches:
+      - scratch/i86-macos
+permissions:
+  contents: read
+jobs:
+  i86:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the host toolchain
+        run: |
+          brew install bmake coreutils
+          python3 -m venv "$HOME/gates-venv"
+          echo "PYTHON=$HOME/gates-venv/bin/python3" >> "$GITHUB_ENV"
+      - name: Run the i86 host gate
+        timeout-minutes: 20
+        run: |
+          bmake MACHINE=rp2040 check-i86-host

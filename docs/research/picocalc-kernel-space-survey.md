@@ -11,22 +11,26 @@ above the 1,024-byte margin.
 
 ## Where the text is
 
-`arm-none-eabi-size` over PICOCALC's objects, text column (the flash
-bytes; `bloaty`'s compile-unit view adds RAM, so it puts `swapram.c` first
-on the strength of its 16 KiB RAM pool, whose code is 2,635 bytes):
+Each object's linked flash contribution: the `.text` and `.rodata` input
+sections that `sys/arch/rp2040/compile/PICOCALC/unix.map` places in flash,
+summed per object, so the sections `--gc-sections` discarded stay out
+(126,069 bytes in all, of 127,728 bytes of text; the rest is the vector
+table, the boot stage and the exception index). `bloaty`'s compile-unit
+view adds RAM, so it puts `swapram.c` first on the strength of its 16 KiB
+RAM pool, whose code is 2,635 bytes.
 
-| Object | Text |
+| Object | Linked flash bytes |
 | --- | --- |
-| `tty.o` | 6,105 |
-| `ufs_syscalls.o` | 5,875 |
-| `ufs_namei.o` | 4,295 |
-| `lcdterm.o` | 4,271 |
-| `usb.o` | 3,963 |
-| `kern_sysctl.o` | 3,492 |
-| `sd.o` | 3,488 |
-| `flash.o` | 3,434 |
+| `tty.o` | 5,869 |
+| `ufs_syscalls.o` | 5,842 |
+| `exec_conf.o` | 5,238 |
+| `ufs_namei.o` | 4,182 |
+| `lcdterm.o` | 4,140 |
+| `usb.o` | 3,836 |
+| `kern_sysctl.o` | 3,322 |
 | `st7365p.o` | 3,184 |
 | `sys_inode.o` | 3,000 |
+| `sd.o` | 2,900 |
 
 The largest functions (the FUNC symbols of
 `arm-none-eabi-readelf -sW sys/arch/rp2040/compile/PICOCALC/unix.elf`,
@@ -89,7 +93,15 @@ and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
 2. Whether the errno message pool moves to the card: 1,298 bytes of flash
    for the same in RAM after a boot-time read, or a read on each lookup.
    The tree lacks a kernel file loader so far; the read path is its cost.
-3. Whether to build a loadable-overlay mechanism for rarely used drivers.
+3. Whether the kernel symbol table behind `knlist()` (683 bytes:
+   `nlist` 288, `sysctl_nlist` 136, names 259) moves to a symbol file
+   the build writes and checks against the kernel's version string, as
+   `memory-devices.md` records it.
+4. Whether the PicoCalc kernels drop ELF execution (`exec_elf_check` and
+   its strings, 496 plus about 30 bytes, `memory-devices.md`), a removal
+   from the PicoCalc `execsw` once a check confirms that every shipped
+   program is a.out.
+5. Whether to build a loadable-overlay mechanism for rarely used drivers.
    It is a design with its own linker and relocation work, measured only
    by what it would move (the option table above bounds the driver side).
 

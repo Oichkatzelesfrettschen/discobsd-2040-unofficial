@@ -46,6 +46,10 @@ import picocalc_fb  # noqa: E402
 from renode_monitor import Renode, RenodeError, monitor_int  # noqa: E402
 
 SLICE_SECONDS = 0.5
+# A wait prints a line every this many virtual seconds: a hosted runner emulates
+# a few virtual seconds per minute, and the gate runner ends a step whose output
+# is silent for its idle timeout.
+PROGRESS_SECONDS = 10.0
 BOOT_BUDGET_SECONDS = 20.0
 LOGIN_BUDGET_SECONDS = 120.0
 KEY_BUDGET_SECONDS = 20.0
@@ -155,12 +159,17 @@ class Run:
     def wait_until(self, predicate: Callable[[], bool], what: str, expect: str,
                    budget: float) -> bool:
         spent = 0.0
+        noted = 0.0
         while spent < budget:
             self.advance()
             spent += SLICE_SECONDS
             if predicate():
                 print(f"check-picocalc: {what} after {self.virtual:.1f} virtual seconds")
                 return True
+            if spent - noted >= PROGRESS_SECONDS:
+                noted = spent
+                print(f"check-picocalc: waiting for {what}: {spent:.0f} of {budget:.0f} "
+                      f"virtual seconds spent", flush=True)
         self.fail(f"{what}: {expect} not on the panel after {self.virtual:.1f} "
                   "virtual seconds")
         raise StageFailed(what)

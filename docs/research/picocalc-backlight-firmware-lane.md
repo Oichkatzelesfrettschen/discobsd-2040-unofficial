@@ -101,8 +101,11 @@ Both steps only read.
    `check-picocalc-kbd-bootloader`) reports the product ID (0x410 for
    the medium-density family the wiki's log shows), the flash-size word and
    the unique ID, which settles the x8/xB question for this board.
-2. Backup: `"$PYTHON" tools/picocalc/kbd_bootloader_id.py PORT --dump "$LOCAL/kbd-backup-1.bin" > "$LOCAL/kbd-backup-1.json"`,
-   then again with `kbd-backup-2` (the tool refuses an existing path), where
+2. Backup, in a shell that ran `set -o noclobber` (a redirection then
+   refuses an existing file) and `STAMP=$(date -u +%Y%m%dT%H%M%SZ)`:
+   `"$PYTHON" tools/picocalc/kbd_bootloader_id.py PORT --dump "$LOCAL/kbd-backup-$STAMP-1.bin" > "$LOCAL/kbd-backup-$STAMP-1.json"`,
+   then again with `-2` in both names (the tool itself refuses an
+   existing dump path), where
    `$LOCAL` is the notes repository's ignored `docs/local/` directory, as in
    `picocalc-first-power-up.md`: the dump is unlicensed vendor firmware and
    the JSON record carries the part's unique ID, so neither enters a
@@ -118,6 +121,13 @@ Both steps only read.
    vendor's sums for v1.2 and v1.4.
 
 ## 5. Flash route
+
+Every command below counts as done only on its success output: the
+identity and backup tool's exit status 0 with its JSON record, and for
+`stm32flash` the verify pass and the line `Starting execution at address
+0x08000000... done.`, since `stm32flash` keeps exit status 0 when the Go
+command prints `failed`. Any other output stops the lane at that step;
+the one exception, a Go that prints `failed`, has its own exit below.
 
 The `stm32flash` behavior below comes from its manual page and `main.c` at
 stm32duino/stm32flash `8bc5ceb3d`; this plan has not executed it. `-S
@@ -149,7 +159,9 @@ console (`halt`) before step a and again before step c.
 
 LEN is the image's size rounded up to the 1 KiB flash page, so the erase
 covers the image's pages alone; without a length `stm32flash` extends the
-range to the end of flash and erases all of it. The Go command rides on the
+range to the end of flash and erases all of it. When the Go command prints `failed`, the new image
+still boots from flash: set switch 1 off, remove all power and restore it,
+so the controller resets with BOOT0 low. The Go command rides on the
 write invocation because switch 1 still routes the CH340C at that point;
 once switch 1 goes off, the host loses its serial path to the bootloader. PORT is
 the CH340C's serial node, named through `/dev/serial/by-id/` so that the
@@ -163,7 +175,7 @@ backup. Step a then needs a power-on reset that the bad image cannot
 refuse: with switch 1 on, remove all power (USB-C and cells out, as in
 `picocalc-first-power-up.md`) and restore it, since the power key's long
 press belongs to the application firmware. Step c becomes
-`stm32flash -w "$LOCAL/kbd-backup-1.bin" -v -S 0x08000000 -g 0x08000000 PORT`,
+`stm32flash -w "$LOCAL/kbd-backup-$STAMP-1.bin" -v -S 0x08000000 -g 0x08000000 PORT`,
 whose range runs to the end of flash and so erases all of it, which a full
 backup covers by design; step d follows unchanged. The plan writes only the
 main flash. Option bytes, readout protection and write protection stay

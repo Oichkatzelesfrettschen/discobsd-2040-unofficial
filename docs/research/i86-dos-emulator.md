@@ -246,11 +246,15 @@ routines, which the Pico SDK's `pico_double` wraps; built on those, a
 
 ## 7. More guest memory: PSRAM, compression
 
-PSRAM: nothing to write. The PICOCALC kernels put a file system on the
-PSRAM at `/tmp` when the part answers, and the page file is a file, so
-`-s` on `/tmp` (the default) pages to PSRAM with no flash or card wear. No
-board run has shown the PSRAM working (`PICOCALC.md`), so this is a build
-and Renode claim; the Renode models have no PSRAM.
+PSRAM: nothing to write, with one condition. The page file is a file at
+`/tmp` (the default `-s`), and `/etc/rc.rp2040` puts `/tmp` on the card's
+type ba partition when the card has one; the kernel then gives the whole
+PSRAM to swap (`sd_tmpattach()` in `sd.c`). Only a card without that
+partition leaves `/tmp` on the PSRAM's 6 MB file system, where the page
+file pages with no flash or card wear. The card images of the PicoCalc
+board sessions carry a ba partition, so on them the page file is on the
+card. No board run has shown the PSRAM working (`PICOCALC.md`), so the
+PSRAM case is a build and Renode claim; the Renode models have no PSRAM.
 
 Expanded memory: an EMS page frame at D000:0 backed by the page file is
 the natural way to give DOS programs more than 640 KB, since the pager

@@ -312,7 +312,7 @@ Eight slices. S1 to S3 deliver the owner's 133 MHz; S6 and S7 deliver the manual
    - The manual toggle with its program (S1-S7, recommended as the target): about 350 to 600 B of kernel text and 12 to 20 B of RAM for the owner's "at least a manual toggle clock".
    - The governor (S8): adds 250 to 400 B and a policy whose saving rests on the section 6 idle-current measurement that does not yet exist.
 7. **Elevated core voltage and 200 MHz.**
-   - Do not pursue (recommended): beyond the all-conditions rating, and the 4.5% saving available at 1.05 V sits on the rating's lower edge.
+   - Do not pursue (recommended): beyond the rating at the default core voltage (the 2025-02 build's "all-conditions" wording; section 11), and the 4.5% saving available at 1.05 V sits on the rating's lower edge.
    - Study separately: requires the VREG sequence, the flash and PSRAM limits, thermal data and the owner's acceptance of operation outside the stated PVT.
 
 ## 10. What is unverified

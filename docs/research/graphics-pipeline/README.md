@@ -1,6 +1,6 @@
 # Graphics pipeline mathematics: wire budget, copy order, color and dither
 
-This note records ten proposals for the PicoCalc and `i86` display paths, ranked by gain per byte of RAM and flash, and the computations behind them. Evidence labels: [C] a computation the scripts in `scripts/` rerun, [S] a source read at the cited location, [I] inference. The results were computed at `0eeb8636b` (main) and `50f159c5b` (the tip of branch `usr.bin/i86-ems-edges`). The display sources cited below (`lib/libwin`, `usr.bin/matezinho`, `usr.bin/i86/gfx.c`, `st7365p.c`, `lcdgfx.c`, `mpu.c` and `MPU.md`) are identical at `0eeb8636b` and `origin/main` (`git diff --stat` over them is empty), and `usr.bin/i86/ems.c` and `mem.c` are identical at `50f159c5b` and the PR #848 merge `3366e0256`. Line numbers cite `0eeb8636b` unless a revision is named.
+This note records ten proposals for the PicoCalc and `i86` display paths, ranked by gain per byte of RAM and flash, and the computations behind them. Evidence labels: [C] a computation the scripts in `scripts/` rerun, [S] a source read at the cited location, [I] inference. The results were computed at `0eeb8636b` (main) and `50f159c5b` (the tip of branch `usr.bin/i86-ems-edges`). The display sources cited below (`lib/libwin`, `usr.bin/matezinho`, `usr.bin/i86/gfx.c`, `st7365p.c`, `lcdgfx.c`, `mpu.c` and `MPU.md`) are identical at `0eeb8636b` and `5d5bfb8ea` (`git diff --stat 0eeb8636b 5d5bfb8ea` over them prints nothing), and `usr.bin/i86/ems.c` and `mem.c` are identical at `50f159c5b` and the PR #848 merge `3366e0256`. Line numbers cite `0eeb8636b` unless a revision is named.
 
 Not run: octree quantization, run-length coding, any board measurement, passagemath, OCI and gcloud.
 
@@ -30,7 +30,7 @@ Every command runs from the repository root. Tools: Sage (`sage`), Singular, PAR
 | `scripts/c1_copy_order.py` | `sage docs/research/graphics-pipeline/scripts/c1_copy_order.py` | `c1_out.txt` |
 | `scripts/c1b_permuted_windows.py` | `sage docs/research/graphics-pipeline/scripts/c1b_permuted_windows.py` | `c1b_out.txt` |
 | `scripts/c2_color_dither.py` | `sage docs/research/graphics-pipeline/scripts/c2_color_dither.py` | `c2_out.txt` |
-| `scripts/c3.sing`, `scripts/t.sing` | `Singular -q docs/research/graphics-pipeline/scripts/c3.sing` | `c3_sing_out.txt`, `t_sing_out.txt` |
+| `scripts/c3.sing`, `scripts/t.sing` | `Singular -q docs/research/graphics-pipeline/scripts/c3.sing` and `Singular -q docs/research/graphics-pipeline/scripts/t.sing` | `c3_sing_out.txt`, `t_sing_out.txt` |
 | `scripts/c3.gp` | `gp -q docs/research/graphics-pipeline/scripts/c3.gp` | `c3_gp_out.txt` |
 | `scripts/c5_wire.py` | `python3 -I docs/research/graphics-pipeline/scripts/c5_wire.py` | `c5_out.txt` |
 | `scripts/c5_loops.c` | `arm-none-eabi-gcc -Os -mcpu=cortex-m0plus -mthumb -S docs/research/graphics-pipeline/scripts/c5_loops.c` | sizes below |
@@ -67,7 +67,7 @@ The EMS harnesses `#include` `ems.c` so that its statics are reachable, and link
 
 Replace `f1b_harness.c` by `f1_harness.c` for the earlier, smaller case set. The `head` run reproduces `f1/f1b_head.txt` and the `tip` run `f1/f1b_tip.txt`.
 
-The Thumb-1 sizes of `c5_loops.c` at `-Os`, from `arm-none-eabi-nm -S`: `expand_a` 28 B, `expand_b` 24 B, `expand_c` 54 B [C].
+The Thumb-1 sizes of `c5_loops.c` at `-Os`, from `arm-none-eabi-gcc -Os -mcpu=cortex-m0plus -mthumb -c -o c5_loops.o docs/research/graphics-pipeline/scripts/c5_loops.c` and then `arm-none-eabi-nm -S c5_loops.o`: `expand_a` 28 B, `expand_b` 24 B, `expand_c` 54 B [C].
 
 ## 1. Aliasing and byte sharing
 
@@ -174,7 +174,7 @@ Measurement 2 of `docs/research/i86-core1-scanout.md` decides D198 against D202.
 | 192x144 | 28.3 | 18.8 |
 | 160x160 | 30.5 | 20.3 |
 
-At 30 fps and 565 the budget is 375 to 407 of the 1,600 tiles. Writing is 7.6 times slower than the beam, so a write that starts behind the scan line stays behind it. `LCDG_WAITLINE` provides the start condition [C]. A w=1 `LCDG_WINDOW` fills downward, so column strips work without MADCTL MV [S][I]: the `tile_row` comment (`lcdgfx.c:405-410`) states that a window fills left to right, top to bottom, and the width-1 case follows. Per-window setup overhead is 0.1 to 1.7 percent for strips of 1 to 16 rows [C] (`scripts/c5_out.txt`).
+At 30 fps and 565 the budget is 375 to 407 of the 1,600 tiles. Writing is 7.6 times slower than the beam, so the beam laps the writer. A full-width write that starts on the row the beam has just left stays behind the scan for x = 320 v_w / (v_b - v_w) rows, with v_b = 320 rows a 17.3 ms frame (57.9 Hz) and v_w = 320 rows in 131.1 ms: about 48 rows, 19.9 ms [I, arithmetic of those two figures]. A narrower window advances its rows faster in proportion to 320 over its width, so v_w grows and the beam laps it later. `LCDG_WAITLINE` sets only the starting phase, so a tear-free update waits for the scan line again before each band of at most about 48 full-width rows; a longer update without those waits tears where the beam passes it. A w=1 `LCDG_WINDOW` fills downward, so column strips work without MADCTL MV [S][I]: the `tile_row` comment (`lcdgfx.c:405-410`) states that a window fills left to right, top to bottom, and the width-1 case follows. Per-window setup overhead is 0.1 to 1.7 percent for strips of 1 to 16 rows [C] (`scripts/c5_out.txt`).
 
 ## 5. Callers and what a game ABI could standardize
 
@@ -191,7 +191,7 @@ A native game ABI could standardize, from what these callers do now:
 3. One dirty algebra: gametile's tile bitmap and libwin's rectangle list, with cost-aware merging.
 4. Sprite runs and tile runs, already present as `LCDG_SPRITE` and `LCDG_TILEWIN`.
 5. The scroll ring for vertical scrollers.
-6. A frame fence (`LCDG_WAITLINE` exists).
+6. A frame fence: `LCDG_WAITLINE` exists and sets the starting phase; the fence waits again before each band of at most about 48 full-width rows (section 4).
 
 ## 6. Quantum and novel algorithms (qiskit 2.6.2, simulation only)
 

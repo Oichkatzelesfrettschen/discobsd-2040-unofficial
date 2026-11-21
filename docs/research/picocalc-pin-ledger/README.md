@@ -29,14 +29,17 @@ and `LEDK` (panel connector and backlight driver), and J703's `GP2`-`GP5` and
 `GP21` (whose names at the Pico socket are also the Pico's pin names). The
 ledger marks those rows inferred, and the Unresolved table lists the
 expansion-header joins: nothing here establishes that a J703 pin reaches a Pico
-pin until the copper or a continuity test shows it. The Gerber layers were not
-traced. The CKS32F103
+pin until the copper or a continuity test shows it. The Gerber layers locate
+the panel connector J401 (`BLOCK-DIAGRAM.md`) and were not traced for
+connectivity. The CKS32F103
 assignments are confirmed against the firmware source, not against the 64-pin
 table of its datasheet, except pins 46 and 49.
 
 ## Files
 
-Both files are tab-separated with no header row.
+`BLOCK-DIAGRAM.md` draws the board's subsystems from these rows, places J401
+on the board from the vendor Gerber set and checks five claims about the panel
+module. Both TSV files are tab-separated with no header row.
 
 | File | Rows | Columns |
 | --- | --- | --- |

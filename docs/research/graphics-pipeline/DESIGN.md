@@ -34,10 +34,10 @@ that opens the device issues `LCDG_COLMOD` 0x55 once after each open:
 `usr.bin/paneltest` keeps 0x66: it measures that mode (`PICOCALC.md:280`).
 
 Gain: 1.5 times on every redraw, with 0 bytes of RAM and one system call a
-program. Every colour already reaches the panel driver as an RGB565 value:
+program. Every color already reaches the panel driver as an RGB565 value:
 `window_data` (`lcdgfx.c:376-400`) hands `put_color` either the window's
 RGB565 pixels or an entry of the kernel palette `gfx_pal`, so at 0x66 the
-driver only widens 16 bits to 18, and 0x55 sends the same colour in two
+driver only widens 16 bits to 18, and 0x55 sends the same color in two
 bytes instead of three. What the glass shows at 0x55 is board evidence only: Renode replicates the high bits into the low ones
 (`tools/renode/st7365p.cs:513-527`), and the board stores them clear
 (`PICOCALC.md:268-270`).
@@ -120,7 +120,7 @@ clock changes them, and the header says so.
 
 | Decision | Host gate | Board evidence |
 | --- | --- | --- |
-| 1 | the host models refuse pixels before 0x55; `check-libwin-host`, `check-ridge-host`, `check-picocalc-host`, `check-matezinho-host` | a redraw timing at 0x55 against 0x66, and the colours on the glass |
+| 1 | the host models refuse pixels before 0x55; `check-libwin-host`, `check-ridge-host`, `check-picocalc-host`, `check-matezinho-host` | a redraw timing at 0x55 against 0x66, and the colors on the glass |
 | 2 | `check-libwin-host` with the cost oracle and a mutant per rule clause | windemo drag timing |
 | 3 | `check-matezinho-host`, `check-matezinho-qemu` with the range oracle | `tools/renode/check-matezinho.py` |
 | 4 | compilation of every includer | none |

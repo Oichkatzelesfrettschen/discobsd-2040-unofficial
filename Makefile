@@ -1588,12 +1588,15 @@ check-changed-comments: check-python
 
 .PHONY: check-comment-hygiene check-changed-comments
 
-# Added text: whitespace errors anywhere and British spellings in Markdown
-# prose (tools/check_changed_text.py). check-text-hygiene calibrates the
-# checker on throwaway repositories; check-changed-text enforces it on an
-# explicit commit range, the same pair of commits check-changed-comments
-# compares.
+# Added text: whitespace errors anywhere, and British spellings and new
+# "<verb> no|none|nothing" phrases in Markdown prose
+# (tools/check_changed_text.py, tools/determiner_negation.py).
+# check-text-hygiene calibrates the phrase finder on known-bad and known-good
+# prose and the checker on throwaway repositories; check-changed-text
+# enforces it on an explicit commit range, the same pair of commits
+# check-changed-comments compares.
 check-text-hygiene: check-python
+		${PYTHON} tools/determiner_negation_test.py
 		${PYTHON} tools/changed_text_test.py
 
 check-changed-text: check-python

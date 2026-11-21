@@ -1075,7 +1075,7 @@ op_move(void)
 	}
 	if (!call_ok(win_move(&scene, t->handle, nx, ny), inj, "win_move"))
 		return;
-	if (nx != t->x || ny != t->y) {	/* The library records no damage for a no-op. */
+	if (nx != t->x || ny != t->y) {	/* A move to the same place adds no damage rectangle. */
 		mark_shown(t);
 		t->x = nx;
 		t->y = ny;

@@ -77,8 +77,10 @@ all 228 state/member rows and the machine companion authenticates its bytes.
 The local Arm GCC 16.2.0 stack report measures a 128-byte `main` frame, a
 40-byte `parse_duration` frame, and a 168-byte pre-fork chain. Hosted Arm GCC
 13.2.1 measures the same 128-byte `main` frame and a 48-byte `parse_duration`
-frame for a 176-byte chain. The gate bounds those components at 128 and 48
-bytes and derives its 176-byte chain ceiling from their sum. The known-bad
+frame for a 176-byte chain. Arm GCC 14.2.1 measures a 136-byte `main` frame
+and a 40-byte `parse_duration` frame, also a 176-byte chain. The gate bounds
+each component at the largest measured frame, 136 and 48 bytes, and derives
+its 184-byte chain ceiling from their sum. The known-bad
 duration structure produces a 2,176-byte `main` frame. These values establish
 static compiler frames only. Whole-program runtime stack and heap peaks remain
 unmeasured.

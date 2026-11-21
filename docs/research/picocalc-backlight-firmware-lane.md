@@ -31,8 +31,10 @@ PWM itself takes 256 levels, so the rounding is the whole limit.
 
 ## 2. The patch
 
-Three changes to `Code/picocalc_keyboard`, kept as a patch file beside this
-document when the lane proceeds:
+Three changes to `Code/picocalc_keyboard`. The vendor directory carries no
+license (`picocalc-vendor-repository-harvest.md`), so the patch lives in
+the owner's private copy of the vendor repository, outside this tree, and
+this document describes it:
 
 1. `REG_ID_BKL` write: clamp the byte to [16, 240] and write it to PA8
    exactly (`lcd_backlight_update_reg()` after the clamp), so every value
@@ -89,13 +91,16 @@ Both steps only read.
    `check-picocalc-kbd-bootloader`) reports the product ID (0x410 for
    the medium-density family the wiki's log shows), the flash-size word and
    the unique ID, which settles the x8/xB question for this board.
-2. Backup: `kbd_bootloader_id.py --dump kbd-backup.bin PORT`, which reads
+2. Backup: `"$PYTHON" tools/picocalc/kbd_bootloader_id.py --dump kbd-backup.bin PORT`, which reads
    the whole application flash, sized by the flash-size word the identity
    step reports (64 KiB on an x8 part, 128 KiB on an xB part), and records
    the dump's SHA-256. To name the installed release, the MD5 of the
-   backup's first 40,596 and 40,604 bytes is compared with the vendor's
-   MD5 sums for v1.6 and v1.7, and of its first 65,536 bytes with v1.2 and
-   v1.4, the same algorithm over the same byte ranges.
+   backup's first 40,596 bytes is compared with v1.6's
+   (018705f91e20ad5f282b9b6eee8eede5, the vendor's own `.md5sum`), of its
+   first 40,604 bytes with v1.7's (4113b190831e306057d3d0b8eb617c61,
+   computed here from `Bin/PicoCalc_BIOS_v1.7.bin` at `fdcfe2c`, which
+   ships without a checksum file), and of its first 65,536 bytes with the
+   vendor's sums for v1.2 and v1.4.
 
 ## 5. Flash route
 

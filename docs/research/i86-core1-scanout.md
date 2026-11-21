@@ -46,7 +46,7 @@ core 0, the core that also runs the emulator.
 
 Correction to D202's basis: the question put to the owner said core-0 DMA
 "recovers about 45 ms per full screen". That figure came from the 242 ms
-RGB565 test above, which ran no expansion, and reads its excess over the
+RGB565 test above, which skipped the palette expansion, and reads its excess over the
 wire as the gain. Core-0 DMA frees the FIFO wait, up to the wire time, and
 keeps the copying and expansion; core 1 frees both. Measurement 2, which
 splits core 0's time among them, decides between the options.
@@ -59,7 +59,7 @@ the figure before any design counts on it.
 
 Reading i86's buffer in place from core 1 or a DMA master is refused by
 the tree: one 192 KB user window is exchanged between processes, and a
-core-1 entry carries no pointers (`CORE1.md`).
+core-1 entry carries only a slot number and an argument (`CORE1.md`).
 
 ## Requirements on whichever design is chosen
 

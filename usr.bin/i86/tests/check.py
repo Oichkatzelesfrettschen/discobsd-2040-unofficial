@@ -429,11 +429,22 @@ MUTANTS = [
     ("ems.c", "(uint8_t)mem_rb((e->at + i) & (MEM_SIZE - 1)) :", "0xff :"),
     (
         "ems.c",
-        "\t*back = rev && !fwd;\n\treturn (!shared ? 0 : rev && fwd ? 2 : 1);",
-        "\t*back = rev && !fwd && 0;\n\treturn (shared & 0);",
+        "\treturn (shared ? fwd | rev << 1 : 0);",
+        "\treturn ((shared ? fwd | rev << 1 : 0) & 0);",
     ),
     ("ems.c", "if (bq + a->at < bp + b->at)", "if (0)"),
-    ("ems.c", "if (shared == 2) {\n\t\tstaged(e, len, one);", "if (0) {\n\t\tstaged(e, len, one);"),
+    ("ems.c", "if (dirs == 3) {\n\t\tstaged(e, len, one);", "if (0) {\n\t\tstaged(e, len, one);"),
+    (
+        "ems.c",
+        "dirs |= alias0(&e[0], &e[1], len);",
+        "dirs = alias0(&e[0], &e[1], len) ? alias0(&e[0], &e[1], len) : dirs;",
+    ),
+    (
+        "ems.c",
+        "if (e[k].at >= MEM_SIZE || e[k].at + len > MEM_SIZE)",
+        "if (e[k].at + len > MEM_SIZE)",
+    ),
+    ("ems.c", "c->r[R_DI] = alt_off;", "c->r[R_DI] = 0;"),
     ("ems.c", "if (e[k].page >= hd[e[k].h].pages)", "if (0)"),
     (
         "ems.c",
@@ -1192,8 +1203,8 @@ def ems_expected():
         " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
         " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF"
         " e86:86 toc:00 tocp:04 ovl:00 ovlp:FF p4o:00 p4t:00 p4tp:04 m50:00 m50p:04 alo:00"
-        " alop:04 altes:0000 rom:00 romb:2F ea2:A2 e8am:8A amovs:00 amov:00 axch:97"
-        " acyc:00 acycd:22 nul1:A1 nul0:A0"
+        " alop:04 altes:0000 altdi:0000 rom:00 romb:2F ea2:A2 e8am:8A amovs:00 amov:00"
+        " axch:97 acyc:00 acycd:1122 lalias:CCAA ea2z:A2 nul1:A1 nul0:A0"
         " dealloc:00 free:0010 done".split()
     )
 

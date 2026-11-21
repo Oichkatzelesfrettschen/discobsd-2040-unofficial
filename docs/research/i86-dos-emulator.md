@@ -258,7 +258,7 @@ sessions carry a usable ba entry, so on them the page file is on the card.
 No board run has shown the PSRAM working (`PICOCALC.md`), so the PSRAM
 case is a build and Renode claim; the Renode models have no PSRAM.
 
-Expanded memory is built: `usr.bin/i86/ems.c` (906 lines) serves LIM
+Expanded memory is built: `usr.bin/i86/ems.c` serves LIM
 EMS 4.0 on interrupt 67h over the pager, its logical pages at page-file
 offsets above one megabyte, through 18 physical pages (the frame at E000h,
 A000h to B7FFh and C000h to DFFFh), and `dos/ems.asm` is the DOS driver

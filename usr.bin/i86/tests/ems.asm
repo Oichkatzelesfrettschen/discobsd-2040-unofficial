@@ -48,7 +48,7 @@ start:	xor ax, ax
 	mov ss, ax
 	mov sp, 0x7c00
 	mov word [optr], OUTBUF
-	mov ax, 0x0206			; the six sectors after this one
+	mov ax, 0x0207			; the seven sectors after this one
 	mov cx, 0x0002
 	xor dh, dh
 	mov bx, 0x7e00
@@ -803,6 +803,8 @@ main:	mov ah, 0x40
 	call e400hi
 	mov si, s_alop
 	call say2
+	xor ax, ax
+	mov es, ax
 	xor di, di
 	mov ax, 0x5b01
 	xor bl, bl
@@ -821,6 +823,10 @@ main:	mov ah, 0x40
 	int 0x67
 	mov ax, es
 	mov si, s_altes
+	call say4
+	mov ax, di
+	sub ax, pbuf
+	mov si, s_altdi
 	call say4
 	xor ax, ax
 	mov es, ax
@@ -901,11 +907,47 @@ main:	mov ah, 0x40
 	int 0x67
 	mov si, s_acyc
 	call st
-	mov ax, 0xec00
+	mov ax, 0xe800
 	mov es, ax
-	mov al, [es:0]
+	mov ah, [es:0]			; logical 1: 11h
+	mov dx, 0xec00
+	mov es, dx
+	mov al, [es:0]			; logical 0: 22h
 	mov si, s_acycd
-	call say2
+	call say4
+	; Logical 0 at E000h and E400h; a 16 KB move from E000:0000 to
+	; E300:0000 overlaps linearly (needs the copy from the end) and
+	; through the second window (needs it forward), so it is staged.
+	; E300:0000 must end with the source's first byte (AAh) and E400:2000
+	; with the byte from E000:3000 (CCh).
+	xor bx, bx
+	xor al, al
+	call map
+	xor bx, bx
+	mov al, 1
+	call map
+	mov ax, 0xe000
+	mov es, ax
+	mov byte [es:0], 0xaa
+	mov byte [es:0x1000], 0xbb
+	mov byte [es:0x3000], 0xcc
+	mov si, lreg2
+	mov ax, 0x5700
+	int 0x67
+	mov ax, 0xe400
+	mov es, ax
+	mov ah, [es:0x2000]
+	mov dx, 0xe300
+	mov es, dx
+	mov al, [es:0]
+	mov si, s_lalias
+	call say4
+	; 57h with a length of 0 at FFFF:0010, past 1 MB: A2h.
+	mov si, wreg0
+	mov ax, 0x5700
+	int 0x67
+	mov si, s_ea2z
+	call st
 	; 5401h with a name of nulls: A1h while a handle has no name, A0h
 	; once handle 0 and [h] have names.
 	mov si, nm0
@@ -1027,6 +1069,9 @@ s_amov:	db "amov:", 0
 s_axch:	db "axch:", 0
 s_acyc:	db "acyc:", 0
 s_acycd: db "acycd:", 0
+s_lalias: db "lalias:", 0
+s_ea2z:	db "ea2z:", 0
+s_altdi: db "altdi:", 0
 s_nul1:	db "nul1:", 0
 s_nul0:	db "nul0:", 0
 s_done:	db "done", 0
@@ -1062,6 +1107,16 @@ areg:	dd 512			; 57h: E000:0000 to E400:0001
 	dw 0, 0, 0xe000
 	db 0
 	dw 0, 1, 0xe400
+lreg2:	dd 16384		; 57h: E000:0000 to E300:0000
+	db 0
+	dw 0, 0, 0xe000
+	db 0
+	dw 0, 0, 0xe300
+wreg0:	dd 0			; 57h: nothing at FFFF:0010
+	db 0
+	dw 0, 0x10, 0xffff
+	db 0
+	dw 0, mbuf, 0
 creg:	dd 32768		; 57h: E000:0000 to E800:0000, crossed
 	db 0
 	dw 0, 0, 0xe000
@@ -1071,4 +1126,4 @@ nm0:	times 8 db 0
 	db "OS-ZERO!"
 	db "TESTPAGE"
 
-	times 3584 - ($ - $$) db 0
+	times 4096 - ($ - $$) db 0

@@ -440,14 +440,13 @@ alias(const struct end *c, const struct end *x, uint32_t len)
  * bytes through two physical pages that show one logical page. A shared
  * byte at offset o of that page is read as byte o + bp - a->at of the
  * move and written as byte o + bq - b->at; a forward copy writes it
- * before reading it when the second is smaller, and *back asks for the
- * copy from the end then. Returns 0 when no byte is shared, 1 when one
- * order serves, 2 when pairs ask for both orders (regions of more than a
- * page through windows on two logical pages in crossed order): no single
- * pass copies those, so move() stages them (staged()).
+ * before reading it when the second is smaller. Returns the orders the
+ * shared bytes need: 1 forward, 2 from the end, 3 both, 0 when none is
+ * shared; move() adds the order a linear overlap needs and stages a move
+ * that needs both (staged()).
  */
 static int
-alias0(const struct end *a, const struct end *b, uint32_t len, int *back)
+alias0(const struct end *a, const struct end *b, uint32_t len)
 {
 	uint32_t bp, bq, lo, hi;
 	unsigned p, q;
@@ -478,8 +477,7 @@ alias0(const struct end *a, const struct end *b, uint32_t len, int *back)
 				fwd = 1;
 		}
 	}
-	*back = rev && !fwd;
-	return (!shared ? 0 : rev && fwd ? 2 : 1);
+	return (shared ? fwd | rev << 1 : 0);
 }
 
 /*
@@ -517,7 +515,7 @@ move(uint32_t a, int xchg)
 	uint32_t len = grw(a) | (uint32_t)grw(a + 2) << 16, i, n;
 	uint32_t s0, s1;
 	unsigned k, status = OK;
-	int back = 0, shared = 0;
+	int back = 0, dirs = 0;
 
 	if (len > MEM_SIZE)
 		return (0x96);
@@ -530,7 +528,7 @@ move(uint32_t a, int xchg)
 		if (e[k].type == 0) {
 			/* Unwrapped: a region past 1 MB is refused. */
 			e[k].at = ((uint32_t)grw(d + 5) << 4) + grw(d + 3);
-			if (e[k].at + len > MEM_SIZE)
+			if (e[k].at >= MEM_SIZE || e[k].at + len > MEM_SIZE)
 				return (0xa2);
 		} else if (e[k].type == 1) {
 			e[k].at = grw(d + 3);
@@ -547,21 +545,25 @@ move(uint32_t a, int xchg)
 			return (0x98);
 	}
 	if (e[0].type == e[1].type && (e[0].type == 0 || e[0].h == e[1].h)) {
+		/* The orders the shared bytes need: a linear overlap's,
+		 * and for conventional regions those of two windows on
+		 * one logical page. */
 		s0 = e[0].type ? e[0].page * PAGE + e[0].at : e[0].at;
 		s1 = e[1].type ? e[1].page * PAGE + e[1].at : e[1].at;
 		if (s0 < s1 + len && s1 < s0 + len && len) {
-			if (xchg)
-				return (0x97);
-			back = s1 > s0;
+			dirs = s1 > s0 ? 2 : 1;
 			if (e[0].type)
 				status = 0x92;
-		} else if (e[0].type == 0 && len &&
-		    (shared = alias0(&e[0], &e[1], len, &back)) != 0 && xchg)
+		}
+		if (e[0].type == 0 && len)
+			dirs |= alias0(&e[0], &e[1], len);
+		if (dirs && xchg)
 			return (0x97);
+		back = dirs == 2;
 	} else if (e[0].type != e[1].type && len &&
 	    alias(&e[e[0].type != 0], &e[e[0].type == 0], len))
 		return (0x94);
-	if (shared == 2) {
+	if (dirs == 3) {
 		staged(e, len, one);
 		return (status);
 	}

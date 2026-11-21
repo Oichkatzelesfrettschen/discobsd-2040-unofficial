@@ -40,6 +40,7 @@ changed files flags new wording and leaves the inherited wording it moves or
 keeps to the sweep.
 """
 
+import difflib
 import re
 from collections import Counter
 
@@ -67,7 +68,9 @@ VERBS = frozenset(
 DETERMINERS = ("no", "none", "nothing")
 # "no" before these names a bound or an idiom, not an absent operand.
 BOUNDS = frozenset(("longer", "later", "earlier", "sooner", "more", "less", "fewer", "matter"))
-PHRASE = re.compile(r"\b([A-Za-z]+)\s+(no|none|nothing)\b(?:[ \t]*\n?[ \t]*([A-Za-z][\w-]*))?")
+PHRASE = re.compile(
+    r"\b([A-Za-z]+)\s+(no|none|nothing)\b(?:[ \t]*\n?[ \t]*([A-Za-z][\w-]*))?", re.IGNORECASE
+)
 # A code span opens and closes on backtick runs of one length (CommonMark 6.1)
 # and stays inside its paragraph.
 CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)")
@@ -139,15 +142,30 @@ def main(argv=None):
 
 
 def new_phrases(before, after, fenced=False):
-    """The phrases of after beyond those before holds: (key, line, offset)."""
-    held = Counter(key for key, _ in phrases(before, fenced))
+    """The phrases of after beyond those before holds: (key, line, offset).
+
+    A key that after holds k times more than before is reported k times, on
+    the occurrences that lie in lines the change inserted or replaced
+    (difflib's alignment of the two texts) first, so a copy added ahead of
+    an inherited one is reported where it was added.
+    """
+    excess = Counter(key for key, _ in phrases(after, fenced))
+    excess.subtract(key for key, _ in phrases(before, fenced))
+    changed = set()
+    matcher = difflib.SequenceMatcher(None, before.splitlines(), after.splitlines(), autojunk=False)
+    for tag, _, _, start, end in matcher.get_opcodes():
+        if tag in ("replace", "insert"):
+            changed.update(range(start + 1, end + 1))
+    found = [
+        (key, after.count("\n", 0, offset) + 1, offset) for key, offset in phrases(after, fenced)
+    ]
+    ordered = sorted(found, key=lambda item: (item[1] not in changed, item[2]))
     added = []
-    for key, offset in phrases(after, fenced):
-        if held[key]:
-            held[key] -= 1
-            continue
-        added.append((key, after.count("\n", 0, offset) + 1, offset))
-    return added
+    for key, line, offset in ordered:
+        if excess[key] > 0:
+            excess[key] -= 1
+            added.append((key, line, offset))
+    return sorted(added, key=lambda item: item[2])
 
 
 if __name__ == "__main__":

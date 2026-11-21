@@ -46,6 +46,7 @@ KNOWN_BAD = (
     "Apple's own Python 3.9 has\n   no pyserial",
     "the firmware keeps it within 16-240, so the panel never goes dark and adds nothing",
     "the map contains none of the freed blocks",
+    "The Handler Returns Nothing",
 )
 KNOWN_GOOD = (
     "register only when the caller supplies an old-value buffer, and writes it",
@@ -85,6 +86,10 @@ def main():
     moved = "It prints nothing.\nMore text here.\nThe board carries no V6 pack.\n"
     if finder.new_phrases(before, moved):
         failures.append("moved inherited phrases reported as new")
+    prepended = "It prints nothing.\n" + before
+    added = finder.new_phrases(before, prepended)
+    if [(key, line) for key, line, _ in added] != [("prints nothing", 1)]:
+        failures.append(f"copy added ahead of an inherited one reported elsewhere: {added}")
     doubled = before + "A second copy prints nothing.\n"
     added = finder.new_phrases(before, doubled)
     if [(key, line) for key, line, _ in added] != [("prints nothing", 3)]:

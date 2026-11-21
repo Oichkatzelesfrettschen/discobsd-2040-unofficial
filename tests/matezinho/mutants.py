@@ -31,6 +31,8 @@ reason named in its entry. The unmutated copy runs first and must pass, so a
 failure of a mutant is attributable to its edit.
 """
 
+import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -38,7 +40,8 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CC = "cc"
+# The compiler the Makefile selects (HOST_CC), split as the shell splits it.
+CC = shlex.split(os.environ.get("HOST_CC", "cc"))
 FILES = [
     "usr.bin/matezinho/core.c",
     "usr.bin/matezinho/main.c",
@@ -115,7 +118,7 @@ def build_and_run(work, gate, python):
     if gate == "core_test":
         binary = work / "core_test"
         subprocess.run(
-            [CC, *flags, "-fsanitize=address,undefined", "-o", binary]
+            [*CC, *flags, "-fsanitize=address,undefined", "-o", binary]
             + [work / n for n in ("tests/matezinho/core_test.c", "usr.bin/matezinho/core.c")]
             + [work / "sys/arch/rp2040/dev/lcdfont.c"],
             check=True,
@@ -124,7 +127,7 @@ def build_and_run(work, gate, python):
         return run.returncode, run.stderr
     binary = work / "matezinho"
     subprocess.run(
-        [CC, *flags, "-o", binary]
+        [*CC, *flags, "-o", binary]
         + [work / n for n in ("usr.bin/matezinho/main.c", "usr.bin/matezinho/core.c")]
         + [work / "sys/arch/rp2040/dev/lcdfont.c"],
         check=True,

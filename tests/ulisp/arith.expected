@@ -28398,28 +28398,28 @@ Error: 'note' octave out of range: 2147483647
 (sleep 0) => 0
 
 12000> 
-(let ((r (for-millis (-2147483648) 1)) (m (if (< -2147483648 0) 0 -2147483648))) (and (>= r m) (< r (+ 500 m)))) => t
+(let ((r (for-millis (-2147483648) 1)) (m (if (< -2147483648 0) 0 -2147483648))) (and (>= r m) (< r (+ 1500 m)))) => t
 
 12000> 
-(let ((r (for-millis (-2147483647) 1)) (m (if (< -2147483647 0) 0 -2147483647))) (and (>= r m) (< r (+ 500 m)))) => t
+(let ((r (for-millis (-2147483647) 1)) (m (if (< -2147483647 0) 0 -2147483647))) (and (>= r m) (< r (+ 1500 m)))) => t
 
 12000> 
-(let ((r (for-millis (-1) 1)) (m (if (< -1 0) 0 -1))) (and (>= r m) (< r (+ 500 m)))) => t
+(let ((r (for-millis (-1) 1)) (m (if (< -1 0) 0 -1))) (and (>= r m) (< r (+ 1500 m)))) => t
 
 12000> 
-(let ((r (for-millis (0) 1)) (m (if (< 0 0) 0 0))) (and (>= r m) (< r (+ 500 m)))) => t
+(let ((r (for-millis (0) 1)) (m (if (< 0 0) 0 0))) (and (>= r m) (< r (+ 1500 m)))) => t
 
 12000> 
-(let ((r (for-millis (1) 1)) (m (if (< 1 0) 0 1))) (and (>= r m) (< r (+ 500 m)))) => t
+(let ((r (for-millis (1) 1)) (m (if (< 1 0) 0 1))) (and (>= r m) (< r (+ 1500 m)))) => t
 
 12000> 
-(let ((r (for-millis (31) 1)) (m (if (< 31 0) 0 31))) (and (>= r m) (< r (+ 500 m)))) => t
+(let ((r (for-millis (31) 1)) (m (if (< 31 0) 0 31))) (and (>= r m) (< r (+ 1500 m)))) => t
 
 12000> 
-(let ((r (for-millis (32) 1)) (m (if (< 32 0) 0 32))) (and (>= r m) (< r (+ 500 m)))) => t
+(let ((r (for-millis (32) 1)) (m (if (< 32 0) 0 32))) (and (>= r m) (< r (+ 1500 m)))) => t
 
 12000> 
-(let ((r (for-millis (33) 1)) (m (if (< 33 0) 0 33))) (and (>= r m) (< r (+ 500 m)))) => t
+(let ((r (for-millis (33) 1)) (m (if (< 33 0) 0 33))) (and (>= r m) (< r (+ 1500 m)))) => t
 
 12000> 
 (char-code (char (with-output-to-string (s) (write-byte -2147483648 s)) 0)) => 

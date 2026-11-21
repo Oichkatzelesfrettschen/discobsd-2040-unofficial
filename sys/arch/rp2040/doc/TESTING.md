@@ -1362,6 +1362,32 @@ readers (`share/mk/source-date.mk` and the `HEAD_EPOCH` lookup of
 `newvers.sh`) still search parent directories for a repository; they are
 outside this gate.
 
+### Packed release number
+
+`check-osrev-generator` is a host gate. `sys/conf/newvers.sh` generates `kern.osrev`
+from `OSR` (MAJOR.MINOR.PATCH with an optional lower-case label) and `OSRANK`
+(the label with its stage digit, such as `alpha=1`, empty without a label):
+MAJOR * 100000000 + MINOR * 1000000 + PATCH * 10 + STAGE, with a release at stage
+9 and a named stage at 1 to 8, so that every stage packs below its release and
+the largest value, 20.99.99999, stays inside a signed 32-bit long. The gate runs
+a copy of the script with `OSR` and `OSRANK` replaced, in a directory with no
+repository, and compiles each `vers.c` with the host compiler under
+`-Wall -Wextra -Werror`. It requires seven good versions to pack to the value
+of an independent encoder and to decode to their fields, an eleven-step release
+cycle to rise strictly, 24 malformed sources (a field out of range, a leading
+zero, a missing or extra field, build metadata, a label that is empty, upper
+case or numeric, a rank digit of 0, 9 or two digits, a rank for another label,
+a label without a rank and a rank without a label) to stop the script with a
+message naming `OSR` or `OSRANK`, no output and no change to the compile
+counter, nine edits that separate one generated macro from the others to stop
+the compile at the `_Static_assert` that names it, and the tree's own `OSR` and
+`OSRANK` to generate a `vers.c` that compiles. `--selftest` runs the same
+verdict on seven mutants of the script (stage weight, major limit, leading
+zeros, release stage, rank against label, minor weight, assertion text), each
+of which must fail the check it was built to fail. The claim is the generator
+and its compile-time checks on the host compiler; the kernel link and the
+value a booted kernel returns are separate evidence.
+
 ### Production configuration generation and include ordering
 
 `check-config-generated-sync` builds `tools/config` from the tested source

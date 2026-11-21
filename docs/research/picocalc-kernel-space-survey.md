@@ -49,9 +49,10 @@ Removing `-DCAPACITY_STATS` alone fails to compile: the Makefile still
 builds `subr_capacity.o`, whose function definitions `capacity.h` then
 turns into stub macros. Measuring it takes `subr_capacity.o` out of
 `OBJS` as well (`docs/research/kernel-footprint-handoff.md`); this
-survey leaves that row unmeasured. The two diagnostic options together are
-3,792 bytes, more than PICOCALC's 2,168 bytes above its margin; both
-also ship in PICOCALC_SD, whose linker script gives it about 32 KB of room.
+survey leaves that row unmeasured. Removing both diagnostic options in one build measures 123,944 bytes of
+text, 3,784 fewer than the baseline (the isolated rows overlap by 8 bytes),
+and `tools/check_kernel_headroom.py` reports a flash image of 124,040 bytes,
+3,584 fewer, which leaves 6,776 bytes of headroom against today's 3,192.
 
 ## Measured nulls
 
@@ -75,7 +76,8 @@ also ship in PICOCALC_SD, whose linker script gives it about 32 KB of room.
 ## Choices for the owner
 
 1. Which diagnostic options PICOCALC keeps. Dropping `LCD_PANELTEST` and
-   `SYSTRACE` frees 3,792 bytes of PICOCALC text. The panel test needs
+   `SYSTRACE` frees 3,584 bytes of PICOCALC's flash image (measured
+   together). The panel test needs
    `DEV_LCDGFX`, which PICOCALC_LEAN_DIAG omits, so it stays in PICOCALC_SD
    and PICOCALC_SD_DIAG alone; `SYSTRACE` can also go to
    PICOCALC_LEAN_DIAG. The panel test's move has a gate cost:

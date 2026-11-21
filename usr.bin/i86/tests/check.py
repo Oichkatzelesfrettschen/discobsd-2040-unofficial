@@ -1730,7 +1730,12 @@ def main(argv):
                     test_undefined(sstrun + "-mutant", work)
                     test_rep_burst(sstrun + "-mutant", work)
                 except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                    # A mutant that hangs or dies has failed like any other.
+                    # A mutant that hangs or dies has failed like any other. The
+                    # line keeps the step's idle timer fed through the stage.
+                    print(
+                        "i86 mutant %d of %d rejected: %s" % (number, len(MUTANTS), name),
+                        flush=True,
+                    )
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))
             print("%d mutants fail the test" % len(MUTANTS))
@@ -1745,6 +1750,11 @@ def main(argv):
                 try:
                     panel.test(mutant, src, work)
                 except (panel.Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                    print(
+                        "i86 panel mutant %d of %d rejected: %s"
+                        % (number, len(panel.MUTANTS), name),
+                        flush=True,
+                    )
                     continue
                 raise Failure("panel mutant %d survives: %s: %r" % (number, name, old))
             print("%d mutants fail the panel display test" % len(panel.MUTANTS))

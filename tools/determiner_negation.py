@@ -34,13 +34,12 @@ next word, as a phrase key. Fixed quantity and time bounds ("no longer",
 and fenced code blocks is blanked first, keeping offsets, so code, messages
 and quoted upstream text stay out of reach.
 
-new_phrases() compares two versions of one text as multisets of phrase keys
-and reports only the occurrences the newer version adds, so a gate over
-changed files flags new wording and leaves the inherited wording it moves or
-keeps to the sweep.
+excess() compares two versions of one text as multisets of phrase keys and
+reports each key the newer version holds more often, with every line that
+holds it, so a gate over changed files flags new wording and leaves the
+inherited wording a change moves or keeps to the sweep.
 """
 
-import difflib
 import re
 from collections import Counter
 
@@ -73,7 +72,7 @@ BOUNDS = frozenset(("longer", "later", "earlier", "sooner", "more", "less", "few
 # line, heading, list item, table row or quotation).
 _BREAK = r"[ \t]*\n(?![ \t]*(?:\n|#|[-*+][ \t]|\d+[.)][ \t]|\||>))[ \t]*"
 PHRASE = re.compile(
-    r"\b([A-Za-z]+)(?:[ \t]+|" + _BREAK + r")(no|none|nothing)\b"
+    r"\b([A-Za-z]+)(?:[ \t]+|" + _BREAK + r")(no|none|nothing)(?![\w-])"
     r"(?:(?:[ \t]+|" + _BREAK + r")([A-Za-z][\w-]*))?",
     re.IGNORECASE,
 )
@@ -82,7 +81,9 @@ _SINGLE_LINE_BLOCK = re.compile(r"^[ \t]*(?:#|\|)")
 # and stays inside its paragraph.
 CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)")
 QUOTED = re.compile(r'"[^"\n]*"')
-FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})", re.M)
+# A backtick fence's info string holds no backtick (CommonMark 4.5), so a
+# line that opens with an inline code span stays prose.
+FENCE = re.compile(r"^ {0,3}(`{3,}(?=[^`\n]*$)|~{3,})", re.M)
 # A closing fence carries only blanks after its marker (CommonMark 4.5).
 CLOSING_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
 
@@ -115,16 +116,26 @@ def blank_code(text, fenced=False):
     return QUOTED.sub(_blank, text)
 
 
+def normalize(text):
+    """text with CRLF and lone CR line ends turned into LF."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def phrases(text, fenced=False):
-    """(key, offset) for each determiner after a listed verb, in order."""
+    """(key, offset) for each determiner after a listed verb, in order;
+    offsets index normalize(text)."""
     found = []
-    blanked = blank_code(text, fenced)
+    blanked = blank_code(normalize(text), fenced)
     for match in PHRASE.finditer(blanked):
         verb, determiner, follower = match.group(1), match.group(2), match.group(3)
         if "\n" in blanked[match.start(1) : match.start(2)]:
             line_start = blanked.rfind("\n", 0, match.start(1)) + 1
             if _SINGLE_LINE_BLOCK.match(blanked, line_start):
                 continue
+        if follower and "\n" in blanked[match.start(2) : match.start(3)]:
+            line_start = blanked.rfind("\n", 0, match.start(2)) + 1
+            if _SINGLE_LINE_BLOCK.match(blanked, line_start):
+                follower = None
         if verb.lower() not in VERBS:
             continue
         if determiner.lower() == "no" and follower and follower.lower() in BOUNDS:
@@ -153,38 +164,24 @@ def main(argv=None):
     return 0
 
 
-def new_phrases(before, after, fenced=False):
-    """The phrases of after beyond those before holds: (key, line, offset).
+def excess(before, after, fenced=False):
+    """[(key, extra, lines)] for each key after holds more often than before.
 
-    difflib aligns the lines of the two texts. Inside each inserted or
-    replaced hunk, the occurrences after holds beyond those of the hunk it
-    replaced are the candidates, and the excess of each key over the whole
-    text caps how many are reported: a phrase the change moves cancels
-    against its deletion, an inherited one a hunk rewords around stays out,
-    and a copy added ahead of an inherited one is reported where it was
-    added.
+    The verdict is a whole-text count, so a phrase a change keeps, moves or
+    rewords around cancels against itself wherever it lands. extra is how
+    many more copies after holds; lines lists every line of after that holds
+    the key, since which copy is the added one is a question of intent the
+    counts cannot settle.
     """
-    found_after = [
-        (key, after.count("\n", 0, offset), offset) for key, offset in phrases(after, fenced)
-    ]
-    found_before = [(key, before.count("\n", 0, offset)) for key, offset in phrases(before, fenced)]
-    excess = Counter(key for key, _, _ in found_after)
-    excess.subtract(key for key, _ in found_before)
-    matcher = difflib.SequenceMatcher(None, before.splitlines(), after.splitlines(), autojunk=False)
-    added = []
-    for tag, b0, b1, a0, a1 in matcher.get_opcodes():
-        if tag not in ("replace", "insert"):
-            continue
-        held = Counter(key for key, line in found_before if b0 <= line < b1)
-        for key, line, offset in found_after:
-            if not a0 <= line < a1:
-                continue
-            if held[key] > 0:
-                held[key] -= 1
-            elif excess[key] > 0:
-                excess[key] -= 1
-                added.append((key, line + 1, offset))
-    return sorted(added, key=lambda item: item[2])
+    found = phrases(after, fenced)
+    counts = Counter(key for key, _ in found)
+    counts.subtract(key for key, _ in phrases(before, fenced))
+    text = normalize(after)
+    result = []
+    for key in sorted(key for key, extra in counts.items() if extra > 0):
+        lines = sorted({text.count("\n", 0, offset) + 1 for k, offset in found if k == key})
+        result.append((key, counts[key], lines))
+    return result
 
 
 if __name__ == "__main__":

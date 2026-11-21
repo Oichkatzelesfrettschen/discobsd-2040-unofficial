@@ -618,8 +618,9 @@ class AttributionTests(GitFixture):
 
         result = self.check_mode("staged")
 
-        self.assertEqual([(item.rule_id, item.line) for item in result.diagnostics],
-                         [("CH005_DETERMINER_NEGATION", 3)])
+        self.assertEqual([item.rule_id for item in result.diagnostics],
+                         ["CH005_DETERMINER_NEGATION"])
+        self.assertEqual(result.diagnostics[0].line, 3)
 
     def test_added_copy_beside_reworded_inherited_comment_is_reported(self):
         self.write("sample.c", "/* first: it returns nothing */\nint baseline;\n")
@@ -632,8 +633,19 @@ class AttributionTests(GitFixture):
 
         result = self.check_mode("staged")
 
-        self.assertEqual([(item.rule_id, item.line) for item in result.diagnostics],
-                         [("CH005_DETERMINER_NEGATION", 3)])
+        self.assertEqual([item.rule_id for item in result.diagnostics],
+                         ["CH005_DETERMINER_NEGATION"])
+        self.assertIn("comments at lines 1, 3", result.diagnostics[0].detail)
+
+    def test_line_comment_determiner_is_reported(self):
+        for text in ("// a write passes no old buffer\nint x;\n",
+                     "// it has\n// no effect\nint x;\n"):
+            with self.subTest(text=text):
+                self.write("sample.c", text)
+                self.stage("sample.c")
+                result = self.check_mode("staged")
+                self.assertEqual([(item.rule_id, item.line) for item in result.diagnostics],
+                                 [("CH005_DETERMINER_NEGATION", 1)])
 
     def test_new_line_comment_group_detects_phrase_split_across_members(self):
         self.write("sample.c", "// in this\n// PR\nint baseline;\n")

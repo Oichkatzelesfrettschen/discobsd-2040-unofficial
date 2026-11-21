@@ -47,6 +47,9 @@ KNOWN_BAD = (
     "the firmware keeps it within 16-240, so the panel never goes dark and adds nothing",
     "the map contains none of the freed blocks",
     "The Handler Returns Nothing",
+    "Python has\r\nno pyserial.",
+    "```foo`bar``` is inline code.\n\nIt has no effect.",
+    "## The cache is no\nlonger valid.",
 )
 KNOWN_GOOD = (
     "register only when the caller supplies an old-value buffer, and writes it",
@@ -63,6 +66,7 @@ KNOWN_GOOD = (
     "## Not run\nNo board execution.",
     "| Runs | Notes |\n| No | board |",
     "The step runs.\n\n- None of the cases fails.",
+    "The instruction is no-op and uses no-cache.",
 )
 FENCED = "Text.\n\n```\nit returns nothing\n```\nThe map holds none.\n"
 # A fence line with an info string inside a block leaves the block open.
@@ -88,16 +92,14 @@ def main():
         failures.append(f"double-backtick span read as prose: {finder.phrases(DOUBLE_SPAN)}")
     before = "The board carries no V6 pack.\nIt prints nothing.\n"
     moved = "It prints nothing.\nMore text here.\nThe board carries no V6 pack.\n"
-    if finder.new_phrases(before, moved):
-        failures.append("moved inherited phrases reported as new")
+    if finder.excess(before, moved):
+        failures.append("moved inherited phrases counted as new")
     prepended = "It prints nothing.\n" + before
-    added = finder.new_phrases(before, prepended)
-    if [(key, line) for key, line, _ in added] != [("prints nothing", 1)]:
-        failures.append(f"copy added ahead of an inherited one reported elsewhere: {added}")
-    doubled = before + "A second copy prints nothing.\n"
-    added = finder.new_phrases(before, doubled)
-    if [(key, line) for key, line, _ in added] != [("prints nothing", 3)]:
-        failures.append(f"added duplicate not reported on its line: {added}")
+    if finder.excess(before, prepended) != [("prints nothing", 1, [1, 3])]:
+        failures.append(f"prepended copy miscounted: {finder.excess(before, prepended)}")
+    crlf = before.replace("\n", "\r\n") + "A second copy prints nothing.\r\n"
+    if finder.excess(before, crlf) != [("prints nothing", 1, [2, 3])]:
+        failures.append(f"CRLF copy miscounted: {finder.excess(before, crlf)}")
     for failure in failures:
         print(f"FAIL {failure}")
     if failures:

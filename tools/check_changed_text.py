@@ -162,12 +162,20 @@ def spelling_findings(root, base, head):
     return findings
 
 
+def git_bytes(root, *args):
+    result = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, check=False
+    )
+    if result.returncode != 0:
+        message = result.stderr.decode("utf-8", "replace").strip()
+        raise InfrastructureError(message or f"git {args[0]} failed")
+    return result.stdout
+
+
 def changed_markdown(root, base, head):
     """(base path or None, head path) for each Markdown file head adds or changes."""
-    result = git(root, "diff", "--name-status", "-z", "-M", base, head, "--", "*.md")
-    if result.returncode != 0:
-        raise InfrastructureError(result.stderr.strip() or "git diff failed")
-    fields = result.stdout.split("\0")
+    output = git_bytes(root, "diff", "--name-status", "-z", "-M", base, head, "--", "*.md")
+    fields = output.decode("utf-8", "surrogateescape").split("\0")
     position = 0
     while position < len(fields) and fields[position]:
         status = fields[position]
@@ -183,10 +191,8 @@ def changed_markdown(root, base, head):
 
 
 def show(root, revision, path):
-    result = git(root, "show", f"{revision}:{path}")
-    if result.returncode != 0:
-        raise InfrastructureError(result.stderr.strip() or f"cannot read {path}")
-    return result.stdout
+    """The file at revision as text; bytes outside UTF-8 read as U+FFFD."""
+    return git_bytes(root, "show", f"{revision}:{path}").decode("utf-8", "replace")
 
 
 def determiner_findings(root, base, head):
@@ -194,7 +200,8 @@ def determiner_findings(root, base, head):
 
     The whole file at base and at head is compared as a multiset of phrases
     (tools/determiner_negation.py), so wording a change moves or keeps stays
-    out of the verdict and only wording it adds is reported.
+    out of the verdict; a key head holds more often is reported with every
+    line that holds it.
     """
     findings = []
     imported = imported_paths(root, head)
@@ -203,8 +210,12 @@ def determiner_findings(root, base, head):
             continue
         before = show(root, base, old) if old else ""
         after = show(root, head, new)
-        for key, line, _ in determiner_negation.new_phrases(before, after, fenced=True):
-            findings.append(f"TX003_DETERMINER_NEGATION {new}:{line}: {key!r}")
+        for key, extra, lines in determiner_negation.excess(before, after, fenced=True):
+            where = ", ".join(str(line) for line in lines)
+            findings.append(
+                f"TX003_DETERMINER_NEGATION {new}:{lines[0]}: {key!r} {extra} more than "
+                f"the base holds (lines {where})"
+            )
     return findings
 
 

@@ -301,7 +301,7 @@ which has none of the entries added since, the tool reproduces that
 commit's `mi` report byte for byte.
 
 - **Configurations.** The model lists the six configurations. An entry
-  with its own list applies to those alone (21 site rules, three guards,
+  with its own list applies to those alone (24 site rules, three guards,
   three roots, one exemption and the render stack), and such an entry is held to the
   same rule as any other in the kernels it names.
 - **Roots.** `PendSV_Handler` (system calls), `main`, `HardFault_Handler`
@@ -311,17 +311,14 @@ commit's `mi` report byte for byte.
   `NMI_Handler` are added on top, each with a 36-byte exception frame,
   whether or not the deepest point masks them. `panic` and `boot` are
   reported alone.
-- **Indirect calls.** 94 site rules. 66 read their targets from the linked
+- **Indirect calls.** 97 site rules. 66 read their targets from the linked
   image (`cdevsw`, `bdevsw`, `Fops`, `execsw`, `syscall_handlers`,
   `conf_service_init`, `flswap_ops`, `sd_ops`) through DWARF member
-  offsets; 10 name functions assigned at run time (callouts, `t_oproc`,
-  driver probes, sysctl subtrees, the core ring, the dump writer); 15
+  offsets; 13 name functions assigned at run time (callouts, `t_oproc`, driver probes, sysctl subtrees, the core ring, the dump writer, the PicoCalc console's select hooks); 15
   carry a measured depth for a ROM routine or the second stage; 2 count
   frames only; 1, `ucall`, names a call left out.
 - **Cycles.** Five bounded recursions (`wakeup`, `psignal`, `mfree` two
-  deep, `indirtrunc` three, `errno_message_expand` five), three functions
-  whose second entry returns before any call (`ttypend`, `exit`,
-  `exec_script_check`) and the two overlay nestings, each with its reason
+  deep, `indirtrunc` three, `errno_message_expand` five), two functions whose second entry returns before any call (`ttypend`, `exec_script_check`; `exit` left the list at the refresh below) and the two overlay nestings, each with its reason
   in the file.
 - **Guards.** 43 calls whose arguments rule out part of the callee:
   26 callers that sleep only at `PZERO` or below and so never test a

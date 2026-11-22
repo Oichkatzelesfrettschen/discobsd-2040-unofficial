@@ -62,6 +62,7 @@ namespace Antmicro.Renode.Peripherals.SPI
         public ST7365P()
         {
             gram = new byte[Width * GramLines * 3];
+            from565 = new bool[Width * GramLines];
             commandCounts = new Dictionary<byte, long>();
             Reset();
         }
@@ -71,6 +72,7 @@ namespace Antmicro.Renode.Peripherals.SPI
             lock(sync)
             {
                 Array.Clear(gram, 0, gram.Length);
+                Array.Clear(from565, 0, from565.Length);
                 commandCounts.Clear();
                 cs = true;
                 dc = true;
@@ -93,6 +95,10 @@ namespace Antmicro.Renode.Peripherals.SPI
                 inverted = false;
                 readBits = null;
                 readPos = 0;
+                memoryRead = false;
+                memoryPhase = 0;
+                readX = 0;
+                readY = 0;
                 pixelPhase = 0;
                 pixelHi = 0;
                 pixelBytes = new byte[3];
@@ -288,10 +294,12 @@ namespace Antmicro.Renode.Peripherals.SPI
         private void HardwareReset()
         {
             var keep = (byte[])gram.Clone();
+            var keepFormat = (bool[])from565.Clone();
             var pixels = PixelsWritten;
             var bytes = BytesReceived;
             Reset();
             Buffer.BlockCopy(keep, 0, gram, 0, gram.Length);
+            Array.Copy(keepFormat, from565, from565.Length);
             PixelsWritten = pixels;
             BytesReceived = bytes;
             cs = true;
@@ -461,7 +469,11 @@ namespace Antmicro.Renode.Peripherals.SPI
             }
             else
             {
-                value = (byte)((memoryPhase == 0 ? r : memoryPhase == 1 ? g : b) & 0xfc);
+                /* A pixel written in 565 is stored with the low bit of red
+                 * and blue clear: white reads f8 fc f8 under 0x66 on the
+                 * board (PICOCALC.md, kernels 4399 and 4401). */
+                var narrow = inside && from565[readY * Width + readX] && memoryPhase != 1;
+                value = (byte)((memoryPhase == 0 ? r : memoryPhase == 1 ? g : b) & (narrow ? 0xf8 : 0xfc));
                 last = 2;
             }
             if(memoryPhase++ == last)
@@ -594,7 +606,7 @@ namespace Antmicro.Renode.Peripherals.SPI
                 var r = (v >> 11) & 0x1f;
                 var g = (v >> 5) & 0x3f;
                 var bl = v & 0x1f;
-                PutPixel((byte)((r << 3) | (r >> 2)), (byte)((g << 2) | (g >> 4)), (byte)((bl << 3) | (bl >> 2)));
+                PutPixel((byte)((r << 3) | (r >> 2)), (byte)((g << 2) | (g >> 4)), (byte)((bl << 3) | (bl >> 2)), true);
                 pixelPhase = 0;
                 return;
             }
@@ -604,11 +616,11 @@ namespace Antmicro.Renode.Peripherals.SPI
                 pixelPhase = 0;
                 if((colmod & 0x07) == 0x06)
                 {
-                    PutPixel(Expand6(pixelBytes[0]), Expand6(pixelBytes[1]), Expand6(pixelBytes[2]));
+                    PutPixel(Expand6(pixelBytes[0]), Expand6(pixelBytes[1]), Expand6(pixelBytes[2]), false);
                 }
                 else
                 {
-                    PutPixel(pixelBytes[0], pixelBytes[1], pixelBytes[2]);
+                    PutPixel(pixelBytes[0], pixelBytes[1], pixelBytes[2], false);
                 }
             }
         }
@@ -619,11 +631,12 @@ namespace Antmicro.Renode.Peripherals.SPI
             return (byte)((six << 2) | (six >> 4));
         }
 
-        private void PutPixel(byte r, byte g, byte b)
+        private void PutPixel(byte r, byte g, byte b, bool wide)
         {
             PixelsWritten++;
             if(curX >= 0 && curX < Width && curY >= 0 && curY < GramLines)
             {
+                from565[curY * Width + curX] = wide;
                 var o = (curY * Width + curX) * 3;
                 gram[o] = r;
                 gram[o + 1] = g;
@@ -650,6 +663,7 @@ namespace Antmicro.Renode.Peripherals.SPI
         private readonly StringBuilder trace = new StringBuilder();
         private int traceLimit;
         private readonly byte[] gram;
+        private readonly bool[] from565;	/* the pixel was written under COLMOD 0x55 */
         private readonly Dictionary<byte, long> commandCounts;
         private bool cs, dc;
         private byte command;

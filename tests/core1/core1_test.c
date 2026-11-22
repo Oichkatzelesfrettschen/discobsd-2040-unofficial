@@ -260,7 +260,7 @@ test_supervisor_restarts_with_backoff(void)
 	CHECK(core1_sup_tick(&s) == C1_SUP_LAUNCH);
 	CHECK(core1_sup_launched(&s, 1) == 0);
 	for (attempt = 0; attempt < C1_RESTART_MAX; attempt++) {
-		/* The first ping of a launch cannot miss a ping yet. */
+		/* The first ping of a launch follows zero earlier pings. */
 		CHECK(period(&s, 0) == C1_SUP_PING);
 		for (i = 1; i < C1_MISS_MAX; i++)
 			CHECK(period(&s, 0) == C1_SUP_PING);

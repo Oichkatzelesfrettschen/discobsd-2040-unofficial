@@ -18,7 +18,7 @@ DIRECT_DECLARATIONS = """\tstruct sigframe saved;
 
 \tmemset(&saved, 0, sizeof(saved));"""
 SNAPSHOT_ADMISSION = """\tif (regs->tf_sp > ~0U - 32U) {
-\t\tu.u_error = EFAULT;
+\t\tsigreturn_reject(regs, EFAULT, "sp wraps");
 \t\treturn;
 \t}
 \tuser_context = regs->tf_sp + 32U;
@@ -69,10 +69,10 @@ MUTATIONS = {
     ),
     "early-publication": (
         """\tif (!sigreturn_context_valid(scp)) {
-\t\tu.u_error = EINVAL;""",
+\t\tsigreturn_reject(regs, EINVAL, "context invalid");""",
         """\tu.u_procp->p_sigmask = scp->sc_mask & ~sigcantmask;
 \tif (!sigreturn_context_valid(scp)) {
-\t\tu.u_error = EINVAL;""",
+\t\tsigreturn_reject(regs, EINVAL, "context invalid");""",
     ),
 }
 

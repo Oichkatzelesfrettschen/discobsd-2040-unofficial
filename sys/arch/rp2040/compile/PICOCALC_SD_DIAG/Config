@@ -32,9 +32,9 @@
 # the sources test -DPICOCALC_SD (dev/flash.h, dev/sd.c, dev/uart.c), so
 # options PICOCALC_SD defines it here. check_generated_sync.py compares every
 # directive to PICOCALC_SD apart from those additions. The shipped PICOCALC_SD
-# kernel stays at -Os. DIAGNOSTIC prints lines on every signal delivery
-# (rp2040/sig_machdep.c) and GLOBAL_DEBUG traces every execve(2); PICOCALC.md
-# carries the sizes. CONSOLE_MIRROR_UART (sys/dev/cons.c) sends every console
+# kernel stays at -Os. kern.systrace bit 2 prints the signal deliveries
+# (rp2040/sig_machdep.c) and bit 4 the GLOBAL_DEBUG trace of every execve(2),
+# both off at boot; PICOCALC.md carries the sizes. CONSOLE_MIRROR_UART (sys/dev/cons.c) sends every console
 # character to UART0 as well, so a host records what the panel scrolls away.
 architecture    "rp2040"
 cpu             "RP2040"

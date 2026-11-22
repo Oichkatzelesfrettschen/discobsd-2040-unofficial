@@ -408,7 +408,19 @@ all 192 KiB before stack reservation. The child required EFTYPE on each of the
 first five and ENOMEM on the last two, checked its second rand() result (5758),
 and exited with status 37. The parent required that exact wait status and the
 same next random value from its own state before writing XIP-FORK. Both shell
-commands returned to the prompt. These observations cover the emulated kernel;
+commands returned to the prompt.
+
+A self-directed SIGUSR1 distinguished two interrupted program counters. The
+same shared signal wrapper, handler and trampoline returned successfully when
+the kill syscall ran in SRAM. When kill ran through its public libc slot, the
+saved PC pointed into the provider and the original context check rejected
+it. The diagnostic PC check now admits complete aligned Thumb halfwords
+within the provider's linker bounds. The stack check still requires process
+RAM. Each raw and packed caller installs its handler, sends both signals,
+checks and clears the received signal number after each return, then writes
+its success marker. ILP32 fixtures check both provider endpoints, the adjacent
+kernel and root addresses, and the static kernel's exclusion of the provider.
+These observations cover the emulated kernel;
 physical protection remains a separate measurement.
 
 Build the diagnostic kernel and replay the fixture with the qualified artifacts:

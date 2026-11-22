@@ -71,6 +71,21 @@ _start:
     ldr r1,=5758
     cmp r0,r1
     bne wrong
+    movs r0,#30
+    ldr r1,=handler
+    movs r2,#1
+    orrs r1,r2
+    bl signal
+    adds r0,#1
+    beq wrong
+    bl getpid
+    movs r1,#30
+    svc #37
+    bl delivered
+    bl getpid
+    movs r1,#30
+    bl kill
+    bl delivered
     movs r0,#1
     ldr r1,=message
     movs r2,#8
@@ -108,6 +123,19 @@ rejected:
     cmp r0,r4
     bne wrong
     bx lr
+delivered:
+    cmp r0,#0
+    bne wrong
+    ldr r2,=seen
+    ldr r1,[r2]
+    cmp r1,#30
+    bne wrong
+    str r0,[r2]
+    bx lr
+handler:
+    ldr r2,=seen
+    str r0,[r2]
+    bx lr
 wrong:
     movs r0,#1
     svc #1
@@ -132,3 +160,7 @@ fullpack:
 args:
     .word badraw
     .word 0
+    .bss
+    .align 2
+seen:
+    .space 4

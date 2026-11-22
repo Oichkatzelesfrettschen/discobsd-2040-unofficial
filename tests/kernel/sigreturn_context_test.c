@@ -443,6 +443,27 @@ check_program_counter_admission(void)
 	context.sc_pc = RP2040_USER_BOOT_ROM_END;
 	check_semantic_outcome("post-ROM gap reports EINVAL", &context,
 	    process_upper, EINVAL);
+	context.sc_pc = 0x10020000U - INSN_SZ;
+	check_semantic_outcome("kernel tail reports EINVAL", &context,
+	    process_upper, EINVAL);
+#ifdef EXEC_XIP_LIBC
+	context.sc_pc = 0x10020000U;
+	check_semantic_outcome("provider lower endpoint accepted", &context,
+	    process_upper, EJUSTRETURN);
+	context.sc_pc = 0x1002c000U - INSN_SZ;
+	check_semantic_outcome("provider final halfword accepted", &context,
+	    process_upper, EJUSTRETURN);
+#else
+	context.sc_pc = 0x10020000U;
+	check_semantic_outcome("static kernel excludes provider", &context,
+	    process_upper, EINVAL);
+#endif
+	context.sc_pc = 0x10020001U;
+	check_semantic_outcome("odd provider PC reports EINVAL", &context,
+	    process_upper, EINVAL);
+	context.sc_pc = 0x1002c000U;
+	check_semantic_outcome("Dhara root reports EINVAL", &context,
+	    process_upper, EINVAL);
 	context.sc_pc = USER_DATA_START - INSN_SZ;
 	check_semantic_outcome("pre-window gap reports EINVAL", &context,
 	    process_upper, EINVAL);

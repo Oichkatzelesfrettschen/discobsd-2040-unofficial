@@ -3293,6 +3293,12 @@ sigreturn_context_test32: sigreturn_context_test.c \
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
 	    -o $@ sigreturn_context_test.c
 
+sigreturn_context_xip_test32: sigreturn_context_test.c \
+    sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -DEXEC_XIP_LIBC -no-pie \
+	    -Wl,--defsym,__xip_libc_start=0x10020000 \
+	    -Wl,--defsym,__xip_libc_end=0x1002c000 -o $@ sigreturn_context_test.c
+
 sigreturn_context_test_sanitized: sigreturn_context_test.c \
     sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
@@ -3584,7 +3590,7 @@ check-ilp32:
 	    mem_span_endpoint-admission.mutant32.test \
 	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
-	    syscall_args_dispatch_mutant sigreturn_context_test32 \
+	    syscall_args_dispatch_mutant sigreturn_context_test32 sigreturn_context_xip_test32 \
 	    check-sigreturn-mutants \
 	    exec_elf_admission_test32 exec_elf_segment_span_mutant \
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
@@ -3649,6 +3655,8 @@ check-ilp32:
 	echo "PASS syscall dispatch-after-failure mutation rejected"
 	${TEST_EXECUTION} run kernel.sigreturn-context.ilp32 -- \
 	    ./sigreturn_context_test32
+	${TEST_EXECUTION} run kernel.sigreturn-context-xip.ilp32 -- \
+	    ./sigreturn_context_xip_test32
 	${TEST_EXECUTION} run kernel.elf-admission.ilp32 -- \
 	    ./exec_elf_admission_test32
 	@if ./exec_elf_segment_span_mutant; then status=0; else status=$$?; fi; \
@@ -3730,6 +3738,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.rlimit-growth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.sigreturn-context-xip.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.elf-admission.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.elf-surrounding-contract.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3896,7 +3905,7 @@ clean:
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
 	rm -f syscall_args_test32 syscall_args_dispatch_mutant
-	rm -f sigreturn_context_function.c sigreturn_context_test32 \
+	rm -f sigreturn_context_function.c sigreturn_context_test32 sigreturn_context_xip_test32 \
 	    sigreturn_context_test_sanitized
 	rm -f sigreturn_context_*.mutant.c sigreturn_context_*.mutant.test \
 	    sigreturn_context_*.mutant.out

@@ -14,8 +14,8 @@
  * only while the PL022 is idle, so the level at the SSPDR write is the level
  * at the eighth clock.
  *
- * What it decodes: CASET, RASET, RAMWR, RAMWRC, VSCRDEF, VSCSAD, MADCTL,
- * COLMOD, SLPIN, SLPOUT, INVON, INVOFF, DISPON, DISPOFF and SWRESET. The
+ * What it decodes: CASET, RASET, RAMWR, RAMWRC, RAMRD, RDMEMC, VSCRDEF,
+ * VSCSAD, MADCTL, COLMOD, SLPIN, SLPOUT, INVON, INVOFF, DISPON, DISPOFF and SWRESET. The
  * gamma, power, VCOM and timing commands st7365p.c sends during bring-up
  * leave the pixel image unchanged and are counted but not interpreted.
  * The image shown is the graphics RAM as written: MADCTL MX and BGR and the
@@ -36,7 +36,8 @@
  * data bit; the datasheet leaves SDO high-impedance there and the board's
  * MISO pull is unmeasured (hypothesis: the model reads zero). Command
  * Table 2 reads through SPI Read Control (FBh) and RDID4 (D3h) are not
- * modeled and answer zeros.
+ * modeled and answer zeros. The memory reads (RAMRD 2Eh, RDMEMC 3Eh)
+ * answer from the graphics RAM: see ArmMemoryRead().
  */
 
 using System;
@@ -141,6 +142,10 @@ namespace Antmicro.Renode.Peripherals.SPI
                 {
                     trace.AppendFormat("{0}{1:x2} ", dc ? 'd' : 'c', data);
                     traceLimit--;
+                }
+                if(dc && memoryRead)
+                {
+                    return NextMemoryByte();
                 }
                 if(dc && readBits != null)
                 {
@@ -317,6 +322,7 @@ namespace Antmicro.Renode.Peripherals.SPI
             pixelPhase = 0;
             readBits = null;
             readPos = 0;
+            memoryRead = false;
 
             switch(cmd)
             {
@@ -341,6 +347,14 @@ namespace Antmicro.Renode.Peripherals.SPI
                 curY = rowStart;
                 break;
             case 0x3c:
+                break;
+            case 0x2e:  /* RAMRD: from the window origin (page 178). */
+                readX = colStart;
+                readY = rowStart;
+                ArmMemoryRead();
+                break;
+            case 0x3e:  /* RDMEMC: from where the last memory read stopped (page 198). */
+                ArmMemoryRead();
                 break;
             case 0x2a: case 0x2b: case 0x33: case 0x36: case 0x37: case 0x3a:
                 break;
@@ -408,6 +422,63 @@ namespace Antmicro.Renode.Peripherals.SPI
                 readBits[dummy + i] = ((data[i / 8] >> (7 - i % 8)) & 1) != 0;
             }
             readPos = 0;
+        }
+
+        /*
+         * A memory read answers one dummy byte, then the pixels of the window
+         * from the read position in the COLMOD in force: two bytes, the RGB565
+         * value high byte first, under 0x55, and three bytes, the six high bits
+         * of each channel, otherwise. The board measured both framings
+         * (sys/arch/rp2040/doc/PICOCALC.md, kernels 4399 and 4401); the
+         * datasheet's 18-bit statement (page 199) does not describe the link
+         * under 0x55. The position wraps inside the window as a write does.
+         */
+        private void ArmMemoryRead()
+        {
+            memoryRead = true;
+            memoryPhase = -1;
+        }
+
+        private byte NextMemoryByte()
+        {
+            if(memoryPhase < 0)
+            {
+                memoryPhase = 0;
+                return 0;
+            }
+            var o = (readY * Width + readX) * 3;
+            var inside = readX >= 0 && readX < Width && readY >= 0 && readY < GramLines;
+            var r = inside ? gram[o] : (byte)0;
+            var g = inside ? gram[o + 1] : (byte)0;
+            var b = inside ? gram[o + 2] : (byte)0;
+            byte value;
+            int last;
+            if((colmod & 0x07) == 0x05)
+            {
+                var v = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+                value = memoryPhase == 0 ? (byte)(v >> 8) : (byte)v;
+                last = 1;
+            }
+            else
+            {
+                value = (byte)((memoryPhase == 0 ? r : memoryPhase == 1 ? g : b) & 0xfc);
+                last = 2;
+            }
+            if(memoryPhase++ == last)
+            {
+                memoryPhase = 0;
+                readX++;
+                if(readX > colEnd)
+                {
+                    readX = colStart;
+                    readY++;
+                    if(readY > rowEnd)
+                    {
+                        readY = rowStart;
+                    }
+                }
+            }
+            return value;
         }
 
         /* The DC/DC converter runs in sleep out and stops in sleep in (SLPIN page 163, SLPOUT page 165). */
@@ -592,5 +663,7 @@ namespace Antmicro.Renode.Peripherals.SPI
         private byte[] pixelBytes;
         private bool[] readBits;
         private int readPos;
+        private bool memoryRead;
+        private int memoryPhase, readX, readY;
     }
 }

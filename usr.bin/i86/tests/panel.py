@@ -57,8 +57,8 @@ MUTANTS = [
     ("gfx.c", "(b >> 7) + (b >> 6 & 1)", "(b >> 7) * 2"),
     (
         "gfx.c",
-        "unsigned pages = mem_rearm(), i, r, y, n;",
-        "unsigned pages = mem_watched, i, r, y, n;",
+        "unsigned pages = mem_rearm(), i, r, y;",
+        "unsigned pages = mem_watched, i, r, y;",
     ),
     ("mem.c", "mem_wmap[(watch_base >> MEM_PGSHIFT) + i] = 0;", "mem_stats.soft += 0;"),
     ("mem.c", "mem_watched |= 1u << i;", "mem_watched |= 1u;"),
@@ -151,8 +151,14 @@ MUTANTS = [
     ("gfx.c", "\t\tmax -= n;\n", "\t\tmax = 0;\n"),
     (
         "gfx.c",
-        "\tgraphic_drain(GFX_DRAIN);\n}\n\nvoid\ngfx_drain",
-        "\tgraphic_drain(GFX_DRAIN);\n\tmemset(owed, 0, sizeof(owed));\n}\n\nvoid\ngfx_drain",
+        "\t\tgraphic_drain(GFX_DRAIN);\n}",
+        "\t\tgraphic_drain(GFX_DRAIN);\n\tmemset(owed, 0, sizeof(owed));\n}",
+    ),
+    ("gfx.c", "\t\tdrain_at = (y + n) % LINES;\n", "\t\tdrain_at = 0;\n"),
+    (
+        "gfx.c",
+        "\telse\n\t\tgraphic_refresh();\n}",
+        "\telse {\n\t\tgraphic_refresh();\n\t\tgfx_drain();\n\t}\n}",
     ),
 ]
 

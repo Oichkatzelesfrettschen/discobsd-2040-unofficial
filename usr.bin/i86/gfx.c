@@ -106,11 +106,12 @@ static unsigned cur_shown = GFX_NOCURSOR;
 static uint8_t line[LCDG_WIDTH];
 static int pointer;			/* mouse keys are on: show the mark */
 /* Graphics lines written since they were last sent, one bit a line. A
- * refresh adds the lines of the pages written since the last one; each
- * drain sends at most GFX_DRAIN of them, so a redraw of the whole frame
- * leaves the emulator running between its parts. */
+ * refresh adds the lines of the pages written since the last one; a drain,
+ * once a poll (gfx_drain()), sends at most GFX_DRAIN of them, so a redraw
+ * of the whole frame leaves the emulator running between its parts. */
 #define GFX_DRAIN	16		/* 6.6 ms of wire at 12.5 MHz */
 static uint8_t owed[LINES / 8];
+static unsigned drain_at;		/* the line a drain looks at first */
 
 static void graphic_drain(unsigned max);
 
@@ -420,9 +421,11 @@ line_expand(unsigned y)
 static void
 graphic_drain(unsigned max)
 {
-	unsigned i, y, n;
+	unsigned i, k, y = drain_at, n;
 
-	for (y = 0; y < LINES && max > 0; y += n) {
+	/* The scan starts where the last drain stopped and wraps, so lines
+	 * written again and again near the top cannot starve the rest. */
+	for (k = 0; k < LINES && max > 0; k += n, y = (y + n) % LINES) {
 		n = 1;
 		if (!(owed[y >> 3] >> (y & 7) & 1))
 			continue;
@@ -430,6 +433,7 @@ graphic_drain(unsigned max)
 		    (owed[(y + n) >> 3] >> ((y + n) & 7) & 1))
 			n++;
 		max -= n;
+		drain_at = (y + n) % LINES;
 		for (i = y; i < y + n; i++)
 			owed[i >> 3] &= (uint8_t)~(1u << (i & 7));
 		if (window(0, GFX_Y0 + y, LCDG_WIDTH, n, LCDG_WIN_INDEX, 0, 0) != 0)
@@ -457,7 +461,6 @@ graphic_refresh(void)
 			owed[y >> 3] |= (uint8_t)(1u << (y & 7));
 		}
 	}
-	graphic_drain(GFX_DRAIN);
 }
 
 void

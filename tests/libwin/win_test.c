@@ -3522,7 +3522,7 @@ same_title_case(const char *stored, const char *next, int sends)
 
 /*
  * A raise repaints only what the windows it passes covered: a window that
- * nothing covers sends no pixel, and one under a single smaller window
+ * nothing covers does not send a pixel, and one under a single smaller window
  * sends that window's overlap. A lower is the mirror image.
  */
 static void

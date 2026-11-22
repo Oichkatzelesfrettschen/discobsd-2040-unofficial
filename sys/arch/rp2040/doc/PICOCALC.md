@@ -1295,8 +1295,8 @@ defines only its own name.
   - SD (`sd.c`): `sd_reads` and `sd_writes` of sectors, `sd_timeouts`,
     `sd_io_errors` and `sd_slowest_us`, the longest single sector
     transfer. `sdspi.c` reports a CRC mismatch, a data error token and a
-    bad response all as `SDE_IO`, and no layer retries a failed command, so
-    there is no retry or CRC counter.
+    bad response all as `SDE_IO`, and a failed command is not retried, so the
+    driver offers neither a retry nor a CRC counter.
   - UART0 (`uart.c`): `uart_overruns`, `uart_breaks`, `uart_parity` and
     `uart_framing`, the error bits UARTDR carries with each received
     character (RP2040 datasheet 4.2.8, bits 11 to 8).
@@ -1317,7 +1317,7 @@ defines only its own name.
 
   Booted under Renode to a UART0 login on the SD root, the kernel read
   `machdep.diag_stats` as: no faults, `psram_probe_ran 1` and
-  `psram_probe_err 1` (the model has no PSRAM, and the boot line reads
+  `psram_probe_err 1` (the model lacks PSRAM, and the boot line reads
   "psram0: not usable (error -1)"), `sd_reads 8684`, `sd_writes 54`, no SD
   errors, `sd_slowest_us 4789`, `prints 39`, `print_us_total 942447` and
   `print_us_max 386957`; `machdep.diag_msgbuf` returned the newest 1,022

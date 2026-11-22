@@ -1838,6 +1838,89 @@ sched_next_candidate_case(int in_core_state)
 }
 #endif
 
+/*
+ * The room of sched_success_case(), with proc[0] in a disk-level wait: asleep
+ * at such a priority for under two seconds, or runnable again with the
+ * priority of that sleep. It holds inode locks and buffers that swapin needs,
+ * so sched() leaves it resident and sleeps on runin. After two seconds asleep
+ * it waits for a holder that is swapped out, and is selected to go out as
+ * before.
+ */
+static void
+sched_disk_wait_case(int in_core_state, int priority, int slept, int resident)
+{
+#ifdef SWAP_IMAGE_ALIGN
+    size_t addresses[3], next;
+#endif
+
+    sched_fixture(in_core_state);
+    proc[0].p_flag &= ~P_SINTR;
+    proc[0].p_pri = priority;
+    proc[0].p_slptime = slept;
+#ifdef SWAP_IMAGE_ALIGN
+    entries[0].m_addr = 4;
+    entries[0].m_size = 380;
+    next = 4;
+    HK_CHECK(malloc3_contiguous_next(swapmap,
+        btod(proc[1].p_dsize - swaptext(&proc[1])),
+        btod(proc[1].p_ssize), btod(USIZE), SWAP_IMAGE_ALIGN,
+        &next, addresses) == swap_image_span(&proc[1]));
+    proc[1].p_daddr = addresses[0];
+    proc[1].p_saddr = addresses[1];
+    proc[1].p_addr = addresses[2];
+    swapnext = next;
+#else
+    geometry_data = btod(proc[0].p_dsize - swaptext(&proc[0]));
+    geometry_stack = btod(proc[0].p_ssize);
+    geometry_uarea = btod(USIZE);
+    seed_runs(geometry_data + 1, geometry_stack + 1, geometry_uarea + 2);
+#endif
+    sr_admit = 0;
+    swap_reads_allowed = 1;
+    /*
+     * With aligned images the fixture's in-place exchange ends the call: a
+     * process sched() selects to go out reaches it with SLOAD already
+     * clear. Without them the swap completes and sched() sleeps.
+     */
+#ifdef SWAP_IMAGE_ALIGN
+    if (!resident)
+        HK_EXPECT_PANIC("unexpected in-place exchange", sched_call);
+    else
+#endif
+        HK_EXPECT_PANIC("sched slept", sched_call);
+    hk_ipl = 0;
+    {
+        int disk_wait_stays_resident = (proc[0].p_flag & SLOAD) != 0 &&
+            (proc[1].p_flag & SLOAD) == 0 && cnt.v_swpout == 0 &&
+            cnt.v_swpin == 0 && writes == 0 && swap_reads == 0 &&
+            sched_sleeps == 1 && sched_sleep_channel == (caddr_t)&runin;
+        int long_wait_goes_out = (proc[0].p_flag & SLOAD) == 0;
+
+        if (resident)
+            HK_CHECK(disk_wait_stays_resident);
+        else
+            HK_CHECK(long_wait_goes_out);
+    }
+}
+
+static void
+sched_disk_waits(void)
+{
+    sched_disk_wait_case(SSLEEP, PRIBIO, 0, 1);
+    sched_disk_wait_case(SSLEEP, PRIBIO + 1, 1, 1);
+    sched_disk_wait_case(SSLEEP, PINOD, 0, 1);
+    sched_disk_wait_case(SRUN, PRIBIO, 0, 1);
+    sched_disk_wait_case(SRUN, PINOD, 0, 1);
+    /* Two seconds asleep, and the priorities on either side of the band. */
+#ifdef SWAP_IMAGE_ALIGN
+    /* The unaligned fixture's swap device requires a running caller. */
+    sched_disk_wait_case(SSLEEP, PRIBIO, 2, 0);
+    sched_disk_wait_case(SSLEEP, PZERO, 0, 0);
+    sched_disk_wait_case(SSLEEP, PINOD - 1, 0, 0);
+#endif
+    sched_disk_wait_case(SRUN, PUSER, 0, 0);
+}
+
 static void
 sched_refusals(void)
 {
@@ -2611,6 +2694,7 @@ main(void)
     unreserved_swapout();
     sched_refusals();
     sched_successes();
+    sched_disk_waits();
 #ifdef SDSWAP_ENABLED
     swap_lost_cases();
 #endif

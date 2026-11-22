@@ -177,6 +177,12 @@ MUTATIONS = {
         "            if (refusals) {\n                refusals = 0;\n",
         "            if (refusals) {\n",
     ),
+    # A process in a disk-level wait holds inode locks and buffers that swapin
+    # needs, so it stays resident until the wait has lasted two seconds.
+    "sched-swap-disk-wait": (
+        "        if (! (in_core->p_flag & SLOCK) && ! disk_wait &&\n",
+        "        if (! (in_core->p_flag & SLOCK) && (disk_wait || ! disk_wait) &&\n",
+    ),
     # The reservation-free swapout of the scheduler before the refusal path.
     "sched-unreserved-swapout": (
         "                swapout (in_core, X_FREECORE, X_OLDSIZE, X_OLDSIZE,\n"

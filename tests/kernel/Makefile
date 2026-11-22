@@ -4004,7 +4004,7 @@ clean:
 
 # Exact production ownership definitions with modeled codec and storage I/O.
 FORK_SWAP_FUNCTIONS= fork_swap_functions.c
-FORK_SWAP_MUTANTS= quota-off-by-one quota-zombie-effective ignore-reservation-refusal publish-allproc-early \
+FORK_SWAP_MUTANTS= sched-swap-disk-wait quota-off-by-one quota-zombie-effective ignore-reservation-refusal publish-allproc-early \
     advance-cursor-on-failure allocate-again-on-copy \
     child-sidl-during-copy omit-release-wakeup notify-before-release \
     ignore-copy-owner ignore-copy-state ignore-commit-owner \
@@ -4274,6 +4274,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		sched-drop-requeue) expected='runnable_requeued' ;; \
 		sched-swapin-after-refusal) expected='slept_on_runin' ;; \
 		sched-unreserved-swapout) expected='K66' ;; \
+		sched-swap-disk-wait) expected='disk_wait_stays_resident' ;; \
 		sched-sleep-after-refusal) expected='no_sleep_before_exchange' ;; \
 		sched-reselect-refused) expected='reached_next_candidate' ;; \
 		sched-keep-refused-marks) expected='refusal_accounted' ;; \

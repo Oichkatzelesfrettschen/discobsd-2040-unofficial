@@ -50,6 +50,7 @@ sched(void)
     struct swap_image_reservation reservation;
     char refused[NPROC];
     int exchange_refusal, refusals = 0;
+    int disk_wait;
     int s;
 
     for (;;) {
@@ -212,7 +213,21 @@ sched(void)
          * least 1 second in core and the swapped-out process has spent at
          * least 2 seconds out.  Otherwise wait a bit and try again.
          */
-        if (! (in_core->p_flag & SLOCK) &&
+        /*
+         * A process asleep in a disk-level wait (PINOD to PRIBIO + 1: an
+         * inode lock, a busy buffer, a transfer), or runnable again after
+         * one and not yet through userret(), which gives p_pri a user
+         * value again, holds inode locks and cache buffers. It stays
+         * resident: swapin reads a process's text from its executable
+         * through the same locks and buffers (exec_text_restore()), and a
+         * holder that is swapped out can only release them after a swapin.
+         * A sleeper that has waited two seconds is waiting for a holder
+         * that is itself swapped out, and gives up the window as before.
+         */
+        disk_wait = in_core->p_pri >= PINOD && in_core->p_pri <= PRIBIO + 1 &&
+            (in_core->p_stat == SRUN ||
+             (in_core->p_stat == SSLEEP && in_core->p_slptime < 2));
+        if (! (in_core->p_flag & SLOCK) && ! disk_wait &&
             (in_core->p_stat == SSTOP ||
              (in_core->p_stat == SSLEEP && (in_core->p_flag & P_SINTR)) ||
              ((in_core->p_stat == SRUN || in_core->p_stat == SSLEEP) &&

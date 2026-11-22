@@ -272,7 +272,7 @@ crosses a flash placement boundary.
 
 ## Board timing on the bare Pico
 
-On 2026-11-22 a probe kernel ran on the bare Raspberry Pi Pico (PICO kernel built from `6719f9d7a` with `docs/research/rom-copy-probe.patch`, 125 MHz system clock, root unchanged). The probe calls each routine N times (1,000 calls up to 256 bytes, 200 above) with interrupts masked (`splhigh()`). It reads the RP2040 timer's low word (`TIMERAWL`) before and after each loop. For each size it times:
+On 2026-11-22 a probe kernel ran on the bare Raspberry Pi Pico (PICO kernel built from `6719f9d7a` with `docs/research/rom-copy-probe.patch`, 125 MHz system clock, root unchanged). The probe calls each routine N times (1,000 calls up to 256 bytes, 200 above) with interrupts masked (`splhigh()`). It reads the RP2040 timer's low word (`TIMERAWL`) before and after each loop. The patch runs the timing once from `main()` just before init starts; the console has not attached by then, so the table below comes from a second build that calls `bzbench()` from `sync()` when the caller is not a child of init, and an interactive `sync` prints it. For each size it times:
 
 - the kernel's `bzero`;
 - the boot ROM `memset` (MS) through a pointer resolved once;
@@ -305,11 +305,11 @@ Offset 1 moves both the source and the destination one byte past word alignment,
 
 The ROM routines are faster at every size measured:
 
-- **Fill (MS):** about 1.8 to 3.6 times faster than `bzero`. With the lookup on every call, the fill is level with `bzero` at 4 to 16 bytes and faster from 32 bytes.
+- **Fill (MS):** about 1.7 to 3.7 times faster than `bzero`. With the lookup on every call, the fill is level with `bzero` at 4 to 16 bytes and faster from 32 bytes.
 - **Aligned copy (MC):** about 1.4 to 2.6 times faster than `bcopy`.
 - **Co-aligned copy at offset 1 (MC):** 3 to 10 times faster. The kernel's `bcopy` takes its word loops only when both pointers are word-aligned, so a co-aligned pair one byte off falls to the byte loop.
 
-A histogram of call sizes, counted by the same probe through boot, `ls -lR /usr` and `cat /etc/*`, buckets each call by `floor(log2(n)) + 1` (bucket 0 is length 0, bucket 13 is 4,096 bytes and more):
+A histogram of call sizes, counted by the first build from just before init starts (after device, filesystem and root setup) through `/etc/rc`, a login, `ls -lR /usr` and `cat /etc/*`, buckets each call by `floor(log2(n)) + 1` (bucket 0 is length 0, bucket 13 is 4,096 bytes and more):
 
 | Routine | 0 | 1 | 2-3 | 4-7 | 8-15 | 16-31 | 32-63 | 64-127 | 128-255 | 256-511 | 512-1023 | 1024-2047 | 2048-4095 | 4096+ |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -321,6 +321,7 @@ Most fills clear 1-2 KiB, where the ROM `memset` saves about 3.5 us a call, and 
 **Limits of this measurement:**
 
 - One board was measured, with warm caches and interrupts masked.
+- The histogram leaves out the kernel's own start-up before init.
 - Offset 1 covers co-aligned pairs only. A source and destination with different alignments were not timed.
 - The `bcopy` variant that looks up MC on every call was not timed.
 

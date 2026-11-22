@@ -217,8 +217,8 @@ affected objects from clean state:
 
 `SWAPRAM_KB` defaults to 64 in `machine/swapram.h` if only `options SWAPRAM`
 is given. The linker script (`sys/arch/rp2040/conf/kern.ldscript`) places the pool in
-the NOLOAD `.swapram_pool` section after `.bss`, after the kernel's `.data`
-and `.bss` in RAM, below `U0AREA`; an ASSERT there requires the pool to start
+the NOLOAD `.swapram_pool` section, placed in RAM after the kernel's `.data`
+and `.bss` and below `U0AREA`; an ASSERT there requires the pool to start
 at or above `_ebss`. The startup code in `sys/arch/rp2040/rp2040/locore0.S` zeroes
 every word from `_sdata` to `u_end` in its first loop, and that range
 includes the pool, so reset clears it. The second loop, which clears `.bss`

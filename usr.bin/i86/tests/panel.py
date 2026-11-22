@@ -167,6 +167,15 @@ MUTANTS = [
     ("gfx.c", "\tpal_key = ~0u;\n\t/* Two bytes", "\t/* Two bytes"),
     ("gfx.c", "\t\tmem_watched = 0xffff;\n\t}\n\treturn (k != K_TEXT);", "\t}\n\treturn (k != K_TEXT);"),
     ("gfx.c", "if ((k == K_TEXT || k != kind) && kind_set(k) != 0)", "if (kind_set(k) != 0)"),
+    ("gfx.c", "if (sent == NULL || !BIT(fresh, y))", "if (sent == NULL)"),
+    ("gfx.c", "\tmem_watched = 0xffff;\n\tmemset(fresh, 0, sizeof(fresh));", "\tmem_watched = 0xffff;"),
+    ("gfx.c", "\t\t\t    COL_BYTES * (n * w + w2) + WIN_BYTES)", "\t\t\t    0)"),
+    ("gfx.c", "if (COL_BYTES * (n + 1) * (hi - lo) >", "if (0 * (n + 1) * (hi - lo) >"),
+    ("gfx.c", "for (b = 80; p[b - 1] == q[b - 1]; b--)", "for (b = 80; 0; b--)"),
+    ("gfx.c", "for (a = 0; a < 80 && p[a] == q[a]; a++)", "for (a = 0; 0; a++)"),
+    ("gfx.c", "sent = bank[1] + (BANK_PAGES << MEM_PGSHIFT);", "sent = bank[1];"),
+    ("main.c", "\t\t\tgfx_plain = 1;", "\t\t\t;"),
+    ("gfx.c", "\t\tif (!gfx_plain &&", "\t\tif (1 &&"),
 ]
 
 
@@ -439,19 +448,27 @@ def test_stages(binary, work, fonts, boot):
             raise Failure("%s: %d bytes went to the terminal" % (what, len(done.stdout)))
         if stage in (6, 7, 10, 11):
             # The same session ended at the stage's key wait has drawn
-            # everything but the change. The change may cost the scan
-            # lines of the two pages written, 27 of them, or the cells
-            # that differ: the one stored, the two rows the firmware
-            # scrolled and the cursor's old and new places. Writes that
+            # everything but the change. The change may cost the four
+            # pixels of each of the two bytes stored, or the cells that
+            # differ: the one stored, the two rows the firmware scrolled
+            # and the cursor's old and new places. Writes that
             # leave the adapter as it was cost nothing; a mode set that
             # clears memory costs its lines and no clear of the panel.
             _, before = run(binary, work, key)
             more = counts["pixels"] - before[0][1]["pixels"]
-            if more != {6: 27 * 320, 7: 163 * 32, 10: 0, 11: 200 * 320}[stage]:
+            if more != {6: 2 * 4, 7: 163 * 32, 10: 0, 11: 200 * 320}[stage]:
                 raise Failure("%s: the change sent %d pixels" % (what, more))
             more = counts["filled"] - before[0][1]["filled"]
             if more:
                 raise Failure("%s: the change cleared %d pixels" % (what, more))
+        if stage == 6:
+            # With -G every line of a written page goes out whole.
+            _, plain = run(binary, work, "6x", extra=["-G"])
+            _, plain0 = run(binary, work, "6", extra=["-G"])
+            compare(plain[0][0], frame, "%s with -G" % what)
+            more = plain[0][1]["pixels"] - plain0[0][1]["pixels"]
+            if more != 27 * 320:
+                raise Failure("%s with -G: the change sent %d pixels" % (what, more))
         if stage == 4 and counts["filled"] != WIDTH * HEIGHT + 200 * WIDTH:
             # The first clear after the open covers the whole panel, the
             # superuser's open keeping the console's screen; the mode set

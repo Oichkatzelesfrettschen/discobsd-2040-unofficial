@@ -91,6 +91,7 @@ long panel_write(const void *p, unsigned long n);
 #define LINES		200
 #define FIELD		8000u		/* bytes of one field's 100 lines */
 #define BANK_PAGES	8
+#define SENT_PAGES	16		/* the lines last sent: 16,000 bytes */
 #define K_TEXT		0
 #define K_CGA4		1		/* 320x200, four colors */
 #define K_CGA6		2		/* 640x200, two colors */
@@ -121,6 +122,15 @@ static int pointer;			/* mouse keys are on: show the mark */
 #define GFX_DRAIN	16		/* 6.6 ms of wire at 12.5 MHz */
 static uint8_t owed[LINES / 8];
 static unsigned drain_at;		/* the line a drain looks at first */
+/* The display memory of each graphics line as last sent, 80 bytes a line,
+ * in page frames lent with the odd lines' when the pager has them; null
+ * otherwise, and then every owed line goes out whole. A line's bit in
+ * fresh says the panel shows its copy: a drain then sends only the bytes
+ * that differ from it. A clear or a palette change makes every copy
+ * stale. */
+static uint8_t *sent;
+static uint8_t fresh[LINES / 8];
+int gfx_plain;				/* every owed line whole (-G) */
 
 static void graphic_drain(unsigned max);
 
@@ -128,17 +138,19 @@ static void graphic_drain(unsigned max);
  * finds its pages rearmed, so nothing is retried: the device rejects
  * only what this file never sends. */
 
-static void
+/* Returns 0 once all n bytes are written, -1 when the device stops. */
+static int
 put(const uint8_t *p, unsigned n)
 {
 	while (n) {
 		long k = DEV_WRITE(fd, p, n);
 
 		if (k <= 0)
-			break;
+			return (-1);
 		p += k;
 		n -= (unsigned)k;
 	}
+	return (0);
 }
 
 static int
@@ -213,6 +225,7 @@ palette(void)
 	}
 	/* What is on the panel has the old colors. */
 	mem_watched = 0xffff;
+	memset(fresh, 0, sizeof(fresh));
 }
 
 /* Put display memory where the kind of mode wants it. Returns -1 when
@@ -221,7 +234,11 @@ static int
 kind_set(int k)
 {
 	if (k != K_TEXT && bank[1] == NULL) {
-		if ((bank[1] = mem_lend(BANK_PAGES)) == NULL)
+		sent = NULL;
+		if (!gfx_plain &&
+		    (bank[1] = mem_lend(BANK_PAGES + SENT_PAGES)) != NULL)
+			sent = bank[1] + (BANK_PAGES << MEM_PGSHIFT);
+		else if ((bank[1] = mem_lend(BANK_PAGES)) == NULL)
 			return (-1);
 		/* From cells to pixels: the cells' four kilobytes are the
 		 * same memory in both and stay; the rest held the copy of
@@ -233,6 +250,7 @@ kind_set(int k)
 	if (k == K_TEXT && bank[1] != NULL) {
 		mem_return();
 		bank[1] = NULL;
+		sent = NULL;
 	}
 	if (k == K_TEXT) {
 		mem_watch(GFX_VRAM, 0, bank[0], 4);
@@ -440,31 +458,80 @@ line_expand(unsigned y)
 	}
 }
 
+#define BIT(set, y)	((set)[(y) >> 3] >> ((y) & 7) & 1)
+#define WIN_BYTES	11		/* CASET, RASET and RAMWR of a window */
+#define COL_BYTES	8		/* a byte of a line: four pixels of two bytes */
+
+/* The bytes of line y to send, from *at: those from the first to the last
+ * that differ from the line's copy, none when it equals the copy, all 80
+ * when the panel may show something else. */
+static unsigned
+line_span(unsigned y, unsigned *at)
+{
+	const uint8_t *p = bank[y & 1] + (y >> 1) * 80, *q;
+	unsigned a, b;
+
+	*at = 0;
+	if (sent == NULL || !BIT(fresh, y))
+		return (80);
+	q = sent + y * 80;
+	for (a = 0; a < 80 && p[a] == q[a]; a++)
+		;
+	if (a == 80)
+		return (0);
+	for (b = 80; p[b - 1] == q[b - 1]; b--)
+		;
+	*at = a;
+	return (b - a);
+}
+
 /* Send at most max owed lines, a run of up to GFX_DRAIN adjacent ones a
- * window. */
+ * window. A line's window covers the bytes that differ from its copy; the
+ * next line joins it while one window of their joint columns costs no
+ * more wire bytes than two. */
 static void
 graphic_drain(unsigned max)
 {
-	unsigned i, k, y = drain_at, n;
+	unsigned i, k, y = drain_at, n, a, w, a2, w2, lo, hi;
+	int ok;
 
 	/* The scan starts where the last drain stopped and wraps, so lines
 	 * written again and again near the top cannot starve the rest. */
 	for (k = 0; k < LINES && max > 0; k += n, y = (y + n) % LINES) {
 		n = 1;
-		if (!(owed[y >> 3] >> (y & 7) & 1))
+		if (!BIT(owed, y))
+			continue;
+		owed[y >> 3] &= (uint8_t)~(1u << (y & 7));
+		if ((w = line_span(y, &a)) == 0)
 			continue;
 		while (n < max && n < GFX_DRAIN && y + n < LINES &&
-		    (owed[(y + n) >> 3] >> ((y + n) & 7) & 1))
+		    BIT(owed, y + n) && (w2 = line_span(y + n, &a2)) != 0) {
+			lo = a < a2 ? a : a2;
+			hi = a + w > a2 + w2 ? a + w : a2 + w2;
+			if (COL_BYTES * (n + 1) * (hi - lo) >
+			    COL_BYTES * (n * w + w2) + WIN_BYTES)
+				break;
+			owed[(y + n) >> 3] &= (uint8_t)~(1u << ((y + n) & 7));
+			a = lo;
+			w = hi - lo;
 			n++;
+		}
 		max -= n;
 		drain_at = (y + n) % LINES;
-		for (i = y; i < y + n; i++)
-			owed[i >> 3] &= (uint8_t)~(1u << (i & 7));
-		if (window(0, GFX_Y0 + y, LCDG_WIDTH, n, LCDG_WIN_INDEX, 0, 0) != 0)
-			continue;
-		for (i = 0; i < n; i++) {
-			line_expand(y + i);
-			put(line, LCDG_WIDTH);
+		/* A line's copy holds what the panel shows only once all its
+		 * pixels went out. */
+		ok = window(4 * a, GFX_Y0 + y, 4 * w, n, LCDG_WIN_INDEX, 0, 0) == 0;
+		for (i = y; i < y + n; i++) {
+			if (ok) {
+				line_expand(i);
+				ok = put(line + 4 * a, 4 * w) == 0;
+			}
+			if (ok && sent != NULL) {
+				memcpy(sent + i * 80, bank[i & 1] + (i >> 1) * 80,
+				    80);
+				fresh[i >> 3] |= (uint8_t)(1u << (i & 7));
+			} else
+				fresh[i >> 3] &= (uint8_t)~(1u << (i & 7));
 		}
 	}
 }
@@ -564,6 +631,7 @@ gfx_refresh(unsigned cols, unsigned cursor)
 			memset(bank[0] + 0x1000, 0, 0x1000);
 		cur_shown = GFX_NOCURSOR;
 		memset(owed, 0, sizeof(owed));
+		memset(fresh, 0, sizeof(fresh));
 		mem_watched = 0xffff;
 		stale = 0;
 	}

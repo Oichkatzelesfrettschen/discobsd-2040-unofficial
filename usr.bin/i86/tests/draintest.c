@@ -33,7 +33,10 @@
  * lines; a drain sends at most GFX_DRAIN lines, a run of at most GFX_DRAIN
  * a window; a full redraw goes out in order, each line once; and lines
  * written again on every poll near the top leave the rest of the frame
- * served within one pass of the drain.
+ * served within one pass of the drain. With page frames for the copy of
+ * the lines last sent, a line equal to its copy costs nothing, a changed
+ * byte costs a window of its four pixels, and two changed lines share a
+ * window only where that costs fewer bytes.
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -55,9 +58,12 @@ long panel_write(const void *p, unsigned long n);
 
 uintptr_t mem_rmap[MEM_NPAGE], mem_wmap[MEM_NPAGE];
 unsigned mem_watched;
-static uint8_t vmem[8192], lent[8192];
+static uint8_t vmem[8192], lent[24 * 1024];
 static unsigned sent[LINES];		/* windows that drew each line */
 static unsigned drawn, tallest, fails, checks;
+static unsigned lend_max = 8;		/* frames the stand-in pager lends */
+static struct lcdg_window wins[8];	/* the first windows since a reset */
+static unsigned nwins;
 
 unsigned
 mem_rslow(uint32_t a)
@@ -94,8 +100,7 @@ mem_rearm(void)
 uint8_t *
 mem_lend(unsigned n)
 {
-	(void)n;
-	return (lent);
+	return (n <= lend_max ? lent : NULL);
 }
 
 void
@@ -128,6 +133,9 @@ panel_ioctl(unsigned long cmd, void *arg)
 		drawn += w->h;
 		if (w->h > tallest)
 			tallest = w->h;
+		if (nwins < 8)
+			wins[nwins] = *w;
+		nwins++;
 	}
 	return (0);
 }
@@ -197,6 +205,38 @@ main(void)
 		gfx_drain();
 	}
 	check(all_sent(0), "lines written on every poll starve no other line");
+
+	/* The same with the copy: after one full redraw, unchanged lines
+	 * cost nothing; then one byte on line 0 and one on line 1 three
+	 * bytes apart go as two windows of four pixels (one window of both
+	 * would send 64 bytes against 27), and one byte at the same place
+	 * on lines 4 and 5 as one window of two lines. */
+	(void)gfx_mode(3);
+	lend_max = 24;
+	check(gfx_mode(4) == 1, "mode 4 with frames for the copy");
+	gfx_refresh(40, GFX_NOCURSOR);
+	for (i = 0; i < 14; i++)
+		gfx_drain();
+	drawn = nwins = 0;
+	mem_watched = 0xffff;
+	gfx_refresh(40, GFX_NOCURSOR);
+	for (i = 0; i < 14; i++)
+		gfx_drain();
+	check(drawn == 0, "lines equal to their copy cost nothing");
+	vmem[0] = 1;
+	lent[3] = 1;
+	vmem[2 * 80 + 10] = 1;
+	lent[2 * 80 + 10] = 1;
+	mem_watched = 0xffff;
+	gfx_refresh(40, GFX_NOCURSOR);
+	gfx_drain();
+	check(nwins == 3 && drawn == 4, "three windows for four changed lines");
+	check(nwins >= 1 && wins[0].x == 0 && wins[0].w == 4 &&
+	    wins[0].y == GFX_Y0 && wins[0].h == 1, "line 0: one byte");
+	check(nwins >= 2 && wins[1].x == 12 && wins[1].w == 4 &&
+	    wins[1].y == GFX_Y0 + 1 && wins[1].h == 1, "line 1: one byte");
+	check(nwins >= 3 && wins[2].x == 40 && wins[2].w == 4 &&
+	    wins[2].y == GFX_Y0 + 4 && wins[2].h == 2, "lines 4 and 5 joined");
 
 	gfx_close();
 	if (fails) {

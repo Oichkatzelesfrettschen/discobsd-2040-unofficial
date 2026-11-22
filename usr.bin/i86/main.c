@@ -48,6 +48,7 @@
 #include "mem.h"
 #include "pc.h"
 #include "ems.h"
+#include "gfx.h"
 
 
 static struct pc_config cf;
@@ -298,7 +299,7 @@ main(int argc, char **argv)
 	cf.cols = 80;
 	cf.model = I86_286;
 	cf.cpi10 = 52;
-	while ((ch = getopt(argc, argv, "a:b:c:de:f:gh:k:m:qrS:s:Tvw:")) != -1)
+	while ((ch = getopt(argc, argv, "a:b:c:de:f:Ggh:k:m:qrS:s:Tvw:")) != -1)
 		switch (ch) {
 		case 'a':
 			cf.disk[0] = optarg;
@@ -336,6 +337,9 @@ main(int argc, char **argv)
 		case 'f':
 			frames = (unsigned)atoi(optarg);
 			break;
+		case 'G':
+			gfx_plain = 1;
+			/* FALLTHROUGH */
 		case 'g':
 			cf.panel = 1;
 			break;

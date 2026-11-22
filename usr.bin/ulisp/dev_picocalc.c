@@ -57,11 +57,24 @@ static int panel = -1, audio = -1, port[GPIO_NPORTS] = { -1, -1 };
 static int
 display(void)
 {
+	struct lcdg_colmod cm;
+
 	if (panel < 0) {
 		sys_flush();
 		panel = open("/dev/lcdgfx", O_RDWR);
 		if (panel < 0)
 			ulisp_fail("no pixel display");
+		/*
+		 * An open starts in RGB666, three wire bytes a pixel; every
+		 * color this program draws is an RGB565 value, which the
+		 * panel takes in two.
+		 */
+		cm.fmt = LCDG_COLMOD_RGB565;
+		if (ioctl(panel, LCDG_COLMOD, &cm) < 0) {
+			(void)close(panel);
+			panel = -1;
+			ulisp_fail("no pixel display format");
+		}
 	}
 	return panel;
 }

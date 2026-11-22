@@ -125,6 +125,32 @@ hmutant() {
 	echo "ulisp mutants: $1 rejected"
 }
 
+# dmutant NAME SED-EXPRESSION: dev_picocalc.c with one defect, which
+# dev-picocalc-test must reject
+dmutant() {
+	dir=$work/$1
+	mkdir "$dir"
+	cp "$src"/*.h "$dir"/
+	sed "$2" "$src/dev_picocalc.c" > "$dir/dev_picocalc.c"
+	if cmp -s "$src/dev_picocalc.c" "$dir/dev_picocalc.c"; then
+		echo "ulisp mutants: $1: the substitution matched nothing" >&2
+		exit 1
+	fi
+	$cc -std=gnu17 -D_DEFAULT_SOURCE -w -I"$here/shim" -I"$dir" \
+	    -o "$dir/dev-picocalc-test" "$here/dev-picocalc-test.c"
+	rc=0
+	"$dir/dev-picocalc-test" > "$dir/log" 2>&1 || rc=$?
+	if [ "$rc" -eq 0 ]; then
+		echo "ulisp mutants: $1 passed the check" >&2
+		exit 1
+	fi
+	if [ "$rc" -ne 1 ]; then
+		echo "ulisp mutants: $1: status $rc from dev-picocalc-test, 1 rejects it" >&2
+		exit 1
+	fi
+	echo "ulisp mutants: $1 rejected"
+}
+
 # pmutant NAME FILE SED-EXPRESSION: the interpreter with one defect in FILE
 # that hilite-pty.py must reject
 pmutant() {
@@ -266,6 +292,9 @@ hmutant hl-unbalanced 's/k = st->depth ? HL_PAREN : HL_ERROR;/k = HL_PAREN;/'
 hmutant hl-radix-digit 's/HL_NUMBER : HL_PLAIN;/HL_NUMBER : HL_NUMBER;/'
 # A token that begins with a colon is an ordinary symbol.
 hmutant hl-keyword 's/else if (c == .:.)/else if (0)/'
+
+# The display opens without selecting RGB565.
+dmutant display-keeps-rgb666 's/if (ioctl(panel, LCDG_COLMOD, &cm) < 0) {/if (cm.fmt = 0, 0) {/'
 
 # A special form takes the color of a function.
 pmutant hl-table-class ulisp.c 's/return (fntype(x) != OTHER_FORMS/return HL_FUNCTION; return (fntype(x) != OTHER_FORMS/'

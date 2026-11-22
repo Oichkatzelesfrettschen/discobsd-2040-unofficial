@@ -10,7 +10,7 @@ Ctrl-] is the escape (as in telnet): Ctrl-] q quits and Ctrl-] ? lists the
 rest. Log in as operator with no password; su for root.
 
 POSIX hosts put the terminal in raw mode through termios and multiplex
-with select. Windows has no termios and select refuses console handles, so
+with select. Windows lacks termios and select refuses console handles, so
 the console runs through msvcrt with a reader thread, the Windows key codes
 for the arrow keys become their ANSI sequences, and the console output mode
 gets virtual-terminal processing so the board's escapes render.
@@ -89,7 +89,7 @@ def note(msg: str) -> None:
 def current_board(usb_port=None):
     """The board's device now, or None while it is absent or re-enumerating.
 
-    A named USB port that holds no console yet counts as absent, so the
+    A named USB port that lacks a console yet counts as absent, so the
     session waits for it; several boards with none named, or a malformed
     port, is an error the caller reports, because waiting cannot resolve it.
     """

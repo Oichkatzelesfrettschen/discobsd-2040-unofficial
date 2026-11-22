@@ -2,7 +2,7 @@
 #
 # cc: the board's native C compile driver. It runs Smaller C, the Thumb
 # assembler and the a.out linker in turn against the board's own crt0.o
-# and libc.a. Written for the 2.11BSD sh on the board, which has no $(( ))
+# and libc.a. Written for the 2.11BSD sh on the board, which lacks $(( ))
 # arithmetic, no $( ) substitution, no ${var%pattern} editing and no
 # ! in an if condition.
 #

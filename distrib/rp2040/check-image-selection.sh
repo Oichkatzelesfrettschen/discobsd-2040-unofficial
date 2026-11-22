@@ -182,7 +182,7 @@ lacks() {
 
 # A root that ships the pixel device node and its platformer needs
 # DEV_LCDGFX. Calibration first: the full PicoCalc kernel has the option and
-# its root has both paths, the lean kernels have no such option, so a lean
+# its root has both paths, the lean kernels lack the option, so a lean
 # root that carried a path would be reported.
 composed picocalc >"$tmp/picocalc"
 composed picocalc-lean >"$tmp/lean"

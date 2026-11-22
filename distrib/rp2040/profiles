@@ -56,7 +56,7 @@ group calc-bignum bc dc
 # The requirement runs both ways: the library is 55 KiB of flash that
 # nothing on the board reads once the compiler is gone. The assembler, the
 # linker and Smaller C each run on their own, so each is a closure that
-# needs nothing; the cc driver needs all three and the library.
+# needs zero other closures; the cc driver needs all three and the library.
 #
 closure cc needs closure as ld smlrc toolchainlib
 closure toolchainlib needs closure cc
@@ -88,8 +88,8 @@ closure puzzlebox needs path /usr/games/puzzlebox
 
 #
 # usr.bin/bc compiles its input to dc source and evaluates it with the dc
-# evaluator linked into bc itself, in a forked child, so bc needs no
-# /usr/bin/dc to run, and dc needs nothing of bc. bc -l first reads
+# evaluator linked into bc itself, in a forked child, so bc runs without
+# /usr/bin/dc to run, and dc does not need bc. bc -l first reads
 # /usr/share/misc/bc.library. The arbitrary-precision calculator ships bc,
 # dc and the library together as the calc-bignum group; each is a closure
 # an image can keep alone.
@@ -126,8 +126,8 @@ closure backlight needs path /usr/bin/backlight
 # kernels (sys/arch/rp2040/rp2040/conf.c). The sdcard closure carries the
 # /mnt mount point, the nodes for the whole card and its first two
 # partitions, and savecore(8), which copies a crash dump off the card's
-# dump partition; it needs no other closure, and the PICO board's kernel
-# has no driver behind those majors, so only the picocalc profile names it.
+# dump partition; it needs zero other closures, and the PICO board's kernel
+# lacks a driver behind those majors, so only the picocalc profile names it.
 #
 closure sdcard needs path /mnt /dev/sd0 /dev/sd0a /dev/sd0b /dev/rsd0 /dev/rsd0a /dev/rsd0b /sbin/savecore
 
@@ -145,7 +145,7 @@ closure lcdgfx needs path /dev/lcdgfx
 # disk. /etc/rc.rp2040 runs mkfs over it and mounts it at /tmp, so the
 # closure carries the node and /sbin/mkfs. A card with a usable type ba
 # entry takes /tmp instead: sd_tmpattach() (sd.c) gives the whole PSRAM to
-# swap, minor 1 is then empty, and /etc/rc.rp2040 mounts /dev/sd0t first. A PICO kernel has no driver
+# swap, minor 1 is then empty, and /etc/rc.rp2040 mounts /dev/sd0t first. A PICO kernel lacks a driver
 # behind major 3, and a PICOCALC kernel whose part failed its probe refuses
 # the open, so the open fails with ENXIO and /etc/rc.rp2040 leaves /tmp on
 # the root. Both PicoCalc profiles (picocalc and picocalc-lean) name the
@@ -166,7 +166,7 @@ closure ridge needs closure lcdgfx
 # loses when it holds base plus the named closure or group plus the closures
 # that name needs, read from `fsutil --verbose --partition=1` on the built
 # image; cc and toolchainlib carry one figure because each requires the
-# other. gamebox and puzzlebox have no line of their own: a binary with no
+# other. gamebox and puzzlebox lack a line of their own: a binary with no
 # member is refused, so each is measured through a member or its group.
 # sys/arch/rp2040/doc/PROFILES.md holds the method, the marginal cost of
 # each multicall member inside the full set, and the profile totals.
@@ -237,7 +237,7 @@ profile picocalc-lean toolchain toolchainlib games puzzles calc-bignum calc sdca
 
 # The uLisp interpreter is opt-in on flash (PROFILE=lisp or IMAGE_WITH=ulisp); the SD root
 # has it with the rest of the install tree. Its graphics functions report
-# an error on a kernel without the pixel device, so it needs no node.
+# an error on a kernel without the pixel device, so it needs zero nodes.
 closure ulisp needs path /usr/bin/ulisp /usr/share/ulisp/ulisp.doc
 profile lisp sdcard lcdgfx ulisp
 

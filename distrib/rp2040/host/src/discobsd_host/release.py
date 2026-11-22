@@ -278,7 +278,7 @@ def run_delegate(command, timeout):
     try:
         for name in ("SIGTERM", "SIGHUP"):
             sig = getattr(signal, name, None)
-            if sig is None:  # no SIGHUP on Windows, which has no discobsd-flash
+            if sig is None:  # no SIGHUP on Windows, which lacks discobsd-flash
                 continue
             try:
                 previous[sig] = signal.signal(sig, terminated)

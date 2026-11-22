@@ -29,7 +29,7 @@
 # moment, because the address changes at every re-enumeration; the volume
 # unmounted is the one behind that port, and the other 2e8a devices must
 # keep their addresses and products for the whole run. Linux only: macOS
-# has no sysfs, so there the tool addresses picotool's one device as before.
+# lacks sysfs, so there the tool addresses picotool's one device as before.
 # DISCOBSD_SYSFS_USB replaces /sys/bus/usb/devices for tests.
 #
 # A hung kernel does not answer the reset request: hold BOOTSEL through a

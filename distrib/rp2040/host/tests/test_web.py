@@ -163,7 +163,7 @@ def ws_connect(port, token="tok", origin=None):
 # in one TCP segment, so ws_connect's recv carries part of the payload. The
 # caller seeds the accumulator with what it already holds; without the seed
 # the wanted bytes sit in the caller's hand while this loop waits out its
-# deadline on a socket that has nothing further to send.
+# deadline on a socket that has finished sending.
 def read_frames(s, want: bytes, timeout=3.0, got: bytes = b""):
     s.settimeout(timeout)
     while want not in got:

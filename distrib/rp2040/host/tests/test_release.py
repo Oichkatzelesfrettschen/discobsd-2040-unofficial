@@ -264,7 +264,7 @@ def test_delegate_failure_status_raises(tmp_path):
 @pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs /proc to read process state")
 @pytest.mark.parametrize("name", ["SIGTERM", "SIGHUP"])
 def test_signal_to_the_parent_ends_the_delegate_group(tmp_path, name):
-    # Resolved here: Windows has no SIGHUP, and a collection-time lookup
+    # Resolved here: Windows lacks SIGHUP, and a collection-time lookup
     # would fail the whole module instead of skipping this test.
     sig = getattr(signal, name)
     pidfile = tmp_path / "child.pid"

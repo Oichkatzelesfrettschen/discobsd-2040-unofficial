@@ -6,7 +6,7 @@ against a fake sysfs tree and a PATH that holds stub picotool, terminal,
 uname, findmnt and sleep programs and symlinks to the few coreutils the
 scripts use; no real picotool or serial node is reachable. The stub picotool
 changes the fake sysfs the way a real reset does (the product id flips and
-the bus address advances), so a call that carries a stale address finds no
+the bus address advances), so a call that carries a stale address misses the
 device. Each rule has a mutant: the script is copied with the rule removed
 and the scenario check must then fail.
 """

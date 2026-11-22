@@ -22,7 +22,7 @@ set -eu
 # its USB port, such as 1-3, and opens the tty that belongs to that port. An
 # empty --usb-port operand is an error; an empty DISCOBSD_USB_PORT counts as
 # unset. Discovery is repeated just before the launch.
-# An explicit device path names the board itself. Linux only: macOS has no
+# An explicit device path names the board itself. Linux only: macOS lacks
 # sysfs, so there the selector is refused and discovery is unchanged.
 # DISCOBSD_SYSFS_USB and DISCOBSD_DEVFS replace /sys/bus/usb/devices and /dev
 # for tests.

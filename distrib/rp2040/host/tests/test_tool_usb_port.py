@@ -6,7 +6,7 @@ device with none named is a refusal that lists the ports, and --usb-port or
 DISCOBSD_USB_PORT names the board by its sysfs port. The tests run against a
 fake sysfs and devfs tree; no serial device is opened (serial.Serial is
 replaced) and no real board is read. discobsd-link never resolves a board (it
-only redirects to a URL), so it takes no selector and has no case here.
+only redirects to a URL), so it takes zero selectors and has zero cases here.
 """
 
 from __future__ import annotations

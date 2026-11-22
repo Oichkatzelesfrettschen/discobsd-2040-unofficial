@@ -725,8 +725,20 @@ def test_capture(binary, work, fonts, boot):
     with open(cap, "rb") as handle:
         if handle.read() != b"earlier":
             raise Failure("panel capture without the read replaced the earlier file")
-    if os.path.exists(cap + ".tmp"):
-        raise Failure("panel capture without the read left %s.tmp" % cap)
+    left = [n for n in os.listdir(work) if n.startswith("cap.ppm.")]
+    if left:
+        raise Failure("panel capture without the read left %s" % left)
+    # A name planted beside the file is not written through.
+    victim = os.path.join(work, "victim")
+    with open(victim, "wb") as handle:
+        handle.write(b"victim")
+    os.symlink(victim, cap + ".tmp")
+    session(binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"panel saved", b"q")], extra=["-P", cap])
+    os.unlink(cap + ".tmp")
+    with open(victim, "rb") as handle:
+        if handle.read() != b"victim":
+            raise Failure("panel capture wrote through a planted link")
+    compare(read_frame(cap), cga4_frame(Cga(fonts[0]).fields, 0x30), "panel capture beside a link")
     bad = os.path.join(work, "absent", "cap.ppm")
     plain, closes = session(
         binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")], extra=["-P", bad]

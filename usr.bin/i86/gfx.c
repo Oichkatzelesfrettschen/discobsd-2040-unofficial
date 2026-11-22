@@ -63,6 +63,7 @@
 #include <sys/ioctl.h>
 #include <sys/lcdgfx.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -618,16 +619,17 @@ graphic_refresh(void)
  * (LCDG_READ, kernels with LCD_GFX_EXT) into a binary PPM at
  * gfx_capture_path: each of the 320 glass lines from the memory line the
  * scroll area puts there, after the owed lines are sent. The file is
- * written beside it under a ".tmp" suffix and renamed only once whole, so
- * a failed read-back (a kernel without the read) leaves an earlier capture
- * as it was. Returns 0, 1 when gfx_capture_path is null or the panel is
+ * written beside it under its name and the process id, created with
+ * O_EXCL so that a file or link planted there fails the capture instead of
+ * being written through, and renamed only once whole, so a failed read-back (a
+ * kernel without the read) leaves an earlier capture as it was. Returns 0, 1 when gfx_capture_path is null or the panel is
  * closed, and -1 when the device or the file fails.
  */
 int
 gfx_capture(void)
 {
 	static const char hdr[] = "P6\n320 320\n255\n";
-	char tmp[128];
+	char tmp[PATH_MAX + 8];
 	struct lcdg_read rd;
 	uint8_t out[3 * LCDG_WIDTH / 2];
 	unsigned y, half, i, v;
@@ -637,9 +639,9 @@ gfx_capture(void)
 		return (1);
 	if (!stale && kind != K_TEXT)
 		graphic_drain(LINES);
-	if ((unsigned)snprintf(tmp, sizeof(tmp), "%s.tmp", gfx_capture_path) >=
-	    sizeof(tmp) ||
-	    (f = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644)) < 0)
+	if ((unsigned)snprintf(tmp, sizeof(tmp), "%s.%d", gfx_capture_path,
+	    (int)getpid()) >= sizeof(tmp) ||
+	    (f = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0644)) < 0)
 		return (-1);
 	ok = write(f, hdr, sizeof(hdr) - 1) == (long)sizeof(hdr) - 1;
 	for (y = 0; ok && y < LCDG_HEIGHT; y++)

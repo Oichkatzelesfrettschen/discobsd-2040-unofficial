@@ -155,6 +155,18 @@ ROM_MODEL_SLOTS = (
     (0x92, b"MC", (ROM_MODEL_CODE + 0x10) | 1),
 )
 
+# The only data reads of the boot ROM window the kernel makes: the halfwords
+# at the two function table slots (rom_fn() reads the code and the address of
+# each) and the two table pointers rom_func_lookup() reads at 0x14 and 0x18
+# (sys/arch/rp2040/dev/flash.c). Any other read of 0 to 0x3fff goes through
+# the call's policy like a read of any unmapped-in-hardware address; the
+# model routines' instruction fetches are not data reads.
+ROM_READS = frozenset(
+    (address, 2)
+    for address in (0x14, 0x18)
+    + tuple(slot + offset for slot, _code, _entry in ROM_MODEL_SLOTS for offset in (0, 2))
+)
+
 # ARMv6-M Thumb (ARM DDI 0419, section A5.1) admits 32-bit encodings only
 # for BL, MSR, MRS, DMB, DSB and ISB. MRS and MSR name a special register
 # (B5.4.1 and B5.4.2); the ARMv7-M BASEPRI, BASEPRI_MAX and FAULTMASK, and
@@ -455,8 +467,8 @@ class KernelEmulator:
             return
         if FLASH_BASE <= address < FLASH_BASE + FLASH_SIZE and policy.flash_reads:
             return
-        if ROM_BASE <= address < ROM_BASE + ROM_SIZE:
-            return  # The boot ROM is read-only and every kernel may read it.
+        if (address, size) in ROM_READS:
+            return
         if not _inside(policy.reads, address, size):
             self._violate(f"read of {size} at {address:#010x} outside the allowed spans")
             return
@@ -670,6 +682,27 @@ def clobber_probe(image: KernelImage) -> list[str]:
     for slot, (label, code, preserved) in enumerate(CLOBBER_BAD, 1):
         if all(result == preserved for result in run(slot, code)):
             failures.append(f"{label} survived the callback in all {CLOBBER_RUNS} runs")
+    return failures
+
+
+def rom_read_probe(image: KernelImage) -> list[str]:
+    """Check the boot ROM read allowance: bcmp of address 0 and of a ROM
+    address past the table slots must each report a policy violation.
+    Empty when both do. The allowed slot reads are exercised by the bcopy
+    and bzero properties, which fail when the allowance omits them."""
+    failures = []
+    emu = KernelEmulator(image)
+    other = emu.alloc(4, low=True)
+    for label, address in (("a NULL read", 0), ("a read past the slot halfwords", 0x96)):
+        try:
+            emu.call(
+                "bcmp", address, other, 2, policy=Policy(reads=[(other, other + 4)]), budget=200
+            )
+            violated = False
+        except CallFailure as failure:
+            violated = failure.kind == "memory"
+        if not violated:
+            failures.append(f"{label} passed the policy")
     return failures
 
 

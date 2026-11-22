@@ -88,6 +88,12 @@ sendsig(sig_t p, int sig, long mask)
 			 * Process has trashed its stack; give it an illegal
 			 * instruction violation to halt it in its tracks.
 			 */
+			if (SYSTRACE_ON(SYSTRACE_SIGNAL))
+				printf("[%u] sendsig %d rejected: frame=%#x "
+				    "below data end=%#x sp=%#x\n",
+				    u.u_procp->p_pid, sig, (u_int)sfp,
+				    (u_int)u.u_procp->p_daddr + u.u_dsize,
+				    regs->tf_sp);
 			fatalsig(SIGILL);
 			return;
 		}
@@ -184,6 +190,19 @@ sigreturn_context_valid(const struct sigcontext *context)
 }
 
 /*
+ * Every rejection of sigreturn() sets u_error here, so kern.systrace bit 2
+ * records the reason with the stack pointer the call entered on.
+ */
+static void
+sigreturn_reject(const struct trapframe *regs, int error, const char *why)
+{
+	u.u_error = error;
+	if (SYSTRACE_ON(SYSTRACE_SIGNAL))
+		printf("[%u] sigreturn rejected: %s sp=%#x\n",
+		    u.u_procp->p_pid, why, regs->tf_sp);
+}
+
+/*
  * System call to cleanup state after a signal
  * has been taken.  Reset signal mask and
  * stack state from context left by sendsig (above).
@@ -208,17 +227,17 @@ sigreturn(void)
 	 * sf_hwframe.
 	 */
 	if (regs->tf_sp > ~0U - 32U) {
-		u.u_error = EFAULT;
+		sigreturn_reject(regs, EFAULT, "sp wraps");
 		return;
 	}
 	user_context = regs->tf_sp + 32U;
 	if (copyin((caddr_t)user_context, (caddr_t)scp,
 	    sizeof(saved) - sizeof(saved.sf_hwframe)) != 0) {
-		u.u_error = EFAULT;
+		sigreturn_reject(regs, EFAULT, "context unreadable");
 		return;
 	}
 	if (!sigreturn_context_valid(scp)) {
-		u.u_error = EINVAL;
+		sigreturn_reject(regs, EINVAL, "context invalid");
 		return;
 	}
 

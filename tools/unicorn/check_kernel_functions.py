@@ -511,7 +511,7 @@ def prop_expand(emu: KernelEmulator):
             ):
                 # Once dst holds rlen bytes, hsx_expand decodes on into the
                 # window to find a token past the promised length; the
-                # window then holds zero output, and any byte it produces
+                # window then stays empty, and any byte it produces
                 # fails the stream whatever the history it read. Nothing
                 # else may read an undefined byte.
                 probing = bool(dst) and high[0] == dst + rlen

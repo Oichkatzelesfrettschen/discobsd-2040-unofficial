@@ -147,8 +147,8 @@ def check_level_declarations(root):
     """Every WARNLEVEL assignment precedes the include that composes CC.
 
     sys.mk, and tools/Makefile.inc for the host tools, compose CC when
-    they are included, so an assignment after the include line selects
-    zero levels and the directory silently builds at the default level; the
+    they are included, so an assignment after the include line is
+    ignored and the directory silently builds at the default level; the
     value is also held to the two warnings.mk accepts.
     """
     listing = subprocess.run(["git", "ls-files", "--", "*Makefile", "*.mk"], cwd=root,

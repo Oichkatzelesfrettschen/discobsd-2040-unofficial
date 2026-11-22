@@ -4,8 +4,8 @@
  * moved aside, so the gate measures those and not the host's.
  *
  * The property that decides mktime is the round trip: for every instant the
- * library can represent, mktime(localtime(&t)) is t again. That needs zero
- * tables of expected answers and holds in whatever zone is loaded, so the
+ * library can represent, mktime(localtime(&t)) is t again. That does not need a
+ * table of expected answers and holds in whatever zone is loaded, so the
  * gate sweeps instants rather than naming them. timegm is the same statement
  * against gmtime, and it also has a closed form, so a set of dates whose
  * second counts are known independently pins the arithmetic itself.

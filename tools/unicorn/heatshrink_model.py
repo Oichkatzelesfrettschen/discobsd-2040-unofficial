@@ -35,7 +35,7 @@ the vendored decoder's zeroed window holds. Decoding stops at the first
 token whose bits are not all present; the bits after the last whole token
 never contribute output.
 
-The model shares zero code with the kernel's bit-buffer loop
+The model does not share code with the kernel's bit-buffer loop
 (hsx_decoder.c): it indexes the stream bit by bit.
 """
 

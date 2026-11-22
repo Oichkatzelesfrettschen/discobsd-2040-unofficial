@@ -666,7 +666,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.type_line("sleep 5; sysctl machdep.core1 machdep.core1_restarts "
                       "machdep.core1_faults machdep.core1_stalls")
     console.wait_lines(CORE1_LINES, "core 1 answering pings", COMMAND_BUDGET_SECONDS)
-    # operator is in wheel, so su needs zero passwords. The write masks core
+    # operator is in wheel, so su does not ask for a password. The write masks core
     # 0's interrupts for 300 ms with no section declared; core 1 has to
     # count exactly that one stall, and the supervisor must not mistake
     # it for a dead core 1.

@@ -6,7 +6,7 @@ segment count, image CRC32, time, total bytes, header CRC32) and 16-byte
 segment entries (kind, address, bytes, CRC32), zeros after them; each
 segment follows from sector 1 on a sector boundary, padded with zeros.
 Every CRC is zlib's crc32(); the header's covers the header and table with
-its own field read as zero. This reader shares zero code with the kernel's
+its own field read as zero. This reader does not share code with the kernel's
 writer (rp2040/dump.c) or savecore(8), so a format slip in both shows here.
 
 Usage: check_crash_dump.py CARD_IMAGE [--message TEXT] [--absent]

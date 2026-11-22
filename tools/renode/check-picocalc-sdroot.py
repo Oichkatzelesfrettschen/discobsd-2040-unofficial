@@ -844,7 +844,12 @@ def main(argv):
             ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d, start, reason)),
             ("diag", lambda d: case_diag(renode_path, kernel, flash, root_img, d, start, reason)),
         )
-        wanted = ("sdroot", "diag") if diag_run else ("sdroot",) if boot_only else ("sdroot", "tmp", "nob7")
+        if diag_run:
+            wanted = ("sdroot", "diag")
+        elif boot_only:
+            wanted = ("sdroot",)
+        else:
+            wanted = ("sdroot", "tmp", "nob7")
         if only is None:
             cases = tuple(entry for entry in cases if entry[0] in wanted)
         if only is not None:

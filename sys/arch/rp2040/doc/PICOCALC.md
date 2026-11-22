@@ -1319,9 +1319,10 @@ defines only its own name.
   - Faults (`fault.c`): process, name, pc, lr, psr, EXC_RETURN and exception
     number of each `arm_fault()`; ARMv6-M omits the fault address. A kernel
     fault ends in a panic, so its record is visible only when the panel or
-    mirror shows the dump. The record adds 40 bytes to the `arm_fault()`
-    frame on the main stack (measured with `-fstack-usage` by the review;
-    not yet measured on a board).
+    mirror shows the dump. The 40-byte record lives in a helper that returns
+    before `arm_fault()` prints or panics; `arm_fault()`'s own frame grows
+    from 128 to 136 bytes (`-fstack-usage`, `-Og`, PICOCALC_SD_DIAG). No
+    board has measured the main stack's depth.
 
   Table high-water marks are `kern.capacity` (`CAPACITY_STATS`, `pstat -T`,
   `CAPACITY.md`), which this kernel already carries. Interrupt-off time stays

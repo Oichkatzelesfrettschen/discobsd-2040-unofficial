@@ -202,6 +202,31 @@ fault_frame_out(const struct userframe *uf)
  */
 static int infault;
 
+#ifdef DIAG_STATS
+/*
+ * Record the fault in the diag_stats ring. The record sits in this
+ * function's frame, which is gone before arm_fault() prints or panics, so
+ * the main stack at the deepest point is the same as without DIAG_STATS.
+ */
+static __attribute__((noinline)) void
+diag_note_fault(const struct faultframe *frame, u_int fault_lr, u_int icsr)
+{
+	struct diag_fault record;
+	u_int i;
+
+	record.pid = u.u_procp ? (uint32_t)u.u_procp->p_pid : (uint32_t)-1;
+	record.pc = frame->ff_pc;
+	record.lr = frame->ff_lr;
+	record.psr = frame->ff_psr;
+	record.exc_return = fault_lr;
+	record.vectactive = icsr & SCB_ICSR_VECTACTIVE;
+	for (i = 0; i < sizeof record.comm; i++)
+		record.comm[i] = i < MAXCOMLEN ? u.u_comm[i] : '\0';
+	record.comm[sizeof record.comm - 1] = '\0';
+	diag_fault(&record);
+}
+#endif
+
 void
 arm_fault(struct faultframe *frame, u_int fault_lr)
 {
@@ -287,22 +312,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	}
 
 #ifdef DIAG_STATS
-	{
-		struct diag_fault record;
-		u_int i;
-
-		record.pid = u.u_procp ? (uint32_t)u.u_procp->p_pid :
-		    (uint32_t)-1;
-		record.pc = frame->ff_pc;
-		record.lr = frame->ff_lr;
-		record.psr = frame->ff_psr;
-		record.exc_return = fault_lr;
-		record.vectactive = icsr & SCB_ICSR_VECTACTIVE;
-		for (i = 0; i < sizeof record.comm; i++)
-			record.comm[i] = i < MAXCOMLEN ? u.u_comm[i] : '\0';
-		record.comm[sizeof record.comm - 1] = '\0';
-		diag_fault(&record);
-	}
+	diag_note_fault(frame, fault_lr, icsr);
 #endif
 
 	/*

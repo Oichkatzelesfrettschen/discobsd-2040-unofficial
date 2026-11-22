@@ -2993,7 +2993,7 @@ check-diag-stats-mutants: diag_stats_test
 	}; \
 	run_mutant saturation 's/if (amount > UINT32_MAX - diag.value\[metric\])/if (0)/' 'DIAG_PRINT_US_TOTAL] == UINT32_MAX'; \
 	run_mutant max-keeps-last 's/if (value > diag.value\[metric\])/if (1)/' 'DIAG_SD_SLOWEST_US] == 90'; \
-	run_mutant fault-index 's/diag.fault\[diag.fault_total % DIAG_NFAULT\]/diag.fault[0]/' 'stats.fault_total - 1) % DIAG_NFAULT].pid'; \
+	run_mutant fault-index 's/diag.fault\[diag.fault_total++ % DIAG_NFAULT\]/diag.fault[0]/' 'stats.fault_total - 1) % DIAG_NFAULT].pid'; \
 	run_mutant ring-tail 's/if (n > \*oldlenp - 1)/if (0)/' 'len == 7 && hk_streq'; \
 	run_mutant ring-unlocked '/^diag_msgputc/,/^}/s/int s = splhigh();/int s = 0;/' 'hk_ipl_raises == before + 1'; \
 	run_mutant ring-clamp 's/if (now - pos > DIAG_MSGBUF_SIZE)/if (0)/' 'hk_streq(out, expected)'; \

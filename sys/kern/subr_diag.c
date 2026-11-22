@@ -79,9 +79,14 @@ diag_fault(const struct diag_fault *record)
 {
 	int s = splhigh();
 
-	diag.fault[diag.fault_total % DIAG_NFAULT] = *record;
-	if (diag.fault_total != UINT32_MAX)
-		diag.fault_total++;
+	/*
+	 * The reader lists record (total - 1) % NFAULT first; once the count
+	 * saturates, the newest record stays in that slot.
+	 */
+	if (diag.fault_total == UINT32_MAX)
+		diag.fault[(UINT32_MAX - 1) % DIAG_NFAULT] = *record;
+	else
+		diag.fault[diag.fault_total++ % DIAG_NFAULT] = *record;
 	splx(s);
 }
 

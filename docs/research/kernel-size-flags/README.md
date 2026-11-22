@@ -191,8 +191,8 @@ read 1,392 of 2,048 bytes after login, 1,552 after three journal churn
 rounds and an exit holding an unlinked file behind three indirection
 levels, and 1,688 after the `exec` stage (child stopped by the trace
 signal, killed, dead by signal; three runs alike), with 360 bytes untouched
-and the saturation flag clear. The watermark stays 736 bytes under the
-2,424-byte bound. Two conditions limit what that shows. The table predates
+and the saturation flag clear. Two conditions keep that reading from deciding the 2,424-byte bound. The
+table predates
 the repair, and the repair takes the terminal close out from under
 `execve`'s frames, so the modeled chain that ends in that close is no
 longer in the kernel that was measured; `stack_chain.py` on the repaired

@@ -168,6 +168,31 @@ rather than a verdict on standard namespace visibility.
 | `tcgetattr`, `tcsetattr` | Only source-only `termios-todo.h` exposes these declarations | Keep terminal implementation and installed-header admission in their own work package |
 | `putenv`, `setenv`, `unsetenv` | `libc` and `libtcl` each define these names | Resolve environment ownership and Tcl trace behavior before shared imports select providers |
 
+### Stack allocation in compiled callers
+
+At `3e35a7cb9`, an RP2040 caller including `<alloca.h>` returns
+`consume(alloca(size))` for a runtime unsigned size and an external
+`int consume(void *)`. Cross GCC under freestanding C17 with
+`-fno-builtin` imports only `consume`. The header explicitly selects
+`__builtin_alloca` for GNU compilers. Smaller C's Thumb backend, given the
+same caller after the preprocessing used by `usr.bin/smlrc/tests/run.sh`,
+imports both `consume` and `alloca`. The native assembler accepts both
+outputs. With the installed a.out startup object, libc archive and the same
+consumer definition, the native linker accepts the GCC caller and rejects
+the Smaller C caller with `alloca` as the sole undefined name.
+
+The cross archive symbol tables (`arm-none-eabi-nm -A lib/*.a`) and installed
+native libc symbol table (the tree's `nm -p`) contain zero entries named
+`alloca`. Keep the GNU macro call outside callable shared exports. The
+Smaller C direct call remains an unresolved native interface. Its call
+sequence in `usr.bin/smlrc/cgthumb.c` uses the stack for saved registers,
+expression temporaries and outgoing arguments. A native implementation must
+preserve those values, eight-byte call alignment and the allocated object's
+lifetime through the caller's return. The link probe covers the header call
+form and supplies no address-taking or on-board execution evidence.
+
+### Environment providers
+
 The environment overlaps come from `libc/setenv.o` and `libtcl/tclenv.o`.
 `lib/libtcl/tclenv.c` propagates environment changes to interpreter variables;
 its `EnvTraceProc` also calls its environment setters. Selecting the libc

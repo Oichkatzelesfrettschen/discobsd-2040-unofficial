@@ -85,6 +85,8 @@ def verdict(text):
     reject = function_body(text, "sigreturn_reject")
     if reject is None or not re.search(re.escape(TRACE) + r"[^;]*\bprintf\s*\(", reject):
         bad.append("sigreturn_reject() is missing or does not print under %s" % TRACE)
+    if reject is not None and not re.search(r"u\.u_error\s*=\s*error\s*;", reject):
+        bad.append("sigreturn_reject() does not set u.u_error from its argument")
     ret = function_body(text, "sigreturn")
     if ret is None:
         bad.append("sigreturn() not found")
@@ -139,6 +141,7 @@ def self_test():
         "a multiline errno": GOOD.replace(
             "sigreturn_reject(EINVAL);", "u.u_error =\n\t    EINVAL;"
         ),
+        "a reject that drops the errno": GOOD.replace("\tu.u_error = error;\n", ""),
         "a trace that does not print": GOOD.replace(
             'printf("r");\n\t\tfatalsig', "x = 1;\n\t\tfatalsig"
         ),

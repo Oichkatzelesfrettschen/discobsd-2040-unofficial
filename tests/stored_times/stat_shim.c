@@ -25,7 +25,7 @@
  * leaves "struct stat" alone. The 64-bit time_t view of glibc binds time()
  * to the symbol __time64 through an assembler label on the declaration, and
  * the shim, compiled with the same macro, defines the function under that
- * label, so one mechanism serves every view and needs no linker option.
+ * label, so one mechanism serves every view and needs zero linker options.
  */
 #if defined(__linux__) && !defined(STORED_TIMES_NO_STATX)
 #define STORED_TIMES_STATX 1

@@ -292,7 +292,7 @@ realloc_zero_contract(void)
  * The phase lays out its own arena: p, a live guard behind it so growth
  * cannot happen in place, and a spare block that is freed before the
  * ceiling freezes, so the allocation after the refusal has a legitimate
- * home. Without the spare, the phase run alone in a fresh process has no
+ * home. Without the spare, the phase run alone in a fresh process lacks a
  * free extent for it and a correct allocator fails the check; run after
  * the earlier phases it borrows their freed blocks, which is an order the
  * check must not depend on.

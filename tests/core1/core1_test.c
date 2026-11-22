@@ -195,7 +195,7 @@ test_declared_section_that_never_returns(void)
 
 	scenario(0, 100000U, ~0U, 100000U, ~0U);
 	r = sample(&o, base, 20000000U, tick_frozen, site_window);
-	/* The section names itself, so the reset carries no record. */
+	/* The section names itself, so the reset carries zero records. */
 	CHECK(r.resets == 1 && r.records == 0);
 	CHECK(r.first_reset == 100000U + C1_HANG_US + C1_PERIOD_US);
 	CHECK(o.co_stalls == 0);
@@ -260,7 +260,7 @@ test_supervisor_restarts_with_backoff(void)
 	CHECK(core1_sup_tick(&s) == C1_SUP_LAUNCH);
 	CHECK(core1_sup_launched(&s, 1) == 0);
 	for (attempt = 0; attempt < C1_RESTART_MAX; attempt++) {
-		/* The first ping of a launch has nothing to miss yet. */
+		/* The first ping of a launch cannot miss a ping yet. */
 		CHECK(period(&s, 0) == C1_SUP_PING);
 		for (i = 1; i < C1_MISS_MAX; i++)
 			CHECK(period(&s, 0) == C1_SUP_PING);

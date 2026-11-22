@@ -136,7 +136,7 @@ if [ "$mode" = host ] && [ -n "${ULISP_REWRITE_SHIM:-}" ]; then
 fi
 
 # SIGINT while the interpreter waits for input ends the read with EINTR,
-# which is no end of input: a form sent afterwards is still evaluated. The
+# which is not an end of input: a form sent afterwards is still evaluated. The
 # signal goes to the command and to its child, since a timeout(1) or env(1)
 # in front of the interpreter may or may not pass it on.
 if [ "$mode" = host ]; then

@@ -346,7 +346,7 @@ FLOATFORMS = [
     ("mod", "(mod 7 {a})", 1),
     ("rem", "(rem 7 {a})", 1),
 ]
-# Builtins the corpus leaves out: those that take no number, directly or
+# Builtins the corpus leaves out: those that take zero numbers, directly or
 # through a conversion, and register, which reads or writes the address it
 # is given (a hardware register on the board, any address on the host), and
 # gc, whose argument is a flag and whose report carries a time

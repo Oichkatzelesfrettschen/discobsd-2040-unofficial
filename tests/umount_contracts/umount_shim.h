@@ -6,7 +6,7 @@
  * and the host's would take a four-byte size_t from one and an eight-byte one
  * from the other. The gate therefore reaches the tree's headers alone, and
  * this header names the only things it borrows from the host. umount_shim.c
- * is the one translation unit on the other side, and it carries no tree
+ * is the one translation unit on the other side, and it leaves out every tree
  * header. The tier builds at ILP32, where the two size_t agree.
  */
 #ifndef UMOUNT_SHIM_H

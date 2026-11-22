@@ -13,7 +13,7 @@
 #   check-process-groups
 #                  procgroup.py's calibration of the leak scan: a single-child
 #                  kill leaves an orphan the scan finds, the group launch of
-#                  run_cases.py and mutate.py leaves none
+#                  run_cases.py and mutate.py leaves zero orphans
 #   check-mutants  every faulted copy of bcode.c's register table and bc.y's
 #                  name table must be rejected by the cases
 #   check-qemu     dc as a Thumb-1 (ARMv6-M) program under qemu-arm user-mode

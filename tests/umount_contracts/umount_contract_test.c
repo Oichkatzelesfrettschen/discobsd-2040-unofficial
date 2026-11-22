@@ -305,7 +305,7 @@ test_device_operand(void)
 }
 
 /*
- * -F names the run that changes nothing. Every operand is reported as
+ * -F names the run that leaves the mounts unchanged. Every operand is reported as
  * unmounted and umount(2) is never reached, so the status is success.
  */
 static void
@@ -333,7 +333,7 @@ test_unselected_type_succeeds(void)
 	CHECK(umount_calls == 0);
 }
 
-/* A type no filesystem is named by is refused before any operand is reached. */
+/* A type name that matches zero filesystems is refused before any operand is reached. */
 static void
 test_unknown_type_is_refused(void)
 {

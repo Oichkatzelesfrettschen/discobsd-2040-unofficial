@@ -1,5 +1,5 @@
 /*
- * The host side of the gate. It carries no tree header, so <stdio.h> here is
+ * The host side of the gate. It leaves out every tree header, so <stdio.h> here is
  * the host's and stderr is the host's; libc_shim.h states why the two sides
  * stay apart.
  */

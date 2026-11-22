@@ -1,14 +1,14 @@
 #!/bin/sh
 #
-# gets(3) takes no length, so every call stores as many characters as the
+# gets(3) lacks a length argument, so every call stores as many characters as the
 # line holds.  The process image is one flat window of text, data, bss and
 # stack with no MMU behind it, so a store past the buffer reaches the rest of
 # the program rather than faulting.  C11 removed the function from the
 # standard, the tree's <stdio.h> no longer declares it, and neither libc
 # builds an object for it.
 #
-# Those two facts are what the check rests on, and between them they need no
-# source sweep: a call in any file the tree compiles fails at its implicit
+# Those two facts are what the check rests on, and between them they need zero
+# source sweeps: a call in any file the tree compiles fails at its implicit
 # declaration, and a file that reaches the declaration some other way fails
 # at the link. A grep for callers would add only a heuristic that cannot
 # tell "*p = gets(b);" from a line of block comment.

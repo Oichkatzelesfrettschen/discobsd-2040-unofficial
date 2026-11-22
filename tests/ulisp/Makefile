@@ -126,7 +126,7 @@ check-qemu:
 .endif
 
 # The upstream program reads its workspace size from its board table: 22280
-# cells for the Pico. Its last prompt has no newline, so one is added.
+# cells for the Pico. Its last prompt lacks a newline, so one is added.
 check-oracle:
 .if empty(ULISP_INO)
 	@echo "SKIP ulisp oracle: ULISP_INO does not name ulisp-picocalc.ino"

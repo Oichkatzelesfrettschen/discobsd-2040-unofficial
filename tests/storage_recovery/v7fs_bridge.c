@@ -243,7 +243,7 @@ storage_backend_reclaim(unsigned number)
         return error;
     if (inode.mode == 0 || v7fs_inode_nlink(&inode) != 0)
         return EINVAL;
-    /* The host caller holds no open references to the displaced inode. */
+    /* The host caller holds zero open references to the displaced inode. */
     error = v7fs_datablock_contract(filesystem, &inode, inode.filesize);
     return error != 0 ? error : v7fs_inode_deallocate(filesystem, (v7fs_ino_t)number);
 }

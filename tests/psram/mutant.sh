@@ -2,7 +2,7 @@
 # Build a copy of the PSRAM driver sources with one edit, and require the
 # gate to fail on it. Usage: mutant.sh CC PYTHON SRCDIR FILE SED-SCRIPT
 # SRCDIR is sys/arch/rp2040/dev. The edit must change FILE; a mutant the
-# gate accepts, or an edit that changes nothing, fails this script.
+# gate accepts, or an edit that leaves the file unchanged, fails this script.
 set -eu
 
 cc=$1

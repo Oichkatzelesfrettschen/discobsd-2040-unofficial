@@ -146,7 +146,7 @@ main(void)
 		    "a 64-bit directive stores without its member");
 	}
 
-	/* The directives before it still count, and it consumes nothing. */
+	/* The directives before it still count, and it consumes zero characters. */
 	arm(&slot);
 	iv = 0;
 	lv = 0;

@@ -87,7 +87,7 @@ check_run() {
 	run_fsck "$@" "$img" >"$out" 2>&1 || status=$?
 	# fsck exits 0, 2, 4, 8 or 12. Every status from 124 up is a timeout, a
 	# timeout(1) or bounded.py failure, a missing or unexecutable program or
-	# a death by signal, and says nothing about the scenario.
+	# a death by signal, and is silent on the scenario.
 	if [ "$status" -ge 124 ]; then
 		error "$scenario: fsck did not run to an exit (status $status)"
 	fi
@@ -125,7 +125,7 @@ run_clean() {
 
 # run_repair KIND AFTER: a repair pass answers yes to the unreferenced KIND
 # (FILE or DIR) it finds, AFTER inspects the result, and a following preen run
-# must find nothing left to do: second_run asserts that, expecting $1 files.
+# must find zero work left: second_run asserts that, expecting $1 files.
 run_repair() {
 	set_expected_files
 	check_run -y
@@ -135,8 +135,8 @@ run_repair() {
 	"$2"
 }
 
-# second_run FILES: a preen run over the repaired image exits 0, reports no
-# damage, finds nothing unreferenced, repairs nothing (preen exits 0 after an
+# second_run FILES: a preen run over the repaired image exits 0, reports zero
+# damage, finds zero unreferenced inodes, repairs zero damage (preen exits 0 after an
 # (ADJUSTED), (SALVAGED), (FIXED) or similar repair, so the report is checked
 # for those and the image for any changed byte) and counts FILES files.
 second_run() {
@@ -186,8 +186,8 @@ run_decline() {
 }
 
 # fsutil's own checker, over the image the generator wrote, reconnects the
-# unreferenced file into lost+found instead of reporting that it has no
-# lost+found or no space in it (the lost+found of fs_create holds "." and
+# unreferenced file into lost+found instead of reporting a missing
+# lost+found or a full one (the lost+found of fs_create holds "." and
 # ".." alone, so the entry is cut from the record of ".."); a second fsutil
 # report is then clean, and so is a preen run of the host fsck over the
 # repaired image, which leaves every byte as it found it.
@@ -296,7 +296,7 @@ run_fsutil_count() {
 }
 
 # run_fsutil_one_slot: two unreferenced files and room in lost+found for one.
-# fsutil reconnects one, reports no space for the other and clears it: the
+# fsutil reconnects one, reports a full lost+found for the other and clears it: the
 # reconnected file resolves under its "#" name, the cleared one does not, the
 # superblock gains the one free inode, and the next reports are clean.
 run_fsutil_one_slot() {
@@ -391,7 +391,7 @@ run_fsutil_cycle() {
 # Unreached directories whose ".." entries lead round a cycle: the climb along
 # ".." in pass 3 never reaches a topmost directory, so fsck must end it. A
 # repair that does not finish in ten seconds fails the scenario (check_run
-# would report the timeout as an execution error, which says nothing about
+# would report the timeout as an execution error, which is silent on
 # the program); the bound is generous for a 128-kilobyte image, which repairs
 # in milliseconds. Every directory must then resolve under lost+found by the
 # name lftempname() in sbin/fsck/dir.c gives it, a "#" and the inode number
@@ -440,10 +440,10 @@ run_cycle() {
 
 # One unreached directory whose ".." holds a number above imax. The directory
 # scan takes the entry for damage and merges its slot into the record of ".",
-# so pass 3 sees no parent and reconnects the directory, and pass 2 then finds
+# so pass 3 sees a missing parent and reconnects the directory, and pass 2 then finds
 # ".." missing and must lay it out in the remainder of the merged record: the
 # repaired block holds "." at its own size and ".." for the rest of the block,
-# so that a following read-only run and a preen run find nothing to repair.
+# so that a following read-only run and a preen run find zero damage to repair.
 run_dotdot_range() {
 	run_cycle 1 plain
 	check_run -n

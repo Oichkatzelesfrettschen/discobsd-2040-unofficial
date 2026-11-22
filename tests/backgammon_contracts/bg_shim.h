@@ -8,7 +8,7 @@
  * from the other, and would hand the host's fprintf a FILE the host does not
  * own.  The checking side therefore reaches the tree's headers alone and
  * names here everything it borrows from the host; bg_shim.c is the one
- * translation unit on the other side, and it carries no tree header.
+ * translation unit on the other side, and it leaves out every tree header.
  *
  * At ILP32 the tree's size_t and the host's unsigned are the same four bytes,
  * so a length crossing the boundary means the same thing to both sides.

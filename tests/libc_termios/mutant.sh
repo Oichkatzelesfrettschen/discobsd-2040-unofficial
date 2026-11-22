@@ -27,7 +27,7 @@
 #
 # One mutant of the termios library: apply a sed script to one source file
 # of the tree, rebuild the gate against the mutated copy and require that the
-# gate fails. A mutation that changes nothing, or that stops the gate from
+# gate fails. A mutation that leaves the file unchanged, or that stops the gate from
 # compiling, is itself an error, so a mutant counts only when it builds and
 # a check rejects it.
 #

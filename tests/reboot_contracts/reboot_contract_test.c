@@ -153,7 +153,7 @@ static const struct tcase cases[] = {
 	    "R1008;" },
 	{ "reboot -B -y as root", "reboot", "-B", "-y", 0, 0, NULL, "R1008;" },
 	{ "reboot -y -B as root", "reboot", "-y", "-B", 0, 0, NULL, "R1008;" },
-	/* Other modes keep their flags and need no confirmation. */
+	/* Other modes keep their flags and need zero confirmation. */
 	{ "reboot", "reboot", NULL, NULL, 0, 0, NULL, "R0;" },
 	{ "reboot -y arms nothing", "reboot", "-y", NULL, 0, 0, NULL, "R0;" },
 	{ "halt", "halt", NULL, NULL, 0, 0, NULL, "R8;" },

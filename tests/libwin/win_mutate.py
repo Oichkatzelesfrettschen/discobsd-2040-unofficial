@@ -34,7 +34,7 @@ win.c that moves or duplicates a site fails here instead of silently
 producing an unmutated "mutant". The output files are win_NAME.mutant.c for
 win.c, inp_NAME.mutant.c for win_input.c and dev_NAME.mutant.c for
 win_input_dev.c, lcd_NAME.mutant.c for win_lcdgfx.c and wgt_NAME.mutant.c for
-win_widget.c; the five baselines carry no fault and must pass the gate, which
+win_widget.c; the five baselines are fault-free and must pass the gate, which
 calibrates the harness against a known-good input. The font header include
 is rewritten to a bare name so the copy builds away from lib/libwin.
 """

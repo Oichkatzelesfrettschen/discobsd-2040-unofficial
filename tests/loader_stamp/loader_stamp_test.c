@@ -196,7 +196,7 @@ test_invalid_stamps(void)
 		CHECK(!flash_write_admitted(FLASH_FS_OFFSET, FLASH_SECTOR_BYTES,
 		    end));
 	}
-	/* The lowest accepted limit keeps the root whole and leaves no swap. */
+	/* The lowest accepted limit keeps the root whole and leaves zero swap. */
 	CHECK(loader_stamp_decode(LOADER_STAMP_MAGIC,
 	    FLASH_XIP_BASE + FLASH_SWAP_OFFSET, &end) == LOADER_STAMP_VALID);
 	CHECK(end == FLASH_SWAP_OFFSET);
@@ -388,7 +388,7 @@ test_swap_writer(void)
 
 	CHECK(memcmp(loader, chip + LOADER_END, sizeof(loader)) == 0);
 
-	/* Failing closed, the swap writer reaches nothing at all. */
+	/* Failing closed, the swap writer reaches zero sectors. */
 	model_end = FLASH_FS_OFFSET;
 	refused = 0;
 	highest_write = 0;

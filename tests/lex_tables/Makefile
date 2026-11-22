@@ -8,7 +8,7 @@ LEXSRC=		${LEXDIR}/parser.y ${LEXDIR}/lmain.c ${LEXDIR}/sub1.c \
 EXAMPLES=	--examples ${TOPSRC}/share/examples/lex \
 		--examples ${TOPSRC}/games/atc
 # SMALL selects the table sizes the target program is built with. The host
-# <paths.h> has no _PATH_SHARE; the test runs lex in a directory that holds
+# <paths.h> lacks _PATH_SHARE; the test runs lex in a directory that holds
 # share/misc/ncform. The sources are pre-C17 lex; their diagnostics belong to
 # usr.bin/lex, where the legacy warning level governs them.
 LEX_CFLAGS=	-O1 -g -w -DSMALL -D_PATH_SHARE='"share/"' -I${LEXDIR}

@@ -7,7 +7,7 @@
  * byte one from the other, and would call the host's fprintf with a FILE the
  * host does not own. The gate therefore reaches the tree's headers alone, and
  * this header names the only things it borrows from the host. libc_shim.c is
- * the one translation unit on the other side, and it carries no tree header.
+ * the one translation unit on the other side, and it leaves out every tree header.
  *
  * The same split is why the tier builds at ILP32: at that width the tree's
  * size_t and the host's unsigned are the same four bytes, so a length that

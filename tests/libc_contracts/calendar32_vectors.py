@@ -3,7 +3,7 @@
 In the 32-bit view (sys/sys/_time_t.h) time_t is the kernel's unsigned
 32-bit count, so gmtime() covers 1970-01-01 00:00:00 to 2106-02-07
 06:28:15 UTC and timegm() inverts it over the same span. The oracle is
-CPython's datetime, which shares no arithmetic with lib/libc/gen/ctime.c
+CPython's datetime, which shares zero arithmetic with lib/libc/gen/ctime.c
 or mktime.c.
 
 The header holds three tables, the zone offsets and two constants:
@@ -129,7 +129,7 @@ def count_of_fields(year, mon, mday, hour, minute, sec):
     """The count fields name, by datetime, or None outside the range."""
     carry, month = divmod(mon, 12)
     if not 1 <= year + carry + 1900 <= 9999:
-        # datetime has no such year; with every other field in its own
+        # datetime lacks such a year; with every other field in its own
         # range the instant lies centuries outside 1970..2106.
         require(1 <= mday <= 31 and 0 <= hour < 24 and 0 <= minute < 60 and
                 0 <= sec < 60, "a year outside datetime carries other fields")

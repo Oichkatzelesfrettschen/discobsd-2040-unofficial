@@ -98,7 +98,7 @@ int main(void)
     assert(!strcmp(s.note,"No"));
     for(i=0;i<4000;i++)mz_action(&s,'x');
     assert(strlen(s.note)==MZ_NOTES-1);
-    /* Settings: an unreadable light takes no step; steps from the kept or
+    /* Settings: an unreadable light takes zero steps; steps from the kept or
      * the already requested level, clamped to 0-240; rows wrap. */
     mz_action(&s,MZ_HOME);
     while(s.focus!=4) mz_action(&s,MZ_RIGHT);

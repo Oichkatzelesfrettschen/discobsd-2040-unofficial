@@ -75,7 +75,7 @@ struct model {
 	int breaking;			/* TIOCSBRK is in force */
 	long break_us;			/* microseconds slept while it was */
 	long slept_us;			/* all microseconds slept */
-	int no_break;			/* the driver has no break request */
+	int no_break;			/* the driver lacks a break request */
 	int log_flush;			/* the argument of the last TIOCFLUSH */
 	int inq, outq;			/* bytes queued for reading and for output */
 };

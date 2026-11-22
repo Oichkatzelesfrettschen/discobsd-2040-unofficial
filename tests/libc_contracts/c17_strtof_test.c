@@ -31,7 +31,7 @@
  * and range errors.  Every in-range input is exactly representable as a
  * float, so the expected value does not depend on how strtod() rounds.
  * The underflow inputs are nonzero doubles that narrow to zero; an input
- * strtod() itself returns as zero carries no error, which 7.22.1.3p10
+ * strtod() itself returns as zero carries zero error indication, which 7.22.1.3p10
  * leaves to the implementation.
  */
 #include <errno.h>

@@ -1,7 +1,7 @@
 TOPSRC!= cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
-# daemons.c makes no system call, so it compiles from the tree against the
+# daemons.c makes zero system calls, so it compiles from the tree against the
 # tree's headers and links with the host's C library unchanged.
 HOSTCC?= cc
 DAEMONS_SRC= ${TOPSRC}/sbin/init/daemons.c

@@ -176,7 +176,7 @@ streams (void)
     /*
      * Every stream bit. LZSS is not a bijection: a flipped index bit can
      * name another copy of the same bytes, and the last byte's padding
-     * bits mean nothing, so a flip is either refused or reproduces the
+     * bits are ignored, so a flip is either refused or reproduces the
      * original bytes exactly. Anything else is a hole.
      */
     {

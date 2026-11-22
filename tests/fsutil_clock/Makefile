@@ -7,7 +7,7 @@ include ${TOPSRC}/share/mk/sys.mk
 PYTHON?=
 HSAOUT=		${TOPSRC}/tools/hsaout
 
-# check.sh compiles tools/fsutil itself, so a mutant needs no second tree;
+# check.sh compiles tools/fsutil itself, so a mutant needs zero extra trees;
 # the pack library fsutil links is the only product built by make.
 check:
 		${MAKE} -C ${HSAOUT} MACHINE=${MACHINE} libhsaout.a

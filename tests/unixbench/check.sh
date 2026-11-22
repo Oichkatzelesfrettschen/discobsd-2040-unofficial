@@ -138,7 +138,7 @@ mutant tests-in-home 's|^TESTDIR=${WORKDIR}/testdir|TESTDIR=${HOMEDIR}/testdir|'
 # planted NAME RUNFILE: with no UB_WORKDIR, Run makes /tmp/unixbench.UID.PID.
 # Another user's link is planted at that name first (the shell that plants it
 # becomes Run by exec, so the process ID is the one Run uses). Run must stop
-# and write nothing through the link; return 0 when it does.
+# and write zero bytes through the link; return 0 when it does.
 planted()
 {
 	name=$1

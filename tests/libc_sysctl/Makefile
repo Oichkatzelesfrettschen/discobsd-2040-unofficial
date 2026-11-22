@@ -22,7 +22,7 @@ ILP32=	-m32
 # forwarding header per port header instead, as tests/kernel does.
 MACHINE_STAMP=	machine/.stamp
 # Every port carries the headers this gate reaches, so which one it takes
-# changes nothing it measures.
+# leaves every measurement unchanged.
 PORT_INCLUDE=	${TOPSRC}/include/${MACHINE}
 TREE=	-I. -I${TOPSRC}/include
 
@@ -68,7 +68,7 @@ ${MACHINE_STAMP}:
 	done
 	@touch $@
 
-# The shim carries no tree header, so it compiles without ${TREE} and reaches
+# The shim leaves out every tree header, so it compiles without ${TREE} and reaches
 # the host's <stdio.h> the way any host program does.
 shim.o: libc_shim.c libc_shim.h
 	${HOSTCC} -std=c99 ${WARN} ${ILP32} -c -o $@ libc_shim.c

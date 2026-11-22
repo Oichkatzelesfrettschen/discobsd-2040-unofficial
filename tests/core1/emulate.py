@@ -4,7 +4,7 @@ The machine code comes from the kernel ELF unchanged. Two Unicorn instances
 share one SRAM buffer. The core 0 instance also maps the kernel's flash and
 executes the kernel's own core1_init(), core1_poll(), core1_park(),
 watchdog_site() and NMI_Handler() when the scenario calls for them; the
-core 1 instance maps no flash at all, so a single fetch or load from the
+core 1 instance maps zero flash, so a single fetch or load from the
 execute-in-place window ends the run. A register model stands in for the
 SIO FIFOs, the boot ROM's side of the launch protocol, PSM.FRCE_OFF, the
 timer, SYSCFG's NMI mask, the watchdog and each core's SysTick.

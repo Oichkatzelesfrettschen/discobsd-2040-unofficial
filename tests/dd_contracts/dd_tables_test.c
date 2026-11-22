@@ -7,7 +7,7 @@
  * those four exceptions over atoe; this suite holds that decomposition to
  * the whole of the table it replaced, entry by entry. atoibm is not a
  * bijection: 91 and 213 both reach 173, and 93 and 229 both reach 189, so
- * it has no inverse, which is why conv=ascii reads etoa and why that
+ * it lacks an inverse, which is why conv=ascii reads etoa and why that
  * collision is asserted here rather than left to be turned into one.
  */
 #include <stdio.h>

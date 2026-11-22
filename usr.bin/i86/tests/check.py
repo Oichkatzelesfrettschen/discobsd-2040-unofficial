@@ -2219,7 +2219,15 @@ def main(argv):
             else:
                 print("NOT RUN panel.hexdump against panel.asm: nasm (package nasm) is absent")
             psources = SOURCES + ["tests/panel.c", "-DGFX_MODEL"]
-            dsources = ["tests/draintest.c", "gfx.c", "-DGFX_MODEL"]
+            # The owed lines' bitmap is read one bit past its end where the join
+            # loop loses its bound: the sanitizers see what no output shows.
+            dsources = [
+                "tests/draintest.c",
+                "gfx.c",
+                "-DGFX_MODEL",
+                "-fsanitize=address,undefined",
+                "-fno-sanitize-recover=undefined",
+            ]
             draintest = os.path.join(work, "draintest")
             build(src, draintest, cc, dsources)
             print(test_drain(draintest))

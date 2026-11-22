@@ -59,7 +59,7 @@ start:	xor ax, ax
 	xor ax, ax
 	int 0x16			; the stage, a digit
 	sub al, '0'
-	cmp al, 12
+	cmp al, 17
 	ja dead
 	mov bl, al
 	xor bh, bh
@@ -118,7 +118,7 @@ key:	mov ah, 1
 	dw 0xaa55
 
 stages:	dw stage0, stage1, stage2, stage3, stage4, stage5, stage6, stage7, stage8, stage9
-	dw stage10, stage11, stage12
+	dw stage10, stage11, stage12, stage13, stage14, stage15, stage16, stage17
 
 ; Mode 4 left for text and entered again with memory kept: the text mode's
 ; cells are what is kept, the rest reads as zeros. Then a disk sector read
@@ -420,5 +420,105 @@ stage11:
 	mov ax, 4
 	int 0x10
 	ret
+
+; 80 columns with the top row blank and the others distinct, the cursor
+; in the top left cell. Each key then scrolls the whole screen: its low
+; five bits are the rows, and a lowercase key also writes a row of its own
+; at the bottom, 80 cells of the key's number of scrolls so far as the
+; attribute, which keeps every row distinct. The cursor moves to row 5,
+; column 10 after each scroll. Its key is '='.
+stage13:
+	mov ax, 3
+	int 0x10
+	mov cx, 2000
+	mov ax, 0x4567
+	mov bx, 0x0123
+	call cells
+	xor di, di
+	mov cx, 80
+	mov ax, 0x0720
+	rep stosw
+	xor dx, dx
+	call cursor
+.next:	call key
+	mov bp, ax
+	and al, 0x1f
+	mov ah, 6
+	mov bh, 7
+	xor cx, cx
+	mov dx, 0x184f
+	int 0x10
+	test bp, 0x20
+	jz .cur
+	inc byte [count]
+	mov ah, [count]
+	xor al, al
+	mov di, 2 * 1920
+	mov cx, 80
+.row:	stosw
+	inc al
+	loop .row
+.cur:	mov dx, 0x050a
+	call cursor
+	jmp .next
+
+count:	db 0
+
+; Mode 4, drawn, then the palette select bit alone cleared through the
+; firmware: nothing else about the adapter's registers changes. Its key
+; is '>'.
+stage14:
+	mov ax, 4
+	int 0x10
+	call fields
+	call key
+	mov ah, 0x0b
+	mov bx, 0x0100
+	int 0x10
+	ret
+
+; Mode 4, drawn, then the color burst bit alone set through the mode
+; register. Its key is '?'.
+stage15:
+	mov ax, 4
+	int 0x10
+	call fields
+	call key
+	mov dx, 0x3d8
+	mov al, 0x0e
+	out dx, al
+	ret
+
+; 80 columns, the whole screen scrolled one row and drawn, then mode 4: the
+; scroll start the text mode left must not rotate the graphics lines. Its
+; keys are '@', and two more.
+stage16:
+	mov ax, 3
+	int 0x10
+	mov cx, 2000
+	mov ax, 0x4567
+	mov bx, 0x0123
+	call cells
+	call key
+	mov ax, 0x0601
+	mov bh, 0x07
+	xor cx, cx
+	mov dx, 0x184f
+	int 0x10
+	call key
+	mov ax, 4
+	int 0x10
+	jmp fields
+
+; Mode 4, drawn, then mode 6 and its fields: two graphics modes in a row.
+; Its key is 'A'.
+stage17:
+	mov ax, 4
+	int 0x10
+	call fields
+	call key
+	mov ax, 6
+	int 0x10
+	jmp fields
 
 	times 1536 - ($ - $$) db 0

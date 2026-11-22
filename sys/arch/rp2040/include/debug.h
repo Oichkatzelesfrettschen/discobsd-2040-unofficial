@@ -20,6 +20,7 @@
  * SYSTRACE the lines print unconditionally.
  */
 #ifdef SYSTRACE
+#include <sys/systm.h>
 #define DEBUG_PRINTF(...) \
 	do { \
 		if (systrace_enabled(SYSTRACE_EXEC)) \

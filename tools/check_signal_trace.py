@@ -52,6 +52,15 @@ SOURCE = os.path.join(HERE, "..", "sys", "arch", "rp2040", "rp2040", "sig_machde
 TRACE = "SYSTRACE_ON(SYSTRACE_SIGNAL)"
 
 
+def strip_comments(text):
+    """Return the text with C comments blanked, keeping the line structure."""
+
+    def blank(match):
+        return re.sub(r"[^\n]", " ", match.group(0))
+
+    return re.sub(r"/\*.*?\*/|//[^\n]*", blank, text, flags=re.S)
+
+
 def function_body(text, name):
     """Return the text of function `name` from its definition line to the next one at column 0."""
     match = re.search(r"^%s\(.*?^\}" % re.escape(name), text, re.S | re.M)
@@ -61,26 +70,27 @@ def function_body(text, name):
 def verdict(text):
     """Return the failure messages for a sig_machdep.c text."""
     bad = []
+    text = strip_comments(text)
     send = function_body(text, "sendsig")
     if send is None:
         return ["sendsig() not found"]
     lines = send.split("\n")
-    rejects = [i for i, line in enumerate(lines) if "fatalsig(SIGILL)" in line]
+    rejects = [i for i, line in enumerate(lines) if re.search(r"\bfatalsig\s*\(", line)]
     if not rejects:
-        bad.append("sendsig() has no fatalsig(SIGILL) rejection")
+        bad.append("sendsig() has no fatalsig() rejection")
     for index in rejects:
-        if not any(TRACE in line for line in lines[max(0, index - 8) : index]):
-            bad.append("sendsig() rejects a frame without a %s record" % TRACE)
+        window = "\n".join(lines[max(0, index - 8) : index])
+        if not re.search(re.escape(TRACE) + r"[^;]*\bprintf\s*\(", window):
+            bad.append("sendsig() rejects a frame without a %s printf" % TRACE)
     reject = function_body(text, "sigreturn_reject")
-    if reject is None or TRACE not in reject:
-        bad.append("sigreturn_reject() is missing or does not test %s" % TRACE)
+    if reject is None or not re.search(re.escape(TRACE) + r"[^;]*\bprintf\s*\(", reject):
+        bad.append("sigreturn_reject() is missing or does not print under %s" % TRACE)
     ret = function_body(text, "sigreturn")
     if ret is None:
         bad.append("sigreturn() not found")
     else:
-        for line in ret.split("\n"):
-            if re.search(r"u\.u_error\s*=", line) and "EJUSTRETURN" not in line:
-                bad.append("sigreturn() sets u_error outside sigreturn_reject(): %s" % line.strip())
+        for found in re.finditer(r"u\.u_error\s*=\s*(?![\s]|EJUSTRETURN\b)[^;]*;", ret):
+            bad.append("sigreturn() sets u_error outside sigreturn_reject(): %s" % found.group(0))
     return bad
 
 
@@ -118,6 +128,20 @@ def self_test():
     if verdict(GOOD):
         failures.append("conforming text rejected: %r" % verdict(GOOD))
     mutants = {
+        "a commented trace": GOOD.replace(
+            'if (SYSTRACE_ON(SYSTRACE_SIGNAL))\n\t\t\tprintf("r");\n\t\tfatalsig',
+            '/* if (SYSTRACE_ON(SYSTRACE_SIGNAL)) printf("r"); */\n\t\tfatalsig',
+        ),
+        "a rejection by another signal": GOOD.replace(
+            'if (SYSTRACE_ON(SYSTRACE_SIGNAL))\n\t\t\tprintf("r");\n\t\tfatalsig(SIGILL)',
+            "fatalsig(SIGSEGV)",
+        ),
+        "a multiline errno": GOOD.replace(
+            "sigreturn_reject(EINVAL);", "u.u_error =\n\t    EINVAL;"
+        ),
+        "a trace that does not print": GOOD.replace(
+            'printf("r");\n\t\tfatalsig', "x = 1;\n\t\tfatalsig"
+        ),
         "sendsig without its record": GOOD.replace(
             'if (SYSTRACE_ON(SYSTRACE_SIGNAL))\n\t\t\tprintf("r");\n\t\tfatalsig', "fatalsig"
         ),

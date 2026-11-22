@@ -90,7 +90,8 @@ int
 systrace_enabled(int bit)
 {
 	return ((systrace & bit) &&
-	    (systrace_pid == 0 || systrace_pid == u.u_procp->p_pid));
+	    (systrace_pid == 0 ||
+	    (u.u_procp != NULL && systrace_pid == u.u_procp->p_pid)));
 }
 #endif
 

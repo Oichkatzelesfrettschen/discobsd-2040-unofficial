@@ -247,6 +247,12 @@ class InstalledTreeTests(unittest.TestCase):
             installed.write_text(f"/* {name} */\n")
             self.hashes[owner] = census.digest(installed)
 
+    def test_staged_directory_behind_a_symlink_rejects(self):
+        alias = self.root / "alias"
+        alias.symlink_to(self.staged, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "follows a symlink"):
+            census.staged_header_snapshot(alias, self.owners, {}, self.hashes)
+
     def test_installed_names_and_aliases_preserve_their_source_owners(self):
         rows = census.staged_header_snapshot(self.staged, self.owners, {}, self.hashes)
         self.assertEqual(set(rows), {*self.owners, "machine/board.h"})

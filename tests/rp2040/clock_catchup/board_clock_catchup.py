@@ -34,7 +34,7 @@ lost 96 s to a 96-sector workload, 23 times the floor). The check passes when
 the whole excess interval lies within a tenth of the floor, fails when it lies
 wholly outside, and is inconclusive otherwise (exit status 2). A workload that
 did not write every block and a floor under a second are also inconclusive.
-A measurement whose per-line bounds are disjoint has two causes: a
+A measurement whose per-line bounds have an empty intersection has two causes: a
 line delayed past SETTLE_MARGIN, which is inconclusive, or a board clock that
 fell behind during the loop, which is a failure. Arrival times alone cannot
 tell them apart, because a console that holds lines back can give a steady
@@ -42,8 +42,8 @@ clock any arrival pattern. The check therefore separates them with a probe
 whose bounds rest on no latency assumption: the host sends each "date" itself,
 so the line was made between the send and the arrival, and a steady clock's
 offset lies in every sample's interval (send - value - 1, arrival - value].
-probe_bounds() intersects PROBE_SAMPLES such intervals; when they are
-disjoint, no steady clock can have produced them and the check fails,
+probe_bounds() intersects PROBE_SAMPLES such intervals; when their
+intersection is empty, no steady clock can have produced them and the check fails,
 reporting the gap as the least time the clock lost. When they share a point,
 the loop's empty bounds came from a delayed line and the measurement is
 inconclusive. Any of the three measurements can show the loss, because the
@@ -94,7 +94,7 @@ ERASE_MS = 44
 # loses the whole ERASE_MS per sector.
 TOLERANCE_FRACTION = 0.10
 MIN_LOST_S = 1.0
-# Request-bounded samples taken when a loop's bounds are disjoint.
+# Request-bounded samples taken when a loop's bounds have an empty intersection.
 PROBE_SAMPLES = 40
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
@@ -300,7 +300,7 @@ def offset_bounds(stamped, samples=SAMPLES):
     STAMPED holds (arrival time, console line) pairs. The constant that
     converts the board's local zone to UTC stays in the value; only differences
     between measurements are meaningful. Raises MeasurementError when too few
-    lines parse and EmptyBounds when the per-line bounds are disjoint,
+    lines parse and EmptyBounds when the per-line bounds have an empty intersection,
     which a line delayed beyond SETTLE_MARGIN or a clock that fell behind
     during the loop produces; probe_bounds() tells the two apart.
     """
@@ -334,7 +334,7 @@ def probe_bounds(probes, samples=PROBE_SAMPLES):
     made at x in [sent, arrival], so a steady clock's offset lies in
     (sent - value - 1, arrival - value] for every sample, however long the
     console held the line. Raises ClockUnsteady with the gap between the
-    bounds when they are disjoint, BEHIND telling a clock that fell
+    bounds when their intersection is empty, BEHIND telling a clock that fell
     behind from one that ran ahead, and MeasurementError when too few
     lines parse.
     """

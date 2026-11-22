@@ -656,7 +656,7 @@ ring_extent_passes_the_end(void)
 	HK_CHECK(cursor == 28);
 	HK_CHECK(runs() == 0);
 
-	/* A request longer than the ring is refused and moves zero bytes. */
+	/* A request longer than the ring is refused and leaves the cursor and map as they were. */
 	ring_reset(SLOTS, 0);
 	cursor = 20;
 	HK_CHECK(malloc3_contiguous_next(fixture, 64, 0, 0, ALIGN, &cursor, a) == 0);

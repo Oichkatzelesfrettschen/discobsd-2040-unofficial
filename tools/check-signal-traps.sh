@@ -218,7 +218,7 @@ TRACKED_EXCLUDED='usr.bin/lorder/lorder.sh'
 # tracked ROOT: scan every .sh file git tracks under ROOT except those
 # TRACKED_EXCLUDED names. A ROOT without .git reports skip; a missing git, a
 # checkout git cannot read, a failed or empty listing, and an exclusion that
-# names no tracked file fail.
+# names zero tracked files fail.
 tracked() {
 	if [ ! -e "$1/.git" ]; then
 		echo "check-signal-traps: skip: $1 is not a git checkout"
@@ -278,7 +278,7 @@ expect_tracked() {
 }
 
 # remove_directory DIR: delete the files and links under DIR, then its
-# directories from the deepest up; the removal names no recursive delete.
+# directories from the deepest up; the removal avoids a recursive delete.
 remove_directory() {
 	find "$1" -depth \( -type f -o -type l \) -exec rm -f {} + 2>/dev/null || :
 	find "$1" -depth -type d -exec rmdir {} + 2>/dev/null || :

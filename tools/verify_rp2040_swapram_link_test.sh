@@ -4,7 +4,7 @@
 # here both tools print the named file, so each case is a text fixture. The
 # unmodified SwapRAM and non-SwapRAM fixtures must pass, and each mutation
 # must fail with the diagnostic that names its defect: a verdict that also
-# accepts the broken layout reports nothing.
+# accepts the broken layout is blind.
 #
 # usage: verify_rp2040_swapram_link_test.sh
 set -eu

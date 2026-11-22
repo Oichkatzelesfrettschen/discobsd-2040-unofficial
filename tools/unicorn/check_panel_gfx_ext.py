@@ -235,7 +235,7 @@ def check_abort(panel):
             failures.append(f"abort after mode {mode}: panel not recorded as on")
     # A fault inside a mode change: the recorded mode still reads on while
     # the flag says a change may have begun, so the wake goes out; with the
-    # flag clear the recorded mode alone sends nothing.
+    # flag clear the recorded mode alone sends zero wakes.
     for mode, pending, wake in ((PWR_ON, 1, True), (PWR_SLEEP, 0, False)):
         panel.set_word("lcd_power_mode", mode)
         panel.set_word("lcd_power_pending", pending)
@@ -397,7 +397,7 @@ def main():
     for label, case, patches in mutants(image):
         try:
             failed = run(image, patches)[case]
-        except Exception as error:  # a crashed mutant is no verdict
+        except Exception as error:  # a crashed mutant is not a verdict
             raise SystemExit(f"FAIL mutant {label} did not run: {error}") from None
         if not failed:
             raise SystemExit(f"FAIL mutant {label} passed the {case} case")

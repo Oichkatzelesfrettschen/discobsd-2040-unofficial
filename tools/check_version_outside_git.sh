@@ -30,7 +30,7 @@
 # share/mk/sys.mk counts the commits of HEAD into BUILD, and
 # sys/conf/newvers.sh stamps the same count into the kernel version string.
 # Both take the count only from a repository rooted at the source tree. A
-# source export carries none, so the number is 0, wherever the export is
+# source export lacks one, so the number is 0, wherever the export is
 # unpacked. This gate copies the build fragments and newvers.sh from
 # SOURCE_ROOT into two private placements:
 #   plain   a directory where no repository answers;

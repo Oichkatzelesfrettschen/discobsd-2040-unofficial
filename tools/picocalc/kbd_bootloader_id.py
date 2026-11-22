@@ -55,7 +55,7 @@ lists Read Memory, Get ID answers and the flash-size read is refused at
 its command byte (hypothesis: readout protection); 1 for any other
 refusal of that read, Read Memory absent from Get's list, any protocol
 failure (a silent port and an ambiguous sync included; the
-session then sends nothing more), an unopenable port and a dump that
+session then stops sending), an unopenable port and a dump that
 cannot complete; 2 for a usage error, a missing pyserial, an existing
 dump file and a --dump-length outside 1 to the flash size. The record is
 printed as JSON on standard output.
@@ -213,7 +213,7 @@ def attempt(record, key, fn):
     (silence, a short reply, a byte that is neither ACK nor NACK) leaves
     the bootloader's parser state unknown: a later address or length frame
     could then land where it expects a command byte, so the session sends
-    nothing more and SessionStopped ends it."""
+    zero further bytes and SessionStopped ends it."""
     try:
         value = fn()
     except Refused as e:

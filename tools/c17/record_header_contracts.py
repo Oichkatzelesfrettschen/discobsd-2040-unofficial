@@ -17,7 +17,7 @@ from string_header_contracts import command_case
 HEADERS = ("grp.h", "kmem.h", "lastlog.h", "utmp.h", "mtab.h", "ttyent.h", "tzfile.h")
 # Accounting-file records whose target layout the gate pins: header, struct tag,
 # size, alignment, (field, offset, pointer-to-field type) and function
-# signatures. utmp.h pulls its own time type, so it needs no sys/types.h.
+# signatures. utmp.h pulls its own time type, so it builds without sys/types.h.
 ACCOUNTING = {
     "utmp.h": ("utmp", 44, 4,
                (("ut_line", 0, "char (*)[8]"), ("ut_name", 8, "char (*)[15]"),

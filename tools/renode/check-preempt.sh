@@ -99,6 +99,6 @@ cp "$DISK" "$OUTPUT/disk.img"
 "$FLASHIMG" "$OUTPUT/disk.img" "$OUTPUT/flash.bin" >"$OUTPUT/flashimg.txt"
 
 "$PYTHON" -I "$SCRIPT_DIR/renode_monitor.py" --self-test
-# -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
+# -u: tools/run_logged_gate.py ends a run that prints zero bytes for its idle
 # limit, and Python block-buffers a piped stdout until exit.
 "$PYTHON" -I -u "$SCRIPT_DIR/check-preempt.py" renode "$KERNEL" "$OUTPUT/flash.bin" "$OUTPUT" "$@"

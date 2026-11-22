@@ -6,7 +6,7 @@
 # the machine the gate asserts on.
 #
 # The kernel is PICOCALC, whose console is the panel and keyboard. Its
-# CDC-ACM device (uartusb) has no model behind it, and UART0 is the board's
+# CDC-ACM device (uartusb) lacks a model behind it, and UART0 is the board's
 # CH340C-bridged /dev/tty0.
 
 $unix_bin ?= $ORIGIN/../../sys/arch/rp2040/compile/PICOCALC/unix.bin

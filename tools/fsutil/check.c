@@ -340,7 +340,7 @@ static int pass1b (fs_inode_t *inode, unsigned blk, void *arg)
 
 /*
  * Write an entry back to the directory block at p. fs_dirent_pack() pads
- * the name to a multiple of 4 and so writes no terminator when namlen is a
+ * the name to a multiple of 4 and so omits the terminator when namlen is a
  * multiple of 4; DIRSIZ() in sys/sys/dir.h reserves the terminator byte, and
  * fsck rejects an entry whose name is not followed by NUL. The terminator is
  * written when it lies inside the entry's record and the block.
@@ -1003,7 +1003,7 @@ fatal:      if (block_map)
         /* Reconnect directories until inum is reached. Each pass reconnects
          * one directory that phase 2 left unreached, and scan_pass2() marks
          * it reached, so the passes for one inum are at most as many as there
-         * are directories; a reconnect that fails changes no state and ends
+         * are directories; a reconnect that fails leaves the state unchanged and ends
          * them. A pass is needed more than once when inum leads into a loop
          * of ".." entries: the directory the first pass reconnects is not
          * inum, and nothing it holds names inum. */

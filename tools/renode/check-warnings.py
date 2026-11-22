@@ -17,9 +17,9 @@ Counting needs the volatile parts of a message gone, so the addresses,
 values and program counters Renode prints become a single token before a
 line is matched or tallied.
 
-An error-level line has no class list: the models log at that level when
+An error-level line lacks a class list: the models log at that level when
 a transfer or a write cannot proceed, and a boot that reaches a shell
-produces none, so one is a regression whatever it says.
+produces zero of them, so one is a regression whatever it says.
 
 A board that adds peripherals brings its own classes: every CLASSES file
 before LOG is read, in order, and a warning is tallied against the first

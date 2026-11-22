@@ -4,7 +4,7 @@ CH001-CH004 flag explicit narration in a changed comment. CH005 flags a
 "<verb> no|none|nothing" phrase (tools/determiner_negation.py) that the file's
 comments hold more often after the change than before it, reported on the
 changed comment that carries it; an inherited comment the change keeps or
-moves inside the file adds nothing to the count.
+moves inside the file adds zero to the count.
 """
 
 import argparse

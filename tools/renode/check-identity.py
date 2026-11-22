@@ -42,7 +42,7 @@ A board's result is a separate evidence class (sys/arch/rp2040/doc/TESTING.md).
 
 Usage: check-identity.py RENODE UNIX_BIN FLASH_BIN OUTPUT_DIR
 Exit status: 0 pass, 1 an assertion failed, 2 the emulator did not answer
-or UNIX_BIN carries no usable identity words.
+or UNIX_BIN lacks usable identity words.
 """
 
 import importlib.util
@@ -103,7 +103,7 @@ def build_cases(boot, image: bytes) -> list[tuple[str, bytes, str, list[str]]]:
         raise ValueError("the loader stamp moves the sum")
 
     # Under the stamp the kernel ends fl1 at the stamped limit, 0x1fc000:
-    # 368 KB of the 384 KB region, one 4 KB sector of which holds no swap.
+    # 368 KB of the 384 KB region, one 4 KB sector of which is outside swap.
     limited = [LIMITED_STORAGE.get(entry, entry) for entry in boot.STORAGE_LINES]
     if limited == boot.STORAGE_LINES:
         raise ValueError("the storage lines hold no fl1 or swap size line to limit")

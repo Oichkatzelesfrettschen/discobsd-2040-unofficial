@@ -21,7 +21,7 @@ FT32_HEAD_ALIGN in fat32tail.h and as HEAD_ALIGN here, and the gate
 (tests/fat32tail/check.sh) compares the two. The output name defaults to
 discobsd.uf2: the loader accepts a
 selection only when the path ends in the lowercase text ".uf2", and an 8.3
-name needs no long-name directory entry.
+name needs zero long-name directory entries.
 
 The kernel UF2 must hold N blocks that the loader accepts: the UF2 magic
 words, no not-main-flash flag, the RP2040 family, a 256-byte payload at a

@@ -223,7 +223,7 @@ def sync(
         manifest.entries[name].patch = patch_file
     commit = git(netbsd, "rev-parse", "--verify", f"{revision}^{{commit}}").decode().strip()
 
-    # Compute every result before writing, so a failure changes nothing.
+    # Compute every result before writing, so a failure leaves every file unchanged.
     results: dict[str, tuple[bytes, Entry]] = {}
     for relative, entry in sorted(manifest.entries.items()):
         upstream = git(netbsd, "cat-file", "blob", f"{commit}:{relative}")

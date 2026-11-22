@@ -29,7 +29,7 @@
 
 The flash image this driver boots is the shipped root with
 tests/rp2040/preempt/preempt added under /tmp (check-preempt.sh composes
-it). Every case runs a loop that makes no system call, so only the
+it). Every case runs a loop that makes zero system calls, so only the
 asynchronous system trap -- the return to the process through userret from
 SysTick -- can deliver its signal or switch it out. A kernel without that
 path leaves the emulated machine running one loop forever, so each case

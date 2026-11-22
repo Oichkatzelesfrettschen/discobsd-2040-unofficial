@@ -302,7 +302,7 @@ static int env_seconds (const char *name, int empty_unset,
 /*
  * Exit with a message when FSUTIL_CLOCK or SOURCE_DATE_EPOCH holds a bad
  * value. A mode that writes an image calls it before it opens one, so a
- * rejected value leaves no half-written image.
+ * rejected value leaves zero half-written images.
  */
 void fs_clock_validate (void)
 {

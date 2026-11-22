@@ -23,7 +23,7 @@ OpenBSD port in the `mystuff` directory subtree.
 Information about the OpenBSD Package System can be found at:
 https://www.openbsd.org/faq/faq15.html
 
-Packages need no setup.
+Packages need zero setup.
 
 These required utilities can be installed as Packages:
   ```sh

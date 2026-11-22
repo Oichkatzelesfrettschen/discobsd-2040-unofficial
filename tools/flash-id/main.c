@@ -1,7 +1,7 @@
 // Reports the QSPI flash identity of an RP2040 board over USB CDC.
 //
 // The RP2040 boot ROM reports neither flash size nor board model, and picotool
-// infers flash size from a resident binary's metadata, so a board carrying no
+// infers flash size from a resident binary's metadata, so a board without an
 // image yields neither. The flash chip answers for itself: JEDEC opcode 0x9f
 // returns manufacturer, memory type, and a capacity exponent, and Winbond
 // opcode 0x4b returns the 64-bit unique identifier that the boot ROM publishes

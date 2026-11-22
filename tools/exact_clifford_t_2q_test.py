@@ -31,7 +31,7 @@ cases: H on qubit 0 then CX gives probabilities 1/2, 0, 0, 1/2; H T H on
 |0> gives (2 + sqrt(2)) / 4; T**8 and H H return |00> with scale 0.
 
 Mutants that must fail: a state that never reduces its scale and T replaced
-by S each change the Matsumoto-Amano count (the unreduced state has no finite
+by S each change the Matsumoto-Amano count (the unreduced state lacks a finite
 closure, so the search stops one key past the expected count); a Hadamard
 without its 1/sqrt(2) scale trips the exact norm check in every circuit that
 contains one; T replaced by S (a rotation by w**2 where w is required)

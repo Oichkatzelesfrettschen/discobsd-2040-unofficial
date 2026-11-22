@@ -48,7 +48,7 @@ def main():
         else:
             # No keyboard to forward: stdin at EOF (e.g. redirected from
             # /dev/null) must not tear the socket down out from under the
-            # reader thread, which is a daemon and gets no chance to run
+            # reader thread, which is a daemon and loses its chance to run
             # once main() returns. Block here instead, so this is purely a
             # log-and-mirror client until the socket closes or the caller
             # interrupts it (Ctrl-C, or an external `timeout`).

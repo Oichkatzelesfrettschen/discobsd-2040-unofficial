@@ -49,7 +49,7 @@ sys/kern/subr_rmap.c
 sys/dev/swap.c
 sys/arch/rp2040/rp2040/swapram.c
 sys/arch/rp2040/rp2040/swapram_pool.c
-sys/arch/rp2040/compile/PICOCALC_LEAN_DIAG/swapunix.c
+sys/arch/rp2040/compile/PICO/swapunix.c
 sys/arch/rp2040/rp2040/syscall.c
 sys/kern/syscalls.c
 sys/arch/rp2040/rp2040/sysctl.c

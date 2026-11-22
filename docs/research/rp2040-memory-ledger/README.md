@@ -100,9 +100,9 @@ live and the frozen virtual console, `LCD_VT`); `proc` 3,200; `inode`
 ## Call graphs
 
 `cflow_maps.sh COMPILE_DIR OUTPUT_DIR` writes depth-4 trees for twelve
-roots (scheduler, swap, SwapRAM, exec, ptrace, MPU) from the objects one
-built configuration links, preprocessed with that configuration's `PARAM`
-definitions. `call-graphs/` holds the PICO and PICOCALC_SD trees at
+roots (scheduler, swap, SwapRAM, exec, ptrace, MPU) over the sources the
+dependency files of one built configuration name, preprocessed with that
+configuration's `PARAM` definitions. `call-graphs/` holds the PICO and PICOCALC_SD trees at
 `6719f9d7a`, with each configuration's source list and definitions. The
 two differ in `sched` by the `SDSWAP_ENABLED` arms (`swap_lost_fallback`,
 `swap_lost_sweep`, `swap_lost_retire`) and in `swapram_in` by

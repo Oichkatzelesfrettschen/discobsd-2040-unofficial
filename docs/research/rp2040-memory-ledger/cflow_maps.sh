@@ -29,8 +29,9 @@
 #
 # usage: cflow_maps.sh COMPILE_DIR OUTPUT_DIR [ROOT ...]
 #
-# The source list is the set of C files whose objects the configuration's
-# build produced, so the trees follow the files that link into that kernel;
+# The source list is the set of C files the configuration's compiler read,
+# taken from the dependency file of each object (.deps/*.dep), so the trees
+# follow the files that compile into that kernel;
 # the preprocessor definitions are the PARAM lines of the generated
 # Makefile, so each #ifdef arm matches the build. cflow follows direct calls
 # only: calls through bdevsw, cdevsw, execsw and other function-pointer
@@ -61,19 +62,25 @@ sys=$top/sys
 config=$(basename "$compile")
 list=$output/$config.sources
 : >"$list"
-for object in "$compile"/*.o; do
-	[ -f "$object" ] || continue
-	name=$(basename "$object" .o)
-	case $name in
-	vers | ioconf | boot2) continue ;;
+for dependency in "$compile"/.deps/*.dep; do
+	[ -f "$dependency" ] || continue
+	# The first prerequisite of the object is the file the compiler read,
+	# so a generated source resolves to this configuration's own copy.
+	source=$(tr '\n\134' '  ' <"$dependency" | awk '{ print $2 }')
+	case $source in
+	vers.c | ioconf.c) continue ;;
+	*.c) ;;
+	*) continue ;;
 	esac
-	source=$(find "$sys" -name "$name.c" -not -path '*/test*' | sort | head -n 1)
-	if [ -n "$source" ]; then
-		printf '%s\n' "$source" >>"$list"
-	fi
+	case $source in
+	/*) ;;
+	*) source=$compile/$source ;;
+	esac
+	directory=$(CDPATH='' cd "$(dirname "$source")" && pwd)
+	printf '%s\n' "$directory/$(basename "$source")" >>"$list"
 done
 [ -s "$list" ] || {
-	echo "cflow_maps.sh: $compile holds no objects; build the kernel first" >&2
+	echo "cflow_maps.sh: $compile holds no dependency files; build the kernel first" >&2
 	exit 1
 }
 definitions=$(sed -n 's/^PARAM *+*= *//p' "$compile/Makefile" | tr '\n' ' ' |

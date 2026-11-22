@@ -298,3 +298,39 @@ poisoned SRAM regions. The replay checks their bytes, guard words, return
 address, stack pointer and saved registers. Duplicating one relocation
 offset changes the resulting state bytes. Kernel exec admission and the
 startup call from a shipped application remain open.
+
+### Native executable requirement
+
+A native link with `--state-image` emits `shared.aout`. Its OMAGIC header
+uses flag 0x02 in the six-bit flag field. A 56-byte requirement follows
+the 32-byte a.out header and precedes the original text, data and symbols.
+The record occupies file space only. The shipped kernel rejects the shared flag. The plain diagnostic link still emits its original
+host measurement fixture.
+
+| Byte offset in requirement | Width | Little-endian field |
+|---:|---:|---|
+| 0 | 4 | ASCII XREQ |
+| 4 | 4 | Version 1 |
+| 8 | 4 | Record length, 56 |
+| 12 | 32 | Exact compact ELF SHA-256 bytes in digest order |
+| 44 | 4 | Required slot prefix length, zero for an empty set of imported functions |
+| 48 | 4 | Absolute SRAM address of the aligned state reservation |
+| 52 | 4 | State extent in bytes |
+
+The prefix includes the highest referenced slot and every preceding slot.
+Both direct calls and initialized function pointers contribute; application
+definitions resolved during the prelink do not. The image digest pins the
+diagnostic implementation and its state layout. Production ABI identity and
+kernel admission require separate qualification.
+
+The host packer retains the requirement between the a.out header and the
+48-byte heatshrink header, and sets both the packed and shared flags. Its
+header CRC covers all three headers in file order. Expansion preserves the
+shared flag, requirement and loaded text and data. The native startup caller
+with 80 text bytes occupies 204 packed bytes and expands to 168 bytes with
+its two headers. Pack and unpack check the state geometry against the
+RP2040 window. The provider check compares all 32 identity bytes, the slot
+prefix and the state extent against an independently supplied library
+description. The caller of the layout check supplies the space available
+after accounting for the process stack. The shipped kernel's format dispatch
+continues to select static executables.

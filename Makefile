@@ -2068,7 +2068,7 @@ check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
 
 # The testing kernels' counters, fault records and console message ring
-# (sys/kern/subr_diag.c) against a host model, with four mutants of the
+# (sys/kern/subr_diag.c) against a host model, with seven mutants of the
 # source; tests/kernel/Makefile states each.
 check-diag-stats:	check-python
 		${MAKE} -C tests/kernel check-diag-stats check-diag-stats-mutants

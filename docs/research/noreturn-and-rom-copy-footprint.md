@@ -269,3 +269,62 @@ The instruction counts exclude silicon fetch latency and bus contention.
 The production kernel retains its existing bzero pending a representative
 size and alignment distribution, paired device timing and an image that
 crosses a flash placement boundary.
+
+## Board timing on the bare Pico
+
+On 2026-11-22 a probe kernel ran on the bare Raspberry Pi Pico (PICO kernel built from `6719f9d7a` with `docs/research/rom-copy-probe.patch`, 125 MHz system clock, root unchanged). The probe calls each routine N times (1,000 calls up to 256 bytes, 200 above) with interrupts masked (`splhigh()`). It reads the RP2040 timer's low word (`TIMERAWL`) before and after each loop. The patch runs the timing once from `main()` just before init starts; the console has not attached by then, so the table below comes from a second build that calls `bzbench()` from `sync()` when the caller is not a child of init, and an interactive `sync` prints it. For each size it times:
+
+- the kernel's `bzero`;
+- the boot ROM `memset` (MS) through a pointer resolved once;
+- the ROM `memset` resolved through `rom_func_lookup()` on every call;
+- the kernel's `bcopy`;
+- the ROM `memcpy` (MC).
+
+Offset 1 moves both the source and the destination one byte past word alignment, so the pair stays co-aligned. Microseconds per call:
+
+| Bytes | Offset | bzero | ROM MS | ROM MS, lookup per call | bcopy | ROM MC |
+|---:|---:|---:|---:|---:|---:|---:|
+| 4 | 0 | 0.95 | 0.29 | 0.92 | 0.93 | 0.36 |
+| 4 | 1 | 1.07 | 0.29 | 0.91 | 0.93 | 0.36 |
+| 16 | 0 | 1.10 | 0.50 | 1.12 | 1.15 | 0.53 |
+| 16 | 1 | 1.57 | 0.47 | 1.10 | 1.84 | 0.62 |
+| 32 | 0 | 1.26 | 0.56 | 1.18 | 1.38 | 0.63 |
+| 32 | 1 | 1.73 | 0.59 | 1.22 | 2.92 | 0.71 |
+| 64 | 0 | 1.52 | 0.69 | 1.31 | 1.79 | 0.84 |
+| 64 | 1 | 1.99 | 0.72 | 1.34 | 5.02 | 0.92 |
+| 128 | 0 | 1.99 | 0.94 | 1.57 | 2.55 | 1.26 |
+| 128 | 1 | 2.46 | 0.98 | 1.60 | 9.18 | 1.34 |
+| 256 | 0 | 2.88 | 1.46 | 2.08 | 4.02 | 2.09 |
+| 256 | 1 | 3.35 | 1.49 | 2.11 | 17.42 | 2.17 |
+| 512 | 0 | 4.60 | 2.48 | 3.10 | 6.88 | 3.75 |
+| 512 | 1 | 5.07 | 2.52 | 3.13 | 33.87 | 3.83 |
+| 1024 | 0 | 7.99 | 4.53 | 5.15 | 12.57 | 7.08 |
+| 1024 | 1 | 8.46 | 4.56 | 5.18 | 66.69 | 7.16 |
+| 4096 | 0 | 28.07 | 16.82 | 17.44 | 46.48 | 27.05 |
+| 4096 | 1 | 28.54 | 16.85 | 17.47 | 263.41 | 27.13 |
+
+The ROM routines are faster at every size measured:
+
+- **Fill (MS):** about 1.7 to 3.7 times faster than `bzero`. With the lookup on every call, the fill is level with `bzero` at 4 to 16 bytes and faster from 32 bytes.
+- **Aligned copy (MC):** about 1.4 to 2.6 times faster than `bcopy`.
+- **Co-aligned copy at offset 1 (MC):** 3 to 10 times faster. The kernel's `bcopy` takes its word loops only when both pointers are word-aligned, so a co-aligned pair one byte off falls to the byte loop.
+
+A histogram of call sizes, counted by the first build from just before init starts (after device, filesystem and root setup) through `/etc/rc`, a login, `ls -lR /usr` and `cat /etc/*`, buckets each call by `floor(log2(n)) + 1` (bucket 0 is length 0, bucket 13 is 4,096 bytes and more):
+
+| Routine | 0 | 1 | 2-3 | 4-7 | 8-15 | 16-31 | 32-63 | 64-127 | 128-255 | 256-511 | 512-1023 | 1024-2047 | 2048-4095 | 4096+ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| bzero | 0 | 0 | 0 | 0 | 6 | 51 | 188 | 25 | 0 | 24 | 11 | 333 | 37 | 36 |
+| bcopy | 0 | 313 | 1,032 | 1,685 | 1,508 | 1,013 | 1,830 | 846 | 17,981 | 8,099 | 5,033 | 3,199 | 26 | 16 |
+
+Most fills clear 1-2 KiB, where the ROM `memset` saves about 3.5 us a call, and most copies move 128 to 255 bytes, where the ROM `memcpy` saves about 1.3 us aligned.
+
+**Limits of this measurement:**
+
+- One board was measured, with warm caches and interrupts masked.
+- The histogram leaves out the kernel's own start-up before init.
+- Offset 1 covers co-aligned pairs only. A source and destination with different alignments were not timed.
+- The `bcopy` variant that looks up MC on every call was not timed.
+
+**Implementation constraints:** a change built on these numbers keeps `bcopy`'s backward branch for an overlapping destination in front of the ROM call (D150). The ROM `memcpy` copies forward only.
+
+**Decision still open:** the zero-RAM form, with a lookup on every call, against the form that caches the pointers in 8 bytes of bss (see "Both budgets" above).

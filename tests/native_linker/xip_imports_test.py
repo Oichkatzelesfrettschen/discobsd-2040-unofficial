@@ -144,20 +144,33 @@ def state_replay(path):
         ]
         source.extend(".word " + name for name in [*names, "_end", "owner", "local_bss"])
         source.extend([".bss", "local_bss:", f".space {4 + extra}", ".comm owner,5"])
+        slot_index = 1 if extra else len(record["slot_groups"]) - 1
+        function = record["slot_groups"][slot_index][0]
+        source.extend([".data", ".word " + function])
         (work / "app.s").write_text("\n".join(source) + "\n")
         subprocess.run([TOOLS / "as", "app.s", "-o", "app.o"], cwd=work, check=True)
         image = link([work / "app.o"], path).read_bytes()
-        _, text, data, bss, *_ = HEADER.unpack_from(image)
+        magic, text, data, bss, *_ = HEADER.unpack_from(image)
+        require(magic == 0o407 | (2 << 26), "shared image flag differs")
+        wire = struct.Struct("<4sII32sIII")
+        signature, version, size, digest, slots, state, state_size = wire.unpack_from(image, 32)
+        require(
+            (signature, version, size, digest.hex(), slots)
+            == (b"XREQ", 1, 56, record["slot_elf_sha256"], slot_index + 1),
+            "shared image identity or pointer-only requirement differs",
+        )
         app_bss = 0x20000000 + text + data
         # The final native linker assigns common storage before input BSS.
         after_app = app_bss + 8 + 4 + extra
         base = (after_app + 7) & ~7
         padding.add(base - after_app)
+        require((state, state_size) == (base, values["__libc_state_size"]), "state record differs")
         end = base + values["__libc_state_size"]
         require(app_bss + bss == end, "heap boundary differs")
         expected = [values[n] + (0 if n == "_ctype_" else base) for n in names]
         expected.extend([end, app_bss, app_bss + 8])
-        pointers = struct.unpack_from(f"<{len(expected)}I", image, HEADER.size + text)
+        expected.append(0x10020001 + 8 * (slots - 1))
+        pointers = struct.unpack_from(f"<{len(expected)}I", image, HEADER.size + size + text)
         require(list(pointers) == expected, "linked state pointers differ")
     require(padding == {0, 4}, "state padding coverage differs")
     (work / "conflict.s").write_text(".bss\n.global environ\nenviron:\n.space 4\n")

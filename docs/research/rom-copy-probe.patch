@@ -1,0 +1,132 @@
+diff --git a/sys/arch/rp2040/rp2040/machdep.c b/sys/arch/rp2040/rp2040/machdep.c
+index 43ff35242..9e2be449b 100644
+--- a/sys/arch/rp2040/rp2040/machdep.c
++++ b/sys/arch/rp2040/rp2040/machdep.c
+@@ -1228,6 +1228,33 @@ strncmp(const char *s1, const char *s2, size_t n)
+  * byte, so namei()'s shift of a path within its own buffer keeps the bytes
+  * it has not read yet. Every other case takes the forward word copy.
+  */
++u_int bz_hist[2][14];
++int bz_hist_on;
++static void
++bz_count(int k, size_t n)
++{
++	int b = 0;
++
++	while (n != 0 && b < 13) {
++		n >>= 1;
++		b++;
++	}
++	bz_hist[k][b]++;
++}
++
++void
++bz_print(void)
++{
++	int k, b;
++
++	for (k = 0; k < 2; k++) {
++		printf("hist %s", k ? "bcopy" : "bzero");
++		for (b = 0; b < 14; b++)
++			printf(" %u", bz_hist[k][b]);
++		printf("\n");
++	}
++}
++
+ void
+ bcopy(const void *src0, void *dst0, size_t nbytes)
+ {
+@@ -1236,6 +1263,9 @@ bcopy(const void *src0, void *dst0, size_t nbytes)
+ 	u_int		*aligned_dst;
+ 	const u_int	*aligned_src;
+ 
++	if (bz_hist_on)
++		bz_count(1, nbytes);
++
+ 	/* dst inside (src, src + nbytes): an unsigned distance below nbytes. */
+ 	if ((u_int)dst - (u_int)src < nbytes && dst != src) {
+ 		dst += nbytes;
+@@ -1307,6 +1337,8 @@ bzero(void *dst0, size_t nbytes)
+ 	u_char *dst;
+ 	u_int *aligned_dst;
+ 
++	if (bz_hist_on)
++		bz_count(0, nbytes);
+ 	dst = (u_char *)dst0;
+ 	/*
+ 	 * Return before the alignment prefix at length zero. Otherwise an
+@@ -1419,3 +1451,50 @@ copyin(caddr_t from, caddr_t to, u_int nbytes)
+ 
+ 	return 0;
+ }
++
++void *rom_func_lookup(u_int);
++#define	bz_us()	(*(volatile u_int *)0x40054028)	/* TIMERAWL */
++typedef void *(*bz_ms_t)(void *, int, u_int);
++typedef void *(*bz_mc_t)(void *, const void *, u_int);
++static u_int bz_dst[(4096 + 16) / 4], bz_src[(4096 + 16) / 4];
++
++void
++bzbench(void)
++{
++	static const u_short sz[] = { 4, 16, 32, 64, 128, 256, 512, 1024, 4096 };
++	bz_ms_t ms = (bz_ms_t)rom_func_lookup(('M') | ('S' << 8));
++	bz_mc_t mc = (bz_mc_t)rom_func_lookup(('M') | ('C' << 8));
++	u_int i, j, a, n, N, t[6];
++	u_char *d, *s;
++	int x;
++
++	for (j = 0; j < sizeof(sz) / sizeof(sz[0]); j++)
++		for (a = 0; a < 2; a++) {
++			n = sz[j];
++			N = n <= 256 ? 1000 : 200;
++			d = (u_char *)bz_dst + a;
++			s = (u_char *)bz_src + a;
++			x = splhigh();
++			t[0] = bz_us();
++			for (i = 0; i < N; i++)
++				bzero(d, n);
++			t[1] = bz_us();
++			for (i = 0; i < N; i++)
++				ms(d, 0, n);
++			t[2] = bz_us();
++			for (i = 0; i < N; i++)
++				((bz_ms_t)rom_func_lookup(('M') | ('S' << 8)))(d, 0, n);
++			t[3] = bz_us();
++			for (i = 0; i < N; i++)
++				bcopy(s, d, n);
++			t[4] = bz_us();
++			for (i = 0; i < N; i++)
++				mc(d, s, n);
++			t[5] = bz_us();
++			splx(x);
++			printf("bench n=%u a=%u N=%u bzero=%u rom=%u romlk=%u bcopy=%u romcp=%u\n",
++			    n, a, N, t[1] - t[0], t[2] - t[1], t[3] - t[2],
++			    t[4] - t[3], t[5] - t[4]);
++		}
++	bz_hist_on = 1;
++}
+diff --git a/sys/kern/init_main.c b/sys/kern/init_main.c
+index d61d0aa50..53fd0811b 100644
+--- a/sys/kern/init_main.c
++++ b/sys/kern/init_main.c
+@@ -185,6 +185,7 @@ main(void)
+ 	iunlock(u.u_cdir);
+ 	u.u_rdir = NULL;
+ 
++	{ extern void bzbench(void); bzbench(); }
+ 	/*
+ 	 * Make init process.
+ 	 */
+diff --git a/sys/kern/ufs_subr.c b/sys/kern/ufs_subr.c
+index 5da17c6e6..f5890b878 100644
+--- a/sys/kern/ufs_subr.c
++++ b/sys/kern/ufs_subr.c
+@@ -35,6 +35,7 @@ sync(void)
+     register struct fs *fs;
+     int async;
+ 
++    { extern void bz_print(void); extern int bz_hist_on; if (bz_hist_on) bz_print(); }
+     if (updlock)
+         return;
+     updlock++;

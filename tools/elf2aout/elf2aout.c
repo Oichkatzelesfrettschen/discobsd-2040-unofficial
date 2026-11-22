@@ -124,21 +124,10 @@ void warnx(const char *fmt, ...) {
 
 #endif
 
-/*
- * Header prepended to each a.out file.
- */
-struct	exec {
-	unsigned a_magic;	/* magic number */
-#define OMAGIC      0407        /* old impure format */
+#include "../../sys/sys/exec_xip.h"
 
-        unsigned a_text;	/* size of text segment */
-        unsigned a_data;	/* size of initialized data */
-        unsigned a_bss;		/* size of uninitialized data */
-        unsigned a_reltext;	/* size of text relocation info */
-        unsigned a_reldata;	/* size of data relocation info */
-        unsigned a_syms;	/* size of symbol table */
-        unsigned a_entry; 	/* entry point */
-};
+/* File-only program header carrying the RP2040 shared-libc requirement. */
+#define PT_DISCOBSD_XREQ 0x64787271U
 
 struct	nlist {
 	union {
@@ -181,6 +170,7 @@ struct sect {
 #define ELFDATA2LSB 1
 #define EV_CURRENT 1
 #define EM_ARM 40
+#define ET_EXEC 2
 
 typedef struct
 {
@@ -343,6 +333,9 @@ main(int argc, char **argv)
 	int     i;
 	struct sect text, data, bss;
 	struct exec aex;
+	struct xip_requirement *requirement = NULL;
+	Elf32_Shdr *req_section = NULL;
+	Elf32_Phdr *req_segment = NULL;
 	int     infile, outfile;
 	uint32_t cur_vma = UINT32_MAX;
 	int     verbose = 0;
@@ -397,6 +390,10 @@ usage:                  fprintf(stderr,
 		errx(1, "%s is not a 32-bit little-endian ELF file", argv[0]);
 	if (ex.e_machine != EM_ARM)
 		errx(1, "ELF machine %u is not ARM", ex.e_machine);
+	if (ex.e_shnum == 0 || ex.e_shstrndx >= ex.e_shnum ||
+	    ex.e_shentsize != sizeof(Elf32_Shdr) ||
+	    (ex.e_phnum && ex.e_phentsize != sizeof(Elf32_Phdr)))
+		errx(1, "Invalid ELF header table geometry.");
 	/* Read the program headers... */
 	ph = (Elf32_Phdr *) save_read(infile, ex.e_phoff,
 	    ex.e_phnum * sizeof(Elf32_Phdr), "ph");
@@ -421,8 +418,18 @@ usage:                  fprintf(stderr,
 	/* Look for the symbol table and string table... Also map section
 	 * indices to symbol types for a.out */
 	for (i = 0; i < ex.e_shnum; i++) {
-		char   *name = shstrtab + sh[i].sh_name;
-		if (!strcmp(name, ".symtab"))
+		char *name;
+		if (sh[i].sh_name >= sh[ex.e_shstrndx].sh_size ||
+		    !memchr(shstrtab + sh[i].sh_name, 0,
+		    sh[ex.e_shstrndx].sh_size - sh[i].sh_name))
+			errx(1, "Invalid ELF section name.");
+		name = shstrtab + sh[i].sh_name;
+		if (!strcmp(name, ".discobsd.xreq")) {
+			if (req_section || sh[i].sh_size != sizeof *requirement ||
+			    sh[i].sh_type != 1 /* SHT_PROGBITS */ || sh[i].sh_flags != 0)
+				errx(1, "Invalid shared libc requirement section.");
+			req_section = &sh[i];
+		} else if (!strcmp(name, ".symtab"))
 			symtabix = i;
 
 		else if (!strcmp(name, ".strtab"))
@@ -449,6 +456,16 @@ usage:                  fprintf(stderr,
 	 * out of order, so we sort them first. */
 	qsort(ph, ex.e_phnum, sizeof(Elf32_Phdr), phcmp);
 	for (i = 0; i < ex.e_phnum; i++) {
+		if (ph[i].p_type == PT_DISCOBSD_XREQ) {
+			if (ex.e_type != ET_EXEC || requirement || ph[i].p_filesz != sizeof *requirement ||
+			    ph[i].p_memsz != 0 || ph[i].p_vaddr != 0 ||
+			    ph[i].p_paddr != 0 || ph[i].p_flags != PF_R)
+				errx(1, "Invalid shared libc requirement segment.");
+			req_segment = &ph[i];
+			requirement = (struct xip_requirement *)save_read(infile,
+			    ph[i].p_offset, sizeof *requirement, "shared libc requirement");
+			continue;
+		}
 		/* Section types we can ignore... */
 		if (ph[i].p_type == PT_NULL || ph[i].p_type == PT_NOTE ||
 		    ph[i].p_type == PT_PHDR || ph[i].p_type == PT_GNU_EH_FRAME)
@@ -489,6 +506,15 @@ usage:                  fprintf(stderr,
 		/* Remember the lowest segment start address. */
 		if (ph[i].p_vaddr < cur_vma)
 			cur_vma = ph[i].p_vaddr;
+	}
+	if (req_section && (!req_segment || req_section->sh_offset != req_segment->p_offset))
+		errx(1, "Shared libc requirement section lacks its file segment.");
+	if (req_segment) {
+		for (i = 0; i < ex.e_phnum; ++i)
+			if (ph[i].p_type == PT_LOAD && ph[i].p_filesz &&
+			    ph[i].p_offset < (uint64_t)req_segment->p_offset + sizeof *requirement &&
+			    req_segment->p_offset < (uint64_t)ph[i].p_offset + ph[i].p_filesz)
+				errx(1, "Shared libc requirement overlaps loaded bytes.");
 	}
 	if (cur_vma == UINT32_MAX)
 		errx(1, "Executable has no non-empty loadable segments.");
@@ -554,7 +580,7 @@ usage:                  fprintf(stderr,
 	}
 
 	/* We now have enough information to cons up an a.out header... */
-	aex.a_magic = OMAGIC;
+	N_SETMAGIC(aex, OMAGIC, MID_ZERO, (requirement && !symflag ? EX_XIP : 0));
         if (! symflag) {
                 aex.a_text = text.len;
                 aex.a_data = data.len;
@@ -572,7 +598,7 @@ usage:                  fprintf(stderr,
         aex.a_reltext = 0;
         aex.a_reldata = 0;
 	if (verbose) {
-                printf ("  magic: %#o\n", aex.a_magic);
+                printf ("  magic: %#o\n", aex.a_midmag);
                 printf ("   text: %#x\n", aex.a_text);
                 printf ("   data: %#x\n", aex.a_data);
                 printf ("    bss: %#x\n", aex.a_bss);
@@ -581,6 +607,13 @@ usage:                  fprintf(stderr,
                 printf ("  entry: %#x\n", aex.a_entry);
                 printf ("   syms: %u\n", aex.a_syms);
         }
+
+	if (requirement && !symflag) {
+		if (cur_vma != 0x20000000U ||
+		    xip_raw_layout(&aex, requirement, cur_vma, 192U * 1024U,
+		    UINT32_MAX, 1) != AOUT_OK)
+			errx(1, "Shared libc requirement and process layout differ.");
+	}
 
 	/* Make the output file... */
 	if ((outfile = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0777)) < 0) {
@@ -593,6 +626,10 @@ usage:                  fprintf(stderr,
 		perror("aex: write");
 		exit(1);
 	}
+	if (requirement && !symflag &&
+	    write(outfile, requirement, sizeof *requirement) != sizeof *requirement)
+		err(1, "shared libc requirement");
+	free(requirement);
         if (! symflag) {
                 /* Copy the loadable sections.   Zero-fill any gaps less than 64k;
                  * complain about any zero-filling, and die if we're asked to

@@ -2,8 +2,7 @@
 
 Each expected value is read from the document that states it, and the code
 or the model is compared with it. A disagreement between a document and the
-code is a finding: the test reports it through pytest.xfail with both
-statements, and neither file is edited to match.
+code is a finding: the test fails with both statements.
 """
 
 import re
@@ -188,7 +187,6 @@ def test_flash_layout():
 
 
 AFTER_BSS = (r"after ordinary data and BSS", r"follows ordinary kernel data and bss")
-KNOWN_WRONG = "at the start of the kernel RAM region, directly above the ordinary user window"
 
 
 def output_sections(script):
@@ -200,8 +198,7 @@ def output_sections(script):
 
 def placement_verdict(script, doc):
     """'agrees' when the script places .swapram_pool directly after .bss
-    and doc says so, 'known' for zswap.md's recorded wrong phrase; anything
-    else raises."""
+    and doc says so; anything else raises."""
     sections = output_sections(script)
     if (
         ".bss" not in sections
@@ -212,8 +209,6 @@ def placement_verdict(script, doc):
     flat = re.sub(r"\s+", " ", doc)
     if any(re.search(p, flat, flags=re.I) for p in AFTER_BSS):
         return "agrees"
-    if KNOWN_WRONG in flat:
-        return "known"
     raise AssertionError("document states no pool placement the script supports")
 
 
@@ -237,12 +232,6 @@ def test_storage_states_the_linked_placement():
 
 
 def test_pool_placement():
-    """zswap.md places the pool at the start of kernel RAM, above the user
-    window; kern.ldscript links .swapram_pool directly after .bss."""
-    if placement_verdict(text(SCRIPT), text(ZSWAP)) == "known":
-        pytest.xfail(
-            "finding: zswap.md puts the pool "
-            + KNOWN_WRONG
-            + "; kern.ldscript links .swapram_pool directly after "
-            ".bss, as STORAGE.md states"
-        )
+    """zswap.md states the placement kern.ldscript links: .swapram_pool
+    directly after .bss."""
+    assert placement_verdict(text(SCRIPT), text(ZSWAP)) == "agrees"

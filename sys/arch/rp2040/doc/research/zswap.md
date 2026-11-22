@@ -216,10 +216,15 @@ affected objects from clean state:
     bmake clean && bmake all
 
 `SWAPRAM_KB` defaults to 64 in `machine/swapram.h` if only `options SWAPRAM`
-is given. The linker places the pool in the NOLOAD `.swapram_pool` section at
-the start of the kernel RAM region, directly above the ordinary user window.
-The owner initializes its metadata and writes each stored byte before reading
-it; ordinary `.bss` clearing does not initialize the pool.
+is given. The linker script (`sys/arch/rp2040/conf/kern.ldscript`) links the pool
+into the NOLOAD `.swapram_pool` section, which follows ordinary kernel data
+and bss and lies below `U0AREA`; an ASSERT there requires the pool to start
+at or above `_ebss`. The startup code in `sys/arch/rp2040/rp2040/locore0.S` zeroes
+every word from `_sdata` to `u_end` in its first loop, and that range
+includes the pool, so reset clears it. The second loop, which clears `.bss`
+alone, stops at `_ebss` and does not reach it. The owner still initializes its
+metadata and writes each stored byte before reading it, so the zeroing is not
+relied on for correctness.
 
 `compile/PICO_UART/Config` contains neither option. Its correct artifact has
 no pool symbol and no SwapRAM call path. A provenance check validates each

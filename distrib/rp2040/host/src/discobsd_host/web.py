@@ -396,9 +396,7 @@ class Handler(BaseHTTPRequestHandler):
         # one ends the session. The socket timeout bounds sendall in the
         # reader thread, so a viewer that stops draining is dropped from
         # that side as well.
-        frames = FrameReader(
-            sock, buffered_after_handshake(self.rfile, sock), srv.ping_interval
-        )
+        frames = FrameReader(sock, buffered_after_handshake(self.rfile, sock), srv.ping_interval)
         sock.settimeout(srv.ping_interval)
         awaiting_pong = False
         try:
@@ -441,9 +439,7 @@ class ConsoleServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(
-        self, address, device, token, open_serial=ports.open_serial, usb_port=None
-    ):
+    def __init__(self, address, device, token, open_serial=ports.open_serial, usb_port=None):
         super().__init__(address, Handler)
         # A device path names the board itself and is opened as given. With
         # none, every session resolves the board again from `usb_port` (the
@@ -526,9 +522,7 @@ def main(argv=None) -> int:
             "Set DISCOBSD_WEB_TOKEN or a systemd credential named web-token\n"
         )
         return 1
-    httpd = ConsoleServer(
-        (args.bind, args.port), args.device, token, usb_port=args.usb_port
-    )
+    httpd = ConsoleServer((args.bind, args.port), args.device, token, usb_port=args.usb_port)
     q = ("?token=" + token) if token else ""
     sys.stderr.write(f"DiscoBSD web console for {device}\n")
     if httpd.is_loopback:

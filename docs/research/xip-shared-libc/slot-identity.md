@@ -261,3 +261,22 @@ zero origin. The final link allocates common storage and defines segment ends.
 
 This host experiment uses the diagnostic member envelope. Kernel admission,
 process initialization and production import numbering remain open.
+
+The optional state reservation binds 29 object names from the compact ELF
+identified by the slot record's SHA-256. The link keeps the read-only character
+table at its flash address and reserves 5,040 bytes at the eight-byte-aligned
+tail of process BSS. Application data, common storage and BSS precede that
+reservation. The first heap address is its end. The link reserves storage;
+startup must still populate its initialized bytes, rebase pointers and set r9.
+
+With the compact ELF from the envelope replay, run:
+
+```sh
+"$PYTHON" tests/native_linker/xip_imports.py --state-image slot.elf main.o companion.a
+"$PYTHON" tests/native_linker/xip_imports_test.py --state-image slot.elf
+```
+
+The second command reads ELF symbols with GNU readelf and checks relocated
+pointer words in two native images requiring zero and four padding bytes.
+A changed ELF digest and an application definition of `environ` exercise
+the two rejection paths. These checks measure host linker output.

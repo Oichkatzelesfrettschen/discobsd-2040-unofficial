@@ -1141,13 +1141,20 @@ menu(void)
 	DIR *dp;
 	unsigned i;
 	size_t n;
-	int ch, known = 1;
+	int ch, known = 1, saved;
 
+	/* With -P the panel as it stands goes to a file first: the close
+	 * gives it back to the console, which draws over it. */
+	if (gfx_on)
+		refresh();
+	saved = gfx_capture();
 	/* The console draws nothing while the panel is this program's. */
 	gfx_close();
 	/* One line that fits the 40 columns of the PicoCalc's DOS screen. */
 	oputs("\033[0m\033[2J\033[H"
 	    "i86: q quit, a b floppy, other: back\r\n");
+	if (saved <= 0)
+		oputs(saved == 0 ? "panel saved\r\n" : "panel not saved\r\n");
 	oflush();
 	ch = host_getc();
 	if (ch == 'a' || ch == 'b') {

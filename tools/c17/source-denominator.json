@@ -98426,7 +98426,9 @@
           ],
           "inline_assembly": [],
           "integer": [
-            "shift-expression"
+            "integer-cast",
+            "shift-expression",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
           "pointer": [

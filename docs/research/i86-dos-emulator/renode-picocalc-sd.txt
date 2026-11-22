@@ -416,3 +416,37 @@ The session wrote 581 pages and read 583 back, ended with status 0 (a name
 that cannot be removed ends it with status 3 before the first page) and
 left no file in /tmp. The listing ran after the session had ended, so the
 run shows the removal succeeding, not the directory during the session.
+
+==== Run 8: the panel read back at Control-] (-P) after a text scroll
+==== (source: branch usr.bin/i86-panel-capture on main d0e39fa36)
+PICOCALC_SD kernel and SD root of the same tree, the panel test's boot
+program (tests/panel.hexdump, padded to 360 KB) added to the root as
+/panel.img. Typed: i86 -g -P /tmp/cap.ppm -a /panel.img, then '<' (stage
+12: 80 columns of cells), 'x' (the firmware scrolls the whole screen up a
+row and a cell is stored on the new row), a dump of the panel model's
+glass, Control-] and q. The menu line read "panel saved"; the file came
+back from the card's /tmp partition (fsutil --extract --partition=4),
+307,215 bytes. The dump's header reads vscsad 68: the scroll start moved
+one row (8 lines) past line 60.
+Compared pixel by pixel with tests/panel.py's text_frame() of the scrolled
+cells: the capture (kernel LCDG_READ through st7365p.cs RAMRD) 0 of
+102,400 pixels differ, the model's glass 0, capture against glass 0.
+Frame limits with this build: -e 2048 alone (119 frames) and -f 121
+accepted; -e 2048 -f 120 and -f 122 refused.
+check-picocalc: banner after 0.5 virtual seconds
+check-picocalc: waiting for login prompt: 10 of 120 virtual seconds spent
+check-picocalc: login prompt after 20.0 virtual seconds
+check-picocalc: shell prompt after 21.0 virtual seconds
+dumped glass
+TypeCtrl form that worked: ']'
+check-picocalc: wait panel saved after 51.5 virtual seconds
+waited 0.5 virtual s for 'panel saved'
+---- panel: menu at 51.5 virtual s
+  |i86: q quit, a b floppy, other: back
+  |panel saved
+check-picocalc: prompt after 53.0 virtual seconds
+prompt after 0.5 virtual s
+---- panel: end at 53.0 virtual s
+  |i86: q quit, a b floppy, other: back
+  |panel saved
+  |operator@pico:~$

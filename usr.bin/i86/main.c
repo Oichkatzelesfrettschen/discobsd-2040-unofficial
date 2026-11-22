@@ -278,7 +278,7 @@ static void
 usage(void)
 {
 	fprintf(stderr, "usage: i86 [-dGgqrTv] [-c 8086|8088|186|286] [-m kbytes] "
-	    "[-e kbytes] [-f frames] [-S mhz] [-w 40|80]\n"
+	    "[-e kbytes] [-f frames] [-P file] [-S mhz] [-w 40|80]\n"
 	    "           [-s pagefile] [-k keys] [-a floppy] [-b floppy] "
 	    "[-h disk] ...\n");
 	exit(2);
@@ -290,7 +290,7 @@ main(int argc, char **argv)
 	static struct i86 cpu;
 	static char store_name[32];
 	const char *store = store_name;
-	unsigned frames = 119, nhard = 0;
+	unsigned frames = 118, nhard = 0;
 	int ch;
 
 	/* One page file for each running emulator. */
@@ -299,7 +299,7 @@ main(int argc, char **argv)
 	cf.cols = 80;
 	cf.model = I86_286;
 	cf.cpi10 = 52;
-	while ((ch = getopt(argc, argv, "a:b:c:de:f:Ggh:k:m:qrS:s:Tvw:")) != -1)
+	while ((ch = getopt(argc, argv, "a:b:c:de:f:Ggh:k:m:P:qrS:s:Tvw:")) != -1)
 		switch (ch) {
 		case 'a':
 			cf.disk[0] = optarg;
@@ -336,6 +336,9 @@ main(int argc, char **argv)
 			break;
 		case 'f':
 			frames = (unsigned)atoi(optarg);
+			break;
+		case 'P':
+			gfx_capture_path = optarg;
 			break;
 		case 'G':
 			gfx_plain = 1;

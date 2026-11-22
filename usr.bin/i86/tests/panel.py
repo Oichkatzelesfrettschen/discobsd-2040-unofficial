@@ -148,7 +148,7 @@ MUTANTS = [
     ("pc.c", "\t\t\tgfx_pointer(mouse_keys);", "\t\t\tgfx_pointer(1);"),
     ("mem.c", "\t\t(void)unmap(pg);\n\t\tdrop(i);", "\t\tdrop(i);"),
     ("gfx.c", "#define GFX_DRAIN\t16", "#define GFX_DRAIN\tLINES"),
-    ("gfx.c", "\t\tgraphic_drain(LINES);\n", "\t\t(void)0;\n"),
+    ("gfx.c", "\t\tgraphic_drain(LINES);\n\tgfx_on = 0;", "\t\t(void)0;\n\tgfx_on = 0;"),
     ("gfx.c", "\t\tmax -= n;\n", "\t\tmax = 0;\n"),
     (
         "gfx.c",

@@ -158,3 +158,20 @@ implementation reductions while retaining every selected root. Full signatures,
 mutable-object layouts, versioned admission and process lifecycle retain their
 separate obligations. The delivered instrument closes reproducible compiler
 replay; it closes none of those architectural requirements.
+
+## Shared decimal conversion storage
+
+A capture at `4235ea747` compiles 531 PIC libc members and links 738 global
+roots. The baseline occupies 73,036 flash bytes and 5,872 process-state
+bytes. Both `strtod.o` and `strtofp.o` contain the decimal conversion core.
+In shared mode, `strtod` requests binary64 conversion from
+`__discobsd_strtofp`, the narrow-string routine also used by `strtof`.
+Static builds retain the standalone conversion required by the native archive.
+
+Replacing only the PIC `strtod.o` and repeating the all-global link retains
+all 738 roots in 70,376 flash bytes and 5,848 process-state bytes. The
+flash reduction is 2,660 bytes, and the process-state reduction is 24 bytes.
+The static ARM member and archive match the captured SHA-256 digests.
+The resulting image exceeds the 49,152-byte reservation by 21,224 bytes
+before stable slots. The measurement uses the experimental linker script
+and startup fixture described above.

@@ -106,6 +106,23 @@ class ReplayTests(unittest.TestCase):
         self.assertNotEqual(result["members"][0]["static_sha256"],
                             result["members"][0]["pic_sha256"])
 
+    def test_strtod_conversion_owner_follows_archive_mode(self):
+        from libc_shared_closure import read_member
+
+        root = Path(replay.__file__).resolve().parents[1]
+        source = root / "lib/libc/stdlib/strtod.c"
+        target = self.root / "strtod.o"
+        for shared in (False, True):
+            with self.subTest(shared=shared):
+                flags = replay.PIC_FLAGS if shared else ()
+                self.run_command([self.compiler, "-std=c17", "-Os", "-mcpu=cortex-m0plus",
+                                  "-mthumb", "-ffreestanding", "-nostdinc",
+                                  "-I" + str(root / "include"), *flags, "-c", str(source),
+                                  "-o", str(target)])
+                member = read_member(target.name, target.read_bytes())
+                self.assertIn("strtod", member["definitions"])
+                self.assertEqual("__discobsd_strtofp" in member["strong_imports"], shared)
+
     def test_missing_capture_rejects(self):
         self.capture_path.rename(self.capture_path.with_suffix(".withheld"))
         with self.assertRaisesRegex(ValueError, "missing compilation witness"):

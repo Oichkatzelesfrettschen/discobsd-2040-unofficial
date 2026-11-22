@@ -2258,7 +2258,9 @@ execution; the test-only `DECLARATION_CENSUS_NM` selects the symbol reader.
 
 `check-libc-pic-replay` calibrates `tools/libc_pic_replay.py` with real
 ARM compiler captures, a writable-state GOT relocation, and generated assembly
-supplied through retained standard input. Twenty-five tests reject stale source,
+supplied through retained standard input. The ARM object check requires the shared
+strtod member to import the narrow-string conversion core and the static member
+to provide its conversion locally. Replay controls reject stale source,
 missing/ambiguous/failed captures, wrong compiler/dependency/snapshot identities,
 response operands, escaped source/dependency/output paths, changed retained input,
 unknown capture versions, unreviewed options, compiler failure and

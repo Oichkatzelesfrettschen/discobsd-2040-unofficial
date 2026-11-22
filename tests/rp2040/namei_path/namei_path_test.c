@@ -125,7 +125,7 @@ check_maximum_length_path(void)
 		source[index] = 'x';
 	NAMEI_INIT_USER(&name, LOOKUP, FOLLOW, source);
 	user_limit = 0;
-	if (namei_copy_path(&name, destination) != ENOENT)
+	if (namei_copy_path(&name, destination) != ENAMETOOLONG)
 		return 1;
 	return 0;
 }

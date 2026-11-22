@@ -14,7 +14,7 @@
  * only while the PL022 is idle, so the level at the SSPDR write is the level
  * at the eighth clock.
  *
- * What it decodes: CASET, RASET, RAMWR, RAMWRC, RAMRD, RDMEMC, VSCRDEF,
+ * What it decodes: CASET, RASET, RAMWR, RAMWRC, RAMRD, VSCRDEF,
  * VSCSAD, MADCTL, COLMOD, SLPIN, SLPOUT, INVON, INVOFF, DISPON, DISPOFF and SWRESET. The
  * gamma, power, VCOM and timing commands st7365p.c sends during bring-up
  * leave the pixel image unchanged and are counted but not interpreted.
@@ -36,8 +36,10 @@
  * data bit; the datasheet leaves SDO high-impedance there and the board's
  * MISO pull is unmeasured (hypothesis: the model reads zero). Command
  * Table 2 reads through SPI Read Control (FBh) and RDID4 (D3h) are not
- * modeled and answer zeros. The memory reads (RAMRD 2Eh, RDMEMC 3Eh)
- * answer from the graphics RAM: see ArmMemoryRead().
+ * modeled and answer zeros. The memory read RAMRD (2Eh) answers from the
+ * graphics RAM: see ArmMemoryRead(). RDMEMC (3Eh), which the datasheet
+ * gives 18-bit replies whatever COLMOD says (page 198) and which no board
+ * run has measured, stays unmodeled.
  */
 
 using System;
@@ -359,9 +361,6 @@ namespace Antmicro.Renode.Peripherals.SPI
             case 0x2e:  /* RAMRD: from the window origin (page 178). */
                 readX = colStart;
                 readY = rowStart;
-                ArmMemoryRead();
-                break;
-            case 0x3e:  /* RDMEMC: from where the last memory read stopped (page 198). */
                 ArmMemoryRead();
                 break;
             case 0x2a: case 0x2b: case 0x33: case 0x36: case 0x37: case 0x3a:

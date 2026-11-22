@@ -728,7 +728,7 @@ test_shared_tiles_pixel(void)
 	    "the crawler's pixels in a shared tile: %d %d", panel_px(d, 256, 202), panel_px(d, 259, 203));
 	/*
 	 * The shared cell shows the lower sprite's slot. The crawler's eye cell (view row 23)
-	 * shows its own slot; its cell at view row 22 holds no crawler pixel, so it shows a
+	 * shows its own slot; its cell at view row 22 lacks crawler pixels, so it shows a
 	 * static world tile.
 	 */
 	CHECK(V.fin[(2 + 22) * 40 + 31] == RG_DYN + 1 && V.fin[(2 + 23) * 40 + 33] == RG_DYN + RG_BOX * RG_BOX + RG_BOX + 2 &&

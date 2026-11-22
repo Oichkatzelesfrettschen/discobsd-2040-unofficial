@@ -82,7 +82,7 @@ ${PROG}: gate.o shim.o
 # error.
 mutants: ${EXTRACTED} shim.o ${MACHINE_STAMP}
 	@for label in ${JOB_CONTROL_REQUESTS}; do \
-		sed "0,/^    case $$label:\$$/{//d;}" ${TOPSRC}/sys/kern/tty.c > tty_nolist.c; \
+		sed "1,/^    case $$label:\$$/{/^    case $$label:\$$/d;}" ${TOPSRC}/sys/kern/tty.c > tty_nolist.c; \
 		if cmp -s tty_nolist.c ${TOPSRC}/sys/kern/tty.c; then \
 			echo "FAIL job-control $$label: the label was not found" >&2; exit 1; fi; \
 		if ${PYTHON} extract.py --source tty_nolist.c \

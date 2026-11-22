@@ -134,7 +134,7 @@ fi
 
 # The earlier stem() starts basename and sed; with neither on PATH the
 # compile cannot name its files, and the case that passed above fails.
-sed 's|^\tstem "\$src"$|\tbase=`basename "$src" \| sed "s/\\\\.[cso]$//"`|' \
+sed 's|^\([[:space:]]\)stem "\$src"$|\1base=`basename "$src" \| sed "s/\\\\.[cso]$//"`|' \
     "$driver" >"$work/mutant-source"
 if cmp -s "$driver" "$work/mutant-source"; then
 	echo "cc driver: FAIL: the mutation did not apply"

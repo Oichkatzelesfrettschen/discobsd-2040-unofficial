@@ -22,12 +22,17 @@
 /*
  * The clean text at the start of a process's data area: swapout skips it
  * and swapin reads it from the executable. Zero when there is no
- * executable to read from, as for process 1 before it execs.
+ * executable to read from, as for process 1 before it execs, and when
+ * P_TEXTDIRTY records a ptrace write into the text (sys_process.c): the
+ * image then swaps whole, so the written words survive swapin. The flag
+ * changes only while the process is resident, so swapout, swapin and the
+ * release of a swapped image read one answer for one image.
  */
 static size_t
 swaptext (register struct proc *p)
 {
-    if (p->p_tip == NULL || p->p_tsize > p->p_dsize)
+    if (p->p_tip == NULL || p->p_tsize > p->p_dsize ||
+        (p->p_flag & P_TEXTDIRTY))
         return 0;
     return p->p_tsize;
 }

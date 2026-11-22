@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "e304cc867916f9b50b181e1060fa51c980f0418fd24a4af8863ce3297088860b"
+    "ordered_row_sha256": "35630b3bcd63c706d2ae1d87fc569f1f903c7044a80ec338ecaaa4f295fb546c"
   },
   "state_counts": {
     "applicability": {
@@ -51,16 +51,16 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "unreviewed": 1433,
+      "unreviewed": 1431,
       "present": 3,
-      "partial": 82,
+      "partial": 84,
       "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1433,
+      "none": 1431,
       "static": 37,
-      "host": 34,
+      "host": 36,
       "cross": 5,
       "qemu-user": 9,
       "renode": 0,

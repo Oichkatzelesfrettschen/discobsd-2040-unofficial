@@ -94,6 +94,25 @@ ptrace_write_frame_word(int *word, int data)
 }
 
 /*
+ * Whether the word at address overlaps the process's executable text,
+ * [p_daddr, p_daddr + p_tsize). swapout omits that span and swapin reads
+ * it back from the executable (vm_swap.c, swaptext), so a word written
+ * there would vanish at the next swap. Written as two differences, so an
+ * address near either end of the address space cannot wrap.
+ */
+static int
+ptrace_word_reaches_text(const struct proc *p, size_t address)
+{
+    size_t text = p->p_daddr;
+
+    if (p->p_tsize == 0)
+        return 0;
+    if (address >= text)
+        return address - text < p->p_tsize;
+    return text - address < sizeof(int);
+}
+
+/*
  * sys-trace system call.
  */
 void
@@ -180,6 +199,13 @@ procxmt(void)
     case PT_WRITE_I:
     /* write user D */
     case PT_WRITE_D:
+        /*
+         * A write into the text marks the image before the copy, since
+         * a copy that faults part way may still have stored some bytes.
+         */
+        if (ptrace_word_reaches_text(u.u_procp,
+            (size_t)(u_long)ipc.ip_addr))
+            u.u_procp->p_flag |= P_TEXTDIRTY;
         if (copyout((caddr_t)&ipc.ip_data, (caddr_t)ipc.ip_addr,
             sizeof ipc.ip_data) != 0)
             goto error;

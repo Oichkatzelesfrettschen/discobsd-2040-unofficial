@@ -20,7 +20,8 @@ PIC_FLAGS = ("-DDISCOBSD_SHARED_LIBC=1", "-fPIC", "-msingle-pic-base",
              "-mpic-register=r9", "-mno-pic-data-is-text-relative")
 OPTIONS = frozenset({
     "-", "-o", "-c", "-x", "-Os", "-Wall", "-Werror", "-Wextra", "-Wformat",
-    "-Wformat-security", "-Wundef", "-ffreestanding", "-ffunction-sections",
+    "-Wformat-security", "-Wundef", "-Wstrict-prototypes", "-Wold-style-definition",
+    "-ffreestanding", "-ffunction-sections",
     "-fno-common", "-fno-delete-null-pointer-checks", "-mabi=aapcs",
     "-mcpu=cortex-m0plus", "-mfloat-abi=soft", "-mlittle-endian", "-mthumb",
     "-nostdinc", "-std=gnu17", "-DCOMPACT_INODE_FIELDS", "-DCOMPACT_SWAPMAP",

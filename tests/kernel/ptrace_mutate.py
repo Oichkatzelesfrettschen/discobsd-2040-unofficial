@@ -112,6 +112,18 @@ MUTATIONS = {
         "        return(1);",
         "        exit(u.u_procp->p_ptracesig);\n        return(0);",
     ),
+    "text-write-unmarked": (
+        "            u.u_procp->p_flag |= P_TEXTDIRTY;\n",
+        "            u.u_procp->p_flag |= 0;\n",
+    ),
+    "text-end-inclusive": (
+        "        return address - text < p->p_tsize;\n",
+        "        return address - text <= p->p_tsize;\n",
+    ),
+    "text-start-straddle": (
+        "    return text - address < sizeof(int);\n",
+        "    return 0;\n",
+    ),
     "step-fallthrough": (
         """    case PT_STEP:
         /* Cortex-M single-step needs a separate debug-monitor contract. */

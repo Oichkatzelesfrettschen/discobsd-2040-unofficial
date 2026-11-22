@@ -134,12 +134,13 @@ next independent row starts.
 | 14 | Remaining maintained system | Finite standards/source denominators and shipped closure | Per-family feasibility and deciding experiments for filesystems, terminals, signals, networking, realtime, threads, native C, optional languages, host tools and hardware/persistence ownership |
 
 The [declaration census](libc-declaration-census.md) supplies the shared-ABI
-selection frontier across all tracked root headers, the installed root subset,
+selection frontier across tracked root headers, the installed include tree,
 four feature modes and both time widths. Public C names and linker identities
-remain separate. Standalone/macro differences, uninstalled termios declarations,
-legacy regex signatures and libc/Tcl environment overlaps retain deciding
-actions. The census preserves every API row as unreviewed; final export
-selection and runtime ownership remain implementation requirements.
+remain separate. The staged scan preserves header diagnostics, standalone
+and combined observations, and include and readline installer ownership.
+Kernel and user declaration domains, legacy regex signatures, and libc/Tcl
+environment overlaps retain deciding actions. The census leaves every API
+selection and runtime ownership open.
 
 Each row expands through requirement facets, caller closure, donor comparison,
 calibrated behavior tests, complete implementation, clean rebuild, matched

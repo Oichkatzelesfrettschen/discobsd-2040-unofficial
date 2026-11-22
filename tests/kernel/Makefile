@@ -518,7 +518,8 @@ PTRACE_MUTANTS=		negative-trace short-read partial-read-publication \
 			misaligned-u-offset u-upper-endpoint arbitrary-u-write \
 			pc-misalignment sp-misalignment psr-control-overwrite \
 			continue-early-pc signal-upper-endpoint step-fallthrough \
-			kill-direct-exit
+			kill-direct-exit text-write-unmarked text-end-inclusive \
+			text-start-straddle
 PTRACE_ASM_SRC=	${TOPSRC}/lib/libc/arm/sys/ptrace.S
 PTRACE_ASM_HEADER_DEPS=	${TOPSRC}/lib/libc/arm/sys/SYS.h \
 			${TOPSRC}/include/syscall.h
@@ -660,6 +661,9 @@ check-ptrace-mutants: \
 		signal-upper-endpoint) expected='ipc.ip_req == -1' ;; \
 		step-fallthrough) expected='ipc.ip_req == -1' ;; \
 		kill-direct-exit) expected='exit_calls == 0' ;; \
+		text-write-unmarked) expected='USER_LOWER, 16, USER_LOWER + 3)' ;; \
+		text-end-inclusive) expected='!text_write_marks(PT_WRITE_I, USER_LOWER, 16, USER_LOWER + 16)' ;; \
+		text-start-straddle) expected='USER_LOWER + 8, 16, USER_LOWER + 5)' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \

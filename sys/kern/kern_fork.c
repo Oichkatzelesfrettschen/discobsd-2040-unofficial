@@ -95,7 +95,12 @@ again:
     child->p_realtimer.it_interval = 0;
     child->p_realtick = 0;
     child->p_realitick = 0;
-    child->p_flag = SLOAD;
+    /*
+     * The child copies the parent's window, written text included, so it
+     * keeps P_TEXTDIRTY with it; swapout below already sizes the child's
+     * image by that flag.
+     */
+    child->p_flag = SLOAD | (parent->p_flag & P_TEXTDIRTY);
     child->p_uid = parent->p_uid;
     child->p_ruid = u.u_ruid;
     child->p_pgrp = parent->p_pgrp;

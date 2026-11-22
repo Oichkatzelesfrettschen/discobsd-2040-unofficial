@@ -435,3 +435,16 @@ bmake MACHINE=rp2040 check-renode-xip-process \
 The fixture copies the partitioned disk before adding its callers. Each run
 retains the test disk, packed Dhara image, monitor log and UART transcript
 in a fresh invocation directory under `.build-logs`.
+
+### File padding before process state
+
+The ELF link of a cross-compiled echo can have an executable LOAD ending
+seven bytes below the eight-byte-aligned, BSS-only writable LOAD. The a.out
+header counts those seven bytes in text. The original converter emitted
+441 bytes for a 448-byte raw image because it filled gaps only on the way
+to copying a file-backed segment. The packer diagnosed truncated text.
+The converter now emits any remaining declared payload padding after copying
+the final file-backed segment. The layout fixture derives the expected bytes
+from the ELF segment table and requires a nonzero text byte followed by
+exactly seven zeros before the BSS boundary. The original converter fails
+that comparison and the corrected converter passes it.

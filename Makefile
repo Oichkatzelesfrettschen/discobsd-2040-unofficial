@@ -714,6 +714,7 @@ check-native-linker: check-python
 		${PYTHON} tests/native_linker/readers.py
 		${PYTHON} tests/native_linker/branches.py
 		${PYTHON} tests/native_linker/calibrate.py
+		${PYTHON} tests/native_linker/xip_imports_test.py
 
 # The assembler's scratch streams and the linker's output regions: identical
 # object and executable bytes against the recorded outputs of the tools that

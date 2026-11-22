@@ -232,3 +232,32 @@ The provider-present run requires an unsigned quotient/remainder register
 model for the formatter's exponent conversion. The original CPU-only probe
 stopped on the dividend write to the unmapped SIO address. The model covers
 the exercised arithmetic and leaves divider timing and silicon unmeasured.
+
+## Native a.out diagnostic caller
+
+After the RP2040 host tools build, the following command links application
+objects and archives in their supplied order and prints the resulting OMAGIC
+image path. The inputs must be native Thumb a.out files. The resulting image
+requires the measured compact slot layout and an initialized per-process r9
+on entry.
+
+```sh
+export PYTHON=${PYTHON:-python3}
+"$PYTHON" tests/native_linker/xip_imports.py main.o companion.a
+```
+
+A zero-origin relocatable link resolves application definitions before import
+selection. An unresolved direct Thumb call to an envelope function selects a
+local veneer; its data relocation still resolves to the odd flash address.
+Aliases share a veneer when the caller references both names. A pointer-only
+import consumes zero veneer bytes. With an archive supplying its own
+implementation of `rand`, the measured application had the same 132 loaded
+bytes as the ordinary single-pass link. With the provider omitted, the main
+object and companion archive produced a 112-byte text and four-byte data
+image. Direct and indirect calls returned the expected random sequence across
+two modeled process states. Default-origin partial linking applied the SRAM
+base twice. The diagnostic prelink uses `-T0 -r` to give symbols a
+zero origin. The final link allocates common storage and defines segment ends.
+
+This host experiment uses the diagnostic member envelope. Kernel admission,
+process initialization and production import numbering remain open.

@@ -79,6 +79,19 @@ sysctlfn cpu_sysctl;
 #ifdef SYSTRACE
 int systrace;
 int systrace_pid;
+
+/*
+ * True when a SYSTRACE_* bit is set in kern.systrace and the running
+ * process is the one kern.systracepid names, or that sysctl is zero.
+ * Out of line, so each trace site costs a call and not the mask and pid
+ * test inline.
+ */
+int
+systrace_enabled(int bit)
+{
+	return ((systrace & bit) &&
+	    (systrace_pid == 0 || systrace_pid == u.u_procp->p_pid));
+}
 #endif
 
 struct sysctl_args {

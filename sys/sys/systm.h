@@ -132,11 +132,17 @@ u_int kernel_errmsg(u_int error, char *buffer);
  * output is the console, the same line as the interactive shell, so a
  * traced session reads like ktrace(1) without a trace file or kdump.
  * The kernel carries the hooks only with "options SYSTRACE".
+ *
+ * SYSTRACE_EXEC gates the DEBUG() lines of the exec path that
+ * "options GLOBAL_DEBUG" compiles in (machine/debug.h); a kernel built
+ * with GLOBAL_DEBUG but without SYSTRACE prints them unconditionally.
  */
 #define	SYSTRACE_SYSCALL	0x1	/* every syscall: name, args, result */
 #define	SYSTRACE_SIGNAL		0x2	/* sendsig and sigreturn frames */
+#define	SYSTRACE_EXEC		0x4	/* execve DEBUG() lines */
 extern int systrace;
 extern int systrace_pid;
+int systrace_enabled(int bit);
 #ifdef SYSTRACE
 #define	SYSTRACE_ON(bit) \
 	((systrace & (bit)) && \

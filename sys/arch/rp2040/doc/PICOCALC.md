@@ -1253,20 +1253,30 @@ CI tier builds it. `options PICOCALC_SD` defines the macro that
 `dev/flash.h`, `dev/sd.c` and `dev/uart.c` test, because a `board` line
 defines only its own name.
 
-- `DIAGNOSTIC`: `sendsig()` in `rp2040/sig_machdep.c` prints three console
-  lines on every signal delivery, and the other `#ifdef DIAGNOSTIC` checks
-  of the kernel sources compile in.
-- `GLOBAL_DEBUG=9` (`include/debug.h`): `DEBUG()` becomes `printf()`. Every
+- `DIAGNOSTIC`: the `#ifdef DIAGNOSTIC` checks of the kernel sources compile
+  in. `sendsig()` and `sigreturn()` in `rp2040/sig_machdep.c` print through
+  `kern.systrace` below and carry no `DIAGNOSTIC` lines.
+- `kern.systrace` (`options SYSTRACE`, `systm.h`): a mask of the trace bits,
+  zero at boot, narrowed to one process by `kern.systracepid`. Bit 1 traces
+  system calls, bit 2 each `sendsig()` (handler, frame, interrupted pc, sp and
+  psr, mask, trap code, trampoline) and `sigreturn()` (context, restored pc,
+  sp and psr, mask, stack flag, the stack `sigreturn` entered on), bit 4 the
+  `DEBUG()` lines of the exec path. `sysctl kern.systrace=6` selects signals
+  and exec; `kern.systrace=0` silences all of it.
+- `GLOBAL_DEBUG=9` (`include/debug.h`): `DEBUG()` becomes `printf()`, gated
+  by `kern.systrace` bit 4 because the kernel carries `SYSTRACE`. Every
   `DEBUG()` call in the kernel (the exec path: `kern_exec.c`, `exec_aout.c`,
-  `exec_elf.c`, `exec_script.c`, `exec_subr.c`) prints at any level. No
-  source calls `DEBUG1` through `DEBUG9`, so levels 0, 1 and 9 link to
-  byte-identical images; 9 is recorded so that a later `DEBUGn` site
+  `exec_elf.c`, `exec_script.c`, `exec_subr.c`) prints at any level while the
+  bit is set. No source calls `DEBUG1` through `DEBUG9`, so levels 0, 1 and 9
+  link to byte-identical images; 9 is recorded so that a later `DEBUGn` site
   prints. One a.out `execve(2)` prints about 40 lines (five of them wrap on
-  the 53-column panel), so a boot to login, which execs about fifteen programs
-  (the `/etc/rc` script and its shell, `fsck`, `hostname`, `umount`, `mount`,
-  `dd`, `mkfs`, `chmod`, `rm`, `date`, `getty`, `login`), prints several
-  hundred lines to the console and the message buffer (a count from reading
-  the sources, not a board capture).
+  the 53-column panel), so a boot to login with the bit set, which execs about
+  fifteen programs (the `/etc/rc` script and its shell, `fsck`, `hostname`,
+  `umount`, `mount`, `dd`, `mkfs`, `chmod`, `rm`, `date`, `getty`, `login`), prints
+  several hundred lines to the console and the message buffer (a count from
+  reading the sources, not a board capture). The bit is clear at boot, so the
+  boot lines start with the exec trace off; set it from `/etc/rc` or the
+  shell to trace a later `execve(2)`.
 - `STORAGE_STATS`: `machdep.storage_stats` and the flash wear counters
   (`STORAGE.md`).
 - `CONSOLE_MIRROR_UART`: `cnputc()` in `sys/dev/cons.c` sends each console
@@ -1277,10 +1287,12 @@ defines only its own name.
   Under Renode the boot messages and the exec trace arrive in the UART0
   file and the `tty0` login of `check-picocalc-sdroot.py` still passes.
 
-A program that takes many signals runs slowly on this kernel: the signal
-lines scroll the panel for each delivery. `tests/rp2040/divtest` ends its
-collision phase after 100 alarms, 3 seconds on PICOCALC_SD on the measured
-board, and had not ended after 420 seconds on PICOCALC_SD_DIAG.
+A program that takes many signals writes two console lines per signal while
+`kern.systrace` has bit 2 set, and none otherwise. Before `kern.systrace` gated
+the signal lines, a kernel with `DIAGNOSTIC` printed five lines on every
+delivery, which scrolled the panel: `tests/rp2040/divtest` ends its collision
+phase after 100 alarms, 3 seconds on PICOCALC_SD on the measured board, and had
+not ended after 420 seconds on PICOCALC_SD_DIAG.
 
     bmake MACHINE=rp2040 picocalc-sd-diag-kernel    # distrib/rp2040/unix-PICOCALC-SD-DIAG.uf2
 
@@ -1290,8 +1302,12 @@ with GCC 16.2.0 on the tree that added it: PICOCALC_SD at `-Os` has text
 32,888); PICOCALC_SD_DIAG has text 155,587, data 472, bss 57,072 (flash image
 155,848, headroom 7,736 with the 1,024-byte margin); without GLOBAL_DEBUG it
 has text 152,787 and headroom 10,552. `-O0` overflows FLASH and is not
-offered. `unix.elf`, `unix.map` and `unix.dis` stay in
-`sys/arch/rp2040/compile/PICOCALC_SD_DIAG`.
+offered. Gating the signal and exec trace through `kern.systrace` (GCC
+16.2.0, the same tree before and after) moves PICOCALC_SD_DIAG from text
+155,183 to 155,719 and headroom from 7,992 to 7,480 bytes: each of the 57
+`DEBUG()` sites gains a call to `systrace_enabled()`, and the five removed
+`DIAGNOSTIC` printfs give back less than that. `unix.elf`, `unix.map` and
+`unix.dis` stay in `sys/arch/rp2040/compile/PICOCALC_SD_DIAG`.
 
 ## Coexisting with the PicoCalc UF2 loader
 

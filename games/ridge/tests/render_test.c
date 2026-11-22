@@ -513,6 +513,59 @@ test_sprite_refresh(void)
 	CHECK(memcmp(DA.panel, DB.panel, sizeof DA.panel) == 0, "incremental and fresh panels agree");
 }
 
+/*
+ * A still sprite whose box does not hold a shard keeps its slots across a
+ * flip of the twinkle phase: of the base tiles, the phase reaches a box only
+ * through its shard cells.
+ */
+static void
+test_still_sprite_no_shard(void)
+{
+	struct dev *d = &DA;
+	int w;
+
+	flat_level(100);
+	G.p.x = (80 + 3) * RG_SUB;
+	G.p.y = 24 * RG_T - RG_PH * RG_SUB;
+	start_view(d, &V);
+	frame(d, &V, 0);
+	G.ticks = 8;
+	w = frame(d, &V, 0);
+	CHECK(w == 0 && d->nset == 0,
+	    "a still sprite with no shard in its box uploads nothing on a phase flip: %d windows %d uploads",
+	    w, d->nset);
+	/* A shard outside the box leaves it alone; one on the box's bottom row,
+	 * which the art does not cover, recomposites it on a phase flip. */
+	G.map[20][10] = RG_SHARD;
+	G.gen++;
+	frame(d, &V, 0);
+	G.ticks = 16;
+	w = frame(d, &V, 0);
+	/* The shard's own cell is a window; the box uploads nothing. */
+	CHECK(w == 1 && d->nset == 0,
+	    "a shard outside a still sprite's box leaves the box alone: %d windows %d uploads",
+	    w, d->nset);
+	G.map[10][24] = RG_SHARD;
+	G.gen++;
+	frame(d, &V, 0);
+	G.ticks = 24;
+	w = frame(d, &V, 0);
+	CHECK(w >= 1 && d->nset == 1,
+	    "a shard on the bottom row of a still sprite's box recomposites it: %d windows %d uploads",
+	    w, d->nset);
+	G.map[20][10] = RG_AIR;
+	G.map[10][24] = RG_AIR;
+	G.gen++;
+	frame(d, &V, 0);
+	/* A map change in that box still recomposites it: the change counter alone keys the slots. */
+	G.map[12][23] = RG_LEDGE;
+	G.gen++;
+	w = frame(d, &V, 0);
+	CHECK(w >= 1 && d->nset == 1,
+	    "a map change in a still sprite's box without a shard recomposites it: %d windows %d uploads",
+	    w, d->nset);
+}
+
 /* The far ridge: every column's contour meets the next column's within a pixel, wrap included. */
 static void
 test_ridge_contour(void)
@@ -961,6 +1014,7 @@ main(void)
 	test_scroll_runs();
 	test_sprite_steps();
 	test_sprite_refresh();
+	test_still_sprite_no_shard();
 	test_ridge_contour();
 	test_shard_frames();
 	test_two_sprites();

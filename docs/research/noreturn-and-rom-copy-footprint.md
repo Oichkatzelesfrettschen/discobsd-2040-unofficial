@@ -104,10 +104,12 @@ and every build warning-free:
 | PICOCALC_SD | 130,670 | 130,683 |
 | PICOCALC_SD_DIAG | 156,099 | 156,091 |
 
-The declaration costs 13 bytes of text in seven kernels and saves 8 in
-PICOCALC_SD_DIAG. The prototype's `__builtin_unreachable()` saved 8 to 24
-bytes but ran into the literal pool if `swtch()` returned; the `panic()`
-that replaces it holds a 5-byte string and a call. Since `2e8cad18b`,
+The change costs 13 bytes of text in seven kernels and saves 8 in
+PICOCALC_SD_DIAG. In `exit()` the `panic()` reuses the function's existing
+call to `panic` and adds a load, a branch, a literal and the 5-byte string;
+`init_main.o` grows 4 bytes in the `-Os` kernels once `sched()` is `__dead`.
+The prototype's `__builtin_unreachable()` saved 8 to 16 bytes at
+`4726ff64e` but ran into the literal pool if `swtch()` returned. Since `2e8cad18b`,
 `procxmt()` ends a traced child through `SIGKILL` and no longer calls
 `exit()`, so one of the prototype's three shrinking callers is gone.
 

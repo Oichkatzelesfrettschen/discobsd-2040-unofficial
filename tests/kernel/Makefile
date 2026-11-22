@@ -1898,7 +1898,7 @@ sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_proc.o \
 	    ${TOPSRC}/sys/kern/kern_proc.c
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_shim.o hostkern_kern.c
-	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -o $@ sigauth_test.c \
+	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -Dexit=sigauth_exit -o $@ sigauth_test.c \
 	    sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o hostkern32.o
 
 # The node's extent is a count of mapents, so the gate runs in both

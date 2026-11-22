@@ -73,6 +73,7 @@ def main():
         run(
             compiler
             + gate_flags
+            + ["-Dexit=sigauth_exit"]
             + [str(test_source), str(mutant_object)]
             + [str(path) for path in linked_objects]
             + ["-o", str(executable)]

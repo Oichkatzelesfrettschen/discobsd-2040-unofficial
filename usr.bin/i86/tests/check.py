@@ -126,8 +126,8 @@ MUTANTS = [
     ("clock.c", "n = k * CLK_PIT_HZ + *rem;", "n = k * CLK_PIT_HZ;"),
     (
         "clock.c",
+        "unsigned cap = period ? CLK_CREDIT_CLOCKS / period + 1 : 0;",
         "unsigned cap = period ? CLK_CREDIT_CLOCKS / period : 0;",
-        "unsigned cap = period ? 0 : 0;",
     ),
     ("clock.c", "\tif (cap < CLK_TICKS_MIN)\n\t\tcap = CLK_TICKS_MIN;\n", ""),
     ("clock.c", "return (due < cap ? due + 1 : due);", "return (due + 1);"),
@@ -1335,7 +1335,7 @@ def host_clock_irqs(run, what):
     """A run of tests/pit.asm on the host's clock must finish whole and
     count at most 37h interrupts while counter 2 counts 65535 clocks. A
     host that sleeps or deschedules the emulator for longer than 20 ms
-    (clk_owe(): 20 periods of counter 0 at 1 kHz) loses the ticks past
+    (clk_owe(): 21 periods of counter 0 at 1 kHz) loses the ticks past
     those, so a loaded host counts fewer, never more: one of three runs
     must count 34h to 37h."""
     seen = []

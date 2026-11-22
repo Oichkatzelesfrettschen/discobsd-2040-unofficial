@@ -1222,11 +1222,45 @@ strncmp(const char *s1, const char *s2, size_t n)
 #define UNALIGNED(p, sz)	((u_int)(p) & ((sz) - 1))
 
 /*
+ * The boot ROM's memcpy (MC) and memset (MS), which run 1.4 to 3.7 times
+ * faster than the word loops here (docs/research/noreturn-and-rom-copy-
+ * footprint.md, measured on a bare Pico). rom_fn() reads the function table
+ * slot where ROM version 3, that of RP2040 B2 silicon, keeps code's entry:
+ * when the slot holds code, the halfword after it is the routine's address;
+ * any other ROM finds the routine through rom_func_lookup(). Both read only
+ * the ROM, so the copies keep nothing in RAM and work before startup() and
+ * on either core.
+ */
+#define	ROM_SLOT_MS	0x8aU		/* ROM version 3 table: MS at 0x26b9. */
+#define	ROM_SLOT_MC	0x92U		/* ROM version 3 table: MC at 0x261d. */
+#ifndef ROM_HALF
+#define	ROM_HALF(a)	(*(volatile u_short *)(a))
+#endif
+
+/*
+ * Out of line, so the slot stays a parameter: GCC reports a read through a
+ * constant small address as out of bounds (see rom_func_lookup() in
+ * dev/flash.c), and one copy serves bcopy() and bzero().
+ */
+static void *rom_fn(u_int slot, u_int code) __attribute__((noinline));
+
+static void *
+rom_fn(u_int slot, u_int code)
+{
+	if (ROM_HALF(slot) == code)
+		return (void *)(u_int)ROM_HALF(slot + 2);
+	return rom_func_lookup(code);
+}
+
+/*
  * Copy data from the memory region pointed to by src0 to the memory
  * region pointed to by dst0. Overlapping regions copy as memmove copies
  * them: when dst0 starts inside the source, the copy runs backward byte by
  * byte, so namei()'s shift of a path within its own buffer keeps the bytes
- * it has not read yet. Every other case takes the forward word copy.
+ * it has not read yet. Disjoint ranges go to the boot ROM's memcpy. That
+ * routine copies forward in words when both pointers share an alignment but
+ * byte by byte from the end when they do not or below 8 bytes, so a source
+ * that starts inside the destination stays on the forward loops here.
  */
 void
 bcopy(const void *src0, void *dst0, size_t nbytes)
@@ -1242,6 +1276,12 @@ bcopy(const void *src0, void *dst0, size_t nbytes)
 		src += nbytes;
 		while (nbytes--)
 			*--dst = *--src;
+		return;
+	}
+	/* src outside [dst, dst + nbytes): the ranges are disjoint. */
+	if ((u_int)src - (u_int)dst >= nbytes) {
+		((void *(*)(void *, const void *, u_int))
+		    rom_fn(ROM_SLOT_MC, ROM_CODE('M', 'C')))(dst0, src0, nbytes);
 		return;
 	}
 	/* printf("bcopy (%08x, %08x, %d)\n", src0, dst0, nbytes); */
@@ -1304,47 +1344,9 @@ __aeabi_memcpy4(void *dst, const void *src, size_t nbytes)
 void
 bzero(void *dst0, size_t nbytes)
 {
-	u_char *dst;
-	u_int *aligned_dst;
-
-	dst = (u_char *)dst0;
-	/*
-	 * Return before the alignment prefix at length zero. Otherwise an
-	 * unaligned dst writes one byte, then --nbytes wraps 0 to SIZE_MAX and
-	 * the word loops below scribble the whole address space.
-	 */
-	if (nbytes == 0)
-		return;
-	while (UNALIGNED(dst, sizeof(u_int))) {
-		*dst++ = 0;
-		if (--nbytes == 0)
-			return;
-	}
-
-	if (nbytes >= sizeof(u_int)) {
-		/*
-		 * If we get this far, we know that nbytes is large
-		 * and dst is word-aligned.
-		 */
-		aligned_dst = (u_int *)dst;
-
-		while (nbytes >= 4 * sizeof(u_int)) {
-			*aligned_dst++ = 0;
-			*aligned_dst++ = 0;
-			*aligned_dst++ = 0;
-			*aligned_dst++ = 0;
-			nbytes -= 4 * sizeof(u_int);
-		}
-		while (nbytes >= sizeof(u_int)) {
-			*aligned_dst++ = 0;
-			nbytes -= sizeof(u_int);
-		}
-		dst = (u_char *)aligned_dst;
-	}
-
-	/* Pick up the remainder with a bytewise loop. */
-	while (nbytes--)
-		*dst++ = 0;
+	/* The ROM's memset writes nothing at length zero. */
+	((void *(*)(void *, int, u_int))
+	    rom_fn(ROM_SLOT_MS, ROM_CODE('M', 'S')))(dst0, 0, nbytes);
 }
 
 /*

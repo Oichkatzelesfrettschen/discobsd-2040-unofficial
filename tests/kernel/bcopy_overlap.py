@@ -35,9 +35,14 @@
 #     "usr/bin" (no overlap) and a long remainder through "target";
 #   - every length 0..40 at source offsets 0..7 and destination offsets
 #     -8..8 from it, against memmove, with guard bytes around the span.
-# A mutant without the backward branch, the forward-only copy the kernels
-# shipped before, must fail; without that rejection the verdict counts for
-# nothing.
+# The rp2040 bcopy hands disjoint ranges to the boot ROM's memcpy, which the
+# host replaces with rom_memcpy_model(): the routine at 0x261d of the version 3
+# ROM (Renode_RP2040 bootroms/rp2040/b2.elf) copies byte by byte from the end
+# below 8 bytes or when source and destination differ in alignment, and
+# forward in words otherwise, so it is right for neither kind of overlap.
+# Two mutants must fail: one without the backward branch, the forward-only
+# copy the kernels shipped before, and on rp2040 one that hands every range to
+# the ROM; without those rejections the verdict counts for nothing.
 #
 # usage: bcopy_overlap.py
 
@@ -55,7 +60,30 @@ PREFIX = """\
 #include <stdio.h>
 #include <string.h>
 typedef unsigned char u_char;
+typedef unsigned short u_short;
 typedef unsigned int u_int;
+/* The slot read misses, so rom_fn() takes rom_func_lookup(), the host model. */
+#define ROM_HALF(a) ((u_short)((a) & 0))
+#define ROM_CODE(c1, c2) ((u_int)(c1) | ((u_int)(c2) << 8))
+void *rom_memcpy_model(void *dst, const void *src, u_int n);
+void *rom_memcpy_model(void *dst, const void *src, u_int n)
+{
+    unsigned char *d = dst;
+    const unsigned char *s = src;
+    if (n < 8 || (((unsigned long)d - (unsigned long)s) & 3) != 0) {
+        while (n--)
+            d[n] = s[n];
+        return dst;
+    }
+    for (u_int i = 0; i < n; i++)
+        d[i] = s[i];
+    return dst;
+}
+void *rom_func_lookup(u_int code);
+void *rom_func_lookup(u_int code)
+{
+    return code == ROM_CODE('M', 'C') ? (void *)rom_memcpy_model : 0;
+}
 /* The macOS SDK defines bcopy as a fortified macro; the kernel's is a function. */
 #undef bcopy
 #define bcopy kernel_bcopy
@@ -125,10 +153,20 @@ HOST_CASTS = (
     ("((u_int)(p) & ((sz) - 1))", "((unsigned long)(p) & ((sz) - 1))"),
     ("(u_int)dst - (u_int)src", "(unsigned long)dst - (unsigned long)src"),
 )
+# The rp2040 copy's ROM path: its disjointness test and the slot's address.
+ROM_CASTS = (
+    ("(u_int)src - (u_int)dst", "(unsigned long)src - (unsigned long)dst"),
+    ("(void *)(u_int)ROM_HALF", "(void *)(unsigned long)ROM_HALF"),
+)
+ROM_GUARD = "\tif ((u_int)src - (u_int)dst >= nbytes) {\n"
+
+
+def casts(path):
+    return HOST_CASTS + (ROM_CASTS if "rp2040" in path else ())
 
 
 def for_host(path, body, required):
-    for kernel, host in HOST_CASTS:
+    for kernel, host in casts(path):
         count = body.count(kernel)
         if count > 1 or (kernel in required and count != 1):
             raise SystemExit(f"FAIL bcopy-overlap: {path}: {kernel} changed")
@@ -168,26 +206,32 @@ def main():
         for path in SOURCES:
             original = extract(path)
             mutant, removed = BACKWARD.subn("", original)
-            body = for_host(path, original, {kernel for kernel, _ in HOST_CASTS})
+            body = for_host(path, original, {kernel for kernel, _ in casts(path)})
             mutant = for_host(path, mutant, {HOST_CASTS[0][0]})
             if removed != 1:
                 print(f"FAIL bcopy-overlap: {path}: no backward branch to remove")
                 return 1
+            mutants = [("the forward-only mutant", mutant)]
+            if "rp2040" in path:
+                if original.count(ROM_GUARD) != 1:
+                    print(f"FAIL bcopy-overlap: {path}: no disjointness test before the ROM call")
+                    return 1
+                every = original.replace(ROM_GUARD, "\tif (1) {\n")
+                every = for_host(path, every, {HOST_CASTS[0][0]})
+                mutants.append(("the mutant that hands every range to the ROM", every))
             for compiler in compilers:
                 result = run(compiler, directory, body)
                 if result.returncode != 0:
                     print(f"FAIL bcopy-overlap: {path} with {compiler}: {result.stdout.strip()}")
                     return 1
-                result = run(compiler, directory, mutant)
-                if result.returncode == 0:
-                    print(
-                        f"FAIL bcopy-overlap: {path} with {compiler}: "
-                        "the forward-only mutant passed"
-                    )
-                    return 1
+                for name, text in mutants:
+                    result = run(compiler, directory, text)
+                    if result.returncode == 0:
+                        print(f"FAIL bcopy-overlap: {path} with {compiler}: {name} passed")
+                        return 1
     print(
         f"PASS bcopy-overlap: {len(SOURCES)} machdep.c copies with "
-        f"{' and '.join(compilers)}, forward-only mutant rejected"
+        f"{' and '.join(compilers)}, forward-only and ROM-for-every-range mutants rejected"
     )
     return 0
 

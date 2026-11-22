@@ -1467,6 +1467,17 @@ def oversleep_build(src, work, cc, edits):
     return binary
 
 
+def host_sleep_overrun_ms():
+    """The median time, in milliseconds, by which twenty 1 ms sleeps of
+    this host run long."""
+    over = []
+    for _ in range(20):
+        start = time.monotonic()
+        time.sleep(0.001)
+        over.append((time.monotonic() - start) * 1000 - 1)
+    return sorted(over)[len(over) // 2]
+
+
 def test_oversleep(src, work, cc, calibrate=False):
     """-S 4.77 on a host whose every sleep runs 15 ms long (OVERSLEEP): the
     paced judge passes, since the interrupts that came due during a sleep
@@ -1478,6 +1489,14 @@ def test_oversleep(src, work, cc, calibrate=False):
     def paced(binary):
         return lambda: pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
 
+    # The fixture's 15 ms and the host's own overrun together must stay
+    # under the 20 ms of interrupts clk_owe() keeps waiting; a host whose
+    # sleeps already run 2 ms long (the hosted macOS runner's do) drops
+    # interrupts with or without a defect, so the fixture cannot judge it.
+    overrun = host_sleep_overrun_ms()
+    if overrun > 2:
+        print("NOT RUN oversleep fixture: this host's 1 ms sleeps run %.1f ms long" % overrun)
+        return
     good = oversleep_build(src, work, cc, [OVERSLEEP])
     host_clock_irqs(paced(good), "-S 4.77, sleeps 15 ms long", HOST_CLOCK_IRQ_STALLED)
     if not calibrate:

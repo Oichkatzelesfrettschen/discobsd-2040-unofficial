@@ -70,9 +70,6 @@
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
-#ifdef LCD_BLANK
-#include <sys/kernel.h>
-#endif
 #include <sys/config.h>
 #include <sys/lcdcons.h>
 
@@ -201,21 +198,14 @@ render_pend(void)
  * It sets blank_want; the renderer alone sends SLPIN or SLPOUT, with the
  * drawing flag held, and records in blank_asleep what it sent. A request
  * that changes while a command goes out pends the renderer again. An
- * SLPIN due within 120 ms of the last SLPOUT (page 163) waits on one
- * dedicated callout, armed once, distinct from render_resume().
+ * SLPIN due within 120 ms of the last SLPOUT (page 163) is not sent; the
+ * next keyboard poll finds the request still open and pends the renderer
+ * again.
  */
 static u_char blank_want;	/* The keyboard poll asks for sleep. */
 static u_char blank_asleep;	/* The renderer put the panel to sleep. */
-static u_char blank_armed;	/* blank_retry() is in the callout table. */
 static u_int blank_idle;	/* Microseconds without a key, saturating. */
 static u_int blank_seen;	/* pc_micros() at the last completed exchange. */
-
-static void
-blank_retry(caddr_t arg __unused)
-{
-	blank_armed = 0;
-	render_pend();
-}
 
 /*
  * From each completed keyboard exchange; key is nonzero when it read a key
@@ -262,16 +252,8 @@ blank_change(void)
 	if (want == blank_asleep || lcdgfx_isopen() || lcd_abandoned)
 		return;
 	if (want) {
-		if (st7365p_sleep_early()) {
-			/* hz / 8 + 1 ticks are 125 ms or more. */
-			s = spltty();
-			if (!blank_armed) {
-				blank_armed = 1;
-				timeout(blank_retry, (caddr_t)0, hz / 8 + 1);
-			}
-			splx(s);
+		if (st7365p_sleep_early())
 			return;
-		}
 		st7365p_sleep();
 	} else
 		st7365p_wake();

@@ -618,11 +618,10 @@ scen_wake(void)
 	pump();
 	CHECK(ncmd == 1 && strcmp(last_cmd(), "SLPOUT") == 0,
 	    "a key wakes the panel with no gap");
-	CHECK(ncallouts == 0, "a key wake arms no callout");
 	CHECK(slp_asleep == 0, "the model panel is awake after the key");
 }
 
-/* 3: a sleep request inside the 120 ms window arms one callout, then SLPIN. */
+/* 3: a sleep request inside the 120 ms window waits for a later poll. */
 static void
 scen_window(void)
 {
@@ -637,20 +636,13 @@ scen_window(void)
 	boot(3994967296U);
 	for (i = 0; i < 6002; i++)
 		exchange(0);
-	CHECK(count_cmd("SLPIN") == 0 && ncallouts == 1,
-	    "a sleep request in the window arms one callout");
 	for (i = 0; i < 10; i++)
 		lcdrender();
-	CHECK(ncallouts == 1, "one deferral callout per window");
 	CHECK(count_cmd("SLPIN") == 0, "no SLPIN inside the window");
-	if (ncallouts >= 1) {
-		CHECK(callouts[0].ticks == hz / 8 + 1,
-		    "the deferral waits hz / 8 + 1 ticks");
-		clock_add(120000U);
-		callouts[0].fn((caddr_t)0);
-	}
-	pump();
-	CHECK(count_cmd("SLPIN") == 1, "the callout sends SLPIN after the window");
+	CHECK(ncallouts == 0, "a request in the window arms no callout");
+	exchange(0);
+	CHECK(count_cmd("SLPIN") == 1,
+	    "an early sleep request is sent by a later poll");
 }
 
 /* 4: a key during SLPIN leaves the panel awake once the renderer settles. */

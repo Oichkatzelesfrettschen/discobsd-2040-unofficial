@@ -297,13 +297,13 @@ lcdblank-mutants:
 	    's/d = blank_seen == 0 ? 0 : now - blank_seen;/d = now - blank_seen;/' \
 	    ${LCDBLANK_SRCLIST}
 	@MUTANT_EXPECT='a key wakes the panel with no gap' ${LCDBLANK_MUT} lcdcons.c \
-	    '/^blank_change/,/^}/{s/^\t} else$$/\t} else {/;s/^\t\tst7365p_wake();$$/\t\tif (st7365p_sleep_early()) { timeout(blank_retry, (caddr_t)0, 1); return; } st7365p_wake(); }/}' \
+	    '/^blank_change/,/^}/s/^\t\tst7365p_wake();$$/\t\t{ if (st7365p_sleep_early()) return; st7365p_wake(); }/' \
 	    ${LCDBLANK_SRCLIST}
 	@MUTANT_EXPECT='a key during SLPIN leaves the panel awake' ${LCDBLANK_MUT} lcdcons.c \
 	    '/^blank_change/,/^}/s/blank_asleep = want;/blank_asleep = blank_want;/' \
 	    ${LCDBLANK_SRCLIST}
-	@MUTANT_EXPECT='one deferral callout per window' ${LCDBLANK_MUT} lcdcons.c \
-	    's/if (!blank_armed) {/if (1) {/' \
+	@MUTANT_EXPECT='an early sleep request is sent by a later poll' ${LCDBLANK_MUT} lcdcons.c \
+	    '/^lcdcons_blank_poll/,/^}/s/^\t\trender_pend();$$/\t\t(void)0;/' \
 	    ${LCDBLANK_SRCLIST}
 	@MUTANT_EXPECT='lcdabandon wakes a sleeping panel' ${LCDBLANK_MUT} lcdcons.c \
 	    '/^lcdabandon/,/^}/s/^\t\t    || blank_asleep$$//' \
@@ -312,7 +312,7 @@ lcdblank-mutants:
 	    '/^lcdcons_gfx/,/^}/s/^\t\tst7365p_wake();$$/\t\t(void)0;/' \
 	    ${LCDBLANK_SRCLIST}
 	@MUTANT_EXPECT='a clock step does not blank early' ${LCDBLANK_MUT} lcdcons.c \
-	    's/u_int now = pc_micros(), d;/u_int now = pc_micros() + (u_int)time.tv_sec * 1000000U, d;/' \
+	    's/u_int now = pc_micros(), d;/extern struct timeval time; u_int now = pc_micros() + (u_int)time.tv_sec * 1000000U, d;/' \
 	    ${LCDBLANK_SRCLIST}
 	sh ./lcdblank_wiring.sh -m picokbd 'blank poll on completed exchanges only' \
 	    's/^\t\tif (r == STEP_EVENT || phase == PH_WRITE)$$/\t\tif (1)/' \

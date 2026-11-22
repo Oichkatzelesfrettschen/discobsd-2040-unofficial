@@ -290,6 +290,18 @@ test_redundant_vt(void)
 	out("\033[1;40H\033[K");
 	expect_int("an erase over the marker fills", nfills - f, 1);
 	expect_int("the marker is erased", panel_ch[panel_top][LT_COLS - 1], ' ');
+	/* A marker, a reverse index that moves the ring, a marker on the new
+	 * top row: the first one is still on the panel and is replaced by a
+	 * blank written over it. */
+	reset();
+	lcdterm_marker();
+	out("\033[H\033M");
+	lcdterm_marker();
+	d = ndraws;
+	out("\033[2;53H ");
+	expect_int("a blank over the earlier marker draws", ndraws - d, 1);
+	out("\033[1;53H ");
+	expect_consistent("two markers");
 	/* After an exchange the panel shows the other console. */
 	reset();
 	out("abc");

@@ -1123,6 +1123,10 @@ void
 lcdterm_marker(void)
 {
 	panel_cell(phys(0), LT_COLS - 1, '!', LT_ATTR(7, 1, 0));
+	/* A second marker while the first is still on the panel: only a
+	 * full repaint knows where both are. */
+	if (marker_prow >= 0 && marker_prow != phys(0))
+		panel_true = 0;
 	marker_prow = phys(0);
 }
 

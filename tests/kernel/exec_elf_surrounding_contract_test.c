@@ -58,6 +58,7 @@ typedef unsigned short u_short;
 #define MAXMEM USER_WINDOW
 #define STACKALIGN 8U
 #define SVFORK 0x1000
+#define P_TEXTDIRTY 0x0040
 #define EXEC_SPOOL_BLOCK_NONE 0xffff
 #define EXEC_COMMITTED_FAILURE 0x02
 #define MAXCOMLEN 16
@@ -419,7 +420,10 @@ check_elf_replacement_clears_file_backed_text(void)
 	struct exec_params parameters;
 
 	reset_fixture(&parameters);
+	process.p_flag |= P_TEXTDIRTY;
 	CHECK("replacement ELF succeeds", exec_elf_check(&parameters) == 0);
+	CHECK("replacement clears the preceding image's written-text mark",
+	    (process.p_flag & P_TEXTDIRTY) == 0);
 	CHECK("replacement releases preceding text owner",
 	    process.p_tip == NULL && released_inode == &prior_executable &&
 	    inode_lock_calls == 1 && text_unhold_calls == 1 &&

@@ -1284,10 +1284,14 @@ defines only its own name.
   that other kernels answer with `EOPNOTSUPP`. `sysctl machdep.diag_stats`
   prints the version, the fault count, one line per counter and the newest
   `DIAG_NFAULT` (4) fault records; `sysctl machdep.diag_msgbuf` prints the
-  newest `DIAG_MSGBUF_SIZE` (1024) bytes the kernel wrote to the console,
-  the size `sysctl(8)` reads (`BUFSIZ`), so boot lines and fault dumps stay
-  readable after the 32-line panel scrolls them away. The counters:
-  - PSRAM (`psram.c`): `psram_xfers` and `psram_bytes` of block transfers,
+  newest bytes the kernel wrote to the console out of a ring of
+  `DIAG_MSGBUF_SIZE` (1024); `sysctl(8)` reads into a `BUFSIZ` (1024) buffer,
+  so it shows the newest 1023. Boot lines and fault dumps stay readable
+  after the 32-line panel scrolls them away. Both nodes answer any user
+  (the panel shows the same text to anyone at the keyboard) and a read that
+  overlaps a print drops the oldest bytes of that read. The counters:
+  - PSRAM (`psram.c`): `psram_xfers` and `psram_bytes` of block transfer
+    attempts (failed ones included),
     `psram_timeouts`, `psram_stalls` (RX FIFO overrun) and `psram_ranges`
     (a request outside the region), and `psram_probe_ran` with
     `psram_probe_err`, the magnitude of the `PSRAM_E_*` code the probe
@@ -1304,11 +1308,15 @@ defines only its own name.
     `tty_cbreak_drops` and `tty_cooked_drops` (characters refused, with a bell).
   - Console output (`subr_prf.c`): `prints` calls of `printf()`,
     `print_us_total` and `print_us_max`, the longest single call, which
-    includes the panel redraw and the UART0 mirror wait.
+    includes the panel redraw and the UART0 mirror wait. A `printf()` an
+    interrupt runs inside another `printf()` counts in both, and
+    `sd_slowest_us` includes interrupt time inside the transfer.
   - Faults (`fault.c`): process, name, pc, lr, psr, EXC_RETURN and exception
     number of each `arm_fault()`; ARMv6-M omits the fault address. A kernel
     fault ends in a panic, so its record is visible only when the panel or
-    mirror shows the dump.
+    mirror shows the dump. The record adds 40 bytes to the `arm_fault()`
+    frame on the main stack (measured with `-fstack-usage` by the review;
+    not yet measured on a board).
 
   Table high-water marks are `kern.capacity` (`CAPACITY_STATS`, `pstat -T`,
   `CAPACITY.md`), which this kernel already carries. Interrupt-off time stays
@@ -1320,8 +1328,10 @@ defines only its own name.
   `psram_probe_err 1` (the model lacks PSRAM, and the boot line reads
   "psram0: not usable (error -1)"), `sd_reads 8684`, `sd_writes 54`, no SD
   errors, `sd_slowest_us 4789`, `prints 39`, `print_us_total 942447` and
-  `print_us_max 386957`; `machdep.diag_msgbuf` returned the newest 1,022
-  bytes of the boot output in order. Renode measures its own timing model, so
+  `print_us_max 386957`; `machdep.diag_msgbuf` returned the newest 1,023
+  bytes of the boot output in order, and the `diag` case of
+  `check-picocalc-sdroot.py` (`check-renode-picocalc-sd-system`) checks both
+  reads after a UART0 login. Renode measures its own timing model, so
   the microsecond figures are model time and the PSRAM row does not bear on
   the board.
 - `CONSOLE_MIRROR_UART`: `cnputc()` in `sys/dev/cons.c` sends each console

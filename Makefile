@@ -2769,7 +2769,7 @@ check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kerne
 		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
 		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
 		    $$out/picocalc-sd-system >> $$out/picocalc-sd-system.log 2>&1 & sd=$$!; \
-		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured-boot \
+		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured-diag \
 		    "$$(command -v renode)" ${PICOCALC_SD_DIAG_UF2} \
 		    ${TOPSRC}/distrib/${MACHINE}/sdroot-PICOCALC.img \
 		    $$out/picocalc-sd-diag-system >> $$out/picocalc-sd-diag-system.log 2>&1 & diag=$$!; \

@@ -43,11 +43,18 @@
  * Counters are 32-bit and saturate; the *_MAX and *_SLOWEST rows hold a
  * maximum, DIAG_PSRAM_PROBE_RAN and DIAG_PSRAM_PROBE_ERR hold the last value
  * set. A counter bumped from an interrupt and from process context takes
- * splhigh() around the update, so no count is lost.
+ * splhigh() around the update, so no count is lost. PRIMASK does not mask
+ * HardFault: a HardFault print that lands inside an update can lose that
+ * one update, which a diagnostic count tolerates.
+ *
+ * The message ring keeps DIAG_MSGBUF_SIZE bytes. A read returns the newest
+ * bytes that fit the caller's buffer less the terminating NUL, so sysctl(8)
+ * with its BUFSIZ (1024) buffer shows the newest 1023. Both nodes answer any
+ * user, as the console panel shows the same text to anyone at the keyboard.
  */
 #define DIAG_STATS_VERSION	1
 #define DIAG_NFAULT		4	/* fault records kept, newest wins */
-#define DIAG_MSGBUF_SIZE	1024	/* power of two; sysctl(8) reads BUFSIZ */
+#define DIAG_MSGBUF_SIZE	1024	/* power of two; the ring holds this many bytes */
 
 /*
  * One row per metric: enumerator suffix and the name sysctl(8) prints.
@@ -103,10 +110,15 @@ struct diag_fault {
 struct diag_stats {
 	uint32_t version;
 	uint32_t size;
-	uint32_t fault_total;	/* faults since boot; record (n - 1) % NFAULT is newest */
+	uint32_t fault_total;	/* faults since boot, saturating; (n - 1) % NFAULT is newest */
 	uint32_t value[DIAG_METRIC_COUNT];
 	struct diag_fault fault[DIAG_NFAULT];
 };
+
+/* The kernel and sysctl(8) share these layouts byte for byte. */
+_Static_assert(sizeof(struct diag_fault) == 32, "struct diag_fault is 32 bytes");
+_Static_assert(sizeof(struct diag_stats) ==
+    12 + 4 * DIAG_METRIC_COUNT + 32 * DIAG_NFAULT, "struct diag_stats has no padding");
 
 #ifdef KERNEL
 #ifdef DIAG_STATS

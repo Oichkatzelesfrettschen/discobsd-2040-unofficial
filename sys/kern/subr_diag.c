@@ -43,7 +43,8 @@ _Static_assert((DIAG_MSGBUF_SIZE & DIAG_MSGBUF_MASK) == 0,
 
 static struct diag_stats diag;
 static char diag_msg[DIAG_MSGBUF_SIZE];
-static u_int diag_msg_head;		/* bytes ever written */
+static volatile u_int diag_msg_head;	/* bytes written, modulo 2^32 */
+static volatile int diag_msg_full;	/* the ring has wrapped once */
 
 void
 diag_add(enum diag_metric metric, uint32_t amount)
@@ -79,20 +80,29 @@ diag_fault(const struct diag_fault *record)
 	int s = splhigh();
 
 	diag.fault[diag.fault_total % DIAG_NFAULT] = *record;
-	diag.fault_total++;
+	if (diag.fault_total != UINT32_MAX)
+		diag.fault_total++;
 	splx(s);
 }
 
 /*
- * Called for each console character from putchar(). The write runs inside
- * printf() from interrupt and HardFault context, so it runs without a
- * lock: two writers racing garble one byte, never the ring's indices.
+ * Called for each console character from putchar(). The store and the
+ * index step run under splhigh(), so a printf() from an interrupt cannot
+ * rewind the index between its load and its store. PRIMASK does not mask a
+ * HardFault; a HardFault print that lands inside this window races the
+ * index, and the damage is bounded to the bytes of that one print.
  */
 void
 diag_msgputc(int c)
 {
-	diag_msg[diag_msg_head & DIAG_MSGBUF_MASK] = (char)c;
-	diag_msg_head++;
+	int s = splhigh();
+	u_int head = diag_msg_head;
+
+	diag_msg[head & DIAG_MSGBUF_MASK] = (char)c;
+	if ((head & DIAG_MSGBUF_MASK) == DIAG_MSGBUF_MASK)
+		diag_msg_full = 1;
+	diag_msg_head = head + 1;
+	splx(s);
 }
 
 void
@@ -108,40 +118,61 @@ diag_snapshot(struct diag_stats *stats)
 
 /*
  * The newest bytes of the ring as a NUL-terminated string, at most as many
- * as the caller's buffer holds, so a short buffer reads the tail. A size
- * query (oldp null) answers the full length.
+ * as the caller's buffer holds less the NUL, so a short buffer reads the
+ * tail. A size query (oldp null) answers the full length. Each chunk is
+ * copied under splhigh() and its start is held within one ring length of
+ * the head at that moment, so output printed during the read drops the
+ * oldest bytes of this read and never returns a byte from a newer epoch
+ * of its slot.
  */
 int
 diag_msgread(void *oldp, size_t *oldlenp, void *newp)
 {
 	char chunk[64];
-	u_int head = diag_msg_head;
-	size_t n = head < DIAG_MSGBUF_SIZE ? head : DIAG_MSGBUF_SIZE;
-	size_t off, k, i;
-	u_int first;
-	int error = 0;
+	u_int end, pos, now;
+	size_t n, written = 0, k, i;
+	int s, error = 0;
 
 	if (newp)
 		return EPERM;
+	s = splhigh();
+	end = diag_msg_head;
+	n = diag_msg_full ? DIAG_MSGBUF_SIZE : end;
+	splx(s);
 	if (oldp == NULL) {
 		*oldlenp = n + 1;
 		return 0;
 	}
-	if (*oldlenp == 0)
+	if (*oldlenp == 0) {
+		*oldlenp = n + 1;
 		return ENOMEM;
+	}
 	if (n > *oldlenp - 1)
 		n = *oldlenp - 1;
-	first = head - n;
-	for (off = 0; off < n && error == 0; off += k) {
-		k = n - off < sizeof chunk ? n - off : sizeof chunk;
+	pos = end - n;
+	while (pos != end && error == 0) {
+		s = splhigh();
+		now = diag_msg_head;
+		if (now - pos > DIAG_MSGBUF_SIZE)
+			pos = now - DIAG_MSGBUF_SIZE;
+		k = end - pos;
+		if (k > DIAG_MSGBUF_SIZE || k == 0) {
+			splx(s);
+			break;
+		}
+		if (k > sizeof chunk)
+			k = sizeof chunk;
 		for (i = 0; i < k; i++)
-			chunk[i] = diag_msg[(first + off + i) & DIAG_MSGBUF_MASK];
-		error = copyout(chunk, (char *)oldp + off, k);
+			chunk[i] = diag_msg[(pos + i) & DIAG_MSGBUF_MASK];
+		splx(s);
+		error = copyout(chunk, (char *)oldp + written, k);
+		pos += k;
+		written += k;
 	}
 	if (error == 0) {
 		chunk[0] = '\0';
-		error = copyout(chunk, (char *)oldp + n, 1);
+		error = copyout(chunk, (char *)oldp + written, 1);
 	}
-	*oldlenp = n + 1;
+	*oldlenp = written + 1;
 	return error;
 }

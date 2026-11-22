@@ -593,10 +593,17 @@ parse(char *string, int flags)
 			DIAG_METRICS(DIAG_NAME)
 #undef DIAG_NAME
 		};
-		const struct diag_stats *ds = (const struct diag_stats *)buf;
+		struct diag_stats stats;
+		const struct diag_stats *ds = &stats;
 		unsigned i, n;
 
-		if (size != sizeof(*ds) || ds->version != DIAG_STATS_VERSION ||
+		/* buf has byte alignment; copy to an aligned struct. */
+		if (size != sizeof(stats)) {
+			fprintf(stderr, "%s: unsupported ABI\n", string);
+			return (1);
+		}
+		memcpy(&stats, buf, sizeof(stats));
+		if (ds->version != DIAG_STATS_VERSION ||
 		    ds->size != sizeof(*ds)) {
 			fprintf(stderr, "%s: unsupported ABI\n", string);
 			return (1);

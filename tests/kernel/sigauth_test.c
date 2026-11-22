@@ -48,7 +48,8 @@ char __user_data_end[1];
 
 
 /* The tail of psignal(), which reaches the scheduler; none of it decides
- * authorization, so each entry records that it ran and returns. */
+ * authorization, so each entry records that it ran and returns, except
+ * exit(), which is __dead and leaves through hk_escape(). */
 static unsigned setrun_calls;
 
 void setrun(struct proc *p) { (void)p; setrun_calls++; }
@@ -60,7 +61,10 @@ void swtch(void) { }
 int procxmt(void) { return 0; }
 void addupc(caddr_t pc, struct uprof *up, int ticks) { (void)pc; (void)up; (void)ticks; }
 void sendsig(sig_t p, int sig, long mask) { (void)p; (void)sig; (void)mask; }
-void exit(int rv) { hk_note("exit(%d) reached", rv); }
+/* kern_sig.c and this file are built with -Dexit=sigauth_exit, so proc.h's
+ * declaration types this stub and the harness's own exit() stays libc's:
+ * hk_escape() and panic() leave through it. */
+__dead void exit(int rv) { hk_note("exit(%d) reached", rv); hk_escape(); }
 int ffs(u_long i) { int n = 0; if (i == 0) return 0; while (!(i & 1)) { i >>= 1; n++; } return n + 1; }
 
 /* core() names the filesystem; kill() never reaches it. */
@@ -296,9 +300,23 @@ sigcont_exception(void)
 	HK_CHECK(u.u_error == 0);
 }
 
+/* The kernel's exit() reaches the stub, which leaves through hk_escape(). */
+static void
+call_kernel_exit(void)
+{
+	exit(SIGKILL);
+}
+
+static void
+exit_stub_escapes(void)
+{
+	HK_CHECK(hk_catch(call_kernel_exit) == 1);
+}
+
 int
 main(void)
 {
+	exit_stub_escapes();
 	drop_and_regain();
 	broadcast_after_drop();
 	regain_from_unprivileged();

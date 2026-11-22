@@ -168,6 +168,9 @@ exit (int rv)
     ruadd(&p->p_ru, &u.u_cru);
     wakeup((caddr_t) &runin);
     swtch();
+    /* A zombie is never queued, so swtch() does not come back; if it did,
+     * the kernel stops here rather than run on past a noreturn call. */
+    panic("exit");
     /* NOTREACHED */
 }
 

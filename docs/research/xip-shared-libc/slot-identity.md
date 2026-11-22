@@ -353,3 +353,31 @@ callback argument matched the public slot for each of `fflush` and
 `fclose`. At the registration SVC, r3 held 0x100208d9, the shifted
 public signal slot. This experiment exercised user instructions through
 registration; kernel signal delivery requires its own execution evidence.
+
+The provider replay uses the 531-member PIC archive captured from the shared
+provider sources. Three members differ from the preceding PIC replay. The
+static archive has the same SHA-256. The qualified archive, linked ELF and
+packaged flash image have separate digests in `compact-provider.json`.
+
+```sh
+export PYTHON=${PYTHON:-python3}
+PROVIDER=$("$PYTHON" tests/libc_xip_slots/relink_envelope.py --provider \
+    "$REPLAY/libc-pic.a" "$LINK")
+"$PYTHON" tests/libc_xip_slots/state_entry_test.py "$PROVIDER/slot.elf"
+"$PYTHON" tests/native_linker/xip_imports_test.py \
+    --state-image "$PROVIDER/slot.elf" --provider "$PROVIDER/provider.bin"
+```
+
+The 64-byte header starts with the four bytes XLIB. Seven little-endian
+32-bit words give the major and minor versions (1 and 0), header size, slot
+count, slot width, process-state size and offset of the Thumb initializer.
+The final 32 bytes hold the linked ELF digest used by XREQ. The first slot
+starts at offset 64. The file digest covers the filled header, executable
+code, initialized template, initializer and relocation table.
+
+Both the separately linked ELF imports and the native linker use the shifted
+slot addresses. The native replay runs the same caller from raw and expanded
+packed images. It reads the initializer offset from the provider header,
+installs r9, checks the heap boundary through the shared sbrk slot, and calls
+rand. This is modeled startup with the host packer and compact diagnostic
+archive. Kernel selection and process replacement require separate evidence.

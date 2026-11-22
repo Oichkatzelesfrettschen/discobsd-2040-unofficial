@@ -28,14 +28,13 @@
 
 import argparse
 import io
-import json
 import struct
 import subprocess
 import tempfile
 from pathlib import Path
 
 from elftools.elf.elffile import ELFFile
-from envelope_imports import BASE, RECORD
+from envelope_imports import BASE, image_record
 from state_entry import initializer
 from symbols import require, state_relocations
 from unicorn import UC_ARCH_ARM, UC_MODE_MCLASS, UC_MODE_THUMB, UC_PROT_EXEC, UC_PROT_READ, Uc
@@ -53,7 +52,7 @@ from unicorn.arm_const import (
 
 def replay(path):
     source = path.read_bytes()
-    record = json.loads(RECORD.read_text())
+    record = image_record(source)
     assembly = initializer(source, record)
     with tempfile.TemporaryDirectory() as name:
         work = Path(name)
@@ -121,7 +120,10 @@ def replay(path):
                 machine.reg_write(UC_ARM_REG_R9, machine.reg_read(UC_ARM_REG_R0))
                 machine.reg_write(UC_ARM_REG_LR, 0x20024001)
                 machine.emu_start(
-                    (BASE + slot * record["slot_width_bytes"]) | 1, 0x20024000, count=4096
+                    (BASE + record.get("slot_table_offset", 0) + slot * record["slot_width_bytes"])
+                    | 1,
+                    0x20024000,
+                    count=4096,
                 )
                 require(
                     machine.reg_read(UC_ARM_REG_PC) == 0x20024000

@@ -27,6 +27,7 @@
 """Check final-link segment boundaries and every compact slot in one native caller."""
 
 import argparse
+import hashlib
 import json
 import struct
 import subprocess
@@ -156,7 +157,7 @@ def state_replay(path):
         signature, version, size, digest, slots, state, state_size = wire.unpack_from(image, 32)
         require(
             (signature, version, size, digest.hex(), slots)
-            == (b"XREQ", 1, 56, record["slot_elf_sha256"], slot_index + 1),
+            == (b"XREQ", 1, 56, hashlib.sha256(path.read_bytes()).hexdigest(), slot_index + 1),
             "shared image identity or pointer-only requirement differs",
         )
         app_bss = 0x20000000 + text + data
@@ -169,7 +170,7 @@ def state_replay(path):
         require(app_bss + bss == end, "heap boundary differs")
         expected = [values[n] + (0 if n == "_ctype_" else base) for n in names]
         expected.extend([end, app_bss, app_bss + 8])
-        expected.append(0x10020001 + 8 * (slots - 1))
+        expected.append(values["slot_0"] + 8 * (slots - 1))
         pointers = struct.unpack_from(f"<{len(expected)}I", image, HEADER.size + size + text)
         require(list(pointers) == expected, "linked state pointers differ")
     require(padding == {0, 4}, "state padding coverage differs")
@@ -190,10 +191,104 @@ def state_replay(path):
     print(f"PASS {len(names)} object pointers, both state alignments and two rejection controls")
 
 
+def provider_replay(path, package):
+    from unicorn import UC_ARCH_ARM, UC_MODE_MCLASS, UC_MODE_THUMB, UC_PROT_EXEC, UC_PROT_READ, Uc
+    from unicorn.arm_const import (
+        UC_ARM_REG_LR,
+        UC_ARM_REG_PC,
+        UC_ARM_REG_R0,
+        UC_ARM_REG_SP,
+        UC_CPU_ARM_CORTEX_M0,
+    )
+
+    provider = package.read_bytes()
+    record = json.loads(RECORD.with_name("compact-provider.json").read_text())
+    require(
+        hashlib.sha256(provider).hexdigest() == record["package_sha256"], "package digest differs"
+    )
+    tag, major, minor, header, slots, width, state, entry, identity = struct.unpack_from(
+        "<4s7I32s", provider
+    )
+    require(
+        (tag, major, minor, header, width) == (b"XLIB", 1, 0, 64, 8)
+        and header + slots * width <= entry < len(provider) <= 49152
+        and identity == hashlib.sha256(path.read_bytes()).digest(),
+        "package identity or extent differs",
+    )
+    work = Path(tempfile.mkdtemp(prefix="native-provider-", dir=ROOT / ".build-logs"))
+    (work / "start.s").write_text(""".syntax unified
+.thumb
+.text
+.global _start
+.thumb_func
+_start:
+    push {r4,lr}
+    ldr r0,=__xip_libc_state
+    ldr r3,=0x10020000
+    ldr r1,[r3,#28]
+    adds r3,r3,r1
+    adds r3,#1
+    blx r3
+    mov r9,r0
+    movs r0,#0
+    bl sbrk
+    ldr r1,=_end
+    cmp r0,r1
+    bne wrong
+    bl rand
+    pop {r4,pc}
+wrong:
+    movs r0,#0
+    pop {r4,pc}
+    .pool
+""")
+    subprocess.run([TOOLS / "as", "start.s", "-o", "start.o"], cwd=work, check=True)
+    image = link([work / "start.o"], path)
+    packed = work / "shared.hsx"
+    expanded = work / "expanded.aout"
+    subprocess.run([TOOLS / "hsaout", "-c", image, packed], check=True)
+    subprocess.run([TOOLS / "hsaout", "-d", packed, expanded], check=True)
+    ram = 0x20000000
+    for executable in (image, expanded):
+        content = executable.read_bytes()
+        _, text, data, bss, _, _, _, start = HEADER.unpack_from(content)
+        sig, version, size, digest, prefix, base, extent = struct.unpack_from(
+            "<4sII32sIII", content, HEADER.size
+        )
+        require(
+            (sig, version, size, digest, extent) == (b"XREQ", 1, 56, identity, state)
+            and 0 < prefix <= slots
+            and base + extent == ram + text + data + bss,
+            "caller requirement differs",
+        )
+        machine = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
+        machine.ctl_set_cpu_model(UC_CPU_ARM_CORTEX_M0)
+        machine.mem_map(0x10020000, 49152)
+        machine.mem_write(0x10020000, provider)
+        machine.mem_protect(0x10020000, 49152, UC_PROT_READ | UC_PROT_EXEC)
+        machine.mem_map(ram, 0x30000)
+        machine.mem_write(ram, content[HEADER.size + size : HEADER.size + size + text + data])
+        machine.mem_write(base, bytes([0xA5]) * extent)
+        machine.reg_write(UC_ARM_REG_SP, ram + 0x23000)
+        machine.reg_write(UC_ARM_REG_LR, ram + 0x24001)
+        machine.emu_start(start, ram + 0x24000, count=100000)
+        require(
+            machine.reg_read(UC_ARM_REG_PC) == ram + 0x24000
+            and machine.reg_read(UC_ARM_REG_R0) == 16838,
+            "provider startup, break or rand differs",
+        )
+    print(f"PASS raw and expanded native callers, {len(provider)} provider bytes")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--state-image", type=Path)
+    parser.add_argument("--provider", type=Path)
     args = parser.parse_args()
+    if args.provider and not args.state_image:
+        parser.error("--provider requires --state-image")
     main()
     if args.state_image:
         state_replay(args.state_image)
+    if args.provider:
+        provider_replay(args.state_image, args.provider)

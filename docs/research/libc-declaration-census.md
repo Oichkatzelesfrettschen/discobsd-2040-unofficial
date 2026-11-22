@@ -168,10 +168,65 @@ rather than a verdict on standard namespace visibility.
 | `tcgetattr`, `tcsetattr` | Only source-only `termios-todo.h` exposes these declarations | Keep terminal implementation and installed-header admission in their own work package |
 | `putenv`, `setenv`, `unsetenv` | `libc` and `libtcl` each define these names | Resolve environment ownership and Tcl trace behavior before shared imports select providers |
 
+### Stack allocation in compiled callers
+
+At `3e35a7cb9`, an RP2040 caller including `<alloca.h>` returns
+`consume(alloca(size))` for a runtime unsigned size and an external
+`int consume(void *)`. Cross GCC under freestanding C17 with
+`-fno-builtin` imports only `consume`. The header explicitly selects
+`__builtin_alloca` for GNU compilers. Smaller C's Thumb backend, given the
+same caller after the preprocessing used by `usr.bin/smlrc/tests/run.sh`,
+imports both `consume` and `alloca`. The native assembler accepts both
+outputs. With the installed a.out startup object, libc archive and the same
+consumer definition, the native linker accepts the GCC caller and rejects
+the Smaller C caller with `alloca` as the sole undefined name.
+
+The cross archive symbol tables (`arm-none-eabi-nm -A lib/*.a`) and installed
+native libc symbol table (the tree's `nm -p`) contain zero entries named
+`alloca`. Keep the GNU macro call outside callable shared exports. The
+Smaller C direct call remains an unresolved native interface. Its call
+sequence in `usr.bin/smlrc/cgthumb.c` uses the stack for saved registers,
+expression temporaries and outgoing arguments. A native implementation must
+preserve those values, eight-byte call alignment and the allocated object's
+lifetime through the caller's return. A separate caller includes `<stdlib.h>` before `<alloca.h>` and initializes
+a volatile function pointer with `&alloca`. Both compilers emit an undefined
+`alloca` reference, and both native links fail on that symbol alone.
+The function-like GNU macro expands only when followed by an argument list.
+These probes cover compilation and linkage.
+
+### Environment providers
+
 The environment overlaps come from `libc/setenv.o` and `libtcl/tclenv.o`.
 `lib/libtcl/tclenv.c` propagates environment changes to interpreter variables;
 its `EnvTraceProc` also calls its environment setters. Selecting the libc
 provider merely by symbol name therefore leaves a behavioral obligation.
+Host execution at `dd6520216` distinguishes two environment contracts. Each
+provider starts in a fresh process with an empty vector and receives the same
+writable `X=a` array through `putenv`. Changing its value byte to `b`
+changes the libc environment to `X=b`. Tcl retains `X=a`. A subsequent
+`setenv("X", "c", 0)` leaves libc at `X=b` and changes Tcl to `X=c`.
+Both calls return success in each process. The fixture compiles
+`lib/libc/gen/setenv.c` and the Tcl sources separately with GCC 16.2.1 under host C17, with
+private names for the environment vector and the three mutators. Tcl uses
+the production file and environment command selectors.
+
+A second host process creates two interpreters. A C setter publishes
+`X=one` to the first interpreter. Writing `env(X)=two` there updates the
+second interpreter and the process vector. The ARM build at that revision
+also contains the three mutators in each archive, as measured by
+`arm-none-eabi-nm -A --defined-only lib/libc.a lib/libtcl.a`.
+The shared ABI needs libc's borrowed-buffer and overwrite contracts and a
+separate mechanism for interpreter notification. The Tcl implementation
+passes unchecked allocation results to copies in `EnvInit` and `setenv`.
+Allocation failure and interpreter teardown during notification remain open
+qualification cases. These host observations cover successful calls.
+
+An array read trace registered through `Tcl_TraceVar2` receives one callback
+for a lookup of an existing key and zero for a missing key in the same
+interpreter. In `lib/libtcl/tclvar.c`, `Tcl_GetVar2` returns from a failed
+element lookup before calling `CallTraces`. A read trace alone therefore
+cannot discover an environment key newly inserted by a C caller.
+
 The existing program-object namespace scan and this archive-provider scan
 cover different collision surfaces.
 

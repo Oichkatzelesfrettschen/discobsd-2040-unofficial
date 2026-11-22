@@ -711,7 +711,13 @@ st7365p_wake(void)
 int
 st7365p_sleep_early(void)
 {
-	return lcd_slpout_at != 0 && pc_micros() - lcd_slpout_at < 120000U;
+	/*
+	 * lcd_slpout_at can stand 1 us past the SLPOUT, so the time is taken
+	 * from 1 us before it: the difference stays forward, and the wait it
+	 * asks for runs at most 1 us longer than page 163's 120 ms.
+	 */
+	return lcd_slpout_at != 0 &&
+	    pc_micros() - (lcd_slpout_at - 1) <= 120000U;
 }
 #endif /* LCD_BLANK */
 

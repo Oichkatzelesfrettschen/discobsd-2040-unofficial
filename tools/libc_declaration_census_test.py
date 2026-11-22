@@ -230,7 +230,9 @@ class InstalledTreeTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="declaration-census-install-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        # The census refuses a staged directory reached through a symbolic
+        # link, and a host may keep its temporary directory behind one.
+        self.root = Path(temporary.name).resolve()
         self.staged = self.root / "usr/include"
         (self.staged / "rp2040").mkdir(parents=True)
         (self.staged / "readline").mkdir()

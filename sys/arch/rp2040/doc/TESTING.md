@@ -2467,23 +2467,23 @@ private alias retains its implementation entry; checked ELF32 symbol separation
 changes its public definition into an import while preserving section contents
 and relocation indexes. A weak function alias shares its owning slot. An
 unlowered LTO input rejects; GCC lowers LTO to native relocatable ELF before
-separation. Four images cover ordinary and LTO compilation, each with and
+separation. Eight images cover both slot widths and ordinary and LTO compilation, each with and
 without `-fno-semantic-interposition`.
 
-ELF inspection checks exact public Thumb addresses, 12-byte function extents,
+ELF inspection checks exact public Thumb addresses, eight- and twelve-byte function extents,
 hidden implementation owners, complete GOT classification and state relocation
 containment. A separately linked SRAM application imports only the public
-symbols through `--just-symbols`. Unicorn executes 888 calls across two
+symbols through `--just-symbols`. Unicorn executes 1,776 calls across two
 independent state areas, three stack placements and three unsigned input
 families. Calls cover six arguments, aliases, initialized and returned pointers,
 cross-object calls and a flash-to-SRAM callback that calls the flash library.
 Each call checks SP, r4-r11, stack arguments and inactive process state.
 
-Seventeen controls reject missing implementation aliases, executable or raw LTO
+Eighteen controls reject missing implementation aliases, executable or raw LTO
 inputs, mismatched implementation owners, non-function providers, omitted
 separation, conflicting public definitions, inherited or incorrect symbol
 extents, split alias slots, bypassed returned/initialized pointers, corrupted
-argument registers and wrong slot targets. Alias-group checks require a common
+argument registers and wrong slot targets in both encodings. Alias-group checks require a common
 implementation section, address and extent. All application imports retain
 their corresponding library addresses. Three controls also reject an alias
 group whose individual pairs remain consistent, an unrelated private collision

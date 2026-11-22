@@ -115,18 +115,18 @@ def separate(source, destination, groups):
     return edits
 
 
-def layout(path, groups):
+def layout(path, groups, width=12):
     with Path(path).open("rb") as stream:
         elf = ELFFile(stream)
         table = elf.get_section_by_name(".symtab")
         require(table is not None, "linked symbol table is absent")
         symbols = {symbol.name: symbol for symbol in table.iter_symbols() if symbol.name}
         for index, group in enumerate(groups):
-            entries = functions(elf, group, 12)
+            entries = functions(elf, group, width)
             implementation_owner = None
             for name, entry in entries.items():
                 require(
-                    entry["st_value"] == 0x10020001 + index * 12,
+                    entry["st_value"] == 0x10020001 + index * width,
                     "canonical alias address differs: " + name,
                 )
                 require(
@@ -214,6 +214,7 @@ def layout(path, groups):
             "relocations": sorted(cells),
             "got_offset": got["sh_addr"],
             "state_size": extent,
+            "slot_width": width,
             "text_image_size": flash_end - 0x10020000,
             "initialized_size": initialized,
             "flash_size": flash_end - 0x10020000 + initialized,

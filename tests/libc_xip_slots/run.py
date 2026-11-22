@@ -8,6 +8,7 @@ import os
 import struct
 import subprocess
 import uuid
+from itertools import product
 from pathlib import Path
 from typing import TypedDict
 
@@ -101,7 +102,7 @@ class Runner:
             )
         return result.stdout.decode()
 
-    def build(self, name, *, lto=False, interposition=True, fault=None):
+    def build(self, name, *, lto=False, interposition=True, fault=None, compact=False):
         work = self.work / name
         work.mkdir()
         flags = FLAGS + PIC + ([] if interposition else ["-fno-semantic-interposition"])
@@ -164,21 +165,38 @@ class Runner:
             '.section .text.slots,"ax",%progbits',
             ".balign 4",
         ]
+        placement = []
+        width = 8 if compact else 12
         for group in groups:
             name = prefix + group[0]
             target = "__libc_impl_" + ("api_xor" if fault == "wrong-target" else group[0])
-            size = 8 if fault == "extent" else 12
+            size = width - 4 if fault == "extent" else width
             pop = "pop {r2, pc}" if fault == "argument-register" else "pop {r3, pc}"
+            if compact:
+                section = ".text.slot." + name
+                assembly.append(f'.section {section},"ax",%progbits')
+                placement.extend(
+                    (
+                        f"*({section})",
+                        f"SHORT(({target} - 0x10020000) | 1)",
+                    )
+                )
             assembly += [
                 f".global {name}",
                 f".type {name},%function",
                 ".thumb_func",
                 name + ":",
                 "push {r3, lr}",
-                "ldr r3, 1f",
-                "str r3, [sp, #4]",
-                pop,
-                "1: .word " + target,
+                *(
+                    ["bl slot_dispatch"]
+                    if compact
+                    else [
+                        "ldr r3, 1f",
+                        "str r3, [sp, #4]",
+                        pop,
+                        "1: .word " + target,
+                    ]
+                ),
                 f".size {name},{size}",
             ]
             for alias in group[1:]:
@@ -187,11 +205,40 @@ class Runner:
                     f".global {alias}",
                     f".set {alias},{name}",
                     f".type {alias},%function",
-                    f".size {alias},12",
+                    f".size {alias},{width}",
                 ]
+        if compact:
+            assembly.extend(
+                (
+                    '.section .text.dispatch,"ax",%progbits',
+                    ".balign 4",
+                    ".thumb_func",
+                    "slot_dispatch:",
+                    "push {r0, r1}",
+                    "mov r0, lr",
+                    "subs r0, #1",
+                    "ldrh r0, [r0]",
+                    "ldr r1, 1f",
+                    "adds r0, r1",
+                    "ldr r1, [sp, #12]",
+                    "mov lr, r1",
+                    "str r0, [sp, #12]",
+                    "pop {r0, r1, r3, pc}",
+                    ".balign 4",
+                    "1: .word 0x10020000",
+                )
+            )
         (work / "slots.S").write_text("\n".join(assembly) + "\n")
         self.command([self.cc, *flags, "-c", work / "slots.S", "-o", work / "slots.o"])
         script = (HERE / "library.ld").read_text()
+        if compact:
+            script = script.replace("*(.text.slots)", " ".join(placement))
+            for group in groups:
+                target = "__libc_impl_" + group[0]
+                script += (
+                    f"\nASSERT({target} >= 0x10020000 && {target} < 0x1002c000,"
+                    ' "implementation outside slot reservation")\n'
+                )
         if fault == "assignment":
             script += "\n".join(f"{name} = __slot_{name};" for name in PUBLIC) + "\n"
         (work / "library.ld").write_text(script)
@@ -430,72 +477,78 @@ def main():
                 "unicorn": unicorn.__version__,
             }
         )
-        for lto in (False, True):
-            for interposition in (True, False):
-                name = ("lto" if lto else "native") + (
-                    "-public" if interposition else "-local-calls"
+        for compact, lto, interposition in product((False, True), (False, True), (True, False)):
+            name = ("lto" if lto else "native") + ("-public" if interposition else "-local-calls")
+            if compact:
+                name = "compact-" + name
+            image, provider = runner.build(
+                name, lto=lto, interposition=interposition, compact=compact
+            )
+            inspected = layout(image, GROUPS, 8 if compact else 12)
+            application = runner.application(image.parent)
+            calls = exercise(inspected, application)
+            receipt["cases"].append(
+                {
+                    "name": name,
+                    "calls": calls,
+                    "elf_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+                    "application_sha256": hashlib.sha256(application.read_bytes()).hexdigest(),
+                    "state_bytes": inspected["state_size"],
+                    "flash_bytes": inspected["flash_size"],
+                    "text_image_bytes": inspected["text_image_size"],
+                    "initialized_image_bytes": inspected["initialized_size"],
+                }
+            )
+            print(f"{name}: {calls} calls PASS", flush=True)
+            if name == "native-public":
+                review_controls(runner, provider, inspected, application)
+                receipt["controls"].extend(
+                    (
+                        "conflicting alias-group owner",
+                        "unrelated private collision",
+                        "incorrect application import address",
+                    )
                 )
-                image, provider = runner.build(name, lto=lto, interposition=interposition)
-                inspected = layout(image, GROUPS)
-                application = runner.application(image.parent)
-                calls = exercise(inspected, application)
-                receipt["cases"].append(
-                    {
-                        "name": name,
-                        "calls": calls,
-                        "elf_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
-                        "application_sha256": hashlib.sha256(application.read_bytes()).hexdigest(),
-                        "state_bytes": inspected["state_size"],
-                        "flash_bytes": inspected["flash_size"],
-                        "text_image_bytes": inspected["text_image_size"],
-                        "initialized_image_bytes": inspected["initialized_size"],
-                    }
+                reject(
+                    lambda provider=provider: separate(
+                        provider, work / "missing.o", (("api_missing",),)
+                    ),
+                    "implementation alias is absent: api_missing",
                 )
-                print(f"{name}: {calls} calls PASS", flush=True)
-                if name == "native-public":
-                    review_controls(runner, provider, inspected, application)
-                    receipt["controls"].extend(
-                        (
-                            "conflicting alias-group owner",
-                            "unrelated private collision",
-                            "incorrect application import address",
-                        )
-                    )
-                    reject(
-                        lambda provider=provider: separate(
-                            provider, work / "missing.o", (("api_missing",),)
-                        ),
-                        "implementation alias is absent: api_missing",
-                    )
-                    receipt["controls"].append("missing implementation alias")
-                    reject(
-                        lambda image=image: separate(image, work / "executable.o", GROUPS),
-                        "separation requires little-endian ARM ELF32 relocatable input",
-                    )
-                    receipt["controls"].append("executable separation input")
-                    symbol_control(
-                        provider,
-                        work,
-                        "owner",
-                        lambda fields: fields.__setitem__(1, fields[1] + 2),
-                        "implementation alias owner differs: api_sum",
-                    )
-                    receipt["controls"].append("conflicting implementation owner")
-                    symbol_control(
-                        provider,
-                        work,
-                        "type",
-                        lambda fields: fields.__setitem__(3, 0x10),
-                        "provider type, binding or visibility differs: api_sum",
-                    )
-                    receipt["controls"].append("non-function public provider")
-                if name == "lto-public":
-                    raw = image.parent / "provider.c.o"
-                    reject(
-                        lambda raw=raw: separate(raw, work / "raw-lto.o", GROUPS),
-                        "LTO input requires native lowering before separation",
-                    )
-                    receipt["controls"].append("unlowered LTO input")
+                receipt["controls"].append("missing implementation alias")
+                reject(
+                    lambda image=image: separate(image, work / "executable.o", GROUPS),
+                    "separation requires little-endian ARM ELF32 relocatable input",
+                )
+                receipt["controls"].append("executable separation input")
+                symbol_control(
+                    provider,
+                    work,
+                    "owner",
+                    lambda fields: fields.__setitem__(1, fields[1] + 2),
+                    "implementation alias owner differs: api_sum",
+                )
+                receipt["controls"].append("conflicting implementation owner")
+                symbol_control(
+                    provider,
+                    work,
+                    "type",
+                    lambda fields: fields.__setitem__(3, 0x10),
+                    "provider type, binding or visibility differs: api_sum",
+                )
+                receipt["controls"].append("non-function public provider")
+            if name == "lto-public":
+                raw = image.parent / "provider.c.o"
+                reject(
+                    lambda raw=raw: separate(raw, work / "raw-lto.o", GROUPS),
+                    "LTO input requires native lowering before separation",
+                )
+                receipt["controls"].append("unlowered LTO input")
+        image, _ = runner.build("compact-wrong-target", compact=True, fault="wrong-target")
+        inspected = layout(image, GROUPS, 8)
+        application = runner.application(image.parent)
+        reject(lambda: exercise(inspected, application), "call result differs")
+        receipt["controls"].append("compact wrong target")
         for fault in ("omitted-separation", "interposition"):
             runner.build(fault, fault=fault)
             receipt["controls"].append(fault)

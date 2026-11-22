@@ -11,7 +11,7 @@ include ${TOPSRC}/share/mk/sys.mk
 # picofetch and picotop, readers of its machdep sysctl nodes; STM32 has no
 # matching sysctl interface.
 MDSUBDIR!=if [ x"${MACHINE}" = x"rp2040" ] ; then \
-		echo "lex smlrc as ld mputest paneltest boardinfo matezinho picofetch picotop" ; \
+		echo "lex smlrc as ld mputest paneltest boardinfo matezinho picofetch picotop word" ; \
 	else \
 		echo "lex smlrc as ld" ; \
 	fi

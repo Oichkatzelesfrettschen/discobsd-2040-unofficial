@@ -337,12 +337,8 @@ def cmd_up(args) -> int:
         # --token/--to here would put it back in ps for these two processes,
         # the exact exposure this package's systemd units were fixed to avoid.
         extra_env = {"DISCOBSD_WEB_TOKEN": token}
-        (conf / "web.pid").write_text(
-            str(_spawn_detached(web, conf / "web.log", extra_env))
-        )
-        (conf / "link.pid").write_text(
-            str(_spawn_detached(link, conf / "link.log", extra_env))
-        )
+        (conf / "web.pid").write_text(str(_spawn_detached(web, conf / "web.log", extra_env)))
+        (conf / "link.pid").write_text(str(_spawn_detached(link, conf / "link.log", extra_env)))
         mode = f"detached, pid files in {conf}"
     time.sleep(1.0)
     if not _http_answers(links["short"]):

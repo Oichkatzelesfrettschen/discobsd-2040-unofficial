@@ -17,17 +17,17 @@
     "as small.o": "7d842da5fc94c6058e35113ca0ccf8f16ab5698b0044536457f89130c7647540",
     "as unused.o": "b3ee77f1e70e8c929cbafb39fe84fcbb08f94af0b38d2caf5beeb781e9c7b08d",
     "ld link -X big": "fd6518baef9585fbebd846fa06cbdaaf0a1b61d43623264ed8d7dee2960e5feb",
-    "ld link -r -x small mid": "c1dfcd1e4823b64ae8e51a2e04ef59d17040d6acd0da5a2cf509c8cd84ec95ec",
-    "ld link -r small big": "51f043ab253125692a6e59c4fefa61ce67a68cc983b2dcba6535eb0d61db1e3a",
-    "ld link -r small mid": "2f70bf0785dae9b5a6920ac6e976b7a19e91f8e38f7860c8f70a8c90a555689e",
+    "ld link -r -x small mid": "61986c22cc0c3898fc1082c4df7b3291f021fa7e73d9ad830825d9c4e57de963",
+    "ld link -r small big": "f964892cf0cdce7739c692e26acf13c4aa185e2aecb86b25c6f094aa06aa16d7",
+    "ld link -r small mid": "bec02c9d42fbd4e97072c082bf88c3152970cd96384c8fc8dbaa0cfe4176a8c4",
     "ld link -s mid": "875174706097d48ceb4779f648e1b23cb24d68f9b065387d37cca4bad775541b",
     "ld link -x mid": "6482bceb7a45b16e0d2b24a6becc75b6853a6b89fc9fd139922e33b0b8109925",
     "ld link big mid small lib": "dc4f8f77120b54f5d175f6bc22197b2e4fa92813f0a4b10b4fdaa155fb63b4b4",
     "ld link small big lib": "fd6518baef9585fbebd846fa06cbdaaf0a1b61d43623264ed8d7dee2960e5feb",
     "ld link small mid lib": "e5e638ce0a48ce254b6eb10a859072fb4a82687211f15b5ad7e6574390dcc7b3",
-    "ld partial then final": "ce160cacd949673f696ed038650498199b049a02ef6f906bd9e19e638e5dfc58"
+    "ld partial then final": "997329b8da4959ca375fb302375870686e59d8e2ebdabf6eae8929a6d488647e"
   },
-  "provenance": "Objects and executables of usr.bin/as and usr.bin/ld at commit 270422ca (host build of tools/aoututils) on the inputs gen_inputs.py writes; umask_modes holds the base linker's bytes for the umask case, run under the ordinary umask.",
+  "provenance": "Objects and executables of usr.bin/as and usr.bin/ld at commit 270422ca (host build of tools/aoututils) on the inputs gen_inputs.py writes, except the four outputs that pass through ld -r, which are those of the tree's linker since it leaves an unallocated common symbol common in a relocatable link; umask_modes holds the base linker's bytes for the umask case, run under the ordinary umask.",
   "umask_modes": {
     "ld digest": "e5e638ce0a48ce254b6eb10a859072fb4a82687211f15b5ad7e6574390dcc7b3"
   }

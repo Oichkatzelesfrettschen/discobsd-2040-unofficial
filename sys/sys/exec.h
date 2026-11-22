@@ -17,6 +17,7 @@
 #define NO_ADDR     ((caddr_t)(~0U)) /* Indicates addr. not yet filled in */
 #define EXEC_INTERPRETED        0x01
 #define EXEC_COMMITTED_FAILURE  0x02
+#define EXEC_CLOSE_PENDING      0x04    /* close-on-exec files still open */
 
 struct memsect {
     caddr_t vaddr;

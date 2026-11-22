@@ -44,6 +44,34 @@ without that undefined symbol. GNU readelf supplies the relocation witness.
 The original failures remain retained; the corrected controls qualify the
 actual compiler and generated-input mechanisms.
 
+The warning policies selected by `lib/libc/gen/Makefile` for `err.o` and by
+`lib/libc/wchar/Makefile` for its C members carry `-Wstrict-prototypes` and
+`-Wold-style-definition` into replay. The calibrated ARM compile fixture includes
+both options with `-Werror`. Replay passes them through unchanged.
+
+## Current archive and flash reservation
+
+At source `6719f9d7a`, 58 captured ARM archive members use both warning
+options. The replay compiles all 531 members with their original warning
+policy and the process-local PIC flags. GCC 16.2.0 and GNU binutils
+2.47.20260726 produce the following linked-image measurements before
+function slots.
+
+| Link roots | Roots | Flash bytes | Writable bytes | Initialized bytes |
+| --- | ---: | ---: | ---: | ---: |
+| All archive globals | 738 | 73,036 | 5,872 | 1,984 |
+| Matching libc linkages in tracked root-header witnesses | 491 | 67,336 | 5,736 | 1,884 |
+| Matching libc linkages in installed standalone witnesses | 578 | 69,872 | 5,768 | 1,892 |
+
+The two declaration-derived links use the same source and static archive
+identity as the [census](../../libc-declaration-census.md). Each takes the union
+across all eight profiles and resolves every named root. They retain kernel
+and user declaration ambiguity and leave the reviewed export set open. Each
+experiment exceeds the 49,152-byte reservation before slots. Omitting
+`memmem` from the all-global control saves 432 bytes and fails required-root
+retention. This source revision needs a reviewed export contract and further
+size work before image admission.
+
 ## Complete-link measurement
 
 The [member receipt](pic-replay-envelope-members.json) binds compiler GCC 16.2.0,

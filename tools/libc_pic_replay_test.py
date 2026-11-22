@@ -45,7 +45,8 @@ class ReplayTests(unittest.TestCase):
         argv = [sys.executable, str(recorder), "--root", str(self.root),
                 "--records", str(self.records), "--", str(self.compiler),
                 "-std=gnu17", "-fno-common", "-ffunction-sections", "-mcpu=cortex-m0plus",
-                "-mthumb", "-Os", "-c", "probe.c", "-o", "probe.o"]
+                "-mthumb", "-Os", "-Werror", "-Wstrict-prototypes", "-Wold-style-definition",
+                "-c", "probe.c", "-o", "probe.o"]
         result = subprocess.run(argv, cwd=self.owner, capture_output=True, text=True,
                                 env=dict(os.environ, C17_SOURCE_SNAPSHOT=str(self.snapshot)))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

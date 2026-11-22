@@ -28,12 +28,14 @@ OPTIONAL_DEVICE_OPTIONS = ("options DEV_ADC", "options DEV_GPIO",
                            "options DEV_LCDGFX", "options DEV_PCM")
 # The additions of PICOCALC_SD_DIAG, the testing kernel: the signal-path
 # prints, the exec trace of sys/arch/rp2040/include/debug.h, the storage
-# counters and a -Og compile (makeoptions COPTS reaches Makefile.rp2040's
-# COPTS?= default). Sources test -DPICOCALC_SD (dev/flash.h,
-# dev/sd.c, dev/uart.c) and a board line defines only its own name, so the
-# variant defines PICOCALC_SD with an option.
+# counters, the console mirror on UART0 (sys/dev/cons.c) and a -Og compile
+# (makeoptions COPTS reaches Makefile.rp2040's COPTS?= default). Sources
+# test -DPICOCALC_SD (dev/flash.h, dev/sd.c, dev/uart.c) and a board line
+# defines only its own name, so the variant defines PICOCALC_SD with an
+# option.
 SD_DIAG_OPTIONS = ("options PICOCALC_SD", "options DIAGNOSTIC",
                    'options "GLOBAL_DEBUG=9"', "options STORAGE_STATS",
+                   "options CONSOLE_MIRROR_UART",
                    'makeoptions COPTS="-Og"')
 # (variant, base, directives the variant adds to the base Config, directives
 # it removes from it).

@@ -1,5 +1,5 @@
 # A native source package tars the whole build directory. The caches and
-# the output of an earlier local build are left out, since they hold zero source files.
+# the output of an earlier local build are left out, since they hold generated copies, not source.
 # A native package lacks a diff, so no diff-ignore belongs here.
 tar-ignore = "build"
 tar-ignore = "dist"

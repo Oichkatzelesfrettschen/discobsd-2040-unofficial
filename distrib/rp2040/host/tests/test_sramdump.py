@@ -50,7 +50,7 @@ DRIVER = (
 
 
 def run_tool(args, env_extra=None, src: Path = SRC, path: str | None = None, cwd=None):
-    # No PATH entry may reach the host's own picotool: the default holds zero entries.
+    # No PATH entry may reach the host's own picotool: the default's one entry lacks it.
     env = {"PYTHONPATH": str(src), "PATH": path or NO_PATH}
     env.update(env_extra or {})
     return subprocess.run(

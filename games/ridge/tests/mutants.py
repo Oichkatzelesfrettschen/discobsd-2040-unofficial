@@ -427,8 +427,10 @@ RENDER = [
     ),
     (
         "shard-scan-skips-the-bottom-row",
-        "for (cy = 0; cy < RG_BOX; cy++)\n\t\tfor (cx = 0; cx < RG_BOX; cx++) {\n\t\t\tvx = bx + cx;",
-        "for (cy = 0; cy < RG_BOX - 1; cy++)\n\t\tfor (cx = 0; cx < RG_BOX; cx++) {\n\t\t\tvx = bx + cx;",
+        "for (cy = 0; cy < RG_BOX; cy++)\n"
+        "\t\tfor (cx = 0; cx < RG_BOX; cx++) {\n\t\t\tvx = bx + cx;",
+        "for (cy = 0; cy < RG_BOX - 1; cy++)\n"
+        "\t\tfor (cx = 0; cx < RG_BOX; cx++) {\n\t\t\tvx = bx + cx;",
     ),
     (
         "shard-scan-reads-the-whole-view",

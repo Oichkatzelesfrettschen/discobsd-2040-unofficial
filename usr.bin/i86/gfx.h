@@ -42,6 +42,7 @@
 
 extern int gfx_on;		/* the panel device is open */
 extern int gfx_graphic;		/* display memory holds pixels, not cells */
+extern int gfx_plain;		/* -G: draw what pages mark, unscrolled */
 
 /* vmem is 8 KB: the cells of the text modes in its first half, pc.c's
  * copy of the cells last drawn in its second, and in a graphics mode the

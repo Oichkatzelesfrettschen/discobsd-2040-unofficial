@@ -59,7 +59,7 @@ start:	xor ax, ax
 	xor ax, ax
 	int 0x16			; the stage, a digit
 	sub al, '0'
-	cmp al, 9
+	cmp al, 12
 	ja dead
 	mov bl, al
 	xor bh, bh
@@ -118,6 +118,7 @@ key:	mov ah, 1
 	dw 0xaa55
 
 stages:	dw stage0, stage1, stage2, stage3, stage4, stage5, stage6, stage7, stage8, stage9
+	dw stage10, stage11, stage12
 
 ; Mode 4 left for text and entered again with memory kept: the text mode's
 ; cells are what is kept, the rest reads as zeros. Then a disk sector read
@@ -349,5 +350,75 @@ stage9:	mov ax, 4
 	ret
 
 text:	db "TEXT", 0
+
+; Mode 4, drawn, then writes that leave the adapter as it was: the color
+; register, the firmware's background and palette service, the mode
+; register and a mode set that keeps memory. Its key is ':'.
+stage10:
+	mov ax, 4
+	int 0x10
+	call fields
+	call key
+	mov dx, 0x3d9
+	mov al, 0x30
+	out dx, al
+	mov ah, 0x0b			; background 0, bright: 30h again
+	mov bx, 0x0010
+	int 0x10
+	mov dx, 0x3d8
+	mov al, 0x0a
+	out dx, al
+	mov ax, 0x84
+	int 0x10
+	ret
+
+; 80 columns, drawn, then the whole screen scrolled up one row by the
+; firmware, a cell stored on the new row and the cursor moved there. Its
+; key is '<'; a second key scrolls once more, and a third sets the mode
+; again and stores a cell at the top.
+stage12:
+	mov ax, 3
+	int 0x10
+	mov cx, 2000
+	mov ax, 0x4567
+	mov bx, 0x0123
+	call cells
+	mov dx, 0x050a
+	call cursor
+	call key
+	mov ax, 0x0601
+	mov bh, 0x07
+	xor cx, cx
+	mov dx, 0x184f
+	int 0x10
+	mov word [es:2 * 1920], 0x1e5a
+	mov dx, 0x1801
+	call cursor
+	call key
+	mov ax, 0x0601			; and once more
+	mov bh, 0x07
+	xor cx, cx
+	mov dx, 0x184f
+	int 0x10
+	mov word [es:2 * 1920], 0x1e59
+	mov dx, 0x1802
+	call cursor
+	call key
+	mov ax, 3			; a third key: a cleared screen
+	int 0x10
+	mov word [es:0], 0x1e41
+	mov dx, 0x0001
+	jmp cursor
+
+; Mode 4, drawn, then mode 4 set again: its memory cleared, the panel
+; black without a clear of its own. Its key is ';'.
+stage11:
+	mov ax, 4
+	int 0x10
+	call fields
+	call key
+	mov ax, 4
+	int 0x10
+	ret
 
 	times 1536 - ($ - $$) db 0

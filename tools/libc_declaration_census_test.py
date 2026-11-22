@@ -230,7 +230,9 @@ class InstalledTreeTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="declaration-census-install-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        # The census refuses a staged directory reached through a symbolic
+        # link, and a host may keep its temporary directory behind one.
+        self.root = Path(temporary.name).resolve()
         self.staged = self.root / "usr/include"
         (self.staged / "rp2040").mkdir(parents=True)
         (self.staged / "readline").mkdir()
@@ -244,6 +246,12 @@ class InstalledTreeTests(unittest.TestCase):
             installed = self.staged / name
             installed.write_text(f"/* {name} */\n")
             self.hashes[owner] = census.digest(installed)
+
+    def test_staged_directory_behind_a_symlink_rejects(self):
+        alias = self.root / "alias"
+        alias.symlink_to(self.staged, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "follows a symlink"):
+            census.staged_header_snapshot(alias, self.owners, {}, self.hashes)
 
     def test_installed_names_and_aliases_preserve_their_source_owners(self):
         rows = census.staged_header_snapshot(self.staged, self.owners, {}, self.hashes)

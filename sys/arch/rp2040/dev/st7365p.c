@@ -119,9 +119,12 @@
  * two bytes a pixel: five bits of red and blue and six of green, which the
  * controller widens to its eighteen-bit memory. 0-7 are the SGR 30-37
  * colors, 8-15 their bold variants, so bold default text is entry 15 in
- * place of entry 7. Each entry is its RGB565 word widened, so the panel
- * shows the listed value. Colors 1-8 and 9-15 stay apart under normal vision
- * and protanopia, deuteranopia and tritanopia simulation, and entry 8 is
+ * place of entry 7. Each entry is its RGB565 word widened, and the panel
+ * stores six bits per channel with the low bit of red and blue clear, so
+ * white shows as 251, 255, 251 (PICOCALC.md). Colors 1-8 and 9-15 stay apart
+ * under normal vision and protanopia, deuteranopia and tritanopia simulation
+ * on the values the panel shows, taking code 63 as full scale and the sRGB
+ * curve as the code-to-light transfer, which is unmeasured. Entry 8 is
  * neutral gray because SGR 90 is dim text. The numeric bounds and their
  * check are in tools/check_console_palette.py.
  */

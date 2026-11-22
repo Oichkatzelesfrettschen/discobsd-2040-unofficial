@@ -27,9 +27,17 @@
 
 The PicoCalc LCD console draws sixteen colors from lcd_palette in
 sys/arch/rp2040/dev/st7365p.c, and the web console gives the same sixteen to
-xterm.js. The panel takes each entry through the truncating RGB565 conversion
-of pal565 and widens it again, so rules CP005 to CP010 run on the widened
-colors and CP004 compares them with the listed ones.
+xterm.js. The gate evaluates CP005 to CP010 on the panel model of shown():
+pal565 truncates an entry to RGB565, the controller stores six bits per channel
+with the low bit of red and blue clear (measured, PICOCALC.md), and the panel
+drives each channel from its six-bit code with code 63 as full scale, so the
+eight-bit value shown is the code scaled by 255/63 (white shows as 251, 255,
+251). The one unmeasured element is the transfer from six-bit code to light,
+which the gate takes as the sRGB curve. Zero-fill arithmetic (code << 2) is
+not a model of this panel; it reads the tritan minimum as 0.0798 against the
+0.08 bound and the minimum contrast as 4.98:1. The tritan margin of the
+listed table is thin (0.0813 against 0.08). CP004 compares each entry with its
+RGB565 fixed point; CP008 black and white identity stays on the listed entries.
 
 - CP001: the LCD table, the web theme or a test fixture is unreadable, is
   defined other than once, sits inside a comment, a string, a macro, a
@@ -221,9 +229,26 @@ def contrast_on_black(color: Color) -> float:
 
 
 def widen(color: Color) -> Color:
-    """The color the panel shows: pal565 truncates, the controller widens."""
+    """The color an RGB565 word names: pal565 truncates, replication widens."""
     r5, g6, b5 = color[0] >> 3, color[1] >> 2, color[2] >> 3
     return ((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2))
+
+
+def shown(color: Color) -> Color:
+    """The color the measured panel shows for the pixel pal565 sends.
+
+    Storage: the controller keeps six bits per channel and a sixteen-bit pixel
+    leaves the low bit of red and blue clear (PICOCALC.md: white reads f8 fc
+    f8). Emission: the panel drives each channel from its six-bit code and
+    code 63 is full scale, so the eight-bit equivalent of code s is s * 255 /
+    63, which replicating the top bits (s << 2 | s >> 4) computes to within
+    rounding. White as shown is (251, 255, 251). Appending zero bits instead
+    would model a display whose full scale is code 63.75, which this panel
+    lacks. Unmeasured: the transfer from six-bit code to light, which the gate
+    treats as the sRGB curve.
+    """
+    stored = ((color[0] >> 3) << 1, color[1] >> 2, (color[2] >> 3) << 1)
+    return tuple((v << 2) | (v >> 4) for v in stored)  # type: ignore[return-value]
 
 
 def min_separation(table: Table, indexes: range) -> tuple[float, int, int, str]:
@@ -239,10 +264,17 @@ def min_separation(table: Table, indexes: range) -> tuple[float, int, int, str]:
 def check_table(table: Table) -> list[str]:
     """Return the findings of CP004 to CP010 for a sixteen-entry table."""
     found: list[str] = []
-    panel = tuple(widen(c) for c in table)
-    for i, (color, shown) in enumerate(zip(table, panel)):
-        if shown != color:
-            found.append(f"CP004 entry {i} {color} is shown as {shown}")
+    for i, color in enumerate(table):
+        if widen(color) != color:
+            found.append(f"CP004 entry {i} {color} is an RGB565 word widened as {widen(color)}")
+    if table[0] != (0, 0, 0) or table[15] != (255, 255, 255):
+        found.append("CP008 entry 0 is not black or entry 15 is not white")
+    return found + check_shown(tuple(shown(c) for c in table))
+
+
+def check_shown(panel: Table) -> list[str]:
+    """Return the findings of CP005 to CP010 for the colors the panel shows."""
+    found: list[str] = []
     d, i, j, view = min_separation(panel, range(1, 9))
     if d < BASE_SEPARATION:
         found.append(f"CP005 entries {i} and {j} are {d:.3f} apart under {view}")
@@ -257,8 +289,6 @@ def check_table(table: Table) -> list[str]:
         if not LIFT_RANGE[0] <= lift <= LIFT_RANGE[1]:
             found.append(f"CP007 entry {i + 8} is {lift:.3f} lighter than entry {i}")
     _, a, b = simulate(panel[8], "normal")
-    if panel[0] != (0, 0, 0) or panel[15] != (255, 255, 255):
-        found.append("CP008 entry 0 is not black or entry 15 is not white")
     if math.hypot(a, b) > GRAY_CHROMA:
         found.append(f"CP008 entry 8 has chroma {math.hypot(a, b):.4f}")
     white_lift = simulate(panel[15], "normal")[0] - simulate(panel[7], "normal")[0]
@@ -487,11 +517,14 @@ def c_text(table: Table) -> str:
     return f"const u_char lcd_palette[16][3] = {{\n{rows},\n}};\n"
 
 
-def theme_object(table: Table, foreground: Color | None = None) -> str:
+def theme_object(
+    table: Table, foreground: Color | None = None, background: Color | None = None
+) -> str:
     def hexcolor(c: Color) -> str:
         return f'"#{c[0]:02x}{c[1]:02x}{c[2]:02x}"'
 
-    head = f"background:{hexcolor(table[0])},foreground:{hexcolor(foreground or table[7])},"
+    bg, fg = background or table[0], foreground or table[7]
+    head = f"background:{hexcolor(bg)},foreground:{hexcolor(fg)},"
     return "{{" + head + ",".join(f"{k}:{hexcolor(c)}" for k, c in zip(WEB_KEYS, table)) + "}}"
 
 
@@ -549,14 +582,30 @@ def selftest() -> list[str]:
     expect("table before the palette", {"CP004", "CP005", "CP006", "CP007"}, PREVIOUS)
     expect("off-grid entry", {"CP004"}, with_entries(e1=(205, 93, 0)))
     expect("two colors too close", {"CP005"}, with_entries(e7=GOOD[3]))
+    # Each pair below sits between the 0.05 that a relaxed bound would admit and
+    # the stated bound, and fails under one color-vision view alone, so the
+    # case pins that bound and that view. Removing the normal view cannot be
+    # pinned: no entry changed alone on the grid fails only under normal vision.
+    expect("protan pair in 1-8", {"CP005"}, with_entries(e6=(99, 186, 231)))
+    expect("deutan pair in 1-8", {"CP005"}, with_entries(e2=(148, 227, 115)))
+    expect("tritan pair in 1-8", {"CP005"}, with_entries(e6=(49, 190, 255)))
+    expect("pair short only with clear low bits", {"CP005"}, with_entries(e6=(99, 190, 247)))
+    expect("entry 8 near entry 5", {"CP005"}, with_entries(e8=(165, 162, 165)))
+    expect("bright pair in 9-15", {"CP005"}, with_entries(e14=(156, 199, 255)))
+    expect("bright pair with entry 15", {"CP005"}, with_entries(e10=(206, 239, 165)))
     expect("low contrast", {"CP006"}, with_entries(e1=(198, 89, 16)))
     expect("bold lift too small", {"CP007"}, with_entries(e1=(231, 81, 41)))
+    expect("bold lift slightly small", {"CP007"}, with_entries(e13=(173, 158, 173)))
+    expect("bold lift slightly large", {"CP007"}, with_entries(e9=(239, 130, 24)))
+    expect("bold lift large at entry 14", {"CP007"}, with_entries(e14=(107, 227, 214)))
+    expect("entry 0 not black", {"CP008"}, with_entries(e0=(8, 4, 8)))
+    expect("entry 15 not white", {"CP008"}, with_entries(e15=(255, 255, 247)))
     expect("tinted entry 8", {"CP008"}, with_entries(e8=(123, 130, 123)))
     expect("bold white barely lighter", {"CP010"}, with_entries(e7=(247, 247, 239)))
     expect(
         "red nearly as luminous as green",
         {"CP009"},
-        with_entries(e1=(222, 105, 0), e9=(231, 125, 90)),
+        with_entries(e1=(206, 117, 0), e9=(214, 142, 41)),
     )
     swapped = GOOD[:1] + (GOOD[2], GOOD[1]) + GOOD[3:]
     expect(
@@ -565,6 +614,11 @@ def selftest() -> list[str]:
         web=web_text(GOOD, theme_object(swapped, GOOD[7])),
     )
     expect("web foreground black", {"CP002"}, web=web_text(GOOD, theme_object(GOOD, (0, 0, 0))))
+    expect(
+        "web background differs from entry 0",
+        {"CP002"},
+        web=web_text(GOOD, theme_object(GOOD, background=(8, 4, 8))),
+    )
     expect("stale fixture", {"CP003"}, fixture=c_text(FIRST))
     bypass_c = {
         "no table": "int x;\n",
@@ -641,6 +695,9 @@ def selftest() -> list[str]:
             except (OSError, UnicodeDecodeError):
                 continue
             errors.append(f"{label}: load_sources did not raise")
+    cases += 1
+    if VIEWS != ("normal", "protan", "deutan", "tritan") or set(MACHADO) != set(VIEWS[1:]):
+        errors.append(f"VIEWS {VIEWS} is not normal, protan, deutan and tritan")
     print(f"check-console-palette selftest: {cases} cases")
     return errors
 
@@ -667,7 +724,7 @@ def main() -> int:
         return 1
     print(
         "check-console-palette: LCD table, web theme and fixtures agree and "
-        "meet CP004-CP010 on the widened colors"
+        "meet CP004-CP010 on the colors the panel shows"
     )
     return 0
 

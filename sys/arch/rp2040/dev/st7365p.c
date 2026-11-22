@@ -118,20 +118,20 @@
  * Sixteen colors, R, G, B. The console sends them as RGB565 (COLMOD 55h),
  * two bytes a pixel: five bits of red and blue and six of green, which the
  * controller widens to its eighteen-bit memory. 0-7 are the SGR 30-37
- * colors, 8-15 their bold variants. Each entry is the widened form of its
- * RGB565 word, so the panel shows the listed value. On those values colors
- * 1-8 stay 0.09 apart and colors 9-15 stay 0.10 apart in Oklab under normal
- * vision and protanopia, deuteranopia and tritanopia simulation, every color
- * but black has 5:1 contrast against black, and each bold variant of 1-6 is
- * 0.05 to 0.09 lighter in Oklab L. Entry 8 is neutral gray, which SGR 90
- * uses for dim text. tools/check_console_palette.py holds these bounds.
+ * colors, 8-15 their bold variants. Each entry is its RGB565 word widened,
+ * so the panel shows the listed value. On those values colors 1-8 stay 0.09
+ * apart and colors 9-15 0.10 apart in Oklab under normal vision and
+ * protanopia, deuteranopia and tritanopia simulation, every color but black
+ * has 5:1 contrast against black, each bold variant of 1-6 is 0.05 to 0.09
+ * lighter in Oklab L and entry 15 is 0.08 lighter than entry 7. Entry 8 is
+ * neutral gray, as SGR 90 dim text needs (tools/check_console_palette.py).
  */
 const u_char lcd_palette[16][3] = {
-	{   0,   0,   0 }, { 206,  93,   0 }, {  33, 231, 165 },
-	{ 214, 190,  33 }, {  99, 109, 255 }, { 189, 117, 206 },
-	{ 140, 186, 214 }, { 247, 247, 239 }, { 132, 134, 132 },
-	{ 231, 113,  66 }, {  82, 251, 165 }, { 247, 207,  33 },
-	{ 132, 130, 255 }, { 198, 146, 206 }, { 181, 207, 231 },
+	{   0,   0,   0 }, { 206,  93,   0 }, {  57, 227, 140 },
+	{ 214, 190,  24 }, {  90, 113, 255 }, { 189, 109, 198 },
+	{ 140, 182, 206 }, { 222, 219, 214 }, { 132, 134, 132 },
+	{ 222, 113,  41 }, {  16, 255, 173 }, { 239, 207,  24 },
+	{ 123, 134, 255 }, { 206, 142, 198 }, { 173, 207, 231 },
 	{ 255, 255, 255 },
 };
 

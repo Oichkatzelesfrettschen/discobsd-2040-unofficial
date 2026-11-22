@@ -48,6 +48,8 @@ colors and CP004 compares them with the listed ones.
 - CP008: entry 0 is not black, entry 15 is not white, or entry 8 is not
   neutral (Oklab chroma above 0.01), so SGR 90 stops reading as gray.
 - CP009: green is under 2.5 times as luminous as red.
+- CP010: entry 15 is under 0.08 lighter in Oklab L than entry 7, so bold default
+  text (SGR 1 maps color 7 to 15) stops standing out.
 
 --selftest passes the accepted table and requires, for each known-bad table
 and mutant, the exact set of rules named in its case. The live run exits 1 on
@@ -110,6 +112,7 @@ MIN_CONTRAST = 5.0
 LIFT_RANGE = (0.05, 0.09)
 GRAY_CHROMA = 0.01
 RED_GREEN_RATIO = 2.5
+BOLD_WHITE_LIFT = 0.08
 
 Color = tuple[int, int, int]
 Table = tuple[Color, ...]
@@ -117,19 +120,19 @@ Table = tuple[Color, ...]
 GOOD: Table = (
     (0, 0, 0),
     (206, 93, 0),
-    (33, 231, 165),
-    (214, 190, 33),
-    (99, 109, 255),
-    (189, 117, 206),
-    (140, 186, 214),
-    (247, 247, 239),
+    (57, 227, 140),
+    (214, 190, 24),
+    (90, 113, 255),
+    (189, 109, 198),
+    (140, 182, 206),
+    (222, 219, 214),
     (132, 134, 132),
-    (231, 113, 66),
-    (82, 251, 165),
-    (247, 207, 33),
-    (132, 130, 255),
-    (198, 146, 206),
-    (181, 207, 231),
+    (222, 113, 41),
+    (16, 255, 173),
+    (239, 207, 24),
+    (123, 134, 255),
+    (206, 142, 198),
+    (173, 207, 231),
     (255, 255, 255),
 )
 
@@ -253,6 +256,9 @@ def check_table(table: Table) -> list[str]:
         found.append("CP008 entry 0 is not black or entry 15 is not white")
     if math.hypot(a, b) > GRAY_CHROMA:
         found.append(f"CP008 entry 8 has chroma {math.hypot(a, b):.4f}")
+    white_lift = simulate(panel[15], "normal")[0] - simulate(panel[7], "normal")[0]
+    if white_lift < BOLD_WHITE_LIFT:
+        found.append(f"CP010 entry 15 is {white_lift:.3f} lighter than entry 7")
     ratio = luminance(panel[2]) / max(luminance(panel[1]), 1e-9)
     if ratio < RED_GREEN_RATIO:
         found.append(f"CP009 green is {ratio:.2f} times red in luminance")
@@ -399,13 +405,18 @@ def selftest() -> list[str]:
             errors.append(f"{label}: expected {sorted(rules)}, got {found}")
 
     expect("accepted table", set())
-    expect("first branch table", {"CP004", "CP005", "CP006", "CP008"}, FIRST)
+    expect(
+        "first branch table",
+        {"CP004", "CP005", "CP006", "CP008", "CP010"},
+        FIRST,
+    )
     expect("table before the palette", {"CP004", "CP005", "CP006", "CP007"}, PREVIOUS)
     expect("off-grid entry", {"CP004"}, with_entries(e1=(205, 93, 0)))
-    expect("two colors too close", {"CP005"}, with_entries(e1=(165, 130, 0)))
+    expect("two colors too close", {"CP005"}, with_entries(e7=GOOD[3]))
     expect("low contrast", {"CP006"}, with_entries(e1=(198, 89, 16)))
     expect("bold lift too small", {"CP007"}, with_entries(e1=(231, 81, 41)))
-    expect("tinted entry 8", {"CP008"}, with_entries(e8=(132, 121, 140)))
+    expect("tinted entry 8", {"CP008"}, with_entries(e8=(132, 142, 123)))
+    expect("bold white barely lighter", {"CP010"}, with_entries(e7=(247, 247, 239)))
     expect(
         "red nearly as luminous as green",
         {"CP009"},
@@ -491,7 +502,7 @@ def main() -> int:
         return 1
     print(
         "check-console-palette: LCD table, web theme and fixtures agree and "
-        "meet CP004-CP009 on the widened colors"
+        "meet CP004-CP010 on the widened colors"
     )
     return 0
 

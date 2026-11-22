@@ -652,7 +652,14 @@ pic_update(struct i86 *c)
 	c->irq = (pic_irr & ~(unsigned)imask & above) != 0;
 }
 
-/* The processor acknowledges: the vector of the request it takes. */
+static uint32_t pit_now(void);
+static void pit_irq(struct i86 *, uint32_t);
+
+/* The processor acknowledges: the vector of the request it takes. Taking
+ * the timer's request frees line 0 for the next interrupt counter 0 owes,
+ * so interrupts that came due while the host slept are raised one after
+ * another as the guest takes them, before the guest runs on and reads the
+ * time they belong to, instead of one at each poll. */
 unsigned
 pc_inta(struct i86 *c)
 {
@@ -669,6 +676,8 @@ pc_inta(struct i86 *c)
 	/* With automatic end of interrupt nothing stays in service. */
 	if (!pic_aeoi)
 		pic_isr |= (uint8_t)(1u << n);
+	if (n == 0)
+		pit_irq(c, pit_now());
 	pic_update(c);
 	return (pic_base + n);
 }

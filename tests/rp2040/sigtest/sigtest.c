@@ -52,7 +52,7 @@ int
 main(void)
 {
 	struct sigaction sa;
-	int fails = 0, mask_before, mask_after, r;
+	int fails = 0, mask_before, mask_after, pause_errno, r;
 	register unsigned keep7 __asm__("r7");
 	unsigned marker = 0x5a5a1234u;
 
@@ -74,8 +74,11 @@ main(void)
 	alarm(1);
 	errno = 0;
 	r = pause();
+	/* report() prints, and stdio's first write to a file sets errno. */
+	pause_errno = errno;
 	fails += report("pause returns -1", r == -1, (unsigned)r, 0);
-	fails += report("errno is EINTR", errno == EINTR, errno, EINTR);
+	fails += report("errno is EINTR", pause_errno == EINTR, pause_errno,
+	    EINTR);
 	fails += report("handler ran", handled == SIGALRM, handled, SIGALRM);
 	mask_after = sigblock(0);
 	fails += report("mask preserved", mask_after == mask_before,

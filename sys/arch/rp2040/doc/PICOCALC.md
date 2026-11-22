@@ -1244,7 +1244,8 @@ board in BOOTSEL mode; a board run is an explicit opt-in.
 ### PICOCALC_SD_DIAG: the testing kernel
 
 `PICOCALC_SD_DIAG` is PICOCALC_SD plus `options DIAGNOSTIC`,
-`options GLOBAL_DEBUG=9` and `options STORAGE_STATS`, compiled at `-Og`
+`options GLOBAL_DEBUG=9`, `options STORAGE_STATS` and
+`options CONSOLE_MIRROR_UART`, compiled at `-Og`
 (`makeoptions COPTS="-Og"` overrides the `COPTS?= -Os` default of
 `Makefile.rp2040`). It is the kernel for board testing and source-level
 debugging; the shipped kernels stay at `-Os`, and no release, image rule or
@@ -1268,6 +1269,18 @@ defines only its own name.
   the sources, not a board capture).
 - `STORAGE_STATS`: `machdep.storage_stats` and the flash wear counters
   (`STORAGE.md`).
+- `CONSOLE_MIRROR_UART`: `cnputc()` in `sys/dev/cons.c` sends each console
+  character to UART0 (GP0/GP1, the board's USB-C serial port at 115200) as
+  well as to the panel, so a host records the kernel's lines, which the
+  32-line panel scrolls away; this root ships without `dmesg`. `uartputc()` waits for the transmitter, 87 microseconds a
+  character. A login on `tty0` sees the kernel's lines between its own.
+  Under Renode the boot messages and the exec trace arrive in the UART0
+  file and the `tty0` login of `check-picocalc-sdroot.py` still passes.
+
+A program that takes many signals runs slowly on this kernel: the signal
+lines scroll the panel for each delivery. `tests/rp2040/divtest` ends its
+collision phase after 100 alarms, 3 seconds on PICOCALC_SD on the measured
+board, and had not ended after 420 seconds on PICOCALC_SD_DIAG.
 
     bmake MACHINE=rp2040 picocalc-sd-diag-kernel    # distrib/rp2040/unix-PICOCALC-SD-DIAG.uf2
 

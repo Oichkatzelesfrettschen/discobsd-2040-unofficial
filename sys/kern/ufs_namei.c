@@ -85,7 +85,7 @@ namei_copy_user_path(caddr_t source, char *destination)
 				return 0;
 		length += chunk;
 	}
-	return ENOENT;
+	return ENAMETOOLONG;
 }
 
 static int

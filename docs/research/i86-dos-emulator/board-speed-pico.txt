@@ -94,3 +94,36 @@ percent slower than the 34.2 to 36.8 s measured above, 34.5 to 37.2 s,
 which the run-to-run spread covers; 0.32 million guest instructions a
 second to two figures. Falsifier: a dd65f4524 board time outside 34 to
 38 s.
+
+Result for that prediction (2026-11-22)
+---------------------------------------
+Board: the same bare Pico, PICO kernel #1 5239 (Sun Nov 22 05:32:45 UTC
+2026, built from 6719f9d7a) on its matching flash root, machdep.cpu_khz
+125000, idle apart from the console; the shell ran as operator.
+Binary: usr.bin/i86/i86 a.out built at main 7ea45a78f (after #906, the
+panel's line copy and text scroll, which a run with -d does not reach),
+cksum 692516938 47664. Images: bench.img cksum 676243112 and bench1.img
+cksum 3700720698, the same bytes as above; transferred to /home/operator
+with compress -b 12 and uuencode, cksums compared with the host's, and
+removed afterwards.
+Command and timing as above (carriage return to sentinel, host side).
+Control (110,088 guest instructions): 2.023, 2.153, 2.023 s. Bench
+(11,000,385): 35.287, 35.270, 35.288 s. i86's own -v line: 33,599, 33,614
+and 33,607 ms, 327,402, 327,256 and 327,324 instructions a second.
+Prediction 34.5 to 37.2 s: held; falsifier (outside 34 to 38 s): not met.
+The run-to-run spread fell from 7 percent to 0.05 percent (18 ms in 35 s);
+the earlier spread is not reproduced, so its cause stays open.
+
+The 8254 and -S on the same board, tests/pit.asm (pit.hexdump, 1,536
+bytes, cksum 1164283793; the emulator takes an image of that size):
+  -d -T: dn:02B0 irq:0036 st2:00B0 hlt:0054 rf:0034 m2:0000 m3e:0028
+  m0s:0000 stat:0012 bcd:0099 tick:ok done -- the host's exact line.
+  -d (the board's clock, unpaced), three runs: irq 36h each, st2 B0h,
+  tick ok, done; dn 0010h and rf 2Bh, 2Bh, 24h (counts of the board's
+  own speed, which check-i86-host does not bound).
+  -d -S 4.77 -c 8088, three runs, carriage return to sentinel: 4.03 s
+  with irq 0Ch, then 2.22 s with 35h and 2.23 s with 36h; st2 B0h, tick
+  ok and done in all three. The first run's 1.8 extra seconds and its 42
+  missing interrupts (the run counted 12) point to a stall of the board
+  longer than the 20 ms the timer keeps owed ticks for (clk_owe()); its
+  cause on the board is not identified.

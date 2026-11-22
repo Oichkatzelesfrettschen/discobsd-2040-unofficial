@@ -28,13 +28,17 @@
 The PicoCalc LCD console draws sixteen colors from lcd_palette in
 sys/arch/rp2040/dev/st7365p.c, and the web console gives the same sixteen to
 xterm.js. The panel takes each entry through the truncating RGB565 conversion
-of pal565 and widens it again, so rules CP005 to CP009 run on the widened
+of pal565 and widens it again, so rules CP005 to CP010 run on the widened
 colors and CP004 compares them with the listed ones.
 
 - CP001: the LCD table, the web theme or a test fixture is unreadable, is
-  defined other than once, sits inside a preprocessor conditional or a comment,
-  holds a token other than its sixteen colors, or lacks an ANSI color key.
-- CP002: the web theme differs from the LCD table at some index.
+  defined other than once, sits inside a comment, a string, a macro, a
+  preprocessor conditional, a function or an unused object, holds a token other
+  than its sixteen colors, or lacks an ANSI color key. The readers are lexical:
+  they take decimal triples and unquoted JavaScript keys, and leave syntax to
+  the compiler and the browser.
+- CP002: the web theme differs from the LCD table at some index, or its
+  background is not entry 0 or its foreground is not entry 7.
 - CP003: a test fixture copy of the table differs from the LCD table.
 - CP004: an entry is not a fixed point of the RGB565 conversion, so the panel
   shows a color other than the one the table names.
@@ -58,6 +62,7 @@ population never passes.
 """
 
 import argparse
+import ast
 import itertools
 import math
 import re
@@ -232,7 +237,7 @@ def min_separation(table: Table, indexes: range) -> tuple[float, int, int, str]:
 
 
 def check_table(table: Table) -> list[str]:
-    """Return the findings of CP004 to CP009 for a sixteen-entry table."""
+    """Return the findings of CP004 to CP010 for a sixteen-entry table."""
     found: list[str] = []
     panel = tuple(widen(c) for c in table)
     for i, (color, shown) in enumerate(zip(table, panel)):
@@ -265,74 +270,177 @@ def check_table(table: Table) -> list[str]:
     return found
 
 
-def blank(match: re.Match[str]) -> str:
-    return re.sub(r"[^\n]", " ", match.group())
+def mask_c(text: str) -> str:
+    """Splice lines, then blank comments and the contents of string and
+    character literals, so that markers and braces found in the result are
+    code."""
+    text = text.replace("\\\r\n", "").replace("\\\n", "")
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            out.append(re.sub(r"[^\n]", " ", text[i:j]))
+            i = j
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+        elif text[i] in "\"'":
+            quote, j = text[i], i + 1
+            while j < n and text[j] not in (quote, "\n"):
+                j += 2 if text[j] == "\\" else 1
+            out.append(quote + " " * (j - i - 1) + (text[j] if j < n else ""))
+            i = j + 1
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
 
 
-def strip_c_comments(text: str) -> str:
-    return re.sub(r"/\*.*?\*/|//[^\n]*", blank, text, flags=re.S)
-
-
-def strip_web_comments(text: str) -> str:
-    text = re.sub(r"/\*.*?\*/|<!--.*?-->", blank, text, flags=re.S)
-    return re.sub(r"(?<![:\w\"'])//[^\n]*", blank, text)
-
-
-def conditional_depth(text: str, end: int) -> int:
-    depth = 0
-    for line in text[:end].splitlines():
-        word = line.lstrip().removeprefix("#").lstrip().split(" ")[0]
-        if line.lstrip().startswith("#"):
+def c_context(code: str, end: int) -> tuple[int, int]:
+    """Return the preprocessor-conditional depth and the brace depth at end."""
+    conditional = braces = 0
+    for line in code[:end].split("\n"):
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            word = stripped[1:].lstrip().split(" ")[0]
             if word.startswith(("if", "ifdef", "ifndef")):
-                depth += 1
+                conditional += 1
             elif word.startswith("endif"):
-                depth -= 1
-    return depth
+                conditional -= 1
+        else:
+            braces += line.count("{") - line.count("}")
+    return conditional, braces
 
 
-C_TRIPLE = r"\s*\{\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\}\s*,?"
+C_TRIPLE = r"\s*\{\s*[0-9]+\s*,\s*[0-9]+\s*,\s*[0-9]+\s*\}\s*,?"
+JS_QUOTES = "\"'" + chr(96)
 
 
 def parse_c_table(text: str) -> Table:
-    code = strip_c_comments(text)
-    starts = list(re.finditer(r"\blcd_palette\s*\[\s*16\s*\]\s*\[\s*3\s*\]\s*=\s*\{", code))
+    code = mask_c(text)
+    if re.search(r"^\s*#\s*(define|undef)\s+lcd_palette\b", code, re.M | re.A):
+        raise ValueError("a preprocessor line defines or undefines lcd_palette")
+    starts = list(re.finditer(r"\blcd_palette\s*\[\s*16\s*\]\s*\[\s*3\s*\]\s*=\s*\{", code, re.A))
     if len(starts) != 1:
         raise ValueError(f"{len(starts)} definitions of lcd_palette[16][3]")
-    if conditional_depth(code, starts[0].start()) != 0:
-        raise ValueError("lcd_palette sits inside a preprocessor conditional")
-    body = re.compile(rf"((?:{C_TRIPLE})+)\s*\}}\s*;").match(code, starts[0].end())
+    line_start = code.rfind("\n", 0, starts[0].start()) + 1
+    if code[line_start : starts[0].start()].lstrip().startswith("#"):
+        raise ValueError("lcd_palette is defined inside a preprocessor directive")
+    conditional, braces = c_context(code, starts[0].start())
+    if conditional != 0 or braces != 0:
+        raise ValueError("lcd_palette is not an unconditional file-scope definition")
+    body = re.compile(rf"((?:{C_TRIPLE})+)\s*\}}\s*;", re.A).match(code, starts[0].end())
     if body is None:
-        raise ValueError("the initializer holds a token other than RGB triples")
-    triples = re.findall(r"\d+", body.group(1))
-    table = tuple(
-        (int(triples[i]), int(triples[i + 1]), int(triples[i + 2]))
-        for i in range(0, len(triples), 3)
-    )
-    if len(table) != 16 or any(max(t) > 255 for t in table):
-        raise ValueError(f"lcd_palette holds {len(table)} entries")
-    return table
+        raise ValueError("the initializer holds a token other than decimal RGB triples")
+    numbers = [int(v) for v in re.findall(r"[0-9]+", body.group(1), re.A)]
+    if len(numbers) != 48:
+        raise ValueError(f"lcd_palette holds {len(numbers) // 3} entries")
+    for index, value in enumerate(numbers):
+        if value > 255:
+            raise ValueError(f"entry {index // 3} holds the component {value}")
+    return tuple((numbers[i], numbers[i + 1], numbers[i + 2]) for i in range(0, 48, 3))
 
 
-def parse_web_theme(text: str) -> Table:
-    code = strip_web_comments(text)
-    starts = list(re.finditer(r"\btheme\s*:\s*\{\{", code))
-    if len(starts) != 1:
-        raise ValueError(f"{len(starts)} xterm.js theme objects")
-    item = r'\s*\w+\s*:\s*"#[0-9a-fA-F]{6}"\s*,?'
-    body = re.compile(rf"((?:{item})+)\s*\}}\}}").match(code, starts[0].end())
-    if body is None:
+def page_javascript(source: str) -> str:
+    """Return the JavaScript text of the PAGE f-string in web.py: its literal
+    parts, with every interpolation replaced by a placeholder token."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as error:
+        raise ValueError(f"web.py does not parse: {error.msg}") from error
+    pages = [
+        node.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "PAGE" for t in node.targets)
+    ]
+    if len(pages) != 1:
+        raise ValueError(f"{len(pages)} PAGE assignments")
+    value = pages[0]
+    parts: list[str] = []
+    for piece in value.values if isinstance(value, ast.JoinedStr) else [value]:
+        if isinstance(piece, ast.Constant) and isinstance(piece.value, str):
+            parts.append(piece.value)
+        else:
+            parts.append("0")
+    return "".join(parts)
+
+
+def mask_js(text: str) -> str:
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text.startswith("/*", i) or text.startswith("<!--", i):
+            end = "*/" if text.startswith("/*", i) else "-->"
+            j = text.find(end, i + 2)
+            j = n if j < 0 else j + len(end)
+            out.append(re.sub(r"[^\n]", " ", text[i:j]))
+            i = j
+        elif text.startswith("//", i) and (i == 0 or text[i - 1] not in ":\"'"):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(" " * (j - i))
+            i = j
+        elif text[i] in JS_QUOTES:
+            quote, j = text[i], i + 1
+            while j < n and text[j] != quote:
+                j += 2 if text[j] == "\\" else 1
+            out.append(quote + " " * (j - i - 1) + (text[j] if j < n else ""))
+            i = j + 1
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+def matching_brace(code: str, start: int) -> int:
+    depth = 0
+    for i in range(start, len(code)):
+        if code[i] == "{":
+            depth += 1
+        elif code[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+    raise ValueError("unbalanced braces")
+
+
+def parse_web_theme(source: str) -> tuple[Table, dict[str, Color]]:
+    """Return the sixteen ANSI colors and every color key of the theme object
+    that the single new Terminal(...) call receives."""
+    js = page_javascript(source)
+    code = mask_js(js)
+    calls = list(re.finditer(r"\bnew\s+Terminal\s*\(\s*\{", code))
+    if len(calls) != 1:
+        raise ValueError(f"{len(calls)} new Terminal calls")
+    options_start = calls[0].end() - 1
+    options_end = matching_brace(code, options_start)
+    options = code[options_start : options_end + 1]
+    themes = [
+        m
+        for m in re.finditer(r"\btheme\s*:\s*\{", options)
+        if options[: m.start()].count("{") - options[: m.start()].count("}") == 1
+    ]
+    if len(themes) != 1:
+        raise ValueError(f"{len(themes)} theme properties in the Terminal options")
+    start = options_start + themes[0].end() - 1
+    end = matching_brace(code, start)
+    body = js[start + 1 : end]
+    item = r'\s*[A-Za-z]+\s*:\s*"#[0-9a-fA-F]{6}"\s*,?'
+    if re.fullmatch(rf"(?:{item})+\s*", body, re.A) is None:
         raise ValueError("the theme holds a token other than quoted hex colors")
-    pairs = re.findall(r'(\w+)\s*:\s*"#([0-9a-fA-F]{6})"', body.group(1))
+    pairs = re.findall(r'([A-Za-z]+)\s*:\s*"#([0-9a-fA-F]{6})"', body)
     keys = [k for k, _ in pairs]
     if len(set(keys)) != len(keys) or any(k not in WEB_KEYS + WEB_EXTRA_KEYS for k in keys):
         raise ValueError("the theme repeats or adds a key")
-    colors = dict(pairs)
-    if any(k not in colors for k in WEB_KEYS):
-        raise ValueError("the theme lacks an ANSI color key")
-    return tuple(
-        (int(colors[k][0:2], 16), int(colors[k][2:4], 16), int(colors[k][4:6], 16))
-        for k in WEB_KEYS
-    )
+    colors = {k: (int(v[0:2], 16), int(v[2:4], 16), int(v[4:6], 16)) for k, v in pairs}
+    if any(k not in colors for k in WEB_KEYS + ("background", "foreground")):
+        raise ValueError("the theme lacks an ANSI color, background or foreground key")
+    return tuple(colors[k] for k in WEB_KEYS), colors
 
 
 def check_sources(lcd: str, web: str, fixtures: dict[str, str]) -> list[str]:
@@ -342,13 +450,17 @@ def check_sources(lcd: str, web: str, fixtures: dict[str, str]) -> list[str]:
     except ValueError as error:
         return [f"CP001 {LCD_SOURCE}: {error}"]
     try:
-        theme = parse_web_theme(web)
+        theme, colors = parse_web_theme(web)
     except ValueError as error:
         found.append(f"CP001 {WEB_SOURCE}: {error}")
     else:
         for i, (a, b) in enumerate(zip(table, theme)):
             if a != b:
                 found.append(f"CP002 index {i}: LCD {a}, web {b}")
+        if colors["background"] != table[0]:
+            found.append(f"CP002 background {colors['background']} is not entry 0")
+        if colors["foreground"] != table[7]:
+            found.append(f"CP002 foreground {colors['foreground']} is not entry 7")
     for name, text in fixtures.items():
         try:
             copy = parse_c_table(text)
@@ -366,9 +478,21 @@ def c_text(table: Table) -> str:
     return f"const u_char lcd_palette[16][3] = {{\n{rows},\n}};\n"
 
 
-def web_text(table: Table) -> str:
-    items = ",".join(f'{k}:"#{c[0]:02x}{c[1]:02x}{c[2]:02x}"' for k, c in zip(WEB_KEYS, table))
-    return f'theme:{{{{background:"#000000",{items}}}}}'
+def theme_object(table: Table, foreground: Color | None = None) -> str:
+    def hexcolor(c: Color) -> str:
+        return f'"#{c[0]:02x}{c[1]:02x}{c[2]:02x}"'
+
+    head = f"background:{hexcolor(table[0])},foreground:{hexcolor(foreground or table[7])},"
+    return "{{" + head + ",".join(f"{k}:{hexcolor(c)}" for k, c in zip(WEB_KEYS, table)) + "}}"
+
+
+def web_text(table: Table, theme: str | None = None, extra: str = "") -> str:
+    theme = theme or theme_object(table)
+    return (
+        'PAGE = f"""<script src="{XTERM}"></script><script>\n'
+        f"{extra}var term=new Terminal({{{{cols:80,rows:24,theme:{theme},"
+        'minimumContrastRatio:4.5}});\n</script>"""\n'
+    )
 
 
 def with_entries(**changes: Color) -> Table:
@@ -392,6 +516,10 @@ def rule_set(found: list[str]) -> set[str]:
 def selftest() -> list[str]:
     errors: list[str] = []
     cases = 0
+    good_c = c_text(GOOD)
+    compact = (
+        "const u_char lcd_palette[16][3]={" + "".join("{%d,%d,%d}," % c for c in GOOD) + "};\n"
+    )
 
     def expect(label: str, rules: set[str], table: Table = GOOD, **sources: str) -> None:
         nonlocal cases
@@ -405,11 +533,8 @@ def selftest() -> list[str]:
             errors.append(f"{label}: expected {sorted(rules)}, got {found}")
 
     expect("accepted table", set())
-    expect(
-        "first branch table",
-        {"CP004", "CP005", "CP006", "CP008", "CP010"},
-        FIRST,
-    )
+    expect("accepted table without whitespace", set(), lcd=compact)
+    expect("first branch table", {"CP004", "CP005", "CP006", "CP008", "CP010"}, FIRST)
     expect("table before the palette", {"CP004", "CP005", "CP006", "CP007"}, PREVIOUS)
     expect("off-grid entry", {"CP004"}, with_entries(e1=(205, 93, 0)))
     expect("two colors too close", {"CP005"}, with_entries(e7=GOOD[3]))
@@ -422,47 +547,72 @@ def selftest() -> list[str]:
         {"CP009"},
         with_entries(e1=(222, 105, 0), e9=(231, 125, 90)),
     )
+    swapped = GOOD[:1] + (GOOD[2], GOOD[1]) + GOOD[3:]
     expect(
         "web theme with a swapped pair",
         {"CP002"},
-        web=web_text(GOOD[:1] + (GOOD[2], GOOD[1]) + GOOD[3:]),
+        web=web_text(GOOD, theme_object(swapped, GOOD[7])),
     )
+    expect("web foreground black", {"CP002"}, web=web_text(GOOD, theme_object(GOOD, (0, 0, 0))))
     expect("stale fixture", {"CP003"}, fixture=c_text(FIRST))
-    expect("no table", {"CP001"}, lcd="int x;\n")
-    expect("web theme without keys", {"CP001"}, web="theme:{{}}")
-    expect(
-        "token inside the initializer",
-        {"CP001"},
-        lcd=c_text(GOOD).replace("{ 0, 0, 0 }", "BROKEN, { 0, 0, 0 }", 1),
-    )
-    expect(
-        "table inside a disabled branch",
-        {"CP001"},
-        lcd="#if 0\n" + c_text(GOOD) + "#endif\n",
-    )
-    expect(
-        "good table disabled, old table active",
-        {"CP001"},
-        lcd="#if 0\n" + c_text(GOOD) + "#endif\n" + c_text(PREVIOUS),
-    )
+    bypass_c = {
+        "no table": "int x;\n",
+        "token inside the initializer": good_c.replace("{ 0, 0, 0 }", "BROKEN, { 0, 0, 0 }", 1),
+        "table inside #if 0": "#if 0\n" + good_c + "#endif\n",
+        "table in an inactive #else": "#if 1\nint a;\n#else\n" + good_c + "#endif\n",
+        "#if spelled with a line splice": "#i\\\nf 0\n" + good_c + "#endif\n",
+        "good table disabled, old table active": "#if 0\n" + good_c + "#endif\n" + c_text(PREVIOUS),
+        "table only in a macro": "#define PALETTE " + good_c.replace("\n", " \\\n"),
+        "symbol renamed by a macro": "#define lcd_palette hidden_palette\n" + good_c,
+        "duplicate split by a line splice": good_c
+        + good_c.replace("lcd_palette", "lcd_pal\\\nette", 1),
+        "slashes in a string hide a duplicate": good_c + 'const char *u = "http://x"; ' + good_c,
+        "comment markers in strings hide a duplicate": good_c
+        + 'const char *a = "/*"; '
+        + good_c
+        + ' const char *b = "*/";\n',
+        "table with function scope": "void f(void) {\n" + good_c + "}\n",
+        "non-ASCII digits": good_c.replace("{ 0, 0, 0 }", "{ ٠, ٠, ٠ }", 1),
+        "component over 255": good_c.replace("{ 0, 0, 0 }", "{ 256, 0, 0 }", 1),
+        "good table commented, none active": "/*\n" + good_c + "*/\n",
+    }
+    for label, text in bypass_c.items():
+        expect(label, {"CP001"}, lcd=text)
     expect(
         "good table commented, old table active",
         {"CP004", "CP005", "CP006", "CP007"},
-        lcd="/*\n" + c_text(GOOD) + "*/\n" + c_text(PREVIOUS),
+        lcd="/*\n" + good_c + "*/\n" + c_text(PREVIOUS),
         web=web_text(PREVIOUS),
         fixture=c_text(PREVIOUS),
     )
+    obj = theme_object(GOOD)
+    unquoted = obj.replace('"#', "#")
+    bypass_web = {
+        "no theme": "PAGE = f'''<script>var term=new Terminal({{{{cols:80}}}});</script>'''\n",
+        "theme without keys": web_text(GOOD, "{{}}"),
+        "token inside the theme": web_text(GOOD, obj.replace("black:", "oops!,black:", 1)),
+        "unquoted colors": web_text(GOOD, unquoted),
+        "theme only in a JavaScript string": web_text(
+            GOOD, "{{}}", "var decoy='theme:" + obj + "';\n"
+        ),
+        "theme in an unused object": web_text(GOOD, "{{}}", "var unused={{theme:" + obj + "}};\n"),
+        "theme in a block comment": web_text(GOOD, "{{}}", "/* theme:" + obj + " */\n"),
+        "comment markers in strings hide a theme": web_text(
+            GOOD, "{{}}", 'var a="/*"; var b={{theme:' + obj + '}}; var c="*/";\n'
+        ),
+        "two Terminal calls": web_text(
+            GOOD, extra="var other=new Terminal({{theme:" + obj + "}});\n"
+        ),
+        "repeated key": web_text(GOOD, obj.replace("}}", ',red:"#ce5d00"}}')),
+    }
+    for label, text in bypass_web.items():
+        expect(label, {"CP001"}, web=text)
     expect(
-        "token inside the web theme",
+        "theme in a Python comment",
         {"CP001"},
-        web=web_text(GOOD).replace("black:", "oops!,black:", 1),
+        web="# " + web_text(GOOD).replace("\n", "\n# ") + "PAGE = ''\n",
     )
-    expect(
-        "web theme commented, old theme active",
-        {"CP002"},
-        web="/* " + web_text(GOOD) + " */ " + web_text(PREVIOUS),
-    )
-    expect("two web themes", {"CP001"}, web=web_text(GOOD) + web_text(GOOD))
+    expect("web.py with a syntax error", {"CP001"}, web="PAGE = f'''\n")
     for label, data in (("missing source", None), ("invalid UTF-8", b"\xff\xfe")):
         cases += 1
         with tempfile.TemporaryDirectory() as work:

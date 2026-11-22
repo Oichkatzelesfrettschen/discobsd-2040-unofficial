@@ -1,8 +1,9 @@
 # Panel output for i86: the D198 and D202 terms, what survives, and the staged design
 
 Status: decision record, 2026-11-21. The owner chose core-0 SPI1 DMA
-(D198), then core-1 scan-out (D202) on a comparison whose figure was wrong;
-the choice is back with the owner. This note splits both options into the
+(D198), then core-1 scan-out (D202) on a comparison whose figure was wrong,
+and then the staged design below (D213), with a read-back-verified sweep
+of the wire rate in the next board session (D214). This note splits both options into the
 terms of the cost they attack, refutes the part of each that the tree
 cannot carry, and keeps what survives as a staged design in which every
 stage has its own measurement and falsifier. Nothing here is built. Every
@@ -255,9 +256,9 @@ from the source; an implementation answers every one before code review.
 Each result goes to `sys/arch/rp2040/doc/PICOCALC.md` with its kernel,
 commit and method.
 
-## Open questions for the owner
+## Decisions
 
-- The panel path: the staged design above, D202 as worded, or D198 as
-  worded.
-- The wire rate: a read-back-verified sweep above the specified cycle in
-  the next board session, or 12.5 MHz kept.
+- D213: the staged design, each stage measured before the next is built.
+  Stages 1 and 2 run on the host and in Renode; the kernel stages follow D109.
+- D214: the wire-rate sweep of measurement 3 in the next board session; the
+  driver keeps 12.5 MHz until a rate passes read-back with a step of margin.

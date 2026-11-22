@@ -39,10 +39,15 @@
 # host replaces with rom_memcpy_model(): the routine at 0x261d of the version 3
 # ROM (Renode_RP2040 bootroms/rp2040/b2.elf) copies byte by byte from the end
 # below 8 bytes or when source and destination differ in alignment, and
-# forward in words otherwise, so it is right for neither kind of overlap.
-# Two mutants must fail: one without the backward branch, the forward-only
-# copy the kernels shipped before, and on rp2040 one that hands every range to
-# the ROM; without those rejections the verdict counts for nothing.
+# forward in words otherwise, so only a same-alignment forward copy with the
+# source below the destination is safe; bcopy sends the ROM disjoint ranges.
+# The rp2040 copy runs twice, with the MC table slot present and with every
+# slot read missing, and the run checks which path rom_fn() took. Four mutants
+# must fail, each for its named reason: one without the backward branch, the
+# forward-only copy the kernels shipped before; one that hands every range to
+# the ROM; a wrong slot constant, which shows as a fallback to the lookup; and
+# rom_fn() returning the halfword at the slot instead of slot + 2. Without those
+# rejections the verdict counts for nothing.
 #
 # usage: bcopy_overlap.py
 
@@ -58,18 +63,49 @@ SOURCES = ("sys/arch/rp2040/rp2040/machdep.c", "sys/arch/stm32/stm32/machdep.c")
 PREFIX = """\
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 typedef unsigned char u_char;
 typedef unsigned short u_short;
 typedef unsigned int u_int;
-/* The slot read misses, so rom_fn() takes rom_func_lookup(), the host model. */
-#define ROM_HALF(a) ((u_short)((a) & 0))
 #define ROM_CODE(c1, c2) ((u_int)(c1) | ((u_int)(c2) << 8))
+/*
+ * The model boot ROM. With ROM_TABLE set it keeps the MC entry where ROM
+ * version 3 does (Renode_RP2040 b2.elf, 0x92: "MC", then 0x261d), so rom_fn()
+ * takes the slot read; without it every read misses and rom_fn() takes
+ * rom_func_lookup(). rom_entry() maps the entry halfword to the host routine
+ * and stops on any other value, which a read of the wrong halfword returns.
+ */
+#define ROM_HALF(a) rom_half(a)
+#define ROM_ENTRY(a) rom_entry(ROM_HALF(a))
+#define MODEL_MC_ENTRY 0x261dU
+int rom_calls, lookup_calls;
 void *rom_memcpy_model(void *dst, const void *src, u_int n);
+u_short rom_half(u_int address);
+void *rom_entry(u_short half);
+u_short rom_half(u_int address)
+{
+#if ROM_TABLE
+    if (address == 0x92)
+        return (u_short)ROM_CODE('M', 'C');
+    if (address == 0x94)
+        return MODEL_MC_ENTRY;
+#endif
+    (void)address;
+    return 0;
+}
+void *rom_entry(u_short half)
+{
+    if (half == MODEL_MC_ENTRY)
+        return (void *)rom_memcpy_model;
+    printf("rom_fn returned the halfword %#x, not the routine address\\n", half);
+    exit(3);
+}
 void *rom_memcpy_model(void *dst, const void *src, u_int n)
 {
     unsigned char *d = dst;
     const unsigned char *s = src;
+    rom_calls++;
     if (n < 8 || (((unsigned long)d - (unsigned long)s) & 3) != 0) {
         while (n--)
             d[n] = s[n];
@@ -82,6 +118,7 @@ void *rom_memcpy_model(void *dst, const void *src, u_int n)
 void *rom_func_lookup(u_int code);
 void *rom_func_lookup(u_int code)
 {
+    lookup_calls++;
     return code == ROM_CODE('M', 'C') ? (void *)rom_memcpy_model : 0;
 }
 /* The macOS SDK defines bcopy as a fortified macro; the kernel's is a function. */
@@ -125,6 +162,24 @@ int main(void)
                 if (memcmp(buffer, expected, sizeof(buffer)) != 0)
                     failures++;
             }
+#if EXPECT_ROM
+    if (rom_calls == 0) {
+        printf("the ROM memcpy ran for no disjoint copy\n");
+        failures++;
+    }
+#if ROM_TABLE
+    if (lookup_calls != 0) {
+        printf("the slot read missed: rom_fn fell back to rom_func_lookup %d times\n",
+            lookup_calls);
+        failures++;
+    }
+#else
+    if (lookup_calls == 0) {
+        printf("rom_fn never took rom_func_lookup with the slot read missing\n");
+        failures++;
+    }
+#endif
+#endif
     if (failures)
         printf("%d cases differ\n", failures);
     return failures != 0;
@@ -156,9 +211,11 @@ HOST_CASTS = (
 # The rp2040 copy's ROM path: its disjointness test and the slot's address.
 ROM_CASTS = (
     ("(u_int)src - (u_int)dst", "(unsigned long)src - (unsigned long)dst"),
-    ("(void *)(u_int)ROM_HALF", "(void *)(unsigned long)ROM_HALF"),
+    ("(void *)(u_int)ROM_HALF", "(void *)ROM_ENTRY"),
 )
 ROM_GUARD = "\tif ((u_int)src - (u_int)dst >= nbytes) {\n"
+SLOT_DEFINE = "ROM_SLOT_MC\t0x92U"
+SLOT_READ = "(u_int)ROM_HALF(slot + 2)"
 
 
 def casts(path):
@@ -174,8 +231,11 @@ def for_host(path, body, required):
     return body
 
 
-def run(compiler, directory, body):
+def run(compiler, directory, body, rom=None):
+    """Build and run BODY; ROM is None (no ROM path), "table" (the MC slot
+    holds its entry) or "lookup" (every slot read misses)."""
     fixture = directory / "bcopy.c"
+    defines = [f"-DEXPECT_ROM={rom is not None:d}", f"-DROM_TABLE={rom == 'table':d}"]
     fixture.write_text(PREFIX + body + HARNESS, encoding="utf-8")
     binary = directory / "bcopy"
     subprocess.run(
@@ -187,6 +247,7 @@ def run(compiler, directory, body):
             "-Wextra",
             "-Werror",
             "-fno-builtin",
+            *defines,
             str(fixture),
             "-o",
             str(binary),
@@ -211,27 +272,61 @@ def main():
             if removed != 1:
                 print(f"FAIL bcopy-overlap: {path}: no backward branch to remove")
                 return 1
-            mutants = [("the forward-only mutant", mutant)]
-            if "rp2040" in path:
+            rp = "rp2040" in path
+            differ = ("cases differ", "namei shift")
+            mutants = [("the forward-only mutant", mutant, differ, "table" if rp else None)]
+            if rp:
                 if original.count(ROM_GUARD) != 1:
                     print(f"FAIL bcopy-overlap: {path}: no disjointness test before the ROM call")
                     return 1
                 every = original.replace(ROM_GUARD, "\tif (1) {\n")
                 every = for_host(path, every, {HOST_CASTS[0][0]})
-                mutants.append(("the mutant that hands every range to the ROM", every))
+                mutants.append(
+                    ("the mutant that hands every range to the ROM", every, differ, "table")
+                )
+                for label, old, new, reason in (
+                    (
+                        "the wrong slot constant (0x90 for 0x92)",
+                        SLOT_DEFINE,
+                        "ROM_SLOT_MC\t0x90U",
+                        "fell back to rom_func_lookup",
+                    ),
+                    (
+                        "the mutant that returns the slot halfword, not slot + 2",
+                        SLOT_READ,
+                        "(u_int)ROM_HALF(slot)",
+                        "not the routine address",
+                    ),
+                ):
+                    if original.count(old) != 1:
+                        print(f"FAIL bcopy-overlap: {path}: {old} changed")
+                        return 1
+                    text = for_host(path, original.replace(old, new), {HOST_CASTS[0][0]})
+                    mutants.append((label, text, (reason,), "table"))
             for compiler in compilers:
-                result = run(compiler, directory, body)
-                if result.returncode != 0:
-                    print(f"FAIL bcopy-overlap: {path} with {compiler}: {result.stdout.strip()}")
-                    return 1
-                for name, text in mutants:
-                    result = run(compiler, directory, text)
+                for rom in ("table", "lookup") if rp else (None,):
+                    result = run(compiler, directory, body, rom)
+                    if result.returncode != 0:
+                        print(
+                            f"FAIL bcopy-overlap: {path} with {compiler}"
+                            f"{f' ({rom} path)' if rom else ''}: {result.stdout.strip()}"
+                        )
+                        return 1
+                for name, text, reasons, rom in mutants:
+                    result = run(compiler, directory, text, rom)
                     if result.returncode == 0:
                         print(f"FAIL bcopy-overlap: {path} with {compiler}: {name} passed")
                         return 1
+                    if not any(reason in result.stdout for reason in reasons):
+                        print(
+                            f"FAIL bcopy-overlap: {path} with {compiler}: {name} failed for "
+                            f"another reason: {result.stdout.strip()[:120]}"
+                        )
+                        return 1
     print(
         f"PASS bcopy-overlap: {len(SOURCES)} machdep.c copies with "
-        f"{' and '.join(compilers)}, forward-only and ROM-for-every-range mutants rejected"
+        f"{' and '.join(compilers)}, slot and lookup ROM paths, four mutants rejected for "
+        "their named reasons"
     )
     return 0
 

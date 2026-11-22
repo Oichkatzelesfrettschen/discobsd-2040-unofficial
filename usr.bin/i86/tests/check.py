@@ -538,7 +538,16 @@ def load_panel(src):
 
 def mutate(src, tree, number, name, old, new):
     """A copy of the sources in tree with one fault in file name."""
-    for item in SOURCES + HEADERS + ["tests/sstrun.c", "tests/panel.c", "tests/clocktest.c"]:
+    for item in (
+        SOURCES
+        + HEADERS
+        + [
+            "tests/sstrun.c",
+            "tests/panel.c",
+            "tests/clocktest.c",
+            "tests/draintest.c",
+        ]
+    ):
         shutil.copyfile(os.path.join(src, item), os.path.join(tree, item))
     with open(os.path.join(tree, name)) as handle:
         text = handle.read()
@@ -1285,6 +1294,15 @@ def test_clock(clocktest):
     return done.stdout.strip()
 
 
+def test_drain(draintest):
+    """gfx.c's owed graphics lines through tests/draintest.c: refreshes mark,
+    drains send at most 16 lines, and no line starves."""
+    done = subprocess.run([draintest], capture_output=True, text=True, timeout=10, check=False)
+    if done.returncode != 0 or not done.stdout.startswith("drain: "):
+        raise Failure("owed lines:\n" + done.stdout + done.stderr)
+    return done.stdout.strip()
+
+
 def test_pit(binary, work):
     """The 8254 through tests/pit.asm. Under -T every count is exact: the
     latched counter moved 2B0h in mode 3, counter 0 at 1 kHz raised 54
@@ -1884,6 +1902,10 @@ def main(argv):
             else:
                 print("NOT RUN panel.hexdump against panel.asm: nasm (package nasm) is absent")
             psources = SOURCES + ["tests/panel.c", "-DGFX_MODEL"]
+            dsources = ["tests/draintest.c", "gfx.c", "-DGFX_MODEL"]
+            draintest = os.path.join(work, "draintest")
+            build(src, draintest, cc, dsources)
+            print(test_drain(draintest))
             pbinary = os.path.join(work, "i86-panel")
             build(src, pbinary, cc, psources)
             try:
@@ -1928,9 +1950,16 @@ def main(argv):
                 mutate(src, tree, number, name, old, new)
                 mutant = os.path.join(work, "i86-mutant")
                 build(tree, mutant, cc, psources)
+                build(tree, draintest + "-mutant", cc, dsources)
                 try:
+                    test_drain(draintest + "-mutant")
                     panel.test(mutant, src, work)
-                except (panel.Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                except (
+                    Failure,
+                    panel.Failure,
+                    subprocess.TimeoutExpired,
+                    subprocess.CalledProcessError,
+                ):
                     print(
                         "i86 panel mutant %d of %d rejected: %s"
                         % (number, len(panel.MUTANTS), name),

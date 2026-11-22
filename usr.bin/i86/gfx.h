@@ -57,6 +57,10 @@ int gfx_mode(unsigned mode);
 /* Draw what changed: the cells of a text mode with cols columns and the
  * cursor at cell index cursor, or the scan lines of a graphics mode. */
 void gfx_refresh(unsigned cols, unsigned cursor);
+/* Send part of the graphics lines a refresh found written: once at the
+ * start of every poll and once a wait of a guest that has stopped, so a
+ * large redraw alternates with the guest's steps. */
+void gfx_drain(void);
 /* Show or remove the mark of mouse keys in the panel's top margin. */
 void gfx_pointer(int on);
 /* The firmware's text and pixel services in a graphics mode. */

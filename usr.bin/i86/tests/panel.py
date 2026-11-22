@@ -57,8 +57,8 @@ MUTANTS = [
     ("gfx.c", "(b >> 7) + (b >> 6 & 1)", "(b >> 7) * 2"),
     (
         "gfx.c",
-        "unsigned pages = mem_rearm(), i, r, y, n;",
-        "unsigned pages = mem_watched, i, r, y, n;",
+        "unsigned pages = mem_rearm(), i, r, y;",
+        "unsigned pages = mem_watched, i, r, y;",
     ),
     ("mem.c", "mem_wmap[(watch_base >> MEM_PGSHIFT) + i] = 0;", "mem_stats.soft += 0;"),
     ("mem.c", "mem_watched |= 1u << i;", "mem_watched |= 1u;"),
@@ -146,6 +146,20 @@ MUTANTS = [
     ),
     ("pc.c", "\t\t\tgfx_pointer(mouse_keys);", "\t\t\tgfx_pointer(1);"),
     ("mem.c", "\t\t(void)unmap(pg);\n\t\tdrop(i);", "\t\tdrop(i);"),
+    ("gfx.c", "#define GFX_DRAIN\t16", "#define GFX_DRAIN\tLINES"),
+    ("gfx.c", "\t\tgraphic_drain(LINES);\n", "\t\t(void)0;\n"),
+    ("gfx.c", "\t\tmax -= n;\n", "\t\tmax = 0;\n"),
+    (
+        "gfx.c",
+        "\t\tgraphic_drain(GFX_DRAIN);\n}",
+        "\t\tgraphic_drain(GFX_DRAIN);\n\tmemset(owed, 0, sizeof(owed));\n}",
+    ),
+    ("gfx.c", "\t\tdrain_at = (y + n) % LINES;\n", "\t\tdrain_at = 0;\n"),
+    (
+        "gfx.c",
+        "\telse\n\t\tgraphic_refresh();\n}",
+        "\telse {\n\t\tgraphic_refresh();\n\t\tgfx_drain();\n\t}\n}",
+    ),
 ]
 
 
@@ -397,6 +411,7 @@ def run(binary, work, keys, extra=(), env=None):
 
 
 def test_stages(binary, work, fonts, boot):
+    tallest = 0
     for stage in range(10):
         keys = "%d" % stage + ("x" if stage in (6, 7, 9) else "")
         done, closes = run(binary, work, keys)
@@ -409,6 +424,7 @@ def test_stages(binary, work, fonts, boot):
         if counts["colmod"] != 0x55:
             raise Failure("%s: three bytes a pixel on the wire" % what)
         compare(frame, expected(stage, fonts, boot), what)
+        tallest = max(tallest, counts["tallest"])
         if done.stdout:
             raise Failure("%s: %d bytes went to the terminal" % (what, len(done.stdout)))
         if stage in (6, 7):
@@ -421,6 +437,10 @@ def test_stages(binary, work, fonts, boot):
             more = counts["pixels"] - before[0][1]["pixels"]
             if more != (27 * 320 if stage == 6 else 163 * 32):
                 raise Failure("%s: the change sent %d pixels" % (what, more))
+    # A mode set redraws all 200 lines; a drain sends at most 16 of them
+    # in one window, so the tallest graphics window is exactly 16 lines.
+    if tallest != 16:
+        raise Failure("graphics windows reached %d lines; a drain sends 16" % tallest)
 
 
 def test_fallbacks(binary, work, fonts, boot):

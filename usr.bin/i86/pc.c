@@ -2067,6 +2067,7 @@ pc_poll(struct i86 *c)
 
 	pc_step = 0;
 	pc_ran += steps;
+	gfx_drain();
 	if (cf.khz && !cf.fixed_clock)
 		throttle(steps);
 	for (;;) {
@@ -2136,6 +2137,7 @@ pc_poll(struct i86 *c)
 			host_exit(0);
 		/* The guest waits for a key or an interrupt. */
 		refresh();
+		gfx_drain();
 		if (!cf.fixed_clock) {
 			long ms = (long)(next_tick - now);
 

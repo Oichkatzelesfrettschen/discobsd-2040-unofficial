@@ -334,3 +334,22 @@ prefix and the state extent against an independently supplied library
 description. The caller of the layout check supplies the space available
 after accounting for the process stack. The shipped kernel's format dispatch
 continues to select static executables.
+
+### Shared libc provider members
+
+In the shared compilation of `flsbuf.c` and `doprnt_float.c`, hidden
+implementation aliases retain the code for `fflush`, `fclose` and
+`__doprnt_cvt` when symbol separation gives the public names to their
+slots. The shared ARM assembly emits `sigtramp` into an independently
+placeable four-byte section. Static compilation places those instructions
+in the wrapper's text section and omits the three implementation aliases.
+
+A diagnostic relink with 64 bytes reserved before the first callable slot
+and the cold-start routine after the template occupied 48,792 bytes. Its
+360-byte margin applies to the 33-program member envelope. In two modeled
+process windows, startup returned the GOT, `sbrk(0)` returned the end of
+state and the first `rand` returned 16838. At the entry to `_fwalk`, the
+callback argument matched the public slot for each of `fflush` and
+`fclose`. At the registration SVC, r3 held 0x100208d9, the shifted
+public signal slot. This experiment exercised user instructions through
+registration; kernel signal delivery requires its own execution evidence.

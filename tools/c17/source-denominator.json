@@ -47630,8 +47630,11 @@
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
         "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "portable-only",
-        "extension_signals": [],
+        "extension_policy": "gnu-extension-review",
+        "extension_signals": [
+          "gnu-attribute",
+          "gnu-typeof"
+        ],
         "risk_family": "libc-public-header",
         "risk_tier": "T1",
         "risk_tier_basis": "boundary-family-conservative",
@@ -48209,8 +48212,11 @@
         "source_kind": "translation-unit",
         "build_surface": "rp2040-userland",
         "required_mode": "strict-c17-and-gnu17",
-        "extension_policy": "portable-only",
-        "extension_signals": [],
+        "extension_policy": "gnu-extension-review",
+        "extension_signals": [
+          "gnu-attribute",
+          "gnu-typeof"
+        ],
         "risk_family": "libc-public-header",
         "risk_tier": "T1",
         "risk_tier_basis": "boundary-family-conservative",

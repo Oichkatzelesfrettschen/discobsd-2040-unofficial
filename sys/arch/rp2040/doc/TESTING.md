@@ -2483,6 +2483,11 @@ unlowered LTO input rejects; GCC lowers LTO to native relocatable ELF before
 separation. Eight images cover both slot widths and ordinary and LTO compilation, each with and
 without `-fno-semantic-interposition`.
 
+The gate also compiles the libc signal wrapper and the two stdio providers in
+static and shared modes. Static members retain their public owners. In shared
+mode the three stdio implementations have separable aliases and the two signal
+return instructions occupy their own four-byte section.
+
 ELF inspection checks exact public Thumb addresses, eight- and twelve-byte function extents,
 hidden implementation owners, complete GOT classification and state relocation
 containment. A separately linked SRAM application imports only the public

@@ -43,14 +43,27 @@ from moving fewer bytes on the paths before the wire.
 
 Write the display as a map D from guest state to panel pixels: expansion of
 the packed guest bytes, the palette, then the panel. A refresh must make the
-panel equal D(new). The controller is the only decoder, and it has three
-operations:
+panel equal D(new). The controller is the only decoder. Inside the
+normal-mode `/dev/lcdgfx` interface, which keeps the console's COLMOD,
+MADCTL, inversion and full display mode, it offers three operations:
 
 | Operation | Wire cost | Effect |
 | --- | --- | --- |
 | Window write (CASET, RASET, RAMWR) | 11 bytes plus 2 a pixel | sets a rectangle |
 | Vertical scroll start (VSCSAD, inside a VSCRDEF area) | a few bytes | moves every line of the area by k |
 | Nothing | 0 | the panel keeps its memory |
+
+The controller has other transforms of the whole display, which this bound
+leaves out on purpose:
+- INVON and INVOFF invert every displayed pixel;
+- idle mode shows eight colors;
+- partial mode blanks lines;
+- MADCTL remaps the scan order.
+
+A guest update matches one of these only in rare whole-screen cases (an
+inversion of every pixel); they change the console's state; and i86 does
+not send them. Bytes saved through them would come on top of what this
+note counts.
 
 The cheapest update is therefore a short program over these operations that
 turns D(old) into D(new):
@@ -158,7 +171,7 @@ under a tenth of what a skipped pixel saves.
 
 | Program | Unit | Main overstatement | Cheapest change |
 | --- | --- | --- | --- |
-| i86 graphics | 1 KB page of a field, about 13 lines | no comparison: a 4-pixel change resends whole lines | a 16-bit hash per line (400 bytes) for line-exact damage; or a 16 KB copy of the previous frame for span-exact, at 16 of i86's page frames |
+| i86 graphics | 1 KB page of a field, about 13 lines | no comparison: a 4-pixel change resends whole lines | a 16 KB copy of the frame last sent, compared byte for byte (lossless, span-exact, 16 of i86's page frames); a per-line hash is cheaper but probabilistic (below) |
 | i86 stale, palette, mode | whole panel | full 320x320 clear before a full redraw; same-value palette, port and mode writes redraw everything | compare before `palette()`; clear only the margins, and only when not already black; keep `stale` off for the same kind |
 | i86 text | cell run | cells redrawn whole; a scroll resends every shifted cell | VSCRDEF 60/200/220 and VSCSAD for row shifts; trim runs to changed rows |
 | kernel console (`lcdterm.c`) | 6x10 cell | every glyph drawn without comparing to its cell store; 1,696 cells repainted at every retake | skip identical cells; dirty flags for the retake |
@@ -176,17 +189,30 @@ a 16,667 us timer (H2). i86's page watch is already ahead of them.
 Each part is lossless, stands alone, and carries its own falsifier.
 
 1. **Panel-space damage in i86.**
-   - Line hashes first (400 bytes, line-exact): Windows graphics fall from
-     1,229,760 to 382,080 pixels (S1).
-   - Then spans under the cost rule if the page frames allow a 16 KB
-     previous-frame copy.
+   - Lossless form: a 16 KB copy of the guest frame last sent, compared byte
+     for byte when a watched page is written. It gives span-exact damage,
+     cut by the cost rule. Windows graphics fall from 1,229,760 pixels to
+     the span-exact figure, and line-exact alone already gives 382,080 (S1).
+     The cost is 16 of i86's page frames (120 by default under `-e 2048`).
+     The copy can live in pager frames that page out like guest memory.
+   - A per-line hash (16 or 32 bits, 400 or 800 bytes) is cheaper but not
+     lossless. Two different lines with the same hash leave the old line on
+     the glass. With a 32-bit hash the chance is 2^-32 for each changed
+     line, about 3 x 10^-7 over the Windows session's changed lines. A
+     periodic resend of every line bounds how long such a line stays wrong.
+     Choosing it over the copy trades exactness for memory, and that choice
+     belongs to the owner.
    - Falsifier: a host-model session whose final frame differs from the
-     reference, or a hash collision that a full-compare build exposes.
+     reference frame rendered from guest memory.
 2. **Hardware scroll for i86 text and graphics row shifts.**
-   - VSCRDEF 60/200/220, then VSCSAD by the detected shift, with windows cut
-     at the wrap seam.
-   - Falsifier: a board read-back of the scroll area after VSCSAD 24 that
-     differs from the rolled image. That refutes 972 KB of the DOS
+   - VSCRDEF 60/200/220 makes the guest's 200 lines the scroll area.
+     VSCSAD then takes an absolute memory line inside it: 60 + (s mod 200),
+     where s is the accumulated shift in lines. The first 24-line shift
+     sets 84. `LCDG_SCROLL` refuses an address in the fixed areas
+     (`sys/sys/lcdgfx.h`). Every window is then addressed through the same
+     rotation and cut at the wrap seam.
+   - Falsifier: a board read-back of the scroll area after VSCSAD 84 that
+     differs from the image rolled by 24 lines. That refutes 972 KB of the DOS
      session's saving, and it waits on the owner's board opt-in.
 3. **Known-black clears skipped.** Same-value palette, port and mode writes
    leave the panel alone.

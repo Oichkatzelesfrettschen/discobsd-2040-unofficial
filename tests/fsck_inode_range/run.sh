@@ -125,7 +125,7 @@ run_clean() {
 
 # run_repair KIND AFTER: a repair pass answers yes to the unreferenced KIND
 # (FILE or DIR) it finds, AFTER inspects the result, and a following preen run
-# must find zero work left: second_run asserts that, expecting $1 files.
+# must not find anything left to do: second_run asserts that, expecting $1 files.
 run_repair() {
 	set_expected_files
 	check_run -y
@@ -135,8 +135,8 @@ run_repair() {
 	"$2"
 }
 
-# second_run FILES: a preen run over the repaired image exits 0, reports zero
-# damage, finds zero unreferenced inodes, repairs zero damage (preen exits 0 after an
+# second_run FILES: a preen run over the repaired image exits 0, does not report
+# damage, find unreferenced inodes or repair anything (preen exits 0 after an
 # (ADJUSTED), (SALVAGED), (FIXED) or similar repair, so the report is checked
 # for those and the image for any changed byte) and counts FILES files.
 second_run() {
@@ -443,7 +443,7 @@ run_cycle() {
 # so pass 3 sees a missing parent and reconnects the directory, and pass 2 then finds
 # ".." missing and must lay it out in the remainder of the merged record: the
 # repaired block holds "." at its own size and ".." for the rest of the block,
-# so that a following read-only run and a preen run find zero damage to repair.
+# so that a following read-only run and a preen run do not find damage to repair.
 run_dotdot_range() {
 	run_cycle 1 plain
 	check_run -n

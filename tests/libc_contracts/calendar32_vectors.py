@@ -3,7 +3,7 @@
 In the 32-bit view (sys/sys/_time_t.h) time_t is the kernel's unsigned
 32-bit count, so gmtime() covers 1970-01-01 00:00:00 to 2106-02-07
 06:28:15 UTC and timegm() inverts it over the same span. The oracle is
-CPython's datetime, which shares zero arithmetic with lib/libc/gen/ctime.c
+CPython's datetime, which does not share arithmetic with lib/libc/gen/ctime.c
 or mktime.c.
 
 The header holds three tables, the zone offsets and two constants:

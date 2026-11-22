@@ -347,7 +347,7 @@ test_counts_are_bounded(void)
  * The shape that reads zero files. tzset() reaches tzsetkernel() and then
  * tzsetgmt(), so a zone file named in TZ is not opened at all -- which is
  * the whole of what this build promises, and the reason the bounds the
- * cases above measure bound zero data.
+ * cases above measure do not apply here.
  */
 /*
  * The offset the fixture writes is deliberately not a whole number of

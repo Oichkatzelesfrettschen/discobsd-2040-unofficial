@@ -6,7 +6,7 @@ usage:
     oracle.py extent IMAGE VOLUME_LBA ROOT_IMAGE
 
 The oracle reads the volume through tests/msdosfs_core/fat_reader.py, which
-follows the Microsoft FAT specification and shares zero code with the locator
+follows the Microsoft FAT specification and does not share code with the locator
 (sys/arch/rp2040/dev/fat32tail.c) or with the msdosfs tool that wrote the
 images. Images are mapped, not read, so a 2 GiB sparse volume costs only
 the sectors the oracle touches.

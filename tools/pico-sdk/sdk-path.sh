@@ -37,7 +37,7 @@ usable() {
 	[ -n "${1:-}" ] && [ -f "$1/pico_sdk_init.cmake" ] && [ -f "$1/$SENTINEL" ]
 }
 
-# A wrong guess among the packaged paths costs zero: usable() rejects
+# A wrong guess among the packaged paths is harmless: usable() rejects
 # anything without both pico_sdk_init.cmake and the sentinel.
 SYSTEM_PATHS="/usr/share/pico-sdk /usr/local/share/pico-sdk /opt/pico-sdk"
 

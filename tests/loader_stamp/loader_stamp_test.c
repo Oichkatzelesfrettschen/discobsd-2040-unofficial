@@ -196,7 +196,7 @@ test_invalid_stamps(void)
 		CHECK(!flash_write_admitted(FLASH_FS_OFFSET, FLASH_SECTOR_BYTES,
 		    end));
 	}
-	/* The lowest accepted limit keeps the root whole and leaves zero swap. */
+	/* The lowest accepted limit keeps the root whole and leaves swap empty. */
 	CHECK(loader_stamp_decode(LOADER_STAMP_MAGIC,
 	    FLASH_XIP_BASE + FLASH_SWAP_OFFSET, &end) == LOADER_STAMP_VALID);
 	CHECK(end == FLASH_SWAP_OFFSET);

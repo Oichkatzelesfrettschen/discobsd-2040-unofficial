@@ -14,7 +14,7 @@
 #
 # The reader is fsutil itself (-vvv prints the superblock and inode times
 # with ctime in UTC); the expected text comes from Python's asctime, which
-# shares zero code with it. Seven source mutants calibrate the cases: the old
+# does not share code with it. Seven source mutants calibrate the cases: the old
 # 0x7fffffff bound, a fixed clock that only caps the host time, a range
 # check without an upper bound, a bad value that falls back to the host
 # clock, a ceiling above 0x7fffffff that is ignored, an added file that

@@ -34,7 +34,7 @@
  * Integer division reaches the RP2040 SIO divider: lib/libc/arm/gen/aeabi_div.S
  * stores the dividend and divisor at SIO base 0xd0000000 + 0x60 and 0x64 and
  * loads the quotient and remainder from + 0x70 and + 0x74 (datasheet 2.3.1.5).
- * qemu-user maps zero guest memory at or above 0x80000000 for an M-profile CPU,
+ * qemu-user does not map guest memory at or above 0x80000000 for an M-profile CPU,
  * so those accesses raise SIGSEGV. The loader serves it like the svc sites: it
  * decodes the faulting "str Rt, [Rn, #imm]" or "ldr Rt, [Rn, #imm]", takes the
  * register block from its own state, starts the division when the divisor

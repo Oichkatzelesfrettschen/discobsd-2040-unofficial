@@ -1645,7 +1645,7 @@ fill_damage(void)
 /*
  * Focus and visibility by hand: the focus follows raise and lower, moves to
  * the next window down when the focused one is destroyed or hidden, never
- * rests on a hidden window, a hidden window occludes zero pixels and records zero
+ * rests on a hidden window, a hidden window occludes zero pixels and does not record
  * damage, and a call that fails at the backend changes neither the focus
  * nor the shown state.
  */
@@ -1691,7 +1691,7 @@ run_focus(void)
 	after_op(1);
 	if (panel[11 * PW + 11] != R_DESKTOP)
 		fail("a hidden window still covers the desktop");
-	/* A hidden window records zero damage. */
+	/* A hidden window does not record damage. */
 	if (win_move(&scene, tw[0].handle, 30, 30) != 0 ||
 	    win_resize(&scene, tw[0].handle, 90, 70) != 0 ||
 	    win_set_title(&scene, tw[0].handle, "hidden") != 0 ||

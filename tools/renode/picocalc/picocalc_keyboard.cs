@@ -16,8 +16,8 @@
  * a multiple of 32 and drops to 0 below 32 or above 240, so a guest that
  * writes a level reads back the level the light took. The LCD level starts
  * at 32. Any other register answers zeros. Register 0x08 resets the real controller after a
- * delay, so the model records the request in ResetRequests and takes zero other action
- * beyond that.
+ * delay, so the model records the request in ResetRequests and otherwise
+ * ignores it.
  *
  * Key injection happens through the monitor: PressKey, ReleaseKey, TypeKey,
  * TypeText, TypeLine and TypeCtrl queue the (state, key) events the firmware

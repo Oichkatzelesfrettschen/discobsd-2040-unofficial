@@ -437,7 +437,7 @@ def case_root(renode_path, kernel, flash, root_img, outdir, start, reason):
 def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
     """The card holds a type-ba entry in slot 4: /etc/rc.rp2040 makes a file
     system on /dev/sd0t and mounts it at /tmp, which then holds files.
-    sdswapattach() finds zero PSRAM to widen here (the Renode model lacks it),
+    sdswapattach() does not find PSRAM to widen here (the Renode model lacks it),
     so the swap size on the PSRAM stays unobserved."""
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")

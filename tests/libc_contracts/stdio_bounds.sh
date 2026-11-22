@@ -7,8 +7,8 @@
 # standard, the tree's <stdio.h> no longer declares it, and neither libc
 # builds an object for it.
 #
-# Those two facts are what the check rests on, and between them they need zero
-# source sweeps: a call in any file the tree compiles fails at its implicit
+# Those two facts are what the check rests on, and between them they do not need a
+# source sweep: a call in any file the tree compiles fails at its implicit
 # declaration, and a file that reaches the declaration some other way fails
 # at the link. A grep for callers would add only a heuristic that cannot
 # tell "*p = gets(b);" from a line of block comment.

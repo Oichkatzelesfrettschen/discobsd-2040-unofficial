@@ -64,7 +64,7 @@ static struct lcdg_window win;
 static unsigned long win_at, win_total;		/* pixels */
 static int isopen, haswin;
 static unsigned opens, closes;
-static unsigned long errors, pixels, windows, fills;
+static unsigned long errors, pixels, windows, fills, tallest;
 static unsigned colmod;
 
 static int
@@ -133,7 +133,8 @@ panel_close(void)
 	if ((f = fopen(path, "w")) == NULL)
 		return (0);
 	fprintf(f, "errors %lu\npixels %lu\nwindows %lu\nfills %lu\n"
-	    "colmod %x\n", errors, pixels, windows, fills, colmod);
+	    "colmod %x\ntallest %lu\n", errors, pixels, windows, fills, colmod,
+	    tallest);
 	fclose(f);
 	return (0);
 }
@@ -170,6 +171,8 @@ panel_ioctl(unsigned long cmd, void *arg)
 		    (w->fg >= LCDG_NPAL || w->bg >= LCDG_NPAL)))
 			return (bad(EINVAL));
 		win = *w;
+		if (w->fmt == LCDG_WIN_INDEX && w->h > tallest)
+			tallest = w->h;
 		win_at = 0;
 		win_total = (unsigned long)w->w * w->h;
 		haswin = 1;

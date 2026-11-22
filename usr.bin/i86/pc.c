@@ -2067,6 +2067,7 @@ pc_poll(struct i86 *c)
 
 	pc_step = 0;
 	pc_ran += steps;
+	gfx_drain();
 	if (cf.khz && !cf.fixed_clock)
 		throttle(steps);
 	for (;;) {

@@ -105,6 +105,14 @@ static uint8_t reg_mode = 0x29, reg_color = 0x30;
 static unsigned cur_shown = GFX_NOCURSOR;
 static uint8_t line[LCDG_WIDTH];
 static int pointer;			/* mouse keys are on: show the mark */
+/* Graphics lines written since they were last sent, one bit a line. A
+ * refresh adds the lines of the pages written since the last one; each
+ * drain sends at most GFX_DRAIN of them, so a redraw of the whole frame
+ * leaves the emulator running between its parts. */
+#define GFX_DRAIN	16		/* 6.6 ms of wire at 12.5 MHz */
+static uint8_t owed[LINES / 8];
+
+static void graphic_drain(unsigned max);
 
 /* Device output. A failed command draws nothing and the next refresh
  * finds its pages rearmed, so nothing is retried: the device rejects
@@ -259,6 +267,9 @@ gfx_close(void)
 {
 	if (!gfx_on)
 		return;
+	/* The panel keeps what was sent; the lines still owed go first. */
+	if (!stale && kind != K_TEXT)
+		graphic_drain(LINES);
 	gfx_on = 0;
 	(void)DEV_CLOSE(fd);
 	fd = -1;
@@ -404,13 +415,37 @@ line_expand(unsigned y)
 	}
 }
 
+/* Send at most max owed lines, a run of up to GFX_DRAIN adjacent ones a
+ * window. */
+static void
+graphic_drain(unsigned max)
+{
+	unsigned i, y, n;
+
+	for (y = 0; y < LINES && max > 0; y += n) {
+		n = 1;
+		if (!(owed[y >> 3] >> (y & 7) & 1))
+			continue;
+		while (n < max && n < GFX_DRAIN && y + n < LINES &&
+		    (owed[(y + n) >> 3] >> ((y + n) & 7) & 1))
+			n++;
+		max -= n;
+		for (i = y; i < y + n; i++)
+			owed[i >> 3] &= (uint8_t)~(1u << (i & 7));
+		if (window(0, GFX_Y0 + y, LCDG_WIDTH, n, LCDG_WIN_INDEX, 0, 0) != 0)
+			continue;
+		for (i = 0; i < n; i++) {
+			line_expand(y + i);
+			put(line, LCDG_WIDTH);
+		}
+	}
+}
+
 static void
 graphic_refresh(void)
 {
-	uint8_t dirty[LINES / 8];
-	unsigned pages = mem_rearm(), i, r, y, n;
+	unsigned pages = mem_rearm(), i, r, y;
 
-	memset(dirty, 0, sizeof(dirty));
 	for (i = 0; i < 2 * BANK_PAGES; i++) {
 		if (!(pages >> i & 1))
 			continue;
@@ -419,22 +454,17 @@ graphic_refresh(void)
 		    r < LINES / 2 && r * 80 < (i % BANK_PAGES + 1) << MEM_PGSHIFT;
 		    r++) {
 			y = 2 * r + i / BANK_PAGES;
-			dirty[y >> 3] |= (uint8_t)(1u << (y & 7));
+			owed[y >> 3] |= (uint8_t)(1u << (y & 7));
 		}
 	}
-	for (y = 0; y < LINES; y += n) {
-		n = 1;
-		if (!(dirty[y >> 3] >> (y & 7) & 1))
-			continue;
-		while (y + n < LINES && (dirty[(y + n) >> 3] >> ((y + n) & 7) & 1))
-			n++;
-		if (window(0, GFX_Y0 + y, LCDG_WIDTH, n, LCDG_WIN_INDEX, 0, 0) != 0)
-			continue;
-		for (i = 0; i < n; i++) {
-			line_expand(y + i);
-			put(line, LCDG_WIDTH);
-		}
-	}
+	graphic_drain(GFX_DRAIN);
+}
+
+void
+gfx_drain(void)
+{
+	if (gfx_on && !stale && kind != K_TEXT)
+		graphic_drain(GFX_DRAIN);
 }
 
 /* The mark of mouse keys (pc.c): a white pointer arrow in the panel's top
@@ -503,6 +533,7 @@ gfx_refresh(unsigned cols, unsigned cursor)
 		if (kind == K_TEXT)
 			memset(bank[0] + 0x1000, 0, 0x1000);
 		cur_shown = GFX_NOCURSOR;
+		memset(owed, 0, sizeof(owed));
 		mem_watched = 0xffff;
 		stale = 0;
 	}

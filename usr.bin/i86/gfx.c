@@ -203,7 +203,7 @@ palette(void)
 	if (!gfx_on)
 		return;
 	/* The registers the colors below depend on, for each kind. A write
-	 * that leaves them as they were sends nothing. */
+	 * that leaves them as they were does not reach the device. */
 	key = kind == K_TEXT ? 0 : kind == K_CGA4 ? 0x100 |
 	    (reg_mode & 4) << 4 | (reg_color & 0x3f) : 0x200 | (reg_color & 15);
 	if (key == pal_key)

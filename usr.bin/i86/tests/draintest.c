@@ -34,7 +34,7 @@
  * a window; a full redraw goes out in order, each line once; and lines
  * written again on every poll near the top leave the rest of the frame
  * served within one pass of the drain. With page frames for the copy of
- * the lines last sent, a line equal to its copy costs nothing, a changed
+ * the lines last sent, a line equal to its copy is not sent, a changed
  * byte costs a window of its four pixels, and two changed lines share a
  * window only where that costs fewer bytes.
  */
@@ -207,7 +207,7 @@ main(void)
 	check(all_sent(0), "lines written on every poll starve no other line");
 
 	/* The same with the copy: after one full redraw, unchanged lines
-	 * cost nothing; then one byte on line 0 and one on line 1 three
+	 * are not sent; then one byte on line 0 and one on line 1 three
 	 * bytes apart go as two windows of four pixels (one window of both
 	 * would send 64 bytes against 27), and one byte at the same place
 	 * on lines 4 and 5 as one window of two lines. */

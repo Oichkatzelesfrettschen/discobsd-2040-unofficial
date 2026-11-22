@@ -2588,6 +2588,11 @@ all-ones, `INT_MIN`, `INT_MAX`, every power of two with its neighbors and
 negations) and 16,000 seeded random pairs, comparing quotient and remainder
 with the software helpers the library used before the hardware divider
 (`reference_div.S`) and with a restoring division written from C99 6.5.5.
+The same pairs exercise the public `div` and `ldiv` structures for every
+defined C division, excluding zero divisors and the minimum divided by minus
+one. The Cortex-M0 remainder-offset control must exit with status one and
+report a mismatch for each public function. The Cortex-M4 build also checks
+the returned structures using the code generated for its instruction set.
 qemu-user lacks the SIO block, so the model replaces only the base address and
 the eight-cycle wait: the helper still stores to offsets 0x60 and 0x64, loads
 0x74 and then 0x70 from a RAM block, and a model step computes the unsigned

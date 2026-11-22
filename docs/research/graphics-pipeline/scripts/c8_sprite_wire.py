@@ -33,7 +33,11 @@ WINDOW = 11  # CASET, RASET and RAMWR setup bytes (games/gametile.h)
 TILE = 64 * PIXEL
 CELL = 8  # LCDG_TILE_W
 BOX = None  # RG_BOX, read from ridge.c by main()
-FRAMES = (("climber run", 1), ("climber jump", 3), ("crawler", 4))
+# (label, frame before the step, frame after it): the running and crawling frames alternate
+# (rg_sprites), so a step may also change the frame.
+FRAMES = (("climber running, same frame", 1, 1), ("climber running, frame 1 to 2", 1, 2),
+          ("climber jumping", 3, 3), ("crawler, same frame", 4, 4),
+          ("crawler, frame 4 to 5", 4, 5))
 MOVES = (("run 1 px", 1, 0), ("rise 2 px", 0, -2), ("fall 4 px", 0, 4), ("run 1, rise 2", 1, -2))
 
 
@@ -109,15 +113,18 @@ def main(path, test):
     BOX = define(open(path).read(), "RG_BOX")
     calibrate(test)
     frames = art(path)
-    print("sprite / move | opaque px | runs | box atlas | opaque-cell atlas | LCDG_SPRITE")
-    for name, f in FRAMES:
-        px = opaque(frames[f])
+    # The LCDG_SPRITE column counts drawing bytes alone; the LCDG_WAITLINE fence it needs
+    # against flicker adds four bytes for every GSCAN poll, a number the scan phase decides.
+    print("sprite / move | opaque px after | runs after | box atlas | opaque-cell atlas"
+          " | LCDG_SPRITE unfenced")
+    for name, f0, f1 in FRAMES:
+        px0, px = opaque(frames[f0]), opaque(frames[f1])
         sprite_px = len(px) * PIXEL + row_runs(px) * WINDOW
         for move, dx, dy in MOVES:
             a = b = c = n = 0
             for ox in range(CELL, 2 * CELL):
                 for oy in range(CELL, 2 * CELL):
-                    old, new = cells(px, ox, oy), cells(px, ox + dx, oy + dy)
+                    old, new = cells(px0, ox, oy), cells(px, ox + dx, oy + dy)
                     a += tiles(box(ox, oy) | box(ox + dx, oy + dy))
                     b += tiles(old | new)
                     c += tiles(old) + sprite_px

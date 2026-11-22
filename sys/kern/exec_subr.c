@@ -856,10 +856,9 @@ void exec_clear(struct exec_params *epp)
      * released the executable's inode (exec_finish() in kern_exec.c). A
      * close can sleep without bound, in the output drain of a terminal
      * whose output is stopped, and a process asleep there is swapped
-     * out; the swapper reads the text of every process that runs this
-     * executable under the same inode lock (exec_text_restore()), so a
-     * close made here would leave the swapper asleep on a lock whose
-     * holder it alone can bring back.
+     * out holding the lock, which then stays held for as long as the
+     * terminal stays stopped and blocks every other exec, open and
+     * lookup of the executable.
      */
     epp->flags |= EXEC_CLOSE_PENDING;
 

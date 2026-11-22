@@ -19,7 +19,7 @@
  *
  * Descriptors: 3 inherited, 1 from open and N-1 from dup, so N + 3; the
  * program names the failing call and errno on any error. The file is
- * unlinked right after it is created, so a failed run leaves nothing in
+ * unlinked right after it is created, so a failed run leaves zero files in
  * /tmp; the name is kept to report errors.
  *
  * Verdict lines: STREAMTEST OK (exit 0) and STREAMTEST FAILED (exit 1).

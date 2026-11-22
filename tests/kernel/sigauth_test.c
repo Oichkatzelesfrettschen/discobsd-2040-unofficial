@@ -98,7 +98,7 @@ struct kill_arg {
 /*
  * The caller with real uid 1000, and the effective and saved ids given;
  * a child of it; and an unrelated process owned by uid 2000 whose parent
- * chain ends, so inferior() finds nothing.
+ * chain ends, so inferior() reaches its end without a match.
  */
 static void
 reset(uid_t effective, uid_t saved)

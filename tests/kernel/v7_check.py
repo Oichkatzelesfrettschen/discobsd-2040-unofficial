@@ -1,13 +1,13 @@
 """Check a little-endian Seventh Edition volume image for structural consistency.
 
-The checker shares no code with the kernel's inode layer or with the NetBSD
+The checker shares zero code with the kernel's inode layer or with the NetBSD
 core in usr.sbin/v7fs. It reads the superblock, every inode and the free
 chain from the image bytes and holds these claims:
 
 - every block an inode or an indirect block names lies in the data area and
   is named once;
-- an inode names no data or indirect block past the last one its size needs;
-- the free chain is well formed, repeats no block and names no block in use;
+- an inode names zero data or indirect blocks past the last one its size needs;
+- the free chain is well formed, never repeats a block and never names a block in use;
 - used and free blocks together are exactly the data area, and the
   superblock's free count equals the chain's length;
 - every directory entry names an allocated inode, every directory holds "."

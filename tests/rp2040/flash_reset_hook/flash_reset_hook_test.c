@@ -61,7 +61,7 @@ typedef unsigned int	u_int;
 
 #include <rp2040/dev/flash.h>
 
-/* The kernel places these in RAM; the host has no such section. */
+/* The kernel places these in RAM; the host lacks such a section. */
 #undef	__ramfunc
 #define	__ramfunc
 

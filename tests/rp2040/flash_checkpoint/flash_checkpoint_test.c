@@ -473,7 +473,7 @@ test_group_fill(void)
 
 /*
  * d: the A04 case. The write has completed, so nothing above the driver is
- * dirty; reads change nothing; the checkpoint alone, with no further data
+ * dirty; reads leave the state unchanged; the checkpoint alone, with no further data
  * write, makes the pending map change durable.
  */
 static void

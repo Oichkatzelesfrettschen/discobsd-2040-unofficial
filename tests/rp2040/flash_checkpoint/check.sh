@@ -130,7 +130,7 @@ mutate "$flash" "$work/flash-no-ioctl.c" \
 build "$work/flash-no-ioctl.c" "$work/oracle-no-ioctl"
 rejects "$work/oracle-no-ioctl" checkpoint-then-reset flush-without-write
 
-# A checkpoint entry that never reaches dhara_map_sync() makes nothing durable.
+# A checkpoint entry that never reaches dhara_map_sync() makes zero changes durable.
 mutate "$flash" "$work/flash-noop.c" \
 	'	if (dhara_map_sync(&flmap, &err) < 0)
 		error = EIO;' \
@@ -165,7 +165,7 @@ mutate "$flash" "$work/flash-any-close.c" \
 build "$work/flash-any-close.c" "$work/oracle-any-close"
 rejects "$work/oracle-any-close" idle-checkpoint
 
-# An open that records no writer leaves a writer's blocks pending at the
+# An open that skips recording its writer leaves a writer's blocks pending at the
 # last close.
 mutate "$flash" "$work/flash-no-writer.c" \
 	'	if (flags & FWRITE)

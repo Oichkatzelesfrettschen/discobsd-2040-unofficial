@@ -6,7 +6,7 @@ erases per compile over many sessions, peak flash blocks in use, the
 share of sessions the swap map refused, and the kernel RAM and text the
 change would add. A refused session stops its replay where the kernel
 would refuse the fork or defer the swap (model.Refused), so a row with any
-refused session reports no erase or wear figure. RAM is exact
+refused session lacks erase and wear figures. RAM is exact
 where the change is a buffer size; text is an estimate, and TEXT_BASIS says
 what each estimate rests on.
 

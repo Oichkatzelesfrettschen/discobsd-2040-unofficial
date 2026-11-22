@@ -30,7 +30,7 @@
  * preempt: on-device oracle for the asynchronous system trap, the return
  * to a process through userret from a clock tick rather than from a system
  * call (sys/arch/rp2040/rp2040/systick.c, syscall.c). Every case runs a
- * loop that makes no system call, so only the clock tick can deliver its
+ * loop that makes zero system calls, so only the clock tick can deliver its
  * signal or switch it out. tools/renode/check-preempt.py runs each case in
  * its own boot.
  *

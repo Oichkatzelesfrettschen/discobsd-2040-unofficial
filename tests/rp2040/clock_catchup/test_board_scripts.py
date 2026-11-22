@@ -4,7 +4,7 @@
 board_clock_catchup.py and board_dcbc_smoke.py drive a board over its USB
 console. This file imports both without a serial module and exercises their
 parsing, interval arithmetic, verdicts and console framing on synthetic input
-and a stub console, so it opens no port and calls no flasher. Each check that
+and a stub console, so it never opens a port or calls a flasher. Each check that
 guards a defect also runs against the defective form and requires the
 rejection to disappear, so a passing run shows the check can fail.
 

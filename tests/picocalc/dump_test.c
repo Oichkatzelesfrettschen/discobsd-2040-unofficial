@@ -414,7 +414,7 @@ main(void)
 	check("clear: dump gone", dump_on_card(), 0);
 	check("clear: dump.3", file_size("dump.3"), -1);
 
-	/* A dump the writer did not finish is no dump. */
+	/* A dump the writer did not finish is not a dump. */
 	fail_at = 9;
 	check("unfinished write", write_dump(), EIO);
 	fail_at = -1;

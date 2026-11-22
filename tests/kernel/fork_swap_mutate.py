@@ -127,7 +127,7 @@ MUTATIONS = {
         "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return -1;",
         "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return 1;",
     ),
-    # Process 1 reserves a u-area-only image: empty segments write nothing.
+    # Process 1 reserves a u-area-only image: empty segments write zero bytes.
     "write-empty-data-segment": (
         "    if (odata) {\n#ifdef SWAPRAM",
         "    if (1) {\n#ifdef SWAPRAM",

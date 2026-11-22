@@ -516,7 +516,7 @@ neighbor_deadline(void)
         sigs[1].tick == start + 52);
 }
 
-/* A child starts with all four fields clear and gets no alarm. */
+/* A child starts with all four fields clear and receives zero alarms. */
 static void
 fork_clears(void)
 {

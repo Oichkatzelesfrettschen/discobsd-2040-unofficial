@@ -34,7 +34,7 @@ lost 96 s to a 96-sector workload, 23 times the floor). The check passes when
 the whole excess interval lies within a tenth of the floor, fails when it lies
 wholly outside, and is inconclusive otherwise (exit status 2). A workload that
 did not write every block and a floor under a second are also inconclusive.
-A measurement whose per-line bounds have no common point has two causes: a
+A measurement whose per-line bounds are disjoint has two causes: a
 line delayed past SETTLE_MARGIN, which is inconclusive, or a board clock that
 fell behind during the loop, which is a failure. Arrival times alone cannot
 tell them apart, because a console that holds lines back can give a steady
@@ -42,8 +42,8 @@ clock any arrival pattern. The check therefore separates them with a probe
 whose bounds rest on no latency assumption: the host sends each "date" itself,
 so the line was made between the send and the arrival, and a steady clock's
 offset lies in every sample's interval (send - value - 1, arrival - value].
-probe_bounds() intersects PROBE_SAMPLES such intervals; when they have no
-common point, no steady clock can have produced them and the check fails,
+probe_bounds() intersects PROBE_SAMPLES such intervals; when they are
+disjoint, no steady clock can have produced them and the check fails,
 reporting the gap as the least time the clock lost. When they share a point,
 the loop's empty bounds came from a delayed line and the measurement is
 inconclusive. Any of the three measurements can show the loss, because the
@@ -94,13 +94,13 @@ ERASE_MS = 44
 # loses the whole ERASE_MS per sector.
 TOLERANCE_FRACTION = 0.10
 MIN_LOST_S = 1.0
-# Request-bounded samples taken when a loop's bounds have no common point.
+# Request-bounded samples taken when a loop's bounds are disjoint.
 PROBE_SAMPLES = 40
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
 
 # Arrival stamps come from the monotonic clock placed on the wall clock once,
-# so a host clock step during the run moves no stamp relative to another.
+# so a host clock step during the run leaves every stamp fixed relative to another.
 WALL_ANCHOR = time.time()
 MONOTONIC_ANCHOR = time.monotonic()
 
@@ -167,7 +167,7 @@ class Console:
         that command and the line PROBE<n>, so neither a late reply to an
         earlier request nor any other stale date line is taken for it. A
         request whose marker does not arrive within WAIT seconds, or whose
-        window holds no date line or more than one, raises MeasurementError,
+        window holds zero date lines or more than one, raises MeasurementError,
         because its reply cannot be attributed to its send."""
         probes = []
         for _ in range(samples):
@@ -277,7 +277,7 @@ class ClockUnsteady(MeasurementError):
     break the claim.
 
     LOSS is the least time in seconds the clock must have moved off the host
-    for the request-bounded samples to have no common offset, BEHIND tells a
+    for the request-bounded samples to lack a common offset, BEHIND tells a
     clock that fell behind from one that ran ahead, LINES is the number of
     parsed samples and MEASUREMENT the name of the measurement that showed it
     (set by measure_offset).
@@ -300,7 +300,7 @@ def offset_bounds(stamped, samples=SAMPLES):
     STAMPED holds (arrival time, console line) pairs. The constant that
     converts the board's local zone to UTC stays in the value; only differences
     between measurements are meaningful. Raises MeasurementError when too few
-    lines parse and EmptyBounds when the per-line bounds have no common point,
+    lines parse and EmptyBounds when the per-line bounds are disjoint,
     which a line delayed beyond SETTLE_MARGIN or a clock that fell behind
     during the loop produces; probe_bounds() tells the two apart.
     """
@@ -334,7 +334,7 @@ def probe_bounds(probes, samples=PROBE_SAMPLES):
     made at x in [sent, arrival], so a steady clock's offset lies in
     (sent - value - 1, arrival - value] for every sample, however long the
     console held the line. Raises ClockUnsteady with the gap between the
-    bounds when they have no common point, BEHIND telling a clock that fell
+    bounds when they are disjoint, BEHIND telling a clock that fell
     behind from one that ran ahead, and MeasurementError when too few
     lines parse.
     """

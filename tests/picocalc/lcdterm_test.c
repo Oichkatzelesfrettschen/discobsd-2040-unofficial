@@ -661,7 +661,7 @@ test_glyph_bank(void)
 	expect_int("first bank code", lcdterm_setglyph(0x80, fill), 0);
 	expect_int("last bank code", lcdterm_setglyph(0xff, fill), 0);
 
-	/* Rejections change nothing. */
+	/* Rejections leave the terminal unchanged. */
 	reset();
 	expect_int("setup upload", lcdterm_setglyph(0xc0, tile_a), 0);
 	for (i = 0; i < LT_GLYPH_ROWS; i++) {
@@ -746,7 +746,7 @@ test_glyph_bank(void)
 
 /*
  * While a pixel program owns the panel the terminal keeps interpreting its
- * input, so the store, the ring and the cursor stay current, but it calls no
+ * input, so the store, the ring and the cursor stay current, but it never calls a
  * panel primitive. Leaving the mode puts the panel in the text
  * configuration and repaints every cell and the scroll start from the
  * store, so text written meanwhile appears.

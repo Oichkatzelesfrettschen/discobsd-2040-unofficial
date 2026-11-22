@@ -827,7 +827,7 @@ universe_block(unsigned i)
 	    COLD_BLOCKS));
 }
 
-/* Seed of the pattern the block holds: 0 blank, -1 matches no write. */
+/* Seed of the pattern the block holds: 0 blank, -1 matches zero writes. */
 static long
 block_seed(daddr_t blk)
 {
@@ -1244,7 +1244,7 @@ repair_converges(unsigned m)
  *   - cmd 1 and cmd 2 fail at every prefix;
  *   - cmd 3 fails at every prefix but 255 (the whole page is on the chip);
  *   - the recovered root is blank (prefix 0 of the history), except cmd 3
- *     at prefixes 64 and 128, where it matches no prefix.
+ *     at prefixes 64 and 128, where it matches zero prefixes.
  * A defect row passes only while its failures equal this set and class cut
  * by cut. A cut that fails otherwise, a cut that stops failing, a refused
  * resume or a NOR contract break inside the window is a different defect
@@ -1662,7 +1662,7 @@ main(int argc, char **argv)
 		}
 	}
 	if (only != NULL && matched == 0) {
-		/* A misspelled id would otherwise run nothing and pass. */
+		/* A misspelled id would otherwise run zero cells and pass. */
 		printf("FAIL no cell named '%s' in %s\n", only, argv[1]);
 		failures++;
 	}

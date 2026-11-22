@@ -8,7 +8,7 @@
  * line): STDIOCAP OK (exit 0); STDIOCAP FAILED with the reason (exit 1 to
  * 5, the existing codes); STDIOCAP SKIPPED (exit 64) when no valid
  * operation was named, since the program measures one operation per exec
- * and runs nothing without one.
+ * and runs zero operations without one.
  */
 #include <sys/param.h>
 #include <sys/sysctl.h>

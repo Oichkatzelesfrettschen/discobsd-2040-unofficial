@@ -7,8 +7,8 @@
  * by 0x7fffffff. The gate pins that bound at the limit, one below it and one
  * above it, for a single oversized vector and for an overflow spread across
  * vectors, and holds the kernel's verdict against a 64-bit reference sum
- * over an enumerated set of vectors. A rejected request must reach no file
- * operation and move no file offset, which is the property the file
+ * over an enumerated set of vectors. A rejected request must never reach a file
+ * operation or move a file offset, which is the property the file
  * operation stub records.
  *
  * The file operation is a stub that consumes what it is told to, and for the
@@ -301,7 +301,7 @@ accepted(const u_int *lengths, unsigned n)
 	return u.u_error == 0;
 }
 
-/* A request the kernel rejected reaches no file operation and moves nothing. */
+/* A request the kernel rejected never reaches a file operation or moves an offset. */
 static void
 check_rejected(const char *label, const u_int *lengths, unsigned n)
 {
@@ -353,7 +353,7 @@ bound_cases(void)
 	check_rejected("overflow in the last of four vectors", wrap_late, 4);
 }
 
-/* Splitting an accepted length across vectors changes nothing the kernel reports. */
+/* Splitting an accepted length across vectors leaves every kernel report unchanged. */
 static void
 split_cases(void)
 {

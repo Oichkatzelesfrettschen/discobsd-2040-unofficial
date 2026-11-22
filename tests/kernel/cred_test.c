@@ -366,7 +366,7 @@ read_groups(void)
 	HK_CHECK(u.u_error == EINVAL);
 	HK_CHECK(received[0] == NOGROUP);
 
-	/* A copy that faults reports the fault and leaves no answer. */
+	/* A copy that faults reports the fault and leaves the answer unwritten. */
 	reset(REAL_UID, REAL_UID);
 	a = (struct gidset_arg *)u.u_arg;
 	a->gidsetsize = NGROUPS;
@@ -459,7 +459,7 @@ change_user(void)
 	struct uid_arg *a;
 	struct credential_snapshot before;
 
-	/* Dropping to the real uid needs no privilege, and drops the saved
+	/* Dropping to the real uid needs zero privilege, and drops the saved
 	   id too, so the program cannot come back. */
 	reset(0, REAL_UID);
 	a = (struct uid_arg *)u.u_arg;

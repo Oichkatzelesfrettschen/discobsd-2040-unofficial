@@ -32,7 +32,7 @@ machdep(int id, int *val, int set)
 
     mib[0] = CTL_MACHDEP;
     mib[1] = id;
-    /* The kernel sets no return value on success; only -1 is failure. */
+    /* The kernel leaves the return value unset on success; only -1 is failure. */
     err = sysctl(mib, 2, &old, &len, set ? val : NULL, set ? sizeof *val : 0);
     if (err == -1)
         return -1;

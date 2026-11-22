@@ -43,7 +43,7 @@
  * Each scenario runs in a forked child, because panic and fault abandon the
  * drawing flag for good: "main" covers switching, freezing, flow control and
  * the marker; "panic" and "fault" end with ttyv0's text on the panel while
- * ttyv1 was shown. The scenarios share no state.
+ * ttyv1 was shown. Each scenario starts from its own state.
  */
 
 #include <stdio.h>

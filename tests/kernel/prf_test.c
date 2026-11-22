@@ -340,7 +340,7 @@ output_routing(void)
 	/*
 	 * With no terminal named, tprintf writes to the one the console
 	 * forwards to, never to the redirector's idle cnttys slot; with no
-	 * such terminal the message reaches no terminal at all.
+	 * such terminal the message reaches zero terminals.
 	 */
 	{
 		static struct tty live;

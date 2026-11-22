@@ -23,7 +23,7 @@ operator wants before trusting any other measurement of that board.
 
 Every console byte goes to LOG. The exit status is 0 when every check
 passed, 1 when one failed and 2 when the console stopped answering or
-UNIX_BIN carries no identity words.
+UNIX_BIN lacks identity words.
 """
 
 import importlib.util

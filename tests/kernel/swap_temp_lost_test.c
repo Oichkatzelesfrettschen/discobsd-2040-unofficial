@@ -203,7 +203,7 @@ main(void)
                 read_case(shapes[s][0], shapes[s][1], fail);
         }
     }
-    /* A device that left before the call moves and consumes nothing. */
+    /* A device that left before the call moves and consumes zero blocks. */
     reset(-1);
     swap_lost = SWAP_LOST_SWEPT;
     {

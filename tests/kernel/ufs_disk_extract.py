@@ -35,7 +35,7 @@ CONF_FUNCTIONS = (
     ("blkoverlap", "int\nblkoverlap(dev_t a, dev_t b)"),
 )
 
-# <sys/buf.h> has no include guard; the gate includes it before the extraction.
+# <sys/buf.h> lacks an include guard; the gate includes it before the extraction.
 FLASH_INCLUDES = """#include <sys/param.h>
 #include <sys/systm.h>
 #include <sys/errno.h>

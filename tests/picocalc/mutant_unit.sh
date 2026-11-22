@@ -12,7 +12,7 @@
 #
 # The test runs through tools/run_bounded.sh: MUTANT_TIMEOUT seconds
 # (default 120) and MUTANT_OUTPUT_BYTES bytes (default 1 MiB) end it. A
-# mutant that loops or prints without end gives no verdict, so the script
+# mutant that loops or prints without end ends without a verdict, so the script
 # exits 3 for it instead of counting it as rejected or waiting on it.
 #
 # When MUTANT_EXPECT is set, the failing test's output must also contain

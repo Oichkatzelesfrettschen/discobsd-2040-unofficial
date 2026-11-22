@@ -5,14 +5,14 @@
  * Authority: newproc() and fork1() in sys/kern/kern_fork.c. fork1() refuses
  * with EAGAIN when freeproc is empty, and notes one CAPACITY_PROC failure;
  * newproc() refuses with ENOMEM, without a counter, when
- * swap_image_reserve() finds no backing for the child's image
+ * swap_image_reserve() fails to find backing for the child's image
  * (sys/kern/vm_swap.c). The program tells the two apart by errno and by
  * the failure counter of kern.capacity (sys/sys/capacity.h).
  *
  * The program runs as root: fork1() also refuses a non-root caller at its
  * MAXUPRC limit and when only the last slot is free, and both refusals note
  * the same counter, so only root attributes an EAGAIN to the table. Each
- * child parks in sigsuspend(2) until SIGUSR1, so the children cost no
+ * child parks in sigsuspend(2) until SIGUSR1, so the children cost zero
  * process time and exit on request; alarm(2) ends a child that nobody
  * releases. Each child is a copy of this image, so the image stays small:
  * output goes through write(2), and no buffer is allocated before the
@@ -21,8 +21,8 @@
  * Verdict lines: PROCTABTEST OK (exit 0), PROCTABTEST FAILED (exit 1),
  * PROCTABTEST SKIPPED (exit 2) when the caller is not root, a precondition
  * that leaves the claim untested, and PROCTABTEST INCONCLUSIVE (exit 3)
- * when swap ran out before the table did, which establishes nothing about
- * NPROC.
+ * when swap ran out before the table did, which leaves the claim about
+ * NPROC untested.
  */
 #include <sys/param.h>
 #include <sys/sysctl.h>

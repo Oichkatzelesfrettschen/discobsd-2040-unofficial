@@ -73,7 +73,7 @@ run()
 
 # rejects BINARY PATTERN [STATUS]: the mutant exits with STATUS (default 1,
 # the oracle's assertion status) and its log carries PATTERN. A sanitizer
-# abort or any other status is a crash, which is no calibration.
+# abort or any other status is a crash, which is not a calibration.
 rejects()
 {
 	run "$1"

@@ -58,8 +58,8 @@ def test_smallest_flash_that_never_refuses():
 
 def test_flash_refusal_stops_the_replay():
     """ENOMEM leaves both images where they were (sched() keeps the
-    outgoing process resident, newproc() creates no child), so the replay
-    stops at the refused record and reports no completed workload."""
+    outgoing process resident, newproc() creates zero children), so the replay
+    stops at the refused record and reports zero completed workloads."""
     m = run(model.Config(flash_kb=64))
     r = m.refused
     assert r is not None and r["op"] == "out"

@@ -721,7 +721,7 @@ hostile(void)
     HK_CHECK(memcmp(saved, disk + 512, 512) == 0);
     ip->i_a16[0] = keep;
 
-    /* A wide address whose disk inode does not read is no hole. */
+    /* A wide address whose disk inode does not read is not a hole. */
     before = v7_addr_get(ip, 0);
     v7_addr_set(ip, 0, (daddr_t)0x00012345L);
     HK_CHECK(ip->i_a16[0] == 0xffff);
@@ -781,7 +781,7 @@ hostile(void)
     HK_CHECK(u.u_error == EIO);
     u.u_error = 0;
 
-    /* An owner the 16-bit field cannot hold creates nothing. */
+    /* An owner the 16-bit field cannot hold fails before creating. */
     u.u_uid = 0x10000;
     i = kcreate("/wide-owner", IFREG | 0644, &ip);
     HK_CHECK(i == EOVERFLOW);
@@ -901,7 +901,7 @@ foreign(void)
     u.u_error = 0;
 
     /*
-     * An allocated inode whose size is no positive off_t, or whose
+     * An allocated inode whose size is not a positive off_t, or whose
      * link count is negative in the format's signed field, does not
      * read; a free inode carrying the same bytes does.
      */

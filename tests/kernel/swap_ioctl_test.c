@@ -45,7 +45,7 @@ int securelevel;
 /*
  * The live swap device behind minor 64, whose open, close and strategy
  * routines count the requests that reach it: swstrategy() passes transfers
- * through, and swopen() and swclose() pass nothing, since the kernel holds
+ * through, and swopen() and swclose() pass zero requests, since the kernel holds
  * swapdev open for the boot. swap() meets the declaration in
  * swap_ioctl_extract.py; no contract here observes it.
  */
@@ -288,7 +288,7 @@ invalid_requests_preserve_state(void)
 }
 
 /*
- * A read-only descriptor changes nothing, whoever holds it: the held extent,
+ * A read-only descriptor leaves the swap state unchanged, whoever holds it: the held extent,
  * the map, the cursor and the caller's request all stay as they were.
  */
 static void
@@ -369,9 +369,9 @@ media_size_needs_no_privilege(void)
 }
 
 /*
- * At securelevel 1 and above minor 64 takes no write open and no write
+ * At securelevel 1 and above minor 64 refuses each write open and write
  * transfer, whenever its descriptor was opened; reads, level 0 and the
- * temporary units are unaffected. Its open and close reach no device: the
+ * temporary units are unaffected. Its open and close stop short of the device: the
  * kernel's own open of swapdev lasts the boot, and a forwarded close would
  * end it, or reach another device once swap has moved.
  */

@@ -44,7 +44,7 @@
  * with no received byte at all, which is how a login prompt or a program's
  * output reaches an idle terminal; every byte must reach the wire in order.
  * A driver that feeds the FIFO one byte per start leaves the level below
- * the trigger, gets no interrupt and stops after the first byte, which is
+ * the trigger, misses the interrupt and stops after the first byte, which is
  * what the PicoCalc's USB-C console showed. The drain cases run tty.c's
  * ttywait() loop against the model: it must return only once the FIFO and
  * the shift register are empty, through the wakeup of the drain callout,
@@ -58,8 +58,8 @@
  * runs without it and SysTick can preempt it with uartdrain(), a case the
  * comment above uartstart() argues from the flags and this test never
  * enters. Apart from the pad case, which calls uart_pin_setup() on two
- * modeled pad registers, it runs no uartinit(), receive path, interrupt
- * nesting or hardware. Time advances only in step(), so a driver loop that polls the
+ * modeled pad registers, it leaves out uartinit(), the receive path, interrupt
+ * nesting and hardware. Time advances only in step(), so a driver loop that polls the
  * line without it ends by a bound on the register reads, not by a clock.
  */
 
@@ -484,7 +484,7 @@ case_drain(const char *name, const unsigned char *p, int n)
 /*
  * TIOCSBRK and TIOCCBRK hold the line's TX low through UARTLCR_H's BRK bit
  * and release it, leaving the word length and FIFO enable alone; a kernel
- * whose flash has no room for them (the PICOCALC build) answers ENOTTY,
+ * whose flash lacks room for them (the PICOCALC build) answers ENOTTY,
  * as every other request the driver does not own does.
  */
 static void
@@ -514,7 +514,7 @@ case_break(void)
 #endif
 	check(uartioctl(dev, TIOCSBRK + 1, 0, 0) == ENOTTY &&
 	    shim_lcr_h == line_control, "another request leaves UARTLCR_H alone");
-	/* A line that is not open on a UART has no register to drive. */
+	/* A line that is not open on a UART lacks a register to drive. */
 	uartttys[0].t_addr = 0;
 	check(uartioctl(dev, TIOCSBRK, 0, 0) == ENODEV &&
 	    shim_lcr_h == line_control, "TIOCSBRK without a line is ENODEV");
@@ -548,7 +548,7 @@ main(void)
 	    memcmp(wire + 100, "tail", 4) == 0,
 	    "appended output follows the earlier bytes");
 
-	/* A stopped line (^S) sends nothing until it restarts. */
+	/* A stopped line (^S) sends zero bytes until it restarts. */
 	tp = line();
 	tp->t_state |= TS_TTSTOP;
 	queue_bytes(tp, big, 10);
@@ -567,7 +567,7 @@ main(void)
 
 	/*
 	 * Output queued while the FIFO drains goes out at once, before the
-	 * next kernel tick, behind the earlier bytes, and adds no callout.
+	 * next kernel tick, behind the earlier bytes, and adds zero callouts.
 	 */
 	tp = line();
 	queue_bytes(tp, big, 3);

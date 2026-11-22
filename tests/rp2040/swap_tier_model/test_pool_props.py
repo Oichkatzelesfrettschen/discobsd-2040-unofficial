@@ -69,7 +69,7 @@ class PoolMachine(RuleBasedStateMachine):
             self.taken -= set(range(off, off + roundgrain(size), GRAIN))
         else:
             # Only a full segment table may refuse, and only for a range
-            # that touches no free neighbor.
+            # that touches zero free neighbors.
             assert len(before) == self.pool.nseg, ("refused free", before)
             assert self.pool.segments() == before
 
@@ -89,7 +89,7 @@ class PoolMachine(RuleBasedStateMachine):
     @rule(data=st.data())
     def free_overlapping_free_space(self, data):
         """A range that reaches any free grain is a double free or a stray
-        offset: the pool must refuse it and change nothing."""
+        offset: the pool must refuse it and stay unchanged."""
         self._ensure()
         runs = runs_of(self.size, self.taken)
         if not runs:

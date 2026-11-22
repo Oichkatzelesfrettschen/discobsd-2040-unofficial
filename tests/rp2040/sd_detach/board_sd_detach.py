@@ -21,7 +21,7 @@ Steps, each with an exact expected status line:
   - a block descriptor held open across a mount and an unmount must keep
     reading: the unmount does not close a device a descriptor still names
 
-This script was written without a board run; the tree records no result for
+This script was written without a board run; the tree lacks a result for
 it (sys/arch/rp2040/doc/PICOCALC.md, SD card on SPI0).
 """
 

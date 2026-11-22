@@ -1,5 +1,5 @@
 # Runs the AEABI division helpers of lib/libc/arm/gen/aeabi_div.S under
-# qemu-arm as a Cortex-M0 (ARMv6-M) program. qemu-user has no SIO block,
+# qemu-arm as a Cortex-M0 (ARMv6-M) program. qemu-user lacks an SIO block,
 # so the library source is assembled with DIVIDER_MODEL, which swaps the
 # base address and the eight-cycle wait for a RAM register block and a
 # model of the unsigned divide (harness.S); everything else in the helpers

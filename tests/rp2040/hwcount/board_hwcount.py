@@ -13,7 +13,7 @@ becomes root and checks that:
   - a write clears an XIP counter;
   - every bus_perfsel accepts events 0 to 19 and 31 and refuses 20;
   - a bus_perfctr counting all SRAM0 accesses advances, holds its value once
-    its select names no event, and reads zero after a write (2.1.1.2);
+    its select names zero events, and reads zero after a write (2.1.1.2);
   - contested SRAM0 accesses do not exceed all SRAM0 accesses;
   - with machdep.xip_cache written 0 the cache reads disabled, stays disabled
     across a flash write, counts no hit over the control workload and takes

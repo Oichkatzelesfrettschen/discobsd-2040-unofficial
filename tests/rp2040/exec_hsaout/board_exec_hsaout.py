@@ -6,7 +6,7 @@ The image installs textcrc raw and packed through a scratch copy of the root
 manifest whose "pack" entries the host packer tools/hsaout produces. The
 board sh aborts a script on a failed
 redirection, so the write-refused case is issued as its own command line,
-and a background command takes no trailing marker because "cmd &;echo" is
+and a background command goes without a trailing marker because "cmd &;echo" is
 a syntax error. Run with the kernel and filesystem UF2s:
 
     board_exec_hsaout.py compile/PICO/unix.uf2,distrib/rp2040/flash.uf2

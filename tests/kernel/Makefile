@@ -3510,13 +3510,67 @@ check-pipe-rw-mutants: ${PIPE_RW_MUTANTS:@mutation@pipe_rw_${mutation}.mutant32.
 		echo "PASS pipe I/O $$mutation mutation rejected"; \
 	done
 
+# RLIMIT_DATA and RLIMIT_STACK growth admission: the helpers in
+# kern_resource.c, brk() and user_entry() compiled verbatim under a 32-bit
+# process shim, and one mutant per admission that must fail its named check.
+RLIMIT_GROWTH_SRC=	${TOPSRC}/sys/kern/kern_resource.c \
+			${TOPSRC}/sys/kern/kern_mman.c \
+			${TOPSRC}/sys/arch/rp2040/rp2040/syscall.c
+RLIMIT_GROWTH_MUTANTS=	data-unchecked data-counts-text shrink-refused \
+			limit-exclusive stack-limit-exclusive stack-unchecked
+
+rlimit_growth_functions.c: rlimit_growth_extract.py swap_ioctl_extract.py \
+    ${RLIMIT_GROWTH_SRC}
+	${PYTHON} rlimit_growth_extract.py --root ${TOPSRC} --output $@
+
+rlimit_growth_test32: rlimit_growth_test.c rlimit_growth_functions.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -o $@ rlimit_growth_test.c
+
+.for mutation in ${RLIMIT_GROWTH_MUTANTS}
+rlimit_growth_${mutation}.mutant.c: rlimit_growth_extract.py \
+    swap_ioctl_extract.py ${RLIMIT_GROWTH_SRC}
+	${PYTHON} rlimit_growth_extract.py --root ${TOPSRC} --output $@ \
+	    --mutation ${mutation}
+
+rlimit_growth_${mutation}.mutant.test: rlimit_growth_test.c \
+    rlimit_growth_${mutation}.mutant.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DRLIMIT_GROWTH_FUNCTIONS='"rlimit_growth_${mutation}.mutant.c"' \
+	    -o $@ rlimit_growth_test.c
+.endfor
+
+check-rlimit-growth-mutants: \
+    ${RLIMIT_GROWTH_MUTANTS:@mutation@rlimit_growth_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${RLIMIT_GROWTH_MUTANTS}; do \
+		output=rlimit_growth_$$mutation.mutant.out; \
+		if ./rlimit_growth_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		case $$mutation in \
+		data-unchecked) expected='growth one byte past the limit is refused' ;; \
+		data-counts-text) expected='growth to the limit above the text is admitted' ;; \
+		shrink-refused) expected='a process over a lowered limit can shrink' ;; \
+		limit-exclusive) expected='growth to the limit above the text is admitted' ;; \
+		stack-limit-exclusive) expected='a depth at the limit is recorded' ;; \
+		stack-unchecked) expected='a depth past the limit fails and records nothing' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "FAIL $$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL rlimit growth $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS rlimit growth $$mutation mutation rejected"; \
+	done
+
+.PHONY: check-rlimit-growth-mutants
+
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test prf_log_test check-prf-log-mutant readlink_test check-readlink-mutant rwuio_test32 check-extract-function pipe_rw_contract32 pipe_rw_contract_single32 check-pipe-rw-mutants file_owner_test32 fionread_test32 sigauth_test \
 	    exec_close_test32 check-exec-close-mutant \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
-	    ptrace_test32 \
+	    ptrace_test32 rlimit_growth_test32 check-rlimit-growth-mutants \
 	    mem_span_endpoint-admission.mutant32.test \
 	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
@@ -3561,6 +3615,7 @@ check-ilp32:
 	    ./tty_local_mode_test32
 	${TEST_EXECUTION} run kernel.mem-span.ilp32 -- ./mem_span_test32
 	${TEST_EXECUTION} run kernel.ptrace.ilp32 -- ./ptrace_test32
+	${TEST_EXECUTION} run kernel.rlimit-growth.ilp32 -- ./rlimit_growth_test32
 	@if ./mem_span_endpoint-admission.mutant32.test \
 	    >mem_span_endpoint-admission.mutant32.out 2>&1; then status=0; \
 	else status=$$?; fi; \
@@ -3662,6 +3717,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.tty-local-mode.signed-shift-negative "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.mem-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ptrace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.rlimit-growth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3764,6 +3820,9 @@ clean:
 	rm -f swap_ioctl_test32 swap_ioctl_function32.o swap_ioctl_rmap32.o
 	rm -f swap_ioctl_test_sanitized swap_ioctl_function_sanitized.o \
 	    swap_ioctl_rmap_sanitized.o swap_ioctl_hostkern_sanitized.o
+	rm -f rlimit_growth_functions.c rlimit_growth_test32 \
+	    rlimit_growth_*.mutant.c rlimit_growth_*.mutant.test \
+	    rlimit_growth_*.mutant.out
 	rm -f ${PTRACE_FUNCTIONS} ptrace_test32 ptrace_test_sanitized \
 	    ptrace_hostkern_sanitized.o
 	rm -f ptrace_*.mutant.c ptrace_*.mutant.test ptrace_*.mutant.out

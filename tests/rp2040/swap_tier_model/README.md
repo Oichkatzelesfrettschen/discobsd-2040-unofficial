@@ -149,11 +149,11 @@ alike but miss the main replay's 3 and 4 KiB bins, and one of them keeps
 
 | Value | Source | Compared with |
 | --- | --- | --- |
-| 100,000 program-erase cycles per sector | `sys/arch/rp2040/doc/research/flash-traffic-per-workload.md` line 40, from the W25Q16JV datasheet revision G | `variants.ENDURANCE` |
-| 4 KB sector erase 45 ms typical | the same file, line 43 | `include/swapram.h` ("a 45 ms sector erase") |
-| 16 KiB pool | `sys/arch/rp2040/doc/research/zswap.md` line 7; flash-traffic line 211 | `compile/PICO/Config` `SWAPRAM_KB=16`, `Config.pool_kb` |
+| 100,000 program-erase cycles per sector | `sys/arch/rp2040/doc/research/flash-traffic-per-workload.md` line 52, from the W25Q16JV datasheet revision G | `variants.ENDURANCE` |
+| 4 KB sector erase 45 ms typical | the same file, line 55 | `include/swapram.h` ("a 45 ms sector erase") |
+| 16 KiB pool | `sys/arch/rp2040/doc/research/zswap.md` line 7; flash-traffic line 223 | `compile/PICO/Config` `SWAPRAM_KB=16`, `Config.pool_kb` |
 | window 9, lookahead 8 | `zswap.md` line 49 | `heatshrink/heatshrink_config.h` |
-| u-area reservation 3,460 bytes | flash-traffic line 212 | `model.sr_worst(USIZE)` |
+| u-area reservation 3,460 bytes | flash-traffic line 224 | `model.sr_worst(USIZE)` |
 | kernel 128 KB, root 1536 KB, raw swap 384 KB at 0x101a0000 | `sys/arch/rp2040/doc/STORAGE.md` lines 94-96 | `dev/flash.h`, `Config.flash_kb`, `model.FLASH_SWAP_OFFSET` |
 | pool placement | `zswap.md` (kernel build section) | `conf/kern.ldscript`, `STORAGE.md` line 8 |
 

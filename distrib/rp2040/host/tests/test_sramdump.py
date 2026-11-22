@@ -13,7 +13,7 @@ live board (recorded with the change that added the tool), not these tests.
 Capture runs the module in a subprocess against a fake sysfs and a fake
 picotool on PATH. The fake changes the sysfs the way a reset does (product
 0003, advanced bus address) and refuses a call whose --bus and --address
-match no device, so a stale or wrong-port address fails the call. No real
+match zero devices, so a stale or wrong-port address fails the call. No real
 picotool, USB device or serial node is reachable. Each rule has a mutant: the
 module is copied with the rule removed and the scenario must then fail.
 """
@@ -50,7 +50,7 @@ DRIVER = (
 
 
 def run_tool(args, env_extra=None, src: Path = SRC, path: str | None = None, cwd=None):
-    # No PATH entry may reach the host's own picotool: the default holds none.
+    # No PATH entry may reach the host's own picotool: the default holds zero entries.
     env = {"PYTHONPATH": str(src), "PATH": path or NO_PATH}
     env.update(env_extra or {})
     return subprocess.run(

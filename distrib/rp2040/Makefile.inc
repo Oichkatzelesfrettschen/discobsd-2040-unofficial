@@ -116,7 +116,7 @@ FS_COMPOSE=	${PYTHON} ${MKMANIFEST} --profile=${PROFILE} \
 
 # The multicall binaries link only the members the selection keeps: the
 # games Makefiles read GAMEBOX_TOOLS and PUZZLEBOX_TOOLS, which stay unset
-# (and every member builds) when PYTHON names no interpreter yet. A
+# (and every member builds) when PYTHON names zero interpreters yet. A
 # selection mkmanifest.py refuses leaves them empty, and check-image-selection,
 # which build and fs wait for, reports the refusal before any program builds.
 .if !empty(PYTHON)
@@ -335,7 +335,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 
 # crt0.o comes from the existing a.out startup build (lib/libc_aout/startup),
 # which already compiles lib/startup-arm/crt0.c with the tree's own as via
-# -B; it needs no reduction since it is one small object.
+# -B; it skips reduction since it is one small object.
 ${DESTDIR}/usr/lib/crt0.o:	${TOOLBINDIR}/as
 		${MAKE} -C ${TOPSRC}/lib/libc_aout/startup MACHINE=${MACHINE} \
 			TOOLDIR=${TOOLDIR}

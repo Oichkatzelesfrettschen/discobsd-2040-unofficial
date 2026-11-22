@@ -3,7 +3,7 @@
 Build the board's reduced /usr/lib/libc.a: the archive members named in
 boardlibc-members, compiled with the tree's exact libc flags (see
 `bmake -n MACHINE=rp2040 -C lib/libc`) plus -fno-jump-tables, since the
-board carries no libgcc to supply __gnu_thumb1_case_* for a jump table.
+board lacks libgcc to supply __gnu_thumb1_case_* for a jump table.
 Each member is compiled or preprocessed to plain Thumb-1 assembly with
 the host's arm-none-eabi-gcc, then assembled by the tree's own `as -X`
 (the same assembler distrib/rp2040/cc runs on the board) and archived by

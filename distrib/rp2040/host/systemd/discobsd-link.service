@@ -1,7 +1,7 @@
 [Unit]
 Description=DiscoBSD console short link (port 42069)
 Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
-# The link has nothing to redirect to without the board and without
+# The link lacks a target to redirect to without the board and without
 # discobsd-web up, so it carries the same device gate discobsd-web.service
 # does; see that unit for why dev-discobsd.device is the right handle.
 After=network-online.target dev-discobsd.device discobsd-web.service

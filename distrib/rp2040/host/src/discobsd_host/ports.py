@@ -51,7 +51,7 @@ TOKEN_ENV = "DISCOBSD_WEB_TOKEN"
 TOKEN_CREDENTIAL = "web-token"
 
 # Linux keeps a by-id symlink for the console; it is the fallback when the
-# enumeration library is unavailable or reports no USB attributes.
+# enumeration library is unavailable or reports zero USB attributes.
 LINUX_BY_ID = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
 
 
@@ -98,7 +98,7 @@ class BoardSelectionError(Exception):
     """No single board can be chosen; str() is the operator-facing reason.
 
     kind is "ambiguous" (several 2e8a devices, none named), "absent" (the
-    named USB port holds no 2e8a device or no console tty), "invalid" (the
+    named USB port lacks a 2e8a device or a console tty), "invalid" (the
     port is not a USB port path) or "unsupported" (no sysfs on this host).
     A caller that waits for a board treats "absent" as not yet attached.
     """

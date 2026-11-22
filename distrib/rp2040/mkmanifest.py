@@ -14,7 +14,7 @@ The refusal is the point. tools/fsutil/fsutil.c's add_hardlink() reports
 "link source not found" on stderr and returns, leaving fsutil's exit
 status at 0, so a profile that keeps "link /usr/games/keen" without
 "pack /usr/games/gamebox" yields an image that boots with a name that
-opens nothing. A missing /usr/lib/libc.a is quieter still: nothing in the
+opens zero programs. A missing /usr/lib/libc.a is quieter still: nothing in the
 build reads it, and the failure surfaces as a compile on the board that
 cannot link. Both are decided here, before fsutil runs, against the
 composed manifest:
@@ -26,7 +26,7 @@ composed manifest:
   unmet closure       a selected closure whose "needs closure" is absent
   unmet path          a selected closure whose "needs path" is absent
   empty multicall     a selected multicall binary none of whose members is
-  unlinked member     a multicall member whose dispatch name has no link
+  unlinked member     a multicall member whose dispatch name lacks a link
 
 A profile names closures and groups; --with and --without add and remove
 names for one build (the Make variables IMAGE_WITH and IMAGE_WITHOUT) and

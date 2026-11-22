@@ -21,7 +21,7 @@ must keep their address and product for the whole run. Linux only: it reads
 sysfs. DISCOBSD_SYSFS_USB replaces /sys/bus/usb/devices for tests, as in
 discobsd-flash.
 
-decode needs no hardware and no sysfs. It reads the variable and structure
+decode runs without hardware or sysfs. It reads the variable and structure
 layouts from the DWARF of the kernel ELF that was running (pyelftools), so
 a wrong ELF decodes to plausible garbage; with --flash it first compares
 the `version` string bytes in the saved flash with the ELF's own and stops
@@ -411,7 +411,7 @@ def decode_report(kern: Kernel, sram: Image) -> list[str]:
         )
         if stat == SZOMB:
             # exit() overwrites the live half of p_un with the exit status and
-            # resource usage (sys/kern/kern_exit.c), so a zombie has no
+            # resource usage (sys/kern/kern_exit.c), so a zombie lacks a
             # priority or wait channel to read.
             out.append(head + " wchan and pri unavailable (zombie)")
             continue

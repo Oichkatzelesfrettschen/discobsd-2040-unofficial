@@ -1715,7 +1715,12 @@ check-userland-layout-flags: check-python
 check-config-include-order: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/check_include_order.py --root ${TOPSRC} --make ${MAKE}
 
-.PHONY: check-config-generated-sync check-config-include-order
+# The reconfig rule of each kernel Makefile template stops a build whose
+# config run rewrote the Makefile (tools/config/check_reconfig_stop.py).
+check-config-reconfig-stop: check-python
+		${PYTHON} tools/config/check_reconfig_stop.py --root ${TOPSRC} --make ${MAKE}
+
+.PHONY: check-config-generated-sync check-config-include-order check-config-reconfig-stop
 
 # Clean controls must compile; deliberate warnings must fail using the actual
 # evaluated commands, including leaves that replace CFLAGS.
@@ -2186,6 +2191,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
+		check-config-reconfig-stop \
 		check-userland-layout-flags check-storage-geometry check-phony-targets \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-ulisp-host \
 		check-psram-pio \

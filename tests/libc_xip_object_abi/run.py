@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import pathlib
 import re
 import struct
@@ -40,9 +41,9 @@ class Runner:
         self.work = work
         self.records = []
 
-    def run(self, argv, expected=0, cwd=None):
+    def run(self, argv, expected=0, cwd=None, env=None):
         argv = [str(value) for value in argv]
-        result = subprocess.run(argv, cwd=cwd or self.work, capture_output=True,
+        result = subprocess.run(argv, cwd=cwd or self.work, env=env, capture_output=True,
                                 timeout=90, check=False)
         index = len(self.records)
         (self.work / f'command-{index}.stdout').write_bytes(result.stdout)
@@ -349,8 +350,10 @@ def check_syscall_entry(elf, name, number):
 
 def syscall_assembly_controls(compiler, runner):
     directory = ROOT / 'lib/libc/arm/sys'
+    query_env = {key: value for key, value in os.environ.items()
+                 if key not in ('MAKEFLAGS', 'MFLAGS')}
     objects = runner.run(['bmake', '-C', directory, 'MACHINE=rp2040', '-V',
-                          '${SYSOBJS}']).decode('ascii').split()
+                          '${SYSOBJS}'], env=query_env).decode('ascii').split()
     require(objects and len(set(objects)) == len(objects) and
             all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*\.o', obj) for obj in objects),
             'invalid generated syscall object list')

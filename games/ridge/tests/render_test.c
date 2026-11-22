@@ -550,7 +550,8 @@ test_still_sprite_no_shard(void)
 	frame(d, &V, 0);
 	G.ticks = 24;
 	w = frame(d, &V, 0);
-	CHECK(w >= 1 && d->nset == 1,
+	/* Two uploads: one run for each box row that holds sprite pixels. */
+	CHECK(w >= 1 && d->nset == 2,
 	    "a shard on the bottom row of a still sprite's box recomposites it: %d windows %d uploads",
 	    w, d->nset);
 	G.map[20][10] = RG_AIR;
@@ -561,7 +562,7 @@ test_still_sprite_no_shard(void)
 	G.map[12][23] = RG_LEDGE;
 	G.gen++;
 	w = frame(d, &V, 0);
-	CHECK(w >= 1 && d->nset == 1,
+	CHECK(w >= 1 && d->nset == 2,
 	    "a map change in a still sprite's box without a shard recomposites it: %d windows %d uploads",
 	    w, d->nset);
 }

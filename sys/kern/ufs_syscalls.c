@@ -1724,7 +1724,9 @@ mkdir_common(int rootfd, caddr_t name, int dmode, int namei_policy)
     ip->i_nlink = 2;
     ip->i_uid = u.u_uid;
     ip->i_gid = dp->i_gid;
-    iupdat(ip, &time, &time, 1);
+    u.u_error = iupdat(ip, &time, &time, 1);
+    if (u.u_error)
+        goto bad;
 
     /*
      * Bump link count in parent directory
@@ -1734,7 +1736,12 @@ mkdir_common(int rootfd, caddr_t name, int dmode, int namei_policy)
      */
     dp->i_nlink++;
     dp->i_flag |= ICHG;
-    iupdat(dp, &time, &time, 1);
+    u.u_error = iupdat(dp, &time, &time, 1);
+    if (u.u_error) {
+        dp->i_nlink--;
+        dp->i_flag |= ICHG;
+        goto bad;
+    }
 
     /*
      * Initialize directory with "."
@@ -1775,13 +1782,15 @@ bad:
      * irele will do this for us because we set
      * the link count to 0.
      */
-    if (u.u_error) {
+    error = u.u_error;
+    if (error) {
         ip->i_nlink = 0;
         ip->i_flag |= ICHG;
     }
     if (dp)
         iput(dp);
     iput(ip);
+    u.u_error = error;
 out:
     if (namei_policy & NI_BENEATH)
         ufs_namespace_exit();

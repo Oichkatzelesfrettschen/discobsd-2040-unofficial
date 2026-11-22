@@ -706,6 +706,7 @@ static int regular_create_active;
 static int inode_allocation_calls;
 static int inode_allocation_error;
 static int inode_update_calls;
+static int fail_update_call;
 static int directory_initialization_calls;
 static int directory_initialization_error;
 static int directory_entry_calls;
@@ -807,7 +808,7 @@ iupdat(struct inode *inode, struct timeval *access_time,
     HK_CHECK(modification_time == &time);
     HK_CHECK(wait == 1);
     inode_update_calls++;
-    return 0;
+    return inode_update_calls == fail_update_call ? EIO : 0;
 }
 
 int
@@ -1042,6 +1043,7 @@ reset_open_fixture(void)
     inode_allocation_calls = 0;
     inode_allocation_error = 0;
     inode_update_calls = 0;
+    fail_update_call = 0;
     directory_initialization_calls = 0;
     directory_initialization_error = 0;
     directory_entry_calls = 0;
@@ -1399,6 +1401,18 @@ rooted_mkdir_initializes_and_publishes_under_serialization(void)
     HK_CHECK(mkdir_parent_inode.i_count == 0);
     HK_CHECK(mkdir_created_inode.i_count == 0);
     check_namespace_released();
+
+    for (int failed = 1; failed <= 2; failed++) {
+        reset_open_fixture();
+        lookup_result = NULL;
+        fail_update_call = failed;
+        call_mkdirat_beneath(7, relative, 0755);
+        HK_CHECK(u.u_error == EIO && inode_update_calls == failed);
+        HK_CHECK(directory_initialization_calls == 0 && directory_entry_calls == 0);
+        HK_CHECK(mkdir_created_inode.i_nlink == 0 && mkdir_parent_inode.i_nlink == 2);
+        HK_CHECK(mkdir_created_inode.i_count == 0 && mkdir_parent_inode.i_count == 0);
+        check_namespace_released();
+    }
 
     reset_open_fixture();
     lookup_result = NULL;

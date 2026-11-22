@@ -155,6 +155,71 @@ int main(void)
         assert(s.chooser>=0&&s.chooser<=9);
         compare(&s);
     }
+    /* A tick repaints only the clock's glyph box: rows 6-14 and columns
+     * 278-307 fall in bands 0 and 1 and in units 69-76, so each band reports
+     * 8 units on the RP2040 profile page (active 2). The Clock page (active 5)
+     * also repaints its session counter across bands 3-36 at units 2-77. */
+    {
+        struct mz t;
+        struct mz_io tio={incremental,icon,sink};
+        int b;
+        mz_init(&t);
+        assert(mz_render(&t,&tio)==0);
+        mz_action(&t,MZ_RIGHT);mz_action(&t,MZ_RIGHT);mz_action(&t,10);
+        assert(t.active==2&&!t.menu);
+        assert(mz_render(&t,&tio)==0);
+        emitted=0;reported_units=0;
+        mz_action(&t,MZ_TICK);
+        assert(t.xlo[0]==69&&t.xhi[0]==77&&t.xlo[1]==69&&t.xhi[1]==77);
+        for(b=2;b<MZ_BANDS;b++) assert(t.xlo[b]==t.xhi[b]);
+        assert(mz_render(&t,&tio)==0);
+        assert(emitted==2&&reported_units==16);
+        /* The ticks cross a minute and an hour, so every digit column changes. */
+        t.ticks=3590;
+        for(i=0;i<70;i++) {
+            mz_action(&t,MZ_TICK);
+            compare(&t);
+        }
+        mz_init(&t);
+        assert(mz_render(&t,&tio)==0);
+        mz_action(&t,MZ_RIGHT);mz_action(&t,MZ_RIGHT);mz_action(&t,MZ_RIGHT);
+        mz_action(&t,MZ_RIGHT);mz_action(&t,MZ_RIGHT);mz_action(&t,10);
+        assert(t.active==5&&!t.menu);
+        assert(mz_render(&t,&tio)==0);
+        emitted=0;reported_units=0;
+        mz_action(&t,MZ_TICK);
+        assert(mz_render(&t,&tio)==0);
+        assert(emitted==36&&reported_units==34L*76+16);
+        compare(&t);
+        /* The same tick with the launcher over the Clock page marks the
+         * clock and the launcher's ticking tile alone, and every other page
+         * marks the clock alone; each tick sets dirty for the board loop. */
+        mz_action(&t,MZ_TICK);
+        assert(t.xlo[3]==2&&t.xhi[3]==78&&t.xlo[36]==2&&t.xhi[36]==78);
+        assert(mz_render(&t,&tio)==0);
+        mz_action(&t,MZ_MENU);
+        assert(t.active==5&&t.menu);
+        assert(mz_render(&t,&tio)==0);
+        emitted=0;reported_units=0;
+        mz_action(&t,MZ_TICK);
+        assert(t.dirty);
+        assert(t.xlo[3]==t.xhi[3]&&t.xlo[36]==t.xhi[36]);
+        assert(mz_render(&t,&tio)==0);
+        compare(&t);
+        for(b=0;b<MZ_APPS;b++) {
+            if(b==5) continue;
+            mz_init(&t);
+            t.active=b;
+            mz_all(&t);
+            assert(mz_render(&t,&tio)==0);
+            emitted=0;reported_units=0;
+            mz_action(&t,MZ_TICK);
+            assert(t.dirty);
+            assert(mz_render(&t,&tio)==0);
+            assert(emitted==2&&reported_units==16);
+            compare(&t);
+        }
+    }
     puts("matezinho core: navigation, retention, settings, bounds and incremental/full equality passed");
     return 0;
 }

@@ -103,9 +103,13 @@ mz_action(struct mz *s, int key)
     char *p;
     if(key==MZ_TICK) {
         s->ticks++;
-        mark(s,272,0,48,24);
+        /* The clock is five 6-column glyphs at (278,6), 9 rows high, so it
+         * changes columns 278-307 of rows 6-14 (bands 0 and 1). */
+        mark(s,278,6,30,9);
         if(s->active<0 || s->menu)mark(s,216,118,96,80);
-        if(s->active==5 || s->active==2) mark(s,8,24,304,272);
+        /* Page 5 shows the tick count unless the launcher covers it;
+         * every other page is static between ticks. */
+        if(s->active==5 && !s->menu) mark(s,8,24,304,272);
         return;
     }
     if(key==MZ_HOME || key==27) {

@@ -43,7 +43,8 @@
  * frame the glass shows, through the scroll area and start that
  * LCDG_SCRDEF and LCDG_SCROLL set in the controller's 480 lines, as a binary PPM and the counters as text beside it, to the paths
  * I86_PANEL names with the number of the close appended. I86_PANEL_FAIL
- * makes opens fail: "open" every one, "reopen" every one after the first.
+ * makes opens fail: "open" every one, "reopen" every one after the first;
+ * "read" makes LCDG_READ fail as a kernel without LCD_GFX_EXT does.
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -183,6 +184,12 @@ panel_ioctl(unsigned long cmd, void *arg)
 	hasrd = 0;
 	switch (cmd) {
 	case LCDG_READ:
+		/* A kernel without LCD_GFX_EXT does not know the command. */
+		if (getenv("I86_PANEL_FAIL") != NULL &&
+		    strcmp(getenv("I86_PANEL_FAIL"), "read") == 0) {
+			errno = ENOTTY;
+			return (-1);
+		}
 		/* The kernel's bounds; the memory of all 480 lines. */
 		if (r2->w < 1 || r2->h < 1 || r2->x + r2->w > LCDG_WIDTH ||
 		    r2->y + r2->h > LCDG_RAM_LINES || r2->fmt != LCDG_RD_RGB565)

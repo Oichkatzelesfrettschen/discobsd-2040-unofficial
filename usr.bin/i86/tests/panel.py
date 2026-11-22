@@ -711,6 +711,22 @@ def test_capture(binary, work, fonts, boot):
             raise Failure("panel capture of %s: no file" % what)
         compare(read_frame(cap), want, "panel capture of %s" % what)
         compare(closes[-1][0], want, "panel close after the capture of %s" % what)
+    # A kernel without the read: the earlier capture stays as it was and no
+    # partial file is left.
+    with open(cap, "wb") as handle:
+        handle.write(b"earlier")
+    plain, closes = session(
+        binary,
+        work,
+        [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")],
+        env={"I86_PANEL_FAIL": "read"},
+        extra=["-P", cap],
+    )
+    with open(cap, "rb") as handle:
+        if handle.read() != b"earlier":
+            raise Failure("panel capture without the read replaced the earlier file")
+    if os.path.exists(cap + ".tmp"):
+        raise Failure("panel capture without the read left %s.tmp" % cap)
     bad = os.path.join(work, "absent", "cap.ppm")
     plain, closes = session(
         binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")], extra=["-P", bad]

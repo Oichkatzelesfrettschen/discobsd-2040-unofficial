@@ -191,6 +191,34 @@ int main(void)
         assert(mz_render(&t,&tio)==0);
         assert(emitted==36&&reported_units==34L*76+16);
         compare(&t);
+        /* The same tick with the launcher over the Clock page marks the
+         * clock and the launcher's ticking tile alone, and every other page
+         * marks the clock alone; each tick sets dirty for the board loop. */
+        mz_action(&t,MZ_TICK);
+        assert(t.xlo[3]==2&&t.xhi[3]==78&&t.xlo[36]==2&&t.xhi[36]==78);
+        assert(mz_render(&t,&tio)==0);
+        mz_action(&t,MZ_MENU);
+        assert(t.active==5&&t.menu);
+        assert(mz_render(&t,&tio)==0);
+        emitted=0;reported_units=0;
+        mz_action(&t,MZ_TICK);
+        assert(t.dirty);
+        assert(t.xlo[3]==t.xhi[3]&&t.xlo[36]==t.xhi[36]);
+        assert(mz_render(&t,&tio)==0);
+        compare(&t);
+        for(b=0;b<MZ_APPS;b++) {
+            if(b==5) continue;
+            mz_init(&t);
+            t.active=b;
+            mz_all(&t);
+            assert(mz_render(&t,&tio)==0);
+            emitted=0;reported_units=0;
+            mz_action(&t,MZ_TICK);
+            assert(t.dirty);
+            assert(mz_render(&t,&tio)==0);
+            assert(emitted==2&&reported_units==16);
+            compare(&t);
+        }
     }
     puts("matezinho core: navigation, retention, settings, bounds and incremental/full equality passed");
     return 0;

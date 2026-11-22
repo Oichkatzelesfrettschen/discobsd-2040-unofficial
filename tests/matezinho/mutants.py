@@ -85,6 +85,27 @@ MUTANTS = [
         "emitted<40",
     ),
     (
+        "a tick repaints the Clock page under the launcher",
+        "usr.bin/matezinho/core.c",
+        [("if(s->active==5 && !s->menu) mark", "if(s->active==5) mark")],
+        "core_test",
+        "t.xlo[3]==t.xhi[3]",
+    ),
+    (
+        "a tick repaints every page but the profile",
+        "usr.bin/matezinho/core.c",
+        [("if(s->active==5 && !s->menu) mark", "if(s->active!=2 && !s->menu) mark")],
+        "core_test",
+        "emitted==2&&reported_units==16",
+    ),
+    (
+        "a tick marks the old 48x24 clock box",
+        "usr.bin/matezinho/core.c",
+        [("mark(s,278,6,30,9);", "mark(s,272,0,48,24);")],
+        "core_test",
+        "t.xlo[0]==69",
+    ),
+    (
         "the PPM sink writes the range at column 0",
         "usr.bin/matezinho/main.c",
         [("(y+j)*960L+x0*3L", "(y+j)*960L")],

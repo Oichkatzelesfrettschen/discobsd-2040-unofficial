@@ -107,8 +107,9 @@ mz_action(struct mz *s, int key)
          * changes columns 278-307 of rows 6-14 (bands 0 and 1). */
         mark(s,278,6,30,9);
         if(s->active<0 || s->menu)mark(s,216,118,96,80);
-        /* Page 5 shows the tick count; page 2 is static text. */
-        if(s->active==5) mark(s,8,24,304,272);
+        /* Page 5 shows the tick count unless the launcher covers it;
+         * every other page is static between ticks. */
+        if(s->active==5 && !s->menu) mark(s,8,24,304,272);
         return;
     }
     if(key==MZ_HOME || key==27) {

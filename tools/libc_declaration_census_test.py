@@ -44,6 +44,23 @@ class DeclarationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "owner denominator changes"):
                 census.archive_paths(Path("fixture"))
 
+    def test_issue8_header_citations_preserve_root_underscores(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "ledger.tsv"
+            source = ("kind\tname\nbase-definition\tnl_types.h\n"
+                      "base-definition\tsys_stat.h\nsystem-interface\tclose\n"
+                      "base-definition\tV1_chap01\n")
+            ledger.write_text(source)
+            self.assertEqual(census.issue8_header_names(ledger), {"nl_types.h", "sys/stat.h"})
+            for extra in ("sys_stat.h", "../escape.h"):
+                with self.subTest(extra=extra):
+                    ledger.write_text(source + "base-definition\t" + extra + "\n")
+                    with self.assertRaisesRegex(ValueError, "invalid Issue 8 header"):
+                        census.issue8_header_names(ledger)
+            ledger.write_text("kind\tname\nsystem-interface\tclose\n")
+            with self.assertRaisesRegex(ValueError, "ledger is empty"):
+                census.issue8_header_names(ledger)
+
     def test_full_report_denominators_reject_omissions(self):
         profile = {"headers": {"a.h": {"symbols": []}}, "joint": {"symbols": []},
                    "installed_headers": ["a.h"], "installed_joint": {"symbols": []},

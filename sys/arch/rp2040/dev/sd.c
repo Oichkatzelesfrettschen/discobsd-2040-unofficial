@@ -91,6 +91,9 @@
 #include <rp2040/dev/psram.h>
 #include <rp2040/dev/sdspi.h>
 #include <rp2040/dev/sd.h>
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+#endif
 
 #define	SPI0_BASE		0x4003c000UL
 #define	SSPCR0			0x00
@@ -508,20 +511,47 @@ extern u_char sd_tail[SD_SECTOR];
 static u_char sd_tail[SD_SECTOR];
 #endif
 
+#ifdef DIAG_STATS
+/*
+ * One sector transfer, counted by outcome with the slowest one kept. The
+ * driver reports a CRC mismatch, a data error token and a bad response all
+ * as SDE_IO, so IO errors stay one counter.
+ */
+static int
+sd_sector(int reading, u_int sector, u_char *addr)
+{
+	u_int t0 = pc_micros();
+	int err = reading ? sdspi_read(&sdcard, sector, addr) :
+	    sdspi_write(&sdcard, sector, addr);
+
+	diag_add(reading ? DIAG_SD_READS : DIAG_SD_WRITES, 1);
+	diag_max(DIAG_SD_SLOWEST_US, pc_micros() - t0);
+	if (err == SDE_TIMEOUT)
+		diag_add(DIAG_SD_TIMEOUTS, 1);
+	else if (err != SDE_OK)
+		diag_add(DIAG_SD_IO_ERRORS, 1);
+	return err;
+}
+#else
+#define sd_sector(reading, sector, addr) ((reading) ? \
+	sdspi_read(&sdcard, (sector), (addr)) : \
+	sdspi_write(&sdcard, (sector), (addr)))
+#endif
+
 static int
 sd_tail_io(struct buf *bp, u_int sector, u_char *addr, u_int len)
 {
 	if (sd_replaced())
 		return EIO;
 	if (bp->b_flags & B_READ) {
-		if (sdspi_read(&sdcard, sector, sd_tail) != SDE_OK)
+		if (sd_sector(1, sector, sd_tail) != SDE_OK)
 			return EIO;
 		bcopy(sd_tail, addr, len);
 		return 0;
 	}
 	bcopy(addr, sd_tail, len);
 	bzero(sd_tail + len, SD_SECTOR - len);
-	return sdspi_write(&sdcard, sector, sd_tail) != SDE_OK ? EIO : 0;
+	return sd_sector(0, sector, sd_tail) != SDE_OK ? EIO : 0;
 }
 
 /* Size in DEV_BSIZE blocks, which is what the block layer asks for. */
@@ -599,9 +629,8 @@ sdstrategy(struct buf *bp)
 	 */
 	for (i = 0; i < n; i++, addr += SD_SECTOR) {
 		if (sd_replaced() ||
-		    ((bp->b_flags & B_READ) ?
-		    sdspi_read(&sdcard, sector + i, addr) :
-		    sdspi_write(&sdcard, sector + i, addr)) != SDE_OK)
+		    sd_sector((bp->b_flags & B_READ) != 0, sector + i, addr) !=
+		    SDE_OK)
 			break;
 	}
 	if (i == n && tail != 0 && sd_tail_io(bp, sector + n, addr, tail) == 0)

@@ -37,6 +37,10 @@ _Static_assert(NUART == 1 || NUART == 2, "the RP2040 has UART0 and UART1");
 
 /* PL011 registers, RP2040 datasheet section 4.2.8. */
 #define	UART_DR			0x000		/* Data. */
+#define	UART_DR_FE		0x0100		/* Framing error. */
+#define	UART_DR_PE		0x0200		/* Parity error. */
+#define	UART_DR_BE		0x0400		/* Break error. */
+#define	UART_DR_OE		0x0800		/* Overrun error. */
 #define	UART_FR			0x018		/* Flags. */
 #define	UART_IBRD		0x024		/* Integer baud divisor. */
 #define	UART_FBRD		0x028		/* Fractional baud divisor. */

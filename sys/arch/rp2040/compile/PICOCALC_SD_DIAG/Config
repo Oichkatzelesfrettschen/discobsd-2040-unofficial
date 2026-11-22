@@ -34,7 +34,8 @@
 # directive to PICOCALC_SD apart from those additions. The shipped PICOCALC_SD
 # kernel stays at -Os. kern.systrace bit 2 prints the signal deliveries
 # (rp2040/sig_machdep.c) and bit 4 the GLOBAL_DEBUG trace of every execve(2),
-# both off at boot; PICOCALC.md carries the sizes. CONSOLE_MIRROR_UART (sys/dev/cons.c) sends every console
+# both off at boot; PICOCALC.md carries the sizes. DIAG_STATS adds the
+# counters, fault records and console message ring of sys/sys/diag_stats.h. CONSOLE_MIRROR_UART (sys/dev/cons.c) sends every console
 # character to UART0 as well, so a host records what the panel scrolls away.
 architecture    "rp2040"
 cpu             "RP2040"
@@ -51,6 +52,7 @@ options         PICOCALC_SD
 options         DIAGNOSTIC
 options         "GLOBAL_DEBUG=9"
 options         STORAGE_STATS
+options         DIAG_STATS
 options         CONSOLE_MIRROR_UART
 options         LCD_PANELTEST
 options         LCD_GFX_EXT

@@ -16,6 +16,7 @@
 #include <sys/systm.h>
 #include <sys/inode.h>
 #include <sys/syslog.h>
+#include <sys/diag_stats.h>
 
 static  int rts = TIOCM_RTS;
 
@@ -1060,9 +1061,10 @@ ttyinput (register int c, register struct tty *tp)
          * Raw mode, just put character
          * in input q w/o interpretation.
          */
-        if (tp->t_rawq.c_cc > TTYHOG)
+        if (tp->t_rawq.c_cc > TTYHOG) {
+            diag_add(DIAG_TTY_RAW_FLUSHES, 1);
             ttyflush(tp, FREAD | FWRITE);
-        else {
+        } else {
             if (putc(c, &tp->t_rawq) == 0)
                 ttwakeup (tp);
             ttyecho(c, tp);
@@ -1164,6 +1166,7 @@ ttyinput (register int c, register struct tty *tp)
      */
     if (t_flags & CBREAK) {
         if (tp->t_rawq.c_cc > TTYHOG) {
+            diag_add(DIAG_TTY_CBREAK_DROPS, 1);
             if (tp->t_outq.c_cc < TTHIWAT(tp))
                 (void) ttyoutput(CTRL('g'), tp);
         } else if (putc(c, &tp->t_rawq) == 0) {
@@ -1230,6 +1233,7 @@ erasenb:
      * Check for input buffer overflow
      */
     if (tp->t_rawq.c_cc+tp->t_canq.c_cc >= TTYHOG) {
+        diag_add(DIAG_TTY_COOKED_DROPS, 1);
         (void) ttyoutput(CTRL('g'), tp);
         goto endcase;
     }

@@ -36,6 +36,7 @@
 #include <sys/param.h>
 #include <sys/capacity.h>
 #include <sys/storage_stats.h>
+#include <sys/diag_stats.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 
@@ -584,6 +585,45 @@ parse(char *string, int flags)
                 (unsigned long)stats->value[i]);
         return (0);
     }
+#endif
+#ifdef CPU_DIAG_STATS
+	if (mib[0] == CTL_MACHDEP && mib[1] == CPU_DIAG_STATS) {
+		static const char *const names[DIAG_METRIC_COUNT] = {
+#define DIAG_NAME(name, text) text,
+			DIAG_METRICS(DIAG_NAME)
+#undef DIAG_NAME
+		};
+		const struct diag_stats *ds = (const struct diag_stats *)buf;
+		unsigned i, n;
+
+		if (size != sizeof(*ds) || ds->version != DIAG_STATS_VERSION ||
+		    ds->size != sizeof(*ds)) {
+			fprintf(stderr, "%s: unsupported ABI\n", string);
+			return (1);
+		}
+		if (!nflag)
+			fprintf(stdout, "%s%s", string, equ);
+		fprintf(stdout, "version %lu faults %lu\n",
+		    (unsigned long)ds->version, (unsigned long)ds->fault_total);
+		for (i = 0; i < DIAG_METRIC_COUNT; i++)
+			fprintf(stdout, "%s %lu\n", names[i],
+			    (unsigned long)ds->value[i]);
+		n = ds->fault_total < DIAG_NFAULT ? ds->fault_total :
+		    DIAG_NFAULT;
+		for (i = 0; i < n; i++) {
+			const struct diag_fault *f =
+			    &ds->fault[(ds->fault_total - 1 - i) % DIAG_NFAULT];
+
+			fprintf(stdout, "fault %u: pid %ld %.7s pc %#lx lr %#lx "
+			    "psr %#lx exc_return %#lx exception %lu\n", i,
+			    (long)(int32_t)f->pid, f->comm,
+			    (unsigned long)f->pc, (unsigned long)f->lr,
+			    (unsigned long)f->psr,
+			    (unsigned long)f->exc_return,
+			    (unsigned long)f->vectactive);
+		}
+		return (0);
+	}
 #endif
 #ifdef CPU_PCM
 	if (mib[0] == CTL_MACHDEP && mib[1] == CPU_PCM) {

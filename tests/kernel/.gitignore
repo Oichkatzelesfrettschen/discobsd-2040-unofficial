@@ -293,3 +293,9 @@ usb_console_*.mutant.*
 itrunc_order_test
 itrunc_order_kernel.o
 itrunc_order_*.mutant.*
+diag_stats_test
+diag_stats_*.mutant.c
+diag_stats_*.mutant.o
+diag_stats_*.mutant.test
+diag_stats_*.mutant.out
+diag_stats_kernel.o

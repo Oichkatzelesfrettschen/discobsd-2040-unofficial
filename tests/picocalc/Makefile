@@ -2304,7 +2304,7 @@ sdstrat-mutant-block-units:
 
 sdstrat-mutant-direction:
 	${SDSTRAT_MUT} sd.c \
-	    's/((bp->b_flags \& B_READ) ?/((bp->b_flags \& B_READ) == 0 ?/' ${SDSTRAT_SRC}
+	    's/sd_sector((bp->b_flags \& B_READ) != 0,/sd_sector((bp->b_flags \& B_READ) == 0,/' ${SDSTRAT_SRC}
 
 sdstrat-mutant-card-changed:
 	${SDSTRAT_MUT} sd.c \

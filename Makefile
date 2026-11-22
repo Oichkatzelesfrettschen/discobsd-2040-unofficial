@@ -2061,6 +2061,12 @@ check-picocalc-host:	check-python
 check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
 
+# The testing kernels' counters, fault records and console message ring
+# (sys/kern/subr_diag.c) against a host model, with four mutants of the
+# source; tests/kernel/Makefile states each.
+check-diag-stats:	check-python
+		${MAKE} -C tests/kernel check-diag-stats check-diag-stats-mutants
+
 # The PicoCalc loader's flash limit: the stamp decode and the flash
 # erase/program bound against exhaustive sweeps and a whole-chip NOR model,
 # the boot ROM writers' wiring in flash.c, and calibrating mutants;
@@ -2188,7 +2194,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-config-generated-sync check-config-include-order \
 		check-userland-layout-flags check-storage-geometry check-phony-targets \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-ulisp-host \
-		check-psram-pio \
+		check-psram-pio check-diag-stats \
 		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
 		check-signal-traps check-alloc-results check-panic-codes
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
@@ -2210,7 +2216,8 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 # local runs.
 HOST_TIER_B_GATES=	check-calc-host check-libcalc check-libbn check-ridge-host \
 		check-v7fs-core check-fat32-tail check-storage-recovery check-picocalc-host \
-		check-msdosfs-core check-psram-pio check-lex-tables check-coil-host \
+		check-msdosfs-core check-psram-pio check-diag-stats \
+		check-lex-tables check-coil-host \
 		check-tar-host check-storage-correctness check-dcbc
 HOST_TIER_A_GATES=
 .for gate in ${HOST_GATES} ${HOST_PROGRAM_GATES}

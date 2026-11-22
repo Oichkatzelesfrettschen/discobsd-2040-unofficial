@@ -769,15 +769,25 @@ successful_forks(void)
 {
     struct proc parent_before;
     struct user copied_user;
-    unsigned int use_vfork, blocks, data_blocks, text_size, index;
+    unsigned int use_vfork, blocks, data_blocks, text_size, index, variant;
+    unsigned int dirty;
 
-    for (blocks = 156; blocks <= 164; blocks += 8)
+    /*
+     * Variant 0 omits 8,040 bytes of clean text; variant 1 lacks text;
+     * variant 2 has the same text marked P_TEXTDIRTY by a ptrace write, so
+     * the child's image carries it whole and the child keeps the flag.
+     */
+    for (variant = 0; variant < 3; variant++)
     for (use_vfork = 0; use_vfork < 2; use_vfork++) {
         reset_fixture();
+        blocks = variant == 0 ? 156 : 164;
+        dirty = variant == 2;
         entries[0].m_addr = 4;
         entries[0].m_size = blocks;
-        text_size = blocks == 156 ? 8040 : 0;
-        proc[0].p_tsize = text_size;
+        proc[0].p_tsize = variant == 1 ? 0 : 8040;
+        if (dirty)
+            proc[0].p_flag |= P_TEXTDIRTY;
+        text_size = variant == 0 ? 8040 : 0;
         data_blocks = btod(proc[0].p_dsize - text_size);
         bcopy(&proc[0], &parent_before, sizeof(parent_before));
         run_vfork = use_vfork;
@@ -790,6 +800,8 @@ successful_forks(void)
         HK_CHECK(pidhash[PIDHASH(proc[1].p_pid)] == pid_slot(&proc[1]));
         HK_CHECK(proc[1].p_stat == SRUN);
         HK_CHECK((proc[1].p_flag & SSWAP) != 0);
+        HK_CHECK(((proc[1].p_flag & P_TEXTDIRTY) != 0) == dirty);
+        HK_CHECK(proc[1].p_tsize == proc[0].p_tsize);
         HK_CHECK(proc[1].p_daddr == (use_vfork ? parent_before.p_daddr : 4));
         HK_CHECK(proc[1].p_saddr == (use_vfork ? parent_before.p_saddr : 4 + data_blocks));
         HK_CHECK(proc[1].p_addr == 7 + data_blocks);
@@ -832,6 +844,7 @@ successful_forks(void)
         exec_text_release(&proc[1], NULL);
         HK_CHECK(text_inode.i_count == 1);
         HK_CHECK(proc[1].p_tip == NULL);
+        HK_CHECK((proc[1].p_flag & P_TEXTDIRTY) == 0);
         HK_CHECK(sleeps == use_vfork);
     }
 }

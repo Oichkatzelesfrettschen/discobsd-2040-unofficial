@@ -280,3 +280,21 @@ The second command reads ELF symbols with GNU readelf and checks relocated
 pointer words in two native images requiring zero and four padding bytes.
 A changed ELF digest and an application definition of `environ` exercise
 the two rejection paths. These checks measure host linker output.
+
+For the same compact ELF, generate and exercise its Thumb cold-start routine:
+
+```sh
+"$PYTHON" tests/libc_xip_slots/state_entry.py slot.elf > state_entry.s
+"$PYTHON" tests/libc_xip_slots/state_entry_test.py slot.elf
+```
+
+The caller passes the reserved state address in r0 and installs the returned
+GOT address in r9. The routine copies the 1,600-byte flash template, clears
+the remaining 3,440 bytes and adds the process base to 77 pointer cells.
+The assembled routine, literals, alignment and halfword offsets occupy 240
+bytes after the 48,496-byte diagnostic image, leaving 416 bytes in the
+reservation. Unicorn executes the routine at that flash address for two
+poisoned SRAM regions. The replay checks their bytes, guard words, return
+address, stack pointer and saved registers. Duplicating one relocation
+offset changes the resulting state bytes. Kernel exec admission and the
+startup call from a shipped application remain open.

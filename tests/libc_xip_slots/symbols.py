@@ -115,6 +115,52 @@ def separate(source, destination, groups):
     return edits
 
 
+def state_relocations(elf, got, initialized):
+    cells = set()
+    got_owners: dict[int, bool] = {}
+    for section in elf.iter_sections():
+        if not isinstance(section, RelocationSection):
+            continue
+        target = elf.get_section(section["sh_info"])
+        reloc_symbols = elf.get_section(section["sh_link"])
+        for relocation in section.iter_relocations():
+            symbol = reloc_symbols.get_symbol(relocation["r_info_sym"])
+            owner_index = symbol["st_shndx"]
+            state = isinstance(owner_index, int) and bool(
+                elf.get_section(owner_index)["sh_flags"] & 1
+            )
+            kind = relocation["r_info_type"]
+            offset = relocation["r_offset"]
+            if kind == 26 and target["sh_flags"] & 4:
+                displacement = struct.unpack_from("<I", target.data(), offset - target["sh_addr"])[
+                    0
+                ]
+                require(
+                    displacement % 4 == 0 and displacement + 4 <= got["sh_size"],
+                    "GOT displacement differs",
+                )
+                require(
+                    struct.unpack_from("<I", got.data(), displacement)[0] == symbol["st_value"],
+                    "GOT symbol value differs",
+                )
+                require(
+                    got_owners.setdefault(displacement, state) == state,
+                    "GOT ownership conflicts",
+                )
+            if kind == 2 and target["sh_flags"] & 2 and state:
+                require(target["sh_flags"] & 1, "read-only absolute state reference")
+                cells.add(offset)
+    require(set(got_owners) == set(range(0, got["sh_size"], 4)), "GOT ownership is incomplete")
+    cells.update(
+        got["sh_addr"] + displacement for displacement, state in got_owners.items() if state
+    )
+    require(
+        all(offset % 4 == 0 and offset + 4 <= initialized for offset in cells),
+        "state relocation containment differs",
+    )
+    return sorted(cells)
+
+
 def layout(path, groups, width=12):
     with Path(path).open("rb") as stream:
         elf = ELFFile(stream)
@@ -162,48 +208,7 @@ def layout(path, groups, width=12):
             0x10020000 < flash_end and flash_end + initialized <= 0x1002C000,
             "flash reservation differs",
         )
-        cells = set()
-        got_owners: dict[int, bool] = {}
-        for section in elf.iter_sections():
-            if not isinstance(section, RelocationSection):
-                continue
-            target = elf.get_section(section["sh_info"])
-            reloc_symbols = elf.get_section(section["sh_link"])
-            for relocation in section.iter_relocations():
-                symbol = reloc_symbols.get_symbol(relocation["r_info_sym"])
-                owner_index = symbol["st_shndx"]
-                state = isinstance(owner_index, int) and bool(
-                    elf.get_section(owner_index)["sh_flags"] & 1
-                )
-                kind = relocation["r_info_type"]
-                offset = relocation["r_offset"]
-                if kind == 26 and target["sh_flags"] & 4:
-                    displacement = struct.unpack_from(
-                        "<I", target.data(), offset - target["sh_addr"]
-                    )[0]
-                    require(
-                        displacement % 4 == 0 and displacement + 4 <= got["sh_size"],
-                        "GOT displacement differs",
-                    )
-                    require(
-                        struct.unpack_from("<I", got.data(), displacement)[0] == symbol["st_value"],
-                        "GOT symbol value differs",
-                    )
-                    require(
-                        got_owners.setdefault(displacement, state) == state,
-                        "GOT ownership conflicts",
-                    )
-                if kind == 2 and target["sh_flags"] & 2 and state:
-                    require(target["sh_flags"] & 1, "read-only absolute state reference")
-                    cells.add(offset)
-        require(set(got_owners) == set(range(0, got["sh_size"], 4)), "GOT ownership is incomplete")
-        cells.update(
-            got["sh_addr"] + displacement for displacement, state in got_owners.items() if state
-        )
-        require(
-            all(offset % 4 == 0 and offset + 4 <= initialized for offset in cells),
-            "state relocation containment differs",
-        )
+        cells = state_relocations(elf, got, initialized)
         return {
             "symbols": {name: symbol["st_value"] for name, symbol in symbols.items()},
             "sections": [
@@ -211,7 +216,7 @@ def layout(path, groups, width=12):
                 for section in elf.iter_sections()
                 if section["sh_flags"] & 2 and section["sh_type"] != "SHT_NOBITS"
             ],
-            "relocations": sorted(cells),
+            "relocations": cells,
             "got_offset": got["sh_addr"],
             "state_size": extent,
             "slot_width": width,

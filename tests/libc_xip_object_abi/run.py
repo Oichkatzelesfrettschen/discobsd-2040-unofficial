@@ -333,10 +333,19 @@ def shared_error_group(elf):
 
 def syscall_assembly_controls(compiler, runner):
     directory = ROOT / 'lib/libc/arm/sys'
-    generated = runner.work / 'generated-close.S'
-    generated.write_text('#include "SYS.h"\nSYS(close)\n')
+    objects = runner.run(['bmake', '-C', directory, 'MACHINE=rp2040', '-V',
+                          '${SYSOBJS}']).decode('ascii').split()
+    require(objects and len(set(objects)) == len(objects) and
+            all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*\.o', obj) for obj in objects),
+            'invalid generated syscall object list')
+    generated = {}
+    for obj in objects:
+        name = obj[:-2]
+        source = runner.work / ('generated-' + name + '.S')
+        source.write_text(f'#include "SYS.h"\nSYS({name})\n')
+        generated[source] = name
     shared_objects = []
-    for source in [generated, *(directory / (name + '.S') for name in
+    for source in [*generated, *(directory / (name + '.S') for name in
                                ('pipe', '_brk', 'ptrace', 'sigaction'))]:
         for shared in (False, True):
             target = runner.work / (source.stem + ('-shared.o' if shared else '-static.o'))
@@ -346,6 +355,11 @@ def syscall_assembly_controls(compiler, runner):
                         '-c', source, '-o', target])
             with target.open('rb') as handle:
                 elf = ELFFile(handle)
+                if source in generated:
+                    entry = symbol_table(elf).get(generated[source])
+                    require(entry is not None and entry['st_info']['type'] == 'STT_FUNC'
+                            and entry['st_info']['bind'] == 'STB_GLOBAL' and entry['st_value'] & 1,
+                            source.name + ': generated Thumb entry differs')
                 kinds = []
                 for section in elf.iter_sections():
                     if isinstance(section, RelocationSection):
@@ -388,7 +402,8 @@ def syscall_assembly_controls(compiler, runner):
         else:
             raise ValueError(name + ': malformed helper survives inspection')
     print('PASS coalesced shared helper and two rejected group controls', flush=True)
-    print('PASS generated and specialized syscall errno relocations', flush=True)
+    print(f'PASS {len(objects)} generated and four specialized syscall errno relocations',
+          flush=True)
 
 
 def execute(args, runner):

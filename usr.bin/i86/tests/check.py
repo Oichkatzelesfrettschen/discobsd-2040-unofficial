@@ -124,6 +124,14 @@ MUTANTS = [
         "if",
     ),
     ("clock.c", "n = k * CLK_PIT_HZ + *rem;", "n = k * CLK_PIT_HZ;"),
+    (
+        "clock.c",
+        "unsigned cap = period ? (CLK_CREDIT_CLOCKS - 1) / period + 1 : 0;",
+        "unsigned cap = period ? CLK_CREDIT_CLOCKS / period : 0;",
+    ),
+    ("clock.c", "\tif (cap < CLK_TICKS_MIN)\n\t\tcap = CLK_TICKS_MIN;\n", ""),
+    ("clock.c", "return (due < cap ? due + 1 : due);", "return (due + 1);"),
+    ("clock.c", "(CLK_CREDIT_CLOCKS - 1) / period + 1", "CLK_CREDIT_CLOCKS / period + 1"),
     ("pc.c", "c->ip -= 3;\n\t\t\t\tc->fl |= F_IF;", "c->ip -= 3;"),
     (
         "pc.c",
@@ -1327,10 +1335,10 @@ def test_pit(binary, work):
 def host_clock_irqs(run, what):
     """A run of tests/pit.asm on the host's clock must finish whole and
     count at most 37h interrupts while counter 2 counts 65535 clocks. A
-    host that deschedules the emulator for more than four periods of
-    counter 0 loses the ticks past four (pit_irq queues four at most), so
-    a loaded host counts fewer, never more: one of three runs must count
-    34h to 37h."""
+    host that sleeps or deschedules the emulator for longer than 20 ms
+    (clk_owe(): 21 periods of counter 0 at 1 kHz) loses the ticks past
+    those, so a loaded host counts fewer, never more: one of three runs
+    must count 34h to 37h."""
     seen = []
     for _ in range(3):
         got = run()

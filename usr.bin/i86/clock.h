@@ -40,9 +40,16 @@
 #define CLK_GAP_US	1000000UL	/* the longest gap one reading counts */
 #define CLK_CREDIT_US	20000L		/* -S: time a slow guest may make up */
 #define CLK_BACK_US	100000L		/* -S: lead past which the host went back */
+#define CLK_TICKS_MIN	4u		/* timer interrupts that may wait, at least */
+/* The most 8254 clocks a CLK_CREDIT_US step can count, its carried
+ * fraction included: 23,864. */
+#define CLK_CREDIT_CLOCKS \
+	((uint32_t)((CLK_CREDIT_US * (unsigned long long)CLK_PIT_HZ + 999999ULL) / \
+	1000000ULL))
 
 uint32_t	clk_pit(unsigned long *, unsigned long, uint32_t *);
 unsigned long	clk_forward(unsigned long *, unsigned long);
 unsigned	clk_pace(unsigned long *, unsigned long);
+unsigned	clk_owe(unsigned, uint32_t);
 
 #endif

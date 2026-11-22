@@ -1,0 +1,42 @@
+swapram_put() <void swapram_put (struct proc *p, int seg, caddr_t src, size_t len) at sys/arch/rp2040/rp2040/swapram.c:530>:
+    sr_slot() <struct sr_ent *sr_slot (struct proc *p) at sys/arch/rp2040/rp2040/swapram.c:227>:
+        panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+    panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+        printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+        boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+            rp2040_shutdown_sync() <void rp2040_shutdown_sync (int howto) at sys/arch/rp2040/rp2040/shutdown_sync.c:83> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            lcdcons_render_stack_free() <u_int lcdcons_render_stack_free (void) at sys/arch/rp2040/dev/lcdcons.c:389>:
+            usbdrain() <void usbdrain (void) at sys/arch/rp2040/dev/usb.c:1407> (R):
+            rom_func_lookup() <void *rom_func_lookup (u_int code) at sys/arch/rp2040/dev/flash.c:257>
+            arm_dsb() <__inline void arm_dsb (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/scb.h:80>:
+            usbpollc() <void usbpollc (int on) at sys/arch/rp2040/dev/usb.c:1441>:
+            cngetc() <int cngetc (void) at sys/dev/cons.c:141> (R):
+            arm_isb() <__inline void arm_isb (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/scb.h:86>:
+    sr_compressed_before() <unsigned int sr_compressed_before (struct sr_ent *e, int stop) at sys/arch/rp2040/rp2040/swapram.c:98>:
+    sr_encode() <int sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap) at sys/arch/rp2040/rp2040/swapram.c:249>:
+        swapram_codec_acquire() <void *swapram_codec_acquire (unsigned int owner) at sys/arch/rp2040/rp2040/swapram.c:155>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+        heatshrink_encoder_reset() <void heatshrink_encoder_reset (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:118>:
+            memset() <__inline void *memset (void *d, int c, size_t n) at sys/arch/rp2040/dhara/compat/string.h:35>:
+        heatshrink_encoder_sink() <HSE_sink_res heatshrink_encoder_sink (heatshrink_encoder *hse, uint8_t *in_buf, size_t size, size_t *input_size) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:137>:
+            is_finishing() <int is_finishing (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:442>:
+            get_input_offset() <uint16_t get_input_offset (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:389>:
+            get_input_buffer_size() <uint16_t get_input_buffer_size (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:393>
+            memcpy() <__inline void *memcpy (void *d, const void *s, size_t n) at sys/arch/rp2040/dhara/compat/string.h:28>:
+        heatshrink_encoder_finish() <HSE_finish_res heatshrink_encoder_finish (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:253>:
+        heatshrink_encoder_poll() <HSE_poll_res heatshrink_encoder_poll (heatshrink_encoder *hse, uint8_t *out_buf, size_t out_buf_size, size_t *output_size) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:190>:
+            do_indexing() <void do_indexing (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:403>
+            st_step_search() <HSE_state st_step_search (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:261>:
+            st_yield_tag_bit() <HSE_state st_yield_tag_bit (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:304>:
+            st_yield_literal() <HSE_state st_yield_literal (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:321>:
+            st_yield_br_index() <HSE_state st_yield_br_index (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:331>:
+            st_yield_br_length() <HSE_state st_yield_br_length (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:347>:
+            st_save_backlog() <HSE_state st_save_backlog (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:363>:
+            st_flush_bit_buffer() <HSE_state st_flush_bit_buffer (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:369>:
+        swapram_codec_release() <void swapram_codec_release (unsigned int owner) at sys/arch/rp2040/rp2040/swapram.c:164>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):

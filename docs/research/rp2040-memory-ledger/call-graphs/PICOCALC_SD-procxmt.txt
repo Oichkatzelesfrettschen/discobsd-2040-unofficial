@@ -1,0 +1,34 @@
+procxmt() <int procxmt (void) at sys/kern/sys_process.c:143> (R):
+    wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+        arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_get_primask() <inline int arm_get_primask (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:103>:
+        panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+        updatepri() <void updatepri (register struct proc *p) at sys/kern/kern_synch.c:71>:
+            setpri() <int setpri (register struct proc *pp) at sys/kern/kern_synch.c:368>:
+        setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+        wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (recursive: see 2)
+        arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            arm_set_primask() <inline void arm_set_primask (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:112>:
+    copyin() <int copyin (caddr_t from, caddr_t to, u_int nbytes) at sys/arch/rp2040/rp2040/machdep.c:1412>:
+        baduaddr_rspan() <int baduaddr_rspan (caddr_t addr, u_int nbytes) at sys/arch/rp2040/rp2040/machdep.c:1134>:
+            baduaddr_span() <int baduaddr_span (caddr_t addr, u_int nbytes) at sys/arch/rp2040/rp2040/machdep.c:1115>:
+            mpu_user_rospan() <int mpu_user_rospan (u_int start, u_int nbytes) at sys/arch/rp2040/rp2040/mpu.c:317>:
+        bcopy() <void bcopy (const void *src0, void *dst0, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1232>:
+    ptrace_user_word_offset_valid() <int ptrace_user_word_offset_valid (int offset) at sys/kern/sys_process.c:29>
+    bcopy() <void bcopy (const void *src0, void *dst0, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1232>:
+    copyout() <int copyout (caddr_t from, caddr_t to, u_int nbytes) at sys/arch/rp2040/rp2040/machdep.c:1399>:
+        baduaddr_span() <int baduaddr_span (caddr_t addr, u_int nbytes) at sys/arch/rp2040/rp2040/machdep.c:1115>:
+            rp2040_user_span_contains() <inline int rp2040_user_span_contains (unsigned int lower, unsigned int upper, unsigned int start, unsigned int length) at sys/arch/rp2040/compile/PICOCALC_SD/machine/usercopy.h:27>
+        bcopy() <void bcopy (const void *src0, void *dst0, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1232>:
+    ptrace_write_frame_word() <int ptrace_write_frame_word (int *word, int data) at sys/kern/sys_process.c:56>:
+        ptrace_sp_valid() <int ptrace_sp_valid (u_int stack_pointer) at sys/kern/sys_process.c:43>:
+            machine_user_stack_valid() <inline int machine_user_stack_valid (u_int stack_pointer, u_int frame_size) at sys/arch/rp2040/compile/PICOCALC_SD/machine/user_context.h:42>:
+        ptrace_pc_valid() <int ptrace_pc_valid (u_int program_counter) at sys/kern/sys_process.c:37>:
+            machine_user_pc_valid() <inline int machine_user_pc_valid (u_int program_counter) at sys/arch/rp2040/compile/PICOCALC_SD/machine/user_context.h:30>:
+    ptrace_pc_valid() <int ptrace_pc_valid (u_int program_counter) at sys/kern/sys_process.c:37>:
+        machine_user_pc_valid() <inline int machine_user_pc_valid (u_int program_counter) at sys/arch/rp2040/compile/PICOCALC_SD/machine/user_context.h:30>:
+            baduaddr_span() <int baduaddr_span (caddr_t addr, u_int nbytes) at sys/arch/rp2040/rp2040/machdep.c:1115>:

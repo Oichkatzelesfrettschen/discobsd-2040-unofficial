@@ -83,6 +83,7 @@ every other panic literal is in the verbatim list.
 | `K64` | swap image: copy owner | `sys/kern/vm_swap.c` | `swap_image_copy_out()` |
 | `K65` | swap image: commit owner | `sys/kern/vm_swap.c` | `swap_image_commit()` |
 | `K66` | swapout: no reservation | `sys/kern/vm_swap.c` | `swapout()` |
+| `K67` | exit: swtch() returned to a zombie | `sys/kern/kern_exit.c` | `exit()` |
 | `D01` | mmrw | `sys/dev/mem.c` | `mmrw()` |
 | `R01` | flash: scratch buffer reentered | `sys/arch/rp2040/dev/flash.c` | `flscratch_take()` |
 | `R02` | flash: page copy during a swap write | `sys/arch/rp2040/dev/flash.c` | `dhara_nand_copy()` |

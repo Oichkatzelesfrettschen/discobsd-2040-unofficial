@@ -2964,11 +2964,18 @@ diag_stats_test: diag_stats_test.c ${DIAG_SRC} hostkern32.o hostkern.h \
 	${HOST_CC} ${GATE_CFLAGS} -DDIAG_STATS ${ILP32} -o $@ \
 	    diag_stats_test.c diag_stats_kernel.o hostkern32.o
 
+check-diag-stats:
+.if ${ILP32_OK} == "yes"
 check-diag-stats: diag_stats_test
 	./diag_stats_test
+.else
+	@echo "SKIP check-diag-stats: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
 
 # Each line: mutant name, sed expression, the check expression that must
 # fail first.
+check-diag-stats-mutants:
+.if ${ILP32_OK} == "yes"
 check-diag-stats-mutants: diag_stats_test
 	@set -eu; \
 	run_mutant() { \
@@ -3002,6 +3009,9 @@ check-diag-stats-mutants: diag_stats_test
 	run_mutant ring-unlocked '/^diag_msgputc/,/^}/s/int s = splhigh();/int s = 0;/' 'hk_ipl_raises == before + 1'; \
 	run_mutant ring-clamp 's/if (now - pos > DIAG_MSGBUF_SIZE)/if (0)/' 'hk_streq(out, expected)'; \
 	run_mutant ring-enomem 's/if (\*oldlenp == 0) {/if (*oldlenp == 0) { return ENOMEM;/' 'len == 12'
+.else
+	@echo "SKIP check-diag-stats-mutants: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
 
 buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
     ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}

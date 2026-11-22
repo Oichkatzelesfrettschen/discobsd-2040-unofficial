@@ -171,3 +171,11 @@ fclose(FILE *iop)
 	iop->_file = 0;
 	return (r);
 }
+
+#ifdef DISCOBSD_SHARED_LIBC
+/* The slot linker retains the implementation when it binds public function pointers. */
+extern __typeof__(fclose) __libc_impl_fclose
+    __attribute__((alias("fclose"), visibility("hidden")));
+extern __typeof__(fflush) __libc_impl_fflush
+    __attribute__((alias("fflush"), visibility("hidden")));
+#endif

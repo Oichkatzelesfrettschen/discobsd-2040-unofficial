@@ -101,6 +101,15 @@ static int gfx_top;		/* lt.top when the pixel program took the panel. */
 #endif
 
 static int cursor_drawn, cd_prow, cd_col;
+/*
+ * The panel shows the cell store at every cell, the cursor overlay aside,
+ * which lcdterm_putc() hides before any output: a glyph or an erase that
+ * leaves a cell as the store already holds it is then not sent. A console
+ * exchange leaves the other console's cells on the panel and clears it; a
+ * full repaint and lcdterm_init() set it. The unseen-output marker covers
+ * one cell the store does not describe, marker_prow's last column.
+ */
+static int panel_true, marker_prow = -1;
 
 #define	LT_ACS_FIRST	0x5f		/* First code the DEC set replaces. */
 #define	LT_ACS_N	32		/* 0x5f through 0x7e. */
@@ -208,15 +217,21 @@ phys(int r)
 static void
 panel_cell(int prow, int col, int ch, unsigned attr)
 {
-	if (!gfx_active)
+	if (!gfx_active) {
 		lcd_draw_cell(prow, col, ch, attr);
+		if (prow == marker_prow && col == LT_COLS - 1)
+			marker_prow = -1;	/* drawn over */
+	}
 }
 
 static void
 panel_fill(int prow, int col, int n, unsigned attr)
 {
-	if (!gfx_active)
+	if (!gfx_active) {
 		lcd_fill_cells(prow, col, n, attr);
+		if (prow == marker_prow && col + n >= LT_COLS)
+			marker_prow = -1;
+	}
 }
 
 static void
@@ -265,6 +280,14 @@ static unsigned
 erase_attr(void)
 {
 	return LT_ATTR(7, lt.sgr_rev ? lt.sgr_fg : lt.sgr_bg, 0);
+}
+
+/* Whether the panel already shows ch in attr at physical cell (p, c). */
+static int
+shown(int p, int c, int ch, unsigned attr)
+{
+	return panel_true && lt.cells[p][c] == ch && lt.attrs[p][c] == attr &&
+	    !(p == marker_prow && c == LT_COLS - 1);
 }
 
 static void
@@ -324,6 +347,15 @@ erase_cells(int r, int c, int n)
 	}
 	if (c + n > LT_COLS)
 		n = LT_COLS - c;
+	if (n <= 0)
+		return;
+	/* Only the span from the first to the last cell not yet blank in a. */
+	while (n > 0 && shown(p, c, ' ', a)) {
+		c++;
+		n--;
+	}
+	while (n > 0 && shown(p, c + n - 1, ' ', a))
+		n--;
 	if (n <= 0)
 		return;
 	for (i = c; i < c + n; i++) {
@@ -424,7 +456,7 @@ index_up(void)
 static void
 put_glyph(int ch)
 {
-	int p, c;
+	int p, c, same;
 
 	if (lt.wrapnext) {
 		lt.wrapnext = 0;
@@ -432,6 +464,7 @@ put_glyph(int ch)
 		index_down();
 	}
 	p = phys(lt.crow);
+	same = !lt.insertmode && shown(p, lt.ccol, ch, lt.cattr);
 	if (lt.insertmode) {
 		for (c = LT_COLS - 1; c > lt.ccol; c--) {
 			lt.cells[p][c] = lt.cells[p][c - 1];
@@ -442,7 +475,7 @@ put_glyph(int ch)
 	lt.attrs[p][lt.ccol] = (unsigned char)lt.cattr;
 	if (lt.insertmode)
 		redraw_span(lt.crow, lt.ccol, LT_COLS - 1);
-	else
+	else if (!same)
 		draw(lt.crow, lt.ccol);
 	if (lt.ccol == LT_COLS - 1) {
 		if (lt.autowrap)
@@ -786,6 +819,7 @@ lcdterm_abort(void)
 {
 	lt.state = ST_GROUND;
 	cursor_drawn = 0;
+	panel_true = 0;		/* the drawer may have stopped mid-cell */
 	reset_modes();
 	if (gfx_active)
 		lcdterm_gfx(0);
@@ -808,6 +842,8 @@ lcdterm_repaint(void)
 	for (p = 0; p < LT_ROWS; p++)
 		for (c = 0; c < LT_COLS; c++)
 			lcd_draw_cell(p, c, lt.cells[p][c], lt.attrs[p][c]);
+	panel_true = 1;
+	marker_prow = -1;
 	lcdterm_cursor_show();
 }
 
@@ -821,6 +857,7 @@ lcdterm_gfx(int on)
 {
 	cursor_drawn = 0;
 	gfx_active = on;
+	panel_true = 0;
 #ifdef LCD_GFX_EXT
 	if (on)
 		gfx_top = lt.top;
@@ -836,6 +873,8 @@ lcdterm_init(void)
 {
 	cursor_drawn = 0;
 	gfx_active = 0;
+	panel_true = 0;
+	marker_prow = -1;
 	glyph_defaults();
 	full_reset();
 #ifdef LCD_VT
@@ -849,6 +888,7 @@ lcdterm_init(void)
 	gfx_active = 0;
 	lcdterm_exchange();
 #endif
+	panel_true = 1;
 }
 
 static void
@@ -1082,12 +1122,18 @@ lcdterm_exchange(void)
 		b[i] = w;
 	}
 	cursor_drawn = 0;
+	panel_true = 0;
 }
 
 void
 lcdterm_marker(void)
 {
+	/* A second marker while the first is still on the panel: only a
+	 * full repaint knows where both are. */
+	if (marker_prow >= 0 && marker_prow != phys(0))
+		panel_true = 0;
 	panel_cell(phys(0), LT_COLS - 1, '!', LT_ATTR(7, 1, 0));
+	marker_prow = phys(0);
 }
 
 #ifdef LCDTERM_HOST_TEST

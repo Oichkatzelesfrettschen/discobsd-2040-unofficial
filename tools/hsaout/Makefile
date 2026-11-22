@@ -43,7 +43,7 @@ $(LIB):		$(LIBOBJS)
 $(PROG):	hsaout.o $(LIB)
 		$(CC) $(LDFLAGS) -o $@ hsaout.o $(LIB) $(LIBS)
 
-libhsaout.o:	libhsaout.c libhsaout.h machine
+libhsaout.o:	libhsaout.c libhsaout.h machine ../../sys/sys/exec_aout.h ../../sys/sys/exec_hsaout.h ../../sys/sys/exec_xip.h
 		$(CC) $(CFLAGS) -c -o $@ libhsaout.c
 
 subr_crc32.o:	${TOPSRC}/sys/kern/subr_crc32.c

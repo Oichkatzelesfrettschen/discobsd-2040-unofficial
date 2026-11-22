@@ -77,7 +77,7 @@ MUTATIONS = (
     (
         "dropped_destroy_damage",
         "\twin->used = 0;\n\tdamage_shown(s, win);",
-        "\twin->used = 0;",
+        "\twin->used = 0;\n\t(void)damage_shown;",
     ),
     (
         "dropped_move_damage",
@@ -86,8 +86,33 @@ MUTATIONS = (
     ),
     (
         "dropped_raise_damage",
-        "\t\ts->z[s->nwin - 1] = (unsigned char)j;\n\t\tdamage_shown(s, win);",
-        "\t\ts->z[s->nwin - 1] = (unsigned char)j;",
+        "\t\tdamage_crossed(s, j, have, &box, follow);\n",
+        "\t\t(void)have;\n\t\tdamage_crossed(s, j, 0, &box, 0);\n",
+    ),
+    (
+        "dropped_lower_damage",
+        "\tdamage_crossed(s, j, have, &box, pick >= 0 && pick != j);\n",
+        "\t(void)have;\n\tdamage_crossed(s, j, 0, &box, 0);\n",
+    ),
+    (
+        "raise_damages_the_whole_window",
+        "\t\tdamage_crossed(s, j, have, &box, follow);\n",
+        "\t\t(void)have;\n\t\tdamage_shown(s, win);\n",
+    ),
+    (
+        "crossed_reads_the_wrong_side",
+        "have = crossed_box(s, j, i + 1, s->nwin, &box);",
+        "have = crossed_box(s, j, 0, i, &box);",
+    ),
+    (
+        "title_left_out_of_the_box",
+        "\t\tdamage_crossed(s, j, have, &box, follow);\n",
+        "\t\tdamage_crossed(s, j, have, &box, 0);\n",
+    ),
+    (
+        "crossed_ignores_hidden",
+        "\t\tif (s->wins[s->z[k]].hidden)\n\t\t\tcontinue;\n",
+        "",
     ),
     (
         "overflow_loses_damage",

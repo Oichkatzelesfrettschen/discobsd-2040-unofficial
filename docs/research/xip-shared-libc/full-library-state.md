@@ -139,3 +139,62 @@ The [evidence index](full-library-state-evidence.json) binds nine retained
 local receipts by SHA-256. Their `.build-logs` paths identify local evidence,
 not files distributed with the repository. These exploratory fixtures remain
 outside the production acceptance gates.
+
+## Shared sorting implementation
+
+The shared build compiles the sorting implementation once. Each public entry
+creates an automatic state with its record width and typed comparator. The
+context entry also carries the caller's context pointer. The plain comparator
+field selects the two-argument call. A null user context therefore still
+calls the three-argument comparator. Nested calls own independent states.
+The ordinary archive continues to compile separate members for selection by
+the static linker.
+
+Replacing only the two sorting members in the 738-root link that includes
+the shared string-to-double provider reduces the load image from 70,376 to
+69,616 bytes. All roots resolve and process state occupies 5,848 bytes in
+both links. The experiment uses the retained archive and linker configuration.
+The resulting image exceeds the 49,152-byte reservation by 20,464 bytes
+before slots.
+
+The context-sort fixture exercises 708,596 order, permutation and callback
+cases. Its shared-build control drops the context and must fail with the
+callback's diagnostic. A separate Cortex-M0 instruction trace compares
+stack-pointer minima for baseline and shared code. Six byte-array inputs
+cover lengths 8, 9, 63 and 127 with reverse, equal and shuffled keys.
+Each input uses an ordinary comparator and a context comparator that calls
+an inner sort. All twelve paired measurements match. The largest observed
+stack depths, measured from the caller's entry, are 308 bytes for ordinary
+calls and 352 bytes with nesting. Other input sizes, callbacks and timing
+remain outside this measurement.
+
+## Shipped executable member envelope
+
+A diagnostic link using the libc members selected by 33 shipped executables
+occupies 48,496 flash bytes with callable slots and 5,040 bytes of process
+state. The 49,152-byte reservation has 656 bytes left in this layout. The
+[member and symbol inventory](shipped-member-envelope.json) identifies the
+inputs and the linked ELF. The larger link rooted in all 738 globals still
+exceeds the reservation.
+
+The [distribution receipt](../native-division-resource-parent.json) records
+the selected archive members for each executable at `0e3cd773c`. Their union
+contains 278 members. Each selected static member's SHA-256 matches the
+corresponding member of the clean static archive at `60e934b2f`. Their
+395 global and weak definitions supply the roots for the experimental PIC
+link, which occupies 45,672 flash bytes before slots. This method includes
+internal functions defined alongside a used function. Programs built later
+can also call interfaces outside this set.
+
+The link groups 368 function names by their entry addresses. GNU ld places
+350 eight-byte slots and a common dispatcher before the text and encodes each
+implementation offset after final placement. Inspection recovers the address
+of every function in each group from the linked halfword. Changing the first
+offset by two bytes fails that check. The other 27 definitions are objects.
+Section alignment accounts for the four-byte difference between the measured
+2,824-byte increase and the 2,828 bytes of slot and dispatcher content.
+
+The slot names and ordering serve this size experiment. Program relinking,
+canonical public pointer identity for this full set, reviewed exports and
+stable numbering, mutable-object access, startup relocation and execution
+remain open. The 656-byte margin applies to this member selection alone.

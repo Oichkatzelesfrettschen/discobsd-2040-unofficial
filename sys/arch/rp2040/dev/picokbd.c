@@ -469,6 +469,10 @@ kbd_poll(caddr_t arg __unused)
 				lcdcons_input(seq, n);
 		} else if (phase == PH_WRITE && fast > 0)
 			fast--;		/* An empty exchange completed. */
+#ifdef LCD_BLANK
+		if (r == STEP_EVENT || phase == PH_WRITE)
+			(void)lcdcons_blank_poll(r == STEP_EVENT);
+#endif
 		/* A collected exchange queues the next write at once. */
 		if (phase == PH_WRITE)
 			(void)kbd_step(KBD_REG_FIFO, &state, &key);

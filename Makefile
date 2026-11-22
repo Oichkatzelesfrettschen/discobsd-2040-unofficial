@@ -714,6 +714,7 @@ check-native-linker: check-python
 		${PYTHON} tests/native_linker/readers.py
 		${PYTHON} tests/native_linker/branches.py
 		${PYTHON} tests/native_linker/calibrate.py
+		${PYTHON} tests/native_linker/xip_imports_test.py
 
 # The assembler's scratch streams and the linker's output regions: identical
 # object and executable bytes against the recorded outputs of the tools that
@@ -2067,7 +2068,7 @@ check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
 
 # The testing kernels' counters, fault records and console message ring
-# (sys/kern/subr_diag.c) against a host model, with four mutants of the
+# (sys/kern/subr_diag.c) against a host model, with seven mutants of the
 # source; tests/kernel/Makefile states each.
 check-diag-stats:	check-python
 		${MAKE} -C tests/kernel check-diag-stats check-diag-stats-mutants
@@ -2983,7 +2984,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-rp2040-break-guard check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-rp2040-break-guard check-usb-reset check-picocalc-host check-psram-pio check-diag-stats check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

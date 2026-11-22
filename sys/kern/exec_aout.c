@@ -67,6 +67,8 @@ exec_text_release(struct proc *p, struct inode *next)
 {
     struct inode *ip = p->p_tip;
 
+    /* Written text belongs to the image this reference ends. */
+    p->p_flag &= ~P_TEXTDIRTY;
     if (ip == NULL)
         return;
     p->p_tip = NULL;

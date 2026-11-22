@@ -193,6 +193,12 @@ passes unchecked allocation results to copies in `EnvInit` and `setenv`.
 Allocation failure and interpreter teardown during notification remain open
 qualification cases. These host observations cover successful calls.
 
+An array read trace registered through `Tcl_TraceVar2` receives one callback
+for a lookup of an existing key and zero for a missing key in the same
+interpreter. In `lib/libtcl/tclvar.c`, `Tcl_GetVar2` returns from a failed
+element lookup before calling `CallTraces`. A read trace alone therefore
+cannot discover an environment key newly inserted by a C caller.
+
 The existing program-object namespace scan and this archive-provider scan
 cover different collision surfaces.
 

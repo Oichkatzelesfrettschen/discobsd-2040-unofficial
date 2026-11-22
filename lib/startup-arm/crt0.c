@@ -51,18 +51,29 @@
  */
 extern int main (int, char **, char **);
 
+#ifdef DISCOBSD_SHARED_LIBC
+/* The shared entry installs r9 and binds both names to the caller's BSS. */
+#define CRT_ENTRY __xip_start_main
+extern char **environ;
+extern const char *__progname;
+#else
+#define CRT_ENTRY _start
 char **environ;
 const char *__progname = "";
+#endif
 
-void _start (int, char **, char **);
+void CRT_ENTRY (int, char **, char **);
 
 /* The entry function. */
 void
-_start (argc, argv, env)
+CRT_ENTRY (argc, argv, env)
 	int argc;
 	char **argv;
 	char **env;
 {
+#ifdef DISCOBSD_SHARED_LIBC
+	__progname = "";
+#endif
 	environ = env;
 	if (argc > 0 && argv[0] != 0) {
 		const char *s;

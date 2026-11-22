@@ -106,6 +106,58 @@ def pack_provider(work, source, record):
     (work / "provider.bin").write_bytes(data)
 
 
+def build_imports(work, imports, record):
+    (work / "imports.S").write_text(imports + "\n")
+    subprocess.run(
+        ["arm-none-eabi-as", "-mcpu=cortex-m0plus", "imports.S", "-o", "imports.o"],
+        cwd=work,
+        check=True,
+    )
+    subprocess.run(
+        [
+            "arm-none-eabi-ld",
+            "--fatal-warnings",
+            f"-Ttext={0x10020000 + record.get('slot_table_offset', 0):#x}",
+            "-e",
+            "rand",
+            "imports.o",
+            "-o",
+            "imports-full.elf",
+        ],
+        cwd=work,
+        check=True,
+    )
+    names = {
+        name: 0x10020001 + record.get("slot_table_offset", 0) + 8 * index
+        for index, group in enumerate(record["slot_groups"])
+        for name in group
+    }
+    subprocess.run(
+        [
+            "arm-none-eabi-objcopy",
+            "--strip-all",
+            *("--keep-symbol=" + n for n in names),
+            "imports-full.elf",
+            "imports.elf",
+        ],
+        cwd=work,
+        check=True,
+    )
+    with (work / "imports.elf").open("rb") as stream:
+        elf = ELFFile(stream)
+        imports = functions(elf, names, 8)
+        require(
+            all(imports[name]["st_value"] == address for name, address in names.items()),
+            "import address differs",
+        )
+        actual = {
+            symbol.name
+            for symbol in elf.get_section_by_name(".symtab").iter_symbols()
+            if symbol.name
+        }
+        require(actual == set(names), "import symbol set differs")
+
+
 def relink(archive, fixture, provider=False):
     record = json.loads(RECORD.read_text())
     if provider:
@@ -226,55 +278,7 @@ def relink(archive, fixture, provider=False):
     imports = import_source(source, record)
     if provider:
         pack_provider(work, source, record)
-    (work / "imports.S").write_text(imports + "\n")
-    subprocess.run(
-        ["arm-none-eabi-as", "-mcpu=cortex-m0plus", "imports.S", "-o", "imports.o"],
-        cwd=work,
-        check=True,
-    )
-    subprocess.run(
-        [
-            "arm-none-eabi-ld",
-            "--fatal-warnings",
-            f"-Ttext={0x10020000 + record.get('slot_table_offset', 0):#x}",
-            "-e",
-            "rand",
-            "imports.o",
-            "-o",
-            "imports-full.elf",
-        ],
-        cwd=work,
-        check=True,
-    )
-    names = {
-        name: 0x10020001 + record.get("slot_table_offset", 0) + 8 * index
-        for index, group in enumerate(record["slot_groups"])
-        for name in group
-    }
-    subprocess.run(
-        [
-            "arm-none-eabi-objcopy",
-            "--strip-all",
-            *("--keep-symbol=" + n for n in names),
-            "imports-full.elf",
-            "imports.elf",
-        ],
-        cwd=work,
-        check=True,
-    )
-    with (work / "imports.elf").open("rb") as stream:
-        elf = ELFFile(stream)
-        imports = functions(elf, names, 8)
-        require(
-            all(imports[name]["st_value"] == address for name, address in names.items()),
-            "import address differs",
-        )
-        actual = {
-            symbol.name
-            for symbol in elf.get_section_by_name(".symtab").iter_symbols()
-            if symbol.name
-        }
-        require(actual == set(names), "import symbol set differs")
+    build_imports(work, imports, record)
     return work
 
 

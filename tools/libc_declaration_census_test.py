@@ -44,6 +44,23 @@ class DeclarationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "owner denominator changes"):
                 census.archive_paths(Path("fixture"))
 
+    def test_startup_storage_and_linkage(self):
+        pointer = {"kind": "object", "mutable": True, "size": 4, "binding": "STB_GLOBAL"}
+        definitions = {"environ": pointer, "__progname": pointer}
+        rows = {"alias": {"kind": "object", "linkage": "environ"},
+                "environ": {"kind": "object", "linkage": "different"}}
+        self.assertEqual(census.startup_declarations(rows, definitions), {"alias": "environ"})
+        for changes in ({"size": 8}, {"mutable": False}, {"binding": "STB_WEAK"},
+                        {"kind": "function"}):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, "ARM pointer"):
+                bad = {**definitions, "environ": {**pointer, **changes}}
+                census.startup_declarations(rows, bad)
+        with self.assertRaisesRegex(ValueError, "ARM pointer"):
+            census.startup_declarations(rows, {"environ": pointer})
+        rows["alias"]["kind"] = "function"
+        with self.assertRaisesRegex(ValueError, "kind differs"):
+            census.startup_declarations(rows, definitions)
+
     def test_issue8_header_citations_preserve_root_underscores(self):
         with tempfile.TemporaryDirectory() as directory:
             ledger = Path(directory) / "ledger.tsv"

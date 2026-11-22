@@ -16,7 +16,7 @@ import uuid
 from pathlib import Path
 
 from c17.record_tool import dependency_paths, digest
-from libc_shared_closure import provider, read_archive
+from libc_shared_closure import provider, read_archive, read_member
 
 MODES = {"default": [], "iso": ["-D_ANSI_SOURCE=1"],
          "issue7": ["-D_POSIX_C_SOURCE=200809L"],
@@ -161,6 +161,22 @@ def verify_profile(headers, profile):
     require(profile["provider_counts"] == counts, "provider counts differ from rows")
 
 
+def startup_declarations(rows, definitions):
+    for symbol in ("environ", "__progname"):
+        definition = definitions.get(symbol, {})
+        require(definition.get("kind") == "object" and definition.get("mutable")
+                and definition.get("size") == 4 and definition.get("binding") == "STB_GLOBAL",
+                "startup lacks writable ARM pointer: " + symbol)
+    matches = {}
+    for name, row in rows.items():
+        linkage = row["linkage"]
+        if linkage in definitions:
+            definition = definitions[linkage]
+            require(row["kind"] == definition["kind"], "startup declaration kind differs: " + name)
+            matches[name] = linkage
+    return matches
+
+
 def verify_report(report):
     headers = report["headers"]
     require(headers and len(headers) == len(set(headers)), "root-header denominator differs")
@@ -173,12 +189,12 @@ def verify_report(report):
         require(profile["installed_headers"] == report["installed_headers"],
                 "installed header denominator differs between profiles")
         verify_profile(headers, profile)
-        if report.get("schema") in (2, 3):
+        if report.get("schema") in (2, 3, 4):
             installed = report["staged_headers"]
             require(set(report["installed_headers"]) == {h for h in installed if "/" not in h},
                     "staged root-header denominator differs")
             verify_staged_profile(profile["staged"], installed)
-            if report["schema"] == 3:
+            if report["schema"] in (3, 4):
                 expected = sorted(set(report["issue8_headers"]).intersection(installed),
                                   key=lambda h: ("/" in h, h))
                 joint = profile["staged"]["issue8_joint"]
@@ -186,6 +202,11 @@ def verify_report(report):
                         and joint["exit_code"] == 0
                         and joint["symbols"] == sorted(joint["declarations"]),
                         "installed Issue 8 declaration witness differs")
+                if report["schema"] == 4:
+                    matches = startup_declarations(joint["declarations"],
+                                                   report["startup_object"]["definitions"])
+                    require(profile["startup_declarations"] == matches,
+                            "startup declaration denominator differs")
 
 
 def git(root, *arguments):
@@ -481,6 +502,8 @@ def run(root, work, compiler, archive_paths, archiver, staged):
     require(not git(root, "diff", "HEAD", "--", "*.h", "*.i"), "tracked headers have edits")
     graphs = {name: read_archive(path, archiver) for name, path in archive_paths.items()}
     identities = {name: graph["archive_sha256"] for name, graph in graphs.items()}
+    startup_path = root / "lib/crt0.o"
+    startup = read_member("crt0.o", startup_path.read_bytes())
     profiles = {}
     for mode, feature_flags in MODES.items():
         for width in (32, 64):
@@ -509,6 +532,8 @@ def run(root, work, compiler, archive_paths, archiver, staged):
             profiles[profile]["staged"] = observe_staged_profile(
                 root, work, compiler, selectors, profile, staged, staged_headers, graphs,
                 issue8_headers)
+            profiles[profile]["startup_declarations"] = startup_declarations(
+                profiles[profile]["staged"]["issue8_joint"]["declarations"], startup["definitions"])
             verify_profile(headers, profiles[profile])
     require(before == header_snapshot(root) and revision == git(root, "rev-parse", "HEAD"),
             "header inputs or revision change during census")
@@ -523,7 +548,9 @@ def run(root, work, compiler, archive_paths, archiver, staged):
                     "compiler dependencies lack matching tracked header ownership")
     require(staged_headers == staged_header_snapshot(staged, owners, aliases, before),
             "staged header inputs change during census")
-    report = {"schema": 3, "issue8_headers": sorted(issue8_headers),
+    require(digest(startup_path) == startup["sha256"], "startup object changes during census")
+    report = {"schema": 4, "startup_object": {"path": "lib/crt0.o", **startup},
+              "issue8_headers": sorted(issue8_headers),
               "source_commit": revision, "headers": headers,
               "staged_headers": staged_headers,
             "compiler_controls": controls,
@@ -545,7 +572,7 @@ def run(root, work, compiler, archive_paths, archiver, staged):
             "scope": "Source root-header and staged include-tree declarations; "
                      "every ABI selection remains unreviewed.",
             "remaining": ["Kernel/user declaration domains, context-requiring headers and macros",
-                          "Native a.out libraries, startup objects and compiler providers",
+                          "Native a.out libraries and startup, and compiler-provided interfaces",
                           "Complete attributes, layouts, native input and semantic witnesses",
                           "Reviewed export selection, stable slots and shared runtime admission"]}
     verify_report(report)

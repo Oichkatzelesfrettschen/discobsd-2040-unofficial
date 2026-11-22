@@ -328,3 +328,44 @@ Most fills clear 1-2 KiB, where the ROM `memset` saves about 3.5 us a call, and 
 **Implementation constraints:** a change built on these numbers keeps `bcopy`'s backward branch for an overlapping destination in front of the ROM call (D150). The ROM `memcpy` copies forward only.
 
 **Decision still open:** the zero-RAM form, with a lookup on every call, against the form that caches the pointers in 8 bytes of bss (see "Both budgets" above).
+
+## Applied: the ROM routines behind `bcopy` and `bzero`
+
+The kernel's `bzero` calls the ROM's `memset` (MS). The kernel's `bcopy` calls the ROM's `memcpy` (MC) for ranges that do not overlap (`sys/arch/rp2040/rp2040/machdep.c`). Neither keeps a pointer in RAM.
+
+**Finding the routine.** `rom_fn()` reads the function table slot where ROM version 3 keeps the entry: MS at `0x8a` and MC at `0x92`. Version 3 is the ROM of RP2040 B2 silicon, the version this board reports. When the slot holds the routine's two-letter code, the halfword after the code is the routine's address (`0x26b9` and `0x261d`). Any other ROM takes the per-call `rom_func_lookup()`. A wrong constant therefore costs only the lookup, never a wrong call. `rom_fn()` is out of line, so the slot address stays a parameter and GCC does not report the constant small-address read.
+
+**What the ROM `memcpy` does**, from the disassembly of `0x261d` in the B2 image (Renode_RP2040 `bootroms/rp2040/b2.elf`, the sha256 above):
+- **Below 8 bytes:** a computed jump into an unrolled byte copy that writes index `n - 1` down to 0.
+- **Source and destination of different alignment:** a byte loop that also runs from the end.
+- **Same alignment:** it brings the destination to a word with a byte and a halfword copy, then copies forward 16 bytes at a time with `ldmia`/`stmia`, then copies an 8-, 4-, 2- and 1-byte tail.
+
+So the ROM routine is correct for neither kind of overlap:
+- A destination inside the source breaks its forward word copy. D150 already sends that case to `bcopy`'s backward branch.
+- A source inside the destination breaks its backward byte copies.
+
+`bcopy` therefore calls the ROM only when `src - dst` (unsigned) is at least `nbytes`, and keeps its own forward loops for a source that starts inside the destination. `tests/kernel/bcopy_overlap.py` models the routine as described and rejects a mutant that passes every range to the ROM.
+
+**What the ROM `memset` does.** `0x26b9` returns at once for a length of 0 and uses an unrolled byte store below 8 bytes. Otherwise it aligns the destination, replicates the byte into a word and stores 16 bytes at a time with `stmia`, then stores the tail.
+
+**Not used:** the aligned entries C4 (`memcpy44`, `0x2605`) and S4 (`memset4`, `0x26ad`). They skip only the alignment prologue, a few cycles.
+
+**Sizes** (`arm-none-eabi-gcc` 16.2.0, `bb3ac1c26` against the change): text changes by:
+
+| Kernel | Text (bytes) |
+|---|---:|
+| PICO | -16 |
+| PICO_DIAG | -24 |
+| PICO_UART | -8 |
+| PICOCALC | -24 |
+| PICOCALC_LEAN | -16 |
+| PICOCALC_LEAN_DIAG | -16 |
+| PICOCALC_SD | -8 |
+| PICOCALC_SD_DIAG | +16 |
+
+Data and bss are unchanged in every kernel.
+
+**Board check** (bare Pico, PICO kernel with the change on main `2f2cdb17d`):
+- The D150 symlink cases resolve: a link to `ab`, to `ab/../ab/../ab`, and to an absolute path.
+- `/bin/sh` copies byte-identical (`cmp`).
+- `ls -lR /` takes 0.62 s and `cat /bin/*` 0.85 s, the same as before; both are bound by the flash reads.

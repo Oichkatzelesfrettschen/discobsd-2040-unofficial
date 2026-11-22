@@ -761,10 +761,73 @@ win_set_geometry(struct win_scene *s, struct win *win, int x, int y, int w,
 	return 0;
 }
 
+/*
+ * The box of the parts of slot j that the shown windows at
+ * s->z[from .. to - 1] overlap, in *box; returns 0 when none of them
+ * overlaps j or j is hidden. A raise or a lower moves j past exactly
+ * those, and every other pixel of j and of them keeps the window it shows.
+ */
+static int
+crossed_box(const struct win_scene *s, int j, int from, int to,
+    struct win_rect *box)
+{
+	struct win_rect r, o;
+	int k, have = 0;
+
+	if (s->wins[j].hidden)
+		return 0;
+	window_rect(&s->wins[j], &r);
+	for (k = from; k < to; k++) {
+		if (s->wins[s->z[k]].hidden)
+			continue;
+		window_rect(&s->wins[s->z[k]], &o);
+		if (!rect_overlap(&r, &o))
+			continue;
+		o.x0 = max_i(o.x0, r.x0);
+		o.y0 = max_i(o.y0, r.y0);
+		o.x1 = min_i(o.x1, r.x1);
+		o.y1 = min_i(o.y1, r.y1);
+		if (have)
+			rect_box(box, &o);
+		else
+			*box = o;
+		have = 1;
+	}
+	return have;
+}
+
+/*
+ * Damage the crossed box, joined with j's title bar when the focus moves
+ * to or from j, so that the move and the two title bars of the focus
+ * change take WIN_DAMAGE_CALL rectangles at most.
+ */
+static void
+damage_crossed(struct win_scene *s, int j, int have, struct win_rect *box,
+    int title)
+{
+	const struct win *w = &s->wins[j];
+	struct win_rect t;
+
+	if (title) {
+		t.x0 = w->x + 1;
+		t.y0 = w->y + 1;
+		t.x1 = w->x + w->w - 1;
+		t.y1 = w->y + 1 + WIN_TITLE_H;
+		if (have)
+			rect_box(box, &t);
+		else
+			*box = t;
+		have = 1;
+	}
+	if (have)
+		damage_rect(s, box);
+}
+
 int
 win_raise(struct win_scene *s, struct win *win)
 {
-	int i, j, follow;
+	struct win_rect box;
+	int i, j, follow, have;
 
 	j = win_slot(s, win);
 	if (j < 0)
@@ -777,10 +840,11 @@ win_raise(struct win_scene *s, struct win *win)
 	if (s->z[s->nwin - 1] != j) {
 		for (i = 0; s->z[i] != j; i++)
 			;
+		have = crossed_box(s, j, i + 1, s->nwin, &box);
 		for (; i + 1 < s->nwin; i++)
 			s->z[i] = s->z[i + 1];
 		s->z[s->nwin - 1] = (unsigned char)j;
-		damage_shown(s, win);
+		damage_crossed(s, j, have, &box, follow);
 	}
 	if (follow)
 		focus_set(s, j);
@@ -791,7 +855,8 @@ win_raise(struct win_scene *s, struct win *win)
 int
 win_lower(struct win_scene *s, struct win *win)
 {
-	int i, j;
+	struct win_rect box;
+	int i, j, have, pick = -1;
 
 	j = win_slot(s, win);
 	if (j < 0)
@@ -802,12 +867,15 @@ win_lower(struct win_scene *s, struct win *win)
 		return -1;
 	for (i = 0; s->z[i] != j; i++)
 		;
+	have = crossed_box(s, j, 0, i, &box);
 	for (; i > 0; i--)
 		s->z[i] = s->z[i - 1];
 	s->z[0] = (unsigned char)j;
-	damage_shown(s, win);
 	if (s->focus_follows_raise && s->focus == j)
-		focus_set(s, focus_pick(s, s->nwin - 1));
+		pick = focus_pick(s, s->nwin - 1);
+	damage_crossed(s, j, have, &box, pick >= 0 && pick != j);
+	if (pick >= 0)
+		focus_set(s, pick);
 	return 0;
 }
 

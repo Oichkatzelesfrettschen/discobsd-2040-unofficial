@@ -713,6 +713,82 @@ mark_window(const struct twin *t)
 	mark(t->x, t->y, t->x + t->w, t->y + t->h);
 }
 
+/*
+ * A raise or a lower moves t past the windows at order[from .. to - 1]:
+ * the box of the parts of t that the shown ones overlap changes, in *box
+ * (x0, y0, x1, y1); returns 0 when none overlaps or t is hidden.
+ */
+static int
+crossed(const struct twin *t, int from, int to, int box[4])
+{
+	int k, a0, b0, a1, b1, x0 = 0, y0 = 0, x1 = 0, y1 = 0, have = 0;
+
+	if (t->hidden)
+		return 0;
+	for (k = from; k < to; k++) {
+		const struct twin *o = &tw[order[k]];
+
+		if (o->hidden)
+			continue;
+		a0 = t->x > o->x ? t->x : o->x;
+		b0 = t->y > o->y ? t->y : o->y;
+		a1 = t->x + t->w < o->x + o->w ? t->x + t->w : o->x + o->w;
+		b1 = t->y + t->h < o->y + o->h ? t->y + t->h : o->y + o->h;
+		if (a0 >= a1 || b0 >= b1)
+			continue;
+		if (!have || a0 < x0)
+			x0 = a0;
+		if (!have || b0 < y0)
+			y0 = b0;
+		if (!have || a1 > x1)
+			x1 = a1;
+		if (!have || b1 > y1)
+			y1 = b1;
+		have = 1;
+	}
+	box[0] = x0;
+	box[1] = y0;
+	box[2] = x1;
+	box[3] = y1;
+	return have;
+}
+
+/* The crossed box, with t's title bar when the focus moves to or from t. */
+static void
+mark_crossed(const struct twin *t, int have, int box[4], int title)
+{
+	int tb[4];
+
+	if (title) {
+		tb[0] = t->x + 1;
+		tb[1] = t->y + 1;
+		tb[2] = t->x + t->w - 1;
+		tb[3] = t->y + 1 + R_TITLE_ROWS;
+		if (!have || tb[0] < box[0])
+			box[0] = tb[0];
+		if (!have || tb[1] < box[1])
+			box[1] = tb[1];
+		if (!have || tb[2] > box[2])
+			box[2] = tb[2];
+		if (!have || tb[3] > box[3])
+			box[3] = tb[3];
+		have = 1;
+	}
+	if (have)
+		mark(box[0], box[1], box[2], box[3]);
+}
+
+/* Where id stands in order. */
+static int
+order_at(int id)
+{
+	int k;
+
+	for (k = 0; k < norder && order[k] != id; k++)
+		;
+	return k;
+}
+
 static void
 check_memory(void)
 {
@@ -1110,19 +1186,21 @@ do_raise(int id)
 	struct twin *t = &tw[id];
 	long inj = n_injected;
 	int follow = tpolicy && !t->hidden && tfocus != id;
+	int box[4], have;
 
 	note("raise %d", id);
 	if (!call_ok(win_raise(&scene, t->handle), inj, "win_raise"))
 		return;
 	if (order[norder - 1] != id) {
-		mark_shown(t);
+		have = crossed(t, order_at(id) + 1, norder, box);
 		order_remove(id);
 		order[norder++] = id;
-	}
+		mark_crossed(t, have, box, follow);
+	} else if (follow)
+		mark_title(id);
 	if (follow) {
 		mark_title(tfocus);
 		tfocus = id;
-		mark_title(id);
 	}
 }
 
@@ -1131,23 +1209,26 @@ do_lower(int id)
 {
 	struct twin *t = &tw[id];
 	long inj = n_injected;
-	int k;
+	int k, box[4], have, pick;
 
 	note("lower %d", id);
 	if (!call_ok(win_lower(&scene, t->handle), inj, "win_lower"))
 		return;
 	if (order[0] == id)
 		return;
-	mark_shown(t);
+	have = crossed(t, 0, order_at(id), box);
 	order_remove(id);
 	for (k = norder; k > 0; k--)
 		order[k] = order[k - 1];
 	order[0] = id;
 	norder++;
-	if (tpolicy && tfocus == id) {
-		tfocus = model_pick(norder);
-		mark_title(tfocus);
-	}
+	pick = tpolicy && tfocus == id ? model_pick(norder) : -1;
+	/* A focus that moves takes both title bars, t's within the box. */
+	mark_crossed(t, have, box, pick >= 0 && pick != id);
+	if (pick >= 0 && pick != id)
+		mark_title(pick);
+	if (pick >= 0)
+		tfocus = pick;
 }
 
 static void
@@ -3440,6 +3521,54 @@ same_title_case(const char *stored, const char *next, int sends)
 }
 
 /*
+ * A raise repaints only what the windows it passes covered: a window that
+ * nothing covers sends no pixel, and one under a single smaller window
+ * sends that window's overlap. A lower is the mirror image.
+ */
+static void
+run_raise_damage(void)
+{
+	long p0;
+
+	reset_world();
+	mask_all = 1;
+	op_index = -7;
+	fx_create(0, 20, 20, 100, 80, "under");
+	fx_create(1, 60, 50, 40, 30, "over");
+	fx_create(2, 200, 200, 50, 50, "apart");
+	scene.focus_follows_raise = tpolicy = 0;	/* no title changes */
+	if (win_flush(&scene) != 0)
+		fail("raise damage: first flush");
+	after_op(1);
+	p0 = n_pixels;
+	do_raise(2);
+	if (win_flush(&scene) != 0)
+		fail("raise damage: raise apart");
+	after_op(1);
+	if (n_pixels != p0)
+		fail("raising an uncovered window sent %ld pixels", n_pixels - p0);
+	p0 = n_pixels;
+	do_raise(0);
+	if (win_flush(&scene) != 0)
+		fail("raise damage: raise under");
+	after_op(1);
+	if (n_pixels - p0 != 40L * 30)
+		fail("raising a window under one 40x30 window sent %ld pixels",
+		    n_pixels - p0);
+	p0 = n_pixels;
+	do_lower(0);
+	if (win_flush(&scene) != 0)
+		fail("raise damage: lower under");
+	after_op(1);
+	if (n_pixels - p0 != 40L * 30)
+		fail("lowering it again sent %ld pixels", n_pixels - p0);
+	mask_all = 0;
+	scene.focus_follows_raise = tpolicy = 1;
+	printf("PASS raise damage: a raise or a lower sends the crossed overlap "
+	    "alone\n");
+}
+
+/*
  * A title equal to the stored one leaves the title bar's pixels as they are:
  * the flush after it does not send a window or a pixel. A different title sends
  * the bar again, and the panel shows the new title.
@@ -3594,6 +3723,7 @@ main(int argc, char **argv)
 	run_wait_bound();
 	run_bits();
 	run_modal();
+	run_raise_damage();
 	run_same_title();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));

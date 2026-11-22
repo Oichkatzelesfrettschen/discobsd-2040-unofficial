@@ -32,6 +32,8 @@
  * shape that leaves the panel, so every primitive is clipped here; a
  * single device operation keeps the display interface to one ioctl.
  */
+#include <string.h>
+
 #include "platform.h"
 #include "lcdfont.h"
 
@@ -423,13 +425,43 @@ gfx_filltriangle(int x0, int y0, int x1, int y1, int x2, int y2, int color)
 	}
 }
 
+/* The bits of an opaque cell of size: rows of (w + 7) / 8 bytes. */
+static uint8_t cellbits[256];
+
+static void
+glyph_bits(int c, int w, int h, int size)
+{
+	int stride = (w + 7) / 8;
+
+	memset(cellbits, 0, (size_t)(stride * h));
+	for (int r = 0; r < h && r / size < LCDFONT_HEIGHT; r++) {
+		unsigned int bits = lcdfont[c - LCDFONT_FIRST][r / size];
+
+		for (int col = 0; col < w; col++)
+			if (bits & (0x80u >> (col / size)))
+				cellbits[r * stride + col / 8] |=
+				    (uint8_t)(0x80u >> (col % 8));
+	}
+}
+
 static void
 glyph(coord x, coord y, int c, int color, int bg, int size)
 {
+	coord w = (coord)CELL_W * size, h = (coord)CELL_H * size;
+
 	if (size < 1 || c < LCDFONT_FIRST || c >= LCDFONT_FIRST + LCDFONT_NCHARS)
 		return;
-	if (bg != color && bg != GFX_TRANSPARENT)
-		fill(x, y, (coord)CELL_W * size, (coord)CELL_H * size, bg);
+	if (bg != color && bg != GFX_TRANSPARENT) {
+		/* A cell wholly on the panel goes out as one window. */
+		if (x >= 0 && y >= 0 && x + w <= GFX_WIDTH && y + h <= GFX_HEIGHT &&
+		    (w + 7) / 8 * h <= (coord)sizeof(cellbits)) {
+			glyph_bits(c, (int)w, (int)h, size);
+			dev_bits((int)x, (int)y, (int)w, (int)h, cellbits,
+			    (uint16_t)color, (uint16_t)bg);
+			return;
+		}
+		fill(x, y, w, h, bg);
+	}
 	for (int row = 0; row < LCDFONT_HEIGHT; row++) {
 		unsigned int bits = lcdfont[c - LCDFONT_FIRST][row];
 

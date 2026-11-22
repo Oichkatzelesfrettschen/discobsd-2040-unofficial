@@ -1262,6 +1262,22 @@ SECTIONS {
         arguments, bad, raw, "Shared libc requirement and process layout differ"
     )
 
+    # A BSS-only writable LOAD starts seven bytes after the last file byte.
+    source.write_text(source.read_text().replace(".data\n.word 42", ".section .rodata\n.byte 1"))
+    script.write_text(script.read_text().replace("*(.text*)", "*(.text*) . = ALIGN(8); *(.rodata)"))
+    run_command([arguments.cc, "-mcpu=cortex-m0plus", "-mthumb", "-c", str(source), "-o", str(obj)])
+    run_command([arguments.ld, "-T", str(script), str(obj), "-o", str(elf)])
+    run_command([str(arguments.elf2aout), str(elf), str(raw)])
+    header, payload = expected_aout_image(parse_elf(elf))
+    if header[1:4] != (16, 0, 5040) or payload[-8:] != bytes([1]) + bytes(7):
+        raise SystemExit("BSS-only fixture lacks its seven-byte alignment gap")
+    requirement = struct.pack(
+        "<4sII32sIII", b"XREQ", 1, 56, bytes([0xA5]) * 32, 7, 0x20000010, 5040
+    )
+    expected = AOUT_HEADER.pack(header[0] | (2 << 26), *header[1:]) + requirement + payload
+    if raw.read_bytes() != expected:
+        raise SystemExit("BSS-only shared image omits declared text padding")
+
 
 def main() -> int:
     arguments = parse_arguments()

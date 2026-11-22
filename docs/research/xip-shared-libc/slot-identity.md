@@ -381,3 +381,70 @@ packed images. It reads the initializer offset from the provider header,
 installs r9, checks the heap boundary through the shared sbrk slot, and calls
 rand. This is modeled startup with the host packer and compact diagnostic
 archive. Kernel selection and process replacement require separate evidence.
+
+### Kernel admission on the emulated UART target
+
+The diagnostic PICO_UART_XIP configuration links the provider at 0x10020000
+and starts the Dhara root at 0x1002c000. The 384 KiB raw swap partition starts
+at 0x101a0000. The loader compares each executable's XREQ identity, required
+slot prefix and state extent with the mapped XLIB header before committing the
+new process image. The fifth MPU region grants read and execute access to the
+first six 8 KiB subregions of the aligned 64 KiB interval.
+
+A Renode boot of the diagnostic kernel (91,968 bytes, stamped CRC32 81f1af35)
+with the compact provider identified above reported five programmed regions,
+961 KiB of logical Dhara capacity and a mounted 960 KiB root partition.
+The operator shell executed a raw shared a.out and its heatshrink-packed form.
+Each caller invoked the provider initializer, installed its result in r9,
+compared the result of libc sbrk(0) with the linked end of BSS and checked
+that the first rand() returned 16838. Each wrote XIP-PASS through syscall 4,
+exited through syscall 1 and returned control to the shell. This run exercises
+cold startup and ordinary exit for the two file formats in the peripheral
+model. The fork fixture then exercised both formats across the single resident window.
+The parent waited for its child by PID. The child attempted seven failed execs:
+raw and packed mismatched provider identities, a short requirement, a misplaced
+state base, a truncated packed stream, and raw and packed images that consumed
+all 192 KiB before stack reservation. The child required EFTYPE on each of the
+first five and ENOMEM on the last two, checked its second rand() result (5758),
+and exited with status 37. The parent required that exact wait status and the
+same next random value from its own state before writing XIP-FORK. Both shell
+commands returned to the prompt.
+
+A self-directed SIGUSR1 distinguished two interrupted program counters. The
+same shared signal wrapper, handler and trampoline returned successfully when
+the kill syscall ran in SRAM. When kill ran through its public libc slot, the
+saved PC pointed into the provider and the original context check rejected
+it. The diagnostic PC check now admits complete aligned Thumb halfwords
+within the provider's linker bounds. The stack check still requires process
+RAM. Each raw and packed caller installs its handler, sends both signals,
+checks and clears the received signal number after each return, then writes
+its success marker. ILP32 fixtures check both provider endpoints, the adjacent
+kernel and root addresses, and the static kernel's exclusion of the provider.
+These observations cover the emulated kernel;
+physical protection remains a separate measurement.
+
+Build the diagnostic kernel and replay the fixture with the qualified artifacts:
+
+```sh
+export PYTHON=${PYTHON:-python3}
+bmake MACHINE=rp2040 check-renode-xip-process \
+    XIP_SLOT_ELF="$slot_elf" XIP_PROVIDER="$provider_bin" \
+    XIP_FILESYSTEM="$partitioned_root" XIP_MODELS="$renode_rp2040"
+```
+
+The fixture copies the partitioned disk before adding its callers. Each run
+retains the test disk, packed Dhara image, monitor log and UART transcript
+in a fresh invocation directory under `.build-logs`.
+
+### File padding before process state
+
+The ELF link of a cross-compiled echo can have an executable LOAD ending
+seven bytes below the eight-byte-aligned, BSS-only writable LOAD. The a.out
+header counts those seven bytes in text. The original converter emitted
+441 bytes for a 448-byte raw image because it filled gaps only on the way
+to copying a file-backed segment. The packer diagnosed truncated text.
+The converter now emits any remaining declared payload padding after copying
+the final file-backed segment. The layout fixture derives the expected bytes
+from the ELF segment table and requires a nonzero text byte followed by
+exactly seven zeros before the BSS boundary. The original converter fails
+that comparison and the corrected converter passes it.

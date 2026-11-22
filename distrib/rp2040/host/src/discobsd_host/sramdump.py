@@ -776,8 +776,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="acknowledge that the capture resets the board and ends its session",
     )
-    cap.add_argument("--kernel-layout", choices=tuple(FLASH_LAYOUT_END), default="standard",
-                     help="kernel flash reservation to capture (default: standard)")
+    cap.add_argument(
+        "--kernel-layout",
+        choices=tuple(FLASH_LAYOUT_END),
+        default="standard",
+        help="kernel flash reservation to capture (default: standard)",
+    )
     cap.add_argument("--out", metavar="DIR", help="output directory (default sramdump-<UTC time>)")
     cap.add_argument(
         "--resume",

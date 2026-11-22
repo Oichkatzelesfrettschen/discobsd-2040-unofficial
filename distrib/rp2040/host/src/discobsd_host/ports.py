@@ -140,8 +140,7 @@ def _check_ambiguous(sysfs: str) -> None:
     if len(devices) < 2:
         return
     lines = [
-        "  %s 2e8a:%s %s"
-        % (n, _sysattr(sysfs, n, "idProduct"), _sysattr(sysfs, n, "product"))
+        "  %s 2e8a:%s %s" % (n, _sysattr(sysfs, n, "idProduct"), _sysattr(sysfs, n, "product"))
         for n in devices
     ]
     raise BoardSelectionError(

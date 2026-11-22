@@ -57,8 +57,10 @@
 
 /*
  * The pool lives in a NOLOAD section after ordinary kernel data and bss.
- * Reset-time bss clearing leaves the pool untouched, which is safe because
- * every stored byte is written before it is read.
+ * Reset zeroes it through the first loop in locore0.S, which clears every
+ * word from _sdata to u_end and so covers the pool. The bss loop stops at
+ * _ebss, below the pool, and does not reach it. Nothing depends on that
+ * zeroing, because every stored byte is written before it is read.
  */
 u_char                  swapram_pool_mem[SWAPRAM_KB * 1024]
 #ifdef __ELF__          /* the host test on macOS builds this as Mach-O */

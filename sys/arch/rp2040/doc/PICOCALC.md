@@ -1,17 +1,29 @@
 <!--
-Copyright (c) 2026 DiscoBSD
+Copyright (c) 2026 GizmoBSD
+All rights reserved.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 
 # ClockworkPi PicoCalc: the PICOCALC kernel and the board it drives
@@ -1275,13 +1287,14 @@ defines only its own name.
   `exec_elf.c`, `exec_script.c`, `exec_subr.c`) prints at any level while the
   bit is set. No source calls `DEBUG1` through `DEBUG9`, so levels 0, 1 and 9
   link to byte-identical images; 9 is recorded so that a later `DEBUGn` site
-  prints. One a.out `execve(2)` prints about 40 lines (five of them wrap on
-  the 53-column panel), so a boot to login with the bit set, which execs
+  prints. One a.out `execve(2)` prints 24 lines, so a boot to login with
+  the bit set, which execs
   the `/etc/rc` script and its shell, `fsck`, `hostname`, `umount`, `mount`, `dd`,
   `mkfs`, `chmod`, `rm`, `date`, `getty` and `login`, prints several hundred
   lines to the console. Measured on a board running kernel #1 5187, which
-  traced every `execve(2)` from power-on, a reboot to login produced 17
-  `execve` traces and 746 console lines. The bit is clear at boot, so the boot
+  traced every `execve(2)` from power-on, a reboot to login produced 25
+  `execve` traces of 24 lines each and 746 console lines on UART0. The bit
+  is clear at boot, so the boot
   lines start with the exec trace off. A boot-time trace needs
   `sysctl -w kern.systrace=4` in `/etc/rc.rp2040` (which already runs
   `sysctl -w` for the backlight): it traces every `execve(2)` after that line,

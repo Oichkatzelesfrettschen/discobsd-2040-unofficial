@@ -131,7 +131,7 @@ The Thumb-1 sizes of `c5_loops.c` at `-Os`, from `arm-none-eabi-gcc -Os -mcpu=co
     | median cut (china / flower) | 30.00 / 29.92 | 30.38 / 30.34 | 27.23 / 29.42 |
 
   - A fixed palette needs error diffusion. An adaptive palette takes plain nearest-color mapping or a spread of about 16 to 24.
-- **Color counts [C].** Mixing k pixels from the 8 RGB corners gives (k+1)³ distinct means, so k=9 gives 1,000 and k=15 gives 4,096. The console's 16 colors give all 136 means at k=2 and all 3,876 at k=4 (the table before the color-vision palette gave 131 and 3,233).
+- **Color counts [C].** Mixing k pixels from the 8 RGB corners gives (k+1)³ distinct means, so k=9 gives 1,000 and k=15 gives 4,096. The console's 16 colors give all 136 means at k=2 and 3,860 of 3,876 at k=4 (the table before the color-vision palette gave 131 and 3,233).
 - **Wire floor [C].** Window setup (11 B) costs 7.04 us, or 5.5 px at 565. A gap shorter than 5.5 px costs less to send than a new window.
 - **Voxel and 2.5D.** A column renderer needs only a few ms of CPU per frame [I]. The wire sets the frame rate, as the table in section 4 shows.
 

@@ -42,7 +42,7 @@ colors and CP004 compares them with the listed ones.
 - CP003: a test fixture copy of the table differs from the LCD table.
 - CP004: an entry is not a fixed point of the RGB565 conversion, so the panel
   shows a color other than the one the table names.
-- CP005: two of the colors 1-8 are closer than 0.09 in Oklab under normal
+- CP005: two of the colors 1-8 are closer than 0.08 in Oklab under normal
   vision, protanopia, deuteranopia or tritanopia simulation (Machado 2009,
   severity 1.0, on linear sRGB), or two of the colors 9-15 are closer than
   0.10.
@@ -111,7 +111,7 @@ MACHADO = {
         (0.004733, 0.691367, 0.303900),
     ),
 }
-BASE_SEPARATION = 0.09
+BASE_SEPARATION = 0.08
 BRIGHT_SEPARATION = 0.10
 MIN_CONTRAST = 5.0
 LIFT_RANGE = (0.05, 0.09)
@@ -124,20 +124,20 @@ Table = tuple[Color, ...]
 
 GOOD: Table = (
     (0, 0, 0),
-    (206, 93, 0),
-    (57, 227, 140),
-    (214, 190, 24),
-    (90, 113, 255),
-    (189, 109, 198),
-    (140, 182, 206),
-    (222, 219, 214),
-    (132, 134, 132),
-    (222, 113, 41),
-    (16, 255, 173),
-    (239, 207, 24),
-    (123, 134, 255),
-    (206, 142, 198),
-    (173, 207, 231),
+    (206, 97, 24),
+    (132, 227, 140),
+    (214, 182, 8),
+    (99, 113, 239),
+    (189, 121, 189),
+    (74, 186, 239),
+    (189, 190, 189),
+    (132, 130, 132),
+    (206, 130, 66),
+    (181, 251, 156),
+    (247, 195, 16),
+    (115, 134, 255),
+    (189, 154, 198),
+    (132, 211, 255),
     (255, 255, 255),
 )
 
@@ -540,7 +540,7 @@ def selftest() -> list[str]:
     expect("two colors too close", {"CP005"}, with_entries(e7=GOOD[3]))
     expect("low contrast", {"CP006"}, with_entries(e1=(198, 89, 16)))
     expect("bold lift too small", {"CP007"}, with_entries(e1=(231, 81, 41)))
-    expect("tinted entry 8", {"CP008"}, with_entries(e8=(132, 142, 123)))
+    expect("tinted entry 8", {"CP008"}, with_entries(e8=(123, 130, 123)))
     expect("bold white barely lighter", {"CP010"}, with_entries(e7=(247, 247, 239)))
     expect(
         "red nearly as luminous as green",

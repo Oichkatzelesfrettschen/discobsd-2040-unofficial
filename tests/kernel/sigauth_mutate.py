@@ -64,7 +64,11 @@ def main():
             source.replace(authorization, bypass), encoding="utf-8"
         )
         mutant_object = directory / "kern_sig_permission_mutant.o"
-        run(compiler + kernel_flags + ["-c", str(mutant_source), "-o", str(mutant_object)])
+        run(
+            compiler
+            + kernel_flags
+            + ["-Dexit=sigauth_exit", "-c", str(mutant_source), "-o", str(mutant_object)]
+        )
         executable = directory / "sigauth_permission_mutant"
         run(
             compiler

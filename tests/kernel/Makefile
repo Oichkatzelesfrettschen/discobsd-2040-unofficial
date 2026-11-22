@@ -1891,7 +1891,7 @@ check-prf-log-mutant: prf_log_test prf_mutate.py
 
 sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_sig.o \
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -Dexit=sigauth_exit -c -o sigauth_sig.o \
 	    ${TOPSRC}/sys/kern/kern_sig.c
 	${HOST_CC} ${CRED_KERN_CFLAGS} ${ILP32} -c -o sigauth_prot2.o \
 	    ${TOPSRC}/sys/kern/kern_prot2.c

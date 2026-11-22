@@ -2,10 +2,11 @@
 
 Two candidates from the kernel-minification notes, measured on the host by
 building all six RP2040 kernels at `4726ff64e` (`arm-none-eabi-gcc` 16.2.0,
-`bmake MACHINE=rp2040 -j12 kernel`) before and after a prototype. Neither
-prototype is applied to the tree; this note records the measurements, the
-source argument each depends on and what remains open. Board measurements
-(speed, boot behavior) wait for the GizmoBSD rename (decision D148).
+`bmake MACHINE=rp2040 -j12 kernel`) before and after a prototype. The tree
+carries the first (see "Applied" below); the second stays a measured
+candidate. This note records the measurements, the source argument each
+depends on and what remains open. Decision D220 moved the remaining board
+measurements (speed, boot behavior) ahead of the GizmoBSD rename.
 
 Baseline sizes (`arm-none-eabi-size`, bytes):
 
@@ -78,9 +79,37 @@ __dead void exit (int rv);
 boundary, which is the one image change. The warning count of the kernel build
 is unchanged (12).
 
-**Reading.** Positive in every kernel, and small. The change is a declaration
+**Reading.** At `4726ff64e` positive in every kernel, and small. The change is a declaration
 fix of the kind the C17 work makes anyway; by the plan's rule (drop if not
 positive) it survives as a candidate.
+
+**Applied.** `sys/sys/proc.h` declares `sched()` and `exit()` `__dead`, and
+`exit()` calls `panic("exit")` after `swtch()`: a zombie is never queued
+again, so `swtch()` does not come back, and if it ever did the kernel stops
+with a message instead of running on past a noreturn call. The host kernel
+test `tests/kernel/sigauth_test.c` builds `kern_sig.c` with
+`-Dexit=sigauth_exit`, so its stub leaves through `hk_escape()` while the
+harness keeps the C library's `exit()`. Measured on the eight RP2040
+kernels at `385506ba8` (`arm-none-eabi-gcc` 16.2.0), data and bss unchanged
+and every build warning-free:
+
+| Kernel | text before | text after |
+| --- | ---: | ---: |
+| PICO | 98,361 | 98,374 |
+| PICO_DIAG | 101,222 | 101,235 |
+| PICO_UART | 90,701 | 90,714 |
+| PICOCALC | 124,016 | 124,029 |
+| PICOCALC_LEAN | 119,802 | 119,815 |
+| PICOCALC_LEAN_DIAG | 122,663 | 122,676 |
+| PICOCALC_SD | 130,670 | 130,683 |
+| PICOCALC_SD_DIAG | 156,099 | 156,091 |
+
+The declaration costs 13 bytes of text in seven kernels and saves 8 in
+PICOCALC_SD_DIAG. The prototype's `__builtin_unreachable()` saved 8 to 24
+bytes but ran into the literal pool if `swtch()` returned; the `panic()`
+that replaces it holds a 5-byte string and a call. Since `2e8cad18b`,
+`procxmt()` ends a traced child through `SIGKILL` and no longer calls
+`exit()`, so one of the prototype's three shrinking callers is gone.
 
 ## Boot ROM `memcpy` and `memset` behind `bcopy` and `bzero`
 

@@ -1485,8 +1485,16 @@ def test_oversleep(src, work, cc, calibrate=False):
     bad = paced(oversleep_build(src, work, cc, [OVERSLEEP, OVERSLEEP_BAD]))
     counts = []
     for _ in range(5):
-        fields = dict(t.split(":", 1) for t in bad() if ":" in t)
-        counts.append(int(fields.get("irq", "0"), 16))
+        got = bad()
+        fields = dict(t.split(":", 1) for t in got if ":" in t)
+        if (
+            "irq" not in fields
+            or fields.get("st2") != "00B0"
+            or fields.get("tick") != "ok"
+            or got[-1:] != ["done"]
+        ):
+            raise Failure("the four-waiting build did not finish whole: %r" % got)
+        counts.append(int(fields["irq"], 16))
     if sum(1 for n in counts if n < HOST_CLOCK_IRQ_STALLED) < 3:
         raise Failure(
             "the paced judge accepts the four-waiting build: %s"

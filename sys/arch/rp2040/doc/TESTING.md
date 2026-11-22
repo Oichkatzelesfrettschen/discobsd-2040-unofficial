@@ -926,13 +926,21 @@ Each gate compiles the tree's own source for the host, with `-Wall
 
 ### The pull-request set and the nightly run
 
-A pull request and a push to `main` run one job, `rp2040 kernel, flash image
-and gates`, with a fixed short set: the warning-free build of the kernels and
-the userland, `check-kernel-headroom` and `check-dump-writer-link`, the flash
-image, `check-uf2-images`, `check-lint`, `check-changed-comments`,
+A push to `main` runs one job, `rp2040 kernel, flash image and gates`, with a
+fixed short set: the warning-free build of the kernels and the userland,
+`check-kernel-headroom` and `check-dump-writer-link`, the flash image,
+`check-uf2-images`, `check-lint`, `check-changed-comments`,
 `check-changed-text` and `check-renode`, which boots the PICO_UART kernel on
-the flash image, logs in and runs its probes. Branch protection on `main` requires that job. The set is the same for every change, so it skips selection; a newer push
-to a pull request or to `main` cancels the run in progress there.
+the flash image, logs in and runs its probes. A pull request runs the same
+job with the part of that set that takes seconds: after the toolchain install,
+`check-lint`, `check-changed-comments` and `check-changed-text`, about a
+minute in all. The build, the headroom and flash gates and the Renode boot,
+about nine minutes together, run when the merge reaches `main`, so the local
+gates over the changed files, `logged-build` among them, carry what a pull
+request changes. Branch protection on `main` requires the job by name, so a
+pull request keeps that name. The set is the same for every change, so it
+skips selection; a newer push to a pull request or to `main` cancels the run
+in progress there.
 
 The nightly schedule, which checks out `main`, and a manual dispatch, which
 checks out the ref it is given, run every tier of that job (host, cross, qemu, board-build, the other Renode tiers,
@@ -942,8 +950,9 @@ fails reports through `tools/report-nightly-failure.sh`: it opens the issue
 "Nightly gates failed", or adds a comment to the open one, with the failed
 jobs and steps and the merges since the last scheduled run that passed, and
 a later passing run closes the issue. A defect in a tier outside the short
-set therefore reaches `main` and is found within a day; the gates that read
-a changed file are run locally before the merge
+set therefore reaches `main` and is found within a day, and a defect in a step
+a pull request skips reaches `main` and is reported by the push run within
+minutes; the gates that read a changed file are run locally before the merge
 (`bmake MACHINE=rp2040 <gate>` after `logged-build`).
 
 Measured on the GitHub ubuntu-24.04 runner (4 cores) before the short set,

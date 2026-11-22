@@ -1954,7 +1954,12 @@ def main(argv):
                 try:
                     test_drain(draintest + "-mutant")
                     panel.test(mutant, src, work)
-                except (panel.Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                except (
+                    Failure,
+                    panel.Failure,
+                    subprocess.TimeoutExpired,
+                    subprocess.CalledProcessError,
+                ):
                     print(
                         "i86 panel mutant %d of %d rejected: %s"
                         % (number, len(panel.MUTANTS), name),

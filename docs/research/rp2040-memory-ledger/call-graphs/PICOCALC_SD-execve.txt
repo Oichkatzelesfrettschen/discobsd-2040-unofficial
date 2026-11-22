@@ -1,0 +1,49 @@
+execve() <void execve (void) at sys/kern/kern_exec.c:128>:
+    namei() <struct inode *namei (register struct nameidata *ndp) at sys/kern/ufs_namei.c:1141>:
+        namei_at() <struct inode *namei_at (register struct nameidata *ndp, int dirfd) at sys/kern/ufs_namei.c:323>:
+            namei_copy_path() <int namei_copy_path (struct nameidata *ndp, char *destination) at sys/kern/ufs_namei.c:92>:
+            namei_validate_beneath_path() <int namei_validate_beneath_path (const char *path) at sys/kern/ufs_namei.c:100>:
+            getf() <struct file *getf (register int f) at sys/kern/kern_descrip.c:365>:
+            sleep() <void sleep (caddr_t chan, int pri) at sys/kern/kern_synch.c:217> (R):
+            access() <int access (register struct inode *ip, int mode) at sys/kern/ufs_fio.c:29>:
+            bcmp() <int bcmp (const void *m1, const void *m2, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1358>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+            igrab() <void igrab (register struct inode *ip) at sys/kern/ufs_inode.c:294>:
+            iput() <void iput (register struct inode *ip) at sys/kern/ufs_inode.c:326> (R):
+            blkatoff() <struct buf *blkatoff (struct inode *ip, off_t offset, char **res) at sys/kern/ufs_namei.c:199>:
+            brelse() <void brelse (register struct buf *bp) at sys/kern/ufs_bio.c:318> (R):
+            dirbadentry() <int dirbadentry (register struct direct *ep, int entryoffsetinblock) at sys/kern/ufs_namei.c:241>:
+            dirbad() <void dirbad (struct inode *ip, off_t offset, char *how) at sys/kern/ufs_namei.c:186>:
+            iget() <struct inode *iget (dev_t dev, register struct fs *fs, ino_t ino) at sys/kern/ufs_inode.c:116>:
+            namei_beneath_target_error() <int namei_beneath_target_error (struct nameidata *ndp, struct inode *parent, struct inode *target) at sys/kern/ufs_namei.c:128>
+            nchrecycle() <struct namecache *nchrecycle (void) at sys/kern/ufs_namei.c:162>:
+            bcopy() <void bcopy (const void *src0, void *dst0, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1232>:
+            strlen() <size_t strlen (const char *s) at sys/arch/rp2040/rp2040/machdep.c:1103>:
+            bread() <struct buf *bread (dev_t dev, daddr_t blkno) at sys/kern/ufs_bio.c:186> (R):
+            bmap() <daddr_t bmap (register struct inode *ip, daddr_t bn, int rwflg, int flags) at sys/kern/ufs_bmap.c:26> (R):
+            irele() <void irele (register struct inode *ip) at sys/kern/ufs_inode.c:342> (R):
+    bzero() <void bzero (void *dst0, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1305>
+    exec_check() <int exec_check (struct exec_params *epp) at sys/kern/kern_exec.c:57>:
+        access() <int access (register struct inode *ip, int mode) at sys/kern/ufs_fio.c:29>:
+        rdwri() <int rdwri (enum uio_rw rw, struct inode *ip, caddr_t base, int len, off_t offset, int ioflg, register int *aresid) at sys/kern/sys_inode.c:131>:
+            rwip() <int rwip (register struct inode *ip, register struct uio *uio, int ioflag) at sys/kern/sys_inode.c:154>:
+    exec_finish() <void exec_finish (struct exec_params *epp, struct inode *ip) at sys/kern/kern_exec.c:36>:
+        exec_alloc_freeall() <void exec_alloc_freeall (struct exec_params *epp) at sys/kern/exec_subr.c:413>:
+            exec_spool_discard() <void exec_spool_discard (struct exec_params *epp) at sys/kern/exec_subr.c:168>:
+            brelse() <void brelse (register struct buf *bp) at sys/kern/ufs_bio.c:318> (R):
+        iput() <void iput (register struct inode *ip) at sys/kern/ufs_inode.c:326> (R):
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+            irele() <void irele (register struct inode *ip) at sys/kern/ufs_inode.c:342> (R):
+        exit() <void exit (int rv) at sys/kern/kern_exit.c:116>:
+            lcdcons_procexit() <void lcdcons_procexit (const struct proc *p) at sys/arch/rp2040/dev/lcdcons.c:785>:
+            closef() <int closef (register struct file *fp) at sys/kern/kern_descrip.c:381>:
+            ilock() <void ilock (register struct inode *ip) at sys/kern/ufs_inode.c:848>:
+            iput() <void iput (register struct inode *ip) at sys/kern/ufs_inode.c:326> (R):
+            endvfork() <void endvfork (void) at sys/kern/kern_exit.c:29>:
+            exec_text_release() <void exec_text_release (struct proc *p, struct inode *next) at sys/kern/exec_aout.c:66>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            proc_zombie() <void proc_zombie (struct proc *p, int rv) at sys/kern/kern_exit.c:63>:
+            ruadd() <void ruadd (struct k_rusage *ru, struct k_rusage *ru2) at sys/kern/kern_resource.c:231>
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+            swtch() <void swtch (void) at sys/kern/kern_synch.c:391>:

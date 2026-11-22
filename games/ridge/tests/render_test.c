@@ -430,17 +430,17 @@ test_sprite_steps(void)
 	CHECK(w == 0 && d->nioctl == 0, "a still sprite costs nothing: %d windows %d ioctls", w, d->nioctl);
 	G.p.x += RG_SUB;
 	w = frame(d, &V, 0);
-	CHECK(w == 3 && d->ntiles == 9 && d->nset == 1, "one pixel step: %d windows, %d tiles, %d uploads", w,
+	CHECK(w == 2 && d->ntiles == 4 && d->nset == 2, "one pixel step: %d windows, %d tiles, %d uploads", w,
 	    d->ntiles, d->nset);
-	for (k = 0; k < 3 && k < w; k++)
-		CHECK(d->wlog[k].tx == 10 && d->wlog[k].ty == 24 + k && d->wlog[k].tw == 3 && d->wlog[k].th == 1,
+	for (k = 0; k < 2 && k < w; k++)
+		CHECK(d->wlog[k].tx == 10 && d->wlog[k].ty == 24 + k && d->wlog[k].tw == 2 && d->wlog[k].th == 1,
 		    "window %d: %d,%d %dx%d", k, d->wlog[k].tx, d->wlog[k].ty, d->wlog[k].tw, d->wlog[k].th);
-	/* A step across a cell edge moves the box one column: four columns change, 3 rows each. */
+	/* A step across a cell edge: the opaque cells move one column, 3 cells in each of 2 rows. */
 	G.p.x += 7 * RG_SUB;
 	w = frame(d, &V, 0);
-	CHECK(w == 3 && d->ntiles == 12, "step across a cell edge: %d windows %d tiles", w, d->ntiles);
+	CHECK(w == 2 && d->ntiles == 6, "step across a cell edge: %d windows %d tiles", w, d->ntiles);
 	for (k = 0; k < w; k++)
-		CHECK(d->wlog[k].tx == 10 && d->wlog[k].tw == 4, "window %d spans columns %d+%d", k,
+		CHECK(d->wlog[k].tx == 10 && d->wlog[k].tw == 3, "window %d spans columns %d+%d", k,
 		    d->wlog[k].tx, d->wlog[k].tw);
 	/* The pixels of the standing frame, mirrored when facing left. */
 	flat_level(100);
@@ -500,13 +500,13 @@ test_sprite_refresh(void)
 	frame(d, &V, 0);
 	G.ticks = 8;
 	w = frame(d, &V, 0);
-	CHECK(w >= 1 && d->nset == 1, "the box is recomposited on the shard's frame change: %d windows %d uploads",
+	CHECK(w >= 1 && d->nset == 2, "the box is recomposited on the shard's frame change: %d windows %d uploads",
 	    w, d->nset);
 	/* The same when the map changes under a still sprite. */
 	G.map[12][23] = RG_AIR;
 	G.gen++;
 	w = frame(d, &V, 0);
-	CHECK(w >= 1 && d->nset == 1, "the box is recomposited when its map cell changes: %d windows %d uploads", w,
+	CHECK(w >= 1 && d->nset == 2, "the box is recomposited when its map cell changes: %d windows %d uploads", w,
 	    d->nset);
 	start_view(&DB, &V2);
 	frame(&DB, &V2, 0);
@@ -550,7 +550,8 @@ test_still_sprite_no_shard(void)
 	frame(d, &V, 0);
 	G.ticks = 24;
 	w = frame(d, &V, 0);
-	CHECK(w >= 1 && d->nset == 1,
+	/* Two uploads: one run for each box row that holds sprite pixels. */
+	CHECK(w >= 1 && d->nset == 2,
 	    "a shard on the bottom row of a still sprite's box recomposites it: %d windows %d uploads",
 	    w, d->nset);
 	G.map[20][10] = RG_AIR;
@@ -561,7 +562,7 @@ test_still_sprite_no_shard(void)
 	G.map[12][23] = RG_LEDGE;
 	G.gen++;
 	w = frame(d, &V, 0);
-	CHECK(w >= 1 && d->nset == 1,
+	CHECK(w >= 1 && d->nset == 2,
 	    "a map change in a still sprite's box without a shard recomposites it: %d windows %d uploads",
 	    w, d->nset);
 }
@@ -725,9 +726,15 @@ test_shared_tiles_pixel(void)
 	/* The crawler's outline and body, in the cells it shares with the climber, are there too. */
 	CHECK(panel_px(d, 256, 202) == P_INK && panel_px(d, 259, 203) == P_LICHEN_D,
 	    "the crawler's pixels in a shared tile: %d %d", panel_px(d, 256, 202), panel_px(d, 259, 203));
-	CHECK(V.fin[(2 + 22) * 40 + 31] == RG_DYN + 1 && V.fin[(2 + 22) * 40 + 33] == RG_DYN + RG_BOX * RG_BOX + 2,
-	    "the shared cell shows the lower sprite's slot, the crawler's own cell its own: %d %d",
-	    V.fin[(2 + 22) * 40 + 31], V.fin[(2 + 22) * 40 + 33]);
+	/*
+	 * The shared cell shows the lower sprite's slot. The crawler's eye cell (view row 23)
+	 * shows its own slot; its cell at view row 22 lacks crawler pixels, so it shows a
+	 * static world tile.
+	 */
+	CHECK(V.fin[(2 + 22) * 40 + 31] == RG_DYN + 1 && V.fin[(2 + 23) * 40 + 33] == RG_DYN + RG_BOX * RG_BOX + RG_BOX + 2 &&
+	    V.fin[(2 + 22) * 40 + 33] < RG_DYN,
+	    "shared and crawler cells show slots, the transparent cell a world tile: %d %d %d",
+	    V.fin[(2 + 22) * 40 + 31], V.fin[(2 + 23) * 40 + 33], V.fin[(2 + 22) * 40 + 33]);
 	/* The crawler walks away: the climber's cells stay right, and nothing is left of the crawler's. */
 	e->x0 = e->x1 = e->x = 300 * RG_SUB;
 	frame(d, &V, 0);

@@ -48,6 +48,7 @@
 #include "mem.h"
 #include "pc.h"
 #include "ems.h"
+#include "gfx.h"
 
 
 static struct pc_config cf;
@@ -276,7 +277,7 @@ mhz_khz(const char *s)
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: i86 [-dgqrTv] [-c 8086|8088|186|286] [-m kbytes] "
+	fprintf(stderr, "usage: i86 [-dGgqrTv] [-c 8086|8088|186|286] [-m kbytes] "
 	    "[-e kbytes] [-f frames] [-S mhz] [-w 40|80]\n"
 	    "           [-s pagefile] [-k keys] [-a floppy] [-b floppy] "
 	    "[-h disk] ...\n");
@@ -289,7 +290,7 @@ main(int argc, char **argv)
 	static struct i86 cpu;
 	static char store_name[32];
 	const char *store = store_name;
-	unsigned frames = 120, nhard = 0;
+	unsigned frames = 119, nhard = 0;
 	int ch;
 
 	/* One page file for each running emulator. */
@@ -298,7 +299,7 @@ main(int argc, char **argv)
 	cf.cols = 80;
 	cf.model = I86_286;
 	cf.cpi10 = 52;
-	while ((ch = getopt(argc, argv, "a:b:c:de:f:gh:k:m:qrS:s:Tvw:")) != -1)
+	while ((ch = getopt(argc, argv, "a:b:c:de:f:Ggh:k:m:qrS:s:Tvw:")) != -1)
 		switch (ch) {
 		case 'a':
 			cf.disk[0] = optarg;
@@ -336,6 +337,9 @@ main(int argc, char **argv)
 		case 'f':
 			frames = (unsigned)atoi(optarg);
 			break;
+		case 'G':
+			gfx_plain = 1;
+			/* FALLTHROUGH */
 		case 'g':
 			cf.panel = 1;
 			break;

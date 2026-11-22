@@ -1,0 +1,40 @@
+swapram_in() <void swapram_in (struct proc *p, caddr_t ddst, caddr_t sdst, caddr_t udst) at sys/arch/rp2040/rp2040/swapram.c:622>:
+    sr_slot() <struct sr_ent *sr_slot (struct proc *p) at sys/arch/rp2040/rp2040/swapram.c:227>:
+        panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+    panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+        printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+        boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+            rp2040_shutdown_sync() <void rp2040_shutdown_sync (int howto) at sys/arch/rp2040/rp2040/shutdown_sync.c:83> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICO/machine/intr.h:118>:
+            core1_park() <void core1_park (void) at sys/arch/rp2040/rp2040/core1.c:280>:
+            usbdrain() <void usbdrain (void) at sys/arch/rp2040/dev/usb.c:1407> (R):
+            rom_func_lookup() <void *rom_func_lookup (u_int code) at sys/arch/rp2040/dev/flash.c:257>
+            arm_dsb() <__inline void arm_dsb (void) at sys/arch/rp2040/compile/PICO/machine/scb.h:80>:
+            usbpollc() <void usbpollc (int on) at sys/arch/rp2040/dev/usb.c:1441>:
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            cngetc() <int cngetc (void) at sys/dev/cons.c:141> (R):
+            arm_isb() <__inline void arm_isb (void) at sys/arch/rp2040/compile/PICO/machine/scb.h:86>:
+    sr_expand() <int sr_expand (unsigned int off, unsigned int clen, caddr_t dst, unsigned int rlen, size_t blk, struct buf *bp) at sys/arch/rp2040/rp2040/swapram.c:312>:
+        swapram_codec_acquire() <void *swapram_codec_acquire (unsigned int owner) at sys/arch/rp2040/rp2040/swapram.c:155>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+        hsx_dec_init() <void hsx_dec_init (struct hsx_dec *d, unsigned lookahead) at sys/arch/rp2040/rp2040/hsx_decoder.c:41>
+        hsx_dec_input() <inline void hsx_dec_input (struct hsx_dec *d, const unsigned char *p, unsigned n) at sys/arch/rp2040/compile/PICO/machine/hsx_decoder.h:57>
+        hsx_dec_run() <unsigned hsx_dec_run (struct hsx_dec *d, unsigned char *base, unsigned mask, unsigned room) at sys/arch/rp2040/rp2040/hsx_decoder.c:51>:
+        bcopy() <void bcopy (const void *src0, void *dst0, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1232>:
+        swap_with_buf() <void swap_with_buf (struct buf *bp, size_t blkno, size_t coreaddr, int count, int rdflg) at sys/kern/vm_swp.c:80>:
+            swap_with_buf_result() <int swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count, int rdflg) at sys/kern/vm_swp.c:21>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+        swapram_codec_release() <void swapram_codec_release (unsigned int owner) at sys/arch/rp2040/rp2040/swapram.c:164>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+    swapram_pool_free() <int swapram_pool_free (struct swapram_pool *mp, unsigned int off, unsigned int size) at sys/arch/rp2040/rp2040/swapram_pool.c:81>:
+        roundgrain() <unsigned int roundgrain (unsigned int n) at sys/arch/rp2040/rp2040/swapram_pool.c:19>
+    printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+        prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+            putchar() <void putchar (int c, int flags, struct tty *tp) at sys/kern/subr_prf.c:35> (R):
+            ksprintn() <char *ksprintn (char *nbuf, unsigned long ul, int base, int width, int *lenp) at sys/kern/subr_prf.c:75>:
+            mkhex() <unsigned mkhex (unsigned ch) at sys/kern/subr_prf.c:60>
+            strlen() <size_t strlen (const char *s) at sys/arch/rp2040/rp2040/machdep.c:1103>:
+    swapram_pool_avail() <unsigned int swapram_pool_avail (struct swapram_pool *mp) at sys/arch/rp2040/rp2040/swapram_pool.c:149>:

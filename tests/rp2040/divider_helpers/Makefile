@@ -24,11 +24,14 @@ CFLAGS_TEST=	-std=gnu17 -Wall -Wextra -Werror -Os ${ARM_FLAGS} \
 LINK_FLAGS=	-nostdlib -nostartfiles -static -Wl,--build-id=none \
 		-Wl,-z,noexecstack -Wl,--fatal-warnings -Wl,-Ttext=0x20000
 
+STDLIB_DIR=	${TOPSRC}/lib/libc/stdlib
+PUBLIC_DIV_SRC=	${STDLIB_DIR}/div.c ${STDLIB_DIR}/ldiv.c
+
 all: check-qemu
 
-${PROG}: ${PROG}_div.o ${PROG}_ref.o ${PROG}_harness.o ${PROG}_main.o
-	${CC_ARM} ${ARM_FLAGS} ${LINK_FLAGS} -o $@ ${PROG}_main.o \
-	    ${PROG}_harness.o ${PROG}_div.o ${PROG}_ref.o
+${PROG}: ${PROG}_div.o ${PROG}_ref.o ${PROG}_harness.o ${PROG}_main.o ${PUBLIC_DIV_SRC} ${TOPSRC}/include/stdlib.h
+	${CC_ARM} ${CFLAGS_TEST} -nostdinc -I${TOPSRC}/include ${LINK_FLAGS} -o $@ ${PROG}_main.o \
+	    ${PROG}_harness.o ${PROG}_div.o ${PROG}_ref.o ${PUBLIC_DIV_SRC}
 
 ${PROG}_div.o: ${DIV_SOURCE}
 	${CC_ARM} -x assembler-with-cpp ${DIV_DEFS} ${ARM_FLAGS} \
@@ -42,8 +45,8 @@ ${PROG}_harness.o: harness.S
 	${CC_ARM} -x assembler-with-cpp ${ARM_FLAGS} -Wa,--fatal-warnings \
 	    -c -o $@ harness.S
 
-${PROG}_main.o: divider_test.c
-	${CC_ARM} ${CFLAGS_TEST} ${TEST_DEFS} -c -o $@ divider_test.c
+${PROG}_main.o: divider_test.c ${TOPSRC}/include/stdlib.h
+	${CC_ARM} ${CFLAGS_TEST} -nostdinc -I${TOPSRC}/include ${TEST_DEFS} -c -o $@ divider_test.c
 
 check-qemu:
 .if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)

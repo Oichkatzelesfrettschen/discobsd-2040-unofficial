@@ -46,8 +46,14 @@
 #include <unistd.h>
 
 #include <sys/lcdgfx.h>
+#include <stdint.h>
 
 static int nbad, nopen, nclose, colmod;
+static int npalette, nwindow, nfill;
+static long nwritten;
+static struct lcdg_window lastwin;
+static uint8_t written[512];
+static uint16_t pal[16];
 
 #define CHECK(cond, ...) \
 	do { \
@@ -98,6 +104,18 @@ stub_ioctl(int fd, unsigned long cmd, ...)
 	}
 	CHECK(colmod == LCDG_COLMOD_RGB565,
 	    "command %lx reaches the panel at COLMOD %02x, not 55", cmd, colmod);
+	if (cmd == LCDG_PALETTE) {
+		struct lcdg_palette *p = arg;
+
+		npalette++;
+		pal[p->index & 15] = (uint16_t)((p->r >> 3) << 11 |
+		    (p->g >> 2) << 5 | p->b >> 3);
+	} else if (cmd == LCDG_WINDOW) {
+		nwindow++;
+		lastwin = *(struct lcdg_window *)arg;
+		nwritten = 0;
+	} else if (cmd == LCDG_FILL)
+		nfill++;
 	return 0;
 }
 
@@ -114,7 +132,11 @@ static ssize_t
 stub_write(int fd, const void *buf, size_t n)
 {
 	(void)fd;
-	(void)buf;
+	if (n > 8)
+		n = 8;		/* short writes: the caller's loop runs */
+	if (nwritten + (long)n <= (long)sizeof(written))
+		memcpy(written + nwritten, buf, n);
+	nwritten += (long)n;
 	return (ssize_t)n;
 }
 
@@ -139,6 +161,7 @@ stub_sysctl(int *mib, unsigned n, void *old, size_t *oldlen, void *new, size_t n
 #define sysctl	stub_sysctl
 
 #include <dev_picocalc.c>
+#include <gfx.c>
 
 void
 sys_flush(void)
@@ -165,6 +188,63 @@ main(void)
 	CHECK(nclose == 1, "release closes once: %d", nclose);
 	(void)dev_readpixel(3, 3);
 	CHECK(nopen == 2 && colmod == LCDG_COLMOD_RGB565, "read: %d opens, COLMOD %02x", nopen, colmod);
+	dev_release();
+
+	/*
+	 * An opaque cell wholly on the panel is one LCDG_WIN_BITS window of
+	 * the cell's size through two palette entries holding its colors
+	 * exactly, with the font's bits; the palette is sent again only when
+	 * the colors change or after an open. A transparent cell, and one
+	 * that leaves the panel, are fills.
+	 */
+	for (int size = 1; size <= 3; size++) {
+		int w = 6 * size, h = 10 * size, stride = (w + 7) / 8, bad = 0;
+
+		npalette = nwindow = nfill = 0;
+		gfx_char(10, 20, 'R', 0xf81f, 0x0841, size);
+		CHECK(nwindow == 1 && nfill == 0, "size %d: %d windows %d fills",
+		    size, nwindow, nfill);
+		CHECK(lastwin.x == 10 && lastwin.y == 20 && lastwin.w == w &&
+		    lastwin.h == h && lastwin.fmt == LCDG_WIN_BITS,
+		    "size %d: window %u,%u %ux%u fmt %u", size, lastwin.x,
+		    lastwin.y, lastwin.w, lastwin.h, lastwin.fmt);
+		CHECK(pal[lastwin.fg] == 0xf81f && pal[lastwin.bg] == 0x0841,
+		    "size %d: palette %04x on %04x", size, pal[lastwin.fg],
+		    pal[lastwin.bg]);
+		CHECK(nwritten == (long)stride * h, "size %d: %ld bytes", size,
+		    nwritten);
+		for (int r = 0; r < h; r++)
+			for (int c = 0; c < w; c++) {
+				int want = r / size < LCDFONT_HEIGHT &&
+				    (lcdfont['R' - LCDFONT_FIRST][r / size] &
+				    (0x80u >> (c / size))) != 0;
+				int got = (written[r * stride + c / 8] >>
+				    (7 - c % 8)) & 1;
+
+				bad += want != got;
+			}
+		CHECK(bad == 0, "size %d: %d pixels differ from the font", size,
+		    bad);
+		CHECK(npalette == (size == 1 ? 2 : 0),
+		    "size %d: %d palette commands", size, npalette);
+	}
+	npalette = nwindow = nfill = 0;
+	gfx_char(10, 20, 'R', 0x07e0, 0x0841, 1);
+	CHECK(npalette == 2 && nwindow == 1, "new colors: %d palette, %d windows",
+	    npalette, nwindow);
+	npalette = nwindow = nfill = 0;
+	gfx_char(10, 20, 'R', 0x07e0, GFX_TRANSPARENT, 1);
+	CHECK(nwindow == 0 && nfill > 0, "transparent: %d windows %d fills",
+	    nwindow, nfill);
+	npalette = nwindow = nfill = 0;
+	gfx_char(317, 20, 'R', 0x07e0, 0x0841, 1);
+	CHECK(nwindow == 0 && nfill > 0, "clipped: %d windows %d fills",
+	    nwindow, nfill);
+	dev_release();
+	npalette = nwindow = 0;
+	gfx_char(10, 20, 'R', 0x07e0, 0x0841, 1);
+	CHECK(npalette == 2 && nwindow == 1, "after an open: %d palette, %d windows",
+	    npalette, nwindow);
 	dev_release();
 	printf("%s\n", nbad == 0 ? "dev_picocalc: ok" : "dev_picocalc: failed");
 	return nbad != 0;

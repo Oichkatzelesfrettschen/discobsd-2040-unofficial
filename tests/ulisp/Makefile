@@ -103,7 +103,8 @@ check:
 	ASAN_OPTIONS=detect_leaks=0 ./hilite-test.san
 	${PYTHON} -I hilite-pty.py ${SRC}/ulisp.host ${SRC}/ulisp.doc
 	${HOST_CC} -std=gnu17 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I${.CURDIR}/shim \
-	    -I${SRC} -o dev-picocalc-test dev-picocalc-test.c
+	    -I${SRC} -I${TOPSRC}/sys/arch/rp2040/dev -o dev-picocalc-test \
+	    dev-picocalc-test.c ${TOPSRC}/sys/arch/rp2040/dev/lcdfont.c
 	./dev-picocalc-test
 	sh mutants.sh ${SRC} ${SRC}/ulisp.doc "${HOST_CC}"
 

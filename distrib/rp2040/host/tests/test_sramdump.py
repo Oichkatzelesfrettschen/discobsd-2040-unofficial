@@ -94,8 +94,8 @@ def test_flag_names_name_set_bits_and_keep_unknown_bits():
     table = sramdump.PROC_FLAGS
     assert sramdump.flag_names(0x0081, table) == "SLOAD|P_SINTR"
     assert sramdump.flag_names(0, table) == "0"
-    # Bit 0x0040 is unused in proc.h; it must stay visible, not vanish.
-    assert sramdump.flag_names(0x0041, table) == "SLOAD|0x40"
+    # Bit 0x0800 is unused in proc.h; it must stay visible, not vanish.
+    assert sramdump.flag_names(0x0801, table) == "SLOAD|0x800"
 
 
 # --- decode -----------------------------------------------------------------

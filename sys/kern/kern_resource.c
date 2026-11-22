@@ -263,3 +263,25 @@ rucvt (register struct rusage *rup, register struct k_rusage *krup)
     rup->ru_nvcsw = krup->ru_nvcsw;
     rup->ru_nivcsw = krup->ru_nivcsw;
 }
+
+/*
+ * Growth admission against the soft limits, the check 2.11BSD patch 439
+ * adds. brk() passes the data, bss and heap bytes above the executable
+ * text, the part a separate data segment holds on 2.11BSD; user_entry()
+ * and sendsig() (sys/arch/rp2040/rp2040) pass the stack depth below the
+ * window top that a kernel entry or a signal frame would record. Each
+ * answers 1 while the size stays within the soft limit; a negative limit
+ * admits nothing. RLIM_INFINITY, the boot value (init_main.c), exceeds any
+ * window, so both admit every size until setrlimit() lowers a limit.
+ */
+int
+rlimit_data_admits(size_t bytes)
+{
+    return (long)bytes <= u.u_rlimit[RLIMIT_DATA].rlim_cur;
+}
+
+int
+rlimit_stack_admits(size_t depth)
+{
+    return (long)depth <= u.u_rlimit[RLIMIT_STACK].rlim_cur;
+}

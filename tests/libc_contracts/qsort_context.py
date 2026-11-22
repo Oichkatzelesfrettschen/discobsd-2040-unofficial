@@ -27,7 +27,7 @@ def command(arguments):
             "qsort context compile failure: " + result.stdout + result.stderr)
 
 
-def build(root, compiler, work, arm, source):
+def build(root, compiler, work, arm, source, *, shared=False):
     flags = FLAGS + (ARM if arm else [])
     library = work / "sort.o"
     # Renaming after system headers avoids host qsort_r compatibility macros.
@@ -42,14 +42,19 @@ void qsort_r(void *, size_t, size_t,
 void qsort(void *, size_t, size_t, int (*)(const void *, const void *));
 """)
     mode = [] if source.name == "qsort_r.c" else ["-D_DISCOBSD_QSORT_R"]
+    if shared:
+        mode = ["-DDISCOBSD_SHARED_LIBC=1", "-fPIC"]
+        if arm:
+            mode += ["-msingle-pic-base", "-mpic-register=r9", "-mno-pic-data-is-text-relative"]
     command(compiler + flags + mode + ["-include", str(namespace),
             "-c", str(source), "-o", str(library)])
     fixture = work / "fixture.o"
     command(compiler + flags + ["-c", str(root / "tests/libc_contracts/qsort_context_test.c"),
             "-o", str(fixture)])
     plain = work / "plain.o"
-    command(compiler + flags + ["-include", str(namespace), "-c",
-            str(root / "lib/libc/gen/qsort.c"), "-o", str(plain)])
+    peer = "qsort_r.c" if shared else "qsort.c"
+    command(compiler + flags + (mode if shared else []) + ["-include", str(namespace), "-c",
+            str(root / "lib/libc/gen" / peer), "-o", str(plain)])
     objects = [str(library), str(fixture), str(plain)]
     link = []
     if arm:
@@ -151,6 +156,19 @@ def main():
         print(result.stdout, end="")
         accepted = work / "accepted"
         shutil.copy2(program, accepted)
+        shared = build(root, compiler, work, args.arm, source, shared=True)
+        shared_result = execute(shared, args.arm)
+        require(shared_result.returncode == 0 and not shared_result.stderr and
+                shared_result.stdout == result.stdout,
+                "shared sort differs: " + shared_result.stdout + shared_result.stderr)
+        print("shared sort: " + shared_result.stdout, end="")
+        anchor = "return state->contextual(a, b, state->context);"
+        require(original.count(anchor) == 1, "shared context mutation anchor differs")
+        mutant = work / "lost-shared-context.c"
+        mutant.write_text(original.replace(anchor, "return state->contextual(a, b, NULL);"))
+        failed = execute(build(root, compiler, work, args.arm, mutant, shared=True), args.arm)
+        require(failed.returncode == 1 and "callback loses context" in failed.stderr,
+                "shared context control lacks its diagnostic: " + failed.stdout + failed.stderr)
         bounds(root, compiler, work, args.arm, original)
         for label, before, after in mutations:
             require(original.count(before) == 1, label + " mutation anchor differs")

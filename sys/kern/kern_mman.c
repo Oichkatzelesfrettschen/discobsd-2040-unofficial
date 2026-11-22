@@ -35,6 +35,19 @@ brk(void)
         u.u_error = ENOMEM;
         return;
     }
+    /*
+     * RLIMIT_DATA bounds the bytes above the executable text when the
+     * break rises; a process over a lowered limit can still shrink.
+     */
+    if ((size_t)newsize > u.u_dsize) {
+        size_t text = u.u_procp->p_tsize;
+
+        if (!rlimit_data_admits((size_t)newsize > text ?
+            (size_t)newsize - text : 0)) {
+            u.u_error = ENOMEM;
+            return;
+        }
+    }
 
     u.u_procp->p_dsize = newsize;
 

@@ -690,6 +690,24 @@ lcd_gfx_dither(int on)
 		spi_put(LCDG_DITHER_BYTE);
 	lcd_deselect();
 }
+
+#ifdef LCD_BLANK
+/*
+ * SLPIN or SLPOUT alone, for the console blanker of lcdcons.c, which keeps
+ * the 5 ms and 120 ms gaps of pages 163 and 165 itself. lcd_power_pending
+ * stays set while the panel sleeps, so st7365p_abort() wakes it for a
+ * fault report.
+ */
+void
+st7365p_sleep(int in)
+{
+	lcd_select();
+	lcd_command(in ? CMD_SLPIN : CMD_SLPOUT);
+	lcd_deselect();
+	lcd_power_mode = in ? LCDG_PWR_SLEEP : LCDG_PWR_ON;
+	lcd_power_pending = in;
+}
+#endif
 #endif /* LCD_GFX_EXT */
 
 #ifdef LCD_PANELTEST

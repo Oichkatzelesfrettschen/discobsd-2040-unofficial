@@ -70,6 +70,7 @@
 #include <sys/ioctl.h>
 #include <sys/tty.h>
 #include <sys/systm.h>
+#include <sys/kernel.h>
 #include <sys/config.h>
 #include <sys/lcdcons.h>
 
@@ -177,6 +178,63 @@ render_pend(void)
 {
 	PC_REG32(NVIC_ISPR) = 1UL << LCD_RENDER_IRQ;
 }
+
+static void render_resume(caddr_t);
+
+#ifdef LCD_BLANK
+#ifndef LCD_GFX_EXT
+#error "LCD_BLANK uses the LCD_GFX_EXT power state of st7365p.c"
+#endif
+#ifndef LCD_BLANK_SECS
+#define	LCD_BLANK_SECS	300
+#endif
+/*
+ * The blanker: LCD_BLANK_SECS seconds without a key put the panel to sleep
+ * (0.025 mA against 12 mA typical in normal mode, ST7365P page 50) and the
+ * next key wakes it. Memory writes work in sleep (page 163), so output
+ * keeps drawing and shows on waking. The renderer makes each change with
+ * the drawing flag held, 120 ms or more after the previous one, and waits
+ * the 5 ms the controller needs before its next command. /dev/lcdgfx owns
+ * the panel's power while it is open.
+ */
+#define	BLANK_GAP_US	120000U
+static u_char blank_asleep, blank_want;
+static time_t blank_key;	/* time.tv_sec of the last key. */
+static u_int blank_at;		/* pc_micros() of the last SLPIN or SLPOUT. */
+
+/* From each keyboard poll; key is nonzero when the poll read a key. */
+void
+lcdcons_blank_poll(int key)
+{
+	int s = spltty();
+
+	if (key || lcdgfx_isopen()) {
+		blank_key = time.tv_sec;
+		blank_want = 0;
+	} else if (time.tv_sec - blank_key >= LCD_BLANK_SECS)
+		blank_want = 1;
+	if (blank_want != blank_asleep)
+		render_pend();
+	splx(s);
+}
+
+/* In the renderer with the drawing flag held. */
+static void
+blank_change(void)
+{
+	u_int since = pc_micros() - blank_at;
+
+	if (since < BLANK_GAP_US) {
+		timeout(render_resume, (caddr_t)0,
+		    (int)((BLANK_GAP_US - since) / 1000) + 1);
+		return;
+	}
+	st7365p_sleep(blank_want);
+	blank_asleep = blank_want;
+	blank_at = pc_micros();
+	mdelay(5);
+}
+#endif /* LCD_BLANK */
 
 #ifdef LCD_VT
 /*
@@ -459,6 +517,10 @@ lcdrender(void)
 	if (lcd_want != lcd_shown)
 		lcd_vtswitch();
 	tp = LCD_SHOWN;
+#endif
+#ifdef LCD_BLANK
+	if (blank_want != blank_asleep && !lcdgfx_isopen())
+		blank_change();
 #endif
 	t0 = pc_micros();
 	sliced = 0;
@@ -874,6 +936,11 @@ lcdcons_gfx(int on)
 	held = lcd_acquire();
 	if (!held && on)
 		return EAGAIN;
+#ifdef LCD_BLANK
+	/* lcdgfx powers the panel on at its open and at its last close. */
+	blank_asleep = blank_want = 0;
+	blank_key = time.tv_sec;
+#endif
 	lcdterm_gfx(on);
 	if (held) {
 		lcd_release();

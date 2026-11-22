@@ -449,6 +449,9 @@ kbd_poll(caddr_t arg __unused)
 		/* kbd_step() began a recovery; the next polls step it. */
 	} else {
 		stall = 0;
+#ifdef LCD_BLANK
+		lcdcons_blank_poll(r == STEP_EVENT);
+#endif
 		if (r == STEP_EVENT) {
 			fast = KBD_FAST_EXCHANGES;
 			if (key == KEY_MOD_CTRL)

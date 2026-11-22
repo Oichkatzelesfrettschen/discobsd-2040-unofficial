@@ -107,6 +107,8 @@ u_int		picokbd_errors(void);
 /* Bytes a key event produced, delivered by picokbd.c to lcdcons.c. */
 void		lcdcons_input(const char *s, int n);
 void		lcdcons_keycheck(void);
+void		lcdcons_blank_poll(int key);
+void		st7365p_sleep(int in);
 struct file;
 void		lcdcons_fileclose(const struct file *fp);
 struct proc;

@@ -16,6 +16,7 @@ PARAM += -DBUS_KHZ=50000
 PARAM += -DCPU_KHZ=100000
 LDSCRIPT = "STM32F411XE.ld"
 DEBUG = -g
+CONFIG_CKSUM = 1136616693 1996
 #
 # Makefile for DiscoBSD/stm32
 #
@@ -151,6 +152,23 @@ clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c
 
 CONFIG_TOOL=	${TOOLBINDIR}/config
+
+# config writes CONFIG_CKSUM, above: the POSIX cksum of the Config it read.
+# The make that runs config has already read this Makefile, so a build that
+# reconfigured here would compile with the PARAM and object lists of the old
+# Config. A Makefile whose CONFIG_CKSUM differs from Config's stops at once,
+# before any recipe runs, unless every goal is clean, clean-all or reconfig;
+# "make reconfig" runs alone. A Config touched but unchanged, as after a
+# checkout, passes, and the rule below regenerates identical files.
+.if make(reconfig) && ${.TARGETS:[#]} != 1
+.error "make reconfig" rewrites this Makefile; run it alone, then the build
+.endif
+.if empty(.TARGETS) || !empty(.TARGETS:Nclean:Nclean-all:Nreconfig)
+_CONFIG_CKSUM!=	cksum < Config
+.if "${_CONFIG_CKSUM}" != "${CONFIG_CKSUM}"
+.error ${.CURDIR}/Config changed since config wrote this Makefile; run "make reconfig", then the build
+.endif
+.endif
 
 reconfig ioconf.c: Config ${CONFIG_TOOL}
 	${CONFIG_TOOL} Config

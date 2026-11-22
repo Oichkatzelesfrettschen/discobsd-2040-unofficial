@@ -1275,13 +1275,13 @@ defines only its own name.
   `exec_elf.c`, `exec_script.c`, `exec_subr.c`) prints at any level while the
   bit is set. No source calls `DEBUG1` through `DEBUG9`, so levels 0, 1 and 9
   link to byte-identical images; 9 is recorded so that a later `DEBUGn` site
-  prints. One a.out `execve(2)` prints about 40 lines (five of them wrap on
-  the 53-column panel), so a boot to login with the bit set, which execs
+  prints. One a.out `execve(2)` prints 24 lines in the UART capture `diag-boot-uart0.txt`, so a boot
+  to login with the bit set, which execs
   the `/etc/rc` script and its shell, `fsck`, `hostname`, `umount`, `mount`, `dd`,
   `mkfs`, `chmod`, `rm`, `date`, `getty` and `login`, prints several hundred
   lines to the console. Measured on a board running kernel #1 5187, which
-  traced every `execve(2)` from power-on, a reboot to login produced 17
-  `execve` traces and 746 console lines. The bit is clear at boot, so the boot
+  traced every `execve(2)` from power-on, a reboot to login produced 25
+  `execve` traces of 24 lines each and 746 console lines. The bit is clear at boot, so the boot
   lines start with the exec trace off. A boot-time trace needs
   `sysctl -w kern.systrace=4` in `/etc/rc.rp2040` (which already runs
   `sysctl -w` for the backlight): it traces every `execve(2)` after that line,

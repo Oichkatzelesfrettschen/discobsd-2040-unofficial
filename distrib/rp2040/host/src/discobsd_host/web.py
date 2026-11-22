@@ -61,7 +61,7 @@ PAGE = f"""<!doctype html><html lang=en><head><meta charset=utf-8>
 <script>
 var reader=false;try{{reader=localStorage.getItem("reader")==="1";}}catch(e){{}}
 var term=new Terminal({{cols:80,rows:24,fontFamily:"monospace",fontSize:14,
- cursorBlink:true,theme:{{background:"#000000",foreground:"#f8f8f2",cursor:"#bd93f9",selectionBackground:"#44475a",black:"#000000",red:"#bc662f",green:"#20e6a6",yellow:"#d4c021",blue:"#5d6ff5",magenta:"#b478be",cyan:"#87bace",white:"#f8f8f2",brightBlack:"#7b86b8",brightRed:"#d37b46",brightGreen:"#4bfebc",brightYellow:"#ebd744",brightBlue:"#7085ff",brightMagenta:"#cb8dd5",brightCyan:"#9dd1e5",brightWhite:"#ffffff"}},minimumContrastRatio:4.5,
+ cursorBlink:true,theme:{{background:"#000000",foreground:"#f7f7ef",cursor:"#bd93f9",selectionBackground:"#44475a",black:"#000000",red:"#ce5d00",green:"#21e7a5",yellow:"#d6be21",blue:"#636dff",magenta:"#bd75ce",cyan:"#8cbad6",white:"#f7f7ef",brightBlack:"#848684",brightRed:"#e77142",brightGreen:"#52fba5",brightYellow:"#f7cf21",brightBlue:"#8482ff",brightMagenta:"#c692ce",brightCyan:"#b5cfe7",brightWhite:"#ffffff"}},minimumContrastRatio:4.5,
  screenReaderMode:reader}});
 term.open(document.getElementById("t"));
 var stat=document.getElementById("s");

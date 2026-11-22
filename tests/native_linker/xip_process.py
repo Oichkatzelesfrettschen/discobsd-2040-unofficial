@@ -24,7 +24,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Exercise diagnostic XIP process startup, fork, swap and failed exec under Renode."""
+"""Exercise diagnostic XIP startup, cross-linked callers, fork and failed exec under Renode."""
 
 import argparse
 import hashlib
@@ -36,6 +36,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from xip_cross import cross_link
 from xip_imports import RECORD, ROOT, TOOLS, link, require
 
 
@@ -76,6 +77,16 @@ def make_image(work, slot, provider, filesystem):
         "fullraw",
         "fullpack",
     ]
+    for source, names in (
+        (ROOT / "bin/echo/echo.c", ("xecho", "pecho")),
+        (Path(__file__).with_name("xip_startup_test.c"), ("xcrt", "pcrt")),
+    ):
+        caller = work / source.stem
+        caller.mkdir()
+        cross_link(caller, source.resolve(), slot)
+        for image, name in zip(("app.aout", "app.hsx"), names, strict=True):
+            shutil.copyfile(caller / image, work / name)
+            files.append(name)
     for name in files:
         (work / name).chmod(0o755)
     shutil.copyfile(filesystem, work / "root.img")
@@ -145,6 +156,20 @@ def boot(work, models):
         for name in ("xraw", "xpacked"):
             console.type_line("/" + name)
             console.wait_lines(["XIP-FORK", "$"], name + " fork and exec rejection", 60)
+        for name in ("xecho", "pecho"):
+            console.type_line(f"/{name} shared process")
+            console.wait_lines(["\nshared process\n", "$"], name + " argument output", 60)
+        for name in ("xcrt", "pcrt"):
+            console.type_line(f"/{name} {name}; echo result=$?")
+            console.wait_lines(["\nresult=37\n", "$"], name + " C startup and exit", 60)
+        # Known-bad arguments: each caller check must name its own exit status.
+        for name in ("xcrt", "pcrt"):
+            for command, status, reason in (
+                (f"/{name}", 1, "missing argument"),
+                (f"/{name} wrong", 2, "program name differs from argv[1]"),
+            ):
+                console.type_line(f"{command}; echo result=$?")
+                console.wait_lines([f"\nresult={status}\n", "$"], f"{name} {reason}", 60)
     finally:
         monitor.close()
 

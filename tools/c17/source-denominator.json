@@ -91120,11 +91120,18 @@
         "risk_tier_basis": "caller-closure-required",
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
-          "aliasing": [],
+          "aliasing": [
+            "cast-dereference"
+          ],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "integer-cast",
+            "shift-expression"
+          ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": [
             "variadic-interface"
@@ -110106,7 +110113,9 @@
         "hazards": {
           "aliasing": [],
           "inline_assembly": [],
-          "integer": [],
+          "integer": [
+            "shift-expression"
+          ],
           "object_lifetime": [],
           "pointer": [],
           "prototype": [],

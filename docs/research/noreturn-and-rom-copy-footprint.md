@@ -326,7 +326,7 @@ Most fills clear 1-2 KiB, where the ROM `memset` saves about 3.5 us a call, and 
 - Offset 1 covers co-aligned pairs only. A source and destination with different alignments were not timed.
 - The `bcopy` variant that looks up MC on every call was not timed.
 
-**Implementation constraints:** a change built on these numbers keeps `bcopy`'s backward branch for an overlapping destination in front of the ROM call (D150). The ROM `memcpy` has no single direction: it copies backward byte by byte below 8 bytes or across differing alignments and forward in words otherwise (see "Applied" below).
+**Implementation constraints:** a change built on these numbers keeps `bcopy`'s backward branch for an overlapping destination in front of the ROM call (D150). The ROM `memcpy` varies its direction: it copies backward byte by byte below 8 bytes or across differing alignments and forward in words otherwise (see "Applied" below).
 
 **Decision settled:** the zero-RAM form, which reads the function table slot and falls back to a lookup on every call that misses it, replaces the form that caches the pointers in 8 bytes of bss (see "Both budgets" above and "Applied" below).
 
@@ -366,11 +366,11 @@ So the ROM routine handles an overlap correctly in one direction per path, and `
 
 Data and bss are unchanged in every kernel.
 
-**Kernel stack depth** (`docs/research/kernel-size-flags/stack_chain.py`, `-fstack-usage -fcallgraph-info=su`, arm-none-eabi-gcc 16.2.0, PICOCALC_SD build against the tree before the change, `0cc1a3aef`, the parent that `kern/rom-copy` last merged). The model names no PICOCALC_SD configuration, so the run takes `--config PICOCALC`, and it has no site rule for the two indirect ROM calls, so the run adds one for MC (12 bytes, the pushes of `0x261d`) and one for MS (8 bytes, the pushes of `0x26b9`) in a scratch copy of `stack-model.json`:
+**Kernel stack depth** (`docs/research/kernel-size-flags/stack_chain.py`, `-fstack-usage -fcallgraph-info=su`, arm-none-eabi-gcc 16.2.0, PICOCALC_SD build against the tree before the change, `0cc1a3aef`, the parent that `kern/rom-copy` last merged). The model lists PICO, PICO_UART, PICO_DIAG, PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG and omits PICOCALC_SD, so the run takes `--config PICOCALC`, and the model lacked a site rule for each of the two indirect ROM calls, so the run added one for MC (12 bytes, the pushes of `0x261d`) and one for MS (8 bytes, the pushes of `0x26b9`) in a scratch copy of `stack-model.json`:
 - The deepest system call chain is 2,352 bytes before and 2,360 after, a growth of 8 bytes. It ends in `bcopy[24] -> rom_fn[8] -> rom_func_lookup[8]`, the per-call lookup fallback that a ROM version 3 board does not take, so the figure bounds the other ROMs and overstates this board.
 - The chain through `bzero` grows from 12 to 32 bytes (20) and the chain through `bcopy` from 16 to 40 (24).
 - Both system call figures already exceed the 2,048-byte budget before the change (issue 839); the growth is not what crosses it.
-- The model refuses the change as committed (`indirect call in bcopy ... matches 0 site rules`), so `stack-chain.sh` fails on any modeled configuration until `stack-model.json` carries the two site rules.
+- Without a site rule the model refuses the indirect calls (`indirect call in bcopy at ../../../../arch/rp2040/rp2040/machdep.c:1283 matches 0 site rules`). `stack-model.json` now carries one rule per call, 12 bytes for the `bcopy` call to MC and 8 bytes for the `bzero` call to MS, the pushes of the aligned and word paths; the short paths of both routines jump through a computed `bx r3` without pushing, which `bootrom_frames.py` cannot follow, so these two rules carry no `rom` code and `--check` does not cross-check them against the B2 image. The lookup fallback `rom_fn() -> rom_func_lookup()` is an ordinary call edge. `stack-chain.sh` on this branch with the B2 image (SHA-256 `3a3c4c61...c49aa`) exits 0 on all six configurations; the deepest system call chain is 2,320 bytes in PICO (`mi`), 2,328 in PICO_UART, 2,344 in PICO_DIAG and PICOCALC, 2,336 in PICOCALC_LEAN and 2,360 in PICOCALC_LEAN_DIAG, each ending in `bcopy[24] -> rom_fn[8] -> rom_func_lookup[8]` for the lookup path and so bounding the ROM version 3 path. The model reports the budget excess (3,092 to 3,468 of 2,048 across all roots) without enforcing a bound.
 
 **Board check** (bare Pico, PICO kernel with the change on main `2f2cdb17d`):
 - The D150 symlink cases resolve: a link to `ab`, to `ab/../ab/../ab`, and to an absolute path.

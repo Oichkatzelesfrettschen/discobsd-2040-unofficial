@@ -441,6 +441,18 @@
    "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
   },
   {
+   "function": "bcopy",
+   "text": "(void *(*)(void *, const void *, u_int))",
+   "bytes": 12,
+   "why": "boot ROM memcpy (MC, entry 0x261c) reached through rom_fn(): its aligned path pushes r4, r5, r6 and its short path jumps through a computed bx r3 without pushing, from the disassembly in docs/research/noreturn-and-rom-copy-footprint.md; bootrom_frames.py cannot follow the computed jump, so the figure carries no rom code; the lookup fallback inside rom_fn() is an ordinary call"
+  },
+  {
+   "function": "bzero",
+   "text": "(void *(*)(void *, int, u_int))",
+   "bytes": 8,
+   "why": "boot ROM memset (MS, entry 0x26b8) reached through rom_fn(): its word path pushes r4, r5 and its short path jumps through a computed bx r3 without pushing, from the disassembly in docs/research/noreturn-and-rom-copy-footprint.md; bootrom_frames.py cannot follow the computed jump, so the figure carries no rom code; the lookup fallback inside rom_fn() is an ordinary call"
+  },
+  {
    "function": "flash_swap_append",
    "text": "ops->erase(",
    "table": "flswap_ops",

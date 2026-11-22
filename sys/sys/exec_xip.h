@@ -83,18 +83,47 @@ xip_raw_layout(const struct exec *header, const struct xip_requirement *req,
     return AOUT_OK;
 }
 
+#define XLIB_SIG        0x42494c58U     /* "XLIB" in little-endian order */
+
+struct xip_provider {
+    unsigned signature;
+    unsigned major, minor;
+    unsigned header_size;
+    unsigned slots, slot_width;
+    unsigned state_size;
+    unsigned entry_offset;
+    unsigned char identity[32];
+};
+
+/* The entry offset addresses a Thumb instruction after the complete slot table. */
 static inline int
 xip_provider_check(const struct xip_requirement *req,
-    const unsigned char identity[32], unsigned slots, unsigned state_size)
+    const struct xip_provider *provider, unsigned available)
 {
     unsigned i;
 
-    if (req->slots > slots || req->state_size != state_size)
+    if (available < sizeof *provider || provider->signature != XLIB_SIG ||
+        provider->major != 1 || provider->minor != 0 ||
+        provider->header_size != sizeof *provider || provider->slot_width != 8 ||
+        provider->slots == 0 || provider->state_size == 0)
+        return AOUT_BADLIBC;
+    if ((provider->entry_offset & 3) != 0 ||
+        provider->entry_offset < sizeof *provider ||
+        provider->entry_offset > available - 2 ||
+        provider->slots > (provider->entry_offset - sizeof *provider) / 8)
+        return AOUT_BADLIBC;
+    if (req->slots > provider->slots || req->state_size != provider->state_size)
         return AOUT_BADLIBC;
     for (i = 0; i < sizeof req->identity; ++i)
-        if (req->identity[i] != identity[i])
+        if (req->identity[i] != provider->identity[i])
             return AOUT_BADLIBC;
     return AOUT_OK;
 }
+
+#if defined(KERNEL) && defined(EXEC_XIP_LIBC)
+struct inode;
+int exec_xip_read(struct inode *, const struct exec *, struct xip_requirement *,
+    unsigned long);
+#endif
 
 #endif

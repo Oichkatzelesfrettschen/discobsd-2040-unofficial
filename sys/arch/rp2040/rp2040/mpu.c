@@ -179,6 +179,10 @@ static const struct mpu_region mpu_map[] = {
 	    MPU_GRANT(MPU_USER_HIGH_LOG2, MPU_AP_RW, 0) },
 	{ MPU_SIO_BASE, MPU_GRANT(MPU_SIO_LOG2, MPU_AP_RW | MPU_RASR_XN,
 	    MPU_SIO_DIV_SRD) },
+#ifdef EXEC_XIP_LIBC
+	/* Six 8 KiB subregions cover the provider up to the Dhara root. */
+	{ 0x10020000UL, MPU_GRANT(16, MPU_AP_RO, 0xc0) },
+#endif
 };
 #define	MPU_NMAP	(sizeof mpu_map / sizeof mpu_map[0])
 

@@ -2604,7 +2604,8 @@ check-posix-sh:
 # because its link proof rebuilds the shared a.out libc.
 check-cross-contracts:	${CROSS_CONTRACT_GATES}
 
-check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
+check-cross-kernel:	xip-diagnostic-kernel .WAIT check-picocalc-sd-layout .WAIT \
+		check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
@@ -2718,6 +2719,17 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 		${MAKE} check-matezinho-qemu
 		${MAKE} check-ulisp-qemu
+
+xip-diagnostic-kernel: check-python
+		${MAKE} -C sys/arch/rp2040/compile/PICO_UART_XIP unix
+
+XIP_MODELS?=	${TOPSRC}/tools/renode/vendor/Renode_RP2040
+check-renode-xip-process: xip-diagnostic-kernel
+		${PYTHON} tests/native_linker/xip_process.py \
+		    --slot-elf ${XIP_SLOT_ELF:U:Q} --provider ${XIP_PROVIDER:U:Q} \
+		    --filesystem ${XIP_FILESYSTEM:U:Q} --models ${XIP_MODELS:Q}
+
+.PHONY: xip-diagnostic-kernel check-renode-xip-process
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.

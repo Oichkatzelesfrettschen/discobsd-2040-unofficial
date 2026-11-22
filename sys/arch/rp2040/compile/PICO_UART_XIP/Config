@@ -1,0 +1,55 @@
+#
+# Diagnostic UART kernel with a 48 KiB shared libc provider.
+# Build with bmake MACHINE=rp2040 xip-diagnostic-kernel.
+#
+architecture    "rp2040"
+cpu             "RP2040"                    # Processor variant
+board           "PICO_UART_XIP"             # Diagnostic configuration
+options         PICO_UART                   # UART board descriptor
+ldscript        "RP2040-xip.ld"                 # Kernel memory linker script
+
+makeoptions     DEBUG="-g"                  # Debug symbols
+
+# Standard system options
+options         "CPU_KHZ=125000"            # clk_sys after PLL bring-up
+options         "BUS_KHZ=125000"            # clk_peri runs from clk_sys
+options         "HALTREBOOT"                # If halted, press key to reboot
+options         CAPACITY_STATS              # fixed-table and u-area peaks
+
+options         "CORE1"                     # core 1 observes core 0's clock
+
+# Root filesystem at /dev/fl0a, swap on /dev/fl1.
+# The RP2040 has no SD controller and this board has no socket, so root
+# lives on the onboard QSPI flash behind a translation layer, and swap in
+# a raw region above it; see arch/rp2040/dev/flash.c.
+config          unix    root on fl0a
+                        swap on fl1
+                        dumps on none          # A dump would overwrite the live swap; sys/arch/rp2040/include/dump.h.
+
+options         "NFL=2"                     # fl0 root, fl1 swap.
+options         "NMOUNT=1"                  # One UFS root; fl1 is raw swap.
+options         SINGLE_UFS_ROOT             # Derive inode and root mount identity.
+options         LINEAR_INODE_CACHE           # Scan 24 entries; omit hash links.
+options         COMPACT_INODE_FIELDS         # Four bounded fields use 16 bits.
+options         COMPACT_SWAPMAP              # 16-bit entries cover 384 blocks.
+options         LINEAR_BUFFER_CACHE          # Scan four buffers; omit hash links.
+options         LINEAR_NAME_CACHE            # Scan four names; use second chance.
+options         "CORE_DEFAULT=0"            # No core dumps unless raised.
+options         "ROOT_MOUNT_FLAGS=MNT_NOATIME" # Reads do not dirty root inodes.
+options         EXEC_XIP_LIBC               # 48 KiB provider below the Dhara root
+options         EXEC_HSAOUT                 # packed a.out executables
+
+# Console on UART0, GP0 and GP1: this board variant carries no USB console,
+# so it emulates far more simply than the flash-shipped PICO board (see
+# sys/arch/rp2040/doc/BOOT-MAP.md).
+device          uart0
+options         "UART_BAUD=115200"          # default speed
+options         "CONS_MAJOR=UART_MAJOR"     # /dev/tty0 is the console
+options         "CONS_MINOR=0"
+
+# The Pico carries a single LED, wired to GP25. There is no choice of pin to
+# record here, so machdep.c names it directly and led_control lights the same
+# one for every activity class.
+
+# On-chip and board peripherals, one line per driver.
+options         DEV_ADC                     # RP2040 ADC: temperature and VSYS sysctls

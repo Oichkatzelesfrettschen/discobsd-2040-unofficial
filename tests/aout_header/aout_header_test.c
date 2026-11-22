@@ -141,7 +141,26 @@ shared_layout(void)
 	struct xip_requirement r = { XREQ_SIG, XREQ_VERSION, 56, { 1 }, 350,
 	    BASE + 48, 48 };
 	unsigned long length = sizeof e + 56 + 40;
-	unsigned char provider[32] = { 1 };
+	struct xip_provider provider = {
+	    XLIB_SIG, 1, 0, 64, 350, 8, 48, 2864, { 1 }
+	};
+	struct xip_provider malformed;
+	unsigned i;
+	const struct {
+		unsigned *field;
+		unsigned value;
+		const char *label;
+	} cases[] = {
+		{ &malformed.signature, 0, "provider magic" },
+		{ &malformed.major, 2, "provider major version" },
+		{ &malformed.minor, 1, "provider minor version" },
+		{ &malformed.header_size, 60, "provider header size" },
+		{ &malformed.slot_width, 4, "provider slot width" },
+		{ &malformed.slots, 0, "empty provider table" },
+		{ &malformed.state_size, 0, "empty provider state" },
+		{ &malformed.entry_offset, 2866, "initializer alignment" },
+		{ &malformed.entry_offset, 60, "initializer overlaps header" },
+	};
 
 	N_SETMAGIC(e, OMAGIC, MID_ZERO, EX_XIP);
 	check(sizeof r == 56, "shared record width");
@@ -184,14 +203,36 @@ shared_layout(void)
 	e.a_entry = 0xffffffc1U;
 	check(xip_raw_layout(&e, &r, 0xffffffc0U, 96, length, 1) == AOUT_SIZEWRAP,
 	    "absolute process end wraps");
-	check(xip_provider_check(&r, provider, 350, 48) == AOUT_OK,
-	    "last required slot present");
-	check(xip_provider_check(&r, provider, 349, 48) == AOUT_BADLIBC,
+	check(sizeof provider == 64, "provider header width");
+	for (i = 0; i < sizeof cases / sizeof cases[0]; ++i) {
+		malformed = provider;
+		*cases[i].field = cases[i].value;
+		check(xip_provider_check(&r, &malformed, 2870) == AOUT_BADLIBC,
+		    cases[i].label);
+	}
+	check(xip_provider_check(&r, &provider, 2866) == AOUT_OK,
+	    "last required slot and first initializer instruction present");
+	check(xip_provider_check(&r, &provider, 2865) == AOUT_BADLIBC,
+	    "truncated initializer instruction");
+	check(xip_provider_check(&r, NULL, 63) == AOUT_BADLIBC,
+	    "truncated header rejected before read");
+	--provider.slots;
+	check(xip_provider_check(&r, &provider, 2866) == AOUT_BADLIBC,
 	    "last required slot missing");
-	check(xip_provider_check(&r, provider, 350, 40) == AOUT_BADLIBC,
+	provider.slots = 0xffffffffU;
+	check(xip_provider_check(&r, &provider, 2866) == AOUT_BADLIBC,
+	    "slot byte count would wrap");
+	provider.slots = 350;
+	provider.entry_offset -= 4;
+	check(xip_provider_check(&r, &provider, 2866) == AOUT_BADLIBC,
+	    "initializer overlaps last slot");
+	provider.entry_offset += 4;
+	provider.state_size = 40;
+	check(xip_provider_check(&r, &provider, 2866) == AOUT_BADLIBC,
 	    "provider state extent differs");
-	provider[31] = 1;
-	check(xip_provider_check(&r, provider, 350, 48) == AOUT_BADLIBC,
+	provider.state_size = 48;
+	provider.identity[31] = 1;
+	check(xip_provider_check(&r, &provider, 2866) == AOUT_BADLIBC,
 	    "last provider digest byte differs");
 }
 

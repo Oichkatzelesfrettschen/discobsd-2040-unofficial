@@ -43,7 +43,17 @@ END(sigaction)
  * keeps no state: r0 and r1 are already in the sigcontext, and C
  * handlers preserve every other register.
  */
+#ifdef DISCOBSD_SHARED_LIBC
+/* The shared linker places the two SVC instructions directly in the public slot. */
+.section .text.sigtramp,"ax",%progbits
+.balign 4
+.thumb_func
+.global sigtramp
+.type sigtramp,%function
+sigtramp:
+#else
 ENTRY(sigtramp)
+#endif
 	svc	SYS_sigreturn		/* Attempt the sigreturn. */
 	svc	SYS_exit		/* Die if the sigreturn fails ... */
 END(sigtramp)

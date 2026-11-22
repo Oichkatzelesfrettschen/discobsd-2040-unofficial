@@ -125,7 +125,7 @@ def adapt(original, slots, state_names=()):
     return result, calls.keys(), data + bss + common, required
 
 
-def assembly(groups, calls, first):
+def assembly(groups, calls, first, slot_base):
     lines = [".syntax unified", ".thumb", ".text"]
     for ordinal, group in enumerate(groups, first):
         called = [name for name in group if name.encode() in calls]
@@ -137,7 +137,7 @@ def assembly(groups, calls, first):
             lines.extend(
                 [
                     "push {r3,r4}",
-                    f"ldr r3,={0x10020001 + 8 * ordinal}",
+                    f"ldr r3,={slot_base + 8 * ordinal}",
                     "str r3,[sp,#4]",
                     "pop {r3,pc}",
                     ".pool",
@@ -149,10 +149,9 @@ def assembly(groups, calls, first):
 STATE = "__xip_libc_state"
 
 
-def object_layout(image, record):
+def object_layout(source, record):
     from elftools.elf.elffile import ELFFile
 
-    source = image.read_bytes()
     require(
         hashlib.sha256(source).hexdigest() == record["slot_elf_sha256"],
         "state image digest differs",
@@ -206,6 +205,14 @@ def reservation(layout, size, padding):
 
 def link(inputs, state_image=None):
     record = json.loads(RECORD.read_text())
+    layout = {}
+    if state_image is not None:
+        source = state_image.read_bytes()
+        provider = json.loads(RECORD.with_name("compact-provider.json").read_text())
+        if hashlib.sha256(source).hexdigest() == provider["slot_elf_sha256"]:
+            record.update(provider)
+        layout = object_layout(source, record)
+    slot_base = 0x10020001 + record.get("slot_table_offset", 0)
     groups = record["slot_groups"]
     names = [name for group in groups for name in group]
     require(record["slot_width_bytes"] == 8 and all(groups), "invalid compact slot layout")
@@ -217,11 +224,10 @@ def link(inputs, state_image=None):
     require(set(names) == set(record["roots"]) - set(record["objects"]), "callable set differs")
     work = Path(tempfile.mkdtemp(prefix="native-slot-imports-", dir=ROOT / ".build-logs"))
     subprocess.run([TOOLS / "ld", "-T0", "-r", "-o", "prelink.o", *inputs], cwd=work, check=True)
-    layout = object_layout(state_image, record) if state_image is not None else {}
     state_names = {n.encode() for n in [*layout, STATE]} if layout else set()
     obj, calls, writable_bytes, required = adapt(
         (work / "prelink.o").read_bytes(),
-        {n.encode(): 0x10020001 + 8 * i for i, group in enumerate(groups) for n in group},
+        {n.encode(): slot_base + 8 * i for i, group in enumerate(groups) for n in group},
         state_names,
     )
     (work / "caller.o").write_bytes(obj)
@@ -230,7 +236,7 @@ def link(inputs, state_image=None):
         batch = groups[first : first + 64]
         if any(name.encode() in calls for group in batch for name in group):
             stem = f"imports-{first}"
-            (work / (stem + ".s")).write_text(assembly(batch, calls, first))
+            (work / (stem + ".s")).write_text(assembly(batch, calls, first, slot_base))
             subprocess.run([TOOLS / "as", stem + ".s", "-o", stem + ".o"], cwd=work, check=True)
             objects.append(stem + ".o")
     if layout:
@@ -256,7 +262,7 @@ def link(inputs, state_image=None):
         for name, (address, _, writable) in layout.items():
             expected = (base + address, "B") if writable else (address, "A")
             require(symbols.get(name) == expected, "final object binding differs: " + name)
-        prefix = max(((address - 0x10020001) // 8 + 1 for address in required), default=0)
+        prefix = max(((address - slot_base) // 8 + 1 for address in required), default=0)
         requirement = REQUIREMENT.pack(
             b"XREQ",
             1,

@@ -241,7 +241,7 @@ spi_clock(u_int scr)
 static u_int lcd_power_mode;		/* LCDG_PWR_* in force. */
 static u_int lcd_power_pending;		/* A mode change may have begun. */
 #ifdef LCD_BLANK
-static u_int lcd_slpout_at;		/* pc_micros() of st7365p_wake()'s SLPOUT. */
+static u_int lcd_slpout_at;		/* pc_micros() | 1 of st7365p_wake()'s SLPOUT. */
 #endif
 #endif
 
@@ -697,21 +697,27 @@ st7365p_wake(void)
 	lcd_command(CMD_SLPOUT);
 	lcd_deselect();
 	mdelay(5);
-	lcd_slpout_at = pc_micros();
+	lcd_slpout_at = pc_micros() | 1;
 	lcd_power_mode = LCDG_PWR_ON;
 	lcd_power_pending = 0;
 }
 
 /*
  * Whether SLPIN would come within page 163's 120 ms of st7365p_wake()'s
- * SLPOUT; every other SLPOUT waits 120 ms after itself. Once in each
- * 71-minute wrap of pc_micros() it answers yes for nothing, which costs
- * one needless wait.
+ * SLPOUT; every other SLPOUT waits 120 ms after itself. Zero means
+ * st7365p_wake() has yet to run. Once in each 71-minute wrap of
+ * pc_micros() it answers yes for nothing, which costs one needless wait.
  */
 int
 st7365p_sleep_early(void)
 {
-	return pc_micros() - lcd_slpout_at < 120000U;
+	/*
+	 * lcd_slpout_at can stand 1 us past the SLPOUT, so the time is taken
+	 * from 1 us before it: the difference stays forward, and the wait it
+	 * asks for runs at most 1 us longer than page 163's 120 ms.
+	 */
+	return lcd_slpout_at != 0 &&
+	    pc_micros() - (lcd_slpout_at - 1) <= 120000U;
 }
 #endif /* LCD_BLANK */
 

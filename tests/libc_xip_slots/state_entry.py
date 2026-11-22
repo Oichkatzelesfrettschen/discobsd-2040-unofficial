@@ -29,12 +29,11 @@
 import argparse
 import hashlib
 import io
-import json
 import struct
 from pathlib import Path
 
 from elftools.elf.elffile import ELFFile
-from envelope_imports import BASE, RECORD
+from envelope_imports import BASE, image_record
 from symbols import require, state_relocations
 
 
@@ -117,6 +116,5 @@ offsets:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", type=Path)
-    print(
-        initializer(parser.parse_args().image.read_bytes(), json.loads(RECORD.read_text())), end=""
-    )
+    source = parser.parse_args().image.read_bytes()
+    print(initializer(source, image_record(source)), end="")

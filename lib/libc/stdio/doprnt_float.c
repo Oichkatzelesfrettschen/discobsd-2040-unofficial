@@ -443,3 +443,9 @@ __doprnt_cvt (double number, int prec, int sharpflag, unsigned char *negp,
 	return decimal_cvt (number, prec, sharpflag, fmtch, startp, endp,
 		extrap);
 }
+
+#ifdef DISCOBSD_SHARED_LIBC
+/* The slot linker retains the implementation when it binds public function pointers. */
+extern __typeof__(__doprnt_cvt) __libc_impl___doprnt_cvt
+    __attribute__((alias("__doprnt_cvt"), visibility("hidden")));
+#endif

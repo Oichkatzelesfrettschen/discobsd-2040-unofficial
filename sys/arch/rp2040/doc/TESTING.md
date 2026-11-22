@@ -3552,7 +3552,12 @@ PicoCalc tile atlas and raw key events: a repaint of the 40 by 40 grid, a
 sideways pan and a one-row vertical scroll through `games/gametile.h`, each
 timed beside its bus-time prediction; a board run needs the owner's opt-in),
 textcrc (packed executable
-text restoration), swapmaptest (the swap map read through sysctl(3), each
+text restoration), stackchain (kernel stack chains; its `exec` and
+`execplain` stages end a traced child with PT_KILL while execve closes a
+close-on-exec terminal whose output is stopped, the case in which a close
+made under the executable's inode lock left the swapper asleep on that lock:
+the stage must print `stage_ok=1` and the shell must answer afterwards, on a
+board whose console is not /dev/tty0), swapmaptest (the swap map read through sysctl(3), each
 free run held inside the device between SWAP_IMAGE_ALIGN and vm.nswap),
 evactest (SwapRAM evacuation). None of these is in the root manifest:
 stage one with a `file /usr/bin/<name>` line in distrib/rp2040/mi.rp2040

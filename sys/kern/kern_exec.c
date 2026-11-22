@@ -49,8 +49,13 @@ exec_finish(struct exec_params *epp, struct inode *ip)
      * the interpreter's by exec_script_check() and the named file's above,
      * so the closes that exec_clear() left pending may sleep.
      */
-    if (close_pending)
+    if (close_pending) {
+        int error = u.u_error;
+
+        /* The exec has succeeded; an interrupted close does not fail it. */
         fdcloseexec();
+        u.u_error = error;
+    }
 }
 
 /*

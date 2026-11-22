@@ -131,3 +131,35 @@ Instruction execution establishes functional behavior for the exercised fixtures
 with no kernel, cycle, MPU or physical-board claim. The mechanism uses established
 ELF aliases, relocation and Thumb calls; novelty stays limited to their verified
 composition under the DiscoBSD ABI.
+
+## Import symbols for the 33-program member envelope
+
+The diagnostic image in `shipped-member-envelope.json` assigns 368 function
+names to 350 eight-byte slots. Its public ELF symbols point to implementation
+entries. A separately linked application obtains its callable addresses from
+`imports.elf`. Each exported name has ELF type STT_FUNC, an eight-byte extent,
+and the Thumb address of its slot. Aliases share that address. The import file
+contains only the recorded callable names. The 27 object names still require
+the process-state ABI.
+
+Run the following commands from the repository root. Set `REPLAY` to the
+qualified PIC replay directory and `LINK` to a fresh path under `.build-logs`.
+The first command produces the startup fixture and linker template. The second
+prints the directory containing the compact image, link map, and import file.
+
+```sh
+export PYTHON=${PYTHON:-python3}
+"$PYTHON" docs/research/xip-shared-libc/export-closure/link-pic-envelope.py \
+    --replay "$REPLAY" --output "$LINK"
+"$PYTHON" tests/libc_xip_slots/relink_envelope.py "$REPLAY/libc-pic.a" "$LINK"
+```
+
+The replay checks the input archive, startup fixture, linker template and final
+image digests. It decodes each slot's target halfword, compares it with every
+implementation alias, and verifies the exact import symbol set after stripping.
+Pass the resulting file to the application linker with `--just-symbols=imports.elf`.
+A Cortex-M0 model executed four direct and indirect SRAM caller invocations of
+`rand` across two process states. Importing the image's implementation address
+instead caused the application pointer check to fail. This experiment covers
+application-side identity for that caller. Production slot numbering, internal
+library references and native a.out loading require separate verification.

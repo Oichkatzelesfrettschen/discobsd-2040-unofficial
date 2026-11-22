@@ -174,9 +174,11 @@ Gaps, each with its route:
    board. Route: answer 2Eh from the model's frame store in
    `tools/renode/picocalc/st7365p.cs`; a Renode stage can then compare a
    capture with the host render.
-3. Reads run at 3.125 MHz against the 6.67 MHz the 150 ns read cycle allows
-   (page 54). Prediction: SCR 9 (6.25 MHz) halves a capture; falsifier: a
-   read-back with any pixel different.
+3. Reads run at 3.125 MHz (`LCD_READ_SCR` 19) against the 6.67 MHz the
+   150 ns read cycle allows (page 54). `PICOCALC.md` records the prediction
+   for SCR 9 before any board run: the wire time halves, and a 55h read-back
+   of the 153,600 memory pixels takes 0.66 to 0.81 s against 1.32 s
+   measured; a read-back with any pixel different keeps SCR 19.
 
 The read-back is the oracle for every stage below: the host build of i86
 renders a guest frame into RGB565 with the same palette, the board draws

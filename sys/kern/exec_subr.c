@@ -473,8 +473,11 @@ int exec_estab(struct exec_params *epp)
      * Allocate core at this point, committed to the new image.
      */
     u.u_prof.pr_scale = 0;
-    if (u.u_procp->p_flag & SVFORK)
+    if (u.u_procp->p_flag & SVFORK) {
         endvfork();
+        /* endvfork() ends with SLOCK clear; execve() holds it to its end. */
+        u.u_procp->p_flag |= SLOCK;
+    }
     u.u_procp->p_dsize = epp->data.len + epp->bss.len;
     u.u_procp->p_daddr = (size_t)epp->data.vaddr;
     u.u_procp->p_ssize = epp->stack.len;

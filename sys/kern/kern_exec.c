@@ -42,6 +42,7 @@ exec_finish(struct exec_params *epp, struct inode *ip)
     exec_alloc_freeall(epp);
     if (ip != NULL)
         iput(ip);
+    u.u_procp->p_flag &= ~SLOCK;
     if (terminate)
         exit(SIGKILL);
     /*
@@ -172,6 +173,16 @@ execve(void)
             eparam.gid = ip->i_gid;
     }
 
+    /*
+     * A process stays resident from here until exec_finish() releases the
+     * inode. Its sleeps in between are the disk reads of the image, made
+     * with the executable's inode locked and a cache buffer of the file
+     * busy; swapped out there, it could only come back through the
+     * swapper, whose exec_text_restore() takes that lock and those
+     * buffers to read the text of this process once p_tip names the inode,
+     * and of every other process that runs the same file.
+     */
+    u.u_procp->p_flag |= SLOCK;
     eparam.ip = ip;
     if ((error = exec_check(&eparam)))
         u.u_error = error;

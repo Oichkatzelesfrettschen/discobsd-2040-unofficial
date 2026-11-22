@@ -2,8 +2,7 @@
 
 Each expected value is read from the document that states it, and the code
 or the model is compared with it. A disagreement between a document and the
-code is a finding: the test reports it through pytest.xfail with both
-statements, and neither file is edited to match.
+code is a finding: the test fails with both statements.
 """
 
 import re

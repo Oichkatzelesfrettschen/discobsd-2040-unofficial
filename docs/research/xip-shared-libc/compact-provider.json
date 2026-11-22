@@ -1,0 +1,13 @@
+{
+  "capture_commit": "cbdfda2871159c17704515d1735f7cb3c5dd354e",
+  "inline_trampoline": "sigtramp",
+  "pic_archive_sha256": "8f0c8a37b5f3c939a4ae9787da40beb752b26a6df3f073c7c44779a7350ca022",
+  "slot_elf_sha256": "558b2435fd6b0d314fd24943a6ac51e8416522e7f2e1c5855de1c77b63e4a9d2",
+  "package_sha256": "49df6a9afb9ac565cda6ada4c180c0de6bf6550aaa3a668804e36bc180a45008",
+  "slot_table_offset": 64,
+  "implementation_owners": {
+    "fclose": "__libc_impl_fclose",
+    "fflush": "__libc_impl_fflush",
+    "__doprnt_cvt": "__libc_impl___doprnt_cvt"
+  }
+}

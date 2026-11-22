@@ -617,7 +617,8 @@ graphic_refresh(void)
  * (LCDG_READ, kernels with LCD_GFX_EXT) into a binary PPM at
  * gfx_capture_path: each of the 320 glass lines from the memory line the
  * scroll area puts there, after the owed lines are sent. Returns 0, 1 when
- * there is no path or panel, and -1 when the device or the file fails.
+ * gfx_capture_path is null or the panel is closed, and -1 when the device
+ * or the file fails.
  */
 int
 gfx_capture(void)

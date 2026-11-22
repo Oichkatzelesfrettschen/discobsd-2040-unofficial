@@ -180,6 +180,26 @@ terminal drain, with a large unlinked file open and the root near its
 garbage-collection threshold) and reads `kern.capacity` afterwards.
 PICO_DIAG's own bound is in the next table.
 
+That run was made on a bare Pico on 2026-11-22 with PICO_DIAG built from
+the tree of pull request 932 and the `exec` stage of
+`tests/rp2040/stack_chain`. The first attempt, on the kernel before that
+pull request, measured nothing: the kill left the swapper asleep on the
+executable's inode lock and scheduling stopped, which is the defect the
+pull request removes by closing the close-on-exec descriptors after
+`execve` releases the inode. On the repaired kernel the stack watermark
+read 1,392 of 2,048 bytes after login, 1,552 after three journal churn
+rounds and an exit holding an unlinked file behind three indirection
+levels, and 1,688 after the `exec` stage (child stopped by the trace
+signal, killed, dead by signal; three runs alike), with 360 bytes untouched
+and the saturation flag clear. The watermark stays 736 bytes under the
+2,424-byte bound. Two conditions limit what that shows. The table predates
+the repair, and the repair takes the terminal close out from under
+`execve`'s frames, so the modeled chain that ends in that close is no
+longer in the kernel that was measured; `stack_chain.py` on the repaired
+ELF gives the bound to compare. And the run did not confirm that a Dhara
+garbage collection ran under the chain, which is the 800-byte tail of the
+model.
+
 ### The other configurations
 
 `stack/configs.tsv` holds one row per configuration and stack, and

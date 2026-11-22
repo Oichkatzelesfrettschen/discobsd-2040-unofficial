@@ -22,6 +22,8 @@ install:	all
 clean:
 		rm -f *~ *.o ${PROG}
 
+elf2aout.o: elf2aout.c ../../sys/sys/exec_xip.h ../../sys/sys/exec_aout.h
+
 $(PROG):	$(OBJS)
 		$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 

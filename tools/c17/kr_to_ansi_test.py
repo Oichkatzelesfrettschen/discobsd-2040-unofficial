@@ -28,7 +28,7 @@ The known-good fixture holds nine definitions the converter must rewrite
 (identifier lists, a register parameter, an array parameter, an empty list, an
 implicit-int parameter, a sized array parameter whose declarator has digits, and
 conditional arms that open two headers on one shared body). Its output must
-equal the expected text exactly, a second run must change nothing, the host
+equal the expected text exactly, a second run must leave the output unchanged, the host
 compiler must accept the output under -Werror=old-style-definition and
 -Werror=strict-prototypes, and the
 .text section of the output must equal the .text section of the input

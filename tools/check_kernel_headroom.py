@@ -14,7 +14,7 @@ overflow. Headroom is the region length less that span. The tool exits 0 when
 every kernel keeps at least MARGIN bytes, 1 when one falls below it, and 2 when
 an input cannot be read or does not describe a kernel. ld bounds .text and
 .data by the FLASH region, but the .ramfunc initializers load at an AT()
-expression that names no region (conf/kern.ldscript), so a kernel can link with
+expression that omits a region (conf/kern.ldscript), so a kernel can link with
 its .ramfunc image past the end of FLASH; the span measured here includes them.
 The gate also reports the kernels that link with less room than a further
 feature or a different compiler needs.

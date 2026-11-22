@@ -45,7 +45,7 @@
 #include <stdio.h>
 
 #define NODEV   ((dev_t)-1)
-/* "dumps on none": the kernel takes no crash dump; dumpdev is NODEV. */
+/* "dumps on none": the kernel skips the crash dump; dumpdev is NODEV. */
 #define NODUMP  ((dev_t)-2)
 
 struct file_list {

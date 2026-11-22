@@ -5,7 +5,7 @@
 # Candidates, in order: PICO_SDK_PATH, the tree's own fetched copy under
 # tools/pico-sdk/vendor/pico-sdk, a pico-sdk checked out beside this
 # repository in the same workspace, and the paths a distribution package
-# installs to. The first three carry no absolute path, so a checkout moves
+# installs to. The first three are relative paths, so a checkout moves
 # without editing anything.
 #
 # The packaged paths are named because a package that installs the SDK also
@@ -37,7 +37,7 @@ usable() {
 	[ -n "${1:-}" ] && [ -f "$1/pico_sdk_init.cmake" ] && [ -f "$1/$SENTINEL" ]
 }
 
-# A wrong guess among the packaged paths costs nothing: usable() rejects
+# A wrong guess among the packaged paths costs zero: usable() rejects
 # anything without both pico_sdk_init.cmake and the sentinel.
 SYSTEM_PATHS="/usr/share/pico-sdk /usr/local/share/pico-sdk /opt/pico-sdk"
 

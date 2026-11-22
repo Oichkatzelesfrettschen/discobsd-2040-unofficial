@@ -130,7 +130,7 @@ def source_defects(root, directories):
             except OSError as error:
                 raise Unreadable(f"{path}: {error.strerror}") from error
             # A string or character literal is consumed first, so a comment
-            # delimiter inside one starts no comment; its text is not a use.
+            # delimiter inside one never starts a comment; its text is not a use.
             # Each comment becomes its own newlines, keeping line numbers.
             text = LEXEME.sub(blank, text)
             for number, line in enumerate(text.splitlines(), 1):

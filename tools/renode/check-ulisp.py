@@ -37,7 +37,7 @@ workspace taken with the kernel's break, the directory read, the timer,
 the tty with its interrupt character, signal delivery for a fault the MPU
 raises, and a second process that loads the first one's image.
 
-The kernel has no PicoCalc device, so the drawing, pin and analogue
+The kernel lacks a PicoCalc device, so the drawing, pin and analogue
 functions are held to their error messages; no panel, key or sound code
 runs here.
 """

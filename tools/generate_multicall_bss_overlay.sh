@@ -42,7 +42,7 @@ trap 'exit 143' TERM
 	    '  .app_bss_extent __app_bss_start (NOLOAD) : { . = __app_bss_end - __app_bss_start; }' \
 	    '}'
 	# NOCROSSREFS relates sibling applets, so a binary that carries one
-	# applet has no pair to forbid.
+	# applet lacks a pair to forbid.
 	if [ "$#" -gt 1 ]; then
 		printf 'NOCROSSREFS('
 		for object_path do

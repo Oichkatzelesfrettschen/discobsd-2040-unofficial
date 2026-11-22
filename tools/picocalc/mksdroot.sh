@@ -124,7 +124,7 @@ sed 's/^\(tty0[[:space:]].*[[:space:]]\)off[[:space:]][[:space:]]*secure$/\1on i
 # The PICOCALC_SD kernel (options LCD_VT) has two consoles on the console's
 # character major: ttyv0 is minor 0, the device /dev/console names, and ttyv1
 # is minor 2. The getty of ttyv1 runs here and only here, because the
-# flash-root kernels have no ttyv1; ttyv0 keeps the console's getty and gets
+# flash-root kernels lack ttyv1; ttyv0 keeps the console's getty and gets
 # a node so that both consoles have a name of the same form.
 printf 'ttyv1\t"/usr/libexec/getty std.default"\txterm\ton insecure\n' >> "$WORK/ttys"
 cp "$WORK/ttys" "$WORK/tree/etc/ttys"

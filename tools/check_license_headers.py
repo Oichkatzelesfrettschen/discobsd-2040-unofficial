@@ -43,7 +43,7 @@ etc/COPYRIGHT, and checks each tracked file whose first lines hold a
   "1.") are not words; wrapping and spacing are not either.
 
 NOTICE and etc/COPYRIGHT are the reference, never subjects. A file that
-mentions the holder in prose (a document, an instruction file) has no
+mentions the holder in prose (a document, an instruction file) lacks a
 copyright line at the head of a line and is outside the population.
 
 Exit status: 0 every header matches, 1 a header differs (each named with its

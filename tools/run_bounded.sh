@@ -313,7 +313,7 @@ selftest() {
 		fi
 		echo "mutant rejected: $label (scenario $expected)"
 	}
-	# BSD sed (macOS) reads no \t in an expression: the tab is a character here.
+	# BSD sed (macOS) reads \t literally in an expression: the tab is a character here.
 	tab=$(printf '\t')
 	mutant 'no time bound' 's/"\$bound" -k 1 "\$secs" sh -c/sh -c/' descendant
 	mutant 'no output bound' 's/head -c "\$cap"/cat/' failing-loudly-stdout

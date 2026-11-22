@@ -10,7 +10,7 @@
 # success, skipped or neutral (failure, timed_out, cancelled,
 # startup_failure, action_required, ...) prints one line: its name, then
 # the names of its steps that ended the same way. A run with no such job
-# prints nothing.
+# prints zero lines.
 #
 # Without arguments the script reads GITHUB_REPOSITORY, GITHUB_RUN_ID,
 # GITHUB_SHA and GITHUB_SERVER_URL, and calls gh with GH_TOKEN (issues:

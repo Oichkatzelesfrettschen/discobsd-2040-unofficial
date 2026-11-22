@@ -5,7 +5,7 @@ with -g twice, with the route's DEBUG_PATH_MAP and with it emptied: the
 mapped object must carry DWARF without the checkout path, the unmapped one
 must carry the path (the control that shows the probe can see it), and the
 two must match once their debug sections are stripped, so the mapping
-changes no instruction.
+leaves every instruction unchanged.
 
 The assembler route is lib/libc_aout/libc's ${CC} ${ASFLAGS}, which puts
 the tree's Thumb assembler ahead of the cross toolchain's with -B. GCC

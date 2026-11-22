@@ -33,7 +33,7 @@
 #
 #   apt-get update                    bounded, retried
 #   apt-get install --download-only   bounded, retried; a killed download
-#                                     leaves no dpkg state, and apt resumes the
+#                                     leaves dpkg state untouched, and apt resumes the
 #                                     partial archive on the next attempt
 #   apt-get install                   unbounded here, from the local archives
 #                                     (the step's timeout-minutes covers it)
@@ -48,7 +48,7 @@
 # privilege prefix (default sudo, empty in a root container); CI_APT_GET names
 # the apt-get command. CI_APT_ARCHIVES, an absolute path without blanks, is the
 # directory apt keeps its .deb files in (Dir::Cache::archives): the workflow
-# restores and saves it with actions/cache, so a package already there needs no
+# restores and saves it with actions/cache, so a package already there skips its
 # download. The bound command is timeout(1), or gtimeout(1).
 set -eu
 
@@ -262,7 +262,7 @@ FAKE
 		fi
 		echo "mutant rejected: $label (scenario $expected)"
 	}
-	# BSD sed (macOS) reads no \t in an expression: the tab is a character here.
+	# BSD sed (macOS) reads \t literally in an expression: the tab is a character here.
 	tab=$(printf '\t')
 	mutant 'phase without the time bound' 's/\$bound -k "\$kill_after" "\$seconds" //' stalled-download
 	mutant 'phase without a kill after the first signal' 's/ -k "\$kill_after"//' term-ignored

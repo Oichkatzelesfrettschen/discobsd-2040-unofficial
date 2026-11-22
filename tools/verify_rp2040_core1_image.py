@@ -13,8 +13,8 @@ ring handler), the verifier follows every direct call and requires that
   - the only indirect call is the ring consumer's call of its handler, whose
     address is one of those literals.
 
-A kernel configured without the core 1 option has none of the entry
-symbols and is reported as carrying no image. The exit status is 0 when
+A kernel configured without the core 1 option lacks all of the entry
+symbols and is reported as lacking an image. The exit status is 0 when
 every image named holds, 1 on a finding, 2 on a malformed input.
 """
 

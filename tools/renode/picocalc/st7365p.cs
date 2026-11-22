@@ -17,7 +17,7 @@
  * What it decodes: CASET, RASET, RAMWR, RAMWRC, VSCRDEF, VSCSAD, MADCTL,
  * COLMOD, SLPIN, SLPOUT, INVON, INVOFF, DISPON, DISPOFF and SWRESET. The
  * gamma, power, VCOM and timing commands st7365p.c sends during bring-up
- * have no effect on the pixel image and are counted but not interpreted.
+ * leave the pixel image unchanged and are counted but not interpreted.
  * The image shown is the graphics RAM as written: MADCTL MX and BGR and the
  * INVON polarity compensate the board's panel wiring and are recorded in
  * the dump header instead of being applied, and MADCTL MV (row/column
@@ -395,7 +395,7 @@ namespace Antmicro.Renode.Peripherals.SPI
                 data = new byte[] { (byte)(inverted ? 0x20 : 0) };
                 break;
             case 0x0e:  /* RDDSM: no TE line, no RGB interface signals (page 160). */
-            case 0x0f:  /* RDDSDR: 00h after any reset (page 162); the self-diagnostic result after SLPOUT has no stated polarity, so the model keeps 00h. */
+            case 0x0f:  /* RDDSDR: 00h after any reset (page 162); the self-diagnostic result after SLPOUT lacks a stated polarity, so the model keeps 00h. */
                 data = new byte[] { 0x00 };
                 break;
             default:    /* RDID1, RDID2, RDID3: FFh (pages 215 to 217). */

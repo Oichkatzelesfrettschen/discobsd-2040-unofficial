@@ -93,7 +93,7 @@ fi
 
 mkdir -p "$OUTPUT"
 
-# A decoder that cannot tell a good frame from a bad one reports nothing.
+# A decoder that cannot tell a good frame from a bad one is blind.
 "$PYTHON" -I "$SCRIPT_DIR/picocalc_fb.py" --self-test
 
 # The same holds for the Status-line assertions: a sleeping panel must fail.
@@ -105,7 +105,7 @@ mkdir -p "$OUTPUT"
 # The driver exits 1 on a failed assertion and 2 when the emulator stops
 # answering; both end the gate, but the log is worth reading either way.
 status=0
-# -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
+# -u: tools/run_logged_gate.py ends a run that prints zero bytes for its idle
 # limit, and Python block-buffers a piped stdout until exit, so every
 # stage line must reach the log as it is printed.
 if [ -n "$DUMP" ]; then

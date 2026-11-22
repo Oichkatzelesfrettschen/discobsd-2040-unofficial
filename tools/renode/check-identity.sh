@@ -53,7 +53,7 @@ echo "check-identity: Renode ${RUNNING_RENODE:-unknown}"
 
 mkdir -p "$OUTPUT"
 "$PYTHON" -I "$SCRIPT_DIR/renode_monitor.py" --self-test
-# -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
+# -u: tools/run_logged_gate.py ends a run that prints zero bytes for its idle
 # limit, and Python block-buffers a piped stdout until exit, so every
 # stage line must reach the log as it is printed.
 "$PYTHON" -I -u "$SCRIPT_DIR/check-identity.py" renode "$KERNEL" "$IMAGE" "$OUTPUT"

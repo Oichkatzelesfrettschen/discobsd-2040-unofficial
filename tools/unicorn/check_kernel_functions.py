@@ -324,8 +324,8 @@ def decode_case(emu: KernelEmulator, case, data, check_output: bool) -> None:
             calls += 1
             expect(calls <= MAX_CALLS, f"the decode of one stream passed {MAX_CALLS} calls")
             if session.run(room, check_output) < room:
-                # A stall leaves no whole token in the chunk, so a second
-                # call on the same chunk produces nothing.
+                # A stall leaves zero whole tokens in the chunk, so a second
+                # call on the same chunk produces zero bytes.
                 if data.draw(st.booleans(), label="call again") and session.space():
                     again = session.run(session.space(), check_output)
                     expect(again == 0, f"{again} bytes from a chunk that had stalled")
@@ -511,7 +511,7 @@ def prop_expand(emu: KernelEmulator):
             ):
                 # Once dst holds rlen bytes, hsx_expand decodes on into the
                 # window to find a token past the promised length; the
-                # window then holds no output, and any byte it produces
+                # window then holds zero output, and any byte it produces
                 # fails the stream whatever the history it read. Nothing
                 # else may read an undefined byte.
                 probing = bool(dst) and high[0] == dst + rlen
@@ -768,7 +768,7 @@ def main() -> int:
     known = [p[0] for p in PROPERTIES]
     unknown = [name for name in args.only if name not in known]
     if unknown:
-        # A filter that selects nothing would report success over zero
+        # A filter that selects zero properties would report success over zero
         # properties; every requested name must name a property.
         parser.error(
             f"--only names no property: {', '.join(repr(n) for n in unknown)}; "

@@ -21,7 +21,7 @@ import test_execution as execution
 # The process-group timeout tests start Python twice (a supervisor, then the
 # descendant that installs a SIGTERM handler) before the timeout must reach
 # them. A loaded macOS runner has taken longer than 0.2 s for that, and a
-# descendant killed before its handler exists writes no marker; two seconds
+# descendant killed before its handler exists writes zero markers; two seconds
 # covers the start-up while still ending long before the descendant's 60 s.
 STARTUP_BOUND_SECONDS = 2.0
 
@@ -911,7 +911,7 @@ class ExecutionTest(unittest.TestCase):
         good = subprocess.run(["sh", str(probe), "native", *compiler],
                               text=True, capture_output=True, check=True)
         self.assertEqual(good.stdout.strip(), "yes")
-        # A successful compiler command that produces no executable is insufficient.
+        # A successful compiler command that produces zero executables is insufficient.
         absent = subprocess.run(["sh", str(probe), "ilp32", shutil.which("true")],
                                 text=True, capture_output=True, check=True)
         self.assertEqual(absent.stdout.strip(), "no")
@@ -1194,7 +1194,7 @@ class ExecutionTest(unittest.TestCase):
 
 
 class HarnessLaunchOwnershipTest(unittest.TestCase):
-    """SIGTERM of a harness driver must leave no process group of its children.
+    """SIGTERM of a harness driver must leave zero process groups of its children.
 
     Each mutation or case harness that starts children in a new session
     launches them through test_execution.run_owned. The driver below imports a

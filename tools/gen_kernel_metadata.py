@@ -78,7 +78,7 @@ def name_overlap(left: bytes, right: bytes) -> int:
 def pack_names(names: list[bytes]) -> tuple[bytes, list[int]]:
     """Return a string that contains every name, and each name's offset.
 
-    The names carry no terminator, so one name can lie inside another or
+    The names lack a terminator, so one name can lie inside another or
     across the seam of two more. Names inside other names are dropped, then
     the pair with the longest suffix-prefix overlap merges until no pair
     overlaps: the maximum-overlap greedy construction for the shortest

@@ -86,8 +86,8 @@ static void put_address(uint8_t *tx, uint32_t offset) {
     tx[3] = (uint8_t)offset;
 }
 
-// Reads count bytes at offset with the plain 0x03 read, which needs no dummy
-// byte and no XIP cache flush.
+// Reads count bytes at offset with the plain 0x03 read, which needs zero dummy
+// bytes and zero XIP cache flushes.
 static void read_data(uint32_t offset, uint8_t *out, size_t count) {
     static uint8_t tx[1 + ADDRESS_BYTES + SECTOR_BYTES];
     static uint8_t rx[1 + ADDRESS_BYTES + SECTOR_BYTES];

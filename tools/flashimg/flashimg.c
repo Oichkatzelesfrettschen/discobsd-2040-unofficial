@@ -28,7 +28,7 @@
  * resumes it as a map it wrote itself.
  *
  * Every unit Dhara maps is live: garbage collection copies it forward for
- * the life of the map. A free block of a 2.11BSD filesystem holds nothing
+ * the life of the map. A free block of a 2.11BSD filesystem holds zero bytes
  * the system reads before it is allocated and overwritten, except the
  * blocks that chain the free list, so those free blocks are left unwritten
  * and read back as 0xff (dhara_map_read). Every other unit, the partition

@@ -145,7 +145,7 @@ class GeneratedSyncTest(unittest.TestCase):
             sync.check(self.root)
 
     def test_diagnostic_variant_carrying_the_panel_test_is_rejected(self):
-        # LEAN_DIAG has no /dev/lcdgfx for the panel test to run through.
+        # LEAN_DIAG lacks /dev/lcdgfx for the panel test to run through.
         self.mutate(sync.COMPILE / "PICOCALC_LEAN_DIAG/Config", self.PSRAM_LINE,
                     self.PSRAM_LINE + self.PANEL_LINE)
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_LEAN_DIAG: Config must equal"):

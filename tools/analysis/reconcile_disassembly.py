@@ -7,7 +7,7 @@ Capstone, and cross-checks the resulting instruction-start address set
 against `arm-none-eabi-objdump` and `llvm-objdump`, plus a LIEF section and
 mapping-symbol reparse. The RP2040 stage-2 bootloader (.boot2, a fixed
 0xCC-byte code prologue trailed by data) is treated as a special case since
-it carries no mapping symbols of its own.
+it lacks mapping symbols of its own.
 
 Inputs: the linked ELF (the built kernel at
 sys/arch/rp2040/compile/PICO/unix) and a second ELF wrapping just the boot2

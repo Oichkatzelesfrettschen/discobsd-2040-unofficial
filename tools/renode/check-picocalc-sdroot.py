@@ -50,7 +50,7 @@ Cases, each a fresh emulator:
   tmp       a card with an 8 MiB type-ba entry in slot 4: rc makes
             a file system on /dev/sd0t and `mount` shows it on /tmp, where
             mkfs's lost+found and a written file are visible; the sdroot
-            case above shows no /tmp mount for a card without the entry
+            case above shows zero /tmp mounts for a card without the entry
   nob7      the same card with its b7 entry retyped 83 stops with the
             panic line naming the missing partition
 
@@ -437,7 +437,7 @@ def case_root(renode_path, kernel, flash, root_img, outdir, start, reason):
 def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
     """The card holds a type-ba entry in slot 4: /etc/rc.rp2040 makes a file
     system on /dev/sd0t and mounts it at /tmp, which then holds files.
-    sdswapattach() finds no PSRAM to widen here (the Renode model has none),
+    sdswapattach() finds zero PSRAM to widen here (the Renode model lacks it),
     so the swap size on the PSRAM stays unobserved."""
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")

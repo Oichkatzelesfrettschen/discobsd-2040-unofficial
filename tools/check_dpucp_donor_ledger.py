@@ -47,8 +47,8 @@ EXPECTED_REPOSITORIES = {
         "25b8a3ff7ad21b426214964eb91786f63e34e5a4",
     ),
 }
-# Candidates whose mechanism lives in headers alone and selects no archive
-# member; every other candidate names the members its footprint links.
+# Candidates whose mechanism lives in headers alone and selects zero archive
+# members; every other candidate names the members its footprint links.
 HEADER_ONLY_CANDIDATES = frozenset({
     "libc-descriptor-set-initialization",
     "libc-public-time-type-owners",
@@ -2449,7 +2449,7 @@ def validate_document(root, document, requirement_ids):
         require(any(source["repository"] == candidate["repository"] for source in sources),
                 f"primary repository lacks source: {candidate_id}")
         archive_members = candidate["archive_members"]
-        # A header-only mechanism selects no archive member, and only a
+        # A header-only mechanism selects zero archive members, and only a
         # candidate named in HEADER_ONLY_CANDIDATES may; its caller footprint
         # still requires matched resource qualification.
         require(

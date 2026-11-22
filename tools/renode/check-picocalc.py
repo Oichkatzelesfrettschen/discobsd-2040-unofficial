@@ -818,7 +818,7 @@ def sampling_failures(wait_banner: typing.Optional[Callable[[Run], object]] = No
 
     The line is on the panel for 0.3 virtual seconds and starts anywhere in the
     first two seconds. A wait on the current frame at SLICE_SECONDS steps (wait_for) must
-    pass for a window that holds a sample and fail for one that holds none, which
+    pass for a window that holds a sample and fail for one that holds zero samples, which
     proves the windows can miss; the wait under test (wait_seen unless a caller
     supplies the wait its cases use) must pass for every start."""
     def coarse(run: Run) -> object:

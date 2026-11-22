@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fetch and build the third-party Renode RP2040 peripheral models.
 #
-# Renode's own distribution (renode-bin 1.17.0, from the AUR) ships no
+# Renode's own distribution (renode-bin 1.17.0, from the AUR) lacks an
 # RP2040 or Raspberry Pi Pico platform: 'find /opt/renode -iname "*rp2040*"'
 # turns up nothing but litex_picorv32 and picosoc. The RP2040 model used by
 # this port comes from a separate project, matgla/Renode_RP2040, pinned by

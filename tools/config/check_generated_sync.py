@@ -148,7 +148,7 @@ def option_lines(path):
 def check_variant_delta(root):
     """Hold a variant Config to its base Config plus the variant's own lines.
 
-    config(8) has no include directive, so each variant repeats its base. The
+    config(8) lacks an include directive, so each variant repeats its base. The
     comparison is by directive: the board line carries the variant's name and
     the listed directives are the only additions and removals. A removal the
     base Config does not carry is refused, so a variant cannot name a cut

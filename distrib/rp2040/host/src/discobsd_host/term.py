@@ -66,6 +66,7 @@ class Escape:
                 out.append(b)
         return bytes(out), action
 
+
 # Windows msvcrt reports an extended key as a 0x00 or 0xE0 prefix byte and
 # a scan code; the board expects the VT100 sequences a real terminal sends.
 WIN_KEYS = {

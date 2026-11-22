@@ -92,7 +92,7 @@ conflict. Both installed readline headers parse under all eight profiles.
 
 The regression controls predict that a missing readline header, changed
 installed bytes, or a substitute symlink fails staged ownership. A nested
-header with a forced diagnostic records no declarations, even when Clang
+header with a forced diagnostic records zero declarations, even when Clang
 emits a partial AST. A missing witness, a truncated combined input, and a
 driver failure also fail calibration.
 

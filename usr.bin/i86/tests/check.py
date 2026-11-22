@@ -126,11 +126,12 @@ MUTANTS = [
     ("clock.c", "n = k * CLK_PIT_HZ + *rem;", "n = k * CLK_PIT_HZ;"),
     (
         "clock.c",
-        "unsigned cap = period ? CLK_CREDIT_CLOCKS / period + 1 : 0;",
+        "unsigned cap = period ? (CLK_CREDIT_CLOCKS - 1) / period + 1 : 0;",
         "unsigned cap = period ? CLK_CREDIT_CLOCKS / period : 0;",
     ),
     ("clock.c", "\tif (cap < CLK_TICKS_MIN)\n\t\tcap = CLK_TICKS_MIN;\n", ""),
     ("clock.c", "return (due < cap ? due + 1 : due);", "return (due + 1);"),
+    ("clock.c", "(CLK_CREDIT_CLOCKS - 1) / period + 1", "CLK_CREDIT_CLOCKS / period + 1"),
     ("pc.c", "c->ip -= 3;\n\t\t\t\tc->fl |= F_IF;", "c->ip -= 3;"),
     (
         "pc.c",

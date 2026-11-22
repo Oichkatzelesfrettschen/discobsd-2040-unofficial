@@ -148,8 +148,8 @@ owe(void)
 	want("owe: 1 kHz keeps no more", fill(1193, 30), 21);
 	want("owe: 1 kHz below the bound counts each", fill(1193, 7), 7);
 	want("owe: 18.2 Hz keeps four", fill(65536, 30), 4);
-	want("owe: a 5 ms period keeps five", fill(5966, 30), 5);
-	want("owe: the fastest count keeps 20 ms of them", fill(1, 30000), 23865);
+	want("owe: a period dividing the credit keeps its quotient", fill(5966, 30), 4);
+	want("owe: the fastest count keeps 20 ms of them", fill(1, 30000), 23864);
 	want("owe: a zero period keeps four", fill(0, 9), 4);
 }
 

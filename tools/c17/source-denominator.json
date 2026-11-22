@@ -73666,7 +73666,8 @@
         "required_mode": "gnu17-freestanding",
         "extension_policy": "localized-gnu",
         "extension_signals": [
-          "gnu-attribute"
+          "gnu-attribute",
+          "inline-assembly"
         ],
         "risk_family": "kernel-syscall",
         "risk_tier": "T1",
@@ -73674,7 +73675,9 @@
         "hazard_basis": "lexical-candidates-v1",
         "hazards": {
           "aliasing": [],
-          "inline_assembly": [],
+          "inline_assembly": [
+            "inline-assembly"
+          ],
           "integer": [],
           "object_lifetime": [],
           "pointer": [],

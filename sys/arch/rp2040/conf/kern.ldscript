@@ -314,15 +314,17 @@ SECTIONS {
 	     __usb_tx_ring_end <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)) : 1,
 	    "usb_tx_ring is not inside the SRAM4/SRAM5 scratch banks")
 	/*
-	 * A SWAP_EXCHANGE_SCRATCH kernel (sys/kern/vm_swap.c) puts the whole
-	 * 4,096-byte exchange sector, word aligned, in the scratch banks; any
-	 * other kernel leaves the span empty.
+	 * A SWAP_EXCHANGE_SCRATCH kernel (sys/kern/vm_swap.c), which defines
+	 * swap_exchange_scratch_configured, puts the whole 4,096-byte exchange
+	 * sector, word aligned, in the scratch banks; any other kernel leaves
+	 * the span empty.
 	 */
-	ASSERT(__swap_exchange_scratch_end == __swap_exchange_scratch_start ||
+	ASSERT(DEFINED(swap_exchange_scratch_configured) ?
 	    (__swap_exchange_scratch_end - __swap_exchange_scratch_start == 4096 &&
 	     (__swap_exchange_scratch_start & 3) == 0 &&
-	     __swap_exchange_scratch_end <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)),
-	    "the swap exchange sector in .scratch must be 4,096 aligned bytes inside SCRATCH")
+	     __swap_exchange_scratch_end <= ORIGIN(SCRATCH) + LENGTH(SCRATCH)) :
+	    __swap_exchange_scratch_end == __swap_exchange_scratch_start,
+	    "the swap exchange sector belongs in .scratch exactly when SWAP_EXCHANGE_SCRATCH is configured")
 	/*
 	 * DEFINED() stays true for a symbol whose input section --gc-sections
 	 * discarded, so the layout choices above would keep the USB and

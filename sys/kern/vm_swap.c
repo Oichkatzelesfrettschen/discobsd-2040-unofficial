@@ -440,6 +440,13 @@ struct swap_exchange_segment {
 #if defined(SWAP_EXCHANGE_SCRATCH) && defined(__ELF__)
 #define SWAP_EXCHANGE_SECTION \
     __attribute__((section(".scratch.swap_exchange"), aligned(4)))
+/*
+ * An absolute symbol without storage tells kern.ldscript that this kernel
+ * asked for the placement, so the link fails when the sector lands
+ * anywhere else.
+ */
+__asm__ (".globl swap_exchange_scratch_configured\n"
+    "\t.set swap_exchange_scratch_configured, 1");
 #else
 #define SWAP_EXCHANGE_SECTION
 #endif

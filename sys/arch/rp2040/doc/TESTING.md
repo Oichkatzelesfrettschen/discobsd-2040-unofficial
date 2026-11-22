@@ -2423,6 +2423,14 @@ The gate requires Unicorn 2 or later, ARM GNU binutils, and built native tools.
 The [native veneer record](../../../../docs/research/native-call-veneers.md)
 owns the mechanism, replay command, and remaining shared-link integration work.
 
+The object ABI gate reads the RP2040 syscall Makefile's expanded `SYSOBJS`
+and assembles each generated wrapper in static and shared modes. It checks
+each generated Thumb entry against its public syscall number in the master
+and checks the errno relocation in each object. A control that encodes the
+close number at the getpgrp entry must fail. The shared
+objects enter one relocatable link with the specialized error-return wrappers
+to check that the linker coalesces their error helper.
+
 `check-libc-xip-object-abi` compiles production libc data owners into an
 experimental PIC library and links five application layouts with executable-tail
 state. ELF inspection and actual a.out conversion check BSS containment and final

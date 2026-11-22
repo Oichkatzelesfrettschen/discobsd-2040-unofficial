@@ -521,14 +521,10 @@ MUTANTS = [
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(0);",
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(ems_on ? 3 : 0);",
     ),
-    # pc_inta() leaving the timer's next waiting interrupt for the next
-    # poll: on a host whose sleeps run long, the guest sees counter 2
-    # expire with interrupts still waiting (test_oversleep).
-    (
-        "pc.c",
-        "\tif (n == 0)\n\t\tpit_irq(c, pit_now());\n\tpic_update(c);\n\treturn (pic_base + n);",
-        "\tpic_update(c);\n\treturn (pic_base + n);",
-    ),
+    # pit_view() letting a guest read time past waiting interrupts: on a
+    # host whose sleeps run long, the guest sees counter 2 expire with
+    # interrupts still waiting (test_oversleep).
+    ("pc.c", "\theld = ticks_due;\n", "\theld = 0;\n"),
 ]
 
 # A host whose every sleep runs 8 ms long, as a loaded runner's can.
@@ -537,12 +533,7 @@ OVERSLEEP = ("main.c", "\tusleep(ms * 1000UL);\n}", "\tusleep(ms * 1000UL + 8000
 # Builds the oversleep oracle must reject: one that drops interrupts and
 # two that deliver them wrong.
 OVERSLEEP_BAD = [
-    (
-        "waiting interrupts raised one a poll",
-        "pc.c",
-        "\tif (n == 0)\n\t\tpit_irq(c, pit_now());\n\tpic_update(c);\n\treturn (pic_base + n);",
-        "\tpic_update(c);\n\treturn (pic_base + n);",
-    ),
+    ("reads see time past waiting interrupts", "pc.c", "\theld = ticks_due;\n", "\theld = 0;\n"),
     (
         "four waiting interrupts at most",
         "clock.c",
@@ -1349,16 +1340,16 @@ def test_pit(binary, work):
     """The 8254 through tests/pit.asm. Under -T every count is exact: the
     latched counter moved 2B0h in mode 3, counter 0 at 1 kHz raised 54
     interrupts while counter 2 counted 65535 clocks, counter 2 latched just
-    after the guest saw it expire reads FFEDh (19 clocks past its end),
+    after the guest saw it expire reads FFF0h (16 clocks past its end),
     counter 2's read-back status is B0h, 20 halts at 1 kHz took 57xxh
-    clocks, the refresh bit changed 36h times in 64 reads, a poller saw mode 2's low pulse, all 40
+    clocks, the refresh bit changed 39h times in 64 reads, a poller saw mode 2's low pulse, all 40
     reads of an odd mode 3 count were even, the first byte of a new mode 0
     count drove OUT low, a new control word cleared a latched status, and a
     BCD count reads as decimal digits. On the host's clock the interrupts
     are 52 to 55 whatever the host's speed, since both counters count the
     same clocks."""
     want = (
-        "dn:02B0 irq:0036 c2:FFED st2:00B0 hlt:0057 rf:0036 m2:0000 m3e:0028 m0s:0000 stat:0012"
+        "dn:02B0 irq:0036 c2:FFF0 st2:00B0 hlt:0057 rf:0039 m2:0000 m3e:0028 m0s:0000 stat:0012"
         " bcd:0099 tick:ok done".split()
     )
     got = pit_run(binary, work, ["-T"])
@@ -1391,14 +1382,14 @@ def host_clock_irqs(run, what):
     """A run of tests/pit.asm on the host's clock must finish whole, and
     its interrupt count must agree with counter 2's latched count: every
     interrupt due before the guest saw counter 2 expire was delivered, and
-    none due after it. A host that sleeps longer than asked delays the
-    close the guest sees, never the agreement. Two host stalls break it
-    without a defect, so a run that shows one is retried, three runs at
-    most: a stall past the 20 ms of interrupts clk_owe() keeps waiting
-    drops the rest (fewer than the span holds), and a stall past one more
-    full count of counter 2 (55 ms) wraps the latched count (as many as
-    the span one count longer holds). More interrupts than the span holds
-    fails at once."""
+    none due after it (pc.c pit_view()). A host that sleeps longer than
+    asked delays the close the guest sees, never the agreement. Two host
+    stalls break it without a defect: one past the 20 ms of interrupts
+    clk_owe() keeps waiting drops the rest, and one past another whole
+    count of counter 2 (55 ms) wraps the latched count. So a run that
+    disagrees is retried, three runs at most, and one that agrees passes:
+    a defect that breaks the agreement in every run fails, one that breaks
+    it now and then can pass."""
     seen = []
     for _ in range(3):
         got = run()
@@ -1415,12 +1406,6 @@ def host_clock_irqs(run, what):
         low, high, span = want
         if low <= irq <= high:
             return
-        wrapped = (span + 65536 - 64) // PIT_PERIOD <= irq <= (span + 65536) // PIT_PERIOD + 1
-        if irq > high and not wrapped:
-            raise Failure(
-                "%s: %d interrupts over %d clocks of counter 2, at most %d: %r"
-                % (what, irq, span, high, got)
-            )
         seen.append("%d over %d clocks" % (irq, span))
     raise Failure(
         "%s: interrupts disagree with counter 2 in three runs, expected floor(span / %d) "

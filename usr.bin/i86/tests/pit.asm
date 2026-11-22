@@ -168,9 +168,9 @@ main:	call latch0
 .wait:	in al, 0x61
 	test al, 0x20
 	jz .wait
-	cli
 	mov al, 0x80			; latch counter 2 at the close
 	out 0x43, al
+	cli
 	in al, 0x42
 	mov ah, al
 	in al, 0x42

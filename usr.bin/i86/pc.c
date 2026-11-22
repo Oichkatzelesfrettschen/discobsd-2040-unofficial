@@ -652,14 +652,7 @@ pic_update(struct i86 *c)
 	c->irq = (pic_irr & ~(unsigned)imask & above) != 0;
 }
 
-static uint32_t pit_now(void);
-static void pit_irq(struct i86 *, uint32_t);
-
-/* The processor acknowledges: the vector of the request it takes. Taking
- * the timer's request frees line 0 for the next interrupt counter 0 owes,
- * so interrupts that came due while the host slept are raised one after
- * another as the guest takes them, before the guest runs on and reads the
- * time they belong to, instead of one at each poll. */
+/* The processor acknowledges: the vector of the request it takes. */
 unsigned
 pc_inta(struct i86 *c)
 {
@@ -676,8 +669,6 @@ pc_inta(struct i86 *c)
 	/* With automatic end of interrupt nothing stays in service. */
 	if (!pic_aeoi)
 		pic_isr |= (uint8_t)(1u << n);
-	if (n == 0)
-		pit_irq(c, pit_now());
 	pic_update(c);
 	return (pic_base + n);
 }
@@ -1753,13 +1744,48 @@ pit_irq(struct i86 *c, uint32_t now)
 	}
 }
 
+/*
+ * The time a guest read of the 8254 sees. A host that slept past counter
+ * 0's deadlines leaves their interrupts waiting (clk_owe()), raised one at
+ * each poll; while one waits and the guest could take it now (interrupts
+ * on, line 0 unmasked and out of service), the guest sees the time of the
+ * oldest one not yet raised, as on a machine that never paused: it cannot
+ * read time past an interrupt it has not had. The one already raised is
+ * taken at the next instruction. The view never goes back.
+ */
+static uint32_t pit_seen;
+
+static uint32_t
+pit_view(struct i86 *c)
+{
+	uint32_t now = pit_now(), t = now;
+	unsigned held;
+
+	pit_irq(c, now);
+	held = ticks_due;
+	if (held && irq_armed && (c->fl & F_IF) && !(imask & 1) &&
+	    !(pic_isr & 1) && (pit[0].mode == 2 || pit[0].mode == 3)) {
+		t = irq_at - held * pit[0].count;
+		if ((int32_t)(t - now) > 0)
+			t = now;
+	}
+	if ((int32_t)(t - pit_seen) < 0)
+		t = pit_seen;
+	pit_seen = t;
+	return (t);
+}
+
 /* Steps until counter 0's next interrupt when that comes sooner than a
  * poll's worth of clocks, which a periodic count shorter than a poll
- * makes happen; otherwise a whole run. */
+ * makes happen; otherwise a whole run. An interrupt still waiting is due
+ * now. */
 static unsigned
 slice_left(void)
 {
 	uint32_t d, poll = PC_STEPS * pit_step >> 8;
+
+	if (ticks_due)
+		return (SLICE_MIN);
 
 	if (!irq_armed ||
 	    ((pit[0].mode == 2 || pit[0].mode == 3) && pit[0].count >= poll))
@@ -1797,10 +1823,10 @@ pit_load(struct i86 *c, unsigned n, unsigned v)
 }
 
 static void
-pit_latch(unsigned n)
+pit_latch(struct i86 *c, unsigned n)
 {
 	if (!pit[n].latched) {
-		pit[n].latch = (uint16_t)pit_value(n, pit_now());
+		pit[n].latch = (uint16_t)pit_value(n, pit_view(c));
 		pit[n].latched = pit[n].rw == 3 ? 2 : 1;
 	}
 }
@@ -1815,9 +1841,7 @@ pit_read(struct i86 *c, unsigned n)
 		p->slatched = 0;
 		return (p->status);
 	}
-	if (n == 0)
-		pit_irq(c, pit_now());
-	v = p->latched ? p->latch : pit_value(n, pit_now());
+	v = p->latched ? p->latch : pit_value(n, pit_view(c));
 	hi = p->rw == 2 || (p->rw == 3 && p->rnext);
 	if (p->rw == 3)
 		p->rnext ^= 1;
@@ -1852,10 +1876,10 @@ pit_write(struct i86 *c, unsigned n, unsigned v)
 
 /* Port 43h: a control word, a counter latch or a read-back. */
 static void
-pit_control(unsigned v)
+pit_control(struct i86 *c, unsigned v)
 {
 	unsigned n = v >> 6, k, mode;
-	uint32_t now = pit_now();
+	uint32_t now = pit_view(c);
 
 	if (n == 3) {
 		for (k = 0; k < 3; k++) {
@@ -1868,12 +1892,12 @@ pit_control(unsigned v)
 				pit[k].slatched = 1;
 			}
 			if (!(v & 0x20))
-				pit_latch(k);
+				pit_latch(c, k);
 		}
 		return;
 	}
 	if ((v & 0x30) == 0) {
-		pit_latch(n);
+		pit_latch(c, n);
 		return;
 	}
 	mode = v >> 1 & 7;
@@ -1947,7 +1971,7 @@ pc_in(struct i86 *c, unsigned port, int w)
 	case 0x61:
 		/* The refresh request toggles every 18 clocks (15 us). */
 		v = (port61 & 0x0fu) | (pit_now() / 18 & 1) << 4 |
-		    pit_out(2, pit_now()) << 5;
+		    pit_out(2, pit_view(c)) << 5;
 		break;
 	case 0x3d5:
 		if (crtc_index == 0x0e || crtc_index == 0x0f) {
@@ -2023,7 +2047,7 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 		pit_write(c, port - 0x40, v);
 		break;
 	case 0x43:
-		pit_control(v);
+		pit_control(c, v);
 		break;
 	case 0x61:
 		port61_out(v);

@@ -1623,7 +1623,17 @@ check-license-headers: check-python
 		${PYTHON} tools/check_license_headers.py --selftest
 		${PYTHON} tools/check_license_headers.py --root ${TOPSRC}
 
-.PHONY: check-license-headers
+# The console palette (lcd_palette in st7365p.c, the web console's xterm.js
+# theme and the two lcdgfx test fixtures) must agree entry for entry and meet
+# the bounds that the comment above lcd_palette and TESTING.md state, measured
+# on the colors the RGB565 panel shows (tools/check_console_palette.py).
+# --selftest first requires the exact rules each known-bad table, mutant and
+# parser bypass trips.
+check-console-palette: check-python
+		${PYTHON} tools/check_console_palette.py --selftest
+		${PYTHON} tools/check_console_palette.py --root ${TOPSRC}
+
+.PHONY: check-license-headers check-console-palette
 
 # The mutant scripts run a freshly built test through tools/run_bounded.sh,
 # which bounds its wall-clock time and the output it keeps. --selftest runs the
@@ -2160,7 +2170,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install check-run-bounded \
+		check-comment-hygiene check-text-hygiene check-license-headers check-console-palette check-ci-apt-install check-run-bounded \
 		check-renode-models-series \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \

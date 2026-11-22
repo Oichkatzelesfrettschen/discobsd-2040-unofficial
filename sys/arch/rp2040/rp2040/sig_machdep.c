@@ -98,6 +98,20 @@ sendsig(sig_t p, int sig, long mask)
 			return;
 		}
 		if (u.u_procp->p_ssize < USER_TOP(u.u_procp) - (u_int)sfp) {
+			/*
+			 * A frame deeper than RLIMIT_STACK ends the process
+			 * as a frame in the data does.
+			 */
+			if (!rlimit_stack_admits(USER_TOP(u.u_procp) -
+			    (u_int)sfp)) {
+				if (SYSTRACE_ON(SYSTRACE_SIGNAL))
+					printf("[%u] sendsig %d rejected: "
+					    "frame=%#x past the stack limit "
+					    "sp=%#x\n", u.u_procp->p_pid, sig,
+					    (u_int)sfp, regs->tf_sp);
+				fatalsig(SIGILL);
+				return;
+			}
 			u.u_procp->p_ssize = USER_TOP(u.u_procp) - (u_int)sfp;
 			u.u_procp->p_saddr = (u_int)sfp;
 			u.u_ssize = u.u_procp->p_ssize;

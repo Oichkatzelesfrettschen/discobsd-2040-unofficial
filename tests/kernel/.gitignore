@@ -208,6 +208,11 @@ sigreturn_context_*.mutant.c
 sigreturn_context_*.mutant.test
 sigreturn_context_*.mutant.out
 ptrace_functions.c
+rlimit_growth_functions.c
+rlimit_growth_test32
+rlimit_growth_*.mutant.c
+rlimit_growth_*.mutant.test
+rlimit_growth_*.mutant.out
 ptrace_test
 ptrace_test32
 ptrace_test_sanitized

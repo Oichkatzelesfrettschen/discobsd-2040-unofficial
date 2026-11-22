@@ -1654,6 +1654,19 @@ alignment sanitizers. These gates establish software admission and
 publication ordering. Exception return, runtime stack use, MPU enforcement,
 and physical hardware retain separate evidence classes.
 
+The same tier compiles the resource-limit growth checks verbatim:
+`rlimit_data_admits()` and `rlimit_stack_admits()` from
+`sys/kern/kern_resource.c`, `brk()` from `sys/kern/kern_mman.c` and
+`user_entry()` from `sys/arch/rp2040/rp2040/syscall.c`, under a 32-bit
+process shim whose window is a host buffer (`tests/kernel/rlimit_growth_test.c`,
+`kernel.rlimit-growth.ilp32`). Its 12 checks hold growth to the
+`RLIMIT_DATA` boundary above the text, the refusal one byte past it, a shrink
+under a lowered limit, a negative limit, and a recorded stack depth at, past
+and under `RLIMIT_STACK`. `check-rlimit-growth-mutants` generates six mutants
+(data check removed, text counted as data, shrink refused, both limit
+boundaries made exclusive, stack check removed); each must exit 1 on its named
+check. `sendsig()` calls the same stack helper and stays outside the fixture.
+
 The tier also extracts the exact `exec_elf_check`, `exec_estab`,
 `exec_setupstack`, `exec_text_release`, `swaptext` and `exec_finish` functions.
 The ILP32 fixture separates inode length, program-header reads, segment reads,

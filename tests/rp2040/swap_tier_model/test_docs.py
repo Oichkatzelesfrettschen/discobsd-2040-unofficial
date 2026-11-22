@@ -33,12 +33,36 @@ def find(path, pattern):
     return match
 
 
+def decide(condition, defined, numbers):
+    """True or False for a preprocessor condition made of numbers, macros the
+    file has given a number, defined(NAME) and the operators !, && and ||;
+    None for any other condition."""
+    alternatives = []
+    for alternative in condition.split("||"):
+        terms = []
+        for term in alternative.split("&&"):
+            term = term.strip()
+            negated = term.startswith("!")
+            if negated:
+                term = term[1:].strip()
+            operand = re.fullmatch(r"defined\s*\(\s*(\w+)\s*\)|defined\s+(\w+)", term)
+            if operand is not None:
+                truth = (operand.group(1) or operand.group(2)) in defined
+            elif term.isdigit() or term in numbers:
+                truth = int(numbers.get(term, term)) != 0
+            else:
+                return None
+            terms.append(truth != negated)
+        alternatives.append(all(terms))
+    return any(alternatives)
+
+
 def define(path, name, defined=frozenset()):
     """The numeric value of NAME in the arm a build with only DEFINED set
     compiles. #ifdef, #ifndef, #else and #endif are followed, and so is an
-    #if of a number or of a macro the file has already given a number; any
-    other #if around a definition of NAME is an error, so the reading never
-    guesses which arm a kernel takes."""
+    #if or #elif that decide() can settle; any other condition around a
+    definition of NAME is an error, so the reading never guesses which arm a
+    kernel takes."""
     stack = []  # (taking, any arm taken, decidable) per open conditional
     numbers = {}  # macros given a number in a live arm so far
     value = None
@@ -53,14 +77,19 @@ def define(path, name, defined=frozenset()):
             stack.append((taking, taking, True))
         elif word == "if":
             condition = line.split("if", 1)[1].split("/*", 1)[0].strip()
-            if condition.isdigit() or condition in numbers:
-                taking = int(numbers.get(condition, condition or 0)) != 0
-                stack.append((taking, taking, True))
-            else:
+            taking = decide(condition, defined, numbers)
+            if taking is None:
                 stack.append((False, False, False))
+            else:
+                stack.append((taking, taking, True))
         elif word == "elif":
-            _, taken, _ = stack.pop()
-            stack.append((False, True, False))
+            _, taken, decidable = stack.pop()
+            condition = line.split("elif", 1)[1].split("/*", 1)[0].strip()
+            holds = decide(condition, defined, numbers)
+            if not decidable or holds is None:
+                stack.append((False, True, False))
+            else:
+                stack.append((holds and not taken, taken or holds, True))
         elif word == "else":
             _, taken, decidable = stack.pop()
             stack.append((not taken, True, decidable))
@@ -85,45 +114,66 @@ def test_define_follows_the_configured_arm():
     flash_h = TOP / "sys" / "arch" / "rp2040" / "dev" / "flash.h"
     assert define(flash_h, "FLASH_FS_OFFSET") == 128
     assert define(flash_h, "FLASH_FS_OFFSET", {"PICOCALC_SD"}) == 160
+    assert define(flash_h, "FLASH_FS_OFFSET", {"EXEC_XIP_LIBC"}) == 176
+
+
+def test_define_refuses_an_undecidable_arm(tmp_path):
+    header = tmp_path / "arms.h"
+    header.write_text("#if LIMIT > 3\n#define VALUE 1\n#else\n#define VALUE 2\n#endif\n")
+    with pytest.raises(AssertionError, match="under an #if"):
+        define(header, "VALUE")
+    header.write_text("#ifdef A\n#define VALUE 1\n#elif LIMIT > 3\n#define VALUE 2\n#endif\n")
+    with pytest.raises(AssertionError, match="under an #if"):
+        define(header, "VALUE")
+    header.write_text(
+        "#if defined(A) && !defined(B)\n#define VALUE 1\n#elif defined(B) || defined(C)\n"
+        "#define VALUE 2\n#else\n#define VALUE 3\n#endif\n"
+    )
+    assert define(header, "VALUE", {"A"}) == 1
+    assert define(header, "VALUE", {"A", "B"}) == 2
+    assert define(header, "VALUE", {"C"}) == 2
+    assert define(header, "VALUE") == 3
 
 
 def test_endurance_and_erase_time():
     found = find(TRAFFIC, r"minimum ([\d,]+) program-erase cycles per sector")
     assert int(found.group(1).replace(",", "")) == variants.ENDURANCE
     erase = find(TRAFFIC, r"4 KB sector erase (\d+) ms typical")
-    header = find(TOP / "sys" / "arch" / "rp2040" / "include" / "swapram.h",
-                  r"a (\d+) ms sector erase")
+    header = find(
+        TOP / "sys" / "arch" / "rp2040" / "include" / "swapram.h", r"a (\d+) ms sector erase"
+    )
     assert erase.group(1) == header.group(1)
 
 
 def test_pool_size():
     doc = find(ZSWAP, r"`compile/PICO/Config` enables a (\d+) KiB pool")
-    config = find(TOP / "sys" / "arch" / "rp2040" / "compile" / "PICO" /
-                  "Config", r'"SWAPRAM_KB=(\d+)"')
+    config = find(
+        TOP / "sys" / "arch" / "rp2040" / "compile" / "PICO" / "Config", r'"SWAPRAM_KB=(\d+)"'
+    )
     traffic = find(TRAFFIC, r"The pool \(`SWAPRAM_KB=(\d+)`\)")
-    assert int(doc.group(1)) == int(config.group(1)) == \
-        int(traffic.group(1)) == model.Config().pool_kb
+    assert (
+        int(doc.group(1)) == int(config.group(1)) == int(traffic.group(1)) == model.Config().pool_kb
+    )
 
 
 def test_codec_window_and_lookahead():
     doc = find(ZSWAP, r"Window (\d+) and lookahead (\d+) come out of the sweep")
-    cfg = TOP / "sys" / "arch" / "rp2040" / "heatshrink" / \
-        "heatshrink_config.h"
+    cfg = TOP / "sys" / "arch" / "rp2040" / "heatshrink" / "heatshrink_config.h"
     assert int(doc.group(1)) == define(cfg, "HEATSHRINK_STATIC_WINDOW_BITS")
     assert int(doc.group(2)) == define(cfg, "HEATSHRINK_STATIC_LOOKAHEAD_BITS")
 
 
 def test_u_area_reservation():
     doc = find(TRAFFIC, r"`SR_WORST\(USIZE\)`, ([\d,]+) bytes held")
-    usize = define(TOP / "sys" / "arch" / "rp2040" / "include" /
-                   "machparam.h", "USIZE")
+    usize = define(TOP / "sys" / "arch" / "rp2040" / "include" / "machparam.h", "USIZE")
     assert int(doc.group(1).replace(",", "")) == model.sr_worst(usize)
 
 
 def test_flash_layout():
-    rows = {m.group(1): (int(m.group(2), 16), int(m.group(3)))
-            for m in re.finditer(r"\| ([^|]+?) \| (0x[0-9a-f]+) \| (\d+) KB \|",
-                                 text(STORAGE))}
+    rows = {
+        m.group(1): (int(m.group(2), 16), int(m.group(3)))
+        for m in re.finditer(r"\| ([^|]+?) \| (0x[0-9a-f]+) \| (\d+) KB \|", text(STORAGE))
+    }
     kernel = rows["boot2 and kernel"]
     root = rows["root, Dhara journal"]
     swap = rows["swap, raw"]
@@ -138,16 +188,14 @@ def test_flash_layout():
 
 
 AFTER_BSS = (r"after ordinary data and BSS", r"follows ordinary kernel data and bss")
-KNOWN_WRONG = "at the start of the kernel RAM region, directly above the " \
-    "ordinary user window"
+KNOWN_WRONG = "at the start of the kernel RAM region, directly above the ordinary user window"
 
 
 def output_sections(script):
     """Output section names of a linker script in the order they appear,
     with comments removed so a comment cannot stand in for a statement."""
     body = re.sub(r"/\*.*?\*/", " ", script, flags=re.S)
-    return re.findall(r"^\s*(\.[A-Za-z_][\w.]*)\s*(?:\([A-Z]+\))?\s*:",
-                      body, flags=re.M)
+    return re.findall(r"^\s*(\.[A-Za-z_][\w.]*)\s*(?:\([A-Z]+\))?\s*:", body, flags=re.M)
 
 
 def placement_verdict(script, doc):
@@ -155,16 +203,18 @@ def placement_verdict(script, doc):
     and doc says so, 'known' for zswap.md's recorded wrong phrase; anything
     else raises."""
     sections = output_sections(script)
-    if ".bss" not in sections or ".swapram_pool" not in sections or \
-            sections.index(".swapram_pool") != sections.index(".bss") + 1:
+    if (
+        ".bss" not in sections
+        or ".swapram_pool" not in sections
+        or sections.index(".swapram_pool") != sections.index(".bss") + 1
+    ):
         raise AssertionError(f"pool not directly after .bss: {sections}")
     flat = re.sub(r"\s+", " ", doc)
     if any(re.search(p, flat, flags=re.I) for p in AFTER_BSS):
         return "agrees"
     if KNOWN_WRONG in flat:
         return "known"
-    raise AssertionError("document states no pool placement the script "
-                         "supports")
+    raise AssertionError("document states no pool placement the script supports")
 
 
 SCRIPT = TOP / "sys" / "arch" / "rp2040" / "conf" / "kern.ldscript"
@@ -190,6 +240,9 @@ def test_pool_placement():
     """zswap.md places the pool at the start of kernel RAM, above the user
     window; kern.ldscript links .swapram_pool directly after .bss."""
     if placement_verdict(text(SCRIPT), text(ZSWAP)) == "known":
-        pytest.xfail("finding: zswap.md puts the pool " + KNOWN_WRONG +
-                     "; kern.ldscript links .swapram_pool directly after "
-                     ".bss, as STORAGE.md states")
+        pytest.xfail(
+            "finding: zswap.md puts the pool "
+            + KNOWN_WRONG
+            + "; kern.ldscript links .swapram_pool directly after "
+            ".bss, as STORAGE.md states"
+        )

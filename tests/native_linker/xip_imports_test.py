@@ -26,6 +26,7 @@
 
 """Check final-link segment boundaries and every compact slot in one native caller."""
 
+import argparse
 import json
 import struct
 import subprocess
@@ -119,5 +120,67 @@ def main():
     print(f"PASS native common, segment ends and {len(names)} callable imports")
 
 
+def state_replay(path):
+    record = json.loads(RECORD.read_text())
+    names = [*record["objects"], "environ", "__progname"]
+    listing = subprocess.check_output(["readelf", "-sW", path], text=True)
+    values = {
+        fields[-1]: int(fields[1], 16)
+        for line in listing.splitlines()
+        if len(fields := line.split()) == 8 and fields[0][:-1].isdigit()
+    }
+    work = Path(tempfile.mkdtemp(prefix="native-state-replay-", dir=ROOT / ".build-logs"))
+    padding = set()
+    for extra in (0, 4):
+        source = [
+            ".syntax unified",
+            ".thumb",
+            ".text",
+            ".global _start",
+            ".thumb_func",
+            "_start:",
+            "bx lr",
+            ".data",
+        ]
+        source.extend(".word " + name for name in [*names, "_end", "owner", "local_bss"])
+        source.extend([".bss", "local_bss:", f".space {4 + extra}", ".comm owner,5"])
+        (work / "app.s").write_text("\n".join(source) + "\n")
+        subprocess.run([TOOLS / "as", "app.s", "-o", "app.o"], cwd=work, check=True)
+        image = link([work / "app.o"], path).read_bytes()
+        _, text, data, bss, *_ = HEADER.unpack_from(image)
+        app_bss = 0x20000000 + text + data
+        # The final native linker assigns common storage before input BSS.
+        after_app = app_bss + 8 + 4 + extra
+        base = (after_app + 7) & ~7
+        padding.add(base - after_app)
+        end = base + values["__libc_state_size"]
+        require(app_bss + bss == end, "heap boundary differs")
+        expected = [values[n] + (0 if n == "_ctype_" else base) for n in names]
+        expected.extend([end, app_bss, app_bss + 8])
+        pointers = struct.unpack_from(f"<{len(expected)}I", image, HEADER.size + text)
+        require(list(pointers) == expected, "linked state pointers differ")
+    require(padding == {0, 4}, "state padding coverage differs")
+    (work / "conflict.s").write_text(".bss\n.global environ\nenviron:\n.space 4\n")
+    subprocess.run([TOOLS / "as", "conflict.s", "-o", "conflict.o"], cwd=work, check=True)
+    bad = work / "wrong.elf"
+    bad.write_bytes(path.read_bytes() + bytes(1))
+    for inputs, elf, expected_error in [
+        (["app.o", "conflict.o"], path, "application defines a shared state symbol"),
+        (["app.o"], bad, "state image digest differs"),
+    ]:
+        try:
+            link([work / name for name in inputs], elf)
+        except ValueError as error:
+            require(str(error) == expected_error, "wrong state control diagnostic")
+        else:
+            raise ValueError("accepted " + expected_error)
+    print(f"PASS {len(names)} object pointers, both state alignments and two rejection controls")
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--state-image", type=Path)
+    args = parser.parse_args()
     main()
+    if args.state_image:
+        state_replay(args.state_image)

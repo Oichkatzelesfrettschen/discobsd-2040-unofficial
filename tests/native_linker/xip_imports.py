@@ -27,6 +27,8 @@
 """Link a native diagnostic SRAM caller against the measured compact XIP slots."""
 
 import argparse
+import hashlib
+import io
 import json
 import re
 import struct
@@ -46,7 +48,7 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def adapt(original, slots):
+def adapt(original, slots, state_names=()):
     """Redirect external Thumb calls and preserve public absolute pointers."""
     require(len(original) >= HEADER.size, "short native header")
     magic, text, data, bss, rt, rd, symbols, entry = HEADER.unpack_from(original)
@@ -58,12 +60,17 @@ def adapt(original, slots):
     names = []
     types = []
     records = []
+    common = 0
     end = symtab
     while end < len(original) and original[end]:
         length = original[end]
         require(end + 6 + length <= len(original), "symbol extent differs")
         names.append(original[end + 6 : end + 6 + length])
         types.append(original[end + 1])
+        if types[-1] == 0x26:
+            common += (struct.unpack_from("<I", original, end + 2)[0] + 3) & ~3
+        if names[-1] in state_names and types[-1] & 0x20:
+            require(types[-1] == 0x20, "application defines a shared state symbol")
         records.append(end)
         end += 6 + length
     require(not any(original[end:]), "nonzero symbol padding")
@@ -110,7 +117,7 @@ def adapt(original, slots):
         result.extend(struct.pack("<BBI", len(bridge), 0x20, 0) + bridge)
     result.extend(bytes(-len(result) % 4))
     struct.pack_into("<I", result, 24, len(result) - symtab)
-    return result, calls.keys()
+    return result, calls.keys(), data + bss + common
 
 
 def assembly(groups, calls, first):
@@ -134,7 +141,65 @@ def assembly(groups, calls, first):
     return "\n".join(lines) + "\n"
 
 
-def link(inputs):
+STATE = "__xip_libc_state"
+
+
+def object_layout(image, record):
+    from elftools.elf.elffile import ELFFile
+
+    source = image.read_bytes()
+    require(
+        hashlib.sha256(source).hexdigest() == record["slot_elf_sha256"],
+        "state image digest differs",
+    )
+    elf = ELFFile(io.BytesIO(source))
+    table = elf.get_section_by_name(".symtab")
+    extent = table.get_symbol_by_name("__libc_state_size")
+    require(
+        extent and len(extent) == 1 and extent[0]["st_value"] == record["state"],
+        "state image size differs",
+    )
+    layout = {}
+    for name in [*record["objects"], "environ", "__progname"]:
+        require(re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", name), "invalid object name")
+        symbols = table.get_symbol_by_name(name)
+        require(symbols and len(symbols) == 1, "object owner differs")
+        symbol = symbols[0]
+        section = elf.get_section(symbol["st_shndx"])
+        addr, size = symbol["st_value"], symbol["st_size"]
+        require(
+            symbol["st_info"]["type"] == "STT_OBJECT"
+            and size > 0
+            and section["sh_flags"] & 2
+            and section["sh_addr"] <= addr <= section["sh_addr"] + section["sh_size"] - size,
+            "object extent differs",
+        )
+        layout[name] = (addr, size, bool(section["sh_flags"] & 1))
+    return layout
+
+
+def reservation(layout, size, padding):
+    lines = [".syntax unified", ".thumb", ".bss"]
+    if padding:
+        lines.append(f".space {padding}")
+    lines.extend([f".global {STATE}", f"{STATE}:"])
+    cursor = 0
+    for name, (address, width, writable) in sorted(layout.items(), key=lambda item: item[1][0]):
+        lines.append(f".global {name}")
+        if writable:
+            require(cursor <= address <= size - width, "overlapping or out-of-state object")
+            if address > cursor:
+                lines.append(f".space {address - cursor}")
+            lines.extend([f"{name}:", f".space {width}"])
+            cursor = address + width
+        else:
+            lines.append(f".equ {name},{address}")
+    if cursor < size:
+        lines.append(f".space {size - cursor}")
+    return "\n".join(lines) + "\n"
+
+
+def link(inputs, state_image=None):
     record = json.loads(RECORD.read_text())
     groups = record["slot_groups"]
     names = [name for group in groups for name in group]
@@ -147,9 +212,12 @@ def link(inputs):
     require(set(names) == set(record["roots"]) - set(record["objects"]), "callable set differs")
     work = Path(tempfile.mkdtemp(prefix="native-slot-imports-", dir=ROOT / ".build-logs"))
     subprocess.run([TOOLS / "ld", "-T0", "-r", "-o", "prelink.o", *inputs], cwd=work, check=True)
-    obj, calls = adapt(
+    layout = object_layout(state_image, record) if state_image is not None else {}
+    state_names = {n.encode() for n in [*layout, STATE]} if layout else set()
+    obj, calls, writable_bytes = adapt(
         (work / "prelink.o").read_bytes(),
         {n.encode(): 0x10020001 + 8 * i for i, group in enumerate(groups) for n in group},
+        state_names,
     )
     (work / "caller.o").write_bytes(obj)
     objects = ["caller.o"]
@@ -160,7 +228,29 @@ def link(inputs):
             (work / (stem + ".s")).write_text(assembly(batch, calls, first))
             subprocess.run([TOOLS / "as", stem + ".s", "-o", stem + ".o"], cwd=work, check=True)
             objects.append(stem + ".o")
+    if layout:
+        pad = -writable_bytes % 8
+        (work / "state.s").write_text(reservation(layout, record["state"], pad))
+        subprocess.run([TOOLS / "as", "state.s", "-o", "state.o"], cwd=work, check=True)
+        objects.append("state.o")
     subprocess.run([TOOLS / "ld", "-o", "app.aout", *objects], cwd=work, check=True)
+    if layout:
+        image = work / "app.aout"
+        _, text, data, bss, *_ = HEADER.unpack_from(image.read_bytes())
+        base = 0x20000000 + text + data + bss - record["state"]
+        require(base % 8 == 0 and bss >= record["state"], "final state reservation differs")
+        output = subprocess.check_output([TOOLS / "nm", image], text=True)
+        symbols = {
+            n: (int(a, 16), kind)
+            for a, kind, n in (
+                line.split() for line in output.splitlines() if len(line.split()) == 3
+            )
+            if kind in ("B", "A")
+        }
+        require(symbols.get(STATE) == (base, "B"), "state does not end at the heap boundary")
+        for name, (address, _, writable) in layout.items():
+            expected = (base + address, "B") if writable else (address, "A")
+            require(symbols.get(name) == expected, "final object binding differs: " + name)
     return work / "app.aout"
 
 
@@ -169,4 +259,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "inputs", type=Path, nargs="+", help="application objects and archives in link order"
     )
-    print(link([p.resolve(strict=True) for p in parser.parse_args().inputs]))
+    parser.add_argument(
+        "--state-image", type=Path, help="reserve objects from the qualified compact diagnostic ELF"
+    )
+    args = parser.parse_args()
+    print(link([p.resolve(strict=True) for p in args.inputs], args.state_image))

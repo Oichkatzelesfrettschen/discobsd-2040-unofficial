@@ -35,6 +35,37 @@ from pathlib import Path
 from xip_imports import HEADER, RECORD, ROOT, TOOLS, link, require
 
 
+def call_targets(code, slots):
+    """Follow each Thumb BL and the literal load in its aligned veneer."""
+    destinations = {}
+    for index, slot in enumerate(slots):
+        pc = 4 * index
+        high, low = struct.unpack_from("<HH", code, pc)
+        require(high & 0xF800 == 0xF000 and low & 0xF800 == 0xF800, "expected Thumb BL")
+        displacement = ((high & 0x7FF) << 12) | ((low & 0x7FF) << 1)
+        if displacement & 0x400000:
+            displacement -= 0x800000
+        veneer = pc + 4 + displacement
+        require(veneer % 4 == 0 and 0 <= veneer <= len(code) - 12, "invalid veneer extent")
+        require(
+            code[veneer : veneer + 8] == bytes.fromhex("18b4014b019308bd"),
+            "veneer instructions differ",
+        )
+        (target,) = struct.unpack_from("<I", code, veneer + 8)
+        require(target == slot, "veneer slot differs")
+        require(destinations.setdefault(slot, veneer) == veneer, "alias veneers differ")
+    return destinations
+
+
+def reject_destination(code, slots):
+    try:
+        call_targets(code, slots)
+    except ValueError as error:
+        require(str(error) == "veneer slot differs", "wrong destination control diagnostic")
+    else:
+        raise ValueError("accepted wrong veneer destination")
+
+
 def main():
     groups = json.loads(RECORD.read_text())["slot_groups"]
     names = [name for group in groups for name in group]
@@ -68,6 +99,23 @@ def main():
     expected.extend(0x10020001 + 8 * i for i, group in enumerate(groups) for _ in group)
     actual = struct.unpack_from(f"<{len(expected)}I", image, HEADER.size + text)
     require(list(actual) == expected, "native boundary or function pointer differs")
+    slots = expected[4:]
+    code = image[HEADER.size : HEADER.size + text]
+    destinations = call_targets(code, slots)
+    first, second = list(destinations)[:2]
+    changed = bytearray(code)
+    struct.pack_into("<I", changed, destinations[first] + 8, second)
+    reject_destination(changed, slots)
+    changed = bytearray(code)
+    displacement = destinations[second] - 4
+    struct.pack_into(
+        "<HH",
+        changed,
+        0,
+        0xF000 | (displacement >> 12 & 0x7FF),
+        0xF800 | (displacement >> 1 & 0x7FF),
+    )
+    reject_destination(changed, slots)
     print(f"PASS native common, segment ends and {len(names)} callable imports")
 
 

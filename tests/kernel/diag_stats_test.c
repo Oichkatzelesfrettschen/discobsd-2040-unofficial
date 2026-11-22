@@ -193,8 +193,8 @@ check_message_ring(void)
  * holds the pattern characters 0 to 1023; the first copy-out prints 100
  * more, which overwrite the slots of characters 0 to 99. The read keeps
  * its first chunk (characters 0 to 63), moves the next chunk's start to
- * character 100, the oldest byte still in the ring, and returns no byte
- * of the newer epoch.
+ * character 100, the oldest byte still in the ring, and returns only
+ * bytes of the older epoch.
  */
 static void
 check_print_during_read(void)

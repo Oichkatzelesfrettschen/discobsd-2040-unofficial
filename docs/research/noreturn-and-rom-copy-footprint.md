@@ -136,8 +136,9 @@ revision's PICO_UART kernel, and `cat l/file` with `l` naming `ab` prints
 `l/file: No such file or directory`; with #711 the stage passes. The board
 was not run. The host harness hid the defect: `tests/kernel/hostkern_kern.c` gives the kernel tests a `bcopy` that
 copies backward. The fix gives `bcopy` memmove semantics, so the ROM
-`memcpy`, which has no overlap handling, can back it only beside an overlap
-branch. The prototype below omits that branch, so its text figures are an
+`memcpy`, which copies backward byte by byte for short or misaligned ranges
+and forward in words for aligned ones, so it is safe for one direction of
+overlap per case, can back it only beside an overlap branch. The prototype below omits that branch, so its text figures are an
 upper bound on the saving of a correct veneer.
 
 **Prototype.** Two function pointers in bss, resolved by `rom_copy_init()` as
@@ -325,9 +326,9 @@ Most fills clear 1-2 KiB, where the ROM `memset` saves about 3.5 us a call, and 
 - Offset 1 covers co-aligned pairs only. A source and destination with different alignments were not timed.
 - The `bcopy` variant that looks up MC on every call was not timed.
 
-**Implementation constraints:** a change built on these numbers keeps `bcopy`'s backward branch for an overlapping destination in front of the ROM call (D150). The ROM `memcpy` copies forward only.
+**Implementation constraints:** a change built on these numbers keeps `bcopy`'s backward branch for an overlapping destination in front of the ROM call (D150). The ROM `memcpy` has no single direction: it copies backward byte by byte below 8 bytes or across differing alignments and forward in words otherwise (see "Applied" below).
 
-**Decision still open:** the zero-RAM form, with a lookup on every call, against the form that caches the pointers in 8 bytes of bss (see "Both budgets" above).
+**Decision settled:** the zero-RAM form, which reads the function table slot and falls back to a lookup on every call that misses it, replaces the form that caches the pointers in 8 bytes of bss (see "Both budgets" above and "Applied" below).
 
 ## Applied: the ROM routines behind `bcopy` and `bzero`
 
@@ -340,11 +341,11 @@ The kernel's `bzero` calls the ROM's `memset` (MS). The kernel's `bcopy` calls t
 - **Source and destination of different alignment:** a byte loop that also runs from the end.
 - **Same alignment:** it brings the destination to a word with a byte and a halfword copy, then copies forward 16 bytes at a time with `ldmia`/`stmia`, then copies an 8-, 4-, 2- and 1-byte tail.
 
-So the ROM routine is correct for neither kind of overlap:
+So the ROM routine handles an overlap correctly in one direction per path, and `bcopy` sends it no overlapping range:
 - A destination inside the source breaks its forward word copy. D150 already sends that case to `bcopy`'s backward branch.
-- A source inside the destination breaks its backward byte copies.
+- A source inside the destination breaks its backward byte copies. A same-alignment copy of 8 bytes or more takes the forward word path, which is correct there; `bcopy` still keeps that range on its own loops, the conservative choice.
 
-`bcopy` therefore calls the ROM only when `src - dst` (unsigned) is at least `nbytes`, and keeps its own forward loops for a source that starts inside the destination. `tests/kernel/bcopy_overlap.py` models the routine as described and rejects a mutant that passes every range to the ROM.
+`bcopy` therefore calls the ROM only when `src - dst` (unsigned) is at least `nbytes`, which admits disjoint ranges, and keeps its own forward loops for a source that starts inside the destination. `tests/kernel/bcopy_overlap.py` models the routine as described and rejects a mutant that passes every range to the ROM.
 
 **What the ROM `memset` does.** `0x26b9` returns at once for a length of 0 and uses an unrolled byte store below 8 bytes. Otherwise it aligns the destination, replicates the byte into a word and stores 16 bytes at a time with `stmia`, then stores the tail.
 
@@ -364,6 +365,12 @@ So the ROM routine is correct for neither kind of overlap:
 | PICOCALC_SD_DIAG | +16 |
 
 Data and bss are unchanged in every kernel.
+
+**Kernel stack depth** (`docs/research/kernel-size-flags/stack_chain.py`, `-fstack-usage -fcallgraph-info=su`, arm-none-eabi-gcc 16.2.0, PICOCALC_SD build against the tree before the change, `0cc1a3aef`, the parent that `kern/rom-copy` last merged). The model names no PICOCALC_SD configuration, so the run takes `--config PICOCALC`, and it has no site rule for the two indirect ROM calls, so the run adds one for MC (12 bytes, the pushes of `0x261d`) and one for MS (8 bytes, the pushes of `0x26b9`) in a scratch copy of `stack-model.json`:
+- The deepest system call chain is 2,352 bytes before and 2,360 after, a growth of 8 bytes. It ends in `bcopy[24] -> rom_fn[8] -> rom_func_lookup[8]`, the per-call lookup fallback that a ROM version 3 board does not take, so the figure bounds the other ROMs and overstates this board.
+- The chain through `bzero` grows from 12 to 32 bytes (20) and the chain through `bcopy` from 16 to 40 (24).
+- Both system call figures already exceed the 2,048-byte budget before the change (issue 839); the growth is not what crosses it.
+- The model refuses the change as committed (`indirect call in bcopy ... matches 0 site rules`), so `stack-chain.sh` fails on any modeled configuration until `stack-model.json` carries the two site rules.
 
 **Board check** (bare Pico, PICO kernel with the change on main `2f2cdb17d`):
 - The D150 symlink cases resolve: a link to `ab`, to `ab/../ab/../ab`, and to an absolute path.

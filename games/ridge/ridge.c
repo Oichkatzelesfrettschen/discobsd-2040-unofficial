@@ -1375,8 +1375,9 @@ struct rg_ovl {
 
 /*
  * What a sprite's atlas slots were composited from: the sprite, the camera
- * column, the twinkle phase, the map's change counter and every sprite whose
- * box meets this one's (they share cells, so their pixels are in the slots).
+ * column, the twinkle phase when the box holds a shard, the map's change
+ * counter and every sprite whose box meets this one's (they share cells, so
+ * their pixels are in the slots).
  */
 struct rg_sig {
 	int x, y, frame, flip, cam, anim, live, nov;
@@ -1535,6 +1536,30 @@ rg_composite(const struct rg_game *g, const struct rg_sprite *spr, int n, int i,
 		}
 }
 
+/*
+ * Whether the box of sprite i, with top left cell (bx, by) in view coordinates,
+ * shows a shard in a cell inside the view. A shard's tile is the only base
+ * tile that depends on the twinkle phase, so a box without one composites the
+ * same slots on every phase.
+ */
+static int
+rg_box_has_shard(const struct rg_game *g, int bx, int by)
+{
+	int cx, cy, vx, vy, t;
+
+	for (cy = 0; cy < RG_BOX; cy++)
+		for (cx = 0; cx < RG_BOX; cx++) {
+			vx = bx + cx;
+			vy = by + cy;
+			if (vx < 0 || vx >= RG_VIEW_W || vy < 0 || vy >= RG_VIEW_H)
+				continue;
+			t = rg_base_tile(g, g->cam + vx, vy);
+			if (t == T_SHARD0 || t == T_SHARD1)
+				return 1;
+		}
+	return 0;
+}
+
 static void
 rg_text(struct rg_view *v, int row, int col, const char *s)
 {
@@ -1622,6 +1647,8 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 		now.flip = spr[i].flip;
 		now.cam = g->cam;
 		now.anim = anim;
+		if (!rg_box_has_shard(g, bxs[i], bys[i]))
+			now.anim = 0;
 		now.live = 1;
 		now.gen = g->gen;
 		for (k = 0; k < n; k++)

@@ -3,13 +3,18 @@
 # warnings: the build must emit none. The discobsd-host package has its
 # own workflow, host.yml, which is the check-host-package tier.
 #
-# A pull request and a push to main run the rp2040 job's fixed short set:
-# the warning-free build, the kernel headroom, the flash image, the UF2
-# validation, the lint tier, the changed-comment and changed-text checks
-# and the Renode UART0 boot. The nightly run, on main, and a manual
-# dispatch, on the ref it names, add every other tier and every other job
-# (FULL_GATES); a nightly that fails opens or updates one issue (the
-# nightly-report job).
+# A push to main runs the rp2040 job's fixed short set: the warning-free
+# build, the kernel headroom, the flash image, the UF2 validation, the lint
+# tier, the changed-comment and changed-text checks and the Renode UART0
+# boot. A pull request runs the part of that set that takes seconds: the
+# toolchain install, the lint tier and the changed-comment and changed-text
+# checks; the build, the headroom, the flash image, the UF2 validation, the
+# panel program replay and the Renode boot wait for the merge to main, and
+# the local gates over the changed files carry what the pull request
+# changes. The job keeps one name on every event because branch protection
+# requires that name. The nightly run, on main, and a manual dispatch, on
+# the ref it names, add every other tier and every other job (FULL_GATES);
+# a nightly that fails opens or updates one issue (the nightly-report job).
 name: firmware
 
 on:
@@ -147,13 +152,14 @@ jobs:
       # ${prefix}/bin; PICOTOOL_FLAT_INSTALL moves the whole set under
       # ${prefix}/picotool instead and is left off.
       - name: Cache picotool
+        if: github.event_name != 'pull_request'
         id: picotool-cache
         uses: actions/cache@v4
         with:
           path: ~/picotool-install
           key: picotool-${{ env.PICOTOOL_VERSION }}-ubuntu-24.04
       - name: Build picotool
-        if: steps.picotool-cache.outputs.cache-hit != 'true'
+        if: github.event_name != 'pull_request' && steps.picotool-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$HOME/picotool-src"
           cd "$HOME/picotool-src"
@@ -169,6 +175,7 @@ jobs:
           cmake --build picotool/build --parallel "$(nproc)"
           cmake --install picotool/build
       - name: Put picotool on PATH
+        if: github.event_name != 'pull_request'
         run: |
           echo "$HOME/picotool-install/bin" >> "$GITHUB_PATH"
       - name: Report the toolchain
@@ -179,7 +186,10 @@ jobs:
           shellcheck --version | sed -n 2p
           ruff --version
           bmake -V MACHINE 2>/dev/null || true
-          picotool version
+          # A pull request installs no picotool: its steps need none.
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            picotool version
+          fi
 
       # The logged-gate runner streams combined output, writes an atomic
       # status receipt, emits heartbeats during quiet work, and terminates
@@ -196,6 +206,7 @@ jobs:
       # __DATE__ and __TIME__; the 1286 library objects those archives
       # wrap are identical, as is every kernel object.
       - name: Build the kernel and the userland
+        if: github.event_name != 'pull_request'
         timeout-minutes: 25
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -209,6 +220,7 @@ jobs:
       # kernel that links but has less than the margin of tools/
       # check_kernel_headroom.py left, under the toolchain this job installs.
       - name: Check the kernel flash headroom, dump-writer linkage and buffer alignment
+        if: github.event_name != 'pull_request'
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -220,6 +232,7 @@ jobs:
             check-dump-writer-link check-kernel-buffer-alignment
 
       - name: Verify MPU startup and reported permissions in the linked kernels
+        if: github.event_name != 'pull_request'
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -230,6 +243,7 @@ jobs:
             -- bmake MACHINE=rp2040 check-mpu-startup
 
       - name: Replay the full PicoCalc panel register programs
+        if: github.event_name != 'pull_request'
         timeout-minutes: 2
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -240,6 +254,7 @@ jobs:
             -- bmake MACHINE=rp2040 check-panel-programs
 
       - name: Build the flash image
+        if: github.event_name != 'pull_request'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -252,6 +267,7 @@ jobs:
       # The tree builds warning-free on gcc 13, 14, and 16: the cross build,
       # the kernel, and the host tools. Any warning line fails the job.
       - name: Assert the build is warning-free
+        if: github.event_name != 'pull_request'
         run: |
           # grep exits 1 on no match, which is the wanted outcome here, so
           # the count is captured with a fallback before the assertion.
@@ -264,6 +280,7 @@ jobs:
 
       # The UF2 pair the artifact step uploads and discobsd-flash loads.
       - name: Validate the kernel and root UF2 images
+        if: github.event_name != 'pull_request'
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -478,9 +495,11 @@ jobs:
       # resolves bin/ beside itself, so the directory goes on PATH rather
       # than a symlink to the launcher.
       - uses: actions/setup-dotnet@v4
+        if: github.event_name != 'pull_request'
         with:
           dotnet-version: '8.0.x'
       - name: Install the pinned Renode release
+        if: github.event_name != 'pull_request'
         run: |
           archive="$RUNNER_TEMP/renode-$RENODE_VERSION.linux.tar.gz"
           curl --fail --location --retry 3 --output "$archive" \
@@ -494,8 +513,10 @@ jobs:
       # different build fails the job, so the pinned release and the
       # recorded build cannot drift apart.
       - name: Confirm the Renode build the gates were verified against
+        if: github.event_name != 'pull_request'
         run: sh tools/renode/check-renode-pin.sh
       - name: Check file-backed SD against production SPI protocol
+        if: github.event_name != 'pull_request'
         timeout-minutes: 10
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -509,14 +530,17 @@ jobs:
       # server, and the script's own text is the key, so a moved pin misses
       # the cache and downloads the new file.
       - name: Cache the RP2040 register description archive
+        if: github.event_name != 'pull_request'
         uses: actions/cache@v4
         with:
           path: tools/renode/vendor/RP2040.svd.gz
           key: renode-rp2040-svd-${{ hashFiles('tools/renode/fetch-renode-rp2040.sh') }}
       - name: Fetch and build the Renode RP2040 models
+        if: github.event_name != 'pull_request'
         timeout-minutes: 10
         run: sh tools/renode/fetch-renode-rp2040.sh
       - name: Run the Renode UART0 boot tier
+        if: github.event_name != 'pull_request'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -634,7 +658,7 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-union-diag
       - name: Retain the Renode logs and transcripts
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: renode-results
@@ -643,6 +667,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Confirm the images exist
+        if: github.event_name != 'pull_request'
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_DIAG/unix.uf2 \
@@ -662,6 +687,7 @@ jobs:
           if-no-files-found: warn
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           name: discobsd-rp2040-firmware
           path: |

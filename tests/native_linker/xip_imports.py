@@ -40,6 +40,9 @@ ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "tools/bin/rp2040"
 RECORD = ROOT / "docs/research/xip-shared-libc/shipped-member-envelope.json"
 HEADER = struct.Struct("<8I")
+# Shared OMAGIC places this little-endian record between struct exec and its payload.
+XIP_FLAG = 0x02
+REQUIREMENT = struct.Struct("<4sII32sIII")
 BRIDGE = b"__xip_call_"
 
 
@@ -77,6 +80,7 @@ def adapt(original, slots, state_names=()):
     known_names = set(names)
     result = bytearray(original[:end])
     calls = {}
+    required = set()
     for start, extent, segment, size in (
         (text_reloc, rt, HEADER.size, text),
         (text_reloc + rt, rd, HEADER.size + text, data),
@@ -93,6 +97,7 @@ def adapt(original, slots, state_names=()):
                 require(index < len(names), "invalid relocation symbol")
                 name = names[index]
                 if name in slots and types[index] == 0x20:
+                    required.add(slots[name])
                     offset = struct.unpack_from("<I", original, pos + 1)[0]
                     require(
                         flags in (0x71, 0x78) and offset + 4 <= size, "invalid import relocation"
@@ -117,7 +122,7 @@ def adapt(original, slots, state_names=()):
         result.extend(struct.pack("<BBI", len(bridge), 0x20, 0) + bridge)
     result.extend(bytes(-len(result) % 4))
     struct.pack_into("<I", result, 24, len(result) - symtab)
-    return result, calls.keys(), data + bss + common
+    return result, calls.keys(), data + bss + common, required
 
 
 def assembly(groups, calls, first):
@@ -214,7 +219,7 @@ def link(inputs, state_image=None):
     subprocess.run([TOOLS / "ld", "-T0", "-r", "-o", "prelink.o", *inputs], cwd=work, check=True)
     layout = object_layout(state_image, record) if state_image is not None else {}
     state_names = {n.encode() for n in [*layout, STATE]} if layout else set()
-    obj, calls, writable_bytes = adapt(
+    obj, calls, writable_bytes, required = adapt(
         (work / "prelink.o").read_bytes(),
         {n.encode(): 0x10020001 + 8 * i for i, group in enumerate(groups) for n in group},
         state_names,
@@ -251,6 +256,23 @@ def link(inputs, state_image=None):
         for name, (address, _, writable) in layout.items():
             expected = (base + address, "B") if writable else (address, "A")
             require(symbols.get(name) == expected, "final object binding differs: " + name)
+        prefix = max(((address - 0x10020001) // 8 + 1 for address in required), default=0)
+        requirement = REQUIREMENT.pack(
+            b"XREQ",
+            1,
+            REQUIREMENT.size,
+            bytes.fromhex(record["slot_elf_sha256"]),
+            prefix,
+            base,
+            record["state"],
+        )
+        raw = image.read_bytes()
+        header = list(HEADER.unpack_from(raw))
+        require(header[0] == 0o407, "expected static OMAGIC linker output")
+        header[0] |= XIP_FLAG << 26
+        shared = work / "shared.aout"
+        shared.write_bytes(HEADER.pack(*header) + requirement + raw[HEADER.size :])
+        return shared
     return work / "app.aout"
 
 

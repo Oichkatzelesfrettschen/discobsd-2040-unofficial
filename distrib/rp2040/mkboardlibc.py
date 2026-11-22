@@ -104,7 +104,8 @@ setbuf setvbuf snprintf sprintf strout ungetc vfprintf vprintf vsprintf
 )
 
 STDLIB_C = set(
-    "abs labs iso_exit at_quick_exit quick_exit getopt getsubopt strtod strtol strtoul".split()
+    ("abs labs div ldiv iso_exit at_quick_exit quick_exit "
+     "getopt getsubopt strtod strtol strtoul").split()
 )
 
 STRING_C = set(

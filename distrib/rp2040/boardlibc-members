@@ -33,6 +33,8 @@ ctermid
 ctime
 ctype_
 difftime
+div
+ldiv
 doprnt
 doprnt_llong
 doscan

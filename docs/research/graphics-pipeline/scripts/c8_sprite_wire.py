@@ -1,0 +1,108 @@
+# Copyright (c) 2026 GizmoBSD
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+# c8_sprite_wire.py -- wire bytes a moving ridge sprite costs under three drawing methods, from the
+# sprite art in games/ridge/ridge.c (rg_art) and the RGB565 wire model of c5_wire.py
+import re
+import sys
+
+PIXEL = 2  # RGB565 bytes a pixel; ridge selects COLMOD 0x55 (rg_view_init)
+WINDOW = 11  # CASET, RASET and RAMWR setup bytes (games/gametile.h)
+TILE = 64 * PIXEL
+CELL = 8  # LCDG_TILE_W
+BOX = 3  # RG_BOX
+FRAMES = (("climber run", 1), ("climber jump", 3), ("crawler", 4))
+MOVES = (("run 1 px", 1, 0), ("rise 2 px", 0, -2), ("fall 4 px", 0, 4), ("run 1, rise 2", 1, -2))
+
+
+def art(path):
+    src = open(path).read()
+    block = re.search(r"rg_art\[6\]\[16\]\[17\] = \{(.*?)\n\};", src, re.S)
+    if block is None:
+        raise SystemExit("rg_art not found in " + path)
+    rows = re.findall(r'"([^"]{16})"', block.group(1))
+    if len(rows) != 6 * 16:
+        raise SystemExit("rg_art holds %d rows, expected 96" % len(rows))
+    return [rows[i * 16:(i + 1) * 16] for i in range(6)]
+
+
+def opaque(frame):
+    return {(x, y) for y, row in enumerate(frame) for x, c in enumerate(row) if c != "."}
+
+
+def row_runs(points):
+    """Maximal runs of consecutive x in each row of a set of (x, y)."""
+    n = 0
+    for y in {p[1] for p in points}:
+        xs = sorted(p[0] for p in points if p[1] == y)
+        n += 1 + sum(1 for a, b in zip(xs, xs[1:]) if b != a + 1)
+    return n
+
+
+def cells(px, ox, oy):
+    return {((ox + x) // CELL, (oy + y) // CELL) for x, y in px}
+
+
+def box(ox, oy):
+    cx, cy = ox // CELL, oy // CELL
+    return {(cx + i, cy + j) for i in range(BOX) for j in range(BOX)}
+
+
+def tiles(cs):
+    """gtile_flush: one window per run of marked cells in a tile row, 64 pixels a cell."""
+    return len(cs) * TILE + row_runs(cs) * WINDOW
+
+
+def calibrate():
+    # render_test.c: a one-pixel step inside the cells sends 3 windows and 9 tiles, and a step
+    # across a cell edge sends 3 windows and 12 tiles.
+    inside = box(9, 8) | box(10, 8)
+    edge = box(15, 8) | box(16, 8)
+    if (len(inside), row_runs(inside), len(edge), row_runs(edge)) != (9, 3, 12, 3):
+        raise SystemExit("box model disagrees with render_test")
+
+
+def main(path):
+    calibrate()
+    frames = art(path)
+    print("sprite / move | opaque px | runs | box atlas | opaque-cell atlas | LCDG_SPRITE")
+    for name, f in FRAMES:
+        px = opaque(frames[f])
+        sprite_px = len(px) * PIXEL + row_runs(px) * WINDOW
+        for move, dx, dy in MOVES:
+            a = b = c = n = 0
+            for ox in range(CELL, 2 * CELL):
+                for oy in range(CELL, 2 * CELL):
+                    old, new = cells(px, ox, oy), cells(px, ox + dx, oy + dy)
+                    a += tiles(box(ox, oy) | box(ox + dx, oy + dy))
+                    b += tiles(old | new)
+                    c += tiles(old) + sprite_px
+                    n += 1
+            print("%s / %s | %d | %d | %.0f | %.0f | %.0f"
+                  % (name, move, len(px), row_runs(px), a / n, b / n, c / n))
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else "games/ridge/ridge.c")

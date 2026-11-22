@@ -43,6 +43,7 @@ The Python rows run under the interpreter the caller selects, as every Python to
 | `scripts/c6_win_real.c` | see below | `c6_win_real_out.txt` |
 | `scripts/c7_quant_qaoa.py` | `"$PYTHON" -I docs/research/graphics-pipeline/scripts/c7_quant_qaoa.py` | `c7_out.txt` |
 | `scripts/c7b_bayer_sweep.py` | `"$PYTHON" -I docs/research/graphics-pipeline/scripts/c7b_bayer_sweep.py china.jpg` (and `flower.jpg`) | `c7b_china_out.txt`, `c7b_flower_out.txt` |
+| `scripts/c8_sprite_wire.py` | `"$PYTHON" -I docs/research/graphics-pipeline/scripts/c8_sprite_wire.py` | `c8_out.txt` |
 | `scripts/f1/f1_harness.c`, `scripts/f1/f1b_harness.c` | see below | `f1/f1_out.txt`, `f1/f1_tip.txt`, `f1/f1b_head.txt`, `f1/f1b_tip.txt` |
 
 Timings printed by `c7_quant_qaoa.py` vary from run to run, and the COBYLA starts of the p=2 QAOA row move its fourth digit (0.0177 saved, 0.0176 on a rerun). The saved outputs of `c1b`, `c3`, `c5`, `c7b`, `t.sing` and `f1_tip` are the captures taken when this record was filed. `c1_out.txt` holds `c1_copy_order.py` alone.
@@ -211,6 +212,24 @@ Maximum-dispersion selection of 4 of 12 candidate colors is a real QUBO, solved 
 | Grover | about 17 oracle calls against 495 trivial evaluations |
 
 The dispersion proxy is poor: its optimum ranks 363 of 495 by true image error. The exact p-median objective is not quadratic. The 4-point DFT of the CGA model is a 2-qubit QFT, an advantage of zero.
+
+## 7. Sprites: box compositing, LCDG_SPRITE and opaque cells
+
+Ridge draws a moving sprite by compositing the 3 by 3 cells of its box into atlas slots and pointing every box cell at a slot (`rg_composite`, `games/ridge/ridge.c`), so a step sends the union of the old and new boxes: 9 tiles inside a cell, 12 across a cell edge, as `games/ridge/tests/render_test.c` checks. `scripts/c8_sprite_wire.py` reads the sprite art (`rg_art`) and prices three methods in RGB565 wire bytes, 2 a pixel and 11 a window, averaged over the 64 positions of the sprite inside a cell [C] (`scripts/c8_out.txt`, computed at `e32078513`). The model reproduces the 9 and 12 tiles and 3 windows of `render_test.c` before it prints, and exits on a box size other than 3.
+
+| Sprite, move | Box atlas (now) | Opaque-cell atlas | `LCDG_SPRITE` |
+|---|---:|---:|---:|
+| climber running, 1 px | 1,233 | 787 | 1,167 |
+| climber running, fall 4 px | 1,382 | 894 | 1,167 |
+| climber jumping, 1 px | 1,233 | 843 | 1,235 |
+| climber jumping, fall 4 px | 1,382 | 966 | 1,235 |
+| crawler, 1 px | 1,233 | 619 | 880 |
+| crawler, fall 4 px | 1,382 | 754 | 880 |
+
+- `LCDG_SPRITE` repaints the cells under the old sprite with their world tiles and then sends the new sprite's opaque runs, one window a run. It saves up to 36 percent against the box atlas, and nothing on the jumping climber's 1 px step (1,235 bytes against 1,233). The repaint shows the world without the sprite until the sprite's runs arrive, so it needs an `LCDG_WAITLINE` fence to avoid flicker [I].
+- The opaque-cell atlas composites only the cells that hold a pixel of the old or the new sprite and leaves the other box cells on their world tiles, which already show the right pixels. It saves 30 to 50 percent against the box atlas and 14 to 33 percent against `LCDG_SPRITE`, writes every cell once with its final pixels, and changes `ridge.c` alone.
+- Limits: one sprite at a time. Overlapping sprites share slots in the box atlas and would need a redraw order under `LCDG_SPRITE`. The atlas methods also copy 32 bytes a tile into the kernel with `LCDG_TILESET`, which costs a system call and CPU time but no wire bytes. Board timing was not measured.
+- Falsifier: a board run of ridge in which the opaque-cell atlas does not cut the bus time of a sprite step against the box atlas.
 
 ## Open questions
 

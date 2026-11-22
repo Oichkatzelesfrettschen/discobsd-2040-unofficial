@@ -41,7 +41,7 @@
   "requirements": {
     "path": "docs/research/dpucp-2024-requirements.tsv",
     "row_count": 1518,
-    "ordered_row_sha256": "35630b3bcd63c706d2ae1d87fc569f1f903c7044a80ec338ecaaa4f295fb546c"
+    "ordered_row_sha256": "376d735b079a03f2a2a3783b714686126361b0d1b1636a7f428aa7ef15ebbfcf"
   },
   "state_counts": {
     "applicability": {
@@ -51,16 +51,16 @@
       "environment-constrained": 0
     },
     "implementation": {
-      "unreviewed": 1431,
+      "unreviewed": 1427,
       "present": 3,
-      "partial": 84,
+      "partial": 88,
       "absent": 0,
       "divergent": 0
     },
     "evidence": {
-      "none": 1431,
+      "none": 1427,
       "static": 37,
-      "host": 36,
+      "host": 40,
       "cross": 5,
       "qemu-user": 9,
       "renode": 0,
@@ -210,6 +210,12 @@
       "evidence": "cross",
       "known_good": "tools/c17/public_time_types.py",
       "known_bad": "tools/c17/public_time_types.py"
+    },
+    "libc-integer-division-host-contract": {
+      "command": ": \"${PYTHON:?set PYTHON to the intended interpreter}\"; export PYTHON; bmake MACHINE=rp2040 check-libc-integer-division",
+      "evidence": "host",
+      "known_good": "tests/libc_contracts/integer_division_test.c",
+      "known_bad": "tests/libc_contracts/integer_division.py"
     }
   },
   "growth_policy": {

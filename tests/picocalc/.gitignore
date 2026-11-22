@@ -14,3 +14,4 @@ panel_decode_test
 panel_scan_test
 lcdgfx_ext_test
 lcdvt_test
+lcdblank_test

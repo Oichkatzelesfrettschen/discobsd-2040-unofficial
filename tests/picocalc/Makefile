@@ -181,7 +181,7 @@ check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	gametile_test \
 	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
 	uart_test uart_picocalc_test panel_decode_test panel_scan_test \
-	lcdvt_test font-sync
+	lcdvt_test lcdblank_test font-sync
 	./lcdterm_test
 	./lcdgfx_test
 	./lcdgfx_ext_test
@@ -198,11 +198,13 @@ check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	./panel_decode_test
 	./panel_scan_test
 	./lcdvt_test
+	./lcdblank_test
+	sh ./lcdblank_wiring.sh ${DEV}/st7365p.c ${DEV}/picokbd.c
 	sh ./mutant_bounds_test.sh "${HOST_CC}"
 	${MAKE} mutants gfx-mutants gfxext-mutants kbdreq-mutants kbdevq-mutants \
 	    gametile-mutants sdspi-mutants sdstrat-mutants dump-mutants \
 	    picoaudio-mutants picopcm-mutants uart-mutants panel-decode-mutants \
-	    panel-scan-mutants lcdvt-mutants
+	    panel-scan-mutants lcdvt-mutants lcdblank-mutants
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
@@ -265,6 +267,59 @@ panel-scan-mutants:
 	${PS_MUT} 's/^\ttr->at = 0;/\ttr->at = 1;/' st7365p_scan.h
 	${PS_MUT} 's/if (tr->have == 1 \&\& line >= tr->up \&\&/if (tr->have == 1 ||/' \
 	    st7365p_scan.h
+
+# lcdblank_test: the console blanker (LCD_BLANK, decision D216) against a model
+# panel and clock, without LCD_VT: the 4 symbols LCD_VT adds to lcdcons.c would
+# be stubs this gate does not need. lcdblank_wiring.sh checks the st7365p.c and
+# picokbd.c orderings that the model cannot reach.
+LCDBLANK_SRCS=	${DEV}/lcdcons.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c \
+		${DEV}/picokbd_map.c
+LCDBLANKCSTD=	-I${TOPSRC}/tests/picocalc/shim-vt ${KCSTD} -D_DEFAULT_SOURCE \
+		-DKERNEL -DDEV_LCDGFX -DLCD_GFX_EXT -DLCD_BLANK -DLCD_BLANK_SECS=300 \
+		-DLCDTERM_HOST_TEST -I${DEV}
+LCDBLANK_SHIM=	shim-vt/sys/kernel.h shim-vt/sys/tty.h shim-vt/sys/param.h \
+		shim-vt/sys/user.h shim-vt/sys/proc.h shim-vt/sys/file.h \
+		shim-vt/sys/systm.h shim-vt/sys/conf.h shim-vt/sys/config.h \
+		shim-vt/sys/ioctl.h shim-vt/sys/lcdcons.h shim-vt/machine/intr.h \
+		shim-vt/machine/board.h
+
+lcdblank_test: lcdblank_test.c ${LCDBLANK_SRCS} ${LCDBLANK_SHIM} \
+	    ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h ${DEV}/picocalc.h
+	${HOST_CC} ${LCDBLANKCSTD} ${SAN} -g -o $@ lcdblank_test.c ${LCDBLANK_SRCS}
+
+LCDBLANK_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${LCDBLANKCSTD} ${SAN}" "${DEV}" \
+		lcdblank_test.c
+LCDBLANK_SRCLIST=	lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+
+.PHONY: lcdblank-mutants
+lcdblank-mutants:
+	@MUTANT_EXPECT='boot does not blank at the first exchange' ${LCDBLANK_MUT} lcdcons.c \
+	    's/d = blank_seen == 0 ? 0 : now - blank_seen;/d = now - blank_seen;/' \
+	    ${LCDBLANK_SRCLIST}
+	@MUTANT_EXPECT='a key wakes the panel with no gap' ${LCDBLANK_MUT} lcdcons.c \
+	    '/^blank_change/,/^}/{s/^\t} else$$/\t} else {/;s/^\t\tst7365p_wake();$$/\t\tif (st7365p_sleep_early()) { timeout(blank_retry, (caddr_t)0, 1); return; } st7365p_wake(); }/}' \
+	    ${LCDBLANK_SRCLIST}
+	@MUTANT_EXPECT='a key during SLPIN leaves the panel awake' ${LCDBLANK_MUT} lcdcons.c \
+	    '/^blank_change/,/^}/s/blank_asleep = want;/blank_asleep = blank_want;/' \
+	    ${LCDBLANK_SRCLIST}
+	@MUTANT_EXPECT='one deferral callout per window' ${LCDBLANK_MUT} lcdcons.c \
+	    's/if (!blank_armed) {/if (1) {/' \
+	    ${LCDBLANK_SRCLIST}
+	@MUTANT_EXPECT='lcdabandon wakes a sleeping panel' ${LCDBLANK_MUT} lcdcons.c \
+	    '/^lcdabandon/,/^}/s/^\t\t    || blank_asleep$$//' \
+	    ${LCDBLANK_SRCLIST}
+	@MUTANT_EXPECT='a graphics open wakes the panel before its first command' ${LCDBLANK_MUT} lcdcons.c \
+	    '/^lcdcons_gfx/,/^}/s/^\t\tst7365p_wake();$$/\t\t(void)0;/' \
+	    ${LCDBLANK_SRCLIST}
+	@MUTANT_EXPECT='a clock step does not blank early' ${LCDBLANK_MUT} lcdcons.c \
+	    's/u_int now = pc_micros(), d;/u_int now = pc_micros() + (u_int)time.tv_sec * 1000000U, d;/' \
+	    ${LCDBLANK_SRCLIST}
+	sh ./lcdblank_wiring.sh -m picokbd 'blank poll on completed exchanges only' \
+	    's/^\t\tif (r == STEP_EVENT || phase == PH_WRITE)$$/\t\tif (1)/' \
+	    ${DEV}/st7365p.c ${DEV}/picokbd.c
+	sh ./lcdblank_wiring.sh -m st7365p 'lcd_power_pending is set before SLPIN' \
+	    '/^st7365p_sleep(void)/,/^}/{s/^\tlcd_power_pending = 1;$$/\tlcd_power_pending = 0;/;s/^\tlcd_deselect();$$/\tlcd_deselect(); lcd_power_pending = 1;/}' \
+	    ${DEV}/st7365p.c ${DEV}/picokbd.c
 
 # lcdvt_test: the console driver with LCD_VT, the real terminal and the key
 # decision, against the model panel and the tty model of shim-vt. The TS_

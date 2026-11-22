@@ -321,10 +321,10 @@ lcdblank-mutants:
 	    's/u_int now = pc_micros(), d;/extern struct timeval time; u_int now = pc_micros() + (u_int)time.tv_sec * 1000000U, d;/' \
 	    ${LCDBLANK_SRCLIST}
 	sh ./lcdblank_wiring.sh -m picokbd 'blank poll on completed exchanges only' \
-	    's/^\t\tif (r == STEP_EVENT || phase == PH_WRITE)$$/\t\tif (1)/' \
+	    's/^\([[:space:]]*\)if (r == STEP_EVENT || phase == PH_WRITE)$$/\1if (1)/' \
 	    ${DEV}/st7365p.c ${DEV}/picokbd.c
 	sh ./lcdblank_wiring.sh -m st7365p 'lcd_power_pending is set before SLPIN' \
-	    '/^st7365p_sleep(void)/,/^}/{s/^\tlcd_power_pending = 1;$$/\tlcd_power_pending = 0;/;s/^\tlcd_deselect();$$/\tlcd_deselect(); lcd_power_pending = 1;/}' \
+	    '/^st7365p_sleep(void)/,/^}/{s/^\([[:space:]]*\)lcd_power_pending = 1;$$/\1lcd_power_pending = 0;/;s/^\([[:space:]]*\)lcd_deselect();$$/\1lcd_deselect(); lcd_power_pending = 1;/;}' \
 	    ${DEV}/st7365p.c ${DEV}/picokbd.c
 
 # lcdvt_test: the console driver with LCD_VT, the real terminal and the key

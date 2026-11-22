@@ -219,7 +219,8 @@ export PYTHON
 bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 logged-kernel
 bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 picocalc-sd-kernel picocalc-sd-diag-kernel
 "$PYTHON" -I docs/research/rp2040-memory-ledger/measure_kernel_memory.py \
-    sys/arch/rp2040/compile/*/unix.elf
+    sys/arch/rp2040/compile/*/unix.elf \
+    >docs/research/rp2040-memory-ledger/kernel-memory-ledger.tsv
 for c in PICO PICOCALC_SD; do
 	sh docs/research/rp2040-memory-ledger/cflow_maps.sh \
 	    sys/arch/rp2040/compile/$c docs/research/rp2040-memory-ledger/call-graphs

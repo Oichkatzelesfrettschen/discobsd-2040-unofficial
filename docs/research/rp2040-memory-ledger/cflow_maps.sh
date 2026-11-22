@@ -60,7 +60,16 @@ command -v cflow >/dev/null 2>&1 || {
 top=$(git -C "$compile" rev-parse --show-toplevel)
 sys=$top/sys
 config=$(basename "$compile")
-list=$output/$config.sources
+# Every output is built in a private directory and moved into place only
+# after all roots succeed, so a failure leaves the previous set whole.
+work=$(mktemp -d)
+cleanup()
+{
+	rm -f "$work"/*
+	rmdir "$work"
+}
+trap cleanup EXIT
+list=$work/$config.sources
 : >"$list"
 for dependency in "$compile"/.deps/*.dep; do
 	[ -f "$dependency" ] || continue
@@ -85,14 +94,13 @@ done
 }
 definitions=$(sed -n 's/^PARAM *+*= *//p' "$compile/Makefile" | tr '\n' ' ' |
     sed 's/ *$//')
-printf '%s\n' "$definitions" >"$output/$config.definitions"
+printf '%s\n' "$definitions" >"$work/$config.definitions"
 preprocessor="cpp -nostdinc -DKERNEL -I$compile -I$sys -I$sys/arch"
 preprocessor="$preprocessor -I$sys/arch/rp2040/include"
 preprocessor="$preprocessor -I$sys/arch/rp2040/dhara/compat"
 preprocessor="$preprocessor -I$sys/arch/rp2040/heatshrink"
 preprocessor="$preprocessor -I$sys/arch/rp2040/heatshrink/compat $definitions"
-raw=$output/.cflow.raw
-trap 'rm -f "$raw" "$raw.err"' EXIT
+raw=$work/cflow.raw
 for root in "$@"; do
 	# The source list holds repository paths without blanks, so the word
 	# split of the command substitution yields one argument per file.
@@ -108,7 +116,11 @@ for root in "$@"; do
 		exit 1
 	fi
 	sed "s|$top/||g; s|\./machine/|sys/arch/rp2040/include/|g" "$raw" \
-	    >"$output/$config-$root.txt"
+	    >"$work/$config-$root.txt"
 done
+rm -f "$raw" "$raw.err"
 sed "s|$top/||" "$list" >"$list.tmp"
 mv "$list.tmp" "$list"
+for generated in "$work"/*; do
+	mv "$generated" "$output/"
+done

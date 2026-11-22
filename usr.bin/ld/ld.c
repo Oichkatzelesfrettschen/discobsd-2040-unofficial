@@ -1576,6 +1576,9 @@ middle(void)
 			break;
 		case N_COMM:
 		case N_EXT+N_COMM:
+                        /* A later link allocates common storage with its final alignment. */
+                        if (output_relinfo && !dflag)
+                                break;
 			sp->n_type = N_EXT+N_BSS;
 			sp->n_value += cmorigin;
 			break;

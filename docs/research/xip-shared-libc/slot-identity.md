@@ -256,8 +256,8 @@ bytes as the ordinary single-pass link. With the provider omitted, the main
 object and companion archive produced a 112-byte text and four-byte data
 image. Direct and indirect calls returned the expected random sequence across
 two modeled process states. Default-origin partial linking applied the SRAM
-base twice. The diagnostic prelink uses `-T0 -r -d` to give symbols a
-zero origin and allocate application common storage before selecting imports.
+base twice. The diagnostic prelink uses `-T0 -r` to give symbols a
+zero origin. The final link allocates common storage and defines segment ends.
 
 This host experiment uses the diagnostic member envelope. Kernel admission,
 process initialization and production import numbering remain open.

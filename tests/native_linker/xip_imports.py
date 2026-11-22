@@ -57,18 +57,19 @@ def adapt(original, slots):
     require(symtab + symbols == len(original), "object extent differs")
     names = []
     types = []
+    records = []
     end = symtab
     while end < len(original) and original[end]:
         length = original[end]
         require(end + 6 + length <= len(original), "symbol extent differs")
         names.append(original[end + 6 : end + 6 + length])
         types.append(original[end + 1])
+        records.append(end)
         end += 6 + length
     require(not any(original[end:]), "nonzero symbol padding")
     known_names = set(names)
     result = bytearray(original[:end])
     calls = {}
-    needed = set()
     for start, extent, segment, size in (
         (text_reloc, rt, HEADER.size, text),
         (text_reloc + rt, rd, HEADER.size + text, data),
@@ -89,7 +90,9 @@ def adapt(original, slots):
                     require(
                         flags in (0x71, 0x78) and offset + 4 <= size, "invalid import relocation"
                     )
-                    needed.add(name)
+                    # An absolute definition keeps the pointer binding outside ld's
+                    # per-object table of unresolved relocation symbols.
+                    struct.pack_into("<BI", result, records[index] + 1, 0x21, slots[name])
                     if flags == 0x78:
                         require(segment == HEADER.size and offset % 2 == 0, "invalid call location")
                         require(
@@ -107,23 +110,26 @@ def adapt(original, slots):
         result.extend(struct.pack("<BBI", len(bridge), 0x20, 0) + bridge)
     result.extend(bytes(-len(result) % 4))
     struct.pack_into("<I", result, 24, len(result) - symtab)
-    return result, needed, calls.keys()
+    return result, calls.keys()
 
 
-def assembly(groups, needed, calls):
+def assembly(groups, calls, first):
     lines = [".syntax unified", ".thumb", ".text"]
-    for ordinal, group in enumerate(groups):
-        aliases = [name for name in group if name.encode() in needed]
-        for name in aliases:
-            lines.extend([f".global {name}", f".equ {name}, {0x10020001 + 8 * ordinal}"])
-        called = [name for name in aliases if name.encode() in calls]
+    for ordinal, group in enumerate(groups, first):
+        called = [name for name in group if name.encode() in calls]
         if called:
             lines.append(".p2align 2")
             for name in called:
                 bridge = BRIDGE.decode() + name
                 lines.extend([f".global {bridge}", ".thumb_func", f"{bridge}:"])
             lines.extend(
-                ["push {r3,r4}", f"ldr r3,={called[0]}", "str r3,[sp,#4]", "pop {r3,pc}", ".pool"]
+                [
+                    "push {r3,r4}",
+                    f"ldr r3,={0x10020001 + 8 * ordinal}",
+                    "str r3,[sp,#4]",
+                    "pop {r3,pc}",
+                    ".pool",
+                ]
             )
     return "\n".join(lines) + "\n"
 
@@ -140,16 +146,20 @@ def link(inputs):
     )
     require(set(names) == set(record["roots"]) - set(record["objects"]), "callable set differs")
     work = Path(tempfile.mkdtemp(prefix="native-slot-imports-", dir=ROOT / ".build-logs"))
-    subprocess.run(
-        [TOOLS / "ld", "-T0", "-r", "-d", "-o", "prelink.o", *inputs], cwd=work, check=True
+    subprocess.run([TOOLS / "ld", "-T0", "-r", "-o", "prelink.o", *inputs], cwd=work, check=True)
+    obj, calls = adapt(
+        (work / "prelink.o").read_bytes(),
+        {n.encode(): 0x10020001 + 8 * i for i, group in enumerate(groups) for n in group},
     )
-    obj, needed, calls = adapt((work / "prelink.o").read_bytes(), {n.encode() for n in names})
     (work / "caller.o").write_bytes(obj)
     objects = ["caller.o"]
-    if needed:
-        (work / "imports.s").write_text(assembly(groups, needed, calls))
-        subprocess.run([TOOLS / "as", "imports.s", "-o", "imports.o"], cwd=work, check=True)
-        objects.append("imports.o")
+    for first in range(0, len(groups), 64):
+        batch = groups[first : first + 64]
+        if any(name.encode() in calls for group in batch for name in group):
+            stem = f"imports-{first}"
+            (work / (stem + ".s")).write_text(assembly(batch, calls, first))
+            subprocess.run([TOOLS / "as", stem + ".s", "-o", stem + ".o"], cwd=work, check=True)
+            objects.append(stem + ".o")
     subprocess.run([TOOLS / "ld", "-o", "app.aout", *objects], cwd=work, check=True)
     return work / "app.aout"
 

@@ -1284,10 +1284,14 @@ guest_copy(unsigned seg, unsigned off, uint8_t *buf, unsigned n, int toguest)
 	}
 }
 
+/* One sector of a disk image. disk_rw() and boot() take turns with it:
+ * the bootstrap read finishes before the guest can call interrupt 13h. */
+static uint8_t sector[512];
+
 static unsigned
 disk_rw(struct i86 *c, struct disk *d, unsigned fn)
 {
-	static uint8_t buf[512];
+	uint8_t *buf = sector;
 	unsigned n = c->r[R_AX] & 0xff, cl = c->r[R_CX] & 0xff;
 	unsigned cyl = (c->r[R_CX] >> 8) | (cl & 0xc0) << 2;
 	unsigned head = c->r[R_DX] >> 8, sec = cl & 63, off = c->r[R_BX];
@@ -1388,7 +1392,7 @@ static int
 boot(struct i86 *c)
 {
 	static const char msg[] = "i86: no bootable disk\r\n";
-	static uint8_t buf[512];
+	uint8_t *buf = sector;
 	unsigned i;
 
 	for (i = 0; i < 4; i += 2) {

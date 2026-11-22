@@ -279,6 +279,8 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/string/memmem.c \
 				${TOPSRC}/lib/libc/stdlib/abs.c \
 				${TOPSRC}/lib/libc/stdlib/labs.c \
+				${TOPSRC}/lib/libc/stdlib/div.c \
+				${TOPSRC}/lib/libc/stdlib/ldiv.c \
 				${TOPSRC}/lib/libc/stdlib/iso_exit.c \
 				${TOPSRC}/lib/libc/stdlib/at_quick_exit.c \
 				${TOPSRC}/lib/libc/stdlib/quick_exit.c \

@@ -26,6 +26,10 @@ SD_PANEL_OPTIONS = ("options SYSTRACE", "options LCD_PANELTEST")
 # PICOCALC_LEAN omits.
 OPTIONAL_DEVICE_OPTIONS = ("options DEV_ADC", "options DEV_GPIO",
                            "options DEV_LCDGFX", "options DEV_PCM")
+# The additions of PICOCALC_LEAN: without DEV_LCDGFX the tile atlas leaves
+# SRAM5 idle, and the kernel stages the swap exchange sector there
+# (sys/kern/vm_swap.c).
+LEAN_OPTIONS = ("options SWAP_EXCHANGE_SCRATCH",)
 # The additions of PICOCALC_SD_DIAG, the testing kernel: the signal-path
 # prints, the exec trace of sys/arch/rp2040/include/debug.h, the storage
 # counters, the diagnostic counters and message ring (sys/sys/diag_stats.h),
@@ -42,12 +46,13 @@ SD_DIAG_OPTIONS = ("options PICOCALC_SD", "options DIAGNOSTIC",
 # it removes from it).
 VARIANTS = (
     ("PICO_DIAG", "PICO", DIAGNOSTIC_OPTIONS, ()),
-    ("PICOCALC_LEAN", "PICOCALC", (),
+    ("PICOCALC_LEAN", "PICOCALC", LEAN_OPTIONS,
      OPTIONAL_DEVICE_OPTIONS + ("options CAPACITY_STATS",)),
     ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN", DIAGNOSTIC_OPTIONS, ()),
     ("PICOCALC_SD", "PICOCALC",
      ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a', *SD_PANEL_OPTIONS,
       'options LCD_GFX_EXT', 'options DEV_GPIO_PWM', 'options LCD_VT',
+      'options LCD_BLANK',
       'options "NPROC=32"', 'options "MAXUPRC=25"', 'options "SMAPSIZ=36"'),
      ('ldscript "RP2040.ld"', 'config unix root on fl0a')),
     ("PICOCALC_SD_DIAG", "PICOCALC_SD", SD_DIAG_OPTIONS, ()),

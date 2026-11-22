@@ -80,6 +80,7 @@ PROC_FLAGS = [
     (0x0008, "SSWAP"),
     (0x0010, "P_TRACED"),
     (0x0020, "P_WAITED"),
+    (0x0040, "P_TEXTDIRTY"),
     (0x0080, "P_SINTR"),
     (0x0100, "SVFORK"),
     (0x0200, "SVFPRNT"),

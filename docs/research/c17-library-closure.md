@@ -11,8 +11,8 @@ from C17's only in the C11 additions (`aligned_alloc`, `quick_exit`,
 `timespec_get`, `<uchar.h>`, `<stdalign.h>`, `<stdnoreturn.h>`, and the
 optional `<threads.h>` and `<stdatomic.h>`).
 
-The measurement base is `b3f293a6fb0e0cce4ff3a02c24e3861a176a0660`. Every new
-member is in the cross ELF archives only: `lib/libc_aout` and
+The measurement base is `b3f293a6fb0e0cce4ff3a02c24e3861a176a0660`. At that revision every new
+member was in the cross ELF archives only: `lib/libc_aout` and
 `distrib/rp2040/boardlibc-members` list members explicitly and are unchanged,
 so no shipped program, native archive or root image contains a new member, and
 no board executed the new code.
@@ -57,6 +57,15 @@ and `%` to that pair, so `div` is the operator pair, which the compiler merges
 into one `__aeabi_idivmod` call served by the RP2040 SIO divider. `lldiv`
 forwards to `imaxdiv`, the one 64-bit divider. The gate checks the three
 conditions, not a second division, so floored division fails it.
+
+The native full and reduced a.out archives also select `div.o` and
+`ldiv.o`. At base `0e3cd773c` the full archive used 133,442 bytes and
+the reduced archive used 51,542. Adding both members brings the observed
+sizes to 133,766 and 51,862 bytes respectively. The a.out gate links each
+archive and rejects each member's omission. Smaller C calls both GCC
+providers and reads both structure fields in Cortex-M0 QEMU, where libgcc
+supplies software division. The RP2040 device link selects the SIO divider.
+The paired resource receipts below record packed-root occupancy.
 
 **One locale.** The system has the "C" locale only, which POSIX also names
 "POSIX". `setlocale` accepts those two and `""` and refuses everything else, so
@@ -306,3 +315,25 @@ for f in locale strtof math wide; do
 	"$PYTHON" tests/libc_contracts/c17_family.py $f . arm-none-eabi-gcc --arm
 done
 ```
+
+## Native division archive resources
+
+Clean distributions of parent `0e3cd773c` and candidate `fe7454807`
+use matching resource collectors, measurement tools and toolchains.
+The installed archive grows from 51,542 to 51,862 bytes. Its two new
+members are `div.o` and `ldiv.o`. Every previously selected member
+retains its digest. The other 157 numeric surfaces match, including 751
+allocated root data blocks, 228 free blocks and 26 free inodes. Runtime
+stack use, latency and physical divider behavior require separate evidence.
+
+Separate archive members permit either public function to link independently.
+Omitting them leaves the existing public declarations unresolved for native
+clients. Combining the functions in one member would make a caller select
+both bodies. The default admission gate rejects the two added dependencies.
+The owner approves an exception limited to those members and the 320 installed
+archive bytes. Reverting the native selection change restores the parent
+archive contract.
+
+[Parent resources](native-division-resource-parent.json),
+[candidate resources](native-division-resource-candidate.json) and
+[comparison](native-division-resource-comparison.json).

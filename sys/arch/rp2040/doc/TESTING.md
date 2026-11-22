@@ -1667,7 +1667,39 @@ under a lowered limit, a negative limit, and a recorded stack depth at, past
 and under `RLIMIT_STACK`. `check-rlimit-growth-mutants` generates six mutants
 (data check removed, text counted as data, shrink refused, both limit
 boundaries made exclusive, stack check removed); each must exit 1 on its named
-check. `sendsig()` calls the same stack helper and stays outside the fixture.
+check.
+
+`sendsig()` calls the same stack helper, and `kernel.sendsig-stack-limit.ilp32`
+(`tests/kernel/sendsig_stack_limit_test.c`) drives that call site. The fixture
+compiles `sendsig()` from `sys/arch/rp2040/rp2040/sig_machdep.c` and
+`rlimit_stack_admits()` from `sys/kern/kern_resource.c` verbatim over a host
+buffer that stands for the window top, with `RLIMIT_STACK` at 4096 bytes. A
+frame 2048 bytes deep and a frame exactly 4096 bytes deep are delivered and
+grow the recorded stack to their depth; a frame 4104 bytes deep and one 8192
+bytes deep end the process with `SIGILL` and leave the trapframe and the
+recorded stack unchanged. `check-sendsig-stack-limit-mutants` generates two
+mutants, the admission removed (must fail `a frame past the limit ends the
+process`) and the depth measured from the data base instead of the stack top
+(must fail `a frame at the limit is delivered`). The fixture is host evidence
+for the call site; the exception return and the user stack on the board keep
+their own evidence classes.
+
+`kernel.exec-clear.ilp32` (`tests/kernel/exec_clear_test.c`) binds
+`exec_clear()` to the close-on-exec contract that `kernel.exec-close.ilp32`
+leaves open. The fixture compiles `exec_clear()` from `sys/kern/exec_subr.c`
+and `exec_finish()` from `sys/kern/kern_exec.c` verbatim, with stubs that
+record calls, and runs the real `exec_clear()` before the real
+`exec_finish()`, and no flag is set by hand between them. Its 15 checks require
+`exec_clear()` to set `EXEC_CLOSE_PENDING` (also for a traced exec) and keep
+other flags, to leave `fdcloseexec()` uncalled, to zero the bss, the gap and
+the stack without touching bytes outside them, and `exec_finish()` to run the
+closes once, after the inode release, with an interrupted close leaving
+`u.u_error` as it was. `check-exec-clear-mutants` generates two mutants, a
+direct `fdcloseexec()` call inside `exec_clear()` (must fail `exec_clear does
+not close descriptors itself`) and the flag omitted (must fail `exec_clear
+marks the closes pending`). The fixture stubs the terminal, the swapper and
+the inode lock, so it establishes the call order and the flag, and the
+swapper deadlock itself stays a board observation.
 
 The tier also extracts the exact `exec_elf_check`, `exec_estab`,
 `exec_setupstack`, `exec_text_release`, `swaptext` and `exec_finish` functions.

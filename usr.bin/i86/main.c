@@ -290,7 +290,7 @@ main(int argc, char **argv)
 	static struct i86 cpu;
 	static char store_name[32];
 	const char *store = store_name;
-	unsigned frames = 119, nhard = 0;
+	unsigned frames = 118, nhard = 0;
 	int ch;
 
 	/* One page file for each running emulator. */

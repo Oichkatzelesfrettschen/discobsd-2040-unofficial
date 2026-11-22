@@ -117,12 +117,37 @@ pace(void)
 	    clk_pace(&due, ULONG_MAX - 999UL), 3);
 }
 
+/* Waiting interrupts: up to CLK_CREDIT_US worth of periods, never fewer
+ * than four. */
+static unsigned
+fill(uint32_t period, unsigned calls)
+{
+	unsigned due = 0;
+
+	while (calls-- > 0)
+		due = clk_owe(due, period);
+	return (due);
+}
+
+static void
+owe(void)
+{
+	want("owe: 20 ms in clocks", CLK_CREDIT_CLOCKS, 23863);
+	want("owe: 1 kHz keeps 20 waiting", fill(1193, 30), 20);
+	want("owe: 1 kHz below the bound counts each", fill(1193, 7), 7);
+	want("owe: 18.2 Hz keeps four", fill(65536, 30), 4);
+	want("owe: a 5 ms period keeps the floor of four", fill(5966, 30), 4);
+	want("owe: the fastest count keeps 20 ms of them", fill(1, 30000), 23863);
+	want("owe: a zero period keeps four", fill(0, 9), 4);
+}
+
 int
 main(void)
 {
 	pit();
 	forward();
 	pace();
+	owe();
 	if (failed) {
 		printf("clock: %d of %d checks fail\n", failed, checks);
 		return (1);

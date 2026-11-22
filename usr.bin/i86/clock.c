@@ -86,3 +86,22 @@ clk_pace(unsigned long *due, unsigned long now)
 		return ((unsigned)((*due - now) / 1000UL));
 	return (0);
 }
+
+/*
+ * The timer interrupts waiting once one more period of a count of period
+ * clocks has passed, from due waiting: one more, up to as many periods as
+ * fit in CLK_CREDIT_US and never fewer than CLK_TICKS_MIN. A host that
+ * sleeps or deschedules the emulator for up to the time -S lets a guest
+ * make up therefore loses none of a fast timer's interrupts (20 at 1 kHz),
+ * while a longer stall still drops the excess instead of delivering a
+ * burst; at 18.2 Hz the bound stays four.
+ */
+unsigned
+clk_owe(unsigned due, uint32_t period)
+{
+	unsigned cap = period ? CLK_CREDIT_CLOCKS / period : 0;
+
+	if (cap < CLK_TICKS_MIN)
+		cap = CLK_TICKS_MIN;
+	return (due < cap ? due + 1 : due);
+}

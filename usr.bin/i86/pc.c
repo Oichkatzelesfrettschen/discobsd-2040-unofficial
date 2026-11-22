@@ -1723,14 +1723,13 @@ pit_out(unsigned n, uint32_t now)
 	}
 }
 
-/* Counter 0's interrupts due by now, at most four waiting, raised on
- * line 0 when it is free. */
+/* Counter 0's interrupts due by now, as many waiting as clk_owe() allows,
+ * raised on line 0 when it is free. */
 static void
 pit_irq(struct i86 *c, uint32_t now)
 {
 	while (irq_armed && (int32_t)(now - irq_at) >= 0) {
-		if (ticks_due < 4)
-			ticks_due++;
+		ticks_due = clk_owe(ticks_due, pit[0].count);
 		if (pit[0].mode == 2 || pit[0].mode == 3) {
 			irq_at += pit[0].count;
 			if ((int32_t)(now - irq_at) > (int32_t)(PIT_HZ / 2))

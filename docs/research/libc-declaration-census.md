@@ -82,6 +82,13 @@ Kernel and user declaration ownership, headers that require context, and a
 combined user ABI view remain open. Archive matches supply provider evidence
 for review. Selecting exports requires a separate ownership decision.
 
+The declaration census also compiles the installed Issue 8 headers together
+under each feature selector and time width. The DPUCP requirements ledger
+supplies the header names, and the staged include tree supplies the files.
+Each compiler witness records the included spellings, declaration types,
+linker names and archive providers. A diagnostic fails this joint check.
+Declarations exposed transitively still require review for shared ABI selection.
+
 A clean build at base `6719f9d7a` supplies 171 installed header paths and
 28 additional `machine/` spellings. Clang 23.1.4 parses 166 standalone
 spellings and rejects 33 in each of the eight profiles. Each combined attempt

@@ -3,6 +3,7 @@
 import argparse
 import collections
 import copy
+import csv
 import gzip
 import hashlib
 import json
@@ -172,11 +173,19 @@ def verify_report(report):
         require(profile["installed_headers"] == report["installed_headers"],
                 "installed header denominator differs between profiles")
         verify_profile(headers, profile)
-        if report.get("schema") == 2:
+        if report.get("schema") in (2, 3):
             installed = report["staged_headers"]
             require(set(report["installed_headers"]) == {h for h in installed if "/" not in h},
                     "staged root-header denominator differs")
             verify_staged_profile(profile["staged"], installed)
+            if report["schema"] == 3:
+                expected = sorted(set(report["issue8_headers"]).intersection(installed),
+                                  key=lambda h: ("/" in h, h))
+                joint = profile["staged"]["issue8_joint"]
+                require(expected and joint["headers"] == expected and joint["outcome"] == "parsed"
+                        and joint["exit_code"] == 0
+                        and joint["symbols"] == sorted(joint["declarations"]),
+                        "installed Issue 8 declaration witness differs")
 
 
 def git(root, *arguments):
@@ -395,7 +404,23 @@ def verify_staged_profile(profile, installed):
                     "staged declaration witness denominator differs")
 
 
-def observe_staged_profile(root, work, compiler, selectors, label, staged, installed, graphs):
+def issue8_header_names(ledger):
+    names = set()
+    with ledger.open() as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            name = row["name"]
+            if row["kind"] != "base-definition" or not name.endswith(".h"):
+                continue
+            name = re.sub(r"^(arpa|net|netinet|sys)_", r"\1/", name)
+            require(HEADER.fullmatch(name) and name not in names,
+                    "invalid Issue 8 header ledger entry: " + name)
+            names.add(name)
+    require(names, "Issue 8 header ledger is empty")
+    return names
+
+
+def observe_staged_profile(root, work, compiler, selectors, label, staged, installed, graphs,
+                           issue8_headers):
     standalone = {}
     for number, name in enumerate(sorted(installed)):
         observed, witness = compile_headers(
@@ -414,9 +439,17 @@ def observe_staged_profile(root, work, compiler, selectors, label, staged, insta
     for row in observed.values():
         row["provider"] = provider_observation(row, graphs)
     joint["declarations"] = observed
-    result = {"standalone": standalone, "joint": joint}
+    selected = sorted(issue8_headers.intersection(installed), key=lambda h: ("/" in h, h))
+    require(selected, "installed Issue 8 header set is empty")
+    observed, user_joint = compile_headers(
+        root, work, compiler, selectors, selected, label + ".issue8-headers",
+        include_dir=staged)
+    for row in observed.values():
+        row["provider"] = provider_observation(row, graphs)
+    user_joint["declarations"] = observed
+    result = {"standalone": standalone, "joint": joint, "issue8_joint": user_joint}
     verify_staged_profile(result, installed)
-    for witness in [*standalone.values(), joint]:
+    for witness in [*standalone.values(), joint, user_joint]:
         for name, value in witness["dependencies"].items():
             path = root / name
             require(path.is_relative_to(staged), "compiler dependency leaves staged headers")
@@ -433,9 +466,11 @@ def run(root, work, compiler, archive_paths, archiver, staged):
                      if Path(name).parent == Path("include"))
     require(headers, "root-header denominator is empty")
     installed = installed_headers(root, headers)
+    ledger = "docs/research/dpucp-2024-requirements.tsv"
     owner_inputs = {name: digest(root / name) for name in
                     ("lib/Makefile", "include/Makefile", "lib/libreadline/Makefile",
-                     "share/mk/sys.mk")}
+                     "share/mk/sys.mk", ledger)}
+    issue8_headers = issue8_header_names(root / ledger)
     owners, aliases = staged_header_owners(root)
     staged_headers = staged_header_snapshot(staged, owners, aliases, before)
     require(set(installed) == {name for name in staged_headers if "/" not in name},
@@ -472,7 +507,8 @@ def run(root, work, compiler, archive_paths, archiver, staged):
                                  "provider_counts": dict(collections.Counter(
                                      row["provider"]["state"] for row in rows.values()))}
             profiles[profile]["staged"] = observe_staged_profile(
-                root, work, compiler, selectors, profile, staged, staged_headers, graphs)
+                root, work, compiler, selectors, profile, staged, staged_headers, graphs,
+                issue8_headers)
             verify_profile(headers, profiles[profile])
     require(before == header_snapshot(root) and revision == git(root, "rev-parse", "HEAD"),
             "header inputs or revision change during census")
@@ -487,7 +523,8 @@ def run(root, work, compiler, archive_paths, archiver, staged):
                     "compiler dependencies lack matching tracked header ownership")
     require(staged_headers == staged_header_snapshot(staged, owners, aliases, before),
             "staged header inputs change during census")
-    report = {"schema": 2, "source_commit": revision, "headers": headers,
+    report = {"schema": 3, "issue8_headers": sorted(issue8_headers),
+              "source_commit": revision, "headers": headers,
               "staged_headers": staged_headers,
             "compiler_controls": controls,
             "installed_headers": installed, "owner_inputs_sha256": owner_inputs,

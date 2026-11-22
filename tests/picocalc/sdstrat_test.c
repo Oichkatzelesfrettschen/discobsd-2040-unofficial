@@ -808,7 +808,7 @@ raw_fail_cases(void)
 	check("raw failing write: offset", raw_end, 512);
 	memcpy(card, saved, sizeof(card));
 
-	/* A request refused before I/O consumes zero sectors. */
+	/* A request refused before I/O consumes zero bytes. */
 	memset(nread, 0, sizeof(nread));
 	check("raw read of an unopened partition",
 	    raw_io(0, 3, 0, four, 1, &resid), ENXIO);
@@ -1502,7 +1502,7 @@ swap_attach(const char *name, dev_t from)
 	check(what, (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
 }
 
-/* A call on a bare Pico, which selects zero devices, ends the previous hold. */
+/* A call on a bare Pico, which declines to select the card, ends the previous hold. */
 static void
 swap_release(void)
 {

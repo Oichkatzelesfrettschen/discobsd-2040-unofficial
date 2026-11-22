@@ -117,7 +117,7 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
-/* The opener's effective uid: 0 is the superuser, whose open clears zero bytes. */
+/* The opener's effective uid: 0 is the superuser, whose open skips blanking GRAM. */
 #define	OTHER_UID	1001
 
 static unsigned cur_uid;
@@ -534,7 +534,7 @@ test_access(void)
 	unsigned short got[4];
 	int cells, wins;
 
-	/* The superuser's open clears zero bytes and reads the memory as it stands. */
+	/* The superuser's open skips blanking GRAM and reads the memory as it stands. */
 	fresh_as(0, CONSOLE);
 	expect("root open leaves every word", differ(CONSOLE), 0);
 	expect("root open drew no window", nwin, 0);

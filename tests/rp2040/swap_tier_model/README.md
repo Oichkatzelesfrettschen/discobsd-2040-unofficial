@@ -36,7 +36,7 @@ incoming image's extent when the tail fits, else a fresh extent from
 `malloc3_contiguous_next()`) over the real map. When the map cannot hold
 an image the replay stops at that record with both images in place, as
 `newproc()` refuses the fork and `sched()` defers the swap; such a replay
-reports zero counters (`model.Refused`). An image erases every
+raises `model.Refused` instead of reporting counters. An image erases every
 sector its bytes reach; `test_calibration.py` checks that count sector by
 sector against `flash_swap_append()` writing the same images into the NOR
 model.

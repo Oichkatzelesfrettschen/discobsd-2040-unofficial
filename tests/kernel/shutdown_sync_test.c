@@ -147,7 +147,7 @@ check_immediate_idle(void)
 	HK_CHECK(delay_calls == 0);
 	HK_CHECK(hk_contains(hk_printf_text, "syncing disks... buffers idle\n"));
 	HK_CHECK(!hk_contains(hk_printf_text, "timeout"));
-	/* The stub sync() writes zero blocks, as one that met updlock returns. */
+	/* The stub sync() returns without writing, as one that met updlock does. */
 	HK_CHECK(checkpoint_calls == 1);
 	HK_CHECK(checkpoint_after_syncs == 1);
 	HK_CHECK(checkpoint_device == rootdev);

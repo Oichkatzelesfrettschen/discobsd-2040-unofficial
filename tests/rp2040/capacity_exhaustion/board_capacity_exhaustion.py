@@ -38,7 +38,7 @@ It then runs, in order:
 Every console byte goes to LOG. The exit status is 0 when every check passed,
 1 when one failed, 2 when the console stopped answering and 3 when every
 check passed and the inode-table or process-table case was unreached. The
-script writes zero result files; the operator retains LOG as the receipt.
+script does not record a result in the tree; the operator retains LOG as the receipt.
 """
 
 import importlib.util

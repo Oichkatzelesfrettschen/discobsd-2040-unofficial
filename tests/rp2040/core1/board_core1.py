@@ -13,7 +13,7 @@ becomes root and checks, against the symbol addresses of unix.elf:
     whose probed PC lies in core1_stall and whose LR lies in core1_sysctl;
   - flash writes and swapping add zero stalls;
   - a parked core 1 counts nothing, and a relaunched one counts again;
-  - reboot clears the stall record;
+  - reboot does not leave a stall record;
   - a 6 s masked spin makes the board reset itself, and the next boot
     reports watchdog reason 2, site 3 and the same PC and LR.
 

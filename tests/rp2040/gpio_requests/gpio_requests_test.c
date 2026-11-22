@@ -67,7 +67,7 @@ pwm_checks(void)
 	 * pin maps: the PicoCalc's kernel runs slice 5 always and slice 6 with
 	 * /dev/audio open; GP28, its one free pin, is on slice 6; no free
 	 * pin is on slice 5. The Pico's kernel runs zero slices, and a board the
-	 * table lacks grants and holds zero pins.
+	 * table lacks is granted zero pins and holds zero PWM slices.
 	 */
 	{
 		struct gpio_board_claims pico = gpio_board_claims(1);

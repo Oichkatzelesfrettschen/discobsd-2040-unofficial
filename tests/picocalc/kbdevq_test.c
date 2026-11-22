@@ -936,7 +936,7 @@ test_overflow(void)
  * select(2) readiness: a session started with the wake request is ready for
  * its owner while an event waits and wakes the selector for every kind of
  * event, including those that type zero bytes; every other session and caller
- * sees zero events, and a drain clears the readiness.
+ * stays unready and unwoken, and a drain clears the readiness.
  */
 static void
 test_wake(void)
@@ -995,7 +995,7 @@ test_wake(void)
 	expect("a plain session wakes nothing", wakes, 0);
 	expect("a plain session is not ready", ready_as(PG, PG), 0);
 
-	/* No session: no wake, no readiness, and the request has zero effect. */
+	/* No session: no wake, no readiness, and the request is ignored. */
 	picokbd_evq_reset();
 	wakes = 0;
 	picokbd_evq_wakeon();

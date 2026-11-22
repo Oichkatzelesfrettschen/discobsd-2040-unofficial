@@ -1,6 +1,6 @@
 """Check a little-endian Seventh Edition volume image for structural consistency.
 
-The checker shares zero code with the kernel's inode layer or with the NetBSD
+The checker does not share code with the kernel's inode layer or with the NetBSD
 core in usr.sbin/v7fs. It reads the superblock, every inode and the free
 chain from the image bytes and holds these claims:
 

@@ -34,7 +34,7 @@ It then runs, in order:
 
 Every console byte goes to LOG. The exit status is 0 when every check passed,
 1 when one failed and 2 when the console stopped answering. The script
-writes zero result files; the operator retains LOG as the receipt.
+does not record a result in the tree; the operator retains LOG as the receipt.
 """
 
 import importlib.util

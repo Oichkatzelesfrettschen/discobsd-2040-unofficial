@@ -44,7 +44,7 @@
  * with no received byte at all, which is how a login prompt or a program's
  * output reaches an idle terminal; every byte must reach the wire in order.
  * A driver that feeds the FIFO one byte per start leaves the level below
- * the trigger, misses the interrupt and stops after the first byte, which is
+ * the trigger, never raises an interrupt and stops after the first byte, which is
  * what the PicoCalc's USB-C console showed. The drain cases run tty.c's
  * ttywait() loop against the model: it must return only once the FIFO and
  * the shift register are empty, through the wakeup of the drain callout,

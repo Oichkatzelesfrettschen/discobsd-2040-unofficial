@@ -2585,7 +2585,7 @@ test_overlap_sd(void)
 	/* The whole card covers partition a. */
 	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FWRITE) == EBUSY);
 	HK_CHECK(try_open(SD_WHOLE, IFBLK | 0600, FWRITE) == EBUSY);
-	/* A read-only raw open writes zero blocks. */
+	/* A read-only raw open does not write to the device. */
 	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FREAD) == 0);
 	/* Partition c overlaps a, partition b only touches it. */
 	HK_CHECK(try_open(RSD_C, IFCHR | 0600, FWRITE) == EBUSY);
@@ -2609,7 +2609,7 @@ test_overlap_sd_mbr_entries(void)
 	HK_CHECK(try_open(RSD_B, IFCHR | 0600, FWRITE) == EBUSY);
 	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FWRITE) == EBUSY);
 	HK_CHECK(try_open(RSD_C, IFCHR | 0600, FWRITE) == EBUSY);
-	/* A partition table entry with zero sectors holds zero storage. */
+	/* A partition table entry with zero sectors does not hold storage. */
 	HK_CHECK(try_open(makedev(SD_CMAJOR, 4), IFCHR | 0600, FWRITE) ==
 	    ENXIO);
 }

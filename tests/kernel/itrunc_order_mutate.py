@@ -101,7 +101,7 @@ MUTATIONS = {
         INDIRECT_CHECK,
         "            if (0 && error) {\n",
     ),
-    # A failed write of a kept indirect block leaves the cached copy uncleared.
+    # A failed write of a kept indirect block releases the cleared copy instead of requeuing it.
     "indirect-not-requeued": (
         "                    bdwrite(bp);\n                }\n",
         "                    brelse(bp);\n                }\n",

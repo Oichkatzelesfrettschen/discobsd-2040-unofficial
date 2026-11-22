@@ -845,7 +845,7 @@ scenario_start(void)
 	host_text[0] = '\0';
 }
 
-#define	STUCK_ECHO	0x01	/* A typed CR produced zero output. */
+#define	STUCK_ECHO	0x01	/* A typed CR produced zero output bytes. */
 #define	STUCK_REBOOT	0x02	/* reboot(8) asleep in ttwrite. */
 #define	STUCK_WRITER	0x04	/* The writer asleep in ttwrite. */
 #define	STUCK_CLOSER	0x08	/* The last close asleep in ttywait. */

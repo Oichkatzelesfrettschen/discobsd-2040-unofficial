@@ -459,7 +459,7 @@ change_user(void)
 	struct uid_arg *a;
 	struct credential_snapshot before;
 
-	/* Dropping to the real uid needs zero privilege, and drops the saved
+	/* Dropping to the real uid does not need privilege, and drops the saved
 	   id too, so the program cannot come back. */
 	reset(0, REAL_UID);
 	a = (struct uid_arg *)u.u_arg;

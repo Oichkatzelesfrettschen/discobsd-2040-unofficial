@@ -1961,7 +1961,7 @@ lost_fork_call(void)
     lost_result = newproc(0);
 }
 
-/* The slot newproc() took is back on freeproc and names zero processes. */
+/* The slot newproc() took is back on freeproc and does not name a process. */
 static int
 lost_child_slot_free(void)
 {

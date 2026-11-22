@@ -87,7 +87,8 @@ BANNER_LINES = [
 # every space removed.
 PSRAM_FALLBACK = re.compile(
     r"psram0:(?:id[0-9a-f]+/[0-9a-f]+isnotanESP-PSRAM64H,"
-    r"|addresseswrapbelow\d+kbytes,|notusable\(error-?\d+\),)swapstaysonfl1")
+    r"|addresseswrapbelow\d+kbytes,|notusable\(error-?\d+\),)swapstaysonfl1"
+)
 PSRAM_ATTACH = "psram0:ESP-PSRAM64H"
 # fl1 is block major 0, minor 8; an attached PSRAM would report (3,0).
 SWAP_ON_FL1 = "swap dev  = (0,8)"
@@ -130,8 +131,9 @@ class Run:
         # The first and the last frames, written to frames.txt by fail().
         self.frames_taken = 0
         self.frames_head: list[tuple[int, float, list[str]]] = []
-        self.frames_tail: collections.deque[tuple[int, float, list[str]]] = (
-            collections.deque(maxlen=FRAMES_KEPT_TAIL))
+        self.frames_tail: collections.deque[tuple[int, float, list[str]]] = collections.deque(
+            maxlen=FRAMES_KEPT_TAIL
+        )
 
     def advance(self, seconds: float = SLICE_SECONDS) -> list[str]:
         self.renode.command(f'emulation RunFor "{seconds}"')
@@ -164,8 +166,9 @@ class Run:
                 handle.write(f"frame {number} t={virtual:.1f}s\n")
                 handle.writelines(f"  {line}\n" for line in text or ["(blank)"])
             if tail and tail[0][0] > len(self.frames_head) + 1:
-                handle.write(f"frames {len(self.frames_head) + 1} to {tail[0][0] - 1} "
-                             "are not kept\n")
+                handle.write(
+                    f"frames {len(self.frames_head) + 1} to {tail[0][0] - 1} are not kept\n"
+                )
             for number, virtual, text in tail:
                 handle.write(f"frame {number} t={virtual:.1f}s\n")
                 handle.writelines(f"  {line}\n" for line in text or ["(blank)"])
@@ -205,8 +208,14 @@ class Run:
         else:
             self.renode.command(f'{kbd} TypeLine "{text}"')
 
-    def wait_until(self, predicate: Callable[[], bool], what: str, expect: str,
-                   budget: float, slice_seconds: float = SLICE_SECONDS) -> bool:
+    def wait_until(
+        self,
+        predicate: Callable[[], bool],
+        what: str,
+        expect: str,
+        budget: float,
+        slice_seconds: float = SLICE_SECONDS,
+    ) -> bool:
         spent = 0.0
         noted = 0.0
         while spent < budget:
@@ -217,15 +226,18 @@ class Run:
                 return True
             if spent - noted >= PROGRESS_SECONDS:
                 noted = spent
-                print(f"check-picocalc: waiting for {what}: {spent:.0f} of {budget:.0f} "
-                      f"virtual seconds spent", flush=True)
-        self.fail(f"{what}: {expect} not on the panel after {self.virtual:.1f} "
-                  "virtual seconds")
+                print(
+                    f"check-picocalc: waiting for {what}: {spent:.0f} of {budget:.0f} "
+                    f"virtual seconds spent",
+                    flush=True,
+                )
+        self.fail(f"{what}: {expect} not on the panel after {self.virtual:.1f} virtual seconds")
         raise StageFailed(what)
 
     def wait_for(self, texts: list[str], what: str, budget: float) -> bool:
-        return self.wait_until(lambda: all(self.has(text) for text in texts), what,
-                               repr(texts), budget)
+        return self.wait_until(
+            lambda: all(self.has(text) for text in texts), what, repr(texts), budget
+        )
 
     def wait_seen(self, texts: list[str], what: str, budget: float) -> bool:
         """Wait until every text has been on the panel in some frame.
@@ -234,8 +246,13 @@ class Run:
         apart: the lines this waits for scroll off a 32-row panel within a
         fraction of a second, which a wait on the current frame at SLICE_SECONDS
         steps (wait_for) can sample once or not at all."""
-        return self.wait_until(lambda: all(self.saw(text) for text in texts), what,
-                               repr(texts), budget, EARLY_SLICE_SECONDS)
+        return self.wait_until(
+            lambda: all(self.saw(text) for text in texts),
+            what,
+            repr(texts),
+            budget,
+            EARLY_SLICE_SECONDS,
+        )
 
     def wait_for_line(self, text: str, what: str, budget: float) -> bool:
         return self.wait_until(lambda: self.has_line(text), what, f"a line {text!r}", budget)
@@ -244,7 +261,10 @@ class Run:
         """Wait for a line that ends in the shell's $ and has no other text after it."""
         return self.wait_until(
             lambda: any(line.rstrip().endswith("$") for line in self.lines),
-            what, "a shell prompt", budget)
+            what,
+            "a shell prompt",
+            budget,
+        )
 
     def fail(self, message: str) -> None:
         print(f"check-picocalc: FAIL {message}", file=sys.stderr)
@@ -258,7 +278,8 @@ class Run:
 
 
 DRIVER_SOURCE = os.path.normpath(
-    os.path.join(HERE, "..", "..", "sys", "arch", "rp2040", "dev", "st7365p.c"))
+    os.path.join(HERE, "..", "..", "sys", "arch", "rp2040", "dev", "st7365p.c")
+)
 
 
 def expected_init_trace(path: str = DRIVER_SOURCE) -> list[str]:
@@ -280,8 +301,9 @@ def expected_init_trace(path: str = DRIVER_SOURCE) -> list[str]:
         body = re.search(name + r"\[\]\s*=\s*\{(.*?)\};", text, re.S)
         if body is None:
             raise ValueError(f"{path}: no {name}")
-        for token in re.findall(r"[A-Za-z_]\w*|0x[0-9a-fA-F]+|\d+",
-                                re.sub(r"/\*.*?\*/", "", body.group(1), flags=re.S)):
+        for token in re.findall(
+            r"[A-Za-z_]\w*|0x[0-9a-fA-F]+|\d+", re.sub(r"/\*.*?\*/", "", body.group(1), flags=re.S)
+        ):
             values.append(int(macros.get(token, token), 0))
     frame = re.search(r"FRAME_SET\(init_frame,\s*(\d+),\s*(\d+),\s*(\d+),", text)
     if frame is None:
@@ -293,7 +315,7 @@ def expected_init_trace(path: str = DRIVER_SOURCE) -> list[str]:
     while index < len(values):
         command, count = values[index], values[index + 1]
         trace.append(f"c{command:02x}")
-        trace.extend(f"d{value:02x}" for value in values[index + 2:index + 2 + count])
+        trace.extend(f"d{value:02x}" for value in values[index + 2 : index + 2 + count])
         index += 2 + count
     return trace
 
@@ -323,8 +345,7 @@ def panel_status_failures(status: str) -> list[str]:
     expect(", sleep out," in status, "panel: SLPOUT was never received (still in sleep mode)")
     expect("madctl 0x48" in status, "panel: MADCTL 0x48 not programmed")
     expect("colmod 0x55" in status, "panel: COLMOD 0x55 not programmed")
-    expect("scroll top 0 area 320 bottom 160" in status,
-           "panel: VSCRDEF 0/320/160 not programmed")
+    expect("scroll top 0 area 320 bottom 160" in status, "panel: VSCRDEF 0/320/160 not programmed")
     expect(" 0 unknown commands" in status, "panel: unmodeled commands received")
     expect(" 0 outside the window" in status, "panel: pixels written outside the window")
     expect(" 0 without chip select" in status, "panel: bytes arrived with chip select high")
@@ -342,11 +363,10 @@ def decode_read(cmd: int, raw: list[int]) -> int:
     """
     _, dummy, bits = READ_COMMANDS[cmd]
     stream = "".join(f"{byte:08b}" for byte in raw)
-    return int(stream[dummy:dummy + bits], 2)
+    return int(stream[dummy : dummy + bits], 2)
 
 
-def read_failures(state: str, values: dict[int, int],
-                  want: dict[int, int]) -> list[str]:
+def read_failures(state: str, values: dict[int, int], want: dict[int, int]) -> list[str]:
     """The registers of values that differ from want, under READ_MASKS.
 
     READ_STATE_MASKS adds the bits a register leaves unspecified in one state.
@@ -359,8 +379,10 @@ def read_failures(state: str, values: dict[int, int],
         mask &= READ_STATE_MASKS.get(state, {}).get(cmd, 0xFFFFFFFF)
         got = values.get(cmd, -1)
         if got < 0 or got & mask != want[cmd] & mask:
-            failures.append(f"panel read {state}: {name} (0x{cmd:02x}) returned "
-                            f"{got:#x}, expected {want[cmd]:#x}")
+            failures.append(
+                f"panel read {state}: {name} (0x{cmd:02x}) returned "
+                f"{got:#x}, expected {want[cmd]:#x}"
+            )
     return failures
 
 
@@ -422,13 +444,97 @@ def check_panel_readback(run: Run) -> None:
         if tokens:
             panel_send(renode, tokens)
         values = {cmd: panel_read(renode, cmd) for cmd in READ_COMMANDS}
-        print("check-picocalc: panel read " + state + ": "
-              + " ".join(f"{READ_COMMANDS[cmd][0]} {value:#x}"
-                         for cmd, value in values.items()))
+        print(
+            "check-picocalc: panel read "
+            + state
+            + ": "
+            + " ".join(f"{READ_COMMANDS[cmd][0]} {value:#x}" for cmd, value in values.items())
+        )
         for message in read_failures(state, values, want):
             run.fail(message)
     unknown = panel_counter(renode, r"(\d+) unknown commands") - unknown0
     run.expect(unknown == 0, f"panel read: {unknown} read or init commands counted as unmodeled")
+    renode.command(f"{LCD} Reset")
+
+
+# Six RGB565 pixels written at COLMOD 55h into a 3 by 2 window, and the
+# replies RAMRD (2Eh) gives for them: under 55h one dummy byte and the values
+# high byte first; past the window's last pixel the read wraps to its first;
+# under 66h three bytes a pixel with red and blue narrowed to five bits, as
+# the board stores a 565 pixel (PICOCALC.md, kernels 4399 and 4401: white
+# reads f8 fc f8). A pixel written at 66h reads back as written.
+MEMORY_PIXELS = [0xF800, 0x07E0, 0x001F, 0xFFFF, 0x0000, 0x8410]
+MEMORY_REPLY_565 = [0xF8, 0x00, 0x07, 0xE0, 0x00, 0x1F, 0xFF, 0xFF, 0x00, 0x00, 0x84, 0x10]
+MEMORY_REPLY_666 = [
+    0xF8,
+    0x00,
+    0x00,
+    0x00,
+    0xFC,
+    0x00,
+    0x00,
+    0x00,
+    0xF8,
+    0xF8,
+    0xFC,
+    0xF8,
+    0x00,
+    0x00,
+    0x00,
+    0x80,
+    0x80,
+    0x80,
+]
+MEMORY_WINDOW = ["c2a", "d00", "d00", "d00", "d02", "c2b", "d00", "d00", "d00", "d01"]
+
+
+def memory_read(renode: Renode, frames: int) -> list[int]:
+    """RAMRD over MEMORY_WINDOW: the bytes of frames reply frames, dummy first."""
+    panel_send(renode, MEMORY_WINDOW)
+    renode.command(f"{LCD} OnGPIO 0 false")
+    renode.command(f"{LCD} OnGPIO 1 false")
+    monitor_int(renode, f"{LCD} Transmit 0x2e")
+    renode.command(f"{LCD} OnGPIO 1 true")
+    raw = [monitor_int(renode, f"{LCD} Transmit 0x00") for _ in range(frames)]
+    renode.command(f"{LCD} OnGPIO 0 true")
+    return raw
+
+
+def memory_failures(r565: list[int], wrap: list[int], r666: list[int], own: list[int]) -> list[str]:
+    """The ways the four memory reads of check_panel_memory() go wrong."""
+    failures = []
+    if r565[1:] != MEMORY_REPLY_565:
+        failures.append(f"panel RAMRD 55h: {r565[1:]}, expected {MEMORY_REPLY_565}")
+    if wrap[-2:] != MEMORY_REPLY_565[:2]:
+        failures.append(f"panel RAMRD past the window: {wrap[-2:]}, expected the first pixel")
+    if r666[1:] != MEMORY_REPLY_666:
+        failures.append(f"panel RAMRD 66h of 565 pixels: {r666[1:]}, expected {MEMORY_REPLY_666}")
+    if own[1:4] != [0x84, 0x80, 0x84]:
+        failures.append(f"panel RAMRD 66h of a 66h pixel: {own[1:4]}, expected [132, 128, 132]")
+    return failures
+
+
+def check_panel_memory(run: Run) -> None:
+    """Write known pixels and read them back with RAMRD, before the CPU starts.
+
+    The model answers RAMRD from its graphics RAM, so the kernel's LCDG_READ,
+    scrshot and uLisp read-pixel run under Renode; a model that answers zeros,
+    drops the dummy byte, loses the window wrap or the 565 narrowing fails one
+    of the four reads. The model returns to its power-on state afterwards.
+    """
+    renode = run.renode
+    renode.command(f"{LCD} Reset")
+    pixels = [f"d{b:02x}" for v in MEMORY_PIXELS for b in (v >> 8, v & 0xFF)]
+    panel_send(renode, ["c3a", "d55"] + MEMORY_WINDOW + ["c2c"] + pixels)
+    r565 = memory_read(renode, 1 + 12)
+    wrap = memory_read(renode, 1 + 14)
+    panel_send(renode, ["c3a", "d66"])
+    r666 = memory_read(renode, 1 + 18)
+    panel_send(renode, MEMORY_WINDOW + ["c2c", "d84", "d80", "d84"])
+    own = memory_read(renode, 1 + 3)
+    print("check-picocalc: panel memory read: " + " ".join(f"{b:02x}" for b in r565[1:]))
+    for message in memory_failures(r565, wrap, r666, own):
+        run.fail(message)
     renode.command(f"{LCD} Reset")
 
 
@@ -444,10 +550,17 @@ def check_panel_registers(run: Run) -> None:
 # data bits. Page 95 draws the dummy cycle for RDDID (24-bit read) and RDDST
 # (32-bit read) and none for the 8-bit reads.
 READ_COMMANDS = {
-    0x04: ("RDDID", 1, 24), 0x09: ("RDDST", 1, 32), 0x0A: ("RDDPM", 0, 8),
-    0x0B: ("RDDMADCTL", 0, 8), 0x0C: ("RDDCOLMOD", 0, 8), 0x0D: ("RDDIM", 0, 8),
-    0x0E: ("RDDSM", 0, 8), 0x0F: ("RDDSDR", 0, 8), 0xDA: ("RDID1", 0, 8),
-    0xDB: ("RDID2", 0, 8), 0xDC: ("RDID3", 0, 8),
+    0x04: ("RDDID", 1, 24),
+    0x09: ("RDDST", 1, 32),
+    0x0A: ("RDDPM", 0, 8),
+    0x0B: ("RDDMADCTL", 0, 8),
+    0x0C: ("RDDCOLMOD", 0, 8),
+    0x0D: ("RDDIM", 0, 8),
+    0x0E: ("RDDSM", 0, 8),
+    0x0F: ("RDDSDR", 0, 8),
+    0xDA: ("RDID1", 0, 8),
+    0xDB: ("RDID2", 0, 8),
+    0xDC: ("RDID3", 0, 8),
 }
 
 # What each register reads, from the datasheet's Default tables (pages 147,
@@ -469,12 +582,30 @@ STATE_INIT = "after the driver's init"
 STATE_SWRESET = "after SWRESET"
 READ_STATE_MASKS = {STATE_INIT: {0x0F: 0x3F}}
 READ_AFTER_RESET = {
-    0x04: 0xFFFFFF, 0x09: 0x00610000, 0x0A: 0x08, 0x0B: 0x00, 0x0C: 0x06,
-    0x0D: 0x00, 0x0E: 0x00, 0x0F: 0x00, 0xDA: 0xFF, 0xDB: 0xFF, 0xDC: 0xFF,
+    0x04: 0xFFFFFF,
+    0x09: 0x00610000,
+    0x0A: 0x08,
+    0x0B: 0x00,
+    0x0C: 0x06,
+    0x0D: 0x00,
+    0x0E: 0x00,
+    0x0F: 0x00,
+    0xDA: 0xFF,
+    0xDB: 0xFF,
+    0xDC: 0xFF,
 }
 READ_AFTER_INIT = {
-    0x04: 0xFFFFFF, 0x09: 0xA4532400, 0x0A: 0x9C, 0x0B: 0x48, 0x0C: 0x55,
-    0x0D: 0x20, 0x0E: 0x00, 0x0F: 0x00, 0xDA: 0xFF, 0xDB: 0xFF, 0xDC: 0xFF,
+    0x04: 0xFFFFFF,
+    0x09: 0xA4532400,
+    0x0A: 0x9C,
+    0x0B: 0x48,
+    0x0C: 0x55,
+    0x0D: 0x20,
+    0x0E: 0x00,
+    0x0F: 0x00,
+    0xDA: 0xFF,
+    0xDB: 0xFF,
+    0xDC: 0xFF,
 }
 # SWRESET leaves MADCTL and COLMOD alone and returns sleep, display and
 # inversion to their defaults (pages 151, 153, 155, 157, 159).
@@ -482,8 +613,7 @@ READ_AFTER_SWRESET = {**READ_AFTER_RESET, 0x09: 0x24510000, 0x0B: 0x48, 0x0C: 0x
 
 # The bytes st7365p_init() sends after its tables: SLPOUT, VSCRDEF (0, 320,
 # 160 lines), VSCSAD 0, then st7365p_display_on() sends DISPON.
-INIT_TAIL = ["c11", "c33", "d00", "d00", "d01", "d40", "d00", "da0",
-             "c37", "d00", "d00", "c29"]
+INIT_TAIL = ["c11", "c33", "d00", "d00", "d01", "d40", "d00", "da0", "c37", "d00", "d00", "c29"]
 
 SPI1_SSPDR = 0x40040008
 SPI1_SSPSR = 0x4004000C
@@ -493,8 +623,7 @@ FRAME_BYTE = 0xA5
 SPI_SETTLE_SLICES = 40
 
 
-def spi_fifo_failures(levels: dict[str, int], accepted: int, dropped: int,
-                      sent: int) -> list[str]:
+def spi_fifo_failures(levels: dict[str, int], accepted: int, dropped: int, sent: int) -> list[str]:
     """The assertions a PL022 transmit-FIFO observation fails.
 
     levels maps a label to the SSPSR value read after that many back-to-back
@@ -514,30 +643,50 @@ def spi_fifo_failures(levels: dict[str, int], accepted: int, dropped: int,
 
     one, fill = levels["one"], levels["fill"]
     full, over, idle = levels["full"], levels["over"], levels["idle"]
-    expect(one & SSPSR_BSY != 0 and one & SSPSR_TFE != 0,
-           "spi1: after one frame BSY must be set and the FIFO empty (the frame is shifting)")
-    expect(fill & SSPSR_TNF != 0 and fill & SSPSR_TFE == 0,
-           f"spi1: with {FIFO_DEPTH - 1} frames queued TNF must be set and TFE clear")
-    expect(full & SSPSR_TNF == 0 and full & SSPSR_TFE == 0,
-           f"spi1: with {FIFO_DEPTH} frames queued TNF must be clear")
+    expect(
+        one & SSPSR_BSY != 0 and one & SSPSR_TFE != 0,
+        "spi1: after one frame BSY must be set and the FIFO empty (the frame is shifting)",
+    )
+    expect(
+        fill & SSPSR_TNF != 0 and fill & SSPSR_TFE == 0,
+        f"spi1: with {FIFO_DEPTH - 1} frames queued TNF must be set and TFE clear",
+    )
+    expect(
+        full & SSPSR_TNF == 0 and full & SSPSR_TFE == 0,
+        f"spi1: with {FIFO_DEPTH} frames queued TNF must be clear",
+    )
     expect(over & SSPSR_TNF == 0, "spi1: TNF must stay clear while the FIFO is full")
-    expect(idle & SSPSR_BSY == 0 and idle & SSPSR_TNF != 0 and idle & SSPSR_TFE != 0,
-           "spi1: after the wire drains BSY must clear and TNF and TFE must set")
-    expect(accepted == FIFO_DEPTH + 1,
-           f"spi1: the panel received {accepted} bytes from {sent} writes; "
-           f"expected {FIFO_DEPTH + 1} (a full FIFO discards the rest)")
-    expect(dropped == accepted,
-           f"spi1: {dropped} of {accepted} probe bytes reached the panel with chip select high")
+    expect(
+        idle & SSPSR_BSY == 0 and idle & SSPSR_TNF != 0 and idle & SSPSR_TFE != 0,
+        "spi1: after the wire drains BSY must clear and TNF and TFE must set",
+    )
+    expect(
+        accepted == FIFO_DEPTH + 1,
+        f"spi1: the panel received {accepted} bytes from {sent} writes; "
+        f"expected {FIFO_DEPTH + 1} (a full FIFO discards the rest)",
+    )
+    expect(
+        dropped == accepted,
+        f"spi1: {dropped} of {accepted} probe bytes reached the panel with chip select high",
+    )
     return failures
 
 
 # SSPSR values of a controller that behaves as described above, and the
 # observation of the model before the FIFO level existed (TNF and TFE
 # constant, every write delivered).
-GOOD_FIFO = ({"one": 0x17, "fill": 0x16, "full": 0x1c, "over": 0x1c, "idle": 0x0f},
-             FIFO_DEPTH + 1, FIFO_DEPTH + 1, FIFO_DEPTH + 4)
-UNBOUNDED_FIFO = ({"one": 0x17, "fill": 0x17, "full": 0x17, "over": 0x17, "idle": 0x0f},
-                  FIFO_DEPTH + 4, FIFO_DEPTH + 4, FIFO_DEPTH + 4)
+GOOD_FIFO = (
+    {"one": 0x17, "fill": 0x16, "full": 0x1C, "over": 0x1C, "idle": 0x0F},
+    FIFO_DEPTH + 1,
+    FIFO_DEPTH + 1,
+    FIFO_DEPTH + 4,
+)
+UNBOUNDED_FIFO = (
+    {"one": 0x17, "fill": 0x17, "full": 0x17, "over": 0x17, "idle": 0x0F},
+    FIFO_DEPTH + 4,
+    FIFO_DEPTH + 4,
+    FIFO_DEPTH + 4,
+)
 
 
 def panel_counter(renode: Renode, pattern: str) -> int:
@@ -577,8 +726,12 @@ def check_spi_fifo(run: Run) -> None:
     dropped0 = panel_counter(renode, r"(\d+) without chip select")
     levels: dict[str, int] = {}
     sent = 0
-    for label, count in (("one", 1), ("fill", FIFO_DEPTH), ("full", FIFO_DEPTH + 1),
-                         ("over", FIFO_DEPTH + 4)):
+    for label, count in (
+        ("one", 1),
+        ("fill", FIFO_DEPTH),
+        ("full", FIFO_DEPTH + 1),
+        ("over", FIFO_DEPTH + 4),
+    ):
         while sent < count:
             renode.command(f"sysbus WriteDoubleWord {SPI1_SSPDR:#x} {FRAME_BYTE:#x}")
             sent += 1
@@ -590,9 +743,11 @@ def check_spi_fifo(run: Run) -> None:
     levels["idle"] = monitor_int(renode, f"sysbus ReadDoubleWord {SPI1_SSPSR:#x}")
     for _ in range(FIFO_DEPTH + 1):
         monitor_int(renode, f"sysbus ReadDoubleWord {SPI1_SSPDR:#x}")
-    print("check-picocalc: spi1 SSPSR "
-          + " ".join(f"{label} {value:#04x}" for label, value in levels.items())
-          + f"; panel took {accepted} of {sent} writes")
+    print(
+        "check-picocalc: spi1 SSPSR "
+        + " ".join(f"{label} {value:#04x}" for label, value in levels.items())
+        + f"; panel took {accepted} of {sent} writes"
+    )
     for message in spi_fifo_failures(levels, accepted, dropped, sent):
         run.fail(message)
 
@@ -634,7 +789,7 @@ def logo_failures(width: int, pixels: bytes, top_row: int) -> list[str]:
             px = x * 3 + 1
             py = (top_row + y // 3) * CELL_H + (y % 3) * 3 + 1
             at = (py * width + px) * 3
-            pixel = bytes(pixels[at:at + 3])
+            pixel = bytes(pixels[at : at + 3])
             lit = pixel != b"\0\0\0"
             if lit:
                 colors.add(pixel)
@@ -642,11 +797,15 @@ def logo_failures(width: int, pixels: bytes, top_row: int) -> list[str]:
                 wrong += 1
     failures = []
     if wrong:
-        failures.append(f"picofetch: {wrong} of {LOGO_COLS * 2 * LOGO_ROWS * 3} logo "
-                        "squares differ from the mirror ball")
+        failures.append(
+            f"picofetch: {wrong} of {LOGO_COLS * 2 * LOGO_ROWS * 3} logo "
+            "squares differ from the mirror ball"
+        )
     if len(colors) < 6:
-        failures.append(f"picofetch: the logo shows {len(colors)} colors, expected the "
-                        "six facet colors and more")
+        failures.append(
+            f"picofetch: the logo shows {len(colors)} colors, expected the "
+            "six facet colors and more"
+        )
     return failures
 
 
@@ -654,15 +813,21 @@ def logo_frame(shift: int = 0, mono: bool = False) -> tuple[int, bytes]:
     """A 320-pixel-wide frame holding the logo at row 0, for the self-test."""
     width = 320
     pixels = bytearray(width * LOGO_ROWS * CELL_H * 3)
-    palette = [(255, 0, 255), (92, 92, 255), (0, 255, 255), (0, 255, 0), (255, 255, 0),
-               (255, 0, 0), (255, 255, 255)]
+    palette = [
+        (255, 0, 255),
+        (92, 92, 255),
+        (0, 255, 255),
+        (0, 255, 0),
+        (255, 255, 0),
+        (255, 0, 0),
+        (255, 255, 255),
+    ]
     for x, y in logo_squares():
         color = palette[0] if mono else palette[((x // 2 + 1) // 2 + y // 3) % 7]
         for line in range(4 if y % 3 == 2 else 3):
             for col in range(3):
-                at = (((y // 3) * CELL_H + (y % 3) * 3 + line) * width
-                      + (x + shift) * 3 + col) * 3
-                pixels[at:at + 3] = bytes(color)
+                at = (((y // 3) * CELL_H + (y % 3) * 3 + line) * width + (x + shift) * 3 + col) * 3
+                pixels[at : at + 3] = bytes(color)
     return width, bytes(pixels)
 
 
@@ -678,21 +843,30 @@ def check_backlight(run: Run) -> None:
     """
     kbd = "sysbus.i2c1.kbd"
     level = monitor_int(run.renode, f"{kbd} BacklightLevel")
-    run.expect(level == 160, f"backlight: the screen level after boot is {level}, "
-               "expected 160 from /etc/rc")
+    run.expect(
+        level == 160,
+        f"backlight: the screen level after boot is {level}, expected 160 from /etc/rc",
+    )
     console = picocalc_dump.Console(run)
     console.type("ls /usr/bin/backlight || echo light-none")
-    run.wait_until(lambda: run.has_line("/usr/bin/backlight") or run.has_line("light-none"),
-                   "backlight probe", "the path or light-none", KEY_BUDGET_SECONDS)
+    run.wait_until(
+        lambda: run.has_line("/usr/bin/backlight") or run.has_line("light-none"),
+        "backlight probe",
+        "the path or light-none",
+        KEY_BUDGET_SECONDS,
+    )
     if run.has_line("light-none"):
-        print("check-picocalc: skip the backlight command: the image does not carry it "
-              "(both PicoCalc profiles do)")
+        print(
+            "check-picocalc: skip the backlight command: the image does not carry it "
+            "(both PicoCalc profiles do)"
+        )
         return
     run.type_line("backlight 88")
     run.wait_for_line("lcd 80", "backlight answer as operator", KEY_BUDGET_SECONDS)
     level = monitor_int(run.renode, f"{kbd} BacklightLevel")
-    run.expect(level == 80, f"backlight: the screen level after 'backlight 88' is {level}, "
-               "expected 80")
+    run.expect(
+        level == 80, f"backlight: the screen level after 'backlight 88' is {level}, expected 80"
+    )
     run.snapshot("backlight")
 
 
@@ -710,33 +884,48 @@ def check_monitors(run: Run) -> None:
     # chunks and waits for each to drain.
     console = picocalc_dump.Console(run)
     console.type("ls /usr/bin/picofetch || echo fetch-none")
-    run.wait_until(lambda: run.has_line("/usr/bin/picofetch") or run.has_line("fetch-none"),
-                   "picofetch probe", "the path or fetch-none", KEY_BUDGET_SECONDS)
+    run.wait_until(
+        lambda: run.has_line("/usr/bin/picofetch") or run.has_line("fetch-none"),
+        "picofetch probe",
+        "the path or fetch-none",
+        KEY_BUDGET_SECONDS,
+    )
     if run.has_line("fetch-none"):
-        print("check-picocalc: skip picofetch and picotop: the image carries neither "
-              "(the picocalc profile does)")
+        print(
+            "check-picocalc: skip picofetch and picotop: the image carries neither "
+            "(the picocalc profile does)"
+        )
         return
     run.type_line("picofetch")
     run.wait_for(["Reset  "], "picofetch report", KEY_BUDGET_SECONDS)
     run.wait_for_prompt("prompt after picofetch", KEY_BUDGET_SECONDS)
     run.snapshot("picofetch")
-    for text in ("OS       DiscoBSD 2.7", "Kernel   PICOCALC", "CPU      125.000 MHz, ",
-                 "SRAM     264K, process window 192K", "MPU      on, ",
-                 "Display  318x320 px, 53x32 cells", "Tables   proc ", "Kstack   "):
+    for text in (
+        "OS       DiscoBSD 2.7",
+        "Kernel   PICOCALC",
+        "CPU      125.000 MHz, ",
+        "SRAM     264K, process window 192K",
+        "MPU      on, ",
+        "Display  318x320 px, 53x32 cells",
+        "Tables   proc ",
+        "Kstack   ",
+    ):
         run.expect(run.has(text), f"picofetch: no {text!r} on the panel")
-    run.expect(any(line.startswith("Kstack   ") and " peak " in line for line in run.lines),
-               "picofetch: no Kstack peak from kern.capacity on the panel")
+    run.expect(
+        any(line.startswith("Kstack   ") and " peak " in line for line in run.lines),
+        "picofetch: no Kstack peak from kern.capacity on the panel",
+    )
     for label in ("Memory  ", "Swap    ", "Root    ", "Battery ", "Flash    image "):
         run.expect(run.has(label), f"picofetch: no {label!r} line on the panel")
     # Renode's ADC is a model, so the line's form is checked and its values
     # are not.
-    run.expect(any(re.match(r"Sensors  -?\d+\.\d C, VSYS \d+\.\d\d V", line)
-                   for line in run.lines),
-               "picofetch: no Sensors line with a temperature and VSYS on the panel")
+    run.expect(
+        any(re.match(r"Sensors  -?\d+\.\d C, VSYS \d+\.\d\d V", line) for line in run.lines),
+        "picofetch: no Sensors line with a temperature and VSYS on the panel",
+    )
     run.expect(not run.has("read failed"), "picofetch: a sysctl read failed")
     # The title row, not a prompt: a prompt carries the shell's $.
-    title = [i for i, line in enumerate(run.lines)
-             if "operator@" in line and "$" not in line]
+    title = [i for i, line in enumerate(run.lines) if "operator@" in line and "$" not in line]
     if not title:
         run.fail("picofetch: no operator@host title on the panel")
     else:
@@ -745,22 +934,36 @@ def check_monitors(run: Run) -> None:
             run.fail(message)
     console.type("picotop -c 2 -d 1")
     run.wait_for(["q quit"], "picotop frame", KEY_BUDGET_SECONDS)
-    run.wait_until(lambda: any(line.rstrip().endswith("$") for line in run.lines[-2:]),
-                   "prompt after picotop", "a shell prompt on the last rows",
-                   KEY_BUDGET_SECONDS)
+    run.wait_until(
+        lambda: any(line.rstrip().endswith("$") for line in run.lines[-2:]),
+        "prompt after picotop",
+        "a shell prompt on the last rows",
+        KEY_BUDGET_SECONDS,
+    )
     run.snapshot("picotop")
-    for text in (" picotop  ", "CPU  ", "Mem  ", "Swp  ", "/    ", "Bat  ", "Evt  cs ",
-                 "CPU%   TIME COMMAND"):
+    for text in (
+        " picotop  ",
+        "CPU  ",
+        "Mem  ",
+        "Swp  ",
+        "/    ",
+        "Bat  ",
+        "Evt  cs ",
+        "CPU%   TIME COMMAND",
+    ):
         run.expect(run.has(text), f"picotop: no {text!r} on the panel")
-    run.expect(any(line.rstrip().endswith("picotop") and " R+ " in line for line in run.lines),
-               "picotop: no running, in-core picotop row in the process table")
+    run.expect(
+        any(line.rstrip().endswith("picotop") and " R+ " in line for line in run.lines),
+        "picotop: no running, in-core picotop row in the process table",
+    )
 
 
 # A Status line the model printed after a passing boot (st7365p.cs Status()).
 GOOD_STATUS = (
     "display on, sleep out, invert on, madctl 0x48, colmod 0x55, "
     "scroll top 0 area 320 bottom 160 start 0, 779602 bytes, 250660 pixels, "
-    "0 outside the window, 0 unknown commands, 0 without chip select")
+    "0 outside the window, 0 unknown commands, 0 without chip select"
+)
 
 
 def read_stream(cmd: int, value: int, dummy: bool = True) -> list[int]:
@@ -768,7 +971,7 @@ def read_stream(cmd: int, value: int, dummy: bool = True) -> list[int]:
     _, cycles, bits = READ_COMMANDS[cmd]
     stream = "0" * (cycles if dummy else 0) + format(value, f"0{bits}b")
     stream += "0" * (-len(stream) % 8)
-    return [int(stream[i:i + 8], 2) for i in range(0, len(stream), 8)]
+    return [int(stream[i : i + 8], 2) for i in range(0, len(stream), 8)]
 
 
 class TimelineRun(Run):
@@ -785,17 +988,20 @@ class TimelineRun(Run):
 
 def banner_window(start: float, banner: str, width: float = 0.3) -> Callable[[float], list[str]]:
     """A panel blank until start, showing the banner for width seconds, then scrolled."""
+
     def shown(virtual: float) -> list[str]:
         if virtual < start:
             return [""]
         if virtual < start + width:
             return [banner, "lcd0: ST7365P 320x320 on SPI1"]
         return ["        exec_check(): read header"]
+
     return shown
 
 
-def wait_outcomes(wait: Callable[[Run], object], banner: str,
-                  starts: list[float]) -> dict[float, bool]:
+def wait_outcomes(
+    wait: Callable[[Run], object], banner: str, starts: list[float]
+) -> dict[float, bool]:
     """Whether a banner wait passes for each start of the banner's window."""
     outcome = {}
     for start in starts:
@@ -812,8 +1018,10 @@ def wait_outcomes(wait: Callable[[Run], object], banner: str,
 BANNER_STARTS = [step / 20 for step in range(0, 41)]
 
 
-def sampling_failures(wait_banner: typing.Optional[Callable[[Run], object]] = None,
-                      banner: str = "DiscoBSD 2.7 (PICOCALC_SD_DIAG)") -> list[str]:
+def sampling_failures(
+    wait_banner: typing.Optional[Callable[[Run], object]] = None,
+    banner: str = "DiscoBSD 2.7 (PICOCALC_SD_DIAG)",
+) -> list[str]:
     """Calibrate the cadence of a wait for a boot line against windows at every phase.
 
     The line is on the panel for 0.3 virtual seconds and starts anywhere in the
@@ -821,6 +1029,7 @@ def sampling_failures(wait_banner: typing.Optional[Callable[[Run], object]] = No
     pass for a window that holds a sample and fail for one that holds zero samples, which
     proves the windows can miss; the wait under test (wait_seen unless a caller
     supplies the wait its cases use) must pass for every start."""
+
     def coarse(run: Run) -> object:
         return run.wait_for([banner], "banner", BOOT_BUDGET_SECONDS)
 
@@ -830,15 +1039,19 @@ def sampling_failures(wait_banner: typing.Optional[Callable[[Run], object]] = No
     failures = []
     bad = wait_outcomes(coarse, banner, BANNER_STARTS)
     if not bad[0.5] or bad[0.55]:
-        failures.append("the wait on the current frame must pass for a window starting at 0.50 "
-                        "and fail for one starting at 0.55")
+        failures.append(
+            "the wait on the current frame must pass for a window starting at 0.50 "
+            "and fail for one starting at 0.55"
+        )
     for name, wait in (("wait_seen", fine), ("the wait the cases use", wait_banner)):
         if wait is None:
             continue
-        missed = [start for start, ok in wait_outcomes(wait, banner, BANNER_STARTS).items()
-                  if not ok]
+        missed = [
+            start for start, ok in wait_outcomes(wait, banner, BANNER_STARTS).items() if not ok
+        ]
         if missed:
             failures.append(f"{name} missed a window of the line starting at {missed[:4]}")
+
     def two_lines(virtual: float) -> list[str]:
         if 0.5 <= virtual < 0.8:
             return ["first line"]
@@ -899,8 +1112,7 @@ def self_test() -> int:
     for name, (old, new, word) in mutants.items():
         broken = panel_status_failures(GOOD_STATUS.replace(old, new))
         if not any(word in message for message in broken):
-            print(f"self-test: the {name} Status line was not rejected: {broken}",
-                  file=sys.stderr)
+            print(f"self-test: the {name} Status line was not rejected: {broken}", file=sys.stderr)
             return 1
     levels, accepted, dropped, sent = GOOD_FIFO
     if spi_fifo_failures(levels, accepted, dropped, sent):
@@ -910,39 +1122,47 @@ def self_test() -> int:
     if len(spi_fifo_failures(levels, accepted, dropped, sent)) < 3:
         print("self-test: the unbounded FIFO observation was not rejected", file=sys.stderr)
         return 1
-    for state, want in ((STATE_RESET, READ_AFTER_RESET), (STATE_INIT, READ_AFTER_INIT),
-                        (STATE_SWRESET, READ_AFTER_SWRESET)):
-        good = {cmd: decode_read(cmd, read_stream(cmd, value))
-                for cmd, value in want.items()}
+    for state, want in (
+        (STATE_RESET, READ_AFTER_RESET),
+        (STATE_INIT, READ_AFTER_INIT),
+        (STATE_SWRESET, READ_AFTER_SWRESET),
+    ):
+        good = {cmd: decode_read(cmd, read_stream(cmd, value)) for cmd, value in want.items()}
         if read_failures(state, good, want):
             print(f"self-test: the recorded good {state} readback failed", file=sys.stderr)
             return 1
-    good = {cmd: decode_read(cmd, read_stream(cmd, value))
-            for cmd, value in READ_AFTER_INIT.items()}
+    good = {
+        cmd: decode_read(cmd, read_stream(cmd, value)) for cmd, value in READ_AFTER_INIT.items()
+    }
     read_mutants = {
         "a model that answers zeros": {cmd: 0 for cmd in good},
         "a read without the dummy cycle": {
             cmd: decode_read(cmd, read_stream(cmd, value, dummy=False))
-            for cmd, value in READ_AFTER_INIT.items()},
+            for cmd, value in READ_AFTER_INIT.items()
+        },
         "a sleeping panel": {**good, 0x0A: 0x08},
         "an unprogrammed MADCTL": {**good, 0x0B: 0x00},
         "a diagnostic result with a reserved bit set": {**good, 0x0F: 0x20},
     }
     for name, values in read_mutants.items():
         if not read_failures(STATE_INIT, values, READ_AFTER_INIT):
-            print(f"self-test: {name} was not rejected by the readback check",
-                  file=sys.stderr)
+            print(f"self-test: {name} was not rejected by the readback check", file=sys.stderr)
             return 1
     diagnosed = {**good, 0x0F: 0xC0}
     if read_failures(STATE_INIT, diagnosed, READ_AFTER_INIT):
-        print("self-test: a diagnostic result with D7 and D6 set was rejected after SLPOUT",
-              file=sys.stderr)
+        print(
+            "self-test: a diagnostic result with D7 and D6 set was rejected after SLPOUT",
+            file=sys.stderr,
+        )
         return 1
-    undone = {cmd: decode_read(cmd, read_stream(cmd, value))
-              for cmd, value in READ_AFTER_RESET.items()}
+    undone = {
+        cmd: decode_read(cmd, read_stream(cmd, value)) for cmd, value in READ_AFTER_RESET.items()
+    }
     if not read_failures(STATE_RESET, {**undone, 0x0F: 0xC0}, READ_AFTER_RESET):
-        print("self-test: a diagnostic result with D7 and D6 set was accepted after a reset",
-              file=sys.stderr)
+        print(
+            "self-test: a diagnostic result with D7 and D6 set was accepted after a reset",
+            file=sys.stderr,
+        )
         return 1
     try:
         read_failures("init", good, READ_AFTER_INIT)
@@ -971,16 +1191,19 @@ def self_test() -> int:
     # draws it, must pass; an attach, a missing line and a fallback printed
     # by another driver must not.
     fallback = "psram0: id 0/0 is not an ESP-PSRAM64H, swap stays on fl1"
-    wrapped = [fallback[:picocalc_fb.COLS], fallback[picocalc_fb.COLS:]]
-    for name, lines in (("wrapped id refusal", ["kbd0: x"] + wrapped),
-                        ("stall refusal", ["psram0: not usable (error 4), swap stays on fl1"])):
+    wrapped = [fallback[: picocalc_fb.COLS], fallback[picocalc_fb.COLS :]]
+    for name, lines in (
+        ("wrapped id refusal", ["kbd0: x"] + wrapped),
+        ("stall refusal", ["psram0: not usable (error 4), swap stays on fl1"]),
+    ):
         if psram_failures(lines) or not psram_probe_seen(lines):
             print(f"self-test: the {name} psram0 line failed", file=sys.stderr)
             return 1
     for name, lines in (
-            ("attach", ["psram0: ESP-PSRAM64H 8192 kbytes on PIO0, swap"]),
-            ("missing", ["kbd0: keyboard controller at I2C1 0x1f, firmware 1.6"]),
-            ("other driver", ["sd0: not usable (error 4), swap stays on fl1"])):
+        ("attach", ["psram0: ESP-PSRAM64H 8192 kbytes on PIO0, swap"]),
+        ("missing", ["kbd0: keyboard controller at I2C1 0x1f, firmware 1.6"]),
+        ("other driver", ["sd0: not usable (error 4), swap stays on fl1"]),
+    ):
         if not psram_failures(lines):
             print(f"self-test: the {name} psram0 case was not rejected", file=sys.stderr)
             return 1
@@ -989,11 +1212,13 @@ def self_test() -> int:
         for problem in problems:
             print(f"self-test: {problem}", file=sys.stderr)
         return 1
-    print("check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
-          "good and unbounded FIFO, three good readbacks and five mutants, "
-          "good, shifted and one-color logo, psram0 fallback and three mutants, "
-          "12-, 255- and 256-byte dump messages, banner windows at 41 phases against the "
-          "current-frame wait and the counted frames, the kept frames of a failed wait)")
+    print(
+        "check-picocalc self-test: ok (good line, sleeping panel and four other mutants, "
+        "good and unbounded FIFO, three good readbacks and five mutants, "
+        "good, shifted and one-color logo, psram0 fallback and three mutants, "
+        "12-, 255- and 256-byte dump messages, banner windows at 41 phases against the "
+        "current-frame wait and the counted frames, the kept frames of a failed wait)"
+    )
     return 0
 
 
@@ -1008,6 +1233,7 @@ def main_readback(argv: list[str]) -> int:
         renode.command(f"$flash_bin=@{flash_bin}")
         renode.command(f"include @{os.path.join(HERE, 'picocalc-machine.resc')}")
         check_panel_readback(run)
+        check_panel_memory(run)
     except RenodeError as error:
         print(f"check-picocalc: {error}", file=sys.stderr)
         renode.close()
@@ -1041,27 +1267,41 @@ def main(argv: list[str]) -> int:
         if card is not None:
             picocalc_dump.attach_card(renode, os.path.abspath(card))
         check_panel_readback(run)
+        check_panel_memory(run)
         renode.command(f"sysbus.uart0 CreateFileBackend @{os.path.join(outdir, 'uart0.txt')} true")
         init_trace = expected_init_trace()
         renode.command(f"sysbus.spi1.lcd TraceBytes {len(init_trace)}")
         run.wait_seen(BANNER_LINES, "banner", BOOT_BUDGET_SECONDS)
-        run.wait_until(lambda: psram_probe_seen(run.lines), "psram probe",
-                       "a psram0 outcome line", BOOT_BUDGET_SECONDS)
+        run.wait_until(
+            lambda: psram_probe_seen(run.lines),
+            "psram probe",
+            "a psram0 outcome line",
+            BOOT_BUDGET_SECONDS,
+        )
         run.snapshot("banner")
         for message in psram_failures(run.lines):
             run.fail(message)
         if card is not None:
             picocalc_dump.check_swap_boot(run)
         else:
-            run.wait_until(lambda: run.saw(SWAP_ON_FL1), "swap device after the psram probe",
-                           repr(SWAP_ON_FL1), BOOT_BUDGET_SECONDS)
+            run.wait_until(
+                lambda: run.saw(SWAP_ON_FL1),
+                "swap device after the psram probe",
+                repr(SWAP_ON_FL1),
+                BOOT_BUDGET_SECONDS,
+            )
         check_panel_registers(run)
         # The monitor echoes prompts and command lines around its output.
-        traced = [line for line in renode.command("sysbus.spi1.lcd Trace").splitlines()
-                  if re.fullmatch(r"\s*([cd][0-9a-f]{2}\s*)+", line)]
+        traced = [
+            line
+            for line in renode.command("sysbus.spi1.lcd Trace").splitlines()
+            if re.fullmatch(r"\s*([cd][0-9a-f]{2}\s*)+", line)
+        ]
         seen = traced[-1].split() if traced else []
-        run.expect(seen == init_trace,
-                   f"panel: init bytes differ from st7365p.c's startup tables: {seen[:12]}")
+        run.expect(
+            seen == init_trace,
+            f"panel: init bytes differ from st7365p.c's startup tables: {seen[:12]}",
+        )
         run.wait_for(["login:"], "login prompt", LOGIN_BUDGET_SECONDS)
         run.snapshot("login")
         # The operator account has an empty password (the image checker
@@ -1069,17 +1309,20 @@ def main(argv: list[str]) -> int:
         run.type_line("operator")
         run.wait_for_prompt("shell prompt", KEY_BUDGET_SECONDS)
         run.type_line("uname -sr", erase_last=True)
-        run.wait_for_line("DiscoBSD 2.7", "uname answer typed through the keyboard model",
-                          KEY_BUDGET_SECONDS)
+        run.wait_for_line(
+            "DiscoBSD 2.7", "uname answer typed through the keyboard model", KEY_BUDGET_SECONDS
+        )
         run.snapshot("shell")
         # Nine keys to log in and twelve for the command (the wrong character and its
         # Backspace included), a press and a release each.
         queued = monitor_int(renode, "sysbus.i2c1.kbd Queued")
         delivered = monitor_int(renode, "sysbus.i2c1.kbd Delivered")
         dropped = monitor_int(renode, "sysbus.i2c1.kbd Dropped")
-        run.expect(queued == 42 and delivered == 42 and dropped == 0,
-                   f"keyboard: {queued} events queued, {delivered} delivered through "
-                   f"register 0x09, {dropped} dropped; expected 42, 42 and 0")
+        run.expect(
+            queued == 42 and delivered == 42 and dropped == 0,
+            f"keyboard: {queued} events queued, {delivered} delivered through "
+            f"register 0x09, {dropped} dropped; expected 42, 42 and 0",
+        )
         transactions = monitor_int(renode, "sysbus.i2c1.kbd Transactions")
         run.expect(transactions > 0, "keyboard: no I2C transaction reached 0x1f")
         check_spi_fifo(run)

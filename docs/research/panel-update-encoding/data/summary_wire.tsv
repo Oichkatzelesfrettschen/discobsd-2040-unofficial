@@ -1,0 +1,3 @@
+corpus	refreshes	m1_today_pixel_bytes	m1h_today_with_sim_headers	m2_guest_span_rects	m2_byte_exact	m3_image_diff_rects	m4_plus_scroll	m5a_unknown_panel	m5b_outside_known_black	m5c_clear_dropped
+dos	149	2430336	2505719	2494198	2494198	1414148	442045	442206	365329	237234
+win	81	3361088	3365488	1405344	1227735	447553	447553	447714	370837	242742

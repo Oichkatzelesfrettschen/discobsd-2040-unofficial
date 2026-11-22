@@ -117,12 +117,49 @@ pace(void)
 	    clk_pace(&due, ULONG_MAX - 999UL), 3);
 }
 
+/* Waiting interrupts: up to CLK_CREDIT_US worth of periods, never fewer
+ * than four. */
+static unsigned
+fill(uint32_t period, unsigned calls)
+{
+	unsigned due = 0;
+
+	while (calls-- > 0)
+		due = clk_owe(due, period);
+	return (due);
+}
+
+static void
+owe(void)
+{
+	unsigned long last = 0, now, cross;
+	uint32_t rem = 999999u;
+
+	/* 20 ms from a reading whose fraction is all but a clock counts one
+	 * clock more than 20 ms holds. */
+	now = 20000UL;
+	want("owe: 20 ms counts at most CLK_CREDIT_CLOCKS",
+	    clk_pit(&last, now, &rem), CLK_CREDIT_CLOCKS);
+	want("owe: CLK_CREDIT_CLOCKS", CLK_CREDIT_CLOCKS, 23864);
+	/* A gap that starts one clock before a 1 kHz deadline crosses 21. */
+	cross = (CLK_CREDIT_CLOCKS - 1) / 1193 + 1;
+	want("owe: deadlines a phased 20 ms gap crosses at 1 kHz", cross, 21);
+	want("owe: 1 kHz keeps every one of them", fill(1193, 21), 21);
+	want("owe: 1 kHz keeps no more", fill(1193, 30), 21);
+	want("owe: 1 kHz below the bound counts each", fill(1193, 7), 7);
+	want("owe: 18.2 Hz keeps four", fill(65536, 30), 4);
+	want("owe: a period dividing the credit keeps its quotient", fill(5966, 30), 4);
+	want("owe: the fastest count keeps 20 ms of them", fill(1, 30000), 23864);
+	want("owe: a zero period keeps four", fill(0, 9), 4);
+}
+
 int
 main(void)
 {
 	pit();
 	forward();
 	pace();
+	owe();
 	if (failed) {
 		printf("clock: %d of %d checks fail\n", failed, checks);
 		return (1);

@@ -170,6 +170,21 @@ class GeneratedSyncTest(unittest.TestCase):
         with self.assertRaisesRegex(sync.SyncError, "PICOCALC_SD: Config must equal"):
             sync.check(self.root)
 
+    def test_sd_diagnostic_kernel_without_diag_stats_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_SD_DIAG/Config",
+                    "options         DIAG_STATS\n", "")
+        with self.assertRaisesRegex(sync.SyncError,
+                                    "PICOCALC_SD_DIAG: Config must equal"):
+            sync.check(self.root)
+
+    def test_sd_kernel_carrying_diag_stats_is_rejected(self):
+        self.mutate(sync.COMPILE / "PICOCALC_SD/Config",
+                    "options         SYSTRACE\n",
+                    "options         SYSTRACE\noptions         DIAG_STATS\n")
+        with self.assertRaisesRegex(sync.SyncError,
+                                    "PICOCALC_SD: Config must equal"):
+            sync.check(self.root)
+
     def test_full_kernel_without_a_device_option_is_rejected(self):
         # The lean kernel's removal list names DEV_PCM, so a PICOCALC that
         # loses it no longer differs from PICOCALC_LEAN by that cut.

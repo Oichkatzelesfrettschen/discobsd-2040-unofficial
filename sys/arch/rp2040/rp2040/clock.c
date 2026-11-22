@@ -35,6 +35,17 @@ timer_us(void)
 	return *(volatile u_int *)(TIMER_BASE + TIMER_TIMERAWL);
 }
 
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+
+/* The free-running microsecond count for the diagnostic print timer. */
+u_int
+diag_us(void)
+{
+	return timer_us();
+}
+#endif
+
 static int
 systick_pending(void)
 {

@@ -19,6 +19,9 @@
 
 #include <rp2040/dev/uart.h>
 
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+#endif
 #include <machine/intr.h>
 #include <machine/board.h>
 
@@ -385,7 +388,22 @@ uartintr(dev_t dev)
 
     /* Receive: drain the FIFO while UARTFR reports it non-empty. */
     while (uart_rx_ready(uip->base)) {
+#ifdef DIAG_STATS
+        /* UARTDR carries the line errors of the character it returns. */
+        u_int dr = UART_REG(uip->base, UART_DR);
+
+        if (dr & UART_DR_OE)
+            diag_add(DIAG_UART_OVERRUNS, 1);
+        if (dr & UART_DR_BE)
+            diag_add(DIAG_UART_BREAKS, 1);
+        if (dr & UART_DR_PE)
+            diag_add(DIAG_UART_PARITY, 1);
+        if (dr & UART_DR_FE)
+            diag_add(DIAG_UART_FRAMING, 1);
+        c = (int)(dr & 0xff);
+#else
         c = uart_rx_get(uip->base);
+#endif
         ttyinput(c, tp);
     }
 

@@ -36,6 +36,9 @@
 #include <sys/config.h>
 #include <sys/errno.h>
 #include <sys/storage_stats.h>
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+#endif
 
 #include <machine/board.h>
 
@@ -95,6 +98,9 @@ psramstrategy(struct buf *bp)
 	err = psram_region_offset(minor(bp->b_dev), bp->b_blkno, DEV_BSIZE,
 	    len, &off);
 	if (err != 0) {
+#ifdef DIAG_STATS
+		diag_add(DIAG_PSRAM_RANGES, 1);
+#endif
 		bp->b_error = EINVAL;
 		goto bad;
 	}
@@ -109,6 +115,16 @@ psramstrategy(struct buf *bp)
 	else
 		err = psram_write(off, (const unsigned char *)bp->b_addr,
 		    len);
+#ifdef DIAG_STATS
+	diag_add(DIAG_PSRAM_XFERS, 1);
+	diag_add(DIAG_PSRAM_BYTES, len);
+	if (err == PSRAM_E_TIMEOUT)
+		diag_add(DIAG_PSRAM_TIMEOUTS, 1);
+	else if (err == PSRAM_E_STALL)
+		diag_add(DIAG_PSRAM_STALLS, 1);
+	else if (err == PSRAM_E_RANGE)
+		diag_add(DIAG_PSRAM_RANGES, 1);
+#endif
 	if (err != 0) {
 		bp->b_error = err == PSRAM_E_RANGE ? EINVAL : EIO;
 		goto bad;
@@ -130,6 +146,10 @@ psramprobe(const struct conf_device *config __unused)
 		return 0;
 	psram_hw_init();
 	err = psram_device_init();
+#ifdef DIAG_STATS
+	diag_set(DIAG_PSRAM_PROBE_RAN, 1);
+	diag_set(DIAG_PSRAM_PROBE_ERR, err < 0 ? (uint32_t)-err : (uint32_t)err);
+#endif
 	if (psram_id_read)
 		printf("psram0: read id %02x/%02x eid %02x%02x%02x%02x%02x%02x\n",
 		    psram_mfid, psram_kgd, psram_eid[0], psram_eid[1],

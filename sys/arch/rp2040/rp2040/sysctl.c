@@ -8,6 +8,9 @@
 
 #include <sys/param.h>
 #include <sys/storage_stats.h>
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+#endif
 #include <sys/user.h>
 #include <sys/ioctl.h>
 #include <sys/proc.h>
@@ -242,6 +245,23 @@ cpu_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
 
 	/* Every sysctl name at this level except mpu is terminal. */
 	switch (name[0]) {
+#ifdef DIAG_STATS
+	/* Without DIAG_STATS both names fall to the default, EOPNOTSUPP. */
+	case CPU_DIAG_STATS:
+		if (namelen != 1)
+			return ENOTDIR;
+		{
+			struct diag_stats ds;
+
+			diag_snapshot(&ds);
+			return sysctl_rdstruct(oldp, oldlenp, newp, &ds,
+			    sizeof ds);
+		}
+	case CPU_DIAG_MSGBUF:
+		if (namelen != 1)
+			return ENOTDIR;
+		return diag_msgread(oldp, oldlenp, newp);
+#endif
 	case CPU_STORAGE_STATS:
 		if (namelen != 1)
 			return ENOTDIR;

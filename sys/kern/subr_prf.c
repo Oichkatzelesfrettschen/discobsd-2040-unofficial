@@ -13,6 +13,7 @@
 #include <sys/reboot.h>
 #include <sys/systm.h>
 #include <sys/syslog.h>
+#include <sys/diag_stats.h>
 #include "../../include/stdarg.h"
 
 #define TOCONS  0x1
@@ -52,8 +53,10 @@ putchar (int c, int flags, struct tty *tp)
         logwrt (&sym, 1, logMSG);
     }
 #endif
-    if ((flags & TOCONS) && c != '\0')
+    if ((flags & TOCONS) && c != '\0') {
+        diag_msgputc(c);
         cnputc(c);
+    }
 }
 
 static unsigned
@@ -467,10 +470,20 @@ void
 printf(char *fmt, ...)
 {
     va_list arguments;
+#ifdef DIAG_STATS
+    u_int t0 = diag_us();
+    u_int elapsed;
+#endif
 
     va_start (arguments, fmt);
     prf (fmt, arguments, TOCONS | TOLOG, (struct tty *)0);
     va_end (arguments);
+#ifdef DIAG_STATS
+    elapsed = diag_us() - t0;
+    diag_add(DIAG_PRINTS, 1);
+    diag_add(DIAG_PRINT_US_TOTAL, elapsed);
+    diag_max(DIAG_PRINT_US_MAX, elapsed);
+#endif
 }
 
 /*

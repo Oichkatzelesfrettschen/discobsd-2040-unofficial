@@ -2950,6 +2950,59 @@ check-capacity-mutants: capacity_test capacity_mutate.py
 		echo "PASS capacity mutation $$mutation rejected"; \
 	done
 
+# The testing kernels' counter, fault-record and message-ring unit,
+# sys/kern/subr_diag.c, against a model of the PSRAM/SD/console callers'
+# arithmetic and ring semantics. Four mutants of the source each fail the
+# check their change breaks. Standalone: the aggregate check and its ILP32
+# inventory do not run it; the root check-diag-stats target does.
+DIAG_SRC=	${TOPSRC}/sys/kern/subr_diag.c
+
+diag_stats_test: diag_stats_test.c ${DIAG_SRC} hostkern32.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} -DDIAG_STATS ${ILP32} \
+	    -c -o diag_stats_kernel.o ${DIAG_SRC}
+	${HOST_CC} ${GATE_CFLAGS} -DDIAG_STATS ${ILP32} -o $@ \
+	    diag_stats_test.c diag_stats_kernel.o hostkern32.o
+
+check-diag-stats: diag_stats_test
+	./diag_stats_test
+
+# Each line: mutant name, sed expression, the check expression that must
+# fail first.
+check-diag-stats-mutants: diag_stats_test
+	@set -eu; \
+	run_mutant() { \
+		name=$$1; expression=$$2; expected=$$3; \
+		sed "$$expression" ${DIAG_SRC} > diag_stats_$$name.mutant.c; \
+		if cmp -s ${DIAG_SRC} diag_stats_$$name.mutant.c; then \
+			echo "FAIL diag_stats mutant $$name changed nothing" >&2; \
+			exit 1; \
+		fi; \
+		${HOST_CC} ${KERN_CFLAGS} -DDIAG_STATS ${ILP32} \
+		    -c -o diag_stats_$$name.mutant.o diag_stats_$$name.mutant.c; \
+		${HOST_CC} ${GATE_CFLAGS} -DDIAG_STATS ${ILP32} \
+		    -o diag_stats_$$name.mutant.test diag_stats_test.c \
+		    diag_stats_$$name.mutant.o hostkern32.o; \
+		if ./diag_stats_$$name.mutant.test \
+		    > diag_stats_$$name.mutant.out 2>&1; then status=0; \
+		else status=$$?; fi; \
+		if [ "$$status" -eq 0 ] || \
+		    ! grep -F "$$expected" diag_stats_$$name.mutant.out \
+		    >/dev/null; then \
+			cat diag_stats_$$name.mutant.out >&2; \
+			echo "FAIL diag_stats mutant $$name not rejected for its reason" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS diag_stats mutant $$name rejected"; \
+	}; \
+	run_mutant saturation 's/if (amount > UINT32_MAX - diag.value\[metric\])/if (0)/' 'DIAG_PRINT_US_TOTAL] == UINT32_MAX'; \
+	run_mutant max-keeps-last 's/if (value > diag.value\[metric\])/if (1)/' 'DIAG_SD_SLOWEST_US] == 90'; \
+	run_mutant fault-index 's/diag.fault\[diag.fault_total++ % DIAG_NFAULT\]/diag.fault[0]/' 'stats.fault_total - 1) % DIAG_NFAULT].pid'; \
+	run_mutant ring-tail 's/if (n > \*oldlenp - 1)/if (0)/' 'len == 7 && hk_streq'; \
+	run_mutant ring-unlocked '/^diag_msgputc/,/^}/s/int s = splhigh();/int s = 0;/' 'hk_ipl_raises == before + 1'; \
+	run_mutant ring-clamp 's/if (now - pos > DIAG_MSGBUF_SIZE)/if (0)/' 'hk_streq(out, expected)'; \
+	run_mutant ring-enomem 's/if (\*oldlenp == 0) {/if (*oldlenp == 0) { return ENOMEM;/' 'len == 12'
+
 buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
     ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
@@ -3840,6 +3893,9 @@ clean:
 	    ufs_disk_*.mutant.functions.c ufs_disk_*.mutant.o \
 	    ufs_disk_*.mutant.test ufs_disk_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
+	rm -f diag_stats_kernel.o diag_stats_test diag_stats_*.mutant.c \
+	    diag_stats_*.mutant.o diag_stats_*.mutant.test \
+	    diag_stats_*.mutant.out
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f buffer_busy_kernel.o buffer_busy_capacity.o buffer_busy_uarea.o \
 	    buffer_busy_test

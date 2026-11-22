@@ -1244,7 +1244,7 @@ board in BOOTSEL mode; a board run is an explicit opt-in.
 ### PICOCALC_SD_DIAG: the testing kernel
 
 `PICOCALC_SD_DIAG` is PICOCALC_SD plus `options DIAGNOSTIC`,
-`options GLOBAL_DEBUG=9`, `options STORAGE_STATS` and
+`options GLOBAL_DEBUG=9`, `options STORAGE_STATS`, `options DIAG_STATS` and
 `options CONSOLE_MIRROR_UART`, compiled at `-Og`
 (`makeoptions COPTS="-Og"` overrides the `COPTS?= -Os` default of
 `Makefile.rp2040`). It is the kernel for board testing and source-level
@@ -1284,6 +1284,64 @@ defines only its own name.
   kernel default for the bit, which this tree does not carry.
 - `STORAGE_STATS`: `machdep.storage_stats` and the flash wear counters
   (`STORAGE.md`).
+- `DIAG_STATS` (`sys/sys/diag_stats.h`, `sys/kern/subr_diag.c`): counters,
+  fault records and a console message ring, read through two machdep nodes
+  that other kernels answer with `EOPNOTSUPP`. `sysctl machdep.diag_stats`
+  prints the version, the fault count, one line per counter and the newest
+  `DIAG_NFAULT` (4) fault records; `sysctl machdep.diag_msgbuf` prints the
+  newest bytes the kernel wrote to the console out of a ring of
+  `DIAG_MSGBUF_SIZE` (1024); `sysctl(8)` reads into a `BUFSIZ` (1024) buffer,
+  so it shows the newest 1023. Boot lines and fault dumps stay readable
+  after the 32-line panel scrolls them away. Both nodes answer any user
+  (the panel shows the same text to anyone at the keyboard) and a read that
+  overlaps a print drops the oldest bytes of that read. The counters:
+  - PSRAM (`psram.c`): `psram_xfers` and `psram_bytes` of block transfer
+    attempts (failed ones included),
+    `psram_timeouts`, `psram_stalls` (RX FIFO overrun) and `psram_ranges`
+    (a request outside the region), and `psram_probe_ran` with
+    `psram_probe_err`, the magnitude of the `PSRAM_E_*` code the probe
+    returned (0 when the device came up).
+  - SD (`sd.c`): `sd_reads` and `sd_writes` of sectors, `sd_timeouts`,
+    `sd_io_errors` and `sd_slowest_us`, the longest single sector
+    transfer. `sdspi.c` reports a CRC mismatch, a data error token and a
+    bad response all as `SDE_IO`, and a failed command is not retried, so the
+    driver offers neither a retry nor a CRC counter.
+  - UART0 (`uart.c`): `uart_overruns`, `uart_breaks`, `uart_parity` and
+    `uart_framing`, the error bits UARTDR carries with each received
+    character (RP2040 datasheet 4.2.8, bits 11 to 8). Each counts a character
+    read with its bit set, so one overrun event that PL011 holds on the FIFO
+    tail counts once per read that carries it.
+  - tty (`tty.c`): `tty_raw_flushes` (raw-mode input past `TTYHOG` flushed),
+    `tty_cbreak_drops` and `tty_cooked_drops` (characters refused, with a bell).
+  - Console output (`subr_prf.c`): `prints` calls of `printf()`,
+    `print_us_total` and `print_us_max`, the longest single call, which
+    includes the panel redraw and the UART0 mirror wait. A `printf()` an
+    interrupt runs inside another `printf()` counts in both, and
+    `sd_slowest_us` includes interrupt time inside the transfer.
+  - Faults (`fault.c`): process, name, pc, lr, psr, EXC_RETURN and exception
+    number of each `arm_fault()`; ARMv6-M omits the fault address. A kernel
+    fault ends in a panic, so its record is visible only when the panel or
+    mirror shows the dump. The 40-byte record lives in a helper that returns
+    before `arm_fault()` prints or panics; `arm_fault()`'s own frame grows
+    from 128 to 136 bytes (`-fstack-usage`, `-Og`, PICOCALC_SD_DIAG). No
+    board has measured the main stack's depth.
+
+  Table high-water marks are `kern.capacity` (`CAPACITY_STATS`, `pstat -T`,
+  `CAPACITY.md`), which this kernel already carries. Interrupt-off time stays
+  unmeasured: the observer that reports it, `options CORE1`, has not run on a
+  PicoCalc (`CORE1.md`).
+
+  Booted under Renode to a UART0 login on the SD root, the kernel read
+  `machdep.diag_stats` as: no faults, `psram_probe_ran 1` and
+  `psram_probe_err 1` (the model lacks PSRAM, and the boot line reads
+  "psram0: not usable (error -1)"), `sd_reads 8684`, `sd_writes 54`, no SD
+  errors, `sd_slowest_us 4789`, `prints 39`, `print_us_total 942447` and
+  `print_us_max 386957`; `machdep.diag_msgbuf` returned the newest 1,023
+  bytes of the boot output in order, and the `diag` case of
+  `check-picocalc-sdroot.py` (`check-renode-picocalc-sd-system`) checks both
+  reads after a UART0 login. Renode measures its own timing model, so
+  the microsecond figures are model time and the PSRAM row does not bear on
+  the board.
 - `CONSOLE_MIRROR_UART`: `cnputc()` in `sys/dev/cons.c` sends each console
   character to UART0 (GP0/GP1, the board's USB-C serial port at 115200) as
   well as to the panel, so a host records the kernel's lines, which the

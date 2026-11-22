@@ -191,7 +191,15 @@
  */
 #define	CPU_ADC			54	/* node: raw ADC inputs */
 #define	CPU_ADC_MAXID		5	/* inputs 0-4 */
-#define	CPU_MAXID		55	/* number of valid machdep ids */
+/*
+ * Testing-kernel counters, fault records and the console message ring of
+ * sys/diag_stats.h, served by kernels built with "options DIAG_STATS"; the
+ * others answer EOPNOTSUPP. diag_msgbuf is a string holding the newest
+ * console output that fits the caller's buffer.
+ */
+#define	CPU_DIAG_STATS		55	/* struct diag_stats */
+#define	CPU_DIAG_MSGBUF		56	/* string: newest console output */
+#define	CPU_MAXID		57	/* number of valid machdep ids */
 
 struct cpu_pcm_info {
 	unsigned int	rate;
@@ -259,6 +267,8 @@ struct cpu_pcm_info {
 	{ "flash_reset_erase", CTLTYPE_INT }, \
 	{ "flash_swap_wear", CTLTYPE_STRUCT }, \
 	{ "adc", CTLTYPE_NODE }, \
+	{ "diag_stats", CTLTYPE_STRUCT }, \
+	{ "diag_msgbuf", CTLTYPE_STRING }, \
 }
 
 #define	CTL_ADC_NAMES { \

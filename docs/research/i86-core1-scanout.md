@@ -2,8 +2,8 @@
 
 Status: decision record, 2026-11-21. The owner chose core-0 SPI1 DMA
 (D198), then core-1 scan-out (D202) on a comparison whose figure was wrong,
-and then the staged design below (D213), with a read-back-verified sweep
-of the wire rate in the next board session (D214). This note splits both options into the
+and then the staged design below (D218), with a read-back-verified sweep
+of the wire rate in the next board session (D219). This note splits both options into the
 terms of the cost they attack, refutes the part of D198 that the tree
 cannot carry, prices the part of D202 that it carries only by pinning
 i86 in core, and keeps what survives as a staged design in which every
@@ -276,9 +276,9 @@ commit and method.
 
 ## Decisions
 
-- D213: the staged design, each stage measured before the next is built.
+- D218: the staged design, each stage measured before the next is built.
   Stages 1 and 2 run on the host and in Renode; the kernel stages follow D109.
-- D214: the wire-rate sweep of measurement 3 in the next board session.
+- D219: the wire-rate sweep of measurement 3 in the next board session.
   The driver's default stays 12.5 MHz; a faster rate applies only to a unit
   that qualifies it at boot (stage 4), with commands and window addresses
   sent at 12.5 MHz and only the pixel payload at the candidate rate.

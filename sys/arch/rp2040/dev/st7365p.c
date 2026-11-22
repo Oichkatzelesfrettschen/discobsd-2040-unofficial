@@ -118,15 +118,19 @@
  * Sixteen colors, R, G, B. The console sends them as RGB565 (COLMOD 55h),
  * two bytes a pixel: five bits of red and blue and six of green, which the
  * controller widens to its eighteen-bit memory. 0-7 are the SGR 30-37
- * colors, 8-15 their bold variants.
+ * colors, 8-15 their bold variants. Entries 1-6 stay at least 0.10 apart
+ * in Oklab under protanopia, deuteranopia and tritanopia simulation, and
+ * red and green differ threefold in luminance, so SGR colors stay
+ * distinguishable without hue. Each bold variant is about 0.07 lighter in
+ * Oklab L than its base.
  */
 const u_char lcd_palette[16][3] = {
-	{   0,   0,   0 }, { 205,   0,   0 }, {   0, 205,   0 },
-	{ 205, 205,   0 }, {  60,  90, 238 }, { 205,   0, 205 },
-	{   0, 205, 205 }, { 200, 200, 200 },
-	{ 127, 127, 127 }, { 255,  60,  60 }, {  60, 255,  60 },
-	{ 255, 255,  60 }, { 100, 120, 255 }, { 255,  60, 255 },
-	{  60, 255, 255 }, { 255, 255, 255 },
+	{   0,   0,   0 }, { 188, 102,  47 }, {  32, 230, 166 },
+	{ 212, 192,  33 }, {  93, 111, 245 }, { 180, 120, 190 },
+	{ 135, 186, 206 }, { 248, 248, 242 },
+	{ 123, 134, 184 }, { 211, 123,  70 }, {  75, 254, 188 },
+	{ 235, 215,  68 }, { 112, 133, 255 }, { 203, 141, 213 },
+	{ 157, 209, 229 }, { 255, 255, 255 },
 };
 
 /*

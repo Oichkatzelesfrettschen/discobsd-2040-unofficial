@@ -30,9 +30,9 @@ compile directory's Makefile, and the skeletons Makefile.rp2040 and
 Makefile.stm32 compare it with Config when make reads the Makefile. Every
 tracked compile Makefile must carry its Config's cksum, which also checks
 config's CRC against the system's cksum. Each skeleton's check runs in a
-scratch directory whose fake config rewrites CONFIG_CKSUM, through six
-scenarios; four mutants of the check must each fail the scenario named for
-them.
+scratch directory whose fake config rewrites CONFIG_CKSUM, through ten
+scenarios, with and without .MAIN; seven mutants of the check must each fail
+the scenario named for them.
 """
 
 import argparse
@@ -51,7 +51,7 @@ TEMPLATES = {
     "sys/arch/rp2040/conf/Makefile.rp2040": "sys/arch/rp2040/compile",
     "sys/arch/stm32/conf/Makefile.stm32": "sys/arch/stm32/compile",
 }
-START = ".if !make(clean) && !make(clean-all) && !make(reconfig)\n"
+START = '.if make(reconfig) && ${.TARGETS:[#]} != 1\n'
 END = "reconfig ioconf.c: Config ${CONFIG_TOOL}\n\t${CONFIG_TOOL} Config\n\t${MAKE} clean\n"
 FAKE_CONFIG = """#!/bin/sh
 # Rewrite CONFIG_CKSUM from Config, as config rewrites the generated Makefile.
@@ -91,27 +91,33 @@ def mutate(text, old, new, name):
 
 def mutants(text):
     """(name, check, the scenario that must fail)."""
+    goals = ".if empty(.TARGETS) || !empty(.TARGETS:Nclean:Nclean-all:Nreconfig)"
     return (
         ("no cksum test", mutate(text, '.if "${_CONFIG_CKSUM}" != "${CONFIG_CKSUM}"', ".if 0",
                                  "cksum"), "changed"),
-        ("reconfig refused", mutate(text, " && !make(reconfig)\n", "\n", "reconfig"),
-         "reconfig alone"),
+        ("no goal skipped", mutate(text, "empty(.TARGETS) || ", "", "no goal"), "no goal"),
+        ("goals tested with make()", mutate(
+            text, goals, ".if !make(clean) && !make(clean-all) && !make(reconfig)", "make()"),
+         "clean beside a build"),
+        ("reconfig refused", mutate(text, ":Nreconfig)", ")", "reconfig"), "reconfig alone"),
         ("reconfig beside a build", mutate(text, "${.TARGETS:[#]} != 1", "0", "alone"),
          "reconfig with all"),
-        ("clean refused", mutate(text, "!make(clean) && ", "", "clean"), "clean"),
+        ("clean refused", mutate(text, ":Nclean:", ":", "clean"), "clean"),
+        ("clean-all refused", mutate(text, ":Nclean-all", "", "clean-all"), "clean-all"),
     )
 
 
 class Fixture:
-    def __init__(self, directory, block, make, config):
+    def __init__(self, directory, block, make, config, main=True):
         self.dir, self.make = directory, make
         tool = directory / "fake-config"
         tool.write_text(FAKE_CONFIG)
         tool.chmod(tool.stat().st_mode | stat.S_IXUSR)
         (directory / "Config").write_text("OLD\n")
         (directory / "Makefile").write_text(
-            "CONFIG_CKSUM = " + cksum(directory / "Config") + "\n.MAIN: all\n"
-            "CONFIG_TOOL=" + str(tool) + "\n"
+            "CONFIG_CKSUM = " + cksum(directory / "Config") + "\n"
+            + (".MAIN: all\n" if main else "")
+            + "CONFIG_TOOL=" + str(tool) + "\n"
             "all: ioconf.c\n\t@cat ioconf.c > built\n"
             "clean clean-all:\n\t@rm -f built\n" + block)
         (directory / "ioconf.c").write_text("")
@@ -130,8 +136,14 @@ class Fixture:
 
 def scenarios(block, make):
     """Return the name of the first scenario the check fails, or None."""
-    def fixture(scratch, config=None):
-        return Fixture(Path(scratch), block, make, config)
+    def fixture(scratch, config=None, main=True):
+        return Fixture(Path(scratch), block, make, config, main)
+
+    def stops(goals, main=True):
+        with tempfile.TemporaryDirectory() as scratch:
+            f = fixture(scratch, "NEW\n", main)
+            rc, out = f.run(*goals)
+            return rc != 0 and STALE in out and not f.built()
 
     with tempfile.TemporaryDirectory() as scratch:
         f = fixture(scratch)
@@ -152,6 +164,13 @@ def scenarios(block, make):
             rc, out = f.run(*mode, "all")
             if rc == 0 or STALE not in out or f.built():
                 return "changed"
+    # Makefile.stm32 has no .MAIN, so .TARGETS is empty with no goal or under -V.
+    if not all(stops(goals, main) for main in (True, False)
+               for goals in ((), ("-V", "CONFIG_CKSUM"), ("-k", "all"))):
+        return "no goal"
+    if not all(stops(goals) for goals in (("clean", "all"), ("-j4", "clean", "all"),
+                                          ("clean-all", "all"), ("all", "clean"))):
+        return "clean beside a build"
     with tempfile.TemporaryDirectory() as scratch:
         f = fixture(scratch, "NEW\n")
         rc, _ = f.run("reconfig")
@@ -168,6 +187,11 @@ def scenarios(block, make):
         rc, _ = f.run("clean")
         if rc != 0:
             return "clean"
+    with tempfile.TemporaryDirectory() as scratch:
+        f = fixture(scratch, "NEW\n")
+        rc, _ = f.run("clean-all")
+        if rc != 0:
+            return "clean-all"
     return None
 
 
@@ -194,7 +218,7 @@ def check(root, make):
             want = cksum(path.parent / "Config")
             if match is None or match.group(1) != want:
                 raise GateError(f"{name}: CONFIG_CKSUM is not cksum of Config ({want})")
-        print(f"PASS reconfig-stop {template}: six scenarios, four mutants, "
+        print(f"PASS reconfig-stop {template}: ten scenarios, seven mutants, "
               f"{len(generated)} generated Makefiles match their Config")
 
 

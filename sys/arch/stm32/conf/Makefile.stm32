@@ -88,17 +88,17 @@ CONFIG_TOOL=	${TOOLBINDIR}/config
 # The make that runs config has already read this Makefile, so a build that
 # reconfigured here would compile with the PARAM and object lists of the old
 # Config. A Makefile whose CONFIG_CKSUM differs from Config's stops at once,
-# before any recipe runs; "make reconfig", alone, rewrites it, and "make
-# clean" still runs. A Config touched but unchanged, as after a checkout,
-# passes, and the rule below regenerates identical files.
-.if !make(clean) && !make(clean-all) && !make(reconfig)
+# before any recipe runs, unless every goal is clean, clean-all or reconfig;
+# "make reconfig" runs alone. A Config touched but unchanged, as after a
+# checkout, passes, and the rule below regenerates identical files.
+.if make(reconfig) && ${.TARGETS:[#]} != 1
+.error "make reconfig" rewrites this Makefile; run it alone, then the build
+.endif
+.if empty(.TARGETS) || !empty(.TARGETS:Nclean:Nclean-all:Nreconfig)
 _CONFIG_CKSUM!=	cksum < Config
 .if "${_CONFIG_CKSUM}" != "${CONFIG_CKSUM}"
 .error ${.CURDIR}/Config changed since config wrote this Makefile; run "make reconfig", then the build
 .endif
-.endif
-.if make(reconfig) && ${.TARGETS:[#]} != 1
-.error "make reconfig" rewrites this Makefile; run it alone, then the build
 .endif
 
 reconfig ioconf.c: Config ${CONFIG_TOOL}

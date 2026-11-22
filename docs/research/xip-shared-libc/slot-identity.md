@@ -40,13 +40,15 @@ Section contents, string tables and relocation indexes retain their identities.
 Each 12-byte slot saves r3 and LR, loads its implementation address, replaces
 the saved return-address word with that target, and restores r3 while branching
 through PC. LR retains the original caller return address. Eight temporary
-stack bytes expire before the implementation starts. The fixture chooses this
-transparent encoding to test ownership; the compact eight-byte dispatcher
-retains its independent size, stack and timing decision.
+stack bytes expire before the implementation starts. Each eight-byte slot saves r3 and LR and calls a common dispatcher. The
+linker writes the Thumb implementation offset in the halfword immediately
+after the call. The dispatcher reads that offset through LR, adds the flash
+base, restores the caller's LR and transfers control with the original SP.
+The compact path uses 16 temporary stack bytes.
 
 ## Replay and evidence boundaries
 
-The root gate supplies four compiled images and seventeen required rejection
+The root gate supplies eight compiled images and eighteen required rejection
 controls. A selected Python needs `pyelftools` and Unicorn 2 or later; ARM GNU
 GCC, binutils and its LTO plugin supply compilation and linking. Run:
 
@@ -57,7 +59,7 @@ bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 logged-build
 bmake MACHINE=rp2040 check-libc-xip-slots
 ```
 
-Each successful image executes 222 calls. The 888-call matrix covers two
+Each successful image executes 222 calls. The 1,776-call matrix covers two
 independent library-state areas, three aligned stack placements, zero values,
 ordinary values and unsigned overflow boundaries. An application linked at a
 separate SRAM address imports a symbol-only ELF retaining the public function

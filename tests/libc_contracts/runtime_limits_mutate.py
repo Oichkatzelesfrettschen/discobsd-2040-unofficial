@@ -92,6 +92,11 @@ def main() -> int:
         for original, replacement, label in (
             ("? V7_NAMELEN : MAXNAMLEN", "? MAXNAMLEN : V7_NAMELEN", "mount-format"),
             ("fstatfs(fd,", "fstatfs(fd < 0 ? 7 : fd,", "descriptor-forwarding"),
+            ("[_PC_PATH_MAX] = PATH_MAX,", "[_PC_PATH_MAX] = PATH_MAX - 1,", "path-max"),
+            ("[_PC_NO_TRUNC] = _POSIX_NO_TRUNC,", "[_PC_NO_TRUNC] = 0,", "no-trunc"),
+            ("return mount_info->f_bsize;", "return 512;", "allocation-size"),
+            ("name <= _PC_TIMESTAMP_RESOLUTION", "name <= _PC_ALLOC_SIZE_MIN",
+             "timestamp-resolution"),
         ):
             mutant = work / f"pathconf-{label}.c"
             modified = replace_once(path_source, original, replacement, label)

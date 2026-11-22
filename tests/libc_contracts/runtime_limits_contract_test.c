@@ -45,6 +45,7 @@ statfs(const char *path, struct statfs *info)
 		return -1;
 	}
 	info->f_flags = mount_flags;
+	info->f_bsize = (mount_flags & MNT_V7) ? 512 : 1024;
 	return 0;
 }
 
@@ -67,6 +68,7 @@ fstatfs(int fd, struct statfs *info)
 		return -1;
 	}
 	info->f_flags = mount_flags;
+	info->f_bsize = (mount_flags & MNT_V7) ? 512 : 1024;
 	return 0;
 }
 
@@ -101,6 +103,22 @@ check_path_limits(void)
 	CHECK(fpathconf(7, _PC_PIPE_BUF) == PIPE_BUF);
 	CHECK(fpathconf(-1, _PC_PIPE_BUF) == -1 && errno == EBADF);
 	CHECK(calls == 13);
+	for (unsigned format = 0; format < 2; format++) {
+		static const struct { int name; long value; } limits[] = {
+			{ _PC_PATH_MAX, 256 }, { _PC_NO_TRUNC, 1 },
+			{ _PC_CHOWN_RESTRICTED, 1 }, { _PC_2_SYMLINKS, 1 },
+			{ _PC_TIMESTAMP_RESOLUTION, 1000000000L }
+		};
+		mount_flags = format ? MNT_V7 : 0;
+		errno = 37;
+		for (unsigned i = 0; i < sizeof(limits) / sizeof(limits[0]); i++) {
+			CHECK(pathconf(directory, limits[i].name) == limits[i].value);
+			CHECK(fpathconf(7, limits[i].name) == limits[i].value);
+		}
+		CHECK(pathconf(directory, _PC_ALLOC_SIZE_MIN) == (format ? 512 : 1024));
+		CHECK(fpathconf(7, _PC_ALLOC_SIZE_MIN) == (format ? 512 : 1024));
+		CHECK(errno == 37);
+	}
 }
 
 static void

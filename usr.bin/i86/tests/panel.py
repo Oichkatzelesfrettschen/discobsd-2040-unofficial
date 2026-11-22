@@ -188,6 +188,7 @@ MUTANTS = [
     ("gfx.c", "rd.x = (u_short)(half * LCDG_WIDTH / 2);", "rd.x = 0;"),
     ("main.c", "\t\t\tgfx_capture_path = optarg;", "\t\t\t(void)optarg;"),
     ("pc.c", "\tsaved = gfx_capture();\n", "\tsaved = 1;\n"),
+    ("gfx.c", "O_WRONLY | O_CREAT | O_EXCL, 0644", "O_WRONLY | O_CREAT | O_TRUNC, 0644"),
     ("gfx.c", "GFX_Y0 + (first / cols + scroll_rows) % 25 * 8", "GFX_Y0 + first / cols * 8"),
     ("gfx.c", "scroll_rows = (scroll_rows + best) % 25;", "scroll_rows = best;"),
     (
@@ -581,7 +582,7 @@ def load_ptywait():
 ptywait = load_ptywait()
 
 
-def session(binary, work, steps, env=None, extra=()):
+def session(binary, work, steps, env=None, extra=(), started=None):
     """A session typed at a pseudo-terminal: each step waits for a text
     there or for a close of the panel, then types."""
     base = os.path.join(work, "frame")
@@ -598,6 +599,8 @@ def session(binary, work, steps, env=None, extra=()):
         stderr=subprocess.DEVNULL,
         env=dict(os.environ, I86_PANEL=base, **(env or {})),
     )
+    if started:
+        started(child.pid)
     seen = b""
     at = step = 0
     deadline = time.time() + 30
@@ -728,17 +731,32 @@ def test_capture(binary, work, fonts, boot):
     left = [n for n in os.listdir(work) if n.startswith("cap.ppm.")]
     if left:
         raise Failure("panel capture without the read left %s" % left)
-    # A name planted beside the file is not written through.
+    # A link planted under the name the capture writes first, the file's
+    # name and the process id, is not written through: the capture fails
+    # and both the link's target and the earlier capture stay as they were.
     victim = os.path.join(work, "victim")
     with open(victim, "wb") as handle:
         handle.write(b"victim")
-    os.symlink(victim, cap + ".tmp")
-    session(binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"panel saved", b"q")], extra=["-P", cap])
-    os.unlink(cap + ".tmp")
+    planted = []
+
+    def plant(pid):
+        planted.append("%s.%d" % (cap, pid))
+        os.symlink(victim, planted[0])
+
+    session(
+        binary,
+        work,
+        [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")],
+        extra=["-P", cap],
+        started=plant,
+    )
+    os.unlink(planted[0])
     with open(victim, "rb") as handle:
         if handle.read() != b"victim":
             raise Failure("panel capture wrote through a planted link")
-    compare(read_frame(cap), cga4_frame(Cga(fonts[0]).fields, 0x30), "panel capture beside a link")
+    with open(cap, "rb") as handle:
+        if handle.read() != b"earlier":
+            raise Failure("panel capture beside a planted link replaced the earlier file")
     bad = os.path.join(work, "absent", "cap.ppm")
     plain, closes = session(
         binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")], extra=["-P", bad]

@@ -431,7 +431,8 @@ one row (8 lines) past line 60.
 Compared pixel by pixel with tests/panel.py's text_frame() of the scrolled
 cells: the capture (kernel LCDG_READ through st7365p.cs RAMRD) 0 of
 102,400 pixels differ, the model's glass 0, capture against glass 0.
-Frame limits with this build: -e 2048 alone (119 frames) and -f 121
+Frame limits with this build (b427f9392, the first -P revision, before the
+exclusive temporary file and the default of 118): -e 2048 alone (119 frames) and -f 121
 accepted; -e 2048 -f 120 and -f 122 refused.
 check-picocalc: banner after 0.5 virtual seconds
 check-picocalc: waiting for login prompt: 10 of 120 virtual seconds spent
@@ -450,3 +451,12 @@ prompt after 0.5 virtual s
   |i86: q quit, a b floppy, other: back
   |panel saved
   |operator@pico:~$
+==== Run 9: the read-back on main 8e4bf693a with -e 2048 at the default 118 frames
+==== (source: main 8e4bf693a, the merge of #943)
+Run 8 again with the merged binary (temporary file <path>.<pid> created
+with O_EXCL, default -f 118): i86 -g -e 2048 -P /tmp/cap.ppm -a
+/panel.img, '<', 'x', a dump of the glass, Control-] and q. The menu line
+read "panel saved"; /tmp held cap.ppm alone (307,215 bytes) and no
+temporary file. The dump's header reads vscsad 68. Capture against
+tests/panel.py's frame, glass against that frame, and capture against
+glass: 0 of 102,400 pixels differ each.

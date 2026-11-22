@@ -1228,8 +1228,8 @@ strncmp(const char *s1, const char *s2, size_t n)
  * slot where ROM version 3, that of RP2040 B2 silicon, keeps code's entry:
  * when the slot holds code, the halfword after it is the routine's address;
  * any other ROM finds the routine through rom_func_lookup(). Both read only
- * the ROM, so the copies keep nothing in RAM and work before startup() and
- * on either core.
+ * the ROM, so the copies need neither RAM nor setup and work before
+ * startup() and on either core.
  */
 #define	ROM_SLOT_MS	0x8aU		/* ROM version 3 table: MS at 0x26b9. */
 #define	ROM_SLOT_MC	0x92U		/* ROM version 3 table: MC at 0x261d. */
@@ -1344,7 +1344,7 @@ __aeabi_memcpy4(void *dst, const void *src, size_t nbytes)
 void
 bzero(void *dst0, size_t nbytes)
 {
-	/* The ROM's memset writes nothing at length zero. */
+	/* The ROM's memset returns at once for a length of zero. */
 	((void *(*)(void *, int, u_int))
 	    rom_fn(ROM_SLOT_MS, ROM_CODE('M', 'S')))(dst0, 0, nbytes);
 }

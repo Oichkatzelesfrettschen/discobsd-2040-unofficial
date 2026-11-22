@@ -1634,7 +1634,14 @@ check-console-palette: check-python
 		${PYTHON} tools/check_console_palette.py --selftest
 		${PYTHON} tools/check_console_palette.py --root ${TOPSRC}
 
-.PHONY: check-license-headers check-console-palette
+# The gate's --selftest pins its bounds, ranges, views and checks. The mutants
+# target applies each single edit of tools/check_console_palette_mutants.py to a
+# copy of the gate and requires --selftest to reject it, so the pinning is a
+# result the tree reproduces.
+check-console-palette-mutants: check-python
+		${PYTHON} tools/check_console_palette_mutants.py
+
+.PHONY: check-license-headers check-console-palette check-console-palette-mutants
 
 # The mutant scripts run a freshly built test through tools/run_bounded.sh,
 # which bounds its wall-clock time and the output it keeps. --selftest runs the
@@ -2171,7 +2178,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene check-license-headers check-console-palette check-ci-apt-install check-run-bounded \
+		check-comment-hygiene check-text-hygiene check-license-headers check-console-palette check-console-palette-mutants check-ci-apt-install check-run-bounded \
 		check-renode-models-series \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \

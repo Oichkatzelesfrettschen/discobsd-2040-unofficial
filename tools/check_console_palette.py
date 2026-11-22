@@ -27,17 +27,22 @@
 
 The PicoCalc LCD console draws sixteen colors from lcd_palette in
 sys/arch/rp2040/dev/st7365p.c, and the web console gives the same sixteen to
-xterm.js. The gate evaluates CP005 to CP010 on the panel model of shown():
-pal565 truncates an entry to RGB565, the controller stores six bits per channel
-with the low bit of red and blue clear (measured, PICOCALC.md), and the panel
-drives each channel from its six-bit code with code 63 as full scale, so the
-eight-bit value shown is the code scaled by 255/63 (white shows as 251, 255,
-251). The one unmeasured element is the transfer from six-bit code to light,
-which the gate takes as the sRGB curve. Zero-fill arithmetic (code << 2) is
-not a model of this panel; it reads the tritan minimum as 0.0798 against the
-0.08 bound and the minimum contrast as 4.98:1. The tritan margin of the
-listed table is thin (0.0813 against 0.08). CP004 compares each entry with its
-RGB565 fixed point; CP008 black and white identity stays on the listed entries.
+xterm.js. The gate evaluates CP005 to CP010 on the panel model of shown() and
+of shown_rounded(). pal565 truncates an entry to RGB565, and the controller
+stores six bits per channel with the low bit of red and blue clear (measured:
+PICOCALC.md reads white back as f8 fc f8). Two elements are assumptions, not
+measurements: the full-scale mapping, which takes code 63 as full scale so that
+the eight-bit value shown is the code scaled by 255/63 (white shows as 251,
+255, 251), and the transfer from six-bit code to light, which the gate takes as
+the sRGB curve. shown() computes the scaling by replicating the top bits,
+(v << 2) | (v >> 4); shown_rounded() computes round(v * 255 / 63). The two
+differ on six entries of the listed table (1, 3, 9, 11, 13, 14), and the gate
+requires CP005 to CP010 to hold under both. Zero-fill arithmetic (code << 2)
+is not a model of this panel; it reads the tritan minimum as 0.0798 against
+the 0.08 bound and the minimum contrast as 4.98:1. The tritan minimum of colors
+1-8 is 0.0813 under replication and 0.0800 under rounding, so the margin is
+thin. CP004 compares each entry with its RGB565 fixed point; CP008 black and
+white identity stays on the listed entries.
 
 - CP001: the LCD table, the web theme or a test fixture is unreadable, is
   defined other than once, sits inside a comment, a string, a macro, a
@@ -64,7 +69,9 @@ RGB565 fixed point; CP008 black and white identity stays on the listed entries.
   text (SGR 1 maps color 7 to 15) stops standing out.
 
 --selftest passes the accepted table and requires, for each known-bad table
-and mutant, the exact set of rules named in its case. The live run exits 1 on
+and mutant, the exact set of rules named in its case. The bounds each case
+pins are enumerated by tools/check_console_palette_mutants.py, which applies
+single edits to a copy of this file and requires --selftest to reject each. The live run exits 1 on
 a finding and 2 when a source cannot be read or decoded, so an empty
 population never passes.
 """
@@ -234,21 +241,35 @@ def widen(color: Color) -> Color:
     return ((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2))
 
 
-def shown(color: Color) -> Color:
-    """The color the measured panel shows for the pixel pal565 sends.
+def stored_codes(color: Color) -> Color:
+    """The six-bit codes the controller keeps for the pixel pal565 sends.
 
-    Storage: the controller keeps six bits per channel and a sixteen-bit pixel
-    leaves the low bit of red and blue clear (PICOCALC.md: white reads f8 fc
-    f8). Emission: the panel drives each channel from its six-bit code and
-    code 63 is full scale, so the eight-bit equivalent of code s is s * 255 /
-    63, which replicating the top bits (s << 2 | s >> 4) computes to within
-    rounding. White as shown is (251, 255, 251). Appending zero bits instead
-    would model a display whose full scale is code 63.75, which this panel
-    lacks. Unmeasured: the transfer from six-bit code to light, which the gate
-    treats as the sRGB curve.
+    A sixteen-bit pixel leaves the low bit of red and blue clear, so red and
+    blue hold the five-bit value shifted left once and green holds six bits
+    (PICOCALC.md: white reads f8 fc f8, the codes 62, 63, 62).
     """
-    stored = ((color[0] >> 3) << 1, color[1] >> 2, (color[2] >> 3) << 1)
-    return tuple((v << 2) | (v >> 4) for v in stored)  # type: ignore[return-value]
+    return ((color[0] >> 3) << 1, color[1] >> 2, (color[2] >> 3) << 1)
+
+
+def shown(color: Color) -> Color:
+    """The color the panel shows for the pixel pal565 sends, replicated.
+
+    The eight-bit value of a six-bit code s is taken as s * 255 / 63 (code 63
+    is full scale; an assumption), computed by replicating the top bits,
+    (s << 2) | (s >> 4). White shows as (251, 255, 251). Appending zero bits
+    would instead take code 63.75 as full scale. The transfer from code to
+    light is a second assumption: the gate treats it as the sRGB curve.
+    """
+    return tuple((v << 2) | (v >> 4) for v in stored_codes(color))  # type: ignore[return-value]
+
+
+def shown_rounded(color: Color) -> Color:
+    """The color the panel shows, with round(s * 255 / 63) as the scaling.
+
+    Rounding to the nearest integer differs from replication on the table
+    entries 1, 3, 9, 11, 13 and 14 by one unit in one channel.
+    """
+    return tuple((v * 510 + 63) // 126 for v in stored_codes(color))  # type: ignore[return-value]
 
 
 def min_separation(table: Table, indexes: range) -> tuple[float, int, int, str]:
@@ -269,7 +290,11 @@ def check_table(table: Table) -> list[str]:
             found.append(f"CP004 entry {i} {color} is an RGB565 word widened as {widen(color)}")
     if table[0] != (0, 0, 0) or table[15] != (255, 255, 255):
         found.append("CP008 entry 0 is not black or entry 15 is not white")
-    return found + check_shown(tuple(shown(c) for c in table))
+    found += check_shown(tuple(shown(c) for c in table))
+    for finding in check_shown(tuple(shown_rounded(c) for c in table)):
+        if finding not in found:
+            found.append(f"{finding} (rounded scaling)")
+    return found
 
 
 def check_shown(panel: Table) -> list[str]:
@@ -593,6 +618,27 @@ def selftest() -> list[str]:
     expect("entry 8 near entry 5", {"CP005"}, with_entries(e8=(165, 162, 165)))
     expect("bright pair in 9-15", {"CP005"}, with_entries(e14=(156, 199, 255)))
     expect("bright pair with entry 15", {"CP005"}, with_entries(e10=(206, 239, 165)))
+    expect("bright pair just under 0.10", {"CP005"}, with_entries(e14=(66, 223, 239)))
+    expect("pair at entry 1 in 1-8", {"CP005"}, with_entries(e1=(189, 113, 66)))
+    expect("pair at entry 9 in 9-15", {"CP005", "CP007"}, with_entries(e9=(189, 255, 165)))
+    expect(
+        "entry 8 near entry 5 under the clear blue bit", {"CP005"}, with_entries(e8=(165, 154, 156))
+    )
+    expect("entry 8 faint tint", {"CP005", "CP008"}, with_entries(e8=(198, 186, 189)))
+    expect("bold lift just under 0.05", {"CP007"}, with_entries(e9=(198, 130, 49)))
+    expect("bold lift just over 0.09", {"CP007"}, with_entries(e12=(140, 142, 255)))
+    expect("bold variant darker than its base", {"CP007"}, with_entries(e13=(140, 117, 148)))
+    expect("bold lift short only under rounded scaling", {"CP007"}, with_entries(e1=(222, 81, 82)))
+    expect("pair short only under replicated scaling", {"CP005"}, with_entries(e1=(214, 89, 82)))
+    expect("entry 15 below 5:1", {"CP006", "CP008", "CP010"}, with_entries(e15=(115, 117, 115)))
+    expect("bold white just under 0.08", {"CP010"}, with_entries(e7=(231, 231, 206)))
+    expect(
+        "bold white lift is lightness, not luminance", {"CP010"}, with_entries(e7=(239, 251, 74))
+    )
+    expect(
+        "bold white darker than default text", {"CP008", "CP010"}, with_entries(e15=(132, 130, 132))
+    )
+    expect("entry 1 just under 5:1", {"CP006"}, with_entries(e1=(222, 73, 41)))
     expect("low contrast", {"CP006"}, with_entries(e1=(198, 89, 16)))
     expect("bold lift too small", {"CP007"}, with_entries(e1=(231, 81, 41)))
     expect("bold lift slightly small", {"CP007"}, with_entries(e13=(173, 158, 173)))
@@ -695,6 +741,12 @@ def selftest() -> list[str]:
             except (OSError, UnicodeDecodeError):
                 continue
             errors.append(f"{label}: load_sources did not raise")
+    # No table on the grid isolates the normal view, so the use site is pinned
+    # by a pair whose normal-view distance is the smallest of its four views.
+    cases += 1
+    pair = ((93, 28, 128), (94, 26, 122))
+    if min_separation(pair, range(2))[3] != "normal":
+        errors.append(f"normal view is the worst view of a pair: expected normal, got {pair}")
     cases += 1
     if VIEWS != ("normal", "protan", "deutan", "tritan") or set(MACHADO) != set(VIEWS[1:]):
         errors.append(f"VIEWS {VIEWS} is not normal, protan, deutan and tritan")

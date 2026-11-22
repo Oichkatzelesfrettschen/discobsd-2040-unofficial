@@ -121,8 +121,10 @@
  * stores six bits per channel with the low bit of red and blue clear, so
  * white shows as 251, 255, 251 (PICOCALC.md). Colors 1-8 and 9-15 stay
  * apart under normal vision and protanopia, deuteranopia and tritanopia
- * simulation on those shown values, with code 63 as full scale and the sRGB
- * curve as the unmeasured code-to-light transfer. Entry 8 is neutral gray
+ * simulation on those shown values. The storage is measured; two elements are
+ * assumptions: code 63 as full scale, scaled by 255/63 (the gate requires the
+ * bounds under bit replication and under rounding, which differ on six
+ * entries) and the sRGB curve as the code-to-light transfer. Entry 8 is neutral gray
  * because SGR 90 is dim text. The bounds and their check are in
  * tools/check_console_palette.py.
  */

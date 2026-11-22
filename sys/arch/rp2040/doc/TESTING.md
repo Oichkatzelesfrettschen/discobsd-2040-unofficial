@@ -2216,7 +2216,16 @@ Public C names and compiler linkage names remain separate; archive lookup uses
 the latter. These selector labels establish the requested compiler inputs,
 rather than namespace or standards conformance.
 
-The ten ARM ELF archives owned by `lib/Makefile` supply the provider corpus.
+The same gate reads the staged `DESTDIR/usr/include` tree produced by
+`logged-build`. It reconciles installed paths, content, and aliases against
+the expanded include and readline installer selections. It records standalone
+parses for every installed spelling and a combined attempt for the headers
+that parse separately. A located header diagnostic records a rejected case
+without declaration observations. Root-header rejections, compiler driver
+failures, malformed compiler output, and unowned dependencies fail the gate.
+Use the same `DESTDIR` for the build and the census.
+
+The eleven ARM ELF archives owned by `lib/Makefile` supply the provider corpus.
 The owner query excludes startup and native a.out libraries explicitly and
 fails when the declared owner set changes. Matching providers, multiple
 archive providers, kind mismatches and unprovided names retain distinct states
@@ -2226,7 +2235,7 @@ Every shared ABI selection remains unreviewed. The gate
 binds compiler/tool/header/dependency/archive hashes and retains compressed
 ASTs and a JSON receipt under a unique `.build-logs` directory. Existing
 receipts remain intact. Archive source provenance requires its separate clean
-build receipt. Macro contracts, subdirectory headers, exact signatures and
+build receipt. Macro contracts, kernel/user ownership, exact signatures and
 layouts, Smaller C, export selection, PIC size and runtime admission remain
 separate obligations. Clang, bmake, ARM GNU binutils and caller-selected Python
 with pyelftools are required. Linux and macOS `firmware.yml` cross tiers own

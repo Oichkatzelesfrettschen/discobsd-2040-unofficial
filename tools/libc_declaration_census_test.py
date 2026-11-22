@@ -192,6 +192,70 @@ class DeclarationTests(unittest.TestCase):
                 census.declarations(value)
 
 
+class InstalledTreeTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="declaration-census-install-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.staged = self.root / "usr/include"
+        (self.staged / "rp2040").mkdir(parents=True)
+        (self.staged / "readline").mkdir()
+        (self.staged / "machine").symlink_to("rp2040", target_is_directory=True)
+        self.owners = {
+            "rp2040/board.h": "sys/arch/rp2040/include/board.h",
+            "readline/history.h": "lib/libreadline/readline/history.h",
+        }
+        self.hashes = {}
+        for name, owner in self.owners.items():
+            installed = self.staged / name
+            installed.write_text(f"/* {name} */\n")
+            self.hashes[owner] = census.digest(installed)
+
+    def test_installed_names_and_aliases_preserve_their_source_owners(self):
+        rows = census.staged_header_snapshot(self.staged, self.owners, {}, self.hashes)
+        self.assertEqual(set(rows), {*self.owners, "machine/board.h"})
+        self.assertEqual(rows["machine/board.h"]["source"], self.owners["rp2040/board.h"])
+        self.assertEqual(rows["readline/history.h"]["source"],
+                         self.owners["readline/history.h"])
+
+    def test_missing_or_stale_installed_header_rejects(self):
+        (self.staged / "readline/stale.h").write_text("")
+        with self.assertRaisesRegex(ValueError, "installed header paths differ"):
+            census.staged_header_snapshot(self.staged, self.owners, {}, self.hashes)
+        (self.staged / "readline/stale.h").unlink()
+        (self.staged / "readline/history.h").unlink()
+        with self.assertRaisesRegex(ValueError, "installed header paths differ"):
+            census.staged_header_snapshot(self.staged, self.owners, {}, self.hashes)
+
+    def test_staged_witness_denominator_and_rejection_controls(self):
+        success = {"headers": ["a.h"], "symbols": [], "declarations": {},
+                   "outcome": "parsed", "exit_code": 0}
+        rejected = {**success, "headers": ["sys/b.h"], "outcome": "rejected", "exit_code": 1}
+        profile = {"standalone": {"a.h": success, "sys/b.h": rejected}, "joint": success}
+        installed = ["a.h", "sys/b.h"]
+        census.verify_staged_profile(profile, installed)
+        incomplete = {"standalone": {"a.h": success}, "joint": success}
+        with self.assertRaisesRegex(ValueError, "staged header exposure denominator"):
+            census.verify_staged_profile(incomplete, installed)
+        with self.assertRaisesRegex(ValueError, "staged joint header denominator"):
+            census.verify_staged_profile({**profile, "joint": rejected}, installed)
+        rejected["symbols"] = ["unexpected"]
+        with self.assertRaisesRegex(ValueError, "rejected staged parse contributes declarations"):
+            census.verify_staged_profile(profile, installed)
+
+    def test_same_name_with_wrong_bytes_rejects(self):
+        (self.staged / "readline/history.h").write_text("/* changed */\n")
+        with self.assertRaisesRegex(ValueError, "installed header bytes differ"):
+            census.staged_header_snapshot(self.staged, self.owners, {}, self.hashes)
+
+    def test_file_symlink_cannot_replace_copy(self):
+        path = self.staged / "readline/history.h"
+        path.unlink()
+        path.symlink_to("../rp2040/board.h")
+        with self.assertRaisesRegex(ValueError, "unexpected installed symlink"):
+            census.staged_header_snapshot(self.staged, self.owners, {}, self.hashes)
+
+
 class CompilerTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="declaration-census-test-")
@@ -252,6 +316,32 @@ class CompilerTests(unittest.TestCase):
     def test_invalid_header_fails_through_compiler_diagnostic(self):
         with self.assertRaisesRegex(ValueError, "census rejection control"):
             self.compile('#error "census rejection control"\n')
+
+    def test_staged_nested_parse_retains_success_and_rejection(self):
+        staged = self.root / "stage"
+        (staged / "readline").mkdir(parents=True)
+        (staged / "readline/history.h").write_text(
+            'extern int public(int);\n#error "fixture requires context"\n')
+        observed, witness = census.compile_headers(
+            self.root, self.work, self.compiler, [], ["readline/history.h"], "rejected",
+            include_dir=staged, record_rejection=True)
+        self.assertEqual(observed, {})
+        self.assertEqual(witness["outcome"], "rejected")
+        self.assertEqual(witness["symbols"], [])
+        (staged / "readline/history.h").write_text('extern int public(int);\n')
+        observed, witness = census.compile_headers(
+            self.root, self.work, self.compiler, [], ["readline/history.h"], "accepted",
+            include_dir=staged)
+        self.assertEqual(set(observed), {"public"})
+        self.assertEqual(witness["outcome"], "parsed")
+        self.assertEqual(set(witness["dependencies"]), {"stage/readline/history.h"})
+
+    def test_compiler_driver_failure_cannot_be_recorded_as_header_rejection(self):
+        (self.root / "include/probe.h").write_text("extern int public(void);\n")
+        with self.assertRaisesRegex(ValueError, "compiler rejects"):
+            census.compile_headers(self.root, self.work, self.compiler,
+                                   ["-invalid-driver-argument"], ["probe.h"], "probe",
+                                   record_rejection=True)
 
     def test_dotted_header_name_is_valid(self):
         observed, _ = self.compile("extern int public(int);\n", "a.out.h")

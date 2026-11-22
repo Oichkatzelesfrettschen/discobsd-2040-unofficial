@@ -1,4 +1,4 @@
-# Root-header declaration census for shared libc
+# Declaration census for shared libc
 
 The retained census describes its recorded revision. The current installed
 terminal interface uses the 19-control-character layout in `include/termios.h`.
@@ -56,6 +56,45 @@ uses the union of standalone and combined observations. It records
 `standalone-only`, `joint-only` and `both` exposure classes and keeps a deciding
 action for each difference. The exact union is verified against retained
 symbol witnesses; removing a required declaration still fails verification.
+
+## Installed include-tree observation
+
+The live gate reads `DESTDIR/usr/include` after the RP2040 build. The
+expanded `include/Makefile` selections own root, network, architecture, and
+`sys/` headers. The independent `lib/libreadline/Makefile` selection owns
+`readline/`. The gate compares installed paths and bytes with those tracked
+sources and checks the root aliases and the `machine/` alias for `rp2040/`.
+
+Each profile records standalone compiler results for every installed spelling.
+The combined installed-tree witness attempts the successfully parsed spellings
+in root-first order. For either kind of witness, a Clang header diagnostic
+records a rejection and supplies zero declarations. Every root header must
+parse. A failed driver invocation, malformed AST, or unowned compiler input
+fails the gate. Per-header declarations retain C and linker names, types,
+attributes, and archive observations without merging observations from
+different headers that use the same name.
+
+The installed tree contains kernel headers. For example,
+`sys/syscall_dispatch.h` declares `void close(void)` for the kernel table,
+and `unistd.h` declares `int close(int)` for libc callers. A standalone parse
+can succeed for both while the combined parse reports conflicting types.
+Kernel and user declaration ownership, headers that require context, and a
+combined user ABI view remain open. Archive matches supply provider evidence
+for review. Selecting exports requires a separate ownership decision.
+
+A clean build at base `6719f9d7a` supplies 171 installed header paths and
+28 additional `machine/` spellings. Clang 23.1.4 parses 166 standalone
+spellings and rejects 33 in each of the eight profiles. Each combined attempt
+rejects the kernel dispatch declarations against user prototypes. For the
+default 32-bit time view, both `close` declarations match the same archive
+symbol by linkage name, and their distinct types identify the ownership
+conflict. Both installed readline headers parse under all eight profiles.
+
+The regression controls predict that a missing readline header, changed
+installed bytes, or a substitute symlink fails staged ownership. A nested
+header with a forced diagnostic records zero declarations, even when Clang
+emits a partial AST. A missing witness, a truncated combined input, and a
+driver failure also fail calibration.
 
 ## Implementation and deciding checks
 

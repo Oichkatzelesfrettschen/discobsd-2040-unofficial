@@ -13,6 +13,24 @@
  * The MTHREShold is where we stop finding a better median.
  */
 #include <stdlib.h>
+#if defined(DISCOBSD_SHARED_LIBC) && DISCOBSD_SHARED_LIBC == 1
+#define QSORT_SHARED_CORE 1
+typedef int (*plain_cmp)(const void *, const void *);
+typedef int (*ctx_cmp)(const void *, const void *, void *);
+struct qsort_state {
+    size_t width;
+    plain_cmp plain;
+    ctx_cmp contextual;
+    void *context;
+};
+static int compare(const struct qsort_state *state, const void *a, const void *b)
+{
+    if (state->plain)
+        return state->plain(a, b);
+    return state->contextual(a, b, state->context);
+}
+#define CMP(a, b) compare(state, a, b)
+#else
 #ifdef _DISCOBSD_QSORT_R
 typedef int (*comparator)(const void *, const void *, void *);
 #define CMP(a, b) state->compare(a, b, state->context)
@@ -28,6 +46,7 @@ struct qsort_state
     void *context;
 #endif
 };
+#endif
 static void swap(unsigned char *a, unsigned char *b, size_t width)
 {
     while (width--)
@@ -156,6 +175,27 @@ static void sort(unsigned char *base, size_t count, const struct qsort_state *st
         }
     }
 }
+#ifdef QSORT_SHARED_CORE
+static void run(void *base, size_t count, const struct qsort_state *state)
+{
+    if (count < 2 || !state->width)
+        return;
+    unsigned budget = 0;
+    for (size_t n = count; n > 1; n /= 2)
+        budget += 2;
+    sort(base, count, state, budget);
+}
+void qsort(void *base, size_t count, size_t width, plain_cmp compare)
+{
+    struct qsort_state state = {width, compare, 0, 0};
+    run(base, count, &state);
+}
+void qsort_r(void *base, size_t count, size_t width, ctx_cmp compare, void *ctx)
+{
+    struct qsort_state state = {width, 0, compare, ctx};
+    run(base, count, &state);
+}
+#else
 #ifdef _DISCOBSD_QSORT_R
 void qsort_r(void *base, size_t count, size_t width, comparator compare, void *context)
 #else
@@ -175,3 +215,4 @@ void qsort(void *base, size_t count, size_t width, comparator compare)
 #endif
     sort(base, count, &state, budget);
 }
+#endif

@@ -123,6 +123,27 @@ class ReplayTests(unittest.TestCase):
                 self.assertIn("strtod", member["definitions"])
                 self.assertEqual("__discobsd_strtofp" in member["strong_imports"], shared)
 
+    def test_sort_entry_ownership_follows_archive_mode(self):
+        from libc_shared_closure import read_member
+
+        root = Path(replay.__file__).resolve().parents[1]
+        public = {"qsort", "qsort_r"}
+        for shared in (False, True):
+            for name in sorted(public):
+                with self.subTest(shared=shared, member=name):
+                    source = root / "lib/libc/gen" / (name + ".c")
+                    target = self.root / (name + ".o")
+                    flags = replay.PIC_FLAGS if shared else ()
+                    self.run_command([self.compiler, "-std=c17", "-pedantic-errors", "-Os",
+                                      "-mcpu=cortex-m0plus", "-mthumb", "-ffreestanding",
+                                      "-nostdinc", "-I" + str(root / "include"), *flags,
+                                      "-c", str(source), "-o", str(target)])
+                    member = read_member(target.name, target.read_bytes())
+                    expected = {name}
+                    if shared:
+                        expected = public if name == "qsort" else set()
+                    self.assertEqual(set(member["definitions"]) & public, expected)
+
     def test_missing_capture_rejects(self):
         self.capture_path.rename(self.capture_path.with_suffix(".withheld"))
         with self.assertRaisesRegex(ValueError, "missing compilation witness"):

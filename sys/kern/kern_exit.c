@@ -170,7 +170,7 @@ exit (int rv)
     swtch();
     /* A zombie is never queued, so swtch() does not come back; if it did,
      * the kernel stops here rather than run on past a noreturn call. */
-    panic("exit");
+    panic("K67");
     /* NOTREACHED */
 }
 

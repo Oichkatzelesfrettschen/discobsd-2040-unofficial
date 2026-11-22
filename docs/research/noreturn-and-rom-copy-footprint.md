@@ -84,7 +84,7 @@ fix of the kind the C17 work makes anyway; by the plan's rule (drop if not
 positive) it survives as a candidate.
 
 **Applied.** `sys/sys/proc.h` declares `sched()` and `exit()` `__dead`, and
-`exit()` calls `panic("exit")` after `swtch()`: a zombie is never queued
+`exit()` calls `panic("K67")` (`PANICS.md`) after `swtch()`: a zombie is never queued
 again, so `swtch()` does not come back, and if it ever did the kernel stops
 with a message instead of running on past a noreturn call. The host kernel
 test `tests/kernel/sigauth_test.c` builds `kern_sig.c` with
@@ -106,7 +106,7 @@ and every build warning-free:
 
 The change costs 13 bytes of text in seven kernels and saves 8 in
 PICOCALC_SD_DIAG. In `exit()` the `panic()` reuses the function's existing
-call to `panic` and adds a load, a branch, a literal and the 5-byte string;
+call to `panic` and adds a load, a branch, a literal and its string;
 `init_main.o` grows 4 bytes in the `-Os` kernels once `sched()` is `__dead`.
 The prototype's `__builtin_unreachable()` saved 8 to 16 bytes at
 `4726ff64e` but ran into the literal pool if `swtch()` returned. Since `2e8cad18b`,

@@ -15,6 +15,10 @@ _Static_assert (HEATSHRINK_STATIC_WINDOW_BITS == HSX_WINDOW &&
     HEATSHRINK_STATIC_LOOKAHEAD_BITS == HSX_LOOKAHEAD,
     "the encoder must be built with the container's parameters");
 
+/* The RP2040 OMAGIC window described by machine/machparam.h. */
+#define XIP_WINDOW_BASE 0x20000000U
+#define XIP_WINDOW_SIZE (192U * 1024U)
+
 /* Encode len bytes into out, whose capacity cap bounds the result. */
 static int
 encode (const unsigned char *src, size_t len, unsigned char *out, size_t cap,
@@ -99,7 +103,9 @@ hsaout_pack (const unsigned char *raw, size_t rawlen, size_t *outlen,
     struct hsx x;
     unsigned char *out = NULL, *check = NULL;
     size_t cap, ctext, cdata;
-    unsigned crc;
+    unsigned crc, flags;
+    struct xip_requirement req;
+    size_t raw_header, packed_header;
 
     *err = NULL;
     if (rawlen < sizeof e) {
@@ -107,35 +113,46 @@ hsaout_pack (const unsigned char *raw, size_t rawlen, size_t *outlen,
         return NULL;
     }
     memcpy (&e, raw, sizeof e);
+    flags = N_GETFLAG(e);
     if (N_GETMAGIC (e) != OMAGIC || N_GETMID (e) != MID_ZERO ||
-        N_GETFLAG (e) != 0) {
+        (flags != 0 && flags != EX_XIP)) {
         *err = "not a raw OMAGIC a.out";
         return NULL;
     }
-    if (e.a_text > rawlen - sizeof e || e.a_data > rawlen - sizeof e - e.a_text) {
+    raw_header = sizeof e + (flags ? sizeof req : 0);
+    packed_header = raw_header + sizeof x;
+    if (rawlen < raw_header || e.a_text > rawlen - raw_header ||
+        e.a_data > rawlen - raw_header - e.a_text) {
         *err = "text and data run past the end of the file";
         return NULL;
+    }
+    if (flags) {
+        memcpy(&req, raw + sizeof e, sizeof req);
+        if (xip_raw_layout(&e, &req, XIP_WINDOW_BASE, XIP_WINDOW_SIZE, rawlen, 1) != AOUT_OK) {
+            *err = "shared executable layout rejected";
+            return NULL;
+        }
     }
     /*
      * Nine bits per literal is heatshrink's worst case, so this capacity
      * holds any stream; a stream that does not fit is a packer defect.
      */
-    cap = HSX_HDRSIZE + (size_t) e.a_text + e.a_text / 8 +
+    cap = packed_header + (size_t) e.a_text + e.a_text / 8 +
         (size_t) e.a_data + e.a_data / 8 + 64;
     out = malloc (cap);
     if (out == NULL) {
         *err = "out of memory";
         return NULL;
     }
-    if (encode (raw + sizeof e, e.a_text, out + HSX_HDRSIZE,
-        cap - HSX_HDRSIZE, &ctext) != 0 ||
-        encode (raw + sizeof e + e.a_text, e.a_data, out + HSX_HDRSIZE + ctext,
-        cap - HSX_HDRSIZE - ctext, &cdata) != 0) {
+    if (encode (raw + raw_header, e.a_text, out + packed_header,
+        cap - packed_header, &ctext) != 0 ||
+        encode (raw + raw_header + e.a_text, e.a_data, out + packed_header + ctext,
+        cap - packed_header - ctext, &cdata) != 0) {
         *err = "encoder failed";
         goto fail;
     }
 
-    N_SETMAGIC (e, OMAGIC, MID_ZERO, EX_HSPACK);
+    N_SETMAGIC (e, OMAGIC, MID_ZERO, flags | EX_HSPACK);
     e.a_reltext = e.a_reldata = e.a_syms = 0;
     memset (&x, 0, sizeof x);
     x.x_sig = HSX_SIG;
@@ -146,22 +163,26 @@ hsaout_pack (const unsigned char *raw, size_t rawlen, size_t *outlen,
     x.x_lookahead = HSX_LOOKAHEAD;
     x.x_ctext = (unsigned) ctext;
     x.x_cdata = (unsigned) cdata;
-    x.x_textcrc = CRC32_FIN (crc32_update (CRC32_INIT, raw + sizeof e,
+    x.x_textcrc = CRC32_FIN (crc32_update (CRC32_INIT, raw + raw_header,
         e.a_text));
     x.x_datacrc = CRC32_FIN (crc32_update (CRC32_INIT,
-        raw + sizeof e + e.a_text, e.a_data));
+        raw + raw_header + e.a_text, e.a_data));
     crc = crc32_update (CRC32_INIT, &e, sizeof e);
+    if (flags)
+        crc = crc32_update(crc, &req, sizeof req);
     x.x_hdrcrc = CRC32_FIN (crc32_update (crc, &x, sizeof x));
     memcpy (out, &e, sizeof e);
-    memcpy (out + sizeof e, &x, sizeof x);
-    *outlen = HSX_HDRSIZE + ctext + cdata;
+    if (flags)
+        memcpy(out + sizeof e, &req, sizeof req);
+    memcpy (out + raw_header, &x, sizeof x);
+    *outlen = packed_header + ctext + cdata;
 
     /* The loader's view of what was just written. */
     check = hsaout_unpack (out, *outlen, &cap, err);
     if (check == NULL)
         goto fail;
-    if (cap != sizeof e + e.a_text + e.a_data ||
-        memcmp (check + sizeof e, raw + sizeof e, e.a_text + e.a_data) != 0) {
+    if (cap != raw_header + e.a_text + e.a_data ||
+        memcmp (check + sizeof e, raw + sizeof e, cap - sizeof e) != 0) {
         *err = "self-check: expansion differs from the input";
         goto fail;
     }
@@ -180,7 +201,9 @@ hsaout_unpack (const unsigned char *packed, size_t len, size_t *outlen,
     struct exec e;
     struct hsx x;
     unsigned char *raw;
-    unsigned crc;
+    unsigned crc, flags;
+    struct xip_requirement req;
+    size_t raw_header, packed_header;
 
     *err = NULL;
     if (len < HSX_HDRSIZE) {
@@ -188,8 +211,17 @@ hsaout_unpack (const unsigned char *packed, size_t len, size_t *outlen,
         return NULL;
     }
     memcpy (&e, packed, sizeof e);
-    memcpy (&x, packed + sizeof e, sizeof x);
-    switch (hsx_check (&e, &x, (unsigned long) len)) {
+    flags = N_GETFLAG(e) & EX_XIP;
+    raw_header = sizeof e + (flags ? sizeof req : 0);
+    packed_header = raw_header + sizeof x;
+    if (len < packed_header) {
+        *err = "shorter than the container headers";
+        return NULL;
+    }
+    if (flags)
+        memcpy(&req, packed + sizeof e, sizeof req);
+    memcpy (&x, packed + raw_header, sizeof x);
+    switch (hsx_requirement_check (&e, &x, flags ? &req : NULL, (unsigned long) len)) {
     case HSX_OK:
         break;
     case HSX_BADAOUT:
@@ -206,31 +238,38 @@ hsaout_unpack (const unsigned char *packed, size_t len, size_t *outlen,
         return NULL;
     }
     if (e.a_text > 0xffffffffU - e.a_data ||
-        e.a_text + e.a_data > 0xffffffffU - sizeof e) {
+        e.a_text + e.a_data > 0xffffffffU - raw_header) {
         *err = "segment sizes wrap";
         return NULL;
     }
-    raw = malloc (sizeof e + (size_t) e.a_text + e.a_data);
+    N_SETMAGIC (e, OMAGIC, MID_ZERO, flags);
+    if (flags && xip_raw_layout(&e, &req, XIP_WINDOW_BASE, XIP_WINDOW_SIZE,
+        raw_header + e.a_text + e.a_data, 1) != AOUT_OK) {
+        *err = "shared executable layout rejected";
+        return NULL;
+    }
+    raw = malloc (raw_header + (size_t) e.a_text + e.a_data);
     if (raw == NULL) {
         *err = "out of memory";
         return NULL;
     }
-    if (expand (packed, len, (unsigned) HSX_HDRSIZE, x.x_ctext,
-        raw + sizeof e, e.a_text, &crc) != 0 || crc != x.x_textcrc) {
+    if (expand (packed, len, (unsigned) packed_header, x.x_ctext,
+        raw + raw_header, e.a_text, &crc) != 0 || crc != x.x_textcrc) {
         *err = "text stream rejected";
         free (raw);
         return NULL;
     }
-    if (expand (packed, len, (unsigned) HSX_HDRSIZE + x.x_ctext, x.x_cdata,
-        raw + sizeof e + e.a_text, e.a_data, &crc) != 0 ||
+    if (expand (packed, len, (unsigned) packed_header + x.x_ctext, x.x_cdata,
+        raw + raw_header + e.a_text, e.a_data, &crc) != 0 ||
         crc != x.x_datacrc) {
         *err = "data stream rejected";
         free (raw);
         return NULL;
     }
-    N_SETMAGIC (e, OMAGIC, MID_ZERO, 0);
+    if (flags)
+        memcpy(raw + sizeof e, &req, sizeof req);
     memcpy (raw, &e, sizeof e);
-    *outlen = sizeof e + (size_t) e.a_text + e.a_data;
+    *outlen = raw_header + (size_t) e.a_text + e.a_data;
     return raw;
 }
 

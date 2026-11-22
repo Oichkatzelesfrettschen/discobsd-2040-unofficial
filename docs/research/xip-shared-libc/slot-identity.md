@@ -232,3 +232,105 @@ The provider-present run requires an unsigned quotient/remainder register
 model for the formatter's exponent conversion. The original CPU-only probe
 stopped on the dividend write to the unmapped SIO address. The model covers
 the exercised arithmetic and leaves divider timing and silicon unmeasured.
+
+## Native a.out diagnostic caller
+
+After the RP2040 host tools build, the following command links application
+objects and archives in their supplied order and prints the resulting OMAGIC
+image path. The inputs must be native Thumb a.out files. The resulting image
+requires the measured compact slot layout and an initialized per-process r9
+on entry.
+
+```sh
+export PYTHON=${PYTHON:-python3}
+"$PYTHON" tests/native_linker/xip_imports.py main.o companion.a
+```
+
+A zero-origin relocatable link resolves application definitions before import
+selection. An unresolved direct Thumb call to an envelope function selects a
+local veneer; its data relocation still resolves to the odd flash address.
+Aliases share a veneer when the caller references both names. A pointer-only
+import consumes zero veneer bytes. With an archive supplying its own
+implementation of `rand`, the measured application had the same 132 loaded
+bytes as the ordinary single-pass link. With the provider omitted, the main
+object and companion archive produced a 112-byte text and four-byte data
+image. Direct and indirect calls returned the expected random sequence across
+two modeled process states. Default-origin partial linking applied the SRAM
+base twice. The diagnostic prelink uses `-T0 -r` to give symbols a
+zero origin. The final link allocates common storage and defines segment ends.
+
+This host experiment uses the diagnostic member envelope. Kernel admission,
+process initialization and production import numbering remain open.
+
+The optional state reservation binds 29 object names from the compact ELF
+identified by the slot record's SHA-256. The link keeps the read-only character
+table at its flash address and reserves 5,040 bytes at the eight-byte-aligned
+tail of process BSS. Application data, common storage and BSS precede that
+reservation. The first heap address is its end. The link reserves storage;
+startup must still populate its initialized bytes, rebase pointers and set r9.
+
+With the compact ELF from the envelope replay, run:
+
+```sh
+"$PYTHON" tests/native_linker/xip_imports.py --state-image slot.elf main.o companion.a
+"$PYTHON" tests/native_linker/xip_imports_test.py --state-image slot.elf
+```
+
+The second command reads ELF symbols with GNU readelf and checks relocated
+pointer words in two native images requiring zero and four padding bytes.
+A changed ELF digest and an application definition of `environ` exercise
+the two rejection paths. These checks measure host linker output.
+
+For the same compact ELF, generate and exercise its Thumb cold-start routine:
+
+```sh
+"$PYTHON" tests/libc_xip_slots/state_entry.py slot.elf > state_entry.s
+"$PYTHON" tests/libc_xip_slots/state_entry_test.py slot.elf
+```
+
+The caller passes the reserved state address in r0 and installs the returned
+GOT address in r9. The routine copies the 1,600-byte flash template, clears
+the remaining 3,440 bytes and adds the process base to 77 pointer cells.
+The assembled routine, literals, alignment and halfword offsets occupy 240
+bytes after the 48,496-byte diagnostic image, leaving 416 bytes in the
+reservation. Unicorn executes the routine at that flash address for two
+poisoned SRAM regions. The replay checks their bytes, guard words, return
+address, stack pointer and saved registers. Duplicating one relocation
+offset changes the resulting state bytes. Kernel exec admission and the
+startup call from a shipped application remain open.
+
+### Native executable requirement
+
+A native link with `--state-image` emits `shared.aout`. Its OMAGIC header
+uses flag 0x02 in the six-bit flag field. A 56-byte requirement follows
+the 32-byte a.out header and precedes the original text, data and symbols.
+The record occupies file space only. The shipped kernel rejects the shared flag. The plain diagnostic link still emits its original
+host measurement fixture.
+
+| Byte offset in requirement | Width | Little-endian field |
+|---:|---:|---|
+| 0 | 4 | ASCII XREQ |
+| 4 | 4 | Version 1 |
+| 8 | 4 | Record length, 56 |
+| 12 | 32 | Exact compact ELF SHA-256 bytes in digest order |
+| 44 | 4 | Required slot prefix length, zero for an empty set of imported functions |
+| 48 | 4 | Absolute SRAM address of the aligned state reservation |
+| 52 | 4 | State extent in bytes |
+
+The prefix includes the highest referenced slot and every preceding slot.
+Both direct calls and initialized function pointers contribute; application
+definitions resolved during the prelink do not. The image digest pins the
+diagnostic implementation and its state layout. Production ABI identity and
+kernel admission require separate qualification.
+
+The host packer retains the requirement between the a.out header and the
+48-byte heatshrink header, and sets both the packed and shared flags. Its
+header CRC covers all three headers in file order. Expansion preserves the
+shared flag, requirement and loaded text and data. The native startup caller
+with 80 text bytes occupies 204 packed bytes and expands to 168 bytes with
+its two headers. Pack and unpack check the state geometry against the
+RP2040 window. The provider check compares all 32 identity bytes, the slot
+prefix and the state extent against an independently supplied library
+description. The caller of the layout check supplies the space available
+after accounting for the process stack. The shipped kernel's format dispatch
+continues to select static executables.

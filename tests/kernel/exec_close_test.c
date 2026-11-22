@@ -26,8 +26,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 /*
- * Host gate for fdcloseexec() in kern_descrip.c, which execve() runs through
- * exec_clear() to close the close-on-exec descriptors.
+ * Host gate for fdcloseexec() in kern_descrip.c, which execve() runs from
+ * exec_finish() to close the close-on-exec descriptors once the executable's
+ * inode is released.
  *
  * A close routine can sleep (a terminal draining stopped output), and an
  * exit() that interrupts it walks u_ofile and closes whatever it still finds.

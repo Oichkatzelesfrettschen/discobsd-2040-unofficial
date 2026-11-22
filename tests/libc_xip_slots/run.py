@@ -443,6 +443,75 @@ def review_controls(runner, provider, image, application):
     reject(lambda: exercise(image, bad), "application import address differs: api_xor")
 
 
+def check_libc_members(runner):
+    """Verify binding ownership in the ARM archive inputs for both link modes."""
+    inputs = {
+        "stdio/flsbuf.c": ("fclose", "fflush"),
+        "stdio/doprnt_float.c": ("__doprnt_cvt",),
+        "arm/sys/sigaction.S": (),
+    }
+    flags = [
+        "-mcpu=cortex-m0plus",
+        "-mthumb",
+        "-mfloat-abi=soft",
+        "-std=gnu17",
+        "-Os",
+        "-ffreestanding",
+        "-fno-common",
+        "-ffunction-sections",
+        "-nostdinc",
+        "-I" + str(ROOT / "include"),
+        "-D_TIME_BITS=32",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ]
+    for path, names in inputs.items():
+        source = ROOT / "lib/libc" / path
+        for mode in ("static", "shared"):
+            obj = runner.work / f"{source.stem}-{mode}.o"
+            shared = mode == "shared"
+            selected = ["-DDISCOBSD_SHARED_LIBC=1", "-mpic-register=r9", *PIC] if shared else []
+            runner.command([runner.cc, *flags, *selected, "-c", source, "-o", obj])
+            elf = ELFFile(io.BytesIO(obj.read_bytes()))
+            table = elf.get_section_by_name(".symtab")
+            if names:
+                if shared:
+                    separate(obj, obj.with_suffix(".separated.o"), [(n,) for n in names])
+                else:
+                    for name in names:
+                        require(
+                            not table.get_symbol_by_name("__libc_impl_" + name),
+                            "static libc gained a shared implementation alias: " + name,
+                        )
+            else:
+                (symbol,) = table.get_symbol_by_name("sigtramp")
+                section = elf.get_section(symbol["st_shndx"])
+                offset = symbol["st_value"] & ~1
+                require(
+                    section.name == (".text.sigtramp" if shared else ".text")
+                    and symbol["st_value"] & 1
+                    and symbol["st_size"] == 4
+                    and section.data()[offset : offset + 4] == bytes.fromhex("67df01df"),
+                    "signal trampoline ownership or instructions differ",
+                )
+                if shared:
+                    registration = elf.get_section_by_name(".rel.text")
+                    references = [
+                        rel
+                        for rel in registration.iter_relocations()
+                        if table.get_symbol(rel["r_info_sym"]).name == "sigtramp"
+                    ]
+                    require(
+                        len(references) == 1 and references[0]["r_info_type"] == 2,
+                        "signal registration lacks its absolute trampoline pointer",
+                    )
+                    require(
+                        offset == 0 and section["sh_size"] == 4,
+                        "signal trampoline slot contains additional storage",
+                    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cc", default="arm-none-eabi-gcc")
@@ -469,7 +538,14 @@ def main():
                 ).strip(),
                 "sources": {
                     str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-                    for path in sorted(HERE.iterdir())
+                    for path in sorted(
+                        [
+                            *HERE.iterdir(),
+                            ROOT / "lib/libc/arm/sys/sigaction.S",
+                            ROOT / "lib/libc/stdio/doprnt_float.c",
+                            ROOT / "lib/libc/stdio/flsbuf.c",
+                        ]
+                    )
                     if path.is_file()
                 },
                 "compiler": runner.command([args.cc, "--version"], output=True).splitlines()[0],
@@ -477,6 +553,7 @@ def main():
                 "unicorn": unicorn.__version__,
             }
         )
+        check_libc_members(runner)
         for compact, lto, interposition in product((False, True), (False, True), (True, False)):
             name = ("lto" if lto else "native") + ("-public" if interposition else "-local-calls")
             if compact:

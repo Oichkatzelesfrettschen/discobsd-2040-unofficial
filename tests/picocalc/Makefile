@@ -177,12 +177,13 @@ SRCS=		lcdterm_test.c ${DEV}/lcdterm.c ${DEV}/lcdfont.c ${DEV}/picokbd_map.c
 
 all: check
 
-check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
+check: lcdterm_test lcdterm_vt_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 	gametile_test \
 	sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
 	uart_test uart_picocalc_test panel_decode_test panel_scan_test \
 	lcdvt_test font-sync
 	./lcdterm_test
+	./lcdterm_vt_test
 	./lcdgfx_test
 	./lcdgfx_ext_test
 	./kbdreq_test
@@ -206,6 +207,11 @@ check: lcdterm_test lcdgfx_test lcdgfx_ext_test kbdreq_test kbdevq_test \
 
 lcdterm_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
 	${HOST_CC} ${CSTD} ${SAN} -g -I${DEV} -o $@ ${SRCS}
+
+# The same terminal with LCD_VT: the unseen-output marker and the exchange
+# of the two consoles, which the cell-skip rule must respect.
+lcdterm_vt_test: ${SRCS} ${DEV}/lcdterm.h ${DEV}/lcdfont.h ${DEV}/picokbd_map.h
+	${HOST_CC} ${CSTD} ${SAN} -g -DLCD_VT -I${DEV} -o $@ ${SRCS}
 
 lcdgfx_test: lcdgfx_test.c ${DEV}/lcdgfx.c ${DEV}/lcdgfx.h ${DEV}/lcdterm.c \
 	    ${DEV}/lcdterm.h ${DEV}/lcdfont.c ${DEV}/lcdfont.h \
@@ -2719,7 +2725,7 @@ uart-mutant-break-on-picocalc:
 	    uart.h psram_pio.h
 
 clean:
-	rm -f lcdterm_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
+	rm -f lcdterm_test lcdterm_vt_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
 	    uart_test uart_picocalc_test panel_decode_test panel_scan_test \
 	    lcdgfx_ext_test lcdvt_test

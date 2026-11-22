@@ -246,6 +246,90 @@ test_scroll(void)
 	expect_consistent("scroll");
 }
 
+/*
+ * A glyph or an erase that leaves a cell as the panel already shows it is
+ * not sent; the marker cell and the cells of an exchanged console are sent
+ * whatever the store holds.
+ */
+static void
+test_redundant(void)
+{
+	int d, f;
+
+	reset();
+	out("hello");
+	d = ndraws;
+	f = nfills;
+	out("\033[Hhello");
+	expect_int("same text draws", ndraws - d, 0);
+	out("\033[Hjello");
+	expect_int("one changed cell draws", ndraws - d, 1);
+	out("\033[2K");
+	expect_int("erase of a written line fills", nfills - f, 1);
+	f = nfills;
+	out("\033[2K\033[J\033[1;10H\033[K");
+	expect_int("erase of blank cells fills", nfills - f, 0);
+	expect_consistent("redundant output");
+}
+
+#ifdef LCD_VT
+static void
+test_redundant_vt(void)
+{
+	int d, f;
+
+	reset();
+	/* The unseen-output marker covers the top right cell. */
+	lcdterm_marker();
+	d = ndraws;
+	out("\033[1;53H ");
+	expect_int("blank over the marker draws", ndraws - d, 1);
+	expect_int("the marker is gone", panel_ch[panel_top][LT_COLS - 1], ' ');
+	f = nfills;
+	lcdterm_marker();
+	out("\033[1;40H\033[K");
+	expect_int("an erase over the marker fills", nfills - f, 1);
+	expect_int("the marker is erased", panel_ch[panel_top][LT_COLS - 1], ' ');
+	/* A marker, a reverse index that moves the ring, a marker on the new
+	 * top row: the first one is still on the panel and is replaced by a
+	 * blank written over it. */
+	reset();
+	lcdterm_marker();
+	out("\033[H\033M");
+	lcdterm_marker();
+	d = ndraws;
+	out("\033[2;53H ");
+	expect_int("a blank over the earlier marker draws", ndraws - d, 1);
+	out("\033[1;53H ");
+	expect_consistent("two markers");
+	/* A marker drawn over by output is gone: a reverse index and a new
+	 * marker leave the skip rule on. */
+	reset();
+	lcdterm_marker();
+	out("\033[1;53Hz\033[H\033M");
+	lcdterm_marker();
+	out("\033[3;1Habc");
+	d = ndraws;
+	out("\033[3;1Habc");
+	expect_int("after a marker drawn over the same text draws", ndraws - d, 0);
+	/* After an exchange the panel shows the other console. */
+	reset();
+	out("abc");
+	lcdterm_exchange();
+	d = ndraws;
+	out("\033[H ");
+	expect_int("a blank over the other console draws", ndraws - d, 1);
+	expect_int("the other console's cell is replaced", panel_ch[0][0], ' ');
+	lcdterm_exchange();
+	lcdterm_repaint();
+	out("\033[H");		/* hides the cursor the repaint drew */
+	d = ndraws;
+	out("abc");
+	expect_int("after a repaint the same text draws", ndraws - d, 0);
+	expect_consistent("after the exchange");
+}
+#endif
+
 static void
 test_wrap(void)
 {
@@ -923,6 +1007,10 @@ int
 main(void)
 {
 	test_scroll();
+	test_redundant();
+#ifdef LCD_VT
+	test_redundant_vt();
+#endif
 	test_wrap();
 	test_addressing_and_erase();
 	test_insert_delete();

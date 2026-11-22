@@ -53,6 +53,8 @@ Cases, each a fresh emulator:
             case above shows zero /tmp mounts for a card without the entry
   nob7      the same card with its b7 entry retyped 83 stops with the
             panic line naming the missing partition
+  nodiag    the PICOCALC_SD kernel, built without DIAG_STATS: both diag nodes
+            answer "value is not available" over a UART0 login
   diag      the PICOCALC_SD_DIAG kernel: a login on UART0 reads
             machdep.diag_stats and machdep.diag_msgbuf, and diag_verdict()
             judges the metric names against sys/sys/diag_stats.h, the PSRAM
@@ -283,6 +285,22 @@ def parse_diag_msgbuf(text):
     return diag_body(text, "machdep.diag_msgbuf")
 
 
+def diag_absent_verdict(stats_reply, ring_reply):
+    """Judge the replies of a kernel built without DIAG_STATS; returns failure messages.
+
+    sysctl(8) answers a node the kernel declines with EOPNOTSUPP as "value is
+    not available", and prints no value."""
+    bad = []
+    for node, reply in (("machdep.diag_stats", stats_reply), ("machdep.diag_msgbuf", ring_reply)):
+        if reply is None:
+            bad.append(f"{node} unread")
+        elif f"{node}: value is not available" not in reply:
+            bad.append(f"{node} on a kernel without DIAG_STATS lacks the refusal")
+        elif f"{node}=" in reply:
+            bad.append(f"{node} on a kernel without DIAG_STATS printed a value")
+    return bad
+
+
 def diag_verdict(stats, ring, names):
     """Judge the DIAG_STATS read-back of a clean boot; returns failure messages.
 
@@ -435,6 +453,19 @@ def self_test():
         "ring out of order": (good_stats, "root size = 1 kbytes\nroot dev  = (5,3)\n"),
         "ring without root": (good_stats, "psram0: not usable\n"),
     }
+    refusal = "$ sysctl machdep.diag_stats\r\nmachdep.diag_stats: value is not available\r\n"
+    ring_refusal = refusal.replace("diag_stats", "diag_msgbuf")
+    expect("absent nodes refused", diag_absent_verdict(refusal, ring_refusal), [])
+    for label, replies, reason in (
+        ("absent stats unread", (None, ring_refusal), "unread"),
+        ("absent stats answered", (stats_text(), ring_refusal), "lacks the refusal"),
+        ("absent ring answered", (refusal, ring_text(ring_good)), "lacks the refusal"),
+        ("absent with a value", (refusal + "machdep.diag_stats=1\r\n", ring_refusal),
+         "printed a value"),
+    ):
+        got = diag_absent_verdict(*replies)
+        if not any(reason in message for message in got):
+            failures.append(f"diag {label}: {got!r} lacks {reason!r}")
     # Each altered observation must fail for its own reason.
     reasons = {
         "stats unread": "diag_stats unread", "ring unread": "diag_msgbuf unread",
@@ -735,8 +766,11 @@ def case_nob7(renode_path, kernel, flash, root_img, outdir, start, reason):
     return run.failures
 
 
-def case_diag(renode_path, kernel, flash, root_img, outdir, start, reason):
-    """Read machdep.diag_stats and machdep.diag_msgbuf over a UART0 login."""
+def case_diag(renode_path, kernel, flash, root_img, outdir, start, reason, absent=False):
+    """Read machdep.diag_stats and machdep.diag_msgbuf over a UART0 login.
+
+    With absent set the kernel is built without DIAG_STATS and both reads
+    must be refused."""
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
     capacity = make_card(card, root_img, 0xB7)
@@ -770,8 +804,17 @@ def case_diag(renode_path, kernel, flash, root_img, outdir, start, reason):
         send("operator")
         run.wait_until(lambda: "$ " in uart()[mark:], "UART0 shell prompt", "a prompt",
                        DIAG_BUDGET_SECONDS, DIAG_SLICE_SECONDS)
-        stats = parse_diag_stats(ask("sysctl machdep.diag_stats", "diag_stats read"))
-        ring = parse_diag_msgbuf(ask("sysctl machdep.diag_msgbuf", "diag_msgbuf read"))
+        stats_reply = ask("sysctl machdep.diag_stats", "diag_stats read")
+        ring_reply = ask("sysctl machdep.diag_msgbuf", "diag_msgbuf read")
+        if absent:
+            bad = diag_absent_verdict(stats_reply, ring_reply)
+            for message in bad:
+                run.fail(message)
+            if not bad:
+                print("check-picocalc-sdroot: both diag nodes refused without DIAG_STATS")
+            return run.failures
+        stats = parse_diag_stats(stats_reply)
+        ring = parse_diag_msgbuf(ring_reply)
         bad = diag_verdict(stats, ring, diag_metric_names())
         for message in bad:
             run.fail(message)
@@ -866,13 +909,15 @@ def main(argv):
             ("tmp", lambda d: case_tmp(renode_path, kernel, flash, root_img, d, start, reason)),
             ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d, start, reason)),
             ("diag", lambda d: case_diag(renode_path, kernel, flash, root_img, d, start, reason)),
+            ("nodiag", lambda d: case_diag(
+                renode_path, kernel, flash, root_img, d, start, reason, absent=True)),
         )
         if diag_run:
             wanted = ("sdroot", "diag")
         elif boot_only:
             wanted = ("sdroot",)
         else:
-            wanted = ("sdroot", "tmp", "nob7")
+            wanted = ("sdroot", "tmp", "nob7", "nodiag")
         if only is None:
             cases = tuple(entry for entry in cases if entry[0] in wanted)
         if only is not None:

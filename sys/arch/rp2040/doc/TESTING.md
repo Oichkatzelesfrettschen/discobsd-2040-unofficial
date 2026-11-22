@@ -3441,7 +3441,9 @@ own region and stamps its UF2 for the PicoCalc. The full configuration's
 options and devices are checked by `check-config-generated-sync`.
 
 `check-renode-picocalc-sd-system` builds the expanded kernel and card
-filesystem. The diag case logs in on UART0 of the PICOCALC_SD_DIAG kernel,
+filesystem. The nodiag case logs in on UART0 of the PICOCALC_SD kernel and requires
+both diag nodes to answer "value is not available", so the card's `sysctl(8)`
+meets a kernel without `DIAG_STATS`. The diag case logs in on UART0 of the PICOCALC_SD_DIAG kernel,
 reads `machdep.diag_stats` and `machdep.diag_msgbuf`, and judges them with
 `diag_verdict()`: the metric names equal the table in `sys/sys/diag_stats.h`
 in order, the version is 1, no fault is recorded, the PSRAM probe ran, the SD
@@ -3449,10 +3451,10 @@ driver read sectors without a timeout or IO error, UART0 and the tty
 layer counted no overrun, break, parity, framing, flush or drop, no row
 beyond the table appears, and the ring holds 1000 to 1023 bytes of printable
 text with the boot's `root dev` line before its `root size` line. The driver's
-self-test accepts a conforming transcript and rejects nineteen altered ones,
+self-test accepts a conforming transcript and rejects twenty-three altered ones,
 each for its own reason, before Renode starts. The ring read is the model's
 boot output; the gate does not bear on a board's PSRAM, whose probe the model
-fails by lacking the device. Its five boots (the cases sdroot, tmp and nob7 on PICOCALC_SD and
+fails by lacking the device. Its six boots (the cases sdroot, tmp, nob7 and nodiag on PICOCALC_SD and
 the sdroot and diag cases on PICOCALC_SD_DIAG) run concurrently, one emulator process
 and one output directory each, and their lines print as they arrive, each
 PICOCALC_SD line behind its case name in brackets, so a wrapper that bounds the time between

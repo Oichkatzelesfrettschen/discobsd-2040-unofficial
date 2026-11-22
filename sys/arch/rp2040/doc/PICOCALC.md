@@ -1308,7 +1308,9 @@ defines only its own name.
     driver offers neither a retry nor a CRC counter.
   - UART0 (`uart.c`): `uart_overruns`, `uart_breaks`, `uart_parity` and
     `uart_framing`, the error bits UARTDR carries with each received
-    character (RP2040 datasheet 4.2.8, bits 11 to 8).
+    character (RP2040 datasheet 4.2.8, bits 11 to 8). Each counts a character
+    read with its bit set, so one overrun event that PL011 holds on the FIFO
+    tail counts once per read that carries it.
   - tty (`tty.c`): `tty_raw_flushes` (raw-mode input past `TTYHOG` flushed),
     `tty_cbreak_drops` and `tty_cooked_drops` (characters refused, with a bell).
   - Console output (`subr_prf.c`): `prints` calls of `printf()`,

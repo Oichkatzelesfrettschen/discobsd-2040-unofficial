@@ -3436,10 +3436,11 @@ filesystem. The diag case logs in on UART0 of the PICOCALC_SD_DIAG kernel,
 reads `machdep.diag_stats` and `machdep.diag_msgbuf`, and judges them with
 `diag_verdict()`: the metric names equal the table in `sys/sys/diag_stats.h`
 in order, the version is 1, no fault is recorded, the PSRAM probe ran, the SD
-driver read sectors without a timeout or IO error, UART0 recorded no
-overrun, break, parity or framing error, and the ring holds printable text
-with the boot's `root dev` line before its `root size` line. The driver's
-self-test accepts a conforming transcript and rejects sixteen altered ones,
+driver read sectors without a timeout or IO error, UART0 and the tty
+layer counted no overrun, break, parity, framing, flush or drop, no row
+beyond the table appears, and the ring holds 1000 to 1023 bytes of printable
+text with the boot's `root dev` line before its `root size` line. The driver's
+self-test accepts a conforming transcript and rejects nineteen altered ones,
 each for its own reason, before Renode starts. The ring read is the model's
 boot output; the gate does not bear on a board's PSRAM, whose probe the model
 fails by lacking the device. Its five boots (the cases sdroot, tmp and nob7 on PICOCALC_SD and

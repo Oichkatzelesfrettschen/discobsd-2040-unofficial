@@ -128,7 +128,8 @@ diag_snapshot(struct diag_stats *stats)
  * copied under splhigh() and its start is held within one ring length of
  * the head at that moment, so output printed during the read drops the
  * oldest bytes of this read and never returns a byte from a newer epoch
- * of its slot.
+ * of its slot. A read that overlaps a whole ring length of output returns
+ * what survived, possibly the empty string; read again.
  */
 int
 diag_msgread(void *oldp, size_t *oldlenp, void *newp)
@@ -171,13 +172,14 @@ diag_msgread(void *oldp, size_t *oldlenp, void *newp)
 			chunk[i] = diag_msg[(pos + i) & DIAG_MSGBUF_MASK];
 		splx(s);
 		error = copyout(chunk, (char *)oldp + written, k);
+		if (error != 0)
+			return error;
 		pos += k;
 		written += k;
 	}
-	if (error == 0) {
-		chunk[0] = '\0';
-		error = copyout(chunk, (char *)oldp + written, 1);
-	}
-	*oldlenp = written + 1;
+	chunk[0] = '\0';
+	error = copyout(chunk, (char *)oldp + written, 1);
+	if (error == 0)
+		*oldlenp = written + 1;
 	return error;
 }

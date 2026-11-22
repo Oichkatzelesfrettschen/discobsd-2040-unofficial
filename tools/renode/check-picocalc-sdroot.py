@@ -227,8 +227,12 @@ DIAG_END = "DIAGEND"
 # Counters the Renode model leaves at zero on a clean boot: a card that
 # answers every command, a UART0 line without framing errors.
 DIAG_ZERO = ("sd_timeouts", "sd_io_errors", "uart_overruns", "uart_breaks",
-             "uart_parity", "uart_framing")
+             "uart_parity", "uart_framing", "tty_raw_flushes", "tty_cbreak_drops",
+             "tty_cooked_drops")
 DIAG_RING_SIZE = 1024
+# The boot prints several times the ring, so a read that fills sysctl(8)'s
+# buffer holds close to DIAG_RING_SIZE bytes.
+DIAG_RING_MIN = 1000
 DIAG_ROOT_LINE = "root dev  = (5,3)"
 DIAG_LAST_LINE = "root size = "
 
@@ -262,8 +266,15 @@ def parse_diag_stats(text):
     head = re.fullmatch(r"version (\d+) faults (\d+)", lines[0])
     if head is None:
         return None
-    rows = [(m.group(1), int(m.group(2)))
-            for m in (re.fullmatch(r"([a-z_0-9]+) (\d+)", line) for line in lines[1:]) if m]
+    rows = []
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        row = re.fullmatch(r"([a-z_0-9]+) (\d+)", line)
+        if row:
+            rows.append((row.group(1), int(row.group(2))))
+        elif not line.startswith("fault "):
+            rows.append((line.strip(), -1))
     return int(head.group(1)), int(head.group(2)), rows
 
 
@@ -308,8 +319,10 @@ def diag_verdict(stats, ring, names):
     if ring is None:
         bad.append("machdep.diag_msgbuf unread")
     else:
-        if not 0 < len(ring) < DIAG_RING_SIZE:
-            bad.append(f"diag_msgbuf holds {len(ring)} bytes, want 1 to {DIAG_RING_SIZE - 1}")
+        if not DIAG_RING_MIN <= len(ring) < DIAG_RING_SIZE:
+            bad.append(
+                f"diag_msgbuf holds {len(ring)} bytes, want {DIAG_RING_MIN} to {DIAG_RING_SIZE - 1}"
+            )
         if re.search(r"[^\x20-\x7e\n]", ring):
             bad.append("diag_msgbuf holds a byte that is not printable text")
         root = ring.find(DIAG_ROOT_LINE)
@@ -379,11 +392,14 @@ def self_test():
         return "$ sysctl machdep.diag_stats;echo " + DIAG_TYPED_END + "\r\nmachdep.diag_stats=" \
             + body + ("\r\n" + DIAG_END + "\r\n" if end else "")
 
-    ring_good = "partial line\nroot dev  = (5,3)\nswap dev  = (0,8)\nroot size = 131072 kbytes\n"
+    ring_good = "p" * 950 + "\nroot dev  = (5,3)\nswap dev  = (0,8)\nroot size = 131072 kbytes\n"
 
     def ring_text(text):
         return ("$ sysctl machdep.diag_msgbuf;echo " + DIAG_TYPED_END + "\r\nmachdep.diag_msgbuf="
                 + text + "\r\n" + DIAG_END + "\r\n")
+
+    def with_value(name, number):
+        return [(n, number if n == name else v) for n, v in values.items()]
 
     good_stats = parse_diag_stats(stats_text())
     good_ring = parse_diag_msgbuf(ring_text(ring_good))
@@ -409,6 +425,11 @@ def self_test():
         "max above total": (parse_diag_stats(stats_text(
             rows=[(n, 1 if n == "print_us_total" else v) for n, v in values.items()])), good_ring),
         "empty ring": (good_stats, ""),
+        "short ring": (good_stats, "root dev  = (5,3)\nroot size = 1 kbytes\n"),
+        "stray stats row": (parse_diag_stats(stats_text(
+            rows=list(values.items()) + [("garbled", 0)])), good_ring),
+        "tty drop": (parse_diag_stats(stats_text(rows=with_value("tty_cooked_drops", 1))),
+                     good_ring),
         "oversize ring": (good_stats, ring_good + "x" * DIAG_RING_SIZE),
         "binary ring": (good_stats, ring_good + "\x01"),
         "ring out of order": (good_stats, "root size = 1 kbytes\nroot dev  = (5,3)\n"),
@@ -422,6 +443,8 @@ def self_test():
         "probe not run": "psram_probe_ran", "no sd reads": "sd_reads is 0",
         "sd io error": "sd_io_errors is 1", "uart framing": "uart_framing is 1",
         "max above total": "exceeds print_us_total", "empty ring": "holds 0 bytes",
+        "short ring": "bytes, want", "stray stats row": "differ from",
+        "tty drop": "tty_cooked_drops is 1",
         "oversize ring": "bytes, want", "binary ring": "not printable",
         "ring out of order": "root dev line", "ring without root": "root dev line",
     }

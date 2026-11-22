@@ -1378,6 +1378,23 @@ def window_irqs(fields):
     return ((span - 64) // PIT_PERIOD, span // PIT_PERIOD + 1, span)
 
 
+def judge_irqs(got, what):
+    """(whether the interrupt count of one run of tests/pit.asm agrees with
+    counter 2's span, a note); a run that did not finish whole fails."""
+    fields = dict(t.split(":", 1) for t in got if ":" in t)
+    irq = int(fields.get("irq", "-1"), 16)
+    want = window_irqs(fields)
+    if (
+        want is None
+        or fields.get("st2") != "00B0"
+        or fields.get("tick") != "ok"
+        or got[-1:] != ["done"]
+    ):
+        raise Failure("%s: %r" % (what, got))
+    low, high, span = want
+    return low <= irq <= high, "%d over %d clocks" % (irq, span)
+
+
 def host_clock_irqs(run, what):
     """A run of tests/pit.asm on the host's clock must finish whole, and
     its interrupt count must agree with counter 2's latched count: every
@@ -1392,21 +1409,10 @@ def host_clock_irqs(run, what):
     it now and then can pass."""
     seen = []
     for _ in range(3):
-        got = run()
-        fields = dict(t.split(":", 1) for t in got if ":" in t)
-        irq = int(fields.get("irq", "-1"), 16)
-        want = window_irqs(fields)
-        if (
-            want is None
-            or fields.get("st2") != "00B0"
-            or fields.get("tick") != "ok"
-            or got[-1:] != ["done"]
-        ):
-            raise Failure("%s: %r" % (what, got))
-        low, high, span = want
-        if low <= irq <= high:
+        agrees, detail = judge_irqs(run(), what)
+        if agrees:
             return
-        seen.append("%d over %d clocks" % (irq, span))
+        seen.append(detail)
     raise Failure(
         "%s: interrupts disagree with counter 2 in three runs, expected floor(span / %d) "
         "or one more: %s" % (what, PIT_PERIOD, seen)
@@ -1433,10 +1439,12 @@ def oversleep_tree(src, tree, edits):
 def test_oversleep(src, work, cc, calibrate=False):
     """-S 4.77 on a host whose every sleep runs 8 ms long, through a build
     of the sources in src with OVERSLEEP: the interrupts still agree with
-    counter 2 (host_clock_irqs), since those that came due while the host
-    slept reach the guest before it runs on. With calibrate, each build of
-    OVERSLEEP_BAD must fail that check, so the agreement it demands is one
-    a dropped or doubled interrupt breaks."""
+    counter 2 (host_clock_irqs), since a read cannot see time past those
+    that came due while the host slept until the guest has had them. With
+    calibrate, each build of OVERSLEEP_BAD must disagree in at least three
+    of five single runs, where the good build agreed in 40 of 40 (3 and
+    8 ms) and a build that lets reads pass waiting interrupts in 4 of 40,
+    so the agreement is one a dropped, doubled or unheld interrupt breaks."""
     tree = os.path.join(work, "oversleep")
     binary = os.path.join(work, "i86-oversleep")
 
@@ -1451,12 +1459,14 @@ def test_oversleep(src, work, cc, calibrate=False):
     for name, item, old, new in OVERSLEEP_BAD:
         oversleep_tree(src, tree, [OVERSLEEP, (item, old, new)])
         build(tree, binary, cc)
-        try:
-            host_clock_irqs(paced, name)
-        except Failure:
+        seen = [judge_irqs(paced(), name) for _ in range(5)]
+        if sum(1 for agrees, _ in seen if not agrees) >= 3:
             print("oversleep check rejects: %s" % name)
             continue
-        raise Failure("oversleep check accepts a known-bad build: %s" % name)
+        raise Failure(
+            "oversleep check accepts a known-bad build: %s: %s"
+            % (name, ", ".join(detail for _, detail in seen))
+        )
 
 
 def test_speed(binary, work):

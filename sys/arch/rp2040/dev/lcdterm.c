@@ -217,15 +217,21 @@ phys(int r)
 static void
 panel_cell(int prow, int col, int ch, unsigned attr)
 {
-	if (!gfx_active)
+	if (!gfx_active) {
 		lcd_draw_cell(prow, col, ch, attr);
+		if (prow == marker_prow && col == LT_COLS - 1)
+			marker_prow = -1;	/* drawn over */
+	}
 }
 
 static void
 panel_fill(int prow, int col, int n, unsigned attr)
 {
-	if (!gfx_active)
+	if (!gfx_active) {
 		lcd_fill_cells(prow, col, n, attr);
+		if (prow == marker_prow && col + n >= LT_COLS)
+			marker_prow = -1;
+	}
 }
 
 static void
@@ -1122,11 +1128,11 @@ lcdterm_exchange(void)
 void
 lcdterm_marker(void)
 {
-	panel_cell(phys(0), LT_COLS - 1, '!', LT_ATTR(7, 1, 0));
 	/* A second marker while the first is still on the panel: only a
 	 * full repaint knows where both are. */
 	if (marker_prow >= 0 && marker_prow != phys(0))
 		panel_true = 0;
+	panel_cell(phys(0), LT_COLS - 1, '!', LT_ATTR(7, 1, 0));
 	marker_prow = phys(0);
 }
 

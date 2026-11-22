@@ -302,6 +302,16 @@ test_redundant_vt(void)
 	expect_int("a blank over the earlier marker draws", ndraws - d, 1);
 	out("\033[1;53H ");
 	expect_consistent("two markers");
+	/* A marker drawn over by output is gone: a reverse index and a new
+	 * marker leave the skip rule on. */
+	reset();
+	lcdterm_marker();
+	out("\033[1;53Hz\033[H\033M");
+	lcdterm_marker();
+	out("\033[3;1Habc");
+	d = ndraws;
+	out("\033[3;1Habc");
+	expect_int("after a marker drawn over the same text draws", ndraws - d, 0);
 	/* After an exchange the panel shows the other console. */
 	reset();
 	out("abc");

@@ -35,14 +35,22 @@ struct execa {
 static void
 exec_finish(struct exec_params *epp, struct inode *ip)
 {
-    int terminate;
+    int terminate, close_pending;
 
     terminate = (epp->flags & EXEC_COMMITTED_FAILURE) != 0;
+    close_pending = (epp->flags & EXEC_CLOSE_PENDING) != 0;
     exec_alloc_freeall(epp);
     if (ip != NULL)
         iput(ip);
     if (terminate)
         exit(SIGKILL);
+    /*
+     * The new image is in place and every inode of the exec is released,
+     * the interpreter's by exec_script_check() and the named file's above,
+     * so the closes that exec_clear() left pending may sleep.
+     */
+    if (close_pending)
+        fdcloseexec();
 }
 
 /*

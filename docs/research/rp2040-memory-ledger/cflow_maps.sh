@@ -91,12 +91,23 @@ preprocessor="$preprocessor -I$sys/arch/rp2040/include"
 preprocessor="$preprocessor -I$sys/arch/rp2040/dhara/compat"
 preprocessor="$preprocessor -I$sys/arch/rp2040/heatshrink"
 preprocessor="$preprocessor -I$sys/arch/rp2040/heatshrink/compat $definitions"
+raw=$output/.cflow.raw
+trap 'rm -f "$raw" "$raw.err"' EXIT
 for root in "$@"; do
 	# The source list holds repository paths without blanks, so the word
 	# split of the command substitution yields one argument per file.
 	# shellcheck disable=SC2046
-	cflow --cpp="$preprocessor" -d 4 -m "$root" $(cat "$list") \
-	    2>/dev/null | sed "s|$top/||g; s|\./machine/|sys/arch/rp2040/include/|g" \
+	if ! cflow --cpp="$preprocessor" -d 4 -m "$root" $(cat "$list") \
+	    >"$raw" 2>"$raw.err"; then
+		cat "$raw.err" >&2
+		echo "cflow_maps.sh: cflow failed for $config $root" >&2
+		exit 1
+	fi
+	if ! [ -s "$raw" ]; then
+		echo "cflow_maps.sh: empty call graph for $config $root" >&2
+		exit 1
+	fi
+	sed "s|$top/||g; s|\./machine/|sys/arch/rp2040/include/|g" "$raw" \
 	    >"$output/$config-$root.txt"
 done
 sed "s|$top/||" "$list" >"$list.tmp"

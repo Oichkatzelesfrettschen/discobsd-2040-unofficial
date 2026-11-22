@@ -13,9 +13,9 @@ The LED backlight is a separate load, driven by the keyboard controller through 
 ## Design
 
 - **Idle count:** the keyboard poll (`kbd_poll`, `picokbd.c`) calls `lcdcons_blank_poll()` on every exchange. A key, or an open `/dev/lcdgfx`, records `time.tv_sec` and asks for the panel awake. `LCD_BLANK_SECS` (300 by default) without a key asks for sleep. A change pends the render interrupt.
-- **Change in the renderer:** `lcdrender()` makes the change with the drawing flag held, so no draw shares the bus with SLPIN or SLPOUT. It needs at least 120 ms since the previous change, which pages 163 and 165 require between SLPIN and SLPOUT. Inside that window it schedules a callout for the remainder instead of waiting. After the command it waits the 5 ms the controller needs before its next command; the renderer already draws in 8 ms slices.
+- **Change in the renderer:** `lcdrender()` makes the change with the drawing flag held, so no draw shares the bus with SLPIN or SLPOUT. Pages 163 and 165 set two gaps. Every SLPIN or SLPOUT needs 5 ms before the next command, which the renderer waits after sending it; it already draws in 8 ms slices. An SLPIN also needs 120 ms after the last SLPOUT, and inside that window the renderer schedules a callout for the remainder instead of waiting. A wake therefore costs 5 ms. The prototype applies the 120 ms gap to both directions, which the datasheet does not ask for. `lcd_gfx_power()` and `st7365p_abort()` also wait 120 ms after SLPIN, which is conservative.
 - **Power state:** `st7365p_sleep()` sends the one command and keeps `lcd_power_mode` and `lcd_power_pending` current, so `st7365p_abort()` wakes a sleeping panel before a fault report, as it does for `LCDG_POWER`.
-- **Graphics programs:** `/dev/lcdgfx` owns the panel's power while it is open. Its open and last close power the panel on through `lcd_gfx_power()`, and `lcdcons_gfx()` marks the blanker awake at both.
+- **Graphics programs:** `/dev/lcdgfx` owns the panel's power while it is open, and its last close powers the panel on through `lcd_gfx_power()`. Its open does not, so the open path must wake a sleeping panel itself (SLPOUT, then 5 ms) before its first drawing command. The prototype only marks the blanker awake in `lcdcons_gfx()` and leaves the panel asleep until the close.
 
 ## Measured cost
 
@@ -32,7 +32,8 @@ PICOCALC_SD at `e32078513`, `arm-none-eabi-gcc` 16.2.0, built warning-free with 
 ## Open before an implementation lands
 
 - **Key handling:** the key that wakes the panel also reaches the tty as input. The alternative, swallowing the first key, costs a flag and is the owner's choice.
-- **Gap at graphics open:** `lcd_gfx_power()` waits 120 ms after SLPOUT, but not between a blanker SLPIN and the SLPOUT that a graphics open sends. The implementation passes the time of the last change to it.
-- **Host gate:** the gate must drive `lcdcons_blank_poll()` and the renderer against a model panel and require each of the following: the 120 ms gap, the 5 ms wait, sleep held off while `/dev/lcdgfx` is open, and the fault-path wake. Mutants that drop each of these must fail it.
+- **Idle start:** the prototype leaves the time of the last key at zero, while `time.tv_sec` starts from the root file system's timestamp (`sys/kern/init_main.c`), so it blanks at the first empty keyboard exchange after boot. The implementation counts idle time from a monotonic tick count started with the console, which `settimeofday()` cannot move.
+- **Wake at graphics open:** the prototype does not wake the panel at a graphics open (Design, above). The implementation sends SLPOUT on that path.
+- **Host gate:** the gate must drive `lcdcons_blank_poll()` and the renderer against a model panel and require each of the following: the 120 ms gap before SLPIN, the 5 ms wait after either command, the idle count from boot, the wake at a graphics open, sleep held off while `/dev/lcdgfx` is open, and the fault-path wake. Mutants that drop each of these must fail it.
 - **Board check:** a board run must show the console text intact after a wake, and the supply current with the panel asleep and awake.
 - **Build quirk found while measuring:** after a kernel's `Config` is edited, the first build compiles with the old `PARAM`. The `reconfig ioconf.c` rule rewrites the Makefile that the running `bmake` has already read. Adding `options LCD_BLANK` produced a baseline-sized kernel on the first build and the 130,584-byte kernel on the second.

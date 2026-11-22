@@ -155,17 +155,16 @@ alike but miss the main replay's 3 and 4 KiB bins, and one of them keeps
 | window 9, lookahead 8 | `zswap.md` line 49 | `heatshrink/heatshrink_config.h` |
 | u-area reservation 3,460 bytes | flash-traffic line 224 | `model.sr_worst(USIZE)` |
 | kernel 128 KB, root 1536 KB, raw swap 384 KB at 0x101a0000 | `sys/arch/rp2040/doc/STORAGE.md` lines 94-96 | `dev/flash.h`, `Config.flash_kb`, `model.FLASH_SWAP_OFFSET` |
-| pool placement | `zswap.md` line 220 | `conf/kern.ldscript`, `STORAGE.md` line 8 |
+| pool placement | `zswap.md` (kernel build section) | `conf/kern.ldscript`, `STORAGE.md` line 8 |
 
 `sys/arch/rp2040/doc/DATASHEET-INDEX.md` indexes the RP2040 datasheet and
 lacks flash endurance and erase time; the W25Q16JV figures come from
 the flash-traffic note, which cites the part's datasheet.
 
-Finding (reported by `test_pool_placement` as an expected failure):
-`zswap.md` line 220 places the pool "at the start of the kernel RAM region,
-directly above the ordinary user window"; `kern.ldscript` places
-`.swapram_pool` after `.bss` ("The compressed swap pool follows ordinary
-kernel data and bss"), as `STORAGE.md` line 8 and `swapram.c` state.
+`zswap.md`, `STORAGE.md` and `kern.ldscript` agree on the pool placement
+(`.swapram_pool` after ordinary kernel data and bss); `test_pool_placement`
+and `test_storage_states_the_linked_placement` hold the two documents to
+the script.
 
 ## Files
 

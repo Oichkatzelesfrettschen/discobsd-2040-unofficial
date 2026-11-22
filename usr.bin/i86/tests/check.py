@@ -1332,29 +1332,106 @@ def test_pit(binary, work):
     host_clock_irqs(lambda: pit_run(binary, work, []), "timer, host clock")
 
 
-def host_clock_irqs(run, what):
+# Counter 0 at 1 kHz raises 52 to 55 interrupts while counter 2 counts 65535
+# clocks (tests/pit.asm), 34h to 37h. Under -S the emulator sleeps whole
+# milliseconds between polls. A sleep that overruns leaves the interrupts it
+# covers waiting, late and not lost, when counter 2 closes the window, and
+# clk_owe() keeps at most 21 of them waiting at 1 kHz, so a stalled host
+# counts at least 52 - 21 = 31 interrupts, 1Fh. The bound holds while each
+# stall stays within CLK_CREDIT_US (20 ms); a longer one drops the interrupts
+# past the 21 and no floor holds. The unpaced run has no sleep and keeps the
+# unstalled floor.
+HOST_CLOCK_IRQ_UNSTALLED = 0x34
+HOST_CLOCK_IRQ_MAX = 0x37
+HOST_CLOCK_IRQ_STALLED = 0x1F
+
+
+def host_clock_irqs(run, what, floor=HOST_CLOCK_IRQ_UNSTALLED, note=print):
     """A run of tests/pit.asm on the host's clock must finish whole and
     count at most 37h interrupts while counter 2 counts 65535 clocks. A
-    host that sleeps or deschedules the emulator for longer than 20 ms
-    (clk_owe(): 21 periods of counter 0 at 1 kHz) loses the ticks past
-    those, so a loaded host counts fewer, never more: one of three runs
-    must count 34h to 37h."""
+    host never counts more than the clocks allow, so a run of 34h to 37h
+    passes alone, without a repeat, and a loaded host counts fewer: the best
+    of three runs must reach floor. A paced run passes HOST_CLOCK_IRQ_STALLED
+    as its floor. The -T run holds the exact count of 36h, which a lost
+    final interrupt moves; this judge cannot see one inside its band."""
     seen = []
     for _ in range(3):
         got = run()
         fields = dict(t.split(":", 1) for t in got if ":" in t)
         irq = int(fields.get("irq", "0"), 16)
         if (
-            irq > 0x37
+            irq > HOST_CLOCK_IRQ_MAX
             or fields.get("st2") != "00B0"
             or fields.get("tick") != "ok"
             or got[-1:] != ["done"]
         ):
             raise Failure("%s: %r" % (what, got))
-        if irq >= 0x34:
+        if irq >= HOST_CLOCK_IRQ_UNSTALLED:
             return
-        seen.append(fields.get("irq"))
-    raise Failure("%s: fewer than 34h interrupts in three runs: %s" % (what, seen))
+        seen.append(irq)
+    counts = ["%02Xh" % n for n in seen]
+    if max(seen) == 0:
+        raise Failure("%s: the timer raised no interrupt in three runs" % what)
+    if max(seen) < floor:
+        raise Failure(
+            "%s: fewer than %02Xh interrupts in three runs: %s" % (what, floor, ", ".join(counts))
+        )
+    note("%s: stalled host, %s interrupts, floor %02Xh" % (what, ", ".join(counts), floor))
+
+
+def test_host_clock_judge():
+    """host_clock_irqs() on counts it must pass and reject, each reject for
+    its own reason: an unstalled host (34h), a stalled paced host (the floor
+    1Fh, and 31h as hosted macOS counted), a stalled unpaced host (all runs
+    below 34h), a paced count under the floor in all three runs (1Eh), a
+    timer that raised nothing (0), more interrupts than the clocks allow
+    (38h), a run that does not finish and a run whose counter 2 status is
+    wrong."""
+
+    def runs(counts, tail="done", st2="00B0"):
+        queue = list(counts)
+
+        def one():
+            return ["irq:%04X" % queue.pop(0), "st2:" + st2, "tick:ok", tail]
+
+        return one
+
+    paced = HOST_CLOCK_IRQ_STALLED
+    accepted = (
+        ([0x36], paced),
+        ([0x20, 0x34], paced),
+        ([0x31, 0x31, 0x33], paced),
+        ([0x1F, 0x1F, 0x1F], paced),
+        ([0x20, 0x34], HOST_CLOCK_IRQ_UNSTALLED),
+    )
+    rejected = (
+        ([0x1E, 0x1E, 0x1E], paced, "fewer than 1Fh"),
+        ([0, 0, 0], paced, "no interrupt"),
+        ([0x31, 0x31, 0x33], HOST_CLOCK_IRQ_UNSTALLED, "fewer than 34h"),
+        ([0x38], paced, "irq:0038"),
+        ([0x36], paced, "done"),
+        ([0x36], paced, "st2:0000"),
+    )
+    for counts, floor in accepted:
+        try:
+            host_clock_irqs(runs(counts), "judge", floor, note=lambda text: None)
+        except Failure as failure:
+            raise Failure("host clock judge rejected %r: %s" % (counts, failure)) from None
+    for counts, floor, reason in rejected:
+        kwargs = {}
+        if reason == "done":
+            kwargs["tail"] = "x"
+        if reason == "st2:0000":
+            kwargs["st2"] = "0000"
+        try:
+            host_clock_irqs(runs(counts, **kwargs), "judge", floor, note=lambda text: None)
+        except Failure as failure:
+            if reason not in str(failure) and reason not in ("done", "st2:0000"):
+                raise Failure(
+                    "host clock judge rejected %r for another reason: %s" % (counts, failure)
+                ) from None
+            continue
+        raise Failure("host clock judge accepted %r at floor %02Xh" % (counts, floor))
 
 
 def test_speed(binary, work):
@@ -1371,7 +1448,7 @@ def test_speed(binary, work):
             raise Failure("-S 4.77: %.2f s, %r" % (took, got))
         return got
 
-    host_clock_irqs(paced, "-S 4.77")
+    host_clock_irqs(paced, "-S 4.77", HOST_CLOCK_IRQ_STALLED)
 
 
 def ems_run(binary, work, args, keys, env=None):
@@ -1880,6 +1957,7 @@ def main(argv):
             print(test_clock(clocktest))
             # Independent of the emulator, so once, not for every mutant.
             test_wait_draining()
+            test_host_clock_judge()
             test(binary, work)
             print("i86 host test passed")
             vsources = ["tests/sstrun.c", "cpu.c", "mem.c"]

@@ -209,6 +209,11 @@ As
 .BR \-g ,
 without the copy of the lines and without moving the scroll start:
 every line or cell the guest writes goes to the panel, for comparison.
+The skip of palette writes that leave the registers as they were, the clear of the
+adapter's 200 lines in place of the whole panel after the first, the
+missing clear between two graphics modes and the drain of at most 16
+lines a poll stay as with
+.BR \-g .
 .TP
 .BI \-P " file"
 With
@@ -219,7 +224,13 @@ Control-] first reads the panel back and writes it to
 .I file
 as a binary PPM of 320 by 320 pixels, the glass as it shows, before
 the menu gives the panel to the console; the menu line then reports
-whether it was saved.
+whether it was saved, and reports that it was not when the panel is
+closed.
+The file is first written under its own name followed by a period and the
+process id, then renamed, so the last component of
+.I file
+holds at most 57 bytes: the 63 of a name the kernel takes less the
+period and up to five digits.
 The read-back needs a kernel with the pixel device's memory read
 (PICOCALC_SD).
 The Control-] menu appears on the console, which has the panel for as

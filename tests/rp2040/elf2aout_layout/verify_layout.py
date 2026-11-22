@@ -1182,6 +1182,103 @@ def verify_multicall_bss_overlay(
         raise SystemExit("NOCROSSREFS did not reject an applet BSS reference")
 
 
+def verify_shared_requirement(arguments: argparse.Namespace, work: pathlib.Path) -> None:
+    source = work / "shared.S"
+    script = work / "shared.ld"
+    obj = work / "shared.o"
+    elf = work / "shared.elf"
+    raw = work / "shared.aout"
+    source.write_text(
+        """
+.syntax unified
+.thumb
+.text
+.global _start
+.thumb_func
+_start:
+    bx lr
+.balign 4
+.data
+.word 42
+.bss
+.balign 8
+state:
+.space 5040
+.section .discobsd.xreq,"",%progbits
+.ascii "XREQ"
+.word 1,56
+.rept 32
+.byte 0xa5
+.endr
+.word 7,state,5040
+""",
+        encoding="ascii",
+    )
+    script.write_text(
+        """
+ENTRY(_start)
+PHDRS {
+    code PT_LOAD FLAGS(5);
+    state PT_LOAD FLAGS(6);
+    requirement 0x64787271 FLAGS(4);
+}
+SECTIONS {
+    . = 0x20000000;
+    .text : { *(.text*) } :code
+    .data : { *(.data*) } :state
+    .bss : { *(.bss*) } :state
+    .discobsd.xreq 0 : { KEEP(*(.discobsd.xreq)) } :requirement
+}
+""",
+        encoding="ascii",
+    )
+    run_command([arguments.cc, "-mcpu=cortex-m0plus", "-mthumb", "-c", str(source), "-o", str(obj)])
+    run_command([arguments.ld, "-T", str(script), str(obj), "-o", str(elf)])
+    run_command([str(arguments.elf2aout), str(elf), str(raw)])
+    image = parse_elf(elf)
+    static, payload = expected_aout_image(image)
+    requirement = struct.pack(
+        "<4sII32sIII", b"XREQ", 1, 56, bytes([0xA5]) * 32, 7, 0x20000008, 5040
+    )
+    if (
+        raw.read_bytes()
+        != AOUT_HEADER.pack(static[0] | (2 << 26), *static[1:]) + requirement + payload
+    ):
+        raise SystemExit("converted shared requirement or loaded bytes differ")
+    index = next(i for i, ph in enumerate(image.program_headers) if ph.header_type == 0x64787271)
+    bad = work / "bad-shared.elf"
+    patch_program_header_word(elf, bad, image, index, 5, 56)
+    require_conversion_failure_preserves_output(
+        arguments, bad, raw, "Invalid shared libc requirement segment"
+    )
+    patch_program_header_word(elf, bad, image, index, 0, 0)
+    require_conversion_failure_preserves_output(
+        arguments, bad, raw, "Shared libc requirement section lacks its file segment"
+    )
+    content = bytearray(image.content)
+    struct.pack_into("<I", content, image.program_headers[index].offset + 48, 0x20000010)
+    bad.write_bytes(content)
+    require_conversion_failure_preserves_output(
+        arguments, bad, raw, "Shared libc requirement and process layout differ"
+    )
+
+    # A BSS-only writable LOAD starts seven bytes after the last file byte.
+    source.write_text(source.read_text().replace(".data\n.word 42", ".section .rodata\n.byte 1"))
+    script.write_text(script.read_text().replace("*(.text*)", "*(.text*) . = ALIGN(8); *(.rodata)"))
+    run_command([arguments.cc, "-mcpu=cortex-m0plus", "-mthumb", "-c", str(source), "-o", str(obj)])
+    run_command([arguments.ld, "-T", str(script), str(obj), "-o", str(elf)])
+    run_command([str(arguments.elf2aout), str(elf), str(raw)])
+    header, payload = expected_aout_image(parse_elf(elf))
+    if header[1:4] != (16, 0, 5040) or payload[-8:] != bytes([1]) + bytes(7):
+        raise SystemExit("BSS-only fixture lacks its seven-byte alignment gap")
+    requirement = struct.pack(
+        "<4sII32sIII", b"XREQ", 1, 56, bytes([0xA5]) * 32, 7, 0x20000010, 5040
+    )
+    expected = AOUT_HEADER.pack(header[0] | (2 << 26), *header[1:]) + requirement + payload
+    if raw.read_bytes() != expected:
+        raise SystemExit("BSS-only shared image omits declared text padding")
+
+
 def main() -> int:
     arguments = parse_arguments()
     with tempfile.TemporaryDirectory(prefix="elf2aout-layout-") as directory_name:
@@ -1191,9 +1288,7 @@ def main() -> int:
         elf_paths: dict[str, pathlib.Path] = {}
         aout_images: dict[str, bytes] = {}
         for variant in LAYOUT_VARIANTS:
-            elf_path = build_variant(
-                arguments, temporary_directory, assembly_path, variant
-            )
+            elf_path = build_variant(arguments, temporary_directory, assembly_path, variant)
             elf_paths[variant.name] = elf_path
             aout_images[variant.name] = verify_conversion(arguments, elf_path, variant)
 
@@ -1210,11 +1305,12 @@ def main() -> int:
         )
         verify_multicall_bss_overlay(arguments, temporary_directory)
         verify_multicall_object_rebuild(arguments, temporary_directory)
+        verify_shared_requirement(arguments, temporary_directory)
 
     print(
         "elf2aout layout: 7 variants, 4 rejection controls, "
         "shorter overwrite, symbol conversion, multicall BSS overlay, "
-        "object rejection, and rebuild freshness passed"
+        "object rejection, rebuild freshness, and shared requirement controls passed"
     )
     return 0
 

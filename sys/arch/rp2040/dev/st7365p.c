@@ -245,6 +245,9 @@ spi_clock(u_int scr)
 
 static u_int lcd_power_mode;		/* LCDG_PWR_* in force. */
 static u_int lcd_power_pending;		/* A mode change may have begun. */
+#ifdef LCD_BLANK
+static u_int lcd_slpout_at;		/* pc_micros() | 1 of st7365p_wake()'s SLPOUT. */
+#endif
 #endif
 
 /* Send a command byte; the caller holds chip select low. */
@@ -657,6 +660,11 @@ lcd_gfx_power(unsigned mode)
 			lcd_select();
 		}
 	}
+#ifdef LCD_BLANK
+	/* st7365p_wake() waits 5 ms, not page 163's 120 ms before SLPIN. */
+	if (mode == LCDG_PWR_SLEEP && st7365p_sleep_early())
+		mdelay(120);
+#endif
 	if (mode != LCDG_PWR_ON)
 		lcd_command(enter[mode]);
 	lcd_deselect();
@@ -666,6 +674,57 @@ lcd_gfx_power(unsigned mode)
 	/* st7365p_abort() wakes the panel while any mode but on may hold. */
 	lcd_power_pending = mode != LCDG_PWR_ON;
 }
+
+#ifdef LCD_BLANK
+/*
+ * The console blanker's commands (lcdcons.c), each sent alone with the
+ * gap after it that page 163 or 165 requires before the next command:
+ * 5 ms. lcd_power_pending is set before SLPIN and stays set while the
+ * panel sleeps, so a fault in or after it finds st7365p_abort() waking the
+ * panel for the report; it clears only after SLPOUT's 5 ms.
+ */
+void
+st7365p_sleep(void)
+{
+	lcd_power_pending = 1;
+	lcd_select();
+	lcd_command(CMD_SLPIN);
+	lcd_deselect();
+	lcd_power_mode = LCDG_PWR_SLEEP;
+	mdelay(5);
+}
+
+void
+st7365p_wake(void)
+{
+	lcd_power_pending = 1;
+	lcd_select();
+	lcd_command(CMD_SLPOUT);
+	lcd_deselect();
+	mdelay(5);
+	lcd_slpout_at = pc_micros() | 1;
+	lcd_power_mode = LCDG_PWR_ON;
+	lcd_power_pending = 0;
+}
+
+/*
+ * Whether SLPIN would come within page 163's 120 ms of st7365p_wake()'s
+ * SLPOUT; every other SLPOUT waits 120 ms after itself. Zero means
+ * st7365p_wake() has yet to run. Once in each 71-minute wrap of
+ * pc_micros() it answers yes for nothing, which costs one needless wait.
+ */
+int
+st7365p_sleep_early(void)
+{
+	/*
+	 * lcd_slpout_at can stand 1 us past the SLPOUT, so the time is taken
+	 * from 1 us before it: the difference stays forward, and the wait it
+	 * asks for runs at most 1 us longer than page 163's 120 ms.
+	 */
+	return lcd_slpout_at != 0 &&
+	    pc_micros() - (lcd_slpout_at - 1) <= 120000U;
+}
+#endif /* LCD_BLANK */
 
 /*
  * The LCDG_DITHER probe (sys/lcdgfx.h). COLMOD 77h is the register's 24-bit

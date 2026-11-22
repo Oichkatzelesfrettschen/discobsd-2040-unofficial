@@ -25,3 +25,11 @@ prerequisite.
 ```sh
 PYTHON="${PYTHON}" bmake MACHINE=rp2040 check-elf2aout
 ```
+
+The shared fixture links a file-only program header of type 0x64787271.
+It contains the 56-byte XREQ record. Its read-only flags, zero virtual and
+physical addresses, and zero memory extent keep it outside both process
+segments. The converter places the requirement immediately after the
+flagged OMAGIC header. The gate compares all record and payload bytes. A
+loaded requirement, an orphaned requirement section and a misplaced BSS
+reservation each reject the input before replacement of an existing output.

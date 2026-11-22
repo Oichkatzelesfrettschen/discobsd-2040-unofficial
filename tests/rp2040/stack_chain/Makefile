@@ -25,7 +25,9 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 # Board-only driver of the kernel stack chains. The flash-root manifest
-# excludes stackchain; the PicoCalc SD root installs it (../Makefile).
+# excludes stackchain; the PicoCalc SD root carries it under
+# /usr/tests/rp2040, which the sdroot rule of distrib/rp2040/Makefile.inc
+# fills through ../Makefile.
 TOPSRC!=cd ../../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 PROG=           stackchain

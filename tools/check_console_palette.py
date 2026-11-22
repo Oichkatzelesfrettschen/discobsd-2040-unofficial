@@ -270,10 +270,26 @@ def check_table(table: Table) -> list[str]:
     return found
 
 
+TRIGRAPHS = {
+    "??=": "#",
+    "??(": "[",
+    "??/": "\\",
+    "??)": "]",
+    "??'": "^",
+    "??<": "{",
+    "??!": "|",
+    "??>": "}",
+    "??-": "~",
+}
+DIGRAPHS = (("<%", "{ "), ("%>", "} "), ("<:", "[ "), (":>", "] "), ("%:", "# "))
+
+
 def mask_c(text: str) -> str:
-    """Splice lines, then blank comments and the contents of string and
-    character literals, so that markers and braces found in the result are
-    code."""
+    """Replace trigraphs, splice lines, then blank comments and the contents of
+    string and character literals and spell digraphs as their tokens, so that
+    markers and braces found in the result are code."""
+    for trigraph, character in TRIGRAPHS.items():
+        text = text.replace(trigraph, character)
     text = text.replace("\\\r\n", "").replace("\\\n", "")
     out: list[str] = []
     i, n = 0, len(text)
@@ -297,7 +313,10 @@ def mask_c(text: str) -> str:
         else:
             out.append(text[i])
             i += 1
-    return "".join(out)
+    masked = "".join(out)
+    for digraph, token in DIGRAPHS:
+        masked = masked.replace(digraph, token)
+    return masked
 
 
 def c_context(code: str, end: int) -> tuple[int, int]:
@@ -534,6 +553,8 @@ def selftest() -> list[str]:
 
     expect("accepted table", set())
     expect("accepted table without whitespace", set(), lcd=compact)
+    digraphs = good_c.replace("[16][3]", "<:16:><:3:>").replace("{", "<%").replace("}", "%>")
+    expect("accepted table spelled with digraphs", set(), lcd=digraphs)
     expect("first branch table", {"CP004", "CP005", "CP006", "CP008", "CP010"}, FIRST)
     expect("table before the palette", {"CP004", "CP005", "CP006", "CP007"}, PREVIOUS)
     expect("off-grid entry", {"CP004"}, with_entries(e1=(205, 93, 0)))
@@ -572,6 +593,8 @@ def selftest() -> list[str]:
         + good_c
         + ' const char *b = "*/";\n',
         "table with function scope": "void f(void) {\n" + good_c + "}\n",
+        "function scope in digraph braces": "void f(void) <%\n" + good_c + "%>\n",
+        "function scope in trigraph braces": "void f(void) ??<\n" + good_c + "??>\n",
         "non-ASCII digits": good_c.replace("{ 0, 0, 0 }", "{ ٠, ٠, ٠ }", 1),
         "component over 255": good_c.replace("{ 0, 0, 0 }", "{ 256, 0, 0 }", 1),
         "good table commented, none active": "/*\n" + good_c + "*/\n",

@@ -1307,6 +1307,7 @@ op_title(void)
 	struct twin *t;
 	long inj = n_injected;
 	char title[40];
+	int same;
 	int id = pick_window();
 
 	if (id < 0)
@@ -1314,10 +1315,11 @@ op_title(void)
 	t = &tw[id];
 	note("title %d", id);
 	random_title(title);
+	same = strncmp(t->title, title, WIN_TITLE_MAX - 1) == 0;
 	if (!call_ok(win_set_title(&scene, t->handle, title), inj, "win_set_title"))
 		return;
 	strcpy(t->title, title);
-	if (!t->hidden)
+	if (!t->hidden && !same)
 		mark_title(id);
 }
 
@@ -3413,6 +3415,45 @@ run_bits(void)
 	    "%ld indexed windows over the run)\n", n_bits_windows, n_index_windows);
 }
 
+/*
+ * A title equal to the stored one leaves the title bar's pixels as they are:
+ * the flush after it does not send a window or a pixel. A different title sends
+ * the bar again, and the panel shows the new title.
+ */
+static void
+run_same_title(void)
+{
+	long w0, p0, p1;
+
+	reset_world();
+	mask_all = 1;
+	op_index = -5;
+	fx_create(0, 50, 50, 100, 60, "same");
+	if (win_flush(&scene) != 0)
+		fail("same-title initial flush");
+	after_op(1);
+	w0 = n_ioctl_window;
+	p0 = n_pixels;
+	if (win_set_title(&scene, tw[0].handle, "same") != 0 ||
+	    win_flush(&scene) != 0)
+		fail("same-title set_title");
+	if (n_ioctl_window != w0 || n_pixels != p0)
+		fail("identical title sent %ld windows and %ld pixels",
+		    n_ioctl_window - w0, n_pixels - p0);
+	after_op(1);
+	p1 = n_pixels;
+	if (win_set_title(&scene, tw[0].handle, "other") != 0 ||
+	    win_flush(&scene) != 0)
+		fail("new-title set_title");
+	if (n_pixels == p1)
+		fail("a new title sent no pixels");
+	strcpy(tw[0].title, "other");
+	after_op(1);
+	mask_all = 0;
+	printf("PASS same title: an identical title sent %ld pixels, a new title "
+	    "sent %ld pixels\n", p1 - p0, n_pixels - p1);
+}
+
 /* Backend bytes for three workloads, as the model counts them. */
 static void
 run_measure(void)
@@ -3501,6 +3542,7 @@ main(int argc, char **argv)
 	run_wait_bound();
 	run_bits();
 	run_modal();
+	run_same_title();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

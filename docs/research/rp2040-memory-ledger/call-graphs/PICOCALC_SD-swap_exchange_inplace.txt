@@ -1,0 +1,170 @@
+swap_exchange_inplace() <void swap_exchange_inplace (struct swap_image_reservation *reservation, struct proc *outgoing, struct proc *incoming) at sys/kern/vm_swap.c:570>:
+    panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+        printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+        boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+            rp2040_shutdown_sync() <void rp2040_shutdown_sync (int howto) at sys/arch/rp2040/rp2040/shutdown_sync.c:83> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            lcdcons_render_stack_free() <u_int lcdcons_render_stack_free (void) at sys/arch/rp2040/dev/lcdcons.c:389>:
+            usbdrain() <void usbdrain (void) at sys/arch/rp2040/dev/usb.c:1407> (R):
+            rom_func_lookup() <void *rom_func_lookup (u_int code) at sys/arch/rp2040/dev/flash.c:257>
+            arm_dsb() <__inline void arm_dsb (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/scb.h:80>:
+            usbpollc() <void usbpollc (int on) at sys/arch/rp2040/dev/usb.c:1441>:
+            cngetc() <int cngetc (void) at sys/dev/cons.c:141> (R):
+            arm_isb() <__inline void arm_isb (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/scb.h:86>:
+    swap_exchange_segments() <void swap_exchange_segments (struct proc *p, int resident, struct swap_exchange_segment segments[3]) at sys/kern/vm_swap.c:434>:
+        swaptext() <size_t swaptext (register struct proc *p) at sys/kern/vm_swap.c:28>
+    bzero() <void bzero (void *dst0, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1305>
+    arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+        arm_get_primask() <inline int arm_get_primask (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:103>:
+    arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+        arm_set_primask() <inline void arm_set_primask (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:112>:
+    storage_note() <void storage_note (enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/dev/flash.c:82>:
+        arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_get_primask() <inline int arm_get_primask (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:103>:
+        storage_stats_add() <inline void storage_stats_add (struct storage_stats *stats, enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/compile/PICOCALC_SD/sys/storage_stats.h:120>
+        arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            arm_set_primask() <inline void arm_set_primask (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:112>:
+    geteblk() <struct buf *geteblk (void) at sys/kern/ufs_bio.c:497> (R):
+        getnewbuf() <struct buf *getnewbuf (void) at sys/kern/ufs_bio.c:391> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            capacity_note() <void capacity_note (enum capacity_kind kind, int failed) at sys/kern/subr_capacity.c:161>:
+            storage_note() <void storage_note (enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/dev/flash.c:82>:
+            sleep() <void sleep (caddr_t chan, int pri) at sys/kern/kern_synch.c:217> (R):
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            bwrite() <int bwrite (register struct buf *bp) at sys/kern/ufs_bio.c:261> (R):
+    swap_exchange_candidate_safe() <int swap_exchange_candidate_safe (size_t candidate, size_t sector_count, const struct swap_exchange_segment incoming[3], const struct swap_exchange_segment outgoing[3]) at sys/kern/vm_swap.c:494>:
+        swap_exchange_sector_piece() <int swap_exchange_sector_piece (const struct swap_exchange_segment *segment, size_t sector, size_t *image_start, size_t *window_start, size_t *length) at sys/kern/vm_swap.c:464>
+        swap_exchange_overlap() <int swap_exchange_overlap (size_t first_start, size_t first_length, size_t second_start, size_t second_length) at sys/kern/vm_swap.c:455>
+    swap_with_buf_result() <int swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count, int rdflg) at sys/kern/vm_swp.c:21>:
+        arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_get_primask() <inline int arm_get_primask (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:103>:
+        sleep() <void sleep (caddr_t chan, int pri) at sys/kern/kern_synch.c:217> (R):
+            tsleep() <int tsleep (caddr_t ident, int priority, u_int timo) at sys/kern/kern_synch.c:121> (R):
+            capacity_stack_sample() <void capacity_stack_sample (void) at sys/kern/subr_capacity.c:99>:
+            longjmp()
+        arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            arm_set_primask() <inline void arm_set_primask (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:112>:
+        printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+        wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            updatepri() <void updatepri (register struct proc *p) at sys/kern/kern_synch.c:71>:
+            setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (recursive: see 51)
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+    swap_exchange_program_sector() <void swap_exchange_program_sector (struct buf *bp, size_t flash_base, size_t sector, const struct swap_exchange_segment outgoing[3]) at sys/kern/vm_swap.c:526>:
+        swap_exchange_sector_piece() <int swap_exchange_sector_piece (const struct swap_exchange_segment *segment, size_t sector, size_t *image_start, size_t *window_start, size_t *length) at sys/kern/vm_swap.c:464>
+        panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+        swap_with_buf_result() <int swap_with_buf_result (struct buf *bp, size_t blkno, size_t coreaddr, int count, int rdflg) at sys/kern/vm_swp.c:21>:
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            sleep() <void sleep (caddr_t chan, int pri) at sys/kern/kern_synch.c:217> (R):
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+    swap_exchange_scatter_sector() <void swap_exchange_scatter_sector (size_t sector, const struct swap_exchange_segment incoming[3]) at sys/kern/vm_swap.c:551>:
+        swap_exchange_sector_piece() <int swap_exchange_sector_piece (const struct swap_exchange_segment *segment, size_t sector, size_t *image_start, size_t *window_start, size_t *length) at sys/kern/vm_swap.c:464>
+        bcopy() <void bcopy (const void *src0, void *dst0, size_t nbytes) at sys/arch/rp2040/rp2040/machdep.c:1232>:
+    brelse() <void brelse (register struct buf *bp) at sys/kern/ufs_bio.c:318> (R):
+        wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            updatepri() <void updatepri (register struct proc *p) at sys/kern/kern_synch.c:71>:
+            setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (recursive: see 73)
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+        arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_get_primask() <inline int arm_get_primask (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:103>:
+        arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            arm_set_primask() <inline void arm_set_primask (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:112>:
+    swap_note_span() <void swap_note_span (enum storage_metric first, size_t span) at sys/kern/vm_swap.c:59>:
+        storage_note() <void storage_note (enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/dev/flash.c:82>:
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            storage_stats_add() <inline void storage_stats_add (struct storage_stats *stats, enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/compile/PICOCALC_SD/sys/storage_stats.h:120>
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+    swaptext() <size_t swaptext (register struct proc *p) at sys/kern/vm_swap.c:28>
+    exec_text_restore() <int exec_text_restore (struct proc *p, caddr_t dst, size_t len) at sys/kern/exec_aout.c:89>:
+        sleep() <void sleep (caddr_t chan, int pri) at sys/kern/kern_synch.c:217> (R):
+            tsleep() <int tsleep (caddr_t ident, int priority, u_int timo) at sys/kern/kern_synch.c:121> (R):
+            capacity_stack_sample() <void capacity_stack_sample (void) at sys/kern/subr_capacity.c:99>:
+            longjmp()
+        rdwri() <int rdwri (enum uio_rw rw, struct inode *ip, caddr_t base, int len, off_t offset, int ioflg, register int *aresid) at sys/kern/sys_inode.c:131>:
+            rwip() <int rwip (register struct inode *ip, register struct uio *uio, int ioflag) at sys/kern/sys_inode.c:154>:
+        exec_hsaout_text() <int exec_hsaout_text (struct inode *ip, const struct exec *e, char *dst, unsigned len) at sys/arch/rp2040/rp2040/exec_hsaout.c:222>:
+            hsx_headers() <int hsx_headers (struct inode *ip, const struct exec *e, struct hsx *x) at sys/arch/rp2040/rp2040/exec_hsaout.c:84>:
+            swapram_codec_acquire() <void *swapram_codec_acquire (unsigned int owner) at sys/arch/rp2040/rp2040/swapram.c:155>:
+            hsx_load() <int hsx_load (struct hsx_work *w, struct inode *ip, unsigned off, unsigned clen, caddr_t dst, unsigned rlen, unsigned want) at sys/arch/rp2040/rp2040/exec_hsaout.c:57>:
+            swapram_codec_release() <void swapram_codec_release (unsigned int owner) at sys/arch/rp2040/rp2040/swapram.c:164>:
+        wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            updatepri() <void updatepri (register struct proc *p) at sys/kern/kern_synch.c:71>:
+            setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (recursive: see 102)
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+    printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+        prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+            putchar() <void putchar (int c, int flags, struct tty *tp) at sys/kern/subr_prf.c:35> (R):
+            ksprintn() <char *ksprintn (char *nbuf, unsigned long ul, int base, int width, int *lenp) at sys/kern/subr_prf.c:75>:
+            mkhex() <unsigned mkhex (unsigned ch) at sys/kern/subr_prf.c:60>
+            strlen() <size_t strlen (const char *s) at sys/arch/rp2040/rp2040/machdep.c:1103>:
+    psignal() <void psignal (register struct proc *p, register int sig) at sys/kern/kern_sig.c:209> (R):
+        arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_get_primask() <inline int arm_get_primask (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:103>:
+        psignal() <void psignal (register struct proc *p, register int sig) at sys/kern/kern_sig.c:209> (recursive: see 115)
+        stop() <void stop (register struct proc *p) at sys/kern/kern_sig.c:179> (R):
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+        unsleep() <void unsleep (register struct proc *p) at sys/kern/kern_synch.c:250>:
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+        setrun() <void setrun (register struct proc *p) at sys/kern/kern_synch.c:323> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            unsleep() <void unsleep (register struct proc *p) at sys/kern/kern_synch.c:250>:
+            updatepri() <void updatepri (register struct proc *p) at sys/kern/kern_synch.c:71>:
+            setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+        arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            arm_set_primask() <inline void arm_set_primask (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:112>:
+    swap_image_commit() <void swap_image_commit (struct swap_image_reservation *reservation, struct proc *p) at sys/kern/vm_swap.c:764>:
+        panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+        wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            updatepri() <void updatepri (register struct proc *p) at sys/kern/kern_synch.c:71>:
+            setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (recursive: see 138)
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+    mfree() <void mfree (struct map *mp, size_t size, register size_t addr) at sys/kern/subr_rmap.c:82> (R):
+        panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+        mfree() <void mfree (struct map *mp, size_t size, register size_t addr) at sys/kern/subr_rmap.c:82> (recursive: see 145)
+        printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+    wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+        arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_get_primask() <inline int arm_get_primask (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:103>:
+        panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+        updatepri() <void updatepri (register struct proc *p) at sys/kern/kern_synch.c:71>:
+            setpri() <int setpri (register struct proc *pp) at sys/kern/kern_synch.c:368>:
+        setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+        wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (recursive: see 152)
+        arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            arm_set_primask() <inline void arm_set_primask (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:112>:
+    setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+        arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:118>:
+            arm_get_primask() <inline int arm_get_primask (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:103>:
+        arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:138>:
+            arm_set_primask() <inline void arm_set_primask (int s) at sys/arch/rp2040/compile/PICOCALC_SD/machine/intr.h:112>:

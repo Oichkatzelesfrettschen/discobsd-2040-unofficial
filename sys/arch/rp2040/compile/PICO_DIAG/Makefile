@@ -315,9 +315,24 @@ clean-all: clean
 
 CONFIG_TOOL=	${TOOLBINDIR}/config
 
+# config rewrites this Makefile, which the running make has already read, so
+# the rest of a build after a Config change would use the old PARAM and object
+# lists. A build stops when the rewrite changed the file, and the next make
+# reads the new one; an identical rewrite, as after a fresh checkout, goes on,
+# and "make reconfig" asked for by name succeeds.
 reconfig ioconf.c: Config ${CONFIG_TOOL}
+	cp Makefile .Makefile.before-config
 	${CONFIG_TOOL} Config
 	${MAKE} clean
+	@if cmp -s Makefile .Makefile.before-config || \
+	    [ "${.TARGET}" = reconfig ]; then \
+		rm -f .Makefile.before-config; \
+	else \
+		rm -f .Makefile.before-config; \
+		echo "config rewrote ${.CURDIR}/Makefile from Config;" \
+		    "run make again to build with it" >&2; \
+		exit 1; \
+	fi
 
 machine:
 	ln -s ${_machdir}/include $@

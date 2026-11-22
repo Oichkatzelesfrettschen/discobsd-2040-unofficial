@@ -332,16 +332,18 @@ CONFIG_TOOL=	${TOOLBINDIR}/config
 # the rest of a build after a Config change would use the old PARAM and object
 # lists. A build stops when the rewrite changed the file, and the next make
 # reads the new one; an identical rewrite, as after a fresh checkout, goes on,
-# and "make reconfig" with no other goal succeeds.
+# and "make reconfig" with no other goal succeeds. Each run snapshots the
+# Makefile into its own file, and .ORDER keeps the two goals from running at
+# once when "reconfig" is named beside a build under -j.
+.ORDER: reconfig ioconf.c
 reconfig ioconf.c: Config ${CONFIG_TOOL}
-	cp Makefile .Makefile.before-config
-	${CONFIG_TOOL} Config
-	${MAKE} clean
-	@if cmp -s Makefile .Makefile.before-config || \
-	    [ "${.TARGETS}" = reconfig ]; then \
-		rm -f .Makefile.before-config; \
-	else \
-		rm -f .Makefile.before-config; \
+	@set -e; before=$$(mktemp .Makefile.before-config.XXXXXX); \
+	trap 'rm -f "$$before"' EXIT; \
+	cp Makefile "$$before"; \
+	echo "${CONFIG_TOOL} Config"; \
+	${CONFIG_TOOL} Config; \
+	${MAKE} clean; \
+	if ! cmp -s Makefile "$$before" && [ "${.TARGETS}" != reconfig ]; then \
 		echo "config rewrote ${.CURDIR}/Makefile from Config;" \
 		    "run make again to build with it" >&2; \
 		exit 1; \

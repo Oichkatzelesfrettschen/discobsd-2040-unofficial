@@ -29,9 +29,10 @@ config rewrites a compile directory's Makefile while the make that runs it has
 already read the old one. The rule must stop a build when the rewrite changed
 the file, let an identical rewrite go on, and pass "make reconfig" asked for
 with no other goal. Each production template's rule runs in a scratch
-directory whose fake config rewrites PARAM from Config. Three mutants of the
-rule must each fail the scenario named for them, and every tracked generated
-Makefile must carry its template's rule verbatim.
+directory whose fake config rewrites PARAM from Config and refuses to run
+twice at once. Three mutants of the rule must each fail the scenario named
+for them, and every tracked generated Makefile must carry its template's rule
+verbatim, .ORDER line included.
 """
 
 import argparse
@@ -49,14 +50,20 @@ TEMPLATES = {
     "sys/arch/rp2040/conf/Makefile.rp2040": "sys/arch/rp2040/compile",
     "sys/arch/stm32/conf/Makefile.stm32": "sys/arch/stm32/compile",
 }
-RULE = re.compile(r"^reconfig ioconf\.c: Config \$\{CONFIG_TOOL\}\n((?:\t[^\n]*\n)+)", re.MULTILINE)
+RULE = re.compile(r"^\.ORDER: reconfig ioconf\.c\nreconfig ioconf\.c: Config \$\{CONFIG_TOOL\}\n"
+                  r"((?:\t[^\n]*\n)+)", re.MULTILINE)
+PARALLEL_RUNS = 3
 FAKE_CONFIG = """#!/bin/sh
-# Rewrite PARAM from Config, as config rewrites the generated Makefile.
+# Rewrite PARAM from Config, as config rewrites the generated Makefile. Two
+# runs that overlap fail: the second finds the first one's lock directory.
 set -eu
+mkdir config.lock
 param=$(cat Config)
+sleep 0.3
 sed "s/^PARAM=.*/PARAM=$param/" Makefile > Makefile.new
 mv Makefile.new Makefile
 echo "/* $param */" > ioconf.c
+rmdir config.lock
 """
 STOP = "rewrote"
 
@@ -86,8 +93,8 @@ def mutants(text):
         ("no stop", old_rule, "changed"),
         ("goal of the recipe", mutate(text, "${.TARGETS}", "${.TARGET}", "goal"),
          "reconfig with all"),
-        ("stop always", mutate(text, "cmp -s Makefile .Makefile.before-config", "false",
-                               "always"), "unchanged"),
+        ("stop always", mutate(text, '! cmp -s Makefile "$$before"', "true", "always"),
+         "unchanged"),
     )
 
 
@@ -146,6 +153,17 @@ def scenarios(rule_text, make):
         rc, _ = f.run("reconfig", "all")
         if rc == 0:
             return "reconfig with all"
+    # Named beside a build under -j, reconfig and ioconf.c are both out of date and share the
+    # recipe; its two runs must not overlap (the fake config's lock), and an unchanged rewrite
+    # must still build. Without the .ORDER line the runs overlap only sometimes, so RULE
+    # requires that line instead of a mutant testing it.
+    for _ in range(PARALLEL_RUNS):
+        with tempfile.TemporaryDirectory() as scratch:
+            f = Fixture(Path(scratch), rule_text, make)
+            f.config("OLD")
+            rc, _ = f.run("-j4", "reconfig", "all")
+            if rc != 0 or f.built() != "OLD" or list(f.dir.glob(".Makefile.before-config*")):
+                return "parallel reconfig with all"
     return None
 
 
@@ -166,7 +184,7 @@ def check(root, make):
         for path in generated:
             if rule(path.read_text(), str(path.relative_to(root))) != text:
                 raise GateError(f"{path.relative_to(root)}: reconfig rule differs from {template}")
-        print(f"PASS reconfig-stop {template}: four scenarios, three mutants, "
+        print(f"PASS reconfig-stop {template}: five scenarios, three mutants, "
               f"{len(generated)} generated Makefiles")
 
 

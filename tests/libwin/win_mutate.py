@@ -53,6 +53,28 @@ MUTATIONS = (
     ),
     ("baseline", "", ""),
     (
+        "same_title_damages",
+        "\tif (title_same(win, title))\n\t\treturn 0;\n",
+        "\tif (0 && title_same(win, title))\n\t\treturn 0;\n",
+    ),
+    (
+        "same_title_ignores_end",
+        "\treturn w->title[i] == '\\0';\n}",
+        "\treturn 1;\n}",
+    ),
+    (
+        "same_title_short_cut",
+        "title[i] != '\\0' && i < WIN_TITLE_MAX - 1;\n\t    i++)\n\t\tif",
+        "title[i] != '\\0' && i < WIN_TITLE_MAX - 2;\n\t    i++)\n\t\tif",
+    ),
+    (
+        "same_title_after_make_room",
+        "\tif (title_same(win, title))\n\t\treturn 0;\n"
+        "\tif (make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n",
+        "\tif (make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n"
+        "\tif (title_same(win, title))\n\t\treturn 0;\n",
+    ),
+    (
         "dropped_destroy_damage",
         "\twin->used = 0;\n\tdamage_shown(s, win);",
         "\twin->used = 0;",

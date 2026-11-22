@@ -607,6 +607,22 @@ size_ok(int w, int h)
 	    h <= WIN_LIMIT;
 }
 
+/*
+ * Whether title_copy() would leave w->title holding the title: the same bytes
+ * up to WIN_TITLE_MAX - 1, then the NUL that title_copy() stores there.
+ */
+static int
+title_same(const struct win *w, const char *title)
+{
+	size_t i;
+
+	for (i = 0; title != NULL && title[i] != '\0' && i < WIN_TITLE_MAX - 1;
+	    i++)
+		if (w->title[i] != title[i])
+			return 0;
+	return w->title[i] == '\0';
+}
+
 static void
 title_copy(struct win *w, const char *title)
 {
@@ -896,6 +912,9 @@ win_set_title(struct win_scene *s, struct win *win, const char *title)
 		title_copy(win, title);
 		return 0;
 	}
+	/* A title equal to the stored one leaves the bar's pixels unchanged. */
+	if (title_same(win, title))
+		return 0;
 	if (make_room(s, WIN_DAMAGE_CALL) < 0)
 		return -1;
 	title_copy(win, title);

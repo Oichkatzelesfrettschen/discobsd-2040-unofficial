@@ -314,7 +314,7 @@ host measurement fixture.
 | 4 | 4 | Version 1 |
 | 8 | 4 | Record length, 56 |
 | 12 | 32 | Exact compact ELF SHA-256 bytes in digest order |
-| 44 | 4 | Required slot prefix length, zero when the application imports no function |
+| 44 | 4 | Required slot prefix length, zero for an empty set of imported functions |
 | 48 | 4 | Absolute SRAM address of the aligned state reservation |
 | 52 | 4 | State extent in bytes |
 

@@ -80,7 +80,8 @@ MUTANTS = [
     ),
     (
         "gfx.c",
-        "\t\tmemset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);\n\t\tmem_watched = 0xffff;\n\t}\n\treturn",
+        "\t\tmemset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);\n"
+        "\t\tmem_watched = 0xffff;\n\t}\n\treturn",
         "\t\tmemset(bank[1], 0, FIELD / 2);\n\t\tmem_watched = 0xffff;\n\t}\n\treturn",
     ),
     (
@@ -165,10 +166,18 @@ MUTANTS = [
     ("gfx.c", "all.y0 = edge_black ? GFX_Y0 : 0;", "all.y0 = 0;"),
     ("gfx.c", "\tstale = 1;\n\tedge_black = 0;", "\tstale = 1;"),
     ("gfx.c", "\tpal_key = ~0u;\n\t/* Two bytes", "\t/* Two bytes"),
-    ("gfx.c", "\t\tmem_watched = 0xffff;\n\t}\n\treturn (k != K_TEXT);", "\t}\n\treturn (k != K_TEXT);"),
+    (
+        "gfx.c",
+        "\t\tmem_watched = 0xffff;\n\t}\n\treturn (k != K_TEXT);",
+        "\t}\n\treturn (k != K_TEXT);",
+    ),
     ("gfx.c", "if ((k == K_TEXT || k != kind) && kind_set(k) != 0)", "if (kind_set(k) != 0)"),
     ("gfx.c", "if (sent == NULL || !BIT(fresh, y))", "if (sent == NULL)"),
-    ("gfx.c", "\tmem_watched = 0xffff;\n\tmemset(fresh, 0, sizeof(fresh));", "\tmem_watched = 0xffff;"),
+    (
+        "gfx.c",
+        "\tmem_watched = 0xffff;\n\tmemset(fresh, 0, sizeof(fresh));",
+        "\tmem_watched = 0xffff;",
+    ),
     ("gfx.c", "\t\t\t    COL_BYTES * (n * w + w2) + WIN_BYTES)", "\t\t\t    0)"),
     ("gfx.c", "if (COL_BYTES * (n + 1) * (hi - lo) >", "if (0 * (n + 1) * (hi - lo) >"),
     ("gfx.c", "for (b = 80; p[b - 1] == q[b - 1]; b--)", "for (b = 80; 0; b--)"),
@@ -177,9 +186,17 @@ MUTANTS = [
     ("main.c", "\t\t\tgfx_plain = 1;", "\t\t\t;"),
     ("gfx.c", "GFX_Y0 + (first / cols + scroll_rows) % 25 * 8", "GFX_Y0 + first / cols * 8"),
     ("gfx.c", "scroll_rows = (scroll_rows + best) % 25;", "scroll_rows = best;"),
-    ("gfx.c", "sc.line = (u_short)(GFX_Y0 + (scroll_rows + best) % 25 * 8);", "sc.line = (u_short)(GFX_Y0 + best * 8);"),
+    (
+        "gfx.c",
+        "sc.line = (u_short)(GFX_Y0 + (scroll_rows + best) % 25 * 8);",
+        "sc.line = (u_short)(GFX_Y0 + best * 8);",
+    ),
     ("gfx.c", "\t\tif (same > most + 1) {", "\t\tif (same > most + 25) {"),
-    ("gfx.c", "\t\tcur_shown = (cur_shown + (25 - best) * cols) % (25 * cols);", "\t\tcur_shown += 0;"),
+    (
+        "gfx.c",
+        "\t\tcur_shown = (cur_shown + (25 - best) * cols) % (25 * cols);",
+        "\t\tcur_shown += 0;",
+    ),
     ("gfx.c", "memmove(shown, shown + row, 24 * row);", "memmove(shown, shown + row, 23 * row);"),
     ("gfx.c", "scroll_ok = !gfx_plain && DEV_IOCTL", "scroll_ok = DEV_IOCTL"),
     ("gfx.c", "\t\tscroll_rows = 0;\n\t\tscroll_ok", "\t\tscroll_ok"),
@@ -478,14 +495,16 @@ def test_stages(binary, work, fonts, boot):
         if stage == 12:
             # A second scroll moves the scroll start on from the first.
             _, twice = run(binary, work, key + "xx")
-            ramp = [((0x4567 + 0x0123 * i) & 255, (0x4567 + 0x0123 * i) >> 8 & 255) for i in range(2000)]
+            ramp = [(v & 255, v >> 8 & 255) for v in (0x4567 + 0x0123 * i for i in range(2000))]
             cells = ramp[160:] + [(32, 7)] * 160
             cells[1840] = (ord("Z"), 0x1E)
             cells[1920] = (ord("Y"), 0x1E)
             compare(twice[0][0], text_frame(fonts, cells, 80, 24 * 80 + 2), what + ", twice")
             if twice[0][1]["pixels"] - counts["pixels"] != 81 * 32:
-                raise Failure("%s: the second scroll sent %d pixels"
-                              % (what, twice[0][1]["pixels"] - counts["pixels"]))
+                raise Failure(
+                    "%s: the second scroll sent %d pixels"
+                    % (what, twice[0][1]["pixels"] - counts["pixels"])
+                )
             # A mode set after the scrolls draws from the adapter's line 0.
             _, again = run(binary, work, key + "xxx")
             cells = [(32, 7)] * 2000

@@ -570,7 +570,7 @@ UNTRUSTED_NEWLIB = ["-DC17_MATH_UNTRUSTED_FMA", "-DC17_MATH_UNTRUSTED_FMAF"]
 UNTRUSTED_NEWLIB += ["-DC17_MATH_UNTRUSTED_APPROX"]
 UNTRUSTED_NETBSD_ARM = ["-DC17_MATH_UNTRUSTED_FMA", "-DC17_MATH_UNTRUSTED_FMAF"]
 # The NetBSD groups each family's oracle calls reach; see netbsd_oracle.py.
-# locale has none: NetBSD's setlocale and collation run on its citrus locale
+# locale lacks one: NetBSD's setlocale and collation run on its citrus locale
 # database, and its wide conversions and classification read rune tables,
 # which a host or newlib program cannot load. time reaches system calls.
 NETBSD_GROUPS = {"math": ["libm"], "wide": ["wide"], "strtof": ["strtof", "libm"]}
@@ -705,7 +705,7 @@ def rename_tool(arm):
 
     ARM objects take the cross binutils. Host objects take OBJCOPY when the
     caller sets it, else objcopy or llvm-objcopy on PATH, else a Homebrew
-    LLVM, which is where a macOS host has one: Apple's toolchain ships no
+    LLVM, which is where a macOS host has one: Apple's toolchain lacks
     objcopy, and llvm-objcopy is the one that rewrites Mach-O symbol tables.
     """
     if arm:
@@ -762,7 +762,7 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
         # Headers the hosting newlib lacks; searched after its own.
         machine = machine + ["-idirafter", str(root / "tests/libc_contracts/newlib_shim")]
     elif platform.system() == "Darwin":
-        # Apple's SDK has no <uchar.h>; the same shim declares its members.
+        # Apple's SDK lacks <uchar.h>; the same shim declares its members.
         machine = machine + ["-idirafter", str(root / "tests/libc_contracts/newlib_shim")]
         # Its <ctype.h> and <wctype.h> otherwise define the classification
         # functions inline, which collides with a member compiled under its
@@ -788,7 +788,7 @@ def build(root, compiler, work, arm, family, replacement=None, oracle=None):
         flags = flags + (UNTRUSTED_NETBSD_ARM if oracle else UNTRUSTED_NEWLIB)
     if not arm and family == "math" and not oracle and platform.system() == "Darwin":
         # Apple's libm misses lgamma near its poles by a hundred units, so it
-        # is no oracle for the sampled inputs of the approximate members; the
+        # is not an oracle for the sampled inputs of the approximate members; the
         # pinned digests then require every bit of the run that met glibc.
         flags = flags + ["-DC17_MATH_UNTRUSTED_SAMPLES"]
     if arm and family == "strtof" and not oracle:
@@ -871,7 +871,7 @@ def uncalled(members, symbols):
 
 
 def require_coverage(fixture, arm):
-    """Fail when a provider of the math family has no reference in the fixture.
+    """Fail when a provider of the math family lacks a reference in the fixture.
 
     A member the fixture cannot call passes the gate whatever it computes.
     The detector is calibrated first: a symbol set missing one member must be

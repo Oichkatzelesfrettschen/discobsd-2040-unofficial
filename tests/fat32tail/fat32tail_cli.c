@@ -49,7 +49,7 @@
 /*
  * The driver's own backstop, far above the locator's search budget
  * (FT32_SEARCH_READS in fat32tail.c, 20,000), so it can never turn a
- * locator result into its own: a walk that reaches it has no bound at all.
+ * locator result into its own: a walk that reaches it is unbounded.
  */
 #define READ_BUDGET	(1ul << 20)
 

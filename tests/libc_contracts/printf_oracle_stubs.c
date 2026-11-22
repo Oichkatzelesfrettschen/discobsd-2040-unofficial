@@ -11,7 +11,7 @@ struct _iobuf _iob[3];
 
 /*
  * fflush(NULL) walks every open stream; the formatter tests write only
- * to string streams, so the walk has nothing to visit.
+ * to string streams, so the walk visits zero streams.
  */
 int
 _fwalk(int (*function)(FILE *))

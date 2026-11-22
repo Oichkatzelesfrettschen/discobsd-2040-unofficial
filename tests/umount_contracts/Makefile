@@ -9,7 +9,7 @@ PROG=	umount_contract_test
 TARGET_SRC=	${TOPSRC}/sbin/umount/umount.c
 
 # The tree's own headers, because struct statfs, getmntinfo() and the MOUNT_*
-# names are the ones sbin/umount compiles against and the host has no BSD
+# names are the ones sbin/umount compiles against and the host lacks a BSD
 # equivalent for. include/sys/types.h reads "typedef u_int size_t", so the
 # tier runs at ILP32, where the tree's size_t and the host's unsigned are the
 # same four bytes. umount_shim.h carries the rest of that reasoning.
@@ -63,7 +63,7 @@ ${MACHINE_STAMP}:
 	done
 	@touch $@
 
-# The shim carries no tree header, so it compiles without ${TREE} and reaches
+# The shim leaves out every tree header, so it compiles without ${TREE} and reaches
 # the host's <stdio.h> the way any host program does.
 shim.o: umount_shim.c umount_shim.h
 	${HOSTCC} -std=gnu17 ${WARN} ${ILP32} -c -o $@ umount_shim.c

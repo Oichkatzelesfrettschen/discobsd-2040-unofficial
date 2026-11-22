@@ -7,7 +7,7 @@ Each mutation rewrites a site back to the form it had before its fix, in a
 copy of the source file: a comparison against imax to the form that excluded
 the highest inode, or a transfer of the inode window to the full NINOBLK
 blocks. The gate builds the copy and requires the scenarios named for that
-mutation to fail. A mutation that matches no line, or more than one, stops
+mutation to fail. A mutation that matches zero lines, or more than one, stops
 the run, so a source edit that moves a site cannot leave a mutant that
 silently equals the program.
 """

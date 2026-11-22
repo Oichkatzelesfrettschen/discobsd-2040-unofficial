@@ -34,7 +34,7 @@
  * Integer division reaches the RP2040 SIO divider: lib/libc/arm/gen/aeabi_div.S
  * stores the dividend and divisor at SIO base 0xd0000000 + 0x60 and 0x64 and
  * loads the quotient and remainder from + 0x70 and + 0x74 (datasheet 2.3.1.5).
- * qemu-user maps no guest memory at or above 0x80000000 for an M-profile CPU,
+ * qemu-user maps zero guest memory at or above 0x80000000 for an M-profile CPU,
  * so those accesses raise SIGSEGV. The loader serves it like the svc sites: it
  * decodes the faulting "str Rt, [Rn, #imm]" or "ldr Rt, [Rn, #imm]", takes the
  * register block from its own state, starts the division when the divisor
@@ -42,7 +42,7 @@
  * divisor stores and the quotient and remainder loads are modeled; any other
  * access to the SIO block ends the run, so a helper that strays outside the
  * registers it documents fails. The arithmetic is libgcc's, not the divider's,
- * and the model has no eight-cycle delay, so the cycle wait and the divider's
+ * and the model lacks the eight-cycle delay, so the cycle wait and the divider's
  * overflow behavior remain board tests (tests/rp2040/divtest).
  *
  * The caller is a test: fork, exec, signals, pipes and the file system calls
@@ -353,7 +353,7 @@ serve(u32 code, u32 *r, u32 sp, u32 *rv)
 		/*
 		 * lseek(int fd, off_t off, int whence) with off_t a 32-bit long:
 		 * the kernel reads {fd, off, sbase} from r0..r2
-		 * (sys/kern/ufs_syscalls2.c) and the libc stub moves nothing.
+		 * (sys/kern/ufs_syscalls2.c) and the libc stub leaves the registers in place.
 		 */
 		x = lx(L_LSEEK, (long)r[0], (long)r[1], (long)r[2], 0, 0, 0);
 		break;

@@ -32,9 +32,9 @@ expect(int condition, const char *contract)
  * the expected form, which is the zero alone, so the value is 0 and the end
  * pointer names the letter after it.
  *
- *   "0x" without a hex digit, base 0 or 16: newlib consumes no byte.
+ *   "0x" without a hex digit, base 0 or 16: newlib consumes zero bytes.
  *   "0b", base 0 or 2: a C23 library converts the binary digits after it,
- *   and C17 has no such prefix.
+ *   and C17 lacks such a prefix.
  *
  * Both are held to the standard's answer and kept away from the oracle.
  * Returns the required end pointer, or NULL for any other input.
@@ -67,7 +67,7 @@ static unsigned long pinned_prefixes;
 
 /*
  * C17 7.22.1.4p7 gives a subject sequence without digits the value zero
- * and the end pointer of the input, and says nothing of errno; POSIX lets
+ * and the end pointer of the input, and is silent on errno; POSIX lets
  * an implementation report EINVAL there, and the BSD-derived libraries do.
  * The tree leaves errno untouched, so for that case the expected errno is
  * the tree's contract and the oracle supplies value and end pointer alone.

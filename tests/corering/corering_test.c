@@ -472,7 +472,7 @@ test_credits(void)
 /*
  * Replies fill their ring and every reply handler sends again. A reply
  * keeps its entry until its handler returns, so the first handler's send
- * finds no credit; the later ones do, and no reply ever lacks an entry.
+ * finds the credits exhausted; the later ones do, and no reply ever lacks an entry.
  */
 static void
 test_resend_from_reply_handler(void)

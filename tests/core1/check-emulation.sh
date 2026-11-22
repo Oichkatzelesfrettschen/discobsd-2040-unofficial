@@ -71,7 +71,7 @@ rebuild()
 	fi
 }
 
-# The scratch tree itself must change nothing: its kernel has to pass.
+# The scratch tree itself must leave the result unchanged: its kernel has to pass.
 rebuild "$work/control.log"
 "$PYTHON" -I "$here/emulate.py" "$tree/$builddir/unix.elf" >"$work/control.out" || {
 	echo "core1-emulation: the unmutated scratch kernel failed" >&2

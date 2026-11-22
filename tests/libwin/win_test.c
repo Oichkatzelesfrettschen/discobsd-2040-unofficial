@@ -1210,7 +1210,7 @@ do_show(int id)
 	}
 }
 
-/* id -1 leaves no window focused. */
+/* id -1 leaves every window unfocused. */
 static void
 do_focus(int id)
 {
@@ -1497,7 +1497,7 @@ run_api(void)
 	w = win_create(&scene, 0, 0, WIN_MIN_W, WIN_MIN_H, "t", NULL, NULL);
 	if (w == NULL)
 		fail("smallest window refused");
-	/* A window of another scene is no handle of this one. */
+	/* A window of another scene is not a handle of this one. */
 	foreign = win_create(&other, 5, 5, 40, 30, "theirs", NULL, NULL);
 	if (foreign == NULL)
 		fail("window of the second scene refused");
@@ -1645,7 +1645,7 @@ fill_damage(void)
 /*
  * Focus and visibility by hand: the focus follows raise and lower, moves to
  * the next window down when the focused one is destroyed or hidden, never
- * rests on a hidden window, a hidden window occludes nothing and records no
+ * rests on a hidden window, a hidden window occludes zero pixels and records zero
  * damage, and a call that fails at the backend changes neither the focus
  * nor the shown state.
  */
@@ -1691,7 +1691,7 @@ run_focus(void)
 	after_op(1);
 	if (panel[11 * PW + 11] != R_DESKTOP)
 		fail("a hidden window still covers the desktop");
-	/* A hidden window records no damage. */
+	/* A hidden window records zero damage. */
 	if (win_move(&scene, tw[0].handle, 30, 30) != 0 ||
 	    win_resize(&scene, tw[0].handle, 90, 70) != 0 ||
 	    win_set_title(&scene, tw[0].handle, "hidden") != 0 ||
@@ -2332,7 +2332,7 @@ run_decoders(void)
 				fail("key %d decoded as %d", keys[i], canary_ev[0].key);
 			if (in.esc != 0)
 				fail("key %d left the decoder mid-sequence", keys[i]);
-			/* Every strict prefix of a sequence makes no key. */
+			/* Every strict prefix of a sequence makes zero keys. */
 			for (cut = 1; cut < len; cut++) {
 				win_input_init(&in);
 				for (c = 0; c < cut; c++)
@@ -2799,7 +2799,7 @@ run_dev(void)
 	/*
 	 * A kernel that wakes select for every event: the wait sleeps in one
 	 * select until the next event of any kind, a wake for an event that typed
-	 * nothing reads no tty byte, and a quiet timeout is one select.
+	 * zero bytes reads zero tty bytes, and a quiet timeout is one select.
 	 */
 	kb_reset();
 	kb_cap = 1;

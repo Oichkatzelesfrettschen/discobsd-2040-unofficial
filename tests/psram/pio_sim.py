@@ -760,7 +760,7 @@ class Pio:
 
     def _emit(self, cycle):
         """The pad state after the instruction of `cycle`; a cycle that
-        changes no pad drives nothing new."""
+        changes zero pads drives zero new levels."""
         if (self.level, self.dirs) == self.emitted:
             return
         self.emitted = (self.level, self.dirs)

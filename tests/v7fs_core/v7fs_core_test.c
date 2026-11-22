@@ -2605,7 +2605,7 @@ regress(int fd)
 		v7fs_io_fini(fs);
 	}
 
-	/* An inode number past the inode list names no inode. */
+	/* An inode number past the inode list names a nonexistent inode. */
 	if (format_image(fd, 64, 0) != 0 || (fs = mount_image(fd)) == NULL) {
 		fail("regress-inode-bound", "format or mount failed");
 	} else {

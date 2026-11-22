@@ -142,7 +142,7 @@ check-cross: bad_malloc.o check_object.sh
 # catanh do not follow Annex G on the branch cuts, so they cannot serve as
 # the reference there. The Annex G table in complex_vectors.h still runs.
 # CALC_TEST_NO_SIGNALS drops the fault recovery of the NULL-pointer sweep: the
-# bare-metal C library has no sigaction, and a fault ends the run.
+# bare-metal C library lacks sigaction, and a fault ends the run.
 calc_test_arm: calc_test.c complex_vectors.h ${LIBSRCS} ${HEADERS} ${QEMU_SUPPORT}
 	${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -DCALC_TEST_NO_HOST_COMPLEX \
 	    -DCALC_TEST_NO_SIGNALS -I${LIBDIR} \

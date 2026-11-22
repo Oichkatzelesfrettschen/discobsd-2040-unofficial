@@ -1,7 +1,7 @@
 #!/bin/sh
 # Copy the flash sources, apply one edit, and require the gate to fail on the
 # result. Usage: mutant.sh CC SRCDIR FILE SED-SCRIPT
-# SRCDIR is sys/arch/rp2040/dev. An edit that changes nothing, or a mutant
+# SRCDIR is sys/arch/rp2040/dev. An edit that leaves the file unchanged, or a mutant
 # that does not compile, is an error (exit 2), not a kill; a mutant the gate
 # accepts fails this script (exit 1).
 set -eu

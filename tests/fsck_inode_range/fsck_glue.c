@@ -4,7 +4,7 @@
  * passwd. See fsck_glue.h.
  *
  * fsck stats "/" and the image to decide whether the image is the root
- * device. An image file has no raw device number, so st_rdev is zero, and
+ * device. An image file lacks a raw device number, so st_rdev is zero, and
  * st_dev is raised by one so that a root filesystem whose host device number
  * is zero cannot compare equal to it. Neither value is used otherwise.
  */

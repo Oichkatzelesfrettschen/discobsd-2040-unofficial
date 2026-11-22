@@ -2115,7 +2115,7 @@ test_pid(void)
 }
 
 /*
- * Properties of the derivative term that need no stored vector. With Kp = Ki
+ * Properties of the derivative term that need zero stored vectors. With Kp = Ki
  * = 0 the output is the derivative term d[n] = (-2 Kd (m[n] - m[n-1]) +
  * (2 tau - T) d[n-1]) / (2 tau + T), whose pole (2 tau - T) / (2 tau + T)
  * is positive for tau >= T / 2.
@@ -2256,7 +2256,7 @@ test_accuracy(void)
  * Compare the elementary complex functions with the host's <complex.h>.
  * The ARM run defines CALC_TEST_NO_HOST_COMPLEX: newlib's catan, casinh,
  * cacosh and catanh do not follow C99 Annex G on the branch cuts and at
- * signed zeros, so they are no oracle there. The Annex G table in
+ * signed zeros, so they are not an oracle there. The Annex G table in
  * complex_vectors.h covers those points on every variant.
  */
 #ifndef CALC_TEST_NO_HOST_COMPLEX
@@ -2324,7 +2324,7 @@ test_complex_grid(void)
  * that pointer NULL and the rest valid, must return CALC_E_ARG. A fault is a
  * failure that the run reports and survives, so a deleted guard shows up as a
  * FAIL line and not as a crash. The ARM run defines CALC_TEST_NO_SIGNALS: the
- * bare-metal C library has no sigaction, and a fault there ends the run.
+ * bare-metal C library lacks sigaction, and a fault there ends the run.
  */
 #ifndef CALC_TEST_NO_SIGNALS
 static sigjmp_buf null_env;

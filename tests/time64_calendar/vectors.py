@@ -1,6 +1,6 @@
 """Write the expected calendar fields of the 64-bit view as a C header.
 
-The oracle is CPython's datetime.date, which shares no arithmetic with
+The oracle is CPython's datetime.date, which shares zero arithmetic with
 lib/libc/gen/ctime.c or mktime.c. It covers years 1 through 9999; the
 Gregorian calendar repeats every 400 years (146097 days, a whole number of
 weeks), so an instant outside that span is moved by whole eras into it,

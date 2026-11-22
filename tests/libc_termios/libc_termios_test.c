@@ -88,7 +88,7 @@ static const struct bit cc_index[] = {
 	BIT(VLNEXT), BIT(VEOL2), BIT(VDSUSP), BIT(VSTATUS),
 };
 
-/* Every named bit of one word is nonzero and shares no bit with another. */
+/* Every named bit of one word is nonzero and shares zero bits with another. */
 static void
 check_disjoint(const char *word, const struct bit *b, int n)
 {
@@ -184,7 +184,7 @@ check_speeds(void)
 	CHECK(cfsetspeed(&t, B57600) == 0);
 	CHECK(t.c_ispeed == B57600 && t.c_ospeed == B57600);
 
-	/* A value past the last name is refused and changes nothing. */
+	/* A value past the last name is refused and leaves the structure unchanged. */
 	t.c_ispeed = B300;
 	t.c_ospeed = B1200;
 	test_errno = 0;
@@ -399,7 +399,7 @@ check_get_rest(void)
 	CHECK(t.c_cc[VSUSP] == 0x1a && t.c_cc[VDSUSP] == 0x19);
 	CHECK(t.c_cc[VREPRINT] == 0x12 && t.c_cc[VDISCARD] == 0x0f);
 	CHECK(t.c_cc[VWERASE] == 0x17 && t.c_cc[VLNEXT] == 0x16);
-	/* The rows the kernel has no field for. */
+	/* The rows the kernel lacks a field for. */
 	CHECK(t.c_cc[VEOL2] == _POSIX_VDISABLE);
 	CHECK(t.c_cc[VSTATUS] == _POSIX_VDISABLE);
 	/* The read counts a tty starts with. */
@@ -801,7 +801,7 @@ check_zero_ispeed(void)
 }
 
 /*
- * Reading the state and writing it back changes no sgtty word, including
+ * Reading the state and writing it back leaves every sgtty word unchanged, including
  * the bits no termios row names, and issues no set request: TIOCSETN drains
  * and flushes input whenever RAW is set, even for an unchanged write.
  */
@@ -896,7 +896,7 @@ static const struct rf_cc rf_ccs[] = {
 
 /*
  * A request that asks only for what the kernel cannot honor fails with EINVAL
- * and changes nothing; the same request beside an honored change succeeds,
+ * and leaves the state unchanged; the same request beside an honored change succeeds,
  * applies that change and leaves the refused rows as they were.
  */
 static void
@@ -976,7 +976,7 @@ check_set_special(void)
 	int i;
 
 	/*
-	 * A split ICRNL and ONLCR changes nothing, so alone it is refused; beside
+	 * A split ICRNL and ONLCR leaves CRMOD unchanged, so alone it is refused; beside
 	 * an honored change the call succeeds and CRMOD stays as it was.
 	 */
 	for (i = 0; i < 4; i++) {
@@ -1012,7 +1012,7 @@ check_set_special(void)
 	CHECK(model.log[5] == TIOCHPCL);
 	CHECK(tcgetattr(MODEL_FD, &t) == 0 && (t.c_cflag & HUPCL) == 0);
 
-	/* An action that is none of the three fails before any request. */
+	/* An action outside the three fails before any request. */
 	model_reset(ECHO);
 	CHECK(tcgetattr(MODEL_FD, &t) == 0);
 	snapshot();
@@ -1116,7 +1116,7 @@ check_drain(void)
 	CHECK(tcdrain(MODEL_FD) == -1 && test_errno == EINTR);
 	CHECK(model.drained == 0);
 
-	/* A kernel without the request, and a descriptor that is no terminal. */
+	/* A kernel without the request, and a descriptor that is not a terminal. */
 	model_reset(ECHO);
 	model.fail_request = TIOCDRAIN;
 	test_errno = 0;

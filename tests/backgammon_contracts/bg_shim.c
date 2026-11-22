@@ -1,6 +1,6 @@
 /*
  * The host side of the gate: stdio, pipes and wait(2).  bg_shim.h states why
- * this translation unit holds no tree header.
+ * this translation unit leaves out every tree header.
  */
 #include <fcntl.h>
 #include <stdio.h>

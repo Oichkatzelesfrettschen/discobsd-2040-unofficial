@@ -29,7 +29,7 @@
 #
 # Builds the interpreter from copies of its sources with one defect each
 # and requires check.sh to reject every one: a gate that passes a broken
-# interpreter reports nothing. Each defect is one substitution in ulisp.c
+# interpreter is blind. Each defect is one substitution in ulisp.c
 # that must change the file.
 set -eu
 
@@ -38,7 +38,7 @@ src=$1
 doc=$2
 cc=$3
 
-# check.sh runs the interpreter under env -i, which leaves no PATH to find
+# check.sh runs the interpreter under env -i, which leaves zero PATH entries to find
 # timeout(1) in: a name that resolves in this shell (coreutils installs gtimeout
 # on macOS, outside the default path) is passed as a full path. A looping mutant
 # needs the bound, so a host with neither is an error.
@@ -57,7 +57,7 @@ trap 'exit 143' TERM
 # The race corpus runs when the Makefile has built its shim (Linux only);
 # the image-reread mutant needs it
 shim=
-# A shim left by a Linux build in a tree that macOS now runs is no shim: the
+# A shim left by a Linux build in a tree that macOS now runs is not a shim: the
 # platform decides, and the file only says whether the Linux build made it.
 if [ "$(uname -s)" = Linux ] && [ -f "$here/rewrite-race.so" ]; then
 	shim=$here/rewrite-race.so
@@ -188,8 +188,8 @@ mutant quotient-min 's/if (den == -1 \&\& num == INT_MIN) return makefloat(-(flo
 # The loader trusts its first check of the file and installs a second read.
 # Only the race corpus, which rewrites the file between the two reads through
 # the LD_PRELOAD shim, rejects it. The shim is built on Linux only: a Linux host
-# without it has a failed build, which is an error, and any other host runs no
-# such corpus and skips the mutant.
+# without it has a failed build, which is an error, and any other host skips
+# that corpus and the mutant.
 if [ -n "$shim" ]; then
 	mutant image-reread 's/^  fault = checkimage(header, imagesize);$/  fault = NULL;/'
 elif [ "$(uname -s)" = Linux ]; then
@@ -275,9 +275,9 @@ pmutant hl-wrap-redraw unix.c 's/if (dr != tr) {/if (0) {/'
 pmutant hl-match-stays unix.c 's/cls\[m\] |= 0x80;/cls[m] |= 0x00;/'
 # The editor colors a dumb terminal.
 pmutant hl-dumb unix.c 's/strcmp(term, "dumb") != 0/1/'
-# The Left key does nothing.
+# The Left key is ignored.
 pmutant ed-left unix.c "s/key == 'D' && pos > 0/0/"
-# The Delete key does nothing.
+# The Delete key is ignored.
 pmutant ed-delete unix.c 's/arg == 3 && pos < n/0/'
 # The cursor of a full row is not brought back to the end of the line.
 pmutant ed-full-row unix.c 's/if (back != to)/if (0)/'

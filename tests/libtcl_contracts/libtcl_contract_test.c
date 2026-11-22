@@ -54,7 +54,7 @@ struct script_case {
 
 static const struct script_case script_cases[] = {
 	/* Tcl_Eval skips the semicolon that ends a command; at a
-	   separator it does not skip, TclParseWords returns no words and
+	   separator it does not skip, TclParseWords returns zero words and
 	   the command loop never advances. */
 	{ "command-separator",
 	  "set a 1; set b 2;; list $a $b",

@@ -140,7 +140,7 @@ mutant-layout-boot2-valid-only:
 	${MUT} loader_stamp.h \
 	    's/ll->loader_boot2 = magic == LOADER_STAMP_MAGIC;/ll->loader_boot2 = ll->status == LOADER_STAMP_VALID;/'
 
-# The layout reports every stamp as valid, so a bad limit prints nothing.
+# The layout reports every stamp as valid, so a bad limit prints zero lines.
 mutant-layout-status-valid:
 	${MUT} loader_stamp.h \
 	    's/ll->status = loader_stamp_decode(/ll->status = LOADER_STAMP_VALID + 0 * loader_stamp_decode(/'

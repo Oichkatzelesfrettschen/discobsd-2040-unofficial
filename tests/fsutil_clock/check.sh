@@ -14,7 +14,7 @@
 #
 # The reader is fsutil itself (-vvv prints the superblock and inode times
 # with ctime in UTC); the expected text comes from Python's asctime, which
-# shares no code with it. Seven source mutants calibrate the cases: the old
+# shares zero code with it. Seven source mutants calibrate the cases: the old
 # 0x7fffffff bound, a fixed clock that only caps the host time, a range
 # check without an upper bound, a bad value that falls back to the host
 # clock, a ceiling above 0x7fffffff that is ignored, an added file that
@@ -251,7 +251,7 @@ sys.exit(0 if abs(time.time() - t) < 600 else 1)' "$stamped"; then
 	fi
 
 	# Values outside 0 through 4294967295, or not plain decimal numbers,
-	# exit 1 with a message naming the variable and leave no image.
+	# exit 1 with a message naming the variable and leave zero images.
 	for value in 4294967296 abc "" -1 " 5" 0x10 5x 99999999999999999999999; do
 		for variable in FSUTIL_CLOCK SOURCE_DATE_EPOCH; do
 			if [ -z "$value" ] && [ "$variable" = SOURCE_DATE_EPOCH ]; then
@@ -329,7 +329,7 @@ sys.exit(0 if abs(time.time() - t) < 600 else 1)' "$stamped"; then
 		bad repartition-with-good-clock "exit $status or no image was created"
 	fi
 
-	# A mode that writes no time reads an image whatever the variables hold.
+	# A mode that skips writing a time reads an image whatever the variables hold.
 	if env SOURCE_DATE_EPOCH=abc FSUTIL_CLOCK=abc "$bin" \
 	    "$work/base.img" >/dev/null 2>&1; then
 		ok read-ignores-clock

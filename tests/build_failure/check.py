@@ -112,7 +112,7 @@ def check_lib(root, make, scratch):
     lib = lib_scratch(root, scratch)
     stubs = write_stubs(scratch / "stubs")
     # share/mk/sys.mk asks git for a revision count, which the scratch tree
-    # has no answer to; the warning goes to stderr and the value to stdout.
+    # cannot answer; the warning goes to stderr and the value to stdout.
     query = run([*make, "MACHINE=rp2040", "-V", "${SUBDIR}"], lib, {},
                 stderr=subprocess.DEVNULL)
     subdirs = query.stdout.split()
@@ -203,7 +203,7 @@ def read_blocks(path, required=KERNEL_REQUIRED):
 
 
 def kernel_blocks(root):
-    # config emits the unix rule from its load line; the template has none.
+    # config emits the unix rule from its load line; the template lacks one.
     template = read_blocks(root / "sys/arch/rp2040/conf/Makefile.rp2040",
                            required=[k for k in KERNEL_REQUIRED if k != "unix:"])
     for route in KERNEL_ROUTES:

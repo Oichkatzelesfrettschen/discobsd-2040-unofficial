@@ -33,7 +33,7 @@ divide(intmax_t numerator, intmax_t denominator)
 {
 	imaxdiv_t result;
 
-	/* The two undefined cases of C17 6.5.5p5 and p6 have no oracle. */
+	/* The two undefined cases of C17 6.5.5p5 and p6 lack an oracle. */
 	if (denominator == 0 ||
 	    (numerator == INTMAX_MIN && denominator == -1))
 		return;

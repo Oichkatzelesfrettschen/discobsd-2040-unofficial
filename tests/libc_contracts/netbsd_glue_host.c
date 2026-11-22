@@ -38,7 +38,7 @@
  * the SVID error path, which the default _LIB_VERSION of _POSIX_ never
  * takes, so the array is storage for the reference and never read.
  *
- * The _fe names (NETBSD_ORACLE_SOFT_FENV): on the soft-float target there are no status flags and
+ * The _fe names (NETBSD_ORACLE_SOFT_FENV): on the soft-float target status flags are absent and
  * the only rounding direction is to nearest, which NetBSD's <arm/fenv.h>
  * spells 0.  Requests for anything else fail, as the tree's <fenv.h> does.
  * The x86 oracles take NetBSD's own fenv.c instead.  The i387 one

@@ -88,7 +88,7 @@ copy_tree()
 	    compat "$tree/usr.sbin/msdosfs/")
 }
 
-# status WANT CMD...: CMD exits with WANT and writes no sanitizer report.
+# status WANT CMD...: CMD exits with WANT and writes zero sanitizer reports.
 status()
 {
 	want=$1
@@ -553,7 +553,7 @@ else
 	echo "msdosfs_core: formatter leak control skipped on $(uname -s)"
 fi
 
-# DiscoBSD has no mmap(2): msdosfs_wfile without msdosfs_vnops.patch does
+# DiscoBSD lacks mmap(2): msdosfs_wfile without msdosfs_vnops.patch does
 # not compile for the target.
 if command -v arm-none-eabi-gcc >/dev/null 2>&1; then
 	copy_tree no-vnops-patch

@@ -29,7 +29,7 @@
 // A host stand-in for the Arduino core and the PicoCalc libraries that
 // ulisp-picocalc.ino includes, enough to run the unmodified interpreter as
 // the reference for the language corpus: the serial port is the standard
-// streams, the display, keyboard, pins and buses do nothing, and the SD
+// streams, the display, keyboard, pins and buses are inert, and the SD
 // card is the current directory.
 #pragma once
 #include <stdint.h>

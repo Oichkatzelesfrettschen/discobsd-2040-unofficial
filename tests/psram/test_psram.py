@@ -474,7 +474,7 @@ def test_region_offset(lib):
 def test_region_swap_all(lib):
     """psram_swap_all() (called by sdswapattach() once the SD card holds the
     /tmp partition) widens the swap region over the whole part: minor 0 spans
-    8 MB and maps every block to its own offset, minor 1 has no region and is
+    8 MB and maps every block to its own offset, minor 1 lacks a region and is
     refused, so no /tmp transfer reaches the part. The call is sticky, as a
     reset alone ends it, so this test runs after the split's checks."""
     import ctypes
@@ -591,7 +591,7 @@ def test_driver(lib_path, c, access_ticks=6, quiet=False, **rig_kw):
         all((v >> 4) & 3 == 2 for v in pads.values()),
         "every PSRAM pad selects 8 mA",
     )
-    # A pad word that names no drive strength leaves the reset 4 mA alone.
+    # A pad word that omits a drive strength leaves the reset 4 mA alone.
     r.lib.psram_host_unreset()
     r.lib.psram_host_pin(10, 0x8 | 0x2)
     r.lib.psram_host_pad_word.restype = ctypes.c_uint

@@ -13,7 +13,7 @@
  *   destructive backspace names, which decides between "\010 \010" and
  *   echoing back what was rubbed out.  That is LCRTERA in the local mode
  *   word and nothing else: backspace and DEL are two input characters, and
- *   which of them sg_erase holds says nothing about what the display does
+ *   which of them sg_erase holds is silent on what the display does
  *   with the byte written back.  Reading the erase character for it conflates
  *   the two, so the suite drives them apart.
  *

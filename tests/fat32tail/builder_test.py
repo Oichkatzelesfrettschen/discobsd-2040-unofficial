@@ -231,7 +231,7 @@ def command_line() -> None:
         result = run("-o", str(other), str(kernel), str(root))
         require(result.returncode == 0 and "discobsd.uf2" in result.stderr, "name warning")
         other.unlink()
-        # Refusals leave no output and say why.
+        # Refusals leave zero output files and say why.
         for bad_out in ("discobsd.UF2", "discobsd.bin", "DiscoBSD.uf2", "toolongname.uf2"):
             path = WORK / bad_out
             made.append(path)

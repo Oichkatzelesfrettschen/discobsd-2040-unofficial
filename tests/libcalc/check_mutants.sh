@@ -21,7 +21,7 @@ fi
 
 for dir in "$root"/*/; do
     name=$(basename "$dir")
-    # The sources are word-split on purpose: file names carry no spaces.
+    # The sources are word-split on purpose: file names are free of spaces.
     # shellcheck disable=SC2086
     "$HOSTCC" -std=c17 -pedantic-errors -Wall -Wextra -Werror -Wshadow -Wconversion \
         -O1 -I"$dir" -o "$dir/calc_test" calc_test.c "$dir"calc_*.c -lm

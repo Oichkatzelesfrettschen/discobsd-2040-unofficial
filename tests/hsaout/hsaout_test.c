@@ -376,6 +376,66 @@ tree (const char *dir)
         printf ("%s: %d a.out files round-tripped\n", dir, n);
 }
 
+static void
+shared_container(void)
+{
+    struct exec e = {0};
+    struct xip_requirement req = { XREQ_SIG, XREQ_VERSION, 56, { 42 }, 3,
+        0x20000018U, 16 };
+    unsigned char raw[sizeof e + sizeof req + 16];
+    unsigned char *packed, *expanded;
+    const char *error;
+    size_t length, rawlen, i;
+
+    N_SETMAGIC(e, OMAGIC, MID_ZERO, EX_XIP);
+    e.a_text = 12;
+    e.a_data = 4;
+    e.a_bss = 24;
+    e.a_entry = 0x20000001U;
+    memcpy(raw, &e, sizeof e);
+    memcpy(raw + sizeof e, &req, sizeof req);
+    memset(raw + sizeof e + sizeof req, 0xa5, 16);
+    packed = hsaout_pack(raw, sizeof raw, &length, &error);
+    CHECK(packed != NULL, "shared pack: %s", error);
+    if (packed == NULL)
+        return;
+    expanded = hsaout_unpack(packed, length, &rawlen, &error);
+    CHECK(expanded && rawlen == sizeof raw && memcmp(raw, expanded, rawlen) == 0,
+        "shared header, requirement and both streams round-trip");
+    free(expanded);
+    for (i = 0; i < sizeof req; ++i) {
+        packed[sizeof e + i] ^= 1;
+        CHECK(rejected(packed, length), "changed requirement byte %zu", i);
+        packed[sizeof e + i] ^= 1;
+    }
+    for (i = 0; i < length; ++i)
+        CHECK(rejected(packed, i), "shared truncation at %zu", i);
+    /* Reseal a state base that precedes the BSS tail. */
+    {
+        struct hsx x;
+        unsigned crc;
+        size_t prefix = sizeof e + sizeof req;
+
+        req.state_base -= 8;
+        memcpy(packed + sizeof e, &req, sizeof req);
+        memcpy(&x, packed + prefix, sizeof x);
+        x.x_hdrcrc = 0;
+        crc = crc32_update(CRC32_INIT, packed, prefix);
+        x.x_hdrcrc = CRC32_FIN(crc32_update(crc, &x, sizeof x));
+        memcpy(packed + prefix, &x, sizeof x);
+        expanded = hsaout_unpack(packed, length, &rawlen, &error);
+        CHECK(expanded == NULL && error && strcmp(error, "shared executable layout rejected") == 0,
+            "resealed shared layout rejected before expansion");
+        free(expanded);
+        memcpy(raw + sizeof e, &req, sizeof req);
+        expanded = hsaout_pack(raw, sizeof raw, &rawlen, &error);
+        CHECK(expanded == NULL && error && strcmp(error, "shared executable layout rejected") == 0,
+            "raw shared layout rejected before packing");
+        free(expanded);
+    }
+    free(packed);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -406,6 +466,7 @@ main (int argc, char **argv)
     raw[0] ^= 1;
     CHECK (hsaout_pack (raw, rawlen, &n, &err) == NULL, "bad magic packed");
     free (raw);
+    shared_container();
     streams ();
     if (argc > 1)
         tree (argv[1]);

@@ -2964,11 +2964,18 @@ diag_stats_test: diag_stats_test.c ${DIAG_SRC} hostkern32.o hostkern.h \
 	${HOST_CC} ${GATE_CFLAGS} -DDIAG_STATS ${ILP32} -o $@ \
 	    diag_stats_test.c diag_stats_kernel.o hostkern32.o
 
+check-diag-stats:
+.if ${ILP32_OK} == "yes"
 check-diag-stats: diag_stats_test
 	./diag_stats_test
+.else
+	@echo "SKIP check-diag-stats: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
 
 # Each line: mutant name, sed expression, the check expression that must
 # fail first.
+check-diag-stats-mutants:
+.if ${ILP32_OK} == "yes"
 check-diag-stats-mutants: diag_stats_test
 	@set -eu; \
 	run_mutant() { \
@@ -3002,6 +3009,9 @@ check-diag-stats-mutants: diag_stats_test
 	run_mutant ring-unlocked '/^diag_msgputc/,/^}/s/int s = splhigh();/int s = 0;/' 'hk_ipl_raises == before + 1'; \
 	run_mutant ring-clamp 's/if (now - pos > DIAG_MSGBUF_SIZE)/if (0)/' 'hk_streq(out, expected)'; \
 	run_mutant ring-enomem 's/if (\*oldlenp == 0) {/if (*oldlenp == 0) { return ENOMEM;/' 'len == 12'
+.else
+	@echo "SKIP check-diag-stats-mutants: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
 
 buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
     ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
@@ -3282,6 +3292,12 @@ sigreturn_context_test32: sigreturn_context_test.c \
     sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
 	    -o $@ sigreturn_context_test.c
+
+sigreturn_context_xip_test32: sigreturn_context_test.c \
+    sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -DEXEC_XIP_LIBC -no-pie \
+	    -Wl,--defsym,__xip_libc_start=0x10020000 \
+	    -Wl,--defsym,__xip_libc_end=0x1002c000 -o $@ sigreturn_context_test.c
 
 sigreturn_context_test_sanitized: sigreturn_context_test.c \
     sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
@@ -3574,7 +3590,7 @@ check-ilp32:
 	    mem_span_endpoint-admission.mutant32.test \
 	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
-	    syscall_args_dispatch_mutant sigreturn_context_test32 \
+	    syscall_args_dispatch_mutant sigreturn_context_test32 sigreturn_context_xip_test32 \
 	    check-sigreturn-mutants \
 	    exec_elf_admission_test32 exec_elf_segment_span_mutant \
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
@@ -3639,6 +3655,8 @@ check-ilp32:
 	echo "PASS syscall dispatch-after-failure mutation rejected"
 	${TEST_EXECUTION} run kernel.sigreturn-context.ilp32 -- \
 	    ./sigreturn_context_test32
+	${TEST_EXECUTION} run kernel.sigreturn-context-xip.ilp32 -- \
+	    ./sigreturn_context_xip_test32
 	${TEST_EXECUTION} run kernel.elf-admission.ilp32 -- \
 	    ./exec_elf_admission_test32
 	@if ./exec_elf_segment_span_mutant; then status=0; else status=$$?; fi; \
@@ -3720,6 +3738,7 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.rlimit-growth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.sigreturn-context-xip.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.elf-admission.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.elf-surrounding-contract.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3886,7 +3905,7 @@ clean:
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
 	rm -f syscall_args_test32 syscall_args_dispatch_mutant
-	rm -f sigreturn_context_function.c sigreturn_context_test32 \
+	rm -f sigreturn_context_function.c sigreturn_context_test32 sigreturn_context_xip_test32 \
 	    sigreturn_context_test_sanitized
 	rm -f sigreturn_context_*.mutant.c sigreturn_context_*.mutant.test \
 	    sigreturn_context_*.mutant.out

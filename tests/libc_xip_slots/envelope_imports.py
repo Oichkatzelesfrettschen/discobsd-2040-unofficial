@@ -44,7 +44,16 @@ RECORD = (
 BASE = 0x10020000
 
 
+def image_record(image):
+    record = json.loads(RECORD.read_text())
+    provider = json.loads(RECORD.with_name("compact-provider.json").read_text())
+    if hashlib.sha256(image).hexdigest() == provider["slot_elf_sha256"]:
+        record.update(provider)
+    return record
+
+
 def import_source(image, record):
+    require(hashlib.sha256(image).hexdigest() == record["slot_elf_sha256"], "image digest differs")
     elf = ELFFile(io.BytesIO(image))
     text = elf.get_section_by_name(".text")
     table = elf.get_section_by_name(".symtab")
@@ -57,9 +66,10 @@ def import_source(image, record):
     data = text.data()
     lines = [".syntax unified", ".thumb", ".text"]
     for index, group in enumerate(groups):
-        offset = width * index
+        offset = record.get("slot_table_offset", 0) + width * index
         require(group and offset + width <= len(data), "slot extent differs")
-        slot = table.get_symbol_by_name(f"slot_{index}")
+        direct = group == [record.get("inline_trampoline")]
+        slot = table.get_symbol_by_name("sigtramp" if direct else f"slot_{index}")
         require(
             slot and len(slot) == 1 and slot[0]["st_value"] == BASE + offset + 1,
             "slot address differs",
@@ -67,7 +77,21 @@ def import_source(image, record):
         target = BASE + struct.unpack_from("<H", data, offset + 6)[0]
         for name in group:
             require(re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", name), "invalid import name")
-            owner = table.get_symbol_by_name(name)
+            owner_name = record.get("implementation_owners", {}).get(name, name)
+            owner = table.get_symbol_by_name(owner_name)
+            if direct:
+                require(
+                    data[offset : offset + 4] == bytes.fromhex("67df01df")
+                    and slot[0]["st_size"] == 4,
+                    "signal slot instructions differ",
+                )
+                target = BASE + offset + 1
+            elif owner_name != name:
+                public = table.get_symbol_by_name(name)
+                require(
+                    public and len(public) == 1 and public[0]["st_value"] == BASE + offset + 1,
+                    "public callback slot differs: " + name,
+                )
             require(
                 owner and len(owner) == 1 and owner[0]["st_value"] == target and target & 1,
                 "slot target differs: " + name,
@@ -82,11 +106,11 @@ def import_source(image, record):
                 ]
             )
         lines.append(f".space {width}")
-    require(hashlib.sha256(image).hexdigest() == record["slot_elf_sha256"], "image digest differs")
     return "\n".join(lines)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", type=Path)
-    print(import_source(parser.parse_args().image.read_bytes(), json.loads(RECORD.read_text())))
+    source = parser.parse_args().image.read_bytes()
+    print(import_source(source, image_record(source)))

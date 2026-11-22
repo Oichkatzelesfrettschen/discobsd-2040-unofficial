@@ -148,7 +148,7 @@ MUTANTS = [
     ("pc.c", "\t\t\tgfx_pointer(mouse_keys);", "\t\t\tgfx_pointer(1);"),
     ("mem.c", "\t\t(void)unmap(pg);\n\t\tdrop(i);", "\t\tdrop(i);"),
     ("gfx.c", "#define GFX_DRAIN\t16", "#define GFX_DRAIN\tLINES"),
-    ("gfx.c", "\t\tgraphic_drain(LINES);\n", "\t\t(void)0;\n"),
+    ("gfx.c", "\t\tgraphic_drain(LINES);\n\tgfx_on = 0;", "\t\t(void)0;\n\tgfx_on = 0;"),
     ("gfx.c", "\t\tmax -= n;\n", "\t\tmax = 0;\n"),
     (
         "gfx.c",
@@ -184,6 +184,11 @@ MUTANTS = [
     ("gfx.c", "for (a = 0; a < 80 && p[a] == q[a]; a++)", "for (a = 0; 0; a++)"),
     ("gfx.c", "sent = bank[1] + (BANK_PAGES << MEM_PGSHIFT);", "sent = bank[1];"),
     ("main.c", "\t\t\tgfx_plain = 1;", "\t\t\t;"),
+    ("gfx.c", "GFX_Y0 + (y - GFX_Y0 + scroll_rows * 8) % LINES);", "y);"),
+    ("gfx.c", "rd.x = (u_short)(half * LCDG_WIDTH / 2);", "rd.x = 0;"),
+    ("main.c", "\t\t\tgfx_capture_path = optarg;", "\t\t\t(void)optarg;"),
+    ("pc.c", "\tsaved = gfx_capture();\n", "\tsaved = 1;\n"),
+    ("gfx.c", "O_WRONLY | O_CREAT | O_EXCL, 0644", "O_WRONLY | O_CREAT | O_TRUNC, 0644"),
     ("gfx.c", "GFX_Y0 + (first / cols + scroll_rows) % 25 * 8", "GFX_Y0 + first / cols * 8"),
     ("gfx.c", "scroll_rows = (scroll_rows + best) % 25;", "scroll_rows = best;"),
     (
@@ -577,7 +582,7 @@ def load_ptywait():
 ptywait = load_ptywait()
 
 
-def session(binary, work, steps, env=None):
+def session(binary, work, steps, env=None, extra=(), started=None):
     """A session typed at a pseudo-terminal: each step waits for a text
     there or for a close of the panel, then types."""
     base = os.path.join(work, "frame")
@@ -588,12 +593,14 @@ def session(binary, work, steps, env=None):
     shutil.copyfile(os.path.join(work, "panel.img"), image)
     master, slave = pty.openpty()
     child = subprocess.Popen(
-        [binary, "-T", "-g", "-s", os.path.join(work, "page"), "-a", image],
+        [binary, "-T", "-g", "-s", os.path.join(work, "page"), "-a", image, *extra],
         stdin=slave,
         stdout=slave,
         stderr=subprocess.DEVNULL,
         env=dict(os.environ, I86_PANEL=base, **(env or {})),
     )
+    if started:
+        started(child.pid)
     seen = b""
     at = step = 0
     deadline = time.time() + 30
@@ -682,6 +689,83 @@ def test_menu(binary, work, fonts, boot):
     compare(closes[0][0], cga4_frame(Cga(fonts[0]).fields, 0x30), "panel lost in a graphics mode")
 
 
+def test_capture(binary, work, fonts, boot):
+    """-P: Control-] reads the panel back into a file before the menu takes
+    it; the file shows the glass, the scroll start undone, and equals the
+    frame the adapter's rules give."""
+    cap = os.path.join(work, "cap.ppm")
+    ramp = [(v & 255, v >> 8 & 255) for v in (0x4567 + 0x0123 * i for i in range(2000))]
+    cells = ramp[80:] + [(32, 7)] * 80
+    cells[1920] = (ord("Z"), 0x1E)
+    scrolled = text_frame(fonts, cells, 80, 24 * 80 + 1)
+    for keys, want, what in (
+        ([b"<", b"x"], scrolled, "a scrolled text screen"),
+        ([b"6"], cga4_frame(Cga(fonts[0]).fields, 0x30), "mode 4"),
+    ):
+        if os.path.exists(cap):
+            os.unlink(cap)
+        plain, closes = session(
+            binary,
+            work,
+            [(b"", k) for k in keys] + [(b"", b"\x1d"), (b"panel saved", b"q")],
+            extra=["-P", cap],
+        )
+        if not os.path.exists(cap):
+            raise Failure("panel capture of %s: no file" % what)
+        compare(read_frame(cap), want, "panel capture of %s" % what)
+        compare(closes[-1][0], want, "panel close after the capture of %s" % what)
+    # A kernel without the read: the earlier capture stays as it was and no
+    # partial file is left.
+    with open(cap, "wb") as handle:
+        handle.write(b"earlier")
+    plain, closes = session(
+        binary,
+        work,
+        [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")],
+        env={"I86_PANEL_FAIL": "read"},
+        extra=["-P", cap],
+    )
+    with open(cap, "rb") as handle:
+        if handle.read() != b"earlier":
+            raise Failure("panel capture without the read replaced the earlier file")
+    left = [n for n in os.listdir(work) if n.startswith("cap.ppm.")]
+    if left:
+        raise Failure("panel capture without the read left %s" % left)
+    # A link planted under the name the capture writes first, the file's
+    # name and the process id, is not written through: the capture fails
+    # and both the link's target and the earlier capture stay as they were.
+    victim = os.path.join(work, "victim")
+    with open(victim, "wb") as handle:
+        handle.write(b"victim")
+    planted = []
+
+    def plant(pid):
+        planted.append("%s.%d" % (cap, pid))
+        os.symlink(victim, planted[0])
+
+    session(
+        binary,
+        work,
+        [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")],
+        extra=["-P", cap],
+        started=plant,
+    )
+    os.unlink(planted[0])
+    with open(victim, "rb") as handle:
+        if handle.read() != b"victim":
+            raise Failure("panel capture wrote through a planted link")
+    with open(cap, "rb") as handle:
+        if handle.read() != b"earlier":
+            raise Failure("panel capture beside a planted link replaced the earlier file")
+    bad = os.path.join(work, "absent", "cap.ppm")
+    plain, closes = session(
+        binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")], extra=["-P", bad]
+    )
+    plain, closes = session(binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"quit", b"q")])
+    if b"saved" in plain:
+        raise Failure("panel capture without -P: %r" % plain[-80:])
+
+
 def pointer(frame):
     """The mark of mouse keys: a white arrow at panel column 308, line 26."""
     rows = (0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xD8, 0x8C, 0x06)
@@ -755,5 +839,6 @@ def test(binary, src, work):
     test_stages(binary, work, fonts, boot)
     test_fallbacks(binary, work, fonts, boot)
     test_menu(binary, work, fonts, boot)
+    test_capture(binary, work, fonts, boot)
     test_pointer(binary, work, fonts, boot)
     test_ems_loan(binary, src, work)

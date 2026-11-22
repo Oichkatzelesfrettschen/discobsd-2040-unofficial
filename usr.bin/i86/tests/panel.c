@@ -43,7 +43,8 @@
  * frame the glass shows, through the scroll area and start that
  * LCDG_SCRDEF and LCDG_SCROLL set in the controller's 480 lines, as a binary PPM and the counters as text beside it, to the paths
  * I86_PANEL names with the number of the close appended. I86_PANEL_FAIL
- * makes opens fail: "open" every one, "reopen" every one after the first.
+ * makes opens fail: "open" every one, "reopen" every one after the first;
+ * "read" makes LCDG_READ fail as a kernel without LCD_GFX_EXT does.
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -58,9 +59,13 @@ int panel_open(void);
 int panel_close(void);
 int panel_ioctl(unsigned long cmd, void *arg);
 long panel_write(const void *p, unsigned long n);
+long panel_read(void *p, unsigned long n);
 
 static uint16_t fb[LCDG_RAM_LINES][LCDG_WIDTH];	/* the controller's memory */
 static unsigned scr_top, scr_bottom, scr_start;	/* VSCRDEF and VSCSAD */
+static struct lcdg_read rd;			/* LCDG_READ's rectangle */
+static unsigned long rd_at, rd_total;		/* pixels */
+static int hasrd;
 static uint16_t pal[LCDG_NPAL];
 static struct lcdg_window win;
 static unsigned long win_at, win_total;		/* pixels */
@@ -167,6 +172,7 @@ panel_ioctl(unsigned long cmd, void *arg)
 	const struct lcdg_colmod *cm = arg;
 	const struct lcdg_scroll *sc = arg;
 	const struct lcdg_scrdef *sd = arg;
+	const struct lcdg_read *r2 = arg;
 	unsigned x, y;
 
 	if (!isopen)
@@ -175,7 +181,24 @@ panel_ioctl(unsigned long cmd, void *arg)
 	if (haswin && win_at < win_total)
 		errors++;
 	haswin = 0;
+	hasrd = 0;
 	switch (cmd) {
+	case LCDG_READ:
+		/* A kernel without LCD_GFX_EXT does not know the command. */
+		if (getenv("I86_PANEL_FAIL") != NULL &&
+		    strcmp(getenv("I86_PANEL_FAIL"), "read") == 0) {
+			errno = ENOTTY;
+			return (-1);
+		}
+		/* The kernel's bounds; the memory of all 480 lines. */
+		if (r2->w < 1 || r2->h < 1 || r2->x + r2->w > LCDG_WIDTH ||
+		    r2->y + r2->h > LCDG_RAM_LINES || r2->fmt != LCDG_RD_RGB565)
+			return (bad(EINVAL));
+		rd = *r2;
+		rd_at = 0;
+		rd_total = (unsigned long)r2->w * r2->h;
+		hasrd = 1;
+		return (0);
 	case LCDG_FILL:
 		if (r->x0 > r->x1 || r->y0 > r->y1 || r->x1 >= LCDG_WIDTH ||
 		    r->y1 >= LCDG_HEIGHT)
@@ -238,6 +261,26 @@ pixel(unsigned v)
 	fb[win.y + win_at / win.w][win.x + win_at % win.w] = (uint16_t)v;
 	win_at++;
 	pixels++;
+}
+
+/* The pixels of the LCDG_READ rectangle, RGB565 low byte first. */
+long
+panel_read(void *buf, unsigned long n)
+{
+	uint8_t *p = buf;
+	unsigned long i;
+	unsigned v;
+
+	if (!isopen || (n & 1))
+		return (bad(EINVAL));
+	if (!hasrd)
+		return (0);
+	for (i = 0; i + 1 < n && rd_at < rd_total; i += 2, rd_at++) {
+		v = fb[rd.y + rd_at / rd.w][rd.x + rd_at % rd.w];
+		p[i] = (uint8_t)v;
+		p[i + 1] = (uint8_t)(v >> 8);
+	}
+	return ((long)i);
 }
 
 long

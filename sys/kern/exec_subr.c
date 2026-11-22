@@ -852,9 +852,16 @@ void exec_clear(struct exec_params *epp)
     lcdcons_procexit(u.u_procp);
 #endif
     /*
-     * Clear (close) files
+     * The close-on-exec descriptors are closed by execve() once it has
+     * released the executable's inode (exec_finish() in kern_exec.c). A
+     * close can sleep without bound, in the output drain of a terminal
+     * whose output is stopped, and a process asleep there is swapped
+     * out; the swapper reads the text of every process that runs this
+     * executable under the same inode lock (exec_text_restore()), so a
+     * close made here would leave the swapper asleep on a lock whose
+     * holder it alone can bring back.
      */
-    fdcloseexec();
+    epp->flags |= EXEC_CLOSE_PENDING;
 
     DEBUG("\texec_clear(): end\n");
 }

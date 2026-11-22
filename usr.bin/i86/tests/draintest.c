@@ -55,6 +55,7 @@ int panel_open(void);
 int panel_close(void);
 int panel_ioctl(unsigned long cmd, void *arg);
 long panel_write(const void *p, unsigned long n);
+long panel_read(void *p, unsigned long n);
 
 uintptr_t mem_rmap[MEM_NPAGE], mem_wmap[MEM_NPAGE];
 unsigned mem_watched;
@@ -145,6 +146,14 @@ panel_write(const void *p, unsigned long n)
 {
 	(void)p;
 	return ((long)n);
+}
+
+long
+panel_read(void *p, unsigned long n)
+{
+	(void)p;
+	(void)n;
+	return (0);
 }
 
 static void

@@ -45,6 +45,8 @@ typedef char *caddr_t;
 #define P_TRACED 0x0010
 #define EXEC_INTERPRETED 0x01
 #define EXEC_COMMITTED_FAILURE 0x02
+#define EXEC_CLOSE_PENDING 0x04
+#define EINTR 4
 #define SSIZE 2048U
 #define NBPW 4U
 #define USER_BASE 0x20000000U
@@ -95,6 +97,7 @@ struct exec_params {
 
 struct user {
 	struct proc *u_procp;
+	int u_error;
 };
 
 static struct user u;
@@ -130,6 +133,7 @@ static int finish_order;
 static int allocation_release_order;
 static int inode_release_order;
 static int exit_order;
+static int close_order;
 
 static void *
 exec_alloc(int size, int alignment, struct exec_params *parameters)
@@ -231,6 +235,14 @@ iput(struct inode *inode)
 	inode_release_order = ++finish_order;
 }
 
+/* A close that a signal interrupts leaves its error in u.u_error. */
+static void
+fdcloseexec(void)
+{
+	close_order = ++finish_order;
+	u.u_error = EINTR;
+}
+
 static void
 kernel_exit(int status)
 {
@@ -316,6 +328,8 @@ reset_fixture(struct exec_params *parameters)
 	allocation_release_order = 0;
 	inode_release_order = 0;
 	exit_order = 0;
+	close_order = 0;
+	u.u_error = 0;
 }
 
 static void
@@ -542,6 +556,15 @@ check_finish_contract(void)
 	CHECK("ordinary finish releases allocations then inode",
 	    allocation_release_order == 1 && inode_release_order == 2);
 	CHECK("ordinary finish returns without exit", exit_calls == 0);
+	CHECK("finish without pending closes closes nothing", close_order == 0);
+
+	reset_fixture(&parameters);
+	parameters.flags |= EXEC_CLOSE_PENDING;
+	exec_finish(&parameters, &executable_inode);
+	CHECK("pending closes run after the inode is released",
+	    allocation_release_order == 1 && inode_release_order == 2 &&
+	    close_order == 3 && exit_calls == 0);
+	CHECK("an interrupted close leaves the exec's status", u.u_error == 0);
 
 	reset_fixture(&parameters);
 	segment_read_error = EIO;
@@ -550,6 +573,7 @@ check_finish_contract(void)
 	    (parameters.flags & EXEC_COMMITTED_FAILURE) != 0);
 	process.p_pid = 42;
 	process.p_flag = P_TRACED;
+	parameters.flags |= EXEC_CLOSE_PENDING;
 	exit_armed = 1;
 	if (setjmp(exit_jump) == 0) {
 		exec_finish(&parameters, &executable_inode);
@@ -559,6 +583,8 @@ check_finish_contract(void)
 	CHECK("traced failure releases allocations and inode before exit",
 	    allocation_release_order == 1 && inode_release_order == 2 &&
 	    exit_order == 3);
+	CHECK("committed failure exits without the pending closes",
+	    close_order == 0);
 	CHECK("traced failure exits with SIGKILL status",
 	    exit_calls == 1 && exit_status == SIGKILL && signal_calls == 0);
 

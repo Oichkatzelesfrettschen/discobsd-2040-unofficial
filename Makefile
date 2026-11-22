@@ -714,6 +714,7 @@ check-native-linker: check-python
 		${PYTHON} tests/native_linker/readers.py
 		${PYTHON} tests/native_linker/branches.py
 		${PYTHON} tests/native_linker/calibrate.py
+		${PYTHON} tests/native_linker/xip_imports_test.py
 
 # The assembler's scratch streams and the linker's output regions: identical
 # object and executable bytes against the recorded outputs of the tools that
@@ -2067,7 +2068,7 @@ check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
 
 # The testing kernels' counters, fault records and console message ring
-# (sys/kern/subr_diag.c) against a host model, with four mutants of the
+# (sys/kern/subr_diag.c) against a host model, with seven mutants of the
 # source; tests/kernel/Makefile states each.
 check-diag-stats:	check-python
 		${MAKE} -C tests/kernel check-diag-stats check-diag-stats-mutants
@@ -2603,7 +2604,8 @@ check-posix-sh:
 # because its link proof rebuilds the shared a.out libc.
 check-cross-contracts:	${CROSS_CONTRACT_GATES}
 
-check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
+check-cross-kernel:	xip-diagnostic-kernel .WAIT check-picocalc-sd-layout .WAIT \
+		check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
@@ -2717,6 +2719,17 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 		${MAKE} check-matezinho-qemu
 		${MAKE} check-ulisp-qemu
+
+xip-diagnostic-kernel: check-python
+		${MAKE} -C sys/arch/rp2040/compile/PICO_UART_XIP unix
+
+XIP_MODELS?=	${TOPSRC}/tools/renode/vendor/Renode_RP2040
+check-renode-xip-process: xip-diagnostic-kernel
+		${PYTHON} tests/native_linker/xip_process.py \
+		    --slot-elf ${XIP_SLOT_ELF:U:Q} --provider ${XIP_PROVIDER:U:Q} \
+		    --filesystem ${XIP_FILESYSTEM:U:Q} --models ${XIP_MODELS:Q}
+
+.PHONY: xip-diagnostic-kernel check-renode-xip-process
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
@@ -2983,7 +2996,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-rp2040-break-guard check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-rp2040-break-guard check-usb-reset check-picocalc-host check-psram-pio check-diag-stats check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

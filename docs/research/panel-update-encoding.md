@@ -14,9 +14,13 @@ guest's display memory and the model's panel frame. Two sessions were
 recorded with `-T` and scripted keys. One is SvarDOS at 80 columns
 (`dir`, `mem`, `type`). The other is Windows 3.00a in CGA mode 6, booted
 to Program Manager from owner-supplied media; no byte of that media enters
-the tree. The worker reports behind the tables are in the orchestration
-records (panel-bytes S1, S2, H1, H2); their scripts and corpora stayed in
-scratch space.
+the tree. The analysis that produces every table is in
+`docs/research/panel-update-encoding/`: its README gives the corpus
+format, the sha256 of both corpora, the recipe (`measure-hooks.patch`
+over `usr.bin/i86` at e45e5c3c6, then the key strings and flags), and the
+commands in order. `data/` holds the per-refresh counts. The Windows corpus
+derives from a disk that is not redistributable, so it stays outside the
+tree, and only counts from it enter.
 
 ## The claim and its falsification
 

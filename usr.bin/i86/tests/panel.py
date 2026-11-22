@@ -175,6 +175,14 @@ MUTANTS = [
     ("gfx.c", "for (a = 0; a < 80 && p[a] == q[a]; a++)", "for (a = 0; 0; a++)"),
     ("gfx.c", "sent = bank[1] + (BANK_PAGES << MEM_PGSHIFT);", "sent = bank[1];"),
     ("main.c", "\t\t\tgfx_plain = 1;", "\t\t\t;"),
+    ("gfx.c", "GFX_Y0 + (first / cols + scroll_rows) % 25 * 8", "GFX_Y0 + first / cols * 8"),
+    ("gfx.c", "scroll_rows = (scroll_rows + best) % 25;", "scroll_rows = best;"),
+    ("gfx.c", "sc.line = (u_short)(GFX_Y0 + (scroll_rows + best) % 25 * 8);", "sc.line = (u_short)(GFX_Y0 + best * 8);"),
+    ("gfx.c", "\t\tif (same > most + 1) {", "\t\tif (same > most + 25) {"),
+    ("gfx.c", "\t\tcur_shown = (cur_shown + (25 - best) * cols) % (25 * cols);", "\t\tcur_shown += 0;"),
+    ("gfx.c", "memmove(shown, shown + row, 24 * row);", "memmove(shown, shown + row, 23 * row);"),
+    ("gfx.c", "scroll_ok = !gfx_plain && DEV_IOCTL", "scroll_ok = DEV_IOCTL"),
+    ("gfx.c", "\t\tscroll_rows = 0;\n\t\tscroll_ok", "\t\tscroll_ok"),
     ("gfx.c", "\t\tif (!gfx_plain &&", "\t\tif (1 &&"),
 ]
 
@@ -371,6 +379,10 @@ def expected(stage, fonts, boot):
         return text_frame(fonts, ramp, 80, 20 * 80 + 5)
     if stage in (8, 10):
         return cga4_frame(Cga(wide).fields, 0x30)
+    if stage == 12:
+        cells = ramp[80:] + [(32, 7)] * 80
+        cells[1920] = (ord("Z"), 0x1E)
+        return text_frame(fonts, cells, 80, 24 * 80 + 1)
     if stage == 11:
         return cga4_frame([bytearray(FIELD), bytearray(FIELD)], 0x30)
     cells = [(32, 7)] * 2000
@@ -430,9 +442,9 @@ def run(binary, work, keys, extra=(), env=None):
 
 def test_stages(binary, work, fonts, boot):
     tallest = 0
-    for stage in range(12):
+    for stage in range(13):
         key = chr(ord("0") + stage)
-        keys = key + ("x" if stage in (6, 7, 9, 10, 11) else "")
+        keys = key + ("x" if stage in (6, 7, 9, 10, 11, 12) else "")
         done, closes = run(binary, work, keys)
         what = "panel stage %d" % stage
         if len(closes) != 1:
@@ -446,21 +458,47 @@ def test_stages(binary, work, fonts, boot):
         tallest = max(tallest, counts["tallest"])
         if done.stdout:
             raise Failure("%s: %d bytes went to the terminal" % (what, len(done.stdout)))
-        if stage in (6, 7, 10, 11):
+        if stage in (6, 7, 10, 11, 12):
             # The same session ended at the stage's key wait has drawn
             # everything but the change. The change may cost the four
             # pixels of each of the two bytes stored, or the cells that
             # differ: the one stored, the two rows the firmware scrolled
-            # and the cursor's old and new places. Writes that
+            # and the cursor's old and new places; after a scroll of the
+            # whole screen, which moves the controller's scroll start,
+            # the new row and the cursor's old place. Writes that
             # leave the adapter as it was cost nothing; a mode set that
             # clears memory costs its lines and no clear of the panel.
             _, before = run(binary, work, key)
             more = counts["pixels"] - before[0][1]["pixels"]
-            if more != {6: 2 * 4, 7: 163 * 32, 10: 0, 11: 200 * 320}[stage]:
+            if more != {6: 2 * 4, 7: 163 * 32, 10: 0, 11: 200 * 320, 12: 81 * 32}[stage]:
                 raise Failure("%s: the change sent %d pixels" % (what, more))
             more = counts["filled"] - before[0][1]["filled"]
             if more:
                 raise Failure("%s: the change cleared %d pixels" % (what, more))
+        if stage == 12:
+            # A second scroll moves the scroll start on from the first.
+            _, twice = run(binary, work, key + "xx")
+            ramp = [((0x4567 + 0x0123 * i) & 255, (0x4567 + 0x0123 * i) >> 8 & 255) for i in range(2000)]
+            cells = ramp[160:] + [(32, 7)] * 160
+            cells[1840] = (ord("Z"), 0x1E)
+            cells[1920] = (ord("Y"), 0x1E)
+            compare(twice[0][0], text_frame(fonts, cells, 80, 24 * 80 + 2), what + ", twice")
+            if twice[0][1]["pixels"] - counts["pixels"] != 81 * 32:
+                raise Failure("%s: the second scroll sent %d pixels"
+                              % (what, twice[0][1]["pixels"] - counts["pixels"]))
+            # A mode set after the scrolls draws from the adapter's line 0.
+            _, again = run(binary, work, key + "xxx")
+            cells = [(32, 7)] * 2000
+            cells[0] = (ord("A"), 0x1E)
+            compare(again[0][0], text_frame(fonts, cells, 80, 1), what + ", mode set again")
+            # With -G the scroll redraws every cell that changed.
+            _, plain = run(binary, work, key + "x", extra=["-G"])
+            _, plain0 = run(binary, work, key, extra=["-G"])
+            compare(plain[0][0], frame, "%s with -G" % what)
+            if plain[0][1]["scrolls"]:
+                raise Failure("%s with -G: the scroll start moved" % what)
+            if plain[0][1]["pixels"] - plain0[0][1]["pixels"] <= 81 * 32:
+                raise Failure("%s with -G: the scroll cost no more" % what)
         if stage == 6:
             # With -G every line of a written page goes out whole.
             _, plain = run(binary, work, "6x", extra=["-G"])

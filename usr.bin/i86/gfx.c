@@ -131,6 +131,12 @@ static unsigned drain_at;		/* the line a drain looks at first */
 static uint8_t *sent;
 static uint8_t fresh[LINES / 8];
 int gfx_plain;				/* every owed line whole (-G) */
+/* In a text mode the adapter's 200 lines are the controller's scroll
+ * area (VSCRDEF 60, 200, 220): a scroll of the whole screen moves the
+ * scroll start (VSCSAD) by its rows and draws the new rows alone. Cell
+ * row r is on the controller's line GFX_Y0 + (r + scroll_rows) % 25 * 8. */
+static unsigned scroll_rows;
+static int scroll_ok;			/* the device took the scroll area */
 
 static void graphic_drain(unsigned max);
 
@@ -386,9 +392,56 @@ cells_draw(unsigned cols, unsigned first, unsigned n, unsigned cursor)
 				line[y * bytes + k / 2] |=
 				    (uint8_t)(bits << ((k & 1) ? 0 : 4));
 		}
-	if (window(first % cols * cw, GFX_Y0 + first / cols * 8, n * cw, 8,
+	if (window(first % cols * cw,
+	    GFX_Y0 + (first / cols + scroll_rows) % 25 * 8, n * cw, 8,
 	    LCDG_WIN_BITS, attr & 15, attr >> 4 & 7) == 0)
 		put(line, bytes * 8);
+}
+
+/* When the cells are those drawn moved up by k rows for at least two
+ * rows more than they match unmoved, move the scroll start by k rows and
+ * the copy of the cells drawn with it: the rows that leave the top come
+ * in at the bottom, as the controller's lines do, and the compare below
+ * draws what differs. */
+static void
+text_scroll(unsigned cols)
+{
+	struct lcdg_scroll sc;
+	uint8_t *cell = bank[0], *shown = bank[0] + 0x1000;
+	unsigned row = 2 * cols, best = 0, most = 0, k, r, same;
+
+	if (!scroll_ok || memcmp(cell, shown, row) == 0)
+		return;
+	for (r = 0; r < 25; r++)
+		most += memcmp(cell + r * row, shown + r * row, row) == 0;
+	for (k = 1; k < 25; k++) {
+		if (memcmp(cell, shown + k * row, row) != 0)
+			continue;
+		for (same = 0, r = 0; r + k < 25; r++)
+			same += memcmp(cell + r * row, shown + (r + k) * row,
+			    row) == 0;
+		if (same > most + 1) {
+			most = same;
+			best = k;
+		}
+	}
+	if (best == 0)
+		return;
+	sc.line = (u_short)(GFX_Y0 + (scroll_rows + best) % 25 * 8);
+	if (DEV_IOCTL(fd, LCDG_SCROLL, &sc) != 0) {
+		scroll_ok = 0;
+		return;
+	}
+	scroll_rows = (scroll_rows + best) % 25;
+	for (k = 0; k < best; k++) {
+		memcpy(line, shown, row);
+		memmove(shown, shown + row, 24 * row);
+		memcpy(shown + 24 * row, line, row);
+	}
+	/* The cursor's mark moved with its cell. */
+	if (cur_shown < 25 * cols)
+		cur_shown = (cur_shown + (25 - best) * cols) % (25 * cols);
+	mem_watched |= 0xf;
 }
 
 static void
@@ -397,6 +450,7 @@ text_refresh(unsigned cols, unsigned cursor)
 	uint8_t *cell = bank[0], *shown = bank[0] + 0x1000;
 	unsigned total = cols * 25, pages, i, n;
 
+	text_scroll(cols);
 	if (cursor >= total)
 		cursor = GFX_NOCURSOR;
 	if (cursor != cur_shown) {
@@ -611,6 +665,7 @@ void
 gfx_refresh(unsigned cols, unsigned cursor)
 {
 	struct lcdg_rect all;
+	struct lcdg_scrdef sd;
 
 	if (!gfx_on)
 		return;
@@ -632,6 +687,13 @@ gfx_refresh(unsigned cols, unsigned cursor)
 		cur_shown = GFX_NOCURSOR;
 		memset(owed, 0, sizeof(owed));
 		memset(fresh, 0, sizeof(fresh));
+		/* The scroll area with its start at the adapter's line 0;
+		 * a nonzero start left by a text mode is only ever reset
+		 * here after the clear of all 200 lines (stale 1). */
+		sd.top = GFX_Y0;
+		sd.bottom = LCDG_RAM_LINES - GFX_Y0 - LINES;
+		scroll_rows = 0;
+		scroll_ok = !gfx_plain && DEV_IOCTL(fd, LCDG_SCRDEF, &sd) == 0;
 		mem_watched = 0xffff;
 		stale = 0;
 	}

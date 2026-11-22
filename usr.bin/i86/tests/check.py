@@ -1434,6 +1434,70 @@ def test_host_clock_judge():
         raise Failure("host clock judge accepted %r at floor %02Xh" % (counts, floor))
 
 
+# A host whose every sleep runs 15 ms long, inside the 20 ms of interrupts
+# clk_owe() keeps waiting: the fixed timer counts 32h there in every run and
+# the four-interrupt bound #886 replaced counts 10h to 11h, far on either
+# side of HOST_CLOCK_IRQ_STALLED (8 ms puts that build exactly on it).
+OVERSLEEP = ("main.c", "\tusleep(ms * 1000UL);\n}", "\tusleep(ms * 1000UL + 15000UL);\n}")
+OVERSLEEP_BAD = (
+    "clock.c",
+    "unsigned cap = period ? (CLK_CREDIT_CLOCKS - 1) / period + 1 : 0;",
+    "unsigned cap = period ? 0 : 0;",
+)
+
+
+def oversleep_build(src, work, cc, edits):
+    """A build of the emulator's sources in src with edits, each of which
+    must match exactly once; returns the binary."""
+    tree = os.path.join(work, "oversleep")
+    binary = os.path.join(work, "i86-oversleep")
+    shutil.rmtree(tree, ignore_errors=True)
+    os.mkdir(tree)
+    for item in SOURCES + HEADERS:
+        shutil.copyfile(os.path.join(src, item), os.path.join(tree, item))
+    for name, old, new in edits:
+        path = os.path.join(tree, name)
+        with open(path) as handle:
+            text = handle.read()
+        if text.count(old) != 1:
+            raise Failure("oversleep: %s holds %r %d times" % (name, old, text.count(old)))
+        with open(path, "w") as handle:
+            handle.write(text.replace(old, new))
+    build(tree, binary, cc)
+    return binary
+
+
+def test_oversleep(src, work, cc, calibrate=False):
+    """-S 4.77 on a host whose every sleep runs 15 ms long (OVERSLEEP): the
+    paced judge passes, since the interrupts that came due during a sleep
+    wait and arrive late rather than being lost. With calibrate, the build
+    that keeps four interrupts waiting (OVERSLEEP_BAD, the bound #886
+    replaced) must count under HOST_CLOCK_IRQ_STALLED in at least three of
+    five single runs."""
+
+    def paced(binary):
+        return lambda: pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
+
+    good = oversleep_build(src, work, cc, [OVERSLEEP])
+    host_clock_irqs(paced(good), "-S 4.77, sleeps 15 ms long", HOST_CLOCK_IRQ_STALLED)
+    if not calibrate:
+        return
+    bad = paced(oversleep_build(src, work, cc, [OVERSLEEP, OVERSLEEP_BAD]))
+    counts = []
+    for _ in range(5):
+        fields = dict(t.split(":", 1) for t in bad() if ":" in t)
+        counts.append(int(fields.get("irq", "0"), 16))
+    if sum(1 for n in counts if n < HOST_CLOCK_IRQ_STALLED) < 3:
+        raise Failure(
+            "the paced judge accepts the four-waiting build: %s"
+            % ", ".join("%02Xh" % n for n in counts)
+        )
+    print(
+        "oversleep check rejects the four-waiting build: %s"
+        % ", ".join("%02Xh" % n for n in counts)
+    )
+
+
 def test_speed(binary, work):
     """-S paces the guest: under -S 4.77 -c 8088 the 131072 instructions
     before "done" alone take 0.36 s (cpu-timing.md: 13.1 clocks each), where
@@ -1959,6 +2023,7 @@ def main(argv):
             test_wait_draining()
             test_host_clock_judge()
             test(binary, work)
+            test_oversleep(src, work, cc, calibrate=True)
             print("i86 host test passed")
             vsources = ["tests/sstrun.c", "cpu.c", "mem.c"]
             sstrun = os.path.join(work, "sstrun")
@@ -2018,6 +2083,7 @@ def main(argv):
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")
                     test_undefined(sstrun + "-mutant", work)
                     test_rep_burst(sstrun + "-mutant", work)
+                    test_oversleep(tree, work, cc)
                 except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
                     # A mutant that hangs or dies has failed like any other. The
                     # line keeps the step's idle timer fed through the stage.

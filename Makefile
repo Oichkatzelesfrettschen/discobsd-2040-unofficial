@@ -2261,7 +2261,7 @@ check-libc-shared-closure: check-python
 check-libc-declaration-census: check-python .WAIT symlinks
 		env DECLARATION_CENSUS_NM=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-nm \
 		    ${PYTHON} tools/libc_declaration_census_test.py
-		${PYTHON} tools/libc_declaration_census.py --root ${TOPSRC:Q} \
+		${PYTHON} tools/libc_declaration_census.py --root ${TOPSRC:Q} --destdir ${DESTDIR:Q} \
 		    --ar ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar
 
 .PHONY: check-libc-declaration-census

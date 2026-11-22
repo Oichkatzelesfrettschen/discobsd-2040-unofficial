@@ -384,8 +384,8 @@ jobs:
       # It also calibrates explicit shared-libc API/provider closure with ARM
       # object archives through check-libc-shared-closure on both platforms.
       # check-cross-assembler owns divider-window and ELF alias-extent controls.
-      # check-libc-declaration-census inventories root-header exposure and
-      # linker-name providers across feature modes and both time widths.
+      # check-libc-declaration-census inventories source and staged installed
+      # headers and linker-name providers across feature modes and time widths.
       # check-libc-pic-replay calibrates captured compiler replay and source,
       # tool, archive, standard-input and output ownership before PIC sizing.
       - name: Run the cross tier

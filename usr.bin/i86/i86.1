@@ -43,6 +43,9 @@ i86 \- run DOS on an emulated 8086, 80186 or 80286
 .B \-f
 .I frames
 ] [
+.B \-P
+.I file
+] [
 .B \-S
 .I mhz
 ] [
@@ -206,6 +209,19 @@ As
 .BR \-g ,
 without the copy of the lines and without moving the scroll start:
 every line or cell the guest writes goes to the panel, for comparison.
+.TP
+.BI \-P " file"
+With
+.B \-g
+or
+.BR \-G ,
+Control-] first reads the panel back and writes it to
+.I file
+as a binary PPM of 320 by 320 pixels, the glass as it shows, before
+the menu gives the panel to the console; the menu line then reports
+whether it was saved.
+The read-back needs a kernel with the pixel device's memory read
+(PICOCALC_SD).
 The Control-] menu appears on the console, which has the panel for as
 long as the menu is open.
 Without the device the terminal is the display and

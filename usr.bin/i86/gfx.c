@@ -76,12 +76,15 @@ int panel_open(void);
 int panel_close(void);
 int panel_ioctl(unsigned long cmd, void *arg);
 long panel_write(const void *p, unsigned long n);
+long panel_read(void *p, unsigned long n);
 #define DEV_OPEN()		panel_open()
+#define DEV_READ(fd, p, n)	panel_read(p, n)
 #define DEV_CLOSE(fd)		panel_close()
 #define DEV_IOCTL(fd, cmd, arg)	panel_ioctl(cmd, arg)
 #define DEV_WRITE(fd, p, n)	panel_write(p, n)
 #else
-#define DEV_OPEN()		open("/dev/lcdgfx", O_WRONLY)
+#define DEV_OPEN()		open("/dev/lcdgfx", O_RDWR)
+#define DEV_READ(fd, p, n)	read(fd, p, n)
 #define DEV_CLOSE(fd)		close(fd)
 #define DEV_IOCTL(fd, cmd, arg)	ioctl(fd, cmd, arg)
 #define DEV_WRITE(fd, p, n)	write(fd, p, n)
@@ -131,6 +134,7 @@ static unsigned drain_at;		/* the line a drain looks at first */
 static uint8_t *sent;
 static uint8_t fresh[LINES / 8];
 int gfx_plain;				/* every owed line whole (-G) */
+const char *gfx_capture_path;		/* -P */
 /* In a text mode the adapter's 200 lines are the controller's scroll
  * area (VSCRDEF 60, 200, 220): a scroll of the whole screen moves the
  * scroll start (VSCSAD) by its rows and draws the new rows alone. Cell
@@ -606,6 +610,57 @@ graphic_refresh(void)
 			owed[y >> 3] |= (uint8_t)(1u << (y & 7));
 		}
 	}
+}
+
+/*
+ * The panel as the glass shows it, read back from the controller's memory
+ * (LCDG_READ, kernels with LCD_GFX_EXT) into a binary PPM at
+ * gfx_capture_path: each of the 320 glass lines from the memory line the
+ * scroll area puts there, after the owed lines are sent. Returns 0, 1 when
+ * there is no path or panel, and -1 when the device or the file fails.
+ */
+int
+gfx_capture(void)
+{
+	static const char hdr[] = "P6\n320 320\n255\n";
+	struct lcdg_read rd;
+	uint8_t out[3 * LCDG_WIDTH / 2];
+	unsigned y, half, i, v;
+	int f, ok;
+
+	if (gfx_capture_path == NULL || !gfx_on)
+		return (1);
+	if (!stale && kind != K_TEXT)
+		graphic_drain(LINES);
+	if ((f = open(gfx_capture_path, O_WRONLY | O_CREAT | O_TRUNC, 0644)) < 0)
+		return (-1);
+	ok = write(f, hdr, sizeof(hdr) - 1) == (long)sizeof(hdr) - 1;
+	for (y = 0; ok && y < LCDG_HEIGHT; y++)
+		for (half = 0; ok && half < 2; half++) {
+			rd.x = (u_short)(half * LCDG_WIDTH / 2);
+			rd.y = (u_short)(y < GFX_Y0 || y >= GFX_Y0 + LINES ? y :
+			    GFX_Y0 + (y - GFX_Y0 + scroll_rows * 8) % LINES);
+			rd.w = LCDG_WIDTH / 2;
+			rd.h = 1;
+			rd.fmt = LCDG_RD_RGB565;
+			ok = DEV_IOCTL(fd, LCDG_READ, &rd) == 0 &&
+			    DEV_READ(fd, line, LCDG_WIDTH) == LCDG_WIDTH;
+			/* RGB565, low byte first, to 8-bit components by
+			 * bit replication, as scrshot(1) writes them. */
+			for (i = 0; ok && i < LCDG_WIDTH / 2; i++) {
+				v = line[2 * i] | (unsigned)line[2 * i + 1] << 8;
+				out[3 * i] = (uint8_t)((v >> 8 & 0xf8) | v >> 13);
+				out[3 * i + 1] = (uint8_t)((v >> 3 & 0xfc) |
+				    (v >> 9 & 3));
+				out[3 * i + 2] = (uint8_t)((v << 3 & 0xf8) |
+				    (v >> 2 & 7));
+			}
+			if (ok)
+				ok = write(f, out, sizeof(out)) == (long)sizeof(out);
+		}
+	if (close(f) != 0)
+		ok = 0;
+	return (ok ? 0 : -1);
 }
 
 void

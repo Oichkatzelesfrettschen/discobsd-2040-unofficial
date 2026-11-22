@@ -69,8 +69,10 @@ MUTATIONS = (
     ),
     (
         "same_title_after_make_room",
-        "\tif (title_same(win, title))\n\t\treturn 0;\n\tif (make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n",
-        "\tif (make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n\tif (title_same(win, title))\n\t\treturn 0;\n",
+        "\tif (title_same(win, title))\n\t\treturn 0;\n"
+        "\tif (make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n",
+        "\tif (make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n"
+        "\tif (title_same(win, title))\n\t\treturn 0;\n",
     ),
     (
         "dropped_destroy_damage",

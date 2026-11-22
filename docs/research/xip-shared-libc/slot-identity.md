@@ -40,13 +40,15 @@ Section contents, string tables and relocation indexes retain their identities.
 Each 12-byte slot saves r3 and LR, loads its implementation address, replaces
 the saved return-address word with that target, and restores r3 while branching
 through PC. LR retains the original caller return address. Eight temporary
-stack bytes expire before the implementation starts. The fixture chooses this
-transparent encoding to test ownership; the compact eight-byte dispatcher
-retains its independent size, stack and timing decision.
+stack bytes expire before the implementation starts. Each eight-byte slot saves r3 and LR and calls a common dispatcher. The
+linker writes the Thumb implementation offset in the halfword immediately
+after the call. The dispatcher reads that offset through LR, adds the flash
+base, restores the caller's LR and transfers control with the original SP.
+The compact path uses 16 temporary stack bytes.
 
 ## Replay and evidence boundaries
 
-The root gate supplies four compiled images and seventeen required rejection
+The root gate supplies eight compiled images and eighteen required rejection
 controls. A selected Python needs `pyelftools` and Unicorn 2 or later; ARM GNU
 GCC, binutils and its LTO plugin supply compilation and linking. Run:
 
@@ -57,7 +59,7 @@ bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 logged-build
 bmake MACHINE=rp2040 check-libc-xip-slots
 ```
 
-Each successful image executes 222 calls. The 888-call matrix covers two
+Each successful image executes 222 calls. The 1,776-call matrix covers two
 independent library-state areas, three aligned stack placements, zero values,
 ordinary values and unsigned overflow boundaries. An application linked at a
 separate SRAM address imports a symbol-only ELF retaining the public function
@@ -129,3 +131,104 @@ Instruction execution establishes functional behavior for the exercised fixtures
 with no kernel, cycle, MPU or physical-board claim. The mechanism uses established
 ELF aliases, relocation and Thumb calls; novelty stays limited to their verified
 composition under the DiscoBSD ABI.
+
+## Import symbols for the 33-program member envelope
+
+The diagnostic image in `shipped-member-envelope.json` assigns 368 function
+names to 350 eight-byte slots. Its public ELF symbols point to implementation
+entries. A separately linked application obtains its callable addresses from
+`imports.elf`. Each exported name has ELF type STT_FUNC, an eight-byte extent,
+and the Thumb address of its slot. Aliases share that address. The import file
+contains only the recorded callable names. The 27 object names still require
+the process-state ABI.
+
+Run the following commands from the repository root. Set `REPLAY` to the
+qualified PIC replay directory and `LINK` to a fresh path under `.build-logs`.
+The first command produces the startup fixture and linker template. The second
+prints the directory containing the compact image, link map, and import file.
+
+```sh
+export PYTHON=${PYTHON:-python3}
+"$PYTHON" docs/research/xip-shared-libc/export-closure/link-pic-envelope.py \
+    --replay "$REPLAY" --output "$LINK"
+"$PYTHON" tests/libc_xip_slots/relink_envelope.py "$REPLAY/libc-pic.a" "$LINK"
+```
+
+The replay checks the input archive, startup fixture, linker template and final
+image digests. It decodes each slot's target halfword, compares it with every
+implementation alias, and verifies the exact import symbol set after stripping.
+Pass the resulting file to the application linker with `--just-symbols=imports.elf`.
+A Cortex-M0 model executed four direct and indirect SRAM caller invocations of
+`rand` across two process states. Importing the image's implementation address
+instead caused the application pointer check to fail. This experiment covers
+application-side identity for that caller. Production slot numbering, internal
+library references and native a.out loading require separate verification.
+
+### Signal trampoline at the user-to-kernel boundary
+
+The diagnostic envelope's `sigaction` wrapper loads the linked Thumb address
+of `sigtramp` into r3. A Cortex-M0 instruction probe stopped immediately before
+SVC 31 and read 0x1002878d from r3. The corresponding application import is
+0x10020899. The wrapper's literal pool thus exposes the implementation address
+at the syscall boundary. In the same image, allocated R_ARM_GOT_BREL references
+in text reach three other callable implementation addresses: `__doprnt_cvt`,
+`fclose` and `fflush`. A relocation inventory identifies these sites; each
+consumer still needs a binding decision and a behavior check.
+
+The kernel sets handler LR from the registered trampoline. On handler return,
+the sigreturn SVC stacks an eight-word hardware frame; the kernel reads the
+saved context at the stacked SP plus 32 bytes
+(`sys/arch/rp2040/rp2040/sig_machdep.c`). In a user-instruction probe a
+handler returned with `bx lr` to each candidate entry. At the first sigreturn
+instruction, both the implementation and the compact dispatcher preserved the
+handler's SP, r0 through r12, incoming LR and the 96 sentinel bytes starting
+at SP. Only the compact dispatcher wrote the 16 bytes immediately below SP.
+These bytes fall inside the subsequent exception frame. The probe stopped
+before exception entry.
+
+A diagnostic substitution placed the implementation's two halfwords, SVC 103
+and SVC 1, directly in the eight-byte slot. The handler reached SVC 103 with
+the bytes below SP intact. This candidate depends on the complete trampoline
+being a position-independent four-byte sequence. A link-time extent and
+instruction check, binding the registration literal to the same slot, and
+target OS signal delivery and return remain open.
+
+A separate diagnostic link isolates the original trampoline instructions in
+an executable input section and places that section at slot 275. The four-byte
+function and four bytes of padding occupy the slot. The linker's ordinary
+ABS32 relocation binds the wrapper's registration literal to the function.
+At SVC 31 the modeled r3, linked Thumb symbol and application import all equal
+0x10020899. A handler returning through that address reaches SVC 103 with
+its register and stack checks passing. The image occupies 48,488 flash bytes
+and 5,040 process-state bytes, eight fewer flash bytes than the dispatcher
+image. The 136 interleaved state calls also pass on the relinked image.
+The experiment uses a diagnostic assembly-section change and linker script;
+the shipped static archive and native signal path have separate qualification.
+
+The combined diagnostic link also separates the three stdio implementations
+from their public slots. Each GOT cell holds its public slot address, and
+each slot's target halfword resolves to its retained private implementation.
+In two modeled process states, the argument to `_fwalk` from `fflush(NULL)`
+equals the `fflush` slot (0x10020391), and the argument from `_cleanup`
+equals the `fclose` slot (0x10020379). The `__doprnt_cvt` GOT cell holds
+0x10020109; this check covers the linked provider, leaving weak-provider
+absence and floating formatting behavior for separate execution tests.
+The combined image measures 48,488 flash bytes and 5,040 process-state bytes.
+
+A linker-script SHORT expression can encode an offset even when section
+garbage collection discards the referenced implementation. A control link
+rooting only the public names lost the internal `fflush` GOT reference.
+Adding all three private names as explicit roots restored their definitions.
+An import identity check therefore needs both the public address and a live
+executable implementation whose address matches the slot target.
+
+A finite formatting check exercises both bindings through the public
+`snprintf` slot with `%a` and binary64 value 1.5. With the provider linked,
+each of two process states enters the converter slot once, produces
+`0x1.8p+0`, and returns 8. A separate link omits the provider member, its
+public and private roots, and its slot symbol while reserving the same eight
+bytes. Each process then produces `?`, returns 1, and bypasses that slot.
+The provider-present run requires an unsigned quotient/remainder register
+model for the formatter's exponent conversion. The original CPU-only probe
+stopped on the dividend write to the unmapped SIO address. The model covers
+the exercised arithmetic and leaves divider timing and silicon unmeasured.

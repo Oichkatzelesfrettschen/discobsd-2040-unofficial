@@ -115,6 +115,13 @@ bool dev_tone(unsigned int hz, unsigned long ms);
 bool dev_callcode(const uint8_t *entry, const int param[4], int *result);
 /* Fills the rectangle x0..x1, y0..y1, which lies on the panel. */
 void dev_fill(int x0, int y0, int x1, int y1, uint16_t color);
+/*
+ * Draws the w by h block at x, y, which lies on the panel, from h rows of
+ * bits, the most significant bit of a row's first byte leftmost and each row
+ * padded to a whole byte: a set bit in fg, a clear one in bg.
+ */
+void dev_bits(int x, int y, int w, int h, const uint8_t *rows, uint16_t fg,
+    uint16_t bg);
 int dev_readpixel(int x, int y);
 void dev_release(void);		/* returns the panel to the text console */
 

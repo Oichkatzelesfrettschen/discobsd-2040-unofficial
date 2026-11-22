@@ -1,0 +1,68 @@
+swapram_reserve() <int swapram_reserve (struct proc *p, caddr_t dsrc, size_t dlen, caddr_t ssrc, size_t slen, size_t ulen) at sys/arch/rp2040/rp2040/swapram.c:457>:
+    sr_slot() <struct sr_ent *sr_slot (struct proc *p) at sys/arch/rp2040/rp2040/swapram.c:227>:
+        panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+    sr_pool_init_once() <void sr_pool_init_once (void) at sys/arch/rp2040/rp2040/swapram.c:175>:
+        swapram_pool_init() <void swapram_pool_init (struct swapram_pool *mp, unsigned char *base, unsigned int size, struct swapram_seg *seg, unsigned int nseg) at sys/arch/rp2040/rp2040/swapram_pool.c:30>
+    panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+        printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+        boot() <void boot (dev_t dev __attribute__ ((__unused__)), int howto) at sys/arch/rp2040/rp2040/machdep.c:893> (R):
+            rp2040_shutdown_sync() <void rp2040_shutdown_sync (int howto) at sys/arch/rp2040/rp2040/shutdown_sync.c:83> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICO/machine/intr.h:118>:
+            core1_park() <void core1_park (void) at sys/arch/rp2040/rp2040/core1.c:280>:
+            usbdrain() <void usbdrain (void) at sys/arch/rp2040/dev/usb.c:1407> (R):
+            rom_func_lookup() <void *rom_func_lookup (u_int code) at sys/arch/rp2040/dev/flash.c:257>
+            arm_dsb() <__inline void arm_dsb (void) at sys/arch/rp2040/compile/PICO/machine/scb.h:80>:
+            usbpollc() <void usbpollc (int on) at sys/arch/rp2040/dev/usb.c:1441>:
+            printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+            cngetc() <int cngetc (void) at sys/dev/cons.c:141> (R):
+            arm_isb() <__inline void arm_isb (void) at sys/arch/rp2040/compile/PICO/machine/scb.h:86>:
+    sr_probe_call() <void sr_probe_call (caddr_t dsrc, size_t dlen, caddr_t ssrc, size_t slen, int admitted, enum storage_metric reason, u_int compressed) at sys/arch/rp2040/rp2040/swapram.c:386>:
+        sr_probe_scan() <void sr_probe_scan (caddr_t src, size_t len, int chunked, u_int *zeros, u_int *chunks, u_int *zero_chunks) at sys/arch/rp2040/rp2040/swapram.c:359>:
+        storage_note() <void storage_note (enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/dev/flash.c:82>:
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICO/machine/intr.h:118>:
+            storage_stats_add() <inline void storage_stats_add (struct storage_stats *stats, enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/compile/PICO/sys/storage_stats.h:120>
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICO/machine/intr.h:138>:
+    sr_encode() <int sr_encode (caddr_t src, unsigned int len, u_char *dst, unsigned int cap) at sys/arch/rp2040/rp2040/swapram.c:249>:
+        swapram_codec_acquire() <void *swapram_codec_acquire (unsigned int owner) at sys/arch/rp2040/rp2040/swapram.c:155>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+        heatshrink_encoder_reset() <void heatshrink_encoder_reset (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:118>:
+            memset() <__inline void *memset (void *d, int c, size_t n) at sys/arch/rp2040/dhara/compat/string.h:35>:
+        heatshrink_encoder_sink() <HSE_sink_res heatshrink_encoder_sink (heatshrink_encoder *hse, uint8_t *in_buf, size_t size, size_t *input_size) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:137>:
+            is_finishing() <int is_finishing (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:442>:
+            get_input_offset() <uint16_t get_input_offset (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:389>:
+            get_input_buffer_size() <uint16_t get_input_buffer_size (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:393>
+            memcpy() <__inline void *memcpy (void *d, const void *s, size_t n) at sys/arch/rp2040/dhara/compat/string.h:28>:
+        heatshrink_encoder_finish() <HSE_finish_res heatshrink_encoder_finish (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:253>:
+        heatshrink_encoder_poll() <HSE_poll_res heatshrink_encoder_poll (heatshrink_encoder *hse, uint8_t *out_buf, size_t out_buf_size, size_t *output_size) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:190>:
+            do_indexing() <void do_indexing (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:403>
+            st_step_search() <HSE_state st_step_search (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:261>:
+            st_yield_tag_bit() <HSE_state st_yield_tag_bit (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:304>:
+            st_yield_literal() <HSE_state st_yield_literal (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:321>:
+            st_yield_br_index() <HSE_state st_yield_br_index (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:331>:
+            st_yield_br_length() <HSE_state st_yield_br_length (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:347>:
+            st_save_backlog() <HSE_state st_save_backlog (heatshrink_encoder *hse) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:363>:
+            st_flush_bit_buffer() <HSE_state st_flush_bit_buffer (heatshrink_encoder *hse, output_info *oi) at sys/arch/rp2040/heatshrink/heatshrink_encoder.c:369>:
+        swapram_codec_release() <void swapram_codec_release (unsigned int owner) at sys/arch/rp2040/rp2040/swapram.c:164>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+    swapram_pool_alloc() <int swapram_pool_alloc (struct swapram_pool *mp, unsigned int size, unsigned int *offp) at sys/arch/rp2040/rp2040/swapram_pool.c:51>:
+        roundgrain() <unsigned int roundgrain (unsigned int n) at sys/arch/rp2040/rp2040/swapram_pool.c:19>
+    sr_probe_pool_refused() <void sr_probe_pool_refused (struct swapram_pool *pool, caddr_t dsrc, size_t dlen, caddr_t ssrc, size_t slen, u_int want, u_int dsn) at sys/arch/rp2040/rp2040/swapram.c:411>:
+        swapram_pool_avail() <unsigned int swapram_pool_avail (struct swapram_pool *mp) at sys/arch/rp2040/rp2040/swapram_pool.c:149>:
+        swapram_pool_largest() <unsigned int swapram_pool_largest (struct swapram_pool *mp) at sys/arch/rp2040/rp2040/swapram_pool.c:160>:
+        storage_note() <void storage_note (enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/dev/flash.c:82>:
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICO/machine/intr.h:118>:
+            storage_stats_add() <inline void storage_stats_add (struct storage_stats *stats, enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/compile/PICO/sys/storage_stats.h:120>
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICO/machine/intr.h:138>:
+        sr_probe_call() <void sr_probe_call (caddr_t dsrc, size_t dlen, caddr_t ssrc, size_t slen, int admitted, enum storage_metric reason, u_int compressed) at sys/arch/rp2040/rp2040/swapram.c:386>:
+            sr_probe_scan() <void sr_probe_scan (caddr_t src, size_t len, int chunked, u_int *zeros, u_int *chunks, u_int *zero_chunks) at sys/arch/rp2040/rp2040/swapram.c:359>:
+            storage_note() <void storage_note (enum storage_metric metric, uint32_t amount) at sys/arch/rp2040/dev/flash.c:82>:
+    printf() <void printf (char *fmt, ...) at sys/kern/subr_prf.c:467> (R):
+        prf() <void prf (char *fmt, va_list ap, int flags, struct tty *ttyp) at sys/kern/subr_prf.c:138> (R):
+            putchar() <void putchar (int c, int flags, struct tty *tp) at sys/kern/subr_prf.c:35> (R):
+            ksprintn() <char *ksprintn (char *nbuf, unsigned long ul, int base, int width, int *lenp) at sys/kern/subr_prf.c:75>:
+            mkhex() <unsigned mkhex (unsigned ch) at sys/kern/subr_prf.c:60>
+            strlen() <size_t strlen (const char *s) at sys/arch/rp2040/rp2040/machdep.c:1103>:
+    swapram_pool_avail() <unsigned int swapram_pool_avail (struct swapram_pool *mp) at sys/arch/rp2040/rp2040/swapram_pool.c:149>:

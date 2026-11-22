@@ -98,20 +98,29 @@ def expected(test):
     return out
 
 
-def calibrate(test):
-    # The box model must reproduce render_test.c's windows and tiles for a one-pixel step inside
-    # the cells and a step across a cell edge, with the RG_BOX that ridge.c defines.
-    inside = box(CELL + 1, CELL) | box(CELL + 2, CELL)
-    edge = box(2 * CELL - 1, CELL) | box(2 * CELL, CELL)
+def calibrate(path, test):
+    # The opaque-cell model must reproduce render_test.c's windows and tiles for a one-pixel step
+    # and a step across a cell edge by the standing climber, whose top left pixel moves from
+    # (80, 176) in view coordinates. The box model, which counts all nine cells of each box, must
+    # disagree with the same expectations, or the check cannot tell the two rules apart.
+    px = opaque(art(path)[define(open(path).read(), "RG_F_STAND")])
+    inside = cells(px, 80, 176) | cells(px, 81, 176)
+    edge = cells(px, 81, 176) | cells(px, 88, 176)
     got = [(row_runs(inside), len(inside)), (row_runs(edge), len(edge))]
     if got != expected(test):
-        raise SystemExit("box model %s disagrees with render_test %s" % (got, expected(test)))
+        raise SystemExit("opaque model %s disagrees with render_test %s" % (got, expected(test)))
+    in_box = box(CELL + 1, CELL) | box(CELL + 2, CELL)
+    edge_box = box(2 * CELL - 1, CELL) | box(2 * CELL, CELL)
+    boxes = [(row_runs(in_box), len(in_box)), (row_runs(edge_box), len(edge_box))]
+    if boxes == expected(test):
+        raise SystemExit("box model %s reproduces render_test %s: no known-bad rule is rejected"
+                         % (boxes, expected(test)))
 
 
 def main(path, test):
     global BOX
     BOX = define(open(path).read(), "RG_BOX")
-    calibrate(test)
+    calibrate(path, test)
     frames = art(path)
     # The LCDG_SPRITE column counts drawing bytes alone; the LCDG_WAITLINE fence it needs
     # against flicker adds four bytes for every GSCAN poll, a number the scan phase decides.

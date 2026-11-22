@@ -1,0 +1,12 @@
+exec_estab() <int exec_estab (struct exec_params *epp) at sys/kern/exec_subr.c:432>:
+    endvfork() <void endvfork (void) at sys/kern/kern_exit.c:29>:
+        wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (R):
+            arm_intr_disable() <inline int arm_intr_disable (void) at sys/arch/rp2040/compile/PICO/machine/intr.h:118>:
+            panic() <void panic (char *s) at sys/kern/subr_prf.c:581> (R):
+            updatepri() <void updatepri (register struct proc *p) at sys/kern/kern_synch.c:71>:
+            setrq() <void setrq (register struct proc *p) at sys/kern/kern_synch.c:483>:
+            wakeup() <void wakeup (register caddr_t chan) at sys/kern/kern_synch.c:270> (recursive: see 3)
+            arm_intr_restore() <inline void arm_intr_restore (int s) at sys/arch/rp2040/compile/PICO/machine/intr.h:138>:
+        sleep() <void sleep (caddr_t chan, int pri) at sys/kern/kern_synch.c:217> (R):
+            tsleep() <int tsleep (caddr_t ident, int priority, u_int timo) at sys/kern/kern_synch.c:121> (R):
+            longjmp()

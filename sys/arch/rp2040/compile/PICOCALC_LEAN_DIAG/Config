@@ -121,7 +121,8 @@ options         "NUART=1"                   # UART1 (GP8/GP9) wires to the keybo
 # The Pico's own micro-USB port as a CDC-ACM device, /dev/ttyUSB0; it also
 # carries the reset interface picotool reboot -u uses.
 device          uartusb
-options         "USB_TXRING=4096"           # half the scratch banks; the tile atlas takes the rest
+options         "USB_TXRING=4096"           # half the scratch banks
+options         SWAP_EXCHANGE_SCRATCH       # swap exchange sector in the other half
 
 # Compressed RAM tier in front of the swap device and packed executables,
 # as on the PICO board.

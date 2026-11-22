@@ -34,7 +34,15 @@ replay_wrong_shift	detected (Straddle) at the first scroll refresh	not run
 refreshes_with_a_wrap_seam	124	0
 seam_cut_needed_in	4	0
 native_frame_every_refresh	596000	1032000
-today_damage_graphics_lines_at_80_bytes	236204	335796
+today_damage_graphics_lines_at_80_bytes	236396	336096
+shifts_priced_max_a_refresh	200	200
+shifts_priced_mean_a_refresh	3.9	25.9
+packed_rects_1bpp	30431	965
+packed_rects_2bpp	0	119
+packed_rects_4bpp	0	0
+two_bpp_rects_needing_a_map	0	0
+palette_entries_set	16	25
+palette_bytes	192	300
 line_predictor_messages	0	16
 decoded_frames_render_equal	149/149	61/61
 flipped_byte_detected	142/142	58/58

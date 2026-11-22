@@ -48,22 +48,26 @@ def stretch(p):
     return out
 
 
-def best_scroll(old, new, s, nbest=6):
+def best_scroll(old, new, s):
+    """Cheapest (bytes, shift) over every shift 0..239, pruned by 2 bytes a damaged pixel."""
     a = old[Y0 : Y0 + N]
     b = new[Y0 : Y0 + N]
     u = (b[:, None, :] != a[None, :, :]).sum(2)
     idx = np.arange(N)
     mism = np.array([u[idx, (idx + k) % N].sum() for k in range(N)])
-    cand = [0] + [int(k) for k in np.argsort(mism)[: nbest + 1] if k != 0][:nbest]
-    res = []
-    for k in cand:
+    best = None
+    for k in sorted(range(N), key=lambda k: (int(mism[k]), k)):
+        lower = 2 * int(mism[k]) + (3 if k else 0)
+        if best is not None and lower > best[0]:
+            break
         s2 = (s + k) % N
         m = np.zeros((320, 320), bool)
         m[Y0 : Y0 + N] = np.roll(a, -k, axis=0) != b
         c, _nr = pl.cover(m, rowcuts=[] if s2 == 0 else [Y0 + N - s2])
-        res.append((c + (3 if k else 0), k))
-    res.sort()
-    return res[0]
+        cost = c + (3 if k else 0)
+        if best is None or (cost, k) < best:
+            best = (cost, k)
+    return best
 
 
 def run(name):

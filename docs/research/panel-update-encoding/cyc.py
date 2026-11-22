@@ -29,7 +29,8 @@ and its target; the body cost adds the Cortex-M0+ cycle counts of its instructio
 stores 2, other ALU 1, taken branch 2, not taken 1, push or pop 1 + registers). The function
 epilogue (pop of pc) lies in the span of a compiler-rotated loop but runs once at exit, so it
 is left out and the branch that guards it counts as taken. A loop with a conditional skip is
-reported for the skip not taken and taken. Nested loops need the formula in README.md.
+reported for the skip not taken and taken. A branch to the epilogue leaves the loop when
+taken, so it counts as not taken. Nested loops need the formula in README.md.
 """
 
 import argparse
@@ -86,7 +87,7 @@ def is_exit(ins):
     return ins[1] == "pop" and "pc" in ins[2]
 
 
-def body_cycles(body):
+def body_cycles(body, exit_labels=()):
     lo = hi = 0
     for k, (_, op, args) in enumerate(body):
         last = k == len(body) - 1
@@ -94,7 +95,11 @@ def body_cycles(body):
             continue
         guards_exit = k + 1 < len(body) and is_exit(body[k + 1])
         cond = op.startswith("b") and op not in NO_B and op != "b"
-        if cond and not last and not guards_exit:
+        if cond and args.strip() in exit_labels:
+            # a branch to the epilogue leaves the loop when taken: the loop runs on when not
+            lo += cycles(op, args, False)
+            hi += cycles(op, args, False)
+        elif cond and not last and not guards_exit:
             lo += cycles(op, args, False)
             hi += cycles(op, args, True)
         else:
@@ -115,6 +120,7 @@ def main():
                 labels[it[1]] = len(seq)
             else:
                 seq.append(it)
+        exit_labels = {name for name, at in labels.items() if at < len(seq) and is_exit(seq[at])}
         loops = []
         for idx, (_, op, a) in enumerate(seq):
             if op.startswith("b") and op not in NO_B and a.strip() in labels:
@@ -123,7 +129,7 @@ def main():
         print("==", fn, "instrs", len(seq), "loops", loops)
         for a, b in sorted(loops, key=lambda x: x[1] - x[0])[:2]:
             body = seq[a : b + 1]
-            lo, hi = body_cycles(body)
+            lo, hi = body_cycles(body, exit_labels)
             print(
                 "  loop %d..%d: %d instrs, %d cycles (skips not taken) to %d (taken)"
                 % (a, b, len(body), lo, hi)

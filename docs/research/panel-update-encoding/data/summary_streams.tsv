@@ -1,3 +1,3 @@
-corpus	p0_today	p1_rects_idx8	p2_rects_packed	z0_skip_lit	z1_quotient_defer	z2_row_copy	z3_line_predictor	xz_z3
-dos	236204	802482	501165	79318	79318	11747	11747	3324
-win	1306116	128429	31059	32110	32048	28676	6796	4172
+corpus	p0_today	p1_rects_idx8	p2_rects_packed	z0_skip_lit	z1_quotient_defer	z2_row_copy	z3_line_predictor	xz_z3_messages	palette_bytes_in_every_row
+dos	236396	802674	501357	79510	79510	11939	11939	3324	192
+win	1306416	128729	31359	32410	32348	28976	7096	4172	300

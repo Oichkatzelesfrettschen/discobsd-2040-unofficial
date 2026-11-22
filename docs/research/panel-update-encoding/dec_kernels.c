@@ -67,8 +67,19 @@ u32 tokdec(const u8 *s, u32 n, u8 *frame) {
 }
 /* XOR variant of the literal copy (delta against the frame store) */
 void xorlit(const u8 *s, u8 *f, u32 n) { while (n--) *f++ ^= *s++; }
-/* word copy for row moves (memmove of aligned rows) */
-void rowmove(const u32 *s, u32 *d, u32 nw) { while (nw--) *d++ = *s++; }
+/* memmove of word-aligned rows: backward when the destination overlaps the source from above */
+void rowmove(const u32 *s, u32 *d, u32 nw)
+{
+	if (d > s && d < s + nw) {
+		s += nw;
+		d += nw;
+		while (nw--)
+			*--d = *--s;
+	} else {
+		while (nw--)
+			*d++ = *s++;
+	}
+}
 /* per-line predictor reconstruction: up, temporal, left */
 void pred_up(const u8 *res, const u8 *above, u8 *out, u32 n) { u32 i; for (i = 0; i < n; i++) out[i] = res[i] ^ above[i]; }
 void pred_left(const u8 *res, u8 *out, u32 n) { u32 i; u32 p = 0; for (i = 0; i < n; i++) { p ^= res[i]; out[i] = (u8)p; } }

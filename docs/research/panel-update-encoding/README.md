@@ -68,6 +68,8 @@ recording differs from the hashed dumps above in detail.
 
     cc -O2 -Wall -Wextra -Werror -shared -fPIC -o "$OUT/librectopt.so" $HERE/rectopt.c
     python3 -I $HERE/test_rect.py   --out "$OUT"
+    cc -O1 -Wall -Wextra -Werror -shared -fPIC -o "$OUT/dec_kernels_host.so" $HERE/dec_kernels.c
+    python3 -I $HERE/test_rowmove.py --out "$OUT"
     python3 -I $HERE/calib_D.py     --corpus "$CORPUS" --out "$OUT"
     python3 -I $HERE/analysis_a.py  --corpus "$CORPUS" --out "$OUT"
     python3 -I $HERE/analysis_b.py  --corpus "$CORPUS" --out "$OUT"
@@ -81,8 +83,8 @@ recording differs from the hashed dumps above in detail.
     python3 -I $HERE/summarize.py   --corpus "$CORPUS" --out "$OUT"
 
 `--font-header` defaults to `usr.bin/i86/font.h` of the same tree. Everything up
-to `analysis_c.py` takes under a minute; `analysis_v2.py` takes about 5 minutes and
-`analysis_240.py` about 7 (they are independent, so run them side by side). The
+to `analysis_c.py` takes under a minute; `analysis_v2.py` takes about 2.5 minutes and
+`analysis_240.py` about 6.5 (they are independent, so run them side by side). The
 last step writes `per_refresh_<session>.tsv`, `summary_wire.tsv`,
 `summary_streams.tsv` and `summary_misc.tsv` to `$OUT`; `data/` holds a copy of
 the files from the run behind the note, next to `stream_per_refresh_<session>.tsv`.
@@ -110,15 +112,33 @@ the files from the run behind the note, next to `stream_per_refresh_<session>.ts
   panel unchanged, pairs 01 and 10 that swap) and the mixed pairs a 2:1 halving merges.
 - `analysis_m2b.py` recomputes the log's span definition (first to last changed byte on a
   line) and lists the refreshes whose panel area is black while the guest memory is not.
-- `analysis_v2.py` is method 4. It tries shift 0 and the best-matching shifts of the
-  200-line area on every refresh, prices VSCSAD (3 bytes) and the first VSCRDEF (7), cuts
-  windows at the wrap seam, and replays the choice on a controller model that must
-  reproduce every recorded frame. A wrong shift and a missing seam cut must fail.
+- `analysis_v2.py` is method 4. On every refresh it prices every shift 0 to 199 of the
+  200-line area in order of mismatch count and stops once twice the mismatch count (a
+  cover costs at least 2 bytes for each damaged pixel) exceeds the best price, so the
+  choice is exact for the cover's prices. It adds VSCSAD (3 bytes) and the first VSCRDEF
+  (7), cuts windows at the wrap seam, and replays the choice on a controller model that
+  must reproduce every recorded frame. A wrong shift and a missing seam cut must fail.
+  Pruning to the six best shifts, as an earlier version did, gave the same choice on every
+  refresh of both corpora.
 - `analysis_240.py` repeats methods 3 and 4 on 240 lines, each guest line repeated so
-  that 5 lines become 6.
+  that 5 lines become 6, with the same exact shift search.
 - `analysis_c.py` sizes the streams that do not cross the wire, with decoders (see its
-  docstring). The `xz` column is `xz` at preset 9e on the whole z3 stream; it is a
+  docstring). Every stream carries the palette ioctls (12 bytes an entry): all 16 entries
+  at a text mode set, 3 at a graphics mode set, and 3 when a graphics color changes
+  (found as a change of the level-to-color map between graphics refreshes; a same-value
+  palette write counts nothing). A packed rectangle takes 1 bit a pixel when it holds two
+  colors (the window header's fg and bg name them), 2 bits for three or four, and 4 bits
+  otherwise (the palette index itself). A 2-bit rectangle whose colors are not palette
+  entries 0 to 3 needs a code-to-index map of four 4-bit indexes, 2 bytes, and the script
+  adds them; a format that kept the map in the header's two spare color bytes would pay
+  none. No rectangle of either corpus needs a map (30,431 one-bit rectangles on DOS; 965
+  one-bit and 119 two-bit, all on entries 0 to 2, on Windows), and the script checks the
+  rule on a synthetic known-bad and known-good rectangle first. The `xz` column is `xz`
+  at preset 9e on the messages of the z3 stream, without the palette ioctls; it is a
   reference, not a bound.
+- `test_rowmove.py` calibrates the decoder's row move against `memmove` for every
+  overlap, and shows that a forward-only copy fails in exactly the cases where the source
+  precedes and overlaps the destination, which the encoder's negative shifts produce.
 - `dec_kernels.c` and `cyc.py` give the decoder cycle counts. `cyc.py` adds the
   Cortex-M0+ cycles of each loop in the compiler's assembly, leaving out the function
   epilogue. For a nested loop, an outer iteration costs outer - inner + n * inner (the
@@ -127,7 +147,12 @@ the files from the run behind the note, next to `stream_per_refresh_<session>.ts
   at `.L56` and `.L57` of the listing (`cmp`, `bne`, `ldrb`, `strb`, `adds`, `b`):
   10 cycles a byte; `cyc.py` prints a larger enclosing span for that function. The
   figures assume zero-wait SRAM and no bus contention; they are estimates, and a counted
-  run on the board would test them.
+  run on the board would test them. `rowmove` has memmove semantics: a backward copy
+  when the destination overlaps the source from above (a negative shift), a forward copy
+  otherwise. The forward loop takes 10 cycles a word (2.5 a byte) and the backward loop 11
+  (2.75 a byte); a call adds about 16 cycles forward and 21 backward for entry, the
+  direction test and exit, so a 160-byte text row costs about 416 and 461 cycles (2.6
+  and 2.9 a byte).
 - `summarize.py` joins the outputs into the tables of `data/`.
 
 ## Expected values
@@ -146,12 +171,15 @@ Stream bytes a session:
 
 | Encoding | DOS | Windows |
 | --- | --- | --- |
-| today's write(2) | 236,204 | 1,306,116 |
-| panel-space rectangles, packed | 501,165 | 31,059 |
-| guest-state delta, skip and literal | 79,318 | 32,110 |
-| plus row-copy operations | 11,747 | 28,676 |
-| plus per-line predictors | 11,747 | 6,796 |
-| `xz -9e` of the last stream | 3,324 | 4,172 |
+| today's write(2) | 236,396 | 1,306,416 |
+| panel-space rectangles, packed | 501,357 | 31,359 |
+| guest-state delta, skip and literal | 79,510 | 32,410 |
+| plus row-copy operations | 11,939 | 28,976 |
+| plus per-line predictors | 11,939 | 7,096 |
+| `xz -9e` of the last stream's messages | 3,324 | 4,172 |
+
+Each row includes the palette ioctls (192 bytes on DOS, 300 on Windows), which an
+earlier count left out.
 
 `summary_misc.tsv` carries the remaining counts the note quotes (scroll refreshes,
 kernel counts, mixed pairs, 320x240 figures, replay results).

@@ -134,19 +134,23 @@ coding with a cheap decoder serves them.
 
 | Encoding, bytes a session | DOS | Windows |
 | --- | --- | --- |
-| today's `write(2)`: 1 byte a pixel, 1 bit a pixel for cells | 236,204 | 1,306,116 |
-| panel-space rectangles in packed native indexes (1, 2 or 4 bits a pixel) | 501,165 | 31,059 |
-| guest-state delta: skip and literal tokens (equal to XOR with zero runs) | 79,318 | 32,110 |
-| plus row-copy operations | 11,747 | 28,676 |
-| plus per-line predictors (up, two up, left, previous frame) | 11,747 | 6,796 |
+| today's `write(2)`: 1 byte a pixel, 1 bit a pixel for cells | 236,396 | 1,306,416 |
+| panel-space rectangles in packed native indexes (1, 2 or 4 bits a pixel) | 501,357 | 31,359 |
+| guest-state delta: skip and literal tokens (equal to XOR with zero runs) | 79,510 | 32,410 |
+| plus row-copy operations | 11,939 | 28,976 |
+| plus per-line predictors (up, two up, left, previous frame) | 11,939 | 7,096 |
 | `xz -9e` of the last stream, a reference rather than a bound | 3,324 | 4,172 |
 
-Every encoder has a decoder whose output, rendered through D, reproduces the
-recorded frames. Cortex-M0+ decode costs (computed, `-Os`, from S2's static
+Every stream counts its palette commands at 12 bytes an entry (192 bytes on
+the DOS session, 300 on Windows). A 2-bit rectangle whose colors are not
+entries 0 to 3 carries a 2-byte code map; none in these sessions needed
+one. Every encoder has a decoder whose output, rendered through D,
+reproduces the recorded frames. The scroll search prices all 200 shifts. Cortex-M0+ decode costs (computed, `-Os`, from S2's static
 counts):
 - 8.75 to 15 cycles a pixel for the packed index formats;
 - 10 to 13 cycles a byte for literal, XOR and predictor bytes;
-- 2.75 cycles a byte for row moves.
+- 2.5 cycles a byte for forward row moves and 2.75 for backward ones, the
+  direction an overlapping move from above needs.
 
 A pixel on the wire takes 160 core cycles at 12.5 MHz, so decoding costs
 under a tenth of what a skipped pixel saves.

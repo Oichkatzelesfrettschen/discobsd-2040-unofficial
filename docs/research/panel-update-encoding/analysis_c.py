@@ -45,7 +45,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import panellib as pl  # noqa: E402
 
-IOCTL = 12  # bytes copied in for one window ioctl
+IOCTL = 12  # bytes copied in for one window or palette ioctl
+MAP_BYTES = 2  # four 4-bit palette indexes: the code-to-index map of a 2-bpp rectangle
+# panel value to adapter color index in text modes (the lowest index wins a tie)
+TEXT_INDEX = {int(v): i for i, v in reversed(list(enumerate(pl.PAL16)))}
 
 
 def varint(v):
@@ -305,19 +308,60 @@ def today_stream(kind, g, prev_g, full, stale, fill, sent, cur, i):
     return p0 + (IOCTL if fill else 0)
 
 
-def rect_streams(diff, p, i):
-    """Rectangle streams over the panel-space damage: 1 byte a pixel, and packed 1, 2 or 4 bits."""
+def level_values(lines8, p):
+    """Panel value of each pair-sum level present in a graphics frame (palette entries 0 to 2)."""
+    area = p[pl.GY0 : pl.GY0 + 200]
+    lv = pl.g_levels(lines8)
+    return {v: int(area[lv == v][0]) for v in (0, 1, 2) if (lv == v).any()}
+
+
+def value_index(kind, levmap):
+    """Panel value to palette index for this frame (the lowest index wins a tie)."""
+    if kind == "T":
+        return TEXT_INDEX
+    return {val: v for v, val in sorted(levmap.items(), reverse=True)}
+
+
+def palette_entries(kind, stale, levmap, last_map):
+    """Palette entries set before this refresh: all at a mode set, three when a color changed."""
+    if stale:
+        return 16 if kind == "T" else 3
+    if kind == "G" and last_map is not None:
+        if any(levmap[v] != last_map[v] for v in levmap if v in last_map):
+            return 3
+    return 0
+
+
+def rect_streams(diff, p, i, vidx):
+    """Rectangle streams over the panel-space damage.
+
+    p1 is 1 byte a pixel (the INDEX format). p2 is packed 1, 2 or 4 bits a pixel by the
+    colors in the rectangle: 1 bpp takes its two palette indexes from the window header
+    (fg and bg), 4 bpp is the palette index itself, and a 2-bpp rectangle whose colors
+    are not palette entries 0 to 3 needs a code-to-index map of MAP_BYTES. The count of
+    such rectangles comes back as the third value.
+    """
     _c3, rl = pl.cover_rects(diff)
     p1 = sum(IOCTL + w * h for x, y, w, h in rl)
     p2 = 0
+    nmap = 0
+    kinds = {1: 0, 2: 0, 4: 0}
     for x, y, w, h in rl:
-        nvals = len(np.unique(p[y : y + h, x : x + w]))
-        bpp = 1 if nvals <= 2 else 2 if nvals <= 4 else 4
+        vals = np.unique(p[y : y + h, x : x + w])
+        try:
+            idx = [vidx[int(v)] for v in vals]
+        except KeyError as e:
+            raise ValueError("panel value %s has no palette index" % e) from e
+        bpp = 1 if len(vals) <= 2 else 2 if len(vals) <= 4 else 4
+        kinds[bpp] += 1
         p2 += IOCTL + h * ((w * bpp + 7) // 8)
+        if bpp == 2 and max(idx) > 3:
+            p2 += MAP_BYTES
+            nmap += 1
     if i == 0:
         p1 += IOCTL
         p2 += IOCTL
-    return p1, p2
+    return p1, p2, nmap, kinds
 
 
 def render_check(kind, s3, new, p, cur_i):
@@ -338,7 +382,28 @@ def render_check(kind, s3, new, p, cur_i):
 def run(name, rows):
     recs = pl.load(name)
     cur = pl.read_json(name + "_cursor.json")
-    tot = {k: 0 for k in ("p0", "p1", "p2", "z0", "z1", "z2", "z3", "z1_msgs", "z0_msgs", "z3_png")}
+    tot = {
+        k: 0
+        for k in (
+            "p0",
+            "p1",
+            "p2",
+            "z0",
+            "z1",
+            "z2",
+            "z3",
+            "z1_msgs",
+            "z0_msgs",
+            "z3_png",
+            "two_bpp_maps",
+            "rects_1bpp",
+            "rects_2bpp",
+            "rects_4bpp",
+            "pal_entries",
+            "pal_bytes",
+        )
+    }
+    last_map = None
     s0 = s1 = s2 = s3 = None
     prev_k = None
     prev_p = np.zeros((320, 320), np.uint16)
@@ -365,7 +430,13 @@ def run(name, rows):
         cbytes = 2 if (kind == "T" and (i == 0 or cur[i] != cur[i - 1])) else 0
         diff = p != prev_p
         p0 = today_stream(kind, g, prev_g, full, stale, r["fill"], r["sent"], cur, i)
-        p1, p2 = rect_streams(diff, p, i)
+        levmap = level_values(pl.g_lines(g), p) if kind == "G" else None
+        p1, p2, nmap, nbpp = rect_streams(diff, p, i, value_index(kind, levmap))
+        nent = palette_entries(kind, stale, levmap, last_map)
+        pal = nent * IOCTL
+        last_map = (
+            None if kind == "T" else ({**last_map, **levmap} if last_map and not stale else levmap)
+        )
         # the decoder state after a mode set or at the start is blank
         if full:
             s0, s1, s2, s3 = (blank_state(kind) for _ in range(4))
@@ -438,9 +509,19 @@ def run(name, rows):
             "z2": (len(m2) + cbytes) if m2 else 0,
             "z3": (len(m3) + cbytes) if m3 else 0,
         }
+        # every stream carries the palette ioctls of this refresh
+        p0 += pal
+        p1 += pal
+        p2 += pal
+        z = {k: v + pal for k, v in z.items()}
         tot["p0"] += p0
         tot["p1"] += p1
         tot["p2"] += p2
+        tot["two_bpp_maps"] += nmap
+        for b, n in nbpp.items():
+            tot["rects_%dbpp" % b] += n
+        tot["pal_entries"] += nent
+        tot["pal_bytes"] += pal
         for k, v in z.items():
             tot[k] += v
         tot["z1_msgs"] += int(bool(m1))
@@ -459,8 +540,31 @@ def run(name, rows):
     return dict(tot=tot, verify=verify, ref=ref, per=per)
 
 
+def self_check():
+    """Known-bad and known-good rectangles for the 2-bpp code-to-index map."""
+    prev = np.zeros((320, 320), np.uint16)
+    prev[10:12, 10:16] = 0x1234
+    p = prev.copy()
+    p[10:12, 10] = pl.PAL16[0]
+    p[10:12, 11:13] = pl.PAL16[5]
+    p[10:12, 13:16] = pl.PAL16[9]
+    _p1, size, nmap, kinds = rect_streams(p != prev, p, 1, TEXT_INDEX)
+    # colors 0, 5 and 9: one 6x2 rectangle at 2 bpp (2 bytes a row) plus the map
+    if (nmap, kinds[2], size) != (1, 1, IOCTL + 2 * 2 + MAP_BYTES):
+        raise SystemExit("FAIL: colors 0, 5 and 9 in one rectangle need a map")
+    q = prev.copy()
+    q[10:12, 10] = 0
+    q[10:12, 11:13] = 0x7BEF
+    q[10:12, 13:16] = 0xFFFF
+    vidx = value_index("G", {0: 0, 1: 0x7BEF, 2: 0xFFFF})
+    _p1, size, nmap, kinds = rect_streams(q != prev, q, 1, vidx)
+    if (nmap, kinds[2], size) != (0, 1, IOCTL + 2 * 2):
+        raise SystemExit("FAIL: levels 0, 1 and 2 are codes 0 to 2 and need no map")
+
+
 def main():
     pl.configure("Stream encodings for the paths that do not cross the wire.")
+    self_check()
     res = {}
     for name in ("dos", "win"):
         res[name] = run(name, pl.read_json("analysis_a2_%s.json" % name))

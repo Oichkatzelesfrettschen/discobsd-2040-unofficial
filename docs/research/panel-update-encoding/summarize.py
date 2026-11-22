@@ -138,6 +138,14 @@ def misc_rows(rows_by, w, a2, b, v2, c, m240, m2b):
     )
     glines = {n: sum(r["sent"] for r in rows_by[n] if r["kind"] == "G") // 320 for n in CORPORA}
     add("today_damage_graphics_lines_at_80_bytes", lambda n: c[n]["tot"]["p0"] - 240 * glines[n])
+    add("shifts_priced_max_a_refresh", lambda n: v2[n]["shifts_priced_max"])
+    add("shifts_priced_mean_a_refresh", lambda n: v2[n]["shifts_priced_mean"])
+    add("packed_rects_1bpp", lambda n: c[n]["tot"]["rects_1bpp"])
+    add("packed_rects_2bpp", lambda n: c[n]["tot"]["rects_2bpp"])
+    add("packed_rects_4bpp", lambda n: c[n]["tot"]["rects_4bpp"])
+    add("two_bpp_rects_needing_a_map", lambda n: c[n]["tot"]["two_bpp_maps"])
+    add("palette_entries_set", lambda n: c[n]["tot"]["pal_entries"])
+    add("palette_bytes", lambda n: c[n]["tot"]["pal_bytes"])
     add("line_predictor_messages", lambda n: c[n]["tot"]["z3_png"])
     add(
         "decoded_frames_render_equal",
@@ -223,8 +231,11 @@ def main():
     ]
     write_tsv(
         "summary_streams.tsv",
-        ["corpus", *sn, "xz_z3"],
-        [[n, *[c[n]["tot"][k] for k in sk], c[n]["ref"]["z3"]["xz"]] for n in CORPORA],
+        ["corpus", *sn, "xz_z3_messages", "palette_bytes_in_every_row"],
+        [
+            [n, *[c[n]["tot"][k] for k in sk], c[n]["ref"]["z3"]["xz"], c[n]["tot"]["pal_bytes"]]
+            for n in CORPORA
+        ],
     )
     misc = misc_rows(rows_by, w, a2, b, v2, c, m240, m2b)
     write_tsv("summary_misc.tsv", ["quantity", "dos", "win"], misc)

@@ -88,8 +88,14 @@ def rowcuts_for(s):
     return [] if s % 200 == 0 else [pl.GY0 + 200 - (s % 200)]
 
 
-def best_scroll_rects(old, new, s, nbest=6):
-    """Cheapest (bytes, shift, rectangles) over shift 0 and the nbest best-matching shifts."""
+def best_scroll_rects(old, new, s):
+    """Cheapest (bytes, shift, rectangles, shifts priced) over every shift 0..199.
+
+    A cover costs at least 2 bytes for each damaged pixel, so the shifts are priced in
+    order of mismatch count and the search stops when 2 * mismatches (plus the outside
+    cover and the 3-byte VSCSAD) exceeds the best price found. The result is exact for
+    the cover's own prices.
+    """
     gy0 = pl.GY0
     a = old[gy0 : gy0 + 200]
     b = new[gy0 : gy0 + 200]
@@ -100,16 +106,23 @@ def best_scroll_rects(old, new, s, nbest=6):
     u = (b[:, None, :] != a[None, :, :]).sum(2)
     idx = np.arange(200)
     mism = np.array([u[idx, (idx + k) % 200].sum() for k in range(200)])
-    cand = [0] + [int(k) for k in np.argsort(mism)[: nbest + 1] if k != 0][:nbest]
-    res = []
-    for k in cand:
-        s2 = (s + k) % 200
+    best = None
+    priced = 0
+    for k in sorted(range(200), key=lambda k: (int(mism[k]), k)):
+        lower = oc + 2 * int(mism[k]) + (3 if k else 0)
+        if best is not None and lower > best[0]:
+            break
         m = np.zeros((320, 320), bool)
         m[gy0 : gy0 + 200] = np.roll(a, -k, axis=0) != b
-        c, rl = pl.cover_rects(m, rowcuts=rowcuts_for(s2))
-        res.append((c + oc + (3 if k else 0), k, rl + orl))
-    res.sort(key=lambda t: (t[0], t[1]))
-    return res[0]
+        c, _n = pl.cover(m, rowcuts=rowcuts_for((s + k) % 200))
+        priced += 1
+        cost = c + oc + (3 if k else 0)
+        if best is None or (cost, k) < best[:2]:
+            best = (cost, k)
+    m = np.zeros((320, 320), bool)
+    m[gy0 : gy0 + 200] = np.roll(a, -best[1], axis=0) != b
+    c, rl = pl.cover_rects(m, rowcuts=rowcuts_for((s + best[1]) % 200))
+    return best[0], best[1], rl + orl, priced
 
 
 def replay(recs, plan, wrong_k_at=None):
@@ -138,6 +151,8 @@ def run(name):
     rows = []
     nocut_straddle = 0
     seam_refreshes = 0
+    priced_max = 0
+    priced_sum = 0
     for i, (_kind, _cols, _g, p) in enumerate(recs):
         c3, rl3 = pl.cover_rects(p != prev)
         if i == 0:
@@ -147,7 +162,9 @@ def run(name):
             m3 = m4
         else:
             m3 = c3
-            m4, k, rl = best_scroll_rects(prev, p, s)
+            m4, k, rl, priced = best_scroll_rects(prev, p, s)
+            priced_max = max(priced_max, priced)
+            priced_sum += priced
             if k and not paid:
                 m4 += 7
                 paid = True
@@ -184,6 +201,8 @@ def run(name):
         seam_refreshes=seam_refreshes,
         nocut_would_straddle=nocut_straddle,
         n_scroll=sum(1 for r in rows if r["k"]),
+        shifts_priced_max=priced_max,
+        shifts_priced_mean=round(priced_sum / max(1, len(rows) - 1), 1),
         rows=rows,
     )
 

@@ -277,7 +277,7 @@ mhz_khz(const char *s)
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: i86 [-dgqrTv] [-c 8086|8088|186|286] [-m kbytes] "
+	fprintf(stderr, "usage: i86 [-dGgqrTv] [-c 8086|8088|186|286] [-m kbytes] "
 	    "[-e kbytes] [-f frames] [-S mhz] [-w 40|80]\n"
 	    "           [-s pagefile] [-k keys] [-a floppy] [-b floppy] "
 	    "[-h disk] ...\n");
@@ -290,7 +290,7 @@ main(int argc, char **argv)
 	static struct i86 cpu;
 	static char store_name[32];
 	const char *store = store_name;
-	unsigned frames = 120, nhard = 0;
+	unsigned frames = 119, nhard = 0;
 	int ch;
 
 	/* One page file for each running emulator. */

@@ -84,26 +84,26 @@ clean-all: clean
 
 CONFIG_TOOL=	${TOOLBINDIR}/config
 
-# config rewrites this Makefile, which the running make has already read, so
-# the rest of a build after a Config change would use the old PARAM and object
-# lists. A build stops when the rewrite changed the file, and the next make
-# reads the new one; an identical rewrite, as after a fresh checkout, goes on,
-# and "make reconfig" with no other goal succeeds. Each run snapshots the
-# Makefile into its own file, and .ORDER keeps the two goals from running at
-# once when "reconfig" is named beside a build under -j.
-.ORDER: reconfig ioconf.c
+# config writes CONFIG_CKSUM, above: the POSIX cksum of the Config it read.
+# The make that runs config has already read this Makefile, so a build that
+# reconfigured here would compile with the PARAM and object lists of the old
+# Config. A Makefile whose CONFIG_CKSUM differs from Config's stops at once,
+# before any recipe runs; "make reconfig", alone, rewrites it, and "make
+# clean" still runs. A Config touched but unchanged, as after a checkout,
+# passes, and the rule below regenerates identical files.
+.if !make(clean) && !make(clean-all) && !make(reconfig)
+_CONFIG_CKSUM!=	cksum < Config
+.if "${_CONFIG_CKSUM}" != "${CONFIG_CKSUM}"
+.error ${.CURDIR}/Config changed since config wrote this Makefile; run "make reconfig", then the build
+.endif
+.endif
+.if make(reconfig) && ${.TARGETS:[#]} != 1
+.error "make reconfig" rewrites this Makefile; run it alone, then the build
+.endif
+
 reconfig ioconf.c: Config ${CONFIG_TOOL}
-	@set -e; before=$$(mktemp .Makefile.before-config.XXXXXX); \
-	trap 'rm -f "$$before"' EXIT; \
-	cp Makefile "$$before"; \
-	echo "${CONFIG_TOOL} Config"; \
-	${CONFIG_TOOL} Config; \
-	${MAKE} clean; \
-	if ! cmp -s Makefile "$$before" && [ "${.TARGETS}" != reconfig ]; then \
-		echo "config rewrote ${.CURDIR}/Makefile from Config;" \
-		    "run make again to build with it" >&2; \
-		exit 1; \
-	fi
+	${CONFIG_TOOL} Config
+	${MAKE} clean
 
 machine:
 	ln -s ${_machdir}/include $@

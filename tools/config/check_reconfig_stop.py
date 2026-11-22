@@ -23,19 +23,20 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-"""Run the reconfig rule of each kernel Makefile template against a fake config.
+"""Check that a kernel Makefile refuses to build from a Config it does not match.
 
-config rewrites a compile directory's Makefile while the make that runs it has
-already read the old one. The rule must stop a build when the rewrite changed
-the file, let an identical rewrite go on, and pass "make reconfig" asked for
-with no other goal. Each production template's rule runs in a scratch
-directory whose fake config rewrites PARAM from Config and refuses to run
-twice at once. Three mutants of the rule must each fail the scenario named
-for them, and every tracked generated Makefile must carry its template's rule
-verbatim, .ORDER line included.
+config writes CONFIG_CKSUM, the POSIX cksum of the Config it read, into each
+compile directory's Makefile, and the skeletons Makefile.rp2040 and
+Makefile.stm32 compare it with Config when make reads the Makefile. Every
+tracked compile Makefile must carry its Config's cksum, which also checks
+config's CRC against the system's cksum. Each skeleton's check runs in a
+scratch directory whose fake config rewrites CONFIG_CKSUM, through six
+scenarios; four mutants of the check must each fail the scenario named for
+them.
 """
 
 import argparse
+import os
 import re
 import stat
 import subprocess
@@ -50,68 +51,72 @@ TEMPLATES = {
     "sys/arch/rp2040/conf/Makefile.rp2040": "sys/arch/rp2040/compile",
     "sys/arch/stm32/conf/Makefile.stm32": "sys/arch/stm32/compile",
 }
-RULE = re.compile(r"^\.ORDER: reconfig ioconf\.c\nreconfig ioconf\.c: Config \$\{CONFIG_TOOL\}\n"
-                  r"((?:\t[^\n]*\n)+)", re.MULTILINE)
-PARALLEL_RUNS = 3
+START = ".if !make(clean) && !make(clean-all) && !make(reconfig)\n"
+END = "reconfig ioconf.c: Config ${CONFIG_TOOL}\n\t${CONFIG_TOOL} Config\n\t${MAKE} clean\n"
 FAKE_CONFIG = """#!/bin/sh
-# Rewrite PARAM from Config, as config rewrites the generated Makefile. Two
-# runs that overlap fail: the second finds the first one's lock directory.
+# Rewrite CONFIG_CKSUM from Config, as config rewrites the generated Makefile.
 set -eu
-mkdir config.lock
-param=$(cat Config)
-sleep 0.3
-sed "s/^PARAM=.*/PARAM=$param/" Makefile > Makefile.new
+sum=$(cksum < Config)
+sed "s/^CONFIG_CKSUM = .*/CONFIG_CKSUM = $sum/" Makefile > Makefile.new
 mv Makefile.new Makefile
-echo "/* $param */" > ioconf.c
-rmdir config.lock
+cksum < Config > ioconf.c
 """
-STOP = "rewrote"
+STALE = "changed since config wrote this Makefile"
+ALONE = "run it alone"
 
 
 class GateError(Exception):
     pass
 
 
-def rule(contents, name):
-    match = RULE.search(contents)
-    if match is None:
-        raise GateError(f"{name}: reconfig rule is absent")
-    return match.group(0)
+def cksum(path):
+    with open(path, "rb") as f:
+        return subprocess.run(["cksum"], stdin=f, stdout=subprocess.PIPE, text=True,
+                              check=True).stdout.strip()
+
+
+def check_block(contents, name):
+    start = contents.find(START)
+    end = contents.find(END, start)
+    if start < 0 or end < 0:
+        raise GateError(f"{name}: the Config check or the reconfig rule is absent")
+    return contents[start:end + len(END)]
 
 
 def mutate(text, old, new, name):
     if old not in text:
-        raise GateError(f"mutant {name}: its anchor is absent from the rule")
+        raise GateError(f"mutant {name}: its anchor is absent from the check")
     return text.replace(old, new, 1)
 
 
 def mutants(text):
-    """(name, rule, the scenario that must fail)."""
-    old_rule = ("reconfig ioconf.c: Config ${CONFIG_TOOL}\n"
-                "\t${CONFIG_TOOL} Config\n\t${MAKE} clean\n")
+    """(name, check, the scenario that must fail)."""
     return (
-        ("no stop", old_rule, "changed"),
-        ("goal of the recipe", mutate(text, "${.TARGETS}", "${.TARGET}", "goal"),
+        ("no cksum test", mutate(text, '.if "${_CONFIG_CKSUM}" != "${CONFIG_CKSUM}"', ".if 0",
+                                 "cksum"), "changed"),
+        ("reconfig refused", mutate(text, " && !make(reconfig)\n", "\n", "reconfig"),
+         "reconfig alone"),
+        ("reconfig beside a build", mutate(text, "${.TARGETS:[#]} != 1", "0", "alone"),
          "reconfig with all"),
-        ("stop always", mutate(text, '! cmp -s Makefile "$$before"', "true", "always"),
-         "unchanged"),
+        ("clean refused", mutate(text, "!make(clean) && ", "", "clean"), "clean"),
     )
 
 
 class Fixture:
-    def __init__(self, directory, rule_text, make):
+    def __init__(self, directory, block, make, config):
         self.dir, self.make = directory, make
         tool = directory / "fake-config"
         tool.write_text(FAKE_CONFIG)
         tool.chmod(tool.stat().st_mode | stat.S_IXUSR)
+        (directory / "Config").write_text("OLD\n")
         (directory / "Makefile").write_text(
-            ".MAIN: all\nPARAM=OLD\nCONFIG_TOOL=" + str(tool) + "\n"
-            "all: ioconf.c\n\t@echo ${PARAM} > built\n"
-            "clean:\n\t@rm -f built\n" + rule_text)
-
-    def config(self, param):
-        (self.dir / "ioconf.c").unlink(missing_ok=True)
-        (self.dir / "Config").write_text(param + "\n")
+            "CONFIG_CKSUM = " + cksum(directory / "Config") + "\n.MAIN: all\n"
+            "CONFIG_TOOL=" + str(tool) + "\n"
+            "all: ioconf.c\n\t@cat ioconf.c > built\n"
+            "clean clean-all:\n\t@rm -f built\n" + block)
+        (directory / "ioconf.c").write_text("")
+        if config is not None:
+            (directory / "Config").write_text(config)
 
     def run(self, *goals):
         result = subprocess.run([self.make, *goals], cwd=self.dir, env=sync.child_environment(),
@@ -120,60 +125,59 @@ class Fixture:
         return result.returncode, result.stdout
 
     def built(self):
-        path = self.dir / "built"
-        return path.read_text().strip() if path.exists() else None
+        return (self.dir / "built").exists()
 
 
-def scenarios(rule_text, make):
-    """Return the name of the first scenario the rule fails, or None."""
+def scenarios(block, make):
+    """Return the name of the first scenario the check fails, or None."""
+    def fixture(scratch, config=None):
+        return Fixture(Path(scratch), block, make, config)
+
     with tempfile.TemporaryDirectory() as scratch:
-        f = Fixture(Path(scratch), rule_text, make)
-        f.config("OLD")
+        f = fixture(scratch)
         rc, _ = f.run("all")
-        if rc != 0 or f.built() != "OLD":
+        if rc != 0 or not f.built():
             return "unchanged"
     with tempfile.TemporaryDirectory() as scratch:
-        f = Fixture(Path(scratch), rule_text, make)
-        f.config("NEW")
-        rc, out = f.run("all")
-        if rc == 0 or STOP not in out or f.built() is not None:
-            return "changed"
+        f = fixture(scratch, "OLD\n")
+        config_time = (f.dir / "Config").stat().st_mtime
+        os.utime(f.dir / "ioconf.c", (config_time - 10, config_time - 10))
         rc, _ = f.run("all")
-        if rc != 0 or f.built() != "NEW":
-            return "changed, second build"
+        if rc != 0 or not f.built() or (f.dir / "built").read_text().strip() != cksum(
+                f.dir / "Config"):
+            return "touched"
+    for mode in ((), ("-j4",)):
+        with tempfile.TemporaryDirectory() as scratch:
+            f = fixture(scratch, "NEW\n")
+            rc, out = f.run(*mode, "all")
+            if rc == 0 or STALE not in out or f.built():
+                return "changed"
     with tempfile.TemporaryDirectory() as scratch:
-        f = Fixture(Path(scratch), rule_text, make)
-        f.config("NEW")
+        f = fixture(scratch, "NEW\n")
         rc, _ = f.run("reconfig")
-        if rc != 0 or "PARAM=NEW" not in (f.dir / "Makefile").read_text():
+        rc2, _ = f.run("all")
+        if rc != 0 or rc2 != 0 or not f.built():
             return "reconfig alone"
     with tempfile.TemporaryDirectory() as scratch:
-        f = Fixture(Path(scratch), rule_text, make)
-        f.config("NEW")
-        rc, _ = f.run("reconfig", "all")
-        if rc == 0:
+        f = fixture(scratch, "NEW\n")
+        rc, out = f.run("reconfig", "all")
+        if rc == 0 or ALONE not in out or f.built():
             return "reconfig with all"
-    # Named beside a build under -j, reconfig and ioconf.c are both out of date and share the
-    # recipe; its two runs must not overlap (the fake config's lock), and an unchanged rewrite
-    # must still build. Without the .ORDER line the runs overlap only sometimes, so RULE
-    # requires that line instead of a mutant testing it.
-    for _ in range(PARALLEL_RUNS):
-        with tempfile.TemporaryDirectory() as scratch:
-            f = Fixture(Path(scratch), rule_text, make)
-            f.config("OLD")
-            rc, _ = f.run("-j4", "reconfig", "all")
-            if rc != 0 or f.built() != "OLD" or list(f.dir.glob(".Makefile.before-config*")):
-                return "parallel reconfig with all"
+    with tempfile.TemporaryDirectory() as scratch:
+        f = fixture(scratch, "NEW\n")
+        rc, _ = f.run("clean")
+        if rc != 0:
+            return "clean"
     return None
 
 
 def check(root, make):
     for template, compile_dir in TEMPLATES.items():
-        text = rule((root / template).read_text(), template)
-        failed = scenarios(text, make)
+        block = check_block((root / template).read_text(), template)
+        failed = scenarios(block, make)
         if failed is not None:
-            raise GateError(f"{template}: the rule fails the {failed} scenario")
-        for name, mutant, expected in mutants(text):
+            raise GateError(f"{template}: the check fails the {failed} scenario")
+        for name, mutant, expected in mutants(block):
             failed = scenarios(mutant, make)
             if failed != expected:
                 raise GateError(f"{template}: mutant {name} failed {failed!r}, "
@@ -182,10 +186,16 @@ def check(root, make):
         if not generated:
             raise GateError(f"{compile_dir}: no generated Makefile")
         for path in generated:
-            if rule(path.read_text(), str(path.relative_to(root))) != text:
-                raise GateError(f"{path.relative_to(root)}: reconfig rule differs from {template}")
-        print(f"PASS reconfig-stop {template}: five scenarios, three mutants, "
-              f"{len(generated)} generated Makefiles")
+            name = str(path.relative_to(root))
+            contents = path.read_text()
+            if check_block(contents, name) != block:
+                raise GateError(f"{name}: Config check differs from {template}")
+            match = re.search(r"^CONFIG_CKSUM = (.*)$", contents, re.M)
+            want = cksum(path.parent / "Config")
+            if match is None or match.group(1) != want:
+                raise GateError(f"{name}: CONFIG_CKSUM is not cksum of Config ({want})")
+        print(f"PASS reconfig-stop {template}: six scenarios, four mutants, "
+              f"{len(generated)} generated Makefiles match their Config")
 
 
 def main():
@@ -195,7 +205,7 @@ def main():
     args = parser.parse_args()
     try:
         check(args.root.resolve(), args.make)
-    except (GateError, sync.SyncError, OSError, subprocess.TimeoutExpired) as error:
+    except (GateError, sync.SyncError, OSError, subprocess.SubprocessError) as error:
         print(f"ERROR reconfig-stop: {error}", file=sys.stderr)
         return 1
     return 0

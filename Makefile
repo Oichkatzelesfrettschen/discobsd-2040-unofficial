@@ -1715,8 +1715,8 @@ check-userland-layout-flags: check-python
 check-config-include-order: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/check_include_order.py --root ${TOPSRC} --make ${MAKE}
 
-# The reconfig rule of each kernel Makefile template stops a build whose
-# config run rewrote the Makefile (tools/config/check_reconfig_stop.py).
+# A kernel Makefile refuses to build from a Config whose cksum differs from
+# the CONFIG_CKSUM config wrote (tools/config/check_reconfig_stop.py).
 check-config-reconfig-stop: check-python
 		${PYTHON} tools/config/check_reconfig_stop.py --root ${TOPSRC} --make ${MAKE}
 

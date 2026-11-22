@@ -133,6 +133,7 @@ struct config {
 extern int      arch;
 extern int      yyerrors;        /* errors the parse reported */
 extern char     *archname;
+extern const char *config_file; /* the configuration file config read */
 #define ARCH_STM32      1
 #define ARCH_RP2040     2
 

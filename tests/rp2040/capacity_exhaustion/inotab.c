@@ -16,9 +16,9 @@
  * directory. Each holder changes into its own directory and opens one file
  * there: two inode references for one file slot. The parent opens distinct
  * files for the slots the holders leave. The next open of a distinct file
- * and a stat(2) of another must both fail with ENFILE; stat(2) takes no
- * file slot at all. Every path is relative to the working directory, so a
- * lookup needs no slot for an intermediate directory.
+ * and a stat(2) of another must both fail with ENFILE; stat(2) takes zero
+ * file slots. Every path is relative to the working directory, so a
+ * lookup needs zero slots for an intermediate directory.
  *
  * Holders park in sigsuspend(2) until SIGUSR1, and alarm(2) ends one that
  * nobody releases. Output goes through write(2) so each fork copies a small

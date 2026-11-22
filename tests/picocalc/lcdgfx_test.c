@@ -656,7 +656,7 @@ test_open_close(void)
 
 /*
  * A pixel program owns the panel: text written to the console updates the
- * cell store and draws nothing.
+ * cell store and stops short of drawing.
  */
 static void
 test_text_stays_off_the_panel(void)
@@ -1243,7 +1243,7 @@ test_scroll_colmod_info(void)
 	no_violations("scroll, colmod and info");
 }
 
-/* Rejected payloads change nothing on the panel; the good edges are drawn. */
+/* Rejected payloads leave the panel unchanged; the good edges are drawn. */
 static void
 test_ranges(void)
 {
@@ -1842,7 +1842,7 @@ test_tile_stream(void)
 	expect_err("the stream is over", do_write(nums, 4), EINVAL);
 	expect_int("still one window", nwindow, 1);
 
-	/* A bad number in the first row draws nothing. */
+	/* A bad number in the first row fails before drawing. */
 	fb_clear();
 	counters_clear();
 	nums[0] = 255;
@@ -1885,7 +1885,7 @@ test_tile_stream(void)
 	open_ok("reopen");
 	expect_err("write after close", do_write(nums + 8, 2), EINVAL);
 
-	/* A block abandoned inside a row leaves no numbers to the next one. */
+	/* A block abandoned inside a row leaves zero numbers to the next one. */
 	ref_pal_init();
 	memset(ref_atlas, 0, sizeof(ref_atlas));
 	ref_atlas_random(0, LCDG_ATLAS_N);

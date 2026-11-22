@@ -271,7 +271,7 @@ gap_case(void)
 	HK_CHECK(u.u_lastfile == 2);
 }
 
-/* A slot flagged for close with no file in it reaches no close routine. */
+/* A slot flagged for close with no file in it never reaches a close routine. */
 static void
 empty_slot_case(void)
 {

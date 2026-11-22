@@ -17,7 +17,7 @@ require(int condition, const char *message)
 }
 
 /*
- * The identity helpers: a reply of all zeros or all ones is no chip, the
+ * The identity helpers: a reply of all zeros or all ones is not a chip, the
  * capacity byte names the fixed layout only at 15h, and the serial string
  * is the unique ID in hex with the suffix the host tools match.
  */

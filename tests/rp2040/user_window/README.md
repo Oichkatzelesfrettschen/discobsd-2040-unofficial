@@ -5,11 +5,11 @@ exceeds 144 KiB and that every byte of a 170 KiB bss can be written and read
 back. Exec refuses the image unless `USER_DATA_SIZE` covers its text, data,
 bss and stack, and the pattern pass faults or reads back wrong if the window
 is smaller than `machparam.h` states. It is a capacity and writability check:
-it reads no MPU register and provokes no fault, so it establishes neither
+it never reads an MPU register or provokes a fault, so it establishes neither
 protection nor the exact region boundary (`sys/arch/rp2040/doc/MPU.md` and
 `mputest` own those).
 
-It draws nothing and uses no panel, key or other device, so it runs from any
+It neither draws nor uses a panel, key or other device, so it runs from any
 login, panel console or serial. It writes a position-dependent byte pattern
 over the whole bss, reads it back and prints
 `bss <n> bytes at <first>..<last>, <m> mismatches`, then `WINDOWTEST OK`

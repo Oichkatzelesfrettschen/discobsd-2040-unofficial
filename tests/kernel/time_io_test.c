@@ -131,7 +131,7 @@ int bdevsync(dev_t dev)
     device_sync_device = dev;
     return device_sync_error;
 }
-/* A driver without DIOCCHECKPOINT: ufs_sync()'s request has nothing to do. */
+/* A driver without DIOCCHECKPOINT: ufs_sync()'s request returns at once. */
 static int
 no_checkpoint_ioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 {
@@ -529,7 +529,7 @@ static void sync_cases(void)
     gate_sync();
     HK_CHECK(mount[0].m_write_error == EIO && writes == 0);
 
-    /* A clean read-only mount writes nothing and does not panic. */
+    /* A clean read-only mount writes zero blocks and does not panic. */
     sync_setup(0, 0); mount[0].m_flags = MNT_RDONLY; fs->fs_ronly = 1;
     gate_sync();
     HK_CHECK(writes == 0 && superblock_gets == 0);

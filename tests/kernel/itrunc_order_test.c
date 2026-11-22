@@ -230,7 +230,7 @@ itrunc_order_free(struct inode *ip, daddr_t bn)
 
 /*
  * itrunc() maps the block that holds the new end of a file ending inside a
- * block. The fixture's files have no holes, so the direct address answers.
+ * block. The fixture's files are fully allocated, so the direct address answers.
  */
 daddr_t
 bmap(struct inode *ip, daddr_t bn, int rwflg, int flags)
@@ -447,7 +447,7 @@ run_failed_indirect_write(void)
 	HK_CHECK(on_disk[0] != 0 && on_disk[1] != 0 && on_disk[2] != 0);
 	/*
 	 * The cache holds the cleared block as a delayed write, so a file
-	 * that grows again maps none of the entries past its end.
+	 * that grows again maps zero entries past its end.
 	 */
 	{
 		daddr_t *cached = (daddr_t *)cache[blocks_of_file[NDADDR]];

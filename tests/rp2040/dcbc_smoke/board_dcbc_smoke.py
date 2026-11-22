@@ -22,7 +22,7 @@ Checks, each with an exact expected line:
 
 bc forks a child that runs dc's evaluator, so the bc checks establish that the
 fork of the bc image fits the window and the swap. This script was written
-without a board run; the tree records no result for it.
+without a board run; the tree lacks a result for it.
 """
 
 import glob

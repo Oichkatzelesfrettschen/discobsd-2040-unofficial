@@ -38,7 +38,7 @@ Sessions refused is the share of sessions in which the swap map could not
 hold an image. The kernel then refuses the fork (`newproc()` returns -1)
 or keeps the outgoing process resident and defers the swap-in (`sched()`),
 so the traced workload does not complete: the replay stops at that record
-and a row with any refused session carries no erase or wear figure; its
+and a row with any refused session lacks erase and wear figures; its
 peak blocks are those reached before the refusal. Extra RAM is exact for
 a buffer size; text is an estimate whose basis `variants.TEXT_BASIS`
 states.
@@ -83,14 +83,14 @@ Changes from the first published tables:
 | 96 KB | 23 | refuses the workload | -- | -- | -- | -- | -- | 68 | 100% |
 | 64 KB | 15 | refuses the workload | -- | -- | -- | -- | -- | 44 | 100% |
 
-Variant 5 saves nothing in the model because the traces carry no all-zero
+Variant 5 saves nothing in the model because the traces lack an all-zero
 sector; the board bounds it instead. `swapram_refuse_zero_chunks` counted
 4 all-zero 4 KiB data chunks in 782 over the 24 compiles, so eliding them
 saves at most 0.17 erases a compile, for 32 bytes of RAM and about 80 of
 text: not worth building. The images are 69 percent zero bytes, but the
 zeros lie in runs shorter than a sector; the codec already takes them.
 
-Variant 8 removes every NOR erase and changes no admission
+Variant 8 removes every NOR erase and leaves every admission unchanged
 (`test_swap_off_nor_changes_nothing_but_erases`): the pool never reads the
 flash path's state.
 
@@ -146,7 +146,7 @@ a KB of text saves more than 15 times what a KB of pool RAM saves.
    bound and fall back to flash on overflow. 0 RAM, about 120 B text, 41
    percent of the erases.
 2. Variant 4, refused images compressed on flash: the largest saving that
-   costs no RAM, and it shrinks peak flash use from 104 to 32 blocks.
+   costs zero RAM, and it shrinks peak flash use from 104 to 32 blocks.
 3. Variant 6 in userland: the cc driver's shell is the class every
    compile refuses eight times. The model deletes those eight swap-outs,
    so 47.5 is an upper bound: a compiled driver still forks four passes

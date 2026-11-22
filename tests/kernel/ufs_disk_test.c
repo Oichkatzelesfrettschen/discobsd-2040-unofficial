@@ -713,7 +713,7 @@ const int nchrdev = sizeof(cdevsw) / sizeof(cdevsw[0]) - 1;
 /*
  * Descriptors. open_node() makes a special-file inode, runs openi() on it as
  * vn_open() does and gives the result a file table entry; close_node() is
- * closef() for it. A node the kernel refuses leaves no reference behind.
+ * closef() for it. A node the kernel refuses leaves zero references behind.
  */
 struct node {
 	struct file *fp;
@@ -1062,7 +1062,7 @@ boot_machine(void)
 	swapdev = FL_SWAP;
 	fs = mountfs(FL_ROOT, MNT_NOATIME, 0);
 	HK_CHECK(fs != NULL);
-	/* The swap unit is set up once swapping starts; it holds no partition. */
+	/* The swap unit is set up once swapping starts; it lacks a partition. */
 	fl_setup(FL_UNIT_SWAP);
 	mount[0].m_inodp = (struct inode *)1;
 	mntdir = new_inode(IFDIR | 0755, 0);
@@ -1164,7 +1164,7 @@ static void
 test_failed_mount_closes_last_user(void)
 {
 	boot_machine();
-	/* Partition b holds no filesystem. */
+	/* Partition b lacks a filesystem. */
 	bzero(sd_disk.blocks[31], DEV_BSIZE);
 	HK_CHECK(do_mount("/dev/sd0b", "/mnt", 0) == EINVAL);
 	HK_CHECK(mount_of(SD_B) == NULL);
@@ -1195,7 +1195,7 @@ test_failed_mount_keeps_open_descriptor(void)
  * modified (mountfs sets fs_fmod), so ufs_sync() writes it back, the card
  * refuses, and unmount(2) sees an error. When the driver reports the media
  * gone the unmount completes without write-back, closes the driver and
- * leaves no buffer that could reach the next card.
+ * leaves zero buffers that could reach the next card.
  */
 static void
 pull_card(void)
@@ -1378,9 +1378,9 @@ test_failed_flush_still_checkpoints(void)
 
 /*
  * A write that carries IO_SYNC (a descriptor opened O_FSYNC) to a block device
- * node has no filesystem for rwip() to sync. It returns after the buffer
+ * node lacks a filesystem for rwip() to sync. It returns after the buffer
  * write with one checkpoint of that device, and a checkpoint failure is the
- * write's error. A write without IO_SYNC takes none.
+ * write's error. A write without IO_SYNC skips the checkpoint.
  */
 static void
 test_sync_device_write_checkpoints(void)
@@ -1406,7 +1406,7 @@ test_sync_device_write_checkpoints(void)
 	HK_CHECK(fl_disk.nwrites == writes + 1);
 	HK_CHECK(fl_checkpoint_calls == calls + 1);
 	fl_checkpoint_error = 0;
-	/* A failed buffer write returns its own error and takes no checkpoint. */
+	/* A failed buffer write returns its own error and skips the checkpoint. */
 	fl_disk.fail_writes = 1;
 	calls = fl_checkpoint_calls;
 	HK_CHECK(write_cooked_block_flags(&node, IO_SYNC) == EIO);
@@ -1414,7 +1414,7 @@ test_sync_device_write_checkpoints(void)
 	fl_disk.fail_writes = 0;
 	must_mount(FL_ROOT)->m_write_error = 0;
 	node.ip->i_bdev_error = 0;
-	/* Writes without IO_SYNC, delayed and asynchronous, take none. */
+	/* Writes without IO_SYNC, delayed and asynchronous, skip it. */
 	calls = fl_checkpoint_calls;
 	HK_CHECK(write_cooked_block_flags(&node, 0) == 0);
 	HK_CHECK(write_cooked_byte(&node, 'R') == 0);
@@ -2585,7 +2585,7 @@ test_overlap_sd(void)
 	/* The whole card covers partition a. */
 	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FWRITE) == EBUSY);
 	HK_CHECK(try_open(SD_WHOLE, IFBLK | 0600, FWRITE) == EBUSY);
-	/* A read-only raw open writes nothing. */
+	/* A read-only raw open does not write to the device. */
 	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FREAD) == 0);
 	/* Partition c overlaps a, partition b only touches it. */
 	HK_CHECK(try_open(RSD_C, IFCHR | 0600, FWRITE) == EBUSY);
@@ -2609,7 +2609,7 @@ test_overlap_sd_mbr_entries(void)
 	HK_CHECK(try_open(RSD_B, IFCHR | 0600, FWRITE) == EBUSY);
 	HK_CHECK(try_open(RSD_WHOLE, IFCHR | 0600, FWRITE) == EBUSY);
 	HK_CHECK(try_open(RSD_C, IFCHR | 0600, FWRITE) == EBUSY);
-	/* A partition table entry with no sectors holds no storage. */
+	/* A partition table entry with zero sectors does not hold storage. */
 	HK_CHECK(try_open(makedev(SD_CMAJOR, 4), IFCHR | 0600, FWRITE) ==
 	    ENXIO);
 }
@@ -2686,7 +2686,7 @@ test_overlap_other_unit_and_majors(void)
 	boot_machine();
 	HK_CHECK(do_mount("/dev/sd0a", "/mnt", 0) == 0);
 	securelevel = 1;
-	/* sd unit 1 does not exist; fl0 and sd0 share no storage. */
+	/* sd unit 1 does not exist; fl0 and sd0 hold disjoint storage. */
 	HK_CHECK(try_open(makedev(SD_BMAJOR, 9), IFBLK | 0600, FWRITE) !=
 	    0);
 	HK_CHECK(stm32_blkdev_same_unit(makedev(0, 1), makedev(0, 2)) == 1);

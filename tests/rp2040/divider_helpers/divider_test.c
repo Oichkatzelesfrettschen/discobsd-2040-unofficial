@@ -4,7 +4,7 @@
  *
  * The helpers under test (__aeabi_idiv, __aeabi_idivmod, __aeabi_uidiv and
  * __aeabi_uidivmod) are the library source assembled with DIVIDER_MODEL;
- * qemu-user has no SIO block, so harness.S supplies a RAM register block
+ * qemu-user lacks an SIO block, so harness.S supplies a RAM register block
  * and a model of the unsigned divide in place of the hardware wait. Two
  * oracles judge every result: the shift-and-subtract helpers the library
  * used before the hardware divider (reference_div.S, renamed ref_), and

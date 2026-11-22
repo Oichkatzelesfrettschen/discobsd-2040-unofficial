@@ -327,7 +327,7 @@ test_runs(void)
 	expect("one window for a run", nwin, 1);
 	expect("run width", wlog[0].tw, 8);
 
-	/* A gap of one clean cell makes two windows and sends no clean cell. */
+	/* A gap of one clean cell makes two windows and sends zero clean cells. */
 	for (x = 5; x < 10; x++)
 		set(&g, x, 6, 20);
 	for (x = 11; x < 15; x++)
@@ -567,11 +567,11 @@ test_load(void)
 	flush_check("cells of the loaded tiles", &g);
 	expect("one run of two", nwin, 1);
 
-	/* Loading a tile no cell shows marks nothing. */
+	/* Loading a tile absent from every cell marks zero cells. */
 	expect("load tile 99", gtile_load(&g, 99, 1, data), 0);
 	expect("no cell shows tile 99", g.pending, 0);
 
-	/* Range errors send nothing. */
+	/* Range errors send zero requests. */
 	nioctl = nwrite = 0;
 	expect("first 128", gtile_load(&g, 128, 1, data), -1);
 	expect("count 0", gtile_load(&g, 0, 0, data), -1);

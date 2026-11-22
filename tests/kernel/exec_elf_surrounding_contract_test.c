@@ -239,7 +239,7 @@ exec_clear(struct exec_params *parameters)
 
 /*
  * A removable swap device that holds the spool leaves after spool_lost_at
- * reads: from then on a read moves no bytes, as swap_with_buf() moves none
+ * reads: from then on a read moves zero bytes, as swap_with_buf() moves zero
  * once swap_lost is set, and exec_spool_gone() reports the loss.
  */
 static int spool_lost_at = -1;

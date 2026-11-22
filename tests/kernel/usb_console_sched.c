@@ -4,7 +4,7 @@
  * ttwrite() and ttywait() sleep in the middle of a loop and resume with their
  * locals intact, so a modeled process needs its own stack. Each one runs on a
  * ucontext the harness switches to; the kernel's sleep() switches back. The
- * file includes host headers only and names no kernel type, the boundary
+ * file includes host headers only and avoids every kernel type, the boundary
  * hostkern.h describes: the kernel side passes a channel as an opaque pointer.
  */
 #include <stdio.h>

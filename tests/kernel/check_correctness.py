@@ -14,7 +14,7 @@ GC_FLAG = "-Wl,-dead_strip" if sys.platform == "darwin" else "-Wl,--gc-sections"
 # Clang links a sanitizer runtime with --export-dynamic, which makes every
 # global symbol a root and defeats --gc-sections: sched() and schedcpu() then
 # stay linked with their unresolved references. Turning it back off restores
-# the section collection GCC applies. Mach-O has no such option.
+# the section collection GCC applies. Mach-O lacks such an option.
 NO_EXPORT_DYNAMIC = [] if sys.platform == "darwin" else ["-Wl,--no-export-dynamic"]
 # The wall clock cases need the target's 32-bit long, and a signed overflow
 # there wraps silently unless the sanitizer stops the program.

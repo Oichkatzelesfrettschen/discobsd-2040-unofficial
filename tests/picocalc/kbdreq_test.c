@@ -348,7 +348,7 @@ test_timeout(void)
 	expect("next request answered", kbdreq_finish(&q, &v), KRE_NONE);
 	expect("next request value", v, 0x50);
 
-	/* Expiry of an idle or finished mailbox changes nothing. */
+	/* Expiry of an idle or finished mailbox leaves the mailbox unchanged. */
 	kbdreq_expire(&q);
 	expect("idle expiry", q.state, KR_IDLE);
 	(void)kbdreq_next(&q, out);

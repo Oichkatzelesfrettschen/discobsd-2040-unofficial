@@ -11,9 +11,9 @@ becomes root and checks, against the symbol addresses of unix.elf:
   - core 1 is running ten seconds after boot with no restart, stall or fault;
   - a 300 ms masked spin (machdep.core1_stall_ms) is counted as one stall
     whose probed PC lies in core1_stall and whose LR lies in core1_sysctl;
-  - flash writes and swapping add no stall;
+  - flash writes and swapping add zero stalls;
   - a parked core 1 counts nothing, and a relaunched one counts again;
-  - reboot leaves no stall record;
+  - reboot does not leave a stall record;
   - a 6 s masked spin makes the board reset itself, and the next boot
     reports watchdog reason 2, site 3 and the same PC and LR.
 

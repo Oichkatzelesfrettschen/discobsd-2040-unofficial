@@ -56,7 +56,7 @@ MUTANTS = {
         "    put32(raw + DI_SIZE, type == IFDIR ? ip->i_size >> 1 : ip->i_size);",
         "    put32(raw + DI_SIZE, ip->i_size);",
     ),
-    # A live V7 record has no free space for a second name.
+    # A live V7 record lacks free space for a second name.
     "record_footprint": (
         "sys/fsgeom.h",
         "#define DIRFOOT(ip, ep)         (FS_ISV7(INODE_FILESYSTEM(ip)) ? \\\n"
@@ -110,7 +110,7 @@ MUTANTS = {
         "    }\n",
         "",
     ),
-    # A part the device did not deliver is no block to hand out.
+    # A part the device did not deliver is not a block to hand out.
     "absent_block_allocated": (
         "kern/ufs_alloc.c",
         "    if ((bp->b_flags & B_ERROR) ||\n"
@@ -125,7 +125,7 @@ MUTANTS = {
         "    if (bp->b_flags & B_ERROR)\n"
         "        error = EINVAL;",
     ),
-    # A size that is no positive off_t does not enter an inode.
+    # A size that is not a positive off_t does not enter an inode.
     "size_unchecked": (
         "kern/ufs_v7.c",
         "        (size > V7_SIZE_MAX || get16(raw + DI_NLINK) > V7_LINK_MAX))",

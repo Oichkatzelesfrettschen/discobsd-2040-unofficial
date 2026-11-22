@@ -132,7 +132,7 @@ first_fit(void)
 
 /*
  * Scratch the panic callbacks below share. Each one runs inside the harness
- * frame that catches the panic, so it takes no argument and returns nothing.
+ * frame that catches the panic, so it takes zero arguments and returns void.
  */
 static size_t scratch_a[3];
 static size_t scratch_cursor;
@@ -151,7 +151,7 @@ call_mfree_at_zero(void)
 
 /*
  * The two defensive checks that bracket the allocator's protocol: a zero
- * request has no answer to return, and address zero terminates the array, so
+ * request lacks an answer to return, and address zero terminates the array, so
  * it can never be handed back to it.
  */
 static void
@@ -374,7 +374,7 @@ one_contiguous_run(void)
 	HK_CHECK(runs() == 1);
 	HK_CHECK(free_total() == 64);
 
-	/* An empty request has no run to place. */
+	/* An empty request places zero runs. */
 	HK_CHECK(malloc3_contiguous(fixture, 0, 0, 0, ALIGN, a) == 0);
 
 	/* A request past the map's largest run fails without disturbing it. */
@@ -457,7 +457,7 @@ cursor_rotation(void)
 }
 
 /*
- * Placing a run inside a free run costs one descriptor. When the map has none
+ * Placing a run inside a free run costs one descriptor. When the map lacks one
  * to spare the search takes a run boundary instead, which weakens rotation
  * but never turns a request the map can hold into a refusal.
  */
@@ -479,7 +479,7 @@ cursor_under_descriptor_pressure(void)
 	HK_CHECK(cursor == 32);
 
 	/*
-	 * Three slots, two of them live, leave no descriptor for a split, so
+	 * Three slots, two of them live, leave zero descriptors for a split, so
 	 * the same request takes the top of the run. The map still holds both
 	 * runs and the allocation still succeeds.
 	 */
@@ -656,7 +656,7 @@ ring_extent_passes_the_end(void)
 	HK_CHECK(cursor == 28);
 	HK_CHECK(runs() == 0);
 
-	/* A request longer than the ring is refused and moves nothing. */
+	/* A request longer than the ring is refused and leaves the cursor and map as they were. */
 	ring_reset(SLOTS, 0);
 	cursor = 20;
 	HK_CHECK(malloc3_contiguous_next(fixture, 64, 0, 0, ALIGN, &cursor, a) == 0);

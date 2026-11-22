@@ -125,7 +125,7 @@ short_count_stops_mid_segment(void)
 
 /*
  * A residual of zero ends the walk even when the caller offers more bytes,
- * and a count of zero moves nothing. Both are how a caller spells "no room"
+ * and a count of zero moves zero bytes. Both are how a caller spells "no room"
  * and "nothing to do" without a separate return value.
  */
 static void

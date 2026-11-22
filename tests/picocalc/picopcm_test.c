@@ -194,7 +194,7 @@ main(void)
 		if (pcm_level(i) < pcm_level(i - 1) || pcm_level(i) >= PCM_LEVELS)
 			check("levels rise and stay under the period", i, -1);
 
-	/* A bare Pico has no amplifier: no open, and no register touched. */
+	/* A bare Pico lacks an amplifier: no open, and no register touched. */
 	board = BOARD_ID_PICO;
 	check("open on a bare Pico", pcmopen(0, 0, 0), ENXIO);
 	check("registers touched on a bare Pico", model_n, 0);

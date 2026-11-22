@@ -28,7 +28,7 @@
 
 /*
  * preempt_regs(misalign): load a sentinel into r1-r12 and lr and compare
- * every one in a loop that makes no system call, until preempt_done turns
+ * every one in a loop that makes zero system calls, until preempt_done turns
  * nonzero (the SIGALRM handler of preempt.c sets it) or an iteration cap
  * runs out. r0 is the only scratch register. misalign zero runs the loop
  * with sp 8-byte aligned, nonzero with sp 4 modulo 8, so the exception

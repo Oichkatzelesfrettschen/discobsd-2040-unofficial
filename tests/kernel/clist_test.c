@@ -358,7 +358,7 @@ take_from_the_end(void)
 
 /*
  * catq appends one queue to another. An empty destination takes the source's
- * chain outright, which costs no copy; a destination with characters in it
+ * chain outright, which copies zero bytes; a destination with characters in it
  * copies through a buffer.
  */
 static void

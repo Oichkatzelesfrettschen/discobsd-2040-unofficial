@@ -250,7 +250,7 @@ main(void)
 		return 1;
 	}
 	restore = 1;
-	/* A refused session leaves the tty byte source, which needs no setup. */
+	/* A refused session leaves the tty byte source, which does not need setup. */
 	(void)win_input_open(&src, 0);
 	while (!quit && scene.nwin > 0) {
 		int n = win_input_wait(&src, &in, &scene, IDLE_MS);

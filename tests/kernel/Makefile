@@ -978,7 +978,7 @@ check-console-c17-cross: ${CONSOLE_C17_STAMP} ${MACHINE_STAMP}
 	fi; \
 	echo "PASS strict C17 flags reject an empty struct"
 
-# The harness carries no kernel header, so it compiles without the renames
+# The harness leaves out every kernel header, so it compiles without the renames
 # and reaches <setjmp.h>, <stdio.h> and <string.h> the way any host program
 # does. hostkern_kern.c is the opposite case and builds once per shape,
 # because the kernel's own headers decide its types.
@@ -4047,7 +4047,7 @@ swap_exchange_inplace_test: swap_exchange_inplace_test.c \
 # The kernel's size_t is 32 bits wide in these objects, and this gate copies
 # through the addresses the production exchange computes, so its window must
 # sit below 4 GiB. A non-PIE link places it there on ELF hosts. Mach-O
-# reserves the low 4 GiB and has no such link, so Darwin runs no part of the
+# reserves the low 4 GiB and lacks such a link, so Darwin skips the whole of the
 # gate and says so.
 .if ${_HOST_OSNAME} == "Darwin"
 check-swap-exchange-inplace:

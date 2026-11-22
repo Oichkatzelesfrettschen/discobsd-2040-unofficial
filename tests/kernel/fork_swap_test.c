@@ -99,7 +99,7 @@ swap_cursor_publish(size_t cursor)
 /*
  * The device model of a removable swap device. Transfer number
  * swap_fail_at, counted from zero over reads and writes, finds the device
- * gone: it moves nothing and sets swap_lost as swap_with_buf_result() does,
+ * gone: it moves zero bytes and sets swap_lost as swap_with_buf_result() does,
  * and every later transfer returns at once. swap_ring_io_test holds the
  * production vm_swp.c to that contract.
  */
@@ -179,7 +179,7 @@ swap(size_t block, size_t address, int count, int flags)
     if (flags & B_READ) {
         /*
          * Only the scheduler control restores an image; the destination is a
-         * logical process address, so a read records itself and moves no byte.
+         * logical process address, so a read records itself and moves zero bytes.
          */
         int swapin_read_allowed = swap_reads_allowed;
 
@@ -263,7 +263,7 @@ sleep(caddr_t channel, int priority)
     struct proc *child = (struct proc *)channel;
 
     /*
-     * The scheduler sleeps on runin or runout once it has nothing to swap.
+     * The scheduler sleeps on runin or runout once it runs out of images to swap.
      * The fixture grants the first sched_wakeups sleeps an immediate wakeup,
      * so sched() runs its retry pass, and ends the call under test at the
      * next one, since sched() never returns.
@@ -470,7 +470,7 @@ probe_ignore(uint32_t *expected)
 
 /*
  * The admission probe scans process bytes through the logical addresses
- * above; an empty range names no byte.
+ * above; an empty range names zero bytes.
  */
 static const unsigned char *
 fixture_logical_bytes(caddr_t source, size_t length)
@@ -1177,7 +1177,7 @@ swapin_ram_release(void)
 }
 #endif
 
-/* Refusal returns -1 from newproc() and writes no image byte. */
+/* Refusal returns -1 from newproc() and writes zero image bytes. */
 static void
 newproc_refusal_result(void)
 {
@@ -1210,7 +1210,7 @@ newproc_results(void)
 
         /*
          * The saved context makes setjmp() return nonzero in the child before
-         * any image byte moves. The resume has no swapout on its path.
+         * any image byte moves. The resume path skips swapout.
          */
         reset_fixture();
         entries[0].m_addr = 4;
@@ -1264,7 +1264,7 @@ newproc_results(void)
 }
 
 /*
- * Process 0 at boot owns no data or stack, holds no executable text and
+ * Process 0 at boot owns zero data and stack, lacks executable text and
  * runs from the kernel u area, and init_main.c seeds the swap map with every
  * block past the reserved head before it forks process 1.
  */
@@ -1621,10 +1621,10 @@ sched_call(void)
 }
 
 /*
- * The pool refuses proc[0], the blocks after proc[1]'s extent hold no tail
+ * The pool refuses proc[0], the blocks after proc[1]'s extent cannot hold a tail
  * and no free run holds a whole image, so the second pass of sched() leaves
  * proc[0] resident: SLOAD returns, a runnable process rejoins the run queue
- * and proc[1] stays out. The third pass finds no candidate it has not
+ * and proc[1] stays out. The third pass finds every candidate already
  * refused and sleeps on runin until capacity changes. The fixture wakes that
  * first sleep, and three more passes select the pair, refuse it and sleep
  * again: a refused candidate is excluded only until the sleep.
@@ -1725,7 +1725,7 @@ sched_refusal_case(int in_core_state, unsigned int shape, unsigned int cursor)
 /*
  * Two runnable processes wait to come in. proc[1] has been out longer and is
  * selected first; its image is in the pool, the pool refuses proc[0] and the
- * 8 free blocks hold no image, so that exchange is refused. proc[2] is a
+ * 8 free blocks cannot hold an image, so that exchange is refused. proc[2] is a
  * fork child of proc[0] and owns an extent of proc[0]'s span, which proc[0]
  * can take with a zero-block tail. sched() must reach that exchange before
  * it sleeps: a sleep here leaves the child waiting behind proc[1] until the
@@ -1847,7 +1847,7 @@ sched_refusals(void)
 
 /*
  * With room in the selected tier the second pass swaps proc[0] out and
- * proc[1] in, and the third selection finds nothing eligible and sleeps on
+ * proc[1] in, and the third selection finds every candidate ineligible and sleeps on
  * runin.
  */
 static void
@@ -1961,7 +1961,7 @@ lost_fork_call(void)
     lost_result = newproc(0);
 }
 
-/* The slot newproc() took is back on freeproc and names no process. */
+/* The slot newproc() took is back on freeproc and does not name a process. */
 static int
 lost_child_slot_free(void)
 {
@@ -2234,7 +2234,7 @@ lost_sweep_cases(void)
 /*
  * The layout in which a fixed device starts the in-place exchange
  * (sched_next_candidate_case()): a removable one refuses the pair instead,
- * since eight free blocks hold no fresh extent, and proc[0] stays resident.
+ * since eight free blocks cannot hold a fresh extent, and proc[0] stays resident.
  */
 static void
 lost_no_exchange_case(void)
@@ -2279,7 +2279,7 @@ lost_no_exchange_case(void)
 #if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
 /*
  * The device left and its images were retired. proc[1] waits in the SwapRAM
- * pool, the pool refuses the resident proc[0], and the lost device takes no
+ * pool, the pool refuses the resident proc[0], and the lost device refuses the
  * reservation. With the lost device's map empty (held == 0) swap returns to
  * the fixed device, whose map then takes proc[0], and proc[1] comes in from
  * the pool; with an extent still held (a temporary swap unit, held == 1), or
@@ -2341,8 +2341,8 @@ lost_vfork_call(void)
  * child retired as a zombie (how 1, and how 3 once swap is back on fl1) or
  * exiting after lending the image on to a vfork child of its own that went
  * (how 2, swap back on fl1): the parent calls exit(SIGKILL) itself rather than return behind
- * a signal a tracer or process 1 could escape, takes no size from the
- * child, releases it with SVFDONE and keeps no image.
+ * a signal a tracer or process 1 could escape, takes zero size from the
+ * child, releases it with SVFDONE and does not keep an image.
  */
 static void
 lost_vfork_parent_case(int how)

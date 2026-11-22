@@ -28,7 +28,7 @@
 /*
  * Drive the kernel call chains the static stack bound of
  * docs/research/kernel-size-flags names, one stage per invocation.
- * kern.capacity reports the deepest kernel stack since boot and has no
+ * kern.capacity reports the deepest kernel stack since boot and lacks a
  * reset, so a stage's own depth is the reading after that stage alone on a
  * fresh boot; in a sequence of stages a reading bounds every stage so far
  * and only a rise belongs to the stage that produced it.
@@ -233,7 +233,7 @@ churn(int rounds)
 				(void)close(fd);
 				return 1;
 			}
-		/* sync() reports nothing; fsync() returns a failed write. */
+		/* sync() returns void; fsync() returns a failed write. */
 		if (fsync(fd) < 0) {
 			printf("churn_fsync_errno=%d\n", errno);
 			(void)close(fd);

@@ -16,7 +16,7 @@
 
 /*
  * gpioprobe: drive one free pin of the bare Pico through /dev/porta and
- * read it back (sys/arch/rp2040/dev/gpio.c, doc/GPIO.md). GP2 has no
+ * read it back (sys/arch/rp2040/dev/gpio.c, doc/GPIO.md). GP2 lacks a
  * board function, and with its pad input enabled (datasheet 2.19.6.3,
  * PADS_BANK0 IE resets to 1) the SIO input register reads the level the
  * output drives. Each step prints one key=value line; the exit status
@@ -82,7 +82,7 @@ main(void)
 	r = request(fd, GPIO_POLL, 0, &error);
 	verdict("poll_low", r != -1 && (r & PIN_MASK) == 0, r, error);
 
-	/* The board keeps GP0 and GP1: a request for them changes nothing. */
+	/* The board keeps GP0 and GP1: a request for them leaves both unchanged. */
 	r = request(fd, GPIO_CONFOUT | GPIO_SET, UART0_MASK, &error);
 	verdict("uart0_ignored", r == 0, r, error);
 	r = request(fd, GPIO_POLL, 0, &error);

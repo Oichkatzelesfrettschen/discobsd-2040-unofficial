@@ -123,7 +123,7 @@
 # the model panel and a tty model (shim-vt): two consoles, one shown, the
 # other frozen by TS_HIDDEN with its screen state parked in the terminal.
 # Its checks cover the round trip of both screen states byte for byte, a
-# frozen console that draws and starts nothing, a writer that sleeps at the
+# frozen console that neither draws nor starts anything, a writer that sleeps at the
 # high-water mark and loses no byte, a stop that survives a round trip, an
 # explicit restart of a frozen console, the renderer's guard, an escape
 # sequence split across a switch, the unseen-output marker, a switch refused
@@ -238,7 +238,7 @@ gametile_test: gametile_test.c ${TOPSRC}/games/gametile.h \
 	    -I${TOPSRC}/games -o $@ gametile_test.c
 
 # The decode header is strict C17 like paneltest's other code; the mutants
-# compile the test against a mutated copy, so CSTD carries no -I for it.
+# compile the test against a mutated copy, so CSTD omits a -I for it.
 PANELTEST=	${TOPSRC}/usr.bin/paneltest
 
 panel_decode_test: panel_decode_test.c ${PANELTEST}/panel_decode.h
@@ -532,7 +532,7 @@ mutant-ctrl:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
 	    's/\*ctrl = 1;/(void)0;/'
 
-# Break types ETX and the power key types nothing.
+# Break types ETX and the power key types zero bytes.
 mutant-break-dropped:
 	@sh ./mutant.sh "${HOST_CC}" "${CSTD}" "${DEV}" picokbd_map.c \
 	    's/case KEY_BREAK:/case 0x00:/'
@@ -2169,7 +2169,7 @@ sdstrat-mutant-swap-refusal-left-open:
 	${SDSTRAT_MUT} sd.c \
 	    's/if (i > MAXPARTITIONS) {/sd_swaphold = 1U; if (i > MAXPARTITIONS) {/' ${SDSTRAT_SRC}
 
-# A b8 entry that shares a sector with another entry is no swap partition.
+# A b8 entry that shares a sector with another entry is not a swap partition.
 sdstrat-mutant-swap-overlap-ignored:
 	${SDSTRAT_MUT} sd.c \
 	    's/!sd_shares_sectors(i))/(!sd_shares_sectors(i) || 1))/' ${SDSTRAT_SRC}
@@ -2183,7 +2183,7 @@ sdstrat-mutant-swap-overlap-self:
 	    's/if (q != p \&\& q->dp_nsectors/if (q->dp_nsectors/' ${SDSTRAT_SRC}
 
 # The return of swap to fl1 releases the hold, and only the hold: main()'s
-# open of the swap partition sets no descriptor bit, and the bits of
+# open of the swap partition leaves every descriptor bit clear, and the bits of
 # descriptors still open survive the release.
 sdstrat-mutant-swap-fallback-hold-kept:
 	${SDSTRAT_MUT} sd.c \
@@ -2595,7 +2595,7 @@ picoaudio-mutant-busy-kept:
 	    's/bell_on = 0;$$/(void)0;/' picoaudio.c picopcm.h
 
 # uart_test.c includes uart.c, found through -I${DEV} here and through the
-# mutant's private copy in uart-mutants, so UARTCSTD names no driver path.
+# mutant's private copy in uart-mutants, so UARTCSTD omits the driver path.
 UARTCSTD=	-std=gnu17 -Wall -Wextra -Werror -DKERNEL -DUART_HOST_MODEL \
 		-DBUS_KHZ=125000 -DCPU_KHZ=125000 \
 		-I${TOPSRC}/tests/picocalc/shim-uart -I${TOPSRC}/sys/arch

@@ -614,7 +614,7 @@ test_failures(void)
 		{ 8, 0x1aa, 0, 1, 0x01, 4, { 0, 0, 0x01, 0x55 }, 0, 0, 0, 0, 0 },
 		END
 	};
-	/* The card accepts no voltage in the host's range. */
+	/* The card rejects every voltage in the host's range. */
 	static const struct step badvolt[] = {
 		CMD0_OK,
 		{ 8, 0x1aa, 0, 1, 0x01, 4, { 0, 0, 0x00, 0xaa }, 0, 0, 0, 0, 0 },

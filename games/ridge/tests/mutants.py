@@ -491,8 +491,8 @@ RENDER = [
     ),
     (
         "sprites-share-slots",
-        "gtile_load(&v->gt, RG_DYN + i * RG_BOX * RG_BOX, RG_BOX * RG_BOX,",
-        "gtile_load(&v->gt, RG_DYN, RG_BOX * RG_BOX,",
+        "base = RG_DYN + i * RG_BOX * RG_BOX;",
+        "base = RG_DYN;",
     ),
     (
         "composite-drops-the-world-under-the-sprite",
@@ -546,6 +546,11 @@ RENDER = [
         "view-skips-the-last-column",
         "for (x = 0; x < RG_VIEW_W; x++)\n\t\t\tv->fin[(y + RG_HUD_ROWS)",
         "for (x = 0; x < RG_VIEW_W - 1; x++)\n\t\t\tv->fin[(y + RG_HUD_ROWS)",
+    ),
+    (
+        "every-box-cell-uploaded",
+        "\treturn opq;\n}",
+        "\treturn (1u << (RG_BOX * RG_BOX)) - 1;\n}",
     ),
 ]
 

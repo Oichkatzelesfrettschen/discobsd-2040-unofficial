@@ -515,7 +515,8 @@ test_sprite_refresh(void)
 
 /*
  * A still sprite whose box does not hold a shard keeps its slots across a
- * flip of the twinkle phase: the phase reaches a box only through its shard cells.
+ * flip of the twinkle phase: of the base tiles, the phase reaches a box only
+ * through its shard cells.
  */
 static void
 test_still_sprite_no_shard(void)
@@ -533,6 +534,29 @@ test_still_sprite_no_shard(void)
 	CHECK(w == 0 && d->nset == 0,
 	    "a still sprite with no shard in its box uploads nothing on a phase flip: %d windows %d uploads",
 	    w, d->nset);
+	/* A shard outside the box leaves it alone; one on the box's bottom row,
+	 * which the art does not cover, recomposites it on a phase flip. */
+	G.map[20][10] = RG_SHARD;
+	G.gen++;
+	frame(d, &V, 0);
+	G.ticks = 16;
+	w = frame(d, &V, 0);
+	/* The shard's own cell is a window; the box uploads nothing. */
+	CHECK(w == 1 && d->nset == 0,
+	    "a shard outside a still sprite's box leaves the box alone: %d windows %d uploads",
+	    w, d->nset);
+	G.map[10][24] = RG_SHARD;
+	G.gen++;
+	frame(d, &V, 0);
+	G.ticks = 24;
+	w = frame(d, &V, 0);
+	CHECK(w >= 1 && d->nset == 1,
+	    "a shard on the bottom row of a still sprite's box recomposites it: %d windows %d uploads",
+	    w, d->nset);
+	G.map[20][10] = RG_AIR;
+	G.map[10][24] = RG_AIR;
+	G.gen++;
+	frame(d, &V, 0);
 	/* A map change in that box still recomposites it: the change counter alone keys the slots. */
 	G.map[12][23] = RG_LEDGE;
 	G.gen++;

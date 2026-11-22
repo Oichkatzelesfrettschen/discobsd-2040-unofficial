@@ -1537,10 +1537,10 @@ rg_composite(const struct rg_game *g, const struct rg_sprite *spr, int n, int i,
 }
 
 /*
- * Whether the box of sprite i, with top left cell (bx, by) in view coordinates,
- * shows a shard in a cell inside the view. A shard's tile is the only base
- * tile that depends on the twinkle phase, so a box without one composites the
- * same slots on every phase.
+ * Whether the 3 by 3 box with top left cell (bx, by) in view coordinates shows
+ * a shard in a cell inside the view. Of the base tiles under a box only a
+ * shard's depends on the twinkle phase; the frames of the sprite and of its
+ * neighbors are in the signature themselves.
  */
 static int
 rg_box_has_shard(const struct rg_game *g, int bx, int by)
@@ -1646,9 +1646,7 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 		now.frame = spr[i].frame;
 		now.flip = spr[i].flip;
 		now.cam = g->cam;
-		now.anim = anim;
-		if (!rg_box_has_shard(g, bxs[i], bys[i]))
-			now.anim = 0;
+		now.anim = anim && rg_box_has_shard(g, bxs[i], bys[i]);
 		now.live = 1;
 		now.gen = g->gen;
 		for (k = 0; k < n; k++)

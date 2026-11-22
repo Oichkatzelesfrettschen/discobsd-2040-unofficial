@@ -415,7 +415,26 @@ RENDER = [
         "if (!sg->live) {",
     ),
     ("sprite-signature-ignores-the-camera", "now.cam = g->cam;", "now.cam = 0;"),
-    ("sprite-signature-ignores-the-twinkle", "now.anim = anim;", "now.anim = 0 * anim;"),
+    (
+        "sprite-signature-ignores-the-twinkle",
+        "now.anim = anim && rg_box_has_shard(g, bxs[i], bys[i]);",
+        "now.anim = anim && rg_box_has_shard(g, bxs[i], bys[i]) && anim < 0;",
+    ),
+    (
+        "sprite-signature-twinkles-without-a-shard",
+        "now.anim = anim && rg_box_has_shard(g, bxs[i], bys[i]);",
+        "now.anim = anim && (rg_box_has_shard(g, bxs[i], bys[i]) || anim);",
+    ),
+    (
+        "shard-scan-skips-the-bottom-row",
+        "for (cy = 0; cy < RG_BOX; cy++)\n\t\tfor (cx = 0; cx < RG_BOX; cx++) {\n\t\t\tvx = bx + cx;",
+        "for (cy = 0; cy < RG_BOX - 1; cy++)\n\t\tfor (cx = 0; cx < RG_BOX; cx++) {\n\t\t\tvx = bx + cx;",
+    ),
+    (
+        "shard-scan-reads-the-whole-view",
+        "\t\t\tvx = bx + cx;\n\t\t\tvy = by + cy;",
+        "\t\t\tvx = (bx + cx + 17 * cy) % RG_VIEW_W;\n\t\t\tvy = by + cy;",
+    ),
     ("sprite-signature-ignores-map-changes", "now.gen = g->gen;", "now.gen = 0;"),
     (
         "sprite-not-mirrored",

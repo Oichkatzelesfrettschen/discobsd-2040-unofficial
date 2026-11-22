@@ -375,7 +375,7 @@ higher one, and a shared cell shows the slot of the lowest-numbered sprite
 that covers it, which holds all of them. The allocation stays nine slots per
 sprite and seven sprites; a sprite's unused slots are the cells another
 sprite owns. A sprite whose position, frame, mirroring, camera column,
-twinkle phase, the map's change counter and the position, frame, mirroring and
+twinkle phase (when its box shows a shard), the map's change counter and the position, frame, mirroring and
 relative index of every neighbor match the previous frame uploads nothing, and
 the cells it covers keep their numbers, so `gtile_set()` marks nothing. The far ridge behind the
 action is a one-pixel contour, so an item or sprite cell loses at most a

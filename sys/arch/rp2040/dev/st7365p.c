@@ -127,18 +127,26 @@
 #define	SPI_REG(off)		PC_REG32(SPI1_BASE + (off))
 
 /*
- * Sixteen colors, R, G, B. The console sends them as RGB565 (COLMOD 55h),
- * two bytes a pixel: five bits of red and blue and six of green, which the
- * controller widens to its eighteen-bit memory. 0-7 are the SGR 30-37
- * colors, 8-15 their bold variants.
+ * Sixteen colors, R, G, B, sent as RGB565 (COLMOD 55h). 0-7 are the SGR
+ * 30-37 colors, 8-15 their bold variants, so bold default text is entry 15
+ * in place of entry 7. Each entry is its RGB565 word widened. The panel
+ * stores six bits per channel with the low bit of red and blue clear, so
+ * white shows as 251, 255, 251 (PICOCALC.md). Colors 1-8 and 9-15 stay
+ * apart under normal vision and protanopia, deuteranopia and tritanopia
+ * simulation on those shown values. The storage is measured; two elements are
+ * assumptions: code 63 as full scale, scaled by 255/63 (the gate requires the
+ * bounds under bit replication and under rounding, which differ on six
+ * entries) and the sRGB curve as the code-to-light transfer. Entry 8 is neutral gray
+ * because SGR 90 is dim text. The bounds and their check are in
+ * tools/check_console_palette.py.
  */
 const u_char lcd_palette[16][3] = {
-	{   0,   0,   0 }, { 205,   0,   0 }, {   0, 205,   0 },
-	{ 205, 205,   0 }, {  60,  90, 238 }, { 205,   0, 205 },
-	{   0, 205, 205 }, { 200, 200, 200 },
-	{ 127, 127, 127 }, { 255,  60,  60 }, {  60, 255,  60 },
-	{ 255, 255,  60 }, { 100, 120, 255 }, { 255,  60, 255 },
-	{  60, 255, 255 }, { 255, 255, 255 },
+	{   0,   0,   0 }, { 206,  97,  24 }, { 132, 227, 140 },
+	{ 214, 182,   8 }, {  99, 113, 239 }, { 189, 121, 189 },
+	{  74, 186, 239 }, { 189, 190, 189 }, { 132, 130, 132 },
+	{ 206, 130,  66 }, { 181, 251, 156 }, { 247, 195,  16 },
+	{ 115, 134, 255 }, { 189, 154, 198 }, { 132, 211, 255 },
+	{ 255, 255, 255 },
 };
 
 /*

@@ -332,6 +332,45 @@ check_user_word_transfers(void)
 	HK_CHECK(load_user_int(USER_UPPER - 4) == 0x24681357);
 }
 
+/*
+ * A write that overlaps the text, [p_daddr, p_daddr + p_tsize), sets
+ * P_TEXTDIRTY so swapout keeps the whole image; a write beside it, a read
+ * and a process without text leave the flag clear. A copy that faults
+ * still marks, because the flag is set before the copy.
+ */
+static int
+text_write_marks(int request, u_int text, size_t text_size, u_int address)
+{
+	reset();
+	child.p_daddr = text;
+	child.p_tsize = text_size;
+	(void)run_request(request, address, 0x0badf00d);
+	return (child.p_flag & P_TEXTDIRTY) != 0;
+}
+
+static void
+check_text_writes(void)
+{
+	HK_CHECK(text_write_marks(PT_WRITE_I, USER_LOWER, 16, USER_LOWER + 3));
+	HK_CHECK(text_write_marks(PT_WRITE_D, USER_LOWER, 16, USER_LOWER + 12));
+	HK_CHECK(!text_write_marks(PT_WRITE_I, USER_LOWER, 16, USER_LOWER + 16));
+	HK_CHECK(!text_write_marks(PT_WRITE_D, USER_LOWER, 0, USER_LOWER));
+	HK_CHECK(text_write_marks(PT_WRITE_I, USER_LOWER + 8, 16,
+	    USER_LOWER + 5));
+	HK_CHECK(!text_write_marks(PT_WRITE_I, USER_LOWER + 8, 16,
+	    USER_LOWER + 4));
+	HK_CHECK(!text_write_marks(PT_READ_I, USER_LOWER, 16, USER_LOWER));
+	HK_CHECK(load_user_int(USER_LOWER) == 0);
+
+	reset();
+	child.p_daddr = USER_LOWER;
+	child.p_tsize = 16;
+	copyout_error = EFAULT;
+	HK_CHECK(run_request(PT_WRITE_I, USER_LOWER + 4, 1) == 0);
+	HK_CHECK(ipc.ip_req == -1);
+	HK_CHECK((child.p_flag & P_TEXTDIRTY) != 0);
+}
+
 static void
 check_user_area_reads(void)
 {
@@ -513,6 +552,7 @@ main(void)
 	check_lock_ownership();
 	check_parent_admission_and_result();
 	check_user_word_transfers();
+	check_text_writes();
 	check_user_area_reads();
 	check_general_register_writes();
 	check_control_register_writes();

@@ -77,6 +77,22 @@ release. Renode remains a separate emulator class. Physical-board evidence is
 recorded only after the approved UF2 pair executes each named surface through
 the measured USB console.
 
+## Pathname and descriptor configuration limits
+
+`include/unistd.h` and `lib/libc/gen/pathconf.c` supply nine query selectors.
+The Issue 8 [pathconf and fpathconf description](https://pubs.opengroup.org/onlinepubs/9799919799/functions/fpathconf.html)
+lists 23 selectors. The missing selectors include file-size bits, terminal
+limits, symlink length, transfer recommendations and I/O option queries.
+
+Commit `09421e353` adds six queries to the three existing mount and pipe
+limits. The host and ILP32 runtime-limits fixture exercises native and V7
+mount responses through test doubles, successful preservation of `errno`,
+and pathname and descriptor failures. The source mutations include path
+length, truncation policy, allocation size, and timestamp resolution.
+The Cortex-M0+ object check verifies imports. Real filesystem and
+descriptor-type applicability, indefinite limits, and the uncovered
+selectors remain open.
+
 ## Later compatibility families
 
 The `later_families` records keep seven deferred families inside the

@@ -66666,6 +66666,7 @@
         "required_mode": "gnu17-freestanding",
         "extension_policy": "localized-gnu",
         "extension_signals": [
+          "gnu-attribute",
           "inline-assembly"
         ],
         "risk_family": "hardware-seam",

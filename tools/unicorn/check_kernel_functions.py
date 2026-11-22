@@ -101,6 +101,7 @@ try:
         clobber_probe,
         disassemble,
         literal_words,
+        rom_read_probe,
         subset_probe,
         thumb2_probe,
     )
@@ -816,10 +817,18 @@ def main() -> int:
             print(f"PASS unicorn-kernel armv6m {function}: {count} instructions, all ARMv6-M")
         tables = table_mutants(image)
         wrong = clobber_probe(image)
+        rom_wrong = rom_read_probe(image)
     except CallFailure as failure:
         print(f"FAIL unicorn-kernel setup: {failure}")
         return 2 if failure.kind == "setup" else 1
 
+    if rom_wrong:
+        print(f"FAIL unicorn-kernel rom read policy: {'; '.join(rom_wrong)}")
+        return 1
+    print(
+        "PASS unicorn-kernel rom read policy: a read of address 0 and of a ROM address past "
+        "the table slots is a policy violation"
+    )
     if wrong:
         print(f"FAIL unicorn-kernel callback model: {'; '.join(wrong)}")
         return 1

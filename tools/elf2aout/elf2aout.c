@@ -322,6 +322,28 @@ void	translate_syms (int, int, off_t, off_t, off_t, off_t);
 
 int    *symTypeTable;
 
+static void
+write_gap(int out, uint32_t length)
+{
+	static const char zeros[1024];
+
+	if (length > 65536)
+		errx(1, "Intersegment gap (%ld bytes) too large.", (long)length);
+#ifdef DEBUG
+	if (length)
+		warnx("Warning: %ld byte intersegment gap.", (long)length);
+#endif
+	while (length) {
+		size_t count = length < sizeof zeros ? length : sizeof zeros;
+		ssize_t written = write(out, zeros, count);
+		if (written < 0)
+			err(1, "write gap");
+		if (written == 0)
+			errx(1, "Incomplete intersegment gap write.");
+		length -= written;
+	}
+}
+
 int
 main(int argc, char **argv)
 {
@@ -337,7 +359,7 @@ main(int argc, char **argv)
 	Elf32_Shdr *req_section = NULL;
 	Elf32_Phdr *req_segment = NULL;
 	int     infile, outfile;
-	uint32_t cur_vma = UINT32_MAX;
+	uint32_t cur_vma = UINT32_MAX, image_base;
 	int     verbose = 0;
 	int     symflag = 0;
 	int     have_text_load = 0;
@@ -631,6 +653,7 @@ usage:                  fprintf(stderr,
 		err(1, "shared libc requirement");
 	free(requirement);
         if (! symflag) {
+                image_base = cur_vma;
                 /* Copy the loadable sections.   Zero-fill any gaps less than 64k;
                  * complain about any zero-filling, and die if we're asked to
                  * zero-fill more than 64k. */
@@ -638,31 +661,15 @@ usage:                  fprintf(stderr,
                         /* Unprocessable sections were handled above, so just verify
                          * that the section can be loaded before copying. */
                         if (ph[i].p_type == PT_LOAD && ph[i].p_filesz) {
-                                if (cur_vma != ph[i].p_vaddr) {
-                                        uint32_t gap = ph[i].p_vaddr - cur_vma;
-                                        char    obuf[1024];
-                                        if (gap > 65536)
-                                                errx(1, "Intersegment gap (%ld bytes) too large.", (long) gap);
-#ifdef DEBUG
-                                        warnx("Warning: %ld byte intersegment gap.",
-                                            (long)gap);
-#endif
-                                        memset(obuf, 0, sizeof obuf);
-                                        while (gap) {
-                                                int     count = write(outfile, obuf, (gap > sizeof obuf
-                                                        ? sizeof obuf : gap));
-                                                if (count < 0) {
-                                                        fprintf(stderr, "Error writing gap: %s\n",
-                                                            strerror(errno));
-                                                        exit(1);
-                                                }
-                                                gap -= count;
-                                        }
-                                }
+                                write_gap(outfile, ph[i].p_vaddr - cur_vma);
                                 copy(outfile, infile, ph[i].p_offset, ph[i].p_filesz);
                                 cur_vma = ph[i].p_vaddr + ph[i].p_filesz;
                         }
                 }
+                /* The copy loop ends at the last file-backed byte. Padding
+                 * before an aligned BSS-only LOAD still belongs to the
+                 * declared a.out text and data payload. */
+                write_gap(outfile, aex.a_text + aex.a_data - (cur_vma - image_base));
         } else {
                 /* Copy and translate the symbol table... */
                 translate_syms(outfile, infile,

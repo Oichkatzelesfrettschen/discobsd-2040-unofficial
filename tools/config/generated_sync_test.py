@@ -255,7 +255,8 @@ class GeneratedSyncTest(unittest.TestCase):
     # diagnostic options.
     MOUNT_TABLE = (
         ("PICO_DIAG", "PICO", sync.DIAGNOSTIC_OPTIONS, ()),
-        ("PICOCALC_LEAN", "PICOCALC", ('options "NMOUNT=2"',),
+        ("PICOCALC_LEAN", "PICOCALC",
+         ('options "NMOUNT=2"',) + sync.LEAN_OPTIONS,
          sync.OPTIONAL_DEVICE_OPTIONS + ('options CAPACITY_STATS',
                                          'options "NMOUNT=3"')),
         ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN",

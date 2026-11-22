@@ -427,7 +427,25 @@ struct swap_exchange_segment {
     size_t window_start;
 };
 
-static u_char swap_exchange_sector[SWAP_EXCHANGE_SECTOR_BYTES];
+/*
+ * SWAP_EXCHANGE_SCRATCH places the staging sector in the scratch banks
+ * (kern.ldscript, .scratch), which reset never clears, for a kernel whose
+ * USB ring leaves one bank idle. The contents start undefined, which the
+ * exchange tolerates: each exchange step reads the whole incoming sector
+ * before swap_exchange_scatter_sector() copies any of it out, and a failed
+ * or short read panics before the copy (swap_exchange_inplace). The section
+ * name is an ELF one; the host tests build this file as Mach-O too, where
+ * the buffer stays in ordinary bss.
+ */
+#if defined(SWAP_EXCHANGE_SCRATCH) && defined(__ELF__)
+#define SWAP_EXCHANGE_SECTION \
+    __attribute__((section(".scratch.swap_exchange"), aligned(4)))
+#else
+#define SWAP_EXCHANGE_SECTION
+#endif
+
+static u_char swap_exchange_sector[SWAP_EXCHANGE_SECTOR_BYTES]
+    SWAP_EXCHANGE_SECTION;
 static u_char swap_exchange_done[SWAP_EXCHANGE_MAX_SECTORS];
 
 static void

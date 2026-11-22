@@ -1,0 +1,51 @@
+uLisp 4.8f 
+12000> 
+1
+
+12000> 
+(65535 65535 65504 65535 1 0)
+
+12000> 
+5884
+
+12000> 
+"ulisp-test.bmp"
+
+12000> 
+listed
+
+12000> 
+nil
+
+12000> 
+t
+
+12000> 
+nil
+
+12000> 
+10
+
+12000> 
+0
+
+12000> 
+(t t t)
+
+12000> 
+(nil nil :low nil 0)
+
+12000> 
+Error: 'analogread' invalid pin: 3
+12000> 
+Error: memory fault
+12000> 
+Error: memory fault
+12000> 
+3
+
+12000> 
+"end"
+
+12000> 
+2667240033 204854

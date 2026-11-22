@@ -1,0 +1,97 @@
+# Copyright (c) 2026 GizmoBSD
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived from
+#   this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#
+# Transcript tests of the uLisp interpreter (usr.bin/ulisp).
+#
+#   check         the host build over the language, system, repairs and devices
+#                 corpora, then six mutants of ulisp.c that the check must
+#                 reject (mutants.sh)
+#   check-qemu    the a.out the tree links, run by tests/qemu_aout/aoutrun
+#                 under qemu-arm: the language, system and repairs corpora
+#                 against the same expected transcripts as the host, and the
+#                 stack and machine-code corpora that need the target
+#   check-oracle  the language corpus through the unmodified upstream source
+#                 built for the host (oracle/), compared with the host build;
+#                 ULISP_INO names ulisp-picocalc.ino, which is not in the tree
+#
+# The expected transcripts are the interpreter's own output: language.expected
+# is the one check-oracle holds to the upstream program, and repairs.lisp
+# holds the forms whose output differs from upstream on purpose.
+TOPSRC!=cd ../..; pwd
+include ${TOPSRC}/share/mk/sys.mk
+include ${TOPSRC}/tools/qemu-arm.mk
+
+SRC=		${TOPSRC}/usr.bin/ulisp
+LOADER=		${TOPSRC}/tests/qemu_aout
+# qemu-arm accepts a guest at address 0 only with a guest base (-B).
+GUEST_BASE?=	0x100000
+ORACLE_SHA256=	65608bb7d6a48dc02dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b
+ORACLE_CXX?=	g++ -m32 -msse2 -mfpmath=sse
+
+all: check
+
+check:
+	${MAKE} -C ${SRC} ulisp.host ulisp.doc
+	sh check.sh host ${SRC}/ulisp.doc ${SRC}/ulisp.host
+	sh mutants.sh ${SRC} ${SRC}/ulisp.doc "${HOST_CC}"
+
+check-qemu:
+.if empty(QEMU_ARM) && !empty(REQUIRE_QEMU)
+	@echo "ulisp qemu: qemu-arm unavailable and REQUIRE_QEMU is set" >&2; exit 1
+.elif empty(QEMU_ARM)
+	@echo "SKIP ulisp qemu: qemu-arm unavailable; no ARM execution occurred"
+.else
+	${MAKE} -C ${SRC} ulisp ulisp.doc
+	${MAKE} -C ${LOADER} aoutrun
+	${OBJDUMP} -d ${SRC}/ulisp.elf | \
+	    awk '/\tsvc\t/ { sub(":", "", $$1); print $$1 }' | sort > ulisp.sites
+	sh check.sh qemu ${SRC}/ulisp.doc ${QEMU_ARM} -B ${GUEST_BASE} \
+	    -cpu ${QEMU_ARM_CPU} ${LOADER}/aoutrun ${.CURDIR}/ulisp.sites \
+	    ${SRC}/ulisp
+.endif
+
+# The upstream program reads its workspace size from its board table: 22280
+# cells for the Pico. Its last prompt has no newline, so one is added.
+check-oracle:
+.if empty(ULISP_INO)
+	@echo "SKIP ulisp oracle: ULISP_INO does not name ulisp-picocalc.ino"
+.else
+	${MAKE} -C ${SRC} ulisp.host ulisp.doc
+	${PYTHON} -I oracle/mkoracle.py ${ULISP_INO} ${ORACLE_SHA256} oracle.cc
+	${ORACLE_CXX} -std=gnu++17 -O1 -fpermissive -w -Ioracle -o oracle.bin \
+	    oracle.cc -lm
+	(./oracle.bin < language.lisp; echo) | tr -d '\r' > oracle.out
+	ULISPDOC=${SRC}/ulisp.doc ${SRC}/ulisp.host -w 22280 < language.lisp \
+	    > oracle.host
+	diff oracle.out oracle.host
+	@echo "ulisp oracle: the language transcript matches the upstream program"
+.endif
+
+clean:
+	rm -f ulisp.sites oracle.cc oracle.bin oracle.out oracle.host
+
+.PHONY: all check check-qemu check-oracle clean

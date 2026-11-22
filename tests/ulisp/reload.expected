@@ -1,0 +1,8 @@
+uLisp 4.8f 
+8899> 
+(10 120 (a-very-long-symbol-name-indeed "a string of more than four characters" 2.5 #\x) #2A((3 3) (3 3)) 14)
+
+8899> 
+8893
+
+8899> 

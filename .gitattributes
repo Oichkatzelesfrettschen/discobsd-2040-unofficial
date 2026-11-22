@@ -17,3 +17,7 @@
 /sys/fs/msdosfs/* -whitespace
 /sbin/newfs_msdos/* -whitespace
 /usr.sbin/makefs/** -whitespace
+
+# The uLisp transcripts hold the interpreter's output byte for byte: its
+# banner and every prompt end in a space.
+/tests/ulisp/*.expected -whitespace

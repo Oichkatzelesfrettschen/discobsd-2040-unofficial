@@ -82,12 +82,13 @@ Makefiles are tracked; synchronize both when generation inputs change.
   script, the C17 ledger after a C edit) and, for a change the target runs, the
   Renode stage that exercises it after `logged-distribution` and
   `logged-flash`, since `check-renode` boots the flash image. Hosted CI runs
-  a fixed short set on each pull request and push to `main` (warning-free
-  build, kernel headroom, flash image, lint, changed-comment and
-  changed-text checks, the Renode UART0 boot) and every tier nightly and on
-  manual dispatch; a failed nightly opens the issue "Nightly gates failed".
-  The local gates over the changed files are therefore the evidence a merge
-  has for every tier outside the short set.
+  the toolchain install, lint, changed-comment and changed-text checks on each
+  pull request (about a minute); a push to `main` adds the warning-free build,
+  kernel headroom, flash image and the Renode UART0 boot, and every tier runs
+  nightly and on manual dispatch; a failed nightly opens the issue "Nightly
+  gates failed". The local gates over the changed files, `logged-build` among
+  them, are therefore the evidence a merge has for the build and for every
+  tier outside the lint and changed-text checks.
 - The full local chain -- `bmake clean`, `logged-build`, `logged-check`,
   `logged-ilp32`, `logged-distribution`, `logged-flash`, `check-renode`,
   `check-renode-union` -- takes about an hour serialized, 40 minutes of it in

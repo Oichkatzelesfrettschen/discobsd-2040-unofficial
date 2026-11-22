@@ -2425,7 +2425,9 @@ owns the mechanism, replay command, and remaining shared-link integration work.
 
 The object ABI gate reads the RP2040 syscall Makefile's expanded `SYSOBJS`
 and assembles each generated wrapper in static and shared modes. It checks
-the callable Thumb symbol and the errno relocation in each object. The shared
+each generated Thumb entry against its public syscall number in the master
+and checks the errno relocation in each object. A control that encodes the
+close number at the getpgrp entry must fail. The shared
 objects enter one relocatable link with the specialized error-return wrappers
 to check that the linker coalesces their error helper.
 

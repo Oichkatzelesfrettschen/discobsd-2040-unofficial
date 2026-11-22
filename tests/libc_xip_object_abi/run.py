@@ -8,6 +8,7 @@ import pathlib
 import re
 import struct
 import subprocess
+import sys
 import uuid
 
 from check_layout import check, require
@@ -16,6 +17,9 @@ from elftools.elf.relocation import RelocationSection
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
+from gen_kernel_metadata import parse_syscalls  # noqa: E402
+
 FUNCTIONS = ('shared_errno_address', 'shared_stream_address', 'shared_environ_address',
              'shared_initial_state', 'shared_callback', 'shared_syscall_error')
 OBJECTS = ('errno', '_iob', 'environ', '__progname', '_curbrk',
@@ -331,6 +335,18 @@ def shared_error_group(elf):
     return helper, group
 
 
+def check_syscall_entry(elf, name, number):
+    entry = symbol_table(elf).get(name)
+    require(entry is not None and entry['st_info']['type'] == 'STT_FUNC'
+            and entry['st_info']['bind'] == 'STB_GLOBAL' and entry['st_value'] & 1
+            and isinstance(entry['st_shndx'], int), name + ': generated Thumb entry differs')
+    section = elf.get_section(entry['st_shndx'])
+    offset = entry['st_value'] & ~1
+    require(section['sh_flags'] & 4 and entry['st_size'] >= 2 and
+            section.data()[offset:offset + 2] == struct.pack('<H', 0xdf00 | number),
+            name + ': generated SVC differs from syscall master')
+
+
 def syscall_assembly_controls(compiler, runner):
     directory = ROOT / 'lib/libc/arm/sys'
     objects = runner.run(['bmake', '-C', directory, 'MACHINE=rp2040', '-V',
@@ -338,6 +354,9 @@ def syscall_assembly_controls(compiler, runner):
     require(objects and len(set(objects)) == len(objects) and
             all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*\.o', obj) for obj in objects),
             'invalid generated syscall object list')
+    numbers = {public.name: public.number
+               for row in parse_syscalls(ROOT / 'sys/kern/syscalls.master')
+               for public in row.public_names}
     generated = {}
     for obj in objects:
         name = obj[:-2]
@@ -356,10 +375,9 @@ def syscall_assembly_controls(compiler, runner):
             with target.open('rb') as handle:
                 elf = ELFFile(handle)
                 if source in generated:
-                    entry = symbol_table(elf).get(generated[source])
-                    require(entry is not None and entry['st_info']['type'] == 'STT_FUNC'
-                            and entry['st_info']['bind'] == 'STB_GLOBAL' and entry['st_value'] & 1,
-                            source.name + ': generated Thumb entry differs')
+                    name = generated[source]
+                    require(name in numbers, name + ': syscall master lacks public number')
+                    check_syscall_entry(elf, name, numbers[name])
                 kinds = []
                 for section in elf.iter_sections():
                     if isinstance(section, RelocationSection):
@@ -377,6 +395,20 @@ def syscall_assembly_controls(compiler, runner):
                 else:
                     require('__libc_shared_error' not in symbol_table(elf),
                             'static wrapper contains shared helper')
+    control = runner.work / 'wrong-getpgrp-number.S'
+    control.write_text('#include "SYS.h"\n#undef SYS_getpgrp\n#define SYS_getpgrp SYS_close\n'
+                       'SYS(getpgrp)\n')
+    target = control.with_suffix('.o')
+    runner.run([compiler, '-mcpu=cortex-m0plus', '-mthumb', '-nostdinc',
+                '-I' + str(ROOT / 'include'), '-I' + str(directory), '-c', control, '-o', target])
+    with target.open('rb') as handle:
+        try:
+            check_syscall_entry(ELFFile(handle), 'getpgrp', numbers['getpgrp'])
+        except ValueError as error:
+            require(str(error) == 'getpgrp: generated SVC differs from syscall master',
+                    'incorrect syscall number fails an unrelated check')
+        else:
+            raise ValueError('incorrect syscall number survives entry inspection')
     combined = runner.work / 'combined-syscalls.o'
     runner.run([compiler.removesuffix('gcc') + 'ld', '-r', *shared_objects, '-o', combined])
     content = combined.read_bytes()

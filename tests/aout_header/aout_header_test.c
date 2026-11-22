@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../sys/sys/exec_aout.h"
+#include "../../sys/sys/exec_xip.h"
 
 #define BASE    0x20000000U
 #define WINDOW  (192U * 1024)
@@ -134,12 +134,74 @@ layout(void)
 	check(aout_layout_check(&e, BASE, WINDOW, 0x1000, 1) == AOUT_OK, "raw shipped midmag 0x107");
 }
 
+static void
+shared_layout(void)
+{
+	struct exec e = image(32, 8, 56, BASE + 1);
+	struct xip_requirement r = { XREQ_SIG, XREQ_VERSION, 56, { 1 }, 350,
+	    BASE + 48, 48 };
+	unsigned long length = sizeof e + 56 + 40;
+	unsigned char provider[32] = { 1 };
+
+	N_SETMAGIC(e, OMAGIC, MID_ZERO, EX_XIP);
+	check(sizeof r == 56, "shared record width");
+	check(xip_raw_layout(&e, &r, BASE, 96, length, 1) == AOUT_OK,
+	    "aligned state after application BSS");
+	check(xip_raw_layout(&e, &r, BASE, 95, length, 1) == AOUT_TOOBIG,
+	    "stack leaves one byte too little");
+	check(xip_raw_layout(&e, &r, BASE, 96, length - 1, 1) == AOUT_TRUNC,
+	    "shared data truncated");
+	check(xip_raw_layout(&e, &r, BASE, 96, sizeof e + 55, 1) == AOUT_TRUNC,
+	    "shared requirement truncated");
+	N_SETMAGIC(e, OMAGIC, MID_ZERO, 0);
+	check(xip_raw_layout(&e, &r, BASE, 96, length, 1) == AOUT_BADMAG,
+	    "static image in shared layout path");
+	N_SETMAGIC(e, OMAGIC, MID_ZERO, EX_XIP);
+	--r.signature;
+	check(xip_raw_layout(&e, &r, BASE, 96, length, 1) == AOUT_BADMAG,
+	    "shared signature differs");
+	++r.signature;
+	--r.length;
+	check(xip_raw_layout(&e, &r, BASE, 96, length, 1) == AOUT_BADMAG,
+	    "shared record width differs");
+	++r.length;
+	++r.version;
+	check(xip_raw_layout(&e, &r, BASE, 96, length, 1) == AOUT_BADMAG,
+	    "shared version unknown");
+	--r.version;
+	--r.state_base;
+	check(xip_raw_layout(&e, &r, BASE, 96, length, 1) == AOUT_BADSTATE,
+	    "unaligned state base");
+	r.state_base = BASE + 40;
+	check(xip_raw_layout(&e, &r, BASE, 96, length, 1) == AOUT_BADSTATE,
+	    "aligned state ends below heap");
+	r.state_base = BASE + 32;
+	r.state_size = 64;
+	check(xip_raw_layout(&e, &r, BASE, 96, length, 1) == AOUT_BADSTATE,
+	    "state begins in initialized data");
+	r.state_base = BASE + 48;
+	r.state_size = 48;
+	e.a_entry = 0xffffffc1U;
+	check(xip_raw_layout(&e, &r, 0xffffffc0U, 96, length, 1) == AOUT_SIZEWRAP,
+	    "absolute process end wraps");
+	check(xip_provider_check(&r, provider, 350, 48) == AOUT_OK,
+	    "last required slot present");
+	check(xip_provider_check(&r, provider, 349, 48) == AOUT_BADLIBC,
+	    "last required slot missing");
+	check(xip_provider_check(&r, provider, 350, 40) == AOUT_BADLIBC,
+	    "provider state extent differs");
+	provider[31] = 1;
+	check(xip_provider_check(&r, provider, 350, 48) == AOUT_BADLIBC,
+	    "last provider digest byte differs");
+}
+
 int
 main(void)
 {
 	roundtrip();
 	decode_partition();
 	layout();
+	shared_layout();
 	if (failures) {
 		printf("%d failures\n", failures);
 		return 1;

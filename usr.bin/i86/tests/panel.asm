@@ -59,7 +59,7 @@ start:	xor ax, ax
 	xor ax, ax
 	int 0x16			; the stage, a digit
 	sub al, '0'
-	cmp al, 9
+	cmp al, 11
 	ja dead
 	mov bl, al
 	xor bh, bh
@@ -118,6 +118,7 @@ key:	mov ah, 1
 	dw 0xaa55
 
 stages:	dw stage0, stage1, stage2, stage3, stage4, stage5, stage6, stage7, stage8, stage9
+	dw stage10, stage11
 
 ; Mode 4 left for text and entered again with memory kept: the text mode's
 ; cells are what is kept, the rest reads as zeros. Then a disk sector read
@@ -349,5 +350,37 @@ stage9:	mov ax, 4
 	ret
 
 text:	db "TEXT", 0
+
+; Mode 4, drawn, then writes that leave the adapter as it was: the color
+; register, the firmware's background and palette service, the mode
+; register and a mode set that keeps memory. Its key is ':'.
+stage10:
+	mov ax, 4
+	int 0x10
+	call fields
+	call key
+	mov dx, 0x3d9
+	mov al, 0x30
+	out dx, al
+	mov ah, 0x0b			; background 0, bright: 30h again
+	mov bx, 0x0010
+	int 0x10
+	mov dx, 0x3d8
+	mov al, 0x0a
+	out dx, al
+	mov ax, 0x84
+	int 0x10
+	ret
+
+; Mode 4, drawn, then mode 4 set again: its memory cleared, the panel
+; black without a clear of its own. Its key is ';'.
+stage11:
+	mov ax, 4
+	int 0x10
+	call fields
+	call key
+	mov ax, 4
+	int 0x10
+	ret
 
 	times 1536 - ($ - $$) db 0

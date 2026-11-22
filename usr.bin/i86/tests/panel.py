@@ -80,8 +80,8 @@ MUTANTS = [
     ),
     (
         "gfx.c",
-        "\t\tmemset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);\n\t}\n\treturn (k != K_TEXT);",
-        "\t\tmemset(bank[1], 0, FIELD / 2);\n\t}\n\treturn (k != K_TEXT);",
+        "\t\tmemset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);\n\t\tmem_watched = 0xffff;\n\t}\n\treturn",
+        "\t\tmemset(bank[1], 0, FIELD / 2);\n\t\tmem_watched = 0xffff;\n\t}\n\treturn",
     ),
     (
         "gfx.c",
@@ -138,7 +138,7 @@ MUTANTS = [
         "if (fd < 0) {\n\t\t(void)kind_set(K_TEXT);",
         "if (fd < 0) {\n\t\tif (bank[1] == NULL)\n\t\t\t(void)kind_set(K_TEXT);",
     ),
-    ("gfx.c", "\t\tif (pointer)\n\t\t\tpointer_draw();", "\t\t(void)pointer;"),
+    ("gfx.c", "\t\tif (!edge_black && pointer)\n\t\t\tpointer_draw();", "\t\t(void)pointer;"),
     (
         "gfx.c",
         "\tr.color = 0;\n\t(void)DEV_IOCTL(fd, LCDG_FILL, &r);\n\tif (!pointer)",
@@ -160,6 +160,13 @@ MUTANTS = [
         "\telse\n\t\tgraphic_refresh();\n}",
         "\telse {\n\t\tgraphic_refresh();\n\t\tgfx_drain();\n\t}\n}",
     ),
+    ("gfx.c", "if (key == pal_key)\n\t\treturn;", "if (key == ~pal_key)\n\t\treturn;"),
+    ("gfx.c", "if (!edge_black || stale == 1)", "if (!edge_black)"),
+    ("gfx.c", "all.y0 = edge_black ? GFX_Y0 : 0;", "all.y0 = 0;"),
+    ("gfx.c", "\tstale = 1;\n\tedge_black = 0;", "\tstale = 1;"),
+    ("gfx.c", "\tpal_key = ~0u;\n\t/* Two bytes", "\t/* Two bytes"),
+    ("gfx.c", "\t\tmem_watched = 0xffff;\n\t}\n\treturn (k != K_TEXT);", "\t}\n\treturn (k != K_TEXT);"),
+    ("gfx.c", "if ((k == K_TEXT || k != kind) && kind_set(k) != 0)", "if (kind_set(k) != 0)"),
 ]
 
 
@@ -353,8 +360,10 @@ def expected(stage, fonts, boot):
         ramp[14 * 80 : 15 * 80] = ramp[15 * 80 : 16 * 80]
         ramp[15 * 80 : 16 * 80] = [(32, 0x2F)] * 80
         return text_frame(fonts, ramp, 80, 20 * 80 + 5)
-    if stage == 8:
+    if stage in (8, 10):
         return cga4_frame(Cga(wide).fields, 0x30)
+    if stage == 11:
+        return cga4_frame([bytearray(FIELD), bytearray(FIELD)], 0x30)
     cells = [(32, 7)] * 2000
     for k, ch in enumerate(b"TEXT4"):
         cells[k] = (ch, 7)
@@ -412,8 +421,9 @@ def run(binary, work, keys, extra=(), env=None):
 
 def test_stages(binary, work, fonts, boot):
     tallest = 0
-    for stage in range(10):
-        keys = "%d" % stage + ("x" if stage in (6, 7, 9) else "")
+    for stage in range(12):
+        key = chr(ord("0") + stage)
+        keys = key + ("x" if stage in (6, 7, 9, 10, 11) else "")
         done, closes = run(binary, work, keys)
         what = "panel stage %d" % stage
         if len(closes) != 1:
@@ -427,16 +437,26 @@ def test_stages(binary, work, fonts, boot):
         tallest = max(tallest, counts["tallest"])
         if done.stdout:
             raise Failure("%s: %d bytes went to the terminal" % (what, len(done.stdout)))
-        if stage in (6, 7):
+        if stage in (6, 7, 10, 11):
             # The same session ended at the stage's key wait has drawn
             # everything but the change. The change may cost the scan
             # lines of the two pages written, 27 of them, or the cells
             # that differ: the one stored, the two rows the firmware
-            # scrolled and the cursor's old and new places.
-            _, before = run(binary, work, "%d" % stage)
+            # scrolled and the cursor's old and new places. Writes that
+            # leave the adapter as it was cost nothing; a mode set that
+            # clears memory costs its lines and no clear of the panel.
+            _, before = run(binary, work, key)
             more = counts["pixels"] - before[0][1]["pixels"]
-            if more != (27 * 320 if stage == 6 else 163 * 32):
+            if more != {6: 27 * 320, 7: 163 * 32, 10: 0, 11: 200 * 320}[stage]:
                 raise Failure("%s: the change sent %d pixels" % (what, more))
+            more = counts["filled"] - before[0][1]["filled"]
+            if more:
+                raise Failure("%s: the change cleared %d pixels" % (what, more))
+        if stage == 4 and counts["filled"] != WIDTH * HEIGHT + 200 * WIDTH:
+            # The first clear after the open covers the whole panel, the
+            # superuser's open keeping the console's screen; the mode set
+            # after the text of the boot clears the adapter's 200 lines.
+            raise Failure("%s: %d pixels cleared" % (what, counts["filled"]))
     # A mode set redraws all 200 lines; a drain sends at most 16 of them
     # in one window, so the tallest graphics window is exactly 16 lines.
     if tallest != 16:

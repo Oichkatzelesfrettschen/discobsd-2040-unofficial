@@ -99,7 +99,16 @@ int gfx_on, gfx_graphic;
 
 static int fd = -1;
 static int kind;
-static int stale;			/* the panel shows nothing current */
+/* The panel shows nothing current: 1, every line of the adapter's area
+ * is to be cleared and drawn; 2, every graphics line is to be drawn whole
+ * over the last graphics mode's lines, so no clear is needed. */
+static int stale;
+/* The panel's lines outside the adapter's area are black: set by the
+ * first clear after an open, which covers all 320 lines because the
+ * superuser's open keeps the console's screen. Nothing else this file
+ * draws reaches them but the pointer mark, which draws its whole box. */
+static int edge_black;
+static unsigned pal_key = ~0u;		/* what the device's palette holds */
 static uint8_t *bank[2];		/* even and odd scan lines */
 static uint8_t reg_mode = 0x29, reg_color = 0x30;
 static unsigned cur_shown = GFX_NOCURSOR;
@@ -171,10 +180,17 @@ pal_set(unsigned index, unsigned irgb, int half)
 static void
 palette(void)
 {
-	unsigned i, set, bright = (reg_color & 0x10) ? 8 : 0;
+	unsigned i, set, key, bright = (reg_color & 0x10) ? 8 : 0;
 
 	if (!gfx_on)
 		return;
+	/* The registers the colors below depend on, for each kind. A write
+	 * that leaves them as they were sends nothing. */
+	key = kind == K_TEXT ? 0 : kind == K_CGA4 ? 0x100 |
+	    (reg_mode & 4) << 4 | (reg_color & 0x3f) : 0x200 | (reg_color & 15);
+	if (key == pal_key)
+		return;
+	pal_key = key;
 	switch (kind) {
 	case K_TEXT:
 		for (i = 0; i < 16; i++)
@@ -225,9 +241,11 @@ kind_set(int k)
 		mem_watch(GFX_VRAM, 0, bank[0], BANK_PAGES);
 		mem_watch(GFX_VRAM, BANK_PAGES, bank[1], BANK_PAGES);
 	}
+	/* Between two graphics modes every line is drawn whole and covers
+	 * the last mode's; anything else clears the area first. */
+	stale = stale == 1 || k == K_TEXT || kind == K_TEXT ? 1 : 2;
 	kind = k;
 	gfx_graphic = k != K_TEXT;
-	stale = 1;
 	palette();
 	return (0);
 }
@@ -255,6 +273,9 @@ gfx_open(void)
 		return (-1);
 	}
 	gfx_on = 1;
+	stale = 1;
+	edge_black = 0;
+	pal_key = ~0u;
 	/* Two bytes a pixel on the wire where the device starts with
 	 * three; the adapter's sixteen colors lose nothing by it. */
 	cm.fmt = LCDG_COLMOD_RGB565;
@@ -282,7 +303,9 @@ gfx_mode(unsigned mode)
 	unsigned m = mode & 0x7f;
 	int k = m == 6 ? K_CGA6 : (m == 4 || m == 5) ? K_CGA4 : K_TEXT;
 
-	if (kind_set(k) != 0)
+	/* A graphics mode set again keeps the panel, and the lines its
+	 * clear below changes are drawn like a program's own writes. */
+	if ((k == K_TEXT || k != kind) && kind_set(k) != 0)
 		k = K_TEXT;
 	reg_mode = (uint8_t)(m == 6 ? 0x1e : m == 5 ? 0x2e : m == 4 ? 0x2a :
 	    m < 2 ? 0x28 : 0x29);
@@ -293,6 +316,7 @@ gfx_mode(unsigned mode)
 	if (k != K_TEXT && !(mode & 0x80)) {
 		memset(bank[0], 0, BANK_PAGES << MEM_PGSHIFT);
 		memset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);
+		mem_watched = 0xffff;
 	}
 	return (k != K_TEXT);
 }
@@ -524,15 +548,18 @@ gfx_refresh(unsigned cols, unsigned cursor)
 	if (!gfx_on)
 		return;
 	if (stale) {
-		/* A mode set or a panel taken back: black everywhere,
-		 * then every cell or line. */
-		all.x0 = all.y0 = 0;
+		/* A mode set or a panel taken back: black where the panel
+		 * may show something else, then every cell or line. */
+		all.x0 = 0;
 		all.x1 = LCDG_WIDTH - 1;
-		all.y1 = LCDG_HEIGHT - 1;
+		all.y0 = edge_black ? GFX_Y0 : 0;
+		all.y1 = edge_black ? GFX_Y0 + LINES - 1 : LCDG_HEIGHT - 1;
 		all.color = 0;
-		(void)DEV_IOCTL(fd, LCDG_FILL, &all);
-		if (pointer)
+		if (!edge_black || stale == 1)
+			(void)DEV_IOCTL(fd, LCDG_FILL, &all);
+		if (!edge_black && pointer)
 			pointer_draw();
+		edge_black = 1;
 		if (kind == K_TEXT)
 			memset(bank[0] + 0x1000, 0, 0x1000);
 		cur_shown = GFX_NOCURSOR;

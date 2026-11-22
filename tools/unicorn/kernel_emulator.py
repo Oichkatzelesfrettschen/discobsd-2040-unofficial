@@ -112,6 +112,8 @@ from unicorn.arm_const import (
 )
 
 PAGE = 0x1000
+ROM_BASE = 0x00000000
+ROM_SIZE = 0x00004000
 FLASH_BASE = 0x10000000
 FLASH_SIZE = 0x00200000
 SRAM_BASE = 0x20000000
@@ -136,6 +138,22 @@ CALLEE_SAVED = (
 )
 BX_LR = b"\x70\x47"
 NOP = b"\x00\xbf"
+
+# A model of the boot ROM's entries the kernel calls by its function table
+# slot (sys/arch/rp2040/rp2040/machdep.c rom_fn()): ROM version 3 keeps the
+# entry for memset (MS) at 0x8a and for memcpy (MC) at 0x92, each a halfword
+# code and a halfword Thumb address. The routines are byte loops in ARMv6-M
+# Thumb, so the access policy checks every byte they move; bcopy() hands the
+# ROM memcpy only disjoint ranges, where a forward loop matches it.
+ROM_MODEL_CODE = 0x3000
+ROM_MODEL = bytes.fromhex(
+    "0346002a03d019700133013af9e77047"  # 0x3000 memset(dst, c, n)
+    "10b40024944203d00b5d03550134f9e710bc7047"  # 0x3010 memcpy(dst, src, n)
+)
+ROM_MODEL_SLOTS = (
+    (0x8A, b"MS", ROM_MODEL_CODE | 1),
+    (0x92, b"MC", (ROM_MODEL_CODE + 0x10) | 1),
+)
 
 # ARMv6-M Thumb (ARM DDI 0419, section A5.1) admits 32-bit encodings only
 # for BL, MSR, MRS, DMB, DSB and ISB. MRS and MSR name a special register
@@ -336,6 +354,11 @@ class KernelEmulator:
         self.uc.ctl_set_cpu_model(UC_CPU_ARM_CORTEX_M0)
         self.uc.mem_map(FLASH_BASE, FLASH_SIZE, UC_PROT_READ | UC_PROT_EXEC)
         self.uc.mem_map(SRAM_BASE, SRAM_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+        self.uc.mem_map(ROM_BASE, ROM_SIZE, UC_PROT_READ | UC_PROT_EXEC)
+        self.uc.mem_write(ROM_BASE + 0x10, b"Mu\x01\x03")
+        for slot, code, entry in ROM_MODEL_SLOTS:
+            self.uc.mem_write(ROM_BASE + slot, code + struct.pack("<H", entry))
+        self.uc.mem_write(ROM_BASE + ROM_MODEL_CODE, ROM_MODEL)
         for base, data, memsz in image.segments:
             if memsz > len(data):
                 self.uc.mem_write(base + len(data), bytes(memsz - len(data)))
@@ -432,6 +455,8 @@ class KernelEmulator:
             return
         if FLASH_BASE <= address < FLASH_BASE + FLASH_SIZE and policy.flash_reads:
             return
+        if ROM_BASE <= address < ROM_BASE + ROM_SIZE:
+            return  # The boot ROM is read-only and every kernel may read it.
         if not _inside(policy.reads, address, size):
             self._violate(f"read of {size} at {address:#010x} outside the allowed spans")
             return

@@ -42,7 +42,7 @@ Primary sources:
 | Component in the image | Holder | License | Evidence |
 | --- | --- | --- | --- |
 | kernel (`sys/kern`, `sys/arch/rp2040/rp2040`) | Regents of UC | 1986 Berkeley notice ("The Berkeley software License Agreement specifies the terms") | 48 of 52 and 14 of 15 files carry it |
-| port drivers (`sys/arch/rp2040/dev`) | DiscoBSD | ISC permission notice | usb.c, flash.c headers, "Copyright (c) 2026 DiscoBSD" |
+| port drivers (`sys/arch/rp2040/dev`) | GizmoBSD | BSD-3-Clause | usb.c, flash.c headers, "Copyright (c) 2026 GizmoBSD" |
 | boot2 | Raspberry Pi (Trading) Ltd | BSD-3-Clause (SPDX header) | `boot2_w25q080.S` |
 | Dhara | Daniel Beer | ISC | vendored LICENSE |
 | heatshrink | Scott Vokes | ISC | vendored LICENSE |

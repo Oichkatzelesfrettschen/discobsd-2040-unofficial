@@ -1,0 +1,156 @@
+--- a/usr.bin/i86/gfx.c
++++ b/usr.bin/i86/gfx.c
+@@ -379,6 +379,114 @@
+ 	}
+ }
+ 
++
++#include <stdio.h>
++#include <stdlib.h>
++extern unsigned long pixels, fillpx;
++void panel_dump(FILE *f);
++static FILE *mdump;
++static FILE *mlog;
++static unsigned long m_px, m_fill;
++static uint8_t m_shadow[2][8192];
++static uint8_t m_cells[4000];
++static const uint8_t *
++m_line(uint8_t (*b)[8192], unsigned y)
++{
++	return b[y & 1] + (y >> 1) * 80;
++}
++static unsigned
++m_gdiff(const uint8_t *a, const uint8_t *b)
++{
++	unsigned b0, b1;
++
++	for (b0 = 0; b0 < 80 && a[b0] == b[b0]; b0++)
++		;
++	if (b0 == 80)
++		return (0);
++	for (b1 = 79; a[b1] == b[b1]; b1--)
++		;
++	return ((b1 - b0 + 1) * 4);
++}
++static void
++measure(unsigned cols)
++{
++	unsigned y, lines = 0, spanpx = 0, r, c, k, best = ~0u, bestk = 0, n;
++	const char *p;
++
++	if (mlog == NULL) {
++		if ((p = getenv("I86_MLOG")) == NULL)
++			return;
++		if ((mlog = fopen(p, "w")) == NULL)
++			return;
++	}
++	if (kind != K_TEXT) {
++		for (k = 0; k <= 24; k++) {
++			for (n = 0, y = 0; y < LINES; y++)
++				n += y + k < LINES ? m_gdiff(bank[y & 1] + (y >> 1) * 80, m_line(m_shadow, y + k)) : 320;
++			if (k > 0)
++				n += 0;
++			if (n < best) {
++				best = n;
++				bestk = k;
++			}
++		}
++		for (y = 0; y < LINES; y++) {
++			const uint8_t *now = bank[y & 1] + (y >> 1) * 80;
++			uint8_t *old = m_shadow[y & 1] + (y >> 1) * 80;
++			n = m_gdiff(now, old);
++			if (n == 0)
++				continue;
++			lines++;
++			spanpx += n;
++		}
++		for (y = 0; y < LINES; y++)
++			memcpy(m_shadow[y & 1] + (y >> 1) * 80, bank[y & 1] + (y >> 1) * 80, 80);
++	} else {
++		const uint8_t *cell = bank[0];
++		unsigned cpx = cols == 80 ? 32 : 64;
++		for (k = 0; k < 25; k++) {
++			for (n = 0, r = 0; r < 25; r++)
++				for (c = 0; c < cols; c++)
++					if (r + k >= 25 || memcmp(cell + 2 * (r * cols + c), m_cells + 2 * ((r + k) * cols + c), 2) != 0)
++						n += cpx;
++			if (n < best) {
++				best = n;
++				bestk = k;
++			}
++		}
++		for (r = 0; r < 25; r++) {
++			int ch = 0;
++			for (c = 0; c < cols; c++)
++				if (memcmp(cell + 2 * (r * cols + c), m_cells + 2 * (r * cols + c), 2) != 0) {
++					ch = 1;
++					spanpx += cpx;
++				}
++			lines += ch;
++		}
++		memcpy(m_cells, cell, 2 * cols * 25);
++	}
++	if (mdump == NULL && (p = getenv("I86_MDUMP")) != NULL)
++		mdump = fopen(p, "wb");
++	if (mdump != NULL && (pixels != m_px || fillpx != m_fill || lines)) {
++		fputc(kind == K_TEXT ? 'T' : 'G', mdump);
++		fputc((int)cols, mdump);
++		if (kind == K_TEXT)
++			fwrite(bank[0], 4000, 1, mdump);
++		else {
++			fwrite(bank[0], 8000, 1, mdump);
++			fwrite(bank[1], 8000, 1, mdump);
++		}
++		panel_dump(mdump);
++		fflush(mdump);
++	}
++	if (pixels != m_px || fillpx != m_fill || lines)
++		fprintf(mlog, "%c %lu %lu %u %u %u %u\n", kind == K_TEXT ? 'T' : 'G',
++		    pixels - m_px, fillpx - m_fill, lines, spanpx, best, bestk);
++	fflush(mlog);
++	m_px = pixels;
++	m_fill = fillpx;
++}
++
+ /* Graphics. */
+ 
+ static void
+@@ -510,6 +618,7 @@
+ 		text_refresh(cols, cursor);
+ 	else
+ 		graphic_refresh();
++	measure(cols);
+ }
+ 
+ /* The firmware's services in a graphics mode. They write display memory
+--- a/usr.bin/i86/tests/panel.c
++++ b/usr.bin/i86/tests/panel.c
+@@ -64,7 +64,8 @@
+ static unsigned long win_at, win_total;		/* pixels */
+ static int isopen, haswin;
+ static unsigned opens, closes;
+-static unsigned long errors, pixels, windows, fills;
++static unsigned long errors, windows, fills;
++unsigned long pixels, fillpx;
+ static unsigned colmod;
+ 
+ static int
+@@ -162,6 +163,7 @@
+ 			for (x = r->x0; x <= r->x1; x++)
+ 				fb[y][x] = r->color;
+ 		fills++;
++		fillpx += (unsigned long)(r->x1 - r->x0 + 1) * (r->y1 - r->y0 + 1);
+ 		return (0);
+ 	case LCDG_WINDOW:
+ 		if (w->w < 1 || w->h < 1 || w->x + w->w > LCDG_WIDTH ||
+@@ -243,3 +245,10 @@
+ 		errors++;		/* bytes beyond the last pixel */
+ 	return ((long)used);
+ }
++
++void panel_dump(FILE *f);
++void
++panel_dump(FILE *f)
++{
++	fwrite(fb, sizeof(fb), 1, f);
++}

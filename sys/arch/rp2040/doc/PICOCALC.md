@@ -1255,7 +1255,7 @@ defines only its own name.
 
 - `DIAGNOSTIC`: the `#ifdef DIAGNOSTIC` checks of the kernel sources compile
   in. `sendsig()` and `sigreturn()` in `rp2040/sig_machdep.c` print through
-  `kern.systrace` below and carry no `DIAGNOSTIC` lines.
+  `kern.systrace` below instead of `DIAGNOSTIC` lines.
 - `kern.systrace` (`options SYSTRACE`, `systm.h`): a mask of the trace bits,
   zero at boot, narrowed to one process by `kern.systracepid`. Bit 1 traces
   system calls, bit 2 each `sendsig()` (handler, frame, interrupted pc, sp and

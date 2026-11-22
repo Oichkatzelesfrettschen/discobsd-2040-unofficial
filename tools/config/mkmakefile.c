@@ -424,6 +424,54 @@ do_load(FILE *f)
 }
 
 /*
+ * One byte into the CRC of POSIX cksum: polynomial 04C11DB7h, most
+ * significant bit first.
+ */
+static unsigned long
+cksum_byte(unsigned long crc, unsigned c)
+{
+    int i;
+
+    crc ^= (unsigned long)(c & 0xff) << 24;
+    for (i = 0; i < 8; i++)
+        crc = (crc & 0x80000000UL) ? (crc << 1) ^ 0x04C11DB7UL : crc << 1;
+    return crc & 0xffffffffUL;
+}
+
+/*
+ * Write CONFIG_CKSUM, the POSIX cksum of the configuration file ("crc
+ * length", as cksum prints it for its standard input). The Makefile
+ * skeleton compares it with the file it finds when make reads the
+ * Makefile, so a Config edited after this run stops the build at once
+ * instead of compiling with the PARAM and object lists written here.
+ */
+static void
+do_cksum(FILE *ofp)
+{
+    FILE *fp;
+    unsigned long crc = 0, len = 0, n;
+    int c;
+
+    fp = fopen(config_file, "r");
+    if (fp == 0) {
+        perror(config_file);
+        exit(1);
+    }
+    while ((c = getc(fp)) != EOF) {
+        crc = cksum_byte(crc, (unsigned)c);
+        len++;
+    }
+    if (ferror(fp)) {
+        perror(config_file);
+        exit(1);
+    }
+    fclose(fp);
+    for (n = len; n != 0; n >>= 8)
+        crc = cksum_byte(crc, (unsigned)(n & 0xff));
+    fprintf(ofp, "CONFIG_CKSUM = %lu %lu\n", ~crc & 0xffffffffUL, len);
+}
+
+/*
  * Build the makefile from the skeleton
  */
 void
@@ -510,6 +558,7 @@ makefile(void)
 
     if (debugging)
         fprintf(ofp, "DEBUG = -g\n");
+    do_cksum(ofp);
 
     while (fgets(line, BUFSIZ, ifp) != 0) {
         if (*line != '%') {

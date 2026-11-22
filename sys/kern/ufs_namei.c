@@ -247,7 +247,7 @@ dirbadentry(register struct direct *ep, int entryoffsetinblock)
         ep->d_reclen < DIRSIZ(ep) || ep->d_namlen > MAXNAMLEN)
         return (1);
     for (i = 0; i < ep->d_namlen; i++)
-        if (ep->d_name[i] == '\0')
+        if (ep->d_name[i] == '\0' || ep->d_name[i] == '/')
             return (1);
     return (ep->d_name[i]);
 }
@@ -446,11 +446,6 @@ dirloop2:
             u.u_error = ENAMETOOLONG;
             goto bad;
         }
-        if (*cp & 0200)
-            if ((*cp&0377) == ('/'|0200) || flag != DELETE) {
-                u.u_error = EINVAL;
-                goto bad;
-            }
         ndp->ni_dent.d_name[i++] = *cp;
 #ifndef LINEAR_NAME_CACHE
         hash += (unsigned char)*cp * i;

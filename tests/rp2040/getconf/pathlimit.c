@@ -63,5 +63,10 @@ main(void)
 		unlink(name);
 		return 1;
 	}
-	return errno != ENAMETOOLONG;
+	if (errno != ENAMETOOLONG)
+		return 1;
+	fd = open("\200\257\377", O_CREAT | O_EXCL | O_WRONLY, 0600);
+	if (fd < 0 || close(fd) < 0)
+		return 1;
+	return unlink("\200\257\377") < 0;
 }

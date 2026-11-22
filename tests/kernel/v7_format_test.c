@@ -1039,6 +1039,13 @@ main(int argc, char **argv)
     HK_CHECK(error == ENAMETOOLONG);
     fill("/fourteen-chars", 9, 77, 512);
 
+    HK_CHECK(kcreate("/\200\257\377", IFREG | 0644, &ip) == 0);
+    iput(ip);
+    ip = lookup("/\200\257\377");
+    HK_CHECK(ip != NULL);
+    iput(ip);
+    HK_CHECK(kremove("/\200\257\377") == 0);
+
     /* Directories, and enough names to need a second directory block. */
     HK_CHECK(kcreate("/kdir", IFDIR | 0755, &ip) == 0);
     iput(ip);

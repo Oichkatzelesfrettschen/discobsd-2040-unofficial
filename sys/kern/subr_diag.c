@@ -85,8 +85,8 @@ diag_fault(const struct diag_fault *record)
 
 /*
  * Called for each console character from putchar(). The write runs inside
- * printf() from interrupt and HardFault context, so it takes no lock: two
- * writers racing garble one byte, never the ring's indices.
+ * printf() from interrupt and HardFault context, so it runs without a
+ * lock: two writers racing garble one byte, never the ring's indices.
  */
 void
 diag_msgputc(int c)

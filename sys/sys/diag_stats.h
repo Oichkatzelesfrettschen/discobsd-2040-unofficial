@@ -85,7 +85,7 @@ enum diag_metric {
 };
 
 /*
- * A fault arm_fault() reported. ARMv6-M records no fault cause or address,
+ * A fault arm_fault() reported. ARMv6-M omits the fault cause and address,
  * so the record holds what the exception frame and the process hold.
  * exc_return 0xfffffffd is a process fault; any other value is the kernel
  * faulting and ends in a panic.

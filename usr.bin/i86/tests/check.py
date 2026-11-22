@@ -1436,7 +1436,7 @@ def test_host_clock_judge():
 
 # A host whose every sleep runs 15 ms long, inside the 20 ms of interrupts
 # clk_owe() keeps waiting: the fixed timer counts 32h there in every run and
-# the four-interrupt bound #886 replaced counts 10h to 11h, far on either
+# a build that keeps only four interrupts waiting counts 10h to 11h, far on either
 # side of HOST_CLOCK_IRQ_STALLED (8 ms puts that build exactly on it).
 OVERSLEEP = ("main.c", "\tusleep(ms * 1000UL);\n}", "\tusleep(ms * 1000UL + 15000UL);\n}")
 OVERSLEEP_BAD = (
@@ -1482,8 +1482,7 @@ def test_oversleep(src, work, cc, calibrate=False):
     """-S 4.77 on a host whose every sleep runs 15 ms long (OVERSLEEP): the
     paced judge passes, since the interrupts that came due during a sleep
     wait and arrive late rather than being lost. With calibrate, the build
-    that keeps four interrupts waiting (OVERSLEEP_BAD, the bound #886
-    replaced) must count under HOST_CLOCK_IRQ_STALLED in at least three of
+    that keeps four interrupts waiting (OVERSLEEP_BAD) must count under HOST_CLOCK_IRQ_STALLED in at least three of
     five single runs."""
 
     def paced(binary):

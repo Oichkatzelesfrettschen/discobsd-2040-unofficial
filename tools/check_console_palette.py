@@ -270,26 +270,14 @@ def check_table(table: Table) -> list[str]:
     return found
 
 
-TRIGRAPHS = {
-    "??=": "#",
-    "??(": "[",
-    "??/": "\\",
-    "??)": "]",
-    "??'": "^",
-    "??<": "{",
-    "??!": "|",
-    "??>": "}",
-    "??-": "~",
-}
+TRIGRAPH = re.compile(r"\?\?[=(/)'<!>-]")
 DIGRAPHS = (("<%", "{ "), ("%>", "} "), ("<:", "[ "), (":>", "] "), ("%:", "# "))
 
 
 def mask_c(text: str) -> str:
-    """Replace trigraphs, splice lines, then blank comments and the contents of
-    string and character literals and spell digraphs as their tokens, so that
-    markers and braces found in the result are code."""
-    for trigraph, character in TRIGRAPHS.items():
-        text = text.replace(trigraph, character)
+    """Splice lines, then blank comments and the contents of string and
+    character literals and spell digraphs as their tokens, so that markers and
+    braces found in the result are code."""
     text = text.replace("\\\r\n", "").replace("\\\n", "")
     out: list[str] = []
     i, n = 0, len(text)
@@ -340,6 +328,8 @@ JS_QUOTES = "\"'" + chr(96)
 
 
 def parse_c_table(text: str) -> Table:
+    if TRIGRAPH.search(text):
+        raise ValueError("the source holds a trigraph, which gnu17 ignores and c17 reads")
     code = mask_c(text)
     if re.search(r"^\s*#\s*(define|undef)\s+lcd_palette\b", code, re.M | re.A):
         raise ValueError("a preprocessor line defines or undefines lcd_palette")
@@ -593,6 +583,8 @@ def selftest() -> list[str]:
         + good_c
         + ' const char *b = "*/";\n',
         "table with function scope": "void f(void) {\n" + good_c + "}\n",
+        "table in a macro, digraph hash": "%:define PALETTE " + good_c.replace("\n", " \\\n"),
+        "table disabled, digraph hash": "%:if 0\n" + good_c + "%:endif\n",
         "function scope in digraph braces": "void f(void) <%\n" + good_c + "%>\n",
         "function scope in trigraph braces": "void f(void) ??<\n" + good_c + "??>\n",
         "non-ASCII digits": good_c.replace("{ 0, 0, 0 }", "{ ٠, ٠, ٠ }", 1),

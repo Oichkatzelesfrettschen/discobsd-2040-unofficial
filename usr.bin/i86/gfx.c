@@ -622,8 +622,10 @@ graphic_refresh(void)
  * written beside it under its name and the process id, created with
  * O_EXCL so that a file or link planted there fails the capture instead of
  * being written through, and renamed only once whole, so a failed read-back (a
- * kernel without the read) leaves an earlier capture as it was. Returns 0, 1 when gfx_capture_path is null or the panel is
- * closed, and -1 when the device or the file fails.
+ * kernel without the read) leaves an earlier capture as it was. Returns 0
+ * when the file is written, 1 when gfx_capture_path is null, and -1 when the
+ * panel is closed or the device or the file fails: the menu then reports
+ * "panel not saved", so an earlier file is not taken for this panel's.
  */
 int
 gfx_capture(void)
@@ -635,8 +637,10 @@ gfx_capture(void)
 	unsigned y, half, i, v;
 	int f, ok;
 
-	if (gfx_capture_path == NULL || !gfx_on)
+	if (gfx_capture_path == NULL)
 		return (1);
+	if (!gfx_on)
+		return (-1);
 	if (!stale && kind != K_TEXT)
 		graphic_drain(LINES);
 	if ((unsigned)snprintf(tmp, sizeof(tmp), "%s.%d", gfx_capture_path,

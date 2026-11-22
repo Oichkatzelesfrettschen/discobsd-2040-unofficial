@@ -52,6 +52,7 @@ VARIANTS = (
     ("PICOCALC_SD", "PICOCALC",
      ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a', *SD_PANEL_OPTIONS,
       'options LCD_GFX_EXT', 'options DEV_GPIO_PWM', 'options LCD_VT',
+      'options LCD_BLANK',
       'options "NPROC=32"', 'options "MAXUPRC=25"', 'options "SMAPSIZ=36"'),
      ('ldscript "RP2040.ld"', 'config unix root on fl0a')),
     ("PICOCALC_SD_DIAG", "PICOCALC_SD", SD_DIAG_OPTIONS, ()),

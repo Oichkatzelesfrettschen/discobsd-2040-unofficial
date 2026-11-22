@@ -44,7 +44,19 @@ Each departs from the design above, and each needs a case in the host gate:
 6. It sets `lcd_power_pending` after the command and clears it at once after SLPOUT. It also leaves `lcdabandon()`'s guard unchanged, so a fault while the panel sleeps draws its report on a sleeping panel.
 7. It marks the blanker awake at a graphics open without waking the panel, which stays asleep until the close.
 
-## Open before an implementation lands
+## Implementation
+
+The kernel carries the blanker in PICOCALC_SD and PICOCALC_SD_DIAG (`options LCD_BLANK`). It follows the design above, with one simplification: an SLPIN due within 120 ms of the blanker's own SLPOUT is not sent, and the next keyboard poll, which finds the request still open, pends the renderer again. A blanker SLPIN otherwise comes 300 s after the last key, so only a 71-minute wrap of `pc_micros()` reaches that case, and the callout and its single-arming flag were removed. The key that wakes the panel reaches the shell, as on other consoles' blankers.
+
+| Kernel (`arm-none-eabi-gcc` 16.2.0) | text | data | bss |
+|---|---:|---:|---:|
+| PICOCALC_SD, main at `b2eabe450` | 130,670 | 144 | 58,944 |
+| PICOCALC_SD with `LCD_BLANK` | 131,206 | 144 | 58,968 |
+| difference | +536 | 0 | +24 |
+
+`tests/picocalc/lcdblank_test.c` drives the idle count, the renderer, `lcdabandon()` and `lcdcons_gfx()` against a model panel; `lcdblank_wiring.sh` checks the command order in `st7365p.c` and the hook in `picokbd.c`. One mutant per defect above fails it, and one more steps the wall clock into the idle count. The board check below remains open.
+
+## Checks the design review asked for
 
 - **Key handling:** the key that wakes the panel also reaches the tty as input. The alternative, swallowing the first key, costs a flag and is the owner's choice.
 - **Host gate:** the gate drives the idle check and the renderer against a model panel. It requires the 5 ms and 120 ms gaps in their directions, the idle count from boot and across a clock step, the wake at a graphics open before its first command, and a request changed while a command goes out. It also requires one deferral callout at a time, and a fault report on a lit panel for faults injected before and after each command and while asleep. A mutant for each of the seven defects above must fail it.

@@ -61,6 +61,8 @@ check_value 1024 PAGE_SIZE
 /usr/tests/rp2040/pathlimit || exit 1
 /usr/tests/rp2040/pipebound || exit 1
 check_value 63 NAME_MAX .
+check_value 256 PATH_MAX .
+check_value 1024 POSIX_ALLOC_SIZE_MIN .
 check_value 8 -- SYMLOOP_MAX
 check_value undefined _POSIX_DEVICE_CONTROL
 check_value /usr/bin:/bin:/usr/sbin:/sbin PATH

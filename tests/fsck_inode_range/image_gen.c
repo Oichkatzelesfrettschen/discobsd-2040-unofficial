@@ -576,7 +576,8 @@ build(const char *layout, const char *path)
 		    number_of(&fs, "/f00") != IMAGE_INODES)
 			return fail("cannot build", layout);
 		if (strcmp(layout, "file-last") == 0) {
-			/* Nothing more. */
+			if (!rename_to(&fs, "/f01", "/\200\257\377"))
+				return fail("cannot build byte name", layout);
 		} else if (strcmp(layout, "orphan-last") == 0) {
 			if (!drop_name(&fs, "/f00"))
 				return fail("cannot build", layout);

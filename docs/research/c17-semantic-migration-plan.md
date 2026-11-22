@@ -737,7 +737,7 @@ Source: `bsd-workspace-directory-stream-c17.md`.
 | Tier | T1: syscall user-pointer boundary |
 | Native input | No |
 | Contract | User paths use `copyin`; kernel-owned paths keep `copystr`; every kernel initialization states its origin; operation-only resets preserve the pathname and its origin |
-| Invariants | An invalid pointer or a missing NUL at the process-window boundary returns `EFAULT`; an in-range terminator at the boundary succeeds; no terminator within `MAXPATHLEN` returns `ENOENT` |
+| Invariants | An invalid pointer or a missing NUL at the process-window boundary returns `EFAULT`; an in-range terminator at the boundary succeeds; no terminator within `MAXPATHLEN` returns `ENAMETOOLONG` |
 | Falsifier | Direct user copying, a dropped reset origin, a changed caller origin or pathname, a direct field write, or an unexpected caller fails its calibrated oracle |
 | Gates | `check-namei-user-path` (finite caller inventory plus strict-C17 address and undefined-behavior sanitizers), clean PICO and PICO_UART dependency/resource captures |
 | Resources | PICO kernel flash is unchanged; PICO_UART kernel flash decreases eight bytes; both SRAM maps, all shipped programs, packed-root occupancy, native artifacts and archive selections are unchanged. Fourteen affected objects retain identical sections, symbols and static frames; both `vfs_vnops.c` objects lose four text bytes while retaining data, BSS and static frames |

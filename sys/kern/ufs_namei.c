@@ -85,7 +85,7 @@ namei_copy_user_path(caddr_t source, char *destination)
 				return 0;
 		length += chunk;
 	}
-	return ENOENT;
+	return ENAMETOOLONG;
 }
 
 static int
@@ -247,7 +247,7 @@ dirbadentry(register struct direct *ep, int entryoffsetinblock)
         ep->d_reclen < DIRSIZ(ep) || ep->d_namlen > MAXNAMLEN)
         return (1);
     for (i = 0; i < ep->d_namlen; i++)
-        if (ep->d_name[i] == '\0')
+        if (ep->d_name[i] == '\0' || ep->d_name[i] == '/')
             return (1);
     return (ep->d_name[i]);
 }
@@ -386,7 +386,7 @@ namei_at(register struct nameidata *ndp, int dirfd)
             goto retNULL;
         }
     }
-    if ((ndp->ni_nameiop & NI_NOEMPTY) && path[0] == '\0') {
+    if ((ndp->ni_nameiop & (NI_USERPATH | NI_NOEMPTY)) && path[0] == '\0') {
         u.u_error = ENOENT;
         goto retNULL;
     }
@@ -446,11 +446,6 @@ dirloop2:
             u.u_error = ENAMETOOLONG;
             goto bad;
         }
-        if (*cp & 0200)
-            if ((*cp&0377) == ('/'|0200) || flag != DELETE) {
-                u.u_error = EINVAL;
-                goto bad;
-            }
         ndp->ni_dent.d_name[i++] = *cp;
 #ifndef LINEAR_NAME_CACHE
         hash += (unsigned char)*cp * i;
@@ -458,6 +453,14 @@ dirloop2:
     }
     ndp->ni_dent.d_namlen = i;
     ndp->ni_dent.d_name[i] = '\0';
+#ifdef V7FS
+    /* A V7 entry holds 14 name bytes; V7 itself truncated in silence. */
+    if (FS_ISV7(fs) &&
+        ndp->ni_dent.d_namlen > V7_NAMELEN) {
+        u.u_error = ENAMETOOLONG;
+        goto bad;
+    }
+#endif
     isdotdot = (i == 2 &&
         ndp->ni_dent.d_name[0] == '.' && ndp->ni_dent.d_name[1] == '.');
     makeentry = 1;
@@ -624,14 +627,6 @@ dirloop2:
      * case it doesn't already exist.
      */
     slotstatus = FOUND;
-#ifdef V7FS
-    /* A V7 entry holds 14 name bytes; V7 itself truncated in silence. */
-    if (flag == CREATE && *cp == 0 && FS_ISV7(INODE_FILESYSTEM(dp)) &&
-        ndp->ni_dent.d_namlen > V7_NAMELEN) {
-        u.u_error = ENAMETOOLONG;
-        goto bad;
-    }
-#endif
     if (flag == CREATE && *cp == 0) {
         slotstatus = NONE;
         slotfreespace = 0;
@@ -1060,8 +1055,12 @@ haveino:
         ((ndp->ni_nameiop & FOLLOW) || *cp == '/')) {
         u_int pathlen = strlen(cp) + 1;
 
-        if (dp->i_size + pathlen >= MAXPATHLEN - 1) {
+        if ((u_long)dp->i_size > sizeof(path) - pathlen) {
             u.u_error = ENAMETOOLONG;
+            goto bad2;
+        }
+        if (dp->i_size == 0) {
+            u.u_error = ENOENT;
             goto bad2;
         }
         if (++nlink > MAXSYMLINKS) {

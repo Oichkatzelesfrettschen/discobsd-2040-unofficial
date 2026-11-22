@@ -1482,8 +1482,8 @@ def test_oversleep(src, work, cc, calibrate=False):
     """-S 4.77 on a host whose every sleep runs 15 ms long (OVERSLEEP): the
     paced judge passes, since the interrupts that came due during a sleep
     wait and arrive late rather than being lost. With calibrate, the build
-    that keeps four interrupts waiting (OVERSLEEP_BAD) must count under HOST_CLOCK_IRQ_STALLED in at least three of
-    five single runs."""
+    that keeps four interrupts waiting (OVERSLEEP_BAD) must count under
+    HOST_CLOCK_IRQ_STALLED in at least three of five single runs."""
 
     def paced(binary):
         return lambda: pit_run(binary, work, ["-S", "4.77", "-c", "8088"])

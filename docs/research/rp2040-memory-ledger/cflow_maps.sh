@@ -76,7 +76,8 @@ done
 	echo "cflow_maps.sh: $compile holds no objects; build the kernel first" >&2
 	exit 1
 }
-definitions=$(sed -n 's/^PARAM *+*= *//p' "$compile/Makefile" | tr '\n' ' ')
+definitions=$(sed -n 's/^PARAM *+*= *//p' "$compile/Makefile" | tr '\n' ' ' |
+    sed 's/ *$//')
 printf '%s\n' "$definitions" >"$output/$config.definitions"
 preprocessor="cpp -nostdinc -DKERNEL -I$compile -I$sys -I$sys/arch"
 preprocessor="$preprocessor -I$sys/arch/rp2040/include"

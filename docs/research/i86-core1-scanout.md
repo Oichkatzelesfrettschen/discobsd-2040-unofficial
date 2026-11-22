@@ -4,8 +4,9 @@ Status: decision record, 2026-11-21. The owner chose core-0 SPI1 DMA
 (D198), then core-1 scan-out (D202) on a comparison whose figure was wrong,
 and then the staged design below (D213), with a read-back-verified sweep
 of the wire rate in the next board session (D214). This note splits both options into the
-terms of the cost they attack, refutes the part of each that the tree
-cannot carry, and keeps what survives as a staged design in which every
+terms of the cost they attack, refutes the part of D198 that the tree
+cannot carry, prices the part of D202 that it carries only by pinning
+i86 in core, and keeps what survives as a staged design in which every
 stage has its own measurement and falsifier. Nothing here is built. Every
 figure is labeled measured (board), computed or unmeasured.
 
@@ -74,7 +75,7 @@ entry, store two bytes) is about a tenth of the path.
   `lcdexttest` write that skipped the palette and timed its own pattern
   generator; it measures neither term and stays withdrawn.
 
-## The two options as worded, and what refutes each wording
+## The two options as worded, and what each wording costs
 
 **D198, core-0 SPI1 DMA.** Worded as `write()` returning while the
 transfer runs, from a bounce buffer or by holding the caller's buffer.
@@ -90,21 +91,33 @@ transfer runs, from a bounce buffer or by holding the caller's buffer.
 **D202, core-1 scan-out.** Worded as core 1 reading i86's guest frame buffer,
 expanding with its interpolators and feeding SPI1 by DMA.
 
-- Refuted: reading the guest frame buffer. The sibling emulators that scan
-  out from core 1 (`picocalc_x86` `second_core()`, `pico-286`) run one
-  program in one address space; here the frame buffer lives in a user window
-  that is exchanged between processes, and a core-1 request carries a slot
-  number and an argument (`CORE1.md`). Core 1 can read only what the
-  kernel has copied for it: the same bounded queue D198 needs.
-- Survives: moving the expansion off core 0.
-- D202 is therefore D198 plus one move. Its increment over D198 is the
-  expansion term alone: about 12 cycles a pixel with the inline loop, 6 ms a
-  full frame, 7 percent of the wire time. Its cost is core-1 `.ramfunc`
-  code, a doorbell (core 1 wakes from `WFI` on a 10 ms SysTick), a ring
-  pair for a thread-mode producer, fault parking, and the CORE1 option on a
-  PicoCalc kernel, which those kernels omit today.
-- Falsifier for leaving D202 out: board measurement 2 below showing the
-  inline expansion above 30 percent of the wire time.
+- Costed, not refuted: reading the guest frame buffer in place. Core 1 runs
+  privileged with the MPU unprogrammed (`core1.c`), a ring entry's
+  `ce_arg` can carry an SRAM address, and the swapper leaves a process
+  with `SLOCK` set in core (`vm_sched.c`). Three costs come with it. i86
+  stays pinned for the whole session, and with one user window every other
+  process stays swapped out until the pin is released (inferred from the
+  swapper's single in-core slot). Core 1 must stop reading before the pin is
+  released on every exit path: `exit`, a signal, a fault, and the
+  Control-] menu giving the panel back. And i86 must publish its frame
+  layout, which is two fields of packed CGA pixels with the odd lines in
+  frames lent by the pager, together with the mode, the palette and the
+  dirty lines.
+- The sibling emulators that scan out from core 1 (`picocalc_x86`
+  `second_core()`, `pico-286`) run one program in one address space,
+  where none of these three costs exists.
+- Survives either way: moving the expansion off core 0. With the copied
+  queue of D198, D202's increment is the expansion term alone: about 12
+  cycles a pixel with the inline loop, 6 ms a full frame, 7 percent of the
+  wire time. With the pinned in-place read, the increment also covers the
+  copy-in and the system calls, which leaves core 0 close to nothing a
+  frame. Both forms carry core-1 `.ramfunc` code and a doorbell, since
+  core 1 wakes from `WFI` on a 10 ms SysTick. Both also need fault parking
+  and the CORE1 option on a PicoCalc kernel, which those kernels omit today.
+- Falsifier for leaving D202 out of the first stages: board measurement 2
+  showing the inline expansion above 30 percent of the wire time, or
+  measurement 1 showing copy-in and system calls above 10 percent of a
+  redraw-heavy session.
 
 ## The lever neither option named: the wire rate
 
@@ -196,9 +209,9 @@ is built.
 | 1. Resumable refresh: i86 keeps its dirty-line set across polls and sends at most a time budget of lines per poll | redraw time held inside one poll | `usr.bin/i86` | host gate of the dirty set; board: no bunched ticks during a redraw | a redraw still delays a tick past one period |
 | 2. Read-back oracle: in-process capture, Renode 2Eh, host-render comparison | (verification) | i86, `st7365p.cs` | a capture equal to the host render | any pixel different |
 | 3. Inline expansion: 16-bit frames, palette loaded once per write | work per pixel, about 100 to 15-21 cycles | `lcdgfx.c`, `st7365p.c` | line time at SCR 1 (work-bound today) | line time at SCR 1 above 1.2 times its 163.8 us of wire time |
-| 4. Wire rate: the highest SCR whose read-back is exact on repeated full-frame writes, with the next faster step also exact | wire time | `st7365p.c` divider | read-back at each step | any difference at the chosen step or the step above it |
+| 4. Wire rate: the fastest step whose read-back is exact on repeated full-frame writes, backed off one divider step for margin (the kept rate and the step above it both exact) | wire time | `st7365p.c` divider | read-back at each step | any difference at the chosen step or the step above it |
 | 5. DMA drain: two bounce buffers of one RGB565 line each, a completion interrupt, `O_NONBLOCK` with `EAGAIN` | polling | `lcdgfx.c`, `st7365p.c` | core-0 time per frame against stage 3's | gain under 10 percent of the frame's wire time |
-| 6. Core-1 expansion | expansion | core 1 | measurement 2 | expansion under 30 percent of the wire time: stage not built |
+| 6. Core-1 scan-out, from the copied queue or from the pinned guest buffer | expansion, and with the pinned buffer copy-in and system calls | core 1 | measurements 1 and 2 | expansion under 30 percent of the wire time and copy-in under 10 percent of a session: stage not built |
 
 Budget (computed from the linked PICOCALC_SD of e45e5c3c6): kernel RAM
 holds 6,976 bytes past `__kernel_dump_reserve_end`

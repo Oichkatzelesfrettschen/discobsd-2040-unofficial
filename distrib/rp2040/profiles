@@ -89,7 +89,7 @@ closure puzzlebox needs path /usr/games/puzzlebox
 #
 # usr.bin/bc compiles its input to dc source and evaluates it with the dc
 # evaluator linked into bc itself, in a forked child, so bc runs without
-# /usr/bin/dc to run, and dc needs zero parts of bc. bc -l first reads
+# /usr/bin/dc to run, and dc does not need bc. bc -l first reads
 # /usr/share/misc/bc.library. The arbitrary-precision calculator ships bc,
 # dc and the library together as the calc-bignum group; each is a closure
 # an image can keep alone.

@@ -6,7 +6,7 @@ over a WebSocket, so any device on the local network opens the console at
 http://<this-host>:7681/. It needs Python and pyserial; the terminal itself
 is xterm.js, loaded from a CDN by the browser.
 
-Security model: a loopback bind needs zero tokens. Any other bind requires a
+Security model: a loopback bind does not need a token. Any other bind requires a
 shared secret as a Bearer header or ?token= query, compared in constant
 time, and a WebSocket upgrade must carry the Origin of the page this server
 served. The console is one serial line, so one session holds it at a time.

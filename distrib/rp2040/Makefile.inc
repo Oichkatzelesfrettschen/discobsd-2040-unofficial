@@ -116,7 +116,7 @@ FS_COMPOSE=	${PYTHON} ${MKMANIFEST} --profile=${PROFILE} \
 
 # The multicall binaries link only the members the selection keeps: the
 # games Makefiles read GAMEBOX_TOOLS and PUZZLEBOX_TOOLS, which stay unset
-# (and every member builds) when PYTHON names zero interpreters yet. A
+# (and every member builds) when PYTHON does not name an interpreter yet. A
 # selection mkmanifest.py refuses leaves them empty, and check-image-selection,
 # which build and fs wait for, reports the refusal before any program builds.
 .if !empty(PYTHON)

@@ -386,7 +386,7 @@ namei_at(register struct nameidata *ndp, int dirfd)
             goto retNULL;
         }
     }
-    if ((ndp->ni_nameiop & NI_NOEMPTY) && path[0] == '\0') {
+    if ((ndp->ni_nameiop & (NI_USERPATH | NI_NOEMPTY)) && path[0] == '\0') {
         u.u_error = ENOENT;
         goto retNULL;
     }
@@ -453,6 +453,14 @@ dirloop2:
     }
     ndp->ni_dent.d_namlen = i;
     ndp->ni_dent.d_name[i] = '\0';
+#ifdef V7FS
+    /* A V7 entry holds 14 name bytes; V7 itself truncated in silence. */
+    if (FS_ISV7(fs) &&
+        ndp->ni_dent.d_namlen > V7_NAMELEN) {
+        u.u_error = ENAMETOOLONG;
+        goto bad;
+    }
+#endif
     isdotdot = (i == 2 &&
         ndp->ni_dent.d_name[0] == '.' && ndp->ni_dent.d_name[1] == '.');
     makeentry = 1;
@@ -619,14 +627,6 @@ dirloop2:
      * case it doesn't already exist.
      */
     slotstatus = FOUND;
-#ifdef V7FS
-    /* A V7 entry holds 14 name bytes; V7 itself truncated in silence. */
-    if (flag == CREATE && *cp == 0 && FS_ISV7(INODE_FILESYSTEM(dp)) &&
-        ndp->ni_dent.d_namlen > V7_NAMELEN) {
-        u.u_error = ENAMETOOLONG;
-        goto bad;
-    }
-#endif
     if (flag == CREATE && *cp == 0) {
         slotstatus = NONE;
         slotfreespace = 0;
@@ -1055,8 +1055,12 @@ haveino:
         ((ndp->ni_nameiop & FOLLOW) || *cp == '/')) {
         u_int pathlen = strlen(cp) + 1;
 
-        if (dp->i_size + pathlen >= MAXPATHLEN - 1) {
+        if ((u_long)dp->i_size > sizeof(path) - pathlen) {
             u.u_error = ENAMETOOLONG;
+            goto bad2;
+        }
+        if (dp->i_size == 0) {
+            u.u_error = ENOENT;
             goto bad2;
         }
         if (++nlink > MAXSYMLINKS) {

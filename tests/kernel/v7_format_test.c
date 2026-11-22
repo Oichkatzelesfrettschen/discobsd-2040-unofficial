@@ -1039,6 +1039,9 @@ main(int argc, char **argv)
     HK_CHECK(error == ENAMETOOLONG);
     fill("/fourteen-chars", 9, 77, 512);
 
+    HK_CHECK(lookup("/fifteen-letters") == NULL && u.u_error == ENAMETOOLONG);
+    HK_CHECK(lookup("/fifteen-letters/x") == NULL && u.u_error == ENAMETOOLONG);
+    HK_CHECK(kremove("/fifteen-letters") == ENAMETOOLONG);
     HK_CHECK(kcreate("/\200\257\377", IFREG | 0644, &ip) == 0);
     iput(ip);
     ip = lookup("/\200\257\377");
@@ -1058,6 +1061,29 @@ main(int argc, char **argv)
     HK_CHECK(rdwri(UIO_WRITE, ip, "kdir/sub/deep", 13, (off_t)0, IO_UNIT,
         (int *)0) == 0);
     iput(ip);
+    for (int total = MAXPATHLEN - 2; total <= MAXPATHLEN + 1; total++) {
+        char target[MAXPATHLEN];
+        int length = total - sizeof("/sub/deep");
+
+        memset(target, '/', length);
+        memcpy(target + length - 4, "kdir", 4);
+        HK_CHECK(kcreate("/bound", IFLNK | 0777, &ip) == 0);
+        HK_CHECK(rdwri(UIO_WRITE, ip, target, length, (off_t)0, IO_UNIT,
+            (int *)0) == 0);
+        iput(ip);
+        ip = lookup("/bound/sub/deep");
+        if (total <= MAXPATHLEN) {
+            HK_CHECK(ip != NULL && (ip->i_mode & IFMT) == IFREG);
+            iput(ip);
+        } else {
+            HK_CHECK(ip == NULL && u.u_error == ENAMETOOLONG);
+        }
+        HK_CHECK(kremove("/bound") == 0);
+    }
+    HK_CHECK(kcreate("/emptylink", IFLNK | 0777, &ip) == 0);
+    iput(ip);
+    HK_CHECK(lookup("/emptylink") == NULL && u.u_error == ENOENT);
+    HK_CHECK(kremove("/emptylink") == 0);
     for (i = 0; i < 40; i++) {
         memcpy(name, "/kdir/n00", 10);
         name[7] = '0' + i / 10;

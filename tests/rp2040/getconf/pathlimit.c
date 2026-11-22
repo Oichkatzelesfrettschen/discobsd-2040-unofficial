@@ -27,6 +27,8 @@
  */
 
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
@@ -65,8 +67,16 @@ main(void)
 	}
 	if (errno != ENAMETOOLONG)
 		return 1;
+	if (open("", O_RDONLY) != -1 || errno != ENOENT ||
+	    unlink("") != -1 || errno != ENOENT ||
+	    mkdir("", 0700) != -1 || errno != ENOENT ||
+	    rmdir("") != -1 || errno != ENOENT)
+		return 1;
 	fd = open("\200\257\377", O_CREAT | O_EXCL | O_WRONLY, 0600);
 	if (fd < 0 || close(fd) < 0)
+		return 1;
+	if (rename("", "new") != -1 || errno != ENOENT ||
+	    rename("\200\257\377", "") != -1 || errno != ENOENT)
 		return 1;
 	return unlink("\200\257\377") < 0;
 }

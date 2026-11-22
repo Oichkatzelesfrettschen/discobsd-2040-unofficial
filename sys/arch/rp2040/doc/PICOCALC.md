@@ -1306,7 +1306,7 @@ defines only its own name.
     `print_us_total` and `print_us_max`, the longest single call, which
     includes the panel redraw and the UART0 mirror wait.
   - Faults (`fault.c`): process, name, pc, lr, psr, EXC_RETURN and exception
-    number of each `arm_fault()`; ARMv6-M records no fault address. A kernel
+    number of each `arm_fault()`; ARMv6-M omits the fault address. A kernel
     fault ends in a panic, so its record is visible only when the panel or
     mirror shows the dump.
 
@@ -1322,7 +1322,7 @@ defines only its own name.
   errors, `sd_slowest_us 4789`, `prints 39`, `print_us_total 942447` and
   `print_us_max 386957`; `machdep.diag_msgbuf` returned the newest 1,022
   bytes of the boot output in order. Renode measures its own timing model, so
-  the microsecond figures are model time and the PSRAM row says nothing about
+  the microsecond figures are model time and the PSRAM row does not bear on
   the board.
 - `CONSOLE_MIRROR_UART`: `cnputc()` in `sys/dev/cons.c` sends each console
   character to UART0 (GP0/GP1, the board's USB-C serial port at 115200) as

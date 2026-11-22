@@ -78,7 +78,12 @@
  * on PICOCALC_SD. The Dhara region begins at the next erase boundary.
  * check-picocalc-sd-layout compares each driver with its linker script.
  */
-#ifdef PICOCALC_SD
+#if defined(EXEC_XIP_LIBC) && defined(PICOCALC_SD)
+#error "shared XIP libc requires the 128 KiB kernel layout"
+#endif
+#ifdef EXEC_XIP_LIBC
+#define	FLASH_FS_OFFSET		(176UL * 1024)
+#elif defined(PICOCALC_SD)
 #define	FLASH_FS_OFFSET		(160UL * 1024)
 #else
 #define	FLASH_FS_OFFSET		(128UL * 1024)

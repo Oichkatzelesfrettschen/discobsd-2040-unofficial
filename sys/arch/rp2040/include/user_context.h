@@ -20,11 +20,16 @@
 /*
  * Consumers include <sys/param.h>, <sys/systm.h>, and <machine/frame.h>
  * first. The RP2040 MPU grants unprivileged execution from the 16 KB boot ROM
- * and from the resident process window. A candidate PC therefore names a
- * complete Thumb halfword in either region. baduaddr_span() owns the
+ * and from the resident process window. The diagnostic shared loader adds
+ * the linker-reserved provider interval. Each PC names a complete Thumb
+ * halfword in one executable region. baduaddr_span() owns the
  * process-window upper-bound check.
  */
 #define RP2040_USER_BOOT_ROM_END 0x00004000U
+
+#ifdef EXEC_XIP_LIBC
+extern const char __xip_libc_start[], __xip_libc_end[];
+#endif
 
 static inline int
 machine_user_pc_valid(u_int program_counter)
@@ -35,6 +40,12 @@ machine_user_pc_valid(u_int program_counter)
 	    INSN_SZ <= RP2040_USER_BOOT_ROM_END - program_counter)
 		return 1;
 
+#ifdef EXEC_XIP_LIBC
+	if (program_counter >= (u_int)__xip_libc_start &&
+	    program_counter < (u_int)__xip_libc_end &&
+	    INSN_SZ <= (u_int)__xip_libc_end - program_counter)
+		return 1;
+#endif
 	return !baduaddr_span((caddr_t)(u_long)program_counter, INSN_SZ);
 }
 

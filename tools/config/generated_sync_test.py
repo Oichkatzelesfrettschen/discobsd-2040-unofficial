@@ -73,7 +73,8 @@ class GeneratedSyncTest(unittest.TestCase):
             sync.check(self.root)
 
     def test_config_change_requires_regeneration(self):
-        self.mutate(sync.COMPILE / "PICO_UART/Config", "115200", "57600")
+        for board in ("PICO_UART", "PICO_UART_XIP"):
+            self.mutate(sync.COMPILE / board / "Config", "115200", "57600")
         with self.assertRaisesRegex(sync.SyncError, "PICO_UART: generated Makefile differs"):
             sync.check(self.root)
 

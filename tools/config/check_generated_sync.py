@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_LEAN",
+BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICO_UART_XIP", "PICOCALC", "PICOCALC_LEAN",
           "PICOCALC_LEAN_DIAG", "PICOCALC_SD", "PICOCALC_SD_DIAG")
 # The diagnostic options a _DIAG kernel adds to its lean base; a further
 # diagnostic option joins this tuple.
@@ -46,6 +46,9 @@ SD_DIAG_OPTIONS = ("options PICOCALC_SD", "options DIAGNOSTIC",
 # it removes from it).
 VARIANTS = (
     ("PICO_DIAG", "PICO", DIAGNOSTIC_OPTIONS, ()),
+    ("PICO_UART_XIP", "PICO_UART",
+     ('options PICO_UART', 'options EXEC_XIP_LIBC', 'ldscript "RP2040-xip.ld"'),
+     ('ldscript "RP2040.ld"',)),
     ("PICOCALC_LEAN", "PICOCALC", LEAN_OPTIONS,
      OPTIONAL_DEVICE_OPTIONS + ("options CAPACITY_STATS",)),
     ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN", DIAGNOSTIC_OPTIONS, ()),

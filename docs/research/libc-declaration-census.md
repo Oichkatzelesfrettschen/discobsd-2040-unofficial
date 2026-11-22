@@ -188,8 +188,11 @@ Smaller C direct call remains an unresolved native interface. Its call
 sequence in `usr.bin/smlrc/cgthumb.c` uses the stack for saved registers,
 expression temporaries and outgoing arguments. A native implementation must
 preserve those values, eight-byte call alignment and the allocated object's
-lifetime through the caller's return. The link probe covers the header call
-form and supplies no address-taking or on-board execution evidence.
+lifetime through the caller's return. A separate caller includes `<stdlib.h>` before `<alloca.h>` and initializes
+a volatile function pointer with `&alloca`. Both compilers emit an undefined
+`alloca` reference, and both native links fail on that symbol alone.
+The function-like GNU macro expands only when followed by an argument list.
+These probes cover compilation and linkage.
 
 ### Environment providers
 

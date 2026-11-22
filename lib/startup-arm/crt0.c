@@ -52,7 +52,10 @@
 extern int main (int, char **, char **);
 
 #ifdef DISCOBSD_SHARED_LIBC
-/* The shared entry installs r9 and binds both names to the caller's BSS. */
+/*
+ * crt0-xip.S installs r9 before it calls this entry, and the cross-link
+ * binds both names below to the caller's BSS.
+ */
 #define CRT_ENTRY __xip_start_main
 extern char **environ;
 extern const char *__progname;

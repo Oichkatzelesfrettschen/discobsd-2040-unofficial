@@ -32,12 +32,36 @@ def find(path, pattern):
     return match
 
 
+def decide(condition, defined, numbers):
+    """True or False for a preprocessor condition made of numbers, macros the
+    file has given a number, defined(NAME) and the operators !, && and ||;
+    None for any other condition."""
+    alternatives = []
+    for alternative in condition.split("||"):
+        terms = []
+        for term in alternative.split("&&"):
+            term = term.strip()
+            negated = term.startswith("!")
+            if negated:
+                term = term[1:].strip()
+            operand = re.fullmatch(r"defined\s*\(\s*(\w+)\s*\)|defined\s+(\w+)", term)
+            if operand is not None:
+                truth = (operand.group(1) or operand.group(2)) in defined
+            elif term.isdigit() or term in numbers:
+                truth = int(numbers.get(term, term)) != 0
+            else:
+                return None
+            terms.append(truth != negated)
+        alternatives.append(all(terms))
+    return any(alternatives)
+
+
 def define(path, name, defined=frozenset()):
     """The numeric value of NAME in the arm a build with only DEFINED set
     compiles. #ifdef, #ifndef, #else and #endif are followed, and so is an
-    #if of a number or of a macro the file has already given a number; any
-    other #if around a definition of NAME is an error, so the reading never
-    guesses which arm a kernel takes."""
+    #if or #elif that decide() can settle; any other condition around a
+    definition of NAME is an error, so the reading never guesses which arm a
+    kernel takes."""
     stack = []  # (taking, any arm taken, decidable) per open conditional
     numbers = {}  # macros given a number in a live arm so far
     value = None
@@ -52,14 +76,19 @@ def define(path, name, defined=frozenset()):
             stack.append((taking, taking, True))
         elif word == "if":
             condition = line.split("if", 1)[1].split("/*", 1)[0].strip()
-            if condition.isdigit() or condition in numbers:
-                taking = int(numbers.get(condition, condition or 0)) != 0
-                stack.append((taking, taking, True))
-            else:
+            taking = decide(condition, defined, numbers)
+            if taking is None:
                 stack.append((False, False, False))
+            else:
+                stack.append((taking, taking, True))
         elif word == "elif":
-            _, taken, _ = stack.pop()
-            stack.append((False, True, False))
+            _, taken, decidable = stack.pop()
+            condition = line.split("elif", 1)[1].split("/*", 1)[0].strip()
+            holds = decide(condition, defined, numbers)
+            if not decidable or holds is None:
+                stack.append((False, True, False))
+            else:
+                stack.append((holds and not taken, taken or holds, True))
         elif word == "else":
             _, taken, decidable = stack.pop()
             stack.append((not taken, True, decidable))
@@ -84,6 +113,25 @@ def test_define_follows_the_configured_arm():
     flash_h = TOP / "sys" / "arch" / "rp2040" / "dev" / "flash.h"
     assert define(flash_h, "FLASH_FS_OFFSET") == 128
     assert define(flash_h, "FLASH_FS_OFFSET", {"PICOCALC_SD"}) == 160
+    assert define(flash_h, "FLASH_FS_OFFSET", {"EXEC_XIP_LIBC"}) == 176
+
+
+def test_define_refuses_an_undecidable_arm(tmp_path):
+    header = tmp_path / "arms.h"
+    header.write_text("#if LIMIT > 3\n#define VALUE 1\n#else\n#define VALUE 2\n#endif\n")
+    with pytest.raises(AssertionError, match="under an #if"):
+        define(header, "VALUE")
+    header.write_text("#ifdef A\n#define VALUE 1\n#elif LIMIT > 3\n#define VALUE 2\n#endif\n")
+    with pytest.raises(AssertionError, match="under an #if"):
+        define(header, "VALUE")
+    header.write_text(
+        "#if defined(A) && !defined(B)\n#define VALUE 1\n#elif defined(B) || defined(C)\n"
+        "#define VALUE 2\n#else\n#define VALUE 3\n#endif\n"
+    )
+    assert define(header, "VALUE", {"A"}) == 1
+    assert define(header, "VALUE", {"A", "B"}) == 2
+    assert define(header, "VALUE", {"C"}) == 2
+    assert define(header, "VALUE") == 3
 
 
 def test_endurance_and_erase_time():

@@ -32,7 +32,7 @@ PIXEL = 2  # RGB565 bytes a pixel; ridge selects COLMOD 0x55 (rg_view_init)
 WINDOW = 11  # CASET, RASET and RAMWR setup bytes (games/gametile.h)
 TILE = 64 * PIXEL
 CELL = 8  # LCDG_TILE_W
-BOX = 3  # RG_BOX
+BOX = None  # RG_BOX, read from ridge.c by main()
 FRAMES = (("climber run", 1), ("climber jump", 3), ("crawler", 4))
 MOVES = (("run 1 px", 1, 0), ("rise 2 px", 0, -2), ("fall 4 px", 0, 4), ("run 1, rise 2", 1, -2))
 
@@ -75,17 +75,39 @@ def tiles(cs):
     return len(cs) * TILE + row_runs(cs) * WINDOW
 
 
-def calibrate():
-    # render_test.c: a one-pixel step inside the cells sends 3 windows and 9 tiles, and a step
-    # across a cell edge sends 3 windows and 12 tiles.
-    inside = box(9, 8) | box(10, 8)
-    edge = box(15, 8) | box(16, 8)
-    if (len(inside), row_runs(inside), len(edge), row_runs(edge)) != (9, 3, 12, 3):
-        raise SystemExit("box model disagrees with render_test")
+def define(src, name):
+    m = re.search(r"#define\s+%s\s+(\d+)" % name, src)
+    if m is None:
+        raise SystemExit(name + " not found")
+    return int(m.group(1))
 
 
-def main(path):
-    calibrate()
+def expected(test):
+    """The windows and tiles render_test.c requires of a step inside a cell and across an edge."""
+    src = open(test).read()
+    out = []
+    for label in ("one pixel step", "step across a cell edge"):
+        m = re.search(r"CHECK\(w == (\d+) && d->ntiles == (\d+)[^;]*\"%s" % label, src)
+        if m is None:
+            raise SystemExit("render_test.c check not found: " + label)
+        out.append((int(m.group(1)), int(m.group(2))))
+    return out
+
+
+def calibrate(test):
+    # The box model must reproduce render_test.c's windows and tiles for a one-pixel step inside
+    # the cells and a step across a cell edge, with the RG_BOX that ridge.c defines.
+    inside = box(CELL + 1, CELL) | box(CELL + 2, CELL)
+    edge = box(2 * CELL - 1, CELL) | box(2 * CELL, CELL)
+    got = [(row_runs(inside), len(inside)), (row_runs(edge), len(edge))]
+    if got != expected(test):
+        raise SystemExit("box model %s disagrees with render_test %s" % (got, expected(test)))
+
+
+def main(path, test):
+    global BOX
+    BOX = define(open(path).read(), "RG_BOX")
+    calibrate(test)
     frames = art(path)
     print("sprite / move | opaque px | runs | box atlas | opaque-cell atlas | LCDG_SPRITE")
     for name, f in FRAMES:
@@ -105,4 +127,5 @@ def main(path):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "games/ridge/ridge.c")
+    main(sys.argv[1] if len(sys.argv) > 1 else "games/ridge/ridge.c",
+         sys.argv[2] if len(sys.argv) > 2 else "games/ridge/tests/render_test.c")

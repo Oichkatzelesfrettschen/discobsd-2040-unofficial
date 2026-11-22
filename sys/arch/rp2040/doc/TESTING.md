@@ -2210,6 +2210,12 @@ supplies the header names, and the staged include tree supplies the files.
 Each compiler witness records the included spellings, declaration types,
 linker names and archive providers. A diagnostic fails this joint check.
 Declarations exposed transitively still require review for shared ABI selection.
+The census reads the ARM ELF startup object at `lib/crt0.o`, which the
+cross-link command includes in each program. It checks four-byte writable
+global storage for `environ` and `__progname`, then matches the startup
+definitions against compiler linkage names in each joint Issue 8 view.
+The receipt records the object digest and matches separately from archive
+providers. Process startup and native a.out linkage require their own checks.
 
 `check-libc-declaration-census` calibrates declaration discovery with Clang's
 ARM C17 AST and an independently compiled object's undefined alias symbol.

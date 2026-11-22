@@ -150,9 +150,12 @@ Frame time for i86's 128,000 bytes, by rate (computed):
 
 Two consequences follow. Above 20.83 MHz today's loop, not the wire,
 sets the frame time, so the inline loop is the precondition for any faster
-rate. And at 31.25 MHz with the inline loop a full frame fits inside one
-timer period, which removes the bunched interrupts of a redraw without any
-offload.
+rate. And at 31.25 MHz with the inline loop the wire and the kernel's
+expansion of a full frame take 32.8 ms, inside one 54.9 ms timer period.
+The rest of a refresh is unmeasured: `line_expand()` on each of 200 lines,
+200 `write(2)` calls with their `uiomove()` copies, and the window
+`ioctl`. Whether a whole refresh fits one period, and the bunched
+interrupts end, is measurement 1's question.
 
 The same table gives a cheap split of measurement 2: time a full-width
 `LCDG_WIN_INDEX` line at SCR 4 and at SCR 1. Today's loop is work-bound
@@ -209,9 +212,9 @@ is built.
 | 1. Resumable refresh: i86 keeps its dirty-line set across polls and sends at most a time budget of lines per poll | redraw time held inside one poll | `usr.bin/i86` | host gate of the dirty set; board: no bunched ticks during a redraw | a redraw still delays a tick past one period |
 | 2. Read-back oracle: in-process capture, Renode 2Eh, host-render comparison | (verification) | i86, `st7365p.cs` | a capture equal to the host render | any pixel different |
 | 3. Inline expansion: 16-bit frames, palette loaded once per write | work per pixel, about 100 to 15-21 cycles | `lcdgfx.c`, `st7365p.c` | line time at SCR 1 (work-bound today) | line time at SCR 1 above 1.2 times its 163.8 us of wire time |
-| 4. Wire rate: the fastest step whose read-back is exact on repeated full-frame writes, backed off one divider step for margin (the kept rate and the step above it both exact) | wire time | `st7365p.c` divider | read-back at each step | any difference at the chosen step or the step above it |
+| 4. Wire rate, per unit: the default stays 12.5 MHz, inside the specification. A faster rate applies only to a unit that qualifies it at each boot: the driver writes a pattern to the off-screen memory lines 320-479 at the fastest step and reads it back at the read clock, then backs off one divider step from the fastest exact one; any difference, or a failed read, keeps 12.5 MHz | wire time | `st7365p.c` divider | the board sweep of measurement 3, then the boot self-test | any difference at the kept step or the step above it |
 | 5. DMA drain: two bounce buffers of one RGB565 line each, a completion interrupt, `O_NONBLOCK` with `EAGAIN` | polling | `lcdgfx.c`, `st7365p.c` | core-0 time per frame against stage 3's | gain under 10 percent of the frame's wire time |
-| 6. Core-1 scan-out, from the copied queue or from the pinned guest buffer | expansion, and with the pinned buffer copy-in and system calls | core 1 | measurements 1 and 2 | expansion under 30 percent of the wire time and copy-in under 10 percent of a session: stage not built |
+| 6. Core-1 scan-out, from the copied queue or from the pinned guest buffer. The pinned form needs an ownership protocol, because i86 keeps writing the banks while core 1 reads them: core 1 copies a line, then checks a generation count that i86 advances on each write to the line's page (a data memory barrier on each side), and retries the line if the count moved | expansion, and with the pinned buffer copy-in and system calls | core 1 | measurements 1 and 2; read-back compared only with the guest stopped | expansion under 30 percent of the wire time and copy-in under 10 percent of a session: stage not built |
 
 Budget (computed from the linked PICOCALC_SD of e45e5c3c6): kernel RAM
 holds 6,976 bytes past `__kernel_dump_reserve_end`
@@ -275,5 +278,7 @@ commit and method.
 
 - D213: the staged design, each stage measured before the next is built.
   Stages 1 and 2 run on the host and in Renode; the kernel stages follow D109.
-- D214: the wire-rate sweep of measurement 3 in the next board session; the
-  driver keeps 12.5 MHz until a rate passes read-back with a step of margin.
+- D214: the wire-rate sweep of measurement 3 in the next board session.
+  The driver's default stays 12.5 MHz; a faster rate applies only to a unit
+  that qualifies it at boot (stage 4), with commands and window addresses
+  sent at 12.5 MHz and only the pixel payload at the candidate rate.

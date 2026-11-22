@@ -86,17 +86,6 @@ exec_text_release(struct proc *p, struct inode *next)
  * p_tip is in: a raw image is read from behind its header, a packed one
  * is expanded and checked. Returns 0, or -1 when the file no longer
  * yields the text the process was loaded with.
- *
- * The read takes no inode lock. The caller is the swapper, and a process
- * that holds this inode locked can itself be swapped out: one asleep in
- * the image read of its own exec, whose p_tip already names the inode, or
- * one reading the file of a running program. The swapper asleep on that
- * lock would wait for a holder that only a swapin can run again. ITEXT
- * keeps the read whole instead: access() refuses every writer while a
- * p_tip names the inode, the p_tip reference keeps a removed file's blocks
- * until the last process lets go, and the kernel does not preempt itself,
- * so what a lock holder does meanwhile (reading, or updating times and
- * the inode's disk copy) leaves the block map and the data alone.
  */
 int
 exec_text_restore(struct proc *p, caddr_t dst, size_t len)
@@ -104,6 +93,7 @@ exec_text_restore(struct proc *p, caddr_t dst, size_t len)
     struct exec ex;
     int error, resid = 0;
 
+    ILOCK(p->p_tip);
     error = rdwri(UIO_READ, p->p_tip, (caddr_t)&ex, sizeof ex, (off_t)0,
         IO_UNIT, &resid);
     if (error == 0 && resid == 0) {
@@ -120,6 +110,7 @@ exec_text_restore(struct proc *p, caddr_t dst, size_t len)
         }
     } else
         error = -1;
+    IUNLOCK(p->p_tip);
     return error ? -1 : 0;
 }
 

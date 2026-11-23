@@ -21,6 +21,10 @@ Pico datasheet PDFs under `docs/rp2040/`.
 `sys/arch/rp2040/doc/DATASHEET-INDEX.md` resolves a section number to its
 page in those files without carrying them here.
 
+## Names
+
+The system, the RP2040 port and the host tools are GizmoBSD. A document or record dated before the rename keeps the former name DiscoBSD, which also names the upstream project this fork derives from. The former `discobsd-*` host commands, `DISCOBSD_*` host variables, `DISCOBSD.UF2` card file and `/dev/discobsd` link remain for one release beside `gizmobsd-*`, `GIZMOBSD_*`, `GIZMOBSD.UF2` and `/dev/gizmobsd`. The board opt-in variables `DISCOBSD_BOARD_*` are retired: a driver that finds one set exits 2 and names its `GIZMOBSD_BOARD_*` replacement. The repository keeps the name discobsd-2040-unofficial until its own rename.
+
 ## Start here
 
 | Question | Document |
@@ -29,7 +33,7 @@ page in those files without carrying them here.
 | How does the board get from reset to a shell prompt? | `sys/arch/rp2040/doc/BOOT-MAP.md` |
 | How do I connect to the console? | `sys/arch/rp2040/doc/USER-ACCESS.md` |
 | Which datasheet section covers this register? | `sys/arch/rp2040/doc/DATASHEET-INDEX.md` |
-| How does DiscoBSD run on a ClockworkPi PicoCalc, and what is left? | `sys/arch/rp2040/doc/PICOCALC.md` |
+| How does GizmoBSD run on a ClockworkPi PicoCalc, and what is left? | `sys/arch/rp2040/doc/PICOCALC.md` |
 | What does each test gate prove, and what does it need? | `sys/arch/rp2040/doc/TESTING.md` |
 | How does a host script drive the board console without losing input? | `sys/arch/rp2040/doc/BOARD-CONSOLE.md` |
 | What does the MPU protect, and how is that proven? | `sys/arch/rp2040/doc/MPU.md` |
@@ -143,7 +147,7 @@ Grouped by what they investigate.
 | `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
 | `time-representation-past-2038.md` | the four-byte `time_t` and its 2038 limit: each claim of a widening proposal checked against the tree, the measured cost of a closed-form calendar in each direction, a 64-bit day split built from 32-bit divisions, the `timegm()` range defect and its repair, and the open choice of interface width |
 | `ulisp-common-lisp-conformance.md` | uLisp against ANSI INCITS 226-1994: the standard, the HyperSpec and the ansi-test suite, a per-builtin table (conforms, subset, differs, extension) with both answers, the reader audit, the repairs and what is left, the colors of the line editor and the image check of arrays |
-| `ulisp-c17-port.md` | the PicoCalc's uLisp as a DiscoBSD program: the candidate blockers and their measured outcome, the linked size and workspace, the mechanisms the port adds (stackless collector, bounded recursion, relocatable images, external documentation), the upstream defects the comparison found, and what no board has yet measured |
+| `ulisp-c17-port.md` | the PicoCalc's uLisp as a GizmoBSD program: the candidate blockers and their measured outcome, the linked size and workspace, the mechanisms the port adds (stackless collector, bounded recursion, relocatable images, external documentation), the upstream defects the comparison found, and what no board has yet measured |
 
 ### USB console
 
@@ -346,7 +350,7 @@ Grouped by what they investigate.
 | Document | Establishes |
 | --- | --- |
 | `arm-main-legacy-build-isolation.md` | the canonical ARM tuples, default-off legacy options, finite relocation proof, shared-artifact boundary, calibrated gates, and restoration criteria |
-| `qemu-thumb1-test-tier.md` | the qemu-user Thumb-1 test tier: gate inventory and ranking, the ARMv6-M CPU model, a DiscoBSD a.out loader prototype, and the whole-kernel QEMU options |
+| `qemu-thumb1-test-tier.md` | the qemu-user Thumb-1 test tier: gate inventory and ranking, the ARMv6-M CPU model, a GizmoBSD a.out loader prototype, and the whole-kernel QEMU options |
 | `retrobsd-port-scope.md` | the original scoping of a RetroBSD/DiscoBSD port to this chip |
 | `os-options.md` | the Unix-like systems that target the Pico, compared |
 | `dual-boot.md` | FUZIX and NuttX coexistence on one board |

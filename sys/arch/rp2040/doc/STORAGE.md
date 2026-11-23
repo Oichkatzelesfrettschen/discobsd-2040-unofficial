@@ -1,6 +1,6 @@
 # Storage on the Pico: what costs what, and the layout chosen
 
-Measured on the built DiscoBSD tree for the RP2040 on 2026-09-11. Sizes
+Measured on the built GizmoBSD tree for the RP2040 on 2026-09-11. Sizes
 are bytes of the a.out as installed unless marked.
 
 The current SRAM layout gives every process a fixed 192 KB window at

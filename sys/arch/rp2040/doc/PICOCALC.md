@@ -29,7 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # ClockworkPi PicoCalc: the PICOCALC kernel and the board it drives
 
 The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
-runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
+runs GizmoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root stays on the Pico's QSPI flash, the same layout as the PICO
 board (`STORAGE.md`); swap moves to the first 2 MB of the board's PSRAM when the
@@ -1400,9 +1400,9 @@ stamps two words into the application's vector table: the magic 0xe98cc638
 at flash 0x110 and, at 0x114, the first flash address the application may
 not write (0x101fc000; the loader's README calls the word a size, its code
 stores an address). Those are vector entries 4 and 5, which ARMv6-M
-reserves and every DiscoBSD image leaves zero. Its stage enters the
+reserves and every GizmoBSD image leaves zero. Its stage enters the
 application with VTOR at 0x10000100, past the loader's own second stage in
-flash bytes 0-255, which replaces DiscoBSD's.
+flash bytes 0-255, which replaces GizmoBSD's.
 
 The kernel reads the stamp once, in `startup()` before `config()` attaches
 any device (`flash_limit_init()` in `dev/flash.c`; the decode is
@@ -1439,7 +1439,7 @@ Two more things the loader route changes are handled at boot.
 clocks before it resets and reprograms either PLL, because the loader's
 stage may leave clk_sys running from PLL_SYS (datasheet 2.15.3.2 and
 2.18.3). The loader's second stage runs the flash clock at clk_sys / 4
-where DiscoBSD's runs it at clk_sys / 2, and `flash_enter_xip()` re-runs
+where GizmoBSD's runs it at clk_sys / 2, and `flash_enter_xip()` re-runs
 that second stage after every erase and program, so with the magic present
 the kernel restores BAUDR 2 and RX_SAMPLE_DLY 1 from RAM at boot and after
 each re-entry.

@@ -1,10 +1,10 @@
-DiscoBSD/rp2040
+GizmoBSD/rp2040
 ===============
 
 2.11BSD UNIX on the Raspberry Pi Pico
 -------------------------------------
 
-DiscoBSD/rp2040 is a 2.11BSD-derived UNIX for the Raspberry Pi Pico. The
+GizmoBSD/rp2040 is a 2.11BSD-derived UNIX for the Raspberry Pi Pico. The
 whole system lives on the Pico itself: a 128 KB kernel, a 1.5 MB root file
 system, and 384 KB of swap in the board's 2 MB QSPI flash, with 264 KB of
 SRAM split between the kernel and a 192 KB window for the running
@@ -14,8 +14,8 @@ board boots to a login prompt and runs a shell, the classic BSD commands,
 `vi`, `awk`, `sed`, `ed`, a native C compiler, and a few games, on a
 Cortex-M0+ with no memory management unit.
 
-This repository is the RP2040 port of [DiscoBSD][1], Christopher Hettrick's
-independent continuation of RetroBSD; the official project targets STM32
+GizmoBSD is a fork of [DiscoBSD][1], Christopher Hettrick's independent
+continuation of RetroBSD. The upstream DiscoBSD project targets STM32
 and PIC32 boards with an SD card, and its release is [DiscoBSD 2.7][2].
 This fork maintains ARM targets only: RP2040 and STM32. It archives the
 former PIC32/MIPS source under `legacy/non-arm/` without a supported build.
@@ -63,9 +63,9 @@ blue, executables green, devices yellow, on any terminal that renders
 ANSI color, which the web console and every terminal program listed
 below do.
 
-The console at first login, from `uname -a` and `df`:
+The console at first login, from `uname -sr` and `df`:
 
-    DiscoBSD pico 2.7 PICO#1 rp2040
+    GizmoBSD 0.1.0-alpha
     Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
     root              979      837      142    85%    /
 
@@ -272,7 +272,7 @@ pack. The machine it emulates:
 | clock | KW11-L line clock at 60 Hz, from the board's clock |
 | pack contents | `/unix`, `/etc`, `/bin` (34 tools), `/usr/bin` (10), `/usr/games` (3); no compiler |
 
-Start it from the DiscoBSD prompt as `operator`:
+Start it from the GizmoBSD prompt as `operator`:
 
     $ pdp11
     pdp11: 64 KB, RK05 /usr/v6/root.rk; Ctrl-_ or ~. at a line start exits
@@ -286,13 +286,13 @@ Start it from the DiscoBSD prompt as `operator`:
 3. Use the 1975 shell: `ls /bin`, `who`, `ed`, `cal 9 2026`, `ls /usr/games`.
 4. Leave with `sync`, then one of: Ctrl-_ (web console: the `^_ exit V6`
    button; gizmobsd-term: Ctrl-] _), or `~.` typed at the start of a
-   line. The emulator prints its instruction count and the DiscoBSD `$`
+   line. The emulator prints its instruction count and the GizmoBSD `$`
    prompt returns.
 
 Keys differ in V6. DEL interrupts (Backspace sends DEL on most
 terminals, so Backspace interrupts too), `#` erases a character, `@`
 erases the line, Ctrl-\ quits, Ctrl-D logs out. It reads Ctrl-C, Ctrl-U and the arrow keys as ordinary input. A `#` prompt where `whoami` is "not found"
-is V6, not DiscoBSD's root shell. The full key table per system is in
+is V6, not GizmoBSD's root shell. The full key table per system is in
 `distrib/rp2040/host/README.md` under "Keys and exits".
 
 What you write on the V6 pack stays on it. The pack is a 1 MB sparse file
@@ -343,7 +343,7 @@ external SIMH/V7 oracle are documented in `legacy/pdp11-v6/README.md`.
    between them because the board reboots after each copy.
 
 5. Connect with `gizmobsd-term`. Every push to `main` also builds both
-   `.uf2` files in CI and publishes them as the `discobsd-rp2040-firmware`
+   `.uf2` files in CI and publishes them as the `gizmobsd-rp2040-firmware`
    artifact under Actions, so a tester can flash without a toolchain.
 
 Build the host tools from source
@@ -515,11 +515,11 @@ conditions can be met by pointing at it.
 Other platforms: STM32 and archived PIC32
 -----------------------------------------
 
-This fork maintains STM32F4 as its second ARM target. The official DiscoBSD
+This fork maintains STM32F4 as its second ARM target. The upstream DiscoBSD
 also supports PIC32MX7, but this fork archives that MIPS source under
 `legacy/non-arm/mips-pic32/` and does not claim build, boot, or hardware support for it. The official project remains the supported PIC32 source:
 
-- Official repository and releases: <https://github.com/chettrick/discobsd>
+- Upstream repository and releases: <https://github.com/chettrick/discobsd>
 - STM32 port notes: `distrib/stm32/README.md`
 - ARM host setup: `tools/openbsd/README.md` and
   `distrib/rp2040/host/DEVELOPMENT.md`

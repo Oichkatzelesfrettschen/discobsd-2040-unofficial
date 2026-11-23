@@ -1,8 +1,8 @@
 # gizmobsd-host
 
-Host tools for the DiscoBSD RP2040 console on Linux, Windows, and macOS.
+Host tools for the GizmoBSD RP2040 console on Linux, Windows, and macOS.
 
-The Raspberry Pi Pico running DiscoBSD is a USB CDC-ACM serial device with
+The Raspberry Pi Pico running GizmoBSD is a USB CDC-ACM serial device with
 no network stack. Every current operating system carries the CDC-ACM
 driver, so nothing kernel-side is installed: these tools find the board by
 its USB identity (vendor 2e8a, product 000a, serial ending in `rp2040`), open the
@@ -178,7 +178,7 @@ silence and dropped 15 seconds later, and the next viewer gets in.
 
 ## Keys and exits
 
-Every key below is a byte on the DiscoBSD serial line; `gizmobsd-term` and
+Every key below is a byte on the GizmoBSD serial line; `gizmobsd-term` and
 the web console deliver the same bytes.
 
 | key | byte | action |
@@ -206,7 +206,7 @@ The web console is built for more than a mouse and good eyes. The status
 line at the top right is a live region that names the connection state and
 narrates Sync & leave, so a screen reader hears each change without
 moving focus. Every key-bar button carries an accessible name that says
-what the key does (for example, "Control C, interrupt in DiscoBSD"), the
+what the key does (for example, "Control C, interrupt in GizmoBSD"), the
 Ctrl modifier reports its
 armed state, and Tab moves through the bar with a visible focus ring.
 The `reader` button turns on xterm.js's screen reader mode, which builds
@@ -226,14 +226,14 @@ prompt, so finish `ed` or `vi` first.
 
 Leave cleanly, in this order:
 
-1. In DiscoBSD, type `exit` (or Ctrl-D) until the `login:` prompt is
+1. In GizmoBSD, type `exit` (or Ctrl-D) until the `login:` prompt is
    back, so the next person starts at login. `sync` first if you wrote
    files.
 2. Leave the console: `gizmobsd-term` with Ctrl-] q; the web console
    with `Sync & leave`, then close the
    tab. Closing the tab alone also frees the console, a few seconds
    later, when the server notices the dead socket, but syncs nothing.
-3. Unplug the board only after `sync` or `halt` in DiscoBSD.
+3. Unplug the board only after `sync` or `halt` in GizmoBSD.
 
 ## Development
 

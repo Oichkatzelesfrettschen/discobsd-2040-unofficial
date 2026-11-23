@@ -28,12 +28,12 @@ of the hardware address.
 The second wired interface, `enp10s0`, reports `Link detected: no`, so no
 board sits direct-attached on it.
 
-## What is attached: a Raspberry Pi Pico running DiscoBSD
+## What is attached: a Raspberry Pi Pico running GizmoBSD
 
 | Property | Value | Source |
 |---|---|---|
 | USB ID | 2e8a:000a | `/sys/bus/usb/devices/1-3/idVendor`, `idProduct` |
-| Manufacturer string | DiscoBSD | sysfs `manufacturer` |
+| Manufacturer string | DiscoBSD (GizmoBSD from a kernel built after the rename) | sysfs `manufacturer` |
 | Product string | GizmoBSD RP2040 console | sysfs `product` |
 | USB serial | rp2040 | sysfs `serial` |
 | USB version, speed | 2.00, 12 Mbit/s full speed | sysfs `version`, `speed` |
@@ -47,7 +47,7 @@ board sits direct-attached on it.
 
 ## Running system
 
-`uname -a` on the board returns `DiscoBSD pico 2.7 PICO#1 rp2040`. The system
+On the kernel measured for this inventory, built before the rename, `uname -a` returned `DiscoBSD pico 2.7 PICO#1 rp2040`. The system
 boots to a root shell on the USB CDC-ACM console. Three processes run: `init`,
 `update`, and the login shell on the USB tty.
 
@@ -57,14 +57,14 @@ The root filesystem is `/dev/fl0a` mounted asynchronous, 932 KB total with
 `ttyUSB0` alongside the standard console and null devices.
 
 `/usr/bin` holds 30 entries including `awk`, `sed`, `sort`, `grep`, `find`,
-`picoc`, and `xargs`. `/etc/motd` still reads `DiscoBSD ?.? (UNKNOWN)`.
+`picoc`, and `xargs`. `/etc/motd` read `DiscoBSD ?.? (UNKNOWN)` on that kernel.
 
 ## DEVICE.md rows that are now stale
 
 `DEVICE.md` in the sibling repository `discobsd-2040-notes` records
 "Bootable image in flash: none" and describes
 the board enumerating as `2e8a:0003 RP2 Boot` in BOOTSEL with an `RPI-RP2`
-volume. The board now enumerates as `2e8a:000a` and runs DiscoBSD from flash,
+volume. The board now enumerates as `2e8a:000a` and runs GizmoBSD from flash,
 so those rows describe a superseded state. Correcting them belongs to that
 repository.
 

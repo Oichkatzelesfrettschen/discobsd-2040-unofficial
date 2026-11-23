@@ -1,4 +1,4 @@
-# DiscoBSD/rp2040 - 2.11BSD-based OS for the Raspberry Pi Pico
+# GizmoBSD/rp2040 - 2.11BSD-based OS for the Raspberry Pi Pico
 
 ## Supported hardware
 

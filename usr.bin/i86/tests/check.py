@@ -454,7 +454,7 @@ MUTANTS = [
         "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);",
     ),
     ("pc.c", "\t\t\tirq_at += pit[0].count;", "\t\t\tirq_at += 0x10000;"),
-    ("pc.c", "pit_out(2, pit_now()) << 5;", "0 << 5;"),
+    ("pc.c", "pit_out(2, pit_view(c)) << 5;", "0 << 5;"),
     ("pc.c", "\t\t\t\tpit[k].slatched = 1;", "\t\t\t\tpit[k].slatched = 0;"),
     ("pc.c", "uint32_t t = pit_t + (pc_step * pit_step >> 8);", "uint32_t t = pit_t;"),
     ("pc.c", "(pit_now() / 18 & 1) << 4", "0 << 4"),
@@ -1314,16 +1314,17 @@ def test_drain(draintest):
 def test_pit(binary, work):
     """The 8254 through tests/pit.asm. Under -T every count is exact: the
     latched counter moved 2B0h in mode 3, counter 0 at 1 kHz raised 54
-    interrupts while counter 2 counted 65535 clocks, counter 2's read-back
-    status is B0h, 20 halts at 1 kHz took 54xxh clocks, the refresh bit
-    changed 34h times in 64 reads, a poller saw mode 2's low pulse, all 40
+    interrupts while counter 2 counted 65535 clocks, counter 2 latched just
+    after the guest saw it expire reads FFF0h (16 clocks past its end),
+    counter 2's read-back status is B0h, 20 halts at 1 kHz took 57xxh
+    clocks, the refresh bit changed 39h times in 64 reads, a poller saw mode 2's low pulse, all 40
     reads of an odd mode 3 count were even, the first byte of a new mode 0
     count drove OUT low, a new control word cleared a latched status, and a
     BCD count reads as decimal digits. On the host's clock the interrupts
     are 52 to 55 whatever the host's speed, since both counters count the
     same clocks."""
     want = (
-        "dn:02B0 irq:0036 st2:00B0 hlt:0054 rf:0034 m2:0000 m3e:0028 m0s:0000 stat:0012"
+        "dn:02B0 irq:0036 c2:FFF0 st2:00B0 hlt:0057 rf:0039 m2:0000 m3e:0028 m0s:0000 stat:0012"
         " bcd:0099 tick:ok done".split()
     )
     got = pit_run(binary, work, ["-T"])

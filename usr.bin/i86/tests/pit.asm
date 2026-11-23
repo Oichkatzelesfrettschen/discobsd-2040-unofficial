@@ -168,9 +168,19 @@ main:	call latch0
 .wait:	in al, 0x61
 	test al, 0x20
 	jz .wait
+	mov al, 0x80			; latch counter 2 at the close
+	out 0x43, al
 	cli
+	in al, 0x42
+	mov ah, al
+	in al, 0x42
+	xchg al, ah
+	push ax
 	mov ax, [nirq]
 	mov si, s_irq
+	call say4
+	pop ax
+	mov si, s_c2
 	call say4
 	mov al, 0xe8			; read back counter 2's status
 	out 0x43, al
@@ -336,6 +346,7 @@ main:	call latch0
 
 s_dn:	db "dn:", 0
 s_irq:	db "irq:", 0
+s_c2:	db "c2:", 0
 s_st2:	db "st2:", 0
 s_rf:	db "rf:", 0
 s_m2:	db "m2:", 0

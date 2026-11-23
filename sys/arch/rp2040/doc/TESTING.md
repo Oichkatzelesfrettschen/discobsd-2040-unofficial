@@ -3521,7 +3521,13 @@ own region and stamps its UF2 for the PicoCalc. The full configuration's
 options and devices are checked by `check-config-generated-sync`.
 
 `check-renode-picocalc-sd-system` builds the expanded kernel and card
-filesystem. The nodiag case logs in on UART0 of the PICOCALC_SD kernel and requires
+filesystem. Before Renode starts, `tests/picocalc/sdroot_staging.py` checks the
+host steps that make a card root: `mksdroot.sh` refuses a staged `etc`,
+`fstab` or `ttys` that is a symbolic link and keeps the last accepted
+image, `mksdmanifest.py` keeps hard-link identity, and `stage-sdroot.sh`
+lays an overlay over a copy of the install tree and refuses one that would
+replace a file, holds a symbolic link, or puts a file where the root has a
+directory. The nodiag case logs in on UART0 of the PICOCALC_SD kernel and requires
 both diag nodes to answer "value is not available", so the card's `sysctl(8)`
 meets a kernel without `DIAG_STATS`. The diag case logs in on UART0 of the PICOCALC_SD_DIAG kernel,
 reads `machdep.diag_stats` and `machdep.diag_msgbuf`, and judges them with

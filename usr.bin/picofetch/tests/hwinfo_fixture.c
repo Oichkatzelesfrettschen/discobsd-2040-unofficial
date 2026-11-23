@@ -88,8 +88,8 @@ hw_collect(struct hwinfo *hw, int groups)
 	base = strcmp(sc, "longrun") == 0 ? 10000000L : 0;
 
 	if (groups & HWI_STATIC) {
-		strcpy(hw->ostype, "DiscoBSD");
-		strcpy(hw->osrelease, "2.7");
+		strcpy(hw->ostype, "GizmoBSD");
+		strcpy(hw->osrelease, "0.1.0-alpha");
 		strcpy(hw->osversion, pico ? "PICO#812" : "PICOCALC_LEAN#812");
 		strcpy(hw->hostname, "pico");
 		strcpy(hw->machine, "rp2040");

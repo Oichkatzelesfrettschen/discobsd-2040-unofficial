@@ -145,7 +145,7 @@ DIAG_BUDGET_SECONDS = 60.0
 DIAG_SLICE_SECONDS = 2.0
 
 # Every PicoCalc kernel; the configuration name in parentheses differs.
-BANNER = "DiscoBSD 2.7 (PICOCALC"
+BANNER = "GizmoBSD 0.1.0-alpha (PICOCALC"
 LOADER_ROOT = "root: started by the PicoCalc loader, root on sd0"
 CONFIGURED_ROOT = "root: configured for SD, root on sd0"
 NO_B7_LINE = "panic: root: no partition of type b7 on sd0"

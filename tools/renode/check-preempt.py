@@ -116,7 +116,9 @@ def load_boot():
 
 
 def reach_shell(console, boot) -> None:
-    console.wait_lines([f"DiscoBSD 2.7 ({CONFIG})"], "kernel banner", boot.PROBE_BUDGET_SECONDS)
+    console.wait_lines(
+        [f"GizmoBSD 0.1.0-alpha ({CONFIG})"], "kernel banner", boot.PROBE_BUDGET_SECONDS
+    )
     console.wait_lines(boot.LOGIN_LINES, "file system check", boot.LOGIN_BUDGET_SECONDS)
     console.wait_lines(["login:"], "login prompt", boot.LOGIN_BUDGET_SECONDS)
     console.type_line("operator")

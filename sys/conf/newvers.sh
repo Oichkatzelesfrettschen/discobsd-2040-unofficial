@@ -19,8 +19,8 @@
 # Before a release, move to S="-beta" and increment version number.
 # For a release, move to S="" and keep same version number.
 
-OST="DiscoBSD"
-OSR="2.7"
+OST="GizmoBSD"
+OSR="0.1.0-alpha"
 
 #S="-current"
 #S="-beta"

@@ -343,7 +343,7 @@ static void
 pat_text(void)
 {
 	static const char *const sample[] = {
-		"DiscoBSD 2.7 panel register test",
+		"GizmoBSD panel register test",
 		"The quick brown fox jumps over the lazy dog 0123456789",
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz",
 		"{}[]()<>|~^`'\"\\ Il1| O0o @#$%&* ;:,.!?-_=+/",

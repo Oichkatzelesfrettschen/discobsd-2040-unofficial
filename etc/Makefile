@@ -162,8 +162,8 @@ release-dirs:
 
 release: release-dirs
 	cd ${RELEASEDIR} && \
-	tar czvf DiscoBSD_${OSRev}_${MACHINE}.tar.gz ${MACHINE} && \
-	zip -r DiscoBSD_${OSRev}_${MACHINE}.zip ${MACHINE}
+	tar czvf GizmoBSD_${OSRev}_${MACHINE}.tar.gz ${MACHINE} && \
+	zip -r GizmoBSD_${OSRev}_${MACHINE}.zip ${MACHINE}
 
 .PHONY:	all distribution distribution-etc-root-var \
 	distrib-dirs release-dirs release clean

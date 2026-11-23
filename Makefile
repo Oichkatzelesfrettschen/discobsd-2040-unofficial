@@ -2926,7 +2926,7 @@ root-release:	etc-distribution
 		stamp=`date -u -d "@$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u -r "$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u +%Y-%m-%dT%H:%M:%SZ`; \
-		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
+		printf 'GizmoBSD/${MACHINE} root built %s from %s on %s\n' \
 		    "$$stamp" "$$commit" "`uname -s`" \
 		    > ${DESTDIR}/etc/release
 

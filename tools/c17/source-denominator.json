@@ -86356,10 +86356,13 @@
           "inline_assembly": [],
           "integer": [
             "integer-cast",
-            "shift-expression"
+            "shift-expression",
+            "width-sensitive-sizeof"
           ],
           "object_lifetime": [],
-          "pointer": [],
+          "pointer": [
+            "integer-pointer-cast"
+          ],
           "prototype": [],
           "variadic": []
         }

@@ -78,8 +78,18 @@ int test_copy(void)
     return 0;
 }
 """
-FLAGS = ("-std=gnu17", "-Wall", "-Wextra", "-Werror", "-ffreestanding", "-fno-builtin",
-         "-fno-strict-aliasing", "-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft")
+FLAGS = (
+    "-std=gnu17",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-ffreestanding",
+    "-fno-builtin",
+    "-fno-strict-aliasing",
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-mfloat-abi=soft",
+)
 
 
 def main():
@@ -99,16 +109,28 @@ def main():
         startup = directory / "start.S"
         startup.write_text(START, encoding="utf-8")
         start_obj = directory / "start.o"
-        subprocess.run([args.gcc[0], "-mcpu=cortex-m0plus", "-mthumb", "-c", str(startup),
-                        "-o", str(start_obj)], check=True)
+        subprocess.run(
+            [
+                args.gcc[0],
+                "-mcpu=cortex-m0plus",
+                "-mthumb",
+                "-c",
+                str(startup),
+                "-o",
+                str(start_obj),
+            ],
+            check=True,
+        )
         compilers = [(gcc,) for gcc in args.gcc] + [(args.clang, "--target=arm-none-eabi")]
         for compiler in compilers:
             for level in ("O0", "O", "O1", "O2", "O3", "Og", "Os", "Oz"):
                 for mutant in ("none", "generic", "aligned"):
                     selected = body
                     if mutant != "none":
-                        marker = "void\n__aeabi_memcpy(" if mutant == "generic" else (
-                            "void\n__aeabi_memcpy4("
+                        marker = (
+                            "void\n__aeabi_memcpy("
+                            if mutant == "generic"
+                            else ("void\n__aeabi_memcpy4(")
                         )
                         offset = body.index(marker)
                         selected = body[:offset] + body[offset:].replace(
@@ -118,18 +140,37 @@ def main():
                     fixture.write_text(PREFIX + selected + TEST, encoding="utf-8")
                     obj = directory / "copy.o"
                     binary = directory / "copy"
-                    subprocess.run([*compiler, *FLAGS, f"-{level}", "-c", str(fixture),
-                                    "-o", str(obj)], check=True)
-                    subprocess.run([args.gcc[0], "-mcpu=cortex-m0plus", "-mthumb", "-nostdlib",
-                                    "-static", "-Wl,--build-id=none", "-Wl,-z,noexecstack",
-                                    "-Wl,--fatal-warnings", "-Wl,-Ttext=0x20000",
-                                    str(start_obj), str(obj), "-o", str(binary)], check=True)
-                    result = subprocess.run([args.qemu, "-cpu", "cortex-m0", str(binary)],
-                                            check=False, timeout=30)
+                    subprocess.run(
+                        [*compiler, *FLAGS, f"-{level}", "-c", str(fixture), "-o", str(obj)],
+                        check=True,
+                    )
+                    subprocess.run(
+                        [
+                            args.gcc[0],
+                            "-mcpu=cortex-m0plus",
+                            "-mthumb",
+                            "-nostdlib",
+                            "-static",
+                            "-Wl,--build-id=none",
+                            "-Wl,-z,noexecstack",
+                            "-Wl,--fatal-warnings",
+                            "-Wl,-Ttext=0x20000",
+                            str(start_obj),
+                            str(obj),
+                            "-o",
+                            str(binary),
+                        ],
+                        check=True,
+                    )
+                    result = subprocess.run(
+                        [args.qemu, "-cpu", "cortex-m0", str(binary)], check=False, timeout=30
+                    )
                     expected = 0 if mutant == "none" else 1
                     if result.returncode != expected:
-                        raise SystemExit(f"FAIL aeabi-copy-qemu: {compiler} -{level} {mutant} "
-                                         f"exit={result.returncode}")
+                        raise SystemExit(
+                            f"FAIL aeabi-copy-qemu: {compiler} -{level} {mutant} "
+                            f"exit={result.returncode}"
+                        )
             print(f"PASS aeabi-copy-qemu: {compiler} controls and mutants")
     return 0
 

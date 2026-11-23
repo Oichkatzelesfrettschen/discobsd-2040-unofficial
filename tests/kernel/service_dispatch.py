@@ -32,7 +32,7 @@ def main():
     body = source[start:end]
     if body.count("svc++") != 1:
         raise SystemExit("FAIL service-dispatch: iteration boundary changed")
-    with tempfile.TemporaryDirectory(prefix="discobsd-service-dispatch-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-service-dispatch-") as temporary:
         directory = Path(temporary)
         for compiler in ("cc", "clang"):
             for mutant in (False, True):

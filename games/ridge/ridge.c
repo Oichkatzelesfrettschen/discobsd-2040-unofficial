@@ -1,6 +1,6 @@
 /*
  * ridge -- a side-scrolling platformer for the PicoCalc pixel device
- * (/dev/lcdgfx) of the DiscoBSD RP2040 port. A hooded climber crosses four
+ * (/dev/lcdgfx) of the GizmoBSD RP2040 port. A hooded climber crosses four
  * mountain levels: it runs, jumps (a held key jumps higher), lands on rock
  * and on one-way ledges, collects shards, lights checkpoint flags, stomps
  * crawlers and reaches the cairn that ends the level. Spikes, crawlers and

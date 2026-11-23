@@ -118,7 +118,7 @@ def main():
         compiler = ["arm-none-eabi-gcc"]
         target = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft", "-Os"]
         version = ["arm-none-eabi-gcc", "--version"]
-    with tempfile.TemporaryDirectory(prefix="discobsd-arm-") as folder:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-arm-") as folder:
         build = Path(folder)
         (build / "machine").mkdir()
         shutil.copy(root / "sys/arch/rp2040/include/hsx_decoder.h", build / "machine/hsx_decoder.h")
@@ -157,7 +157,7 @@ def main():
     training, heldout = args.output / "training.csv", args.output / "heldout.csv"
     counts = [
         emulate(elf, bytes(range(128)), training),
-        emulate(elf, b"DiscoBSD tiny HSX trace\n" * 3, heldout),
+        emulate(elf, b"GizmoBSD tiny HSX trace\n" * 3, heldout),
     ]
     try:
         emulate(elf, bytes(range(16)), args.output / "mutant.csv", corrupt=True)

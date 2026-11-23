@@ -30,7 +30,7 @@
  * The system interface of the uLisp interpreter (ulisp.c): console, files,
  * clock, pins, sound and the pixel display. unix.c implements the POSIX
  * part, gfx.c draws shapes and text through dev_fill(), and one of
- * dev_picocalc.c (the PicoCalc devices of DiscoBSD) or dev_host.c (a
+ * dev_picocalc.c (the PicoCalc devices of GizmoBSD) or dev_host.c (a
  * frame buffer in memory, for a development host) supplies the dev_ part.
  */
 #ifndef ULISP_PLATFORM_H

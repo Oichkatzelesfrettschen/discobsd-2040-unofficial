@@ -102,7 +102,7 @@ check-release-policy: check-python
 		cd tools/proofs && ${LAKE} env ${PYTHON} check_policy.py --lean "${LEAN}"
 
 check-hybrid-release: check-python
-		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
+		cd distrib/rp2040/host && GIZMOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
 
 check-python:
 		@if [ -z "${PYTHON}" ]; then \
@@ -169,7 +169,7 @@ check-sus-discovery: check-python
 		${PYTHON} tools/check_sus_utility_ledger.py --root ${TOPSRC} --self-test
 
 # The source-bound corpus keeps Issue 7 and Issue 8 entity membership separate
-# from DiscoBSD applicability and evidence. Its negative controls reject count,
+# from GizmoBSD applicability and evidence. Its negative controls reject count,
 # hash, ordering, mapping and selected-image ownership drift.
 check-sus-requirement-corpus: check-python
 		${PYTHON} tools/check_sus_requirement_corpus.py --root ${TOPSRC} --self-test
@@ -219,7 +219,7 @@ distribution:	build
 
 # check-uf2-validator calibrates the UF2 structure checker on synthetic
 # images; check-uf2-images applies it to each kernel and root pair that
-# discobsd-flash loads, so it follows `kernel` and `flash`. Every board
+# gizmobsd-flash loads, so it follows `kernel` and `flash`. Every board
 # kernel in MACHINE_KERNEL_CONFIGS pairs with ${FLASHUF2}: the root occupies
 # the same flash region on every board and every kernel boots every profile's
 # root, while BOARD (distrib/rp2040/Makefile.inc) picks the profile an unset
@@ -2652,7 +2652,7 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 # line interface, the dc evaluator, the libc strtol/strtoul, random and
 # printf contracts and the tree formatter's float conversions and math
 # library returns executed as Thumb-1 programs rather than only linked, and
-# a DiscoBSD a.out run through tests/qemu_aout's syscall loader with the
+# a GizmoBSD a.out run through tests/qemu_aout's syscall loader with the
 # tree's libc, crt0 and boot ROM float glue.
 # tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
 # contracts run on faults on Thumb-2 and unaligned accesses.
@@ -2876,7 +2876,7 @@ check-flash-id:
 
 .PHONY: check-flash-id
 
-# The discobsd-host Python package: its own lint and tests.
+# The gizmobsd-host Python package: its own lint and tests.
 check-host-package:	check-python .WAIT
 		cd distrib/rp2040/host && ruff check . && ${PYTHON} -m pytest -q
 
@@ -2926,7 +2926,7 @@ root-release:	etc-distribution
 		stamp=`date -u -d "@$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u -r "$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u +%Y-%m-%dT%H:%M:%SZ`; \
-		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
+		printf 'GizmoBSD/${MACHINE} root built %s from %s on %s\n' \
 		    "$$stamp" "$$commit" "`uname -s`" \
 		    > ${DESTDIR}/etc/release
 

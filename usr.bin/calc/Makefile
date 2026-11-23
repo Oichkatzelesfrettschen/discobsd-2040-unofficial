@@ -106,7 +106,7 @@ test:		test-line test-line-san test-line-treelibm test-play .WAIT test-mutants
 # EABI system calls of tests/libbn/qemu_support.c, and run under qemu-arm.
 # The terminal code is compiled out (CALC_NO_TTY). The run covers the
 # generated code of calc.c and libcalc on Thumb-1; it does not run the
-# DiscoBSD a.out, whose syscalls and ROM float provider qemu-user lacks.
+# GizmoBSD a.out, whose syscalls and ROM float provider qemu-user lacks.
 ${PROG}-arm:	${PROG}.c ${LIBSRCS} ${QEMU_SUPPORT} ${LIBDIR}/mathematics.h \
 		${LIBDIR}/calc_internal.h
 		${QEMU_ARM_CC} ${QEMU_ARM_CFLAGS} -DCALC_NO_TTY -I${LIBDIR} \

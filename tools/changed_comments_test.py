@@ -14,7 +14,7 @@ import check_changed_comments as checker
 
 class GitFixture(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-comments-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-comments-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "checkout"
         self.root.mkdir()
@@ -948,7 +948,7 @@ class RepositoryCalibrationTests(unittest.TestCase):
                     self.assertEqual(diagnostics, [])
 
     def test_cli_exit_codes_and_empty_denominator(self):
-        with tempfile.TemporaryDirectory(prefix="discobsd-comments-cli-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="gizmobsd-comments-cli-") as temporary:
             root = Path(temporary)
             subprocess.run(["git", "-C", temporary, "init", "-q"], check=True)
             subprocess.run(["git", "-C", temporary, "config", "user.name", "Fixture"],

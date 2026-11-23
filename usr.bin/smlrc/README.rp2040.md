@@ -118,7 +118,7 @@ with libc about `char` comparisons.
   leaves function-like macros such as `<stdio.h>`'s `getc` and `putc`
   unexpanded.
 - **The `interrupt` attribute.** `GenIsrProlog` and `GenIsrEpilog` report an
-  internal error. A DiscoBSD user process installs no handler, and the
+  internal error. A GizmoBSD user process installs no handler, and the
   ARMv6-M exception entry sequence is not the frame the prolog builds.
 - **Double precision.** Smaller C has no `double` beyond treating it as
   `float`.
@@ -203,12 +203,12 @@ the evaluated production compiler and linker flags into the harness, and each
 link emits a map that identifies the selected archive members.
 
 The **execution tier** links the same object against `tests/qemusys.c`, a
-Linux EABI syscall layer, and runs it under `qemu-arm`. DiscoBSD reaches the
+Linux EABI syscall layer, and runs it under `qemu-arm`. GizmoBSD reaches the
 kernel through an SVC immediate and reports failure in the carry flag, which
-a Linux user emulator does not implement, so the DiscoBSD a.out cannot run
+a Linux user emulator does not implement, so the GizmoBSD a.out cannot run
 under qemu. Only the syscall layer is replaced; because `libc.a` is an
 archive, a member is pulled in only for a symbol still undefined, so these
-definitions displace the DiscoBSD ones and everything above them -- printf,
+definitions displace the GizmoBSD ones and everything above them -- printf,
 malloc, the string functions -- is the tree's own libc. Output is compared
 against a checked-in `.expected` file.
 

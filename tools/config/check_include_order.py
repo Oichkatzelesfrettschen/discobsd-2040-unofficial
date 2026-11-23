@@ -83,7 +83,7 @@ def actor(operation, name):
 
 
 def exercise(dependencies, recipes, target, make, mutation=None):
-    with tempfile.TemporaryDirectory(prefix="discobsd-include-order-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-include-order-") as temporary:
         directory = Path(temporary)
         for relative in ("source/arch/rp2040/include", "source/sys", "conf"):
             (directory / relative).mkdir(parents=True)

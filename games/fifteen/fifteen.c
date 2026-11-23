@@ -1,5 +1,5 @@
 /*
- * fifteen -- the 15-puzzle, ASCII front end for the DiscoBSD RP2040
+ * fifteen -- the 15-puzzle, ASCII front end for the GizmoBSD RP2040
  * port. Novel implementation; no code taken from Simon Tatham's
  * Portable Puzzle Collection fifteen.c (MIT, LICENCE in that tree).
  * That program's puzzles.h/midend drawing API is built for a GUI

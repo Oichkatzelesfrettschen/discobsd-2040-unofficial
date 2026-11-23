@@ -242,7 +242,7 @@ def capacity_rows(console, boot) -> dict:
 
 def run_stages(console, boot, config: str) -> None:
     console.wait_lines(
-        [f"DiscoBSD 2.7 ({config})"]
+        [f"GizmoBSD 0.1.0-alpha ({config})"]
         + boot.CPU_LINES
         + boot.BOARD_LINES[config]
         + boot.STORAGE_LINES,

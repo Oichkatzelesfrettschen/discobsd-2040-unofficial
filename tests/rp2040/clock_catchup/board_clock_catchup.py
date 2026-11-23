@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Board check of the tick catch-up across masked flash operations.
 
-usage: DISCOBSD_BOARD_CLOCK_CATCHUP=run PYTHON board_clock_catchup.py [unix.uf2,flash.uf2]
+usage: GIZMOBSD_BOARD_CLOCK_CATCHUP=run PYTHON board_clock_catchup.py [unix.uf2,flash.uf2]
 
-The script touches the board only when DISCOBSD_BOARD_CLOCK_CATCHUP is exactly
+The script touches the board only when GIZMOBSD_BOARD_CLOCK_CATCHUP is exactly
 "run"; unset, empty and every other value exit without opening a port or
-calling discobsd-flash. With the variable set it flashes the named images with
-discobsd-flash when given and otherwise leaves the board running, then logs in
+calling gizmobsd-flash. With the variable set it flashes the named images with
+gizmobsd-flash when given and otherwise leaves the board running, then logs in
 as operator on the USB console.
 
 Claim under test (sys/arch/rp2040/rp2040/clock_catchup.h, called from
@@ -65,8 +65,11 @@ import sys
 import time
 
 ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_CLOCK_CATCHUP"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_CLOCK_CATCHUP"
 OPT_IN_VALUE = "run"
 
 # asctime() in lib/libc/gen/asctime.c formats the day with "%3d", so a single
@@ -197,7 +200,7 @@ class Console:
 
 def flash(images):
     subprocess.check_call(
-        ["discobsd-flash", *images.split(",")],
+        ["gizmobsd-flash", *images.split(",")],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -211,7 +214,7 @@ def open_console(serial_module, boot_wait):
     time.sleep(1)
     ports = glob.glob(PORT_PATTERN)
     if not ports:
-        sys.exit("no DiscoBSD console under /dev/serial/by-id")
+        sys.exit("no GizmoBSD console under /dev/serial/by-id")
     console = Console(serial_module, ports[0])
     console.port.write(b"\r")
     text, _ = console.read(boot_wait, stop="login:")
@@ -455,6 +458,9 @@ def check_workload(text, passes=PASSES):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

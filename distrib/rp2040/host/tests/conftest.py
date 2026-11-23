@@ -6,7 +6,7 @@ with two boards attached would fail for a reason that is not under test.
 Pointing the default at an empty directory makes discovery hermetic; a test
 that needs a populated tree passes its own through the environment mapping.
 
-discobsd-console up restarts the user's installed systemd units, or starts
+gizmobsd-console up restarts the user's installed systemd units, or starts
 detached servers, after it writes web.env. A test that reaches either path
 unmocked would restart the console the developer is using, so both entry
 points fail the test unless the test replaces them itself.
@@ -14,7 +14,7 @@ points fail the test unless the test replaces them itself.
 
 import pytest
 
-from discobsd_host import console, ports
+from gizmobsd_host import console, ports
 
 
 @pytest.fixture(autouse=True)

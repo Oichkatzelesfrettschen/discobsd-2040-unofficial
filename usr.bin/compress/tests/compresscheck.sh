@@ -87,7 +87,7 @@ $compiler $sanitizer_flags -o "$work_directory/compress-interposition-bypass" \
 input_file=$work_directory/input
 iteration=0
 while [ "$iteration" -lt 256 ]; do
-	printf '%s\n' 'DiscoBSD RP2040 bounded LZW round trip' >> "$input_file"
+	printf '%s\n' 'GizmoBSD RP2040 bounded LZW round trip' >> "$input_file"
 	iteration=$((iteration + 1))
 done
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Board test for a.out admission.
 
-usage: DISCOBSD_BOARD_AOUT_ADMISSION=run PYTHON board_aout_admission.py [unix.uf2,flash.uf2]
-The script touches the board only when DISCOBSD_BOARD_AOUT_ADMISSION is
+usage: GIZMOBSD_BOARD_AOUT_ADMISSION=run PYTHON board_aout_admission.py [unix.uf2,flash.uf2]
+The script touches the board only when GIZMOBSD_BOARD_AOUT_ADMISSION is
 exactly "run"; unset, empty and every other value exit without opening a port
-or calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash when given and otherwise reboots the board through BOOTSEL
-with "discobsd-flash --bootsel" and "--eject", then logs in as operator on the
+or calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash when given and otherwise reboots the board through BOOTSEL
+with "gizmobsd-flash --bootsel" and "--eject", then logs in as operator on the
 USB console.
 Header-only images travel as uuencoded text. exec_aout.c refuses a truncated
 and an even-entry image with ENOEXEC, which the shell then reads as a script
@@ -22,9 +22,12 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_AOUT_ADMISSION"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_AOUT_ADMISSION"
 OPT_IN_VALUE = "run"
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 
 # The shell redraws its prompt after each command: "operator@pico:~$ ".
 PROMPT = re.compile(r"^\S+@\S*:\S*[$#] ?$")
@@ -65,7 +68,7 @@ def rd(t):
 
 def boot(uf2s):
     global s
-    flasher = "discobsd-flash"
+    flasher = "gizmobsd-flash"
     quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if uf2s:
         subprocess.check_call([flasher, *uf2s.split(",")], **quiet)
@@ -111,6 +114,9 @@ def put(name, blob):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

@@ -142,7 +142,7 @@ def main():
     compiler = shlex.split(os.environ.get("HOST_CC", "cc"))
     require(bool(compiler), "HOST_CC selects no compiler")
 
-    with tempfile.TemporaryDirectory(prefix="discobsd-shell-witness-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-shell-witness-") as temporary:
         temporary_root = Path(temporary)
         work_directory = temporary_root / "work"
         work_directory.mkdir()

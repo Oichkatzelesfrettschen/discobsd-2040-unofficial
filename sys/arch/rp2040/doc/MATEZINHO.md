@@ -28,7 +28,7 @@ Upstream research sources checked for this implementation:
   flash-write support remains a required discriminator for this Dhara root.
 - https://lore-kernel.gnuweeb.org/all/20260829234308.33725-1-gilles.grimaud%40univ-lille.fr/
   -- RP2040 QEMU RFC, functional test-oriented model; not a claim of a booted
-  DiscoBSD system. docs/research/qemu-thumb1-test-tier.md records the later
+  GizmoBSD system. docs/research/qemu-thumb1-test-tier.md records the later
   RFC v3 investigation already performed for this repository.
 
 ## Storage is separate from SRAM
@@ -63,7 +63,7 @@ model wear, power interruption, electrical signals, CRC16 validation or analog
 timing. Unsupported commands report illegal-command status. Reset retains the
 backing bytes. Dispose releases the backing file.
 
-A 32 GB card is not a promise of a single 32 GB DiscoBSD filesystem. Existing
+A 32 GB card is not a promise of a single 32 GB GizmoBSD filesystem. Existing
 signed 32-bit file offsets and the compact UFS format remain constraints. The
 PicoCalc kernels set NMOUNT=2, the flash root plus one SD
 partition, so a second SD filesystem cannot mount at the same time. Raw device
@@ -76,7 +76,7 @@ raw artwork image merely to install icons.
 
 ### Shared card with the vendor FAT32 partition
 
-Requirement: DiscoBSD keeps its own 16 MiB carve-out of the SD card, while
+Requirement: GizmoBSD keeps its own 16 MiB carve-out of the SD card, while
 the same card keeps the vendor's FAT32 partition and the other firmware
 images on it. The storage profiles above do not yet meet it. Each profile is
 a whole-card image without an MBR: an asset image holds the pack at card byte
@@ -92,7 +92,7 @@ the pack written at its first byte and opened as `/dev/rsd0b` (or `rsd0c` or
 `rsd0d` after `mknod`), therefore matches the reader by source inspection.
 No tier exercises that layout, no tool here shrinks the vendor partition or
 writes a pack at a partition offset, the carve-out's MBR type is unassigned
-(0xB7 marks a DiscoBSD UFS partition and 0xB9 the crash-dump partition), and
+(0xB7 marks a GizmoBSD UFS partition and 0xB9 the crash-dump partition), and
 the `matezinho` closure names only `/dev/rsd0`.
 
 ## Artwork format and provenance

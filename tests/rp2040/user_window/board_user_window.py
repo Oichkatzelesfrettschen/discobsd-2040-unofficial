@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Board test for the fixed 192-KiB user window and fork's swap reservation.
 
-usage: DISCOBSD_BOARD_USER_WINDOW=run $PYTHON board_user_window.py \
+usage: GIZMOBSD_BOARD_USER_WINDOW=run $PYTHON board_user_window.py \
            [unix.uf2,flash.uf2] LOG
 
-The script touches the board only when DISCOBSD_BOARD_USER_WINDOW is exactly
+The script touches the board only when GIZMOBSD_BOARD_USER_WINDOW is exactly
 "run"; unset, empty and every other value exit without opening a port or
-calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash, records the boot console, logs in as operator, becomes
+calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash, records the boot console, logs in as operator, becomes
 root with su, and stages tests/rp2040/user_window/windowtest,
 tests/rp2040/fork_refusal/forktest and usr.sbin/talloc/talloc as uuencoded
 text. It then checks, in order:
@@ -35,9 +35,12 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_USER_WINDOW"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_USER_WINDOW"
 OPT_IN_VALUE = "run"
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
 SENTINEL = "__DONE__"
 TOP = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -209,6 +212,9 @@ def check(label, condition, results):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0
@@ -218,7 +224,7 @@ def main():
     global log
     log = open(sys.argv[2], "ab")
     results = []
-    subprocess.check_call(["discobsd-flash", *sys.argv[1].split(",")])
+    subprocess.check_call(["gizmobsd-flash", *sys.argv[1].split(",")])
     time.sleep(3)
     open_port()
     read_for(40, re.compile(r"login: ?$", re.M))

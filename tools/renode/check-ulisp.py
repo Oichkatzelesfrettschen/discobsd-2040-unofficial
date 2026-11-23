@@ -25,7 +25,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Run the uLisp interpreter on the DiscoBSD kernel under Renode.
+"""Run the uLisp interpreter on the GizmoBSD kernel under Renode.
 
 Usage: check-ulisp.py RENODE UNIX_BIN FLASH_BIN OUTDIR
 

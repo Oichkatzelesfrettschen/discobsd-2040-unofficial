@@ -44,7 +44,7 @@ directory lists each change, and each one is listed here:
 
 | File | Change | Commit subject |
 | --- | --- | --- |
-| `map.c` | the unused `meta_clear()` removed | macOS as a development host: build, gates and suites; discobsd-flash; DEVELOPMENT.md |
+| `map.c` | the unused `meta_clear()` removed | macOS as a development host: build, gates and suites; gizmobsd-flash; DEVELOPMENT.md |
 | `error.c`, `journal.c`, `map.c` | signed and unsigned comparisons and an unused parameter repaired for `-Wall -Wextra -Werror` | build: enforce fatal warnings where CFLAGS cannot reset them (#109) |
 | `journal.c` | `dhara_journal_read_meta()` rejects a malformed metadata page index before it reads the metadata buffer (`metadata_page_valid()`) | rp2040: bound Dhara flash page accesses |
 | `journal.c` | `find_root()` accepts a checkpoint page only when it carries a tail below the page count (`hdr_is_checkpoint()`, also in `find_checkblock()`) and the sector tree it roots is whole (`cp_tree_whole()`: no erased id, alt pointers erased or user pages, node count equal to the cookie), and otherwise steps back to the previous checkpoint, across blocks and the epoch wrap; `docs/research/dhara-torn-checkpoint.md` gives the rule and its soundness argument | dhara: accept a checkpoint page only when its sector tree is whole |

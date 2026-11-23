@@ -593,7 +593,7 @@ def append_equivalent_region(blocks, before, after, old_start, old_end,
 def word_diff_output(before, after):
     if before == after:
         return b""
-    with tempfile.TemporaryDirectory(prefix="discobsd-comment-diff-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-comment-diff-") as temporary:
         directory = Path(temporary)
         before_path = directory / "before.c"
         after_path = directory / "after.c"

@@ -27,15 +27,15 @@ all:
 install:
 
 clean:
-		status=0; for i in ${SUBDIR} PICOCALC_SD PICOCALC_SD_DIAG; do \
+		status=0; for i in ${SUBDIR} PICOCALC_SD PICOCALC_SD_DIAG PICO_UART_XIP; do \
 			${MAKE} -C $$i clean || status=1; done; exit $$status
 
 clean-all:
-		status=0; for i in ${SUBDIR} PICOCALC_SD PICOCALC_SD_DIAG; do \
+		status=0; for i in ${SUBDIR} PICOCALC_SD PICOCALC_SD_DIAG PICO_UART_XIP; do \
 			${MAKE} -C $$i clean-all || status=1; done; exit $$status
 
 reconfig:
-		status=0; for i in ${SUBDIR} PICOCALC_SD PICOCALC_SD_DIAG; do \
+		status=0; for i in ${SUBDIR} PICOCALC_SD PICOCALC_SD_DIAG PICO_UART_XIP; do \
 			${MAKE} -C $$i reconfig || status=1; done; exit $$status
 
 check-divider:

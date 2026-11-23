@@ -161,7 +161,7 @@ def key_type(path, algorithm, private=False):
 
 def signature(raw, algorithm, key, verify=None):
     key_type(key, algorithm, private=verify is None)
-    with tempfile.TemporaryDirectory(prefix="discobsd-sign-") as folder:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-sign-") as folder:
         message = Path(folder) / "message"
         sig = Path(folder) / "signature"
         message.write_bytes(DOMAIN + raw)
@@ -248,7 +248,7 @@ def commit_sequence(path, sequence):
 def run_delegate(command, timeout):
     """Run a flashing delegate in its own session and end the whole group.
 
-    discobsd-flash is a script that starts picotool, so killing only the
+    gizmobsd-flash is a script that starts picotool, so killing only the
     script on a timeout would leave picotool using the board while the caller
     released the rollback lock. The delegate leads a new process group; on
     timeout, interrupt, SIGTERM or SIGHUP the group receives SIGTERM, then
@@ -278,7 +278,7 @@ def run_delegate(command, timeout):
     try:
         for name in ("SIGTERM", "SIGHUP"):
             sig = getattr(signal, name, None)
-            if sig is None:  # no SIGHUP on Windows, which lacks discobsd-flash
+            if sig is None:  # no SIGHUP on Windows, which lacks gizmobsd-flash
                 continue
             try:
                 previous[sig] = signal.signal(sig, terminated)
@@ -370,19 +370,19 @@ def main(argv=None):
                 )
                 if args.command == "flash":
                     require(args.target, "explicit board target required")
-                    with tempfile.TemporaryDirectory(prefix="discobsd-verified-") as folder:
+                    with tempfile.TemporaryDirectory(prefix="gizmobsd-verified-") as folder:
                         staged = []
                         for name in ("root.uf2", args.target):
                             file = Path(folder) / name
                             file.write_bytes(images[name])
                             staged.append(str(file))
                         # Delegate recovery/unmount only for private verified copies.
-                        run_delegate(["discobsd-flash", *staged], FLASH_TIMEOUT)
+                        run_delegate(["gizmobsd-flash", *staged], FLASH_TIMEOUT)
                     commit_sequence(args.state, sequence)
                 print(f"verified hybrid release sequence {sequence}")
         return 0
     except (ValueError, OSError, TypeError, subprocess.SubprocessError) as error:
-        parser.exit(2, f"discobsd-release: {error}\n")
+        parser.exit(2, f"gizmobsd-release: {error}\n")
 
 
 if __name__ == "__main__":

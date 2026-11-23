@@ -1,26 +1,27 @@
-"""Find and open the DiscoBSD RP2040 console on any host operating system.
+"""Find and open the GizmoBSD RP2040 console on any host operating system.
 
 The kernel enumerates as USB vendor 0x2e8a, product 0x000a, with a serial
 number that ends in "rp2040" (the flash chip's unique ID in hex, a hyphen
 and that suffix; "rp2040" alone from a kernel that cannot read the ID or
-predates it) and the product string "DiscoBSD RP2040 console".
+predates it) and the product string "GizmoBSD RP2040 console" ("DiscoBSD
+RP2040 console" from a kernel built before the rename).
 pyserial's port enumeration exposes those on Linux, Windows, and macOS, so
 identity, not the drifting device number, selects the board. Windows
 reports the serial number from the device instance ID, which the PnP
 manager upper-cases ("RP2040"), and its inbox usbser driver exposes no
 product string, so the serial number's ending is compared without regard
 to case and the product string is only a second chance. A Pico SDK program
-on the same vendor and product reports the bare hex ID and is not matched. The DISCOBSD_PORT
-environment variable overrides discovery for a board behind an adapter
-or a test fixture.
+on the same vendor and product reports the bare hex ID and is not matched. The
+GIZMOBSD_PORT environment variable (DISCOBSD_PORT for one release) overrides
+discovery for a board behind an adapter or a test fixture.
 
 Two boards can enumerate alike (2e8a:000a, serial "rp2040"), so identity
 alone cannot choose between them. find_board() is the one selection rule
-for discobsd-term and discobsd-web, and mirrors discobsd-flash and
-discobsd-connect: with more than one 2e8a device in the Linux USB sysfs
+for gizmobsd-term and gizmobsd-web, and mirrors gizmobsd-flash and
+gizmobsd-connect: with more than one 2e8a device in the Linux USB sysfs
 tree and no board named it raises BoardSelectionError, and a USB port
-named by `usb_port` (--usb-port) or DISCOBSD_USB_PORT selects the tty of
-that port's interface 0. DISCOBSD_SYSFS_USB and DISCOBSD_DEVFS replace
+named by `usb_port` (--usb-port) or GIZMOBSD_USB_PORT selects the tty of
+that port's interface 0. GIZMOBSD_SYSFS_USB and GIZMOBSD_DEVFS replace
 /sys/bus/usb/devices and /dev for tests, as in the shell tools.
 """
 
@@ -35,24 +36,55 @@ USB_VID = 0x2E8A
 USB_PID = 0x000A
 USB_SERIAL = "rp2040"
 BAUD = 115200
-ENV_PORT = "DISCOBSD_PORT"
-ENV_USB_PORT = "DISCOBSD_USB_PORT"
-ENV_SYSFS = "DISCOBSD_SYSFS_USB"
-ENV_DEVFS = "DISCOBSD_DEVFS"
+# Every environment variable the tools read is named GIZMOBSD_*. For one
+# release the former DISCOBSD_* spelling is read when the new name is unset.
+OLD_ENV_PREFIX = "DISCOBSD_"
+NEW_ENV_PREFIX = "GIZMOBSD_"
+ENV_PORT = "GIZMOBSD_PORT"
+ENV_USB_PORT = "GIZMOBSD_USB_PORT"
+ENV_SYSFS = "GIZMOBSD_SYSFS_USB"
+ENV_DEVFS = "GIZMOBSD_DEVFS"
 DEFAULT_SYSFS = "/sys/bus/usb/devices"
+_WARNED_OLD_ENV: set[str] = set()
+
+
+def env_value(name: str, environ=None) -> str | None:
+    """The value of GIZMOBSD_* variable `name`, or None when it is unset.
+
+    When `name` is unset and the former DISCOBSD_* spelling is set, that
+    value is returned and one line on stderr names the new variable. This is
+    the single place the old names are read.
+    """
+    environ = os.environ if environ is None else environ
+    if name in environ:
+        return environ[name]
+    old = OLD_ENV_PREFIX + name[len(NEW_ENV_PREFIX) :]
+    if old not in environ:
+        return None
+    if old not in _WARNED_OLD_ENV:
+        _WARNED_OLD_ENV.add(old)
+        sys.stderr.write("%s is renamed %s; set the new name\n" % (old, name))
+    return environ[old]
+
+
 DEFAULT_DEVFS = "/dev"
 # A sysfs device name: bus-port[.port...] and nothing else, because the
 # value is joined into a sysfs path.
 USB_PORT_RE = re.compile(r"[0-9]+-[0-9]+(\.[0-9]+)*")
-# discobsd-web and discobsd-link share one bearer secret: the unit files'
-# EnvironmentFile sets DISCOBSD_WEB_TOKEN, and LoadCredential=web-token:...
+# gizmobsd-web and gizmobsd-link share one bearer secret: the unit files'
+# EnvironmentFile sets GIZMOBSD_WEB_TOKEN, and LoadCredential=web-token:...
 # would expose the same secret as a file, never in argv or `ps`.
-TOKEN_ENV = "DISCOBSD_WEB_TOKEN"
+TOKEN_ENV = "GIZMOBSD_WEB_TOKEN"
 TOKEN_CREDENTIAL = "web-token"
 
 # Linux keeps a by-id symlink for the console; it is the fallback when the
 # enumeration library is unavailable or reports zero USB attributes.
-LINUX_BY_ID = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+# A kernel built before the system took the name GizmoBSD reports DiscoBSD.
+LINUX_BY_ID = (
+    "/dev/serial/by-id/*GizmoBSD*rp2040-if00",
+    "/dev/serial/by-id/*DiscoBSD*rp2040-if00",
+)
+PRODUCT_NAMES = ("GizmoBSD", "DiscoBSD")
 
 
 def _is_board(info) -> bool:
@@ -61,7 +93,9 @@ def _is_board(info) -> bool:
     serial_number = getattr(info, "serial_number", None) or ""
     product = getattr(info, "product", None) or ""
     if vid == USB_VID and pid == USB_PID:
-        return serial_number.lower().endswith(USB_SERIAL) or "DiscoBSD" in product
+        return serial_number.lower().endswith(USB_SERIAL) or any(
+            name in product for name in PRODUCT_NAMES
+        )
     return False
 
 
@@ -76,7 +110,7 @@ def _preferred(device: str) -> str:
 
 
 def list_boards(comports=None) -> list[str]:
-    """Every attached DiscoBSD console, sorted by device name."""
+    """Every attached GizmoBSD console, sorted by device name."""
     if comports is None:
         try:
             from serial.tools import list_ports
@@ -90,7 +124,7 @@ def list_boards(comports=None) -> list[str]:
             if _is_board(info):
                 found.append(_preferred(info.device))
     if not found and sys.platform.startswith("linux"):
-        found = sorted(glob.glob(LINUX_BY_ID))
+        found = sorted(path for pattern in LINUX_BY_ID for path in glob.glob(pattern))
     return sorted(set(found))
 
 
@@ -117,7 +151,7 @@ def add_usb_port_argument(parser) -> None:
         "--usb-port",
         metavar="PORT",
         help="use the board at USB port PORT, such as 1-3 (Linux; default "
-        "$DISCOBSD_USB_PORT). With several boards attached and none named, "
+        "$GIZMOBSD_USB_PORT). With several boards attached and none named, "
         "the tool refuses to choose",
     )
 
@@ -146,7 +180,7 @@ def _check_ambiguous(sysfs: str) -> None:
     raise BoardSelectionError(
         "ambiguous",
         "more than one 2e8a device is attached; name the board with "
-        "--usb-port PORT or DISCOBSD_USB_PORT:\n" + "\n".join(lines),
+        "--usb-port PORT or GIZMOBSD_USB_PORT:\n" + "\n".join(lines),
     )
 
 
@@ -190,22 +224,22 @@ def find_board(comports=None, environ=None, usb_port=None, sysfs=None, devfs=Non
     """The console to use, or None when no board is attached.
 
     Order: an explicit `usb_port` (the --usb-port operand, which must not be
-    empty); DISCOBSD_PORT, a device path that names the board itself;
-    DISCOBSD_USB_PORT (empty counts as unset); then discovery, which raises
+    empty); GIZMOBSD_PORT, a device path that names the board itself;
+    GIZMOBSD_USB_PORT (empty counts as unset); then discovery, which raises
     BoardSelectionError("ambiguous") with several 2e8a devices attached and
     returns the one board's device otherwise.
     """
     environ = os.environ if environ is None else environ
-    sysfs = sysfs or environ.get(ENV_SYSFS) or DEFAULT_SYSFS
-    devfs = devfs or environ.get(ENV_DEVFS) or DEFAULT_DEVFS
+    sysfs = sysfs or env_value(ENV_SYSFS, environ) or DEFAULT_SYSFS
+    devfs = devfs or env_value(ENV_DEVFS, environ) or DEFAULT_DEVFS
     if usb_port is not None:
         if not usb_port:
             raise BoardSelectionError("invalid", "--usb-port needs a port such as 1-3")
         return usb_port_console(usb_port, sysfs, devfs)
-    override = environ.get(ENV_PORT)
+    override = env_value(ENV_PORT, environ)
     if override:
         return override
-    env_usb = environ.get(ENV_USB_PORT)
+    env_usb = env_value(ENV_USB_PORT, environ)
     if env_usb:
         return usb_port_console(env_usb, sysfs, devfs)
     _check_ambiguous(sysfs)
@@ -262,5 +296,5 @@ def credential(name: str, env: str, environ=None) -> str | None:
                 return value
         except OSError:
             pass
-    value = environ.get(env)
+    value = env_value(env, environ)
     return value or None

@@ -1,6 +1,6 @@
-# Agent guide: DiscoBSD RP2040 port
+# Agent guide: GizmoBSD RP2040 port
 
-This RP2040 port forks chettrick/discobsd (`upstream`, fetch-only master);
+GizmoBSD forks chettrick/discobsd (`upstream`, fetch-only master);
 `origin/main` is the owned branch. `docs/INDEX.md` routes port documentation
 under `sys/arch/rp2040/doc` and research under `docs/research`. A document
 cited as authority by shipped code, a Makefile or the root manifest belongs
@@ -24,12 +24,13 @@ values, privilege transition, region coverage and a deliberate fault test;
 `sys/arch/rp2040/doc/MPU.md` owns the map and evidence. Boot ROM V3 is verified
 on the measured board. USB CDC-ACM is the primary console; UART0 on GP0/GP1
 is the fallback. With one board attached, resolve its port through
-`/dev/serial/by-id/*DiscoBSD*`. A kernel that reads the flash unique ID
+`/dev/serial/by-id/*GizmoBSD*` (`*DiscoBSD*` for a kernel built before the
+rename). A kernel that reads the flash unique ID
 reports USB serial `<16 hex digits>-rp2040`; one that cannot, or an older
 kernel, reports `rp2040`, and two such boards enumerate alike (2e8a:000a).
 With two boards attached, name the USB port (`--usb-port 1-3` or
-`DISCOBSD_USB_PORT` for `discobsd-flash`, `discobsd-connect`, `discobsd-term`
-and `discobsd-web`) whatever their serials; all four refuse to act on an
+`GIZMOBSD_USB_PORT` for `gizmobsd-flash`, `gizmobsd-connect`, `gizmobsd-term`
+and `gizmobsd-web`) whatever their serials; all four refuse to act on an
 unnamed board then.
 
 A PicoCalc takes a new kernel from its SD card, not from USB. The kernel for
@@ -38,7 +39,8 @@ board sessions and card images is PICOCALC_SD (`picocalc-sd-kernel`, UF2
 160 KiB layout); PICOCALC_SD_DIAG (`picocalc-sd-diag-kernel`) is the testing
 kernel, the same configuration with DIAGNOSTIC, GLOBAL_DEBUG and STORAGE_STATS
 at `-Og`. The UF2 goes
-to `/pico1-apps/discobsd.uf2`, and the loader programs it only when entered
+to `/pico1-apps/gizmobsd.uf2` (move a `discobsd.uf2` off the card first), and
+the loader programs it only when entered
 with both USB cables unplugged, power off, then Up held while pressing power
 (Up twice more reaches the list). A plain power-on starts the kernel already
 in flash, and micro-USB plugged at power-on puts the loader in USB drive mode
@@ -210,7 +212,7 @@ unquoted data reaching `sh -c`, `eval` or a generated script; an untrusted
 input path; or a board-flash/serial path reached without caller authorization.
 Hardware gates require an exact opt-in value; unset, empty and zero remain
 closed. Root Makefile targets only build board tests. Explicit invocations of
-`discobsd-flash` or `picotool` carry the user's authorization.
+`gizmobsd-flash` or `picotool` carry the user's authorization.
 
 ## Tools
 

@@ -1,5 +1,5 @@
 /*
- * bubble -- a small color-matching game for the DiscoBSD RP2040 port,
+ * bubble -- a small color-matching game for the GizmoBSD RP2040 port,
  * puzzle-bobble in feel: bubbles hang from the ceiling and the shooter
  * fires up from the floor. Written from the rules of the genre alone; no
  * code of another implementation was consulted.

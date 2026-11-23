@@ -1,0 +1,33 @@
+[Unit]
+Description=GizmoBSD web console (serial to browser)
+Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
+# 71-gizmobsd-rp2040.rules tags the console tty TAG+="systemd" and names it
+# SYMLINK+="gizmobsd" (and "discobsd"), so udev (and, for a uaccess-tagged device, the user
+# service manager too) carries a dev-gizmobsd.device unit for it. BindsTo=
+# plus After= starts this service only once that device is active and stops
+# it the moment the device goes away, instead of racing ExecStart against a
+# board that is not plugged in yet.
+After=network-online.target dev-gizmobsd.device
+BindsTo=dev-gizmobsd.device
+# A start that fails for a reason the device gate does not cover (a bad
+# token file, a port already bound) still retries, but gives up after
+# StartLimitBurst attempts in the interval rather than looping forever.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Environment=GIZMOBSD_WEB_BIND=127.0.0.1
+# gizmobsd-console up writes web.env under the first directory, or under the
+# former discobsd directory while that is the only one present.
+EnvironmentFile=-%h/.config/discobsd/web.env
+EnvironmentFile=-%h/.config/gizmobsd/web.env
+ExecStart=/usr/bin/gizmobsd-web --bind ${GIZMOBSD_WEB_BIND} --port 7681
+Restart=always
+RestartSec=3
+
+[Install]
+# Enabling links the unit into dev-gizmobsd.device.wants, so the board's
+# arrival starts it. A default.target link would queue a start job for the
+# device at every login and hold the user manager's startup for the device
+# timeout (DefaultDeviceTimeoutSec, 90 s) whenever the board is absent.
+WantedBy=dev-gizmobsd.device

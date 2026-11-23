@@ -486,7 +486,7 @@ SystemClock_Config(void)
 	 * pass), about 21 us, which is two cycles of any source of 100 kHz or
 	 * more: every internal source (the ring oscillator runs at about
 	 * 1.8 MHz at its lowest) and any GPIN clock that fast. A slower GPIN
-	 * source would need a longer wait; no DiscoBSD board drives one.
+	 * source would need a longer wait; no GizmoBSD board drives one.
 	 */
 	MREG32(CLOCKS_BASE + CLK_SYS_CTRL) &= ~CLK_SYS_CTRL_SRC_AUX;
 	while (MREG32(CLOCKS_BASE + CLK_SYS_SELECTED) != (1UL << 0))

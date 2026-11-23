@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--qemu", default="qemu-arm")
     args = parser.parse_args()
     compilers = [(gcc,) for gcc in args.gcc] + [(args.clang, "--target=arm-none-eabi")]
-    with tempfile.TemporaryDirectory(prefix="discobsd-ucall-qemu-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-ucall-qemu-") as temporary:
         directory = Path(temporary)
         startup = directory / "start.S"
         startup.write_text(START, encoding="utf-8")

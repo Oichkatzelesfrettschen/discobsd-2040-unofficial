@@ -1,11 +1,11 @@
-"""USB port selection in discobsd-term and discobsd-web with two boards attached.
+"""USB port selection in gizmobsd-term and gizmobsd-web with two boards attached.
 
 Both tools resolve their board through ports.find_board(), the one rule that
-discobsd-flash and discobsd-connect implement in shell: more than one 2e8a
+gizmobsd-flash and gizmobsd-connect implement in shell: more than one 2e8a
 device with none named is a refusal that lists the ports, and --usb-port or
-DISCOBSD_USB_PORT names the board by its sysfs port. The tests run against a
+GIZMOBSD_USB_PORT names the board by its sysfs port. The tests run against a
 fake sysfs and devfs tree; no serial device is opened (serial.Serial is
-replaced) and no real board is read. discobsd-link never resolves a board (it
+replaced) and no real board is read. gizmobsd-link never resolves a board (it
 only redirects to a URL), so it takes zero selectors and has zero cases here.
 """
 
@@ -17,7 +17,7 @@ import types
 import pytest
 from test_web import masked
 
-from discobsd_host import ports, term, web
+from gizmobsd_host import ports, term, web
 
 PORT_A = "1-3"
 PORT_B = "1-4"
@@ -43,13 +43,13 @@ def make_tree(tmp_path, boards):
         (node / f"{usb_port}:1.0" / "tty" / tty_name).mkdir(parents=True)
         (node / "idVendor").write_text("2e8a\n")
         (node / "idProduct").write_text("000a\n")
-        (node / "product").write_text("DiscoBSD RP2040 console\n")
+        (node / "product").write_text("GizmoBSD RP2040 console\n")
         (devfs / tty_name).write_text("")
     # An unrelated USB device must not count as a board.
     other = sysfs / "1-1"
     other.mkdir()
     (other / "idVendor").write_text("046d\n")
-    return {"DISCOBSD_SYSFS_USB": str(sysfs), "DISCOBSD_DEVFS": str(devfs)}
+    return {"GIZMOBSD_SYSFS_USB": str(sysfs), "GIZMOBSD_DEVFS": str(devfs)}
 
 
 class FakeSerial:
@@ -110,7 +110,7 @@ def launch(monkeypatch, tmp_path):
         err = capsys.readouterr().err
         if tool == "web":
             # The banner names the board resolved at startup.
-            marker = "DiscoBSD web console for "
+            marker = "GizmoBSD web console for "
             for line in err.splitlines():
                 if line.startswith(marker):
                     device = line[len(marker) :]
@@ -136,30 +136,30 @@ def test_two_boards_unnamed_refuse_and_list_both_ports(tool, launch, capsys, tmp
     assert rc == 2
     assert device is None
     assert PORT_A in err and PORT_B in err
-    assert "--usb-port" in err and "DISCOBSD_USB_PORT" in err
+    assert "--usb-port" in err and "GIZMOBSD_USB_PORT" in err
 
 
 @pytest.mark.parametrize("tool", TOOLS)
 def test_flag_names_one_of_two_boards(tool, launch, capsys, tmp_path):
     env = make_tree(tmp_path, {PORT_A: "ttyACM0", PORT_B: "ttyACM1"})
     rc, device, _ = launch(tool, ["--usb-port", PORT_B], env, capsys)
-    assert (rc, device) == (0, env["DISCOBSD_DEVFS"] + "/ttyACM1")
+    assert (rc, device) == (0, env["GIZMOBSD_DEVFS"] + "/ttyACM1")
 
 
 @pytest.mark.parametrize("tool", TOOLS)
 def test_environment_names_one_of_two_boards(tool, launch, capsys, tmp_path):
     env = make_tree(tmp_path, {PORT_A: "ttyACM0", PORT_B: "ttyACM1"})
-    env["DISCOBSD_USB_PORT"] = PORT_A
+    env["GIZMOBSD_USB_PORT"] = PORT_A
     rc, device, _ = launch(tool, [], env, capsys)
-    assert (rc, device) == (0, env["DISCOBSD_DEVFS"] + "/ttyACM0")
+    assert (rc, device) == (0, env["GIZMOBSD_DEVFS"] + "/ttyACM0")
 
 
 @pytest.mark.parametrize("tool", TOOLS)
 def test_flag_wins_over_environment(tool, launch, capsys, tmp_path):
     env = make_tree(tmp_path, {PORT_A: "ttyACM0", PORT_B: "ttyACM1"})
-    env["DISCOBSD_USB_PORT"] = PORT_A
+    env["GIZMOBSD_USB_PORT"] = PORT_A
     rc, device, _ = launch(tool, ["--usb-port", PORT_B], env, capsys)
-    assert (rc, device) == (0, env["DISCOBSD_DEVFS"] + "/ttyACM1")
+    assert (rc, device) == (0, env["GIZMOBSD_DEVFS"] + "/ttyACM1")
 
 
 @pytest.mark.parametrize("tool", TOOLS)
@@ -184,7 +184,7 @@ def test_malformed_port_is_refused(tool, operand, launch, capsys, tmp_path):
 @pytest.mark.parametrize("tool", TOOLS)
 def test_empty_environment_value_counts_as_unset(tool, launch, capsys, tmp_path):
     env = make_tree(tmp_path, {PORT_A: "ttyACM0"})
-    env["DISCOBSD_USB_PORT"] = ""
+    env["GIZMOBSD_USB_PORT"] = ""
     rc, device, _ = launch(tool, [], env, capsys)
     assert (rc, device) == (0, "/dev/discovered")
 
@@ -210,8 +210,8 @@ def test_term_session_refuses_before_going_raw(monkeypatch, capsys, tmp_path):
     env = make_tree(tmp_path, {PORT_A: "ttyACM0", PORT_B: "ttyACM1"})
     for key, value in env.items():
         monkeypatch.setenv(key, value)
-    monkeypatch.delenv("DISCOBSD_PORT", raising=False)
-    monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+    monkeypatch.delenv("GIZMOBSD_PORT", raising=False)
+    monkeypatch.delenv("GIZMOBSD_USB_PORT", raising=False)
     called = []
     monkeypatch.setattr(term, "run", lambda **kw: called.append(kw) or 0)
     assert term.main([]) == 2
@@ -266,9 +266,7 @@ def test_web_resolves_the_selector_before_each_serial_open(monkeypatch, tmp_path
         lines.append(line)
         return line
 
-    httpd = web.ConsoleServer(
-        ("127.0.0.1", 0), None, "tok", open_serial=opener, usb_port=PORT_A
-    )
+    httpd = web.ConsoleServer(("127.0.0.1", 0), None, "tok", open_serial=opener, usb_port=PORT_A)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
         port = httpd.server_address[1]
@@ -387,7 +385,7 @@ def test_web_session_refuses_a_second_board_attached_after_startup(monkeypatch, 
         (late / f"{PORT_B}:1.0" / "tty" / "ttyACM1").mkdir(parents=True)
         (late / "idVendor").write_text("2e8a\n")
         (late / "idProduct").write_text("000a\n")
-        (late / "product").write_text("DiscoBSD RP2040 console\n")
+        (late / "product").write_text("GizmoBSD RP2040 console\n")
         s, status = ws_connect(httpd.server_address[1])
         got = read_frames(s, b"more than one 2e8a device", got=status)
         assert b"more than one 2e8a device" in got
@@ -406,10 +404,10 @@ def test_selector_without_sysfs_is_unsupported(source, tmp_path):
     so a named board is never replaced by whichever board enumerates first.
     """
     absent = str(tmp_path / "no-sysfs")
-    environ = {"DISCOBSD_SYSFS_USB": absent, "DISCOBSD_DEVFS": str(tmp_path)}
+    environ = {"GIZMOBSD_SYSFS_USB": absent, "GIZMOBSD_DEVFS": str(tmp_path)}
     kwargs = {"usb_port": PORT_A} if source == "flag" else {}
     if source == "environment":
-        environ["DISCOBSD_USB_PORT"] = PORT_A
+        environ["GIZMOBSD_USB_PORT"] = PORT_A
     with pytest.raises(ports.BoardSelectionError) as caught:
         ports.find_board(comports=lambda: [], environ=environ, **kwargs)
     assert caught.value.kind == "unsupported"

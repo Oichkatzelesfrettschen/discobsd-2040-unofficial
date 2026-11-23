@@ -2,7 +2,7 @@
  * Host stand-ins for the file-status and clock calls of a program built with
  * a four-byte signed time_t, the view the target programs have by default.
  *
- * The DiscoBSD kernel stores a file time as an unsigned 32-bit count and
+ * The GizmoBSD kernel stores a file time as an unsigned 32-bit count and
  * returns it in a signed long, so a time after January 2038 reads back as a
  * negative number. A 32-bit glibc refuses such a time (EOVERFLOW), so the
  * stat family here (Linux only; the four-byte view builds only there) reads

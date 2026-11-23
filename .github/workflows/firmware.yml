@@ -1,6 +1,6 @@
 # The RP2040 kernel, the flash image and the test tiers the root Makefile
 # groups (sys/arch/rp2040/doc/TESTING.md). The build log is gated on its
-# warnings: the build must emit none. The discobsd-host package has its
+# warnings: the build must emit none. The gizmobsd-host package has its
 # own workflow, host.yml, which is the check-host-package tier.
 #
 # A push to main runs the rp2040 job's fixed short set: the warning-free
@@ -278,7 +278,7 @@ jobs:
             .build-logs/linux-flash.log || true
           test "$total" -eq 0
 
-      # The UF2 pair the artifact step uploads and discobsd-flash loads.
+      # The UF2 pair the artifact step uploads and gizmobsd-flash loads.
       - name: Validate the kernel and root UF2 images
         if: github.event_name != 'pull_request'
         timeout-minutes: 5
@@ -690,7 +690,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
-          name: discobsd-rp2040-firmware
+          name: gizmobsd-rp2040-firmware
           path: |
             sys/arch/rp2040/compile/PICO/unix.uf2
             sys/arch/rp2040/compile/PICO_DIAG/unix.uf2
@@ -871,10 +871,10 @@ jobs:
     name: rp2040 kernel, flash image on macOS
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
-    # The explicit step limits add up to 199 minutes (the host tier alone 104);
+    # The explicit step limits add up to 224 minutes (the host tier alone 129);
     # the bound leaves 6 minutes above that sum. The complete run of dispatch
-    # 44877305151 took 65 minutes.
-    timeout-minutes: 205
+    # 44877305151 took 65 minutes, and that of 45113241548 took 101.
+    timeout-minutes: 230
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1000,7 +1000,9 @@ jobs:
       # (dispatch 44877305151). The nightly 44888989971 was still in the last
       # gate of the first part at 2935 s, when the idle limit ended it, so the
       # first part's runs span 2243 s (113 and 46 i86 mutants) to more than 2935 s
-      # (143 and 47, as in the 2594 s run); its limit is 4500 s, and the second
+      # (143 and 47, as in the 2594 s run). With 180 and 82 i86 mutants it took
+      # 4175 s (dispatch 45113241548) and reached 4500 s at panel mutant 70 of
+      # 82 (dispatch 45139400885); its limit is 6000 s, and the second
       # part's limit is 1.72 times its measurement.
       # The first part carries the C17 library families, whose math and wide
       # fixtures run native and sanitized, and the ulisp mutants.
@@ -1009,13 +1011,13 @@ jobs:
       # skips it.
       - name: Run the host tier, first part
         id: macos_host_a
-        timeout-minutes: 80
+        timeout-minutes: 105
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host-a \
             --log .build-logs/macos-host-a.log \
             --status .build-logs/macos-host-a.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 4500 \
+            --idle-timeout-seconds 300 --timeout-seconds 6000 \
             -- bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
       - name: Run the host tier, second part
         if: ${{ !cancelled() && (success() || steps.macos_host_a.conclusion == 'failure') }}
@@ -1217,7 +1219,7 @@ jobs:
   # signing path needs OpenSSL 3.5 or newer. The ubuntu-24.04 runner image
   # ships OpenSSL 3.0.x, which has no ML-DSA, so the hybrid-signatures job
   # installs openssl 3.5.7 from conda-forge and the tests refuse to skip
-  # (DISCOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
+  # (GIZMOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
   pq-release-proofs:
     name: Release policy proofs (Lean 4.19.0)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -1263,7 +1265,7 @@ jobs:
         timeout-minutes: 8
         run: python3 -m pytest -q
         env:
-          DISCOBSD_REQUIRE_PQ_TESTS: '1'
+          GIZMOBSD_REQUIRE_PQ_TESTS: '1'
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
 
   # A scheduled run reports to nobody, so its result goes to one issue:

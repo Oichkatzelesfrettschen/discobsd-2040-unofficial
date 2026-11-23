@@ -81,7 +81,7 @@ fail(const char *what, int error)
 
 /*
  * SOURCE_DATE_EPOCH as a time, or -1 when it is absent, malformed or past
- * what the host's time_t and unsigned long hold. DiscoBSD's libc has
+ * what the host's time_t and unsigned long hold. GizmoBSD's libc has
  * strtoul and no strtoll.
  */
 static long long

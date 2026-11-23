@@ -17,7 +17,7 @@ case $dd_program in
 *) dd_program=$(cd "$(dirname "$dd_program")" && pwd)/$(basename "$dd_program") ;;
 esac
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/discobsd-dd.XXXXXX")
+work=$(mktemp -d "${TMPDIR:-/tmp}/gizmobsd-dd.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT

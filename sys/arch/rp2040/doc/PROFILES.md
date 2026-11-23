@@ -586,6 +586,23 @@ bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 picocalc-sd-system
 | `unix-PICOCALC-SD.uf2` | Kernel for the board's QSPI flash. The descriptor selects the PicoCalc console. |
 | `sdroot-PICOCALC.img` | Filesystem payload for an SD partition, including the full installed userland. PICOCALC_SD and PICOCALC_SD_DIAG share the default 128 MiB root. Set `SDROOT_KBYTES=32768` to build for a 32 MiB partition. Its fstab names slot c. `SDROOT_PART=a`, `b`, `c` or `d` selects the actual slot at build time. |
 
+`picocalc-sd-max-system` builds the maximal card root beside it,
+`sdroot-PICOCALC-MAX.img`, with both kernels. It is the same root with two
+overlays laid over a copy of the install tree by
+`tools/picocalc/stage-sdroot.sh`: the port's documents (this directory)
+at `/usr/share/doc/gizmobsd`, and the directory `PICOCALC_MAX_EXTRA` names,
+which mirrors the root. The extra directory carries what the tree does not
+hold, such as guest disk images for `i86(1)` under `/home/operator`; its
+files stay outside the repository. An overlay adds paths and stops the build
+when one of its files exists in the root already or is a symbolic link.
+Every added path is owned by root and group wheel with mode 0664 or 0775,
+so `operator`, a member of wheel, can write a disk image there.
+
+```sh
+bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 picocalc-sd-max-system \
+    PICOCALC_MAX_EXTRA=/path/to/extra-root
+```
+
 The kernel range including boot2 is `[0x10000000,0x10028000)`. Above it,
 the flash driver addresses a 1,504 KiB Dhara region up to `0x101a0000`.
 Raw swap starts there. The ordinary flash-root system reserves 128 KiB
@@ -603,5 +620,5 @@ programs into the 192 KiB user window. Kernel instructions still execute
 from QSPI or the linked SRAM routines. The standard release downloader
 and its pair validator describe the 128 KiB family. The expanded system
 uses the two build outputs above. For a host SRAM capture of the expanded
-system, `discobsd-sramdump capture --kernel-layout picocalc-sd` selects
+system, `gizmobsd-sramdump capture --kernel-layout picocalc-sd` selects
 the 160 KiB flash extent. Decode obtains the extent from the kernel ELF.

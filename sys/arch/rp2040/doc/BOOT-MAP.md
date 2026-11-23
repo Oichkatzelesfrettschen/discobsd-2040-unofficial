@@ -1,6 +1,6 @@
-# DiscoBSD on the Pico: the map from source to a shell prompt
+# GizmoBSD on the Pico: the map from source to a shell prompt
 
-The port lives in `sys/arch/rp2040` of this DiscoBSD tree. Machine-readable
+The port lives in `sys/arch/rp2040` of this GizmoBSD tree. Machine-readable
 copies of the RP2040 and Pico datasheets, with an `INDEX.md` resolving every
 section number to a line in the text, live in the companion notes repository
 (discobsd-2040-notes, `docs/rp2040/`); `DATASHEET-INDEX.md` here lists the
@@ -304,7 +304,7 @@ sort, awk, picoc, df, mount, ps -ax, and the swap path all run. Open:
 The harness lives in `tools/renode` at the tree root. The
 emulator is Renode 1.17.0 (AUR `renode-bin`), running the third-party RP2040
 platform from `matgla/Renode_RP2040` (MIT, pinned by commit), not a model
-DiscoBSD carries itself: Renode's own distribution lacks an RP2040 platform (`find /opt/renode -iname "*rp2040*"` prints an empty list). That platform's peripheral
+GizmoBSD carries itself: Renode's own distribution lacks an RP2040 platform (`find /opt/renode -iname "*rp2040*"` prints an empty list). That platform's peripheral
 table (`Renode_RP2040/README.md`) marks XOSC, ROSC, PLL, resets, watchdog,
 UART (PL011), and GPIO as fully modeled; the gap this section's known
 limitation runs into is in its IO_QSPI pad model, not SSI. Full detail,
@@ -362,7 +362,7 @@ UART or GDB ports.
 
 ### What to expect
 
-The console prints the DiscoBSD banner, CPU identification, and the flash
+The console prints the GizmoBSD banner, CPU identification, and the flash
 and swap partition lines, then the kernel hangs (see `research/emulation.md`
 for the verbatim transcript and the exact spin location). It does not reach
 `login:` in this configuration. `SYSINFO_CHIP_ID` is unmodeled, so

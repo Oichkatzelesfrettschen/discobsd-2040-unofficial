@@ -284,7 +284,7 @@ parse(char *string, int flags)
 			if (flags == 0)
 				return (0);
 			fprintf(stderr,
-			    "%s is not supported in DiscoBSD\n", string);
+			    "%s is not supported in GizmoBSD\n", string);
 			return (1);
 		case KERN_INODE:
 		case KERN_TEXT:

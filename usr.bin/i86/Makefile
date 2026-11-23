@@ -104,7 +104,7 @@ test-sst:	require-python tests/sstrun
 
 # cpu.c and mem.c as Thumb-1 code against newlib, with the Linux EABI system
 # calls of tests/libbn/qemu_support.c, over the sampled vectors. The run
-# covers the generated code of the interpreter; it does not run the DiscoBSD
+# covers the generated code of the interpreter; it does not run the GizmoBSD
 # a.out, whose system calls qemu-user lacks. All pages are resident because
 # that support file's lseek() moves nothing.
 tests/sstrun-arm: tests/sstrun.c cpu.c mem.c ${HDRS} ${QEMU_SUPPORT}

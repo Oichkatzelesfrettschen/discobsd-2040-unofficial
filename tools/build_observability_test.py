@@ -404,7 +404,7 @@ class BuildObservabilityTest(unittest.TestCase):
         observability.check(ROOT)
 
     def test_check_rejects_unbounded_host_workflow(self):
-        with tempfile.TemporaryDirectory(prefix="discobsd-host-observability-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="gizmobsd-host-observability-") as temporary:
             root = Path(temporary)
             workflow_directory = root / ".github/workflows"
             workflow_directory.mkdir(parents=True)

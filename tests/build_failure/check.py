@@ -539,7 +539,7 @@ def check_version_identity(root, make, scratch):
         expect(result.returncode == 0, "kernel version generation failed", result.stdout)
         for private in ("private-host-fixture", "private-user-fixture", str(directory)):
             expect(private not in result.stdout, "kernel version exposes build identity", "")
-        expect('DiscoBSD 2.7' in result.stdout and f' {revision}:' in result.stdout and
+        expect('GizmoBSD 0.1.0-alpha' in result.stdout and f' {revision}:' in result.stdout and
                f'({directory.name.upper()})' in result.stdout,
                "kernel version omits release, configuration or revision", result.stdout)
         return result.stdout
@@ -673,7 +673,7 @@ def main():
                         ("icode", check_icode_toolchain_selector), ("tiers", check_tier_order)):
         if args.only and args.only != name:
             continue
-        with tempfile.TemporaryDirectory(prefix=f"discobsd-build-failure-{name}-") as tmp:
+        with tempfile.TemporaryDirectory(prefix=f"gizmobsd-build-failure-{name}-") as tmp:
             try:
                 check(root, make, Path(tmp))
             except Failure as error:

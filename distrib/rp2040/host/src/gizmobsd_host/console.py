@@ -1,16 +1,17 @@
-"""discobsd-console: run the web console and its short link on any host.
+"""gizmobsd-console: run the web console and its short link on any host.
 
-`discobsd-console up` starts discobsd-web on port 7681 behind a generated
-token and discobsd-link on port 42069 redirecting to the tokenized URL,
+`gizmobsd-console up` starts gizmobsd-web on port 7681 behind a generated
+token and gizmobsd-link on port 42069 redirecting to the tokenized URL,
 then prints the URLs to hand out. `down` stops them and `status` reports.
 On a Linux host where the packaged systemd user units are installed, the
 units carry the processes; everywhere else the two servers run detached
 from this shell with pid files under the per-user configuration directory:
-$XDG_CONFIG_HOME/discobsd on Linux and BSD, ~/Library/Application Support/
-discobsd on macOS, %APPDATA%\\discobsd on Windows.
+$XDG_CONFIG_HOME/gizmobsd on Linux and BSD, ~/Library/Application Support/
+gizmobsd on macOS, %APPDATA%\\gizmobsd on Windows. For one release a
+directory of the former name (discobsd) is used while the new one is absent.
 
-The configuration file web.env holds DISCOBSD_WEB_TOKEN, DISCOBSD_HOST_IP
-and DISCOBSD_WEB_BIND. The servers listen on loopback unless --bind names
+The configuration file web.env holds GIZMOBSD_WEB_TOKEN, GIZMOBSD_HOST_IP
+and GIZMOBSD_WEB_BIND. The servers listen on loopback unless --bind names
 another address. It is created with owner-only permissions on the first
 run and read by every later run and by the systemd units.
 """
@@ -35,7 +36,7 @@ from . import __version__, ports
 
 WEB_PORT = 7681
 LINK_PORT = 42069
-UNITS = ("discobsd-web.service", "discobsd-link.service")
+UNITS = ("gizmobsd-web.service", "gizmobsd-link.service")
 
 
 def config_dir(environ=None, platform=None, home=None) -> Path:
@@ -44,11 +45,15 @@ def config_dir(environ=None, platform=None, home=None) -> Path:
     home = Path.home() if home is None else Path(home)
     if platform == "win32":
         base = environ.get("APPDATA")
-        return Path(base) / "discobsd" if base else home / "AppData" / "Roaming" / "discobsd"
-    if platform == "darwin":
-        return home / "Library" / "Application Support" / "discobsd"
-    base = environ.get("XDG_CONFIG_HOME")
-    return Path(base) / "discobsd" if base else home / ".config" / "discobsd"
+        parent = Path(base) if base else home / "AppData" / "Roaming"
+    elif platform == "darwin":
+        parent = home / "Library" / "Application Support"
+    else:
+        base = environ.get("XDG_CONFIG_HOME")
+        parent = Path(base) if base else home / ".config"
+    current = parent / "gizmobsd"
+    former = parent / "discobsd"
+    return former if not current.exists() and former.exists() else current
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -63,6 +68,10 @@ def read_env(path: Path) -> dict[str, str]:
             continue
         key, _, value = line.partition("=")
         values[key.strip()] = value.strip().strip("'\"")
+    # A web.env written before the rename names its keys DISCOBSD_*.
+    for key in list(values):
+        if key.startswith(ports.OLD_ENV_PREFIX):
+            values.setdefault(ports.NEW_ENV_PREFIX + key[len(ports.OLD_ENV_PREFIX) :], values[key])
     return values
 
 
@@ -149,7 +158,7 @@ def _spawn_detached(argv: list[str], log: Path, extra_env: dict[str, str] | None
     `extra_env` carries the token to the child's environment rather than its
     argv, so it is not the process's command line as `ps` (or, on Windows,
     the process list) reports it. The child still inherits this process's
-    full environment; DISCOBSD_WEB_TOKEN reaches only this user's own
+    full environment; GIZMOBSD_WEB_TOKEN reaches only this user's own
     processes, the same exposure a systemd EnvironmentFile has.
     """
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -177,7 +186,7 @@ def _tool(name: str) -> list[str]:
     found = shutil.which(name)
     if found:
         return [found]
-    return [sys.executable, "-m", "discobsd_host." + name.split("-", 1)[1]]
+    return [sys.executable, "-m", "gizmobsd_host." + name.split("-", 1)[1]]
 
 
 def _stop_pidfile(path: Path) -> bool:
@@ -254,57 +263,57 @@ def cmd_up(args) -> int:
     try:
         bind = parse_bind(args.bind)
     except ValueError as exc:
-        sys.stderr.write("discobsd-console: --bind: %s\n" % exc)
+        sys.stderr.write("gizmobsd-console: --bind: %s\n" % exc)
         return 1
     bind_text = str(bind)
     # The board selector reaches a systemd user unit only through web.env, an
     # EnvironmentFile; a value that is not a USB port path could add lines to
     # it, so it is checked before anything is written.
-    usb_port = os.environ.get("DISCOBSD_USB_PORT") or None
+    usb_port = ports.env_value("GIZMOBSD_USB_PORT") or None
     if usb_port is not None and not ports.USB_PORT_RE.fullmatch(usb_port):
         sys.stderr.write(
-            "discobsd-console: DISCOBSD_USB_PORT must be a USB port path such as 1-3\n"
+            "gizmobsd-console: GIZMOBSD_USB_PORT must be a USB port path such as 1-3\n"
         )
         return 1
     conf = config_dir()
     env_path = conf / "web.env"
     values = read_env(env_path)
-    token = os.environ.get("DISCOBSD_WEB_TOKEN") or values.get("DISCOBSD_WEB_TOKEN")
+    token = ports.env_value("GIZMOBSD_WEB_TOKEN") or values.get("GIZMOBSD_WEB_TOKEN")
     if not token:
         token = secrets.token_hex(12)
-    # An explicit --host-ip or DISCOBSD_HOST_IP always wins. Otherwise a
+    # An explicit --host-ip or GIZMOBSD_HOST_IP always wins. Otherwise a
     # concrete bind (loopback or one interface) advertises its own address,
     # since the servers listen nowhere else. A wildcard bind reuses the
     # address web.env kept from an earlier run unless that address is
     # loopback, which would send LAN clients to their own host; then the LAN
     # address is recomputed.
-    ip = args.host_ip or os.environ.get("DISCOBSD_HOST_IP")
+    ip = args.host_ip or ports.env_value("GIZMOBSD_HOST_IP")
     if not ip and not bind.is_unspecified:
         ip = str(bind)
     if not ip:
         # A stored loopback address (a literal, or a localhost name from an
         # earlier --host-ip) would send LAN clients to their own host, so it
         # is recomputed; any other stored address or host name is kept.
-        stored = values.get("DISCOBSD_HOST_IP")
+        stored = values.get("GIZMOBSD_HOST_IP")
         ip = stored if stored and not is_loopback_host(stored) else lan_ip()
     if ":" in ip:
         sys.stderr.write(
-            "discobsd-console: the advertised address %r is IPv6; the systemd "
+            "gizmobsd-console: the advertised address %r is IPv6; the systemd "
             "units build http://HOST:PORT/ without brackets, so give an IPv4 "
             "address\n" % ip
         )
         return 1
     env_values = {
-        "DISCOBSD_WEB_TOKEN": token,
-        "DISCOBSD_HOST_IP": ip,
-        "DISCOBSD_WEB_BIND": bind_text,
+        "GIZMOBSD_WEB_TOKEN": token,
+        "GIZMOBSD_HOST_IP": ip,
+        "GIZMOBSD_WEB_BIND": bind_text,
     }
     if usb_port:
-        env_values["DISCOBSD_USB_PORT"] = usb_port
+        env_values["GIZMOBSD_USB_PORT"] = usb_port
     try:
         write_env(env_path, env_values)
     except ValueError as exc:
-        sys.stderr.write("discobsd-console: %s\n" % exc)
+        sys.stderr.write("gizmobsd-console: %s\n" % exc)
         return 1
     # The mDNS name resolves to the host's LAN address, which only a
     # wildcard bind serves.
@@ -313,19 +322,19 @@ def cmd_up(args) -> int:
         subprocess.call(["systemctl", "--user", "daemon-reload"])
         rc = subprocess.call(["systemctl", "--user", "restart", *UNITS])
         if rc != 0:
-            sys.stderr.write("discobsd-console: systemctl --user restart failed\n")
+            sys.stderr.write("gizmobsd-console: systemctl --user restart failed\n")
             return 1
         mode = "systemd user units"
     else:
         for name in ("link", "web"):
             _stop_pidfile(conf / (name + ".pid"))
-        web = _tool("discobsd-web") + [
+        web = _tool("gizmobsd-web") + [
             "--bind",
             bind_text,
             "--port",
             str(args.port),
         ]
-        link = _tool("discobsd-link") + [
+        link = _tool("gizmobsd-link") + [
             "--host",
             "http://%s:%d/" % (ip, args.port),
             "--port",
@@ -336,19 +345,19 @@ def cmd_up(args) -> int:
         # The token goes to each child's environment, not its argv: passing
         # --token/--to here would put it back in ps for these two processes,
         # the exact exposure this package's systemd units were fixed to avoid.
-        extra_env = {"DISCOBSD_WEB_TOKEN": token}
+        extra_env = {"GIZMOBSD_WEB_TOKEN": token}
         (conf / "web.pid").write_text(str(_spawn_detached(web, conf / "web.log", extra_env)))
         (conf / "link.pid").write_text(str(_spawn_detached(link, conf / "link.log", extra_env)))
         mode = f"detached, pid files in {conf}"
     time.sleep(1.0)
     if not _http_answers(links["short"]):
         sys.stderr.write(
-            "discobsd-console: {} is not answering; see the logs in {}\n".format(
+            "gizmobsd-console: {} is not answering; see the logs in {}\n".format(
                 links["short"], conf
             )
         )
         return 1
-    print(f"DiscoBSD console is up ({mode}):")
+    print(f"GizmoBSD console is up ({mode}):")
     print("  short:  {}".format(links["short"]))
     if "mdns" in links:
         print("          {}".format(links["mdns"]))
@@ -361,17 +370,17 @@ def cmd_down(args) -> int:
     conf = config_dir()
     if systemd_units_installed() and not args.detached:
         subprocess.call(["systemctl", "--user", "stop", *reversed(UNITS)])
-        print("DiscoBSD console stopped (systemd user units).")
+        print("GizmoBSD console stopped (systemd user units).")
         return 0
     stopped = sum(_stop_pidfile(conf / (n + ".pid")) for n in ("link", "web"))
-    print("DiscoBSD console stopped (%d process(es))." % stopped)
+    print("GizmoBSD console stopped (%d process(es))." % stopped)
     return 0
 
 
 def cmd_status(args) -> int:
     conf = config_dir()
     values = read_env(conf / "web.env")
-    ip = values.get("DISCOBSD_HOST_IP") or lan_ip()
+    ip = values.get("GIZMOBSD_HOST_IP") or lan_ip()
     short = "http://%s:%d/" % (ip, args.link_port)
     if systemd_units_installed() and not args.detached:
         rc = subprocess.call(["systemctl", "--user", "is-active", "--quiet", UNITS[0]])
@@ -392,10 +401,10 @@ def cmd_status(args) -> int:
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="discobsd-console",
-        description="Run the DiscoBSD web console and its short link.",
+        prog="gizmobsd-console",
+        description="Run the GizmoBSD web console and its short link.",
     )
-    p.add_argument("--version", action="version", version="discobsd-console " + __version__)
+    p.add_argument("--version", action="version", version="gizmobsd-console " + __version__)
     sub = p.add_subparsers(dest="command", required=True)
     up = sub.add_parser("up", help="start or restart the servers and print the URLs")
     up.add_argument("--bind", default="127.0.0.1", help="bind address (default 127.0.0.1)")

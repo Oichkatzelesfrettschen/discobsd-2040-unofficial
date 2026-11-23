@@ -1,5 +1,5 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: discobsd-host
+Upstream-Name: gizmobsd-host
 Source: https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 
 Files: *

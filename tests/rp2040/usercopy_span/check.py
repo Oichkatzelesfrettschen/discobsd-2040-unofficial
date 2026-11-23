@@ -128,7 +128,7 @@ def check(root, host_cc, output):
         }
         for tool in sorted({host[0], clang, arm})
     }
-    with tempfile.TemporaryDirectory(prefix="discobsd-usercopy-span-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-usercopy-span-") as temporary:
         workspace = Path(temporary)
         (workspace / "machine").symlink_to(header.parent, target_is_directory=True)
         consumer = workspace / "consumer.c"

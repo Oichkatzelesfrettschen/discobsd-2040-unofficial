@@ -1,8 +1,8 @@
-"""PyInstaller entry point for discobsd-term."""
+"""PyInstaller entry point for gizmobsd-term."""
 
 import sys
 
-from discobsd_host.term import main
+from gizmobsd_host.term import main
 
 if __name__ == "__main__":
     sys.exit(main())

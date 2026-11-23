@@ -2,7 +2,7 @@
 set -eu
 
 rmdir_program=$1
-test_directory=$(mktemp -d "${TMPDIR:-/tmp}/discobsd-rmdir.XXXXXX")
+test_directory=$(mktemp -d "${TMPDIR:-/tmp}/gizmobsd-rmdir.XXXXXX")
 trap 'rm -rf "$test_directory"' EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT

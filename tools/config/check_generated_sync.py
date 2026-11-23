@@ -218,7 +218,7 @@ def compare(root, workspace, generator):
 
 
 def check(root, make="bmake"):
-    with tempfile.TemporaryDirectory(prefix="discobsd-config-sync-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-config-sync-") as temporary:
         workspace = Path(temporary)
         copy_inputs(root, workspace)
         check_variant_delta(workspace)

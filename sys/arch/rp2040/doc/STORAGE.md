@@ -1,6 +1,6 @@
 # Storage on the Pico: what costs what, and the layout chosen
 
-Measured on the built DiscoBSD tree for the RP2040 on 2026-09-11. Sizes
+Measured on the built GizmoBSD tree for the RP2040 on 2026-09-11. Sizes
 are bytes of the a.out as installed unless marked.
 
 The current SRAM layout gives every process a fixed 192 KB window at
@@ -451,7 +451,7 @@ over write, erase and checkpoint phases and every power interruption (W03 of
 
 A board that stops answering after such a recovery is read through the kernel-state
 dump described in `distrib/rp2040/host/DEVELOPMENT.md`, under "Reading a silent
-board's kernel state: discobsd-sramdump".
+board's kernel state: gizmobsd-sramdump".
 
 Production
 `dhara_nand_prog()` passes one 1 KiB extent to `flash_program()` while

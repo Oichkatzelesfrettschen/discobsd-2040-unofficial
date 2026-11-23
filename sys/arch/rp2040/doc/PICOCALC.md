@@ -29,7 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # ClockworkPi PicoCalc: the PICOCALC kernel and the board it drives
 
 The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
-runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
+runs GizmoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root stays on the Pico's QSPI flash, the same layout as the PICO
 board (`STORAGE.md`); swap moves to the first 2 MB of the board's PSRAM when the
@@ -133,7 +133,7 @@ name a file there, with a page for a PDF.
 | `sd.c` and `sdspi.c` compile into the PicoCalc kernels only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,888 bytes (2,887 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,688 over the audio build |
 | `umount` and a failed `mount` of `sd0a` close the partition only at the last close, and a block descriptor opened before the mount keeps reading after it | host | observed by `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) against the production `ufs_mount.c`, `sys_inode.c` and `ufs_inode.c` and a model of the driver's open mask; the parent revision fails 13 checks of the same gate, and two mutants fail it |
 | `umount` of a read-write `sd0a` whose card was pulled succeeds without write-back when `sdioctl` answers `DIOCMEDIAGONE` from the replaced flag, closes the partition, discards every valid and delayed buffer of the device, and lets a replacement card mount; a write error with the card present, a driver that fails the command and an open file keep `umount` failing | host | observed: `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) against the production `ufs_mount.c`, `ufs_bio.c` and `ufs_syscalls2.c` and a model of the driver, with 19 of 303 checks failing on the preceding `ufs_mount.c` and eight mutants rejected; `check-picocalc-host` runs the production `sdioctl` through the card swap (the flag reads 0 before the debounce interval ends, 1 after, 0 after the next open) and three mutants of `sd.c` fail it |
-| The pulled-card sequence on the board: mount read-write, write, pull, `umount`, reinsert, mount | board | not run: `tests/rp2040/sd_detach/board_sd_detach.py` is written, closed unless `DISCOBSD_BOARD_SD_DETACH` is exactly `run`, and lacks a recorded result |
+| The pulled-card sequence on the board: mount read-write, write, pull, `umount`, reinsert, mount | board | not run: `tests/rp2040/sd_detach/board_sd_detach.py` is written, closed unless `GIZMOBSD_BOARD_SD_DETACH` is exactly `run`, and lacks a recorded result |
 | At securelevel 1 a write open of `rsd0`, of `sd0`, of an MBR entry that overlaps the mounted `sd0a`, and of the flash node `fl0` while the root `fl0a` is mounted is refused with `EBUSY`, while a partition that only touches the mounted one opens; a write open of the swap unit `fl1` (swapdev, major 0 minor 8) is refused with `EPERM` at level 1 and above and succeeds at level 0, a write through a descriptor opened at level 0 is refused at each transfer once the level is raised, and a read open succeeds at every level, as the `sw` alias of `sys/dev/swap.c` already refused a write | host | observed: `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) runs the production `openi()`, `ufs_mountedon()` and the `blkoverlap()` extracted from `conf.c` over the production `flioctl` and a model of `sdioctl`; the preceding `ufs_fio.c` fails 11 checks and seven mutants (exact comparison, unit ignored, major ignored, touching extents counted, start offsets compared, the whole-device node disjoint, an undescribable node disjoint) fail the gate; `check-picocalc-host` holds the production `sdioctl` to the `DIOCGETPART` extents the model returns |
 | The SD protocol layer frames commands, initializes SDSC version 1, SDSC version 2 and SDHC cards, decodes both CSD versions, addresses by byte or block, and fails with a bounded wait on an absent, stuck, unsupported or erroring card | host | observed by `check-picocalc-host` against a card model replaying recorded command transcripts; twenty mutants fail it |
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
@@ -1400,9 +1400,9 @@ stamps two words into the application's vector table: the magic 0xe98cc638
 at flash 0x110 and, at 0x114, the first flash address the application may
 not write (0x101fc000; the loader's README calls the word a size, its code
 stores an address). Those are vector entries 4 and 5, which ARMv6-M
-reserves and every DiscoBSD image leaves zero. Its stage enters the
+reserves and every GizmoBSD image leaves zero. Its stage enters the
 application with VTOR at 0x10000100, past the loader's own second stage in
-flash bytes 0-255, which replaces DiscoBSD's.
+flash bytes 0-255, which replaces GizmoBSD's.
 
 The kernel reads the stamp once, in `startup()` before `config()` attaches
 any device (`flash_limit_init()` in `dev/flash.c`; the decode is
@@ -1432,14 +1432,14 @@ The loader offers no entry from a running system that this tree has read: `bootl
 
 The UF2 to stage is `distrib/rp2040/unix-PICOCALC-SD.uf2` (`picocalc-sd-kernel`): PICOCALC_SD is the kernel for board sessions and card images, with its root on the card's type b7 partition. `unix-PICOCALC-SD-DIAG.uf2` (`picocalc-sd-diag-kernel`, PICOCALC_SD_DIAG, described above) stages the same way when a session needs its diagnostic output; either file is copied to the card under the one name below, and `sysctl kern.version` names the build that started.
 
-Programming a new kernel from the card (observed on the measured unit, 2026-11-18): copy the UF2 to `/pico1-apps/discobsd.uf2` on the card's FAT partition, unplug both USB cables, switch the PicoCalc off, then hold the Up key while pressing the power key. The loader opens on the card at the `pico1-apps` entry; Up twice more reaches the application list, and selecting `discobsd` programs the file and starts it. Two states look like a failed card and are not. A power-on without the Up key starts the kernel already in flash and leaves the card's copy unprogrammed, so `sysctl kern.version` shows the old build on the new root. A power-on with the micro-USB cable in the Pico puts the loader in USB drive mode: it reports "usb connected", presents the card to the host as a mass-storage device (`cafe:4002`, `UF2LOADER_MSC`), skips the application list and keeps every application stopped; the card is intact. The micro-USB cable goes back in after the kernel has started.
+Programming a new kernel from the card (observed on the measured unit, 2026-11-18): copy the UF2 to `/pico1-apps/gizmobsd.uf2` (GIZMOBSD.UF2) on the card's FAT partition, and move any `discobsd.uf2` off the card first (the kernel's root locator accepts the old name until a card has booted the new one, and two matching files in the root directory and its subdirectories fail closed, so the kernel mounts nothing from the card), unplug both USB cables, switch the PicoCalc off, then hold the Up key while pressing the power key. The loader opens on the card at the `pico1-apps` entry; Up twice more reaches the application list, and selecting `gizmobsd` programs the file and starts it. Two states look like a failed card and are not. A power-on without the Up key starts the kernel already in flash and leaves the card's copy unprogrammed, so `sysctl kern.version` shows the old build on the new root. A power-on with the micro-USB cable in the Pico puts the loader in USB drive mode: it reports "usb connected", presents the card to the host as a mass-storage device (`cafe:4002`, `UF2LOADER_MSC`), skips the application list and keeps every application stopped; the card is intact. The micro-USB cable goes back in after the kernel has started.
 
 Two more things the loader route changes are handled at boot.
 `SystemClock_Config()` moves clk_sys to clk_ref and stops the aux-only
 clocks before it resets and reprograms either PLL, because the loader's
 stage may leave clk_sys running from PLL_SYS (datasheet 2.15.3.2 and
 2.18.3). The loader's second stage runs the flash clock at clk_sys / 4
-where DiscoBSD's runs it at clk_sys / 2, and `flash_enter_xip()` re-runs
+where GizmoBSD's runs it at clk_sys / 2, and `flash_enter_xip()` re-runs
 that second stage after every erase and program, so with the magic present
 the kernel restores BAUDR 2 and RX_SAMPLE_DLY 1 from RAM at boot and after
 each re-entry.
@@ -1564,7 +1564,7 @@ ways and `fsck` clean afterward; the level of GP22 with and without a card;
 a card pulled while mounted read-write, which must fail transfers with `EIO`,
 let `umount` succeed without write-back and mount again after reinsertion
 (`tests/rp2040/sd_detach/board_sd_detach.py`, closed unless
-`DISCOBSD_BOARD_SD_DETACH` is exactly `run`); and the largest raw read rate at 12.5 MHz,
+`GIZMOBSD_BOARD_SD_DETACH` is exactly `run`); and the largest raw read rate at 12.5 MHz,
 which decides whether the clock can rise toward 25 MHz. Not built: a
 multi-block transfer (CMD18 and CMD25), which would cut the per-sector
 command overhead, and an on-board `fdisk` closure (`mkfs` ships for the PSRAM's

@@ -37,7 +37,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(root / "distrib/rp2040/host/src"))
-    from discobsd_host.release import HEADER, RECORD
+    from gizmobsd_host.release import HEADER, RECORD
 
     if (HEADER.size, RECORD.size, HEADER.size + 5 * RECORD.size) != (74, 77, 459):
         raise SystemExit("Python geometry no longer matches the proved specification")
@@ -46,7 +46,7 @@ def main():
     text = source.read_text()
     if text.count("classical && pq") != 1:
         raise SystemExit("mutation anchor changed")
-    with tempfile.TemporaryDirectory(prefix="discobsd-proof-") as folder:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-proof-") as folder:
         mutant = Path(folder) / "Mutant.lean"
         mutant.write_text(text.replace("classical && pq", "classical || pq"))
         result = subprocess.run(

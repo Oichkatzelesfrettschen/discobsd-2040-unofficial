@@ -41,7 +41,7 @@
  * the application's vector table: the magic below at flash offset 0x110 and,
  * at 0x114, the first flash address the application may not write, as an
  * execute-in-place address. Both words are vector entries 4 and 5, which
- * ARMv6-M reserves and every DiscoBSD image leaves zero, so an image flashed
+ * ARMv6-M reserves and every GizmoBSD image leaves zero, so an image flashed
  * any other way lacks a stamp and keeps the whole chip.
  *
  * With the stamp, everything at and above the stamped limit belongs to the

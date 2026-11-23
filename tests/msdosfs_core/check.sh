@@ -1,7 +1,7 @@
 #!/bin/sh
 # Gate for usr.sbin/msdosfs: the NetBSD msdosfs core, the makefs forks and
 # newfs_msdos's formatter imported under tools/netbsd-imports.manifest,
-# behind the DiscoBSD fixed buffer pool and front end, built for the host
+# behind the GizmoBSD fixed buffer pool and front end, built for the host
 # under the address and undefined-behavior sanitizers.
 #
 # fat_reader.py, written from the FAT specification and sharing no code
@@ -553,7 +553,7 @@ else
 	echo "msdosfs_core: formatter leak control skipped on $(uname -s)"
 fi
 
-# DiscoBSD lacks mmap(2): msdosfs_wfile without msdosfs_vnops.patch does
+# GizmoBSD lacks mmap(2): msdosfs_wfile without msdosfs_vnops.patch does
 # not compile for the target.
 if command -v arm-none-eabi-gcc >/dev/null 2>&1; then
 	copy_tree no-vnops-patch
@@ -569,7 +569,7 @@ if command -v arm-none-eabi-gcc >/dev/null 2>&1; then
 	    "$work/no-vnops-patch/usr.sbin/makefs/msdos/msdosfs_vnops.c" \
 	    >"$work/mman.log" 2>&1 || got=$?
 	[ "$got" -ne 0 ] && grep -q 'sys/mman.h' "$work/mman.log" ||
-	    { cat "$work/mman.log" >&2; fail "unpatched msdosfs_wfile compiled for DiscoBSD"; }
+	    { cat "$work/mman.log" >&2; fail "unpatched msdosfs_wfile compiled for GizmoBSD"; }
 	echo "msdosfs_core: msdosfs_wfile without its patch needs the absent <sys/mman.h>"
 else
 	echo "msdosfs_core: target mmap check not run: arm-none-eabi-gcc absent"

@@ -11,7 +11,7 @@
  * 4 KB banks above it are left alone, because the boot ROM copies boot2 into
  * the topmost one.
  *
- * DiscoBSD asks for at least 128 KB of flash and 128 KB of RAM, reserving 32
+ * GizmoBSD asks for at least 128 KB of flash and 128 KB of RAM, reserving 32
  * KB of RAM for the kernel and 96 KB for userland. The STM32F407XE target
  * ships 512 KB of flash and 160 KB of RAM across its regions. This board
  * carries 2 MB and 264 KB, so the kernel regions below are larger than the

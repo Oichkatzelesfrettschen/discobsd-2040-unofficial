@@ -37,7 +37,7 @@ def main():
     args = parser.parse_args()
     compilers = args.compilers or ["cc", "clang", "arm-none-eabi-gcc"]
     failures = []
-    with tempfile.TemporaryDirectory(prefix="discobsd-driver-callback-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-driver-callback-") as temporary:
         directory = Path(temporary)
         header = (ROOT / "sys/sys/config.h").read_text(encoding="utf-8")
         typed_slot = "(*d_init)(const struct conf_device *)"

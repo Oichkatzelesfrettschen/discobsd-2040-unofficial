@@ -221,7 +221,7 @@ test_swap_extent(void)
 
 /*
  * The layout flash_limit_init() applies. Without the magic the whole chip and
- * the full swap region stay writable and DiscoBSD's own second stage runs;
+ * the full swap region stay writable and GizmoBSD's own second stage runs;
  * with the magic, fl1 (which carries swap whenever no PSRAM probes) ends at
  * the writable end, and the loader's second stage is restored after a bad
  * limit as after a good one.

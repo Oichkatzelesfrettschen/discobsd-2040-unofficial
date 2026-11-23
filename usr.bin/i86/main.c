@@ -245,7 +245,7 @@ host_sleep(unsigned ms)
 	usleep(ms * 1000UL);
 }
 
-/* Microseconds, wrapping; the DiscoBSD kernel resolves a millisecond. */
+/* Microseconds, wrapping; the GizmoBSD kernel resolves a millisecond. */
 unsigned long
 host_us(void)
 {

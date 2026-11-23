@@ -150,7 +150,7 @@ def main():
         print("ERROR loadav-precision: no host C compiler (cc or clang)")
         return 2
     body = extract()
-    with tempfile.TemporaryDirectory(prefix="discobsd-loadav-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-loadav-") as temporary:
         directory = Path(temporary)
         for compiler in compilers:
             for nproc in (16, 25):

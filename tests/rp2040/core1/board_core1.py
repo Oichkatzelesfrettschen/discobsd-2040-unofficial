@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Board test for core 1 as the kernel's observer (sys/arch/rp2040/doc/CORE1.md).
 
-usage: DISCOBSD_BOARD_CORE1=run PYTHON board_core1.py unix.elf [unix.uf2,flash.uf2]
-The script touches the board only when DISCOBSD_BOARD_CORE1 is exactly "run";
+usage: GIZMOBSD_BOARD_CORE1=run PYTHON board_core1.py unix.elf [unix.uf2,flash.uf2]
+The script touches the board only when GIZMOBSD_BOARD_CORE1 is exactly "run";
 unset, empty and every other value exit without opening a port or calling
-discobsd-flash. With the variable set it flashes the named images with
-discobsd-flash when given, then logs in as operator on the USB console,
+gizmobsd-flash. With the variable set it flashes the named images with
+gizmobsd-flash when given, then logs in as operator on the USB console,
 becomes root and checks, against the symbol addresses of unix.elf:
 
   - core 1 is running ten seconds after boot with no restart, stall or fault;
@@ -28,9 +28,12 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_CORE1"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_CORE1"
 OPT_IN_VALUE = "run"
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 
 ESC = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 VALUE = re.compile(r"^machdep\.(\w+)=(-?\d+)\s*$", re.MULTILINE)
@@ -133,6 +136,9 @@ def inside(address, span):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print(f"board_core1: closed; set {OPT_IN_VARIABLE}={OPT_IN_VALUE} to run")
         return 0
@@ -143,7 +149,7 @@ def main():
 
     spans = symbol_ranges(sys.argv[1])
     if len(sys.argv) == 3:
-        subprocess.run(["discobsd-flash", *sys.argv[2].split(",")], check=True)
+        subprocess.run(["gizmobsd-flash", *sys.argv[2].split(",")], check=True)
         time.sleep(8)
     reopen()
     root_shell()

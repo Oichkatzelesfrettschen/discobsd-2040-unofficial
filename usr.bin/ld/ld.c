@@ -1,5 +1,5 @@
 /*
- * Linker for DiscoBSD ARM Thumb objects.
+ * Linker for GizmoBSD ARM Thumb objects.
  *
  * Copyright (C) 2011 Serge Vakulenko, <serge@vak.ru>
  *

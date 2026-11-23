@@ -226,7 +226,7 @@ def record_command(root, records, arguments, stdout_file=None):
         "tool": file_record(Path(tool), root), "sources": [],
         "source": None, "inputs": [], "dependencies": [], "outputs": [],
         "exit_code": None, "capture_error": None, "linked_archives": [],
-        "execution_invocation": os.environ.get("_DISCOBSD_EXECUTION_OWNERSHIP_INVOCATION"),
+        "execution_invocation": os.environ.get("_GIZMOBSD_EXECUTION_OWNERSHIP_INVOCATION"),
         "source_snapshot_sha256": (digest(Path(os.environ["C17_SOURCE_SNAPSHOT"]))
                                    if os.environ.get("C17_SOURCE_SNAPSHOT") else None),
     }

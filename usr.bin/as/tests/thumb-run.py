@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute a DiscoBSD a.out Thumb executable under Unicorn.
+"""Execute a GizmoBSD a.out Thumb executable under Unicorn.
 
 The kernel hands _start its arguments in r0 to r2 over a stack laid out as
 lib/startup-arm/crt0.c documents. A syscall is an SVC whose immediate is the

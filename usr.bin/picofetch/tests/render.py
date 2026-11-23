@@ -239,7 +239,7 @@ def test_fetch_plain(fetch):
     text = out.decode().splitlines()
     want = [
         "root@pico",
-        "OS       DiscoBSD 2.7 arm",
+        "OS       GizmoBSD 0.1.0-alpha arm",
         "Kernel   PICOCALC_LEAN#812",
         "Board    ClockworkPi PicoCalc",
         "Uptime   1d 02:03:06",

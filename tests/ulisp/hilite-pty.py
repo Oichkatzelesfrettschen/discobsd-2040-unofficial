@@ -149,9 +149,15 @@ def session(binary, doc, keys, term="xterm", args=(), cols=80, gap=0.04):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, cols, 0, 0))
     out = b""
 
-    def drain(seconds):
+    def drain(seconds, quiet=None, until=None):
+        """Reads for seconds; with quiet, until the output has paused that
+        long (and until, when given, has appeared), seconds being the bound.
+        A loaded host starts and repaints late, so the first and the last
+        read wait for the interpreter instead of for a fixed time."""
         nonlocal out
-        end = time.time() + seconds
+        now = time.time()
+        end = now + seconds
+        last = now
         while time.time() < end:
             ready, _, _ = select.select([fd], [], [], 0.02)
             if ready:
@@ -162,12 +168,16 @@ def session(binary, doc, keys, term="xterm", args=(), cols=80, gap=0.04):
                 if not chunk:
                     return
                 out += chunk
+                last = time.time()
+            elif quiet is not None and time.time() - last >= quiet:
+                if until is None or until in out:
+                    return
 
-    drain(0.4)
+    drain(20.0, quiet=0.4, until=b"> ")
     for key in keys:
         os.write(fd, key)
         drain(gap)
-    drain(0.3)
+    drain(20.0, quiet=0.5)
     os.kill(pid, 9)
     os.waitpid(pid, 0)
     return out

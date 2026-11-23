@@ -1,4 +1,4 @@
-# DiscoBSD/rp2040 - 2.11BSD-based OS for the Raspberry Pi Pico
+# GizmoBSD/rp2040 - 2.11BSD-based OS for the Raspberry Pi Pico
 
 ## Supported hardware
 
@@ -48,7 +48,7 @@ Hold BOOTSEL while plugging the board in; it enumerates as `RPI-RP2`. Then:
     picotool load distrib/rp2040/flash.uf2
     picotool load sys/arch/rp2040/compile/PICO/unix.uf2
     picotool reboot
-    sh distrib/rp2040/host/discobsd-connect
+    sh distrib/rp2040/host/gizmobsd-connect
 
 Each `load` programs only the sectors its file covers, so the two do not
 disturb each other; the ROM's mass-storage loader accepts the same files by
@@ -59,10 +59,10 @@ as `none`, which is expected: the kernel omits the SDK metadata block.
 
 The console is the same USB cable. After `picotool reboot` the board
 re-enumerates as a CDC-ACM device, vendor 2e8a product 000a, and Linux
-provides a `/dev/serial/by-id/*DiscoBSD*` identity. Resolve that identity
+provides a `/dev/serial/by-id/*GizmoBSD*` identity. Resolve that identity
 instead of assuming a ttyACM number:
 
-    sh distrib/rp2040/host/discobsd-connect
+    sh distrib/rp2040/host/gizmobsd-connect
 
 The kernel keeps the last 8 KiB of output until a terminal opens the port,
 so the boot messages are there to read. Holding BOOTSEL through a reset

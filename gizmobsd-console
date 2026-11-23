@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Run the DiscoBSD console tools from this checkout without installing
+# Run the GizmoBSD console tools from this checkout without installing
 # them: gizmobsd-console up | down | status, and the same for gizmobsd-term,
 # gizmobsd-web and gizmobsd-link when this script is invoked under one of
 # those names (a symlink or a hard link). The package lives at

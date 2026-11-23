@@ -1,5 +1,5 @@
 @echo off
-rem Run the DiscoBSD console tools from this checkout on Windows without
+rem Run the GizmoBSD console tools from this checkout on Windows without
 rem installing them: gizmobsd-console up | down | status. The package
 rem lives at distrib\rp2040\host\src; the only dependency is pyserial
 rem (python -m pip install --user pyserial). Set PYTHON to pick an

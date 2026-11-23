@@ -616,10 +616,11 @@ collector and the printer's escape check already bound.
 | plus the REPL round, with the recovery below | 58,468 | 58,434 | 956 | 14,045 cells |
 | after merging the ADC and PWM interface (`analogwrite`, `analogread` on the device) | 58,976 | 58,942 | 956 | 13,981 cells |
 | plus `fmodx` in place of the library's `fmodf` | 58,444 | 58,410 | 956 | 14,048 cells |
+| plus the 1-bit glyph window (#914) and the shared libc changes to 2026-11-22 | | | | 13,915 cells (hosted run 45104357696, GCC 13.2.1); 13,950 (GCC 16.2.0) |
 
 The workspace is the first prompt of the linked a.out under `qemu-arm` with an
 empty environment, the same measure as the first row, now a gate
-(`ULISP_FLOOR` in `tests/ulisp/Makefile`, 14,000). A cell is 8 bytes, so a byte
+(`ULISP_FLOOR` in `tests/ulisp/Makefile`, 13,900). A cell is 8 bytes, so a byte
 of program costs an eighth of a cell.
 
 The merge of `origin/main` took the workspace from 14,001 to 13,796 cells
@@ -635,16 +636,18 @@ The merge of `origin/main` took the workspace from 14,001 to 13,796 cells
 | the argument counts of the builtin table in their own array (3 bytes of padding in each of 232 entries) | -788 |
 | `fmodx` in place of `fmodf`, after the ADC and PWM merge | -524 |
 
-The floor holds with 48 cells (about 380 bytes) of margin, not the 100 cells
-asked for. Candidates measured and not taken: the I/O buffers (5 of 96 bytes;
+The 14,000-cell floor held with 48 cells (about 380 bytes) of margin at that
+point, not the 100 cells asked for; the last table row is 85 cells under it. Candidates measured and not taken: the I/O buffers (5 of 96 bytes;
 64 bytes would save 20 cells and halve the editor's line), `sinh`, `exp` and `atan`
 members of the shared `libm`, which a float library would replace.
 
 ## Open decisions
 
-- Whether the workspace floor of 14,000 cells stays, with 48 cells of margin
-  (the 100 cells asked for need about 420 more bytes), or
-  moves to 13,900. The gate takes `ULISP_FLOOR`, so the decision is one number.
+- The workspace floor moved from 14,000 to 13,900 cells on 2026-11-23, the
+  alternative this list named: the glyph window and later libc changes left
+  13,915 cells, 85 under the old floor. Whether to recover those bytes and
+  restore 14,000 stays open; the gate takes `ULISP_FLOOR`, so the decision is
+  one number.
 - The `directory` stream (1,040 bytes) now lives on the C stack for the
   length of a listing, from the 3,072 bytes of stack margin that stay above
   `STACK_MARGIN`'s check; no qemu corpus executes `directory` (the loader

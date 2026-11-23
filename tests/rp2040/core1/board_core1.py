@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Board test for core 1 as the kernel's observer (sys/arch/rp2040/doc/CORE1.md).
 
-usage: DISCOBSD_BOARD_CORE1=run PYTHON board_core1.py unix.elf [unix.uf2,flash.uf2]
-The script touches the board only when DISCOBSD_BOARD_CORE1 is exactly "run";
+usage: GIZMOBSD_BOARD_CORE1=run PYTHON board_core1.py unix.elf [unix.uf2,flash.uf2]
+The script touches the board only when GIZMOBSD_BOARD_CORE1 is exactly "run";
 unset, empty and every other value exit without opening a port or calling
 gizmobsd-flash. With the variable set it flashes the named images with
 gizmobsd-flash when given, then logs in as operator on the USB console,
@@ -28,7 +28,10 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_CORE1"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_CORE1"
 OPT_IN_VALUE = "run"
 PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 
@@ -133,6 +136,9 @@ def inside(address, span):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print(f"board_core1: closed; set {OPT_IN_VARIABLE}={OPT_IN_VALUE} to run")
         return 0

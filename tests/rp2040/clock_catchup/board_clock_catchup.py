@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Board check of the tick catch-up across masked flash operations.
 
-usage: DISCOBSD_BOARD_CLOCK_CATCHUP=run PYTHON board_clock_catchup.py [unix.uf2,flash.uf2]
+usage: GIZMOBSD_BOARD_CLOCK_CATCHUP=run PYTHON board_clock_catchup.py [unix.uf2,flash.uf2]
 
-The script touches the board only when DISCOBSD_BOARD_CLOCK_CATCHUP is exactly
+The script touches the board only when GIZMOBSD_BOARD_CLOCK_CATCHUP is exactly
 "run"; unset, empty and every other value exit without opening a port or
 calling gizmobsd-flash. With the variable set it flashes the named images with
 gizmobsd-flash when given and otherwise leaves the board running, then logs in
@@ -66,7 +66,10 @@ import time
 
 ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
 PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_CLOCK_CATCHUP"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_CLOCK_CATCHUP"
 OPT_IN_VALUE = "run"
 
 # asctime() in lib/libc/gen/asctime.c formats the day with "%3d", so a single
@@ -455,6 +458,9 @@ def check_workload(text, passes=PASSES):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

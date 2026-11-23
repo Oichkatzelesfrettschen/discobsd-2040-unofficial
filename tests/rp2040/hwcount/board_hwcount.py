@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Board test for the XIP cache and bus fabric counters under machdep.
 
-usage: DISCOBSD_BOARD_HWCOUNT=run PYTHON board_hwcount.py [unix.uf2,flash.uf2]
-The script touches the board only when DISCOBSD_BOARD_HWCOUNT is exactly
+usage: GIZMOBSD_BOARD_HWCOUNT=run PYTHON board_hwcount.py [unix.uf2,flash.uf2]
+The script touches the board only when GIZMOBSD_BOARD_HWCOUNT is exactly
 "run"; unset, empty and every other value exit without opening a port or
 calling gizmobsd-flash. With the variable set it flashes the named images
 with gizmobsd-flash when given, logs in as operator on the USB console,
@@ -34,7 +34,10 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_HWCOUNT"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_HWCOUNT"
 OPT_IN_VALUE = "run"
 PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 SRAM0_CONTESTED = 14
@@ -150,6 +153,9 @@ def put(name, value, budget=30):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print(f"board_hwcount: closed; set {OPT_IN_VARIABLE}={OPT_IN_VALUE} to run")
         return 0

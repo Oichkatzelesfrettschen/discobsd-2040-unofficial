@@ -260,7 +260,7 @@ Not established by any of them, nor by the board run:
   `machdep.core1_stalls` answers that for any workload run on a board.
 - Anything on a PicoCalc.
 
-`tests/rp2040/core1/board_core1.py` is that procedure as a script; it opens a port only when `DISCOBSD_BOARD_CORE1` is exactly `run`. Its steps,
+`tests/rp2040/core1/board_core1.py` is that procedure as a script; it opens a port only when `GIZMOBSD_BOARD_CORE1` is exactly `run`. Its steps,
 for a kernel or board that has not run it: boot a kernel with
 the option and confirm `machdep.core1` reads 1 and `machdep.core1_restarts`
 0 after ten seconds; run a swap-heavy workload and confirm

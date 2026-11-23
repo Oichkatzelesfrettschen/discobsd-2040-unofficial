@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Board check: unmount a read-write SD filesystem after the card was pulled.
 
-usage: DISCOBSD_BOARD_SD_DETACH=run PYTHON board_sd_detach.py
+usage: GIZMOBSD_BOARD_SD_DETACH=run PYTHON board_sd_detach.py
 
-The script touches the board only when DISCOBSD_BOARD_SD_DETACH is exactly
+The script touches the board only when GIZMOBSD_BOARD_SD_DETACH is exactly
 "run"; unset, empty and every other value exit without opening a port. It
 flashes nothing: the PicoCalc must already run a kernel with DIOCMEDIAGONE
 (sys/sys/disk.h) and an image whose card carries a UFS partition 1 (sd0a)
@@ -33,7 +33,10 @@ import time
 
 ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
 PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_SD_DETACH"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_SD_DETACH"
 OPT_IN_VALUE = "run"
 
 
@@ -84,6 +87,9 @@ def status(console, command, label):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

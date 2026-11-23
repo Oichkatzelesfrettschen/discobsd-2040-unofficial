@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Board test for a.out admission.
 
-usage: DISCOBSD_BOARD_AOUT_ADMISSION=run PYTHON board_aout_admission.py [unix.uf2,flash.uf2]
-The script touches the board only when DISCOBSD_BOARD_AOUT_ADMISSION is
+usage: GIZMOBSD_BOARD_AOUT_ADMISSION=run PYTHON board_aout_admission.py [unix.uf2,flash.uf2]
+The script touches the board only when GIZMOBSD_BOARD_AOUT_ADMISSION is
 exactly "run"; unset, empty and every other value exit without opening a port
 or calling gizmobsd-flash. With the variable set it flashes the named images
 with gizmobsd-flash when given and otherwise reboots the board through BOOTSEL
@@ -22,7 +22,10 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_AOUT_ADMISSION"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_AOUT_ADMISSION"
 OPT_IN_VALUE = "run"
 PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 
@@ -111,6 +114,9 @@ def put(name, blob):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

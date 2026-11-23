@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Board test for usr.sbin/v7fs: the tests/v7fs_core tool session on silicon.
 
-usage: DISCOBSD_BOARD_V7FS=run PYTHON board_v7fs.py ORACLE PATTERN_DIR OUT_DIR
+usage: GIZMOBSD_BOARD_V7FS=run PYTHON board_v7fs.py ORACLE PATTERN_DIR OUT_DIR
 
-The script touches the board only when DISCOBSD_BOARD_V7FS is exactly "run";
+The script touches the board only when GIZMOBSD_BOARD_V7FS is exactly "run";
 unset, empty and every other value exit without opening a port. It needs a
 board already running a root that carries /usr/sbin/v7fs (stage
 "file /usr/sbin/v7fs" in distrib/rp2040/mi.rp2040 for the image build and
@@ -30,7 +30,10 @@ from pathlib import Path
 
 import serial
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_V7FS"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_V7FS"
 OPT_IN_VALUE = "run"
 PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 ANSI = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]")
@@ -130,6 +133,9 @@ def download(con: Console, remote: str, local: Path) -> None:
 
 
 def main() -> int:
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print(f"board_v7fs: {OPT_IN_VARIABLE}={OPT_IN_VALUE} not set; board untouched")
         return 0

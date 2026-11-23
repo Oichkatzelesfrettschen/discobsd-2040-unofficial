@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host checks for the decision logic of two board scripts.
+"""Host checks for the decision logic of two board scripts and the opt-in names.
 
 board_clock_catchup.py and board_dcbc_smoke.py drive a board over its USB
 console. This file imports both without a serial module and exercises their
@@ -14,9 +14,12 @@ usage: PYTHON test_board_scripts.py
 import calendar
 import importlib.util
 import os
+import pathlib
 import random
 import re
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.dont_write_bytecode = True
@@ -687,6 +690,101 @@ class ReachShell(unittest.TestCase):
             clock.reach_shell(console, seconds=1, wait=0.05)
         self.assertNotIsInstance(caught.exception, clock.ClockUnsteady)
         self.assertIn("no shell", str(caught.exception))
+
+
+CORE1 = "GIZMOBSD_BOARD_CORE1"
+
+
+class OptInVariableTest(unittest.TestCase):
+    """GIZMOBSD_BOARD_* arms a driver; the retired DISCOBSD_BOARD_* spelling refuses."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, TESTS)
+        import board_opt_in
+
+        cls.helper = board_opt_in
+        cls.drivers = sorted(
+            os.path.join(TESTS, d, f)
+            for d in os.listdir(TESTS)
+            if os.path.isdir(os.path.join(TESTS, d))
+            for f in os.listdir(os.path.join(TESTS, d))
+            if f.startswith("board_")
+            and f.endswith(".py")
+            and "OPT_IN_VARIABLE" in pathlib.Path(TESTS, d, f).read_text()
+        )
+
+    @staticmethod
+    def environ(**extra):
+        env = {k: v for k, v in os.environ.items() if "BOARD_" not in k}
+        env.update(extra)
+        return env
+
+    def refuses(self, helper, variable, env):
+        saved = dict(os.environ)
+        os.environ.clear()
+        os.environ.update(env)
+        try:
+            import io
+
+            out = io.StringIO()
+            status = helper(variable, out)
+            return status == 2 and variable in out.getvalue()
+        finally:
+            os.environ.clear()
+            os.environ.update(saved)
+
+    def test_the_driver_inventory_is_not_empty(self):
+        self.assertGreaterEqual(len(self.drivers), 12)
+
+    def test_old_name_alone_is_refused_and_new_name_is_named(self):
+        env = self.environ(DISCOBSD_BOARD_CORE1="run")
+        self.assertTrue(
+            self.refuses(self.helper.retired_variable_status, "GIZMOBSD_BOARD_CORE1", env)
+        )
+
+    def test_new_name_arms_with_or_without_the_old_one(self):
+        for env in (
+            self.environ(GIZMOBSD_BOARD_CORE1="run"),
+            self.environ(GIZMOBSD_BOARD_CORE1="run", DISCOBSD_BOARD_CORE1="run"),
+            self.environ(),
+        ):
+            self.assertFalse(
+                self.refuses(self.helper.retired_variable_status, "GIZMOBSD_BOARD_CORE1", env)
+            )
+
+    def test_a_helper_that_ignores_the_old_name_fails_the_check(self):
+        env = self.environ(DISCOBSD_BOARD_CORE1="run")
+        self.assertFalse(self.refuses(lambda variable, stream: None, CORE1, env))
+
+    def test_every_driver_reads_a_gizmobsd_variable(self):
+        for path in self.drivers:
+            text = pathlib.Path(path).read_text()
+            self.assertRegex(text, r'OPT_IN_VARIABLE = "GIZMOBSD_BOARD_[A-Z0-9_]+"', path)
+            self.assertNotIn('"DISCOBSD_BOARD_', text, path)
+            self.assertIn("retired_variable_status(OPT_IN_VARIABLE)", text, path)
+
+    def test_every_driver_exits_2_on_the_old_name_alone(self):
+        # The refusal comes before any port is opened or flasher called; the
+        # stub serial module only lets a driver that imports pyserial load.
+        with tempfile.TemporaryDirectory() as stub:
+            with open(os.path.join(stub, "serial.py"), "w") as f:
+                f.write("class SerialException(Exception):\n    pass\n")
+            for path in self.drivers:
+                with open(path) as f:
+                    new = re.search(
+                        r'OPT_IN_VARIABLE = "GIZMOBSD_(BOARD_[A-Z0-9_]+)"', f.read()
+                    ).group(1)
+                env = self.environ(PYTHONPATH=stub, **{"DISCOBSD_" + new: "run"})
+                done = subprocess.run(
+                    [sys.executable, "-B", path],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertEqual(done.returncode, 2, path + done.stderr)
+                self.assertIn("GIZMOBSD_" + new + "=run", done.stderr, path)
 
 
 if __name__ == "__main__":

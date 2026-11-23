@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Board test for the fixed 192-KiB user window and fork's swap reservation.
 
-usage: DISCOBSD_BOARD_USER_WINDOW=run $PYTHON board_user_window.py \
+usage: GIZMOBSD_BOARD_USER_WINDOW=run $PYTHON board_user_window.py \
            [unix.uf2,flash.uf2] LOG
 
-The script touches the board only when DISCOBSD_BOARD_USER_WINDOW is exactly
+The script touches the board only when GIZMOBSD_BOARD_USER_WINDOW is exactly
 "run"; unset, empty and every other value exit without opening a port or
 calling gizmobsd-flash. With the variable set it flashes the named images
 with gizmobsd-flash, records the boot console, logs in as operator, becomes
@@ -35,7 +35,10 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_USER_WINDOW"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_USER_WINDOW"
 OPT_IN_VALUE = "run"
 PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
@@ -209,6 +212,9 @@ def check(label, condition, results):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

@@ -133,8 +133,12 @@ def encode(major, minor, patch, stage):
 
 
 def decode(value):
-    return (value // MAJOR_WEIGHT, (value // MINOR_WEIGHT) % 100,
-            (value % MINOR_WEIGHT) // PATCH_WEIGHT, value % 10)
+    return (
+        value // MAJOR_WEIGHT,
+        (value // MINOR_WEIGHT) % 100,
+        (value % MINOR_WEIGHT) // PATCH_WEIGHT,
+        value % 10,
+    )
 
 
 def fields(osr, rank):
@@ -152,8 +156,13 @@ def source_with(root, osr, rank, where):
     """Copy newvers.sh into where with OSR and OSRANK replaced; return its path."""
     text = open(os.path.join(root, "sys", "conf", "newvers.sh"), encoding="utf-8").read()
     for name, value in (("OSR", osr), ("OSRANK", rank)):
-        text, count = re.subn(rf'^{name}=".*"$', lambda _m, n=name, v=value: f'{n}="{v}"',
-                              text, count=1, flags=re.MULTILINE)
+        text, count = re.subn(
+            rf'^{name}=".*"$',
+            lambda _m, n=name, v=value: f'{n}="{v}"',
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
         if count != 1:
             raise RuntimeError(f"newvers.sh has no {name}= line to replace")
     path = os.path.join(where, "sys", "conf", "newvers.sh")
@@ -165,17 +174,21 @@ def source_with(root, osr, rank, where):
 
 def generate(script, workdir):
     """Run the copied script in a directory with no repository."""
-    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "SOURCE_DATE_EPOCH": "0",
-           "LC_ALL": "C"}
-    return subprocess.run(["sh", script], cwd=workdir, env=env, capture_output=True,
-                          text=True, check=False)
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "SOURCE_DATE_EPOCH": "0", "LC_ALL": "C"}
+    return subprocess.run(
+        ["sh", script], cwd=workdir, env=env, capture_output=True, text=True, check=False
+    )
 
 
 def compile_vers(vers_c, workdir):
     cc = os.environ.get("CC", "cc")
-    return subprocess.run([cc, "-std=gnu17", "-Wall", "-Wextra", "-Werror", "-c", vers_c,
-                           "-o", os.devnull], cwd=workdir, capture_output=True, text=True,
-                          check=False)
+    return subprocess.run(
+        [cc, "-std=gnu17", "-Wall", "-Wextra", "-Werror", "-c", vers_c, "-o", os.devnull],
+        cwd=workdir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 def packed_of(vers_text):
@@ -195,16 +208,18 @@ def check_good(root, scratch):
         os.makedirs(build)
         done = generate(script, build)
         if done.returncode != 0 or done.stderr:
-            defects.append(f"{osr!r} {rank!r}: the script failed or wrote to stderr: "
-                           f"{done.stderr!r}")
+            defects.append(
+                f"{osr!r} {rank!r}: the script failed or wrote to stderr: {done.stderr!r}"
+            )
             continue
         vers_c = os.path.join(build, "vers.c")
         with open(vers_c, "w", encoding="utf-8") as handle:
             handle.write(done.stdout)
         built = compile_vers(vers_c, build)
         if built.returncode != 0:
-            defects.append(f"{osr!r} {rank!r}: vers.c does not compile: "
-                           f"{built.stderr.strip()[:200]}")
+            defects.append(
+                f"{osr!r} {rank!r}: vers.c does not compile: {built.stderr.strip()[:200]}"
+            )
             continue
         want = fields(osr, rank)
         got = packed_of(done.stdout)
@@ -251,8 +266,9 @@ def check_rejected(root, scratch):
         elif done.stdout:
             defects.append(f"{osr!r} {rank!r}: rejected after writing {len(done.stdout)} bytes")
         elif "OSR" not in done.stderr:
-            defects.append(f"{osr!r} {rank!r}: rejected without naming OSR or OSRANK: "
-                           f"{done.stderr!r}")
+            defects.append(
+                f"{osr!r} {rank!r}: rejected without naming OSR or OSRANK: {done.stderr!r}"
+            )
         elif os.path.exists(os.path.join(build, ".compileversion")):
             defects.append(f"{osr!r} {rank!r}: rejected after touching .compileversion")
     return defects
@@ -283,8 +299,9 @@ def check_edits(root, scratch):
         if built.returncode == 0:
             defects.append(f"edit {replacement!r}: compiled")
         elif message not in built.stderr:
-            defects.append(f"edit {replacement!r}: failed without {message!r}: "
-                           f"{built.stderr.strip()[:160]}")
+            defects.append(
+                f"edit {replacement!r}: failed without {message!r}: {built.stderr.strip()[:160]}"
+            )
     return defects
 
 
@@ -301,8 +318,10 @@ def check_tree(root, scratch):
     os.makedirs(build)
     done = generate(script, build)
     if done.returncode != 0:
-        return [f"the tree's OSR {osr.group(1)!r} and OSRANK {rank.group(1)!r} are rejected: "
-                f"{done.stderr.strip()}"]
+        return [
+            f"the tree's OSR {osr.group(1)!r} and OSRANK {rank.group(1)!r} are rejected: "
+            f"{done.stderr.strip()}"
+        ]
     vers_c = os.path.join(build, "vers.c")
     with open(vers_c, "w", encoding="utf-8") as handle:
         handle.write(done.stdout)
@@ -326,41 +345,61 @@ def selftest(root):
     """Calibrate the verdict against the tree's script and mutants of it."""
     base = verdict(root)
     if base:
-        raise SystemExit("selftest: the script of the tree failed its own gate: "
-                         + "; ".join(text for _, text in base))
+        raise SystemExit(
+            "selftest: the script of the tree failed its own gate: "
+            + "; ".join(text for _, text in base)
+        )
     original = open(os.path.join(root, "sys", "conf", "newvers.sh"), encoding="utf-8").read()
     # Each mutant names the check that must catch it, so a mutant that fails for another
     # reason does not count.
     mutants = {
-        "stage weight dropped":
-            ("OSREV_PATCH * 10 + OSREV_STAGE", "OSREV_PATCH * 10", "check_good"),
-        "major limit lifted":
-            ('osrev_field major "$1" 20', 'osrev_field major "$1" 21', "check_rejected"),
-        "leading zeros allowed":
-            ('\t0?*) osrev_fail "OSR $1 \\"$2\\" has a leading zero" ;;\n', "",
-             "check_rejected"),
-        "release stage below its labels":
-            ("OSREV_STAGE=9\nelse", "OSREV_STAGE=0\nelse", "check_good"),
-        "label ignored against OSRANK":
-            ('"$OSREV_LABEL"=[1-8])', "*=[1-8])", "check_rejected"),
-        "minor weight shared with major":
-            ("OSREV_MINOR * 1000000", "OSREV_MINOR * 100000000", "check_good"),
-        "static assertion on the packed value renamed":
-            ('"OSREV packed value disagrees with its fields"', '"OSREV packed value is fine"',
-             "check_edits"),
+        "stage weight dropped": (
+            "OSREV_PATCH * 10 + OSREV_STAGE",
+            "OSREV_PATCH * 10",
+            "check_good",
+        ),
+        "major limit lifted": (
+            'osrev_field major "$1" 20',
+            'osrev_field major "$1" 21',
+            "check_rejected",
+        ),
+        "leading zeros allowed": (
+            '\t0?*) osrev_fail "OSR $1 \\"$2\\" has a leading zero" ;;\n',
+            "",
+            "check_rejected",
+        ),
+        "release stage below its labels": (
+            "OSREV_STAGE=9\nelse",
+            "OSREV_STAGE=0\nelse",
+            "check_good",
+        ),
+        "label ignored against OSRANK": ('"$OSREV_LABEL"=[1-8])', "*=[1-8])", "check_rejected"),
+        "minor weight shared with major": (
+            "OSREV_MINOR * 1000000",
+            "OSREV_MINOR * 100000000",
+            "check_good",
+        ),
+        "static assertion on the packed value renamed": (
+            '"OSREV packed value disagrees with its fields"',
+            '"OSREV packed value is fine"',
+            "check_edits",
+        ),
     }
     for name, (old, new, want) in mutants.items():
         if old not in original:
             raise SystemExit(f"selftest: the mutant {name!r} anchors on text the script lacks")
         with tempfile.TemporaryDirectory() as mutant_root:
             os.makedirs(os.path.join(mutant_root, "sys", "conf"))
-            with open(os.path.join(mutant_root, "sys", "conf", "newvers.sh"), "w",
-                      encoding="utf-8") as handle:
+            with open(
+                os.path.join(mutant_root, "sys", "conf", "newvers.sh"), "w", encoding="utf-8"
+            ) as handle:
                 handle.write(original.replace(old, new, 1))
             caught = {check for check, _ in verdict(mutant_root)}
             if want not in caught:
-                raise SystemExit(f"selftest: the mutant {name!r} was not caught by {want}; "
-                                 f"the checks that failed: {sorted(caught)}")
+                raise SystemExit(
+                    f"selftest: the mutant {name!r} was not caught by {want}; "
+                    f"the checks that failed: {sorted(caught)}"
+                )
     print(f"check-osrev-generator selftest: ok (the tree's script and {len(mutants)} mutants)")
 
 
@@ -378,8 +417,10 @@ def main():
         print(f"check-osrev-generator: {defect}", file=sys.stderr)
     if defects:
         return 1
-    print(f"check-osrev-generator: {len(GOOD)} good versions, a {len(CYCLE)}-step cycle, "
-          f"{len(REJECTED)} rejected sources and {len(EDITS)} edited vers.c files behave")
+    print(
+        f"check-osrev-generator: {len(GOOD)} good versions, a {len(CYCLE)}-step cycle, "
+        f"{len(REJECTED)} rejected sources and {len(EDITS)} edited vers.c files behave"
+    )
     return 0
 
 

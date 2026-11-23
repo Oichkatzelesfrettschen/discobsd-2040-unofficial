@@ -104,7 +104,7 @@ def main():
     body = source[start:finish]
     if body.count("bcopy(src, dst, nbytes);") != 3:
         raise SystemExit("FAIL aeabi-copy-qemu: copy entry boundary changed")
-    with tempfile.TemporaryDirectory(prefix="discobsd-aeabi-qemu-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-aeabi-qemu-") as temporary:
         directory = Path(temporary)
         startup = directory / "start.S"
         startup.write_text(START, encoding="utf-8")

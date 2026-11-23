@@ -23,14 +23,14 @@ TIMEOUT_EXIT = 124
 VARIANT_TIMEOUT_SECONDS = 600.0
 AGGREGATE_TIMEOUT_SECONDS = 3600.0
 TERMINATE_GRACE_SECONDS = 1.0
-CLEANUP_ALLOWANCE_ENV = "_DISCOBSD_TEST_EXECUTION_CLEANUP_ALLOWANCE_SECONDS"
+CLEANUP_ALLOWANCE_ENV = "_GIZMOBSD_TEST_EXECUTION_CLEANUP_ALLOWANCE_SECONDS"
 ROOT_CLEANUP_ALLOWANCE_SECONDS = 2.0 * TERMINATE_GRACE_SECONDS
 MINIMUM_CHILD_CLEANUP_SECONDS = 0.02
 REAP_RESERVE_SECONDS = 0.1
 SUPERVISOR_RESPONSE_SECONDS = 0.2
-TREE_OWNERSHIP_PATH_ENV = "_DISCOBSD_TEST_EXECUTION_TREE_OWNERSHIP_PATH"
+TREE_OWNERSHIP_PATH_ENV = "_GIZMOBSD_TEST_EXECUTION_TREE_OWNERSHIP_PATH"
 TREE_OWNERSHIP_INVOCATION_ENV = (
-    "_DISCOBSD_TEST_EXECUTION_TREE_OWNERSHIP_INVOCATION"
+    "_GIZMOBSD_TEST_EXECUTION_TREE_OWNERSHIP_INVOCATION"
 )
 
 
@@ -81,7 +81,7 @@ def prepare_execution_tree(child_environment):
     owns_registry = path_value is None
     if owns_registry:
         temporary_directory = tempfile.TemporaryDirectory(
-            prefix="discobsd-test-execution-tree-"
+            prefix="gizmobsd-test-execution-tree-"
         )
         path = Path(temporary_directory.name) / "ownership.json"
         invocation_id = f"test-execution-{os.getpid()}-{time.time_ns()}"

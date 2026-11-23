@@ -186,7 +186,7 @@ def main() -> int:
     oracle = shutil.which("sort")
     if oracle is None:
         raise SystemExit("a host sort command is required")
-    with tempfile.TemporaryDirectory(prefix="discobsd-sort-") as directory_name:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-sort-") as directory_name:
         temporary_directory = pathlib.Path(directory_name)
         executable = temporary_directory / "sort"
         compile_command = [

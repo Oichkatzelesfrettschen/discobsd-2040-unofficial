@@ -22,7 +22,7 @@ import run_logged_build_check as sequence  # noqa: E402
 class LoggedBuildCheckTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(
-            prefix="discobsd-logged-build-check-"
+            prefix="gizmobsd-logged-build-check-"
         )
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
@@ -163,7 +163,7 @@ class LoggedBuildCheckTest(unittest.TestCase):
             "stage = sys.argv[-1]\n"
             "if stage == 'check':\n"
             "    ownership = pathlib.Path(\n"
-            "        os.environ['_DISCOBSD_EXECUTION_OWNERSHIP_PATH']\n"
+            "        os.environ['_GIZMOBSD_EXECUTION_OWNERSHIP_PATH']\n"
             "    )\n"
             f"    observation = pathlib.Path({str(observation)!r})\n"
             "    record = json.loads(ownership.read_text(encoding='utf-8'))\n"

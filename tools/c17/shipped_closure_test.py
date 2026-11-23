@@ -57,7 +57,7 @@ class ShippedClosureTest(unittest.TestCase):
                         "--records", str(self.records), "--", *arguments],
                        cwd=self.root, check=True, capture_output=True,
                        env=dict(os.environ,
-                                _DISCOBSD_EXECUTION_OWNERSHIP_INVOCATION="fixture-capture"))
+                                _GIZMOBSD_EXECUTION_OWNERSHIP_INVOCATION="fixture-capture"))
 
     def check(self, *extra):
         return subprocess.run([

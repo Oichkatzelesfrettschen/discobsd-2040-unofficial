@@ -1,4 +1,4 @@
-# Prototype: run a DiscoBSD OMAGIC a.out under qemu-arm user mode.
+# Prototype: run a GizmoBSD OMAGIC a.out under qemu-arm user mode.
 #
 # aoutrun.c loads the a.out the tree links (lib/crt0.o, lib/libc.a, the
 # lib/elf32-arm.ld layout at 0x20000000, elf2aout) into the 192 KB user window,
@@ -65,7 +65,7 @@ check: aoutrun probe probe.sites seek.dat loop.lnk
 		echo "qemu a.out: probe exited $$status, expected 3" >&2; exit 1; \
 	fi
 	diff probe.expected probe.out
-	@# Linux errno values reach the program as the DiscoBSD numbers.
+	@# Linux errno values reach the program as the GizmoBSD numbers.
 	@status=0; ${RUN} errno > errno.out || status=$$?; \
 	if [ "$$status" -ne 6 ]; then \
 		echo "qemu a.out: errno probe exited $$status, expected 6" >&2; exit 1; \

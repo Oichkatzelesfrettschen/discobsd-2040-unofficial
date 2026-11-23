@@ -58,7 +58,7 @@ def inspect(packed, raw, tool, stage_bytes, linker_script=DEFAULT_LINKER_SCRIPT,
         raise ValueError("raw image is shorter than its text and data")
     if (raw_exec[1:4], raw_exec[7]) != (packed_exec[1:4], packed_exec[7]):
         raise ValueError("packed and raw image layouts differ")
-    with tempfile.TemporaryDirectory(prefix="discobsd-packed-geometry-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-packed-geometry-") as temporary:
         directory = Path(temporary)
         saved = directory / "packed"
         decoded = directory / "decoded"

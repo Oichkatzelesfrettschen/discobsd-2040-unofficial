@@ -15,7 +15,7 @@ import bsd211_patch_scope as mapper
 
 class PatchScopeTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-patch-scope-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-patch-scope-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.donor = self.root / "donor"

@@ -14,7 +14,7 @@ import check_generated_sync as sync
 
 class GeneratedSyncTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-config-fixture-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-config-fixture-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         sync.copy_inputs(sync.ROOT, self.root, expected=True)

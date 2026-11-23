@@ -28,7 +28,7 @@ STARTUP_BOUND_SECONDS = 2.0
 
 class ExecutionTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-execution-test-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-execution-test-")
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
         self.receipts = self.directory / "receipts"
@@ -1234,7 +1234,7 @@ class HarnessLaunchOwnershipTest(unittest.TestCase):
     )
 
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-harness-launch-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-harness-launch-")
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
         self.child = self.directory / "child.sh"

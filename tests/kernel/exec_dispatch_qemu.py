@@ -85,7 +85,7 @@ def main():
     print(f"exec-dispatch: kern_exec.c sha256={dispatch_hash} exec_conf.c sha256={table_hash}",
           flush=True)
     compilers = [(gcc,) for gcc in args.gcc] + [(args.clang, "--target=arm-none-eabi")]
-    with tempfile.TemporaryDirectory(prefix="discobsd-exec-dispatch-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-exec-dispatch-") as temporary:
         directory = Path(temporary)
         (directory / "machine").symlink_to(
             ROOT / "sys/arch/rp2040/include", target_is_directory=True

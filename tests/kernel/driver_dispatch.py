@@ -85,7 +85,7 @@ def main():
     args = parser.parse_args()
     compilers = args.compilers or ["cc", "clang"]
     failures = []
-    with tempfile.TemporaryDirectory(prefix="discobsd-driver-dispatch-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-driver-dispatch-") as temporary:
         directory = Path(temporary)
         for relative in SOURCES:
             body = source_body(ROOT / relative)

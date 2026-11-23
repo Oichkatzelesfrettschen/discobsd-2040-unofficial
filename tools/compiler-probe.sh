@@ -5,7 +5,7 @@ set -eu
 
 width=$1
 shift
-probe_directory=$(mktemp -d "${TMPDIR:-/tmp}/discobsd-compiler-probe.XXXXXX")
+probe_directory=$(mktemp -d "${TMPDIR:-/tmp}/gizmobsd-compiler-probe.XXXXXX")
 trap 'rm -rf "$probe_directory"' EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT

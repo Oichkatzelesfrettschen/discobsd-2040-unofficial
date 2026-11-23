@@ -176,7 +176,7 @@ def run(root, host_compiler):
     cases = []
     profile_states = {}
     active_profiles = []
-    with tempfile.TemporaryDirectory(prefix="discobsd-passwd-header-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-passwd-header-") as temporary:
         workspace = Path(temporary)
         probe = workspace / "width-probe.c"
         probe.write_text("int width_probe(void) { return 0; }\n")

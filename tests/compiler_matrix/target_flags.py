@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--clang", required=True)
     parser.add_argument("--readelf", default="arm-none-eabi-readelf")
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="discobsd-target-flags-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-target-flags-") as temporary:
         output = Path(temporary) / "probe.o"
         compilers = [(compiler,) for compiler in args.gcc]
         compilers.append((args.clang, "--target=arm-none-eabi"))

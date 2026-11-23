@@ -47,7 +47,7 @@ def main():
     body = source[start:end]
     if body.count("bcopy(src, dst, nbytes);") != 2:
         raise SystemExit("FAIL aeabi-memcpy4: copy dispatch changed")
-    with tempfile.TemporaryDirectory(prefix="discobsd-aeabi-copy-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-aeabi-copy-") as temporary:
         directory = Path(temporary)
         for compiler in ("cc", "clang"):
             for mutant in ("none", "generic", "aligned"):

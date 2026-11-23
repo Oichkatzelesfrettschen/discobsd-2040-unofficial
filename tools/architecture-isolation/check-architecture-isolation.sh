@@ -32,12 +32,12 @@ if [ ! -d "$temporary_parent" ]; then
 	exit 2
 fi
 temporary_parent=$(CDPATH= cd "$temporary_parent" && pwd -P)
-temporary_directory=$(mktemp -d "$temporary_parent/discobsd-architecture-isolation.XXXXXX")
+temporary_directory=$(mktemp -d "$temporary_parent/gizmobsd-architecture-isolation.XXXXXX")
 
 cleanup_temporary_directory()
 {
 	case $temporary_directory in
-	"$temporary_parent"/discobsd-architecture-isolation.*)
+	"$temporary_parent"/gizmobsd-architecture-isolation.*)
 		find "$temporary_directory" -depth \
 		    \( -type f -o -type l \) -exec unlink {} \; 2>/dev/null || :
 		find "$temporary_directory" -depth -type d \
@@ -295,7 +295,7 @@ expect_make_rejection "private active-target override" \
     _ARCHITECTURE_ACTIVE_TARGETS=build
 expect_make_rejection "private registry namespace override" \
     "private architecture registry variables cannot be overridden" \
-    _DISCOBSD_MUTATION=yes
+    _GIZMOBSD_MUTATION=yes
 expect_make_rejection "supported-machine override" \
     "derived architecture registry variables cannot be overridden" \
     "SUPPORTED_MACHINES=rp2040 stm32 pic32"

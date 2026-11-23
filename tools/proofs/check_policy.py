@@ -46,7 +46,7 @@ def main():
     text = source.read_text()
     if text.count("classical && pq") != 1:
         raise SystemExit("mutation anchor changed")
-    with tempfile.TemporaryDirectory(prefix="discobsd-proof-") as folder:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-proof-") as folder:
         mutant = Path(folder) / "Mutant.lean"
         mutant.write_text(text.replace("classical && pq", "classical || pq"))
         result = subprocess.run(

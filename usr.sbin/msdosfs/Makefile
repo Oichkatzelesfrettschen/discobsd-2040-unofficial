@@ -3,7 +3,7 @@ include ${TOPSRC}/share/mk/sys.mk
 
 # msdosfs(8): the NetBSD msdosfs core, the makefs forks that create files
 # and directories, and newfs_msdos's formatter, imported under
-# tools/netbsd-imports.manifest, behind a DiscoBSD fixed-pool buffer layer
+# tools/netbsd-imports.manifest, behind a GizmoBSD fixed-pool buffer layer
 # and command front end. The program installs to /usr/sbin and stays out of
 # distrib/base/mi and distrib/rp2040/mi.rp2040, so neither image carries it.
 
@@ -29,20 +29,20 @@ OBJS=		${LOCAL_SRCS:.c=.o} ${NETBSD_SRCS:.c=.o}
 MSDOSFS_DEFS=	-DMAKEFS -DMSDOS_EI -DHAVE_NBTOOL_CONFIG_H=1 \
 		-include ${.CURDIR}/netbsd_compat.h -I${.CURDIR}/compat \
 		-I${TOPSRC}/usr.sbin/makefs -I${NEWFS}
-# DiscoBSD's libc has no <dirent.h>; see the header.
-DISCOBSD_DEFS=	-I${.CURDIR}/compat/discobsd
+# GizmoBSD's libc has no <dirent.h>; see the header.
+GIZMOBSD_DEFS=	-I${.CURDIR}/compat/discobsd
 
 # The imported files keep NetBSD's dialect: unused parameters in the
-# portable forks and the formatter, a SIGINFO handler DiscoBSD never
+# portable forks and the formatter, a SIGINFO handler GizmoBSD never
 # installs, the "." and ".." templates in msdosfs_vnops.c, whose 8-byte
 # names are not NUL-terminated strings, and msdosfs_wfile's file-size limit
-# test, which a 32-bit off_t (DiscoBSD's) can never fail, and
+# test, which a 32-bit off_t (GizmoBSD's) can never fail, and
 # mkfs_msdos.c's comparisons of that signed off_t with unsigned sector
 # counts, which a 64-bit off_t widens away.
 NETBSD_FLAGS=	-Wno-unused-parameter -Wno-unused-function \
 		-Wno-unterminated-string-initialization -Wno-type-limits \
 		-Wno-sign-compare
-# The DiscoBSD files are strict C17. They see the imported headers as
+# The GizmoBSD files are strict C17. They see the imported headers as
 # system headers, so -Wpedantic judges this directory's code and leaves the
 # verbatim NetBSD declarations as NetBSD wrote them.
 LOCAL_FLAGS=	-std=c17 -Wpedantic -isystem ${.CURDIR}/compat \
@@ -67,12 +67,12 @@ netbsd-imports.verified: ${IMPORT_MANIFEST} ${IMPORT_PATCHES} ${IMPORT_FILES}
 
 .for src in ${NETBSD_SRCS}
 ${src:.c=.o}:	${src} netbsd-imports.verified
-		${CC} ${CFLAGS} ${MSDOSFS_DEFS} ${DISCOBSD_DEFS} ${NETBSD_FLAGS} \
+		${CC} ${CFLAGS} ${MSDOSFS_DEFS} ${GIZMOBSD_DEFS} ${NETBSD_FLAGS} \
 		    -c -o ${.TARGET} ${.ALLSRC:M*.c}
 .endfor
 .for src in ${LOCAL_SRCS}
 ${src:.c=.o}:	${src}
-		${CC} ${CFLAGS} ${MSDOSFS_DEFS} ${DISCOBSD_DEFS} ${LOCAL_FLAGS} \
+		${CC} ${CFLAGS} ${MSDOSFS_DEFS} ${GIZMOBSD_DEFS} ${LOCAL_FLAGS} \
 		    -c -o ${.TARGET} ${.ALLSRC:M*.c}
 .endfor
 

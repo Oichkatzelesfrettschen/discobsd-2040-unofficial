@@ -25,7 +25,7 @@ def main():
     parser.add_argument("--tool", required=True, type=Path)
     args = parser.parse_args()
     tool = args.tool.resolve(strict=True)
-    with tempfile.TemporaryDirectory(prefix="discobsd-packed-geometry-test-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-packed-geometry-test-") as temporary:
         directory = Path(temporary)
         raw, packed = directory / "raw", directory / "packed"
         text = bytes((index * 7) & 255 for index in range(1024))

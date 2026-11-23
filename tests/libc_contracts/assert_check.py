@@ -18,7 +18,7 @@ def require(condition, message):
         raise SystemExit(f"assert contract: FAIL: {message}")
 
 
-with tempfile.TemporaryDirectory(prefix="discobsd-assert-") as directory:
+with tempfile.TemporaryDirectory(prefix="gizmobsd-assert-") as directory:
     temporary = Path(directory)
     for name in ("assert_contract_test", "assert_reinclude_test"):
         binary = temporary / name

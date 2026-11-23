@@ -262,7 +262,7 @@ def main():
     if not compilers:
         print("ERROR bcopy-overlap: no host C compiler (cc or clang)")
         return 2
-    with tempfile.TemporaryDirectory(prefix="discobsd-bcopy-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-bcopy-") as temporary:
         directory = Path(temporary)
         for path in SOURCES:
             original = extract(path)

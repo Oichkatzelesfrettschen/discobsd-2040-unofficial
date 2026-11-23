@@ -868,7 +868,7 @@ def main():
             True,
         ),
     ]
-    with tempfile.TemporaryDirectory(prefix="discobsd-correctness-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-correctness-") as tmp:
         base = Path(tmp)
         ilp32 = ilp32_supported(base)
         for label, suite, changes, negative in cases:

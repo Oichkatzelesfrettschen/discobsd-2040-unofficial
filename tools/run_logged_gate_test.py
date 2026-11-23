@@ -54,7 +54,7 @@ GROUP_MARKER_WRITE = (
 
 class LoggedGateTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-logged-gate-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-logged-gate-")
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)
         self.log = self.directory / "gate.log"

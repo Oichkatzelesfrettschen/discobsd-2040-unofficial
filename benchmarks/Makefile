@@ -1,5 +1,5 @@
 #
-# Standard CPU benchmarks ported to DiscoBSD. Each subdirectory is a
+# Standard CPU benchmarks ported to GizmoBSD. Each subdirectory is a
 # self-contained PROG that builds and installs like any userland binary;
 # see sys/arch/rp2040/doc/research/benchmarks.md for what each measures.
 #

@@ -169,7 +169,7 @@ check-sus-discovery: check-python
 		${PYTHON} tools/check_sus_utility_ledger.py --root ${TOPSRC} --self-test
 
 # The source-bound corpus keeps Issue 7 and Issue 8 entity membership separate
-# from DiscoBSD applicability and evidence. Its negative controls reject count,
+# from GizmoBSD applicability and evidence. Its negative controls reject count,
 # hash, ordering, mapping and selected-image ownership drift.
 check-sus-requirement-corpus: check-python
 		${PYTHON} tools/check_sus_requirement_corpus.py --root ${TOPSRC} --self-test
@@ -2652,7 +2652,7 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 # line interface, the dc evaluator, the libc strtol/strtoul, random and
 # printf contracts and the tree formatter's float conversions and math
 # library returns executed as Thumb-1 programs rather than only linked, and
-# a DiscoBSD a.out run through tests/qemu_aout's syscall loader with the
+# a GizmoBSD a.out run through tests/qemu_aout's syscall loader with the
 # tree's libc, crt0 and boot ROM float glue.
 # tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
 # contracts run on faults on Thumb-2 and unaligned accesses.

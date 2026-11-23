@@ -34,7 +34,7 @@ LDSCRIPT = "RP2040.ld"
 DEBUG = -g
 CONFIG_CKSUM = 2120593209 7014
 #
-# Makefile for DiscoBSD/rp2040
+# Makefile for GizmoBSD/rp2040
 #
 # DEBUG is set to -g by config if debugging is requested (config -g).
 #
@@ -71,7 +71,7 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Wextra -Werror -Wshadow -Wundef -Wformat=2
 
-# DiscoBSD predates C23, where an empty parameter list means (void) rather
+# GizmoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
 # indirect syscall dispatch in sysctl.c, which reproduces on the untouched
 # STM32 tree too. Pin the standard the sources were written against.

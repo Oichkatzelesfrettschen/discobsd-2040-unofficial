@@ -118,7 +118,7 @@ def main():
         compiler = ["arm-none-eabi-gcc"]
         target = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft", "-Os"]
         version = ["arm-none-eabi-gcc", "--version"]
-    with tempfile.TemporaryDirectory(prefix="discobsd-arm-") as folder:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-arm-") as folder:
         build = Path(folder)
         (build / "machine").mkdir()
         shutil.copy(root / "sys/arch/rp2040/include/hsx_decoder.h", build / "machine/hsx_decoder.h")

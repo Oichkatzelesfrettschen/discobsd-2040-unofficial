@@ -2,7 +2,7 @@ image: sklearn sample china.jpg resized to 320x214; metric = PSNR dB of the 5x5-
 palette (16)           | dither      | blur PSNR |  raw PSNR
 console RGBI (st7365p) | none        |     21.40 |     17.52
 console RGBI (st7365p) | Bayer 4x4 s=64 |     24.63 |     16.28
-console RGBI (st7365p) | Floyd-Steinberg |     34.99 |     14.58
+console RGBI (st7365p) | Floyd-Steinberg |     34.90 |     14.58
 uniform 2x2x4 grid     | none        |     16.00 |     13.40
 uniform 2x2x4 grid     | Bayer 4x4 s=64 |     17.09 |     13.03
 uniform 2x2x4 grid     | Floyd-Steinberg |     31.51 |      9.99

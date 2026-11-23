@@ -150,7 +150,7 @@ GOOD: Table = (
     (206, 130, 66),
     (181, 251, 156),
     (247, 195, 16),
-    (115, 134, 255),
+    (115, 138, 239),
     (189, 154, 198),
     (132, 211, 255),
     (255, 255, 255),
@@ -636,7 +636,7 @@ def selftest() -> list[str]:
         "bold white lift is lightness, not luminance", {"CP010"}, with_entries(e7=(239, 251, 74))
     )
     expect(
-        "bold white darker than default text", {"CP008", "CP010"}, with_entries(e15=(132, 130, 132))
+        "bold white darker than default text", {"CP008", "CP010"}, with_entries(e15=(231, 48, 148))
     )
     expect("entry 1 just under 5:1", {"CP006"}, with_entries(e1=(222, 73, 41)))
     expect("low contrast", {"CP006"}, with_entries(e1=(198, 89, 16)))

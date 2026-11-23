@@ -54,7 +54,7 @@ FLAGS = ("-std=gnu17", "-Wall", "-Wextra", "-Werror", "-Wshadow", "-Wundef", "-W
 
 def main():
     failures = []
-    with tempfile.TemporaryDirectory(prefix="discobsd-ucall-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-ucall-") as temporary:
         directory = Path(temporary)
         for relative in SOURCES:
             source = (ROOT / relative).read_text(encoding="utf-8")

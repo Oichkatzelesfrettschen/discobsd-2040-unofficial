@@ -102,7 +102,7 @@ check-release-policy: check-python
 		cd tools/proofs && ${LAKE} env ${PYTHON} check_policy.py --lean "${LEAN}"
 
 check-hybrid-release: check-python
-		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
+		cd distrib/rp2040/host && GIZMOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
 
 check-python:
 		@if [ -z "${PYTHON}" ]; then \
@@ -169,7 +169,7 @@ check-sus-discovery: check-python
 		${PYTHON} tools/check_sus_utility_ledger.py --root ${TOPSRC} --self-test
 
 # The source-bound corpus keeps Issue 7 and Issue 8 entity membership separate
-# from DiscoBSD applicability and evidence. Its negative controls reject count,
+# from GizmoBSD applicability and evidence. Its negative controls reject count,
 # hash, ordering, mapping and selected-image ownership drift.
 check-sus-requirement-corpus: check-python
 		${PYTHON} tools/check_sus_requirement_corpus.py --root ${TOPSRC} --self-test
@@ -219,7 +219,7 @@ distribution:	build
 
 # check-uf2-validator calibrates the UF2 structure checker on synthetic
 # images; check-uf2-images applies it to each kernel and root pair that
-# discobsd-flash loads, so it follows `kernel` and `flash`. Every board
+# gizmobsd-flash loads, so it follows `kernel` and `flash`. Every board
 # kernel in MACHINE_KERNEL_CONFIGS pairs with ${FLASHUF2}: the root occupies
 # the same flash region on every board and every kernel boots every profile's
 # root, while BOARD (distrib/rp2040/Makefile.inc) picks the profile an unset
@@ -714,6 +714,7 @@ check-native-linker: check-python
 		${PYTHON} tests/native_linker/readers.py
 		${PYTHON} tests/native_linker/branches.py
 		${PYTHON} tests/native_linker/calibrate.py
+		${PYTHON} tests/native_linker/xip_imports_test.py
 
 # The assembler's scratch streams and the linker's output regions: identical
 # object and executable bytes against the recorded outputs of the tools that
@@ -1491,6 +1492,18 @@ check-version-outside-git:
 
 .PHONY: check-version-outside-git
 
+# kern.osrev is the packed release number that sys/conf/newvers.sh generates
+# from OSR and OSRANK. tools/check_osrev_generator.py runs copies of the script
+# on good and malformed version sources, compiles the vers.c of each good one
+# and of edited ones with the host compiler, and compares the packed values
+# with an independent encoder; --selftest requires seven mutants of the script
+# to fail the check each was built to fail.
+check-osrev-generator: check-python
+		${PYTHON} tools/check_osrev_generator.py --root ${TOPSRC}
+		${PYTHON} tools/check_osrev_generator.py --root ${TOPSRC} --selftest
+
+.PHONY: check-osrev-generator
+
 check-agent-instructions: check-python
 		${PYTHON} -B tools/agent_instructions_test.py
 		${PYTHON} -B tools/check_agent_instructions.py --root ${TOPSRC}
@@ -1623,7 +1636,24 @@ check-license-headers: check-python
 		${PYTHON} tools/check_license_headers.py --selftest
 		${PYTHON} tools/check_license_headers.py --root ${TOPSRC}
 
-.PHONY: check-license-headers
+# The console palette (lcd_palette in st7365p.c, the web console's xterm.js
+# theme and the two lcdgfx test fixtures) must agree entry for entry and meet
+# the bounds that the comment above lcd_palette and TESTING.md state, measured
+# on the colors the RGB565 panel shows (tools/check_console_palette.py).
+# --selftest first requires the exact rules each known-bad table, mutant and
+# parser bypass trips.
+check-console-palette: check-python
+		${PYTHON} tools/check_console_palette.py --selftest
+		${PYTHON} tools/check_console_palette.py --root ${TOPSRC}
+
+# The gate's --selftest pins its bounds, ranges, views and checks. The mutants
+# target applies each single edit of tools/check_console_palette_mutants.py to a
+# copy of the gate and requires --selftest to reject it, so the pinning is a
+# result the tree reproduces.
+check-console-palette-mutants: check-python
+		${PYTHON} tools/check_console_palette_mutants.py
+
+.PHONY: check-license-headers check-console-palette check-console-palette-mutants
 
 # The mutant scripts run a freshly built test through tools/run_bounded.sh,
 # which bounds its wall-clock time and the output it keeps. --selftest runs the
@@ -1997,7 +2027,7 @@ check-unicorn-kernel: check-python
 # compares the synthetic rows and the compiler options with a fresh model run
 # and exits 3, reported here as SKIP with its reason, when the compiler differs.
 # selftest.sh then calibrates the comparison and the harness on known-bad input
-# (a perturbed oracle, aliased output, a drifted bzero, an incomplete compile
+# (a perturbed oracle, aliased output, a missing notice, an incomplete compile
 # command, a mismatched binutils prefix, a failed round trip). Both run the
 # Unicorn model against the built tree's sh and awk, so the target stands
 # outside check-cross.
@@ -2067,7 +2097,7 @@ check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
 
 # The testing kernels' counters, fault records and console message ring
-# (sys/kern/subr_diag.c) against a host model, with four mutants of the
+# (sys/kern/subr_diag.c) against a host model, with seven mutants of the
 # source; tests/kernel/Makefile states each.
 check-diag-stats:	check-python
 		${MAKE} -C tests/kernel check-diag-stats check-diag-stats-mutants
@@ -2153,14 +2183,14 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
 		check-clifford-t \
 		check-kernel-headroom-validator check-hot-layout-validator \
-		check-version-outside-git \
+		check-version-outside-git check-osrev-generator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene check-license-headers check-ci-apt-install check-run-bounded \
+		check-comment-hygiene check-text-hygiene check-license-headers check-console-palette check-console-palette-mutants check-ci-apt-install check-run-bounded \
 		check-renode-models-series \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
@@ -2603,7 +2633,8 @@ check-posix-sh:
 # because its link proof rebuilds the shared a.out libc.
 check-cross-contracts:	${CROSS_CONTRACT_GATES}
 
-check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
+check-cross-kernel:	xip-diagnostic-kernel .WAIT check-picocalc-sd-layout .WAIT \
+		check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
@@ -2633,7 +2664,7 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 # line interface, the dc evaluator, the libc strtol/strtoul, random and
 # printf contracts and the tree formatter's float conversions and math
 # library returns executed as Thumb-1 programs rather than only linked, and
-# a DiscoBSD a.out run through tests/qemu_aout's syscall loader with the
+# a GizmoBSD a.out run through tests/qemu_aout's syscall loader with the
 # tree's libc, crt0 and boot ROM float glue.
 # tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
 # contracts run on faults on Thumb-2 and unaligned accesses.
@@ -2717,6 +2748,17 @@ check-qemu:	check-python .WAIT symlinks
 		REQUIRE_QEMU=1 ${MAKE} -C tests/qemu_aout check
 		${MAKE} check-matezinho-qemu
 		${MAKE} check-ulisp-qemu
+
+xip-diagnostic-kernel: check-python
+		${MAKE} -C sys/arch/rp2040/compile/PICO_UART_XIP unix
+
+XIP_MODELS?=	${TOPSRC}/tools/renode/vendor/Renode_RP2040
+check-renode-xip-process: xip-diagnostic-kernel
+		${PYTHON} tests/native_linker/xip_process.py \
+		    --slot-elf ${XIP_SLOT_ELF:U:Q} --provider ${XIP_PROVIDER:U:Q} \
+		    --filesystem ${XIP_FILESYSTEM:U:Q} --models ${XIP_MODELS:Q}
+
+.PHONY: xip-diagnostic-kernel check-renode-xip-process
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
@@ -2846,7 +2888,7 @@ check-flash-id:
 
 .PHONY: check-flash-id
 
-# The discobsd-host Python package: its own lint and tests.
+# The gizmobsd-host Python package: its own lint and tests.
 check-host-package:	check-python .WAIT
 		cd distrib/rp2040/host && ruff check . && ${PYTHON} -m pytest -q
 
@@ -2896,7 +2938,7 @@ root-release:	etc-distribution
 		stamp=`date -u -d "@$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u -r "$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u +%Y-%m-%dT%H:%M:%SZ`; \
-		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
+		printf 'GizmoBSD/${MACHINE} root built %s from %s on %s\n' \
 		    "$$stamp" "$$commit" "`uname -s`" \
 		    > ${DESTDIR}/etc/release
 
@@ -2983,7 +3025,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-rp2040-break-guard check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-rp2040-break-guard check-usb-reset check-picocalc-host check-psram-pio check-diag-stats check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \

@@ -1,4 +1,4 @@
-# EEMBC CoreMark (Apache-2.0, github.com/eembc/coremark), ported to DiscoBSD.
+# EEMBC CoreMark (Apache-2.0, github.com/eembc/coremark), ported to GizmoBSD.
 #
 # core_list_join.c, core_main.c, core_matrix.c, core_state.c, core_util.c and
 # coremark.h are the six unmodifiable upstream core files (see coremark.md5,
@@ -17,7 +17,7 @@ PROG=		coremark
 # bare-metal -O3) reference figures in benchmarks.md, scaled down for a
 # unix process's syscall and scheduling overhead against that bare-metal
 # ceiling. Override per run, e.g. `bmake MACHINE=rp2040 ITERATIONS=20000`,
-# once an on-device timing pass shows the real DiscoBSD iterations/sec.
+# once an on-device timing pass shows the real GizmoBSD iterations/sec.
 ITERATIONS?=	6000
 
 # Snapshot CFLAGS (sys.mk's arm-none-eabi-gcc flags) before appending our own

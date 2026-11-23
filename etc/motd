@@ -1,4 +1,4 @@
-DiscoBSD 2.7 -- Raspberry Pi Pico (RP2040)
+GizmoBSD 0.1.0-alpha -- Raspberry Pi Pico (RP2040)
 
 You are operator, in /home/operator, which starts empty; the system is
 under /bin, /usr/bin and /usr/games. "menu" lists every program, "ls"

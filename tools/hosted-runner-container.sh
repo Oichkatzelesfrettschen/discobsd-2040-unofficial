@@ -141,7 +141,7 @@ esac
 # rebuilt at least weekly without --rebuild.
 hash=$(printf '%s|%s|%s|%s|%s\n' "$BASE_IMAGE" "$apt_all" "$pipx_all" \
 	"$engine" "$(date -u +%G-%V)" | $sum_tool | cut -c1-12)
-image=localhost/discobsd-hosted-runner:$hash
+image=localhost/gizmobsd-hosted-runner:$hash
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$me.XXXXXX")
 cleanup() {

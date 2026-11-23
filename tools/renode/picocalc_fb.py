@@ -196,7 +196,7 @@ def render_text(lines: list[str], fg: Pixel = (200, 200, 200),
 
 def self_test() -> int:
     """Known-good and known-bad frames decide the decoder's verdict."""
-    lines = ["DiscoBSD 2.7 (PICOCALC)", "login: operator", "$ uname -sr",
+    lines = ["GizmoBSD 0.1.0-alpha (PICOCALC)", "login: operator", "$ uname -sr",
              "The quick brown fox, 0123456789 {}[]~#@%&"]
     good = render_text(lines)
     got = decode_screen(good)

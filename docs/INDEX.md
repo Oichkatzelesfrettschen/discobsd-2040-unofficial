@@ -21,6 +21,10 @@ Pico datasheet PDFs under `docs/rp2040/`.
 `sys/arch/rp2040/doc/DATASHEET-INDEX.md` resolves a section number to its
 page in those files without carrying them here.
 
+## Names
+
+The system, the RP2040 port and the host tools are GizmoBSD. A document or record dated before the rename keeps the former name DiscoBSD, which also names the upstream project this fork derives from. The former `discobsd-*` host commands, `DISCOBSD_*` host variables, `DISCOBSD.UF2` card file and `/dev/discobsd` link remain for one release beside `gizmobsd-*`, `GIZMOBSD_*`, `GIZMOBSD.UF2` and `/dev/gizmobsd`. The board opt-in variables `DISCOBSD_BOARD_*` are retired: a driver that finds one set exits 2 and names its `GIZMOBSD_BOARD_*` replacement. The repository keeps the name discobsd-2040-unofficial until its own rename.
+
 ## Start here
 
 | Question | Document |
@@ -29,7 +33,7 @@ page in those files without carrying them here.
 | How does the board get from reset to a shell prompt? | `sys/arch/rp2040/doc/BOOT-MAP.md` |
 | How do I connect to the console? | `sys/arch/rp2040/doc/USER-ACCESS.md` |
 | Which datasheet section covers this register? | `sys/arch/rp2040/doc/DATASHEET-INDEX.md` |
-| How does DiscoBSD run on a ClockworkPi PicoCalc, and what is left? | `sys/arch/rp2040/doc/PICOCALC.md` |
+| How does GizmoBSD run on a ClockworkPi PicoCalc, and what is left? | `sys/arch/rp2040/doc/PICOCALC.md` |
 | What does each test gate prove, and what does it need? | `sys/arch/rp2040/doc/TESTING.md` |
 | How does a host script drive the board console without losing input? | `sys/arch/rp2040/doc/BOARD-CONSOLE.md` |
 | What does the MPU protect, and how is that proven? | `sys/arch/rp2040/doc/MPU.md` |
@@ -143,7 +147,7 @@ Grouped by what they investigate.
 | `copy-reviews/` | the copying reviews of `lib/libcalc` and `games/fourfall` against their excluded references, with calibration and shingle numbers |
 | `time-representation-past-2038.md` | the four-byte `time_t` and its 2038 limit: each claim of a widening proposal checked against the tree, the measured cost of a closed-form calendar in each direction, a 64-bit day split built from 32-bit divisions, the `timegm()` range defect and its repair, and the open choice of interface width |
 | `ulisp-common-lisp-conformance.md` | uLisp against ANSI INCITS 226-1994: the standard, the HyperSpec and the ansi-test suite, a per-builtin table (conforms, subset, differs, extension) with both answers, the reader audit, the repairs and what is left, the colors of the line editor and the image check of arrays |
-| `ulisp-c17-port.md` | the PicoCalc's uLisp as a DiscoBSD program: the candidate blockers and their measured outcome, the linked size and workspace, the mechanisms the port adds (stackless collector, bounded recursion, relocatable images, external documentation), the upstream defects the comparison found, and what no board has yet measured |
+| `ulisp-c17-port.md` | the PicoCalc's uLisp as a GizmoBSD program: the candidate blockers and their measured outcome, the linked size and workspace, the mechanisms the port adds (stackless collector, bounded recursion, relocatable images, external documentation), the upstream defects the comparison found, and what no board has yet measured |
 
 ### USB console
 
@@ -163,6 +167,7 @@ Grouped by what they investigate.
 | `historical-porting-operations-mine.md` | mechanisms mined from Hettrick's DiscoBSD port report and the Schultz and Ulmann 2.11BSD operations guides: the missing board-state preservation boundary, emulator-to-board counterexample, linked-capacity precedent, machine-tuple closure and original Arm-port work-item map |
 | [SD component placement](research/sd-component-placement.md) | executable and recovery lifetimes, SD hard-link inventory, donor contracts and placement measurements |
 | `memory-ownership-plan.md` | memory ownership chosen over instruction tuning, and what landed |
+| `rp2040-memory-ledger/` | every kernel's flash and SRAM ledger at `6719f9d7a` from a generator calibrated against the headroom gate, the call graphs of the swap, exec, ptrace and MPU paths per configuration, the ptrace text-loss defect (#890) and the Lean SRAM5 exchange placement (#893), the MPU single-region and HardenedBSD mappings, the resource-limit gap and a read-only-text design whose protected prefix defines the clean text |
 | `hardware-review-reconciliation.md` | twenty-one outside hardware, optimization and mathematics reviews checked against the datasheet and the kernels linked at `7a270276`: the corrected hardware facts, the disposition of every proposal, the ideas that survive in another form, and the ordered instrument-first roadmap |
 | `rp2040-memory-wear-engineering-program.md` | the submitted SRAM and flash-wear audit turned into configuration-specific provenance, recovery, telemetry, SwapRAM, and durability gates |
 | `program-window-large-swap.md` | what an 8 MB PSRAM swap changes (process count, switch latency, wear) and what it does not (the 192 KB window), the swap capacity per device against `NPROC`, and four designs that would raise the program bound with their costs |
@@ -201,7 +206,7 @@ Grouped by what they investigate.
 | `picocalc-writable-reserve.md` | the open floor for free blocks and free on-disk inodes after sustained use: recorded fresh-install counts, the proposed flash-root and card rules, and the USB, PSRAM, flash-write and reset-recovery evidence each needs (issue 764) |
 | `xip-off-linked-code-proof.md` | the open acceptance for LTO kernels while XIP is suspended: recorded LTO placement hazards, current coverage and its gaps, and the final-image, emulation and board evidence proposed (issue 765) |
 | `kernel-footprint-handoff.md` | the measured kernel and libc footprint work queue: never-returning libc entry points, `struct user` load reach, unreferenced kernel functions, the `adjtime` 64-bit divide, a lean PICO beside PICO_DIAG, the `-O2` capacity-index block, kernel LTO blockers and unprototyped designs, each with location, bytes and acceptance; three items carry their state at `bff303aae`, and `kernel-footprint-handoff.md.BAK` keeps the capture |
-| `noreturn-and-rom-copy-footprint.md` | host measurements on the six kernels of two footprint candidates: `__dead` on `exit()` and `sched()` (8 to 16 bytes of text, with the source argument that neither returns) and the boot ROM `memcpy`/`memset` behind `bcopy`/`bzero` (128 to 136 bytes of text for 8 bytes of bss), with both prototypes and what needs the board |
+| `noreturn-and-rom-copy-footprint.md` | host measurements on the six kernels of two footprint candidates: `__dead` on `exit()` and `sched()` (applied with a panic if `swtch()` ever returns into `exit()`: +13 to -8 bytes of text on the eight kernels, with the source argument that neither returns) and the boot ROM `memcpy`/`memset` behind `bcopy`/`bzero` (128 to 136 bytes of text for 8 bytes of bss), with both prototypes and what needs the board; the bare-Pico timing of both ROM routines against `bzero` and `bcopy`, with a call-size histogram; the applied ROM copy and fill, with the ROM routines read from their disassembly |
 | `c17-formatting-linting.md` | the staged C17 formatter, compiler-warning and semantic-linter setup, source classes, calibration fixtures and footprint-proof boundaries |
 | `c17-library-closure.md` | the hosted C17 clause 7 surface: decomposition of the libc compliance request, measured absent names per header, mechanism invariants, ordered units, and the delivered div/ldiv/lldiv/llabs and `<iso646.h>` contract |
 | `c17-semantic-migration-plan.md` | the C17 migration beyond syntax: one ordered queue, claim-specific evidence, risk tiers, ARMv6-M alignment and Smaller C obligations, the row schema, six completion ledgers and twenty-three bounded migration-unit rows |
@@ -345,7 +350,7 @@ Grouped by what they investigate.
 | Document | Establishes |
 | --- | --- |
 | `arm-main-legacy-build-isolation.md` | the canonical ARM tuples, default-off legacy options, finite relocation proof, shared-artifact boundary, calibrated gates, and restoration criteria |
-| `qemu-thumb1-test-tier.md` | the qemu-user Thumb-1 test tier: gate inventory and ranking, the ARMv6-M CPU model, a DiscoBSD a.out loader prototype, and the whole-kernel QEMU options |
+| `qemu-thumb1-test-tier.md` | the qemu-user Thumb-1 test tier: gate inventory and ranking, the ARMv6-M CPU model, a GizmoBSD a.out loader prototype, and the whole-kernel QEMU options |
 | `retrobsd-port-scope.md` | the original scoping of a RetroBSD/DiscoBSD port to this chip |
 | `os-options.md` | the Unix-like systems that target the Pico, compared |
 | `dual-boot.md` | FUZIX and NuttX coexistence on one board |
@@ -410,7 +415,7 @@ names; a correction goes in a new document rather than in the ledger.
 | `README.md` | the port, the board, building, flashing, and first login |
 | `NOTICE`, `LICENSE` | every component in an image and the terms that travel with it |
 | `distrib/rp2040/README.md` | the distribution tree and the manifest |
-| `distrib/rp2040/host/README.md` | the discobsd-host package for a person using it |
+| `distrib/rp2040/host/README.md` | the gizmobsd-host package for a person using it |
 | `distrib/rp2040/host/DEVELOPMENT.md` | the per-OS toolchain table, packaging, and CI |
 | `sys/arch/rp2040/README.md` | the port's source layout |
 | `tools/analysis/README.md` | the analysis runners and where their handbacks land |

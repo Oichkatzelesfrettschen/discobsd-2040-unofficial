@@ -1,6 +1,6 @@
 /*
  * Block I/O backend for the NetBSD v7fs core (sys/fs/v7fs) over a file
- * descriptor: an image file or a raw device, on DiscoBSD or a POSIX host.
+ * descriptor: an image file or a raw device, on GizmoBSD or a POSIX host.
  *
  * It replaces NetBSD's two backends, v7fs_io_kern.c (vnode I/O, kmem) and
  * v7fs_io_user.c (mmap of the whole device, malloc), under the interface
@@ -18,7 +18,7 @@
  * Every sector number is checked against the device size before the seek,
  * so an image whose block pointers lie past its end reports EIO instead of
  * reading or extending past it. The size is clamped to the sectors whose
- * byte offsets off_t can hold (2 GiB with DiscoBSD's 32-bit off_t).
+ * byte offsets off_t can hold (2 GiB with GizmoBSD's 32-bit off_t).
  */
 
 #include <sys/types.h>

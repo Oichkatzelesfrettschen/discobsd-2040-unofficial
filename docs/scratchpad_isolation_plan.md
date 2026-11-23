@@ -1066,7 +1066,7 @@ Result:
 - The retained rows belong to compiler-rt integer support, TinyUSB MCU
   validation, pForth Solaris host portability, and Whetstone host-platform
   portability. Their presence records imported or generic compatibility; it
-  does not declare a maintained non-ARM DiscoBSD target.
+  does not declare a maintained non-ARM GizmoBSD target.
 
 Limitation: an allowlist that scans only the seven files containing present
 rows would not by itself discover a new selector in another maintained file.
@@ -1097,7 +1097,7 @@ Result:
   `b2e5c3e7f1ef69c2006a88fe848fd2fd25c20721467fdba5ae6eaf8d07437594`.
 - The retained rows belong to compiler runtime portability, TinyUSB imported
   MCU validation, pForth Solaris host portability, and Whetstone host-platform
-  portability. The rows declare neither a supported non-ARM DiscoBSD machine
+  portability. The rows declare neither a supported non-ARM GizmoBSD machine
   nor default build reachability.
 - A fixture places `#ifdef WIN32` under an unrelated maintained path. The same
   selector expression discovers the directive, the normalized set gains one

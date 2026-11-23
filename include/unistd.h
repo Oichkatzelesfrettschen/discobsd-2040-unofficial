@@ -62,7 +62,7 @@
 #define X_OK            1       /* Test for execute permission.  */
 #define F_OK            0       /* Test for existence.  */
 
-/* Runtime limits that DiscoBSD can report without fabricating a contract. */
+/* Runtime limits that GizmoBSD can report without fabricating a contract. */
 #define _SC_ARG_MAX             1
 #define _SC_CLK_TCK             3
 #define _SC_NGROUPS_MAX         4

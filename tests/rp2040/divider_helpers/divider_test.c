@@ -23,6 +23,8 @@
  * block is armed or required, and any access to the SIO base faults.
  */
 
+#include <stdlib.h>
+
 typedef unsigned int u32;
 typedef int s32;
 
@@ -229,11 +231,29 @@ check(const char *name, const void *helper, u32 a, u32 b, divmod_t want,
 }
 
 static void
+check_public(const char *name, u32 a, u32 b, divmod_t want, u32 quot, u32 rem)
+{
+	comparisons++;
+	if (quot != want.quot || rem != want.rem)
+		report(name, a, b, want.quot, want.rem, quot, rem, 0u, 1);
+}
+
+static void
 check_pair(u32 a, u32 b)
 {
 	divmod_t unsigned_want = oracle_udivmod(a, b);
 	divmod_t signed_want = oracle_sdivmod((s32)a, (s32)b);
 
+	/* Both public types are 32-bit on the target. Only defined C division
+	 * reaches the public providers; the AEABI helpers also cover zero and
+	 * the unrepresentable minimum divided by minus one. */
+	if (b != 0 && !(a == 0x80000000u && b == 0xffffffffu)) {
+		div_t narrow = div((s32)a, (s32)b);
+		ldiv_t wide = ldiv((s32)a, (s32)b);
+
+		check_public("div", a, b, signed_want, narrow.quot, narrow.rem);
+		check_public("ldiv", a, b, signed_want, wide.quot, wide.rem);
+	}
 	check("uidivmod", (const void *)__aeabi_uidivmod, a, b, unsigned_want, 1);
 	check("uidiv", (const void *)__aeabi_uidiv, a, b, unsigned_want, 0);
 	check("idivmod", (const void *)__aeabi_idivmod, a, b, signed_want, 1);

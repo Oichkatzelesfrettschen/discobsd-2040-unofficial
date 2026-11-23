@@ -218,7 +218,7 @@ void schedcpu (caddr_t arg);
 /*
  * The main loop of the scheduling process. No return.
  */
-void sched (void);
+__dead void sched (void);
 
 /*
  * Create a new process -- the internal version of system call fork.
@@ -243,7 +243,7 @@ void remrq (struct proc *p);
 /*
  * Exit the process.
  */
-void exit (int rv);
+__dead void exit (int rv);
 
 /*
  * Swap I/O.

@@ -300,7 +300,7 @@ static int try_recover(struct dhara_map *m, dhara_error_t cause,
 	return 0;
 }
 
-/* DiscoBSD local change: collection starts when the journal holds
+/* GizmoBSD local change: collection starts when the journal holds
  * capacity - safety margin - count / gc_ratio - one checkpoint group of
  * user pages, a reserve sized by the sectors actually live, instead of at
  * dhara_map_capacity(). More

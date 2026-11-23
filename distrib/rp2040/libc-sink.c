@@ -168,6 +168,8 @@ touch_stdlib(void)
 	int direction = -1;
 	char path[32];
 
+	sink += div((int)sink, 5).rem;
+	sink += ldiv(sink, -7L).quot;
 	qsort(v, 4, sizeof(v[0]), cmp);
 	sink += v[0];
 	qsort_r(v, 4, sizeof(v[0]), cmp_context, &direction);

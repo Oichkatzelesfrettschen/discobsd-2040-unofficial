@@ -22,7 +22,7 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-"""Check the flash-driver erase geometry against both PicoCalc link maps."""
+"""Check flash-driver erase geometry against the static, SD, and shared-libc link maps."""
 
 import argparse
 import os
@@ -94,14 +94,25 @@ def main():
     base = regions((CONF / "RP2040.ld").read_text())
     sd = regions((CONF / "RP2040-sd.ld").read_text())
     compare(base, sd)
-    for layout, flags in ((base, []), (sd, ["-DPICOCALC_SD"])):
+    shared_source = (CONF / "RP2040-xip.ld").read_text()
+    shared = regions(shared_source)
+    start, size = base["FSFLASH"]
+    provider_bytes = 48 * 1024
+    if region_bounds(shared_source, "XLIB") != (start, provider_bytes):
+        raise ValueError("shared libc must occupy the first 48 KiB of the static root")
+    if shared != dict(base, FSFLASH=(start + provider_bytes, size - provider_bytes)):
+        raise ValueError("shared libc must acquire exactly 48 KiB from the filesystem")
+    for layout, flags in ((base, []), (sd, ["-DPICOCALC_SD"]), (shared, ["-DEXEC_XIP_LIBC"])):
         match = check_driver(layout, flags, cc)
         if match.returncode:
             raise ValueError(match.stderr)
     wrong_driver = check_driver(sd, [], cc)
     if wrong_driver.returncode == 0 or "filesystem start" not in wrong_driver.stderr:
         raise ValueError("standard driver accepted the expanded link map or failed elsewhere")
-    print("PASS PicoCalc SD layout: 32768 bytes, both driver maps, mismatched driver rejected")
+    incompatible = check_driver(shared, ["-DPICOCALC_SD", "-DEXEC_XIP_LIBC"], cc)
+    if incompatible.returncode == 0 or "requires the 128 KiB kernel" not in incompatible.stderr:
+        raise ValueError("shared libc and SD kernel options must be mutually exclusive")
+    print("PASS static, PicoCalc SD and shared libc flash layouts and incompatible drivers")
 
 
 if __name__ == "__main__":

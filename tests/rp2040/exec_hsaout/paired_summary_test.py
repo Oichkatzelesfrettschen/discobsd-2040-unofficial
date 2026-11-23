@@ -77,7 +77,7 @@ class PairedSummaryTest(unittest.TestCase):
         self.assertGreater(summary.summarize(record)["t_quantile"], summary.T95[-1])
 
     def test_cli_accepts_valid_and_rejects_incomplete_workload(self):
-        with tempfile.TemporaryDirectory(prefix="discobsd-paired-summary-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="gizmobsd-paired-summary-") as temporary:
             capture = Path(temporary) / "capture.json"
             record = sample()
             capture.write_text(json.dumps(record), encoding="utf-8")

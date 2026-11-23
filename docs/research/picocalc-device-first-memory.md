@@ -177,15 +177,19 @@ acquire and release instructions the model omits. None of these is modeled
 here, and this note has no estimate of them. The board measurement that
 settles the gap is falsifier 2: `pc_micros()` around one pool swapout of the
 same image, which reads above the model's 256 ms by the DPSRAM, ownership and
-contention cost together. The harness links the kernel's own `bzero()` and `bcopy()`
-(`machdep.c`, copied verbatim into `bench.c`; `build.sh` fails when either
-body or `UNALIGNED` differs from `machdep.c`), because the encoder's
-`memset()` and `memcpy()` reach them through `dhara/compat/string.h`. A
+contention cost together. The harness links word-loop `bzero()` and `bcopy()`
+derived from `machdep.c` (`bench.c`; `build.sh` fails when `UNALIGNED`
+differs from `machdep.c`), because the encoder's
+`memset()` and `memcpy()` reach them through `dhara/compat/string.h`. The
+kernel's `bzero()` and its `bcopy()` of disjoint ranges call the boot ROM's
+`memset` and `memcpy`, which the harness does not hold and which run 1.4 to
+3.7 times faster (`noreturn-and-rom-copy-footprint.md`), so the model bounds
+that share from above. A
 per-function run of the same model attributes 95.5 percent of the sh counting
 pass to `heatshrink_encoder_poll()` and 1.4 percent to those two routines;
 `run.py` keeps totals only. `picocalc-device-first/run-output.tsv` holds the
 rows, and `selftest.sh` shows the gate failing on an aliased output
-directory, a drifted `bzero()` and a failed round trip.
+directory, a missing inherited notice and a failed round trip.
 
 Correction: an earlier harness supplied byte-loop `bzero()` and `bcopy()`
 where the kernel runs four words per iteration. `heatshrink_encoder_reset()`

@@ -126,12 +126,13 @@ The Thumb-1 sizes of `c5_loops.c` at `-Os`, from `arm-none-eabi-gcc -Os -mcpu=co
 
     | Palette | No dither | Bayer, best spread | Floyd-Steinberg |
     |---|---|---|---|
-    | console RGBI (china / flower) | 21.55 / 15.55 | 24.57 / 19.18 (still rising at spread 96) | 34.95 / 32.97 |
+    | console RGBI (china / flower) | 21.40 / 15.78 | 25.46 / 19.67 (still rising at spread 96) | 34.90 / 24.11 |
     | k-means (china / flower) | 32.41 / 32.91 | 33.03 / 33.28 | 32.00 / 33.26 |
     | median cut (china / flower) | 30.00 / 29.92 | 30.38 / 30.34 | 27.23 / 29.42 |
 
+  - On the flower the console palette diffuses to 24.11 dB, against 33.26 dB for k-means (9.15 dB higher) and 29.42 dB for median cut (5.31 dB higher). The cause of the gap is untested. The c7 scripts read the listed `lcd_palette` values, while the gate judges the shown values (white shows as 251, 255, 251), so the table above uses a palette that differs from the shown one by up to four units in a channel.
   - A fixed palette needs error diffusion. An adaptive palette takes plain nearest-color mapping or a spread of about 16 to 24.
-- **Color counts [C].** Mixing k pixels from the 8 RGB corners gives (k+1)³ distinct means, so k=9 gives 1,000 and k=15 gives 4,096. The console's 16 colors give 131 of 136 means at k=2 and 3,233 of 3,876 at k=4.
+- **Color counts [C].** Mixing k pixels from the 8 RGB corners gives (k+1)³ distinct means, so k=9 gives 1,000 and k=15 gives 4,096. The console's 16 colors give all 136 means at k=2 and 3,860 of 3,876 at k=4 (the table before the color-vision palette gave 131 and 3,233).
 - **Wire floor [C].** Window setup (11 B) costs 7.04 us, or 5.5 px at 565. A gap shorter than 5.5 px costs less to send than a new window.
 - **Voxel and 2.5D.** A column renderer needs only a few ms of CPU per frame [I]. The wire sets the frame rate, as the table in section 4 shows.
 
@@ -199,7 +200,7 @@ A native game ABI could standardize, from what these callers do now:
 
 ## 6. Quantum and novel algorithms (qiskit 2.6.2, simulation only)
 
-Maximum-dispersion selection of 4 of 12 candidate colors is a real QUBO, solved with a numpy statevector and cross-checked against a qiskit `Statevector` of the same circuit (max |ΔP| 1.98e-16, 192 gates; a rerun gives 1.11e-16). Classical methods dominate [C] (`scripts/c7_quant_qaoa.py`, `scripts/c7_out.txt`).
+Maximum-dispersion selection of 4 of 12 candidate colors is a real QUBO, solved with a numpy statevector and cross-checked against a qiskit `Statevector` of the same circuit (max |ΔP| 1.98e-16, 192 gates; reruns give 1.11e-16 and 5.55e-17). Classical methods dominate [C] (`scripts/c7_quant_qaoa.py`, `scripts/c7_out.txt`).
 
 | Method | Result |
 |---|---|

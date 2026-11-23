@@ -1,7 +1,7 @@
 #ifndef _SYS_EXEC_HSAOUT_H_
 #define _SYS_EXEC_HSAOUT_H_
 
-#include "exec_aout.h"
+#include "exec_xip.h"
 
 /*
  * A packed a.out: struct exec with EX_HSPACK in its flag bits, then struct
@@ -12,6 +12,10 @@
  * a_reltext, a_reldata and a_syms are zero because the container carries
  * neither relocation nor symbols. Text and data are separate streams so
  * the clean-text restoration at swapin expands the text alone.
+ *
+ * A shared executable inserts its library requirement between struct exec
+ * and struct hsx. Both flags are set, and the header CRC includes the
+ * requirement bytes between the two headers.
  *
  * Every field is a little-endian 32-bit unsigned. x_hdrcrc is the CRC-32
  * of struct exec and struct hsx with x_hdrcrc itself zero; x_textcrc and
@@ -69,13 +73,15 @@ unsigned crc32_update (unsigned crc, const void *buf, unsigned len);
 #define HSX_BADSIZE     4   /* the file is not exactly the headers plus both streams */
 
 static inline int
-hsx_check (const struct exec *e, const struct hsx *x, unsigned long filesize)
+hsx_requirement_check (const struct exec *e, const struct hsx *x,
+    const struct xip_requirement *req, unsigned long filesize)
 {
     struct hsx h;
     unsigned crc, streams;
+    unsigned headers = HSX_HDRSIZE + (req ? sizeof *req : 0);
 
     if (N_GETMAGIC (*e) != OMAGIC || N_GETMID (*e) != MID_ZERO ||
-        N_GETFLAG (*e) != EX_HSPACK)
+        N_GETFLAG (*e) != (unsigned)(EX_HSPACK | (req ? EX_XIP : 0)))
         return HSX_BADAOUT;
     if (e->a_reltext != 0 || e->a_reldata != 0 || e->a_syms != 0)
         return HSX_BADAOUT;
@@ -88,17 +94,25 @@ hsx_check (const struct exec *e, const struct hsx *x, unsigned long filesize)
     h = *x;
     h.x_hdrcrc = 0;
     crc = crc32_update (CRC32_INIT, e, sizeof (struct exec));
+    if (req)
+        crc = crc32_update (crc, req, sizeof *req);
     crc = CRC32_FIN (crc32_update (crc, &h, sizeof h));
     if (crc != x->x_hdrcrc)
         return HSX_BADSIG;
     if (x->x_ctext > 0xffffffffU - x->x_cdata)
         return HSX_SIZEWRAP;
     streams = x->x_ctext + x->x_cdata;
-    if (streams > 0xffffffffU - (unsigned) HSX_HDRSIZE)
+    if (streams > 0xffffffffU - headers)
         return HSX_SIZEWRAP;
-    if (filesize != (unsigned long) HSX_HDRSIZE + streams)
+    if (filesize != (unsigned long) headers + streams)
         return HSX_BADSIZE;
     return HSX_OK;
+}
+
+static inline int
+hsx_check (const struct exec *e, const struct hsx *x, unsigned long filesize)
+{
+    return hsx_requirement_check(e, x, 0, filesize);
 }
 
 #ifdef KERNEL

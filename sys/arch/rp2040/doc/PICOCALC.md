@@ -1,23 +1,35 @@
 <!--
-Copyright (c) 2026 DiscoBSD
+Copyright (c) 2026 GizmoBSD
+All rights reserved.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 
 # ClockworkPi PicoCalc: the PICOCALC kernel and the board it drives
 
 The PICOCALC configuration (`sys/arch/rp2040/compile/PICOCALC/Config`)
-runs DiscoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
+runs GizmoBSD on a Raspberry Pi Pico (RP2040) seated in the ClockworkPi
 PicoCalc mainboard V2.0. Its console is the board's own 320x320 panel and
 keyboard. Root stays on the Pico's QSPI flash, the same layout as the PICO
 board (`STORAGE.md`); swap moves to the first 2 MB of the board's PSRAM when the
@@ -94,6 +106,8 @@ name a file there, with a page for a PDF.
 | The tile atlas and `LCDIOC_GETKEY` compile into the PicoCalc kernels only; PICO and PICO_UART keep their text, data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +1,432, bss +4,264 (112,975 / 368 / 53,088); with PSRAM text +1,432, bss +4,264 (115,133 / 424 / 53,240); flash headroom 17,728 and 15,512 bytes; the kernel's data and bss end 62,408 bytes below the end of the RAM region (Tile atlas) |
 | The tile atlas on the panel: the tiles appear, a 40-tile row costs 4.92 ms plus a window, a one-row vertical scroll step costs 4.9 ms, the raw key events arrive at the keyboard's rate | board | not run: `tests/rp2040/tiledemo` is built by `check-board-build` (text 7,379 bytes) and a board run is opt-in |
 | With `options LCD_GFX_EXT` (the PICOCALC_SD kernel) `/dev/lcdgfx` fills and streams windows into all 480 lines of the controller's memory (`LCDG_RAMFILL`, `LCDG_RAMWIN`), returns a rectangle of it through `read(2)` as RGB565 or one reply raw (`LCDG_READ`), draws a block of palette indexes around a transparent index as one window per run (`LCDG_SPRITE`), waits for two successive scan-line samples inside a 64-line span or times out (`LCDG_WAITLINE`), selects idle, display off and sleep and refuses drawing in sleep (`LCDG_POWER`), reports the console ring's first line (`LCDG_XINFO`) and runs the fixed dithering probe (`LCDG_DITHER`); the last close leaves the panel on | host | observed by `check-picocalc-host` (`lcdgfx_ext_test`) against a model of the 480-line memory, its read reply (an 8-bit lead, then pixels in the COLMOD in force: three bytes under 0x66, two under 0x55), a scan line that advances per sample and a recorded power mode: both pixel formats written and read back whole and in 40 random rectangles, 60 random sprites compared pixel by pixel, 200 random waits, a misread and a falling pair refused, both timeouts, every range case, and the read refused with `EPERM` at the selection and at each `read(2)` until the open has finished, and after a non-root open every word of the 480 lines is blank before the first command (a read selected during the clear is refused, a root open skips the clear and reads the model's console words, kernel text stays off the panel while the device is open), with every drawing, scrolling, tile, sprite, palette, power and wait command answering root and non-root openers alike; 48 mutants fail it. `lcd_gfx_power()`, `lcd_gfx_read()`, `lcd_gfx_scanline()` and `lcd_gfx_dither()` of `st7365p.c` run on no host |
+| With `options LCD_BLANK` (PICOCALC_SD) the panel sleeps (SLPIN) after 300 s without a key event and the next key wakes it (SLPOUT, then 5 ms), the key reaching the shell as typed: the idle time runs on `pc_micros()` from the first keyboard exchange, so a boot long after the counter started and a `settimeofday()` step both leave it alone; a key arriving while SLPIN goes out ends with the panel awake; an SLPIN due within 120 ms of the blanker's SLPOUT waits for a later poll; a fault report while it sleeps wakes it (`lcdabandon()`); opening `/dev/lcdgfx` wakes it before the first drawing command and keeps it awake while open | host | observed by `check-picocalc-host` (`lcdblank_test`) against a model panel that logs SLPIN and SLPOUT, a model clock and the render interrupt run by hand; nine mutants fail it, two of them source checks of `st7365p.c` and `picokbd.c` (`lcdblank_wiring.sh`) |
+| The panel's supply current asleep and awake, and the console text intact after a wake | board | not run |
 | The extended commands on the panel: the read reply's framing, a write and read-back of all 480 lines in both formats, the sprite, the scan-line wait, the memory after sleep, the dithering probe | board | observed 2026-11-19 on PICOCALC_SD #1 4399 (results below): framing, the 480-line read-back, the scan-line wait and the dithering probe under COLMOD 0x66; under 0x55 the kernel of that run decoded three bytes a pixel where the panel answers two. Observed 2026-11-19 on PICOCALC_SD #1 4401, which decodes by format: the 0x55 read-back (0 of 153,600 pixels differ), the sprite (0 of 256) and the memory after sleep (0 of 320 pixels of line 200), with the 0x66 results repeated |
 | `lcdgfx.c` compiles into the PicoCalc kernels only; PICO and PICO_UART keep their data and bss | build | observed, GCC 13.2.1 at `-Os`: PICOCALC text +2,145, bss +72; with PSRAM text +2,145, bss +80; PICO 95,403 / 248 / 39,848 and PICO_UART 85,618 / 192 / 14,832, 9 text bytes above the measurement before the pixel device, which was taken in a different build path, the offset `version[]` carries (not traced further); at `-O` under GCC 16.2 the PICO and PICO_UART images differed only inside `version[]` (`objcopy -O binary`) |
 | `st7365p.c` clocks the pixel primitives and `lcd_gfx_reset()` to the panel | build | compiles and links; `st7365p.c` lacks a host model, so the SPI bytes, the VSCRDEF value and the COLMOD 0x55 pixel format are read from the source and from the model's protocol, not run |
@@ -119,7 +133,7 @@ name a file there, with a page for a PDF.
 | `sd.c` and `sdspi.c` compile into the PicoCalc kernels only, with `NMOUNT=2` and without `SINGLE_UFS_ROOT`; PICO and PICO_UART keep their sizes | build | observed: PICOCALC text +3,888 bytes (2,887 in the two SD objects, the rest the multi-mount inode and mount code) and bss +1,688 over the audio build |
 | `umount` and a failed `mount` of `sd0a` close the partition only at the last close, and a block descriptor opened before the mount keeps reading after it | host | observed by `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) against the production `ufs_mount.c`, `sys_inode.c` and `ufs_inode.c` and a model of the driver's open mask; the parent revision fails 13 checks of the same gate, and two mutants fail it |
 | `umount` of a read-write `sd0a` whose card was pulled succeeds without write-back when `sdioctl` answers `DIOCMEDIAGONE` from the replaced flag, closes the partition, discards every valid and delayed buffer of the device, and lets a replacement card mount; a write error with the card present, a driver that fails the command and an open file keep `umount` failing | host | observed: `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) against the production `ufs_mount.c`, `ufs_bio.c` and `ufs_syscalls2.c` and a model of the driver, with 19 of 303 checks failing on the preceding `ufs_mount.c` and eight mutants rejected; `check-picocalc-host` runs the production `sdioctl` through the card swap (the flag reads 0 before the debounce interval ends, 1 after, 0 after the next open) and three mutants of `sd.c` fail it |
-| The pulled-card sequence on the board: mount read-write, write, pull, `umount`, reinsert, mount | board | not run: `tests/rp2040/sd_detach/board_sd_detach.py` is written, closed unless `DISCOBSD_BOARD_SD_DETACH` is exactly `run`, and lacks a recorded result |
+| The pulled-card sequence on the board: mount read-write, write, pull, `umount`, reinsert, mount | board | not run: `tests/rp2040/sd_detach/board_sd_detach.py` is written, closed unless `GIZMOBSD_BOARD_SD_DETACH` is exactly `run`, and lacks a recorded result |
 | At securelevel 1 a write open of `rsd0`, of `sd0`, of an MBR entry that overlaps the mounted `sd0a`, and of the flash node `fl0` while the root `fl0a` is mounted is refused with `EBUSY`, while a partition that only touches the mounted one opens; a write open of the swap unit `fl1` (swapdev, major 0 minor 8) is refused with `EPERM` at level 1 and above and succeeds at level 0, a write through a descriptor opened at level 0 is refused at each transfer once the level is raised, and a read open succeeds at every level, as the `sw` alias of `sys/dev/swap.c` already refused a write | host | observed: `check-kernel-ilp32` (`kernel.ufs-disk.ilp32`) runs the production `openi()`, `ufs_mountedon()` and the `blkoverlap()` extracted from `conf.c` over the production `flioctl` and a model of `sdioctl`; the preceding `ufs_fio.c` fails 11 checks and seven mutants (exact comparison, unit ignored, major ignored, touching extents counted, start offsets compared, the whole-device node disjoint, an undescribable node disjoint) fail the gate; `check-picocalc-host` holds the production `sdioctl` to the `DIOCGETPART` extents the model returns |
 | The SD protocol layer frames commands, initializes SDSC version 1, SDSC version 2 and SDHC cards, decodes both CSD versions, addresses by byte or block, and fails with a bounded wait on an absent, stuck, unsupported or erroring card | host | observed by `check-picocalc-host` against a card model replaying recorded command transcripts; twenty mutants fail it |
 | `fsutil --repartition=fs=8m` and `fsutil --new --partition=1` make an image whose sector 0 holds the 0x55AA signature and one type 0xB7 entry at sector 2 in the 16-byte layout `sd.c` copies into `struct diskpart`, and `fsutil --check --partition=1` accepts it | host | observed on a scratch image; the kernel side of the parse is not run |
@@ -539,6 +553,10 @@ the ioctl case and the bank branch of `lcd_draw_cell()`. Redrawing the cells
 of one code walks the 1,696-cell store and costs about 84 us of wire time per
 matching cell (about 207 ms when the whole screen shows it), at the priority of
 the caller.
+
+### Console blanker (PICOCALC_SD, options LCD_BLANK)
+
+After `LCD_BLANK_SECS` (300) seconds without a key event the render interrupt sends the panel's SLPIN, which the ST7365P datasheet rates at 0.025 mA against 12 mA typical in normal mode (page 50, "Stand by Mode"; the board current is not yet measured). The next key sends SLPOUT and waits 5 ms (page 165); the key also reaches the shell. The panel's memory takes writes while it sleeps (page 163), so output keeps drawing and shows on waking. The keyboard poll measures the idle time on the microsecond counter from its first completed exchange, so the clock that `date` sets cannot move it. While `/dev/lcdgfx` is open the panel stays awake and the program owns its power (`LCDG_POWER`). A panic or fatal fault wakes the panel before its report. `docs/research/picocalc-console-blanker.md` holds the design, its cost and the review history.
 
 ### Second console: ttyv1 (PICOCALC_SD, options LCD_VT)
 
@@ -1269,13 +1287,14 @@ defines only its own name.
   `exec_elf.c`, `exec_script.c`, `exec_subr.c`) prints at any level while the
   bit is set. No source calls `DEBUG1` through `DEBUG9`, so levels 0, 1 and 9
   link to byte-identical images; 9 is recorded so that a later `DEBUGn` site
-  prints. One a.out `execve(2)` prints about 40 lines (five of them wrap on
-  the 53-column panel), so a boot to login with the bit set, which execs
+  prints. One a.out `execve(2)` prints 24 lines, so a boot to login with
+  the bit set, which execs
   the `/etc/rc` script and its shell, `fsck`, `hostname`, `umount`, `mount`, `dd`,
   `mkfs`, `chmod`, `rm`, `date`, `getty` and `login`, prints several hundred
   lines to the console. Measured on a board running kernel #1 5187, which
-  traced every `execve(2)` from power-on, a reboot to login produced 17
-  `execve` traces and 746 console lines. The bit is clear at boot, so the boot
+  traced every `execve(2)` from power-on, a reboot to login produced 25
+  `execve` traces of 24 lines each and 746 console lines on UART0. The bit
+  is clear at boot, so the boot
   lines start with the exec trace off. A boot-time trace needs
   `sysctl -w kern.systrace=4` in `/etc/rc.rp2040` (which already runs
   `sysctl -w` for the backlight): it traces every `execve(2)` after that line,
@@ -1381,9 +1400,9 @@ stamps two words into the application's vector table: the magic 0xe98cc638
 at flash 0x110 and, at 0x114, the first flash address the application may
 not write (0x101fc000; the loader's README calls the word a size, its code
 stores an address). Those are vector entries 4 and 5, which ARMv6-M
-reserves and every DiscoBSD image leaves zero. Its stage enters the
+reserves and every GizmoBSD image leaves zero. Its stage enters the
 application with VTOR at 0x10000100, past the loader's own second stage in
-flash bytes 0-255, which replaces DiscoBSD's.
+flash bytes 0-255, which replaces GizmoBSD's.
 
 The kernel reads the stamp once, in `startup()` before `config()` attaches
 any device (`flash_limit_init()` in `dev/flash.c`; the decode is
@@ -1413,14 +1432,14 @@ The loader offers no entry from a running system that this tree has read: `bootl
 
 The UF2 to stage is `distrib/rp2040/unix-PICOCALC-SD.uf2` (`picocalc-sd-kernel`): PICOCALC_SD is the kernel for board sessions and card images, with its root on the card's type b7 partition. `unix-PICOCALC-SD-DIAG.uf2` (`picocalc-sd-diag-kernel`, PICOCALC_SD_DIAG, described above) stages the same way when a session needs its diagnostic output; either file is copied to the card under the one name below, and `sysctl kern.version` names the build that started.
 
-Programming a new kernel from the card (observed on the measured unit, 2026-11-18): copy the UF2 to `/pico1-apps/discobsd.uf2` on the card's FAT partition, unplug both USB cables, switch the PicoCalc off, then hold the Up key while pressing the power key. The loader opens on the card at the `pico1-apps` entry; Up twice more reaches the application list, and selecting `discobsd` programs the file and starts it. Two states look like a failed card and are not. A power-on without the Up key starts the kernel already in flash and leaves the card's copy unprogrammed, so `sysctl kern.version` shows the old build on the new root. A power-on with the micro-USB cable in the Pico puts the loader in USB drive mode: it reports "usb connected", presents the card to the host as a mass-storage device (`cafe:4002`, `UF2LOADER_MSC`), skips the application list and keeps every application stopped; the card is intact. The micro-USB cable goes back in after the kernel has started.
+Programming a new kernel from the card (observed on the measured unit, 2026-11-18): copy the UF2 to `/pico1-apps/gizmobsd.uf2` (GIZMOBSD.UF2) on the card's FAT partition, and move any `discobsd.uf2` off the card first (the kernel's root locator accepts the old name until a card has booted the new one, and two matching files in the root directory and its subdirectories fail closed, so the kernel mounts nothing from the card), unplug both USB cables, switch the PicoCalc off, then hold the Up key while pressing the power key. The loader opens on the card at the `pico1-apps` entry; Up twice more reaches the application list, and selecting `gizmobsd` programs the file and starts it. Two states look like a failed card and are not. A power-on without the Up key starts the kernel already in flash and leaves the card's copy unprogrammed, so `sysctl kern.version` shows the old build on the new root. A power-on with the micro-USB cable in the Pico puts the loader in USB drive mode: it reports "usb connected", presents the card to the host as a mass-storage device (`cafe:4002`, `UF2LOADER_MSC`), skips the application list and keeps every application stopped; the card is intact. The micro-USB cable goes back in after the kernel has started.
 
 Two more things the loader route changes are handled at boot.
 `SystemClock_Config()` moves clk_sys to clk_ref and stops the aux-only
 clocks before it resets and reprograms either PLL, because the loader's
 stage may leave clk_sys running from PLL_SYS (datasheet 2.15.3.2 and
 2.18.3). The loader's second stage runs the flash clock at clk_sys / 4
-where DiscoBSD's runs it at clk_sys / 2, and `flash_enter_xip()` re-runs
+where GizmoBSD's runs it at clk_sys / 2, and `flash_enter_xip()` re-runs
 that second stage after every erase and program, so with the magic present
 the kernel restores BAUDR 2 and RX_SAMPLE_DLY 1 from RAM at boot and after
 each re-entry.
@@ -1545,7 +1564,7 @@ ways and `fsck` clean afterward; the level of GP22 with and without a card;
 a card pulled while mounted read-write, which must fail transfers with `EIO`,
 let `umount` succeed without write-back and mount again after reinsertion
 (`tests/rp2040/sd_detach/board_sd_detach.py`, closed unless
-`DISCOBSD_BOARD_SD_DETACH` is exactly `run`); and the largest raw read rate at 12.5 MHz,
+`GIZMOBSD_BOARD_SD_DETACH` is exactly `run`); and the largest raw read rate at 12.5 MHz,
 which decides whether the clock can rise toward 25 MHz. Not built: a
 multi-block transfer (CMD18 and CMD25), which would cut the per-sector
 command overhead, and an on-board `fdisk` closure (`mkfs` ships for the PSRAM's

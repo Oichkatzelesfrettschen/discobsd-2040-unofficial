@@ -124,7 +124,7 @@ def main():
     archiver = make_words(root, machine, Path("lib/libc/stdio"), "AR")
     ranlib = make_words(root, machine, Path("lib/libc/stdio"), "RANLIB")
 
-    with tempfile.TemporaryDirectory(prefix="discobsd-smlrc-stdio-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-smlrc-stdio-") as temporary:
         work = Path(temporary)
         mutant_source = work / "filbuf.c"
         mutant_object = work / "filbuf.o"

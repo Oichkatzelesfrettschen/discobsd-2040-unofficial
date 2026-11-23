@@ -114,6 +114,12 @@ void rucvt (struct rusage *rup, struct k_rusage *krup);
  */
 void ruadd (struct k_rusage *ru, struct k_rusage *ru2);
 
+/*
+ * Growth admission against the RLIMIT_DATA and RLIMIT_STACK soft limits.
+ */
+int rlimit_data_admits (size_t bytes);
+int rlimit_stack_admits (size_t depth);
+
 #else
 
 int getpriority (int which, int who);

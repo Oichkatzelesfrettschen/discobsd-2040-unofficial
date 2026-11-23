@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICOCALC", "PICOCALC_LEAN",
+BOARDS = ("PICO", "PICO_DIAG", "PICO_UART", "PICO_UART_XIP", "PICOCALC", "PICOCALC_LEAN",
           "PICOCALC_LEAN_DIAG", "PICOCALC_SD", "PICOCALC_SD_DIAG")
 # The diagnostic options a _DIAG kernel adds to its lean base; a further
 # diagnostic option joins this tuple.
@@ -26,6 +26,10 @@ SD_PANEL_OPTIONS = ("options SYSTRACE", "options LCD_PANELTEST")
 # PICOCALC_LEAN omits.
 OPTIONAL_DEVICE_OPTIONS = ("options DEV_ADC", "options DEV_GPIO",
                            "options DEV_LCDGFX", "options DEV_PCM")
+# The additions of PICOCALC_LEAN: without DEV_LCDGFX the tile atlas leaves
+# SRAM5 idle, and the kernel stages the swap exchange sector there
+# (sys/kern/vm_swap.c).
+LEAN_OPTIONS = ("options SWAP_EXCHANGE_SCRATCH",)
 # The additions of PICOCALC_SD_DIAG, the testing kernel: the signal-path
 # prints, the exec trace of sys/arch/rp2040/include/debug.h, the storage
 # counters, the diagnostic counters and message ring (sys/sys/diag_stats.h),
@@ -42,12 +46,16 @@ SD_DIAG_OPTIONS = ("options PICOCALC_SD", "options DIAGNOSTIC",
 # it removes from it).
 VARIANTS = (
     ("PICO_DIAG", "PICO", DIAGNOSTIC_OPTIONS, ()),
-    ("PICOCALC_LEAN", "PICOCALC", (),
+    ("PICO_UART_XIP", "PICO_UART",
+     ('options PICO_UART', 'options EXEC_XIP_LIBC', 'ldscript "RP2040-xip.ld"'),
+     ('ldscript "RP2040.ld"',)),
+    ("PICOCALC_LEAN", "PICOCALC", LEAN_OPTIONS,
      OPTIONAL_DEVICE_OPTIONS + ("options CAPACITY_STATS",)),
     ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN", DIAGNOSTIC_OPTIONS, ()),
     ("PICOCALC_SD", "PICOCALC",
      ('ldscript "RP2040-sd.ld"', 'config unix root on sd0a', *SD_PANEL_OPTIONS,
       'options LCD_GFX_EXT', 'options DEV_GPIO_PWM', 'options LCD_VT',
+      'options LCD_BLANK',
       'options "NPROC=32"', 'options "MAXUPRC=25"', 'options "SMAPSIZ=36"'),
      ('ldscript "RP2040.ld"', 'config unix root on fl0a')),
     ("PICOCALC_SD_DIAG", "PICOCALC_SD", SD_DIAG_OPTIONS, ()),
@@ -210,7 +218,7 @@ def compare(root, workspace, generator):
 
 
 def check(root, make="bmake"):
-    with tempfile.TemporaryDirectory(prefix="discobsd-config-sync-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-config-sync-") as temporary:
         workspace = Path(temporary)
         copy_inputs(root, workspace)
         check_variant_delta(workspace)

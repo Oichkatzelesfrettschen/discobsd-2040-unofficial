@@ -452,7 +452,7 @@ def main():
         forged_command = matrix_command.copy()
         forged_command[forged_command.index(str(output))] = str(forged_output)
         environment = os.environ.copy()
-        environment["_DISCOBSD_EXECUTION_OWNERSHIP_INVOCATION"] = "forged"
+        environment["_GIZMOBSD_EXECUTION_OWNERSHIP_INVOCATION"] = "forged"
         run(forged_command + ["--owned"], root, success=False, environment=environment)
         assert not (forged_output / "tool-inputs.json").exists(), (
             "an unowned invocation entered matrix execution"

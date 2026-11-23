@@ -518,7 +518,7 @@ static void entry_label(int index, char *buf, size_t buflen)
 static void draw_chrome(void)
 {
     printf("\x1b[2J\x1b[1;1H");
-    printf("\x1b[7m DiscoBSD menu -- j/k or arrows move, Enter runs, q quits \x1b[0m\x1b[K");
+    printf("\x1b[7m GizmoBSD menu -- j/k or arrows move, Enter runs, q quits \x1b[0m\x1b[K");
     printf("\x1b[2;1H\x1b[K");
     printf("\x1b[%d;1H\x1b[K", STATUS_ROW);
 }

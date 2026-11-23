@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <limits.h>
@@ -45,6 +57,8 @@ typedef char *caddr_t;
 #define P_TRACED 0x0010
 #define EXEC_INTERPRETED 0x01
 #define EXEC_COMMITTED_FAILURE 0x02
+#define EXEC_CLOSE_PENDING 0x04
+#define EINTR 4
 #define SSIZE 2048U
 #define NBPW 4U
 #define USER_BASE 0x20000000U
@@ -95,6 +109,7 @@ struct exec_params {
 
 struct user {
 	struct proc *u_procp;
+	int u_error;
 };
 
 static struct user u;
@@ -130,6 +145,7 @@ static int finish_order;
 static int allocation_release_order;
 static int inode_release_order;
 static int exit_order;
+static int close_order;
 
 static void *
 exec_alloc(int size, int alignment, struct exec_params *parameters)
@@ -231,6 +247,14 @@ iput(struct inode *inode)
 	inode_release_order = ++finish_order;
 }
 
+/* A close that a signal interrupts leaves its error in u.u_error. */
+static void
+fdcloseexec(void)
+{
+	close_order = ++finish_order;
+	u.u_error = EINTR;
+}
+
 static void
 kernel_exit(int status)
 {
@@ -316,6 +340,8 @@ reset_fixture(struct exec_params *parameters)
 	allocation_release_order = 0;
 	inode_release_order = 0;
 	exit_order = 0;
+	close_order = 0;
+	u.u_error = 0;
 }
 
 static void
@@ -542,6 +568,15 @@ check_finish_contract(void)
 	CHECK("ordinary finish releases allocations then inode",
 	    allocation_release_order == 1 && inode_release_order == 2);
 	CHECK("ordinary finish returns without exit", exit_calls == 0);
+	CHECK("finish without pending closes closes nothing", close_order == 0);
+
+	reset_fixture(&parameters);
+	parameters.flags |= EXEC_CLOSE_PENDING;
+	exec_finish(&parameters, &executable_inode);
+	CHECK("pending closes run after the inode is released",
+	    allocation_release_order == 1 && inode_release_order == 2 &&
+	    close_order == 3 && exit_calls == 0);
+	CHECK("an interrupted close leaves the exec's status", u.u_error == 0);
 
 	reset_fixture(&parameters);
 	segment_read_error = EIO;
@@ -550,6 +585,7 @@ check_finish_contract(void)
 	    (parameters.flags & EXEC_COMMITTED_FAILURE) != 0);
 	process.p_pid = 42;
 	process.p_flag = P_TRACED;
+	parameters.flags |= EXEC_CLOSE_PENDING;
 	exit_armed = 1;
 	if (setjmp(exit_jump) == 0) {
 		exec_finish(&parameters, &executable_inode);
@@ -559,6 +595,8 @@ check_finish_contract(void)
 	CHECK("traced failure releases allocations and inode before exit",
 	    allocation_release_order == 1 && inode_release_order == 2 &&
 	    exit_order == 3);
+	CHECK("committed failure exits without the pending closes",
+	    close_order == 0);
 	CHECK("traced failure exits with SIGKILL status",
 	    exit_calls == 1 && exit_status == SIGKILL && signal_calls == 0);
 

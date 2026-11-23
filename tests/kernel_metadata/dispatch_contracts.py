@@ -128,7 +128,7 @@ def check(root, host_cc):
     types += ''.join(f'_Static_assert(_Generic(&{name}, syscall_handler_t: 1, '
                      f'default: 0), "{name} type");\n' for name in handlers)
     rename = ['-D' + name + '=dispatch_test_' + name for name in handlers]
-    with tempfile.TemporaryDirectory(prefix='discobsd-dispatch-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='gizmobsd-dispatch-') as temporary:
         workspace = Path(temporary)
         forms = {'standalone': '#include <sys/syscall_dispatch.h>\n',
                  'repeated': '#include <sys/syscall_dispatch.h>\n' * 2,

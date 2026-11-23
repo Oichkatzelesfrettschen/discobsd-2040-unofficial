@@ -1,4 +1,4 @@
-"""Board selection in discobsd-flash and discobsd-connect with two boards attached.
+"""Board selection in gizmobsd-flash and gizmobsd-connect with two boards attached.
 
 A bare Pico and a PicoCalc both enumerate as 2e8a:000a with the serial
 string "rp2040", so only the USB port tells them apart. The scripts run
@@ -22,8 +22,8 @@ from pathlib import Path
 import pytest
 
 HOST = Path(__file__).resolve().parents[1]
-FLASH = HOST / "discobsd-flash"
-CONNECT = HOST / "discobsd-connect"
+FLASH = HOST / "gizmobsd-flash"
+CONNECT = HOST / "gizmobsd-connect"
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell scripts")
 
@@ -31,7 +31,7 @@ COREUTILS = ("cat", "head", "mkdir", "sed", "tr", "wc")
 
 STUB_PICOTOOL = """#!/bin/sh
 # Fake picotool over the fake sysfs. Logs argv and the device it reached.
-root=$DISCOBSD_SYSFS_USB
+root=$GIZMOBSD_SYSFS_USB
 cmd=$1
 bus= addr= up=
 for a in "$@"; do
@@ -144,11 +144,11 @@ def make_world(tmp: Path, devices: dict[str, tuple[str, int]]):
     # What the unaddressed path would pick: the first board's node.
     # TERM_ADD_DEVICE makes a second board appear while discovery runs.
     _stub(
-        bindir / "discobsd-term",
+        bindir / "gizmobsd-term",
         '#!/bin/sh\nif [ -n "${TERM_ADD_DEVICE:-}" ]; then\n'
-        '\tmkdir -p "$DISCOBSD_SYSFS_USB/1-5"\n'
-        '\techo 2e8a > "$DISCOBSD_SYSFS_USB/1-5/idVendor"\n'
-        '\techo 000a > "$DISCOBSD_SYSFS_USB/1-5/idProduct"\nfi\n'
+        '\tmkdir -p "$GIZMOBSD_SYSFS_USB/1-5"\n'
+        '\techo 2e8a > "$GIZMOBSD_SYSFS_USB/1-5/idVendor"\n'
+        '\techo 000a > "$GIZMOBSD_SYSFS_USB/1-5/idProduct"\nfi\n'
         f'echo "{devfs}/ttyACM3"\n',
     )
     (devfs / "ttyACM3").write_text("")
@@ -160,8 +160,8 @@ def make_world(tmp: Path, devices: dict[str, tuple[str, int]]):
 def run(script: Path, args, tmp: Path, sysfs: Path, devfs: Path, bindir: Path, **extra):
     env = {
         "PATH": str(bindir),
-        "DISCOBSD_SYSFS_USB": str(sysfs),
-        "DISCOBSD_DEVFS": str(devfs),
+        "GIZMOBSD_SYSFS_USB": str(sysfs),
+        "GIZMOBSD_DEVFS": str(devfs),
         "PT_LOG": str(tmp / "picotool.log"),
         "TERM_LOG": str(tmp / "term.log"),
         "UNMOUNT_LOG": str(tmp / "unmount.log"),
@@ -191,7 +191,7 @@ def mutate(script: Path, tmp: Path, old: str, new: str) -> Path:
     return out
 
 
-# --- discobsd-flash scenarios; each returns normally when the rule holds ---
+# --- gizmobsd-flash scenarios; each returns normally when the rule holds ---
 
 
 def scenario_flash_single(script: Path, tmp: Path) -> None:
@@ -236,7 +236,7 @@ def scenario_flash_empty_selector(script: Path, tmp: Path) -> None:
     r = run(script, ["--usb-port", "", str(uf2)], tmp, sysfs, devfs, bindir)
     assert r.returncode == 1 and log(tmp) == []
     # An empty environment variable is unset: one device runs unchanged.
-    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="")
+    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir, GIZMOBSD_USB_PORT="")
     assert r.returncode == 0, r.stderr
     assert log(tmp)[0] == "info => 1-3"
 
@@ -269,7 +269,7 @@ def scenario_flash_selected(script: Path, tmp: Path) -> None:
 
 def scenario_flash_environment_selector(script: Path, tmp: Path) -> None:
     sysfs, devfs, bindir, uf2 = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
-    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="1-4")
+    r = run(script, [str(uf2)], tmp, sysfs, devfs, bindir, GIZMOBSD_USB_PORT="1-4")
     assert r.returncode == 0, r.stderr
     assert log(tmp)[0] == "reboot -u -f --bus 1 --address 3 => 1-4"
     assert all("=> 1-4" in line for line in log(tmp))
@@ -387,7 +387,7 @@ def _run_dirs(tmp_path):
     (tmp_path / "run").mkdir()
 
 
-# --- discobsd-connect ---
+# --- gizmobsd-connect ---
 
 
 def scenario_connect_single(script: Path, tmp: Path) -> None:
@@ -413,17 +413,17 @@ def scenario_connect_selected(script: Path, tmp: Path) -> None:
     r = run(script, ["--usb-port", "1-4"], tmp, sysfs, devfs, bindir)
     assert r.returncode == 0, r.stderr
     assert log(tmp, "term.log") == [f"tio -b 115200 -d 8 -p none -s 1 -f none {devfs}/ttyACM4"]
-    r = run(script, [], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="1-3")
+    r = run(script, [], tmp, sysfs, devfs, bindir, GIZMOBSD_USB_PORT="1-3")
     assert r.returncode == 0, r.stderr
     assert log(tmp, "term.log")[-1].endswith(f"{devfs}/ttyACM3")
 
 
 def scenario_connect_empty_selector(script: Path, tmp: Path) -> None:
     sysfs, devfs, bindir, _ = make_world(tmp, {"1-3": ("000a", 7), "1-4": ("000a", 3)})
-    r = run(script, ["--usb-port", ""], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="1-4")
+    r = run(script, ["--usb-port", ""], tmp, sysfs, devfs, bindir, GIZMOBSD_USB_PORT="1-4")
     assert r.returncode == 1 and log(tmp, "term.log") == []
     # An empty environment variable is unset: two boards still refuse.
-    r = run(script, [], tmp, sysfs, devfs, bindir, DISCOBSD_USB_PORT="")
+    r = run(script, [], tmp, sysfs, devfs, bindir, GIZMOBSD_USB_PORT="")
     assert r.returncode == 2 and log(tmp, "term.log") == []
 
 

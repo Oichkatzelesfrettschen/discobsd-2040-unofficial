@@ -53,7 +53,7 @@ int	errno;
  */
 static char stub_version[SYS_NMLN * 3];
 static char stub_hostname[64];
-static const char stub_short[] = "DiscoBSD";
+static const char stub_short[] = "GizmoBSD";
 
 /* Calls that reported truncation, so a test can require the case arose. */
 static unsigned truncations;
@@ -255,7 +255,7 @@ test_uname_on_an_exact_allocation(void)
 static void
 test_uname_short_values(void)
 {
-	strcpy(stub_version, "DiscoBSD 2.11 PICO");
+	strcpy(stub_version, "GizmoBSD 2.11 PICO");
 	strcpy(stub_hostname, "pico");
 
 	reset_area();

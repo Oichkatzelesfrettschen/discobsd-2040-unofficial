@@ -1,6 +1,6 @@
 /*
  * ridge -- a side-scrolling platformer for the PicoCalc pixel device
- * (/dev/lcdgfx) of the DiscoBSD RP2040 port. A hooded climber crosses four
+ * (/dev/lcdgfx) of the GizmoBSD RP2040 port. A hooded climber crosses four
  * mountain levels: it runs, jumps (a held key jumps higher), lands on rock
  * and on one-way ledges, collects shards, lights checkpoint flags, stomps
  * crawlers and reaches the cairn that ends the level. Spikes, crawlers and
@@ -1375,8 +1375,9 @@ struct rg_ovl {
 
 /*
  * What a sprite's atlas slots were composited from: the sprite, the camera
- * column, the twinkle phase, the map's change counter and every sprite whose
- * box meets this one's (they share cells, so their pixels are in the slots).
+ * column, the twinkle phase when the box holds a shard, the map's change
+ * counter and every sprite whose box meets this one's (they share cells, so
+ * their pixels are in the slots).
  */
 struct rg_sig {
 	int x, y, frame, flip, cam, anim, live, nov;
@@ -1388,6 +1389,7 @@ struct rg_view {
 	struct gtile gt;
 	unsigned char fin[GTILE_CELLS];	/* tile number of every panel cell this frame */
 	struct rg_sig sig[RG_NSPR];
+	unsigned opq[RG_NSPR];	/* per sprite: the box cells its pixels cover, as rg_composite returns */
 };
 
 static int
@@ -1476,9 +1478,13 @@ rg_fdiv8(int v)
 	return v >= 0 ? v / RG_TW : -((-v + RG_TW - 1) / RG_TW);
 }
 
-/* Draw sprite s over buf, whose top left pixel is at (ox, oy) from the sprite's top left. */
+/*
+ * Draw sprite s over buf, whose top left pixel is at (ox, oy) from the sprite's top left.
+ * Each sprite pixel written sets, in *opq, the bit of the box cell it lands in (cy * RG_BOX + cx).
+ */
 static void
-rg_blit(unsigned char buf[][RG_BOX * RG_TW], const struct rg_sprite *s, int ox, int oy)
+rg_blit(unsigned char buf[][RG_BOX * RG_TW], const struct rg_sprite *s, int ox, int oy,
+    unsigned *opq)
 {
 	int x, y, c;
 
@@ -1486,8 +1492,10 @@ rg_blit(unsigned char buf[][RG_BOX * RG_TW], const struct rg_sprite *s, int ox, 
 		for (x = 0; x < 16; x++) {
 			c = rg_art_pal(rg_art[s->frame][y][s->flip ? 15 - x : x]);
 			if (c >= 0 && oy + y >= 0 && oy + y < RG_BOX * 8 &&
-			    ox + x >= 0 && ox + x < RG_BOX * 8)
+			    ox + x >= 0 && ox + x < RG_BOX * 8) {
 				buf[oy + y][ox + x] = (unsigned char)c;
+				*opq |= 1u << ((oy + y) / RG_TW * RG_BOX + (ox + x) / RG_TW);
+			}
 		}
 }
 
@@ -1503,13 +1511,16 @@ rg_near(int a, int b)
  * from the top left cell: the cells' world tiles, then every sprite whose
  * box meets this one's, the highest index first, so the climber (index 0)
  * lies over the crawlers and a lower crawler over a higher one. bxs and bys
- * hold each sprite's top left cell in view coordinates.
+ * hold each sprite's top left cell in view coordinates. The return value is the
+ * mask of the cells that hold a sprite pixel (bit cy * RG_BOX + cx); tiles[] holds
+ * all nine cells, whether or not a cell is in the mask.
  */
-static void
+static unsigned
 rg_composite(const struct rg_game *g, const struct rg_sprite *spr, int n, int i,
     const int *bxs, const int *bys, unsigned char *tiles)
 {
 	unsigned char buf[RG_BOX * RG_TW][RG_BOX * RG_TW], px[8][8];
+	unsigned opq = 0;
 	int bx = bxs[i], by = bys[i], cx, cy, y, k;
 
 	for (cy = 0; cy < RG_BOX; cy++)
@@ -1526,13 +1537,38 @@ rg_composite(const struct rg_game *g, const struct rg_sprite *spr, int n, int i,
 	for (k = n - 1; k >= 0; k--)
 		if (k == i || (rg_near(bxs[k], bx) && rg_near(bys[k], by)))
 			rg_blit(buf, &spr[k], spr[k].x - g->cam * RG_TW - bx * RG_TW,
-			    spr[k].y - by * RG_TW);
+			    spr[k].y - by * RG_TW, &opq);
 	for (cy = 0; cy < RG_BOX; cy++)
 		for (cx = 0; cx < RG_BOX; cx++) {
 			for (y = 0; y < 8; y++)
 				memcpy(px[y], &buf[cy * 8 + y][cx * 8], 8);
 			rg_pack(px, tiles + (cy * RG_BOX + cx) * LCDG_TILE_BYTES);
 		}
+	return opq;
+}
+
+/*
+ * Whether the 3 by 3 box with top left cell (bx, by) in view coordinates shows
+ * a shard in a cell inside the view. Of the base tiles under a box only a
+ * shard's depends on the twinkle phase; the frames of the sprite and of its
+ * neighbors are in the signature themselves.
+ */
+static int
+rg_box_has_shard(const struct rg_game *g, int bx, int by)
+{
+	int cx, cy, vx, vy, t;
+
+	for (cy = 0; cy < RG_BOX; cy++)
+		for (cx = 0; cx < RG_BOX; cx++) {
+			vx = bx + cx;
+			vy = by + cy;
+			if (vx < 0 || vx >= RG_VIEW_W || vy < 0 || vy >= RG_VIEW_H)
+				continue;
+			t = rg_base_tile(g, g->cam + vx, vy);
+			if (t == T_SHARD0 || t == T_SHARD1)
+				return 1;
+		}
+	return 0;
 }
 
 static void
@@ -1583,6 +1619,36 @@ rg_banner(struct rg_view *v, int row, const char *s)
 }
 
 /*
+ * Upload the opaque cells of sprite i's box from tiles[], one gtile_load per run
+ * of opaque cells in a box row. A cell's slot is RG_DYN + i * RG_BOX * RG_BOX
+ * plus its row-major index in the box, so a run is contiguous in the atlas and in
+ * tiles[]. Returns -1 on a failed device call.
+ */
+static int
+rg_upload(struct rg_view *v, int i, const unsigned char *tiles)
+{
+	unsigned m = v->opq[i];
+	int cy, cx, first, base = RG_DYN + i * RG_BOX * RG_BOX;
+
+	for (cy = 0; cy < RG_BOX; cy++) {
+		cx = 0;
+		while (cx < RG_BOX) {
+			if (((m >> (cy * RG_BOX + cx)) & 1) == 0) {
+				cx++;
+				continue;
+			}
+			first = cx;
+			while (cx < RG_BOX && ((m >> (cy * RG_BOX + cx)) & 1) != 0)
+				cx++;
+			if (gtile_load(&v->gt, base + cy * RG_BOX + first, cx - first,
+			    tiles + (cy * RG_BOX + first) * LCDG_TILE_BYTES) < 0)
+				return -1;
+		}
+	}
+	return 0;
+}
+
+/*
  * Compose the frame and send what changed. Every panel cell is assigned a
  * tile number in v->fin first and the tile map compares the numbers with
  * what the panel shows, so a cell whose tile did not change costs nothing.
@@ -1621,7 +1687,7 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 		now.frame = spr[i].frame;
 		now.flip = spr[i].flip;
 		now.cam = g->cam;
-		now.anim = anim;
+		now.anim = anim && rg_box_has_shard(g, bxs[i], bys[i]);
 		now.live = 1;
 		now.gen = g->gen;
 		for (k = 0; k < n; k++)
@@ -1631,21 +1697,29 @@ rg_draw(struct rg_view *v, const struct rg_game *g, int paused)
 				now.nov++;
 			}
 		if (!sg->live || memcmp(sg, &now, sizeof now) != 0) {
-			rg_composite(g, spr, n, i, bxs, bys, tiles);
-			if (gtile_load(&v->gt, RG_DYN + i * RG_BOX * RG_BOX, RG_BOX * RG_BOX,
-			    tiles) < 0)
+			v->opq[i] = rg_composite(g, spr, n, i, bxs, bys, tiles);
+			if (rg_upload(v, i, tiles) < 0)
 				return -1;
 			*sg = now;
 		}
 	}
-	/* A cell two boxes cover shows the slot of the lowest-numbered sprite: it holds both. */
+	/*
+	 * A cell shows the slot of the lowest-numbered sprite whose box holds it: that
+	 * sprite's mask counts every sprite pixel in the cell, so a cell outside its mask
+	 * shows the world tile beneath it.
+	 */
 	for (i = n - 1; i >= 0; i--)
 		for (cy = 0; cy < RG_BOX; cy++)
 			for (cx = 0; cx < RG_BOX; cx++)
 				if (bxs[i] + cx >= 0 && bxs[i] + cx < RG_VIEW_W &&
-				    bys[i] + cy >= 0 && bys[i] + cy < RG_VIEW_H)
-					v->fin[(bys[i] + cy + RG_HUD_ROWS) * GTILE_COLS + bxs[i] + cx] =
-					    (unsigned char)(RG_DYN + (i * RG_BOX + cy) * RG_BOX + cx);
+				    bys[i] + cy >= 0 && bys[i] + cy < RG_VIEW_H) {
+					int bit = cy * RG_BOX + cx, vx = bxs[i] + cx, vy = bys[i] + cy;
+
+					v->fin[(vy + RG_HUD_ROWS) * GTILE_COLS + vx] = (unsigned char)
+					    (((v->opq[i] >> bit) & 1) ?
+					    RG_DYN + i * RG_BOX * RG_BOX + bit :
+					    rg_base_tile(g, g->cam + vx, vy));
+				}
 	if (paused) {
 		rg_banner(v, 14, "PAUSED");
 	} else if (g->state == RG_READY) {

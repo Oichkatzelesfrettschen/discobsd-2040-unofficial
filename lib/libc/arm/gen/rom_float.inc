@@ -1,7 +1,7 @@
 /*
  * Shared Thumb-1 assembly forms for RP2040 Boot ROM floating-point calls.
  * The C preprocessor expands these forms before either GNU as or the
- * DiscoBSD native assembler sees them.
+ * GizmoBSD native assembler sees them.
  */
 
 #define ROM_FLOAT_SETUP \

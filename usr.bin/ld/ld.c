@@ -1,5 +1,5 @@
 /*
- * Linker for DiscoBSD ARM Thumb objects.
+ * Linker for GizmoBSD ARM Thumb objects.
  *
  * Copyright (C) 2011 Serge Vakulenko, <serge@vak.ru>
  *
@@ -1531,7 +1531,9 @@ middle(void)
 		ldrsym (p_edata, dsize, N_EXT+N_DATA);
 		ldrsym (p_end, bsize, N_EXT+N_BSS);
 		for (sp=symtab; sp<symp; sp++) {
-			if ((sp->n_type & N_TYPE) == N_COMM) {
+			if (sp->n_type == N_EXT+N_COMM) {
+                                /* Mark an allocated common until the segment origins are known. */
+                                sp->n_type = N_COMM;
 				t = sp->n_value;
 				sp->n_value = cmsize;
 				cmsize += t;
@@ -1575,14 +1577,11 @@ middle(void)
 			sp->n_value += borigin;
 			break;
 		case N_COMM:
-		case N_EXT+N_COMM:
 			sp->n_type = N_EXT+N_BSS;
 			sp->n_value += cmorigin;
 			break;
 		}
 	}
-	if (sflag || xflag)
-                ssize = 0;
 	bsize += cmsize;
 
 	/*

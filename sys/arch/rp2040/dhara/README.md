@@ -1,17 +1,29 @@
 <!--
-Copyright (c) 2026 DiscoBSD
+Copyright (c) 2026 GizmoBSD
+All rights reserved.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 
 # Vendored Dhara
@@ -32,7 +44,7 @@ directory lists each change, and each one is listed here:
 
 | File | Change | Commit subject |
 | --- | --- | --- |
-| `map.c` | the unused `meta_clear()` removed | macOS as a development host: build, gates and suites; discobsd-flash; DEVELOPMENT.md |
+| `map.c` | the unused `meta_clear()` removed | macOS as a development host: build, gates and suites; gizmobsd-flash; DEVELOPMENT.md |
 | `error.c`, `journal.c`, `map.c` | signed and unsigned comparisons and an unused parameter repaired for `-Wall -Wextra -Werror` | build: enforce fatal warnings where CFLAGS cannot reset them (#109) |
 | `journal.c` | `dhara_journal_read_meta()` rejects a malformed metadata page index before it reads the metadata buffer (`metadata_page_valid()`) | rp2040: bound Dhara flash page accesses |
 | `journal.c` | `find_root()` accepts a checkpoint page only when it carries a tail below the page count (`hdr_is_checkpoint()`, also in `find_checkblock()`) and the sector tree it roots is whole (`cp_tree_whole()`: no erased id, alt pointers erased or user pages, node count equal to the cookie), and otherwise steps back to the previous checkpoint, across blocks and the epoch wrap; `docs/research/dhara-torn-checkpoint.md` gives the rule and its soundness argument | dhara: accept a checkpoint page only when its sector tree is whole |

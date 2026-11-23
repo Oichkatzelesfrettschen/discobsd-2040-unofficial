@@ -345,8 +345,13 @@ header/provider comparison and callable-math gaps for the export-selection
 queue. Whole-header coverage and semantic acceptance remain open.
 The [native-call veneer record](native-call-veneers.md) establishes a calibrated
 instruction mechanism and the requirement to preserve canonical function
-pointers while redirecting branches. Automatic final-link insertion, stable
-slots, and shared-format emission remain the next native-linker dependencies.
+pointers while redirecting branches. The diagnostic native linker inserts veneers, binds
+process objects and emits a versioned requirement for the measured compact
+ELF. The cross converter carries the same record from a file-only ELF program
+header, and the host packer preserves it under the header CRC. The
+[compact slot and state record](xip-shared-libc/slot-identity.md) gives the
+qualified inputs and replay commands. Production numbering, installed
+provider selection and pre-commit kernel admission remain open.
 
 `c17-shipped-build-baseline.md` records the implemented capture/closure/resource
 foundation, first captured at `e7040aa1` and re-recorded at `3626ccf3`. Its

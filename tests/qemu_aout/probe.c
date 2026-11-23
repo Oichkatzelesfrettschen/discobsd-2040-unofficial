@@ -1,5 +1,5 @@
 /*
- * A DiscoBSD user program for aoutrun: arguments, stdio, the heap, integer
+ * A GizmoBSD user program for aoutrun: arguments, stdio, the heap, integer
  * division through lib/libc/arm/gen/aeabi_div.S, single and double
  * arithmetic through the boot ROM float glue, and an exit status.
  */
@@ -48,7 +48,7 @@ seek_probe(void)
 
 /*
  * Fixtures written by the Makefile: LOOP_FIXTURE is a symbolic link to itself.
- * The DiscoBSD errno values come from sys/sys/errno.h: ENOENT 2, ENOMEM 12,
+ * The GizmoBSD errno values come from sys/sys/errno.h: ENOENT 2, ENOMEM 12,
  * ELOOP 62, ENAMETOOLONG 63. A Linux number leaking through shows as 36 for
  * the long name and 40 for the loop.
  */

@@ -42,7 +42,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#if defined(DISCOBSD_SHARED_LIBC) && DISCOBSD_SHARED_LIBC == 1
+#include "strtofp.h"
+#else
 #include "strtofp_core.h"
+#endif
 
 double
 strtod(const char *string, char **end)
@@ -51,14 +55,21 @@ strtod(const char *string, char **end)
 		double		value;
 		uint64_t	bits;
 	} result;
-	struct input in = { string, 0 };
-	size_t length;
+	char *next;
 	int range;
 
+#if defined(DISCOBSD_SHARED_LIBC) && DISCOBSD_SHARED_LIBC == 1
+	result.bits = __discobsd_strtofp(string, &next, STRTOFP_BINARY64, &range);
+#else
+	struct input in = { string, 0 };
+	size_t length;
+
 	result.bits = convert(&in, &length, STRTOFP_BINARY64, &range);
+	next = (char *)string + length;
+#endif
 	if (range)
 		errno = ERANGE;
 	if (end != NULL)
-		*end = (char *)string + length;
+		*end = next;
 	return result.value;
 }

@@ -17,7 +17,7 @@ Original Author: Shay Gal-on
 */
 
 /* File: core_portme.c
-   DiscoBSD port. Builds unchanged for the host (validation, this file's
+   GizmoBSD port. Builds unchanged for the host (validation, this file's
    acceptance run) and for the rp2040 arm-none-eabi-gcc userland target --
    both supply gettimeofday(2), <sys/time.h>'s struct timeval, and printf(3)
    from the same libc lineage, so no #ifdef HOSTBUILD is needed here.
@@ -48,12 +48,12 @@ volatile ee_s32 seed4_volatile = ITERATIONS;
 volatile ee_s32 seed5_volatile = 0;
 
 /* Porting: Timing functions
-        DiscoBSD has no clock(3)/CLOCKS_PER_SEC (checked: include/time.h
+        GizmoBSD has no clock(3)/CLOCKS_PER_SEC (checked: include/time.h
    declares no clock_t and lib/libc has no clock() member) and times(2)
    (lib/libc/compat/times.c) reports in a fixed 1/60 s tick regardless of the
    port's HZ, too coarse for a benchmark meant to resolve well under the
    10-second floor. gettimeofday(2) (include/sys/time.h, backed by a real
-   syscall on every DiscoBSD port including rp2040) gives microsecond
+   syscall on every GizmoBSD port including rp2040) gives microsecond
    resolution and is available identically on the host build used to
    validate this port before it ever touches hardware.
 */

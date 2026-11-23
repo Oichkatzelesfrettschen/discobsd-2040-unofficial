@@ -14,7 +14,7 @@ import check_generated_sync as sync
 
 class GeneratedSyncTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-config-fixture-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-config-fixture-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         sync.copy_inputs(sync.ROOT, self.root, expected=True)
@@ -73,7 +73,8 @@ class GeneratedSyncTest(unittest.TestCase):
             sync.check(self.root)
 
     def test_config_change_requires_regeneration(self):
-        self.mutate(sync.COMPILE / "PICO_UART/Config", "115200", "57600")
+        for board in ("PICO_UART", "PICO_UART_XIP"):
+            self.mutate(sync.COMPILE / board / "Config", "115200", "57600")
         with self.assertRaisesRegex(sync.SyncError, "PICO_UART: generated Makefile differs"):
             sync.check(self.root)
 
@@ -270,7 +271,8 @@ class GeneratedSyncTest(unittest.TestCase):
     # diagnostic options.
     MOUNT_TABLE = (
         ("PICO_DIAG", "PICO", sync.DIAGNOSTIC_OPTIONS, ()),
-        ("PICOCALC_LEAN", "PICOCALC", ('options "NMOUNT=2"',),
+        ("PICOCALC_LEAN", "PICOCALC",
+         ('options "NMOUNT=2"',) + sync.LEAN_OPTIONS,
          sync.OPTIONAL_DEVICE_OPTIONS + ('options CAPACITY_STATS',
                                          'options "NMOUNT=3"')),
         ("PICOCALC_LEAN_DIAG", "PICOCALC_LEAN",

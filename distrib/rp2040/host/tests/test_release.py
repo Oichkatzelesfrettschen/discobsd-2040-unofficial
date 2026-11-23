@@ -32,7 +32,7 @@ import time
 
 import pytest
 
-from discobsd_host import release as r
+from gizmobsd_host import release as r
 
 
 def uf2(index):
@@ -66,7 +66,7 @@ def bundle(tmp_path_factory):
     except (ValueError, OSError):
         supported = False
     if not supported:
-        if os.environ.get("DISCOBSD_REQUIRE_PQ_TESTS") == "1":
+        if os.environ.get("GIZMOBSD_REQUIRE_PQ_TESTS") == "1":
             pytest.fail("this gate requires OpenSSL ML-DSA-65 support")
         pytest.skip("OpenSSL ML-DSA-65 is unavailable; no hybrid result established")
     folder = tmp_path_factory.mktemp("release")
@@ -178,7 +178,7 @@ def test_verified_staging_and_failed_flash_preserve_state(bundle, tmp_path, monk
     def run(command, timeout):
         from pathlib import Path
 
-        assert command[0] == "discobsd-flash"
+        assert command[0] == "gizmobsd-flash"
         assert [Path(p).name for p in command[1:]] == ["root.uf2", "PICO.uf2"]
         assert Path(command[1]).parent != folder
         assert Path(command[2]).read_bytes() == (folder / "PICO.uf2").read_bytes()
@@ -195,7 +195,7 @@ def test_successful_delegate_advances_state(bundle, tmp_path, monkeypatch):
     folder, manifest, keys = bundle
 
     def run(command, timeout):
-        assert command[0] == "discobsd-flash"
+        assert command[0] == "gizmobsd-flash"
 
     monkeypatch.setattr(r, "run_delegate", run)
     assert (
@@ -233,7 +233,7 @@ def _alive(pid):
 
 @pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs /proc to read process state")
 def test_delegate_timeout_ends_the_whole_process_group(tmp_path):
-    # The script stands in for discobsd-flash and starts a long child the way
+    # The script stands in for gizmobsd-flash and starts a long child the way
     # it starts picotool; a timeout must end the child too, because the caller
     # drops the rollback lock as the exception propagates.
     pidfile = tmp_path / "child.pid"
@@ -249,7 +249,7 @@ def test_delegate_timeout_ends_the_whole_process_group(tmp_path):
     assert not _alive(child)
 
 
-@pytest.mark.skipif(os.name != "posix", reason="the discobsd-flash stand-in is a #!/bin/sh script")
+@pytest.mark.skipif(os.name != "posix", reason="the gizmobsd-flash stand-in is a #!/bin/sh script")
 def test_delegate_failure_status_raises(tmp_path):
     script = tmp_path / "flash"
     script.write_text("#!/bin/sh\nexit 3\n")
@@ -271,7 +271,7 @@ def test_signal_to_the_parent_ends_the_delegate_group(tmp_path, name):
     script = tmp_path / "flash"
     script.write_text(f'#!/bin/sh\nsleep 300 &\necho $! > "{pidfile}"\nwait\n')
     script.chmod(0o755)
-    code = "import sys; from discobsd_host import release; release.run_delegate([sys.argv[1]], 60)"
+    code = "import sys; from gizmobsd_host import release; release.run_delegate([sys.argv[1]], 60)"
     env = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
     parent = subprocess.Popen([sys.executable, "-c", code, str(script)], env=env)
     deadline = time.monotonic() + 10

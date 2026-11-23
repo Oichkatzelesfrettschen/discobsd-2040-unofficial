@@ -1,4 +1,5 @@
 # The root script runs on Windows too: keep LF.
+/gizmobsd-console text eol=lf
 /discobsd-console text eol=lf
 
 # The instruction gate compares the generated compatibility copy byte for byte.

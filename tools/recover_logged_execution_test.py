@@ -18,7 +18,7 @@ RECOVERY = ROOT / "tools/recover_logged_execution.py"
 class RecoverLoggedExecutionTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(
-            prefix="discobsd-logged-recovery-"
+            prefix="gizmobsd-logged-recovery-"
         )
         self.addCleanup(self.temporary.cleanup)
         self.directory = Path(self.temporary.name)

@@ -101,8 +101,60 @@ def check_links(fsutil, work):
     subprocess.run([fsutil, "--check", image], check=True, capture_output=True)
 
 
+def check_overlay(work):
+    """stage-sdroot.sh adds overlay files and refuses to replace or link."""
+    tree = work / "install"
+    (tree / "etc").mkdir(parents=True)
+    (tree / "etc" / "motd").write_text("install tree\n")
+    good = work / "good"
+    (good / "usr" / "share").mkdir(parents=True)
+    (good / "usr" / "share" / "note").write_text("overlay\n")
+    (good / "etc").mkdir()
+    (good / "etc" / "extra").write_text("beside motd\n")
+    stage = work / "stage"
+    command = ["sh", "tools/picocalc/stage-sdroot.sh", tree, stage]
+    subprocess.run([*command, good], check=True, capture_output=True)
+    staged = {
+        str(path.relative_to(stage)): path.read_text()
+        for path in sorted(stage.rglob("*"))
+        if path.is_file()
+    }
+    expected = {
+        "etc/extra": "beside motd\n",
+        "etc/motd": "install tree\n",
+        "usr/share/note": "overlay\n",
+    }
+    if staged != expected:
+        raise ValueError(f"staged tree differs: {staged}")
+    if sorted(p.name for p in (tree / "etc").iterdir()) != ["motd"]:
+        raise ValueError("the overlay reached the install tree")
+    replacing = work / "replacing"
+    (replacing / "etc").mkdir(parents=True)
+    (replacing / "etc" / "motd").write_text("replaced\n")
+    linking = work / "linking"
+    linking.mkdir()
+    (linking / "escape").symlink_to("/etc/passwd")
+    blocking = work / "blocking"
+    blocking.mkdir()
+    (blocking / "etc").write_text("a file where the root has a directory\n")
+    cases = (
+        (replacing, "would replace a file of the root"),
+        (linking, "is not a regular file or a directory"),
+        (blocking, "would replace a file of the root"),
+    )
+    for overlay, reason in cases:
+        result = subprocess.run([*command, good, overlay], capture_output=True, text=True)
+        if result.returncode == 0 or reason not in result.stderr:
+            raise ValueError(f"{overlay.name}: accepted or wrong reason: {result.stderr}")
+        if (stage / "etc" / "motd").read_text() != "install tree\n":
+            raise ValueError(f"{overlay.name}: a refused overlay changed the stage")
+        if list(work.glob("stage.new.*")):
+            raise ValueError(f"{overlay.name}: a refused overlay left its scratch copy")
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as directory:
         check(sys.argv[1], Path(directory))
         check_links(sys.argv[1], Path(directory))
+        check_overlay(Path(directory))
     print("PASS SD root staging and image preservation")

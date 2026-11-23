@@ -22,7 +22,7 @@ LDSCRIPT = "STM32F407XE.ld"
 DEBUG = -g
 CONFIG_CKSUM = 1522913930 2046
 #
-# Makefile for DiscoBSD/stm32
+# Makefile for GizmoBSD/stm32
 #
 # DEBUG is set to -g by config if debugging is requested (config -g).
 #
@@ -50,7 +50,7 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Werror
 
-# DiscoBSD predates C23, where an empty parameter list means (void) rather
+# GizmoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
 # driver dispatch in machdep.c, which calls d_init through a pointer
 # declared with no parameters. sys/arch/rp2040/conf pins the same standard
@@ -131,7 +131,8 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	locore0.o locore.o ${OBJS} ioconf.o
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ}
-SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
+SYSTEM_LD_HEAD=	rm -f $@ vers.o && sh $S/conf/newvers.sh > vers.c.tmp && mv vers.c.tmp vers.c && \
+		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \

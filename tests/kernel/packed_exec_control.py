@@ -48,7 +48,7 @@ def main():
     marker = "/* PACKED_LOADER_FUNCTION */"
     if template.count(marker) != 1:
         raise SystemExit("FAIL packed-exec-control: fixture marker changed")
-    with tempfile.TemporaryDirectory(prefix="discobsd-packed-exec-control-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-packed-exec-control-") as temporary:
         directory = Path(temporary)
         startup = directory / "start.S"
         startup.write_text(START, encoding="utf-8")

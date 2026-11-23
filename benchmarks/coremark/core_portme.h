@@ -17,7 +17,7 @@ Original Author: Shay Gal-on
 */
 
 /* File: core_portme.h
-   DiscoBSD port (host and rp2040 arm-none-eabi-gcc userland). Timing runs
+   GizmoBSD port (host and rp2040 arm-none-eabi-gcc userland). Timing runs
    through gettimeofday(2), memory comes from a stack array (MEM_STACK), and
    ee_printf is the tree's own printf(3) (HAS_PRINTF below). No malloc, no
    threads, no platform-specific headers beyond <sys/time.h>.
@@ -50,7 +50,7 @@ Original Author: Shay Gal-on
 #define HAS_FLOAT 0
 #endif
 /* Configuration: HAS_TIME_H
-        DiscoBSD's <time.h> exists but has no clock_t/clock(3); this port
+        GizmoBSD's <time.h> exists but has no clock_t/clock(3); this port
    times through <sys/time.h>'s gettimeofday(2) instead, so this flag stays
    informational only.
 */
@@ -65,7 +65,7 @@ Original Author: Shay Gal-on
 #define USE_CLOCK 0
 #endif
 /* Configuration: HAS_STDIO / HAS_PRINTF
-        DiscoBSD's libc supplies both; ee_printf maps to printf(3) via
+        GizmoBSD's libc supplies both; ee_printf maps to printf(3) via
    coremark.h's own "#if HAS_PRINTF / #define ee_printf printf".
 */
 #ifndef HAS_STDIO
@@ -132,7 +132,7 @@ typedef ee_u32 CORE_TICKS;
 /* Configuration: SEED_METHOD
         Seeds come from the volatile globals in core_portme.c (no command
    line, no host RNG) -- SEED_VOLATILE matches the "simple"/"posix" upstream
-   ports and needs nothing DiscoBSD-specific.
+   ports and needs nothing GizmoBSD-specific.
 */
 #ifndef SEED_METHOD
 #define SEED_METHOD SEED_VOLATILE
@@ -150,7 +150,7 @@ typedef ee_u32 CORE_TICKS;
 #endif
 
 /* Configuration: MULTITHREAD
-        DiscoBSD is single-core RP2040 userland here; one context.
+        GizmoBSD is single-core RP2040 userland here; one context.
 */
 #ifndef MULTITHREAD
 #define MULTITHREAD 1
@@ -160,7 +160,7 @@ typedef ee_u32 CORE_TICKS;
 #endif
 
 /* Configuration: MAIN_HAS_NOARGC
-        DiscoBSD's exec(2)/execve(2) pass argc/argv to main() normally.
+        GizmoBSD's exec(2)/execve(2) pass argc/argv to main() normally.
 */
 #ifndef MAIN_HAS_NOARGC
 #define MAIN_HAS_NOARGC 0
@@ -168,7 +168,7 @@ typedef ee_u32 CORE_TICKS;
 
 /* Configuration: MAIN_HAS_NORETURN
         main() returns an int normally; init(8)/the shell collect it via
-   wait(2), same as any other DiscoBSD program.
+   wait(2), same as any other GizmoBSD program.
 */
 #ifndef MAIN_HAS_NORETURN
 #define MAIN_HAS_NORETURN 0

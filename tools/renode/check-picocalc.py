@@ -74,7 +74,7 @@ KEY_BUDGET_SECONDS = 20.0
 WALL_SECONDS = 3300.0
 
 BANNER_LINES = [
-    "DiscoBSD 2.7 (PICOCALC)",
+    "GizmoBSD 0.1.0-alpha (PICOCALC)",
     "lcd0: ST7365P 320x320 on SPI1, 53x32 cells, console",
     "kbd0: keyboard controller at I2C1 0x1f, firmware 1.6",
 ]
@@ -901,7 +901,7 @@ def check_monitors(run: Run) -> None:
     run.wait_for_prompt("prompt after picofetch", KEY_BUDGET_SECONDS)
     run.snapshot("picofetch")
     for text in (
-        "OS       DiscoBSD 2.7",
+        "OS       GizmoBSD 0.1.0-alpha",
         "Kernel   PICOCALC",
         "CPU      125.000 MHz, ",
         "SRAM     264K, process window 192K",
@@ -1020,7 +1020,7 @@ BANNER_STARTS = [step / 20 for step in range(0, 41)]
 
 def sampling_failures(
     wait_banner: typing.Optional[Callable[[Run], object]] = None,
-    banner: str = "DiscoBSD 2.7 (PICOCALC_SD_DIAG)",
+    banner: str = "GizmoBSD 0.1.0-alpha (PICOCALC_SD_DIAG)",
 ) -> list[str]:
     """Calibrate the cadence of a wait for a boot line against windows at every phase.
 
@@ -1310,7 +1310,9 @@ def main(argv: list[str]) -> int:
         run.wait_for_prompt("shell prompt", KEY_BUDGET_SECONDS)
         run.type_line("uname -sr", erase_last=True)
         run.wait_for_line(
-            "DiscoBSD 2.7", "uname answer typed through the keyboard model", KEY_BUDGET_SECONDS
+            "GizmoBSD 0.1.0-alpha",
+            "uname answer typed through the keyboard model",
+            KEY_BUDGET_SECONDS,
         )
         run.snapshot("shell")
         # Nine keys to log in and twelve for the command (the wrong character and its

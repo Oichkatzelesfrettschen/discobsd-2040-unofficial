@@ -27,7 +27,7 @@ def exercise(image, application):
                 machine.mem_write(base + address, data)
     with application.open("rb") as stream:
         elf = ELFFile(stream)
-        imports = functions(elf, ("api_sum", "api_alias", "api_xor"), 12)
+        imports = functions(elf, ("api_sum", "api_alias", "api_xor"), image["slot_width"])
         for name, imported in imports.items():
             require(
                 imported["st_value"] == image["symbols"][name],
@@ -143,7 +143,7 @@ def exercise(image, application):
                 )
                 expected = arguments[0] ^ arguments[1] ^ arguments[2] ^ arguments[3]
                 require(
-                    call(FLASH + 13, base, stack, arguments) == expected,
+                    call(FLASH + image["slot_width"] + 1, base, stack, arguments) == expected,
                     "assembly call result differs",
                 )
     return calls

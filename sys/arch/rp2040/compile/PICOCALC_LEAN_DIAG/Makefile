@@ -10,6 +10,7 @@ PARAM += -DUARTUSB_ENABLED
 PARAM += -DEXEC_HSAOUT
 PARAM += -DSWAPRAM_KB=16
 PARAM += -DSWAPRAM
+PARAM += -DSWAP_EXCHANGE_SCRATCH
 PARAM += -DUSB_TXRING=4096
 PARAM += -DNUART=1
 PARAM += -DUART_BAUD=115200
@@ -31,9 +32,9 @@ PARAM += -DBUS_KHZ=125000
 PARAM += -DCPU_KHZ=125000
 LDSCRIPT = "RP2040.ld"
 DEBUG = -g
-CONFIG_CKSUM = 3675741176 6960
+CONFIG_CKSUM = 2120593209 7014
 #
-# Makefile for DiscoBSD/rp2040
+# Makefile for GizmoBSD/rp2040
 #
 # DEBUG is set to -g by config if debugging is requested (config -g).
 #
@@ -70,7 +71,7 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Wextra -Werror -Wshadow -Wundef -Wformat=2
 
-# DiscoBSD predates C23, where an empty parameter list means (void) rather
+# GizmoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
 # indirect syscall dispatch in sysctl.c, which reproduces on the untouched
 # STM32 tree too. Pin the standard the sources were written against.

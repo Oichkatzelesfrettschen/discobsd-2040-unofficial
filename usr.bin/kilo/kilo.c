@@ -34,7 +34,7 @@
 
 /*
  * Ported from antirez/kilo commit 323d93b29bd89a2cb446de90c4ed4fea1764176e
- * (the tip of "master" at the time of this port) to DiscoBSD on rp2040.
+ * (the tip of "master" at the time of this port) to GizmoBSD on rp2040.
  *
  * Syntax highlighting (editorSyntax, HLDB, the C keyword tables,
  * editorUpdateSyntax, editorRowHasOpenComment, editorSyntaxToColor,

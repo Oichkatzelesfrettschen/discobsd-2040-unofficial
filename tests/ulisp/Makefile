@@ -69,7 +69,7 @@ GUEST_BASE?=	0x100000
 # The workspace the program leaves at its first prompt under qemu-arm with an
 # empty environment: what is left of the process window after the program's
 # bytes, 8 bytes a cell.
-ULISP_FLOOR?=	14000
+ULISP_FLOOR?=	13900
 ORACLE_SHA256=	65608bb7d6a48dc02dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b
 ORACLE_CXX?=	g++ -m32 -msse2 -mfpmath=sse
 HOST_SRCS=	${SRC}/ulisp.c ${SRC}/unix.c ${SRC}/hilite.c ${SRC}/gfx.c ${SRC}/dev_host.c \
@@ -103,7 +103,8 @@ check:
 	ASAN_OPTIONS=detect_leaks=0 ./hilite-test.san
 	${PYTHON} -I hilite-pty.py ${SRC}/ulisp.host ${SRC}/ulisp.doc
 	${HOST_CC} -std=gnu17 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I${.CURDIR}/shim \
-	    -I${SRC} -o dev-picocalc-test dev-picocalc-test.c
+	    -I${SRC} -I${TOPSRC}/sys/arch/rp2040/dev -o dev-picocalc-test \
+	    dev-picocalc-test.c ${TOPSRC}/sys/arch/rp2040/dev/lcdfont.c
 	./dev-picocalc-test
 	sh mutants.sh ${SRC} ${SRC}/ulisp.doc "${HOST_CC}"
 

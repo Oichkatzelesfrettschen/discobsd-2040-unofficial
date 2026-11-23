@@ -1,4 +1,4 @@
-# DiscoBSD on the RP2040
+# GizmoBSD on the RP2040
 
 A Raspberry Pi Pico target: dual Cortex-M0+ implementing ARMv6-M, 264 KB SRAM,
 2 MB external QSPI flash and no MMU. Datasheet sections 2.4.1 and 2.4.6
@@ -42,7 +42,7 @@ Two sources are deliberately not used:
 
 ## Root filesystem, and what was taken from where
 
-DiscoBSD's other targets boot from an SD card, and its device tree is mostly
+GizmoBSD's other targets boot from an SD card, and its device tree is mostly
 SD and SDIO. This board has no socket, so `dev/flash.c` makes the onboard
 2 MB QSPI flash a block device and the board needs no extra hardware.
 
@@ -302,7 +302,7 @@ erases and programs in place at run time.
 The board boots to a login prompt in about 9 seconds over its USB console,
 a CDC-ACM device (VID 2e8a, PID 000a) that Linux binds as `/dev/ttyACM0`;
 `picotool reboot -u -f` returns the board to BOOTSEL from the running
-kernel. `uname` reports `DiscoBSD pico 2.7 PICO#1 rp2040`. Verified on the
+kernel. `uname -sr` reports `GizmoBSD 0.1.0-alpha`. Verified on the
 board: `sh` running scripts, pipes, and background jobs; `awk` with
 floating point; `sed`, `sort`, `find`, `ed`, `ps`, `df`, `mount`, and
 `stty`; `picoc` with its 8 KB arena; and `smlrc` at `/usr/libexec/smlrc`

@@ -2,10 +2,11 @@
 
 Two candidates from the kernel-minification notes, measured on the host by
 building all six RP2040 kernels at `4726ff64e` (`arm-none-eabi-gcc` 16.2.0,
-`bmake MACHINE=rp2040 -j12 kernel`) before and after a prototype. Neither
-prototype is applied to the tree; this note records the measurements, the
-source argument each depends on and what remains open. Board measurements
-(speed, boot behavior) wait for the GizmoBSD rename (decision D148).
+`bmake MACHINE=rp2040 -j12 kernel`) before and after a prototype. The tree
+carries the first (see "Applied" below); the second stays a measured
+candidate. This note records the measurements, the source argument each
+depends on and what remains open. Decision D220 moved the remaining board
+measurements (speed, boot behavior) ahead of the GizmoBSD rename.
 
 Baseline sizes (`arm-none-eabi-size`, bytes):
 
@@ -78,9 +79,39 @@ __dead void exit (int rv);
 boundary, which is the one image change. The warning count of the kernel build
 is unchanged (12).
 
-**Reading.** Positive in every kernel, and small. The change is a declaration
+**Reading.** At `4726ff64e` positive in every kernel, and small. The change is a declaration
 fix of the kind the C17 work makes anyway; by the plan's rule (drop if not
 positive) it survives as a candidate.
+
+**Applied.** `sys/sys/proc.h` declares `sched()` and `exit()` `__dead`, and
+`exit()` calls `panic("K67")` (`PANICS.md`) after `swtch()`: a zombie is never queued
+again, so `swtch()` does not come back, and if it ever did the kernel stops
+with a message instead of running on past a noreturn call. The host kernel
+test `tests/kernel/sigauth_test.c` builds `kern_sig.c` with
+`-Dexit=sigauth_exit`, so its stub leaves through `hk_escape()` while the
+harness keeps the C library's `exit()`. Measured on the eight RP2040
+kernels at `385506ba8` (`arm-none-eabi-gcc` 16.2.0), data and bss unchanged
+and every build warning-free:
+
+| Kernel | text before | text after |
+| --- | ---: | ---: |
+| PICO | 98,361 | 98,374 |
+| PICO_DIAG | 101,222 | 101,235 |
+| PICO_UART | 90,701 | 90,714 |
+| PICOCALC | 124,016 | 124,029 |
+| PICOCALC_LEAN | 119,802 | 119,815 |
+| PICOCALC_LEAN_DIAG | 122,663 | 122,676 |
+| PICOCALC_SD | 130,670 | 130,683 |
+| PICOCALC_SD_DIAG | 156,099 | 156,091 |
+
+The change costs 13 bytes of text in seven kernels and saves 8 in
+PICOCALC_SD_DIAG. In `exit()` the `panic()` reuses the function's existing
+call to `panic` and adds a load, a branch, a literal and its string;
+`init_main.o` grows 4 bytes in the `-Os` kernels once `sched()` is `__dead`.
+The prototype's `__builtin_unreachable()` saved 8 to 16 bytes at
+`4726ff64e` but ran into the literal pool if `swtch()` returned. Since `2e8cad18b`,
+`procxmt()` ends a traced child through `SIGKILL` and no longer calls
+`exit()`, so one of the prototype's three shrinking callers is gone.
 
 ## Boot ROM `memcpy` and `memset` behind `bcopy` and `bzero`
 
@@ -105,8 +136,9 @@ revision's PICO_UART kernel, and `cat l/file` with `l` naming `ab` prints
 `l/file: No such file or directory`; with #711 the stage passes. The board
 was not run. The host harness hid the defect: `tests/kernel/hostkern_kern.c` gives the kernel tests a `bcopy` that
 copies backward. The fix gives `bcopy` memmove semantics, so the ROM
-`memcpy`, which has no overlap handling, can back it only beside an overlap
-branch. The prototype below omits that branch, so its text figures are an
+`memcpy`, which copies backward byte by byte for short or misaligned ranges
+and forward in words for aligned ones, so it is safe for one direction of
+overlap per case, can back it only beside an overlap branch. The prototype below omits that branch, so its text figures are an
 upper bound on the saving of a correct veneer.
 
 **Prototype.** Two function pointers in bss, resolved by `rom_copy_init()` as
@@ -238,3 +270,109 @@ The instruction counts exclude silicon fetch latency and bus contention.
 The production kernel retains its existing bzero pending a representative
 size and alignment distribution, paired device timing and an image that
 crosses a flash placement boundary.
+
+## Board timing on the bare Pico
+
+On 2026-11-22 a probe kernel ran on the bare Raspberry Pi Pico (PICO kernel built from `6719f9d7a` with `docs/research/rom-copy-probe.patch`, 125 MHz system clock, root unchanged). The probe calls each routine N times (1,000 calls up to 256 bytes, 200 above) with interrupts masked (`splhigh()`). It reads the RP2040 timer's low word (`TIMERAWL`) before and after each loop. The patch runs the timing once from `main()` just before init starts; the console has not attached by then, so the table below comes from a second build that calls `bzbench()` from `sync()` when the caller is not a child of init, and an interactive `sync` prints it. For each size it times:
+
+- the kernel's `bzero`;
+- the boot ROM `memset` (MS) through a pointer resolved once;
+- the ROM `memset` resolved through `rom_func_lookup()` on every call;
+- the kernel's `bcopy`;
+- the ROM `memcpy` (MC).
+
+Offset 1 moves both the source and the destination one byte past word alignment, so the pair stays co-aligned. Microseconds per call:
+
+| Bytes | Offset | bzero | ROM MS | ROM MS, lookup per call | bcopy | ROM MC |
+|---:|---:|---:|---:|---:|---:|---:|
+| 4 | 0 | 0.95 | 0.29 | 0.92 | 0.93 | 0.36 |
+| 4 | 1 | 1.07 | 0.29 | 0.91 | 0.93 | 0.36 |
+| 16 | 0 | 1.10 | 0.50 | 1.12 | 1.15 | 0.53 |
+| 16 | 1 | 1.57 | 0.47 | 1.10 | 1.84 | 0.62 |
+| 32 | 0 | 1.26 | 0.56 | 1.18 | 1.38 | 0.63 |
+| 32 | 1 | 1.73 | 0.59 | 1.22 | 2.92 | 0.71 |
+| 64 | 0 | 1.52 | 0.69 | 1.31 | 1.79 | 0.84 |
+| 64 | 1 | 1.99 | 0.72 | 1.34 | 5.02 | 0.92 |
+| 128 | 0 | 1.99 | 0.94 | 1.57 | 2.55 | 1.26 |
+| 128 | 1 | 2.46 | 0.98 | 1.60 | 9.18 | 1.34 |
+| 256 | 0 | 2.88 | 1.46 | 2.08 | 4.02 | 2.09 |
+| 256 | 1 | 3.35 | 1.49 | 2.11 | 17.42 | 2.17 |
+| 512 | 0 | 4.60 | 2.48 | 3.10 | 6.88 | 3.75 |
+| 512 | 1 | 5.07 | 2.52 | 3.13 | 33.87 | 3.83 |
+| 1024 | 0 | 7.99 | 4.53 | 5.15 | 12.57 | 7.08 |
+| 1024 | 1 | 8.46 | 4.56 | 5.18 | 66.69 | 7.16 |
+| 4096 | 0 | 28.07 | 16.82 | 17.44 | 46.48 | 27.05 |
+| 4096 | 1 | 28.54 | 16.85 | 17.47 | 263.41 | 27.13 |
+
+The ROM routines are faster at every size measured:
+
+- **Fill (MS):** about 1.7 to 3.7 times faster than `bzero`. With the lookup on every call, the fill is level with `bzero` at 4 to 16 bytes and faster from 32 bytes.
+- **Aligned copy (MC):** about 1.4 to 2.6 times faster than `bcopy`.
+- **Co-aligned copy at offset 1 (MC):** 3 to 10 times faster. The kernel's `bcopy` takes its word loops only when both pointers are word-aligned, so a co-aligned pair one byte off falls to the byte loop.
+
+A histogram of call sizes, counted by the first build from just before init starts (after device, filesystem and root setup) through `/etc/rc`, a login, `ls -lR /usr` and `cat /etc/*`, buckets each call by `floor(log2(n)) + 1` (bucket 0 is length 0, bucket 13 is 4,096 bytes and more):
+
+| Routine | 0 | 1 | 2-3 | 4-7 | 8-15 | 16-31 | 32-63 | 64-127 | 128-255 | 256-511 | 512-1023 | 1024-2047 | 2048-4095 | 4096+ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| bzero | 0 | 0 | 0 | 0 | 6 | 51 | 188 | 25 | 0 | 24 | 11 | 333 | 37 | 36 |
+| bcopy | 0 | 313 | 1,032 | 1,685 | 1,508 | 1,013 | 1,830 | 846 | 17,981 | 8,099 | 5,033 | 3,199 | 26 | 16 |
+
+Most fills clear 1-2 KiB, where the ROM `memset` saves about 3.5 us a call, and most copies move 128 to 255 bytes, where the ROM `memcpy` saves about 1.3 us aligned.
+
+**Limits of this measurement:**
+
+- One board was measured, with warm caches and interrupts masked.
+- The histogram leaves out the kernel's own start-up before init.
+- Offset 1 covers co-aligned pairs only. A source and destination with different alignments were not timed.
+- The `bcopy` variant that looks up MC on every call was not timed.
+
+**Implementation constraints:** a change built on these numbers keeps `bcopy`'s backward branch for an overlapping destination in front of the ROM call (D150). The ROM `memcpy` varies its direction: it copies backward byte by byte below 8 bytes or across differing alignments and forward in words otherwise (see "Applied" below).
+
+**Decision settled:** the zero-RAM form, which reads the function table slot and falls back to a lookup on every call that misses it, replaces the form that caches the pointers in 8 bytes of bss (see "Both budgets" above and "Applied" below).
+
+## Applied: the ROM routines behind `bcopy` and `bzero`
+
+The kernel's `bzero` calls the ROM's `memset` (MS). The kernel's `bcopy` calls the ROM's `memcpy` (MC) for ranges that do not overlap (`sys/arch/rp2040/rp2040/machdep.c`). Neither keeps a pointer in RAM.
+
+**Finding the routine.** `rom_fn()` reads the function table slot where ROM version 3 keeps the entry: MS at `0x8a` and MC at `0x92`. Version 3 is the ROM of RP2040 B2 silicon, the version this board reports. When the slot holds the routine's two-letter code, the halfword after the code is the routine's address (`0x26b9` and `0x261d`). Any other ROM takes the per-call `rom_func_lookup()`. A wrong constant therefore costs only the lookup, never a wrong call. `rom_fn()` is out of line, so the slot address stays a parameter and GCC does not report the constant small-address read.
+
+**What the ROM `memcpy` does**, from the disassembly of `0x261d` in the B2 image (Renode_RP2040 `bootroms/rp2040/b2.elf`, the sha256 above):
+- **Below 8 bytes:** a computed jump into an unrolled byte copy that writes index `n - 1` down to 0.
+- **Source and destination of different alignment:** a byte loop that also runs from the end.
+- **Same alignment:** it brings the destination to a word with a byte and a halfword copy, then copies forward 16 bytes at a time with `ldmia`/`stmia`, then copies an 8-, 4-, 2- and 1-byte tail.
+
+So the ROM routine handles an overlap correctly in one direction per path, and `bcopy` sends it no overlapping range:
+- A destination inside the source breaks its forward word copy. D150 already sends that case to `bcopy`'s backward branch.
+- A source inside the destination breaks its backward byte copies. A same-alignment copy of 8 bytes or more takes the forward word path, which is correct there; `bcopy` still keeps that range on its own loops, the conservative choice.
+
+`bcopy` therefore calls the ROM only when `src - dst` (unsigned) is at least `nbytes`, which admits disjoint ranges, and keeps its own forward loops for a source that starts inside the destination. `tests/kernel/bcopy_overlap.py` models the routine as described and rejects a mutant that passes every range to the ROM.
+
+**What the ROM `memset` does.** `0x26b9` returns at once for a length of 0 and uses an unrolled byte store below 8 bytes. Otherwise it aligns the destination, replicates the byte into a word and stores 16 bytes at a time with `stmia`, then stores the tail.
+
+**Not used:** the aligned entries C4 (`memcpy44`, `0x2605`) and S4 (`memset4`, `0x26ad`). They skip only the alignment prologue, a few cycles.
+
+**Sizes** (`arm-none-eabi-gcc` 16.2.0, `bb3ac1c26` against the change): text changes by:
+
+| Kernel | Text (bytes) |
+|---|---:|
+| PICO | -16 |
+| PICO_DIAG | -24 |
+| PICO_UART | -8 |
+| PICOCALC | -24 |
+| PICOCALC_LEAN | -16 |
+| PICOCALC_LEAN_DIAG | -16 |
+| PICOCALC_SD | -8 |
+| PICOCALC_SD_DIAG | +16 |
+
+Data and bss are unchanged in every kernel.
+
+**Kernel stack depth** (`docs/research/kernel-size-flags/stack_chain.py`, `-fstack-usage -fcallgraph-info=su`, arm-none-eabi-gcc 16.2.0, PICOCALC_SD build against the tree before the change, `0cc1a3aef`, the parent that `kern/rom-copy` last merged). The model lists PICO, PICO_UART, PICO_DIAG, PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG and omits PICOCALC_SD, so the run takes `--config PICOCALC`, and the model lacked a site rule for each of the two indirect ROM calls, so the run added one for MC (12 bytes, the pushes of `0x261d`) and one for MS (8 bytes, the pushes of `0x26b9`) in a scratch copy of `stack-model.json`:
+- The deepest system call chain is 2,352 bytes before and 2,360 after, a growth of 8 bytes. It ends in `bcopy[24] -> rom_fn[8] -> rom_func_lookup[8]`, the per-call lookup fallback that a ROM version 3 board does not take, so the figure bounds the other ROMs and overstates this board.
+- The chain through `bzero` grows from 12 to 32 bytes (20) and the chain through `bcopy` from 16 to 40 (24).
+- Both system call figures already exceed the 2,048-byte budget before the change (issue 839); the growth is not what crosses it.
+- Without a site rule the model refuses the indirect calls (`indirect call in bcopy at ../../../../arch/rp2040/rp2040/machdep.c:1283 matches 0 site rules`). `stack-model.json` now carries one rule per call, 12 bytes for the `bcopy` call to MC and 8 bytes for the `bzero` call to MS, the pushes of the aligned and word paths; the short paths of both routines jump through a computed `bx r3` without pushing, which `bootrom_frames.py` cannot follow, so these two rules omit the `rom` code and `--check` skips them rather than cross-checking them against the B2 image. The lookup fallback `rom_fn() -> rom_func_lookup()` is an ordinary call edge. `stack-chain.sh` on this branch with the B2 image (SHA-256 `3a3c4c61...c49aa`) exits 0 on all six configurations; the deepest system call chain is 2,320 bytes in PICO (`mi`), 2,328 in PICO_UART, 2,344 in PICO_DIAG and PICOCALC, 2,336 in PICOCALC_LEAN and 2,360 in PICOCALC_LEAN_DIAG, each ending in `bcopy[24] -> rom_fn[8] -> rom_func_lookup[8]` for the lookup path and so bounding the ROM version 3 path. The model reports the budget excess (3,092 to 3,468 of 2,048 across all roots) without enforcing a bound.
+
+**Board check** (bare Pico, PICO kernel with the change on main `2f2cdb17d`):
+- The D150 symlink cases resolve: a link to `ab`, to `ab/../ab/../ab`, and to an absolute path.
+- `/bin/sh` copies byte-identical (`cmp`).
+- `ls -lR /` takes 0.62 s and `cat /bin/*` 0.85 s, the same as before; both are bound by the flash reads.

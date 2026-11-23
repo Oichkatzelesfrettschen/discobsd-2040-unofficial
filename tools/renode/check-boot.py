@@ -617,7 +617,7 @@ def check_clock_past_2038(console: Console) -> None:
 
 
 def run_stages(console: Console, config: str, identity: list[str]) -> None:
-    console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
+    console.wait_lines([f"GizmoBSD 0.1.0-alpha ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
     console.absent_before_cursor(ABSENT_PREFIXES[config], "descriptor-suppressed devices")
     console.wait_lines(LOGIN_LINES, "file system check", LOGIN_BUDGET_SECONDS)
@@ -629,7 +629,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.type_line("operator")
     console.wait_lines(["$"], "shell prompt", COMMAND_BUDGET_SECONDS)
     console.type_line("uname -sr")
-    console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
+    console.wait_lines(["GizmoBSD 0.1.0-alpha"], "uname", COMMAND_BUDGET_SECONDS)
     check_symlink_path(console)
     check_ps(console)
     check_memory_devices(console)

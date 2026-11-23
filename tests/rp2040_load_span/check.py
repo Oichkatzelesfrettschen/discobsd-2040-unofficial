@@ -28,7 +28,7 @@ def main():
     script = (ROOT / "sys/arch/rp2040/conf/kern.ldscript").read_text(encoding="utf-8")
     if ASSERTION not in script:
         raise SystemExit("FAIL load-span: production assertion absent")
-    with tempfile.TemporaryDirectory(prefix="discobsd-load-span-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-load-span-") as temporary:
         directory = Path(temporary)
         for ramfunc_size in (16, 32, 33):
             source = directory / "fixture.s"

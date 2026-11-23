@@ -280,6 +280,9 @@ user_entry(const struct trapframe *frame)
 		    sp - (u_int)u.u_sigstk.ss_base <=
 		    (u_int)u.u_sigstk.ss_size - span);
 	if (p->p_ssize < USER_TOP(p) - sp) {
+		/* A depth past RLIMIT_STACK fails like a collision. */
+		if (!rlimit_stack_admits(USER_TOP(p) - sp))
+			return 1;
 		p->p_ssize = USER_TOP(p) - sp;
 		p->p_saddr = sp;
 		u.u_ssize = p->p_ssize;

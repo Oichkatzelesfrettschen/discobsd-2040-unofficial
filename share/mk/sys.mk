@@ -1,6 +1,6 @@
 include ${TOPSRC}/share/mk/architecture.mk
 
-unix=		We run DiscoBSD.
+unix=		We run GizmoBSD.
 OSMAJOR=	2
 OSMINOR=	7
 OSREV=		${OSMAJOR}.${OSMINOR}
@@ -214,7 +214,7 @@ TAGSFILE=	tags
 # groff formats the same pages where mandoc is absent, which on Linux
 # distributions that ship man-db is the common case.
 MANROFF!=	if command -v mandoc >/dev/null 2>&1 ; then \
-			echo 'mandoc -Tascii -Ios="DiscoBSD ${OSREV}"' ; \
+			echo 'mandoc -Tascii -Ios="GizmoBSD"' ; \
 		else \
 			echo 'groff -mandoc -Tascii' ; \
 		fi

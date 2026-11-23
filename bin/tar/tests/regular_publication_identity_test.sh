@@ -159,7 +159,7 @@ grep -F "tar regular publication: rooted cleanup"     "$write_failure_output" >/
 # The staging corpus names 62 candidates that differ only in letter case.
 # A case-insensitive volume (macOS's default APFS) folds them together and
 # leaves no free candidate, so the two cases that need the corpus are
-# skipped and reported there; DiscoBSD's UFS and Linux CI are case-sensitive.
+# skipped and reported there; GizmoBSD's UFS and Linux CI are case-sensitive.
 : >"$work_directory/case-probe"
 if [ -e "$work_directory/CASE-PROBE" ]; then
     case_sensitive=0

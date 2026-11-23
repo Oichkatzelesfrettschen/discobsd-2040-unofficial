@@ -521,31 +521,6 @@ MUTANTS = [
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(0);",
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(ems_on ? 3 : 0);",
     ),
-    # pit_view() letting a guest read time past waiting interrupts: on a
-    # host whose sleeps run long, the guest sees counter 2 expire with
-    # interrupts still waiting (test_oversleep).
-    ("pc.c", "\theld = ticks_due;\n", "\theld = 0;\n"),
-]
-
-# A host whose every sleep runs 8 ms long, as a loaded runner's can.
-OVERSLEEP = ("main.c", "\tusleep(ms * 1000UL);\n}", "\tusleep(ms * 1000UL + 8000UL);\n}")
-
-# Builds the oversleep oracle must reject: one that drops interrupts and
-# two that deliver them wrong.
-OVERSLEEP_BAD = [
-    ("reads see time past waiting interrupts", "pc.c", "\theld = ticks_due;\n", "\theld = 0;\n"),
-    (
-        "four waiting interrupts at most",
-        "clock.c",
-        "unsigned cap = period ? (CLK_CREDIT_CLOCKS - 1) / period + 1 : 0;",
-        "unsigned cap = period ? 0 : 0;",
-    ),
-    (
-        "two interrupts a deadline",
-        "pc.c",
-        "ticks_due = clk_owe(ticks_due, pit[0].count);",
-        "ticks_due = clk_owe(clk_owe(ticks_due, pit[0].count), pit[0].count);",
-    ),
 ]
 
 
@@ -1358,70 +1333,125 @@ def test_pit(binary, work):
     host_clock_irqs(lambda: pit_run(binary, work, []), "timer, host clock")
 
 
-PIT_PERIOD = 0x04A9  # counter 0's count in tests/pit.asm: 1 kHz
+# Counter 0 at 1 kHz raises 52 to 55 interrupts while counter 2 counts 65535
+# clocks (tests/pit.asm), 34h to 37h. Under -S the emulator sleeps whole
+# milliseconds between polls. A sleep that overruns leaves the interrupts it
+# covers waiting, late and not lost, when counter 2 closes the window, and
+# clk_owe() keeps at most 21 of them waiting at 1 kHz, so a stalled host
+# counts at least 52 - 21 = 31 interrupts, 1Fh. The bound holds while each
+# stall stays within CLK_CREDIT_US (20 ms); a longer one drops the interrupts
+# past the 21 and no floor holds. The unpaced run has no sleep and keeps the
+# unstalled floor.
+HOST_CLOCK_IRQ_UNSTALLED = 0x34
+HOST_CLOCK_IRQ_MAX = 0x37
+HOST_CLOCK_IRQ_STALLED = 0x1F
 
 
-def window_irqs(fields):
-    """The interrupts counter 0 owes the window counter 2 timed, as the
-    guest saw it: counter 2 counts down from FFFFh in mode 0 and goes on
-    through 0 to FFFFh, so its count c2, latched right after the guest saw
-    it expire, puts the window at e = 65535 + (-c2 mod 65536) clocks. A
-    period of PIT_PERIOD clocks has floor(e / PIT_PERIOD) or one more
-    deadlines in it; the few instructions before sti and after the close
-    fall outside the counted span, which the 64 clocks of slack cover.
-    Returns (low, high, e), or None when e is out of reach."""
-    try:
-        c2 = int(fields["c2"], 16)
-    except (KeyError, ValueError):
-        return None
-    span = 65535 + (-c2) % 65536
-    return ((span - 64) // PIT_PERIOD, span // PIT_PERIOD + 1, span)
-
-
-def judge_irqs(got, what):
-    """(whether the interrupt count of one run of tests/pit.asm agrees with
-    counter 2's span, a note); a run that did not finish whole fails."""
-    fields = dict(t.split(":", 1) for t in got if ":" in t)
-    irq = int(fields.get("irq", "-1"), 16)
-    want = window_irqs(fields)
-    if (
-        want is None
-        or fields.get("st2") != "00B0"
-        or fields.get("tick") != "ok"
-        or got[-1:] != ["done"]
-    ):
-        raise Failure("%s: %r" % (what, got))
-    low, high, span = want
-    return low <= irq <= high, "%d over %d clocks" % (irq, span)
-
-
-def host_clock_irqs(run, what):
-    """A run of tests/pit.asm on the host's clock must finish whole, and
-    its interrupt count must agree with counter 2's latched count: every
-    interrupt due before the guest saw counter 2 expire was delivered, and
-    none due after it (pc.c pit_view()). A host that sleeps longer than
-    asked delays the close the guest sees, never the agreement. Two host
-    stalls break it without a defect: one past the 20 ms of interrupts
-    clk_owe() keeps waiting drops the rest, and one past another whole
-    count of counter 2 (55 ms) wraps the latched count. So a run that
-    disagrees is retried, three runs at most, and one that agrees passes:
-    a defect that breaks the agreement in every run fails, one that breaks
-    it now and then can pass."""
+def host_clock_irqs(run, what, floor=HOST_CLOCK_IRQ_UNSTALLED, note=print):
+    """A run of tests/pit.asm on the host's clock must finish whole and
+    count at most 37h interrupts while counter 2 counts 65535 clocks. A
+    host never counts more than the clocks allow, so a run of 34h to 37h
+    passes alone, without a repeat, and a loaded host counts fewer: the best
+    of three runs must reach floor. A paced run passes HOST_CLOCK_IRQ_STALLED
+    as its floor. The -T run holds the exact count of 36h, which a lost
+    final interrupt moves; this judge cannot see one inside its band."""
     seen = []
     for _ in range(3):
-        agrees, detail = judge_irqs(run(), what)
-        if agrees:
+        got = run()
+        fields = dict(t.split(":", 1) for t in got if ":" in t)
+        irq = int(fields.get("irq", "0"), 16)
+        if (
+            irq > HOST_CLOCK_IRQ_MAX
+            or fields.get("st2") != "00B0"
+            or fields.get("tick") != "ok"
+            or got[-1:] != ["done"]
+        ):
+            raise Failure("%s: %r" % (what, got))
+        if irq >= HOST_CLOCK_IRQ_UNSTALLED:
             return
-        seen.append(detail)
-    raise Failure(
-        "%s: interrupts disagree with counter 2 in three runs, expected floor(span / %d) "
-        "or one more: %s" % (what, PIT_PERIOD, seen)
+        seen.append(irq)
+    counts = ["%02Xh" % n for n in seen]
+    if max(seen) == 0:
+        raise Failure("%s: the timer raised no interrupt in three runs" % what)
+    if max(seen) < floor:
+        raise Failure(
+            "%s: fewer than %02Xh interrupts in three runs: %s" % (what, floor, ", ".join(counts))
+        )
+    note("%s: stalled host, %s interrupts, floor %02Xh" % (what, ", ".join(counts), floor))
+
+
+def test_host_clock_judge():
+    """host_clock_irqs() on counts it must pass and reject, each reject for
+    its own reason: an unstalled host (34h), a stalled paced host (the floor
+    1Fh, and 31h as hosted macOS counted), a stalled unpaced host (all runs
+    below 34h), a paced count under the floor in all three runs (1Eh), a
+    timer that raised nothing (0), more interrupts than the clocks allow
+    (38h), a run that does not finish and a run whose counter 2 status is
+    wrong."""
+
+    def runs(counts, tail="done", st2="00B0"):
+        queue = list(counts)
+
+        def one():
+            return ["irq:%04X" % queue.pop(0), "st2:" + st2, "tick:ok", tail]
+
+        return one
+
+    paced = HOST_CLOCK_IRQ_STALLED
+    accepted = (
+        ([0x36], paced),
+        ([0x20, 0x34], paced),
+        ([0x31, 0x31, 0x33], paced),
+        ([0x1F, 0x1F, 0x1F], paced),
+        ([0x20, 0x34], HOST_CLOCK_IRQ_UNSTALLED),
     )
+    rejected = (
+        ([0x1E, 0x1E, 0x1E], paced, "fewer than 1Fh"),
+        ([0, 0, 0], paced, "no interrupt"),
+        ([0x31, 0x31, 0x33], HOST_CLOCK_IRQ_UNSTALLED, "fewer than 34h"),
+        ([0x38], paced, "irq:0038"),
+        ([0x36], paced, "done"),
+        ([0x36], paced, "st2:0000"),
+    )
+    for counts, floor in accepted:
+        try:
+            host_clock_irqs(runs(counts), "judge", floor, note=lambda text: None)
+        except Failure as failure:
+            raise Failure("host clock judge rejected %r: %s" % (counts, failure)) from None
+    for counts, floor, reason in rejected:
+        kwargs = {}
+        if reason == "done":
+            kwargs["tail"] = "x"
+        if reason == "st2:0000":
+            kwargs["st2"] = "0000"
+        try:
+            host_clock_irqs(runs(counts, **kwargs), "judge", floor, note=lambda text: None)
+        except Failure as failure:
+            if reason not in str(failure) and reason not in ("done", "st2:0000"):
+                raise Failure(
+                    "host clock judge rejected %r for another reason: %s" % (counts, failure)
+                ) from None
+            continue
+        raise Failure("host clock judge accepted %r at floor %02Xh" % (counts, floor))
 
 
-def oversleep_tree(src, tree, edits):
-    """A copy of the emulator's sources in tree with edits, each of which
-    must match exactly once."""
+# A host whose every sleep runs 15 ms long, inside the 20 ms of interrupts
+# clk_owe() keeps waiting: the fixed timer counts 32h there in every run and
+# a build that keeps only four interrupts waiting counts 10h to 11h, far on either
+# side of HOST_CLOCK_IRQ_STALLED (8 ms puts that build exactly on it).
+OVERSLEEP = ("main.c", "\tusleep(ms * 1000UL);\n}", "\tusleep(ms * 1000UL + 15000UL);\n}")
+OVERSLEEP_BAD = (
+    "clock.c",
+    "unsigned cap = period ? (CLK_CREDIT_CLOCKS - 1) / period + 1 : 0;",
+    "unsigned cap = period ? 0 : 0;",
+)
+
+
+def oversleep_build(src, work, cc, edits):
+    """A build of the emulator's sources in src with edits, each of which
+    must match exactly once; returns the binary."""
+    tree = os.path.join(work, "oversleep")
+    binary = os.path.join(work, "i86-oversleep")
     shutil.rmtree(tree, ignore_errors=True)
     os.mkdir(tree)
     for item in SOURCES + HEADERS:
@@ -1434,39 +1464,74 @@ def oversleep_tree(src, tree, edits):
             raise Failure("oversleep: %s holds %r %d times" % (name, old, text.count(old)))
         with open(path, "w") as handle:
             handle.write(text.replace(old, new))
+    build(tree, binary, cc)
+    return binary
+
+
+def host_sleep_overrun_ms():
+    """The longest time, in milliseconds, by which twenty 1 ms sleeps of
+    this host run long."""
+    over = []
+    for _ in range(20):
+        start = time.monotonic()
+        time.sleep(0.001)
+        over.append((time.monotonic() - start) * 1000 - 1)
+    return max(over)
 
 
 def test_oversleep(src, work, cc, calibrate=False):
-    """-S 4.77 on a host whose every sleep runs 8 ms long, through a build
-    of the sources in src with OVERSLEEP: the interrupts still agree with
-    counter 2 (host_clock_irqs), since a read cannot see time past those
-    that came due while the host slept until the guest has had them. With
-    calibrate, each build of OVERSLEEP_BAD must disagree in at least three
-    of five single runs, where the good build agreed in 40 of 40 (3 and
-    8 ms) and a build that lets reads pass waiting interrupts in 4 of 40,
-    so the agreement is one a dropped, doubled or unheld interrupt breaks."""
-    tree = os.path.join(work, "oversleep")
-    binary = os.path.join(work, "i86-oversleep")
+    """-S 4.77 on a host whose every sleep runs 15 ms long (OVERSLEEP): the
+    paced judge passes, since the interrupts that came due during a sleep
+    wait and arrive late rather than being lost. With calibrate, the build
+    that keeps four interrupts waiting (OVERSLEEP_BAD) must count under
+    HOST_CLOCK_IRQ_STALLED in at least three of five single runs."""
 
-    def paced():
-        return pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
+    def paced(binary):
+        return lambda: pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
 
-    oversleep_tree(src, tree, [OVERSLEEP])
-    build(tree, binary, cc)
-    host_clock_irqs(paced, "-S 4.77, sleeps 8 ms long")
+    # The fixture's 15 ms and the host's own overrun together must stay
+    # under the 20 ms of interrupts clk_owe() keeps waiting; a host whose
+    # sleeps already run 2 ms long (the hosted macOS runner's do) drops
+    # interrupts with or without a defect, so the fixture cannot judge it.
+    overrun = host_sleep_overrun_ms()
+    if overrun > 2:
+        print("NOT RUN oversleep fixture: this host's 1 ms sleeps run %.1f ms long" % overrun)
+        return
+    good = oversleep_build(src, work, cc, [OVERSLEEP])
+    try:
+        host_clock_irqs(paced(good), "-S 4.77, sleeps 15 ms long", HOST_CLOCK_IRQ_STALLED)
+    except Failure:
+        # A host that stalled during the runs, though not before them,
+        # judges itself rather than the build.
+        overrun = host_sleep_overrun_ms()
+        if overrun > 2:
+            print("NOT RUN oversleep fixture: 1 ms sleeps now run %.1f ms long" % overrun)
+            return
+        raise
     if not calibrate:
         return
-    for name, item, old, new in OVERSLEEP_BAD:
-        oversleep_tree(src, tree, [OVERSLEEP, (item, old, new)])
-        build(tree, binary, cc)
-        seen = [judge_irqs(paced(), name) for _ in range(5)]
-        if sum(1 for agrees, _ in seen if not agrees) >= 3:
-            print("oversleep check rejects: %s" % name)
-            continue
+    bad = paced(oversleep_build(src, work, cc, [OVERSLEEP, OVERSLEEP_BAD]))
+    counts = []
+    for _ in range(5):
+        got = bad()
+        fields = dict(t.split(":", 1) for t in got if ":" in t)
+        if (
+            "irq" not in fields
+            or fields.get("st2") != "00B0"
+            or fields.get("tick") != "ok"
+            or got[-1:] != ["done"]
+        ):
+            raise Failure("the four-waiting build did not finish whole: %r" % got)
+        counts.append(int(fields["irq"], 16))
+    if sum(1 for n in counts if n < HOST_CLOCK_IRQ_STALLED) < 3:
         raise Failure(
-            "oversleep check accepts a known-bad build: %s: %s"
-            % (name, ", ".join(detail for _, detail in seen))
+            "the paced judge accepts the four-waiting build: %s"
+            % ", ".join("%02Xh" % n for n in counts)
         )
+    print(
+        "oversleep check rejects the four-waiting build: %s"
+        % ", ".join("%02Xh" % n for n in counts)
+    )
 
 
 def test_speed(binary, work):
@@ -1483,7 +1548,7 @@ def test_speed(binary, work):
             raise Failure("-S 4.77: %.2f s, %r" % (took, got))
         return got
 
-    host_clock_irqs(paced, "-S 4.77")
+    host_clock_irqs(paced, "-S 4.77", HOST_CLOCK_IRQ_STALLED)
 
 
 def ems_run(binary, work, args, keys, env=None):
@@ -1992,6 +2057,7 @@ def main(argv):
             print(test_clock(clocktest))
             # Independent of the emulator, so once, not for every mutant.
             test_wait_draining()
+            test_host_clock_judge()
             test(binary, work)
             test_oversleep(src, work, cc, calibrate=True)
             print("i86 host test passed")

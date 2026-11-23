@@ -169,28 +169,30 @@ def ram_hazard() -> None:
 
 def names() -> None:
     for text in (
+        "gizmobsd.uf2",
         "discobsd.uf2",
+        "GIZMOBSD.uf2",
         "DISCOBSD.uf2",
         "a.uf2",
         "12345678.uf2",
         "my-app_1.uf2",
-        "x/y/discobsd.uf2",
+        "x/y/gizmobsd.uf2",
     ):
         builder.check_output_name(Path(text))
     for text in (
-        "discobsd.UF2",
-        "discobsd.Uf2",
-        "discobsd.bin",
-        "discobsd",
-        "discobsd.uf",
+        "gizmobsd.UF2",
+        "gizmobsd.Uf2",
+        "gizmobsd.bin",
+        "gizmobsd",
+        "gizmobsd.uf",
         ".uf2",
         "123456789.uf2",
-        "DiscoBSD.uf2",
+        "GizmoBSD.uf2",
         "disco bsd.uf2",
         "a.b.uf2",
         "disco+.uf2",
         "disco.uf2.txt",
-        "discobsd.uf2x",
+        "gizmobsd.uf2x",
     ):
         try:
             builder.check_output_name(Path(text))
@@ -202,7 +204,7 @@ def names() -> None:
 def command_line() -> None:
     kernel = WORK / "bt-kernel.uf2"
     root = WORK / "bt-root.img"
-    out = WORK / "discobsd.uf2"
+    out = WORK / "gizmobsd.uf2"
     made = [kernel, root, out]
     kernel.write_bytes(fixtures.make_uf2(471))
     root.write_bytes(root_image())
@@ -225,14 +227,31 @@ def command_line() -> None:
             "default output",
         )
         out.unlink()
-        # An output name that is not discobsd.uf2 builds with a warning.
+        # An output name that is not gizmobsd.uf2 builds with a warning.
         other = WORK / "other.uf2"
         made.append(other)
         result = run("-o", str(other), str(kernel), str(root))
-        require(result.returncode == 0 and "discobsd.uf2" in result.stderr, "name warning")
+        require(result.returncode == 0 and "gizmobsd.uf2" in result.stderr, "name warning")
+        require("not found at boot" in result.stderr, "unknown name warning text")
         other.unlink()
+        # The former name builds, and its warning names the new file and the fail-closed rule.
+        legacy = WORK / "discobsd.uf2"
+        made.append(legacy)
+        result = run("-o", str(legacy), str(kernel), str(root))
+        require(
+            result.returncode == 0
+            and "gizmobsd.uf2" in result.stderr
+            and "former name" in result.stderr
+            and "not found at boot" not in result.stderr,
+            f"former-name warning: {result.stderr}",
+        )
+        require(
+            legacy.read_bytes() == builder.build(kernel.read_bytes(), root.read_bytes()),
+            "former-name output",
+        )
+        legacy.unlink()
         # Refusals leave zero output files and say why.
-        for bad_out in ("discobsd.UF2", "discobsd.bin", "DiscoBSD.uf2", "toolongname.uf2"):
+        for bad_out in ("gizmobsd.UF2", "gizmobsd.bin", "GizmoBSD.uf2", "toolongname.uf2"):
             path = WORK / bad_out
             made.append(path)
             result = run("-o", str(path), str(kernel), str(root))

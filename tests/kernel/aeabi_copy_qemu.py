@@ -21,6 +21,34 @@ PREFIX = """\
 #include <stddef.h>
 typedef unsigned int u_int;
 typedef unsigned char u_char;
+typedef unsigned short u_short;
+#define ROM_CODE(c1, c2) ((u_int)(c1) | ((u_int)(c2) << 8))
+/*
+ * bcopy() hands disjoint ranges to the boot ROM's memcpy, which a qemu-user
+ * process does not map. Every table read misses here, so rom_fn() takes
+ * rom_func_lookup(), and that returns a model of the version 3 ROM routine:
+ * byte by byte from the end below 8 bytes or when the pointers differ in
+ * alignment, forward otherwise. The volatile accesses keep a compiler from
+ * turning the loops into calls to memcpy, which would reenter bcopy().
+ */
+#define ROM_HALF(a) ((u_short)((a) * 0U))
+static void *rom_memcpy_model(void *dst, const void *src, u_int n)
+{
+    volatile unsigned char *d = dst;
+    const volatile unsigned char *s = src;
+    if (n < 8 || (((u_int)dst - (u_int)src) & 3) != 0) {
+        while (n--)
+            d[n] = s[n];
+        return dst;
+    }
+    for (u_int i = 0; i < n; i++)
+        d[i] = s[i];
+    return dst;
+}
+static void *rom_func_lookup(u_int code)
+{
+    return code == ROM_CODE('M', 'C') ? (void *)rom_memcpy_model : 0;
+}
 """
 TEST = """\
 int test_copy(void)
@@ -50,8 +78,18 @@ int test_copy(void)
     return 0;
 }
 """
-FLAGS = ("-std=gnu17", "-Wall", "-Wextra", "-Werror", "-ffreestanding", "-fno-builtin",
-         "-fno-strict-aliasing", "-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft")
+FLAGS = (
+    "-std=gnu17",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-ffreestanding",
+    "-fno-builtin",
+    "-fno-strict-aliasing",
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-mfloat-abi=soft",
+)
 
 
 def main():
@@ -66,21 +104,33 @@ def main():
     body = source[start:finish]
     if body.count("bcopy(src, dst, nbytes);") != 3:
         raise SystemExit("FAIL aeabi-copy-qemu: copy entry boundary changed")
-    with tempfile.TemporaryDirectory(prefix="discobsd-aeabi-qemu-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-aeabi-qemu-") as temporary:
         directory = Path(temporary)
         startup = directory / "start.S"
         startup.write_text(START, encoding="utf-8")
         start_obj = directory / "start.o"
-        subprocess.run([args.gcc[0], "-mcpu=cortex-m0plus", "-mthumb", "-c", str(startup),
-                        "-o", str(start_obj)], check=True)
+        subprocess.run(
+            [
+                args.gcc[0],
+                "-mcpu=cortex-m0plus",
+                "-mthumb",
+                "-c",
+                str(startup),
+                "-o",
+                str(start_obj),
+            ],
+            check=True,
+        )
         compilers = [(gcc,) for gcc in args.gcc] + [(args.clang, "--target=arm-none-eabi")]
         for compiler in compilers:
             for level in ("O0", "O", "O1", "O2", "O3", "Og", "Os", "Oz"):
                 for mutant in ("none", "generic", "aligned"):
                     selected = body
                     if mutant != "none":
-                        marker = "void\n__aeabi_memcpy(" if mutant == "generic" else (
-                            "void\n__aeabi_memcpy4("
+                        marker = (
+                            "void\n__aeabi_memcpy("
+                            if mutant == "generic"
+                            else ("void\n__aeabi_memcpy4(")
                         )
                         offset = body.index(marker)
                         selected = body[:offset] + body[offset:].replace(
@@ -90,18 +140,37 @@ def main():
                     fixture.write_text(PREFIX + selected + TEST, encoding="utf-8")
                     obj = directory / "copy.o"
                     binary = directory / "copy"
-                    subprocess.run([*compiler, *FLAGS, f"-{level}", "-c", str(fixture),
-                                    "-o", str(obj)], check=True)
-                    subprocess.run([args.gcc[0], "-mcpu=cortex-m0plus", "-mthumb", "-nostdlib",
-                                    "-static", "-Wl,--build-id=none", "-Wl,-z,noexecstack",
-                                    "-Wl,--fatal-warnings", "-Wl,-Ttext=0x20000",
-                                    str(start_obj), str(obj), "-o", str(binary)], check=True)
-                    result = subprocess.run([args.qemu, "-cpu", "cortex-m0", str(binary)],
-                                            check=False, timeout=30)
+                    subprocess.run(
+                        [*compiler, *FLAGS, f"-{level}", "-c", str(fixture), "-o", str(obj)],
+                        check=True,
+                    )
+                    subprocess.run(
+                        [
+                            args.gcc[0],
+                            "-mcpu=cortex-m0plus",
+                            "-mthumb",
+                            "-nostdlib",
+                            "-static",
+                            "-Wl,--build-id=none",
+                            "-Wl,-z,noexecstack",
+                            "-Wl,--fatal-warnings",
+                            "-Wl,-Ttext=0x20000",
+                            str(start_obj),
+                            str(obj),
+                            "-o",
+                            str(binary),
+                        ],
+                        check=True,
+                    )
+                    result = subprocess.run(
+                        [args.qemu, "-cpu", "cortex-m0", str(binary)], check=False, timeout=30
+                    )
                     expected = 0 if mutant == "none" else 1
                     if result.returncode != expected:
-                        raise SystemExit(f"FAIL aeabi-copy-qemu: {compiler} -{level} {mutant} "
-                                         f"exit={result.returncode}")
+                        raise SystemExit(
+                            f"FAIL aeabi-copy-qemu: {compiler} -{level} {mutant} "
+                            f"exit={result.returncode}"
+                        )
             print(f"PASS aeabi-copy-qemu: {compiler} controls and mutants")
     return 0
 

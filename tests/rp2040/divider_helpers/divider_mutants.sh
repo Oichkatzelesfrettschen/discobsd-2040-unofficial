@@ -34,6 +34,19 @@ run() {
 		echo "mutant $1: SURVIVED" >&2
 		survivors=$((survivors + 1))
 	else
+		status=$?
+		if [ "$1" = remainder_offset ]; then
+			if [ "$status" -ne 1 ]; then
+				echo "remainder-offset control: unexpected exit $status" >&2
+				exit 1
+			fi
+			for provider in div ldiv; do
+				if ! grep -q "^$provider a=" "mutant_$1.out"; then
+					echo "remainder-offset control: missing $provider mismatch" >&2
+					exit 1
+				fi
+			done
+		fi
 		echo "mutant $1: rejected"
 	fi
 }

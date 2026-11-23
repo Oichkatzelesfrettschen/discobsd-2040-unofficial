@@ -60,7 +60,7 @@ class MakeQueryTest(unittest.TestCase):
                 self.assertEqual(output, expected)
 
     def test_usercopy_query(self):
-        with tempfile.TemporaryDirectory(prefix="discobsd-make-query-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="gizmobsd-make-query-") as temporary:
             for variables in (("MAKEFLAGS",), ("MFLAGS",), ("MAKEFLAGS", "MFLAGS")):
                 with self.subTest(variables=variables):
                     result = subprocess.run(

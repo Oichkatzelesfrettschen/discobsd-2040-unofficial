@@ -73,7 +73,7 @@ def main():
     set_winsize(master)
     time.sleep(0.2)
     screen = read_available(master)
-    if b"DiscoBSD menu" not in screen:
+    if b"GizmoBSD menu" not in screen:
         print("FAIL: initial screen did not paint the header")
         print(screen)
         sys.exit(1)

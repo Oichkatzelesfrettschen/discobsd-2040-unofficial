@@ -6,7 +6,7 @@
 
 /*
  * This file is the interpreter of uLisp PicoCalc 4.8f as a C17 program for
- * DiscoBSD and POSIX hosts. It derives from ulisp-picocalc.ino of
+ * GizmoBSD and POSIX hosts. It derives from ulisp-picocalc.ino of
  * https://github.com/technoblogy/ulisp-picocalc at commit
  * c031b63c00b1e55ef64e556fd3372e38ed0ab062 (SHA-256 65608bb7d6a48dc0
  * 2dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b) and stays under the MIT

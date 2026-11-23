@@ -30,7 +30,7 @@
  * The system interface of the uLisp interpreter (ulisp.c): console, files,
  * clock, pins, sound and the pixel display. unix.c implements the POSIX
  * part, gfx.c draws shapes and text through dev_fill(), and one of
- * dev_picocalc.c (the PicoCalc devices of DiscoBSD) or dev_host.c (a
+ * dev_picocalc.c (the PicoCalc devices of GizmoBSD) or dev_host.c (a
  * frame buffer in memory, for a development host) supplies the dev_ part.
  */
 #ifndef ULISP_PLATFORM_H
@@ -115,6 +115,13 @@ bool dev_tone(unsigned int hz, unsigned long ms);
 bool dev_callcode(const uint8_t *entry, const int param[4], int *result);
 /* Fills the rectangle x0..x1, y0..y1, which lies on the panel. */
 void dev_fill(int x0, int y0, int x1, int y1, uint16_t color);
+/*
+ * Draws the w by h block at x, y, which lies on the panel, from h rows of
+ * bits, the most significant bit of a row's first byte leftmost and each row
+ * padded to a whole byte: a set bit in fg, a clear one in bg.
+ */
+void dev_bits(int x, int y, int w, int h, const uint8_t *rows, uint16_t fg,
+    uint16_t bg);
 int dev_readpixel(int x, int y);
 void dev_release(void);		/* returns the panel to the text console */
 

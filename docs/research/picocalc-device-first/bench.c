@@ -32,7 +32,7 @@
  * sys/arch/rp2040/rp2040/swapram.c, counting pass with dst NULL, writing
  * pass with dst set) and swap decode (dec follows sr_expand with a
  * destination), on the vendored heatshrink encoder and the port's hsx
- * decoder. bzero and bcopy are the kernel's own routines.
+ * decoder. bzero and bcopy are word loops local to the harness.
  */
 #include "heatshrink_encoder.h"
 #include <machine/hsx_decoder.h>
@@ -99,12 +99,15 @@ dec(const uint8_t *src, unsigned clen, uint8_t *dst, unsigned rlen)
 
 
 /*
- * bzero and bcopy are the kernel's routines, copied verbatim from
+ * bzero and bcopy are word loops derived from
  * sys/arch/rp2040/rp2040/machdep.c: the encoder's memset (through
  * dhara/compat/string.h) reaches bzero, and memcpy and the ascending memmove
- * case reach bcopy, so the cycle counts need the production word loops.
- * build.sh compares both function bodies and the UNALIGNED macro with
- * machdep.c and fails on any difference.
+ * case reach bcopy. The kernel's bzero and its bcopy of disjoint ranges call
+ * the boot ROM's memset and memcpy, which the harness address space does not
+ * hold; those run 1.4 to 3.7 times faster than these loops
+ * (docs/research/noreturn-and-rom-copy-footprint.md), so the model's counts
+ * bound the kernel's fill and copy share from above. build.sh compares the
+ * UNALIGNED macro with machdep.c.
  */
 /*
  * The two routines below keep the notice of the file they come from. It

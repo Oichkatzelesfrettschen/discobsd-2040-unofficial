@@ -1,5 +1,5 @@
 /*
- * coil -- a chain shooter for the PicoCalc console of the DiscoBSD RP2040
+ * coil -- a chain shooter for the PicoCalc console of the GizmoBSD RP2040
  * port (53 columns by 32 rows, ANSI escapes; it also fits 80 by 24).
  * Colored balls enter at the outer end of a spiral path and creep toward
  * its center. A launcher in the middle of the field turns through sixteen

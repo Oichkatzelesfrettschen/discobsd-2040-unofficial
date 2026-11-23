@@ -84,10 +84,27 @@ static int
 hsx_headers (struct inode *ip, const struct exec *e, struct hsx *x)
 {
     int resid = 0;
+    off_t offset = sizeof *e;
+#ifdef EXEC_XIP_LIBC
+    struct xip_requirement req;
+    if (N_GETFLAG(*e) == (EX_HSPACK | EX_XIP)) {
+        struct exec raw = *e;
 
+        N_SETMAGIC(raw, OMAGIC, N_GETMID(*e), EX_XIP);
+        /* The stored length belongs to hsx_requirement_check. The raw layout
+         * still validates the uncompressed segment sum and resident window. */
+        if (exec_xip_read(ip, &raw, &req, 0xffffffffUL) != AOUT_OK)
+            return HSX_BADSIG;
+        offset += sizeof req;
+    }
+#endif
     if (rdwri (UIO_READ, ip, (caddr_t) x, sizeof *x,
-        (off_t) sizeof (struct exec), IO_UNIT, &resid) != 0 || resid != 0)
+        offset, IO_UNIT, &resid) != 0 || resid != 0)
         return HSX_BADSIZE;
+#ifdef EXEC_XIP_LIBC
+    if (N_GETFLAG(*e) == (EX_HSPACK | EX_XIP))
+        return hsx_requirement_check(e, x, &req, (unsigned long)ip->i_size);
+#endif
     return hsx_check (e, x, (unsigned long) ip->i_size);
 }
 
@@ -104,7 +121,11 @@ exec_hsaout_check (struct exec_params *epp)
     if (epp->hdr_len < (int) sizeof (struct exec))
         return ENOEXEC;
     if (N_GETMAGIC (epp->hdr.aout) != OMAGIC ||
-        N_GETFLAG (epp->hdr.aout) != EX_HSPACK)
+        (N_GETFLAG (epp->hdr.aout) != EX_HSPACK
+#ifdef EXEC_XIP_LIBC
+        && N_GETFLAG (epp->hdr.aout) != (EX_HSPACK | EX_XIP)
+#endif
+        ))
         return ENOEXEC;         /* another format's file */
 
     /*
@@ -148,6 +169,10 @@ exec_hsaout_check (struct exec_params *epp)
      */
     bp = geteblk ();
     toff = (unsigned) HSX_HDRSIZE;
+#ifdef EXEC_XIP_LIBC
+    if (N_GETFLAG(epp->hdr.aout) == (EX_HSPACK | EX_XIP))
+        toff += sizeof(struct xip_requirement);
+#endif
     doff = toff + x.x_ctext;
     if (hsx_load_buf (bp, epp->ip, toff, x.x_ctext, NULL, raw.a_text,
         x.x_textcrc) != 0 ||
@@ -224,6 +249,7 @@ exec_hsaout_text (struct inode *ip, const struct exec *e, char *dst,
 {
     struct hsx_work *swapwork;
     int result;
+    unsigned toff = HSX_HDRSIZE;
 
     /*
      * swapin runs in the swapper, proc 0, whose getnewbuf would sleep on
@@ -246,7 +272,11 @@ exec_hsaout_text (struct inode *ip, const struct exec *e, char *dst,
 #else
     swapwork = &private_swapwork;
 #endif
-    result = hsx_load (swapwork, ip, (unsigned) HSX_HDRSIZE, x.x_ctext,
+#ifdef EXEC_XIP_LIBC
+    if (N_GETFLAG(*e) == (EX_HSPACK | EX_XIP))
+        toff += sizeof(struct xip_requirement);
+#endif
+    result = hsx_load (swapwork, ip, toff, x.x_ctext,
         dst, len, x.x_textcrc);
 #ifdef SWAPRAM
     swapram_codec_release (SWAPRAM_CODEC_PACKED_TEXT);

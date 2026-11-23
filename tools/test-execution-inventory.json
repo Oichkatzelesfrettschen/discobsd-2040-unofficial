@@ -2937,6 +2937,67 @@
       ]
     },
     {
+      "id": "kernel.rlimit-growth.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "rlimit_growth_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "rlimit_growth_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.rlimit-growth.ilp32 -- ./rlimit_growth_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.exec-clear.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "exec_clear_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "exec_clear_test32",
+        "check-exec-clear-mutants"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.exec-clear.ilp32 -- ./exec_clear_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ],
+      "description": "The fixture runs the production exec_clear() and exec_finish() and holds exec_clear() to EXEC_CLOSE_PENDING without a direct fdcloseexec() call."
+    },
+    {
+      "id": "kernel.sendsig-stack-limit.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "sendsig_stack_limit_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "sendsig_stack_limit_test32",
+        "check-sendsig-stack-limit-mutants"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.sendsig-stack-limit.ilp32 -- ./sendsig_stack_limit_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ],
+      "description": "The fixture drives the production sendsig() RLIMIT_STACK call site just inside and just past the limit."
+    },
+    {
       "id": "kernel.tty-local-mode.signed-shift-negative",
       "owner": "firmware/posix-sh",
       "width": "ilp32",
@@ -3041,6 +3102,25 @@
         "check-sigreturn-mutants"
       ],
       "recipe": "${TEST_EXECUTION} run kernel.sigreturn-context.ilp32 -- ./sigreturn_context_test32",
+      "aliases": [
+        "check-kernel-ilp32"
+      ]
+    },
+    {
+      "id": "kernel.sigreturn-context-xip.ilp32",
+      "owner": "firmware/posix-sh",
+      "width": "ilp32",
+      "capability": "compiler and executable runtime at -m32",
+      "directory": "tests/kernel",
+      "makefile": "tests/kernel/Makefile",
+      "target": "check-ilp32",
+      "root_target": "check-kernel-ilp32",
+      "program": "sigreturn_context_xip_test32",
+      "condition": "ILP32_OK == yes; compiler-probe.sh compiles and executes width assertions",
+      "prerequisites": [
+        "sigreturn_context_xip_test32"
+      ],
+      "recipe": "${TEST_EXECUTION} run kernel.sigreturn-context-xip.ilp32 -- ./sigreturn_context_xip_test32",
       "aliases": [
         "check-kernel-ilp32"
       ]

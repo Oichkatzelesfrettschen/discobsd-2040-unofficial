@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Board test for three capacity cases of tests/rp2040/capacity-corpus.json.
 
-usage: DISCOBSD_BOARD_CAPACITY_CASES=run $PYTHON board_capacity_cases.py \
+usage: GIZMOBSD_BOARD_CAPACITY_CASES=run $PYTHON board_capacity_cases.py \
            LOG [unix.uf2,flash.uf2]
 
-The script touches the board only when DISCOBSD_BOARD_CAPACITY_CASES is
+The script touches the board only when GIZMOBSD_BOARD_CAPACITY_CASES is
 exactly "run"; unset, empty and every other value exit without opening a port
-or calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash when given, reaches a root shell on the USB console and
+or calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash when given, reaches a root shell on the USB console and
 stages tests/rp2040/swapram_evacuate/evactest and tests/rp2040/sigtest/sigtest
 with the staging routines of tests/rp2040/user_window/board_user_window.py.
 It then runs, in order:
@@ -44,7 +44,10 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_CAPACITY_CASES"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_CAPACITY_CASES"
 OPT_IN_VALUE = "run"
 HERE = os.path.dirname(os.path.abspath(__file__))
 WINDOW_DRIVER = os.path.join(HERE, "..", "user_window", "board_user_window.py")
@@ -141,6 +144,9 @@ def free_space(console):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0
@@ -151,7 +157,7 @@ def main():
     console.log = open(sys.argv[1], "ab")
     results = []
     if len(sys.argv) == 3:
-        subprocess.check_call(["discobsd-flash", *sys.argv[2].split(",")])
+        subprocess.check_call(["gizmobsd-flash", *sys.argv[2].split(",")])
         time.sleep(3)
     console.open_port()
     if len(sys.argv) == 3:

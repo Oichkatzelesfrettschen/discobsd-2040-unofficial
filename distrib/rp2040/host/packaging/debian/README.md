@@ -1,4 +1,4 @@
-# Debian packaging for discobsd-host
+# Debian packaging for gizmobsd-host
 
 `dpkg-buildpackage` reads `debian/` from the root of the source package, and
 the source package root here is `distrib/rp2040/host` -- the directory that
@@ -29,12 +29,12 @@ version in `debian/changelog` omits the Debian revision: `1.0.0`, never
 `1.0.0-1`.
 
 What the binary package installs beyond the Python modules and the four
-console scripts, through `debian/discobsd-host.install`:
+console scripts, through `debian/gizmobsd-host.install`:
 
-- `/usr/lib/udev/rules.d/71-discobsd-rp2040.rules`
-- `/usr/lib/systemd/user/discobsd-web.service`
-- `/usr/lib/systemd/user/discobsd-link.service`
-- `/usr/bin/discobsd-connect`
+- `/usr/lib/udev/rules.d/71-gizmobsd-rp2040.rules`
+- `/usr/lib/systemd/user/gizmobsd-web.service`
+- `/usr/lib/systemd/user/gizmobsd-link.service`
+- `/usr/bin/gizmobsd-connect`
 
 `dh_auto_test` runs the pytest suite against the staged build tree, so the
 package is tested from the bytes it ships.

@@ -125,19 +125,22 @@ hmutant() {
 	echo "ulisp mutants: $1 rejected"
 }
 
-# dmutant NAME SED-EXPRESSION: dev_picocalc.c with one defect, which
-# dev-picocalc-test must reject
+# dmutant NAME SED-EXPRESSION [FILE]: dev_picocalc.c, or FILE (gfx.c), with
+# one defect, which dev-picocalc-test must reject
 dmutant() {
 	dir=$work/$1
+	file=${3:-dev_picocalc.c}
+	fontdir=$src/../../sys/arch/rp2040/dev
 	mkdir "$dir"
-	cp "$src"/*.h "$dir"/
-	sed "$2" "$src/dev_picocalc.c" > "$dir/dev_picocalc.c"
-	if cmp -s "$src/dev_picocalc.c" "$dir/dev_picocalc.c"; then
+	cp "$src"/*.h "$src/dev_picocalc.c" "$src/gfx.c" "$dir"/
+	sed "$2" "$src/$file" > "$dir/$file"
+	if cmp -s "$src/$file" "$dir/$file"; then
 		echo "ulisp mutants: $1: the substitution matched nothing" >&2
 		exit 1
 	fi
-	$cc -std=gnu17 -D_DEFAULT_SOURCE -w -I"$here/shim" -I"$dir" \
-	    -o "$dir/dev-picocalc-test" "$here/dev-picocalc-test.c"
+	$cc -std=gnu17 -D_DEFAULT_SOURCE -w -I"$here/shim" -I"$dir" -I"$fontdir" \
+	    -o "$dir/dev-picocalc-test" "$here/dev-picocalc-test.c" \
+	    "$fontdir/lcdfont.c"
 	rc=0
 	"$dir/dev-picocalc-test" > "$dir/log" 2>&1 || rc=$?
 	if [ "$rc" -eq 0 ]; then
@@ -295,6 +298,11 @@ hmutant hl-keyword 's/else if (c == .:.)/else if (0)/'
 
 # The display opens without selecting RGB565.
 dmutant display-keeps-rgb666 's/if (ioctl(panel, LCDG_COLMOD, &cm) < 0) {/if (cm.fmt = 0, 0) {/'
+dmutant palette-kept-across-open 's/^\t\tpal_set = 0;$/\t\t(void)0;/'
+dmutant palette-colors-not-compared 's/if (!pal_set || pal_fg != fg || pal_bg != bg) {/if (!pal_set) {/'
+dmutant bits-short-write-dropped 's/\t\tn -= (size_t)k;/\t\tn = 0;/'
+dmutant glyph-window-never 's/if (x >= 0 \&\& y >= 0 \&\& x + w <= GFX_WIDTH/if (x < 0 \&\& y >= 0 \&\& x + w <= GFX_WIDTH/' gfx.c
+dmutant glyph-bits-unscaled 's/(0x80u >> (col \/ size))/(0x80u >> col)/' gfx.c
 
 # A special form takes the color of a function.
 pmutant hl-table-class ulisp.c 's/return (fntype(x) != OTHER_FORMS/return HL_FUNCTION; return (fntype(x) != OTHER_FORMS/'

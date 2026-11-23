@@ -139,7 +139,7 @@ def boot_case(boot, renode_path: str, flash_bin: str, outdir: str,
         # board_report() prints the image line ahead of the banner.
         console.wait_for("image: ", f"{name}: image line", boot.PROBE_BUDGET_SECONDS)
         start = console.cursor - len("image: ")
-        console.wait_lines([f"DiscoBSD 2.7 ({CONFIG})"] + storage,
+        console.wait_lines([f"GizmoBSD 0.1.0-alpha ({CONFIG})"] + storage,
                            f"{name}: banner and storage probe", boot.PROBE_BUDGET_SECONDS)
         text = console.text()
         printed = text[start:text.index("\n", start) + 1]

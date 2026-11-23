@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -178,6 +190,93 @@ render_pend(void)
 	PC_REG32(NVIC_ISPR) = 1UL << LCD_RENDER_IRQ;
 }
 
+#ifdef LCD_BLANK
+#ifndef LCD_GFX_EXT
+#error "LCD_BLANK uses the LCD_GFX_EXT power state of st7365p.c"
+#endif
+#ifndef LCD_BLANK_SECS
+#define	LCD_BLANK_SECS	300
+#endif
+#define	BLANK_IDLE_US	((u_int)LCD_BLANK_SECS * 1000000U)
+/*
+ * The blanker (decision D216, docs/research/picocalc-console-blanker.md):
+ * LCD_BLANK_SECS seconds without a key put the panel to sleep, 0.025 mA
+ * against 12 mA typical (ST7365P page 50), and the next key wakes it. The
+ * panel's memory takes writes in sleep (page 163), so output keeps
+ * drawing and shows on waking.
+ *
+ * The keyboard poll measures idle time on pc_micros(), a count that
+ * settimeofday() cannot move, from the console's first completed exchange.
+ * It sets blank_want; the renderer alone sends SLPIN or SLPOUT, with the
+ * drawing flag held, and records in blank_asleep what it sent. A request
+ * that changes while a command goes out pends the renderer again. An
+ * SLPIN due within 120 ms of the last SLPOUT (page 163) is not sent; the
+ * next keyboard poll finds the request still open and pends the renderer
+ * again.
+ */
+static u_char blank_want;	/* The keyboard poll asks for sleep. */
+static u_char blank_asleep;	/* The renderer put the panel to sleep. */
+static u_int blank_idle;	/* Microseconds without a key, saturating. */
+static u_int blank_seen;	/* pc_micros() at the last completed exchange. */
+
+/*
+ * From each completed keyboard exchange; key is nonzero when it read a key
+ * event. An open /dev/lcdgfx counts as a key. Returns 1 when this key asks
+ * a sleeping panel to wake.
+ */
+int
+lcdcons_blank_poll(int key)
+{
+	u_int now = pc_micros(), d;
+	int s = spltty(), woke = 0;
+
+	d = blank_seen == 0 ? 0 : now - blank_seen;
+	blank_seen = now == 0 ? 1 : now;
+	if (key || lcdgfx_isopen()) {
+		woke = blank_asleep;
+		blank_idle = 0;
+		blank_want = 0;
+	} else {
+		blank_idle = d > ~blank_idle ? ~0U : blank_idle + d;
+		if (blank_idle >= BLANK_IDLE_US && !lcd_abandoned)
+			blank_want = 1;
+	}
+	if (blank_want != blank_asleep)
+		render_pend();
+	splx(s);
+	return woke;
+}
+
+/*
+ * In the renderer, with the drawing flag held: send what the request asks.
+ * The request is read once; a change made by a key while the command goes
+ * out leaves blank_want and blank_asleep different, and the renderer runs
+ * again for it.
+ */
+static void
+blank_change(void)
+{
+	int s, want;
+
+	s = spltty();
+	want = blank_want;
+	splx(s);
+	if (want == blank_asleep || lcdgfx_isopen() || lcd_abandoned)
+		return;
+	if (want) {
+		if (st7365p_sleep_early())
+			return;
+		st7365p_sleep();
+	} else
+		st7365p_wake();
+	blank_asleep = want;
+	s = spltty();
+	if (blank_want != blank_asleep)
+		render_pend();
+	splx(s);
+}
+#endif /* LCD_BLANK */
+
 #ifdef LCD_VT
 /*
  * Show console `to`: freeze the outgoing tty (TS_HIDDEN, and the
@@ -246,8 +345,16 @@ lcdabandon(void)
 		 * scrolling region or unfinished escape would otherwise shape
 		 * or swallow the report.
 		 */
-		if (lcd_owned || lcdgfx_isopen())
+		if (lcd_owned || lcdgfx_isopen()
+#ifdef LCD_BLANK
+		    || blank_asleep
+#endif
+		    )
 			st7365p_abort();
+#ifdef LCD_BLANK
+		/* st7365p_abort() woke a panel the blanker had put to sleep. */
+		blank_asleep = blank_want = 0;
+#endif
 #ifdef LCD_VT
 		/*
 		 * The report belongs on ttyv0: bring it back before the reset
@@ -459,6 +566,10 @@ lcdrender(void)
 	if (lcd_want != lcd_shown)
 		lcd_vtswitch();
 	tp = LCD_SHOWN;
+#endif
+#ifdef LCD_BLANK
+	if (blank_want != blank_asleep)
+		blank_change();
 #endif
 	t0 = pc_micros();
 	sliced = 0;
@@ -874,6 +985,17 @@ lcdcons_gfx(int on)
 	held = lcd_acquire();
 	if (!held && on)
 		return EAGAIN;
+#ifdef LCD_BLANK
+	/*
+	 * /dev/lcdgfx owns the panel's power while it is open, and its last
+	 * close powers it on (lcd_gfx_power()). Its open finds the panel
+	 * awake: lcdgfx_open() sends its first command after this returns.
+	 */
+	if (on && blank_asleep)
+		st7365p_wake();
+	blank_asleep = blank_want = 0;
+	blank_idle = 0;
+#endif
 	lcdterm_gfx(on);
 	if (held) {
 		lcd_release();

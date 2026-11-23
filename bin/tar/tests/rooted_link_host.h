@@ -20,7 +20,7 @@
 #include <errno.h>
 
 /*
- * The DiscoBSD kernel refuses an O_IDENTITY open of a non-regular inode with
+ * The GizmoBSD kernel refuses an O_IDENTITY open of a non-regular inode with
  * EFTYPE (vn_open_at() in sys/kern/vfs_vnops.c). glibc has no EFTYPE, so the
  * fixture names a value outside the host's errno range.
  */

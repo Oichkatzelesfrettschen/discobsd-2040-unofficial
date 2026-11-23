@@ -16,7 +16,7 @@
 
 /*
  * The most 512-byte sectors whose byte offsets fit off_t: 4,194,303 with
- * DiscoBSD's 32-bit off_t, which bounds an image or device below v7fs's own
+ * GizmoBSD's 32-bit off_t, which bounds an image or device below v7fs's own
  * 24-bit block address limit.
  */
 #define	V7FS_FD_MAX_SECTORS	(V7FS_FD_OFF_MAX / 512)

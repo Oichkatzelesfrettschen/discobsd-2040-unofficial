@@ -42,16 +42,19 @@ import verify_conformance  # noqa: E402
 def run_verifier(repo_root: Path) -> tuple[int, dict[str, object]]:
     """Run verify_conformance.py in a subprocess and parse its JSON verdict."""
     result = subprocess.run(
-        [sys.executable, str(ROOT / "tools/picocalc/verify_conformance.py"),
-         "--root", str(repo_root), "--json"],
+        [
+            sys.executable,
+            str(ROOT / "tools/picocalc/verify_conformance.py"),
+            "--root",
+            str(repo_root),
+            "--json",
+        ],
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode not in (0, 1):
-        raise AssertionError(
-            f"unexpected verifier exit {result.returncode}: {result.stderr}"
-        )
+        raise AssertionError(f"unexpected verifier exit {result.returncode}: {result.stderr}")
     payload = json.loads(result.stdout)
     return result.returncode, payload
 

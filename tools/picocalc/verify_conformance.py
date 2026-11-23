@@ -50,10 +50,38 @@ INSPECTED_FILES = (
 )
 
 EXPECTED_INIT_GAMMA = [
-    0xE0, 14, 0xF0, 0x03, 0x05, 0x09, 0x0C, 0x0F, 0x3E, 0x77,
-    0x4F, 0x0F, 0x17, 0x17, 0x21, 0x23,
-    0xE1, 14, 0xF0, 0x03, 0x05, 0x09, 0x0C, 0x0F, 0x3E, 0x77,
-    0x4F, 0x0F, 0x17, 0x17, 0x21, 0x23,
+    0xE0,
+    14,
+    0xF0,
+    0x03,
+    0x05,
+    0x09,
+    0x0C,
+    0x0F,
+    0x3E,
+    0x77,
+    0x4F,
+    0x0F,
+    0x17,
+    0x17,
+    0x21,
+    0x23,
+    0xE1,
+    14,
+    0xF0,
+    0x03,
+    0x05,
+    0x09,
+    0x0C,
+    0x0F,
+    0x3E,
+    0x77,
+    0x4F,
+    0x0F,
+    0x17,
+    0x17,
+    0x21,
+    0x23,
 ]
 
 EXPECTED_INIT_UNLOCK = [0xF0, 1, 0xC3, 0xF0, 1, 0x96]
@@ -223,15 +251,19 @@ def check_pins_and_regs(
     metrics["pin_count"] = len(expected_pins)
 
 
-def check_display(
-    sources: dict[str, str], errors: list[str], metrics: dict[str, object]
-) -> None:
+def check_display(sources: dict[str, str], errors: list[str], metrics: dict[str, object]) -> None:
     """Check ST7365P native initialization sequence, Command 2 lock, and sets."""
     st = sources["st7365p.c"]
     st_defs = parse_defines(st)
     sym: dict[str, int] = {}
-    for key in ("CMD_CSCON", "CMD_MADCTL", "CMD_COLMOD", "CMD_INVON",
-                "MADCTL_MX_BGR", "COLMOD_RGB565"):
+    for key in (
+        "CMD_CSCON",
+        "CMD_MADCTL",
+        "CMD_COLMOD",
+        "CMD_INVON",
+        "MADCTL_MX_BGR",
+        "COLMOD_RGB565",
+    ):
         if key in st_defs:
             sym[key] = safe_eval_int(st_defs[key], sym)
 
@@ -297,16 +329,12 @@ def check_display(
         if entries[0] != ("shipped", "UNLOCK", "NATIVE", "FRAME_78HZ"):
             errors.append(f"paneltest_sets.h: set 0={entries[0]}, expected NATIVE boot set")
         if entries[32] != ("legacy-ili9488-78hz", "UNLOCK", "DRIVER", "FRAME_78HZ"):
-            errors.append(
-                f"paneltest_sets.h: set 32={entries[32]}, expected legacy-ili9488-78hz"
-            )
+            errors.append(f"paneltest_sets.h: set 32={entries[32]}, expected legacy-ili9488-78hz")
     metrics["st7365p_init_commands"] = len(cmds)
     metrics["paneltest_sets"] = len(entries)
 
 
-def check_keyboard(
-    sources: dict[str, str], errors: list[str], metrics: dict[str, object]
-) -> None:
+def check_keyboard(sources: dict[str, str], errors: list[str], metrics: dict[str, object]) -> None:
     """Check I2C1 100.00 kHz timing equations, 9-clock bus clear, and steps."""
     kbd = sources["picokbd.c"]
     defs = parse_defines(kbd)
@@ -333,9 +361,7 @@ def check_keyboard(
     if sym["KBD_I2C_HZ"] != 100000:
         errors.append(f"picokbd.c: KBD_I2C_HZ={sym['KBD_I2C_HZ']}, expected 100000")
     if spklen_ns > 50 or sym["KBD_I2C_SPKLEN"] < 1:
-        errors.append(
-            f"picokbd.c: SPKLEN={sym['KBD_I2C_SPKLEN']} ({spklen_ns} ns) exceeds 50 ns"
-        )
+        errors.append(f"picokbd.c: SPKLEN={sym['KBD_I2C_SPKLEN']} ({spklen_ns} ns) exceeds 50 ns")
     if t_low_ns < 4700:
         errors.append(f"picokbd.c: t_LOW={t_low_ns} ns < 4700 ns minimum")
     if t_high_ns < 4000:
@@ -394,14 +420,10 @@ def check_sd(sources: dict[str, str], errors: list[str], metrics: dict[str, obje
     sdspi_defs = parse_defines(sdspi)
     if safe_eval_int(sdspi_defs.get("NCR_MAX", "-1"), {}) != 8:
         errors.append("sdspi.c: NCR_MAX must equal 8")
-    cmd_body = extract_function_body(
-        sdspi, r"static unsigned char\s+sd_cmd\([^)]*\)"
-    )
+    cmd_body = extract_function_body(sdspi, r"static unsigned char\s+sd_cmd\([^)]*\)")
     if not re.search(r"\bi\s*<=\s*NCR_MAX\b", cmd_body):
         errors.append("sdspi.c: sd_cmd() must loop with i <= NCR_MAX for 0..8 byte N_CR")
-    csd_body = extract_function_body(
-        sdspi, r"unsigned\s+sdspi_csd_sectors\([^)]*\)"
-    )
+    csd_body = extract_function_body(sdspi, r"unsigned\s+sdspi_csd_sectors\([^)]*\)")
     if "0x3fffff" not in csd_body.lower():
         errors.append("sdspi.c: sdspi_csd_sectors() missing 0x3fffffU CSD v2.0 overflow guard")
 

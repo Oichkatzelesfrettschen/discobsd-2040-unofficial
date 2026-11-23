@@ -32,7 +32,7 @@ import serial
 
 OPT_IN_VARIABLE = "DISCOBSD_BOARD_V7FS"
 OPT_IN_VALUE = "run"
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 ANSI = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]")
 # The sentinel is spelled __DO''NE__ in the command, so only the shell's
 # output matches; an echoed ^D can precede it on the same line.

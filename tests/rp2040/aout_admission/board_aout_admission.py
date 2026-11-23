@@ -24,7 +24,7 @@ import time
 
 OPT_IN_VARIABLE = "DISCOBSD_BOARD_AOUT_ADMISSION"
 OPT_IN_VALUE = "run"
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 
 # The shell redraws its prompt after each command: "operator@pico:~$ ".
 PROMPT = re.compile(r"^\S+@\S*:\S*[$#] ?$")

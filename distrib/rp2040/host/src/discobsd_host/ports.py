@@ -3,7 +3,8 @@
 The kernel enumerates as USB vendor 0x2e8a, product 0x000a, with a serial
 number that ends in "rp2040" (the flash chip's unique ID in hex, a hyphen
 and that suffix; "rp2040" alone from a kernel that cannot read the ID or
-predates it) and the product string "DiscoBSD RP2040 console".
+predates it) and the product string "GizmoBSD RP2040 console" ("DiscoBSD
+RP2040 console" from a kernel built before the rename).
 pyserial's port enumeration exposes those on Linux, Windows, and macOS, so
 identity, not the drifting device number, selects the board. Windows
 reports the serial number from the device instance ID, which the PnP
@@ -52,7 +53,12 @@ TOKEN_CREDENTIAL = "web-token"
 
 # Linux keeps a by-id symlink for the console; it is the fallback when the
 # enumeration library is unavailable or reports zero USB attributes.
-LINUX_BY_ID = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+# A kernel built before the system took the name GizmoBSD reports DiscoBSD.
+LINUX_BY_ID = (
+    "/dev/serial/by-id/*GizmoBSD*rp2040-if00",
+    "/dev/serial/by-id/*DiscoBSD*rp2040-if00",
+)
+PRODUCT_NAMES = ("GizmoBSD", "DiscoBSD")
 
 
 def _is_board(info) -> bool:
@@ -61,7 +67,9 @@ def _is_board(info) -> bool:
     serial_number = getattr(info, "serial_number", None) or ""
     product = getattr(info, "product", None) or ""
     if vid == USB_VID and pid == USB_PID:
-        return serial_number.lower().endswith(USB_SERIAL) or "DiscoBSD" in product
+        return serial_number.lower().endswith(USB_SERIAL) or any(
+            name in product for name in PRODUCT_NAMES
+        )
     return False
 
 
@@ -90,7 +98,7 @@ def list_boards(comports=None) -> list[str]:
             if _is_board(info):
                 found.append(_preferred(info.device))
     if not found and sys.platform.startswith("linux"):
-        found = sorted(glob.glob(LINUX_BY_ID))
+        found = sorted(path for pattern in LINUX_BY_ID for path in glob.glob(pattern))
     return sorted(set(found))
 
 

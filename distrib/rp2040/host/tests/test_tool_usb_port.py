@@ -43,7 +43,7 @@ def make_tree(tmp_path, boards):
         (node / f"{usb_port}:1.0" / "tty" / tty_name).mkdir(parents=True)
         (node / "idVendor").write_text("2e8a\n")
         (node / "idProduct").write_text("000a\n")
-        (node / "product").write_text("DiscoBSD RP2040 console\n")
+        (node / "product").write_text("GizmoBSD RP2040 console\n")
         (devfs / tty_name).write_text("")
     # An unrelated USB device must not count as a board.
     other = sysfs / "1-1"
@@ -387,7 +387,7 @@ def test_web_session_refuses_a_second_board_attached_after_startup(monkeypatch, 
         (late / f"{PORT_B}:1.0" / "tty" / "ttyACM1").mkdir(parents=True)
         (late / "idVendor").write_text("2e8a\n")
         (late / "idProduct").write_text("000a\n")
-        (late / "product").write_text("DiscoBSD RP2040 console\n")
+        (late / "product").write_text("GizmoBSD RP2040 console\n")
         s, status = ws_connect(httpd.server_address[1])
         got = read_frames(s, b"more than one 2e8a device", got=status)
         assert b"more than one 2e8a device" in got

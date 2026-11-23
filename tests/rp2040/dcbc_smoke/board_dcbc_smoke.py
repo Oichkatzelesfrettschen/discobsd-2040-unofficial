@@ -37,7 +37,7 @@ ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
 # "ZD1" of "ZD12" would otherwise end the read and leave the rest for the next
 # command.
 SENTINEL = re.compile(r"^ZD(\d+)\n", re.M)
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 OPT_IN_VARIABLE = "DISCOBSD_BOARD_DCBC"
 OPT_IN_VALUE = "run"
 

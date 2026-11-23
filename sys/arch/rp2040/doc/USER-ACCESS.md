@@ -14,10 +14,11 @@ in hex and the suffix `-rp2040` (`flash_serial_string()` in
 `sys/arch/rp2040/dev/flash.h`), so udev exposes a name that is the board's
 own and does not change when the device re-enumerates on reboot:
 
-    /dev/serial/by-id/usb-DiscoBSD_DiscoBSD_RP2040_console_<16 hex digits>-rp2040-if00
+    /dev/serial/by-id/usb-GizmoBSD_GizmoBSD_RP2040_console_<16 hex digits>-rp2040-if00
 
 Two boards on one host get two names; the pattern
-`/dev/serial/by-id/*DiscoBSD*rp2040-if00` matches each of them. A kernel
+`/dev/serial/by-id/*GizmoBSD*rp2040-if00` matches each of them (a kernel
+built before the rename has DiscoBSD in both places). A kernel
 that cannot read the chip's ID reports the serial "rp2040" and the name
 ends in `console_rp2040-if00`, as kernels before the unique serial did.
 The udev rule and `discobsd-term` match the serial's `rp2040` ending, so a

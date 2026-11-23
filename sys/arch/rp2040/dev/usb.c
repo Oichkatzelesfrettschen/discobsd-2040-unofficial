@@ -319,8 +319,8 @@ static const u_char usb_config_desc[CONFIG_DESC_LEN] = {
 
 static const char *const usb_strings[] = {
 	0,				/* 0: language list, built below. */
-	"DiscoBSD",
-	"DiscoBSD RP2040 console",
+	"GizmoBSD",
+	"GizmoBSD RP2040 console",
 	0,				/* 3: usb_serial, built by usbinit(). */
 	"Console",
 	"Reset",

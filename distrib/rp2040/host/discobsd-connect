@@ -124,7 +124,8 @@ elif [ -z "$port" ]; then
 		port=$(discobsd-term --list 2>/dev/null | head -1) || port=""
 	fi
 	if [ -z "$port" ]; then
-		for p in /dev/serial/by-id/usb-DiscoBSD_*rp2040-if00 \
+		for p in /dev/serial/by-id/usb-GizmoBSD_*rp2040-if00 \
+		    /dev/serial/by-id/usb-DiscoBSD_*rp2040-if00 \
 		    /dev/discobsd /dev/cu.usbmodem*; do
 			if [ -e "$p" ]; then
 				port="$p"
@@ -135,7 +136,7 @@ elif [ -z "$port" ]; then
 fi
 if [ -z "$port" ] || [ ! -e "$port" ]; then
 	echo "discobsd-connect: no board found; is it plugged in and running?" >&2
-	echo "  expected /dev/serial/by-id/usb-DiscoBSD_*_rp2040-if00" >&2
+	echo "  expected /dev/serial/by-id/usb-GizmoBSD_*rp2040-if00" >&2
 	exit 1
 fi
 

@@ -30,7 +30,7 @@ import time
 
 OPT_IN_VARIABLE = "DISCOBSD_BOARD_CORE1"
 OPT_IN_VALUE = "run"
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 
 ESC = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 VALUE = re.compile(r"^machdep\.(\w+)=(-?\d+)\s*$", re.MULTILINE)

@@ -36,7 +36,7 @@ import time
 
 OPT_IN_VARIABLE = "DISCOBSD_BOARD_HWCOUNT"
 OPT_IN_VALUE = "run"
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 SRAM0_CONTESTED = 14
 SRAM0 = 15
 ROM = 19

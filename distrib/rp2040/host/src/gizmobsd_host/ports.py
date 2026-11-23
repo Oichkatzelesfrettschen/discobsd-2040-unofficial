@@ -1,4 +1,4 @@
-"""Find and open the DiscoBSD RP2040 console on any host operating system.
+"""Find and open the GizmoBSD RP2040 console on any host operating system.
 
 The kernel enumerates as USB vendor 0x2e8a, product 0x000a, with a serial
 number that ends in "rp2040" (the flash chip's unique ID in hex, a hyphen
@@ -110,7 +110,7 @@ def _preferred(device: str) -> str:
 
 
 def list_boards(comports=None) -> list[str]:
-    """Every attached DiscoBSD console, sorted by device name."""
+    """Every attached GizmoBSD console, sorted by device name."""
     if comports is None:
         try:
             from serial.tools import list_ports

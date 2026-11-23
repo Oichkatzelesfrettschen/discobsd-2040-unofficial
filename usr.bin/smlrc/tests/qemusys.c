@@ -2,12 +2,12 @@
  * Linux EABI syscall layer, used only to execute code that smlrc generated
  * under qemu-arm on the build host.
  *
- * DiscoBSD reaches the kernel with "svc #SYS_x" and reports failure in the
+ * GizmoBSD reaches the kernel with "svc #SYS_x" and reports failure in the
  * carry flag, which qemu-arm, being a Linux user emulator, does not
  * implement. Every entry point the tree's libc would take from its own
  * sys objects is defined here instead; because libc.a is an archive, a
  * member is pulled in only for a symbol still undefined at that point, so
- * these definitions displace the DiscoBSD ones and the rest of libc --
+ * these definitions displace the GizmoBSD ones and the rest of libc --
  * printf, malloc, the string functions -- links and runs unchanged.
  */
 
@@ -85,7 +85,7 @@ close(int fd)
 
 	if (result >= 0)
 		return result;
-	/* Linux close errors require the DiscoBSD errno namespace. */
+	/* Linux close errors require the GizmoBSD errno namespace. */
 	switch (-result) {
 	case 4: errno = EINTR; break;
 	case 5: errno = EIO; break;

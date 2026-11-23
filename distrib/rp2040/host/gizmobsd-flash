@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# gizmobsd-flash -- reflash the DiscoBSD RP2040 board with picotool, on
+# gizmobsd-flash -- reflash the GizmoBSD RP2040 board with picotool, on
 # Linux and macOS, and eject the RPI-RP2 volume the way the host wants.
 #
 # The running kernel answers picotool's reset request and reboots into

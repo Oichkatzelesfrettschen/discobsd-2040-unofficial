@@ -569,7 +569,7 @@ PYTEST
         cp "$img" "$img.before"
         check_run -y
         [ "$status" -eq 8 ] || fail "repair returned $status, want 8"
-        has 'Invalid DiscoBSD filesystem signature'
+        has 'Invalid GizmoBSD filesystem signature'
         lacks 'Phase 1'
         cmp -s "$img" "$img.before" || fail "image changed"
         ;;

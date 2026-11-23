@@ -357,7 +357,7 @@ def cmd_up(args) -> int:
             )
         )
         return 1
-    print(f"DiscoBSD console is up ({mode}):")
+    print(f"GizmoBSD console is up ({mode}):")
     print("  short:  {}".format(links["short"]))
     if "mdns" in links:
         print("          {}".format(links["mdns"]))
@@ -370,10 +370,10 @@ def cmd_down(args) -> int:
     conf = config_dir()
     if systemd_units_installed() and not args.detached:
         subprocess.call(["systemctl", "--user", "stop", *reversed(UNITS)])
-        print("DiscoBSD console stopped (systemd user units).")
+        print("GizmoBSD console stopped (systemd user units).")
         return 0
     stopped = sum(_stop_pidfile(conf / (n + ".pid")) for n in ("link", "web"))
-    print("DiscoBSD console stopped (%d process(es))." % stopped)
+    print("GizmoBSD console stopped (%d process(es))." % stopped)
     return 0
 
 
@@ -402,7 +402,7 @@ def cmd_status(args) -> int:
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="gizmobsd-console",
-        description="Run the DiscoBSD web console and its short link.",
+        description="Run the GizmoBSD web console and its short link.",
     )
     p.add_argument("--version", action="version", version="gizmobsd-console " + __version__)
     sub = p.add_subparsers(dest="command", required=True)

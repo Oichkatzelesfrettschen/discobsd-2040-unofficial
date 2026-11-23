@@ -448,7 +448,7 @@ main(int argc, char **argv)
 	if (user == NULL || user[0] == '\0')
 		user = getuid() == 0 ? "root" : "user";
 	snprintf(title, sizeof title, "%s@%s", user,
-	    hw.hostname[0] != '\0' ? hw.hostname : "discobsd");
+	    hw.hostname[0] != '\0' ? hw.hostname : "gizmobsd");
 
 	rows = nlines + 3;		/* title, rule, palette */
 	if (logo && rows < LOGO_ROWS)

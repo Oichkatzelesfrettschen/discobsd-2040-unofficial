@@ -27,7 +27,7 @@
  */
 
 /*
- * Write a DiscoBSD disk image into an RP2040 flash image in the on-flash
+ * Write a GizmoBSD disk image into an RP2040 flash image in the on-flash
  * format sys/arch/rp2040/dev/flash.c reads.
  *
  * The kernel keeps its root behind Dhara, so the bytes in flash are Dhara's

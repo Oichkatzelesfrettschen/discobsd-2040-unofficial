@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# gizmobsd-connect -- open a terminal on the DiscoBSD RP2040 console.
+# gizmobsd-connect -- open a terminal on the GizmoBSD RP2040 console.
 #
 # The board is a USB CDC-ACM serial device with no network stack, so the
 # console is a serial line, not telnet or ssh. This finds the board by its

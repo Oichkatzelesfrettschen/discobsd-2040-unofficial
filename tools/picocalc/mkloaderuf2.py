@@ -32,7 +32,7 @@ block numbers 0 .. N-1, and nothing after block N-1. The builder also
 requires the first block to lie in flash sector 0, so that the file is an
 image of the flash from XIP_BASE; the loader itself accepts another first
 block and then skips its boot2 handling. The root image must be a whole
-DiscoBSD file system: the magic words of struct fs in sys/sys/fs.h, a length
+GizmoBSD file system: the magic words of struct fs in sys/sys/fs.h, a length
 equal to fs_fsize blocks of 1024 bytes, and the minimums tools/fsutil/fsutil.c
 and create.c enforce (fs_fsize at least 10, fs_isize from 2 up to fs_fsize
 exclusive). It must not hold a 512-byte-aligned block
@@ -132,11 +132,11 @@ def validate_kernel(data: bytes) -> int:
 
 
 def validate_root(data: bytes) -> None:
-    """The image starts a DiscoBSD file system and has whole sectors."""
+    """The image starts a GizmoBSD file system and has whole sectors."""
     if len(data) % UF2_BLOCK or len(data) < FS_MIN_BYTES:
         raise BuildError("root image size is not a multiple of 512 of at least 1024 bytes")
     if data[:4] != FS_MAGIC1 or data[FS_SUPER_BYTES - 4 : FS_SUPER_BYTES] != FS_MAGIC2:
-        raise BuildError("root image does not start with the DiscoBSD file-system magic words")
+        raise BuildError("root image does not start with the GizmoBSD file-system magic words")
     isize, blocks = struct.unpack_from("<2I", data, FS_ISIZE_OFFSET)
     if blocks < FS_MIN_BLOCKS:
         raise BuildError(f"root image superblock claims {blocks} blocks, at least {FS_MIN_BLOCKS}")

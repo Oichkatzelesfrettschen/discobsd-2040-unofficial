@@ -9,9 +9,9 @@
 # kernel can load. That a.out is what runs on the board.
 #
 # The execution tier links the same object against a Linux EABI syscall
-# layer so qemu-arm can run it. DiscoBSD reaches the kernel through an SVC
+# layer so qemu-arm can run it. GizmoBSD reaches the kernel through an SVC
 # immediate and returns errors in the carry flag, which a Linux user
-# emulator does not implement, so the DiscoBSD a.out cannot run under qemu
+# emulator does not implement, so the GizmoBSD a.out cannot run under qemu
 # and the syscall layer is the only part replaced. Everything above it,
 # including printf and malloc, is the tree's own libc.
 

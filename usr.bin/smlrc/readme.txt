@@ -1,4 +1,4 @@
-Smaller C is a simple single-pass C compiler.  The maintained DiscoBSD
+Smaller C is a simple single-pass C compiler.  The maintained GizmoBSD
 version emits ARMv6-M Thumb-1 assembly for GNU as.  The original non-ARM
 back ends live under legacy/non-arm/ and do not participate in this build.
 

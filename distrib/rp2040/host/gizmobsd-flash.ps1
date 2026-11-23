@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-gizmobsd-flash -- reflash the DiscoBSD RP2040 board with picotool on Windows.
+gizmobsd-flash -- reflash the GizmoBSD RP2040 board with picotool on Windows.
 
 .DESCRIPTION
 The running kernel answers picotool's reset request over its Reset

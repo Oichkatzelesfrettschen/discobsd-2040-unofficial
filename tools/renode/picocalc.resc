@@ -1,4 +1,4 @@
-# Boot the DiscoBSD PICOCALC kernel under Renode with the panel and keyboard
+# Boot the GizmoBSD PICOCALC kernel under Renode with the panel and keyboard
 # models, a UART0 socket and a GDB server.
 #
 # Usage, from a built tree:

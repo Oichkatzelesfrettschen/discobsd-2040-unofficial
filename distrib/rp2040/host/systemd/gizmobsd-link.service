@@ -1,5 +1,5 @@
 [Unit]
-Description=DiscoBSD console short link (port 42069)
+Description=GizmoBSD console short link (port 42069)
 Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 # The link lacks a target to redirect to without the board and without
 # gizmobsd-web up, so it carries the same device gate gizmobsd-web.service

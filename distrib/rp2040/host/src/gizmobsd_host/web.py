@@ -1,4 +1,4 @@
-"""gizmobsd-web: the DiscoBSD RP2040 console as a browser terminal.
+"""gizmobsd-web: the GizmoBSD RP2040 console as a browser terminal.
 
 The board lacks a network of its own, so the host it plugs into serves as
 the gateway: this program bridges the serial line to a browser terminal
@@ -42,7 +42,7 @@ XTERM_CSS = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
 
 PAGE = f"""<!doctype html><html lang=en><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1,user-scalable=no">
-<title>DiscoBSD console</title>
+<title>GizmoBSD console</title>
 <link rel=stylesheet href="{XTERM_CSS}">
 <style>html,body{{margin:0;height:100%;width:100%;background:#000;overflow:hidden}}
 #t{{position:absolute;top:0;left:0}}
@@ -55,8 +55,8 @@ PAGE = f"""<!doctype html><html lang=en><head><meta charset=utf-8>
 #h{{display:none;position:fixed;left:8px;right:8px;bottom:56px;background:#222;color:#ddd;font:14px monospace;padding:8px;border:1px solid #555;z-index:10}}
 #k button{{font:16px monospace;color:#ddd;background:#333;border:1px solid #555;margin:2px;padding:6px 10px}}
 </style></head><body>
-<div id=s role=status aria-live=polite>connecting</div><div id=t role=application aria-label="DiscoBSD console"></div>
-<div id=k><span class=g>DiscoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl aria-pressed=false>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="sync, log out of DiscoBSD, then close the session">Sync &amp; leave</button><button id=help aria-expanded=false aria-controls=h>keys</button><button id=reader aria-pressed=false title="screen reader mode: announce output and expose the screen to assistive technology">reader</button><button id=hide>hide</button></div><button id=show aria-label="show the key bar">keys</button><div id=h role=region aria-label="key reference"><b>DiscoBSD</b> ($ or # prompt): Ctrl-C interrupt, DEL erase, Ctrl-U kill line, Ctrl-D log out, Ctrl-&#92; quit, Ctrl-Z suspend, Ctrl-L redraw, Ctrl-R history.<br><b>Leave</b>: type sync, then exit to reach login:. Sync &amp; leave does that and closes the session. Unplug only after sync.</div>
+<div id=s role=status aria-live=polite>connecting</div><div id=t role=application aria-label="GizmoBSD console"></div>
+<div id=k><span class=g>GizmoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl aria-pressed=false>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="sync, log out of GizmoBSD, then close the session">Sync &amp; leave</button><button id=help aria-expanded=false aria-controls=h>keys</button><button id=reader aria-pressed=false title="screen reader mode: announce output and expose the screen to assistive technology">reader</button><button id=hide>hide</button></div><button id=show aria-label="show the key bar">keys</button><div id=h role=region aria-label="key reference"><b>GizmoBSD</b> ($ or # prompt): Ctrl-C interrupt, DEL erase, Ctrl-U kill line, Ctrl-D log out, Ctrl-&#92; quit, Ctrl-Z suspend, Ctrl-L redraw, Ctrl-R history.<br><b>Leave</b>: type sync, then exit to reach login:. Sync &amp; leave does that and closes the session. Unplug only after sync.</div>
 <script src="{XTERM}"></script>
 <script>
 var reader=false;try{{reader=localStorage.getItem("reader")==="1";}}catch(e){{}}
@@ -91,7 +91,7 @@ document.addEventListener("visibilitychange",function(){{if(!document.hidden)gra
 var proto=location.protocol==="https:"?"wss":"ws";
 var ws=new WebSocket(proto+"://"+location.host+"/ws"+location.search);
 ws.binaryType="arraybuffer";
-ws.onopen=function(){{stat.textContent="connected -- DiscoBSD";grab();}};
+ws.onopen=function(){{stat.textContent="connected -- GizmoBSD";grab();}};
 var byebye=false;
 ws.onclose=function(){{if(!byebye)stat.textContent="disconnected -- reload to retry";}};
 // Leaving the page releases the console at once; a page the browser
@@ -121,8 +121,8 @@ ctl.addEventListener("click",function(e){{e.preventDefault();ctrlArmed=!ctrlArme
  ctl.setAttribute("aria-pressed",ctrlArmed?"true":"false");grab();}});
 // Accessible names for the keys: the label says what the key does in the
 // system that reads it, so a screen reader hears more than "caret C".
-var NAMES={{"Esc":"Escape","Tab":"Tab","^C":"Control C, interrupt in DiscoBSD","^D":"Control D, end of input or log out",
- "^Z":"Control Z, suspend in DiscoBSD","^L":"Control L, redraw","^U":"Control U, erase the line in DiscoBSD","^R":"Control R, history search in DiscoBSD",
+var NAMES={{"Esc":"Escape","Tab":"Tab","^C":"Control C, interrupt in GizmoBSD","^D":"Control D, end of input or log out",
+ "^Z":"Control Z, suspend in GizmoBSD","^L":"Control L, redraw","^U":"Control U, erase the line in GizmoBSD","^R":"Control R, history search in GizmoBSD",
  "Paste":"paste from the clipboard",
  "\u2191":"up arrow","\u2193":"down arrow","\u2190":"left arrow","\u2192":"right arrow","Sync & leave":"sync, log out, close the session",
  "keys":"show the key reference","reader":"screen reader mode","hide":"hide the key bar","Ctrl":"control modifier for the next key"}};
@@ -145,7 +145,7 @@ document.getElementById("bye").addEventListener("click",function(e){{e.preventDe
  function say(m){{stat.textContent=m;term.write("\\r\\n\\x1b[33m[console: "+m+"]\\x1b[0m\\r\\n");}}
  later(function(){{say("sync");sendkeys("\\r");}},0)
  .then(function(){{return later(function(){{sendkeys("sync\\r");}},400);}})
- .then(function(){{return later(function(){{say("logging out of DiscoBSD");sendkeys("exit\\r");}},2500);}})
+ .then(function(){{return later(function(){{say("logging out of GizmoBSD");sendkeys("exit\\r");}},2500);}})
  .then(function(){{return later(function(){{say("session closed -- reload to reconnect");byebye=true;try{{ws.close();}}catch(x){{}}}},1500);}});}});
 var help=document.getElementById("h");
 document.getElementById("help").addEventListener("click",function(e){{e.preventDefault();
@@ -472,7 +472,7 @@ def lan_ip() -> str:
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="gizmobsd-web",
-        description="Serve the DiscoBSD RP2040 console as a browser terminal.",
+        description="Serve the GizmoBSD RP2040 console as a browser terminal.",
     )
     p.add_argument("device", nargs="?", help="serial device (default: find the board)")
     ports.add_usb_port_argument(p)
@@ -524,7 +524,7 @@ def main(argv=None) -> int:
         return 1
     httpd = ConsoleServer((args.bind, args.port), args.device, token, usb_port=args.usb_port)
     q = ("?token=" + token) if token else ""
-    sys.stderr.write(f"DiscoBSD web console for {device}\n")
+    sys.stderr.write(f"GizmoBSD web console for {device}\n")
     if httpd.is_loopback:
         sys.stderr.write(
             "  open http://127.0.0.1:%d/%s (loopback only; pass --bind 0.0.0.0 "

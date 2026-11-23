@@ -1,5 +1,5 @@
 [Unit]
-Description=DiscoBSD web console (serial to browser)
+Description=GizmoBSD web console (serial to browser)
 Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 # 71-gizmobsd-rp2040.rules tags the console tty TAG+="systemd" and names it
 # SYMLINK+="gizmobsd" (and "discobsd"), so udev (and, for a uaccess-tagged device, the user

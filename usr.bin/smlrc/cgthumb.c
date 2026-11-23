@@ -704,7 +704,7 @@ void GenFxnEpilog(void)
   ThumbPoolBytes = 0;
 }
 
-/* The interrupt attribute has no meaning for this target: a DiscoBSD user
+/* The interrupt attribute has no meaning for this target: a GizmoBSD user
    process never installs a handler, and the ARMv6-M exception entry sequence
    is not what GenFxnProlog builds. */
 void GenIsrProlog(void)

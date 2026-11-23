@@ -224,7 +224,7 @@ class Kernel:
         missing = [n for n in names if n not in self.syms]
         if missing:
             raise ToolError(
-                "the ELF has no symbol %s; it is not a DiscoBSD RP2040 kernel built with symbols"
+                "the ELF has no symbol %s; it is not a GizmoBSD RP2040 kernel built with symbols"
                 % ", ".join(missing)
             )
 

@@ -1,4 +1,4 @@
-# Stable, resilient host handle for the DiscoBSD RP2040 console.
+# Stable, resilient host handle for the GizmoBSD RP2040 console.
 #
 # The board keeps one USB serial number across every reboot (its flash
 # chip's unique ID and the suffix "-rp2040", or "rp2040" alone), so

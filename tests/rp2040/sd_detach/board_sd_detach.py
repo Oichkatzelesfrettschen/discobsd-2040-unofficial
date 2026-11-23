@@ -70,7 +70,7 @@ def open_console(serial_module):
     time.sleep(1)
     ports = glob.glob(PORT_PATTERN)
     if not ports:
-        sys.exit("no DiscoBSD console under /dev/serial/by-id")
+        sys.exit("no GizmoBSD console under /dev/serial/by-id")
     console = Console(serial_module, ports[0])
     console.read(2)
     console.port.write(b"operator\r")

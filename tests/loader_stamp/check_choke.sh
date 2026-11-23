@@ -8,7 +8,7 @@
 #    when the layout names the loader's boot2, and flash_enter_xip()
 #    restores it after the loader's boot2;
 #  - the divider and sample delay flash_ssi_restore() writes equal the ones
-#    DiscoBSD's own second stage programs.
+#    GizmoBSD's own second stage programs.
 # Usage: check_choke.sh FLASH_C BOOT2_S
 set -eu
 

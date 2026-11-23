@@ -54,7 +54,7 @@
 /*
  * Root filesystem on the RP2040's QSPI flash.
  *
- * DiscoBSD's other targets boot from an SD card, and this board lacks an
+ * GizmoBSD's other targets boot from an SD card, and this board lacks an
  * socket, so the onboard flash becomes the block device instead. The idea of
  * putting a Unix root on a Pico's flash behind a wear-leveling translation
  * layer is FUZIX's; none of its code is used here, because the FUZIX kernel

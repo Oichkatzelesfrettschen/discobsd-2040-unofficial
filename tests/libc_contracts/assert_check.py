@@ -60,7 +60,7 @@ with tempfile.TemporaryDirectory(prefix="gizmobsd-assert-") as directory:
     false_source = temporary / "static_assert_false.c"
     false_source.write_text(
         '#include "assert.h"\n'
-        'static_assert(sizeof(char) == 2, "discobsd false constant");\n'
+        'static_assert(sizeof(char) == 2, "gizmobsd false constant");\n'
         "int main(void) { return 0; }\n",
         encoding="utf-8",
     )
@@ -70,7 +70,7 @@ with tempfile.TemporaryDirectory(prefix="gizmobsd-assert-") as directory:
         capture_output=True, text=True,
     )
     require(result.returncode != 0, "false static_assert compiled")
-    require("discobsd false constant" in result.stderr, result.stderr)
+    require("gizmobsd false constant" in result.stderr, result.stderr)
 
     definition = "#define static_assert _Static_assert\n"
     require(header.count(definition) == 1, "static assertion mutation anchor differs")

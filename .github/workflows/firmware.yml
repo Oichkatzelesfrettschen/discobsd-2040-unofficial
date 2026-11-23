@@ -690,7 +690,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'pull_request'
         with:
-          name: discobsd-rp2040-firmware
+          name: gizmobsd-rp2040-firmware
           path: |
             sys/arch/rp2040/compile/PICO/unix.uf2
             sys/arch/rp2040/compile/PICO_DIAG/unix.uf2

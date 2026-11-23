@@ -110,7 +110,7 @@ def launch(monkeypatch, tmp_path):
         err = capsys.readouterr().err
         if tool == "web":
             # The banner names the board resolved at startup.
-            marker = "DiscoBSD web console for "
+            marker = "GizmoBSD web console for "
             for line in err.splitlines():
                 if line.startswith(marker):
                     device = line[len(marker) :]

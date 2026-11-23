@@ -286,7 +286,7 @@ def got_ownership_controls(source, runner):
 def linux_flat_image(source, destination):
     """Give Linux one flat process mapping while preserving every admitted byte.
 
-    DiscoBSD's adjacent RX/RW segments share a Linux page. Linux replaces that
+    GizmoBSD's adjacent RX/RW segments share a Linux page. Linux replaces that
     page's execute permission with the last segment's RW permission. This
     fixture-only envelope models the flat process window; it proves no MPU or
     application text protection. The separately mapped library stays RX.

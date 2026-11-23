@@ -123,7 +123,7 @@ def test_page_requires_token_off_loopback(server):
         urllib.request.urlopen(base)
     assert err.value.code == 401
     page = urllib.request.urlopen(base + "?token=tok").read()
-    assert b"DiscoBSD console" in page and b"xterm" in page
+    assert b"GizmoBSD console" in page and b"xterm" in page
     req = urllib.request.Request(base, headers={"Authorization": "Bearer tok"})
     assert urllib.request.urlopen(req).status == 200
 

@@ -157,7 +157,7 @@ def main():
     training, heldout = args.output / "training.csv", args.output / "heldout.csv"
     counts = [
         emulate(elf, bytes(range(128)), training),
-        emulate(elf, b"DiscoBSD tiny HSX trace\n" * 3, heldout),
+        emulate(elf, b"GizmoBSD tiny HSX trace\n" * 3, heldout),
     ]
     try:
         emulate(elf, bytes(range(16)), args.output / "mutant.csv", corrupt=True)

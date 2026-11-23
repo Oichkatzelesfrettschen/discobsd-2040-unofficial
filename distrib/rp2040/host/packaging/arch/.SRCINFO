@@ -1,5 +1,5 @@
 pkgbase = gizmobsd-host
-	pkgdesc = Host tools for the DiscoBSD RP2040 console: terminal, web console, short link
+	pkgdesc = Host tools for the GizmoBSD RP2040 console: terminal, web console, short link
 	pkgver = 2.0.0
 	pkgrel = 1
 	url = https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial

@@ -57,7 +57,7 @@
  * holds both names, or one name twice, is ambiguous and mounts nothing.
  * The walk requires the file's cluster chain to be one contiguous run,
  * checks the UF2 head and the whole-sector length of the tail, and checks
- * the DiscoBSD file-system magic words in the tail. The head is a multiple
+ * the GizmoBSD file-system magic words in the tail. The head is a multiple
  * of 32 KiB, so the tail starts on a sector whatever the cluster size.
  * Section names refer to the Microsoft FAT32 File System
  * Specification (version 1.03; "fatgen103"). The file compiles without kernel
@@ -82,7 +82,7 @@
 #define	FT32_E_FRAGMENTED	4	/* The file's clusters are not one run. */
 #define	FT32_E_UF2HEAD		5	/* The file does not start with a UF2 head. */
 #define	FT32_E_TAIL		6	/* The tail is empty, short or not whole sectors. */
-#define	FT32_E_NOMAGIC		7	/* The tail does not start a DiscoBSD file system. */
+#define	FT32_E_NOMAGIC		7	/* The tail does not start a GizmoBSD file system. */
 #define	FT32_E_CORRUPT		8	/* A directory or file chain is damaged or loops. */
 #define	FT32_E_AMBIGUOUS	9	/* The searched directories hold more than one matching file. */
 

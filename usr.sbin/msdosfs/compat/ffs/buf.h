@@ -35,7 +35,7 @@
 #endif
 
 /*
- * NetBSD counts device blocks in 512-byte units; DiscoBSD's <sys/param.h>
+ * NetBSD counts device blocks in 512-byte units; GizmoBSD's <sys/param.h>
  * makes DEV_BSHIFT 10, which would double every de_bn2kb() result.
  */
 #undef DEV_BSHIFT

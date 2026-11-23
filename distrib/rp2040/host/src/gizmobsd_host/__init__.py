@@ -1,4 +1,4 @@
-"""Host tools for the DiscoBSD RP2040 console.
+"""Host tools for the GizmoBSD RP2040 console.
 
 The board is a USB CDC-ACM serial device with no network stack, so the host
 it plugs into is the gateway: gizmobsd-term attaches a local terminal,

@@ -30,7 +30,7 @@ class AssertionOracleTest(unittest.TestCase):
                 'for argument do\n'
                 '  case "$argument" in\n'
                 '    */static_assert_false.c)\n'
-                '      echo "discobsd false constant" >&2\n'
+                '      echo "gizmobsd false constant" >&2\n'
                 '      exit 0 ;;\n'
                 '  esac\n'
                 'done\n'

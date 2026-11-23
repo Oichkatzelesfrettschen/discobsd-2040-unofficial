@@ -673,7 +673,7 @@ def main():
                         ("icode", check_icode_toolchain_selector), ("tiers", check_tier_order)):
         if args.only and args.only != name:
             continue
-        with tempfile.TemporaryDirectory(prefix=f"discobsd-build-failure-{name}-") as tmp:
+        with tempfile.TemporaryDirectory(prefix=f"gizmobsd-build-failure-{name}-") as tmp:
             try:
                 check(root, make, Path(tmp))
             except Failure as error:

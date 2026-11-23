@@ -27,7 +27,7 @@
  */
 
 /*
- * The uLisp devices of a PicoCalc running DiscoBSD: the pixel display
+ * The uLisp devices of a PicoCalc running GizmoBSD: the pixel display
  * /dev/lcdgfx, the pins /dev/porta and /dev/portb, and the sample audio
  * /dev/audio. Each device is opened at its first use. The analogue inputs
  * are the sysctl nodes machdep.adc.N and the analogue outputs the PWM

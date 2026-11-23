@@ -1,6 +1,6 @@
 /*
  * fourfall -- a one-player falling-block puzzle for the PicoCalc console
- * of the DiscoBSD RP2040 port (53 columns by 32 rows, ANSI escapes).
+ * of the GizmoBSD RP2040 port (53 columns by 32 rows, ANSI escapes).
  * Original implementation written from a behavioral description; the
  * piece shapes are derived from one cell table by the rotation rule
  * below rather than listed per orientation.

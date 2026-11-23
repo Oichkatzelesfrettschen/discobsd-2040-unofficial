@@ -1,7 +1,7 @@
 /*
  * What the NetBSD v7fs sources under sys/fs/v7fs and sbin/newfs_v7fs expect
  * from <sys/cdefs.h>, <sys/endian.h> and <sys/bswap.h>, for hosts that lack
- * it: DiscoBSD's libc headers, glibc and macOS each provide a different
+ * it: GizmoBSD's libc headers, glibc and macOS each provide a different
  * part. Every build of those sources passes this header with -include; it
  * includes the host's <sys/cdefs.h> first, so each definition below yields
  * to one the host already makes. The byte-order constants come from the
@@ -12,7 +12,7 @@
 
 #include <sys/cdefs.h>
 /*
- * A host with <sys/endian.h> (DiscoBSD, the BSDs) defines the byte-order
+ * A host with <sys/endian.h> (GizmoBSD, the BSDs) defines the byte-order
  * names below with its own tokens, so it is included ahead of the guarded
  * fallbacks; glibc and macOS lack the header and take the fallbacks.
  */

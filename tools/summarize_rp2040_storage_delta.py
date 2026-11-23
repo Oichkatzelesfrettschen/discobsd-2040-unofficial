@@ -1,4 +1,4 @@
-"""Compare two DiscoBSD machdep.storage_stats snapshots of one ABI version."""
+"""Compare two GizmoBSD machdep.storage_stats snapshots of one ABI version."""
 
 import argparse
 import json

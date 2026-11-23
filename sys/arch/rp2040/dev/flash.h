@@ -35,7 +35,7 @@
 /*
  * Root filesystem on the RP2040's QSPI flash.
  *
- * The board lacks an SD socket, and DiscoBSD's other targets boot from one,
+ * The board lacks an SD socket, and GizmoBSD's other targets boot from one,
  * so this driver makes the onboard flash a block device instead. Wear
  * leveling and the logical-to-physical mapping come from Dhara, vendored
  * under sys/arch/rp2040/dhara.

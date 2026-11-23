@@ -95,7 +95,7 @@ static inline size_t hdr_user_offset(uint8_t which)
 static int metadata_page_valid(const struct dhara_journal *, dhara_page_t,
 			       size_t *);
 
-/* DiscoBSD local change: a page carrying the magic is a checkpoint only
+/* GizmoBSD local change: a page carrying the magic is a checkpoint only
  * when its tail names a page of the chip. A reset inside the first program
  * of a checkpoint page that stops within the first eight bytes leaves the
  * epoch or the tail's high byte erased. Every written tail is a page index
@@ -360,7 +360,7 @@ static dhara_page_t find_last_group(struct dhara_journal *j,
 	return blk << j->nand->log2_ppb;
 }
 
-/* DiscoBSD local change: a checkpoint page is accepted only when the
+/* GizmoBSD local change: a checkpoint page is accepted only when the
  * sector map it records is whole.
  *
  * A driver that programs one page through several chip commands (the
@@ -479,7 +479,7 @@ static int cp_tree_whole(const struct dhara_journal *j, dhara_page_t root)
 	return seen == count && (count != 1 || (root_id >> 24) != 0xff);
 }
 
-/* DiscoBSD local change: the search steps back past a checkpoint that
+/* GizmoBSD local change: the search steps back past a checkpoint that
  * cp_tree_whole() rejects, into the block before when this block holds no
  * earlier one, at most DHARA_MAX_RETRIES blocks back. Only the page in
  * program when the reset came can be torn, and the journal programs pages

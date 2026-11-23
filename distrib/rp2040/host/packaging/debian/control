@@ -20,8 +20,8 @@ Replaces: discobsd-host (<< 2.0.0)
 Breaks: discobsd-host (<< 2.0.0)
 Depends: ${misc:Depends}, ${python3:Depends}, python3-serial
 Suggests: python3-pyelftools, picotool
-Description: host tools for the DiscoBSD RP2040 console
- The DiscoBSD RP2040 board presents its console on a USB CDC-ACM serial
+Description: host tools for the GizmoBSD RP2040 console
+ The GizmoBSD RP2040 board presents its console on a USB CDC-ACM serial
  line. This package carries the tools that drive it from a host: a serial
  terminal, a browser console served over HTTP, a short-link redirector,
  and a supervisor that starts the pair and prints the URLs.

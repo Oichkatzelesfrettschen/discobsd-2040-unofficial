@@ -554,7 +554,7 @@ namespace Antmicro.Renode.Peripherals.SPI
                     }
                     else
                     {
-                        csconStage = (b == 0xc3 || b == 0x3c) ? b : 0;
+                        csconStage = (b == 0xc3 || b == 0x3c) ? b : (byte)0;
                     }
                 }
                 else

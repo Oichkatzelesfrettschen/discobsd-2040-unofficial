@@ -77,7 +77,7 @@ mlkem768x25519-sha256 inside an independently provisioned WireGuard tunnel
 with a unique random 256-bit PresharedKey. Network deployment and key
 distribution are administrative actions not performed by this package.
 
-Run `DISCOBSD_REQUIRE_PQ_TESTS=1 python -m pytest -q` in this directory.
+Run `GIZMOBSD_REQUIRE_PQ_TESTS=1 python -m pytest -q` in this directory.
 The dedicated hybrid CI installs ML-DSA-capable OpenSSL and requires actual
 hybrid tests; ordinary host tests explicitly skip hybrid cases when the
 installed OpenSSL lacks the algorithm. A skip is not a passing PQ result.

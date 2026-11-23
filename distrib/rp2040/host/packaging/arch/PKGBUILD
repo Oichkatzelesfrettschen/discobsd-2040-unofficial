@@ -11,13 +11,16 @@
 # alike, and keeps the checked-in tree free of a generated tarball.
 
 pkgname=gizmobsd-host
-pkgver=1.1.0
+pkgver=2.0.0
 pkgrel=1
 pkgdesc="Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 arch=('any')
 url="https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial"
 license=('BSD-3-Clause')
 depends=('python' 'python-pyserial')
+provides=('discobsd-host')
+conflicts=('discobsd-host')
+replaces=('discobsd-host')
 optdepends=('python-pyelftools: gizmobsd-sramdump decode' 'picotool: gizmobsd-sramdump capture and gizmobsd-flash')
 makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
 checkdepends=('python-pytest')
@@ -57,6 +60,9 @@ package() {
 	    "$pkgdir/usr/lib/systemd/user/gizmobsd-link.service"
 	install -Dm755 gizmobsd-connect "$pkgdir/usr/bin/gizmobsd-connect"
 	install -Dm755 gizmobsd-flash "$pkgdir/usr/bin/gizmobsd-flash"
+	# The former command names forward to the new ones for one release.
+	install -Dm755 discobsd-connect "$pkgdir/usr/bin/discobsd-connect"
+	install -Dm755 discobsd-flash "$pkgdir/usr/bin/discobsd-flash"
 	install -Dm644 gizmobsd-host.sysusers \
 	    "$pkgdir/usr/lib/sysusers.d/gizmobsd-host.conf"
 	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

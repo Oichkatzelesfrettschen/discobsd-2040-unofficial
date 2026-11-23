@@ -23,12 +23,12 @@ that cannot read the chip's ID reports the serial "rp2040" and the name
 ends in `console_rp2040-if00`, as kernels before the unique serial did.
 The udev rule and `gizmobsd-term` match the serial's `rp2040` ending, so a
 host package older than the unique serial finds such a board by its
-product string alone and its udev rule does not make `/dev/discobsd`.
+product string alone and its udev rule does not make `/dev/gizmobsd`.
 
 Use that path, not /dev/ttyACMn: the number increments on every
 re-enumeration and a stale node from a prior connection returns EIO.
 Installing distrib/rp2040/host/71-gizmobsd-rp2040.rules (the Arch and Debian
-packages do) adds the shorter symlink /dev/discobsd and turns off USB
+packages do) adds the shorter symlink /dev/gizmobsd and turns off USB
 autosuspend for the port.
 
 ## Terminals, by platform
@@ -39,12 +39,12 @@ reconnects on its own when the board reboots.
 
 | terminal | Debian | CachyOS/Arch | connect |
 |---|---|---|---|
-| tio | apt install tio | pacman -S tio | tio /dev/discobsd |
-| picocom | apt install picocom | pacman -S picocom | picocom -b 115200 /dev/discobsd |
-| minicom | apt install minicom | pacman -S minicom | minicom -b 115200 -D /dev/discobsd |
-| GNU screen | apt install screen | pacman -S screen | screen /dev/discobsd 115200 |
-| cu | apt install cu | pacman -S uucp | cu -l /dev/discobsd -s 115200 |
-| PuTTY | apt install putty | pacman -S putty | putty -serial /dev/discobsd -sercfg 115200,8,n,1,N |
+| tio | apt install tio | pacman -S tio | tio /dev/gizmobsd |
+| picocom | apt install picocom | pacman -S picocom | picocom -b 115200 /dev/gizmobsd |
+| minicom | apt install minicom | pacman -S minicom | minicom -b 115200 -D /dev/gizmobsd |
+| GNU screen | apt install screen | pacman -S screen | screen /dev/gizmobsd 115200 |
+| cu | apt install cu | pacman -S uucp | cu -l /dev/gizmobsd -s 115200 |
+| PuTTY | apt install putty | pacman -S putty | putty -serial /dev/gizmobsd -sercfg 115200,8,n,1,N |
 
 distrib/rp2040/host/gizmobsd-connect wraps this: it finds the board by its
 by-id path and launches the first of tio, picocom, minicom or cu that is
@@ -89,7 +89,7 @@ distrib/rp2040/host is the `gizmobsd-host` package (Python 3.9 or later
 and pyserial; see its README for the wheel, Arch, Ubuntu, Windows, and
 macOS installs). It finds the board by USB identity -- vendor 2e8a,
 product 000a, serial `rp2040` -- so the same commands work on Linux,
-Windows, and macOS, and `DISCOBSD_PORT` overrides discovery.
+Windows, and macOS, and `GIZMOBSD_PORT` overrides discovery.
 
 - gizmobsd-term attaches a terminal in the current shell and reattaches on
   its own when the board reboots and re-enumerates. Ctrl-] quits.

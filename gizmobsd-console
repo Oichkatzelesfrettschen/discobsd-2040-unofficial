@@ -15,10 +15,11 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 name=$(basename "$0")
 case "$name" in
+	discobsd-term|discobsd-web|discobsd-link|discobsd-console) name=gizmobsd-${name#discobsd-} ;;
 	gizmobsd-term|gizmobsd-web|gizmobsd-link|gizmobsd-console) ;;
 	*) name=gizmobsd-console ;;
 esac
-module=gizmobsd_host.${name#discobsd-}
+module=gizmobsd_host.${name#gizmobsd-}
 
 PYTHONPATH="$here/distrib/rp2040/host/src${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONPATH

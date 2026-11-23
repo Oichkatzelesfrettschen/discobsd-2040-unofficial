@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gizmobsd-host"
-version = "1.1.0"
+version = "2.0.0"
 description = "Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 readme = "README.md"
 # The table form, not the PEP 639 string: setuptools 68.1, the version
@@ -40,6 +40,13 @@ gizmobsd-link = "gizmobsd_host.link:main"
 gizmobsd-console = "gizmobsd_host.console:main"
 gizmobsd-release = "gizmobsd_host.release:main"
 gizmobsd-sramdump = "gizmobsd_host.sramdump:main"
+# The former command names forward to the commands above for one release.
+discobsd-term = "gizmobsd_host.compat:term"
+discobsd-web = "gizmobsd_host.compat:web"
+discobsd-link = "gizmobsd_host.compat:link"
+discobsd-console = "gizmobsd_host.compat:console"
+discobsd-release = "gizmobsd_host.compat:release"
+discobsd-sramdump = "gizmobsd_host.compat:sramdump"
 
 [tool.setuptools.packages.find]
 where = ["src"]

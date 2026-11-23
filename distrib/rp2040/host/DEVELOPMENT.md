@@ -128,7 +128,7 @@ port, product id, bus and address. Name the board by USB port, the path
 under `/sys/bus/usb/devices` (`1-3`, or `1-2.4` behind a hub):
 
     gizmobsd-flash --usb-port 1-3 sys/arch/rp2040/compile/PICO/unix.uf2
-    DISCOBSD_USB_PORT=1-3 gizmobsd-connect
+    GIZMOBSD_USB_PORT=1-3 gizmobsd-connect
 
 With a port, every picotool call carries the `--bus` and `--address` that the
 port's sysfs node holds at that moment, because the address changes at each
@@ -139,26 +139,26 @@ address or product. `gizmobsd-connect` opens the tty of the port's
 interface 0, by its `/dev/serial/by-path` name when udev made one, because
 `/dev/ttyACMn` is renumbered at each re-enumeration. A device path argument to `gizmobsd-connect` names the board
 itself and skips the check. An empty `--usb-port` operand is an error; an empty
-`DISCOBSD_USB_PORT` counts as unset. Both tools repeat the one-board check
+`GIZMOBSD_USB_PORT` counts as unset. Both tools repeat the one-board check
 before each picotool call, before any unmount and before the terminal launch,
 so a board that appears mid-run stops the run. `tests/test_board_select.py` gates both tools with
-a stub picotool and a fake sysfs (`DISCOBSD_SYSFS_USB`, `DISCOBSD_DEVFS`);
+a stub picotool and a fake sysfs (`GIZMOBSD_SYSFS_USB`, `GIZMOBSD_DEVFS`);
 the per-port unmount runs only on a real board, because a fake sysfs lacks block nodes. Limit: the selector and the refusal read Linux sysfs. On macOS and
 in `gizmobsd-flash.ps1` the tools address picotool's one device as before and
 cannot tell a second board apart; flash with one board attached there.
 `gizmobsd-term` and `gizmobsd-web` apply the same rule through
-`ports.find_board()`: `--usb-port PORT` or `DISCOBSD_USB_PORT` names the
+`ports.find_board()`: `--usb-port PORT` or `GIZMOBSD_USB_PORT` names the
 board, the flag wins over the variable, and with more than one 2e8a device and
 none named they exit 2 with the candidate ports before opening a serial line.
 A named port without a 2e8a device, or a malformed port, exits 1;
 `gizmobsd-term` waits when the named port exists but its console has not
-re-enumerated yet. `DISCOBSD_PORT` (a device path) and a device path argument
+re-enumerated yet. `GIZMOBSD_PORT` (a device path) and a device path argument
 to `gizmobsd-web` name the board itself and skip the check, and `gizmobsd-web`
 refuses a device path together with `--usb-port`. Both tools resolve the selector again at every
 serial open (`gizmobsd-web` per browser session, `gizmobsd-term` per
 reattach), because `/dev/ttyACMn` is renumbered when the boards re-enumerate;
 only a device path is used as given. `gizmobsd-term --list` still
-prints every board. `gizmobsd-link` only redirects to a URL and leaves every board closed, so it lacks the selector; `gizmobsd-console up` carries `DISCOBSD_USB_PORT` from its own
+prints every board. `gizmobsd-link` only redirects to a URL and leaves every board closed, so it lacks the selector; `gizmobsd-console up` carries `GIZMOBSD_USB_PORT` from its own
 environment to `gizmobsd-web`: a detached web inherits it, and with the
 systemd user units it is written to `web.env` (the unit's EnvironmentFile)
 and removed from that file when the variable is unset; a value that is not a
@@ -210,7 +210,7 @@ before the reset). `gizmobsd-sramdump` turns that into two steps:
         silent-1/sram.bin --flash silent-1/flash.bin
 
 `capture` ends the running session, so it takes more than the other tools:
-`--usb-port` (or `DISCOBSD_USB_PORT`) is mandatory even with one board
+`--usb-port` (or `GIZMOBSD_USB_PORT`) is mandatory even with one board
 attached, and `--force-reset` must be present. Without `--force-reset` it is a dry run: it prints the exact picotool calls it would make on which port.
 It reads the bus and address of the named port from sysfs before every
 picotool call (`reboot -u -f`, then `save -r 0x20000000 0x20042000 sram.bin`
@@ -243,7 +243,7 @@ bytes is rejected, because an unread tail would otherwise decode as zeros.
 
 `tests/test_sramdump.py` gates both subcommands: decode against a synthesized
 SRAM image over a real kernel ELF (the first `sys/arch/rp2040/compile/*/unix.elf`
-with the USB console symbols, or `DISCOBSD_TEST_KERNEL_ELF`; the decode cases
+with the USB console symbols, or `GIZMOBSD_TEST_KERNEL_ELF`; the decode cases
 skip when none exists), capture against a fake sysfs and a stub picotool, and a
 mutant for each rule. The capture path has run only against that stub; the
 exact `save` argument order on a board is not yet observed.

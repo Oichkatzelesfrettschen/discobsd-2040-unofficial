@@ -443,7 +443,7 @@ class ConsoleServer(ThreadingHTTPServer):
         super().__init__(address, Handler)
         # A device path names the board itself and is opened as given. With
         # none, every session resolves the board again from `usb_port` (the
-        # --usb-port operand) or DISCOBSD_USB_PORT, because /dev/ttyACMn is
+        # --usb-port operand) or GIZMOBSD_USB_PORT, because /dev/ttyACMn is
         # renumbered when the boards re-enumerate and a path cached at
         # startup can then name the other board.
         self.device = device
@@ -481,7 +481,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--token",
         help="shared secret required for a non-loopback bind (deprecated: visible to "
-        "every local user via ps; set DISCOBSD_WEB_TOKEN or a systemd credential "
+        "every local user via ps; set GIZMOBSD_WEB_TOKEN or a systemd credential "
         "named web-token instead)",
     )
     p.add_argument("--version", action="version", version="gizmobsd-web " + __version__)
@@ -504,12 +504,12 @@ def main(argv=None) -> int:
         sys.stderr.write(f"gizmobsd-web: {exc}\n")
         return exc.exit_code
     if not device:
-        sys.stderr.write("gizmobsd-web: no board found (plug it in, or set DISCOBSD_PORT)\n")
+        sys.stderr.write("gizmobsd-web: no board found (plug it in, or set GIZMOBSD_PORT)\n")
         return 1
     if args.token:
         sys.stderr.write(
             "gizmobsd-web: --token on the command line is deprecated and visible to "
-            "every local user via ps; set DISCOBSD_WEB_TOKEN or a systemd credential "
+            "every local user via ps; set GIZMOBSD_WEB_TOKEN or a systemd credential "
             "named web-token instead\n"
         )
         token = args.token
@@ -519,7 +519,7 @@ def main(argv=None) -> int:
         sys.stderr.write(
             "gizmobsd-web: refusing a non-loopback bind without a token; a bare "
             "0.0.0.0 bind exposes a login console to the LAN with no authentication. "
-            "Set DISCOBSD_WEB_TOKEN or a systemd credential named web-token\n"
+            "Set GIZMOBSD_WEB_TOKEN or a systemd credential named web-token\n"
         )
         return 1
     httpd = ConsoleServer((args.bind, args.port), args.device, token, usb_port=args.usb_port)

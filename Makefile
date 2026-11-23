@@ -102,7 +102,7 @@ check-release-policy: check-python
 		cd tools/proofs && ${LAKE} env ${PYTHON} check_policy.py --lean "${LEAN}"
 
 check-hybrid-release: check-python
-		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
+		cd distrib/rp2040/host && GIZMOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
 
 check-python:
 		@if [ -z "${PYTHON}" ]; then \

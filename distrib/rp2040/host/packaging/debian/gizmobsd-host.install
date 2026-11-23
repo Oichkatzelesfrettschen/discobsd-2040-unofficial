@@ -2,5 +2,7 @@
 systemd/gizmobsd-web.service usr/lib/systemd/user
 systemd/gizmobsd-link.service usr/lib/systemd/user
 gizmobsd-connect usr/bin
+discobsd-connect usr/bin
+discobsd-flash usr/bin
 gizmobsd-flash usr/bin
 RELEASE-SECURITY.md usr/share/doc/gizmobsd-host

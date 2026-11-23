@@ -29,7 +29,7 @@ rename). A kernel that reads the flash unique ID
 reports USB serial `<16 hex digits>-rp2040`; one that cannot, or an older
 kernel, reports `rp2040`, and two such boards enumerate alike (2e8a:000a).
 With two boards attached, name the USB port (`--usb-port 1-3` or
-`DISCOBSD_USB_PORT` for `gizmobsd-flash`, `gizmobsd-connect`, `gizmobsd-term`
+`GIZMOBSD_USB_PORT` for `gizmobsd-flash`, `gizmobsd-connect`, `gizmobsd-term`
 and `gizmobsd-web`) whatever their serials; all four refuse to act on an
 unnamed board then.
 

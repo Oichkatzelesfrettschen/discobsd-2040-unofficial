@@ -161,7 +161,7 @@ def key_type(path, algorithm, private=False):
 
 def signature(raw, algorithm, key, verify=None):
     key_type(key, algorithm, private=verify is None)
-    with tempfile.TemporaryDirectory(prefix="discobsd-sign-") as folder:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-sign-") as folder:
         message = Path(folder) / "message"
         sig = Path(folder) / "signature"
         message.write_bytes(DOMAIN + raw)
@@ -370,7 +370,7 @@ def main(argv=None):
                 )
                 if args.command == "flash":
                     require(args.target, "explicit board target required")
-                    with tempfile.TemporaryDirectory(prefix="discobsd-verified-") as folder:
+                    with tempfile.TemporaryDirectory(prefix="gizmobsd-verified-") as folder:
                         staged = []
                         for name in ("root.uf2", args.target):
                             file = Path(folder) / name

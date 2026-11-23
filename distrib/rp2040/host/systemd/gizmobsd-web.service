@@ -2,7 +2,7 @@
 Description=DiscoBSD web console (serial to browser)
 Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 # 71-gizmobsd-rp2040.rules tags the console tty TAG+="systemd" and names it
-# SYMLINK+="discobsd", so udev (and, for a uaccess-tagged device, the user
+# SYMLINK+="gizmobsd" (and "discobsd"), so udev (and, for a uaccess-tagged device, the user
 # service manager too) carries a dev-gizmobsd.device unit for it. BindsTo=
 # plus After= starts this service only once that device is active and stops
 # it the moment the device goes away, instead of racing ExecStart against a
@@ -16,9 +16,12 @@ StartLimitIntervalSec=60
 StartLimitBurst=5
 
 [Service]
-Environment=DISCOBSD_WEB_BIND=127.0.0.1
-EnvironmentFile=%h/.config/discobsd/web.env
-ExecStart=/usr/bin/gizmobsd-web --bind ${DISCOBSD_WEB_BIND} --port 7681
+Environment=GIZMOBSD_WEB_BIND=127.0.0.1
+# gizmobsd-console up writes web.env under the first directory, or under the
+# former discobsd directory while that is the only one present.
+EnvironmentFile=-%h/.config/discobsd/web.env
+EnvironmentFile=-%h/.config/gizmobsd/web.env
+ExecStart=/usr/bin/gizmobsd-web --bind ${GIZMOBSD_WEB_BIND} --port 7681
 Restart=always
 RestartSec=3
 

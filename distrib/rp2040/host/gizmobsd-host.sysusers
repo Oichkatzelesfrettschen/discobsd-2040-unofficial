@@ -1,2 +1,4 @@
-# The udev rule grants the DiscoBSD console to this group.
+# The udev rule grants the console to the gizmobsd group; the discobsd group
+# keeps being created for one release so existing memberships stay valid.
+g gizmobsd - -
 g discobsd - -

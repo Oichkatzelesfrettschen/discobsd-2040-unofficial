@@ -104,6 +104,8 @@ jobs:
           gizmobsd-link --version
           gizmobsd-console --version
           gizmobsd-release --help >/dev/null
+          # The former names forward with one line on stderr.
+          discobsd-term --version 2>&1 | grep -F 'discobsd-term is renamed gizmobsd-term'
       - name: Check that the wheel and sdist carry the release-security guide
         timeout-minutes: 2
         run: |
@@ -164,11 +166,15 @@ jobs:
           gizmobsd-console --version
           gizmobsd-release --help >/dev/null
           test -f /usr/lib/udev/rules.d/71-gizmobsd-rp2040.rules
+          getent group gizmobsd
           getent group discobsd
           test -f /usr/lib/systemd/user/gizmobsd-web.service
           test -f /usr/lib/systemd/user/gizmobsd-link.service
           test -x /usr/bin/gizmobsd-connect
           test -x /usr/bin/gizmobsd-flash
+          test -x /usr/bin/discobsd-connect
+          test -x /usr/bin/discobsd-flash
+          discobsd-term --version 2>&1 | grep -F 'discobsd-term is renamed gizmobsd-term'
           # The runner may exclude /usr/share/doc at install time
           # (path-exclude), so the guide is checked in the package itself.
           dpkg-deb -c "$deb" | grep -E ' \./usr/share/doc/gizmobsd-host/RELEASE-SECURITY\.md$'
@@ -223,11 +229,15 @@ jobs:
           gizmobsd-console --version
           gizmobsd-release --help >/dev/null
           test -f /usr/lib/udev/rules.d/71-gizmobsd-rp2040.rules
+          getent group gizmobsd
           getent group discobsd
           test -f /usr/lib/systemd/user/gizmobsd-web.service
           test -f /usr/lib/systemd/user/gizmobsd-link.service
           test -x /usr/bin/gizmobsd-connect
           test -x /usr/bin/gizmobsd-flash
+          test -x /usr/bin/discobsd-connect
+          test -x /usr/bin/discobsd-flash
+          discobsd-term --version 2>&1 | grep -F 'discobsd-term is renamed gizmobsd-term'
           # The archlinux image sets NoExtract for usr/share/doc/*, so the
           # guide is checked in the package file list, not the filesystem.
           pacman -Qlp packaging/arch/gizmobsd-host-*.pkg.tar.zst \
@@ -277,6 +287,7 @@ jobs:
           .\gizmobsd-web.exe --version
           .\gizmobsd-link.exe --version
           .\gizmobsd-console.exe --version
+          .\discobsd-term.exe --version
           # No board is attached to a runner, so --list finds nothing and
           # exits 1. Any other status is a failure, and the step ends on a
           # clean status of its own: pwsh hands the last $LASTEXITCODE to
@@ -288,7 +299,7 @@ jobs:
         timeout-minutes: 5
         shell: pwsh
         run: |
-          Copy-Item gizmobsd-flash.ps1 dist\
+          Copy-Item gizmobsd-flash.ps1, discobsd-flash.ps1 dist\
           # No arguments is a usage error, exit 1; anything else is a bug.
           & .\dist\gizmobsd-flash.ps1
           if ($LASTEXITCODE -ne 1) { exit 1 }
@@ -340,6 +351,7 @@ jobs:
           ./gizmobsd-web --version
           ./gizmobsd-link --version
           ./gizmobsd-console --version
+          ./discobsd-term --version
           # No board is attached to a runner, so --list finds nothing and
           # exits 1. Any other status is a failure.
           set +e
@@ -350,7 +362,7 @@ jobs:
       - name: Add the shell scripts and run the flash script's usage check
         timeout-minutes: 5
         run: |
-          cp gizmobsd-connect gizmobsd-flash dist/
+          cp gizmobsd-connect gizmobsd-flash discobsd-connect discobsd-flash dist/
           # No arguments is a usage error, exit 1; anything else is a bug.
           set +e
           ./dist/gizmobsd-flash

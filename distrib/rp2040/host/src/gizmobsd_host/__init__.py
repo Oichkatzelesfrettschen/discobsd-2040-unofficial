@@ -8,4 +8,4 @@ gizmobsd-sramdump saves a stuck board's SRAM with picotool and decodes the
 kernel state in it.
 """
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"

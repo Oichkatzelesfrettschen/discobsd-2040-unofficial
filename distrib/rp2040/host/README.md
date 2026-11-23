@@ -12,7 +12,7 @@ browser on the local network.
 | command | what it does |
 | --- | --- |
 | `gizmobsd-term` | attach the current terminal; reattaches across board reboots; Ctrl-] is the escape (`q` quits); `--probe` checks the board answers; `--list` prints attached boards; `--usb-port PORT` names one of several (Linux) |
-| `gizmobsd-web` | serve the console as a browser terminal on port 7681; `--usb-port PORT` names one of several boards (Linux); a non-loopback bind requires a token, from `DISCOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
+| `gizmobsd-web` | serve the console as a browser terminal on port 7681; `--usb-port PORT` names one of several boards (Linux); a non-loopback bind requires a token, from `GIZMOBSD_WEB_TOKEN`, a systemd credential named `web-token`, or the deprecated `--token` |
 | `gizmobsd-link` | redirect a short URL (port 42069) to the tokenized console URL, built from `--host` and the same token, or the deprecated `--to` |
 | `gizmobsd-console` | `up`, `down`, `status`: run web and link detached, or through the systemd user units when installed |
 | `gizmobsd-connect` | POSIX shell wrapper that launches tio, picocom, minicom, or cu on the board; `--usb-port PORT` names one of several boards by its USB port (Linux) |
@@ -39,13 +39,26 @@ operating system.
 | macOS | unzip `gizmobsd-host-macos.zip`, or `pipx install` the wheel |
 
 The Arch and Debian packages also install the udev rule that names the
-board `/dev/discobsd` and the systemd user units for the web console. The
+board `/dev/gizmobsd` and the systemd user units for the web console. The
 rule tags the node `uaccess`, so the user logged in at the machine's own
 seat gets access the moment the board is plugged in, with no group and no
 re-login. A user who is not at the seat (an ssh session, a service) joins
-the `discobsd` group the packages create, then logs in again:
+the `gizmobsd` group the packages create, then logs in again:
 
-    sudo usermod -aG discobsd "$USER"
+    sudo usermod -aG gizmobsd "$USER"
+
+## Former names (one release)
+
+Version 2.0.0 renames the package and every command from `discobsd` to
+`gizmobsd`. For this release the former names stay: each `discobsd-term`,
+`-web`, `-link`, `-console`, `-release`, `-sramdump`, `-connect` and
+`-flash` (and `discobsd-flash.ps1`) prints one line on stderr naming the new
+command and forwards its arguments. An environment variable `DISCOBSD_NAME`
+is read while `GIZMOBSD_NAME` is unset, with one line on stderr; the
+configuration directory `discobsd` is used while `gizmobsd` is absent, and
+`gizmobsd-console up` rewrites `web.env` with the new variable names. The
+udev rule names the console `/dev/gizmobsd` and `/dev/discobsd`; the
+`discobsd` group is still created. The former names end after this release.
 
 From a checkout of the port:
 
@@ -88,14 +101,14 @@ Two boards on one host (a bare Pico and a PicoCalc) both enumerate as
 act on either. On Linux, `gizmobsd-flash` and `gizmobsd-connect` stop when
 more than one 2e8a device is attached and no board is named, and print the
 candidates with their USB ports. Name the board with `--usb-port 1-3` or
-`DISCOBSD_USB_PORT=1-3`. macOS lacks sysfs: there the tools address the one
+`GIZMOBSD_USB_PORT=1-3`. macOS lacks sysfs: there the tools address the one
 attached board as before and do not detect a second one.
 
 The release zip holds PyInstaller executables built on Apple silicon and
 signed ad hoc, not notarized. Run them from a terminal: an Intel Mac and
 a Finder double-click (which Gatekeeper refuses for an unnotarized
 download) both want the pipx install instead. `gizmobsd-console up`
-keeps its state under `~/Library/Application Support/discobsd`.
+keeps its state under `~/Library/Application Support/gizmobsd`.
 `gizmobsd-connect` finds `cu` on every Mac and `tio` or `picocom` from
 Homebrew.
 
@@ -109,7 +122,7 @@ token-revealing short link:
 
     gizmobsd-console up --bind 0.0.0.0
 
-`DISCOBSD_WEB_TOKEN`, `--host-ip` and every other web.env value are limited to
+`GIZMOBSD_WEB_TOKEN`, `--host-ip` and every other web.env value are limited to
 letters, digits and `. _ ~ : -`: web.env is a systemd EnvironmentFile and the
 token travels unencoded in a URL query, where those characters are inert. A
 token with other characters (for example base64 `+ / =`) is refused; generate
@@ -128,15 +141,15 @@ link still redirects to that address. Run `gizmobsd-console up` (loopback) or
 That command prints a short URL such as `http://10.0.0.5:42069/` that
 redirects to the tokenized console at `http://10.0.0.5:7681/?token=...`. The token and the
 advertised address live in `web.env` under the per-user configuration
-directory (`~/.config/discobsd` on Linux, `~/Library/Application Support/
-discobsd` on macOS, `%APPDATA%\discobsd` on Windows), created with
+directory (`~/.config/gizmobsd` on Linux, `~/Library/Application Support/
+gizmobsd` on macOS, `%APPDATA%\gizmobsd` on Windows), created with
 owner-only permissions on the first run. `gizmobsd-console down` stops
 both servers; `status` reports; `--detached` on any of the three bypasses
 the systemd units.
 
 On Linux with the packaged systemd user units, `gizmobsd-console up`
 restarts the units instead of spawning detached processes. Enabling them
-ties them to the board: they start when `/dev/discobsd` appears, at boot
+ties them to the board: they start when `/dev/gizmobsd` appears, at boot
 or on hotplug, and stop when it goes away. A board already attached made
 its appearance before the link existed, so start the units once by hand:
 
@@ -153,9 +166,9 @@ Internet, because the short link hands out the token. On a ufw host:
     sudo ufw allow from 10.0.0.0/24 to any port 7681 proto tcp
     sudo ufw allow from 10.0.0.0/24 to any port 42069 proto tcp
 
-Set `DISCOBSD_PORT` to a device path to bypass discovery. With two boards
+Set `GIZMOBSD_PORT` to a device path to bypass discovery. With two boards
 attached, `gizmobsd-term` and `gizmobsd-web` refuse to choose; name the board
-with `--usb-port 1-3` or `DISCOBSD_USB_PORT=1-3` (Linux; see
+with `--usb-port 1-3` or `GIZMOBSD_USB_PORT=1-3` (Linux; see
 `DEVELOPMENT.md`, "Two boards on one host").
 
 The console serves one viewer at a time. Leaving the page releases it at

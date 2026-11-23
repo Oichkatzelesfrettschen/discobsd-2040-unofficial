@@ -10,9 +10,12 @@ StartLimitIntervalSec=60
 StartLimitBurst=5
 
 [Service]
-Environment=DISCOBSD_WEB_BIND=127.0.0.1
-EnvironmentFile=%h/.config/discobsd/web.env
-ExecStart=/usr/bin/gizmobsd-link --bind ${DISCOBSD_WEB_BIND} --host http://${DISCOBSD_HOST_IP}:7681/
+Environment=GIZMOBSD_WEB_BIND=127.0.0.1
+# gizmobsd-console up writes web.env under the first directory, or under the
+# former discobsd directory while that is the only one present.
+EnvironmentFile=-%h/.config/discobsd/web.env
+EnvironmentFile=-%h/.config/gizmobsd/web.env
+ExecStart=/usr/bin/gizmobsd-link --bind ${GIZMOBSD_WEB_BIND} --host http://${GIZMOBSD_HOST_IP}:7681/
 Restart=always
 RestartSec=3
 

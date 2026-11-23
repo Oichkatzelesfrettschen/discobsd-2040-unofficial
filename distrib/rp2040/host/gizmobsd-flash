@@ -17,9 +17,9 @@
 #                                 for a copy by hand; --eject afterwards
 #   gizmobsd-flash --eject        unmount the volume, reboot into the kernel
 #   --usb-port PORT               act on the board at USB port PORT (such as
-#                                 1-3; DISCOBSD_USB_PORT does the same), Linux;
+#                                 1-3; GIZMOBSD_USB_PORT does the same), Linux;
 #                                 an empty --usb-port operand is an error and
-#                                 an empty DISCOBSD_USB_PORT counts as unset
+#                                 an empty GIZMOBSD_USB_PORT counts as unset
 #
 # Two boards on one host enumerate alike (2e8a:000a, serial "rp2040"), and
 # an unaddressed picotool may act on either. With more than one 2e8a device
@@ -30,15 +30,28 @@
 # unmounted is the one behind that port, and the other 2e8a devices must
 # keep their addresses and products for the whole run. Linux only: macOS
 # lacks sysfs, so there the tool addresses picotool's one device as before.
-# DISCOBSD_SYSFS_USB replaces /sys/bus/usb/devices for tests.
+# GIZMOBSD_SYSFS_USB replaces /sys/bus/usb/devices for tests.
 #
 # A hung kernel does not answer the reset request: hold BOOTSEL through a
 # replug, then run this the same way.
 set -eu
 
 VOLUME=RPI-RP2
-usb_port=${DISCOBSD_USB_PORT:-}
-sysfs_usb=${DISCOBSD_SYSFS_USB:-/sys/bus/usb/devices}
+# gz_env NAME: when GIZMOBSD_* variable NAME is unset and its former
+# DISCOBSD_* spelling is set, take the old value and say so on stderr.
+gz_env() {
+	gz_old=DISCOBSD_${1#GIZMOBSD_}
+	eval "gz_set=\${$1+x} gz_oldset=\${$gz_old+x} gz_oldval=\${$gz_old-}"
+	if [ -z "$gz_set" ] && [ -n "$gz_oldset" ]; then
+		echo "gizmobsd-flash: $gz_old is renamed $1; set the new name" >&2
+		eval "$1=\$gz_oldval"
+		export "$1"
+	fi
+}
+gz_env GIZMOBSD_USB_PORT
+gz_env GIZMOBSD_SYSFS_USB
+usb_port=${GIZMOBSD_USB_PORT:-}
+sysfs_usb=${GIZMOBSD_SYSFS_USB:-/sys/bus/usb/devices}
 
 die() {
 	echo "gizmobsd-flash: $*" >&2
@@ -77,7 +90,7 @@ refuse_ambiguous() {
 	case $devs in
 	*'
 '*)
-		echo "gizmobsd-flash: more than one 2e8a device is attached; name the board with --usb-port PORT or DISCOBSD_USB_PORT:" >&3
+		echo "gizmobsd-flash: more than one 2e8a device is attached; name the board with --usb-port PORT or GIZMOBSD_USB_PORT:" >&3
 		echo "$devs" | sed 's/^/  /' >&3
 		exit 2
 		;;
@@ -260,7 +273,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-[ $# -gt 0 ] || die "usage: gizmobsd-flash [--usb-port PORT] FILE.uf2 ... | --bootsel | --eject (an empty DISCOBSD_USB_PORT counts as unset)"
+[ $# -gt 0 ] || die "usage: gizmobsd-flash [--usb-port PORT] FILE.uf2 ... | --bootsel | --eject (an empty GIZMOBSD_USB_PORT counts as unset)"
 
 if [ -n "$usb_port" ]; then
 	# The port is joined into a sysfs path: bus-port[.port...] and nothing else.

@@ -15,6 +15,9 @@ Rules-Requires-Root: no
 
 Package: gizmobsd-host
 Architecture: all
+Provides: discobsd-host
+Replaces: discobsd-host (<< 2.0.0)
+Breaks: discobsd-host (<< 2.0.0)
 Depends: ${misc:Depends}, ${python3:Depends}, python3-serial
 Suggests: python3-pyelftools, picotool
 Description: host tools for the DiscoBSD RP2040 console
@@ -23,5 +26,5 @@ Description: host tools for the DiscoBSD RP2040 console
  terminal, a browser console served over HTTP, a short-link redirector,
  and a supervisor that starts the pair and prints the URLs.
  .
- A udev rule names the board /dev/discobsd by its stable USB serial, and
+ A udev rule names the board /dev/gizmobsd (and /dev/discobsd) by its stable USB serial, and
  systemd user units carry the web console and the short link.

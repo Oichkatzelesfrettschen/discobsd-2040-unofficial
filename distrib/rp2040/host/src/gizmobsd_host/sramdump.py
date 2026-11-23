@@ -18,7 +18,7 @@ even with one board attached, every picotool call carries the --bus and
 --address that the port's sysfs node holds at that moment (the address
 changes at each re-enumeration), and the 2e8a devices on every other port
 must keep their address and product for the whole run. Linux only: it reads
-sysfs. DISCOBSD_SYSFS_USB replaces /sys/bus/usb/devices for tests, as in
+sysfs. GIZMOBSD_SYSFS_USB replaces /sys/bus/usb/devices for tests, as in
 gizmobsd-flash.
 
 decode runs without hardware or sysfs. It reads the variable and structure
@@ -567,7 +567,7 @@ class Capture:
         The boot ROM's RPI-RP2 volume shares its label with the other board's, so only
         devices under this port's own node are candidates.
         """
-        devfs = os.environ.get(ports.ENV_DEVFS) or ports.DEFAULT_DEVFS
+        devfs = ports.env_value(ports.ENV_DEVFS) or ports.DEFAULT_DEVFS
         pattern = os.path.join(self.sysfs, self.port, "*", "host*", "target*", "*", "block", "*")
         found = []
         for node in sorted(glob.glob(pattern)):
@@ -699,7 +699,7 @@ def plan_text(
 def run_capture(args) -> int:
     port = args.usb_port
     if port is None:
-        port = os.environ.get(ports.ENV_USB_PORT) or None
+        port = ports.env_value(ports.ENV_USB_PORT) or None
     elif not port:
         raise ToolError("--usb-port needs a port such as 1-3")
     if port is None:
@@ -749,7 +749,7 @@ def run_capture(args) -> int:
 
 
 def _sysfs() -> str:
-    return os.environ.get(ports.ENV_SYSFS) or ports.DEFAULT_SYSFS
+    return ports.env_value(ports.ENV_SYSFS) or ports.DEFAULT_SYSFS
 
 
 def build_parser() -> argparse.ArgumentParser:

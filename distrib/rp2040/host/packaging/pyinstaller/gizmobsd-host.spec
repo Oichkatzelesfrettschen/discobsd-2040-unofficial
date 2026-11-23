@@ -55,8 +55,11 @@ for _name in TOOLS:
 
 pyzs = {name: PYZ(a.pure, a.zipped_data, cipher=block_cipher) for name, a in analyses.items()}
 
+# The former discobsd-* names ship as second copies of each executable for one
+# release; the program prints its own name, so a former name is the same
+# bytes. gizmobsd_host.compat is the Python route for pip installs.
 exes = []
-for _name in TOOLS:
+for _prefix, _name in [(p, n) for p in ("gizmobsd-", "discobsd-") for n in TOOLS]:
     _a = analyses[_name]
     exes.append(
         EXE(
@@ -66,7 +69,7 @@ for _name in TOOLS:
             _a.zipfiles,
             _a.datas,
             [],
-            name="discobsd-" + _name,
+            name=_prefix + _name,
             debug=False,
             bootloader_ignore_signals=False,
             strip=False,

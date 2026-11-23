@@ -98,7 +98,7 @@ and follow the steps for your platform.
 
 1. Download `gizmobsd-host_<version>_all.deb` from the release page.
 2. Install it. The package pulls in Python and pyserial and adds the udev
-   rule that names the board `/dev/discobsd`:
+   rule that names the board `/dev/gizmobsd`:
 
        sudo apt install ./gizmobsd-host_*.deb
 
@@ -133,9 +133,9 @@ and follow the steps for your platform.
    `reader` turns on screen reader mode.
 
 Over ssh, or as a user who is not logged in at the machine's own screen,
-join the `discobsd` group instead and log in again:
+join the `gizmobsd` group instead and log in again:
 
-    sudo usermod -aG discobsd "$USER"
+    sudo usermod -aG gizmobsd "$USER"
 
 #### Windows 11
 
@@ -212,7 +212,7 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   shows up as a USB drive named `RPI-RP2`, so unplug and replug it without
   the button held.
 - "Permission denied" on Linux: you installed the wheel rather than the
-  `.deb`, or you are over ssh. Join `dialout` (Ubuntu) or `discobsd` (with
+  `.deb`, or you are over ssh. Join `dialout` (Ubuntu) or `gizmobsd` (with
   the `.deb`) and log in again.
 - The console stays blank after attaching: press Enter once to redraw
   the prompt. The kernel keeps the boot messages in an 8 KB ring and

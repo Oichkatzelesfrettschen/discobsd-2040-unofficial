@@ -2,7 +2,7 @@
 
 Decode runs against a real kernel ELF, because the tool reads its layouts
 from DWARF and a hand-made ELF would restate the tool's own assumptions. The
-ELF is DISCOBSD_TEST_KERNEL_ELF when set, else the first
+ELF is GIZMOBSD_TEST_KERNEL_ELF when set, else the first
 sys/arch/rp2040/compile/*/unix.elf in the tree that carries the USB console
 symbols; with neither, the decode cases skip with the reason. The SRAM image
 is synthesized: zeros, with known values written at the ELF's symbol
@@ -102,7 +102,7 @@ def test_flag_names_name_set_bits_and_keep_unknown_bits():
 
 
 def find_kernel_elf() -> Path | None:
-    override = os.environ.get("DISCOBSD_TEST_KERNEL_ELF")
+    override = os.environ.get("GIZMOBSD_TEST_KERNEL_ELF")
     if override:
         return Path(override)
     for cand in sorted((REPO / "sys/arch/rp2040/compile").glob("*/unix.elf")):
@@ -124,7 +124,7 @@ def kernel_path() -> Path:
     if path is None:
         pytest.skip(
             "no kernel ELF with the USB console symbols: build a kernel under "
-            "sys/arch/rp2040/compile or set DISCOBSD_TEST_KERNEL_ELF"
+            "sys/arch/rp2040/compile or set GIZMOBSD_TEST_KERNEL_ELF"
         )
     return path
 
@@ -326,7 +326,7 @@ def other_kernel_elf(kern, kernel_path) -> Path | None:
     """A second ELF in the tree whose version string differs from kern's."""
     addr, size = kern.syms["version"]
     mine = kern.elf_bytes(addr, size)
-    pinned = os.environ.get("DISCOBSD_TEST_OTHER_KERNEL_ELF")
+    pinned = os.environ.get("GIZMOBSD_TEST_OTHER_KERNEL_ELF")
     candidates = (
         [Path(pinned)] if pinned else sorted((REPO / "sys/arch/rp2040/compile").glob("*/unix.elf"))
     )
@@ -381,7 +381,7 @@ def test_decode_names_the_missing_dependency(tmp_path, monkeypatch, capsys):
 
 FAKE_PICOTOOL = """#!{python}
 import os, sys
-root = os.environ["DISCOBSD_SYSFS_USB"]
+root = os.environ["GIZMOBSD_SYSFS_USB"]
 args = sys.argv[1:]
 bus = addr = None
 for i, a in enumerate(args):
@@ -496,8 +496,8 @@ def capture(
     sysfs, bindir = make_world(tmp, devices, with_picotool, volumes, udisks)
     out = tmp / "out"
     full_env = {
-        "DISCOBSD_SYSFS_USB": str(sysfs),
-        "DISCOBSD_DEVFS": str(tmp / "dev"),
+        "GIZMOBSD_SYSFS_USB": str(sysfs),
+        "GIZMOBSD_DEVFS": str(tmp / "dev"),
         "PT_LOG": str(tmp / "picotool.log"),
     }
     full_env.update(env or {})
@@ -593,7 +593,7 @@ def scenario_capture_needs_the_port(src: Path, tmp: Path) -> None:
     # An empty environment variable counts as unset; an empty operand is an error.
     (tmp / "b").mkdir()
     r, _, _ = capture(
-        tmp / "b", ["--force-reset"], devices=devices, env={"DISCOBSD_USB_PORT": ""}, src=src
+        tmp / "b", ["--force-reset"], devices=devices, env={"GIZMOBSD_USB_PORT": ""}, src=src
     )
     assert r.returncode == 2 and picotool_log(tmp / "b") == []
     (tmp / "c").mkdir()
@@ -601,7 +601,7 @@ def scenario_capture_needs_the_port(src: Path, tmp: Path) -> None:
     assert r.returncode == 1 and picotool_log(tmp / "c") == []
     # The variable names the board when it is set.
     (tmp / "d").mkdir()
-    r, _, _ = capture(tmp / "d", ["--force-reset"], env={"DISCOBSD_USB_PORT": "1-4"}, src=src)
+    r, _, _ = capture(tmp / "d", ["--force-reset"], env={"GIZMOBSD_USB_PORT": "1-4"}, src=src)
     assert r.returncode == 0, r.stderr
     assert picotool_log(tmp / "d")[0] == "reboot -u -f --bus 2 --address 9 => 1-4"
 

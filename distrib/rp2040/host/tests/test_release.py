@@ -66,7 +66,7 @@ def bundle(tmp_path_factory):
     except (ValueError, OSError):
         supported = False
     if not supported:
-        if os.environ.get("DISCOBSD_REQUIRE_PQ_TESTS") == "1":
+        if os.environ.get("GIZMOBSD_REQUIRE_PQ_TESTS") == "1":
             pytest.fail("this gate requires OpenSSL ML-DSA-65 support")
         pytest.skip("OpenSSL ML-DSA-65 is unavailable; no hybrid result established")
     folder = tmp_path_factory.mktemp("release")

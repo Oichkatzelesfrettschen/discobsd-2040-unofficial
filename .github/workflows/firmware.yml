@@ -1217,7 +1217,7 @@ jobs:
   # signing path needs OpenSSL 3.5 or newer. The ubuntu-24.04 runner image
   # ships OpenSSL 3.0.x, which has no ML-DSA, so the hybrid-signatures job
   # installs openssl 3.5.7 from conda-forge and the tests refuse to skip
-  # (DISCOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
+  # (GIZMOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
   pq-release-proofs:
     name: Release policy proofs (Lean 4.19.0)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -1263,7 +1263,7 @@ jobs:
         timeout-minutes: 8
         run: python3 -m pytest -q
         env:
-          DISCOBSD_REQUIRE_PQ_TESTS: '1'
+          GIZMOBSD_REQUIRE_PQ_TESTS: '1'
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
 
   # A scheduled run reports to nobody, so its result goes to one issue:

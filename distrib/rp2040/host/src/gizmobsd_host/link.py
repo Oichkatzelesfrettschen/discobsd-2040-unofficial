@@ -47,14 +47,14 @@ def parser() -> argparse.ArgumentParser:
         "--to",
         metavar="URL",
         help="the tokenized console URL (deprecated: a token embedded here is "
-        "visible to every local user via ps; use --host with DISCOBSD_WEB_TOKEN "
+        "visible to every local user via ps; use --host with GIZMOBSD_WEB_TOKEN "
         "set or a systemd credential named web-token instead)",
     )
     p.add_argument(
         "--host",
         metavar="URL",
         help="the console URL with no token, e.g. http://192.0.2.5:7681/; the "
-        "token is read from DISCOBSD_WEB_TOKEN or a systemd credential named "
+        "token is read from GIZMOBSD_WEB_TOKEN or a systemd credential named "
         "web-token and appended as a query string",
     )
     p.add_argument("--port", type=int, default=42069, help="TCP port (default 42069)")
@@ -71,14 +71,14 @@ def main(argv=None) -> int:
             sys.stderr.write(
                 "gizmobsd-link: --to with an embedded token is deprecated and "
                 "visible to every local user via ps; use --host with "
-                "DISCOBSD_WEB_TOKEN set or a systemd credential named web-token "
+                "GIZMOBSD_WEB_TOKEN set or a systemd credential named web-token "
                 "instead\n"
             )
     elif args.host:
         token = ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV)
         if not token:
             sys.stderr.write(
-                "gizmobsd-link: --host given but no token in DISCOBSD_WEB_TOKEN "
+                "gizmobsd-link: --host given but no token in GIZMOBSD_WEB_TOKEN "
                 "or a systemd credential named web-token\n"
             )
             return 1

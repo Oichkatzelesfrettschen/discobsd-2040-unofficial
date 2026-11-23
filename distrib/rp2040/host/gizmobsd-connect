@@ -18,16 +18,30 @@ set -eu
 # running older kernels both report "rp2040" and share one, and
 # gizmobsd-term --list still returns a first match. With
 # more than one 2e8a device attached and no board named, this stops and lists
-# the candidates. --usb-port PORT (or DISCOBSD_USB_PORT) names the board by
+# the candidates. --usb-port PORT (or GIZMOBSD_USB_PORT) names the board by
 # its USB port, such as 1-3, and opens the tty that belongs to that port. An
-# empty --usb-port operand is an error; an empty DISCOBSD_USB_PORT counts as
+# empty --usb-port operand is an error; an empty GIZMOBSD_USB_PORT counts as
 # unset. Discovery is repeated just before the launch.
 # An explicit device path names the board itself. Linux only: macOS lacks
 # sysfs, so there the selector is refused and discovery is unchanged.
-# DISCOBSD_SYSFS_USB and DISCOBSD_DEVFS replace /sys/bus/usb/devices and /dev
+# GIZMOBSD_SYSFS_USB and GIZMOBSD_DEVFS replace /sys/bus/usb/devices and /dev
 # for tests.
-sysfs_usb=${DISCOBSD_SYSFS_USB:-/sys/bus/usb/devices}
-devfs=${DISCOBSD_DEVFS:-/dev}
+# gz_env NAME: when GIZMOBSD_* variable NAME is unset and its former
+# DISCOBSD_* spelling is set, take the old value and say so on stderr.
+gz_env() {
+	gz_old=DISCOBSD_${1#GIZMOBSD_}
+	eval "gz_set=\${$1+x} gz_oldset=\${$gz_old+x} gz_oldval=\${$gz_old-}"
+	if [ -z "$gz_set" ] && [ -n "$gz_oldset" ]; then
+		echo "gizmobsd-connect: $gz_old is renamed $1; set the new name" >&2
+		eval "$1=\$gz_oldval"
+		export "$1"
+	fi
+}
+gz_env GIZMOBSD_USB_PORT
+gz_env GIZMOBSD_SYSFS_USB
+gz_env GIZMOBSD_DEVFS
+sysfs_usb=${GIZMOBSD_SYSFS_USB:-/sys/bus/usb/devices}
+devfs=${GIZMOBSD_DEVFS:-/dev}
 usb_port=
 opt_port=
 
@@ -59,7 +73,7 @@ if [ -n "$opt_port" ]; then
 	[ -z "$port" ] || die "give a device path or --usb-port, not both"
 	usb_port=$opt_port
 elif [ -z "$port" ]; then
-	usb_port=${DISCOBSD_USB_PORT:-}
+	usb_port=${GIZMOBSD_USB_PORT:-}
 fi
 
 # The tty of the selected port's interface 0 (the console, by-id if00).
@@ -96,7 +110,7 @@ refuse_ambiguous() {
 	*'
 '*'
 '*)
-		echo "gizmobsd-connect: more than one 2e8a device is attached; name the board with --usb-port PORT or DISCOBSD_USB_PORT:" >&2
+		echo "gizmobsd-connect: more than one 2e8a device is attached; name the board with --usb-port PORT or GIZMOBSD_USB_PORT:" >&2
 		printf '%s' "$devs" | sed 's/^/  /' >&2
 		exit 2
 		;;
@@ -126,7 +140,7 @@ elif [ -z "$port" ]; then
 	if [ -z "$port" ]; then
 		for p in /dev/serial/by-id/usb-GizmoBSD_*rp2040-if00 \
 		    /dev/serial/by-id/usb-DiscoBSD_*rp2040-if00 \
-		    /dev/discobsd /dev/cu.usbmodem*; do
+		    /dev/gizmobsd /dev/discobsd /dev/cu.usbmodem*; do
 			if [ -e "$p" ]; then
 				port="$p"
 				break

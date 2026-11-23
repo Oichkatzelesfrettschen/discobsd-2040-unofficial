@@ -1492,6 +1492,18 @@ check-version-outside-git:
 
 .PHONY: check-version-outside-git
 
+# kern.osrev is the packed release number that sys/conf/newvers.sh generates
+# from OSR and OSRANK. tools/check_osrev_generator.py runs copies of the script
+# on good and malformed version sources, compiles the vers.c of each good one
+# and of edited ones with the host compiler, and compares the packed values
+# with an independent encoder; --selftest requires seven mutants of the script
+# to fail the check each was built to fail.
+check-osrev-generator: check-python
+		${PYTHON} tools/check_osrev_generator.py --root ${TOPSRC}
+		${PYTHON} tools/check_osrev_generator.py --root ${TOPSRC} --selftest
+
+.PHONY: check-osrev-generator
+
 check-agent-instructions: check-python
 		${PYTHON} -B tools/agent_instructions_test.py
 		${PYTHON} -B tools/check_agent_instructions.py --root ${TOPSRC}
@@ -2171,7 +2183,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
 		check-clifford-t \
 		check-kernel-headroom-validator check-hot-layout-validator \
-		check-version-outside-git \
+		check-version-outside-git check-osrev-generator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \

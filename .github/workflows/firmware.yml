@@ -352,16 +352,17 @@ jobs:
       # model gate fails rather than skips when one is missing.
       # The tier is bound by total CPU work on a four-CPU runner, not by the
       # order of its gates; sys/arch/rp2040/doc/TESTING.md (check-host-split)
-      # holds the measured wall times. The hard timeout leaves room above the
-      # slowest tier measured (2,490 s of the 3,600 s limit in dispatch
-      # 44895879561), and the idle timeout still ends a hung gate.
+      # holds the measured wall times. The tier took 3,163 s in scheduled run
+      # 45006931968 and reached a 3,600 s limit inside the i86 mutant run in
+      # dispatch 45080339746, so the hard timeout is 5,400 s; the idle timeout
+      # still ends a hung gate.
       # bmake -k keeps starting every gate that does not depend on the failed
       # one, so one run lists each failing gate with its own cause; the step
       # still exits 1 when any gate fails. Without -k the first failure stops
       # the gates still queued, and each further defect costs another run.
       - name: Run the host tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 62
+        timeout-minutes: 92
         env:
           SWAP_TIER_MODEL_REQUIRED: "1"
         run: |
@@ -369,7 +370,7 @@ jobs:
             --label linux-host \
             --log .build-logs/linux-host.log \
             --status .build-logs/linux-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 3600 \
+            --idle-timeout-seconds 300 --timeout-seconds 5400 \
             -- bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       # check-signal-sets-cross owns target signatures and Smaller C input;

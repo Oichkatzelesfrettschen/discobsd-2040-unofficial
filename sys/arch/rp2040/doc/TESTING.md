@@ -4603,7 +4603,7 @@ boot, MPU test, timing measurement or RP2040 peripheral test. Directory APIs
 and exclusive shell launch are supplied only by the native/board backends.
 
 `check-matezinho-sd` stands outside the `logged-check` aggregate because it
-needs the .NET 8 SDK; the firmware workflow runs it on every pull request as
+needs a .NET SDK of version 8 or later; the firmware workflow runs it on every pull request as
 the logged `linux-matezinho-sd` step after the Renode pin check. .NET 8 compiles
 FileSD against test-only peripheral interface declarations, then the actual
 sdspi.c drives it through C-callable delegates. The gate checks identification,

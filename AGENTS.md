@@ -39,7 +39,8 @@ board sessions and card images is PICOCALC_SD (`picocalc-sd-kernel`, UF2
 160 KiB layout); PICOCALC_SD_DIAG (`picocalc-sd-diag-kernel`) is the testing
 kernel, the same configuration with DIAGNOSTIC, GLOBAL_DEBUG and STORAGE_STATS
 at `-Og`. The UF2 goes
-to `/pico1-apps/discobsd.uf2`, and the loader programs it only when entered
+to `/pico1-apps/gizmobsd.uf2` (move a `discobsd.uf2` off the card first), and
+the loader programs it only when entered
 with both USB cables unplugged, power off, then Up held while pressing power
 (Up twice more reaches the list). A plain power-on starts the kernel already
 in flash, and micro-USB plugged at power-on puts the loader in USB drive mode

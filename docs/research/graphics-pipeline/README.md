@@ -126,7 +126,7 @@ The Thumb-1 sizes of `c5_loops.c` at `-Os`, from `arm-none-eabi-gcc -Os -mcpu=co
 
     | Palette | No dither | Bayer, best spread | Floyd-Steinberg |
     |---|---|---|---|
-    | console RGBI (china / flower) | 21.40 / 15.78 | 25.46 / 19.67 (still rising at spread 96) | 34.99 / 24.11 |
+    | console RGBI (china / flower) | 21.40 / 15.78 | 25.46 / 19.67 (still rising at spread 96) | 34.90 / 24.11 |
     | k-means (china / flower) | 32.41 / 32.91 | 33.03 / 33.28 | 32.00 / 33.26 |
     | median cut (china / flower) | 30.00 / 29.92 | 30.38 / 30.34 | 27.23 / 29.42 |
 

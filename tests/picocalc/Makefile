@@ -2783,7 +2783,7 @@ clean:
 	rm -f lcdterm_test lcdterm_vt_test lcdgfx_test kbdreq_test kbdevq_test gametile_test \
 	    sdspi_test sdstrat_test dump_test picoaudio_test picopcm_test \
 	    uart_test uart_picocalc_test panel_decode_test panel_scan_test \
-	    lcdgfx_ext_test lcdvt_test
+	    lcdgfx_ext_test lcdvt_test lcdblank_test
 
 .PHONY: all check font-sync mutants mutant-scroll mutant-region \
 	mutant-ctrl mutant-break-dropped mutant-break-byte mutant-power-types \

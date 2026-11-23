@@ -119,10 +119,10 @@ name(int code)
 {
 	static const char *const names[] = {
 		"ok", "io", "notfat32", "absent", "fragmented", "uf2head",
-		"tail", "nomagic", "corrupt",
+		"tail", "nomagic", "corrupt", "ambiguous",
 	};
 
-	return code >= 0 && code <= FT32_E_CORRUPT ? names[code] : "unknown";
+	return code >= 0 && code <= FT32_E_AMBIGUOUS ? names[code] : "unknown";
 }
 
 static int
@@ -193,7 +193,7 @@ fuzz(struct dev *d, unsigned volume, unsigned long long seed,
 			    d->budget);
 			return 1;
 		}
-		if (code < FT32_OK || code > FT32_E_CORRUPT) {
+		if (code < FT32_OK || code > FT32_E_AMBIGUOUS) {
 			printf("FAIL run %lu: result %d\n", run, code);
 			return 1;
 		}

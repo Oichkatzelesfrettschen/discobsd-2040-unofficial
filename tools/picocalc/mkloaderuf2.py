@@ -16,10 +16,12 @@ and a container for the root file system:
     head = roundup(N * 512, 32768)
 
 sys/arch/rp2040/dev/fat32tail.c finds the root image at boot from the FAT32
-directory entry DISCOBSD.UF2. The head alignment is defined twice, as
+directory entry GIZMOBSD.UF2 (or its former name DISCOBSD.UF2, which the
+locator still accepts until a card has booted the new name; two matching
+files on the card fail closed). The head alignment is defined twice, as
 FT32_HEAD_ALIGN in fat32tail.h and as HEAD_ALIGN here, and the gate
 (tests/fat32tail/check.sh) compares the two. The output name defaults to
-discobsd.uf2: the loader accepts a
+gizmobsd.uf2: the loader accepts a
 selection only when the path ends in the lowercase text ".uf2", and an 8.3
 name needs zero long-name directory entries.
 
@@ -67,7 +69,9 @@ SRAM_BASE = 0x20000000
 SRAM_END = 0x20042000
 
 HEAD_ALIGN = 32768
-DEFAULT_NAME = "discobsd.uf2"
+DEFAULT_NAME = "gizmobsd.uf2"
+# The former name, which the locator still accepts.
+LEGACY_NAME = "discobsd.uf2"
 
 # sys/sys/fs.h: FSMAGIC1 is the first word of block 0 of the root image and
 # FSMAGIC2 the last word of struct fs, which is 1024 bytes long.
@@ -226,7 +230,15 @@ def main(argv: list[str]) -> int:
     except (BuildError, OSError) as error:
         print(f"mkloaderuf2: {error}", file=sys.stderr)
         return 1
-    if args.output.name.lower() != DEFAULT_NAME:
+    lowered = args.output.name.lower()
+    if lowered == LEGACY_NAME:
+        print(
+            f"mkloaderuf2: {args.output.name} is the former name; the kernel looks for "
+            f"{DEFAULT_NAME} and still accepts it, but two matching files on the card "
+            "fail closed, so keep one",
+            file=sys.stderr,
+        )
+    elif lowered != DEFAULT_NAME:
         print(
             f"mkloaderuf2: the kernel looks for the file name {DEFAULT_NAME}; "
             f"{args.output.name} is not found at boot",

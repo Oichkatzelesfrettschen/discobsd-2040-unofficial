@@ -59,7 +59,7 @@ as `none`, which is expected: the kernel omits the SDK metadata block.
 
 The console is the same USB cable. After `picotool reboot` the board
 re-enumerates as a CDC-ACM device, vendor 2e8a product 000a, and Linux
-provides a `/dev/serial/by-id/*DiscoBSD*` identity. Resolve that identity
+provides a `/dev/serial/by-id/*GizmoBSD*` identity. Resolve that identity
 instead of assuming a ttyACM number:
 
     sh distrib/rp2040/host/discobsd-connect

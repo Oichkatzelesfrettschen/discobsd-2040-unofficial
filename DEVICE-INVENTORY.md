@@ -34,7 +34,7 @@ board sits direct-attached on it.
 |---|---|---|
 | USB ID | 2e8a:000a | `/sys/bus/usb/devices/1-3/idVendor`, `idProduct` |
 | Manufacturer string | DiscoBSD | sysfs `manufacturer` |
-| Product string | DiscoBSD RP2040 console | sysfs `product` |
+| Product string | GizmoBSD RP2040 console | sysfs `product` |
 | USB serial | rp2040 | sysfs `serial` |
 | USB version, speed | 2.00, 12 Mbit/s full speed | sysfs `version`, `speed` |
 | Max bus power | 250 mA | sysfs `bMaxPower` |

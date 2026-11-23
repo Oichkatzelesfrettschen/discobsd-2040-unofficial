@@ -3479,7 +3479,7 @@ against the font table; `picokbd.c` reads the firmware version at 0x1f over
 the DW_apb_i2c register interface and prints `firmware 1.6`; keys queued in
 the controller model's FIFO travel through register 0x09, the keymap and the
 tty, so `operator` logs in and `uname -sr` typed with a Backspace in it
-answers `DiscoBSD 2.7` on the panel. A warning-class check holds the log to
+answers `GizmoBSD 0.1.0-alpha` on the panel. A warning-class check holds the log to
 tools/renode/warning-classes.txt plus picocalc-warning-classes.txt, and a
 decoder self-test calibrates the frame reader on a good frame, a
 reverse-video row and a corrupted cell before its verdict counts. After the

@@ -46,7 +46,7 @@ What the login screen tells you, line by line:
 
     2.11 BSD UNIX (pico) (console)          getty: the kernel lineage, the hostname, the line
     login: operator                         type operator; no password is asked
-    DiscoBSD 2.7 -- Raspberry Pi Pico       /etc/motd, first line
+    GizmoBSD 0.1.0-alpha -- Raspberry Pi Pico   /etc/motd, first line
     You are operator, in /home/operator...  /etc/motd: where you are and what to type
     operator@pico:~$                        the shell: user@host, working directory, $ for operator
 

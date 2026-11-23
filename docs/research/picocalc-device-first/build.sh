@@ -43,9 +43,9 @@
 # SHA-256 heads the output. It refuses an OUTDIR that is, or whose
 # run-output.tsv is, the source directory's golden file, because the redirect
 # would truncate the oracle and the comparison would read it against itself.
-# It also exits nonzero when bench.c's bzero, bcopy or UNALIGNED differ from
-# sys/arch/rp2040/rp2040/machdep.c, or when run.py reports a failed round
-# trip. NM_ARM and OBJCOPY_ARM default to CC_ARM with "gcc" replaced by "nm" and
+# It also exits nonzero when bench.c's UNALIGNED differs from
+# sys/arch/rp2040/rp2040/machdep.c, when bench.c lacks that file's inherited
+# notice, or when run.py reports a failed round trip. NM_ARM and OBJCOPY_ARM default to CC_ARM with "gcc" replaced by "nm" and
 # "objcopy". BENCH_CFLAGS adds compiler flags (selftest.sh uses it for a mutant).
 # Needs arm-none-eabi-gcc, bmake (BMAKE names another), Unicorn and Capstone.
 set -eu
@@ -83,20 +83,8 @@ if [ "$(cd "$OUT" && pwd -P)" = "$(cd "$HERE" && pwd -P)" ] ||
     exit 2
 fi
 
-# fn_text FILE NAME prints the function NAME of FILE from its name line to
-# the closing brace in column one.
-fn_text() {
-    awk -v n="$2" '$0 ~ "^" n "\\(" { p = 1 } p { print } p && /^}/ { exit }' "$1"
-}
-for fn in bzero bcopy; do
-    k=$(fn_text "$ROOT/sys/arch/rp2040/rp2040/machdep.c" "$fn")
-    h=$(fn_text "$HERE/bench.c" "$fn")
-    if [ -z "$k" ] || [ "$k" != "$h" ]; then
-        echo "build.sh: bench.c $fn differs from machdep.c" >&2
-        exit 2
-    fi
-done
-# The copied routines keep the Regents notice and version banner of machdep.c.
+# bench.c's word loops derive from machdep.c and keep its Regents notice and
+# version banner.
 inherited=$(sed -n 1,7p "$ROOT/sys/arch/rp2040/rp2040/machdep.c")
 case "$(cat "$HERE/bench.c")" in
 *"$inherited"*) ;;

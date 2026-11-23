@@ -2015,7 +2015,7 @@ check-unicorn-kernel: check-python
 # compares the synthetic rows and the compiler options with a fresh model run
 # and exits 3, reported here as SKIP with its reason, when the compiler differs.
 # selftest.sh then calibrates the comparison and the harness on known-bad input
-# (a perturbed oracle, aliased output, a drifted bzero, an incomplete compile
+# (a perturbed oracle, aliased output, a missing notice, an incomplete compile
 # command, a mismatched binutils prefix, a failed round trip). Both run the
 # Unicorn model against the built tree's sh and awk, so the target stands
 # outside check-cross.

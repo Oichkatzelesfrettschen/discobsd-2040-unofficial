@@ -1,6 +1,6 @@
-# Agent guide: DiscoBSD RP2040 port
+# Agent guide: GizmoBSD RP2040 port
 
-This RP2040 port forks chettrick/discobsd (`upstream`, fetch-only master);
+GizmoBSD forks chettrick/discobsd (`upstream`, fetch-only master);
 `origin/main` is the owned branch. `docs/INDEX.md` routes port documentation
 under `sys/arch/rp2040/doc` and research under `docs/research`. A document
 cited as authority by shipped code, a Makefile or the root manifest belongs

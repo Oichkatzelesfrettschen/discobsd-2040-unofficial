@@ -454,7 +454,7 @@ MUTANTS = [
         "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);",
     ),
     ("pc.c", "\t\t\tirq_at += pit[0].count;", "\t\t\tirq_at += 0x10000;"),
-    ("pc.c", "pit_out(2, pit_now()) << 5;", "0 << 5;"),
+    ("pc.c", "pit_out(2, pit_view(c)) << 5;", "0 << 5;"),
     ("pc.c", "\t\t\t\tpit[k].slatched = 1;", "\t\t\t\tpit[k].slatched = 0;"),
     ("pc.c", "uint32_t t = pit_t + (pc_step * pit_step >> 8);", "uint32_t t = pit_t;"),
     ("pc.c", "(pit_now() / 18 & 1) << 4", "0 << 4"),

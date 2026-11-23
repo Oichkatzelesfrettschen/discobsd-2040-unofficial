@@ -29,7 +29,7 @@ i86 \- run DOS on an emulated 8086, 80186 or 80286
 .SH SYNOPSIS
 .B i86
 [
-.B \-dgqrTv
+.B \-dGgqrTv
 ] [
 .B \-c
 .I cpu
@@ -37,8 +37,17 @@ i86 \- run DOS on an emulated 8086, 80186 or 80286
 .B \-m
 .I kbytes
 ] [
+.B \-e
+.I kbytes
+] [
 .B \-f
 .I frames
+] [
+.B \-P
+.I file
+] [
+.B \-S
+.I mhz
 ] [
 .B \-w
 .I columns
@@ -62,7 +71,8 @@ i86 \- run DOS on an emulated 8086, 80186 or 80286
 .I I86
 is a personal computer in a process: an Intel 8086, 80186 or 80286 in real
 mode, up to 640 kilobytes of memory, a color text display, a keyboard, an
-18.2 Hz timer, a clock and up to two floppy and two hard disks held in
+8254 timer that interrupts 18.2 times a second until the guest programs
+another rate, a clock and up to two floppy and two hard disks held in
 image files.
 It starts the boot sector of the first floppy image, or of the first hard
 disk image when no floppy is given, as a PC starts DOS.
@@ -118,6 +128,21 @@ or
 .B \-d
 Control-] leaves at once.
 .PP
+COM1 has a Microsoft serial mouse on it, which DOS mouse drivers such as
+CTMOUSE find by themselves.
+Control-\e turns mouse keys on and off; while they are on, the panel
+shows a white arrow in its top margin, the arrow keys move the mouse,
+faster while a key is held,
+.B [
+and
+.B ]
+click the left and right button, and
+.B {
+and
+.B }
+press that button and hold it until either of its keys comes again.
+All other keys type as usual.
+.PP
 Options:
 .TP
 .BI \-a " floppy"
@@ -129,17 +154,40 @@ kilobytes, 1.2, 1.44 or 2.88 megabytes.
 .BI \-c " cpu"
 The processor:
 .BR 8086 ,
+.BR 8088 ,
 .B 186
 or
 .B 286
 (the default).
+The 8086 and 8088 run the same instructions and differ only in the pace of
+.BR \-S .
 .TP
 .B \-d
 Draw nothing while running and print the 25 lines of the display on exit.
 .TP
+.BI \-e " kbytes"
+Expanded memory, 16 to 32768 kilobytes in steps of 16, under the Lotus,
+Intel and Microsoft Expanded Memory Specification 4.0 through interrupt
+67h.
+DOS finds it through the driver
+.IR EMS.SYS ,
+loaded by the line
+.B DEVICE=C:\eEMS.SYS
+in
+.IR CONFIG.SYS ;
+the driver stays resident only when
+.B \-e
+is given.
+Its pages take no memory until written and are kept in the page file.
+Windows 3.0 in real mode banks applications into it.
+.TP
 .BI \-f " frames"
-The number of resident pages, 128 by default; the RP2040 process window
-holds 132.
+The number of resident pages, 118 by default, which the RP2040 process
+window holds with
+.B \-e
+up to 2048; a larger
+.B \-e
+needs fewer.
 .TP
 .B \-g
 Use the PicoCalc's panel,
@@ -148,9 +196,32 @@ as the display and the terminal for the keys alone.
 Both text widths fill the panel, 80 columns in characters four pixels
 wide, with all of code page 437; the graphics modes 4, 5 and 6 of the
 color adapter are drawn, mode 6 at half its 640 pixels a line.
-A graphics mode takes eight of the
+A graphics mode takes 24 of the
 .I frames
-while it lasts.
+while it lasts, eight for its odd scan lines and 16 for a copy of the
+lines last sent, so that only the bytes that differ go to the panel;
+with fewer to spare it takes eight and sends every written line whole.
+A text mode moves the panel's scroll start when the whole screen
+scrolls, and draws only the cells that then differ.
+.TP
+.B \-G
+As
+.BR \-g ,
+without the copy of the lines and without moving the scroll start:
+every line or cell the guest writes goes to the panel, for comparison.
+.TP
+.BI \-P " file"
+With
+.B \-g
+or
+.BR \-G ,
+Control-] first reads the panel back and writes it to
+.I file
+as a binary PPM of 320 by 320 pixels, the glass as it shows, before
+the menu gives the panel to the console; the menu line then reports
+whether it was saved.
+The read-back needs a kernel with the pixel device's memory read
+(PICOCALC_SD).
 The Control-] menu appears on the console, which has the panel for as
 long as the menu is open.
 Without the device the terminal is the display and
@@ -183,24 +254,42 @@ The file for pages that are not resident, by default
 .IR /tmp/i86. pid
 for the emulator's process number.
 .TP
+.BI \-S " mhz"
+Keep the guest to the speed of the chosen processor at this clock, from 1
+to 40 MHz, 4.77 for the IBM PC's 8088: the emulator waits whenever the
+guest runs ahead.
+The pace is that of one loop of everyday instructions, so other programs
+run somewhat faster or slower than on the machine.
+It only slows the guest; where the host is slower than the clock asked
+for, as an RP2040 at 125 MHz is beyond about 4.2 MHz of 8088,
+.B \-S
+leaves the speed as it was, and
+.B \-v
+shows the rate reached.
+It has no effect with
+.BR \-T .
+.TP
 .B \-T
 Replace the host's clock with a count of executed instructions and a
 fixed date, so that two runs do the same.
 .TP
 .B \-v
-Print the page statistics on exit.
+Print the page statistics and the instructions run a second on exit, and
+the rate
+.B \-S
+aims at.
 .TP
 .BI \-w " columns"
 Start in the 40- or the 80-column text mode (80 by default).
 .SH LIMITS
 The 80286 has no protected mode: the machine status word reads real mode
 and cannot be changed, so programs that need extended memory or a DOS
-extender do not run.
+extender do not run, and Windows 3.0 runs in real mode only.
 Graphics modes exist only with
 .B \-g
 and are those of the color adapter; there is no EGA or VGA.
-There is no numeric coprocessor, no sound, no serial or parallel port and
-no mouse.
+There is no numeric coprocessor, no sound and no parallel port; COM1
+serves only the mouse, which has two buttons.
 Every key arrives as a press followed at once by its release, since a
 terminal reports no releases: a program that acts while a key is held
 sees it only for an instant.

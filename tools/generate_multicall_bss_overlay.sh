@@ -11,7 +11,10 @@ fi
 output_path=$1
 shift
 temporary_path=${output_path}.tmp.$$
-trap 'rm -f "$temporary_path"' EXIT HUP INT TERM
+trap 'rm -f "$temporary_path"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 {
 	printf '%s\n' 'SECTIONS' '{' \
@@ -39,7 +42,7 @@ trap 'rm -f "$temporary_path"' EXIT HUP INT TERM
 	    '  .app_bss_extent __app_bss_start (NOLOAD) : { . = __app_bss_end - __app_bss_start; }' \
 	    '}'
 	# NOCROSSREFS relates sibling applets, so a binary that carries one
-	# applet has no pair to forbid.
+	# applet lacks a pair to forbid.
 	if [ "$#" -gt 1 ]; then
 		printf 'NOCROSSREFS('
 		for object_path do

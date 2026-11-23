@@ -68,12 +68,13 @@ fi
 	missing "no RP2040 models; run sh tools/renode/fetch-renode-rp2040.sh"
 
 # The panel model is an SPI child of PL022, which hands it frames only after
-# the 0008 patch; a models tree fetched before that patch ran the series
-# without it and would print a banner nowhere.
+# the 0008 patch, and the frame timing this gate boots with is that of the
+# 0010 patch; an earlier model passes the FIFO probe as well. The series
+# stamp refuses a build of any other patch series.
 [ -r "$MODELS" ] ||
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
-grep -aq TransferFrame "$MODELS" ||
-	missing "the built models predate patch 0008 (pl022 frames to an SPI child); rerun sh tools/renode/fetch-renode-rp2040.sh"
+sh "$SCRIPT_DIR/models-series.sh" check "$MODELS" ||
+	missing "the built models do not match tools/renode/patches; rerun sh tools/renode/fetch-renode-rp2040.sh"
 
 [ -r "$KERNEL" ] ||
 	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"
@@ -92,7 +93,7 @@ fi
 
 mkdir -p "$OUTPUT"
 
-# A decoder that cannot tell a good frame from a bad one reports nothing.
+# A decoder that cannot tell a good frame from a bad one is blind.
 "$PYTHON" -I "$SCRIPT_DIR/picocalc_fb.py" --self-test
 
 # The same holds for the Status-line assertions: a sleeping panel must fail.
@@ -104,7 +105,7 @@ mkdir -p "$OUTPUT"
 # The driver exits 1 on a failed assertion and 2 when the emulator stops
 # answering; both end the gate, but the log is worth reading either way.
 status=0
-# -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
+# -u: tools/run_logged_gate.py ends a run that prints zero bytes for its idle
 # limit, and Python block-buffers a piped stdout until exit, so every
 # stage line must reach the log as it is printed.
 if [ -n "$DUMP" ]; then

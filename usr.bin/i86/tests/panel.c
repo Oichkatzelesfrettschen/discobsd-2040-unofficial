@@ -40,9 +40,11 @@
  * before the palette was set shows, and the frame starts as another: the
  * superuser's open leaves the console's screen in the panel's memory, and
  * this stands for it. Every close writes the 320 by 320
- * frame as a binary PPM and the counters as text beside it, to the paths
+ * frame the glass shows, through the scroll area and start that
+ * LCDG_SCRDEF and LCDG_SCROLL set in the controller's 480 lines, as a binary PPM and the counters as text beside it, to the paths
  * I86_PANEL names with the number of the close appended. I86_PANEL_FAIL
- * makes opens fail: "open" every one, "reopen" every one after the first.
+ * makes opens fail: "open" every one, "reopen" every one after the first;
+ * "read" makes LCDG_READ fail as a kernel without LCD_GFX_EXT does.
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -57,14 +59,19 @@ int panel_open(void);
 int panel_close(void);
 int panel_ioctl(unsigned long cmd, void *arg);
 long panel_write(const void *p, unsigned long n);
+long panel_read(void *p, unsigned long n);
 
-static uint16_t fb[LCDG_HEIGHT][LCDG_WIDTH];
+static uint16_t fb[LCDG_RAM_LINES][LCDG_WIDTH];	/* the controller's memory */
+static unsigned scr_top, scr_bottom, scr_start;	/* VSCRDEF and VSCSAD */
+static struct lcdg_read rd;			/* LCDG_READ's rectangle */
+static unsigned long rd_at, rd_total;		/* pixels */
+static int hasrd;
 static uint16_t pal[LCDG_NPAL];
 static struct lcdg_window win;
 static unsigned long win_at, win_total;		/* pixels */
 static int isopen, haswin;
 static unsigned opens, closes;
-static unsigned long errors, pixels, windows, fills;
+static unsigned long errors, pixels, windows, fills, filled, tallest, scrolls;
 static unsigned colmod;
 
 static int
@@ -92,11 +99,28 @@ panel_open(void)
 	opens++;
 	haswin = 0;
 	colmod = LCDG_COLMOD_RGB666;
-	for (i = 0; i < LCDG_WIDTH * LCDG_HEIGHT; i++)
+	for (i = 0; i < LCDG_WIDTH * LCDG_RAM_LINES; i++)
 		fb[i / LCDG_WIDTH][i % LCDG_WIDTH] = 0x8410;
+	scr_top = 0;
+	scr_bottom = LCDG_RAM_LINES - LCDG_HEIGHT;
+	scr_start = 0;
 	for (i = 0; i < LCDG_NPAL; i++)
 		pal[i] = 0xf81f;
 	return (3);
+}
+
+/* The memory line the glass shows on its line y: the controller's
+ * VSCRDEF and VSCSAD as tools/renode/picocalc/st7365p.cs's SourceLine
+ * decodes them from the datasheet. */
+static unsigned
+glass(unsigned y)
+{
+	unsigned area = LCDG_RAM_LINES - scr_top - scr_bottom, off;
+
+	if (y < scr_top || y >= scr_top + area)
+		return (y);
+	off = scr_start - scr_top;
+	return (scr_top + (y - scr_top + off) % area);
 }
 
 int
@@ -121,7 +145,7 @@ panel_close(void)
 	fprintf(f, "P6\n%d %d\n255\n", LCDG_WIDTH, LCDG_HEIGHT);
 	for (y = 0; y < LCDG_HEIGHT; y++)
 		for (x = 0; x < LCDG_WIDTH; x++) {
-			unsigned v = fb[y][x], r = v >> 11, g = v >> 5 & 63;
+			unsigned v = fb[glass(y)][x], r = v >> 11, g = v >> 5 & 63;
 			unsigned b = v & 31;
 
 			fputc((int)(r << 3 | r >> 2), f);
@@ -133,7 +157,8 @@ panel_close(void)
 	if ((f = fopen(path, "w")) == NULL)
 		return (0);
 	fprintf(f, "errors %lu\npixels %lu\nwindows %lu\nfills %lu\n"
-	    "colmod %x\n", errors, pixels, windows, fills, colmod);
+	    "colmod %x\ntallest %lu\nfilled %lu\nscrolls %lu\n", errors, pixels,
+	    windows, fills, colmod, tallest, filled, scrolls);
 	fclose(f);
 	return (0);
 }
@@ -145,6 +170,9 @@ panel_ioctl(unsigned long cmd, void *arg)
 	const struct lcdg_window *w = arg;
 	const struct lcdg_palette *p = arg;
 	const struct lcdg_colmod *cm = arg;
+	const struct lcdg_scroll *sc = arg;
+	const struct lcdg_scrdef *sd = arg;
+	const struct lcdg_read *r2 = arg;
 	unsigned x, y;
 
 	if (!isopen)
@@ -153,7 +181,24 @@ panel_ioctl(unsigned long cmd, void *arg)
 	if (haswin && win_at < win_total)
 		errors++;
 	haswin = 0;
+	hasrd = 0;
 	switch (cmd) {
+	case LCDG_READ:
+		/* A kernel without LCD_GFX_EXT does not know the command. */
+		if (getenv("I86_PANEL_FAIL") != NULL &&
+		    strcmp(getenv("I86_PANEL_FAIL"), "read") == 0) {
+			errno = ENOTTY;
+			return (-1);
+		}
+		/* The kernel's bounds; the memory of all 480 lines. */
+		if (r2->w < 1 || r2->h < 1 || r2->x + r2->w > LCDG_WIDTH ||
+		    r2->y + r2->h > LCDG_RAM_LINES || r2->fmt != LCDG_RD_RGB565)
+			return (bad(EINVAL));
+		rd = *r2;
+		rd_at = 0;
+		rd_total = (unsigned long)r2->w * r2->h;
+		hasrd = 1;
+		return (0);
 	case LCDG_FILL:
 		if (r->x0 > r->x1 || r->y0 > r->y1 || r->x1 >= LCDG_WIDTH ||
 		    r->y1 >= LCDG_HEIGHT)
@@ -162,6 +207,7 @@ panel_ioctl(unsigned long cmd, void *arg)
 			for (x = r->x0; x <= r->x1; x++)
 				fb[y][x] = r->color;
 		fills++;
+		filled += (unsigned long)(r->x1 - r->x0 + 1) * (r->y1 - r->y0 + 1);
 		return (0);
 	case LCDG_WINDOW:
 		if (w->w < 1 || w->h < 1 || w->x + w->w > LCDG_WIDTH ||
@@ -170,6 +216,8 @@ panel_ioctl(unsigned long cmd, void *arg)
 		    (w->fg >= LCDG_NPAL || w->bg >= LCDG_NPAL)))
 			return (bad(EINVAL));
 		win = *w;
+		if (w->fmt == LCDG_WIN_INDEX && w->h > tallest)
+			tallest = w->h;
 		win_at = 0;
 		win_total = (unsigned long)w->w * w->h;
 		haswin = 1;
@@ -180,6 +228,21 @@ panel_ioctl(unsigned long cmd, void *arg)
 			return (bad(EINVAL));
 		pal[p->index] = (uint16_t)((p->r >> 3) << 11 |
 		    (p->g >> 2) << 5 | p->b >> 3);
+		return (0);
+	case LCDG_SCRDEF:
+		/* The kernel's bounds (sys/arch/rp2040/dev/lcdgfx.c). */
+		if (sd->top + sd->bottom >= LCDG_RAM_LINES)
+			return (bad(EINVAL));
+		scr_top = sd->top;
+		scr_bottom = sd->bottom;
+		scr_start = scr_top;
+		return (0);
+	case LCDG_SCROLL:
+		if (sc->line < scr_top ||
+		    sc->line >= LCDG_RAM_LINES - scr_bottom)
+			return (bad(EINVAL));
+		scr_start = sc->line;
+		scrolls++;
 		return (0);
 	case LCDG_COLMOD:
 		if (cm->fmt != LCDG_COLMOD_RGB666 &&
@@ -198,6 +261,26 @@ pixel(unsigned v)
 	fb[win.y + win_at / win.w][win.x + win_at % win.w] = (uint16_t)v;
 	win_at++;
 	pixels++;
+}
+
+/* The pixels of the LCDG_READ rectangle, RGB565 low byte first. */
+long
+panel_read(void *buf, unsigned long n)
+{
+	uint8_t *p = buf;
+	unsigned long i;
+	unsigned v;
+
+	if (!isopen || (n & 1))
+		return (bad(EINVAL));
+	if (!hasrd)
+		return (0);
+	for (i = 0; i + 1 < n && rd_at < rd_total; i += 2, rd_at++) {
+		v = fb[rd.y + rd_at / rd.w][rd.x + rd_at % rd.w];
+		p[i] = (uint8_t)v;
+		p[i + 1] = (uint8_t)(v >> 8);
+	}
+	return ((long)i);
 }
 
 long

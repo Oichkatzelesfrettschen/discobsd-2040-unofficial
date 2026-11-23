@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Board test: the kernel a Pico runs is the kernel image a host file holds.
 
-usage: DISCOBSD_BOARD_IMAGE_IDENTITY=run $PYTHON board_image_identity.py \
+usage: GIZMOBSD_BOARD_IMAGE_IDENTITY=run $PYTHON board_image_identity.py \
            LOG UNIX_BIN
 
-The script touches the board only when DISCOBSD_BOARD_IMAGE_IDENTITY is
+The script touches the board only when GIZMOBSD_BOARD_IMAGE_IDENTITY is
 exactly "run"; unset, empty and every other value exit without opening a
 port. It flashes nothing. With the variable set it reaches a root shell on
 the USB console and reads machdep.image_length, machdep.image_crc and
@@ -23,7 +23,7 @@ operator wants before trusting any other measurement of that board.
 
 Every console byte goes to LOG. The exit status is 0 when every check
 passed, 1 when one failed and 2 when the console stopped answering or
-UNIX_BIN carries no identity words.
+UNIX_BIN lacks identity words.
 """
 
 import importlib.util
@@ -31,7 +31,10 @@ import os
 import struct
 import sys
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_IMAGE_IDENTITY"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_IMAGE_IDENTITY"
 OPT_IN_VALUE = "run"
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOP = os.path.join(HERE, "..", "..", "..")
@@ -47,6 +50,9 @@ def load(name, path):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

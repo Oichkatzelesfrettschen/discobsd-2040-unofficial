@@ -1,0 +1,5 @@
+== sweep of the Bayer spread; image flower.jpg
+console RGBI   none 15.78 | Bayer by spread 8:15.91 16:16.15 24:16.40 32:16.69 48:17.36 64:18.11 96:19.67 | best spread 96 -> 19.67 | Floyd-Steinberg 24.11
+uniform 2x2x4  none 16.36 | Bayer by spread 8:16.40 16:16.47 24:16.56 32:16.67 48:16.90 64:17.14 96:17.95 | best spread 96 -> 17.95 | Floyd-Steinberg 32.43
+median cut     none 29.92 | Bayer by spread 8:30.08 16:30.24 24:30.34 32:30.34 48:30.07 64:29.44 96:28.03 | best spread 32 -> 30.34 | Floyd-Steinberg 29.42
+k-means        none 32.91 | Bayer by spread 8:33.09 16:33.28 24:33.27 32:33.15 48:32.77 64:32.13 96:30.41 | best spread 16 -> 33.28 | Floyd-Steinberg 33.26

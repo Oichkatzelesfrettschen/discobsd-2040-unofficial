@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -245,6 +257,90 @@ test_scroll(void)
 	expect_int("scroll cursor col", col, 0);
 	expect_consistent("scroll");
 }
+
+/*
+ * A glyph or an erase that leaves a cell as the panel already shows it is
+ * not sent; the marker cell and the cells of an exchanged console are sent
+ * whatever the store holds.
+ */
+static void
+test_redundant(void)
+{
+	int d, f;
+
+	reset();
+	out("hello");
+	d = ndraws;
+	f = nfills;
+	out("\033[Hhello");
+	expect_int("same text draws", ndraws - d, 0);
+	out("\033[Hjello");
+	expect_int("one changed cell draws", ndraws - d, 1);
+	out("\033[2K");
+	expect_int("erase of a written line fills", nfills - f, 1);
+	f = nfills;
+	out("\033[2K\033[J\033[1;10H\033[K");
+	expect_int("erase of blank cells fills", nfills - f, 0);
+	expect_consistent("redundant output");
+}
+
+#ifdef LCD_VT
+static void
+test_redundant_vt(void)
+{
+	int d, f;
+
+	reset();
+	/* The unseen-output marker covers the top right cell. */
+	lcdterm_marker();
+	d = ndraws;
+	out("\033[1;53H ");
+	expect_int("blank over the marker draws", ndraws - d, 1);
+	expect_int("the marker is gone", panel_ch[panel_top][LT_COLS - 1], ' ');
+	f = nfills;
+	lcdterm_marker();
+	out("\033[1;40H\033[K");
+	expect_int("an erase over the marker fills", nfills - f, 1);
+	expect_int("the marker is erased", panel_ch[panel_top][LT_COLS - 1], ' ');
+	/* A marker, a reverse index that moves the ring, a marker on the new
+	 * top row: the first one is still on the panel and is replaced by a
+	 * blank written over it. */
+	reset();
+	lcdterm_marker();
+	out("\033[H\033M");
+	lcdterm_marker();
+	d = ndraws;
+	out("\033[2;53H ");
+	expect_int("a blank over the earlier marker draws", ndraws - d, 1);
+	out("\033[1;53H ");
+	expect_consistent("two markers");
+	/* A marker drawn over by output is gone: a reverse index and a new
+	 * marker leave the skip rule on. */
+	reset();
+	lcdterm_marker();
+	out("\033[1;53Hz\033[H\033M");
+	lcdterm_marker();
+	out("\033[3;1Habc");
+	d = ndraws;
+	out("\033[3;1Habc");
+	expect_int("after a marker drawn over the same text draws", ndraws - d, 0);
+	/* After an exchange the panel shows the other console. */
+	reset();
+	out("abc");
+	lcdterm_exchange();
+	d = ndraws;
+	out("\033[H ");
+	expect_int("a blank over the other console draws", ndraws - d, 1);
+	expect_int("the other console's cell is replaced", panel_ch[0][0], ' ');
+	lcdterm_exchange();
+	lcdterm_repaint();
+	out("\033[H");		/* hides the cursor the repaint drew */
+	d = ndraws;
+	out("abc");
+	expect_int("after a repaint the same text draws", ndraws - d, 0);
+	expect_consistent("after the exchange");
+}
+#endif
 
 static void
 test_wrap(void)
@@ -661,7 +757,7 @@ test_glyph_bank(void)
 	expect_int("first bank code", lcdterm_setglyph(0x80, fill), 0);
 	expect_int("last bank code", lcdterm_setglyph(0xff, fill), 0);
 
-	/* Rejections change nothing. */
+	/* Rejections leave the terminal unchanged. */
 	reset();
 	expect_int("setup upload", lcdterm_setglyph(0xc0, tile_a), 0);
 	for (i = 0; i < LT_GLYPH_ROWS; i++) {
@@ -746,7 +842,7 @@ test_glyph_bank(void)
 
 /*
  * While a pixel program owns the panel the terminal keeps interpreting its
- * input, so the store, the ring and the cursor stay current, but it calls no
+ * input, so the store, the ring and the cursor stay current, but it never calls a
  * panel primitive. Leaving the mode puts the panel in the text
  * configuration and repaints every cell and the scroll start from the
  * store, so text written meanwhile appears.
@@ -923,6 +1019,10 @@ int
 main(void)
 {
 	test_scroll();
+	test_redundant();
+#ifdef LCD_VT
+	test_redundant_vt();
+#endif
 	test_wrap();
 	test_addressing_and_erase();
 	test_insert_delete();

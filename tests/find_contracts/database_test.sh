@@ -8,7 +8,7 @@
 # newline-terminated pathname of at most MAXPATH-1 bytes, which is the buffer
 # find's reader reconstructs into. The cases drive that boundary from both
 # sides: a pathname of exactly MAXPATH-1 bytes is a record, a longer one is
-# refused by name rather than split into two records that name no file, and a
+# refused by name rather than split into two records that name zero files, and a
 # final line ending at end of file without a newline is a record.
 #
 # The oracle for the encoder is find_codes_reference.py, which runs the
@@ -38,7 +38,9 @@ REFERENCE=$(absolute "${REFERENCE}")
 SRCDIR=$(absolute "${SRCDIR}")
 
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/find_contracts.XXXXXX")
-trap 'rm -rf "${WORK}"' EXIT INT TERM
+trap 'rm -rf "${WORK}"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 OUT=${WORK}/out
 ERR=${WORK}/err
@@ -245,7 +247,7 @@ check "code: pathname past the bound: names the bound" yes \
     "$(grep -q "${LIMIT}" "${ERR}" && echo yes || echo no)"
 
 # Standard output carries the database, so a usage error goes to standard error
-# and writes no database at all.
+# and writes zero database bytes.
 run "code: no operand" "${CODE}" list
 check "code: no operand: exit status" 1 "${RC}"
 check "code: no operand: no database" 0 "$(wc -c < "${OUT}" | tr -d ' ')"

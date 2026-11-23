@@ -23,7 +23,8 @@ class ReplayTests(unittest.TestCase):
         self.source = self.owner / "probe.c"
         self.source.write_text("int state; int api(int value) { state += value; return state; }\n")
         (self.owner / "assembly.h").write_text(
-            ".syntax unified\n.thumb\n.text\n.globl api\n.thumb_func\napi: bx lr\n")
+            ".syntax unified\n.thumb\n.text\n.globl api\n.thumb_func\napi: bx lr\n"
+        )
         compiler = shutil.which(os.environ.get("LIBC_PIC_CC", "arm-none-eabi-gcc"))
         self.ar = shutil.which(os.environ.get("LIBC_PIC_AR", "arm-none-eabi-ar"))
         self.readelf = shutil.which(os.environ.get("LIBC_PIC_READELF", "arm-none-eabi-readelf"))
@@ -31,8 +32,18 @@ class ReplayTests(unittest.TestCase):
         self.compiler = Path(compiler)
         self.run_command(["git", "init", "-q"])
         self.run_command(["git", "add", "lib/libc/gen/probe.c", "lib/libc/gen/assembly.h"])
-        self.run_command(["git", "-c", "user.name=fixture", "-c",
-                          "user.email=fixture@example.invalid", "commit", "-qm", "fixture"])
+        self.run_command(
+            [
+                "git",
+                "-c",
+                "user.name=fixture",
+                "-c",
+                "user.email=fixture@example.invalid",
+                "commit",
+                "-qm",
+                "fixture",
+            ]
+        )
         self.evidence = self.root / ".build-logs"
         self.evidence.mkdir()
         self.snapshot = self.evidence / "source.json"
@@ -42,23 +53,48 @@ class ReplayTests(unittest.TestCase):
 
         self.snapshot.write_text(json.dumps(source_snapshot(self.root)) + "\n")
         recorder = Path(replay.__file__).parent / "c17/record_tool.py"
-        argv = [sys.executable, str(recorder), "--root", str(self.root),
-                "--records", str(self.records), "--", str(self.compiler),
-                "-std=gnu17", "-fno-common", "-ffunction-sections", "-mcpu=cortex-m0plus",
-                "-mthumb", "-Os", "-c", "probe.c", "-o", "probe.o"]
-        result = subprocess.run(argv, cwd=self.owner, capture_output=True, text=True,
-                                env=dict(os.environ, C17_SOURCE_SNAPSHOT=str(self.snapshot)))
+        argv = [
+            sys.executable,
+            str(recorder),
+            "--root",
+            str(self.root),
+            "--records",
+            str(self.records),
+            "--",
+            str(self.compiler),
+            "-std=gnu17",
+            "-fno-common",
+            "-ffunction-sections",
+            "-mcpu=cortex-m0plus",
+            "-mthumb",
+            "-Os",
+            "-Werror",
+            "-Wstrict-prototypes",
+            "-Wold-style-definition",
+            "-c",
+            "probe.c",
+            "-o",
+            "probe.o",
+        ]
+        result = subprocess.run(
+            argv,
+            cwd=self.owner,
+            capture_output=True,
+            text=True,
+            env=dict(os.environ, C17_SOURCE_SNAPSHOT=str(self.snapshot)),
+        )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.archive = self.root / "lib/libc.a"
         self.run_command([self.ar, "cr", str(self.archive), str(self.owner / "probe.o")])
-        self.capture_path, = self.records.glob("*.json")
+        (self.capture_path,) = self.records.glob("*.json")
 
     def run_command(self, argv):
         return subprocess.check_output(argv, cwd=self.root, stderr=subprocess.STDOUT)
 
     def prepare(self):
-        return replay.prepare(self.root, self.records, self.snapshot, self.archive,
-                              self.compiler, self.ar)
+        return replay.prepare(
+            self.root, self.records, self.snapshot, self.archive, self.compiler, self.ar
+        )
 
     def mutate(self, change):
         row = json.loads(self.capture_path.read_text())
@@ -68,22 +104,49 @@ class ReplayTests(unittest.TestCase):
     def generated_capture(self):
         self.records = self.evidence / "generated-records"
         recorder = Path(replay.__file__).parent / "c17/record_tool.py"
-        argv = [sys.executable, str(recorder), "--root", str(self.root),
-                "--records", str(self.records), "--", str(self.compiler),
-                "-mcpu=cortex-m0plus", "-mthumb", "-x", "assembler-with-cpp",
-                "-c", "-", "-c", "-o", "generated.o"]
-        result = subprocess.run(argv, cwd=self.owner, input='#include "assembly.h"\n',
-                                capture_output=True, text=True,
-                                env=dict(os.environ, C17_SOURCE_SNAPSHOT=str(self.snapshot)))
+        argv = [
+            sys.executable,
+            str(recorder),
+            "--root",
+            str(self.root),
+            "--records",
+            str(self.records),
+            "--",
+            str(self.compiler),
+            "-mcpu=cortex-m0plus",
+            "-mthumb",
+            "-x",
+            "assembler-with-cpp",
+            "-c",
+            "-",
+            "-c",
+            "-o",
+            "generated.o",
+        ]
+        result = subprocess.run(
+            argv,
+            cwd=self.owner,
+            input='#include "assembly.h"\n',
+            capture_output=True,
+            text=True,
+            env=dict(os.environ, C17_SOURCE_SNAPSHOT=str(self.snapshot)),
+        )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.archive = self.root / "lib/generated.a"
         self.run_command([self.ar, "cr", str(self.archive), str(self.owner / "generated.o")])
-        self.capture_path, = self.records.glob("*.json")
+        (self.capture_path,) = self.records.glob("*.json")
 
     def test_generated_assembly_preserves_stdin_and_duplicate_compile_option(self):
         self.generated_capture()
-        result = replay.replay(self.root, self.records, self.snapshot, self.archive,
-                               self.output, self.compiler, self.ar)
+        result = replay.replay(
+            self.root,
+            self.records,
+            self.snapshot,
+            self.archive,
+            self.output,
+            self.compiler,
+            self.ar,
+        )
         self.assertEqual(result["members"][0]["member"], "generated.o")
 
     def test_changed_generated_input_rejects(self):
@@ -95,15 +158,89 @@ class ReplayTests(unittest.TestCase):
 
     def test_real_pic_uses_got_and_preserves_static_archive(self):
         original = self.archive.read_bytes()
-        result = replay.replay(self.root, self.records, self.snapshot, self.archive,
-                               self.output, self.compiler, self.ar)
+        result = replay.replay(
+            self.root,
+            self.records,
+            self.snapshot,
+            self.archive,
+            self.output,
+            self.compiler,
+            self.ar,
+        )
         self.assertEqual(len(result["members"]), 1)
         self.assertEqual(self.archive.read_bytes(), original)
-        relocations = subprocess.check_output([self.readelf, "-r",
-                                               str(self.output / "probe.o")], text=True)
+        relocations = subprocess.check_output(
+            [self.readelf, "-r", str(self.output / "probe.o")], text=True
+        )
         self.assertRegex(relocations, r"R_ARM_GOT(?:32|_BREL)")
-        self.assertNotEqual(result["members"][0]["static_sha256"],
-                            result["members"][0]["pic_sha256"])
+        self.assertNotEqual(
+            result["members"][0]["static_sha256"], result["members"][0]["pic_sha256"]
+        )
+
+    def test_strtod_conversion_owner_follows_archive_mode(self):
+        from libc_shared_closure import read_member
+
+        root = Path(replay.__file__).resolve().parents[1]
+        source = root / "lib/libc/stdlib/strtod.c"
+        target = self.root / "strtod.o"
+        for shared in (False, True):
+            with self.subTest(shared=shared):
+                flags = replay.PIC_FLAGS if shared else ()
+                self.run_command(
+                    [
+                        self.compiler,
+                        "-std=c17",
+                        "-Os",
+                        "-mcpu=cortex-m0plus",
+                        "-mthumb",
+                        "-ffreestanding",
+                        "-nostdinc",
+                        "-I" + str(root / "include"),
+                        *flags,
+                        "-c",
+                        str(source),
+                        "-o",
+                        str(target),
+                    ]
+                )
+                member = read_member(target.name, target.read_bytes())
+                self.assertIn("strtod", member["definitions"])
+                self.assertEqual("__discobsd_strtofp" in member["strong_imports"], shared)
+
+    def test_sort_entry_ownership_follows_archive_mode(self):
+        from libc_shared_closure import read_member
+
+        root = Path(replay.__file__).resolve().parents[1]
+        public = {"qsort", "qsort_r"}
+        for shared in (False, True):
+            for name in sorted(public):
+                with self.subTest(shared=shared, member=name):
+                    source = root / "lib/libc/gen" / (name + ".c")
+                    target = self.root / (name + ".o")
+                    flags = replay.PIC_FLAGS if shared else ()
+                    self.run_command(
+                        [
+                            self.compiler,
+                            "-std=c17",
+                            "-pedantic-errors",
+                            "-Os",
+                            "-mcpu=cortex-m0plus",
+                            "-mthumb",
+                            "-ffreestanding",
+                            "-nostdinc",
+                            "-I" + str(root / "include"),
+                            *flags,
+                            "-c",
+                            str(source),
+                            "-o",
+                            str(target),
+                        ]
+                    )
+                    member = read_member(target.name, target.read_bytes())
+                    expected = {name}
+                    if shared:
+                        expected = public if name == "qsort" else set()
+                    self.assertEqual(set(member["definitions"]) & public, expected)
 
     def test_missing_capture_rejects(self):
         self.capture_path.rename(self.capture_path.with_suffix(".withheld"))
@@ -161,8 +298,9 @@ class ReplayTests(unittest.TestCase):
             self.prepare()
 
     def test_source_operand_escape_rejects_before_execution(self):
-        self.mutate(lambda row: row["argv"].__setitem__(row["argv"].index("probe.c"),
-                                                       "../../../outside.c"))
+        self.mutate(
+            lambda row: row["argv"].__setitem__(row["argv"].index("probe.c"), "../../../outside.c")
+        )
         with self.assertRaisesRegex(ValueError, "source operand"):
             self.prepare()
 
@@ -174,13 +312,27 @@ class ReplayTests(unittest.TestCase):
     def test_existing_output_rejects(self):
         self.output.mkdir()
         with self.assertRaisesRegex(ValueError, "output already exists"):
-            replay.replay(self.root, self.records, self.snapshot, self.archive,
-                          self.output, self.compiler, self.ar)
+            replay.replay(
+                self.root,
+                self.records,
+                self.snapshot,
+                self.archive,
+                self.output,
+                self.compiler,
+                self.ar,
+            )
 
     def test_output_escape_rejects(self):
         with self.assertRaisesRegex(ValueError, "below the evidence directory"):
-            replay.replay(self.root, self.records, self.snapshot, self.archive,
-                          self.root / "lib/pic", self.compiler, self.ar)
+            replay.replay(
+                self.root,
+                self.records,
+                self.snapshot,
+                self.archive,
+                self.root / "lib/pic",
+                self.compiler,
+                self.ar,
+            )
 
     def test_ambiguous_witness_rejects(self):
         row = json.loads(self.capture_path.read_text())
@@ -199,8 +351,15 @@ class ReplayTests(unittest.TestCase):
             return result
 
         with patch.object(replay.subprocess, "run", side_effect=observed):
-            return replay.replay(self.root, self.records, self.snapshot, self.archive,
-                                 self.output, self.compiler, self.ar)
+            return replay.replay(
+                self.root,
+                self.records,
+                self.snapshot,
+                self.archive,
+                self.output,
+                self.compiler,
+                self.ar,
+            )
 
     def test_capture_change_during_replay_rejects(self):
         with self.assertRaisesRegex(ValueError, "compilation receipt changes"):
@@ -219,8 +378,11 @@ class ReplayTests(unittest.TestCase):
         self.generated_capture()
         row = json.loads(self.capture_path.read_text())
         with self.assertRaisesRegex(ValueError, "retained assembly input changes"):
-            self.replay_with_mutation(lambda: (self.records / row["stdin_retained"]).write_text(
-                "changed retained input\n"))
+            self.replay_with_mutation(
+                lambda: (self.records / row["stdin_retained"]).write_text(
+                    "changed retained input\n"
+                )
+            )
 
     def test_input_change_during_replay_rejects(self):
         # The digest recheck runs before the snapshot check, so it decides
@@ -242,8 +404,15 @@ class ReplayTests(unittest.TestCase):
 
         with patch.object(replay.subprocess, "run", side_effect=observed):
             with self.assertRaisesRegex(ValueError, "PIC compilation fails"):
-                replay.replay(self.root, self.records, self.snapshot, self.archive,
-                              self.output, self.compiler, self.ar)
+                replay.replay(
+                    self.root,
+                    self.records,
+                    self.snapshot,
+                    self.archive,
+                    self.output,
+                    self.compiler,
+                    self.ar,
+                )
         self.assertFalse((self.output / "receipt.json").exists())
 
 

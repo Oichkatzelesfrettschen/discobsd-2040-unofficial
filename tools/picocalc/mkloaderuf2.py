@@ -16,12 +16,14 @@ and a container for the root file system:
     head = roundup(N * 512, 32768)
 
 sys/arch/rp2040/dev/fat32tail.c finds the root image at boot from the FAT32
-directory entry DISCOBSD.UF2. The head alignment is defined twice, as
+directory entry GIZMOBSD.UF2 (or its former name DISCOBSD.UF2, which the
+locator still accepts until a card has booted the new name; two matching
+files on the card fail closed). The head alignment is defined twice, as
 FT32_HEAD_ALIGN in fat32tail.h and as HEAD_ALIGN here, and the gate
 (tests/fat32tail/check.sh) compares the two. The output name defaults to
-discobsd.uf2: the loader accepts a
+gizmobsd.uf2: the loader accepts a
 selection only when the path ends in the lowercase text ".uf2", and an 8.3
-name needs no long-name directory entry.
+name needs zero long-name directory entries.
 
 The kernel UF2 must hold N blocks that the loader accepts: the UF2 magic
 words, no not-main-flash flag, the RP2040 family, a 256-byte payload at a
@@ -30,7 +32,7 @@ block numbers 0 .. N-1, and nothing after block N-1. The builder also
 requires the first block to lie in flash sector 0, so that the file is an
 image of the flash from XIP_BASE; the loader itself accepts another first
 block and then skips its boot2 handling. The root image must be a whole
-DiscoBSD file system: the magic words of struct fs in sys/sys/fs.h, a length
+GizmoBSD file system: the magic words of struct fs in sys/sys/fs.h, a length
 equal to fs_fsize blocks of 1024 bytes, and the minimums tools/fsutil/fsutil.c
 and create.c enforce (fs_fsize at least 10, fs_isize from 2 up to fs_fsize
 exclusive). It must not hold a 512-byte-aligned block
@@ -67,7 +69,9 @@ SRAM_BASE = 0x20000000
 SRAM_END = 0x20042000
 
 HEAD_ALIGN = 32768
-DEFAULT_NAME = "discobsd.uf2"
+DEFAULT_NAME = "gizmobsd.uf2"
+# The former name, which the locator still accepts.
+LEGACY_NAME = "discobsd.uf2"
 
 # sys/sys/fs.h: FSMAGIC1 is the first word of block 0 of the root image and
 # FSMAGIC2 the last word of struct fs, which is 1024 bytes long.
@@ -128,11 +132,11 @@ def validate_kernel(data: bytes) -> int:
 
 
 def validate_root(data: bytes) -> None:
-    """The image starts a DiscoBSD file system and has whole sectors."""
+    """The image starts a GizmoBSD file system and has whole sectors."""
     if len(data) % UF2_BLOCK or len(data) < FS_MIN_BYTES:
         raise BuildError("root image size is not a multiple of 512 of at least 1024 bytes")
     if data[:4] != FS_MAGIC1 or data[FS_SUPER_BYTES - 4 : FS_SUPER_BYTES] != FS_MAGIC2:
-        raise BuildError("root image does not start with the DiscoBSD file-system magic words")
+        raise BuildError("root image does not start with the GizmoBSD file-system magic words")
     isize, blocks = struct.unpack_from("<2I", data, FS_ISIZE_OFFSET)
     if blocks < FS_MIN_BLOCKS:
         raise BuildError(f"root image superblock claims {blocks} blocks, at least {FS_MIN_BLOCKS}")
@@ -226,7 +230,15 @@ def main(argv: list[str]) -> int:
     except (BuildError, OSError) as error:
         print(f"mkloaderuf2: {error}", file=sys.stderr)
         return 1
-    if args.output.name.lower() != DEFAULT_NAME:
+    lowered = args.output.name.lower()
+    if lowered == LEGACY_NAME:
+        print(
+            f"mkloaderuf2: {args.output.name} is the former name; the kernel looks for "
+            f"{DEFAULT_NAME} and still accepts it, but two matching files on the card "
+            "fail closed, so keep one",
+            file=sys.stderr,
+        )
+    elif lowered != DEFAULT_NAME:
         print(
             f"mkloaderuf2: the kernel looks for the file name {DEFAULT_NAME}; "
             f"{args.output.name} is not found at boot",

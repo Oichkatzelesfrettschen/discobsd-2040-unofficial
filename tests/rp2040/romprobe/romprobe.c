@@ -13,7 +13,7 @@
  * ROMPROBE OK (exit 0) when the magic is 'M' 'u' 0x01 and both the SF and
  * SD tables resolve, the two conditions whose failure sends the resolver
  * to exit 70; ROMPROBE FAILED with the reason (exit 1) otherwise. The
- * program only reads the ROM, so it has no skip case.
+ * program only reads the ROM, so it lacks a skip case.
  */
 #include <stdio.h>
 

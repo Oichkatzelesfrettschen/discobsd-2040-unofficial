@@ -173,7 +173,7 @@ def main():
     renderer = source[start:end]
     cache = source[source.index("#define ACCOUNT_NAME_BYTES "):]
     compiler = shlex.split(os.environ.get("HOST_CC", "cc"))
-    with tempfile.TemporaryDirectory(prefix="discobsd-ls-format-") as temp:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-ls-format-") as temp:
         binary = Path(temp) / "ls-format"
         run_cases(binary, compiler, renderer, "", MODE_ORACLE,
                   "special == S_ISVTX", "special == S_ISGID", "permission mismatch")

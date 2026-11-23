@@ -1,7 +1,7 @@
 #!/bin/sh
 # Calibrate check.sh: the unmodified source must pass and each mutant must
 # be rejected by check.sh itself under every listed compiler. A mutant that
-# fails to build, or whose sed expression changes nothing, is an error.
+# fails to build, or whose sed expression leaves the file unchanged, is an error.
 # Usage: mutate.sh TOPSRC TIME_SOURCE COMPILER...
 set -eu
 
@@ -10,7 +10,10 @@ source_file=$2
 shift 2
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # name|sed expression
 mutants='

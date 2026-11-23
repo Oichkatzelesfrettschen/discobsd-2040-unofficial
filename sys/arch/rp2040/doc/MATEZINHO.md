@@ -28,7 +28,7 @@ Upstream research sources checked for this implementation:
   flash-write support remains a required discriminator for this Dhara root.
 - https://lore-kernel.gnuweeb.org/all/20260829234308.33725-1-gilles.grimaud%40univ-lille.fr/
   -- RP2040 QEMU RFC, functional test-oriented model; not a claim of a booted
-  DiscoBSD system. docs/research/qemu-thumb1-test-tier.md records the later
+  GizmoBSD system. docs/research/qemu-thumb1-test-tier.md records the later
   RFC v3 investigation already performed for this repository.
 
 ## Storage is separate from SRAM
@@ -63,7 +63,7 @@ model wear, power interruption, electrical signals, CRC16 validation or analog
 timing. Unsupported commands report illegal-command status. Reset retains the
 backing bytes. Dispose releases the backing file.
 
-A 32 GB card is not a promise of a single 32 GB DiscoBSD filesystem. Existing
+A 32 GB card is not a promise of a single 32 GB GizmoBSD filesystem. Existing
 signed 32-bit file offsets and the compact UFS format remain constraints. The
 PicoCalc kernels set NMOUNT=2, the flash root plus one SD
 partition, so a second SD filesystem cannot mount at the same time. Raw device
@@ -76,13 +76,13 @@ raw artwork image merely to install icons.
 
 ### Shared card with the vendor FAT32 partition
 
-Requirement: DiscoBSD keeps its own 16 MiB carve-out of the SD card, while
+Requirement: GizmoBSD keeps its own 16 MiB carve-out of the SD card, while
 the same card keeps the vendor's FAT32 partition and the other firmware
 images on it. The storage profiles above do not yet meet it. Each profile is
 a whole-card image without an MBR: an asset image holds the pack at card byte
 zero and is read through `/dev/rsd0` (minor 0, the whole card), and Renode's
 FileSD presents the image file as the whole card. On a vendor card, sector 0
-holds the MBR, so `matezinho /dev/rsd0` finds no `MZAR0001` header and exits,
+holds the MBR, so `matezinho /dev/rsd0` finds the `MZAR0001` header missing and exits,
 and writing an asset image to the card replaces the MBR and the FAT32 volume.
 
 `sd.c` maps minors 1 to 4 to the four primary MBR entries without a type
@@ -92,7 +92,7 @@ the pack written at its first byte and opened as `/dev/rsd0b` (or `rsd0c` or
 `rsd0d` after `mknod`), therefore matches the reader by source inspection.
 No tier exercises that layout, no tool here shrinks the vendor partition or
 writes a pack at a partition offset, the carve-out's MBR type is unassigned
-(0xB7 marks a DiscoBSD UFS partition and 0xB9 the crash-dump partition), and
+(0xB7 marks a GizmoBSD UFS partition and 0xB9 the crash-dump partition), and
 the `matezinho` closure names only `/dev/rsd0`.
 
 ## Artwork format and provenance
@@ -118,16 +118,15 @@ moving network fetch is needed to build a pack. The builder verifies every
 retained source hash before conversion, and `check-matezinho-host` fails when
 a file in that directory lacks a matching README row.
 
-The shell and tools contain no artwork. A generated volume and any capture
+The shell and tools exclude artwork. A generated volume and any capture
 showing the icons are CC BY-SA 3.0 adaptations; the builder writes a copy of
-the third-party directory beside each volume. Root images and UF2 files carry
-no artwork.
+the third-party directory beside each volume. Root images and UF2 files exclude artwork.
 
 ## Desktop behavior and limits
 
 The screen has a 22-row top panel, a 3x3 launcher grid between panels, and a
 22-row bottom taskbar. The display remains exactly 320x320 at every wrapper
-zoom. Eight-row RGB565 rendering uses 5120 bytes. The shell stores managed view
+zoom. Eight-row RGB565 rendering uses 5120 bytes. Each band also keeps the dirty column range of its edits in 4-pixel units (two bytes a band); the board sends that range as one window of its width, row by row from the band buffer, so a narrow edit crosses the SPI link in a fraction of the full band. The desktop opens `/dev/lcdgfx` and sets `LCDG_COLMOD` 0x55 (two wire bytes a pixel) after every open. The shell stores managed view
 state and reconstructs dirty bands; it does not retain a user framebuffer or
 read old LCD pixels. One process owns the graphics device.
 
@@ -144,14 +143,30 @@ at start. A failed write leaves the note in memory and the previous file in
 place. A pre-existing `.new` file blocks saving rather than being overwritten.
 This is not a rich editor; document scrolling and arbitrary cursor movement are
 not implemented. Files lists at most 12 non-hidden names of at most 31 bytes;
-Enter opens a selected directory and Backspace goes to its parent. There is no
-file mutation or arbitrary file viewer. The QEMU newlib seam deliberately has
-no directory API; native/board backends supply it.
+Enter opens a selected directory and Backspace goes to its parent. File mutation and an arbitrary file viewer are out of scope. The QEMU newlib seam deliberately omits the directory API; native/board backends supply it.
 
 Calculator accepts `a + b`, `-`, `*` and integer `/`, with operands in
 [-32767,32767], and rejects division by zero and invalid trailing text. It does
-not replace the existing scientific `calc` program. Settings toggles larger
-headings; it does not claim that all text has been enlarged. Clock and the
+not replace the existing scientific `calc` program.
+
+Settings holds three rows that Up and Down choose: the screen light, the
+keyboard light and larger headings. Left and Right step a light by one level
+of the keyboard controller's firmware, 16 for the screen and 32 for the keys
+(`backlight.ino` keeps the screen at a multiple of 16 within 16-240 and the
+keys at a multiple of 32, 0 meaning off), and the row shows the level the
+controller kept, read back through `machdep.picocalc.lcd_backlight` and
+`kbd_backlight`. Any user reads those nodes; the kernel takes a write from
+root alone, so for any other user the desktop runs `/usr/bin/backlight`,
+setuid root, with the new level, its output sent to `/dev/null` because the
+tty is raw under the desktop. Keys that arrive together cost one such run per
+light. The view reads the levels again when it opens, on F5 and once a
+second, because the keyboard's own shortcuts change them behind the desktop.
+A kernel without the controller shows both lights as unavailable. A change
+lasts until power-off; the boot level stays with `backlight -s`, which root
+runs (`PICOCALC.md`). Space, or Enter on the third row, toggles larger
+headings; it does not claim that all text has been enlarged. The
+development and QEMU builds keep the two levels in a stand-in that rounds
+as the firmware does, starting the screen at 160, the level `/etc/rc` sets. Clock and the
 live desktop clock show elapsed shell-session time; wall time is not invented.
 The board currently derives elapsed seconds from the existing time API; changing
 the system clock affects this counter. A monotonic syscall is separate work.
@@ -224,7 +239,12 @@ The model-driven regression command is:
 ```
 
 Generate reference.ppm with the host executable and the same artwork, passing
-`0` as its final argument for a single initial frame. The gate boots, logs in,
+`0` as its final argument for a single initial frame. The gate boots, logs in as `operator`,
 launches through I2C keys, compares the Files card against the reference with
-the RGB666 quantization tolerance, and requires SPI SD reads. The outputs are
+the RGB666 quantization tolerance, and requires SPI SD reads. It then opens
+Settings and requires the keyboard model's screen level to move from the
+`/etc/rc` level 160 to 176 and its keyboard level from 0 to 32, which only
+the setuid `backlight` path can do for `operator`; the flash image must
+come from `PROFILE=matezinho`, whose `matezinho` closure needs the
+`backlight` closure. The outputs are
 ignored build products. This gate is optional, distinct from host/QEMU tests.

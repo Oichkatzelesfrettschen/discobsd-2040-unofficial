@@ -5,7 +5,7 @@
  * The multibyte cases are derived from C17 7.22.7 and 7.22.8 over the
  * encoding the library documents: one byte per character, the wide value
  * equal to the byte read as unsigned char.  A hosting C library's C locale
- * may reject bytes above 0x7f, so it is no oracle for them.
+ * may reject bytes above 0x7f, so it is not an oracle for them.
  *
  * The wide conversions are compared with the tree's narrow strtoll and
  * strtoull, which strtoll_test.c holds to the hosting library: a narrow

@@ -8,6 +8,7 @@ check:
 	    ${TOPSRC}/sys/arch/rp2040/dev/lcdfont.c
 	./core_test
 	${PYTHON} check.py
+	HOST_CC=${HOST_CC:Q} ${PYTHON} mutants.py
 
 check-qemu:
 	${PYTHON} check.py --qemu

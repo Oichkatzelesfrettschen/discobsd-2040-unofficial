@@ -25,7 +25,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Run the uLisp interpreter on the DiscoBSD kernel under Renode.
+"""Run the uLisp interpreter on the GizmoBSD kernel under Renode.
 
 Usage: check-ulisp.py RENODE UNIX_BIN FLASH_BIN OUTDIR
 
@@ -37,7 +37,7 @@ workspace taken with the kernel's break, the directory read, the timer,
 the tty with its interrupt character, signal delivery for a fault the MPU
 raises, and a second process that loads the first one's image.
 
-The kernel has no PicoCalc device, so the drawing, pin and analogue
+The kernel lacks a PicoCalc device, so the drawing, pin and analogue
 functions are held to their error messages; no panel, key or sound code
 runs here.
 """

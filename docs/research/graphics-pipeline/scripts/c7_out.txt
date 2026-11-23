@@ -1,0 +1,26 @@
+image: sklearn sample china.jpg resized to 320x214; metric = PSNR dB of the 5x5-blurred result against the blurred original (viewing-distance proxy), then raw per-pixel PSNR
+palette (16)           | dither      | blur PSNR |  raw PSNR
+console RGBI (st7365p) | none        |     21.40 |     17.52
+console RGBI (st7365p) | Bayer 4x4 s=64 |     24.63 |     16.28
+console RGBI (st7365p) | Floyd-Steinberg |     34.90 |     14.58
+uniform 2x2x4 grid     | none        |     16.00 |     13.40
+uniform 2x2x4 grid     | Bayer 4x4 s=64 |     17.09 |     13.03
+uniform 2x2x4 grid     | Floyd-Steinberg |     31.51 |      9.99
+median cut             | none        |     30.00 |     26.82
+median cut             | Bayer 4x4 s=64 |     28.92 |     22.13
+median cut             | Floyd-Steinberg |     27.23 |     20.95
+k-means                | none        |     32.41 |     28.09
+k-means                | Bayer 4x4 s=64 |     31.15 |     22.30
+k-means                | Floyd-Steinberg |     32.00 |     22.60
+elapsed 6.4 s
+
+== palette selection as a QUBO: choose k=4 of n=12 candidate colors (the 12-means centroids) to maximize pairwise dispersion
+exhaustive over 495 feasible subsets: best mask 000101000101 cost -3.3719
+true image error of the dispersion optimum: 1429.0 (rank 363 of 495; best true 485.1, worst 9725.8)
+greedy farthest-pair + marginal: cost -3.3719 (optimum -3.3719), 0.07 ms
+simulated annealing (3000 flips): cost -3.3719, found optimum: True, 4.7 ms
+QAOA p=1: <C>=-0.4124 (opt -3.3719, uniform-state <C>=6.7435) | P(optimum)=0.0009 vs 1/4096=0.00024 | P(any feasible)=0.383 | P(top-1 under measurement)=True
+QAOA p=2: <C>=-0.1690 (opt -3.3719, uniform-state <C>=6.7435) | P(optimum)=0.0176 vs 1/4096=0.00024 | P(any feasible)=0.408 | P(top-1 under measurement)=False
+QAOA p=3: <C>=-0.6069 (opt -3.3719, uniform-state <C>=6.7435) | P(optimum)=0.0759 vs 1/4096=0.00024 | P(any feasible)=0.371 | P(top-1 under measurement)=True
+qiskit 2.6.2 Statevector of the same p=2 circuit: max |P_numpy - P_qiskit| = 5.55e-17 ; gates: 192 (n=12, p=2)
+Grover on 495 feasible subsets: ~17 oracle calls vs 495 classical evaluations of an O(k^2) cost; classical wins on wall time

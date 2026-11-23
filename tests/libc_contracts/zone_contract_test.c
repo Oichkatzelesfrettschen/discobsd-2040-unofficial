@@ -173,7 +173,7 @@ test_well_formed_zone(void)
 /*
  * Every type is daylight and there are more transitions than types, which
  * is the file that tells a walk bounded by typecnt from one bounded by
- * timecnt. The search finds no standard type and must stop at the end of
+ * timecnt. The search finds zero standard types and must stop at the end of
  * ttis[] rather than at the end of ats[].
  */
 static void
@@ -332,7 +332,7 @@ test_counts_are_bounded(void)
 	    "type count: a count past ttis[] was accepted");
 	use_gmt();
 
-	/* No types at all, which leaves nothing for the search to find. */
+	/* No types at all, which leaves the search empty-handed. */
 	check(write_zone(0, 0, 4, -18000L, 0) == 0,
 	    "fixture: the untyped zone could not be written");
 	tm = load_and_read(t);
@@ -344,10 +344,10 @@ test_counts_are_bounded(void)
 
 #ifndef TZ_ZONEINFO
 /*
- * The shape that reads no file. tzset() reaches tzsetkernel() and then
+ * The shape that reads zero files. tzset() reaches tzsetkernel() and then
  * tzsetgmt(), so a zone file named in TZ is not opened at all -- which is
  * the whole of what this build promises, and the reason the bounds the
- * cases above measure have nothing to bound.
+ * cases above measure do not apply here.
  */
 /*
  * The offset the fixture writes is deliberately not a whole number of
@@ -357,8 +357,8 @@ test_counts_are_bounded(void)
  * read" from "the kernel happens to report the same offset" -- a distinction
  * that matters because Linux fills struct timezone with zeros while the BSDs
  * report the zone in force, so a fixture naming a plausible offset would
- * pass on one host and fail on another for reasons having nothing to do
- * with the code.
+ * pass on one host and fail on another for reasons unrelated
+ * to the code.
  */
 #define UNREACHABLE_OFFSET	(-18001L)
 

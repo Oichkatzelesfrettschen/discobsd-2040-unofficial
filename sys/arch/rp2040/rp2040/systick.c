@@ -33,7 +33,7 @@
  * SysTick_Handler()
  *
  * Exception entry for the system time base. The body is the entry sequence
- * itself, so the function carries no AAPCS boundary: the compiler emits
+ * itself, so the function lacks an AAPCS boundary: the compiler emits
  * neither prologue nor epilogue, and the sequence selects the stack that
  * holds the exception frame from bit 2 (SPSEL) of EXC_RETURN in lr (ARMv6-M
  * ARM B1.5.8), places that pointer in r0 as the struct clockframe argument
@@ -104,11 +104,11 @@ systick(struct clockframe *frame, u_int exc_return)
 	 * process), pends PendSV. PendSV has the lowest priority, so it runs
 	 * once this handler and any other active exception have returned,
 	 * and PendSV_Handler, finding no SVC behind it, runs userret from
-	 * ast() in syscall.c. A tick that interrupted the kernel needs no
+	 * ast() in syscall.c. A tick that interrupted the kernel skips the
 	 * trap: every return from the kernel to a process passes userret.
 	 * The terminal's interrupt character and every other psignal() from
 	 * an interrupt handler wait at most one tick here. A masked signal
-	 * needs no trap even for a traced process: CURSIG() passes a traced
+	 * skips the trap even for a traced process: CURSIG() passes a traced
 	 * process to issignal(), but issignal() drops p_sigmask's signals
 	 * before it stops for the tracer, so the trap would deliver nothing.
 	 */

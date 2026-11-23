@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <limits.h>
@@ -58,6 +70,7 @@ typedef unsigned short u_short;
 #define MAXMEM USER_WINDOW
 #define STACKALIGN 8U
 #define SVFORK 0x1000
+#define P_TEXTDIRTY 0x0040
 #define EXEC_SPOOL_BLOCK_NONE 0xffff
 #define EXEC_COMMITTED_FAILURE 0x02
 #define MAXCOMLEN 16
@@ -239,7 +252,7 @@ exec_clear(struct exec_params *parameters)
 
 /*
  * A removable swap device that holds the spool leaves after spool_lost_at
- * reads: from then on a read moves no bytes, as swap_with_buf() moves none
+ * reads: from then on a read moves zero bytes, as swap_with_buf() moves zero
  * once swap_lost is set, and exec_spool_gone() reports the loss.
  */
 static int spool_lost_at = -1;
@@ -419,7 +432,10 @@ check_elf_replacement_clears_file_backed_text(void)
 	struct exec_params parameters;
 
 	reset_fixture(&parameters);
+	process.p_flag |= P_TEXTDIRTY;
 	CHECK("replacement ELF succeeds", exec_elf_check(&parameters) == 0);
+	CHECK("replacement clears the preceding image's written-text mark",
+	    (process.p_flag & P_TEXTDIRTY) == 0);
 	CHECK("replacement releases preceding text owner",
 	    process.p_tip == NULL && released_inode == &prior_executable &&
 	    inode_lock_calls == 1 && text_unhold_calls == 1 &&

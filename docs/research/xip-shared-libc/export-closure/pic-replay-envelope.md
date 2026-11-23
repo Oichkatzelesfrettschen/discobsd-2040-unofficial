@@ -44,6 +44,34 @@ without that undefined symbol. GNU readelf supplies the relocation witness.
 The original failures remain retained; the corrected controls qualify the
 actual compiler and generated-input mechanisms.
 
+The warning policies selected by `lib/libc/gen/Makefile` for `err.o` and by
+`lib/libc/wchar/Makefile` for its C members carry `-Wstrict-prototypes` and
+`-Wold-style-definition` into replay. The calibrated ARM compile fixture includes
+both options with `-Werror`. Replay passes them through unchanged.
+
+## Current archive and flash reservation
+
+At source `6719f9d7a`, 58 captured ARM archive members use both warning
+options. The replay compiles all 531 members with their original warning
+policy and the process-local PIC flags. GCC 16.2.0 and GNU binutils
+2.47.20260726 produce the following linked-image measurements before
+function slots.
+
+| Link roots | Roots | Flash bytes | Writable bytes | Initialized bytes |
+| --- | ---: | ---: | ---: | ---: |
+| All archive globals | 738 | 73,036 | 5,872 | 1,984 |
+| Matching libc linkages in tracked root-header witnesses | 491 | 67,336 | 5,736 | 1,884 |
+| Matching libc linkages in installed standalone witnesses | 578 | 69,872 | 5,768 | 1,892 |
+
+The two declaration-derived links use the same source and static archive
+identity as the [census](../../libc-declaration-census.md). Each takes the union
+across all eight profiles and resolves every named root. They retain kernel
+and user declaration ambiguity and leave the reviewed export set open. Each
+experiment exceeds the 49,152-byte reservation before slots. Omitting
+`memmem` from the all-global control saves 432 bytes and fails required-root
+retention. This source revision needs a reviewed export contract and further
+size work before image admission.
+
 ## Complete-link measurement
 
 The [member receipt](pic-replay-envelope-members.json) binds compiler GCC 16.2.0,
@@ -130,3 +158,20 @@ implementation reductions while retaining every selected root. Full signatures,
 mutable-object layouts, versioned admission and process lifecycle retain their
 separate obligations. The delivered instrument closes reproducible compiler
 replay; it closes none of those architectural requirements.
+
+## Shared decimal conversion storage
+
+A capture at `4235ea747` compiles 531 PIC libc members and links 738 global
+roots. The baseline occupies 73,036 flash bytes and 5,872 process-state
+bytes. Both `strtod.o` and `strtofp.o` contain the decimal conversion core.
+In shared mode, `strtod` requests binary64 conversion from
+`__discobsd_strtofp`, the narrow-string routine also used by `strtof`.
+Static builds retain the standalone conversion required by the native archive.
+
+Replacing only the PIC `strtod.o` and repeating the all-global link retains
+all 738 roots in 70,376 flash bytes and 5,848 process-state bytes. The
+flash reduction is 2,660 bytes, and the process-state reduction is 24 bytes.
+The static ARM member and archive match the captured SHA-256 digests.
+The resulting image exceeds the 49,152-byte reservation by 21,224 bytes
+before stable slots. The measurement uses the experimental linker script
+and startup fixture described above.

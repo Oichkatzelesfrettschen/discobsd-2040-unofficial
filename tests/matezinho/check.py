@@ -39,6 +39,47 @@ def result_band(frame):
     return data[HEADER + 137 * ROW : HEADER + 146 * ROW]
 
 
+def light_band(frame, row):
+    """Pixel rows of a Settings light row (0 screen, 1 keyboard): bar and level."""
+    data = frame.read_bytes()
+    top = 68 + row * 22
+    return data[HEADER + top * ROW : HEADER + (top + 12) * ROW]
+
+
+# Down, Right, Enter: the launcher's fifth tile, Settings.
+SETTINGS = [259, 257, 10]
+LEFT, RIGHT, UP, DOWN = 256, 257, 258, 259
+REFRESH = 266
+
+# Each case starts at the same deterministic initial state.
+FRAME_CASES = [
+    [],
+    [257],
+    [257, 10, 72, 105],
+    [259, 10, 49, 50, 43, 51, 10],
+    [257, 10, 72, 260, 257, 10, 263],
+    [264],
+    [260, 261, 257],
+    [*SETTINGS, RIGHT, DOWN, RIGHT],
+    [259, 257, 10, 257, 259, 257],
+    [264, 257, 258, 264],
+    [259, 259, 257, 10, 264, 264],
+]
+
+
+def refresh_equal(host, volume, work, keys):
+    """Require the frame after keys to equal the frame after keys and a full repaint.
+
+    F5 marks every band dirty over all columns, so the second frame is the
+    complete scene; the first is the file the dirty-column writes built.
+    """
+    first, second = work / "range.ppm", work / "full.ppm"
+    args = [str(k) for k in keys or [0]]
+    subprocess.run([host, volume, first, *args], cwd=work, check=True, timeout=10)
+    subprocess.run([host, volume, second, *args, str(REFRESH)], cwd=work, check=True, timeout=10)
+    return first.read_bytes() == second.read_bytes()
+
+
 def artwork_ledger_errors(art):
     """Compare every file under the artwork root with its README.md row."""
     rows = {}
@@ -63,7 +104,19 @@ def artwork_ledger_errors(art):
 def run():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--qemu", action="store_true")
+    parser.add_argument(
+        "--binary",
+        help="a prebuilt host executable; run only the dirty-column frame check against it",
+    )
     args = parser.parse_args()
+    if args.binary:
+        storage = load("storage")
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            volume = work / "icons.mzar"
+            storage.create(volume, "rom16", "assets")
+            bad = [k for k in FRAME_CASES if not refresh_equal(args.binary, volume, work, k)]
+            raise SystemExit(f"matezinho check: dirty-column frame differs for {bad}" if bad else 0)
     errors = artwork_ledger_errors(ART)
     if errors:
         raise SystemExit("matezinho artwork ledger: " + "; ".join(errors))
@@ -101,16 +154,7 @@ def run():
             != 0,
             "truncated volume accepted",
         )
-        # Each case starts at the same deterministic initial state.
-        cases = [
-            [],
-            [257],
-            [257, 10, 72, 105],
-            [259, 10, 49, 50, 43, 51, 10],
-            [257, 10, 72, 260, 257, 10, 263],
-            [264],
-            [260, 261, 257],
-        ]
+        cases = FRAME_CASES
         frame = work / "host.ppm"
         for keys in cases:
             subprocess.run(
@@ -118,6 +162,11 @@ def run():
             )
             require(frame.read_bytes().startswith(b"P6\n320 320\n255\n"), f"frame header {keys}")
             require(frame.stat().st_size == 320 * ROW + HEADER, f"frame size {keys}")
+        # The dirty-column file equals a full repaint of the same state.
+        for keys in cases:
+            require(
+                refresh_equal(host, volume, work, keys), f"dirty columns differ from repaint {keys}"
+            )
         # The result line of each expression equals that of a sum with the
         # same value, and differs from that of a sum with another value.
         bands = {}
@@ -134,6 +183,26 @@ def run():
             require(bands[text] == bands[same], f"calculator: {text} differs from {same}")
         require(bands["7/0"] == bands["99999+1"], "calculator: 7/0 is not refused")
         require(bands["7/0"] != bands["42+0"], "calculator: refusal reads as a value")
+        # Settings: Right raises the screen light one step and Left takes it
+        # back; the keyboard light starts off, Right lights it and Left at
+        # off stays off. The stand-in controller keeps levels as the firmware
+        # does, so each band shows a kept level.
+        lights = {}
+        for name, keys in (
+            ("screen", SETTINGS),
+            ("screen+", [*SETTINGS, RIGHT]),
+            ("screen+-", [*SETTINGS, RIGHT, LEFT]),
+            ("keys", [*SETTINGS, DOWN]),
+            ("keys+", [*SETTINGS, DOWN, RIGHT]),
+            ("keys-", [*SETTINGS, DOWN, LEFT]),
+        ):
+            subprocess.run([host, volume, frame, *map(str, keys)], cwd=work, check=True, timeout=10)
+            row = 1 if name.startswith("keys") else 0
+            lights[name] = light_band(frame, row)
+        require(lights["screen+"] != lights["screen"], "settings: Right left the screen light")
+        require(lights["screen+-"] == lights["screen"], "settings: Left did not undo Right")
+        require(lights["keys+"] != lights["keys"], "settings: Right left the keyboard light")
+        require(lights["keys-"] == lights["keys"], "settings: Left below off changed the keys")
         # Notes save and subsequent session load retain the file.
         subprocess.run(
             [host, volume, frame, *map(str, [257, 10, 72, 105, 265])], cwd=work, check=True
@@ -164,7 +233,7 @@ def run():
             require(subprocess.run(too_many, cwd=work).returncode == 71, "argument count bound")
             too_large = [*builder.run_command("qemu", arm, volume, qframe), "0" * 5000]
             require(subprocess.run(too_large, cwd=work).returncode == 71, "argument size bound")
-            print("matezinho QEMU: seven host/ARMv6-M frames identical; note save passed")
+            print(f"matezinho QEMU: {len(cases)} host/ARMv6-M frames identical; note save passed")
         print("matezinho assets: provenance, refusal paths and sparse SD capacities passed")
 
 

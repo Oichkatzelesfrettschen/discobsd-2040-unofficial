@@ -845,7 +845,7 @@ scenario_start(void)
 	host_text[0] = '\0';
 }
 
-#define	STUCK_ECHO	0x01	/* A typed CR produced no output. */
+#define	STUCK_ECHO	0x01	/* A typed CR produced zero output bytes. */
 #define	STUCK_REBOOT	0x02	/* reboot(8) asleep in ttwrite. */
 #define	STUCK_WRITER	0x04	/* The writer asleep in ttwrite. */
 #define	STUCK_CLOSER	0x08	/* The last close asleep in ttywait. */
@@ -869,7 +869,7 @@ sleepers(void)
 /*
  * Give the device every chance a reading host gives it: open the port, read
  * every armed packet, frame, type a carriage return, read again. A state
- * that keeps a sleeper or swallows the echo through that has no wakeup
+ * that keeps a sleeper or swallows the echo through that lacks a wakeup
  * source short of a kernel printf.
  */
 static int
@@ -941,7 +941,7 @@ sequence_name(const enum event *seq, int len)
 }
 
 /* ------------------------------------------------------------------ */
-/* Fixed sequences: each must leave no stuck state.                    */
+/* Fixed sequences: each must not leave a stuck state.                 */
 
 struct fixed {
 	const char	*name;

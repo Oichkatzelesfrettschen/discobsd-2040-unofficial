@@ -7,7 +7,7 @@
 # unsigned 32-bit count of seconds since 1970, valid through 4294967295
 # (February 2106). This gate builds the three archive programs from their
 # target sources, and links make's doname.c into a fixture (make_order.c; the
-# rest of make needs the directory stream of the target libc and has no host
+# rest of make needs the directory stream of the target libc and lacks a host
 # build), for three views of time and runs one suite of cases against each:
 #
 #   native         64-bit time_t and long, the host tools the build uses
@@ -53,7 +53,10 @@ cc=${CC:-cc}
 tools_root=${ARCHIVE_TOOLS_ROOT:-$top}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/archive-stored-times.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 failures=0
 cases=0
@@ -548,7 +551,7 @@ for view in $views; do
     fi
     run_suite "$view" "$out" || true
     # The path a mutant takes, with the unchanged build: it must pass, or a
-    # mutant's failure would say nothing about the mutation.
+    # mutant's failure would be silent on the mutation.
     if ! (run_suite "$view" "$out") >/dev/null 2>&1; then
         note_failure "$view: the unchanged build fails a repeated suite run"
     fi

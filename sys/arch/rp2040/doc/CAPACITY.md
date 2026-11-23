@@ -1,17 +1,29 @@
 <!--
-Copyright (c) 2026 DiscoBSD
+Copyright (c) 2026 GizmoBSD
+All rights reserved.
 
-Permission to use, copy, modify, and distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -->
 
 # Compact kernel metadata and capacity evidence
@@ -52,7 +64,7 @@ name different operations across the small BSD descendants.
 
 `sys/kern/errlist.master` similarly emits the one shared errno-message pool
 used by RP2040 and STM32. Both pools are stored in less than their text.
-The trace names carry no terminator and form one common superstring, built
+The trace names lack terminators and form one common superstring, built
 by maximum-overlap merging, in which a name lies inside another or across
 the seam of two more; a 16-bit entry holds a 10-bit offset and a 6-bit
 length, and `syscall_name()` returns the span. The errno messages are a
@@ -100,7 +112,8 @@ the `SYSTRACE` hooks, and answer `EOPNOTSUPP` for `kern.capacity`,
 "value is not available", and `sbin/sysctl`, `usr.bin/picofetch` and
 `usr.sbin/pstat` treat it as an absent record. PICO_DIAG is PICO plus the
 two options (`compile/PICO_DIAG/unix.uf2`). PICOCALC, the full PicoCalc
-kernel and the default `UNION_KERNEL`, carries both, and PICOCALC_LEAN_DIAG
+kernel and the default `UNION_KERNEL`, carries `CAPACITY_STATS` and leaves
+`SYSTRACE` to the SD-root PICOCALC_SD, and PICOCALC_LEAN_DIAG
 is PICOCALC_LEAN plus the two options; `bmake MACHINE=rp2040
 UNION_KERNEL=PICOCALC_LEAN_DIAG flash` pairs it with a board's descriptor and
 writes `unix[-BOARD]-LEAN-DIAG.uf2` beside the default `unix[-BOARD].uf2`.
@@ -250,7 +263,7 @@ and `incore-inode-exhaustion` name
 `fork1()` refuses with EAGAIN and notes one process failure only when
 `freeproc` is empty, or for a non-root caller at `MAXUPRC` or the last slot;
 `proctab` therefore runs as root. `newproc()` refuses with ENOMEM and notes
-nothing when `swap_image_reserve()` finds no backing, so the fixture reads
+nothing when `swap_image_reserve()` fails to find backing, so the fixture reads
 the errno to attribute a refusal and reports ENOMEM as an unreached table.
 `falloc()` notes a file failure only for ENFILE; `ufalloc()` refuses with
 EMFILE at `NOFILE` (30) descriptors and notes nothing, and `dup(2)` shares a
@@ -268,7 +281,7 @@ directory, so each holder of `inotab` changes into its own directory and
 opens one file there: two references for one file slot. With the table
 full, an `open` and a `stat` of two further files must both fail with
 ENFILE while the inode counter alone moves and file slots remain free;
-`stat` takes no file slot at all. Every path is relative to the working
+`stat` leaves the file slots untouched. Every path is relative to the working
 directory, so no lookup needs a slot for an intermediate directory.
 `inotab` ends as inconclusive when the free process or file slots cannot
 carry enough holders.

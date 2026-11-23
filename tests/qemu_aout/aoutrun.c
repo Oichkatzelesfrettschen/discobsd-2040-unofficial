@@ -1,5 +1,5 @@
 /*
- * aoutrun: load a DiscoBSD RP2040 OMAGIC a.out into the user window at
+ * aoutrun: load a GizmoBSD RP2040 OMAGIC a.out into the user window at
  * 0x20000000 and run it under qemu-arm user mode, answering its system
  * calls from the Linux kernel underneath.
  *
@@ -34,7 +34,7 @@
  * Integer division reaches the RP2040 SIO divider: lib/libc/arm/gen/aeabi_div.S
  * stores the dividend and divisor at SIO base 0xd0000000 + 0x60 and 0x64 and
  * loads the quotient and remainder from + 0x70 and + 0x74 (datasheet 2.3.1.5).
- * qemu-user maps no guest memory at or above 0x80000000 for an M-profile CPU,
+ * qemu-user does not map guest memory at or above 0x80000000 for an M-profile CPU,
  * so those accesses raise SIGSEGV. The loader serves it like the svc sites: it
  * decodes the faulting "str Rt, [Rn, #imm]" or "ldr Rt, [Rn, #imm]", takes the
  * register block from its own state, starts the division when the divisor
@@ -42,11 +42,11 @@
  * divisor stores and the quotient and remainder loads are modeled; any other
  * access to the SIO block ends the run, so a helper that strays outside the
  * registers it documents fails. The arithmetic is libgcc's, not the divider's,
- * and the model has no eight-cycle delay, so the cycle wait and the divider's
+ * and the model lacks the eight-cycle delay, so the cycle wait and the divider's
  * overflow behavior remain board tests (tests/rp2040/divtest).
  *
  * The caller is a test: fork, exec, signals, pipes and the file system calls
- * whose structures differ between DiscoBSD and Linux are outside the served
+ * whose structures differ between GizmoBSD and Linux are outside the served
  * subset, and a call outside it ends the run with status 70 and its number
  * on stderr.
  *
@@ -81,7 +81,7 @@ enum {
 	L_FSTAT64 = 197, L_LSEEK = 19
 };
 
-/* DiscoBSD call numbers served (sys/kern/syscalls.master). */
+/* GizmoBSD call numbers served (sys/kern/syscalls.master). */
 enum {
 	B_EXIT = 1, B_READ = 3, B_WRITE = 4, B_OPEN = 5, B_CLOSE = 6,
 	B_LSEEK = 19, B_GETPID = 20, B_GETUID = 24, B_GETEUID = 25,
@@ -193,7 +193,7 @@ static u32 brk_cur;
 static u32 brk_start;
 static unsigned char altstack[8192] __attribute__((aligned(8)));
 
-/* DiscoBSD struct stat: fourteen words (sys/sys/stat.h). */
+/* GizmoBSD struct stat: fourteen words (sys/sys/stat.h). */
 struct bsd_stat {
 	i32 st_dev;
 	u32 st_ino, st_mode;
@@ -221,11 +221,11 @@ struct lx_stat64 {
 };
 
 /*
- * Linux ARM EABI errno values to DiscoBSD's (sys/sys/errno.h). The two
+ * Linux ARM EABI errno values to GizmoBSD's (sys/sys/errno.h). The two
  * numberings agree from EPERM (1) through ERANGE (34) except EAGAIN, which
- * the DiscoBSD libc spells EWOULDBLOCK (35). Linux numbers from 35 up name
- * different conditions in DiscoBSD, so each one the served subset can
- * produce is translated by name, and one without a DiscoBSD counterpart
+ * the GizmoBSD libc spells EWOULDBLOCK (35). Linux numbers from 35 up name
+ * different conditions in GizmoBSD, so each one the served subset can
+ * produce is translated by name, and one without a GizmoBSD counterpart
  * becomes EIO instead of a number that means something else.
  */
 static int
@@ -300,7 +300,7 @@ bsd_open_flags(u32 f)
 }
 
 /*
- * Serve one DiscoBSD call. The result is returned in *rv; a nonzero return
+ * Serve one GizmoBSD call. The result is returned in *rv; a nonzero return
  * is a BSD errno and sets the carry flag.
  */
 static int
@@ -347,13 +347,13 @@ serve(u32 code, u32 *r, u32 sp, u32 *rv)
 		x = lx(L_GETTIMEOFDAY, (long)r[0], 0, 0, 0, 0, 0);
 		break;
 	case B_IOCTL:
-		/* isatty() asks TIOCGETP; no descriptor here is a DiscoBSD tty. */
+		/* isatty() asks TIOCGETP; no descriptor here is a GizmoBSD tty. */
 		return E_NOTTY;
 	case B_LSEEK:
 		/*
 		 * lseek(int fd, off_t off, int whence) with off_t a 32-bit long:
 		 * the kernel reads {fd, off, sbase} from r0..r2
-		 * (sys/kern/ufs_syscalls2.c) and the libc stub moves nothing.
+		 * (sys/kern/ufs_syscalls2.c) and the libc stub leaves the registers in place.
 		 */
 		x = lx(L_LSEEK, (long)r[0], (long)r[1], (long)r[2], 0, 0, 0);
 		break;
@@ -413,7 +413,7 @@ serve(u32 code, u32 *r, u32 sp, u32 *rv)
 		return 0;
 	default:
 		put_dec(2, code);
-		die(" <- unserved DiscoBSD system call (aoutrun)\n",
+		die(" <- unserved GizmoBSD system call (aoutrun)\n",
 		    LOADER_EXIT_UNIMPL);
 		return 0;
 	}

@@ -36,7 +36,7 @@ newproc (volatile int isvfork)  /* read after the setjmp below returns 0 */
     parent = u.u_procp;
     child = freeproc;
     if (child == NULL)
-        panic ("no procs");
+        panic ("K11");
     if (swap_image_reserve (&reservation, child, parent,
         X_OLDSIZE, X_OLDSIZE) != 0)
         return -1;
@@ -83,7 +83,7 @@ again:
     }
     child = freeproc;
     if (child == NULL)
-        panic("no procs");
+        panic("K12");
 
     freeproc = child->p_nxt;            /* off freeproc */
 
@@ -95,7 +95,12 @@ again:
     child->p_realtimer.it_interval = 0;
     child->p_realtick = 0;
     child->p_realitick = 0;
-    child->p_flag = SLOAD;
+    /*
+     * The child copies the parent's window, written text included, so it
+     * keeps P_TEXTDIRTY with it; swapout below already sizes the child's
+     * image by that flag.
+     */
+    child->p_flag = SLOAD | (parent->p_flag & P_TEXTDIRTY);
     child->p_uid = parent->p_uid;
     child->p_ruid = u.u_ruid;
     child->p_pgrp = parent->p_pgrp;
@@ -262,7 +267,7 @@ again:
         }
 #endif
         if ((child->p_flag & SLOAD) == 0)
-            panic ("newproc vfork");
+            panic ("K13");
         u.u_dsize = parent->p_dsize = child->p_dsize;
         parent->p_daddr = child->p_daddr;
         child->p_dsize = 0;

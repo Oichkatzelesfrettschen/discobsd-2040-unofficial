@@ -5,7 +5,8 @@
  */
 #define BSD		211	/* 2.11 * 100, as cpp doesn't do floats */
 
-#define DiscoBSD	202608	/* DiscoBSD version (year & month). */
+#define DiscoBSD	202608	/* DiscoBSD version (year & month); kern.osrev
+				   comes from sys/conf/newvers.sh, not this. */
 #define DiscoBSD_2_7	1	/* DiscoBSD 2.7 */
 
 #if !defined(offsetof) && defined(KERNEL)

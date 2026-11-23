@@ -21,7 +21,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* The tree's stdio references the table; the gate touches no standard stream. */
+/* The tree's stdio references the table; the gate touches zero standard streams. */
 struct _iobuf _iob[3];
 
 /*

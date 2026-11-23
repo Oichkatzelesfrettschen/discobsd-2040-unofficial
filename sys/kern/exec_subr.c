@@ -92,7 +92,7 @@ exec_spool_write (struct exec_params *epp, const void *source, u_int len)
     u_int chunk;
 
     if (len > epp->spool.size - epp->spool.pos)
-        panic ("exec spool write");
+        panic ("K01");
 #ifdef SWAPRAM
     if (epp->spool.backing == EXEC_SPOOL_SWAPRAM) {
         swapram_spool_write (epp->spool.ramoff, epp->spool.pos, source,
@@ -120,7 +120,7 @@ exec_spool_read (struct exec_params *epp, void *destination, u_int len)
     u_int block, blockbase, blocklen, chunk, offset;
 
     if (len > epp->spool.size - epp->spool.pos)
-        panic ("exec spool read");
+        panic ("K02");
 #ifdef SWAPRAM
     if (epp->spool.backing == EXEC_SPOOL_SWAPRAM) {
         swapram_spool_read (epp->spool.ramoff, epp->spool.pos,
@@ -302,12 +302,12 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
         if (exec_spool_gone (epp))
             goto gone;
         if (len == 0 || len > (u_int)((caddr_t)topp - ucp))
-            panic ("exec spool arg length");
+            panic ("K03");
         exec_spool_read (epp, ucp, len);
         if (exec_spool_gone (epp))
             goto gone;
         if (ucp[len - 1] != '\0')
-            panic ("exec spool arg terminator");
+            panic ("K04");
         ucp += len;
     }
     argp[epp->argc] = NULL;
@@ -319,12 +319,12 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
         if (exec_spool_gone (epp))
             goto gone;
         if (len == 0 || len > (u_int)((caddr_t)topp - ucp))
-            panic ("exec spool env length");
+            panic ("K05");
         exec_spool_read (epp, ucp, len);
         if (exec_spool_gone (epp))
             goto gone;
         if (ucp[len - 1] != '\0')
-            panic ("exec spool env terminator");
+            panic ("K06");
         ucp += len;
     }
     envp[epp->envc] = NULL;
@@ -332,10 +332,10 @@ void exec_setupstack(unsigned entryaddr, struct exec_params *epp)
     ucp = (caddr_t)roundup((unsigned)ucp, NBPW) + pad;
     if ((caddr_t)ucp != (caddr_t)topp) {
         DEBUG("\texec_setupstack(): error: copy arg list, ucp = %#x, topp = %#x\n", (u_int)ucp, (u_int)topp);
-        panic("exec check");
+        panic("K07");
     }
     if (epp->spool.pos != epp->spool.size)
-        panic ("exec spool trailing data");
+        panic ("K08");
 
     u.u_frame->tf_pc = entryaddr;
     DEBUG("\texec_setupstack(): new PC = %#x\n", entryaddr);
@@ -852,9 +852,16 @@ void exec_clear(struct exec_params *epp)
     lcdcons_procexit(u.u_procp);
 #endif
     /*
-     * Clear (close) files
+     * The close-on-exec descriptors are closed by execve() once it has
+     * released the executable's inode (exec_finish() in kern_exec.c). A
+     * close can sleep without bound, in the output drain of a terminal
+     * whose output is stopped, and a process asleep there is swapped
+     * out; the swapper reads the text of every process that runs this
+     * executable under the same inode lock (exec_text_restore()), so a
+     * close made here would leave the swapper asleep on a lock whose
+     * holder it alone can bring back.
      */
-    fdcloseexec();
+    epp->flags |= EXEC_CLOSE_PENDING;
 
     DEBUG("\texec_clear(): end\n");
 }

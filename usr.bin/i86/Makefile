@@ -40,8 +40,8 @@ include ${TOPSRC}/tools/qemu-arm.mk
 
 CFLAGS		+= -std=c17 -pedantic-errors -Wall -Wextra -Werror
 
-OBJS		= main.o pc.o gfx.o cpu.o mem.o
-HDRS		= font.h gfx.h i86.h mem.h pc.h
+OBJS		= main.o pc.o gfx.o serial.o ems.o cpu.o mem.o clock.o
+HDRS		= clock.h ems.h font.h gfx.h i86.h mem.h pc.h serial.h
 MAN		= i86.0
 MANSRC		= i86.1
 
@@ -68,7 +68,7 @@ HOSTCC?=	cc
 HOST_CFLAGS=	-std=c17 -pedantic-errors -D_DEFAULT_SOURCE -DHOSTBUILD \
 		-Wall -Wextra -Werror -Wshadow -O2 -I. \
 		-idirafter ${TOPSRC}/sys
-HOSTSRCS=	main.c pc.c gfx.c cpu.c mem.c
+HOSTSRCS=	main.c pc.c gfx.c serial.c ems.c cpu.c mem.c clock.c
 
 host:		i86-host
 
@@ -104,7 +104,7 @@ test-sst:	require-python tests/sstrun
 
 # cpu.c and mem.c as Thumb-1 code against newlib, with the Linux EABI system
 # calls of tests/libbn/qemu_support.c, over the sampled vectors. The run
-# covers the generated code of the interpreter; it does not run the DiscoBSD
+# covers the generated code of the interpreter; it does not run the GizmoBSD
 # a.out, whose system calls qemu-user lacks. All pages are resident because
 # that support file's lseek() moves nothing.
 tests/sstrun-arm: tests/sstrun.c cpu.c mem.c ${HDRS} ${QEMU_SUPPORT}

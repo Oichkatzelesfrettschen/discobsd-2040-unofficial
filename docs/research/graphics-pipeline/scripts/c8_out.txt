@@ -1,0 +1,21 @@
+sprite / move | opaque px after | runs after | box atlas | opaque-cell atlas | LCDG_SPRITE unfenced
+climber running, same frame / run 1 px | 123 | 16 | 1233 | 787 | 1167
+climber running, same frame / rise 2 px | 123 | 16 | 1284 | 820 | 1167
+climber running, same frame / fall 4 px | 123 | 16 | 1382 | 894 | 1167
+climber running, same frame / run 1, rise 2 | 123 | 16 | 1328 | 848 | 1167
+climber running, frame 1 to 2 / run 1 px | 124 | 16 | 1233 | 815 | 1169
+climber running, frame 1 to 2 / rise 2 px | 124 | 16 | 1284 | 844 | 1169
+climber running, frame 1 to 2 / fall 4 px | 124 | 16 | 1382 | 906 | 1169
+climber running, frame 1 to 2 / run 1, rise 2 | 124 | 16 | 1328 | 876 | 1169
+climber jumping / run 1 px | 129 | 16 | 1233 | 843 | 1235
+climber jumping / rise 2 px | 129 | 16 | 1284 | 884 | 1235
+climber jumping / fall 4 px | 129 | 16 | 1382 | 966 | 1235
+climber jumping / run 1, rise 2 | 129 | 16 | 1328 | 916 | 1235
+crawler, same frame / run 1 px | 85 | 11 | 1233 | 619 | 880
+crawler, same frame / rise 2 px | 85 | 11 | 1284 | 671 | 880
+crawler, same frame / fall 4 px | 85 | 11 | 1382 | 754 | 880
+crawler, same frame / run 1, rise 2 | 85 | 11 | 1328 | 689 | 880
+crawler, frame 4 to 5 / run 1 px | 84 | 11 | 1233 | 619 | 878
+crawler, frame 4 to 5 / rise 2 px | 84 | 11 | 1284 | 671 | 878
+crawler, frame 4 to 5 / fall 4 px | 84 | 11 | 1382 | 752 | 878
+crawler, frame 4 to 5 / run 1, rise 2 | 84 | 11 | 1328 | 689 | 878

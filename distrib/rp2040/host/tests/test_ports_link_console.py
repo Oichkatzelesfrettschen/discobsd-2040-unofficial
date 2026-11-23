@@ -5,7 +5,7 @@ import urllib.request
 
 import pytest
 
-from discobsd_host import console, link, ports, term, web
+from gizmobsd_host import console, link, ports, term, web
 
 
 def info(device, vid=None, pid=None, serial_number=None, product=None):
@@ -42,7 +42,7 @@ def test_board_is_selected_by_usb_identity():
 
 
 def test_environment_override_wins():
-    assert ports.find_board(lambda: [], environ={"DISCOBSD_PORT": "/dev/cu.x"}) == "/dev/cu.x"
+    assert ports.find_board(lambda: [], environ={"GIZMOBSD_PORT": "/dev/cu.x"}) == "/dev/cu.x"
 
 
 def test_no_board_is_none(monkeypatch):
@@ -174,21 +174,21 @@ def test_link_to_with_embedded_token_is_deprecated_but_still_works(capsys, monke
 
 
 def test_config_dir_per_platform(tmp_path):
-    assert console.config_dir({}, "linux", tmp_path) == tmp_path / ".config" / "discobsd"
+    assert console.config_dir({}, "linux", tmp_path) == tmp_path / ".config" / "gizmobsd"
     assert (
-        console.config_dir({"XDG_CONFIG_HOME": "/x"}, "linux", tmp_path).as_posix() == "/x/discobsd"
+        console.config_dir({"XDG_CONFIG_HOME": "/x"}, "linux", tmp_path).as_posix() == "/x/gizmobsd"
     )
     assert console.config_dir({}, "darwin", tmp_path) == (
-        tmp_path / "Library" / "Application Support" / "discobsd"
+        tmp_path / "Library" / "Application Support" / "gizmobsd"
     )
     win = console.config_dir({"APPDATA": str(tmp_path / "Roaming")}, "win32", tmp_path)
-    assert win == tmp_path / "Roaming" / "discobsd"
+    assert win == tmp_path / "Roaming" / "gizmobsd"
 
 
 def test_env_file_round_trip_is_private(tmp_path):
-    path = tmp_path / "discobsd" / "web.env"
-    console.write_env(path, {"DISCOBSD_WEB_TOKEN": "abc", "DISCOBSD_HOST_IP": "10.0.0.5"})
-    assert console.read_env(path) == {"DISCOBSD_WEB_TOKEN": "abc", "DISCOBSD_HOST_IP": "10.0.0.5"}
+    path = tmp_path / "gizmobsd" / "web.env"
+    console.write_env(path, {"GIZMOBSD_WEB_TOKEN": "abc", "GIZMOBSD_HOST_IP": "10.0.0.5"})
+    assert console.read_env(path) == {"GIZMOBSD_WEB_TOKEN": "abc", "GIZMOBSD_HOST_IP": "10.0.0.5"}
     import os
     import sys
 
@@ -226,8 +226,8 @@ def test_console_default_loopback_applies_to_every_launch_path(tmp_path, monkeyp
     monkeypatch.setattr(console, "_spawn_detached", spawn)
     assert console.main(["up"]) == 0
     values = console.read_env(tmp_path / "web.env")
-    assert values["DISCOBSD_WEB_BIND"] == "127.0.0.1"
-    assert values["DISCOBSD_HOST_IP"] == "127.0.0.1"
+    assert values["GIZMOBSD_WEB_BIND"] == "127.0.0.1"
+    assert values["GIZMOBSD_HOST_IP"] == "127.0.0.1"
     for command in spawned:
         assert command[command.index("--bind") + 1] == "127.0.0.1"
 
@@ -257,13 +257,13 @@ def _up(monkeypatch, tmp_path, usb_port):
     # config_dir() reads XDG_CONFIG_HOME on Linux alone; macOS and Windows
     # resolve the user's real Library or AppData directory, so the helper
     # pins it to tmp_path on every platform.
-    monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "discobsd")
-    monkeypatch.delenv("DISCOBSD_WEB_TOKEN", raising=False)
-    monkeypatch.delenv("DISCOBSD_HOST_IP", raising=False)
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "gizmobsd")
+    monkeypatch.delenv("GIZMOBSD_WEB_TOKEN", raising=False)
+    monkeypatch.delenv("GIZMOBSD_HOST_IP", raising=False)
     if usb_port is None:
-        monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+        monkeypatch.delenv("GIZMOBSD_USB_PORT", raising=False)
     else:
-        monkeypatch.setenv("DISCOBSD_USB_PORT", usb_port)
+        monkeypatch.setenv("GIZMOBSD_USB_PORT", usb_port)
     monkeypatch.setattr(console, "systemd_units_installed", lambda home=None: True)
     monkeypatch.setattr(console.subprocess, "call", lambda argv: 0)
     monkeypatch.setattr(console.time, "sleep", lambda s: None)
@@ -271,19 +271,19 @@ def _up(monkeypatch, tmp_path, usb_port):
     args = types.SimpleNamespace(
         host_ip="10.0.0.5", port=7681, link_port=42069, bind="0.0.0.0", detached=False
     )
-    return console.cmd_up(args), tmp_path / "discobsd" / "web.env"
+    return console.cmd_up(args), tmp_path / "gizmobsd" / "web.env"
 
 
 def test_up_writes_the_usb_port_into_the_unit_environment_file(monkeypatch, tmp_path):
     rc, env_path = _up(monkeypatch, tmp_path, "1-3")
     assert rc == 0
-    assert console.read_env(env_path)["DISCOBSD_USB_PORT"] == "1-3"
+    assert console.read_env(env_path)["GIZMOBSD_USB_PORT"] == "1-3"
     # The selector is dropped from the file when the caller no longer sets it.
     rc, env_path = _up(monkeypatch, tmp_path, None)
     assert rc == 0
-    assert "DISCOBSD_USB_PORT" not in console.read_env(env_path)
+    assert "GIZMOBSD_USB_PORT" not in console.read_env(env_path)
     rc, env_path = _up(monkeypatch, tmp_path, "")
-    assert "DISCOBSD_USB_PORT" not in console.read_env(env_path)
+    assert "GIZMOBSD_USB_PORT" not in console.read_env(env_path)
 
 
 @pytest.mark.parametrize("value", ["1-3\nExecStart=x", "usb1", "1-", "../x"])
@@ -291,17 +291,17 @@ def test_up_refuses_a_malformed_usb_port_before_writing(monkeypatch, tmp_path, v
     rc, env_path = _up(monkeypatch, tmp_path, value)
     assert rc == 1
     assert not env_path.exists()
-    assert "DISCOBSD_USB_PORT" in capsys.readouterr().err
+    assert "GIZMOBSD_USB_PORT" in capsys.readouterr().err
 
 
 def _up_bind(monkeypatch, tmp_path, bind, host_ip=None, keep_env_ip=False, systemd=True):
     import types
 
-    monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "discobsd")
-    monkeypatch.delenv("DISCOBSD_WEB_TOKEN", raising=False)
+    monkeypatch.setattr(console, "config_dir", lambda *a, **k: tmp_path / "gizmobsd")
+    monkeypatch.delenv("GIZMOBSD_WEB_TOKEN", raising=False)
     if not keep_env_ip:
-        monkeypatch.delenv("DISCOBSD_HOST_IP", raising=False)
-    monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+        monkeypatch.delenv("GIZMOBSD_HOST_IP", raising=False)
+    monkeypatch.delenv("GIZMOBSD_USB_PORT", raising=False)
     monkeypatch.setattr(console, "systemd_units_installed", lambda home=None: systemd)
     monkeypatch.setattr(console.subprocess, "call", lambda argv: 0)
     monkeypatch.setattr(console.time, "sleep", lambda s: None)
@@ -311,31 +311,31 @@ def _up_bind(monkeypatch, tmp_path, bind, host_ip=None, keep_env_ip=False, syste
         host_ip=host_ip, port=7681, link_port=42069, bind=bind, detached=False
     )
     assert console.cmd_up(args) == 0
-    return console.read_env(tmp_path / "discobsd" / "web.env")
+    return console.read_env(tmp_path / "gizmobsd" / "web.env")
 
 
 def test_up_lan_after_loopback_advertises_the_lan_address(monkeypatch, tmp_path):
     # A loopback run stores 127.0.0.1; a later LAN bind must not hand that
     # address to LAN clients, which would reach their own host.
-    assert _up_bind(monkeypatch, tmp_path, "127.0.0.1")["DISCOBSD_HOST_IP"] == "127.0.0.1"
-    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    assert _up_bind(monkeypatch, tmp_path, "127.0.0.1")["GIZMOBSD_HOST_IP"] == "127.0.0.1"
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["GIZMOBSD_HOST_IP"] == "10.0.0.9"
     # A stored LAN address is kept for the next LAN run, and --host-ip wins.
     monkeypatch.setattr(console, "lan_ip", lambda: "10.0.0.77")
-    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["GIZMOBSD_HOST_IP"] == "10.0.0.9"
     assert (
-        _up_bind(monkeypatch, tmp_path, "0.0.0.0", host_ip="10.0.0.5")["DISCOBSD_HOST_IP"]
+        _up_bind(monkeypatch, tmp_path, "0.0.0.0", host_ip="10.0.0.5")["GIZMOBSD_HOST_IP"]
         == "10.0.0.5"
     )
 
 
 def test_up_loopback_bind_keeps_an_explicit_host_ip(monkeypatch, tmp_path):
     # A loopback bind behind a tunnel or proxy still advertises the address
-    # the operator named, from --host-ip or from DISCOBSD_HOST_IP.
+    # the operator named, from --host-ip or from GIZMOBSD_HOST_IP.
     values = _up_bind(monkeypatch, tmp_path, "127.0.0.1", host_ip="203.0.113.4")
-    assert values["DISCOBSD_HOST_IP"] == "203.0.113.4"
-    monkeypatch.setenv("DISCOBSD_HOST_IP", "203.0.113.5")
+    assert values["GIZMOBSD_HOST_IP"] == "203.0.113.4"
+    monkeypatch.setenv("GIZMOBSD_HOST_IP", "203.0.113.5")
     values = _up_bind(monkeypatch, tmp_path, "127.0.0.1", keep_env_ip=True)
-    assert values["DISCOBSD_HOST_IP"] == "203.0.113.5"
+    assert values["GIZMOBSD_HOST_IP"] == "203.0.113.5"
 
 
 def _fail_on_resolve(monkeypatch):
@@ -371,7 +371,7 @@ def test_up_passes_the_parsed_ip_literal_to_every_consumer(
         console, "_spawn_detached", lambda command, *a: spawned.append(command) or 1
     )
     values = _up_bind(monkeypatch, tmp_path, bind, systemd=systemd)
-    assert values["DISCOBSD_WEB_BIND"] == written
+    assert values["GIZMOBSD_WEB_BIND"] == written
     for command in spawned:
         assert command[command.index("--bind") + 1] == written
     assert len(spawned) == (0 if systemd else 2)
@@ -384,7 +384,7 @@ def test_up_passes_the_parsed_ip_literal_to_every_consumer(
         "localhost",
         "board.example",
         "no-such-host.invalid",
-        "bad\nDISCOBSD_WEB_TOKEN=x",
+        "bad\nGIZMOBSD_WEB_TOKEN=x",
         "a b",
         "",
         "fe80::1%eth0",
@@ -400,9 +400,9 @@ def test_up_refuses_a_bind_that_is_not_an_ip_literal(monkeypatch, tmp_path, caps
     # would accept it and write it to web.env, so the verdict needs the
     # refusal, the empty lookup log and the untouched web.env together.
     lookups = _fail_on_resolve(monkeypatch)
-    conf = tmp_path / "discobsd"
+    conf = tmp_path / "gizmobsd"
     monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
-    monkeypatch.delenv("DISCOBSD_USB_PORT", raising=False)
+    monkeypatch.delenv("GIZMOBSD_USB_PORT", raising=False)
     args = types.SimpleNamespace(
         host_ip=None, port=7681, link_port=42069, bind=bind, detached=False
     )
@@ -417,11 +417,11 @@ def test_up_refuses_a_bind_that_is_not_an_ip_literal(monkeypatch, tmp_path, caps
 @pytest.mark.parametrize(
     "variable, value",
     [
-        ("host_ip", "10.0.0.5\nDISCOBSD_WEB_BIND=0.0.0.0"),
+        ("host_ip", "10.0.0.5\nGIZMOBSD_WEB_BIND=0.0.0.0"),
         ("host_ip", "10.0.0.5 extra"),
         ("host_ip", 'a"b'),
-        ("DISCOBSD_HOST_IP", "10.0.0.5\rx"),
-        ("DISCOBSD_WEB_TOKEN", "abc\nDISCOBSD_WEB_BIND=0.0.0.0"),
+        ("GIZMOBSD_HOST_IP", "10.0.0.5\rx"),
+        ("GIZMOBSD_WEB_TOKEN", "abc\nGIZMOBSD_WEB_BIND=0.0.0.0"),
     ],
 )
 def test_up_refuses_an_environment_file_value_outside_the_allow_list(
@@ -432,9 +432,9 @@ def test_up_refuses_an_environment_file_value_outside_the_allow_list(
     # web.env is a systemd EnvironmentFile: a newline adds an assignment, and
     # a space, quote or backslash changes how the line parses. Every value is
     # checked against the allow-list before the file is written.
-    conf = tmp_path / "discobsd"
+    conf = tmp_path / "gizmobsd"
     monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
-    for name in ("DISCOBSD_WEB_TOKEN", "DISCOBSD_HOST_IP", "DISCOBSD_USB_PORT"):
+    for name in ("GIZMOBSD_WEB_TOKEN", "GIZMOBSD_HOST_IP", "GIZMOBSD_USB_PORT"):
         monkeypatch.delenv(name, raising=False)
     host_ip = None
     if variable == "host_ip":
@@ -455,25 +455,25 @@ def test_up_refuses_an_environment_file_value_outside_the_allow_list(
 def test_write_env_accepts_every_value_the_console_writes(tmp_path):
     path = tmp_path / "web.env"
     values = {
-        "DISCOBSD_WEB_TOKEN": "0123456789abcdef01234567",
-        "DISCOBSD_HOST_IP": "fd00::5",
-        "DISCOBSD_WEB_BIND": "0.0.0.0",
-        "DISCOBSD_USB_PORT": "1-3.2",
+        "GIZMOBSD_WEB_TOKEN": "0123456789abcdef01234567",
+        "GIZMOBSD_HOST_IP": "fd00::5",
+        "GIZMOBSD_WEB_BIND": "0.0.0.0",
+        "GIZMOBSD_USB_PORT": "1-3.2",
     }
     console.write_env(path, values)
     assert console.read_env(path) == values
-    console.write_env(path, {"DISCOBSD_HOST_IP": "pico-host.local"})
-    assert console.read_env(path) == {"DISCOBSD_HOST_IP": "pico-host.local"}
+    console.write_env(path, {"GIZMOBSD_HOST_IP": "pico-host.local"})
+    assert console.read_env(path) == {"GIZMOBSD_HOST_IP": "pico-host.local"}
     # "+" would read as a space in the URL query that carries the token.
     with pytest.raises(ValueError):
-        console.write_env(path, {"DISCOBSD_WEB_TOKEN": "q+8/Zw=="})
+        console.write_env(path, {"GIZMOBSD_WEB_TOKEN": "q+8/Zw=="})
 
 
 def test_up_concrete_bind_advertises_itself(monkeypatch, tmp_path):
     # The servers listen only on the bound interface, so a stored or
     # autodetected address elsewhere would advertise a dead endpoint.
-    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == "10.0.0.9"
-    assert _up_bind(monkeypatch, tmp_path, "10.0.0.7")["DISCOBSD_HOST_IP"] == "10.0.0.7"
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["GIZMOBSD_HOST_IP"] == "10.0.0.9"
+    assert _up_bind(monkeypatch, tmp_path, "10.0.0.7")["GIZMOBSD_HOST_IP"] == "10.0.0.7"
 
 
 def test_urls_offer_mdns_only_when_asked():
@@ -492,9 +492,9 @@ def test_up_prints_the_mdns_link_only_for_a_wildcard_bind(
 def test_up_refuses_an_ipv6_advertised_address(monkeypatch, tmp_path, capsys):
     import types
 
-    conf = tmp_path / "discobsd"
+    conf = tmp_path / "gizmobsd"
     monkeypatch.setattr(console, "config_dir", lambda *a, **k: conf)
-    for name in ("DISCOBSD_WEB_TOKEN", "DISCOBSD_HOST_IP", "DISCOBSD_USB_PORT"):
+    for name in ("GIZMOBSD_WEB_TOKEN", "GIZMOBSD_HOST_IP", "GIZMOBSD_USB_PORT"):
         monkeypatch.delenv(name, raising=False)
     args = types.SimpleNamespace(
         host_ip="fd00::5", port=7681, link_port=42069, bind="0.0.0.0", detached=False
@@ -528,7 +528,7 @@ def test_web_names_the_address_it_serves(monkeypatch, capsys, bind, shown):
 
     monkeypatch.setattr(web, "ConsoleServer", Fake)
     monkeypatch.setattr(web, "lan_ip", lambda: "10.0.0.9")
-    monkeypatch.setenv("DISCOBSD_WEB_TOKEN", "tok")
+    monkeypatch.setenv("GIZMOBSD_WEB_TOKEN", "tok")
     assert web.main(["--bind", bind, "--port", "7681", "/dev/null"]) == 0
     assert shown in capsys.readouterr().err
 
@@ -548,7 +548,7 @@ def test_up_wildcard_bind_keeps_a_stored_lan_name_and_drops_loopback(
 ):
     # A stored loopback literal or localhost name would send LAN clients to
     # their own host and is recomputed; a stored LAN name or address is kept.
-    conf = tmp_path / "discobsd"
+    conf = tmp_path / "gizmobsd"
     conf.mkdir(parents=True)
-    console.write_env(conf / "web.env", {"DISCOBSD_HOST_IP": stored})
-    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["DISCOBSD_HOST_IP"] == advertised
+    console.write_env(conf / "web.env", {"GIZMOBSD_HOST_IP": stored})
+    assert _up_bind(monkeypatch, tmp_path, "0.0.0.0")["GIZMOBSD_HOST_IP"] == advertised

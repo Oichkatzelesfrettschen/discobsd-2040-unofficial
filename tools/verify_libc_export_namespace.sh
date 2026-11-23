@@ -32,7 +32,10 @@ LC_ALL=C
 export LC_ALL
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT HUP INT TERM
+trap 'rm -rf "$WORK"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 die() {
     echo "verify_libc_export_namespace: $*" >&2

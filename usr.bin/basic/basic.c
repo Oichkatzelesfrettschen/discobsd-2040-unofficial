@@ -111,6 +111,7 @@
 #include <string.h>
 #include <setjmp.h>
 #include <time.h>
+#include <tzfile.h>
 #include <limits.h>
 #include <unistd.h>
 #include <curses.h>
@@ -945,7 +946,7 @@ void date_string(char *format, char *ptr)
             case 't':
                 switch (tm->tm_mon) {
                 case 0:     sprintf(ptr,"%d",31); break; // Jan
-                case 1:     sprintf(ptr,"%d",((tm->tm_year+1900) % 4 == 0) ? 29 : 28); break;    // Feb
+                case 1:     sprintf(ptr,"%d",isleap(tm->tm_year+TM_YEAR_BASE) ? 29 : 28); break;    // Feb
                 case 2:     sprintf(ptr,"%d",31); break; // Mar
                 case 3:     sprintf(ptr,"%d",30); break; // Apr
                 case 4:     sprintf(ptr,"%d",31); break; // May
@@ -959,7 +960,7 @@ void date_string(char *format, char *ptr)
                 }
                 break;
             case 'L':
-                sprintf(ptr,"%d",((tm->tm_year+1900) % 4 == 0) ? 1 : 0);
+                sprintf(ptr,"%d",isleap(tm->tm_year+TM_YEAR_BASE) ? 1 : 0);
                 break;
             case 'o':
             case 'Y':

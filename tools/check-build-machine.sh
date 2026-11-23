@@ -48,7 +48,10 @@ if [ -e "$stamp_path" ] || [ -L "$stamp_path" ]; then
 fi
 
 temporary_path=$(mktemp "$stamp_path.tmp.XXXXXX")
-trap 'rm -f "$temporary_path"' EXIT HUP INT TERM
+trap 'rm -f "$temporary_path"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 printf '%s\n' "$expected" > "$temporary_path"
 
 if ln "$temporary_path" "$stamp_path" 2>/dev/null; then

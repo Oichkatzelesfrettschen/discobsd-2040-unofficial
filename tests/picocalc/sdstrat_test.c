@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -76,7 +88,7 @@ static struct buf ebuf;
 static unsigned char ebuf_data[DEV_BSIZE];
 static int failures;
 
-static int init_fail;		/* sdspi_init() finds no card. */
+static int init_fail;		/* sdspi_init() fails to find a card. */
 static unsigned init_type = SD_HC;		/* The card type it reports. */
 static unsigned init_sectors = CARD_SECTORS;	/* Its capacity; reads past CARD_SECTORS fail. */
 
@@ -808,7 +820,7 @@ raw_fail_cases(void)
 	check("raw failing write: offset", raw_end, 512);
 	memcpy(card, saved, sizeof(card));
 
-	/* A request refused before I/O consumes nothing. */
+	/* A request refused before I/O consumes zero bytes. */
 	memset(nread, 0, sizeof(nread));
 	check("raw read of an unopened partition",
 	    raw_io(0, 3, 0, four, 1, &resid), ENXIO);
@@ -1140,7 +1152,7 @@ dump_cases(void)
 	    sddump(DUMPDEV, dump_spans, 3, 0xc0ffee11U, dump_now), 0);
 	check_dump("dump on the first entry", 8);
 
-	/* Refusals that write nothing. */
+	/* Refusals that write zero sectors. */
 	dump_table(PTYPE_BSDFFS, DUMP_FIRST, 20);
 	check("dump without a dump partition",
 	    sddump(DUMPDEV, dump_spans, 3, 0, 0), ENXIO);
@@ -1173,7 +1185,7 @@ dump_cases(void)
 	check("an undersized partition keeps its sector 0",
 	    memcmp(card[DUMP_FIRST], "OLDDUMP", 7), 0);
 
-	/* A failed sector leaves no header: sector 0 stays zero. */
+	/* A failed sector leaves the header unwritten: sector 0 stays zero. */
 	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
 	fail_sector = DUMP_FIRST + 5;
 	check("dump with a failing sector",
@@ -1188,7 +1200,7 @@ dump_cases(void)
 	/*
 	 * A block open that overlaps the partition is a mount: refused. The
 	 * whole card overlaps everything; partition 1 (sectors 8 to 40) does
-	 * not overlap sectors 41 to 60; a raw open is no mount.
+	 * not overlap sectors 41 to 60; a raw open is not a mount.
 	 */
 	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
 	check("block open of the dump partition", sdopen(2, 0, S_IFBLK), 0);
@@ -1208,7 +1220,7 @@ dump_cases(void)
 	check_dump("dump beside a mount", DUMP_FIRST);
 	close_all();
 
-	/* A replaced card holds no mount, so its dump partition is free. */
+	/* A replaced card is unmounted, so its dump partition is free. */
 	dump_table(DUMP_PART_TYPE, DUMP_FIRST, 20);
 	check("block open before a swap", sdopen(2, 0, S_IFBLK), 0);
 	card_swap();
@@ -1491,7 +1503,7 @@ set_part(int n, unsigned type, unsigned offset, unsigned nsectors)
 /*
  * One call of sdswapattach() from a closed card with swap on fl1 or on
  * `from`. A card that took swap holds that partition open with its table
- * read, so the open main() makes reads nothing, and the close that
+ * read, so the open main() makes reads zero sectors, and the close that
  * swclose() forwards for /dev/swap leaves it open and able to transfer;
  * every other path leaves the card closed. swap_release() ends the hold.
  */
@@ -1521,7 +1533,7 @@ swap_attach(const char *name, dev_t from)
 	check(what, (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
 }
 
-/* A call on a bare Pico, which selects nothing, ends the previous hold. */
+/* A call on a bare Pico, which declines to select the card, ends the previous hold. */
 static void
 swap_release(void)
 {
@@ -1539,7 +1551,7 @@ swapdev_cases(void)
 {
 	init_sectors = 1U << 22;
 
-	/* A bare Pico has no socket: fl1 stays and the card is not read. */
+	/* A bare Pico lacks a socket: fl1 stays and the card is not read. */
 	fill_card();
 	set_part(4, PTYPE_SWAP, 4096, 2 * 8192);
 	test_board = BOARD_ID_PICO;
@@ -1648,7 +1660,7 @@ swapdev_cases(void)
 	/*
 	 * A b8 entry that shares a sector with another entry is passed over,
 	 * since swap writes would land in the b7 root or another partition;
-	 * one that ends where another starts shares none.
+	 * one that ends where another starts shares zero sectors.
 	 */
 	{
 		unsigned r = 65536, n = 2 * 8192;
@@ -1698,7 +1710,7 @@ swapdev_cases(void)
 		set_part(3, PTYPE_BSDFFS, r, n);
 	}
 
-	/* An entry that runs past the card is no entry. */
+	/* An entry that runs past the card is not an entry. */
 	set_part(4, PTYPE_SWAP, init_sectors - 16, 2 * 8192);
 	swap_attach("past the card", FL1);
 	check("past the card: swapdev kept", (long)swapdev, (long)FL1);
@@ -1815,7 +1827,7 @@ tmp_cases(void)
 	swap_release();
 	set_part(1, PTYPE_BSDFFS, 8, 33);
 
-	/* A bare Pico has no socket: nothing is read or selected. */
+	/* A bare Pico lacks a socket: nothing is read or selected. */
 	test_board = BOARD_ID_PICO;
 	tmp_attach("tmp, bare Pico", psram, 0);
 	check("tmp, bare Pico: card not read", (long)nread[0], 0);
@@ -1855,7 +1867,7 @@ tmp_cases(void)
 	/*
 	 * An entry that shares a sector with another one is passed over, since
 	 * mkfs on it would destroy the neighbor: over the root's end, over its
-	 * start, inside it; touching it is no overlap.
+	 * start, inside it; touching it is not an overlap.
 	 */
 	set_part(4, PTYPE_TMP, r + n - 1, n);
 	tmp_attach("over the root's end", psram, 0);
@@ -1882,12 +1894,12 @@ tmp_cases(void)
 	    sdopen(TMPDEV, 0, S_IFBLK), ENXIO);
 	close_all();
 
-	/* An entry past the card's end is no entry. */
+	/* An entry past the card's end is not an entry. */
 	set_part(1, PTYPE_BSDFFS, 8, 33);
 	set_part(4, PTYPE_TMP, init_sectors - 16, n);
 	tmp_attach("past the card", psram, 0);
 
-	/* Minors 6 and 7 of the unit and the second unit's minor 5 name nothing. */
+	/* Minors 6 and 7 of the unit and the second unit's minor 5 name zero partitions. */
 	set_part(4, PTYPE_TMP, r + n, n);
 	check("minor 6", sdopen(makedev(SD_BMAJOR, 6), 0, S_IFBLK), ENXIO);
 	check("minor 7", sdopen(makedev(SD_BMAJOR, 7), 0, S_IFBLK), ENXIO);
@@ -1999,7 +2011,7 @@ main(void)
 	struct req r;
 
 	/*
-	 * Autoconfiguration. A bare Pico carries no card slot, so the probe
+	 * Autoconfiguration. A bare Pico lacks a card slot, so the probe
 	 * declines before it reaches a register; a PicoCalc attaches.
 	 */
 	test_board = BOARD_ID_PICO;

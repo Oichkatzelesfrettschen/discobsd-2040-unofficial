@@ -8,7 +8,7 @@ command byte), refuse Get, list a chosen command set, stay silent, ACK the
 first 0x7F late, answer garbage or cut a reply short. The client must exit
 0 on a readable part, 3 only when Get lists Read Memory and its command
 byte is refused, 1 on every other refusal of the flash-size read and on
-every protocol failure, after which it sends nothing more; it must decode
+every protocol failure, after which it stops sending; it must decode
 the product ID, CPUID and DBGMCU_IDCODE fields, bound a dump to the
 reported flash size, open the port at 57600 baud 8E1, refuse an existing
 dump file, and never put a byte outside its read-only command set on the

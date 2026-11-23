@@ -6,7 +6,7 @@ import urllib.request
 
 import pytest
 
-from discobsd_host import web
+from gizmobsd_host import web
 
 
 def masked(payload: bytes, opcode: int = 0x1, mask: bytes = b"\x01\x02\x03\x04") -> bytes:
@@ -123,7 +123,7 @@ def test_page_requires_token_off_loopback(server):
         urllib.request.urlopen(base)
     assert err.value.code == 401
     page = urllib.request.urlopen(base + "?token=tok").read()
-    assert b"DiscoBSD console" in page and b"xterm" in page
+    assert b"GizmoBSD console" in page and b"xterm" in page
     req = urllib.request.Request(base, headers={"Authorization": "Bearer tok"})
     assert urllib.request.urlopen(req).status == 200
 
@@ -131,14 +131,14 @@ def test_page_requires_token_off_loopback(server):
 def test_page_has_no_raw_control_characters():
     assert not any(0 < b < 0x20 and b not in (9, 10, 13) for b in web.PAGE.encode())
     assert 'data-k="&#27;"' in web.PAGE
-    assert 'id=bye' in web.PAGE and 'Sync &amp; leave' in web.PAGE
+    assert "id=bye" in web.PAGE and "Sync &amp; leave" in web.PAGE
     assert "inside V6" not in web.PAGE and "pdp11" not in web.PAGE
-    assert 'id=help' in web.PAGE and 'id=h' in web.PAGE
-    assert '<html lang=en>' in web.PAGE
-    assert 'role=status aria-live=polite' in web.PAGE
-    assert 'id=reader' in web.PAGE and 'screenReaderMode:reader' in web.PAGE
-    assert 'minimumContrastRatio:4.5' in web.PAGE
-    assert 'focus-visible' in web.PAGE and 'id=show' in web.PAGE
+    assert "id=help" in web.PAGE and "id=h" in web.PAGE
+    assert "<html lang=en>" in web.PAGE
+    assert "role=status aria-live=polite" in web.PAGE
+    assert "id=reader" in web.PAGE and "screenReaderMode:reader" in web.PAGE
+    assert "minimumContrastRatio:4.5" in web.PAGE
+    assert "focus-visible" in web.PAGE and "id=show" in web.PAGE
 
 
 def ws_connect(port, token="tok", origin=None):
@@ -163,7 +163,7 @@ def ws_connect(port, token="tok", origin=None):
 # in one TCP segment, so ws_connect's recv carries part of the payload. The
 # caller seeds the accumulator with what it already holds; without the seed
 # the wanted bytes sit in the caller's hand while this loop waits out its
-# deadline on a socket that has nothing further to send.
+# deadline on a socket that has finished sending.
 def read_frames(s, want: bytes, timeout=3.0, got: bytes = b""):
     s.settimeout(timeout)
     while want not in got:
@@ -280,7 +280,7 @@ def test_cli_refuses_lan_bind_without_token(capsys, monkeypatch):
 
 def test_cli_reads_token_from_the_environment(capsys, monkeypatch):
     # ExecStart no longer carries --token; the unit's EnvironmentFile puts
-    # DISCOBSD_WEB_TOKEN in the process environment instead, and this
+    # GIZMOBSD_WEB_TOKEN in the process environment instead, and this
     # accepts a loopback bind (no token required) to prove start actually
     # ran rather than exercising the refusal path above.
     monkeypatch.setattr(web.ports, "find_board", lambda **_: "FAKE")

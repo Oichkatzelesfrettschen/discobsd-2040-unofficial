@@ -4,7 +4,10 @@ set -eu
 
 topsrc=$(cd "$(dirname "$0")/../../.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/namei-path.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 ln -s "$topsrc/sys/arch/rp2040/include" "$work/machine"
 mkdir "$work/mutant" "$work/header-mutant" "$work/header-mutant/sys"
 ln -s "$topsrc/sys/sys/uio.h" "$work/header-mutant/sys/uio.h"

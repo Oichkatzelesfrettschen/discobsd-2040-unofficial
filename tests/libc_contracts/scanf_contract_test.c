@@ -336,7 +336,7 @@ main(void)
 	check(r == 1 && iv == 12, "%d does not honor its field width");
 
 	/*
-	 * A width of one admits only the sign, which leaves no digit, so
+	 * A width of one admits only the sign, which leaves zero digits, so
 	 * the directive is a matching failure rather than a conversion.
 	 */
 	iv = -99;

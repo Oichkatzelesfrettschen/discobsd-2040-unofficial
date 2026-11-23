@@ -1,6 +1,6 @@
-# DiscoBSD on the Pico: the map from source to a shell prompt
+# GizmoBSD on the Pico: the map from source to a shell prompt
 
-The port lives in `sys/arch/rp2040` of this DiscoBSD tree. Machine-readable
+The port lives in `sys/arch/rp2040` of this GizmoBSD tree. Machine-readable
 copies of the RP2040 and Pico datasheets, with an `INDEX.md` resolving every
 section number to a line in the text, live in the companion notes repository
 (discobsd-2040-notes, `docs/rp2040/`); `DATASHEET-INDEX.md` here lists the
@@ -225,7 +225,7 @@ a working kernel selects single-user mode.
 |---|---|---|
 | board returns to BOOTSEL on every power-up | boot2 checksum or placement | `picotool info -a` sees the image; `objdump -s -j .boot2 unix` ends in the CRC |
 | LED never blinks, no console | clock bring-up hangs in a wait loop, or VTOR | SWD through a second Pico with openocd and `arm-none-eabi-gdb`; read PC |
-| no `/dev/ttyACM0`, `lsusb` shows nothing | PLL_USB or clk_usb, or enumeration | `dmesg` for "device descriptor read" errors; then a serial adapter on GP0 and GP1 to read the kernel's messages |
+| `/dev/ttyACM0` and the `lsusb` entry both missing | PLL_USB or clk_usb, or enumeration | `dmesg` for "device descriptor read" errors; then a serial adapter on GP0 and GP1 to read the kernel's messages |
 | `ttyACM0` appears but stays silent | output ring never armed, DTR handling | open the port with a terminal, not `cat`; check `SET_CONTROL_LINE_STATE` handling in `dev/usb.c` |
 | HardFault early | a Thumb-2 encoding, an unaligned word access | the fault frame's PC in the `.dis` file |
 | `panic: swap size` | `fl1` missing or misconfigured | `fl0` and `fl1` lines above it |
@@ -262,7 +262,7 @@ interface/cmsis-dap.cfg -f target/rp2040.cfg`, then gdb on `unix.elf`.
 
 ## 10. Debugging without a probe
 
-There is no SWD probe on this bench, so OpenOCD and a live gdb are not
+This bench lacks an SWD probe, so OpenOCD and a live gdb are not
 available; the RP2040's own USB is the console and the reset interface.
 What found every kernel and libc bug so far:
 
@@ -292,7 +292,7 @@ sort, awk, picoc, df, mount, ps -ax, and the swap path all run. Open:
 - picoc runs a program with its 8 KB arena; a larger arena
   (`STACKSIZE=`) or `-s` script mode can overrun the 192 KB window, which the
   kernel now ends with a memory fault rather than a flood.
-- `ps` without arguments lists nothing because it filters on the terminal
+- `ps` without arguments prints an empty list because it filters on the terminal
   name; `ps -ax` shows every process.
 - The UART receive path has never been exercised.
 - The native Thumb-1 toolchain (assembler, linker relocations, Smaller C
@@ -304,8 +304,7 @@ sort, awk, picoc, df, mount, ps -ax, and the swap path all run. Open:
 The harness lives in `tools/renode` at the tree root. The
 emulator is Renode 1.17.0 (AUR `renode-bin`), running the third-party RP2040
 platform from `matgla/Renode_RP2040` (MIT, pinned by commit), not a model
-DiscoBSD carries itself: Renode's own distribution ships no RP2040 platform
-(`find /opt/renode -iname "*rp2040*"` finds nothing). That platform's peripheral
+GizmoBSD carries itself: Renode's own distribution lacks an RP2040 platform (`find /opt/renode -iname "*rp2040*"` prints an empty list). That platform's peripheral
 table (`Renode_RP2040/README.md`) marks XOSC, ROSC, PLL, resets, watchdog,
 UART (PL011), and GPIO as fully modeled; the gap this section's known
 limitation runs into is in its IO_QSPI pad model, not SSI. Full detail,
@@ -363,7 +362,7 @@ UART or GDB ports.
 
 ### What to expect
 
-The console prints the DiscoBSD banner, CPU identification, and the flash
+The console prints the GizmoBSD banner, CPU identification, and the flash
 and swap partition lines, then the kernel hangs (see `research/emulation.md`
 for the verbatim transcript and the exact spin location). It does not reach
 `login:` in this configuration. `SYSINFO_CHIP_ID` is unmodeled, so

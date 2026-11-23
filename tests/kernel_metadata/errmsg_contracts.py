@@ -14,7 +14,7 @@ class ContractError(Exception):
 
 
 # Each mutant changes the generated decoder or its tables in one place and
-# has to make the harness fail; a harness that accepts one checks nothing.
+# has to make the harness fail; a harness that accepts one is blind.
 MUTANTS = (
     ("rule-halves-swapped", "end = errno_message_expand(end, rule[0]);\n"
      "        symbol = rule[1];", "end = errno_message_expand(end, rule[1]);\n"

@@ -518,7 +518,8 @@ PTRACE_MUTANTS=		negative-trace short-read partial-read-publication \
 			misaligned-u-offset u-upper-endpoint arbitrary-u-write \
 			pc-misalignment sp-misalignment psr-control-overwrite \
 			continue-early-pc signal-upper-endpoint step-fallthrough \
-			kill-direct-exit
+			kill-direct-exit text-write-unmarked text-end-inclusive \
+			text-start-straddle
 PTRACE_ASM_SRC=	${TOPSRC}/lib/libc/arm/sys/ptrace.S
 PTRACE_ASM_HEADER_DEPS=	${TOPSRC}/lib/libc/arm/sys/SYS.h \
 			${TOPSRC}/include/syscall.h
@@ -660,6 +661,9 @@ check-ptrace-mutants: \
 		signal-upper-endpoint) expected='ipc.ip_req == -1' ;; \
 		step-fallthrough) expected='ipc.ip_req == -1' ;; \
 		kill-direct-exit) expected='exit_calls == 0' ;; \
+		text-write-unmarked) expected='USER_LOWER, 16, USER_LOWER + 3)' ;; \
+		text-end-inclusive) expected='!text_write_marks(PT_WRITE_I, USER_LOWER, 16, USER_LOWER + 16)' ;; \
+		text-start-straddle) expected='USER_LOWER + 8, 16, USER_LOWER + 5)' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \
@@ -978,7 +982,7 @@ check-console-c17-cross: ${CONSOLE_C17_STAMP} ${MACHINE_STAMP}
 	fi; \
 	echo "PASS strict C17 flags reject an empty struct"
 
-# The harness carries no kernel header, so it compiles without the renames
+# The harness leaves out every kernel header, so it compiles without the renames
 # and reaches <setjmp.h>, <stdio.h> and <string.h> the way any host program
 # does. hostkern_kern.c is the opposite case and builds once per shape,
 # because the kernel's own headers decide its types.
@@ -1887,14 +1891,14 @@ check-prf-log-mutant: prf_log_test prf_mutate.py
 
 sigauth_test: sigauth_test.c ${SIGAUTH_SRC} hostkern_kern.c hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
-	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_sig.o \
+	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -Dexit=sigauth_exit -c -o sigauth_sig.o \
 	    ${TOPSRC}/sys/kern/kern_sig.c
 	${HOST_CC} ${CRED_KERN_CFLAGS} ${ILP32} -c -o sigauth_prot2.o \
 	    ${TOPSRC}/sys/kern/kern_prot2.c
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_proc.o \
 	    ${TOPSRC}/sys/kern/kern_proc.c
 	${HOST_CC} ${KERN_CFLAGS} ${ILP32} -c -o sigauth_shim.o hostkern_kern.c
-	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -o $@ sigauth_test.c \
+	${HOST_CC} ${GATE_CFLAGS} ${ILP32} -Dexit=sigauth_exit -o $@ sigauth_test.c \
 	    sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o hostkern32.o
 
 # The node's extent is a count of mapents, so the gate runs in both
@@ -2049,7 +2053,8 @@ ITRUNC_ORDER_LDFLAGS=	-Wl,--gc-sections
 ITRUNC_ORDER_MUTANTS=	inode-after-frees flags-not-marked inode-write-delayed \
 			second-write-kept write-error-ignored \
 			indirect-write-async indirect-error-ignored \
-			indirect-not-requeued
+			indirect-not-requeued empty-returns-early \
+			device-released
 
 itrunc_order_test: itrunc_order_test.c ${ITRUNC_ORDER_SRC} hostkern32.o \
     hostkern.h ${MACHINE_STAMP}
@@ -2515,7 +2520,7 @@ check-ufs-namespace-mutants: \
 			status=$$?; \
 		fi; \
 		case $$mutation in \
-		omit-acquisition) expected='FAIL unexpected panic: ufs namespace gate' ;; \
+		omit-acquisition) expected='FAIL unexpected panic: K48' ;; \
 		omit-wakeup) expected='wakeup_calls == 1' ;; \
 		clear-on-interrupt) expected='sleep_calls == 2' ;; \
 		esac; \
@@ -2945,6 +2950,69 @@ check-capacity-mutants: capacity_test capacity_mutate.py
 		echo "PASS capacity mutation $$mutation rejected"; \
 	done
 
+# The testing kernels' counter, fault-record and message-ring unit,
+# sys/kern/subr_diag.c, against a model of the PSRAM/SD/console callers'
+# arithmetic and ring semantics. Four mutants of the source each fail the
+# check their change breaks. Standalone: the aggregate check and its ILP32
+# inventory do not run it; the root check-diag-stats target does.
+DIAG_SRC=	${TOPSRC}/sys/kern/subr_diag.c
+
+diag_stats_test: diag_stats_test.c ${DIAG_SRC} hostkern32.o hostkern.h \
+    ${MACHINE_STAMP}
+	${HOST_CC} ${KERN_CFLAGS} -DDIAG_STATS ${ILP32} \
+	    -c -o diag_stats_kernel.o ${DIAG_SRC}
+	${HOST_CC} ${GATE_CFLAGS} -DDIAG_STATS ${ILP32} -o $@ \
+	    diag_stats_test.c diag_stats_kernel.o hostkern32.o
+
+check-diag-stats:
+.if ${ILP32_OK} == "yes"
+check-diag-stats: diag_stats_test
+	./diag_stats_test
+.else
+	@echo "SKIP check-diag-stats: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
+
+# Each line: mutant name, sed expression, the check expression that must
+# fail first.
+check-diag-stats-mutants:
+.if ${ILP32_OK} == "yes"
+check-diag-stats-mutants: diag_stats_test
+	@set -eu; \
+	run_mutant() { \
+		name=$$1; expression=$$2; expected=$$3; \
+		sed "$$expression" ${DIAG_SRC} > diag_stats_$$name.mutant.c; \
+		if cmp -s ${DIAG_SRC} diag_stats_$$name.mutant.c; then \
+			echo "FAIL diag_stats mutant $$name changed nothing" >&2; \
+			exit 1; \
+		fi; \
+		${HOST_CC} ${KERN_CFLAGS} -DDIAG_STATS ${ILP32} \
+		    -c -o diag_stats_$$name.mutant.o diag_stats_$$name.mutant.c; \
+		${HOST_CC} ${GATE_CFLAGS} -DDIAG_STATS ${ILP32} \
+		    -o diag_stats_$$name.mutant.test diag_stats_test.c \
+		    diag_stats_$$name.mutant.o hostkern32.o; \
+		if ./diag_stats_$$name.mutant.test \
+		    > diag_stats_$$name.mutant.out 2>&1; then status=0; \
+		else status=$$?; fi; \
+		if [ "$$status" -eq 0 ] || \
+		    ! grep -F "$$expected" diag_stats_$$name.mutant.out \
+		    >/dev/null; then \
+			cat diag_stats_$$name.mutant.out >&2; \
+			echo "FAIL diag_stats mutant $$name not rejected for its reason" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS diag_stats mutant $$name rejected"; \
+	}; \
+	run_mutant saturation 's/if (amount > UINT32_MAX - diag.value\[metric\])/if (0)/' 'DIAG_PRINT_US_TOTAL] == UINT32_MAX'; \
+	run_mutant max-keeps-last 's/if (value > diag.value\[metric\])/if (1)/' 'DIAG_SD_SLOWEST_US] == 90'; \
+	run_mutant fault-index 's/diag.fault\[diag.fault_total++ % DIAG_NFAULT\]/diag.fault[0]/' 'stats.fault_total - 1) % DIAG_NFAULT].pid'; \
+	run_mutant ring-tail 's/if (n > \*oldlenp - 1)/if (0)/' 'len == 7 && hk_streq'; \
+	run_mutant ring-unlocked '/^diag_msgputc/,/^}/s/int s = splhigh();/int s = 0;/' 'hk_ipl_raises == before + 1'; \
+	run_mutant ring-clamp 's/if (now - pos > DIAG_MSGBUF_SIZE)/if (0)/' 'hk_streq(out, expected)'; \
+	run_mutant ring-enomem 's/if (\*oldlenp == 0) {/if (*oldlenp == 0) { return ENOMEM;/' 'len == 12'
+.else
+	@echo "SKIP check-diag-stats-mutants: ${HOST_CC} cannot compile and execute ILP32 binaries"
+.endif
+
 buffer_busy_test: buffer_busy_test.c capacity_uarea.c ${BUFFER_BUSY_SRC} \
     ${CAPACITY_SRC} hostkern_kern.c hostkern32.o hostkern.h ${MACHINE_STAMP}
 	${HOST_CC} ${KERN_CFLAGS} ${BUFFER_BUSY_DEFS} ${BUFFER_BUSY_CFLAGS} ${ILP32} \
@@ -3225,6 +3293,12 @@ sigreturn_context_test32: sigreturn_context_test.c \
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
 	    -o $@ sigreturn_context_test.c
 
+sigreturn_context_xip_test32: sigreturn_context_test.c \
+    sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -DEXEC_XIP_LIBC -no-pie \
+	    -Wl,--defsym,__xip_libc_start=0x10020000 \
+	    -Wl,--defsym,__xip_libc_end=0x1002c000 -o $@ sigreturn_context_test.c
+
 sigreturn_context_test_sanitized: sigreturn_context_test.c \
     sigreturn_context_function.c ${SIGRETURN_HEADER_DEPS}
 	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
@@ -3452,17 +3526,184 @@ check-pipe-rw-mutants: ${PIPE_RW_MUTANTS:@mutation@pipe_rw_${mutation}.mutant32.
 		echo "PASS pipe I/O $$mutation mutation rejected"; \
 	done
 
+# RLIMIT_DATA and RLIMIT_STACK growth admission: the helpers in
+# kern_resource.c, brk() and user_entry() compiled verbatim under a 32-bit
+# process shim, and one mutant per admission that must fail its named check.
+RLIMIT_GROWTH_SRC=	${TOPSRC}/sys/kern/kern_resource.c \
+			${TOPSRC}/sys/kern/kern_mman.c \
+			${TOPSRC}/sys/arch/rp2040/rp2040/syscall.c
+RLIMIT_GROWTH_MUTANTS=	data-unchecked data-counts-text shrink-refused \
+			limit-exclusive stack-limit-exclusive stack-unchecked
+
+rlimit_growth_functions.c: rlimit_growth_extract.py swap_ioctl_extract.py \
+    ${RLIMIT_GROWTH_SRC}
+	${PYTHON} rlimit_growth_extract.py --root ${TOPSRC} --output $@
+
+rlimit_growth_test32: rlimit_growth_test.c rlimit_growth_functions.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -o $@ rlimit_growth_test.c
+
+.for mutation in ${RLIMIT_GROWTH_MUTANTS}
+rlimit_growth_${mutation}.mutant.c: rlimit_growth_extract.py \
+    swap_ioctl_extract.py ${RLIMIT_GROWTH_SRC}
+	${PYTHON} rlimit_growth_extract.py --root ${TOPSRC} --output $@ \
+	    --mutation ${mutation}
+
+rlimit_growth_${mutation}.mutant.test: rlimit_growth_test.c \
+    rlimit_growth_${mutation}.mutant.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DRLIMIT_GROWTH_FUNCTIONS='"rlimit_growth_${mutation}.mutant.c"' \
+	    -o $@ rlimit_growth_test.c
+.endfor
+
+check-rlimit-growth-mutants: \
+    ${RLIMIT_GROWTH_MUTANTS:@mutation@rlimit_growth_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${RLIMIT_GROWTH_MUTANTS}; do \
+		output=rlimit_growth_$$mutation.mutant.out; \
+		if ./rlimit_growth_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		case $$mutation in \
+		data-unchecked) expected='growth one byte past the limit is refused' ;; \
+		data-counts-text) expected='growth to the limit above the text is admitted' ;; \
+		shrink-refused) expected='a process over a lowered limit can shrink' ;; \
+		limit-exclusive) expected='growth to the limit above the text is admitted' ;; \
+		stack-limit-exclusive) expected='a depth at the limit is recorded' ;; \
+		stack-unchecked) expected='a depth past the limit fails and records nothing' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "FAIL $$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL rlimit growth $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS rlimit growth $$mutation mutation rejected"; \
+	done
+
+.PHONY: check-rlimit-growth-mutants
+
+# exec_clear() and exec_finish(), extracted from exec_subr.c and kern_exec.c,
+# held to the pending-close contract: exec_clear() sets EXEC_CLOSE_PENDING and
+# leaves fdcloseexec() to exec_finish(), which runs it after the inode release.
+EXEC_CLEAR_MUTANTS=	direct-close flag-omitted
+
+exec_clear_functions.c: exec_clear_extract.py swap_ioctl_extract.py \
+    ${EXEC_SUBR_SRC} ${KERN_EXEC_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for exec_clear extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_clear_extract.py --root ${TOPSRC} --output $@
+
+exec_clear_test32: exec_clear_test.c exec_clear_functions.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -o $@ exec_clear_test.c
+
+.for mutation in ${EXEC_CLEAR_MUTANTS}
+exec_clear_${mutation}.mutant.c: exec_clear_extract.py swap_ioctl_extract.py \
+    ${EXEC_SUBR_SRC} ${KERN_EXEC_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for exec_clear extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_clear_extract.py --root ${TOPSRC} --output $@ \
+	    --mutation ${mutation}
+
+exec_clear_${mutation}.mutant.test: exec_clear_test.c \
+    exec_clear_${mutation}.mutant.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DEXEC_CLEAR_FUNCTIONS='"exec_clear_${mutation}.mutant.c"' \
+	    -o $@ exec_clear_test.c
+.endfor
+
+check-exec-clear-mutants: \
+    ${EXEC_CLEAR_MUTANTS:@mutation@exec_clear_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${EXEC_CLEAR_MUTANTS}; do \
+		output=exec_clear_$$mutation.mutant.out; \
+		if ./exec_clear_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		case $$mutation in \
+		direct-close) expected='exec_clear does not close descriptors itself' ;; \
+		flag-omitted) expected='exec_clear marks the closes pending' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "FAIL $$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL exec_clear $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS exec_clear $$mutation mutation rejected"; \
+	done
+
+.PHONY: check-exec-clear-mutants
+
+# The RLIMIT_STACK call site of sendsig() in sig_machdep.c, extracted with
+# rlimit_stack_admits(), driven just inside and just past the limit.
+SENDSIG_STACK_MUTANTS=	limit-unchecked base-swapped
+
+sendsig_stack_limit_functions.c: sendsig_stack_limit_extract.py \
+    sigreturn_context_extract.py swap_ioctl_extract.py ${SIGRETURN_SRC} \
+    ${TOPSRC}/sys/kern/kern_resource.c
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for sendsig extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} sendsig_stack_limit_extract.py --root ${TOPSRC} --output $@
+
+sendsig_stack_limit_test32: sendsig_stack_limit_test.c \
+    sendsig_stack_limit_functions.c ${SIGRETURN_HEADER_DEPS}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -o $@ \
+	    sendsig_stack_limit_test.c
+
+.for mutation in ${SENDSIG_STACK_MUTANTS}
+sendsig_stack_limit_${mutation}.mutant.c: sendsig_stack_limit_extract.py \
+    sigreturn_context_extract.py swap_ioctl_extract.py ${SIGRETURN_SRC} \
+    ${TOPSRC}/sys/kern/kern_resource.c
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for sendsig extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} sendsig_stack_limit_extract.py --root ${TOPSRC} --output $@ \
+	    --mutation ${mutation}
+
+sendsig_stack_limit_${mutation}.mutant.test: sendsig_stack_limit_test.c \
+    sendsig_stack_limit_${mutation}.mutant.c ${SIGRETURN_HEADER_DEPS}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DSENDSIG_FUNCTIONS='"sendsig_stack_limit_${mutation}.mutant.c"' \
+	    -o $@ sendsig_stack_limit_test.c
+.endfor
+
+check-sendsig-stack-limit-mutants: \
+    ${SENDSIG_STACK_MUTANTS:@mutation@sendsig_stack_limit_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${SENDSIG_STACK_MUTANTS}; do \
+		output=sendsig_stack_limit_$$mutation.mutant.out; \
+		if ./sendsig_stack_limit_$$mutation.mutant.test >$$output 2>&1; \
+		then status=0; else status=$$?; fi; \
+		case $$mutation in \
+		limit-unchecked) expected='a frame past the limit ends the process' ;; \
+		base-swapped) expected='a frame at the limit is delivered' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "FAIL $$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL sendsig stack limit $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS sendsig stack limit $$mutation mutation rejected"; \
+	done
+
+.PHONY: check-sendsig-stack-limit-mutants
+
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
 	@${MAKE} prf_test prf_log_test check-prf-log-mutant readlink_test check-readlink-mutant rwuio_test32 check-extract-function pipe_rw_contract32 pipe_rw_contract_single32 check-pipe-rw-mutants file_owner_test32 fionread_test32 sigauth_test \
 	    exec_close_test32 check-exec-close-mutant \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
-	    ptrace_test32 \
+	    ptrace_test32 rlimit_growth_test32 check-rlimit-growth-mutants \
+	    exec_clear_test32 check-exec-clear-mutants \
+	    sendsig_stack_limit_test32 check-sendsig-stack-limit-mutants \
 	    mem_span_endpoint-admission.mutant32.test \
 	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
-	    syscall_args_dispatch_mutant sigreturn_context_test32 \
+	    syscall_args_dispatch_mutant sigreturn_context_test32 sigreturn_context_xip_test32 \
 	    check-sigreturn-mutants \
 	    exec_elf_admission_test32 exec_elf_segment_span_mutant \
 	    exec_elf_read_failure_mutant exec_finish_signal_mutant \
@@ -3503,6 +3744,10 @@ check-ilp32:
 	    ./tty_local_mode_test32
 	${TEST_EXECUTION} run kernel.mem-span.ilp32 -- ./mem_span_test32
 	${TEST_EXECUTION} run kernel.ptrace.ilp32 -- ./ptrace_test32
+	${TEST_EXECUTION} run kernel.rlimit-growth.ilp32 -- ./rlimit_growth_test32
+	${TEST_EXECUTION} run kernel.exec-clear.ilp32 -- ./exec_clear_test32
+	${TEST_EXECUTION} run kernel.sendsig-stack-limit.ilp32 -- \
+	    ./sendsig_stack_limit_test32
 	@if ./mem_span_endpoint-admission.mutant32.test \
 	    >mem_span_endpoint-admission.mutant32.out 2>&1; then status=0; \
 	else status=$$?; fi; \
@@ -3526,6 +3771,8 @@ check-ilp32:
 	echo "PASS syscall dispatch-after-failure mutation rejected"
 	${TEST_EXECUTION} run kernel.sigreturn-context.ilp32 -- \
 	    ./sigreturn_context_test32
+	${TEST_EXECUTION} run kernel.sigreturn-context-xip.ilp32 -- \
+	    ./sigreturn_context_xip_test32
 	${TEST_EXECUTION} run kernel.elf-admission.ilp32 -- \
 	    ./exec_elf_admission_test32
 	@if ./exec_elf_segment_span_mutant; then status=0; else status=$$?; fi; \
@@ -3604,8 +3851,12 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.tty-local-mode.signed-shift-negative "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.mem-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ptrace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.rlimit-growth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.exec-clear.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.sendsig-stack-limit.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.sigreturn-context-xip.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.elf-admission.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.elf-surrounding-contract.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3706,6 +3957,15 @@ clean:
 	rm -f swap_ioctl_test32 swap_ioctl_function32.o swap_ioctl_rmap32.o
 	rm -f swap_ioctl_test_sanitized swap_ioctl_function_sanitized.o \
 	    swap_ioctl_rmap_sanitized.o swap_ioctl_hostkern_sanitized.o
+	rm -f rlimit_growth_functions.c rlimit_growth_test32 \
+	    rlimit_growth_*.mutant.c rlimit_growth_*.mutant.test \
+	    rlimit_growth_*.mutant.out
+	rm -f exec_clear_functions.c exec_clear_test32 \
+	    exec_clear_*.mutant.c exec_clear_*.mutant.test \
+	    exec_clear_*.mutant.out
+	rm -f sendsig_stack_limit_functions.c sendsig_stack_limit_test32 \
+	    sendsig_stack_limit_*.mutant.c sendsig_stack_limit_*.mutant.test \
+	    sendsig_stack_limit_*.mutant.out
 	rm -f ${PTRACE_FUNCTIONS} ptrace_test32 ptrace_test_sanitized \
 	    ptrace_hostkern_sanitized.o
 	rm -f ptrace_*.mutant.c ptrace_*.mutant.test ptrace_*.mutant.out
@@ -3769,7 +4029,7 @@ clean:
 	rm -f usercopy_span_test32 usercopy_span_endpoint_mutant
 	rm -f syscall_args_block.c syscall_args_dispatch_mutant.c
 	rm -f syscall_args_test32 syscall_args_dispatch_mutant
-	rm -f sigreturn_context_function.c sigreturn_context_test32 \
+	rm -f sigreturn_context_function.c sigreturn_context_test32 sigreturn_context_xip_test32 \
 	    sigreturn_context_test_sanitized
 	rm -f sigreturn_context_*.mutant.c sigreturn_context_*.mutant.test \
 	    sigreturn_context_*.mutant.out
@@ -3835,6 +4095,9 @@ clean:
 	    ufs_disk_*.mutant.functions.c ufs_disk_*.mutant.o \
 	    ufs_disk_*.mutant.test ufs_disk_*.mutant.out
 	rm -f capacity_kernel.o capacity_uarea.o capacity_test
+	rm -f diag_stats_kernel.o diag_stats_test diag_stats_*.mutant.c \
+	    diag_stats_*.mutant.o diag_stats_*.mutant.test \
+	    diag_stats_*.mutant.out
 	rm -f capacity_*.mutant.c capacity_*.mutant.o capacity_*.mutant.test
 	rm -f buffer_busy_kernel.o buffer_busy_capacity.o buffer_busy_uarea.o \
 	    buffer_busy_test
@@ -4046,7 +4309,7 @@ swap_exchange_inplace_test: swap_exchange_inplace_test.c \
 # The kernel's size_t is 32 bits wide in these objects, and this gate copies
 # through the addresses the production exchange computes, so its window must
 # sit below 4 GiB. A non-PIE link places it there on ELF hosts. Mach-O
-# reserves the low 4 GiB and has no such link, so Darwin runs no part of the
+# reserves the low 4 GiB and lacks such a link, so Darwin skips the whole of the
 # gate and says so.
 .if ${_HOST_OSNAME} == "Darwin"
 check-swap-exchange-inplace:
@@ -4067,7 +4330,7 @@ check-swap-exchange-inplace: swap_exchange_inplace_test \
 		copy-buffer-before-program) expected='expected_out_data' ;; \
 		refuse-owned-tail) expected='panic_reservation.addr[0] == run' ;; \
 		load-data-over-clean-text) expected='expected_in_data' ;; \
-		tail-ignores-ring-end) expected='swap exchange: reservation' ;; \
+		tail-ignores-ring-end) expected='K60' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \
@@ -4143,7 +4406,7 @@ check-fork-swap-refusal: fork_swap_test_compact fork_swap_test_wide \
 		sched-drop-sload-restore) expected='in_core_keeps_sload' ;; \
 		sched-drop-requeue) expected='runnable_requeued' ;; \
 		sched-swapin-after-refusal) expected='slept_on_runin' ;; \
-		sched-unreserved-swapout) expected='swapout: no reservation' ;; \
+		sched-unreserved-swapout) expected='K66' ;; \
 		sched-sleep-after-refusal) expected='no_sleep_before_exchange' ;; \
 		sched-reselect-refused) expected='reached_next_candidate' ;; \
 		sched-keep-refused-marks) expected='refusal_accounted' ;; \

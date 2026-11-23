@@ -17,8 +17,7 @@ A verifier rejects COMMON and any allocatable writable NOBITS section outside
 the named overlay before the link. `tools/generate_multicall_bss_overlay.sh`
 emits one NOLOAD output section per applet at `__app_bss_start`, sizes
 `.app_bss_extent` to the largest member, and inserts the extent before ordinary
-`.bss`. A binary built with one applet (an image that keeps one game) has
-no sibling to fence, so the generator omits `NOCROSSREFS` for it. Initialized
+`.bss`. A binary built with one applet (an image that keeps one game) lacks a sibling to fence, so the generator omits `NOCROSSREFS` for it. Initialized
 data remains in independent `.data` input sections and
 retains its bytes. The a.out loader sees one ordinary contiguous mutable image
 whose BSS size includes the maximum private extent plus shared BSS.
@@ -91,8 +90,7 @@ change those totals independently of packing and overlay savings.
 The current finite composition has seven multicall executable inodes and 80
 shipped hard-link names. Seventy-one primary applet executables occupy 615
 packed blocks when linked separately; the seven boxes occupy 182 blocks, a
-433-block reduction. Built-in applets and aliases have no separate standalone
-image and remain outside that 71-image denominator. Link maps for the boxes and
+433-block reduction. Built-in applets and aliases lack a separate standalone image and remain outside that 71-image denominator. Link maps for the boxes and
 shell contain 669 consumer edges across 192 distinct libc archive members, of
 which 130 serve more than one consumer. The archive inventory measures static
 selection; identical private symbol names do not prove that localized applet

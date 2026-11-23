@@ -1,10 +1,10 @@
-DiscoBSD/rp2040
+GizmoBSD/rp2040
 ===============
 
 2.11BSD UNIX on the Raspberry Pi Pico
 -------------------------------------
 
-DiscoBSD/rp2040 is a 2.11BSD-derived UNIX for the Raspberry Pi Pico. The
+GizmoBSD/rp2040 is a 2.11BSD-derived UNIX for the Raspberry Pi Pico. The
 whole system lives on the Pico itself: a 128 KB kernel, a 1.5 MB root file
 system, and 384 KB of swap in the board's 2 MB QSPI flash, with 264 KB of
 SRAM split between the kernel and a 192 KB window for the running
@@ -14,8 +14,8 @@ board boots to a login prompt and runs a shell, the classic BSD commands,
 `vi`, `awk`, `sed`, `ed`, a native C compiler, and a few games, on a
 Cortex-M0+ with no memory management unit.
 
-This repository is the RP2040 port of [DiscoBSD][1], Christopher Hettrick's
-independent continuation of RetroBSD; the official project targets STM32
+GizmoBSD is a fork of [DiscoBSD][1], Christopher Hettrick's independent
+continuation of RetroBSD. The upstream DiscoBSD project targets STM32
 and PIC32 boards with an SD card, and its release is [DiscoBSD 2.7][2].
 This fork maintains ARM targets only: RP2040 and STM32. It archives the
 former PIC32/MIPS source under `legacy/non-arm/` without a supported build.
@@ -40,13 +40,13 @@ What runs on it
 | console | USB CDC-ACM at 115200 8N1, 80x24; login `operator`, no password; `su` to root |
 | commands | 112 names across /bin, /sbin, /usr/bin, /usr/sbin, /usr/libexec, and /usr/games, most of them hard links into seven multicall executables |
 | optional Sixth Edition UNIX | `BUILD_PDP11_V6=yes` adds a PDP-11/40 emulator and V6 root pack to a separate legacy image; the default image excludes both |
-| native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board; no preprocessor and no headers ship, so sources declare what they call and use no `#include` |
+| native toolchain | `cc` drives the Smaller C compiler, `as`, and `ld` against `/usr/lib/libc.a` on the board; no preprocessor and no headers ship, so sources declare what they call and omit `#include` |
 
 What the login screen tells you, line by line:
 
     2.11 BSD UNIX (pico) (console)          getty: the kernel lineage, the hostname, the line
     login: operator                         type operator; no password is asked
-    DiscoBSD 2.7 -- Raspberry Pi Pico       /etc/motd, first line
+    GizmoBSD 0.1.0-alpha -- Raspberry Pi Pico   /etc/motd, first line
     You are operator, in /home/operator...  /etc/motd: where you are and what to type
     operator@pico:~$                        the shell: user@host, working directory, $ for operator
 
@@ -63,9 +63,9 @@ blue, executables green, devices yellow, on any terminal that renders
 ANSI color, which the web console and every terminal program listed
 below do.
 
-The console at first login, from `uname -a` and `df`:
+The console at first login, from `uname -sr` and `df`:
 
-    DiscoBSD pico 2.7 PICO#1 rp2040
+    GizmoBSD 0.1.0-alpha
     Filesystem  1K-blocks     Used    Avail Capacity  Mounted on
     root              979      837      142    85%    /
 
@@ -96,29 +96,29 @@ and follow the steps for your platform.
 
 #### Linux Mint, Ubuntu 24.04, Debian
 
-1. Download `discobsd-host_<version>_all.deb` from the release page.
+1. Download `gizmobsd-host_<version>_all.deb` from the release page.
 2. Install it. The package pulls in Python and pyserial and adds the udev
-   rule that names the board `/dev/discobsd`:
+   rule that names the board `/dev/gizmobsd`:
 
-       sudo apt install ./discobsd-host_*.deb
+       sudo apt install ./gizmobsd-host_*.deb
 
 3. Plug the board in. The rule grants the console to the user at the
    desktop the moment it appears, so no group and no re-login is needed.
    Confirm the tools see it:
 
-       discobsd-term --list
-       discobsd-term --probe
+       gizmobsd-term --list
+       gizmobsd-term --probe
 
    `--list` prints the device path; `--probe` reports "reachable" with the
    bytes the board answered.
 4. Open a terminal on the console. Ctrl-] q quits; Ctrl-] ? lists the
    other escapes.
 
-       discobsd-term
+       gizmobsd-term
 
 5. Optional: serve the console to phones and laptops on your LAN.
 
-       discobsd-console up --bind 0.0.0.0
+       gizmobsd-console up --bind 0.0.0.0
 
    The default without `--bind` is loopback only. Anyone reaching the LAN
    short link learns the console token, so prefer the loopback default
@@ -126,21 +126,21 @@ and follow the steps for your platform.
    `distrib/rp2040/host/RELEASE-SECURITY.md`.
 
    It prints a short URL such as `http://192.168.1.20:42069/`; open it in
-   any browser on the same network. `discobsd-console down` stops it,
-   `discobsd-console status` reports. One browser session at a time;
+   any browser on the same network. `gizmobsd-console down` stops it,
+   `gizmobsd-console status` reports. One browser session at a time;
    press `Sync & leave` in the page to sync, log out, and hand it to the
    next, watching each step it types; `keys` shows the key reference;
    `reader` turns on screen reader mode.
 
 Over ssh, or as a user who is not logged in at the machine's own screen,
-join the `discobsd` group instead and log in again:
+join the `gizmobsd` group instead and log in again:
 
-    sudo usermod -aG discobsd "$USER"
+    sudo usermod -aG gizmobsd "$USER"
 
 #### Windows 11
 
-1. Download `discobsd-host-windows.zip` from the release page and extract
-   it, for example to `C:\discobsd-host`. It holds four standalone
+1. Download `gizmobsd-host-windows.zip` from the release page and extract
+   it, for example to `C:\gizmobsd-host`. It holds four standalone
    programs; no Python install is needed.
 2. Windows Defender SmartScreen stops an unsigned program the first time:
    choose "More info", then "Run anyway". The programs are built by the
@@ -149,22 +149,22 @@ join the `discobsd` group instead and log in again:
    assigns a COM port. Open Windows Terminal or PowerShell in the folder
    and confirm the tools see the board:
 
-       cd C:\discobsd-host
-       .\discobsd-term.exe --list
-       .\discobsd-term.exe --probe
+       cd C:\gizmobsd-host
+       .\gizmobsd-term.exe --list
+       .\gizmobsd-term.exe --probe
 
 4. Open a terminal on the console. Ctrl-] q quits; Ctrl-] ? lists the
    other escapes. Use Windows Terminal rather than the legacy console
    host for correct screen handling.
 
-       .\discobsd-term.exe
+       .\gizmobsd-term.exe
 
 5. Optional: serve the console on your LAN, then open the printed short
    URL from any browser on the same network. Allow the two ports through
-   Windows Firewall when it asks; `discobsd-console.exe down` stops the
+   Windows Firewall when it asks; `gizmobsd-console.exe down` stops the
    servers.
 
-       .\discobsd-console.exe up --bind 0.0.0.0
+       .\gizmobsd-console.exe up --bind 0.0.0.0
 
 #### macOS
 
@@ -172,35 +172,34 @@ No driver and nothing to sign: macOS binds its own USB serial driver to
 the board and creates `/dev/cu.usbmodemrp20401`, world-writable, the
 moment it is plugged in.
 
-1. Install the tools through Homebrew's pipx (Apple's own Python 3.9 has
-   no pyserial), and picotool if you will reflash:
+1. Install the tools through Homebrew's pipx (Apple's own Python 3.9 lacks pyserial), and picotool if you will reflash:
 
        brew install pipx picotool
        pipx ensurepath          # once, then open a new terminal
-       pipx install discobsd-host
+       pipx install gizmobsd-host
 
 2. Plug the board in and connect. Ctrl-] q quits; Ctrl-] ? lists the
    other escapes.
 
-       discobsd-term --list
-       discobsd-term --probe
-       discobsd-term
+       gizmobsd-term --list
+       gizmobsd-term --probe
+       gizmobsd-term
 
-The `discobsd-host-macos.zip` on the release page holds the same four
-programs as Apple silicon executables for a terminal (`./discobsd-term`
+The `gizmobsd-host-macos.zip` on the release page holds the same four
+programs as Apple silicon executables for a terminal (`./gizmobsd-term`
 in the extracted folder); Gatekeeper refuses them from the Finder, and
 an Intel Mac needs the pipx install.
 
 #### Arch Linux, CachyOS
 
-    sudo pacman -U discobsd-host-<version>-1-any.pkg.tar.zst
-    discobsd-term --probe
-    discobsd-term
+    sudo pacman -U gizmobsd-host-<version>-1-any.pkg.tar.zst
+    gizmobsd-term --probe
+    gizmobsd-term
 
 #### Any system with Python 3.9 or later
 
-    pipx install discobsd_host-<version>-py3-none-any.whl
-    discobsd-term --probe
+    pipx install gizmobsd_host-<version>-py3-none-any.whl
+    gizmobsd-term --probe
 
 The wheel installs no udev rule; on Linux, add your user to the group
 your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
@@ -208,14 +207,14 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 
 #### If something does not work
 
-- `discobsd-term --list` prints nothing: the cable is power-only, or the
+- `gizmobsd-term --list` prints an empty list: the cable is power-only, or the
   board is in the bootloader. Try another cable; a board in BOOTSEL mode
   shows up as a USB drive named `RPI-RP2`, so unplug and replug it without
   the button held.
 - "Permission denied" on Linux: you installed the wheel rather than the
-  `.deb`, or you are over ssh. Join `dialout` (Ubuntu) or `discobsd` (with
+  `.deb`, or you are over ssh. Join `dialout` (Ubuntu) or `gizmobsd` (with
   the `.deb`) and log in again.
-- The console prints nothing after attaching: press Enter once to redraw
+- The console stays blank after attaching: press Enter once to redraw
   the prompt. The kernel keeps the boot messages in an 8 KB ring and
   sends them to the first terminal that opens; a terminal opened while
   the board is still enumerating can lose some of those bytes.
@@ -223,7 +222,7 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   assumes 80 columns by 24 rows. Size the window to that, or run `resize`
   on the board after changing the window.
 - The web page says the console is in use: another browser tab or a
-  `discobsd-term` holds the serial line. Close it; the line is a single
+  `gizmobsd-term` holds the serial line. Close it; the line is a single
   session.
 
 ### Hardware, care and recovery
@@ -237,8 +236,7 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   the cable during a write loses at most that write, and `fsck` runs at
   the next boot.
 - An image built with `BUILD_PDP11_V6=yes` keeps its V6 pack and guest writes
-  on the board rather than in the host tools. The default image carries no V6
-  pack.
+  on the board rather than in the host tools. The default image omits the V6 pack.
 - A board that no longer answers on USB is not lost: hold BOOTSEL while
   plugging it in, it appears as the `RPI-RP2` drive, and the two UF2
   files from a release or a build restore it in under a minute ("Build
@@ -251,7 +249,7 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   `cat /etc/COPYRIGHT` the license notice. A release or a listing states
   the same commit, so the two can be compared.
 - Questions and problems go to the issue tracker of this repository;
-  say what `discobsd-term --probe` printed and what the screen showed.
+  say what `gizmobsd-term --probe` printed and what the screen showed.
 
 ### Optional: build and run Sixth Edition UNIX
 
@@ -274,7 +272,7 @@ pack. The machine it emulates:
 | clock | KW11-L line clock at 60 Hz, from the board's clock |
 | pack contents | `/unix`, `/etc`, `/bin` (34 tools), `/usr/bin` (10), `/usr/games` (3); no compiler |
 
-Start it from the DiscoBSD prompt as `operator`:
+Start it from the GizmoBSD prompt as `operator`:
 
     $ pdp11
     pdp11: 64 KB, RK05 /usr/v6/root.rk; Ctrl-_ or ~. at a line start exits
@@ -284,22 +282,21 @@ Start it from the DiscoBSD prompt as `operator`:
     #
 
 1. Type `unix` at the `@` prompt. The kernel boots in about five seconds.
-2. Type `root` at `login:`; there is no password.
+2. Type `root` at `login:`; the account has an empty password.
 3. Use the 1975 shell: `ls /bin`, `who`, `ed`, `cal 9 2026`, `ls /usr/games`.
 4. Leave with `sync`, then one of: Ctrl-_ (web console: the `^_ exit V6`
-   button; discobsd-term: Ctrl-] _), or `~.` typed at the start of a
-   line. The emulator prints its instruction count and the DiscoBSD `$`
+   button; gizmobsd-term: Ctrl-] _), or `~.` typed at the start of a
+   line. The emulator prints its instruction count and the GizmoBSD `$`
    prompt returns.
 
 Keys differ in V6. DEL interrupts (Backspace sends DEL on most
 terminals, so Backspace interrupts too), `#` erases a character, `@`
-erases the line, Ctrl-\ quits, Ctrl-D logs out. Ctrl-C, Ctrl-U and the
-arrow keys mean nothing to it. A `#` prompt where `whoami` is "not found"
-is V6, not DiscoBSD's root shell. The full key table per system is in
+erases the line, Ctrl-\ quits, Ctrl-D logs out. It reads Ctrl-C, Ctrl-U and the arrow keys as ordinary input. A `#` prompt where `whoami` is "not found"
+is V6, not GizmoBSD's root shell. The full key table per system is in
 `distrib/rp2040/host/README.md` under "Keys and exits".
 
 What you write on the V6 pack stays on it. The pack is a 1 MB sparse file
-in `/usr/v6`; its untouched blocks cost nothing, and a session that swaps
+in `/usr/v6`; its untouched blocks stay unallocated, and a session that swaps
 or writes allocates about 30 KB of the root the first time, reused after.
 `legacy/pdp11-v6/usr.bin/pdp11/README.md` documents the emulator, the pack,
 and how it was built from the TUHS distribution. The option, host tests, and
@@ -345,14 +342,14 @@ external SIMH/V7 oracle are documented in `legacy/pdp11-v6/README.md`.
    manager works as well, one after the other, re-entering BOOTSEL
    between them because the board reboots after each copy.
 
-5. Connect with `discobsd-term`. Every push to `main` also builds both
-   `.uf2` files in CI and publishes them as the `discobsd-rp2040-firmware`
+5. Connect with `gizmobsd-term`. Every push to `main` also builds both
+   `.uf2` files in CI and publishes them as the `gizmobsd-rp2040-firmware`
    artifact under Actions, so a tester can flash without a toolchain.
 
 Build the host tools from source
 --------------------------------
 
-`distrib/rp2040/host` is the `discobsd-host` Python package behind the
+`distrib/rp2040/host` is the `gizmobsd-host` Python package behind the
 commands above. Its README covers development, the tests, and the
 packaging (a PKGBUILD, a `debian/` tree, and a PyInstaller spec).
 `.github/workflows/host.yml` tests the package on Linux, Windows, and
@@ -364,17 +361,17 @@ attaches them to a GitHub release on a `host-v*` tag.
     ruff check . && pytest
 
 Nothing needs installing to run the console from the checkout itself:
-`discobsd-console` at the root of the tree is a POSIX sh wrapper that
+`gizmobsd-console` at the root of the tree is a POSIX sh wrapper that
 runs the package from `distrib/rp2040/host/src` with the interpreter in
-`${PYTHON}` (default python3), and `discobsd-console.cmd` beside it does
+`${PYTHON}` (default python3), and `gizmobsd-console.cmd` beside it does
 the same for cmd and PowerShell (default python). The one dependency is
-pyserial. Linked or copied under the names discobsd-term, discobsd-web
-or discobsd-link, the sh wrapper runs that tool instead.
+pyserial. Linked or copied under the names gizmobsd-term, gizmobsd-web
+or gizmobsd-link, the sh wrapper runs that tool instead.
 
-    ./discobsd-console up          # Linux, macOS, Git Bash
-    .\discobsd-console up          # PowerShell, cmd
-    ./discobsd-console status
-    ./discobsd-console down
+    ./gizmobsd-console up          # Linux, macOS, Git Bash
+    .\gizmobsd-console up          # PowerShell, cmd
+    ./gizmobsd-console status
+    ./gizmobsd-console down
 
 Source tree
 -----------
@@ -518,12 +515,11 @@ conditions can be met by pointing at it.
 Other platforms: STM32 and archived PIC32
 -----------------------------------------
 
-This fork maintains STM32F4 as its second ARM target. The official DiscoBSD
+This fork maintains STM32F4 as its second ARM target. The upstream DiscoBSD
 also supports PIC32MX7, but this fork archives that MIPS source under
-`legacy/non-arm/mips-pic32/` and makes no build, boot, or hardware-support
-claim for it. The official project remains the supported PIC32 source:
+`legacy/non-arm/mips-pic32/` and does not claim build, boot, or hardware support for it. The official project remains the supported PIC32 source:
 
-- Official repository and releases: <https://github.com/chettrick/discobsd>
+- Upstream repository and releases: <https://github.com/chettrick/discobsd>
 - STM32 port notes: `distrib/stm32/README.md`
 - ARM host setup: `tools/openbsd/README.md` and
   `distrib/rp2040/host/DEVELOPMENT.md`

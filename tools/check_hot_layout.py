@@ -88,7 +88,7 @@ STT_OBJECT, STT_FUNC, STT_SECTION, STT_FILE = 1, 2, 3, 4
 
 # One placement statement of the hot block: a symbol's own section, whose name
 # may carry a compiler clone suffix (`.text.rwip.constprop.0`), or a whole
-# input section of one file or archive member, which names no symbol.
+# input section of one file or archive member, which names zero symbols.
 SYMBOL_ENTRY = re.compile(r"^\*\(\.(?:text|rodata)\.([A-Za-z_][A-Za-z0-9_.]*)\)$")
 FILE_ENTRY = re.compile(r"^\*[A-Za-z0-9_.:-]+\(\.text\)$")
 CLONE = re.compile(r"^(.*)\.(?:(?:constprop|isra|part)\.\d+|cold(?:\.\d+)?)$")
@@ -256,7 +256,7 @@ def run(paths: list[str], script: Path, way: int, line: int) -> int:
         if not failures:
             print(f"PASS hot-layout {path}: " + "; ".join(notes))
         status = max(status, 1 if failures else 0)
-    # A name one configuration omits is optional, but a name no kernel links
+    # A name one configuration omits is optional, but a name that zero kernels link
     # is a renamed or removed function whose selector now places nothing.
     nowhere = [n for n in names if n not in linked_anywhere]
     if len(paths) < 2:

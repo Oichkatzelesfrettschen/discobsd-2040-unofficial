@@ -94,49 +94,55 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("dispatch slot 66 must remain vfork")
     if syscall_records[81] != ["81", "0", "getpgrp", "ALWAYS", "getpgrp", "getpgrp=81"]:
         raise CheckError("syscall 81 must remain zero-argument getpgrp")
-    if syscall_records[156] != [
-        "156", "2", "futimes", "ALWAYS", "futimes", "futimes=156"
-    ]:
+    if syscall_records[156] != ["156", "2", "futimes", "ALWAYS", "futimes", "futimes=156"]:
         raise CheckError("syscall 156 must remain two-argument futimes")
-    if syscall_records[157] != [
-        "157", "4", "openat", "ALWAYS", "openat", "openat=157"
-    ]:
+    if syscall_records[157] != ["157", "4", "openat", "ALWAYS", "openat", "openat=157"]:
         raise CheckError("syscall 157 must remain four-argument openat")
     if syscall_records[158] != [
-        "158", "3", "unlinkat_beneath", "ALWAYS", "unlinkat_beneath",
+        "158",
+        "3",
+        "unlinkat_beneath",
+        "ALWAYS",
+        "unlinkat_beneath",
         "unlinkat_beneath=158",
     ]:
-        raise CheckError(
-            "syscall 158 must remain three-argument unlinkat_beneath"
-        )
+        raise CheckError("syscall 158 must remain three-argument unlinkat_beneath")
     if syscall_records[159] != [
-        "159", "5", "publishat_beneath", "ALWAYS", "publishat_beneath",
+        "159",
+        "5",
+        "publishat_beneath",
+        "ALWAYS",
+        "publishat_beneath",
         "publishat_beneath=159",
     ]:
-        raise CheckError(
-            "syscall 159 must remain five-argument publishat_beneath"
-        )
+        raise CheckError("syscall 159 must remain five-argument publishat_beneath")
     if syscall_records[160] != [
-        "160", "4", "openat_beneath", "ALWAYS", "openat_beneath",
+        "160",
+        "4",
+        "openat_beneath",
+        "ALWAYS",
+        "openat_beneath",
         "openat_beneath=160",
     ]:
-        raise CheckError(
-            "syscall 160 must remain four-argument openat_beneath"
-        )
+        raise CheckError("syscall 160 must remain four-argument openat_beneath")
     if syscall_records[161] != [
-        "161", "3", "mkdirat_beneath", "ALWAYS", "mkdirat_beneath",
+        "161",
+        "3",
+        "mkdirat_beneath",
+        "ALWAYS",
+        "mkdirat_beneath",
         "mkdirat_beneath=161",
     ]:
-        raise CheckError(
-            "syscall 161 must remain three-argument mkdirat_beneath"
-        )
+        raise CheckError("syscall 161 must remain three-argument mkdirat_beneath")
     if syscall_records[162] != [
-        "162", "4", "linkat_beneath", "ALWAYS", "linkat_beneath",
+        "162",
+        "4",
+        "linkat_beneath",
+        "ALWAYS",
+        "linkat_beneath",
         "linkat_beneath=162",
     ]:
-        raise CheckError(
-            "syscall 162 must remain four-argument linkat_beneath"
-        )
+        raise CheckError("syscall 162 must remain four-argument linkat_beneath")
     public = source("include/syscall.h")
     generated_files = {
         "include/syscall.h": "Copyright (c) 1980 Regents",
@@ -154,50 +160,26 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
         raise CheckError("SYS_sbrk must retain its public spelling")
     if not re.search(r"^#define SYS_openat\s+157$", public, re.MULTILINE):
         raise CheckError("SYS_openat must retain its additive public number")
-    if not re.search(
-        r"^#define SYS_unlinkat_beneath\s+158$", public, re.MULTILINE
-    ):
-        raise CheckError(
-            "SYS_unlinkat_beneath must retain its additive public number"
-        )
-    if not re.search(
-        r"^#define SYS_publishat_beneath\s+159$", public, re.MULTILINE
-    ):
-        raise CheckError(
-            "SYS_publishat_beneath must retain its additive public number"
-        )
-    if not re.search(
-        r"^#define SYS_openat_beneath\s+160$", public, re.MULTILINE
-    ):
-        raise CheckError(
-            "SYS_openat_beneath must retain its additive public number"
-        )
-    if not re.search(
-        r"^#define SYS_mkdirat_beneath\s+161$", public, re.MULTILINE
-    ):
-        raise CheckError(
-            "SYS_mkdirat_beneath must retain its additive public number"
-        )
-    if not re.search(
-        r"^#define SYS_linkat_beneath\s+162$", public, re.MULTILINE
-    ):
-        raise CheckError(
-            "SYS_linkat_beneath must retain its additive public number"
-        )
+    if not re.search(r"^#define SYS_unlinkat_beneath\s+158$", public, re.MULTILINE):
+        raise CheckError("SYS_unlinkat_beneath must retain its additive public number")
+    if not re.search(r"^#define SYS_publishat_beneath\s+159$", public, re.MULTILINE):
+        raise CheckError("SYS_publishat_beneath must retain its additive public number")
+    if not re.search(r"^#define SYS_openat_beneath\s+160$", public, re.MULTILINE):
+        raise CheckError("SYS_openat_beneath must retain its additive public number")
+    if not re.search(r"^#define SYS_mkdirat_beneath\s+161$", public, re.MULTILINE):
+        raise CheckError("SYS_mkdirat_beneath must retain its additive public number")
+    if not re.search(r"^#define SYS_linkat_beneath\s+162$", public, re.MULTILINE):
+        raise CheckError("SYS_linkat_beneath must retain its additive public number")
 
     errno_records = records(root / "sys/kern/errlist.master", 2)
-    if len(errno_records) != 84 or errno_records[-1] != [
-        "83", "Illegal byte sequence"
-    ]:
+    if len(errno_records) != 84 or errno_records[-1] != ["83", "Illegal byte sequence"]:
         raise CheckError("errno master must cover zero through ELAST")
 
     conf = source("sys/arch/rp2040/rp2040/conf.c")
     # The PICOCALC configuration alone adds block major 5 (sd) and character
     # major 11 (rsd) under SD_ENABLED; the other kernels keep majors 0..4.
     if count_initializer_rows(conf, "const struct bdevsw bdevsw[] = {") != 7:
-        raise CheckError(
-            "RP2040 bdevsw must contain majors 0..4, the SD row and its terminator"
-        )
+        raise CheckError("RP2040 bdevsw must contain majors 0..4, the SD row and its terminator")
     bdevsw_body = conf.split("const struct bdevsw bdevsw[] = {", 1)[1].split("\n};", 1)[0]
     sd_block = re.search(
         r"^#ifdef SD_ENABLED\n(.*?)^#endif\n", bdevsw_body, re.MULTILINE | re.DOTALL
@@ -227,15 +209,14 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     # The majors past 11 sit in one block that needs both the console and
     # the SD driver, so their numbers hold; its rows are numbered from 12
     # in order.
-    union = preprocessor_block(
-        cdevsw_body, "#if defined(PICOCALC_ENABLED) && defined(SD_ENABLED)"
-    )
+    union = preprocessor_block(cdevsw_body, "#if defined(PICOCALC_ENABLED) && defined(SD_ENABLED)")
     if union is None:
         raise CheckError("RP2040 cdevsw must add majors past 11 under both options")
     union_rows = re.findall(r"^\s*\{\s*/\* (\d+) - ", union[1], re.MULTILINE)
-    if union_rows != [str(major) for major in range(12, 12 + UNION_CDEVSW_ROWS)] or len(
-        re.findall(r"^\s*\{", union[1], re.MULTILINE)
-    ) != UNION_CDEVSW_ROWS:
+    if (
+        union_rows != [str(major) for major in range(12, 12 + UNION_CDEVSW_ROWS)]
+        or len(re.findall(r"^\s*\{", union[1], re.MULTILINE)) != UNION_CDEVSW_ROWS
+    ):
         raise CheckError("RP2040 cdevsw union rows must be majors 12 upward in order")
     cdevsw_body = cdevsw_body.replace(union[0], "", 1)
     picocalc = re.search(
@@ -253,8 +234,9 @@ def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
     # openi() refuses a write open of any disk character device at
     # securelevel 2 through isdisk(dev, IFCHR), so the raw SD major must be
     # classified as a disk for the character type as well as the block type.
-    isdisk = re.search(r"^isdisk\(dev_t dev, int type\)\n\{\n(.*?)\n\}\n", conf,
-                       re.MULTILINE | re.DOTALL)
+    isdisk = re.search(
+        r"^isdisk\(dev_t dev, int type\)\n\{\n(.*?)\n\}\n", conf, re.MULTILINE | re.DOTALL
+    )
     if isdisk is None or not re.search(
         r"^#ifdef SD_ENABLED\n[^\n]*\n\tif \(type == IFCHR\)\n"
         r"\t\treturn major\(dev\) == SD_CMAJOR;\n#endif\n",
@@ -364,10 +346,8 @@ def main() -> int:
             root,
             {
                 syscall_path: syscall_source.replace(
-                    "158|3|unlinkat_beneath|ALWAYS|unlinkat_beneath|"
-                    "unlinkat_beneath=158",
-                    "158|2|unlinkat_beneath|ALWAYS|unlinkat_beneath|"
-                    "unlinkat_beneath=158",
+                    "158|3|unlinkat_beneath|ALWAYS|unlinkat_beneath|unlinkat_beneath=158",
+                    "158|2|unlinkat_beneath|ALWAYS|unlinkat_beneath|unlinkat_beneath=158",
                     1,
                 )
             },
@@ -379,10 +359,8 @@ def main() -> int:
             root,
             {
                 syscall_path: syscall_source.replace(
-                    "159|5|publishat_beneath|ALWAYS|publishat_beneath|"
-                    "publishat_beneath=159",
-                    "159|4|publishat_beneath|ALWAYS|publishat_beneath|"
-                    "publishat_beneath=159",
+                    "159|5|publishat_beneath|ALWAYS|publishat_beneath|publishat_beneath=159",
+                    "159|4|publishat_beneath|ALWAYS|publishat_beneath|publishat_beneath=159",
                     1,
                 )
             },
@@ -394,10 +372,8 @@ def main() -> int:
             root,
             {
                 syscall_path: syscall_source.replace(
-                    "160|4|openat_beneath|ALWAYS|openat_beneath|"
-                    "openat_beneath=160",
-                    "160|3|openat_beneath|ALWAYS|openat_beneath|"
-                    "openat_beneath=160",
+                    "160|4|openat_beneath|ALWAYS|openat_beneath|openat_beneath=160",
+                    "160|3|openat_beneath|ALWAYS|openat_beneath|openat_beneath=160",
                     1,
                 )
             },
@@ -409,10 +385,8 @@ def main() -> int:
             root,
             {
                 syscall_path: syscall_source.replace(
-                    "161|3|mkdirat_beneath|ALWAYS|mkdirat_beneath|"
-                    "mkdirat_beneath=161",
-                    "161|2|mkdirat_beneath|ALWAYS|mkdirat_beneath|"
-                    "mkdirat_beneath=161",
+                    "161|3|mkdirat_beneath|ALWAYS|mkdirat_beneath|mkdirat_beneath=161",
+                    "161|2|mkdirat_beneath|ALWAYS|mkdirat_beneath|mkdirat_beneath=161",
                     1,
                 )
             },
@@ -424,10 +398,8 @@ def main() -> int:
             root,
             {
                 syscall_path: syscall_source.replace(
-                    "162|4|linkat_beneath|ALWAYS|linkat_beneath|"
-                    "linkat_beneath=162",
-                    "162|3|linkat_beneath|ALWAYS|linkat_beneath|"
-                    "linkat_beneath=162",
+                    "162|4|linkat_beneath|ALWAYS|linkat_beneath|linkat_beneath=162",
+                    "162|3|linkat_beneath|ALWAYS|linkat_beneath|linkat_beneath=162",
                     1,
                 )
             },
@@ -450,11 +422,7 @@ def main() -> int:
         "raw SD device outside the disk classification",
         lambda: check_tree(
             root,
-            {
-                conf_path: conf.replace(
-                    "\treturn major(dev) == SD_CMAJOR;\n", "\treturn 0;\n", 1
-                )
-            },
+            {conf_path: conf.replace("\treturn major(dev) == SD_CMAJOR;\n", "\treturn 0;\n", 1)},
         ),
     )
 

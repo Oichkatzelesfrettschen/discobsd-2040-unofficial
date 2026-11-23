@@ -1,0 +1,38 @@
+== A. shift copy x[p+d] <- x[p], p in [0,L): dependency graph, valid orders, nilpotency index
+L d | paths longest acyclic | valid_orders multinomial | nil_index predicted ceil(L/d)+1
+4 1 | 1 4 True | 1 1 | 5 5
+5 2 | 2 3 True | 10 10 | 4 4
+6 2 | 2 3 True | 20 20 | 4 4
+6 3 | 3 2 True | 90 90 | 3 3
+7 3 | 3 3 True | 210 210 | 4 4
+7 1 | 1 7 True | 1 1 | 8 8
+6 6 | 6 1 True | 720 720 | 2 2
+4 5 | 4 1 True | 24 24 | 2 2
+7 2 | 2 4 True | 35 35 | 5 5
+== B. rotation of an n-ring by d (all cells move): cycles, valid orders, one temp cell
+n d | cycles(gcd) cycle_len | acyclic valid_orders | one_temp_ok
+4 1 | 1 4 | False 0 | True gcd= 1
+6 2 | 2 3 | False 0 | True gcd= 2
+6 3 | 3 2 | False 0 | True gcd= 3
+7 3 | 1 7 | False 0 | True gcd= 1
+8 2 | 2 4 | False 0 | True gcd= 2
+== C. overlapping exchange of ranges [0,L) and [d,d+L): distinct results over all swap orders
+L d | distinct_results (1 = well defined)
+3 1 | 4 (overlap)
+4 2 | 4 (overlap)
+4 4 | 1 (disjoint)
+3 5 | 1 (disjoint)
+5 2 | 8 (overlap)
+== D. one-byte copy T(d<-s) = I + e_d(e_s - e_d)^T is idempotent; commutation criterion
+copy matrices 20 idempotent failures: 0 | pairs 400 commutation-criterion mismatches: 0
+== E. chunked move through a buffer of K bytes; two conv windows A (base 0) and B (base 64) show the same storage
+('code', 'cross-window', 'L<=K') mismatches 0 of 5750 first: None
+('code', 'cross-window', 'L>K') mismatches 1844 of 6218 first: (0, 64, 0, 1, 2, 1)
+('code', 'same-window', 'L<=K') mismatches 0 of 5750 first: None
+('code', 'same-window', 'L>K') mismatches 0 of 6218 first: None
+('storage', 'cross-window', 'L<=K') mismatches 0 of 5750 first: None
+('storage', 'cross-window', 'L>K') mismatches 0 of 6218 first: None
+('storage', 'same-window', 'L<=K') mismatches 0 of 5750 first: None
+('storage', 'same-window', 'L>K') mismatches 0 of 6218 first: None
+== F. ems.c alias() (usr.bin/i86/ems.c:404-424) as a Python port vs byte-set intersection, random configurations
+trials 359490 agree 359490 disagree 0 overlapping cases 13931 skipped 40510

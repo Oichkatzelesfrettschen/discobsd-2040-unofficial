@@ -22,7 +22,7 @@ ELF=${1:?flash_semantics.elf}
 OUT=${2:-/dev/stdout}
 
 # The console the resident kernel presents, so its return can be awaited.
-RESIDENT_GLOB='/dev/serial/by-id/*DiscoBSD*'
+RESIDENT_GLOB='/dev/serial/by-id/*[DG]i[sz][cm]oBSD*'
 # The Pico SDK's stdio_usb device name.
 PROBE_GLOB='/dev/serial/by-id/usb-Raspberry_Pi_Pico*'
 

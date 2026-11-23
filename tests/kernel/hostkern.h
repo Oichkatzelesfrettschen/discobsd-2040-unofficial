@@ -5,8 +5,8 @@
  * it against this harness, so the gate exercises the code the board runs
  * rather than a second copy of its algorithm written for the test.
  *
- * This header names no type the kernel also names, and it includes no system
- * header at all. That is the harness's central constraint, not a style
+ * This header uses only types whose host and kernel definitions agree
+ * (void, char, int, unsigned), and it does not include a system header. That is the harness's central constraint, not a style
  * choice. sys/sys/types.h reads "typedef u_int size_t", so a kernel source
  * sees a 32-bit size_t, while <stddef.h> gives a host source a 64-bit one; a
  * gate that reached both would pass an array of one width to a kernel

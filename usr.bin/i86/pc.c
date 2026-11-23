@@ -52,7 +52,10 @@
  *
  * Interrupts come through an interrupt controller at ports 20h and 21h
  * with request, in-service and mask registers, fixed priority and the
- * end-of-interrupt commands: the timer on line 0, the keyboard on line 1.
+ * end-of-interrupt commands: the timer on line 0, the keyboard on line 1,
+ * COM1 (serial.c) on line 4. Control-\ turns mouse keys on and off: while
+ * on, the arrows and the bracket keys drive the mouse on COM1
+ * (mouse_arrow(), mouse_button()) instead of typing.
  *
  * The keyboard is the terminal's byte stream turned back into key presses.
  * Each key becomes scan bytes at port 60h, one keyboard interrupt apiece:
@@ -80,7 +83,10 @@
 
 #include "gfx.h"
 #include "mem.h"
+#include "clock.h"
 #include "pc.h"
+#include "serial.h"
+#include "ems.h"
 
 #define ROWS		25
 #define VRAM_ADDR	GFX_VRAM
@@ -103,6 +109,9 @@
 #define K_ALT		0x40000u
 #define BDA		0x400u
 #define IDLE_POLLS	16		/* empty key polls in one tick: waiting */
+#define MK_STEP		8		/* mickeys an arrow moves the mouse */
+#define MK_MAX		64		/* the most, after repeats */
+#define MK_TICKS	6		/* a press this soon after the last: a repeat */
 #define TYPE_TICKS	64		/* timer ticks of polling before typing */
 
 struct disk {
@@ -135,6 +144,10 @@ static uint8_t pic_icw2, pic_icw4;	/* which of them the next one is */
 static uint8_t pic_base = 8, pic_aeoi;	/* what the words selected */
 static unsigned idle_polls, idle_tick;
 static int key_eof;
+static int ser_level;			/* COM1's interrupt output */
+static int mouse_keys;			/* arrows and brackets move the mouse */
+static unsigned mouse_held;		/* buttons held by { and } */
+static unsigned mk_dir = 4, mk_tick, mk_step;	/* the last arrow */
 
 /* The terminal is drawn on: the display is neither off nor the panel. */
 #define TERMINAL	(!cf.quiet && !gfx_on)
@@ -146,8 +159,89 @@ static unsigned olen;
 
 static unsigned long next_tick, vtime;
 static unsigned ticks_due;
-static uint8_t imask, crtc_index, pit_flip, cmos_index;
-static uint16_t pit_count;
+static uint8_t imask, crtc_index, crt_flip, cmos_index;
+
+/*
+ * The interval timer, an 8254 at ports 40h to 43h whose three counters
+ * count PIT_HZ clocks a second: counter 0 raises interrupt line 0 at each
+ * period of its count, 65536 (54.925 ms) unless the guest loads another;
+ * counter 1 refreshes memory; counter 2, gated by bit 0 of port 61h,
+ * drives the speaker, whose sound goes nowhere, and shows its output in
+ * bit 5 of that port. Modes 0, 2 and 3 are counted; 1, 4 and 5 count as
+ * mode 0 does, with no gate trigger. A count loaded while counting takes
+ * effect at once rather than at the end of the period.
+ *
+ * Time is a count of these clocks. At each poll it is the host's clock,
+ * or under -T PIT_POLL a poll; between polls it moves on by the
+ * instructions run (pc_step) times pit_step, the clocks an instruction
+ * took over the last running stretch, so that two reads of a counter in
+ * one poll differ as they would on the machine. It never runs backwards.
+ * A timer faster than a poll shortens the next run of instructions to
+ * the time left before its interrupt (pc_slice).
+ */
+#define PIT_HZ		1193182u
+#define PIT_POLL	5966u		/* PC_POLL_MS in clocks, under -T */
+#define PIT_TSTEP	745u		/* clocks a step in 256ths, under -T */
+#define PIT_LEARN	59659u		/* clocks of running that set pit_step */
+#define SLICE_MIN	64u		/* the fewest steps between polls */
+
+struct pit {
+	uint32_t t0;		/* the clock counting started at */
+	uint32_t held;		/* clocks counted when gate 2 went low */
+	uint32_t count;		/* the count loaded, 1 to 65536 */
+	uint16_t latch;		/* the count latched for reading */
+	uint8_t mode, rw, bcd;	/* the last control word's fields */
+	uint8_t armed;		/* a count is loaded and counting */
+	uint8_t low;		/* the low byte of a count being loaded */
+	uint8_t wnext, rnext;	/* the next access is the high byte */
+	uint8_t latched;	/* bytes of latch to read */
+	uint8_t slatched, status;	/* a read-back status to read */
+	uint32_t shown;		/* mode 2: the period whose low pulse was read */
+};
+
+static struct pit pit[3];
+static uint32_t pit_t;		/* the clock at the last poll */
+static uint32_t pit_last;	/* the latest clock a read has seen */
+static uint32_t pit_step = PIT_TSTEP;
+static uint32_t irq_at;		/* counter 0's next interrupt */
+static uint8_t irq_armed, port61;
+static uint32_t host_clk, host_rem, run_clk, run_steps;
+static uint32_t pit_learn = PIT_POLL;	/* the first estimate comes soon */
+static unsigned long host_last;
+unsigned pc_step, pc_slice = PC_STEPS;
+unsigned long pc_ran;
+
+/*
+ * -S: the instructions take as long as on the processor at cf.khz, at
+ * cf.cpi10 tenths of a clock each (main.c sets it from -c), the figures
+ * of the loop of docs/research/i86-dos-emulator/measure/speed.asm that
+ * docs/research/i86-dos-emulator/cpu-timing.md derives from Intel's
+ * manuals and checks against silicon captures. The host waits out the
+ * time the guest is ahead; a guest behind, as on a board slower than the
+ * clock asked for, keeps at most 20 ms of credit, and a step back of the
+ * host's clock starts the pace again from there.
+ */
+static unsigned long thr_due;
+static uint32_t thr_rem;
+
+unsigned long
+pc_target(void)
+{
+	return (cf.khz && !cf.fixed_clock ? cf.khz * 10000UL / cf.cpi10 : 0);
+}
+
+static void
+throttle(uint32_t steps)
+{
+	unsigned long now = host_us();
+	uint32_t n = steps * cf.cpi10 * 100u + thr_rem;
+	unsigned ms;
+
+	thr_due += n / cf.khz;
+	thr_rem = n % cf.khz;
+	if ((ms = clk_pace(&thr_due, now)) != 0)
+		host_sleep(ms);
+}
 
 /* With I86_TRACE defined, a host build reports each firmware function and
  * port the machine does not implement, one line a use on standard error;
@@ -709,6 +803,52 @@ key_code(unsigned ch)
 	return (ch);
 }
 
+/* COM1's interrupt output: a rising edge is a request on its line. */
+static void
+ser_edge(void)
+{
+	int level = ser_line();
+
+	if (level && !ser_level)
+		pic_irr |= 1u << SER_LINE;
+	ser_level = level;
+}
+
+/* Mouse keys. An arrow moves the mouse MK_STEP mickeys; a press of the
+ * same arrow within MK_TICKS timer ticks of the last one, as the keyboard
+ * sends while a key is held, moves twice as far as that one, up to MK_MAX.
+ * dir is 0 to 3 for up, down, right and left. */
+static void
+mouse_arrow(unsigned dir)
+{
+	static const signed char mx[] = { 0, 0, 1, -1 }, my[] = { -1, 1, 0, 0 };
+
+	if (dir == mk_dir && nticks - mk_tick <= MK_TICKS)
+		mk_step = mk_step < MK_MAX ? 2 * mk_step : MK_MAX;
+	else
+		mk_step = MK_STEP;
+	mk_dir = dir;
+	mk_tick = nticks;
+	mouse_report(mx[dir] * (int)mk_step, my[dir] * (int)mk_step,
+	    mouse_held);
+}
+
+/* [ and ] click the left and right button, { and } press it and leave it
+ * held, for dragging, until either key of that button comes again. */
+static void
+mouse_button(unsigned ch)
+{
+	unsigned b = (ch == '[' || ch == '{') ? MOUSE_LEFT : MOUSE_RIGHT;
+
+	if (mouse_held & b)
+		mouse_held &= ~b;
+	else if (ch == '{' || ch == '}')
+		mouse_held |= b;
+	else
+		mouse_report(0, 0, mouse_held | b);
+	mouse_report(0, 0, mouse_held);
+}
+
 /* The bytes after ESC: a cursor or function key, or Alt with a key. */
 static void
 key_escape(void)
@@ -745,8 +885,12 @@ key_escape(void)
 		key_type((unsigned)tilde[n] << 8);
 	else if (ch >= 'P' && ch <= 'S')
 		key_type((unsigned)(0x3b + ch - 'P') << 8);
-	else if (ch > 0 && (p = strchr(letter, ch)) != NULL)
-		key_type((unsigned)lcode[p - letter] << 8);
+	else if (ch > 0 && (p = strchr(letter, ch)) != NULL) {
+		if (mouse_keys && p - letter < 4)
+			mouse_arrow((unsigned)(p - letter));
+		else
+			key_type((unsigned)lcode[p - letter] << 8);
+	}
 }
 
 static void menu(void);
@@ -767,6 +911,15 @@ key_pump(void)
 			if (cf.quiet)
 				host_exit(0);
 			menu();
+			continue;
+		}
+		if (ch == 0x1c) {	/* Ctrl-\: mouse keys on or off */
+			mouse_keys = !mouse_keys;
+			gfx_pointer(mouse_keys);
+			continue;
+		}
+		if (mouse_keys && ch != 0 && strchr("[]{}", ch) != NULL) {
+			mouse_button((unsigned)ch);
 			continue;
 		}
 		if (ch == 0x1b)
@@ -988,13 +1141,20 @@ menu(void)
 	DIR *dp;
 	unsigned i;
 	size_t n;
-	int ch, known = 1;
+	int ch, known = 1, saved;
 
+	/* With -P the panel as it stands goes to a file first: the close
+	 * gives it back to the console, which draws over it. */
+	if (gfx_on)
+		refresh();
+	saved = gfx_capture();
 	/* The console draws nothing while the panel is this program's. */
 	gfx_close();
 	/* One line that fits the 40 columns of the PicoCalc's DOS screen. */
 	oputs("\033[0m\033[2J\033[H"
 	    "i86: q quit, a b floppy, other: back\r\n");
+	if (saved <= 0)
+		oputs(saved == 0 ? "panel saved\r\n" : "panel not saved\r\n");
 	oflush();
 	ch = host_getc();
 	if (ch == 'a' || ch == 'b') {
@@ -1131,10 +1291,14 @@ guest_copy(unsigned seg, unsigned off, uint8_t *buf, unsigned n, int toguest)
 	}
 }
 
+/* One sector of a disk image. disk_rw() and boot() take turns with it:
+ * the bootstrap read finishes before the guest can call interrupt 13h. */
+static uint8_t sector[512];
+
 static unsigned
 disk_rw(struct i86 *c, struct disk *d, unsigned fn)
 {
-	static uint8_t buf[512];
+	uint8_t *buf = sector;
 	unsigned n = c->r[R_AX] & 0xff, cl = c->r[R_CX] & 0xff;
 	unsigned cyl = (c->r[R_CX] >> 8) | (cl & 0xc0) << 2;
 	unsigned head = c->r[R_DX] >> 8, sec = cl & 63, off = c->r[R_BX];
@@ -1235,7 +1399,7 @@ static int
 boot(struct i86 *c)
 {
 	static const char msg[] = "i86: no bootable disk\r\n";
-	static uint8_t buf[512];
+	uint8_t *buf = sector;
 	unsigned i;
 
 	for (i = 0; i < 4; i += 2) {
@@ -1373,6 +1537,12 @@ pc_trap(struct i86 *c, unsigned n)
 	case TRAP_KEY:
 		key_irq();
 		return (1);
+	case 0x67:
+		if (ems_on)
+			ems_int(c);
+		else
+			TRACE("int", n, c->r[R_AX]);
+		break;
 	case 0x10:
 		video(c);
 		break;
@@ -1448,12 +1618,312 @@ pc_trap(struct i86 *c, unsigned n)
 
 /* Ports. */
 
+/* The host's milliseconds for the 55 ms tick, the waits and the serial
+ * port, moving on by every forward step of host_ms() and none of a
+ * backward one (clk_forward), so that a clock set back keeps neither
+ * waiting out the difference. */
+static unsigned long
+host_now(void)
+{
+	static unsigned long last, mono;
+
+	mono += clk_forward(&last, host_ms());
+	return (mono);
+}
+
+/* The host's clock in PIT clocks, exact through a carried remainder;
+ * clk_pit counts a gap over a second as one and a step back of the host's
+ * clock as none. */
+static uint32_t
+host_clock(void)
+{
+	host_clk += clk_pit(&host_last, host_us(), &host_rem);
+	return (host_clk);
+}
+
+static uint32_t
+pit_now(void)
+{
+	uint32_t t = pit_t + (pc_step * pit_step >> 8);
+
+	if ((int32_t)(t - pit_last) > 0)
+		pit_last = t;
+	return (pit_last);
+}
+
+/* Clocks counter n has counted: none before its count is loaded, and
+ * those up to the fall of its gate while gate 2 is low. */
+static uint32_t
+pit_elapsed(unsigned n, uint32_t now)
+{
+	if (!pit[n].armed)
+		return (0);
+	if (n == 2 && !(port61 & 1))
+		return (pit[n].held);
+	return (now - pit[n].t0);
+}
+
+/* Four decimal digits each way, for a counter in BCD. */
+static unsigned
+bcd_bin(unsigned v)
+{
+	return ((v >> 12 & 15) * 1000 + (v >> 8 & 15) * 100 +
+	    (v >> 4 & 15) * 10 + (v & 15));
+}
+
+static unsigned
+bin_bcd(unsigned v)
+{
+	return ((v / 1000 % 10) << 12 | (v / 100 % 10) << 8 |
+	    (v / 10 % 10) << 4 | v % 10);
+}
+
+/*
+ * The count a read shows. Mode 3 counts down by two twice a period, from
+ * the count made even (an odd count loads count - 1): (count + 1) / 2
+ * clocks in the high half and (count - 1) / 2 in the low half. A BCD
+ * counter wraps at 10000 and reads as four decimal digits.
+ */
+static unsigned
+pit_value(unsigned n, uint32_t now)
+{
+	struct pit *p = &pit[n];
+	uint32_t e = pit_elapsed(n, now), c = p->count, hi, v;
+
+	if (!p->armed)
+		return (0);
+	switch (p->mode) {
+	case 2:
+		v = c - e % c;
+		break;
+	case 3:
+		e %= c;
+		hi = (c + 1) / 2;
+		v = c - (c & 1) - 2 * (e < hi ? e : e - hi);
+		break;
+	default:	/* on past zero */
+		v = p->bcd ? (c + 10000 - e % 10000) % 10000 : c - e;
+		break;
+	}
+	return (p->bcd ? bin_bcd(v % 10000) : v & 0xffff);
+}
+
+static unsigned
+pit_out(unsigned n, uint32_t now)
+{
+	struct pit *p = &pit[n];
+	uint32_t e = pit_elapsed(n, now);
+
+	if (!p->armed)
+		return (p->mode != 0);
+	switch (p->mode) {
+	case 2:
+		/* Low for the one clock at the end of each period: shown
+		 * once to the first read after the period ends, since
+		 * time moves between reads in steps of whole instructions. */
+		if ((n != 2 || (port61 & 1)) && e / p->count != p->shown) {
+			p->shown = e / p->count;
+			return (0);
+		}
+		return (1);
+	case 3:
+		return (n == 2 && !(port61 & 1)) ||
+		    e % p->count < (p->count + 1) / 2;
+	default:
+		return (e >= p->count);
+	}
+}
+
+/* Counter 0's interrupts due by now, as many waiting as clk_owe() allows,
+ * raised on line 0 when it is free. */
+static void
+pit_irq(struct i86 *c, uint32_t now)
+{
+	while (irq_armed && (int32_t)(now - irq_at) >= 0) {
+		ticks_due = clk_owe(ticks_due, pit[0].count);
+		if (pit[0].mode == 2 || pit[0].mode == 3) {
+			irq_at += pit[0].count;
+			if ((int32_t)(now - irq_at) > (int32_t)(PIT_HZ / 2))
+				irq_at = now + pit[0].count;
+		} else
+			irq_armed = 0;
+	}
+	if (ticks_due && !(pic_irr & 1)) {
+		ticks_due--;
+		pic_irr |= 1;
+		pic_update(c);
+	}
+}
+
+/* Steps until counter 0's next interrupt when that comes sooner than a
+ * poll's worth of clocks, which a periodic count shorter than a poll
+ * makes happen; otherwise a whole run. */
+static unsigned
+slice_left(void)
+{
+	uint32_t d, poll = PC_STEPS * pit_step >> 8;
+
+	if (!irq_armed ||
+	    ((pit[0].mode == 2 || pit[0].mode == 3) && pit[0].count >= poll))
+		return (PC_STEPS);
+	d = irq_at - pit_now();
+	if ((int32_t)d <= 0)
+		return (SLICE_MIN);
+	if (d >= poll)
+		return (PC_STEPS);
+	d = (d << 8) / pit_step;
+	return (d < SLICE_MIN ? SLICE_MIN : d);
+}
+
+static void
+pit_load(struct i86 *c, unsigned n, unsigned v)
+{
+	struct pit *p = &pit[n];
+	uint32_t now = pit_now();
+
+	if (p->bcd)
+		v = bcd_bin(v);
+	p->count = v ? v : p->bcd ? 10000 : 0x10000;
+	p->t0 = now;
+	p->held = 0;
+	p->shown = 0;
+	p->armed = 1;
+	if (n == 0) {
+		irq_at = now + p->count;
+		irq_armed = 1;
+		pit_irq(c, now);
+		/* A faster rate takes effect inside the current run. */
+		if (pc_step + slice_left() < pc_slice)
+			pc_slice = pc_step + slice_left();
+	}
+}
+
+static void
+pit_latch(unsigned n)
+{
+	if (!pit[n].latched) {
+		pit[n].latch = (uint16_t)pit_value(n, pit_now());
+		pit[n].latched = pit[n].rw == 3 ? 2 : 1;
+	}
+}
+
+static unsigned
+pit_read(struct i86 *c, unsigned n)
+{
+	struct pit *p = &pit[n];
+	unsigned v, hi;
+
+	if (p->slatched) {
+		p->slatched = 0;
+		return (p->status);
+	}
+	if (n == 0)
+		pit_irq(c, pit_now());
+	v = p->latched ? p->latch : pit_value(n, pit_now());
+	hi = p->rw == 2 || (p->rw == 3 && p->rnext);
+	if (p->rw == 3)
+		p->rnext ^= 1;
+	if (p->latched)
+		p->latched--;
+	return (hi ? v >> 8 : v & 0xff);
+}
+
+static void
+pit_write(struct i86 *c, unsigned n, unsigned v)
+{
+	struct pit *p = &pit[n];
+
+	if (p->rw == 1)
+		pit_load(c, n, v);
+	else if (p->rw == 2)
+		pit_load(c, n, v << 8);
+	else if (!p->wnext) {
+		/* Mode 0 stops at the first byte of a new count, OUT low. */
+		p->low = (uint8_t)v;
+		p->wnext = 1;
+		if (p->mode == 0) {
+			p->armed = 0;
+			if (n == 0)
+				irq_armed = 0;
+		}
+	} else {
+		p->wnext = 0;
+		pit_load(c, n, p->low | v << 8);
+	}
+}
+
+/* Port 43h: a control word, a counter latch or a read-back. */
+static void
+pit_control(unsigned v)
+{
+	unsigned n = v >> 6, k, mode;
+	uint32_t now = pit_now();
+
+	if (n == 3) {
+		for (k = 0; k < 3; k++) {
+			if (!(v & 2u << k))
+				continue;
+			if (!(v & 0x10) && !pit[k].slatched) {
+				pit[k].status = (uint8_t)(pit_out(k, now) << 7 |
+				    !pit[k].armed << 6 | pit[k].rw << 4 |
+				    pit[k].mode << 1 | pit[k].bcd);
+				pit[k].slatched = 1;
+			}
+			if (!(v & 0x20))
+				pit_latch(k);
+		}
+		return;
+	}
+	if ((v & 0x30) == 0) {
+		pit_latch(n);
+		return;
+	}
+	mode = v >> 1 & 7;
+	pit[n].mode = (uint8_t)(mode > 5 ? mode - 4 : mode);
+	pit[n].rw = (uint8_t)(v >> 4 & 3);
+	pit[n].bcd = (uint8_t)(v & 1);
+	pit[n].armed = pit[n].wnext = pit[n].rnext = pit[n].latched = 0;
+	pit[n].slatched = 0;
+	if (n == 0)
+		irq_armed = 0;
+}
+
+/* Port 61h: gate 2 in bit 0. Its fall holds the count; its rise restarts
+ * it in modes 2 and 3 and lets it go on in the others. */
+static void
+port61_out(unsigned v)
+{
+	uint32_t now = pit_now();
+
+	if ((v ^ port61) & 1) {
+		if (!(v & 1))
+			pit[2].held = now - pit[2].t0;
+		else if (pit[2].mode != 2 && pit[2].mode != 3)
+			pit[2].t0 = now - pit[2].held;
+		else {
+			pit[2].t0 = now;
+			pit[2].shown = 0;
+		}
+	}
+	port61 = (uint8_t)v;
+}
+
 unsigned
 pc_in(struct i86 *c, unsigned port, int w)
 {
 	unsigned v = 0xff;
 
-	(void)c;
+	/* A word is two byte cycles, at port and port + 1, as the bus makes
+	 * them for the machine's eight-bit devices. */
+	if (w)
+		return (pc_in(c, port, 0) |
+		    pc_in(c, (port + 1) & 0xffff, 0) << 8);
+	if (port - SER_BASE < 8) {
+		v = ser_in(port);
+		ser_edge();
+		pic_update(c);
+		return (v);
+	}
 	switch (port) {
 	case 0x20:
 		v = pic_readisr ? pic_isr : pic_irr;
@@ -1464,11 +1934,7 @@ pc_in(struct i86 *c, unsigned port, int w)
 	case 0x40:
 	case 0x41:
 	case 0x42:
-		/* A counter that moves between any two reads. */
-		if (!pit_flip)
-			pit_count -= 0x123;
-		v = pit_flip ? pit_count >> 8 : pit_count & 0xff;
-		pit_flip ^= 1;
+		v = pit_read(c, port - 0x40);
 		break;
 	case 0x60:
 		v = kb_latch;
@@ -1481,8 +1947,9 @@ pc_in(struct i86 *c, unsigned port, int w)
 		v = cmos(cmos_index & 0x7f);
 		break;
 	case 0x61:
-		pit_flip ^= 2;
-		v = (pit_flip & 2) ? 0x10 : 0;
+		/* The refresh request toggles every 18 clocks (15 us). */
+		v = (port61 & 0x0fu) | (pit_now() / 18 & 1) << 4 |
+		    pit_out(2, pit_now()) << 5;
 		break;
 	case 0x3d5:
 		if (crtc_index == 0x0e || crtc_index == 0x0f) {
@@ -1491,14 +1958,14 @@ pc_in(struct i86 *c, unsigned port, int w)
 		}
 		break;
 	case 0x3da:
-		pit_flip ^= 4;
-		v = (pit_flip & 4) ? 9 : 0;
+		crt_flip ^= 1;
+		v = crt_flip ? 9 : 0;
 		break;
 	default:
 		TRACE("in", 0, port);
 		break;
 	}
-	return (w ? v | 0xff00 : v);
+	return (v);
 }
 
 void
@@ -1506,8 +1973,18 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 {
 	unsigned pos;
 
-	(void)w;
+	if (w) {
+		pc_out(c, port, v & 0xff, 0);
+		pc_out(c, (port + 1) & 0xffff, v >> 8 & 0xff, 0);
+		return;
+	}
 	v &= 0xff;
+	if (port - SER_BASE < 8) {
+		ser_out(port, v);
+		ser_edge();
+		pic_update(c);
+		return;
+	}
 	switch (port) {
 	case 0x20:
 		if (v & 0x10) {
@@ -1542,6 +2019,17 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 			imask = (uint8_t)v;
 		pic_update(c);
 		break;
+	case 0x40:
+	case 0x41:
+	case 0x42:
+		pit_write(c, port - 0x40, v);
+		break;
+	case 0x43:
+		pit_control(v);
+		break;
+	case 0x61:
+		port61_out(v);
+		break;
 	case 0x70:
 		cmos_index = (uint8_t)v;
 		break;
@@ -1570,31 +2058,83 @@ pc_out(struct i86 *c, unsigned port, unsigned v, int w)
 	}
 }
 
-/* Time: the 18.2 Hz interrupt, the keyboard and the display. */
+/*
+ * Time: the timer's interrupts, and every 55 ms of the host's clock
+ * (nticks) the keyboard and the display. Under -T a poll is PC_POLL_MS
+ * and PIT_POLL clocks, or for a run the timer cut short the clocks of its
+ * steps, so that a guest that keeps the timer's rate leaves the polls as
+ * they were.
+ */
 void
 pc_poll(struct i86 *c)
 {
+	static uint32_t vt_frac, host_prev;
 	unsigned long now;
+	uint32_t clk, d, steps = pc_step;
 	int waited = 0;
+	int part = pc_slice < PC_STEPS && steps >= pc_slice;
+	int ran = steps == pc_slice && !pc_idle && !c->halted;
 
+	pc_step = 0;
+	pc_ran += steps;
+	gfx_drain();
+	if (cf.khz && !cf.fixed_clock)
+		throttle(steps);
 	for (;;) {
-		now = cf.fixed_clock ? (vtime += PC_POLL_MS) : host_ms();
+		if (cf.fixed_clock) {
+			/* A run the timer cut short moves time by its steps; a
+			 * guest waiting under a timer faster than a poll moves
+			 * it to the next interrupt; any other poll by PIT_POLL. */
+			d = 0;
+			if (part && !waited)
+				d = steps * PIT_TSTEP >> 8;
+			else if ((pc_idle || c->halted) && slice_left() < PC_STEPS) {
+				d = irq_at - pit_t;
+				d = (int32_t)d <= 0 ? 1 : d > PIT_POLL ? PIT_POLL : d;
+			}
+			if (d) {
+				pit_t += d;
+				vt_frac += d * 1000u;
+				while (vt_frac >= PIT_HZ) {
+					vt_frac -= PIT_HZ;
+					vtime++;
+				}
+			} else {
+				pit_t += PIT_POLL;
+				vtime += PC_POLL_MS;
+			}
+			now = vtime;
+		} else {
+			/* The clocks a step takes, learned over running stretches
+			 * of PIT_LEARN clocks or more. */
+			clk = host_clock();
+			if (ran && !waited) {
+				run_clk += clk - host_prev;
+				run_steps += steps;
+				if (run_clk >= pit_learn && run_steps) {
+					d = (run_clk << 8) / run_steps;
+					pit_step = d < 1 ? 1 : d > 16384 ? 16384 : d;
+					run_clk = run_steps = 0;
+					pit_learn = PIT_LEARN;
+				}
+			}
+			host_prev = clk;
+			pit_t = clk;
+			now = host_now();
+		}
 		if ((long)(now - next_tick) >= 0) {
 			next_tick += 55;
 			nticks++;
 			if ((long)(now - next_tick) > 500)
 				next_tick = now + 55;
-			if (ticks_due < 4)
-				ticks_due++;
 			if (cf.keys == NULL)
 				key_pump();
 			refresh();
 		}
-		if (ticks_due && !(pic_irr & 1)) {
-			ticks_due--;
-			pic_irr |= 1;
-		}
+		pit_irq(c, pit_now());
 		kb_next();
+		ser_poll(now);
+		ser_edge();
 		pic_update(c);
 		if (!(pc_idle || c->halted) || waited ||
 		    (c->irq && (c->fl & F_IF)))
@@ -1607,13 +2147,23 @@ pc_poll(struct i86 *c)
 			host_exit(0);
 		/* The guest waits for a key or an interrupt. */
 		refresh();
-		if (!cf.fixed_clock)
-			(void)host_ready((int)(next_tick - now) > 0 ?
-			    (int)(next_tick - now) : 1);
+		gfx_drain();
+		if (!cf.fixed_clock) {
+			long ms = (long)(next_tick - now);
+
+			if (irq_armed) {
+				d = irq_at - pit_now();
+				if ((long)(d / (PIT_HZ / 1000)) < ms)
+					ms = (int32_t)d > 0 ?
+					    (long)(d / (PIT_HZ / 1000)) : 0;
+			}
+			(void)host_ready(ms > 0 ? (int)ms : 1);
+		}
 		if (cf.keys == NULL)
 			key_pump();
 		waited = 1;
 	}
+	pc_slice = slice_left();
 	pc_idle = 0;
 }
 
@@ -1679,7 +2229,9 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	dpt_set(0);
 	dpt_set(1);
 	nfloppy = (disks[0].fd >= 0) + (disks[1].fd >= 0);
-	mem_ww(BDA + 0x10, (cf.cols == 40 ? 0x10 : 0x20) |
+	/* COM1 at 40:00, and one serial port in the equipment word. */
+	mem_ww(BDA + 0x00, SER_BASE);
+	mem_ww(BDA + 0x10, (cf.cols == 40 ? 0x10 : 0x20) | 0x200 |
 	    (nfloppy ? 1 | (nfloppy - 1) << 6 : 0));
 	mem_ww(BDA + 0x13, cf.ram_kb);
 	mem_ww(BDA + 0x1a, 0x1e);
@@ -1690,7 +2242,25 @@ pc_init(struct i86 *c, const struct pc_config *config)
 	if (TERMINAL)
 		oputs("\033[1;25r\033[?7l");
 	set_mode(cf.cols == 40 ? 1 : 3);
-	next_tick = cf.fixed_clock ? 0 : host_ms() + 55;
+	next_tick = cf.fixed_clock ? 0 : host_now() + 55;
+	/* The timer as the firmware leaves it: counter 0 at 18.2 Hz in
+	 * mode 3, counter 1 refreshing, counter 2 loaded for a beep. */
+	host_last = thr_due = host_us();
+	/* Under -S the clocks a step takes are known while the pace holds. */
+	pit_step = cf.fixed_clock ? PIT_TSTEP : cf.khz ?
+	    (uint32_t)(PIT_HZ * 256UL / pc_target()) : 16;
+	pit[0].mode = 3;
+	pit[0].rw = 3;
+	pit[1].mode = 2;
+	pit[1].rw = 1;
+	pit[2].mode = 3;
+	pit[2].rw = 3;
+	for (i = 0; i < 3; i++) {
+		pit[i].count = i == 0 ? 0x10000 : i == 1 ? 18 : 0x533;
+		pit[i].armed = 1;
+	}
+	irq_at = 0;		/* the first at the first poll, as the firmware's tick */
+	irq_armed = 1;
 
 	i86_reset(c, cf.model);
 	c->s[S_CS] = 0xf000;

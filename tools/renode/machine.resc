@@ -21,7 +21,7 @@ include $repo_dir/cores/initialize_peripherals.resc
 
 # pico_uart.repl is Renode_RP2040's core platform without the LED binding
 # boards/raspberry_pico.repl adds on GP25; this kernel drives that pin through
-# SIO and needs nothing from Renode's LED model to reach a console.
+# SIO and does not need Renode's LED model to reach a console.
 machine LoadPlatformDescription $board_dir/pico_uart.repl
 
 # The real boot ROM, entry point 0. Renode_RP2040's copy of

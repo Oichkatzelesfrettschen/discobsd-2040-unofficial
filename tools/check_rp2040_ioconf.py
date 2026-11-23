@@ -84,7 +84,7 @@ def object_relocations(obj, original, limit, stride, table):
 def check_services(elf, data, obj, linked_symbols, object_symbols):
     """Check conf_service_init: a read-only table of allowed Thumb function
     pointers in generated order and a zero terminator, the terminator alone
-    for a kernel whose Config names no service. Returns the names."""
+    for a kernel whose Config names zero services. Returns the names."""
     original = get_entry(object_symbols, "conf_service_init")
     linked = get_entry(linked_symbols, "conf_service_init")
     if (original.st_size != linked.st_size or original.st_size < SERVICE_SIZE or

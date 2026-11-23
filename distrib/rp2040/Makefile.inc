@@ -21,7 +21,7 @@ BOARD_PROFILE.PICO=	full
 BOARD_PROFILE.PICOCALC=	picocalc
 
 # Output paths. The PICO board keeps the bare names distrib/rp2040/sdcard.img,
-# flash.bin and flash.uf2 that the documentation, CI and discobsd-flash
+# flash.bin and flash.uf2 that the documentation, CI and gizmobsd-flash
 # invocations name; every other board writes sdcard-${BOARD}.img,
 # flash-${BOARD}.bin and flash-${BOARD}.uf2 beside them, so building one board
 # never replaces another board's image. The root Makefile reads FSIMG for the
@@ -116,7 +116,7 @@ FS_COMPOSE=	${PYTHON} ${MKMANIFEST} --profile=${PROFILE} \
 
 # The multicall binaries link only the members the selection keeps: the
 # games Makefiles read GAMEBOX_TOOLS and PUZZLEBOX_TOOLS, which stay unset
-# (and every member builds) when PYTHON names no interpreter yet. A
+# (and every member builds) when PYTHON does not name an interpreter yet. A
 # selection mkmanifest.py refuses leaves them empty, and check-image-selection,
 # which build and fs wait for, reports the refusal before any program builds.
 .if !empty(PYTHON)
@@ -204,6 +204,15 @@ SDROOT_KBYTES?=	131072
 SDROOT_PART?=	c
 SDROOTIMG=	${TOPSRC}/distrib/${MACHINE}/sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}.img
 SDROOT_MANIFEST=	distrib/${MACHINE}/_manifest.sdroot${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}
+# SDROOT_OVERLAYS names directories that mirror the root and are laid over a
+# copy of ${DESTDIR} (tools/picocalc/stage-sdroot.sh); the image is then made
+# from that copy, and ${DESTDIR} stays the install tree alone.
+SDROOT_OVERLAYS?=
+.if empty(SDROOT_OVERLAYS)
+SDROOT_TREE=	${DESTDIR}
+.else
+SDROOT_TREE=	${TOPSRC}/distrib/obj/sdroot-tree${BOARD_OUT_SUFFIX}${IMAGE_OUT_SUFFIX}
+.endif
 
 sdroot:		${SDROOTIMG}
 
@@ -212,11 +221,15 @@ ${SDROOTIMG}:	root-release multicall-staging boardlibc-install ${MI_MANIFEST} di
 		${TOPSRC}/distrib/${MACHINE}/mksdmanifest.py
 		${MAKE} -C ${TOPSRC}/tests/rp2040 MACHINE=${MACHINE} \
 		    DESTDIR=${DESTDIR} install
+.if !empty(SDROOT_OVERLAYS)
+		sh ${TOPSRC}/tools/picocalc/stage-sdroot.sh ${DESTDIR} \
+		    ${SDROOT_TREE} ${SDROOT_OVERLAYS}
+.endif
 		cat ${MI_MANIFEST} distrib/${MACHINE}/md.${MACHINE} > ${SDROOT_MANIFEST}.base
 		${PYTHON} ${TOPSRC}/distrib/${MACHINE}/mksdmanifest.py \
-		    ${SDROOT_MANIFEST}.base ${DESTDIR} ${SDROOT_MANIFEST}
+		    ${SDROOT_MANIFEST}.base ${SDROOT_TREE} ${SDROOT_MANIFEST}
 		sh ${TOPSRC}/tools/picocalc/mksdroot.sh ${TOOLBINDIR}/fsutil \
-		    ${DESTDIR} ${SDROOT_MANIFEST} ${SDROOT_KBYTES} \
+		    ${SDROOT_TREE} ${SDROOT_MANIFEST} ${SDROOT_KBYTES} \
 		    ${SDROOT_PART} $@
 
 # A separate compile directory keeps the card-root image and the normal
@@ -250,8 +263,30 @@ picocalc-sd-system: check-python .WAIT symlinks tools
 		${MAKE} BOARD=PICOCALC PROFILE=picocalc sdroot
 		${MAKE} picocalc-sd-kernel
 
+# The maximal card root, sdroot-PICOCALC-MAX.img: the picocalc-sd-system root
+# (the whole install tree and the board test programs of /usr/tests/rp2040)
+# with the port's documents in /usr/share/doc/gizmobsd and, when
+# PICOCALC_MAX_EXTRA names a directory that mirrors the root, that
+# directory's files. The extra directory is how media that the tree does not
+# carry reaches a card: guest disk images for i86(1), for one. Both kernels
+# are built, since a session on this root uses either.
+PICOCALC_MAX_EXTRA?=
+PICOCALC_MAX_DOCS=	${TOPSRC}/distrib/obj/sdroot-max-docs
+
+picocalc-sd-max-system: check-python .WAIT symlinks tools
+		${MAKE} BOARD=PICOCALC PROFILE=picocalc install-world
+		rm -rf ${PICOCALC_MAX_DOCS}
+		mkdir -p ${PICOCALC_MAX_DOCS}/usr/share/doc/gizmobsd
+		cp -R ${TOPSRC}/sys/arch/rp2040/doc/. \
+		    ${PICOCALC_MAX_DOCS}/usr/share/doc/gizmobsd/
+		${MAKE} BOARD=PICOCALC PROFILE=picocalc IMAGE_OUT_SUFFIX=-MAX \
+		    SDROOT_OVERLAYS=${PICOCALC_MAX_DOCS:Q}\ ${PICOCALC_MAX_EXTRA:Q} \
+		    sdroot
+		${MAKE} picocalc-sd-kernel
+		${MAKE} picocalc-sd-diag-kernel
+
 .PHONY: check-picocalc-sd-layout picocalc-sd-kernel picocalc-sd-diag-kernel \
-		picocalc-sd-system
+		picocalc-sd-system picocalc-sd-max-system
 
 cleansdroot:
 		rm -f ${SDROOTIMG} ${SDROOT_MANIFEST} ${SDROOT_MANIFEST}.base
@@ -279,6 +314,8 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 				${TOPSRC}/lib/libc/string/memmem.c \
 				${TOPSRC}/lib/libc/stdlib/abs.c \
 				${TOPSRC}/lib/libc/stdlib/labs.c \
+				${TOPSRC}/lib/libc/stdlib/div.c \
+				${TOPSRC}/lib/libc/stdlib/ldiv.c \
 				${TOPSRC}/lib/libc/stdlib/iso_exit.c \
 				${TOPSRC}/lib/libc/stdlib/at_quick_exit.c \
 				${TOPSRC}/lib/libc/stdlib/quick_exit.c \
@@ -335,7 +372,7 @@ ${BOARDLIBC_WORK}/libc.a:	${MKBOARDLIBC} \
 
 # crt0.o comes from the existing a.out startup build (lib/libc_aout/startup),
 # which already compiles lib/startup-arm/crt0.c with the tree's own as via
-# -B; it needs no reduction since it is one small object.
+# -B; it skips reduction since it is one small object.
 ${DESTDIR}/usr/lib/crt0.o:	${TOOLBINDIR}/as
 		${MAKE} -C ${TOPSRC}/lib/libc_aout/startup MACHINE=${MACHINE} \
 			TOOLDIR=${TOOLDIR}

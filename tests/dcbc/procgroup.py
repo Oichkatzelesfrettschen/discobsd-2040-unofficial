@@ -17,10 +17,10 @@ no process of a mutant build survives its run.
 --selftest calibrates the scan against both launch methods: a shell that
 starts a copy of sleep in a build directory is run past its time bound once
 with the single-child kill that subprocess.run applies (the scan must find
-the orphan) and once through run_group (the scan must find nothing). It
+the orphan) and once through run_group (the scan must find zero orphans). It
 then terminates a driver that is inside run_group with SIGTERM, once with
 the detached launch run_group replaced (the scan must find the orphan) and
-once with run_group itself (the scan must find nothing).
+once with run_group itself (the scan must find zero orphans).
 """
 
 import argparse

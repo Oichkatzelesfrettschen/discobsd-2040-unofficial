@@ -99,6 +99,21 @@ unsigned mem_rearm(void);
 uint8_t *mem_lend(unsigned n);
 void mem_return(void);
 
+/* Expanded memory (ems.c). mem_ems() adds n pages of 16 KB after the
+ * MEM_NPAGE pages of the first megabyte; logical page MEM_NPAGE +
+ * MEM_EMSPG * k is the first kilobyte of the k-th. The 16 KB physical page
+ * phys shows from then on the sixteen logical pages from mem_map16()'s
+ * base, or nothing for MEM_NOMAP; conventional memory shows itself until
+ * mapped over. mem_drop16() forgets sixteen logical pages, which read as
+ * zeros afterwards, and mem_lpage() returns a logical page's bytes,
+ * valid until the next call into mem.c. */
+#define MEM_EMSPG	16
+#define MEM_NOMAP	0xffffu
+int mem_ems(unsigned n);
+void mem_map16(unsigned phys, unsigned base);
+void mem_drop16(unsigned base);
+uint8_t *mem_lpage(unsigned lp, int wr);
+
 unsigned mem_rslow(uint32_t a);
 void mem_wslow(uint32_t a, unsigned v);
 /* A pointer to guest address a, good for *len bytes and until the next

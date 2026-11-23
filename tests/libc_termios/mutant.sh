@@ -27,7 +27,7 @@
 #
 # One mutant of the termios library: apply a sed script to one source file
 # of the tree, rebuild the gate against the mutated copy and require that the
-# gate fails. A mutation that changes nothing, or that stops the gate from
+# gate fails. A mutation that leaves the file unchanged, or that stops the gate from
 # compiling, is itself an error, so a mutant counts only when it builds and
 # a check rejects it.
 #
@@ -43,7 +43,10 @@ script=$3
 members="${MEMBERS:?}"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/libc_termios_mutant.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir "$work/inc" "$work/src"
 
 sed -e "$script" "$TOPSRC/$file" > "$work/mutated"
@@ -96,8 +99,16 @@ for extra in ${EXTRA_OBJECTS:-}; do
 done
 # shellcheck disable=SC2086
 $HOSTCC -m32 -o "$work/gate" "$work/gate.o" $objects
-if "$work/gate" > "$work/run.log" 2>&1; then
+rc=0
+sh "$(dirname "$0")/../../tools/run_bounded.sh" "$work/run.log" "$work/gate" || rc=$?
+case $rc in
+124 | 125)
+	echo "FAIL mutant $label: the gate gave no verdict (status $rc: 124 the MUTANT_TIMEOUT bound, 125 the run could not happen)" >&2
+	exit 3
+	;;
+0)
 	echo "FAIL mutant $label survived: the gate passed" >&2
 	exit 1
-fi
+	;;
+esac
 echo "PASS mutant $label rejected"

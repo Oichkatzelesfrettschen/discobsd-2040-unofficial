@@ -299,6 +299,45 @@
    ]
   },
   {
+   "function": "picokbd_evq_select",
+   "text": "o->raise(",
+   "targets": [
+    "lcd_sel_raise"
+   ],
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ],
+   "why": "lcdselect() passes lcd_sel, the one struct picokbd_sel; its members are lcd_sel_raise, lcd_sel_restore and lcd_sel_tty"
+  },
+  {
+   "function": "picokbd_evq_select",
+   "text": "o->restore(",
+   "targets": [
+    "lcd_sel_restore"
+   ],
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ],
+   "why": "lcdselect() passes lcd_sel, the one struct picokbd_sel; its members are lcd_sel_raise, lcd_sel_restore and lcd_sel_tty"
+  },
+  {
+   "function": "picokbd_evq_select",
+   "text": "o->tty(",
+   "targets": [
+    "lcd_sel_tty"
+   ],
+   "configs": [
+    "PICOCALC",
+    "PICOCALC_LEAN",
+    "PICOCALC_LEAN_DIAG"
+   ],
+   "why": "lcdselect() passes lcd_sel, the one struct picokbd_sel; its members are lcd_sel_raise, lcd_sel_restore and lcd_sel_tty"
+  },
+  {
    "function": "cring_service.isra.0",
    "text": "fn(ctx",
    "targets": [
@@ -400,6 +439,18 @@
    "rom": "lookup",
    "bytes": 0,
    "why": "boot ROM routine; measured by bootrom_frames.py on the B2 image"
+  },
+  {
+   "function": "bcopy",
+   "text": "(void *(*)(void *, const void *, u_int))",
+   "bytes": 12,
+   "why": "boot ROM memcpy (MC, entry 0x261c) reached through rom_fn(): its aligned path pushes r4, r5, r6 and its short path jumps through a computed bx r3 without pushing, from the disassembly in docs/research/noreturn-and-rom-copy-footprint.md; bootrom_frames.py cannot follow the computed jump, so the figure carries no rom code; the lookup fallback inside rom_fn() is an ordinary call"
+  },
+  {
+   "function": "bzero",
+   "text": "(void *(*)(void *, int, u_int))",
+   "bytes": 8,
+   "why": "boot ROM memset (MS, entry 0x26b8) reached through rom_fn(): its word path pushes r4, r5 and its short path jumps through a computed bx r3 without pushing, from the disassembly in docs/research/noreturn-and-rom-copy-footprint.md; bootrom_frames.py cannot follow the computed jump, so the figure carries no rom code; the lookup fallback inside rom_fn() is an ordinary call"
   },
   {
    "function": "flash_swap_append",
@@ -1226,10 +1277,6 @@
   {
    "function": "ttypend",
    "reason": "ttypend clears PENDIN before it replays the queue and only ttioctl sets it, so the ttyinput calls it makes do not enter it again"
-  },
-  {
-   "function": "exit",
-   "reason": "exit clears P_TRACED and ignores every signal before its first call, so a sleep under it finds no signal and cannot reach exit again"
   },
   {
    "function": "exec_script_check",

@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -390,7 +402,7 @@ test_script(void)
 	expect("break key code", out.ev[1].key, 0xd0);
 	expect("break state", out.ev[1].state, LCD_KEY_PRESSED);
 
-	/* No event, and states that are no event, do not enter the queue. */
+	/* No event, and states that are not events, do not enter the queue. */
 	begin();
 	expect("idle types nothing", picokbd_event(PICOKBD_IDLE, 0, 0, &ctrl, seq), 0);
 	picokbd_event(4, 'a', 0, &ctrl, seq);
@@ -487,7 +499,7 @@ test_no_recording_outside_session(void)
 	expect("drain again", drain_as(&out, PG, PG, 1), 0);
 	expect("the ended session left nothing", out.n, 0);
 
-	/* An overflowed session leaves no drop count behind either. */
+	/* An overflowed session leaves a zero drop count behind too. */
 	put_run(0, 100);
 	expect("stop after overflow", stop_f(&file_a), 0);
 	expect("start after overflow", start_f(&file_b, PG, PG, 1), 0);
@@ -794,7 +806,7 @@ test_modeset(void)
 	put_run(0, 1);
 	expect("a reused pid is a stranger", picokbd_evq_fill(), 0);
 
-	/* With no session the call changes nothing. */
+	/* With no session the call leaves the queue unchanged. */
 	picokbd_evq_reset();
 	picokbd_evq_modeset(&proc_b, PID_B);
 	expect("no session, no effect", picokbd_evq_fill(), 0);
@@ -935,8 +947,8 @@ test_overflow(void)
 /*
  * select(2) readiness: a session started with the wake request is ready for
  * its owner while an event waits and wakes the selector for every kind of
- * event, including those that type no byte; every other session and caller
- * sees nothing, and a drain clears the readiness.
+ * event, including those that type zero bytes; every other session and caller
+ * stays unready and unwoken, and a drain clears the readiness.
  */
 static void
 test_wake(void)
@@ -995,7 +1007,7 @@ test_wake(void)
 	expect("a plain session wakes nothing", wakes, 0);
 	expect("a plain session is not ready", ready_as(PG, PG), 0);
 
-	/* No session: no wake, no readiness, and the request does nothing. */
+	/* No session: no wake, no readiness, and the request is ignored. */
 	picokbd_evq_reset();
 	wakes = 0;
 	picokbd_evq_wakeon();
@@ -1007,7 +1019,7 @@ test_wake(void)
 	expect("the stale request did not carry over", wakes, 0);
 	expect("the stale request left no readiness", ready_as(PG, PG), 0);
 
-	/* An event outside the three states wakes nothing. */
+	/* An event outside the three states wakes zero sleepers. */
 	begin();
 	picokbd_evq_wakeon();
 	wakes = 0;
@@ -1062,7 +1074,7 @@ test_wake(void)
  * A waking session ended by another party (a foreground group or mode change,
  * a mode-setting request of another process) wakes its owner's selector and
  * leaves the owner read-ready until the owner's next request, which reports
- * the missing session. The owner's own stop, close and exit leave nothing.
+ * the missing session. The owner's own stop, close and exit leave the readiness clear.
  */
 static void
 test_lost(void)
@@ -1132,7 +1144,7 @@ test_lost(void)
 	expect("its drain is refused", drain_as(&out, PG, PG, 1), EPERM);
 	expect("and it is ready no longer", ready_as(PG, PG), 0);
 
-	/* A plain session lost the same way wakes nothing and is not ready. */
+	/* A plain session lost the same way wakes zero sleepers and is not ready. */
 	begin();
 	wakes = 0;
 	picokbd_evq_modeset(&proc_b, PID_B);
@@ -1194,7 +1206,7 @@ test_select_race(void)
 	    PID_A, PG, PG, F_GAME), 1);
 	expect("no registration when ready", sel_tty_calls, 0);
 
-	/* A drain after the wake leaves nothing ready; the next select registers. */
+	/* A drain after the wake leaves the readiness clear; the next select registers. */
 	expect("drain", drain_as(&(struct lcd_keyevs){0}, PG, PG, 1), 0);
 	expect("drained queue is not ready", picokbd_evq_select(&model_sel,
 	    &proc_a, PID_A, PG, PG, F_GAME), 0);

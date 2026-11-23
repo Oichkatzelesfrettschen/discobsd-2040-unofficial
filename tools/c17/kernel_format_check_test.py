@@ -19,7 +19,7 @@ fixture:
   - one reading escapes undecoded;
   - one dropping the literal-format requirement.
 
-The checker itself must fail when it finds no source or no literal format,
+The checker itself must fail when it finds zero sources or zero literal formats,
 source discovery must report a build whose CFILES is empty and add the headers
 a build includes; an alias must apply within a translation unit and not
 leak into another.

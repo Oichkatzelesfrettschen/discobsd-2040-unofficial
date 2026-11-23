@@ -45,7 +45,7 @@
 #include <stdio.h>
 
 #define NODEV   ((dev_t)-1)
-/* "dumps on none": the kernel takes no crash dump; dumpdev is NODEV. */
+/* "dumps on none": the kernel skips the crash dump; dumpdev is NODEV. */
 #define NODUMP  ((dev_t)-2)
 
 struct file_list {
@@ -133,6 +133,7 @@ struct config {
 extern int      arch;
 extern int      yyerrors;        /* errors the parse reported */
 extern char     *archname;
+extern const char *config_file; /* the configuration file config read */
 #define ARCH_STM32      1
 #define ARCH_RP2040     2
 

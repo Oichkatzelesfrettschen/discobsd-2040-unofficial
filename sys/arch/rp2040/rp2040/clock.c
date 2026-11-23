@@ -35,6 +35,17 @@ timer_us(void)
 	return *(volatile u_int *)(TIMER_BASE + TIMER_TIMERAWL);
 }
 
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+
+/* The free-running microsecond count for the diagnostic print timer. */
+u_int
+diag_us(void)
+{
+	return timer_us();
+}
+#endif
+
 static int
 systick_pending(void)
 {
@@ -70,7 +81,7 @@ clkstart(void)
 /*
  * The tick record, for core 1 to read: it moves at every delivered tick
  * and after every masked window, so a record that stands still is a core 0
- * that takes no clock interrupt. See rp2040/core1.h.
+ * that runs without a clock interrupt. See rp2040/core1.h.
  */
 const volatile u_int *
 clock_beat(void)

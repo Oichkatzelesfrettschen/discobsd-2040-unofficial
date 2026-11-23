@@ -34,7 +34,7 @@
  *
  * Each function is bound to a pointer of the exact type the standard's
  * synopsis gives, which a declaration of any other type fails.  Type
- * results are measured with _Generic, which applies no conversion, and
+ * results are measured with _Generic, which applies zero conversions, and
  * the <float.h> values are compared with the compiler's own description
  * of the target's formats.
  */
@@ -65,7 +65,7 @@ _Static_assert(DBL_HAS_SUBNORM == __DBL_HAS_DENORM__, "DBL_HAS_SUBNORM");
  * A floating comparison is not an integer constant expression, so the
  * *_TRUE_MIN values are compared in code the compiler folds: a mismatch
  * leaves a call to c17_float_mismatch, which no object defines, and the
- * Makefile requires this object to import nothing.
+ * Makefile requires this object to import zero symbols.
  */
 void c17_float_mismatch(void);
 void c17_float_values(void);

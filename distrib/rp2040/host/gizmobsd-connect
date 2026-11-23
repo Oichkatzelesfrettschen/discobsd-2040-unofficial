@@ -1,0 +1,179 @@
+#!/bin/sh
+#
+# gizmobsd-connect -- open a terminal on the GizmoBSD RP2040 console.
+#
+# The board is a USB CDC-ACM serial device with no network stack, so the
+# console is a serial line, not telnet or ssh. This finds the board by its
+# stable serial and launches the first serial terminal it finds, at the
+# console's fixed 115200 8N1 with no flow control. Size the terminal window
+# to 80x24, or run "resize" once connected to sync a different size.
+#
+# Works with the terminals packaged on Debian (apt install tio picocom
+# minicom cu), CachyOS/Arch (pacman -S tio picocom minicom), and macOS
+# (brew install tio picocom minicom); Windows users run gizmobsd-term.
+set -eu
+
+# Two boards on one host share 2e8a:000a. A kernel that reads its flash
+# chip reports a serial of its own, so each has a by-id link, but boards
+# running older kernels both report "rp2040" and share one, and
+# gizmobsd-term --list still returns a first match. With
+# more than one 2e8a device attached and no board named, this stops and lists
+# the candidates. --usb-port PORT (or GIZMOBSD_USB_PORT) names the board by
+# its USB port, such as 1-3, and opens the tty that belongs to that port. An
+# empty --usb-port operand is an error; an empty GIZMOBSD_USB_PORT counts as
+# unset. Discovery is repeated just before the launch.
+# An explicit device path names the board itself. Linux only: macOS lacks
+# sysfs, so there the selector is refused and discovery is unchanged.
+# GIZMOBSD_SYSFS_USB and GIZMOBSD_DEVFS replace /sys/bus/usb/devices and /dev
+# for tests.
+# gz_env NAME: when GIZMOBSD_* variable NAME is unset and its former
+# DISCOBSD_* spelling is set, take the old value and say so on stderr.
+gz_env() {
+	gz_old=DISCOBSD_${1#GIZMOBSD_}
+	eval "gz_set=\${$1+x} gz_oldset=\${$gz_old+x} gz_oldval=\${$gz_old-}"
+	if [ -z "$gz_set" ] && [ -n "$gz_oldset" ]; then
+		echo "gizmobsd-connect: $gz_old is renamed $1; set the new name" >&2
+		eval "$1=\$gz_oldval"
+		export "$1"
+	fi
+}
+gz_env GIZMOBSD_USB_PORT
+gz_env GIZMOBSD_SYSFS_USB
+gz_env GIZMOBSD_DEVFS
+sysfs_usb=${GIZMOBSD_SYSFS_USB:-/sys/bus/usb/devices}
+devfs=${GIZMOBSD_DEVFS:-/dev}
+usb_port=
+opt_port=
+
+die() {
+	echo "gizmobsd-connect: $*" >&2
+	exit 1
+}
+
+sysattr() {
+	cat "$sysfs_usb/$1/$2" 2>/dev/null || true
+}
+
+port=
+while [ $# -gt 0 ]; do
+	case $1 in
+	--usb-port)
+		[ $# -ge 2 ] && [ -n "$2" ] || die "--usb-port needs a port such as 1-3"
+		opt_port=$2
+		shift 2
+		;;
+	*)
+		port=$1
+		break
+		;;
+	esac
+done
+
+if [ -n "$opt_port" ]; then
+	[ -z "$port" ] || die "give a device path or --usb-port, not both"
+	usb_port=$opt_port
+elif [ -z "$port" ]; then
+	usb_port=${GIZMOBSD_USB_PORT:-}
+fi
+
+# The tty of the selected port's interface 0 (the console, by-id if00).
+selected_tty() {
+	for t in "$sysfs_usb/$usb_port/$usb_port":1.0/tty/*; do
+		[ -e "$t" ] || continue
+		tty=$devfs/${t##*/}
+		# /dev/ttyACMn is renumbered at every re-enumeration and may name the
+		# other board next time; the terminal reopens the same name after a
+		# reset. udev's by-path link for the same interface follows the
+		# physical port, so it replaces the tty name whenever it points at it.
+		for l in "$devfs"/serial/by-path/*-usb-*:"${usb_port#*-}":1.0; do
+			if [ -e "$l" ] && [ "$l" -ef "$tty" ]; then
+				tty=$l
+				break
+			fi
+		done
+		echo "$tty"
+		return 0
+	done
+	return 1
+}
+
+refuse_ambiguous() {
+	devs=
+	for d in "$sysfs_usb"/*; do
+		[ -e "$d/idVendor" ] || continue
+		n=${d##*/}
+		[ "$(sysattr "$n" idVendor)" = 2e8a ] || continue
+		devs="$devs$n 2e8a:$(sysattr "$n" idProduct) $(sysattr "$n" product)
+"
+	done
+	case $devs in
+	*'
+'*'
+'*)
+		echo "gizmobsd-connect: more than one 2e8a device is attached; name the board with --usb-port PORT or GIZMOBSD_USB_PORT:" >&2
+		printf '%s' "$devs" | sed 's/^/  /' >&2
+		exit 2
+		;;
+	esac
+}
+
+named=$port
+if [ -n "$usb_port" ]; then
+	# The port is joined into a sysfs path: bus-port[.port...] and nothing else.
+	case $usb_port in
+	*[!0-9.-]* | *..* | *. | -* | *-*-* | *-) die "$usb_port is not a USB port path such as 1-3 or 1-2.4" ;;
+	[0-9]*-[0-9]*) ;;
+	*) die "$usb_port is not a USB port path such as 1-3 or 1-2.4" ;;
+	esac
+	[ "$(uname -s)" = Linux ] || die "--usb-port reads Linux sysfs; this host has none"
+	[ "$(sysattr "$usb_port" idVendor)" = 2e8a ] || die "USB port $usb_port holds no 2e8a device"
+	port=$(selected_tty) || port=
+	[ -n "$port" ] || die "port $usb_port holds 2e8a:$(sysattr "$usb_port" idProduct), which has no console tty"
+elif [ -z "$port" ]; then
+	refuse_ambiguous
+	# Linux names the console by identity under /dev/serial/by-id; macOS
+	# presents it as a cu.usbmodem node. gizmobsd-term --list, from the
+	# gizmobsd-host package, resolves either by USB identity.
+	if command -v gizmobsd-term >/dev/null 2>&1; then
+		port=$(gizmobsd-term --list 2>/dev/null | head -1) || port=""
+	fi
+	if [ -z "$port" ]; then
+		for p in /dev/serial/by-id/usb-GizmoBSD_*rp2040-if00 \
+		    /dev/serial/by-id/usb-DiscoBSD_*rp2040-if00 \
+		    /dev/gizmobsd /dev/discobsd /dev/cu.usbmodem*; do
+			if [ -e "$p" ]; then
+				port="$p"
+				break
+			fi
+		done
+	fi
+fi
+if [ -z "$port" ] || [ ! -e "$port" ]; then
+	echo "gizmobsd-connect: no board found; is it plugged in and running?" >&2
+	echo "  expected /dev/serial/by-id/usb-GizmoBSD_*rp2040-if00" >&2
+	exit 1
+fi
+
+# The device set can change between discovery and the launch: check it once
+# more, so the terminal never opens a tty chosen under a different set.
+if [ -n "$usb_port" ]; then
+	[ "$(selected_tty)" = "$port" ] || die "the console of port $usb_port changed during startup"
+elif [ -z "$named" ]; then
+	refuse_ambiguous
+fi
+
+echo "Connecting to $port at 115200 8N1. Log in as operator, no password; su for root." >&2
+
+if command -v tio >/dev/null 2>&1; then
+	# tio reconnects on its own when the board re-enumerates on reboot.
+	exec tio -b 115200 -d 8 -p none -s 1 -f none "$port"
+elif command -v picocom >/dev/null 2>&1; then
+	exec picocom -b 115200 -d 8 -p 1 -f n "$port"
+elif command -v minicom >/dev/null 2>&1; then
+	exec minicom -b 115200 -8 -D "$port"
+elif command -v cu >/dev/null 2>&1; then
+	exec cu -l "$port" -s 115200
+else
+	echo "gizmobsd-connect: install one of tio, picocom, minicom or cu" >&2
+	exit 1
+fi

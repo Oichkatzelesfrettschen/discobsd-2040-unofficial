@@ -1,0 +1,13 @@
+configuration 1: one logical page shown at E000h and E400h
+same window, dst above src (linear overlap)                len   512 status 00h  bytes differing from the buffered result:     0
+same window, dst below src (linear overlap)                len   512 status 00h  bytes differing from the buffered result:     0
+cross windows, storage dst above src (+256)                len   512 status 00h  bytes differing from the buffered result:     0
+cross windows, storage dst above src (+256), reverse windows len   512 status 00h  bytes differing from the buffered result:     0
+cross windows, storage dst below src (-256)                len   512 status 00h  bytes differing from the buffered result:     0
+cross windows, +256, len 256 (one chunk)                   len   256 status 00h  bytes differing from the buffered result:     0
+cross windows, +128, len 768                               len   768 status 00h  bytes differing from the buffered result:     0
+cross windows, +256, exchange (57h al=1)                   len   512 status 97h  bytes differing from the buffered result:   512
+configuration 2: E000h shows pages 0,1; E800h shows pages 1,0
+A[0..32K) -> B[0..32K): page swap                          len 32768 status 00h  bytes differing from the buffered result:     0
+B[0..32K) -> A[0..32K): page swap                          len 32768 status 00h  bytes differing from the buffered result:     0
+A[0..16K) -> B[0..16K): page 0 copied over page 1          len 16384 status 00h  bytes differing from the buffered result:     0

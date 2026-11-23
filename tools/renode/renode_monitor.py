@@ -115,7 +115,7 @@ def self_test() -> int:
     """Calibrate the dead-subprocess path: RenodeError, never BrokenPipeError.
 
     The stand-in "renode" exits with status 3 before the first command, so the
-    monitor pipe has no reader. command() and close() must both turn that into
+    monitor pipe lacks a reader. command() and close() must both turn that into
     RenodeError (the drivers answer it with status 2) and close() must leave
     the process reaped.
     """

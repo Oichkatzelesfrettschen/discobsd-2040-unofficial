@@ -128,6 +128,7 @@ const char version[] = "gate";
 const char ostype[] = "gate";
 const char osversion[] = "gate";
 const char osrelease[] = "gate";
+const long osrev = 1000001L;
 
 /*
  * The fixture's swap device: a ring of GATE_SWAP_END blocks whose first
@@ -256,7 +257,7 @@ suser(void)
 
 /*
  * The kernel entry points kern_sysctl.c's other branches call. The CTL_VM
- * branch reaches none of them, so each one reaching the gate is a defect in
+ * branch reaches zero of them, so each one reaching the gate is a defect in
  * the gate rather than a case it covers.
  */
 void
@@ -855,7 +856,7 @@ test_helper_refusals(void)
 
 /*
  * A write whose read-back buffer is short still writes. The bounded copy
- * reports no error, so the copyin that follows it runs and __sysctl() adds
+ * returns success, so the copyin that follows it runs and __sysctl() adds
  * ENOMEM afterwards: the caller sees the truncation of the old value and the
  * new value takes effect, which is the order patch 475 establishes.
  */
@@ -1261,7 +1262,7 @@ test_nlist_names(void)
 	HK_CHECK(lookup(words, count, &value, &length, NULL) == 0);
 	HK_CHECK(value == 22);
 
-	/* A prefix or an extension of a symbol names nothing. */
+	/* A prefix or an extension of a symbol names zero symbols. */
 	count = spell("_h", words);
 	HK_CHECK(lookup(words, count, &value, &length, NULL) == EOPNOTSUPP);
 	count = spell("_hzz", words);
@@ -1289,7 +1290,7 @@ test_nlist_names(void)
 	    EINVAL);
 	HK_CHECK(value == -1 && copyout_state.calls == 0);
 
-	/* The node takes no new value. */
+	/* The node refuses a new value. */
 	count = spell("_hz", words);
 	HK_CHECK(lookup(words, count, &value, &length, &token) == EPERM);
 	HK_CHECK(value == -1 && copyout_state.calls == 0);
@@ -1549,7 +1550,7 @@ test_uarea_unreadable(void)
 	swap_error = 1;
 	HK_CHECK(read_ruid(p, NULL, NULL) == (uid_t)-2);
 
-	/* A zombie has no user area, and the reader takes no buffer for it. */
+	/* A zombie lacks a user area, and the reader does not take a buffer for it. */
 	reset_procs();
 	p = make_resident(3, 30, 123);
 	p->p_stat = SZOMB;
@@ -1585,7 +1586,7 @@ test_uarea_pool(void)
  * live -- resident, on flash at a folded block, unfolded on flash, in the
  * pool when SWAPRAM is built, and exited -- plus an embryonic slot and the
  * caller. Each record must come from the user area of its own process,
- * carry no fixture address, and appear exactly once.
+ * omit every fixture address, and appear exactly once.
  */
 #define REC		((int)sizeof(struct kinfo_proc))
 #define CALLER_SLOT	1
@@ -1906,7 +1907,7 @@ test_records_refuse_writes(void)
 /*
  * KERN_FILE records. Process number k of the fixture gets a working
  * directory and three descriptors: a regular file at 0, a pipe at 3 and a
- * socket-typed entry at NOFILE - 1 whose f_data is no inode. Every value
+ * socket-typed entry at NOFILE - 1 whose f_data is not an inode. Every value
  * derives from k, so a record built from another process's user area
  * shows in each field.
  */

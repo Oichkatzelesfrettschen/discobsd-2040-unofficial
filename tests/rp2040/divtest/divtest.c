@@ -17,11 +17,11 @@
  *      call, so the loop issues one per pass of 32 divisions; a changed
  *      quotient or remainder falsifies the claim that no kernel path runs
  *      inside a divide sequence. The 100 Hz SysTick lands inside sequences
- *      throughout and runs no divider code.
+ *      throughout and runs zero divider instructions.
  *   3. wait: the same store, store, branch-padding, load sequence with 0 to
  *      6 padding branches (two cycles each) against the quotient the loop
  *      computed independently. The shipped helpers pad with four branches;
- *      the line "wait: shipped padding" must report no wrong results, and
+ *      the line "wait: shipped padding" must report zero wrong results, and
  *      the smallest error-free padding shows the margin to the 8-cycle
  *      contract.
  *

@@ -100,6 +100,14 @@ static long win_total;			/* Bytes the open window wants. */
 static int win_fmt, win_fg, win_bg;
 static long n_bits_windows, n_index_windows;
 static long n_ioctl_window, n_bytes, n_ioctl_palette, n_writes;
+static long n_pixels;			/* Pixels of every LCDG_WINDOW opened. */
+static int colmod_seen;			/* LCDG_COLMOD 0x55 was set. */
+static int strict_marks;		/* The test's marks are exact, not an over-approximation. */
+static int skip_colmod;			/* reset_world leaves the default bpp. */
+static unsigned char wrote[PW * PH];	/* Written since last invalidated. */
+static long iv_cost;			/* Unmerged cost of the pending damage. */
+static long iv_sent0;			/* Wire bytes sent when it began. */
+static long iv_injected0;		/* Backend failures when it began. */
 static int palette_seen[16][3];
 static long op_index;
 static long n_injected;			/* Backend calls the model failed. */
@@ -159,6 +167,22 @@ inject(void)
 	return hit;
 }
 
+/*
+ * A pixel outside the pending damage may be rewritten (a widened rectangle)
+ * only with the value the panel holds.
+ */
+static void
+model_store(int x, int y, unsigned char v)
+{
+	int p = y * PW + x;
+
+	if (!mask_all && !mask[p] && panel[p] != v)
+		fail("pixel %d,%d outside the damage changed from %u to %u", x, y,
+		    panel[p], v);
+	panel[p] = v;
+	wrote[p] = 1;
+}
+
 static int
 model_ioctl(int fd, unsigned long req, void *arg)
 {
@@ -198,6 +222,15 @@ model_ioctl(int fd, unsigned long req, void *arg)
 		win_h = w->h;
 		win_pos = 0;
 		n_ioctl_window++;
+		n_pixels += (long)w->w * w->h;
+		return 0;
+	}
+	if (req == LCDG_COLMOD) {
+		const struct lcdg_colmod *cm = arg;
+
+		if (cm->fmt != LCDG_COLMOD_RGB565)
+			fail("COLMOD %#x, expected 0x55", cm->fmt);
+		colmod_seen = 1;
 		return 0;
 	}
 	if (req == LCDG_PALETTE) {
@@ -226,6 +259,8 @@ model_write(int fd, const void *buf, size_t n)
 		errno = EINVAL;
 		return -1;
 	}
+	if (!colmod_seen && !skip_colmod)
+		fail("pixels sent before LCDG_COLMOD 0x55");
 	if (inject())
 		return -1;
 	left = win_total - win_pos;
@@ -244,10 +279,8 @@ model_write(int fd, const void *buf, size_t n)
 				if (c >= win_w)
 					break;
 				x = win_x + c;
-				if (!mask_all && !mask[y * PW + x])
-					fail("pixel %d,%d written outside the damage", x, y);
-				panel[y * PW + x] = (unsigned char)
-				    ((b[i] & (0x80 >> k)) != 0 ? win_fg : win_bg);
+				model_store(x, y, (unsigned char)
+				    ((b[i] & (0x80 >> k)) != 0 ? win_fg : win_bg));
 			}
 			continue;
 		}
@@ -255,9 +288,7 @@ model_write(int fd, const void *buf, size_t n)
 		y = win_y + (int)(win_pos / win_w);
 		if (b[i] > 15)
 			fail("pixel byte %u at %d,%d", b[i], x, y);
-		if (!mask_all && !mask[y * PW + x])
-			fail("pixel %d,%d written outside the damage", x, y);
-		panel[y * PW + x] = b[i];
+		model_store(x, y, b[i]);
 	}
 	n_bytes += (long)n;
 	n_writes++;
@@ -631,20 +662,131 @@ ref_render(void)
 
 /* Checks */
 
+/* The wire bytes of one rectangle, from the design's rule, not the library's. */
+static long
+wire_cost(int w, int h)
+{
+	long rows = 5120 / w, strips = (h + rows - 1) / rows;
+
+	return (long)scene.bpp * w * h + 11 * strips;
+}
+
+static long
+wire_sent(void)
+{
+	return (long)scene.bpp * n_pixels + 11 * n_ioctl_window;
+}
+
+/* Start a new damage interval: nothing pending, or the whole panel. */
+static void
+interval_reset(int all)
+{
+	memset(mask, all, sizeof(mask));
+	memset(wrote, 0, sizeof(wrote));
+	iv_cost = all ? wire_cost(PW, PH) : 0;
+	iv_sent0 = wire_sent();
+	iv_injected0 = n_injected;
+}
+
 static void
 mark(int x0, int y0, int x1, int y1)
 {
 	int x, y;
 
-	for (y = y0 < 0 ? 0 : y0; y < y1 && y < PH; y++)
-		for (x = x0 < 0 ? 0 : x0; x < x1 && x < PW; x++)
+	x0 = x0 < 0 ? 0 : x0;
+	y0 = y0 < 0 ? 0 : y0;
+	x1 = x1 > PW ? PW : x1;
+	y1 = y1 > PH ? PH : y1;
+	if (x0 >= x1 || y0 >= y1)
+		return;
+	iv_cost += wire_cost(x1 - x0, y1 - y0);
+	for (y = y0; y < y1; y++)
+		for (x = x0; x < x1; x++) {
 			mask[y * PW + x] = 1;
+			wrote[y * PW + x] = 0;
+		}
 }
 
 static void
 mark_window(const struct twin *t)
 {
 	mark(t->x, t->y, t->x + t->w, t->y + t->h);
+}
+
+/*
+ * A raise or a lower moves t past the windows at order[from .. to - 1]:
+ * the box of the parts of t that the shown ones overlap changes, in *box
+ * (x0, y0, x1, y1); returns 0 when none overlaps or t is hidden.
+ */
+static int
+crossed(const struct twin *t, int from, int to, int box[4])
+{
+	int k, a0, b0, a1, b1, x0 = 0, y0 = 0, x1 = 0, y1 = 0, have = 0;
+
+	if (t->hidden)
+		return 0;
+	for (k = from; k < to; k++) {
+		const struct twin *o = &tw[order[k]];
+
+		if (o->hidden)
+			continue;
+		a0 = t->x > o->x ? t->x : o->x;
+		b0 = t->y > o->y ? t->y : o->y;
+		a1 = t->x + t->w < o->x + o->w ? t->x + t->w : o->x + o->w;
+		b1 = t->y + t->h < o->y + o->h ? t->y + t->h : o->y + o->h;
+		if (a0 >= a1 || b0 >= b1)
+			continue;
+		if (!have || a0 < x0)
+			x0 = a0;
+		if (!have || b0 < y0)
+			y0 = b0;
+		if (!have || a1 > x1)
+			x1 = a1;
+		if (!have || b1 > y1)
+			y1 = b1;
+		have = 1;
+	}
+	box[0] = x0;
+	box[1] = y0;
+	box[2] = x1;
+	box[3] = y1;
+	return have;
+}
+
+/* The crossed box, with t's title bar when the focus moves to or from t. */
+static void
+mark_crossed(const struct twin *t, int have, int box[4], int title)
+{
+	int tb[4];
+
+	if (title) {
+		tb[0] = t->x + 1;
+		tb[1] = t->y + 1;
+		tb[2] = t->x + t->w - 1;
+		tb[3] = t->y + 1 + R_TITLE_ROWS;
+		if (!have || tb[0] < box[0])
+			box[0] = tb[0];
+		if (!have || tb[1] < box[1])
+			box[1] = tb[1];
+		if (!have || tb[2] > box[2])
+			box[2] = tb[2];
+		if (!have || tb[3] > box[3])
+			box[3] = tb[3];
+		have = 1;
+	}
+	if (have)
+		mark(box[0], box[1], box[2], box[3]);
+}
+
+/* Where id stands in order. */
+static int
+order_at(int id)
+{
+	int k;
+
+	for (k = 0; k < norder && order[k] != id; k++)
+		;
+	return k;
 }
 
 static void
@@ -781,6 +923,27 @@ check_scene_mirror(void)
 	check_focus();
 }
 
+/*
+ * After a successful flush: every invalidated pixel was written since its
+ * last invalidation, and the wire bytes sent do not exceed the cost of the
+ * rectangles as invalidated. A flush the model failed resends pixels, so the
+ * byte bound holds only for an interval without a backend failure.
+ */
+static void
+check_flushed_damage(void)
+{
+	int p;
+
+	if (mask_all)
+		return;
+	for (p = 0; strict_marks && p < PW * PH; p++)
+		if (mask[p] && !wrote[p])
+			fail("pixel %d,%d invalidated but not written", p % PW, p / PW);
+	if (n_injected == iv_injected0 && wire_sent() - iv_sent0 > iv_cost)
+		fail("flush sent %ld wire bytes, the unmerged cost is %ld",
+		    wire_sent() - iv_sent0, iv_cost);
+}
+
 static void
 after_op(int flushed)
 {
@@ -789,7 +952,8 @@ after_op(int flushed)
 	if (flushed) {
 		if (scene.ndamage != 0)
 			fail("damage list not empty after a flush");
-		memset(mask, 0, sizeof(mask));
+		check_flushed_damage();
+		interval_reset(0);
 		check_image(1);
 		check_title_pixels();
 	} else {
@@ -803,7 +967,6 @@ static void
 reset_world(void)
 {
 	memset(panel, UNWRITTEN, sizeof(panel));
-	memset(mask, 1, sizeof(mask));
 	memset(tw, 0, sizeof(tw));
 	memset(holder.pad, 0xcc, sizeof(holder.pad));
 	norder = 0;
@@ -812,10 +975,14 @@ reset_world(void)
 	inject_every = 0;
 	fail_countdown = 0;
 	win_open = 0;
-	n_ioctl_window = n_bytes = n_ioctl_palette = n_writes = 0;
+	n_ioctl_window = n_bytes = n_ioctl_palette = n_writes = n_pixels = 0;
+	colmod_seen = 0;
 	win_lcdgfx_init(&backend, &lcd, MODEL_FD);
 	if (win_scene_init(&scene, &backend) != 0)
 		fail("win_scene_init");
+	if (!skip_colmod && win_lcdgfx_rgb565(&scene, &lcd) != 0)
+		fail("win_lcdgfx_rgb565");
+	interval_reset(1);
 	win_scene_set_bits(&scene, win_lcdgfx_bits);
 }
 
@@ -984,10 +1151,12 @@ op_move(void)
 	}
 	if (!call_ok(win_move(&scene, t->handle, nx, ny), inj, "win_move"))
 		return;
-	mark_shown(t);
-	t->x = nx;
-	t->y = ny;
-	mark_shown(t);
+	if (nx != t->x || ny != t->y) {	/* A move to the same place leaves the damage list unchanged. */
+		mark_shown(t);
+		t->x = nx;
+		t->y = ny;
+		mark_shown(t);
+	}
 }
 
 static void
@@ -1017,19 +1186,21 @@ do_raise(int id)
 	struct twin *t = &tw[id];
 	long inj = n_injected;
 	int follow = tpolicy && !t->hidden && tfocus != id;
+	int box[4], have;
 
 	note("raise %d", id);
 	if (!call_ok(win_raise(&scene, t->handle), inj, "win_raise"))
 		return;
 	if (order[norder - 1] != id) {
-		mark_shown(t);
+		have = crossed(t, order_at(id) + 1, norder, box);
 		order_remove(id);
 		order[norder++] = id;
-	}
+		mark_crossed(t, have, box, follow);
+	} else if (follow)
+		mark_title(id);
 	if (follow) {
 		mark_title(tfocus);
 		tfocus = id;
-		mark_title(id);
 	}
 }
 
@@ -1038,23 +1209,26 @@ do_lower(int id)
 {
 	struct twin *t = &tw[id];
 	long inj = n_injected;
-	int k;
+	int k, box[4], have, pick;
 
 	note("lower %d", id);
 	if (!call_ok(win_lower(&scene, t->handle), inj, "win_lower"))
 		return;
 	if (order[0] == id)
 		return;
-	mark_shown(t);
+	have = crossed(t, 0, order_at(id), box);
 	order_remove(id);
 	for (k = norder; k > 0; k--)
 		order[k] = order[k - 1];
 	order[0] = id;
 	norder++;
-	if (tpolicy && tfocus == id) {
-		tfocus = model_pick(norder);
-		mark_title(tfocus);
-	}
+	pick = tpolicy && tfocus == id ? model_pick(norder) : -1;
+	/* A focus that moves takes both title bars, t's within the box. */
+	mark_crossed(t, have, box, pick >= 0 && pick != id);
+	if (pick >= 0 && pick != id)
+		mark_title(pick);
+	if (pick >= 0)
+		tfocus = pick;
 }
 
 static void
@@ -1117,7 +1291,7 @@ do_show(int id)
 	}
 }
 
-/* id -1 leaves no window focused. */
+/* id -1 leaves every window unfocused. */
 static void
 do_focus(int id)
 {
@@ -1214,6 +1388,7 @@ op_title(void)
 	struct twin *t;
 	long inj = n_injected;
 	char title[40];
+	int same;
 	int id = pick_window();
 
 	if (id < 0)
@@ -1221,10 +1396,11 @@ op_title(void)
 	t = &tw[id];
 	note("title %d", id);
 	random_title(title);
+	same = strncmp(t->title, title, WIN_TITLE_MAX - 1) == 0;
 	if (!call_ok(win_set_title(&scene, t->handle, title), inj, "win_set_title"))
 		return;
 	strcpy(t->title, title);
-	if (!t->hidden)
+	if (!t->hidden && !same)
 		mark_title(id);
 }
 
@@ -1335,6 +1511,56 @@ run_burst(void)
 	    "touch and overlap cases exact\n", burst_windows);
 }
 
+/*
+ * The bounding-box rule. A 100x100 window moved by (5,5) repaints one
+ * 105x105 box (three strips); rectangles whose box costs more stay apart; the same pair
+ * merges at 2 wire bytes a pixel and stays apart at 3, where each extra
+ * pixel costs more against the 11-byte window command it saves.
+ */
+static void
+run_cost(void)
+{
+	reset_world();
+	use_bits(0);
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	damage_pair(0, 0, 100, 100, 5, 5, 100, 100, 3, 105 * 105);
+	/* Two small rectangles touching at a corner: the box is 64 pixels. */
+	damage_pair(10, 10, 4, 4, 14, 14, 4, 4, 2, 32);
+	/* A thin L: the bounding box is 50x52. */
+	damage_pair(10, 10, 50, 2, 10, 12, 2, 50, 2, 200);
+	/*
+	 * Strips are ceil(h / floor(5120 / w)): a 34x301 rectangle takes three
+	 * strips of 150 rows (5120 / 34 is 150.6), where a real-valued divisor
+	 * counts two, and the overlapping 22x128 and 51x245 pair stays apart
+	 * because the box (three strips) costs more than the pair (four).
+	 */
+	damage_pair(200, 0, 34, 301, 200, 0, 34, 301, 3, 34 * 301);
+	damage_pair(24, 13, 22, 128, 35, 15, 51, 245, 4, 22 * 128 + 51 * 245);
+	/*
+	 * The box is compared with the trimmed cover, not the untrimmed pair:
+	 * the first rectangle loses its overlap with the second (50 rows kept),
+	 * 34,044 bytes at 2 a pixel against 44,055 untrimmed and 36,044 for the box.
+	 */
+	damage_pair(10, 0, 100, 100, 0, 50, 120, 100, 4, 5000 + 12000);
+	/* The break-even pair: 8 box pixels for 4 invalidated ones. */
+	damage_pair(100, 100, 3, 1, 103, 101, 1, 1, 1, 8);
+	skip_colmod = 1;
+	reset_world();
+	use_bits(0);
+	if (scene.bpp != 3)
+		fail("a scene without the backend call prices %d bytes a pixel",
+		    scene.bpp);
+	if (win_flush(&scene) != 0)
+		fail("win_flush");
+	after_op(1);
+	damage_pair(100, 100, 3, 1, 103, 101, 1, 1, 2, 4);
+	skip_colmod = 0;
+	printf("PASS cost: (5,5) move sent one 105x105 box; far corners and a thin L "
+	    "stay apart; the break-even pair merges at 2 bytes and splits at 3\n");
+}
+
 /* Calls that must refuse. */
 static void
 run_api(void)
@@ -1354,7 +1580,7 @@ run_api(void)
 	w = win_create(&scene, 0, 0, WIN_MIN_W, WIN_MIN_H, "t", NULL, NULL);
 	if (w == NULL)
 		fail("smallest window refused");
-	/* A window of another scene is no handle of this one. */
+	/* A window of another scene is not a handle of this one. */
 	foreign = win_create(&other, 5, 5, 40, 30, "theirs", NULL, NULL);
 	if (foreign == NULL)
 		fail("window of the second scene refused");
@@ -1502,7 +1728,7 @@ fill_damage(void)
 /*
  * Focus and visibility by hand: the focus follows raise and lower, moves to
  * the next window down when the focused one is destroyed or hidden, never
- * rests on a hidden window, a hidden window occludes nothing and records no
+ * rests on a hidden window, a hidden window occludes zero pixels and does not record
  * damage, and a call that fails at the backend changes neither the focus
  * nor the shown state.
  */
@@ -1548,7 +1774,7 @@ run_focus(void)
 	after_op(1);
 	if (panel[11 * PW + 11] != R_DESKTOP)
 		fail("a hidden window still covers the desktop");
-	/* A hidden window records no damage. */
+	/* A hidden window does not record damage. */
 	if (win_move(&scene, tw[0].handle, 30, 30) != 0 ||
 	    win_resize(&scene, tw[0].handle, 90, 70) != 0 ||
 	    win_set_title(&scene, tw[0].handle, "hidden") != 0 ||
@@ -2189,7 +2415,7 @@ run_decoders(void)
 				fail("key %d decoded as %d", keys[i], canary_ev[0].key);
 			if (in.esc != 0)
 				fail("key %d left the decoder mid-sequence", keys[i]);
-			/* Every strict prefix of a sequence makes no key. */
+			/* Every strict prefix of a sequence makes zero keys. */
 			for (cut = 1; cut < len; cut++) {
 				win_input_init(&in);
 				for (c = 0; c < cut; c++)
@@ -2656,7 +2882,7 @@ run_dev(void)
 	/*
 	 * A kernel that wakes select for every event: the wait sleeps in one
 	 * select until the next event of any kind, a wake for an event that typed
-	 * nothing reads no tty byte, and a quiet timeout is one select.
+	 * zero bytes reads zero tty bytes, and a quiet timeout is one select.
 	 */
 	kb_reset();
 	kb_cap = 1;
@@ -3270,6 +3496,145 @@ run_bits(void)
 	    "%ld indexed windows over the run)\n", n_bits_windows, n_index_windows);
 }
 
+/*
+ * One title change after another: stored, flushed, then next; whether the
+ * flush after next sends anything is the test. Titles compare as the window
+ * stores them, cut to R_TITLE_MAX characters; a null title is the empty one.
+ */
+static void
+same_title_case(const char *stored, const char *next, int sends)
+{
+	long w0;
+
+	if (win_set_title(&scene, tw[0].handle, stored) != 0 ||
+	    win_flush(&scene) != 0)
+		fail("title case: storing \"%s\"", stored ? stored : "(null)");
+	w0 = n_ioctl_window;
+	if (win_set_title(&scene, tw[0].handle, next) != 0 ||
+	    win_flush(&scene) != 0)
+		fail("title case: setting \"%s\"", next ? next : "(null)");
+	if ((n_ioctl_window != w0) != sends)
+		fail("title \"%s\" after \"%s\" sent %ld windows",
+		    next ? next : "(null)", stored ? stored : "(null)",
+		    n_ioctl_window - w0);
+	snprintf(tw[0].title, sizeof(tw[0].title), "%s", next ? next : "");
+}
+
+/*
+ * A raise repaints only what the windows it passes covered: a window that
+ * nothing covers does not send a pixel, and one under a single smaller window
+ * sends that window's overlap. A lower is the mirror image.
+ */
+static void
+run_raise_damage(void)
+{
+	long p0;
+
+	reset_world();
+	mask_all = 1;
+	op_index = -7;
+	fx_create(0, 20, 20, 100, 80, "under");
+	fx_create(1, 60, 50, 40, 30, "over");
+	fx_create(2, 200, 200, 50, 50, "apart");
+	scene.focus_follows_raise = tpolicy = 0;	/* no title changes */
+	if (win_flush(&scene) != 0)
+		fail("raise damage: first flush");
+	after_op(1);
+	p0 = n_pixels;
+	do_raise(2);
+	if (win_flush(&scene) != 0)
+		fail("raise damage: raise apart");
+	after_op(1);
+	if (n_pixels != p0)
+		fail("raising an uncovered window sent %ld pixels", n_pixels - p0);
+	p0 = n_pixels;
+	do_raise(0);
+	if (win_flush(&scene) != 0)
+		fail("raise damage: raise under");
+	after_op(1);
+	if (n_pixels - p0 != 40L * 30)
+		fail("raising a window under one 40x30 window sent %ld pixels",
+		    n_pixels - p0);
+	p0 = n_pixels;
+	do_lower(0);
+	if (win_flush(&scene) != 0)
+		fail("raise damage: lower under");
+	after_op(1);
+	if (n_pixels - p0 != 40L * 30)
+		fail("lowering it again sent %ld pixels", n_pixels - p0);
+	mask_all = 0;
+	scene.focus_follows_raise = tpolicy = 1;
+	printf("PASS raise damage: a raise or a lower sends the crossed overlap "
+	    "alone\n");
+}
+
+/*
+ * A title equal to the stored one leaves the title bar's pixels as they are:
+ * the flush after it does not send a window or a pixel. A different title sends
+ * the bar again, and the panel shows the new title.
+ */
+static void
+run_same_title(void)
+{
+	long w0, p0, p1, p2;
+
+	reset_world();
+	mask_all = 1;
+	op_index = -5;
+	fx_create(0, 50, 50, 100, 60, "same");
+	if (win_flush(&scene) != 0)
+		fail("same-title initial flush");
+	after_op(1);
+	w0 = n_ioctl_window;
+	p0 = n_pixels;
+	if (win_set_title(&scene, tw[0].handle, "same") != 0 ||
+	    win_flush(&scene) != 0)
+		fail("same-title set_title");
+	if (n_ioctl_window != w0 || n_pixels != p0)
+		fail("identical title sent %ld windows and %ld pixels",
+		    n_ioctl_window - w0, n_pixels - p0);
+	after_op(1);
+	p1 = n_pixels;
+	if (win_set_title(&scene, tw[0].handle, "other") != 0 ||
+	    win_flush(&scene) != 0)
+		fail("new-title set_title");
+	if (n_pixels == p1)
+		fail("a new title sent no pixels");
+	p2 = n_pixels;
+	strcpy(tw[0].title, "other");
+	after_op(1);
+	/* Lengths at the cut, prefixes, extensions and the null title. */
+	same_title_case("aaaaaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaaaaa", 0);
+	same_title_case("aaaaaaaaaaaaaaaaaaaaaaa",
+	    "aaaaaaaaaaaaaaaaaaaaaaabbbbbbb", 0);
+	same_title_case("aaaaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaaaab", 1);
+	same_title_case("same", "sa", 1);
+	same_title_case("same", "same!", 1);
+	same_title_case("", NULL, 0);
+	same_title_case("x", NULL, 1);
+	after_op(1);
+	/* An unchanged title with the damage list full and a failing backend
+	 * returns before anything flushes. */
+	if (win_set_title(&scene, tw[0].handle, "full") != 0 ||
+	    win_flush(&scene) != 0)
+		fail("same-title full list: store");
+	strcpy(tw[0].title, "full");
+	while (scene.ndamage < WIN_DAMAGE_MAX - 1)
+		if (win_invalidate(&scene, 2 * scene.ndamage, 300, 1, 1) != 0)
+			fail("same-title full list: invalidate");
+	fail_countdown = 1;
+	if (win_set_title(&scene, tw[0].handle, "full") != 0 ||
+	    fail_countdown != 1)
+		fail("an unchanged title flushed a full damage list");
+	fail_countdown = 0;
+	if (win_flush(&scene) != 0)
+		fail("same-title full list: flush");
+	after_op(1);
+	mask_all = 0;
+	printf("PASS same title: an identical title sent %ld pixels, a new title "
+	    "sent %ld pixels\n", p1 - p0, p2 - p1);
+}
+
 /* Backend bytes for three workloads, as the model counts them. */
 static void
 run_measure(void)
@@ -3331,6 +3696,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "usage: win_test [OPERATIONS]\n");
 		return 2;
 	}
+	strict_marks = 1;
 	reset_world();
 	inject_every = 150;
 	run_random(nops);
@@ -3340,6 +3706,8 @@ main(int argc, char **argv)
 	    "%ld writes, %ld backend failures\n", nops, n_ioctl_window, n_bytes,
 	    n_writes, n_injected);
 	run_burst();
+	run_cost();
+	strict_marks = 0;	/* The later scripts mark whole windows, some unchanged. */
 	run_api();
 	run_failure();
 	run_focus();
@@ -3355,6 +3723,8 @@ main(int argc, char **argv)
 	run_wait_bound();
 	run_bits();
 	run_modal();
+	run_raise_damage();
+	run_same_title();
 	run_measure();
 	printf("sizeof(struct win_scene) = %zu\n", sizeof(struct win_scene));
 	printf("PASS libwin\n");

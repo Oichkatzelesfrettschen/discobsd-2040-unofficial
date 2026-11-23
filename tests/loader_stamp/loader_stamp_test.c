@@ -196,7 +196,7 @@ test_invalid_stamps(void)
 		CHECK(!flash_write_admitted(FLASH_FS_OFFSET, FLASH_SECTOR_BYTES,
 		    end));
 	}
-	/* The lowest accepted limit keeps the root whole and leaves no swap. */
+	/* The lowest accepted limit keeps the root whole and leaves swap empty. */
 	CHECK(loader_stamp_decode(LOADER_STAMP_MAGIC,
 	    FLASH_XIP_BASE + FLASH_SWAP_OFFSET, &end) == LOADER_STAMP_VALID);
 	CHECK(end == FLASH_SWAP_OFFSET);
@@ -217,6 +217,61 @@ test_swap_extent(void)
 	CHECK(flash_swap_extent(FLASH_TOTAL_BYTES + FLASH_SECTOR_BYTES) ==
 	    FLASH_SWAP_BYTES);
 	CHECK(flash_swap_extent(0xfffff000UL) == FLASH_SWAP_BYTES);
+}
+
+/*
+ * The layout flash_limit_init() applies. Without the magic the whole chip and
+ * the full swap region stay writable and GizmoBSD's own second stage runs;
+ * with the magic, fl1 (which carries swap whenever no PSRAM probes) ends at
+ * the writable end, and the loader's second stage is restored after a bad
+ * limit as after a good one.
+ */
+static void
+check_layout(uint32_t magic, uint32_t limit, int status, uint32_t end,
+    uint32_t swap, int boot2)
+{
+	struct loader_layout ll;
+
+	memset(&ll, 0xa5, sizeof(ll));
+	loader_layout_decode(magic, limit, &ll);
+	CHECK(ll.status == status);
+	CHECK(ll.write_end == end);
+	CHECK(ll.swap_bytes == swap);
+	CHECK(ll.loader_boot2 == boot2);
+	/* Swap never reaches past the writable end. */
+	CHECK(swap == 0 || FLASH_SWAP_OFFSET + ll.swap_bytes <= ll.write_end);
+	if (ll.status != status || ll.write_end != end ||
+	    ll.swap_bytes != swap || ll.loader_boot2 != boot2)
+		printf("  layout magic %#lx limit %#lx: status %d end %#lx "
+		    "swap %#lx boot2 %d\n", (unsigned long)magic,
+		    (unsigned long)limit, ll.status,
+		    (unsigned long)ll.write_end, (unsigned long)ll.swap_bytes,
+		    ll.loader_boot2);
+}
+
+static void
+test_layout(void)
+{
+	uint32_t limit;
+
+	check_layout(0, 0, LOADER_STAMP_NONE, FLASH_TOTAL_BYTES,
+	    FLASH_SWAP_BYTES, 0);
+	check_layout(LOADER_STAMP_MAGIC ^ 1, LOADER_LIMIT, LOADER_STAMP_NONE,
+	    FLASH_TOTAL_BYTES, FLASH_SWAP_BYTES, 0);
+	check_layout(LOADER_STAMP_MAGIC, LOADER_LIMIT, LOADER_STAMP_VALID,
+	    LOADER_END, 368UL * 1024, 1);
+	check_layout(LOADER_STAMP_MAGIC, LOADER_LIMIT + 0x100,
+	    LOADER_STAMP_INVALID, FLASH_FS_OFFSET, 0, 1);
+	check_layout(LOADER_STAMP_MAGIC, FLASH_XIP_BASE + FLASH_TOTAL_BYTES,
+	    LOADER_STAMP_INVALID, FLASH_FS_OFFSET, 0, 1);
+	check_layout(LOADER_STAMP_MAGIC, FLASH_XIP_BASE + FLASH_SWAP_OFFSET,
+	    LOADER_STAMP_VALID, FLASH_SWAP_OFFSET, 0, 1);
+	for (limit = FLASH_XIP_BASE + FLASH_SWAP_OFFSET;
+	    limit <= FLASH_XIP_BASE + FLASH_TOTAL_BYTES - LOADER_RESERVED_BYTES;
+	    limit += FLASH_SECTOR_BYTES)
+		check_layout(LOADER_STAMP_MAGIC, limit, LOADER_STAMP_VALID,
+		    limit - FLASH_XIP_BASE,
+		    limit - FLASH_XIP_BASE - FLASH_SWAP_OFFSET, 1);
 }
 
 /*
@@ -333,7 +388,7 @@ test_swap_writer(void)
 
 	CHECK(memcmp(loader, chip + LOADER_END, sizeof(loader)) == 0);
 
-	/* Failing closed, the swap writer reaches nothing at all. */
+	/* Failing closed, the swap writer reaches zero sectors. */
 	model_end = FLASH_FS_OFFSET;
 	refused = 0;
 	highest_write = 0;
@@ -351,12 +406,13 @@ main(void)
 	test_edges();
 	test_invalid_stamps();
 	test_swap_extent();
+	test_layout();
 	test_swap_writer();
 	if (failures != 0) {
 		printf("loader_stamp: %d failures\n", failures);
 		return 1;
 	}
 	printf("loader_stamp: PASS (stamp decode, write bound, swap extent, "
-	    "swap writer)\n");
+	    "layout, swap writer)\n");
 	return 0;
 }

@@ -1,6 +1,6 @@
 /*
  * keen -- a small KenKen/Keen generator and ASCII front end for the
- * DiscoBSD RP2040 port. Novel implementation; no code taken from
+ * GizmoBSD RP2040 port. Novel implementation; no code taken from
  * Simon Tatham's Portable Puzzle Collection keen.c (MIT, LICENCE in
  * that tree) or from KeenClassik/KeenKenning/rustykeen, which were
  * surveyed for algorithm ideas only. Two simplifications keep this

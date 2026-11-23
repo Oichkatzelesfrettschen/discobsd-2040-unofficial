@@ -63,6 +63,8 @@
 #include <sys/ioctl.h>
 #include <sys/lcdgfx.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -76,12 +78,15 @@ int panel_open(void);
 int panel_close(void);
 int panel_ioctl(unsigned long cmd, void *arg);
 long panel_write(const void *p, unsigned long n);
+long panel_read(void *p, unsigned long n);
 #define DEV_OPEN()		panel_open()
+#define DEV_READ(fd, p, n)	panel_read(p, n)
 #define DEV_CLOSE(fd)		panel_close()
 #define DEV_IOCTL(fd, cmd, arg)	panel_ioctl(cmd, arg)
 #define DEV_WRITE(fd, p, n)	panel_write(p, n)
 #else
-#define DEV_OPEN()		open("/dev/lcdgfx", O_WRONLY)
+#define DEV_OPEN()		open("/dev/lcdgfx", O_RDWR)
+#define DEV_READ(fd, p, n)	read(fd, p, n)
 #define DEV_CLOSE(fd)		close(fd)
 #define DEV_IOCTL(fd, cmd, arg)	ioctl(fd, cmd, arg)
 #define DEV_WRITE(fd, p, n)	write(fd, p, n)
@@ -91,6 +96,7 @@ long panel_write(const void *p, unsigned long n);
 #define LINES		200
 #define FIELD		8000u		/* bytes of one field's 100 lines */
 #define BANK_PAGES	8
+#define SENT_PAGES	16		/* the lines last sent: 16,000 bytes */
 #define K_TEXT		0
 #define K_CGA4		1		/* 320x200, four colors */
 #define K_CGA6		2		/* 640x200, two colors */
@@ -99,27 +105,64 @@ int gfx_on, gfx_graphic;
 
 static int fd = -1;
 static int kind;
-static int stale;			/* the panel shows nothing current */
+/* The panel shows nothing current: 1, every line of the adapter's area
+ * is to be cleared and drawn; 2, every graphics line is to be drawn whole
+ * over the last graphics mode's lines, so no clear is needed. */
+static int stale;
+/* The panel's lines outside the adapter's area are black: set by the
+ * first clear after an open, which covers all 320 lines because the
+ * superuser's open keeps the console's screen. Nothing else this file
+ * draws reaches them but the pointer mark, which draws its whole box. */
+static int edge_black;
+static unsigned pal_key = ~0u;		/* what the device's palette holds */
 static uint8_t *bank[2];		/* even and odd scan lines */
 static uint8_t reg_mode = 0x29, reg_color = 0x30;
 static unsigned cur_shown = GFX_NOCURSOR;
 static uint8_t line[LCDG_WIDTH];
+static int pointer;			/* mouse keys are on: show the mark */
+/* Graphics lines written since they were last sent, one bit a line. A
+ * refresh adds the lines of the pages written since the last one; a drain,
+ * once a poll (gfx_drain()), sends at most GFX_DRAIN of them, so a redraw
+ * of the whole frame leaves the emulator running between its parts. */
+#define GFX_DRAIN	16		/* 6.6 ms of wire at 12.5 MHz */
+static uint8_t owed[LINES / 8];
+static unsigned drain_at;		/* the line a drain looks at first */
+/* The display memory of each graphics line as last sent, 80 bytes a line,
+ * in page frames lent with the odd lines' when the pager has them; null
+ * otherwise, and then every owed line goes out whole. A line's bit in
+ * fresh says the panel shows its copy: a drain then sends only the bytes
+ * that differ from it. A clear or a palette change makes every copy
+ * stale. */
+static uint8_t *sent;
+static uint8_t fresh[LINES / 8];
+int gfx_plain;				/* every owed line whole (-G) */
+const char *gfx_capture_path;		/* -P */
+/* In a text mode the adapter's 200 lines are the controller's scroll
+ * area (VSCRDEF 60, 200, 220): a scroll of the whole screen moves the
+ * scroll start (VSCSAD) by its rows and draws the new rows alone. Cell
+ * row r is on the controller's line GFX_Y0 + (r + scroll_rows) % 25 * 8. */
+static unsigned scroll_rows;
+static int scroll_ok;			/* the device took the scroll area */
+
+static void graphic_drain(unsigned max);
 
 /* Device output. A failed command draws nothing and the next refresh
  * finds its pages rearmed, so nothing is retried: the device rejects
  * only what this file never sends. */
 
-static void
+/* Returns 0 once all n bytes are written, -1 when the device stops. */
+static int
 put(const uint8_t *p, unsigned n)
 {
 	while (n) {
 		long k = DEV_WRITE(fd, p, n);
 
 		if (k <= 0)
-			break;
+			return (-1);
 		p += k;
 		n -= (unsigned)k;
 	}
+	return (0);
 }
 
 static int
@@ -161,10 +204,17 @@ pal_set(unsigned index, unsigned irgb, int half)
 static void
 palette(void)
 {
-	unsigned i, set, bright = (reg_color & 0x10) ? 8 : 0;
+	unsigned i, set, key, bright = (reg_color & 0x10) ? 8 : 0;
 
 	if (!gfx_on)
 		return;
+	/* The registers the colors below depend on, for each kind. A write
+	 * that leaves them as they were does not reach the device. */
+	key = kind == K_TEXT ? 0 : kind == K_CGA4 ? 0x100 |
+	    (reg_mode & 4) << 4 | (reg_color & 0x3f) : 0x200 | (reg_color & 15);
+	if (key == pal_key)
+		return;
+	pal_key = key;
 	switch (kind) {
 	case K_TEXT:
 		for (i = 0; i < 16; i++)
@@ -187,6 +237,7 @@ palette(void)
 	}
 	/* What is on the panel has the old colors. */
 	mem_watched = 0xffff;
+	memset(fresh, 0, sizeof(fresh));
 }
 
 /* Put display memory where the kind of mode wants it. Returns -1 when
@@ -195,7 +246,11 @@ static int
 kind_set(int k)
 {
 	if (k != K_TEXT && bank[1] == NULL) {
-		if ((bank[1] = mem_lend(BANK_PAGES)) == NULL)
+		sent = NULL;
+		if (!gfx_plain &&
+		    (bank[1] = mem_lend(BANK_PAGES + SENT_PAGES)) != NULL)
+			sent = bank[1] + (BANK_PAGES << MEM_PGSHIFT);
+		else if ((bank[1] = mem_lend(BANK_PAGES)) == NULL)
 			return (-1);
 		/* From cells to pixels: the cells' four kilobytes are the
 		 * same memory in both and stay; the rest held the copy of
@@ -207,6 +262,7 @@ kind_set(int k)
 	if (k == K_TEXT && bank[1] != NULL) {
 		mem_return();
 		bank[1] = NULL;
+		sent = NULL;
 	}
 	if (k == K_TEXT) {
 		mem_watch(GFX_VRAM, 0, bank[0], 4);
@@ -215,9 +271,11 @@ kind_set(int k)
 		mem_watch(GFX_VRAM, 0, bank[0], BANK_PAGES);
 		mem_watch(GFX_VRAM, BANK_PAGES, bank[1], BANK_PAGES);
 	}
+	/* Between two graphics modes every line is drawn whole and covers
+	 * the last mode's; anything else clears the area first. */
+	stale = stale == 1 || k == K_TEXT || kind == K_TEXT ? 1 : 2;
 	kind = k;
 	gfx_graphic = k != K_TEXT;
-	stale = 1;
 	palette();
 	return (0);
 }
@@ -245,6 +303,9 @@ gfx_open(void)
 		return (-1);
 	}
 	gfx_on = 1;
+	stale = 1;
+	edge_black = 0;
+	pal_key = ~0u;
 	/* Two bytes a pixel on the wire where the device starts with
 	 * three; the adapter's sixteen colors lose nothing by it. */
 	cm.fmt = LCDG_COLMOD_RGB565;
@@ -258,6 +319,9 @@ gfx_close(void)
 {
 	if (!gfx_on)
 		return;
+	/* The panel keeps what was sent; the lines still owed go first. */
+	if (!stale && kind != K_TEXT)
+		graphic_drain(LINES);
 	gfx_on = 0;
 	(void)DEV_CLOSE(fd);
 	fd = -1;
@@ -269,7 +333,9 @@ gfx_mode(unsigned mode)
 	unsigned m = mode & 0x7f;
 	int k = m == 6 ? K_CGA6 : (m == 4 || m == 5) ? K_CGA4 : K_TEXT;
 
-	if (kind_set(k) != 0)
+	/* A graphics mode set again keeps the panel, and the lines its
+	 * clear below changes are drawn like a program's own writes. */
+	if ((k == K_TEXT || k != kind) && kind_set(k) != 0)
 		k = K_TEXT;
 	reg_mode = (uint8_t)(m == 6 ? 0x1e : m == 5 ? 0x2e : m == 4 ? 0x2a :
 	    m < 2 ? 0x28 : 0x29);
@@ -280,6 +346,7 @@ gfx_mode(unsigned mode)
 	if (k != K_TEXT && !(mode & 0x80)) {
 		memset(bank[0], 0, BANK_PAGES << MEM_PGSHIFT);
 		memset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);
+		mem_watched = 0xffff;
 	}
 	return (k != K_TEXT);
 }
@@ -331,9 +398,56 @@ cells_draw(unsigned cols, unsigned first, unsigned n, unsigned cursor)
 				line[y * bytes + k / 2] |=
 				    (uint8_t)(bits << ((k & 1) ? 0 : 4));
 		}
-	if (window(first % cols * cw, GFX_Y0 + first / cols * 8, n * cw, 8,
+	if (window(first % cols * cw,
+	    GFX_Y0 + (first / cols + scroll_rows) % 25 * 8, n * cw, 8,
 	    LCDG_WIN_BITS, attr & 15, attr >> 4 & 7) == 0)
 		put(line, bytes * 8);
+}
+
+/* When the cells are those drawn moved up by k rows for at least two
+ * rows more than they match unmoved, move the scroll start by k rows and
+ * the copy of the cells drawn with it: the rows that leave the top come
+ * in at the bottom, as the controller's lines do, and the compare below
+ * draws what differs. */
+static void
+text_scroll(unsigned cols)
+{
+	struct lcdg_scroll sc;
+	uint8_t *cell = bank[0], *shown = bank[0] + 0x1000;
+	unsigned row = 2 * cols, best = 0, most = 0, k, r, same;
+
+	if (!scroll_ok || memcmp(cell, shown, row) == 0)
+		return;
+	for (r = 0; r < 25; r++)
+		most += memcmp(cell + r * row, shown + r * row, row) == 0;
+	for (k = 1; k < 25; k++) {
+		if (memcmp(cell, shown + k * row, row) != 0)
+			continue;
+		for (same = 0, r = 0; r + k < 25; r++)
+			same += memcmp(cell + r * row, shown + (r + k) * row,
+			    row) == 0;
+		if (same > most + 1) {
+			most = same;
+			best = k;
+		}
+	}
+	if (best == 0)
+		return;
+	sc.line = (u_short)(GFX_Y0 + (scroll_rows + best) % 25 * 8);
+	if (DEV_IOCTL(fd, LCDG_SCROLL, &sc) != 0) {
+		scroll_ok = 0;
+		return;
+	}
+	scroll_rows = (scroll_rows + best) % 25;
+	for (k = 0; k < best; k++) {
+		memcpy(line, shown, row);
+		memmove(shown, shown + row, 24 * row);
+		memcpy(shown + 24 * row, line, row);
+	}
+	/* The cursor's mark moved with its cell. */
+	if (cur_shown < 25 * cols)
+		cur_shown = (cur_shown + (25 - best) * cols) % (25 * cols);
+	mem_watched |= 0xf;
 }
 
 static void
@@ -342,6 +456,7 @@ text_refresh(unsigned cols, unsigned cursor)
 	uint8_t *cell = bank[0], *shown = bank[0] + 0x1000;
 	unsigned total = cols * 25, pages, i, n;
 
+	text_scroll(cols);
 	if (cursor >= total)
 		cursor = GFX_NOCURSOR;
 	if (cursor != cur_shown) {
@@ -403,13 +518,89 @@ line_expand(unsigned y)
 	}
 }
 
+#define BIT(set, y)	((set)[(y) >> 3] >> ((y) & 7) & 1)
+#define WIN_BYTES	11		/* CASET, RASET and RAMWR of a window */
+#define COL_BYTES	8		/* a byte of a line: four pixels of two bytes */
+
+/* The bytes of line y to send, from *at: those from the first to the last
+ * that differ from the line's copy, none when it equals the copy, all 80
+ * when the panel may show something else. */
+static unsigned
+line_span(unsigned y, unsigned *at)
+{
+	const uint8_t *p = bank[y & 1] + (y >> 1) * 80, *q;
+	unsigned a, b;
+
+	*at = 0;
+	if (sent == NULL || !BIT(fresh, y))
+		return (80);
+	q = sent + y * 80;
+	for (a = 0; a < 80 && p[a] == q[a]; a++)
+		;
+	if (a == 80)
+		return (0);
+	for (b = 80; p[b - 1] == q[b - 1]; b--)
+		;
+	*at = a;
+	return (b - a);
+}
+
+/* Send at most max owed lines, a run of up to GFX_DRAIN adjacent ones a
+ * window. A line's window covers the bytes that differ from its copy; the
+ * next line joins it while one window of their joint columns costs no
+ * more wire bytes than two. */
+static void
+graphic_drain(unsigned max)
+{
+	unsigned i, k, y = drain_at, n, a, w, a2, w2, lo, hi;
+	int ok;
+
+	/* The scan starts where the last drain stopped and wraps, so lines
+	 * written again and again near the top cannot starve the rest. */
+	for (k = 0; k < LINES && max > 0; k += n, y = (y + n) % LINES) {
+		n = 1;
+		if (!BIT(owed, y))
+			continue;
+		owed[y >> 3] &= (uint8_t)~(1u << (y & 7));
+		if ((w = line_span(y, &a)) == 0)
+			continue;
+		while (n < max && n < GFX_DRAIN && y + n < LINES &&
+		    BIT(owed, y + n) && (w2 = line_span(y + n, &a2)) != 0) {
+			lo = a < a2 ? a : a2;
+			hi = a + w > a2 + w2 ? a + w : a2 + w2;
+			if (COL_BYTES * (n + 1) * (hi - lo) >
+			    COL_BYTES * (n * w + w2) + WIN_BYTES)
+				break;
+			owed[(y + n) >> 3] &= (uint8_t)~(1u << ((y + n) & 7));
+			a = lo;
+			w = hi - lo;
+			n++;
+		}
+		max -= n;
+		drain_at = (y + n) % LINES;
+		/* A line's copy holds what the panel shows only once all its
+		 * pixels went out. */
+		ok = window(4 * a, GFX_Y0 + y, 4 * w, n, LCDG_WIN_INDEX, 0, 0) == 0;
+		for (i = y; i < y + n; i++) {
+			if (ok) {
+				line_expand(i);
+				ok = put(line + 4 * a, 4 * w) == 0;
+			}
+			if (ok && sent != NULL) {
+				memcpy(sent + i * 80, bank[i & 1] + (i >> 1) * 80,
+				    80);
+				fresh[i >> 3] |= (uint8_t)(1u << (i & 7));
+			} else
+				fresh[i >> 3] &= (uint8_t)~(1u << (i & 7));
+		}
+	}
+}
+
 static void
 graphic_refresh(void)
 {
-	uint8_t dirty[LINES / 8];
-	unsigned pages = mem_rearm(), i, r, y, n;
+	unsigned pages = mem_rearm(), i, r, y;
 
-	memset(dirty, 0, sizeof(dirty));
 	for (i = 0; i < 2 * BANK_PAGES; i++) {
 		if (!(pages >> i & 1))
 			continue;
@@ -418,42 +609,158 @@ graphic_refresh(void)
 		    r < LINES / 2 && r * 80 < (i % BANK_PAGES + 1) << MEM_PGSHIFT;
 		    r++) {
 			y = 2 * r + i / BANK_PAGES;
-			dirty[y >> 3] |= (uint8_t)(1u << (y & 7));
+			owed[y >> 3] |= (uint8_t)(1u << (y & 7));
 		}
 	}
-	for (y = 0; y < LINES; y += n) {
-		n = 1;
-		if (!(dirty[y >> 3] >> (y & 7) & 1))
-			continue;
-		while (y + n < LINES && (dirty[(y + n) >> 3] >> ((y + n) & 7) & 1))
-			n++;
-		if (window(0, GFX_Y0 + y, LCDG_WIDTH, n, LCDG_WIN_INDEX, 0, 0) != 0)
-			continue;
-		for (i = 0; i < n; i++) {
-			line_expand(y + i);
-			put(line, LCDG_WIDTH);
+}
+
+/*
+ * The panel as the glass shows it, read back from the controller's memory
+ * (LCDG_READ, kernels with LCD_GFX_EXT) into a binary PPM at
+ * gfx_capture_path: each of the 320 glass lines from the memory line the
+ * scroll area puts there, after the owed lines are sent. The file is
+ * written beside it under its name and the process id, created with
+ * O_EXCL so that a file or link planted there fails the capture instead of
+ * being written through, and renamed only once whole, so a failed read-back (a
+ * kernel without the read) leaves an earlier capture as it was. Returns 0, 1 when gfx_capture_path is null or the panel is
+ * closed, and -1 when the device or the file fails.
+ */
+int
+gfx_capture(void)
+{
+	static const char hdr[] = "P6\n320 320\n255\n";
+	char tmp[PATH_MAX + 8];
+	struct lcdg_read rd;
+	uint8_t out[3 * LCDG_WIDTH / 2];
+	unsigned y, half, i, v;
+	int f, ok;
+
+	if (gfx_capture_path == NULL || !gfx_on)
+		return (1);
+	if (!stale && kind != K_TEXT)
+		graphic_drain(LINES);
+	if ((unsigned)snprintf(tmp, sizeof(tmp), "%s.%d", gfx_capture_path,
+	    (int)getpid()) >= sizeof(tmp) ||
+	    (f = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0644)) < 0)
+		return (-1);
+	ok = write(f, hdr, sizeof(hdr) - 1) == (long)sizeof(hdr) - 1;
+	for (y = 0; ok && y < LCDG_HEIGHT; y++)
+		for (half = 0; ok && half < 2; half++) {
+			rd.x = (u_short)(half * LCDG_WIDTH / 2);
+			rd.y = (u_short)(y < GFX_Y0 || y >= GFX_Y0 + LINES ? y :
+			    GFX_Y0 + (y - GFX_Y0 + scroll_rows * 8) % LINES);
+			rd.w = LCDG_WIDTH / 2;
+			rd.h = 1;
+			rd.fmt = LCDG_RD_RGB565;
+			ok = DEV_IOCTL(fd, LCDG_READ, &rd) == 0 &&
+			    DEV_READ(fd, line, LCDG_WIDTH) == LCDG_WIDTH;
+			/* RGB565, low byte first, to 8-bit components by
+			 * bit replication, as scrshot(1) writes them. */
+			for (i = 0; ok && i < LCDG_WIDTH / 2; i++) {
+				v = line[2 * i] | (unsigned)line[2 * i + 1] << 8;
+				out[3 * i] = (uint8_t)((v >> 8 & 0xf8) | v >> 13);
+				out[3 * i + 1] = (uint8_t)((v >> 3 & 0xfc) |
+				    (v >> 9 & 3));
+				out[3 * i + 2] = (uint8_t)((v << 3 & 0xf8) |
+				    (v >> 2 & 7));
+			}
+			if (ok)
+				ok = write(f, out, sizeof(out)) == (long)sizeof(out);
 		}
-	}
+	if (close(f) != 0)
+		ok = 0;
+	if (ok && rename(tmp, gfx_capture_path) == 0)
+		return (0);
+	(void)unlink(tmp);
+	return (-1);
+}
+
+void
+gfx_drain(void)
+{
+	if (gfx_on && !stale && kind != K_TEXT)
+		graphic_drain(GFX_DRAIN);
+}
+
+/* The mark of mouse keys (pc.c): a white pointer arrow in the panel's top
+ * margin while they are on, and black there otherwise. Fills take their
+ * color as RGB565 whatever the mode's palette holds. */
+#define PTR_X		308
+#define PTR_Y		26
+
+static void
+pointer_draw(void)
+{
+	static const uint8_t rows[8] = {
+		0x80, 0xc0, 0xe0, 0xf0, 0xf8, 0xd8, 0x8c, 0x06
+	};
+	struct lcdg_rect r;
+	unsigned x, y, end;
+
+	r.x0 = PTR_X;
+	r.y0 = PTR_Y;
+	r.x1 = PTR_X + 7;
+	r.y1 = PTR_Y + 7;
+	r.color = 0;
+	(void)DEV_IOCTL(fd, LCDG_FILL, &r);
+	if (!pointer)
+		return;
+	r.color = 0xffff;
+	for (y = 0; y < 8; y++)
+		for (x = 0; x < 8; x = end + 1) {
+			/* One fill a run of the row's pixels. */
+			for (end = x; end < 8 && (rows[y] << end & 0x80); end++)
+				;
+			if (end == x)
+				continue;
+			r.x0 = (u_short)(PTR_X + x);
+			r.x1 = (u_short)(PTR_X + end - 1);
+			r.y0 = r.y1 = (u_short)(PTR_Y + y);
+			(void)DEV_IOCTL(fd, LCDG_FILL, &r);
+		}
+}
+
+void
+gfx_pointer(int on)
+{
+	pointer = on;
+	if (gfx_on)
+		pointer_draw();
 }
 
 void
 gfx_refresh(unsigned cols, unsigned cursor)
 {
 	struct lcdg_rect all;
+	struct lcdg_scrdef sd;
 
 	if (!gfx_on)
 		return;
 	if (stale) {
-		/* A mode set or a panel taken back: black everywhere,
-		 * then every cell or line. */
-		all.x0 = all.y0 = 0;
+		/* A mode set or a panel taken back: black where the panel
+		 * may show something else, then every cell or line. */
+		all.x0 = 0;
 		all.x1 = LCDG_WIDTH - 1;
-		all.y1 = LCDG_HEIGHT - 1;
+		all.y0 = edge_black ? GFX_Y0 : 0;
+		all.y1 = edge_black ? GFX_Y0 + LINES - 1 : LCDG_HEIGHT - 1;
 		all.color = 0;
-		(void)DEV_IOCTL(fd, LCDG_FILL, &all);
+		if (!edge_black || stale == 1)
+			(void)DEV_IOCTL(fd, LCDG_FILL, &all);
+		if (!edge_black && pointer)
+			pointer_draw();
+		edge_black = 1;
 		if (kind == K_TEXT)
 			memset(bank[0] + 0x1000, 0, 0x1000);
 		cur_shown = GFX_NOCURSOR;
+		memset(owed, 0, sizeof(owed));
+		memset(fresh, 0, sizeof(fresh));
+		/* The scroll area with its start at the adapter's line 0;
+		 * a nonzero start left by a text mode is only ever reset
+		 * here after the clear of all 200 lines (stale 1). */
+		sd.top = GFX_Y0;
+		sd.bottom = LCDG_RAM_LINES - GFX_Y0 - LINES;
+		scroll_rows = 0;
+		scroll_ok = !gfx_plain && DEV_IOCTL(fd, LCDG_SCRDEF, &sd) == 0;
 		mem_watched = 0xffff;
 		stale = 0;
 	}

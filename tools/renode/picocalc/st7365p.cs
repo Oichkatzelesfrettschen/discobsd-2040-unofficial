@@ -14,10 +14,10 @@
  * only while the PL022 is idle, so the level at the SSPDR write is the level
  * at the eighth clock.
  *
- * What it decodes: CASET, RASET, RAMWR, RAMWRC, VSCRDEF, VSCSAD, MADCTL,
- * COLMOD, SLPIN, SLPOUT, INVON, INVOFF, DISPON, DISPOFF and SWRESET. The
+ * What it decodes: CASET, RASET, RAMWR, RAMWRC, RAMRD, VSCRDEF,
+ * VSCSAD, MADCTL, COLMOD, SLPIN, SLPOUT, INVON, INVOFF, DISPON, DISPOFF and SWRESET. The
  * gamma, power, VCOM and timing commands st7365p.c sends during bring-up
- * have no effect on the pixel image and are counted but not interpreted.
+ * leave the pixel image unchanged and are counted but not interpreted.
  * The image shown is the graphics RAM as written: MADCTL MX and BGR and the
  * INVON polarity compensate the board's panel wiring and are recorded in
  * the dump header instead of being applied, and MADCTL MV (row/column
@@ -36,7 +36,10 @@
  * data bit; the datasheet leaves SDO high-impedance there and the board's
  * MISO pull is unmeasured (hypothesis: the model reads zero). Command
  * Table 2 reads through SPI Read Control (FBh) and RDID4 (D3h) are not
- * modeled and answer zeros.
+ * modeled and answer zeros. The memory read RAMRD (2Eh) answers from the
+ * graphics RAM: see ArmMemoryRead(). RDMEMC (3Eh), which the datasheet
+ * gives 18-bit replies whatever COLMOD says (page 198) and which no board
+ * run has measured, stays unmodeled.
  */
 
 using System;
@@ -61,6 +64,7 @@ namespace Antmicro.Renode.Peripherals.SPI
         public ST7365P()
         {
             gram = new byte[Width * GramLines * 3];
+            from565 = new bool[Width * GramLines];
             commandCounts = new Dictionary<byte, long>();
             Reset();
         }
@@ -70,6 +74,7 @@ namespace Antmicro.Renode.Peripherals.SPI
             lock(sync)
             {
                 Array.Clear(gram, 0, gram.Length);
+                Array.Clear(from565, 0, from565.Length);
                 commandCounts.Clear();
                 cs = true;
                 dc = true;
@@ -92,6 +97,10 @@ namespace Antmicro.Renode.Peripherals.SPI
                 inverted = false;
                 readBits = null;
                 readPos = 0;
+                memoryRead = false;
+                memoryPhase = 0;
+                readX = 0;
+                readY = 0;
                 pixelPhase = 0;
                 pixelHi = 0;
                 pixelBytes = new byte[3];
@@ -143,6 +152,10 @@ namespace Antmicro.Renode.Peripherals.SPI
                 {
                     trace.AppendFormat("{0}{1:x2} ", dc ? 'd' : 'c', data);
                     traceLimit--;
+                }
+                if(dc && memoryRead)
+                {
+                    return NextMemoryByte();
                 }
                 if(dc && readBits != null)
                 {
@@ -286,10 +299,12 @@ namespace Antmicro.Renode.Peripherals.SPI
         private void HardwareReset()
         {
             var keep = (byte[])gram.Clone();
+            var keepFormat = (bool[])from565.Clone();
             var pixels = PixelsWritten;
             var bytes = BytesReceived;
             Reset();
             Buffer.BlockCopy(keep, 0, gram, 0, gram.Length);
+            Array.Copy(keepFormat, from565, from565.Length);
             PixelsWritten = pixels;
             BytesReceived = bytes;
             cs = true;
@@ -324,6 +339,7 @@ namespace Antmicro.Renode.Peripherals.SPI
             {
                 csconStage = 0;
             }
+            memoryRead = false;
 
             switch(cmd)
             {
@@ -348,6 +364,11 @@ namespace Antmicro.Renode.Peripherals.SPI
                 curY = rowStart;
                 break;
             case 0x3c:
+                break;
+            case 0x2e:  /* RAMRD: from the window origin (page 178). */
+                readX = colStart;
+                readY = rowStart;
+                ArmMemoryRead();
                 break;
             case 0x2a: case 0x2b: case 0x33: case 0x36: case 0x37: case 0x3a:
                 break;
@@ -402,7 +423,7 @@ namespace Antmicro.Renode.Peripherals.SPI
                 data = new byte[] { (byte)(inverted ? 0x20 : 0) };
                 break;
             case 0x0e:  /* RDDSM: no TE line, no RGB interface signals (page 160). */
-            case 0x0f:  /* RDDSDR: 00h after any reset (page 162); the self-diagnostic result after SLPOUT has no stated polarity, so the model keeps 00h. */
+            case 0x0f:  /* RDDSDR: 00h after any reset (page 162); the self-diagnostic result after SLPOUT lacks a stated polarity, so the model keeps 00h. */
                 data = new byte[] { 0x00 };
                 break;
             default:    /* RDID1, RDID2, RDID3: FFh (pages 215 to 217). */
@@ -415,6 +436,67 @@ namespace Antmicro.Renode.Peripherals.SPI
                 readBits[dummy + i] = ((data[i / 8] >> (7 - i % 8)) & 1) != 0;
             }
             readPos = 0;
+        }
+
+        /*
+         * A memory read answers one dummy byte, then the pixels of the window
+         * from the read position in the COLMOD in force: two bytes, the RGB565
+         * value high byte first, under 0x55, and three bytes, the six high bits
+         * of each channel, otherwise. The board measured both framings
+         * (sys/arch/rp2040/doc/PICOCALC.md, kernels 4399 and 4401); the
+         * datasheet's 18-bit statement (page 199) does not describe the link
+         * under 0x55. The position wraps inside the window as a write does.
+         */
+        private void ArmMemoryRead()
+        {
+            memoryRead = true;
+            memoryPhase = -1;
+        }
+
+        private byte NextMemoryByte()
+        {
+            if(memoryPhase < 0)
+            {
+                memoryPhase = 0;
+                return 0;
+            }
+            var o = (readY * Width + readX) * 3;
+            var inside = readX >= 0 && readX < Width && readY >= 0 && readY < GramLines;
+            var r = inside ? gram[o] : (byte)0;
+            var g = inside ? gram[o + 1] : (byte)0;
+            var b = inside ? gram[o + 2] : (byte)0;
+            byte value;
+            int last;
+            if((colmod & 0x07) == 0x05)
+            {
+                var v = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+                value = memoryPhase == 0 ? (byte)(v >> 8) : (byte)v;
+                last = 1;
+            }
+            else
+            {
+                /* A pixel written in 565 is stored with the low bit of red
+                 * and blue clear: white reads f8 fc f8 under 0x66 on the
+                 * board (PICOCALC.md, kernels 4399 and 4401). */
+                var narrow = inside && from565[readY * Width + readX] && memoryPhase != 1;
+                value = (byte)((memoryPhase == 0 ? r : memoryPhase == 1 ? g : b) & (narrow ? 0xf8 : 0xfc));
+                last = 2;
+            }
+            if(memoryPhase++ == last)
+            {
+                memoryPhase = 0;
+                readX++;
+                if(readX > colEnd)
+                {
+                    readX = colStart;
+                    readY++;
+                    if(readY > rowEnd)
+                    {
+                        readY = rowStart;
+                    }
+                }
+            }
+            return value;
         }
 
         /* The DC/DC converter runs in sleep out and stops in sleep in (SLPIN page 163, SLPOUT page 165). */
@@ -553,7 +635,7 @@ namespace Antmicro.Renode.Peripherals.SPI
                 var r = (v >> 11) & 0x1f;
                 var g = (v >> 5) & 0x3f;
                 var bl = v & 0x1f;
-                PutPixel((byte)((r << 3) | (r >> 2)), (byte)((g << 2) | (g >> 4)), (byte)((bl << 3) | (bl >> 2)));
+                PutPixel((byte)((r << 3) | (r >> 2)), (byte)((g << 2) | (g >> 4)), (byte)((bl << 3) | (bl >> 2)), true);
                 pixelPhase = 0;
                 return;
             }
@@ -563,11 +645,11 @@ namespace Antmicro.Renode.Peripherals.SPI
                 pixelPhase = 0;
                 if((colmod & 0x07) == 0x06)
                 {
-                    PutPixel(Expand6(pixelBytes[0]), Expand6(pixelBytes[1]), Expand6(pixelBytes[2]));
+                    PutPixel(Expand6(pixelBytes[0]), Expand6(pixelBytes[1]), Expand6(pixelBytes[2]), false);
                 }
                 else
                 {
-                    PutPixel(pixelBytes[0], pixelBytes[1], pixelBytes[2]);
+                    PutPixel(pixelBytes[0], pixelBytes[1], pixelBytes[2], false);
                 }
             }
         }
@@ -578,11 +660,12 @@ namespace Antmicro.Renode.Peripherals.SPI
             return (byte)((six << 2) | (six >> 4));
         }
 
-        private void PutPixel(byte r, byte g, byte b)
+        private void PutPixel(byte r, byte g, byte b, bool wide)
         {
             PixelsWritten++;
             if(curX >= 0 && curX < Width && curY >= 0 && curY < GramLines)
             {
+                from565[curY * Width + curX] = wide;
                 var o = (curY * Width + curX) * 3;
                 gram[o] = r;
                 gram[o + 1] = g;
@@ -609,6 +692,7 @@ namespace Antmicro.Renode.Peripherals.SPI
         private readonly StringBuilder trace = new StringBuilder();
         private int traceLimit;
         private readonly byte[] gram;
+        private readonly bool[] from565;	/* the pixel was written under COLMOD 0x55 */
         private readonly Dictionary<byte, long> commandCounts;
         private bool cs, dc;
         private byte command;
@@ -624,5 +708,7 @@ namespace Antmicro.Renode.Peripherals.SPI
         private byte[] pixelBytes;
         private bool[] readBits;
         private int readPos;
+        private bool memoryRead;
+        private int memoryPhase, readX, readY;
     }
 }

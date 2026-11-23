@@ -27,7 +27,7 @@
  */
 
 /*
- * The uLisp devices of a PicoCalc running DiscoBSD: the pixel display
+ * The uLisp devices of a PicoCalc running GizmoBSD: the pixel display
  * /dev/lcdgfx, the pins /dev/porta and /dev/portb, and the sample audio
  * /dev/audio. Each device is opened at its first use. The analogue inputs
  * are the sysctl nodes machdep.adc.N and the analogue outputs the PWM
@@ -49,6 +49,14 @@
 #define AUDIO_LOW	0x50	/* the 0x80 the output rests at. */
 
 static int panel = -1, audio = -1, port[GPIO_NPORTS] = { -1, -1 };
+/*
+ * dev_bits() draws through palette entries PAL_BG and PAL_FG, which every
+ * open resets; pal_set says they hold pal_fg and pal_bg.
+ */
+#define PAL_BG		14
+#define PAL_FG		15
+static int pal_set;
+static uint16_t pal_fg, pal_bg;
 
 /*
  * The open takes the panel from the text console, which draws nothing
@@ -57,11 +65,25 @@ static int panel = -1, audio = -1, port[GPIO_NPORTS] = { -1, -1 };
 static int
 display(void)
 {
+	struct lcdg_colmod cm;
+
 	if (panel < 0) {
 		sys_flush();
 		panel = open("/dev/lcdgfx", O_RDWR);
 		if (panel < 0)
 			ulisp_fail("no pixel display");
+		/*
+		 * An open starts in RGB666, three wire bytes a pixel; every
+		 * color this program draws is an RGB565 value, which the
+		 * panel takes in two.
+		 */
+		pal_set = 0;
+		cm.fmt = LCDG_COLMOD_RGB565;
+		if (ioctl(panel, LCDG_COLMOD, &cm) < 0) {
+			(void)close(panel);
+			panel = -1;
+			ulisp_fail("no pixel display format");
+		}
 	}
 	return panel;
 }
@@ -74,6 +96,53 @@ dev_fill(int x0, int y0, int x1, int y1, uint16_t color)
 	};
 
 	(void)ioctl(display(), LCDG_FILL, &r);
+}
+
+/* An RGB565 color into a palette entry, which keeps it exactly. */
+static void
+palette(int fd, int index, uint16_t color)
+{
+	struct lcdg_palette p = {
+		(u_char)index, (u_char)((color >> 11) << 3),
+		(u_char)(((color >> 5) & 63) << 2), (u_char)((color & 31) << 3)
+	};
+
+	(void)ioctl(fd, LCDG_PALETTE, &p);
+}
+
+/*
+ * One window of one-bit pixels: 11 bytes of window command and the block's
+ * pixels on the panel's wire, where a fill per run of each color costs the
+ * command again for every run.
+ */
+void
+dev_bits(int x, int y, int w, int h, const uint8_t *rows, uint16_t fg,
+    uint16_t bg)
+{
+	struct lcdg_window win = {
+		(u_short)x, (u_short)y, (u_short)w, (u_short)h, LCDG_WIN_BITS,
+		PAL_FG, PAL_BG
+	};
+	int fd = display();
+	size_t n = (size_t)((w + 7) / 8) * (size_t)h;
+
+	if (!pal_set || pal_fg != fg || pal_bg != bg) {
+		palette(fd, PAL_FG, fg);
+		palette(fd, PAL_BG, bg);
+		pal_fg = fg;
+		pal_bg = bg;
+		pal_set = 1;
+	}
+	if (ioctl(fd, LCDG_WINDOW, &win) < 0)
+		return;
+	while (n > 0) {
+		ssize_t k = write(fd, rows, n);
+
+		if (k <= 0)
+			break;
+		rows += k;
+		n -= (size_t)k;
+	}
 }
 
 /* The kernel lets the superuser alone read the panel's memory. */

@@ -78,12 +78,9 @@ descend(parentino, inumber)
  * This is a superset of the checks made in the kernel.
  */
 int
-dircheck(idesc, dp)
-    struct inodesc *idesc;
-    register DIRECT *dp;
+dircheck(struct inodesc *idesc, DIRECT *dp)
 {
-    register int size;
-    register char *cp;
+    int size;
     int spaceleft;
 
     size = DIRSIZ(dp);
@@ -97,10 +94,10 @@ dircheck(idesc, dp)
         dp->d_namlen <= MAXNAMLEN) {
         if (dp->d_ino == 0)
             return (1);
-        for (cp = dp->d_name, size = 0; size < dp->d_namlen; size++)
-            if (*cp == 0 || (*cp++ & 0200))
+        for (size = 0; size < dp->d_namlen; size++)
+            if (dp->d_name[size] == 0 || dp->d_name[size] == '/')
                 return (0);
-        if (*cp == 0)
+        if (dp->d_name[size] == 0)
             return (1);
     }
     return (0);

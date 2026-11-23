@@ -21,6 +21,7 @@ EXPECTED_LABELS = {
     "linux-lint",
     "linux-matezinho-sd",
     "linux-mpu-startup",
+    "linux-panel-gfx-ext",
     "linux-panel-programs",
     "linux-qemu",
     "linux-renode",
@@ -65,7 +66,7 @@ EXPECTED_COMMANDS = {
     ),
     "linux-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "linux-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
-    "linux-host": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
+    "linux-host": 'bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host',
     "linux-flash-picocalc": (
         'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 BOARD=PICOCALC flash'
     ),
@@ -77,6 +78,9 @@ EXPECTED_COMMANDS = {
     "linux-matezinho-sd": "bmake MACHINE=rp2040 check-matezinho-sd",
     "linux-mpu-startup": "bmake MACHINE=rp2040 check-mpu-startup",
     "linux-panel-programs": "bmake MACHINE=rp2040 check-panel-programs",
+    "linux-panel-gfx-ext": (
+        'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-panel-gfx-ext'
+    ),
     "linux-qemu": "bmake MACHINE=rp2040 check-qemu",
     "linux-core1-emulation": "bmake MACHINE=rp2040 check-core1-emulation",
     "linux-cycle-model": "bmake MACHINE=rp2040 check-picocalc-cycle-model",
@@ -99,8 +103,8 @@ EXPECTED_COMMANDS = {
     "macos-build": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 build',
     "macos-cross": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-cross',
     "macos-flash": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 flash',
-    "macos-host-a": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a',
-    "macos-host-b": 'bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b',
+    "macos-host-a": 'bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a',
+    "macos-host-b": 'bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b',
     "macos-kernel-headroom": (
         "bmake MACHINE=rp2040 check-kernel-headroom check-dump-writer-link "
         "check-kernel-buffer-alignment"
@@ -126,8 +130,9 @@ HOST_REQUIRED_LOGS = {
     "macos": ".build-logs/host-macos.log",
 }
 JOB_PATTERN = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$", re.MULTILINE)
-STEP_PATTERN = re.compile(r"^      - (?:name|uses):", re.MULTILINE)
+STEP_PATTERN = re.compile(r"^      - \S", re.MULTILINE)
 LABEL_PATTERN = re.compile(r"--label\s+([A-Za-z0-9._-]+)")
+APT_GET_PATTERN = re.compile(r"\b(?:apt-get|ci_apt_install\.sh)\b")
 DIRECT_BMAKE_PATTERN = re.compile(
     r"^(?:env(?:\s+-[^\s]+)*\s+)?"
     r"(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]+\s+)*(?:[^\s]*/)?bmake\b"
@@ -157,7 +162,7 @@ def step_blocks(job):
 
 
 def step_name(step):
-    match = re.match(r"^      - name:\s*(.+?)\s*$", step)
+    match = re.search(r"^(?:      - |        )name:\s*(.+?)\s*$", step, re.MULTILINE)
     return match.group(1) if match is not None else "unnamed step"
 
 
@@ -205,6 +210,15 @@ def validate_workflow(source, *, expected_jobs=EXPECTED_JOBS,
         for step in step_blocks(job):
             name = step_name(step)
             active_step = active_step_source(step)
+            if APT_GET_PATTERN.search(active_step) and re.search(
+                    r"^        timeout-minutes:\s*[1-9][0-9]*\s*$",
+                    step,
+                    re.MULTILINE,
+            ) is None:
+                raise ValueError(
+                    f"job {job_name} step {name} installs packages (apt-get or "
+                    "tools/ci_apt_install.sh) without a step timeout-minutes"
+                )
             continued_command = False
             for line in active_step.splitlines():
                 command = line.strip()

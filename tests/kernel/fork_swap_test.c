@@ -99,7 +99,7 @@ swap_cursor_publish(size_t cursor)
 /*
  * The device model of a removable swap device. Transfer number
  * swap_fail_at, counted from zero over reads and writes, finds the device
- * gone: it moves nothing and sets swap_lost as swap_with_buf_result() does,
+ * gone: it moves zero bytes and sets swap_lost as swap_with_buf_result() does,
  * and every later transfer returns at once. swap_ring_io_test holds the
  * production vm_swp.c to that contract.
  */
@@ -179,7 +179,7 @@ swap(size_t block, size_t address, int count, int flags)
     if (flags & B_READ) {
         /*
          * Only the scheduler control restores an image; the destination is a
-         * logical process address, so a read records itself and moves no byte.
+         * logical process address, so a read records itself and moves zero bytes.
          */
         int swapin_read_allowed = swap_reads_allowed;
 
@@ -263,7 +263,7 @@ sleep(caddr_t channel, int priority)
     struct proc *child = (struct proc *)channel;
 
     /*
-     * The scheduler sleeps on runin or runout once it has nothing to swap.
+     * The scheduler sleeps on runin or runout once it runs out of images to swap.
      * The fixture grants the first sched_wakeups sleeps an immediate wakeup,
      * so sched() runs its retry pass, and ends the call under test at the
      * next one, since sched() never returns.
@@ -470,7 +470,7 @@ probe_ignore(uint32_t *expected)
 
 /*
  * The admission probe scans process bytes through the logical addresses
- * above; an empty range names no byte.
+ * above; an empty range names zero bytes.
  */
 static const unsigned char *
 fixture_logical_bytes(caddr_t source, size_t length)
@@ -769,15 +769,25 @@ successful_forks(void)
 {
     struct proc parent_before;
     struct user copied_user;
-    unsigned int use_vfork, blocks, data_blocks, text_size, index;
+    unsigned int use_vfork, blocks, data_blocks, text_size, index, variant;
+    unsigned int dirty;
 
-    for (blocks = 156; blocks <= 164; blocks += 8)
+    /*
+     * Variant 0 omits 8,040 bytes of clean text; variant 1 lacks text;
+     * variant 2 has the same text marked P_TEXTDIRTY by a ptrace write, so
+     * the child's image carries it whole and the child keeps the flag.
+     */
+    for (variant = 0; variant < 3; variant++)
     for (use_vfork = 0; use_vfork < 2; use_vfork++) {
         reset_fixture();
+        blocks = variant == 0 ? 156 : 164;
+        dirty = variant == 2;
         entries[0].m_addr = 4;
         entries[0].m_size = blocks;
-        text_size = blocks == 156 ? 8040 : 0;
-        proc[0].p_tsize = text_size;
+        proc[0].p_tsize = variant == 1 ? 0 : 8040;
+        if (dirty)
+            proc[0].p_flag |= P_TEXTDIRTY;
+        text_size = variant == 0 ? 8040 : 0;
         data_blocks = btod(proc[0].p_dsize - text_size);
         bcopy(&proc[0], &parent_before, sizeof(parent_before));
         run_vfork = use_vfork;
@@ -790,6 +800,8 @@ successful_forks(void)
         HK_CHECK(pidhash[PIDHASH(proc[1].p_pid)] == pid_slot(&proc[1]));
         HK_CHECK(proc[1].p_stat == SRUN);
         HK_CHECK((proc[1].p_flag & SSWAP) != 0);
+        HK_CHECK(((proc[1].p_flag & P_TEXTDIRTY) != 0) == dirty);
+        HK_CHECK(proc[1].p_tsize == proc[0].p_tsize);
         HK_CHECK(proc[1].p_daddr == (use_vfork ? parent_before.p_daddr : 4));
         HK_CHECK(proc[1].p_saddr == (use_vfork ? parent_before.p_saddr : 4 + data_blocks));
         HK_CHECK(proc[1].p_addr == 7 + data_blocks);
@@ -832,6 +844,7 @@ successful_forks(void)
         exec_text_release(&proc[1], NULL);
         HK_CHECK(text_inode.i_count == 1);
         HK_CHECK(proc[1].p_tip == NULL);
+        HK_CHECK((proc[1].p_flag & P_TEXTDIRTY) == 0);
         HK_CHECK(sleeps == use_vfork);
     }
 }
@@ -1036,7 +1049,7 @@ invalid_reservation_transitions(void)
 {
     prepare_transition();
     transition_process = &proc[0];
-    HK_EXPECT_PANIC("swap image: copy owner", copy_transition_call);
+    HK_EXPECT_PANIC("K64", copy_transition_call);
     HK_CHECK(transition_reservation.state == SWAP_IMAGE_RESERVED);
     HK_CHECK(writes == 0);
     swap_image_cancel(&transition_reservation);
@@ -1044,27 +1057,27 @@ invalid_reservation_transitions(void)
     prepare_transition();
     copy_transition_call();
     HK_CHECK(transition_reservation.state == SWAP_IMAGE_COPIED);
-    HK_EXPECT_PANIC("swap image: copy owner", copy_transition_call);
+    HK_EXPECT_PANIC("K64", copy_transition_call);
 
     prepare_transition();
-    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
+    HK_EXPECT_PANIC("K65", commit_transition_call);
     swap_image_cancel(&transition_reservation);
 
     prepare_transition();
     copy_transition_call();
     transition_process = &proc[0];
-    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
+    HK_EXPECT_PANIC("K65", commit_transition_call);
 
     prepare_transition();
     copy_transition_call();
     commit_transition_call();
     HK_CHECK(transition_reservation.state == SWAP_IMAGE_COMMITTED);
-    HK_EXPECT_PANIC("swap image: commit owner", commit_transition_call);
-    HK_EXPECT_PANIC("swap image: cancel state", cancel_transition_call);
+    HK_EXPECT_PANIC("K65", commit_transition_call);
+    HK_EXPECT_PANIC("K57", cancel_transition_call);
 
     prepare_transition();
     copy_transition_call();
-    HK_EXPECT_PANIC("swap image: cancel state", cancel_transition_call);
+    HK_EXPECT_PANIC("K57", cancel_transition_call);
 }
 
 static void
@@ -1177,7 +1190,7 @@ swapin_ram_release(void)
 }
 #endif
 
-/* Refusal returns -1 from newproc() and writes no image byte. */
+/* Refusal returns -1 from newproc() and writes zero image bytes. */
 static void
 newproc_refusal_result(void)
 {
@@ -1210,7 +1223,7 @@ newproc_results(void)
 
         /*
          * The saved context makes setjmp() return nonzero in the child before
-         * any image byte moves. The resume has no swapout on its path.
+         * any image byte moves. The resume path skips swapout.
          */
         reset_fixture();
         entries[0].m_addr = 4;
@@ -1264,7 +1277,7 @@ newproc_results(void)
 }
 
 /*
- * Process 0 at boot owns no data or stack, holds no executable text and
+ * Process 0 at boot owns zero data and stack, lacks executable text and
  * runs from the kernel u area, and init_main.c seeds the swap map with every
  * block past the reserved head before it forks process 1.
  */
@@ -1621,10 +1634,10 @@ sched_call(void)
 }
 
 /*
- * The pool refuses proc[0], the blocks after proc[1]'s extent hold no tail
+ * The pool refuses proc[0], the blocks after proc[1]'s extent cannot hold a tail
  * and no free run holds a whole image, so the second pass of sched() leaves
  * proc[0] resident: SLOAD returns, a runnable process rejoins the run queue
- * and proc[1] stays out. The third pass finds no candidate it has not
+ * and proc[1] stays out. The third pass finds every candidate already
  * refused and sleeps on runin until capacity changes. The fixture wakes that
  * first sleep, and three more passes select the pair, refuse it and sleep
  * again: a refused candidate is excluded only until the sleep.
@@ -1725,7 +1738,7 @@ sched_refusal_case(int in_core_state, unsigned int shape, unsigned int cursor)
 /*
  * Two runnable processes wait to come in. proc[1] has been out longer and is
  * selected first; its image is in the pool, the pool refuses proc[0] and the
- * 8 free blocks hold no image, so that exchange is refused. proc[2] is a
+ * 8 free blocks cannot hold an image, so that exchange is refused. proc[2] is a
  * fork child of proc[0] and owns an extent of proc[0]'s span, which proc[0]
  * can take with a zero-block tail. sched() must reach that exchange before
  * it sleeps: a sleep here leaves the child waiting behind proc[1] until the
@@ -1847,7 +1860,7 @@ sched_refusals(void)
 
 /*
  * With room in the selected tier the second pass swaps proc[0] out and
- * proc[1] in, and the third selection finds nothing eligible and sleeps on
+ * proc[1] in, and the third selection finds every candidate ineligible and sleeps on
  * runin.
  */
 static void
@@ -1961,7 +1974,7 @@ lost_fork_call(void)
     lost_result = newproc(0);
 }
 
-/* The slot newproc() took is back on freeproc and names no process. */
+/* The slot newproc() took is back on freeproc and does not name a process. */
 static int
 lost_child_slot_free(void)
 {
@@ -2234,7 +2247,7 @@ lost_sweep_cases(void)
 /*
  * The layout in which a fixed device starts the in-place exchange
  * (sched_next_candidate_case()): a removable one refuses the pair instead,
- * since eight free blocks hold no fresh extent, and proc[0] stays resident.
+ * since eight free blocks cannot hold a fresh extent, and proc[0] stays resident.
  */
 static void
 lost_no_exchange_case(void)
@@ -2279,7 +2292,7 @@ lost_no_exchange_case(void)
 #if defined(SWAP_IMAGE_ALIGN) && defined(SWAPRAM)
 /*
  * The device left and its images were retired. proc[1] waits in the SwapRAM
- * pool, the pool refuses the resident proc[0], and the lost device takes no
+ * pool, the pool refuses the resident proc[0], and the lost device refuses the
  * reservation. With the lost device's map empty (held == 0) swap returns to
  * the fixed device, whose map then takes proc[0], and proc[1] comes in from
  * the pool; with an extent still held (a temporary swap unit, held == 1), or
@@ -2341,8 +2354,8 @@ lost_vfork_call(void)
  * child retired as a zombie (how 1, and how 3 once swap is back on fl1) or
  * exiting after lending the image on to a vfork child of its own that went
  * (how 2, swap back on fl1): the parent calls exit(SIGKILL) itself rather than return behind
- * a signal a tracer or process 1 could escape, takes no size from the
- * child, releases it with SVFDONE and keeps no image.
+ * a signal a tracer or process 1 could escape, takes zero size from the
+ * child, releases it with SVFDONE and does not keep an image.
  */
 static void
 lost_vfork_parent_case(int how)
@@ -2404,8 +2417,8 @@ unreserved_swapout(void)
     entries[0].m_size = 380;
     bzero(&unreserved, sizeof(unreserved));
     HK_CHECK(unreserved.state == SWAP_IMAGE_EMPTY);
-    HK_EXPECT_PANIC("swapout: no reservation", null_reservation_call);
-    HK_EXPECT_PANIC("swapout: no reservation", empty_reservation_call);
+    HK_EXPECT_PANIC("K66", null_reservation_call);
+    HK_EXPECT_PANIC("K66", empty_reservation_call);
     HK_CHECK(unreserved.state == SWAP_IMAGE_EMPTY);
     HK_CHECK(writes == 0 && free_total() == 380);
     HK_CHECK((proc[0].p_flag & (SLOAD | SLOCK)) == SLOAD);

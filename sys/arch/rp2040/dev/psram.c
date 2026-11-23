@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -36,6 +48,9 @@
 #include <sys/config.h>
 #include <sys/errno.h>
 #include <sys/storage_stats.h>
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+#endif
 
 #include <machine/board.h>
 
@@ -95,6 +110,9 @@ psramstrategy(struct buf *bp)
 	err = psram_region_offset(minor(bp->b_dev), bp->b_blkno, DEV_BSIZE,
 	    len, &off);
 	if (err != 0) {
+#ifdef DIAG_STATS
+		diag_add(DIAG_PSRAM_RANGES, 1);
+#endif
 		bp->b_error = EINVAL;
 		goto bad;
 	}
@@ -109,6 +127,16 @@ psramstrategy(struct buf *bp)
 	else
 		err = psram_write(off, (const unsigned char *)bp->b_addr,
 		    len);
+#ifdef DIAG_STATS
+	diag_add(DIAG_PSRAM_XFERS, 1);
+	diag_add(DIAG_PSRAM_BYTES, len);
+	if (err == PSRAM_E_TIMEOUT)
+		diag_add(DIAG_PSRAM_TIMEOUTS, 1);
+	else if (err == PSRAM_E_STALL)
+		diag_add(DIAG_PSRAM_STALLS, 1);
+	else if (err == PSRAM_E_RANGE)
+		diag_add(DIAG_PSRAM_RANGES, 1);
+#endif
 	if (err != 0) {
 		bp->b_error = err == PSRAM_E_RANGE ? EINVAL : EIO;
 		goto bad;
@@ -130,6 +158,10 @@ psramprobe(const struct conf_device *config __unused)
 		return 0;
 	psram_hw_init();
 	err = psram_device_init();
+#ifdef DIAG_STATS
+	diag_set(DIAG_PSRAM_PROBE_RAN, 1);
+	diag_set(DIAG_PSRAM_PROBE_ERR, err < 0 ? (uint32_t)-err : (uint32_t)err);
+#endif
 	if (psram_id_read)
 		printf("psram0: read id %02x/%02x eid %02x%02x%02x%02x%02x%02x\n",
 		    psram_mfid, psram_kgd, psram_eid[0], psram_eid[1],

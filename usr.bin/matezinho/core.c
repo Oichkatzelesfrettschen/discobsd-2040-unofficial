@@ -19,18 +19,32 @@ static int clip_bottom=320;
 #define GREEN 0x9e6b
 #define SELECT 0x3186
 
+/* Flag the bands of rows [y, y+h) and widen each one's dirty columns to cover
+ * pixels [x, x+w), rounded outward to MZ_XUNIT units. */
 static void
-mark(struct mz *s, int y, int h)
+mark(struct mz *s, int x, int y, int w, int h)
 {
-    int i;
-    for (i=y/8; i<40 && i<(y+h+7)/8; i++)
-        if (i>=0) s->bands[i]=1;
+    int i,lo,hi;
+    if (x<0) { w+=x; x=0; }
+    lo=x/MZ_XUNIT;
+    hi=(x+w+MZ_XUNIT-1)/MZ_XUNIT;
+    if (hi>MZ_COLS) hi=MZ_COLS;
+    if (lo>=hi) return;
+    for (i=y/8; i<MZ_BANDS && i<(y+h+7)/8; i++) {
+        if (i<0) continue;
+        if (s->xlo[i]>=s->xhi[i]) { s->xlo[i]=(unsigned char)lo; s->xhi[i]=(unsigned char)hi; }
+        else {
+            if (lo<s->xlo[i]) s->xlo[i]=(unsigned char)lo;
+            if (hi>s->xhi[i]) s->xhi[i]=(unsigned char)hi;
+        }
+    }
     s->dirty=1;
 }
 void
 mz_all(struct mz *s)
 {
-    memset(s->bands,1,sizeof(s->bands));
+    int i;
+    for (i=0; i<MZ_BANDS; i++) { s->xlo[i]=0; s->xhi[i]=MZ_COLS; }
     s->dirty=1;
 }
 void
@@ -42,7 +56,33 @@ mz_init(struct mz *s)
     for(i=0;i<MZ_APPS;i++) s->mru[i]=(unsigned char)i;
     strcpy(s->location,"/");
     strcpy(s->status,"Ready");
+    s->light[MZ_SCREEN]=s->light[MZ_KEYS]=-1;
+    s->light_want[MZ_SCREEN]=s->light_want[MZ_KEYS]=-1;
     mz_all(s);
+}
+/*
+ * Settings rows. Left and Right step a light from the level already asked
+ * for, or else from the kept level, so several presses that reach the
+ * backend together ask for their sum. The kernel takes 0-240, and the
+ * controller rounds what it gets (MZ_SCREEN_STEP in matezinho.h).
+ */
+static void
+settings(struct mz *s,int key)
+{
+    int row=s->setting,level,step;
+    if(key==MZ_UP) s->setting=(row+2)%3;
+    else if(key==MZ_DOWN) s->setting=(row+1)%3;
+    else if(key==' ' || ((key=='\n'||key=='\r') && row==2)) s->large=!s->large;
+    else if((key==MZ_LEFT || key==MZ_RIGHT) && row<2) {
+        level=s->light_want[row]>=0?s->light_want[row]:s->light[row];
+        if(level<0) return;
+        step=row==MZ_SCREEN?MZ_SCREEN_STEP:MZ_KEYS_STEP;
+        level+=key==MZ_RIGHT?step:-step;
+        if(level<0) level=0;
+        if(level>MZ_LIGHT_MAX) level=MZ_LIGHT_MAX;
+        s->light_want[row]=level;
+    } else return;
+    mark(s,8,24,304,272);
 }
 static void
 activate(struct mz *s, int a)
@@ -63,9 +103,13 @@ mz_action(struct mz *s, int key)
     char *p;
     if(key==MZ_TICK) {
         s->ticks++;
-        mark(s,0,24);
-        if(s->active<0 || s->menu)mark(s,118,80);
-        if(s->active==5 || s->active==2) mark(s,24,272);
+        /* The clock is five 6-column glyphs at (278,6), 9 rows high, so it
+         * changes columns 278-307 of rows 6-14 (bands 0 and 1). */
+        mark(s,278,6,30,9);
+        if(s->active<0 || s->menu)mark(s,216,118,96,80);
+        /* Page 5 shows the tick count unless the launcher covers it;
+         * every other page is static between ticks. */
+        if(s->active==5 && !s->menu) mark(s,8,24,304,272);
         return;
     }
     if(key==MZ_HOME || key==27) {
@@ -102,11 +146,11 @@ mz_action(struct mz *s, int key)
         if(key==MZ_UP) s->focus=(n+6)%9;
         if(key==MZ_DOWN) s->focus=(n+3)%9;
         if(key=='\n' || key=='\r') { activate(s,s->focus); return; }
-        mark(s,24+(n/3)*88,88);
-        mark(s,24+(s->focus/3)*88,88);
+        mark(s,8+(n%3)*104,24+(n/3)*88,96,88);
+        mark(s,8+(s->focus%3)*104,24+(s->focus/3)*88,96,88);
         return;
     }
-    if(s->active==4 && key==' ') { s->large=!s->large; mz_all(s); }
+    if(s->active==4) { settings(s,key); return; }
     p=s->active==1?s->note:s->expr;
     if(s->active!=1 && s->active!=3) return;
     n=(int)strlen(p);
@@ -117,7 +161,7 @@ mz_action(struct mz *s, int key)
         p[n]=(char)key; p[n+1]=0;
     }
     if(s->active==1) s->note_dirty=1;
-    mark(s,56,224);
+    mark(s,8,56,304,224);
 }
 static void
 rect(int x,int y,int w,int h,uint16_t c)
@@ -194,6 +238,22 @@ tile_title(int x, int y, const char *title)
     }
 }
 
+static const char *const setting_names[3] = {
+    "Screen light", "Keyboard light", "Large headings"
+};
+/* A light's row: a bar of the kept level out of 240 and its number. */
+static void
+light_bar(const struct mz *s,int which,int y)
+{
+    char buf[12];
+    int v=s->light[which];
+    if(v<0) { text(112,y+2,"unavailable",MUTED,1); return; }
+    rect(112,y,122,12,PANEL);
+    rect(113,y+1,(v<MZ_LIGHT_MAX?v:MZ_LIGHT_MAX)*120/MZ_LIGHT_MAX,10,GREEN);
+    if(which==MZ_KEYS && v==0) strcpy(buf,"off");
+    else snprintf(buf,sizeof(buf),"%d",v);
+    text(242,y+2,buf,TEXT,1);
+}
 static int
 icon(struct mz_io *io,int app,int x,int y)
 {
@@ -262,7 +322,15 @@ scene(struct mz *s,struct mz_io *io)
             text(16,104,s->expr,TEXT,1);
             text(16,137,s->result,GREEN,1); break;
         case 4:
-            text(16,84,"Space: toggle large headings\nOriginal dark theme\nMATE artwork: CC BY-SA 3.0\nSee artwork AUTHORS and COPYING",TEXT,1); break;
+            for(i=0;i<3;i++) {
+                y=68+i*22;
+                if(i==s->setting) rect(12,y-4,296,20,SELECT);
+                text(16,y+2,setting_names[i],TEXT,1);
+                if(i<2) light_bar(s,i,y);
+                else text(112,y+2,s->large?"on":"off",TEXT,1);
+            }
+            text(16,140,"Up/Down: choose  Left/Right: adjust\nSpace: large headings\nBoot level: root runs backlight -s",MUTED,1);
+            text(16,186,"Original dark theme\nMATE artwork: CC BY-SA 3.0\nSee artwork AUTHORS and COPYING",TEXT,1); break;
         case 5:
             snprintf(buf,sizeof(buf),"Session: %u seconds",s->ticks);
             text(16,90,buf,TEXT,scale);
@@ -270,7 +338,7 @@ scene(struct mz *s,struct mz_io *io)
         case 6:
             text(16,80,"Enter: exclusive shell\nDisplay returns after shell exits.\nNo concurrent terminal promised.",TEXT,1); break;
         case 7:
-            text(16,78,"Arrows: select  Enter: open\nEsc: desktop  Tab: next task\nCtrl-W: close  Ctrl-S: save\nF1: applications  F5: refresh\nNotes: 1023 bytes, retained\nFiles: first 12 directory entries\nIcons: MATE/GNOME contributors\nCC BY-SA 3.0; upstream AUTHORS\nIndependent MATE-inspired shell",TEXT,1); break;
+            text(16,78,"Arrows: select  Enter: open\nEsc: desktop  Tab: next task\nCtrl-W: close  Ctrl-S: save\nF1: applications  F5: refresh\nSettings: lights and headings\nNotes: 1023 bytes, retained\nFiles: first 12 directory entries\nIcons: MATE/GNOME contributors\nCC BY-SA 3.0; upstream AUTHORS\nIndependent MATE-inspired shell",TEXT,1); break;
         case 8:
             snprintf(buf,sizeof(buf),"Asset capacity: %u MiB",s->asset_sectors/2048);
             text(16,64,buf,GREEN,1);
@@ -303,10 +371,11 @@ int
 mz_render(struct mz *s,struct mz_io *io)
 {
     int i;
-    for(i=0;i<40;i++) if(s->bands[i]) {
+    for(i=0;i<MZ_BANDS;i++) if(s->xlo[i]<s->xhi[i]) {
         band_y=i*8;
-        if(scene(s,io)<0 || io->band(io->ctx,band_y,pixels)<0) return -1;
-        s->bands[i]=0;
+        if(scene(s,io)<0 ||
+            io->band(io->ctx,band_y,pixels,s->xlo[i],s->xhi[i])<0) return -1;
+        s->xlo[i]=s->xhi[i]=0;
     }
     s->dirty=0;
     return 0;

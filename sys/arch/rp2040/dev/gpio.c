@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -25,7 +37,7 @@
  * With the DEV_GPIO_PWM option, GPIO_PWM gives pins to a PWM slice (datasheet
  * 4.5) instead: the slice runs the fixed carrier of <machine/gpio.h> and
  * each pin's channel holds the duty. A kernel without the option answers
- * GPIO_PWM with EOPNOTSUPP and carries none of this code. Every kernel PWM
+ * GPIO_PWM with EOPNOTSUPP and leaves out all of this code. Every kernel PWM
  * user is on the PicoCalc, whose slice 5 is the bell and /dev/audio's
  * carrier and whose slice 6 is /dev/audio's sample clock; gpio_pwm_check()
  * refuses those, and pcmopen() refuses to open
@@ -50,7 +62,7 @@
 #endif
 /*
  * picoaudio.c, which only the PicoCalc kernels compile, owns the flag that
- * /dev/audio is open; a kernel without it has no audio slice to protect.
+ * /dev/audio is open; a kernel without it lacks an audio slice to protect.
  */
 #ifdef PICOCALC_ENABLED
 extern int picoaudio_pcm;
@@ -116,7 +128,7 @@ gpioopen(dev_t dev, int flag __unused, int mode __unused)
 
 /*
  * The PIC32 driver's text interface is absent, and conf.c's norw() would
- * report a write that changed no pin as done, so both directions fail.
+ * report as done a write that left every pin unchanged, so both directions fail.
  */
 int
 gpiorw(dev_t dev __unused, struct uio *uio __unused, int flag __unused)

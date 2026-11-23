@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -37,16 +49,19 @@
  *
  *	head = roundup(N * 512, FT32_HEAD_ALIGN)
  *
- * The walk reads the boot sector, finds the 8.3 short entry DISCOBSD.UF2
+ * The walk reads the boot sector, finds the 8.3 short entry GIZMOBSD.UF2
  * (any letter case; deleted entries, labels and long-name parts never match)
- * in the root directory, else in the first subdirectory of the root that
- * holds it, requires the file's cluster chain to be one contiguous run,
+ * in the root directory and in each subdirectory of the root, and requires
+ * exactly one such file in that whole set. DISCOBSD.UF2, the file's former
+ * name, matches too until a card has booted the new name, so a card that
+ * holds both names, or one name twice, is ambiguous and mounts nothing.
+ * The walk requires the file's cluster chain to be one contiguous run,
  * checks the UF2 head and the whole-sector length of the tail, and checks
- * the DiscoBSD file-system magic words in the tail. The head is a multiple
+ * the GizmoBSD file-system magic words in the tail. The head is a multiple
  * of 32 KiB, so the tail starts on a sector whatever the cluster size.
  * Section names refer to the Microsoft FAT32 File System
- * Specification (version 1.03; "fatgen103"). The file includes no kernel
- * header, so tests/fat32tail links it against a sector callback over an
+ * Specification (version 1.03; "fatgen103"). The file compiles without kernel
+ * headers, so tests/fat32tail links it against a sector callback over an
  * image, as tests/picocalc does for sdspi.c.
  */
 
@@ -63,12 +78,13 @@
 #define	FT32_OK			0
 #define	FT32_E_IO		1	/* The read callback failed. */
 #define	FT32_E_NOTFAT32		2	/* The boot sector is not a FAT32 BPB. */
-#define	FT32_E_ABSENT		3	/* No DISCOBSD.UF2 in the searched directories. */
+#define	FT32_E_ABSENT		3	/* No GIZMOBSD.UF2 or DISCOBSD.UF2 in the searched directories. */
 #define	FT32_E_FRAGMENTED	4	/* The file's clusters are not one run. */
 #define	FT32_E_UF2HEAD		5	/* The file does not start with a UF2 head. */
 #define	FT32_E_TAIL		6	/* The tail is empty, short or not whole sectors. */
-#define	FT32_E_NOMAGIC		7	/* The tail does not start a DiscoBSD file system. */
+#define	FT32_E_NOMAGIC		7	/* The tail does not start a GizmoBSD file system. */
 #define	FT32_E_CORRUPT		8	/* A directory or file chain is damaged or loops. */
+#define	FT32_E_AMBIGUOUS	9	/* The searched directories hold more than one matching file. */
 
 /*
  * Read the 512-byte sector at absolute sector number lba into buf; return
@@ -84,7 +100,7 @@ struct fat32tail {
 };
 
 /*
- * Locate the tail of DISCOBSD.UF2 on the FAT32 volume whose boot sector is
+ * Locate the tail of GIZMOBSD.UF2 (or DISCOBSD.UF2) on the FAT32 volume whose boot sector is
  * at volume_lba (0 for a volume with no partition table). buf is the one
  * sector buffer the walk uses. On FT32_OK, *out holds the extent; any other
  * result leaves *out unchanged.

@@ -46,6 +46,18 @@ dev_fill(int x0, int y0, int x1, int y1, uint16_t color)
 			frame[y][x] = color;
 }
 
+void
+dev_bits(int x, int y, int w, int h, const uint8_t *rows, uint16_t fg,
+    uint16_t bg)
+{
+	int stride = (w + 7) / 8;
+
+	for (int r = 0; r < h; r++)
+		for (int c = 0; c < w; c++)
+			frame[y + r][x + c] =
+			    (rows[r * stride + c / 8] & (0x80u >> (c % 8))) ? fg : bg;
+}
+
 int
 dev_readpixel(int x, int y)
 {

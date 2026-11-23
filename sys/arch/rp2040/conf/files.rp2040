@@ -27,6 +27,7 @@ kern/kern_sysctl.c			standard
 kern/kern_time.c			standard compile-with "${COMPILE_SIZE_C} ${C17_PROTO_FLAGS}"
 kern/subr_log.c				optional log
 kern/subr_capacity.c			optional capacity_stats
+kern/subr_diag.c			optional diag_stats
 kern/subr_prf.c				standard
 kern/subr_rmap.c			standard
 kern/sys_generic.c			standard

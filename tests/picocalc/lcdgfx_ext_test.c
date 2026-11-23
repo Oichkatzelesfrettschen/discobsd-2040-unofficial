@@ -82,12 +82,10 @@ violation(const char *what)
 }
 
 const unsigned char lcd_palette[16][3] = {
-	{   0,   0,   0 }, { 205,   0,   0 }, {   0, 205,   0 },
-	{ 205, 205,   0 }, {  60,  90, 238 }, { 205,   0, 205 },
-	{   0, 205, 205 }, { 200, 200, 200 },
-	{ 127, 127, 127 }, { 255,  60,  60 }, {  60, 255,  60 },
-	{ 255, 255,  60 }, { 100, 120, 255 }, { 255,  60, 255 },
-	{  60, 255, 255 }, { 255, 255, 255 },
+	{ 0, 0, 0 }, { 206, 97, 24 }, { 132, 227, 140 }, { 214, 182, 8 },
+	{ 99, 113, 239 }, { 189, 121, 189 }, { 74, 186, 239 }, { 189, 190, 189 },
+	{ 132, 130, 132 }, { 206, 130, 66 }, { 181, 251, 156 }, { 247, 195, 16 },
+	{ 115, 138, 239 }, { 189, 154, 198 }, { 132, 211, 255 }, { 255, 255, 255 },
 };
 
 static int cells_drawn;		/* Console cells drawn onto the panel. */
@@ -117,7 +115,7 @@ lcdcons_gfx(int on)
 	return 0;
 }
 
-/* The opener's effective uid: 0 is the superuser, whose open clears nothing. */
+/* The opener's effective uid: 0 is the superuser, whose open skips blanking GRAM. */
 #define	OTHER_UID	1001
 
 static unsigned cur_uid;
@@ -534,7 +532,7 @@ test_access(void)
 	unsigned short got[4];
 	int cells, wins;
 
-	/* The superuser's open clears nothing and reads the memory as it stands. */
+	/* The superuser's open skips blanking GRAM and reads the memory as it stands. */
 	fresh_as(0, CONSOLE);
 	expect("root open leaves every word", differ(CONSOLE), 0);
 	expect("root open drew no window", nwin, 0);

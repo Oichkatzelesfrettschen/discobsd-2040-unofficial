@@ -22,12 +22,17 @@
 /*
  * The clean text at the start of a process's data area: swapout skips it
  * and swapin reads it from the executable. Zero when there is no
- * executable to read from, as for process 1 before it execs.
+ * executable to read from, as for process 1 before it execs, and when
+ * P_TEXTDIRTY records a ptrace write into the text (sys_process.c): the
+ * image then swaps whole, so the written words survive swapin. The flag
+ * changes only while the process is resident, so swapout, swapin and the
+ * release of a swapped image read one answer for one image.
  */
 static size_t
 swaptext (register struct proc *p)
 {
-    if (p->p_tip == NULL || p->p_tsize > p->p_dsize)
+    if (p->p_tip == NULL || p->p_tsize > p->p_dsize ||
+        (p->p_flag & P_TEXTDIRTY))
         return 0;
     return p->p_tsize;
 }
@@ -297,7 +302,7 @@ swap_image_cancel (struct swap_image_reservation *reservation)
     if (reservation->state == SWAP_IMAGE_EMPTY)
         return;
     if (reservation->state != SWAP_IMAGE_RESERVED)
-        panic ("swap image: cancel state");
+        panic ("K57");
 #ifdef SWAPRAM
     if (reservation->tier == SWAP_IMAGE_RAM)
         swapram_cancel (reservation->owner);
@@ -427,7 +432,32 @@ struct swap_exchange_segment {
     size_t window_start;
 };
 
-static u_char swap_exchange_sector[SWAP_EXCHANGE_SECTOR_BYTES];
+/*
+ * SWAP_EXCHANGE_SCRATCH places the staging sector in the scratch banks
+ * (kern.ldscript, .scratch), which reset never clears, for a kernel whose
+ * USB ring leaves one bank idle. The contents start undefined, which the
+ * exchange tolerates: each exchange step reads the whole incoming sector
+ * before swap_exchange_scatter_sector() copies any of it out, and a failed
+ * or short read panics before the copy (swap_exchange_inplace). The section
+ * name is an ELF one; the host tests build this file as Mach-O too, where
+ * the buffer stays in ordinary bss.
+ */
+#if defined(SWAP_EXCHANGE_SCRATCH) && defined(__ELF__)
+#define SWAP_EXCHANGE_SECTION \
+    __attribute__((section(".scratch.swap_exchange"), aligned(4)))
+/*
+ * An absolute symbol without storage tells kern.ldscript that this kernel
+ * asked for the placement, so the link fails when the sector lands
+ * anywhere else.
+ */
+__asm__ (".globl swap_exchange_scratch_configured\n"
+    "\t.set swap_exchange_scratch_configured, 1");
+#else
+#define SWAP_EXCHANGE_SECTION
+#endif
+
+static u_char swap_exchange_sector[SWAP_EXCHANGE_SECTOR_BYTES]
+    SWAP_EXCHANGE_SECTION;
 static u_char swap_exchange_done[SWAP_EXCHANGE_MAX_SECTORS];
 
 static void
@@ -536,7 +566,7 @@ swap_exchange_program_sector (struct buf *bp, size_t flash_base,
             continue;
         /* fl_raw() erases a sector only when a write starts on it. */
         if (writes == 0 && image_start != sector_start)
-            panic ("swap exchange: geometry");
+            panic ("K58");
         if (swap_with_buf_result (bp,
             flash_base + btod (image_start), window_start, length,
             SWAP_IMAGE_WRITE) != 0)
@@ -544,7 +574,7 @@ swap_exchange_program_sector (struct buf *bp, size_t flash_base,
         writes++;
     }
     if (writes == 0)
-        panic ("swap exchange: geometry");
+        panic ("K59");
 }
 
 static void
@@ -580,13 +610,13 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
     if (reservation->owner != outgoing ||
         reservation->state != SWAP_IMAGE_RESERVED ||
         reservation->tier != SWAP_IMAGE_EXCHANGE)
-        panic ("swap exchange: reservation");
+        panic ("K60");
     incoming_sectors = reservation->exchange_span / SWAP_IMAGE_ALIGN;
     outgoing_sectors = reservation->span / SWAP_IMAGE_ALIGN;
     sector_count = incoming_sectors > outgoing_sectors ? incoming_sectors :
         outgoing_sectors;
     if (sector_count > SWAP_EXCHANGE_MAX_SECTORS)
-        panic ("swap exchange: geometry");
+        panic ("K61");
 
     swap_exchange_segments (outgoing, 1, outgoing_segments);
     swap_exchange_segments (incoming, 0, incoming_segments);
@@ -613,7 +643,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
             break;
         }
         if (! found)
-            panic ("swap exchange: ordering");
+            panic ("K62");
         if (candidate < incoming_sectors &&
             swap_with_buf_result (bp,
             incoming->p_daddr + candidate * SWAP_IMAGE_ALIGN,
@@ -661,7 +691,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
     (void) reservation;
     (void) outgoing;
     (void) incoming;
-    panic ("swap exchange: unsupported");
+    panic ("K63");
 #endif
 }
 
@@ -680,7 +710,7 @@ swap_image_copy_out (struct swap_image_reservation *reservation,
 
     if (reservation->owner != p ||
         reservation->state != SWAP_IMAGE_RESERVED)
-        panic ("swap image: copy owner");
+        panic ("K64");
 #ifdef SWAPRAM
     storage_note (STORAGE_SWAPRAM_ATTEMPTS, 1);
     if (ram)
@@ -767,7 +797,7 @@ swap_image_commit (struct swap_image_reservation *reservation, struct proc *p)
 
     if (reservation->owner != p ||
         reservation->state != SWAP_IMAGE_COPIED)
-        panic ("swap image: commit owner");
+        panic ("K65");
     /*
      * a[] is zero on the RAM tier, which is how swapin and pstat see that
      * the process holds no flash swap blocks. A zero p_addr is never jumped
@@ -800,7 +830,7 @@ swapout (register struct proc *p, int freecore __unused, u_int odata __unused,
     u_int ostack __unused, struct swap_image_reservation *reservation)
 {
     if (reservation == NULL || reservation->state != SWAP_IMAGE_RESERVED)
-        panic ("swapout: no reservation");
+        panic ("K66");
     swap_image_copy_out (reservation, p);
 #ifdef SDSWAP_ENABLED
     if (reservation->state != SWAP_IMAGE_COPIED)

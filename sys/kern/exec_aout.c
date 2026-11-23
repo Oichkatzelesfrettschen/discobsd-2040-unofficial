@@ -19,6 +19,31 @@
 #endif
 #include <machine/debug.h>
 
+#ifdef EXEC_XIP_LIBC
+#include <sys/exec_xip.h>
+
+/* The selected linker layout reserves this complete interval before the root. */
+extern const char __xip_libc_start[], __xip_libc_end[];
+
+int
+exec_xip_read(struct inode *ip, const struct exec *header,
+    struct xip_requirement *req, unsigned long raw_size)
+{
+    int resid = 0, error;
+
+    error = rdwri(UIO_READ, ip, (caddr_t)req, sizeof *req,
+        (off_t)sizeof *header, IO_UNIT, &resid);
+    if (error || resid)
+        return AOUT_TRUNC;
+    error = xip_raw_layout(header, req, (unsigned)__user_data_start,
+        USER_WINDOW_MAX, raw_size, 1);
+    if (error != AOUT_OK)
+        return error;
+    return xip_provider_check(req, (const struct xip_provider *)__xip_libc_start,
+        (unsigned)__xip_libc_end - (unsigned)__xip_libc_start);
+}
+#endif
+
 /*
  * Executable-write exclusion. An image is read from its file at exec and
  * again at every swapin, so the file must not change while any process
@@ -67,6 +92,8 @@ exec_text_release(struct proc *p, struct inode *next)
 {
     struct inode *ip = p->p_tip;
 
+    /* Written text belongs to the image this reference ends. */
+    p->p_flag &= ~P_TEXTDIRTY;
     if (ip == NULL)
         return;
     p->p_tip = NULL;
@@ -96,13 +123,22 @@ exec_text_restore(struct proc *p, caddr_t dst, size_t len)
         IO_UNIT, &resid);
     if (error == 0 && resid == 0) {
 #ifdef EXEC_HSAOUT
-        if (N_GETFLAG(ex) == EX_HSPACK)
+        if (N_GETFLAG(ex) == EX_HSPACK
+#ifdef EXEC_XIP_LIBC
+            || N_GETFLAG(ex) == (EX_HSPACK | EX_XIP)
+#endif
+        )
             error = exec_hsaout_text(p->p_tip, &ex, dst, len);
         else
 #endif
         {
+            off_t offset = sizeof ex;
+#ifdef EXEC_XIP_LIBC
+            if (N_GETFLAG(ex) == EX_XIP)
+                offset += sizeof(struct xip_requirement);
+#endif
             error = rdwri(UIO_READ, p->p_tip, dst, len,
-                (off_t)sizeof ex, IO_UNIT, &resid);
+                offset, IO_UNIT, &resid);
             if (resid != 0)
                 error = -1;
         }
@@ -116,6 +152,7 @@ int exec_aout_check(struct exec_params *epp)
 {
     register struct proc *p;
     size_t tsize = 0;
+    off_t payload = sizeof(struct exec);
     int error, thumb;
 
     DEBUG("\texec_aout_check(): start\n");
@@ -137,9 +174,20 @@ int exec_aout_check(struct exec_params *epp)
 #else
     thumb = 0;
 #endif
-    error = aout_layout_check(&epp->hdr.aout, (unsigned)__user_data_start,
-        (unsigned)USER_WINDOW_MAX,
-        (unsigned long)epp->ip->i_size, thumb);
+#ifdef EXEC_XIP_LIBC
+    if (N_GETFLAG(epp->hdr.aout) == EX_XIP) {
+        struct xip_requirement req;
+
+        error = exec_xip_read(epp->ip, &epp->hdr.aout, &req, epp->ip->i_size);
+        if (error != AOUT_OK)
+            return error == AOUT_TOOBIG ? ENOMEM : EFTYPE;
+        payload += sizeof req;
+    } else
+#endif
+    {
+        error = aout_layout_check(&epp->hdr.aout, (unsigned)__user_data_start,
+            (unsigned)USER_WINDOW_MAX, (unsigned long)epp->ip->i_size, thumb);
+    }
     if (error != AOUT_OK) {
         DEBUG("\texec_aout_check(): error: layout check %d\n", error);
         DEBUG("\texec_aout_check(): end\n");
@@ -228,7 +276,7 @@ int exec_aout_check(struct exec_params *epp)
     DEBUG("\texec_aout_check(): reading a.out image\n");
     error = rdwri (UIO_READ, epp->ip,
                (caddr_t)epp->data.vaddr, epp->hdr.aout.a_data,
-               sizeof(struct exec) + epp->hdr.aout.a_text, IO_UNIT, 0);
+               payload + epp->hdr.aout.a_text, IO_UNIT, 0);
     if (error) {
         DEBUG("\texec_aout_check(): error: read image returned: %d\n", error);
         /* The outer exec path releases its resources, then terminates. */

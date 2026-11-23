@@ -157,7 +157,7 @@ def check_realpath(binary, work_directory):
         "realpath -E canonicalizes a missing final component incorrectly",
     )
 
-    root_missing_path = Path(f"/.discobsd-realpath-missing-{os.getpid()}")
+    root_missing_path = Path(f"/.gizmobsd-realpath-missing-{os.getpid()}")
     require(
         not os.path.lexists(root_missing_path),
         "realpath root-level missing fixture collides with an existing path",

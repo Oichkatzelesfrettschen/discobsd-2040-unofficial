@@ -18,10 +18,6 @@
 #include <machine/scb.h>
 #include <machine/user_context.h>
 
-#if 0
-#define DIAGNOSTIC
-#endif
-
 struct sigframe {
 	u_int	sf_hwframe[8];
 	struct	sigcontext sf_sc;
@@ -59,7 +55,7 @@ sendsig(sig_t p, int sig, long mask)
 	 * sc_onstack, sc_mask, sc_r0 and sc_r1, so every sigreturn restored
 	 * the trampoline address as the signal mask and the handler address
 	 * as r0. After the context, sf_r12 and sf_div hold the interrupted r12
-	 * and SIO divider state, which struct sigcontext has no field for
+	 * and SIO divider state, which struct sigcontext lacks a field for
 	 * and an asynchronous system trap can interrupt live (machine/frame.h
 	 * struct userframe); sigreturn reads them back from the same offsets,
 	 * so the layout is private to this file and sigtramp. sizeof(struct
@@ -71,10 +67,6 @@ sendsig(sig_t p, int sig, long mask)
 	struct sigframe *sfp;
 	int oonstack;
 
-#ifdef DIAGNOSTIC
-	printf("(%u)sendsig %d, mask=%#lx, handler=%#x, tramp=%#x\n",
-	    u.u_procp->p_pid, sig, mask, (u_int)p, u.u_sigtramp);
-#endif
 	oonstack = u.u_sigstk.ss_flags & SA_ONSTACK;
 
 	/*
@@ -96,10 +88,30 @@ sendsig(sig_t p, int sig, long mask)
 			 * Process has trashed its stack; give it an illegal
 			 * instruction violation to halt it in its tracks.
 			 */
+			if (SYSTRACE_ON(SYSTRACE_SIGNAL))
+				printf("[%u] sendsig %d rejected: frame=%#x "
+				    "below data end=%#x sp=%#x\n",
+				    u.u_procp->p_pid, sig, (u_int)sfp,
+				    (u_int)u.u_procp->p_daddr + u.u_dsize,
+				    regs->tf_sp);
 			fatalsig(SIGILL);
 			return;
 		}
 		if (u.u_procp->p_ssize < USER_TOP(u.u_procp) - (u_int)sfp) {
+			/*
+			 * A frame deeper than RLIMIT_STACK ends the process
+			 * as a frame in the data does.
+			 */
+			if (!rlimit_stack_admits(USER_TOP(u.u_procp) -
+			    (u_int)sfp)) {
+				if (SYSTRACE_ON(SYSTRACE_SIGNAL))
+					printf("[%u] sendsig %d rejected: "
+					    "frame=%#x past the stack limit "
+					    "sp=%#x\n", u.u_procp->p_pid, sig,
+					    (u_int)sfp, regs->tf_sp);
+				fatalsig(SIGILL);
+				return;
+			}
 			u.u_procp->p_ssize = USER_TOP(u.u_procp) - (u_int)sfp;
 			u.u_procp->p_saddr = (u_int)sfp;
 			u.u_ssize = u.u_procp->p_ssize;
@@ -153,15 +165,12 @@ sendsig(sig_t p, int sig, long mask)
 
 	if (SYSTRACE_ON(SYSTRACE_SIGNAL))
 		printf("[%u] sendsig %d handler=%#x frame=%#x sc=%#x "
-		    "from pc=%#x sp=%#x psr=%#x mask=%#x\n",
+		    "from pc=%#x sp=%#x psr=%#x mask=%#x code=%#x "
+		    "tramp=%#x\n",
 		    u.u_procp->p_pid, sig, (u_int)p, (u_int)sfp,
 		    (u_int)&sfp->sf_sc, sfp->sf_sc.sc_pc, sfp->sf_sc.sc_sp,
-		    sfp->sf_sc.sc_psr, (u_int)mask);
-#ifdef DIAGNOSTIC
-	printf("    ...call handler %p (sig=%d, code=%#x, context=%p)\n",
-	    p, sig, u.u_code, &sfp->sf_sc);
-	printf("    ...stack=%p, return to %#x\n", sfp, u.u_sigtramp);
-#endif
+		    sfp->sf_sc.sc_psr, (u_int)mask, (u_int)u.u_code,
+		    u.u_sigtramp);
 }
 
 /* The exception return reads eight words and may consume one padding word. */
@@ -195,6 +204,19 @@ sigreturn_context_valid(const struct sigcontext *context)
 }
 
 /*
+ * Every rejection of sigreturn() sets u_error here, so kern.systrace bit 2
+ * records the reason with the stack pointer the call entered on.
+ */
+static void
+sigreturn_reject(const struct trapframe *regs, int error, const char *why)
+{
+	u.u_error = error;
+	if (SYSTRACE_ON(SYSTRACE_SIGNAL))
+		printf("[%u] sigreturn rejected: %s sp=%#x\n",
+		    u.u_procp->p_pid, why, regs->tf_sp);
+}
+
+/*
  * System call to cleanup state after a signal
  * has been taken.  Reset signal mask and
  * stack state from context left by sendsig (above).
@@ -219,24 +241,20 @@ sigreturn(void)
 	 * sf_hwframe.
 	 */
 	if (regs->tf_sp > ~0U - 32U) {
-		u.u_error = EFAULT;
+		sigreturn_reject(regs, EFAULT, "sp wraps");
 		return;
 	}
 	user_context = regs->tf_sp + 32U;
 	if (copyin((caddr_t)user_context, (caddr_t)scp,
 	    sizeof(saved) - sizeof(saved.sf_hwframe)) != 0) {
-		u.u_error = EFAULT;
+		sigreturn_reject(regs, EFAULT, "context unreadable");
 		return;
 	}
 	if (!sigreturn_context_valid(scp)) {
-		u.u_error = EINVAL;
+		sigreturn_reject(regs, EINVAL, "context invalid");
 		return;
 	}
 
-#ifdef DIAGNOSTIC
-	printf("(%u)sigreturn stack=%#x, context=%p\n",
-	    u.u_procp->p_pid, regs->tf_sp, (void *)user_context);
-#endif
 	u.u_error = EJUSTRETURN;
 	if (scp->sc_onstack & SA_ONSTACK)
 		u.u_sigstk.ss_flags |= SA_ONSTACK;
@@ -246,9 +264,9 @@ sigreturn(void)
 
 	if (SYSTRACE_ON(SYSTRACE_SIGNAL))
 		printf("[%u] sigreturn sc=%#x to pc=%#x sp=%#x psr=%#x "
-		    "mask=%#x onstack=%d\n", u.u_procp->p_pid, user_context,
-		    scp->sc_pc, scp->sc_sp, scp->sc_psr, (u_int)scp->sc_mask,
-		    scp->sc_onstack);
+		    "mask=%#x onstack=%d from sp=%#x\n", u.u_procp->p_pid,
+		    user_context, scp->sc_pc, scp->sc_sp, scp->sc_psr,
+		    (u_int)scp->sc_mask, scp->sc_onstack, regs->tf_sp);
 
 	/* Return from signal handler. */
 	regs->tf_r0  = scp->sc_r0;
@@ -269,7 +287,4 @@ sigreturn(void)
 	regs->tf_r11 = scp->sc_r11;
 	uf->uf_r12 = saved.sf_r12;
 	uf->uf_div = saved.sf_div;
-#ifdef DIAGNOSTIC
-	printf("    ...to %#x, stack %#x\n", regs->tf_pc, regs->tf_sp);
-#endif
 }

@@ -236,7 +236,13 @@ CUSTOM = [
     ("note", "(note {a} {b} {c})", 3, "sample", EDGES),
     ("delay", "(delay {a})", 1, "all", SHORT),
     ("sleep", "(sleep {a})", 1, "all", NOWAIT),
-    ("for-millis", "(for-millis ({a}) 1)", 1, "all", SHORT),
+    (
+        "for-millis",
+        "(let ((r (for-millis ({a}) 1)) (m (if (< {a} 0) 0 {a}))) (and (>= r m) (< r (+ 1500 m))))",
+        1,
+        "all",
+        SHORT,
+    ),
     (
         "write-byte",
         "(char-code (char (with-output-to-string (s) (write-byte {a} s)) 0))",
@@ -340,7 +346,7 @@ FLOATFORMS = [
     ("mod", "(mod 7 {a})", 1),
     ("rem", "(rem 7 {a})", 1),
 ]
-# Builtins the corpus leaves out: those that take no number, directly or
+# Builtins the corpus leaves out: those that take zero numbers, directly or
 # through a conversion, and register, which reads or writes the address it
 # is given (a hardware register on the board, any address on the host), and
 # gc, whose argument is a flag and whose report carries a time

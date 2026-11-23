@@ -25,7 +25,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 # Require every check-* target of the root Makefile, and of the makefiles it
-# includes, to be declared .PHONY. A check target names no file; undeclared,
+# includes, to be declared .PHONY. A check target names zero files; undeclared,
 # a file or directory of the same name in the tree (a test's output, a
 # checked-out tool) makes bmake treat the target as up to date and skip the
 # gate without a word. Declarations are read from every .PHONY line,

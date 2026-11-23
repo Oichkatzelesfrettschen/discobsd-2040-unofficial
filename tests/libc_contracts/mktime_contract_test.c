@@ -4,7 +4,7 @@
  * moved aside, so the gate measures those and not the host's.
  *
  * The property that decides mktime is the round trip: for every instant the
- * library can represent, mktime(localtime(&t)) is t again. That needs no
+ * library can represent, mktime(localtime(&t)) is t again. That does not need a
  * table of expected answers and holds in whatever zone is loaded, so the
  * gate sweeps instants rather than naming them. timegm is the same statement
  * against gmtime, and it also has a closed form, so a set of dates whose
@@ -193,7 +193,7 @@ test_mktime_known_dates(void)
 
 /*
  * The round trip, which is what makes mktime the inverse rather than a
- * second calendar. The step is prime, so the instants swept share no divisor
+ * second calendar. The step is prime, so the instants swept share zero divisors
  * with a day, an hour or a year.
  */
 #define STEP	1999993UL		/* prime, about 23 days */
@@ -395,7 +395,7 @@ test_out_of_range(void)
 	check(db_timegm(&tm) == REFUSED && tm.tm_wday == -1,
 	    "range: the first year an int names was accepted");
 
-	/* The second before the epoch has no count. */
+	/* The second before the epoch lacks a count. */
 	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = 69;
 	tm.tm_mon = 11;
@@ -425,7 +425,7 @@ test_out_of_range(void)
 /*
  * The two ends of the range, 0 and 4294967295, with instants one second and
  * one day inside and outside each, and the carry out of bit 31 in 2038,
- * which lies inside it. An instant past either end has no count, so it
+ * which lies inside it. An instant past either end lacks a count, so it
  * answers REFUSED and leaves the tm_wday sentinel in place. The fields name
  * each instant directly, so the answers do not pass through gmtime.
  */
@@ -580,7 +580,7 @@ test_field_vectors(void)
  * year, weekday and day of the year by their own rules, sharing no
  * arithmetic with the library. timegm() must reach the day's count from
  * the fields, and gmtime() must read the same fields back from the count.
- * The day before the epoch has no count, so its fields are refused.
+ * The day before the epoch lacks a count, so its fields are refused.
  */
 static int
 month_days(int year, int mon)
@@ -775,7 +775,7 @@ write_zone(long offset)
 	/*
 	 * creat(), not open(): the open flags this tree's fcntl.h spells are
 	 * the target kernel's numbers, which are not the host kernel's, and
-	 * creat() carries none.
+	 * creat() lacks them.
 	 */
 	fd = creat(ZONE_PATH, 0644);
 	if (fd == -1)
@@ -980,7 +980,7 @@ write_zone_transitions(void)
  * fields read as UTC, the count 3600, where the later offset is in force
  * and moves the answer to before the range. Every count of the first day
  * converts. A transition time with bit 31 set reads as an instant before
- * 1970 (tzload), so the zone file has no such case at the end of the
+ * 1970 (tzload), so the zone file lacks such a case at the end of the
  * range, and the second zone shows the later offset in force throughout.
  */
 static void

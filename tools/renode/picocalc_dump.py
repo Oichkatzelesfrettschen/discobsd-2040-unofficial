@@ -8,7 +8,7 @@ reads what the kernel wrote. After the console stages log in as operator:
   reboot -d   su, mount sd0a, make /mnt/crash, reboot -d; the kernel writes
               the dump and resets to a fresh login prompt
   savecore    savecore /mnt/crash saves dump.0 and a second savecore finds
-              no dump on the card
+              zero dumps on the card
   panic       the monitor stops the CPU in the kernel's idle loop and calls
               panic() with a message it wrote past the kernel's RAM; the
               panel shows the panic, the dump line and "halted"

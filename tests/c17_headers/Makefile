@@ -132,7 +132,7 @@ inttypes_no_wcstoimax.mutant:
 inttypes_no_wcstoimax.contract= inttypes_contract
 
 # An xor bound to | still parses and agrees with ^ wherever the operands
-# share no bit, so the contract's operands share one.  A missing spelling
+# share zero bits, so the contract's operands share one.  A missing spelling
 # reaches the #error in front of the assertions.
 iso646_xor_or.mutant:
 	@rm -rf $@ && mkdir $@
@@ -251,7 +251,7 @@ check-cross: check-header-contracts check-header-mutants check-imports \
 # c17_library_contract.o names every function it pins, so its undefined
 # symbols are the interfaces a program reaches through the new headers.
 # Each must have a definition in the built libc.a or libm.a, and the folded
-# <float.h> comparison must leave no c17_float_mismatch reference. A
+# <float.h> comparison must leave zero c17_float_mismatch references. A
 # header whose DBL_TRUE_MIN is ten times too large calibrates the second
 # check, and the same imports against libc.a alone, which must leave fma
 # unprovided, calibrate the first.

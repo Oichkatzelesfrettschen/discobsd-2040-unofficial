@@ -242,7 +242,7 @@ def capacity_rows(console, boot) -> dict:
 
 def run_stages(console, boot, config: str) -> None:
     console.wait_lines(
-        [f"DiscoBSD 2.7 ({config})"]
+        [f"GizmoBSD 0.1.0-alpha ({config})"]
         + boot.CPU_LINES
         + boot.BOARD_LINES[config]
         + boot.STORAGE_LINES,
@@ -286,8 +286,8 @@ def run_stages(console, boot, config: str) -> None:
     # The buffer bound: the table-exhaustion programs and clistbound drive
     # the file system and swap hardest of any tier, and no getblk() may
     # wait for a buffer meanwhile (sys/kern/ufs_bio.c counts each wait as a
-    # buffer failure); the peak is recorded, and the clist row must show no
-    # refusal.
+    # buffer failure); the peak is recorded, and the clist row must show zero
+    # refusals.
     for table in ("clist", "buffer"):
         limit, current, peak, min_free, failures = after[table]
         print(

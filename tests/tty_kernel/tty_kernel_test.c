@@ -159,7 +159,7 @@ check_round_trip(void)
 	CHECK(mintime_request(&t, TIOCSMINTIME, (caddr_t)&got) == 0);
 	CHECK(t.t_vmin == 0xff && t.t_vtime == 0xff);
 
-	/* The request touches no other byte of the tty. */
+	/* The request touches zero other bytes of the tty. */
 	fill(&t);
 	ttychars(&t);
 	t.t_flags = 0x12345678;
@@ -302,7 +302,7 @@ check_drain(void)
 	CHECK(drain(&t) == 1);
 	CHECK(xmit.fifo == 3 && (t.t_state & TS_BUSY) != 0);
 
-	/* Without carrier or without a start routine there is nothing to wait for. */
+	/* Without carrier or without a start routine the wait returns at once. */
 	drain_setup(&t, 9, 0);
 	t.t_state &= ~TS_CARR_ON;
 	CHECK(drain(&t) == 0);

@@ -12,7 +12,10 @@ source_root=${1:-$(cd "$(dirname "$0")/.." && pwd)}
 manifest_path=$source_root/distrib/rp2040/mi.rp2040
 tracked_configs=$(mktemp)
 makefile_objects=$(mktemp)
-trap 'rm -f "$tracked_configs" "$makefile_objects"' EXIT HUP INT TERM
+trap 'rm -f "$tracked_configs" "$makefile_objects"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ ! -f "$manifest_path" ] || [ ! -r "$manifest_path" ]; then
 	echo "$0: cannot read $manifest_path" >&2

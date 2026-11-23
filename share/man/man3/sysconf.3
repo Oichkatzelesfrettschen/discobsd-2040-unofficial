@@ -1,7 +1,7 @@
 .TH SYSCONF 3 "September 20, 2026"
 .UC 4
 .SH NAME
-sysconf \- return a DiscoBSD runtime limit
+sysconf \- return a GizmoBSD runtime limit
 .SH SYNOPSIS
 .nf
 .B #include <unistd.h>
@@ -12,7 +12,7 @@ sysconf \- return a DiscoBSD runtime limit
 .I Sysconf
 returns the value of a runtime limit selected by
 .IR name .
-DiscoBSD exposes only limits backed by a fixed kernel or libc contract:
+GizmoBSD exposes only limits backed by a fixed kernel or libc contract:
 .TP
 .B _SC_ARG_MAX
 The maximum combined argument and environment size, 5120 bytes.

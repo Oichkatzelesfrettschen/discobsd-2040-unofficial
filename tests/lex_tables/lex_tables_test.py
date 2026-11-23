@@ -19,7 +19,7 @@ builds each copy with the given compiler command and requires `run` to fail
 on it. Each mutation replaces text that occurs exactly once, so an edit that
 moves a check fails here instead of producing an unmutated copy. The
 compiler command must carry the sanitizer flags: without them most of the
-removed checks have no observable effect on the host.
+removed checks lack an observable effect on the host.
 """
 
 import argparse

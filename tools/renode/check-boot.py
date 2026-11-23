@@ -2,7 +2,7 @@
 """Boot a UART0-console kernel under Renode and assert on its console.
 
 Renode runs with its monitor on stdin (renode_monitor.py), so the gate holds
-no listening socket. UART0's output goes to a file backend; this driver
+zero listening sockets. UART0's output goes to a file backend; this driver
 advances virtual time in slices and matches the expected console lines in
 order against that file, and types into UART0 through the model's
 WriteChar. Virtual time is the budget, so a slow host lengthens the run
@@ -39,8 +39,8 @@ carries the free-running measurement that does.
 CONFIG names the kernel configuration the banner must carry and defaults to
 PICO_UART. PICOCALC, PICOCALC_LEAN and PICOCALC_LEAN_DIAG are the PicoCalc
 kernels booted with a bare-Pico UART0 descriptor (check-boot.sh patches it
-in). PICOCALC and PICOCALC_LEAN_DIAG carry SYSTRACE and CAPACITY_STATS;
-PICOCALC_LEAN omits both. PICO_UART, PICOCALC and PICOCALC_LEAN_DIAG serve
+in). PICOCALC carries CAPACITY_STATS, PICOCALC_LEAN_DIAG carries SYSTRACE and
+CAPACITY_STATS, and PICOCALC_LEAN omits both. PICO_UART, PICOCALC and PICOCALC_LEAN_DIAG serve
 kern.capacity and are asserted on its record; PICOCALC_LEAN omits the node
 and is asserted to refuse it with EOPNOTSUPP, which sysctl reports as
 "value is not available". The probe stage asserts
@@ -338,8 +338,8 @@ class Console:
 
 
 # The configurations that link the core 1 observer (the "core1" option in
-# their Config). The union kernel carries no core1.c, so its machdep.core1
-# nodes do not exist and the core 1 stages have nothing to read.
+# their Config). The union kernel leaves out core1.c, so its machdep.core1
+# nodes do not exist and the core 1 stages read zero nodes.
 CORE1_CONFIGS = ("PICO_UART",)
 
 
@@ -398,7 +398,7 @@ def check_ps(console: Console) -> None:
     # With no selection, both grammars list the caller's processes on the
     # caller's terminal. The shell sits on the console, whose sessions carry
     # the device the redirector substitutes, so a ps that matched the
-    # terminal by /dev/console's own number would list nothing here.
+    # terminal by /dev/console's own number would list zero processes here.
     start = console.cursor
     console.type_line("ps; ps -o pid= -o comm=; echo ps-end")
     console.wait_for("\nps-end", "default process lists", COMMAND_BUDGET_SECONDS)
@@ -501,7 +501,7 @@ def check_uarea_paths(console: Console, config: str) -> None:
     processes throughout. The u-area row read last must then show the
     kernel stack's peak use with free bytes left and no saturation, the
     capacity record's account of every one of those paths. A kernel without
-    CAPACITY_STATS has no record to read; it must refuse the node instead.
+    CAPACITY_STATS lacks a record to read; it must refuse the node instead.
     """
     start = console.cursor
     # bin/sh's trap takes signal numbers below MAXTRAP (26, bin/sh/defs.h)
@@ -550,7 +550,7 @@ TOUCHED_ROW = re.compile(r"^-\S+ .* Jan +2 +2045 /tmp/y2045$", re.M)
 # A file created now is dated 2046-07-22 or -23 in the kernel's zone.
 CREATED_ROW = re.compile(r"^-\S+ .* Jul 2[23] \d\d:\d\d /tmp/n2046$", re.M)
 BOOTTIME_ROW = re.compile(r"^\d+$", re.M)
-# A program the image's own compiler builds: Smaller C reads no header, so
+# A program the image's own compiler builds: Smaller C reads zero headers, so
 # the source declares what it calls, and its long is the 32-bit count the
 # members of /usr/lib/libc.a take (distrib/rp2040/boardlibc-members).
 NATIVE_SOURCE = (
@@ -617,7 +617,7 @@ def check_clock_past_2038(console: Console) -> None:
 
 
 def run_stages(console: Console, config: str, identity: list[str]) -> None:
-    console.wait_lines([f"DiscoBSD 2.7 ({config})"] + CPU_LINES + BOARD_LINES[config]
+    console.wait_lines([f"GizmoBSD 0.1.0-alpha ({config})"] + CPU_LINES + BOARD_LINES[config]
                        + STORAGE_LINES, "device probe", PROBE_BUDGET_SECONDS)
     console.absent_before_cursor(ABSENT_PREFIXES[config], "descriptor-suppressed devices")
     console.wait_lines(LOGIN_LINES, "file system check", LOGIN_BUDGET_SECONDS)
@@ -629,7 +629,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.type_line("operator")
     console.wait_lines(["$"], "shell prompt", COMMAND_BUDGET_SECONDS)
     console.type_line("uname -sr")
-    console.wait_lines(["DiscoBSD 2.7"], "uname", COMMAND_BUDGET_SECONDS)
+    console.wait_lines(["GizmoBSD 0.1.0-alpha"], "uname", COMMAND_BUDGET_SECONDS)
     check_symlink_path(console)
     check_ps(console)
     check_memory_devices(console)
@@ -666,7 +666,7 @@ def run_stages(console: Console, config: str, identity: list[str]) -> None:
     console.type_line("sleep 5; sysctl machdep.core1 machdep.core1_restarts "
                       "machdep.core1_faults machdep.core1_stalls")
     console.wait_lines(CORE1_LINES, "core 1 answering pings", COMMAND_BUDGET_SECONDS)
-    # operator is in wheel, so su needs no password. The write masks core
+    # operator is in wheel, so su does not ask for a password. The write masks core
     # 0's interrupts for 300 ms with no section declared; core 1 has to
     # count exactly that one stall, and the supervisor must not mistake
     # it for a dead core 1.

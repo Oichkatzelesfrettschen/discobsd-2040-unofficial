@@ -1139,7 +1139,7 @@ def strip_comments(source_text: str, assembly: bool) -> str:
     """Blank comment text, keeping every line and column position.
 
     A divider register named in a comment is documentation: the compiler
-    emits nothing for it, so an access has to appear in code. Scanning the
+    emits zero instructions for it, so an access has to appear in code. Scanning the
     stripped text keeps the gate on code and lets a file state which
     registers the boot ROM writes without being read as writing them.
 

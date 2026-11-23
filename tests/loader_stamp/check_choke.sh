@@ -2,11 +2,13 @@
 # Source-wiring checks on the flash driver that the host test cannot reach:
 #  - the boot ROM's erase and program routines are called only from
 #    flash_erase() and flash_program(), after flash_write_admitted();
-#  - flash_limit_init() stores the decoded end and the swap extent derived
-#    from it, and restores the XIP divider only when the stamp magic is
-#    present, and flash_enter_xip() restores it after the loader's boot2;
+#  - flash_limit_init() decodes the two stamp words with
+#    loader_layout_decode(), which the host test executes, stores the end
+#    and the swap extent of that layout, and restores the XIP divider only
+#    when the layout names the loader's boot2, and flash_enter_xip()
+#    restores it after the loader's boot2;
 #  - the divider and sample delay flash_ssi_restore() writes equal the ones
-#    DiscoBSD's own second stage programs.
+#    GizmoBSD's own second stage programs.
 # Usage: check_choke.sh FLASH_C BOOT2_S
 set -eu
 
@@ -39,9 +41,11 @@ fn != "" && /if \(!flash_write_admitted\(offset, len, flash_write_end\)\)/ {
 		bad = bad "flrom.program outside a guarded flash_program, line " NR "\n"
 }
 /flash_write_end = / { end_stores++ }
-fn == "init" && /^\tflash_write_end = end;$/ { init_end = 1 }
-fn == "init" && /^\tflswap_bytes = flash_swap_extent\(end\);$/ { init_swap = 1 }
-fn == "init" && /^\tif \(magic == LOADER_STAMP_MAGIC\) \{$/ { inmagic = 1; next }
+/flswap_bytes = / { swap_stores++ }
+fn == "init" && /^\tloader_layout_decode\(magic, limit, &ll\);$/ { init_decode = 1 }
+fn == "init" && /^\tflash_write_end = ll\.write_end;$/ { init_end = 1 }
+fn == "init" && /^\tflswap_bytes = ll\.swap_bytes;$/ { init_swap = 1 }
+fn == "init" && /^\tif \(ll\.loader_boot2\) \{$/ { inmagic = 1; next }
 fn == "init" && inmagic && /^\t\}$/ { inmagic = 0 }
 fn == "init" && inmagic && /^\t\tflash_loader_boot2 = 1;$/ { init_flag = 1 }
 fn == "init" && inmagic && /^\t\tflash_ssi_restore\(\);$/ { init_restore = 1 }
@@ -55,8 +59,10 @@ END {
 		bad = bad "flrom.program called " program_calls + 0 " times\n"
 	if (end_stores != 1 || !init_end)
 		bad = bad "flash_write_end is not set once, from the decoded end, in flash_limit_init\n"
-	if (!init_swap)
-		bad = bad "flash_limit_init does not derive flswap_bytes from the end\n"
+	if (!init_decode)
+		bad = bad "flash_limit_init does not decode the layout from the stamp words\n"
+	if (swap_stores != 1 || !init_swap)
+		bad = bad "flswap_bytes is not set once, from the decoded layout, in flash_limit_init\n"
 	if (!init_flag || !init_restore)
 		bad = bad "flash_limit_init does not restore the XIP divider under the stamp magic\n"
 	if (!enter_restore)

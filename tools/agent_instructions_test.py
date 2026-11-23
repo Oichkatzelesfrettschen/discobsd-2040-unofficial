@@ -13,7 +13,7 @@ import check_agent_instructions as policy
 
 class InstructionTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-instructions-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-instructions-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "checkout"
         self.root.mkdir()

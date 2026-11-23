@@ -1,5 +1,36 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * mpu_sysctl() follows the function of that name in
+ * sys/arch/stm32/stm32/mpu.c, which carries this notice:
+ *
+ * Copyright (c) 2025 Christopher Hettrick <chris@structfoo.com>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -54,7 +85,7 @@
  * because no instruction is fetched from a peripheral. User code is the
  * divider's only consumer, through that boot ROM division and the libc
  * integer helpers (lib/libc/arm/gen/aeabi_div.S): the kernel, its
- * interrupts and its callouts contain none, which
+ * interrupts and its callouts contain zero divider uses, which
  * tools/verify_rp2040_divider_ownership.py enforces on every linked
  * kernel. A clock tick can interrupt a user divide sequence. The syscall,
  * asynchronous trap and user fault paths save and restore the divider
@@ -72,7 +103,7 @@
  * four match and the remaining slots read back disabled. A map missing
  * a user region could fault the first user instruction. mpu_identify and
  * machdep.mpu report the control register after verification. The memory
- * attribute bits S, C and B stay zero; the RP2040 bus fabric consumes none
+ * attribute bits S, C and B stay zero; the RP2040 bus fabric ignores all three
  * of them (the XIP cache is an address-range cache), and the Cortex-M0+
  * reorders nothing.
  *
@@ -90,7 +121,7 @@
  * stays BREAK_GUARD_MARGIN bytes clear of it; the registers are written
  * only when that answer changes. systick() turns it off when a tick finds
  * the process stack below the armed floor, and it stays off for that
- * image while p_saddr records the deeper stack. The guard takes no byte
+ * image while p_saddr records the deeper stack. The guard takes zero bytes
  * below the break and none above the stack pointer: the pad between the
  * exact break and the rounded base stays writable. A stack that jumps into
  * the guard between two kernel entries cannot be resumed, because the
@@ -179,6 +210,10 @@ static const struct mpu_region mpu_map[] = {
 	    MPU_GRANT(MPU_USER_HIGH_LOG2, MPU_AP_RW, 0) },
 	{ MPU_SIO_BASE, MPU_GRANT(MPU_SIO_LOG2, MPU_AP_RW | MPU_RASR_XN,
 	    MPU_SIO_DIV_SRD) },
+#ifdef EXEC_XIP_LIBC
+	/* Six 8 KiB subregions cover the provider up to the Dhara root. */
+	{ 0x10020000UL, MPU_GRANT(16, MPU_AP_RO, 0xc0) },
+#endif
 };
 #define	MPU_NMAP	(sizeof mpu_map / sizeof mpu_map[0])
 
@@ -213,7 +248,7 @@ mpu_disable(void)
 {
 	mpu_control(0);
 	if (mpu_state.ctrl != 0)
-		panic("mpu: cannot disable");
+		panic("R05");
 }
 
 void

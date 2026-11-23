@@ -54,11 +54,11 @@
  *   the target cannot execute.
  * - LDR into SP and LR becomes LDR into a low register followed by MOV,
  *   because ARMv6-M LDR (literal) admits only R0-R7 as the destination.
- * - Post-indexed STR becomes STR plus ADDS, because ARMv6-M has no writeback
+ * - Post-indexed STR becomes STR plus ADDS, because ARMv6-M lacks a writeback
  *   form of STR (immediate).
  * - ORRS with an immediate becomes MOVS into a scratch register followed by
  *   register ORRS, because ARMv6-M ORRS takes register operands only.
- * - The BASEPRI write is deleted. ARMv6-M defines no BASEPRI register, yet the
+ * - The BASEPRI write is deleted. ARMv6-M lacks the BASEPRI register, yet the
  *   assembler encodes MSR to its SYSm value 17 without complaint, so the
  *   original line assembles and then writes an unimplemented system register
  *   at run time. CPSIE I already clears the only mask ARMv6-M has, PRIMASK.
@@ -114,7 +114,7 @@ Reset_Handler:
 	b	LoopFillZeroData
 FillZeroData:
 	movs	r3, #0
-	str	r3, [r2]	/* ARMv6-M STR has no writeback form. */
+	str	r3, [r2]	/* ARMv6-M STR lacks a writeback form. */
 	adds	r2, r2, #4
 LoopFillZeroData:
 	ldr	r3, =u_end
@@ -141,7 +141,7 @@ LoopCopyDataInit:
 	b	LoopFillZeroBss
 FillZeroBss:
 	movs	r3, #0
-	str	r3, [r2]	/* ARMv6-M STR has no writeback form. */
+	str	r3, [r2]	/* ARMv6-M STR lacks a writeback form. */
 	adds	r2, r2, #4
 LoopFillZeroBss:
 	ldr	r3, =_ebss
@@ -151,7 +151,7 @@ LoopFillZeroBss:
 #ifdef CAPACITY_STATS
 	/*
 	 * Both exchange partners start with the sentinel because longjmp swaps
-	 * the complete u areas. The reset code has made no C call and uses no
+	 * the complete u areas. The reset code has made zero C calls and touches zero bytes of
 	 * stack while the paint loops write the region below MSP.
 	 */
 	ldr	r1, =UAREA_STACK_SENTINEL

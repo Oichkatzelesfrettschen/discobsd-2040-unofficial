@@ -15,7 +15,7 @@ import bsd211_patch_scope as mapper
 
 class PatchScopeTest(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-patch-scope-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-patch-scope-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         self.donor = self.root / "donor"
@@ -145,7 +145,7 @@ class PatchScopeTest(unittest.TestCase):
     def test_filename_bytes_survive_nul_delimited_inventory(self):
         names = ["name with spaces.c", "name\twith\ncontrols.c", os.fsdecode(b"non-utf8-\xff.c")]
         # Git trees retain filename bytes even when the host filesystem cannot
-        # create those names. Pinned comparisons require no checkout of them.
+        # create those names. Pinned comparisons read them without a checkout.
         before = self.object_command(self.donor, ["hash-object", "-w", "--stdin"], b"before\n")
         after = self.object_command(self.donor, ["hash-object", "-w", "--stdin"], b"after\n")
         local = self.object_command(self.recipient, ["hash-object", "-w", "--stdin"], b"after\n")

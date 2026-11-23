@@ -32,9 +32,12 @@ PARAM += -DNFL=2
 PARAM += -DSMAPSIZ=36
 PARAM += -DMAXUPRC=25
 PARAM += -DNPROC=32
+PARAM += -DLCD_BLANK
 PARAM += -DLCD_VT
 PARAM += -DLCD_GFX_EXT
 PARAM += -DLCD_PANELTEST
+PARAM += -DCONSOLE_MIRROR_UART
+PARAM += -DDIAG_STATS
 PARAM += -DSTORAGE_STATS
 PARAM += -DGLOBAL_DEBUG=9
 PARAM += -DDIAGNOSTIC
@@ -47,8 +50,9 @@ PARAM += -DCPU_KHZ=125000
 LDSCRIPT = "RP2040-sd.ld"
 COPTS = -Og
 DEBUG = -g
+CONFIG_CKSUM = 1561836128 4150
 #
-# Makefile for DiscoBSD/rp2040
+# Makefile for GizmoBSD/rp2040
 #
 # DEBUG is set to -g by config if debugging is requested (config -g).
 #
@@ -85,7 +89,7 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Wextra -Werror -Wshadow -Wundef -Wformat=2
 
-# DiscoBSD predates C23, where an empty parameter list means (void) rather
+# GizmoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
 # indirect syscall dispatch in sysctl.c, which reproduces on the untouched
 # STM32 tree too. Pin the standard the sources were written against.
@@ -209,9 +213,9 @@ OBJS = exec_aout.o exec_conf.o exec_elf.o exec_script.o exec_subr.o \
 	kern_exec.o kern_exit.o kern_fork.o kern_mman.o kern_proc.o \
 	kern_prot.o kern_prot2.o kern_resource.o kern_sig.o kern_sig2.o \
 	kern_subr.o kern_synch.o kern_sysctl.o kern_time.o \
-	subr_capacity.o subr_prf.o subr_rmap.o sys_generic.o sys_inode.o \
-	sys_pipe.o sys_process.o syscalls.o tty.o tty_subr.o tty_tty.o \
-	ufs_alloc.o ufs_bio.o ufs_bmap.o ufs_dsort.o ufs_fio.o \
+	subr_capacity.o subr_diag.o subr_prf.o subr_rmap.o sys_generic.o \
+	sys_inode.o sys_pipe.o sys_process.o syscalls.o tty.o tty_subr.o \
+	tty_tty.o ufs_alloc.o ufs_bio.o ufs_bmap.o ufs_dsort.o ufs_fio.o \
 	ufs_inode.o ufs_mount.o ufs_namei.o ufs_subr.o ufs_syscalls.o \
 	ufs_syscalls2.o vfs_vnops.o vm_sched.o vm_swap.o vm_swp.o cons.o \
 	mem.o swap.o clock.o board.o conf.o fault.o machdep.o \
@@ -231,18 +235,19 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 	$S/kern/kern_prot.c $S/kern/kern_prot2.c $S/kern/kern_resource.c \
 	$S/kern/kern_sig.c $S/kern/kern_sig2.c $S/kern/kern_subr.c \
 	$S/kern/kern_synch.c $S/kern/kern_sysctl.c $S/kern/kern_time.c \
-	$S/kern/subr_capacity.c $S/kern/subr_prf.c $S/kern/subr_rmap.c \
-	$S/kern/sys_generic.c $S/kern/sys_inode.c $S/kern/sys_pipe.c \
-	$S/kern/sys_process.c $S/kern/syscalls.c $S/kern/tty.c \
-	$S/kern/tty_subr.c $S/kern/tty_tty.c $S/kern/ufs_alloc.c \
-	$S/kern/ufs_bio.c $S/kern/ufs_bmap.c $S/kern/ufs_dsort.c \
-	$S/kern/ufs_fio.c $S/kern/ufs_inode.c $S/kern/ufs_mount.c \
-	$S/kern/ufs_namei.c $S/kern/ufs_subr.c $S/kern/ufs_syscalls.c \
-	$S/kern/ufs_syscalls2.c $S/kern/vfs_vnops.c $S/kern/vm_sched.c \
-	$S/kern/vm_swap.c $S/kern/vm_swp.c $S/dev/cons.c $S/dev/mem.c \
-	$S/dev/swap.c $S/arch/rp2040/rp2040/clock.c \
-	$S/arch/rp2040/rp2040/board.c $S/arch/rp2040/rp2040/conf.c \
-	$S/arch/rp2040/rp2040/fault.c $S/arch/rp2040/rp2040/machdep.c \
+	$S/kern/subr_capacity.c $S/kern/subr_diag.c $S/kern/subr_prf.c \
+	$S/kern/subr_rmap.c $S/kern/sys_generic.c $S/kern/sys_inode.c \
+	$S/kern/sys_pipe.c $S/kern/sys_process.c $S/kern/syscalls.c \
+	$S/kern/tty.c $S/kern/tty_subr.c $S/kern/tty_tty.c \
+	$S/kern/ufs_alloc.c $S/kern/ufs_bio.c $S/kern/ufs_bmap.c \
+	$S/kern/ufs_dsort.c $S/kern/ufs_fio.c $S/kern/ufs_inode.c \
+	$S/kern/ufs_mount.c $S/kern/ufs_namei.c $S/kern/ufs_subr.c \
+	$S/kern/ufs_syscalls.c $S/kern/ufs_syscalls2.c \
+	$S/kern/vfs_vnops.c $S/kern/vm_sched.c $S/kern/vm_swap.c \
+	$S/kern/vm_swp.c $S/dev/cons.c $S/dev/mem.c $S/dev/swap.c \
+	$S/arch/rp2040/rp2040/clock.c $S/arch/rp2040/rp2040/board.c \
+	$S/arch/rp2040/rp2040/conf.c $S/arch/rp2040/rp2040/fault.c \
+	$S/arch/rp2040/rp2040/machdep.c \
 	$S/arch/rp2040/rp2040/shutdown_sync.c \
 	$S/arch/rp2040/rp2040/mpu.c $S/arch/rp2040/rp2040/sig_machdep.c \
 	$S/arch/rp2040/rp2040/syscall.c $S/arch/rp2040/rp2040/sysctl.c \
@@ -346,6 +351,23 @@ clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c
 
 CONFIG_TOOL=	${TOOLBINDIR}/config
+
+# config writes CONFIG_CKSUM, above: the POSIX cksum of the Config it read.
+# The make that runs config has already read this Makefile, so a build that
+# reconfigured here would compile with the PARAM and object lists of the old
+# Config. A Makefile whose CONFIG_CKSUM differs from Config's stops at once,
+# before any recipe runs, unless every goal is clean, clean-all or reconfig;
+# "make reconfig" runs alone. A Config touched but unchanged, as after a
+# checkout, passes, and the rule below regenerates identical files.
+.if make(reconfig) && ${.TARGETS:[#]} != 1
+.error "make reconfig" rewrites this Makefile; run it alone, then the build
+.endif
+.if empty(.TARGETS) || !empty(.TARGETS:Nclean:Nclean-all:Nreconfig)
+_CONFIG_CKSUM!=	cksum < Config
+.if "${_CONFIG_CKSUM}" != "${CONFIG_CKSUM}"
+.error ${.CURDIR}/Config changed since config wrote this Makefile; run "make reconfig", then the build
+.endif
+.endif
 
 reconfig ioconf.c: Config ${CONFIG_TOOL}
 	${CONFIG_TOOL} Config
@@ -467,6 +489,9 @@ kern_time.o: $S/kern/kern_time.c
 	${COMPILE_SIZE_C} ${C17_PROTO_FLAGS}
 
 subr_capacity.o: $S/kern/subr_capacity.c
+	${COMPILE_C}
+
+subr_diag.o: $S/kern/subr_diag.c
 	${COMPILE_C}
 
 subr_prf.o: $S/kern/subr_prf.c

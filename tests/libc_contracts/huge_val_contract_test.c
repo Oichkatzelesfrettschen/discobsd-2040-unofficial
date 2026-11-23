@@ -117,7 +117,7 @@ check_nan_call(const char *what, double value, int errno_expected)
  * number is (a leading '-', or '+' or ' ' by flag), padded with spaces to
  * the width on the side '-' selects; precision, '#' and '0' do not apply.
  * The expectation is computed here rather than taken from the host's
- * snprintf, because the newlib the Thumb-1 run links has no %F or %a.
+ * snprintf, because the newlib the Thumb-1 run links lacks %F and %a.
  */
 static void
 expected_text(char *out, size_t size, const char *format, double value)

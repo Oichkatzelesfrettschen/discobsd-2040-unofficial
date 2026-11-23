@@ -1,17 +1,54 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * The tty entry points usbopen() through usbselect() and the head of
+ * usbstart() follow sys/arch/stm32/dev/usb_uart.c, which carries this notice:
+ *
+ * Copyright (C) 2011 Serge Vakulenko, <serge@vak.ru>
+ *
+ * Permission to use, copy, modify, and distribute this software
+ * and its documentation for any purpose and without fee is hereby
+ * granted, provided that the above copyright notice appear in all
+ * copies and that both that the copyright notice and this
+ * permission notice and warranty disclaimer appear in supporting
+ * documentation, and that the name of the author not be used in
+ * advertising or publicity pertaining to distribution of the
+ * software without specific, written prior permission.
+ *
+ * The author disclaim all warranties with regard to this
+ * software, including all implied warranties of merchantability
+ * and fitness.  In no event shall the author be liable for any
+ * special, indirect or consequential damages or any damages
+ * whatsoever resulting from loss of use, data or profits, whether
+ * in an action of contract, negligence or other tortious action,
+ * arising out of or in connection with the use or performance of
+ * this software.
  */
 
 /*
@@ -282,8 +319,8 @@ static const u_char usb_config_desc[CONFIG_DESC_LEN] = {
 
 static const char *const usb_strings[] = {
 	0,				/* 0: language list, built below. */
-	"DiscoBSD",
-	"DiscoBSD RP2040 console",
+	"GizmoBSD",
+	"GizmoBSD RP2040 console",
 	0,				/* 3: usb_serial, built by usbinit(). */
 	"Console",
 	"Reset",
@@ -421,7 +458,7 @@ usb_buf_arm(u_int off, u_int len, u_int flags)
  * into the 1 ms frame.
  *
  * A distance past 998 us means the recorded stamp is stale: no SOF has arrived
- * yet, or the host has stopped sending them. A stale stamp carries no frame
+ * yet, or the host has stopped sending them. A stale stamp lacks frame
  * position, so the buffer is armed. That direction keeps the console alive on
  * a host that stops the bus; the other direction strands console output behind
  * an SOF that never comes, with no path back short of BOOTSEL.
@@ -540,7 +577,7 @@ usb_string_desc(u_int index, u_int wlength)
 /*
  * Reset the endpoints the configuration names. Called on
  * SET_CONFIGURATION and again on bus reset, which the datasheet says
- * returns the controller's address to zero but says nothing about the
+ * returns the controller's address to zero but leaves unstated the
  * data toggles, so they are reset here too.
  */
 static void
@@ -579,8 +616,8 @@ usb_reset_to_bootsel(u_int wvalue)
 	/*
 	 * The SDK's contract: bit 8 of wValue says bits 15:9 name an
 	 * activity LED, and the low seven bits are the interfaces to
-	 * disable. The whole cable is about to go away, so there is no
-	 * status stage to send.
+	 * disable. The whole cable is about to go away, so the
+	 * status stage is skipped.
 	 */
 	if (!usb_reset_gpio_mask(wvalue, &gpio_mask))
 		return 0;
@@ -677,7 +714,7 @@ usb_setup(void)
 			if (!usb_get_status_request_allowed(type, wvalue,
 			    windex, wlength, usbd.configured))
 				break;
-			/* The bus-powered device has no remote-wakeup or halt state. */
+			/* The bus-powered device lacks remote-wakeup and halt state. */
 			usbd.reply[0] = 0;
 			usbd.reply[1] = 0;
 			usb_ep0_send(usbd.reply, 2, wlength);
@@ -900,7 +937,7 @@ usb_tx_kick(void)
 }
 
 /*
- * The bulk IN endpoint holds no packet: send the next one or, with the ring
+ * The bulk IN endpoint is empty: send the next one or, with the ring
  * empty, release the tty. TS_BUSY tells the tty layer a packet is
  * outstanding, usbstart() returns while it is set, and only this routine
  * clears it, so every path that ends a packet -- its completion, a recovered
@@ -1000,15 +1037,15 @@ usb_rx_rearm_if_idle(void)
 
 /*
  * Release a bulk IN endpoint whose completion never arrived. tx_busy says a
- * packet is outstanding and only the completion clears it, so a buffer that
- * holds none leaves the ring unreadable for the rest of the configuration:
+ * packet is outstanding and only the completion clears it, so an endpoint
+ * whose completion is lost leaves the ring unreadable for the rest of the configuration:
  * usb_tx_kick returns on tx_busy alone, and nothing else writes it.
  *
  * The same three bits that decide the OUT case decide this one. 4.1.2.7.4
  * gives AVAILABLE to the controller while a transaction can still run and
  * FULL to a buffer holding data, and 4.1.2.8.3 has the completion clear both
  * and raise the endpoint's USB_BUFF_STATUS bit. A buffer with all three
- * clear therefore has nothing in flight, nothing waiting to be sent, and no
+ * clear therefore has zero bytes in flight, zero waiting to be sent, and no
  * completion owed, so tx_busy describes a packet that no longer exists. An
  * E15 deferral is the one state that looks the same and is not lost, because
  * its arm is held in tx_pending for the next frame; it is excluded rather
@@ -1034,10 +1071,10 @@ usb_tx_recover_if_idle(void)
  * interrupts masked by the console routines. PRIMASK masks every interrupt on
  * this ARMv6-M core (machine/intr.h: spltty is a global disable), and core 1
  * never enters this driver (rp2040/core1.c runs it as an observer that
- * touches no USB register), so a polled call and the interrupt never
+ * leaves every USB register untouched), so a polled call and the interrupt never
  * interleave.
  * HardFault is the exception: it holds priority -1, PRIMASK raises execution
- * priority only to 0, and ARMv6-M defines no FAULTMASK (ARMv6-M ARM B1.5.1,
+ * priority only to 0, and ARMv6-M lacks FAULTMASK (ARMv6-M ARM B1.5.1,
  * B1.5.4), so a fault inside the driver reaches the console through
  * arm_fault's printf. usb_service_depth turns that re-entry away.
  */
@@ -1283,7 +1320,7 @@ usbopen(dev_t dev, int flag __unused, int mode __unused)
 		tp->t_flags = ECHO | XTABS | CRMOD | CRTBS | CRTERA |
 		    CTLECH | CRTKIL;
 		/*
-		 * A serial line carries no window size, so the console opens
+		 * A serial line lacks a window size, so the console opens
 		 * at the VT100 standard 80x24. resize(1) syncs it to the
 		 * emulator's real size, and a program reads it through
 		 * TIOCGWINSZ (sys/kern/tty.c).
@@ -1417,7 +1454,7 @@ usbdrain(void)
 }
 
 /*
- * Service the controller once from a context that has nothing else to
+ * Service the controller once from a context left with only this to
  * do, a nested fault among them, so the host keeps its console and the
  * reset interface.
  */

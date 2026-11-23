@@ -1,0 +1,100 @@
+Microsoft Office 1.0 (Word 1.1, Excel 2.1d) on Windows 3.00a, host build, by hand
+===================================================================================
+
+What it shows: Word for Windows 1.1 and Microsoft Excel 2.1d install from
+their floppy disks and run under Windows 3.00a in real mode with expanded
+memory, on i86's 80286 model with the panel display: Word types and saves
+a document, Excel computes a formula and saves a sheet. Neither program
+needed extended memory, A20 or protected mode. Class of evidence: host,
+by hand. No board, no kernel.
+
+Inputs, outside the tree, supplied by the owner:
+
+  Microsoft Office 1.0 for Windows (1.0) [1990-09) [English] (5.25''-1.2MB).zip
+  The 1.2 MB images it holds (sha256):
+    4362b9c4d5692416b09cca8c795957031e4f7645fe1eb7a2c000a6377fa99571  Word/Setup.img
+    0d61461751946303ba30c37ef30fea6bf0165e6dcb2e8f6946a830b8f218988c  Word/Utilities.img
+    1a97741dba8929cf28df8f43b3eed619d2ca254c0e04bec317f92a267eea09f6  Word/Learning Writing Aids.img
+    01495e8c42d6c74206ddfd970243a51b36a8562c78b6536b1cce668175b9ef81  Word/Conversions.img
+    1c5ad276549ef9bb98392349faeba2eb051653375dc3e39b47da417d707d5d0c  Excel/Setup.img
+    5117bf6b45e5dcf20c31dcb538ad15a5e42eb82d98b0d197606c3582852557c8  Excel/Library.img
+    bba97278c56e6d31fdfdd237c8dd7cf52b0a0a3e6d3978964a6937ee6eaac2f6  Excel/Utilities.img
+    c7a6146ffe56e0e7a34d587f345a9cd059378083a7ce225282cc474ce1305f7e  PowerPoint/disk1 - setup.img
+    133b70081132ffc5ff21eb4fafaf7a49ec987b5098985030b1d79cbf0caa9902  PowerPoint/disk2.img
+    a0f5e7cd23942f49ca3d9e38d41f103f4e2d14760c1c18363fac0151fffc4d04  PowerPoint/disk3.img
+    c9f16355ad9a4a421a0478c989551f2c44dbf775713c67ecc72183683a1a774d  PowerPoint/disk4.img
+    d928712e8c5106ade0732bc7329e4062530a7a4518014402a32e720aaeb47abf  PowerPoint/disk5.img
+  The 32 MB SvarDOS disk of windows30-host.txt with Windows 3.00a and
+  DEVICE=C:\EMS.SYS installed.
+
+The emulator: the host build of usr.bin/i86 at 7cb144f10 with tests/panel.c
+in place of the device (as i86-panel), and a scratch change, not in the
+tree, that wrote display memory to a file on SIGUSR1 and traced each
+interrupt 67h call to the standard error. Each session ran on a
+pseudo-terminal, real clock, keys typed by a script, floppies changed
+through Control-].
+
+Session (i86 -g -c 286 -e 2048 -a blank.img -h c32.img):
+
+  Drive A: starts with an image of zeros. A disk with a boot sector in A:
+  at power-on stops at "Non-System disk or disk error", since the
+  bootstrap takes any sector that ends 55AAh, as the IBM firmware does.
+  A disk given only as B: (-b, no -a) is out of DOS's reach: the
+  equipment word counts one drive, so DOS treats B: as the second name
+  of drive A:, which has no image; Program Manager's File, Run of
+  b:\setup.exe then found no file there and started Windows' own
+  SETUP.EXE from the path.
+
+  Windows first, as in windows30-host.txt: About shows "Real Mode (Large
+  Frame EMS)", "Free Memory...... 615K (203K in EMS)", "Free Expanded
+  Memory...... 1776K", the figures of that record, on the take-once EMS
+  code of #808.
+
+  Word: the Setup disk in A:, Program Manager, File, Run, a:\setup.exe.
+  Word's Setup is a DOS program in text mode. It asks for the directory
+  (C:\WINWORD), the Conversions disk, conversions, graphics filters and
+  tutorial (all declined), the Learning / Writing Aids disk, then stops:
+  "Microsoft Windows version 2.11 or later is required ... Setup was
+  unable to find such a version on your system", because AUTOEXEC.BAT
+  had PATH C:\ only. With PATH C:\WINDOWS;C:\ added and Setup run again
+  it takes the same disks, declines the Word for DOS printer drivers and
+  the HP symbol soft fonts, and returns to Windows.
+  C:\WINWORD\WINWORD.EXE: Word asks for a name and initials, opens
+  Document1 in Tms Rmn 10, takes a typed line, and File, Save As writes
+  HELLO.DOC (1,723 bytes) after its summary dialog.
+
+  Excel: the Setup disk in A:, File, Run, a:\setup.exe. "MICROSOFT EXCEL
+  2.1d SETUP", text mode, proposes C:\WINDOWS; C:\EXCEL was entered
+  instead. After the Library disk the screen was Windows again, and Setup
+  never asked for the Utilities disk. The installation is complete,
+  whether or not Setup left through its normal end: read afterwards with
+  mtools, the disk holds every file of the Setup disk's program set
+  (EXCEL.EXE, EXCELDE, the help, samples, TRANS, MEMSET, XLSETUP and the
+  READMEs) expanded in C:\EXCEL, the Library disk's 12 macro files in
+  C:\EXCEL\LIBRARY, all 50 tutorial files of both disks in
+  C:\EXCEL\EXCELCBT, and in C:\WINDOWS\WIN.INI the xls, xlc, xlw and xlm
+  associations and a [Microsoft Excel] section, none of which Windows'
+  own WIN.INI carries. The Windows/286 run-time that Setup installs where
+  no Windows is present spans two disks: the Library disk carries KERNEL,
+  GDI and the display and mouse drivers beside LIBRARY and part of
+  EXCELCBT, and the Utilities disk carries USERS, CONTROL, SPOOLER, the
+  fonts, the memory managers and the printer drivers, none of which an
+  installation into Windows 3.0 needs. C:\EXCEL held EXCEL.EXE (606,992 bytes), EXCELHLP.HLP, the
+  sample sheets, XLSETUP.EXE and the LIBRARY macros.
+  win c:\excel\excel.exe: Sheet1 opens; 12 in A1, 30 in A2 and
+  =A1*A2+1 in A3 show 361; File, Save As writes CALC.XLS (904 bytes) to
+  C:\WINDOWS, the directory Windows started in.
+
+  Interrupt 67h calls over the whole session (function, times):
+    50h 1290, 5Bh 822, 47h 306, 48h 299, 51h 137, 4Ch 79, 5Ah 27,
+    45h 25, 42h 16, 4Eh 15, 44h 10, 58h 9, 40h 7, 46h 6, 41h 6,
+    59h 3, 4Bh 3, 43h 2.
+
+PowerPoint 2.0 (IMG/PowerPoint, five disks), with the host build at
+  dd65f4524 and the same scratch change: the Setup disk in A:,
+  File, Run, a:\setup.exe stops at once with a dialog "Sorry, this version
+  of PowerPoint Setup requires protected mode Windows 3." i86 runs Windows
+  3.0 in real mode only, so PowerPoint 2.0 waits for protected mode.
+
+Not covered: PowerPoint 2.0's installation and use (above); Word's and Excel's optional parts; standard
+mode; the kernel and the board; the speed.

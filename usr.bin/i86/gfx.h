@@ -42,6 +42,9 @@
 
 extern int gfx_on;		/* the panel device is open */
 extern int gfx_graphic;		/* display memory holds pixels, not cells */
+extern int gfx_plain;		/* -G: draw what pages mark, unscrolled */
+extern const char *gfx_capture_path;	/* -P: the file gfx_capture() writes */
+int gfx_capture(void);
 
 /* vmem is 8 KB: the cells of the text modes in its first half, pc.c's
  * copy of the cells last drawn in its second, and in a graphics mode the
@@ -57,6 +60,12 @@ int gfx_mode(unsigned mode);
 /* Draw what changed: the cells of a text mode with cols columns and the
  * cursor at cell index cursor, or the scan lines of a graphics mode. */
 void gfx_refresh(unsigned cols, unsigned cursor);
+/* Send part of the graphics lines a refresh found written: once at the
+ * start of every poll and once a wait of a guest that has stopped, so a
+ * large redraw alternates with the guest's steps. */
+void gfx_drain(void);
+/* Show or remove the mark of mouse keys in the panel's top margin. */
+void gfx_pointer(int on);
 /* The firmware's text and pixel services in a graphics mode. */
 void gfx_putc(unsigned row, unsigned col, unsigned ch, unsigned color);
 void gfx_scroll(unsigned top, unsigned left, unsigned bot, unsigned right,

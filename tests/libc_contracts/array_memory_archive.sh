@@ -14,7 +14,10 @@ script_directory=$(CDPATH= cd "$(dirname "$0")" && pwd)
 archive_path=$source_root/lib/libc.a
 archiver=${arm_compiler%gcc}ar
 temporary_directory=$(mktemp -d)
-trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+trap 'rm -rf "$temporary_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 case $self_test in
 yes|no) ;;

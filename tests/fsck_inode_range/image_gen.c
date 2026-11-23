@@ -22,7 +22,7 @@
  *                  inode is N, and fsck must create lost+found there to
  *                  reconnect the orphan.
  *   full-table     lost+found is renamed old-lf and one file loses its name,
- *                  with every inode in use: fsck has no inode to create
+ *                  with every inode in use: fsck lacks an inode to create
  *                  lost+found in and must decline.
  *   lf-last        lost+found is a new directory at inode N, the original
  *                  is renamed old-lf, and one file loses its name: fsck must
@@ -34,7 +34,7 @@
  *   lf-overrun-last  lf-last, with the record of ".." in lost+found running
  *                  512 bytes past the end of its block. The record is
  *                  damaged, so tools/fsutil's checker must decline to cut
- *                  its slack and report that lost+found has no room.
+ *                  its slack and report that lost+found lacks room.
  *   tail-evict     a 96-inode volume (six inode blocks, so fsck holds the
  *                  inodes in two windows). A directory in lost+found whose
  *                  inode is in the second window has a length that is not a
@@ -73,7 +73,7 @@
  *                  inode, whose ".." names a member of the loop: its chain
  *                  enters the loop and never returns to it.
  *   orphan-dotdot-range  one directory, named from nowhere, whose ".." holds
- *                  inode number 0xff0000, far above N: it names no inode, so
+ *                  inode number 0xff0000, far above N: it names a nonexistent inode, so
  *                  the directory scan takes the entry for damage and merges
  *                  its slot into the record of ".".
  *   lf-second-block  lost+found grown to two blocks by entries that leave
@@ -81,7 +81,7 @@
  *                  loses its name: the reconnect must use the second block.
  *   lf-one-slot    lost+found holds one block with room for exactly one more
  *                  entry, and two files lose their names: the first reconnect
- *                  fills the block, so the second finds no room and the
+ *                  fills the block, so the second finds the block full and the
  *                  checker clears that file.
  *   count-tfree    five files and a sound free list, with the superblock's
  *                  free-block count one above the list it heads.
@@ -222,6 +222,22 @@ overrun_dotdot(fs_t *fs, const char *name)
 	    fs_inode_save(&dir, 1);
 }
 
+/* Set one directory record's on-disk name length without changing its room. */
+static int
+set_dir_namlen(fs_t *fs, const char *name, unsigned offset, unsigned namlen)
+{
+	fs_inode_t dir;
+	unsigned char block[BSDFS_BSIZE];
+
+	if (!fs_inode_lookup(fs, &dir, name) || offset + 8 > sizeof block ||
+	    !fs_inode_read(&dir, 0, block, sizeof block))
+		return 0;
+	block[offset + 6] = namlen & 0xff;
+	block[offset + 7] = namlen >> 8;
+	return fs_inode_write(&dir, 0, block, sizeof block) &&
+	    fs_inode_save(&dir, 1);
+}
+
 /*
  * Make the ".." entry of directory name, the second entry of its first
  * block, name inode number target, and count the new reference in target.
@@ -358,7 +374,7 @@ make_empty_file(fs_t *fs, const char *name)
  * file /lost+found/x00000, until the directory holds BLOCKS blocks, or, when
  * BLOCKS is 1, until COUNT entries stand behind "." and "..". The entry
  * fsutil makes for an orphan, "#" and five digits, is sixteen bytes too, so
- * a block these names filled has no room for it. The file's link count
+ * a block these names filled lacks room for it. The file's link count
  * matches its names.
  */
 static int
@@ -465,7 +481,9 @@ build(const char *layout, const char *path)
 	if (strcmp(layout, "tail-evict") == 0) {
 		if (!build_tail_evict(&fs))
 			return fail("cannot build", layout);
-	} else if (strcmp(layout, "empty") == 0) {
+	} else if (strcmp(layout, "empty") == 0 ||
+	    strcmp(layout, "name-overlong") == 0 ||
+	    strcmp(layout, "name-overrun") == 0) {
 		/* Nothing more. */
 	} else if (strcmp(layout, "dir-last") == 0) {
 		if (!make_dir(&fs, "/d00") ||
@@ -558,7 +576,8 @@ build(const char *layout, const char *path)
 		    number_of(&fs, "/f00") != IMAGE_INODES)
 			return fail("cannot build", layout);
 		if (strcmp(layout, "file-last") == 0) {
-			/* Nothing more. */
+			if (!rename_to(&fs, "/f01", "/\200\257\377"))
+				return fail("cannot build byte name", layout);
 		} else if (strcmp(layout, "orphan-last") == 0) {
 			if (!drop_name(&fs, "/f00"))
 				return fail("cannot build", layout);
@@ -575,6 +594,12 @@ build(const char *layout, const char *path)
 			return fail("unknown layout", layout);
 		}
 	}
+	if (strcmp(layout, "name-overlong") == 0 &&
+	    !set_dir_namlen(&fs, "/lost+found", 12, BSDFS_MAXNAMLEN + 1))
+		return fail("cannot corrupt name length", layout);
+	if (strcmp(layout, "name-overrun") == 0 &&
+	    !set_dir_namlen(&fs, "/lost+found", 0, 4))
+		return fail("cannot corrupt name room", layout);
 	if (!fs_sync(&fs, 1))
 		return fail("cannot write", path);
 	fs_close(&fs);
@@ -588,9 +613,9 @@ check(const char *path, int writable)
 
 	if (!fs_open(&fs, path, writable, 0))
 		return fail("cannot open", path);
-	fs_check(&fs);
+	int ok = fs_check(&fs);
 	fs_close(&fs);
-	return 0;
+	return ok ? 0 : 1;
 }
 
 static int

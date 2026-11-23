@@ -32,7 +32,7 @@
  * name pool; a directory with more entries than the pool holds lists its
  * first PICK_MAX names and says so on the title line. Directories are read
  * through <dirent.h> on a host build and through the 4.3BSD <sys/dir.h>
- * interface on DiscoBSD.
+ * interface on GizmoBSD.
  */
 
 #include "lexeme.h"

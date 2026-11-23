@@ -181,6 +181,11 @@ main(void)
 	win_lcdgfx_init(&backend, &lcd, fd);
 	if (win_scene_init(&scene, &backend) != 0)
 		return 1;
+	if (win_lcdgfx_rgb565(&scene, &lcd) != 0) {
+		printf("windemo: cannot select COLMOD 0x55\n");
+		close(fd);
+		return 1;
+	}
 	win_scene_set_bits(&scene, win_lcdgfx_bits);
 	a = win_create(&scene, 20, 20, 140, 100, "first", paint_label, &panes[0]);
 	b = win_create(&scene, 100, 60, 150, 110, "second", paint_label, &panes[1]);
@@ -245,7 +250,7 @@ main(void)
 		return 1;
 	}
 	restore = 1;
-	/* A refused session leaves the tty byte source, which needs no setup. */
+	/* A refused session leaves the tty byte source, which does not need setup. */
 	(void)win_input_open(&src, 0);
 	while (!quit && scene.nwin > 0) {
 		int n = win_input_wait(&src, &in, &scene, IDLE_MS);

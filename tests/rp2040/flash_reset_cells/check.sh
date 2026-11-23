@@ -225,7 +225,7 @@ build "$flash" "$dhara/journal.c" "$swap" "$work/oracle"
 }
 cat "$work/oracle.log"
 # A targeted run names one cell; an id the table lacks must fail rather than
-# run nothing and pass.
+# run zero cells and pass.
 if "$work/oracle" "$cells" "$manifest" NO-SUCH-CELL \
     >"$work/unknown-id.log" 2>&1 ||
     ! grep -q "no cell named 'NO-SUCH-CELL'" "$work/unknown-id.log"; then
@@ -398,7 +398,7 @@ rejects_table "$bad" "row E-H0 has status 'n/a', the manifest says run"
 { cat "$cells"; printf 'LONG\t'; head -c 3000 /dev/zero | tr '\0' x; printf '\n'; } \
     >"$bad"
 rejects_table "$bad" 'line [0-9]*: longer than'
-# The oracle needs its manifest: without one it exits 2 and runs nothing.
+# The oracle needs its manifest: without one it exits 2 and runs zero cells.
 status=0
 "$work/oracle" "$cells" >"$work/no-manifest.log" 2>&1 || status=$?
 if [ "$status" -ne 2 ] || grep -q '^cell ' "$work/no-manifest.log"; then
@@ -444,7 +444,7 @@ fi
 
 # The status "defect" records a failure the shipped driver is known to have,
 # and a defect row passes only while its failing cuts equal the recorded
-# checkpoint-tear signature. The shipped journal records none, so the machinery
+# checkpoint-tear signature. The shipped journal lacks that signature, so the machinery
 # is calibrated on the journal before the checkpoint-tear fix: the shipped
 # source with the checkpoint-page header test and the sector-tree test
 # dropped. Kf-min marked defect must reproduce the signature there (known-good),

@@ -230,7 +230,7 @@ itrunc_order_free(struct inode *ip, daddr_t bn)
 
 /*
  * itrunc() maps the block that holds the new end of a file ending inside a
- * block. The fixture's files have no holes, so the direct address answers.
+ * block. The fixture's files are fully allocated, so the direct address answers.
  */
 daddr_t
 bmap(struct inode *ip, daddr_t bn, int rwflg, int flags)
@@ -447,7 +447,7 @@ run_failed_indirect_write(void)
 	HK_CHECK(on_disk[0] != 0 && on_disk[1] != 0 && on_disk[2] != 0);
 	/*
 	 * The cache holds the cleared block as a delayed write, so a file
-	 * that grows again maps none of the entries past its end.
+	 * that grows again maps zero entries past its end.
 	 */
 	{
 		daddr_t *cached = (daddr_t *)cache[blocks_of_file[NDADDR]];
@@ -493,6 +493,73 @@ run_tail(void)
 		HK_CHECK(buf_busy[i] == 0);
 }
 
+/*
+ * An extending write that publishes an indirect block and then fails to
+ * allocate the block below it leaves an empty file naming that block (see
+ * bmap_write_test.c: bmap() keeps initialized ancestors). The truncation to
+ * zero that irele() runs before ifree() releases it, after the synchronous
+ * write of the inode without it.
+ */
+static void
+run_empty_with_indirect(const char *name, int level)
+{
+	const daddr_t iblk = FS_ITOD(&mount[0].m_filsys, GATE_INO);
+	struct dinode *dp;
+	unsigned i, frees;
+	int first_write = -1, first_free = -1, a;
+	daddr_t root = FIRST_DATA;
+
+	build(0, 0, 0);
+	/* The block was allocated with B_CLRBUF: every entry is zero. */
+	IADDR_IB_SET(&gate_ip, level, root);
+	gate_ip.i_size = 0;
+	((struct dinode *)disk[iblk])[itoo(GATE_INO)].di_ic1 = gate_ip.i_ic1;
+	bcopy((caddr_t)gate_ip.i_addr,
+	    (caddr_t)((struct dinode *)disk[iblk] + itoo(GATE_INO))->di_addr,
+	    NADDR * sizeof(daddr_t));
+	bcopy((caddr_t)disk, (caddr_t)cache, sizeof(cache));
+	itrunc(&gate_ip, 0, 0);
+	frees = count_frees();
+	for (i = 0; i < nevents; i++) {
+		if (events[i].kind == EV_FREE && first_free < 0)
+			first_free = (int)i;
+		if (events[i].kind == EV_WRITE_SYNC && first_write < 0 &&
+		    events[i].blkno == iblk)
+			first_write = (int)i;
+	}
+	hk_note("%s: %u frees, first sync inode write at %d, first free at "
+	    "%d\n", name, frees, first_write, first_free);
+	HK_CHECK(u.u_error == 0);
+	HK_CHECK(frees == 1 && is_freed(root));
+	HK_CHECK(IADDR_IB(&gate_ip, level) == 0);
+	HK_CHECK(first_write >= 0 && first_write < first_free);
+	if (first_write >= 0) {
+		dp = &events[first_write].dinode;
+		for (a = 0; a < NADDR; a++)
+			HK_CHECK(dp->di_addr[a] != root);
+	}
+}
+
+/*
+ * A device inode keeps the device number where a file keeps its first
+ * address, so the truncation of an unlinked device node frees nothing and
+ * leaves the number in place.
+ */
+static void
+run_device(int type)
+{
+	const dev_t rdev = 0x0302;
+
+	build(0, 0, 0);
+	gate_ip.i_mode = type | 0600;
+	gate_ip.i_rdev = rdev;
+	itrunc(&gate_ip, 0, 0);
+	hk_note("device type 0%o: %u frees\n", type, count_frees());
+	HK_CHECK(u.u_error == 0);
+	HK_CHECK(count_frees() == 0);
+	HK_CHECK(gate_ip.i_rdev == rdev);
+}
+
 int
 main(void)
 {
@@ -508,5 +575,9 @@ main(void)
 	run_failed_write("direct, inode write fails", NDADDR, 0);
 	run_failed_write("indirect, inode write fails", NDADDR, 3);
 	run_tail();
+	run_empty_with_indirect("empty file, single indirect left by bmap", 0);
+	run_empty_with_indirect("empty file, double indirect left by bmap", 1);
+	run_device(IFCHR);
+	run_device(IFBLK);
 	return hk_verdict("itrunc order");
 }

@@ -721,7 +721,7 @@ hostile(void)
     HK_CHECK(memcmp(saved, disk + 512, 512) == 0);
     ip->i_a16[0] = keep;
 
-    /* A wide address whose disk inode does not read is no hole. */
+    /* A wide address whose disk inode does not read is not a hole. */
     before = v7_addr_get(ip, 0);
     v7_addr_set(ip, 0, (daddr_t)0x00012345L);
     HK_CHECK(ip->i_a16[0] == 0xffff);
@@ -781,7 +781,7 @@ hostile(void)
     HK_CHECK(u.u_error == EIO);
     u.u_error = 0;
 
-    /* An owner the 16-bit field cannot hold creates nothing. */
+    /* An owner the 16-bit field cannot hold fails before creating. */
     u.u_uid = 0x10000;
     i = kcreate("/wide-owner", IFREG | 0644, &ip);
     HK_CHECK(i == EOVERFLOW);
@@ -901,7 +901,7 @@ foreign(void)
     u.u_error = 0;
 
     /*
-     * An allocated inode whose size is no positive off_t, or whose
+     * An allocated inode whose size is not a positive off_t, or whose
      * link count is negative in the format's signed field, does not
      * read; a free inode carrying the same bytes does.
      */
@@ -1039,6 +1039,16 @@ main(int argc, char **argv)
     HK_CHECK(error == ENAMETOOLONG);
     fill("/fourteen-chars", 9, 77, 512);
 
+    HK_CHECK(lookup("/fifteen-letters") == NULL && u.u_error == ENAMETOOLONG);
+    HK_CHECK(lookup("/fifteen-letters/x") == NULL && u.u_error == ENAMETOOLONG);
+    HK_CHECK(kremove("/fifteen-letters") == ENAMETOOLONG);
+    HK_CHECK(kcreate("/\200\257\377", IFREG | 0644, &ip) == 0);
+    iput(ip);
+    ip = lookup("/\200\257\377");
+    HK_CHECK(ip != NULL);
+    iput(ip);
+    HK_CHECK(kremove("/\200\257\377") == 0);
+
     /* Directories, and enough names to need a second directory block. */
     HK_CHECK(kcreate("/kdir", IFDIR | 0755, &ip) == 0);
     iput(ip);
@@ -1051,6 +1061,29 @@ main(int argc, char **argv)
     HK_CHECK(rdwri(UIO_WRITE, ip, "kdir/sub/deep", 13, (off_t)0, IO_UNIT,
         (int *)0) == 0);
     iput(ip);
+    for (int total = MAXPATHLEN - 2; total <= MAXPATHLEN + 1; total++) {
+        char target[MAXPATHLEN];
+        int length = total - sizeof("/sub/deep");
+
+        memset(target, '/', length);
+        memcpy(target + length - 4, "kdir", 4);
+        HK_CHECK(kcreate("/bound", IFLNK | 0777, &ip) == 0);
+        HK_CHECK(rdwri(UIO_WRITE, ip, target, length, (off_t)0, IO_UNIT,
+            (int *)0) == 0);
+        iput(ip);
+        ip = lookup("/bound/sub/deep");
+        if (total <= MAXPATHLEN) {
+            HK_CHECK(ip != NULL && (ip->i_mode & IFMT) == IFREG);
+            iput(ip);
+        } else {
+            HK_CHECK(ip == NULL && u.u_error == ENAMETOOLONG);
+        }
+        HK_CHECK(kremove("/bound") == 0);
+    }
+    HK_CHECK(kcreate("/emptylink", IFLNK | 0777, &ip) == 0);
+    iput(ip);
+    HK_CHECK(lookup("/emptylink") == NULL && u.u_error == ENOENT);
+    HK_CHECK(kremove("/emptylink") == 0);
     for (i = 0; i < 40; i++) {
         memcpy(name, "/kdir/n00", 10);
         name[7] = '0' + i / 10;

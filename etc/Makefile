@@ -132,7 +132,7 @@ DIRS_RELEASE!=if [ x"${MACHINE}" = x"stm32" ] ; then \
 		echo "FAIL" ; \
 	fi
 
-# Creates an empty DiscoBSD directory tree in DESTDIR.
+# Creates an empty GizmoBSD directory tree in DESTDIR.
 distrib-dirs:
 	if [ ! -d ${DESTDIR}/. ]; then \
 		${INSTALL} -d -m 755 ${DESTDIR}; \
@@ -144,7 +144,7 @@ distrib-dirs:
 		mkdir -p ${DESTDIR}/usr/share/man/$$dir; \
 	done
 
-# Creates and populates a DiscoBSD release directory tree in RELEASEDIR.
+# Creates and populates a GizmoBSD release directory tree in RELEASEDIR.
 release-dirs:
 	if [ ! -d ${RELEASEDIR}/. ]; then \
 		${INSTALL} -d -m 755 ${RELEASEDIR}; \
@@ -162,8 +162,8 @@ release-dirs:
 
 release: release-dirs
 	cd ${RELEASEDIR} && \
-	tar czvf DiscoBSD_${OSRev}_${MACHINE}.tar.gz ${MACHINE} && \
-	zip -r DiscoBSD_${OSRev}_${MACHINE}.zip ${MACHINE}
+	tar czvf GizmoBSD_${OSRev}_${MACHINE}.tar.gz ${MACHINE} && \
+	zip -r GizmoBSD_${OSRev}_${MACHINE}.zip ${MACHINE}
 
 .PHONY:	all distribution distribution-etc-root-var \
 	distrib-dirs release-dirs release clean

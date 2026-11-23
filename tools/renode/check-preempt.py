@@ -29,7 +29,7 @@
 
 The flash image this driver boots is the shipped root with
 tests/rp2040/preempt/preempt added under /tmp (check-preempt.sh composes
-it). Every case runs a loop that makes no system call, so only the
+it). Every case runs a loop that makes zero system calls, so only the
 asynchronous system trap -- the return to the process through userret from
 SysTick -- can deliver its signal or switch it out. A kernel without that
 path leaves the emulated machine running one loop forever, so each case
@@ -57,6 +57,10 @@ altstack
     a handler on an alternate stack of exactly MINSIGSTKSZ bytes, its base
     7 bytes past an eight-byte boundary, finds its sp inside that stack and
     leaves the guard bytes below the base unwritten: "PREEMPT altstack OK".
+altstack-bss
+    the alternate stack is a static array in .bss, below the break; the
+    handler's getpid() must return the process ID and the program resume:
+    "PREEMPT altstack-bss OK".
 execdiv
     the program execs itself from a sequence that left the SIO divider
     DIRTY with known operands, and the new image must not find them:
@@ -97,6 +101,7 @@ CASES = {
     "regs": ("/tmp/preempt regs", ["PREEMPT regs OK"], 0),
     "divide": ("/tmp/preempt divide", ["PREEMPT divide OK"], 0),
     "altstack": ("/tmp/preempt altstack", ["PREEMPT altstack OK"], 0),
+    "altstack-bss": ("/tmp/preempt altstack-bss", ["PREEMPT altstack-bss OK"], 0),
     "execdiv": ("/tmp/preempt execdiv", ["PREEMPT execdiv OK"], 0),
     "divclean": ("/tmp/preempt divclean", ["PREEMPT divclean OK"], 0),
 }
@@ -111,7 +116,9 @@ def load_boot():
 
 
 def reach_shell(console, boot) -> None:
-    console.wait_lines([f"DiscoBSD 2.7 ({CONFIG})"], "kernel banner", boot.PROBE_BUDGET_SECONDS)
+    console.wait_lines(
+        [f"GizmoBSD 0.1.0-alpha ({CONFIG})"], "kernel banner", boot.PROBE_BUDGET_SECONDS
+    )
     console.wait_lines(boot.LOGIN_LINES, "file system check", boot.LOGIN_BUDGET_SECONDS)
     console.wait_lines(["login:"], "login prompt", boot.LOGIN_BUDGET_SECONDS)
     console.type_line("operator")

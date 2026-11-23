@@ -15,7 +15,10 @@ src=$here/../../sys/arch/rp2040/rp2040
 cc=${CC:-cc}
 stress=${STRESS:-400000}
 work=$(mktemp -d "${TMPDIR:-/tmp}/corering.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 cflags='-std=c17 -O1 -g -Wall -Wextra -Werror -pthread'
 TSAN_OPTIONS='halt_on_error=1 exitcode=66'

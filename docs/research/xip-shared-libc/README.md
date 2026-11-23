@@ -432,14 +432,16 @@ carry.
 
 ## Evidence classes and limits
 
-Everything above is build evidence and host link evidence: links, sizes,
-packed blocks, symbol tables, object-level PIC sizes, and source reading. No
-runnable shared-libc image exists, no board ran any of it, XIP execution speed
-and swap growth are unmeasured, and the PIC data design's run-time cost rests
-on object sizes alone. The LARGE-epoch defect rests on source plus one
-retained board transcript of the denied address, not on a LARGE run with the
-MPU enabled.
+The size comparisons above use builds, links, packed block counts, symbol
+tables and source inspection. The LARGE-epoch defect rests on source plus one
+retained board transcript of the denied address. XIP execution speed, swap
+growth on hardware and LARGE operation with the MPU enabled remain unmeasured.
 
 The [full-library state experiments](full-library-state.md) record LTO sizing,
-process-state relocation controls, installed-header discovery and compact
-callable-slot execution. The fixed reservation remains a failed size gate.
+process-state relocation controls and installed-header discovery. The complete
+library exceeds the 48 KiB reservation in the measured configurations. The
+compact diagnostic provider occupies 48,792 bytes. The diagnostic kernel boots
+under Renode and runs raw and packed callers that retain independent libc
+state across fork and failed exec. The [slot and process evidence](slot-identity.md)
+records the provider identity, diagnostic scope and replay inputs. Production
+export selection remains open.

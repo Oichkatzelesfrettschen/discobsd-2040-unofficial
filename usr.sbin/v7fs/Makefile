@@ -2,7 +2,7 @@ TOPSRC!=cd ../..; pwd
 include ${TOPSRC}/share/mk/sys.mk
 
 # v7fs(8): the NetBSD v7fs core and newfs library, imported verbatim under
-# tools/netbsd-imports.manifest, behind a DiscoBSD descriptor backend and
+# tools/netbsd-imports.manifest, behind a GizmoBSD descriptor backend and
 # command front end. The program installs to /usr/sbin and stays out of
 # distrib/base/mi and distrib/rp2040/mi.rp2040, so neither image carries it.
 
@@ -34,7 +34,7 @@ V7FS_DEFS=	-DV7FS_EI -DSTATIC_BUFFER \
 # the undefined-identifier warning is answered here with the value the
 # sources expect.
 NETBSD_FLAGS=	-Wno-unused-parameter -DNDEBUG -DHAVE_NBTOOL_CONFIG_H=0
-# The DiscoBSD files are strict C17. They see the imported headers as
+# The GizmoBSD files are strict C17. They see the imported headers as
 # system headers, so -Wpedantic judges this directory's code and leaves the
 # verbatim NetBSD declarations as NetBSD wrote them.
 LOCAL_FLAGS=	-std=c17 -Wpedantic -isystem ${V7FS} -isystem ${NEWFS}

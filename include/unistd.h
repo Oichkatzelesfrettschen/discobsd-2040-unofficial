@@ -62,7 +62,7 @@
 #define X_OK            1       /* Test for execute permission.  */
 #define F_OK            0       /* Test for existence.  */
 
-/* Runtime limits that DiscoBSD can report without fabricating a contract. */
+/* Runtime limits that GizmoBSD can report without fabricating a contract. */
 #define _SC_ARG_MAX             1
 #define _SC_CLK_TCK             3
 #define _SC_NGROUPS_MAX         4
@@ -83,6 +83,15 @@
 #define _PC_NAME_MAX            1
 #define _PC_LINK_MAX            2
 #define _PC_PIPE_BUF            3
+#define _PC_PATH_MAX            4
+#define _PC_NO_TRUNC            5
+#define _PC_CHOWN_RESTRICTED    6
+#define _PC_2_SYMLINKS          7
+#define _PC_ALLOC_SIZE_MIN      8
+#define _PC_TIMESTAMP_RESOLUTION 9
+
+#define _POSIX_CHOWN_RESTRICTED 1
+#define _POSIX_NO_TRUNC         1
 
 #define _CS_PATH                1
 

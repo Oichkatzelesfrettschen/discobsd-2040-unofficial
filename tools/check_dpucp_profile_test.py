@@ -660,7 +660,7 @@ def check_physical_sources(root, profile):
 
 
 def check_failed_capacity_refresh(root, profile, rows):
-    with tempfile.TemporaryDirectory(prefix="discobsd-profile-refresh-") as directory:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-profile-refresh-") as directory:
         fixture = Path(directory)
         profile_path = fixture / "profile.json"
         rows_path = fixture / "requirements.tsv"

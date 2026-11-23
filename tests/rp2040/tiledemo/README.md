@@ -38,5 +38,5 @@ and in raw or cbreak mode. From a serial login, standard input belongs to the
 UART or USB driver, whose ioctl returns ENOTTY for `LCDIOC_KEYEVS`, so the
 program prints `FAIL LCDIOC_KEYEVS start` and ends with `TILEDEMO FAILED`;
 the drawing and timings still run. That outcome follows from the source and
-has no board run behind it. A board run takes over the panel, so it needs the
+lacks a board run behind it. A board run takes over the panel, so it needs the
 owner's opt-in.

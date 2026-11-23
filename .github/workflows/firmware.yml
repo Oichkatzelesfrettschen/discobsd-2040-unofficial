@@ -1,15 +1,20 @@
 # The RP2040 kernel, the flash image and the test tiers the root Makefile
 # groups (sys/arch/rp2040/doc/TESTING.md). The build log is gated on its
-# warnings: the build must emit none. The discobsd-host package has its
+# warnings: the build must emit none. The gizmobsd-host package has its
 # own workflow, host.yml, which is the check-host-package tier.
 #
-# A pull request and a push to main run the rp2040 job's fixed short set:
-# the warning-free build, the kernel headroom, the flash image, the UF2
-# validation, the lint tier, the changed-comment and changed-text checks
-# and the Renode UART0 boot. The nightly run, on main, and a manual
-# dispatch, on the ref it names, add every other tier and every other job
-# (FULL_GATES); a nightly that fails opens or updates one issue (the
-# nightly-report job).
+# A push to main runs the rp2040 job's fixed short set: the warning-free
+# build, the kernel headroom, the flash image, the UF2 validation, the lint
+# tier, the changed-comment and changed-text checks and the Renode UART0
+# boot. A pull request runs the part of that set that takes seconds: the
+# toolchain install, the lint tier and the changed-comment and changed-text
+# checks; the build, the headroom, the flash image, the UF2 validation, the
+# panel program replay and the Renode boot wait for the merge to main, and
+# the local gates over the changed files carry what the pull request
+# changes. The job keeps one name on every event because branch protection
+# requires that name. The nightly run, on main, and a manual dispatch, on
+# the ref it names, add every other tier and every other job (FULL_GATES);
+# a nightly that fails opens or updates one issue (the nightly-report job).
 name: firmware
 
 on:
@@ -58,8 +63,17 @@ jobs:
     # trap tier adds 10.1. Hosted runners vary by about 25 percent between
     # runs (the same steps took 899 and 1,098 seconds in the host tier), so
     # the limit covers a slow runner's 94 minutes with margin, plus the
-    # qemu tier's C17 math family, which adds up to 25 more.
-    timeout-minutes: 135
+    # qemu tier's C17 math family, which adds up to 25 more. On 2026-11-21 the
+    # host tier alone took 36 minutes (run 44844712110) and every later tier
+    # took 85 minutes in a run that skipped the host tier (44849576870, its SD
+    # system tier ended by the idle timeout after 13 of up to 24 minutes), so a
+    # passing run needs about 130 minutes or more. The first fully passing run,
+    # dispatch 44895879561, took 148 minutes (host tier 2,490 s, asynchronous
+    # system trap tier 690 s, SD system tier 1,083 s). Two runs of one workload
+    # differed by at least 13 percent (macOS first host part, 2,594 s and more
+    # than 2,935 s), and the host tier grows with the i86 mutant lists, so the
+    # bound is 210.
+    timeout-minutes: 210
     steps:
       - uses: actions/checkout@v4
         with:
@@ -106,10 +120,20 @@ jobs:
       # need. The 32-bit shell conformance run is the posix-sh job below.
       # cffi, hypothesis and pytest run check-swap-tier-model in the host
       # tier, which prints a SKIP without them.
+      - name: Select the apt cache week
+        id: apt-week-rp2040
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache the apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-rp2040-${{ steps.apt-week-rp2040.outputs.week }}-${{ hashFiles('.github/workflows/firmware.yml') }}
+          restore-keys: |
+            apt-rp2040-
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          CI_APT_ARCHIVES="$HOME/apt-archives" sh tools/ci_apt_install.sh \
             bmake make build-essential cmake git clang cflow cscope ripgrep jq \
             gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
@@ -128,13 +152,14 @@ jobs:
       # ${prefix}/bin; PICOTOOL_FLAT_INSTALL moves the whole set under
       # ${prefix}/picotool instead and is left off.
       - name: Cache picotool
+        if: github.event_name != 'pull_request'
         id: picotool-cache
         uses: actions/cache@v4
         with:
           path: ~/picotool-install
           key: picotool-${{ env.PICOTOOL_VERSION }}-ubuntu-24.04
       - name: Build picotool
-        if: steps.picotool-cache.outputs.cache-hit != 'true'
+        if: github.event_name != 'pull_request' && steps.picotool-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$HOME/picotool-src"
           cd "$HOME/picotool-src"
@@ -150,6 +175,7 @@ jobs:
           cmake --build picotool/build --parallel "$(nproc)"
           cmake --install picotool/build
       - name: Put picotool on PATH
+        if: github.event_name != 'pull_request'
         run: |
           echo "$HOME/picotool-install/bin" >> "$GITHUB_PATH"
       - name: Report the toolchain
@@ -160,7 +186,10 @@ jobs:
           shellcheck --version | sed -n 2p
           ruff --version
           bmake -V MACHINE 2>/dev/null || true
-          picotool version
+          # A pull request installs no picotool: its steps need none.
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            picotool version
+          fi
 
       # The logged-gate runner streams combined output, writes an atomic
       # status receipt, emits heartbeats during quiet work, and terminates
@@ -177,6 +206,7 @@ jobs:
       # __DATE__ and __TIME__; the 1286 library objects those archives
       # wrap are identical, as is every kernel object.
       - name: Build the kernel and the userland
+        if: github.event_name != 'pull_request'
         timeout-minutes: 25
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -190,6 +220,7 @@ jobs:
       # kernel that links but has less than the margin of tools/
       # check_kernel_headroom.py left, under the toolchain this job installs.
       - name: Check the kernel flash headroom, dump-writer linkage and buffer alignment
+        if: github.event_name != 'pull_request'
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -201,6 +232,7 @@ jobs:
             check-dump-writer-link check-kernel-buffer-alignment
 
       - name: Verify MPU startup and reported permissions in the linked kernels
+        if: github.event_name != 'pull_request'
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -211,6 +243,7 @@ jobs:
             -- bmake MACHINE=rp2040 check-mpu-startup
 
       - name: Replay the full PicoCalc panel register programs
+        if: github.event_name != 'pull_request'
         timeout-minutes: 2
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -221,6 +254,7 @@ jobs:
             -- bmake MACHINE=rp2040 check-panel-programs
 
       - name: Build the flash image
+        if: github.event_name != 'pull_request'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -233,6 +267,7 @@ jobs:
       # The tree builds warning-free on gcc 13, 14, and 16: the cross build,
       # the kernel, and the host tools. Any warning line fails the job.
       - name: Assert the build is warning-free
+        if: github.event_name != 'pull_request'
         run: |
           # grep exits 1 on no match, which is the wanted outcome here, so
           # the count is captured with a fallback before the assertion.
@@ -243,8 +278,9 @@ jobs:
             .build-logs/linux-flash.log || true
           test "$total" -eq 0
 
-      # The UF2 pair the artifact step uploads and discobsd-flash loads.
+      # The UF2 pair the artifact step uploads and gizmobsd-flash loads.
       - name: Validate the kernel and root UF2 images
+        if: github.event_name != 'pull_request'
         timeout-minutes: 5
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -314,11 +350,19 @@ jobs:
       # has no Thumb-1 variant and math holds Thumb-1 to glibc-checked digests.
       # This job installs cffi, hypothesis and pytest, so the swap tier
       # model gate fails rather than skips when one is missing.
-      # Measured 899 to 1,098 seconds on runs that finished; one runner had
-      # not finished at 1,140 with every gate so far passing.
+      # The tier is bound by total CPU work on a four-CPU runner, not by the
+      # order of its gates; sys/arch/rp2040/doc/TESTING.md (check-host-split)
+      # holds the measured wall times. The tier took 3,163 s in scheduled run
+      # 45006931968 and reached a 3,600 s limit inside the i86 mutant run in
+      # dispatch 45080339746, so the hard timeout is 5,400 s; the idle timeout
+      # still ends a hung gate.
+      # bmake -k keeps starting every gate that does not depend on the failed
+      # one, so one run lists each failing gate with its own cause; the step
+      # still exits 1 when any gate fails. Without -k the first failure stops
+      # the gates still queued, and each further defect costs another run.
       - name: Run the host tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 28
+        timeout-minutes: 92
         env:
           SWAP_TIER_MODEL_REQUIRED: "1"
         run: |
@@ -326,8 +370,8 @@ jobs:
             --label linux-host \
             --log .build-logs/linux-host.log \
             --status .build-logs/linux-host.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1620 \
-            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
+            --idle-timeout-seconds 300 --timeout-seconds 5400 \
+            -- bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host
 
       # check-signal-sets-cross owns target signatures and Smaller C input;
       # check-signal-sets-qemu owns real-header Cortex-M0 set execution.
@@ -430,6 +474,17 @@ jobs:
             --idle-timeout-seconds 120 --timeout-seconds 240 \
             -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-board-build
 
+      - name: Run the PicoCalc SD panel primitives under Unicorn
+        if: env.FULL_GATES == 'true'
+        timeout-minutes: 5
+        run: |
+          "$PYTHON" tools/run_logged_gate.py \
+            --label linux-panel-gfx-ext \
+            --log .build-logs/linux-panel-gfx-ext.log \
+            --status .build-logs/linux-panel-gfx-ext.status.json \
+            --idle-timeout-seconds 120 --timeout-seconds 240 \
+            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-panel-gfx-ext
+
       # The Renode tiers reuse the PICO_UART and PICOCALC kernels and the
       # flash image built above. Renode needs a dotnet runtime and the
       # fetched peripheral models are a dotnet build, so setup-dotnet
@@ -441,9 +496,11 @@ jobs:
       # resolves bin/ beside itself, so the directory goes on PATH rather
       # than a symlink to the launcher.
       - uses: actions/setup-dotnet@v4
+        if: github.event_name != 'pull_request'
         with:
           dotnet-version: '8.0.x'
       - name: Install the pinned Renode release
+        if: github.event_name != 'pull_request'
         run: |
           archive="$RUNNER_TEMP/renode-$RENODE_VERSION.linux.tar.gz"
           curl --fail --location --retry 3 --output "$archive" \
@@ -457,8 +514,10 @@ jobs:
       # different build fails the job, so the pinned release and the
       # recorded build cannot drift apart.
       - name: Confirm the Renode build the gates were verified against
+        if: github.event_name != 'pull_request'
         run: sh tools/renode/check-renode-pin.sh
       - name: Check file-backed SD against production SPI protocol
+        if: github.event_name != 'pull_request'
         timeout-minutes: 10
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -472,14 +531,17 @@ jobs:
       # server, and the script's own text is the key, so a moved pin misses
       # the cache and downloads the new file.
       - name: Cache the RP2040 register description archive
+        if: github.event_name != 'pull_request'
         uses: actions/cache@v4
         with:
           path: tools/renode/vendor/RP2040.svd.gz
           key: renode-rp2040-svd-${{ hashFiles('tools/renode/fetch-renode-rp2040.sh') }}
       - name: Fetch and build the Renode RP2040 models
+        if: github.event_name != 'pull_request'
         timeout-minutes: 10
         run: sh tools/renode/fetch-renode-rp2040.sh
       - name: Run the Renode UART0 boot tier
+        if: github.event_name != 'pull_request'
         timeout-minutes: 15
         run: |
           "$PYTHON" tools/run_logged_gate.py \
@@ -500,13 +562,13 @@ jobs:
             -- bmake MACHINE=rp2040 check-renode-capacity
       - name: Run the Renode asynchronous system trap tier
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 15
+        timeout-minutes: 22
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label linux-renode-preempt \
             --log .build-logs/linux-renode-preempt.log \
             --status .build-logs/linux-renode-preempt.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 840 \
+            --idle-timeout-seconds 300 --timeout-seconds 1200 \
             -- bmake MACHINE=rp2040 check-renode-preempt
       - name: Run the Renode image identity tier
         if: env.FULL_GATES == 'true'
@@ -530,13 +592,13 @@ jobs:
             -- bmake MACHINE=rp2040 check-renode-picocalc
       - name: Boot the expanded PicoCalc SD system
         if: env.FULL_GATES == 'true'
-        timeout-minutes: 25
+        timeout-minutes: 32
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label linux-renode-picocalc-sd-system \
             --log .build-logs/linux-renode-picocalc-sd-system.log \
             --status .build-logs/linux-renode-picocalc-sd-system.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1440 \
+            --idle-timeout-seconds 300 --timeout-seconds 1800 \
             -- bmake MACHINE=rp2040 check-renode-picocalc-sd-system
 
       # savecore ships in the picocalc profile, so the crash-dump tier boots
@@ -597,7 +659,7 @@ jobs:
             --idle-timeout-seconds 300 --timeout-seconds 840 \
             -- bmake MACHINE=rp2040 check-renode-union-diag
       - name: Retain the Renode logs and transcripts
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: renode-results
@@ -606,6 +668,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Confirm the images exist
+        if: github.event_name != 'pull_request'
         run: |
           ls -l sys/arch/rp2040/compile/PICO/unix.uf2 \
                 sys/arch/rp2040/compile/PICO_DIAG/unix.uf2 \
@@ -625,8 +688,9 @@ jobs:
           if-no-files-found: warn
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
-          name: discobsd-rp2040-firmware
+          name: gizmobsd-rp2040-firmware
           path: |
             sys/arch/rp2040/compile/PICO/unix.uf2
             sys/arch/rp2040/compile/PICO_DIAG/unix.uf2
@@ -667,10 +731,20 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Select the apt cache week
+        id: apt-week-stm32
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache the apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-stm32-${{ steps.apt-week-stm32.outputs.week }}-${{ hashFiles('.github/workflows/firmware.yml') }}
+          restore-keys: |
+            apt-stm32-
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          CI_APT_ARCHIVES="$HOME/apt-archives" sh tools/ci_apt_install.sh \
             bmake make build-essential \
             gcc-arm-none-eabi binutils-arm-none-eabi \
             byacc bison flex libbsd-dev libfuse-dev pkg-config mandoc vim \
@@ -719,10 +793,20 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Select the apt cache week
+        id: apt-week-ilp32
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache the apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-ilp32-${{ steps.apt-week-ilp32.outputs.week }}-${{ hashFiles('.github/workflows/firmware.yml') }}
+          restore-keys: |
+            apt-ilp32-
       - name: Install bmake and the 32-bit compiler support
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          CI_APT_ARCHIVES="$HOME/apt-archives" sh tools/ci_apt_install.sh \
             bmake build-essential gcc-multilib python3 pkg-config libbsd-dev \
             bison flex
           echo "PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
@@ -787,7 +871,10 @@ jobs:
     name: rp2040 kernel, flash image on macOS
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
-    timeout-minutes: 75
+    # The explicit step limits add up to 224 minutes (the host tier alone 129);
+    # the bound leaves 6 minutes above that sum. The complete run of dispatch
+    # 44877305151 took 65 minutes, and that of 45113241548 took 101.
+    timeout-minutes: 230
     steps:
       - uses: actions/checkout@v4
         with:
@@ -909,30 +996,39 @@ jobs:
       # The host tier owns PTY completion, terminal nohup, libc quick-exit and ndbm constructor witnesses.
       # It runs as two steps over one partition of check-host
       # (HOST_TIER_B_GATES in the Makefile; check-host-split proves it exact).
-      # Whole, the tier took 633 to 1354 s (median 1286 s) on the four runs
-      # that finished and passed 1500 s on a fifth; each step's hard limit is
-      # 1.5 times half that median.
-      # The first part also carries the C17 library families, whose math and
-      # wide fixtures run native and sanitized; with them it ran past 960 s
-      # with no failed gate, so its limit is 1500 s.
+      # The first part finished every gate in 2243 s and the second in 697 s
+      # (dispatch 44877305151). The nightly 44888989971 was still in the last
+      # gate of the first part at 2935 s, when the idle limit ended it, so the
+      # first part's runs span 2243 s (113 and 46 i86 mutants) to more than 2935 s
+      # (143 and 47, as in the 2594 s run). With 180 and 82 i86 mutants it took
+      # 4175 s (dispatch 45113241548) and reached 4500 s at panel mutant 70 of
+      # 82 (dispatch 45139400885); its limit is 6000 s, and the second
+      # part's limit is 1.72 times its measurement.
+      # The first part carries the C17 library families, whose math and wide
+      # fixtures run native and sanitized, and the ulisp mutants.
+      # The second part runs after a failed first part, so one run lists the
+      # failing gates of both; a cancelled run or a failed earlier step still
+      # skips it.
       - name: Run the host tier, first part
-        timeout-minutes: 27
+        id: macos_host_a
+        timeout-minutes: 105
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host-a \
             --log .build-logs/macos-host-a.log \
             --status .build-logs/macos-host-a.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 1500 \
-            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
+            --idle-timeout-seconds 300 --timeout-seconds 6000 \
+            -- bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-a
       - name: Run the host tier, second part
-        timeout-minutes: 18
+        if: ${{ !cancelled() && (success() || steps.macos_host_a.conclusion == 'failure') }}
+        timeout-minutes: 24
         run: |
           "$PYTHON" tools/run_logged_gate.py \
             --label macos-host-b \
             --log .build-logs/macos-host-b.log \
             --status .build-logs/macos-host-b.status.json \
-            --idle-timeout-seconds 300 --timeout-seconds 960 \
-            -- bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b
+            --idle-timeout-seconds 300 --timeout-seconds 1200 \
+            -- bmake -k -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 check-host-b
       - name: Run the cross tier
         timeout-minutes: 20
         run: |
@@ -988,7 +1084,7 @@ jobs:
     name: flash-id against the Pico SDK
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       # The kernel builds -nostdinc against the tree's own libc, so the
@@ -998,10 +1094,20 @@ jobs:
       # Debian and Ubuntu ship those apart from the compiler and
       # gcc-arm-none-eabi does not depend on them, so naming the compiler
       # alone leaves the link without a C library.
+      - name: Select the apt cache week
+        id: apt-week-flash-id
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache the apt archives
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-flash-id-${{ steps.apt-week-flash-id.outputs.week }}-${{ hashFiles('.github/workflows/firmware.yml') }}
+          restore-keys: |
+            apt-flash-id-
       - name: Install the host toolchain
+        timeout-minutes: 20
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          CI_APT_ARCHIVES="$HOME/apt-archives" sh tools/ci_apt_install.sh \
             bmake cmake ninja-build git \
             gcc-arm-none-eabi binutils-arm-none-eabi \
             libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3
@@ -1113,7 +1219,7 @@ jobs:
   # signing path needs OpenSSL 3.5 or newer. The ubuntu-24.04 runner image
   # ships OpenSSL 3.0.x, which has no ML-DSA, so the hybrid-signatures job
   # installs openssl 3.5.7 from conda-forge and the tests refuse to skip
-  # (DISCOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
+  # (GIZMOBSD_REQUIRE_PQ_TESTS) when the provider is absent.
   pq-release-proofs:
     name: Release policy proofs (Lean 4.19.0)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -1159,7 +1265,7 @@ jobs:
         timeout-minutes: 8
         run: python3 -m pytest -q
         env:
-          DISCOBSD_REQUIRE_PQ_TESTS: '1'
+          GIZMOBSD_REQUIRE_PQ_TESTS: '1'
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
 
   # A scheduled run reports to nobody, so its result goes to one issue:

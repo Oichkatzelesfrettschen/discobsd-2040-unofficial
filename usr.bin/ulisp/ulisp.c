@@ -6,7 +6,7 @@
 
 /*
  * This file is the interpreter of uLisp PicoCalc 4.8f as a C17 program for
- * DiscoBSD and POSIX hosts. It derives from ulisp-picocalc.ino of
+ * GizmoBSD and POSIX hosts. It derives from ulisp-picocalc.ino of
  * https://github.com/technoblogy/ulisp-picocalc at commit
  * c031b63c00b1e55ef64e556fd3372e38ed0ab062 (SHA-256 65608bb7d6a48dc0
  * 2dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b) and stays under the MIT
@@ -1622,9 +1622,13 @@ static object *compare (object *args, bool lt, bool gt, bool eq) {
       if (!eq && ((arg1->integer) == (arg2->integer))) return nil;
       if (!gt && ((arg1->integer) > (arg2->integer))) return nil;
     } else {
-      if (!lt && (checkintfloat(arg1) < checkintfloat(arg2))) return nil;
-      if (!eq && (checkintfloat(arg1) == checkintfloat(arg2))) return nil;
-      if (!gt && (checkintfloat(arg1) > checkintfloat(arg2))) return nil;
+      // The operands are checked first to last: C leaves the order of the
+      // operands of one comparison open, and the error names the first one.
+      float f1 = checkintfloat(arg1);
+      float f2 = checkintfloat(arg2);
+      if (!lt && f1 < f2) return nil;
+      if (!eq && f1 == f2) return nil;
+      if (!gt && f1 > f2) return nil;
     }
     arg1 = arg2;
     args = cdr(args);
@@ -3728,7 +3732,11 @@ static object *fn_noteq (object *args, object *env) {
       object *arg2 = first(nargs);
       if (integerp(arg1) && integerp(arg2)) {
         if ((arg1->integer) == (arg2->integer)) return nil;
-      } else if ((checkintfloat(arg1) == checkintfloat(arg2))) return nil;
+      } else {
+        float f1 = checkintfloat(arg1);
+        float f2 = checkintfloat(arg2);
+        if (f1 == f2) return nil;
+      }
       nargs = cdr(nargs);
     }
     args = cdr(args);
@@ -4839,7 +4847,9 @@ static object *fn_drawpixel (object *args, object *env) {
   (void) env;
   uint16_t colour = COLOR_WHITE;
   if (cddr(args) != NULL) colour = checkinteger(third(args));
-  gfx_pixel(checkinteger(first(args)), checkinteger(second(args)), colour);
+  int x = checkinteger(first(args));
+  int y = checkinteger(second(args));
+  gfx_pixel(x, y, colour);
   return nil;
 }
 
@@ -4937,21 +4947,27 @@ static object *fn_drawchar (object *args, object *env) {
       if (more != NULL) size = checkinteger(car(more));
     }
   }
-  gfx_char(checkinteger(first(args)), checkinteger(second(args)), checkchar(third(args)),
-    colour, bg, size);
+  int x = checkinteger(first(args));
+  int y = checkinteger(second(args));
+  int ch = checkchar(third(args));
+  gfx_char(x, y, ch, colour, bg, size);
   return nil;
 }
 
 static object *fn_setcursor (object *args, object *env) {
   (void) env;
-  gfx_setcursor(checkinteger(first(args)), checkinteger(second(args)));
+  int x = checkinteger(first(args));
+  int y = checkinteger(second(args));
+  gfx_setcursor(x, y);
   return nil;
 }
 
 static object *fn_settextcolor (object *args, object *env) {
   (void) env;
-  if (cdr(args) != NULL) gfx_settextcolor(checkinteger(first(args)), checkinteger(second(args)));
-  else gfx_settextcolor(checkinteger(first(args)), GFX_TRANSPARENT);
+  int fg = checkinteger(first(args));
+  int bg = GFX_TRANSPARENT;
+  if (cdr(args) != NULL) bg = checkinteger(second(args));
+  gfx_settextcolor(fg, bg);
   return nil;
 }
 
@@ -4984,8 +5000,9 @@ static object *fn_getkey (object *args, object *env) {
 
 static object *fn_readpixel (object *args, object *env) {
   (void) env;
-  return number(gfx_readpixel(checkinteger(first(args)), checkinteger(second(args))));
-  return nil;
+  int x = checkinteger(first(args));
+  int y = checkinteger(second(args));
+  return number(gfx_readpixel(x, y));
 }
 
 // Write two bytes, least significant byte first

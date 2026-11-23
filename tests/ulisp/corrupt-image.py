@@ -32,7 +32,7 @@ usage: corrupt-image.py IMAGE DIRECTORY
 IMAGE is an image the interpreter saved, in the word size of the program
 that saved it. Each bad-NAME.img in DIRECTORY has one pointer or cell of a
 kind the loader must refuse changed; images.lisp loads them all. A kind
-the image has no cell for is an error, so the corpus cannot shrink unseen.
+the image lacks a cell for is an error, so the corpus cannot shrink unseen.
 """
 import os
 import struct

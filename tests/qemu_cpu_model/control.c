@@ -3,7 +3,7 @@
  * operation its build selects and exits 0 when the CPU accepted it:
  *
  *   -DCONTROL_BASELINE   a Thumb-1 register move; every model accepts it
- *   -DCONTROL_THUMB2     a Thumb-2 movw; ARMv6-M has no such encoding
+ *   -DCONTROL_THUMB2     a Thumb-2 movw; ARMv6-M lacks such an encoding
  *   -DCONTROL_UNALIGNED  a word load from an odd address; ARMv6-M faults
  *
  * It is freestanding with Linux EABI exit_group, so the CPU model is the only

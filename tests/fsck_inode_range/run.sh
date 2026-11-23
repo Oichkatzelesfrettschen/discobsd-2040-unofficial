@@ -87,7 +87,7 @@ check_run() {
 	run_fsck "$@" "$img" >"$out" 2>&1 || status=$?
 	# fsck exits 0, 2, 4, 8 or 12. Every status from 124 up is a timeout, a
 	# timeout(1) or bounded.py failure, a missing or unexecutable program or
-	# a death by signal, and says nothing about the scenario.
+	# a death by signal, and is silent on the scenario.
 	if [ "$status" -ge 124 ]; then
 		error "$scenario: fsck did not run to an exit (status $status)"
 	fi
@@ -96,7 +96,19 @@ check_run() {
 # Set $files to the number of files fsck reports after a clean pass: fsutil's
 # count less the legacy inode 1, which pass 1 starts above.
 set_expected_files() {
-	report=$("$gen" --check "$img") || error "$scenario: $gen --check failed"
+	status=0
+	report=$("$gen" --check "$img" 2>&1) || status=$?
+	case $status in
+	0) ;;
+	1)
+		# The scenario goes on with no expected count, so that the rejection is
+		# the verdict (status 1) and not a run without one (status 2).
+		fail "$gen rejects the image after repair: $report"
+		files=0
+		return
+		;;
+	*) error "$scenario: $gen --check did not complete, status $status" ;;
+	esac
 	count=$(printf '%s\n' "$report" |
 	    sed -n 's/^\([0-9][0-9]*\) files .*/\1/p')
 	[ -n "$count" ] || error "$scenario: no file count in the fsutil report"
@@ -113,7 +125,7 @@ run_clean() {
 
 # run_repair KIND AFTER: a repair pass answers yes to the unreferenced KIND
 # (FILE or DIR) it finds, AFTER inspects the result, and a following preen run
-# must find nothing left to do: second_run asserts that, expecting $1 files.
+# must not find anything left to do: second_run asserts that, expecting $1 files.
 run_repair() {
 	set_expected_files
 	check_run -y
@@ -123,8 +135,8 @@ run_repair() {
 	"$2"
 }
 
-# second_run FILES: a preen run over the repaired image exits 0, reports no
-# damage, finds nothing unreferenced, repairs nothing (preen exits 0 after an
+# second_run FILES: a preen run over the repaired image exits 0, does not report
+# damage, find unreferenced inodes or repair anything (preen exits 0 after an
 # (ADJUSTED), (SALVAGED), (FIXED) or similar repair, so the report is checked
 # for those and the image for any changed byte) and counts FILES files.
 second_run() {
@@ -174,8 +186,8 @@ run_decline() {
 }
 
 # fsutil's own checker, over the image the generator wrote, reconnects the
-# unreferenced file into lost+found instead of reporting that it has no
-# lost+found or no space in it (the lost+found of fs_create holds "." and
+# unreferenced file into lost+found instead of reporting a missing
+# lost+found or a full one (the lost+found of fs_create holds "." and
 # ".." alone, so the entry is cut from the record of ".."); a second fsutil
 # report is then clean, and so is a preen run of the host fsck over the
 # repaired image, which leaves every byte as it found it.
@@ -197,14 +209,17 @@ lost_name() {
 	esac
 }
 
-# A lost+found whose record runs past its block is damaged: fsutil must
-# leave it alone and report that it has no room for the orphan.
+# A malformed record makes both read-only checking and repair fail before a
+# write. The image remains byte-identical for block, record and name overrun.
 run_fsutil_overrun() {
-	"$gen" --fix "$img" >"$out" 2>&1 || error "$scenario: $gen --fix failed"
-	has 'UNREF FILE'
-	has 'SORRY. NO SPACE IN lost+found DIRECTORY'
-	lost_name FILE
-	[ -z "$found" ] || fail "$name resolves to $found in a damaged lost+found"
+	cp "$img" "$img.before"
+	for operation in --check --fix; do
+		status=0
+		"$gen" "$operation" "$img" >"$out" 2>&1 || status=$?
+		[ "$status" -eq 1 ] || fail "$operation returned $status, want 1"
+		has 'Invalid directory record'
+		cmp -s "$img" "$img.before" || fail "$operation changed the image"
+	done
 }
 
 # run_fsutil KIND CHILD...: fsutil's repair reconnects the unreferenced KIND
@@ -225,6 +240,7 @@ run_fsutil() {
 	lost_name "$kind"
 	[ "$found" = "$ino" ] ||
 	    fail "$name resolves to \"$found\", want $ino"
+	[ "$failed" -eq 0 ] || return
 	# A reconnected directory brings its subtree with it: the phase that
 	# reconnects it walks the entries phase 2 never reached, which is what
 	# gives them their references.
@@ -251,6 +267,7 @@ run_fsutil() {
 		[ "$found" = "$want" ] ||
 		    fail "$name resolves to \"$found\", want $want"
 	done
+	[ "$failed" -eq 0 ] || return
 	"$gen" --check "$img" >"$out" 2>&1 || error "$scenario: $gen --check failed"
 	lacks 'UNREF|SORRY|BAD|DUP|LINK COUNT|MISSING|WRONG'
 	set_expected_files
@@ -279,7 +296,7 @@ run_fsutil_count() {
 }
 
 # run_fsutil_one_slot: two unreferenced files and room in lost+found for one.
-# fsutil reconnects one, reports no space for the other and clears it: the
+# fsutil reconnects one, reports a full lost+found for the other and clears it: the
 # reconnected file resolves under its "#" name, the cleared one does not, the
 # superblock gains the one free inode, and the next reports are clean.
 run_fsutil_one_slot() {
@@ -374,7 +391,7 @@ run_fsutil_cycle() {
 # Unreached directories whose ".." entries lead round a cycle: the climb along
 # ".." in pass 3 never reaches a topmost directory, so fsck must end it. A
 # repair that does not finish in ten seconds fails the scenario (check_run
-# would report the timeout as an execution error, which says nothing about
+# would report the timeout as an execution error, which is silent on
 # the program); the bound is generous for a 128-kilobyte image, which repairs
 # in milliseconds. Every directory must then resolve under lost+found by the
 # name lftempname() in sbin/fsck/dir.c gives it, a "#" and the inode number
@@ -423,10 +440,10 @@ run_cycle() {
 
 # One unreached directory whose ".." holds a number above imax. The directory
 # scan takes the entry for damage and merges its slot into the record of ".",
-# so pass 3 sees no parent and reconnects the directory, and pass 2 then finds
+# so pass 3 sees a missing parent and reconnects the directory, and pass 2 then finds
 # ".." missing and must lay it out in the remainder of the merged record: the
 # repaired block holds "." at its own size and ".." for the rest of the block,
-# so that a following read-only run and a preen run find nothing to repair.
+# so that a following read-only run and a preen run do not find damage to repair.
 run_dotdot_range() {
 	run_cycle 1 plain
 	check_run -n
@@ -498,6 +515,7 @@ for scenario in "$@"; do
 	    fsutil-lf-last | fsutil-lf-hole | fsutil-lf-pristine | \
 	    fsutil-lf-overrun | fsutil-lf-dir | fsutil-lf-deep | fsutil-lf-cycle | fsutil-lf-gap | fsutil-lf-chain | \
 	    fsutil-clear-blocks | fsutil-count-tfree | fsutil-count-tinode | \
+	    fsutil-name-overlong | fsutil-name-overrun | \
 	    fsutil-lf-second | fsutil-lf-one-slot | \
 	    tail-evict | df-empty | df-full | \
 	    df-tail | df-mkfs | mkfs-ratio) ;;
@@ -512,6 +530,8 @@ for scenario in "$@"; do
 	fsutil-lf-last) layout=lf-last ;;
 	fsutil-lf-hole) layout=lf-hole-last ;;
 	fsutil-lf-overrun) layout=lf-overrun-last ;;
+	fsutil-name-overlong) layout=name-overlong ;;
+	fsutil-name-overrun) layout=name-overrun ;;
 	fsutil-lf-pristine) layout=orphan-last ;;
 	fsutil-lf-dir) layout=orphan-dir ;;
 	fsutil-lf-deep) layout=orphan-deep ;;
@@ -549,7 +569,7 @@ PYTEST
         cp "$img" "$img.before"
         check_run -y
         [ "$status" -eq 8 ] || fail "repair returned $status, want 8"
-        has 'Invalid DiscoBSD filesystem signature'
+        has 'Invalid GizmoBSD filesystem signature'
         lacks 'Phase 1'
         cmp -s "$img" "$img.before" || fail "image changed"
         ;;
@@ -571,7 +591,7 @@ PYTEST
 	fsutil-lf-one-slot) run_fsutil_one_slot ;;
 	fsutil-count-tfree) run_fsutil_count 'FREE BLK COUNT WRONG IN SUPERBLOCK' ;;
 	fsutil-count-tinode) run_fsutil_count 'FREE INODE COUNT WRONG IN SUPERBLOCK' ;;
-	fsutil-lf-overrun) run_fsutil_overrun ;;
+	fsutil-lf-overrun | fsutil-name-overlong | fsutil-name-overrun) run_fsutil_overrun ;;
 	tail-evict) run_tail_evict ;;
 	df-empty) run_df 32 3 29 ;;
 	df-full) run_df 32 32 0 ;;

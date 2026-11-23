@@ -21,7 +21,10 @@ compat=$topsrc/usr.sbin/v7fs
 v7fs=$topsrc/sys/fs/v7fs
 newfs=$topsrc/sbin/newfs_v7fs
 work=$(mktemp -d "${TMPDIR:-/tmp}/v7fs-core.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail()
 {
@@ -672,7 +675,7 @@ tool=$topsrc/usr.sbin/v7fs/v7fs-host
 mkdir "$work/pat"
 "$work/v7fs_core" "$work/pat" - patterns || fail "pattern files"
 
-# status WANT CMD...: CMD exits with WANT and writes no sanitizer report.
+# status WANT CMD...: CMD exits with WANT and writes zero sanitizer reports.
 status()
 {
 	want=$1
@@ -748,7 +751,7 @@ echo "v7fs_core: corrupt block pointer rejected with status 1"
 
 # newfs refuses a geometry it cannot format before creating the target: a
 # volume below the 128 sectors a mount accepts, and an inode list that
-# leaves no room for the free-block cache.
+# leaves too little room for the free-block cache.
 status 1 "$tool" newfs "$work/small.img" 100
 status 1 "$tool" newfs "$work/crowded.img" 2048 65535
 [ ! -e "$work/small.img" ] && [ ! -e "$work/crowded.img" ] ||

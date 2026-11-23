@@ -7,7 +7,7 @@ Each mutation rewrites a site back to the form it had before its fix, in a
 copy of the source file: a comparison against imax to the form that excluded
 the highest inode, or a transfer of the inode window to the full NINOBLK
 blocks. The gate builds the copy and requires the scenarios named for that
-mutation to fail. A mutation that matches no line, or more than one, stops
+mutation to fail. A mutation that matches zero lines, or more than one, stops
 the run, so a source edit that moves a site cannot leave a mutant that
 silently equals the program.
 """
@@ -136,8 +136,8 @@ SITES: dict[str, Edit] = {
     ),
     "fsutil-reclen-bound": (
         "check.c",
-        "    if (dirp->reclen > scan_room || (dirp->reclen & 3))\n        return KEEPON;\n",
-        "",
+        "            directory_error = 1;\n            return STOP;\n        }\n        n = func",
+        "            scan_filesize = 0;\n            return STOP;\n        }\n        n = func",
     ),
     "fsutil-split-trim": (
         "check.c",
@@ -177,7 +177,7 @@ SITES: dict[str, Edit] = {
     "fsutil-dir-one-block": (
         "check.c",
         "    return (scan_filesize > 0) ? KEEPON : STOP;\n",
-        "    return STOP;\n",
+        "    return func ? STOP : ((scan_filesize > 0) ? KEEPON : STOP);\n",
     ),
     "fsutil-tfree-count": (
         "check.c",

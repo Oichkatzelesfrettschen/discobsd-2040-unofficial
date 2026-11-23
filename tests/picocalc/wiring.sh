@@ -112,7 +112,10 @@ if [ "$mutate" -eq 0 ]; then
 fi
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/picocalc-wiring.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # mutate NAME FILE-VARIABLE SED: apply the edit to a copy and require the check to fail.
 mutant() {

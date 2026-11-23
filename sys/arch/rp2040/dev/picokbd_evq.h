@@ -1,25 +1,37 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
  * The raw key event queue behind LCDIOC_GETKEY (sys/lcdcons.h). The poller
  * of picokbd.c passes every controller event through picokbd_event(), which
  * records it here when a session is active and then translates it to xterm
- * bytes exactly as picokbd_translate() does, so the queue adds no path the
- * tty bytes wait on. The file includes no kernel header beyond
+ * bytes exactly as picokbd_translate() does, so the queue adds zero paths the
+ * tty bytes wait on. The file's only kernel headers are
  * sys/lcdcons.h and sys/errno.h, and tests/picocalc runs it directly; the
  * kernel glue in lcdcons.c supplies the caller's identity as plain values.
  *
@@ -46,7 +58,7 @@
  * line; cooked input is never recorded, and the flag change ends the session.
  * A mode-setting ioctl from any process other than the owner also ends it
  * (picokbd_evq_modeset()) even when it sets the flags it found, because a
- * prompter run by an owner that already has RAW and no ECHO changes nothing
+ * prompter run by an owner that already has RAW set and ECHO clear leaves the modes as they were
  * with that call. A drain requires the readable descriptor and the
  * foreground group, the checks ttread() applies, but a background caller gets
  * EIO at once instead of SIGTTIN, and a rejected drain leaves the queue as it
@@ -77,7 +89,7 @@
  * `file`. readable is nonzero when the descriptor allows reading; pgrp is
  * the caller's process group, tty_pgrp the tty's foreground group and
  * tty_flags its flag word. Returns 0, EBADF (not readable), EIO (not in the
- * foreground group, or the tty has none), EINVAL (the tty is neither RAW nor
+ * foreground group, or the tty lacks one), EINVAL (the tty is neither RAW nor
  * CBREAK) or EBUSY (another process or file owns the session). A second
  * start by the owner empties the queue and continues.
  */
@@ -131,8 +143,8 @@ int	picokbd_evq_ready(const void *proc, int pid, int pgrp, int tty_pgrp,
 /*
  * The console's read-select. The queue check and the tty's selector
  * registration (o->tty()) run in one critical section (o->raise() to
- * o->restore()), because an event queued between them would find no selector
- * to wake and the caller would sleep with it waiting. The wake takes the
+ * o->restore()), because an event queued between them would arrive before the selector
+ * is registered, wake nobody, and leave the caller asleep with it waiting. The wake takes the
  * same level, so it runs before the section or after the registration; a
  * drain runs at that level from an ioctl and cannot interleave, and a
  * selector left registered when select returns ready is harmless, since

@@ -42,10 +42,9 @@ split, so a profile or command that named `games`, `puzzles`, `toolchain` or
 | `calc-bignum` | `bc`, `dc` |
 
 The remaining closures stand alone: `coremark` (named by the `benchmark` profile only), `calc`, `toolchainlib`,
-`sdcard`, `lcdgfx`, `psramtmp` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
+`sdcard`, `lcdgfx`, `psramtmp`, `backlight` and `ridge`. The `sdcard` closure carries the `/mnt` mount point
 and the device nodes of the PicoCalc's SD card (block major 5, raw major 11 in
-`conf.c`); the `picocalc` profile names it, `full` does not, and the PICO
-kernels have no driver behind those majors. Its `needs path` line holds the
+`conf.c`); the `picocalc` profile names it, `full` does not, and the PICO kernels lack a driver behind those majors. Its `needs path` line holds the
 mount point and all six nodes, so a manifest block that loses one stops the
 build. The `psramtmp` closure carries the PSRAM's block node `/dev/psram1` (major 3,
 minor 1, mode 600) and `/sbin/mkfs`, which `/etc/rc.rp2040` runs over the
@@ -55,7 +54,13 @@ a manifest block that loses one stops the build. The `picocalc` and
 driver and the third mount slot: a PicoCalc whose PSRAM part does not answer
 the probe leaves the driver down, the open fails with `ENXIO` and `/tmp` stays
 on the root, so that board pays the nine blocks and two inodes for nothing.
-`IMAGE_WITHOUT=psramtmp` leaves them out. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
+`IMAGE_WITHOUT=psramtmp` leaves them out. The `backlight` closure carries
+`/usr/bin/backlight` with mode 4755, setuid root, because the kernel accepts a
+write to the `machdep.picocalc` light nodes from root only; `mkmanifest.py`
+refuses a profile that selects the closure without that mode. Both PicoCalc
+profiles name it, and so does the opt-in `matezinho` profile, because the
+`matezinho` closure needs it: the desktop's Settings view sets the lights
+through it. The `lcdgfx` closure carries the one node `/dev/lcdgfx` (minor 1 of the
 console's character major 10, mode 666) that the PICOCALC kernels serve; the
 `picocalc` profile names it, and so does the opt-in `matezinho` profile. The
 `ridge` closure carries the hard link `/usr/games/ridge` to `gamebox`, a member that draws through the tile
@@ -93,9 +98,7 @@ exports the result as `GAMEBOX_TOOLS` and `PUZZLEBOX_TOOLS`; the two
 Makefiles read them into `MEMBERS`, which drives the object list, the
 generated dispatch table and the install. A build that leaves them unset
 links every member, and `TOOLS` keeps naming the full set that
-`check-multicall-composition` compares with the manifest. A selection that
-drops a binary builds nothing for it. A binary with one member needs no
-overlap fence between applets, so `tools/generate_multicall_bss_overlay.sh`
+`check-multicall-composition` compares with the manifest. A selection that drops a binary skips its build. A binary with one member holds a single applet, so `tools/generate_multicall_bss_overlay.sh`
 omits `NOCROSSREFS` for a single object.
 
 ## The closures, measured
@@ -123,6 +126,7 @@ inodes, which `distrib/rp2040/Makefile.inc` fixes at 128 for the whole root.
 | `calc` | 33 | 1 | `/usr/bin/calc` (31,352 bytes packed); PicoCalc only |
 | `picofetch` | 14 | 1 | `/usr/bin/picofetch` (15,644 bytes before packing); PicoCalc profile |
 | `picotop` | 15 | 1 | `/usr/bin/picotop` (15,944 bytes before packing); PicoCalc profile |
+| `backlight` | 2 | 1 | `/usr/bin/backlight` (1,692 bytes before packing, 1,509 packed), mode 4755; both PicoCalc profiles and `matezinho` |
 | `sdcard` | 11 | 8 | `/mnt`, the device nodes `/dev/sd0`, `sd0a`, `sd0b`, `rsd0`, `rsd0a`, `rsd0b`, and `/sbin/savecore` (9,141 bytes packed); PicoCalc only |
 | `lcdgfx` | 0 | 1 | the device node `/dev/lcdgfx` (character major 10, minor 1, mode 666); PicoCalc only |
 | `psramtmp` | 9 | 2 | the block node `/dev/psram1` (major 3, minor 1, mode 600) and `/sbin/mkfs` (9,788 bytes before packing); PicoCalc only |
@@ -140,11 +144,10 @@ no image holds one without the other; `/usr/lib/libc.a` alone installs at
 43010 bytes. The three programs under them are separate closures: `as`,
 `ld` and `smlrc` each stand alone, and `cc` needs all three and the library.
 `bc` and `dc` are independent too: `bc` evaluates through the dc evaluator
-linked into itself and needs no `/usr/bin/dc`. The 60 blocks of the two
+linked into itself and runs without `/usr/bin/dc`. The 60 blocks of the two
 together are one fewer than the sum of the rows (40 + 21), because entries
 that two closures add can share a directory block (inferred from the
-allocation unit, not traced block by block). The `sdcard` closure needs no
-other closure: its eight inodes are `/mnt`, six device nodes and
+allocation unit, not traced block by block). The `sdcard` closure stands alone: its eight inodes are `/mnt`, six device nodes and
 `savecore`, and its eleven blocks are the `/mnt` directory and ten for
 `savecore`, whose 9,141 bytes fill nine (the tenth inferred to be a
 directory block, not traced). The base image measured 426 free blocks and
@@ -190,9 +193,9 @@ image built with `IMAGE_WITHOUT=ridge` (148 free blocks) and as shipped (140);
 binaries account for the whole 60: the nine
 marginal figures sum to 41, `gamesdir` is 1, and the two binaries and their
 shared linkage are the remaining 18. Removing a member removes a hard link,
-which costs no inode, so the marginal inode figure is 0 for every row.
+which leaves the inode count unchanged, so the marginal inode figure is 0 for every row.
 The member figures were measured on the tree that split the closures and not
-repeated here: this branch changes no game, libc or startup source, and its
+repeated here: this branch leaves every game, libc and startup source unchanged, and its
 only userland difference is `sbin/sysctl`.
 
 The two legacy rows are measured only in an image built with
@@ -213,8 +216,8 @@ the pack's unused blocks occupy no flash.
 | `games` | `games`, `puzzles` | 387 | 40 |
 | `developer` | `toolchain`, `toolchainlib` | 314 | 36 |
 | `full` | every closure except the PicoCalc's and `coremark`, including `puzzles` | 231 (215 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root | 26 (25 with it) |
-| `picocalc` | `full` (which holds no `coremark`) plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop` and `psramtmp`, so also `puzzles` | 82 (66 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root; the earlier 77 (86 with `IMAGE_WITHOUT=psramtmp`) was measured with `coremark` in the profile | 8 (7 with it) |
-| `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch`, `picotop` and `psramtmp` | 91 (75 with `IMAGE_WITH=coremark`), same tree as the `picocalc` row | 9 (8 with it) |
+| `picocalc` | `full` (which omits `coremark`) plus `calc-bignum`, `calc`, `sdcard`, `lcdgfx`, `ridge`, `picofetch`, `picotop`, `psramtmp` and `backlight`, so also `puzzles` | 82 (66 with `IMAGE_WITH=coremark`), measured on the tree that moved CoreMark to the SD root; the earlier 77 (86 with `IMAGE_WITHOUT=psramtmp`) was measured with `coremark` in the profile | 8 (7 with it) |
+| `picocalc-lean` | `picocalc` without `lcdgfx` and `ridge`: `full` plus `calc-bignum`, `calc`, `sdcard`, `picofetch`, `picotop`, `psramtmp` and `backlight` | 91 (75 with `IMAGE_WITH=coremark`), same tree as the `picocalc` row | 9 (8 with it) |
 
 Each profile row comes from `bmake MACHINE=rp2040 PROFILE=NAME fs` followed
 by `tools/bin/rp2040/fsutil --verbose --partition=1
@@ -228,6 +231,19 @@ inodes before `time` joined `utilbox` (446 afterwards), 447 and 42 with
 holds 148 free blocks and 20 free inodes when built with
 `IMAGE_WITHOUT=ridge`; the row reads 140 and 20 as shipped: `ridge` takes
 eight blocks and no inode, because its entry point is a hard link.
+
+The `backlight` cost is the difference between `base` (430 free blocks and 36
+free inodes) and `base` with the closure (428 and 35), built with `bmake
+MACHINE=rp2040 PROFILE=base IMAGE_WITH=backlight fs` and read with the same
+`fsutil --verbose --partition=1` command; the `picocalc` and
+`picocalc-lean` rows were not measured again with it and sit two blocks and
+one inode above what those images now hold. The `picocalc` image itself
+holds 78 free blocks and 7 free inodes with the closure and 80 and 8 with
+`IMAGE_WITHOUT=backlight` (`BOARD=PICOCALC fs`, the same `fsutil` command).
+Either way `check-renode-union` booted on that image (`BOARD=PICOCALC`)
+runs out of inodes in its native-compile stage, one stage earlier with the
+closure; the hosted run boots the PICO board's image, which passes. The
+floor of free inodes a PicoCalc root keeps is open as issue #764.
 
 The `psramtmp` cost is the difference between `base` (437 free blocks and 37
 free inodes) and `base` with the closure (428 and 35), built with `bmake
@@ -289,7 +305,7 @@ PROFILE=NAME fs` after a `BUILD_PDP11_V6=yes distribution` build, read with
 the same `fsutil --verbose` command. The base row sits 171 blocks and 3
 inodes below the maintained `base` row, which equals the two legacy rows
 together (14 + 157 blocks, 1 + 2 inodes); neither legacy closure builds
-alone, because `v6disk` reaches no profile without `pdp11`.
+alone, because `v6disk` reaches a profile only through `pdp11`.
 
 ## Choosing what an image carries
 
@@ -340,8 +356,7 @@ variables as follows:
   lists name it directly or through a group (`IMAGE_WITH=games
   IMAGE_WITHOUT=keen` names `keen` twice and fails; to build the games
   without `keen`, start from a profile that already holds them).
-- Adding a closure the profile already holds, or removing one it lacks,
-  changes nothing.
+- Adding a closure the profile already holds, or removing one it lacks, leaves the selection unchanged.
 - The dependencies are then checked, not resolved. `IMAGE_WITHOUT=toolchain`
   fails with `closure toolchainlib needs closure cc, which this profile does
   not select`; the working selection names both, `IMAGE_WITHOUT="toolchain
@@ -372,7 +387,7 @@ it parses, and an empty `PYTHON` leaves them unset, which links every member.
 `tools/fsutil/fsutil.c`'s `add_hardlink()` prints `link source not found`
 on stderr and returns, and fsutil's exit status stays 0. An image composed
 with `link /usr/games/keen` and without `pack /usr/games/gamebox`
-therefore builds clean and boots with a name that opens nothing. A missing
+therefore builds clean and boots without `/usr/games/keen`: fsutil skips the link, so the directory entry is never created. A missing
 `/usr/lib/libc.a` is quieter still: no stage of the build reads it, and
 the failure reaches the user as a compile on the board that cannot link.
 `mkmanifest.py` decides both against the composed manifest before fsutil
@@ -458,10 +473,9 @@ back the member lists the games Makefiles receive.
 
 The declaration checks have their own cases, each fed as extra profile text:
 a group declared twice, a group that contains itself, a group named like a
-closure, a group member that names nothing, a `cost` or `needs closure` that
-names no closure, a `multicall` member with no link to its binary, a
+closure, a group member that names an unknown entry, a `cost` or `needs closure` that names an unknown closure, a `multicall` member with no link to its binary, a
 `multicall` binary its closure never installs, a member claimed by two
-binaries, and a profile that names nothing.
+binaries, and a profile line that names an unknown entry.
 
 When `BUILD_PDP11_V6=yes` supplies the legacy manifest and profile fragments,
 the same selftest adds three refusal cases:
@@ -538,7 +552,7 @@ each, and the image's free blocks by nine.
     bmake MACHINE=rp2040 TZ_ZONEINFO=1 distribution   #  93 free blocks
 
 A system that installs zone files builds with `TZ_ZONEINFO=1`. Selecting it
-without installing them costs the space and changes no answer.
+without installing them costs the space and leaves every answer unchanged.
 
 `tests/libc_contracts` `check-zone` runs in both shapes. The file-backed one
 is where the reader's bounds are measured, because they are the bounds on a
@@ -555,6 +569,11 @@ the first MBR partition of type 0xb7 on the SD card, including a boot
 directly from the board ROM. A missing or unusable root stops boot.
 The configured root and pipe device move together. The SD driver checks
 the selected partition's recorded geometry when the root mount opens it.
+PICOCALC_SD is the kernel for board sessions and card images.
+`bmake MACHINE=rp2040 picocalc-sd-diag-kernel` builds PICOCALC_SD_DIAG, the
+testing kernel (the same configuration with DIAGNOSTIC, GLOBAL_DEBUG and
+STORAGE_STATS at `-Og`), as `unix-PICOCALC-SD-DIAG.uf2`; it is built on
+request and belongs to no image rule or release family.
 
 ```sh
 PYTHON=${PYTHON:-python3}
@@ -566,6 +585,23 @@ bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 picocalc-sd-system
 |---|---|
 | `unix-PICOCALC-SD.uf2` | Kernel for the board's QSPI flash. The descriptor selects the PicoCalc console. |
 | `sdroot-PICOCALC.img` | Filesystem payload for an SD partition, including the full installed userland. PICOCALC_SD and PICOCALC_SD_DIAG share the default 128 MiB root. Set `SDROOT_KBYTES=32768` to build for a 32 MiB partition. Its fstab names slot c. `SDROOT_PART=a`, `b`, `c` or `d` selects the actual slot at build time. |
+
+`picocalc-sd-max-system` builds the maximal card root beside it,
+`sdroot-PICOCALC-MAX.img`, with both kernels. It is the same root with two
+overlays laid over a copy of the install tree by
+`tools/picocalc/stage-sdroot.sh`: the port's documents (this directory)
+at `/usr/share/doc/gizmobsd`, and the directory `PICOCALC_MAX_EXTRA` names,
+which mirrors the root. The extra directory carries what the tree does not
+hold, such as guest disk images for `i86(1)` under `/home/operator`; its
+files stay outside the repository. An overlay adds paths and stops the build
+when one of its files exists in the root already or is a symbolic link.
+Every added path is owned by root and group wheel with mode 0664 or 0775,
+so `operator`, a member of wheel, can write a disk image there.
+
+```sh
+bmake -j"$(sh tools/online-cpus.sh)" MACHINE=rp2040 picocalc-sd-max-system \
+    PICOCALC_MAX_EXTRA=/path/to/extra-root
+```
 
 The kernel range including boot2 is `[0x10000000,0x10028000)`. Above it,
 the flash driver addresses a 1,504 KiB Dhara region up to `0x101a0000`.
@@ -584,5 +620,5 @@ programs into the 192 KiB user window. Kernel instructions still execute
 from QSPI or the linked SRAM routines. The standard release downloader
 and its pair validator describe the 128 KiB family. The expanded system
 uses the two build outputs above. For a host SRAM capture of the expanded
-system, `discobsd-sramdump capture --kernel-layout picocalc-sd` selects
+system, `gizmobsd-sramdump capture --kernel-layout picocalc-sd` selects
 the 160 KiB flash extent. Decode obtains the extent from the kernel ELF.

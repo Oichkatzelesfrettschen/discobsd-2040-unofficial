@@ -199,7 +199,7 @@ ufs_sync(register struct mount *mp)
     fs = &mp->m_filsys;
     if (fs->fs_fmod && (mp->m_flags & MNT_RDONLY)) {
         printf("fs = %s\n", fs->fs_fsmnt);
-        panic("sync: rofs");
+        panic("K56");
     }
     error = syncinodes(fs); /* sync the inodes for this filesystem */
     flush_error = bflush(mp->m_dev); /* flush dirty data blocks */

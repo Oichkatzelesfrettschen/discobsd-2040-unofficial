@@ -117,6 +117,18 @@ lcdgfx_palette(void *self, int index, int r, int g, int b)
 	return ioctl(st->fd, LCDG_PALETTE, &p) < 0 ? -1 : 0;
 }
 
+int
+win_lcdgfx_rgb565(struct win_scene *s, const struct win_lcdgfx *st)
+{
+	struct lcdg_colmod cm;
+
+	cm.fmt = LCDG_COLMOD_RGB565;
+	if (ioctl(st->fd, LCDG_COLMOD, &cm) < 0)
+		return -1;
+	s->bpp = WIN_BPP_RGB565;
+	return 0;
+}
+
 void
 win_lcdgfx_init(struct win_backend *be, struct win_lcdgfx *st, int fd)
 {

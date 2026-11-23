@@ -386,6 +386,14 @@ LOGIC = [
 # (name, old text, new text)
 RENDER = [
     (
+        "view-never-selects-rgb565",
+        [
+            "\tcm.fmt = LCDG_COLMOD_RGB565;\n",
+            "\tif (GTILE_IOCTL(fd, LCDG_COLMOD, &cm) < 0)\n\t\treturn -1;\n",
+        ],
+        ["\t(void)cm;\n", ""],
+    ),
+    (
         "view-ignores-the-camera",
         "rg_base_tile(g, g->cam + x, y);",
         "rg_base_tile(g, x, y);",
@@ -407,7 +415,28 @@ RENDER = [
         "if (!sg->live) {",
     ),
     ("sprite-signature-ignores-the-camera", "now.cam = g->cam;", "now.cam = 0;"),
-    ("sprite-signature-ignores-the-twinkle", "now.anim = anim;", "now.anim = 0 * anim;"),
+    (
+        "sprite-signature-ignores-the-twinkle",
+        "now.anim = anim && rg_box_has_shard(g, bxs[i], bys[i]);",
+        "now.anim = anim && rg_box_has_shard(g, bxs[i], bys[i]) && anim < 0;",
+    ),
+    (
+        "sprite-signature-twinkles-without-a-shard",
+        "now.anim = anim && rg_box_has_shard(g, bxs[i], bys[i]);",
+        "now.anim = anim && (rg_box_has_shard(g, bxs[i], bys[i]) || anim);",
+    ),
+    (
+        "shard-scan-skips-the-bottom-row",
+        "for (cy = 0; cy < RG_BOX; cy++)\n"
+        "\t\tfor (cx = 0; cx < RG_BOX; cx++) {\n\t\t\tvx = bx + cx;",
+        "for (cy = 0; cy < RG_BOX - 1; cy++)\n"
+        "\t\tfor (cx = 0; cx < RG_BOX; cx++) {\n\t\t\tvx = bx + cx;",
+    ),
+    (
+        "shard-scan-reads-the-whole-view",
+        "\t\t\tvx = bx + cx;\n\t\t\tvy = by + cy;",
+        "\t\t\tvx = (bx + cx + 17 * cy) % RG_VIEW_W;\n\t\t\tvy = by + cy;",
+    ),
     ("sprite-signature-ignores-map-changes", "now.gen = g->gen;", "now.gen = 0;"),
     (
         "sprite-not-mirrored",
@@ -462,8 +491,8 @@ RENDER = [
     ),
     (
         "sprites-share-slots",
-        "gtile_load(&v->gt, RG_DYN + i * RG_BOX * RG_BOX, RG_BOX * RG_BOX,",
-        "gtile_load(&v->gt, RG_DYN, RG_BOX * RG_BOX,",
+        "base = RG_DYN + i * RG_BOX * RG_BOX;",
+        "base = RG_DYN;",
     ),
     (
         "composite-drops-the-world-under-the-sprite",
@@ -517,6 +546,11 @@ RENDER = [
         "view-skips-the-last-column",
         "for (x = 0; x < RG_VIEW_W; x++)\n\t\t\tv->fin[(y + RG_HUD_ROWS)",
         "for (x = 0; x < RG_VIEW_W - 1; x++)\n\t\t\tv->fin[(y + RG_HUD_ROWS)",
+    ),
+    (
+        "every-box-cell-uploaded",
+        "\treturn opq;\n}",
+        "\treturn (1u << (RG_BOX * RG_BOX)) - 1;\n}",
     ),
 ]
 

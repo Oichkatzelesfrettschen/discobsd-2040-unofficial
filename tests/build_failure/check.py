@@ -112,7 +112,7 @@ def check_lib(root, make, scratch):
     lib = lib_scratch(root, scratch)
     stubs = write_stubs(scratch / "stubs")
     # share/mk/sys.mk asks git for a revision count, which the scratch tree
-    # has no answer to; the warning goes to stderr and the value to stdout.
+    # cannot answer; the warning goes to stderr and the value to stdout.
     query = run([*make, "MACHINE=rp2040", "-V", "${SUBDIR}"], lib, {},
                 stderr=subprocess.DEVNULL)
     subdirs = query.stdout.split()
@@ -203,7 +203,7 @@ def read_blocks(path, required=KERNEL_REQUIRED):
 
 
 def kernel_blocks(root):
-    # config emits the unix rule from its load line; the template has none.
+    # config emits the unix rule from its load line; the template lacks one.
     template = read_blocks(root / "sys/arch/rp2040/conf/Makefile.rp2040",
                            required=[k for k in KERNEL_REQUIRED if k != "unix:"])
     for route in KERNEL_ROUTES:
@@ -539,7 +539,7 @@ def check_version_identity(root, make, scratch):
         expect(result.returncode == 0, "kernel version generation failed", result.stdout)
         for private in ("private-host-fixture", "private-user-fixture", str(directory)):
             expect(private not in result.stdout, "kernel version exposes build identity", "")
-        expect('DiscoBSD 2.7' in result.stdout and f' {revision}:' in result.stdout and
+        expect('GizmoBSD 0.1.0-alpha' in result.stdout and f' {revision}:' in result.stdout and
                f'({directory.name.upper()})' in result.stdout,
                "kernel version omits release, configuration or revision", result.stdout)
         return result.stdout
@@ -673,7 +673,7 @@ def main():
                         ("icode", check_icode_toolchain_selector), ("tiers", check_tier_order)):
         if args.only and args.only != name:
             continue
-        with tempfile.TemporaryDirectory(prefix=f"discobsd-build-failure-{name}-") as tmp:
+        with tempfile.TemporaryDirectory(prefix=f"gizmobsd-build-failure-{name}-") as tmp:
             try:
                 check(root, make, Path(tmp))
             except Failure as error:

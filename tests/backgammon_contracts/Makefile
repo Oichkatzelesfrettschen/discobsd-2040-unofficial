@@ -54,7 +54,7 @@ ${MACHINE_STAMP}:
 	done
 	@touch $@
 
-# The shim carries no tree header, so it compiles without ${TREE} and reaches
+# The shim leaves out every tree header, so it compiles without ${TREE} and reaches
 # the host's <stdio.h> the way any host program does.
 bg_shim.o: ${.CURDIR}/bg_shim.c ${.CURDIR}/bg_shim.h
 	${HOSTCC} -std=gnu17 ${WARN} ${ILP32} -c -o $@ ${.CURDIR}/bg_shim.c

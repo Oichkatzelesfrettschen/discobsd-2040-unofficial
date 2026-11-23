@@ -28,7 +28,7 @@ if [ ! -d "$temporary_parent" ]; then
 	exit 2
 fi
 temporary_parent=$(CDPATH= cd "$temporary_parent" && pwd -P)
-temporary_directory=$(mktemp -d "$temporary_parent/discobsd-legacy-map-verify.XXXXXX")
+temporary_directory=$(mktemp -d "$temporary_parent/gizmobsd-legacy-map-verify.XXXXXX")
 rows_path=$temporary_directory/rows.tsv
 sources_path=$temporary_directory/sources
 destinations_path=$temporary_directory/destinations
@@ -38,7 +38,7 @@ tracked_archive_path=$temporary_directory/tracked-archive
 cleanup_temporary_directory()
 {
 	case $temporary_directory in
-	"$temporary_parent"/discobsd-legacy-map-verify.*)
+	"$temporary_parent"/gizmobsd-legacy-map-verify.*)
 		find "$temporary_directory" -depth \
 		    \( -type f -o -type l \) -exec unlink {} \; 2>/dev/null || :
 		find "$temporary_directory" -depth -type d \

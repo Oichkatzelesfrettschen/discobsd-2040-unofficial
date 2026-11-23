@@ -132,7 +132,7 @@ first_fit(void)
 
 /*
  * Scratch the panic callbacks below share. Each one runs inside the harness
- * frame that catches the panic, so it takes no argument and returns nothing.
+ * frame that catches the panic, so it takes zero arguments and returns void.
  */
 static size_t scratch_a[3];
 static size_t scratch_cursor;
@@ -151,17 +151,17 @@ call_mfree_at_zero(void)
 
 /*
  * The two defensive checks that bracket the allocator's protocol: a zero
- * request has no answer to return, and address zero terminates the array, so
+ * request lacks an answer to return, and address zero terminates the array, so
  * it can never be handed back to it.
  */
 static void
 protocol_panics(void)
 {
 	reset(SLOTS);
-	HK_EXPECT_PANIC("malloc: size = 0", call_malloc_zero);
+	HK_EXPECT_PANIC("K23", call_malloc_zero);
 
 	mfree(fixture, 16, 16);
-	HK_EXPECT_PANIC("mfree: addr = 0", call_mfree_at_zero);
+	HK_EXPECT_PANIC("K24", call_mfree_at_zero);
 
 	/* A zero-size free is a no-op rather than a panic. */
 	mfree(fixture, 0, 64);
@@ -283,16 +283,16 @@ overlap_panics(void)
 {
 	reset(SLOTS);
 	mfree(fixture, 16, 16);
-	HK_EXPECT_PANIC("mfree overlap #1", call_mfree_into_left);
+	HK_EXPECT_PANIC("K25", call_mfree_into_left);
 
 	reset(SLOTS);
 	mfree(fixture, 16, 16);
 	mfree(fixture, 16, 48);
-	HK_EXPECT_PANIC("mfree overlap #2", call_mfree_across_gap);
+	HK_EXPECT_PANIC("K26", call_mfree_across_gap);
 
 	reset(SLOTS);
 	mfree(fixture, 16, 48);
-	HK_EXPECT_PANIC("mfree overlap #3", call_mfree_into_right);
+	HK_EXPECT_PANIC("K27", call_mfree_into_right);
 }
 #endif
 
@@ -374,7 +374,7 @@ one_contiguous_run(void)
 	HK_CHECK(runs() == 1);
 	HK_CHECK(free_total() == 64);
 
-	/* An empty request has no run to place. */
+	/* An empty request places zero runs. */
 	HK_CHECK(malloc3_contiguous(fixture, 0, 0, 0, ALIGN, a) == 0);
 
 	/* A request past the map's largest run fails without disturbing it. */
@@ -383,9 +383,9 @@ one_contiguous_run(void)
 
 	reset(SLOTS);
 	mfree(fixture, 64, ALIGN);
-	HK_EXPECT_PANIC("malloc3_contiguous: bad alignment",
+	HK_EXPECT_PANIC("K28",
 	    call_contiguous_align_six);
-	HK_EXPECT_PANIC("malloc3_contiguous: bad alignment",
+	HK_EXPECT_PANIC("K28",
 	    call_contiguous_align_zero);
 }
 
@@ -457,7 +457,7 @@ cursor_rotation(void)
 }
 
 /*
- * Placing a run inside a free run costs one descriptor. When the map has none
+ * Placing a run inside a free run costs one descriptor. When the map lacks one
  * to spare the search takes a run boundary instead, which weakens rotation
  * but never turns a request the map can hold into a refusal.
  */
@@ -479,7 +479,7 @@ cursor_under_descriptor_pressure(void)
 	HK_CHECK(cursor == 32);
 
 	/*
-	 * Three slots, two of them live, leave no descriptor for a split, so
+	 * Three slots, two of them live, leave zero descriptors for a split, so
 	 * the same request takes the top of the run. The map still holds both
 	 * runs and the allocation still succeeds.
 	 */
@@ -529,15 +529,15 @@ cursor_panics(void)
 	mfree(fixture, 60, ALIGN);
 	scratch_cursor = ALIGN;
 
-	HK_EXPECT_PANIC("malloc3_contiguous_next: bad alignment",
+	HK_EXPECT_PANIC("K32",
 	    call_next_align_six);
-	HK_EXPECT_PANIC("malloc3_contiguous_next: no cursor",
+	HK_EXPECT_PANIC("K33",
 	    call_next_without_cursor);
 
 	reset(SLOTS);
 	mfree(fixture, 10, 6);
 	scratch_cursor = ALIGN;
-	HK_EXPECT_PANIC("malloc3_contiguous_next: unaligned map",
+	HK_EXPECT_PANIC("K34",
 	    call_next_on_unaligned_map);
 
 #ifndef COMPACT_SWAPMAP
@@ -546,7 +546,7 @@ cursor_panics(void)
 	ent[0].m_addr = (size_t)-ALIGN;
 	ent[0].m_size = ALIGN;
 	scratch_cursor = ALIGN;
-	HK_EXPECT_PANIC("malloc3_contiguous_next: corrupt map",
+	HK_EXPECT_PANIC("K35",
 	    call_next_on_unaligned_map);
 #else
 	/* Compact descriptors can cross 16 bits without overflowing size_t. */
@@ -656,7 +656,7 @@ ring_extent_passes_the_end(void)
 	HK_CHECK(cursor == 28);
 	HK_CHECK(runs() == 0);
 
-	/* A request longer than the ring is refused and moves nothing. */
+	/* A request longer than the ring is refused and leaves the cursor and map as they were. */
 	ring_reset(SLOTS, 0);
 	cursor = 20;
 	HK_CHECK(malloc3_contiguous_next(fixture, 64, 0, 0, ALIGN, &cursor, a) == 0);

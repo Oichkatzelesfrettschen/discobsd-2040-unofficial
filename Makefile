@@ -102,7 +102,7 @@ check-release-policy: check-python
 		cd tools/proofs && ${LAKE} env ${PYTHON} check_policy.py --lean "${LEAN}"
 
 check-hybrid-release: check-python
-		cd distrib/rp2040/host && DISCOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
+		cd distrib/rp2040/host && GIZMOBSD_REQUIRE_PQ_TESTS=1 ${PYTHON} -m pytest -q tests/test_release.py
 
 check-python:
 		@if [ -z "${PYTHON}" ]; then \
@@ -169,7 +169,7 @@ check-sus-discovery: check-python
 		${PYTHON} tools/check_sus_utility_ledger.py --root ${TOPSRC} --self-test
 
 # The source-bound corpus keeps Issue 7 and Issue 8 entity membership separate
-# from DiscoBSD applicability and evidence. Its negative controls reject count,
+# from GizmoBSD applicability and evidence. Its negative controls reject count,
 # hash, ordering, mapping and selected-image ownership drift.
 check-sus-requirement-corpus: check-python
 		${PYTHON} tools/check_sus_requirement_corpus.py --root ${TOPSRC} --self-test
@@ -219,7 +219,7 @@ distribution:	build
 
 # check-uf2-validator calibrates the UF2 structure checker on synthetic
 # images; check-uf2-images applies it to each kernel and root pair that
-# discobsd-flash loads, so it follows `kernel` and `flash`. Every board
+# gizmobsd-flash loads, so it follows `kernel` and `flash`. Every board
 # kernel in MACHINE_KERNEL_CONFIGS pairs with ${FLASHUF2}: the root occupies
 # the same flash region on every board and every kernel boots every profile's
 # root, while BOARD (distrib/rp2040/Makefile.inc) picks the profile an unset
@@ -714,6 +714,7 @@ check-native-linker: check-python
 		${PYTHON} tests/native_linker/readers.py
 		${PYTHON} tests/native_linker/branches.py
 		${PYTHON} tests/native_linker/calibrate.py
+		${PYTHON} tests/native_linker/xip_imports_test.py
 
 # The assembler's scratch streams and the linker's output regions: identical
 # object and executable bytes against the recorded outputs of the tools that
@@ -954,6 +955,9 @@ check-libc-host-contracts:
 
 check-libc-alarm-cross:
 		${MAKE} -C tests/libc_contracts check-alarm-contract-cross
+
+check-libc-devname-cross:
+		${MAKE} -C tests/libc_contracts check-devname-contract-cross
 
 check-libc-waitpid-cross:
 		${MAKE} -C tests/libc_contracts check-waitpid-contract-cross
@@ -1488,6 +1492,18 @@ check-version-outside-git:
 
 .PHONY: check-version-outside-git
 
+# kern.osrev is the packed release number that sys/conf/newvers.sh generates
+# from OSR and OSRANK. tools/check_osrev_generator.py runs copies of the script
+# on good and malformed version sources, compiles the vers.c of each good one
+# and of edited ones with the host compiler, and compares the packed values
+# with an independent encoder; --selftest requires seven mutants of the script
+# to fail the check each was built to fail.
+check-osrev-generator: check-python
+		${PYTHON} tools/check_osrev_generator.py --root ${TOPSRC}
+		${PYTHON} tools/check_osrev_generator.py --root ${TOPSRC} --selftest
+
+.PHONY: check-osrev-generator
+
 check-agent-instructions: check-python
 		${PYTHON} -B tools/agent_instructions_test.py
 		${PYTHON} -B tools/check_agent_instructions.py --root ${TOPSRC}
@@ -1585,12 +1601,15 @@ check-changed-comments: check-python
 
 .PHONY: check-comment-hygiene check-changed-comments
 
-# Added text: whitespace errors anywhere and British spellings in Markdown
-# prose (tools/check_changed_text.py). check-text-hygiene calibrates the
-# checker on throwaway repositories; check-changed-text enforces it on an
-# explicit commit range, the same pair of commits check-changed-comments
-# compares.
+# Added text: whitespace errors anywhere, and British spellings and new
+# "<verb> no|none|nothing" phrases in Markdown prose
+# (tools/check_changed_text.py, tools/determiner_negation.py).
+# check-text-hygiene calibrates the phrase finder on known-bad and known-good
+# prose and the checker on throwaway repositories; check-changed-text
+# enforces it on an explicit commit range, the same pair of commits
+# check-changed-comments compares.
 check-text-hygiene: check-python
+		${PYTHON} tools/determiner_negation_test.py
 		${PYTHON} tools/changed_text_test.py
 
 check-changed-text: check-python
@@ -1605,6 +1624,82 @@ check-changed-text: check-python
 		    --revision ${CHANGED_COMMENT_HEAD:Q}
 
 .PHONY: check-text-hygiene check-changed-text
+
+# A file whose head names a GizmoBSD copyright line is under the BSD 3-Clause
+# words of NOTICE section 1 (tools/check_license_headers.py). The gate compares
+# each such head with NOTICE word for word, so a header that stops mid-disclaimer
+# fails, and requires every year to lie inside the GizmoBSD range of NOTICE and
+# etc/COPYRIGHT. --selftest first rejects a truncated disclaimer, a dropped
+# clause, a changed word, a year outside the range, a malformed copyright line,
+# and trees with no header or no NOTICE.
+check-license-headers: check-python
+		${PYTHON} tools/check_license_headers.py --selftest
+		${PYTHON} tools/check_license_headers.py --root ${TOPSRC}
+
+# The console palette (lcd_palette in st7365p.c, the web console's xterm.js
+# theme and the two lcdgfx test fixtures) must agree entry for entry and meet
+# the bounds that the comment above lcd_palette and TESTING.md state, measured
+# on the colors the RGB565 panel shows (tools/check_console_palette.py).
+# --selftest first requires the exact rules each known-bad table, mutant and
+# parser bypass trips.
+check-console-palette: check-python
+		${PYTHON} tools/check_console_palette.py --selftest
+		${PYTHON} tools/check_console_palette.py --root ${TOPSRC}
+
+# The gate's --selftest pins its bounds, ranges, views and checks. The mutants
+# target applies each single edit of tools/check_console_palette_mutants.py to a
+# copy of the gate and requires --selftest to reject it, so the pinning is a
+# result the tree reproduces.
+check-console-palette-mutants: check-python
+		${PYTHON} tools/check_console_palette_mutants.py
+
+.PHONY: check-license-headers check-console-palette check-console-palette-mutants
+
+# The mutant scripts run a freshly built test through tools/run_bounded.sh,
+# which bounds its wall-clock time and the output it keeps. --selftest runs the
+# script through a passing command, a failing one, a command that cannot be
+# started, a command that leaves a child holding the output, a sleeper, a
+# command that ignores the first signal, a loud failure on each stream and an
+# endless flood, malformed, oversized and unusable bounds and paths and a failed
+# capture, and requires seven mutants of the script (no time bound, no output
+# bound, a lost status, a command that did not start taken for its failure, a
+# capture failure ignored, a malformed bound accepted, a failing status taken
+# for a timeout) to fail the scenario each targets. It prints a SKIP without timeout(1).
+check-run-bounded:
+		sh tools/run_bounded.sh --selftest
+
+.PHONY: check-run-bounded
+
+# The built Renode models carry the identity of the patch series they were
+# built from (tools/renode/models-series.sh): the fetch stamps the build and
+# every gate that boots the models compares the stamp. The self-test holds
+# the comparison to a fixture series: a build without a stamp, an edited, an
+# added and a renamed patch and a moved pin are refused, and a series
+# without patches cannot be identified.
+check-renode-models-series:
+		sh tools/renode/models-series.sh selftest
+
+.PHONY: check-renode-models-series
+
+# The recipes that start Renode without one of the check-*.sh scripts
+# compare the stamp themselves.
+RENODE_MODELS_CURRENT=	sh tools/renode/models-series.sh check \
+		    tools/renode/vendor/Renode_RP2040/emulation/bin/Release/net8.0/Peripherals.dll
+
+# CI installs its packages through tools/ci_apt_install.sh, which bounds each
+# network phase of apt-get in wall-clock time and retries it: a mirror that
+# trickles bytes never trips apt's idle timeout, and one such download held the
+# flash-id job for 16 minutes. --selftest runs the script against a fake
+# apt-get through a good run, a run with an archive directory, a stalled
+# download, a stalled update, a permanent stall, a download that ignores TERM, an
+# install failure and a call with no package, and requires six mutants of the
+# script (no bound, no kill after the first signal, no retry, one-call install,
+# a swallowed final failure, no archive directory) to fail the scenario each
+# targets. It prints a SKIP without timeout(1).
+check-ci-apt-install:
+		sh tools/ci_apt_install.sh --selftest
+
+.PHONY: check-ci-apt-install
 
 # Production synchronization is independent of the generic-swap line-width test.
 check-config-generated-sync: check-python
@@ -1650,7 +1745,12 @@ check-userland-layout-flags: check-python
 check-config-include-order: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} tools/config/check_include_order.py --root ${TOPSRC} --make ${MAKE}
 
-.PHONY: check-config-generated-sync check-config-include-order
+# A kernel Makefile refuses to build from a Config whose cksum differs from
+# the CONFIG_CKSUM config wrote (tools/config/check_reconfig_stop.py).
+check-config-reconfig-stop: check-python
+		${PYTHON} tools/config/check_reconfig_stop.py --root ${TOPSRC} --make ${MAKE}
+
+.PHONY: check-config-generated-sync check-config-include-order check-config-reconfig-stop
 
 # Clean controls must compile; deliberate warnings must fail using the actual
 # evaluated commands, including leaves that replace CFLAGS.
@@ -1867,11 +1967,23 @@ check-mpu-startup: check-python
 		${PYTHON} tools/unicorn/check_mpu_startup.py \
 		    ${MACHINE_KERNEL_CONFIGS:@cfg@sys/arch/rp2040/compile/${cfg}/unix.elf@}
 
-check-panel-programs: check-python
+# Replay the panel register programs in PICOCALC_SD, the kernel that carries
+# LCD_PANELTEST, and check console minor routing in PICOCALC, whose console
+# lacks LCD_VT's second terminal on minor 2. build links only
+# MACHINE_KERNEL_CONFIGS, so picocalc-sd-kernel links the SD ELF first.
+check-panel-programs: check-python .WAIT picocalc-sd-kernel
 		${PYTHON} tools/unicorn/check_panel_program.py \
-		    sys/arch/rp2040/compile/PICOCALC/unix.elf
+		    --console-elf sys/arch/rp2040/compile/PICOCALC/unix.elf \
+		    sys/arch/rp2040/compile/PICOCALC_SD/unix.elf
 
-.PHONY: check-mpu-startup check-panel-programs
+# The PICOCALC_SD kernel's LCD_GFX_EXT panel primitives under Unicorn
+# (tools/unicorn/check_panel_gfx_ext.py). build links only
+# MACHINE_KERNEL_CONFIGS, so picocalc-sd-kernel links the ELF first.
+check-panel-gfx-ext: check-python .WAIT picocalc-sd-kernel
+		${PYTHON} tools/unicorn/check_panel_gfx_ext.py \
+		    sys/arch/rp2040/compile/PICOCALC_SD/unix.elf
+
+.PHONY: check-mpu-startup check-panel-programs check-panel-gfx-ext
 
 # check-unicorn-kernel calls single functions of a built kernel's unix.elf
 # (KERNEL_CONFIGURATION, PICO by default) on an emulated Cortex-M0, compares
@@ -1915,7 +2027,7 @@ check-unicorn-kernel: check-python
 # compares the synthetic rows and the compiler options with a fresh model run
 # and exits 3, reported here as SKIP with its reason, when the compiler differs.
 # selftest.sh then calibrates the comparison and the harness on known-bad input
-# (a perturbed oracle, aliased output, a drifted bzero, an incomplete compile
+# (a perturbed oracle, aliased output, a missing notice, an incomplete compile
 # command, a mismatched binutils prefix, a failed round trip). Both run the
 # Unicorn model against the built tree's sh and awk, so the target stands
 # outside check-cross.
@@ -1983,6 +2095,12 @@ check-picocalc-host:	check-python
 # states each.
 check-psram-pio:	check-python
 		${MAKE} -C tests/psram check
+
+# The testing kernels' counters, fault records and console message ring
+# (sys/kern/subr_diag.c) against a host model, with seven mutants of the
+# source; tests/kernel/Makefile states each.
+check-diag-stats:	check-python
+		${MAKE} -C tests/kernel check-diag-stats check-diag-stats-mutants
 
 # The PicoCalc loader's flash limit: the stamp decode and the flash
 # erase/program bound against exhaustive sweeps and a whole-chip NOR model,
@@ -2070,14 +2188,15 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-agent-instructions check-uf2-validator check-nightly-report check-mutant-pool \
 		check-clifford-t \
 		check-kernel-headroom-validator check-hot-layout-validator \
-		check-version-outside-git \
+		check-version-outside-git check-osrev-generator \
 		check-run-logging check-compiler-matrix-harness check-callgraph-capture check-battlestar-generation \
 		check-sus-discovery check-sus-requirement-corpus check-dpucp-profile \
 		check-dpucp-donor-ledger check-dpucp-board-acceptance \
 		check-c17-source-denominator \
 		check-capacity-corpus check-user-window-contract \
 		check-swapram-link-verifier \
-		check-comment-hygiene check-text-hygiene \
+		check-comment-hygiene check-text-hygiene check-license-headers check-console-palette check-console-palette-mutants check-ci-apt-install check-run-bounded \
+		check-renode-models-series \
 		check-warning-policy-host check-build-failure check-analysis \
 		check-test-execution check-repository-coverage \
 		check-libc-host-contracts check-libc-assert check-c17-headers check-signal-sets check-fd-set-host \
@@ -2113,16 +2232,17 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-usb-set-address-interface check-usb-get-descriptor \
 		check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup \
 		check-config-generated-sync check-config-include-order \
+		check-config-reconfig-stop \
 		check-userland-layout-flags check-storage-geometry check-phony-targets \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-ulisp-host \
-		check-psram-pio \
+		check-psram-pio check-diag-stats \
 		check-loader-stamp check-picocalc-kbd-bootloader check-picocalc-conformance check-host-split \
-		check-signal-traps
+		check-signal-traps check-alloc-results check-panic-codes check-signal-trace
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
-		check-menu-host check-tail-host check-sort-host check-ls-format check-keen-host \
+		check-menu-host check-tail-host check-sort-host check-ls-format check-calendar-rules check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
-		check-i86-host check-fstat-host check-sh-editor \
+		check-backlight-host check-i86-host check-fstat-host check-sh-editor \
 		check-cp-host check-tar-host check-textbox-host check-cpio-host \
 		check-compress-host check-archive-stored-times check-cc-driver \
 		check-libwin-host
@@ -2137,7 +2257,8 @@ HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 # local runs.
 HOST_TIER_B_GATES=	check-calc-host check-libcalc check-libbn check-ridge-host \
 		check-v7fs-core check-fat32-tail check-storage-recovery check-picocalc-host \
-		check-msdosfs-core check-psram-pio check-lex-tables check-coil-host \
+		check-msdosfs-core check-psram-pio check-diag-stats \
+		check-lex-tables check-coil-host \
 		check-tar-host check-storage-correctness check-dcbc
 HOST_TIER_A_GATES=
 .for gate in ${HOST_GATES} ${HOST_PROGRAM_GATES}
@@ -2150,7 +2271,7 @@ CROSS_CONTRACT_GATES=	check-signal-sets-cross check-fd-set-cross check-public-ti
 		check-sh-c17-contracts .WAIT check-sh-heap-boundary \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-qsort-context-cross \
 		check-c17-headers-cross check-libc-pic-replay \
-		check-libc-alarm-cross \
+		check-libc-alarm-cross check-libc-devname-cross \
 		check-libc-waitpid-cross \
 		check-libc-ctime-cross check-libc-getgrent-cross \
 		check-touch-contracts-cross \
@@ -2182,7 +2303,7 @@ check-libc-shared-closure: check-python
 check-libc-declaration-census: check-python .WAIT symlinks
 		env DECLARATION_CENSUS_NM=${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-nm \
 		    ${PYTHON} tools/libc_declaration_census_test.py
-		${PYTHON} tools/libc_declaration_census.py --root ${TOPSRC:Q} \
+		${PYTHON} tools/libc_declaration_census.py --root ${TOPSRC:Q} --destdir ${DESTDIR:Q} \
 		    --ar ${ARM_GCC_PREFIX:U${GCCPREFIX:U${BOARDLIBC_GCCPREFIX}}:Q}-ar
 
 .PHONY: check-libc-declaration-census
@@ -2248,7 +2369,13 @@ check-sort-host:
 check-ls-format: check-python
 		HOST_CC=${HOST_CC:Ucc:Q} ${PYTHON} bin/ls/tests/check_format.py
 
-.PHONY: check-ls-format
+# February in date and basic, and the year chpass prints, from the production
+# functions compiled on the host; --selftest restores each earlier defect.
+check-calendar-rules: check-python
+		${PYTHON} tests/calendar_rules/check.py --selftest . ${HOST_CC:Ucc:Q}
+		${PYTHON} tests/calendar_rules/check.py . ${HOST_CC:Ucc:Q}
+
+.PHONY: check-ls-format check-calendar-rules
 
 check-keen-host:
 		${MAKE} -C games/keen test
@@ -2285,6 +2412,13 @@ check-picofetch-host: check-python
 # mutants. The panel read of usr.bin/scrshot/scrshot.c runs on no host.
 check-scrshot-host: check-python
 		${MAKE} -C usr.bin/scrshot test
+
+# backlight(1) over the controller model of usr.bin/backlight/tests/bl_fixture.c:
+# argument checks, the kept level it prints and saves, the root-only -s and
+# the refusals, then the mutants. The sysctl calls of
+# usr.bin/backlight/bl_sysctl.c run on no host.
+check-backlight-host: check-python
+		${MAKE} -C usr.bin/backlight test
 
 # i86 on the host: the guest program of usr.bin/i86/tests/guest.asm on the
 # 8086, 80186 and 80286 with 8, 64 and 640 resident pages, the terminal
@@ -2395,19 +2529,37 @@ check-host-split:	check-python
 		    --all "${HOST_GATES} ${HOST_PROGRAM_GATES}" \
 		    --a "${HOST_TIER_A_GATES}" --b "${HOST_TIER_B_GATES}"
 
-# Shell gates that clean a work directory take an EXIT trap and one exiting
+# Allocation results in ls, ed and awk: every allocator mention lies in a
+# reviewed site that tools/alloc-sites.txt pins with its NULL handling;
+# tools/check_alloc_results.py --selftest calibrates the comparison.
+ALLOC_RESULT_SOURCES=	bin/ls/ls.c bin/ed/ed.c usr.bin/awk/b.c usr.bin/awk/freeze.c \
+		usr.bin/awk/lib.c usr.bin/awk/main.c usr.bin/awk/parse.c \
+		usr.bin/awk/proc.c usr.bin/awk/run.c usr.bin/awk/tran.c
+check-alloc-results: check-python
+		${PYTHON} tools/check_alloc_results.py --selftest
+		${PYTHON} tools/check_alloc_results.py ${ALLOC_RESULT_SOURCES}
+
+# Shell scripts that clean a work directory take an EXIT trap and one exiting
 # trap per signal: a trap action for HUP, INT or TERM returns to the script,
-# so one action bound to EXIT and a signal lets the gate run on against the
-# removed directory. The scan covers the gates this tree's profile and
-# capacity work changed; tools/check-signal-traps.sh --selftest calibrates it
-# on a conforming and a combined fixture and under SIGTERM.
-SIGNAL_TRAP_SCRIPTS=	distrib/rp2040/check-image-selection.sh \
-		tests/fat32tail/check.sh tools/renode/check-capacity.sh \
-		tools/architecture-isolation/check-architecture-isolation.sh \
-		tests/reboot_contracts/sdk_gap.sh
+# so one action bound to EXIT and a signal lets the script run on against the
+# removed directory. The scan covers every .sh file git tracks, less the
+# exclusions tools/check-signal-traps.sh names with their reasons; its
+# --selftest calibrates the scan, the tracked listing and the SIGTERM idiom.
 check-signal-traps:
 		sh tools/check-signal-traps.sh --selftest
-		sh tools/check-signal-traps.sh ${SIGNAL_TRAP_SCRIPTS}
+		sh tools/check-signal-traps.sh --tracked ${TOPSRC}
+
+# Kernel panic codes and sys/arch/rp2040/doc/PANICS.md name each other;
+# tools/check_panic_codes.py --selftest calibrates the comparison.
+check-panic-codes: check-python
+		${PYTHON} tools/check_panic_codes.py --selftest
+		${PYTHON} tools/check_panic_codes.py ${TOPSRC}
+
+# sendsig() and sigreturn() record each rejection under kern.systrace bit 2;
+# tools/check_signal_trace.py calibrates itself on conforming and defective
+# text before it reads sys/arch/rp2040/rp2040/sig_machdep.c.
+check-signal-trace: check-python
+		${PYTHON} tools/check_signal_trace.py
 
 # The kernel formatter and neighboring contracts use target-width integer and
 # pointer assumptions. The gate runs them in a 32-bit userspace binary. A host
@@ -2429,7 +2581,7 @@ check-rp2040-shutdown-cross:	check-python kernel
 		${PYTHON} tools/verify_rp2040_shutdown_order.py --selftest
 		@set -e; for configuration in ${MACHINE_KERNEL_CONFIGS}; do \
 			tool_prefix=$$(${MAKE} -C sys/arch/rp2040/compile/$$configuration \
-			    -V ARM_GCC_PREFIX); \
+			    -v ARM_GCC_PREFIX); \
 			${PYTHON} tools/verify_rp2040_shutdown_order.py \
 			    --objdump "$${tool_prefix}-objdump" \
 			    --machdep-object \
@@ -2486,7 +2638,8 @@ check-posix-sh:
 # because its link proof rebuilds the shared a.out libc.
 check-cross-contracts:	${CROSS_CONTRACT_GATES}
 
-check-cross-kernel:	check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
+check-cross-kernel:	xip-diagnostic-kernel .WAIT check-picocalc-sd-layout .WAIT \
+		check-c17-tool-capture .WAIT check-divider .WAIT check-swapram .WAIT \
 		check-cache-footprint .WAIT check-exec-spool .WAIT \
 		check-ufs-prototypes .WAIT check-c17-kernel-inventory .WAIT \
 		check-kernel-printf-formats .WAIT check-tty-layout-cross .WAIT \
@@ -2516,7 +2669,7 @@ check-cross:	check-python .WAIT symlinks .WAIT check-cross-contracts .WAIT \
 # line interface, the dc evaluator, the libc strtol/strtoul, random and
 # printf contracts and the tree formatter's float conversions and math
 # library returns executed as Thumb-1 programs rather than only linked, and
-# a DiscoBSD a.out run through tests/qemu_aout's syscall loader with the
+# a GizmoBSD a.out run through tests/qemu_aout's syscall loader with the
 # tree's libc, crt0 and boot ROM float glue.
 # tests/qemu_cpu_model first proves that the ARMv6-M CPU model the libc
 # contracts run on faults on Thumb-2 and unaligned accesses.
@@ -2601,6 +2754,17 @@ check-qemu:	check-python .WAIT symlinks
 		${MAKE} check-matezinho-qemu
 		${MAKE} check-ulisp-qemu
 
+xip-diagnostic-kernel: check-python
+		${MAKE} -C sys/arch/rp2040/compile/PICO_UART_XIP unix
+
+XIP_MODELS?=	${TOPSRC}/tools/renode/vendor/Renode_RP2040
+check-renode-xip-process: xip-diagnostic-kernel
+		${PYTHON} tests/native_linker/xip_process.py \
+		    --slot-elf ${XIP_SLOT_ELF:U:Q} --provider ${XIP_PROVIDER:U:Q} \
+		    --filesystem ${XIP_FILESYSTEM:U:Q} --models ${XIP_MODELS:Q}
+
+.PHONY: xip-diagnostic-kernel check-renode-xip-process
+
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.
 # Not in "check": it wants an emulator, a fetched model tree and a built
@@ -2651,14 +2815,22 @@ check-renode-picocalc-dump:
 
 check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kernel
 		${PYTHON} tests/picocalc/sdroot_staging.py ${TOOLBINDIR}/fsutil
+		${RENODE_MODELS_CURRENT}
+		@set -e; out=tools/renode/vendor/results; mkdir -p $$out; \
+		: > $$out/picocalc-sd-system.log; : > $$out/picocalc-sd-diag-system.log; \
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured \
 		    "$$(command -v renode)" ${PICOCALC_SD_UF2} \
 		    ${TOPSRC}/distrib/rp2040/sdroot-PICOCALC.img \
-		    tools/renode/vendor/results/picocalc-sd-system
-		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured-boot \
+		    $$out/picocalc-sd-system >> $$out/picocalc-sd-system.log 2>&1 & sd=$$!; \
+		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py --configured-diag \
 		    "$$(command -v renode)" ${PICOCALC_SD_DIAG_UF2} \
 		    ${TOPSRC}/distrib/${MACHINE}/sdroot-PICOCALC.img \
-		    tools/renode/vendor/results/picocalc-sd-diag-system
+		    $$out/picocalc-sd-diag-system >> $$out/picocalc-sd-diag-system.log 2>&1 & diag=$$!; \
+		tail -f $$out/picocalc-sd-system.log & follow_sd=$$!; \
+		tail -f $$out/picocalc-sd-diag-system.log & follow_diag=$$!; \
+		status=0; wait $$sd || status=$$?; \
+		wait $$diag || { d=$$?; [ $$status -ne 0 ] || status=$$d; }; \
+		sleep 2; kill $$follow_sd $$follow_diag 2>/dev/null || true; exit $$status
 
 .PHONY: check-renode-picocalc-sd-system
 
@@ -2670,6 +2842,7 @@ check-renode-picocalc-sd-system: picocalc-sd-system .WAIT picocalc-sd-diag-kerne
 # (tools/renode/check-picocalc-sdroot.py). BOARD is PICOCALC, and
 # UNION_KERNEL selects PICOCALC, PICOCALC_LEAN or PICOCALC_LEAN_DIAG.
 check-renode-picocalc-sdroot:	sdroot ${BOARD_KERNEL_UF2}
+		${RENODE_MODELS_CURRENT}
 		${PYTHON} -I -u tools/renode/check-picocalc-sdroot.py \
 		    "$$(command -v renode)" ${BOARD_KERNEL_UF2} \
 		    ${SDROOTIMG} tools/renode/vendor/results/picocalc-sdroot
@@ -2720,7 +2893,7 @@ check-flash-id:
 
 .PHONY: check-flash-id
 
-# The discobsd-host Python package: its own lint and tests.
+# The gizmobsd-host Python package: its own lint and tests.
 check-host-package:	check-python .WAIT
 		cd distrib/rp2040/host && ruff check . && ${PYTHON} -m pytest -q
 
@@ -2770,7 +2943,7 @@ root-release:	etc-distribution
 		stamp=`date -u -d "@$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u -r "$${SOURCE_DATE_EPOCH-}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
 		    date -u +%Y-%m-%dT%H:%M:%SZ`; \
-		printf 'DiscoBSD/${MACHINE} root built %s from %s on %s\n' \
+		printf 'GizmoBSD/${MACHINE} root built %s from %s on %s\n' \
 		    "$$stamp" "$$commit" "`uname -s`" \
 		    > ${DESTDIR}/etc/release
 
@@ -2857,7 +3030,7 @@ installfs:
 		check-archive-identity \
 		check-cache-footprint check-exec-spool check-ufs-prototypes \
 		check-tty-layout-cross check-console-c17-cross \
-		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-rp2040-break-guard check-usb-reset check-picocalc-host check-psram-pio check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
+		check-c17-tool-capture check-c17-kernel-inventory check-c17-source-denominator check-c17-compile-profiles check-c17-smaller-c check-capacity-corpus check-user-window-contract check-swapram-link-verifier check-kernel-printf-formats check-elf2aout check-dhara-metadata check-dhara-amplification check-dhara-gc-trigger check-swap-tier-model check-flash-checkpoint check-flash-reset-cells check-flash-reset-hook check-flash-wear check-namei-user-path check-rp2040-usercopy-span check-rp2040-break-guard check-usb-reset check-picocalc-host check-psram-pio check-diag-stats check-loader-stamp check-usb-line-coding check-usb-cdc-requests check-usb-standard-requests check-usb-set-configuration check-usb-set-address-interface check-usb-get-descriptor check-flash-device-bounds check-adc-conversion check-gpio-requests check-unixbench-run check-clock-catchup check-kernel check-kernel-ilp32 check-ptrace-libc-abi \
 		check-rp2040-shutdown check-rp2040-shutdown-cross check-libc-export-namespace \
 		check-kernel-metadata check-root-noatime \
 		check-account-image regen-kernel-metadata check-fs-stress \
@@ -2874,7 +3047,7 @@ installfs:
 		check-libc-runtime-limits check-libc-runtime-limits-cross \
 		check-libc-difftime check-libc-difftime-cross check-libc-sleep \
 		check-libc-contracts \
-		check-libc-host-contracts check-libc-alarm-cross \
+		check-libc-host-contracts check-libc-alarm-cross check-libc-devname-cross \
 		check-libc-waitpid-cross \
 		check-libc-aout-contracts check-libc-quick-exit-cross check-libc-malloc \
 		check-libc-qsort check-libc-strtox check-libc-printf \
@@ -2898,12 +3071,12 @@ installfs:
 		check-menu-host check-tail-host check-sort-host check-keen-host \
 		check-bubble-host check-fifteen-host check-fourfall-host check-coil-host check-ridge-host \
 		check-puzzlebox-host check-calc-host check-picofetch-host check-scrshot-host check-lexeme-host \
-		check-i86-host check-fstat-host check-sh-editor check-tar-host \
+		check-backlight-host check-i86-host check-fstat-host check-sh-editor check-tar-host \
 		check-libwin-host \
 		check-archive-stored-times \
 		check-textbox-host check-cpio-host check-compress-host \
 		check-lint check-host check-host-a check-host-b check-host-split \
-		check-signal-traps \
+		check-signal-traps check-alloc-results check-panic-codes check-signal-trace \
 		check-posix-sh check-cross-contracts check-cross-kernel \
 		check-cross-assembler check-cross check-qemu check-renode \
 		check-renode-picocalc check-renode-picocalc-dump \
@@ -2957,6 +3130,7 @@ check-ulisp-qemu: check-python
 # over UART0 (tools/renode/check-ulisp.py). Outside "check" for the reason
 # check-renode is, and it needs a flash image built with IMAGE_WITH=ulisp.
 check-renode-ulisp: check-python
+	${RENODE_MODELS_CURRENT}
 	${PYTHON} -I -u tools/renode/check-ulisp.py renode \
 	    ${.CURDIR}/sys/arch/rp2040/compile/PICO_UART/unix.bin \
 	    ${FLASHBIN} ${.CURDIR}/tools/renode/vendor/results/ulisp

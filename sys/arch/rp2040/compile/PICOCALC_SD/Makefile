@@ -32,6 +32,7 @@ PARAM += -DNFL=2
 PARAM += -DSMAPSIZ=36
 PARAM += -DMAXUPRC=25
 PARAM += -DNPROC=32
+PARAM += -DLCD_BLANK
 PARAM += -DLCD_VT
 PARAM += -DLCD_GFX_EXT
 PARAM += -DLCD_PANELTEST
@@ -42,8 +43,9 @@ PARAM += -DBUS_KHZ=125000
 PARAM += -DCPU_KHZ=125000
 LDSCRIPT = "RP2040-sd.ld"
 DEBUG = -g
+CONFIG_CKSUM = 1826797583 3589
 #
-# Makefile for DiscoBSD/rp2040
+# Makefile for GizmoBSD/rp2040
 #
 # DEBUG is set to -g by config if debugging is requested (config -g).
 #
@@ -80,7 +82,7 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Wextra -Werror -Wshadow -Wundef -Wformat=2
 
-# DiscoBSD predates C23, where an empty parameter list means (void) rather
+# GizmoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
 # indirect syscall dispatch in sysctl.c, which reproduces on the untouched
 # STM32 tree too. Pin the standard the sources were written against.
@@ -341,6 +343,23 @@ clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c
 
 CONFIG_TOOL=	${TOOLBINDIR}/config
+
+# config writes CONFIG_CKSUM, above: the POSIX cksum of the Config it read.
+# The make that runs config has already read this Makefile, so a build that
+# reconfigured here would compile with the PARAM and object lists of the old
+# Config. A Makefile whose CONFIG_CKSUM differs from Config's stops at once,
+# before any recipe runs, unless every goal is clean, clean-all or reconfig;
+# "make reconfig" runs alone. A Config touched but unchanged, as after a
+# checkout, passes, and the rule below regenerates identical files.
+.if make(reconfig) && ${.TARGETS:[#]} != 1
+.error "make reconfig" rewrites this Makefile; run it alone, then the build
+.endif
+.if empty(.TARGETS) || !empty(.TARGETS:Nclean:Nclean-all:Nreconfig)
+_CONFIG_CKSUM!=	cksum < Config
+.if "${_CONFIG_CKSUM}" != "${CONFIG_CKSUM}"
+.error ${.CURDIR}/Config changed since config wrote this Makefile; run "make reconfig", then the build
+.endif
+.endif
 
 reconfig ioconf.c: Config ${CONFIG_TOOL}
 	${CONFIG_TOOL} Config

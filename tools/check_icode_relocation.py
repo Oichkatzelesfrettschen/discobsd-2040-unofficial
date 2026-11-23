@@ -104,7 +104,7 @@ def main():
     clang = shutil.which("clang")
     if not gcc or not clang:
         fail("the selected ARM GCC and clang are required")
-    with tempfile.TemporaryDirectory(prefix="discobsd-icode-") as directory:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-icode-") as directory:
         temporary = Path(directory)
         for label, compiler in (("gcc", [gcc]), ("clang", [clang, "--target=arm-none-eabi"])):
             obj = temporary / f"{label}.o"

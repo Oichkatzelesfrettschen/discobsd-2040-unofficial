@@ -188,7 +188,7 @@ class Volume:
         self.handle.close()
 
 
-TARGET = b"DISCOBSDUF2"
+TARGET = b"GIZMOBSDUF2"
 
 
 def patch(path: str, lba: int, kind: str, args: list[str]) -> None:
@@ -203,7 +203,7 @@ def apply_patch(vol: Volume, kind: str, args: list[str]) -> None:
     m, o = vol.map, vol.base
     if kind == "lowercase-short":
         slot = vol.find(TARGET)
-        m[slot : slot + 11] = b"discobsduf2"
+        m[slot : slot + 11] = TARGET.lower()
     elif kind == "label-before":
         # The first live decoy entry of the root becomes a volume label that
         # carries the target's name; the file itself follows it.
@@ -251,7 +251,7 @@ def apply_patch(vol: Volume, kind: str, args: list[str]) -> None:
     elif kind == "alias-chain":
         # alias-chain COUNT: every subdirectory entry of the root names one
         # chain of COUNT clusters whose entries are all deleted, so each scan
-        # of a sibling runs the whole chain and finds nothing.
+        # of a sibling runs the whole chain and finds zero entries.
         count = int(args[0])
         start = 20000
         for cluster in range(start, start + count):

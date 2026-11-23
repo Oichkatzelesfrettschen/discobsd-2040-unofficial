@@ -2,7 +2,7 @@
 # Symbol and mutant calibration for the 64-bit calendar test.
 #
 # Each member of the good build is read with nm first. A 64-bit member
-# (NAME64.o) must define exactly its __NAME64 symbols, import none of the
+# (NAME64.o) must define exactly its __NAME64 symbols, import zero of the
 # compiler's 64-bit multiply, divide or arithmetic-shift helpers, which
 # libc does not carry (check-imports), and reference no symbol of the
 # 32-bit interface; a 32-bit member (NAME32.o) must reference no __NAME64
@@ -36,7 +36,7 @@ cleanup() {
 trap cleanup EXIT
 
 # The 32-bit interface a 64-bit member must not reach. tzset, tzname and
-# asctime read no time_t and serve both widths.
+# asctime read zero time_t values and serve both widths.
 narrow_names='ctime localtime gmtime mktime timegm time difftime wait3 wait4
 utime utimes ftime gettimeofday __discobsd_offtime'
 helpers='__aeabi_lmul __aeabi_ldivmod __aeabi_uldivmod __aeabi_lasr

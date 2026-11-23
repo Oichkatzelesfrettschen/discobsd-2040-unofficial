@@ -1,8 +1,9 @@
-"""Inventory ARM root-header declarations without selecting a shared-library ABI."""
+"""Inventory ARM source and installed-header declarations for shared-libc review."""
 
 import argparse
 import collections
 import copy
+import csv
 import gzip
 import hashlib
 import json
@@ -15,7 +16,7 @@ import uuid
 from pathlib import Path
 
 from c17.record_tool import dependency_paths, digest
-from libc_shared_closure import provider, read_archive
+from libc_shared_closure import provider, read_archive, read_member
 
 MODES = {"default": [], "iso": ["-D_ANSI_SOURCE=1"],
          "issue7": ["-D_POSIX_C_SOURCE=200809L"],
@@ -24,7 +25,7 @@ FLAGS = ["--target=arm-none-eabi", "-mcpu=cortex-m0plus", "-mthumb",
          "-mfloat-abi=soft", "-std=c17", "-Wall", "-Wextra", "-Werror",
          "-fno-builtin", "-nostdinc"]
 NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
-HEADER = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\.h\Z")
+HEADER = re.compile(r"(?:[A-Za-z_][A-Za-z0-9_.-]*/)*[A-Za-z_][A-Za-z0-9_.-]*\.[hi]\Z")
 ARCHIVES = {"libc": "libc", "libm": "libm", "libcurses": "libcurses",
             "libtermlib": "libtermcap", "libutil": "libutil", "libbn": "libbn",
             "libvmf": "libvmf", "libtcl": "libtcl", "libreadline": "libreadline",
@@ -160,6 +161,22 @@ def verify_profile(headers, profile):
     require(profile["provider_counts"] == counts, "provider counts differ from rows")
 
 
+def startup_declarations(rows, definitions):
+    for symbol in ("environ", "__progname"):
+        definition = definitions.get(symbol, {})
+        require(definition.get("kind") == "object" and definition.get("mutable")
+                and definition.get("size") == 4 and definition.get("binding") == "STB_GLOBAL",
+                "startup lacks writable ARM pointer: " + symbol)
+    matches = {}
+    for name, row in rows.items():
+        linkage = row["linkage"]
+        if linkage in definitions:
+            definition = definitions[linkage]
+            require(row["kind"] == definition["kind"], "startup declaration kind differs: " + name)
+            matches[name] = linkage
+    return matches
+
+
 def verify_report(report):
     headers = report["headers"]
     require(headers and len(headers) == len(set(headers)), "root-header denominator differs")
@@ -172,6 +189,24 @@ def verify_report(report):
         require(profile["installed_headers"] == report["installed_headers"],
                 "installed header denominator differs between profiles")
         verify_profile(headers, profile)
+        if report.get("schema") in (2, 3, 4):
+            installed = report["staged_headers"]
+            require(set(report["installed_headers"]) == {h for h in installed if "/" not in h},
+                    "staged root-header denominator differs")
+            verify_staged_profile(profile["staged"], installed)
+            if report["schema"] in (3, 4):
+                expected = sorted(set(report["issue8_headers"]).intersection(installed),
+                                  key=lambda h: ("/" in h, h))
+                joint = profile["staged"]["issue8_joint"]
+                require(expected and joint["headers"] == expected and joint["outcome"] == "parsed"
+                        and joint["exit_code"] == 0
+                        and joint["symbols"] == sorted(joint["declarations"]),
+                        "installed Issue 8 declaration witness differs")
+                if report["schema"] == 4:
+                    matches = startup_declarations(joint["declarations"],
+                                                   report["startup_object"]["definitions"])
+                    require(profile["startup_declarations"] == matches,
+                            "startup declaration denominator differs")
 
 
 def git(root, *arguments):
@@ -205,8 +240,87 @@ def installed_headers(root, headers):
     return selected
 
 
+def staged_header_owners(root):
+    environment = {k: os.environ[k] for k in ("PATH", "HOME") if k in os.environ}
+    environment.update(LC_ALL="C", TZ="UTC")
+    variables = ("STD", "LINKS", "SUBDIRS", "NETDIRS", "MACHDEP")
+    command = ["bmake", "-C", str(root / "include"), "MACHINE=rp2040"]
+    for name in variables:
+        command.extend(("-V", "${" + name + "}"))
+    result = subprocess.run(command, env=environment, capture_output=True,
+                            text=True, check=False, timeout=30)
+    values = result.stdout.splitlines()
+    require(result.returncode == 0 and not result.stderr and len(values) == len(variables),
+            "staged include installer query fails")
+    standard, links, subdirs, netdirs, machine = (value.split() for value in values)
+    require(machine == ["rp2040"] and standard, "staged include installer selection differs")
+    owners = {}
+    for name in standard:
+        require(HEADER.fullmatch(name) and "/" not in name, "invalid root install name: " + name)
+        owners[name] = "include/" + name
+    aliases = {}
+    for name in links:
+        require(HEADER.fullmatch(name) and "/" not in name, "invalid root alias name: " + name)
+        aliases[name] = "sys/" + name
+        owners[name] = "sys/sys/" + name
+    for directory in [*subdirs, *netdirs, *machine, "sys"]:
+        require(NAME.fullmatch(directory), "invalid staged include directory")
+        owner = {"rp2040": "sys/arch/rp2040/include", "sys": "sys/sys"}.get(
+            directory, "include/" + directory)
+        suffixes = ("*.h", "*.i") if directory in subdirs else ("*.h",)
+        paths = [path for suffix in suffixes for path in (root / owner).glob(suffix)]
+        require(paths, "include installer has no headers in " + owner)
+        for path in paths:
+            owners[directory + "/" + path.name] = path.relative_to(root).as_posix()
+
+    result = subprocess.run(
+        ["bmake", "-C", str(root / "lib/libreadline"), "MACHINE=rp2040", "-V", "${HDRS}"],
+        env=environment, capture_output=True, text=True, check=False, timeout=30)
+    readline = result.stdout.split()
+    require(result.returncode == 0 and not result.stderr and readline,
+            "readline header installer query fails")
+    for name in readline:
+        require(HEADER.fullmatch(name) and Path(name).parent == Path("readline"),
+                "invalid readline install name")
+        owners[name] = "lib/libreadline/" + name
+    return owners, aliases
+
+
+def staged_header_snapshot(staged, owners, aliases, hashes):
+    require(staged.is_dir() and staged == staged.resolve(),
+            "staged include directory is missing or follows a symlink")
+    observed = set()
+    expected_links = {**aliases, "machine": "rp2040"}
+    actual_links = {}
+    for path in staged.rglob("*"):
+        name = path.relative_to(staged).as_posix()
+        if path.is_symlink():
+            actual_links[name] = os.readlink(path)
+            require(expected_links.get(name) == actual_links[name],
+                    "unexpected installed symlink: " + name)
+        if path.is_file():
+            observed.add(name)
+        else:
+            require(path.is_dir(), "unexpected installed include entry: " + name)
+    require(actual_links == expected_links, "installed header aliases differ")
+    missing = sorted(owners.keys() - observed)
+    extra = sorted(observed - owners.keys())
+    require(not missing and not extra,
+            f"installed header paths differ: missing={missing}, extra={extra}")
+    rows = {}
+    for name, source in sorted(owners.items()):
+        path = staged / name
+        require(path.resolve().is_relative_to(staged), "installed header leaves staging: " + name)
+        content = digest(path)
+        require(hashes.get(source) == content, "installed header bytes differ: " + name)
+        rows[name] = {"source": source, "sha256": content, "alias_of": aliases.get(name)}
+        if name.startswith("rp2040/"):
+            rows["machine/" + path.name] = {**rows[name], "alias_of": name}
+    return rows
+
+
 def header_snapshot(root):
-    names = git(root, "ls-files", "-z", "*.h").split("\0")
+    names = git(root, "ls-files", "-z", "*.h", "*.i").split("\0")
     result = {}
     for name in names:
         if not name:
@@ -245,15 +359,17 @@ def calibrate_compiler(root, work, compiler):
     return controls
 
 
-def compile_headers(root, work, compiler, selectors, headers, label):
+def compile_headers(root, work, compiler, selectors, headers, label, *,
+                    include_dir=None, record_rejection=False):
     require(headers and all(HEADER.fullmatch(h) and ".." not in h for h in headers),
-            "invalid root-header spelling")
+            "invalid header spelling")
     # dependency_paths() resolves symlinks; a root spelled through one (macOS
     # temp directories under /var -> /private/var) must compare in that form.
     root = root.resolve()
     source = "".join(f"#include <{header}>\n" for header in headers)
     dependency = work / (label + ".d")
-    arguments = [compiler, *FLAGS, "-I" + str(root / "include"), *selectors,
+    include = root / "include" if include_dir is None else include_dir
+    arguments = [compiler, *FLAGS, "-I" + str(include), *selectors,
                  "-MMD", "-MF", str(dependency), "-Xclang", "-ast-dump=json",
                  "-fsyntax-only", "-x", "c", "-"]
     environment = {k: os.environ[k] for k in ("PATH", "HOME") if k in os.environ}
@@ -264,36 +380,130 @@ def compile_headers(root, work, compiler, selectors, headers, label):
     (work / (label + ".ast.json.gz")).write_bytes(
         gzip.compress(result.stdout, compresslevel=6, mtime=0))
     (work / (label + ".stderr")).write_bytes(result.stderr)
-    require(result.returncode == 0 and not result.stderr,
-            f"compiler rejects {label}: " + result.stderr.decode(errors="replace"))
-    observed = declarations(json.loads(result.stdout))
+    diagnostics = result.stderr.decode(errors="replace")
+    parsed = result.returncode == 0 and not diagnostics
+    located_error = rf"^(?:{re.escape(str(include))}/[^:\n]+|<stdin>):\d+:\d+: (?:fatal )?error:"
+    require(parsed or (record_rejection and result.returncode == 1
+                       and re.search(located_error, diagnostics, re.MULTILINE)),
+            f"compiler rejects {label}: " + diagnostics)
+    ast = json.loads(result.stdout)
+    require(isinstance(ast, dict) and ast.get("kind") == "TranslationUnitDecl",
+            "malformed compiler AST: " + label)
+    observed = declarations(ast) if parsed else {}
     dependencies = {}
-    for path in dependency_paths(dependency, root):
+    for path in dependency_paths(dependency, root) if parsed or dependency.exists() else ():
         require(path.is_relative_to(root), "compiler dependency leaves repository")
         dependencies[path.relative_to(root).as_posix()] = digest(path)
-    require(dependencies, "compiler dependency denominator is empty")
+    require(not parsed or dependencies, "compiler dependency denominator is empty")
     return observed, {"headers": headers,
+                      "outcome": "parsed" if parsed else "rejected",
+                      "exit_code": result.returncode,
+                      "diagnostics_file": label + ".stderr",
+                      "diagnostics_sha256": hashlib.sha256(result.stderr).hexdigest(),
                       "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
                       "ast_sha256": hashlib.sha256(result.stdout).hexdigest(),
                       "ast_file": label + ".ast.json.gz",
                       "dependencies": dependencies, "symbols": sorted(observed)}
 
 
-def run(root, work, compiler, archive_paths, archiver):
+def verify_staged_profile(profile, installed):
+    standalone = profile["standalone"]
+    require(set(standalone) == set(installed), "staged header exposure denominator differs")
+    for name, row in standalone.items():
+        require(row["headers"] == [name], "staged header witness differs: " + name)
+    joint = profile["joint"]
+    accepted = sorted((name for name, row in standalone.items() if row["outcome"] == "parsed"),
+                      key=lambda name: ("/" in name, name))
+    require(accepted and joint["headers"] == accepted, "staged joint header denominator differs")
+    for row in [*standalone.values(), joint]:
+        require(row["outcome"] in {"parsed", "rejected"}, "invalid staged parse outcome")
+        if row["outcome"] == "rejected":
+            require(row["exit_code"] == 1 and not row["symbols"] and not row["declarations"],
+                    "rejected staged parse contributes declarations")
+        else:
+            require(row["exit_code"] == 0 and row["symbols"] == sorted(row["declarations"]),
+                    "staged declaration witness denominator differs")
+
+
+def issue8_header_names(ledger):
+    names = set()
+    with ledger.open() as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            name = row["name"]
+            if row["kind"] != "base-definition" or not name.endswith(".h"):
+                continue
+            name = re.sub(r"^(arpa|net|netinet|sys)_", r"\1/", name)
+            require(HEADER.fullmatch(name) and name not in names,
+                    "invalid Issue 8 header ledger entry: " + name)
+            names.add(name)
+    require(names, "Issue 8 header ledger is empty")
+    return names
+
+
+def observe_staged_profile(root, work, compiler, selectors, label, staged, installed, graphs,
+                           issue8_headers):
+    standalone = {}
+    for number, name in enumerate(sorted(installed)):
+        observed, witness = compile_headers(
+            root, work, compiler, selectors, [name], f"{label}.staged-{number}",
+            include_dir=staged, record_rejection="/" in name)
+        for row in observed.values():
+            row["provider"] = provider_observation(row, graphs)
+        witness["declarations"] = observed
+        standalone[name] = witness
+
+    accepted = sorted((name for name, row in standalone.items() if row["outcome"] == "parsed"),
+                      key=lambda name: ("/" in name, name))
+    observed, joint = compile_headers(
+        root, work, compiler, selectors, accepted, label + ".staged-joint",
+        include_dir=staged, record_rejection=True)
+    for row in observed.values():
+        row["provider"] = provider_observation(row, graphs)
+    joint["declarations"] = observed
+    selected = sorted(issue8_headers.intersection(installed), key=lambda h: ("/" in h, h))
+    require(selected, "installed Issue 8 header set is empty")
+    observed, user_joint = compile_headers(
+        root, work, compiler, selectors, selected, label + ".issue8-headers",
+        include_dir=staged)
+    for row in observed.values():
+        row["provider"] = provider_observation(row, graphs)
+    user_joint["declarations"] = observed
+    result = {"standalone": standalone, "joint": joint, "issue8_joint": user_joint}
+    verify_staged_profile(result, installed)
+    for witness in [*standalone.values(), joint, user_joint]:
+        for name, value in witness["dependencies"].items():
+            path = root / name
+            require(path.is_relative_to(staged), "compiler dependency leaves staged headers")
+            header = path.relative_to(staged).as_posix()
+            require(installed.get(header, {}).get("sha256") == value,
+                    "compiler dependency lacks staged header ownership: " + header)
+    return result
+
+
+def run(root, work, compiler, archive_paths, archiver, staged):
     controls = calibrate_compiler(root, work, compiler)
     before = header_snapshot(root)
     headers = sorted(Path(name).name for name in before
                      if Path(name).parent == Path("include"))
     require(headers, "root-header denominator is empty")
     installed = installed_headers(root, headers)
+    ledger = "docs/research/dpucp-2024-requirements.tsv"
     owner_inputs = {name: digest(root / name) for name in
-                    ("lib/Makefile", "include/Makefile")}
+                    ("lib/Makefile", "include/Makefile", "lib/libreadline/Makefile",
+                     "share/mk/sys.mk", ledger)}
+    issue8_headers = issue8_header_names(root / ledger)
+    owners, aliases = staged_header_owners(root)
+    staged_headers = staged_header_snapshot(staged, owners, aliases, before)
+    require(set(installed) == {name for name in staged_headers if "/" not in name},
+            "source and staged root-header selection differs")
     require((root / "include/machine").resolve() == root / "sys/arch/rp2040/include",
             "include/machine does not select RP2040")
     revision = git(root, "rev-parse", "HEAD")
-    require(not git(root, "diff", "HEAD", "--", "*.h"), "tracked headers have edits")
+    require(not git(root, "diff", "HEAD", "--", "*.h", "*.i"), "tracked headers have edits")
     graphs = {name: read_archive(path, archiver) for name, path in archive_paths.items()}
     identities = {name: graph["archive_sha256"] for name, graph in graphs.items()}
+    startup_path = root / "lib/crt0.o"
+    startup = read_member("crt0.o", startup_path.read_bytes())
     profiles = {}
     for mode, feature_flags in MODES.items():
         for width in (32, 64):
@@ -319,6 +529,11 @@ def run(root, work, compiler, archive_paths, archiver):
                                  "installed_joint": installed_witness, "declarations": rows,
                                  "provider_counts": dict(collections.Counter(
                                      row["provider"]["state"] for row in rows.values()))}
+            profiles[profile]["staged"] = observe_staged_profile(
+                root, work, compiler, selectors, profile, staged, staged_headers, graphs,
+                issue8_headers)
+            profiles[profile]["startup_declarations"] = startup_declarations(
+                profiles[profile]["staged"]["issue8_joint"]["declarations"], startup["definitions"])
             verify_profile(headers, profiles[profile])
     require(before == header_snapshot(root) and revision == git(root, "rev-parse", "HEAD"),
             "header inputs or revision change during census")
@@ -331,7 +546,13 @@ def run(root, work, compiler, archive_paths, archiver):
             require(all(before.get(name) == value
                         for name, value in witness["dependencies"].items()),
                     "compiler dependencies lack matching tracked header ownership")
-    report = {"schema": 1, "source_commit": revision, "headers": headers,
+    require(staged_headers == staged_header_snapshot(staged, owners, aliases, before),
+            "staged header inputs change during census")
+    require(digest(startup_path) == startup["sha256"], "startup object changes during census")
+    report = {"schema": 4, "startup_object": {"path": "lib/crt0.o", **startup},
+              "issue8_headers": sorted(issue8_headers),
+              "source_commit": revision, "headers": headers,
+              "staged_headers": staged_headers,
             "compiler_controls": controls,
             "installed_headers": installed, "owner_inputs_sha256": owner_inputs,
             "tools_sha256": {name: digest(Path(__file__).parent / name) for name in
@@ -348,10 +569,10 @@ def run(root, work, compiler, archive_paths, archiver):
             "archive_source_binding": "Artifact hashes only; clean build receipts bind source "
                                       "separately.",
             "profiles": profiles,
-            "scope": "Tracked root-header declarations and transitive exposure; every ABI "
-                     "selection remains unreviewed.",
-            "remaining": ["Public subdirectory headers and macro interfaces",
-                          "Native a.out libraries, startup objects and compiler providers",
+            "scope": "Source root-header and staged include-tree declarations; "
+                     "every ABI selection remains unreviewed.",
+            "remaining": ["Kernel/user declaration domains, context-requiring headers and macros",
+                          "Native a.out libraries and startup, and compiler-provided interfaces",
                           "Complete attributes, layouts, native input and semantic witnesses",
                           "Reviewed export selection, stable slots and shared runtime admission"]}
     verify_report(report)
@@ -364,6 +585,7 @@ def main():
     parser.add_argument("--clang", default="clang")
     parser.add_argument("--ar", default="arm-none-eabi-ar")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--destdir", type=Path, default=Path("distrib/obj/destdir.rp2040"))
     args = parser.parse_args()
     try:
         root = args.root.resolve()
@@ -378,7 +600,11 @@ def main():
         parent.mkdir(exist_ok=True)
         work = parent / ("libc-declaration-census-" + uuid.uuid4().hex)
         work.mkdir()
-        report = run(root, work, compiler, archive_paths(root), archiver)
+        destdir = (root / args.destdir).resolve()
+        staged = destdir / "usr/include"
+        require(staged.is_relative_to(root) and staged.resolve().is_relative_to(root),
+                "staged include directory leaves repository")
+        report = run(root, work, compiler, archive_paths(root), archiver, staged)
         text = json.dumps(report, indent=2, sort_keys=True) + "\n"
         (work / "receipt.json").write_text(text)
         if args.output:
@@ -387,6 +613,7 @@ def main():
             with output.open("x") as handle:
                 handle.write(text)
         print(f"PASS declaration census: {len(report['headers'])} root headers; "
+              f"{len(report['staged_headers'])} installed spellings; "
               f"{len(report['profiles'])} profile/time pairs; ABI selection remains unreviewed")
         print("Evidence: " + work.relative_to(root).as_posix())
         return 0

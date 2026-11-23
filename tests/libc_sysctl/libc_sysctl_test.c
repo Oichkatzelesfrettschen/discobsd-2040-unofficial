@@ -18,10 +18,10 @@
  *
  * knlist() spells a kernel symbol name into the components after
  * {CTL_MACHDEP, CPU_NLIST} as sys/sysctl.h defines at CTL_NLIST_BYTES and
- * passes no new value. test_sysctl() answers that node only for the exact
+ * passes NULL for the new value. test_sysctl() answers that node only for the exact
  * components written out below as literals, so an encoder that orders the
  * bytes differently, drops the terminator or pads with another component
- * finds no symbol.
+ * misses the symbol.
  *
  * This file carries the tree's headers alone; libc_shim.h says why.
  */
@@ -53,7 +53,7 @@ int	errno;
  */
 static char stub_version[SYS_NMLN * 3];
 static char stub_hostname[64];
-static const char stub_short[] = "DiscoBSD";
+static const char stub_short[] = "GizmoBSD";
 
 /* Calls that reported truncation, so a test can require the case arose. */
 static unsigned truncations;
@@ -160,7 +160,7 @@ test_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp, void *newp,
  * block whose remainder is a guard, and the guard is filled with the newline
  * the walk acts on, because a walk that runs past the structure rewrites only
  * the bytes it recognizes: a guard of some inert filler would survive the
- * overrun and report nothing.
+ * overrun and stay silent.
  */
 static struct {
 	struct utsname	name;
@@ -255,7 +255,7 @@ test_uname_on_an_exact_allocation(void)
 static void
 test_uname_short_values(void)
 {
-	strcpy(stub_version, "DiscoBSD 2.11 PICO");
+	strcpy(stub_version, "GizmoBSD 2.11 PICO");
 	strcpy(stub_hostname, "pico");
 
 	reset_area();
@@ -303,7 +303,7 @@ test_gethostname_fits(void)
 	CHECK(strcmp(buf, "pico") == 0);
 }
 
-/* A zero-length buffer writes nothing at all. */
+/* A zero-length buffer receives zero bytes. */
 static void
 test_gethostname_zero_length(void)
 {
@@ -320,7 +320,7 @@ test_gethostname_zero_length(void)
 
 /*
  * knlist() finds each symbol the double knows through its literal
- * components, passes no new value, and leaves 0 in an unknown entry and in
+ * components, passes NULL for the new value, and leaves 0 in an unknown entry and in
  * a name too long for CTL_MAXNAME components without asking for it.
  */
 static void

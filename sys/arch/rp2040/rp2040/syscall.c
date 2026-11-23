@@ -73,7 +73,7 @@ SVC_Handler(void)
  * Restore processor state from returned trap frame on return from syscall().
  *
  * The body is the exception entry sequence itself, so the function carries
- * no AAPCS boundary: it takes no argument, returns no value, and the
+ * no AAPCS boundary: it takes zero arguments, returns void, and the
  * compiler emits neither prologue nor epilogue. The sequence owns the whole
  * register file. It reaches MSP and PSP through MRS and MSR, reserves the
  * six words of struct userframe above the trapframe, copies the stacked r12
@@ -244,25 +244,45 @@ divider_restore(const struct divider_state *ds)
 }
 
 /*
+ * The eight words (r0-r3, r12, lr, pc, xPSR) exception entry stacks at sp;
+ * with XPSR_STKALIGN set, ARMv6-M records one alignment word after them.
+ */
+#define	HWFRAME_BYTES	(8 * sizeof(u_int))
+
+/*
  * Check the kernel stack and record the user stack an entry from the
  * process found. swapout() copies p_ssize bytes below USER_TOP, so a stack
  * deeper than the deepest entry recorded so far must be recorded before
- * anything can switch the process out. Returns nonzero when sp has run into
- * the data segment.
+ * anything can switch the process out. Returns nonzero when sp has run
+ * into the data segment, except while a handler runs on the alternate
+ * signal stack (SA_ONSTACK, set by sendsig()) and the hardware frame at sp,
+ * with its alignment word, lies wholly inside the range sigaltstack()
+ * registered: that range may be in .bss or the heap, below the break, and
+ * such an sp is neither an overflow nor a process-stack depth. An
+ * alternate stack above the break is recorded like the process stack it
+ * lies in.
  */
 static int
 user_entry(const struct trapframe *frame)
 {
 	struct proc *p = u.u_procp;
 	u_int sp = frame->tf_sp;
+	u_int span = HWFRAME_BYTES +
+	    ((frame->tf_psr & XPSR_STKALIGN) ? sizeof(u_int) : 0);
 
 	if ((u_int)frame < (u_int)&u + sizeof(u)) {
-		panic("stack overflow");
+		panic("R25");
 		/* NOTREACHED */
 	}
 	if (sp < p->p_daddr + u.u_dsize)
-		return 1;
+		return !((u.u_sigstk.ss_flags & SA_ONSTACK) &&
+		    (u_int)u.u_sigstk.ss_size >= span &&
+		    sp - (u_int)u.u_sigstk.ss_base <=
+		    (u_int)u.u_sigstk.ss_size - span);
 	if (p->p_ssize < USER_TOP(p) - sp) {
+		/* A depth past RLIMIT_STACK fails like a collision. */
+		if (!rlimit_stack_admits(USER_TOP(p) - sp))
+			return 1;
 		p->p_ssize = USER_TOP(p) - sp;
 		p->p_saddr = sp;
 		u.u_ssize = p->p_ssize;
@@ -276,7 +296,7 @@ user_entry(const struct trapframe *frame)
  * PendSV_Handler, which runs only when no other exception is active, enters
  * here instead of the system call. userret() delivers the signals and
  * switches processes as it does after a system call, so a process that
- * makes no system call still receives SIGALRM or SIGINT and yields the
+ * makes zero system calls still receives SIGALRM or SIGINT and yields the
  * processor once a second (schedcpu) or to a process a wakeup made better.
  * u.u_code keeps the last system call's value for sendsig().
  */

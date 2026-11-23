@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Board check of the tick catch-up across masked flash operations.
 
-usage: DISCOBSD_BOARD_CLOCK_CATCHUP=run PYTHON board_clock_catchup.py [unix.uf2,flash.uf2]
+usage: GIZMOBSD_BOARD_CLOCK_CATCHUP=run PYTHON board_clock_catchup.py [unix.uf2,flash.uf2]
 
-The script touches the board only when DISCOBSD_BOARD_CLOCK_CATCHUP is exactly
+The script touches the board only when GIZMOBSD_BOARD_CLOCK_CATCHUP is exactly
 "run"; unset, empty and every other value exit without opening a port or
-calling discobsd-flash. With the variable set it flashes the named images with
-discobsd-flash when given and otherwise leaves the board running, then logs in
+calling gizmobsd-flash. With the variable set it flashes the named images with
+gizmobsd-flash when given and otherwise leaves the board running, then logs in
 as operator on the USB console.
 
 Claim under test (sys/arch/rp2040/rp2040/clock_catchup.h, called from
@@ -34,7 +34,7 @@ lost 96 s to a 96-sector workload, 23 times the floor). The check passes when
 the whole excess interval lies within a tenth of the floor, fails when it lies
 wholly outside, and is inconclusive otherwise (exit status 2). A workload that
 did not write every block and a floor under a second are also inconclusive.
-A measurement whose per-line bounds have no common point has two causes: a
+A measurement whose per-line bounds have an empty intersection has two causes: a
 line delayed past SETTLE_MARGIN, which is inconclusive, or a board clock that
 fell behind during the loop, which is a failure. Arrival times alone cannot
 tell them apart, because a console that holds lines back can give a steady
@@ -42,8 +42,8 @@ clock any arrival pattern. The check therefore separates them with a probe
 whose bounds rest on no latency assumption: the host sends each "date" itself,
 so the line was made between the send and the arrival, and a steady clock's
 offset lies in every sample's interval (send - value - 1, arrival - value].
-probe_bounds() intersects PROBE_SAMPLES such intervals; when they have no
-common point, no steady clock can have produced them and the check fails,
+probe_bounds() intersects PROBE_SAMPLES such intervals; when their
+intersection is empty, no steady clock can have produced them and the check fails,
 reporting the gap as the least time the clock lost. When they share a point,
 the loop's empty bounds came from a delayed line and the measurement is
 inconclusive. Any of the three measurements can show the loss, because the
@@ -65,8 +65,11 @@ import sys
 import time
 
 ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_CLOCK_CATCHUP"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_CLOCK_CATCHUP"
 OPT_IN_VALUE = "run"
 
 # asctime() in lib/libc/gen/asctime.c formats the day with "%3d", so a single
@@ -94,13 +97,13 @@ ERASE_MS = 44
 # loses the whole ERASE_MS per sector.
 TOLERANCE_FRACTION = 0.10
 MIN_LOST_S = 1.0
-# Request-bounded samples taken when a loop's bounds have no common point.
+# Request-bounded samples taken when a loop's bounds have an empty intersection.
 PROBE_SAMPLES = 40
 # Exit status of a run whose measurements cannot decide (0 passes, 1 fails).
 INCONCLUSIVE = 2
 
 # Arrival stamps come from the monotonic clock placed on the wall clock once,
-# so a host clock step during the run moves no stamp relative to another.
+# so a host clock step during the run leaves every stamp fixed relative to another.
 WALL_ANCHOR = time.time()
 MONOTONIC_ANCHOR = time.monotonic()
 
@@ -167,7 +170,7 @@ class Console:
         that command and the line PROBE<n>, so neither a late reply to an
         earlier request nor any other stale date line is taken for it. A
         request whose marker does not arrive within WAIT seconds, or whose
-        window holds no date line or more than one, raises MeasurementError,
+        window holds zero date lines or more than one, raises MeasurementError,
         because its reply cannot be attributed to its send."""
         probes = []
         for _ in range(samples):
@@ -197,7 +200,7 @@ class Console:
 
 def flash(images):
     subprocess.check_call(
-        ["discobsd-flash", *images.split(",")],
+        ["gizmobsd-flash", *images.split(",")],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -211,7 +214,7 @@ def open_console(serial_module, boot_wait):
     time.sleep(1)
     ports = glob.glob(PORT_PATTERN)
     if not ports:
-        sys.exit("no DiscoBSD console under /dev/serial/by-id")
+        sys.exit("no GizmoBSD console under /dev/serial/by-id")
     console = Console(serial_module, ports[0])
     console.port.write(b"\r")
     text, _ = console.read(boot_wait, stop="login:")
@@ -277,7 +280,7 @@ class ClockUnsteady(MeasurementError):
     break the claim.
 
     LOSS is the least time in seconds the clock must have moved off the host
-    for the request-bounded samples to have no common offset, BEHIND tells a
+    for the request-bounded samples to lack a common offset, BEHIND tells a
     clock that fell behind from one that ran ahead, LINES is the number of
     parsed samples and MEASUREMENT the name of the measurement that showed it
     (set by measure_offset).
@@ -300,7 +303,7 @@ def offset_bounds(stamped, samples=SAMPLES):
     STAMPED holds (arrival time, console line) pairs. The constant that
     converts the board's local zone to UTC stays in the value; only differences
     between measurements are meaningful. Raises MeasurementError when too few
-    lines parse and EmptyBounds when the per-line bounds have no common point,
+    lines parse and EmptyBounds when the per-line bounds have an empty intersection,
     which a line delayed beyond SETTLE_MARGIN or a clock that fell behind
     during the loop produces; probe_bounds() tells the two apart.
     """
@@ -334,7 +337,7 @@ def probe_bounds(probes, samples=PROBE_SAMPLES):
     made at x in [sent, arrival], so a steady clock's offset lies in
     (sent - value - 1, arrival - value] for every sample, however long the
     console held the line. Raises ClockUnsteady with the gap between the
-    bounds when they have no common point, BEHIND telling a clock that fell
+    bounds when their intersection is empty, BEHIND telling a clock that fell
     behind from one that ran ahead, and MeasurementError when too few
     lines parse.
     """
@@ -455,6 +458,9 @@ def check_workload(text, passes=PASSES):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

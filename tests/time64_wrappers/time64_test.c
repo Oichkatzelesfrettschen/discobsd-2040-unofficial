@@ -260,7 +260,7 @@ usage_calls(void)
 	narrow_result = 42;
 	CHECK(wait4(-1, &status, 0, 0) == 42 && narrow_null);
 	/*
-	 * A stopped child: the entry point writes no usage, so the caller's
+	 * A stopped child: the entry point does not write usage, so the caller's
 	 * structure stays as it was, with or without a status pointer.
 	 */
 	narrow_reset();

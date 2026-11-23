@@ -145,7 +145,7 @@ tsleep (caddr_t ident, int priority, u_int timo)
     }
 #ifdef  DIAGNOSTIC
     if (ident == NULL || p->p_stat != SRUN)
-        panic("tsleep");
+        panic("K17");
 #endif
     p->p_wchan = ident;
     p->p_slptime = 0;
@@ -282,7 +282,7 @@ wakeup (register caddr_t chan)
 restart:
     for (q = qp; (p = *q); ) {
         if (p->p_stat != SSLEEP && p->p_stat != SSTOP)
-            panic("wakeup");
+            panic("K18");
         if (p->p_wchan==chan) {
             p->p_wchan = 0;
             *q = p->p_link;
@@ -331,7 +331,7 @@ setrun (register struct proc *p)
     case SRUN:
     case SZOMB:
     default:
-        panic("setrun");
+        panic("K19");
         return;
 
     case SSTOP:
@@ -435,7 +435,7 @@ loop:
 #ifdef DIAGNOSTIC
     for (p = qs; p; p = p->p_link)
         if (p->p_stat != SRUN)
-            panic ("swtch SRUN");
+            panic ("K20");
 #endif
     pp = NULL;
     q = NULL;
@@ -491,7 +491,7 @@ setrq (register struct proc *p)
 
         for (q = qs;q != NULL;q = q->p_link)
             if (q == p)
-                panic("setrq");
+                panic("K21");
     }
 #endif
     p->p_link = qs;
@@ -519,7 +519,7 @@ remrq (register struct proc *p)
                 q->p_link = p->p_link;
                 goto done;
             }
-        panic("remrq");
+        panic("K22");
     }
 done:
     splx(s);

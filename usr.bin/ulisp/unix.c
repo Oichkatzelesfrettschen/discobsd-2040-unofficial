@@ -59,7 +59,7 @@
 #endif
 
 /*
- * Bytes of C stack kept clear of the workspace on DiscoBSD, where the
+ * Bytes of C stack kept clear of the workspace on GizmoBSD, where the
  * break and the stack share one window, and the part of them eval() leaves
  * unused as it recurses: the garbage collector, the printer and the system
  * calls run below the deepest eval() frame.

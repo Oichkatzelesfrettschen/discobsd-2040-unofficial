@@ -120,7 +120,7 @@ done
 
 # The compilers, read from share/mk/sys.mk through a directory that
 # includes it; the root Makefile carries neither.
-REALPREFIX=$(bmake MACHINE="$MACHINE" -C lib -V GCCPREFIX)
+REALPREFIX=$(bmake MACHINE="$MACHINE" -C lib -v GCCPREFIX)
 [ -n "$REALPREFIX" ] || { echo "warning-census: GCCPREFIX is empty; not run" >&2; exit 1; }
 [ -x "$REALPREFIX-gcc" ] || { echo "warning-census: $REALPREFIX-gcc absent; not run" >&2; exit 1; }
 # shellcheck disable=SC2016

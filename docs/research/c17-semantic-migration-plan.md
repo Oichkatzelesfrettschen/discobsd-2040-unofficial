@@ -134,12 +134,13 @@ next independent row starts.
 | 14 | Remaining maintained system | Finite standards/source denominators and shipped closure | Per-family feasibility and deciding experiments for filesystems, terminals, signals, networking, realtime, threads, native C, optional languages, host tools and hardware/persistence ownership |
 
 The [declaration census](libc-declaration-census.md) supplies the shared-ABI
-selection frontier across all tracked root headers, the installed root subset,
+selection frontier across tracked root headers, the installed include tree,
 four feature modes and both time widths. Public C names and linker identities
-remain separate. Standalone/macro differences, uninstalled termios declarations,
-legacy regex signatures and libc/Tcl environment overlaps retain deciding
-actions. The census preserves every API row as unreviewed; final export
-selection and runtime ownership remain implementation requirements.
+remain separate. The staged scan preserves header diagnostics, standalone
+and combined observations, and include and readline installer ownership.
+Kernel and user declaration domains, legacy regex signatures, and libc/Tcl
+environment overlaps retain deciding actions. The census leaves every API
+selection and runtime ownership open.
 
 Each row expands through requirement facets, caller closure, donor comparison,
 calibrated behavior tests, complete implementation, clean rebuild, matched
@@ -344,8 +345,13 @@ header/provider comparison and callable-math gaps for the export-selection
 queue. Whole-header coverage and semantic acceptance remain open.
 The [native-call veneer record](native-call-veneers.md) establishes a calibrated
 instruction mechanism and the requirement to preserve canonical function
-pointers while redirecting branches. Automatic final-link insertion, stable
-slots, and shared-format emission remain the next native-linker dependencies.
+pointers while redirecting branches. The diagnostic native linker inserts veneers, binds
+process objects and emits a versioned requirement for the measured compact
+ELF. The cross converter carries the same record from a file-only ELF program
+header, and the host packer preserves it under the header CRC. The
+[compact slot and state record](xip-shared-libc/slot-identity.md) gives the
+qualified inputs and replay commands. Production numbering, installed
+provider selection and pre-commit kernel admission remain open.
 
 `c17-shipped-build-baseline.md` records the implemented capture/closure/resource
 foundation, first captured at `e7040aa1` and re-recorded at `3626ccf3`. Its
@@ -737,7 +743,7 @@ Source: `bsd-workspace-directory-stream-c17.md`.
 | Tier | T1: syscall user-pointer boundary |
 | Native input | No |
 | Contract | User paths use `copyin`; kernel-owned paths keep `copystr`; every kernel initialization states its origin; operation-only resets preserve the pathname and its origin |
-| Invariants | An invalid pointer or a missing NUL at the process-window boundary returns `EFAULT`; an in-range terminator at the boundary succeeds; no terminator within `MAXPATHLEN` returns `ENOENT` |
+| Invariants | An invalid pointer or a missing NUL at the process-window boundary returns `EFAULT`; an in-range terminator at the boundary succeeds; no terminator within `MAXPATHLEN` returns `ENAMETOOLONG` |
 | Falsifier | Direct user copying, a dropped reset origin, a changed caller origin or pathname, a direct field write, or an unexpected caller fails its calibrated oracle |
 | Gates | `check-namei-user-path` (finite caller inventory plus strict-C17 address and undefined-behavior sanitizers), clean PICO and PICO_UART dependency/resource captures |
 | Resources | PICO kernel flash is unchanged; PICO_UART kernel flash decreases eight bytes; both SRAM maps, all shipped programs, packed-root occupancy, native artifacts and archive selections are unchanged. Fourteen affected objects retain identical sections, symbols and static frames; both `vfs_vnops.c` objects lose four text bytes while retaining data, BSS and static frames |

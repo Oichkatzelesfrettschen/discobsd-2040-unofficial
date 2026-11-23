@@ -1,7 +1,7 @@
 #!/bin/sh
 # Calibration for "tools/report-nightly-failure.sh --failed": each case
 # writes a jobs document in the GitHub REST shape and compares the printed
-# list. A passing run must print nothing, since the caller closes the issue
+# list. A passing run must print zero lines, since the caller closes the issue
 # on an empty list, and a job that ended any other way must print.
 set -eu
 

@@ -6,7 +6,7 @@ PROG=		aout_header_test
 check:		${PROG}
 		./${PROG}
 
-${PROG}:	${PROG}.c ../../sys/sys/exec_aout.h
+${PROG}:	${PROG}.c ../../sys/sys/exec_aout.h ../../sys/sys/exec_xip.h
 		${HOSTCC} -std=c99 -Wall -Wextra -Werror -o $@ ${PROG}.c
 
 all:		check

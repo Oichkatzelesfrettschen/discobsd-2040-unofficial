@@ -15,6 +15,9 @@
 #include <sys/lcdgfx.h>
 #include <sys/lcdcons.h>
 #include <sys/wait.h>
+#include <sys/sysctl.h>
+#include <machine/cpu.h>
+#include <machine/picocalcvar.h>
 #include <sgtty.h>
 #include <time.h>
 #endif
@@ -78,29 +81,54 @@ read_icon(void *ctx,int app,int row,uint16_t *out)
     for(i=0;i<24;i++) out[i]=(uint16_t)(raw[i*2]|raw[i*2+1]<<8);
     return 0;
 }
+#ifdef MZ_BOARD
+/* The console runs the panel at COLMOD 0x55; each open of /dev/lcdgfx resets
+ * it to 0x66 (18 bits a pixel) and the last close restores 0x55. The desktop
+ * sends RGB565 bands, so the open sets 0x55 again: two wire bytes a pixel. */
 static int
-write_band(void *ctx,int y,const uint16_t *data)
+open_display(void)
+{
+    struct lcdg_colmod cm;
+    int fd=open("/dev/lcdgfx",O_WRONLY);
+    if(fd<0) return -1;
+    cm.fmt=LCDG_COLMOD_RGB565;
+    if(ioctl(fd,LCDG_COLMOD,&cm)<0) { close(fd); return -1; }
+    return fd;
+}
+#endif
+/*
+ * Send columns [xlo, xhi) (MZ_XUNIT-pixel units) of the 8 rows at y. The
+ * board opens one window of that width and writes it row by row from the
+ * 320-column band buffer. The PPM sink writes the same columns at the same
+ * offsets, so the file holds the last range written to every pixel.
+ */
+static int
+write_band(void *ctx,int y,const uint16_t *data,int xlo,int xhi)
 {
     struct backend *b=ctx;
+    int x0=xlo*MZ_XUNIT,w=(xhi-xlo)*MZ_XUNIT,j;
 #ifdef MZ_BOARD
-    struct lcdg_window w;
-    memset(&w,0,sizeof(w));
-    w.x=0; w.y=(unsigned short)y; w.w=320; w.h=8; w.fmt=LCDG_WIN_RGB565;
-    if(ioctl(b->display,LCDG_WINDOW,&w)<0) return -1;
-    return transfer(b->display,(void *)data,5120,1);
+    struct lcdg_window win;
+    memset(&win,0,sizeof(win));
+    win.x=(unsigned short)x0; win.y=(unsigned short)y;
+    win.w=(unsigned short)w; win.h=8; win.fmt=LCDG_WIN_RGB565;
+    if(ioctl(b->display,LCDG_WINDOW,&win)<0) return -1;
+    for(j=0;j<8;j++)
+        if(transfer(b->display,(void *)(data+j*MZ_W+x0),w*2,1)<0) return -1;
+    return 0;
 #else
     unsigned char rgb[960];
-    int i,j;
     unsigned v;
-    if(lseek(b->display,15L+y*960L,SEEK_SET)<0) return -1;
+    int i;
     for(j=0;j<8;j++) {
-        for(i=0;i<320;i++) {
-            v=data[j*320+i];
+        for(i=0;i<w;i++) {
+            v=data[j*MZ_W+x0+i];
             rgb[i*3]=(unsigned char)(((v>>11)*255+15)/31);
             rgb[i*3+1]=(unsigned char)((((v>>5)&63)*255+31)/63);
             rgb[i*3+2]=(unsigned char)(((v&31)*255+15)/31);
         }
-        if(transfer(b->display,rgb,sizeof(rgb),1)<0) return -1;
+        if(lseek(b->display,15L+(y+j)*960L+x0*3L,SEEK_SET)<0) return -1;
+        if(transfer(b->display,rgb,w*3,1)<0) return -1;
     }
     return 0;
 #endif
@@ -127,6 +155,113 @@ files(struct mz *s)
     s->nfiles=1;
     strcpy(s->files[0],"Directory API: native backend");
 #endif
+}
+#ifdef MZ_BOARD
+/*
+ * The machdep.picocalc light nodes. Any user reads them; the kernel takes a
+ * write from root alone (__sysctl() in sys/kern/kern_sysctl.c), so another
+ * user's change goes through backlight(1), which the backlight closure
+ * installs setuid root. The vfork child points its output at /dev/null,
+ * because the tty is in raw mode under the desktop, and drops the display
+ * and artwork descriptors before the exec.
+ */
+static int
+light_node(int which,int *level,int writing)
+{
+    int mib[3];
+    size_t len=sizeof(*level);
+    mib[0]=CTL_MACHDEP; mib[1]=CPU_PICOCALC;
+    mib[2]=which==MZ_KEYS?CPU_PICOCALC_KBD_BACKLIGHT:CPU_PICOCALC_LCD_BACKLIGHT;
+    if(writing) return sysctl(mib,3,NULL,NULL,level,sizeof(*level));
+    if(sysctl(mib,3,level,&len,NULL,0)<0) return -1;
+    return len==sizeof(*level)?0:-1;
+}
+static int
+light_get(int which,int *level)
+{
+    return light_node(which,level,0);
+}
+static const char *
+light_set(int which,int level)
+{
+    char arg[4];
+    int pid,reaped,wait_status,fd;
+    if(light_node(which,&level,1)==0) return NULL;
+    if(errno!=EPERM) return "Light refused by the kernel";
+    snprintf(arg,sizeof(arg),"%d",level);
+    pid=vfork();
+    if(pid==0) {
+        fd=open("/dev/null",O_WRONLY);
+        if(fd>=0) { dup2(fd,1); dup2(fd,2); if(fd>2) close(fd); }
+        if(backend.display>=0) close(backend.display);
+        close(backend.assets);
+        execl("/usr/bin/backlight","backlight",which==MZ_KEYS?"kbd":"lcd",arg,(char *)0);
+        _exit(127);
+    }
+    if(pid<0) return "No process for backlight(1)";
+    do reaped=wait(&wait_status);
+    while(reaped!=pid && (reaped>=0 || errno==EINTR));
+    if(reaped!=pid || !WIFEXITED(wait_status)) return "backlight(1) did not finish";
+    if(WEXITSTATUS(wait_status)==127) return "backlight(1) is not installed";
+    return WEXITSTATUS(wait_status)?"backlight(1) refused the level":NULL;
+}
+#else
+/*
+ * The development and QEMU builds keep the two levels in this stand-in,
+ * which conditions a write as the controller's firmware does (backlight.ino): the
+ * screen at a multiple of 16 within 16-240, the keys at a multiple of 32,
+ * 0 below 32. The screen starts at 160, the level /etc/rc sets at boot.
+ */
+static int model_light[2]={160,0};
+static int
+light_get(int which,int *level)
+{
+    *level=model_light[which];
+    return 0;
+}
+static const char *
+light_set(int which,int level)
+{
+    if(which==MZ_KEYS) {
+        level=level/MZ_KEYS_STEP*MZ_KEYS_STEP;
+        if(level<MZ_KEYS_STEP) level=0;
+    } else {
+        level=level/MZ_SCREEN_STEP*MZ_SCREEN_STEP;
+        if(level<MZ_SCREEN_STEP) level=MZ_SCREEN_STEP;
+    }
+    model_light[which]=level;
+    return NULL;
+}
+#endif
+/* Read both lights; mark Settings when a level differs from the shown one. */
+static void
+lights(struct mz *s)
+{
+    int i,v;
+    for(i=0;i<2;i++) {
+        if(light_get(i,&v)<0) v=-1;
+        if(v!=s->light[i]) { s->light[i]=v; mz_all(s); }
+    }
+}
+/* Write the levels Left and Right asked for, then show what was kept. */
+static void
+flush_lights(struct mz *s)
+{
+    const char *failure=NULL,*why;
+    int i,last=-1;
+    if(s->light_want[MZ_SCREEN]<0 && s->light_want[MZ_KEYS]<0) return;
+    for(i=0;i<2;i++) if(s->light_want[i]>=0) {
+        why=light_set(i,s->light_want[i]);
+        if(why) failure=why;
+        else last=i;
+        s->light_want[i]=-1;
+    }
+    lights(s);
+    if(failure) snprintf(s->status,sizeof(s->status),"%s",failure);
+    else if(last>=0 && s->light[last]>=0)
+        snprintf(s->status,sizeof(s->status),"%s light %d",
+            last==MZ_KEYS?"Keyboard":"Screen",s->light[last]);
+    mz_all(s);
 }
 static void
 calculate(struct mz *s)
@@ -176,8 +311,11 @@ save_note(const char *path)
 static void
 apply(int key,const char *note_path)
 {
+    int was=state.active;
     if(key==MZ_SAVE) { if(state.active==1)save_note(note_path); return; }
-    if(key==MZ_REFRESH) { files(&state); mz_all(&state); return; }
+    if(key==MZ_REFRESH) { files(&state); lights(&state); mz_all(&state); return; }
+    /* The keyboard's own shortcuts change the levels behind the desktop. */
+    if(key==MZ_TICK && state.active==4 && !state.menu) lights(&state);
     if(state.active==3 && (key=='\n'||key=='\r')) { calculate(&state); return; }
     if(state.active==0 && !state.menu) {
         if(key==MZ_UP && state.file_cursor>0)state.file_cursor--;
@@ -206,6 +344,7 @@ apply(int key,const char *note_path)
         }
     }
     mz_action(&state,key);
+    if(state.active==4 && was!=4) lights(&state);
 }
 #ifdef MZ_BOARD
 static int
@@ -255,7 +394,7 @@ board_loop(struct mz_io *io,const char *note_path)
                 }
                 if(pid>0) do reaped=wait(&wait_status);
                     while(reaped!=pid && (reaped>=0 || errno==EINTR));
-                backend.display=open("/dev/lcdgfx",O_WRONLY);
+                backend.display=open_display();
                 /* A tty whose foreground group changed during the shell
                  * keeps the modes its new owner set. */
                 if(backend.display<0 || ioctl(0,TIOCGPGRP,&pgrp)<0 ||
@@ -271,6 +410,9 @@ board_loop(struct mz_io *io,const char *note_path)
                 mz_all(&state);
             } else apply(key,note_path);
         }
+        /* One write per light for the whole batch of keys. */
+        if(state.light_want[MZ_SCREEN]>=0 || state.light_want[MZ_KEYS]>=0)
+            flush_lights(&state);
         now=time(NULL);
         if(now>before) { state.ticks+=(unsigned)(now-before-1); apply(MZ_TICK,note_path); }
         before=now;
@@ -310,7 +452,7 @@ main(int argc,char **argv)
         return 1;
     }
 #ifdef MZ_BOARD
-    backend.display=open("/dev/lcdgfx",O_WRONLY);
+    backend.display=open_display();
     note_path=argv[2];
 #else
     backend.display=open(argv[2],O_CREAT|O_TRUNC|O_RDWR,0600);
@@ -342,6 +484,7 @@ main(int argc,char **argv)
 #else
     for(i=3;i<argc&&!status;i++) {
         apply(atoi(argv[i]),note_path);
+        flush_lights(&state);
         if(mz_render(&state,&io)<0)status=1;
     }
     if(argc==3&&!status) {
@@ -353,6 +496,7 @@ main(int argc,char **argv)
                 line[n]=0;n=0;
                 if(!strcmp(line,"quit"))break;
                 apply(atoi(line),note_path);
+                flush_lights(&state);
                 if(mz_render(&state,&io)<0 || write(1,"frame\n",6)!=6)status=1;
             } else if(n<15)line[n++]=ch;
             else {status=1;break;}

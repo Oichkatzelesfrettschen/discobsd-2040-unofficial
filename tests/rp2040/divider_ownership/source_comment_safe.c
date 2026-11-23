@@ -1,7 +1,7 @@
 /*
  * Positive control for the source scan: every divider register named here
  * is named in a comment or a rejected-lookalike position, and the verifier
- * must report no source finding. The kernel needs this because
+ * must report zero source findings. The kernel needs this because
  * sys/arch/rp2040/rp2040/mpu.c states which registers the boot ROM's
  * fdiv_n writes -- DIV_UDIVIDEND, DIV_UDIVISOR and DIV_QUOTIENT -- while
  * programming an MPU region rather than dividing.

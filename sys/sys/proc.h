@@ -218,7 +218,7 @@ void schedcpu (caddr_t arg);
 /*
  * The main loop of the scheduling process. No return.
  */
-void sched (void);
+__dead void sched (void);
 
 /*
  * Create a new process -- the internal version of system call fork.
@@ -243,7 +243,7 @@ void remrq (struct proc *p);
 /*
  * Exit the process.
  */
-void exit (int rv);
+__dead void exit (int rv);
 
 /*
  * Swap I/O.
@@ -346,7 +346,7 @@ void userret(int, time_t);
 #define SSWAP       0x0008  /* save area flag */
 #define P_TRACED    0x0010  /* process is being traced */
 #define P_WAITED    0x0020  /* another tracing flag */
-                /* 0x0040     unused */
+#define P_TEXTDIRTY 0x0040  /* text written in core; swap keeps it */
 #define P_SINTR     0x0080  /* sleeping interruptibly */
 #define SVFORK      0x0100  /* process resulted from vfork() */
 #define SVFPRNT     0x0200  /* parent in vfork, waiting for child */

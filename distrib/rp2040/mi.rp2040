@@ -160,7 +160,7 @@ major 3
 minor 2
 #
 # The temporary devices carve extents from raw swap on TFALLOC (dev/swap.c).
-# fsck uses temp0 for its tables on a large root; temp1 and temp2 have no
+# fsck uses temp0 for its tables on a large root; temp1 and temp2 lack a
 # consumer on this root and are kept for programs that ask for them.
 #
 cdev /dev/temp0
@@ -174,7 +174,7 @@ major 4
 minor 2
 #
 # No /dev/klog: cdevsw major 5 is the kernel message log, which the PICO
-# kernel does not build (LOG_ENABLED is unset), and the root ships no
+# kernel does not build (LOG_ENABLED is unset), and the root leaves out
 # dmesg. The USB console's transmit ring carries the boot messages.
 #
 
@@ -315,6 +315,13 @@ pack /usr/bin/picofetch
 #closure picotop
 pack /usr/bin/picotop
 #endclosure picotop
+# backlight(1) writes the machdep.picocalc light nodes, which the kernel
+# accepts from root only, so it runs setuid root; mkmanifest.py requires
+# the mode in every profile that selects the closure.
+#closure backlight
+pack /usr/bin/backlight
+mode 04755
+#endclosure backlight
 pack /usr/bin/sed
 pack /usr/bin/grepbox
 pack /usr/bin/find
@@ -473,7 +480,7 @@ target /sbin/adminbox
 # this tree lacked, dispatched the same way as box and sysbox; the
 # names below are hard links. See sbin/textbox/Makefile and
 # sys/arch/rp2040/doc/research/posix-tools.md. mkfifo builds but is not
-# shipped: the kernel has no FIFO support, so the node it makes passes
+# shipped: the kernel lacks FIFO support, so the node it makes passes
 # nothing through. look and deroff (Seventh Edition Unix, Caldera
 # ancient-Unix grant) join the same box; see
 # sys/arch/rp2040/doc/research/v7-tools.md.

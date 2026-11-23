@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -86,7 +98,7 @@
  * a byte. With SPO and SPH set the words follow without a gap (2.3.13,
  * page 2-15), and the panel still samples SDA on the rising edge of SCL
  * (page 94), since the second edge of a clock that idles high is the
- * rising one. Chip select is a GPIO, so the frame signal reaches no pin.
+ * rising one. Chip select is a GPIO, so the frame signal stays off the pins.
  * LCD_SPI_MODE0 keeps the gapped format for a comparison build.
  */
 #ifdef LCD_SPI_MODE0
@@ -116,18 +128,26 @@
 #define	SPI_REG(off)		PC_REG32(SPI1_BASE + (off))
 
 /*
- * Sixteen colors, R, G, B. The console sends them as RGB565 (COLMOD 55h),
- * two bytes a pixel: five bits of red and blue and six of green, which the
- * controller widens to its eighteen-bit memory. 0-7 are the SGR 30-37
- * colors, 8-15 their bold variants.
+ * Sixteen colors, R, G, B, sent as RGB565 (COLMOD 55h). 0-7 are the SGR
+ * 30-37 colors, 8-15 their bold variants, so bold default text is entry 15
+ * in place of entry 7. Each entry is its RGB565 word widened. The panel
+ * stores six bits per channel with the low bit of red and blue clear, so
+ * white shows as 251, 255, 251 (PICOCALC.md). Colors 1-8 and 9-15 stay
+ * apart under normal vision and protanopia, deuteranopia and tritanopia
+ * simulation on those shown values. The storage is measured; two elements are
+ * assumptions: code 63 as full scale, scaled by 255/63 (the gate requires the
+ * bounds under bit replication and under rounding, which differ on six
+ * entries) and the sRGB curve as the code-to-light transfer. Entry 8 is neutral gray
+ * because SGR 90 is dim text. The bounds and their check are in
+ * tools/check_console_palette.py.
  */
 const u_char lcd_palette[16][3] = {
-	{   0,   0,   0 }, { 205,   0,   0 }, {   0, 205,   0 },
-	{ 205, 205,   0 }, {  60,  90, 238 }, { 205,   0, 205 },
-	{   0, 205, 205 }, { 200, 200, 200 },
-	{ 127, 127, 127 }, { 255,  60,  60 }, {  60, 255,  60 },
-	{ 255, 255,  60 }, { 100, 120, 255 }, { 255,  60, 255 },
-	{  60, 255, 255 }, { 255, 255, 255 },
+	{   0,   0,   0 }, { 206,  97,  24 }, { 132, 227, 140 },
+	{ 214, 182,   8 }, {  99, 113, 239 }, { 189, 121, 189 },
+	{  74, 186, 239 }, { 189, 190, 189 }, { 132, 130, 132 },
+	{ 206, 130,  66 }, { 181, 251, 156 }, { 247, 195,  16 },
+	{ 115, 138, 239 }, { 189, 154, 198 }, { 132, 211, 255 },
+	{ 255, 255, 255 },
 };
 
 /*
@@ -165,7 +185,7 @@ static const u_char init_seq[] = {
  * The frame rate. FRMCTR1 (B1h, page 219) takes FRS[3:0] and DIVA[1:0] in
  * its first parameter and RTNA[4:0] in its second, and gives the normal
  * mode frame rate as 10^7 / ((168 + RTNA + 32 (15 - FRS)) (480 + VFP + VBP)).
- * BPC (B5h, page 222) has no documented reset value, so a frame table
+ * BPC (B5h, page 222) lacks a documented reset value, so a frame table
  * writes VFP = VBP = 2 (and HBP = 4), the values its table lists, which
  * makes the second factor 484; B5h precedes SLPOUT as page 223 requires.
  * FRAME_SET builds a table from its fields and asserts at compile time
@@ -249,6 +269,9 @@ spi_clock(u_int scr)
 
 static u_int lcd_power_mode;		/* LCDG_PWR_* in force. */
 static u_int lcd_power_pending;		/* A mode change may have begun. */
+#ifdef LCD_BLANK
+static u_int lcd_slpout_at;		/* pc_micros() | 1 of st7365p_wake()'s SLPOUT. */
+#endif
 #endif
 
 /* Send a command byte; the caller holds chip select low. */
@@ -375,7 +398,7 @@ lcd_set_top(int prow)
 /*
  * The pixel primitives of lcdgfx.c. A transfer is lcd_gfx_window(), the
  * pixel bytes and lcd_gfx_end(); chip select stays low in between, so no
- * other drawer may touch the panel meanwhile (lcdterm.c draws nothing while
+ * other drawer may touch the panel meanwhile (lcdterm.c stops drawing while
  * lcdgfx.c owns it, and st7365p_abort() ends a transfer a fault abandoned).
  */
 void
@@ -663,6 +686,11 @@ lcd_gfx_power(unsigned mode)
 			lcd_select();
 		}
 	}
+#ifdef LCD_BLANK
+	/* st7365p_wake() waits 5 ms, not page 163's 120 ms before SLPIN. */
+	if (mode == LCDG_PWR_SLEEP && st7365p_sleep_early())
+		mdelay(120);
+#endif
 	if (mode != LCDG_PWR_ON)
 		lcd_command(enter[mode]);
 	lcd_deselect();
@@ -672,6 +700,57 @@ lcd_gfx_power(unsigned mode)
 	/* st7365p_abort() wakes the panel while any mode but on may hold. */
 	lcd_power_pending = mode != LCDG_PWR_ON;
 }
+
+#ifdef LCD_BLANK
+/*
+ * The console blanker's commands (lcdcons.c), each sent alone with the
+ * gap after it that page 163 or 165 requires before the next command:
+ * 5 ms. lcd_power_pending is set before SLPIN and stays set while the
+ * panel sleeps, so a fault in or after it finds st7365p_abort() waking the
+ * panel for the report; it clears only after SLPOUT's 5 ms.
+ */
+void
+st7365p_sleep(void)
+{
+	lcd_power_pending = 1;
+	lcd_select();
+	lcd_command(CMD_SLPIN);
+	lcd_deselect();
+	lcd_power_mode = LCDG_PWR_SLEEP;
+	mdelay(5);
+}
+
+void
+st7365p_wake(void)
+{
+	lcd_power_pending = 1;
+	lcd_select();
+	lcd_command(CMD_SLPOUT);
+	lcd_deselect();
+	mdelay(5);
+	lcd_slpout_at = pc_micros() | 1;
+	lcd_power_mode = LCDG_PWR_ON;
+	lcd_power_pending = 0;
+}
+
+/*
+ * Whether SLPIN would come within page 163's 120 ms of st7365p_wake()'s
+ * SLPOUT; every other SLPOUT waits 120 ms after itself. Zero means
+ * st7365p_wake() has yet to run. Once in each 71-minute wrap of
+ * pc_micros() it answers yes for nothing, which costs one needless wait.
+ */
+int
+st7365p_sleep_early(void)
+{
+	/*
+	 * lcd_slpout_at can stand 1 us past the SLPOUT, so the time is taken
+	 * from 1 us before it: the difference stays forward, and the wait it
+	 * asks for runs at most 1 us longer than page 163's 120 ms.
+	 */
+	return lcd_slpout_at != 0 &&
+	    pc_micros() - (lcd_slpout_at - 1) <= 120000U;
+}
+#endif /* LCD_BLANK */
 
 /*
  * The LCDG_DITHER probe (sys/lcdgfx.h). COLMOD 77h is the register's 24-bit
@@ -707,7 +786,7 @@ lcd_gfx_dither(int on)
 /*
  * The panel register test (doc/PANELTEST.md): register sets compiled from
  * paneltest_sets.h and a readback of the controller's read commands. Only
- * lcdgfx.c calls these, with /dev/lcdgfx open, so lcdterm draws nothing and
+ * lcdgfx.c calls these, with /dev/lcdgfx open, so lcdterm stops drawing and
  * no other transfer is in flight.
  */
 #include <sys/errno.h>

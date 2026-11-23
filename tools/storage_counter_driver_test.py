@@ -19,7 +19,7 @@ class StorageCounterDriverTest(unittest.TestCase):
         return path
 
     def test_detached_make_does_not_inherit_parent_jobserver_flags(self):
-        with tempfile.TemporaryDirectory(prefix="discobsd-storage-driver-") as name:
+        with tempfile.TemporaryDirectory(prefix="gizmobsd-storage-driver-") as name:
             directory = Path(name)
             invocation_log = directory / "make-environment.log"
             make = self.write_tool(

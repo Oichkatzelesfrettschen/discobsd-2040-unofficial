@@ -30,7 +30,7 @@
 #define _NEWLIB_SHIM_UCHAR_H_
 
 /*
- * The newlib that hosts the qemu-user variants has no <uchar.h>.  This
+ * The newlib that hosts the qemu-user variants lacks <uchar.h>.  This
  * stand-in sits last on the include path of those builds and declares the
  * four functions against newlib's own mbstate_t, so the tree's members
  * and the fixture translate there as they do against a hosting library

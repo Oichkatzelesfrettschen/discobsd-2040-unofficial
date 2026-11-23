@@ -34,7 +34,7 @@ win.c that moves or duplicates a site fails here instead of silently
 producing an unmutated "mutant". The output files are win_NAME.mutant.c for
 win.c, inp_NAME.mutant.c for win_input.c and dev_NAME.mutant.c for
 win_input_dev.c, lcd_NAME.mutant.c for win_lcdgfx.c and wgt_NAME.mutant.c for
-win_widget.c; the five baselines carry no fault and must pass the gate, which
+win_widget.c; the five baselines are fault-free and must pass the gate, which
 calibrates the harness against a known-good input. The font header include
 is rewritten to a bare name so the copy builds away from lib/libwin.
 """
@@ -53,9 +53,31 @@ MUTATIONS = (
     ),
     ("baseline", "", ""),
     (
+        "same_title_damages",
+        "\tif (title_same(win, title))\n\t\treturn 0;\n",
+        "\tif (0 && title_same(win, title))\n\t\treturn 0;\n",
+    ),
+    (
+        "same_title_ignores_end",
+        "\treturn w->title[i] == '\\0';\n}",
+        "\treturn 1;\n}",
+    ),
+    (
+        "same_title_short_cut",
+        "title[i] != '\\0' && i < WIN_TITLE_MAX - 1;\n\t    i++)\n\t\tif",
+        "title[i] != '\\0' && i < WIN_TITLE_MAX - 2;\n\t    i++)\n\t\tif",
+    ),
+    (
+        "same_title_after_make_room",
+        "\tif (title_same(win, title))\n\t\treturn 0;\n"
+        "\tif (make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n",
+        "\tif (make_room(s, WIN_DAMAGE_CALL) < 0)\n\t\treturn -1;\n"
+        "\tif (title_same(win, title))\n\t\treturn 0;\n",
+    ),
+    (
         "dropped_destroy_damage",
         "\twin->used = 0;\n\tdamage_shown(s, win);",
-        "\twin->used = 0;",
+        "\twin->used = 0;\n\t(void)damage_shown;",
     ),
     (
         "dropped_move_damage",
@@ -64,8 +86,33 @@ MUTATIONS = (
     ),
     (
         "dropped_raise_damage",
-        "\t\ts->z[s->nwin - 1] = (unsigned char)j;\n\t\tdamage_shown(s, win);",
-        "\t\ts->z[s->nwin - 1] = (unsigned char)j;",
+        "\t\tdamage_crossed(s, j, have, &box, follow);\n",
+        "\t\t(void)have;\n\t\tdamage_crossed(s, j, 0, &box, 0);\n",
+    ),
+    (
+        "dropped_lower_damage",
+        "\tdamage_crossed(s, j, have, &box, pick >= 0 && pick != j);\n",
+        "\t(void)have;\n\tdamage_crossed(s, j, 0, &box, 0);\n",
+    ),
+    (
+        "raise_damages_the_whole_window",
+        "\t\tdamage_crossed(s, j, have, &box, follow);\n",
+        "\t\t(void)have;\n\t\tdamage_shown(s, win);\n",
+    ),
+    (
+        "crossed_reads_the_wrong_side",
+        "have = crossed_box(s, j, i + 1, s->nwin, &box);",
+        "have = crossed_box(s, j, 0, i, &box);",
+    ),
+    (
+        "title_left_out_of_the_box",
+        "\t\tdamage_crossed(s, j, have, &box, follow);\n",
+        "\t\tdamage_crossed(s, j, have, &box, 0);\n",
+    ),
+    (
+        "crossed_ignores_hidden",
+        "\t\tif (s->wins[s->z[k]].hidden)\n\t\t\tcontinue;\n",
+        "",
     ),
     (
         "overflow_loses_damage",
@@ -96,6 +143,40 @@ MUTATIONS = (
         "z_order_reversed",
         "\t\tfor (i = 0; i < s->nwin; i++)\n\t\t\tpaint_window(",
         "\t\tfor (i = s->nwin - 1; i >= 0; i--)\n\t\t\tpaint_window(",
+    ),
+    (
+        # The (5,5) move must merge and the far corner pair must stay apart.
+        "cost_compare_inverted",
+        "\t\t\t\tif (rect_cost(s, &box) <=\n",
+        "\t\t\t\tif (rect_cost(s, &box) >\n",
+    ),
+    (
+        # The break-even pair of run_cost needs the window command term.
+        "cost_strip_term_dropped",
+        "return (long)s->bpp * w * h + (long)WIN_CMD_BYTES * strips;",
+        "return (long)s->bpp * w * h + (long)WIN_CMD_BYTES * strips * 0;",
+    ),
+    (
+        # The break-even pair merges at 2 bytes a pixel and splits at 3.
+        "cost_bpp_ignored",
+        "return (long)s->bpp * w * h + (long)WIN_CMD_BYTES * strips;",
+        "return (long)(s->bpp | 3) * w * h + (long)WIN_CMD_BYTES * strips;",
+    ),
+    (
+        # A divisor that is not a whole number of rows: 5120 / 34 is 150.6 and
+        # repaint sends 150 rows a strip, so a rectangle 22x128 and one 51x245
+        # that overlap stay apart; the unfloored count merges them.
+        "cost_strips_not_floored",
+        "rows = (long)WIN_STRIP_BYTES / w;\n\tstrips = (h + rows - 1) / rows;",
+        "rows = 0;\n\tstrips = (h * w + WIN_STRIP_BYTES - 1) / WIN_STRIP_BYTES + rows;",
+    ),
+    (
+        # The pair [10,110)x[0,100) and [0,120)x[50,150) costs 34,044 bytes at
+        # bpp 2 once the first is trimmed to 50 rows and 44,055 untrimmed; the
+        # 36,044-byte box wins only against the untrimmed sum.
+        "cost_vs_untrimmed_sum",
+        "\t\t\t    (rect_trim(&n, e) || rect_trim(e, &n))) {",
+        "\t\t\t    0 && (rect_trim(&n, e) || rect_trim(e, &n))) {",
     ),
     (
         "strip_overrun",
@@ -466,6 +547,23 @@ LCD_MUTATIONS = (
         "bits_sent_as_index",
         "\twin.fmt = LCDG_WIN_BITS;",
         "\twin.fmt = LCDG_WIN_INDEX;",
+    ),
+    (
+        # The model refuses pixels sent before LCDG_COLMOD 0x55.
+        "colmod_not_sent",
+        "\tif (ioctl(st->fd, LCDG_COLMOD, &cm) < 0)\n\t\treturn -1;\n",
+        "\t(void)cm;\n\t(void)st;\n",
+    ),
+    (
+        "colmod_wrong_format",
+        "cm.fmt = LCDG_COLMOD_RGB565;",
+        "cm.fmt = LCDG_COLMOD_RGB666;",
+    ),
+    (
+        # run_cost expects the 2-byte pixel price after the call.
+        "colmod_bpp_not_recorded",
+        "\ts->bpp = WIN_BPP_RGB565;\n",
+        "\ts->bpp = WIN_BPP_DEFAULT;\n",
     ),
 )
 

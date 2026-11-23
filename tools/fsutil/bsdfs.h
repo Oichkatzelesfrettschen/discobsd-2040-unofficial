@@ -212,7 +212,7 @@ int fs_triple_indirect_block_free (fs_t *fs, unsigned int bno, int nblk);
 int fs_directory_scan (fs_inode_t *inode, char *dirname,
     fs_directory_scanner_t scanner, void *arg);
 void fs_dirent_pack (unsigned char *data, fs_dirent_t *dirent);
-void fs_dirent_unpack (fs_dirent_t *dirent, unsigned char *data);
+int fs_dirent_unpack (fs_dirent_t *dirent, const unsigned char *data, unsigned room);
 
 int fs_file_create (fs_t *fs, fs_file_t *file, const char *name, int mode);
 int fs_file_open (fs_t *fs, fs_file_t *file, const char *name, int wflag);

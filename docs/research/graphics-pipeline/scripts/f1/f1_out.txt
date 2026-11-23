@@ -1,0 +1,8 @@
+handle 1; logical page 0 shown at E000h and E400h (two physical pages, one storage)
+control  same window, dst above src, conv overlap    len  512 status 00h  bytes differing from the buffered result:    0
+control  same window, dst below src, conv overlap    len  512 status 00h  bytes differing from the buffered result:    0
+cross    E000->E400, storage dst above src (+256)    len  512 status 00h  bytes differing from the buffered result:  256
+cross    E400->E000, storage dst above src (+256)    len  512 status 00h  bytes differing from the buffered result:  256
+control  cross, storage dst below src (-256)         len  512 status 00h  bytes differing from the buffered result:    0
+control  cross, +256 but len 256 (one chunk)         len  256 status 00h  bytes differing from the buffered result:    0
+cross    +128 shift, len 1024                        len  768 status 00h  bytes differing from the buffered result:  256

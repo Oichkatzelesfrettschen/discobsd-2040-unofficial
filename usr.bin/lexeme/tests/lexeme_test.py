@@ -64,6 +64,13 @@ def check(cond, what):
 
 
 class Screen:
+    # An escape sequence the program writes can reach the master in two reads
+    # (a pty hands over what one write left, and macOS in pieces of a few
+    # hundred bytes), so a sequence that ends with the data fed so far is kept
+    # and completed by the next feed.
+    ESC_SEQ = re.compile(rb"\x1b(\[[0-9;?]*[A-Za-z@]|[()][0B]|.)")
+    ESC_PARTIAL = re.compile(rb"\x1b(\[[0-9;?]*|[()])?$")
+
     def __init__(self):
         self.cells = [[" "] * COLS for _ in range(ROWS)]
         self.attrs = [[0] * COLS for _ in range(ROWS)]
@@ -71,14 +78,20 @@ class Screen:
         self.acs = False
         self.sgr = 0
         self.raw = bytearray()
+        self.pending = b""
 
     def feed(self, data):
         self.raw.extend(data)
+        data = self.pending + data
+        self.pending = b""
         i = 0
         while i < len(data):
             b = data[i]
             if b == 0x1B:
-                m = re.compile(rb"\x1b(\[[0-9;?]*[A-Za-z@]|[()][0B]|.)").match(data, i)
+                if self.ESC_PARTIAL.match(data, i):
+                    self.pending = data[i:]
+                    break
+                m = self.ESC_SEQ.match(data, i)
                 if m is None:
                     break
                 self.esc(m.group(1))
@@ -137,6 +150,13 @@ def default_signals():
     for sig in (signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM):
         signal.signal(sig, signal.SIG_DFL)
 
+
+
+# spill_open() in lexeme_buf.c opens its temporary file in $TMPDIR, and falls
+# back to /tmp when the name is longer than 48 bytes. A directory that does not
+# exist makes the spill fail; it has to be short, or a long temporary path (the
+# per-user directory of macOS) selects /tmp and the spill succeeds.
+NO_SPILL_DIR = "/nonexistent/lexeme-spill"
 
 class Session:
     def __init__(self, binary, args=(), cwd=None, env=None):
@@ -648,7 +668,7 @@ def t_replace_failure(b, td):
     # stays on screen.
     path = os.path.join(td, "r.txt")
     write(path, b"abc " * 200)
-    s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
+    s = Session(b, [path], env={"TMPDIR": NO_SPILL_DIR})
     menu(s, b"r")
     s.send(b"abc", b"\t", b"Q" * 90, b"\t", b"n", b"\r")
     check(s.has("Replace failed"), "failed replacement not reported")
@@ -852,7 +872,13 @@ def t_signal_restore(b, td):
     for sig in (signal.SIGTERM, signal.SIGHUP):
         s = Session(b, [path])
         s.proc.send_signal(sig)
-        rc = s.proc.wait(timeout=10.0)
+        # The handler writes the reset sequences to the terminal; a pty whose
+        # master is not read (macOS holds about one screen) blocks that write
+        # until the test reads, so the master is read while the process ends.
+        deadline = time.monotonic() + 10.0
+        while s.proc.poll() is None and time.monotonic() < deadline:
+            s.pump(0.2, 0.05)
+        rc = s.proc.wait(timeout=1.0)
         s.pump()
         check(rc == -sig, "exit status %r after %s" % (rc, sig.name))
         check(
@@ -886,7 +912,7 @@ def t_select_replace(b, td):
     # in memory: a deletion of three bytes stages them and an 8-byte run map
     # (11), and the replacement needs one more for the typed K.
     path = os.path.join(td, "w.txt")
-    s = Session(b, [path], env={"TMPDIR": os.path.join(td, "nodir")})
+    s = Session(b, [path], env={"TMPDIR": NO_SPILL_DIR})
     typed = b"q" * 8178 + b"XYZ"
     type_text(s, typed)
     s.send(b"\x1b[1;2D" * 3, b"K")
@@ -963,7 +989,26 @@ def t_bufcore(b, td):
     check(r.returncode == 0 and "buf_test: PASS" in r.stdout, "buf_test: " + r.stdout[-400:])
 
 
+def t_emulator_split_sequence(b, td):
+    # Known-bad for the screen model: escape sequences cut at every byte of
+    # their length must give the screen of the same bytes fed whole.
+    data = b"ab\x1b[1mCD\x1b[0m\x1b[3;5Hxy\x1b(0q\x1b(Bz"
+    whole = Screen()
+    whole.feed(data)
+    for cut in range(1, len(data)):
+        split = Screen()
+        split.feed(data[:cut])
+        split.feed(data[cut:])
+        check(
+            split.text() == whole.text() and split.attrs == whole.attrs,
+            "screen differs when the sequences are cut at byte %d" % cut,
+        )
+    check(whole.row(0).startswith("abCD"), "whole feed wrong: %r" % whole.row(0))
+    check(whole.attrs[0][2] & 1 and not whole.attrs[2][4] & 1, "attributes wrong")
+
+
 TESTS = [
+    t_emulator_split_sequence,
     t_bufcore,
     t_docfmt,
     t_format,

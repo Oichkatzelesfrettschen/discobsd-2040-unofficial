@@ -1,7 +1,8 @@
 #!/bin/sh
 # Gate for the loader composite: tools/picocalc/mkloaderuf2.py (the builder)
 # and sys/arch/rp2040/dev/fat32tail.c (the locator the kernel will call to
-# find the root image in the tail of DISCOBSD.UF2 on a FAT32 card).
+# find the root image in the tail of GIZMOBSD.UF2, or its former name
+# DISCOBSD.UF2, on a FAT32 card).
 #
 #   check.sh LIBHSAOUT
 #
@@ -18,14 +19,16 @@
 # Known-good volumes: the composite in the root directory and in a
 # subdirectory, its name in lower and upper case, on all three cluster
 # sizes, behind a root directory that spans several clusters; a volume that
-# starts at a nonzero sector; a root directory copy that takes precedence
-# over a subdirectory copy; a deleted directory and a volume label that
-# carry the name; an entry stored in lower case; a live FAT other than the
-# first. Known-bad volumes make each error the locator reports: not FAT32
+# starts at a nonzero sector; the former name alone, in the root directory
+# and in a subdirectory; a deleted directory, a deleted second file and a
+# volume label that carry the name; an entry stored in lower case; a live
+# FAT other than the first. Known-bad volumes make each error the locator reports: not FAT32
 # (FAT16, exFAT, a zeroed sector, thirteen BPB images damaged in eleven fields), a failed read
 # at every read the walk makes, an absent file, a file whose clusters are
 # not one run (made by filling a volume, freeing two holes and writing a file
-# larger than either), a damaged UF2 head, a tail that is empty, short or not
+# larger than either), two matching files (both names in one directory, in
+# two subdirectories, in the root and a subdirectory, one name twice), a
+# damaged UF2 head, a tail that is empty, short or not
 # whole sectors, a tail without the file-system magic, chains that loop,
 # leave the volume or end early, and sixteen sibling directories that share
 # one long chain (the search's read budget). A seeded run damages sectors the walk reads
@@ -33,7 +36,8 @@
 # undefined-behavior sanitizers.
 #
 # Then mutants of the locator must fail: no contiguity check, a case-sensitive
-# name compare, no subdirectory search, a head without the 32 KiB roundup, no
+# name compare, no subdirectory search, an ignored match count, a missing
+# former name, a head without the 32 KiB roundup, no
 # magic check, a cluster base one cluster off, and the other single-point
 # edits listed below. Calibration: the shipped source passes and each mutant
 # fails. The locator also compiles strict C17 with the host compiler and,
@@ -209,10 +213,10 @@ echo "fat32tail: builder and locator share the head alignment $header_align"
 fixtures uf2 471 "$work/k471.uf2"
 printf 'decoy\n' >"$work/decoy.txt"
 
-# build_composite ROOT: $work/discobsd.uf2 from the kernel and the root image.
+# build_composite ROOT: $work/gizmobsd.uf2 from the kernel and the root image.
 build_composite()
 {
-	builder -o "$work/discobsd.uf2" "$work/k471.uf2" "$1" || fail "builder on $1"
+	builder -o "$work/gizmobsd.uf2" "$work/k471.uf2" "$1" || fail "builder on $1"
 }
 
 # put IMAGE LOCAL PATH, mkdir IMAGE PATH: msdosfs commands that must succeed.
@@ -277,9 +281,9 @@ for geometry in 512:1:70000 4k:8:600000 32k:64:4194900; do
 			volume "$label" "$spc" "$sectors"
 			decoys "$image"
 			if [ "$casing" = lower ]; then
-				file=discobsd.uf2
+				file=gizmobsd.uf2
 			else
-				file=DISCOBSD.UF2
+				file=GIZMOBSD.UF2
 			fi
 			if [ "$place" = root ]; then
 				path=/$file
@@ -289,7 +293,7 @@ for geometry in 512:1:70000 4k:8:600000 32k:64:4194900; do
 				mkd "$image" /pico1-apps
 				path=/pico1-apps/$file
 			fi
-			put "$image" "$work/discobsd.uf2" "$path"
+			put "$image" "$work/gizmobsd.uf2" "$path"
 			"$msdosfs" df "$image" >"$work/df.out"
 			grep -q " cluster $((spc * 512)) " "$work/df.out" ||
 			    fail "$label: cluster size is not $((spc * 512)): $(cat "$work/df.out")"
@@ -305,16 +309,16 @@ echo "fat32tail: 12 volumes of 512 B, 4 KiB and 32 KiB clusters hold a 16 MiB ro
 # ---- base volumes for the damaged variants ----
 
 build_composite "$work/root512.img"
-cp "$work/discobsd.uf2" "$work/small.uf2"
+cp "$work/gizmobsd.uf2" "$work/small.uf2"
 volume base-root 1 70000
 decoys "$work/base-root.img"
-put "$work/base-root.img" "$work/small.uf2" /discobsd.uf2
+put "$work/base-root.img" "$work/small.uf2" /gizmobsd.uf2
 volume base-apps 1 70000
 decoys "$work/base-apps.img"
 mkd "$work/base-apps.img" /aaa
 put "$work/base-apps.img" "$work/decoy.txt" /aaa/decoy.txt
 mkd "$work/base-apps.img" /pico1-apps
-put "$work/base-apps.img" "$work/small.uf2" /pico1-apps/discobsd.uf2
+put "$work/base-apps.img" "$work/small.uf2" /pico1-apps/gizmobsd.uf2
 for base in base-root base-apps; do
 	oracle check "$work/$base.img" 0 >"$work/oracle.out" || fail "$base: $(cat "$work/oracle.out")"
 	kind_is "$work/$base.img" 0 contiguous
@@ -352,7 +356,7 @@ variant nf-root-cluster-1 base-root "error notfat32" bpb 44 4 1
 variant nf-root-cluster-high base-root "error notfat32" bpb 44 4 0x0FFFFFF0
 variant nf-exfat base-root "error notfat32" exfat-like
 "$msdosfs" newfs "$work/fat16.img" 20000 16 >/dev/null || fail "newfs FAT16"
-put "$work/fat16.img" "$work/small.uf2" /discobsd.uf2
+put "$work/fat16.img" "$work/small.uf2" /gizmobsd.uf2
 oracle check "$work/fat16.img" 0 >"$work/oracle.out" || fail "FAT16 volume: $(cat "$work/oracle.out")"
 add_case nf-fat16 "$work/fat16.img" 0 "error notfat32"
 head -c 4096 /dev/zero >"$work/zero.img"
@@ -371,16 +375,16 @@ kind_is "$work/absent-empty.img" 0 absent
 add_case absent-empty "$work/absent-empty.img" 0 "error absent"
 volume absent-decoys 1 70000
 decoys "$work/absent-decoys.img"
-put "$work/absent-decoys.img" "$work/small.uf2" /DISCOBSD.UF3
-put "$work/absent-decoys.img" "$work/small.uf2" /DISCOBS.UF2
-put "$work/absent-decoys.img" "$work/small.uf2" /DISCOBSDX.UF2
-mkd "$work/absent-decoys.img" /discobsd.uf2
+put "$work/absent-decoys.img" "$work/small.uf2" /GIZMOBSD.UF3
+put "$work/absent-decoys.img" "$work/small.uf2" /GIZMOBS.UF2
+put "$work/absent-decoys.img" "$work/small.uf2" /GIZMOBSDX.UF2
+mkd "$work/absent-decoys.img" /gizmobsd.uf2
 mkd "$work/absent-decoys.img" /aaa
 mkd "$work/absent-decoys.img" /aaa/bbb
-put "$work/absent-decoys.img" "$work/small.uf2" /aaa/bbb/discobsd.uf2
+put "$work/absent-decoys.img" "$work/small.uf2" /aaa/bbb/gizmobsd.uf2
 kind_is "$work/absent-decoys.img" 0 absent
 add_case absent-decoys "$work/absent-decoys.img" 0 "error absent"
-variant absent-deleted base-root "error absent" delete-entry DISCOBSDUF2
+variant absent-deleted base-root "error absent" delete-entry GIZMOBSDUF2
 variant absent-label base-root "error absent" file-attr 0x08
 variant absent-directory base-root "error absent" file-attr 0x10
 
@@ -424,11 +428,11 @@ add_case aliased-chains-in-budget "$work/aliased-100.img" 0 "error absent"
 
 # UF2 head, tail and magic: files the builder refuses, put in a blank volume.
 volume blank 1 70000
-# blank_with LABEL FILE EXPECT: a copy of the blank volume holding FILE as /discobsd.uf2.
+# blank_with LABEL FILE EXPECT: a copy of the blank volume holding FILE as /gizmobsd.uf2.
 blank_with()
 {
 	fixtures shift "$work/blank.img" "$work/b-$1.img" 0
-	put "$work/b-$1.img" "$2" /discobsd.uf2
+	put "$work/b-$1.img" "$2" /gizmobsd.uf2
 	add_case "$1" "$work/b-$1.img" 0 "$3"
 }
 # composite_case LABEL KIND EXPECT: EXPECT "oracle" asks the oracle for the extent.
@@ -438,7 +442,7 @@ composite_case()
 	expect=$3
 	if [ "$expect" = oracle ]; then
 		fixtures shift "$work/blank.img" "$work/b-$1.img" 0
-		put "$work/b-$1.img" "$work/comp.bin" /discobsd.uf2
+		put "$work/b-$1.img" "$work/comp.bin" /gizmobsd.uf2
 		add_case "$1" "$work/b-$1.img" 0 "$(ok_extent "$work/b-$1.img" 0 "$work/root512.img")"
 		return
 	fi
@@ -466,19 +470,57 @@ blank_with uf2head-tiny-file "$work/tiny.bin" "error uf2head"
 blank_with uf2head-empty-file "$work/empty.bin" "error uf2head"
 composite_case control-good good oracle
 
-# Two copies: the root directory's wins over a subdirectory's, and a deleted
-# directory's copy is not seen.
+# Two matching files fail closed wherever they lie, and a deleted
+# directory's copy is not counted. The former name DISCOBSD.UF2 is found
+# alone and counts toward the same total as the new name.
 fixtures shift "$work/blank.img" "$work/priority.img" 0
-put "$work/priority.img" "$work/small.uf2" /discobsd.uf2
+put "$work/priority.img" "$work/small.uf2" /gizmobsd.uf2
 mkd "$work/priority.img" /pico1-apps
-builder -o "$work/discobsd.uf2" "$work/k471.uf2" "$work/root1024.img" || fail "builder on root1024"
-put "$work/priority.img" "$work/discobsd.uf2" /pico1-apps/discobsd.uf2
-add_case priority-root-first "$work/priority.img" 0 "$(ok_extent "$work/priority.img" 0 "$work/root512.img")"
+builder -o "$work/gizmobsd.uf2" "$work/k471.uf2" "$work/root1024.img" || fail "builder on root1024"
+put "$work/priority.img" "$work/gizmobsd.uf2" /pico1-apps/gizmobsd.uf2
+kind_is "$work/priority.img" 0 ambiguous
+add_case ambiguous-same-name-root-and-subdirectory "$work/priority.img" 0 "error ambiguous"
+fixtures shift "$work/blank.img" "$work/old-name.img" 0
+put "$work/old-name.img" "$work/small.uf2" /discobsd.uf2
+kind_is "$work/old-name.img" 0 contiguous
+add_case old-name-alone-root "$work/old-name.img" 0 "$(ok_extent "$work/old-name.img" 0 "$work/root512.img")"
+fixtures shift "$work/blank.img" "$work/old-name-apps.img" 0
+mkd "$work/old-name-apps.img" /pico1-apps
+put "$work/old-name-apps.img" "$work/small.uf2" /pico1-apps/DISCOBSD.UF2
+kind_is "$work/old-name-apps.img" 0 contiguous
+add_case old-name-alone-subdirectory "$work/old-name-apps.img" 0 "$(ok_extent "$work/old-name-apps.img" 0 "$work/root512.img")"
+fixtures shift "$work/blank.img" "$work/both-names.img" 0
+put "$work/both-names.img" "$work/small.uf2" /gizmobsd.uf2
+put "$work/both-names.img" "$work/small.uf2" /discobsd.uf2
+kind_is "$work/both-names.img" 0 ambiguous
+add_case ambiguous-both-names-one-directory "$work/both-names.img" 0 "error ambiguous"
+fixtures shift "$work/blank.img" "$work/names-two-dirs.img" 0
+mkd "$work/names-two-dirs.img" /aaa
+mkd "$work/names-two-dirs.img" /pico1-apps
+put "$work/names-two-dirs.img" "$work/small.uf2" /aaa/discobsd.uf2
+put "$work/names-two-dirs.img" "$work/small.uf2" /pico1-apps/gizmobsd.uf2
+kind_is "$work/names-two-dirs.img" 0 ambiguous
+add_case ambiguous-names-two-subdirectories "$work/names-two-dirs.img" 0 "error ambiguous"
+fixtures shift "$work/blank.img" "$work/name-root-old-apps.img" 0
+put "$work/name-root-old-apps.img" "$work/small.uf2" /discobsd.uf2
+mkd "$work/name-root-old-apps.img" /pico1-apps
+put "$work/name-root-old-apps.img" "$work/small.uf2" /pico1-apps/gizmobsd.uf2
+kind_is "$work/name-root-old-apps.img" 0 ambiguous
+add_case ambiguous-names-root-and-subdirectory "$work/name-root-old-apps.img" 0 "error ambiguous"
+fixtures shift "$work/blank.img" "$work/ambiguous-deleted.img" 0
+put "$work/ambiguous-deleted.img" "$work/small.uf2" /gizmobsd.uf2
+put "$work/ambiguous-deleted.img" "$work/small.uf2" /discobsd.uf2
+fixtures patch "$work/ambiguous-deleted.img" 0 delete-entry DISCOBSDUF2
+kind_is "$work/ambiguous-deleted.img" 0 contiguous
+add_case deleted-second-name-not-counted "$work/ambiguous-deleted.img" 0 "$(ok_extent "$work/ambiguous-deleted.img" 0 "$work/root512.img")"
+if oracle extent "$work/both-names.img" 0 "$work/root512.img" >"$work/oracle.out"; then
+	fail "the oracle accepted a volume with two matching files"
+fi
 fixtures shift "$work/blank.img" "$work/deleted-dir.img" 0
 mkd "$work/deleted-dir.img" /gone
-put "$work/deleted-dir.img" "$work/small.uf2" /gone/discobsd.uf2
+put "$work/deleted-dir.img" "$work/small.uf2" /gone/gizmobsd.uf2
 mkd "$work/deleted-dir.img" /pico1-apps
-put "$work/deleted-dir.img" "$work/discobsd.uf2" /pico1-apps/discobsd.uf2
+put "$work/deleted-dir.img" "$work/gizmobsd.uf2" /pico1-apps/gizmobsd.uf2
 fixtures patch "$work/deleted-dir.img" 0 delete-entry GONE
 add_case deleted-directory-skipped "$work/deleted-dir.img" 0 "$(ok_extent "$work/deleted-dir.img" 0 "$work/root1024.img")"
 
@@ -502,7 +544,7 @@ head -c $(((free - 4) * 512)) /dev/zero >"$work/fill.bin"
 put "$work/fragmented.img" "$work/fill.bin" /big
 "$msdosfs" rm "$work/fragmented.img" /x1 || fail "rm x1"
 "$msdosfs" rm "$work/fragmented.img" /x2 || fail "rm x2"
-put "$work/fragmented.img" "$work/small.uf2" /discobsd.uf2
+put "$work/fragmented.img" "$work/small.uf2" /gizmobsd.uf2
 kind_is "$work/fragmented.img" 0 fragmented
 add_case fragmented "$work/fragmented.img" 0 "error fragmented"
 
@@ -528,12 +570,12 @@ open(sys.argv[1], "wb").truncate(int(sys.argv[2]) * 512)' "$image" "$sectors"
 			"$mkfs_fat" -F 32 -s "$spc" -S 512 "$image" >/dev/null ||
 			    fail "mkfs.fat $label"
 			if [ "$place" = root ]; then
-				MTOOLS_SKIP_CHECK=1 "$mcopy_tool" -i "$image" "$work/discobsd.uf2" ::discobsd.uf2 ||
+				MTOOLS_SKIP_CHECK=1 "$mcopy_tool" -i "$image" "$work/gizmobsd.uf2" ::gizmobsd.uf2 ||
 				    fail "mcopy $label"
 			else
 				MTOOLS_SKIP_CHECK=1 "$mmd_tool" -i "$image" ::/pico1-apps || fail "mmd $label"
-				MTOOLS_SKIP_CHECK=1 "$mcopy_tool" -i "$image" "$work/discobsd.uf2" \
-				    ::/pico1-apps/DISCOBSD.UF2 || fail "mcopy $label"
+				MTOOLS_SKIP_CHECK=1 "$mcopy_tool" -i "$image" "$work/gizmobsd.uf2" \
+				    ::/pico1-apps/GIZMOBSD.UF2 || fail "mcopy $label"
 			fi
 			if [ -n "$fsck_fat" ]; then
 				"$fsck_fat" -n "$image" >"$work/fsck.out" 2>&1 ||
@@ -557,10 +599,10 @@ fi
 # locator finds the tail.
 kernel_uf2=${FAT32TAIL_KERNEL_UF2:-$topsrc/sys/arch/rp2040/compile/PICOCALC/unix.uf2}
 if [ -f "$kernel_uf2" ]; then
-	builder -o "$work/discobsd.uf2" "$kernel_uf2" "$work/root512.img" ||
+	builder -o "$work/gizmobsd.uf2" "$kernel_uf2" "$work/root512.img" ||
 	    fail "builder rejects $kernel_uf2"
 	volume realkernel 8 600000
-	put "$work/realkernel.img" "$work/discobsd.uf2" /discobsd.uf2
+	put "$work/realkernel.img" "$work/gizmobsd.uf2" /gizmobsd.uf2
 	add_case real-kernel "$work/realkernel.img" 0 "$(ok_extent "$work/realkernel.img" 0 "$work/root512.img")"
 	echo "fat32tail: a real kernel image is a case"
 else
@@ -637,7 +679,7 @@ fi
 echo "fat32tail: the shipped locator passes $ncases cases, a read failure at every read of 4 volumes and 5 damaged-sector runs"
 
 # Each error code is produced by some case.
-for name in io notfat32 absent fragmented uf2head tail nomagic corrupt; do
+for name in io notfat32 absent fragmented uf2head tail nomagic corrupt ambiguous; do
 	grep -q "${tab}error $name\$" "$cases" || fail "no case produces error $name"
 done
 
@@ -707,7 +749,7 @@ PY
 
 mutant no-contiguity-check '\t\tif (next != c + 1)\n' '\t\tif (0)\n'
 mutant case-sensitive-name "if (c >= 'a' && c <= 'z')" 'if (0)'
-mutant no-subdirectory-search 'r = dir_scan(&v, v.root, 1, &f);' 'r = NOENT;'
+mutant no-subdirectory-search 'r = dir_scan(&v, v.root, 1, &f);' 'r = dir_scan(&v, v.root, 0, &f);'
 mutant no-head-roundup 'headsec = (nblocks + FT32_HEAD_SECTORS - 1) &\n\t    ~(unsigned)(FT32_HEAD_SECTORS - 1);' 'headsec = nblocks;'
 mutant no-first-magic-check 'if (le32(v.buf) != FS_MAGIC1)' 'if (0)'
 mutant no-second-magic-check 'if (le32(v.buf + FS_MAGIC2_OFF) != FS_MAGIC2)' 'if (0)'
@@ -731,8 +773,10 @@ mutant deleted-entry-ends-directory 'if (e[0] == DIR_END)' 'if (e[0] == DIR_END 
 mutant label-read-as-file 'if (e[0] == DIR_FREE || (e[11] & ATTR_VOLUME) != 0)' 'if (e[0] == DIR_FREE)'
 mutant directory-matches-name 'if ((e[11] & ATTR_DIR) == 0 && name_match(e)) {' 'if (name_match(e)) {'
 mutant live-fat-ignored 'fatn = (ext & 0x80) != 0 ? (ext & 0x0f) : 0;' 'fatn = (ext & 0) != 0 ? (ext & 0x0f) : 0;'
-mutant subdirectory-before-root 'r = dir_scan(&v, v.root, 0, &f);\n\tif (r == NOENT)\n\t\tr = dir_scan(&v, v.root, 1, &f);' 'r = dir_scan(&v, v.root, 1, &f);\n\tif (r == NOENT)\n\t\tr = dir_scan(&v, v.root, 0, &f);'
-mutant first-subdirectory-only '\t\t\t\t\tif (r != NOENT)\n\t\t\t\t\t\treturn r;\n' '\t\t\t\t\treturn r;\n'
+mutant ambiguity-count-ignored 'if (f->n++ != 0)' 'if (f->n++ != 0 && 0)'
+mutant old-name-not-accepted 'static const char want[2][12] = { "GIZMOBSDUF2", "DISCOBSDUF2" };' 'static const char want[2][12] = { "GIZMOBSDUF2", "ZZZZZZZZZZZ" };'
+mutant new-name-not-accepted 'static const char want[2][12] = { "GIZMOBSDUF2", "DISCOBSDUF2" };' 'static const char want[2][12] = { "ZZZZZZZZZZZ", "DISCOBSDUF2" };'
+mutant first-subdirectory-only '\t\t\t\t\tif (r != FT32_OK)\n\t\t\t\t\t\treturn r;\n' '\t\t\t\t\treturn r;\n'
 mutant volume-start-ignored 'if ((r = bpb(&v, volume_lba)) != FT32_OK)' 'if ((r = bpb(&v, volume_lba & 0)) != FT32_OK)'
 mutant extent-one-sector-short 'out->nsectors = nsect - headsec;' 'out->nsectors = nsect - headsec - 1;'
 mutant extent-one-sector-late 'out->lba = first;' 'out->lba = first + 1;'

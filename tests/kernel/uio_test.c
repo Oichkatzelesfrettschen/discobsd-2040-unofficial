@@ -125,7 +125,7 @@ short_count_stops_mid_segment(void)
 
 /*
  * A residual of zero ends the walk even when the caller offers more bytes,
- * and a count of zero moves nothing. Both are how a caller spells "no room"
+ * and a count of zero moves zero bytes. Both are how a caller spells "no room"
  * and "nothing to do" without a separate return value.
  */
 static void
@@ -245,11 +245,11 @@ spent_segment_list_panics(void)
 {
 	reset(SEGMENTS, UIO_READ);
 	transfer.uio_iovcnt = 0;
-	HK_EXPECT_PANIC("ureadc", call_ureadc_without_segments);
+	HK_EXPECT_PANIC("K15", call_ureadc_without_segments);
 
 	reset(SEGMENTS, UIO_WRITE);
 	transfer.uio_iovcnt = 0;
-	HK_EXPECT_PANIC("uwritec", call_uwritec_without_segments);
+	HK_EXPECT_PANIC("K16", call_uwritec_without_segments);
 }
 
 /*

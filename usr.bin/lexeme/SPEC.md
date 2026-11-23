@@ -1,6 +1,6 @@
 # lexeme: behavior specification
 
-`lexeme` is a clean-room word processor for DiscoBSD that follows the command
+`lexeme` is a clean-room word processor for GizmoBSD that follows the command
 model of Microsoft Word 5.1 for UNIX and adds modern editing modes. This
 document states the behavior the program implements, in this project's own
 words. Its sources are short interface facts (menu names, key bindings,

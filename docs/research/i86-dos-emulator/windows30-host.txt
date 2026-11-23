@@ -1,0 +1,80 @@
+Windows 3.00a on SvarDOS under i86, host build, by hand
+=========================================================
+
+What it shows: Windows 3.00a installs from its floppy disks on a SvarDOS
+hard disk image and runs in real mode on i86's 80286 model, with the
+panel display (the device model of usr.bin/i86/tests/panel.c) and the
+COM1 mouse; with expanded memory (-e and EMS.SYS) it banks into it.
+Class of evidence: host, by hand. No board, no kernel.
+
+Inputs, outside the tree, supplied by the owner:
+
+  Microsoft Windows 3.0a (3.5 720K).7z, the WinWorld set
+    1d5386761a160ff98731cc7dc60e0e6c4aaeedd59043a74d28d2b25ad471ce49
+    742fac3fa592760fadf49af1b724bf24d4c2b4ae3b9d8c902d1421e668de8dae  DISK01.IMG
+    b1d3d1c7d634ed1544857044a6e48e7ca3c32f6dc4507fae0b600fd28d6b9bd3  DISK02.IMG
+    75061195b75e760e7c03f2209540ac140889eef321ae9ba7c3375c4758c9a34a  DISK03.IMG
+    137a9c702769404d6046de7324c728f0bf9713c8e8907e8c2c02ce2b15e0daca  DISK04.IMG
+    5b35ef680d268ab666ed9364bfa16d5cc113d87f89617afcb5a2b5bba16b5d7f  DISK05.IMG
+    631d8cee52f442ea4ec7317f6613b7eefdd4b3c5b68d0ae4b27792656e510674  DISK06.IMG
+    f583dc1ba593eae03adaf57ef90bb497f4684d86f43ce337132ba46d97eaee79  DISK07.IMG
+  svdos-1.44M-disk-1.img (SvarDOS 20250427), as in ctmouse-host.txt
+
+Disk: docs/research/i86-dos-emulator/mkdosdisk.sh with the host build,
+the SvarDOS disk and 32 MB: FAT16, 65 cylinders.
+
+The emulator: the host build of usr.bin/i86 with tests/panel.c in place of
+the device (bmake -C usr.bin/i86 i86-panel) and a scratch change that
+wrote display memory to a file at each panel close, to read the screens;
+the change is not in the tree. Each session ran on a pseudo-terminal,
+real clock, keys typed by a script, floppies changed through Control-].
+
+Setup (i86 -g -c 286 -h c32.img):
+
+  A: changed to DISK01.IMG, "a:", "setup".
+  Setup's DOS part: welcome, directory C:\WINDOWS, then the detected
+  hardware: Computer "MS-DOS or PC-DOS System", Display "CGA", Mouse
+  "Microsoft, or IBM PS/2", Keyboard "PC/XT - Type keyboard (84 keys)",
+  layout US, language English (American), no network. It copies disk 1
+  and asks for disk 2 ("Please insert the: Microsoft Windows 3.0 Disk
+  #2"), changed through the menu.
+  Setup's Windows part, Windows itself in real mode on CGA mode 6: the
+  options "Set up Printers", "Set up Applications Already on Hard Disk"
+  and "Read On-line Documents" cleared with Space and Tab; dialogs ask for
+  disks 3, 4 and 5; then the choice to change CONFIG.SYS and
+  AUTOEXEC.BAT; Program Manager opens. CONFIG.SYS and AUTOEXEC.BAT were
+  left as mkdosdisk.sh wrote them.
+
+Runs:
+
+  "win" without expanded memory: Program Manager, File Manager (drive C:
+  28,928,000 bytes free), Alt menus, the mouse pointer of Windows' own
+  driver. Help, About: "Microsoft Windows Version 3.00a", "Real Mode",
+  "Free Memory...... 393K".
+
+  "win /s": "Your computer cannot run Windows in either standard or 386
+  enhanced mode; enter WIN to run in real mode." The firmware trace shows
+  no call for it: WIN.COM asks DOS (interrupt 2Fh, 4300h) for an XMS
+  driver.
+
+  CONFIG.SYS with DEVICE=C:\EMS.SYS added, i86 -e 2048: at boot "i86
+  expanded memory: 2048 KB"; About: "Real Mode (Large Frame EMS)", "Free
+  Memory...... 615K (203K in EMS)", "Free Expanded Memory...... 1776K".
+  The interrupt 67h calls of that session up to the About box, with a
+  trace build (function, times): 40h x2, 41h x1, 42h x4, 45h x2, 46h x1,
+    47h x5, 48h x3, 4Bh x1, 4Ch x2, 4E00h x1, 4E03h x1, 5001h x33,
+    51h x15, 5800h x1, 5801h x2, 5900h x1, 5901h x1, 5A00h x2, 5A01h x4,
+    5B00h x24, 5B01h x44, 5B02h x2.
+
+Defects found on the way, each fixed before the run above:
+
+  - EMS.SYS lost its request header pointer to function 42h, which returns
+    a count in BX, and DOS took a garbage end address: "undefined
+    instruction at B8FF:0010" at boot.
+  - Windows reallocates handle 0 to its own size (51h) to tell version 4.0
+    from 3.2; the manager refused, and Windows used no expanded memory.
+  - Function 5Bh switched save areas without storing the mapping of the
+    area left; Windows then ran a stale bank, "undefined instruction at
+    C224:CC4D".
+
+Not covered: Microsoft Office 1.0; the kernel and the board; the speed.

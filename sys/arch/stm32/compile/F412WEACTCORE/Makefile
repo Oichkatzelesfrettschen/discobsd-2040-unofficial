@@ -17,8 +17,9 @@ PARAM += -DBUS_KHZ=50000
 PARAM += -DCPU_KHZ=100000
 LDSCRIPT = "STM32F412XE.ld"
 DEBUG = -g
+CONFIG_CKSUM = 3816760318 2350
 #
-# Makefile for DiscoBSD/stm32
+# Makefile for GizmoBSD/stm32
 #
 # DEBUG is set to -g by config if debugging is requested (config -g).
 #
@@ -46,7 +47,7 @@ DEPFLAGS=	-MT $@ -MP -MD -MF .deps/$*.dep
 DEFS=		${INCLUDES} ${PARAM} -DKERNEL ${DEPFLAGS}
 CWARNFLAGS=	-Wall -Werror
 
-# DiscoBSD predates C23, where an empty parameter list means (void) rather
+# GizmoBSD predates C23, where an empty parameter list means (void) rather
 # than an unspecified one. GCC 15 and later default to C23 and reject the
 # driver dispatch in machdep.c, which calls d_init through a pointer
 # declared with no parameters. sys/arch/rp2040/conf pins the same standard
@@ -127,7 +128,8 @@ CFILES = $S/kern/exec_aout.c $S/kern/exec_conf.c $S/kern/exec_elf.c \
 #	${SYSTEM_LD_TAIL}
 SYSTEM_OBJ=	locore0.o locore.o ${OBJS} ioconf.o
 SYSTEM_DEP=	Makefile ioconf.c .WAIT machine sys .deps .WAIT ${SYSTEM_OBJ}
-SYSTEM_LD_HEAD=	sh $S/conf/newvers.sh > vers.c; ${CC} ${CFLAGS} -c vers.c; rm -f $@
+SYSTEM_LD_HEAD=	rm -f $@ vers.o && sh $S/conf/newvers.sh > vers.c.tmp && mv vers.c.tmp vers.c && \
+		${CC} ${CFLAGS} -c vers.c
 SYSTEM_LD=	@echo ${LD} ${LDFLAGS} '$${SYSTEM_OBJ}' vers.o -o $@ ${LDADD}; \
 		${LD} ${LDFLAGS} ${SYSTEM_OBJ} vers.o -o $@ ${LDADD}
 SYSTEM_LD_TAIL=	${SIZE} $@; cp $@ $@.elf; \
@@ -152,6 +154,23 @@ clean-all: clean
 	rm -f *.h ioconf.c swap*.c vers.c
 
 CONFIG_TOOL=	${TOOLBINDIR}/config
+
+# config writes CONFIG_CKSUM, above: the POSIX cksum of the Config it read.
+# The make that runs config has already read this Makefile, so a build that
+# reconfigured here would compile with the PARAM and object lists of the old
+# Config. A Makefile whose CONFIG_CKSUM differs from Config's stops at once,
+# before any recipe runs, unless every goal is clean, clean-all or reconfig;
+# "make reconfig" runs alone. A Config touched but unchanged, as after a
+# checkout, passes, and the rule below regenerates identical files.
+.if make(reconfig) && ${.TARGETS:[#]} != 1
+.error "make reconfig" rewrites this Makefile; run it alone, then the build
+.endif
+.if empty(.TARGETS) || !empty(.TARGETS:Nclean:Nclean-all:Nreconfig)
+_CONFIG_CKSUM!=	cksum < Config
+.if "${_CONFIG_CKSUM}" != "${CONFIG_CKSUM}"
+.error ${.CURDIR}/Config changed since config wrote this Makefile; run "make reconfig", then the build
+.endif
+.endif
 
 reconfig ioconf.c: Config ${CONFIG_TOOL}
 	${CONFIG_TOOL} Config

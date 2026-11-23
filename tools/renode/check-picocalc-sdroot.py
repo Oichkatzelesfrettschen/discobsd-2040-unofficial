@@ -50,9 +50,16 @@ Cases, each a fresh emulator:
   tmp       a card with an 8 MiB type-ba entry in slot 4: rc makes
             a file system on /dev/sd0t and `mount` shows it on /tmp, where
             mkfs's lost+found and a written file are visible; the sdroot
-            case above shows no /tmp mount for a card without the entry
+            case above shows zero /tmp mounts for a card without the entry
   nob7      the same card with its b7 entry retyped 83 stops with the
             panic line naming the missing partition
+  nodiag    the PICOCALC_SD kernel, built without DIAG_STATS: both diag nodes
+            answer "value is not available" over a UART0 login
+  diag      the PICOCALC_SD_DIAG kernel: a login on UART0 reads
+            machdep.diag_stats and machdep.diag_msgbuf, and diag_verdict()
+            judges the metric names against sys/sys/diag_stats.h, the PSRAM
+            probe record, the SD counters, the fault count and the message
+            ring
 
 Renode's SD card model answers CMD58 without CCS at every capacity and
 block size (measured with Renode 1.17.0+20260907gitf1dd1b4af: an 8 GiB
@@ -69,11 +76,17 @@ observations and on altered root device, mount source and flash samples,
 and the gate stops with status 1 unless the good ones pass and every altered
 one fails.
 
+A run of more than one case starts every case at once, each in a child
+process with its own emulator and output directory, and prints each child's
+lines as they arrive behind the case name in brackets; CHECK_PICOCALC_SERIAL=1
+runs them one after another in this process.
+
 The --configured run boots the 160 KiB profile directly, with no loader stamp.
 Its foreign flash starts at 0x10028000. --configured-boot runs the root mount
-and login case alone.
+and login case alone. --configured-diag, for the PICOCALC_SD_DIAG kernel, runs
+that case and the diag case.
 
-Usage: check-picocalc-sdroot.py [--configured | --configured-boot]
+Usage: check-picocalc-sdroot.py [--configured | --configured-boot | --configured-diag]
                                 RENODE KERNEL SDROOT_IMG OUTPUT_DIR
        check-picocalc-sdroot.py --self-test
 KERNEL is a flat unix.bin or a kernel UF2 such as the board image
@@ -86,7 +99,9 @@ import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
+import threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -126,10 +141,11 @@ UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
 # Virtual seconds for the card stage: SPI at 398 kHz through
 # identification, then sector reads of the table and the superblock.
 SD_BUDGET_SECONDS = 60.0
-ROOT_SLICE_SECONDS = 0.1
+DIAG_BUDGET_SECONDS = 60.0
+DIAG_SLICE_SECONDS = 2.0
 
 # Every PicoCalc kernel; the configuration name in parentheses differs.
-BANNER = "DiscoBSD 2.7 (PICOCALC"
+BANNER = "GizmoBSD 0.1.0-alpha (PICOCALC"
 LOADER_ROOT = "root: started by the PicoCalc loader, root on sd0"
 CONFIGURED_ROOT = "root: configured for SD, root on sd0"
 NO_B7_LINE = "panic: root: no partition of type b7 on sd0"
@@ -204,6 +220,137 @@ def root_verdict(root_dev, mount_source, flash_words, start=FLASH_ROOT):
     return failures
 
 
+DIAG_HEADER = os.path.join(HERE, "..", "..", "sys", "sys", "diag_stats.h")
+DIAG_VERSION = 1
+# The shell splits DIAG''END, so the typed echo never carries the marker the
+# command's own output prints on a line of its own.
+DIAG_TYPED_END = "DIAG''END"
+DIAG_END = "DIAGEND"
+# Counters the Renode model leaves at zero on a clean boot: a card that
+# answers every command, a UART0 line without framing errors.
+DIAG_ZERO = ("sd_timeouts", "sd_io_errors", "uart_overruns", "uart_breaks",
+             "uart_parity", "uart_framing", "tty_raw_flushes", "tty_cbreak_drops",
+             "tty_cooked_drops")
+DIAG_RING_SIZE = 1024
+# The boot prints several times the ring, so a read that fills sysctl(8)'s
+# buffer holds close to DIAG_RING_SIZE bytes.
+DIAG_RING_MIN = 1000
+DIAG_ROOT_LINE = "root dev  = (5,3)"
+DIAG_LAST_LINE = "root size = "
+
+
+def diag_metric_names(path=DIAG_HEADER):
+    """Return the metric names of the DIAG_METRICS table in sys/sys/diag_stats.h, in order."""
+    with open(path, encoding="utf-8") as stream:
+        text = stream.read()
+    table = text.split("#define DIAG_METRICS(X)", 1)[1].split("enum diag_metric", 1)[0]
+    return re.findall(r'X\(\w+,\s*"(\w+)"\)', table)
+
+
+def diag_body(text, node):
+    """Return what sysctl printed after "node=" up to the end marker, or None."""
+    start = text.rfind(node + "=")
+    if start < 0:
+        return None
+    body = text[start + len(node) + 1:].replace("\r", "")
+    end = body.find("\n" + DIAG_END)
+    if end < 0:
+        return None
+    return body[:end]
+
+
+def parse_diag_stats(text):
+    """Return (version, faults, [(name, value)]) from the machdep.diag_stats output, or None."""
+    body = diag_body(text, "machdep.diag_stats")
+    if body is None:
+        return None
+    lines = body.split("\n")
+    head = re.fullmatch(r"version (\d+) faults (\d+)", lines[0])
+    if head is None:
+        return None
+    rows = []
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        row = re.fullmatch(r"([a-z_0-9]+) (\d+)", line)
+        if row:
+            rows.append((row.group(1), int(row.group(2))))
+        elif not line.startswith("fault "):
+            rows.append((line.strip(), -1))
+    return int(head.group(1)), int(head.group(2)), rows
+
+
+def parse_diag_msgbuf(text):
+    """Return the machdep.diag_msgbuf string, or None."""
+    return diag_body(text, "machdep.diag_msgbuf")
+
+
+def diag_absent_verdict(stats_reply, ring_reply):
+    """Judge the replies of a kernel built without DIAG_STATS; returns failure messages.
+
+    sysctl(8) answers a node the kernel declines with EOPNOTSUPP as "value is
+    not available", and prints no value."""
+    bad = []
+    for node, reply in (("machdep.diag_stats", stats_reply), ("machdep.diag_msgbuf", ring_reply)):
+        if reply is None:
+            bad.append(f"{node} unread")
+        elif f"{node}: value is not available" not in reply:
+            bad.append(f"{node} on a kernel without DIAG_STATS lacks the refusal")
+        elif f"{node}=" in reply:
+            bad.append(f"{node} on a kernel without DIAG_STATS printed a value")
+    return bad
+
+
+def diag_verdict(stats, ring, names):
+    """Judge the DIAG_STATS read-back of a clean boot; returns failure messages.
+
+    The metric names must equal the header's table in order, which catches a
+    sysctl(8) table or kernel struct that drifted from sys/sys/diag_stats.h.
+    The PSRAM probe must have run (the model carries no PSRAM, so its error
+    count is not judged), the SD driver must have read sectors without a
+    timeout or an IO error, no fault may be recorded, and the ring must hold
+    the last lines of the boot in order and only printable text."""
+    if stats is None:
+        return ["machdep.diag_stats unread"]
+    version, faults, rows = stats
+    bad = []
+    if version != DIAG_VERSION:
+        bad.append(f"diag_stats version {version}, want {DIAG_VERSION}")
+    if [name for name, _ in rows] != names:
+        bad.append(f"diag_stats rows {[name for name, _ in rows]} differ from {names}")
+    values = dict(rows)
+    if faults != 0:
+        bad.append(f"diag_stats records {faults} faults on a clean boot")
+    if values.get("psram_probe_ran") != 1:
+        bad.append("psram_probe_ran is not 1: the PSRAM probe left no record")
+    if values.get("sd_reads", 0) == 0:
+        bad.append("sd_reads is 0 after a boot from the card")
+    if values.get("sd_slowest_us", 0) == 0:
+        bad.append("sd_slowest_us is 0 after sector reads")
+    for name in DIAG_ZERO:
+        if values.get(name) != 0:
+            bad.append(f"{name} is {values.get(name)}, want 0 on a clean boot")
+    if values.get("prints", 0) == 0 or values.get("print_us_max", 0) == 0:
+        bad.append("prints or print_us_max is 0 after the boot printed")
+    if values.get("print_us_max", 0) > values.get("print_us_total", 0):
+        bad.append("print_us_max exceeds print_us_total")
+    if ring is None:
+        bad.append("machdep.diag_msgbuf unread")
+    else:
+        if not DIAG_RING_MIN <= len(ring) < DIAG_RING_SIZE:
+            bad.append(
+                f"diag_msgbuf holds {len(ring)} bytes, want {DIAG_RING_MIN} to {DIAG_RING_SIZE - 1}"
+            )
+        if re.search(r"[^\x20-\x7e\n]", ring):
+            bad.append("diag_msgbuf holds a byte that is not printable text")
+        root = ring.find(DIAG_ROOT_LINE)
+        last = ring.find(DIAG_LAST_LINE)
+        if root < 0 or last < 0 or root > last:
+            bad.append("diag_msgbuf lacks the boot's root dev line before its root size line")
+    return bad
+
+
+
 def self_test():
     """Calibrate root_verdict() and the parsers; returns failure messages."""
     good_words = {a: FOREIGN * 0x01010101 for a in foreign_samples(FLASH_ROOT)}
@@ -250,6 +397,94 @@ def self_test():
     expect("parse tmp mount echoed command", parse_mount_tmp(["$ /dev/sd0t on /tmp"]), None)
     expect("tmp on the card", tmp_verdict("/dev/sd0t", TMP_SOURCE), [])
     expect("no tmp entry, none mounted", tmp_verdict(None, None), [])
+    names = diag_metric_names()
+    if len(names) != 22 or len(set(names)) != 22:
+        failures.append(f"diag_metric_names read {len(names)} names from the header")
+    values = {name: 0 for name in names}
+    values.update(psram_probe_ran=1, psram_probe_err=1, sd_reads=8684, sd_writes=54,
+                  sd_slowest_us=4789, prints=39, print_us_total=942447, print_us_max=386957)
+
+    def stats_text(version=1, faults=0, rows=None, end=True):
+        rows = list(values.items()) if rows is None else rows
+        body = f"version {version} faults {faults}\r\n" + "".join(f"{n} {v}\r\n" for n, v in rows)
+        return "$ sysctl machdep.diag_stats;echo " + DIAG_TYPED_END + "\r\nmachdep.diag_stats=" \
+            + body + ("\r\n" + DIAG_END + "\r\n" if end else "")
+
+    ring_good = "p" * 950 + "\nroot dev  = (5,3)\nswap dev  = (0,8)\nroot size = 131072 kbytes\n"
+
+    def ring_text(text):
+        return ("$ sysctl machdep.diag_msgbuf;echo " + DIAG_TYPED_END + "\r\nmachdep.diag_msgbuf="
+                + text + "\r\n" + DIAG_END + "\r\n")
+
+    def with_value(name, number):
+        return [(n, number if n == name else v) for n, v in values.items()]
+
+    good_stats = parse_diag_stats(stats_text())
+    good_ring = parse_diag_msgbuf(ring_text(ring_good))
+    expect("diag good observations", diag_verdict(good_stats, good_ring, names), [])
+    expect("diag end marker in the typed echo only", parse_diag_stats(stats_text(end=False)), None)
+    swapped = list(values.items())
+    swapped[0], swapped[1] = swapped[1], swapped[0]
+    altered_diag = {
+        "stats unread": (None, good_ring),
+        "ring unread": (good_stats, None),
+        "version 2": (parse_diag_stats(stats_text(version=2)), good_ring),
+        "a fault recorded": (parse_diag_stats(stats_text(faults=1)), good_ring),
+        "metric order": (parse_diag_stats(stats_text(rows=swapped)), good_ring),
+        "metric missing": (parse_diag_stats(stats_text(rows=list(values.items())[:-1])), good_ring),
+        "probe not run": (parse_diag_stats(stats_text(
+            rows=[(n, 0 if n == "psram_probe_ran" else v) for n, v in values.items()])), good_ring),
+        "no sd reads": (parse_diag_stats(stats_text(
+            rows=[(n, 0 if n == "sd_reads" else v) for n, v in values.items()])), good_ring),
+        "sd io error": (parse_diag_stats(stats_text(
+            rows=[(n, 1 if n == "sd_io_errors" else v) for n, v in values.items()])), good_ring),
+        "uart framing": (parse_diag_stats(stats_text(
+            rows=[(n, 1 if n == "uart_framing" else v) for n, v in values.items()])), good_ring),
+        "max above total": (parse_diag_stats(stats_text(
+            rows=[(n, 1 if n == "print_us_total" else v) for n, v in values.items()])), good_ring),
+        "empty ring": (good_stats, ""),
+        "short ring": (good_stats, "root dev  = (5,3)\nroot size = 1 kbytes\n"),
+        "stray stats row": (parse_diag_stats(stats_text(
+            rows=list(values.items()) + [("garbled", 0)])), good_ring),
+        "tty drop": (parse_diag_stats(stats_text(rows=with_value("tty_cooked_drops", 1))),
+                     good_ring),
+        "oversize ring": (good_stats, ring_good + "x" * DIAG_RING_SIZE),
+        "binary ring": (good_stats, ring_good + "\x01"),
+        "ring out of order": (good_stats, "root size = 1 kbytes\nroot dev  = (5,3)\n"),
+        "ring without root": (good_stats, "psram0: not usable\n"),
+    }
+    refusal = "$ sysctl machdep.diag_stats\r\nmachdep.diag_stats: value is not available\r\n"
+    ring_refusal = refusal.replace("diag_stats", "diag_msgbuf")
+    expect("absent nodes refused", diag_absent_verdict(refusal, ring_refusal), [])
+    for label, replies, reason in (
+        ("absent stats unread", (None, ring_refusal), "unread"),
+        ("absent stats answered", (stats_text(), ring_refusal), "lacks the refusal"),
+        ("absent ring answered", (refusal, ring_text(ring_good)), "lacks the refusal"),
+        ("absent with a value", (refusal + "machdep.diag_stats=1\r\n", ring_refusal),
+         "printed a value"),
+    ):
+        got = diag_absent_verdict(*replies)
+        if not any(reason in message for message in got):
+            failures.append(f"diag {label}: {got!r} lacks {reason!r}")
+    # Each altered observation must fail for its own reason.
+    reasons = {
+        "stats unread": "diag_stats unread", "ring unread": "diag_msgbuf unread",
+        "version 2": "version 2", "a fault recorded": "records 1 faults",
+        "metric order": "differ from", "metric missing": "differ from",
+        "probe not run": "psram_probe_ran", "no sd reads": "sd_reads is 0",
+        "sd io error": "sd_io_errors is 1", "uart framing": "uart_framing is 1",
+        "max above total": "exceeds print_us_total", "empty ring": "holds 0 bytes",
+        "short ring": "bytes, want", "stray stats row": "differ from",
+        "tty drop": "tty_cooked_drops is 1",
+        "oversize ring": "bytes, want", "binary ring": "not printable",
+        "ring out of order": "root dev line", "ring without root": "root dev line",
+    }
+    for label, (got_stats, got_ring) in altered_diag.items():
+        got = diag_verdict(got_stats, got_ring, names)
+        if not any(reasons[label] in message for message in got):
+            failures.append(f"diag {label}: {got!r} lacks {reasons[label]!r}")
+    failures += cp.sampling_failures(wait_banner, BANNER + "_DIAG)")
+    failures += cp.sampling_failures(wait_root_device, "root dev  = (5,3)")
     for label, got, want in (
         ("tmp on sd0b", "/dev/sd0b", TMP_SOURCE),
         ("tmp on the PSRAM", "/dev/psram1", TMP_SOURCE),
@@ -324,22 +559,33 @@ def make_card(path, root_img, p3_type, tmp_entry=False, swap_entry=False):
     return sectors * SECTOR
 
 
+def wait_banner(run):
+    """Wait until the banner has been on the panel in some frame.
+
+    The exec chatter of the diagnostic kernel scrolls the banner off the
+    32-row panel within a few tenths of a virtual second of its first frame,
+    so the frames are taken a tenth of a second apart and every frame counts."""
+    return run.wait_seen([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
+
+
+def wait_root_device(run):
+    """Wait until the root device line has been on the panel; return its (major, minor).
+
+    The line and the root size line that follows it stay on the 32-row panel for
+    0.3 virtual seconds before the exec chatter of the diagnostic kernel scrolls
+    them off, so the frames are a tenth of a second apart and every frame counts."""
+    run.wait_until(lambda: parse_root_dev(sorted(run.seen)) is not None, "root device line",
+                   "a root dev line", SD_BUDGET_SECONDS, cp.EARLY_SLICE_SECONDS)
+    return parse_root_dev(sorted(run.seen))
+
+
 def wait_root_lines(run, texts):
     """Wait until every root line has been on the panel in some frame.
 
     The lines need not share a frame: the partition listings that follow
     them scroll a 32-row panel within a fraction of a second, so the frames
     are taken a tenth of a second apart and every frame's lines count."""
-    spent = 0.0
-    while spent < SD_BUDGET_SECONDS:
-        run.advance(ROOT_SLICE_SECONDS)
-        spent += ROOT_SLICE_SECONDS
-        if all(run.saw(text) for text in texts):
-            print(f"check-picocalc: root lines after {run.virtual:.1f} virtual seconds")
-            return True
-    run.fail(f"root lines: {texts!r} not on the panel after {run.virtual:.1f} "
-             "virtual seconds")
-    raise cp.StageFailed("root lines")
+    return run.wait_seen(texts, "root lines", SD_BUDGET_SECONDS)
 
 
 def boot(renode_path, kernel, flash, card, capacity, outdir, start):
@@ -365,18 +611,13 @@ def case_root(renode_path, kernel, flash, root_img, outdir, start, reason):
     try:
         # The banner scrolls off the 32-row panel before the card answers,
         # so the waits run one after the other.
-        run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
+        wait_banner(run)
         wait_root_lines(run, [reason, "root: sd0c", f"sd0: SD 2.0, {capacity // 1024} kbytes"])
         run.snapshot("root")
-        run.wait_until(
-            lambda: parse_root_dev(run.lines) is not None,
-            "root device line",
-            "a root dev line",
-            SD_BUDGET_SECONDS,
-        )
-        root_dev = parse_root_dev(run.lines)
+        root_dev = wait_root_device(run)
         size_line = f"root size = {os.path.getsize(root_img) // 1024} kbytes"
-        run.wait_until(lambda: size_line in run.seen, size_line, size_line, SD_BUDGET_SECONDS)
+        run.wait_until(lambda: size_line in run.seen, size_line, size_line, SD_BUDGET_SECONDS,
+                       cp.EARLY_SLICE_SECONDS)
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")
         run.wait_for_prompt("shell prompt", cp.KEY_BUDGET_SECONDS)
@@ -423,7 +664,7 @@ def case_root(renode_path, kernel, flash, root_img, outdir, start, reason):
 def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
     """The card holds a type-ba entry in slot 4: /etc/rc.rp2040 makes a file
     system on /dev/sd0t and mounts it at /tmp, which then holds files.
-    sdswapattach() finds no PSRAM to widen here (the Renode model has none),
+    sdswapattach() does not find PSRAM to widen here (the Renode model lacks it),
     so the swap size on the PSRAM stays unobserved."""
     os.makedirs(outdir, exist_ok=True)
     card = os.path.join(outdir, "card.img")
@@ -431,7 +672,7 @@ def case_tmp(renode_path, kernel, flash, root_img, outdir, start, reason):
                          swap_entry=start == SD_KERNEL_END)
     renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
     try:
-        run.wait_for([BANNER], "banner", cp.BOOT_BUDGET_SECONDS)
+        wait_banner(run)
         wait_root_lines(run, [reason, "root: sd0c", f"sd0: SD 2.0, {capacity // 1024} kbytes"])
         run.wait_for(["login:"], "login prompt", cp.LOGIN_BUDGET_SECONDS)
         run.type_line("operator")
@@ -525,14 +766,120 @@ def case_nob7(renode_path, kernel, flash, root_img, outdir, start, reason):
     return run.failures
 
 
+def case_diag(renode_path, kernel, flash, root_img, outdir, start, reason, absent=False):
+    """Read machdep.diag_stats and machdep.diag_msgbuf over a UART0 login.
+
+    With absent set the kernel is built without DIAG_STATS and both reads
+    must be refused."""
+    os.makedirs(outdir, exist_ok=True)
+    card = os.path.join(outdir, "card.img")
+    capacity = make_card(card, root_img, 0xB7)
+    renode, run = boot(renode_path, kernel, flash, card, capacity, outdir, start)
+    uart_path = os.path.join(outdir, "uart0.txt")
+
+    def uart():
+        try:
+            with open(uart_path, "rb") as stream:
+                return stream.read().decode("latin1")
+        except OSError:
+            return ""
+
+    def send(text):
+        # The keyboard model drops characters of a long line, so the shell
+        # is driven through UART0, which tty0's getty owns.
+        for byte in (text + "\r").encode("ascii"):
+            renode.command(f"sysbus.uart0 WriteChar {byte:#04x}")
+
+    def ask(command, what):
+        mark = len(uart())
+        send(f"{command};echo {DIAG_TYPED_END}")
+        run.wait_until(lambda: "\n" + DIAG_END in uart()[mark:], what, "its end marker",
+                       DIAG_BUDGET_SECONDS, DIAG_SLICE_SECONDS)
+        return uart()[mark:]
+
+    try:
+        run.wait_until(lambda: "login:" in uart(), "UART0 login prompt", "login:",
+                       cp.LOGIN_BUDGET_SECONDS, DIAG_SLICE_SECONDS)
+        mark = len(uart())
+        send("operator")
+        run.wait_until(lambda: "$ " in uart()[mark:], "UART0 shell prompt", "a prompt",
+                       DIAG_BUDGET_SECONDS, DIAG_SLICE_SECONDS)
+        stats_reply = ask("sysctl machdep.diag_stats", "diag_stats read")
+        ring_reply = ask("sysctl machdep.diag_msgbuf", "diag_msgbuf read")
+        if absent:
+            bad = diag_absent_verdict(stats_reply, ring_reply)
+            for message in bad:
+                run.fail(message)
+            if not bad:
+                print("check-picocalc-sdroot: both diag nodes refused without DIAG_STATS")
+            return run.failures
+        stats = parse_diag_stats(stats_reply)
+        ring = parse_diag_msgbuf(ring_reply)
+        bad = diag_verdict(stats, ring, diag_metric_names())
+        for message in bad:
+            run.fail(message)
+        if not bad:
+            print(f"check-picocalc-sdroot: diag_stats {len(stats[2])} metrics, "
+                  f"{dict(stats[2])['sd_reads']} sector reads, ring {len(ring)} bytes")
+    except cp.StageFailed:
+        pass
+    finally:
+        renode.close()
+    return run.failures
+
+
+def run_cases_in_children(names, flags, args):
+    """Run each named case in its own process, all at once.
+
+    Every case boots its own emulator and writes below its own directory,
+    and one emulator occupies one host thread, so the cases share only the
+    prepared kernel and flash images, which they read. Each child's lines
+    are printed as they arrive, prefixed with the case name, so a caller
+    that bounds the time between output lines sees the progress of every
+    case. Returns the worst exit status.
+    """
+    children = [
+        subprocess.Popen(
+            [sys.executable, "-I", "-u", os.path.abspath(__file__), *flags, "--case", name, *args],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        for name in names
+    ]
+    lock = threading.Lock()
+
+    def relay(name, stream):
+        for raw in stream:
+            text = raw.decode("utf-8", errors="replace").rstrip("\n")
+            with lock:
+                print(f"[{name}] {text}", flush=True)
+
+    relays = [
+        threading.Thread(target=relay, args=(name, child.stdout))
+        for name, child in zip(names, children)
+    ]
+    for thread in relays:
+        thread.start()
+    worst = 0
+    for thread, child in zip(relays, children):
+        thread.join()
+        status = child.wait()
+        worst = max(worst, status if status in (0, 1) else 2)
+    return worst
+
+
 def main(argv):
     boot_only = argv[:1] == ["--configured-boot"]
-    configured = boot_only or argv[:1] == ["--configured"]
+    diag_run = argv[:1] == ["--configured-diag"]
+    configured = boot_only or diag_run or argv[:1] == ["--configured"]
+    flags = argv[:1] if configured else []
     if configured:
         argv = argv[1:]
+    only = None
+    if argv[:1] == ["--case"] and len(argv) >= 2:
+        only = argv[1]
+        argv = argv[2:]
     start = SD_KERNEL_END if configured else FLASH_ROOT
     reason = CONFIGURED_ROOT if configured else LOADER_ROOT
-    if argv == ["--self-test"] or len(argv) == 4:
+    if only is None and (argv == ["--self-test"] or len(argv) == 4):
         failed = self_test()
         for message in failed:
             print(f"check-picocalc-sdroot: self-test FAIL {message}", file=sys.stderr)
@@ -551,8 +898,9 @@ def main(argv):
     os.makedirs(outdir, exist_ok=True)
     kernel = os.path.join(outdir, "unix-boot.bin")
     flash = os.path.join(outdir, "flash-foreign.bin")
-    prepare_kernel(unix_bin, kernel, start)
-    foreign_flash(flash, start)
+    if only is None:
+        prepare_kernel(unix_bin, kernel, start)
+        foreign_flash(flash, start)
     failures = []
     try:
         cases = (
@@ -560,9 +908,28 @@ def main(argv):
                 renode_path, kernel, flash, root_img, d, start, reason)),
             ("tmp", lambda d: case_tmp(renode_path, kernel, flash, root_img, d, start, reason)),
             ("nob7", lambda d: case_nob7(renode_path, kernel, flash, root_img, d, start, reason)),
+            ("diag", lambda d: case_diag(renode_path, kernel, flash, root_img, d, start, reason)),
+            ("nodiag", lambda d: case_diag(
+                renode_path, kernel, flash, root_img, d, start, reason, absent=True)),
         )
-        if boot_only:
-            cases = cases[:1]
+        if diag_run:
+            wanted = ("sdroot", "diag")
+        elif boot_only:
+            wanted = ("sdroot",)
+        else:
+            wanted = ("sdroot", "tmp", "nob7", "nodiag")
+        if only is None:
+            cases = tuple(entry for entry in cases if entry[0] in wanted)
+        if only is not None:
+            cases = tuple(entry for entry in cases if entry[0] == only)
+            if not cases:
+                print(f"check-picocalc-sdroot: no case named {only}", file=sys.stderr)
+                return 2
+        elif len(cases) > 1 and os.environ.get("CHECK_PICOCALC_SERIAL") != "1":
+            status = run_cases_in_children([name for name, _ in cases], flags, argv)
+            if status == 0:
+                print("check-picocalc-sdroot: pass")
+            return status
         for name, case in cases:
             print(f"check-picocalc-sdroot: case {name}", flush=True)
             got = case(os.path.join(outdir, name))
@@ -574,7 +941,8 @@ def main(argv):
         print(f"check-picocalc-sdroot: FAIL {failure}", file=sys.stderr)
     if failures:
         return 1
-    print("check-picocalc-sdroot: pass")
+    if only is None:
+        print("check-picocalc-sdroot: pass")
     return 0
 
 

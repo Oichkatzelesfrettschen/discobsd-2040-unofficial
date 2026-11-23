@@ -1340,7 +1340,7 @@ run_mnemonics(void)
 		if (exp[t].act == 0 && log_lib[0] != '\0')
 			fail("Ctrl-%c activated '%s'", exp[t].letter, log_lib);
 	}
-	/* A disabled or hidden control has no mnemonic; Ctrl-W stays free. */
+	/* A disabled or hidden control lacks a mnemonic; Ctrl-W stays free. */
 	build_world();
 	set_flag_both(7, WGT_F_DISABLED, 1);
 	set_flag_both(8, WGT_F_HIDDEN, 1);
@@ -1360,7 +1360,7 @@ run_mnemonics(void)
 	if (wgt_form_event(&scene, mainwin, &ev, &form) != 1 || strcmp(log_lib, "12:0;") != 0 ||
 	    bar.open)
 		fail("letter x in the File menu logged '%s' open %d", log_lib, bar.open);
-	/* A vetoed activation changes nothing: no toggle, no focus move. */
+	/* A vetoed activation leaves the controls unchanged: no toggle, no focus move. */
 	build_world();
 	focus_both(9);
 	veto_id = 5;
@@ -1454,7 +1454,7 @@ run_bytes(void)
 		focus_both(0);
 		check_all("bytes settled");
 		(void)flush_bytes();
-		/* A state set that changes nothing writes nothing. */
+		/* A state set that leaves the state unchanged writes zero bytes. */
 		wgt_check_set(&form, &c_verbose, 0);
 		wgt_field_move(&form, &f_addr, f_addr.cur);
 		wgt_list_select(&form, &lst, 0);

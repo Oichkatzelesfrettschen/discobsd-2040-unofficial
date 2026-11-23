@@ -57,8 +57,8 @@ MUTANTS = [
     ("gfx.c", "(b >> 7) + (b >> 6 & 1)", "(b >> 7) * 2"),
     (
         "gfx.c",
-        "unsigned pages = mem_rearm(), i, r, y, n;",
-        "unsigned pages = mem_watched, i, r, y, n;",
+        "unsigned pages = mem_rearm(), i, r, y;",
+        "unsigned pages = mem_watched, i, r, y;",
     ),
     ("mem.c", "mem_wmap[(watch_base >> MEM_PGSHIFT) + i] = 0;", "mem_stats.soft += 0;"),
     ("mem.c", "mem_watched |= 1u << i;", "mem_watched |= 1u;"),
@@ -80,8 +80,9 @@ MUTANTS = [
     ),
     (
         "gfx.c",
-        "\t\tmemset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);\n\t}\n\treturn (k != K_TEXT);",
-        "\t\tmemset(bank[1], 0, FIELD / 2);\n\t}\n\treturn (k != K_TEXT);",
+        "\t\tmemset(bank[1], 0, BANK_PAGES << MEM_PGSHIFT);\n"
+        "\t\tmem_watched = 0xffff;\n\t}\n\treturn",
+        "\t\tmemset(bank[1], 0, FIELD / 2);\n\t\tmem_watched = 0xffff;\n\t}\n\treturn",
     ),
     (
         "gfx.c",
@@ -138,6 +139,73 @@ MUTANTS = [
         "if (fd < 0) {\n\t\t(void)kind_set(K_TEXT);",
         "if (fd < 0) {\n\t\tif (bank[1] == NULL)\n\t\t\t(void)kind_set(K_TEXT);",
     ),
+    ("gfx.c", "\t\tif (!edge_black && pointer)\n\t\t\tpointer_draw();", "\t\t(void)pointer;"),
+    (
+        "gfx.c",
+        "\tr.color = 0;\n\t(void)DEV_IOCTL(fd, LCDG_FILL, &r);\n\tif (!pointer)",
+        "\tr.color = 0;\n\tif (!pointer)",
+    ),
+    ("pc.c", "\t\t\tgfx_pointer(mouse_keys);", "\t\t\tgfx_pointer(1);"),
+    ("mem.c", "\t\t(void)unmap(pg);\n\t\tdrop(i);", "\t\tdrop(i);"),
+    ("gfx.c", "#define GFX_DRAIN\t16", "#define GFX_DRAIN\tLINES"),
+    ("gfx.c", "\t\tgraphic_drain(LINES);\n\tgfx_on = 0;", "\t\t(void)0;\n\tgfx_on = 0;"),
+    ("gfx.c", "\t\tmax -= n;\n", "\t\tmax = 0;\n"),
+    (
+        "gfx.c",
+        "\t\tgraphic_drain(GFX_DRAIN);\n}",
+        "\t\tgraphic_drain(GFX_DRAIN);\n\tmemset(owed, 0, sizeof(owed));\n}",
+    ),
+    ("gfx.c", "\t\tdrain_at = (y + n) % LINES;\n", "\t\tdrain_at = 0;\n"),
+    (
+        "gfx.c",
+        "\telse\n\t\tgraphic_refresh();\n}",
+        "\telse {\n\t\tgraphic_refresh();\n\t\tgfx_drain();\n\t}\n}",
+    ),
+    ("gfx.c", "if (key == pal_key)\n\t\treturn;", "if (key == ~pal_key)\n\t\treturn;"),
+    ("gfx.c", "if (!edge_black || stale == 1)", "if (!edge_black)"),
+    ("gfx.c", "all.y0 = edge_black ? GFX_Y0 : 0;", "all.y0 = 0;"),
+    ("gfx.c", "\tstale = 1;\n\tedge_black = 0;", "\tstale = 1;"),
+    ("gfx.c", "\tpal_key = ~0u;\n\t/* Two bytes", "\t/* Two bytes"),
+    (
+        "gfx.c",
+        "\t\tmem_watched = 0xffff;\n\t}\n\treturn (k != K_TEXT);",
+        "\t}\n\treturn (k != K_TEXT);",
+    ),
+    ("gfx.c", "if ((k == K_TEXT || k != kind) && kind_set(k) != 0)", "if (kind_set(k) != 0)"),
+    ("gfx.c", "if (sent == NULL || !BIT(fresh, y))", "if (sent == NULL)"),
+    (
+        "gfx.c",
+        "\tmem_watched = 0xffff;\n\tmemset(fresh, 0, sizeof(fresh));",
+        "\tmem_watched = 0xffff;",
+    ),
+    ("gfx.c", "\t\t\t    COL_BYTES * (n * w + w2) + WIN_BYTES)", "\t\t\t    0)"),
+    ("gfx.c", "if (COL_BYTES * (n + 1) * (hi - lo) >", "if (0 * (n + 1) * (hi - lo) >"),
+    ("gfx.c", "for (b = 80; p[b - 1] == q[b - 1]; b--)", "for (b = 80; 0; b--)"),
+    ("gfx.c", "for (a = 0; a < 80 && p[a] == q[a]; a++)", "for (a = 0; 0; a++)"),
+    ("gfx.c", "sent = bank[1] + (BANK_PAGES << MEM_PGSHIFT);", "sent = bank[1];"),
+    ("main.c", "\t\t\tgfx_plain = 1;", "\t\t\t;"),
+    ("gfx.c", "GFX_Y0 + (y - GFX_Y0 + scroll_rows * 8) % LINES);", "y);"),
+    ("gfx.c", "rd.x = (u_short)(half * LCDG_WIDTH / 2);", "rd.x = 0;"),
+    ("main.c", "\t\t\tgfx_capture_path = optarg;", "\t\t\t(void)optarg;"),
+    ("pc.c", "\tsaved = gfx_capture();\n", "\tsaved = 1;\n"),
+    ("gfx.c", "O_WRONLY | O_CREAT | O_EXCL, 0644", "O_WRONLY | O_CREAT | O_TRUNC, 0644"),
+    ("gfx.c", "GFX_Y0 + (first / cols + scroll_rows) % 25 * 8", "GFX_Y0 + first / cols * 8"),
+    ("gfx.c", "scroll_rows = (scroll_rows + best) % 25;", "scroll_rows = best;"),
+    (
+        "gfx.c",
+        "sc.line = (u_short)(GFX_Y0 + (scroll_rows + best) % 25 * 8);",
+        "sc.line = (u_short)(GFX_Y0 + best * 8);",
+    ),
+    ("gfx.c", "\t\tif (same > most + 1) {", "\t\tif (same > most + 25) {"),
+    (
+        "gfx.c",
+        "\t\tcur_shown = (cur_shown + (25 - best) * cols) % (25 * cols);",
+        "\t\tcur_shown += 0;",
+    ),
+    ("gfx.c", "memmove(shown, shown + row, 24 * row);", "memmove(shown, shown + row, 23 * row);"),
+    ("gfx.c", "scroll_ok = !gfx_plain && DEV_IOCTL", "scroll_ok = DEV_IOCTL"),
+    ("gfx.c", "\t\tscroll_rows = 0;\n\t\tscroll_ok", "\t\tscroll_ok"),
+    ("gfx.c", "\t\tif (!gfx_plain &&", "\t\tif (1 &&"),
 ]
 
 
@@ -331,8 +399,14 @@ def expected(stage, fonts, boot):
         ramp[14 * 80 : 15 * 80] = ramp[15 * 80 : 16 * 80]
         ramp[15 * 80 : 16 * 80] = [(32, 0x2F)] * 80
         return text_frame(fonts, ramp, 80, 20 * 80 + 5)
-    if stage == 8:
+    if stage in (8, 10):
         return cga4_frame(Cga(wide).fields, 0x30)
+    if stage == 12:
+        cells = ramp[80:] + [(32, 7)] * 80
+        cells[1920] = (ord("Z"), 0x1E)
+        return text_frame(fonts, cells, 80, 24 * 80 + 1)
+    if stage == 11:
+        return cga4_frame([bytearray(FIELD), bytearray(FIELD)], 0x30)
     cells = [(32, 7)] * 2000
     for k, ch in enumerate(b"TEXT4"):
         cells[k] = (ch, 7)
@@ -389,8 +463,10 @@ def run(binary, work, keys, extra=(), env=None):
 
 
 def test_stages(binary, work, fonts, boot):
-    for stage in range(10):
-        keys = "%d" % stage + ("x" if stage in (6, 7, 9) else "")
+    tallest = 0
+    for stage in range(13):
+        key = chr(ord("0") + stage)
+        keys = key + ("x" if stage in (6, 7, 9, 10, 11, 12) else "")
         done, closes = run(binary, work, keys)
         what = "panel stage %d" % stage
         if len(closes) != 1:
@@ -401,18 +477,69 @@ def test_stages(binary, work, fonts, boot):
         if counts["colmod"] != 0x55:
             raise Failure("%s: three bytes a pixel on the wire" % what)
         compare(frame, expected(stage, fonts, boot), what)
+        tallest = max(tallest, counts["tallest"])
         if done.stdout:
             raise Failure("%s: %d bytes went to the terminal" % (what, len(done.stdout)))
-        if stage in (6, 7):
+        if stage in (6, 7, 10, 11, 12):
             # The same session ended at the stage's key wait has drawn
-            # everything but the change. The change may cost the scan
-            # lines of the two pages written, 27 of them, or the cells
-            # that differ: the one stored, the two rows the firmware
-            # scrolled and the cursor's old and new places.
-            _, before = run(binary, work, "%d" % stage)
+            # everything but the change. The change may cost the four
+            # pixels of each of the two bytes stored, or the cells that
+            # differ: the one stored, the two rows the firmware scrolled
+            # and the cursor's old and new places; after a scroll of the
+            # whole screen, which moves the controller's scroll start,
+            # the new row and the cursor's old place. Writes that
+            # leave the adapter as it was cost nothing; a mode set that
+            # clears memory costs its lines and no clear of the panel.
+            _, before = run(binary, work, key)
             more = counts["pixels"] - before[0][1]["pixels"]
-            if more != (27 * 320 if stage == 6 else 163 * 32):
+            if more != {6: 2 * 4, 7: 163 * 32, 10: 0, 11: 200 * 320, 12: 81 * 32}[stage]:
                 raise Failure("%s: the change sent %d pixels" % (what, more))
+            more = counts["filled"] - before[0][1]["filled"]
+            if more:
+                raise Failure("%s: the change cleared %d pixels" % (what, more))
+        if stage == 12:
+            # A second scroll moves the scroll start on from the first.
+            _, twice = run(binary, work, key + "xx")
+            ramp = [(v & 255, v >> 8 & 255) for v in (0x4567 + 0x0123 * i for i in range(2000))]
+            cells = ramp[160:] + [(32, 7)] * 160
+            cells[1840] = (ord("Z"), 0x1E)
+            cells[1920] = (ord("Y"), 0x1E)
+            compare(twice[0][0], text_frame(fonts, cells, 80, 24 * 80 + 2), what + ", twice")
+            if twice[0][1]["pixels"] - counts["pixels"] != 81 * 32:
+                raise Failure(
+                    "%s: the second scroll sent %d pixels"
+                    % (what, twice[0][1]["pixels"] - counts["pixels"])
+                )
+            # A mode set after the scrolls draws from the adapter's line 0.
+            _, again = run(binary, work, key + "xxx")
+            cells = [(32, 7)] * 2000
+            cells[0] = (ord("A"), 0x1E)
+            compare(again[0][0], text_frame(fonts, cells, 80, 1), what + ", mode set again")
+            # With -G the scroll redraws every cell that changed.
+            _, plain = run(binary, work, key + "x", extra=["-G"])
+            _, plain0 = run(binary, work, key, extra=["-G"])
+            compare(plain[0][0], frame, "%s with -G" % what)
+            if plain[0][1]["scrolls"]:
+                raise Failure("%s with -G: the scroll start moved" % what)
+            if plain[0][1]["pixels"] - plain0[0][1]["pixels"] <= 81 * 32:
+                raise Failure("%s with -G: the scroll cost no more" % what)
+        if stage == 6:
+            # With -G every line of a written page goes out whole.
+            _, plain = run(binary, work, "6x", extra=["-G"])
+            _, plain0 = run(binary, work, "6", extra=["-G"])
+            compare(plain[0][0], frame, "%s with -G" % what)
+            more = plain[0][1]["pixels"] - plain0[0][1]["pixels"]
+            if more != 27 * 320:
+                raise Failure("%s with -G: the change sent %d pixels" % (what, more))
+        if stage == 4 and counts["filled"] != WIDTH * HEIGHT + 200 * WIDTH:
+            # The first clear after the open covers the whole panel, the
+            # superuser's open keeping the console's screen; the mode set
+            # after the text of the boot clears the adapter's 200 lines.
+            raise Failure("%s: %d pixels cleared" % (what, counts["filled"]))
+    # A mode set redraws all 200 lines; a drain sends at most 16 of them
+    # in one window, so the tallest graphics window is exactly 16 lines.
+    if tallest != 16:
+        raise Failure("graphics windows reached %d lines; a drain sends 16" % tallest)
 
 
 def test_fallbacks(binary, work, fonts, boot):
@@ -441,7 +568,21 @@ def test_fallbacks(binary, work, fonts, boot):
     compare(closes[0][0], expected(3, fonts, boot), "panel with 12 frames")
 
 
-def session(binary, work, steps, env=None):
+def load_ptywait():
+    """tests/ptywait.py, beside this file; the interpreter runs isolated,
+    without the script's directory on its path."""
+    spec = importlib.util.spec_from_file_location(
+        "ptywait", os.path.join(os.path.dirname(os.path.abspath(__file__)), "ptywait.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ptywait = load_ptywait()
+
+
+def session(binary, work, steps, env=None, extra=(), started=None):
     """A session typed at a pseudo-terminal: each step waits for a text
     there or for a close of the panel, then types."""
     base = os.path.join(work, "frame")
@@ -452,12 +593,14 @@ def session(binary, work, steps, env=None):
     shutil.copyfile(os.path.join(work, "panel.img"), image)
     master, slave = pty.openpty()
     child = subprocess.Popen(
-        [binary, "-T", "-g", "-s", os.path.join(work, "page"), "-a", image],
+        [binary, "-T", "-g", "-s", os.path.join(work, "page"), "-a", image, *extra],
         stdin=slave,
         stdout=slave,
         stderr=subprocess.DEVNULL,
         env=dict(os.environ, I86_PANEL=base, **(env or {})),
     )
+    if started:
+        started(child.pid)
     seen = b""
     at = step = 0
     deadline = time.time() + 30
@@ -479,9 +622,10 @@ def session(binary, work, steps, env=None):
             time.sleep(0.3)
             os.write(master, keys)
             step += 1
-        status = child.wait(timeout=5) if step == len(steps) else None
-    except subprocess.TimeoutExpired:
         status = None
+        if step == len(steps):
+            more, status = ptywait.wait_draining(child, master, 5)
+            seen += more
     finally:
         if child.poll() is None:
             child.kill()
@@ -545,6 +689,144 @@ def test_menu(binary, work, fonts, boot):
     compare(closes[0][0], cga4_frame(Cga(fonts[0]).fields, 0x30), "panel lost in a graphics mode")
 
 
+def test_capture(binary, work, fonts, boot):
+    """-P: Control-] reads the panel back into a file before the menu takes
+    it; the file shows the glass, the scroll start undone, and equals the
+    frame the adapter's rules give."""
+    cap = os.path.join(work, "cap.ppm")
+    ramp = [(v & 255, v >> 8 & 255) for v in (0x4567 + 0x0123 * i for i in range(2000))]
+    cells = ramp[80:] + [(32, 7)] * 80
+    cells[1920] = (ord("Z"), 0x1E)
+    scrolled = text_frame(fonts, cells, 80, 24 * 80 + 1)
+    for keys, want, what in (
+        ([b"<", b"x"], scrolled, "a scrolled text screen"),
+        ([b"6"], cga4_frame(Cga(fonts[0]).fields, 0x30), "mode 4"),
+    ):
+        if os.path.exists(cap):
+            os.unlink(cap)
+        plain, closes = session(
+            binary,
+            work,
+            [(b"", k) for k in keys] + [(b"", b"\x1d"), (b"panel saved", b"q")],
+            extra=["-P", cap],
+        )
+        if not os.path.exists(cap):
+            raise Failure("panel capture of %s: no file" % what)
+        compare(read_frame(cap), want, "panel capture of %s" % what)
+        compare(closes[-1][0], want, "panel close after the capture of %s" % what)
+    # A kernel without the read: the earlier capture stays as it was and no
+    # partial file is left.
+    with open(cap, "wb") as handle:
+        handle.write(b"earlier")
+    plain, closes = session(
+        binary,
+        work,
+        [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")],
+        env={"I86_PANEL_FAIL": "read"},
+        extra=["-P", cap],
+    )
+    with open(cap, "rb") as handle:
+        if handle.read() != b"earlier":
+            raise Failure("panel capture without the read replaced the earlier file")
+    left = [n for n in os.listdir(work) if n.startswith("cap.ppm.")]
+    if left:
+        raise Failure("panel capture without the read left %s" % left)
+    # A link planted under the name the capture writes first, the file's
+    # name and the process id, is not written through: the capture fails
+    # and both the link's target and the earlier capture stay as they were.
+    victim = os.path.join(work, "victim")
+    with open(victim, "wb") as handle:
+        handle.write(b"victim")
+    planted = []
+
+    def plant(pid):
+        planted.append("%s.%d" % (cap, pid))
+        os.symlink(victim, planted[0])
+
+    session(
+        binary,
+        work,
+        [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")],
+        extra=["-P", cap],
+        started=plant,
+    )
+    os.unlink(planted[0])
+    with open(victim, "rb") as handle:
+        if handle.read() != b"victim":
+            raise Failure("panel capture wrote through a planted link")
+    with open(cap, "rb") as handle:
+        if handle.read() != b"earlier":
+            raise Failure("panel capture beside a planted link replaced the earlier file")
+    bad = os.path.join(work, "absent", "cap.ppm")
+    plain, closes = session(
+        binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"panel not saved", b"q")], extra=["-P", bad]
+    )
+    plain, closes = session(binary, work, [(b"", b"6"), (b"", b"\x1d"), (b"quit", b"q")])
+    if b"saved" in plain:
+        raise Failure("panel capture without -P: %r" % plain[-80:])
+
+
+def pointer(frame):
+    """The mark of mouse keys: a white arrow at panel column 308, line 26."""
+    rows = (0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xD8, 0x8C, 0x06)
+    for y, bits in enumerate(rows):
+        for x in range(8):
+            if bits >> (7 - x) & 1:
+                frame[26 + y][308 + x] = (255, 255, 255)
+    return frame
+
+
+def test_pointer(binary, work, fonts, boot):
+    """Control-\\ shows the mark, the menu's return draws it again, and a
+    second Control-\\ removes it."""
+    _, closes = session(
+        binary,
+        work,
+        [
+            (b"", b"1"),
+            (b"", b"\x1c"),
+            (b"", b"\x1d"),
+            (b"quit", b"x"),
+            (b"", b"\x1d"),
+            (b"quit", b"x"),
+            (b"", b"\x1c"),
+            (b"", b"\x1d"),
+            (b"quit", b"q"),
+        ],
+    )
+    if len(closes) != 4:
+        raise Failure("panel pointer: %d closes" % len(closes))
+    for number, (frame, counts) in enumerate(closes, 1):
+        if counts["errors"]:
+            raise Failure("panel pointer: the device rejected an operation")
+        want = expected(1, fonts, boot)
+        if number <= 2:
+            want = pointer(want)
+        compare(frame, want, "panel pointer, close %d" % number)
+
+
+def test_ems_loan(binary, src, work):
+    """Expanded memory with graphics mode 4 set and left while its pages
+    are resident: with 32 frames page 2 and the guest's own pages are all
+    mapped when the mode borrows eight frames, and every line of
+    tests/ems.asm must be as without the loan."""
+    spec = importlib.util.spec_from_file_location(
+        "i86check", os.path.join(src, "tests", "check.py")
+    )
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+    check.boot_image(src, "ems", os.path.join(work, "ems.img"))
+    got = check.ems_run(
+        binary,
+        work,
+        ["-g", "-e", "256", "-f", "32"],
+        "1",
+        env={"I86_PANEL": os.path.join(work, "frame")},
+    )
+    if got != check.ems_expected():
+        raise Failure("ems with a loan of frames: %r" % got[:20])
+
+
 def test(binary, src, work):
     with open(os.path.join(src, "tests", "panel.hexdump")) as handle:
         boot = bytes.fromhex("".join(handle.read().split()))
@@ -557,3 +839,6 @@ def test(binary, src, work):
     test_stages(binary, work, fonts, boot)
     test_fallbacks(binary, work, fonts, boot)
     test_menu(binary, work, fonts, boot)
+    test_capture(binary, work, fonts, boot)
+    test_pointer(binary, work, fonts, boot)
+    test_ems_loan(binary, src, work)

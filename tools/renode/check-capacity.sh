@@ -86,6 +86,8 @@ command -v renode >/dev/null 2>&1 ||
 	missing "no renode in PATH; install Renode 1.17 or later"
 [ -r "$MODELS" ] ||
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
+sh "$SCRIPT_DIR/models-series.sh" check "$MODELS" ||
+	missing "the built models do not match tools/renode/patches; rerun sh tools/renode/fetch-renode-rp2040.sh"
 [ -r "$BUILT_KERNEL" ] ||
 	missing "no $BUILT_KERNEL; run bmake MACHINE=rp2040 kernel"
 [ -r "$DISK" ] ||
@@ -140,7 +142,7 @@ cp "$DISK" "$OUTPUT/disk.img"
 "$FLASHIMG" "$OUTPUT/disk.img" "$OUTPUT/flash.bin" >"$OUTPUT/flashimg.txt"
 
 "$PYTHON" -I "$SCRIPT_DIR/renode_monitor.py" --self-test
-# -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
+# -u: tools/run_logged_gate.py ends a run that prints zero bytes for its idle
 # limit, and Python block-buffers a piped stdout until exit, so every
 # stage line must reach the log as it is printed.
 if [ "$EXPECT" = pass ]; then

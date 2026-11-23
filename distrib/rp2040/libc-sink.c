@@ -1,7 +1,7 @@
 /*
  * Reference program for distrib/rp2040/Makefile.inc's closure extraction.
  *
- * This file calls no useful computation; it only takes the address of, or
+ * This file does not perform useful computation; it only takes the address of, or
  * calls, every libc entry point a small board program is expected to need:
  * stdio without floating-point conversion, the string and ctype families,
  * malloc, the common syscalls, signal, exec, wait, stat, time and the
@@ -168,6 +168,8 @@ touch_stdlib(void)
 	int direction = -1;
 	char path[32];
 
+	sink += div((int)sink, 5).rem;
+	sink += ldiv(sink, -7L).quot;
 	qsort(v, 4, sizeof(v[0]), cmp);
 	sink += v[0];
 	qsort_r(v, 4, sizeof(v[0]), cmp_context, &direction);

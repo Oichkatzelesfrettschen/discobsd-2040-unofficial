@@ -1791,7 +1791,7 @@ restore_directory_root(int root_descriptor)
         return;
     }
     /*
-     * DiscoBSD O_RDONLY checks directory read permission. Extraction needs
+     * GizmoBSD O_RDONLY checks directory read permission. Extraction needs
      * only write and search permission, and creation can read a known file
      * with search permission alone, so a root descriptor can be unavailable
      * even though traversal is valid. Creation restores the captured root

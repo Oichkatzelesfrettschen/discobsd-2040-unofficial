@@ -85,8 +85,8 @@ FLAGS = [
     "-idirafter",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "sys"),
 ]
-SOURCES = ["main.c", "pc.c", "gfx.c", "cpu.c", "mem.c"]
-HEADERS = ["font.h", "gfx.h", "i86.h", "mem.h", "pc.h"]
+SOURCES = ["main.c", "pc.c", "gfx.c", "serial.c", "ems.c", "cpu.c", "mem.c", "clock.c"]
+HEADERS = ["clock.h", "ems.h", "font.h", "gfx.h", "i86.h", "mem.h", "pc.h", "serial.h"]
 KEYS = "aB1"
 TAIL = [
     "MEM %04X OK",
@@ -109,6 +109,29 @@ TAIL = [
 ]
 
 MUTANTS = [
+    # clock.c, each through tests/clocktest.c: a step back counted as a
+    # second, a 5 s gap counted whole, a clock set back moving the tick
+    # backwards, -S sleeping out a clock set back, -S keeping no credit
+    # limit, and the 8254's fraction of a clock dropped.
+    ("clock.c", "if ((long)d < 0)\n\t\td = 0;\n\telse if (d > CLK_GAP_US)", "if (d > CLK_GAP_US)"),
+    ("clock.c", "\telse if (d > CLK_GAP_US)\n\t\td = CLK_GAP_US;\n", ""),
+    ("clock.c", "return ((long)d > 0 ? d : 0);", "return (d);"),
+    ("clock.c", "\telse if ((long)(*due - now) > CLK_BACK_US)\n\t\t*due = now;\n", ""),
+    (
+        "clock.c",
+        "if ((long)(now - *due) > CLK_CREDIT_US)\n"
+        "\t\t*due = now - (unsigned long)CLK_CREDIT_US;\n\telse if",
+        "if",
+    ),
+    ("clock.c", "n = k * CLK_PIT_HZ + *rem;", "n = k * CLK_PIT_HZ;"),
+    (
+        "clock.c",
+        "unsigned cap = period ? (CLK_CREDIT_CLOCKS - 1) / period + 1 : 0;",
+        "unsigned cap = period ? CLK_CREDIT_CLOCKS / period : 0;",
+    ),
+    ("clock.c", "\tif (cap < CLK_TICKS_MIN)\n\t\tcap = CLK_TICKS_MIN;\n", ""),
+    ("clock.c", "return (due < cap ? due + 1 : due);", "return (due + 1);"),
+    ("clock.c", "(CLK_CREDIT_CLOCKS - 1) / period + 1", "CLK_CREDIT_CLOCKS / period + 1"),
     ("pc.c", "c->ip -= 3;\n\t\t\t\tc->fl |= F_IF;", "c->ip -= 3;"),
     (
         "pc.c",
@@ -159,13 +182,13 @@ MUTANTS = [
     ("pc.c", "p[4] = (uint8_t)spt;", ";"),
     ("pc.c", "c->r[R_BX] = d->spt == 36 ? 6 : d->spt == 18 ?", "c->r[R_BX] = d->spt == 18 ?"),
     ("pc.c", "kb_put(scan | 0x80, 0);", ";"),
-    ("pc.c", "pic_isr &= (uint8_t)(pic_isr - 1);", "pic_isr &= pic_isr;"),
+    ("pc.c", "pic_isr &= (uint8_t)(pic_isr - 1);", "pic_isr &= 0xFF;"),
     (
         "pc.c",
         "c->irq = (pic_irr & ~(unsigned)imask & above) != 0;",
         "c->irq = (pic_irr & above) != 0;",
     ),
-    ("pc.c", "flags &= ~(unsigned)mod[i + 1];", "flags &= flags;"),
+    ("pc.c", "flags &= ~(unsigned)mod[i + 1];", "flags &= ~0u;"),
     ("pc.c", "if (key & K_SHIFT)\n\t\tkb_put(0x2a, 0);", ";"),
     ("pc.c", "mem_ww(4 * 9, ROM_OFF + ROM_KEY);", ";"),
     ("pc.c", "if (kb_n == 0 || kb_full || ((pic_irr | pic_isr) & 2))", "if (kb_n == 0)"),
@@ -212,12 +235,16 @@ MUTANTS = [
     ),
     ("cpu.c", "level = fetch8(c) & 31;", "level = fetch8(c);"),
     ("mem.c", "stored[pg >> 3] |= (uint8_t)(1u << (pg & 7));", ";"),
-    ("mem.c", "ftab[i].flags |= FR_DIRTY;", ";"),
+    (
+        "mem.c",
+        "\tif (wr) {\n\t\tftab[i].flags |= FR_DIRTY;\n\t\tmem_wmap[pg]",
+        "\tif (wr) {\n\t\t;\n\t\tmem_wmap[pg]",
+    ),
     ("mem.c", "if (w[i])\n\t\t\treturn (0);", "if (w[i] == 1)\n\t\t\treturn (0);"),
     (
         "mem.c",
-        "mem_rmap[pg] = mem_wmap[pg] = 0;\n\t\t\tcontinue;",
-        "mem_rmap[pg] = 0;\n\t\t\tcontinue;",
+        "\t\tmem_rmap[lp] = mem_wmap[lp] = 0;\n\t\treturn (ref);",
+        "\t\tmem_rmap[lp] = 0;\n\t\treturn (ref);",
     ),
     ("mem.c", "(off_t)page << MEM_PGSHIFT", "(off_t)page << (MEM_PGSHIFT - 1)"),
     (
@@ -279,7 +306,11 @@ MUTANTS = [
     ),
     ("pc.c", "if (++t >= 0x1800b0) {", "if (t >= 0x1800b0) {"),
     ("pc.c", "mem_ww(4 * 8, ROM_OFF + ROM_TIMER);", ";"),
-    ("main.c", "(!cpu.halted ||\n\t\t    (cpu.irq && (cpu.fl & F_IF))); i++)", "!cpu.halted; i++)"),
+    (
+        "main.c",
+        "(!cpu.halted || (cpu.irq && (cpu.fl & F_IF))); pc_step++)",
+        "!cpu.halted; pc_step++)",
+    ),
     ("main.c", "mem_failed = store_failed;", "(void)store_failed;"),
     ("main.c", "nsteps++;\n\t\tif (caught)\n\t\t\thost_exit(128 + (int)caught);", "nsteps++;"),
     ("main.c", '"/tmp/i86.%u", (unsigned)getpid() & 0xffffffu', '"/tmp/i86.%u", 0u'),
@@ -290,6 +321,205 @@ MUTANTS = [
         "pc.c",
         "else if (dl >= 0x80 && dl < 0x82)\n\t\td = &disks[dl - 0x80 + 2];",
         "else if (dl >= 0x80 && dl < 0x82)\n\t\td = &disks[dl - 0x80];",
+    ),
+    ("serial.c", "return (ready && (ier & 1) && (mcr & 8));", "return (ready && (ier & 1));"),
+    ("serial.c", "v = ready && (ier & 1) ? 0x04 : 0x01;", "v = 0x01;"),
+    (
+        "serial.c",
+        "if (POWER(mcr))\n\t\t\t\tsend(&ident, 1);",
+        "if (POWER(mcr))\n\t\t\t\t(void)ident;",
+    ),
+    ("serial.c", "\tready = 1;\n\tdue = now + BYTE_MS;", "\tready = 1;\n\tdue = now;"),
+    ("serial.c", "v = 0x60 | (unsigned)ready;", "v = 0x60;"),
+    ("serial.c", "(y >> 6) << 2 | x >> 6);", "x >> 6);"),
+    ("serial.c", "((buttons & MOUSE_LEFT) ? 0x20 : 0)", "((buttons & MOUSE_LEFT) ? 0x10 : 0)"),
+    ("serial.c", "(mcr & 2u) << 3", "(mcr & 2u) << 4"),
+    ("serial.c", "\t\telse if (mcr & 0x10) {", "\t\telse if (mcr & 0x20) {"),
+    ("pc.c", "if (level && !ser_level)", "if (level)"),
+    ("pc.c", "mk_step = mk_step < MK_MAX ? 2 * mk_step : MK_MAX;", "mk_step = MK_STEP;"),
+    ("pc.c", "if (dir == mk_dir && nticks - mk_tick <= MK_TICKS)", "if (dir == mk_dir)"),
+    ("pc.c", "if (mouse_held & b)\n\t\tmouse_held &= ~b;", "if (mouse_held & b)\n\t\t(void)b;"),
+    (
+        "pc.c",
+        "\telse if (ch == '{' || ch == '}')\n\t\tmouse_held |= b;",
+        "\telse if (ch == '{' || ch == '}')\n\t\t(void)b;",
+    ),
+    ("pc.c", "\t\t\tmouse_keys = !mouse_keys;", "\t\t\tmouse_keys = 1;"),
+    ("pc.c", "mem_ww(BDA + 0x00, SER_BASE);", "mem_ww(BDA + 0x00, 0);"),
+    ("pc.c", "(cf.cols == 40 ? 0x10 : 0x20) | 0x200 |", "(cf.cols == 40 ? 0x10 : 0x20) |"),
+    (
+        "pc.c",
+        "\t\tpc_out(c, (port + 1) & 0xffff, v >> 8 & 0xff, 0);",
+        "\t\t(void)c;",
+    ),
+    ("serial.c", "\tif (QN - qn < 3)\n\t\tbehind = 1;", "\tif (QN - qn < 3)\n\t\tbehind = 0;"),
+    ("serial.c", "#define POWER(m)\t(((m) & 0x12) == 2)", "#define POWER(m)\t(((m) & 0x02) == 2)"),
+    (
+        "ems.c",
+        "\t\tcase 0:\n\t\t\tif (alt_seg | alt_off)\n\t\t\t\tput_map(alt_area);\n",
+        "\t\tcase 0:\n",
+    ),
+    (
+        "ems.c",
+        "\t\t\tif (alt_seg | alt_off)\n\t\t\t\tput_map(alt_area);\n\t\t\talt_seg = c->s[S_ES];",
+        "\t\t\talt_seg = c->s[S_ES];",
+    ),
+    ("ems.c", "st = bx == 0 ? OK : E_FREE;", "st = E_HANDLE;"),
+    ("ems.c", "else if (hd[dx].saved)\n\t\t\tst = 0x86;", "else if (0)\n\t\t\tst = 0x86;"),
+    ("ems.c", "else if (hd[dx].saved)\n\t\t\tst = E_SAVED;", "else if (0)\n\t\t\tst = E_SAVED;"),
+    ("ems.c", "if (n == 0 && !zero_ok)", "if (n == 0 && zero_ok < 0)"),
+    ("ems.c", "n += owner[k] == 0;", "n += 1;"),
+    ("ems.c", "(unsigned)blk[p] << 10 != seg", "(unsigned)blk[p] << 9 != seg"),
+    ("ems.c", "off % PAGE / MEM_PGSIZE", "off / MEM_PGSIZE"),
+    (
+        "ems.c",
+        "if (n != 0xffff && (base = page_base(h, n)) == NOBASE)",
+        "if ((base = page_base(h, n)) == NOBASE)",
+    ),
+    ("pc.c", "if (ems_on)\n\t\t\tems_int(c);", "if (0)\n\t\t\tems_int(c);"),
+    ("mem.c", "lp - pbase[p] < MEM_EMSPG) {", "lp - pbase[p] < MEM_EMSPG && p != 59) {"),
+    ("mem.c", "\tb += pg % MEM_EMSPG;", "\tb += 0;"),
+    ("mem.c", "mem_rmap[g] = mem_wmap[g] = 0;\n\tpbase[phys]", "(void)g;\n\tpbase[phys]"),
+    ("ems.c", "\tmem_ww(a & (MEM_SIZE - 1), v);", "\tmem_ww(a, v);"),
+    (
+        "ems.c",
+        "\t\tif (m + lo < xs + len && xs < m + hi)",
+        "\t\tif (m + lo < xs + len && xs < m + hi && 0)",
+    ),
+    ("ems.c", "st = bx & 0xff ? 0x9c : 0x9e;", "st = bx & 0xff ? 0x9c : OK;"),
+    ("ems.c", "else if (key_out ? ((uint32_t)bx << 16 | cx) != key :", "else if (key_out ? 0 :"),
+    ("ems.c", "if (os_off && ((ah == 0x59 && al == 0) || ah == 0x5b))", "if (0)"),
+    ("ems.c", "if (al < 2 && grw(dssi) > nphys) {", "if (0) {"),
+    ("ems.c", "else if (cx > nphys)\n\t\t\tst = E_PPAGE;", "else if (0)\n\t\t\tst = E_PPAGE;"),
+    (
+        "ems.c",
+        "\t\t\tn = grw(dssi);\n\t\t\ttake(dssi + 2, 2 * n);\n",
+        "\t\t\tn = grw(dssi);\n\t\t\ttake(dssi + 2, 2 * n);\n\t\t\tif (n > 1 && base_ok(arg[1]))\n"
+        "\t\t\t\tshow(phys_at(arg[0]) % nphys, arg[1]);\n",
+    ),
+    ("ems.c", "!= key : al == 2)", "!= key : 0)"),
+    (
+        "ems.c",
+        "\t\t\tn = grw(dssi);\n"
+        "\t\t\ttake(dssi + 2, n);\n"
+        "\t\t\tfor (k = 0; k < n; k++)\n"
+        "\t\t\t\tif (phys_at(arg[k]) == nphys) {\n"
+        "\t\t\t\t\tst = E_PPAGE;\n"
+        "\t\t\t\t\tbreak;\n"
+        "\t\t\t\t}\n"
+        "\t\t\tgww(esdi, n);\n"
+        "\t\t\tfor (k = 0; k < n && st == OK; k++) {\n"
+        "\t\t\t\tgww(esdi + 2 + 4 * k, arg[k]);\n"
+        "\t\t\t\tgww(esdi + 4 + 4 * k, cur[phys_at(arg[k])]);\n"
+        "\t\t\t}",
+        "\t\t\tn = grw(dssi);\n"
+        "\t\t\tgww(esdi, n);\n"
+        "\t\t\tfor (k = 0; k < n; k++) {\n"
+        "\t\t\t\tunsigned seg = grw(dssi + 2 + 2 * k);\n"
+        "\n"
+        "\t\t\t\tif ((p = phys_at(seg)) == nphys) {\n"
+        "\t\t\t\t\tst = E_PPAGE;\n"
+        "\t\t\t\t\tbreak;\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\tgww(esdi + 2 + 4 * k, seg);\n"
+        "\t\t\t\tgww(esdi + 4 + 4 * k, cur[p]);\n"
+        "\t\t\t}",
+    ),
+    (
+        "ems.c",
+        "\t\t\t\tshow(phys_at(arg[2 * k]), arg[2 * k + 1]);",
+        "\t\t\t\ttake(dssi + 2, 2 * n), show(phys_at(arg[2 * k]), arg[2 * k + 1]);",
+    ),
+    ("ems.c", "\t\t\tn = arg[2 * k];", "\t\t\ttake(dssi, 2 * cx);\n\t\t\tn = arg[2 * k];"),
+    (
+        "ems.c",
+        "\t\t\tif ((c->s[S_ES] | c->r[R_DI]) &&\n\t\t\t    (st = load_map(esdi)) != OK)\n"
+        "\t\t\t\tbreak;\n\t\t\tif (alt_seg | alt_off)\n\t\t\t\tput_map(alt_area);",
+        "\t\t\tif (alt_seg | alt_off)\n\t\t\t\tput_map(alt_area);\n"
+        "\t\t\tif ((c->s[S_ES] | c->r[R_DI]) &&\n\t\t\t    (st = load_map(esdi)) != OK)\n"
+        "\t\t\t\tbreak;",
+    ),
+    (
+        "ems.c",
+        "\t\tif ((al == 1 || al == 2) && st == OK)\n\t\t\tapply_map();",
+        "\t\tif ((al == 1 || al == 2) && st == OK)\n"
+        "\t\t\tfor (k = 0; k < nphys; k++) {\n"
+        "\t\t\t\tshow(k, arg[1 + k]);\n\t\t\t\ttake(dssi, 1 + nphys);\n\t\t\t}",
+    ),
+    (
+        "ems.c",
+        "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);\n"
+        "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);",
+        "\t\tif (al == 0 || al == 2)\n\t\t\tput_map(esdi);\n"
+        "\t\tif (al == 1 || al == 2)\n\t\t\tst = load_map(dssi);",
+    ),
+    ("pc.c", "\t\t\tirq_at += pit[0].count;", "\t\t\tirq_at += 0x10000;"),
+    ("pc.c", "pit_out(2, pit_now()) << 5;", "0 << 5;"),
+    ("pc.c", "\t\t\t\tpit[k].slatched = 1;", "\t\t\t\tpit[k].slatched = 0;"),
+    ("pc.c", "uint32_t t = pit_t + (pc_step * pit_step >> 8);", "uint32_t t = pit_t;"),
+    ("pc.c", "(pit_now() / 18 & 1) << 4", "0 << 4"),
+    ("pc.c", "if ((n != 2 || (port61 & 1)) && e / p->count != p->shown) {", "if (0) {"),
+    (
+        "pc.c",
+        "hi = (c + 1) / 2;\n\t\tv = c - (c & 1) - 2 * (e < hi ? e : e - hi);",
+        "hi = c / 2 ? c / 2 : 1;\n\t\tv = c - 2 * (e % hi);",
+    ),
+    ("pc.c", "bin_bcd(v % 10000) :", "(bin_bcd(0) | v % 10000) :"),
+    ("pc.c", "if (p->mode == 0) {\n\t\t\tp->armed = 0;", "if (0) {\n\t\t\tp->armed = 0;"),
+    ("pc.c", "pit[n].latched = 0;\n\tpit[n].slatched = 0;", "pit[n].latched = 0;"),
+    ("pc.c", "else if ((pc_idle || c->halted) && slice_left() < PC_STEPS) {", "else if (0) {"),
+    (
+        "pc.c",
+        "if ((ms = clk_pace(&thr_due, now)) != 0)\n\t\thost_sleep(ms);",
+        "ms = clk_pace(&thr_due, now);\n\t(void)ms;",
+    ),
+    ("pc.c", "return (d < SLICE_MIN ? SLICE_MIN : d);", "return (PC_STEPS);"),
+    (
+        "pc.c",
+        "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 1;",
+        "\t\tp->low = (uint8_t)v;\n\t\tp->wnext = 0;",
+    ),
+    ("ems.c", "(uint8_t)mem_rb((e->at + i) & (MEM_SIZE - 1)) :", "0xff :"),
+    (
+        "ems.c",
+        "\treturn (shared ? fwd | rev << 1 : 0);",
+        "\treturn ((shared ? fwd | rev << 1 : 0) & 0);",
+    ),
+    ("ems.c", "if (bq + a->at < bp + b->at)", "if (0)"),
+    (
+        "ems.c",
+        "if (dirs == 3 || (self1 && back)) {\n\t\tstaged(e, len, one);",
+        "if (0) {\n\t\tstaged(e, len, one);",
+    ),
+    (
+        "ems.c",
+        "dirs |= alias0(&e[0], &e[1], len);",
+        "dirs = alias0(&e[0], &e[1], len) ? alias0(&e[0], &e[1], len) : dirs;",
+    ),
+    (
+        "ems.c",
+        "if (e[k].at >= MEM_SIZE || e[k].at + len > MEM_SIZE)",
+        "if (e[k].at + len > MEM_SIZE)",
+    ),
+    ("ems.c", "c->r[R_DI] = alt_off;", "c->r[R_DI] = 0;"),
+    ("ems.c", "if (xchg && (self0 || self1))", "if (xchg && 0 && (self0 || self1))"),
+    ("ems.c", "if (dirs == 3 || (self1 && back)) {", "if (dirs == 3 || (self1 && 0)) {"),
+    ("ems.c", "if (e[k].page >= hd[e[k].h].pages)", "if (0)"),
+    (
+        "ems.c",
+        "e[k].at = ((uint32_t)grw(d + 5) << 4) + grw(d + 3);",
+        "e[k].at = lin(grw(d + 5), grw(d + 3));",
+    ),
+    ("ems.c", "if (hd[h].used && memcmp(hd[h].name,", "if (hd[h].used || memcmp(hd[h].name,"),
+    (
+        "ems.c",
+        "c->s[S_ES] = alt_seg;\n\t\t\tc->r[R_DI] = alt_off;",
+        "c->s[S_ES] = (uint16_t)(alt_area >> 4);\n\t\t\tc->r[R_DI] = (uint16_t)(alt_area & 15);",
+    ),
+    (
+        "pc.c",
+        "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(0);",
+        "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(ems_on ? 3 : 0);",
     ),
 ]
 
@@ -316,7 +546,16 @@ def load_panel(src):
 
 def mutate(src, tree, number, name, old, new):
     """A copy of the sources in tree with one fault in file name."""
-    for item in SOURCES + HEADERS + ["tests/sstrun.c", "tests/panel.c"]:
+    for item in (
+        SOURCES
+        + HEADERS
+        + [
+            "tests/sstrun.c",
+            "tests/panel.c",
+            "tests/clocktest.c",
+            "tests/draintest.c",
+        ]
+    ):
         shutil.copyfile(os.path.join(src, item), os.path.join(tree, item))
     with open(os.path.join(tree, name)) as handle:
         text = handle.read()
@@ -729,8 +968,105 @@ def test_interactive(binary, work):
     waited = re.search(rb"WAIT ([0-9A-F]{4})", plain)
     if waited is None or int(waited.group(1), 16) <= 16:
         raise Failure("terminal session: the clock stood still while the guest waited")
-    if before != after:
-        raise Failure("terminal session: terminal mode not restored")
+    if termios_modes(before) != termios_modes(after):
+        raise Failure(
+            "terminal session: terminal mode not restored: "
+            + termios_diff(termios_modes(before), termios_modes(after))
+        )
+
+
+def termios_modes(attrs):
+    """The attributes with PENDIN cleared.
+
+    PENDIN (retype pending input) is a status flag of the line discipline, not a
+    mode: macOS sets it in c_lflag when a mode change finds input queued, and
+    nothing the program does clears it. Every other bit, speed and control
+    character is still compared.
+    """
+    attrs = list(attrs)
+    attrs[3] &= ~getattr(termios, "PENDIN", 0)
+    return attrs
+
+
+def termios_diff(before, after):
+    """Name the termios fields that differ, with both values, for a failure message."""
+    names = ("iflag", "oflag", "cflag", "lflag", "ispeed", "ospeed")
+    parts = [
+        "%s %#x -> %#x" % (name, b, a) for name, b, a in zip(names, before[:6], after[:6]) if b != a
+    ]
+    parts += [
+        "cc[%d] %r -> %r" % (i, b, a) for i, (b, a) in enumerate(zip(before[6], after[6])) if b != a
+    ]
+    return "; ".join(parts) or "no field differs"
+
+
+def load_ptywait():
+    """tests/ptywait.py, beside this file; the interpreter runs isolated,
+    without the script's directory on its path."""
+    spec = importlib.util.spec_from_file_location(
+        "ptywait", os.path.join(os.path.dirname(os.path.abspath(__file__)), "ptywait.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ptywait = load_ptywait()
+
+
+def test_wait_draining():
+    """The wait of menu_session against a writer of 1 MiB, more than any
+    pseudo-terminal holds: a plain wait blocks on it, the draining wait
+    returns every byte with the writer's status, a child that does not exit
+    is reported as running, and so is one that never stops writing, within
+    the time given."""
+    size = 1 << 20
+    writer = "import sys; sys.stdout.buffer.write(b'x' * %d); sys.stdout.buffer.flush()" % size
+    sleeper = "import time; time.sleep(60)"
+    chatter = "import sys\nwhile 1: sys.stdout.buffer.write(b'x' * 4096)"
+
+    def run(code, drain, seconds):
+        master, slave = pty.openpty()
+        child = subprocess.Popen(
+            [sys.executable, "-I", "-c", code], stdin=slave, stdout=slave, stderr=subprocess.DEVNULL
+        )
+        try:
+            if drain:
+                got, status = ptywait.wait_draining(child, master, seconds)
+                return len(got), status
+            try:
+                return child.wait(timeout=seconds)
+            except subprocess.TimeoutExpired:
+                return None
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+            os.close(master)
+            os.close(slave)
+
+    def late(signum, frame):
+        raise Failure("wait_draining: a child that never stops writing held the wait past its time")
+
+    if run(writer, False, 0.5) is not None:
+        raise Failure(
+            "wait_draining: a plain wait returned on a 1 MiB writer, so the case blocks nothing"
+        )
+    got = run(writer, True, 20)
+    if got != (size, 0):
+        raise Failure("wait_draining: the writer gave %r, want (%d, 0)" % (got, size))
+    got = run(sleeper, True, 0.5)
+    if got != (0, None):
+        raise Failure("wait_draining: the sleeper gave %r, want (0, None)" % (got,))
+    before = signal.signal(signal.SIGALRM, late)
+    signal.alarm(10)
+    try:
+        got = run(chatter, True, 0.5)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, before)
+    if got[0] == 0 or got[1] is not None:
+        raise Failure("wait_draining: the chatterer gave %r, want output and None" % (got,))
 
 
 def menu_session(binary, work, image, steps, cwd=None, kill=None):
@@ -767,9 +1103,8 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
             if kill is not None:
                 time.sleep(0.5)
                 child.send_signal(kill)
-            status = child.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        status = None
+            more, status = ptywait.wait_draining(child, master, 5)
+            seen += more
     finally:
         if child.poll() is None:
             child.kill()
@@ -782,7 +1117,477 @@ def menu_session(binary, work, image, steps, cwd=None, kill=None):
         os.close(slave)
     if step != len(steps):
         raise Failure("menu session: %r never appeared" % steps[step][0])
-    return seen, status, before == after
+    if status is None:
+        print(
+            "i86 check: menu session: the program did not exit after its last key; "
+            "the output ended with %r" % (seen[-400:],),
+            file=sys.stderr,
+        )
+    if termios_modes(before) != termios_modes(after):
+        print(
+            "i86 check: menu session: terminal mode not restored: "
+            + termios_diff(termios_modes(before), termios_modes(after)),
+            file=sys.stderr,
+        )
+    return seen, status, termios_modes(before) == termios_modes(after)
+
+
+RIGHT, DOWN, LEFT, UP, HOME = b"\x1b[C", b"\x1b[B", b"\x1b[D", b"\x1b[A", b"\x1b[H"
+
+
+def boot_image(src, name, path):
+    with open(os.path.join(src, "tests", name + ".hexdump")) as handle:
+        data = bytes.fromhex("".join(handle.read().split()))
+    if len(data) % 512 or data[510:512] != b"\x55\xaa":
+        raise Failure("%s.hexdump is not a boot program" % name)
+    with open(path, "wb") as handle:
+        handle.write(data)
+        handle.truncate(360 * 1024)
+    return data
+
+
+def mouse_image(src, path):
+    with open(os.path.join(src, "tests", "mouse.hexdump")) as handle:
+        data = bytes.fromhex("".join(handle.read().split()))
+    if len(data) % 512 or data[510:512] != b"\x55\xaa":
+        raise Failure("mouse.hexdump is not a boot program")
+    with open(path, "wb") as handle:
+        handle.write(data)
+        handle.truncate(360 * 1024)
+    return data
+
+
+def test_mouse(binary, work):
+    """COM1 and the mouse keys, through the guest of tests/mouse.asm on a
+    pseudo-terminal. Each key waits for the guest's line about the last
+    one, so a repeat is the four arrows typed in one write."""
+    image = os.path.join(work, "mouse-run.img")
+    shutil.copyfile(os.path.join(work, "mouse.img"), image)
+    steps = [
+        (b"ready", RIGHT),
+        (b"k:4D00", b"\x1c"),
+        (b"", RIGHT),
+        (b"p:..:08:00", RIGHT),
+        (b"p:..:08:00", DOWN),
+        (b"p:..:00:08", LEFT),
+        (b"p:..:F8:00", UP),
+        (b"p:..:00:F8", HOME),
+        (b"k:4700", b"["),
+        (b"p:..:00:00", b"]"),
+        (b"p:..:00:00", b"{"),
+        (b"p:L.:00:00", RIGHT),
+        (b"p:L.:08:00", b"{"),
+        (b"p:..:00:00", RIGHT * 4),
+        (b"p:..:40:00", RIGHT * 15 + b"["),
+        (b"p:L.:00:00", b"\x1c"),
+        (b"", b"["),
+        (b"k:1A5B", b"\x1d"),
+        (b"quit", b"q"),
+    ]
+    seen, status, restored = menu_session(binary, work, image, steps)
+    # The guest's output up to the menu; the screen drawn again after it
+    # repeats lines and could stand in for missing ones.
+    plain = re.sub(rb"\x1b\[[0-9;?]*[A-Za-z]", b"", seen).split(b"i86: q quit")[0]
+    want = [
+        # COM1 in the data area, the UART's registers, the identification
+        # a byte time after the power and held back until OUT2.
+        b"com:03F8",
+        b"ports:0200",
+        b"scr:5A",
+        b"msr:90",
+        b"lsr:61",
+        b"echo:A5",
+        b"quiet:60",
+        b"lsr:60",
+        b"lsr:61",
+        b"irqs:00",
+        b"word:600B",
+        b"irqs:01",
+        b"iir:04",
+        b"id:4D",
+        b"ready",
+        # Mouse keys off, then on: arrows, Home, the buttons, a drag.
+        b"k:4D00:01",
+        b"p:..:08:00",
+        b"p:..:08:00",
+        b"p:..:00:08",
+        b"p:..:F8:00",
+        b"p:..:00:F8",
+        b"k:4700",
+        b"p:L.:00:00",
+        b"p:..:00:00",
+        b"p:.R:00:00",
+        b"p:..:00:00",
+        b"p:L.:00:00",
+        b"p:L.:08:00",
+        b"p:..:00:00",
+        # A held arrow doubles its step up to 64 mickeys.
+        b"p:..:08:00",
+        b"p:..:10:00",
+        b"p:..:20:00",
+        b"p:..:40:00",
+        # Fifteen arrows fill the sixteen reports the mouse holds; the
+        # click's release does not fit and is sent once one fits.
+        b"p:L.:00:00",
+        b"p:..:00:00",
+        b"k:1A5B:",
+    ]
+    at = 0
+    for token in want:
+        found = plain.find(token, at)
+        if found < 0:
+            raise Failure("mouse: %r missing after %r" % (token, plain[max(0, at - 40) : at]))
+        at = found + len(token)
+    # The bytes of the burst arrive a byte time apart: at most six in one
+    # timer tick of 55 ms.
+    rate = int(plain[at : at + 2], 16)
+    if not 3 <= rate <= 6:
+        raise Failure("mouse: %d bytes in one tick" % rate)
+    if status != 0 or not restored:
+        raise Failure("mouse: exit %r, terminal restored %r" % (status, restored))
+
+
+def ems_expected():
+    """The lines of tests/ems.asm with 256 KB of expanded memory. The page
+    sums follow from the fill rule alone: byte i of page n is
+    (11h + 2n + i) mod 256, summed as words with a rotate before each add."""
+
+    def page_sum(n):
+        data = bytes((0x11 + 2 * n + i) & 255 for i in range(16384))
+        s = 0
+        for k in range(0, 16384, 2):
+            s = ((s << 1) | (s >> 15)) & 0xFFFF
+            s = (s + data[k] + 256 * data[k + 1]) & 0xFFFF
+        return s
+
+    return (
+        "st:00 frame:E000 free:0010 total:0010 ver:40 phys:0012 alloc:00 handle:0001"
+        " free:000D e87:87 e88:88 e89:89".split()
+        + ["sumx:%04X" % page_sum(2)]
+        + ["sum:%04X" % page_sum(n) for n in range(3)]
+        + "alias:AB alias2:AB disk:AA55 save:00 e8d:8D restore:11 multi:00 c000:11"
+        " e50l:8B e000l:31 move:00 xchg:00"
+        " xgot:45 moved:4D45 landed:4D45 set1:00 alt:0010 get:FFF0 h0:00 e88h0:88 e83:83"
+        " e8a:8A e8b:8B e84:84 wrap:0001 e94:94 e94no:00 e9e:9E os:00 osbad:A4 osoff:00"
+        " e5b:A4 e59:A4 osret:00 osnone:A4 oson:00 e4f0:A3 e4f1:A3 e4fb:A3 kept:13 unmap:FF"
+        " e86:86 toc:00 tocp:04 ovl:00 ovlp:FF p4o:00 p4t:00 p4tp:04 m50:00 m50p:04 alo:00"
+        " alop:04 altes:0000 altdi:0000 rom:00 romb:2F ea2:A2 e8am:8A amovs:00 amov:00"
+        " axch:97 acyc:00 acycd:1122 lalias:CCAA sxch:97 sdst:11 ea2z:A2 nul1:A1 nul0:A0"
+        " dealloc:00 free:0010 done".split()
+    )
+
+
+def pit_run(binary, work, args):
+    """tests/pit.asm under args; its tokens from the screen dump."""
+    try:
+        done = subprocess.run(
+            [binary, "-d", "-a", os.path.join(work, "pit.img"), "-k", ""] + args,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("timer %s: timeout, counter 2's output never rose" % " ".join(args)) from None
+    if done.returncode != 0:
+        raise Failure("timer %s: exit %d" % (" ".join(args), done.returncode))
+    return done.stdout.decode("latin-1").split()
+
+
+def test_clock(clocktest):
+    """clock.c's steps from one host clock reading to the next, through
+    tests/clocktest.c: a clock set back, set forward and wrapping."""
+    done = subprocess.run([clocktest], capture_output=True, text=True, timeout=10, check=False)
+    if done.returncode != 0 or not done.stdout.startswith("clock: "):
+        raise Failure("clock steps:\n" + done.stdout + done.stderr)
+    return done.stdout.strip()
+
+
+def test_drain(draintest):
+    """gfx.c's owed graphics lines through tests/draintest.c: refreshes mark,
+    drains send at most 16 lines, and no line starves."""
+    done = subprocess.run([draintest], capture_output=True, text=True, timeout=10, check=False)
+    if done.returncode != 0 or not done.stdout.startswith("drain: "):
+        raise Failure("owed lines:\n" + done.stdout + done.stderr)
+    return done.stdout.strip()
+
+
+def test_pit(binary, work):
+    """The 8254 through tests/pit.asm. Under -T every count is exact: the
+    latched counter moved 2B0h in mode 3, counter 0 at 1 kHz raised 54
+    interrupts while counter 2 counted 65535 clocks, counter 2's read-back
+    status is B0h, 20 halts at 1 kHz took 54xxh clocks, the refresh bit
+    changed 34h times in 64 reads, a poller saw mode 2's low pulse, all 40
+    reads of an odd mode 3 count were even, the first byte of a new mode 0
+    count drove OUT low, a new control word cleared a latched status, and a
+    BCD count reads as decimal digits. On the host's clock the interrupts
+    are 52 to 55 whatever the host's speed, since both counters count the
+    same clocks."""
+    want = (
+        "dn:02B0 irq:0036 st2:00B0 hlt:0054 rf:0034 m2:0000 m3e:0028 m0s:0000 stat:0012"
+        " bcd:0099 tick:ok done".split()
+    )
+    got = pit_run(binary, work, ["-T"])
+    if got != want:
+        raise Failure("timer -T: %r" % got)
+    host_clock_irqs(lambda: pit_run(binary, work, []), "timer, host clock")
+
+
+# Counter 0 at 1 kHz raises 52 to 55 interrupts while counter 2 counts 65535
+# clocks (tests/pit.asm), 34h to 37h. Under -S the emulator sleeps whole
+# milliseconds between polls. A sleep that overruns leaves the interrupts it
+# covers waiting, late and not lost, when counter 2 closes the window, and
+# clk_owe() keeps at most 21 of them waiting at 1 kHz, so a stalled host
+# counts at least 52 - 21 = 31 interrupts, 1Fh. The bound holds while each
+# stall stays within CLK_CREDIT_US (20 ms); a longer one drops the interrupts
+# past the 21 and no floor holds. The unpaced run has no sleep and keeps the
+# unstalled floor.
+HOST_CLOCK_IRQ_UNSTALLED = 0x34
+HOST_CLOCK_IRQ_MAX = 0x37
+HOST_CLOCK_IRQ_STALLED = 0x1F
+
+
+def host_clock_irqs(run, what, floor=HOST_CLOCK_IRQ_UNSTALLED, note=print):
+    """A run of tests/pit.asm on the host's clock must finish whole and
+    count at most 37h interrupts while counter 2 counts 65535 clocks. A
+    host never counts more than the clocks allow, so a run of 34h to 37h
+    passes alone, without a repeat, and a loaded host counts fewer: the best
+    of three runs must reach floor. A paced run passes HOST_CLOCK_IRQ_STALLED
+    as its floor. The -T run holds the exact count of 36h, which a lost
+    final interrupt moves; this judge cannot see one inside its band."""
+    seen = []
+    for _ in range(3):
+        got = run()
+        fields = dict(t.split(":", 1) for t in got if ":" in t)
+        irq = int(fields.get("irq", "0"), 16)
+        if (
+            irq > HOST_CLOCK_IRQ_MAX
+            or fields.get("st2") != "00B0"
+            or fields.get("tick") != "ok"
+            or got[-1:] != ["done"]
+        ):
+            raise Failure("%s: %r" % (what, got))
+        if irq >= HOST_CLOCK_IRQ_UNSTALLED:
+            return
+        seen.append(irq)
+    counts = ["%02Xh" % n for n in seen]
+    if max(seen) == 0:
+        raise Failure("%s: the timer raised no interrupt in three runs" % what)
+    if max(seen) < floor:
+        raise Failure(
+            "%s: fewer than %02Xh interrupts in three runs: %s" % (what, floor, ", ".join(counts))
+        )
+    note("%s: stalled host, %s interrupts, floor %02Xh" % (what, ", ".join(counts), floor))
+
+
+def test_host_clock_judge():
+    """host_clock_irqs() on counts it must pass and reject, each reject for
+    its own reason: an unstalled host (34h), a stalled paced host (the floor
+    1Fh, and 31h as hosted macOS counted), a stalled unpaced host (all runs
+    below 34h), a paced count under the floor in all three runs (1Eh), a
+    timer that raised nothing (0), more interrupts than the clocks allow
+    (38h), a run that does not finish and a run whose counter 2 status is
+    wrong."""
+
+    def runs(counts, tail="done", st2="00B0"):
+        queue = list(counts)
+
+        def one():
+            return ["irq:%04X" % queue.pop(0), "st2:" + st2, "tick:ok", tail]
+
+        return one
+
+    paced = HOST_CLOCK_IRQ_STALLED
+    accepted = (
+        ([0x36], paced),
+        ([0x20, 0x34], paced),
+        ([0x31, 0x31, 0x33], paced),
+        ([0x1F, 0x1F, 0x1F], paced),
+        ([0x20, 0x34], HOST_CLOCK_IRQ_UNSTALLED),
+    )
+    rejected = (
+        ([0x1E, 0x1E, 0x1E], paced, "fewer than 1Fh"),
+        ([0, 0, 0], paced, "no interrupt"),
+        ([0x31, 0x31, 0x33], HOST_CLOCK_IRQ_UNSTALLED, "fewer than 34h"),
+        ([0x38], paced, "irq:0038"),
+        ([0x36], paced, "done"),
+        ([0x36], paced, "st2:0000"),
+    )
+    for counts, floor in accepted:
+        try:
+            host_clock_irqs(runs(counts), "judge", floor, note=lambda text: None)
+        except Failure as failure:
+            raise Failure("host clock judge rejected %r: %s" % (counts, failure)) from None
+    for counts, floor, reason in rejected:
+        kwargs = {}
+        if reason == "done":
+            kwargs["tail"] = "x"
+        if reason == "st2:0000":
+            kwargs["st2"] = "0000"
+        try:
+            host_clock_irqs(runs(counts, **kwargs), "judge", floor, note=lambda text: None)
+        except Failure as failure:
+            if reason not in str(failure) and reason not in ("done", "st2:0000"):
+                raise Failure(
+                    "host clock judge rejected %r for another reason: %s" % (counts, failure)
+                ) from None
+            continue
+        raise Failure("host clock judge accepted %r at floor %02Xh" % (counts, floor))
+
+
+# A host whose every sleep runs 15 ms long, inside the 20 ms of interrupts
+# clk_owe() keeps waiting: the fixed timer counts 32h there in every run and
+# a build that keeps only four interrupts waiting counts 10h to 11h, far on either
+# side of HOST_CLOCK_IRQ_STALLED (8 ms puts that build exactly on it).
+OVERSLEEP = ("main.c", "\tusleep(ms * 1000UL);\n}", "\tusleep(ms * 1000UL + 15000UL);\n}")
+OVERSLEEP_BAD = (
+    "clock.c",
+    "unsigned cap = period ? (CLK_CREDIT_CLOCKS - 1) / period + 1 : 0;",
+    "unsigned cap = period ? 0 : 0;",
+)
+
+
+def oversleep_build(src, work, cc, edits):
+    """A build of the emulator's sources in src with edits, each of which
+    must match exactly once; returns the binary."""
+    tree = os.path.join(work, "oversleep")
+    binary = os.path.join(work, "i86-oversleep")
+    shutil.rmtree(tree, ignore_errors=True)
+    os.mkdir(tree)
+    for item in SOURCES + HEADERS:
+        shutil.copyfile(os.path.join(src, item), os.path.join(tree, item))
+    for name, old, new in edits:
+        path = os.path.join(tree, name)
+        with open(path) as handle:
+            text = handle.read()
+        if text.count(old) != 1:
+            raise Failure("oversleep: %s holds %r %d times" % (name, old, text.count(old)))
+        with open(path, "w") as handle:
+            handle.write(text.replace(old, new))
+    build(tree, binary, cc)
+    return binary
+
+
+def host_sleep_overrun_ms():
+    """The longest time, in milliseconds, by which twenty 1 ms sleeps of
+    this host run long."""
+    over = []
+    for _ in range(20):
+        start = time.monotonic()
+        time.sleep(0.001)
+        over.append((time.monotonic() - start) * 1000 - 1)
+    return max(over)
+
+
+def test_oversleep(src, work, cc, calibrate=False):
+    """-S 4.77 on a host whose every sleep runs 15 ms long (OVERSLEEP): the
+    paced judge passes, since the interrupts that came due during a sleep
+    wait and arrive late rather than being lost. With calibrate, the build
+    that keeps four interrupts waiting (OVERSLEEP_BAD) must count under
+    HOST_CLOCK_IRQ_STALLED in at least three of five single runs."""
+
+    def paced(binary):
+        return lambda: pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
+
+    # The fixture's 15 ms and the host's own overrun together must stay
+    # under the 20 ms of interrupts clk_owe() keeps waiting; a host whose
+    # sleeps already run 2 ms long (the hosted macOS runner's do) drops
+    # interrupts with or without a defect, so the fixture cannot judge it.
+    overrun = host_sleep_overrun_ms()
+    if overrun > 2:
+        print("NOT RUN oversleep fixture: this host's 1 ms sleeps run %.1f ms long" % overrun)
+        return
+    good = oversleep_build(src, work, cc, [OVERSLEEP])
+    try:
+        host_clock_irqs(paced(good), "-S 4.77, sleeps 15 ms long", HOST_CLOCK_IRQ_STALLED)
+    except Failure:
+        # A host that stalled during the runs, though not before them,
+        # judges itself rather than the build.
+        overrun = host_sleep_overrun_ms()
+        if overrun > 2:
+            print("NOT RUN oversleep fixture: 1 ms sleeps now run %.1f ms long" % overrun)
+            return
+        raise
+    if not calibrate:
+        return
+    bad = paced(oversleep_build(src, work, cc, [OVERSLEEP, OVERSLEEP_BAD]))
+    counts = []
+    for _ in range(5):
+        got = bad()
+        fields = dict(t.split(":", 1) for t in got if ":" in t)
+        if (
+            "irq" not in fields
+            or fields.get("st2") != "00B0"
+            or fields.get("tick") != "ok"
+            or got[-1:] != ["done"]
+        ):
+            raise Failure("the four-waiting build did not finish whole: %r" % got)
+        counts.append(int(fields["irq"], 16))
+    if sum(1 for n in counts if n < HOST_CLOCK_IRQ_STALLED) < 3:
+        raise Failure(
+            "the paced judge accepts the four-waiting build: %s"
+            % ", ".join("%02Xh" % n for n in counts)
+        )
+    print(
+        "oversleep check rejects the four-waiting build: %s"
+        % ", ".join("%02Xh" % n for n in counts)
+    )
+
+
+def test_speed(binary, work):
+    """-S paces the guest: under -S 4.77 -c 8088 the 131072 instructions
+    before "done" alone take 0.36 s (cpu-timing.md: 13.1 clocks each), where
+    the whole run takes about 0.1 s unpaced. A lower bound only; the timer's
+    interrupts still count the same clocks."""
+
+    def paced():
+        start = time.monotonic()
+        got = pit_run(binary, work, ["-S", "4.77", "-c", "8088"])
+        took = time.monotonic() - start
+        if took < 0.3:
+            raise Failure("-S 4.77: %.2f s, %r" % (took, got))
+        return got
+
+    host_clock_irqs(paced, "-S 4.77", HOST_CLOCK_IRQ_STALLED)
+
+
+def ems_run(binary, work, args, keys, env=None):
+    """tests/ems.asm under args; the lines it wrote to head 1, sectors 1 and 2.
+    The emulator must exit 0 and leave no page file."""
+    image = os.path.join(work, "ems-run.img")
+    shutil.copyfile(os.path.join(work, "ems.img"), image)
+    store = os.path.join(work, "page")
+    try:
+        done = subprocess.run(
+            [binary, "-T", "-s", store, "-a", image, "-k", keys] + args,
+            capture_output=True,
+            timeout=60,
+            check=False,
+            env=dict(os.environ, **(env or {})),
+        )
+    except subprocess.TimeoutExpired:
+        raise Failure("ems %s: timeout" % " ".join(args)) from None
+    if done.returncode != 0:
+        raise Failure("ems %s: exit %d" % (" ".join(args), done.returncode))
+    if os.path.exists(store):
+        raise Failure("ems %s: page file left behind" % " ".join(args))
+    with open(image, "rb") as handle:
+        handle.seek(9 * 512)
+        return handle.read(1024).split(b"\0")[0].decode("latin-1").split()
+
+
+def test_ems(binary, work):
+    """Expanded memory through interrupt 67h: with eight resident pages the
+    pages of expanded memory go through the page file, and the lines must
+    equal those with 64; without -e the service is absent."""
+    want = ems_expected()
+    for frames in ("8", "64"):
+        got = ems_run(binary, work, ["-q", "-e", "256", "-f", frames], "0")
+        if got != want:
+            diff = [(g, w) for g, w in zip(got, want) if g != w][:3]
+            raise Failure("ems, %s frames: %r (%d lines)" % (frames, diff, len(got)))
+    got = ems_run(binary, work, ["-q"], "0")
+    if got != ["st:40", "done"]:
+        raise Failure("ems absent: %r" % got)
 
 
 def test_menu_edges(binary, work):
@@ -1022,7 +1827,9 @@ def test_exit_store_failure(binary, work):
             continue  # the page was resident at that instant
         if status != 3:
             raise Failure("page store failure at exit: exit %r" % status)
-        if before != after or not seen.endswith(b"\x1b[0m\x1b[r\x1b[?7h\x1b[26;1H"):
+        if termios_modes(before) != termios_modes(after) or not seen.endswith(
+            b"\x1b[0m\x1b[r\x1b[?7h\x1b[26;1H"
+        ):
             raise Failure("page store failure at exit: terminal not restored")
         return
     raise Failure("page store failure at exit: the exit never read the page file")
@@ -1173,6 +1980,10 @@ def test(binary, work):
     test_exit_store_failure(binary, work)
     test_interactive(binary, work)
     test_menu_edges(binary, work)
+    test_mouse(binary, work)
+    test_ems(binary, work)
+    test_pit(binary, work)
+    test_speed(binary, work)
     # A write-protected image refuses the guest's sector write.
     out, _ = run(binary, work, ["-d", "-r", "-f", "64"])
     if "DISK BAD" not in out.decode("latin-1"):
@@ -1202,23 +2013,52 @@ def main(argv):
         return 0
     with tempfile.TemporaryDirectory() as work:
         try:
-            data = guest_image(src, os.path.join(work, "guest.img"))
+            images = (
+                ("guest", guest_image(src, os.path.join(work, "guest.img"))),
+                ("mouse", mouse_image(src, os.path.join(work, "mouse.img"))),
+                ("ems", boot_image(src, "ems", os.path.join(work, "ems.img"))),
+                ("pit", boot_image(src, "pit", os.path.join(work, "pit.img"))),
+            )
             nasm = shutil.which("nasm")
+            for name, data in images:
+                if nasm:
+                    built = os.path.join(work, name + ".bin")
+                    subprocess.run(
+                        [nasm, "-f", "bin", "-o", built, os.path.join(src, "tests", name + ".asm")],
+                        check=True,
+                    )
+                    with open(built, "rb") as handle:
+                        if handle.read() != data:
+                            raise Failure("%s.hexdump differs from %s.asm" % (name, name))
+                    print("%s.hexdump matches %s.asm" % (name, name))
+                else:
+                    print(
+                        "NOT RUN %s.hexdump against %s.asm: nasm (package nasm) is absent"
+                        % (name, name)
+                    )
             if nasm:
-                built = os.path.join(work, "guest.bin")
+                built = os.path.join(work, "EMS.SYS")
                 subprocess.run(
-                    [nasm, "-f", "bin", "-o", built, os.path.join(src, "tests", "guest.asm")],
+                    [nasm, "-f", "bin", "-o", built, os.path.join(src, "dos", "ems.asm")],
                     check=True,
                 )
+                with open(os.path.join(src, "dos", "ems.hexdump")) as handle:
+                    listed = bytes.fromhex("".join(handle.read().split()))
                 with open(built, "rb") as handle:
-                    if handle.read() != data:
-                        raise Failure("guest.hexdump differs from guest.asm")
-                print("guest.hexdump matches guest.asm")
-            else:
-                print("NOT RUN guest.hexdump against guest.asm: nasm (package nasm) is absent")
+                    if handle.read() != listed:
+                        raise Failure("dos/ems.hexdump differs from dos/ems.asm")
+                print("dos/ems.hexdump matches dos/ems.asm")
             binary = os.path.join(work, "i86-host")
             build(src, binary, cc)
+            csources = ["tests/clocktest.c", "clock.c"]
+            clocktest = os.path.join(work, "clocktest")
+            build(src, clocktest, cc, csources)
+            print(test_clock(clocktest))
+            # Independent of the emulator, so once, not for every mutant.
+            test_wait_draining()
+            test_host_clock_judge()
             test(binary, work)
+            test_oversleep(src, work, cc, calibrate=True)
             print("i86 host test passed")
             vsources = ["tests/sstrun.c", "cpu.c", "mem.c"]
             sstrun = os.path.join(work, "sstrun")
@@ -1248,6 +2088,10 @@ def main(argv):
             else:
                 print("NOT RUN panel.hexdump against panel.asm: nasm (package nasm) is absent")
             psources = SOURCES + ["tests/panel.c", "-DGFX_MODEL"]
+            dsources = ["tests/draintest.c", "gfx.c", "-DGFX_MODEL"]
+            draintest = os.path.join(work, "draintest")
+            build(src, draintest, cc, dsources)
+            print(test_drain(draintest))
             pbinary = os.path.join(work, "i86-panel")
             build(src, pbinary, cc, psources)
             try:
@@ -1266,14 +2110,22 @@ def main(argv):
                 mutant = os.path.join(work, "i86-mutant")
                 build(tree, mutant, cc)
                 build(tree, sstrun + "-mutant", cc, vsources)
+                build(tree, clocktest + "-mutant", cc, csources)
                 try:
+                    test_clock(clocktest + "-mutant")
                     test(mutant, work)
                     test_vectors(sstrun + "-mutant", src, work)
                     test_vectors(sstrun + "-mutant", src, work, suite="80286")
                     test_undefined(sstrun + "-mutant", work)
                     test_rep_burst(sstrun + "-mutant", work)
+                    test_oversleep(tree, work, cc)
                 except (Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
-                    # A mutant that hangs or dies has failed like any other.
+                    # A mutant that hangs or dies has failed like any other. The
+                    # line keeps the step's idle timer fed through the stage.
+                    print(
+                        "i86 mutant %d of %d rejected: %s" % (number, len(MUTANTS), name),
+                        flush=True,
+                    )
                     continue
                 raise Failure("mutant %d survives: %s: %r" % (number, name, old))
             print("%d mutants fail the test" % len(MUTANTS))
@@ -1285,9 +2137,21 @@ def main(argv):
                 mutate(src, tree, number, name, old, new)
                 mutant = os.path.join(work, "i86-mutant")
                 build(tree, mutant, cc, psources)
+                build(tree, draintest + "-mutant", cc, dsources)
                 try:
+                    test_drain(draintest + "-mutant")
                     panel.test(mutant, src, work)
-                except (panel.Failure, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                except (
+                    Failure,
+                    panel.Failure,
+                    subprocess.TimeoutExpired,
+                    subprocess.CalledProcessError,
+                ):
+                    print(
+                        "i86 panel mutant %d of %d rejected: %s"
+                        % (number, len(panel.MUTANTS), name),
+                        flush=True,
+                    )
                     continue
                 raise Failure("panel mutant %d survives: %s: %r" % (number, name, old))
             print("%d mutants fail the panel display test" % len(panel.MUTANTS))

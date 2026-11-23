@@ -21,7 +21,7 @@ appropriate.
 every divider register, the SIO base plus a divider offset, and a direct
 divider address, each inside a block comment, a line comment, a trailing
 comment or a comment spanning lines, and the verifier must accept it with
-`source_divider_findings=0`. A comment emits no instruction, so an access has
+`source_divider_findings=0`. A comment emits zero instructions, so an access has
 to appear in code; `sys/arch/rp2040/rp2040/mpu.c` needs this to state which
 registers the boot ROM's `fdiv_n` writes while it programs an MPU region over
 them. `source_negative.c` keeps its two findings in code, so the calibration
@@ -32,7 +32,7 @@ kernel's `divider_save` and `divider_restore`, which carry a process's
 divider state across an entry from it. `divider_admitted.S` holds one
 admitted function with two divider accesses beside an `entry` with none;
 the verifier must find both accesses without the option and none with it,
-and naming `divider_save` for `divider_negative.elf`, which has no such
+and naming `divider_save` for `divider_negative.elf`, which lacks such a
 function, must fail as a stale admission while its four findings stand.
 `source_admitted.c` does the same for the source scan: the reference
 inside the admitted definition is skipped and the file-scope `#define` is
@@ -58,7 +58,7 @@ named rejections: a missing extent, a short extent, overlap into the next
 owner, escape past text, an alias redirected to another valid owner, and a
 cleared Thumb bit. Unique `.build-logs/divider-extent-controls-*` directories
 retain each object, diagnostic and terminal receipt. The production fixture
-contains no literal pools; `DIVIDER_MODEL` arithmetic remains a separate gate.
+contains zero literal pools; `DIVIDER_MODEL` arithmetic remains a separate gate.
 The [extent record](../../../docs/research/xip-shared-libc/divider-function-extents.md)
 owns the model-pool and native-archive identity measurements.
 

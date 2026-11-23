@@ -33,7 +33,10 @@ fi
 "$PYTHON" -I "$here/emulate.py" "$top/$builddir/unix.elf"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/core1emu.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 tree=$work/tree
 
 # mirror SRC DST SKIP: link every entry of SRC into DST except SKIP.
@@ -68,7 +71,7 @@ rebuild()
 	fi
 }
 
-# The scratch tree itself must change nothing: its kernel has to pass.
+# The scratch tree itself must leave the result unchanged: its kernel has to pass.
 rebuild "$work/control.log"
 "$PYTHON" -I "$here/emulate.py" "$tree/$builddir/unix.elf" >"$work/control.out" || {
 	echo "core1-emulation: the unmutated scratch kernel failed" >&2

@@ -1,308 +1,41 @@
 #!/bin/sh
+# Copyright (c) 2026 GizmoBSD
 #
-# discobsd-flash -- reflash the DiscoBSD RP2040 board with picotool, on
-# Linux and macOS, and eject the RPI-RP2 volume the way the host wants.
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its contributors
+#    may be used to endorse or promote products derived from this software
+#    without specific prior written permission.
 #
-# The running kernel answers picotool's reset request and reboots into
-# BOOTSEL, where the boot ROM offers a mass-storage volume named RPI-RP2
-# and the PICOBOOT interface that picotool loads through. The host mounts
-# the volume on its own; taking the board out of BOOTSEL with it mounted
-# earns a "Disk Not Ejected Properly" complaint on macOS and a stale
-# mount on Linux. This script unmounts the volume before every reboot out
-# of BOOTSEL, and waits for the boot ROM itself, because picotool's own
-# wait after a forced reboot is shorter than macOS takes to enumerate it.
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 #
-#   discobsd-flash FILE.uf2 ...   load each image in order, then reboot
-#   discobsd-flash --bootsel      into BOOTSEL and stop, volume mounted,
-#                                 for a copy by hand; --eject afterwards
-#   discobsd-flash --eject        unmount the volume, reboot into the kernel
-#   --usb-port PORT               act on the board at USB port PORT (such as
-#                                 1-3; DISCOBSD_USB_PORT does the same), Linux;
-#                                 an empty --usb-port operand is an error and
-#                                 an empty DISCOBSD_USB_PORT counts as unset
 #
-# Two boards on one host enumerate alike (2e8a:000a, serial "rp2040"), and
-# an unaddressed picotool may act on either. With more than one 2e8a device
-# attached and no --usb-port, this stops before any reset or load and lists
-# the candidates with their ports. With --usb-port, every picotool call
-# carries the --bus and --address that the port's sysfs node holds at that
-# moment, because the address changes at every re-enumeration; the volume
-# unmounted is the one behind that port, and the other 2e8a devices must
-# keep their addresses and products for the whole run. Linux only: macOS
-# has no sysfs, so there the tool addresses picotool's one device as before.
-# DISCOBSD_SYSFS_USB replaces /sys/bus/usb/devices for tests.
-#
-# A hung kernel does not answer the reset request: hold BOOTSEL through a
-# replug, then run this the same way.
+# discobsd-flash -- the former name of gizmobsd--flash. For one release this
+# prints one line naming the new command and runs it with the same arguments.
 set -eu
 
-VOLUME=RPI-RP2
-usb_port=${DISCOBSD_USB_PORT:-}
-sysfs_usb=${DISCOBSD_SYSFS_USB:-/sys/bus/usb/devices}
-
-die() {
-	echo "discobsd-flash: $*" >&2
-	exit 1
-}
-
-# A guard failure must reach the user even when the caller silences the
-# picotool call it wraps, so it writes to a saved copy of stderr.
-exec 3>&2
-
-sysattr() {
-	cat "$sysfs_usb/$1/$2" 2>/dev/null || true
-}
-
-# One line per attached 2e8a device: port, product id, bus, address, name.
-list_rp_devices() {
-	for d in "$sysfs_usb"/*; do
-		[ -e "$d/idVendor" ] || continue
-		n=${d##*/}
-		[ "$(sysattr "$n" idVendor)" = 2e8a ] || continue
-		printf '%s 2e8a:%s bus %s address %s %s\n' "$n" "$(sysattr "$n" idProduct)" \
-		    "$(sysattr "$n" busnum)" "$(sysattr "$n" devnum)" "$(sysattr "$n" product)"
-	done
-}
-
-# The 2e8a devices on every port but the selected one.
-list_other_devices() {
-	list_rp_devices | while read -r n rest; do
-		[ "$n" = "$usb_port" ] || echo "$n $rest"
-	done
-}
-
-refuse_ambiguous() {
-	[ -z "$usb_port" ] || return 0
-	devs=$(list_rp_devices)
-	case $devs in
-	*'
-'*)
-		echo "discobsd-flash: more than one 2e8a device is attached; name the board with --usb-port PORT or DISCOBSD_USB_PORT:" >&3
-		echo "$devs" | sed 's/^/  /' >&3
-		exit 2
-		;;
-	esac
-}
-
-# Sets dev_bus and dev_addr from the selected port's sysfs node as it is now.
-resolve_port() {
-	[ "$(sysattr "$usb_port" idVendor)" = 2e8a ] || return 1
-	dev_bus=$(sysattr "$usb_port" busnum)
-	dev_addr=$(sysattr "$usb_port" devnum)
-	case "$dev_bus:$dev_addr" in
-	*[!0-9:]* | :* | *:) return 1 ;;
-	esac
-}
-
-# The other boards must neither move nor change mode while this one is flashed.
-others_before=
-check_others() {
-	[ -n "$usb_port" ] || return 0
-	now=$(list_other_devices)
-	[ "$now" = "$others_before" ] || {
-		echo "discobsd-flash: a device on another USB port changed during the run (before: $others_before; now: $now)" >&3
-		exit 1
-	}
-}
-
-# picotool, addressed to the selected port when there is one. A port with no
-# 2e8a device fails the call; it never falls back to an unaddressed picotool.
-# The other ports are checked before and after the call, so a change stops
-# every later operation; picotool's own exit status is the call's status.
-# Without a port, a second 2e8a device that appears mid-run (a board in
-# BOOTSEL after a failed reset) stops the run before the next call.
-pt() {
-	if [ -z "$usb_port" ]; then
-		refuse_ambiguous
-		picotool "$@"
-		return
+echo "discobsd-flash is renamed gizmobsd-flash; use the new name" >&2
+# Run the sibling when this file was invoked by path, else the one on PATH.
+case $0 in
+*/*)
+	if [ -x "${0%/*}/gizmobsd-flash" ]; then
+		exec "${0%/*}/gizmobsd-flash" "$@"
 	fi
-	check_others
-	resolve_port || {
-		echo "discobsd-flash: USB port $usb_port holds no 2e8a device right now" >&2
-		return 1
-	}
-	rc=0
-	picotool "$@" --bus "$dev_bus" --address "$dev_addr" || rc=$?
-	check_others
-	return "$rc"
-}
-
-in_bootsel() {
-	if [ -n "$usb_port" ]; then
-		# The boot ROM's product id is the evidence; the second lets libusb
-		# see the interface the enumeration just announced.
-		[ "$(sysattr "$usb_port" idVendor):$(sysattr "$usb_port" idProduct)" = 2e8a:0003 ] || return 1
-		sleep 1
-		return 0
-	fi
-	pt info >/dev/null 2>&1
-}
-
-# picotool exits nonzero, with a hint, when the only board is running a
-# kernel; it exits zero once the boot ROM answers.
-wait_bootsel() {
-	i=0
-	until in_bootsel; do
-		i=$((i + 1))
-		[ "$i" -lt 40 ] || die "the board did not reach BOOTSEL; hold BOOTSEL through a replug"
-		sleep 0.5
-	done
-}
-
-enter_bootsel() {
-	if in_bootsel; then
-		return
-	fi
-	echo "discobsd-flash: rebooting the kernel into BOOTSEL" >&2
-	pt reboot -u -f >/dev/null 2>&1 || true
-	wait_bootsel
-}
-
-# The mounted block device of the boot ROM volume behind the selected port,
-# found through that port's sysfs subtree; with two boards in BOOTSEL the
-# LABEL names both.
-port_volume_source() {
-	for b in "$sysfs_usb/$usb_port"/*/host*/target*/*/block/*; do
-		[ -e "$b" ] || continue
-		dev=/dev/${b##*/}
-		for part in "$dev" "${dev}1"; do
-			[ -b "$part" ] || continue
-			if findmnt -rn -S "$part" >/dev/null 2>&1; then
-				echo "$part"
-				return 0
-			fi
-		done
-	done
-	return 0
-}
-
-# Where the host mounted the boot ROM's volume, or nothing.
-mounted_at() {
-	case "$(uname -s)" in
-	Darwin)
-		[ -d "/Volumes/$VOLUME" ] && echo "/Volumes/$VOLUME"
-		;;
-	Linux)
-		if [ -n "$usb_port" ]; then
-			src=$(port_volume_source)
-			[ -z "$src" ] || findmnt -rn -S "$src" -o TARGET 2>/dev/null | head -1
-		else
-			findmnt -rn -S "LABEL=$VOLUME" -o TARGET 2>/dev/null | head -1
-		fi
-		;;
-	esac
-	return 0
-}
-
-# The mount follows enumeration by a moment; wait for it so an unmount
-# is not overtaken by a mount that arrives a second later.
-wait_mount() {
-	i=0
-	while [ -z "$(mounted_at)" ]; do
-		i=$((i + 1))
-		[ "$i" -lt 20 ] || return 0
-		sleep 0.5
-	done
-}
-
-# The volume is found by label (or by the port's block device), and the
-# device set may have changed since the last picotool call: a second board in
-# BOOTSEL would put its volume under the same label.
-recheck_devices() {
-	if [ -n "$usb_port" ]; then
-		check_others
-	else
-		refuse_ambiguous
-	fi
-}
-
-eject() {
-	wait_mount
-	m=$(mounted_at)
-	[ -n "$m" ] || return 0
-	recheck_devices
-	echo "discobsd-flash: unmounting $m" >&2
-	case "$(uname -s)" in
-	Darwin)
-		diskutil unmount "$m" >/dev/null
-		;;
-	Linux)
-		if command -v udisksctl >/dev/null 2>&1; then
-			if [ -n "$usb_port" ]; then
-				udisksctl unmount -b "$(port_volume_source)" >/dev/null
-			else
-				udisksctl unmount -b "$(findmnt -rn -S "LABEL=$VOLUME" -o SOURCE | head -1)" >/dev/null
-			fi
-		else
-			umount "$m"
-		fi
-		;;
-	esac
-}
-
-leave_bootsel() {
-	eject
-	echo "discobsd-flash: rebooting into the kernel" >&2
-	pt reboot >/dev/null 2>&1 || true
-}
-
-command -v picotool >/dev/null 2>&1 || die "picotool is not installed (brew install picotool; apt or pacman likewise)"
-
-while [ $# -gt 0 ]; do
-	case $1 in
-	--usb-port)
-		[ $# -ge 2 ] && [ -n "$2" ] || die "--usb-port needs a port such as 1-3"
-		usb_port=$2
-		shift 2
-		;;
-	*) break ;;
-	esac
-done
-
-[ $# -gt 0 ] || die "usage: discobsd-flash [--usb-port PORT] FILE.uf2 ... | --bootsel | --eject (an empty DISCOBSD_USB_PORT counts as unset)"
-
-if [ -n "$usb_port" ]; then
-	# The port is joined into a sysfs path: bus-port[.port...] and nothing else.
-	case $usb_port in
-	*[!0-9.-]* | *..* | *. | -* | *-*-* | *-) die "$usb_port is not a USB port path such as 1-3 or 1-2.4" ;;
-	[0-9]*-[0-9]*) ;;
-	*) die "$usb_port is not a USB port path such as 1-3 or 1-2.4" ;;
-	esac
-	[ "$(uname -s)" = Linux ] || die "--usb-port reads Linux sysfs; this host has none"
-	[ "$(sysattr "$usb_port" idVendor)" = 2e8a ] || die "USB port $usb_port holds no 2e8a device"
-	others_before=$(list_other_devices)
-else
-	refuse_ambiguous
-fi
-
-case "$1" in
---bootsel)
-	enter_bootsel
-	wait_mount
-	echo "discobsd-flash: in BOOTSEL; $VOLUME is at $(mounted_at); copy a UF2 there, then discobsd-flash --eject" >&2
-	;;
---eject)
-	in_bootsel || die "the board is not in BOOTSEL"
-	leave_bootsel
-	;;
--*)
-	die "unknown option $1"
-	;;
-*)
-	for f in "$@"; do
-		[ -r "$f" ] || die "cannot read $f"
-		case "$f" in *.uf2) ;; *) die "$f is not a .uf2 file" ;; esac
-	done
-	enter_bootsel
-	# The volume goes first: picotool loads through PICOBOOT, and a volume
-	# still mounted during the write is a stale view of the flash anyway.
-	eject
-	for f in "$@"; do
-		echo "discobsd-flash: loading $f" >&2
-		pt load -v "$f"
-	done
-	echo "discobsd-flash: rebooting into the kernel" >&2
-	pt reboot >/dev/null 2>&1 || true
 	;;
 esac
+exec gizmobsd-flash "$@"

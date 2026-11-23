@@ -32,7 +32,7 @@
  * numerator == quot * denominator + rem, |rem| < |denominator|, and a
  * nonzero rem has the numerator's sign.  The grid checks those conditions
  * rather than a second evaluation of / and %, so a provider and its oracle
- * share no arithmetic; floored division meets the first two and fails the
+ * do not share arithmetic; floored division meets the first two and fails the
  * third.  Grid operands stay small enough that the identity cannot
  * overflow.  Width boundaries carry literal expected results.
  */

@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef	_RP2040_DEV_LOADER_STAMP_H_
@@ -29,8 +41,8 @@
  * the application's vector table: the magic below at flash offset 0x110 and,
  * at 0x114, the first flash address the application may not write, as an
  * execute-in-place address. Both words are vector entries 4 and 5, which
- * ARMv6-M reserves and every DiscoBSD image leaves zero, so an image flashed
- * any other way carries no stamp and keeps the whole chip.
+ * ARMv6-M reserves and every GizmoBSD image leaves zero, so an image flashed
+ * any other way lacks a stamp and keeps the whole chip.
  *
  * With the stamp, everything at and above the stamped limit belongs to the
  * loader. The kernel honors a limit only where it leaves the fixed layout
@@ -38,7 +50,7 @@
  * FLASH_SWAP_OFFSET, so the root filesystem below it is never cut, and at
  * or below the top of the chip less LOADER_RESERVED_BYTES, the 16 KB the
  * stock loader keeps for its stage (pelrun/uf2loader stage3 link map). Any
- * other limit names no layout this kernel can honor, so the decode fails
+ * other limit names a layout this kernel cannot honor, so the decode fails
  * closed: the writable end becomes the start of the filesystem region, the
  * lowest offset any flash write targets, and no erase or program passes
  * flash_write_admitted().
@@ -99,7 +111,7 @@ flash_write_admitted(uint32_t offset, uint32_t len, uint32_t write_end)
 /*
  * Bytes of raw swap, fl1, below the writable end: the region starts at
  * FLASH_SWAP_OFFSET and stops at the end or at FLASH_SWAP_BYTES, whichever
- * comes first. An end at or below the region's start leaves no swap.
+ * comes first. An end at or below the region's start leaves zero swap blocks.
  */
 static inline uint32_t
 flash_swap_extent(uint32_t write_end)
@@ -109,6 +121,29 @@ flash_swap_extent(uint32_t write_end)
 	if (write_end - FLASH_SWAP_OFFSET > FLASH_SWAP_BYTES)
 		return FLASH_SWAP_BYTES;
 	return write_end - FLASH_SWAP_OFFSET;
+}
+
+/*
+ * The layout a stamp selects at boot, which flash_limit_init() applies:
+ * the writable end, fl1's extent below it, and whether the loader's second
+ * stage occupies flash bytes 0-255, which the magic alone decides, so a
+ * stamp with a bad limit still restores the XIP divider. fl1's extent sizes
+ * nswap whenever swapdev stays on the flash, as it does when no PSRAM
+ * probes, so swap ends at the stamped limit as every flash write does.
+ */
+struct loader_layout {
+	uint32_t	write_end;
+	uint32_t	swap_bytes;
+	int		status;		/* LOADER_STAMP_* */
+	int		loader_boot2;
+};
+
+static inline void
+loader_layout_decode(uint32_t magic, uint32_t limit, struct loader_layout *ll)
+{
+	ll->status = loader_stamp_decode(magic, limit, &ll->write_end);
+	ll->swap_bytes = flash_swap_extent(ll->write_end);
+	ll->loader_boot2 = magic == LOADER_STAMP_MAGIC;
 }
 
 #endif	/* !_RP2040_DEV_LOADER_STAMP_H_ */

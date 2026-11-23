@@ -1,0 +1,7 @@
+mpu_guard_update() <void mpu_guard_update (u_int sp) at sys/arch/rp2040/rp2040/mpu.c:284>:
+    rp2040_break_guard_floor() <inline unsigned int rp2040_break_guard_floor (unsigned int brk, unsigned int saddr, unsigned int sp) at sys/arch/rp2040/compile/PICOCALC_SD/machine/breakguard.h:68>:
+    mpu_guard_set() <void mpu_guard_set (u_int floor) at sys/arch/rp2040/rp2040/mpu.c:267>:
+        rp2040_break_guard_rbar() <inline unsigned int rp2040_break_guard_rbar (unsigned int floor) at sys/arch/rp2040/compile/PICOCALC_SD/machine/breakguard.h:82>:
+        rp2040_break_guard_rasr() <inline unsigned int rp2040_break_guard_rasr (unsigned int floor) at sys/arch/rp2040/compile/PICOCALC_SD/machine/breakguard.h:94>:
+        arm_dsb() <__inline void arm_dsb (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/scb.h:80>:
+        arm_isb() <__inline void arm_isb (void) at sys/arch/rp2040/compile/PICOCALC_SD/machine/scb.h:86>:

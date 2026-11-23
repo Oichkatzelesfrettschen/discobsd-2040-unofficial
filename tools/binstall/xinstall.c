@@ -59,7 +59,7 @@
 
 #ifdef	__APPLE__
 /*
- * macOS keeps chflags(2) but has no pwcache(3), names the timespec
+ * macOS keeps chflags(2) but lacks pwcache(3), names the timespec
  * members of struct stat after the BSD 4.3 spelling, and takes the flag
  * words of strtofflags(3) as unsigned long.
  */

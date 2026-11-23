@@ -13,7 +13,10 @@ export LC_ALL
 
 source_directory=$(cd "$(dirname "$0")/.." && pwd)
 work_directory=$(mktemp -d "${TMPDIR:-/tmp}/compresscheck.XXXXXX")
-trap 'rm -rf "$work_directory"' EXIT INT HUP TERM
+trap 'rm -rf "$work_directory"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail()
 {
@@ -84,7 +87,7 @@ $compiler $sanitizer_flags -o "$work_directory/compress-interposition-bypass" \
 input_file=$work_directory/input
 iteration=0
 while [ "$iteration" -lt 256 ]; do
-	printf '%s\n' 'DiscoBSD RP2040 bounded LZW round trip' >> "$input_file"
+	printf '%s\n' 'GizmoBSD RP2040 bounded LZW round trip' >> "$input_file"
 	iteration=$((iteration + 1))
 done
 

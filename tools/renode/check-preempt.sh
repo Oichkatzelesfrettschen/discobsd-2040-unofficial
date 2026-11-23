@@ -69,6 +69,8 @@ command -v renode >/dev/null 2>&1 ||
 	missing "no renode in PATH; install Renode 1.17 or later"
 [ -r "$MODELS" ] ||
 	missing "no $MODELS; run sh tools/renode/fetch-renode-rp2040.sh"
+sh "$SCRIPT_DIR/models-series.sh" check "$MODELS" ||
+	missing "the built models do not match tools/renode/patches; rerun sh tools/renode/fetch-renode-rp2040.sh"
 [ -r "$KERNEL" ] ||
 	missing "no $KERNEL; run bmake MACHINE=rp2040 kernel"
 [ -r "$DISK" ] ||
@@ -83,7 +85,10 @@ echo "check-preempt: Renode ${RUNNING_RENODE:-unknown}"
 
 mkdir -p "$OUTPUT"
 STAGE=$(mktemp -d "$OUTPUT/stage.XXXXXX")
-trap 'rm -f "$STAGE/tmp/preempt"; rmdir "$STAGE/tmp" "$STAGE" 2>/dev/null || :' EXIT HUP INT TERM
+trap 'rm -f "$STAGE/tmp/preempt"; rmdir "$STAGE/tmp" "$STAGE" 2>/dev/null || :' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir "$STAGE/tmp"
 cp "$PROGRAM" "$STAGE/tmp/preempt"
 chmod 755 "$STAGE/tmp/preempt"
@@ -94,6 +99,6 @@ cp "$DISK" "$OUTPUT/disk.img"
 "$FLASHIMG" "$OUTPUT/disk.img" "$OUTPUT/flash.bin" >"$OUTPUT/flashimg.txt"
 
 "$PYTHON" -I "$SCRIPT_DIR/renode_monitor.py" --self-test
-# -u: tools/run_logged_gate.py ends a run that prints nothing for its idle
+# -u: tools/run_logged_gate.py ends a run that prints zero bytes for its idle
 # limit, and Python block-buffers a piped stdout until exit.
 "$PYTHON" -I -u "$SCRIPT_DIR/check-preempt.py" renode "$KERNEL" "$OUTPUT/flash.bin" "$OUTPUT" "$@"

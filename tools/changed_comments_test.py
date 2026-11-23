@@ -14,7 +14,7 @@ import check_changed_comments as checker
 
 class GitFixture(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="discobsd-comments-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="gizmobsd-comments-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "checkout"
         self.root.mkdir()
@@ -576,6 +576,77 @@ class AttributionTests(GitFixture):
         self.assertEqual(len(result.advisories), 1)
         self.assertEqual(result.advisories[0].lines, 15)
 
+    def test_new_determiner_negation_is_reported(self):
+        self.write("sample.c", "/* a write passes no old buffer */\nint baseline;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual([item.rule_id for item in result.diagnostics],
+                         ["CH005_DETERMINER_NEGATION"])
+        self.assertEqual(result.diagnostics[0].line, 1)
+
+    def test_positive_rewrite_and_bounds_pass(self):
+        self.write("sample.c", "/* bl_set() passes NULL for the old-value pointer;\n"
+                   " * the cache is no longer valid with no board. */\nint baseline;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual(result.diagnostics, ())
+
+    def test_inherited_determiner_kept_or_moved_passes(self):
+        self.write("sample.c", "/* it returns nothing */\nint baseline;\n")
+        self.stage("sample.c")
+        self.git("commit", "-qm", "inherited")
+        self.base = self.git("rev-parse", "HEAD").decode().strip()
+        for text in ("/* it returns nothing; edited */\nint baseline;\n",
+                     "int baseline;\n/* it returns nothing */\n"):
+            with self.subTest(text=text):
+                self.write("sample.c", text)
+                self.stage("sample.c")
+                self.assertEqual(self.check_mode("staged").diagnostics, ())
+
+    def test_second_copy_of_inherited_determiner_is_reported(self):
+        self.write("sample.c", "/* it returns nothing */\nint baseline;\n")
+        self.stage("sample.c")
+        self.git("commit", "-qm", "inherited")
+        self.base = self.git("rev-parse", "HEAD").decode().strip()
+        self.write("sample.c", "/* it returns nothing */\nint baseline;\n"
+                   "/* this one returns nothing too */\nint other;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual([item.rule_id for item in result.diagnostics],
+                         ["CH005_DETERMINER_NEGATION"])
+        self.assertEqual(result.diagnostics[0].line, 3)
+
+    def test_added_copy_beside_reworded_inherited_comment_is_reported(self):
+        self.write("sample.c", "/* first: it returns nothing */\nint baseline;\n")
+        self.stage("sample.c")
+        self.git("commit", "-qm", "inherited")
+        self.base = self.git("rev-parse", "HEAD").decode().strip()
+        self.write("sample.c", "/* first, reworded: it returns nothing */\nint baseline;\n"
+                   "/* second: it returns nothing */\nint other;\n")
+        self.stage("sample.c")
+
+        result = self.check_mode("staged")
+
+        self.assertEqual([item.rule_id for item in result.diagnostics],
+                         ["CH005_DETERMINER_NEGATION"])
+        self.assertIn("comments at lines 1, 3", result.diagnostics[0].detail)
+
+    def test_line_comment_determiner_is_reported(self):
+        for text in ("// a write passes no old buffer\nint x;\n",
+                     "// it has\n// no effect\nint x;\n"):
+            with self.subTest(text=text):
+                self.write("sample.c", text)
+                self.stage("sample.c")
+                result = self.check_mode("staged")
+                self.assertEqual([(item.rule_id, item.line) for item in result.diagnostics],
+                                 [("CH005_DETERMINER_NEGATION", 1)])
+
     def test_new_line_comment_group_detects_phrase_split_across_members(self):
         self.write("sample.c", "// in this\n// PR\nint baseline;\n")
         self.stage("sample.c")
@@ -877,7 +948,7 @@ class RepositoryCalibrationTests(unittest.TestCase):
                     self.assertEqual(diagnostics, [])
 
     def test_cli_exit_codes_and_empty_denominator(self):
-        with tempfile.TemporaryDirectory(prefix="discobsd-comments-cli-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="gizmobsd-comments-cli-") as temporary:
             root = Path(temporary)
             subprocess.run(["git", "-C", temporary, "init", "-q"], check=True)
             subprocess.run(["git", "-C", temporary, "config", "user.name", "Fixture"],

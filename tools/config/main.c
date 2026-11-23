@@ -61,6 +61,8 @@ int     debugging;
 
 int     maxusers;
 
+const char *config_file;
+
 /*
  * Config builds a set of files for building a UNIX
  * system given a description of the desired system.
@@ -87,6 +89,7 @@ usage:  fputs("usage: config [-gp] sysname\n", stderr);
         exit(1);
     }
 
+    config_file = *argv;
     if (! freopen(*argv, "r", stdin)) {
         perror(*argv);
         exit(2);

@@ -15,7 +15,7 @@
 # phase is twice its high phase, an EID decoded one byte early, and a Read
 # ID overrun that is not retried, a /tmp offset without its region's base,
 # and a swap length bounded by the device instead of its region, and
-# whole-part swap that keeps a /tmp region or changes nothing. A gate
+# whole-part swap that keeps a /tmp region or leaves the map unchanged. A gate
 # that passed them would be
 # checking nothing.
 #
@@ -114,7 +114,7 @@ mutant-region-bound:
 mutant-swap-all-keeps-tmp:
 	${MUT} psram_xfer.c 's/return PSRAM_BYTES - psram_swap_bytes();/return PSRAM_BYTES - PSRAM_SWAP_BYTES;/'
 
-# A psram_swap_all() that changes nothing.
+# A psram_swap_all() that leaves the map unchanged.
 mutant-swap-all-ignored:
 	${MUT} psram_xfer.c 's/psram_swap_whole = 1;/psram_swap_whole = 0;/'
 

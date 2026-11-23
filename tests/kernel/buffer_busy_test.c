@@ -4,13 +4,13 @@
  * The gate compiles the production buffer cache unmodified at the target's
  * width in the rp2040 configuration (NBUF 4, linear cache) and links it with
  * the production sys/kern/subr_capacity.c. getnewbuf() separates two states
- * that both leave no buffer free for a new block:
+ * that both leave every buffer unavailable for a new block:
  *
  *   - every buffer is B_BUSY: the caller counts one buffer capacity failure
  *     and one buffer wait, sets B_WANTED on the free-list head bfreelist[0]
  *     and sleeps there until brelse() wakes it;
  *   - a free buffer holds a delayed write: getnewbuf() counts an eviction
- *     write and writes the block with bawrite(), which raises no capacity
+ *     write and writes the block with bawrite(), which does not raise a capacity
  *     failure and does not sleep.
  *
  * The seam is sleep() and wakeup(). sleep() here records the channel and the
@@ -133,7 +133,7 @@ struct sleep_record {
 /*
  * What runs while the caller is blocked: release a held buffer with
  * brelse(), and wake the free-list channel with no buffer released (a
- * spurious wakeup). An all-zero entry runs nothing.
+ * spurious wakeup). An all-zero entry performs zero actions.
  */
 struct sleep_action {
 	struct buf *release;

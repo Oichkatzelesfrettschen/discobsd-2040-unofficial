@@ -36,7 +36,7 @@
  *   block      a 64 KiB block erase counts each of its sixteen sectors once
  *   root       erases below FLASH_SWAP_OFFSET count nothing
  *   edges      a request crossing the swap start or the last counter counts
- *              the part inside and writes nothing outside the array
+ *              the part inside and writes zero bytes outside the array
  *   saturate   a counter at 65535 stays there and its neighbors still count
  *   model      a pseudo-random request stream leaves every counter equal to
  *              the model's, with saturation reached
@@ -183,7 +183,7 @@ scenario_edges(void)
 	    zero_outside(FLASH_SWAP_SECTORS - 1, FLASH_SWAP_SECTORS),
 	    "a request past the last counter counts its inside part");
 	EXPECT("edges", guards_intact(), "no store outside the array");
-	/* A block starting at the last sector writes nothing outside. */
+	/* A block starting at the last sector writes zero bytes outside. */
 	arena_reset();
 	note(FLASH_SWAP_OFFSET + 90 * FLASH_SECTOR_BYTES, FLASH_BLOCK_BYTES);
 	EXPECT("edges", guards_intact(), "block past the end leaves guards");

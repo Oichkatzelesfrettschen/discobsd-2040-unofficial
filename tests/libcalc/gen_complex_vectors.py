@@ -13,7 +13,7 @@ The pole-approach rows (CV_POLE) are not in the specification. They sample
 atanh next to +-1 and atan next to +-i, where the real-axis formulas of a
 double-precision library lose the argument to cancellation or overflow, and
 take their expected values from mpmath at 60 digits, evaluated at the exact
-binary value of each double argument. mpmath shares no code or formula with
+binary value of each double argument. mpmath does not share code or formulas with
 calc_complex.c, and the 60-digit working precision leaves the 1e-160 offsets
 well above its rounding. The generator needs mpmath for those rows only and
 stops when it is missing.

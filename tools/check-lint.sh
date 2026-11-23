@@ -3,7 +3,7 @@
 # and every tracked Python file under ruff. A script is one whose name ends
 # in .sh or whose first line is a sh shebang (share/man/makewhatis.sed
 # carries one and is a sed script); .shellcheckrc declares sh for the
-# board scripts that carry no shebang. ruff reads ruff.toml at the top
+# board scripts that lack a shebang. ruff reads ruff.toml at the top
 # of the tree and the host package's own pyproject.toml beneath it.
 set -eu
 

@@ -17,36 +17,33 @@ panel renderer's effect on the tick record there is unmeasured.
 ## What it is not
 
 It is not symmetric multiprocessing. One process is resident in one 192 KB
-window, `u` is one fixed structure exchanged at a switch, and ARMv6-M has no
-load-exclusive, compare-and-swap or atomic exchange to build a kernel lock
-from. Core 0 depends on core 1 for nothing: a core 1 that is absent, parked
+window, `u` is one fixed structure exchanged at a switch, and ARMv6-M lacks the load-exclusive, compare-and-swap and atomic-exchange instructions a kernel lock is built from. Core 0 depends on core 1 for nothing: a core 1 that is absent, parked
 or dead costs the observer and no kernel function.
 
 ## Where each mechanism comes from
 
 | Mechanism here | Source | What was kept and what was dropped |
 | --- | --- | --- |
-| One owning core per mutable word | DragonFly LWKT's per-CPU ownership | Kept as the only concurrency rule. Tokens, serializers and critical-section counts are dropped: core 1 runs no blocking thread |
+| One owning core per mutable word | DragonFly LWKT's per-CPU ownership | Kept as the only concurrency rule. Tokens, serializers and critical-section counts are dropped: core 1 runs only non-blocking work |
 | Request and reply rings, publish then advance | DragonFly `lwkt_ipiq.c`, entry store then `ip_windex` | Kept in `corering.c`. Entries carry a slot number and an argument, never a pointer, so a restarted core follows no stale address |
 | Doorbell skipped when one is pending | DragonFly's `atomic_swap_int` on `gd_npoll` | The SIO FIFO's `RDY` bit replaces the atomic exchange ARMv6-M lacks |
 | Credits that keep a reply slot free | DragonFly's IPI queue drain rule | One counter on the requesting core |
 | Interrupt the processor that stopped answering and record its PC | DragonFly's sampled PC of a non-draining CPU; NetBSD's "hogging kernel lock" IPI | The NMI probe below |
 | A processor that survives the main one and holds its record | the VAX 8600 console processor | Core 1 keeps running from SRAM while core 0 is masked |
 | Ping answered from the service's own loop, restart with backoff, give up after a bound | MINIX 3 Reincarnation Server | Kept. Inverted in one respect: a dead service degrades the system instead of stopping it |
-| State held outside the service, operations safe to repeat | MINIX 3 | A ping is a pure function of its entry; core 1 holds no state a restart must preserve |
+| State held outside the service, operations safe to repeat | MINIX 3 | A ping is a pure function of its entry; the observer record `core1.c1_obs` lives outside the service, so a restart, which resets only the rings, keeps it |
 | Launch protocol, forced-off reset, vector table and stack in SRAM | RP2040 datasheet 2.8.2 and 2.13; Pico SDK `multicore.c` read for technique | Written against the registers; no SDK code |
 
 ## Core 1 executes and reads SRAM only
 
 A flash erase or program takes execute-in-place down for both cores
-(`dev/flash.c`), and the datasheet defines no result for a fetch or load
-from flash in that window. Every function core 1 runs is therefore in
+(`dev/flash.c`), and the datasheet leaves a fetch or load from flash in that window undefined. Every function core 1 runs is therefore in
 `.ramfunc`: `core1_main`, `core1_op`, `core1_fault`, `core1_reset` and this
 unit's copy of `cring_put` and `cring_service`, 544 bytes in all. Its
 vector table and stack are in `.bss`. It masks interrupts, sleeps in `WFI`
 and wakes when its own SysTick becomes pending every 10 ms, so no handler
 runs and no vector is fetched in normal operation; every vector names the
-SRAM function `core1_fault`. It never divides and uses no jump table, since
+SRAM function `core1_fault`. It never divides or uses a jump table, since
 both would call into flash.
 
 `tools/verify_rp2040_core1_image.py` holds each linked kernel to this rule,
@@ -191,7 +188,7 @@ fails counts as a restart.
   hundred instructions a hundred times a second; a service that streams
   SRAM would warrant giving core 0 priority, decided by the bus
   performance counters.
-- Core 1 prints nothing. A UART0 line at the moment of a stall would reach
+- Core 1 never prints. A UART0 line at the moment of a stall would reach
   only a host with an adapter on GP0, and the scratch-register record
   reaches every host at the next boot.
 - A user-mode fault report runs at HardFault priority with core 1 still
@@ -243,8 +240,7 @@ The kernel was built from this tree with `arm-none-eabi-gcc` 16.2.0;
 On this board, then: the boot ROM's launch completes after a forced-off
 reset, `WFI` wakes core 1 on its pending SysTick with interrupts masked,
 the forced timer interrupt reaches core 0 as NMI through `PROC0_NMI_MASK`
-while core 0 holds PRIMASK, flash erases and programs inside declared
-sections raise no stall, a watchdog trigger written by core 1 resets the
+while core 0 holds PRIMASK, the stall check stays quiet through flash erases and programs inside declared sections, a watchdog trigger written by core 1 resets the
 chip and preserves the scratch registers, and a parked core 1 survives
 neither `reboot` nor the reset. One board and one run of each step; no
 step was repeated for a rate.
@@ -264,8 +260,7 @@ Not established by any of them, nor by the board run:
   `machdep.core1_stalls` answers that for any workload run on a board.
 - Anything on a PicoCalc.
 
-`tests/rp2040/core1/board_core1.py` is that procedure as a script; it
-opens no port unless `DISCOBSD_BOARD_CORE1` is exactly `run`. Its steps,
+`tests/rp2040/core1/board_core1.py` is that procedure as a script; it opens a port only when `GIZMOBSD_BOARD_CORE1` is exactly `run`. Its steps,
 for a kernel or board that has not run it: boot a kernel with
 the option and confirm `machdep.core1` reads 1 and `machdep.core1_restarts`
 0 after ten seconds; run a swap-heavy workload and confirm

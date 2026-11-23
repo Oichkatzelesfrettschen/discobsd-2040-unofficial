@@ -6,7 +6,10 @@ set -eu
 probe=$1
 expected=$2
 output=$(mktemp)
-trap 'rm -f "$output"' EXIT HUP INT TERM
+trap 'rm -f "$output"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 status=0
 "$probe" >"$output" 2>&1 || status=$?

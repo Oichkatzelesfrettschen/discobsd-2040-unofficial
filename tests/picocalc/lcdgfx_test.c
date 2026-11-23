@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -73,10 +85,10 @@ _Static_assert(sizeof(struct lcdg_rect) <= 12 && sizeof(struct lcdg_line) <= 12 
 
 /* The model's palette stands in for the console's: distinct, so a swapped index shows. */
 const unsigned char lcd_palette[16][3] = {
-	{ 0, 0, 0 }, { 205, 0, 0 }, { 0, 205, 0 }, { 205, 205, 0 },
-	{ 60, 90, 238 }, { 205, 0, 205 }, { 0, 205, 205 }, { 200, 200, 200 },
-	{ 127, 127, 127 }, { 255, 60, 60 }, { 60, 255, 60 }, { 255, 255, 60 },
-	{ 100, 120, 255 }, { 255, 60, 255 }, { 60, 255, 255 }, { 255, 255, 255 },
+	{ 0, 0, 0 }, { 206, 97, 24 }, { 132, 227, 140 }, { 214, 182, 8 },
+	{ 99, 113, 239 }, { 189, 121, 189 }, { 74, 186, 239 }, { 189, 190, 189 },
+	{ 132, 130, 132 }, { 206, 130, 66 }, { 181, 251, 156 }, { 247, 195, 16 },
+	{ 115, 138, 239 }, { 189, 154, 198 }, { 132, 211, 255 }, { 255, 255, 255 },
 };
 
 /* The text layer. */
@@ -656,7 +668,7 @@ test_open_close(void)
 
 /*
  * A pixel program owns the panel: text written to the console updates the
- * cell store and draws nothing.
+ * cell store and stops short of drawing.
  */
 static void
 test_text_stays_off_the_panel(void)
@@ -1243,7 +1255,7 @@ test_scroll_colmod_info(void)
 	no_violations("scroll, colmod and info");
 }
 
-/* Rejected payloads change nothing on the panel; the good edges are drawn. */
+/* Rejected payloads leave the panel unchanged; the good edges are drawn. */
 static void
 test_ranges(void)
 {
@@ -1842,7 +1854,7 @@ test_tile_stream(void)
 	expect_err("the stream is over", do_write(nums, 4), EINVAL);
 	expect_int("still one window", nwindow, 1);
 
-	/* A bad number in the first row draws nothing. */
+	/* A bad number in the first row fails before drawing. */
 	fb_clear();
 	counters_clear();
 	nums[0] = 255;
@@ -1885,7 +1897,7 @@ test_tile_stream(void)
 	open_ok("reopen");
 	expect_err("write after close", do_write(nums + 8, 2), EINVAL);
 
-	/* A block abandoned inside a row leaves no numbers to the next one. */
+	/* A block abandoned inside a row leaves zero numbers to the next one. */
 	ref_pal_init();
 	memset(ref_atlas, 0, sizeof(ref_atlas));
 	ref_atlas_random(0, LCDG_ATLAS_N);

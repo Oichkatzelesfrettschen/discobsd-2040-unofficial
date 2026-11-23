@@ -30,7 +30,7 @@
  * preempt: on-device oracle for the asynchronous system trap, the return
  * to a process through userret from a clock tick rather than from a system
  * call (sys/arch/rp2040/rp2040/systick.c, syscall.c). Every case runs a
- * loop that makes no system call, so only the clock tick can deliver its
+ * loop that makes zero system calls, so only the clock tick can deliver its
  * signal or switch it out. tools/renode/check-preempt.py runs each case in
  * its own boot.
  *
@@ -64,6 +64,10 @@
  *           the signal frame must stay inside it, so the guard bytes
  *           below the base keep their fill and the handler's sp lies
  *           within the stack.
+ *   altstack-bss  the alternate stack is a static array in .bss, below
+ *           the break; the SIGUSR1 handler makes a system call (getpid) on
+ *           it, which the kernel must serve as it serves one from the
+ *           process stack, and the program resumes after the handler.
  *
  * Each case prints "PREEMPT <case> OK" or a FAIL line; the exit status is
  * 0 only on OK.
@@ -427,6 +431,61 @@ case_altstack(void)
 	return fails;
 }
 
+static unsigned char bss_alt[2 * MINSIGSTKSZ] __attribute__((aligned(8)));
+static volatile int bss_pid;
+
+static void
+bss_handler(int sig)
+{
+	register unsigned sp __asm__("sp");
+
+	(void)sig;
+	alt_sp = sp;
+	bss_pid = getpid();
+	alt_hits++;
+}
+
+static int
+case_altstack_bss(void)
+{
+	struct sigaltstack ss;
+	struct sigaction sa;
+	unsigned base = (unsigned)bss_alt;
+	int fails = 0;
+
+	ss.ss_base = (char *)bss_alt;
+	ss.ss_size = sizeof(bss_alt);
+	ss.ss_flags = 0;
+	if (sigaltstack(&ss, NULL) < 0) {
+		perror("sigaltstack");
+		return 2;
+	}
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = bss_handler;
+	sa.sa_flags = SA_ONSTACK;
+	if (sigaction(SIGUSR1, &sa, NULL) < 0) {
+		perror("sigaction");
+		return 2;
+	}
+	kill(getpid(), SIGUSR1);
+	printf("PREEMPT altstack-bss base %#x handler sp %#x pid %d\n",
+	    base, alt_sp, bss_pid);
+	if (alt_hits != 1) {
+		printf("FAIL altstack-bss: handler ran %d times\n", alt_hits);
+		fails++;
+	}
+	if (alt_sp < base || alt_sp >= base + sizeof(bss_alt)) {
+		printf("FAIL altstack-bss: handler sp outside the alternate stack\n");
+		fails++;
+	}
+	if (bss_pid != getpid()) {
+		printf("FAIL altstack-bss: getpid() on the alternate stack "
+		    "returned %d\n", bss_pid);
+		fails++;
+	}
+	return fails;
+}
+
 /* About 3 s of loop each in Renode: several schedcpu switches apiece. */
 #define	DIVCLEAN_ITERATIONS	15000000UL
 
@@ -523,7 +582,7 @@ main(int argc, char **argv)
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
 	if (argc != 2) {
-		fprintf(stderr, "usage: preempt alarm|share|spin|regs|divide|altstack|execdiv|divclean\n");
+		fprintf(stderr, "usage: preempt alarm|share|spin|regs|divide|altstack|altstack-bss|execdiv|divclean\n");
 		return 2;
 	}
 	if (strcmp(argv[1], "alarm") == 0) {
@@ -540,6 +599,8 @@ main(int argc, char **argv)
 		fails = case_divide();
 	else if (strcmp(argv[1], "altstack") == 0)
 		fails = case_altstack();
+	else if (strcmp(argv[1], "altstack-bss") == 0)
+		fails = case_altstack_bss();
 	else if (strcmp(argv[1], "divclean") == 0)
 		fails = case_divclean();
 	else if (strcmp(argv[1], "execdiv") == 0) {

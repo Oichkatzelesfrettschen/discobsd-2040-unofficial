@@ -111,7 +111,7 @@ arithmetic_checks(void)
 }
 
 /*
- * main() ends in exit() and the program's globals carry no reset, so a
+ * main() ends in exit() and the program's globals lack a reset, so a
  * scenario runs in a child and the parent reads its status and the trace
  * the shim left in the shared mapping.
  */

@@ -5,7 +5,7 @@ A dump needs the PicoCalc's SD card, so the PICOCALC kernels link the writer
 rp2040/machdep.c) and every other kernel links none of it: their dumpdev
 stays NODEV and boot() never calls a dump routine (sys/arch/rp2040/include/
 dump.h). --with names a kernel that must define all three symbols,
---without one that must define none; the exit status is 1 when any kernel
+--without one that must define zero of them; the exit status is 1 when any kernel
 disagrees and 2 when an image cannot be read.
 """
 

@@ -6,17 +6,18 @@ usage:
     oracle.py extent IMAGE VOLUME_LBA ROOT_IMAGE
 
 The oracle reads the volume through tests/msdosfs_core/fat_reader.py, which
-follows the Microsoft FAT specification and shares no code with the locator
+follows the Microsoft FAT specification and does not share code with the locator
 (sys/arch/rp2040/dev/fat32tail.c) or with the msdosfs tool that wrote the
 images. Images are mapped, not read, so a 2 GiB sparse volume costs only
 the sectors the oracle touches.
 
 check     the whole volume is consistent (fat_reader's checks): FAT copies,
           chains, long names, lost and cross-linked clusters, file bytes.
-classify  where DISCOBSD.UF2 is found (the root directory first, then each
-          subdirectory of it in directory order, by long or short name in
-          any case) and how its cluster chain lies: prints "absent",
-          "contiguous" or "fragmented".
+classify  where GIZMOBSD.UF2 or its former name DISCOBSD.UF2 is found (the
+          root directory and each subdirectory of it, by long or short name
+          in any case) and how its cluster chain lies: prints "absent",
+          "ambiguous" (more than one such file in all), "contiguous" or
+          "fragmented".
 extent    prints "LBA NSECTORS" for the tail of that file as the layout
           defines it (head = N * 512 rounded up to 32768 bytes, N from the
           first UF2 block) and fails unless the bytes of those sectors equal
@@ -33,7 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "msdosfs_core"))
 import fat_reader  # noqa: E402
 
-TARGET = "discobsd.uf2"
+TARGETS = ("gizmobsd.uf2", "discobsd.uf2")
 HEAD_ALIGN = 32768
 
 
@@ -57,21 +58,33 @@ def directory_entries(vol, start: int, label: str):
     yield from fat_reader.entries(raw, label)
 
 
-def find_target(vol):
-    """The (path, first cluster, size) of DISCOBSD.UF2, or None."""
+def find_targets(vol):
+    """Every (path, first cluster, size) of a target file in the root and its subdirectories."""
+    found = []
     subdirs = []
     for name, _short, attr, first, size in directory_entries(vol, vol.root_cluster, "/"):
         if attr & 0x10:
             subdirs.append((name, first))
-        elif name.lower() == TARGET:
-            return "/" + name, first, size
+        elif name.lower() in TARGETS:
+            found.append(("/" + name, first, size))
     for dirname, first in subdirs:
         for name, short, attr, start, size in directory_entries(vol, first, dirname):
             if short in (b".          ", b"..         "):
                 continue
-            if not attr & 0x10 and name.lower() == TARGET:
-                return f"/{dirname}/{name}", start, size
-    return None
+            if not attr & 0x10 and name.lower() in TARGETS:
+                found.append((f"/{dirname}/{name}", start, size))
+    return found
+
+
+def find_target(vol):
+    """The (path, first cluster, size) of the one target file, None when absent.
+
+    More than one target file raises Bad: the locator refuses such a volume.
+    """
+    found = find_targets(vol)
+    if len(found) > 1:
+        raise fat_reader.Bad("ambiguous: " + ", ".join(path for path, _first, _size in found))
+    return found[0] if found else None
 
 
 def file_chain(vol, first: int) -> list[int]:
@@ -93,11 +106,14 @@ def cmd_check(path: str, lba: int) -> int:
 
 def cmd_classify(path: str, lba: int) -> int:
     _data, vol = open_volume(path, lba)
-    found = find_target(vol)
-    if found is None:
+    found = find_targets(vol)
+    if not found:
         print("absent")
         return 0
-    _path, first, size = found
+    if len(found) > 1:
+        print("ambiguous")
+        return 0
+    _path, first, size = found[0]
     chain = file_chain(vol, first)
     needed = -(-size // vol.cluster_bytes)
     contiguous = chain[:needed] == list(range(first, first + needed))
@@ -109,11 +125,11 @@ def cmd_extent(path: str, lba: int, root_path: str) -> int:
     data, vol = open_volume(path, lba)
     found = find_target(vol)
     if found is None:
-        raise fat_reader.Bad("no DISCOBSD.UF2")
+        raise fat_reader.Bad("no GIZMOBSD.UF2")
     _path, first, size = found
     needed = -(-size // vol.cluster_bytes)
     if file_chain(vol, first)[:needed] != list(range(first, first + needed)):
-        raise fat_reader.Bad("DISCOBSD.UF2 is fragmented")
+        raise fat_reader.Bad("the target file is fragmented")
     file_sector = lba + vol.first_data + (first - 2) * vol.spc
     (blocks,) = struct.unpack_from("<I", data, file_sector * 512 + 24)
     head = -(-(blocks * 512) // HEAD_ALIGN) * HEAD_ALIGN

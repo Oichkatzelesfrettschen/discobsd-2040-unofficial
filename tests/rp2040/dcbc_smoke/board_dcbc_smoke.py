@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Board smoke test for /usr/bin/dc and /usr/bin/bc on lib/libbn.
 
-usage: DISCOBSD_BOARD_DCBC=run PYTHON board_dcbc_smoke.py [unix.uf2,flash.uf2]
+usage: GIZMOBSD_BOARD_DCBC=run PYTHON board_dcbc_smoke.py [unix.uf2,flash.uf2]
 
-The script touches the board only when DISCOBSD_BOARD_DCBC is exactly "run";
+The script touches the board only when GIZMOBSD_BOARD_DCBC is exactly "run";
 unset, empty and every other value exit without opening a port or calling
-discobsd-flash. With the variable set it flashes the named images with
-discobsd-flash when given, reboots the board through BOOTSEL otherwise, logs in
+gizmobsd-flash. With the variable set it flashes the named images with
+gizmobsd-flash when given, reboots the board through BOOTSEL otherwise, logs in
 as operator on the USB console, and runs the checks below. The image must carry
 the picocalc profile (dc, bc and /usr/share/misc/bc.library).
 
@@ -22,7 +22,7 @@ Checks, each with an exact expected line:
 
 bc forks a child that runs dc's evaluator, so the bc checks establish that the
 fork of the bc image fits the window and the swap. This script was written
-without a board run; the tree records no result for it.
+without a board run; the tree lacks a result for it.
 """
 
 import glob
@@ -37,8 +37,11 @@ ESC = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]|\r")
 # "ZD1" of "ZD12" would otherwise end the read and leave the rest for the next
 # command.
 SENTINEL = re.compile(r"^ZD(\d+)\n", re.M)
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_DCBC"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_DCBC"
 OPT_IN_VALUE = "run"
 
 # (label, console command, expected output lines)
@@ -127,7 +130,7 @@ class Console:
 
 
 def flash(images):
-    flasher = "discobsd-flash"
+    flasher = "gizmobsd-flash"
     quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if images:
         subprocess.check_call([flasher, *images.split(",")], **quiet)
@@ -146,7 +149,7 @@ def open_console(serial_module):
     time.sleep(1)
     ports = glob.glob(PORT_PATTERN)
     if not ports:
-        sys.exit("no DiscoBSD console under /dev/serial/by-id")
+        sys.exit("no GizmoBSD console under /dev/serial/by-id")
     console = Console(serial_module, ports[0])
     console.read(25)
     console.port.write(b"operator\r")
@@ -155,6 +158,9 @@ def open_console(serial_module):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print("board test closed: set %s=%s to run it on a board" % (OPT_IN_VARIABLE, OPT_IN_VALUE))
         return 0

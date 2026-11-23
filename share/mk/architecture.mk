@@ -5,7 +5,7 @@
 # assignments retain precedence. The explicit-value checks reject a caller
 # that tries to split a machine from its architecture or CPU.
 
-.if !empty(.MAKEOVERRIDES:M_DISCOBSD*) || \
+.if !empty(.MAKEOVERRIDES:M_GIZMOBSD*) || \
     !empty(.MAKEOVERRIDES:M_EXPECTED_MACHINE_*) || \
     !empty(.MAKEOVERRIDES:M_ARCHITECTURE_*)
 .error private architecture registry variables cannot be overridden

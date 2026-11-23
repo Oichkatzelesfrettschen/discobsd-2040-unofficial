@@ -1,23 +1,60 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * flstrategy() follows the partition bounds handling of sdstrategy() in
+ * sys/arch/stm32/dev/sd.c, which carries this notice:
+ *
+ * Copyright (C) 2010-2015 Serge Vakulenko, <serge@vak.ru>
+ *
+ * Permission to use, copy, modify, and distribute this software
+ * and its documentation for any purpose and without fee is hereby
+ * granted, provided that the above copyright notice appear in all
+ * copies and that both that the copyright notice and this
+ * permission notice and warranty disclaimer appear in supporting
+ * documentation, and that the name of the author not be used in
+ * advertising or publicity pertaining to distribution of the
+ * software without specific, written prior permission.
+ *
+ * The author disclaim all warranties with regard to this
+ * software, including all implied warranties of merchantability
+ * and fitness.  In no event shall the author be liable for any
+ * special, indirect or consequential damages or any damages
+ * whatsoever resulting from loss of use, data or profits, whether
+ * in an action of contract, negligence or other tortious action,
+ * arising out of or in connection with the use or performance of
+ * this software.
  */
 
 /*
  * Root filesystem on the RP2040's QSPI flash.
  *
- * DiscoBSD's other targets boot from an SD card, and this board has no
+ * GizmoBSD's other targets boot from an SD card, and this board lacks an
  * socket, so the onboard flash becomes the block device instead. The idea of
  * putting a Unix root on a Pico's flash behind a wear-leveling translation
  * layer is FUZIX's; none of its code is used here, because the FUZIX kernel
@@ -33,10 +70,10 @@
  *	    dhara_nand_*	this file: NOR geometry and erase or program
  *	      bootrom		flash_range_erase, flash_range_program
  *
- * Dhara is written for NAND, and this part is NOR, which costs nothing and
+ * Dhara is written for NAND, and this part is NOR, which suits Dhara at zero cost and
  * saves something. Its contract wants pages programmed sequentially within an
- * eraseblock and never reprogrammed, which NOR satisfies. NOR has no factory
- * bad blocks and no ECC, so the bad-block callbacks below are honest
+ * eraseblock and never reprogrammed, which NOR satisfies. NOR ships without
+ * factory bad blocks and lacks ECC, so the bad-block callbacks below are honest
  * constants rather than stubs awaiting work.
  *
  * The RP2040 constraint that shapes everything here: erasing or programming
@@ -207,7 +244,7 @@ static void
 flscratch_take(int owner)
 {
 	if (flscratch_owner != FLS_FREE)
-		panic("flash: scratch buffer reentered");
+		panic("R01");
 	flscratch_owner = owner;
 }
 static daddr_t flblocks;		/* Capacity in DEV_BSIZE blocks. */
@@ -248,7 +285,7 @@ const struct dhara_nand flnand = {
 /*
  * Each ROM entry is a 16-bit address widened through u_int to a pointer,
  * the role uintptr_t has in the Pico SDK's rom_func_lookup(). The kernel's
- * header set has no uintptr_t, so the width it relies on is asserted here.
+ * header set lacks uintptr_t, so the width it relies on is asserted here.
  */
 _Static_assert(sizeof(u_int) == sizeof(void *) &&
     sizeof(u_short) == 2, "ROM table entries widen through u_int");
@@ -261,7 +298,7 @@ rom_func_lookup(u_int code)
 
 	/*
 	 * Both are fixed locations in the boot ROM holding 16-bit pointers,
-	 * so they are read through volatile: the compiler has no object to
+	 * so they are read through volatile: the compiler lacks an object to
 	 * reason about at an absolute address and warns about bounds if
 	 * allowed to try.
 	 */
@@ -473,7 +510,7 @@ flash_reset_hook_arm(u_int erase, u_int n)
  * ID (4Bh) returns 64 factory-set bits after four dummy bytes
  * (W25Q16JV revision G, instruction set table 1 and section 8.2.24).
  *
- * The boot ROM has no entry for an arbitrary command, so the exchange runs
+ * The boot ROM lacks an entry for an arbitrary command, so the exchange runs
  * on the SSI directly, as the Pico SDK's flash_do_cmd() does: the ROM's
  * exit_xip leaves the SSI in eight-bit serial mode, chip select is held low
  * through the IO_QSPI output override because the SSI releases it whenever
@@ -592,17 +629,19 @@ void
 flash_limit_init(void)
 {
 	const volatile u_int *xip = (const volatile u_int *)FLASH_XIP_BASE;
-	uint32_t magic, limit, end;
+	struct loader_layout ll;
+	uint32_t magic, limit;
 	int s;
 
 	magic = xip[LOADER_STAMP_MAGIC_OFFSET / sizeof(u_int)];
 	limit = xip[LOADER_STAMP_LIMIT_OFFSET / sizeof(u_int)];
-	if (loader_stamp_decode(magic, limit, &end) == LOADER_STAMP_INVALID)
+	loader_layout_decode(magic, limit, &ll);
+	if (ll.status == LOADER_STAMP_INVALID)
 		printf("fl: loader stamp limit %x is outside the writable "
 		    "flash; flash writes refused\n", (u_int)limit);
-	flswap_bytes = flash_swap_extent(end);
-	flash_write_end = end;
-	if (magic == LOADER_STAMP_MAGIC) {
+	flswap_bytes = ll.swap_bytes;
+	flash_write_end = ll.write_end;
+	if (ll.loader_boot2) {
 		flash_loader_boot2 = 1;
 		s = splhigh();
 		flash_ssi_restore();
@@ -732,7 +771,7 @@ static const struct flash_swap_ops flswap_ops = {
 int
 dhara_nand_is_bad(const struct dhara_nand *n __unused, dhara_block_t b __unused)
 {
-	/* NOR ships no factory bad blocks and marks none at runtime. */
+	/* NOR ships without factory bad blocks and is never marked bad at runtime. */
 	return 0;
 }
 
@@ -804,7 +843,7 @@ dhara_nand_read(const struct dhara_nand *n __unused, dhara_page_t p,
 		dhara_set_error(err, DHARA_E_ECC);
 		return -1;
 	}
-	/* Reads come straight out of the XIP window; NOR carries no ECC. */
+	/* Reads come straight out of the XIP window; NOR lacks ECC. */
 	q = (const u_char *)(FLASH_XIP_BASE + FLASH_FS_OFFSET +
 	    p * FLASH_UNIT_BYTES + offset);
 	bcopy(q, data, length);
@@ -824,7 +863,7 @@ dhara_nand_copy(const struct dhara_nand *n, dhara_page_t src,
 	 * one-page static buffer is written before each program call.
 	 */
 	if (flscratch_owner == FLS_SWAP)
-		panic("flash: page copy during a swap write");
+		panic("R02");
 	if (dst >= FLASH_FS_BYTES / FLASH_UNIT_BYTES) {
 		dhara_set_error(err, DHARA_E_BAD_BLOCK);
 		return -1;
@@ -1000,8 +1039,8 @@ fl_setup(int unit)
 	 * The table lives in the first 512 bytes of logical sector 0. Only
 	 * its tail is read, from the physical page Dhara maps the sector to,
 	 * so the frame holds 66 bytes rather than a whole sector. An unmapped
-	 * sector carries no table, as the blank page dhara_map_read would
-	 * return for it carries no MBR_MAGIC.
+	 * sector lacks a table, as the blank page dhara_map_read would
+	 * return for it lacks MBR_MAGIC.
 	 */
 	err = DHARA_E_NONE;
 	if (dhara_map_find(&flmap, 0, &page, &err) < 0) {
@@ -1058,7 +1097,7 @@ flopen(dev_t dev, int flags, int mode __unused)
  * the node's previous last close asked for writing. The last descriptor's own
  * flags do not decide it: a writer may close first and leave a reader to make
  * the last close. A node only ever held for reading forces no padding
- * programs, and the swap unit keeps no map.
+ * programs, and the swap unit writes without a map.
  */
 int
 flclose(dev_t dev, int flag __unused, int mode __unused)
@@ -1289,7 +1328,7 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 		 * filesystem or a descriptor on a partition addresses its blocks
 		 * through the current entries, and flstrategy() would read the new
 		 * ones under it, so the request waits until no partition is open.
-		 * fl has no raw node: the whole-device node is the one fdisk opens
+		 * fl lacks a raw node: the whole-device node is the one fdisk opens
 		 * to rewrite the table, so its open does not hold the table.
 		 */
 		if ((fldrives[unit].openpart & ~(1U << RAWPART)) != 0)
@@ -1299,9 +1338,9 @@ flioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)
 
 	case DIOCCHECKPOINT:
 		/*
-		 * The swap unit writes the chip directly and keeps no map.
+		 * The swap unit writes the chip directly, without a map.
 		 * ioctl(2) passes the descriptor's open flags, so a process must
-		 * hold the node open for writing; ufs_sync() passes none.
+		 * hold the node open for writing; ufs_sync() passes 0.
 		 */
 		if (unit == FL_UNIT_SWAP)
 			return EINVAL;

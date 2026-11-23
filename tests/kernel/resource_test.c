@@ -181,7 +181,7 @@ read_priority(void)
 	getpriority();
 	HK_CHECK(u.u_rval == -3);
 
-	/* Nothing matched, and a request that names no category. */
+	/* Nothing matched, and a request that names an unknown category. */
 	reset(REAL_UID, REAL_UID);
 	a = (struct which_who_arg *)u.u_arg;
 	a->which = PRIO_PROCESS;

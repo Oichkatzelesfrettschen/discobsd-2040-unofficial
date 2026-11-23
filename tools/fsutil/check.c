@@ -95,6 +95,7 @@ static char             *find_inode_name;   /* searching for this name */
 static unsigned         find_inode_result;  /* result of inode search */
 static unsigned         lost_inode;         /* lost file to reconnect */
 static fs_dirent_t      inserted;           /* entry to write after a shrunk one */
+static int              directory_error;
 static unsigned         scan_room;          /* bytes from the entry to its block end */
 
 static unsigned long    scan_filesize;      /* file size, decremented during scan */
@@ -339,7 +340,7 @@ static int pass1b (fs_inode_t *inode, unsigned blk, void *arg)
 
 /*
  * Write an entry back to the directory block at p. fs_dirent_pack() pads
- * the name to a multiple of 4 and so writes no terminator when namlen is a
+ * the name to a multiple of 4 and so omits the terminator when namlen is a
  * multiple of 4; DIRSIZ() in sys/sys/dir.h reserves the terminator byte, and
  * fsck rejects an entry whose name is not followed by NUL. The terminator is
  * written when it lies inside the entry's record and the block.
@@ -366,23 +367,25 @@ static int scan_directory (fs_inode_t *inode, unsigned blk, void *arg)
 
 /*printf ("scan_directory: I=%d, blk=%d\n", inode->number, blk);*/
     if (outrange (inode->fs, blk)) {
-        scan_filesize -= BSDFS_BSIZE;
-        return SKIP;
+        directory_error = 1;
+        return STOP;
     }
     dirp = buf_data;
     while (dirp < &buf_data[BSDFS_BSIZE] && scan_filesize > 0) {
         if (! buf_get (inode->fs, blk)) {
-            scan_filesize -= (&buf_data[BSDFS_BSIZE] - dirp);
-            return SKIP;
+            directory_error = 1;
+            return STOP;
         }
-        fs_dirent_unpack (&direntry, dirp);
-        if (direntry.reclen == 0)
-            break;
-
-        /* For every directory entry, call handler. */
         scan_room = &buf_data[BSDFS_BSIZE] - dirp;
-        n = (*func) (inode->fs, &direntry);
-
+        if (!fs_dirent_unpack(&direntry, dirp, scan_room)) {
+            fprintf(stderr, "Invalid directory record: inode %u block %u offset %u\n",
+                inode->number, blk, (unsigned)(dirp - buf_data));
+            directory_error = 1;
+            return STOP;
+        }
+        n = func ? (*func)(inode->fs, &direntry) : KEEPON;
+        if (directory_error)
+            return STOP;
         if (n & ALTERD) {
             if (buf_get (inode->fs, blk)) {
                 pack_entry (dirp, &direntry);
@@ -395,7 +398,10 @@ static int scan_directory (fs_inode_t *inode, unsigned blk, void *arg)
         if (n & STOP)
             return n;
         dirp += direntry.reclen;
-        scan_filesize -= direntry.reclen;
+        if (direntry.reclen >= scan_filesize)
+            scan_filesize = 0;
+        else
+            scan_filesize -= direntry.reclen;
     }
     return (scan_filesize > 0) ? KEEPON : STOP;
 }
@@ -443,7 +449,12 @@ static int pass2 (fs_t *fs, fs_dirent_t *dirp)
 
     /* Copy file name from dirp to pathp */
     thisname = pathp;
-    strlcpy (pathp, dirp->name, sizeof(pathname));
+    if (dirp->namlen >= sizeof(pathname) - (size_t)(pathp - pathname)) {
+        fprintf(stderr, "Directory pathname exceeds checker buffer\n");
+        directory_error = 1;
+        return STOP;
+    }
+    memcpy(pathp, dirp->name, dirp->namlen + 1);
     pathp += strlen (pathp);
 /*printf ("%s  %d\n", pathname, inum);*/
     if (inum > (fs->isize - 1) * BSDFS_INODES_PER_BLOCK ||
@@ -496,6 +507,11 @@ static void scan_pass2 (fs_t *fs, unsigned inum)
     set_inode_state (inum, FSTATE);
     if (! fs_inode_get (fs, &inode, inum))
         return;
+    if (pathp >= pathname + sizeof(pathname) - 1) {
+        fprintf(stderr, "Directory pathname exceeds checker buffer\n");
+        directory_error = 1;
+        return;
+    }
     *pathp++ = '/';
     savname = thisname;
     savsize = scan_filesize;
@@ -873,6 +889,7 @@ int fs_check (fs_t *fs)
             fs->fsize, fs->isize);
         return 0;
     }
+    directory_error = 0;
     free_list_corrupted = 0;
     total_files = 0;
     used_blocks = 0;
@@ -908,6 +925,11 @@ fatal:      if (block_map)
         if (inode.mode & INODE_MODE_FMT) {
 /*printf ("inode %d: %#o\n", inode.number, inode.mode);*/
             last_allocated_inode = inum;
+            if ((inode.mode & INODE_MODE_FMT) == INODE_MODE_FDIR) {
+                scan_inode(&inode, DATA, scan_directory, NULL);
+                if (directory_error || scan_filesize != 0)
+                    goto fatal;
+            }
             total_files++;
             link_count[inum] = inode.nlink;
             if (link_count[inum] <= 0) {
@@ -974,12 +996,14 @@ fatal:      if (block_map)
         scan_pass2 (fs, BSDFS_ROOT_INODE);
     }
 
+    if (directory_error)
+        goto fatal;
     printf ("** Phase 3 - Check Connectivity\n");
     for (inum = BSDFS_ROOT_INODE; inum <= last_allocated_inode; inum++) {
         /* Reconnect directories until inum is reached. Each pass reconnects
          * one directory that phase 2 left unreached, and scan_pass2() marks
          * it reached, so the passes for one inum are at most as many as there
-         * are directories; a reconnect that fails changes no state and ends
+         * are directories; a reconnect that fails leaves the state unchanged and ends
          * them. A pass is needed more than once when inum leads into a loop
          * of ".." entries: the directory the first pass reconnects is not
          * inum, and nothing it holds names inum. */
@@ -1025,6 +1049,8 @@ fatal:      if (block_map)
         }
     }
 
+    if (directory_error)
+        goto fatal;
     printf ("** Phase 4 - Check Reference Counts\n");
     for (inum = BSDFS_ROOT_INODE; inum <= last_allocated_inode; inum++) {
         switch (inode_state (inum)) {

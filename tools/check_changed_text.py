@@ -1,6 +1,6 @@
 """Check the text a revision range adds for whitespace errors and British spellings.
 
-Two rules apply to the lines that BASE..HEAD adds:
+Three rules apply to the text that BASE..HEAD adds:
 
 - TX001_WHITESPACE: `git diff --check` reports a whitespace error (trailing
   blanks, a space before a tab in the indent, a blank line at end of file).
@@ -9,8 +9,15 @@ Two rules apply to the lines that BASE..HEAD adds:
   double-quoted string.
   The tree spells American English; an upstream identifier, filename or
   message keeps its owner's spelling inside a code span or quotation.
+- TX003_DETERMINER_NEGATION: a changed Markdown file holds a "<verb>
+  no|none|nothing" phrase (tools/determiner_negation.py) more often at HEAD
+  than at BASE, outside fenced blocks, code spans and quotations. The voice
+  rule puts the negation on the verb or names the action that runs; the
+  whole-file comparison leaves wording a change only moves or keeps to the
+  sweep of existing text.
 
-Markdown under docs/research/copy-reviews is exempt from the spelling rule:
+Markdown under docs/research/copy-reviews is exempt from the spelling and
+determiner rules:
 those files quote the reviewed sources verbatim. Patch files (*.patch,
 *.diff) are exempt from the whitespace rule: a unified diff's blank context
 line is a single space, and the patch must apply byte for byte. Files that
@@ -24,6 +31,10 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import determiner_negation  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 EXEMPT_PREFIXES = ("docs/research/copy-reviews/",)
@@ -52,6 +63,8 @@ def git(root, *args):
         ["git", "-C", str(root), *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return result
@@ -151,11 +164,73 @@ def spelling_findings(root, base, head):
     return findings
 
 
+def git_bytes(root, *args):
+    result = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, check=False
+    )
+    if result.returncode != 0:
+        message = result.stderr.decode("utf-8", "replace").strip()
+        raise InfrastructureError(message or f"git {args[0]} failed")
+    return result.stdout
+
+
+def changed_markdown(root, base, head):
+    """(base path or None, head path) for each Markdown file head adds or changes."""
+    output = git_bytes(root, "diff", "--name-status", "-z", "-M", base, head, "--", "*.md")
+    fields = output.decode("utf-8", "surrogateescape").split("\0")
+    position = 0
+    while position < len(fields) and fields[position]:
+        status = fields[position]
+        if status[0] in "RC":
+            old, new = fields[position + 1], fields[position + 2]
+            position += 3
+        else:
+            old = new = fields[position + 1]
+            position += 2
+        if status[0] == "D":
+            continue
+        yield (None if status[0] == "A" else old), new
+
+
+def show(root, revision, path):
+    """The file at revision as text; bytes outside UTF-8 read as U+FFFD."""
+    return git_bytes(root, "show", f"{revision}:{path}").decode("utf-8", "replace")
+
+
+def determiner_findings(root, base, head):
+    """New "<verb> no|none|nothing" phrases in changed Markdown prose.
+
+    The whole file at base and at head is compared as a multiset of phrases
+    (tools/determiner_negation.py), so wording a change moves or keeps stays
+    out of the verdict; a key head holds more often is reported with every
+    line that holds it.
+    """
+    findings = []
+    imported = imported_paths(root, head)
+    for old, new in changed_markdown(root, base, head):
+        if new.startswith(EXEMPT_PREFIXES) or new in imported:
+            continue
+        before = show(root, base, old) if old else ""
+        after = show(root, head, new)
+        shown = new.encode("utf-8", "backslashreplace").decode("utf-8")
+        for key, extra, lines in determiner_negation.excess(before, after, fenced=True):
+            where = ", ".join(str(line) for line in lines)
+            findings.append(
+                f"TX003_DETERMINER_NEGATION {shown}:{lines[0]}: {key!r} {extra} more than "
+                f"the base holds (lines {where})"
+            )
+    return findings
+
+
 def check(root, base, head):
     for revision in (base, head):
         if git(root, "rev-parse", "--verify", f"{revision}^{{commit}}").returncode:
             raise InfrastructureError(f"{revision} does not name a commit")
-    return whitespace_findings(root, base, head) + spelling_findings(root, base, head)
+    return (
+        whitespace_findings(root, base, head)
+        + spelling_findings(root, base, head)
+        + determiner_findings(root, base, head)
+    )
 
 
 def main():

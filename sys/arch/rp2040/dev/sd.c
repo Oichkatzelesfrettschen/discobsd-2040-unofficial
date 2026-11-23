@@ -1,17 +1,29 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
@@ -38,7 +50,7 @@
  * holds for SD_DET_DEBOUNCE_US marks the card replaced, which fails every
  * transfer with EIO until the last close, because blocks cached for the old
  * card must not reach the new one. A level that returns to the committed
- * level before the interval ends changes nothing. sd_setup() requires
+ * level before the interval ends leaves the committed level as it was. sd_setup() requires
  * SD_DET_PRESENT (0, active-low J303 switch with pull-up) before SPI probing;
  * DIOCMEDIAGONE reports the flag to unmount(2), which then releases a mount
  * whose write-back the card can no longer take; DIOCGETPART reports the
@@ -92,6 +104,9 @@
 #include <rp2040/dev/psram.h>
 #include <rp2040/dev/sdspi.h>
 #include <rp2040/dev/sd.h>
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+#endif
 
 #define	SPI0_BASE		0x4003c000UL
 #define	SSPCR0			0x00
@@ -131,7 +146,7 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
  * and every image is a whole number of SWAP_IMAGE_ALIGN blocks, so the map
  * never names more than the largest aligned 16-bit count. A partition that
  * cannot hold two images of SWAP_IMAGE_GUARD blocks behind the reserved
- * first run is no better than fl1, whose 380 blocks hold one, and is passed
+ * first run matches fl1 at best, whose 380 blocks hold one, and is passed
  * over.
  */
 #define	SD_SWAP_MAX_BLOCKS	((daddr_t)(0xffff & ~(SWAP_IMAGE_ALIGN - 1)))
@@ -144,7 +159,7 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
  * every operation on the minor fails with ENXIO, and the usable entry's own
  * slot minor refuses to open, so the partition has one node. An entry is
  * usable when it
- * holds at least SD_TMP_MIN_BLOCKS and shares no sector with another entry
+ * holds at least SD_TMP_MIN_BLOCKS and shares zero sectors with another entry
  * of the table, so mkfs on it cannot reach the root, the swap partition or
  * the dump partition. The minimum is the size of the PSRAM region the card
  * replaces (PSRAM_BYTES less PSRAM_SWAP_BYTES, 6,144 kbytes): a smaller card
@@ -263,7 +278,7 @@ static u_int sd_swaphold;
 #ifdef SDSWAP_ENABLED
 /*
  * The held partition until main() opens it as swapdev. That open is the
- * hold's own and sets no bit of sd_open, so when swap returns to fl1
+ * hold's own and leaves sd_open unchanged, so when swap returns to fl1
  * (sdswap_fallback()) the bits left are those of descriptors, each cleared
  * by its device's last close, which the hold's release must keep.
  */
@@ -343,7 +358,7 @@ sd_replaced(void)
  * order of the target must match the on-disk entry: type at byte 4, start
  * at byte 8 and length at byte 12, both little-endian 32-bit sector
  * counts. A 16-byte structure of one status byte, three bytes, one type
- * byte, three bytes and two 32-bit counts has no padding, so its size fixes
+ * byte, three bytes and two 32-bit counts is free of padding, so its size fixes
  * those offsets. A byte-by-byte decode costs 64 bytes more flash on the
  * PSRAM PicoCalc kernel (measured), so the assertions below hold the
  * assumption at build time instead.
@@ -523,20 +538,47 @@ extern u_char sd_tail[SD_SECTOR];
 static u_char sd_tail[SD_SECTOR];
 #endif
 
+#ifdef DIAG_STATS
+/*
+ * One sector transfer, counted by outcome with the slowest one kept. The
+ * driver reports a CRC mismatch, a data error token and a bad response all
+ * as SDE_IO, so IO errors stay one counter.
+ */
+static int
+sd_sector(int reading, u_int sector, u_char *addr)
+{
+	u_int t0 = pc_micros();
+	int err = reading ? sdspi_read(&sdcard, sector, addr) :
+	    sdspi_write(&sdcard, sector, addr);
+
+	diag_add(reading ? DIAG_SD_READS : DIAG_SD_WRITES, 1);
+	diag_max(DIAG_SD_SLOWEST_US, pc_micros() - t0);
+	if (err == SDE_TIMEOUT)
+		diag_add(DIAG_SD_TIMEOUTS, 1);
+	else if (err != SDE_OK)
+		diag_add(DIAG_SD_IO_ERRORS, 1);
+	return err;
+}
+#else
+#define sd_sector(reading, sector, addr) ((reading) ? \
+	sdspi_read(&sdcard, (sector), (addr)) : \
+	sdspi_write(&sdcard, (sector), (addr)))
+#endif
+
 static int
 sd_tail_io(struct buf *bp, u_int sector, u_char *addr, u_int len)
 {
 	if (sd_replaced())
 		return EIO;
 	if (bp->b_flags & B_READ) {
-		if (sdspi_read(&sdcard, sector, sd_tail) != SDE_OK)
+		if (sd_sector(1, sector, sd_tail) != SDE_OK)
 			return EIO;
 		bcopy(sd_tail, addr, len);
 		return 0;
 	}
 	bcopy(addr, sd_tail, len);
 	bzero(sd_tail + len, SD_SECTOR - len);
-	return sdspi_write(&sdcard, sector, sd_tail) != SDE_OK ? EIO : 0;
+	return sd_sector(0, sector, sd_tail) != SDE_OK ? EIO : 0;
 }
 
 /* Size in DEV_BSIZE blocks, which is what the block layer asks for. */
@@ -614,9 +656,8 @@ sdstrategy(struct buf *bp)
 	 */
 	for (i = 0; i < n; i++, addr += SD_SECTOR) {
 		if (sd_replaced() ||
-		    ((bp->b_flags & B_READ) ?
-		    sdspi_read(&sdcard, sector + i, addr) :
-		    sdspi_write(&sdcard, sector + i, addr)) != SDE_OK)
+		    sd_sector((bp->b_flags & B_READ) != 0, sector + i, addr) !=
+		    SDE_OK)
 			break;
 	}
 	if (i == n && tail != 0 && sd_tail_io(bp, sector + n, addr, tail) == 0)
@@ -720,7 +761,7 @@ sdioctl(dev_t dev, u_int cmd, caddr_t addr, int flag __unused)
  * A partition that a block open still holds is refused, because a mount
  * writes to it through the buffer cache: while the card that open accepted
  * is still in the socket, the dump partition must not overlap the extent of
- * any block-open minor, the whole card included. A replaced card holds no
+ * any block-open minor, the whole card included. A replaced card cannot hold a
  * mount, since every transfer to it fails until the last close, so its
  * dump partition is free.
  */
@@ -835,7 +876,7 @@ const struct driver sddriver = {
  * root region holds foreign bytes and a Dhara resume over them would treat
  * them as a journal. A kernel the loader started therefore takes its root
  * from the first MBR entry of type PTYPE_BSDFFS (b7) on the card, and stops
- * when there is none rather than open fl0. main() copied rootdev into
+ * when the card lacks one rather than open fl0. main() copied rootdev into
  * pipedev before services attach, so pipedev moves with it. The card state
  * returns to closed afterwards; the root mount opens it again through
  * sdopen(), which refuses a slot or card that no longer matches the record
@@ -910,10 +951,10 @@ sd_tmpattach(void)
 /*
  * Swap on the card. A PicoCalc whose PSRAM did not take the swap device
  * (psramprobe() in psram.c) swaps to the first MBR entry of type PTYPE_SWAP
- * (b8) that holds SD_SWAP_MIN_BLOCKS and shares no sector with another
+ * (b8) that holds SD_SWAP_MIN_BLOCKS and shares zero sectors with another
  * entry of the table, so swap writes reach neither the b7 root that
  * sdrootattach() chose nor a partition mounted later. Raw QSPI flash,
- * which has no wear leveling under fl1, then takes no swap traffic while
+ * which lacks wear leveling under fl1, then takes zero swap traffic while
  * such a card is in the socket. With no card, no such entry or a card that does not answer, the
  * configured fl1 stays. main() runs this after sdrootattach() and before it
  * opens swapdev. The chosen partition is held in sd_swaphold from here, so
@@ -989,7 +1030,7 @@ sdswap_fallback(void)
 	if (blocks <= 0)
 		return 0;
 	/*
-	 * Release the hold. main()'s open of the partition set no bit of
+	 * Release the hold. main()'s open of the partition left clear every bit of
 	 * sd_open (sd_swapmain), so with no descriptor open the next open
 	 * brings a replacement card up; a descriptor's bit stays and keeps a
 	 * replacement refused until that descriptor closes.

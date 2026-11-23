@@ -16,9 +16,9 @@
  * The disk image takes the opposite
  * constraint: mountfs() (sys/kern/ufs_mount.c) leaves the on-disk fs_fmod
  * alone on a read-only mount, and ufs_sync() (sys/kern/ufs_syscalls2.c)
- * answers a set flag on a read-only filesystem with panic("sync: rofs").
+ * answers a set flag on a read-only filesystem with panic("K56").
  *
- * fs_time is the port's clock across a reboot: there is no time-of-day
+ * fs_time is the port's clock across a reboot: the board lacks time-of-day
  * hardware, and main() in sys/kern/init_main.c seeds time.tv_sec from the
  * root superblock's fs_time once mountfs() returns. ufs_sync() is the write
  * that stamps it, because it is the one that flushes the inodes and the data
@@ -364,7 +364,7 @@ exhaust(daddr_t *out, int max)
 }
 
 /*
- * An allocation that does not empty the cache touches no disk block but the
+ * An allocation that does not empty the cache touches a single disk block, the
  * one it hands back, and marks the superblock modified.
  */
 static void
@@ -524,7 +524,7 @@ test_refusal_after_a_sync_marks_the_superblock_modified(void)
 }
 
 /*
- * The refill that empties the list. The chunk read back holds no block, so
+ * The refill that empties the list. The chunk read back is empty, so
  * the allocation fails on the far side of a superblock write that has
  * already gone to the disk. Nothing after it sets fs_fmod, which makes this
  * the path where a flag cleared in core strands fs_tfree, the dirty inodes

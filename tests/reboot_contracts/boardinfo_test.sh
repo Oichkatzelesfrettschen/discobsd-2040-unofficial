@@ -46,7 +46,7 @@ for m in $STUB_MISSING; do
 	[ "$m" = "$1" ] && exit 1
 done
 case $1 in
-kern.version) echo "DiscoBSD 0.0 (PICOCALC) #1" ;;
+kern.version) echo "GizmoBSD 0.0 (PICOCALC) #1" ;;
 kern.hostname) echo testboard ;;
 machdep.cpu_khz) echo 125000 ;;
 # both halves have the top bit set, so the kernel's int reads negative
@@ -94,7 +94,7 @@ run() {	# run SCRIPT OUT MISSING
 }
 
 run "$script" "$work/bi-full.out" ""
-check "$work/bi-full.out" "kern.version: DiscoBSD 0.0 (PICOCALC) #1"
+check "$work/bi-full.out" "kern.version: GizmoBSD 0.0 (PICOCALC) #1"
 check "$work/bi-full.out" "kern.hostname: testboard"
 check "$work/bi-full.out" "machdep.cpu_khz: 125000"
 check "$work/bi-full.out" "machdep.image_crc: val-machdep.image_crc"
@@ -115,7 +115,7 @@ if cmp -s "$script" "$work/bi-mutant.sh"; then
 	exit 1
 fi
 run "$work/bi-mutant.sh" "$work/bi-mutant.out" "kern.versio"
-if grep -Fq "kern.version: DiscoBSD" "$work/bi-mutant.out"; then
+if grep -Fq "kern.version: GizmoBSD" "$work/bi-mutant.out"; then
 	echo "boardinfo_test: mutant output passed the check" >&2
 	fail=1
 fi

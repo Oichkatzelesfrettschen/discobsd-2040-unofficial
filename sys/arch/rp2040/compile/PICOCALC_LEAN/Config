@@ -29,9 +29,9 @@
 # ====================================================================
 #
 # The PICOCALC kernel without the per-driver device options (DEV_ADC,
-# DEV_GPIO, DEV_LCDGFX, DEV_PCM), the diagnostic options (SYSTRACE,
-# CAPACITY_STATS) and the panel register test (LCD_PANELTEST): the panel console and keyboard, the SD card,
-# the PSRAM swap device and the two USB serial ports remain. Its sysctl
+# DEV_GPIO, DEV_LCDGFX, DEV_PCM) and the fixed-table accounting
+# (CAPACITY_STATS): the panel console and keyboard, the SD card, the PSRAM
+# swap device and the two USB serial ports remain. Its sysctl
 # answers EOPNOTSUPP for kern.systrace, kern.capacity and the ADC nodes, and
 # /dev/porta, /dev/portb, /dev/lcdgfx and /dev/audio have no driver behind
 # them. This Config and PICOCALC's differ in the board line and those
@@ -117,7 +117,8 @@ options         "NUART=1"                   # UART1 (GP8/GP9) wires to the keybo
 # The Pico's own micro-USB port as a CDC-ACM device, /dev/ttyUSB0; it also
 # carries the reset interface picotool reboot -u uses.
 device          uartusb
-options         "USB_TXRING=4096"           # half the scratch banks; the tile atlas takes the rest
+options         "USB_TXRING=4096"           # half the scratch banks
+options         SWAP_EXCHANGE_SCRATCH       # swap exchange sector in the other half
 
 # Compressed RAM tier in front of the swap device and packed executables,
 # as on the PICO board.

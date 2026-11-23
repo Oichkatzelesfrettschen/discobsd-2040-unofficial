@@ -1,6 +1,6 @@
-# Agent guide: DiscoBSD RP2040 port
+# Agent guide: GizmoBSD RP2040 port
 
-This RP2040 port forks chettrick/discobsd (`upstream`, fetch-only master);
+GizmoBSD forks chettrick/discobsd (`upstream`, fetch-only master);
 `origin/main` is the owned branch. `docs/INDEX.md` routes port documentation
 under `sys/arch/rp2040/doc` and research under `docs/research`. A document
 cited as authority by shipped code, a Makefile or the root manifest belongs
@@ -24,16 +24,23 @@ values, privilege transition, region coverage and a deliberate fault test;
 `sys/arch/rp2040/doc/MPU.md` owns the map and evidence. Boot ROM V3 is verified
 on the measured board. USB CDC-ACM is the primary console; UART0 on GP0/GP1
 is the fallback. With one board attached, resolve its port through
-`/dev/serial/by-id/*DiscoBSD*`. A kernel that reads the flash unique ID
+`/dev/serial/by-id/*GizmoBSD*` (`*DiscoBSD*` for a kernel built before the
+rename). A kernel that reads the flash unique ID
 reports USB serial `<16 hex digits>-rp2040`; one that cannot, or an older
 kernel, reports `rp2040`, and two such boards enumerate alike (2e8a:000a).
 With two boards attached, name the USB port (`--usb-port 1-3` or
-`DISCOBSD_USB_PORT` for `discobsd-flash`, `discobsd-connect`, `discobsd-term`
-and `discobsd-web`) whatever their serials; all four refuse to act on an
+`GIZMOBSD_USB_PORT` for `gizmobsd-flash`, `gizmobsd-connect`, `gizmobsd-term`
+and `gizmobsd-web`) whatever their serials; all four refuse to act on an
 unnamed board then.
 
-A PicoCalc takes a new kernel from its SD card, not from USB: the UF2 goes
-to `/pico1-apps/discobsd.uf2`, and the loader programs it only when entered
+A PicoCalc takes a new kernel from its SD card, not from USB. The kernel for
+board sessions and card images is PICOCALC_SD (`picocalc-sd-kernel`, UF2
+`distrib/rp2040/unix-PICOCALC-SD.uf2`; root on the card's type b7 partition,
+160 KiB layout); PICOCALC_SD_DIAG (`picocalc-sd-diag-kernel`) is the testing
+kernel, the same configuration with DIAGNOSTIC, GLOBAL_DEBUG and STORAGE_STATS
+at `-Og`. The UF2 goes
+to `/pico1-apps/gizmobsd.uf2` (move a `discobsd.uf2` off the card first), and
+the loader programs it only when entered
 with both USB cables unplugged, power off, then Up held while pressing power
 (Up twice more reaches the list). A plain power-on starts the kernel already
 in flash, and micro-USB plugged at power-on puts the loader in USB drive mode
@@ -77,12 +84,13 @@ Makefiles are tracked; synchronize both when generation inputs change.
   script, the C17 ledger after a C edit) and, for a change the target runs, the
   Renode stage that exercises it after `logged-distribution` and
   `logged-flash`, since `check-renode` boots the flash image. Hosted CI runs
-  a fixed short set on each pull request and push to `main` (warning-free
-  build, kernel headroom, flash image, lint, changed-comment and
-  changed-text checks, the Renode UART0 boot) and every tier nightly and on
-  manual dispatch; a failed nightly opens the issue "Nightly gates failed".
-  The local gates over the changed files are therefore the evidence a merge
-  has for every tier outside the short set.
+  the toolchain install, lint, changed-comment and changed-text checks on each
+  pull request (about a minute); a push to `main` adds the warning-free build,
+  kernel headroom, flash image and the Renode UART0 boot, and every tier runs
+  nightly and on manual dispatch; a failed nightly opens the issue "Nightly
+  gates failed". The local gates over the changed files, `logged-build` among
+  them, are therefore the evidence a merge has for the build and for every
+  tier outside the lint and changed-text checks.
 - The full local chain -- `bmake clean`, `logged-build`, `logged-check`,
   `logged-ilp32`, `logged-distribution`, `logged-flash`, `check-renode`,
   `check-renode-union` -- takes about an hour serialized, 40 minutes of it in
@@ -128,12 +136,12 @@ Build, host, cross, qemu-user, Renode and physical-board results are separate
 evidence classes. A warning-free build establishes compilation. Qemu-user
 exercises an instruction sequence; Renode boots with third-party peripheral
 models; a board run measures the exercised silicon configuration. A test
-target that skips an optional variant establishes no execution for that
-variant. `sys/arch/rp2040/doc/TESTING.md` defines the gates.
+target that skips an optional variant establishes execution only for the
+variants it ran. `sys/arch/rp2040/doc/TESTING.md` defines the gates.
 
 A new gate, linter or probe is calibrated against a known-good and a
-known-bad input before its verdict counts, because a gate that passes on
-input it should reject reports nothing.
+known-bad input before its verdict counts, because a pass means the subject is
+good only from a gate that rejects its known-bad input.
 
 For a kernel or driver change that rests on board behavior, record the direct
 observation, governing specification or invariant, implementation hypothesis,
@@ -204,7 +212,7 @@ unquoted data reaching `sh -c`, `eval` or a generated script; an untrusted
 input path; or a board-flash/serial path reached without caller authorization.
 Hardware gates require an exact opt-in value; unset, empty and zero remain
 closed. Root Makefile targets only build board tests. Explicit invocations of
-`discobsd-flash` or `picotool` carry the user's authorization.
+`gizmobsd-flash` or `picotool` carry the user's authorization.
 
 ## Tools
 
@@ -239,14 +247,14 @@ blockers; a missing tool never becomes a passing check.
   and the BSD 3-Clause conditions as NOTICE section 1 words them, with
   GizmoBSD as the holder (LICENSE is upstream's text and keeps its
   placeholder). Data files (.tsv, .json), Markdown and generated files
-  carry none. A file dated a year that NOTICE and etc/COPYRIGHT do not yet
+  do not carry it. A file dated a year that NOTICE and etc/COPYRIGHT do not yet
   name extends their GizmoBSD year range in the same commit. NOTICE
-  section 1 names GizmoBSD files as a category beside the earlier
-  `Copyright (c) 2026 DiscoBSD` ISC files, so the header is the grant a
+  section 1 names GizmoBSD files as a category, so the header is the grant a
   redistributor relies on rather than an invented attribution, and the
-  global no-copyright-line rule yields to it here. A file that already
-  carries the DiscoBSD ISC notice keeps it until the GizmoBSD rename
-  converts it; inherited upstream headers stay verbatim.
+  global no-copyright-line rule yields to it here. The port files first
+  dated 2026 under a DiscoBSD ISC notice carry the GizmoBSD header;
+  `usr.bin/timeout/timeout.c` keeps its FreeBSD notice with the port's
+  added line, and inherited upstream headers stay verbatim.
 - The ledgers under sys/arch/rp2040/doc/research are retained evidence.
   audit-findings.md is a verbatim capture with its source SHA-256 in the
   header, so it records the tree as it stood at the commit it names.

@@ -32,10 +32,12 @@
 #include <string.h>
 #include <unistd.h>
 
-static const struct {
+struct variable {
 	const char *name;
 	int selector;
-} variables[] = {
+};
+
+static const struct variable variables[] = {
 	{ "ARG_MAX", _SC_ARG_MAX },
 	{ "CHILD_MAX", _SC_CHILD_MAX },
 	{ "NGROUPS_MAX", _SC_NGROUPS_MAX },
@@ -47,6 +49,18 @@ static const struct {
 	{ "PAGE_SIZE", _SC_PAGESIZE },
 	{ "_POSIX_DEVICE_CONTROL", _SC_DEVICE_CONTROL },
 	{ "SYMLOOP_MAX", _SC_SYMLOOP_MAX }
+};
+
+static const struct variable path_variables[] = {
+	{ "NAME_MAX", _PC_NAME_MAX },
+	{ "LINK_MAX", _PC_LINK_MAX },
+	{ "PIPE_BUF", _PC_PIPE_BUF },
+	{ "PATH_MAX", _PC_PATH_MAX },
+	{ "_POSIX_NO_TRUNC", _PC_NO_TRUNC },
+	{ "_POSIX_CHOWN_RESTRICTED", _PC_CHOWN_RESTRICTED },
+	{ "POSIX2_SYMLINKS", _PC_2_SYMLINKS },
+	{ "POSIX_ALLOC_SIZE_MIN", _PC_ALLOC_SIZE_MIN },
+	{ "_POSIX_TIMESTAMP_RESOLUTION", _PC_TIMESTAMP_RESOLUTION },
 };
 
 static int
@@ -86,12 +100,11 @@ main(int argc, char **argv)
 		return 1;
 	}
 	name = argv[1];
-	if (strcmp(name, "NAME_MAX") == 0)
-		path_selector = _PC_NAME_MAX;
-	else if (strcmp(name, "LINK_MAX") == 0)
-		path_selector = _PC_LINK_MAX;
-	else if (strcmp(name, "PIPE_BUF") == 0)
-		path_selector = _PC_PIPE_BUF;
+	for (i = 0; i < sizeof(path_variables) / sizeof(path_variables[0]); i++)
+		if (strcmp(name, path_variables[i].name) == 0) {
+			path_selector = path_variables[i].selector;
+			break;
+		}
 	if (argc == 3 && path_selector) {
 		errno = 0;
 		value = pathconf(argv[2], path_selector);

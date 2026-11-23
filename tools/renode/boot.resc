@@ -1,4 +1,4 @@
-# Boot the DiscoBSD RP2040 kernel under Renode, from the real boot ROM, with
+# Boot the GizmoBSD RP2040 kernel under Renode, from the real boot ROM, with
 # a console to type at and a GDB server to attach to.
 #
 # machine.resc beside this file builds the machine and stops there; everything

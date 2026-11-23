@@ -24,8 +24,11 @@ case $1 in /*) ar=$1 ;; *) ar=$PWD/$1 ;; esac
 case $2 in /*) ranlib=$2 ;; *) ranlib=$PWD/$2 ;; esac
 epoch=1700000000
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/discobsd-archive-identity.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+work=$(mktemp -d "${TMPDIR:-/tmp}/gizmobsd-archive-identity.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 cd "$work"
 
 cat > build.sh <<'EOF'

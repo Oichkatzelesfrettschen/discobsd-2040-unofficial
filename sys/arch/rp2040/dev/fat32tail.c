@@ -1,21 +1,34 @@
 /*
- * Copyright (c) 2026 DiscoBSD
+ * Copyright (c) 2026 GizmoBSD
+ * All rights reserved.
  *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
- * Locator for the root file system in the tail of DISCOBSD.UF2; see
+ * Locator for the root file system in the tail of GIZMOBSD.UF2 (or its former
+ * name DISCOBSD.UF2); see
  * fat32tail.h for the file layout. Section names refer to the Microsoft
  * FAT32 File System Specification, version 1.03 (fatgen103).
  *
@@ -24,7 +37,10 @@
  * (a looping chain, or sibling entries that alias one long chain), and the
  * file walk raises its cluster number on every step and stays inside the
  * volume. The walk reads sectors through one caller buffer and allocates
- * nothing.
+ * nothing. It scans the root directory and each of its subdirectories once,
+ * and counts matching file entries: the walk fails closed with
+ * FT32_E_AMBIGUOUS when the count passes one, so a stale copy under the old
+ * name cannot be mounted in place of the new file.
  */
 
 #include "fat32tail.h"
@@ -56,13 +72,11 @@
 #define	FAT32_MIN_CLUSTERS	65525u
 #define	FAT_PER_SECTOR		(FT32_SECTOR / 4)
 
-#define	NOENT			(-1)	/* dir_scan: no match; never an FT32 result. */
-
 /*
  * Sector reads the directory search may make. The bound is the root
- * directory scanned twice (files, then subdirectories) and 16 subdirectories,
- * each of up to 512 sectors (8192 entries), with one FAT read per cluster on
- * volumes whose clusters are one sector: 18 * 512 * 2 = 18432, rounded up.
+ * directory and 16 subdirectories, each of up to 512 sectors (8192 entries),
+ * with one FAT read per cluster on volumes whose clusters are one sector:
+ * 17 * 512 * 2 = 17408, rounded up.
  * A directory chain is not limited otherwise, so 16 entries that share one
  * long chain cost 16 full scans without it.
  */
@@ -85,8 +99,9 @@ struct vol {
 };
 
 struct found {
-	unsigned	clus;
-	unsigned	size;
+	unsigned	clus;		/* First cluster of the first match. */
+	unsigned	size;		/* Its size in bytes. */
+	unsigned	n;		/* Matching file entries seen. */
 };
 
 static unsigned
@@ -196,23 +211,28 @@ bpb(struct vol *v, unsigned lba)
 	return FT32_OK;
 }
 
-/* "FAT Directory Structure": the 11-byte name "DISCOBSDUF2", any case. */
+/*
+ * "FAT Directory Structure": the 11-byte name "GIZMOBSDUF2", or the former
+ * name "DISCOBSDUF2", in any case.
+ */
 static int
 name_match(const unsigned char *e)
 {
-	static const unsigned char want[11] = {
-		'D', 'I', 'S', 'C', 'O', 'B', 'S', 'D', 'U', 'F', '2'
-	};
-	unsigned i, c;
+	static const char want[2][12] = { "GIZMOBSDUF2", "DISCOBSDUF2" };
+	unsigned i, c, w;
 
-	for (i = 0; i < 11; i++) {
-		c = e[i];
-		if (c >= 'a' && c <= 'z')
-			c -= 'a' - 'A';
-		if (c != want[i])
-			return 0;
+	for (w = 0; w < 2; w++) {
+		for (i = 0; i < 11; i++) {
+			c = e[i];
+			if (c >= 'a' && c <= 'z')
+				c -= 'a' - 'A';
+			if (c != (unsigned char)want[w][i])
+				break;
+		}
+		if (i == 11)
+			return 1;
 	}
-	return 1;
+	return 0;
 }
 
 static unsigned
@@ -222,14 +242,16 @@ entry_cluster(const unsigned char *e)
 }
 
 /*
- * Scan the directory whose chain starts at clus. With subdirs clear, report
- * the first file entry named DISCOBSD.UF2. With subdirs set, scan each
- * subdirectory of it that way, in directory order. Deleted entries and the
- * volume label and long-name entries (attribute bit 3) never match; the
- * entry that starts with 0x00 ends the directory.
+ * Scan the directory whose chain starts at clus and count its file entries
+ * that name_match accepts in f->n; the first one's cluster and size go to
+ * f->clus and f->size. With top set, also scan each subdirectory of it the
+ * same way (one level). A second match returns FT32_E_AMBIGUOUS. Deleted
+ * entries, the volume label and long-name entries (attribute bit 3) and
+ * directories never match; the entry that starts with 0x00 ends the
+ * directory.
  */
 static int
-dir_scan(struct vol *v, unsigned clus, int subdirs, struct found *f)
+dir_scan(struct vol *v, unsigned clus, int top, struct found *f)
 {
 	const unsigned char *e;
 	unsigned s, i, sector;
@@ -245,18 +267,18 @@ dir_scan(struct vol *v, unsigned clus, int subdirs, struct found *f)
 					return r;
 				e = v->buf + i * DIR_ENTRY;
 				if (e[0] == DIR_END)
-					return NOENT;
+					return FT32_OK;
 				if (e[0] == DIR_FREE || (e[11] & ATTR_VOLUME) != 0)
 					continue;
-				if (!subdirs) {
-					if ((e[11] & ATTR_DIR) == 0 && name_match(e)) {
-						f->clus = entry_cluster(e);
-						f->size = le32(e + 28);
-						return FT32_OK;
-					}
-				} else if ((e[11] & ATTR_DIR) != 0 && e[0] != '.') {
+				if ((e[11] & ATTR_DIR) == 0 && name_match(e)) {
+					if (f->n++ != 0)
+						return FT32_E_AMBIGUOUS;
+					f->clus = entry_cluster(e);
+					f->size = le32(e + 28);
+				} else if (top && (e[11] & ATTR_DIR) != 0 &&
+				    e[0] != '.') {
 					r = dir_scan(v, entry_cluster(e), 0, f);
-					if (r != NOENT)
+					if (r != FT32_OK)
 						return r;
 				}
 			}
@@ -264,7 +286,7 @@ dir_scan(struct vol *v, unsigned clus, int subdirs, struct found *f)
 		if ((r = fat_next(v, clus, &clus)) != FT32_OK)
 			return r;
 		if (clus >= FAT_EOC)
-			return NOENT;
+			return FT32_OK;
 	}
 }
 
@@ -329,14 +351,13 @@ fat32tail_find(fat32tail_read_fn readfn, void *ctx, unsigned volume_lba,
 	v.budget = FT32_SEARCH_READS;
 	if ((r = bpb(&v, volume_lba)) != FT32_OK)
 		return r;
-	r = dir_scan(&v, v.root, 0, &f);
-	if (r == NOENT)
-		r = dir_scan(&v, v.root, 1, &f);
+	f.n = 0;
+	r = dir_scan(&v, v.root, 1, &f);
 	v.budget = NO_BUDGET;
-	if (r == NOENT)
-		return FT32_E_ABSENT;
 	if (r != FT32_OK)
 		return r;
+	if (f.n == 0)
+		return FT32_E_ABSENT;
 	if (f.size < FT32_SECTOR)
 		return FT32_E_UF2HEAD;
 	if ((r = run_check(&v, &f)) != FT32_OK)

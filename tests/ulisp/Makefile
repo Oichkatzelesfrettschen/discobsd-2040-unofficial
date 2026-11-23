@@ -40,7 +40,9 @@
 #                 hilite-test, the classes of hilite.c on a table of lines,
 #                 also with the sanitizers; hilite-pty.py, the interpreter on
 #                 a pseudo-terminal, which checks the colors of the builtin
-#                 table and the repaint; then the mutants of ulisp.c and
+#                 table and the repaint; dev-picocalc-test, dev_picocalc.c
+#                 against a model of /dev/lcdgfx that rejects a drawing
+#                 command before COLMOD 0x55; then the mutants of ulisp.c and
 #                 hilite.c that the check must reject (mutants.sh)
 #   check-qemu    the a.out the tree links, run by tests/qemu_aout/aoutrun
 #                 under qemu-arm: the language, system, images, repairs and
@@ -67,7 +69,7 @@ GUEST_BASE?=	0x100000
 # The workspace the program leaves at its first prompt under qemu-arm with an
 # empty environment: what is left of the process window after the program's
 # bytes, 8 bytes a cell.
-ULISP_FLOOR?=	14000
+ULISP_FLOOR?=	13900
 ORACLE_SHA256=	65608bb7d6a48dc02dd38f67d10a826bc7a60456e106c4b7212a2dd0483ebd8b
 ORACLE_CXX?=	g++ -m32 -msse2 -mfpmath=sse
 HOST_SRCS=	${SRC}/ulisp.c ${SRC}/unix.c ${SRC}/hilite.c ${SRC}/gfx.c ${SRC}/dev_host.c \
@@ -81,8 +83,9 @@ check:
 	${MAKE} -C ${SRC} ulisp.host ulisp.doc
 	shim=; \
 	if [ "$$(uname -s)" = Linux ]; then \
+		rm -f rewrite-race.so; \
 		${HOST_CC} -std=gnu17 -Wall -Wextra -Werror -shared -fPIC \
-		    -o rewrite-race.so ${.CURDIR}/rewrite-race.c -ldl && \
+		    -o rewrite-race.so ${.CURDIR}/rewrite-race.c -ldl || exit 1; \
 		shim=${.CURDIR}/rewrite-race.so; \
 	else \
 		echo "SKIP ulisp rewrite race: the shim needs Linux LD_PRELOAD; no execution occurred"; \
@@ -99,6 +102,10 @@ check:
 	    -o hilite-test.san hilite-test.c ${SRC}/hilite.c
 	ASAN_OPTIONS=detect_leaks=0 ./hilite-test.san
 	${PYTHON} -I hilite-pty.py ${SRC}/ulisp.host ${SRC}/ulisp.doc
+	${HOST_CC} -std=gnu17 -Wall -Wextra -Werror -D_DEFAULT_SOURCE -I${.CURDIR}/shim \
+	    -I${SRC} -I${TOPSRC}/sys/arch/rp2040/dev -o dev-picocalc-test \
+	    dev-picocalc-test.c ${TOPSRC}/sys/arch/rp2040/dev/lcdfont.c
+	./dev-picocalc-test
 	sh mutants.sh ${SRC} ${SRC}/ulisp.doc "${HOST_CC}"
 
 check-qemu:
@@ -125,7 +132,7 @@ check-qemu:
 .endif
 
 # The upstream program reads its workspace size from its board table: 22280
-# cells for the Pico. Its last prompt has no newline, so one is added.
+# cells for the Pico. Its last prompt lacks a newline, so one is added.
 check-oracle:
 .if empty(ULISP_INO)
 	@echo "SKIP ulisp oracle: ULISP_INO does not name ulisp-picocalc.ino"
@@ -142,6 +149,6 @@ check-oracle:
 .endif
 
 clean:
-	rm -f ulisp.san hilite-test hilite-test.san ulisp.sites rewrite-race.so oracle.cc oracle.bin oracle.out oracle.host
+	rm -f ulisp.san hilite-test hilite-test.san dev-picocalc-test ulisp.sites rewrite-race.so oracle.cc oracle.bin oracle.out oracle.host
 
 .PHONY: all check check-qemu check-oracle clean

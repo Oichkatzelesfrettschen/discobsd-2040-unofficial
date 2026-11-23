@@ -19,8 +19,8 @@
  *
  * The STM32 edition of this file carries four handlers and decodes HFSR,
  * CFSR, MMFAR, and BFAR to name the cause and the faulting address. ARMv6-M
- * raises one fault exception and defines none of those registers, so the
- * decode has nothing to read and is gone rather than translated. What remains
+ * raises one fault exception and lacks all of those registers, so the
+ * decode has zero registers to read and is gone rather than translated. What remains
  * is the exception stack frame and the EXC_RETURN value.
  *
  * The signal is SIGSEGV rather than the STM32 default of SIGILL. With no
@@ -43,6 +43,9 @@
 #include <machine/intr.h>
 #include <machine/mpuvar.h>
 #include <machine/scb.h>
+#ifdef DIAG_STATS
+#include <sys/diag_stats.h>
+#endif
 
 void core1_park(void);
 void usbdrain(void);
@@ -61,7 +64,7 @@ void lcdabandon(void);
  * does not exist. This is the branch-based form already used by
  * SysTick_Handler in systick.c.
  *
- * The body is the entry sequence itself, so the function carries no AAPCS
+ * The body is the entry sequence itself, so the function lacks an AAPCS
  * boundary: the compiler emits neither prologue nor epilogue, and the
  * sequence owns r0-r3 and reads r4-r11 as the fault left them. It banks
  * r4-r11 into fault_regs, selects the stack holding the exception frame from
@@ -194,10 +197,35 @@ fault_frame_out(const struct userframe *uf)
  * arm_fault(frame, fault_lr)
  *
  * Report what the hardware preserved, signal the process, and return through
- * userret. There is no fault cause to report and no faulting address: see the
+ * userret. The hardware records neither a fault cause nor a faulting address: see the
  * comment at the head of this file.
  */
 static int infault;
+
+#ifdef DIAG_STATS
+/*
+ * Record the fault in the diag_stats ring. The record sits in this
+ * function's frame, which is gone before arm_fault() prints or panics, so
+ * the main stack at the deepest point is the same as without DIAG_STATS.
+ */
+static __attribute__((noinline)) void
+diag_note_fault(const struct faultframe *frame, u_int fault_lr, u_int icsr)
+{
+	struct diag_fault record;
+	u_int i;
+
+	record.pid = u.u_procp ? (uint32_t)u.u_procp->p_pid : (uint32_t)-1;
+	record.pc = frame->ff_pc;
+	record.lr = frame->ff_lr;
+	record.psr = frame->ff_psr;
+	record.exc_return = fault_lr;
+	record.vectactive = icsr & SCB_ICSR_VECTACTIVE;
+	for (i = 0; i < sizeof record.comm; i++)
+		record.comm[i] = i < MAXCOMLEN ? u.u_comm[i] : '\0';
+	record.comm[sizeof record.comm - 1] = '\0';
+	diag_fault(&record);
+}
+#endif
 
 void
 arm_fault(struct faultframe *frame, u_int fault_lr)
@@ -283,13 +311,17 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 		    u.u_frame->tf_r11, u.u_frame->tf_sp, u.u_frame->tf_pc);
 	}
 
+#ifdef DIAG_STATS
+	diag_note_fault(frame, fault_lr, icsr);
+#endif
+
 	/*
 	 * Only 0xfffffffd returns to a process on its own stack. Any other
 	 * value is the kernel faulting, in a handler or on the main stack,
 	 * and returning to the faulting address would fault again forever.
 	 */
 	if (fault_lr != 0xfffffffdUL)
-		panic("kernel fault");
+		panic("R03");
 
 	infault = 0;
 	arm_intr_enable();
@@ -309,7 +341,7 @@ arm_fault(struct faultframe *frame, u_int fault_lr)
 	 * A stack that fell into the break guard (mpu.c) between two kernel
 	 * entries faults on its own exception frame: the hardware lowered
 	 * PSP but abandoned the frame writes the guard refused, so the frame
-	 * read here, its 32 bytes and the alignment word, holds no return
+	 * read here, its 32 bytes and the alignment word, lacks a return
 	 * state, and no handler could run on that stack.
 	 */
 	if (rp2040_break_guard_hit(mpu_guard_floor, (u_int)frame,

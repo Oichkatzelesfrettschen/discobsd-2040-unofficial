@@ -37,7 +37,7 @@ class MakeQueryTest(unittest.TestCase):
         # A bmake that warns about inherited job-server descriptors it cannot
         # use is the hazard the queries below are isolated from. An older
         # bmake (Ubuntu 24.04's) takes them without a word, so there the
-        # hazard is absent and the control has nothing to show.
+        # hazard is absent and the control cannot show a difference.
         if result.stderr == "" and result.stdout.strip():
             self.skipTest("this bmake accepts closed job-server descriptors silently")
         self.assertIn('Invalid internal option "-J"', result.stderr)
@@ -60,7 +60,7 @@ class MakeQueryTest(unittest.TestCase):
                 self.assertEqual(output, expected)
 
     def test_usercopy_query(self):
-        with tempfile.TemporaryDirectory(prefix="discobsd-make-query-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="gizmobsd-make-query-") as temporary:
             for variables in (("MAKEFLAGS",), ("MFLAGS",), ("MAKEFLAGS", "MFLAGS")):
                 with self.subTest(variables=variables):
                     result = subprocess.run(

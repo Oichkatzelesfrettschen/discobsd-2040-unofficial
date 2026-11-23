@@ -17,8 +17,11 @@ case $dd_program in
 *) dd_program=$(cd "$(dirname "$dd_program")" && pwd)/$(basename "$dd_program") ;;
 esac
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/discobsd-dd.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+work=$(mktemp -d "${TMPDIR:-/tmp}/gizmobsd-dd.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 checks=0
 failures=0
@@ -96,7 +99,7 @@ ok "$r" "seek= onto a new output leaves a hole ahead of the copy"
 
 # An operand that leaves the range is refused rather than wrapped. Each of
 # these reads back as an accepted value where the conversion wraps: 2^32+1
-# as a block size of one, 2^32 as a count of zero, which means no limit.
+# as a block size of one, 2^32 as a count of zero, which means unlimited.
 if "$dd_program" if=in of=out bs=4294967297 2> err; then r=no; else r=yes; fi
 ok "$r" "bs=2^32+1 is refused"
 grep -F "out of range" err > /dev/null && r=yes || r=no

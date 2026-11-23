@@ -37,11 +37,24 @@
 static long
 mount_limit(const struct statfs *mount_info, int name)
 {
-	if (name == _PC_PIPE_BUF)
-		return PIPE_BUF;
+	if (name == _PC_NAME_MAX)
+		return (mount_info->f_flags & MNT_V7) ? V7_NAMELEN : MAXNAMLEN;
 	if (name == _PC_LINK_MAX)
 		return (mount_info->f_flags & MNT_V7) ? V7_LINK_MAX : NATIVE_LINK_MAX;
-	return (mount_info->f_flags & MNT_V7) ? V7_NAMELEN : MAXNAMLEN;
+	if (name == _PC_ALLOC_SIZE_MIN)
+		return mount_info->f_bsize;
+	static const long fixed[] = {
+		[_PC_PIPE_BUF] = PIPE_BUF,
+		[_PC_PATH_MAX] = PATH_MAX,
+		[_PC_NO_TRUNC] = _POSIX_NO_TRUNC,
+		[_PC_CHOWN_RESTRICTED] = _POSIX_CHOWN_RESTRICTED,
+		[_PC_2_SYMLINKS] = 1,
+		[_PC_TIMESTAMP_RESOLUTION] = 1000000000L
+	};
+	if (name >= _PC_PIPE_BUF && name <= _PC_TIMESTAMP_RESOLUTION)
+		return fixed[name];
+	errno = EINVAL;
+	return -1;
 }
 
 long
@@ -49,7 +62,7 @@ pathconf(const char *path, int name)
 {
 	struct statfs mount_info;
 
-	if (name != _PC_NAME_MAX && name != _PC_LINK_MAX && name != _PC_PIPE_BUF) {
+	if (name < _PC_NAME_MAX || name > _PC_TIMESTAMP_RESOLUTION) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -69,7 +82,7 @@ fpathconf(int fd, int name)
 
 	if (name == _PC_PIPE_BUF)
 		return fcntl(fd, F_GETFD, 0) < 0 ? -1 : PIPE_BUF;
-	if (name != _PC_NAME_MAX && name != _PC_LINK_MAX) {
+	if (name < _PC_NAME_MAX || name > _PC_TIMESTAMP_RESOLUTION) {
 		errno = EINVAL;
 		return -1;
 	}

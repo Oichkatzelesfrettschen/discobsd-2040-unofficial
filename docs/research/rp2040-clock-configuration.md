@@ -48,7 +48,7 @@ The kernel never writes `WAKE_EN`, `SLEEP_EN`, the VREG register or `SCR.SLEEPDE
 | `clk_sys` with USB active | above 48 MHz; at least 10% above `clk_usb` (RP2040-E16) | DS 4.1.2.1, p. 384 (L28754); Appendix B, RP2040-E16 (L47604) |
 | Flash (W25Q16JV) | 133 MHz at 3.0-3.6 V, 104 MHz at 2.7-3.0 V; Read Data 03h 50 MHz | W25Q16JV rev G 10.2, 10.6, pp. 60-61 |
 
-The 2024-10 build of the RP2040 datasheet (639 pages, held in the gororoba documents repository) states "up to 133 MHz" without the "across all process, voltage and temperature" sentence or the 200 MHz footnote; the 2025-02 build (642 pages) adds both. The public download of 2026-11-16 returned the 2025-02 build.
+The 2024-10 build of the RP2040 datasheet (639 pages, held in the gororoba documents repository) states "up to 133 MHz" without the "across all process, voltage and temperature" sentence or the 200 MHz footnote; the 2025-02 build (642 pages) adds both. The public download of 2026-11-16 returned the 2025-02 build. The download of 2026-11-21 returned Release 13 (2026-11-19, 615 pages), which states 133 MHz "at the default core voltage" and keeps the 200 MHz note (section 11).
 
 PLL jitter against power (DS 2.18.2.1, p. 229): a higher VCO allows larger post dividers and lowers jitter; a lower VCO lowers power. When two post dividers differ, the larger belongs in POSTDIV1 for lower power.
 
@@ -82,13 +82,13 @@ At 133 MHz, 2 of 10 fail their assertion today (D3, D5) and 8 pass. These are th
 | H3 | LCD SPI, `st7365p.c:69-70` | prescale 2, SCR 4 | rate follows: 13.300 MHz at 133 (75.2 ns against the 66 ns minimum cycle; ceiling 15.15 MHz) | still valid at 133, no margin against 150 MHz |
 | H4 | PSRAM PIO divider, `psram_pio.h:135` | PSRAM_CLKDIV 2: SCK = clk_sys / 4 | rate follows: 33.25 MHz at 133 | all six commands in use allow 133 MHz on the ESP part |
 | H5 | PSRAM frame, `psram_xfer.h:33` | 64 bytes | tCEM budget: frame must stay under 8 us | 5.20 us worst frame at 125 MHz, 4.89 us at 133, 8.1 us at 80 MHz |
-| H6 | XIP SSI and boot2 divider, `flash.c:351-352`, `boot2_w25q080.S:100` | divider 2, sample delay 1 | flash SCK 66.5 MHz at 133 | inside the 133 MHz of the part; PicoCalc loader stage uses divider 4 |
+| H6 | XIP SSI and boot2 divider, `flash.c` `SSI_XIP_CLKDIV` and `SSI_XIP_SAMPLE_DLY`, `boot2_w25q080.S:100` | divider 2, sample delay 1 | flash SCK 66.5 MHz at 133 | inside the 133 MHz of the part; PicoCalc loader stage uses divider 4 |
 | H7 | Audio levels, `picopcm.h:34` | PCM_LEVELS 250 | couples to D5 | the carrier is clk_sys / levels |
 | H8 | USB buffer settle, `usb.c:394` | six `nop` | safe to 288 MHz | the datasheet asks for ceil(clk_sys / 48 MHz) = 3 at 133; the SIE_CTRL rule asks for twice that, 6 |
 | H9 | `PLL_USB`, `machdep.c:534`, `:538` | 100, 5, 5 | no | crystal-derived, fixed at 48 MHz |
 | H10 | Watchdog tick, `machdep.c:249` | 12 cycles | no | crystal-derived; the 1 MHz TIMER does not depend on clk_sys |
 | H11 | XOSC startup, `machdep.c:446` | 47 | no | crystal-derived |
-| H12 | Spin bounds, `adc.c:56`, `flash.c:417` | 100,000 and 200,000 iterations | the bound's time scales with clk_sys | both far beyond the event they bound |
+| H12 | Spin bounds, `adc.c` `ADC_SPINS`, `flash.c` `FLASH_CMD_SPINS` | 100,000 and 200,000 iterations | the bound's time scales with clk_sys | both far beyond the event they bound |
 
 Constants outside the kernel that restate the clock, each a place that must move with it:
 
@@ -184,7 +184,7 @@ DORMANT has no keyboard wake here: the keyboard controller has no interrupt line
 | PSRAM at `PSRAM_CLKDIV` 2, 64-byte frames | clk_sys >= 73.75 MHz by the modeled CS-low time of a read (590 cycles against tCEM 8 us) and >= 81.25 MHz by the modeled interrupt-masked span (650 cycles, which adds the register accesses at six system clocks each). The second is a conservative screening threshold; neither bounds a frame whose FIFOs stall on hardware. 32-byte frames: 41.75 and 49.25 MHz; 16-byte frames: 25.75 and 33.25 MHz (I: 8 cycles per byte over a 78-cycle overhead, from the 125 MHz model times) | ESP-PSRAM64H Table 10-5; `picocalc-psram.md` "Frame length against tCEM"; `memory-devices.md` PSRAM table |
 | UART with `clk_peri` held fixed | UARTCLK <= 5/3 x PCLK: clk_sys >= 28.8 MHz at 48 MHz | DS 4.2.3.1, p. 420 (L31478) |
 | SPI with `clk_peri` held fixed | SSPCLK <= PCLK: clk_sys >= 48 MHz | DS 4.4.3.4, p. 505 |
-| Flash | SCK = clk_sys / 2 stays under 133 MHz at every setpoint; the RX sample delay of 1 clk_sys cycle is unaudited below 62.5 MHz | W25Q16JV 10.6; `flash.c:351` |
+| Flash | SCK = clk_sys / 2 stays under 133 MHz at every setpoint; the RX sample delay of 1 clk_sys cycle is unaudited below 62.5 MHz | W25Q16JV 10.6; `flash.c` `SSI_XIP_SAMPLE_DLY` |
 | Audio sample clock | exact only where clk_sys is a multiple of 8,000 Hz (the assertion at `picopcm.c:84`): 133 MHz is (16,625 cycles); 66.5 MHz (8,312.5 cycles) and 62.5 MHz (7,812.5) are not | `picopcm.c:84` |
 
 ### Which consumers tolerate a run-time change
@@ -312,7 +312,7 @@ Eight slices. S1 to S3 deliver the owner's 133 MHz; S6 and S7 deliver the manual
    - The manual toggle with its program (S1-S7, recommended as the target): about 350 to 600 B of kernel text and 12 to 20 B of RAM for the owner's "at least a manual toggle clock".
    - The governor (S8): adds 250 to 400 B and a policy whose saving rests on the section 6 idle-current measurement that does not yet exist.
 7. **Elevated core voltage and 200 MHz.**
-   - Do not pursue (recommended): beyond the all-conditions rating, and the 4.5% saving available at 1.05 V sits on the rating's lower edge.
+   - Do not pursue (recommended): beyond the rating at the default core voltage (the 2025-02 build's "all-conditions" wording; section 11), and the 4.5% saving available at 1.05 V sits on the rating's lower edge.
    - Study separately: requires the VREG sequence, the flash and PSRAM limits, thermal data and the owner's acceptance of operation outside the stated PVT.
 
 ## 10. What is unverified
@@ -327,6 +327,59 @@ Eight slices. S1 to S3 deliver the owner's 133 MHz; S6 and S7 deliver the manual
 - **The notes repository's RP2040 datasheet equals the public download** of 2026-11-16 by SHA-256; the Pico datasheet likewise. The W25Q16JV revision G download source is not recorded (notes `docs/rp2040/README.md`).
 - **XPowersLib and the vendor firmware** are the battery note's sources; nothing here adds to them.
 - **Sizes** are from one benchmark ELF whose source commit is unrecorded; slice-time builds replace them.
+
+## 11. Above 133 MHz, and one clock for both cores
+
+This section extends the study past the 133 MHz ceiling (owner decision D201, study only). Evidence classes as above; DS26 is the public download of 2026-11-21 (Release 13, build 4c5ccacb2c2f, 2026-11-19, 615 pages), SDK is Raspberry Pi's pico-sdk source and release notes (fetched 2026-11-21), VND is the vendor PicoCalc repository.
+
+### What the sources state
+
+| Statement | Source |
+| --- | --- |
+| 200 MHz needs the core regulator at 1.15 V (`VSEL` 1100) | DS 2.15.3.1 note, p. 183 (L13345-13347); Table 634 footnote b, p. 622; DS26 note p. 179, Table 655 p. 598 |
+| 133 MHz holds "at the default core voltage" (the all-conditions sentence of the 2025-02 build is reworded) | DS26 p. 179; history D.1, p. 611 |
+| No figure above 200 MHz in any of the three builds | DS, DS26, and the 2024-10 build: `grep -i "overclock\|above 200\|250 *MHz"` finds none |
+| "certified to run at 200Mhz ... at least 1.15 volts" | SDK release 2.1.1, 2025-02-19 (github.com/raspberrypi/pico-sdk/releases/tag/2.1.1); releases 2.2.0 to 2.3.1 add no clock or regulator entry |
+| SDK order: regulator first, a 1,000 us settle, then `clk_sys`; `clk_peri` follows `clk_sys` | SDK 2.3.1 `src/rp2_common/pico_runtime_init/runtime_init_clocks.c` lines 83-93 and 131-135; `clocks.h` lines 210-237 |
+| Regulator accuracy plus or minus 3%, 100 mA maximum; DVDD 1.05 to 1.16 V | DS 2.10.3 Table 192, p. 160; DS 5.6 Table 634, p. 622 |
+
+At 1.15 V the regulator's 3% tolerance reaches 1.1845 V, above the 1.16 V DVDD maximum of Table 634; the SDK's certification is the only source that reconciles 200 MHz with that table, and the datasheet gives no current or thermal figure for it. A straight-line extrapolation of Figure 172 (section 6) gives about 44 mA of DVDD at 200 MHz (I), inside the regulator's 100 mA.
+
+### PLL settings from the 12 MHz crystal (H, DS 2.18.2 limits)
+
+| `clk_sys` | REFDIV, FBDIV, POSTDIV1, POSTDIV2 | VCO |
+| --- | --- | --- |
+| 150 MHz | 1, 125, 5, 2 (or 1, 75, 6, 1 at 900 MHz) | 1500 MHz |
+| 200 MHz | 1, 100, 6, 1 (the only REFDIV 1 form) | 1200 MHz |
+| 250 MHz | 1, 125, 6, 1 | 1500 MHz |
+
+### Consumers at 150, 200 and 250 MHz (H, from the divisors in the tree at `cc5a493bf`)
+
+| Consumer | 150 MHz | 200 MHz | 250 MHz | Failure mode |
+| --- | --- | --- | --- | --- |
+| XIP flash, boot2 divider 2 (`boot2_w25q080.S` line 100) | SCK 75 MHz | 100 MHz | 125 MHz | all under 133 MHz at 3.0-3.6 V (W25Q16JV 10.6, p. 61); the one-cycle RX sample delay needs a board soak |
+| LCD, `st7365p.c` lines 77-78 (prescale 2, SCR 4) | 15.0 MHz | 20 MHz | 25 MHz | silent: over the 15.15 MHz write limit at 200 and 250; SCR 5, 7 and 9 restore 12.5 MHz |
+| PSRAM, `PSRAM_CLKDIV` 2 (`psram_pio.h` line 135) | SCK 37.5 MHz, margin 1.3 ns | 50 MHz, -2.0 ns | 62.5 MHz, -4.0 ns | silent: the section 3 pin-delay model goes negative; divider 3 at 200 and 4 at 250 restore 8.0 and 12.0 ns; no assertion guards it |
+| SD, `sd.c` lines 117-121 | data 12.5 MHz exact; identification 398.9 kHz | data exact; identification 400 kHz exact | data exact; the identification SCR of 312 trips the 255 assertion | compile time at 250 MHz only |
+| Audio, `picopcm.c` lines 105-109 | `PCM_LEVELS` 300 | 400 | 500 | compile time |
+
+With divisors chosen for each clock, the SD data clock (prescale 12, 16, 20) and the LCD write clock (SCR 5, 7, 9) are exactly 12.5 MHz at 150, 200 and 250 MHz; at 133 MHz neither is (11.08 MHz at the nearest even prescale). The SD identification clock is exactly 400 kHz only at 200 MHz: 398.9 kHz at 150, and at 250 MHz 399.4 kHz with an SCR of 312 that the assertion refuses. The silent rows, LCD and PSRAM, are the ones a clock change must carry assertions for.
+
+### The vendor 250 MHz
+
+The vendor NES port (github.com/clockworkpi/PicoCalc, `Code/NES/shapones.patch` lines 846, 1653 and 1656) runs `clk_sys` at 250 MHz with the regulator at 1.30 V, 140 mV over the 1.16 V DVDD maximum, and requests a 62.5 MHz panel clock (line 631) against the 15.15 MHz write limit. The repository carries no license file and the patch no copyright or SPDX line; nothing is copied from it. It is a lead for a panel-clock measurement, not an operating point.
+
+### Per-core speed
+
+Both cores take one `clk_sys` (DS Table 205, p. 183; the system clock "is always sent to proc0 and proc1", p. 193). A per-core frequency does not exist, so one core at 50 MHz and the other at 233 MHz is impossible. What a core controls is its own activity: `WFI` gates its clock while it sleeps (DS p. 160), and `FRCE_OFF` in the power-on state machine holds it in reset (p. 170). Core 1 therefore adds throughput, never single-thread speed.
+
+### What the clock buys the i86 emulator
+
+The board measurement of `docs/research/i86-dos-emulator/board-speed-pico.txt` gives 0.32 million guest instructions a second at 125 MHz. SRAM and the processor share `clk_sys`, so the interpreter's cycles per guest instruction stay fixed and the rate scales with the clock (I): about 0.34 million at 133 MHz, 0.38 at 150 and 0.52 at 200. The panel's SPI time does not scale while its divisor is held to the 15.15 MHz limit.
+
+### Recommendation
+
+The section 9 recommendation stands: 133 MHz first, through the post-rename build-out of D133. 150 MHz at the default voltage has no source behind it; 200 MHz at 1.15 V has the SDK's certification and needs the LCD and PSRAM assertions above, the regulator sequence and a board soak before it is an operating point; 250 MHz has none. Decision 7 of section 9 keeps its recommendation.
 
 ## Sources
 

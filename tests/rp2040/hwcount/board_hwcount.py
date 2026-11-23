@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Board test for the XIP cache and bus fabric counters under machdep.
 
-usage: DISCOBSD_BOARD_HWCOUNT=run PYTHON board_hwcount.py [unix.uf2,flash.uf2]
-The script touches the board only when DISCOBSD_BOARD_HWCOUNT is exactly
+usage: GIZMOBSD_BOARD_HWCOUNT=run PYTHON board_hwcount.py [unix.uf2,flash.uf2]
+The script touches the board only when GIZMOBSD_BOARD_HWCOUNT is exactly
 "run"; unset, empty and every other value exit without opening a port or
-calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash when given, logs in as operator on the USB console,
+calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash when given, logs in as operator on the USB console,
 becomes root and checks that:
 
   - machdep.xip_acc advances across a read of a root file and machdep.xip_hit
@@ -13,7 +13,7 @@ becomes root and checks that:
   - a write clears an XIP counter;
   - every bus_perfsel accepts events 0 to 19 and 31 and refuses 20;
   - a bus_perfctr counting all SRAM0 accesses advances, holds its value once
-    its select names no event, and reads zero after a write (2.1.1.2);
+    its select holds NO_EVENT (31), and reads zero after a write (2.1.1.2);
   - contested SRAM0 accesses do not exceed all SRAM0 accesses;
   - with machdep.xip_cache written 0 the cache reads disabled, stays disabled
     across a flash write, counts no hit over the control workload and takes
@@ -34,9 +34,12 @@ import subprocess
 import sys
 import time
 
-OPT_IN_VARIABLE = "DISCOBSD_BOARD_HWCOUNT"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import board_opt_in  # noqa: E402
+
+OPT_IN_VARIABLE = "GIZMOBSD_BOARD_HWCOUNT"
 OPT_IN_VALUE = "run"
-PORT_PATTERN = "/dev/serial/by-id/*DiscoBSD*rp2040-if00"
+PORT_PATTERN = "/dev/serial/by-id/*[DG]i[sz][cm]oBSD*rp2040-if00"
 SRAM0_CONTESTED = 14
 SRAM0 = 15
 ROM = 19
@@ -150,6 +153,9 @@ def put(name, value, budget=30):
 
 
 def main():
+    refused = board_opt_in.retired_variable_status(OPT_IN_VARIABLE)
+    if refused:
+        return refused
     if os.environ.get(OPT_IN_VARIABLE) != OPT_IN_VALUE:
         print(f"board_hwcount: closed; set {OPT_IN_VARIABLE}={OPT_IN_VALUE} to run")
         return 0
@@ -159,7 +165,7 @@ def main():
     import serial
 
     if len(sys.argv) == 2:
-        subprocess.run(["discobsd-flash", *sys.argv[1].split(",")], check=True)
+        subprocess.run(["gizmobsd-flash", *sys.argv[1].split(",")], check=True)
         time.sleep(8)
     reopen()
     root_shell()

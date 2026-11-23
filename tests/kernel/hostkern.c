@@ -1,5 +1,5 @@
 /*
- * Harness implementation. This file carries no kernel header, so it reaches
+ * Harness implementation. This file leaves out every kernel header, so it reaches
  * <setjmp.h>, <stdio.h> and <string.h> freely; hostkern_abi.c is the
  * translation unit that holds these definitions to the kernel's own
  * declarations.

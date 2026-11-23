@@ -1,7 +1,7 @@
 /*
  * Process contexts for the USB console gate; see usb_console_sched.c. The
- * interface names no type, so both the kernel translation unit and the host
- * one include it.
+ * interface uses only void and int, which the host and the kernel define
+ * alike, so both the kernel translation unit and the host one include it.
  */
 #ifndef USB_CONSOLE_SCHED_H
 #define USB_CONSOLE_SCHED_H

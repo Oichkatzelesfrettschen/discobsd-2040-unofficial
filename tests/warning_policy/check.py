@@ -89,7 +89,7 @@ def check_route(root, make, directory, overrides, kinds):
     command = shlex.split(query.stdout.strip())
     if not command:
         raise RuntimeError(f"{directory}: empty compiler command")
-    with tempfile.TemporaryDirectory(prefix="discobsd-warnings-") as name:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-warnings-") as name:
         temporary = Path(name)
         source, output = temporary / "probe.c", temporary / "probe.o"
         argv = [*command, "-c", str(source), "-o", str(output)]
@@ -128,7 +128,7 @@ def check_legacy_route(root, make, directory):
     if query.returncode:
         raise RuntimeError(f"{directory}: cannot evaluate compiler command:\n{query.stdout}")
     command = shlex.split(query.stdout.strip())
-    with tempfile.TemporaryDirectory(prefix="discobsd-legacy-") as name:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-legacy-") as name:
         temporary = Path(name)
         source, output = temporary / "probe.c", temporary / "probe.o"
         argv = [*command, "-c", str(source), "-o", str(output)]
@@ -147,8 +147,8 @@ def check_level_declarations(root):
     """Every WARNLEVEL assignment precedes the include that composes CC.
 
     sys.mk, and tools/Makefile.inc for the host tools, compose CC when
-    they are included, so an assignment after the include line selects
-    nothing and the directory silently builds at the default level; the
+    they are included, so an assignment after the include line is
+    ignored and the directory silently builds at the default level; the
     value is also held to the two warnings.mk accepts.
     """
     listing = subprocess.run(["git", "ls-files", "--", "*Makefile", "*.mk"], cwd=root,
@@ -182,7 +182,7 @@ def check_census_route(root, make, directory):
     if query.returncode:
         raise RuntimeError(f"{directory}: cannot evaluate census command:\n{query.stdout}")
     command = shlex.split(query.stdout.strip())
-    with tempfile.TemporaryDirectory(prefix="discobsd-census-") as name:
+    with tempfile.TemporaryDirectory(prefix="gizmobsd-census-") as name:
         temporary = Path(name)
         source, output = temporary / "probe.c", temporary / "probe.o"
         argv = [*command, "-c", str(source), "-o", str(output)]

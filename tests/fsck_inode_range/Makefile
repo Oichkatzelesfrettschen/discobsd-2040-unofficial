@@ -89,7 +89,8 @@ SCENARIOS.fsutil-namlen-empty=	fsutil-lf-hole
 SCENARIOS.fsutil-namlen-split=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-off=	fsutil-lf-last fsutil-lf-pristine
 SCENARIOS.fsutil-split-trim=	fsutil-lf-last fsutil-lf-pristine
-SCENARIOS.fsutil-reclen-bound=	fsutil-lf-overrun
+SCENARIOS.fsutil-reclen-bound=	fsutil-lf-overrun fsutil-name-overlong \
+				fsutil-name-overrun
 SCENARIOS.fsutil-reach-skip=	fsutil-lf-dir fsutil-lf-deep
 SCENARIOS.fsutil-no-rescan=	fsutil-lf-dir fsutil-lf-deep
 SCENARIOS.fsutil-dotdot-keep=	fsutil-lf-dir fsutil-lf-deep
@@ -163,7 +164,7 @@ objs/glue.o: fsck_glue.c fsck_glue.h ${MACHINE_STAMP}
 	    -I${TOPSRC}/include \
 	    -c -o $@ fsck_glue.c
 
-# The host half carries no tree header and reaches the host's <stdio.h>.
+# The host half leaves out every tree header and reaches the host's <stdio.h>.
 objs/host.o: fsck_host.c fsck_glue.h
 	@mkdir -p objs
 	${HOSTCC} -std=gnu17 ${ILP32} ${GATE_WARN} -c -o $@ fsck_host.c

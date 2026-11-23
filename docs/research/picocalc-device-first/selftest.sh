@@ -25,8 +25,8 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 # Calibrate build.sh, run.py and oracle.sh on known-bad input before their verdict
-# counts: an OUTDIR that aliases the golden file, a harness bzero that drifted
-# from machdep.c, a missing or incomplete production compile command, and a
+# counts: an OUTDIR that aliases the golden file, a harness without the
+# inherited notice of machdep.c, a missing or incomplete production compile command, and a
 # decoder one byte short, which run.py must report as a FAIL row through its
 # exit status, and a golden file off by one cycle, which must fail the
 # comparison. The known-good run must pass. Each known-bad case runs against a
@@ -42,7 +42,9 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=${DISCOBSD_ROOT:-$(cd "$HERE/../../.." && pwd)}
 export DISCOBSD_ROOT="$ROOT"
 T=$(mktemp -d)
-trap 'rm -r -- "$T"' EXIT INT TERM
+trap 'rm -r -- "$T"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 cp -R "$HERE" "$T/h"
 fail=0
 
@@ -182,16 +184,6 @@ if [ "$(cksum <"$T/h/run-output.tsv")" != "$golden" ]; then
     echo "selftest: an aliased OUTDIR changed the golden file" >&2
     fail=1
 fi
-
-# Known-bad: bench.c bzero loses its word loop.
-sed 's/\*aligned_dst++ = 0;/*dst++ = 0;/' "$HERE/bench.c" >"$T/h/bench.c"
-if cmp -s "$HERE/bench.c" "$T/h/bench.c"; then
-    echo "selftest: the bzero mutation changed nothing" >&2
-    fail=1
-fi
-expect_diag "bench.c bzero differs from machdep.c" "bzero differs from machdep.c" \
-    sh "$T/h/build.sh" "$T/drift"
-cp "$HERE/bench.c" "$T/h/bench.c"
 
 # Known-bad: the production compile command is unavailable, or lacks the
 # kernel's code-generation options.

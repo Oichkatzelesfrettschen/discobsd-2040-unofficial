@@ -20,6 +20,9 @@
 #ifdef RP2040
 #include <machine/board.h>
 #endif
+#ifdef CONSOLE_MIRROR_UART
+#include <rp2040/dev/uart.h>
+#endif
 
 struct tty cnttys[1];
 
@@ -113,6 +116,19 @@ cnputc(char c)
 		ttstart(&cdevsw[major(dev)].d_ttys[minor(dev)]);
 		ttyflush(&cdevsw[major(dev)].d_ttys[minor(dev)], 0);
 	}
+
+#ifdef CONSOLE_MIRROR_UART
+	/*
+	 * A kernel whose console is the PicoCalc panel also sends each
+	 * console character to UART0, where a host on GP0/GP1 can record
+	 * what the 32-line panel scrolls away. uartputc() waits for the
+	 * transmitter, so a line of n characters holds the caller for n
+	 * character times at the port's rate. A console on UART0 itself
+	 * has printed the character already.
+	 */
+	if (dev != makedev(UART_MAJOR, 0))
+		uartputc(makedev(UART_MAJOR, 0), c);
+#endif
 
 	if (c == '\n')
 		cnputc('\r');

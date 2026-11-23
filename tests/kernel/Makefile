@@ -3580,6 +3580,117 @@ check-rlimit-growth-mutants: \
 
 .PHONY: check-rlimit-growth-mutants
 
+# exec_clear() and exec_finish(), extracted from exec_subr.c and kern_exec.c,
+# held to the pending-close contract: exec_clear() sets EXEC_CLOSE_PENDING and
+# leaves fdcloseexec() to exec_finish(), which runs it after the inode release.
+EXEC_CLEAR_MUTANTS=	direct-close flag-omitted
+
+exec_clear_functions.c: exec_clear_extract.py swap_ioctl_extract.py \
+    ${EXEC_SUBR_SRC} ${KERN_EXEC_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for exec_clear extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_clear_extract.py --root ${TOPSRC} --output $@
+
+exec_clear_test32: exec_clear_test.c exec_clear_functions.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -o $@ exec_clear_test.c
+
+.for mutation in ${EXEC_CLEAR_MUTANTS}
+exec_clear_${mutation}.mutant.c: exec_clear_extract.py swap_ioctl_extract.py \
+    ${EXEC_SUBR_SRC} ${KERN_EXEC_SRC}
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for exec_clear extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} exec_clear_extract.py --root ${TOPSRC} --output $@ \
+	    --mutation ${mutation}
+
+exec_clear_${mutation}.mutant.test: exec_clear_test.c \
+    exec_clear_${mutation}.mutant.c
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DEXEC_CLEAR_FUNCTIONS='"exec_clear_${mutation}.mutant.c"' \
+	    -o $@ exec_clear_test.c
+.endfor
+
+check-exec-clear-mutants: \
+    ${EXEC_CLEAR_MUTANTS:@mutation@exec_clear_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${EXEC_CLEAR_MUTANTS}; do \
+		output=exec_clear_$$mutation.mutant.out; \
+		if ./exec_clear_$$mutation.mutant.test >$$output 2>&1; then \
+			status=0; else status=$$?; fi; \
+		case $$mutation in \
+		direct-close) expected='exec_clear does not close descriptors itself' ;; \
+		flag-omitted) expected='exec_clear marks the closes pending' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "FAIL $$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL exec_clear $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS exec_clear $$mutation mutation rejected"; \
+	done
+
+.PHONY: check-exec-clear-mutants
+
+# The RLIMIT_STACK call site of sendsig() in sig_machdep.c, extracted with
+# rlimit_stack_admits(), driven just inside and just past the limit.
+SENDSIG_STACK_MUTANTS=	limit-unchecked base-swapped
+
+sendsig_stack_limit_functions.c: sendsig_stack_limit_extract.py \
+    sigreturn_context_extract.py swap_ioctl_extract.py ${SIGRETURN_SRC} \
+    ${TOPSRC}/sys/kern/kern_resource.c
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for sendsig extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} sendsig_stack_limit_extract.py --root ${TOPSRC} --output $@
+
+sendsig_stack_limit_test32: sendsig_stack_limit_test.c \
+    sendsig_stack_limit_functions.c ${SIGRETURN_HEADER_DEPS}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} -o $@ \
+	    sendsig_stack_limit_test.c
+
+.for mutation in ${SENDSIG_STACK_MUTANTS}
+sendsig_stack_limit_${mutation}.mutant.c: sendsig_stack_limit_extract.py \
+    sigreturn_context_extract.py swap_ioctl_extract.py ${SIGRETURN_SRC} \
+    ${TOPSRC}/sys/kern/kern_resource.c
+	@if [ -z "${PYTHON}" ]; then \
+		echo "PYTHON must name the interpreter for sendsig extraction" >&2; \
+		exit 2; \
+	fi
+	${PYTHON} sendsig_stack_limit_extract.py --root ${TOPSRC} --output $@ \
+	    --mutation ${mutation}
+
+sendsig_stack_limit_${mutation}.mutant.test: sendsig_stack_limit_test.c \
+    sendsig_stack_limit_${mutation}.mutant.c ${SIGRETURN_HEADER_DEPS}
+	${HOST_CC} ${SYSCALL_GATE_CFLAGS} ${ILP32} \
+	    -DSENDSIG_FUNCTIONS='"sendsig_stack_limit_${mutation}.mutant.c"' \
+	    -o $@ sendsig_stack_limit_test.c
+.endfor
+
+check-sendsig-stack-limit-mutants: \
+    ${SENDSIG_STACK_MUTANTS:@mutation@sendsig_stack_limit_${mutation}.mutant.test@}
+	@set -eu; for mutation in ${SENDSIG_STACK_MUTANTS}; do \
+		output=sendsig_stack_limit_$$mutation.mutant.out; \
+		if ./sendsig_stack_limit_$$mutation.mutant.test >$$output 2>&1; \
+		then status=0; else status=$$?; fi; \
+		case $$mutation in \
+		limit-unchecked) expected='a frame past the limit ends the process' ;; \
+		base-swapped) expected='a frame at the limit is delivered' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "FAIL $$expected" $$output >/dev/null; then \
+			cat $$output >&2; \
+			echo "FAIL sendsig stack limit $$mutation mutation rejection" >&2; \
+			exit 1; \
+		fi; \
+		echo "PASS sendsig stack limit $$mutation mutation rejected"; \
+	done
+
+.PHONY: check-sendsig-stack-limit-mutants
+
 # The narrow gate, which the root Makefile reaches as check-kernel-ilp32.
 check-ilp32:
 .if ${ILP32_OK} == "yes"
@@ -3587,6 +3698,8 @@ check-ilp32:
 	    exec_close_test32 check-exec-close-mutant \
 	    swap_ioctl_test32 tty_local_mode_test32 mem_span_test32 \
 	    ptrace_test32 rlimit_growth_test32 check-rlimit-growth-mutants \
+	    exec_clear_test32 check-exec-clear-mutants \
+	    sendsig_stack_limit_test32 check-sendsig-stack-limit-mutants \
 	    mem_span_endpoint-admission.mutant32.test \
 	    check-tty-local-mode-ilp32-mutant \
 	    usercopy_span_test32 usercopy_span_endpoint_mutant syscall_args_test32 \
@@ -3632,6 +3745,9 @@ check-ilp32:
 	${TEST_EXECUTION} run kernel.mem-span.ilp32 -- ./mem_span_test32
 	${TEST_EXECUTION} run kernel.ptrace.ilp32 -- ./ptrace_test32
 	${TEST_EXECUTION} run kernel.rlimit-growth.ilp32 -- ./rlimit_growth_test32
+	${TEST_EXECUTION} run kernel.exec-clear.ilp32 -- ./exec_clear_test32
+	${TEST_EXECUTION} run kernel.sendsig-stack-limit.ilp32 -- \
+	    ./sendsig_stack_limit_test32
 	@if ./mem_span_endpoint-admission.mutant32.test \
 	    >mem_span_endpoint-admission.mutant32.out 2>&1; then status=0; \
 	else status=$$?; fi; \
@@ -3736,6 +3852,8 @@ check-ilp32:
 	${TEST_EXECUTION} skip kernel.mem-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.ptrace.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.rlimit-growth.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.exec-clear.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
+	${TEST_EXECUTION} skip kernel.sendsig-stack-limit.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.usercopy-span.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.syscall-arguments.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
 	${TEST_EXECUTION} skip kernel.sigreturn-context-xip.ilp32 "check-kernel-ilp32: ${HOST_CC} cannot compile and execute ILP32 binaries"
@@ -3842,6 +3960,12 @@ clean:
 	rm -f rlimit_growth_functions.c rlimit_growth_test32 \
 	    rlimit_growth_*.mutant.c rlimit_growth_*.mutant.test \
 	    rlimit_growth_*.mutant.out
+	rm -f exec_clear_functions.c exec_clear_test32 \
+	    exec_clear_*.mutant.c exec_clear_*.mutant.test \
+	    exec_clear_*.mutant.out
+	rm -f sendsig_stack_limit_functions.c sendsig_stack_limit_test32 \
+	    sendsig_stack_limit_*.mutant.c sendsig_stack_limit_*.mutant.test \
+	    sendsig_stack_limit_*.mutant.out
 	rm -f ${PTRACE_FUNCTIONS} ptrace_test32 ptrace_test_sanitized \
 	    ptrace_hostkern_sanitized.o
 	rm -f ptrace_*.mutant.c ptrace_*.mutant.test ptrace_*.mutant.out

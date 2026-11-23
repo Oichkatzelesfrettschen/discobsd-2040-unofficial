@@ -4669,7 +4669,7 @@ executed by this gate. The loader answers `sigaction` and `sigprocmask`
 without delivering a signal, so no handler runs here. This is
 instruction-level execution of the linked program, not a kernel boot, an
 MPU test or a PicoCalc run. The same gate holds the workspace at the first
-prompt (empty environment) to `ULISP_FLOOR` cells, 14,000: the cells are what
+prompt (empty environment) to `ULISP_FLOOR` cells, 13,900: the cells are what
 the process window leaves after the program image, at 8 bytes a cell, so each
 byte added to the program costs an eighth of a cell.
 

@@ -4,8 +4,8 @@
 usage: DISCOBSD_BOARD_CORE1=run PYTHON board_core1.py unix.elf [unix.uf2,flash.uf2]
 The script touches the board only when DISCOBSD_BOARD_CORE1 is exactly "run";
 unset, empty and every other value exit without opening a port or calling
-discobsd-flash. With the variable set it flashes the named images with
-discobsd-flash when given, then logs in as operator on the USB console,
+gizmobsd-flash. With the variable set it flashes the named images with
+gizmobsd-flash when given, then logs in as operator on the USB console,
 becomes root and checks, against the symbol addresses of unix.elf:
 
   - core 1 is running ten seconds after boot with no restart, stall or fault;
@@ -143,7 +143,7 @@ def main():
 
     spans = symbol_ranges(sys.argv[1])
     if len(sys.argv) == 3:
-        subprocess.run(["discobsd-flash", *sys.argv[2].split(",")], check=True)
+        subprocess.run(["gizmobsd-flash", *sys.argv[2].split(",")], check=True)
         time.sleep(8)
     reopen()
     root_shell()

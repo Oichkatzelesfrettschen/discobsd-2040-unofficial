@@ -219,7 +219,7 @@ distribution:	build
 
 # check-uf2-validator calibrates the UF2 structure checker on synthetic
 # images; check-uf2-images applies it to each kernel and root pair that
-# discobsd-flash loads, so it follows `kernel` and `flash`. Every board
+# gizmobsd-flash loads, so it follows `kernel` and `flash`. Every board
 # kernel in MACHINE_KERNEL_CONFIGS pairs with ${FLASHUF2}: the root occupies
 # the same flash region on every board and every kernel boots every profile's
 # root, while BOARD (distrib/rp2040/Makefile.inc) picks the profile an unset
@@ -2876,7 +2876,7 @@ check-flash-id:
 
 .PHONY: check-flash-id
 
-# The discobsd-host Python package: its own lint and tests.
+# The gizmobsd-host Python package: its own lint and tests.
 check-host-package:	check-python .WAIT
 		cd distrib/rp2040/host && ruff check . && ${PYTHON} -m pytest -q
 

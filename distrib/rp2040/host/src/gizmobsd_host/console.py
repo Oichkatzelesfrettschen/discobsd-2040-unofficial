@@ -1,7 +1,7 @@
-"""discobsd-console: run the web console and its short link on any host.
+"""gizmobsd-console: run the web console and its short link on any host.
 
-`discobsd-console up` starts discobsd-web on port 7681 behind a generated
-token and discobsd-link on port 42069 redirecting to the tokenized URL,
+`gizmobsd-console up` starts gizmobsd-web on port 7681 behind a generated
+token and gizmobsd-link on port 42069 redirecting to the tokenized URL,
 then prints the URLs to hand out. `down` stops them and `status` reports.
 On a Linux host where the packaged systemd user units are installed, the
 units carry the processes; everywhere else the two servers run detached
@@ -35,7 +35,7 @@ from . import __version__, ports
 
 WEB_PORT = 7681
 LINK_PORT = 42069
-UNITS = ("discobsd-web.service", "discobsd-link.service")
+UNITS = ("gizmobsd-web.service", "gizmobsd-link.service")
 
 
 def config_dir(environ=None, platform=None, home=None) -> Path:
@@ -177,7 +177,7 @@ def _tool(name: str) -> list[str]:
     found = shutil.which(name)
     if found:
         return [found]
-    return [sys.executable, "-m", "discobsd_host." + name.split("-", 1)[1]]
+    return [sys.executable, "-m", "gizmobsd_host." + name.split("-", 1)[1]]
 
 
 def _stop_pidfile(path: Path) -> bool:
@@ -254,7 +254,7 @@ def cmd_up(args) -> int:
     try:
         bind = parse_bind(args.bind)
     except ValueError as exc:
-        sys.stderr.write("discobsd-console: --bind: %s\n" % exc)
+        sys.stderr.write("gizmobsd-console: --bind: %s\n" % exc)
         return 1
     bind_text = str(bind)
     # The board selector reaches a systemd user unit only through web.env, an
@@ -263,7 +263,7 @@ def cmd_up(args) -> int:
     usb_port = os.environ.get("DISCOBSD_USB_PORT") or None
     if usb_port is not None and not ports.USB_PORT_RE.fullmatch(usb_port):
         sys.stderr.write(
-            "discobsd-console: DISCOBSD_USB_PORT must be a USB port path such as 1-3\n"
+            "gizmobsd-console: DISCOBSD_USB_PORT must be a USB port path such as 1-3\n"
         )
         return 1
     conf = config_dir()
@@ -289,7 +289,7 @@ def cmd_up(args) -> int:
         ip = stored if stored and not is_loopback_host(stored) else lan_ip()
     if ":" in ip:
         sys.stderr.write(
-            "discobsd-console: the advertised address %r is IPv6; the systemd "
+            "gizmobsd-console: the advertised address %r is IPv6; the systemd "
             "units build http://HOST:PORT/ without brackets, so give an IPv4 "
             "address\n" % ip
         )
@@ -304,7 +304,7 @@ def cmd_up(args) -> int:
     try:
         write_env(env_path, env_values)
     except ValueError as exc:
-        sys.stderr.write("discobsd-console: %s\n" % exc)
+        sys.stderr.write("gizmobsd-console: %s\n" % exc)
         return 1
     # The mDNS name resolves to the host's LAN address, which only a
     # wildcard bind serves.
@@ -313,19 +313,19 @@ def cmd_up(args) -> int:
         subprocess.call(["systemctl", "--user", "daemon-reload"])
         rc = subprocess.call(["systemctl", "--user", "restart", *UNITS])
         if rc != 0:
-            sys.stderr.write("discobsd-console: systemctl --user restart failed\n")
+            sys.stderr.write("gizmobsd-console: systemctl --user restart failed\n")
             return 1
         mode = "systemd user units"
     else:
         for name in ("link", "web"):
             _stop_pidfile(conf / (name + ".pid"))
-        web = _tool("discobsd-web") + [
+        web = _tool("gizmobsd-web") + [
             "--bind",
             bind_text,
             "--port",
             str(args.port),
         ]
-        link = _tool("discobsd-link") + [
+        link = _tool("gizmobsd-link") + [
             "--host",
             "http://%s:%d/" % (ip, args.port),
             "--port",
@@ -343,7 +343,7 @@ def cmd_up(args) -> int:
     time.sleep(1.0)
     if not _http_answers(links["short"]):
         sys.stderr.write(
-            "discobsd-console: {} is not answering; see the logs in {}\n".format(
+            "gizmobsd-console: {} is not answering; see the logs in {}\n".format(
                 links["short"], conf
             )
         )
@@ -392,10 +392,10 @@ def cmd_status(args) -> int:
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="discobsd-console",
+        prog="gizmobsd-console",
         description="Run the DiscoBSD web console and its short link.",
     )
-    p.add_argument("--version", action="version", version="discobsd-console " + __version__)
+    p.add_argument("--version", action="version", version="gizmobsd-console " + __version__)
     sub = p.add_subparsers(dest="command", required=True)
     up = sub.add_parser("up", help="start or restart the servers and print the URLs")
     up.add_argument("--bind", default="127.0.0.1", help="bind address (default 127.0.0.1)")

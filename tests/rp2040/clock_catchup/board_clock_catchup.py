@@ -5,8 +5,8 @@ usage: DISCOBSD_BOARD_CLOCK_CATCHUP=run PYTHON board_clock_catchup.py [unix.uf2,
 
 The script touches the board only when DISCOBSD_BOARD_CLOCK_CATCHUP is exactly
 "run"; unset, empty and every other value exit without opening a port or
-calling discobsd-flash. With the variable set it flashes the named images with
-discobsd-flash when given and otherwise leaves the board running, then logs in
+calling gizmobsd-flash. With the variable set it flashes the named images with
+gizmobsd-flash when given and otherwise leaves the board running, then logs in
 as operator on the USB console.
 
 Claim under test (sys/arch/rp2040/rp2040/clock_catchup.h, called from
@@ -197,7 +197,7 @@ class Console:
 
 def flash(images):
     subprocess.check_call(
-        ["discobsd-flash", *images.split(",")],
+        ["gizmobsd-flash", *images.split(",")],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

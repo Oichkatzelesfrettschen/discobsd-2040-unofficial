@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "discobsd-host"
+name = "gizmobsd-host"
 version = "1.1.0"
 description = "Host tools for the DiscoBSD RP2040 console: terminal, web console, short link"
 readme = "README.md"
@@ -26,7 +26,7 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest>=7", "ruff>=0.4", "pyelftools>=0.29"]
-# discobsd-sramdump decode reads the kernel ELF's DWARF; capture needs only picotool.
+# gizmobsd-sramdump decode reads the kernel ELF's DWARF; capture needs only picotool.
 sramdump = ["pyelftools>=0.29"]
 bundle = ["pyinstaller>=6"]
 
@@ -34,12 +34,12 @@ bundle = ["pyinstaller>=6"]
 Homepage = "https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial"
 
 [project.scripts]
-discobsd-term = "discobsd_host.term:main"
-discobsd-web = "discobsd_host.web:main"
-discobsd-link = "discobsd_host.link:main"
-discobsd-console = "discobsd_host.console:main"
-discobsd-release = "discobsd_host.release:main"
-discobsd-sramdump = "discobsd_host.sramdump:main"
+gizmobsd-term = "gizmobsd_host.term:main"
+gizmobsd-web = "gizmobsd_host.web:main"
+gizmobsd-link = "gizmobsd_host.link:main"
+gizmobsd-console = "gizmobsd_host.console:main"
+gizmobsd-release = "gizmobsd_host.release:main"
+gizmobsd-sramdump = "gizmobsd_host.sramdump:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -47,11 +47,11 @@ where = ["src"]
 # The README links the release-security guide beside itself; the wheel
 # installs it under share/doc so the link has a target in every format.
 [tool.setuptools.data-files]
-"share/doc/discobsd-host" = ["RELEASE-SECURITY.md"]
+"share/doc/gizmobsd-host" = ["RELEASE-SECURITY.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The tests import the checkout's package, not whichever discobsd-host the
+# The tests import the checkout's package, not whichever gizmobsd-host the
 # host has installed: an older system copy would otherwise shadow src/ and
 # fail on behavior it predates.
 pythonpath = ["src"]
@@ -67,4 +67,4 @@ ignore = ["UP031"]
 
 [tool.ruff.lint.per-file-ignores]
 # The embedded console page carries minified HTML and JavaScript lines.
-"src/discobsd_host/web.py" = ["E501"]
+"src/gizmobsd_host/web.py" = ["E501"]

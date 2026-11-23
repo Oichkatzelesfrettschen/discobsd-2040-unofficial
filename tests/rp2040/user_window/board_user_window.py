@@ -6,8 +6,8 @@ usage: DISCOBSD_BOARD_USER_WINDOW=run $PYTHON board_user_window.py \
 
 The script touches the board only when DISCOBSD_BOARD_USER_WINDOW is exactly
 "run"; unset, empty and every other value exit without opening a port or
-calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash, records the boot console, logs in as operator, becomes
+calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash, records the boot console, logs in as operator, becomes
 root with su, and stages tests/rp2040/user_window/windowtest,
 tests/rp2040/fork_refusal/forktest and usr.sbin/talloc/talloc as uuencoded
 text. It then checks, in order:
@@ -218,7 +218,7 @@ def main():
     global log
     log = open(sys.argv[2], "ab")
     results = []
-    subprocess.check_call(["discobsd-flash", *sys.argv[1].split(",")])
+    subprocess.check_call(["gizmobsd-flash", *sys.argv[1].split(",")])
     time.sleep(3)
     open_port()
     read_for(40, re.compile(r"login: ?$", re.M))

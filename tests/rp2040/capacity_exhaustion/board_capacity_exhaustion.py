@@ -6,8 +6,8 @@ usage: DISCOBSD_BOARD_CAPACITY_EXHAUSTION=run $PYTHON board_capacity_exhaustion.
 
 The script touches the board only when DISCOBSD_BOARD_CAPACITY_EXHAUSTION is
 exactly "run"; unset, empty and every other value exit without opening a port
-or calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash when given, reaches a root shell on the USB console and
+or calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash when given, reaches a root shell on the USB console and
 stages tests/rp2040/capacity_exhaustion/filetab, inotab and proctab as
 uuencoded text with the staging routines of tests/rp2040/user_window/board_user_window.py.
 It then runs, in order:
@@ -120,7 +120,7 @@ def main():
     results = []
     unreached = False
     if len(sys.argv) == 3:
-        subprocess.check_call(["discobsd-flash", *sys.argv[2].split(",")])
+        subprocess.check_call(["gizmobsd-flash", *sys.argv[2].split(",")])
         time.sleep(3)
     console.open_port()
     if len(sys.argv) == 3:

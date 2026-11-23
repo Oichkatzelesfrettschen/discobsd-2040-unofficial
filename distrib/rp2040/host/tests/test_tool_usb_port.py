@@ -1,11 +1,11 @@
-"""USB port selection in discobsd-term and discobsd-web with two boards attached.
+"""USB port selection in gizmobsd-term and gizmobsd-web with two boards attached.
 
 Both tools resolve their board through ports.find_board(), the one rule that
-discobsd-flash and discobsd-connect implement in shell: more than one 2e8a
+gizmobsd-flash and gizmobsd-connect implement in shell: more than one 2e8a
 device with none named is a refusal that lists the ports, and --usb-port or
 DISCOBSD_USB_PORT names the board by its sysfs port. The tests run against a
 fake sysfs and devfs tree; no serial device is opened (serial.Serial is
-replaced) and no real board is read. discobsd-link never resolves a board (it
+replaced) and no real board is read. gizmobsd-link never resolves a board (it
 only redirects to a URL), so it takes zero selectors and has zero cases here.
 """
 
@@ -17,7 +17,7 @@ import types
 import pytest
 from test_web import masked
 
-from discobsd_host import ports, term, web
+from gizmobsd_host import ports, term, web
 
 PORT_A = "1-3"
 PORT_B = "1-4"

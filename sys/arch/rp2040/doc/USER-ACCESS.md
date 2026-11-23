@@ -21,13 +21,13 @@ Two boards on one host get two names; the pattern
 built before the rename has DiscoBSD in both places). A kernel
 that cannot read the chip's ID reports the serial "rp2040" and the name
 ends in `console_rp2040-if00`, as kernels before the unique serial did.
-The udev rule and `discobsd-term` match the serial's `rp2040` ending, so a
+The udev rule and `gizmobsd-term` match the serial's `rp2040` ending, so a
 host package older than the unique serial finds such a board by its
 product string alone and its udev rule does not make `/dev/discobsd`.
 
 Use that path, not /dev/ttyACMn: the number increments on every
 re-enumeration and a stale node from a prior connection returns EIO.
-Installing distrib/rp2040/host/71-discobsd-rp2040.rules (the Arch and Debian
+Installing distrib/rp2040/host/71-gizmobsd-rp2040.rules (the Arch and Debian
 packages do) adds the shorter symlink /dev/discobsd and turns off USB
 autosuspend for the port.
 
@@ -46,7 +46,7 @@ reconnects on its own when the board reboots.
 | cu | apt install cu | pacman -S uucp | cu -l /dev/discobsd -s 115200 |
 | PuTTY | apt install putty | pacman -S putty | putty -serial /dev/discobsd -sercfg 115200,8,n,1,N |
 
-distrib/rp2040/host/discobsd-connect wraps this: it finds the board by its
+distrib/rp2040/host/gizmobsd-connect wraps this: it finds the board by its
 by-id path and launches the first of tio, picocom, minicom or cu that is
 installed, at the right line settings.
 
@@ -83,41 +83,41 @@ and announces with SIGWINCH. A terminal that does not answer leaves the
 80x24 default in place. Resizing the emulator window later does not reach
 the board on its own; run resize again.
 
-## The discobsd-host tools: terminal and web console on any host
+## The gizmobsd-host tools: terminal and web console on any host
 
-distrib/rp2040/host is the `discobsd-host` package (Python 3.9 or later
+distrib/rp2040/host is the `gizmobsd-host` package (Python 3.9 or later
 and pyserial; see its README for the wheel, Arch, Ubuntu, Windows, and
 macOS installs). It finds the board by USB identity -- vendor 2e8a,
 product 000a, serial `rp2040` -- so the same commands work on Linux,
 Windows, and macOS, and `DISCOBSD_PORT` overrides discovery.
 
-- discobsd-term attaches a terminal in the current shell and reattaches on
+- gizmobsd-term attaches a terminal in the current shell and reattaches on
   its own when the board reboots and re-enumerates. Ctrl-] quits.
-  `discobsd-term --probe` connects, pokes the line, and reports whether the
+  `gizmobsd-term --probe` connects, pokes the line, and reports whether the
   board answers; `--list` prints the attached boards. On Windows it runs
   in a console with virtual-terminal processing and translates the arrow
   keys to VT100 sequences.
 
-- discobsd-web serves the console as a web terminal, so any device on the
+- gizmobsd-web serves the console as a web terminal, so any device on the
   network -- a phone, a tablet, a laptop of any operating system -- opens it
-  in a browser with no client to install. The board lacks a network of its own, so the host it plugs into is the gateway: discobsd-web bridges the
+  in a browser with no client to install. The board lacks a network of its own, so the host it plugs into is the gateway: gizmobsd-web bridges the
   serial line to xterm.js in the browser over a WebSocket. It binds
   loopback by default; a non-loopback --bind requires --token SECRET, and
   a WebSocket upgrade must carry the Origin of the page the server served.
   One session holds the console at a time.
 
-- discobsd-link redirects a short URL on port 42069 to the tokenized
+- gizmobsd-link redirects a short URL on port 42069 to the tokenized
   console URL; anyone who can reach it learns the token, so open the port
   to the LAN only.
 
-- discobsd-console up starts both servers, generates and stores the token
+- gizmobsd-console up starts both servers, generates and stores the token
   in a per-user web.env, and prints the URLs; down stops them; status
   reports. On Linux with the packaged systemd user units it drives the
   units, elsewhere it runs the servers detached with pid files.
 
 For a zero-code alternative, ttyd (<https://github.com/tsl0922/ttyd>, on
 Debian and Arch) serves any command as a web terminal:
-`ttyd -p 7681 discobsd-term`.
+`ttyd -p 7681 gizmobsd-term`.
 
 ## Getting to the bootloader
 

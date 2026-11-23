@@ -1,4 +1,4 @@
-"""discobsd-term: attach a terminal to the DiscoBSD RP2040 console.
+"""gizmobsd-term: attach a terminal to the DiscoBSD RP2040 console.
 
 The board is a USB CDC-ACM serial device with no network, so this is a
 serial terminal, not telnet or ssh. It finds the board by its USB identity,
@@ -83,7 +83,7 @@ WIN_KEYS = {
 
 
 def note(msg: str) -> None:
-    sys.stderr.write(f"\r\n[discobsd-term] {msg}\r\n")
+    sys.stderr.write(f"\r\n[gizmobsd-term] {msg}\r\n")
     sys.stderr.flush()
 
 
@@ -314,12 +314,12 @@ def probe(open_line=ports.open_serial, seconds: float = 3.0, usb_port=None) -> i
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="discobsd-term", description="Attach a terminal to the DiscoBSD RP2040 console."
+        prog="gizmobsd-term", description="Attach a terminal to the DiscoBSD RP2040 console."
     )
     p.add_argument("--probe", action="store_true", help="report whether the board answers")
     p.add_argument("--list", action="store_true", help="list attached boards and exit")
     ports.add_usb_port_argument(p)
-    p.add_argument("--version", action="version", version="discobsd-term " + __version__)
+    p.add_argument("--version", action="version", version="gizmobsd-term " + __version__)
     return p
 
 

@@ -5,8 +5,8 @@ usage: DISCOBSD_BOARD_DCBC=run PYTHON board_dcbc_smoke.py [unix.uf2,flash.uf2]
 
 The script touches the board only when DISCOBSD_BOARD_DCBC is exactly "run";
 unset, empty and every other value exit without opening a port or calling
-discobsd-flash. With the variable set it flashes the named images with
-discobsd-flash when given, reboots the board through BOOTSEL otherwise, logs in
+gizmobsd-flash. With the variable set it flashes the named images with
+gizmobsd-flash when given, reboots the board through BOOTSEL otherwise, logs in
 as operator on the USB console, and runs the checks below. The image must carry
 the picocalc profile (dc, bc and /usr/share/misc/bc.library).
 
@@ -127,7 +127,7 @@ class Console:
 
 
 def flash(images):
-    flasher = "discobsd-flash"
+    flasher = "gizmobsd-flash"
     quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if images:
         subprocess.check_call([flasher, *images.split(",")], **quiet)

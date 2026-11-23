@@ -1,6 +1,6 @@
 # The RP2040 kernel, the flash image and the test tiers the root Makefile
 # groups (sys/arch/rp2040/doc/TESTING.md). The build log is gated on its
-# warnings: the build must emit none. The discobsd-host package has its
+# warnings: the build must emit none. The gizmobsd-host package has its
 # own workflow, host.yml, which is the check-host-package tier.
 #
 # A push to main runs the rp2040 job's fixed short set: the warning-free
@@ -278,7 +278,7 @@ jobs:
             .build-logs/linux-flash.log || true
           test "$total" -eq 0
 
-      # The UF2 pair the artifact step uploads and discobsd-flash loads.
+      # The UF2 pair the artifact step uploads and gizmobsd-flash loads.
       - name: Validate the kernel and root UF2 images
         if: github.event_name != 'pull_request'
         timeout-minutes: 5

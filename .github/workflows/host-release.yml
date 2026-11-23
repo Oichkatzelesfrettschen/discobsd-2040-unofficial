@@ -1,4 +1,4 @@
-# discobsd-host release: on a host-v* tag, run the host workflow (tests on
+# gizmobsd-host release: on a host-v* tag, run the host workflow (tests on
 # three platforms, every native artifact built and smoke-installed) and
 # attach the artifacts to a GitHub release named by the tag.
 name: host-release

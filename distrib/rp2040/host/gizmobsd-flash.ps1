@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-discobsd-flash -- reflash the DiscoBSD RP2040 board with picotool on Windows.
+gizmobsd-flash -- reflash the DiscoBSD RP2040 board with picotool on Windows.
 
 .DESCRIPTION
 The running kernel answers picotool's reset request over its Reset
@@ -12,16 +12,16 @@ so no "device was not ejected" complaint follows, and it waits for the
 boot ROM itself, because picotool's own wait after a forced reboot can
 be shorter than the enumeration.
 
-    discobsd-flash FILE.uf2 ...    load each image in order, then reboot
-    discobsd-flash -Bootsel        into BOOTSEL and stop, drive mounted,
+    gizmobsd-flash FILE.uf2 ...    load each image in order, then reboot
+    gizmobsd-flash -Bootsel        into BOOTSEL and stop, drive mounted,
                                    for a copy by hand; -Eject afterwards
-    discobsd-flash -Eject          eject the drive, reboot into the kernel
+    gizmobsd-flash -Eject          eject the drive, reboot into the kernel
 
 A hung kernel does not answer the reset request: hold BOOTSEL through a
 replug, then run this the same way. Two boards of one host enumerate alike
 (2e8a:000a) and picotool is called without a device selector here: attach one
-board only. The Linux discobsd-flash names a board by USB port. Run from PowerShell 5.1 or 7; if
-scripts are blocked: powershell -ExecutionPolicy Bypass -File discobsd-flash.ps1
+board only. The Linux gizmobsd-flash names a board by USB port. Run from PowerShell 5.1 or 7; if
+scripts are blocked: powershell -ExecutionPolicy Bypass -File gizmobsd-flash.ps1
 #>
 [CmdletBinding()]
 param(
@@ -34,12 +34,12 @@ $ErrorActionPreference = 'Stop'
 $Volume = 'RPI-RP2'
 
 function Fail([string]$Message) {
-    [Console]::Error.WriteLine("discobsd-flash: $Message")
+    [Console]::Error.WriteLine("gizmobsd-flash: $Message")
     exit 1
 }
 
 function Note([string]$Message) {
-    [Console]::Error.WriteLine("discobsd-flash: $Message")
+    [Console]::Error.WriteLine("gizmobsd-flash: $Message")
 }
 
 function In-Bootsel {
@@ -107,7 +107,7 @@ if (-not (Get-Command picotool -ErrorAction SilentlyContinue)) {
 if ($Bootsel) {
     Enter-Bootsel
     Wait-Mount
-    Note "in BOOTSEL; $Volume is drive $(Get-MountedAt); copy a UF2 there, then discobsd-flash -Eject"
+    Note "in BOOTSEL; $Volume is drive $(Get-MountedAt); copy a UF2 there, then gizmobsd-flash -Eject"
     exit 0
 }
 if ($Eject) {
@@ -116,7 +116,7 @@ if ($Eject) {
     exit 0
 }
 if (-not $Files) {
-    Fail 'usage: discobsd-flash FILE.uf2 ... | -Bootsel | -Eject'
+    Fail 'usage: gizmobsd-flash FILE.uf2 ... | -Bootsel | -Eject'
 }
 foreach ($f in $Files) {
     if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { Fail "cannot read $f" }

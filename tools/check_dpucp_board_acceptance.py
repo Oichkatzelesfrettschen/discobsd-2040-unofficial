@@ -101,7 +101,7 @@ EXPECTED_FLASH = {
     "execution_count": 1,
     "command_projection": [
         "sh",
-        "${CHECKOUT}/distrib/rp2040/host/discobsd-flash",
+        "${CHECKOUT}/distrib/rp2040/host/gizmobsd-flash",
         "${CHECKOUT}/sys/arch/rp2040/compile/PICO/unix.uf2",
         "${CHECKOUT}/distrib/rp2040/flash.uf2",
     ],
@@ -120,7 +120,7 @@ EXPECTED_FLASH = {
     "observations": [
         "kernel image transfer reached 100%",
         "root image transfer reached 100%",
-        "discobsd-flash reported rebooting into the kernel",
+        "gizmobsd-flash reported rebooting into the kernel",
     ],
 }
 EXPECTED_RUNNER = {

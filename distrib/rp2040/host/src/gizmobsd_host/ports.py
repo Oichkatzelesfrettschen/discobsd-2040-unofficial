@@ -17,8 +17,8 @@ or a test fixture.
 
 Two boards can enumerate alike (2e8a:000a, serial "rp2040"), so identity
 alone cannot choose between them. find_board() is the one selection rule
-for discobsd-term and discobsd-web, and mirrors discobsd-flash and
-discobsd-connect: with more than one 2e8a device in the Linux USB sysfs
+for gizmobsd-term and gizmobsd-web, and mirrors gizmobsd-flash and
+gizmobsd-connect: with more than one 2e8a device in the Linux USB sysfs
 tree and no board named it raises BoardSelectionError, and a USB port
 named by `usb_port` (--usb-port) or DISCOBSD_USB_PORT selects the tty of
 that port's interface 0. DISCOBSD_SYSFS_USB and DISCOBSD_DEVFS replace
@@ -45,7 +45,7 @@ DEFAULT_DEVFS = "/dev"
 # A sysfs device name: bus-port[.port...] and nothing else, because the
 # value is joined into a sysfs path.
 USB_PORT_RE = re.compile(r"[0-9]+-[0-9]+(\.[0-9]+)*")
-# discobsd-web and discobsd-link share one bearer secret: the unit files'
+# gizmobsd-web and gizmobsd-link share one bearer secret: the unit files'
 # EnvironmentFile sets DISCOBSD_WEB_TOKEN, and LoadCredential=web-token:...
 # would expose the same secret as a file, never in argv or `ps`.
 TOKEN_ENV = "DISCOBSD_WEB_TOKEN"

@@ -1,4 +1,4 @@
-"""discobsd-sramdump: read a stuck board's kernel state out of its SRAM.
+"""gizmobsd-sramdump: read a stuck board's kernel state out of its SRAM.
 
 A forced reset into the boot ROM leaves the kernel's RAM intact (measured
 on a bare Pico), so a board whose USB console has gone silent still holds
@@ -6,8 +6,8 @@ the state that explains the silence: the process table, each process's wait
 channel, the console tty's state bits and the USB driver's counters. Two
 subcommands split the work:
 
-    discobsd-sramdump capture --usb-port PORT --force-reset [--out DIR] [--resume]
-    discobsd-sramdump decode UNIX.ELF SRAM.BIN [--flash FLASH.BIN]
+    gizmobsd-sramdump capture --usb-port PORT --force-reset [--out DIR] [--resume]
+    gizmobsd-sramdump decode UNIX.ELF SRAM.BIN [--flash FLASH.BIN]
 
 capture destroys the running session: it forces the board at PORT into the
 boot ROM with `picotool reboot -u -f`, waits for product 0003 on that port,
@@ -19,7 +19,7 @@ even with one board attached, every picotool call carries the --bus and
 changes at each re-enumeration), and the 2e8a devices on every other port
 must keep their address and product for the whole run. Linux only: it reads
 sysfs. DISCOBSD_SYSFS_USB replaces /sys/bus/usb/devices for tests, as in
-discobsd-flash.
+gizmobsd-flash.
 
 decode runs without hardware or sysfs. It reads the variable and structure
 layouts from the DWARF of the kernel ELF that was running (pyelftools), so
@@ -529,7 +529,7 @@ class Capture:
         self.check_others("before a picotool call")
         dev = self.target()
         cmd = ["picotool", *argv, "--bus", dev.bus, "--address", dev.address]
-        self.log("discobsd-sramdump: " + " ".join(cmd))
+        self.log("gizmobsd-sramdump: " + " ".join(cmd))
         try:
             done = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=PICOTOOL_TIMEOUT, check=False
@@ -583,7 +583,7 @@ class Capture:
         """
         if shutil.which("findmnt") is None:
             self.log(
-                "discobsd-sramdump: findmnt is missing; a mounted RPI-RP2 volume is not checked"
+                "gizmobsd-sramdump: findmnt is missing; a mounted RPI-RP2 volume is not checked"
             )
             return
         for dev in self.volume_sources():
@@ -596,7 +596,7 @@ class Capture:
                 cmd = ["udisksctl", "unmount", "-b", dev]
             else:
                 cmd = ["umount", lines[0]]
-            self.log("discobsd-sramdump: " + " ".join(cmd))
+            self.log("gizmobsd-sramdump: " + " ".join(cmd))
             done = _run(cmd)
             if done.returncode != 0:
                 raise ToolError(
@@ -624,26 +624,26 @@ class Capture:
             self.wait_bootrom()
         else:
             self.log(
-                "discobsd-sramdump: port %s is already in the boot ROM; no reset issued" % self.port
+                "gizmobsd-sramdump: port %s is already in the boot ROM; no reset issued" % self.port
             )
         sram = self.save(SRAM_BASE, SRAM_END, SRAM_FILE, SRAM_SIZE)
         flash = self.save(FLASH_BASE, self.flash_end, FLASH_FILE, self.flash_end - FLASH_BASE)
         if self.resume:
             self.unmount_volume()
             self.picotool("reboot")
-            self.log("discobsd-sramdump: the board restarted from flash; its RAM state is gone")
+            self.log("gizmobsd-sramdump: the board restarted from flash; its RAM state is gone")
         else:
             now = self.target()
             self.log(
-                "discobsd-sramdump: the board stays in the boot ROM (bus %s address %s); "
+                "gizmobsd-sramdump: the board stays in the boot ROM (bus %s address %s); "
                 "`picotool reboot --bus %s --address %s` restarts the kernel and discards "
                 "its RAM state" % (now.bus, now.address, now.bus, now.address)
             )
         self.check_others("at the end of the run")
-        self.log("discobsd-sramdump: the other 2e8a devices kept their address and product")
-        self.log("discobsd-sramdump: saved %s and %s" % (sram, flash))
+        self.log("gizmobsd-sramdump: the other 2e8a devices kept their address and product")
+        self.log("gizmobsd-sramdump: saved %s and %s" % (sram, flash))
         self.log(
-            "discobsd-sramdump: next: discobsd-sramdump decode UNIX.ELF %s --flash %s"
+            "gizmobsd-sramdump: next: gizmobsd-sramdump decode UNIX.ELF %s --flash %s"
             % (sram, flash)
         )
 
@@ -665,7 +665,7 @@ def plan_text(
     dev: Device, others: dict[str, Device], out_dir: str, resume: bool, flash_end=FLASH_END
 ) -> list[str]:
     lines = [
-        "discobsd-sramdump will capture the board at USB port %s (%s)" % (dev.port, dev.describe())
+        "gizmobsd-sramdump will capture the board at USB port %s (%s)" % (dev.port, dev.describe())
     ]
     if dev.product == KERNEL_PRODUCT:
         lines.append(
@@ -704,7 +704,7 @@ def run_capture(args) -> int:
         raise ToolError("--usb-port needs a port such as 1-3")
     if port is None:
         print(
-            "discobsd-sramdump: capture destroys the running session of one board, so it "
+            "gizmobsd-sramdump: capture destroys the running session of one board, so it "
             "always needs the board named: --usb-port PORT or %s" % ports.ENV_USB_PORT,
             file=sys.stderr,
         )
@@ -732,7 +732,7 @@ def run_capture(args) -> int:
         print(line, file=sys.stderr)
     if not args.force_reset:
         print(
-            "discobsd-sramdump: refusing without --force-reset; nothing was sent to the board",
+            "gizmobsd-sramdump: refusing without --force-reset; nothing was sent to the board",
             file=sys.stderr,
         )
         return 2
@@ -754,10 +754,10 @@ def _sysfs() -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="discobsd-sramdump",
+        prog="gizmobsd-sramdump",
         description="Capture a stuck board's SRAM and decode its kernel state.",
     )
-    parser.add_argument("--version", action="version", version="discobsd-sramdump " + __version__)
+    parser.add_argument("--version", action="version", version="gizmobsd-sramdump " + __version__)
     sub = parser.add_subparsers(dest="command", required=True)
     cap = sub.add_parser(
         "capture",
@@ -810,7 +810,7 @@ def main(argv=None) -> int:
             return run_capture(args)
         return run_decode(args)
     except ToolError as exc:
-        print("discobsd-sramdump: %s" % exc, file=sys.stderr)
+        print("gizmobsd-sramdump: %s" % exc, file=sys.stderr)
         return 1
 
 

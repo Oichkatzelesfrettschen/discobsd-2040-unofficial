@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# discobsd-connect -- open a terminal on the DiscoBSD RP2040 console.
+# gizmobsd-connect -- open a terminal on the DiscoBSD RP2040 console.
 #
 # The board is a USB CDC-ACM serial device with no network stack, so the
 # console is a serial line, not telnet or ssh. This finds the board by its
@@ -10,13 +10,13 @@
 #
 # Works with the terminals packaged on Debian (apt install tio picocom
 # minicom cu), CachyOS/Arch (pacman -S tio picocom minicom), and macOS
-# (brew install tio picocom minicom); Windows users run discobsd-term.
+# (brew install tio picocom minicom); Windows users run gizmobsd-term.
 set -eu
 
 # Two boards on one host share 2e8a:000a. A kernel that reads its flash
 # chip reports a serial of its own, so each has a by-id link, but boards
 # running older kernels both report "rp2040" and share one, and
-# discobsd-term --list still returns a first match. With
+# gizmobsd-term --list still returns a first match. With
 # more than one 2e8a device attached and no board named, this stops and lists
 # the candidates. --usb-port PORT (or DISCOBSD_USB_PORT) names the board by
 # its USB port, such as 1-3, and opens the tty that belongs to that port. An
@@ -32,7 +32,7 @@ usb_port=
 opt_port=
 
 die() {
-	echo "discobsd-connect: $*" >&2
+	echo "gizmobsd-connect: $*" >&2
 	exit 1
 }
 
@@ -96,7 +96,7 @@ refuse_ambiguous() {
 	*'
 '*'
 '*)
-		echo "discobsd-connect: more than one 2e8a device is attached; name the board with --usb-port PORT or DISCOBSD_USB_PORT:" >&2
+		echo "gizmobsd-connect: more than one 2e8a device is attached; name the board with --usb-port PORT or DISCOBSD_USB_PORT:" >&2
 		printf '%s' "$devs" | sed 's/^/  /' >&2
 		exit 2
 		;;
@@ -118,10 +118,10 @@ if [ -n "$usb_port" ]; then
 elif [ -z "$port" ]; then
 	refuse_ambiguous
 	# Linux names the console by identity under /dev/serial/by-id; macOS
-	# presents it as a cu.usbmodem node. discobsd-term --list, from the
-	# discobsd-host package, resolves either by USB identity.
-	if command -v discobsd-term >/dev/null 2>&1; then
-		port=$(discobsd-term --list 2>/dev/null | head -1) || port=""
+	# presents it as a cu.usbmodem node. gizmobsd-term --list, from the
+	# gizmobsd-host package, resolves either by USB identity.
+	if command -v gizmobsd-term >/dev/null 2>&1; then
+		port=$(gizmobsd-term --list 2>/dev/null | head -1) || port=""
 	fi
 	if [ -z "$port" ]; then
 		for p in /dev/serial/by-id/usb-GizmoBSD_*rp2040-if00 \
@@ -135,7 +135,7 @@ elif [ -z "$port" ]; then
 	fi
 fi
 if [ -z "$port" ] || [ ! -e "$port" ]; then
-	echo "discobsd-connect: no board found; is it plugged in and running?" >&2
+	echo "gizmobsd-connect: no board found; is it plugged in and running?" >&2
 	echo "  expected /dev/serial/by-id/usb-GizmoBSD_*rp2040-if00" >&2
 	exit 1
 fi
@@ -160,6 +160,6 @@ elif command -v minicom >/dev/null 2>&1; then
 elif command -v cu >/dev/null 2>&1; then
 	exec cu -l "$port" -s 115200
 else
-	echo "discobsd-connect: install one of tio, picocom, minicom or cu" >&2
+	echo "gizmobsd-connect: install one of tio, picocom, minicom or cu" >&2
 	exit 1
 fi

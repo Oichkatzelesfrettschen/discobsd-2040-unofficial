@@ -1,0 +1,6 @@
+71-gizmobsd-rp2040.rules usr/lib/udev/rules.d
+systemd/gizmobsd-web.service usr/lib/systemd/user
+systemd/gizmobsd-link.service usr/lib/systemd/user
+gizmobsd-connect usr/bin
+gizmobsd-flash usr/bin
+RELEASE-SECURITY.md usr/share/doc/gizmobsd-host

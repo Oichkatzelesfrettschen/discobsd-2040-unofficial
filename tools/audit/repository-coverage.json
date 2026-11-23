@@ -1570,17 +1570,17 @@
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "discobsd-console",
+      "path": "gizmobsd-console",
       "mode": "100755",
       "blob": "48385e8887f8ffb86b6d718e91a3775e57e918b2",
-      "component": "discobsd-console",
+      "component": "gizmobsd-console",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "discobsd-console.cmd",
+      "path": "gizmobsd-console.cmd",
       "mode": "100644",
       "blob": "0d71865f4f39bbecb44b4af5acea6ffb1047ed10",
-      "component": "discobsd-console.cmd",
+      "component": "gizmobsd-console.cmd",
       "artifact_class": "maintained-implementation"
     },
     {
@@ -1675,7 +1675,7 @@
       "artifact_class": "build-configuration"
     },
     {
-      "path": "distrib/rp2040/host/71-discobsd-rp2040.rules",
+      "path": "distrib/rp2040/host/71-gizmobsd-rp2040.rules",
       "mode": "100644",
       "blob": "d11d4353fe9142f720d96a73bfe05d61a0bd805e",
       "component": "distrib/rp2040",
@@ -1696,28 +1696,28 @@
       "artifact_class": "documentation"
     },
     {
-      "path": "distrib/rp2040/host/discobsd-connect",
+      "path": "distrib/rp2040/host/gizmobsd-connect",
       "mode": "100755",
       "blob": "b752b5670bb6ef4363fa8044ecc70572034915e4",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/discobsd-flash",
+      "path": "distrib/rp2040/host/gizmobsd-flash",
       "mode": "100755",
       "blob": "9b6f010d91374e1536f42bbe6fb6a85cf39da908",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/discobsd-flash.ps1",
+      "path": "distrib/rp2040/host/gizmobsd-flash.ps1",
       "mode": "100644",
       "blob": "659bf5e851b881080d36c89bf15adc5a9b788012",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/discobsd-host.sysusers",
+      "path": "distrib/rp2040/host/gizmobsd-host.sysusers",
       "mode": "100644",
       "blob": "aa3f1fec34ad31e4764119ae112ff6031c45d2c9",
       "component": "distrib/rp2040",
@@ -1766,7 +1766,7 @@
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/packaging/debian/discobsd-host.install",
+      "path": "distrib/rp2040/host/packaging/debian/gizmobsd-host.install",
       "mode": "100644",
       "blob": "54a315073c396581e873f4a0f078338eaf9afc38",
       "component": "distrib/rp2040",
@@ -1801,7 +1801,7 @@
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/packaging/pyinstaller/discobsd-host.spec",
+      "path": "distrib/rp2040/host/packaging/pyinstaller/gizmobsd-host.spec",
       "mode": "100644",
       "blob": "96c18dba3fa1db91b1485a7183e9a6741a50852b",
       "component": "distrib/rp2040",
@@ -1843,56 +1843,56 @@
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/src/discobsd_host/__init__.py",
+      "path": "distrib/rp2040/host/src/gizmobsd_host/__init__.py",
       "mode": "100644",
       "blob": "68720773e13d061c50e1aa59c5a8a6e22adf8762",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/src/discobsd_host/console.py",
+      "path": "distrib/rp2040/host/src/gizmobsd_host/console.py",
       "mode": "100644",
       "blob": "729cb32289d4d63076fc2b6fd108cc530b161d95",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/src/discobsd_host/link.py",
+      "path": "distrib/rp2040/host/src/gizmobsd_host/link.py",
       "mode": "100644",
       "blob": "dd70ed071ebed90003bdfde1d6ccbfbb4dd55836",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/src/discobsd_host/ports.py",
+      "path": "distrib/rp2040/host/src/gizmobsd_host/ports.py",
       "mode": "100644",
       "blob": "b2384e84d8af6feab97e0668b7fb4def4194b5fe",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/src/discobsd_host/term.py",
+      "path": "distrib/rp2040/host/src/gizmobsd_host/term.py",
       "mode": "100644",
       "blob": "d510d3e45dfa1372bb245374f16b6f78f8f00842",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/src/discobsd_host/web.py",
+      "path": "distrib/rp2040/host/src/gizmobsd_host/web.py",
       "mode": "100644",
       "blob": "ac3ed38051166a063d0fe87d7fe6086dd34278c3",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/systemd/discobsd-link.service",
+      "path": "distrib/rp2040/host/systemd/gizmobsd-link.service",
       "mode": "100644",
       "blob": "180d037df86f8dab7d21be75b72a473133da0ea3",
       "component": "distrib/rp2040",
       "artifact_class": "maintained-implementation"
     },
     {
-      "path": "distrib/rp2040/host/systemd/discobsd-web.service",
+      "path": "distrib/rp2040/host/systemd/gizmobsd-web.service",
       "mode": "100644",
       "blob": "172a2bb9f4dec8811fd282a0b9b9e8f15b24e834",
       "component": "distrib/rp2040",
@@ -47489,13 +47489,13 @@
       "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
     },
     {
-      "id": "discobsd-console",
+      "id": "gizmobsd-console",
       "state": "pending",
       "review_witness": null,
       "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."
     },
     {
-      "id": "discobsd-console.cmd",
+      "id": "gizmobsd-console.cmd",
       "state": "pending",
       "review_witness": null,
       "next_action": "Trace component contracts, callers and failure paths; record source review, calibrated checks, findings and evidence limits."

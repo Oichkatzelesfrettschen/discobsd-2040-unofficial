@@ -96,29 +96,29 @@ and follow the steps for your platform.
 
 #### Linux Mint, Ubuntu 24.04, Debian
 
-1. Download `discobsd-host_<version>_all.deb` from the release page.
+1. Download `gizmobsd-host_<version>_all.deb` from the release page.
 2. Install it. The package pulls in Python and pyserial and adds the udev
    rule that names the board `/dev/discobsd`:
 
-       sudo apt install ./discobsd-host_*.deb
+       sudo apt install ./gizmobsd-host_*.deb
 
 3. Plug the board in. The rule grants the console to the user at the
    desktop the moment it appears, so no group and no re-login is needed.
    Confirm the tools see it:
 
-       discobsd-term --list
-       discobsd-term --probe
+       gizmobsd-term --list
+       gizmobsd-term --probe
 
    `--list` prints the device path; `--probe` reports "reachable" with the
    bytes the board answered.
 4. Open a terminal on the console. Ctrl-] q quits; Ctrl-] ? lists the
    other escapes.
 
-       discobsd-term
+       gizmobsd-term
 
 5. Optional: serve the console to phones and laptops on your LAN.
 
-       discobsd-console up --bind 0.0.0.0
+       gizmobsd-console up --bind 0.0.0.0
 
    The default without `--bind` is loopback only. Anyone reaching the LAN
    short link learns the console token, so prefer the loopback default
@@ -126,8 +126,8 @@ and follow the steps for your platform.
    `distrib/rp2040/host/RELEASE-SECURITY.md`.
 
    It prints a short URL such as `http://192.168.1.20:42069/`; open it in
-   any browser on the same network. `discobsd-console down` stops it,
-   `discobsd-console status` reports. One browser session at a time;
+   any browser on the same network. `gizmobsd-console down` stops it,
+   `gizmobsd-console status` reports. One browser session at a time;
    press `Sync & leave` in the page to sync, log out, and hand it to the
    next, watching each step it types; `keys` shows the key reference;
    `reader` turns on screen reader mode.
@@ -139,8 +139,8 @@ join the `discobsd` group instead and log in again:
 
 #### Windows 11
 
-1. Download `discobsd-host-windows.zip` from the release page and extract
-   it, for example to `C:\discobsd-host`. It holds four standalone
+1. Download `gizmobsd-host-windows.zip` from the release page and extract
+   it, for example to `C:\gizmobsd-host`. It holds four standalone
    programs; no Python install is needed.
 2. Windows Defender SmartScreen stops an unsigned program the first time:
    choose "More info", then "Run anyway". The programs are built by the
@@ -149,22 +149,22 @@ join the `discobsd` group instead and log in again:
    assigns a COM port. Open Windows Terminal or PowerShell in the folder
    and confirm the tools see the board:
 
-       cd C:\discobsd-host
-       .\discobsd-term.exe --list
-       .\discobsd-term.exe --probe
+       cd C:\gizmobsd-host
+       .\gizmobsd-term.exe --list
+       .\gizmobsd-term.exe --probe
 
 4. Open a terminal on the console. Ctrl-] q quits; Ctrl-] ? lists the
    other escapes. Use Windows Terminal rather than the legacy console
    host for correct screen handling.
 
-       .\discobsd-term.exe
+       .\gizmobsd-term.exe
 
 5. Optional: serve the console on your LAN, then open the printed short
    URL from any browser on the same network. Allow the two ports through
-   Windows Firewall when it asks; `discobsd-console.exe down` stops the
+   Windows Firewall when it asks; `gizmobsd-console.exe down` stops the
    servers.
 
-       .\discobsd-console.exe up --bind 0.0.0.0
+       .\gizmobsd-console.exe up --bind 0.0.0.0
 
 #### macOS
 
@@ -176,30 +176,30 @@ moment it is plugged in.
 
        brew install pipx picotool
        pipx ensurepath          # once, then open a new terminal
-       pipx install discobsd-host
+       pipx install gizmobsd-host
 
 2. Plug the board in and connect. Ctrl-] q quits; Ctrl-] ? lists the
    other escapes.
 
-       discobsd-term --list
-       discobsd-term --probe
-       discobsd-term
+       gizmobsd-term --list
+       gizmobsd-term --probe
+       gizmobsd-term
 
-The `discobsd-host-macos.zip` on the release page holds the same four
-programs as Apple silicon executables for a terminal (`./discobsd-term`
+The `gizmobsd-host-macos.zip` on the release page holds the same four
+programs as Apple silicon executables for a terminal (`./gizmobsd-term`
 in the extracted folder); Gatekeeper refuses them from the Finder, and
 an Intel Mac needs the pipx install.
 
 #### Arch Linux, CachyOS
 
-    sudo pacman -U discobsd-host-<version>-1-any.pkg.tar.zst
-    discobsd-term --probe
-    discobsd-term
+    sudo pacman -U gizmobsd-host-<version>-1-any.pkg.tar.zst
+    gizmobsd-term --probe
+    gizmobsd-term
 
 #### Any system with Python 3.9 or later
 
-    pipx install discobsd_host-<version>-py3-none-any.whl
-    discobsd-term --probe
+    pipx install gizmobsd_host-<version>-py3-none-any.whl
+    gizmobsd-term --probe
 
 The wheel installs no udev rule; on Linux, add your user to the group
 your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
@@ -207,7 +207,7 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
 
 #### If something does not work
 
-- `discobsd-term --list` prints an empty list: the cable is power-only, or the
+- `gizmobsd-term --list` prints an empty list: the cable is power-only, or the
   board is in the bootloader. Try another cable; a board in BOOTSEL mode
   shows up as a USB drive named `RPI-RP2`, so unplug and replug it without
   the button held.
@@ -222,7 +222,7 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   assumes 80 columns by 24 rows. Size the window to that, or run `resize`
   on the board after changing the window.
 - The web page says the console is in use: another browser tab or a
-  `discobsd-term` holds the serial line. Close it; the line is a single
+  `gizmobsd-term` holds the serial line. Close it; the line is a single
   session.
 
 ### Hardware, care and recovery
@@ -249,7 +249,7 @@ your distribution uses for serial ports (`dialout` on Debian and Ubuntu,
   `cat /etc/COPYRIGHT` the license notice. A release or a listing states
   the same commit, so the two can be compared.
 - Questions and problems go to the issue tracker of this repository;
-  say what `discobsd-term --probe` printed and what the screen showed.
+  say what `gizmobsd-term --probe` printed and what the screen showed.
 
 ### Optional: build and run Sixth Edition UNIX
 
@@ -285,7 +285,7 @@ Start it from the DiscoBSD prompt as `operator`:
 2. Type `root` at `login:`; the account has an empty password.
 3. Use the 1975 shell: `ls /bin`, `who`, `ed`, `cal 9 2026`, `ls /usr/games`.
 4. Leave with `sync`, then one of: Ctrl-_ (web console: the `^_ exit V6`
-   button; discobsd-term: Ctrl-] _), or `~.` typed at the start of a
+   button; gizmobsd-term: Ctrl-] _), or `~.` typed at the start of a
    line. The emulator prints its instruction count and the DiscoBSD `$`
    prompt returns.
 
@@ -342,14 +342,14 @@ external SIMH/V7 oracle are documented in `legacy/pdp11-v6/README.md`.
    manager works as well, one after the other, re-entering BOOTSEL
    between them because the board reboots after each copy.
 
-5. Connect with `discobsd-term`. Every push to `main` also builds both
+5. Connect with `gizmobsd-term`. Every push to `main` also builds both
    `.uf2` files in CI and publishes them as the `discobsd-rp2040-firmware`
    artifact under Actions, so a tester can flash without a toolchain.
 
 Build the host tools from source
 --------------------------------
 
-`distrib/rp2040/host` is the `discobsd-host` Python package behind the
+`distrib/rp2040/host` is the `gizmobsd-host` Python package behind the
 commands above. Its README covers development, the tests, and the
 packaging (a PKGBUILD, a `debian/` tree, and a PyInstaller spec).
 `.github/workflows/host.yml` tests the package on Linux, Windows, and
@@ -361,17 +361,17 @@ attaches them to a GitHub release on a `host-v*` tag.
     ruff check . && pytest
 
 Nothing needs installing to run the console from the checkout itself:
-`discobsd-console` at the root of the tree is a POSIX sh wrapper that
+`gizmobsd-console` at the root of the tree is a POSIX sh wrapper that
 runs the package from `distrib/rp2040/host/src` with the interpreter in
-`${PYTHON}` (default python3), and `discobsd-console.cmd` beside it does
+`${PYTHON}` (default python3), and `gizmobsd-console.cmd` beside it does
 the same for cmd and PowerShell (default python). The one dependency is
-pyserial. Linked or copied under the names discobsd-term, discobsd-web
-or discobsd-link, the sh wrapper runs that tool instead.
+pyserial. Linked or copied under the names gizmobsd-term, gizmobsd-web
+or gizmobsd-link, the sh wrapper runs that tool instead.
 
-    ./discobsd-console up          # Linux, macOS, Git Bash
-    .\discobsd-console up          # PowerShell, cmd
-    ./discobsd-console status
-    ./discobsd-console down
+    ./gizmobsd-console up          # Linux, macOS, Git Bash
+    .\gizmobsd-console up          # PowerShell, cmd
+    ./gizmobsd-console status
+    ./gizmobsd-console down
 
 Source tree
 -----------

@@ -411,7 +411,7 @@ names; a correction goes in a new document rather than in the ledger.
 | `README.md` | the port, the board, building, flashing, and first login |
 | `NOTICE`, `LICENSE` | every component in an image and the terms that travel with it |
 | `distrib/rp2040/README.md` | the distribution tree and the manifest |
-| `distrib/rp2040/host/README.md` | the discobsd-host package for a person using it |
+| `distrib/rp2040/host/README.md` | the gizmobsd-host package for a person using it |
 | `distrib/rp2040/host/DEVELOPMENT.md` | the per-OS toolchain table, packaging, and CI |
 | `sys/arch/rp2040/README.md` | the port's source layout |
 | `tools/analysis/README.md` | the analysis runners and where their handbacks land |

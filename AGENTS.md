@@ -29,8 +29,8 @@ rename). A kernel that reads the flash unique ID
 reports USB serial `<16 hex digits>-rp2040`; one that cannot, or an older
 kernel, reports `rp2040`, and two such boards enumerate alike (2e8a:000a).
 With two boards attached, name the USB port (`--usb-port 1-3` or
-`DISCOBSD_USB_PORT` for `discobsd-flash`, `discobsd-connect`, `discobsd-term`
-and `discobsd-web`) whatever their serials; all four refuse to act on an
+`DISCOBSD_USB_PORT` for `gizmobsd-flash`, `gizmobsd-connect`, `gizmobsd-term`
+and `gizmobsd-web`) whatever their serials; all four refuse to act on an
 unnamed board then.
 
 A PicoCalc takes a new kernel from its SD card, not from USB. The kernel for
@@ -212,7 +212,7 @@ unquoted data reaching `sh -c`, `eval` or a generated script; an untrusted
 input path; or a board-flash/serial path reached without caller authorization.
 Hardware gates require an exact opt-in value; unset, empty and zero remain
 closed. Root Makefile targets only build board tests. Explicit invocations of
-`discobsd-flash` or `picotool` carry the user's authorization.
+`gizmobsd-flash` or `picotool` carry the user's authorization.
 
 ## Tools
 

@@ -451,7 +451,7 @@ over write, erase and checkpoint phases and every power interruption (W03 of
 
 A board that stops answering after such a recovery is read through the kernel-state
 dump described in `distrib/rp2040/host/DEVELOPMENT.md`, under "Reading a silent
-board's kernel state: discobsd-sramdump".
+board's kernel state: gizmobsd-sramdump".
 
 Production
 `dhara_nand_prog()` passes one 1 KiB extent to `flash_program()` while

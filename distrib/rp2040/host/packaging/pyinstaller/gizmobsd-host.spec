@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
-# One spec, four one-file executables. discobsd_host.console resolves a
+# One spec, four one-file executables. gizmobsd_host.console resolves a
 # sibling tool through Path(sys.executable).with_name(name) when the
 # process is frozen, so the four executables have to land side by side in
 # one directory: four EXE() objects in onefile form (each carrying its own

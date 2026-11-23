@@ -87,7 +87,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LCD_SOURCE = "sys/arch/rp2040/dev/st7365p.c"
-WEB_SOURCE = "distrib/rp2040/host/src/discobsd_host/web.py"
+WEB_SOURCE = "distrib/rp2040/host/src/gizmobsd_host/web.py"
 FIXTURES = ("tests/picocalc/lcdgfx_test.c", "tests/picocalc/lcdgfx_ext_test.c")
 WEB_KEYS = (
     "black",

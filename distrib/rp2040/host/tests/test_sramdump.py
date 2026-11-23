@@ -1,4 +1,4 @@
-"""discobsd-sramdump: decode a saved SRAM image and capture one with picotool.
+"""gizmobsd-sramdump: decode a saved SRAM image and capture one with picotool.
 
 Decode runs against a real kernel ELF, because the tool reads its layouts
 from DWARF and a hand-made ELF would restate the tool's own assumptions. The
@@ -29,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from discobsd_host import sramdump
+from gizmobsd_host import sramdump
 
 HOST = Path(__file__).resolve().parents[1]
 REPO = HOST.parents[2]
@@ -41,11 +41,11 @@ NO_PATH = "/nonexistent-path-for-sramdump-tests"
 # The module runs with sleeps removed: the capture loops count polls, not time.
 # "python -c" puts the working directory first on sys.path, ahead of
 # PYTHONPATH; under pybuild that directory is the staged build tree, whose
-# discobsd_host would shadow a mutant copy, so the driver drops that entry.
+# gizmobsd_host would shadow a mutant copy, so the driver drops that entry.
 DRIVER = (
     "import sys, time; sys.path[:] = [p for p in sys.path if p not in ('', '.')]; "
     "time.sleep = lambda s: None; "
-    "from discobsd_host import sramdump; sys.exit(sramdump.main(sys.argv[1:]))"
+    "from gizmobsd_host import sramdump; sys.exit(sramdump.main(sys.argv[1:]))"
 )
 
 
@@ -833,8 +833,8 @@ def test_mutant_is_caught(name, tmp_path):
         pytest.importorskip("elftools", reason="pyelftools is not installed")
         if find_kernel_elf() is None:
             pytest.skip("no kernel ELF for the decode mutant")
-    pkg = tmp_path / "mutant" / "discobsd_host"
-    shutil.copytree(SRC / "discobsd_host", pkg, ignore=shutil.ignore_patterns("__pycache__"))
+    pkg = tmp_path / "mutant" / "gizmobsd_host"
+    shutil.copytree(SRC / "gizmobsd_host", pkg, ignore=shutil.ignore_patterns("__pycache__"))
     target = pkg / "sramdump.py"
     text = target.read_text()
     assert anchor in text, f"mutant anchor missing from sramdump.py: {anchor!r}"

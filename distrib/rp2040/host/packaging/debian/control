@@ -1,4 +1,4 @@
-Source: discobsd-host
+Source: gizmobsd-host
 Section: utils
 Priority: optional
 Maintainer: Oichkatzelesfrettschen <discobsd-rp2040@users.noreply.github.com>
@@ -13,7 +13,7 @@ Standards-Version: 4.6.2
 Homepage: https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 Rules-Requires-Root: no
 
-Package: discobsd-host
+Package: gizmobsd-host
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends}, python3-serial
 Suggests: python3-pyelftools, picotool

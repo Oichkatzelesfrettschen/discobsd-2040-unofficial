@@ -4,9 +4,9 @@
 usage: DISCOBSD_BOARD_AOUT_ADMISSION=run PYTHON board_aout_admission.py [unix.uf2,flash.uf2]
 The script touches the board only when DISCOBSD_BOARD_AOUT_ADMISSION is
 exactly "run"; unset, empty and every other value exit without opening a port
-or calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash when given and otherwise reboots the board through BOOTSEL
-with "discobsd-flash --bootsel" and "--eject", then logs in as operator on the
+or calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash when given and otherwise reboots the board through BOOTSEL
+with "gizmobsd-flash --bootsel" and "--eject", then logs in as operator on the
 USB console.
 Header-only images travel as uuencoded text. exec_aout.c refuses a truncated
 and an even-entry image with ENOEXEC, which the shell then reads as a script
@@ -65,7 +65,7 @@ def rd(t):
 
 def boot(uf2s):
     global s
-    flasher = "discobsd-flash"
+    flasher = "gizmobsd-flash"
     quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if uf2s:
         subprocess.check_call([flasher, *uf2s.split(",")], **quiet)

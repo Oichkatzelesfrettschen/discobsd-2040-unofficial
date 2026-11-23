@@ -3,7 +3,7 @@
 # The board keeps one USB serial number across every reboot (its flash
 # chip's unique ID and the suffix "-rp2040", or "rp2040" alone), so
 # udev names it by that rather than by the ttyACMn that drifts each time
-# the device re-enumerates. Install as /etc/udev/rules.d/71-discobsd-rp2040.rules
+# the device re-enumerates. Install as /etc/udev/rules.d/71-gizmobsd-rp2040.rules
 # and reload with "udevadm control --reload".
 #
 # ATTRS{serial}=="*rp2040" matches the running kernel; the BOOTSEL bootrom

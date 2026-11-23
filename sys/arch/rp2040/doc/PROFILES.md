@@ -603,5 +603,5 @@ programs into the 192 KiB user window. Kernel instructions still execute
 from QSPI or the linked SRAM routines. The standard release downloader
 and its pair validator describe the 128 KiB family. The expanded system
 uses the two build outputs above. For a host SRAM capture of the expanded
-system, `discobsd-sramdump capture --kernel-layout picocalc-sd` selects
+system, `gizmobsd-sramdump capture --kernel-layout picocalc-sd` selects
 the 160 KiB flash extent. Decode obtains the extent from the kernel ELF.

@@ -6,7 +6,7 @@ import urllib.request
 
 import pytest
 
-from discobsd_host import web
+from gizmobsd_host import web
 
 
 def masked(payload: bytes, opcode: int = 0x1, mask: bytes = b"\x01\x02\x03\x04") -> bytes:

@@ -5,7 +5,7 @@ import urllib.request
 
 import pytest
 
-from discobsd_host import console, link, ports, term, web
+from gizmobsd_host import console, link, ports, term, web
 
 
 def info(device, vid=None, pid=None, serial_number=None, product=None):

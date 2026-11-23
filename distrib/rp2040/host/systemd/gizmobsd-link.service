@@ -2,19 +2,19 @@
 Description=DiscoBSD console short link (port 42069)
 Documentation=https://github.com/Oichkatzelesfrettschen/discobsd-2040-unofficial
 # The link lacks a target to redirect to without the board and without
-# discobsd-web up, so it carries the same device gate discobsd-web.service
-# does; see that unit for why dev-discobsd.device is the right handle.
-After=network-online.target dev-discobsd.device discobsd-web.service
-BindsTo=dev-discobsd.device
+# gizmobsd-web up, so it carries the same device gate gizmobsd-web.service
+# does; see that unit for why dev-gizmobsd.device is the right handle.
+After=network-online.target dev-gizmobsd.device gizmobsd-web.service
+BindsTo=dev-gizmobsd.device
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
 [Service]
 Environment=DISCOBSD_WEB_BIND=127.0.0.1
 EnvironmentFile=%h/.config/discobsd/web.env
-ExecStart=/usr/bin/discobsd-link --bind ${DISCOBSD_WEB_BIND} --host http://${DISCOBSD_HOST_IP}:7681/
+ExecStart=/usr/bin/gizmobsd-link --bind ${DISCOBSD_WEB_BIND} --host http://${DISCOBSD_HOST_IP}:7681/
 Restart=always
 RestartSec=3
 
 [Install]
-WantedBy=dev-discobsd.device
+WantedBy=dev-gizmobsd.device

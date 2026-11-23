@@ -68,7 +68,7 @@ sentinel.
 
 The PICO root omits `dmesg` and the kernel omits the message log
 (`distrib/rp2040/mi.rp2040`, `LOG_ENABLED` unset), so boot lines are visible
-only to a reader attached before the kernel prints them. `discobsd-flash`
+only to a reader attached before the kernel prints them. `gizmobsd-flash`
 returns before the console re-enumerates, so a driver opening the port after
 it misses the boot banner. `sysctl hw.usermem` reports `freemem`, not the
 window size (`sys/kern/kern_sysctl.c`). Check the window from user mode
@@ -77,7 +77,7 @@ above `USER_DATA_END` and reads the window's top word, and a test program
 whose image only a large enough window admits proves admission.
 
 A console that has gone silent still holds its explanation in SRAM:
-`discobsd-sramdump capture` forces the board into the boot ROM, which keeps
+`gizmobsd-sramdump capture` forces the board into the boot ROM, which keeps
 the RAM, and saves it; `decode` prints the process table, wait channels and
 USB console state. The procedure and its limits are in
 `docs/research/usb-resilience.md` and `distrib/rp2040/host/DEVELOPMENT.md`.

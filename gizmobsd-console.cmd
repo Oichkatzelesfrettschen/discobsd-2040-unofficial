@@ -1,6 +1,6 @@
 @echo off
 rem Run the DiscoBSD console tools from this checkout on Windows without
-rem installing them: discobsd-console up | down | status. The package
+rem installing them: gizmobsd-console up | down | status. The package
 rem lives at distrib\rp2040\host\src; the only dependency is pyserial
 rem (python -m pip install --user pyserial). Set PYTHON to pick an
 rem interpreter; the default is the python on PATH. The POSIX sh script
@@ -13,5 +13,5 @@ if defined PYTHONPATH (
 	set "PYTHONPATH=%here%distrib\rp2040\host\src"
 )
 if not defined PYTHON set "PYTHON=python"
-"%PYTHON%" -m discobsd_host.console %*
+"%PYTHON%" -m gizmobsd_host.console %*
 endlocal & exit /b %ERRORLEVEL%

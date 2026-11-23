@@ -4,7 +4,7 @@
 # pyproject.toml; dh_auto_test runs pytest against the staged build tree,
 # so the package is tested from the same bytes it ships.
 
-export PYBUILD_NAME=discobsd_host
+export PYBUILD_NAME=gizmobsd_host
 export PYBUILD_TEST_PYTEST=1
 export PYBUILD_TEST_ARGS={dir}/tests
 

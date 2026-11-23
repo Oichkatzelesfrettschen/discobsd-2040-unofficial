@@ -37,7 +37,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(root / "distrib/rp2040/host/src"))
-    from discobsd_host.release import HEADER, RECORD
+    from gizmobsd_host.release import HEADER, RECORD
 
     if (HEADER.size, RECORD.size, HEADER.size + 5 * RECORD.size) != (74, 77, 459):
         raise SystemExit("Python geometry no longer matches the proved specification")

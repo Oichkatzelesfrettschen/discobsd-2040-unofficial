@@ -21,7 +21,7 @@ BOARD_PROFILE.PICO=	full
 BOARD_PROFILE.PICOCALC=	picocalc
 
 # Output paths. The PICO board keeps the bare names distrib/rp2040/sdcard.img,
-# flash.bin and flash.uf2 that the documentation, CI and discobsd-flash
+# flash.bin and flash.uf2 that the documentation, CI and gizmobsd-flash
 # invocations name; every other board writes sdcard-${BOARD}.img,
 # flash-${BOARD}.bin and flash-${BOARD}.uf2 beside them, so building one board
 # never replaces another board's image. The root Makefile reads FSIMG for the

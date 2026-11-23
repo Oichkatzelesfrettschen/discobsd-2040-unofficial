@@ -1,4 +1,4 @@
-"""discobsd-web: the DiscoBSD RP2040 console as a browser terminal.
+"""gizmobsd-web: the DiscoBSD RP2040 console as a browser terminal.
 
 The board lacks a network of its own, so the host it plugs into serves as
 the gateway: this program bridges the serial line to a browser terminal
@@ -471,7 +471,7 @@ def lan_ip() -> str:
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="discobsd-web",
+        prog="gizmobsd-web",
         description="Serve the DiscoBSD RP2040 console as a browser terminal.",
     )
     p.add_argument("device", nargs="?", help="serial device (default: find the board)")
@@ -484,7 +484,7 @@ def parser() -> argparse.ArgumentParser:
         "every local user via ps; set DISCOBSD_WEB_TOKEN or a systemd credential "
         "named web-token instead)",
     )
-    p.add_argument("--version", action="version", version="discobsd-web " + __version__)
+    p.add_argument("--version", action="version", version="gizmobsd-web " + __version__)
     return p
 
 
@@ -493,22 +493,22 @@ def main(argv=None) -> int:
     try:
         import serial  # noqa: F401
     except ImportError:
-        sys.stderr.write(f"discobsd-web: {ports.pyserial_hint()}\n")
+        sys.stderr.write(f"gizmobsd-web: {ports.pyserial_hint()}\n")
         return 1
     if args.device and args.usb_port is not None:
-        sys.stderr.write("discobsd-web: give a device path or --usb-port, not both\n")
+        sys.stderr.write("gizmobsd-web: give a device path or --usb-port, not both\n")
         return 1
     try:
         device = args.device or ports.find_board(usb_port=args.usb_port)
     except ports.BoardSelectionError as exc:
-        sys.stderr.write(f"discobsd-web: {exc}\n")
+        sys.stderr.write(f"gizmobsd-web: {exc}\n")
         return exc.exit_code
     if not device:
-        sys.stderr.write("discobsd-web: no board found (plug it in, or set DISCOBSD_PORT)\n")
+        sys.stderr.write("gizmobsd-web: no board found (plug it in, or set DISCOBSD_PORT)\n")
         return 1
     if args.token:
         sys.stderr.write(
-            "discobsd-web: --token on the command line is deprecated and visible to "
+            "gizmobsd-web: --token on the command line is deprecated and visible to "
             "every local user via ps; set DISCOBSD_WEB_TOKEN or a systemd credential "
             "named web-token instead\n"
         )
@@ -517,7 +517,7 @@ def main(argv=None) -> int:
         token = ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV)
     if not is_loopback(args.bind) and not token:
         sys.stderr.write(
-            "discobsd-web: refusing a non-loopback bind without a token; a bare "
+            "gizmobsd-web: refusing a non-loopback bind without a token; a bare "
             "0.0.0.0 bind exposes a login console to the LAN with no authentication. "
             "Set DISCOBSD_WEB_TOKEN or a systemd credential named web-token\n"
         )

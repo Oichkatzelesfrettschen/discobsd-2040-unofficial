@@ -4,8 +4,8 @@
 usage: DISCOBSD_BOARD_HWCOUNT=run PYTHON board_hwcount.py [unix.uf2,flash.uf2]
 The script touches the board only when DISCOBSD_BOARD_HWCOUNT is exactly
 "run"; unset, empty and every other value exit without opening a port or
-calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash when given, logs in as operator on the USB console,
+calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash when given, logs in as operator on the USB console,
 becomes root and checks that:
 
   - machdep.xip_acc advances across a read of a root file and machdep.xip_hit
@@ -159,7 +159,7 @@ def main():
     import serial
 
     if len(sys.argv) == 2:
-        subprocess.run(["discobsd-flash", *sys.argv[1].split(",")], check=True)
+        subprocess.run(["gizmobsd-flash", *sys.argv[1].split(",")], check=True)
         time.sleep(8)
     reopen()
     root_shell()

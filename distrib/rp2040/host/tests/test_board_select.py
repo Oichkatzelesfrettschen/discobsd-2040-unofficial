@@ -1,4 +1,4 @@
-"""Board selection in discobsd-flash and discobsd-connect with two boards attached.
+"""Board selection in gizmobsd-flash and gizmobsd-connect with two boards attached.
 
 A bare Pico and a PicoCalc both enumerate as 2e8a:000a with the serial
 string "rp2040", so only the USB port tells them apart. The scripts run
@@ -22,8 +22,8 @@ from pathlib import Path
 import pytest
 
 HOST = Path(__file__).resolve().parents[1]
-FLASH = HOST / "discobsd-flash"
-CONNECT = HOST / "discobsd-connect"
+FLASH = HOST / "gizmobsd-flash"
+CONNECT = HOST / "gizmobsd-connect"
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell scripts")
 
@@ -144,7 +144,7 @@ def make_world(tmp: Path, devices: dict[str, tuple[str, int]]):
     # What the unaddressed path would pick: the first board's node.
     # TERM_ADD_DEVICE makes a second board appear while discovery runs.
     _stub(
-        bindir / "discobsd-term",
+        bindir / "gizmobsd-term",
         '#!/bin/sh\nif [ -n "${TERM_ADD_DEVICE:-}" ]; then\n'
         '\tmkdir -p "$DISCOBSD_SYSFS_USB/1-5"\n'
         '\techo 2e8a > "$DISCOBSD_SYSFS_USB/1-5/idVendor"\n'
@@ -191,7 +191,7 @@ def mutate(script: Path, tmp: Path, old: str, new: str) -> Path:
     return out
 
 
-# --- discobsd-flash scenarios; each returns normally when the rule holds ---
+# --- gizmobsd-flash scenarios; each returns normally when the rule holds ---
 
 
 def scenario_flash_single(script: Path, tmp: Path) -> None:
@@ -387,7 +387,7 @@ def _run_dirs(tmp_path):
     (tmp_path / "run").mkdir()
 
 
-# --- discobsd-connect ---
+# --- gizmobsd-connect ---
 
 
 def scenario_connect_single(script: Path, tmp: Path) -> None:

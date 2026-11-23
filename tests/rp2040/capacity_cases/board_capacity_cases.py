@@ -6,8 +6,8 @@ usage: DISCOBSD_BOARD_CAPACITY_CASES=run $PYTHON board_capacity_cases.py \
 
 The script touches the board only when DISCOBSD_BOARD_CAPACITY_CASES is
 exactly "run"; unset, empty and every other value exit without opening a port
-or calling discobsd-flash. With the variable set it flashes the named images
-with discobsd-flash when given, reaches a root shell on the USB console and
+or calling gizmobsd-flash. With the variable set it flashes the named images
+with gizmobsd-flash when given, reaches a root shell on the USB console and
 stages tests/rp2040/swapram_evacuate/evactest and tests/rp2040/sigtest/sigtest
 with the staging routines of tests/rp2040/user_window/board_user_window.py.
 It then runs, in order:
@@ -151,7 +151,7 @@ def main():
     console.log = open(sys.argv[1], "ab")
     results = []
     if len(sys.argv) == 3:
-        subprocess.check_call(["discobsd-flash", *sys.argv[2].split(",")])
+        subprocess.check_call(["gizmobsd-flash", *sys.argv[2].split(",")])
         time.sleep(3)
     console.open_port()
     if len(sys.argv) == 3:

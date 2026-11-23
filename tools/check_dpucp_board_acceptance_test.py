@@ -56,7 +56,7 @@ def main():
     mutations.append(("flash count", changed, "flash execution count differs"))
 
     changed = copy.deepcopy(evidence)
-    changed["flash"]["command_projection"][1] = "/home/user/discobsd-flash"
+    changed["flash"]["command_projection"][1] = "/home/user/gizmobsd-flash"
     mutations.append(("host path", changed, "flash command projection differs"))
 
     changed = copy.deepcopy(evidence)

@@ -397,10 +397,13 @@ while Dhara collects garbage:
 Every configuration still passes 2,048 bytes on that chain alone. Issue
 #839 tracks the bound and #840 the panic on the render stack. #838, the
 path from a panic's print back into `panic` through `wakeup`, is closed
-by the `panicstr` test in `wakeup`. A trial that skipped the first
-entry's sync on the render stack measured 3,744 bytes of 2,048 on PICOCALC
-and 3,708 on the two Lean kernels (4,968 and 4,924 to 4,932 with the sync),
-so #840 needs the panic moved off that stack, not the sync removed.
+by the `panicstr` test in `wakeup`. A `stack-chain.sh` run with a trial
+model rule, which counted every panic on the render stack as an entry
+after the first (the sync skipped there), gave 3,744 bytes of 2,048 on
+PICOCALC and 3,708 on the two Lean kernels, against 4,968 and 4,924 to
+4,932 with the sync. The rule and the kernel change it stood for are not
+in the tree; issue #840 holds the table. #840 therefore needs the panic
+moved off that stack, not the sync removed.
 
 ### What the bound leaves out
 

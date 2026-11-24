@@ -110,6 +110,7 @@ sleep_bound(void)
 	}
 }
 
+/* kern_synch.c's sleep queues; SLPQUE_BUCKETS is its SQSIZE. */
 extern struct proc *slpque[];
 #define SLPQUE_BUCKETS 16
 
@@ -141,12 +142,15 @@ wakeup_after_panic(void)
 	/* Before a panic the inconsistent queue is fatal. */
 	queue_running_process();
 	HK_EXPECT_PANIC("K18", wake_channel);
+	/* The panic left wakeup() inside its splclock() section. */
+	hk_ipl = 0;
 
 	/* During one, wakeup() returns with the queue as it found it. */
 	queue_running_process();
 	panicstr = message;
 	wakeup(&channel);
 	panicstr = 0;
+	HK_CHECK(hk_ipl == 0);
 	HK_CHECK(proc[1].p_stat == SRUN && proc[1].p_wchan == &channel);
 	for (i = 0; i < SLPQUE_BUCKETS; i++) {
 		HK_CHECK(slpque[i] == &proc[1]);

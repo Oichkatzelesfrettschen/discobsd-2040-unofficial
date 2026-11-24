@@ -3880,7 +3880,7 @@ NPROC to read exactly 256 n, an emptied table to read 0, and the averages to
 pass 256 (1 - 1/e) after 12, 60 and 180 samples, one either way; the 2.11BSD
 function the port carried before, which stops a load of 1 at 244, 205 and
 129, must fail it. The synchronization fixture
-executes 98 assertions at native width and at ILP32 when its signed-overflow
+executes 99 assertions at native width and at ILP32 when its signed-overflow
 sanitizer runtime is available. It checks `tsleep()` accepting
 an `INT_MAX` timeout while refusing `INT_MAX + 1` and `UINT_MAX` before the
 process is queued. It puts a running process on every sleep queue and requires

@@ -77,9 +77,9 @@ These functions have a path on the sheet that does not reach a Pico pin.
 | Item | Measurement that settles it |
 | --- | --- |
 | AXP2101 rail voltages (ALDO1-4, BLDO1-2); the firmware sets none, U301 is the 3.3 V part, and R302 pulls up to 3V3_OUT while its VCC is ALDO2 | multimeter on C112, C113, C114, C115, C117 and C118 |
-| SD card-detect polarity; `sd.c` does not interpret it | multimeter from J303 pin 10 to ground with and without a card |
-| U102 reverse conduction when micro-USB powers the Pico and PICO_EN is low; the WAS4603 datasheet is not in the notes | measure IPS with micro-USB plugged and PICO_EN low |
-| WAS7227 SEL polarity, taken from the vendor flashing recipe | continuity or logic probe at U703 pin 10 against SW701 pole 1 |
+| SD card-detect polarity; `hro_tf_03a_lcsc_c693842.pdf` page 1 (`WITHOUT CARD` vs `CARD INSERTED`) documents `CD-P3` (P3 = GND) closed when a card is seated (`SD_DET = 0`, matching active-low fast-fail in `sd.c`) | multimeter from J303 pin 10 to ground with and without a card confirms physical hardware |
+| U102 reverse conduction when micro-USB powers the Pico and PICO_EN is low; schematic labels `WAS4603` while Will Semiconductor `willsemi_ws4603_datasheet_rev1.2.pdf` (WS4603) documents "Reverse block (No body diode)" and `I_OC = 6.8k / R_SET` (`2.0 A` typ at `R104 = 3.4 kohm`) | measure IPS with micro-USB plugged and PICO_EN low to confirm fitted silicon |
+| WAS7227Q SEL polarity (`willsemi_was7227q_datasheet_rev1.4.pdf` page 2 truth table with `OE = L` documents `SEL = L -> D1`, `SEL = H -> D2`, matching the vendor flashing recipe) | continuity or logic probe at U703 pin 10 against SW701 pole 1 on physical hardware |
 | SW501 topology and the role of R509 (0R) | continuity at SW501 and the jack |
 | J703 to the Pico: pins 2-7 are labeled `GP2`, `GP3`, `GP4`, `GP5`, `GP21`, `GP28` and pin 1 `3V3_OUT`, joined to the socket by label only | continuity from each J703 pin to the Pico socket pin of that name (J302 pins 4-7, J301 pins 14, 7 and 5), or the Gerber layers |
 

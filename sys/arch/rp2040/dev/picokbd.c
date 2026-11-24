@@ -60,11 +60,14 @@
  * controller dequeues it when the write arrives.
  *
  * The controller is a DW_apb_i2c master in fast-mode timing programmed
- * for KBD_I2C_HZ. ic_clk is clk_sys (datasheet 4.3.2), and the counts
- * follow the Pico SDK's i2c_set_baudrate: a 3:2 low-to-high split of the
- * SCL period, a spike filter of one sixteenth of the low count, and a
- * 300 ns SDA hold. Datasheet 4.3.14.1 adds one ic_clk to the low count and
- * SPKLEN + 7 to the high count, so SCL runs near 96 kHz.
+ * for KBD_I2C_HZ using datasheet 4.3.14.1 period equations so the total
+ * SCL period matches clk_sys / KBD_I2C_HZ:
+ *   t_LOW  = (IC_FS_SCL_LCNT + 1) * t_sys
+ *   t_HIGH = (IC_FS_SCL_HCNT + IC_FS_SPKLEN + 7) * t_sys
+ * At CPU_KHZ = 125000 (t_sys = 8 ns), SPKLEN = 6 (48 ns, within UM10204
+ * Table 10's 50 ns Fast-mode spike-suppression maximum), LCNT = 748
+ * (5992 ns >= 4700 ns) and HCNT = 488 (4008 ns >= 4000 ns) produce an
+ * exact 100.00 kHz SCL clock with 304 ns SDA hold (SDA_HOLD = 38).
  */
 
 #include <sys/param.h>
@@ -127,6 +130,27 @@
 #define	I2C_REG(off)		PC_REG32(I2C1_BASE + (off))
 
 #define	KBD_I2C_HZ		100000
+#define	KBD_I2C_PERIOD		((CPU_KHZ * 1000UL + KBD_I2C_HZ / 2) / KBD_I2C_HZ)
+#define	KBD_I2C_SPKLEN		((CPU_KHZ * 50UL) / 1000000UL)
+#define	KBD_I2C_LCNT		((KBD_I2C_PERIOD * 3UL) / 5UL - 2UL)
+#define	KBD_I2C_HCNT		(KBD_I2C_PERIOD - (KBD_I2C_LCNT + 1UL) - \
+				    (KBD_I2C_SPKLEN + 7UL))
+#define	KBD_I2C_SDA_HOLD	((CPU_KHZ * 3UL) / 10000UL + 1UL)
+
+_Static_assert(KBD_I2C_SPKLEN >= 1 &&
+    KBD_I2C_SPKLEN * 1000000ULL <= 50ULL * CPU_KHZ,
+    "IC_FS_SPKLEN stays within UM10204 50 ns Fast-mode limit");
+_Static_assert(KBD_I2C_LCNT >= KBD_I2C_SPKLEN + 7 &&
+    KBD_I2C_HCNT >= KBD_I2C_SPKLEN + 5,
+    "DW_apb_i2c minimum LCNT/HCNT margins against SPKLEN");
+_Static_assert((KBD_I2C_LCNT + 1ULL) * 1000000ULL >= 4700ULL * CPU_KHZ,
+    "SCL low phase satisfies UM10204 4.7 us minimum");
+_Static_assert((KBD_I2C_HCNT + KBD_I2C_SPKLEN + 7ULL) * 1000000ULL >=
+    4000ULL * CPU_KHZ,
+    "SCL high phase satisfies UM10204 4.0 us minimum");
+_Static_assert(KBD_I2C_SDA_HOLD < KBD_I2C_LCNT,
+    "SDA hold fits within SCL low period");
+
 #define	KBD_REG_VER		0x01
 #define	KBD_REG_FIFO		0x09
 
@@ -193,12 +217,62 @@ i2c_enable(int on)
 
 static void i2c_setup(void);
 
+static void
+i2c_half_bit(void)
+{
+	u_int t0 = pc_micros();
+
+	while (pc_micros() - t0 < 5U)
+		continue;
+}
+
+/*
+ * UM10204 section 3.1.16 bus clear: clock up to nine SCL pulses while a
+ * slave holds SDA low, then emit a STOP condition while SCL stays high.
+ * Runs only while I2C1 is disabled, using open-drain SIO (OUT=0, OE=0 for
+ * high) via constant SIO register addresses for divider ownership.
+ */
+static void
+i2c_bus_clear(void)
+{
+	u_int sda = 1UL << PICOCALC_KBD_SDA;
+	u_int scl = 1UL << PICOCALC_KBD_SCL;
+	int i;
+
+	PC_REG32(PC_SIO_OE_CLR) = sda | scl;
+	PC_REG32(PC_SIO_OUT_CLR) = sda | scl;
+	pc_pin(PICOCALC_KBD_SDA, PC_FUNC_SIO, PC_PADS_PUE | PC_PADS_SCHMITT);
+	pc_pin(PICOCALC_KBD_SCL, PC_FUNC_SIO, PC_PADS_PUE | PC_PADS_SCHMITT);
+	if ((PC_REG32(PC_SIO_GPIO_IN) & sda) == 0) {
+		for (i = 0; i < 9; i++) {
+			if ((PC_REG32(PC_SIO_GPIO_IN) & sda) != 0)
+				break;
+			PC_REG32(PC_SIO_OE_SET) = scl;
+			i2c_half_bit();
+			PC_REG32(PC_SIO_OE_CLR) = scl;
+			i2c_half_bit();
+		}
+		/* Pull SCL low before driving SDA low for STOP. */
+		PC_REG32(PC_SIO_OE_SET) = scl;
+		i2c_half_bit();
+		PC_REG32(PC_SIO_OE_SET) = sda;
+		i2c_half_bit();
+		PC_REG32(PC_SIO_OE_CLR) = scl;
+		i2c_half_bit();
+		PC_REG32(PC_SIO_OE_CLR) = sda;
+		i2c_half_bit();
+	}
+	PC_REG32(PC_SIO_OE_CLR) = sda | scl;
+	pc_pin(PICOCALC_KBD_SDA, PC_FUNC_I2C, PC_PADS_PUE | PC_PADS_SCHMITT);
+	pc_pin(PICOCALC_KBD_SCL, PC_FUNC_I2C, PC_PADS_PUE | PC_PADS_SCHMITT);
+}
+
 /*
  * Return the block to an idle, enabled master. A disable that does not
  * complete within 10 ms (datasheet 4.3.10.3 makes the poll end in an
  * error) is followed by IC_ENABLE.ABORT, which relinquishes the bus
  * (4.3.10.4); if the block still reports enabled, it goes through its
- * reset and is programmed again.
+ * reset, clears any held SDA line, and is programmed again.
  */
 static void
 i2c_restart(void)
@@ -218,6 +292,7 @@ i2c_restart(void)
 			PC_REG32(PC_RESETS_BASE + PC_ATOMIC_SET +
 			    PC_RESETS_RESET) = PC_RESET_I2C1;
 			pc_unreset(PC_RESET_I2C1);
+			i2c_bus_clear();
 			i2c_setup();
 		}
 	}
@@ -278,6 +353,7 @@ recover_reset(void)
 	PC_REG32(PC_RESETS_BASE + PC_ATOMIC_SET + PC_RESETS_RESET) =
 	    PC_RESET_I2C1;
 	pc_unreset(PC_RESET_I2C1);
+	i2c_bus_clear();
 	i2c_setup();
 	recover_enable();
 }
@@ -338,21 +414,16 @@ kbd_fault(void)
 static void
 i2c_setup(void)
 {
-	u_int period, lcnt, hcnt;
-
 	I2C_REG(IC_CON) = IC_CON_MASTER | IC_CON_SPEED_FAST |
 	    IC_CON_RESTART_EN | IC_CON_SLAVE_DISABLE | IC_CON_TX_EMPTY_CTRL;
 	I2C_REG(IC_TX_TL) = 0;
 	I2C_REG(IC_RX_TL) = 0;
 	I2C_REG(IC_INTR_MASK) = 0;
 
-	period = (CPU_KHZ * 1000UL + KBD_I2C_HZ / 2) / KBD_I2C_HZ;
-	lcnt = period * 3 / 5;
-	hcnt = period - lcnt;
-	I2C_REG(IC_FS_SCL_HCNT) = hcnt;
-	I2C_REG(IC_FS_SCL_LCNT) = lcnt;
-	I2C_REG(IC_FS_SPKLEN) = lcnt < 16 ? 1 : lcnt / 16;
-	I2C_REG(IC_SDA_HOLD) = (CPU_KHZ * 3UL) / 10000 + 1;
+	I2C_REG(IC_FS_SCL_HCNT) = KBD_I2C_HCNT;
+	I2C_REG(IC_FS_SCL_LCNT) = KBD_I2C_LCNT;
+	I2C_REG(IC_FS_SPKLEN) = KBD_I2C_SPKLEN;
+	I2C_REG(IC_SDA_HOLD) = KBD_I2C_SDA_HOLD;
 	I2C_REG(IC_TAR) = PICOCALC_KBD_ADDR;
 }
 
@@ -361,10 +432,8 @@ picokbd_init(void)
 {
 	pc_unreset(PC_RESET_IO_BANK0 | PC_RESET_PADS_BANK0 | PC_RESET_I2C1);
 	(void)i2c_enable(0);
+	i2c_bus_clear();
 	i2c_setup();
-
-	pc_pin(PICOCALC_KBD_SDA, PC_FUNC_I2C, PC_PADS_PUE | PC_PADS_SCHMITT);
-	pc_pin(PICOCALC_KBD_SCL, PC_FUNC_I2C, PC_PADS_PUE | PC_PADS_SCHMITT);
 
 	i2c_restart();
 }
@@ -659,7 +728,8 @@ picocalc_sysctl(int *name, u_int namelen, void *oldp, size_t *oldlenp,
 		if (error == 0)
 			error = sysctl_int(oldp, oldlenp, newp, newlen, &v);
 		if (error == 0 && newp != NULL)
-			error = picokbd_reg(reg, 1, kbdreq_level(v), &v);
+			error = picokbd_reg(reg, 1, kbdreq_level_for(reg, v),
+			    &v);
 		return error;
 	case CPU_PICOCALC_POWEROFF:
 		v = poweroff_seconds;

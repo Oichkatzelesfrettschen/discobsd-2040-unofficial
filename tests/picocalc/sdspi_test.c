@@ -677,6 +677,37 @@ test_failures(void)
 	if (sdspi_init(&card) != SDE_IO)
 		fail(scenario, "ocr result", 0, SDE_IO);
 	finish();
+
+	/*
+	 * SD Physical Layer Simplified Specification section 7.5.1 sets N_CR at
+	 * 0 to 8 bytes before R1: 8 stuffing bytes must succeed and 9 must fail.
+	 */
+	{
+		static const struct step ncr8[] = {
+			CMD0_OK,
+			{ 8, 0x1aa, 0, 8, 0x01, 4, { 0, 0, 0x01, 0xaa },
+			  0, 0, 0, 0, 0 },
+			ACMD(1, 0x00, 0x40000000), CMD58(0xc0), CMD9_CSD,
+			END
+		};
+		static const struct step ncr9[] = {
+			CMD0_OK, CMD8_V2, ACMD(1, 0x00, 0x40000000),
+			CMD58(0xc0),
+			{ 9, 0, 1, 9, -1, 0, { 0 }, 0, 0, 0, 0, 0 },
+			END
+		};
+
+		load("ncr 8 max", ncr8);
+		csd_payload = csd_v2_128g;
+		if (sdspi_init(&card) != SDE_OK || card.type != SD_HC)
+			fail(scenario, "ncr 8 init", card.type, SD_HC);
+		finish();
+
+		load("ncr 9 timeout", ncr9);
+		if (sdspi_init(&card) == SDE_OK || card.type != SD_NONE)
+			fail(scenario, "ncr 9 rejected", card.type, SD_NONE);
+		finish();
+	}
 }
 
 /* Transfer errors, each on an initialized SDHC card. */
@@ -818,6 +849,17 @@ test_csd(void)
 	if (sdspi_csd_sectors(c) != SECTORS_V2_128G)
 		fail(scenario, "reserved bits ignored", sdspi_csd_sectors(c),
 		    SECTORS_V2_128G);
+	/* C_SIZE 0x3ffffe gives 0xfffffc00 sectors; 0x3fffff clamps to ~0U. */
+	c[7] = 0x3f;
+	c[8] = 0xff;
+	c[9] = 0xfe;
+	if (sdspi_csd_sectors(c) != 0xfffffc00U)
+		fail(scenario, "version 2.0 2 TiB minus 512 KiB",
+		    sdspi_csd_sectors(c), 0xfffffc00U);
+	c[9] = 0xff;
+	if (sdspi_csd_sectors(c) != ~0U)
+		fail(scenario, "version 2.0 max C_SIZE clamped",
+		    sdspi_csd_sectors(c), ~0U);
 }
 
 /*

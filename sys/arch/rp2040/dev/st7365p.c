@@ -48,13 +48,14 @@
  * The panel shows 320 of the controller's 480 lines, so the vertical
  * scroll definition is a 320-line scroll area with a 160-line bottom
  * fixed area, which sums to 480 as page 184 requires, and with MADCTL MV
- * clear as scrolling requires. The register values come from the
- * vendor's PicoMite ILI9488P (320x320) initialization for this panel,
- * with three deliberate differences that PICOCALC.md lists: the command
- * E9h, absent from the ST7365P command table, is not sent; the scroll
- * definition is programmed before the display turns on; and the display
- * turns on only after lcdterm has cleared every cell, so power-on RAM
- * contents never show.
+ * clear as scrolling requires. Initialization unlocks Command Table 2
+ * (CSCON F0h C3h/96h, page 245), loads the ST7365P/ST7796S datasheet gamma,
+ * power, VCOM, interface, inversion, display-function and entry-mode
+ * defaults together with the 78 Hz frame table (nominal 77.96 Hz, measured
+ * 74.94 Hz), locks Command Table 2 again (CSCON F0h 3Ch/69h) before
+ * SLPOUT, programs the scroll definition before the display turns on, and
+ * turns the display on only after lcdterm has cleared every cell so
+ * power-on RAM contents never show.
  */
 
 #include <sys/param.h>
@@ -150,27 +151,34 @@ const u_char lcd_palette[16][3] = {
 };
 
 /*
- * The vendor's ILI9488P initialization: gamma, power, VCOM, frame rate,
- * inversion, display function, entry mode and adjust control. Each entry
+ * ST7365P/ST7796S PGC/NGC positive and negative gamma reset defaults (3.2-14,
+ * ST7365P_SPEC_V1.0 pages 240-241). Shared with LCD_PANELTEST's GAMMA_DEFAULT.
+ */
+static const u_char init_gamma[] = {
+	0xe0, 14, 0xf0, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
+		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
+	0xe1, 14, 0xf0, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
+		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
+};
+
+/*
+ * Native ST7365P/ST7796S Command Table 1 and Command Table 2 defaults: power,
+ * VCOM (1.000 V), memory access, RGB565, interface mode, 2-dot inversion,
+ * display function (BYPASS=1, 480 lines), and entry mode (EPF=11). Each entry
  * is a command byte, a parameter count, then the parameters.
  */
 static const u_char init_seq[] = {
-	0xe0, 15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0a, 0x3f, 0x78,
-		  0x4c, 0x09, 0x0a, 0x08, 0x16, 0x1a, 0x0f,
-	0xe1, 15, 0x00, 0x16, 0x19, 0x03, 0x0f, 0x05, 0x32, 0x45,
-		  0x46, 0x04, 0x0e, 0x0d, 0x35, 0x37, 0x0f,
-	0xc0, 2, 0x17, 0x15,
-	0xc1, 1, 0x41,
-	0xc5, 3, 0x00, 0x12, 0x80,
+	0xc0, 2, 0x80, 0x25,
+	0xc1, 1, 0x13,
+	0xc2, 1, 0xa5,
+	0xc5, 1, 0x1c,
 	CMD_MADCTL, 1, MADCTL_MX_BGR,
 	CMD_COLMOD, 1, COLMOD_RGB565,
 	0xb0, 1, 0x00,
-	0xb1, 1, 0xa0,
 	CMD_INVON, 0,
 	0xb4, 1, 0x02,
-	0xb6, 3, 0x02, 0x02, 0x3b,
+	0xb6, 3, 0x80, 0x02, 0x3b,
 	0xb7, 1, 0xc6,
-	0xf7, 4, 0xa9, 0x51, 0x2c, 0x82,
 };
 
 /*
@@ -186,9 +194,9 @@ static const u_char init_seq[] = {
  *
  * On the measured board B1h acts only after the Command 2 unlock (CSCON
  * F0h C3h, 96h, page 245), and the rate is 0.962 of the formula at FRS 12
- * (doc/PANELTEST.md). st7365p_init() therefore sends init_unlock, init_seq
- * and init_frame: FRS 12, RTNA 1, 77.96 Hz by the formula and 74.94 Hz
- * measured. The B1h A0h of init_seq, sent first, is overridden.
+ * (doc/PANELTEST.md). st7365p_init() therefore sends init_unlock, init_gamma,
+ * init_seq, init_frame (FRS 12, RTNA 1: 77.96 Hz nominal, 74.94 Hz measured)
+ * and init_lock before SLPOUT.
  */
 #define	FRAME_LINES	(480 + 2 + 2)
 #define	FRAME_MHZ(frs, diva, rtna) \
@@ -203,6 +211,7 @@ static const u_char init_seq[] = {
 	    #name " gives its nominal rate")
 #define	CMD_CSCON		0xf0
 static const u_char init_unlock[] = { CMD_CSCON, 1, 0xc3, CMD_CSCON, 1, 0x96 };
+static const u_char init_lock[] = { CMD_CSCON, 1, 0x3c, CMD_CSCON, 1, 0x69 };
 FRAME_SET(init_frame, 12, 0, 1, 78);
 
 static void
@@ -531,8 +540,10 @@ st7365p_init(void)
 
 	panel_begin();
 	run_seq(init_unlock, sizeof(init_unlock));
+	run_seq(init_gamma, sizeof(init_gamma));
 	run_seq(init_seq, sizeof(init_seq));
 	run_seq(init_frame, sizeof(init_frame));
+	run_seq(init_lock, sizeof(init_lock));
 	panel_wake();
 
 	/* The two columns right of the last cell; lcdterm clears the cells. */
@@ -788,7 +799,29 @@ lcd_gfx_dither(int on)
 
 static const u_char NONE[] = { 0x00, 0 };	/* NOP (page 145). */
 #define	UNLOCK	init_unlock
-#define	DRIVER	init_seq
+/*
+ * Legacy ILI9488P-derived sequence retained for paneltest historical sets
+ * 1-31 and direct A/B comparison set 32.
+ */
+static const u_char init_legacy[] = {
+	0xe0, 15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0a, 0x3f, 0x78,
+		  0x4c, 0x09, 0x0a, 0x08, 0x16, 0x1a, 0x0f,
+	0xe1, 15, 0x00, 0x16, 0x19, 0x03, 0x0f, 0x05, 0x32, 0x45,
+		  0x46, 0x04, 0x0e, 0x0d, 0x35, 0x37, 0x0f,
+	0xc0, 2, 0x17, 0x15,
+	0xc1, 1, 0x41,
+	0xc5, 3, 0x00, 0x12, 0x80,
+	CMD_MADCTL, 1, MADCTL_MX_BGR,
+	CMD_COLMOD, 1, COLMOD_RGB565,
+	0xb0, 1, 0x00,
+	0xb1, 1, 0xa0,
+	CMD_INVON, 0,
+	0xb4, 1, 0x02,
+	0xb6, 3, 0x02, 0x02, 0x3b,
+	0xb7, 1, 0xc6,
+	0xf7, 4, 0xa9, 0x51, 0x2c, 0x82,
+};
+#define	DRIVER		init_legacy
 static const u_char VENDOR[] = {
 	0xc5, 1, 0x1c,
 	0xb0, 0,
@@ -799,19 +832,14 @@ static const u_char VENDOR[] = {
 	CMD_CSCON, 1, 0xc3, CMD_CSCON, 1, 0x96,
 	CMD_MADCTL, 1, MADCTL_MX_BGR,
 };
-static const u_char GAMMA_DEFAULT[] = {
-	0xe0, 14, 0xf0, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
-		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
-	0xe1, 14, 0xf0, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
-		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
-};
+#define	GAMMA_DEFAULT	init_gamma
 static const u_char GAMMA_V63_ZERO[] = {
 	0xe0, 14, 0x00, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
 		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
 	0xe1, 14, 0x00, 0x03, 0x05, 0x09, 0x0c, 0x0f, 0x3e, 0x77,
 		  0x4f, 0x0f, 0x17, 0x17, 0x21, 0x23,
 };
-/* init_seq's knots 2-14 behind the datasheet's first byte. */
+/* init_legacy's knots 2-14 behind the datasheet's first byte. */
 static const u_char GAMMA_SHIFT[] = {
 	0xe0, 14, 0xf0, 0x03, 0x09, 0x08, 0x16, 0x0a, 0x3f, 0x78,
 		  0x4c, 0x09, 0x0a, 0x08, 0x16, 0x1a,
@@ -874,11 +902,11 @@ static const u_char CT2_MARK[] = {
 	0xc5, 1, PANEL_MARK_C5,
 	0xb1, 2, PANEL_MARK_B1_0, PANEL_MARK_B1_1,
 };
-static const u_char LOCK[] = { CMD_CSCON, 1, 0x3c, CMD_CSCON, 1, 0x69 };
+#define	LOCK	init_lock
 
 /* Each row shares its preamble and base with the other register sets. */
 enum { PRE_NONE, PRE_UNLOCK };
-enum { BASE_DRIVER, BASE_VENDOR };
+enum { BASE_DRIVER, BASE_VENDOR, BASE_NATIVE };
 
 #define	PANELTEST_ROW(name, pre, base, post) \
 	{ post, sizeof(post), PRE_##pre, BASE_##base },
@@ -913,9 +941,14 @@ st7365p_set(int n)
 		run_seq(NONE, sizeof(NONE));
 	if (s->base == BASE_VENDOR)
 		run_seq(VENDOR, sizeof(VENDOR));
-	else
+	else if (s->base == BASE_NATIVE) {
+		run_seq(init_gamma, sizeof(init_gamma));
+		run_seq(init_seq, sizeof(init_seq));
+	} else
 		run_seq(DRIVER, sizeof(DRIVER));
 	run_seq(s->post, s->post_len);
+	if (s->base == BASE_NATIVE)
+		run_seq(init_lock, sizeof(init_lock));
 	panel_wake();
 	/* The margin clears in the console's format; lcdgfx.c then takes 66h. */
 	lcd_gfx_colmod(COLMOD_RGB565);
@@ -950,7 +983,7 @@ send_spirc(u_int fb)
 }
 
 /*
- * One read command (page 94): the command byte with D/CX low, then n bytes
+ * One read command (page 95): the command byte with D/CX low, then n bytes
  * clocked with D/CX high while the panel shifts SDO, sampled on the rising
  * edge as the PL022 does in mode 3. lcd_command() drains the byte received
  * during the command. The clock drops to 3.125 MHz, inside TSCYCR (150 ns,
@@ -1000,7 +1033,7 @@ lcd_read(const u_char *r, u_char *out)
  * The readback list: the ID and status reads first (04h, 09h, 0Ah-0Fh,
  * DAh-DCh, D3h; Command Table 1 and RDID4), the known-good calibration,
  * two bytes for each 8-bit read: the command tables show a dummy read
- * cycle before the data (page 151) and the SPI figure on page 94 none,
+ * cycle before the data (page 151) and the SPI figure on page 95 none,
  * then Command Table 2 registers through SPI Read Control. If SPIRC does
  * not take effect, those reads clock zero parameter bytes into B4h, B1h,
  * C5h, B7h or E0h, so paneltest programs its set again after a readback.
@@ -1015,7 +1048,7 @@ lcd_read(const u_char *r, u_char *out)
  * Five bytes each show where in the reply a mark value lands.
  *
  * The last five are the two Command Table 2 registers that section 9.3
- * prints with read rows: NVM Status Read (D2h, page 235: the ID and VCOM
+ * prints with read rows: NVM Status Read (D2h, page 238: the ID and VCOM
  * program counts, BUSY and the stored VMF[5:0]), plain and through FBh
  * 10h, and RDID4 (D3h) through FBh 10h, 11h and 12h. D3h answers without
  * FBh, so a reply that changes with the parameter number shows SPIRC

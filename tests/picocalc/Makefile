@@ -1803,8 +1803,10 @@ KBDREQ_SRC=	picokbd_req.c picokbd_req.h
 
 kbdreq-mutants: kbdreq-mutant-write-bit kbdreq-mutant-echo \
 	kbdreq-mutant-retry kbdreq-mutant-expire-sent \
-	kbdreq-mutant-percent kbdreq-mutant-level kbdreq-mutant-off-floor \
-	kbdreq-mutant-off-ceiling
+	kbdreq-mutant-percent kbdreq-mutant-level \
+	kbdreq-mutant-lcd-floor kbdreq-mutant-lcd-step \
+	kbdreq-mutant-kbd-zero kbdreq-mutant-kbd-step \
+	kbdreq-mutant-off-floor kbdreq-mutant-off-ceiling
 
 kbdreq-mutant-write-bit:
 	${KBDREQ_MUT} picokbd_req.c \
@@ -1830,6 +1832,22 @@ kbdreq-mutant-level:
 	${KBDREQ_MUT} picokbd_req.c \
 	    's/return v < 0 ? 0 : v > KBD_LEVEL_MAX/return v > KBD_LEVEL_MAX/' \
 	    ${KBDREQ_SRC}
+
+kbdreq-mutant-lcd-floor:
+	${KBDREQ_MUT} picokbd_req.h \
+	    's/KBD_LCD_MIN		16/KBD_LCD_MIN		0/' ${KBDREQ_SRC}
+
+kbdreq-mutant-lcd-step:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/(v \/ KBD_LCD_STEP) \* KBD_LCD_STEP/v/' ${KBDREQ_SRC}
+
+kbdreq-mutant-kbd-zero:
+	${KBDREQ_MUT} picokbd_req.c \
+	    '/^kbdreq_kbd_level/,/^}/s/return 0;/return KBD_KBD_STEP;/' ${KBDREQ_SRC}
+
+kbdreq-mutant-kbd-step:
+	${KBDREQ_MUT} picokbd_req.c \
+	    's/(v \/ KBD_KBD_STEP) \* KBD_KBD_STEP/v/' ${KBDREQ_SRC}
 
 kbdreq-mutant-off-floor:
 	${KBDREQ_MUT} picokbd_req.h \
@@ -1858,8 +1876,10 @@ sdspi-mutants: \
 	sdspi-mutant-byte-address \
 	sdspi-mutant-echo-pattern \
 	sdspi-mutant-init-timeout \
+	sdspi-mutant-ncr-off-by-one \
 	sdspi-mutant-write-response \
 	sdspi-mutant-csd-v2-shift \
+	sdspi-mutant-csd-v2-max \
 	sdspi-mutant-csd-v1-mult \
 	sdspi-mutant-ccs \
 	sdspi-mutant-blocklen \
@@ -1935,6 +1955,14 @@ sdspi-mutant-write-response:
 sdspi-mutant-csd-v2-shift:
 	${SDSPI_MUT} sdspi.c \
 	    's/return (c_size + 1) << 10;/return (c_size + 1) << 9;/' ${SDSPI_SRC}
+
+sdspi-mutant-csd-v2-max:
+	${SDSPI_MUT} sdspi.c \
+	    's/if (c_size == 0x3fffffU)/if (0)/' ${SDSPI_SRC}
+
+sdspi-mutant-ncr-off-by-one:
+	${SDSPI_MUT} sdspi.c \
+	    's/for (i = 0; i <= NCR_MAX/for (i = 0; i < NCR_MAX/' ${SDSPI_SRC}
 
 sdspi-mutant-csd-v1-mult:
 	${SDSPI_MUT} sdspi.c \
@@ -2572,6 +2600,8 @@ picopcm-mutants: \
 	picopcm-mutant-no-drain \
 	picopcm-mutant-close-unmuted \
 	picopcm-mutant-clock-left-on \
+	picopcm-mutant-open-ramp \
+	picopcm-mutant-close-ramp \
 	picopcm-mutant-bell-not-absorbed \
 	picopcm-mutant-bell-stop-mutes
 
@@ -2614,6 +2644,14 @@ picopcm-mutant-close-unmuted:
 picopcm-mutant-clock-left-on:
 	${PICOPCM_MUT} picopcm.c \
 	    's/PC_REG32(PWM_INTE) = 0;/(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-open-ramp:
+	${PICOPCM_MUT} picopcm.c \
+	    's/pcm_ramp(1, PCM_SILENCE);/(void)0;/' ${PICOPCM_SRC}
+
+picopcm-mutant-close-ramp:
+	${PICOPCM_MUT} picopcm.c \
+	    's/pcm_ramp(PCM_SILENCE - 1, 0);/(void)0;/' ${PICOPCM_SRC}
 
 picopcm-mutant-bell-not-absorbed:
 	${PICOPCM_MUT} picoaudio.c \
@@ -2806,8 +2844,10 @@ clean:
 	sdspi-mutant-byte-address \
 	sdspi-mutant-echo-pattern \
 	sdspi-mutant-init-timeout \
+	sdspi-mutant-ncr-off-by-one \
 	sdspi-mutant-write-response \
 	sdspi-mutant-csd-v2-shift \
+	sdspi-mutant-csd-v2-max \
 	sdspi-mutant-csd-v1-mult \
 	sdspi-mutant-ccs \
 	sdspi-mutant-blocklen \
@@ -2877,7 +2917,8 @@ clean:
 	picoaudio-mutant-override-high \
 	picoaudio-mutant-slice-left-on \
 	picoaudio-mutant-override-kept \
-	picoaudio-mutant-busy-kept
+	picoaudio-mutant-busy-kept \
+	picopcm-mutants picopcm-mutant-open-ramp picopcm-mutant-close-ramp
 
 .PHONY: kbdevq-mutants kbdevq-mutant-lost-silent kbdevq-mutant-lost-not-ready kbdevq-mutant-lost-any-process kbdevq-mutant-lost-never-seen kbdevq-mutant-lost-plain kbdevq-mutant-lost-check-ends-quietly kbdevq-mutant-wake-select-window kbdevq-mutant-wake-ready-ignores-request kbdevq-mutant-wake-ready-empty kbdevq-mutant-wake-ready-any-process kbdevq-mutant-wake-ready-background kbdevq-mutant-wake-ready-no-check kbdevq-mutant-wake-put-silent kbdevq-mutant-wake-put-ungated kbdevq-mutant-wake-end-keeps kbdevq-mutant-check-ignores-group kbdevq-mutant-check-ignores-mode kbdevq-mutant-mode-counts-line-discipline kbdevq-mutant-start-cooked kbdevq-mutant-start-raw-only kbdevq-mutant-start-no-snapshot kbdevq-mutant-modeset-ignored kbdevq-mutant-modeset-owner kbdevq-mutant-drain-any-process kbdevq-mutant-stop-any-process kbdevq-mutant-start-any-process kbdevq-mutant-procexit-ignored kbdevq-mutant-procexit-any-process kbdevq-mutant-owner-pid-ignored kbdevq-mutant-owner-proc-ignored kbdevq-mutant-end-keeps-bytes kbdevq-mutant-put-ungated kbdevq-mutant-drain-unreadable kbdevq-mutant-drain-background kbdevq-mutant-drain-no-session kbdevq-mutant-start-unreadable kbdevq-mutant-start-background kbdevq-mutant-start-keeps-queue kbdevq-mutant-start-steals kbdevq-mutant-stop-any-file kbdevq-mutant-fileclose-ignored kbdevq-mutant-fileclose-any-file kbdevq-mutant-check-ignored kbdevq-mutant-check-always-ends kbdevq-mutant-end-keeps-queue kbdevq-mutant-end-keeps-drops kbdevq-mutant-drop-newest kbdevq-mutant-lost-uncounted kbdevq-mutant-lost-wraps kbdevq-mutant-lost-kept kbdevq-mutant-drain-limit kbdevq-mutant-release-dropped kbdevq-mutant-hold-dropped kbdevq-mutant-idle-queued kbdevq-mutant-key-masked kbdevq-mutant-translate-dropped kbdevq-mutant-drain-slot kbdevq-mutant-put-slot kbdevq-mutant-full-threshold kbdevq-mutant-wiring
 

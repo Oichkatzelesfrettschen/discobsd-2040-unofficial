@@ -2118,6 +2118,11 @@ check-picocalc-kbd-bootloader:	check-python
 
 .PHONY: check-picocalc-kbd-bootloader
 
+check-picocalc-conformance:	check-python
+		${PYTHON} tests/picocalc/conformance_test.py
+
+.PHONY: check-picocalc-conformance
+
 check-usb-line-coding:
 		${MAKE} -C tests/rp2040/usb_line_coding check
 
@@ -2231,7 +2236,7 @@ HOST_GATES=	check-architecture-isolation check-kernel-abi-contracts check-packed
 		check-userland-layout-flags check-storage-geometry check-phony-targets \
 		check-fs-profiles check-picocalc-host check-matezinho-host check-ulisp-host \
 		check-psram-pio check-diag-stats \
-		check-loader-stamp check-picocalc-kbd-bootloader check-host-split \
+		check-loader-stamp check-picocalc-kbd-bootloader check-picocalc-conformance check-host-split \
 		check-signal-traps check-alloc-results check-panic-codes check-signal-trace
 HOST_PROGRAM_GATES=	check-stevie-host check-kilo-host \
 		check-menu-host check-tail-host check-sort-host check-ls-format check-calendar-rules check-keen-host \

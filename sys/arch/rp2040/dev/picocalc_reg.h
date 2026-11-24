@@ -65,9 +65,11 @@
 #define	PC_PADS_IE		(1UL << 6)
 #define	PC_PADS_OD		(1UL << 7)
 
+#define	PC_SIO_GPIO_IN		0xd0000004UL
 #define	PC_SIO_OUT_SET		0xd0000014UL
 #define	PC_SIO_OUT_CLR		0xd0000018UL
 #define	PC_SIO_OE_SET		0xd0000024UL
+#define	PC_SIO_OE_CLR		0xd0000028UL
 
 #define	PC_TIMERAWL		0x40054028UL	/* Microseconds, free running. */
 

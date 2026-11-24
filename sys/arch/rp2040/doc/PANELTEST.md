@@ -2,12 +2,13 @@
 
 The PicoCalc's ST7365P panel controller takes its gamma, power, VCOM,
 frame-rate and inversion settings from Command Table 2 (ST7365P_SPEC_V1.0,
-section 9.3). The vendor ILI9488P sequence that `init_seq` of
-`st7365p.c` carries writes those registers without CSCON F0h C3h/96h,
-which page 245 documents as the enable of command 2, and page 246 gives
-CSCON's power-on and reset defaults as N/A. Which of those writes take
-effect, and whether other settings render small text more crisply, are
-questions for the board. The panel test answers them there: the PICOCALC_SD kernel (`options LCD_PANELTEST`) programs
+section 9.3). Earlier revisions of `st7365p.c` wrote vendor ILI9488P values
+(`F7h`, 15-byte `E0h`/`E1h`, unlocked Command 2 writes, CSCON page 245); the
+driver now unlocks Command Table 2, writes native ST7365P/ST7796S values and
+re-locks Command 2 (`F0h 3Ch/69h`) before `SLPOUT`, while retaining the
+legacy ILI9488P sequence under `LCD_PANELTEST` (`set 32`) for regression
+comparison. Which settings hold across power states and render small text
+most crisply on silicon remains testable on the board: the PICOCALC_SD kernel (`options LCD_PANELTEST`) programs
 one of a fixed list of register sets on request and reads the controller's
 read commands back over SPI1 RX (GP12, the panel's SDO), and `paneltest`
 draws the calibration patterns.
@@ -48,17 +49,18 @@ draws the calibration patterns.
   independent of what an earlier read clocked into the registers. Set 27
   programs the same marks, so they also stand in the panel between
   readbacks.
-- Every PicoCalc kernel programs the panel at startup with the unlock,
-  `init_seq` and the 78 Hz frame table (`init_unlock`, `init_frame`),
-  which the board runs at 74.94 Hz. The full kernel also stores one
-  post-sequence pointer and length per numbered set, plus selectors for
-  its preamble and base. Set 0 sends the startup bytes, so the last close
-  of `/dev/lcdgfx` returns the panel to its startup state; set 31 sends a
-  NOP on either side of `init_seq`, the locked base that startup sent
-  until the frame rate was chosen and that set 0 named then. In the
-  results below dated 2026-11-19 or earlier, "set 0" and "shipped" mean
-  that locked base. The bare Pico configurations use their own console
-  drivers.
+- Every PicoCalc kernel programs the panel at startup with Command Table 2
+  unlock (`init_unlock`, CSCON `F0h C3h/96h`, page 245), native 14-byte
+  gamma (`init_gamma`, pages 240-241), native ST7365P defaults (`init_seq`),
+  the 78 Hz frame table (`init_frame`, nominal 77.96 Hz, measured 74.94 Hz),
+  and Command Table 2 lock (`init_lock`, `F0h 3Ch/69h`, page 245) before
+  `SLPOUT`. Set 0 (`NATIVE`) replays this startup sequence on `/dev/lcdgfx`
+  close; sets 1 to 31 stay unchanged for regression continuity (`set 31`
+  keeps the legacy locked base without `CSCON`); set 32 (`legacy-ili9488-78hz`)
+  replays the legacy unlocked ILI9488P sequence at 78 Hz. In the historical
+  results below dated 2026-11-19 or earlier, "set 0" and "shipped" name the
+  prior locked ILI9488P base. The bare Pico configurations use their own
+  console drivers.
 
 ## Running it
 
@@ -117,9 +119,12 @@ at the same FRS (result 3 of the 2026-11-18 run): 60 / 0.965, 75 / 0.962
 and, for 120, the formula's maximum at these porches (168 line units).
 
 Sets 21-26 and 28-30 unlock command 2 first. Set 23 writes the datasheet defaults,
-so it is the reference the other rates compare against. `init_seq`
-(set 31) writes B1h A0h alone (RTNA left as reset) and no B5h; sets 14
-and 15 write B1h 00h alone, 31.1 Hz at RTNA 10h and 484 lines.
+so it is the reference the other rates compare against. Set 31 (the legacy
+locked base) writes B1h A0h alone (RTNA left as reset) and no B5h; sets 14
+and 15 write B1h 00h alone, 31.1 Hz at RTNA 10h and 484 lines. Set 32
+(`legacy-ili9488-78hz`) unlocks command 2, runs the legacy ILI9488P base
+with the 78 Hz frame table (`init_frame`), and leaves command 2 unlocked
+without `init_lock`.
 
 The kernel reads GSCAN back to back at 3.125 MHz, about 10 us a read,
 and times each read with the 1 us system timer, until nine wraps or

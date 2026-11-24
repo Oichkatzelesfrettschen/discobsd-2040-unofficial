@@ -119,6 +119,7 @@
 #define	SSPCR1_SSE		(1UL << 1)
 #define	SSPSR_TNF		(1UL << 1)
 #define	SSPSR_RNE		(1UL << 2)
+#define	SSPSR_BSY		(1UL << 4)
 
 #define	SPI_REG(off)		PC_REG32(SPI0_BASE + (off))
 #define	PC_RESET_SPI0		(1UL << 16)
@@ -192,6 +193,8 @@ sd_select(int on)
 static void
 sd_speed(int fast)
 {
+	while ((SPI_REG(SSPSR) & SSPSR_BSY) != 0)
+		continue;
 	SPI_REG(SSPCR1) = 0;
 	SPI_REG(SSPCPSR) = fast ? SD_PRESCALE_FAST : SD_PRESCALE_SLOW;
 	SPI_REG(SSPCR0) = SSPCR0_DSS_8 | SSPCR0_SCR(fast ? 0 : SD_SCR_SLOW);

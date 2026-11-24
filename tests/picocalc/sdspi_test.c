@@ -679,8 +679,9 @@ test_failures(void)
 	finish();
 
 	/*
-	 * SD Physical Layer Simplified Specification section 7.5.1 sets N_CR at
-	 * 0 to 8 bytes before R1: 8 stuffing bytes must succeed and 9 must fail.
+	 * N_CR is 0 to 8 bytes before R1 (SanDisk SD Card Product Manual 1.9,
+	 * Table 5-5; the Simplified Specification omits the body of its section
+	 * 7.5.1): 8 stuffing bytes must succeed and 9 must fail.
 	 */
 	{
 		static const struct step ncr8[] = {

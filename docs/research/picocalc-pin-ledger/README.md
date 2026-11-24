@@ -77,7 +77,7 @@ These functions have a path on the sheet that does not reach a Pico pin.
 | Item | Measurement that settles it |
 | --- | --- |
 | AXP2101 rail voltages (ALDO1-4, BLDO1-2); the firmware sets none, U301 is the 3.3 V part, and R302 pulls up to 3V3_OUT while its VCC is ALDO2 | multimeter on C112, C113, C114, C115, C117 and C118 |
-| SD card-detect polarity; `hro_tf_03a_lcsc_c693842.pdf` page 1 (`WITHOUT CARD` vs `CARD INSERTED`) documents `CD-P3` (P3 = GND) closed when a card is seated (`SD_DET = 0`, matching active-low fast-fail in `sd.c`) | multimeter from J303 pin 10 to ground with and without a card confirms physical hardware |
+| SD card-detect polarity; `hro_tf_03a_lcsc_c693842.pdf` page 1 (`WITHOUT CARD` vs `CARD INSERTED`) documents `CD-P3` (P3 = GND) closed when a card is seated (`SD_DET = 0`); `sd.c` does not read the level at open, and a refusal of an empty slot waits for this measurement | multimeter from J303 pin 10 to ground with and without a card confirms physical hardware |
 | U102 reverse conduction when micro-USB powers the Pico and PICO_EN is low; schematic labels `WAS4603` while Will Semiconductor `willsemi_ws4603_datasheet_rev1.2.pdf` (WS4603) documents "Reverse block (No body diode)" and `I_OC = 6.8k / R_SET` (`2.0 A` typ at `R104 = 3.4 kohm`) | measure IPS with micro-USB plugged and PICO_EN low to confirm fitted silicon |
 | WAS7227Q SEL polarity (`willsemi_was7227q_datasheet_rev1.4.pdf` page 2 truth table with `OE = L` documents `SEL = L -> D1`, `SEL = H -> D2`, matching the vendor flashing recipe) | continuity or logic probe at U703 pin 10 against SW701 pole 1 on physical hardware |
 | SW501 topology and the role of R509 (0R) | continuity at SW501 and the jack |

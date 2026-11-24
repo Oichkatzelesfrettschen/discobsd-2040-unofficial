@@ -3880,10 +3880,13 @@ NPROC to read exactly 256 n, an emptied table to read 0, and the averages to
 pass 256 (1 - 1/e) after 12, 60 and 180 samples, one either way; the 2.11BSD
 function the port carried before, which stops a load of 1 at 244, 205 and
 129, must fail it. The synchronization fixture
-executes 80 assertions at native width and at ILP32 when its signed-overflow
+executes 98 assertions at native width and at ILP32 when its signed-overflow
 sanitizer runtime is available. It checks `tsleep()` accepting
 an `INT_MAX` timeout while refusing `INT_MAX + 1` and `UINT_MAX` before the
-process is queued. It runs `sync()` over a mount whose superblock is clean
+process is queued. It puts a running process on every sleep queue and requires
+`wakeup()` to panic with K18 before a panic and, once `panicstr` is set, to
+return with the queues and the process as it found them; a mutant that walks
+the queue after a panic must fail it. It runs `sync()` over a mount whose superblock is clean
 (`fs_fmod == 0`): with dirty data, dirty inode metadata, both and neither it
 writes exactly the eligible state and no superblock. It still writes a
 modified superblock, leaves a locked inode and a mount with a locked

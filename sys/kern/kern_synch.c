@@ -274,6 +274,15 @@ wakeup (register caddr_t chan)
     int s;
 
     /*
+     * After a panic no process runs again: tsleep() returns at once and
+     * boot() halts.  The panic's own console output reaches this routine
+     * through ttyinput(), and a queue entry the panic left in another
+     * state would raise K18 from inside the panic, once per printed
+     * character that finds input waiting.
+     */
+    if (panicstr)
+        return;
+    /*
      * Since we are called at interrupt time, must insure normal
      * kernel mapping to access proc.
      */

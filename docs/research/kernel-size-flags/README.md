@@ -266,11 +266,11 @@ report and its chains beside the plain ones.
   hands received bytes to `ttyinput`, which reaches `wakeup` (`usbputc`
   through `usb_service`, `uartputc` through `uartintr`, `lcdputc` through
   `reply_flush`), and `wakeup` panics on a sleep queue entry that is
-  neither asleep nor stopped, without the test of `panicstr` that
-  `tsleep` makes. The graph therefore has a path from a panic's own
-  print back into `panic`; whether a run takes it depends on input
-  arriving during the print and on the queue the wakeup walks. The
-  overlay counts two entries and leaves a third out. The two overlays are
+  neither asleep nor stopped. Since #838 `wakeup` returns at once while
+  `panicstr` is set, as `tsleep` does, so a panic's own print does not
+  re-enter `panic` through it; the graph still draws that edge, because
+  the tool does not read the test, and the overlay keeps counting two
+  entries and leaving a third out. The two overlays are
   not combined: a panic whose sync writes buffers of the swap
   pseudo-device is in neither figure.
 
@@ -395,13 +395,18 @@ while Dhara collects garbage:
     dhara_map_write .. flash_erase 656, the boot ROM's flash_range_erase 88
 
 Every configuration still passes 2,048 bytes on that chain alone. Issue
-#839 tracks the bound, #838 the path from a panic's print back into
-`panic` through `wakeup`, and #840 the panic on the render stack.
+#839 tracks the bound and #840 the panic on the render stack. #838, the
+path from a panic's print back into `panic` through `wakeup`, is closed
+by the `panicstr` test in `wakeup`. A trial that skipped the first
+entry's sync on the render stack measured 3,744 bytes of 2,048 on PICOCALC
+and 3,708 on the two Lean kernels (4,968 and 4,924 to 4,932 with the sync),
+so #840 needs the panic moved off that stack, not the sync removed.
 
 ### What the bound leaves out
 
-- **Panics nested more than two deep.** The path through `wakeup` above
-  has no bound in the graph (#838).
+- **Panics nested more than two deep.** The graph has no bound for them;
+  the path through `wakeup` above is closed in the source (#838), not in
+  the graph.
 - **The two overlays together.** A panic's sync over buffers of the swap
   pseudo-device is counted by neither.
 - **The board's ROM and the PicoCalc loader's second stage.** The ROM

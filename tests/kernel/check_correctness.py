@@ -384,6 +384,12 @@ def main():
             True,
         ),
         (
+            "wakeup-walks-queue-after-panic",
+            "synch",
+            {"kern_synch.c": ("    if (panicstr)\n        return;\n", "")},
+            True,
+        ),
+        (
             "timeout-callback-omits-expiry",
             "synch",
             {"kern_synch.c": ("        p->p_flag |= P_TIMEOUT;", "        p->p_flag |= 0;")},

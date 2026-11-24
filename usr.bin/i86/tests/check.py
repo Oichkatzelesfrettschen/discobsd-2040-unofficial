@@ -1356,7 +1356,12 @@ def host_clock_irqs(run, what, floor=HOST_CLOCK_IRQ_UNSTALLED, note=print):
     count at most 37h interrupts while counter 2 counts 65535 clocks. A
     host never counts more than the clocks allow, so a run of 34h to 37h
     passes alone, without a repeat, and a loaded host counts fewer: the best
-    of three runs must reach floor. A paced run passes HOST_CLOCK_IRQ_STALLED
+    of three runs must reach floor. A count above 37h passes only when it
+    agrees with counter 2's latched count (hold_agrees()): while interrupts
+    wait, a read of counter 2 sees the time of the oldest one not yet raised
+    (pc.c pit_view()), so on a host whose sleeps run long the window the
+    guest times is longer than 65535 clocks, as hosted macOS showed with 38h
+    over 67971 clocks. A paced run passes HOST_CLOCK_IRQ_STALLED
     as its floor. The -T run holds the exact count of 36h, which a lost
     final interrupt moves; this judge cannot see one inside its band."""
     seen = []
@@ -1364,12 +1369,9 @@ def host_clock_irqs(run, what, floor=HOST_CLOCK_IRQ_UNSTALLED, note=print):
         got = run()
         fields = dict(t.split(":", 1) for t in got if ":" in t)
         irq = int(fields.get("irq", "0"), 16)
-        if (
-            irq > HOST_CLOCK_IRQ_MAX
-            or fields.get("st2") != "00B0"
-            or fields.get("tick") != "ok"
-            or got[-1:] != ["done"]
-        ):
+        if fields.get("st2") != "00B0" or fields.get("tick") != "ok" or got[-1:] != ["done"]:
+            raise Failure("%s: %r" % (what, got))
+        if irq > HOST_CLOCK_IRQ_MAX and not ("c2" in fields and hold_agrees(got)[0]):
             raise Failure("%s: %r" % (what, got))
         if irq >= HOST_CLOCK_IRQ_UNSTALLED:
             return
@@ -1393,11 +1395,12 @@ def test_host_clock_judge():
     (38h), a run that does not finish and a run whose counter 2 status is
     wrong."""
 
-    def runs(counts, tail="done", st2="00B0"):
+    def runs(counts, tail="done", st2="00B0", c2=None):
         queue = list(counts)
 
         def one():
-            return ["irq:%04X" % queue.pop(0), "st2:" + st2, "tick:ok", tail]
+            span = [] if c2 is None else ["c2:%04X" % c2]
+            return ["irq:%04X" % queue.pop(0)] + span + ["st2:" + st2, "tick:ok", tail]
 
         return one
 
@@ -1422,6 +1425,23 @@ def test_host_clock_judge():
             host_clock_irqs(runs(counts), "judge", floor, note=lambda text: None)
         except Failure as failure:
             raise Failure("host clock judge rejected %r: %s" % (counts, failure)) from None
+    # 38h over 67971 clocks (c2 F67Ch, hosted macOS, -S 4.77) agrees with
+    # counter 2 and passes; 3Ah over the same span and 38h with counter 2 at
+    # FFFFh do not.
+    try:
+        host_clock_irqs(runs([0x38], c2=0xF67C), "judge", paced, note=lambda text: None)
+    except Failure as failure:
+        raise Failure("host clock judge rejected 38h over 67971 clocks: %s" % failure) from None
+    for count, c2 in ((0x3A, 0xF67C), (0x38, 0x0000)):
+        try:
+            host_clock_irqs(runs([count], c2=c2), "judge", paced, note=lambda text: None)
+        except Failure as failure:
+            if "irq:%04X" % count not in str(failure):
+                raise Failure(
+                    "host clock judge rejected %02Xh for another reason: %s" % (count, failure)
+                ) from None
+            continue
+        raise Failure("host clock judge accepted %02Xh with counter 2 at %04Xh" % (count, c2))
     for counts, floor, reason in rejected:
         kwargs = {}
         if reason == "done":

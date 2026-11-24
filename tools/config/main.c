@@ -101,6 +101,16 @@ usage:  fputs("usage: config [-gp] sysname\n", stderr);
     if (yyparse() || yyerrors != 0)
         exit(3);
 
+    /*
+     * mkmakefile.c derives files.<BOARD> and the PARAM define from board,
+     * so a Config without a board line is refused before any output.
+     */
+    if (board == NULL) {
+        fprintf(stderr, "config: %s: missing \"board\" specification\n",
+            config_file);
+        exit(3);
+    }
+
     switch (arch) {
 
     case ARCH_STM32:

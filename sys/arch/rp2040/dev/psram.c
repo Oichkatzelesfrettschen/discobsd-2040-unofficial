@@ -152,6 +152,8 @@ bad:
 static int
 psramprobe(const struct conf_device *config __unused)
 {
+	unsigned char lines[PSRAM_LINES_MAX];
+	unsigned int i, n;
 	int err;
 
 	if (board_id() != BOARD_ID_PICOCALC)
@@ -162,27 +164,39 @@ psramprobe(const struct conf_device *config __unused)
 	diag_set(DIAG_PSRAM_PROBE_RAN, 1);
 	diag_set(DIAG_PSRAM_PROBE_ERR, err < 0 ? (uint32_t)-err : (uint32_t)err);
 #endif
-	if (psram_id_read)
-		printf("psram0: read id %02x/%02x eid %02x%02x%02x%02x%02x%02x\n",
-		    psram_mfid, psram_kgd, psram_eid[0], psram_eid[1],
-		    psram_eid[2], psram_eid[3], psram_eid[4], psram_eid[5]);
-	if (err == PSRAM_E_ID)
-		printf("psram0: id %x/%x is not an ESP-PSRAM64H, swap stays on fl1\n",
-		    psram_mfid, psram_kgd);
-	else if (err == PSRAM_E_SIZE)
-		printf("psram0: addresses wrap below %u kbytes, swap stays on fl1\n",
-		    (unsigned int)(PSRAM_BYTES / 1024));
-	else if (err != 0)
-		printf("psram0: not usable (error %d), swap stays on fl1\n",
-		    err);
+	n = psram_probe_lines(psram_id_read, err, lines);
+	for (i = 0; i < n; i++) {
+		switch (lines[i]) {
+		case PSRAM_LINE_READ_ID:
+			printf("psram0: read id %02x/%02x eid %02x%02x%02x%02x%02x%02x\n",
+			    psram_mfid, psram_kgd, psram_eid[0], psram_eid[1],
+			    psram_eid[2], psram_eid[3], psram_eid[4],
+			    psram_eid[5]);
+			break;
+		case PSRAM_LINE_NOT_PART:
+			printf("psram0: id %x/%x is not an ESP-PSRAM64H, swap stays on fl1\n",
+			    psram_mfid, psram_kgd);
+			break;
+		case PSRAM_LINE_WRAP:
+			printf("psram0: addresses wrap below %u kbytes, swap stays on fl1\n",
+			    (unsigned int)(PSRAM_BYTES / 1024));
+			break;
+		case PSRAM_LINE_UNUSABLE:
+			printf("psram0: not usable (error %d), swap stays on fl1\n",
+			    err);
+			break;
+		case PSRAM_LINE_UP:
+			printf("psram0: ESP-PSRAM64H %u kbytes on PIO0, swap %u kbytes, "
+			    "tmp %u kbytes\n", (unsigned int)(PSRAM_BYTES / 1024),
+			    (unsigned int)(PSRAM_SWAP_BYTES / 1024),
+			    (unsigned int)((PSRAM_BYTES - PSRAM_SWAP_BYTES) / 1024));
+			break;
+		}
+	}
 	if (err != 0)
 		return 0;
 	psram_up = 1;
 	swapdev = makedev(PSRAM_MAJOR, 0);
-	printf("psram0: ESP-PSRAM64H %u kbytes on PIO0, swap %u kbytes, "
-	    "tmp %u kbytes\n", (unsigned int)(PSRAM_BYTES / 1024),
-	    (unsigned int)(PSRAM_SWAP_BYTES / 1024),
-	    (unsigned int)((PSRAM_BYTES - PSRAM_SWAP_BYTES) / 1024));
 	return 1;
 }
 

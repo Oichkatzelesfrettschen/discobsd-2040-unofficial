@@ -15,7 +15,9 @@
 # phase is twice its high phase, an EID decoded one byte early, and a Read
 # ID overrun that is not retried, a /tmp offset without its region's base,
 # and a swap length bounded by the device instead of its region, and
-# whole-part swap that keeps a /tmp region or leaves the map unchanged. A gate
+# whole-part swap that keeps a /tmp region or leaves the map unchanged, and
+# a boot-line selection with its Read ID guard forced true or its lines
+# mapped to the wrong errors. A gate
 # that passed them would be
 # checking nothing.
 #
@@ -52,7 +54,8 @@ mutants: mutant-sideset mutant-setup mutant-cs mutant-wait mutant-address \
 	mutant-blkrange mutant-blklen mutant-drive mutant-duty mutant-eid \
 	mutant-eid-retry mutant-extent mutant-extent-half \
 	mutant-region-base mutant-region-bound mutant-swap-all-keeps-tmp \
-	mutant-swap-all-ignored
+	mutant-swap-all-ignored mutant-lines-id-guard mutant-lines-refused \
+	mutant-lines-wrap mutant-lines-success mutant-lines-swap-errors
 
 # Word 7's side-set value 2 raises SCK; 0 leaves it low (word and comment
 # agree, so only the waveform checks can catch it).
@@ -149,6 +152,33 @@ mutant-extent:
 mutant-extent-half:
 	${MUT} psram_xfer.c 's|psram_write(PSRAM_BYTES / 2,|psram_write(PSRAM_BYTES / 4,|; s|psram_read(PSRAM_BYTES / 2,|psram_read(PSRAM_BYTES / 4,|'
 
+# Boot-line selection (psram_probe_lines). Each mutant names the case of
+# test_probe_lines that must fail first.
+# Case 1: the Read ID guard forced true prints a read-id line for a Read ID
+# that never completed.
+mutant-lines-id-guard:
+	${MUT} psram_xfer.c 's/if (id_read)/if (1)/'
+
+# Case 2: a refused ID mapped to the generic not-usable line.
+mutant-lines-refused:
+	${MUT} psram_xfer.c \
+	    's/lines\[n++\] = PSRAM_LINE_NOT_PART;/lines[n++] = PSRAM_LINE_UNUSABLE;/'
+
+# Case 3: an address wrap mapped to the generic not-usable line.
+mutant-lines-wrap:
+	${MUT} psram_xfer.c \
+	    's/lines\[n++\] = PSRAM_LINE_WRAP;/lines[n++] = PSRAM_LINE_UNUSABLE;/'
+
+# Case 4: success mapped to the generic not-usable line.
+mutant-lines-success:
+	${MUT} psram_xfer.c \
+	    's/lines\[n++\] = PSRAM_LINE_UP;/lines[n++] = PSRAM_LINE_UNUSABLE;/'
+
+# Cases 2 and 3: the refused-ID and address-wrap lines exchanged.
+mutant-lines-swap-errors:
+	${MUT} psram_xfer.c \
+	    's/= PSRAM_LINE_NOT_PART;/= PSRAM_LINE_TMP;/; s/= PSRAM_LINE_WRAP;/= PSRAM_LINE_NOT_PART;/; s/= PSRAM_LINE_TMP;/= PSRAM_LINE_WRAP;/'
+
 clean:
 	rm -f libpsram.so
 
@@ -157,4 +187,5 @@ clean:
 	mutant-turnaround mutant-blkrange mutant-blklen mutant-drive \
 	mutant-duty mutant-eid mutant-eid-retry mutant-extent \
 	mutant-extent-half mutant-swap-all-keeps-tmp \
-	mutant-swap-all-ignored clean
+	mutant-swap-all-ignored mutant-lines-id-guard mutant-lines-refused \
+	mutant-lines-wrap mutant-lines-success mutant-lines-swap-errors clean

@@ -65,3 +65,42 @@ if [ "$status" -ne 3 ] ||
 	exit 1
 fi
 echo "config missing-board refusal test passed"
+
+# A Config without an architecture line is refused the same way; the parser
+# reaches initdevtable() before main() checks, and archname was once printed
+# as "(null)" into a device-table path.
+grep -v '^architecture[[:space:]]' "$test_directory/Config" >"$test_directory/Config.noarch"
+if ! grep -q '^architecture[[:space:]]' "$test_directory/Config" ||
+    grep -q '^architecture[[:space:]]' "$test_directory/Config.noarch"; then
+	echo "architecture-less Config construction failed" >&2
+	exit 1
+fi
+status=0
+(cd "$test_directory" && "$config_program" Config.noarch) \
+    >/dev/null 2>"$test_directory/noarch.err" || status=$?
+if [ "$status" -ne 3 ] ||
+    ! grep -q 'missing "architecture" specification' "$test_directory/noarch.err"; then
+	echo "config accepted or mishandled a Config without architecture (status $status)" >&2
+	exit 1
+fi
+echo "config missing-architecture refusal test passed"
+
+# With a root device named, the parser looks the device up while reading the
+# config line, before main() runs its check; an architecture line placed
+# after it is refused there by name, where the device-table path once read
+# "devices.(null)".
+grep -v '^architecture[[:space:]]' "$compile_root/PICO/Config" >"$test_directory/Config.latearch"
+grep '^architecture[[:space:]]' "$compile_root/PICO/Config" >>"$test_directory/Config.latearch"
+if ! grep -q 'root on fl0a' "$test_directory/Config.latearch"; then
+	echo "late-architecture Config construction failed" >&2
+	exit 1
+fi
+status=0
+(cd "$test_directory" && "$config_program" Config.latearch) \
+    >/dev/null 2>"$test_directory/latearch.err" || status=$?
+if [ "$status" -ne 3 ] ||
+    ! grep -q 'line must precede the first root, swap or dumps line' "$test_directory/latearch.err"; then
+	echo "config accepted or mishandled a late architecture line (status $status)" >&2
+	exit 1
+fi
+echo "config late-architecture refusal test passed"

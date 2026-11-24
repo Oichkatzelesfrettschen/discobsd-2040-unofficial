@@ -161,7 +161,7 @@ PicoCalc kernel with the PSRAM does not bypass the pool today:
 `PICOCALC_PSRAM` enables SWAPRAM, `sr_admit` starts at 1
 (`rp2040/swapram.c:129`), `swap_image_reserve()` calls `swapram_reserve()`
 before it allocates device backing (`sys/kern/vm_swap.c:266-277`), and
-`psramprobe()` only sets `swapdev` (`dev/psram.c:124`). The D116 policy that
+`psramprobe()` only sets `swapdev` (`dev/psram.c`). The D116 policy that
 the pool takes no images on those kernels is a separate change the tree
 lacks, and rule R's prerequisite there: until it lands, the rule runs on
 PSRAM kernels and sends the images it refuses to the PSRAM.

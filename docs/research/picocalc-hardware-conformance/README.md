@@ -20,7 +20,7 @@ Four subsystem surfaces govern the PicoCalc carrier hardware on RP2040:
    `picokbd_req.h`, `picocalc_reg.h`): CKS32F103 (`U201`) I2C1 target `0x1F` on
    GP6/GP7, clocked at 100.00 kHz under UM10204 Fast-mode rules.
 3. **SD card socket** (`sd.c`, `sdspi.c`): HRO TF-03A (`J303`) push-in socket on
-   SPI0 (GP16--GP19) with active-low card detect (`SD_DET`) on GP22.
+   SPI0 (GP16--GP19) with card detect (`SD_DET`) on GP22.
 4. **Audio PWM chain** (`picopcm.c`, `picopcm.h`, `picoaudio.c`): RP2040 PWM
    slices 5 and 6 driving dual `NC7WZ16` buffers (`U501`), passive RC/AC
    filtering (`R501`--`R506`, `C502`--`C505`), volume pot `SW501`, and
@@ -124,10 +124,14 @@ initialization and error restarts. `kbdreq_level_for()` conditions `REG_ID_BKL`
 (`16..240`, step `16`) and `REG_ID_BK2` (`0` or `32..224`, step `32`) prior to
 I2C transmission (`Measured` in `kbdreq_test` and 12 `kbdreq-mutants`).
 
-### SD SPI framing and card detect (`sdspi.c`, `sd.c`)
+### SD SPI framing (`sdspi.c`, `sd.c`)
 
-1. **`N_CR` bound**: SD Physical Layer Simplified Specification Part 1 section
-   7.5.1 defines `N_CR` as `0..8` stuffing (`0xff`) bytes preceding R1. Iterating
+1. **`N_CR` bound**: the SanDisk SD Card Product Manual 1.9, Table 5-5
+   (`docs/specs/sandisk_sd_card_product_manual_v1.9_80-13-00169.pdf` in the
+   notes repository, section 5.4.4) gives `N_CR` as `0..8` units of 8 clock
+   cycles, the stuffing (`0xff`) bytes preceding R1. The SD Physical Layer
+   Simplified Specification names the same timing in Part 1 section 7.5.1 and
+   omits its body (blank in version 3.01, marked removed in 9.10). Iterating
    `i = 0; i <= NCR_MAX && (r & 0x80); i++` (`NCR_MAX = 8`) samples bytes
    `0..8`, accepting valid `ncr = 8` responses while rejecting `ncr = 9`
    (`Measured` in `sdspi_test` and `sdspi-mutant-ncr-off-by-one`).
@@ -140,11 +144,14 @@ I2C transmission (`Measured` in `kbdreq_test` and 12 `kbdreq-mutants`).
    Clamping `c_size == 0x3fffffU` to `~0U` (`4,294,967,295` sectors) avoids the
    wrap while leaving `0x3ffffeU` (`0xfffffc00U` sectors) exact (`Measured` in
    `sdspi_test`).
-4. **Active-low `SD_DET` fast-fail**: `sd_setup()` checks
-   `sd_card_present()` (`sd_det_pin() == SD_DET_PRESENT`, where
-   `SD_DET_PRESENT = 0` per `J303 TF-03A`) and returns `ENODEV` before calling
-   `sdspi_init()`, while preserving 50 ms edge debouncing in `sd_detect_poll()`
-   (`Measured` in `sdstrat_test` and `sdstrat-mutant-det-empty`).
+4. **`SD_DET` level, deferred**: `sd_setup()` probes the card over SPI
+   whatever the level of GP22, and `sd_detect_poll()` debounces any stable
+   change for 50 ms without interpreting polarity. A refusal on `SD_DET = 1`
+   panicked the PICOCALC_SD kernel under Renode (`root: sd0 error 19`),
+   because the RP2040 GPIO model sets a pin to 1 when its pad pull-up is
+   enabled and discards a level driven earlier. The refusal returns after a
+   reading of GP22 on a board with and without a card, together with a model
+   that keeps the driven level.
 
 ### Audio PWM carrier filter and linear DC-bias ramp (`picopcm.c`, `picopcm.h`)
 
@@ -198,7 +205,7 @@ headers cleanly. Capturing the live `PICOCALC_SD` configuration (`Measured` via
   - `lcdcons_init -> picokbd_init -> {i2c_bus_clear, i2c_enable, i2c_restart, i2c_setup, pc_unreset}`
   - `{i2c_restart, picokbd_init, recover_reset} -> i2c_bus_clear -> {i2c_half_bit, pc_pin}`
   - `cpu_sysctl -> picocalc_sysctl` (`cscope` caller xref; indirect `sysctl` table)
-  - `{sdopen, sdrootattach, sdswapattach} -> sd_setup -> {printf, sd_accept, sd_card_present, sd_partitions, sdspi_init}`
+  - `{sdopen, sdrootattach, sdswapattach} -> sd_setup -> {printf, sd_accept, sd_partitions, sdspi_init}`
   - `{sd_setup, sddump} -> sdspi_init -> {sd_acmd, sd_cmd, sd_done, sd_rx, sd_tail, sdspi_csd_sectors}`
   - `sdprobe -> sd_speed`
   - `pcmopen -> {board_id, pc_pin, pc_unreset, pcm_ramp}`
@@ -226,7 +233,7 @@ Bare Pico configurations retain zero size impact (`+0 B`). `PICOCALC` flash
 headroom stays above the `1,024 B` minimum margin under `check-kernel-headroom`
 (`Measured`), and `check-divider` reports `divider_findings=0` across all ELFs.
 `check-picocalc-conformance` (`tools/picocalc/verify_conformance.py` calibrated by
-`tests/picocalc/conformance_test.py` against the live tree and 13 synthetic
+`tests/picocalc/conformance_test.py` against the live tree and 12 synthetic
 single-file mutants) enforces all quantitative driver invariants in `HOST_GATES`.
 
 ## Unexecuted emulator and hardware boundary (`Not run`)

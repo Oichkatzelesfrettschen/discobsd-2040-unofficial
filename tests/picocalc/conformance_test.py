@@ -135,13 +135,6 @@ def main() -> int:
             "SSPSR_BSY",
         ),
         (
-            "sd-det-empty-unguarded",
-            "sd.c",
-            "if (!sd_card_present())\n\t\treturn ENODEV;",
-            "",
-            "!sd_card_present()",
-        ),
-        (
             "picopcm-close-ramp-removed",
             "picopcm.c",
             "\t\tpcm_ramp(PCM_SILENCE - 1, 0);",

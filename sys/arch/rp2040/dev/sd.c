@@ -50,11 +50,10 @@
  * holds for SD_DET_DEBOUNCE_US marks the card replaced, which fails every
  * transfer with EIO until the last close, because blocks cached for the old
  * card must not reach the new one. A level that returns to the committed
- * level before the interval ends leaves the committed level as it was. sd_setup() requires
- * SD_DET_PRESENT (0, active-low J303 switch with pull-up) before SPI probing;
- * DIOCMEDIAGONE reports the flag to unmount(2), which then releases a mount
- * whose write-back the card can no longer take; DIOCGETPART reports the
- * extents blkoverlap() in conf.c compares.
+ * level before the interval ends leaves the committed level as it was. The pin's polarity is not
+ * interpreted: any stable change counts. DIOCMEDIAGONE reports the flag to
+ * unmount(2), which then releases a mount whose write-back the card can no
+ * longer take; DIOCGETPART reports the extents blkoverlap() in conf.c compares.
  *
  * Every blocking spl on the RP2040 is PRIMASK (machine/intr.h), and
  * splsoftclock() blocks nothing, so the sections that must exclude the
@@ -138,7 +137,6 @@ _Static_assert(SD_PRESCALE_FAST >= 2 && SD_PRESCALE_FAST <= 254 &&
     SD_PRESCALE_FAST % 2 == 0, "CPSDVSR is even, 2 to 254");
 
 #define	SD_DET_DEBOUNCE_US	50000
-#define	SD_DET_PRESENT		0	/* J303 TF-03A CD shorts to GND. */
 
 /*
  * The swap partition's bounds in DEV_BSIZE blocks. The swap map's compact
@@ -302,12 +300,6 @@ sd_det_pin(void)
 	return (PC_REG32(SIO_GPIO_IN) >> PICOCALC_SD_DET) & 1;
 }
 
-static int
-sd_card_present(void)
-{
-	return sd_det_pin() == SD_DET_PRESENT;
-}
-
 void
 sd_detect_poll(void)
 {
@@ -419,11 +411,7 @@ sd_partitions(void)
 static int
 sd_setup(void)
 {
-	int err;
-
-	if (!sd_card_present())
-		return ENODEV;
-	err = sdspi_init(&sdcard);
+	int err = sdspi_init(&sdcard);
 
 	if (err != SDE_OK)
 		return err == SDE_NOCARD ? ENODEV : EIO;

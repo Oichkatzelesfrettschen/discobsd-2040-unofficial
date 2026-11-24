@@ -1000,12 +1000,12 @@ after one second. The clock runs at 398 kHz until initialization finishes
 25 MHz default-speed ceiling.
 
 A command waits up to the full `N_CR` specification window (0..8 bytes before
-R1, `i <= NCR_MAX` per Part 1 section 7.5.1), waits on PL022 `SSPSR_BSY`
-before disabling `SSE` during clock-speed changes (`sd_speed()`), clamps CSD
+R1, `i <= NCR_MAX`; SanDisk SD Card Product Manual 1.9, Table 5-5, the Simplified
+Specification omitting the body of its section 7.5.1), waits on PL022 `SSPSR_BSY`
+before disabling `SSE` during clock-speed changes (`sd_speed()`), and clamps CSD
 v2.0 `C_SIZE = 0x3fffff` (2 TiB) to `~0U` sectors rather than wrapping 32-bit
-`nsectors` to 0, and checks active-low `J303 TF-03A` card detect (`SD_DET == 0`,
-documented by `hro_tf_03a_lcsc_c693842.pdf` page 1 `CD-P3` switch) in
-`sd_setup()` so an empty slot fails fast with `ENODEV` without clocking CMD0.
+`nsectors` to 0. An empty slot fails when CMD0 goes unanswered; `sd_setup()`
+does not read the card-detect level.
 A transfer is one 512-byte sector per command, CMD17 for a read and CMD24
 for a write. A read waits 100 ms for the 0xFE start token and fails on a
 data error token; a write checks the data response token, waits for
@@ -1090,11 +1090,12 @@ command, so a change that lands between two sectors of a request stops it
 there. Accepting an initialized card at the first open sets both levels to
 the pin's present level and clears the flag in one `splbio()` section, so
 the debounce of that card's own insertion does not expire against it.
-`sd_setup()` requires active-low `SD_DET == 0` (`J303 TF-03A` switch closed
-to ground, open pull-up HIGH = 1 when empty) before probing SPI; once open,
-any debounced edge away from the accepted level latches removal until last
-close. The HRO TF-03A drawing documents that polarity; a multimeter probe on
-a physical socket remains unrun.
+The pin's polarity is not interpreted: once a card is open, any debounced
+change away from the accepted level latches removal until the last close.
+The HRO TF-03A drawing (`hro_tf_03a_lcsc_c693842.pdf` page 1) shows the
+detect contact closed to ground with a card seated, which reads 0 under the
+pull-up; a reading of GP22 on a board remains unrun, and a refusal of an
+empty slot on that level waits for it.
 
 `NMOUNT` is 3 in the PicoCalc kernels, whose third slot holds the `/tmp` RAM
 disk beside the flash root and one SD partition, and `SINGLE_UFS_ROOT` is unset

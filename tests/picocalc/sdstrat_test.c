@@ -833,7 +833,6 @@ open_all(void)
 {
 	int part;
 
-	set_pin(0);
 	for (part = 0; part < 3; part++)
 		check("open for a case", sdopen((dev_t)part, 0, S_IFCHR), 0);
 }
@@ -919,18 +918,8 @@ try_read(int part)
 static void
 detect_cases(void)
 {
-	/*
-	 * Active-low SD_DET: empty socket (1) refuses open with ENODEV; a swap
-	 * while nothing is open followed by reinsertion (0) opens and accepts.
-	 */
-	set_pin(1);
-	check("open with socket empty", sdopen(1, 0, S_IFCHR), ENODEV);
-	set_pin(0);
+	/* A swap while nothing is open latches; the next open accepts the card. */
 	card_swap();
-	set_pin(0);
-	sd_detect_poll();
-	advance(DEBOUNCE_US);
-	sd_detect_poll();
 	check("open after a swap with nothing held", sdopen(1, 0, S_IFCHR), 0);
 	check("accepting the card samples the pin with interrupts masked",
 	    shim_spl_pin, 1);
@@ -942,11 +931,7 @@ detect_cases(void)
 	 * An insertion's debounce still running when the first open finishes
 	 * must not mark the card just accepted as replaced.
 	 */
-	set_pin(1);
-	sd_detect_poll();
-	advance(DEBOUNCE_US);
-	sd_detect_poll();
-	set_pin(0);
+	set_pin(!pin_level);
 	sd_detect_poll();
 	advance(10000);
 	check("open during an insertion's debounce", sdopen(1, 0, S_IFCHR), 0);
@@ -974,9 +959,7 @@ detect_cases(void)
 	sd_detect_poll();
 	check("read after that departure held the interval", try_read(1), EIO);
 	sdclose(1, 0, S_IFCHR);
-	check("open while removed card stays out", sdopen(1, 0, S_IFCHR), ENODEV);
-	set_pin(0);
-	check("open at the reinserted level", sdopen(1, 0, S_IFCHR), 0);
+	check("open at the new level", sdopen(1, 0, S_IFCHR), 0);
 
 	/* An excursion that returns to the committed level before the interval. */
 	set_pin(!pin_level);
@@ -1010,7 +993,6 @@ detect_cases(void)
 	check("read 50000 us after the last change", try_read(1), EIO);
 	check("reinit on a replaced card", sdioctl(0, DIOCREINIT, NULL, 0), EIO);
 	sdclose(1, 0, S_IFCHR);
-	set_pin(0);
 	check("shipped state after the cases: interrupt mask", shim_spl, 0);
 }
 
@@ -1228,7 +1210,6 @@ dump_cases(void)
 	    sddump(DUMPDEV, dump_spans, 3, 0xc0ffee11U, dump_now), 0);
 	check_dump("dump on a replaced card", DUMP_FIRST);
 	close_all();
-	set_pin(0);
 }
 
 /* Set MBR entry n (1 to 4) of the card in sector 0 to a type. */
@@ -1984,7 +1965,6 @@ fallback_case(const char *name, int other)
 	}
 	snprintf(what, sizeof(what), "%s: card released", name);
 	check(what, (long)sdsize(makedev(SD_BMAJOR, 0)), 0);
-	set_pin(0);
 	snprintf(what, sizeof(what), "%s: replacement opens", name);
 	check(what, sdopen(makedev(SD_BMAJOR, 2), 0, S_IFBLK), 0);
 	snprintf(what, sizeof(what), "%s: replacement table read", name);
@@ -2217,7 +2197,6 @@ main(void)
 		    (caddr_t)&gone, 0), ENXIO);
 		/* The flag clears with the last close, as the card is accepted. */
 		close_all();
-		set_pin(0);
 		check("open after the removal", sdopen(1, 0, S_IFCHR), 0);
 		gone = -1;
 		check("media gone after the reopen", sdioctl(1, DIOCMEDIAGONE,

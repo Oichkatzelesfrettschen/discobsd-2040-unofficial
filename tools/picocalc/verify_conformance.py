@@ -415,7 +415,7 @@ def check_keyboard(sources: dict[str, str], errors: list[str], metrics: dict[str
 
 
 def check_sd(sources: dict[str, str], errors: list[str], metrics: dict[str, object]) -> None:
-    """Check SD SPI N_CR window, CSD v2.0 clamp, PL022 BSY wait, and SD_DET."""
+    """Check SD SPI N_CR window, CSD v2.0 clamp and PL022 BSY wait."""
     sdspi = sources["sdspi.c"]
     sdspi_defs = parse_defines(sdspi)
     if safe_eval_int(sdspi_defs.get("NCR_MAX", "-1"), {}) != 8:
@@ -437,18 +437,7 @@ def check_sd(sources: dict[str, str], errors: list[str], metrics: dict[str, obje
     if bsy_pos < 0 or sse_clr_pos < 0 or bsy_pos > sse_clr_pos:
         errors.append("sd.c: sd_speed() must poll SSPSR_BSY before clearing SSPCR1")
 
-    if "SD_DET_PRESENT" not in sd_defs or safe_eval_int(sd_defs["SD_DET_PRESENT"], {}) != 0:
-        errors.append("sd.c: SD_DET_PRESENT must equal 0 (active-low J303 TF-03A)")
-    present_body = extract_function_body(sd, r"static int\s+sd_card_present\(void\)")
-    if "sd_det_pin() == SD_DET_PRESENT" not in present_body:
-        errors.append("sd.c: sd_card_present() must compare sd_det_pin() == SD_DET_PRESENT")
-    setup_body = extract_function_body(sd, r"static int\s+sd_setup\(void\)")
-    chk_pos = setup_body.find("!sd_card_present()")
-    init_pos = setup_body.find("sdspi_init(")
-    if chk_pos < 0 or init_pos < 0 or chk_pos > init_pos or "ENODEV" not in setup_body[:init_pos]:
-        errors.append("sd.c: sd_setup() must fast-fail !sd_card_present() with ENODEV")
     metrics["sd_ncr_max"] = 8
-    metrics["sd_det_present"] = 0
 
 
 def check_audio(sources: dict[str, str], errors: list[str], metrics: dict[str, object]) -> None:

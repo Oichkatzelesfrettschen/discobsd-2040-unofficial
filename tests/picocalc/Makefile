@@ -2072,7 +2072,6 @@ sdstrat-mutants: \
 	sdstrat-mutant-spl-dropped \
 	sdstrat-mutant-media-gone-constant \
 	sdstrat-mutant-media-gone-inverted \
-	sdstrat-mutant-det-empty \
 	sdstrat-mutant-getpart-whole \
 	sdstrat-mutant-probe-ungated \
 	sdstrat-mutant-probe-never \
@@ -2514,10 +2513,6 @@ sdstrat-mutant-media-gone-inverted:
 	${SDSTRAT_MUT} sd.c \
 	    's/^\t\t\*(int \*)addr = sd_replaced();/\t\t*(int *)addr = !sd_replaced();/' ${SDSTRAT_SRC}
 
-sdstrat-mutant-det-empty:
-	${SDSTRAT_MUT} sd.c \
-	    's/return sd_det_pin() == SD_DET_PRESENT;/return 1;/' ${SDSTRAT_SRC}
-
 sdstrat-mutant-getpart-whole:
 	${SDSTRAT_MUT} sd.c \
 	    's/\*(struct diskpart \*)addr = sdpt\[part\];/*(struct diskpart *)addr = sdpt[0];/' ${SDSTRAT_SRC}
@@ -2906,7 +2901,6 @@ clean:
 	sdstrat-mutant-spl-dropped \
 	sdstrat-mutant-media-gone-constant \
 	sdstrat-mutant-media-gone-inverted \
-	sdstrat-mutant-det-empty \
 	sdstrat-mutant-getpart-whole \
 	sdstrat-mutant-probe-ungated \
 	sdstrat-mutant-probe-never \

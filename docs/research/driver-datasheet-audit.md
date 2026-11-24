@@ -154,12 +154,15 @@ startup delay (count 47) matches datasheet 2.16.3.
 
 `sdspi.c` enables CMD59 (CRC checking), validates CRC7 on command frames and
 16-bit CRC16 on read data blocks, issues CMD13 after writes, accepts the full
-0..8 byte `N_CR` response window (`i <= NCR_MAX`, Part 1 section 7.5.1), and
+0..8 byte `N_CR` response window (`i <= NCR_MAX`; SanDisk SD Card Product Manual 1.9, Table 5-5, since the
+Simplified Specification omits the bodies of sections 7.5.1 to 7.5.4), and
 clamps CSD v2.0 `C_SIZE = 0x3fffff` (2 TiB) to `~0U` rather than wrapping
 32-bit `nsectors` to 0. `sd.c` polls `SSPSR_BSY` before clearing `SSE` during
-clock changes and checks active-low `SD_DET` (`SD_DET_PRESENT = 0` per
-`hro_tf_03a_lcsc_c693842.pdf` page 1) in `sd_setup()` to fail an empty slot
-fast with `ENODEV`. `INIT_US` (1 s) and `BUSY_US` (500 ms) satisfy the
+clock changes. `sd_setup()` does not read `SD_DET`: the TF-03A drawing
+(`hro_tf_03a_lcsc_c693842.pdf` page 1) shows the detect contact closed to
+ground with a card seated, and a refusal on that level waits for a reading of
+GP22 on a board and for a Renode GPIO model that keeps a driven level under a
+pad pull-up. `INIT_US` (1 s) and `BUSY_US` (500 ms) satisfy the
 specification limits. Decided by: host (`sdspi_test`, `sdstrat_test`,
 `check-matezinho-sd` against FileSD) and Renode (`check-renode-picocalc-dump`,
 `check-renode-picocalc-sd-system`); real-card timing margins and physical

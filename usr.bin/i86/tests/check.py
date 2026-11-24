@@ -1514,7 +1514,9 @@ def test_hold_judge():
         hold_agrees(run(55, 66778, tail="x"))
     except Failure as failure:
         if "'x'" not in str(failure):
-            raise Failure("hold judge failed an unfinished run for another reason: %s" % failure)
+            raise Failure(
+                "hold judge failed an unfinished run for another reason: %s" % failure
+            ) from None
         return
     raise Failure("hold judge accepted a run that did not finish")
 

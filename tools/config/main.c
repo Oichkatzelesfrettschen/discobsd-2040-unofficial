@@ -111,6 +111,12 @@ usage:  fputs("usage: config [-gp] sysname\n", stderr);
         exit(3);
     }
 
+    if (archname == NULL) {
+        fprintf(stderr, "config: %s: missing \"architecture\" specification\n",
+            config_file);
+        exit(3);
+    }
+
     switch (arch) {
 
     case ARCH_STM32:

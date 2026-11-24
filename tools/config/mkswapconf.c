@@ -133,10 +133,14 @@ initdevtable(void)
     register struct devdescription **dp = &devtable;
     FILE *fp;
 
-    /* The parser reaches here before main() checks the architecture line. */
+    /*
+     * The parser calls here for the first root, swap or dumps device name,
+     * before main() checks the architecture line, so that line must come
+     * earlier in the file.
+     */
     if (archname == NULL) {
-        fprintf(stderr, "config: %s: missing \"architecture\" specification\n",
-            config_file);
+        fprintf(stderr, "config: %s: the \"architecture\" line must precede "
+            "the first root, swap or dumps line\n", config_file);
         exit(3);
     }
     (void)snprintf(buf, sizeof(buf), "../../conf/devices.%s", archname);

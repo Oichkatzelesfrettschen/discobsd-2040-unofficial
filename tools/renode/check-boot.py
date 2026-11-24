@@ -604,7 +604,10 @@ def check_clock_past_2038(console: Console) -> None:
         console.type_line(f"echo '{line}' >{'>' if index else ''}/tmp/d.c; echo line-end")
         console.wait_for("\nline-end", "native source line", COMMAND_BUDGET_SECONDS)
     start = console.cursor
-    console.type_line("cc -o /tmp/d /tmp/d.c && /tmp/d; echo native-end")
+    # The shell joins native''-end into native-end, a string the typed line
+    # (which holds the quote pair) never carries, so a line-editor redraw of
+    # the command cannot satisfy the wait before the compile prints.
+    console.type_line("cc -o /tmp/d /tmp/d.c && /tmp/d; echo native''-end")
     console.wait_for("\nnative-end", "program compiled on the target", NATIVE_BUDGET_SECONDS)
     output = console.text()[start:console.cursor]
     if not NATIVE_ROW.search(output):

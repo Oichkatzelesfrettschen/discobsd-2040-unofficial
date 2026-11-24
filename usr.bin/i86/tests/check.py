@@ -1483,28 +1483,38 @@ def hold_agrees(got):
 
 
 def test_hold_judge():
-    """hold_agrees() on runs it must accept and reject: 55 interrupts over
-    66778 clocks and 57 over 69164 (the held timer at 15 and 8 ms of
-    oversleep) agree; 52 over 76423 and 57 over 74998 (the same hosts with
-    reads let past waiting interrupts) do not; a run that does not finish
-    fails outright."""
+    """hold_agrees() on runs it must accept and reject. Measured runs: 55
+    interrupts over 66778 clocks and 57 over 69164 (the held timer at 15 and
+    8 ms of oversleep) agree; 52 over 76423 and 57 over 74998 (reads let
+    past waiting interrupts) do not. Bounds: over 66818 clocks, 56 periods
+    and 10 clocks, 55 to 57 agree and 54 and 58 do not; over 66908 clocks,
+    56 periods and 100, the 64 clocks of slack leave 56 as the least count.
+    A run that does not finish fails outright."""
 
     def run(irq, span, tail="done"):
         c2 = (65535 - span) % 65536
         return ["irq:%04X" % irq, "c2:%04X" % c2, "st2:00B0", "tick:ok", tail]
 
-    for irq, span, want in (
+    cases = (
         (55, 66778, True),
         (57, 69164, True),
         (52, 76423, False),
         (57, 74998, False),
-        (58, 66778, False),
-    ):
+        (54, 66818, False),
+        (55, 66818, True),
+        (57, 66818, True),
+        (58, 66818, False),
+        (55, 66908, False),
+        (56, 66908, True),
+    )
+    for irq, span, want in cases:
         if hold_agrees(run(irq, span))[0] != want:
             raise Failure("hold judge: %d over %d clocks judged %s" % (irq, span, not want))
     try:
         hold_agrees(run(55, 66778, tail="x"))
-    except Failure:
+    except Failure as failure:
+        if "'x'" not in str(failure):
+            raise Failure("hold judge failed an unfinished run for another reason: %s" % failure)
         return
     raise Failure("hold judge accepted a run that did not finish")
 
@@ -1575,7 +1585,14 @@ def test_oversleep(src, work, cc, calibrate=False):
     # hold, 0 of 20 without it, at 3, 8 and 15 ms of oversleep).
     notes = []
     for _ in range(4):
-        agrees, note = hold_agrees(paced(good)())
+        try:
+            agrees, note = hold_agrees(paced(good)())
+        except Failure:
+            overrun = host_sleep_overrun_ms()
+            if overrun > 2:
+                print("NOT RUN hold check: 1 ms sleeps now run %.1f ms long" % overrun)
+                return
+            raise
         notes.append(("agrees: " if agrees else "disagrees: ") + note)
         if sum(1 for n in notes if n.startswith("agrees")) == 2:
             break

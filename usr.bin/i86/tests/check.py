@@ -521,6 +521,10 @@ MUTANTS = [
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(0);",
         "(cf.keys != NULL || key_eof))\n\t\t\thost_exit(ems_on ? 3 : 0);",
     ),
+    # A guest read of the 8254 seeing time past waiting interrupts: the
+    # interrupt count falls out of step with counter 2 on a host whose
+    # sleeps run long (test_oversleep, hold_agrees).
+    ("pc.c", "\theld = ticks_due;\n", "\theld = 0;\n"),
 ]
 
 
@@ -1447,6 +1451,64 @@ OVERSLEEP_BAD = (
 )
 
 
+# Counter 0's count in tests/pit.asm: 1 kHz.
+PIT_PERIOD = 0x04A9
+
+# pit_view() letting a guest read see time past waiting interrupts.
+HOLD_BAD = ("pc.c", "\theld = ticks_due;\n", "\theld = 0;\n")
+
+
+def hold_agrees(got):
+    """Whether one whole run of tests/pit.asm counted the interrupts counter
+    2's latched count allows. Counter 2 counts down from FFFFh in mode 0 and
+    on through 0, so its count c2, latched right after the guest saw it
+    expire, puts the window at span = 65535 + (-c2 mod 65536) clocks, and
+    counter 0 owes floor(span / PIT_PERIOD) interrupts or one more; 64 clocks
+    of slack cover the instructions before sti and after the close. While an
+    interrupt waits, a read of counter 2 sees the time of the oldest one not
+    yet raised (pc.c pit_view()), so the guest cannot see the window close
+    with interrupts still owed; without that hold the span runs ahead of the
+    count by the host's oversleep. Returns (agrees, a note)."""
+    fields = dict(t.split(":", 1) for t in got if ":" in t)
+    try:
+        irq = int(fields["irq"], 16)
+        c2 = int(fields["c2"], 16)
+    except (KeyError, ValueError):
+        raise Failure("hold: %r" % got) from None
+    if fields.get("st2") != "00B0" or fields.get("tick") != "ok" or got[-1:] != ["done"]:
+        raise Failure("hold: %r" % got)
+    span = 65535 + (-c2) % 65536
+    agrees = (span - 64) // PIT_PERIOD <= irq <= span // PIT_PERIOD + 1
+    return agrees, "%d over %d clocks" % (irq, span)
+
+
+def test_hold_judge():
+    """hold_agrees() on runs it must accept and reject: 55 interrupts over
+    66778 clocks and 57 over 69164 (the held timer at 15 and 8 ms of
+    oversleep) agree; 52 over 76423 and 57 over 74998 (the same hosts with
+    reads let past waiting interrupts) do not; a run that does not finish
+    fails outright."""
+
+    def run(irq, span, tail="done"):
+        c2 = (65535 - span) % 65536
+        return ["irq:%04X" % irq, "c2:%04X" % c2, "st2:00B0", "tick:ok", tail]
+
+    for irq, span, want in (
+        (55, 66778, True),
+        (57, 69164, True),
+        (52, 76423, False),
+        (57, 74998, False),
+        (58, 66778, False),
+    ):
+        if hold_agrees(run(irq, span))[0] != want:
+            raise Failure("hold judge: %d over %d clocks judged %s" % (irq, span, not want))
+    try:
+        hold_agrees(run(55, 66778, tail="x"))
+    except Failure:
+        return
+    raise Failure("hold judge accepted a run that did not finish")
+
+
 def oversleep_build(src, work, cc, edits):
     """A build of the emulator's sources in src with edits, each of which
     must match exactly once; returns the binary."""
@@ -1508,8 +1570,34 @@ def test_oversleep(src, work, cc, calibrate=False):
             print("NOT RUN oversleep fixture: 1 ms sleeps now run %.1f ms long" % overrun)
             return
         raise
+    # The same build must keep its interrupt count in step with counter 2:
+    # two agreeing runs of four at most (20 of 20 single runs agree with the
+    # hold, 0 of 20 without it, at 3, 8 and 15 ms of oversleep).
+    notes = []
+    for _ in range(4):
+        agrees, note = hold_agrees(paced(good)())
+        notes.append(("agrees: " if agrees else "disagrees: ") + note)
+        if sum(1 for n in notes if n.startswith("agrees")) == 2:
+            break
+    else:
+        overrun = host_sleep_overrun_ms()
+        if overrun > 2:
+            print("NOT RUN hold check: 1 ms sleeps now run %.1f ms long" % overrun)
+            return
+        raise Failure(
+            "-S 4.77, sleeps 15 ms long: interrupts out of step with counter 2: %s"
+            % "; ".join(notes)
+        )
     if not calibrate:
         return
+    unheld = paced(oversleep_build(src, work, cc, [OVERSLEEP, HOLD_BAD]))
+    notes = [hold_agrees(unheld()) for _ in range(5)]
+    if sum(1 for agrees, _ in notes if agrees) > 1:
+        raise Failure(
+            "the hold check accepts reads past waiting interrupts: %s"
+            % "; ".join(note for _, note in notes)
+        )
+    print("hold check rejects reads past waiting interrupts: %s" % "; ".join(n for _, n in notes))
     bad = paced(oversleep_build(src, work, cc, [OVERSLEEP, OVERSLEEP_BAD]))
     counts = []
     for _ in range(5):
@@ -2058,6 +2146,7 @@ def main(argv):
             # Independent of the emulator, so once, not for every mutant.
             test_wait_draining()
             test_host_clock_judge()
+            test_hold_judge()
             test(binary, work)
             test_oversleep(src, work, cc, calibrate=True)
             print("i86 host test passed")

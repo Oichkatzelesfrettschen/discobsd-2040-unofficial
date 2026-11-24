@@ -392,7 +392,7 @@ a high-water counter in the pool.
 
 Mechanism: probes run before `init_main()` opens `swapdev`
 (`init_main.c:145`). `psramprobe()` already sets `swapdev` on success
-(`psram.c:124`). Add an SD probe after `sdprobe()` that, only while
+(`psramprobe()` in `psram.c`). Add an SD probe after `sdprobe()` that, only while
 `swapdev` still names `fl1`, initializes the card, reads the MBR and takes
 the first entry of type 0xb8 inside the card, setting `swapdev` to that
 minor. `fsutil` already writes type 0xb8 for `swap`
@@ -540,7 +540,7 @@ area. It retires the u-area hole in the minimal change.
 Cost: pool bytes, about 1 KB per swapped process (5 KB for five); estimate
 text 0.2 to 0.4 KB. The u area also costs no SD write (3 KiB of every
 image). Unverified: the in-place exchange assumes one contiguous
-three-segment extent (`vm_swap.c:419-448`) and would need a two-segment form.
+three-segment extent (`struct swap_exchange_segment` in `vm_swap.c`) and would need a two-segment form.
 
 ## Hardware case by design
 
@@ -554,7 +554,7 @@ Entries say build, defer, no or n.a., with the number that decides.
 | 4 Zero elision | No: 4 of 782 chunks zero (0.5 percent) | Defer | Measure at 512 B first (probe constant); build if zero sectors exceed the per-sector SD cost | Defer |
 | 5 Compressed writeback | Build only if 6 leaves erases above floor: 2 sectors against 5.8 | No: encode 40-90 ms (estimate) against about 1 ms PSRAM for the same image | No until SD write latency is measured | No |
 | 6 LRU writeback | Build if the per-command table shows cold images holding the pool; then highest value: converts the cold set to one write per boot; decide by compressed hot set against the 16 KB pool | No | Build: cold images to the card, hot in pool | No |
-| 7 Boot priority | n.a. | Shipped (`psram.c:124`) | Build; clamp `nswap` to 65,535 blocks; add no-swap mode | Build; PSRAM wins, SD swap partition ignored |
+| 7 Boot priority | n.a. | Shipped (`psramprobe()` in `psram.c`) | Build; clamp `nswap` to 65,535 blocks; add no-swap mode | Build; PSRAM wins, SD swap partition ignored |
 | 8 Error kills owner | Build (small; panic today on a failed program) | Build | Build, required (pull while mounted) | Build |
 | 9 SD CMD25 and alignment | n.a. | n.a. | Partition placement on an AU multiple: build (free; image extents stay 4 KiB-aligned). CMD25: defer to a card measurement; 406 sectors a compile | Partition placement only |
 | 10 SD erase or discard | n.a. | n.a. | No: Discard absent in SPI; erase costs 250 ms per partial AU | No |

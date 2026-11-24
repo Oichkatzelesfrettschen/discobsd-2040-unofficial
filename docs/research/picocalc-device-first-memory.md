@@ -298,7 +298,7 @@ gates exec spools as well as images (`swapram.c:192`, `:472`), and
 `swapram_service()` reopens admission after any evacuation request
 (`:793-796`), so one `machdep.swapram_evacuate` write would undo it. The
 bypass is a separate condition in `swapram_reserve()` alone, true while
-`swapdev` names the PSRAM (`psram.c:124` sets it before `binit()` and the
+`swapdev` names the PSRAM (`psramprobe()` in `psram.c` sets it before `binit()` and the
 swap open, `init_main.c:70,113,145`). Spools keep the pool, the codec
 workspace keeps packed-text decoding (`exec_hsaout.c:244-253`), and
 `swapram_evacuate()` finds no image to move.

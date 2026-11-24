@@ -107,8 +107,19 @@ def parse(data: bytes) -> Volume:
     if fat_sectors * bps < need:
         raise Bad(f"FAT of {fat_sectors} sectors cannot map {clusters} clusters")
     return Volume(
-        data, bps, spc, reserved, nfats, root_entries, total, fat_sectors,
-        fat_type, root_cluster, fsinfo, first_data, clusters,
+        data,
+        bps,
+        spc,
+        reserved,
+        nfats,
+        root_entries,
+        total,
+        fat_sectors,
+        fat_type,
+        root_cluster,
+        fsinfo,
+        first_data,
+        clusters,
     )
 
 

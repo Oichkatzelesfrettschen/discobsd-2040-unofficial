@@ -85,11 +85,11 @@ def module(prefix, count, body, ext_prefix=None, ext_count=0):
         out.append("\t.word\t%s_data+4" % name)
         out.append("\t.byte\t%d" % (i & 255))
         out.append("\t.word\t%s" % name)
-    out.append("\t.section\t.rodata,\"a\",%progbits")
+    out.append('\t.section\t.rodata,"a",%progbits')
     for i in range(count):
         out.append("\t.globl\t%s_f%d_str" % (prefix, i))
         out.append("%s_f%d_str:" % (prefix, i))
-        out.append("\t.asciz\t\"%s string %d\"" % (prefix, i))
+        out.append('\t.asciz\t"%s string %d"' % (prefix, i))
     out.append("\t.bss")
     out.append("\t.comm\t%s_common, 64, 4" % prefix)
     out.append("\t.lcomm\t%s_local, 16" % prefix)

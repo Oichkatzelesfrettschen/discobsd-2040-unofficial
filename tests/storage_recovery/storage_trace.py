@@ -24,10 +24,15 @@ class Domain(str, Enum):
 
 
 UNIT_BYTES = {
-    Domain.IMAGE_BYTE: 1, Domain.V7_BLOCK: 512, Domain.KERNEL_BLOCK: 1024,
-    Domain.DHARA_PAGE: 1024, Domain.DHARA_SECTOR: 1024,
-    Domain.FLASH_BYTE: 1, Domain.PROGRAM_PAGE: 256,
-    Domain.ERASE_SECTOR: 4096, Domain.DHARA_BLOCK: 8192,
+    Domain.IMAGE_BYTE: 1,
+    Domain.V7_BLOCK: 512,
+    Domain.KERNEL_BLOCK: 1024,
+    Domain.DHARA_PAGE: 1024,
+    Domain.DHARA_SECTOR: 1024,
+    Domain.FLASH_BYTE: 1,
+    Domain.PROGRAM_PAGE: 256,
+    Domain.ERASE_SECTOR: 4096,
+    Domain.DHARA_BLOCK: 8192,
 }
 
 
@@ -53,10 +58,18 @@ def byte_address(address, limit, origin=0):
     unit = UNIT_BYTES[address.domain]
     if address.offset > (limit - origin) // unit:
         raise ValueError("unit multiplication exceeds byte bound")
-    domain = Domain.FLASH_BYTE if address.domain in {
-        Domain.FLASH_BYTE, Domain.DHARA_PAGE, Domain.PROGRAM_PAGE,
-        Domain.ERASE_SECTOR, Domain.DHARA_BLOCK,
-    } else Domain.IMAGE_BYTE
+    domain = (
+        Domain.FLASH_BYTE
+        if address.domain
+        in {
+            Domain.FLASH_BYTE,
+            Domain.DHARA_PAGE,
+            Domain.PROGRAM_PAGE,
+            Domain.ERASE_SECTOR,
+            Domain.DHARA_BLOCK,
+        }
+        else Domain.IMAGE_BYTE
+    )
     return Address(domain, origin + address.offset * unit)
 
 
@@ -88,7 +101,7 @@ def decode(data, offset, width, order="little", signed=False):
     checked_range(offset, width, len(data))
     if width not in (1, 2, 3, 4) or order not in ("little", "pdp"):
         raise ValueError("unsupported persistent codec")
-    raw = data[offset:offset + width]
+    raw = data[offset : offset + width]
     if order == "pdp" and width == 3:
         raw = raw[1:] + raw[:1]
     elif order == "pdp" and width == 4:
@@ -104,9 +117,19 @@ class Fault:
     hits: int = field(default=0, init=False)
 
     def __post_init__(self):
-        if type(self.sequence) is not int or self.sequence < 1 or self.mode not in {
-            "before_error", "after_error", "short", "interrupt",
-        } or type(self.transferred) is not int or self.transferred < 0:
+        if (
+            type(self.sequence) is not int
+            or self.sequence < 1
+            or self.mode
+            not in {
+                "before_error",
+                "after_error",
+                "short",
+                "interrupt",
+            }
+            or type(self.transferred) is not int
+            or self.transferred < 0
+        ):
             raise ValueError("invalid transfer fault")
         if self.mode == "before_error" and self.transferred != 0:
             raise ValueError("failure before transfer must transfer zero bytes")
@@ -165,17 +188,29 @@ class Device:
         amount = length
         result = "complete"
         if fault:
-            if fault.transferred > length or (fault.mode == "short" and
-                                              not 0 < fault.transferred < length):
+            if fault.transferred > length or (
+                fault.mode == "short" and not 0 < fault.transferred < length
+            ):
                 raise ValueError("injection transfer count is outside the requested operation")
             fault.hits += 1
             amount, result = fault.transferred, fault.mode
         offset = address.offset
         if payload is not None:
-            self._persistent[offset:offset + amount] = payload[:amount]
-        data = bytes(self._persistent[offset:offset + amount])
-        self.events.append(Event(sequence, self.layer, kind, self.domain.value, offset, length,
-                                 self.phase, amount, result))
+            self._persistent[offset : offset + amount] = payload[:amount]
+        data = bytes(self._persistent[offset : offset + amount])
+        self.events.append(
+            Event(
+                sequence,
+                self.layer,
+                kind,
+                self.domain.value,
+                offset,
+                length,
+                self.phase,
+                amount,
+                result,
+            )
+        )
         if result == "interrupt":
             self.frozen = True
             raise Interruption(f"interrupted transfer {sequence}")

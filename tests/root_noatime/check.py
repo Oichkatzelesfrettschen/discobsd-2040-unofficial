@@ -14,10 +14,7 @@ class CheckError(RuntimeError):
 CONFIG_OPTION = 'options         "ROOT_MOUNT_FLAGS=MNT_NOATIME"'
 MAKEFILE_OPTION = "PARAM += -DROOT_MOUNT_FLAGS=MNT_NOATIME"
 READ_GUARD = "if (! (INODE_FILESYSTEM(ip)->fs_flags & MNT_NOATIME))"
-EXPLICIT_ATIME = (
-    "if (!VATTR_TIME_UNSET(vap->va_atime))\n"
-    "            ip->i_flag |= IACC;"
-)
+EXPLICIT_ATIME = "if (!VATTR_TIME_UNSET(vap->va_atime))\n            ip->i_flag |= IACC;"
 
 
 def check_tree(root: Path, overrides: dict[str, str] | None = None) -> None:
@@ -89,27 +86,21 @@ def main() -> int:
     init_main = (root / init_path).read_text()
     expect_bad(
         "ignored initial policy",
-        lambda: check_tree(
-            root, {init_path: init_main.replace("ROOT_MOUNT_FLAGS |", "0 |", 1)}
-        ),
+        lambda: check_tree(root, {init_path: init_main.replace("ROOT_MOUNT_FLAGS |", "0 |", 1)}),
     )
 
     fstab_path = "etc/fstab.rp2040"
     fstab = (root / fstab_path).read_text()
     expect_bad(
         "remount drops noatime",
-        lambda: check_tree(
-            root, {fstab_path: fstab.replace(",noaccesstime", "", 1)}
-        ),
+        lambda: check_tree(root, {fstab_path: fstab.replace(",noaccesstime", "", 1)}),
     )
 
     inode_path = "sys/kern/sys_inode.c"
     sys_inode = (root / inode_path).read_text()
     expect_bad(
         "read dirties atime",
-        lambda: check_tree(
-            root, {inode_path: sys_inode.replace(READ_GUARD, "if (1)", 1)}
-        ),
+        lambda: check_tree(root, {inode_path: sys_inode.replace(READ_GUARD, "if (1)", 1)}),
     )
 
     fio_path = "sys/kern/ufs_fio.c"

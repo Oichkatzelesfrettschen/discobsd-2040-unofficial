@@ -54,7 +54,7 @@ def run_command(command, label, cases, *, cwd=None, reject=None):
 
 
 def consumer_source():
-    return r'''#include <machine/usercopy.h>
+    return r"""#include <machine/usercopy.h>
 #include <machine/usercopy.h>
 
 _Static_assert(_Generic(&rp2040_user_span_contains,
@@ -86,7 +86,7 @@ main(void)
         0x20001000U, 1U));
     return 0;
 }
-'''
+"""
 
 
 def check(root, host_cc, output):
@@ -122,9 +122,7 @@ def check(root, host_cc, output):
     tools = {
         tool: {
             "sha256": digest(Path(tool)),
-            "version": subprocess.check_output(
-                [tool, "--version"], text=True
-            ).splitlines()[0],
+            "version": subprocess.check_output([tool, "--version"], text=True).splitlines()[0],
         }
         for tool in sorted({host[0], clang, arm})
     }
@@ -158,25 +156,30 @@ def check(root, host_cc, output):
         for label, flags, execute in profiles:
             if execute:
                 executable = workspace / (label + ".test")
-                run_command([*flags, str(consumer), "-o", str(executable)],
-                            label + ".compile", cases)
+                run_command(
+                    [*flags, str(consumer), "-o", str(executable)], label + ".compile", cases
+                )
                 run_command([str(executable)], label + ".execute", cases)
             else:
-                run_command([*flags, "-fsyntax-only", str(consumer)],
-                            label + ".compile", cases)
+                run_command([*flags, "-fsyntax-only", str(consumer)], label + ".compile", cases)
 
         original = header.read_text()
-        wrapped = original.replace(
-            "length <= upper - start", "start + length <= upper", 1
-        )
+        wrapped = original.replace("length <= upper - start", "start + length <= upper", 1)
         require(wrapped != original, "wraparound mutation is inert")
         mutant_machine = workspace / "mutant/machine"
         mutant_machine.mkdir(parents=True)
         (mutant_machine / "usercopy.h").write_text(wrapped)
         mutant = workspace / "wraparound-mutant"
         run_command(
-            [*host, *common, "-I" + str(workspace / "mutant"),
-             "-I" + str(root / "sys"), str(consumer), "-o", str(mutant)],
+            [
+                *host,
+                *common,
+                "-I" + str(workspace / "mutant"),
+                "-I" + str(root / "sys"),
+                str(consumer),
+                "-o",
+                str(mutant),
+            ],
             "wraparound-mutant.compile",
             cases,
         )
@@ -190,8 +193,14 @@ def check(root, host_cc, output):
         guard_machine.mkdir(parents=True)
         (guard_machine / "usercopy.h").write_text(unguarded)
         run_command(
-            [*host, *common, "-I" + str(workspace / "guard"),
-             "-I" + str(root / "sys"), "-fsyntax-only", str(consumer)],
+            [
+                *host,
+                *common,
+                "-I" + str(workspace / "guard"),
+                "-I" + str(root / "sys"),
+                "-fsyntax-only",
+                str(consumer),
+            ],
             "unguarded-header.compile",
             cases,
             reject=r"redefinition",

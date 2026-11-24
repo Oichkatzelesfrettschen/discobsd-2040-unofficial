@@ -40,9 +40,7 @@ def run_in_group(command: list[str], output: Path) -> int:
     group and reported as -1, which counts as rejected. A SIGINT or SIGTERM of
     this script stops the group before the script exits."""
     with output.open("wb") as stream:
-        returncode, timed_out = test_execution.run_owned(
-            command, TIMEOUT_SECONDS, stdout=stream
-        )
+        returncode, timed_out = test_execution.run_owned(command, TIMEOUT_SECONDS, stdout=stream)
     return -1 if timed_out else returncode
 
 

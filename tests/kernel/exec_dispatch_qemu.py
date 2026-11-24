@@ -22,9 +22,22 @@ _start:
     movs r7, #1
     svc #0
 """
-FLAGS = ("-std=gnu17", "-Wall", "-Wextra", "-Werror", "-Wshadow", "-Wundef",
-         "-Wformat=2", "-ffreestanding", "-fno-builtin", "-fno-strict-aliasing",
-         "-fshort-enums", "-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft")
+FLAGS = (
+    "-std=gnu17",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wshadow",
+    "-Wundef",
+    "-Wformat=2",
+    "-ffreestanding",
+    "-fno-builtin",
+    "-fno-strict-aliasing",
+    "-fshort-enums",
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-mfloat-abi=soft",
+)
 
 
 def replace_once(text, original, replacement, label):
@@ -64,26 +77,80 @@ def main():
     variants = []
     for packed in (False, True):
         define = ("-DEXEC_HSAOUT",) if packed else ()
-        variants.extend((
-            ("control", define, dispatch, table, 0),
-            ("execute-denial", define, replace_once(dispatch, denied,
-             denied.replace("return ENOEXEC", "return EACCES"), "execute denial"), table, 11),
-            ("read-failure", define, replace_once(dispatch, read_failure,
-             read_failure.replace("if (error)", "if (0 && error)"), "read failure"), table, 15),
-            ("error-continuation", define, replace_once(dispatch, continuation,
-             "i < nexecs && error != 0", "error continuation"), table, 21),
-            ("header-residual", define, replace_once(dispatch, header_length,
-             "epp->hdr_len = sizeof(epp->hdr);", "header residual"), table,
-             16 if packed else 17),
-        ))
-    variants.append(("wrong-table-target", ("-DEXEC_HSAOUT",), dispatch,
-                     replace_once(table, packed_slot, raw_slot, "packed handler"), 30))
-    variants.append(("null-table-slot", ("-DEXEC_HSAOUT", "-DNULL_TEST"), dispatch,
-                     replace_once(table, packed_slot, "{ NULL,", "null handler"), 0))
+        variants.extend(
+            (
+                ("control", define, dispatch, table, 0),
+                (
+                    "execute-denial",
+                    define,
+                    replace_once(
+                        dispatch,
+                        denied,
+                        denied.replace("return ENOEXEC", "return EACCES"),
+                        "execute denial",
+                    ),
+                    table,
+                    11,
+                ),
+                (
+                    "read-failure",
+                    define,
+                    replace_once(
+                        dispatch,
+                        read_failure,
+                        read_failure.replace("if (error)", "if (0 && error)"),
+                        "read failure",
+                    ),
+                    table,
+                    15,
+                ),
+                (
+                    "error-continuation",
+                    define,
+                    replace_once(
+                        dispatch, continuation, "i < nexecs && error != 0", "error continuation"
+                    ),
+                    table,
+                    21,
+                ),
+                (
+                    "header-residual",
+                    define,
+                    replace_once(
+                        dispatch,
+                        header_length,
+                        "epp->hdr_len = sizeof(epp->hdr);",
+                        "header residual",
+                    ),
+                    table,
+                    16 if packed else 17,
+                ),
+            )
+        )
+    variants.append(
+        (
+            "wrong-table-target",
+            ("-DEXEC_HSAOUT",),
+            dispatch,
+            replace_once(table, packed_slot, raw_slot, "packed handler"),
+            30,
+        )
+    )
+    variants.append(
+        (
+            "null-table-slot",
+            ("-DEXEC_HSAOUT", "-DNULL_TEST"),
+            dispatch,
+            replace_once(table, packed_slot, "{ NULL,", "null handler"),
+            0,
+        )
+    )
     dispatch_hash = hashlib.sha256(dispatch_source.encode()).hexdigest()
     table_hash = hashlib.sha256(table_source.encode()).hexdigest()
-    print(f"exec-dispatch: kern_exec.c sha256={dispatch_hash} exec_conf.c sha256={table_hash}",
-          flush=True)
+    print(
+        f"exec-dispatch: kern_exec.c sha256={dispatch_hash} exec_conf.c sha256={table_hash}",
+        flush=True,
+    )
     compilers = [(gcc,) for gcc in args.gcc] + [(args.clang, "--target=arm-none-eabi")]
     with tempfile.TemporaryDirectory(prefix="gizmobsd-exec-dispatch-") as temporary:
         directory = Path(temporary)
@@ -93,8 +160,18 @@ def main():
         startup = directory / "start.S"
         startup.write_text(START, encoding="utf-8")
         start_obj = directory / "start.o"
-        subprocess.run([args.gcc[0], "-mcpu=cortex-m0plus", "-mthumb", "-c", str(startup),
-                        "-o", str(start_obj)], check=True)
+        subprocess.run(
+            [
+                args.gcc[0],
+                "-mcpu=cortex-m0plus",
+                "-mthumb",
+                "-c",
+                str(startup),
+                "-o",
+                str(start_obj),
+            ],
+            check=True,
+        )
         for compiler in compilers:
             for level in LEVELS:
                 for name, defines, body, selected_table, expected in variants:
@@ -103,19 +180,49 @@ def main():
                     fixture_path = directory / "fixture.c"
                     fixture_path.write_text(source, encoding="utf-8")
                     obj, binary = directory / "fixture.o", directory / "fixture"
-                    subprocess.run([*compiler, *FLAGS, f"-{level}", *defines,
-                                    "-I", str(directory), "-I", str(ROOT / "sys"),
-                                    "-c", str(fixture_path),
-                                    "-o", str(obj)], check=True)
-                    subprocess.run([args.gcc[0], "-mcpu=cortex-m0plus", "-mthumb", "-nostdlib",
-                                    "-static", "-Wl,--build-id=none", "-Wl,-z,noexecstack",
-                                    "-Wl,--fatal-warnings", "-Wl,-Ttext=0x20000",
-                                    str(start_obj), str(obj), "-o", str(binary)], check=True)
-                    result = subprocess.run([args.qemu, "-cpu", "cortex-m0", str(binary)],
-                                            check=False, timeout=30)
+                    subprocess.run(
+                        [
+                            *compiler,
+                            *FLAGS,
+                            f"-{level}",
+                            *defines,
+                            "-I",
+                            str(directory),
+                            "-I",
+                            str(ROOT / "sys"),
+                            "-c",
+                            str(fixture_path),
+                            "-o",
+                            str(obj),
+                        ],
+                        check=True,
+                    )
+                    subprocess.run(
+                        [
+                            args.gcc[0],
+                            "-mcpu=cortex-m0plus",
+                            "-mthumb",
+                            "-nostdlib",
+                            "-static",
+                            "-Wl,--build-id=none",
+                            "-Wl,-z,noexecstack",
+                            "-Wl,--fatal-warnings",
+                            "-Wl,-Ttext=0x20000",
+                            str(start_obj),
+                            str(obj),
+                            "-o",
+                            str(binary),
+                        ],
+                        check=True,
+                    )
+                    result = subprocess.run(
+                        [args.qemu, "-cpu", "cortex-m0", str(binary)], check=False, timeout=30
+                    )
                     if result.returncode != expected:
-                        raise ValueError(f"{compiler} -{level} {name}: exit {result.returncode}, "
-                                         f"expected {expected}")
+                        raise ValueError(
+                            f"{compiler} -{level} {name}: exit {result.returncode}, "
+                            f"expected {expected}"
+                        )
             print(f"PASS exec-dispatch: {compiler} controls and mutants", flush=True)
     return 0
 

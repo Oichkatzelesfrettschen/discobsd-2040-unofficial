@@ -229,18 +229,21 @@ def check_callers(root, compiler, work, execute=False):
         fixture = case / "fixture.c"
         obj = case / "fixture.o"
         linkage = "static " if name in {"cmp_sc", "SortCompareProc"} else ""
-        prefix = (f"{linkage}int {name}(const void *, const void *);\n"
-                  "#define main caller_program_main\n")
+        prefix = (
+            f"{linkage}int {name}(const void *, const void *);\n#define main caller_program_main\n"
+        )
         suffix = "\n#undef main\nint main(void)\n{\n" + body + "}\n"
         text = original.read_text()
         fixture.write_text(prefix + '#include "' + str(original) + '"\n' + suffix)
         run(command + ["-c", str(fixture), "-o", str(obj)])
         # The incompatible declaration conflicts with the real callback type.
         damaged = case / original.name
-        incompatible = (prefix.replace("int " + name, "void " + name) if linkage
-                        else prefix.replace("const void *", "void *"))
-        fixture.write_text(incompatible +
-                           '#include "' + str(original) + '"\n' + suffix)
+        incompatible = (
+            prefix.replace("int " + name, "void " + name)
+            if linkage
+            else prefix.replace("const void *", "void *")
+        )
+        fixture.write_text(incompatible + '#include "' + str(original) + '"\n' + suffix)
         run(command + ["-c", str(fixture), "-o", str(case / "bad.o")], reject=name)
         print("qsort caller type and incompatible control: " + path)
         if execute:

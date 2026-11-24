@@ -59,8 +59,10 @@ class CompensationTest(unittest.TestCase):
                 image = self.images[order, blocks]
                 old = verify(image, order)
                 for directory in (False, True):
+
                     def operation(backend, directory=directory):
                         return backend.create("new", directory)
+
                     result, successful, events = self.run_operation(image, order, operation)
                     self.assertEqual(result, 0)
                     self.assertIn("/new", verify(successful, order).namespace)
@@ -68,12 +70,17 @@ class CompensationTest(unittest.TestCase):
                         if event.kind != "write":
                             continue
                         for mode, amount in (("before_error", 0), ("after_error", event.length)):
-                            with self.subTest(order=order, parent_blocks=blocks,
-                                              directory=directory,
-                                              sequence=event.sequence, mode=mode):
+                            with self.subTest(
+                                order=order,
+                                parent_blocks=blocks,
+                                directory=directory,
+                                sequence=event.sequence,
+                                mode=mode,
+                            ):
                                 fault = Fault(event.sequence, mode, amount)
                                 result, persistent, _events = self.run_operation(
-                                    image, order, operation, fault)
+                                    image, order, operation, fault
+                                )
                                 self.assertEqual(result, errno.EIO, "injected error must propagate")
                                 self.assertEqual(verify(persistent, order), old)
                                 self.check_reopen_and_continue(persistent, order)
@@ -82,8 +89,10 @@ class CompensationTest(unittest.TestCase):
         for order in ("little", "pdp"):
             image = self.images[order, 0]
             old = verify(image, order)
+
             def operation(backend):
                 return backend.link("seed", "alias")
+
             result, successful, events = self.run_operation(image, order, operation)
             self.assertEqual(result, 0)
             self.assertIn("/alias", verify(successful, order).namespace)
@@ -93,7 +102,8 @@ class CompensationTest(unittest.TestCase):
                 for mode, amount in (("before_error", 0), ("after_error", event.length)):
                     with self.subTest(order=order, sequence=event.sequence, mode=mode):
                         result, persistent, _events = self.run_operation(
-                            image, order, operation, Fault(event.sequence, mode, amount))
+                            image, order, operation, Fault(event.sequence, mode, amount)
+                        )
                         self.assertEqual(result, errno.EIO, "hard-link write error was hidden")
                         self.assertEqual(verify(persistent, order), old)
 
@@ -102,20 +112,29 @@ class CompensationTest(unittest.TestCase):
         for order in ("little", "pdp"):
             image = self.images[order, 1]
             for directory in (False, True):
+
                 def operation(backend, directory=directory):
                     return backend.create("new", directory)
+
                 _result, _successful, events = self.run_operation(image, order, operation)
                 first = [event for event in events if event.kind == "write"][-1]
                 _result, _persistent, cleanup = self.run_operation(
-                    image, order, operation, Fault(first.sequence, "after_error", first.length))
-                compensation = [event for event in cleanup if event.kind == "write" and
-                                event.phase == "compensation"]
+                    image, order, operation, Fault(first.sequence, "after_error", first.length)
+                )
+                compensation = [
+                    event
+                    for event in cleanup
+                    if event.kind == "write" and event.phase == "compensation"
+                ]
                 self.assertGreater(len(compensation), 0)
                 for event in compensation:
-                    device = Device(image, faults=[
-                        Fault(first.sequence, "after_error", first.length),
-                        Fault(event.sequence, "before_error", 0),
-                    ])
+                    device = Device(
+                        image,
+                        faults=[
+                            Fault(first.sequence, "after_error", first.length),
+                            Fault(event.sequence, "before_error", 0),
+                        ],
+                    )
                     backend = Backend(self.library, device, order)
                     self.assertEqual(backend.mount(), 0)
                     result = operation(backend)
@@ -160,8 +179,11 @@ class CompensationTest(unittest.TestCase):
                     for amount in range(event.length + 1):
                         with self.subTest(sequence=event.sequence, transferred=amount):
                             result, persistent, _events = self.run_operation(
-                                initial, order, operation,
-                                Fault(event.sequence, "after_error", amount))
+                                initial,
+                                order,
+                                operation,
+                                Fault(event.sequence, "after_error", amount),
+                            )
                             self.assertEqual(result, errno.EIO)
                             report = verify(persistent, order)
                             self.assertEqual(report.namespace, old.namespace)
@@ -172,8 +194,9 @@ class CompensationTest(unittest.TestCase):
                             self.assertEqual(report.free_inodes, old.free_inodes)
                             self.check_reopen_and_continue(persistent, order)
 
-                            device = Device(initial, faults=[
-                                Fault(event.sequence, "interrupt", amount)])
+                            device = Device(
+                                initial, faults=[Fault(event.sequence, "interrupt", amount)]
+                            )
                             backend = Backend(self.library, device, order)
                             try:
                                 self.assertEqual(backend.mount(), 0)
@@ -186,8 +209,13 @@ class CompensationTest(unittest.TestCase):
                             persistent = device.export()
                             try:
                                 report = verify(persistent, order)
-                                category = ("old" if report == old else
-                                            "new" if report == new else "other-valid")
+                                category = (
+                                    "old"
+                                    if report == old
+                                    else "new"
+                                    if report == new
+                                    else "other-valid"
+                                )
                             except ValueError:
                                 category = "invalid"
                             interruptions[category] += 1
@@ -199,8 +227,11 @@ class CompensationTest(unittest.TestCase):
                                 finally:
                                     reopened.close()
         self.assertGreater(interruptions["invalid"], 0)
-        print(json.dumps({"rename_complete_prefix_interruptions": dict(interruptions)},
-                         sort_keys=True))
+        print(
+            json.dumps(
+                {"rename_complete_prefix_interruptions": dict(interruptions)}, sort_keys=True
+            )
+        )
 
     def test_replacement_rename_caller_reclaims_displaced_inode(self):
         for order in ("little", "pdp"):
@@ -244,8 +275,8 @@ class CompensationTest(unittest.TestCase):
                 for amount in (0, event.length):
                     with self.subTest(order=order, sequence=event.sequence, amount=amount):
                         result, persistent, _events = self.run_operation(
-                            initial, order, operation,
-                            Fault(event.sequence, "after_error", amount))
+                            initial, order, operation, Fault(event.sequence, "after_error", amount)
+                        )
                         self.assertEqual(result, errno.EIO)
                         report = verify(persistent, order)
                         self.assertEqual(report.namespace, old.namespace)
@@ -273,17 +304,23 @@ class CompensationTest(unittest.TestCase):
             self.assertEqual(result, 0)
             for first in (event for event in events if event.kind == "write"):
                 _result, _persistent, cleanup = self.run_operation(
-                    initial, order, operation,
-                    Fault(first.sequence, "after_error", first.length))
-                compensation = [event for event in cleanup if event.kind == "write"
-                                and event.phase == "compensation"]
+                    initial, order, operation, Fault(first.sequence, "after_error", first.length)
+                )
+                compensation = [
+                    event
+                    for event in cleanup
+                    if event.kind == "write" and event.phase == "compensation"
+                ]
                 self.assertGreater(len(compensation), 0)
                 for second in compensation:
                     with self.subTest(order=order, first=first.sequence, second=second.sequence):
-                        device = Device(initial, faults=[
-                            Fault(first.sequence, "after_error", first.length),
-                            Fault(second.sequence, "before_error", 0),
-                        ])
+                        device = Device(
+                            initial,
+                            faults=[
+                                Fault(first.sequence, "after_error", first.length),
+                                Fault(second.sequence, "before_error", 0),
+                            ],
+                        )
                         backend = Backend(self.library, device, order)
                         try:
                             self.assertEqual(backend.mount(), 0)
@@ -292,16 +329,16 @@ class CompensationTest(unittest.TestCase):
                         finally:
                             backend.close()
                         device.verify_injections()
-                        self.assertEqual(device.events[second.sequence - 1].phase,
-                                         "compensation")
+                        self.assertEqual(device.events[second.sequence - 1].phase, "compensation")
                         try:
                             verify(device.export(), order)
                             dispositions["reader-valid inspection state"] += 1
                         except ValueError:
                             dispositions["reader-rejected inspection state"] += 1
         self.assertGreater(dispositions["reader-rejected inspection state"], 0)
-        print(json.dumps({"rename_second_failure_dispositions": dict(dispositions)},
-                         sort_keys=True))
+        print(
+            json.dumps({"rename_second_failure_dispositions": dict(dispositions)}, sort_keys=True)
+        )
 
 
 if __name__ == "__main__":

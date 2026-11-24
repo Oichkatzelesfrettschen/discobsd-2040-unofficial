@@ -207,8 +207,6 @@ GROUPS = {
 }
 
 
-
-
 class OracleError(Exception):
     pass
 

@@ -16,17 +16,28 @@ class ContractError(Exception):
 # Each mutant changes the generated decoder or its tables in one place and
 # has to make the harness fail; a harness that accepts one is blind.
 MUTANTS = (
-    ("rule-halves-swapped", "end = errno_message_expand(end, rule[0]);\n"
-     "        symbol = rule[1];", "end = errno_message_expand(end, rule[1]);\n"
-     "        symbol = rule[0];"),
+    (
+        "rule-halves-swapped",
+        "end = errno_message_expand(end, rule[0]);\n        symbol = rule[1];",
+        "end = errno_message_expand(end, rule[1]);\n        symbol = rule[0];",
+    ),
     ("first-half-dropped", "        end = errno_message_expand(end, rule[0]);\n", ""),
     ("terminator-missing", "    *end++ = 0;\n", "    end++;\n"),
-    ("length-without-terminator", "return (u_int)(end - buffer);",
-     "return (u_int)(end - buffer) - 1;"),
-    ("range-check-off-by-one", "if (error >= ERRNO_MESSAGE_COUNT)",
-     "if (error > ERRNO_MESSAGE_COUNT)"),
-    ("first-rule-altered", "errno_message_rules[128][2] = {\n    {",
-     "errno_message_rules[128][2] = {\n    {1 + "),
+    (
+        "length-without-terminator",
+        "return (u_int)(end - buffer);",
+        "return (u_int)(end - buffer) - 1;",
+    ),
+    (
+        "range-check-off-by-one",
+        "if (error >= ERRNO_MESSAGE_COUNT)",
+        "if (error > ERRNO_MESSAGE_COUNT)",
+    ),
+    (
+        "first-rule-altered",
+        "errno_message_rules[128][2] = {\n    {",
+        "errno_message_rules[128][2] = {\n    {1 + ",
+    ),
 )
 
 
@@ -69,10 +80,20 @@ def run(directory: Path, host_cc: str, source: str, main: str) -> int:
     (directory / "main.c").write_text(main)
     program = directory / "errmsg"
     subprocess.run(
-        [*shlex.split(host_cc), "-std=c17", "-Wall", "-Wextra", "-Werror",
-         "-fsanitize=address,undefined",
-         "-fno-sanitize-recover=all", f"-I{directory}", "-o", str(program),
-         str(directory / "errlist.c"), str(directory / "main.c")],
+        [
+            *shlex.split(host_cc),
+            "-std=c17",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            f"-I{directory}",
+            "-o",
+            str(program),
+            str(directory / "errlist.c"),
+            str(directory / "main.c"),
+        ],
         check=True,
     )
     return subprocess.run([str(program)], check=False, capture_output=True).returncode
@@ -96,12 +117,12 @@ def check(root: Path, host_cc: str) -> str:
         (directory / "sys").mkdir()
         # The generated file includes three kernel headers; the harness
         # supplies the four names it takes from them.
-        (directory / "sys/param.h").write_text(
-            "#include <stdint.h>\ntypedef unsigned int u_int;\n")
+        (directory / "sys/param.h").write_text("#include <stdint.h>\ntypedef unsigned int u_int;\n")
         (directory / "sys/errno.h").write_text(f"#define ELAST {last_match.group(1)}\n")
         (directory / "sys/systm.h").write_text(
             f"#include <sys/param.h>\n#define KERNEL_ERRMSG_MAX {limit}\n"
-            "u_int kernel_errmsg(u_int error, char *buffer);\n")
+            "u_int kernel_errmsg(u_int error, char *buffer);\n"
+        )
         main = harness(expected, limit)
         status = run(directory, host_cc, source, main)
         if status != 0:
@@ -111,8 +132,9 @@ def check(root: Path, host_cc: str) -> str:
                 raise ContractError(f"mutant {label} does not apply exactly once")
             if run(directory, host_cc, source.replace(old, new), main) == 0:
                 raise ContractError(f"mutant {label} passed")
-    return (f"PASS errno message contracts: {len(expected)} messages, "
-            f"{len(MUTANTS)} mutants rejected")
+    return (
+        f"PASS errno message contracts: {len(expected)} messages, {len(MUTANTS)} mutants rejected"
+    )
 
 
 def main() -> int:

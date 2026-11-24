@@ -97,9 +97,7 @@ def main() -> None:
     source = source_path.read_text()
     for before, after in replacements:
         source = replace_once(source, before, after, arguments.mutation)
-    arguments.output.write_text(
-        source
-    )
+    arguments.output.write_text(source)
 
 
 if __name__ == "__main__":

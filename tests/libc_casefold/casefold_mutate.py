@@ -6,10 +6,16 @@ from pathlib import Path
 source = Path(sys.argv[1]).read_text()
 output = Path(sys.argv[2])
 mutations = {
-    "high_bytes": ("byte >= 'A' && byte <= 'Z'",
-                   "(byte >= 'A' && byte <= 'Z') || (byte >= 193 && byte <= 218)", 1),
-    "signed_order": ("(int)left_byte - (int)right_byte",
-                     "(signed char)left_byte - (signed char)right_byte", 2),
+    "high_bytes": (
+        "byte >= 'A' && byte <= 'Z'",
+        "(byte >= 'A' && byte <= 'Z') || (byte >= 193 && byte <= 218)",
+        1,
+    ),
+    "signed_order": (
+        "(int)left_byte - (int)right_byte",
+        "(signed char)left_byte - (signed char)right_byte",
+        2,
+    ),
     "count_early": ("while (length != 0)", "while (length > 1)", 1),
     "errno_loss": ("return byte;", "errno = EINVAL;\n\treturn byte;", 1),
 }

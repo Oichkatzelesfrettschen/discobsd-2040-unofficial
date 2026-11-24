@@ -4,22 +4,14 @@ import sys
 from pathlib import Path
 
 MUTATIONS = {
-    "directory_type": (
-        "if (!S_ISDIR(status.st_mode))", "if (0)"
-    ),
-    "close_on_exec": (
-        "if (fcntl(descriptor, F_SETFD, FD_CLOEXEC) == -1)", "if (0)"
-    ),
+    "directory_type": ("if (!S_ISDIR(status.st_mode))", "if (0)"),
+    "close_on_exec": ("if (fcntl(descriptor, F_SETFD, FD_CLOEXEC) == -1)", "if (0)"),
     "fcntl_error_loss": (
         "if (fcntl(descriptor, F_SETFD, FD_CLOEXEC) == -1)",
         "if (fcntl(descriptor, F_SETFD, FD_CLOEXEC) == 2)",
     ),
-    "descriptor_cleanup": (
-        "(void)close(descriptor);", "(void)descriptor;"
-    ),
-    "cleanup_errno_loss": (
-        "errno = saved_errno;", "(void)saved_errno;"
-    ),
+    "descriptor_cleanup": ("(void)close(descriptor);", "(void)descriptor;"),
+    "cleanup_errno_loss": ("errno = saved_errno;", "(void)saved_errno;"),
 }
 
 

@@ -30,25 +30,31 @@ def main():
         raw, packed = directory / "raw", directory / "packed"
         text = bytes((index * 7) & 255 for index in range(1024))
         data = bytes((index * 11) & 255 for index in range(177))
-        raw.write_bytes(struct.pack("<8I", 0o407, len(text), len(data), 0, 0, 0, 0,
-                                    0x20000001) + text + data)
+        raw.write_bytes(
+            struct.pack("<8I", 0o407, len(text), len(data), 0, 0, 0, 0, 0x20000001) + text + data
+        )
         subprocess.run([str(tool), "-c", str(raw), str(packed)], check=True)
         result = geometry.inspect(packed, raw, tool, 17)
         expected_text = (result["packed_text_bytes"] + 16) // 17
         expected_data = (result["packed_data_bytes"] + 16) // 17
         fills_per_pass = expected_text + expected_data
-        if (result["packed_stream_fill_calls_per_pass"] != fills_per_pass or
-                result["packed_stream_fill_calls_two_passes"] != 2 * fills_per_pass or
-                result["expanded_crc_bytes_two_passes"] != 2 * (len(text) + len(data)) or
-                result["raw_body_rdwri_calls"] != 1):
+        if (
+            result["packed_stream_fill_calls_per_pass"] != fills_per_pass
+            or result["packed_stream_fill_calls_two_passes"] != 2 * fills_per_pass
+            or result["expanded_crc_bytes_two_passes"] != 2 * (len(text) + len(data))
+            or result["raw_body_rdwri_calls"] != 1
+        ):
             raise AssertionError("packed-exec work geometry differs from the source contract")
         compressed_text, compressed_data = struct.unpack_from(
-            "<II", packed.read_bytes(), 32 + 6 * 4)
+            "<II", packed.read_bytes(), 32 + 6 * 4
+        )
         workload = geometry.inspect(packed, raw, tool, 17, execs=2, restores=3)["workload"]
-        if (workload["packed_body_bytes"] != 7 * compressed_text + 4 * compressed_data or
-                workload["raw_body_bytes"] != 5 * len(text) + 2 * len(data) or
-                workload["packed_expanded_crc_bytes"] != 7 * len(text) + 4 * len(data) or
-                workload["packed_fill_calls"] != 7 * expected_text + 4 * expected_data):
+        if (
+            workload["packed_body_bytes"] != 7 * compressed_text + 4 * compressed_data
+            or workload["raw_body_bytes"] != 5 * len(text) + 2 * len(data)
+            or workload["packed_expanded_crc_bytes"] != 7 * len(text) + 4 * len(data)
+            or workload["packed_fill_calls"] != 7 * expected_text + 4 * expected_data
+        ):
             raise ValueError("clean text restoration must charge text alone")
         reject(lambda: geometry.inspect(packed, raw, tool, 17, restores=-1), "negative restores")
         reject(lambda: geometry.inspect(packed, raw, tool, 0), "zero stage size")

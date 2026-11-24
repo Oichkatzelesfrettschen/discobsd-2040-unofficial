@@ -30,8 +30,7 @@ def main():
         if not condition:
             failures.append(f"{name}: {detail}")
 
-    def case(name, arguments, expected_output, expected_status=0,
-             diagnostic=False):
+    def case(name, arguments, expected_output, expected_status=0, diagnostic=False):
         result = run_printf(program, *arguments)
         check(
             f"{name} output",

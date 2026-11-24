@@ -199,8 +199,14 @@ def _make_probe_program(probe):
         shutil.copyfile(sleeper, bc)
         os.chmod(bc, 0o755)
         try:
-            ran = subprocess.run([bc, "0"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL, timeout=10.0, check=False)
+            ran = subprocess.run(
+                [bc, "0"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10.0,
+                check=False,
+            )
             if ran.returncode == 0:
                 return bc
         except (OSError, subprocess.TimeoutExpired):
@@ -214,8 +220,13 @@ def _make_probe_program(probe):
     source = os.path.join(probe, "bc.c")
     with open(source, "w", encoding="ascii") as handle:
         handle.write(PROBE_SOURCE)
-    built = subprocess.run([*compiler, "-o", bc, source], stdin=subprocess.DEVNULL,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    built = subprocess.run(
+        [*compiler, "-o", bc, source],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
     return bc if built.returncode == 0 and os.path.exists(bc) else None
 
 
@@ -225,8 +236,10 @@ def selftest(work):
     os.makedirs(probe)
     bc = _make_probe_program(probe)
     if bc is None:
-        print("SKIP dcbc process groups: no sleep program that runs under another name "
-              "and no C compiler to build one; no scan was calibrated")
+        print(
+            "SKIP dcbc process groups: no sleep program that runs under another name "
+            "and no C compiler to build one; no scan was calibrated"
+        )
         return 0
     # The shell is the direct child; bc is its background child.
     command = ["sh", "-c", '"$0" 300 & wait', bc]
@@ -252,19 +265,25 @@ def selftest(work):
 
     legacy_left = _terminated_driver_leaves(probe, "legacy", command)
     if not legacy_left:
-        print("FAIL dcbc process groups: the scan missed the group that outlived a SIGTERM "
-              "of the detached launch")
+        print(
+            "FAIL dcbc process groups: the scan missed the group that outlived a SIGTERM "
+            "of the detached launch"
+        )
         return 1
     owned_left = _terminated_driver_leaves(probe, "owned", command)
     if owned_left is None:
         print("FAIL dcbc process groups: the run_group driver never started its case")
         return 1
     if owned_left:
-        print("FAIL dcbc process groups: SIGTERM of the run_group caller left "
-              "%d process(es) running" % len(owned_left))
+        print(
+            "FAIL dcbc process groups: SIGTERM of the run_group caller left "
+            "%d process(es) running" % len(owned_left)
+        )
         return 1
-    print("PASS dcbc process groups: single-child kill leaves an orphan, run_group leaves none, "
-          "and SIGTERM of the caller leaves none where the detached launch leaves one")
+    print(
+        "PASS dcbc process groups: single-child kill leaves an orphan, run_group leaves none, "
+        "and SIGTERM of the caller leaves none where the detached launch leaves one"
+    )
     return 0
 
 

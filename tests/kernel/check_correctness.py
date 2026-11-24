@@ -125,8 +125,14 @@ def build(work, suite, changes):
             # select1() is the unit under test; rwuio() is linked but never
             # called, so its setjmp() resolves to the same stub as newproc()'s.
             extra += ["-include", str(TESTS / "itimer_setjmp.h")]
-        if name in ("kern_prot.c", "kern_prot2.c", "kern_proc.c", "kern_resource.c",
-                    "kern_time.c", "vm_sched.c"):
+        if name in (
+            "kern_prot.c",
+            "kern_prot2.c",
+            "kern_proc.c",
+            "kern_resource.c",
+            "kern_time.c",
+            "vm_sched.c",
+        ):
             extra += ["-Wstrict-prototypes", "-Wold-style-definition"]
         obj = work / (name + ".o")
         run(CC + common + includes + extra + ["-c", str(source), "-o", str(obj)])
@@ -176,9 +182,7 @@ def ilp32_supported(base):
     probe = base / "ilp32-probe.c"
     probe.write_text("int main(void) { return sizeof(long) == 4 ? 0 : 1; }\n")
     binary = base / "ilp32-probe"
-    built = subprocess.run(
-        CC + ILP32_FLAGS + [str(probe), "-o", str(binary)], capture_output=True
-    )
+    built = subprocess.run(CC + ILP32_FLAGS + [str(probe), "-o", str(binary)], capture_output=True)
     return built.returncode == 0 and subprocess.run([str(binary)]).returncode == 0
 
 
@@ -852,8 +856,10 @@ def main():
             "synch",
             {
                 "vmmeter.h": vmrate_narrowing(),
-                "vm_sched.c": ("typedef u_int vm_event_count_t;",
-                               "typedef u_short vm_event_count_t;"),
+                "vm_sched.c": (
+                    "typedef u_int vm_event_count_t;",
+                    "typedef u_short vm_event_count_t;",
+                ),
             },
             True,
         ),
@@ -861,9 +867,11 @@ def main():
             "skip-vm-meter-field",
             "synch",
             {
-                "vm_sched.c": ("        meter_event(events, average, total_events);",
-                               "        if (slot != 7)\n"
-                               "            meter_event(events, average, total_events);"),
+                "vm_sched.c": (
+                    "        meter_event(events, average, total_events);",
+                    "        if (slot != 7)\n"
+                    "            meter_event(events, average, total_events);",
+                ),
             },
             True,
         ),
@@ -886,11 +894,14 @@ def main():
             expected = 1 if negative else 0
             if result.returncode != expected:
                 raise RuntimeError(label + ": unexpected result\n" + result.stdout + result.stderr)
-            assertion = {"narrow-vm-counters": "sum.v_swtch ==",
-                         "skip-vm-meter-field": "sum.v_kbout =="}.get(label)
+            assertion = {
+                "narrow-vm-counters": "sum.v_swtch ==",
+                "skip-vm-meter-field": "sum.v_kbout ==",
+            }.get(label)
             if assertion and assertion not in result.stdout + result.stderr:
-                raise RuntimeError(label + ": missing expected assertion\n"
-                                   + result.stdout + result.stderr)
+                raise RuntimeError(
+                    label + ": missing expected assertion\n" + result.stdout + result.stderr
+                )
             print(
                 label
                 + ": "

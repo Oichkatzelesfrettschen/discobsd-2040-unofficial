@@ -641,8 +641,8 @@ def remainder_cases():
     while len(operands) < 70:
         sa = rng.randrange(0, 6)
         sb = rng.randrange(0, 4)
-        a = str(rng.randrange(1, 10**rng.randrange(1, 6)))
-        b = str(rng.randrange(1, 10**rng.randrange(1, 4)))
+        a = str(rng.randrange(1, 10 ** rng.randrange(1, 6)))
+        b = str(rng.randrange(1, 10 ** rng.randrange(1, 4)))
         if sa:
             a = a.rjust(sa + 1, "0")
             a = a[:-sa] + "." + a[-sa:]
@@ -690,9 +690,7 @@ def remainder_cases():
             expect=".005\n.005\n1.23\n.005\n",
         )
     )
-    cases.append(
-        _case("bc", "mod_fraction_scale", "scale=2\n1.235%1\n", expect=".005\n")
-    )
+    cases.append(_case("bc", "mod_fraction_scale", "scale=2\n1.235%1\n", expect=".005\n"))
     return cases
 
 

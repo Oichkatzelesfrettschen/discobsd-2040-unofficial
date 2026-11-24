@@ -14,8 +14,9 @@ CHECK = Path(__file__).with_name("assert_check.py")
 class AssertionOracleTest(unittest.TestCase):
     def run_check(self, compiler):
         environment = dict(os.environ, HOSTCC=compiler, PYTHONOPTIMIZE="1")
-        return subprocess.run([sys.executable, str(CHECK)], env=environment,
-                              capture_output=True, text=True)
+        return subprocess.run(
+            [sys.executable, str(CHECK)], env=environment, capture_output=True, text=True
+        )
 
     def test_optimized_python_accepts_correct_contract(self):
         result = self.run_check(os.environ.get("HOSTCC", "cc"))
@@ -26,14 +27,14 @@ class AssertionOracleTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="assert-oracle-") as directory:
             wrapper = Path(directory) / "compiler.sh"
             wrapper.write_text(
-                '#!/bin/sh\nset -eu\n'
-                'for argument do\n'
+                "#!/bin/sh\nset -eu\n"
+                "for argument do\n"
                 '  case "$argument" in\n'
-                '    */static_assert_false.c)\n'
+                "    */static_assert_false.c)\n"
                 '      echo "gizmobsd false constant" >&2\n'
-                '      exit 0 ;;\n'
-                '  esac\n'
-                'done\n'
+                "      exit 0 ;;\n"
+                "  esac\n"
+                "done\n"
                 'exec "$@"\n',
                 encoding="utf-8",
             )

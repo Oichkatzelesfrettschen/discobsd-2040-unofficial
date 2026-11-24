@@ -62,13 +62,15 @@ def check_source(text):
     names = re.findall(r"^\s*\.word\s+(\w+)", table, re.MULTILINE)
     # The source leaves the two words tools/kernsum stamps as zero.
     if tuple(None if name == "0" else name for name in names) != tuple(
-            None if slot in IDENTITY else slot for slot in SLOTS):
+        None if slot in IDENTITY else slot for slot in SLOTS
+    ):
         raise ValueError("source vector slots differ from the verifier contract")
 
 
 def run(path, expected, diagnostic=None):
-    result = subprocess.run([sys.executable, str(CHECKER), str(path)],
-                            text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        [sys.executable, str(CHECKER), str(path)], text=True, capture_output=True, check=False
+    )
     if result.returncode != expected:
         raise AssertionError(f"vector checker exit {result.returncode}: {result.stderr}")
     if diagnostic is not None and diagnostic not in result.stderr:
@@ -76,8 +78,9 @@ def run(path, expected, diagnostic=None):
 
 
 def kernsum(arguments, expected, diagnostic=None, program=KERNSUM):
-    result = subprocess.run([str(program), *map(str, arguments)],
-                            text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        [str(program), *map(str, arguments)], text=True, capture_output=True, check=False
+    )
     if result.returncode != expected:
         raise AssertionError(f"kernsum {arguments} exit {result.returncode}: {result.stderr}")
     if diagnostic is not None and diagnostic not in result.stderr:
@@ -106,13 +109,17 @@ def hex_image(path, base):
 def check_kernsum(kernel, original, elf, directory):
     """Hold tools/kernsum to its contract on the linked kernel."""
     kernsum(["-c", kernel], 0)
-    load = next(segment.header for segment in elf.iter_segments()
-                if segment.header.p_type == "PT_LOAD"
-                and segment.header.p_paddr <= IDENTITY_WORDS
-                < segment.header.p_paddr + segment.header.p_filesz)
+    load = next(
+        segment.header
+        for segment in elf.iter_segments()
+        if segment.header.p_type == "PT_LOAD"
+        and segment.header.p_paddr
+        <= IDENTITY_WORDS
+        < segment.header.p_paddr + segment.header.p_filesz
+    )
     words = load.p_offset + IDENTITY_WORDS - load.p_paddr
     cleared = bytearray(original)
-    cleared[words:words + 8] = bytes(8)
+    cleared[words : words + 8] = bytes(8)
     copy = Path(directory) / "copy.elf"
     copy.write_bytes(cleared)
     kernsum(["-c", copy], 1, "length word 0")
@@ -122,8 +129,11 @@ def check_kernsum(kernel, original, elf, directory):
     kernsum([copy], 1, "identity words are not zero")
     # Point a later loadable segment at the file bytes of the vector segment.
     header = elf.header
-    loads = [index for index, segment in enumerate(elf.iter_segments())
-             if segment.header.p_type == "PT_LOAD" and segment.header.p_filesz]
+    loads = [
+        index
+        for index, segment in enumerate(elf.iter_segments())
+        if segment.header.p_type == "PT_LOAD" and segment.header.p_filesz
+    ]
     aliased = bytearray(cleared)
     entry = header.e_phoff + loads[-1] * header.e_phentsize
     struct.pack_into("<I", aliased, entry + 4, load.p_offset)
@@ -140,8 +150,11 @@ def file_offset(elf, address, size=1):
     """Return the file offset of the flash bytes at address, from one PT_LOAD."""
     for segment in elf.iter_segments():
         header = segment.header
-        if (header.p_type == "PT_LOAD" and header.p_paddr <= address
-                and address + size <= header.p_paddr + header.p_filesz):
+        if (
+            header.p_type == "PT_LOAD"
+            and header.p_paddr <= address
+            and address + size <= header.p_paddr + header.p_filesz
+        ):
             return header.p_offset + address - header.p_paddr
     raise AssertionError(f"no loadable segment holds {address:#x}")
 
@@ -158,7 +171,7 @@ def has_file_byte(elf, flash_offset):
 def write_flash(data, elf, flash_offset, content):
     """Write content over the flash image bytes from flash_offset, in the ELF bytes data."""
     start = file_offset(elf, IMAGE_ADDRESS + flash_offset, len(content))
-    data[start:start + len(content)] = content
+    data[start : start + len(content)] = content
 
 
 def loader_state(original, elf):
@@ -256,8 +269,10 @@ def check_loader_state(kernel, original, elf, text_start, directory):
 
     # Calibration: a comparison that forgets one exclusion fails the
     # loader-state image.
-    for forget, anchor in (("boot2", "memset(image, 0, BOOT2_SIZE);"),
-                           ("stamp", "memset(image + STAMP_OFFSET, 0, STAMP_SIZE);")):
+    for forget, anchor in (
+        ("boot2", "memset(image, 0, BOOT2_SIZE);"),
+        ("stamp", "memset(image + STAMP_OFFSET, 0, STAMP_SIZE);"),
+    ):
         if identity_error(loader_image, forget=(forget,)) is None:
             raise AssertionError(f"a checker without the {forget} exclusion accepts the loader")
         elf_path.write_bytes(loader)
@@ -290,8 +305,12 @@ def load_oracle():
 def declared_spans(image):
     """Return the four (start, end) spans the sum reads as zero."""
     board = struct.unpack_from("<I", image, BOARD_WORD)[0] - IMAGE_ADDRESS
-    return [(0, BOOT2_SIZE), (STAMP_START, STAMP_END), (CRC_WORD, CRC_WORD + 4),
-            (board, board + BOARD_DESCRIPTOR_SIZE)]
+    return [
+        (0, BOOT2_SIZE),
+        (STAMP_START, STAMP_END),
+        (CRC_WORD, CRC_WORD + 4),
+        (board, board + BOARD_DESCRIPTOR_SIZE),
+    ]
 
 
 def probe_offsets(image):
@@ -320,8 +339,9 @@ def kernsum_sum_is(path, crc, program=KERNSUM):
     It prints the sum on success and reports it as "image" when the stored
     CRC word disagrees, so a flipped CRC word still reads the build's sum.
     """
-    result = subprocess.run([str(program), "-c", str(path)], text=True, capture_output=True,
-                            check=False)
+    result = subprocess.run(
+        [str(program), "-c", str(path)], text=True, capture_output=True, check=False
+    )
     if result.returncode == 0:
         return int(result.stdout.split()[1], 16) == crc
     match = re.search(r"CRC word [0-9a-f]+, image ([0-9a-f]+)", result.stderr)
@@ -365,15 +385,19 @@ def check_excluded_set(original, elf, directory):
         return kernsum_sum_is(elf_path, baseline, program)
 
     for label, accepts, offsets in (
-            ("checker", checker_accepts, exhaustive),
-            ("Renode oracle", oracle_accepts, exhaustive),
-            ("kernsum", kernsum_flip_accepts, probes)):
+        ("checker", checker_accepts, exhaustive),
+        ("Renode oracle", oracle_accepts, exhaustive),
+        ("kernsum", kernsum_flip_accepts, probes),
+    ):
         error = excluded_set_error(accepts, image, offsets)
         if error is not None:
             raise AssertionError(f"{label}: {error}")
     # Calibration: an extra exclusion at 0x1C5 must fail the pin in each.
-    program = build_mutant_kernsum(directory, "memset(image, 0, BOOT2_SIZE);",
-                                   "memset(image, 0, BOOT2_SIZE); image[0x1c5] = 0;")
+    program = build_mutant_kernsum(
+        directory,
+        "memset(image, 0, BOOT2_SIZE);",
+        "memset(image, 0, BOOT2_SIZE); image[0x1c5] = 0;",
+    )
     mutants = (
         ("checker", lambda offset: checker_accepts(offset, extra), exhaustive),
         ("Renode oracle", lambda offset: oracle_accepts(offset, zeroed=BOARD_WORD + 5), exhaustive),
@@ -504,8 +528,10 @@ def main():
         check_loader_state(args.kernel, original, elf, text_start - IMAGE_ADDRESS, directory)
         check_excluded_set(original, elf, directory)
         check_board_address(original, elf, directory)
-    print("PASS RP2040 vectors: linked control, all slots, identity words, Thumb bits, kernsum, "
-          "loader state, excluded set, board address")
+    print(
+        "PASS RP2040 vectors: linked control, all slots, identity words, Thumb bits, kernsum, "
+        "loader state, excluded set, board address"
+    )
 
 
 if __name__ == "__main__":

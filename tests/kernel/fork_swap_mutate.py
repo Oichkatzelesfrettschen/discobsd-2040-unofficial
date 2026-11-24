@@ -6,10 +6,8 @@ from pathlib import Path
 MUTATIONS = {
     "quota-off-by-one": ("a >= CHILD_PROC_LIMIT", "a > CHILD_PROC_LIMIT"),
     "quota-zombie-effective": (
-        "for (p1 = zombproc; p1; p1 = p1->p_nxt)\n"
-        "            if (p1->p_ruid == u.u_ruid)",
-        "for (p1 = zombproc; p1; p1 = p1->p_nxt)\n"
-        "            if (p1->p_uid == u.u_uid)",
+        "for (p1 = zombproc; p1; p1 = p1->p_nxt)\n            if (p1->p_ruid == u.u_ruid)",
+        "for (p1 = zombproc; p1; p1 = p1->p_nxt)\n            if (p1->p_uid == u.u_uid)",
     ),
     "ignore-reservation-refusal": (
         "        X_OLDSIZE, X_OLDSIZE) != 0)\n        return -1;",
@@ -71,8 +69,7 @@ MUTATIONS = {
         "    if (reservation->owner != p)",
     ),
     "ignore-cancel-state": (
-        "    if (reservation->state != SWAP_IMAGE_RESERVED)\n"
-        '        panic ("K57");',
+        '    if (reservation->state != SWAP_IMAGE_RESERVED)\n        panic ("K57");',
         '    if (0)\n        panic ("K57");',
     ),
     "omit-text-release": ("    iput(ip);", "    (void)ip;"),
@@ -209,9 +206,7 @@ MUTATIONS = {
         "    swap_image_release (p);",
     ),
     "lost-copy-commits": (
-        "        p->p_flag &= ~SLOCK;\n"
-        "        swap_image_cancel (reservation);\n"
-        "        return;",
+        "        p->p_flag &= ~SLOCK;\n        swap_image_cancel (reservation);\n        return;",
         "        (void)0;",
     ),
     "lost-copy-keeps-lock": (

@@ -46,9 +46,10 @@ class Reader:
         self.attributes = {}
 
     def number(self, offset, width):
-        require(0 <= offset <= len(self.image) and width <= len(self.image) - offset,
-                "field bounds")
-        raw = self.image[offset:offset + width]
+        require(
+            0 <= offset <= len(self.image) and width <= len(self.image) - offset, "field bounds"
+        )
+        raw = self.image[offset : offset + width]
         if self.order == "pdp" and width == 3:
             return (raw[0] << 16) | raw[1] | (raw[2] << 8)
         if self.order == "pdp" and width == 4:
@@ -57,8 +58,10 @@ class Reader:
 
     def claim(self, block, owner):
         require(self.start <= block < self.volume, f"block bounds: {block}")
-        require(block not in self.owners,
-                f"multiply owned block {block}: {self.owners.get(block)} and {owner}")
+        require(
+            block not in self.owners,
+            f"multiply owned block {block}: {self.owners.get(block)} and {owner}",
+        )
         self.owners[block] = owner
 
     def indirect(self, inode, block, level, logical_start, required, mapping):
@@ -88,11 +91,15 @@ class Reader:
             size = self.number(offset + 8, 4)
             require(size <= len(self.image), "file size exceeds bounded oracle range")
             file_type = mode & 0o170000
-            require(file_type in (0o100000, 0o040000, 0o120000, 0o020000, 0o060000),
-                    f"inode {inode}: unsupported type in bounded oracle")
+            require(
+                file_type in (0o100000, 0o040000, 0o120000, 0o020000, 0o060000),
+                f"inode {inode}: unsupported type in bounded oracle",
+            )
             self.inodes[inode] = (file_type, links, size)
             self.attributes[inode] = (
-                mode, self.number(offset + 4, 2), self.number(offset + 6, 2),
+                mode,
+                self.number(offset + 4, 2),
+                self.number(offset + 6, 2),
                 tuple(self.number(offset + 12 + index * 3, 3) for index in range(13)),
                 tuple(self.number(offset + time_offset, 4) for time_offset in (52, 56, 60)),
             )
@@ -112,7 +119,7 @@ class Reader:
                 block = self.number(offset + 12 + (9 + level) * 3, 3)
                 if block:
                     self.indirect(inode, block, level, logical, required, mapping)
-                logical += 128 ** level
+                logical += 128**level
             if file_type == 0o040000:
                 require(size >= 32 and size % 16 == 0, f"inode {inode}: directory size")
                 require(set(mapping) == set(range(required)), f"inode {inode}: directory hole")
@@ -146,8 +153,10 @@ class Reader:
         require(cached <= 100, "free inode cache count")
         entries = [self.number(512 + 210 + index * 2, 2) for index in range(cached)]
         require(len(set(entries)) == len(entries), "duplicate free inode cache entry")
-        require(all(1 <= inode <= self.inode_count and inode not in self.inodes
-                    for inode in entries), "free inode cache names an allocated or invalid inode")
+        require(
+            all(1 <= inode <= self.inode_count and inode not in self.inodes for inode in entries),
+            "free inode cache names an allocated or invalid inode",
+        )
         return free
 
     def payload(self, inode):
@@ -155,8 +164,9 @@ class Reader:
         output = bytearray(size)
         for logical, block in self.maps[inode].items():
             length = min(512, size - logical * 512)
-            output[logical * 512:logical * 512 + length] = self.image[
-                block * 512:block * 512 + length]
+            output[logical * 512 : logical * 512 + length] = self.image[
+                block * 512 : block * 512 + length
+            ]
         return bytes(output)
 
     def directories(self):
@@ -168,13 +178,15 @@ class Reader:
             raw = self.payload(inode)
             directory = {}
             for offset in range(0, len(raw), 16):
-                child = int.from_bytes(raw[offset:offset + 2], "little")
+                child = int.from_bytes(raw[offset : offset + 2], "little")
                 if child == 0:
                     continue
-                name = raw[offset + 2:offset + 16].split(b"\0", 1)[0]
+                name = raw[offset + 2 : offset + 16].split(b"\0", 1)[0]
                 require(child in self.inodes, f"directory reaches unallocated inode {child}")
-                require(bool(name) and b"/" not in name and name not in directory,
-                        "invalid or duplicate directory name")
+                require(
+                    bool(name) and b"/" not in name and name not in directory,
+                    "invalid or duplicate directory name",
+                )
                 directory[name] = child
                 references[child] += 1
             require(directory.get(b".") == inode, f"inode {inode}: dot entry differs")
@@ -209,8 +221,16 @@ def verify(image, order="little"):
     free_blocks = reader.read_free_list()
     free_inodes = reader.read_free_inodes()
     namespace = reader.directories()
-    return Report(free_blocks, free_inodes, len(reader.inodes), namespace,
-                  {inode: values[1] for inode, values in reader.inodes.items()},
-                  {inode: values[2] for inode, values in reader.inodes.items()},
-                  {path: hashlib.sha256(reader.payload(inode)).hexdigest()
-                   for path, inode in namespace.items()}, reader.attributes)
+    return Report(
+        free_blocks,
+        free_inodes,
+        len(reader.inodes),
+        namespace,
+        {inode: values[1] for inode, values in reader.inodes.items()},
+        {inode: values[2] for inode, values in reader.inodes.items()},
+        {
+            path: hashlib.sha256(reader.payload(inode)).hexdigest()
+            for path, inode in namespace.items()
+        },
+        reader.attributes,
+    )

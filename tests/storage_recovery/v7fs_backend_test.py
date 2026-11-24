@@ -100,8 +100,7 @@ class BackendTest(unittest.TestCase):
                 verify(before, order)
                 backend.device.events.clear()
 
-                self.assertEqual(
-                    backend.rename(2, "source", descendant, "victim"), errno.EINVAL)
+                self.assertEqual(backend.rename(2, "source", descendant, "victim"), errno.EINVAL)
                 self.assertFalse(any(event.kind == "write" for event in backend.device.events))
                 self.assertEqual(backend.sync(), 0)
                 self.assertEqual(backend.device.export(), before)

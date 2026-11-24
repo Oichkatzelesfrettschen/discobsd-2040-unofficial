@@ -45,8 +45,9 @@ class ImageOracleTest(unittest.TestCase):
         def modify(image, order):
             file_inode = 2 * 512 + 2 * 64
             root_inode = 2 * 512 + 64
-            image[file_inode + 8:file_inode + 12] = encode(512, 4, order)
-            image[file_inode + 12:file_inode + 15] = image[root_inode + 12:root_inode + 15]
+            image[file_inode + 8 : file_inode + 12] = encode(512, 4, order)
+            image[file_inode + 12 : file_inode + 15] = image[root_inode + 12 : root_inode + 15]
+
         self.mutation(modify, "multiply owned")
 
     def test_leaked_block_with_adjusted_free_count(self):
@@ -54,39 +55,45 @@ class ImageOracleTest(unittest.TestCase):
             count = decode(image, 512 + 6, 2, order)
             if count < 2:
                 raise AssertionError("fixture needs multiple cached free blocks")
-            image[512 + 6:512 + 8] = encode(count - 1, 2, order)
+            image[512 + 6 : 512 + 8] = encode(count - 1, 2, order)
             free = decode(image, 512 + 418, 4, order)
-            image[512 + 418:512 + 422] = encode(free - 1, 4, order)
+            image[512 + 418 : 512 + 422] = encode(free - 1, 4, order)
+
         self.mutation(modify, "unowned data block")
 
     def test_link_count_differs_from_directory_references(self):
         def modify(image, order):
             offset = 2 * 512 + 2 * 64 + 2
-            image[offset:offset + 2] = encode(2, 2, order)
+            image[offset : offset + 2] = encode(2, 2, order)
+
         self.mutation(modify, "link count")
 
     def test_orphaned_inode(self):
         def modify(image, order):
             root_block = decode(image, 2 * 512 + 64 + 12, 3, order)
-            image[root_block * 512 + 32:root_block * 512 + 34] = bytes(2)
+            image[root_block * 512 + 32 : root_block * 512 + 34] = bytes(2)
+
         self.mutation(modify, "unreachable inode")
 
     def test_allocated_inode_in_free_inode_cache(self):
         def modify(image, order):
-            image[512 + 208:512 + 210] = encode(1, 2, order)
-            image[512 + 210:512 + 212] = encode(2, 2, order)
+            image[512 + 208 : 512 + 210] = encode(1, 2, order)
+            image[512 + 210 : 512 + 212] = encode(2, 2, order)
+
         self.mutation(modify, "free inode cache")
 
     def test_block_pointer_outside_image(self):
         def modify(image, order):
             offset = 2 * 512 + 64 + 12
-            image[offset:offset + 3] = encode(256, 3, order)
+            image[offset : offset + 3] = encode(256, 3, order)
+
         self.mutation(modify, "block bounds")
 
     def test_directory_entry_reaches_unallocated_inode(self):
         def modify(image, order):
             root_block = decode(image, 2 * 512 + 64 + 12, 3, order)
-            image[root_block * 512 + 32:root_block * 512 + 34] = encode(64, 2, order)
+            image[root_block * 512 + 32 : root_block * 512 + 34] = encode(64, 2, order)
+
         self.mutation(modify, "unallocated inode")
 
     def test_semantic_comparison_includes_inode_attributes(self):
@@ -96,7 +103,7 @@ class ImageOracleTest(unittest.TestCase):
                 image = bytearray(original)
                 offset = 2 * 512 + 64 + relative
                 value = decode(image, offset, width, order)
-                image[offset:offset + width] = encode(value ^ 1, width, order)
+                image[offset : offset + width] = encode(value ^ 1, width, order)
                 self.assertNotEqual(self.oracle.verify(bytes(image), order), before)
 
 

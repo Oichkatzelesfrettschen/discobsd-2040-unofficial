@@ -26,9 +26,32 @@ SEED = 0x44495343  # "DISC"
 LIMB = 16
 BASE = 1 << LIMB
 SPECIAL = (0x0000, 0x0001, 0x0002, 0x7FFE, 0x7FFF, 0x8000, 0x8001, 0xFFFE, 0xFFFF)
-WORDS = (0, 1, 2, 3, 9, 10, 255, 256, 9999, 10000, 10001, 0x7FFF, 0x8000,
-         0xFFFF, 0x10000, 0x10001, 0xFFFFFF, 1000000, 999999999, 1000000000,
-         0x7FFFFFFF, 0x80000000, 0xFFFFFFFE, 0xFFFFFFFF)
+WORDS = (
+    0,
+    1,
+    2,
+    3,
+    9,
+    10,
+    255,
+    256,
+    9999,
+    10000,
+    10001,
+    0x7FFF,
+    0x8000,
+    0xFFFF,
+    0x10000,
+    0x10001,
+    0xFFFFFF,
+    1000000,
+    999999999,
+    1000000000,
+    0x7FFFFFFF,
+    0x80000000,
+    0xFFFFFFFE,
+    0xFFFFFFFF,
+)
 
 
 def fmt(x):
@@ -187,17 +210,17 @@ class Gen:
     def power(self):
         for a in range(-6, 7):
             for p in range(0, 12):
-                self.emit("exp", fmt(a), fmt(p), fmt(a ** p))
+                self.emit("exp", fmt(a), fmt(p), fmt(a**p))
         for _ in range(160):
             a = self.sign(self.bits(self.below(200)))
             p = self.below(40)
-            self.emit("exp", fmt(a), fmt(p), fmt(a ** p))
+            self.emit("exp", fmt(a), fmt(p), fmt(a**p))
         for _ in range(40):
             a = self.sign(self.bits(self.below(2001)))
             p = self.below(6)
-            self.emit("exp", fmt(a), fmt(p), fmt(a ** p))
+            self.emit("exp", fmt(a), fmt(p), fmt(a**p))
         for p in (31, 32, 33, 63, 64, 65, 100, 255, 256, 257):
-            self.emit("exp", fmt(10), fmt(p), fmt(10 ** p))
+            self.emit("exp", fmt(10), fmt(p), fmt(10**p))
             self.emit("exp", fmt(-2), fmt(p), fmt((-2) ** p))
 
     def compare_and_bits(self):
@@ -212,18 +235,27 @@ class Gen:
             nb = abs(a).bit_length()
             self.emit("bits", fmt(a), nb, (nb + 7) // 8)
             self.emit("pred", fmt(a), int(a == 0), int(a == 1), int(a < 0))
-            for n in {0, 1, 15, 16, 17, max(nb - 1, 0), nb, nb + 1, nb + 40,
-                      self.below(nb + 20), -1}:
+            for n in {
+                0,
+                1,
+                15,
+                16,
+                17,
+                max(nb - 1, 0),
+                nb,
+                nb + 1,
+                nb + 40,
+                self.below(nb + 20),
+                -1,
+            }:
                 self.emit("bit", fmt(a), n, (abs(a) >> n) & 1 if n >= 0 else 0)
-            for n in {0, 1, 7, 8, 15, 16, 17, 31, 32, self.below(nb + 1),
-                      nb, nb + 1, -1}:
+            for n in {0, 1, 7, 8, 15, 16, 17, 31, 32, self.below(nb + 1), nb, nb + 1, -1}:
                 if n < 0 or n > nb:
                     self.emit("mask", fmt(a), n, "ERR")
                 else:
                     m = abs(a) & ((1 << n) - 1)
                     self.emit("mask", fmt(a), n, fmt(-m if a < 0 else m))
-            for n in {0, 1, 7, 8, 15, 16, 17, 32, self.below(nb + 20), nb,
-                      nb + 1, nb + 33}:
+            for n in {0, 1, 7, 8, 15, 16, 17, 32, self.below(nb + 20), nb, nb + 1, nb + 33}:
                 m = abs(a) >> n
                 self.emit("rsh", fmt(a), n, fmt(-m if a < 0 else m))
         for i in (-1, 0, 1):
@@ -239,8 +271,7 @@ class Gen:
         for edge in (0, 0xFFFF, 0x10000, 0xFFFFFFFF, 0x100000000, 0x100000001):
             for s in (1, -1):
                 mag = edge
-                self.emit("getword", fmt(s * edge),
-                          fmt(mag if mag < (1 << 32) else 0xFFFFFFFF))
+                self.emit("getword", fmt(s * edge), fmt(mag if mag < (1 << 32) else 0xFFFFFFFF))
         for w in WORDS:
             for _ in range(24):
                 a = self.sign(self.rand_int())
@@ -273,7 +304,7 @@ class Gen:
                 h = ("-" if a < 0 else "") + ("0" if len(digits) % 2 else "") + digits
             self.emit("hex", fmt(a), h)
         for n in (1, 3, 4, 5, 8, 9, 12, 13, 100, 400, 600):
-            v = 10 ** n
+            v = 10**n
             for a in (v - 1, v, v + 1, -v):
                 self.emit("dec", fmt(a), str(a))
 
@@ -330,8 +361,7 @@ def main():
         out.write("# libbn vectors seed=0x%X addback_cases=%d\n" % (SEED, g.addback_found))
         out.write("\n".join(g.lines))
         out.write("\n")
-    print("gen_vectors: %d vectors, %d add-back division cases" %
-          (len(g.lines), g.addback_found))
+    print("gen_vectors: %d vectors, %d add-back division cases" % (len(g.lines), g.addback_found))
     return 0
 
 

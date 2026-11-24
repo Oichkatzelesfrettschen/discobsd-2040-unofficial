@@ -23,28 +23,30 @@ POOL = 16 * 1024
 
 def image(seed, n, fill):
     out = bytearray(n)
-    x = seed * 2654435761 & 0xffffffff
+    x = seed * 2654435761 & 0xFFFFFFFF
     for i in range(n):
-        x = (x * 1103515245 + 12345) & 0xffffffff
-        out[i] = (x >> 16) & 0xff if (x >> 8) % 100 >= fill else (i >> 5) & 7
+        x = (x * 1103515245 + 12345) & 0xFFFFFFFF
+        out[i] = (x >> 16) & 0xFF if (x >> 8) % 100 >= fill else (i >> 5) & 7
     return bytes(out)
 
 
 @settings(max_examples=12)
-@given(seed=st.integers(0, 2 ** 16), dlen=st.integers(0, 9000),
-       slen=st.integers(0, 3000), fill=st.integers(40, 99))
+@given(
+    seed=st.integers(0, 2**16),
+    dlen=st.integers(0, 9000),
+    slen=st.integers(0, 3000),
+    fill=st.integers(40, 99),
+)
 def test_admission_rule_matches_swapram(seed, dlen, slen, fill):
     ffi, lib = native.load()
-    d, s, u = image(seed, dlen, fill), image(seed + 1, slen, fill), \
-        image(seed + 2, USIZE, fill)
+    d, s, u = image(seed, dlen, fill), image(seed + 1, slen, fill), image(seed + 2, USIZE, fill)
     dn = lib.glue_hs_count(d, dlen) if dlen else 0
     sn = lib.glue_hs_count(s, slen) if slen else 0
     need = roundgrain(dn + sn + sr_worst(USIZE))
     assert lib.glue_swapram_largest() == POOL
     if need > POOL:
         return
-    dbuf, sbuf, ubuf = (ffi.new("unsigned char[]", max(len(b), 1))
-                        for b in (d, s, u))
+    dbuf, sbuf, ubuf = (ffi.new("unsigned char[]", max(len(b), 1)) for b in (d, s, u))
     ffi.memmove(dbuf, d, len(d))
     ffi.memmove(sbuf, s, len(s))
     ffi.memmove(ubuf, u, len(u))
@@ -66,8 +68,7 @@ def test_admission_rule_matches_swapram(seed, dlen, slen, fill):
 
 
 @settings(max_examples=8)
-@given(seed=st.integers(0, 2 ** 16), dlen=st.integers(1, 9000),
-       fill=st.integers(40, 99))
+@given(seed=st.integers(0, 2**16), dlen=st.integers(1, 9000), fill=st.integers(40, 99))
 def test_commit_keeps_compressed_total(seed, dlen, fill):
     ffi, lib = native.load()
     d, u = image(seed, dlen, fill), image(seed + 2, USIZE, fill)

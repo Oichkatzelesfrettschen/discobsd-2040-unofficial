@@ -27,8 +27,7 @@ def main() -> None:
 
     source = arguments.source.read_text()
     complete = (
-        "if (badkaddr_span(addr, iov->iov_len) &&\n"
-        "\t\t\t    baduaddr_span(addr, iov->iov_len)) {"
+        "if (badkaddr_span(addr, iov->iov_len) &&\n\t\t\t    baduaddr_span(addr, iov->iov_len)) {"
     )
     if arguments.mutation == "endpoint-admission":
         replacement = (
@@ -62,9 +61,9 @@ def main() -> None:
         original = "(u_int)addr, nbytes)"
         if source.count(original) != 2:
             raise ValueError(arguments.mutation + " mutation sites are not unique")
-        source = source.replace(
-            original, "(u_int)addr, ((void)nbytes, 1))", 1
-        ).replace(original, "(u_int)addr, 1)", 1)
+        source = source.replace(original, "(u_int)addr, ((void)nbytes, 1))", 1).replace(
+            original, "(u_int)addr, 1)", 1
+        )
 
     arguments.output.write_text(source)
 

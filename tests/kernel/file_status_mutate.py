@@ -77,7 +77,7 @@ GENERIC_MUTATIONS = {
         return;
     }
 """,
-        """    case FIONBIO:
+            """    case FIONBIO:
         u.u_error = fset(fp, FNONBLOCK, *(int *)uap->cmarg);
         return;
     case FIOASYNC:
@@ -117,9 +117,7 @@ def main() -> None:
     source = source_path.read_text(encoding="utf-8")
     for before, after in replacements:
         source = replace_once(source, before, after, arguments.mutation)
-    arguments.output.write_text(
-        source, encoding="utf-8"
-    )
+    arguments.output.write_text(source, encoding="utf-8")
 
 
 if __name__ == "__main__":

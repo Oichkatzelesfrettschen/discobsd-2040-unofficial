@@ -26,8 +26,13 @@ def offset(elf, name):
 
 
 def check_source(text, name, expected):
-    match = re.search(r"\b" + name + r"\[\]\s*=\s*\{([^}]*)\}" if name == "Fops"
-                      else r"\b" + name + r"\s*=\s*\{([^}]*)\}", text, re.DOTALL)
+    match = re.search(
+        r"\b" + name + r"\[\]\s*=\s*\{([^}]*)\}"
+        if name == "Fops"
+        else r"\b" + name + r"\s*=\s*\{([^}]*)\}",
+        text,
+        re.DOTALL,
+    )
     if match is None:
         raise ValueError(f"missing {name} initializer")
     values = tuple(value.strip().removeprefix("&") for value in match.group(1).split(","))
@@ -39,13 +44,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kernel", required=True, type=Path)
     args = parser.parse_args()
-    sources = {"Fops": "sys/kern/sys_generic.c", "socketops": "sys/kern/sys_generic.c",
-               "inodeops": "sys/kern/sys_inode.c", "pipeops": "sys/kern/sys_pipe.c"}
+    sources = {
+        "Fops": "sys/kern/sys_generic.c",
+        "socketops": "sys/kern/sys_generic.c",
+        "inodeops": "sys/kern/sys_inode.c",
+        "pipeops": "sys/kern/sys_pipe.c",
+    }
     for name, expected in checker.TABLES.items():
         source = (ROOT / sources[name]).read_text(encoding="utf-8")
         check_source(source, name, expected)
-        changed = re.sub(r"(\b" + name + r"(?:\[\])?\s*=\s*\{[^}]*?)" +
-                         re.escape(expected[-1]) + r"\b", r"\1unexpected_handler", source, count=1)
+        changed = re.sub(
+            r"(\b" + name + r"(?:\[\])?\s*=\s*\{[^}]*?)" + re.escape(expected[-1]) + r"\b",
+            r"\1unexpected_handler",
+            source,
+            count=1,
+        )
         if changed == source:
             raise AssertionError(f"{name} mutation anchor is absent")
         try:
@@ -67,8 +80,9 @@ def main():
         for index in range(len(expected)):
             changed = bytearray(original)
             current = struct.unpack_from("<I", changed, start + index * 4)[0]
-            alternatives = (object_slots[1:] if name == "Fops" else
-                            (slots[index] for slots in function_slots))
+            alternatives = (
+                object_slots[1:] if name == "Fops" else (slots[index] for slots in function_slots)
+            )
             alternate = next(value for value in alternatives if value != current)
             struct.pack_into("<I", changed, start + index * 4, alternate)
             try:
@@ -91,8 +105,12 @@ def main():
     with tempfile.TemporaryDirectory(prefix="rp2040-fileops-") as directory:
         mutant = Path(directory) / "truncated.elf"
         mutant.write_bytes(original[:80])
-        result = subprocess.run([sys.executable, str(ROOT / "tools/check_rp2040_fileops.py"),
-                                 str(mutant)], capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "tools/check_rp2040_fileops.py"), str(mutant)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
     print("PASS RP2040 fileops: source, 16 linked fields and truncation controls")

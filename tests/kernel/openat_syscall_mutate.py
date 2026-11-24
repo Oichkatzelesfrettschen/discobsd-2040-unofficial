@@ -155,9 +155,7 @@ def main() -> None:
     arguments = parser.parse_args()
 
     source = arguments.source.read_text(encoding="utf-8")
-    arguments.output.write_text(
-        mutate(source, arguments.mutation), encoding="utf-8"
-    )
+    arguments.output.write_text(mutate(source, arguments.mutation), encoding="utf-8")
 
 
 if __name__ == "__main__":

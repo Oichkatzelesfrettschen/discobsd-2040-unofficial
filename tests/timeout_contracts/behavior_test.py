@@ -75,8 +75,7 @@ MUTATIONS = (
     (
         "postfork-sigchld-handler",
         "if (install_handler(SIGCHLD, signal_handler, &inherited_sigchld) < 0)",
-        "if (((void)&install_handler, sigaction(SIGCHLD, NULL, "
-        "&inherited_sigchld)) < 0)",
+        "if (((void)&install_handler, sigaction(SIGCHLD, NULL, &inherited_sigchld)) < 0)",
     ),
     (
         "self-signal-ignore",
@@ -136,9 +135,7 @@ def compile_program(
     )
 
 
-def compile_without_extension_signals(
-    compiler: str, production_source: Path, output: Path
-) -> None:
+def compile_without_extension_signals(compiler: str, production_source: Path, output: Path) -> None:
     source_text = production_source.read_text(encoding="utf-8")
     signal_include = "#include <signal.h>\n"
     require(
@@ -156,9 +153,7 @@ def compile_without_extension_signals(
     compile_program(compiler, output, [portability_source])
 
 
-def exercise_without_extension_signals(
-    timeout_binary: Path, probe_binary: Path
-) -> None:
+def exercise_without_extension_signals(timeout_binary: Path, probe_binary: Path) -> None:
     result = run(
         [
             str(timeout_binary),
@@ -224,9 +219,7 @@ timeout_test_fork(void)
     )
 
 
-def exercise_fork_interposer(
-    compiler: str, fork_interposer: Path, build_directory: Path
-) -> None:
+def exercise_fork_interposer(compiler: str, fork_interposer: Path, build_directory: Path) -> None:
     driver_source = build_directory / "fork-interposer-driver.c"
     driver_binary = build_directory / "fork-interposer-driver"
     driver_source.write_text(
@@ -368,9 +361,7 @@ timeout_test_sigaction(int signal_number, const struct sigaction *action,
     )
 
 
-def exercise_inherited_ignored_sigchld(
-    timeout_binary: Path, probe_binary: Path
-) -> None:
+def exercise_inherited_ignored_sigchld(timeout_binary: Path, probe_binary: Path) -> None:
     result = run(
         [
             str(probe_binary),
@@ -606,9 +597,7 @@ def exercise_external_signal_deadline(
     require(status == 124, "deadline after external signal does not return 124")
 
 
-def exercise_zero_kill_after(
-    timeout_binary: Path, probe_binary: Path, marker: Path
-) -> None:
+def exercise_zero_kill_after(timeout_binary: Path, probe_binary: Path, marker: Path) -> None:
     result = run(
         [
             str(timeout_binary),
@@ -626,7 +615,7 @@ def exercise_zero_kill_after(
     delivered = marker.read_bytes()
     require(
         single_term_cont_delivery(delivered),
-        "-k 0 changes timeout signal delivery: " f"{delivered!r}",
+        f"-k 0 changes timeout signal delivery: {delivered!r}",
     )
 
 
@@ -676,8 +665,7 @@ def exercise_mutation(
         delivered = marker.read_bytes()
         require(
             single_term_cont_delivery(delivered),
-            "missing SIGCONT mutation escaped the exact-delivery count: "
-            f"{delivered!r}",
+            f"missing SIGCONT mutation escaped the exact-delivery count: {delivered!r}",
         )
         return
     if name == "encoded-signal-status":
@@ -784,9 +772,7 @@ def exercise_mutation(
         )
         return
     if name == "zero-kill-after":
-        exercise_zero_kill_after(
-            timeout_binary, probe_binary, work_directory / "zero-kill-after"
-        )
+        exercise_zero_kill_after(timeout_binary, probe_binary, work_directory / "zero-kill-after")
         return
     raise ContractFailure(f"unknown mutation {name!r}")
 
@@ -894,9 +880,7 @@ def exercise(timeout_binary: Path, probe_binary: Path, work_directory: Path) -> 
         "case-independent symbolic signal does not select SIGINT",
     )
 
-    result = run(
-        [str(timeout_binary), "-k", "0.05", "0.05", str(probe_binary), "ignore-term"]
-    )
+    result = run([str(timeout_binary), "-k", "0.05", "0.05", str(probe_binary), "ignore-term"])
     require(
         result.returncode in (124, -signal.SIGKILL),
         "SIGKILL escalation returns neither Issue 8 permitted outcome",
@@ -919,14 +903,11 @@ def exercise(timeout_binary: Path, probe_binary: Path, work_directory: Path) -> 
     counted_delivery = count_marker.read_bytes()
     require(
         single_term_cont_delivery(counted_delivery),
-        "timeout signals were not delivered exactly once after readiness: "
-        f"{counted_delivery!r}",
+        f"timeout signals were not delivered exactly once after readiness: {counted_delivery!r}",
     )
 
     group_marker = work_directory / "group-identifiers"
-    result = run(
-        [str(timeout_binary), "0.20", str(probe_binary), "group-ids", str(group_marker)]
-    )
+    result = run([str(timeout_binary), "0.20", str(probe_binary), "group-ids", str(group_marker)])
     require(result.returncode == 124, "process-group identity probe does not time out")
     child_pid, supervisor_pid, process_group = (
         int(value) for value in group_marker.read_text(encoding="ascii").split()
@@ -1059,18 +1040,14 @@ def main() -> int:
         compile_program(compiler, timeout_binary, [production_source])
         exercise(timeout_binary, probe_binary, build_directory / "production-work")
         portability_binary = build_directory / "timeout-posix-signals"
-        compile_without_extension_signals(
-            compiler, production_source, portability_binary
-        )
+        compile_without_extension_signals(compiler, production_source, portability_binary)
         exercise_without_extension_signals(portability_binary, probe_binary)
         fork_interposer = build_directory / "fork-interposer.c"
         write_fork_interposer(fork_interposer)
         exercise_fork_interposer(compiler, fork_interposer, build_directory)
         sigprocmask_interposer = build_directory / "sigprocmask-interposer.c"
         write_sigprocmask_interposer(sigprocmask_interposer)
-        exercise_sigprocmask_interposer(
-            compiler, sigprocmask_interposer, build_directory
-        )
+        exercise_sigprocmask_interposer(compiler, sigprocmask_interposer, build_directory)
         sigaction_interposer = build_directory / "sigaction-interposer.c"
         write_sigaction_interposer(sigaction_interposer)
         sigchld_binary = build_directory / "timeout-sigchld-order"

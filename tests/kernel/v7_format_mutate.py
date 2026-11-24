@@ -113,17 +113,14 @@ MUTANTS = {
     # A part the device did not deliver is not a block to hand out.
     "absent_block_allocated": (
         "kern/ufs_alloc.c",
-        "    if ((bp->b_flags & B_ERROR) ||\n"
-        "        (FS_DBSHIFT(fs) && FSRESID(fs, bp, bno))) {",
+        "    if ((bp->b_flags & B_ERROR) ||\n        (FS_DBSHIFT(fs) && FSRESID(fs, bp, bno))) {",
         "    if (bp->b_flags & B_ERROR) {",
     ),
     # The device must deliver the last block the superblock claims.
     "extent_unchecked": (
         "kern/ufs_v7.c",
-        "    if ((bp->b_flags & B_ERROR) || FSRESID(fs, bp, last))\n"
-        "        error = EINVAL;",
-        "    if (bp->b_flags & B_ERROR)\n"
-        "        error = EINVAL;",
+        "    if ((bp->b_flags & B_ERROR) || FSRESID(fs, bp, last))\n        error = EINVAL;",
+        "    if (bp->b_flags & B_ERROR)\n        error = EINVAL;",
     ),
     # A size that is not a positive off_t does not enter an inode.
     "size_unchecked": (
@@ -140,8 +137,7 @@ MUTANTS = {
     # A free total the volume's writer left at 0 does not wrap.
     "tally_underflow": (
         "sys/fsgeom.h",
-        "        if (!FS_ISV7(fs) || (fs)->field != 0) \\\n"
-        "            (fs)->field--; \\\n",
+        "        if (!FS_ISV7(fs) || (fs)->field != 0) \\\n            (fs)->field--; \\\n",
         "        (fs)->field--; \\\n",
     ),
     # A wide address that cannot be stored is reported to bmap().
@@ -203,9 +199,7 @@ def main(argv):
         text = (source / path).read_text()
         for old, new in pairs:
             if text.count(old) != 1:
-                raise SystemExit(
-                    f"mutant {name}: {text.count(old)} matches of {old!r} in {path}"
-                )
+                raise SystemExit(f"mutant {name}: {text.count(old)} matches of {old!r} in {path}")
             text = text.replace(old, new)
         target = root / path
         target.unlink()

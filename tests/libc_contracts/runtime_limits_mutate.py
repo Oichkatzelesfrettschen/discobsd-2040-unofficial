@@ -21,7 +21,11 @@ def replace_once(source: str, old: str, new: str, label: str) -> str:
 
 
 def compile_and_run(
-    compiler: list[str], root: Path, source: str, work: Path, label: str,
+    compiler: list[str],
+    root: Path,
+    source: str,
+    work: Path,
+    label: str,
     path_source: Path | None = None,
 ) -> int:
     mutated_source = work / f"sysconf-{label}.c"
@@ -69,14 +73,19 @@ def main() -> int:
             source, "return MAXSYMLINKS;", "return MAXSYMLINKS - 1;", "symlink-limit"
         ),
         "device-errno": replace_once(
-            source, "return _POSIX_DEVICE_CONTROL;",
-            "errno = EINVAL; return _POSIX_DEVICE_CONTROL;", "device-errno",
+            source,
+            "return _POSIX_DEVICE_CONTROL;",
+            "errno = EINVAL; return _POSIX_DEVICE_CONTROL;",
+            "device-errno",
         ),
         "invalid-errno": replace_once(source, "errno = EINVAL;", "", "invalid-errno"),
         "processor-count": replace_once(source, "return 1;", "return 2;", "processor-count"),
         "signal-count": replace_once(source, "return NSIG;", "return NSIG - 1;", "signal-count"),
         "page-size": replace_once(
-            source, "return DEV_BSIZE;", "return DEV_BSIZE / 2;", "page-size",
+            source,
+            "return DEV_BSIZE;",
+            "return DEV_BSIZE / 2;",
+            "page-size",
         ),
     }
 
@@ -95,8 +104,11 @@ def main() -> int:
             ("[_PC_PATH_MAX] = PATH_MAX,", "[_PC_PATH_MAX] = PATH_MAX - 1,", "path-max"),
             ("[_PC_NO_TRUNC] = _POSIX_NO_TRUNC,", "[_PC_NO_TRUNC] = 0,", "no-trunc"),
             ("return mount_info->f_bsize;", "return 512;", "allocation-size"),
-            ("name <= _PC_TIMESTAMP_RESOLUTION", "name <= _PC_ALLOC_SIZE_MIN",
-             "timestamp-resolution"),
+            (
+                "name <= _PC_TIMESTAMP_RESOLUTION",
+                "name <= _PC_ALLOC_SIZE_MIN",
+                "timestamp-resolution",
+            ),
         ):
             mutant = work / f"pathconf-{label}.c"
             modified = replace_once(path_source, original, replacement, label)

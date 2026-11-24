@@ -83,20 +83,12 @@ def traditional_uuencode(payload, output_name="payload.bin", mode=0o640):
     encoded_lines = []
     for offset in range(0, len(payload), 45):
         encoded_lines.append(binascii.b2a_uu(payload[offset : offset + 45]))
-    return (
-        f"begin {mode:o} {output_name}\n".encode()
-        + b"".join(encoded_lines)
-        + b"`\nend\n"
-    )
+    return f"begin {mode:o} {output_name}\n".encode() + b"".join(encoded_lines) + b"`\nend\n"
 
 
 def base64_uuencode(payload, output_name="payload.bin", mode=0o640):
     encoded = base64.encodebytes(payload)
-    return (
-        f"begin-base64 {mode:o} {output_name}\n".encode()
-        + encoded
-        + b"====\n"
-    )
+    return f"begin-base64 {mode:o} {output_name}\n".encode() + encoded + b"====\n"
 
 
 def check_readlink(binary, work_directory):
@@ -147,9 +139,7 @@ def check_realpath(binary, work_directory):
     require(result.stderr == b"", "realpath -e writes a diagnostic on success")
 
     missing_path = existing_directory / "missing"
-    expected_missing = (
-        str(existing_directory.resolve() / missing_path.name).encode() + b"\n"
-    )
+    expected_missing = str(existing_directory.resolve() / missing_path.name).encode() + b"\n"
     result = run_program([str(binary), "-E", str(missing_path)])
     require(result.returncode == 0, "realpath -E rejects a missing final component")
     require(
@@ -281,8 +271,7 @@ def check_uudecode_sanitized(binary):
         "uudecode does not classify a high-bit base64 byte as invalid",
     )
     require(
-        b"AddressSanitizer" not in result.stderr
-        and b"runtime error" not in result.stderr,
+        b"AddressSanitizer" not in result.stderr and b"runtime error" not in result.stderr,
         "uudecode indexes the base64 table with a signed byte",
     )
 
@@ -360,9 +349,7 @@ def main():
                 ("realpath", lambda: check_realpath(known_bad, build_directory / "bad-realpath")),
                 (
                     "uudecode",
-                    lambda: check_uudecode_native(
-                        known_bad, build_directory / "bad-uudecode"
-                    ),
+                    lambda: check_uudecode_native(known_bad, build_directory / "bad-uudecode"),
                 ),
             ):
                 callback_directory = build_directory / f"bad-{name}"

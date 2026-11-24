@@ -10,8 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = ("sys/arch/rp2040/rp2040/machdep.c", "sys/arch/stm32/stm32/machdep.c")
 LEVELS = ("O0", "O", "O1", "O2", "O3", "Og", "Os", "Oz")
-FLAGS = ("-std=gnu17", "-Wall", "-Wextra", "-Werror", "-Wshadow", "-Wundef",
-         "-Wformat=2")
+FLAGS = ("-std=gnu17", "-Wall", "-Wextra", "-Werror", "-Wshadow", "-Wundef", "-Wformat=2")
 
 FIXTURE = """\
 #include <sys/config.h>
@@ -120,20 +119,33 @@ def main():
                         input_path = directory / "dispatch.c"
                         input_path.write_text(FIXTURE + selected + ASSERTIONS, encoding="utf-8")
                         output_path = directory / "dispatch"
-                        command = [executable, *compiler_parts[1:], *FLAGS, f"-{level}",
-                                   "-I", str(ROOT / "sys"),
-                                   str(input_path), "-o", str(output_path)]
-                        compiled = subprocess.run(command, capture_output=True, text=True,
-                                                  check=False)
+                        command = [
+                            executable,
+                            *compiler_parts[1:],
+                            *FLAGS,
+                            f"-{level}",
+                            "-I",
+                            str(ROOT / "sys"),
+                            str(input_path),
+                            "-o",
+                            str(output_path),
+                        ]
+                        compiled = subprocess.run(
+                            command, capture_output=True, text=True, check=False
+                        )
                         if compiled.returncode:
-                            failures.append(f"{relative} {compiler} -{level}: "
-                                            f"compile failed: {compiled.stderr.strip()}")
+                            failures.append(
+                                f"{relative} {compiler} -{level}: "
+                                f"compile failed: {compiled.stderr.strip()}"
+                            )
                             continue
                         result = subprocess.run([str(output_path)], check=False)
                         if (result.returncode == 0) == (mutant != "none"):
                             problem = "mutant accepted" if mutant != "none" else "control failed"
-                            failures.append(f"{relative} {compiler} -{level}: "
-                                            f"{problem} (exit {result.returncode})")
+                            failures.append(
+                                f"{relative} {compiler} -{level}: "
+                                f"{problem} (exit {result.returncode})"
+                            )
     if failures:
         for failure in failures:
             print(f"FAIL driver-dispatch: {failure}")

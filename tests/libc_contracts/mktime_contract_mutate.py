@@ -29,19 +29,25 @@ PREFLIGHT_ANCHOR = "\t\tguess = days < 0 ? TIME_MIN : TIME_MAX;\n"
 VALUE_ANCHOR = "\t*tm = *localtime(&guess);\n"
 
 RETRY_ANCHOR = "\t\t\t\t    localtime(&guess)->tm_gmtoff == offset)\n"
-TYPES_ANCHOR = ("\t\t\tfor (type = 0; type < __discobsd_zone.typecnt; "
-                "type++) {\n")
+TYPES_ANCHOR = "\t\t\tfor (type = 0; type < __discobsd_zone.typecnt; type++) {\n"
 
 MUTANTS = (
-    ("transition-edge", RETRY_ANCHOR,
-     RETRY_ANCHOR.replace("tm_gmtoff == offset", "tm_gmtoff != offset")),
-    ("first-type-only", TYPES_ANCHOR,
-     TYPES_ANCHOR.replace("type < __discobsd_zone.typecnt; type++",
-                          "type < 1; type++")),
+    (
+        "transition-edge",
+        RETRY_ANCHOR,
+        RETRY_ANCHOR.replace("tm_gmtoff == offset", "tm_gmtoff != offset"),
+    ),
+    (
+        "first-type-only",
+        TYPES_ANCHOR,
+        TYPES_ANCHOR.replace("type < __discobsd_zone.typecnt; type++", "type < 1; type++"),
+    ),
     ("preflight", PREFLIGHT_ANCHOR, "\t\treturn (TIME_REFUSED);\n"),
-    ("value-only", VALUE_ANCHOR,
-     "\tif (guess == TIME_REFUSED)\n\t\treturn (TIME_REFUSED);\n"
-     + VALUE_ANCHOR),
+    (
+        "value-only",
+        VALUE_ANCHOR,
+        "\tif (guess == TIME_REFUSED)\n\t\treturn (TIME_REFUSED);\n" + VALUE_ANCHOR,
+    ),
 )
 
 
@@ -53,23 +59,23 @@ def require(condition, message):
 def build_and_run(compile_command, source, test, objects, directory, label):
     program = directory / ("mktime_" + label)
     build = subprocess.run(
-        compile_command + ["-o", str(program), str(test), str(source)]
+        compile_command
+        + ["-o", str(program), str(test), str(source)]
         + [str(item) for item in objects],
-        capture_output=True, text=True, check=False)
-    require(build.returncode == 0,
-            label + " did not build:\n" + build.stdout + build.stderr)
-    run = subprocess.run([str(program)], capture_output=True, text=True,
-                         check=False, timeout=600)
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    require(build.returncode == 0, label + " did not build:\n" + build.stdout + build.stderr)
+    run = subprocess.run([str(program)], capture_output=True, text=True, check=False, timeout=600)
     return run.returncode
 
 
 def main():
-    require(len(sys.argv) >= 4, "usage: mktime_contract_mutate.py ROOT "
-            "COMPILE TEST OBJECT...")
+    require(len(sys.argv) >= 4, "usage: mktime_contract_mutate.py ROOT COMPILE TEST OBJECT...")
     root = pathlib.Path(sys.argv[1]).resolve()
     # The copies live outside lib/libc/gen, which holds offtime.h.
-    compile_command = shlex.split(sys.argv[2]) + [
-        "-I" + str(root / "lib/libc/gen")]
+    compile_command = shlex.split(sys.argv[2]) + ["-I" + str(root / "lib/libc/gen")]
     test = pathlib.Path(sys.argv[3]).resolve()
     objects = [pathlib.Path(item).resolve() for item in sys.argv[4:]]
     original = (root / "lib/libc/gen/mktime.c").read_text(encoding="utf-8")
@@ -77,17 +83,16 @@ def main():
         directory = pathlib.Path(name)
         baseline = directory / "mktime.c"
         baseline.write_text(original, encoding="utf-8")
-        require(build_and_run(compile_command, baseline, test, objects,
-                              directory, "baseline") == 0,
-                "the unchanged mktime.c failed the contract")
+        require(
+            build_and_run(compile_command, baseline, test, objects, directory, "baseline") == 0,
+            "the unchanged mktime.c failed the contract",
+        )
         print("mktime mutants: unchanged source passes")
         for label, anchor, replacement in MUTANTS:
             require(original.count(anchor) == 1, label + " anchor differs")
             mutant = directory / ("mktime_" + label + ".c")
-            mutant.write_text(original.replace(anchor, replacement),
-                              encoding="utf-8")
-            status = build_and_run(compile_command, mutant, test, objects,
-                                   directory, label)
+            mutant.write_text(original.replace(anchor, replacement), encoding="utf-8")
+            status = build_and_run(compile_command, mutant, test, objects, directory, label)
             require(status != 0, label + " mutant passed the contract")
             print("mktime mutants: %s mutant rejected" % label)
 

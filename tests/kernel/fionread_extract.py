@@ -6,9 +6,7 @@ from pathlib import Path
 
 SIGNATURES = {
     "ioctl": "void\nioctl(void)",
-    "ino_ioctl": (
-        "int\nino_ioctl(register struct file *fp, register u_int com, caddr_t data)"
-    ),
+    "ino_ioctl": ("int\nino_ioctl(register struct file *fp, register u_int com, caddr_t data)"),
 }
 INCLUDES = """#include <sys/param.h>
 #include <sys/user.h>
@@ -58,9 +56,7 @@ def main():
     )
     marker = "case FIONREAD:" if arguments.function == "ioctl" else "com == FIONREAD"
     if function.count(marker) != 1:
-        raise SystemExit(
-            "FIONREAD marker does not occur exactly once in " + arguments.function
-        )
+        raise SystemExit("FIONREAD marker does not occur exactly once in " + arguments.function)
     source_hash = hashlib.sha256(source_bytes).hexdigest()
     arguments.output.write_text(
         "/* Extracted from "

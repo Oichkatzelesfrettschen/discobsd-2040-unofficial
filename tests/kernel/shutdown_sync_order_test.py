@@ -9,12 +9,8 @@ class OrderError(Exception):
 
 
 def boot_body(source_text):
-    function_start = source_text.index(
-        "\nvoid\nboot(dev_t dev __unused, int howto)\n"
-    )
-    function_end = source_text.index(
-        "\n/*\n * Millisecond delay routine.", function_start
-    )
+    function_start = source_text.index("\nvoid\nboot(dev_t dev __unused, int howto)\n")
+    function_end = source_text.index("\n/*\n * Millisecond delay routine.", function_start)
     return source_text[function_start:function_end]
 
 
@@ -33,8 +29,7 @@ def require_order(source_text):
     bootloader_text = "\tif (howto & RB_BOOTLOADER) {"
     if not body.startswith(required_prefix):
         raise OrderError(
-            "boot must begin with the complete shutdown admission block and "
-            "final interrupt mask"
+            "boot must begin with the complete shutdown admission block and final interrupt mask"
         )
     if body.count(call_text) != 1:
         raise OrderError("boot must call rp2040_shutdown_sync exactly once")
@@ -42,9 +37,7 @@ def require_order(source_text):
     mask_index = body.index(mask_text)
     bootloader_index = body.index(bootloader_text)
     if not call_index < mask_index < bootloader_index:
-        raise OrderError(
-            "shutdown synchronization must precede final masking and reset"
-        )
+        raise OrderError("shutdown synchronization must precede final masking and reset")
 
 
 def expect_rejection(source_text, old_text, new_text, mutation_name):
@@ -96,9 +89,7 @@ def main():
     expect_rejection(
         source_text,
         "boot(dev_t dev __unused, int howto)\n{\n",
-        "boot(dev_t dev __unused, int howto)\n{\n"
-        "\tif (howto & RB_HALT)\n"
-        "\t\treturn;\n",
+        "boot(dev_t dev __unused, int howto)\n{\n\tif (howto & RB_HALT)\n\t\treturn;\n",
         "early-exit-before-admission",
     )
     print("PASS shutdown synchronization precedes final reset handling")

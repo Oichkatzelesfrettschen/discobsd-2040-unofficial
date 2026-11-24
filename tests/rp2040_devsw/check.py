@@ -71,10 +71,14 @@ def main():
     flags = struct.unpack_from("<I", modified, flags_offset)[0]
     struct.pack_into("<I", modified, flags_offset, flags | checker.SHF_WRITE)
     reject(modified, obj, "bdevsw linked section is writable")
-    covered = [index for index, segment in enumerate(elf.iter_segments())
-               if segment.header.p_type == "PT_LOAD" and
-               segment.header.p_vaddr <= entry.st_value < segment.header.p_vaddr +
-               segment.header.p_filesz]
+    covered = [
+        index
+        for index, segment in enumerate(elf.iter_segments())
+        if segment.header.p_type == "PT_LOAD"
+        and segment.header.p_vaddr
+        <= entry.st_value
+        < segment.header.p_vaddr + segment.header.p_filesz
+    ]
     if len(covered) != 1:
         raise AssertionError("bdevsw load segment is not unique")
     flags_offset = header.e_phoff + covered[0] * header.e_phentsize + 24
@@ -85,8 +89,9 @@ def main():
     object_elf = ELFFile(io.BytesIO(obj))
     for name in ("bdevsw", "cdevsw", "nblkdev", "nchrdev"):
         source = object_elf.get_section_by_name(".symtab").get_symbol_by_name(name)[0].entry
-        flags_offset = (object_elf.header.e_shoff +
-                        source.st_shndx * object_elf.header.e_shentsize + 8)
+        flags_offset = (
+            object_elf.header.e_shoff + source.st_shndx * object_elf.header.e_shentsize + 8
+        )
         mutated_object = bytearray(obj)
         flags = struct.unpack_from("<I", mutated_object, flags_offset)[0]
         struct.pack_into("<I", mutated_object, flags_offset, flags | checker.SHF_WRITE)
@@ -95,12 +100,17 @@ def main():
     object_elf = ELFFile(io.BytesIO(obj))
     object_table = object_elf.get_section_by_name(".symtab")
     cdev_section = object_table.get_symbol_by_name("cdevsw")[0].entry.st_shndx
-    relocation_section = next(section for section in object_elf.iter_sections()
-                              if isinstance(section, RelocationSection) and
-                              section.header.sh_info == cdev_section)
+    relocation_section = next(
+        section
+        for section in object_elf.iter_sections()
+        if isinstance(section, RelocationSection) and section.header.sh_info == cdev_section
+    )
     object_symbols = object_elf.get_section(relocation_section.header.sh_link)
-    close_index = next(index for index, entry in enumerate(object_symbols.iter_symbols())
-                       if entry.name == "cnclose")
+    close_index = next(
+        index
+        for index, entry in enumerate(object_symbols.iter_symbols())
+        if entry.name == "cnclose"
+    )
     for index, relocation in enumerate(relocation_section.iter_relocations()):
         name = object_symbols.get_symbol(relocation.entry.r_info_sym).name
         if name == "cnopen":
@@ -114,14 +124,22 @@ def main():
     with tempfile.TemporaryDirectory(prefix="rp2040-devsw-") as directory:
         mutant = Path(directory) / "truncated.elf"
         mutant.write_bytes(data[:80])
-        result = subprocess.run([sys.executable, str(ROOT / "tools/check_rp2040_devsw.py"),
-                                 "--object", str(args.object), str(mutant)],
-                                capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools/check_rp2040_devsw.py"),
+                "--object",
+                str(args.object),
+                str(mutant),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
     print(
-        f"PASS RP2040 devsw: {changed} changed fields, count and "
-        "writable-section mutants rejected"
+        f"PASS RP2040 devsw: {changed} changed fields, count and writable-section mutants rejected"
     )
 
 

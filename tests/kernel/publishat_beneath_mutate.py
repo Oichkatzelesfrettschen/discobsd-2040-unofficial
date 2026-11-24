@@ -14,9 +14,7 @@ from unlinkat_beneath_extract import INCLUDES, extract_function
 def replace_once(source: str, old: str, new: str, mutation: str) -> str:
     count = source.count(old)
     if count != 1:
-        raise SystemExit(
-            f"{mutation}: expected one source match, found {count}"
-        )
+        raise SystemExit(f"{mutation}: expected one source match, found {count}")
     return source.replace(old, new)
 
 
@@ -72,9 +70,7 @@ def mutate_function(function: str, mutation: str) -> str:
     if mutation == "use-at-fdcwd":
         count = function.count("uap->rootfd")
         if count != 4:
-            raise SystemExit(
-                f"{mutation}: expected four rooted lookups, found {count}"
-            )
+            raise SystemExit(f"{mutation}: expected four rooted lookups, found {count}")
         return function.replace("uap->rootfd", "AT_FDCWD")
     if mutation == "release-before-publication":
         return replace_once(
@@ -117,10 +113,7 @@ def mutate_function(function: str, mutation: str) -> str:
 
 
 def mutate(source: str, mutation: str) -> str:
-    functions = [
-        extract_function(source, signature, name)
-        for name, signature in FUNCTIONS
-    ]
+    functions = [extract_function(source, signature, name) for name, signature in FUNCTIONS]
     return mutate_function("\n\n".join(functions), mutation)
 
 

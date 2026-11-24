@@ -32,9 +32,7 @@ def require(condition: bool, description: str) -> None:
         raise StackFailure(description)
 
 
-def require_stack_limit(
-    description: str, measured: int, limit: int, components: str
-) -> None:
+def require_stack_limit(description: str, measured: int, limit: int, components: str) -> None:
     require(
         measured <= limit,
         f"{description}: {components}, total={measured}, limit={limit}",
@@ -151,9 +149,7 @@ def main() -> int:
         )
         main_frame = production_usage["main"][0]
         parse_duration_frame = production_usage["parse_duration"][0]
-        pre_fork_chain = validate_production_frames(
-            main_frame, parse_duration_frame
-        )
+        pre_fork_chain = validate_production_frames(main_frame, parse_duration_frame)
 
         bad_source = build_directory / "timeout-known-bad.c"
         bad_source.write_text(

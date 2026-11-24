@@ -106,28 +106,17 @@ def test_static(words, c):
             continue
         check(
             pio_sim.norm(asm) == pio_sim.norm(d),
-            "word %d %04x decodes to '%s' but its comment says '%s'"
-            % (i, w, d, asm),
+            "word %d %04x decodes to '%s' but its comment says '%s'" % (i, w, d, asm),
         )
     # Pin mapping computed from the board: SIO0-3 GP2-GP5, CS GP20 and SCK
     # GP21 as two side-set bits.
-    want = (
-        (2 << 29)
-        | (4 << 26)
-        | (4 << 20)
-        | (2 << 15)
-        | (20 << 10)
-        | (2 << 5)
-        | 2
-    )
+    want = (2 << 29) | (4 << 26) | (4 << 20) | (2 << 15) | (20 << 10) | (2 << 5) | 2
     check(c.pinctrl == want, "PINCTRL %#x != %#x" % (c.pinctrl, want))
     check(
         c.pinctrl_csck == ((2 << 26) | (20 << 5)),
         "CS/SCK setup PINCTRL %#x" % c.pinctrl_csck,
     )
-    check(
-        c.execctrl == (18 << 12), "EXECCTRL %#x wraps the program" % c.execctrl
-    )
+    check(c.execctrl == (18 << 12), "EXECCTRL %#x wraps the program" % c.execctrl)
     check(
         c.shiftctrl == (3 << 16) and c.shiftctrl & (3 << 18) == 0,
         "SHIFTCTRL %#x: autopull and autopush at 32, shift left" % c.shiftctrl,
@@ -151,9 +140,7 @@ class Oracle:
 
     def __init__(self, words, c, **kw):
         self.c = c
-        self.dev = pio_sim.Device(
-            **{k: v for k, v in kw.items() if k in ("kgd", "mfid", "seed")}
-        )
+        self.dev = pio_sim.Device(**{k: v for k, v in kw.items() if k in ("kgd", "mfid", "seed")})
         self.pio = pio_sim.Pio(
             self.dev,
             out_ns=kw.get("out_ns", 3.0),
@@ -223,10 +210,7 @@ def nibbles(word_list, n):
 
 
 def sample_nibbles(frame, lo, hi):
-    return [
-        s[0] | s[1] << 1 | s[2] << 2 | s[3] << 3
-        for s in frame["samples"][lo:hi]
-    ]
+    return [s[0] | s[1] << 1 | s[2] << 2 | s[3] << 3 for s in frame["samples"][lo:hi]]
 
 
 def test_waveforms(words, c):
@@ -308,13 +292,9 @@ def test_waveforms(words, c):
         rel = o.dev.master_at(0, f["rises"][j])[1]
         check(rel == 0, "SIO0 still driven at clock %d" % j)
     got = bytes(w >> s & 255 for w in rx for s in (24, 16, 8, 0))
-    check(
-        got == want_data, "read data %s != %s" % (got.hex(), want_data.hex())
-    )
+    check(got == want_data, "read data %s != %s" % (got.hex(), want_data.hex()))
     check(not o.dev.violations, "read violations: %s" % o.dev.violations)
-    check(
-        o.dev.poison == 0, "read sampled %d indeterminate bits" % o.dev.poison
-    )
+    check(o.dev.poison == 0, "read sampled %d indeterminate bits" % o.dev.poison)
     return o
 
 
@@ -330,19 +310,14 @@ def test_frame_limits(words, c):
     rlow = o.dev.frames[-1]["t_rise"] - o.dev.frames[-1]["t_fall"]
     check(
         max(wlow, rlow) <= pio_sim.T_CEM,
-        "longest frame holds CS low %.0f ns, limit %.0f"
-        % (max(wlow, rlow), pio_sim.T_CEM),
+        "longest frame holds CS low %.0f ns, limit %.0f" % (max(wlow, rlow), pio_sim.T_CEM),
     )
-    check(
-        not o.dev.violations, "frame-limit violations: %s" % o.dev.violations
-    )
+    check(not o.dev.violations, "frame-limit violations: %s" % o.dev.violations)
     d = o.dev
     check(d.min_tcsp >= pio_sim.T_CSP, "tCSP %.1f" % d.min_tcsp)
     check(d.min_tchd >= pio_sim.T_CHD, "tCHD %.1f" % d.min_tchd)
     check(d.min_tcph >= pio_sim.T_CPH, "tCPH %.1f" % d.min_tcph)
-    check(
-        d.min_period >= pio_sim.T_CLK_MIN, "clock period %.1f" % d.min_period
-    )
+    check(d.min_period >= pio_sim.T_CLK_MIN, "clock period %.1f" % d.min_period)
     return {
         "write_cs_low_ns": wlow,
         "read_cs_low_ns": rlow,
@@ -404,8 +379,7 @@ def test_duty_rule():
         check(
             got == ok,
             "duty rule: %.1f ns high / %.1f ns low is %s, want %s"
-            % (high, low, "accepted" if got else "rejected",
-               "accepted" if ok else "rejected"),
+            % (high, low, "accepted" if got else "rejected", "accepted" if ok else "rejected"),
         )
 
 
@@ -506,16 +480,21 @@ def test_region_swap_all(lib):
     check(size_fn(1) == 0, "minor 1 has no region (%d)" % size_fn(1))
     for blk, want in ((0, 0), (2 * 1024, 2 * 1024 * 1024), (total // bsize - 1, total - bsize)):
         e, off = call(0, blk, bsize)
-        check(e == 0 and off == want,
-              "whole swap block %d maps to %#x (%d, %#x)" % (blk, want, e, off))
+        check(
+            e == 0 and off == want,
+            "whole swap block %d maps to %#x (%d, %#x)" % (blk, want, e, off),
+        )
     for blk in (0, 1, 6 * 1024 - 1):
         e, off = call(1, blk, bsize)
-        check(e == -3 and off == 0xDEADBEEF,
-              "minor 1 block %d is refused (%d, %#x)" % (blk, e, off))
+        check(
+            e == -3 and off == 0xDEADBEEF, "minor 1 block %d is refused (%d, %#x)" % (blk, e, off)
+        )
     for blk, ln in ((total // bsize, bsize), (total // bsize - 1, 2 * bsize), (-1, bsize)):
         e, off = call(0, blk, ln)
-        check(e == -3 and off == 0xDEADBEEF,
-              "whole swap block %d length %d is refused (%d)" % (blk, ln, e))
+        check(
+            e == -3 and off == 0xDEADBEEF,
+            "whole swap block %d length %d is refused (%d)" % (blk, ln, e),
+        )
 
 
 def test_block_offset(lib):
@@ -558,8 +537,7 @@ def test_block_offset(lib):
         e, off = call(blk, ln)
         check(
             e == 0 and off == blk * bsize,
-            "block %d length %d maps to offset %d (%d, %d)"
-            % (blk, ln, blk * bsize, e, off),
+            "block %d length %d maps to offset %d (%d, %d)" % (blk, ln, blk * bsize, e, off),
         )
 
 
@@ -584,8 +562,11 @@ def test_driver(lib_path, c, access_ticks=6, quiet=False, **rig_kw):
     want = {2: 0x67, 3: 0x67, 4: 0x67, 5: 0x67, 20: 0x63, 21: 0x63}
     check(
         pads == want,
-        "pad words %s want %s" % ({k: hex(v) for k, v in sorted(pads.items())},
-                                  {k: hex(v) for k, v in sorted(want.items())}),
+        "pad words %s want %s"
+        % (
+            {k: hex(v) for k, v in sorted(pads.items())},
+            {k: hex(v) for k, v in sorted(want.items())},
+        ),
     )
     check(
         all((v >> 4) & 3 == 2 for v in pads.values()),
@@ -597,8 +578,7 @@ def test_driver(lib_path, c, access_ticks=6, quiet=False, **rig_kw):
     r.lib.psram_host_pad_word.restype = ctypes.c_uint
     check(
         r.lib.psram_host_pad_word(10) == 0x5A,
-        "a pad request without a drive field keeps 4 mA: %#x"
-        % r.lib.psram_host_pad_word(10),
+        "a pad request without a drive field keeps 4 mA: %#x" % r.lib.psram_host_pad_word(10),
     )
     err = r.device_init()
     check(err == 0, "device init returned %d" % err)
@@ -610,8 +590,7 @@ def test_driver(lib_path, c, access_ticks=6, quiet=False, **rig_kw):
     check(r.dev.qpi, "device is in quad mode after init")
     seq = [f["cmd"] for f in r.dev.frames]
     check(
-        seq[:4] == [None, None, 0x66, 0x99]
-        or seq[:4] == [0x66, 0x99, 0x66, 0x99],
+        seq[:4] == [None, None, 0x66, 0x99] or seq[:4] == [0x66, 0x99, 0x66, 0x99],
         "reset pair sequence %s" % seq[:4],
     )
     rnd = random.Random(11)
@@ -724,7 +703,8 @@ def test_eid(lib_path, c):
     seq = [f["cmd"] for f in r.dev.frames]
     check(e == 0, "an overrun Read ID is retried: init %d" % e)
     check(
-        seq[4] == 0x9F and seq[5:9] in ([None, None, 0x66, 0x99], [0x66, 0x99, 0x66, 0x99])
+        seq[4] == 0x9F
+        and seq[5:9] in ([None, None, 0x66, 0x99], [0x66, 0x99, 0x66, 0x99])
         and seq[9] == 0x9F,
         "the retry resets the part before Read ID again: %s" % seq[:10],
     )
@@ -821,8 +801,7 @@ def test_pad_delay(lib_path, c):
         e = r.device_init()
         check(
             e == 0 and not r.dev.violations and r.dev.poison == 0,
-            "pad delays out %s in %s ns: init %d poison %d"
-            % (out_ns, in_ns, e, r.dev.poison),
+            "pad delays out %s in %s ns: init %d poison %d" % (out_ns, in_ns, e, r.dev.poison),
         )
     big = 2 * cyc - pio_sim.T_ACLK_MAX + 4
     r = new_rig(lib_path, out_ns=big / 2, in_ns=big / 2)
@@ -863,9 +842,7 @@ def main():
         "irq_masked_max_ns": max(r.pio.irq_spans),
         "register_accesses": r.pio.reg_accesses,
         "read_margin_start_ns": min(m[0] for m in r.dev.margins),
-        "read_margin_end_ns": min(
-            m[1] for m in r.dev.margins if m[1] is not None
-        ),
+        "read_margin_end_ns": min(m[1] for m in r.dev.margins if m[1] is not None),
     }
     test_faults(a.lib, c)
     test_eid(a.lib, c)

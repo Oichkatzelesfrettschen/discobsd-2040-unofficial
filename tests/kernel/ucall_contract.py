@@ -86,13 +86,20 @@ def main():
                             failures.append(f"{relative}: priority restore boundary changed")
                             continue
                         selected = body.replace("splx(s);", "splx(s ^ 1);")
-                    prefix = PREFIX + ("static int wrong(int value) { return value; }\n"
-                                       if mutant == "arity" else "")
+                    prefix = PREFIX + (
+                        "static int wrong(int value) { return value; }\n"
+                        if mutant == "arity"
+                        else ""
+                    )
                     fixture = directory / "ucall.c"
                     fixture.write_text(prefix + selected + SUFFIX, encoding="utf-8")
                     binary = directory / "ucall"
-                    result = subprocess.run([executable, *FLAGS, str(fixture), "-o", str(binary)],
-                                            capture_output=True, text=True, check=False)
+                    result = subprocess.run(
+                        [executable, *FLAGS, str(fixture), "-o", str(binary)],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
                     if mutant == "arity":
                         if result.returncode == 0 or "incompatible" not in result.stderr.lower():
                             failures.append(f"{relative} {compiler}: wrong-arity callback accepted")

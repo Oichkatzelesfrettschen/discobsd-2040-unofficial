@@ -19,9 +19,7 @@ import tempfile
 # variables, or the make that owns the rebuild fixture and runs on its own, so
 # both variables are dropped from the environment the children inherit.
 CHILD_ENVIRONMENT = {
-    name: value
-    for name, value in os.environ.items()
-    if name not in ("MAKEFLAGS", "MFLAGS")
+    name: value for name, value in os.environ.items() if name not in ("MAKEFLAGS", "MFLAGS")
 }
 
 ELF_HEADER = struct.Struct("<16sHHIIIIIHHHHHH")
@@ -469,24 +467,18 @@ def verify_segment_permissions(elf_image: ElfImage, variant: LayoutVariant) -> N
     expected_segment_count = (
         2
         if variant.include_text
-        and (
-            variant.include_optional_data or variant.include_data or variant.include_bss
-        )
+        and (variant.include_optional_data or variant.include_data or variant.include_bss)
         else 1
     )
     if len(segments) != expected_segment_count:
         raise SystemExit(
-            f"{variant.name}: {len(segments)} non-empty LOADs, "
-            f"expected {expected_segment_count}"
+            f"{variant.name}: {len(segments)} non-empty LOADs, expected {expected_segment_count}"
         )
     for segment in segments:
         if segment.flags not in (PF_R | PF_X, PF_R | PF_W):
-            raise SystemExit(
-                f"{variant.name}: LOAD {segment.index} flags {segment.flags:#x}"
-            )
+            raise SystemExit(f"{variant.name}: LOAD {segment.index} flags {segment.flags:#x}")
         if segment.alignment > 1 and (
-            segment.virtual_address % segment.alignment
-            != segment.offset % segment.alignment
+            segment.virtual_address % segment.alignment != segment.offset % segment.alignment
         ):
             raise SystemExit(f"{variant.name}: incongruent LOAD alignment")
     for previous, current in itertools.pairwise(segments):
@@ -507,28 +499,20 @@ def verify_segment_permissions(elf_image: ElfImage, variant: LayoutVariant) -> N
             raise SystemExit(f"{variant.name}: {section.name} lacks one owning LOAD")
         segment = owning_segments[0]
         if section.flags & SHF_WRITE and not segment.flags & PF_W:
-            raise SystemExit(
-                f"{variant.name}: writable {section.name} is not in RW LOAD"
-            )
+            raise SystemExit(f"{variant.name}: writable {section.name} is not in RW LOAD")
         if section.flags & SHF_EXECINSTR and not segment.flags & PF_X:
-            raise SystemExit(
-                f"{variant.name}: executable {section.name} is not in RX LOAD"
-            )
+            raise SystemExit(f"{variant.name}: executable {section.name} is not in RX LOAD")
 
 
 def expected_aout_image(elf_image: ElfImage) -> tuple[tuple[int, ...], bytes]:
     segments = loadable_segments(elf_image)
     image_base = segments[0].virtual_address
     file_end = max(segment.virtual_address + segment.file_size for segment in segments)
-    memory_end = max(
-        segment.virtual_address + segment.memory_size for segment in segments
-    )
+    memory_end = max(segment.virtual_address + segment.memory_size for segment in segments)
     payload = bytearray(file_end - image_base)
     for segment in segments:
         payload_offset = segment.virtual_address - image_base
-        segment_content = elf_image.content[
-            segment.offset : segment.offset + segment.file_size
-        ]
+        segment_content = elf_image.content[segment.offset : segment.offset + segment.file_size]
         if len(segment_content) != segment.file_size:
             raise SystemExit("LOAD extends beyond ELF input")
         payload[payload_offset : payload_offset + segment.file_size] = segment_content
@@ -569,9 +553,7 @@ def verify_conversion(
         raise SystemExit(f"{variant.name}: short a.out output")
     actual_header = AOUT_HEADER.unpack_from(aout_content)
     if actual_header != expected_header:
-        raise SystemExit(
-            f"{variant.name}: a.out header {actual_header} != {expected_header}"
-        )
+        raise SystemExit(f"{variant.name}: a.out header {actual_header} != {expected_header}")
     if aout_content[AOUT_HEADER.size :] != expected_payload:
         raise SystemExit(f"{variant.name}: a.out payload differs from ELF load image")
     return aout_content
@@ -743,9 +725,7 @@ def verify_symbol_conversion(
     if len(content) != string_table_offset + 4 + string_bytes:
         raise SystemExit("symbol string-table length does not match initialized bytes")
     string_table_end = len(content)
-    for symbol_offset in range(
-        AOUT_HEADER.size, string_table_offset, native_nlist_size
-    ):
+    for symbol_offset in range(AOUT_HEADER.size, string_table_offset, native_nlist_size):
         string_index = struct.unpack_from("<I", content, symbol_offset)[0]
         absolute_name_offset = string_table_offset + string_index
         if string_index < 4 or absolute_name_offset >= string_table_end:
@@ -812,9 +792,7 @@ def section_by_name(elf_image: ElfImage, section_name: str) -> SectionHeader:
         section for section in elf_image.section_headers if section.name == section_name
     ]
     if len(matching_sections) != 1:
-        raise SystemExit(
-            f"expected one {section_name} section, found {len(matching_sections)}"
-        )
+        raise SystemExit(f"expected one {section_name} section, found {len(matching_sections)}")
     return matching_sections[0]
 
 
@@ -828,9 +806,7 @@ def read_aout_symbol_types(symbol_path: pathlib.Path) -> dict[str, int]:
     string_table_size = struct.unpack_from("<I", content, string_table_offset)[0]
     string_table_end = string_table_offset + 4 + string_table_size
     symbol_types: dict[str, int] = {}
-    for symbol_offset in range(
-        AOUT_HEADER.size, string_table_offset, native_nlist_size
-    ):
+    for symbol_offset in range(AOUT_HEADER.size, string_table_offset, native_nlist_size):
         string_index = struct.unpack_from("<I", content, symbol_offset)[0]
         name_offset = string_table_offset + string_index
         name_end = content.find(b"\0", name_offset, string_table_end)
@@ -848,10 +824,7 @@ def verify_multicall_object_rebuild(
     rebuild_directory.mkdir()
     rebuild_log = rebuild_directory / "rebuild.log"
     shared_makefile = (
-        arguments.overlay_generator.parent.parent
-        / "share"
-        / "mk"
-        / "multicall-bss-overlay.mk"
+        arguments.overlay_generator.parent.parent / "share" / "mk" / "multicall-bss-overlay.mk"
     )
     fixture_makefile = rebuild_directory / "Makefile"
     fixture_makefile.write_text(
@@ -940,9 +913,7 @@ def verify_multicall_object_rejections(
         "common",
         OVERLAY_COMMON_SOURCE,
     )
-    common_tool_object = rename_overlay_bss(
-        arguments, common_object, "common", temporary_directory
-    )
+    common_tool_object = rename_overlay_bss(arguments, common_object, "common", temporary_directory)
     common_rejection = run_command(
         [
             "sh",
@@ -1022,12 +993,8 @@ def verify_multicall_bss_overlay(
     beta_object = compile_overlay_object(
         arguments, temporary_directory, "beta", OVERLAY_BETA_SOURCE
     )
-    alpha_tool_object = rename_overlay_bss(
-        arguments, alpha_object, "alpha", temporary_directory
-    )
-    beta_tool_object = rename_overlay_bss(
-        arguments, beta_object, "beta", temporary_directory
-    )
+    alpha_tool_object = rename_overlay_bss(arguments, alpha_object, "alpha", temporary_directory)
+    beta_tool_object = rename_overlay_bss(arguments, beta_object, "beta", temporary_directory)
     require_clean_command(
         run_command(
             [
@@ -1093,10 +1060,7 @@ def verify_multicall_bss_overlay(
         raise SystemExit("loadable BSS extent does not cover the applet overlay")
     if extent_section.size != max(alpha_section.size, beta_section.size):
         raise SystemExit("loadable BSS extent is not the largest applet BSS")
-    if (
-        shared_section.virtual_address
-        < extent_section.virtual_address + extent_section.size
-    ):
+    if shared_section.virtual_address < extent_section.virtual_address + extent_section.size:
         raise SystemExit("shared BSS overlaps the applet BSS extent")
 
     overlay_aout = temporary_directory / "multicall-bss-overlay.aout"
@@ -1110,10 +1074,7 @@ def verify_multicall_bss_overlay(
         raise SystemExit("overlay a.out header does not match its load segments")
     if overlay_content[AOUT_HEADER.size :] != expected_payload:
         raise SystemExit("overlay a.out payload does not match its load segments")
-    if (
-        expected_header[3]
-        >= alpha_section.size + beta_section.size + shared_section.size
-    ):
+    if expected_header[3] >= alpha_section.size + beta_section.size + shared_section.size:
         raise SystemExit("overlay a.out BSS still sums mutually exclusive applets")
     for initialized_word in (0x11223344, 0x55667788):
         if struct.pack("<I", initialized_word) not in expected_payload:
@@ -1300,9 +1261,7 @@ def main() -> int:
             reference_object_path,
         )
         verify_shorter_overwrite(arguments, temporary_directory, elf_paths, aout_images)
-        verify_symbol_conversion(
-            arguments, temporary_directory, elf_paths["text_data_bss"]
-        )
+        verify_symbol_conversion(arguments, temporary_directory, elf_paths["text_data_bss"])
         verify_multicall_bss_overlay(arguments, temporary_directory)
         verify_multicall_object_rebuild(arguments, temporary_directory)
         verify_shared_requirement(arguments, temporary_directory)

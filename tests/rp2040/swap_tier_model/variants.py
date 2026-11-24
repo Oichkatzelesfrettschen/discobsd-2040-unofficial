@@ -35,7 +35,7 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    __package__ = "swap_tier_model"     # noqa: A001
+    __package__ = "swap_tier_model"  # noqa: A001
 
 from . import calibrate, trace  # noqa: E402
 from .model import Config, Model  # noqa: E402
@@ -46,21 +46,27 @@ SESSIONS = 40
 # name, Config, workload transform, extra RAM bytes, text estimate bytes
 VARIANTS = [
     ("baseline (PICO kernel)", Config(), None, 0, 0),
-    ("1 u area reserved at compressed size + 64",
-     Config(u_compressed=True, u_slack=64), None, 0, 120),
+    (
+        "1 u area reserved at compressed size + 64",
+        Config(u_compressed=True, u_slack=64),
+        None,
+        0,
+        120,
+    ),
     ("2 compaction on refusal", Config(compaction=True), None, 0, 200),
     ("3a pool 24 KB", Config(pool_kb=24), None, 8192, 0),
     ("3b pool 32 KB", Config(pool_kb=32), None, 16384, 0),
-    ("4 refused images compressed on flash",
-     Config(flash_compressed=True), None, 0, 600),
-    ("5 zero-sector elision on flash", Config(zero_elision=True), None,
-     32, 80),
-    ("6 cc driver shell never swaps out", Config(),
-     lambda w: replace(w, driver_swaps=False), 0, 0),
-    ("1+2", Config(u_compressed=True, u_slack=64, compaction=True), None,
-     0, 320),
-    ("1+2+4", Config(u_compressed=True, u_slack=64, compaction=True,
-                     flash_compressed=True), None, 0, 920),
+    ("4 refused images compressed on flash", Config(flash_compressed=True), None, 0, 600),
+    ("5 zero-sector elision on flash", Config(zero_elision=True), None, 32, 80),
+    ("6 cc driver shell never swaps out", Config(), lambda w: replace(w, driver_swaps=False), 0, 0),
+    ("1+2", Config(u_compressed=True, u_slack=64, compaction=True), None, 0, 320),
+    (
+        "1+2+4",
+        Config(u_compressed=True, u_slack=64, compaction=True, flash_compressed=True),
+        None,
+        0,
+        920,
+    ),
     ("8 swap off NOR (PSRAM or SD)", Config(flash=False), None, 0, 0),
 ]
 
@@ -72,12 +78,20 @@ for _kb in SMALL_POOLS:
     _ram = (_kb - 16) * 1024
     VARIANTS += [
         (f"9 pool {_kb} KB", Config(pool_kb=_kb), None, _ram, 0),
-        (f"9 pool {_kb} KB + 1",
-         Config(pool_kb=_kb, u_compressed=True, u_slack=64), None, _ram,
-         120),
-        (f"9 pool {_kb} KB + 1+2",
-         Config(pool_kb=_kb, u_compressed=True, u_slack=64,
-                compaction=True), None, _ram, 320),
+        (
+            f"9 pool {_kb} KB + 1",
+            Config(pool_kb=_kb, u_compressed=True, u_slack=64),
+            None,
+            _ram,
+            120,
+        ),
+        (
+            f"9 pool {_kb} KB + 1+2",
+            Config(pool_kb=_kb, u_compressed=True, u_slack=64, compaction=True),
+            None,
+            _ram,
+            320,
+        ),
     ]
 VARIANTS.append(("9 no pool", Config(pool_kb=0), None, -16384, 0))
 
@@ -85,17 +99,17 @@ FLASH_SIZES = [384, 256, 192, 128, 96, 64]
 
 TEXT_BASIS = {
     "1": "one more counting encode of the u area plus an overflow branch "
-         "that cancels the reservation and takes flash: about 30 to 60 "
-         "Thumb-1 instructions",
+    "that cancels the reservation and takes flash: about 30 to 60 "
+    "Thumb-1 instructions",
     "2": "a pass over sr_tab in offset order with a bcopy per image and "
-         "e_off updates, skipped while an exec spool is live: about 100 "
-         "instructions",
+    "e_off updates, skipped while an exec spool is live: about 100 "
+    "instructions",
     "3": "SWAPRAM_KB only; the u_short offsets of sr_ent hold up to 64 KB",
     "4": "a streaming encode into the 256-byte flash page buffer and a "
-         "decode from the XIP window on swapin, reusing the codec "
-         "workspace; the evacuation path already expands to flash",
+    "decode from the XIP window on swapin, reusing the codec "
+    "workspace; the evacuation path already expands to flash",
     "5": "a per-process mask of skipped sectors (2 bytes x NPROC) and a "
-         "scan before each sector erase",
+    "scan before each sector erase",
 }
 
 
@@ -116,14 +130,12 @@ def cold_cursor(sectors, rng):
 
 def published_index(next_block, nswap):
     """The sector index swap_cursor_publish() stores for swapnext."""
-    if next_block < 4 or next_block > nswap or next_block % 4 or \
-            next_block == nswap:
+    if next_block < 4 or next_block > nswap or next_block % 4 or next_block == nswap:
         return 0
     return (next_block - 4) // 4
 
 
-def measure(config, transform=None, sessions=SESSIONS, seed=7,
-            boots="cold"):
+def measure(config, transform=None, sessions=SESSIONS, seed=7, boots="cold"):
     rows = []
     for workload in ensemble():
         if transform is not None:
@@ -135,8 +147,7 @@ def measure(config, transform=None, sessions=SESSIONS, seed=7,
         first = None
         cursor = None
         for _ in range(sessions):
-            if boots == "reset" and cursor is not None and \
-                    cursor < nsectors:
+            if boots == "reset" and cursor is not None and cursor < nsectors:
                 start = cursor
             else:
                 start = cold_cursor(nsectors, rng)
@@ -150,24 +161,31 @@ def measure(config, transform=None, sessions=SESSIONS, seed=7,
             counters, _measured = m.delta()
             if first is None:
                 first = counters
-                boot_erases = m.snapshots[0][0].get("swap_erase_sectors",
-                                                    0)
-            total = list(m.erases) if total is None else \
-                [a + b for a, b in zip(total, m.erases)]
+                boot_erases = m.snapshots[0][0].get("swap_erase_sectors", 0)
+            total = list(m.erases) if total is None else [a + b for a, b in zip(total, m.erases)]
         compiles = workload.compiles
-        row = {"peak_blocks": peak, "refusing": refused / sessions,
-               "admitted": None, "erases": None, "hottest": None,
-               "mean": None, "life": None, "boot_erases": None}
+        row = {
+            "peak_blocks": peak,
+            "refusing": refused / sessions,
+            "admitted": None,
+            "erases": None,
+            "hottest": None,
+            "mean": None,
+            "life": None,
+            "boot_erases": None,
+        }
         if not refused:
             hottest = max(total[1:]) / sessions / compiles
-            row.update({
-                "admitted": first.get("swapram_admissions", 0),
-                "erases": first.get("swap_erase_sectors", 0) / compiles,
-                "hottest": hottest,
-                "mean": sum(total[1:]) / max(1, len(total) - 1) /
-                sessions / compiles,
-                "life": ENDURANCE / hottest if hottest else None,
-                "boot_erases": boot_erases})
+            row.update(
+                {
+                    "admitted": first.get("swapram_admissions", 0),
+                    "erases": first.get("swap_erase_sectors", 0) / compiles,
+                    "hottest": hottest,
+                    "mean": sum(total[1:]) / max(1, len(total) - 1) / sessions / compiles,
+                    "life": ENDURANCE / hottest if hottest else None,
+                    "boot_erases": boot_erases,
+                }
+            )
         rows.append(row)
     return rows
 
@@ -176,8 +194,11 @@ def life_range(rows):
     """Life in compiles per fit, as a range over the fits."""
     lives = [r["life"] for r in rows]
     if any(life is None for life in lives):
-        return "unbounded" if all(life is None for life in lives) else \
-            "unbounded to " + f"{max(x for x in lives if x):,.0f}"
+        return (
+            "unbounded"
+            if all(life is None for life in lives)
+            else "unbounded to " + f"{max(x for x in lives if x):,.0f}"
+        )
     return span(lives, "{:,.0f}")
 
 
@@ -188,8 +209,11 @@ def refusing(rows):
 
 def span(values, fmt):
     lo, hi = min(values), max(values)
-    return fmt.format(lo) if fmt.format(lo) == fmt.format(hi) else \
-        fmt.format(lo) + " to " + fmt.format(hi)
+    return (
+        fmt.format(lo)
+        if fmt.format(lo) == fmt.format(hi)
+        else fmt.format(lo) + " to " + fmt.format(hi)
+    )
 
 
 def table(sessions=SESSIONS):
@@ -197,17 +221,20 @@ def table(sessions=SESSIONS):
     base = measure(Config(), sessions=sessions)
     base_erases = sum(r["erases"] for r in base) / len(base)
     base_hot = sum(r["hottest"] for r in base) / len(base)
-    out.append("| Variant | Admitted | Erases/compile | Hottest sector "
-               "erases/compile | Life (compiles), per fit | Peak blocks | Sessions "
-               "refused | Extra RAM | Text (est.) | Erases saved/compile "
-               "| Saved per KB RAM | Saved per KB text |")
+    out.append(
+        "| Variant | Admitted | Erases/compile | Hottest sector "
+        "erases/compile | Life (compiles), per fit | Peak blocks | Sessions "
+        "refused | Extra RAM | Text (est.) | Erases saved/compile "
+        "| Saved per KB RAM | Saved per KB text |"
+    )
     out.append("|" + " --- |" * 12)
     results = {}
     for name, config, transform, ram, text in VARIANTS:
         rows = measure(config, transform, sessions)
         if any(r["refusing"] for r in rows):
-            out.append(f"| {name} | refuses the workload in "
-                       f"{refusing(rows)} of sessions |" + " -- |" * 10)
+            out.append(
+                f"| {name} | refuses the workload in {refusing(rows)} of sessions |" + " -- |" * 10
+            )
             continue
         erases = sum(r["erases"] for r in rows) / len(rows)
         hot = sum(r["hottest"] for r in rows) / len(rows)
@@ -222,21 +249,25 @@ def table(sessions=SESSIONS):
             f"{span([r['hottest'] for r in rows], '{:.3f}')} | {life} | "
             f"{max(r['peak_blocks'] for r in rows)} | "
             f"{refusing(rows)} | {ram} | {text} | "
-            f"{saved:.1f} | {per_ram} | {per_text} |")
+            f"{saved:.1f} | {per_ram} | {per_text} |"
+        )
     out.append("")
-    out.append("| Raw swap | Sectors | Erases/compile | Mean sector "
-               "erases/compile | Hottest | Hottest/mean | Life, cold boots "
-               "| Life, resets | Peak blocks | Sessions refused |")
+    out.append(
+        "| Raw swap | Sectors | Erases/compile | Mean sector "
+        "erases/compile | Hottest | Hottest/mean | Life, cold boots "
+        "| Life, resets | Peak blocks | Sessions refused |"
+    )
     out.append("|" + " --- |" * 10)
     for kb in FLASH_SIZES:
         rows = measure(Config(flash_kb=kb), sessions=sessions)
-        reset = measure(Config(flash_kb=kb), sessions=sessions,
-                        boots="reset")
+        reset = measure(Config(flash_kb=kb), sessions=sessions, boots="reset")
         peak = max(r["peak_blocks"] for r in rows)
         if any(r["refusing"] for r in rows):
-            out.append(f"| {kb} KB | {(kb - 4) // 4} | refuses the "
-                       f"workload | -- | -- | -- | -- | -- | {peak} | "
-                       f"{refusing(rows)} |")
+            out.append(
+                f"| {kb} KB | {(kb - 4) // 4} | refuses the "
+                f"workload | -- | -- | -- | -- | -- | {peak} | "
+                f"{refusing(rows)} |"
+            )
             continue
         out.append(
             f"| {kb} KB | {(kb - 4) // 4} | "
@@ -245,7 +276,8 @@ def table(sessions=SESSIONS):
             f"{span([r['hottest'] for r in rows], '{:.3f}')} | "
             f"{span([r['hottest'] / r['mean'] for r in rows], '{:.2f}')} | "
             f"{life_range(rows)} | "
-            f"{life_range(reset)} | {peak} | {refusing(rows)} |")
+            f"{life_range(reset)} | {peak} | {refusing(rows)} |"
+        )
     return "\n".join(out), results, base_hot
 
 

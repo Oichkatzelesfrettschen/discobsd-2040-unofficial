@@ -12,6 +12,7 @@ The second form rewrites the source once per mutant, requires that the
 rewrite changed the text, and requires the comparison to fail on the
 rewritten object.
 """
+
 import argparse
 import ctypes
 import os
@@ -26,34 +27,52 @@ MASK = 0xFFFFFFFF
 # Each mutant replaces one fragment of subr_crc32.c that occurs exactly once.
 MUTANTS = (
     ("table entry 5 with a flipped bit", "0x6b6b51f4U", "0x6b6b51f5U"),
-    ("table entries 1 and 2 swapped", "0x1db71064U, 0x3b6e20c8U",
-     "0x3b6e20c8U, 0x1db71064U"),
+    ("table entries 1 and 2 swapped", "0x1db71064U, 0x3b6e20c8U", "0x3b6e20c8U, 0x1db71064U"),
     ("last table entry zero", "0xbdbdf21cU", "0x00000000U"),
-    ("first shift of 3 bits", "crc = (crc >> 4) ^ crc32_nibble[crc & 15];\n"
-     "        crc = (crc >> 4)",
-     "crc = (crc >> 3) ^ crc32_nibble[crc & 15];\n        crc = (crc >> 4)"),
-    ("second shift of 5 bits", "crc = (crc >> 4) ^ crc32_nibble[crc & 15];\n"
-     "    }", "crc = (crc >> 5) ^ crc32_nibble[crc & 15];\n    }"),
-    ("index mask of 7", "crc32_nibble[crc & 15];\n        crc = (crc >> 4)",
-     "crc32_nibble[crc & 7];\n        crc = (crc >> 4)"),
-    ("second lookup removed",
-     "        crc = (crc >> 4) ^ crc32_nibble[crc & 15];\n    }", "    }"),
+    (
+        "first shift of 3 bits",
+        "crc = (crc >> 4) ^ crc32_nibble[crc & 15];\n        crc = (crc >> 4)",
+        "crc = (crc >> 3) ^ crc32_nibble[crc & 15];\n        crc = (crc >> 4)",
+    ),
+    (
+        "second shift of 5 bits",
+        "crc = (crc >> 4) ^ crc32_nibble[crc & 15];\n    }",
+        "crc = (crc >> 5) ^ crc32_nibble[crc & 15];\n    }",
+    ),
+    (
+        "index mask of 7",
+        "crc32_nibble[crc & 15];\n        crc = (crc >> 4)",
+        "crc32_nibble[crc & 7];\n        crc = (crc >> 4)",
+    ),
+    ("second lookup removed", "        crc = (crc >> 4) ^ crc32_nibble[crc & 15];\n    }", "    }"),
     ("final byte skipped", "while (len-- != 0)", "while (len-- > 1)"),
     ("input byte not mixed in", "crc ^= *p++;", "crc ^= *p++ & 0x7f;"),
 )
 
 
 def build(cc, source, include, out):
-    cmd = [cc, "-std=gnu17", "-Wall", "-Wextra", "-Werror", "-O2", "-fPIC",
-           "-shared", "-idirafter", include, "-o", out, source]
+    cmd = [
+        cc,
+        "-std=gnu17",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-O2",
+        "-fPIC",
+        "-shared",
+        "-idirafter",
+        include,
+        "-o",
+        out,
+        source,
+    ]
     subprocess.run(cmd, check=True)
 
 
 def load(path):
     lib = ctypes.CDLL(path)
     lib.crc32_update.restype = ctypes.c_uint
-    lib.crc32_update.argtypes = [ctypes.c_uint, ctypes.c_void_p,
-                                 ctypes.c_uint]
+    lib.crc32_update.argtypes = [ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
     return lib
 
 
@@ -95,8 +114,7 @@ def check(lib):
             buf = ctypes.create_string_buffer(pad + length + 1)
             ctypes.memmove(ctypes.addressof(buf) + off, data, length)
             if raw(MASK, buf, off, length) ^ MASK != zlib.crc32(data):
-                fail("length %d offset %d from the standard start"
-                     % (length, off))
+                fail("length %d offset %d from the standard start" % (length, off))
         state = rng.getrandbits(32)
         buf = ctypes.create_string_buffer(data, length + 1)
         if raw(state, buf, 0, length) != expect(state, data):
@@ -151,8 +169,7 @@ def main():
         escaped = 0
         for n, (name, old, new) in enumerate(MUTANTS):
             if text.count(old) != 1:
-                print("FAIL: mutant %r fragment occurs %d times"
-                      % (name, text.count(old)))
+                print("FAIL: mutant %r fragment occurs %d times" % (name, text.count(old)))
                 return 1
             src = os.path.join(tmp, "mutant%d.c" % n)
             with open(src, "w", encoding="utf-8") as fh:

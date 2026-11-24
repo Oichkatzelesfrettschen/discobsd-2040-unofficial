@@ -69,10 +69,7 @@ def main():
     test_source = pathlib.Path(sys.argv[3]).resolve()
     source = (root / "lib/libc/gen/alarm.c").read_text(encoding="utf-8")
     rounding_anchor = "if (oitv.it_value.tv_usec != 0)"
-    failure_anchor = (
-        "if (setitimer(ITIMER_REAL, itp, &oitv) < 0)\n"
-        "\t\treturn ((unsigned int)-1);"
-    )
+    failure_anchor = "if (setitimer(ITIMER_REAL, itp, &oitv) < 0)\n\t\treturn ((unsigned int)-1);"
     require(
         source.count(rounding_anchor) == 1,
         "alarm rounding mutation anchor differs",

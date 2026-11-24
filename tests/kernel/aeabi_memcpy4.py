@@ -55,18 +55,32 @@ def main():
                 if mutant != "none":
                     offset = 0 if mutant == "generic" else body.index("void\n__aeabi_memcpy4(")
                     before, after = body[:offset], body[offset:]
-                    selected = before + after.replace("bcopy(src, dst, nbytes);",
-                                                      "bcopy(dst, (void *)src, nbytes);", 1)
+                    selected = before + after.replace(
+                        "bcopy(src, dst, nbytes);", "bcopy(dst, (void *)src, nbytes);", 1
+                    )
                 fixture = directory / "copy.c"
                 fixture.write_text(PREFIX + selected + SUFFIX, encoding="utf-8")
                 binary = directory / "copy"
-                subprocess.run([compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
-                                "-ffreestanding", "-fno-builtin", str(fixture), "-o", str(binary)],
-                               check=True)
+                subprocess.run(
+                    [
+                        compiler,
+                        "-std=c17",
+                        "-Wall",
+                        "-Wextra",
+                        "-Werror",
+                        "-ffreestanding",
+                        "-fno-builtin",
+                        str(fixture),
+                        "-o",
+                        str(binary),
+                    ],
+                    check=True,
+                )
                 status = subprocess.run([str(binary)], check=False).returncode
                 if (status == 0) != (mutant == "none"):
-                    raise SystemExit(f"FAIL aeabi-memcpy4: {compiler} "
-                                     f"mutant={mutant} exit={status}")
+                    raise SystemExit(
+                        f"FAIL aeabi-memcpy4: {compiler} mutant={mutant} exit={status}"
+                    )
     print("PASS aeabi-memcpy4: copy lengths and reversed-argument mutant")
     return 0
 

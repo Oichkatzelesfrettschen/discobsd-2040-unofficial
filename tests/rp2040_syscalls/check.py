@@ -63,8 +63,12 @@ def main():
             raise AssertionError("incompatible configuration was accepted")
     for index, pointer in enumerate(pointers):
         modified = bytearray(data)
-        struct.pack_into("<I", modified, handlers + 4 * index,
-                         next(value for value in alternatives if value != pointer))
+        struct.pack_into(
+            "<I",
+            modified,
+            handlers + 4 * index,
+            next(value for value in alternatives if value != pointer),
+        )
         reject(modified, rows, f"syscall {index} pointer differs")
         modified = bytearray(data)
         modified[nargs + index] = (modified[nargs + index] + 1) % 7
@@ -78,9 +82,18 @@ def main():
     with tempfile.TemporaryDirectory(prefix="rp2040-syscalls-") as directory:
         mutant = Path(directory) / "truncated.elf"
         mutant.write_bytes(data[:80])
-        result = subprocess.run([sys.executable, str(ROOT / "tools/check_rp2040_syscalls.py"),
-                                 "--master", str(master), str(mutant)],
-                                capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools/check_rp2040_syscalls.py"),
+                "--master",
+                str(master),
+                str(mutant),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
     print(f"PASS RP2040 syscalls: {len(rows)} pointers, counts and Thumb-bit mutants")
@@ -94,7 +107,7 @@ def check_trace_mutants(rows, plain, traced):
     elf = ELFFile(io.BytesIO(traced))
     spans = symbol_offset(elf, "syscall_name_spans")
     pool = symbol_offset(elf, "syscall_name_pool")
-    for invalid_span in (0, 0xffff):
+    for invalid_span in (0, 0xFFFF):
         modified = bytearray(traced)
         struct.pack_into("<H", modified, spans, invalid_span)
         reject(modified, rows, "syscall trace slot 0 span is out of bounds", systrace=True)

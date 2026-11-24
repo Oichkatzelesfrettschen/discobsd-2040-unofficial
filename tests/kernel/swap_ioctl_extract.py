@@ -8,9 +8,7 @@ from pathlib import Path
 STATE_START = "#define TD_APPEND_DISABLED 0xffffU\n"
 STATE_END = "static struct swtemp td[NTMP];"
 SWSIZE_SIGNATURE = "daddr_t\nswsize(dev_t dev)"
-SWCIOCTL_SIGNATURE = (
-    "int\nswcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)"
-)
+SWCIOCTL_SIGNATURE = "int\nswcioctl(dev_t dev, u_int cmd, caddr_t addr, int flag)"
 WRITE_FLAGS_SIGNATURE = (
     "static int\nswtemp_write_flags(struct swtemp *temp, u_int block, u_int blocks)"
 )

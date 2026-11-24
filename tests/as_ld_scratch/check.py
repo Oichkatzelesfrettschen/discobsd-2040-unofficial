@@ -97,33 +97,49 @@ def digest(path):
 
 
 def run(command, cwd, check=True):
-    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True,
-                            timeout=300, check=False)
+    result = subprocess.run(
+        command, cwd=cwd, capture_output=True, text=True, timeout=300, check=False
+    )
     if check and result.returncode != 0:
-        raise RuntimeError("%s failed (%d): %s%s" % (
-            shlex.join(map(str, command)), result.returncode,
-            result.stdout, result.stderr))
+        raise RuntimeError(
+            "%s failed (%d): %s%s"
+            % (shlex.join(map(str, command)), result.returncode, result.stdout, result.stderr)
+        )
     return result
 
 
 def libbsd_flags():
     if not sys.platform.startswith("linux"):
         return []
-    return shlex.split(subprocess.check_output(
-        ["pkg-config", "--cflags", "--libs", "libbsd-overlay"], text=True))
+    return shlex.split(
+        subprocess.check_output(["pkg-config", "--cflags", "--libs", "libbsd-overlay"], text=True)
+    )
 
 
 def compile_tool(source, binary, defines, work):
     """Compile one tool the way tools/aoututils does, with extra -D flags."""
-    command = [*shlex.split(os.environ.get("CC", "cc")), "-std=gnu89",
-               "-Wall", "-Wextra", "-Werror", "-fno-builtin", "-DCROSS",
-               *defines,
-               "-I" + str(ROOT / "tools/aoututils/include"),
-               "-idirafter", str(ROOT / "include"),
-               "-idirafter", str(ROOT / "tools/aoututils/ar"),
-               str(source), "-o", str(binary), *libbsd_flags()]
-    result = subprocess.run(command, capture_output=True, text=True, check=False,
-                            timeout=300, cwd=work)
+    command = [
+        *shlex.split(os.environ.get("CC", "cc")),
+        "-std=gnu89",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fno-builtin",
+        "-DCROSS",
+        *defines,
+        "-I" + str(ROOT / "tools/aoututils/include"),
+        "-idirafter",
+        str(ROOT / "include"),
+        "-idirafter",
+        str(ROOT / "tools/aoututils/ar"),
+        str(source),
+        "-o",
+        str(binary),
+        *libbsd_flags(),
+    ]
+    result = subprocess.run(
+        command, capture_output=True, text=True, check=False, timeout=300, cwd=work
+    )
     if result.returncode or result.stderr:
         raise RuntimeError("compile %s:\n%s%s" % (binary.name, result.stdout, result.stderr))
 
@@ -182,6 +198,7 @@ def scenarios(as_bin, ld_bin, ar_bin, work, strict=True):
 def under_umask(mask):
     def apply():
         os.umask(mask)
+
     return apply
 
 
@@ -200,40 +217,62 @@ def umask_case(as_bin, ld_bin, work, expected):
     for name in ("small", "mid", "lib1"):
         run([as_bin, name + ".s", "-o", name + ".o"], work)
     result = subprocess.run(
-        [as_bin, "small.s", "-o", "locked.o"], cwd=work, capture_output=True,
-        text=True, check=False, timeout=300, preexec_fn=under_umask(0o222))
+        [as_bin, "small.s", "-o", "locked.o"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+        preexec_fn=under_umask(0o222),
+    )
     if result.returncode != 0:
         problems.append("as under umask 0222 exited %d" % result.returncode)
     elif oct(os.stat(work / "locked.o").st_mode & 0o777) != oct(0o444):
-        problems.append("as under umask 0222 left mode %s" % oct(
-            os.stat(work / "locked.o").st_mode & 0o777))
+        problems.append(
+            "as under umask 0222 left mode %s" % oct(os.stat(work / "locked.o").st_mode & 0o777)
+        )
     result = subprocess.run(
-        [ld_bin, "-o", "locked.out", "small.o", "mid.o", "lib1.o"], cwd=work,
-        capture_output=True, text=True, check=False, timeout=300,
-        preexec_fn=under_umask(0o222))
+        [ld_bin, "-o", "locked.out", "small.o", "mid.o", "lib1.o"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+        preexec_fn=under_umask(0o222),
+    )
     target = work / "locked.out"
     if result.returncode != 0:
-        problems.append("ld under umask 0222 exited %d: %s" % (
-            result.returncode, result.stdout.strip()))
+        problems.append(
+            "ld under umask 0222 exited %d: %s" % (result.returncode, result.stdout.strip())
+        )
     elif digest(target) != expected["umask_modes"]["ld digest"]:
         problems.append("ld under umask 0222 changed the bytes")
     elif os.stat(target).st_mode & 0o777 != 0o777 & ~0o222:
-        problems.append("ld under umask 0222 left mode %s, base leaves %s" % (
-            oct(os.stat(target).st_mode & 0o777), oct(0o777 & ~0o222)))
+        problems.append(
+            "ld under umask 0222 left mode %s, base leaves %s"
+            % (oct(os.stat(target).st_mode & 0o777), oct(0o777 & ~0o222))
+        )
     # A relocatable link over an existing file keeps that file's mode, as
     # the base tool's truncating open does.
     kept = work / "kept.o"
     kept.write_bytes(b"")
     os.chmod(kept, 0o600)
     result = subprocess.run(
-        [ld_bin, "-r", "-o", "kept.o", "small.o", "mid.o"], cwd=work,
-        capture_output=True, text=True, check=False, timeout=300)
+        [ld_bin, "-r", "-o", "kept.o", "small.o", "mid.o"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
     if result.returncode != 0:
-        problems.append("ld -r over an existing file exited %d: %s" % (
-            result.returncode, result.stdout.strip()))
+        problems.append(
+            "ld -r over an existing file exited %d: %s" % (result.returncode, result.stdout.strip())
+        )
     elif os.stat(kept).st_mode & 0o777 != 0o600:
-        problems.append("ld -r over a mode 0600 file left mode %s" % oct(
-            os.stat(kept).st_mode & 0o777))
+        problems.append(
+            "ld -r over a mode 0600 file left mode %s" % oct(os.stat(kept).st_mode & 0o777)
+        )
     return problems
 
 
@@ -241,19 +280,24 @@ def strace_usable():
     exe = shutil.which("strace")
     if not exe:
         return None
-    probe = subprocess.run([exe, "-o", os.devnull, "-e", "trace=write", "true"],
-                           capture_output=True, check=False)
+    probe = subprocess.run(
+        [exe, "-o", os.devnull, "-e", "trace=write", "true"], capture_output=True, check=False
+    )
     return exe if probe.returncode == 0 else None
 
 
 def count_calls(strace, command, work):
     log = work / "strace.log"
-    result = subprocess.run([strace, "-o", str(log), "-e", "trace=" + TRACED,
-                             *map(str, command)], cwd=work, capture_output=True,
-                            text=True, check=False, timeout=300)
+    result = subprocess.run(
+        [strace, "-o", str(log), "-e", "trace=" + TRACED, *map(str, command)],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
     if result.returncode != 0:
-        raise RuntimeError("traced command exited %d: %s" % (result.returncode,
-                                                            result.stderr))
+        raise RuntimeError("traced command exited %d: %s" % (result.returncode, result.stderr))
     counts = {"write": 0, "lseek": 0, "create": 0, "unlink": 0, "ftruncate": 0}
     for line in log.read_text().splitlines():
         match = re.match(r"(\w+)\(", line)
@@ -264,8 +308,7 @@ def count_calls(strace, command, work):
             counts[call] += 1
         elif call in ("unlink", "unlinkat"):
             counts["unlink"] += 1
-        elif call in ("open", "openat", "creat") and \
-                ("O_CREAT" in line or call == "creat"):
+        elif call in ("open", "openat", "creat") and ("O_CREAT" in line or call == "creat"):
             counts["create"] += 1
     return counts
 
@@ -277,10 +320,8 @@ def measure(strace, as_bin, ld_bin, work):
     run([as_bin, "lib1.s", "-o", "lib1.o"], work)
     return {
         "as-small": count_calls(strace, [as_bin, "small.s", "-o", "small.o"], work),
-        "ld-link": count_calls(strace, [ld_bin, "-o", "t.out", "small.o", "mid.o",
-                                        "lib1.o"], work),
-        "ld-partial": count_calls(strace, [ld_bin, "-r", "-o", "t.o", "small.o",
-                                           "mid.o"], work),
+        "ld-link": count_calls(strace, [ld_bin, "-o", "t.out", "small.o", "mid.o", "lib1.o"], work),
+        "ld-partial": count_calls(strace, [ld_bin, "-r", "-o", "t.o", "small.o", "mid.o"], work),
     }
 
 
@@ -289,8 +330,7 @@ def over_ceiling(counts):
     for command, ceiling in CEILINGS.items():
         for call, limit in ceiling.items():
             if counts[command][call] > limit:
-                problems.append("%s: %s %d > %d" % (command, call,
-                                                    counts[command][call], limit))
+                problems.append("%s: %s %d > %d" % (command, call, counts[command][call], limit))
     return problems
 
 
@@ -307,12 +347,23 @@ def record(args):
         for name in ("small", "mid", "lib1"):
             shutil.copy(work / (name + ".s"), locked)
             run([as_bin, name + ".s", "-o", name + ".o"], locked)
-        subprocess.run([ld_bin, "-o", "locked.out", "small.o", "mid.o", "lib1.o"],
-                       cwd=locked, check=True)
+        subprocess.run(
+            [ld_bin, "-o", "locked.out", "small.o", "mid.o", "lib1.o"], cwd=locked, check=True
+        )
         modes = {"ld digest": digest(locked / "locked.out")}
-        (HERE / "expected.json").write_text(json.dumps({
-            "provenance": args.provenance, "inputs": inputs, "outputs": outputs,
-            "umask_modes": modes}, indent=2, sort_keys=True) + "\n")
+        (HERE / "expected.json").write_text(
+            json.dumps(
+                {
+                    "provenance": args.provenance,
+                    "inputs": inputs,
+                    "outputs": outputs,
+                    "umask_modes": modes,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
     finally:
         shutil.rmtree(work, ignore_errors=True)
     print("recorded %d outputs" % len(outputs))
@@ -330,13 +381,14 @@ def main():
     if args.record:
         return record(args)
     if not sys.platform.startswith("linux"):
-        print("SKIP as-ld-scratch: strace is Linux only; no verdict on a "
-              "%s host" % sys.platform)
+        print("SKIP as-ld-scratch: strace is Linux only; no verdict on a %s host" % sys.platform)
         return 0
     strace = strace_usable()
     if not strace:
-        print("FAIL as-ld-scratch: strace missing or ptrace denied "
-              "(package strace); the call counts did not run")
+        print(
+            "FAIL as-ld-scratch: strace missing or ptrace denied "
+            "(package strace); the call counts did not run"
+        )
         return 1
     expected = json.loads((HERE / "expected.json").read_text())
     work = Path(tempfile.mkdtemp(prefix="as-ld-scratch-"))
@@ -352,36 +404,53 @@ def gate(args, strace, expected, work):
     run([sys.executable, HERE / "gen_inputs.py", inputs_dir], work)
     inputs = {p.name: digest(p) for p in sorted(inputs_dir.glob("*.s"))}
     if inputs != expected["inputs"]:
-        print("FAIL as-ld-scratch: gen_inputs.py no longer produces the "
-              "inputs expected.json was recorded from")
+        print(
+            "FAIL as-ld-scratch: gen_inputs.py no longer produces the "
+            "inputs expected.json was recorded from"
+        )
         return 1
 
     build = work / "build"
     build.mkdir()
     as_src = ROOT / "usr.bin/as/as-thumb.c"
     ld_src = ROOT / "usr.bin/ld/ld.c"
-    late_data = mutate(ld_src, [(
-        "tregion (&doutb, HDRSZ + (unsigned long) tsize);",
-        "tregion (&doutb, HDRSZ + (unsigned long) tsize + 4);")],
-        build, "ld-late-data")
+    late_data = mutate(
+        ld_src,
+        [
+            (
+                "tregion (&doutb, HDRSZ + (unsigned long) tsize);",
+                "tregion (&doutb, HDRSZ + (unsigned long) tsize + 4);",
+            )
+        ],
+        build,
+        "ld-late-data",
+    )
     # Correct bytes with a failing exit status.
-    exit_fail = mutate(ld_src, [("delarg = errlev;", "delarg = 3;")], build,
-                       "ld-exit-3")
+    exit_fail = mutate(ld_src, [("delarg = errlev;", "delarg = 3;")], build, "ld-exit-3")
     # A reopen for update with no owner write access held.
-    plain_reopen = mutate(ld_src, [("\tchmod (ofilename, outmode | 0200);\n", "")],
-                          build, "ld-plain-reopen")
+    plain_reopen = mutate(
+        ld_src, [("\tchmod (ofilename, outmode | 0200);\n", "")], build, "ld-plain-reopen"
+    )
     # The old path for the symbol records: a temporary file, copied after
     # the data. The bytes stay the same; the file creations and the unlink
     # come back.
-    temp_symbols = mutate(ld_src, [
-        ("\t\ttregion (&soutb, tail);\n\t\ttailb = soutb;",
-         "\t\ttregion (&tailb, tail);\n\t\tclose (mkstemp (tfname));\n"
-         "\t\ttcreat (&soutb, 1);"),
-        ("\t\tif (output_relinfo) {\n\t\t\tif (! xflag)\n"
-         "\t\t\t\tcopy_and_close (soutb, tailb);",
-         "\t\tif (1) {\n\t\t\tif (! xflag)\n"
-         "\t\t\t\tcopy_and_close (soutb, tailb);")],
-        build, "ld-temp-symbols")
+    temp_symbols = mutate(
+        ld_src,
+        [
+            (
+                "\t\ttregion (&soutb, tail);\n\t\ttailb = soutb;",
+                "\t\ttregion (&tailb, tail);\n\t\tclose (mkstemp (tfname));\n"
+                "\t\ttcreat (&soutb, 1);",
+            ),
+            (
+                "\t\tif (output_relinfo) {\n\t\t\tif (! xflag)\n"
+                "\t\t\t\tcopy_and_close (soutb, tailb);",
+                "\t\tif (1) {\n\t\t\tif (! xflag)\n\t\t\t\tcopy_and_close (soutb, tailb);",
+            ),
+        ],
+        build,
+        "ld-temp-symbols",
+    )
     variants = {
         "candidate": (as_src, [], ld_src, []),
         "as-budget-1024": (as_src, ["-DSCRATCH_BUDGET=1024"], ld_src, []),
@@ -421,8 +490,7 @@ def gate(args, strace, expected, work):
     # four bytes late.
     bad_dir = work / "run-late-data"
     shutil.copytree(inputs_dir, bad_dir)
-    bad = scenarios(str(tools["candidate"][0]), str(late_ld), ar_bin, bad_dir,
-                    strict=False)
+    bad = scenarios(str(tools["candidate"][0]), str(late_ld), ar_bin, bad_dir, strict=False)
     changed = [k for k, v in bad.items() if expected["outputs"].get(k) != v]
     if not changed:
         failures.append("calibration: a linker with a late data region matched every digest")
@@ -433,32 +501,34 @@ def gate(args, strace, expected, work):
     # reports failure.
     exit_dir = work / "run-exit-3"
     shutil.copytree(inputs_dir, exit_dir)
-    lax = scenarios(str(tools["candidate"][0]), str(exit_ld), ar_bin, exit_dir,
-                    strict=False)
+    lax = scenarios(str(tools["candidate"][0]), str(exit_ld), ar_bin, exit_dir, strict=False)
     if any(expected["outputs"].get(k) != v for k, v in lax.items()):
         failures.append("calibration: the exit-3 linker changed bytes")
     try:
-        scenarios(str(tools["candidate"][0]), str(exit_ld), ar_bin,
-                  work / "run-exit-3", strict=True)
+        scenarios(
+            str(tools["candidate"][0]), str(exit_ld), ar_bin, work / "run-exit-3", strict=True
+        )
         failures.append("calibration: a linker with correct bytes and exit 3 passed")
     except RuntimeError:
         print("calibration: correct bytes with exit 3 rejected")
 
     if os.geteuid() == 0:
-        print("SKIP umask case: running as root, which ignores file modes; "
-              "no verdict on a restrictive umask")
+        print(
+            "SKIP umask case: running as root, which ignores file modes; "
+            "no verdict on a restrictive umask"
+        )
     else:
-        for name, ld_bin in (("candidate", tools["candidate"][1]),
-                             ("plain-reopen", reopen_ld)):
+        for name, ld_bin in (("candidate", tools["candidate"][1]), ("plain-reopen", reopen_ld)):
             umask_dir = work / ("umask-" + name)
             shutil.copytree(inputs_dir, umask_dir)
-            found = umask_case(str(tools["candidate"][0]), str(ld_bin), umask_dir,
-                               expected)
+            found = umask_case(str(tools["candidate"][0]), str(ld_bin), umask_dir, expected)
             if name == "candidate":
                 for message in found:
                     failures.append("umask 0222: " + message)
-                print("umask 0222: candidate " +
-                      ("fails" if found else "links, bytes and mode as base"))
+                print(
+                    "umask 0222: candidate "
+                    + ("fails" if found else "links, bytes and mode as base")
+                )
             elif found:
                 print("calibration: plain r+ reopen fails under umask 0222, rejected")
             else:
@@ -468,8 +538,7 @@ def gate(args, strace, expected, work):
     for name in ("candidate", "as-budget-0", "ld-buffer-0", "ld-temp-symbols"):
         measure_dir = work / ("count-" + name)
         shutil.copytree(inputs_dir, measure_dir)
-        counts[name] = measure(strace, str(tools[name][0]), str(tools[name][1]),
-                               measure_dir)
+        counts[name] = measure(strace, str(tools[name][0]), str(tools[name][1]), measure_dir)
         print("counts %-12s %s" % (name, json.dumps(counts[name], sort_keys=True)))
     for problem in over_ceiling(counts["candidate"]):
         failures.append("candidate exceeds its ceiling: " + problem)

@@ -18,20 +18,50 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    __package__ = "swap_tier_model"     # noqa: A001
+    __package__ = "swap_tier_model"  # noqa: A001
 
 from . import calibrate, trace  # noqa: E402
 
-BOUNDS = [(300, 3000), (500, 1300), (200, 2000), (500, 1300), (1500, 6000),
-          (600, 1500), (2500, 6000), (600, 1500), (3500, 9000), (600, 1500),
-          (8000, 20000), (1000, 8000), (600, 1500)]
-START = [1332, 1280, 486, 1233, 3150, 1444, 3423, 758, 4927, 904, 10466, 2654,
-         1278, 80, 30, 15, 5, 12, 0]
+BOUNDS = [
+    (300, 3000),
+    (500, 1300),
+    (200, 2000),
+    (500, 1300),
+    (1500, 6000),
+    (600, 1500),
+    (2500, 6000),
+    (600, 1500),
+    (3500, 9000),
+    (600, 1500),
+    (8000, 20000),
+    (1000, 8000),
+    (600, 1500),
+]
+START = [
+    1332,
+    1280,
+    486,
+    1233,
+    3150,
+    1444,
+    3423,
+    758,
+    4927,
+    904,
+    10466,
+    2654,
+    1278,
+    80,
+    30,
+    15,
+    5,
+    12,
+    0,
+]
 
 
 def loss(vector, seed):
-    rows, _held, _m = calibrate.evaluate(
-        trace.generate(calibrate.from_vector(vector, seed)))
+    rows, _held, _m = calibrate.evaluate(trace.generate(calibrate.from_vector(vector, seed)))
     return sum(min((r[3] / r[4]) ** 2, 100) for r in rows)
 
 

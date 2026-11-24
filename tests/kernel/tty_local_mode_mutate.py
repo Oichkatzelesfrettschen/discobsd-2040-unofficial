@@ -17,8 +17,7 @@ MUTATIONS = {
         "return flags | ((local_mode & UINT32_C(0xffff)) << 16);",
     ),
     "set-retains-high": (
-        "return (flags & UINT32_C(0xffff)) |\n"
-        "        ((local_mode & UINT32_C(0xffff)) << 16);",
+        "return (flags & UINT32_C(0xffff)) |\n        ((local_mode & UINT32_C(0xffff)) << 16);",
         "return flags | ((local_mode & UINT32_C(0xffff)) << 16);",
     ),
     "signed-get": (

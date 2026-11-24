@@ -106,9 +106,7 @@ def values(*names):
     for name in names:
         found.update(
             (key, int(value) & 0xFFFFFFFF)
-            for key, value in VALUE.findall(
-                run(f"sysctl $M.{name}").replace("\r", "\n")
-            )
+            for key, value in VALUE.findall(run(f"sysctl $M.{name}").replace("\r", "\n"))
         )
     missing = [name for name in names if name not in found]
     if missing:
@@ -157,40 +155,45 @@ def main():
     run("sleep 10", 20)
     state = values("core1", "core1_restarts", "core1_stalls", "core1_faults")
     check(state["core1"] == 1, "core 1 is running ten seconds after boot")
-    check(state["core1_restarts"] == 0 and state["core1_faults"] == 0,
-          "no restart and no core 1 fault")
+    check(
+        state["core1_restarts"] == 0 and state["core1_faults"] == 0,
+        "no restart and no core 1 fault",
+    )
     base = state["core1_stalls"]
 
     run("sysctl -w $M.core1_stall_ms=300")
-    state = values("core1_stalls", "core1_gap_us", "core1_pc", "core1_lr",
-                   "core1_restarts")
+    state = values("core1_stalls", "core1_gap_us", "core1_pc", "core1_lr", "core1_restarts")
     check(state["core1_stalls"] == base + 1, "a 300 ms spin is one stall")
-    check(250000 <= state["core1_gap_us"] <= 320000,
-          f"its length reads {state['core1_gap_us']} us")
-    check(inside(state["core1_pc"], spans["core1_stall"]),
-          f"the probed PC {state['core1_pc']:#x} lies in core1_stall")
-    check(inside(state["core1_lr"], spans["core1_sysctl"]),
-          f"the probed LR {state['core1_lr']:#x} lies in core1_sysctl")
+    check(250000 <= state["core1_gap_us"] <= 320000, f"its length reads {state['core1_gap_us']} us")
+    check(
+        inside(state["core1_pc"], spans["core1_stall"]),
+        f"the probed PC {state['core1_pc']:#x} lies in core1_stall",
+    )
+    check(
+        inside(state["core1_lr"], spans["core1_sysctl"]),
+        f"the probed LR {state['core1_lr']:#x} lies in core1_sysctl",
+    )
     check(state["core1_restarts"] == 0, "the stall restarted nothing")
 
     run("dd if=/dev/zero of=/tmp/c1 bs=1k count=128; sync; rm /tmp/c1; sync", 180)
     run("ls -lR /bin /etc | sort | wc -l", 120)
     state = values("core1_stalls", "core1_restarts", "core1_faults")
-    check(state["core1_stalls"] == base + 1,
-          "flash writes and swapping add no stall")
-    check(state["core1_restarts"] == 0 and state["core1_faults"] == 0,
-          "and no restart or fault")
+    check(state["core1_stalls"] == base + 1, "flash writes and swapping add no stall")
+    check(state["core1_restarts"] == 0 and state["core1_faults"] == 0, "and no restart or fault")
 
     run("sysctl -w $M.core1=0; sleep 3")
     run("sysctl -w $M.core1_stall_ms=300")
     state = values("core1", "core1_stalls")
-    check(state["core1"] == 0 and state["core1_stalls"] == base + 1,
-          "a parked core 1 counts nothing")
+    check(
+        state["core1"] == 0 and state["core1_stalls"] == base + 1, "a parked core 1 counts nothing"
+    )
     run("sysctl -w $M.core1=1; sleep 5", 20)
     run("sysctl -w $M.core1_stall_ms=300")
     state = values("core1", "core1_stalls", "core1_restarts")
-    check(state["core1"] == 1 and state["core1_stalls"] == base + 2
-          and state["core1_restarts"] == 0, "a relaunched core 1 counts again")
+    check(
+        state["core1"] == 1 and state["core1_stalls"] == base + 2 and state["core1_restarts"] == 0,
+        "a relaunched core 1 counts again",
+    )
 
     port.write(b"sync; reboot\r")
     time.sleep(12)
@@ -199,8 +202,9 @@ def main():
     root_shell()
     run("sleep 6", 15)
     state = values("watchdog_site", "core1", "core1_stalls")
-    check(state["watchdog_site"] == 0 and state["core1_stalls"] == 0,
-          "reboot leaves no stall record")
+    check(
+        state["watchdog_site"] == 0 and state["core1_stalls"] == 0, "reboot leaves no stall record"
+    )
     check(state["core1"] == 1, "core 1 runs after the reboot")
 
     port.write(b"sync; sync; sysctl -w $M.core1_stall_ms=6000\r")
@@ -209,14 +213,19 @@ def main():
     reopen()
     root_shell()
     run("sleep 6", 15)
-    state = values("watchdog_reason", "watchdog_site", "watchdog_arg",
-                   "watchdog_arg2", "core1")
-    check(state["watchdog_reason"] == 2 and state["watchdog_site"] == 3,
-          "a 6 s spin reset the board with the stall site on record")
-    check(inside(state["watchdog_arg"], spans["core1_stall"]),
-          f"the recorded PC {state['watchdog_arg']:#x} lies in core1_stall")
-    check(inside(state["watchdog_arg2"], spans["core1_sysctl"]),
-          f"the recorded LR {state['watchdog_arg2']:#x} lies in core1_sysctl")
+    state = values("watchdog_reason", "watchdog_site", "watchdog_arg", "watchdog_arg2", "core1")
+    check(
+        state["watchdog_reason"] == 2 and state["watchdog_site"] == 3,
+        "a 6 s spin reset the board with the stall site on record",
+    )
+    check(
+        inside(state["watchdog_arg"], spans["core1_stall"]),
+        f"the recorded PC {state['watchdog_arg']:#x} lies in core1_stall",
+    )
+    check(
+        inside(state["watchdog_arg2"], spans["core1_sysctl"]),
+        f"the recorded LR {state['watchdog_arg2']:#x} lies in core1_sysctl",
+    )
     check(state["core1"] == 1, "core 1 runs after the reset")
 
     print(f"board_core1: {failures} failures")

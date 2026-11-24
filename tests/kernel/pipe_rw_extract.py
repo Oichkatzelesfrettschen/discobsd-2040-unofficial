@@ -1,4 +1,5 @@
 """Extract and mutate the production pipe file-operation adapter."""
+
 import argparse
 from pathlib import Path
 
@@ -10,8 +11,7 @@ MUTATIONS = {
     "nonblock": ("fp->f_flag & FNONBLOCK ? IO_NDELAY : 0", "0"),
     "sync": ("flag |= IO_SYNC;", "flag |= 0;"),
     "mount": ("MNT_SYNCHRONOUS))", "0))"),
-    "append": ("return (writep(fp, uio, flag));",
-               "return (writep(fp, uio, flag | IO_APPEND));"),
+    "append": ("return (writep(fp, uio, flag));", "return (writep(fp, uio, flag | IO_APPEND));"),
 }
 
 
@@ -22,10 +22,8 @@ def main():
     parser.add_argument("--mutant", choices=MUTATIONS)
     args = parser.parse_args()
     source = args.source.read_text()
-    function = extract_function(
-        source, definition_signature(source, "int", "pipe_rw"), "pipe_rw")
-    writer = extract_function(
-        source, definition_signature(source, "int", "writep"), "writep")
+    function = extract_function(source, definition_signature(source, "int", "pipe_rw"), "pipe_rw")
+    writer = extract_function(source, definition_signature(source, "int", "writep"), "writep")
     function += "\nstatic " + writer.replace("writep(", "bounded_write(", 1)
     if args.mutant:
         original, replacement = MUTATIONS[args.mutant]

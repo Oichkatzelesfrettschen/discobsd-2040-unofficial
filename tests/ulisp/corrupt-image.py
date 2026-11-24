@@ -34,6 +34,7 @@ that saved it. Each bad-NAME.img in DIRECTORY has one pointer or cell of a
 kind the loader must refuse changed; images.lisp loads them all. A kind
 the image lacks a cell for is an error, so the corpus cannot shrink unseen.
 """
+
 import os
 import struct
 import sys
@@ -162,8 +163,10 @@ def main(argv):
     case("array-dim-grown", lambda im: im.setcdr(vec_first, 100))
     case("array-dim-zero", lambda im: im.setcdr(vec_first, 0))
     case("array-dim-bit-flag", lambda im: im.setcdr(vec_first, (-5) & 0xFFFFFFFF))
-    case("array-dim-second-negative", lambda im: im.setcdr(
-        im.index(im.car(im.index(im.cdr(mat_dims)))), (-2) & 0xFFFFFFFF))
+    case(
+        "array-dim-second-negative",
+        lambda im: im.setcdr(im.index(im.car(im.index(im.cdr(mat_dims)))), (-2) & 0xFFFFFFFF),
+    )
     case("array-dim-huge", lambda im: im.setcdr(mat_first, 65536))
     case("array-dim-not-number", lambda im: im.setcar(mat_dims, im.address(mat_pair)))
     case("array-dim-loop", lambda im: im.setcdr(mat_dims, im.address(mat_dims)))
@@ -195,7 +198,7 @@ def main(argv):
     case("size-over-file", header(2, probe.cells + 1))
 
     # Cut short: the file ends inside the last cell.
-    cases["truncated"] = original[:-probe.cell // 2]
+    cases["truncated"] = original[: -probe.cell // 2]
 
     for name, data in cases.items():
         if data == original:

@@ -7,9 +7,7 @@ from pathlib import Path
 
 def read_stack_usage(path):
     records = []
-    for line_number, line in enumerate(
-        path.read_text(encoding="utf-8").splitlines(), start=1
-    ):
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         fields = line.rsplit("\t", 2)
         if len(fields) != 3:
             raise ValueError(f"{path}:{line_number}: malformed stack-usage row")

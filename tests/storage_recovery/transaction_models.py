@@ -61,25 +61,34 @@ class Model:
         self.device = device
         self.early_publication = early_publication
         metadata = self.read(0, HOME_OFFSET)
-        values = METADATA.unpack(metadata[:METADATA.size])
+        values = METADATA.unpack(metadata[: METADATA.size])
         magic, identity, self.image_size, self.max_records, self.capacity, self.seed_hash = values
         require(magic == MAGIC and identity == POLICIES[kind], "persistent policy identity differs")
-        require(digest(metadata[:METADATA.size]) == metadata[METADATA.size:METADATA.size + 32],
-                "metadata integrity differs")
-        require(0 < self.image_size <= 16 * 1024 * 1024 and self.image_size % 512 == 0,
-                "image size exceeds bounded model")
-        require(1 <= self.max_records <= 64 and 1 <= self.capacity <= 4,
-                "record capacity exceeds bounded model")
+        require(
+            digest(metadata[: METADATA.size]) == metadata[METADATA.size : METADATA.size + 32],
+            "metadata integrity differs",
+        )
+        require(
+            0 < self.image_size <= 16 * 1024 * 1024 and self.image_size % 512 == 0,
+            "image size exceeds bounded model",
+        )
+        require(
+            1 <= self.max_records <= 64 and 1 <= self.capacity <= 4,
+            "record capacity exceeds bounded model",
+        )
         self.slot_size = slot_bytes(self.max_records)
         self.journal_offset = HOME_OFFSET + self.image_size
-        require(len(device.export()) == self.journal_offset + self.capacity * self.slot_size,
-                "persistent medium length differs")
+        require(
+            len(device.export()) == self.journal_offset + self.capacity * self.slot_size,
+            "persistent medium length differs",
+        )
 
     def read(self, offset, length):
         result = bytearray()
         while len(result) < length:
-            chunk = self.device.read(Address(Domain.IMAGE_BYTE, offset + len(result)),
-                                     length - len(result))
+            chunk = self.device.read(
+                Address(Domain.IMAGE_BYTE, offset + len(result)), length - len(result)
+            )
             require(bool(chunk), "zero-length read before record completion")
             result.extend(chunk)
         return bytes(result)
@@ -99,19 +108,25 @@ class Model:
         header = self.read(offset, FRAME.size)
         generation, length, before_hash, after_hash = FRAME.unpack(header)
         require(generation == slot + 1, "stale or misidentified generation")
-        require(length <= self.max_records * 520 and length % 520 == 0,
-                "transaction payload bounds differ")
+        require(
+            length <= self.max_records * 520 and length % 520 == 0,
+            "transaction payload bounds differ",
+        )
         payload = self.read(offset + FRAME.size, length + 32)
-        require(digest(header + payload[:length]) == payload[length:],
-                "transaction record integrity differs")
+        require(
+            digest(header + payload[:length]) == payload[length:],
+            "transaction record integrity differs",
+        )
         records = []
         previous = -1
         for position in range(0, length, 520):
-            address, count = RECORD.unpack(payload[position:position + RECORD.size])
-            require(count == 512 and address % 512 == 0 and address <= self.image_size - count,
-                    "transaction address bounds differ")
+            address, count = RECORD.unpack(payload[position : position + RECORD.size])
+            require(
+                count == 512 and address % 512 == 0 and address <= self.image_size - count,
+                "transaction address bounds differ",
+            )
             require(address > previous, "duplicate or reordered transaction address")
-            records.append((address, payload[position + RECORD.size:position + 520]))
+            records.append((address, payload[position + RECORD.size : position + 520]))
             previous = address
         return Transaction(slot, status, before_hash, after_hash, records)
 
@@ -145,7 +160,7 @@ class Model:
                 continue
             require(digest(image) == frame.before_hash, "immutable predecessor differs")
             for offset, data in frame.records:
-                image[offset:offset + len(data)] = data
+                image[offset : offset + len(data)] = data
             require(digest(image) == frame.after_hash, "immutable payload integrity differs")
         return bytes(image)
 
@@ -155,19 +170,27 @@ class Model:
         frames, expected = self.scan()
         if len(frames) == self.capacity:
             raise CapacityExhausted("reserved transaction slots exhausted")
-        require(all(frame.status != PREPARED for frame in frames),
-                "recovery required before mutation")
-        before = (self.immutable_image(frames) if self.kind == "copy-on-write" else
-                  self.read(HOME_OFFSET, self.image_size))
+        require(
+            all(frame.status != PREPARED for frame in frames), "recovery required before mutation"
+        )
+        before = (
+            self.immutable_image(frames)
+            if self.kind == "copy-on-write"
+            else self.read(HOME_OFFSET, self.image_size)
+        )
         require(digest(before) == expected, "recovery required before mutation")
-        changed = [(offset, before[offset:offset + 512], after[offset:offset + 512])
-                   for offset in range(0, self.image_size, 512)
-                   if before[offset:offset + 512] != after[offset:offset + 512]]
+        changed = [
+            (offset, before[offset : offset + 512], after[offset : offset + 512])
+            for offset in range(0, self.image_size, 512)
+            if before[offset : offset + 512] != after[offset : offset + 512]
+        ]
         if len(changed) > self.max_records:
             raise CapacityExhausted("transaction exceeds reserved record capacity")
         slot = len(frames)
-        payload = b"".join(RECORD.pack(offset, 512) + (old if self.kind == "undo" else new)
-                           for offset, old, new in changed)
+        payload = b"".join(
+            RECORD.pack(offset, 512) + (old if self.kind == "undo" else new)
+            for offset, old, new in changed
+        )
         header = FRAME.pack(slot + 1, len(payload), digest(before), digest(after))
         record = header + payload + digest(header + payload)
         marker = PREPARED if self.kind == "undo" else COMMITTED
@@ -195,8 +218,10 @@ class Model:
                 frame = pending[0]
                 for offset, old in frame.records:
                     self.write(HOME_OFFSET + offset, old)
-                require(digest(self.read(HOME_OFFSET, self.image_size)) == frame.before_hash,
-                        "undo restoration integrity differs")
+                require(
+                    digest(self.read(HOME_OFFSET, self.image_size)) == frame.before_hash,
+                    "undo restoration integrity differs",
+                )
                 self.publish(frame.slot, ABORTED)
         else:
             for frame in frames:
@@ -227,8 +252,9 @@ class Model:
 def new_model(kind, image, capacity=2, max_records=8, early_publication=False):
     require(kind in POLICIES, "unknown policy identity")
     require(1 <= capacity <= 4 and 1 <= max_records <= 64, "invalid finite model capacity")
-    metadata = METADATA.pack(MAGIC, POLICIES[kind], len(image), max_records, capacity,
-                             digest(image))
+    metadata = METADATA.pack(
+        MAGIC, POLICIES[kind], len(image), max_records, capacity, digest(image)
+    )
     prefix = metadata + digest(metadata)
     medium = prefix + bytes(HOME_OFFSET - len(prefix)) + image
     medium += bytes(capacity * slot_bytes(max_records))

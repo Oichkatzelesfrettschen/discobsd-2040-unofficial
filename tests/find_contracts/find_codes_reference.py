@@ -36,7 +36,7 @@ def bigram_stream(lines):
     for line in lines:
         start = prefix_length(old, line)
         for j in range(start, len(line) - 1, 2):
-            out.append(line[j:j + 2])
+            out.append(line[j : j + 2])
         old = line
     return out
 
@@ -57,7 +57,7 @@ def decode(data):
         if c == RESET:
             # putw stores one int in the machine's own order and width, and
             # the host that runs the encoder is the host that runs this.
-            (word,) = struct.unpack("=i", body[i:i + struct.calcsize("=i")])
+            (word,) = struct.unpack("=i", body[i : i + struct.calcsize("=i")])
             i += struct.calcsize("=i")
             count += word - OFFSET
         else:

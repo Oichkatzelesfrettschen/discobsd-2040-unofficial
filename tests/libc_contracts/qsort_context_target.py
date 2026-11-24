@@ -8,9 +8,21 @@ from pathlib import Path
 
 from qsort_callers import check_callers
 
-FLAGS = ["-std=c17", "-pedantic-errors", "-Wall", "-Wextra", "-Werror",
-         "-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft", "-ffreestanding",
-         "-fno-builtin", "-fno-common", "-Os", "-nostdinc"]
+FLAGS = [
+    "-std=c17",
+    "-pedantic-errors",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-mcpu=cortex-m0plus",
+    "-mthumb",
+    "-mfloat-abi=soft",
+    "-ffreestanding",
+    "-fno-builtin",
+    "-fno-common",
+    "-Os",
+    "-nostdinc",
+]
 SIGNATURE = """void (*sort_context)(void *, size_t, size_t,
     int (*)(const void *, const void *, void *), void *) = qsort_r;
 """
@@ -32,15 +44,23 @@ def require(condition, message):
 
 
 def command(arguments, *, cwd=None, reject=None):
-    result = subprocess.run(arguments, cwd=cwd, capture_output=True, text=True,
-                            timeout=90, check=False)
+    result = subprocess.run(
+        arguments, cwd=cwd, capture_output=True, text=True, timeout=90, check=False
+    )
     if reject is None:
-        require(result.returncode == 0 and not result.stderr,
-                "context-sort target command fails: " + repr(arguments) + "\n" +
-                result.stdout + result.stderr)
+        require(
+            result.returncode == 0 and not result.stderr,
+            "context-sort target command fails: "
+            + repr(arguments)
+            + "\n"
+            + result.stdout
+            + result.stderr,
+        )
     else:
-        require(result.returncode != 0 and reject in result.stdout + result.stderr,
-                "context-sort control lacks named rejection: " + repr(result))
+        require(
+            result.returncode != 0 and reject in result.stdout + result.stderr,
+            "context-sort control lacks named rejection: " + repr(result),
+        )
     return result.stdout
 
 
@@ -63,8 +83,9 @@ def stack_frames(path):
     frames = {}
     for line in path.read_text().splitlines():
         fields = line.split("\t")
-        require(len(fields) == 3 and fields[2] == "static",
-                "context-sort frame lacks a static bound")
+        require(
+            len(fields) == 3 and fields[2] == "static", "context-sort frame lacks a static bound"
+        )
         name = fields[0].rsplit(":", 1)[-1].split(".", 1)[0]
         require(fields[1].isdigit(), "context-sort frame size is invalid")
         frames[name] = max(frames.get(name, 0), int(fields[1]))
@@ -77,19 +98,27 @@ def check_frames(work, root, compiler, flags):
         frames = stack_frames(work / (name + ".su"))
         admitted = {**limits, name: entry_limit}
         require(set(frames) == set(admitted), "context-sort frame set changes: " + name)
-        require(all(frames[key] <= admitted[key] for key in admitted),
-                "context-sort frame exceeds its measured limit: " + name)
+        require(
+            all(frames[key] <= admitted[key] for key in admitted),
+            "context-sort frame exceeds its measured limit: " + name,
+        )
     source = (root / "lib/libc/gen/qsort.c").read_text()
     require(source.count("static void sort(") == 1, "frame control anchor differs")
     body = source.index("{", source.index("static void sort(")) + 1
     damaged = work / "stack-damaged.c"
-    damaged.write_text("extern void qsort_stack_fault(void *);\n" + source[:body] +
-        "\n    unsigned char qsort_stack_pad[64] = {0};\n"
-        "    qsort_stack_fault(qsort_stack_pad);\n" + source[body:])
-    command([compiler, *flags, "-fstack-usage", "-c", str(damaged),
-             "-o", str(work / "stack-damaged.o")])
-    require(stack_frames(work / "stack-damaged.su").get("sort", 0) > limits["sort"],
-            "inflated recursive frame escapes its bound control")
+    damaged.write_text(
+        "extern void qsort_stack_fault(void *);\n"
+        + source[:body]
+        + "\n    unsigned char qsort_stack_pad[64] = {0};\n"
+        "    qsort_stack_fault(qsort_stack_pad);\n" + source[body:]
+    )
+    command(
+        [compiler, *flags, "-fstack-usage", "-c", str(damaged), "-o", str(work / "stack-damaged.o")]
+    )
+    require(
+        stack_frames(work / "stack-damaged.su").get("sort", 0) > limits["sort"],
+        "inflated recursive frame escapes its bound control",
+    )
     print("context-sort target: measured frame bounds pass; inflated recursion rejects")
 
 
@@ -112,33 +141,78 @@ def main():
                 source.write_text(fixture(selectors, visible, order))
                 command([compiler, *flags, "-c", str(source), "-o", str(work / "fixture.o")])
             source.write_text(fixture(selectors, not visible, "standalone"))
-            command([compiler, *flags, "-c", str(source), "-o", str(work / "bad.o")],
-                    reject="qsort_r")
+            command(
+                [compiler, *flags, "-c", str(source), "-o", str(work / "bad.o")], reject="qsort_r"
+            )
             print("context-sort target: " + label + " visibility and opposite control pass")
-        source.write_text(fixture({}, True, "standalone").replace(
-            "const void *, const void *, void *", "void *, const void *, const void *"))
-        command([compiler, *flags, "-c", str(source), "-o", str(work / "bad.o")],
-                reject="incompatible-pointer-types")
+        source.write_text(
+            fixture({}, True, "standalone").replace(
+                "const void *, const void *, void *", "void *, const void *, const void *"
+            )
+        )
+        command(
+            [compiler, *flags, "-c", str(source), "-o", str(work / "bad.o")],
+            reject="incompatible-pointer-types",
+        )
         for name in ("qsort", "qsort_r"):
-            command([compiler, *flags, "-fstack-usage", "-c",
+            command(
+                [
+                    compiler,
+                    *flags,
+                    "-fstack-usage",
+                    "-c",
                     str(root / "lib/libc/gen" / (name + ".c")),
-                    "-o", str(work / (name + ".o"))])
+                    "-o",
+                    str(work / (name + ".o")),
+                ]
+            )
         print(command([prefix + "size", str(work / "qsort.o"), str(work / "qsort_r.o")]), end="")
         for name in ("qsort", "qsort_r"):
             print((work / (name + ".su")).read_text(), end="")
         check_frames(work, root, compiler, flags)
 
         smaller = work / "smlrc"
-        command([*shlex.split(args.host), "-O1", "-Wall", "-Wextra", "-Werror", "-DTHUMB",
-                "-DNO_ANNOTATIONS", "-DNO_PPACK", "-DSTATIC", "-DNO_EXTRA_WARNS",
-                "-DSYNTAX_STACK_MAX=3200", "-o", str(smaller),
-                str(root / "usr.bin/smlrc/smlrc.c")])
+        command(
+            [
+                *shlex.split(args.host),
+                "-O1",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-DTHUMB",
+                "-DNO_ANNOTATIONS",
+                "-DNO_PPACK",
+                "-DSTATIC",
+                "-DNO_EXTRA_WARNS",
+                "-DSYNTAX_STACK_MAX=3200",
+                "-o",
+                str(smaller),
+                str(root / "usr.bin/smlrc/smlrc.c"),
+            ]
+        )
         for label, selectors, visible in MODES:
             source.write_text(fixture(selectors, visible, "repeated"))
-            command([compiler, "-E", "-P", "-nostdinc", "-I" + str(root / "include"),
-                    "-U__GNUC__", "-U__PCC__", "-D__SMALLER_C__=0x0100", "-D__SMALLER_C_32__",
-                    "-D__SMALLER_C_UCHAR__", "-D__arm__", "-D__unix__", "-D__BSD__",
-                    "-D__DISCOBSD__", str(source), "-o", str(work / "input.i")])
+            command(
+                [
+                    compiler,
+                    "-E",
+                    "-P",
+                    "-nostdinc",
+                    "-I" + str(root / "include"),
+                    "-U__GNUC__",
+                    "-U__PCC__",
+                    "-D__SMALLER_C__=0x0100",
+                    "-D__SMALLER_C_32__",
+                    "-D__SMALLER_C_UCHAR__",
+                    "-D__arm__",
+                    "-D__unix__",
+                    "-D__BSD__",
+                    "-D__DISCOBSD__",
+                    str(source),
+                    "-o",
+                    str(work / "input.i"),
+                ]
+            )
             command([str(smaller), "input.i", "output.s"], cwd=work)
             command([prefix + "as", "-mcpu=cortex-m0plus", "output.s", "-o", "native.o"], cwd=work)
             print("context-sort native declarations: " + label + " passes")

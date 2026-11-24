@@ -16,8 +16,7 @@ def main() -> int:
     text = Path(source).read_text(encoding="utf-8")
     count = text.count(old)
     if count != 1:
-        print(f"mutate.py: {source}: {count} matches for {old!r}",
-              file=sys.stderr)
+        print(f"mutate.py: {source}: {count} matches for {old!r}", file=sys.stderr)
         return 1
     Path(output).write_text(text.replace(old, new), encoding="utf-8")
     return 0

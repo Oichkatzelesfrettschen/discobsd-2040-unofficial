@@ -132,9 +132,13 @@ def main() -> None:
         text = extract_conf(arguments.source)
     elif arguments.kind == "unit":
         data = arguments.source.read_bytes()
-        text = banner(arguments.source, data) + extract_function(
-            data.decode(), "int\nblkdev_same_unit(dev_t a, dev_t b)", "blkdev_same_unit"
-        ) + "\n"
+        text = (
+            banner(arguments.source, data)
+            + extract_function(
+                data.decode(), "int\nblkdev_same_unit(dev_t a, dev_t b)", "blkdev_same_unit"
+            )
+            + "\n"
+        )
     else:
         if arguments.header is None:
             raise SystemExit("flash extraction needs --header")

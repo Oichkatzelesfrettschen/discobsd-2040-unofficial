@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from .engine import ALIGN_BLOCKS, BLOCK, SECTOR, FlashSwapDriver, Nor, Pool, SwapMap, roundgrain
 
 # FLASH_SWAP_OFFSET of sys/arch/rp2040/dev/flash.h: 2048 KiB less 384 KiB.
-FLASH_SWAP_OFFSET = 0x1a0000
+FLASH_SWAP_OFFSET = 0x1A0000
 
 USIZE = 3072
 
@@ -38,16 +38,16 @@ def btod(n):
 
 @dataclass(frozen=True)
 class Config:
-    pool_kb: int = 16                 # SWAPRAM_KB in compile/PICO/Config
-    nseg: int = 17                    # NPROC + 1 free segments (swapram.c)
-    u_compressed: bool = False        # variant 1: reserve the u area at cu
-    u_slack: int = 0                  #   plus this many bytes
-    compaction: bool = False          # variant 2: compact, then retry
-    flash_compressed: bool = False    # variant 4: refused images compressed
-    zero_elision: bool = False        # variant 5: skip all-zero sectors
-    flash_kb: int = 384               # variant 7: raw swap size
-    flash: bool = True                # variant 8: False puts swap off NOR
-    guard_blocks: int = 196           # SWAP_IMAGE_GUARD (machparam.h)
+    pool_kb: int = 16  # SWAPRAM_KB in compile/PICO/Config
+    nseg: int = 17  # NPROC + 1 free segments (swapram.c)
+    u_compressed: bool = False  # variant 1: reserve the u area at cu
+    u_slack: int = 0  #   plus this many bytes
+    compaction: bool = False  # variant 2: compact, then retry
+    flash_compressed: bool = False  # variant 4: refused images compressed
+    zero_elision: bool = False  # variant 5: skip all-zero sectors
+    flash_kb: int = 384  # variant 7: raw swap size
+    flash: bool = True  # variant 8: False puts swap off NOR
+    guard_blocks: int = 196  # SWAP_IMAGE_GUARD (machparam.h)
 
 
 SHIPPED = Config()
@@ -73,16 +73,16 @@ class Model:
     def __init__(self, config=None, cursor_sector=0, nor=False):
         config = config or SHIPPED
         self.config = config
-        self.pool = Pool(config.pool_kb * 1024, config.nseg) \
-            if config.pool_kb else None
+        self.pool = Pool(config.pool_kb * 1024, config.nseg) if config.pool_kb else None
         self.nswap = config.flash_kb * 1024 // BLOCK
-        self.map = SwapMap(self.nswap, config.guard_blocks,
-                           ALIGN_BLOCKS + cursor_sector * ALIGN_BLOCKS)
+        self.map = SwapMap(
+            self.nswap, config.guard_blocks, ALIGN_BLOCKS + cursor_sector * ALIGN_BLOCKS
+        )
         self.sectors = self.nswap // ALIGN_BLOCKS
         self.erases = [0] * self.sectors
-        self.where = {}               # pid -> ("ram", off, res, sizes)
-        self.counters = Counters()    # | ("flash", base, span)
-        self.refused = None           # the record the flash map refused
+        self.where = {}  # pid -> ("ram", off, res, sizes)
+        self.counters = Counters()  # | ("flash", base, span)
+        self.refused = None  # the record the flash map refused
         self.peak_blocks = 0
         self.phase = "prefix"
         self.snapshots = []
@@ -115,19 +115,22 @@ class Model:
         run_start, run_len = None, 0
 
         def flush():
-            if run_len and self.driver.append(
-                    FLASH_SWAP_OFFSET + run_start * BLOCK,
-                    bytes([0x5a]) * (run_len * BLOCK)) != 0:
-                raise RuntimeError(f"flash_swap_append refused: "
-                                   f"{self.nor.violations[-1:]}")
+            if (
+                run_len
+                and self.driver.append(
+                    FLASH_SWAP_OFFSET + run_start * BLOCK, bytes([0x5A]) * (run_len * BLOCK)
+                )
+                != 0
+            ):
+                raise RuntimeError(f"flash_swap_append refused: {self.nor.violations[-1:]}")
 
         image_block = 0
         for blocks in shape:
             for _ in range(blocks):
                 at = self._fold(base + image_block)
-                if image_block // ALIGN_BLOCKS in elide or \
-                        (run_start is not None and
-                         at != run_start + run_len):
+                if image_block // ALIGN_BLOCKS in elide or (
+                    run_start is not None and at != run_start + run_len
+                ):
                     flush()
                     run_start, run_len = None, 0
                 if image_block // ALIGN_BLOCKS not in elide:
@@ -169,15 +172,17 @@ class Model:
     def _flash_out(self, r):
         shape = self._flash_shape(r)
         span = self._span(shape)
-        elide = frozenset(r["zero_sectors"]) if self.config.zero_elision \
-            and not self.config.flash_compressed else frozenset()
+        elide = (
+            frozenset(r["zero_sectors"])
+            if self.config.zero_elision and not self.config.flash_compressed
+            else frozenset()
+        )
         if not self.config.flash:
             self.where[r["pid"]] = ("offchip",)
             self.note("swapram_flash_swapouts")
             return
         incoming = r.get("incoming")
-        if incoming is not None and \
-                self.where.get(incoming, (None,))[0] == "flash":
+        if incoming is not None and self.where.get(incoming, (None,))[0] == "flash":
             _kind, base, in_span = self.where[incoming]
             if self.map.take_tail(base, in_span, span):
                 self._erase(base, shape, elide)
@@ -208,8 +213,7 @@ class Model:
 
     # -- pool ---------------------------------------------------------
     def _live_ram(self):
-        return {pid: (w[1], w[2]) for pid, w in self.where.items()
-                if w[0] == "ram"}
+        return {pid: (w[1], w[2]) for pid, w in self.where.items() if w[0] == "ram"}
 
     def _ram_out(self, r):
         if self.pool is None:
@@ -222,8 +226,7 @@ class Model:
             want = ds + sr_worst(r["u"])
         off = self.pool.alloc(want)
         need = roundgrain(want)
-        if off is None and self.config.compaction and \
-                need <= self.pool.avail():
+        if off is None and self.config.compaction and need <= self.pool.avail():
             moved = self.pool.compact(self._live_ram())
             for pid, new in moved.items():
                 _k, _o, res, sizes = self.where[pid]
@@ -241,8 +244,7 @@ class Model:
             self.note("swapram_refused_largest_bytes", largest)
             if ds <= largest:
                 self.note("swapram_refused_data_fits")
-            self.note("swapram_refused_nospace" if need > avail
-                      else "swapram_refused_fragment")
+            self.note("swapram_refused_nospace" if need > avail else "swapram_refused_fragment")
             self.note("swapram_refuse_scan_bytes", r["data"] + r["stack"])
             return False
         used = ds + r["cu"]
@@ -270,8 +272,7 @@ class Model:
         if r["pid"] in self.where:
             raise RuntimeError(f"pid {r['pid']} swapped out twice")
         self.note("swapram_attempts")
-        span = self._span([btod(r["data"]), btod(r["stack"]),
-                           btod(r["u"])]) // ALIGN_BLOCKS
+        span = self._span([btod(r["data"]), btod(r["stack"]), btod(r["u"])]) // ALIGN_BLOCKS
         tier = "ram" if self._ram_out(r) else "flash"
         if tier == "flash":
             self._flash_out(r)

@@ -248,8 +248,7 @@ def main():
                 f.write(text.replace(frag, repl))
             mobj = os.path.join(tmp, "m%d.o" % n)
             extra = ["-Dhsx_dec_run=hsx_checked_run"] if fname == STR else []
-            rc, out = run([args.cc] + flags + extra +
-                          ["-Wno-error", "-c", "-o", mobj, mpath], 300)
+            rc, out = run([args.cc] + flags + extra + ["-Wno-error", "-c", "-o", mobj, mpath], 300)
             if rc != 0:
                 print("FAIL: mutant %r does not compile:\n%s" % (name, out))
                 return 1

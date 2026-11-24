@@ -65,16 +65,11 @@ def main():
         old_style.write_text(
             source.replace(
                 signature,
-                "waitpid(pid, istat, options)\n"
-                "\tpid_t pid;\n"
-                "\tint *istat;\n"
-                "\tint options;",
+                "waitpid(pid, istat, options)\n\tpid_t pid;\n\tint *istat;\n\tint options;",
             ),
             encoding="utf-8",
         )
-        result = compile_source(
-            root, compiler, old_style, directory / "waitpid_old_style.o"
-        )
+        result = compile_source(root, compiler, old_style, directory / "waitpid_old_style.o")
         require(result.returncode != 0, "waitpid old-style mutant was accepted")
 
         wrong_selector = directory / "waitpid_wrong_selector.c"

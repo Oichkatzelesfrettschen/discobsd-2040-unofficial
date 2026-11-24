@@ -57,8 +57,11 @@ class RecoveryModelTest(unittest.TestCase):
         for event in positive.device.events:
             if event.kind == "read":
                 continue
-            amounts = (range(event.length + 1) if complete_prefixes else
-                       sorted({0, 1, event.length // 2, event.length - 1, event.length}))
+            amounts = (
+                range(event.length + 1)
+                if complete_prefixes
+                else sorted({0, 1, event.length // 2, event.length - 1, event.length})
+            )
             for amount in amounts:
                 with self.subTest(kind=kind, sequence=event.sequence, transferred=amount):
                     device = Device(initial, faults=[Fault(event.sequence, "interrupt", amount)])
@@ -101,8 +104,7 @@ class RecoveryModelTest(unittest.TestCase):
                 self.assertEqual(writes, [])
             for event in writes:
                 for amount in range(event.length + 1):
-                    device = Device(persistent,
-                                    faults=[Fault(event.sequence, "interrupt", amount)])
+                    device = Device(persistent, faults=[Fault(event.sequence, "interrupt", amount)])
                     with self.assertRaises(Interruption):
                         self.models.open_model(kind, device).recover()
                     device.verify_injections()
@@ -116,7 +118,7 @@ class RecoveryModelTest(unittest.TestCase):
             persistent = bytearray(model.device.export())
             start = model.journal_offset
             size = model.slot_size
-            persistent[start + size:start + 2 * size] = persistent[start:start + size]
+            persistent[start + size : start + 2 * size] = persistent[start : start + size]
             with self.assertRaisesRegex(self.models.RecoveryUnavailable, "generation"):
                 self.models.open_model(kind, Device(persistent)).recover()
 

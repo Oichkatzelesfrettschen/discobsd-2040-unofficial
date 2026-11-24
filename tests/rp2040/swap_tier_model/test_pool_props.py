@@ -55,7 +55,7 @@ class PoolMachine(RuleBasedStateMachine):
         assert not grains & self.taken, "overlap"
         self.taken |= grains
         self.serial += 1
-        self.pool.write(off, bytes([self.serial & 0xff]) * want)
+        self.pool.write(off, bytes([self.serial & 0xFF]) * want)
         self.owned[self.serial] = (off, request)
         return self.serial
 
@@ -97,17 +97,23 @@ class PoolMachine(RuleBasedStateMachine):
         run_off, run_len = data.draw(st.sampled_from(runs))
         # Anchor on a free grain; the run's edges are where an off-by-one
         # in the overlap checks would let a partial overlap through.
-        inside = data.draw(st.one_of(
-            st.just(0), st.just(run_len - GRAIN),
-            st.integers(0, run_len // GRAIN - 1).map(lambda g: g * GRAIN)))
+        inside = data.draw(
+            st.one_of(
+                st.just(0),
+                st.just(run_len - GRAIN),
+                st.integers(0, run_len // GRAIN - 1).map(lambda g: g * GRAIN),
+            )
+        )
         grain = run_off + inside
-        start = data.draw(st.one_of(
-            st.just(grain), st.integers(0, grain // GRAIN).map(
-                lambda g: g * GRAIN)))
-        end = data.draw(st.one_of(
-            st.just(grain + GRAIN), st.integers(grain // GRAIN + 1,
-                                                self.size // GRAIN).map(
-                lambda g: g * GRAIN)))
+        start = data.draw(
+            st.one_of(st.just(grain), st.integers(0, grain // GRAIN).map(lambda g: g * GRAIN))
+        )
+        end = data.draw(
+            st.one_of(
+                st.just(grain + GRAIN),
+                st.integers(grain // GRAIN + 1, self.size // GRAIN).map(lambda g: g * GRAIN),
+            )
+        )
         before = self.pool.segments()
         assert not self.pool.free(start, end - start), (start, end, before)
         assert self.pool.segments() == before
@@ -129,15 +135,15 @@ class PoolMachine(RuleBasedStateMachine):
             return
         assert self.pool.segments() == runs_of(self.size, self.taken)
         assert self.pool.avail() + len(self.taken) * GRAIN == self.size
-        largest = max((n for _o, n in runs_of(self.size, self.taken)),
-                      default=0)
+        largest = max((n for _o, n in runs_of(self.size, self.taken)), default=0)
         assert self.pool.largest() == largest
 
     @invariant()
     def contents_untouched(self):
         for handle, (off, size) in self.owned.items():
-            assert self.pool.read(off, roundgrain(size)) == \
-                bytes([handle & 0xff]) * roundgrain(size)
+            assert self.pool.read(off, roundgrain(size)) == bytes([handle & 0xFF]) * roundgrain(
+                size
+            )
 
 
 TestPool = PoolMachine.TestCase
@@ -185,8 +191,7 @@ class CompactionMachine(RuleBasedStateMachine):
         if off is None:
             return
         self.serial += 1
-        payload = bytes((self.serial * 7 + i) & 0xff
-                        for i in range(roundgrain(request)))
+        payload = bytes((self.serial * 7 + i) & 0xFF for i in range(roundgrain(request)))
         self.pool.write(off, payload)
         self.live[self.serial] = (off, request, payload)
 
@@ -201,16 +206,14 @@ class CompactionMachine(RuleBasedStateMachine):
     @rule()
     def compact(self):
         before = sorted(self.live, key=lambda k: self.live[k][0])
-        moved = self.pool.compact({k: (v[0], v[1])
-                                   for k, v in self.live.items()})
+        moved = self.pool.compact({k: (v[0], v[1]) for k, v in self.live.items()})
         for key, new in moved.items():
             _old, size, payload = self.live[key]
             assert self.pool.read(new, len(payload)) == payload
             self.live[key] = (new, size, payload)
         assert sorted(self.live, key=lambda k: self.live[k][0]) == before
         used = sum(roundgrain(v[1]) for v in self.live.values())
-        assert self.pool.segments() == ([(used, 16384 - used)]
-                                        if used < 16384 else [])
+        assert self.pool.segments() == ([(used, 16384 - used)] if used < 16384 else [])
 
 
 TestCompaction = CompactionMachine.TestCase

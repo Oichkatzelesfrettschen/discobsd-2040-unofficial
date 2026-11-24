@@ -16,6 +16,7 @@ def symbols(nm: Path, object_path: Path) -> str:
         text=True,
     ).stdout
 
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("root", type=Path)
 parser.add_argument("compiler")
@@ -32,8 +33,7 @@ with tempfile.TemporaryDirectory(prefix="board-output-") as directory:
     labels_default = work / "labels-default.o"
     labels_stripped = work / "labels-stripped.o"
     label_fixture.write_text(
-        ".text\n.global exported_label\nexported_label:\n.Llocal_label:\n"
-        "\tbx lr\n",
+        ".text\n.global exported_label\nexported_label:\n.Llocal_label:\n\tbx lr\n",
         encoding="ascii",
     )
     subprocess.run(
@@ -51,14 +51,32 @@ with tempfile.TemporaryDirectory(prefix="board-output-") as directory:
     if ".Llocal_label" in stripped_symbols or "exported_label" not in stripped_symbols:
         raise SystemExit("board archive -X control removed the wrong symbols")
     archive_symbols = symbols(tools / "nm", archive)
-    if any(line.split()[-1].startswith(".L") for line in archive_symbols.splitlines()
-           if line.split()):
+    if any(
+        line.split()[-1].startswith(".L") for line in archive_symbols.splitlines() if line.split()
+    ):
         raise SystemExit("board archive retains compiler-local labels")
-    subprocess.run([args.compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
-                    "-fno-builtin", "-Os", "-ffreestanding", "-mcpu=cortex-m0plus",
-                    "-mthumb", "-mfloat-abi=soft", "-nostdinc", "-I" + str(root / "include"),
-                    "-S", str(root / "tests/libc_output/board_consumer.c"),
-                    "-o", str(assembly)], check=True)
+    subprocess.run(
+        [
+            args.compiler,
+            "-std=c17",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fno-builtin",
+            "-Os",
+            "-ffreestanding",
+            "-mcpu=cortex-m0plus",
+            "-mthumb",
+            "-mfloat-abi=soft",
+            "-nostdinc",
+            "-I" + str(root / "include"),
+            "-S",
+            str(root / "tests/libc_output/board_consumer.c"),
+            "-o",
+            str(assembly),
+        ],
+        check=True,
+    )
     subprocess.run([str(tools / "as"), str(assembly), "-o", str(object_path)], check=True)
     command = [str(tools / "ld"), "-o", str(work / "consumer"), str(startup), str(object_path)]
     subprocess.run([*command, str(archive)], check=True)
@@ -74,16 +92,33 @@ with tempfile.TemporaryDirectory(prefix="board-output-") as directory:
     # is compiled at that view.
     calendar_assembly = work / "calendar.s"
     calendar_object = work / "calendar.o"
-    subprocess.run([args.compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
-                    "-fno-builtin", "-Os", "-ffreestanding", "-mcpu=cortex-m0plus",
-                    "-mthumb", "-mfloat-abi=soft", "-nostdinc", "-I" + str(root / "include"),
-                    "-D_TIME_BITS=32",
-                    "-S", str(root / "tests/libc_output/board_calendar_consumer.c"),
-                    "-o", str(calendar_assembly)], check=True)
-    subprocess.run([str(tools / "as"), str(calendar_assembly), "-o", str(calendar_object)],
-                   check=True)
-    calendar = [str(tools / "ld"), "-o", str(work / "calendar"), str(startup),
-                str(calendar_object)]
+    subprocess.run(
+        [
+            args.compiler,
+            "-std=c17",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fno-builtin",
+            "-Os",
+            "-ffreestanding",
+            "-mcpu=cortex-m0plus",
+            "-mthumb",
+            "-mfloat-abi=soft",
+            "-nostdinc",
+            "-I" + str(root / "include"),
+            "-D_TIME_BITS=32",
+            "-S",
+            str(root / "tests/libc_output/board_calendar_consumer.c"),
+            "-o",
+            str(calendar_assembly),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [str(tools / "as"), str(calendar_assembly), "-o", str(calendar_object)], check=True
+    )
+    calendar = [str(tools / "ld"), "-o", str(work / "calendar"), str(startup), str(calendar_object)]
     subprocess.run([*calendar, str(archive)], check=True)
     shutil.copyfile(archive, damaged)
     subprocess.run([str(tools / "ar"), "d", str(damaged), "tzset.o"], check=True)
@@ -97,17 +132,37 @@ with tempfile.TemporaryDirectory(prefix="board-output-") as directory:
     # two consumers above reach only their own closures.
     sink_assembly = work / "sink.s"
     sink_object = work / "sink.o"
-    subprocess.run([args.compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
-                    "-fno-builtin", "-Os", "-ffreestanding", "-mcpu=cortex-m0plus",
-                    "-mthumb", "-mfloat-abi=soft", "-nostdinc", "-I" + str(root / "include"),
-                    "-S", str(root / "distrib/rp2040/libc-sink.c"),
-                    "-o", str(sink_assembly)], check=True)
+    subprocess.run(
+        [
+            args.compiler,
+            "-std=c17",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fno-builtin",
+            "-Os",
+            "-ffreestanding",
+            "-mcpu=cortex-m0plus",
+            "-mthumb",
+            "-mfloat-abi=soft",
+            "-nostdinc",
+            "-I" + str(root / "include"),
+            "-S",
+            str(root / "distrib/rp2040/libc-sink.c"),
+            "-o",
+            str(sink_assembly),
+        ],
+        check=True,
+    )
     subprocess.run([str(tools / "as"), str(sink_assembly), "-o", str(sink_object)], check=True)
     sink = [str(tools / "ld"), "-o", str(work / "sink"), str(startup), str(sink_object)]
     result = subprocess.run([*sink, str(archive)], capture_output=True, text=True)
     if result.returncode != 0:
-        raise SystemExit("board archive does not resolve distrib/rp2040/libc-sink.c:\n"
-                         + result.stdout + result.stderr)
+        raise SystemExit(
+            "board archive does not resolve distrib/rp2040/libc-sink.c:\n"
+            + result.stdout
+            + result.stderr
+        )
     shutil.copyfile(archive, damaged)
     subprocess.run([str(tools / "ar"), "d", str(damaged), "toupper.o"], check=True)
     subprocess.run([str(tools / "ranlib"), str(damaged)], check=True)
@@ -116,16 +171,31 @@ with tempfile.TemporaryDirectory(prefix="board-output-") as directory:
         raise SystemExit("board sink closure accepts missing toupper or fails unexpectedly")
     signal_assembly = work / "signal.s"
     signal_object = work / "signal.o"
-    subprocess.run([args.compiler, "-std=c17", "-Wall", "-Wextra", "-Werror",
-                    "-fno-builtin", "-Os", "-ffreestanding", "-mcpu=cortex-m0plus",
-                    "-mthumb", "-mfloat-abi=soft", "-nostdinc", "-I" + str(root / "include"),
-                    "-DSIGNAL_SET_EXTERNAL_ERRNO=1", "-S",
-                    str(root / "tests/libc_contracts/signal_set_header.c"),
-                    "-o", str(signal_assembly)], check=True)
-    subprocess.run([str(tools / "as"), str(signal_assembly), "-o", str(signal_object)],
-                   check=True)
-    signal = [str(tools / "ld"), "-o", str(work / "signal"), str(startup),
-              str(signal_object)]
+    subprocess.run(
+        [
+            args.compiler,
+            "-std=c17",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fno-builtin",
+            "-Os",
+            "-ffreestanding",
+            "-mcpu=cortex-m0plus",
+            "-mthumb",
+            "-mfloat-abi=soft",
+            "-nostdinc",
+            "-I" + str(root / "include"),
+            "-DSIGNAL_SET_EXTERNAL_ERRNO=1",
+            "-S",
+            str(root / "tests/libc_contracts/signal_set_header.c"),
+            "-o",
+            str(signal_assembly),
+        ],
+        check=True,
+    )
+    subprocess.run([str(tools / "as"), str(signal_assembly), "-o", str(signal_object)], check=True)
+    signal = [str(tools / "ld"), "-o", str(work / "signal"), str(startup), str(signal_object)]
     subprocess.run([*signal, str(archive)], check=True)
     shutil.copyfile(archive, damaged)
     subprocess.run([str(tools / "ar"), "d", str(damaged), "sigsetops.o"], check=True)

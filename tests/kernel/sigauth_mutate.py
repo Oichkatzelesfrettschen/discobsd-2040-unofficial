@@ -27,10 +27,7 @@ def main():
     linked_objects = [pathlib.Path(argument).resolve() for argument in sys.argv[4:]]
     source_path = root / "sys/kern/kern_sig.c"
     source = source_path.read_text(encoding="utf-8")
-    authorization = (
-        "        if (! cansignal (p, uap->signo))\n"
-        "            error = EPERM;"
-    )
+    authorization = "        if (! cansignal (p, uap->signo))\n            error = EPERM;"
     bypass = "        if (0)\n            error = EPERM;"
     require(source.count(authorization) == 1, "kill authorization anchor differs")
 
@@ -60,9 +57,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="sigauth-mutation-") as name:
         directory = pathlib.Path(name)
         mutant_source = directory / "kern_sig_permission_mutant.c"
-        mutant_source.write_text(
-            source.replace(authorization, bypass), encoding="utf-8"
-        )
+        mutant_source.write_text(source.replace(authorization, bypass), encoding="utf-8")
         mutant_object = directory / "kern_sig_permission_mutant.o"
         run(
             compiler

@@ -38,59 +38,66 @@ LETTERS = "abcdefghijklmnopqrstuvwxyz"
 def overflow_grammars():
     """Return (name, grammar, diagnostic) for one over-capacity grammar per check."""
     classes = [
-        "".join(group)
-        for group in itertools.islice(itertools.combinations(LETTERS, 12), 120)
+        "".join(group) for group in itertools.islice(itertools.combinations(LETTERS, 12), 120)
     ]
     conditions = [f"c{number}" for number in range(20)]
-    condition_sets = list(
-        itertools.islice(itertools.combinations(conditions, 3), 120)
-    )
+    condition_sets = list(itertools.islice(itertools.combinations(conditions, 3), 120))
     return (
         ("positions_small", "%p 2\n" + BASE_RULES, "Too many positions"),
         ("positions", "%p 6\n" + BASE_RULES, "Too many positions"),
         ("transitions", "%a 4\n" + BASE_RULES, "Too many transitions"),
-        ("packed_classes", "%k 3\n" + BASE_RULES,
-         "Too many packed character classes"),
+        ("packed_classes", "%k 3\n" + BASE_RULES, "Too many packed character classes"),
         ("states", "%n 3\n" + BASE_RULES, "Too many states"),
-        ("tree",
-         "%%\n" + "".join(f"abcdefgh{n}\t;\n" for n in range(120)),
-         "tree.l:47  (Error) Parse tree too big"),
+        (
+            "tree",
+            "%%\n" + "".join(f"abcdefgh{n}\t;\n" for n in range(120)),
+            "tree.l:47  (Error) Parse tree too big",
+        ),
         ("pushback", "A {A}yyyy\n%%\n{A}\t;\n", "Too many characters pushed"),
-        ("classes",
-         "%e 5000\n%%\n"
-         + "".join(f"[{c}]x{n}\t;\n" for n, c in enumerate(classes)),
-         "Too many large character classes"),
-        ("dot_class",
-         "%e 5000\n%%\n"
-         + "".join(f"[{c}]x{n}\t;\n" for n, c in enumerate(classes[:60]))
-         + ".\t;\n",
-         "Too many large character classes"),
+        (
+            "classes",
+            "%e 5000\n%%\n" + "".join(f"[{c}]x{n}\t;\n" for n, c in enumerate(classes)),
+            "Too many large character classes",
+        ),
+        (
+            "dot_class",
+            "%e 5000\n%%\n"
+            + "".join(f"[{c}]x{n}\t;\n" for n, c in enumerate(classes[:60]))
+            + ".\t;\n",
+            "Too many large character classes",
+        ),
         ("token_definition", "%%\n{" + "d" * 1500 + "}\t;\n", "Token too long"),
         ("token_start", "%%\n<" + "s" * 1500 + ">x\t;\n", "Token too long"),
-        ("token_letters", "%e 5000\n%%\n" + "q" * 1500 + "\t;\n",
-         "Token too long"),
+        ("token_letters", "%e 5000\n%%\n" + "q" * 1500 + "\t;\n", "Token too long"),
         ("token_iteration", "%%\na{" + "1" * 1500 + "}\t;\n", "Token too long"),
         ("string", '%e 5000\n%%\n"' + "s" * 1500 + '"\t;\n', "String too long"),
         ("line", "D " + "x" * 700 + "\n%%\na\t;\n", "Input line too long"),
-        ("definition_count",
-         "".join(f"D{n} a\n" for n in range(45)) + "%%\na\t;\n",
-         "Too many definitions"),
-        ("definition_text",
-         "".join(f"D{n} " + "a" * 200 + "\n" for n in range(8)) + "%%\na\t;\n",
-         "Definitions too long"),
-        ("start_text",
-         "".join(f"%s cond{n}aaaaaaaa\n" for n in range(12)) + "%%\na\t;\n",
-         "Start conditions too long"),
-        ("start_uses",
-         "%e 5000\n%s " + " ".join(conditions[:10]) + "\n%s "
-         + " ".join(conditions[10:]) + "\n%%\n"
-         + "".join(
-             f"<{','.join(group)}>x{n}\t;\n"
-             for n, group in enumerate(condition_sets)
-         ),
-         "Too many start conditions used"),
-        ("option_refused", "%option noyywrap\n" + BASE_RULES,
-         "Unsupported %option noyywrap"),
+        (
+            "definition_count",
+            "".join(f"D{n} a\n" for n in range(45)) + "%%\na\t;\n",
+            "Too many definitions",
+        ),
+        (
+            "definition_text",
+            "".join(f"D{n} " + "a" * 200 + "\n" for n in range(8)) + "%%\na\t;\n",
+            "Definitions too long",
+        ),
+        (
+            "start_text",
+            "".join(f"%s cond{n}aaaaaaaa\n" for n in range(12)) + "%%\na\t;\n",
+            "Start conditions too long",
+        ),
+        (
+            "start_uses",
+            "%e 5000\n%s "
+            + " ".join(conditions[:10])
+            + "\n%s "
+            + " ".join(conditions[10:])
+            + "\n%%\n"
+            + "".join(f"<{','.join(group)}>x{n}\t;\n" for n, group in enumerate(condition_sets)),
+            "Too many start conditions used",
+        ),
+        ("option_refused", "%option noyywrap\n" + BASE_RULES, "Unsupported %option noyywrap"),
     )
 
 
@@ -113,48 +120,62 @@ SHIPPED_GRAMMARS = {
 # (name, file, original text, replacement)
 MUTATIONS = (
     ("tree_check", "sub1.c", "\tif(tptr >= treesize)\n", "\tif(0)\n"),
-    ("pushback_check", "sub1.c",
-     "\tif(n >= pushc + TOKENSIZE - pushptr)\n", "\tif(0)\n"),
-    ("line_check", "sub1.c",
-     "\t\tif(t >= buf + sizeof(buf) - 1)\n", "\t\tif(0)\n"),
-    ("packed_class_check", "sub2.c",
-     "\tif(pcptr >= pchar + pchlen)\n", "\tif(0)\n"),
-    ("position_check", "sub2.c",
-     '\terror("Too many positions %s"', '\tif(0) error("Too many positions %s"'),
-    ("transition_check", "sub2.c",
-     '\terror("Too many transitions %s"',
-     '\tif(0) error("Too many transitions %s"'),
-    ("state_check", "sub2.c",
-     "\t\t\t\t\tif(stnum + 1 >= nstates)", "\t\t\t\t\tif(0)"),
-    ("class_check", "parser.y",
-     "\t\t\t\t\tif(strlen((char*)token) + 1 >=\n"
-     "\t\t\t\t\t    (size_t)(ccl + CCLSIZE - ccptr))\n",
-     "\t\t\t\t\tif(0)\n"),
-    ("dot_class_check", "parser.y",
-     "\t\t\tif(ccptr + (NCH-1) > ccl+CCLSIZE)\n", "\t\t\tif(0)\n"),
+    ("pushback_check", "sub1.c", "\tif(n >= pushc + TOKENSIZE - pushptr)\n", "\tif(0)\n"),
+    ("line_check", "sub1.c", "\t\tif(t >= buf + sizeof(buf) - 1)\n", "\t\tif(0)\n"),
+    ("packed_class_check", "sub2.c", "\tif(pcptr >= pchar + pchlen)\n", "\tif(0)\n"),
+    (
+        "position_check",
+        "sub2.c",
+        '\terror("Too many positions %s"',
+        '\tif(0) error("Too many positions %s"',
+    ),
+    (
+        "transition_check",
+        "sub2.c",
+        '\terror("Too many transitions %s"',
+        '\tif(0) error("Too many transitions %s"',
+    ),
+    ("state_check", "sub2.c", "\t\t\t\t\tif(stnum + 1 >= nstates)", "\t\t\t\t\tif(0)"),
+    (
+        "class_check",
+        "parser.y",
+        "\t\t\t\t\tif(strlen((char*)token) + 1 >=\n"
+        "\t\t\t\t\t    (size_t)(ccl + CCLSIZE - ccptr))\n",
+        "\t\t\t\t\tif(0)\n",
+    ),
+    ("dot_class_check", "parser.y", "\t\t\tif(ccptr + (NCH-1) > ccl+CCLSIZE)\n", "\t\t\tif(0)\n"),
     ("token_check", "parser.y", "\tif(i >= TOKENSIZE-1) \\\n", "\tif(0) \\\n"),
-    ("string_check", "parser.y",
-     "\t\t\t\t\tif(i >= TOKENSIZE-1)\n", "\t\t\t\t\tif(0)\n"),
-    ("definition_count_check", "parser.y",
-     "\t\tif(dptr + 1 >= DEFSIZE)\n", "\t\tif(0)\n"),
-    ("definition_text_check", "parser.y",
-     "\t\tif(strlen((char*)$2.cp) + strlen((char*)$3.cp) + 2 >=\n"
-     "\t\t    (size_t)(dchar + DEFCHAR - dp))\n",
-     "\t\tif(0)\n"),
-    ("start_text_check", "parser.y",
-     "\t\t\t\t\t\t\tif(strlen((char*)t) + 1 >=\n"
-     "\t\t\t\t\t\t\t    (size_t)(stchar + STARTCHAR - sp))\n",
-     "\t\t\t\t\t\t\tif(0)\n"),
-    ("start_use_check", "parser.y",
-     "\t\t\t\t\tif(slptr >= slist+STARTSIZE)\n"
-     '\t\t\t\t\t\terror("Too many start conditions used");\n'
-     "\t\t\t\t\t*slptr++ = i+1;\n",
-     "\t\t\t\t\t*slptr++ = i+1;\n"),
-    ("option_check", "parser.y",
-     "\t\tif(accepted[n] == 0)\n", "\t\tif(0)\n"),
-    ("option_dispatch", "parser.y",
-     '\t\t\t\t\t\tif(strncmp((char*)p,"%option",7) == 0 &&\n',
-     '\t\t\t\t\t\tif(0 && strncmp((char*)p,"%option",7) == 0 &&\n'),
+    ("string_check", "parser.y", "\t\t\t\t\tif(i >= TOKENSIZE-1)\n", "\t\t\t\t\tif(0)\n"),
+    ("definition_count_check", "parser.y", "\t\tif(dptr + 1 >= DEFSIZE)\n", "\t\tif(0)\n"),
+    (
+        "definition_text_check",
+        "parser.y",
+        "\t\tif(strlen((char*)$2.cp) + strlen((char*)$3.cp) + 2 >=\n"
+        "\t\t    (size_t)(dchar + DEFCHAR - dp))\n",
+        "\t\tif(0)\n",
+    ),
+    (
+        "start_text_check",
+        "parser.y",
+        "\t\t\t\t\t\t\tif(strlen((char*)t) + 1 >=\n"
+        "\t\t\t\t\t\t\t    (size_t)(stchar + STARTCHAR - sp))\n",
+        "\t\t\t\t\t\t\tif(0)\n",
+    ),
+    (
+        "start_use_check",
+        "parser.y",
+        "\t\t\t\t\tif(slptr >= slist+STARTSIZE)\n"
+        '\t\t\t\t\t\terror("Too many start conditions used");\n'
+        "\t\t\t\t\t*slptr++ = i+1;\n",
+        "\t\t\t\t\t*slptr++ = i+1;\n",
+    ),
+    ("option_check", "parser.y", "\t\tif(accepted[n] == 0)\n", "\t\tif(0)\n"),
+    (
+        "option_dispatch",
+        "parser.y",
+        '\t\t\t\t\t\tif(strncmp((char*)p,"%option",7) == 0 &&\n',
+        '\t\t\t\t\t\tif(0 && strncmp((char*)p,"%option",7) == 0 &&\n',
+    ),
 )
 
 
@@ -243,18 +264,14 @@ def build(compiler, yacc, source, output):
         [*compiler, f"-I{source}", "-o", str(output), str(generated)]
         + [str(source / name) for name in SOURCES],
     ):
-        completed = subprocess.run(
-            command, capture_output=True, text=True, check=False
-        )
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
         if completed.returncode != 0:
             return completed.stdout + completed.stderr
     return None
 
 
 def command_run(arguments):
-    count, failures = run_cases(
-        arguments.lex, arguments.source, arguments.examples, arguments.work
-    )
+    count, failures = run_cases(arguments.lex, arguments.source, arguments.examples, arguments.work)
     for failure in failures:
         print(f"FAIL lex-tables: {failure}")
     if failures:
@@ -288,9 +305,7 @@ def command_mutants(arguments):
         if errors is not None:
             print(f"FAIL lex-tables: mutant {name} does not build\n{errors}")
             return 1
-        _, failures = run_cases(
-            binary, mutant_source, arguments.examples, mutant_source / "work"
-        )
+        _, failures = run_cases(binary, mutant_source, arguments.examples, mutant_source / "work")
         if not failures:
             survivors.append(name)
     if survivors:

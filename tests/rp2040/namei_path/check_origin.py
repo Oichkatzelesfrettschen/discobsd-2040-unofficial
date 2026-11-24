@@ -67,16 +67,14 @@ PUBLISHAT_BENEATH_CALLS = [
     "NAMEI_INIT_USER(target_ndp,CREATE,LOCKPARENT|NOCACHE,uap->target_path)",
 ]
 PUBLISH_TARGET_CALL = (
-    "NAMEI_INIT_USER(target_ndp, CREATE, LOCKPARENT | NOCACHE,\n"
-    "        uap->target_path);"
+    "NAMEI_INIT_USER(target_ndp, CREATE, LOCKPARENT | NOCACHE,\n        uap->target_path);"
 )
 LINKAT_BENEATH_CALLS = [
     "NAMEI_INIT_USER(source_ndp,LOOKUP,NOFOLLOW|NOCACHE,uap->source_path)",
     "NAMEI_INIT_USER(target_ndp,CREATE,NOFOLLOW|LOCKPARENT|NOCACHE,uap->target_path)",
 ]
 LINK_SOURCE_CALL = (
-    "NAMEI_INIT_USER(source_ndp, LOOKUP, NOFOLLOW | NOCACHE,\n"
-    "        uap->source_path);"
+    "NAMEI_INIT_USER(source_ndp, LOOKUP, NOFOLLOW | NOCACHE,\n        uap->source_path);"
 )
 
 # Each conditional vn_open reset expresses two flag-dependent transitions
@@ -100,9 +98,7 @@ def normalized_calls(source_text: str) -> Counter[str]:
 
 
 def function_source(source_text: str, function_name: str) -> str | None:
-    signature_pattern = re.compile(
-        rf"\b{re.escape(function_name)}\s*\([^;{{}}]*\)\s*\{{"
-    )
+    signature_pattern = re.compile(rf"\b{re.escape(function_name)}\s*\([^;{{}}]*\)\s*\{{")
     signature_match = signature_pattern.search(source_text)
     if signature_match is None:
         return None
@@ -135,14 +131,10 @@ def validate_sources(sources: dict[str, str]) -> list[str]:
     for relative_path, source_text in sources.items():
         direct_writes = DIRECT_WRITE_PATTERN.findall(source_text)
         if direct_writes:
-            errors.append(
-                f"{relative_path}: {len(direct_writes)} direct nameidata origin writes"
-            )
+            errors.append(f"{relative_path}: {len(direct_writes)} direct nameidata origin writes")
         legacy_initializers = LEGACY_INIT_PATTERN.findall(source_text)
         if legacy_initializers:
-            errors.append(
-                f"{relative_path}: {len(legacy_initializers)} ambiguous NDINIT calls"
-            )
+            errors.append(f"{relative_path}: {len(legacy_initializers)} ambiguous NDINIT calls")
 
         call_counts = normalized_calls(source_text)
         if call_counts:
@@ -176,9 +168,7 @@ def validate_sources(sources: dict[str, str]) -> list[str]:
                 f"{missing}; unexpected origin calls {unexpected}"
             )
 
-    linkat_source = function_source(
-        sources.get("sys/kern/ufs_syscalls.c", ""), "linkat_beneath"
-    )
+    linkat_source = function_source(sources.get("sys/kern/ufs_syscalls.c", ""), "linkat_beneath")
     if linkat_source is None:
         errors.append("sys/kern/ufs_syscalls.c: missing linkat_beneath definition")
     else:
@@ -199,15 +189,11 @@ def require_rejection(label: str, sources: dict[str, str]) -> None:
         raise RuntimeError(f"{label}: malformed caller inventory was accepted")
 
 
-def require_direct_write_rejection(
-    label: str, caller_path: str, sources: dict[str, str]
-) -> None:
+def require_direct_write_rejection(label: str, caller_path: str, sources: dict[str, str]) -> None:
     expected_error = f"{caller_path}: 1 direct nameidata origin writes"
     errors = validate_sources(sources)
     if errors != [expected_error]:
-        raise RuntimeError(
-            f"{label}: expected only {expected_error!r}, observed {errors!r}"
-        )
+        raise RuntimeError(f"{label}: expected only {expected_error!r}, observed {errors!r}")
 
 
 def run_self_tests(clean_sources: dict[str, str]) -> int:
@@ -245,9 +231,7 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
         clean_sources[caller_path]
     ):
         raise RuntimeError("direct-write mutation changed the caller inventory")
-    require_direct_write_rejection(
-        "direct-origin-write", caller_path, direct_write_sources
-    )
+    require_direct_write_rejection("direct-origin-write", caller_path, direct_write_sources)
     rejected += 1
 
     compound_write_sources = dict(clean_sources)
@@ -264,16 +248,12 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
         clean_sources[caller_path]
     ):
         raise RuntimeError("compound-write mutation changed the caller inventory")
-    require_direct_write_rejection(
-        "compound-origin-write", caller_path, compound_write_sources
-    )
+    require_direct_write_rejection("compound-origin-write", caller_path, compound_write_sources)
     rejected += 1
 
     unexpected_caller_sources = dict(clean_sources)
     caller_path = "sys/kern/init_main.c"
-    unexpected_caller_sources[caller_path] += (
-        "\nNAMEI_INIT_USER(ndp, LOOKUP, FOLLOW, pathname);\n"
-    )
+    unexpected_caller_sources[caller_path] += "\nNAMEI_INIT_USER(ndp, LOOKUP, FOLLOW, pathname);\n"
     require_rejection("unexpected-caller", unexpected_caller_sources)
     rejected += 1
 
@@ -316,9 +296,9 @@ def run_self_tests(clean_sources: dict[str, str]) -> int:
     rejected += 1
 
     misplaced_link_call_sources = dict(clean_sources)
-    misplaced_link_call_sources[caller_path] = misplaced_link_call_sources[
-        caller_path
-    ].replace(LINK_SOURCE_CALL, "", 1)
+    misplaced_link_call_sources[caller_path] = misplaced_link_call_sources[caller_path].replace(
+        LINK_SOURCE_CALL, "", 1
+    )
     misplaced_link_call_sources[caller_path] += f"\n{LINK_SOURCE_CALL}\n"
     if normalized_calls(misplaced_link_call_sources[caller_path]) != normalized_calls(
         clean_sources[caller_path]
@@ -344,13 +324,9 @@ def main() -> int:
             print(f"FAIL namei path origin: {error}")
         return 1
 
-    call_count = (
-        sum(len(calls) for calls in EXPECTED_CALLS.values())
-        + CONDITIONAL_TRANSITION_CASES
-    )
+    call_count = sum(len(calls) for calls in EXPECTED_CALLS.values()) + CONDITIONAL_TRANSITION_CASES
     print(
-        "PASS namei path origin: "
-        f"{call_count} transitions, {rejected_mutations} mutations rejected"
+        f"PASS namei path origin: {call_count} transitions, {rejected_mutations} mutations rejected"
     )
     return 0
 

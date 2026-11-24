@@ -31,8 +31,8 @@ PROBES = {
         "shadow",
     ),
     "format-nonliteral": (
-        'extern int warning_printf(const char *, ...) __attribute__((format(printf, 1, 2)));\n'
-        'int warning_probe(char *format) { return warning_printf(format, 1); }\n',
+        "extern int warning_printf(const char *, ...) __attribute__((format(printf, 1, 2)));\n"
+        "int warning_probe(char *format) { return warning_printf(format, 1); }\n",
         "format-nonliteral",
     ),
     # An undefined identifier in #if is 0 (C17 6.10.1), so an unshimmed
@@ -50,8 +50,7 @@ PROBES = {
 ENDIAN_CONTROL = (
     "#include <sys/endian.h>\n"
     "#if BYTE_ORDER == BIG_ENDIAN\n#error big-endian branch taken\n#endif\n"
-    "#if _BYTE_ORDER != _LITTLE_ENDIAN\n#error _BYTE_ORDER\n#endif\n"
-    + CONTROL
+    "#if _BYTE_ORDER != _LITTLE_ENDIAN\n#error _BYTE_ORDER\n#endif\n" + CONTROL
 )
 HOST_ROUTES = ("tools/binstall", "tools/config", "tools/fsutil", "share/zoneinfo")
 # Full routes compile clean under -Wall -Wextra, so share/mk/warnings.mk
@@ -74,9 +73,16 @@ ENVIRONMENT = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MF
 
 
 def run(argv, cwd):
-    return subprocess.run(argv, cwd=cwd, text=True, stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT, check=False, timeout=60,
-                          env=ENVIRONMENT)
+    return subprocess.run(
+        argv,
+        cwd=cwd,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=60,
+        env=ENVIRONMENT,
+    )
 
 
 def check_route(root, make, directory, overrides, kinds):
@@ -151,27 +157,41 @@ def check_level_declarations(root):
     ignored and the directory silently builds at the default level; the
     value is also held to the two warnings.mk accepts.
     """
-    listing = subprocess.run(["git", "ls-files", "--", "*Makefile", "*.mk"], cwd=root,
-                             text=True, stdout=subprocess.PIPE, check=True).stdout
+    listing = subprocess.run(
+        ["git", "ls-files", "--", "*Makefile", "*.mk"],
+        cwd=root,
+        text=True,
+        stdout=subprocess.PIPE,
+        check=True,
+    ).stdout
     declared = 0
     for name in listing.split():
         if name == "share/mk/warnings.mk":
             continue
         lines = (root / name).read_text().splitlines()
-        include_at = next((i for i, line in enumerate(lines)
-                           if ("share/mk/sys.mk" in line or "Makefile.inc" in line)
-                           and line.lstrip().startswith(("include", ".include", "-include"))), None)
+        include_at = next(
+            (
+                i
+                for i, line in enumerate(lines)
+                if ("share/mk/sys.mk" in line or "Makefile.inc" in line)
+                and line.lstrip().startswith(("include", ".include", "-include"))
+            ),
+            None,
+        )
         for i, line in enumerate(lines):
             match = re.match(r"^WARNLEVEL\s*[?:]?=\s*(\S+)", line)
             if match is None:
                 continue
             declared += 1
             if match.group(1) not in ("full", "legacy"):
-                raise RuntimeError(f"{name}:{i + 1}: WARNLEVEL is {match.group(1)}, "
-                                   "not full or legacy")
+                raise RuntimeError(
+                    f"{name}:{i + 1}: WARNLEVEL is {match.group(1)}, not full or legacy"
+                )
             if include_at is None or i > include_at:
-                raise RuntimeError(f"{name}:{i + 1}: WARNLEVEL is assigned after the sys.mk "
-                                   "include, where CC has already been composed")
+                raise RuntimeError(
+                    f"{name}:{i + 1}: WARNLEVEL is assigned after the sys.mk "
+                    "include, where CC has already been composed"
+                )
     print(f"PASS {declared} WARNLEVEL declarations precede their sys.mk include")
 
 
@@ -229,22 +249,28 @@ def main():
         if expected is None:
             raise RuntimeError("kernel template has no CWARNFLAGS assignment")
         for directory in KERNEL_ROUTES:
-            generated = re.search(r"^CWARNFLAGS=.*$",
-                                  (args.root / directory / "Makefile").read_text(), re.MULTILINE)
+            generated = re.search(
+                r"^CWARNFLAGS=.*$", (args.root / directory / "Makefile").read_text(), re.MULTILINE
+            )
             if generated is None or generated.group().split() != expected.group().split():
                 raise RuntimeError(f"{directory}: warning policy differs from config template")
         for directory in KERNEL_ROUTES:
-            check_route(args.root, make, directory, [],
-                        ("fatal", "wall", "extra", "shadow", "undef", "format-nonliteral"))
-        extra_flags = {"shadow": "-Wshadow", "undef": "-Wundef",
-                       "format-nonliteral": "-Wformat=2"}
+            check_route(
+                args.root,
+                make,
+                directory,
+                [],
+                ("fatal", "wall", "extra", "shadow", "undef", "format-nonliteral"),
+            )
+        extra_flags = {"shadow": "-Wshadow", "undef": "-Wundef", "format-nonliteral": "-Wformat=2"}
         for kind, omitted in extra_flags.items():
             flags = ["-Wall", "-Wextra", "-Werror"] + [
                 flag for flag in extra_flags.values() if flag != omitted
             ]
             try:
-                check_route(args.root, make, KERNEL_ROUTES[0],
-                            ["CWARNFLAGS=" + " ".join(flags)], (kind,))
+                check_route(
+                    args.root, make, KERNEL_ROUTES[0], ["CWARNFLAGS=" + " ".join(flags)], (kind,)
+                )
             except RuntimeError as error:
                 if f"{kind} probe was not rejected" not in str(error):
                     raise

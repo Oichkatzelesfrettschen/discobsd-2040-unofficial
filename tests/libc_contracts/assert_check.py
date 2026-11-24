@@ -23,9 +23,16 @@ with tempfile.TemporaryDirectory(prefix="gizmobsd-assert-") as directory:
     for name in ("assert_contract_test", "assert_reinclude_test"):
         binary = temporary / name
         subprocess.run(
-            [*compiler, *flags, "-iquote", str(root / "include"),
-             str(root / "tests/libc_contracts" / f"{name}.c"),
-             str(root / "lib/libc/gen/assert_fail.c"), "-o", str(binary)],
+            [
+                *compiler,
+                *flags,
+                "-iquote",
+                str(root / "include"),
+                str(root / "tests/libc_contracts" / f"{name}.c"),
+                str(root / "lib/libc/gen/assert_fail.c"),
+                "-o",
+                str(binary),
+            ],
             check=True,
         )
         subprocess.run([binary], check=True)
@@ -46,9 +53,16 @@ with tempfile.TemporaryDirectory(prefix="gizmobsd-assert-") as directory:
     )
     mutant = temporary / "assert-mutant"
     subprocess.run(
-        [*compiler, *flags, "-iquote", str(temporary),
-         str(root / "tests/libc_contracts/assert_contract_test.c"),
-         str(root / "lib/libc/gen/assert_fail.c"), "-o", str(mutant)],
+        [
+            *compiler,
+            *flags,
+            "-iquote",
+            str(temporary),
+            str(root / "tests/libc_contracts/assert_contract_test.c"),
+            str(root / "lib/libc/gen/assert_fail.c"),
+            "-o",
+            str(mutant),
+        ],
         check=True,
     )
     result = subprocess.run([mutant], capture_output=True, text=True)
@@ -65,24 +79,31 @@ with tempfile.TemporaryDirectory(prefix="gizmobsd-assert-") as directory:
         encoding="utf-8",
     )
     result = subprocess.run(
-        [*compiler, *flags, "-iquote", str(root / "include"),
-         "-fsyntax-only", str(false_source)],
-        capture_output=True, text=True,
+        [*compiler, *flags, "-iquote", str(root / "include"), "-fsyntax-only", str(false_source)],
+        capture_output=True,
+        text=True,
     )
     require(result.returncode != 0, "false static_assert compiled")
     require("gizmobsd false constant" in result.stderr, result.stderr)
 
     definition = "#define static_assert _Static_assert\n"
     require(header.count(definition) == 1, "static assertion mutation anchor differs")
-    (temporary / "assert.h").write_text(
-        header.replace(definition, ""), encoding="utf-8"
-    )
+    (temporary / "assert.h").write_text(header.replace(definition, ""), encoding="utf-8")
     result = subprocess.run(
-        [*compiler, *flags, "-iquote", str(temporary), "-fsyntax-only",
-         str(root / "tests/libc_contracts/assert_contract_test.c")],
-        capture_output=True, text=True,
+        [
+            *compiler,
+            *flags,
+            "-iquote",
+            str(temporary),
+            "-fsyntax-only",
+            str(root / "tests/libc_contracts/assert_contract_test.c"),
+        ],
+        capture_output=True,
+        text=True,
     )
     require(result.returncode != 0, "contract test built without static_assert")
 
-print("assert contract: PASS; disabled-evaluation, false-constant and "
-      "missing-static_assert mutants rejected")
+print(
+    "assert contract: PASS; disabled-evaluation, false-constant and "
+    "missing-static_assert mutants rejected"
+)

@@ -6,19 +6,11 @@ import re
 from pathlib import Path
 
 SIGNATURE = "int\nexec_elf_check(struct exec_params *epp)"
-FINISH_SIGNATURE = (
-    "static void\nexec_finish(struct exec_params *epp, struct inode *ip)"
-)
+FINISH_SIGNATURE = "static void\nexec_finish(struct exec_params *epp, struct inode *ip)"
 ESTABLISH_SIGNATURE = "int exec_estab(struct exec_params *epp)"
-SETUPSTACK_SIGNATURE = (
-    "void exec_setupstack(unsigned entryaddr, struct exec_params *epp)"
-)
-SWAPTEXT_SIGNATURE = (
-    "static size_t\nswaptext (register struct proc *p)"
-)
-TEXT_RELEASE_SIGNATURE = (
-    "void\nexec_text_release(struct proc *p, struct inode *next)"
-)
+SETUPSTACK_SIGNATURE = "void exec_setupstack(unsigned entryaddr, struct exec_params *epp)"
+SWAPTEXT_SIGNATURE = "static size_t\nswaptext (register struct proc *p)"
+TEXT_RELEASE_SIGNATURE = "void\nexec_text_release(struct proc *p, struct inode *next)"
 SEGMENT_SPAN_CHECK = """    if (ph->p_offset > UINT_MAX - ph->p_filesz ||
         (unsigned long)ph->p_offset + ph->p_filesz >
         (unsigned long)epp->ip->i_size)
@@ -36,18 +28,11 @@ FINISH_TERMINATION = """    if (terminate)
 FINISH_SIGNAL_MUTANT = """    if (terminate)
         psignal(u.u_procp, SIGKILL);"""
 STACK_ARGUMENT_GEOMETRY = (
-    "    argp = (char **)((char *)envp - (epp->argc+1)*NBPW); "
-    "/* argv and NULL */"
+    "    argp = (char **)((char *)envp - (epp->argc+1)*NBPW); /* argv and NULL */"
 )
-STACK_ARGUMENT_GEOMETRY_MUTANT = (
-    "    argp = envp - (epp->argc+1)*NBPW;"
-)
-STACK_POINTER_GEOMETRY = (
-    "    u.u_frame->tf_sp = (int)((char *)argp - sizeof *u.u_frame);"
-)
-STACK_POINTER_GEOMETRY_MUTANT = (
-    "    u.u_frame->tf_sp = (int)(argp-0x40);"
-)
+STACK_ARGUMENT_GEOMETRY_MUTANT = "    argp = envp - (epp->argc+1)*NBPW;"
+STACK_POINTER_GEOMETRY = "    u.u_frame->tf_sp = (int)((char *)argp - sizeof *u.u_frame);"
+STACK_POINTER_GEOMETRY_MUTANT = "    u.u_frame->tf_sp = (int)(argp-0x40);"
 SPOOL_LOST_MARK = "    epp->flags |= EXEC_COMMITTED_FAILURE;\n}"
 SPOOL_LOST_MARK_MUTANT = "    (void)epp;\n}"
 TEXT_OWNERSHIP = """    exec_text_release(u.u_procp, NULL);
@@ -82,12 +67,13 @@ def definition_signature(source: str, return_type: str, name: str) -> str:
     """Return the text that opens the one definition of name, which starts a
     line after a line holding only return_type, with any spacing before the
     parameter list ("pipe_rw(" and "pipe_rw (" alike)."""
-    pattern = re.compile(
-        rf"^{re.escape(return_type)}[ \t]*\n{re.escape(name)}[ \t]*\(", re.M)
+    pattern = re.compile(rf"^{re.escape(return_type)}[ \t]*\n{re.escape(name)}[ \t]*\(", re.M)
     found = pattern.findall(source)
     if len(found) != 1:
-        raise ValueError(f"{name} definition {'not found' if not found else 'is not unique'}"
-                         f" ({len(found)} matches)")
+        raise ValueError(
+            f"{name} definition {'not found' if not found else 'is not unique'}"
+            f" ({len(found)} matches)"
+        )
     return found[0]
 
 
@@ -139,20 +125,14 @@ def main() -> None:
     elif arguments.finish_signal_mutant:
         if function.count(FINISH_TERMINATION) != 1:
             raise SystemExit("exec-finish mutation does not match source")
-        function = function.replace(
-            FINISH_TERMINATION, FINISH_SIGNAL_MUTANT, 1
-        )
+        function = function.replace(FINISH_TERMINATION, FINISH_SIGNAL_MUTANT, 1)
     elif arguments.setupstack_geometry_mutant:
         if function.count(STACK_ARGUMENT_GEOMETRY) != 1:
             raise SystemExit("stack argument-geometry mutation does not match source")
         if function.count(STACK_POINTER_GEOMETRY) != 1:
             raise SystemExit("stack pointer-geometry mutation does not match source")
-        function = function.replace(
-            STACK_ARGUMENT_GEOMETRY, STACK_ARGUMENT_GEOMETRY_MUTANT, 1
-        )
-        function = function.replace(
-            STACK_POINTER_GEOMETRY, STACK_POINTER_GEOMETRY_MUTANT, 1
-        )
+        function = function.replace(STACK_ARGUMENT_GEOMETRY, STACK_ARGUMENT_GEOMETRY_MUTANT, 1)
+        function = function.replace(STACK_POINTER_GEOMETRY, STACK_POINTER_GEOMETRY_MUTANT, 1)
     elif arguments.setupstack_lost_unmarked_mutant:
         if function.count(SPOOL_LOST_MARK) != 1:
             raise SystemExit("spool-loss mark mutation does not match source")

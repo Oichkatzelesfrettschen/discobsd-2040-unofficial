@@ -35,9 +35,9 @@ import sys
 
 DAY = 86400
 EPOCH = datetime.datetime(1970, 1, 1)
-COUNT_MAX = 2 ** 32 - 1
-INT_MIN = -(2 ** 31)
-INT_MAX = 2 ** 31 - 1
+COUNT_MAX = 2**32 - 1
+INT_MIN = -(2**31)
+INT_MAX = 2**31 - 1
 
 
 def require(condition, message):
@@ -49,9 +49,16 @@ def fields(count):
     """The UTC fields of a second count since 1970, by datetime."""
     require(0 <= count <= COUNT_MAX, "a count leaves the 32-bit range")
     moment = EPOCH + datetime.timedelta(seconds=count)
-    return (moment.year - 1900, moment.month - 1, moment.day, moment.hour,
-            moment.minute, moment.second, (moment.weekday() + 1) % 7,
-            moment.timetuple().tm_yday - 1)
+    return (
+        moment.year - 1900,
+        moment.month - 1,
+        moment.day,
+        moment.hour,
+        moment.minute,
+        moment.second,
+        (moment.weekday() + 1) % 7,
+        moment.timetuple().tm_yday - 1,
+    )
 
 
 def count_of(year, month, day, hour=0, minute=0, second=0):
@@ -60,25 +67,42 @@ def count_of(year, month, day, hour=0, minute=0, second=0):
     return delta.days * DAY + delta.seconds
 
 
-require(count_of(2106, 2, 7, 6, 28, 15) == COUNT_MAX,
-        "the last count is not 2106-02-07 06:28:15")
+require(count_of(2106, 2, 7, 6, 28, 15) == COUNT_MAX, "the last count is not 2106-02-07 06:28:15")
 
 
 def instants():
     named = [
-        0, 1, 59, 60, 3599, 3600, 86399, 86400,
-        2 ** 31 - 1, 2 ** 31, 2 ** 31 + 1, 0x90000000, 0xc0000000,
-        COUNT_MAX - 1, COUNT_MAX, COUNT_MAX - DAY,
-        count_of(2038, 1, 19), count_of(2038, 1, 20) - 1,
-        count_of(2096, 2, 29), count_of(2100, 2, 28),
-        count_of(2100, 3, 1), count_of(2100, 12, 31, 23, 59, 59),
-        count_of(2104, 2, 29), count_of(2105, 12, 31, 23, 59, 59),
-        count_of(2106, 1, 1), count_of(2106, 2, 7),
+        0,
+        1,
+        59,
+        60,
+        3599,
+        3600,
+        86399,
+        86400,
+        2**31 - 1,
+        2**31,
+        2**31 + 1,
+        0x90000000,
+        0xC0000000,
+        COUNT_MAX - 1,
+        COUNT_MAX,
+        COUNT_MAX - DAY,
+        count_of(2038, 1, 19),
+        count_of(2038, 1, 20) - 1,
+        count_of(2096, 2, 29),
+        count_of(2100, 2, 28),
+        count_of(2100, 3, 1),
+        count_of(2100, 12, 31, 23, 59, 59),
+        count_of(2104, 2, 29),
+        count_of(2105, 12, 31, 23, 59, 59),
+        count_of(2106, 1, 1),
+        count_of(2106, 2, 7),
         count_of(2106, 2, 7) - 1,
     ]
     generator = random.Random(2106)
     sampled = [generator.randint(0, COUNT_MAX) for _ in range(1500)]
-    sampled += [generator.randint(2 ** 31, COUNT_MAX) for _ in range(1500)]
+    sampled += [generator.randint(2**31, COUNT_MAX) for _ in range(1500)]
     return named + sampled
 
 
@@ -131,11 +155,18 @@ def count_of_fields(year, mon, mday, hour, minute, sec):
     if not 1 <= year + carry + 1900 <= 9999:
         # datetime lacks such a year; with every other field in its own
         # range the instant lies centuries outside 1970..2106.
-        require(1 <= mday <= 31 and 0 <= hour < 24 and 0 <= minute < 60 and
-                0 <= sec < 60, "a year outside datetime carries other fields")
+        require(
+            1 <= mday <= 31 and 0 <= hour < 24 and 0 <= minute < 60 and 0 <= sec < 60,
+            "a year outside datetime carries other fields",
+        )
         return None
-    count = (count_of(year + carry + 1900, month + 1, 1) + (mday - 1) * DAY +
-             hour * 3600 + minute * 60 + sec)
+    count = (
+        count_of(year + carry + 1900, month + 1, 1)
+        + (mday - 1) * DAY
+        + hour * 3600
+        + minute * 60
+        + sec
+    )
     return count if 0 <= count <= COUNT_MAX else None
 
 
@@ -146,14 +177,35 @@ def zone_edge_cases():
     """(offset, local fields, accepted, count) at both ends of the range."""
     out = []
     for offset in ZONE32_OFFSETS:
-        for count in (-DAY, -1, 0, 1, DAY - 1, COUNT_MAX - DAY, COUNT_MAX - 1,
-                      COUNT_MAX, COUNT_MAX + 1, COUNT_MAX + DAY):
+        for count in (
+            -DAY,
+            -1,
+            0,
+            1,
+            DAY - 1,
+            COUNT_MAX - DAY,
+            COUNT_MAX - 1,
+            COUNT_MAX,
+            COUNT_MAX + 1,
+            COUNT_MAX + DAY,
+        ):
             local = EPOCH + datetime.timedelta(seconds=count + offset)
             accepted = 0 <= count <= COUNT_MAX
-            out.append((offset, (local.year - 1900, local.month - 1,
-                                 local.day, local.hour, local.minute,
-                                 local.second), accepted,
-                        count if accepted else 0))
+            out.append(
+                (
+                    offset,
+                    (
+                        local.year - 1900,
+                        local.month - 1,
+                        local.day,
+                        local.hour,
+                        local.minute,
+                        local.second,
+                    ),
+                    accepted,
+                    count if accepted else 0,
+                )
+            )
     return out
 
 
@@ -166,34 +218,46 @@ def int_literal(value):
 def main():
     require(len(sys.argv) == 2, "usage: calendar32_vectors.py OUTPUT")
     lines = [
-        "/* Generated by tests/libc_contracts/calendar32_vectors.py; "
-        "do not edit. */",
+        "/* Generated by tests/libc_contracts/calendar32_vectors.py; do not edit. */",
         "#define ORACLE_COUNT_MAX %dUL" % COUNT_MAX,
         "#define ORACLE_LAST_DAY %dL" % (COUNT_MAX // DAY),
         "",
         "static const struct instant32_vector instant32_vectors[] = {",
     ]
     for count in instants():
-        lines.append("\t{ %dUL, %d, %d, %d, %d, %d, %d, %d, %d }," % (
-            (count,) + fields(count)))
-    lines += ["};", "", "#ifdef CALENDAR32_FIELDS",
-              "static const struct field32_vector field32_vectors[] = {"]
+        lines.append("\t{ %dUL, %d, %d, %d, %d, %d, %d, %d, %d }," % ((count,) + fields(count)))
+    lines += [
+        "};",
+        "",
+        "#ifdef CALENDAR32_FIELDS",
+        "static const struct field32_vector field32_vectors[] = {",
+    ]
     for case in field_cases():
         count = count_of_fields(*case)
         if count is not None:
             require(fields(count)[0] >= 70, "an accepted count is not after 1969")
-        lines.append("\t{ %s, %d, %dUL }," % (
-            ", ".join(int_literal(value) for value in case),
-            int(count is not None), 0 if count is None else count))
-    lines += ["};", "",
-              "static const struct zone32_edge_vector zone32_edge_vectors[] = {"]
+        lines.append(
+            "\t{ %s, %d, %dUL },"
+            % (
+                ", ".join(int_literal(value) for value in case),
+                int(count is not None),
+                0 if count is None else count,
+            )
+        )
+    lines += ["};", "", "static const struct zone32_edge_vector zone32_edge_vectors[] = {"]
     for offset, local, accepted, count in zone_edge_cases():
-        lines.append("\t{ %dL, %s, %d, %dUL }," % (
-            offset, ", ".join("%d" % value for value in local),
-            int(accepted), count))
-    lines += ["};", "",
-              "static const long zone32_offsets[] = { %s };" % ", ".join(
-                  "%dL" % offset for offset in ZONE32_OFFSETS), "#endif", ""]
+        lines.append(
+            "\t{ %dL, %s, %d, %dUL },"
+            % (offset, ", ".join("%d" % value for value in local), int(accepted), count)
+        )
+    lines += [
+        "};",
+        "",
+        "static const long zone32_offsets[] = { %s };"
+        % ", ".join("%dL" % offset for offset in ZONE32_OFFSETS),
+        "#endif",
+        "",
+    ]
     with open(sys.argv[1], "w", encoding="ascii") as output:
         output.write("\n".join(lines))
 

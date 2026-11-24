@@ -52,9 +52,19 @@ def main():
     with tempfile.TemporaryDirectory(prefix="rp2040-tty-roots-") as directory:
         mutant = Path(directory) / "truncated.elf"
         mutant.write_bytes(data[:80])
-        result = subprocess.run([sys.executable, str(ROOT / "tools/check_rp2040_tty_roots.py"),
-                                 "--build-dir", str(build), "--kernel", str(mutant)],
-                                capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools/check_rp2040_tty_roots.py"),
+                "--build-dir",
+                str(build),
+                "--kernel",
+                str(mutant),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
     print(f"PASS RP2040 tty roots: {len(roots)} callbacks and linked literal mutants")

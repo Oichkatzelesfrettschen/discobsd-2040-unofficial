@@ -24,6 +24,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """Check the shared C function extractor's verdicts on synthetic sources."""
+
 import sys
 
 from exec_elf_admission_extract import definition_signature, extract_function
@@ -49,30 +50,58 @@ def raises(call, text):
 
 def main():
     cases = [
-        ("a definition without a space before its parameters is found",
-         extract_function(SOURCE, definition_signature(SOURCE, "int", "pipe_rw"), "pipe_rw")
-         .endswith("return (0);\n}")),
-        ("a definition with a space before its parameters is found",
-         definition_signature(SOURCE.replace("pipe_rw(", "pipe_rw ("), "int", "pipe_rw")
-         == "int\npipe_rw ("),
-        ("a missing definition names the function",
-         raises(lambda: definition_signature(SOURCE, "int", "readp"),
-                "readp definition not found")),
-        ("a repeated definition names the function",
-         raises(lambda: definition_signature(SOURCE + SOURCE, "int", "pipe_rw"),
-                "pipe_rw definition is not unique")),
-        ("a missing signature names the caller's label",
-         raises(lambda: extract_function(SOURCE, "int\nwritep(", "writep"),
-                "writep signature not found")),
-        ("a repeated signature names the caller's label",
-         raises(lambda: extract_function(SOURCE + SOURCE, "int\npipe_rw(", "pipe_rw"),
-                "pipe_rw signature is not unique")),
-        ("an unterminated function names the caller's label",
-         raises(lambda: extract_function(SOURCE[:-3], "int\npipe_rw(", "pipe_rw"),
-                "unterminated pipe_rw function")),
-        ("the default label stays the ELF loader",
-         raises(lambda: extract_function(SOURCE, "int\nexec_elf_check("),
-                "ELF loader signature not found")),
+        (
+            "a definition without a space before its parameters is found",
+            extract_function(
+                SOURCE, definition_signature(SOURCE, "int", "pipe_rw"), "pipe_rw"
+            ).endswith("return (0);\n}"),
+        ),
+        (
+            "a definition with a space before its parameters is found",
+            definition_signature(SOURCE.replace("pipe_rw(", "pipe_rw ("), "int", "pipe_rw")
+            == "int\npipe_rw (",
+        ),
+        (
+            "a missing definition names the function",
+            raises(
+                lambda: definition_signature(SOURCE, "int", "readp"), "readp definition not found"
+            ),
+        ),
+        (
+            "a repeated definition names the function",
+            raises(
+                lambda: definition_signature(SOURCE + SOURCE, "int", "pipe_rw"),
+                "pipe_rw definition is not unique",
+            ),
+        ),
+        (
+            "a missing signature names the caller's label",
+            raises(
+                lambda: extract_function(SOURCE, "int\nwritep(", "writep"),
+                "writep signature not found",
+            ),
+        ),
+        (
+            "a repeated signature names the caller's label",
+            raises(
+                lambda: extract_function(SOURCE + SOURCE, "int\npipe_rw(", "pipe_rw"),
+                "pipe_rw signature is not unique",
+            ),
+        ),
+        (
+            "an unterminated function names the caller's label",
+            raises(
+                lambda: extract_function(SOURCE[:-3], "int\npipe_rw(", "pipe_rw"),
+                "unterminated pipe_rw function",
+            ),
+        ),
+        (
+            "the default label stays the ELF loader",
+            raises(
+                lambda: extract_function(SOURCE, "int\nexec_elf_check("),
+                "ELF loader signature not found",
+            ),
+        ),
     ]
     failed = [what for what, ok in cases if not ok]
     for what, ok in cases:

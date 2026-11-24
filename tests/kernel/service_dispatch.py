@@ -40,9 +40,21 @@ def main():
                 fixture = directory / "service.c"
                 fixture.write_text(PREFIX + selected + SUFFIX, encoding="utf-8")
                 binary = directory / "service"
-                subprocess.run([compiler, "-std=gnu17", "-Wall", "-Wextra", "-Werror",
-                                "-I", str(ROOT / "sys"), str(fixture), "-o", str(binary)],
-                               check=True)
+                subprocess.run(
+                    [
+                        compiler,
+                        "-std=gnu17",
+                        "-Wall",
+                        "-Wextra",
+                        "-Werror",
+                        "-I",
+                        str(ROOT / "sys"),
+                        str(fixture),
+                        "-o",
+                        str(binary),
+                    ],
+                    check=True,
+                )
                 status = subprocess.run([str(binary)], check=False).returncode
                 if (status == 0) == mutant:
                     raise SystemExit(f"FAIL service-dispatch: {compiler} mutant={mutant}")

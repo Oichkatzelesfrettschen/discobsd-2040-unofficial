@@ -27,10 +27,7 @@ def main() -> None:
 
     source_bytes = arguments.source.read_bytes()
     source = source_bytes.decode("utf-8")
-    functions = [
-        extract_function(source, signature, name)
-        for name, signature in FUNCTIONS
-    ]
+    functions = [extract_function(source, signature, name) for name, signature in FUNCTIONS]
     arguments.output.write_text(
         "/* Extracted from "
         + arguments.source.as_posix()

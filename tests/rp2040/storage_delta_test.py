@@ -14,8 +14,9 @@ import summarize_rp2040_storage_delta as storage  # noqa: E402
 
 def snapshot(values=None, *, saturated=0, dirty=0, peak=0, version=2):
     values = values or {}
-    lines = [f"machdep.storage_stats=version {version} saturated {saturated} "
-             f"dirty {dirty} peak {peak}"]
+    lines = [
+        f"machdep.storage_stats=version {version} saturated {saturated} dirty {dirty} peak {peak}"
+    ]
     metrics = storage.METRICS_BY_VERSION.get(version, storage.METRICS)
     lines.extend(f"{name} {values.get(name, 0)}" for name in metrics)
     return "\n".join(lines) + "\n"
@@ -28,9 +29,18 @@ class StorageDeltaTest(unittest.TestCase):
             after = Path(directory) / "after"
             before.write_text(snapshot(), encoding="utf-8")
             after.write_text(snapshot({"root_writes": 1}), encoding="utf-8")
-            command = [sys.executable, storage.__file__, str(before), str(after),
-                       "--before-boot", "boot-1", "--after-boot", "boot-1",
-                       "--known-work", "root_writes"]
+            command = [
+                sys.executable,
+                storage.__file__,
+                str(before),
+                str(after),
+                "--before-boot",
+                "boot-1",
+                "--after-boot",
+                "boot-1",
+                "--known-work",
+                "root_writes",
+            ]
             result = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["counter_deltas"]["root_writes"], 1)
@@ -82,12 +92,17 @@ class StorageDeltaTest(unittest.TestCase):
 
     def test_invalid_snapshots_are_rejected(self):
         before = snapshot({"root_writes": 2})
-        for after in (snapshot({"root_writes": 1}), snapshot(saturated=1),
-                      snapshot(version=3), snapshot(version=0),
-                      snapshot(dirty=2, peak=1),
-                      snapshot() + "root_reads 0\n", snapshot().replace("root_reads 0\n", ""),
-                      snapshot().replace("root_reads 0\n", "root_reads -1\n"),
-                      snapshot().replace("root_reads 0\n", "root_reads 4294967296\n")):
+        for after in (
+            snapshot({"root_writes": 1}),
+            snapshot(saturated=1),
+            snapshot(version=3),
+            snapshot(version=0),
+            snapshot(dirty=2, peak=1),
+            snapshot() + "root_reads 0\n",
+            snapshot().replace("root_reads 0\n", ""),
+            snapshot().replace("root_reads 0\n", "root_reads -1\n"),
+            snapshot().replace("root_reads 0\n", "root_reads 4294967296\n"),
+        ):
             with self.subTest(after=after), self.assertRaises(ValueError):
                 storage.summarize(before, after, "boot-1", "boot-1", [])
         with self.assertRaises(ValueError):

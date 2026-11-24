@@ -18,8 +18,7 @@ MUTATIONS = {
     ],
     "leak_record": [
         (
-            "\twhile (entry_count != 0)\n"
-            "\t\tfree(names[--entry_count]);",
+            "\twhile (entry_count != 0)\n\t\tfree(names[--entry_count]);",
             "\twhile (entry_count != 0)\n\t\t--entry_count;",
         )
     ],
@@ -43,8 +42,7 @@ MUTATIONS = {
         ),
         (
             "\treturn (*comparison)(&left_argument, &right_argument);",
-            "\t(void)comparison;\n"
-            "\treturn (*shared_comparison)(&left_argument, &right_argument);",
+            "\t(void)comparison;\n\treturn (*shared_comparison)(&left_argument, &right_argument);",
         ),
         (
             "\tsize_t end;\n\tsize_t start;\n\n\tif (entry_count < 2)",
@@ -58,9 +56,7 @@ MUTATIONS = {
 def replace_once(source_text: str, old_text: str, new_text: str, label: str) -> str:
     anchor_count = source_text.count(old_text)
     if anchor_count != 1:
-        raise RuntimeError(
-            f"{label}: expected one mutation anchor, found {anchor_count}"
-        )
+        raise RuntimeError(f"{label}: expected one mutation anchor, found {anchor_count}")
     return source_text.replace(old_text, new_text, 1)
 
 
@@ -74,9 +70,7 @@ def main() -> int:
     for mutation_name, replacements in MUTATIONS.items():
         mutant_text = source_text
         for old_text, new_text in replacements:
-            mutant_text = replace_once(
-                mutant_text, old_text, new_text, mutation_name
-            )
+            mutant_text = replace_once(mutant_text, old_text, new_text, mutation_name)
         output_path = output_directory / f"scandir_{mutation_name}.mutant.c"
         output_path.write_text(mutant_text, encoding="utf-8")
     return 0

@@ -18,12 +18,26 @@ def sample():
     packed = (26.14, 26.51, 26.42, 26.45, 26.59, 26.95)
     raw = (25.74, 27.41, 26.99, 26.74, 26.54, 26.15)
     record = {key: "a" * 64 for key in summary.HASH_KEYS}
-    record.update({"schema": 1, "boot_id": "fixture-boot", "workload": "fixture-workload",
-                   "timer_resolution_seconds": 0.01, "iterations": 20,
-                   "pairs": [{"id": str(index), "order": "packed-raw",
-                              "packed_success": True, "raw_success": True,
-                              "packed_seconds": packed_value, "raw_seconds": raw_value}
-                             for index, (packed_value, raw_value) in enumerate(zip(packed, raw))]})
+    record.update(
+        {
+            "schema": 1,
+            "boot_id": "fixture-boot",
+            "workload": "fixture-workload",
+            "timer_resolution_seconds": 0.01,
+            "iterations": 20,
+            "pairs": [
+                {
+                    "id": str(index),
+                    "order": "packed-raw",
+                    "packed_success": True,
+                    "raw_success": True,
+                    "packed_seconds": packed_value,
+                    "raw_seconds": raw_value,
+                }
+                for index, (packed_value, raw_value) in enumerate(zip(packed, raw))
+            ],
+        }
+    )
     return record
 
 
@@ -39,9 +53,14 @@ class PairedSummaryTest(unittest.TestCase):
 
     def test_invalid_capture_is_rejected(self):
         cases = []
-        for key, value in (("kernel_sha256", "missing"), ("boot_id", ""), ("schema", True),
-                           ("iterations", 0), ("timer_resolution_seconds", 0),
-                           ("timer_resolution_seconds", 10**400)):
+        for key, value in (
+            ("kernel_sha256", "missing"),
+            ("boot_id", ""),
+            ("schema", True),
+            ("iterations", 0),
+            ("timer_resolution_seconds", 0),
+            ("timer_resolution_seconds", 10**400),
+        ):
             bad = sample()
             bad[key] = value
             cases.append(bad)
@@ -51,8 +70,12 @@ class PairedSummaryTest(unittest.TestCase):
         bad = sample()
         bad["pairs"][1]["id"] = bad["pairs"][0]["id"]
         cases.append(bad)
-        for key, value in (("raw_success", False), ("order", "unknown"),
-                           ("raw_seconds", math.nan), ("packed_seconds", -1)):
+        for key, value in (
+            ("raw_success", False),
+            ("order", "unknown"),
+            ("raw_seconds", math.nan),
+            ("packed_seconds", -1),
+        ):
             bad = sample()
             bad["pairs"][0][key] = value
             cases.append(bad)
@@ -64,10 +87,13 @@ class PairedSummaryTest(unittest.TestCase):
         record = sample()
         permuted = copy.deepcopy(record)
         permuted["pairs"][0]["raw_seconds"], permuted["pairs"][1]["raw_seconds"] = (
-            permuted["pairs"][1]["raw_seconds"], permuted["pairs"][0]["raw_seconds"]
+            permuted["pairs"][1]["raw_seconds"],
+            permuted["pairs"][0]["raw_seconds"],
         )
-        self.assertNotEqual(summary.summarize(record)["sample_sd_seconds_per_exec"],
-                            summary.summarize(permuted)["sample_sd_seconds_per_exec"])
+        self.assertNotEqual(
+            summary.summarize(record)["sample_sd_seconds_per_exec"],
+            summary.summarize(permuted)["sample_sd_seconds_per_exec"],
+        )
         record["pairs"][0]["order"] = "raw-packed"
         self.assertEqual(summary.summarize(record)["pairs"], 6)
 
@@ -81,8 +107,11 @@ class PairedSummaryTest(unittest.TestCase):
             capture = Path(temporary) / "capture.json"
             record = sample()
             capture.write_text(json.dumps(record), encoding="utf-8")
-            command = [sys.executable, str(ROOT / "tools/summarize_packed_exec_pairs.py"),
-                       str(capture)]
+            command = [
+                sys.executable,
+                str(ROOT / "tools/summarize_packed_exec_pairs.py"),
+                str(capture),
+            ]
             result = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["pairs"], 6)

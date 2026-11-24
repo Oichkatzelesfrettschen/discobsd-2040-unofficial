@@ -20,12 +20,15 @@ MATRIX = ROOT / "tools/capture_compiler_matrix.py"
 
 def run(arguments, cwd, success=True, environment=None):
     result = subprocess.run(
-        arguments, cwd=cwd, text=True, capture_output=True, check=False, env=environment,
+        arguments,
+        cwd=cwd,
+        text=True,
+        capture_output=True,
+        check=False,
+        env=environment,
     )
     if (result.returncode == 0) != success:
-        raise AssertionError(
-            f"{arguments!r} returned {result.returncode}: {result.stderr}"
-        )
+        raise AssertionError(f"{arguments!r} returned {result.returncode}: {result.stderr}")
     return result
 
 
@@ -40,8 +43,9 @@ def main():
         tracked.write_text("int source;\n", encoding="utf-8")
         linker = root / "sys/arch/rp2040/conf/RP2040.ld"
         linker.parent.mkdir(parents=True)
-        linker.write_text("MEMORY {\n FLASH : ORIGIN = 0x10000100, "
-                          "LENGTH = 128K - 256\n}\n", encoding="utf-8")
+        linker.write_text(
+            "MEMORY {\n FLASH : ORIGIN = 0x10000100, LENGTH = 128K - 256\n}\n", encoding="utf-8"
+        )
         run(["git", "add", "source.c", str(linker)], root)
         run(["git", "commit", "-qm", "fixture"], root)
         good_elf = Path(temp) / "good.elf"
@@ -66,12 +70,24 @@ def main():
             executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             executable.chmod(0o755)
         manifest = Path(temp) / "manifest.json"
-        command = [sys.executable, str(CAPTURE), "--root", str(root),
-                   "--manifest", str(manifest),
-                   "--generated-input", "generated.c", "--host-tool", "tool",
-                   "--generated-input", "sys/arch/rp2040/compile/PICO/ioconf.c",
-                   "--host-tool", "tools/bin/rp2040/config",
-                   "--host-tool", "tools/bin/rp2040/boot2sum"]
+        command = [
+            sys.executable,
+            str(CAPTURE),
+            "--root",
+            str(root),
+            "--manifest",
+            str(manifest),
+            "--generated-input",
+            "generated.c",
+            "--host-tool",
+            "tool",
+            "--generated-input",
+            "sys/arch/rp2040/compile/PICO/ioconf.c",
+            "--host-tool",
+            "tools/bin/rp2040/config",
+            "--host-tool",
+            "tools/bin/rp2040/boot2sum",
+        ]
         run(command + ["--record-only"], root)
         record = json.loads(manifest.read_text(encoding="utf-8"))
         assert record["schema"] == 1
@@ -103,8 +119,8 @@ def main():
         bmake = root / "bmake"
         bmake.write_text(
             "#!/bin/sh\n"
-            "[ \"${LC_ALL-}\" = C ] || exit 8\n"
-            "[ \"${COMPILER_PATH+x}\" != x ] || exit 9\n"
+            '[ "${LC_ALL-}" = C ] || exit 8\n'
+            '[ "${COMPILER_PATH+x}" != x ] || exit 9\n'
             "case ${SOURCE_DATE_EPOCH-} in ''|*[!0-9]*) exit 10;; esac\n"
             "case \" $* \" in *' MAKE_VERSION '*) printf 'fixture make\\n'; exit 0;; esac\n"
             "case \" $* \" in *' clean '*) "
@@ -120,11 +136,28 @@ def main():
             encoding="utf-8",
         )
         bmake.chmod(0o755)
-        for name in ("gcc16-gcc", "gcc16-ld", "gcc16-objcopy", "gcc16-size", "gcc16-nm",
-                     "gcc16-objdump", "gcc16-cc1", "gcc16-as", "arm13-gcc",
-                     "arm13-ld", "arm13-objcopy", "arm13-size", "arm13-objdump", "arm13-nm",
-                     "arm13-cc1", "arm13-as", "gcc16-collect2", "arm13-collect2",
-                     "clang", "clang-ld"):
+        for name in (
+            "gcc16-gcc",
+            "gcc16-ld",
+            "gcc16-objcopy",
+            "gcc16-size",
+            "gcc16-nm",
+            "gcc16-objdump",
+            "gcc16-cc1",
+            "gcc16-as",
+            "arm13-gcc",
+            "arm13-ld",
+            "arm13-objcopy",
+            "arm13-size",
+            "arm13-objdump",
+            "arm13-nm",
+            "arm13-cc1",
+            "arm13-as",
+            "gcc16-collect2",
+            "arm13-collect2",
+            "clang",
+            "clang-ld",
+        ):
             compiler = root / name
             compiler.write_text(
                 "#!/bin/sh\n"
@@ -138,28 +171,50 @@ def main():
                 "printf '%s\\n' \"${0%-gcc}-ld\"; exit 0;; esac\n"
                 "case \" $* \" in *' -print-prog-name=collect2 '*) "
                 "printf '%s\\n' \"${0%-gcc}-collect2\"; exit 0;; esac\n"
-                "printf 'fixture 1\\n'\n", encoding="utf-8",
+                "printf 'fixture 1\\n'\n",
+                encoding="utf-8",
             )
             compiler.chmod(0o755)
         for name in ("gcc16-nm", "arm13-nm"):
             (root / name).write_text(
                 "#!/bin/sh\n"
                 "case \" $* \" in *' --version '*) printf 'fixture 1\\n';; "
-                "*fixture.o*) printf 'source T 0 4\\n';; esac\n", encoding="utf-8"
+                "*fixture.o*) printf 'source T 0 4\\n';; esac\n",
+                encoding="utf-8",
             )
         runtime = root / "libgcc.a"
         runtime.write_bytes(b"fixture runtime")
         output = Path(temp) / "matrix"
-        matrix_command = [sys.executable, str(MATRIX), "--root", str(root),
-                          "--manifest", str(manifest), "--output", str(output),
-                          "--generated-input", "generated.c", "--host-tool", "tool",
-                          "--generated-input", "sys/arch/rp2040/compile/PICO/ioconf.c",
-                          "--host-tool", "tools/bin/rp2040/config",
-                          "--host-tool", "tools/bin/rp2040/boot2sum",
-                          "--gcc16-prefix", str(root / "gcc16"),
-                          "--arm13-prefix", str(root / "arm13"),
-                          "--clang", str(root / "clang"),
-                          "--clang-libgcc", str(runtime), "--bmake", str(bmake)]
+        matrix_command = [
+            sys.executable,
+            str(MATRIX),
+            "--root",
+            str(root),
+            "--manifest",
+            str(manifest),
+            "--output",
+            str(output),
+            "--generated-input",
+            "generated.c",
+            "--host-tool",
+            "tool",
+            "--generated-input",
+            "sys/arch/rp2040/compile/PICO/ioconf.c",
+            "--host-tool",
+            "tools/bin/rp2040/config",
+            "--host-tool",
+            "tools/bin/rp2040/boot2sum",
+            "--gcc16-prefix",
+            str(root / "gcc16"),
+            "--arm13-prefix",
+            str(root / "arm13"),
+            "--clang",
+            str(root / "clang"),
+            "--clang-libgcc",
+            str(runtime),
+            "--bmake",
+            str(bmake),
+        ]
         shadow_header = build_dir / "stdint.h"
         shadow_header.write_text("#error unexpected include\n", encoding="utf-8")
         shadow_output = Path(temp) / "shadow-matrix"
@@ -239,29 +294,36 @@ def main():
         assert sum(row["build_exit"] != 0 for row in rows) == 3
         assert sum(row["warnings"] for row in rows) == 0
         assert sum(row["build_errors"] for row in rows) == 3
-        assert all(row["headroom_bytes"] == 1023 and not row["headroom_pass"]
-                   for row in rows if row["level"] == "O2")
-        assert all(row["headroom_bytes"] == 1024 and row["headroom_pass"]
-                   for row in rows if row["level"] not in ("O2", "O3"))
+        assert all(
+            row["headroom_bytes"] == 1023 and not row["headroom_pass"]
+            for row in rows
+            if row["level"] == "O2"
+        )
+        assert all(
+            row["headroom_bytes"] == 1024 and row["headroom_pass"]
+            for row in rows
+            if row["level"] not in ("O2", "O3")
+        )
         assert all(row["headroom_pass"] is None for row in rows if row["level"] == "O3")
         for level, success in (("O1", True), ("O2", False)):
             margin_output = Path(temp) / f"margin-{level}"
             margin_command = matrix_command.copy()
             margin_command[margin_command.index(str(output))] = str(margin_output)
-            run(margin_command + ["--compiler", "gcc16", "--level", level],
-                root, success=success)
+            run(margin_command + ["--compiler", "gcc16", "--level", level], root, success=success)
         original_bmake = bmake.read_text(encoding="utf-8")
         malformed_elf = Path(temp) / "malformed.elf"
         malformed_elf.write_bytes(b"not an ELF")
-        bmake.write_text(original_bmake.replace(good_elf_shell, shlex.quote(str(malformed_elf))),
-                         encoding="utf-8")
+        bmake.write_text(
+            original_bmake.replace(good_elf_shell, shlex.quote(str(malformed_elf))),
+            encoding="utf-8",
+        )
         malformed_output = Path(temp) / "malformed-matrix"
         malformed_command = matrix_command.copy()
         malformed_command[malformed_command.index(str(output))] = str(malformed_output)
-        run(malformed_command + ["--compiler", "gcc16", "--level", "O1"],
-            root, success=False)
-        malformed_row = json.loads((malformed_output / "results.json").read_text(
-            encoding="utf-8"))[0]
+        run(malformed_command + ["--compiler", "gcc16", "--level", "O1"], root, success=False)
+        malformed_row = json.loads((malformed_output / "results.json").read_text(encoding="utf-8"))[
+            0
+        ]
         assert malformed_row["headroom_pass"] is False and malformed_row["headroom_error"]
         bmake.write_text(original_bmake, encoding="utf-8")
         stack_bmake = (
@@ -295,26 +357,28 @@ def main():
         stack_row = json.loads((stack_output / "results.json").read_text(encoding="utf-8"))[0]
         assert set(stack_row["stack_usage_sha256"]) == {"fixture.su", "vers.su"}
         assert (stack_output / "gcc16-O1/fixture.su").is_file()
-        bmake.write_text(stack_bmake.replace(
-            ": > sys/arch/rp2040/compile/PICO/vers.su\n", ""), encoding="utf-8")
+        bmake.write_text(
+            stack_bmake.replace(": > sys/arch/rp2040/compile/PICO/vers.su\n", ""), encoding="utf-8"
+        )
         data_output = Path(temp) / "data-only-stack-matrix"
         data_command = stack_command.copy()
         data_command[data_command.index(str(stack_output))] = str(data_output)
         run(data_command, root)
         data_row = json.loads((data_output / "results.json").read_text(encoding="utf-8"))[0]
         assert data_row["stack_usage_no_code_objects"] == ["vers.o"]
-        bmake.write_text(stack_bmake.replace(
-            "sys/arch/rp2040/compile/PICO/fixture.su\n", "/dev/null\n"),
-            encoding="utf-8")
+        bmake.write_text(
+            stack_bmake.replace("sys/arch/rp2040/compile/PICO/fixture.su\n", "/dev/null\n"),
+            encoding="utf-8",
+        )
         missing_output = Path(temp) / "missing-stack-matrix"
         missing_command = stack_command.copy()
         missing_command[missing_command.index(str(stack_output))] = str(missing_output)
         run(missing_command, root, success=False)
         assert not (missing_output / "results.json").exists()
         (build_dir / "stale.su").write_text("stale\n", encoding="utf-8")
-        bmake.write_text(stack_bmake.replace(
-            "sys/arch/rp2040/compile/PICO/*.su ", ""
-        ), encoding="utf-8")
+        bmake.write_text(
+            stack_bmake.replace("sys/arch/rp2040/compile/PICO/*.su ", ""), encoding="utf-8"
+        )
         stale_stack_output = Path(temp) / "stale-stack-matrix"
         stale_stack_command = stack_command.copy()
         stale_stack_command[stale_stack_command.index(str(stack_output))] = str(stale_stack_output)
@@ -330,16 +394,15 @@ def main():
             assert not (output / f"{compiler}-O3/unix").exists(), (
                 "a failed row retained another row's executable"
             )
-        assert {row["level"] for row in rows} == {
-            "O0", "O", "O1", "O2", "O3", "Og", "Os", "Oz"
-        }
+        assert {row["level"] for row in rows} == {"O0", "O", "O1", "O2", "O3", "Og", "Os", "Oz"}
         invalid_epoch_output = Path(temp) / "invalid-epoch-matrix"
         invalid_epoch_command = matrix_command.copy()
         invalid_epoch_command[invalid_epoch_command.index(str(output))] = str(invalid_epoch_output)
         invalid_environment = os.environ.copy()
         invalid_environment["SOURCE_DATE_EPOCH"] = "invalid"
-        invalid_result = run(invalid_epoch_command, root, success=False,
-                             environment=invalid_environment)
+        invalid_result = run(
+            invalid_epoch_command, root, success=False, environment=invalid_environment
+        )
         assert "SOURCE_DATE_EPOCH" in invalid_result.stderr
         bmake.write_text(
             "#!/bin/sh\n"
@@ -355,8 +418,11 @@ def main():
         version_output = Path(temp) / "version-drift-matrix"
         version_command = matrix_command.copy()
         version_command[version_command.index(str(output))] = str(version_output)
-        version_result = run(version_command + ["--compiler", "gcc16", "--level", "O1",
-                                                "--level", "Os"], root, success=False)
+        version_result = run(
+            version_command + ["--compiler", "gcc16", "--level", "O1", "--level", "Os"],
+            root,
+            success=False,
+        )
         assert "different version payload" in version_result.stdout + version_result.stderr
         bmake.write_text(
             "#!/bin/sh\n"
@@ -372,9 +438,7 @@ def main():
         warning_command = matrix_command.copy()
         warning_command[warning_command.index(str(output))] = str(warning_output)
         run(warning_command, root, success=False)
-        warning_rows = json.loads(
-            (warning_output / "results.json").read_text(encoding="utf-8")
-        )
+        warning_rows = json.loads((warning_output / "results.json").read_text(encoding="utf-8"))
         assert len(warning_rows) == 24 and all(row["build_exit"] == 0 for row in warning_rows)
         assert all(row["warnings"] == 1 for row in warning_rows)
         assert all(row["errors"] == 0 for row in warning_rows)
@@ -389,9 +453,7 @@ def main():
         )
         clean_warning_output = Path(temp) / "clean-warning-matrix"
         clean_warning_command = matrix_command.copy()
-        clean_warning_command[clean_warning_command.index(str(output))] = str(
-            clean_warning_output
-        )
+        clean_warning_command[clean_warning_command.index(str(output))] = str(clean_warning_output)
         run(clean_warning_command, root, success=False)
         clean_warning_rows = json.loads(
             (clean_warning_output / "results.json").read_text(encoding="utf-8")
@@ -401,8 +463,7 @@ def main():
         partial_output = Path(temp) / "partial-matrix"
         partial_command = matrix_command.copy()
         partial_command[partial_command.index(str(output))] = str(partial_output)
-        run(partial_command + ["--compiler", "gcc16", "--level", "Os"],
-            root, success=False)
+        run(partial_command + ["--compiler", "gcc16", "--level", "Os"], root, success=False)
         partial_rows = json.loads((partial_output / "results.json").read_text(encoding="utf-8"))
         partial_coverage = json.loads(
             (partial_output / "coverage.json").read_text(encoding="utf-8")

@@ -46,6 +46,7 @@ OUT_FIELDS = ("data", "stack", "u", "cdata", "cstack", "cu")
 @dataclass(frozen=True)
 class Image:
     """One program's swap image: raw and compressed sizes in bytes."""
+
     data: int
     stack: int
     cdata: int
@@ -63,6 +64,7 @@ class Workload:
     compiler is smlrc and command the assembler or linker, which swap out
     only when update's timer displaces them while they run.
     """
+
     init: Image
     rc: Image
     update: Image
@@ -70,16 +72,16 @@ class Workload:
     driver: Image
     compiler: Image
     compiles: int = 24
-    rc_commands: int = 6           # fsck, hostname, umount, mount, rm, date
-    driver_commands: int = 4       # smlrc, as, ld, rm (distrib/rp2040/cc)
-    update_every: int = 11         # empty-window moments between update runs
+    rc_commands: int = 6  # fsck, hostname, umount, mount, rm, date
+    driver_commands: int = 4  # smlrc, as, ld, rm (distrib/rp2040/cc)
+    update_every: int = 11  # empty-window moments between update runs
     update_phase: int = 3
-    update_before_child: int = 0   # spawns between update runs ahead of a child
-    command: Image = None          # as and ld, when update displaces them
+    update_before_child: int = 0  # spawns between update runs ahead of a child
+    command: Image = None  # as and ld, when update displaces them
     displacements: tuple = ((0, 0),)  # (compile, pass) update displaces
-    jitter: int = 0                # +- bytes on compressed data per compile
+    jitter: int = 0  # +- bytes on compressed data per compile
     seed: int = 1
-    driver_swaps: bool = True      # False: the cc driver never swaps out
+    driver_swaps: bool = True  # False: the cc driver never swaps out
 
 
 @dataclass
@@ -113,27 +115,29 @@ class _Emitter:
         key = (image, self.compile)
         if key not in self.offsets:
             self.offsets[key] = self.rng.randint(-j, j) if j else 0
-        return {"data": image.data, "stack": image.stack, "u": USIZE,
-                "cdata": max(0, image.cdata + self.offsets[key]),
-                "cstack": image.cstack, "cu": image.cu,
-                "zero_sectors": list(image.zero_sectors)}
+        return {
+            "data": image.data,
+            "stack": image.stack,
+            "u": USIZE,
+            "cdata": max(0, image.cdata + self.offsets[key]),
+            "cstack": image.cstack,
+            "cu": image.cu,
+            "zero_sectors": list(image.zero_sectors),
+        }
 
     def emit(self, op, **fields):
-        record = {"op": op, "seq": len(self.events), "phase": self.phase,
-                  "compile": self.compile}
+        record = {"op": op, "seq": len(self.events), "phase": self.phase, "compile": self.compile}
         record.update(fields)
         self.events.append(record)
 
     def out(self, pid, name, image, fork=False, incoming=None):
-        self.emit("out", pid=pid, name=name, fork=fork, incoming=incoming,
-                  **self._sizes(image))
+        self.emit("out", pid=pid, name=name, fork=fork, incoming=incoming, **self._sizes(image))
 
     def window_empty(self, parent, parent_name, parent_image, update):
         """A child exited. update runs on its schedule, else parent returns."""
         self.empties += 1
         w = self.workload
-        if update is not None and \
-                (self.empties + w.update_phase) % w.update_every == 0:
+        if update is not None and (self.empties + w.update_phase) % w.update_every == 0:
             self.emit("in", pid=update, name="update")
             self.out(update, "update", w.update, incoming=parent)
         else:
@@ -146,9 +150,12 @@ class _Emitter:
         self.out(child, parent_name, parent_image, fork=True)
         self.spawns += 1
         w = self.workload
-        if update is not None and self.phase == "measure" and \
-                w.update_before_child and \
-                (self.spawns + w.update_phase) % w.update_before_child == 0:
+        if (
+            update is not None
+            and self.phase == "measure"
+            and w.update_before_child
+            and (self.spawns + w.update_phase) % w.update_before_child == 0
+        ):
             # sched swaps in the process out longest: update, whose timer
             # has fired, before the child created a moment ago.
             self.out(parent, parent_name, parent_image, incoming=update)
@@ -166,12 +173,18 @@ def generate(workload):
     mark, the compiles and the closing sysctl, as the capture ran them."""
     w = workload
     e = _Emitter(w)
-    e.emit("meta", schema=SCHEMA, compiles=w.compiles,
-           workload=asdict(w) | {"init": asdict(w.init)})
+    e.emit(
+        "meta", schema=SCHEMA, compiles=w.compiles, workload=asdict(w) | {"init": asdict(w.init)}
+    )
     init = 1
     # init runs /etc/rc under sh; rc starts its six commands.
-    e.spawn(init, "init", w.init, None, run=lambda rc: [
-        e.spawn(rc, "rc", w.rc, None) for _ in range(w.rc_commands)])
+    e.spawn(
+        init,
+        "init",
+        w.init,
+        None,
+        run=lambda rc: [e.spawn(rc, "rc", w.rc, None) for _ in range(w.rc_commands)],
+    )
     # init forks update (etc/daemons) and the console getty, then waits.
     update = e.pid()
     e.out(update, "init", w.init, fork=True)
@@ -206,13 +219,14 @@ def generate(workload):
                     image = w.compiler if j == 0 else w.command
                     e.out(cpid, names[j], image, incoming=update)
                     e.out(update, "update", w.update, incoming=cpid)
+
                 if w.driver_swaps:
-                    e.spawn(driver, "cc", w.driver, update,
-                            run=displace if displaced else None)
+                    e.spawn(driver, "cc", w.driver, update, run=displace if displaced else None)
                 elif displaced:
                     displace(e.pid())
-        e.spawn(shell, "sh", w.shell, update, run=driver_run)   # cc
-        e.spawn(shell, "sh", w.shell, update)                   # sync
+
+        e.spawn(shell, "sh", w.shell, update, run=driver_run)  # cc
+        e.spawn(shell, "sh", w.shell, update)  # sync
     e.compile = None
     child = e.pid()
     e.out(child, "sh", w.shell, fork=True)
@@ -223,8 +237,7 @@ def generate(workload):
 
 def validate(records):
     """Raise ValueError unless records follow the schema above."""
-    if not records or records[0].get("op") != "meta" or \
-            records[0].get("schema") != SCHEMA:
+    if not records or records[0].get("op") != "meta" or records[0].get("schema") != SCHEMA:
         raise ValueError("a trace starts with a schema 1 meta record")
     for i, r in enumerate(records):
         if r.get("seq") != i or r.get("phase") not in ("prefix", "measure"):
@@ -234,12 +247,13 @@ def validate(records):
             for name in OUT_FIELDS + ("pid",):
                 if not isinstance(r.get(name), int) or r[name] < 0:
                     raise ValueError(f"record {i}: {name}")
-            blocks = sum((r[n] + 1023) // 1024 for n in ("data", "stack",
-                                                          "u"))
+            blocks = sum((r[n] + 1023) // 1024 for n in ("data", "stack", "u"))
             zeros = r.get("zero_sectors")
-            if not isinstance(zeros, list) or len(set(zeros)) != len(zeros) \
-                    or not all(isinstance(z, int) and
-                               0 <= z < (blocks + 3) // 4 for z in zeros):
+            if (
+                not isinstance(zeros, list)
+                or len(set(zeros)) != len(zeros)
+                or not all(isinstance(z, int) and 0 <= z < (blocks + 3) // 4 for z in zeros)
+            ):
                 raise ValueError(f"record {i}: zero_sectors")
             if r["u"] != USIZE:
                 raise ValueError(f"record {i}: u is USIZE")

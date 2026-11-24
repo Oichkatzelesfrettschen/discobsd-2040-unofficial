@@ -15,9 +15,16 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 import check_rp2040_callout_roots as checker  # noqa: E402
 
-SOURCE_COUNTS = {"schedcpu": 1, "endtsleep": 1, "wakeup": 1, "kbd_poll": 3,
-                 "kbdreq_timeout": 1, "render_resume": 1, "bell_stop": 1,
-                 "uartdrain": 2}
+SOURCE_COUNTS = {
+    "schedcpu": 1,
+    "endtsleep": 1,
+    "wakeup": 1,
+    "kbd_poll": 3,
+    "kbdreq_timeout": 1,
+    "render_resume": 1,
+    "bell_stop": 1,
+    "uartdrain": 2,
+}
 
 
 def check_source(source, callback):
@@ -34,9 +41,10 @@ def main():
     build = args.build_dir
     data = (build / "unix.elf").read_bytes()
     ioconf = (build / "ioconf.o").read_bytes()
-    objects = {name: (build / f"{name}.o").read_bytes()
-               for name in ("kern_synch", "tty", "picokbd", "lcdcons", "picoaudio",
-                           "uart")}
+    objects = {
+        name: (build / f"{name}.o").read_bytes()
+        for name in ("kern_synch", "tty", "picokbd", "lcdcons", "picoaudio", "uart")
+    }
     roots = checker.check_data(data, ioconf, objects)
     elf = ELFFile(io.BytesIO(data))
     symbols = elf.get_section_by_name(".symtab")
@@ -63,9 +71,19 @@ def main():
     with tempfile.TemporaryDirectory(prefix="rp2040-callout-roots-") as directory:
         mutant = Path(directory) / "truncated.elf"
         mutant.write_bytes(data[:80])
-        result = subprocess.run([sys.executable, str(ROOT / "tools/check_rp2040_callout_roots.py"),
-                                 "--build-dir", str(build), "--kernel", str(mutant)],
-                                capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools/check_rp2040_callout_roots.py"),
+                "--build-dir",
+                str(build),
+                "--kernel",
+                str(mutant),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
     print(f"PASS RP2040 callout roots: {len(roots)} references and literal mutants")

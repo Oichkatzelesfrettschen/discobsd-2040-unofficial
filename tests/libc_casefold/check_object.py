@@ -49,9 +49,13 @@ def self_test() -> None:
     validate(good)
     validate(good + "fold_ascii t 64 c\n")
     for bad in (
-        "", "strcasecmp T 0 2e\n", good + "charmap d 0 100\n",
-        good + "charmap r 0 100\n", good + "tolower U         \n",
-        good + "counter b 0 4\n", good + "malformed\n",
+        "",
+        "strcasecmp T 0 2e\n",
+        good + "charmap d 0 100\n",
+        good + "charmap r 0 100\n",
+        good + "tolower U         \n",
+        good + "counter b 0 4\n",
+        good + "malformed\n",
     ):
         try:
             validate(bad)
@@ -67,7 +71,9 @@ def self_test() -> None:
     good_sections = ".text 100 0\n.data 0 0\n.bss 0 0\n"
     validate_sections(good_sections)
     for bad_sections in (
-        "", ".text 100 0\n", good_sections + ".rodata 256 0\n",
+        "",
+        ".text 100 0\n",
+        good_sections + ".rodata 256 0\n",
         good_sections.replace(".data 0", ".data 256"),
         good_sections.replace(".bss 0", ".bss 4"),
         good_sections + ".data.invalid malformed 0\n",
@@ -87,8 +93,7 @@ if __name__ == "__main__":
     elif len(sys.argv) == 4:
         inspect(sys.argv[1], sys.argv[3])
         result = subprocess.run(
-            [sys.argv[2], "-A", sys.argv[3]],
-            capture_output=True, text=True, check=True
+            [sys.argv[2], "-A", sys.argv[3]], capture_output=True, text=True, check=True
         )
         validate_sections(result.stdout)
     else:

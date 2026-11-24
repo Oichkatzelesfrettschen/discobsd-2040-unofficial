@@ -99,8 +99,14 @@ class Unavailable(RuntimeError):
 
 
 def _flags(name, include):
-    kernel = ["-Wno-deprecated-non-prototype", "-DSWAPRAM_KB=16",
-              "-I" + str(SHIM), "-idirafter", str(include), "-I" + str(HS)]
+    kernel = [
+        "-Wno-deprecated-non-prototype",
+        "-DSWAPRAM_KB=16",
+        "-I" + str(SHIM),
+        "-idirafter",
+        str(include),
+        "-I" + str(HS),
+    ]
     if name == "flash_swap":
         return BASE + ["-I" + str(TOP / "sys" / "arch")]
     if name in ("swapram", "rmap"):
@@ -117,8 +123,7 @@ def build(overrides=None, build_dir=None):
     cc = os.environ.get("CC", "cc")
     if shutil.which(cc) is None:
         raise Unavailable(f"C compiler {cc!r} not found on PATH")
-    root = Path(build_dir or os.environ.get("SWAP_TIER_MODEL_BUILD",
-                                            HERE / "build"))
+    root = Path(build_dir or os.environ.get("SWAP_TIER_MODEL_BUILD", HERE / "build"))
     include = root / "include"
     include.mkdir(parents=True, exist_ok=True)
     machine = include / "machine"
@@ -129,10 +134,13 @@ def build(overrides=None, build_dir=None):
         digest.update(name.encode())
         digest.update(sources[name].read_bytes())
         digest.update(" ".join(_flags(name, include)).encode())
-    headers = (sorted((ARCH / "include").glob("*.h")) +
-               sorted((ARCH / "dev").glob("*.h")) + sorted(HS.glob("*.h")) +
-               sorted(SHIM.rglob("*.h")) +
-               [TOP / "sys" / "sys" / "storage_stats.h"])
+    headers = (
+        sorted((ARCH / "include").glob("*.h"))
+        + sorted((ARCH / "dev").glob("*.h"))
+        + sorted(HS.glob("*.h"))
+        + sorted(SHIM.rglob("*.h"))
+        + [TOP / "sys" / "sys" / "storage_stats.h"]
+    )
     for header in headers:
         digest.update(header.read_bytes())
     tag = digest.hexdigest()[:16]
@@ -143,13 +151,13 @@ def build(overrides=None, build_dir=None):
     for name, path in sorted(sources.items()):
         obj = root / f"{name}-{tag}.o"
         cmd = [cc, *_flags(name, include), "-c", "-o", str(obj), str(path)]
-        result = subprocess.run(cmd, capture_output=True, text=True,
-                                check=False)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
             raise RuntimeError(f"compile {name} failed:\n{result.stderr}")
         objects.append(str(obj))
-    result = subprocess.run([cc, "-shared", "-o", str(target), *objects],
-                            capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        [cc, "-shared", "-o", str(target), *objects], capture_output=True, text=True, check=False
+    )
     if result.returncode != 0:
         raise RuntimeError(f"link failed:\n{result.stderr}")
     return target
@@ -188,14 +196,24 @@ def load(overrides=None):
     }
     for what, size in expected.items():
         if lib.glue_layout(what) != size:
-            raise RuntimeError(f"layout {what}: C {lib.glue_layout(what)}"
-                               f" against cdef {size}")
+            raise RuntimeError(f"layout {what}: C {lib.glue_layout(what)} against cdef {size}")
     _LOADED[key] = (ffi, lib)
     return ffi, lib
 
 
 def constants(lib):
     """The compiled constants the model uses, read from the object."""
-    names = ["pool_bytes", "seg_bytes", "map_bytes", "mapent_bytes", "grain",
-             "swapram_kb", "nproc", "usize", "align", "map_slots", "bsize"]
+    names = [
+        "pool_bytes",
+        "seg_bytes",
+        "map_bytes",
+        "mapent_bytes",
+        "grain",
+        "swapram_kb",
+        "nproc",
+        "usize",
+        "align",
+        "map_slots",
+        "bsize",
+    ]
     return {name: lib.glue_layout(i) for i, name in enumerate(names)}

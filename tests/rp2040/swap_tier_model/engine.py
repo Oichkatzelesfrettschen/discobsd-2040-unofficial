@@ -53,8 +53,7 @@ class Pool:
         return self.lib.swapram_pool_largest(self.pool)
 
     def segments(self):
-        return [(self.seg[i].s_off, self.seg[i].s_size)
-                for i in range(self.pool.p_used)]
+        return [(self.seg[i].s_off, self.seg[i].s_size) for i in range(self.pool.p_used)]
 
     def read(self, off, n):
         return bytes(self.ffi.buffer(self.mem + off, n))
@@ -70,10 +69,8 @@ class Pool:
         offset. This is the model of pool compaction, not shipped code.
         """
         order = sorted(live.items(), key=lambda item: item[1][0])
-        saved = {owner: self.read(off, roundgrain(size))
-                 for owner, (off, size) in order}
-        self.lib.swapram_pool_init(self.pool, self.mem, self.size, self.seg,
-                                   self.nseg)
+        saved = {owner: self.read(off, roundgrain(size)) for owner, (off, size) in order}
+        self.lib.swapram_pool_init(self.pool, self.mem, self.size, self.seg, self.nseg)
         moved = {}
         for owner, (_off, size) in order:
             new = self.alloc(size)
@@ -171,31 +168,29 @@ class Nor:
             self.violations.append(("read", offset, length))
             return None
         rel = offset - self.base
-        return bytes(self.data[rel:rel + length])
+        return bytes(self.data[rel : rel + length])
 
     def erase(self, offset, length):
-        if (not self._range(offset, length) or length != SECTOR or
-                offset % SECTOR):
+        if not self._range(offset, length) or length != SECTOR or offset % SECTOR:
             self.violations.append(("erase", offset, length))
             return -1
         rel = offset - self.base
-        self.data[rel:rel + length] = b"\xff" * length
+        self.data[rel : rel + length] = b"\xff" * length
         self.erases[rel // SECTOR] += 1
         return 0
 
     def program(self, offset, payload):
         length = len(payload)
-        if (not self._range(offset, length) or length != PAGE or
-                offset % PAGE):
+        if not self._range(offset, length) or length != PAGE or offset % PAGE:
             self.violations.append(("program", offset, length))
             return -1
         rel = offset - self.base
         new = int.from_bytes(payload, "big")
-        have = int.from_bytes(self.data[rel:rel + length], "big")
+        have = int.from_bytes(self.data[rel : rel + length], "big")
         if new & ~have:
             self.violations.append(("zero-to-one", offset))
             return -1
-        self.data[rel:rel + length] = (new & have).to_bytes(length, "big")
+        self.data[rel : rel + length] = (new & have).to_bytes(length, "big")
         self.programs += 1
         return 0
 
@@ -225,18 +220,15 @@ class FlashSwapDriver:
             return nor.program(offset, bytes(ffi.buffer(data, length)))
 
         self._callbacks = (read, erase, program)
-        self.ops = ffi.new("struct flash_swap_ops *",
-                           {"read": read, "erase": erase, "program": program})
+        self.ops = ffi.new(
+            "struct flash_swap_ops *", {"read": read, "erase": erase, "program": program}
+        )
         self.scratch = ffi.new("unsigned char[]", PAGE)
 
     def append(self, offset, payload):
-        buf = self.ffi.new("unsigned char[]", payload) if payload else \
-            self.ffi.NULL
-        return self.lib.flash_swap_append(self.ops, offset, buf, len(payload),
-                                          self.scratch)
+        buf = self.ffi.new("unsigned char[]", payload) if payload else self.ffi.NULL
+        return self.lib.flash_swap_append(self.ops, offset, buf, len(payload), self.scratch)
 
     def rewrite(self, offset, payload, spare):
-        buf = self.ffi.new("unsigned char[]", payload) if payload else \
-            self.ffi.NULL
-        return self.lib.flash_swap_rewrite(self.ops, offset, buf,
-                                           len(payload), spare, self.scratch)
+        buf = self.ffi.new("unsigned char[]", payload) if payload else self.ffi.NULL
+        return self.lib.flash_swap_rewrite(self.ops, offset, buf, len(payload), spare, self.scratch)

@@ -5,9 +5,14 @@ from dataclasses import replace
 from swap_tier_model import calibrate, model, trace, variants
 
 TRACE = trace.generate(calibrate.FIXED)
-TIER_COUNTERS = ("swapram_attempts", "swapram_admissions",
-                 "swapram_refused_fragment", "swapram_refused_nospace",
-                 "swapram_admitted_data_bytes", "swapram_admitted_u_bytes")
+TIER_COUNTERS = (
+    "swapram_attempts",
+    "swapram_admissions",
+    "swapram_refused_fragment",
+    "swapram_refused_nospace",
+    "swapram_admitted_data_bytes",
+    "swapram_admitted_u_bytes",
+)
 
 
 def run(config, records=TRACE, cursor=0):
@@ -26,8 +31,7 @@ def test_swap_off_nor_changes_nothing_but_erases():
 
 
 def test_pool_size_only_adds_admissions():
-    counts = [run(model.Config(pool_kb=kb)).delta()[0]["swapram_admissions"]
-              for kb in (16, 24, 32)]
+    counts = [run(model.Config(pool_kb=kb)).delta()[0]["swapram_admissions"] for kb in (16, 24, 32)]
     assert counts == sorted(counts)
 
 
@@ -77,10 +81,8 @@ def test_flash_refusal_stops_the_replay():
 
 def test_refusal_share_does_not_scale_with_sessions():
     for kb in (384, 96, 64):
-        one = [r["refusing"] for r in variants.measure(
-            model.Config(flash_kb=kb), sessions=1)]
-        four = [r["refusing"] for r in variants.measure(
-            model.Config(flash_kb=kb), sessions=4)]
+        one = [r["refusing"] for r in variants.measure(model.Config(flash_kb=kb), sessions=1)]
+        four = [r["refusing"] for r in variants.measure(model.Config(flash_kb=kb), sessions=4)]
         assert one == four, kb
 
 
@@ -94,19 +96,30 @@ def test_zero_elision_skips_the_named_sector():
     """An all-zero sector in the middle of an image is neither erased nor
     programmed; the sectors around it are, and the NOR writer agrees with
     the count sector by sector."""
-    image = {"op": "out", "pid": 5, "name": "x", "fork": True,
-             "incoming": None, "data": 18 * 1024, "stack": 1024,
-             "u": 3072, "cdata": 900, "cstack": 100, "cu": 900,
-             "zero_sectors": [1]}
-    records = [{"op": "meta", "schema": trace.SCHEMA},
-               {"op": "mark", "what": "snapshot"}, image,
-               {"op": "mark", "what": "snapshot"}]
+    image = {
+        "op": "out",
+        "pid": 5,
+        "name": "x",
+        "fork": True,
+        "incoming": None,
+        "data": 18 * 1024,
+        "stack": 1024,
+        "u": 3072,
+        "cdata": 900,
+        "cstack": 100,
+        "cu": 900,
+        "zero_sectors": [1],
+    }
+    records = [
+        {"op": "meta", "schema": trace.SCHEMA},
+        {"op": "mark", "what": "snapshot"},
+        image,
+        {"op": "mark", "what": "snapshot"},
+    ]
     for i, r in enumerate(records):
-        r.update(seq=i, phase="prefix" if i < 2 else "measure",
-                 compile=None)
+        r.update(seq=i, phase="prefix" if i < 2 else "measure", compile=None)
     trace.validate(records)
-    m = model.Model(model.Config(pool_kb=0, zero_elision=True), 0,
-                    nor=True).replay(records)
+    m = model.Model(model.Config(pool_kb=0, zero_elision=True), 0, nor=True).replay(records)
     counters, erases = m.delta()
     # The image spans blocks 4..25: sectors 1 to 6, of which sector 2 is
     # the image's sector 1.

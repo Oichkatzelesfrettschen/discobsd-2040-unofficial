@@ -13,9 +13,7 @@ from unlinkat_beneath_extract import FUNCTIONS, INCLUDES, extract_function
 def replace_once(source: str, old: str, new: str, mutation: str) -> str:
     count = source.count(old)
     if count != 1:
-        raise SystemExit(
-            f"{mutation}: expected one source match, found {count}"
-        )
+        raise SystemExit(f"{mutation}: expected one source match, found {count}")
     return source.replace(old, new)
 
 
@@ -115,10 +113,7 @@ def main() -> None:
 
     source_bytes = arguments.source.read_bytes()
     mutated = mutate(source_bytes.decode("utf-8"), arguments.mutation)
-    functions = [
-        extract_function(mutated, signature, name)
-        for name, signature in FUNCTIONS
-    ]
+    functions = [extract_function(mutated, signature, name) for name, signature in FUNCTIONS]
     arguments.output.write_text(
         "/* Mutated from "
         + arguments.source.as_posix()

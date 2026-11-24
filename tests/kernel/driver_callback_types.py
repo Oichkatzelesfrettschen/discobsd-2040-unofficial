@@ -8,8 +8,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-FLAGS = ("-std=gnu17", "-Wall", "-Wextra", "-Werror", "-Wshadow", "-Wundef",
-         "-Wformat=2")
+FLAGS = ("-std=gnu17", "-Wall", "-Wextra", "-Werror", "-Wshadow", "-Wundef", "-Wformat=2")
 LEVELS = ("O0", "O", "O1", "O2", "O3", "Og", "Os", "Oz")
 
 DEVICE_MISMATCH = """\
@@ -64,43 +63,78 @@ def main():
                     input_path = directory / f"{name}.c"
                     input_path.write_text(source, encoding="utf-8")
                     output_path = directory / f"{name}.o"
-                    command = [executable, *compiler_parts[1:], *FLAGS, f"-{level}",
-                               "-I", str(ROOT / "sys"),
-                               "-c", str(input_path), "-o", str(output_path)]
+                    command = [
+                        executable,
+                        *compiler_parts[1:],
+                        *FLAGS,
+                        f"-{level}",
+                        "-I",
+                        str(ROOT / "sys"),
+                        "-c",
+                        str(input_path),
+                        "-o",
+                        str(output_path),
+                    ]
                     result = subprocess.run(command, capture_output=True, text=True, check=False)
                     label = f"{compiler} -{level} {name}"
                     if should_compile and result.returncode != 0:
-                        failures.append(f"{label}: matching signatures rejected: "
-                                        f"{result.stderr.strip()}")
+                        failures.append(
+                            f"{label}: matching signatures rejected: {result.stderr.strip()}"
+                        )
                     if not should_compile and (
                         result.returncode == 0 or "incompatible" not in result.stderr.lower()
                     ):
-                        failures.append(f"{label}: incompatible assignment not rejected: "
-                                        f"{result.stderr.strip()}")
+                        failures.append(
+                            f"{label}: incompatible assignment not rejected: "
+                            f"{result.stderr.strip()}"
+                        )
                 service_source = ROOT / "tests/kernel/service_callback_contract.c"
                 for wrong_arity in (False, True):
-                    service_command = [executable, *compiler_parts[1:], *FLAGS, f"-{level}",
-                                       "-I", str(ROOT / "sys"), "-fsyntax-only"]
+                    service_command = [
+                        executable,
+                        *compiler_parts[1:],
+                        *FLAGS,
+                        f"-{level}",
+                        "-I",
+                        str(ROOT / "sys"),
+                        "-fsyntax-only",
+                    ]
                     if wrong_arity:
                         service_command.append("-DTEST_WRONG_ARITY")
                     service_command.append(str(service_source))
-                    service = subprocess.run(service_command, capture_output=True, text=True,
-                                             check=False)
+                    service = subprocess.run(
+                        service_command, capture_output=True, text=True, check=False
+                    )
                     if (not wrong_arity and service.returncode != 0) or (
-                        wrong_arity and (service.returncode == 0 or
-                                         "incompatible" not in service.stderr.lower())
+                        wrong_arity
+                        and (
+                            service.returncode == 0 or "incompatible" not in service.stderr.lower()
+                        )
                     ):
-                        failures.append(f"{compiler} -{level} service wrong_arity={wrong_arity}: "
-                                        f"unexpected result: {service.stderr.strip()}")
+                        failures.append(
+                            f"{compiler} -{level} service wrong_arity={wrong_arity}: "
+                            f"unexpected result: {service.stderr.strip()}"
+                        )
             mutant_path = directory / "mutant-device.c"
             mutant_path.write_text(DEVICE_MISMATCH, encoding="utf-8")
-            mutant_command = [executable, *compiler_parts[1:], *FLAGS, "-Os", "-I",
-                              str(mutant_include), "-c", str(mutant_path), "-o",
-                              str(directory / "mutant-device.o")]
+            mutant_command = [
+                executable,
+                *compiler_parts[1:],
+                *FLAGS,
+                "-Os",
+                "-I",
+                str(mutant_include),
+                "-c",
+                str(mutant_path),
+                "-o",
+                str(directory / "mutant-device.o"),
+            ]
             mutant = subprocess.run(mutant_command, capture_output=True, text=True, check=False)
             if mutant.returncode != 0:
-                failures.append(f"{compiler}: weakened-header mutant failed unexpectedly: "
-                                f"{mutant.stderr.strip()}")
+                failures.append(
+                    f"{compiler}: weakened-header mutant failed unexpectedly: "
+                    f"{mutant.stderr.strip()}"
+                )
     if failures:
         for failure in failures:
             print(f"FAIL driver-callback-types: {failure}")

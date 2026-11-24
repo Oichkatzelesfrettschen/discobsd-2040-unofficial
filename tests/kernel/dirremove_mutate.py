@@ -10,9 +10,7 @@ from pathlib import Path
 def replace_once(source: str, old: str, new: str, mutation: str) -> str:
     count = source.count(old)
     if count != 1:
-        raise SystemExit(
-            f"{mutation}: expected one source match, found {count}"
-        )
+        raise SystemExit(f"{mutation}: expected one source match, found {count}")
     return source.replace(old, new)
 
 
@@ -66,9 +64,7 @@ def main() -> None:
     arguments = parser.parse_args()
 
     source = arguments.source.read_text(encoding="utf-8")
-    arguments.output.write_text(
-        mutate(source, arguments.mutation), encoding="utf-8"
-    )
+    arguments.output.write_text(mutate(source, arguments.mutation), encoding="utf-8")
 
 
 if __name__ == "__main__":

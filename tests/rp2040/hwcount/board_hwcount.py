@@ -48,8 +48,7 @@ WORKLOAD = "cat /bin/sh /bin/sh /bin/sh /bin/sh > /dev/null"
 CONTROL = "cat /bin/sh > /dev/null"
 
 ESC = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
-VALUE = re.compile(r"^machdep\.\w+(?: = | -> |=)(?:-?\d+ -> )?(-?\d+)\s*$",
-                   re.MULTILINE)
+VALUE = re.compile(r"^machdep\.\w+(?: = | -> |=)(?:-?\d+ -> )?(-?\d+)\s*$", re.MULTILINE)
 port = None
 failures = 0
 
@@ -123,8 +122,7 @@ def control_pass(label, budget):
     from the report of the clearing write to the sentinel, which leaves out
     the echo of the typed line. Returns host seconds, accesses and hits.
     """
-    line = (f"sysctl -w $M.xip_hit=0 $M.xip_acc=0;{CONTROL};"
-            "sysctl $M.xip_hit $M.xip_acc")
+    line = f"sysctl -w $M.xip_hit=0 $M.xip_acc=0;{CONTROL};sysctl $M.xip_hit $M.xip_acc"
     port.write((line + "; echo E''ND\r").encode())
     text = read_until(["xip_acc: "], budget)
     start = time.monotonic()
@@ -135,8 +133,7 @@ def control_pass(label, budget):
     if len(found) < 2:
         raise SystemExit(f"board_hwcount: no counter pair after {label}")
     hit, acc = found[-2], found[-1]
-    print(f"{label}: {seconds:.2f} s, xip_acc={acc} xip_hit={hit} "
-          f"misses={acc - hit}")
+    print(f"{label}: {seconds:.2f} s, xip_acc={acc} xip_hit={hit} misses={acc - hit}")
     return seconds, acc, hit
 
 
@@ -191,8 +188,10 @@ def main():
         refused = get(f"bus_perfsel{slot}")
         put(f"bus_perfsel{slot}", NO_EVENT)
         none = get(f"bus_perfsel{slot}")
-        check(low == ROM and refused == ROM and none == NO_EVENT,
-              f"bus_perfsel{slot} takes 19 and 31 and refuses 20")
+        check(
+            low == ROM and refused == ROM and none == NO_EVENT,
+            f"bus_perfsel{slot} takes 19 and 31 and refuses 20",
+        )
 
     put("bus_perfsel0", SRAM0)
     put("bus_perfsel0", NO_EVENT)
@@ -222,16 +221,14 @@ def main():
     try:
         check(get("xip_cache", slow) == 0, "writing 0 disables the XIP cache")
         run("echo x > /tmp/hwc; sync; rm /tmp/hwc; sync", slow)
-        check(get("xip_cache", slow) == 0,
-              "the cache stays disabled across a flash write")
+        check(get("xip_cache", slow) == 0, "the cache stays disabled across a flash write")
         off_s, off_acc, off_hit = control_pass("cache off", slow)
     finally:
         put("xip_cache", 1, slow)
     check(get("xip_cache") == 1, "writing 1 enables the XIP cache")
     check(on_hit <= on_acc, "hits do not exceed accesses read in one command")
     check(off_hit == 0, f"no hit is counted with the cache off ({off_hit})")
-    check(off_s > on_s,
-          f"the control workload is slower uncached ({off_s / on_s:.1f} times)")
+    check(off_s > on_s, f"the control workload is slower uncached ({off_s / on_s:.1f} times)")
     again_s, again_acc, again_hit = control_pass("cache on, flushed", 60)
     control_pass("cache on, warm", 60)
     check(again_hit > 0, "hits are counted once the cache is back on")

@@ -59,28 +59,38 @@ def main():
         replacement_index = (index + 1) % len(entries)
         name_ptr, address = struct.unpack_from("<II", data, table + replacement_index * 8)
         for relative, replacement, diagnostic in (
-                (0, name_ptr, f"nlist {index} name differs"),
-                (4, address, f"nlist {index} address differs")):
+            (0, name_ptr, f"nlist {index} name differs"),
+            (4, address, f"nlist {index} address differs"),
+        ):
             mutant = bytearray(data)
             struct.pack_into("<I", mutant, table + index * 8 + relative, replacement)
             reject(mutant, obj, diagnostic)
     object_elf = ELFFile(io.BytesIO(obj))
     object_entry = object_elf.get_section_by_name(".symtab").get_symbol_by_name("nlist")[0].entry
-    sections = [section for section in object_elf.iter_sections()
-                if isinstance(section, RelocationSection) and
-                section.header.sh_info == object_entry.st_shndx]
-    records = [(section, relocation) for section in sections
-               for relocation in section.iter_relocations()
-               if object_entry.st_value <= relocation.entry.r_offset <
-               object_entry.st_value + object_entry.st_size]
+    sections = [
+        section
+        for section in object_elf.iter_sections()
+        if isinstance(section, RelocationSection)
+        and section.header.sh_info == object_entry.st_shndx
+    ]
+    records = [
+        (section, relocation)
+        for section in sections
+        for relocation in section.iter_relocations()
+        if object_entry.st_value
+        <= relocation.entry.r_offset
+        < object_entry.st_value + object_entry.st_size
+    ]
     if len(records) != 2 * len(entries):
         raise AssertionError("unexpected object relocation count")
     section, first = records[1]
     _, second = records[3]
     mutant_object = bytearray(obj)
     record_offset = section.header.sh_offset + next(
-        index * section.header.sh_entsize for index, relocation in
-        enumerate(section.iter_relocations()) if relocation.entry.r_offset == first.entry.r_offset)
+        index * section.header.sh_entsize
+        for index, relocation in enumerate(section.iter_relocations())
+        if relocation.entry.r_offset == first.entry.r_offset
+    )
     struct.pack_into("<I", mutant_object, record_offset + 4, second.entry.r_info)
     reject(data, mutant_object, "nlist 0 object name differs")
     mutant = bytearray(data)
@@ -89,9 +99,18 @@ def main():
     with tempfile.TemporaryDirectory(prefix="rp2040-nlist-") as directory:
         truncated = Path(directory) / "truncated.elf"
         truncated.write_bytes(data[:80])
-        result = subprocess.run([sys.executable, str(ROOT / "tools/check_rp2040_nlist.py"),
-                                 "--object", str(args.object), str(truncated)],
-                                capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools/check_rp2040_nlist.py"),
+                "--object",
+                str(args.object),
+                str(truncated),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if result.returncode != 1:
             raise AssertionError(f"truncated ELF exit {result.returncode}")
     print(f"PASS RP2040 nlist: {len(entries)} names and linked address mutants")

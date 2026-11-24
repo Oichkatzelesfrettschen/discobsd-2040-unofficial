@@ -73,8 +73,8 @@ MUTATIONS = (
     (
         "skip_count_leaked",
         BCODE,
-        "\ti = get_ulong(n);\n\tfree_number(n);\n\tif (i == (BN_ULONG)-1)\n\t\twarnx(\"J command",
-        "\ti = get_ulong(n);\n\tif (i == (BN_ULONG)-1)\n\t\twarnx(\"J command",
+        '\ti = get_ulong(n);\n\tfree_number(n);\n\tif (i == (BN_ULONG)-1)\n\t\twarnx("J command',
+        '\ti = get_ulong(n);\n\tif (i == (BN_ULONG)-1)\n\t\twarnx("J command',
     ),
     (
         "stack_push_copies_array",
@@ -118,7 +118,7 @@ MUTATIONS = (
         "array_arg_first_rejected",
         BCY,
         "\t\t| LETTER LBRACKET RBRACKET\n\t\t\t{\n"
-        "\t\t\t\t$$ = node(cs(\"l\"), array_node($1), END_NODE);\n"
+        '\t\t\t\t$$ = node(cs("l"), array_node($1), END_NODE);\n'
         "\t\t\t\tfree($1);\n\t\t\t}\n",
         "",
     ),
@@ -386,8 +386,10 @@ def main():
         print("dcbc mutants: %d of %d survived" % (len(survivors), len(MUTATIONS)))
         return 1
     rejected = len(MUTATIONS) - len(unjudged)
-    print("dcbc mutants: %d of %d rejected, %d unjudged without the -m32 heap run"
-          % (rejected, len(MUTATIONS), len(unjudged)))
+    print(
+        "dcbc mutants: %d of %d rejected, %d unjudged without the -m32 heap run"
+        % (rejected, len(MUTATIONS), len(unjudged))
+    )
     return 0
 
 

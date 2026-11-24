@@ -43,31 +43,69 @@ def main():
             json.dumps(identity.snapshot(root, [], [])), encoding="utf-8"
         )
         objdump = args.objdump.resolve(strict=True)
-        (capture / "tool-inputs.json").write_text(json.dumps({
-            "gcc16_objdump": {"path": str(objdump),
-                              "sha256": hashlib.sha256(objdump.read_bytes()).hexdigest()}
-        }), encoding="utf-8")
+        (capture / "tool-inputs.json").write_text(
+            json.dumps(
+                {
+                    "gcc16_objdump": {
+                        "path": str(objdump),
+                        "sha256": hashlib.sha256(objdump.read_bytes()).hexdigest(),
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
         rows = []
         for level in ("O0", "Os"):
             row = capture / f"gcc16-{level}"
             row.mkdir()
-            run([args.gcc, "-Wall", "-Wextra", "-Werror", "-mcpu=cortex-m0plus", "-mthumb",
-                 "-fstack-usage", f"-{level}", "-c", str(source), "-o", str(row / "unit.o")], root)
+            run(
+                [
+                    args.gcc,
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    "-mcpu=cortex-m0plus",
+                    "-mthumb",
+                    "-fstack-usage",
+                    f"-{level}",
+                    "-c",
+                    str(source),
+                    "-o",
+                    str(row / "unit.o"),
+                ],
+                root,
+            )
             report = row / "unit.su"
             report_hash = hashlib.sha256(report.read_bytes()).hexdigest()
-            rows.append({"compiler": "gcc16", "level": level,
-                         "stack_usage_sha256": {"unit.su": report_hash},
-                         "artifacts_sha256": identity.artifact_hashes(row)})
+            rows.append(
+                {
+                    "compiler": "gcc16",
+                    "level": level,
+                    "stack_usage_sha256": {"unit.su": report_hash},
+                    "artifacts_sha256": identity.artifact_hashes(row),
+                }
+            )
         (capture / "results.json").write_text(json.dumps(rows), encoding="utf-8")
         output = directory / "analysis"
-        command = [sys.executable, str(ANALYZER), "--capture", str(capture),
-                   "--compiler", "gcc16", "--objdump", str(objdump), "--output", str(output)]
+        command = [
+            sys.executable,
+            str(ANALYZER),
+            "--capture",
+            str(capture),
+            "--compiler",
+            "gcc16",
+            "--objdump",
+            str(objdump),
+            "--output",
+            str(output),
+        ]
         run(command, root)
         record = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
         assert record["object_deltas"][0]["object"] == "unit.o"
         assert record["object_deltas"][0]["exec_delta"] > 0
-        assert any(entry["name"] == "target" and entry["delta"] > 0
-                   for entry in record["function_deltas"])
+        assert any(
+            entry["name"] == "target" and entry["delta"] > 0 for entry in record["function_deltas"]
+        )
         assert "target" in (output / "gcc16-O0/unit.o.objdump").read_text(encoding="utf-8")
         obj = capture / "gcc16-O0/unit.o"
         original = obj.read_bytes()

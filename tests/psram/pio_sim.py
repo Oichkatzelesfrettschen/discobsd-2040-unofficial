@@ -67,6 +67,7 @@ def duty_problem(high, low):
             )
     return None
 
+
 T_CPH = 50.0
 T_CEM = 8000.0
 T_CSP = 2.5
@@ -188,9 +189,7 @@ class Device:
         size=SIZE,
     ):
         rnd = random.Random(seed)
-        self.mem = bytearray(rnd.getrandbits(8) for _ in range(4096)) * (
-            SIZE // 4096
-        )
+        self.mem = bytearray(rnd.getrandbits(8) for _ in range(4096)) * (SIZE // 4096)
         self.eid = bytes(eid)
         # A compatible part with fewer address bits ignores the high ones,
         # so an address wraps modulo its size.
@@ -249,15 +248,10 @@ class Device:
             ):
                 self.flag(
                     t,
-                    "data changed %.1f ns after SCK rise "
-                    "(hold %.1f)" % (t - self.last_rise, T_HD),
+                    "data changed %.1f ns after SCK rise (hold %.1f)" % (t - self.last_rise, T_HD),
                 )
         fr = self.frame
-        if (
-            fr is not None
-            and fr.get("driving")
-            and fr["drive_from"] is not None
-        ):
+        if fr is not None and fr.get("driving") and fr["drive_from"] is not None:
             for pin in fr["driving"]:
                 if (dr >> pin) & 1 and t >= fr["drive_from"]:
                     self.flag(t, "contention on SIO%d" % pin)
@@ -310,8 +304,7 @@ class Device:
         if self.last_cs_rise is not None and t - self.last_cs_rise < T_CPH:
             self.flag(
                 t,
-                "CS high only %.1f ns between frames (tCPH %.0f)"
-                % (t - self.last_cs_rise, T_CPH),
+                "CS high only %.1f ns between frames (tCPH %.0f)" % (t - self.last_cs_rise, T_CPH),
             )
         self.cs_fall = t
         self.last_rise = self.last_fall = None
@@ -372,8 +365,7 @@ class Device:
         if fr["pulses"] == 0 and t - fr["t_fall"] < T_CSP:
             self.flag(
                 t,
-                "first SCK rise %.1f ns after CS fall (tCSP %.1f)"
-                % (t - fr["t_fall"], T_CSP),
+                "first SCK rise %.1f ns after CS fall (tCSP %.1f)" % (t - fr["t_fall"], T_CSP),
             )
         if self.last_rise is not None:
             period = t - self.last_rise
@@ -387,9 +379,7 @@ class Device:
             # The one stretched cycle per read, between the output loop and
             # the turnaround, is the only place the program pauses SCK.
             pause = OUT_CLOCKS.get(fr.get("kind")) == fr["pulses"]
-            problem = duty_problem(
-                self.last_fall - self.last_rise, t - self.last_fall
-            )
+            problem = duty_problem(self.last_fall - self.last_rise, t - self.last_fall)
             if problem is not None and not pause:
                 self.flag(t, problem)
             if problem is not None and pause:
@@ -471,8 +461,7 @@ class Device:
         else:
             self.flag(
                 fr["t_fall"],
-                "unsupported %s command %02x"
-                % ("quad" if qpi else "serial", c),
+                "unsupported %s command %02x" % ("quad" if qpi else "serial", c),
             )
 
     def _addr_bits(self, fr, j, sample, nib, qpi, t, serial_addr):
@@ -508,8 +497,7 @@ class Device:
                     self.crossed_page = True
                     if (
                         self.last_rise is not None
-                        and fr["rises"][-1] - fr["rises"][-2]
-                        < T_CLK_PAGE - 1e-9
+                        and fr["rises"][-1] - fr["rises"][-2] < T_CLK_PAGE - 1e-9
                     ):
                         self.flag(t, "burst crossed a page below 84 MHz")
                 fr["a"] = nxt
@@ -573,8 +561,7 @@ class Device:
             if fr["pulses"] != expect:
                 self.flag(
                     t,
-                    "command %02x had %d clocks, expected %d"
-                    % (cmd, fr["pulses"], expect),
+                    "command %02x had %d clocks, expected %d" % (cmd, fr["pulses"], expect),
                 )
         if cmd == 0x66:
             self.rst_en = True
@@ -704,9 +691,7 @@ class Pio:
             forced = len(self.dev.frames) - 1 in self.forced_stalls
             if forced:
                 self.forced_stalls.discard(len(self.dev.frames) - 1)
-            return (1 if self.rxstall or forced else 0) | (
-                1 << 16 if self.txover else 0
-            )
+            return (1 if self.rxstall or forced else 0) | (1 << 16 if self.txover else 0)
         if off == 0x020:
             if not self.rx:
                 raise RuntimeError("RX FIFO read while empty")
@@ -925,11 +910,7 @@ class Pio:
                 self.isr, self.isr_cnt = v, n
             else:
                 raise RuntimeError("out destination %s not modeled" % dest)
-            if (
-                self.autopull
-                and self.osr_cnt >= self._pull_thresh()
-                and self.tx
-            ):
+            if self.autopull and self.osr_cnt >= self._pull_thresh() and self.tx:
                 self._pull()
             return True, False
         if op == 4:  # pull block
@@ -941,9 +922,7 @@ class Pio:
             return True, False
         if op == 5:  # mov
             src = MOV_SRC[arg & 7]
-            val = {"x": self.x, "y": self.y, "isr": self.isr, "null": 0}.get(
-                src
-            )
+            val = {"x": self.x, "y": self.y, "isr": self.isr, "null": 0}.get(src)
             if val is None:
                 raise RuntimeError("mov source %s not modeled" % src)
             dest = MOV_DEST[hi]

@@ -8,8 +8,10 @@ from pathlib import Path
 
 class TraceTest(unittest.TestCase):
     def setUp(self):
-        self.assertTrue(Path(__file__).with_name("storage_trace.py").exists(),
-                        "the shared storage transfer interface is absent")
+        self.assertTrue(
+            Path(__file__).with_name("storage_trace.py").exists(),
+            "the shared storage transfer interface is absent",
+        )
         self.trace = importlib.import_module("storage_trace")
 
     def test_checked_range_uses_remaining_capacity(self):
@@ -23,11 +25,15 @@ class TraceTest(unittest.TestCase):
         trace = self.trace
         address = trace.Address(trace.Domain.V7_BLOCK, 3)
         self.assertEqual(trace.byte_address(address, 2048).offset, 1536)
-        self.assertEqual(trace.byte_address(trace.Address(trace.Domain.DHARA_PAGE, 3),
-                                            2 * 1024 * 1024, origin=128 * 1024),
-                         trace.Address(trace.Domain.FLASH_BYTE, 128 * 1024 + 3072))
+        self.assertEqual(
+            trace.byte_address(
+                trace.Address(trace.Domain.DHARA_PAGE, 3), 2 * 1024 * 1024, origin=128 * 1024
+            ),
+            trace.Address(trace.Domain.FLASH_BYTE, 128 * 1024 + 3072),
+        )
         unit, displacement = trace.split_address(
-            trace.Address(trace.Domain.IMAGE_BYTE, 1537), trace.Domain.V7_BLOCK)
+            trace.Address(trace.Domain.IMAGE_BYTE, 1537), trace.Domain.V7_BLOCK
+        )
         self.assertEqual((unit, displacement), (address, 1))
         with self.assertRaises(ValueError):
             trace.byte_address(trace.Address(trace.Domain.V7_BLOCK, 5), 2048)
@@ -45,8 +51,9 @@ class TraceTest(unittest.TestCase):
                         encoded = trace.encode(value, width, order, signed)
                         for residue in range(512):
                             container = bytes(residue) + encoded + bytes(4)
-                            self.assertEqual(trace.decode(container, residue, width, order, signed),
-                                             value)
+                            self.assertEqual(
+                                trace.decode(container, residue, width, order, signed), value
+                            )
                     for value in (lower - 1, upper + 1):
                         with self.assertRaises(ValueError):
                             trace.encode(value, width, order, signed)
@@ -62,13 +69,16 @@ class TraceTest(unittest.TestCase):
         self.assertEqual(device.export(), b"aWXdefgh")
         device.verify_injections()
         event = device.events[0]
-        self.assertEqual((event.sequence, event.transferred, event.offset, event.length),
-                         (1, 2, 1, 4))
+        self.assertEqual(
+            (event.sequence, event.transferred, event.offset, event.length), (1, 2, 1, 4)
+        )
 
     def test_failure_before_and_after_transfer(self):
         trace = self.trace
-        for mode, count, expected in (("before_error", 0, b"abcdefgh"),
-                                      ("after_error", 3, b"XYZdefgh")):
+        for mode, count, expected in (
+            ("before_error", 0, b"abcdefgh"),
+            ("after_error", 3, b"XYZdefgh"),
+        ):
             device = trace.Device(b"abcdefgh", faults=[trace.Fault(1, mode, count)])
             with self.assertRaises(trace.TransferError):
                 device.write(trace.Address(trace.Domain.IMAGE_BYTE, 0), b"XYZW")
@@ -88,8 +98,9 @@ class TraceTest(unittest.TestCase):
 
     def test_second_failure_during_compensation_is_visible(self):
         trace = self.trace
-        device = trace.Device(bytes(16), faults=[trace.Fault(1, "after_error", 4),
-                                                trace.Fault(2, "before_error", 0)])
+        device = trace.Device(
+            bytes(16), faults=[trace.Fault(1, "after_error", 4), trace.Fault(2, "before_error", 0)]
+        )
         address = trace.Address(trace.Domain.IMAGE_BYTE, 0)
         with self.assertRaises(trace.TransferError):
             device.write(address, b"data")
@@ -111,8 +122,20 @@ class TraceTest(unittest.TestCase):
         device = trace.Device(bytes(16))
         device.read(trace.Address(trace.Domain.IMAGE_BYTE, 2), 4)
         records = [json.loads(line) for line in device.json_lines().splitlines()]
-        self.assertEqual(set(records[0]), {"sequence", "layer", "kind", "domain", "offset",
-                                           "length", "phase", "transferred", "result"})
+        self.assertEqual(
+            set(records[0]),
+            {
+                "sequence",
+                "layer",
+                "kind",
+                "domain",
+                "offset",
+                "length",
+                "phase",
+                "transferred",
+                "result",
+            },
+        )
         self.assertEqual(records[0]["domain"], "image-byte")
 
 

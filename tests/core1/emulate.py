@@ -67,7 +67,6 @@ TIMER = 0x40054000
 WATCHDOG = 0x40058000
 
 
-
 def header_interval(name: str) -> int:
     """The default of one interval in core1.h, the kernel's own source."""
     header = Path(__file__).resolve().parents[2] / "sys/arch/rp2040/rp2040/core1.h"
@@ -81,7 +80,7 @@ PERIOD_US = header_interval("C1_PERIOD_US")
 STALL_US = header_interval("C1_STALL_US")
 HANG_US = header_interval("C1_HANG_US")
 STACK_PAINT = 0xC1C1C1C1
-STACK_RESERVE = 64      # one exception frame and as much again
+STACK_RESERVE = 64  # one exception frame and as much again
 PROBE_BIT = 8
 WDSEL_ALL_BUT_OSC = 0x1FFFC
 
@@ -104,9 +103,7 @@ class Kernel:
             self.symbols: dict[str, tuple[int, int]] = {}
             for symbol in elf.get_section_by_name(".symtab").iter_symbols():
                 if symbol.name and not symbol.name.startswith("$"):
-                    self.symbols.setdefault(
-                        symbol.name, (symbol["st_value"], symbol["st_size"])
-                    )
+                    self.symbols.setdefault(symbol.name, (symbol["st_value"], symbol["st_size"]))
             self.segments = [
                 (segment["p_vaddr"], segment.data())
                 for segment in elf.iter_segments()
@@ -122,8 +119,9 @@ class Kernel:
                         if name is None:
                             continue
                         fields = {
-                            child.attributes["DW_AT_name"].value.decode():
-                                child.attributes["DW_AT_data_member_location"].value
+                            child.attributes["DW_AT_name"].value.decode(): child.attributes[
+                                "DW_AT_data_member_location"
+                            ].value
                             for child in entry.iter_children()
                             if child.tag == "DW_TAG_member"
                             and "DW_AT_data_member_location" in child.attributes
@@ -148,27 +146,27 @@ class Machine:
     def __init__(self, kernel: Kernel, mutate: str | None) -> None:
         self.kernel = kernel
         self.mutate = mutate
-        self.now = 1000000          # microsecond timer
-        self.to_core = (deque(), deque())   # FIFO words waiting for each core
+        self.now = 1000000  # microsecond timer
+        self.to_core = (deque(), deque())  # FIFO words waiting for each core
         self.sticky = [0, 0]
         self.frce_off = 0
         self.nmi_mask = 0
         self.intf = 0
-        self.resets = 0xFFFFFFFF    # RESETS.RESET: everything held
+        self.resets = 0xFFFFFFFF  # RESETS.RESET: everything held
         self.scratch = [0] * 8
         self.wdsel = 0
         self.triggered = False
-        self.rom_step = None        # boot ROM launch state, None while running
+        self.rom_step = None  # boot ROM launch state, None while running
         self.rom_words: list[int] = []
         self.launches: list[tuple[int, int, int]] = []
         self.parks = 0
         self.systick = [dict(csr=0, rvr=0, pend=0, next=0) for _ in range(2)]
-        self.scr = [0x4, 0x4]       # SLEEPDEEP, as the boot ROM leaves core 1
+        self.scr = [0x4, 0x4]  # SLEEPDEEP, as the boot ROM leaves core 1
         self.vtor = [0, 0]
-        self.callout = False        # timeout(core1_poll) is pending
+        self.callout = False  # timeout(core1_poll) is pending
         self.wfi = [a for a in ()]
-        self.core1_alive = True     # scenario switch: core 1 gets cycles
-        self.core0_answers = True   # scenario switch: core 0 takes the NMI
+        self.core1_alive = True  # scenario switch: core 1 gets cycles
+        self.core0_answers = True  # scenario switch: core 0 takes the NMI
         self.nmi_frame = (0x1000ABCC, 0x1000DEF1)
         self.nmi_stack = "msp"
         self.nmis = 0
@@ -178,9 +176,7 @@ class Machine:
         self.sram = (ctypes.c_ubyte * SRAM_SIZE)()
         for base, data in kernel.segments:
             if SRAM_BASE <= base < SRAM_BASE + SRAM_SIZE:
-                ctypes.memmove(
-                    ctypes.addressof(self.sram) + base - SRAM_BASE, data, len(data)
-                )
+                ctypes.memmove(ctypes.addressof(self.sram) + base - SRAM_BASE, data, len(data))
         self.cpu = [self.make_cpu(0), None]
         flash = bytearray(FLASH_SIZE)
         for base, data in kernel.segments:
@@ -239,7 +235,7 @@ class Machine:
     def apb_read(self, _cpu: Uc, offset: int, _size: int, core: int) -> int:
         address = APB_BASE + (offset & ~0x3000)
         if address == TIMER + 0x28:
-            self.now += 10          # a polling loop sees time pass
+            self.now += 10  # a polling loop sees time pass
             return self.now & 0xFFFFFFFF
         if address == TIMER + 0x3C:
             return self.intf
@@ -296,7 +292,7 @@ class Machine:
     def psm_changed(self, before: int) -> None:
         bit = 1 << 16
         if self.frce_off & bit and not before & bit:
-            self.cpu[1] = None          # core 1 is in reset
+            self.cpu[1] = None  # core 1 is in reset
             self.rom_step = None
             self.at_wfi = False
         elif before & bit and not self.frce_off & bit:
@@ -336,9 +332,7 @@ class Machine:
             if self.mutate == "rom-never-starts":
                 return
             cpu = self.make_cpu(1)
-            cpu.hook_add(
-                UC_HOOK_CODE, self.hook_core1, begin=self.wfi[0], end=self.wfi[0]
-            )
+            cpu.hook_add(UC_HOOK_CODE, self.hook_core1, begin=self.wfi[0], end=self.wfi[0])
             cpu.reg_write(UC_ARM_REG_SP, stack)
             cpu.reg_write(UC_ARM_REG_PC, entry)
             self.vtor[1] = vtor
@@ -432,8 +426,7 @@ class Machine:
             cpu.emu_start(self.kernel.address(name) | 1, ret, count=2000000)
         except UcError as error:
             raise Failure(
-                f"core 0 in {name}: {error} at pc "
-                f"{cpu.reg_read(UC_ARM_REG_PC):#x}"
+                f"core 0 in {name}: {error} at pc {cpu.reg_read(UC_ARM_REG_PC):#x}"
             ) from error
         if cpu.reg_read(UC_ARM_REG_PC) != ret:
             raise Failure(f"core 0 did not return from {name}")
@@ -493,9 +486,7 @@ class Machine:
         try:
             cpu.emu_start(self.core1_pc | 1, 0xFFFFFFFE, count=200000)
         except UcError as error:
-            raise Failure(
-                f"core 1: {error} at pc {cpu.reg_read(UC_ARM_REG_PC):#x}"
-            ) from error
+            raise Failure(f"core 1: {error} at pc {cpu.reg_read(UC_ARM_REG_PC):#x}") from error
         self.core1_pc = cpu.reg_read(UC_ARM_REG_PC)
         if self.cpu[1] is cpu and not self.at_wfi and not self.triggered:
             raise Failure(f"core 1 never slept; pc {self.core1_pc:#x}")
@@ -504,9 +495,7 @@ class Machine:
 
     def advance(self, milliseconds: int, beating: bool = True) -> None:
         """Model time: core 0 ticks at 1 kHz while beating, polls at 1 Hz."""
-        stamp = self.kernel.address("clkcatch") + self.kernel.offset(
-            "clock_catchup", "stamp_us"
-        )
+        stamp = self.kernel.address("clkcatch") + self.kernel.offset("clock_catchup", "stamp_us")
         for _ in range(milliseconds):
             if self.triggered:
                 return
@@ -544,7 +533,7 @@ def expect(condition: bool, message: str) -> None:
 def boot(kernel: Kernel, mutate: str | None = None) -> Machine:
     """core1_init() as clkstart() calls it, then the first second."""
     machine = Machine(kernel, mutate)
-    machine.frce_off = 1 << 16      # Reset_Handler holds core 1
+    machine.frce_off = 1 << 16  # Reset_Handler holds core 1
     machine.call("core1_init")
     expect(not machine.resets & (1 << 18), "core1_init left SYSCFG in reset")
     expect(machine.callout, "core1_init scheduled no poll")
@@ -557,9 +546,7 @@ def sup(machine: Machine, member: str) -> int:
 
 
 def obs(machine: Machine, member: str) -> int:
-    return machine.field(
-        "core1", ("core1_shared", "c1_obs"), ("core1_obs", member)
-    )
+    return machine.field("core1", ("core1_shared", "c1_obs"), ("core1_obs", member))
 
 
 def scenario_launch_and_ping(kernel: Kernel) -> str:
@@ -574,21 +561,20 @@ def scenario_launch_and_ping(kernel: Kernel) -> str:
     expect(entry == kernel.address("core1_main") | 1, "the entry is not core1_main")
     fault = kernel.address("core1_fault") | 1
     for index in range(2, 16):
-        expect(machine.word(vtor + 4 * index) == fault,
-               f"vector {index} does not name core1_fault")
+        expect(machine.word(vtor + 4 * index) == fault, f"vector {index} does not name core1_fault")
     expect(sup(machine, "cs_state") == 1, "the supervisor is not running")
     expect(machine.nmi_mask == PROBE_BIT, "the NMI route is not set")
-    expect(not machine.to_core[0] and not machine.to_core[1],
-           "the launch left a word in a FIFO")
+    expect(not machine.to_core[0] and not machine.to_core[1], "the launch left a word in a FIFO")
     machine.advance(30000)
     expect(sup(machine, "cs_seq") == 30, "30 pings were not sent")
     expect(sup(machine, "cs_pong") in (29, 30), "the pings were not answered")
     expect(sup(machine, "cs_restarts") == 0, "a healthy core 1 was restarted")
     expect(machine.scr[1] == 0, "core 1 left SLEEPDEEP set")
-    expect(2990 <= machine.wakes <= 3010,
-           f"core 1 woke {machine.wakes} times in 30 s, expected one per 10 ms")
-    expect(machine.nmis == 0 and obs(machine, "co_stalls") == 0,
-           "a ticking clock was reported")
+    expect(
+        2990 <= machine.wakes <= 3010,
+        f"core 1 woke {machine.wakes} times in 30 s, expected one per 10 ms",
+    )
+    expect(machine.nmis == 0 and obs(machine, "co_stalls") == 0, "a ticking clock was reported")
     expect(machine.sticky == [0, 0], "a FIFO error was raised")
     return "launch through the boot ROM protocol, 30 pings answered"
 
@@ -601,15 +587,17 @@ def scenario_transient_stall(kernel: Kernel) -> str:
         machine.nmi_frame = (0x10004000 + 0x100 * ret_bit, 0x10005001)
         before = machine.nmis
         machine.advance(300, beating=False)
-        expect(machine.nmis == before + 1,
-               f"a 300 ms stall raised {machine.nmis - before} probes ({stack})")
+        expect(
+            machine.nmis == before + 1,
+            f"a 300 ms stall raised {machine.nmis - before} probes ({stack})",
+        )
         probe = kernel.address("core1_probe")
-        expect(machine.word(probe + 4) == machine.word(probe),
-               "the probe went unanswered")
-        expect(machine.word(probe + 8) == machine.nmi_frame[0],
-               f"the stacked PC was not recorded from the {stack} frame")
-        expect(machine.word(probe + 12) == machine.nmi_frame[1],
-               "the stacked LR was not recorded")
+        expect(machine.word(probe + 4) == machine.word(probe), "the probe went unanswered")
+        expect(
+            machine.word(probe + 8) == machine.nmi_frame[0],
+            f"the stacked PC was not recorded from the {stack} frame",
+        )
+        expect(machine.word(probe + 12) == machine.nmi_frame[1], "the stacked LR was not recorded")
         machine.advance(2000)
     expect(obs(machine, "co_stalls") == 2, "two stalls were not counted")
     gap = obs(machine, "co_gap_us")
@@ -628,13 +616,16 @@ def scenario_declared_erase(kernel: Kernel) -> str:
         expect(machine.scratch[1] == 1, "the section was not declared")
         machine.advance(400, beating=False)
         # The erase path advances the tick record before it clears the name.
-        machine.poke(kernel.address("clkcatch") + kernel.offset(
-            "clock_catchup", "stamp_us"), machine.now)
+        machine.poke(
+            kernel.address("clkcatch") + kernel.offset("clock_catchup", "stamp_us"), machine.now
+        )
         machine.call("watchdog_site", 0, 0)
         expect(machine.nmi_mask == PROBE_BIT, "the NMI route was not restored")
         machine.advance(37)
-    expect(obs(machine, "co_stalls") == 0 and machine.nmis == 0,
-           "a declared 400 ms erase was reported as a stall")
+    expect(
+        obs(machine, "co_stalls") == 0 and machine.nmis == 0,
+        "a declared 400 ms erase was reported as a stall",
+    )
     expect(machine.intf == 0, "a probe was raised inside a declared section")
     expect(not machine.triggered, "a declared erase reset the chip")
     return "twenty declared 400 ms sections, no probe and no stall"
@@ -648,8 +639,7 @@ def scenario_hang(kernel: Kernel) -> str:
     machine.advance(6000, beating=False)
     expect(machine.triggered, "a 6 s hang did not reset the chip")
     took = machine.now - start
-    expect(HANG_US <= took <= HANG_US + 3 * PERIOD_US,
-           f"the reset came {took} us into the hang")
+    expect(HANG_US <= took <= HANG_US + 3 * PERIOD_US, f"the reset came {took} us into the hang")
     expect(machine.nmis == 2, f"{machine.nmis} probes were answered, expected 2")
     expect(machine.scratch[1] == 3, "SCRATCH1 does not name the stall site")
     expect(machine.scratch[2] == machine.nmi_frame[0], "SCRATCH2 is not the PC")
@@ -661,14 +651,16 @@ def scenario_hang(kernel: Kernel) -> str:
 def scenario_hang_unanswered(kernel: Kernel) -> str:
     machine = boot(kernel)
     machine.advance(3000)
-    machine.advance(200, beating=False)     # an answered probe leaves a PC
+    machine.advance(200, beating=False)  # an answered probe leaves a PC
     machine.advance(1000)
     machine.core0_answers = False
     machine.advance(6000, beating=False)
     expect(machine.triggered, "the hang did not reset the chip")
     expect(machine.scratch[1] == 3, "SCRATCH1 does not name the stall site")
-    expect(machine.scratch[2] == 0 and machine.scratch[3] == 0,
-           "an unanswered probe was recorded with a stale PC")
+    expect(
+        machine.scratch[2] == 0 and machine.scratch[3] == 0,
+        "an unanswered probe was recorded with a stale PC",
+    )
     return "unanswered probe recorded as zeros, not as the previous stall's PC"
 
 
@@ -678,8 +670,10 @@ def scenario_hang_in_declared_section(kernel: Kernel) -> str:
     machine.call("watchdog_site", 2, 0x1B2000)
     machine.advance(6000, beating=False)
     expect(machine.triggered, "a section that never returned did not reset")
-    expect(machine.scratch[1] == 2 and machine.scratch[2] == 0x1B2000,
-           "the declared section's own record was overwritten")
+    expect(
+        machine.scratch[1] == 2 and machine.scratch[2] == 0x1B2000,
+        "the declared section's own record was overwritten",
+    )
     expect(machine.nmis == 0, "an NMI was delivered with execute-in-place down")
     return "a declared section that never returns resets with its own record"
 
@@ -690,15 +684,18 @@ def scenario_core1_dies(kernel: Kernel) -> str:
     machine.core1_alive = False
     machine.advance(3000)
     expect(sup(machine, "cs_restarts") == 1, "a silent core 1 was not restarted")
-    expect(machine.cpu[1] is None or len(machine.launches) == 2,
-           "core 1 was not reset")
+    expect(machine.cpu[1] is None or len(machine.launches) == 2, "core 1 was not reset")
     machine.core1_alive = True
     machine.advance(6000)
     expect(len(machine.launches) == 2, "core 1 was not launched again")
-    expect(sup(machine, "cs_state") == 1 and sup(machine, "cs_epoch") == 2,
-           "the supervisor did not return to running")
-    expect(sup(machine, "cs_pong") >= sup(machine, "cs_seq") - 1,
-           "the relaunched core 1 does not answer")
+    expect(
+        sup(machine, "cs_state") == 1 and sup(machine, "cs_epoch") == 2,
+        "the supervisor did not return to running",
+    )
+    expect(
+        sup(machine, "cs_pong") >= sup(machine, "cs_seq") - 1,
+        "the relaunched core 1 does not answer",
+    )
     # Core 1 stays dead: the budget runs out and it is left parked.
     machine.core1_alive = False
     machine.advance(40000)
@@ -719,8 +716,9 @@ def scenario_park(kernel: Kernel) -> str:
     expect(machine.frce_off == 0, "core1_park left core 1 held in reset")
     expect(machine.nmi_mask == 0, "core1_park left the NMI route up")
     expect(machine.intf == 0, "core1_park left a forced interrupt asserted")
-    expect(machine.word(kernel.address("core1_nmi_mask")) == 0,
-           "core1_nmi_mask still names the route")
+    expect(
+        machine.word(kernel.address("core1_nmi_mask")) == 0, "core1_nmi_mask still names the route"
+    )
     machine.call("watchdog_site", 1, 0)
     machine.call("watchdog_site", 0, 0)
     expect(machine.nmi_mask == 0, "watchdog_site restored a withdrawn route")
@@ -754,8 +752,10 @@ def scenario_rom_never_starts(kernel: Kernel) -> str:
     machine = boot(kernel, "rom-never-starts")
     machine.advance(5000)
     expect(len(machine.launches) >= 1, "no launch was attempted")
-    expect(sup(machine, "cs_restarts") >= 1,
-           "a core 1 that never ran was not detected by the missing pongs")
+    expect(
+        sup(machine, "cs_restarts") >= 1,
+        "a core 1 that never ran was not detected by the missing pongs",
+    )
     return "a completed handshake with no running core 1 is caught by the ping"
 
 

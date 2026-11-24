@@ -18,12 +18,30 @@ def compile_dhara(directory):
     dhara = ROOT / "sys/arch/rp2040/dhara"
     output = directory / "dhara-traffic.so"
     subprocess.run(
-        [*compiler, "-std=c17", "-O1", "-g", "-Wall", "-Wextra", "-Werror", "-Wpedantic",
-         "-Wstrict-prototypes", "-Wold-style-definition", "-fPIC", shared,
-         *sanitizer_link_flags(compiler), "-fno-sanitize-recover=undefined",
-         "-I" + str(ROOT / "sys/arch"), "-I" + str(dhara),
-         str(Path(__file__).with_name("dhara_bridge.c")), str(dhara / "error.c"),
-         str(dhara / "journal.c"), str(dhara / "map.c"), "-o", str(output)],
+        [
+            *compiler,
+            "-std=c17",
+            "-O1",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-Wpedantic",
+            "-Wstrict-prototypes",
+            "-Wold-style-definition",
+            "-fPIC",
+            shared,
+            *sanitizer_link_flags(compiler),
+            "-fno-sanitize-recover=undefined",
+            "-I" + str(ROOT / "sys/arch"),
+            "-I" + str(dhara),
+            str(Path(__file__).with_name("dhara_bridge.c")),
+            str(dhara / "error.c"),
+            str(dhara / "journal.c"),
+            str(dhara / "map.c"),
+            "-o",
+            str(output),
+        ],
         check=True,
     )
     return output
@@ -33,8 +51,13 @@ class DharaBackend:
     def __init__(self, library, initial):
         self.library = ctypes.CDLL(str(library))
         self.library.storage_dhara_setup.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
-        self.library.storage_dhara_transfer.argtypes = [ctypes.c_size_t, ctypes.c_void_p,
-                                                       ctypes.c_size_t, ctypes.c_int, ctypes.c_int]
+        self.library.storage_dhara_transfer.argtypes = [
+            ctypes.c_size_t,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_int,
+            ctypes.c_int,
+        ]
         self.library.storage_dhara_verify.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
         self.library.storage_dhara_counts.argtypes = [ctypes.c_void_p]
         self.library.storage_dhara_counts.restype = None
@@ -64,9 +87,19 @@ class DharaBackend:
     def counts(self):
         buffer = (ctypes.c_ulonglong * 6)()
         self.library.storage_dhara_counts(buffer)
-        return dict(zip(("physical_program_page_equivalents", "physical_erase_sector_equivalents",
-                         "checkpoint_operations", "nand_read_calls", "nand_read_bytes",
-                         "nand_copied_bytes"), buffer))
+        return dict(
+            zip(
+                (
+                    "physical_program_page_equivalents",
+                    "physical_erase_sector_equivalents",
+                    "checkpoint_operations",
+                    "nand_read_calls",
+                    "nand_read_bytes",
+                    "nand_copied_bytes",
+                ),
+                buffer,
+            )
+        )
 
     def close(self):
         self.library.storage_dhara_close()

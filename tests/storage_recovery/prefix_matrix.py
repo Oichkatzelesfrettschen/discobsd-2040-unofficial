@@ -64,9 +64,10 @@ def run_case(library, order, blocks, directory):
             fault = Fault(event.sequence, "after_error", amount)
             result, persistent, _events = execute(library, image, order, directory, fault)
             require(result != 0, f"write failure hidden at {event.sequence}/{amount}")
-            require(verify(persistent, order) == old,
-                    f"compensation differs at {order}/{blocks}/{directory}/"
-                    f"{event.sequence}/{amount}")
+            require(
+                verify(persistent, order) == old,
+                f"compensation differs at {order}/{blocks}/{directory}/{event.sequence}/{amount}",
+            )
             counts["compensated_prefixes"] += 1
 
             fault = Fault(event.sequence, "interrupt", amount)
@@ -75,34 +76,62 @@ def run_case(library, order, blocks, directory):
             reason = None
             try:
                 recovered = verify(persistent, order)
-                category = ("interrupted_old" if recovered == old else
-                            "interrupted_new" if recovered == new else "interrupted_other")
+                category = (
+                    "interrupted_old"
+                    if recovered == old
+                    else "interrupted_new"
+                    if recovered == new
+                    else "interrupted_other"
+                )
             except ValueError as error:
                 category = "interrupted_invalid"
                 reason = str(error)
             counts[category] += 1
-            if (category in {"interrupted_invalid", "interrupted_other"} and
-                    first_intermediate is None):
-                first_intermediate = {"sequence": event.sequence, "offset": event.offset,
-                                      "transferred": amount, "reason": reason or category}
-        print(json.dumps({"progress": {"order": order, "parent_blocks": blocks,
-                                       "directory": directory, "sequence": event.sequence}},
-                         sort_keys=True), flush=True)
-    require(first_intermediate is not None,
-            "interruption characterization lost its negative control")
-    summary = {"order": order, "parent_blocks": blocks, "directory": directory,
-               "write_calls": len(writes), "counts": dict(counts),
-               "first_intermediate": first_intermediate}
+            if (
+                category in {"interrupted_invalid", "interrupted_other"}
+                and first_intermediate is None
+            ):
+                first_intermediate = {
+                    "sequence": event.sequence,
+                    "offset": event.offset,
+                    "transferred": amount,
+                    "reason": reason or category,
+                }
+        print(
+            json.dumps(
+                {
+                    "progress": {
+                        "order": order,
+                        "parent_blocks": blocks,
+                        "directory": directory,
+                        "sequence": event.sequence,
+                    }
+                },
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+    require(
+        first_intermediate is not None, "interruption characterization lost its negative control"
+    )
+    summary = {
+        "order": order,
+        "parent_blocks": blocks,
+        "directory": directory,
+        "write_calls": len(writes),
+        "counts": dict(counts),
+        "first_intermediate": first_intermediate,
+    }
     print(json.dumps(summary, sort_keys=True), flush=True)
     return counts
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--parent-blocks", type=int, nargs="+", default=[1, 10, 138],
-                        choices=[1, 10, 138])
-    parser.add_argument("--orders", nargs="+", default=["little", "pdp"],
-                        choices=["little", "pdp"])
+    parser.add_argument(
+        "--parent-blocks", type=int, nargs="+", default=[1, 10, 138], choices=[1, 10, 138]
+    )
+    parser.add_argument("--orders", nargs="+", default=["little", "pdp"], choices=["little", "pdp"])
     args = parser.parse_args()
     totals = Counter()
     with tempfile.TemporaryDirectory(prefix="v7-prefix-matrix-") as directory:
@@ -111,9 +140,17 @@ def main():
             for blocks in args.parent_blocks:
                 for is_directory in (False, True):
                     totals.update(run_case(library, order, blocks, is_directory))
-    print(json.dumps({"totals": dict(totals), "model": "complete byte-prefix enumeration",
-                      "atomic_recovery": "unadmitted; intermediate images require inspection"},
-                     sort_keys=True), flush=True)
+    print(
+        json.dumps(
+            {
+                "totals": dict(totals),
+                "model": "complete byte-prefix enumeration",
+                "atomic_recovery": "unadmitted; intermediate images require inspection",
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

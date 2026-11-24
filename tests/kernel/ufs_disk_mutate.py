@@ -27,7 +27,8 @@ MUTATIONS = {
         "    return first_error;",
     ),
     "device-error-replica-omitted": (
-        "ufs_bio.c", "                alias->i_bdev_error = write_error;",
+        "ufs_bio.c",
+        "                alias->i_bdev_error = write_error;",
         "                alias->i_bdev_error = 0;",
     ),
     "device-first-error-overwritten": (
@@ -41,11 +42,13 @@ MUTATIONS = {
         "        if (pending->b_dev != dev || (pending->b_flags & B_BUSY) == 0 || 1)",
     ),
     "device-lock-ignored": (
-        "ufs_bio.c", "            (alias->i_bdev_state & IBDEV_LOCKED) == 0)",
+        "ufs_bio.c",
+        "            (alias->i_bdev_state & IBDEV_LOCKED) == 0)",
         "            (alias->i_bdev_state & IBDEV_LOCKED) == 0 || 1)",
     ),
     "device-inherit-omitted": (
-        "sys_inode.c", "        ip->i_bdev_error = bdev_write_error(dev);",
+        "sys_inode.c",
+        "        ip->i_bdev_error = bdev_write_error(dev);",
         "        ip->i_bdev_error = 0;",
     ),
     "device-inheritance-unmasked": (
@@ -54,27 +57,30 @@ MUTATIONS = {
         "        priority = 0;\n        ip->i_bdev_error = bdev_write_error(dev);",
     ),
     "device-open-count-on-failure": (
-        "sys_inode.c", "        if (error == 0)\n            ip->i_bdev_state++;",
+        "sys_inode.c",
+        "        if (error == 0)\n            ip->i_bdev_state++;",
         "        ip->i_bdev_state++;",
     ),
     "device-error-lifetime-reset-omitted": (
-        "sys_inode.c", "        bdev_clear_write_error(dev);",
+        "sys_inode.c",
+        "        bdev_clear_write_error(dev);",
         "        (void)dev;",
     ),
     "device-close-error-hidden": (
-        "sys_inode.c", "    return flush_error != 0 ? flush_error : error;",
+        "sys_inode.c",
+        "    return flush_error != 0 ? flush_error : error;",
         "    (void)flush_error;\n    return error;",
     ),
     "device-driver-checkpoint-lost": (
-        "ufs_bio.c", "    u.u_qsave = saved_checkpoint;",
+        "ufs_bio.c",
+        "    u.u_qsave = saved_checkpoint;",
         "    (void)saved_checkpoint;",
     ),
     "device-unlock-wakeup-omitted": (
         "ufs_bio.c",
         "bdevunlock(struct inode *holder)\n{\n"
         "    holder->i_bdev_state &= ~IBDEV_LOCKED;\n    wakeup((caddr_t)holder);\n}",
-        "bdevunlock(struct inode *holder)\n{\n"
-        "    holder->i_bdev_state &= ~IBDEV_LOCKED;\n}",
+        "bdevunlock(struct inode *holder)\n{\n    holder->i_bdev_state &= ~IBDEV_LOCKED;\n}",
     ),
     "device-mount-guard-invisible": (
         "ufs_bio.c",
@@ -83,17 +89,14 @@ MUTATIONS = {
     ),
     "device-block-admission-before-lock": (
         "sys_inode.c",
-        "        if (error == 0 && securelevel > 0)\n"
-        "            error = ufs_mountedon(dev);",
-        "        if (error == 0 && securelevel > 0)\n"
-        "            error = 0;",
+        "        if (error == 0 && securelevel > 0)\n            error = ufs_mountedon(dev);",
+        "        if (error == 0 && securelevel > 0)\n            error = 0;",
     ),
     "device-raw-admission-before-lock": (
         "sys_inode.c",
         "        if (error == 0 && securelevel >= 1 && (mode & FWRITE))\n"
         "            error = ufs_mountedon(bdev);",
-        "        if (error == 0 && securelevel >= 1 && (mode & FWRITE))\n"
-        "            error = 0;",
+        "        if (error == 0 && securelevel >= 1 && (mode & FWRITE))\n            error = 0;",
     ),
     "device-swapdev-write-admitted": (
         "sys_inode.c",
@@ -157,23 +160,30 @@ MUTATIONS = {
         "    NAMEI_INIT_USER",
     ),
     "device-mount-inheritance-omitted": (
-        "ufs_mount.c", "    mp->m_write_error = bdev_write_error(dev);",
+        "ufs_mount.c",
+        "    mp->m_write_error = bdev_write_error(dev);",
         "    mp->m_write_error = 0;",
     ),
     "device-mount-guard-transfer-omitted": (
-        "ufs_mount.c", "    bdev_mount_take_lock(mp, device_inode);", "",
+        "ufs_mount.c",
+        "    bdev_mount_take_lock(mp, device_inode);",
+        "",
     ),
     "device-node-reference-leaked": (
-        "ufs_mount.c", "    bdev_mount_take_lock(mp, device_inode);\n    irele(device_inode);",
+        "ufs_mount.c",
+        "    bdev_mount_take_lock(mp, device_inode);\n    irele(device_inode);",
         "    bdev_mount_take_lock(mp, device_inode);\n"
         "    device_inode->i_count++;\n    irele(device_inode);",
     ),
     "device-unmount-close-error-hidden": (
-        "ufs_mount.c", "    error = close_error;",
+        "ufs_mount.c",
+        "    error = close_error;",
         "    (void)close_error;\n    error = 0;",
     ),
     "scheduler-budget-failure-hidden": (
-        "ufs_disk_schedule.c", "    return budget_exhausted;", "    return 0;",
+        "ufs_disk_schedule.c",
+        "    return budget_exhausted;",
+        "    return 0;",
     ),
     # sys/kern/ufs_mount.c
     "close-always": (
@@ -186,8 +196,7 @@ MUTATIONS = {
         "        if (iflush(dev) == 0)\n"
         "            dev_driver_close(dev,\n"
         "                ronly? FREAD : FREAD|FWRITE, S_IFBLK);",
-        "        dev_driver_close(dev,\n"
-        "            ronly? FREAD : FREAD|FWRITE, S_IFBLK);",
+        "        dev_driver_close(dev,\n            ronly? FREAD : FREAD|FWRITE, S_IFBLK);",
     ),
     "gone-ignored": (
         "ufs_mount.c",
@@ -262,8 +271,7 @@ MUTATIONS = {
         "sys_inode.c",
         "    if (!error && uio->uio_rw == UIO_WRITE && (ioflag & IO_SYNC) &&\n"
         "        type == IFBLK)\n",
-        "    if (!error && uio->uio_rw == UIO_WRITE &&\n"
-        "        type == IFBLK)\n",
+        "    if (!error && uio->uio_rw == UIO_WRITE &&\n        type == IFBLK)\n",
     ),
     # sys/kern/ufs_fio.c
     "exact-compare": (

@@ -108,7 +108,6 @@ int col;
 char    *globp;
 int tfile   = -1;
 int tline;
-char    *tfname;
 char    *loc1;
 char    *loc2;
 char    *locs;
@@ -140,7 +139,6 @@ quit (sig)
         fchange = 0;
         error(Q);
     }
-    unlink(tfname);
     exit(0);
 }
 
@@ -214,11 +212,19 @@ char **argv;
         putstr ("ed: out of memory");
         exit(-1);
     }
-    tfname = mktemp("/tmp/eXXXXX");
-    if (! tfname) {
-        putstr ("ed: cannot create /tmp/file");
-        exit(-1);
+    {
+        char tfname[] = "/tmp/eXXXXXX";
+
+        tfile = mkstemp(tfname);
+        if (tfile < 0 || unlink(tfname) < 0) {
+            if (tfile >= 0)
+                close(tfile);
+            putstr ("ed: cannot create /tmp/file");
+            exit(-1);
+        }
     }
+    if (setjmp(savej) != 0)
+        exit(-1);
     init();
     if (((int)oldintr&01) == 0)
         signal(SIGINT, onintr);
@@ -995,7 +1001,6 @@ init()
 {
     register int *markp;
 
-    close(tfile);
     tline = 2;
     for (markp = names; markp < &names[26]; )
         *markp++ = 0;
@@ -1004,8 +1009,8 @@ init()
     iblock = -1;
     oblock = -1;
     ichanged = 0;
-    close(creat(tfname, 0600));
-    tfile = open(tfname, 2);
+    if (ftruncate(tfile, 0) < 0 || lseek(tfile, 0L, SEEK_SET) < 0)
+        error(T);
     dot = dol = zero;
 }
 

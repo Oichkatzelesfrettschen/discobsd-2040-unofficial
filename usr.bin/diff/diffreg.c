@@ -290,8 +290,8 @@ copytemp()
 	signal(SIGINT, done);
 	signal(SIGPIPE, done);
 	signal(SIGTERM, done);
-	tempfile = mktemp("/tmp/dXXXXX");
-	f = creat(tempfile, 0600);
+	tempfile = savestr("/tmp/dXXXXXX");
+	f = mkstemp(tempfile);
 	if (f < 0) {
 		fprintf(stderr, "diff: ");
 		perror(tempfile);

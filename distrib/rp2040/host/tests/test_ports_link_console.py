@@ -101,7 +101,9 @@ def test_term_cli_list_and_probe(capsys, monkeypatch):
 
 @pytest.fixture
 def redirect():
-    httpd = link.RedirectServer(("127.0.0.1", 0), "http://10.0.0.5:7681/?token=abc")
+    httpd = link.RedirectServer(
+        ("127.0.0.1", 0), "http://10.0.0.5:7681/?token=abc", "abc"
+    )
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
     try:
@@ -118,10 +120,17 @@ def test_link_redirects_to_the_console(redirect):
 
     opener = urllib.request.build_opener(NoRedirect)
     with pytest.raises(urllib.error.HTTPError) as err:
-        opener.open("http://127.0.0.1:%d/anything" % redirect.server_address[1])
+        opener.open("http://127.0.0.1:%d/anything?token=abc" % redirect.server_address[1])
     assert err.value.code == 302
     assert err.value.headers["Location"] == "http://10.0.0.5:7681/?token=abc"
     assert err.value.headers["Cache-Control"] == "no-store"
+
+
+def test_link_refuses_to_disclose_the_target_without_its_token(redirect):
+    with pytest.raises(urllib.error.HTTPError) as err:
+        urllib.request.urlopen("http://127.0.0.1:%d/" % redirect.server_address[1])
+    assert err.value.code == 401
+    assert "Location" not in err.value.headers
 
 
 def test_link_requires_target(capsys):
@@ -143,8 +152,9 @@ def test_link_host_builds_the_tokenized_target(monkeypatch):
     captured = {}
 
     class FakeServer:
-        def __init__(self, address, target):
+        def __init__(self, address, target, token):
             captured["target"] = target
+            captured["token"] = token
 
         def serve_forever(self):
             raise KeyboardInterrupt()
@@ -155,11 +165,14 @@ def test_link_host_builds_the_tokenized_target(monkeypatch):
     monkeypatch.setattr(link, "RedirectServer", FakeServer)
     assert link.main(["--host", "http://10.0.0.5:7681/"]) == 0
     assert captured["target"] == "http://10.0.0.5:7681/?token=abc"
+    assert captured["token"] == "abc"
 
 
 def test_link_to_with_embedded_token_is_deprecated_but_still_works(capsys, monkeypatch):
+    monkeypatch.setenv(ports.TOKEN_ENV, "abc")
+
     class FakeServer:
-        def __init__(self, address, target):
+        def __init__(self, address, target, token):
             pass
 
         def serve_forever(self):
@@ -185,6 +198,16 @@ def test_config_dir_per_platform(tmp_path):
     assert win == tmp_path / "Roaming" / "gizmobsd"
 
 
+def test_nondefault_xdg_config_uses_detached_services(tmp_path):
+    assert console.systemd_config_matches({}, tmp_path)
+    assert console.systemd_config_matches(
+        {"XDG_CONFIG_HOME": str(tmp_path / ".config")}, tmp_path
+    )
+    assert not console.systemd_config_matches(
+        {"XDG_CONFIG_HOME": str(tmp_path / "configuration")}, tmp_path
+    )
+
+
 def test_env_file_round_trip_is_private(tmp_path):
     path = tmp_path / "gizmobsd" / "web.env"
     console.write_env(path, {"GIZMOBSD_WEB_TOKEN": "abc", "GIZMOBSD_HOST_IP": "10.0.0.5"})
@@ -194,14 +217,15 @@ def test_env_file_round_trip_is_private(tmp_path):
 
     if sys.platform != "win32":
         assert oct(os.stat(path).st_mode & 0o777) == "0o600"
+        assert oct(os.stat(path.parent).st_mode & 0o777) == "0o700"
     assert console.read_env(tmp_path / "missing") == {}
 
 
 def test_urls_carry_token_and_short_link():
     out = console.urls("10.0.0.5", "abc", 7681, 42069)
-    assert out["short"] == "http://10.0.0.5:42069/"
+    assert out["short"] == "http://10.0.0.5:42069/?token=abc"
     assert out["full"] == "http://10.0.0.5:7681/?token=abc"
-    assert out["mdns"].endswith(".local:42069/")
+    assert out["mdns"].endswith(".local:42069/?token=abc")
 
 
 def test_console_cli_requires_a_command():

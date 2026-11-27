@@ -19,6 +19,43 @@ typedef char    bool;
 
 bool    Debug;
 
+static bool
+append_char(char **dst, char *end, int c)
+{
+    if (*dst + 1 >= end)
+        return FALSE;
+    *(*dst)++ = (char)c;
+    **dst = '\0';
+    return TRUE;
+}
+
+static bool
+append_text(char **dst, char *end, const char *text)
+{
+    while (*text != '\0')
+        if (!append_char(dst, end, (unsigned char)*text++))
+            return FALSE;
+    return TRUE;
+}
+
+/* Append one shell word, including the single-quote escape sequence. */
+static bool
+append_quoted(char **dst, char *end, const char *text, size_t length)
+{
+    size_t i;
+
+    if (!append_char(dst, end, '\''))
+        return FALSE;
+    for (i = 0; i < length; i++) {
+        if (text[i] == '\'') {
+            if (!append_text(dst, end, "'\\''"))
+                return FALSE;
+        } else if (!append_char(dst, end, (unsigned char)text[i]))
+            return FALSE;
+    }
+    return append_char(dst, end, '\'');
+}
+
 int
 main(argc, argv)
     int argc;
@@ -31,8 +68,10 @@ main(argc, argv)
     char sys[512];      /* a system in path */
     char junk[1024];    /* scratchpad */
     char cmd[2000];
+    char *cmdp;
     register char *cp;
     register char *uf = ufrom;  /* ptr into ufrom */
+    size_t fromlen;
     int i;
 
 #ifdef DEBUG
@@ -49,15 +88,22 @@ main(argc, argv)
         exit(EX_USAGE);
     }
 
-    (void) strcpy(from, "");
+    from[0] = '\0';
+    fromlen = 0;
     (void) strcpy(ufrom, "/dev/null");
 
     for (;;)
     {
-        (void) fgets(lbuf, sizeof lbuf, stdin);
+        if (fgets(lbuf, sizeof lbuf, stdin) == NULL) {
+            lbuf[0] = '\0';
+            break;
+        }
         if (strncmp(lbuf, "From ", 5) != 0 && strncmp(lbuf, ">From ", 6) != 0)
             break;
-        (void) sscanf(lbuf, "%s %s", junk, ufrom);
+        if (sscanf(lbuf, "%1023s %511s", junk, ufrom) != 2) {
+            fprintf(stderr, "rmail: malformed From line\n");
+            exit(EX_DATAERR);
+        }
         cp = lbuf;
         for (;;)
         {
@@ -83,32 +129,67 @@ main(argc, argv)
                 break;
         }
         if (cp != NULL)
-            (void) sscanf(cp, "remote from %s", sys);
-        (void) strcat(from, sys);
-        (void) strcat(from, "!");
+            if (sscanf(cp, "remote from %511s", sys) != 1) {
+                fprintf(stderr, "rmail: malformed remote system\n");
+                exit(EX_DATAERR);
+            }
+        if (strlen(sys) + 1 >= sizeof(from) - fromlen) {
+            fprintf(stderr, "rmail: sender path too long\n");
+            exit(EX_DATAERR);
+        }
+        (void) strcpy(from + fromlen, sys);
+        fromlen += strlen(sys);
+        from[fromlen++] = '!';
+        from[fromlen] = '\0';
 #ifdef DEBUG
         if (Debug)
             printf("ufrom='%s', sys='%s', from now '%s'\n", uf, sys, from);
 #endif
     }
-    (void) strcat(from, uf);
+    if (strlen(uf) >= sizeof(from) - fromlen) {
+        fprintf(stderr, "rmail: sender path too long\n");
+        exit(EX_DATAERR);
+    }
+    (void) strcpy(from + fromlen, uf);
 
-    (void) sprintf(cmd, "%s -ee -f%s -i", _PATH_SENDMAIL, from);
+    cmd[0] = '\0';
+    cmdp = cmd;
+    if (!append_text(&cmdp, cmd + sizeof(cmd), _PATH_SENDMAIL " -ee -f") ||
+        !append_quoted(&cmdp, cmd + sizeof(cmd), from, strlen(from)) ||
+        !append_text(&cmdp, cmd + sizeof(cmd), " -i")) {
+        fprintf(stderr, "rmail: command too long\n");
+        exit(EX_DATAERR);
+    }
     while (*++argv != NULL)
     {
-        (void) strcat(cmd, " '");
-        if (**argv == '(')
-            (void) strncat(cmd, *argv + 1, strlen(*argv) - 2);
-        else
-            (void) strcat(cmd, *argv);
-        (void) strcat(cmd, "'");
+        const char *recipient = *argv;
+        size_t length = strlen(recipient);
+
+        if (length >= 2 && recipient[0] == '(' && recipient[length - 1] == ')') {
+            recipient++;
+            length -= 2;
+        }
+        if (length == 0 || recipient[0] == '-') {
+            fprintf(stderr, "rmail: invalid recipient\n");
+            exit(EX_USAGE);
+        }
+        if (!append_char(&cmdp, cmd + sizeof(cmd), ' ') ||
+            !append_quoted(&cmdp, cmd + sizeof(cmd), recipient, length)) {
+            fprintf(stderr, "rmail: command too long\n");
+            exit(EX_DATAERR);
+        }
     }
 #ifdef DEBUG
     if (Debug)
         printf("cmd='%s'\n", cmd);
 #endif
     out = popen(cmd, "w");
-    fputs(lbuf, out);
+    if (out == NULL) {
+        perror("rmail: popen");
+        exit(EX_OSERR);
+    }
+    if (lbuf[0] != '\0')
+        fputs(lbuf, out);
     while (fgets(lbuf, sizeof lbuf, stdin))
         fputs(lbuf, out);
     i = pclose(out);

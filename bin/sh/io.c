@@ -6,6 +6,7 @@
 #include "defs.h"
 #include "dup.h"
 #include "sym.h"
+#include <errno.h>
 #include <sys/fcntl.h>
 #include <sys/param.h>
 
@@ -149,9 +150,14 @@ tmpfil(struct tempblk *tb)
 {
 	int fd;
 
-	itos(serial++);
-	movstr(numbuf, sh_tmpnam);
-	fd = create(tmpout);
+	do
+	{
+		itos(serial++);
+		movstr(numbuf, sh_tmpnam);
+		fd = open(tmpout, O_CREAT | O_EXCL | O_RDWR, 0600);
+	} while (fd < 0 && errno == EEXIST);
+	if (fd < 0)
+		failed(tmpout, badcreate);
 	pushtemp(fd,tb);
 	return(fd);
 }
@@ -280,12 +286,19 @@ link_iodocs(struct ionod *i)
 {
 	while(i)
 	{
+		int linked;
+
 		free(i->iolink);
 
-		itos(serial++);
-		movstr(numbuf, sh_tmpnam);
+		do
+		{
+			itos(serial++);
+			movstr(numbuf, sh_tmpnam);
+			linked = link(i->ioname, tmpout);
+		} while (linked < 0 && errno == EEXIST);
+		if (linked < 0)
+			failed(tmpout, badcreate);
 		i->iolink = make(tmpout);
-		link(i->ioname, i->iolink);
 
 		i = i->iolst;
 	}

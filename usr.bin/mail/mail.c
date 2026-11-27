@@ -444,6 +444,10 @@ char **argv;
         fprintf(stderr, "puke\n");
         return;
     }
+    if (argc >= (int)(sizeof(newargv) / sizeof(newargv[0]))) {
+        fprintf(stderr, "mail: too many recipients\n");
+        exit(EX_USAGE);
+    }
     for (vp = argv, ap = newargv + 1; (*ap = *vp++) != 0; ap++)
         if (ap[0][0] == '-' && ap[0][1] == 'd')
             dflag++;
@@ -557,9 +561,14 @@ char *name;
     register int pid;
     int sts;
 
-    for (p=rsys; *name!='!'; *p++ = *name++)
+    for (p=rsys; *name!='!'; *p++ = *name++) {
         if (*name=='\0')
             return(0);  /* local address, no '!' */
+        if (p == rsys + sizeof(rsys) - 1) {
+            fprintf(stderr, "mail: remote system name too long\n");
+            return(0);
+        }
+    }
     *p = '\0';
     if (name[1]=='\0') {
         printf("null name\n");

@@ -516,6 +516,7 @@ PTRACE_HEADER_DEPS=	${TOPSRC}/sys/sys/param.h \
 			${PORT_INCLUDE}/frame.h ${USER_CONTEXT_HEADER}
 PTRACE_MUTANTS=		negative-trace short-read partial-read-publication \
 			misaligned-u-offset u-upper-endpoint arbitrary-u-write \
+			kernel-u-read \
 			pc-misalignment sp-misalignment psr-control-overwrite \
 			continue-early-pc signal-upper-endpoint step-fallthrough \
 			kill-direct-exit text-write-unmarked text-end-inclusive \
@@ -651,9 +652,10 @@ check-ptrace-mutants: \
 		negative-trace) expected='(parent.p_flag & P_TRACED) == 0' ;; \
 		short-read) expected='ipc.ip_data == 0x12345678' ;; \
 		partial-read-publication) expected='ipc.ip_data == 0x55667788' ;; \
-		misaligned-u-offset) expected='ipc.ip_req == -1' ;; \
+		misaligned-u-offset) expected='ptrace_user_word_offset_valid(1) == 0' ;; \
 		u-upper-endpoint) expected='ptrace_user_word_offset_valid(USIZE) == 0' ;; \
 		arbitrary-u-write) expected='u.u_uid == 17' ;; \
+		kernel-u-read) expected='ipc.ip_req == -1' ;; \
 		pc-misalignment) expected='ipc.ip_req == -1' ;; \
 		sp-misalignment) expected='ipc.ip_req == -1' ;; \
 		psr-control-overwrite) expected='frame->tf_psr == UINT32_C(0xa100023f)' ;; \
@@ -1864,18 +1866,30 @@ readlink_test: readlink_test.c readlink_functions.c hostkern32.o ${MACHINE_STAMP
 	    -o $@ readlink_test.c readlink_kernel.o hostkern32.o
 
 check-readlink-mutant: readlink_test readlink_extract.py
-	${PYTHON} readlink_extract.py ${OPENAT_SYSCALL_SRC} readlink.mutant.c --mutant
-	${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
-	    -Dreadlink=kernel_readlink -Dnamei=readlink_namei -Diput=readlink_iput \
-	    -c -o readlink.mutant.o readlink.mutant.c
-	${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} ${OPENAT_LDFLAGS} \
-	    -o readlink.mutant.test readlink_test.c readlink.mutant.o hostkern32.o
-	@if ./readlink.mutant.test >readlink.mutant.out 2>&1; then \
-		echo 'FAIL readlink mutant accepted' >&2; exit 1; \
-	else status=$$?; fi; \
-	if [ "$$status" -ne 1 ] || ! grep -F 'u.u_rval == 123' readlink.mutant.out >/dev/null; then \
-		cat readlink.mutant.out >&2; exit 1; \
-	fi; echo 'PASS readlink invalid-type mutant rejected'
+	@set -eu; for mutation in type-result span-check; do \
+		${PYTHON} readlink_extract.py ${OPENAT_SYSCALL_SRC} \
+		    readlink.$$mutation.mutant.c --mutant $$mutation; \
+		${HOST_CC} ${KERN_CFLAGS} ${OPENAT_CFLAGS} ${ILP32} \
+		    -Dreadlink=kernel_readlink -Dnamei=readlink_namei \
+		    -Diput=readlink_iput -c -o readlink.$$mutation.mutant.o \
+		    readlink.$$mutation.mutant.c; \
+		${HOST_CC} ${GATE_CFLAGS} ${OPENAT_DEFS} ${ILP32} \
+		    ${OPENAT_LDFLAGS} -o readlink.$$mutation.mutant.test \
+		    readlink_test.c readlink.$$mutation.mutant.o hostkern32.o; \
+		if ./readlink.$$mutation.mutant.test \
+		    >readlink.$$mutation.mutant.out 2>&1; then status=0; \
+		else status=$$?; fi; \
+		case $$mutation in \
+		    type-result) expected='u.u_rval == 123' ;; \
+		    span-check) expected='io_calls == 0' ;; \
+		esac; \
+		if [ "$$status" -ne 1 ] || \
+		    ! grep -F "$$expected" readlink.$$mutation.mutant.out >/dev/null; then \
+			cat readlink.$$mutation.mutant.out >&2; \
+			echo "FAIL readlink $$mutation mutant accepted" >&2; exit 1; \
+		fi; \
+		echo "PASS readlink $$mutation mutant rejected"; \
+	done
 
 check-prf-log-mutant: prf_log_test prf_mutate.py
 	${PYTHON} prf_mutate.py ${PRF_SRC} prf_log.mutant.c
@@ -3048,6 +3062,7 @@ USB_CONSOLE_OBJS=	usb_console_tty.o usb_console_clist.o \
 USB_CONSOLE_MUTANTS=	recover-kick configure-kick configure-no-requeue setif-kick skip-controller-reset \
 			owake-before-drain halt-wait-open halt-wait-sticks \
 			pollc-late tx-peak-missing tx-drop-missing tx-drop-wraps tx-peak-wraps
+USB_CONSOLE_TTY_MUTANT=	pgrp-first-match
 
 ${USB_CONSOLE_DRIVER}: usb_console_extract.py ${USB_CONSOLE_SRC}
 	${PYTHON} usb_console_extract.py --source ${USB_CONSOLE_SRC} --output $@
@@ -3084,10 +3099,28 @@ usb_console_${mutation}.mutant.test: usb_console_test.c \
 	    ${USB_CONSOLE_OBJS}
 .endfor
 
+usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.c: usb_console_mutate.py \
+    ${TTY_SRC}
+	${PYTHON} usb_console_mutate.py --source ${TTY_SRC} --output $@ \
+	    --mutation ${USB_CONSOLE_TTY_MUTANT}
+
+usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.o: \
+    usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.c ${MACHINE_STAMP}
+	${HOST_CC} ${USB_CONSOLE_KERN} -c -o $@ \
+	    usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.c
+
+usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.test: usb_console_test.o \
+    usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.o \
+    ${USB_CONSOLE_OBJS:Nusb_console_tty.o}
+	${HOST_CC} ${ILP32} -o $@ usb_console_test.o \
+	    usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.o \
+	    ${USB_CONSOLE_OBJS:Nusb_console_tty.o}
+
 check-usb-console:
 .if ${ILP32_OK} == "yes"
 check-usb-console: usb_console_test \
-    ${USB_CONSOLE_MUTANTS:@mutation@usb_console_${mutation}.mutant.test@}
+    ${USB_CONSOLE_MUTANTS:@mutation@usb_console_${mutation}.mutant.test@} \
+    usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.test
 	./usb_console_test
 	@set -eu; for mutation in ${USB_CONSOLE_MUTANTS}; do \
 		if ./usb_console_$$mutation.mutant.test \
@@ -3116,6 +3149,17 @@ check-usb-console: usb_console_test \
 		fi; \
 		echo "PASS usb console $$mutation mutation rejected"; \
 	done
+	@set -eu; output=usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.out; \
+	if ./usb_console_tty_${USB_CONSOLE_TTY_MUTANT}.mutant.test \
+	    >$$output 2>&1; then status=0; else status=$$?; fi; \
+	if [ "$$status" -ne 1 ] || \
+	    ! grep -F 'FAIL leaderless process group authorization' \
+	    $$output >/dev/null; then \
+		cat $$output >&2; \
+		echo "FAIL usb console ${USB_CONSOLE_TTY_MUTANT} mutation rejection" >&2; \
+		exit 1; \
+	fi; \
+	echo "PASS usb console ${USB_CONSOLE_TTY_MUTANT} mutation rejected"
 .else
 	@echo "SKIP check-usb-console: ${HOST_CC} cannot compile and execute ILP32 binaries"
 .endif
@@ -3636,7 +3680,7 @@ check-exec-clear-mutants: \
 
 # The RLIMIT_STACK call site of sendsig() in sig_machdep.c, extracted with
 # rlimit_stack_admits(), driven just inside and just past the limit.
-SENDSIG_STACK_MUTANTS=	limit-unchecked base-swapped
+SENDSIG_STACK_MUTANTS=	limit-unchecked base-swapped frame-span-unchecked
 
 sendsig_stack_limit_functions.c: sendsig_stack_limit_extract.py \
     sigreturn_context_extract.py swap_ioctl_extract.py ${SIGRETURN_SRC} \
@@ -3679,6 +3723,7 @@ check-sendsig-stack-limit-mutants: \
 		case $$mutation in \
 		limit-unchecked) expected='a frame past the limit ends the process' ;; \
 		base-swapped) expected='a frame at the limit is delivered' ;; \
+		frame-span-unchecked) expected='an invalid alternate-stack frame ends the process' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "FAIL $$expected" $$output >/dev/null; then \
@@ -3987,7 +4032,9 @@ clean:
 	    cred_proc_sanitized.o hostkern_sanitized.o
 	rm -f resource_kernel.o resource_proc.o
 	rm -f prf_kernel.o prf_shim.o prf_log_kernel.o prf_log_shim.o hostkern32.o prf_test prf_log_test prf_log.mutant.c prf_log.mutant.o prf_log.mutant.test prf_log.mutant.out
-	rm -f readlink_kernel.o readlink_test readlink_functions.c readlink.mutant.c readlink.mutant.o readlink.mutant.test readlink.mutant.out
+	rm -f readlink_kernel.o readlink_test readlink_functions.c \
+	    readlink.*.mutant.c readlink.*.mutant.o \
+	    readlink.*.mutant.test readlink.*.mutant.out
 	rm -f sigauth_sig.o sigauth_prot2.o sigauth_proc.o sigauth_shim.o sigauth_test
 	rm -f rwuio_kernel.o rwuio_kernel32.o rwuio_shim32.o rwuio_test32
 	rm -f rwuio_jump.o rwuio_jump32.o
@@ -4274,7 +4321,8 @@ swap_exchange_inplace_vm_swap.o: ${TOPSRC}/sys/kern/vm_swap.c ${MACHINE_STAMP}
 SWAP_EXCHANGE_INPLACE_MUTANTS= skip-sector-erase \
 	write-u-after-reading-incoming allocate-tail-after-first-write \
 	ignore-program-fault copy-buffer-before-program \
-	refuse-owned-tail load-data-over-clean-text tail-ignores-ring-end
+	refuse-owned-tail load-data-over-clean-text tail-ignores-ring-end \
+	omit-window-gap-clear
 
 .for mutation in ${SWAP_EXCHANGE_INPLACE_MUTANTS}
 swap_exchange_inplace_${mutation}.mutant.c: swap_exchange_inplace_mutate.py \
@@ -4331,6 +4379,7 @@ check-swap-exchange-inplace: swap_exchange_inplace_test \
 		refuse-owned-tail) expected='panic_reservation.addr[0] == run' ;; \
 		load-data-over-clean-text) expected='expected_in_data' ;; \
 		tail-ignores-ring-end) expected='K60' ;; \
+		omit-window-gap-clear) expected='zero_bytes' ;; \
 		esac; \
 		if [ "$$status" -ne 1 ] || \
 		    ! grep -F "$$expected" $$output >/dev/null; then \

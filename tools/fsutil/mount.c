@@ -810,14 +810,26 @@ int op_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset
 
     /* Copy the entire directory into the buffer. */
     for (offset = 0; offset < dir.size; offset += dirent.reclen) {
+        size_t namesize;
+
         if (! fs_inode_read (&dir, offset, (unsigned char*) &dirent, sizeof(dirent))) {
             printlog("--- read error at offset %ld\n", offset);
+            return -EIO;
+        }
+        namesize = ((size_t)dirent.namlen + 4U) & ~3U;
+        if (dirent.reclen < sizeof(dirent) ||
+            (dirent.reclen & 3U) != 0 ||
+            dirent.reclen > dir.size - offset ||
+            dirent.reclen > BSDFS_BSIZE - offset % BSDFS_BSIZE ||
+            dirent.namlen >= sizeof(name) ||
+            namesize > dirent.reclen - sizeof(dirent)) {
+            printlog("--- invalid directory record at offset %ld\n", offset);
             return -EIO;
         }
         //printlog("--- readdir offset %lu: inum=%u, reclen=%u, namlen=%u\n", offset, dirent.inum, dirent.reclen, dirent.namlen);
 
         if (! fs_inode_read (&dir, offset+sizeof(dirent),
-            (unsigned char*)name, (dirent.namlen + 4) / 4 * 4))
+            (unsigned char*)name, namesize))
         {
             printlog("--- name read error at offset %ld\n", offset);
             return -EIO;

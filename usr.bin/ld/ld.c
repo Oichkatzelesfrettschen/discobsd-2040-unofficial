@@ -154,7 +154,6 @@ char	*ofilename = "l.out";
 char	*filname;
 int	errlev;
 int	delarg	= 4;
-char    tfname [] = "/tmp/ldaXXXXXX";
 
 #define ALIGN(x,y)     ((x)+(y)-1-((x)+(y)-1)%(y))
 
@@ -607,13 +606,11 @@ tregion(FILE **buf, unsigned long at)
 void
 tcreat(FILE **buf, int tempflg)
 {
-	*buf = fopen (tempflg ? tfname : ofilename, "w+");
+	*buf = tempflg ? tmpfile () : fopen (ofilename, "w+");
 	if (! *buf)
 		error (2, tempflg ?
 			"cannot create temporary file" :
 			"cannot create output file");
-	if (tempflg)
-                unlink (tfname);
 }
 
 int
@@ -1631,12 +1628,6 @@ setupout(void)
 	tregion (&toutb, HDRSZ);
 	tregion (&doutb, HDRSZ + (unsigned long) tsize);
 	if (output_relinfo) {
-		int fd = mkstemp (tfname);
-
-		if (fd == -1)
-			error (2, "internal error: unable to create temporary file %s", tfname);
-		else
-			close (fd);
 		tcreat (&soutb, 1);
 		tcreat (&troutb, 1);
 		tcreat (&droutb, 1);

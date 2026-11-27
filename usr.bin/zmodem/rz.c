@@ -153,6 +153,34 @@ unsigned Effbaud = 2400;
 char *substr();
 FILE *fout;
 
+/* Keep a peer-supplied filename as one word in explicit rzCOMMAND mode. */
+static int
+pipe_command(char *dst, size_t size, const char *program, const char *name)
+{
+	size_t used, length;
+	int written;
+
+	written = snprintf(dst, size, "%s '", program);
+	if (written < 0 || (size_t)written >= size)
+		return ERROR;
+	used = (size_t)written;
+	while (*name != '\0') {
+		const char *part = *name == '\'' ? "'\\''" : name;
+
+		length = *name == '\'' ? 4 : 1;
+		if (length >= size - used)
+			return ERROR;
+		memcpy(dst + used, part, length);
+		used += length;
+		name++;
+	}
+	if (used + 2 > size)
+		return ERROR;
+	dst[used++] = '\'';
+	dst[used] = '\0';
+	return OK;
+}
+
 /*
  * Routine to calculate the free bytes on the current file system
  *  ~0 means many free bytes (unknown)
@@ -782,14 +810,16 @@ char *name;
 	  && !(Filemode&UNIXFILE))
 		uncaps(name);
 	if (Topipe > 0) {
-		sprintf(Pathname, "%s %s", Progname+2, name);
+		if (pipe_command(Pathname, sizeof(Pathname), Progname+2, name) != OK)
+			return ERROR;
 		if (Verbose)
 			fprintf(stderr,  "Topipe: %s %s\n",
 			  Pathname, Thisbinary?"BIN":"ASCII");
 		if ((fout=popen(Pathname, "w")) == NULL)
 			return ERROR;
 	} else {
-		strcpy(Pathname, name);
+		if (strlcpy(Pathname, name, sizeof(Pathname)) >= sizeof(Pathname))
+			return ERROR;
 		if (Verbose) {
 			fprintf(stderr,  "Receiving %s %s %s\n",
 			  name, Thisbinary?"BIN":"ASCII", openmode);
@@ -797,12 +827,8 @@ char *name;
 		checkpath(name);
 		if (Nflag)
 			name = "/dev/null";
-		if (name[0] == '!' || name[0] == '|') {
-			if ( !(fout = popen(name+1, "w"))) {
-				return ERROR;
-			}
-			Topipe = -1;  return(OK);
-		}
+		if (name[0] == '!' || name[0] == '|')
+			return ERROR;
 #ifdef MD
 		fout = fopen(name, openmode);
 		if ( !fout)
@@ -1106,7 +1132,6 @@ char *name;
 tryz()
 {
 	register c, n;
-	register cmdzack1flg;
 
 	if (Nozmodem)		/* Check for "rb" program name */
 		return 0;
@@ -1169,23 +1194,9 @@ again:
 			zshhdr(4,ZACK, Txhdr);
 			goto again;
 		case ZCOMMAND:
-			cmdzack1flg = Rxhdr[ZF0];
-			if (zrdata(secbuf, 1024) == GOTCRCW) {
-				if (cmdzack1flg & ZCACK1)
-					stohdr(0L);
-				else
-					stohdr((long)sys2(secbuf));
-				purgeline();	/* dump impatient questions */
-				do {
-					zshhdr(4,ZCOMPL, Txhdr);
-				}
-				while (++errors<20 && zgethdr(Rxhdr,1) != ZFIN);
-				ackbibi();
-				if (cmdzack1flg & ZCACK1)
-					exec2(secbuf);
-				return ZCOMPL;
-			}
-			zshhdr(4,ZNAK, Txhdr); goto again;
+			(void)zrdata(secbuf, 1024);
+			zshhdr(4,ZNAK, Txhdr);
+			goto again;
 		case ZCOMPL:
 			goto again;
 		default:
@@ -1498,25 +1509,4 @@ bttyout(c)
 		putc(c, stderr);
 }
 
-/*
- * Strip leading ! if present, do shell escape.
- */
-sys2(s)
-register char *s;
-{
-	if (*s == '!')
-		++s;
-	return system(s);
-}
-/*
- * Strip leading ! if present, do exec.
- */
-exec2(s)
-register char *s;
-{
-	if (*s == '!')
-		++s;
-	mode(0);
-	execl("/bin/sh", "sh", "-c", s);
-}
 /* End of rz.c */

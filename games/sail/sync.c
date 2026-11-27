@@ -9,6 +9,7 @@
 #include <sys/errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 #define BUFSIZE 4096
 
@@ -20,6 +21,68 @@ static long sync_seek;
 static FILE *sync_fp;
 #define SF "/tmp/#sailsink.%d"
 #define LF "/tmp/#saillock.%d"
+
+static int
+sync_record_valid(int type, int isstr, int a, int b, int c, int d)
+{
+	int string_record;
+
+	(void)d;
+	string_record = type == W_CAPTAIN || type == W_MOVE || type == W_SIGNAL;
+	if (isstr != string_record)
+		return 0;
+	switch (type) {
+	case W_DBP:
+	case W_OBP:
+		return a >= 0 && a < NBP && c >= 0 && c < cc->vessels;
+	case W_FOUL:
+	case W_GRAP:
+	case W_UNFOUL:
+	case W_UNGRAP:
+		return a >= 0 && a < cc->vessels;
+	case W_CAPTURED:
+		return a < 0 || a < cc->vessels;
+	case W_CLASS:
+		return a >= 1 && a <= 6;
+	case W_QUAL:
+		return a >= 1 && a <= 5;
+	case W_DIR:
+		return a >= 0 && a <= 8;
+	case W_WIND:
+		return a >= 0 && a <= 8 && b >= 0 && b <= 6;
+	case W_GUNL:
+	case W_GUNR:
+		return a >= 0 && a <= 127 && b >= 0 && b <= 127;
+	case W_CAPTAIN:
+	case W_MOVE:
+	case W_SIGNAL:
+	case W_CREW:
+	case W_DRIFT:
+	case W_EXPLODE:
+	case W_FS:
+	case W_HULL:
+	case W_PCREW:
+	case W_POINTS:
+	case W_RIGG:
+	case W_RIG1:
+	case W_RIG2:
+	case W_RIG3:
+	case W_RIG4:
+	case W_COL:
+	case W_ROW:
+	case W_SINK:
+	case W_STRUCK:
+	case W_TA:
+	case W_ALIVE:
+	case W_TURN:
+	case W_BEGIN:
+	case W_END:
+	case W_DDEAD:
+		return 1;
+	default:
+		return 0;
+	}
+}
 
 /*VARARGS3*/
 void
@@ -64,18 +127,33 @@ sync_exists(game)
 int
 sync_open()
 {
+	int fd, omask;
+	struct stat status;
+
 	if (sync_fp != NULL)
 		(void) fclose(sync_fp);
 	(void) sprintf(sync_lock, LF, game);
 	(void) sprintf(sync_file, SF, game);
-	if (access(sync_file, 0) < 0) {
-		int omask = umask(issetuid ? 077 : 011);
-		sync_fp = fopen(sync_file, "w+");
-		(void) umask(omask);
-	} else
-		sync_fp = fopen(sync_file, "r+");
-	if (sync_fp == NULL)
+	omask = umask(issetuid ? 077 : 011);
+	fd = open(sync_file, O_CREAT | O_EXCL | O_RDWR | O_NOFOLLOW, 0666);
+	(void) umask(omask);
+	if (fd < 0 && errno == EEXIST)
+		fd = open(sync_file, O_RDWR | O_NOFOLLOW);
+	if (fd < 0)
 		return -1;
+	if (fstat(fd, &status) < 0 || !S_ISREG(status.st_mode)) {
+		(void) close(fd);
+		errno = EINVAL;
+		return -1;
+	}
+	sync_fp = fdopen(fd, "r+");
+	if (sync_fp == NULL) {
+		int error = errno;
+
+		(void) close(fd);
+		errno = error;
+		return -1;
+	}
 	sync_seek = 0;
 	return 0;
 }
@@ -341,7 +419,7 @@ Sync()
 		return -1;
 	(void) fseek(sync_fp, sync_seek, 0);
 	for (;;) {
-		switch (fscanf(sync_fp, "%d%d%d", &type, &shipnum, &isstr)) {
+		switch (fscanf(sync_fp, "%9d%9d%9d", &type, &shipnum, &isstr)) {
 		case 3:
 			break;
 		case EOF:
@@ -374,9 +452,10 @@ Sync()
 			a = (int)p;
 			b = c = d = 0;
 		} else
-			if (fscanf(sync_fp, "%d%d%d%d", &a, &b, &c, &d) != 4)
+			if (fscanf(sync_fp, "%9d%9d%9d%9d", &a, &b, &c, &d) != 4)
 				goto bad;
-		if (sync_update(type, SHIP(shipnum), a, b, c, d) < 0)
+		if (!sync_record_valid(type, isstr, a, b, c, d) ||
+		    sync_update(type, SHIP(shipnum), a, b, c, d) < 0)
 			goto bad;
 	}
 bad:

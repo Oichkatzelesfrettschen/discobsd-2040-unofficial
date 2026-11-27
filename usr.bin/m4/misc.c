@@ -150,18 +150,13 @@ int n;
 
 	if (active == outfile[n])
 		oops("%s: diversion still active.", "undivert");
-	(void) fclose(outfile[n]);
+	dfil = outfile[n];
 	outfile[n] = NULL;
-	m4temp[UNIQUE] = n + '0';
-	if ((dfil = fopen(m4temp, "r")) == NULL)
-		oops("%s: cannot undivert.", m4temp);
-	else
-		while ((c = getc(dfil)) != EOF)
-			putc(c, active);
+	(void) fflush(dfil);
+	rewind(dfil);
+	while ((c = getc(dfil)) != EOF)
+		putc(c, active);
 	(void) fclose(dfil);
-
-	if (unlink(m4temp) == -1)
-		oops("%s: cannot unlink.", m4temp);
 }
 
 void

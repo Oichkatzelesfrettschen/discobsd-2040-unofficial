@@ -52,54 +52,71 @@ dir /usr/libexec
 bdev /dev/sd0
 major 0             # Main SD card
 minor 0
+mode 0600
 bdev /dev/sd0a
 major 0
 minor 1
+mode 0600
 bdev /dev/sd0b
 major 0
 minor 2
+mode 0600
 bdev /dev/sd0c
 major 0
 minor 3
+mode 0600
 bdev /dev/sd0d
 major 0
 minor 4
+mode 0600
 bdev /dev/sd1
 major 0             # Second SD card
 minor 8
+mode 0600
 bdev /dev/sd1a
 major 0
 minor 9
+mode 0600
 bdev /dev/sd1b
 major 0
 minor 10
+mode 0600
 bdev /dev/sd1c
 major 0
 minor 11
+mode 0600
 bdev /dev/sd1d
 major 0
 minor 12
+mode 0600
 bdev /dev/rc0
 major 1             # Volatile disk - SRAM connected via CPLD (sramc)
 minor 0
+mode 0600
 bdev /dev/rc0a
 major 1
 minor 1
+mode 0600
 bdev /dev/rc0b
 major 1
 minor 2
+mode 0600
 bdev /dev/dr0
 major 2             # Volatile disk - SDRAM on external memory bus (sdramp)
 minor 0
+mode 0600
 bdev /dev/dr0a
 major 2
 minor 1
+mode 0600
 bdev /dev/dr0b
 major 2
 minor 2
+mode 0600
 bdev /dev/mr0
 major 3             # Volatile disk - MRAM on SPI port (mrams)
 minor 0
+mode 0600
 # /dev/swap, /dev/mem and /dev/kmem belong to group 2 (kmem) with mode
 # 0640; ps reads process records through sysctl(3), not these devices.
 bdev /dev/swap
@@ -110,15 +127,19 @@ group 2
 bdev /dev/swap0
 major 4
 minor 0
+mode 0600
 bdev /dev/swap1
 major 4
 minor 1
+mode 0600
 bdev /dev/swap2
 major 4
 minor 2
+mode 0600
 bdev /dev/sr0
 major 5             # Volatile disk - serial RAM on SPI port (spirams)
 minor 0
+mode 0600
 
 #
 # Character devices.
@@ -160,12 +181,15 @@ minor 2
 cdev /dev/temp0
 major 4
 minor 0
+mode 0600
 cdev /dev/temp1
 major 4
 minor 1
+mode 0600
 cdev /dev/temp2
 major 4
 minor 2
+mode 0600
 cdev /dev/klog
 major 5
 minor 0
@@ -424,11 +448,12 @@ file /etc/motd
 file /etc/passwd
 file /etc/phones
 file /etc/rc
-mode 0775
+mode 0755
 file /etc/rc.local
 mode 0775
 file /etc/remote
 file /etc/shadow
+mode 0600
 file /etc/shells
 file /etc/termcap
 mode 0444
@@ -631,7 +656,7 @@ target /usr/bin/w
 #
 file /sbin/chown
 file /usr/sbin/chroot
-mode 04755
+mode 0755
 file /usr/sbin/cron
 file /usr/sbin/disktool
 file /sbin/fdisk

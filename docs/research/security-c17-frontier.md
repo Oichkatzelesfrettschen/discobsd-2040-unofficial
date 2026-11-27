@@ -192,6 +192,9 @@ or runtime observations.
 | CVE-2025-53094 | ESPAsyncWebServer header writer absent from the shipped image | The NVD record names `src/AsyncWebHeader.cpp` and CR/LF injection into HTTP response headers. The RP2040 manifest contains no ESPAsyncWebServer source or asynchronous HTTP/WebSocket server; the separately packaged host console uses Python's `http.server`. | The shipped image gains that library or an equivalent attacker-controlled response-header construction path. |
 | CVE-1999-1471 | shipped mechanism absent; source review retained | The shipped `passwd` changes the password hash and has no shell or GECOS input. `chpass`, which owns those fields, stays outside the RP2040 manifest and already bounds its aggregate GECOS buffer. | Shipping `chpass`, or finding an unbounded shell/GECOS copy in a setuid image path, reopens the row. |
 | CVE-2000-0993 | helper absent | The affected BSD libutil `pw_error` format-string helper has no source or call site in the tree. | A linked object exports `pw_error`, or another password-database error path treats user data as a format string. |
+| CVE-2003-1056 and CVE-2006-6939 | named Solaris and GNU implementations unproven or absent; equivalent local weakness fixed | The records name Solaris `ed` and GNU ed before 0.3. This tree carries an older independent editor whose base source nevertheless passed a predictable `mktemp(3)` result to `creat(2)`. The repaired editor retains and immediately unlinks the `mkstemp(3)` descriptor. | A source-lineage comparison establishes that either named implementation supplied this editor, or a symbolic link can redirect its scratch creation. |
+| CVE-2010-0424 | named Vixie/cronie mechanism already absent | The local `crontab` creates `/tmp/crontab.PID` with `O_EXCL`, retains the descriptor across the editor, compares timestamps with `fstat(2)`, and installs from that stream. A pre-positioned symbolic link makes the exclusive open fail. | The edit path closes and reopens the temporary pathname, follows a link, or changes timestamps through the pathname. |
+| CVE-2005-3011 | implementation absent | The record names texinfo 4.8 `texindex` function `sort_offline`. This tree's shipped `sort` has neither texinfo nor that function; its equivalent predictable run-file namespace is repaired through a private mode-0700 directory. | `sort_offline` enters a selected image, or a derived sort-run path escapes the private directory. |
 
 The three additional NVD records were fetched on 2026-10-04 from
 `https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-YYYY-NNNN`.
@@ -204,6 +207,10 @@ Repository reachability was checked against `distrib/rp2040/mi.rp2040`,
 legacy WIZnet matches, not an RP2040 HTTP implementation. The exact vulnerable
 files and API identifiers are absent from tracked source. A platform list in
 an upstream advisory alone does not establish that the named component ships.
+
+NVD keyword searches on 2026-11-26 supplied the four temporary-file records
+above. Each disposition follows the named product and function in the record;
+the shared weakness class alone does not establish affected lineage.
 
 ## Measured C17 work register
 
@@ -1172,17 +1179,280 @@ root-block, and selected-member deltas require one bounded review exception.
 Runtime stack, heap, descriptor high-water, storage traffic, persistence
 recovery, and physical-board behavior remain open.
 
+## Shipped temporary-file overwrite audit
+
+The overwrite cohort instantiates CWE-377 and CWE-59. The sail record path
+adds CWE-20 and CWE-129 at the same shared-file boundary.
+
+The 2026-11-26 shipped-surface audit finds ten temporary-file mechanisms that
+cross the non-wheel local-user boundary. `ed` checks a predictable name before
+`creat(2)` truncates it. `ld` closes a `mkstemp(3)` descriptor and reopens the
+same pathname three times. `diff` checks a predictable name before copying
+standard input into it. `m4` writes ten predictable diversion pathnames. The
+shell writes predictable here-doc pathnames with truncating `creat(2)`. `sort`
+probes one predictable prefix, unlinks it, and later creates derived names.
+The installed `updatedb` script redirects three root-oriented pipeline files
+through predictable names. `re` unlinks and recreates predictable scratch and
+recovery names, and gives recovery content mode `0664`. The boot script stages
+`motd` through a fixed name under mode-1777 `/tmp` after mounting filesystems.
+The PicoCalc SD install tree includes `sail`; its intentional multiuser game
+file checks a predictable shared name before `fopen("w+")` follows and
+truncates a pre-positioned symbolic link. The compact flash profile omits
+`sail`. A peer that can prepare a symbolic link can redirect each truncating
+open to a file the victim may write; the linker, macro processor, sort, and
+editor recovery paths also admit content substitution between pathname
+operations.
+
+The governing invariant gives temporary data one exclusive creation and keeps
+the resulting open object for every later read or write. A pathname remains
+acceptable only when exclusive creation occurs inside the shipped sticky
+temporary directory and later use does not grant another user replacement
+authority. The repairs retain one anonymous descriptor in `ed`, use
+anonymous `tmpfile(3)` streams in `ld` and `m4`, replace `diff`'s check-then-
+create operation with `mkstemp(3)`, and make shell here-doc creation exclusive
+with collision retry and mode `0600`. `sort` and `updatedb` create one private
+mode-0700 directory atomically and place every derived file below it. `re`
+uses exclusive creation, rejects symbolic links when reopening recovery state,
+and requires the real user to own a regular recovery file. The boot script
+stages `motd` below root-owned `/etc`. `sail` creates its shared game file
+exclusively or reopens the existing entry with `O_NOFOLLOW`, then accepts only
+a regular file before converting the descriptor to a stream. The shared mode
+remains part of the multiplayer contract, so the repair does not require the
+current player to own an existing game file. The `diff` and `re`
+repairs rely on the shipped mode-1777 temporary mount to preserve a created
+entry's owner identity between opens.
+
+The shared sail file also crosses a data boundary. Any local user can append a
+record. The base parser verifies the record's selected ship and string marker,
+then lets `sync_update()` use unverified boarding-party and snag indices,
+captured-ship selectors, direction, wind, class, quality, and gun counts. A
+numeric record marked as a string can pass a stack pointer into
+an integer update; a string-bearing record marked numeric can pass an integer
+as a pointer. These cases produce out-of-bounds array access or invalid pointer
+use in another user's process. The repair must bind the string marker to the
+three string-bearing record types and admit each index or table selector only
+inside its structural range before `sync_update()` runs. Decimal input fields
+must also carry a width whose complete domain fits `int`; `scanf(3)` otherwise
+has undefined behavior when a converted integer exceeds the destination type.
+A mutation that omits the admission call is the falsifier. Multiplayer users
+retain authority to change valid game state; the repair bounds memory access
+rather than adding game authentication.
+
+The falsifier replaces each temporary pathname at its vulnerable boundary or
+restores a pathname reopen after an exclusive descriptor exists. The
+calibrated host gate must reject each earlier mechanism, preserve ordinary
+editing, linking, standard-input comparison, diversion, here-doc, sort, and
+recovery behavior, and compile every touched program with warnings as errors.
+The linker syscall
+ceiling must retain three relocation streams without increasing creation or
+unlink traffic. A target build must preserve warning-free Cortex-M0+ code.
+Physical-board execution remains a separate evidence class.
+
+The predicted movement is exact: the ten source mechanisms lose every shipped
+unsafe `mktemp(3)` call and unsafe predictable shared-directory write. The
+historical `m4` `maketemp` builtin creates its returned
+mode-0600 file atomically instead of returning an unreserved name. Calibrated
+mutations that restore `mktemp(3)`, a close-and-reopen, a named diversion,
+truncating here-doc creation, or sail's link-following creation must fail.
+Output bytes and command exit status must remain unchanged for the retained
+behavior fixtures, apart from the `maketemp` file now existing when the
+builtin returns.
+
+The measured source gate accepts thirteen production files and rejects all
+sixteen mutations. Warning-fatal Cortex-M0+ builds pass for `ed`, `sh`,
+`diff`, `ld`, `m4`, `sort`, `re`, and `sail`. `check-as-ld-scratch` preserves
+all 18 recorded outputs in each configuration; the partial-link case performs
+one creation, zero unlinks, seven writes, and 36 seeks on the measured host.
+`check-sort-host` passes its external-run, 23-file merge, mode, and cleanup
+cases. `check-find-contracts` passes 37 database checks. Ruff accepts the
+verifier, and ShellCheck at error severity accepts `updatedb.sh` and `rc`.
+`check-libc-tempfiles` passes the modeled and native contracts for the
+`tmpfile(3)` primitive. A host build of the production m4 sources preserves
+diversion order and creates the `maketemp` result at mode `0600`.
+The production repair adds 226 lines and removes 92; the calibrated verifier,
+test registration, evidence record, and linker mutation carry the larger
+proof surface. The sail sync object grows from 1,843 to 2,163 text bytes;
+object data and BSS remain 4 and 4,156 bytes. The complete repaired sail link
+uses 47,867 text, 10,336 data, and 8,488 BSS bytes.
+
+The residual source sweep finds descriptor-retaining `mkstemp(3)` paths in
+the assembler, tar, mail, tail, ranlib, ar, and libvmf. `crontab` uses
+`O_EXCL`; i86 exclusively creates and identity-unlinks its page store. The
+remaining `mktemp(3)` call belongs to `bin/sh/profile.c`, which the production
+shell object list omits. The compact and base manifests omit scrshot, csh,
+hunt, and the build-only mkdep and UnixBench scripts that retain predictable
+names. The libc still exports the inherently name-only `mktemp(3)`,
+`tmpnam(3)`, and `tempnam(3)` compatibility interfaces; the shipped-source
+search finds no production caller after these repairs.
+
+The aggregate `logged-build` invocation
+`rp2040-build-local-20261126T213400Z-2001863-d55d9c61` stops after 13.8 seconds
+in generated `usr.bin/awk/lex.yy.c`: the host Flex output declares `fileno`
+where the target header supplies a macro. Every touched C program reaches a
+separate successful target link, so the unrelated AWK generator failure stays
+outside this patch. Direct QEMU execution of target `m4` reaches unmodeled
+GizmoBSD syscall 38 and supplies no runtime verdict. Physical-board execution
+was not run.
+
+## Deep security scan disposition ledger
+
+Deep Security Scan `bd378f6d-8969-42af-aa2f-6985a34ce083` ran 40
+Standard audits against clean commit
+`28cf3c58d55468d04a5d18e3952c665242fb2b9c` and retained 52 findings. The
+scan stopped at its audit cap, so its coverage is partial. The ledger below
+disposes every retained finding; it does not represent an exhaustive CVE or
+weakness census. Forty-seven findings receive a source repair or a shipped-
+image quarantine. Five findings remain open because their complete mechanisms
+need an architecture decision, namespace serialization, or hardware authority.
+
+| Finding | Disposition | Mechanism and evidence |
+| --- | --- | --- |
+| `csf_c5addbc5233b693692fcfb94` | fixed, calibrated | Swap restore clears the unowned fixed-window complement before `SLOAD`; 141,615 exchange checks and the omission mutant pass. |
+| `csf_7647a3b34ef27dfea7780874` | fixed, source and host gate | Password-free `su` admits root as its sole target after wheel admission. |
+| `csf_f39e5705c8d56561b665664d` | fixed, host gate | Detached-console state uses private directories and mode-0600 logs, and child output omits bearer URLs. |
+| `csf_f6bc805f4e1f95916c23e8e6` | fixed, host gate | WebSocket reads carry a deadline and release the single console on an incomplete frame. |
+| `csf_b0fd3442a1004c67f9d2e48d` | fixed, host gate | Every Web console bind requires a token; the standalone loopback exception is removed. |
+| `csf_58608bfbb9e8a04e25f77f62` | fixed, calibrated | Native UFS lookup rejects malformed directory records before advancing or reading names. |
+| `csf_a42f0e06f70002800128d220` | fixed, host gate | Service output redacts the Web token and token-bearing URLs. |
+| `csf_7e63b8cd8ac2ed29ebe9f720` | fixed, host gate | The launcher and both service units share one checked settings path and bind state. |
+| `csf_5b769db71f9b1fda5240ba69` | fixed, host gate | The short-link service authenticates before disclosing its target. |
+| `csf_006d1f637038bdcff51d00b2` | fixed, host gate | The console pins its external script with subresource integrity and a restrictive content policy. |
+| `csf_57477d1d9571a15c8b1bc4c0` | fixed, calibrated | Credential transitions disable core dumps, so a privileged crash cannot truncate a caller-selected file. |
+| `csf_c76cfffc18929971e4de68f9` | open, architecture and hardware | STM32 startup still lacks a complete MPU policy, privilege transition, register readback, coverage proof, and deliberate-fault test. |
+| `csf_d233e448d870a3e894ca3976` | fixed, host gate | The short-link HTTP server bounds idle request time. |
+| `csf_378da1f0a722f34e852f5655` | fixed, manifest gate | Raw SD devices install mode 0600. |
+| `csf_a3015cd17c8dd7dcab5af2ae` | fixed, calibrated | Raw character-device writes map to their block device and reject active-swap overlap. |
+| `csf_c0aee70a479f24c93598122b` | fixed, manifest gate | Temporary swap devices install mode 0600. |
+| `csf_426900ae32ead7e428a7d655` | fixed, manifest gate | Block devices install mode 0600, apart from the separately governed kernel-memory devices. |
+| `csf_1db308426e23c497d5ecd429` | fixed, source and target build | `profil(2)` admits the complete retained user buffer before publication. RP2040 and STM32 align its scaled byte offset, admit one 16-bit histogram word, and increment that selected word; production builds cover both sources. |
+| `csf_f5be1f1b5adbfdc61aa78d2c` | fixed, manifest gate | `/etc/rc` installs mode 0755 instead of group-writable 0775. |
+| `csf_81ff8e13d1f0b29459c97ec5` | fixed, checker control | `/etc/shadow` installs mode 0600; the complete packed-image gate remains blocked before inspection by the unrelated build prerequisite. |
+| `csf_c802710b1d744d3d6a40c4d8` | fixed, source and target build | Password and account editors validate and own the password transaction lock instead of accepting a foreign stale file. |
+| `csf_60b4bf94e358fef88c706e3d` | fixed, calibrated | Both raw-key ioctls return `EACCES` on a hidden console; two guard-removal mutations fail. |
+| `csf_ba38139ec473ac204bb6ff71` | fixed, source and target build | `mail` bounds its recipient vector before copying. |
+| `csf_a2f2212c8f90652ff0e42625` | fixed, manifest gate | The USB console alias carries the same private mode as the active console boundary. |
+| `csf_dc9ef017a657d79d85a28b05` | fixed, calibrated | Shell here-documents use exclusive mode-0600 creation with collision retry. |
+| `csf_a2738fcbeb9ee91af490bc89` | fixed, calibrated | `TIOCSPGRP` checks every live group member and rejects an empty group; 28 checks and the restored leader-only mutation pass. |
+| `csf_fb9b61a9e9adb66d1fe12ea6` | fixed, host gate | SRAM capture creates outputs with exclusive, no-follow ownership and private modes. |
+| `csf_bd49e51d2002765b38d14972` | open, descriptor architecture | `/dev/tty` still resolves the caller's current controlling tty per operation; complete closure needs per-open binding or generation-aware file state. |
+| `csf_3e197cec4dab36caf5d1016e` | fixed, calibrated | Signal delivery admits the complete alternate-stack frame before writing it. |
+| `csf_4668fd506dc58ea3a82d4543` | fixed, source and target build | `chpass` closes privileged transaction descriptors across the caller-selected editor. |
+| `csf_283ed69258d5b4400bd797b9` | fixed, calibrated | `readlink(2)` admits the complete destination span before `uiomove()`. |
+| `csf_d983c4f7c75fc0a45403372a` | fixed, host gate | Capture files receive an explicit private mode independent of caller umask. |
+| `csf_22f4bf8c93d46d51f1b1448e` | fixed, target build | `rmail` bounds UUCP envelope tokens and accumulated sender paths. |
+| `csf_dae5aa4536d4cdff74901064` | fixed, target build | `uuxqt` bounds both argument and separator appends through one checked helper. |
+| `csf_2ce445c7cf252e0b46fe6195` | fixed, target build | `rmail` quotes every shell word, including embedded single quotes, and rejects option-like recipients. |
+| `csf_7bae6910b11496aa6248009d` | fixed, host gate | `fsutil` validates directory record and name bounds before copying. |
+| `csf_1da26cc911845674c9ec090c` | fixed, host gate | `fsutil` rejects zero, undersized, misaligned, and crossing records before loop progress. |
+| `csf_93714b3f23b6062e079b1447` | fixed, target build | `rmail` bounds forged `From` and `remote from` fields. |
+| `csf_812a51c8c0ecffb75b8415fa` | fixed, host gate | The Web console bounds header and connection time before authentication. |
+| `csf_4a00f8fde34b4649df98e604` | fixed, source and target build | `mail` bounds the remote-system component before its privileged use. |
+| `csf_568c4288d2c13012147b7ff1` | fixed, source and target build | `uudecode` confines output to a checked regular destination and refuses pathname escape. |
+| `csf_1cb63f13d6c94a8068d99ff8` | quarantined, manifest control | STM32 `chroot` installs mode 0755, preserving root use while removing set-user-ID reachability; the checker rejects mode 04755. |
+| `csf_81f9b03eae3ff5ca39b24a61` | fixed, source and target build | `write` bounds and validates the tty basename before constructing its device path. |
+| `csf_37cd6d1b8daed124f6c0fa78` | fixed, source and target build | Ordinary ZMODEM receive refuses command execution. Explicit local `rzCOMMAND` mode quotes the peer filename as one shell word before passing received bytes to that selected program. |
+| `csf_2a12d8df9b388911760787c8` | open, namespace architecture | Tar's start descriptor does not stabilize every later create, link, and removal across a concurrent directory rename. |
+| `csf_9945f4f471b92df29952d66c` | fixed, calibrated | `sort` creates all run files below one private mode-0700 directory. |
+| `csf_8aa32725fb07ebfa7cacb96a` | fixed, source and target build | `ar` accepts one safe component, refuses link leaves, and strips set-user-ID and set-group-ID bits. |
+| `csf_6e5ac01d84e0d1aeace97689` | fixed, calibrated | Native mount bounds disk free-inode and free-block counts before fixed-array use. |
+| `csf_23404f861f2f6e434dd90dd1` | open, fault architecture and hardware | `arm_fault()` can still print through an unreadable process-stack pointer; closure must also define a recoverable HardFault exit without writing the same frame. |
+| `csf_782b9c94b5208563178967ab` | fixed, calibrated | `PT_READ_U` exposes only the admitted public user context; 166 assertions and 17 mutations pass. |
+| `csf_6568dc2a9abbb86ae89333d1` | fixed, calibrated | PCM uses atomic bounded `tsleep()`; the restored split callout/sleep mutation exposes the lost wakeup and fails. |
+| `csf_9c2292adbce04166429cdc80` | open, hardware gate | The flash-semantics runner still lacks an exact one-run arming token, explicit board binding, and a proof that sector `0x1f000` is free. |
+
+The source, build, host-model, emulator, and board columns remain distinct.
+The repaired `rmail` and `uuxqt` paths pass Cortex-M0+ target builds; dedicated
+behavioral mutations remain open proof work. The physical board ran none of
+these checks. The aggregate `logged-build` remains blocked in generated AWK
+source by the pre-existing Flex `fileno` collision.
+
+A clean snapshot of base commit
+`28cf3c58d55468d04a5d18e3952c665242fb2b9c` and the candidate used the same
+Arm GCC toolchain for every kernel comparison. The raw linked text delta is
+347 bytes for PICO and 403 bytes for PICOCALC_SD. Three bytes in each delta
+come from the changed build identity in `vers.o`, so production code grows by
+344 and 400 bytes respectively. PICOCALC, PICOCALC_LEAN,
+PICOCALC_LEAN_DIAG, PICO_DIAG, and PICO_UART retain identical linked code
+after the same identity adjustment. Every configuration retains identical
+data and BSS sizes. The candidate PICOCALC_SD flash image uses 132,744 of
+163,584 bytes and leaves 30,840 bytes of headroom. These measurements establish
+linked build size; runtime high-water and physical-board behavior remain open.
+
 ## Ranked residual frontier
+
+## Fixed-window swap ownership audit
+
+The 2026-11-26 deep source scan finds one process-isolation defect in the
+maintained RP2040 swap paths. Ordinary flash restore, SwapRAM restore, and the
+in-place exchange write the incoming data, stack, user area, and optional clean
+text into the fixed process window. Each path then publishes `SLOAD` without
+overwriting the bytes between the incoming data end and stack start. The MPU
+grants the resident process access to that complete window, so a smaller
+incoming process can read bytes left by the outgoing process.
+
+The governing invariant assigns every byte in the fixed window to the incoming
+process before that process becomes runnable. The repair must restore the
+incoming image first, clear its unowned `[data_end, stack_start)` complement,
+and publish `SLOAD` last. The clear must follow the complete in-place transfer,
+because an earlier clear can destroy outgoing bytes that the exchange has not
+written to backing storage.
+
+The falsifier fills the outgoing complement with a nonzero marker, exchanges
+processes whose data and stack sizes differ, and reads every byte in the
+incoming complement. The predicted movement is exact: every complement byte
+becomes zero on both exchange directions, while incoming image bytes and the
+saved outgoing image remain unchanged. A calibrated mutation that omits the
+ownership clear must expose the marker and fail the exchange gate. Ordinary
+swap, SwapRAM, and in-place exchange share one clearing helper, so source
+wiring plus the direct exchange model covers every publication site. Kernel
+build, emulator execution, and physical-board behavior remain separate
+evidence classes.
+
+## Privileged boundary scan dispositions
+
+The same deep source scan finds six independent missing-admission defects on
+maintained RP2040 paths. `profil(2)` retains an unchecked counter buffer and
+the clock later writes through it. Signal delivery writes through an unchecked
+alternate-stack endpoint. `readlink(2)` passes its unchecked destination to
+`uiomove()`. Raw character-device writes bypass the block path's live-swap
+overlap check. Native UFS lookup makes directory-record validation optional,
+and native mount publishes disk-supplied free-list counts without bounding the
+fixed arrays. Each source path reaches privileged memory or a fixed kernel
+array before a complete-span or finite-domain check.
+
+The governing rule admits a complete, non-wrapping user span before retaining
+or writing through its address. It admits a disk count before indexing its
+fixed array and rejects a directory record before advancing or comparing its
+name. A raw alias must carry the same live-swap policy as its block alias. The
+repairs reuse `baduaddr_span()`, `chrtoblk()`, `blkoverlap()`,
+`dirbadentry()`, `NICINOD`, and `FS_NICFREE()` at their shared boundaries.
+The password-free appliance `su` policy has one authorized target -- root --
+after wheel membership succeeds; a non-root target otherwise becomes an
+identity trampoline into that wheel-only transition.
+
+The predicted movement rejects profiling buffers, signal frames, readlink
+destinations, UFS counts, and directory records at their first invalid byte;
+rejects a raw write that overlaps active swap after securelevel rises; and
+rejects every password-free non-root `su` target. Valid user spans, native UFS
+images, symlink reads, direct operator-to-root transitions, and raw writes
+outside active swap retain their results. Calibrated mutants must remove each
+new admission independently and fail its owning fixture. Source validation
+establishes the mechanism; target builds, emulators, and physical boards remain
+separate evidence classes.
 
 | Priority | Unit | Security or resource question | Required evidence before editing |
 | --- | --- | --- | --- |
 | P1 | remaining archive creation and publication identity | Additive `openat(2)` preserves an ordinary directory-relative start, `futimes(2)` preserves timestamp target identity, `unlinkat_beneath(2)` closes cpio's incomplete-output removal identity, and `publishat_beneath(2)` closes the exercised `compress` publication lifecycle. Cpio creation and tar creation/link/removal still lack caller-complete rooted mutation contracts. | Retain the existing descriptor, namespace-serialization, restricted-lookup, identity-conditioned mutation, sticky-directory, signal-cleanup, and directory-write controls. Specify each remaining creation or publication operation through its final locked mutation, then add adversarial concurrent-rename fixtures and matched target resource evidence. |
-| P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root and gives the image shadow mode 0600. | `bmake MACHINE=rp2040 check-account-image` extracts the packed image and verifies both fields; its calibrated negative controls reject a readable shadow file and an unlocked root verifier. Hardware account transitions remain unmeasured. |
+| P0 | account-policy reconciliation | The public tree shipped a fixed DES root verifier in world-readable `/etc/shadow`; direct root login is refused on the insecure console and wheel-only `su` skips password verification. The source now locks root, gives the image shadow mode 0600, and removes set-user-ID reachability from STM32 `chroot`. | The checker controls reject a readable shadow file, an unlocked root verifier, and `chroot` mode 04755. The packed-image gate stops before inspection because the incomplete destination tree lacks `usr/share/misc/termcap`; a warning-free distribution build must supply that prerequisite. Hardware account transitions remain unmeasured. |
 | P1 | optional Kerberos login branch | The RP2040 target does not select `KERBEROS`, so the repaired `setreuid`/`setuid(0)` failure path is source-checked but absent from the target compile and runtime contract. | Build the branch against its supported Kerberos headers and libraries, then inject each credential syscall failure and prove the ticket path aborts safely. |
 | P1 | `compress` runtime and persistence qualification | Descriptor-owned open, metadata, publication, cleanup, input removal, and signal ownership pass the exercised host, ILP32-emulator, target-build, and static-resource contracts. Runtime high-water, storage traffic, crash recovery after directory writes, and silicon behavior remain unmeasured. | Measure stack, heap, descriptor/inode pressure, and persistent writes under the retained workload. Exercise interruption and recovery at each directory-write boundary. Run any silicon workload only after exact hardware authorization. |
 | P1 | signal-return hardware qualification | `sigreturn` now copies one complete context and validates the resumed PC, complete 32/36-byte exception frame, eight-byte SP alignment, required Thumb state, allowed NZCV/STKALIGN xPSR fields, and failure-preserving publication order. The RP2040 machine policy admits complete Thumb halfwords in Boot ROM or the selected process window; STM32 retains process-window-only admission. The 535-assertion fixture, eight mutations, sanitizers, exact target builds, and matched resource comparison establish the exercised software boundary without executing exception return on silicon. | Retain the signal-return fixture, eight mutation controls, exact PICO/PICO_UART builds, STM32 production compile, and static-resource exception. An explicitly authorized board workload must deliver and return from signals at admitted process and Boot ROM PCs, exercise base and padded frames, reject PC/SP/xPSR cases without partial publication, record runtime kernel-stack high-water, and include MPU deliberate-fault controls before hardware behavior closes. |
-| P1 | ptrace hardware qualification | Complete-span admission now covers `copyin`/`copyout`, syscall stack tails, executable headers and argument strings, syscall pathnames, all four read/write entry points, shipped ioctl payloads, `/dev/mem`, `/dev/kmem`, and the shipped `ptrace` path. The ptrace contract bounds user words and user-area offsets, limits register writes, preserves xPSR control fields, validates PC, SP, and signals before publication, and rejects unsupported Cortex-M single-step. Host, ILP32, sanitizer, target-compile, and disassembly gates do not execute exception return or deliberate faults on silicon. Kernel-internal ioctl callers and optional providers retain separate ownership contracts. | Retain the 145-assertion ptrace fixture, twelve mutation controls, libc disassembly control, exact target builds, and resource comparison. An explicitly authorized board workload must trace a child through accepted reads, writes, register changes, continuation, rejected PC/SP/xPSR cases, and deliberate-fault controls before hardware behavior closes. |
+| P1 | ptrace hardware qualification | Complete-span admission now covers `copyin`/`copyout`, syscall stack tails, executable headers and argument strings, syscall pathnames, all four read/write entry points, shipped ioctl payloads, `/dev/mem`, `/dev/kmem`, and the shipped `ptrace` path. The ptrace contract bounds user words and user-area offsets, limits register writes, preserves xPSR control fields, validates PC, SP, and signals before publication, rejects arbitrary kernel `struct user` reads, and rejects unsupported Cortex-M single-step. Host, ILP32, sanitizer, target-compile, and disassembly gates do not execute exception return or deliberate faults on silicon. Kernel-internal ioctl callers and optional providers retain separate ownership contracts. | Retain the 166-assertion ptrace fixture, seventeen mutation controls, libc disassembly control, exact target builds, and resource comparison. An explicitly authorized board workload must trace a child through accepted reads, writes, register changes, continuation, rejected PC/SP/xPSR cases, and deliberate-fault controls before hardware behavior closes. |
 | P1 | USB reset execution evidence | Standard and CDC request geometry plus Pico reset request fields now have production predicates and calibrated host controls. Reset requests require type `0x21`, configured interface 2, exact `wIndex`, zero `wLength`, and command-specific `wValue`; the source-wiring check requires an EP0 stall before action and a two-bit ROM mask. `SET_FEATURE` remains stalled because endpoint halt is unimplemented and remote wakeup is disabled. | `check-usb-set-configuration`, `check-usb-set-address-interface`, `check-usb-get-descriptor`, `check-usb-cdc-requests`, `check-usb-standard-requests` and `check-usb-reset` cover the implemented fields with calibrated mutations. The CDC contract follows PSTN 1.2 sections 6.3.10-6.3.13: <https://www.usb.org/sites/default/files/CDC1.2_WMC1.1_012011.zip>; standard request geometry follows USB 2.0 Chapter 9: <https://www.usb.org/document-library/usb-20-specification>; reset semantics follow pinned Pico SDK commit `079c6f39023649b154152db30f1d781e884879bc`. Earlier CDC and standard-request changes measured `usb.o` text at 3,936 to 4,016 bytes (+80) and 4,016 to 4,184 bytes (+168). The clean-base reset comparison measures `usb.o` text +44 bytes (4,208 to 4,252), PICO kernel text +40 bytes (103,310 to 103,350), unchanged object data/BSS 8,200/344, unchanged kernel data/BSS 248/39,816, and unchanged PICO_UART 90,960/192/14,768. USB-controller dispatch and physical-board reset behavior remain unmeasured. |
+| P0 | STM32 MPU activation | STM32 starts user code without enabling a memory protection policy, so the syscall boundary does not protect kernel RAM or memory-mapped peripherals. | Specify the complete region map and privilege transition. Record register writes and readback, prove complete region coverage, and require one deliberate user-mode fault on authorized hardware before closing the finding. |
+| P1 | controlling-terminal descriptor binding | An open `/dev/tty` descriptor resolves the process's current controlling terminal on each operation, so a retained descriptor can target a later session. | Choose per-open tty binding or a generation-aware file state. Add a two-session fixture that keeps the first descriptor open and proves that its read, write, and ioctl paths cannot reach the second session. |
+| P1 | unreadable RP2040 fault frames | `arm_fault()` prints through the supplied process-stack pointer before complete span admission, while an unreadable stacked frame also prevents the ordinary exception return. | Define the terminal fault state first, then admit every printed or rewritten byte. A host model must reject an unreadable base and crossing frame without dereference; an authorized board deliberate-fault run must show the chosen halt or recovery path. |
+| P0 | flash-semantics hardware binding | The runner erases fixed sector `0x1f000` without an exact arming value, board identity binding, or a kernel-layout proof that reserves the complete sector. | Reject unset, wrong, and reused arming values before the first hardware command. Bind every command to one selected USB port, reserve the full sector in the linker or headroom gate, calibrate 4,095-byte rejection and 4,096-byte acceptance, then run only with explicit board authorization. |
 | P2 | source-only setuid utilities | `chpass` and related password-database editors are outside the image but retain older dialect and privileged temporary-file logic. | Manifest reachability proof, strict-C17 build, concurrent update/failure harness and explicit decision to ship or quarantine. |
 
 Each row remains open until its named negative fixture fails before the repair

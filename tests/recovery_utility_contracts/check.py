@@ -246,6 +246,20 @@ def check_uudecode_native(binary, work_directory):
         "uudecode does not apply the encoded mode",
     )
 
+    for encoded_name in ("../escaped.bin", "/tmp/escaped.bin", ".", ".."):
+        unsafe_input = traditional_input.replace(b"payload.bin", encoded_name.encode(), 1)
+        result = run_program([str(binary)], input_bytes=unsafe_input)
+        require(result.returncode != 0, f"uudecode accepts header path {encoded_name}")
+
+    selected_parent = work_directory / "selected"
+    selected_parent.mkdir()
+    selected_output = selected_parent / "operator.bin"
+    result = run_program(
+        [str(binary), "-o", str(selected_output)], input_bytes=traditional_input
+    )
+    require(result.returncode == 0, "uudecode rejects an operator-selected path")
+    require(selected_output.read_bytes() == payload, "uudecode changes selected output")
+
     malformed_header = b"begin payload.bin\n"
     result = run_program([str(binary), "-o", "-"], input_bytes=malformed_header)
     require(result.returncode != 0, "uudecode accepts a malformed header")

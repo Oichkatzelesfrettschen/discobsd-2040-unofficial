@@ -349,6 +349,17 @@ swap_image_release (struct proc *p)
     wakeup ((caddr_t) &runin);
 }
 
+/* Assign every readable byte in the fixed window to the incoming process. */
+static void
+swapin_clear_gap (const struct proc *p)
+{
+    size_t start = (size_t) __user_data_start + p->p_dsize;
+    size_t end = USER_TOP (p) - p->p_ssize;
+
+    if (start < end)
+        bzero ((caddr_t) start, end - start);
+}
+
 /*
  * Swap a process in.
  * Allocate data and possible text separately.  It would be better
@@ -411,6 +422,7 @@ swapin (register struct proc *p)
     p->p_daddr = daddr;
     p->p_saddr = saddr;
     p->p_addr = uaddr;
+    swapin_clear_gap (p);
     if (p->p_stat == SRUN)
         setrq (p);
     p->p_flag |= SLOAD;
@@ -680,6 +692,7 @@ swap_exchange_inplace (struct swap_image_reservation *reservation,
     incoming->p_daddr = (size_t) __user_data_start;
     incoming->p_saddr = USER_TOP (incoming) - incoming->p_ssize;
     incoming->p_addr = (size_t) &u0;
+    swapin_clear_gap (incoming);
     if (incoming->p_stat == SRUN)
         setrq (incoming);
     incoming->p_flag |= SLOAD;

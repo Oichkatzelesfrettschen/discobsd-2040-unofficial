@@ -599,11 +599,18 @@ fill_console(int unit, const char *tag, int lines)
 static void
 test_open_state(void)
 {
+	struct lcd_keyevs events;
+	int on = 1;
+
 	CHECK(state_size() % 4 == 0 && state_size() > 3392, "state size");
 	CHECK((T0->t_state & TS_HIDDEN) == 0, "ttyv0 opened while shown is not frozen");
 	CHECK(T1->t_state & TS_HIDDEN, "ttyv1 opened while hidden is frozen");
 	CHECK(T0->t_state & TS_ISOPEN, "ttyv0 is open");
 	CHECK(T1->t_winsize.ws_col == LT_COLS, "ttyv1 window size");
+	CHECK(lcdioctl(DEV1, LCDIOC_KEYEVS, (caddr_t)&on, FREAD) == EACCES,
+	    "a hidden console cannot start raw key events");
+	CHECK(lcdioctl(DEV1, LCDIOC_GETKEY, (caddr_t)&events, FREAD) == EACCES,
+	    "a hidden console cannot drain raw key events");
 	check_panel("the panel starts blank and equal to the store", NOMARK);
 }
 

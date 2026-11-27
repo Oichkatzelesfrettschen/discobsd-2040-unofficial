@@ -92,6 +92,7 @@ def launch(monkeypatch, tmp_path):
             rc = term.main(["--probe", *argv])
             device = FakeSerial.opened[0] if FakeSerial.opened else None
         else:
+            monkeypatch.setenv(ports.TOKEN_ENV, "test-token")
 
             class FakeServer:
                 def __init__(self, address, device, token, open_serial=None, usb_port=None):
@@ -328,6 +329,7 @@ def test_web_main_hands_the_selector_not_a_path_to_the_server(monkeypatch, tmp_p
         monkeypatch.setenv(key, value)
     for name in (ports.ENV_PORT, ports.ENV_USB_PORT, ports.TOKEN_ENV):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(ports.TOKEN_ENV, "test-token")
     got = {}
 
     class FakeServer:

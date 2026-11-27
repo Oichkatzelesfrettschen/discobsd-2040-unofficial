@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,24 +35,29 @@ static FILE *
 parsefile(const char *fname)
 {
 	struct stat st;
-	int ret;
+	int fd;
 
 	if (!strcmp(fname, "/dev/stdout") || !strcmp(fname, "-"))
 		return stdout;
-	ret = lstat(fname, &st);
-	/* if it is a new file, try to open it */
-	if (ret < 0 && errno == ENOENT)
-		goto tropen;
-	if (ret < 0) {
-		weprintf("lstat %s:", fname);
+	fd = open(fname, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+	if (fd < 0) {
+		weprintf("open %s:", fname);
 		return NULL;
 	}
-	if (!S_ISREG(st.st_mode)) {
+	if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) {
 		weprintf("for safety uudecode operates only on regular files and /dev/stdout\n");
+		(void)close(fd);
+		(void)unlink(fname);
 		return NULL;
 	}
-tropen:
-	return fopen(fname, "w");
+	return fdopen(fd, "w");
+}
+
+static int
+header_name_safe(const char *name)
+{
+	return name[0] != '\0' && strchr(name, '/') == NULL &&
+	    strcmp(name, ".") != 0 && strcmp(name, "..") != 0;
 }
 
 static void
@@ -286,6 +292,8 @@ main(int argc, char *argv[])
 	}
 
 	parseheader(fp, ifname, &header, &mode, &fname);
+	if (!oflag && !header_name_safe(fname))
+		eprintf("unsafe output name %s\n", fname);
 
 	if (!strncmp(header, "begin", sizeof("begin")))
 		d = uudecode;
@@ -301,8 +309,8 @@ main(int argc, char *argv[])
 
 	d(fp, nfp);
 
-	if (nfp != stdout && chmod(fname, mode) < 0)
-		eprintf("chmod %s:", fname);
+	if (nfp != stdout && fchmod(fileno(nfp), mode) < 0)
+		eprintf("fchmod %s:", fname);
 
 	ret |= fshut(fp, (fp == stdin) ? "<stdin>" : argv[0]);
 	ret |= fshut(nfp, (nfp == stdout) ? "<stdout>" : fname);

@@ -15,9 +15,19 @@ static char sccsid[] = "@(#)uuxqt.c	5.8.1 (2.11BSD) 1997/10/2";
 #define BADCHARS	"&^|(`\\<>;\"{}\n'"
 #define RECHECKTIME	60*10	/* 10 minutes */
 
-#define APPCMD(d) {\
-char *p;\
-for (p = d; *p != '\0';) *cmdp++ = *p++; *cmdp++ = ' '; *cmdp = '\0';}
+static int
+appcmd(char **out, char *end, const char *word)
+{
+	size_t length = strlen(word);
+
+	if (length + 2 > (size_t)(end - *out))
+		return FAIL;
+	memcpy(*out, word, length);
+	*out += length;
+	*(*out)++ = ' ';
+	**out = '\0';
+	return SUCCESS;
+}
 
 /*
  *	uuxqt will execute commands set up by a uux command,
@@ -274,7 +284,10 @@ doprocess:
 			if (prm[0] == ';' || prm[0] == '^'
 			  || prm[0] == '&'  || prm[0] == '|') {
 				xcmd[0] = '\0';
-				APPCMD(prm);
+				if (appcmd(&cmdp, buf + sizeof(buf), prm) != SUCCESS) {
+					argnok = FAIL;
+					break;
+				}
 				continue;
 			}
 
@@ -284,7 +297,10 @@ doprocess:
 
 			if (prm[0] == '~')
 				expfile(prm);
-			APPCMD(prm);
+			if (appcmd(&cmdp, buf + sizeof(buf), prm) != SUCCESS) {
+				argnok = FAIL;
+				break;
+			}
 		}
 		/*
 		 * clean up trailing ' ' in command.

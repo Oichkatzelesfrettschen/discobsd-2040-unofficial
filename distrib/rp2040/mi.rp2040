@@ -82,21 +82,27 @@ group 2
 bdev /dev/sd0
 major 5
 minor 0
+mode 0600
 bdev /dev/sd0a
 major 5
 minor 1
+mode 0600
 bdev /dev/sd0b
 major 5
 minor 2
+mode 0600
 cdev /dev/rsd0
 major 11
 minor 0
+mode 0600
 cdev /dev/rsd0a
 major 11
 minor 1
+mode 0600
 cdev /dev/rsd0b
 major 11
 minor 2
+mode 0600
 #endclosure sdcard
 
 #closure psramtmp
@@ -166,12 +172,15 @@ minor 2
 cdev /dev/temp0
 major 4
 minor 0
+mode 0600
 cdev /dev/temp1
 major 4
 minor 1
+mode 0600
 cdev /dev/temp2
 major 4
 minor 2
+mode 0600
 #
 # No /dev/klog: cdevsw major 5 is the kernel message log, which the PICO
 # kernel does not build (LOG_ENABLED is unset), and the root leaves out
@@ -184,6 +193,7 @@ minor 2
 cdev /dev/ttyUSB0
 major 7
 minor 0
+mode 0600
 
 #
 # UART0 on GP0 and GP1, for a serial adapter.

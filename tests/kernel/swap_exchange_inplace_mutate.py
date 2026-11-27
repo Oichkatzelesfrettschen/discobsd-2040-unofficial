@@ -78,6 +78,13 @@ def mutate(source: str, mutation: str) -> str:
             "            end -= 0;",
             mutation,
         )
+    if mutation == "omit-window-gap-clear":
+        return replace_once(
+            source,
+            "    swapin_clear_gap (incoming);",
+            "    /* mutant omits fixed-window ownership transfer */",
+            mutation,
+        )
     raise ValueError(f"unknown mutation: {mutation}")
 
 

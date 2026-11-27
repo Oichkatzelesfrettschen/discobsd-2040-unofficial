@@ -93,6 +93,34 @@ ptrace_write_frame_word(int *word, int data)
     return 1;
 }
 
+/* PT_READ_U exposes saved user registers, not the kernel stack in struct user. */
+static int
+ptrace_read_frame_word(const int *word, int *data)
+{
+    const struct trapframe *frame = u.u_frame;
+
+    if (word == (const int *)&frame->tf_r0 ||
+        word == (const int *)&frame->tf_r1 ||
+        word == (const int *)&frame->tf_r2 ||
+        word == (const int *)&frame->tf_r3 ||
+        word == (const int *)&frame->tf_sp ||
+        word == (const int *)&frame->tf_lr ||
+        word == (const int *)&frame->tf_pc ||
+        word == (const int *)&frame->tf_psr ||
+        word == (const int *)&frame->tf_r4 ||
+        word == (const int *)&frame->tf_r5 ||
+        word == (const int *)&frame->tf_r6 ||
+        word == (const int *)&frame->tf_r7 ||
+        word == (const int *)&frame->tf_r8 ||
+        word == (const int *)&frame->tf_r9 ||
+        word == (const int *)&frame->tf_r10 ||
+        word == (const int *)&frame->tf_r11) {
+        *data = *word;
+        return 0;
+    }
+    return 1;
+}
+
 /*
  * Whether the word at address overlaps the process's executable text,
  * [p_daddr, p_daddr + p_tsize). swapout omits that span and swapin reads
@@ -191,8 +219,8 @@ procxmt(void)
         if (!ptrace_user_word_offset_valid(offset))
             goto error;
         word = (int *)((u_long)&u + (u_int)offset);
-        bcopy((caddr_t)word, (caddr_t)&ipc.ip_data,
-            sizeof ipc.ip_data);
+        if (ptrace_read_frame_word(word, &ipc.ip_data) != 0)
+            goto error;
         break;
 
     /* write user I */

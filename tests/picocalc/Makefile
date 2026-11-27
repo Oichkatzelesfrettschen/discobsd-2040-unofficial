@@ -129,7 +129,7 @@
 # sequence split across a switch, the unseen-output marker, a switch refused
 # while a pixel program owns the panel, the close of a frozen console, the
 # switch keys, and a panic and a fatal fault with the second console shown;
-# twenty-three mutants of lcdcons.c, lcdterm.c and picokbd_map.c must fail it.
+# twenty-five mutants of lcdcons.c, lcdterm.c and picokbd_map.c must fail it.
 #
 # uart_test includes the RP2040 UART driver (uart.c) unchanged with
 # UART_HOST_MODEL, which replaces the PL011 register helpers of uart.h with
@@ -362,6 +362,12 @@ LCDVT_MUT=	sh ./mutant_unit.sh "${HOST_CC}" "${LCDVTCSTD} ${SAN}" "${DEV}" \
 
 .PHONY: lcdvt-mutants
 lcdvt-mutants:
+	@MUTANT_EXPECT='a hidden console cannot start raw key events' ${LCDVT_MUT} lcdcons.c \
+	    '/^lcd_keyevs/,/^}/s/^\tif (tp != LCD_SHOWN)$$/\tif ((void)tp, 0)/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
+	@MUTANT_EXPECT='a hidden console cannot drain raw key events' ${LCDVT_MUT} lcdcons.c \
+	    '/^lcd_getkey/,/^}/s/^\tif (tp != LCD_SHOWN)$$/\tif ((void)tp, 0)/' \
+	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
 	@MUTANT_EXPECT='a console stopped before the switch is still stopped after it' ${LCDVT_MUT} lcdcons.c \
 	    '/^lcd_vtexchange/,/^}/s/TS_HIDDEN/TS_TTSTOP/g' \
 	    lcdcons.c lcdterm.c lcdfont.c picokbd_map.c
@@ -2603,7 +2609,8 @@ picopcm-mutants: \
 	picopcm-mutant-open-ramp \
 	picopcm-mutant-close-ramp \
 	picopcm-mutant-bell-not-absorbed \
-	picopcm-mutant-bell-stop-mutes
+	picopcm-mutant-bell-stop-mutes \
+	picopcm-mutant-split-sleep
 
 picopcm-mutant-unacknowledged:
 	${PICOPCM_MUT} picopcm.c \
@@ -2660,6 +2667,13 @@ picopcm-mutant-bell-not-absorbed:
 picopcm-mutant-bell-stop-mutes:
 	${PICOPCM_MUT} picoaudio.c \
 	    's/if (!picoaudio_pcm)/if (1)/' ${PICOPCM_SRC}
+
+picopcm-mutant-split-sleep:
+	@MUTANT_EXPECT='a callout can fire before sleep joins its queue' \
+	    sh ./mutant_unit.sh "${HOST_CC}" "${KCSTD}" "${DEV}" \
+	    picopcm_test.c picopcm.c \
+	    '/^pcm_nap/,/^}/{s/(void)tsleep((caddr_t)\&pcm, PRIBIO, PCM_NAP_TICKS);/timeout(wakeup, (char *)\&pcm, PCM_NAP_TICKS);\
+\tsleep((caddr_t)\&pcm, PRIBIO);/;}' ${PICOPCM_SRC}
 
 picoaudio-mutants: \
 	picoaudio-mutant-left-override \

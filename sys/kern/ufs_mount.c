@@ -260,7 +260,11 @@ found:
     bcopy (tp->b_addr, (caddr_t)fs, sizeof(struct fs));
     brelse (tp);
     tp = 0;
-    if (fs->fs_magic1 != FSMAGIC1 || fs->fs_magic2 != FSMAGIC2) {
+    if (fs->fs_magic1 != FSMAGIC1 || fs->fs_magic2 != FSMAGIC2 ||
+        fs->fs_nfree < 0 || fs->fs_nfree > FS_NICFREE(fs) ||
+        fs->fs_ninode < 0 || fs->fs_ninode > NICINOD ||
+        fs->fs_isize <= (u_int)FS_SUPERB(fs) + 1 ||
+        fs->fs_isize > fs->fs_fsize) {
         error = EINVAL;
         goto out;
     }

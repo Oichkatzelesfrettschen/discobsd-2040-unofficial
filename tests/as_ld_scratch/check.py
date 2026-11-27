@@ -375,8 +375,11 @@ def gate(args, strace, expected, work):
     # come back.
     temp_symbols = mutate(ld_src, [
         ("\t\ttregion (&soutb, tail);\n\t\ttailb = soutb;",
-         "\t\ttregion (&tailb, tail);\n\t\tclose (mkstemp (tfname));\n"
-         "\t\ttcreat (&soutb, 1);"),
+         "\t\tchar tempname[] = \"/tmp/ldXXXXXX\";\n"
+         "\t\tint tempfd = mkstemp (tempname);\n\n"
+         "\t\tif (tempfd < 0)\n\t\t\terror (2, \"temporary file\");\n"
+         "\t\tclose (tempfd);\n\t\tunlink (tempname);\n"
+         "\t\ttregion (&tailb, tail);\n\t\ttcreat (&soutb, 1);"),
         ("\t\tif (output_relinfo) {\n\t\t\tif (! xflag)\n"
          "\t\t\t\tcopy_and_close (soutb, tailb);",
          "\t\tif (1) {\n\t\t\tif (! xflag)\n"

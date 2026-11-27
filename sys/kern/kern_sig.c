@@ -552,9 +552,10 @@ core(void)
     register char *np;
     char    *cp, name[MAXCOMLEN + 6];
 
-    /*
-     * Don't dump if not root.
-     */
+    /* A set-ID image cannot publish privileged state through the caller. */
+    if (u.u_uid != u.u_ruid || u.u_groups[0] != u.u_rgid)
+        return (0);
+    /* Don't dump if not root. */
     if (! suser())
         return(0);
     if (USIZE + u.u_dsize + u.u_ssize >= (size_t)u.u_rlimit[RLIMIT_CORE].rlim_cur)

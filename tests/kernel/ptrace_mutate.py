@@ -74,6 +74,21 @@ MUTATIONS = {
     return 0;
 """,
     ),
+    "kernel-u-read": (
+        """    return 1;
+}
+
+/*
+ * Whether the word at address overlaps the process's executable text,
+""",
+        """    *data = *word;
+    return 0;
+}
+
+/*
+ * Whether the word at address overlaps the process's executable text,
+""",
+    ),
     "psr-control-overwrite": (
         """        frame->tf_psr = (frame->tf_psr & ~PSR_NZCV) |
             ((u_int)data & PSR_NZCV);

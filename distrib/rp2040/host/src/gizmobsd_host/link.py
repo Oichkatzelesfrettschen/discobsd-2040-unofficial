@@ -2,16 +2,17 @@
 
 gizmobsd-web needs its token in the URL, which is long to type on a phone.
 This serves one page on a memorable port that redirects to the full
-tokenized console URL, so http://<host>:42069/ is all anyone on the LAN has
-to type. Anyone who can reach this port learns the token, so it is only as
-private as the network it listens on.
+tokenized console URL. The request must present the same token, so the
+redirect cannot disclose console authority to an unauthenticated peer.
 """
 
 from __future__ import annotations
 
 import argparse
+import hmac
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs, urlparse
 
 from . import __version__, ports
 
@@ -19,13 +20,24 @@ from . import __version__, ports
 class RedirectServer(HTTPServer):
     allow_reuse_address = True
 
-    def __init__(self, address, target: str):
+    def __init__(self, address, target: str, token: str):
         super().__init__(address, RedirectHandler)
         self.target = target
+        self.token = token
 
 
 class RedirectHandler(BaseHTTPRequestHandler):
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(5.0)
+
     def do_GET(self):
+        presented = (parse_qs(urlparse(self.path).query).get("token") or [None])[0]
+        if presented is None or not hmac.compare_digest(presented, self.server.token):
+            self.send_response(401)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         self.send_response(302)
         self.send_header("Location", self.server.target)
         self.send_header("Cache-Control", "no-store")
@@ -36,7 +48,7 @@ class RedirectHandler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def log_message(self, fmt, *a):
-        sys.stderr.write(f"{self.client_address[0]} - {fmt % a}\n")
+        pass
 
 
 def parser() -> argparse.ArgumentParser:
@@ -65,6 +77,7 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
+    token = ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV)
     target = args.to
     if target:
         if "token=" in target:
@@ -75,7 +88,6 @@ def main(argv=None) -> int:
                 "instead\n"
             )
     elif args.host:
-        token = ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV)
         if not token:
             sys.stderr.write(
                 "gizmobsd-link: --host given but no token in GIZMOBSD_WEB_TOKEN "
@@ -87,8 +99,15 @@ def main(argv=None) -> int:
     else:
         sys.stderr.write("gizmobsd-link: --to or --host is required\n")
         return 1
-    httpd = RedirectServer((args.bind, args.port), target)
-    print("gizmobsd-link: http://%s:%d/ -> %s" % (args.bind, args.port, target), flush=True)
+    if not token:
+        sys.stderr.write("gizmobsd-link: a token is required for the redirect service\n")
+        return 1
+    httpd = RedirectServer((args.bind, args.port), target, token)
+    print(
+        "gizmobsd-link: listening on http://%s:%d/ (token required)"
+        % (args.bind, args.port),
+        flush=True,
+    )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

@@ -326,6 +326,10 @@ sigaltstack(void)
         error = ENOMEM;
         goto out;
         }
+    if (baduaddr_span((caddr_t)ss.ss_base, ss.ss_size)) {
+        error = EFAULT;
+        goto out;
+    }
     u.u_psflags |= SAS_ALTSTACK;
     u.u_sigstk = ss;
 out:

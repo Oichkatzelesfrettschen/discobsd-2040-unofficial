@@ -76,6 +76,25 @@ static clipboard_t pb, db;
 
 static void checksig(int);
 
+static int
+open_recovery(name, flags)
+    char *name;
+    int flags;
+{
+    struct stat status;
+    int descriptor;
+
+    descriptor = open(name, flags | O_NOFOLLOW);
+    if (descriptor < 0)
+        return(-1);
+    if (fstat(descriptor, &status) < 0 || status.st_uid != (uid_t)userid ||
+        (status.st_mode & S_IFMT) != S_IFREG || (status.st_mode & 077) != 0) {
+        close(descriptor);
+        return(-1);
+    }
+    return(descriptor);
+}
+
 /*
  * Fatal signal catched.
  */
@@ -140,13 +159,13 @@ static void startup(restart)
     jname   = append(append("/tmp/rej", c), name);
     rfile   = append(append("/tmp/res", c), name);
     if (restart) {
-        journal = open(jname, 2);
+        journal = open_recovery(jname, O_RDWR);
         if (journal >= 0 && restart != 2)
             close(journal);
     }
     if (restart != 2) {
         unlink(jname);
-        journal = creat(jname, FILEMODE);
+        journal = open(jname, O_CREAT | O_EXCL | O_RDWR | O_NOFOLLOW, 0600);
     } else
         inputfile = journal;
     if (journal < 0) {
@@ -154,14 +173,11 @@ static void startup(restart)
         exit(1);
     }
     unlink(tmpname);
-    i = creat(tmpname, 0600);
+    i = open(tmpname, O_CREAT | O_EXCL | O_RDWR | O_NOFOLLOW, 0600);
     if (i < 0) {
         puts1("Can't open temporary file.\n");
         exit(1);
     }
-    /* Temporary file should be rd/wr, need to reopen. */
-    close(i);
-    i = open(tmpname, 2);
     file[i].name = tmpname;
     file[i].writable = 1;
     tempfile = i;
@@ -214,7 +230,7 @@ static void getstate(init_flag)
     int gbuf;
     window_t *win;
 
-    if (init_flag != '!' || (gbuf = open(rfile, 0)) <= 0 ||
+    if (init_flag != '!' || (gbuf = open_recovery(rfile, O_RDONLY)) <= 0 ||
         (nwinlist = get1w(gbuf)) == -1)
     {
 make:   /* Create initial window state. */
@@ -313,7 +329,7 @@ static void savestate()
     curwksp->cursorcol = cursorcol;
     curwksp->cursorrow = cursorline;
     unlink(rfile);
-    sbuf = creat(rfile, FILEMODE);
+    sbuf = open(rfile, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0600);
     if (sbuf <= 0)
         return;
     put1w(nwinlist, sbuf);

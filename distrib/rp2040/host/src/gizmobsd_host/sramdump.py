@@ -35,6 +35,7 @@ import bisect
 import glob
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -524,7 +525,7 @@ class Capture:
             raise ToolError("USB port %s has no readable bus and address" % self.port)
         return dev
 
-    def picotool(self, *argv: str) -> None:
+    def picotool(self, *argv: str, pass_fds=()) -> None:
         """picotool addressed to the named port, with the other ports checked around it."""
         self.check_others("before a picotool call")
         dev = self.target()
@@ -532,7 +533,12 @@ class Capture:
         self.log("gizmobsd-sramdump: " + " ".join(cmd))
         try:
             done = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=PICOTOOL_TIMEOUT, check=False
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=PICOTOOL_TIMEOUT,
+                check=False,
+                pass_fds=pass_fds,
             )
         except subprocess.TimeoutExpired as exc:
             raise ToolError(
@@ -606,10 +612,31 @@ class Capture:
 
     def save(self, start: int, end: int, name: str, size: int) -> str:
         path = os.path.join(self.out_dir, name)
-        self.picotool("save", "-r", "0x%08x" % start, "0x%08x" % end, path)
-        if not os.path.exists(path):
-            raise ToolError("picotool wrote no %s" % name)
-        got = os.path.getsize(path)
+        flags = os.O_RDONLY | os.O_DIRECTORY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        directory = os.open(self.out_dir, flags)
+        try:
+            descriptor_root = "/proc/self/fd" if os.path.isdir("/proc/self/fd") else "/dev/fd"
+            bound_path = "%s/%d/%s" % (descriptor_root, directory, name)
+            self.picotool(
+                "save",
+                "-r",
+                "0x%08x" % start,
+                "0x%08x" % end,
+                bound_path,
+                pass_fds=(directory,),
+            )
+            try:
+                info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            except FileNotFoundError as exc:
+                raise ToolError("picotool wrote no %s" % name) from exc
+            if not stat.S_ISREG(info.st_mode):
+                raise ToolError("picotool did not write a regular %s" % name)
+            os.chmod(name, 0o600, dir_fd=directory, follow_symlinks=False)
+            got = info.st_size
+        finally:
+            os.close(directory)
         if got != size:
             os.replace(path, path + ".incomplete")
             raise ToolError(
@@ -738,12 +765,10 @@ def run_capture(args) -> int:
         return 2
     if shutil.which("picotool") is None:
         raise ToolError("picotool is not installed (apt, pacman or brew install picotool)")
-    for name in (SRAM_FILE, FLASH_FILE):
-        if os.path.exists(os.path.join(out_dir, name)):
-            raise ToolError(
-                "%s already exists in %s; name a fresh --out directory" % (name, out_dir)
-            )
-    os.makedirs(out_dir, exist_ok=True)
+    try:
+        os.mkdir(out_dir, 0o700)
+    except FileExistsError as exc:
+        raise ToolError("%s already exists; name a fresh --out directory" % out_dir) from exc
     Capture(port, sysfs, out_dir, args.resume, flash_end=flash_end).run()
     return 0
 

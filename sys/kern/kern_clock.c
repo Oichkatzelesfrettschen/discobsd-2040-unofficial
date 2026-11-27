@@ -408,6 +408,11 @@ profil(void)
     } *uap = (struct a*) u.u_arg;
     register struct uprof *upp = &u.u_prof;
 
+    if (uap->bufsize != 0 &&
+        baduaddr_span((caddr_t)uap->bufbase, uap->bufsize)) {
+        u.u_error = EFAULT;
+        return;
+    }
     upp->pr_base = uap->bufbase;
     upp->pr_size = uap->bufsize;
     upp->pr_off = uap->pcoffset;

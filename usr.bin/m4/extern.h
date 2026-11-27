@@ -87,7 +87,6 @@ extern char *endest;		/* end of string space */
 extern char *endpbb;		/* end of push-back buffer */
 extern char *ep;		/* first free char in strspace */
 extern char lquote;		/* left quote character (`) */
-extern char *m4temp;		/* filename for diversions */
 extern char *m4wraps;		/* m4wrap string default. */
 extern char *null;		/* as it says.. just a null. */
 extern char *progname;		/* program name */

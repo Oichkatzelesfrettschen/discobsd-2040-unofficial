@@ -11,7 +11,8 @@ not raising it ahead of the halt messages. Four more break the
 transmit ring's accounting: a peak that never advances, a drop count that
 never increments, one that wraps at the unsigned limit, and an occupancy computed without
 unsigned wraparound, which reads zero once the head index passes the tail
-across 2^32. A mutation
+across 2^32. The process-group mutation restores tty.c's leader-only lookup,
+which accepts a leaderless group whose live member belongs to another user. A mutation
 is a list of original and replacement pairs, each of which must match once.
 usb_console_test must reject every one.
 """
@@ -20,6 +21,25 @@ import argparse
 from pathlib import Path
 
 MUTATIONS = {
+    "pgrp-first-match": (
+        """        for (p = proc; p < &proc[NPROC]; p++) {
+            if (p->p_stat == 0 || p->p_pgrp != pgrp)
+                continue;
+            found = 1;
+            if (p->p_uid != u.u_uid && u.u_uid && !inferior(p))
+                return (EPERM);
+        }
+        if (!found)
+            return (EPERM);
+""",
+        """        p = pfind(pgrp);
+        if (p && p->p_pgrp == pgrp &&
+            p->p_uid != u.u_uid && u.u_uid && !inferior(p))
+            return (EPERM);
+""",
+        "        int found = 0;\n",
+        "",
+    ),
     "skip-controller-reset": (
         "\tREG32(RESETS_BASE + RESETS_SET) = RESETS_USBCTRL;\n",
         "",

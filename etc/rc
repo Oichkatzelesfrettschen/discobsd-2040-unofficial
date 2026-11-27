@@ -69,7 +69,7 @@ echo -n "Updating motd..."
 if [ ! -f /etc/motd ]; then
     echo "" >/etc/motd && chmod 664 /etc/motd && chown root.wheel /etc/motd
 fi
-T=/tmp/_motd
+T=/etc/.motd.$$
 sysctl -n kern.version | sed 1q >$T
 sed -n '/^$/,$p' </etc/motd >>$T
 cmp -s $T /etc/motd || cp $T /etc/motd

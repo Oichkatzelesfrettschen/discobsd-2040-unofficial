@@ -6,10 +6,10 @@ over a WebSocket, so any device on the local network opens the console at
 http://<this-host>:7681/. It needs Python and pyserial; the terminal itself
 is xterm.js, loaded from a CDN by the browser.
 
-Security model: a loopback bind does not need a token. Any other bind requires a
-shared secret as a Bearer header or ?token= query, compared in constant
-time, and a WebSocket upgrade must carry the Origin of the page this server
-served. The console is one serial line, so one session holds it at a time.
+Security model: every bind requires a shared secret as a Bearer header or
+?token= query, compared in constant time. A WebSocket upgrade must carry the
+Origin of the page this server served. The console is one serial line, so one
+session holds it at a time.
 """
 
 from __future__ import annotations
@@ -37,13 +37,16 @@ MAX_CLIENT_FRAME = 65536
 # closed (a tab restored from the back-forward cache, a laptop that left
 # the LAN) otherwise holds the one console forever.
 PING_INTERVAL = 15.0
+HTTP_REQUEST_TIMEOUT = 5.0
 XTERM = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"
 XTERM_CSS = "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
+XTERM_INTEGRITY = "sha384-J4qzUjBl1FxyLsl/kQPQIOeINsmp17OHYXDOMpMxlKX53ZfYsL+aWHpgArvOuof9"
+XTERM_CSS_INTEGRITY = "sha384-tStR1zLfWgsiXCF3IgfB3lBa8KmBe/lG287CL9WCeKgQYcp1bjb4/+mwN6oti4Co"
 
 PAGE = f"""<!doctype html><html lang=en><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1,user-scalable=no">
 <title>GizmoBSD console</title>
-<link rel=stylesheet href="{XTERM_CSS}">
+<link rel=stylesheet href="{XTERM_CSS}" integrity="{XTERM_CSS_INTEGRITY}" crossorigin=anonymous>
 <style>html,body{{margin:0;height:100%;width:100%;background:#000;overflow:hidden}}
 #t{{position:absolute;top:0;left:0}}
 #s{{position:fixed;top:4px;right:8px;color:#6a6;font:12px monospace;z-index:9}}
@@ -57,7 +60,7 @@ PAGE = f"""<!doctype html><html lang=en><head><meta charset=utf-8>
 </style></head><body>
 <div id=s role=status aria-live=polite>connecting</div><div id=t role=application aria-label="GizmoBSD console"></div>
 <div id=k><span class=g>GizmoBSD</span><button data-k="&#27;">Esc</button><button data-k="&#9;">Tab</button><button id=ctl aria-pressed=false>Ctrl</button><button data-k="&#3;">^C</button><button data-k="&#4;">^D</button><button data-k="&#26;">^Z</button><button data-k="&#12;">^L</button><button data-k="&#21;">^U</button><button data-k="&#18;">^R</button><span class=g></span><button id=paste>Paste</button><button data-k="&#27;[A">&uarr;</button><button data-k="&#27;[B">&darr;</button><button data-k="&#27;[D">&larr;</button><button data-k="&#27;[C">&rarr;</button><button id=bye title="sync, log out of GizmoBSD, then close the session">Sync &amp; leave</button><button id=help aria-expanded=false aria-controls=h>keys</button><button id=reader aria-pressed=false title="screen reader mode: announce output and expose the screen to assistive technology">reader</button><button id=hide>hide</button></div><button id=show aria-label="show the key bar">keys</button><div id=h role=region aria-label="key reference"><b>GizmoBSD</b> ($ or # prompt): Ctrl-C interrupt, DEL erase, Ctrl-U kill line, Ctrl-D log out, Ctrl-&#92; quit, Ctrl-Z suspend, Ctrl-L redraw, Ctrl-R history.<br><b>Leave</b>: type sync, then exit to reach login:. Sync &amp; leave does that and closes the session. Unplug only after sync.</div>
-<script src="{XTERM}"></script>
+<script src="{XTERM}" integrity="{XTERM_INTEGRITY}" crossorigin=anonymous></script>
 <script>
 var reader=false;try{{reader=localStorage.getItem("reader")==="1";}}catch(e){{}}
 var term=new Terminal({{cols:80,rows:24,fontFamily:"monospace",fontSize:14,
@@ -162,6 +165,17 @@ showb.addEventListener("click",function(e){{e.preventDefault();
 </script></body></html>"""
 
 
+def content_security_policy() -> str:
+    script = PAGE.rpartition("<script>")[2].partition("</script>")[0].encode()
+    script_hash = base64.b64encode(hashlib.sha256(script).digest()).decode()
+    return (
+        "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
+        "script-src https://cdn.jsdelivr.net 'sha256-%s'; "
+        "style-src https://cdn.jsdelivr.net 'unsafe-inline'; "
+        "connect-src 'self'; font-src data:; img-src data:" % script_hash
+    )
+
+
 def ws_frame(payload: bytes, opcode: int = 0x1) -> bytes:
     """One unmasked server-to-client frame (RFC 6455 section 5.2)."""
     n = len(payload)
@@ -209,6 +223,10 @@ class Silence(Exception):
     """No byte from the viewer for one ping interval, at a frame boundary."""
 
 
+class IncompleteFrame(Exception):
+    """A viewer failed to finish one frame within a ping interval."""
+
+
 class FrameReader:
     """Bytes from the viewer's socket for ws_read, with silence detection.
 
@@ -216,8 +234,8 @@ class FrameReader:
     refuses every read after one timeout ("cannot read from timed out
     object"), so a timed-out read would end the session on the spot. This
     reader waits with select() instead and raises Silence when nothing
-    arrives within the interval at the start of a frame; inside a frame it
-    keeps waiting, so a keystroke split across segments is never lost.
+    arrives within the interval at the start of a frame. Once a frame begins,
+    one absolute deadline bounds all of its remaining pieces.
     `pre` is whatever the handler had already buffered past the handshake.
     """
 
@@ -227,12 +245,18 @@ class FrameReader:
         self.interval = interval
 
     def read(self, n: int) -> bytes:
+        deadline = time.monotonic() + self.interval if self.buf else None
         while len(self.buf) < n:
-            ready, _, _ = select.select([self.sock], [], [], self.interval)
+            wait = self.interval
+            if deadline is not None:
+                wait = deadline - time.monotonic()
+                if wait <= 0:
+                    raise IncompleteFrame()
+            ready, _, _ = select.select([self.sock], [], [], wait)
             if not ready:
                 if not self.buf:
                     raise Silence()
-                continue
+                raise IncompleteFrame()
             try:
                 d = self.sock.recv(65536)
             except OSError:
@@ -243,6 +267,8 @@ class FrameReader:
             if not d:
                 break
             self.buf += d
+            if deadline is None:
+                deadline = time.monotonic() + self.interval
         out = bytes(self.buf[:n])
         del self.buf[:n]
         return out
@@ -275,9 +301,7 @@ def is_loopback(bind: str) -> bool:
     return bind in ("127.0.0.1", "::1", "localhost")
 
 
-def authorized(is_loopback_bind: bool, token: str | None, presented: str | None) -> bool:
-    if is_loopback_bind and not token:
-        return True
+def authorized(token: str | None, presented: str | None) -> bool:
     return bool(token) and presented is not None and hmac.compare_digest(presented, token)
 
 
@@ -291,13 +315,17 @@ def origin_ok(origin: str | None, host: str) -> bool:
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(HTTP_REQUEST_TIMEOUT)
+
     def log_message(self, *a):
         pass
 
     def _authorized(self):
         srv = self.server
         presented = token_from_request(self.path, self.headers.get("Authorization", ""))
-        if authorized(srv.is_loopback, srv.token, presented):
+        if authorized(srv.token, presented):
             return True
         self.send_response(401)
         self.send_header("Content-Length", "0")
@@ -315,6 +343,9 @@ class Handler(BaseHTTPRequestHandler):
         body = PAGE.encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Security-Policy", content_security_policy())
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -325,6 +356,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        # The upgraded connection belongs to the WebSocket loop below. The
+        # HTTP handler must not parse another request after that loop returns.
+        self.close_connection = True
         self.send_response(101)
         self.send_header("Upgrade", "websocket")
         self.send_header("Connection", "Upgrade")
@@ -412,6 +446,8 @@ class Handler(BaseHTTPRequestHandler):
                         break
                     awaiting_pong = True
                     continue
+                except IncompleteFrame:
+                    break
                 awaiting_pong = False
                 if op is None or op == 0x8:
                     break
@@ -480,7 +516,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--bind", default="127.0.0.1", help="bind address (default 127.0.0.1)")
     p.add_argument(
         "--token",
-        help="shared secret required for a non-loopback bind (deprecated: visible to "
+        help="shared secret required for every bind (deprecated: visible to "
         "every local user via ps; set GIZMOBSD_WEB_TOKEN or a systemd credential "
         "named web-token instead)",
     )
@@ -515,28 +551,27 @@ def main(argv=None) -> int:
         token = args.token
     else:
         token = ports.credential(ports.TOKEN_CREDENTIAL, ports.TOKEN_ENV)
-    if not is_loopback(args.bind) and not token:
+    if not token:
         sys.stderr.write(
-            "gizmobsd-web: refusing a non-loopback bind without a token; a bare "
-            "0.0.0.0 bind exposes a login console to the LAN with no authentication. "
+            "gizmobsd-web: refusing a bind without a token; loopback names can be "
+            "rebound and the console carries an authenticated login session. "
             "Set GIZMOBSD_WEB_TOKEN or a systemd credential named web-token\n"
         )
         return 1
     httpd = ConsoleServer((args.bind, args.port), args.device, token, usb_port=args.usb_port)
-    q = ("?token=" + token) if token else ""
     sys.stderr.write(f"GizmoBSD web console for {device}\n")
     if httpd.is_loopback:
         sys.stderr.write(
-            "  open http://127.0.0.1:%d/%s (loopback only; pass --bind 0.0.0.0 "
-            "--token SECRET for the LAN) -- Ctrl-C to stop\n" % (args.port, q)
+            "  listening on http://127.0.0.1:%d/ (token required) -- Ctrl-C to stop\n"
+            % args.port
         )
     else:
         # A concrete bind is the only address the server answers on; the
         # wildcard bind is advertised through the host's LAN address.
         host = args.bind if args.bind != "0.0.0.0" else lan_ip()
         sys.stderr.write(
-            "  open http://%s:%d/%s from the LAN (token required) -- Ctrl-C to stop\n"
-            % (host, args.port, q)
+            "  listening on http://%s:%d/ (token required) -- Ctrl-C to stop\n"
+            % (host, args.port)
         )
     try:
         httpd.serve_forever()

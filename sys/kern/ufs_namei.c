@@ -695,8 +695,7 @@ searchloop:
          * "dirchk" to be true.
          */
         ep = (struct direct*) ((caddr_t) bp->b_addr + entryoffsetinblock);
-        if (ep->d_reclen == 0 ||
-            (dirchk && dirbadentry (ep, entryoffsetinblock))) {
+        if (dirbadentry (ep, entryoffsetinblock)) {
             dirbad(dp, ndp->ni_offset, "mangled entry");
             i = DIRBLKSIZ - (entryoffsetinblock & (DIRBLKSIZ - 1));
             ndp->ni_offset += i;

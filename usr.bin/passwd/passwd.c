@@ -93,6 +93,9 @@ main(int argc, char **argv)
 	(void)umask(0);
 
 	temp = _PATH_PTMP;
+	printf("Changing password for %s.\n", pw->pw_name);
+	np = getnewpasswd(pw, NULL);
+
 	if ((fd = open(temp, O_WRONLY|O_CREAT|O_EXCL, 0600)) < 0) {
 		if (errno == EEXIST) {
 			fprintf(stderr,
@@ -111,9 +114,6 @@ main(int argc, char **argv)
 		fprintf(stderr, "passwd: can't read %s\n", passwd);
 		goto bad;
 	}
-
-	printf("Changing password for %s.\n", pw->pw_name);
-	np = getnewpasswd(pw, temp);
 
 	if (!copy(pw->pw_name, np, temp_fp, pw))
 		goto bad;
@@ -223,7 +223,8 @@ getnewpasswd(struct passwd *pw, char *temp)
 		if (!password_matches(encrypted, pw->pw_passwd)) {
 			explicit_bzero(p, strlen(p));
 			(void)printf("passwd: %s.\n", strerror(EACCES));
-			(void)unlink(temp);
+			if (temp != NULL)
+				(void)unlink(temp);
 			exit(1);
 		}
 		explicit_bzero(p, strlen(p));
@@ -234,7 +235,8 @@ getnewpasswd(struct passwd *pw, char *temp)
 		if (!*p) {
 			explicit_bzero(p, strlen(p));
 			(void)printf("Password unchanged.\n");
-			(void)unlink(temp);
+			if (temp != NULL)
+				(void)unlink(temp);
 			exit(0);
 		}
 		if (strlen(p) <= 5) {

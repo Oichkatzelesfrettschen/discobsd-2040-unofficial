@@ -8,6 +8,7 @@
 #define	PZERO	25
 #define	PRIBIO	20
 
+int tsleep(caddr_t chan, int pri, int ticks);
 void sleep(caddr_t chan, int pri);
 void wakeup(caddr_t chan);
 

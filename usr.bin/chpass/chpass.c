@@ -141,23 +141,8 @@ main(argc, argv)
 	(void)umask(0);
 
 	temp = _PATH_PTMP;
-	if ((fd = open(temp, O_WRONLY|O_CREAT|O_EXCL, 0600)) < 0) {
-		if (errno == EEXIST) {
-			(void)fprintf(stderr,
-			    "chpass: password file busy -- try again later.\n");
-			exit(1);
-		}
-		(void)fprintf(stderr, "chpass: %s: %s; ",
-		    temp, strerror(errno));
-		goto bad;
-	}
-	if (!(temp_fp = fdopen(fd, "w"))) {
-		(void)fprintf(stderr, "chpass: can't write %s; ", temp);
-		goto bad;
-	}
-
 	if (!aflag && !info(pw))
-		goto bad;
+		exit(1);
 
 	/* root should have a 0 uid and a reasonable shell */
 	if (!strcmp(pw->pw_name, "root")) {
@@ -174,6 +159,21 @@ main(argc, argv)
 			}
 			else if (!strcmp(pw->pw_shell, p))
 				break;
+	}
+
+	if ((fd = open(temp, O_WRONLY|O_CREAT|O_EXCL, 0600)) < 0) {
+		if (errno == EEXIST) {
+			(void)fprintf(stderr,
+			    "chpass: password file busy -- try again later.\n");
+			exit(1);
+		}
+		(void)fprintf(stderr, "chpass: %s: %s; ",
+		    temp, strerror(errno));
+		goto bad;
+	}
+	if (!(temp_fp = fdopen(fd, "w"))) {
+		(void)fprintf(stderr, "chpass: can't write %s; ", temp);
+		goto bad;
 	}
 
 	passwd = _PATH_SHADOW;

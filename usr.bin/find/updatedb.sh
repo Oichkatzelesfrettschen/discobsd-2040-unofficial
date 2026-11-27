@@ -2,15 +2,34 @@
 #
 #	@(#)updatedb.csh	4.6.1	(2.11BSD)	1996/10/23
 #
+set -eu
+
 SRCHPATHS="/"			# directories to be put in the database
 LIBDIR=/usr/libexec		# for subprograms
 FINDHONCHO=root			# for error messages
 FCODES=/var/db/find.codes	# the database
 
 PATH=$LIBDIR:/bin
-bigrams=/tmp/f.bigrams$$
-filelist=/tmp/f.list$$
-errs=/tmp/f.errs$$
+umask 077
+work=
+for suffix in 0 1 2 3 4 5 6 7 8 9
+do
+	candidate=/tmp/updatedb.$$.$suffix
+	if mkdir "$candidate" 2>/dev/null
+	then
+		work=$candidate
+		break
+	fi
+done
+if [ -z "$work" ]
+then
+	echo 'updatedb: cannot create private temporary directory' >&2
+	exit 1
+fi
+bigrams=$work/bigrams
+filelist=$work/list
+errs=$work/errors
+trap 'rm -f "$bigrams" "$filelist" "$errs"; rmdir "$work" 2>/dev/null || :' 0 1 2 3 15
 
 # Make a file list and compute common bigrams.
 # Alphabetize '/' before any other char with 'tr'.
@@ -21,19 +40,19 @@ errs=/tmp/f.errs$$
 
 nice +10
 find ${SRCHPATHS} -print | tr '/' '\001' | \
-   (sort -f; echo $status > $errs) | \
-   tr '\001' '/' > $filelist
-$LIBDIR/bigram < $filelist | \
-   (sort; echo $status >> $errs) | uniq -c | sort -nr | \
-   awk '{ if (NR <= 128) print $2 }' | tr -d '\012' > $bigrams
+   (set +e; sort -f; status=$?; echo "$status" > "$errs"; exit "$status") | \
+   tr '\001' '/' > "$filelist"
+$LIBDIR/bigram < "$filelist" | \
+   (set +e; sort; status=$?; echo "$status" >> "$errs"; exit "$status") | \
+   uniq -c | sort -nr | \
+   awk '{ if (NR <= 128) print $2 }' | tr -d '\012' > "$bigrams"
 
 # code the file list
 
-if grep -s -v 0 $errs
+if grep -s -v 0 "$errs"
 then
 	echo 'squeeze error: out of sort space' | mail $FINDHONCHO
 else
-	$LIBDIR/code $bigrams < $filelist > $FCODES
-	chmod 644 $FCODES
-	rm $bigrams $filelist $errs
+	$LIBDIR/code "$bigrams" < "$filelist" > "$FCODES"
+	chmod 644 "$FCODES"
 fi

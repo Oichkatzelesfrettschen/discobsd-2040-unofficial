@@ -313,8 +313,8 @@ retry:
 				opgrp = shpgrp;
 				shpgrp = getpid();
 				tpgrp = shpgrp;
-				(void) ioctl(f, TIOCSPGRP, (char *)&shpgrp);
 				(void) setpgrp(0, shpgrp);
+				(void) ioctl(f, TIOCSPGRP, (char *)&shpgrp);
 				(void) ioctl(dcopy(f, FSHTTY), FIOCLEX,
 					(char *)0);
 			} else {

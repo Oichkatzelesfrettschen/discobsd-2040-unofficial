@@ -493,3 +493,28 @@ psram_device_init(void)
 			return PSRAM_E_QUAD;
 	return psram_check_extent();
 }
+
+/*
+ * Choose the boot lines for one probe: id_read is psram_id_read and err the
+ * result of psram_device_init(). A Read ID that completed prints its bytes
+ * first; the error then names its line, or success names the swap line.
+ * lines holds PSRAM_LINES_MAX entries; the count returned is the number
+ * filled.
+ */
+unsigned int
+psram_probe_lines(int id_read, int err, unsigned char *lines)
+{
+	unsigned int n = 0;
+
+	if (id_read)
+		lines[n++] = PSRAM_LINE_READ_ID;
+	if (err == PSRAM_E_ID)
+		lines[n++] = PSRAM_LINE_NOT_PART;
+	else if (err == PSRAM_E_SIZE)
+		lines[n++] = PSRAM_LINE_WRAP;
+	else if (err != 0)
+		lines[n++] = PSRAM_LINE_UNUSABLE;
+	else
+		lines[n++] = PSRAM_LINE_UP;
+	return n;
+}

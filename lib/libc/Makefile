@@ -55,12 +55,16 @@ ALL		= gen stdio stdlib string wchar inet compat ${MACHINE_ARCH}
 
 all:            ../libc.a
 
+# Members enter the archive in byte order of their names (LC_ALL=C sort), so
+# the archive bytes, and the order in which the linker meets its members,
+# stay the same under every builder locale; a shell glob sorts by the
+# locale's collation and orders _brk.o after atol.o under en_US.
 ../libc.a:      ${ALL}
 		rm -rf tmp
 		mkdir tmp
 		(cd tmp; set -e; for i in ${ALL}; do $(AR) x ../$$i/$$i.a; done; \
 			rm -f ../$@; \
-			$(AR) cr ../$@ *.o)
+			$(AR) cr ../$@ `ls *.o | LC_ALL=C sort`)
 #			$(AR) cr ../$@ `sh ../../cmd/lorder.sh *.o | tsort`
 		rm -rf tmp
 

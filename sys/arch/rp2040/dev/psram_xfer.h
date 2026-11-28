@@ -79,8 +79,21 @@
 extern unsigned char psram_mfid, psram_kgd, psram_eid[PSRAM_EID_BYTES];
 extern int psram_id_read;
 
+/*
+ * Boot lines of psramprobe(), in print order. psram_probe_lines() maps the
+ * probe result to the lines to print, so the choice runs on the host; the
+ * driver holds the text of each line.
+ */
+#define	PSRAM_LINE_READ_ID	1	/* the identification bytes */
+#define	PSRAM_LINE_NOT_PART	2	/* the bytes name another part */
+#define	PSRAM_LINE_WRAP		3	/* addresses wrap below PSRAM_BYTES */
+#define	PSRAM_LINE_UNUSABLE	4	/* any other error */
+#define	PSRAM_LINE_UP		5	/* the part is the swap device */
+#define	PSRAM_LINES_MAX		2
+
 void psram_hw_init(void);
 int psram_device_init(void);
+unsigned int psram_probe_lines(int id_read, int err, unsigned char *lines);
 unsigned int psram_chunk_len(unsigned int addr, unsigned int len);
 int psram_block_offset(long blkno, unsigned int bsize, unsigned int len,
     unsigned int *off);

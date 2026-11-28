@@ -2765,12 +2765,22 @@ xip-diagnostic-kernel: check-python
 		${MAKE} -C sys/arch/rp2040/compile/PICO_UART_XIP unix
 
 XIP_MODELS?=	${TOPSRC}/tools/renode/vendor/Renode_RP2040
+# xip-gate-inputs builds the three inputs below from the checkout after
+# logged-build (tools/xip_gate_inputs.sh); the gate reads the newest set
+# unless the caller names other files.
+XIP_INPUTS?=	${TOPSRC}/.build-logs/xip-gate-inputs
+XIP_SLOT_ELF?=	${XIP_INPUTS}/slot.elf
+XIP_PROVIDER?=	${XIP_INPUTS}/provider.bin
+XIP_FILESYSTEM?=	${XIP_INPUTS}/root.img
+xip-gate-inputs: check-python
+		sh tools/xip_gate_inputs.sh ${TOPSRC:Q} ${MAKE:Q}
+
 check-renode-xip-process: xip-diagnostic-kernel
 		${PYTHON} tests/native_linker/xip_process.py \
 		    --slot-elf ${XIP_SLOT_ELF:U:Q} --provider ${XIP_PROVIDER:U:Q} \
 		    --filesystem ${XIP_FILESYSTEM:U:Q} --models ${XIP_MODELS:Q}
 
-.PHONY: xip-diagnostic-kernel check-renode-xip-process
+.PHONY: xip-diagnostic-kernel xip-gate-inputs check-renode-xip-process
 
 # Renode with the third-party RP2040 models: the kernel boots from the real
 # boot ROM and the gate asserts the console lines through the device probe.

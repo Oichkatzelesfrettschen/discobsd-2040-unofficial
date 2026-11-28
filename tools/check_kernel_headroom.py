@@ -4,8 +4,8 @@ Usage: check_kernel_headroom.py --self-test
        check_kernel_headroom.py [--linker-script LD] [--region NAME]
                                 [--margin BYTES] ELF...
 
-The FLASH region comes from the MEMORY block of the linker script
-(sys/arch/rp2040/conf/RP2040.ld). The flash image of a kernel is the span from
+The FLASH region comes from the MEMORY block of the selected linker script.
+The default script is sys/arch/rp2040/conf/RP2040.ld. The flash image spans
 the region origin to the end of the last PT_LOAD segment whose load address
 lies in the QSPI flash window from that origin: .text, the .data initializers
 and the .ramfunc initializers all load there, while .boot2 (BOOT2 region) and
@@ -353,7 +353,8 @@ def main(argv: list[str] | None = None) -> int:
             verdict = "PASS" if within_margin(room, args.margin) else "FAIL"
             failed = failed or verdict == "FAIL"
             print(f"{verdict} kernel-headroom {path}: flash image {used} of "
-                  f"{length} bytes, headroom {room} bytes, margin {args.margin}")
+                  f"{length} bytes ({args.linker_script.name}), headroom {room} bytes, "
+                  f"margin {args.margin}")
         return 1 if failed else 0
     except (InputError, AssertionError) as error:
         print(f"ERROR kernel-headroom: {error}", file=sys.stderr)

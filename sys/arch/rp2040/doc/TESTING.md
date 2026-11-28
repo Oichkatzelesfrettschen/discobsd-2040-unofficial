@@ -2727,14 +2727,13 @@ flash-semantics measures what a model of that chip has to reproduce: the
 status register's WEL after 0x06 and 0x04, WIP and its duration across a
 sector erase and a page program, the erased state, that a program only
 clears bits, page wrap at 256 bytes, and the JEDEC and SFDP answers. It
-erases and programs one sector, the last 4 KB of the kernel region, which
-the image does not reach, and leaves it erased. Neither probe is in the
-root manifest and no gate runs either on the board:
-tools/flash-semantics/run-on-board.sh reboots the attached Pico into
-BOOTSEL, executes the probe from SRAM, reads its report over USB CDC and
-waits for the resident kernel's console to return, and it runs only when
-a person invokes it. Its report for the board on hand is recorded in the
-notes repository's DEVICE.md and cited by
+erases and programs a fixed 4 KiB sector at flash offset `0x1f000` and
+leaves it erased. The probe build checks SRAM placement. The board runner
+`tools/flash-semantics/run-on-board.sh` refuses before accessing a device.
+Board execution requires an explicit one-run arming token, a bound target
+board, and verification that its installed image leaves the sector available
+for destructive testing. The historical report for the measured board is
+recorded in the notes repository's DEVICE.md and cited by
 docs/research/renode-rp2040-upstream-reports.md.
 
 tools/pico-sdk/sdk-path.sh resolves the SDK from `PICO_SDK_PATH`, then
